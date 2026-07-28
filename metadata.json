@@ -1,0 +1,6 @@
+{
+  "name": "SuperApp Codebase Explorer",
+  "description": "Boilerplate and documentation manager for the React Native customer-facing SuperApp.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
