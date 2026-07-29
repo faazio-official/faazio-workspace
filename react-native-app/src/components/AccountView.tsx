@@ -18,12 +18,14 @@ interface AccountViewProps {
   handleReset: () => void;
   setShowLocationRequestState: (val: boolean) => void;
   setIsLoggedIn: (val: boolean) => void;
+  onScroll?: (offsetY: number) => void;
 }
 
 export default function AccountView({
   handleReset,
   setShowLocationRequestState,
   setIsLoggedIn,
+  onScroll,
 }: AccountViewProps) {
   const pastOrders = [
     { id: "FA-810293", item: "Truffle Burger Duo", store: "The Gourmet Table", price: "₹450", date: "Yesterday, 8:14 PM", status: "Delivered", icon: "🍲" },
@@ -31,7 +33,9 @@ export default function AccountView({
   ];
 
   return (
-    <ScrollView style={styles.container} contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+    <ScrollView style={styles.container} contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}
+      onScroll={onScroll ? (e) => onScroll(e.nativeEvent.contentOffset.y) : undefined}
+      scrollEventThrottle={16}>
       
       {/* 1. User Profile Summary */}
       <View style={styles.profileCard}>

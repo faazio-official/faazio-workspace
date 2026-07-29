@@ -30,6 +30,7 @@ interface CategoriesViewProps {
   onProductClick?: (product: any) => void;
   favorites?: string[];
   toggleFavorite?: (productId: string) => void;
+  onScroll?: (offsetY: number) => void;
 }
 
 export default function CategoriesView({
@@ -39,6 +40,7 @@ export default function CategoriesView({
   onProductClick,
   favorites = [],
   toggleFavorite,
+  onScroll,
 }: CategoriesViewProps) {
   const [selectedApp, setSelectedApp] = useState<'ALL' | 'FOOD' | 'MART' | 'GROCERY' | 'PHARMA'>('ALL');
   const [activeSubCat, setActiveSubCat] = useState<string>('all');
@@ -125,7 +127,9 @@ export default function CategoriesView({
   const displayedProducts = getFilteredProducts();
 
   return (
-    <ScrollView style={styles.container} contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+    <ScrollView style={styles.container} contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}
+      onScroll={onScroll ? (e) => onScroll(e.nativeEvent.contentOffset.y) : undefined}
+      scrollEventThrottle={16}>
       
       {/* 1. TOP APP LEVEL FILTER PILLS */}
       <View style={styles.filterSection}>

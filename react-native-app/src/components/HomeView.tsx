@@ -39,9 +39,10 @@ const { width: SCREEN_WIDTH } = Dimensions.get('window');
 interface HomeViewProps {
   onLaunchSubApp: (subAppId: 'FA_MART' | 'FOOD' | 'GROCERY' | 'PHARMA') => void;
   addToCart: (id: string, name: string, price: number, emoji: string) => void;
+  onScroll?: (offsetY: number) => void;
 }
 
-export default function HomeView({ onLaunchSubApp, addToCart }: HomeViewProps) {
+export default function HomeView({ onLaunchSubApp, addToCart, onScroll }: HomeViewProps) {
   const [favoriteRestaurants, setFavoriteRestaurants] = useState<string[]>([]);
   const [addedItemFeedback, setAddedItemFeedback] = useState<string | null>(null);
   const [topAdIndex, setTopAdIndex] = useState(0);
@@ -293,7 +294,9 @@ export default function HomeView({ onLaunchSubApp, addToCart }: HomeViewProps) {
   };
 
   return (
-    <ScrollView style={styles.container} contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+    <ScrollView style={styles.container} contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}
+      onScroll={onScroll ? (e) => onScroll(e.nativeEvent.contentOffset.y) : undefined}
+      scrollEventThrottle={16}>
       
       {/* PHASE 2: ADMINISTRATIVE ALIGNMENT & DELIVERY BANNER (Ditto Demo Status) */}
       <View style={{ marginHorizontal: 16, marginTop: 14, backgroundColor: '#0f172a', borderRadius: 24, padding: 16, borderWidth: 1, borderColor: 'rgba(245, 158, 11, 0.3)' }}>

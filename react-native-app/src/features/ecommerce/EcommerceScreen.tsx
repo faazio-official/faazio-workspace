@@ -3,7 +3,6 @@ import {
   StyleSheet,
   View,
   Text,
-  SafeAreaView,
   ScrollView,
   Image,
   TouchableOpacity,
@@ -69,7 +68,7 @@ export function EcommerceScreen() {
   };
 
   return (
-    <SafeAreaView style={styles.container}>
+    <View style={styles.container}>
       {/* Mini App Top Header Row */}
       <View style={styles.appHeader}>
         <View style={styles.appTitleWrapper}>
@@ -176,7 +175,7 @@ export function EcommerceScreen() {
           ))}
         </View>
       </ScrollView>
-    </SafeAreaView>
+    </View>
   );
 }
 

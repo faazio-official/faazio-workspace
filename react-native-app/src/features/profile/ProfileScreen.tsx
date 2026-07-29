@@ -3,7 +3,6 @@ import {
   StyleSheet,
   View,
   Text,
-  SafeAreaView,
   ScrollView,
   Image,
   TouchableOpacity,
@@ -23,7 +22,7 @@ export function ProfileScreen({ navigation }: any) {
   };
 
   return (
-    <SafeAreaView style={styles.container}>
+    <View style={styles.container}>
       <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
         {/* User Card */}
         <View style={styles.profileHeader}>
@@ -88,7 +87,7 @@ export function ProfileScreen({ navigation }: any) {
           <Text style={styles.logoutText}>Log Out Session</Text>
         </TouchableOpacity>
       </ScrollView>
-    </SafeAreaView>
+    </View>
   );
 }
 

@@ -73,8 +73,8 @@ export default function SubAppWrapper({
       return true; // prevent default back action
     };
 
-    BackHandler.addEventListener('hardwareBackPress', onBackPress);
-    return () => BackHandler.removeEventListener('hardwareBackPress', onBackPress);
+    const subscription = BackHandler.addEventListener('hardwareBackPress', onBackPress);
+    return () => subscription.remove();
   }, []);
 
   const handleSubModeChange = (mode: 'order' | 'booking') => {

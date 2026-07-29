@@ -53,6 +53,7 @@ interface CartViewProps {
   setCartItems: React.Dispatch<React.SetStateAction<CartItem[]>>;
   updateCartQuantity: (id: string, delta: number) => void;
   setActiveTab: (tab: 'Home' | 'Categories' | 'Explore' | 'Account' | 'Cart') => void;
+  onScroll?: (offsetY: number) => void;
 }
 
 type CheckoutStep = 'BAG' | 'ADDRESS' | 'PAYMENT' | 'RECEIPT';
@@ -62,6 +63,7 @@ export default function CartView({
   setCartItems,
   updateCartQuantity,
   setActiveTab,
+  onScroll,
 }: CartViewProps) {
   const [step, setStep] = useState<CheckoutStep>('BAG');
   const [promoCode, setPromoCode] = useState('');
@@ -161,7 +163,9 @@ export default function CartView({
 
   if (step === 'BAG') {
     return (
-      <ScrollView style={styles.container} contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+      <ScrollView style={styles.container} contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}
+        onScroll={onScroll ? (e) => onScroll(e.nativeEvent.contentOffset.y) : undefined}
+        scrollEventThrottle={16}>
         <View style={styles.cardBox}>
           <View style={styles.headerRow}>
             <View style={styles.headerLeft}>
@@ -338,7 +342,9 @@ export default function CartView({
 
   if (step === 'ADDRESS') {
     return (
-      <ScrollView style={styles.container} contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+      <ScrollView style={styles.container} contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}
+        onScroll={onScroll ? (e) => onScroll(e.nativeEvent.contentOffset.y) : undefined}
+        scrollEventThrottle={16}>
         <View style={styles.cardBox}>
           <View style={[styles.headerRow, { borderBottomWidth: 1, borderBottomColor: '#f1f5f9', paddingBottom: 10 }]}>
             <TouchableOpacity onPress={() => setStep('BAG')} style={styles.backBtn} activeOpacity={0.8}>

@@ -1,17 +1,19 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import {
   StyleSheet,
   View,
   Text,
   TouchableOpacity,
-  SafeAreaView,
   Image,
-  Dimensions,
+  Animated,
+  Easing,
 } from 'react-native';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../../navigation/AppNavigator';
+import { ChevronLeft, ChevronRight } from 'lucide-react-native';
+import { FaazioLogo } from '../../components/FaazioLogo';
+import { SCREEN_W, SCREEN_H, hs, vs, ms, wp, hp } from '@/utils/responsive';
 
-// Import images matching the source assets
 import welcomeIllustration1 from '../../assets/welcome_illustration_1.png';
 import welcomeIllustration2 from '../../assets/welcome_illustration_2.png';
 import welcomeIllustration3 from '../../assets/welcome_illustration_3.png';
@@ -25,9 +27,10 @@ interface OnboardingStep {
   description: string;
   bgColor: string;
   accentColor: string;
-  bgCircleColor: string;
   image: any;
 }
+
+const BRAND_BLUE = '#2c56f6';
 
 const ONBOARDING_DATA: OnboardingStep[] = [
   {
@@ -35,8 +38,7 @@ const ONBOARDING_DATA: OnboardingStep[] = [
     subtitle: 'Your Daily SuperApp',
     description: 'Simplify your life. Shop essentials, order delicious food, book travel tickets, and access trusted local e-services inside one seamless interface.',
     bgColor: '#ffffff',
-    accentColor: '#2c56f6',
-    bgCircleColor: '#f1f5f9',
+    accentColor: BRAND_BLUE,
     image: welcomeIllustration1,
   },
   {
@@ -44,8 +46,7 @@ const ONBOARDING_DATA: OnboardingStep[] = [
     subtitle: 'Essentials Made Easy',
     description: 'Experience instant deliveries of groceries, household essentials, and favorite brands from vetted local stores direct to your doorstep.',
     bgColor: '#ffffff',
-    accentColor: '#e11d48',
-    bgCircleColor: '#fff1f2',
+    accentColor: BRAND_BLUE,
     image: welcomeIllustration2,
   },
   {
@@ -53,8 +54,7 @@ const ONBOARDING_DATA: OnboardingStep[] = [
     subtitle: 'Hot Food Ordering',
     description: 'Craving something hot and delicious? Order from premier local restaurants and track your delivery in real-time with zero hassle.',
     bgColor: '#ffffff',
-    accentColor: '#16a34a',
-    bgCircleColor: '#f0fdf4',
+    accentColor: BRAND_BLUE,
     image: welcomeIllustration3,
   },
   {
@@ -62,19 +62,74 @@ const ONBOARDING_DATA: OnboardingStep[] = [
     subtitle: 'And Hassle-Free Booking',
     description: 'From certified home repairs to booking movie, bus, or train tickets—Faazio handles your entire chore list instantly.',
     bgColor: '#ffffff',
-    accentColor: '#9333ea',
-    bgCircleColor: '#faf5ff',
+    accentColor: BRAND_BLUE,
     image: welcomeIllustration4,
   },
 ];
 
-const { height: SCREEN_HEIGHT } = Dimensions.get('window');
+const LOGO_HEIGHT = Math.round(Math.min(Math.max(SCREEN_W * 0.09, 30), 42));
+
+const STEP_ENTRY = [
+  { scale: 0.9, y: 5, rotate: 0, x: 0 },
+  { scale: 0.9, rotate: -2, y: 0, x: 0 },
+  { scale: 0.9, x: -10, y: 0, rotate: 0 },
+  { scale: 0.9, rotate: 2, y: 0, x: 0 },
+];
 
 export function OnboardingScreen({ navigation }: Props) {
   const [currentStep, setCurrentStep] = useState(0);
+  const directionRef = useRef<'next' | 'back'>('next');
+  const isFirstRender = useRef(true);
+
+  const slideAnim = useRef(new Animated.Value(0)).current;
+  const opacityAnim = useRef(new Animated.Value(1)).current;
+  const entryScale = useRef(new Animated.Value(1)).current;
+  const entryY = useRef(new Animated.Value(0)).current;
+  const entryX = useRef(new Animated.Value(0)).current;
+  const entryRotate = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    if (isFirstRender.current) {
+      isFirstRender.current = false;
+      return;
+    }
+
+    const offset = directionRef.current === 'next' ? 120 : -120;
+    slideAnim.setValue(offset);
+    opacityAnim.setValue(0);
+
+    Animated.parallel([
+      Animated.timing(slideAnim, {
+        toValue: 0,
+        duration: 220,
+        easing: Easing.out(Easing.ease),
+        useNativeDriver: true,
+      }),
+      Animated.timing(opacityAnim, {
+        toValue: 1,
+        duration: 220,
+        useNativeDriver: true,
+      }),
+    ]).start();
+
+    const entry = STEP_ENTRY[currentStep];
+    entryScale.setValue(entry.scale);
+    entryY.setValue(entry.y);
+    entryX.setValue(entry.x);
+    entryRotate.setValue(entry.rotate);
+
+    const springConfig = { tension: 120, friction: 10, useNativeDriver: true };
+    Animated.parallel([
+      Animated.spring(entryScale, { toValue: 1, ...springConfig }),
+      Animated.spring(entryY, { toValue: 0, ...springConfig }),
+      Animated.spring(entryX, { toValue: 0, ...springConfig }),
+      Animated.spring(entryRotate, { toValue: 0, ...springConfig }),
+    ]).start();
+  }, [currentStep]);
 
   const handleNext = () => {
     if (currentStep < ONBOARDING_DATA.length - 1) {
+      directionRef.current = 'next';
       setCurrentStep((prev) => prev + 1);
     } else {
       navigation.navigate('Login');
@@ -83,6 +138,7 @@ export function OnboardingScreen({ navigation }: Props) {
 
   const handleBack = () => {
     if (currentStep > 0) {
+      directionRef.current = 'back';
       setCurrentStep((prev) => prev - 1);
     }
   };
@@ -93,41 +149,57 @@ export function OnboardingScreen({ navigation }: Props) {
 
   const currentData = ONBOARDING_DATA[currentStep];
 
+  const rotateInterpolation = entryRotate.interpolate({
+    inputRange: [-5, 0, 5],
+    outputRange: ['-5deg', '0deg', '5deg'],
+  });
+
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: currentData.bgColor }]}>
-      {/* Header Bar */}
-      <View style={styles.header}>
-        {/* Custom Faazio Brand Logo Title */}
-        <View style={styles.brandContainer}>
-          <Text style={styles.brandTitle}>Faazio</Text>
-          <View style={styles.brandDot} />
+    <View style={[styles.container, { backgroundColor: currentData.bgColor }]}>
+      <Animated.View
+        style={[
+          styles.animatedWrapper,
+          {
+            opacity: opacityAnim,
+            transform: [
+              { translateX: slideAnim },
+              { scale: entryScale },
+              { translateY: entryY },
+              { translateX: entryX },
+              { rotate: rotateInterpolation },
+            ],
+          },
+        ]}
+      >
+        {/* Header Bar */}
+        <View style={styles.header}>
+          <FaazioLogo size={LOGO_HEIGHT} />
+          <TouchableOpacity onPress={handleSkip} style={styles.skipButton} activeOpacity={0.8}>
+            <Text style={styles.skipText}>Skip</Text>
+          </TouchableOpacity>
         </View>
-        <TouchableOpacity onPress={handleSkip} style={styles.skipButton}>
-          <Text style={styles.skipText}>Skip</Text>
-        </TouchableOpacity>
-      </View>
 
-      {/* Main Content Area */}
-      <View style={styles.contentContainer}>
-        {/* Rounded dynamic background circle wrapper for illustrations */}
-        <View style={[styles.illustrationWrapper, { backgroundColor: currentData.bgCircleColor }]}>
-          <Image 
-            source={currentData.image} 
-            style={styles.illustrationImage} 
-            resizeMode="contain" 
-          />
-        </View>
+        {/* Main Content Area */}
+        <View style={styles.contentContainer}>
+          <View style={styles.illustrationWrapper}>
+            <Image
+              source={currentData.image}
+              style={styles.illustrationImage}
+              resizeMode="contain"
+            />
+          </View>
 
-        {/* Text Details Section */}
-        <View style={styles.textDetails}>
-          <Text style={styles.titleText}>{currentData.title}</Text>
-          <Text style={[styles.subtitleText, { color: currentData.accentColor }]}>
-            {currentData.subtitle}
-          </Text>
-          <View style={[styles.underline, { backgroundColor: currentData.accentColor }]} />
-          <Text style={styles.descriptionText}>{currentData.description}</Text>
+          {/* Text Details Section */}
+          <View style={styles.textDetails}>
+            <Text style={styles.titleText}>{currentData.title}</Text>
+            <Text style={[styles.subtitleText, { color: BRAND_BLUE }]}>
+              {currentData.subtitle}
+            </Text>
+            <View style={[styles.underline, { backgroundColor: BRAND_BLUE }]} />
+            <Text style={styles.descriptionText}>{currentData.description}</Text>
+          </View>
         </View>
-      </View>
+      </Animated.View>
 
       {/* Footer Navigation */}
       <View style={styles.footer}>
@@ -140,9 +212,9 @@ export function OnboardingScreen({ navigation }: Props) {
                 key={index}
                 style={[
                   styles.dot,
-                  isActive 
-                    ? [styles.activeDot, { backgroundColor: currentData.accentColor }] 
-                    : [styles.inactiveDot, { backgroundColor: '#cbd5e1' }]
+                  isActive
+                    ? [styles.activeDot, { backgroundColor: BRAND_BLUE }]
+                    : [styles.inactiveDot, { backgroundColor: '#cbd5e1' }],
                 ]}
               />
             );
@@ -157,21 +229,23 @@ export function OnboardingScreen({ navigation }: Props) {
               style={styles.backButton}
               activeOpacity={0.8}
             >
+              <ChevronLeft size={ms(12)} color="#475569" />
               <Text style={styles.backButtonText}>Back</Text>
             </TouchableOpacity>
           )}
           <TouchableOpacity
             onPress={handleNext}
-            style={[styles.nextButton, { backgroundColor: currentData.accentColor }]}
+            style={[styles.nextButton, { backgroundColor: BRAND_BLUE }]}
             activeOpacity={0.8}
           >
             <Text style={styles.nextButtonText}>
               {currentStep === ONBOARDING_DATA.length - 1 ? 'Get Started' : 'Next'}
             </Text>
+            <ChevronRight size={ms(12)} color="#ffffff" />
           </TouchableOpacity>
         </View>
       </View>
-    </SafeAreaView>
+    </View>
   );
 }
 
@@ -180,42 +254,27 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#ffffff',
   },
+  animatedWrapper: {
+    flex: 1,
+  },
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingHorizontal: 24,
-    paddingTop: 12,
-    height: 54,
-  },
-  brandContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  brandTitle: {
-    fontSize: 18,
-    fontWeight: '900',
-    color: '#0f172a',
-    letterSpacing: -0.5,
-  },
-  brandDot: {
-    width: 6,
-    height: 6,
-    borderRadius: 3,
-    backgroundColor: '#2c56f6',
-    marginLeft: 3,
-    marginTop: 4,
+    paddingHorizontal: hs(24),
+    paddingTop: vs(12),
+    height: vs(54),
   },
   skipButton: {
-    paddingVertical: 6,
-    paddingHorizontal: 12,
-    borderRadius: 16,
-    backgroundColor: '#f8fafc',
+    paddingVertical: vs(6),
+    paddingHorizontal: hs(12),
+    borderRadius: ms(16),
+    backgroundColor: 'rgba(255,255,255,0.8)',
     borderWidth: 1,
-    borderColor: '#f1f5f9',
+    borderColor: 'rgba(226,232,240,0.5)',
   },
   skipText: {
-    fontSize: 11,
+    fontSize: ms(11),
     color: '#475569',
     fontWeight: '700',
   },
@@ -223,17 +282,15 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    paddingHorizontal: 24,
+    paddingHorizontal: hs(24),
   },
   illustrationWrapper: {
     width: '100%',
-    aspectRatio: 1.15,
-    borderRadius: 32,
+    maxWidth: hs(310),
+    aspectRatio: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    marginBottom: SCREEN_HEIGHT < 700 ? 16 : 28,
-    overflow: 'hidden',
-    padding: 16,
+    marginBottom: SCREEN_H < 700 ? vs(16) : vs(20),
   },
   illustrationImage: {
     width: '100%',
@@ -242,82 +299,90 @@ const styles = StyleSheet.create({
   textDetails: {
     alignItems: 'center',
     width: '100%',
-    paddingHorizontal: 12,
+    paddingHorizontal: hs(12),
   },
   titleText: {
-    fontSize: SCREEN_HEIGHT < 700 ? 18 : 22,
+    fontSize: SCREEN_H < 700 ? ms(18) : ms(20),
     fontWeight: '900',
     color: '#0f172a',
     textAlign: 'center',
     letterSpacing: -0.5,
   },
   subtitleText: {
-    fontSize: SCREEN_HEIGHT < 700 ? 12 : 13,
+    fontSize: SCREEN_H < 700 ? ms(12) : ms(13),
     fontWeight: '800',
     textAlign: 'center',
     textTransform: 'uppercase',
     letterSpacing: 0.5,
-    marginTop: 4,
+    marginTop: vs(4),
   },
   underline: {
-    width: 36,
-    height: 3,
-    borderRadius: 1.5,
-    marginVertical: SCREEN_HEIGHT < 700 ? 10 : 16,
+    width: hs(40),
+    height: vs(2),
+    borderRadius: 1,
+    marginVertical: SCREEN_H < 700 ? vs(10) : vs(12),
   },
   descriptionText: {
-    fontSize: SCREEN_HEIGHT < 700 ? 11 : 12.5,
+    fontSize: SCREEN_H < 700 ? ms(11) : ms(12),
     color: '#64748b',
     textAlign: 'center',
-    lineHeight: SCREEN_HEIGHT < 700 ? 16 : 20,
+    lineHeight: SCREEN_H < 700 ? ms(16) : ms(18),
     fontWeight: '500',
+    maxWidth: hs(320),
   },
   footer: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingHorizontal: 24,
-    paddingBottom: SCREEN_HEIGHT < 700 ? 16 : 24,
-    height: 70,
+    paddingHorizontal: hs(24),
+    paddingBottom: SCREEN_H < 700 ? vs(16) : vs(24),
+    height: vs(70),
+    borderTopWidth: 1,
+    borderColor: 'rgba(226,232,240,0.5)',
   },
   dotsContainer: {
     flexDirection: 'row',
     alignItems: 'center',
   },
   dot: {
-    height: 6,
-    borderRadius: 3,
-    marginHorizontal: 3,
+    height: ms(6),
+    borderRadius: ms(3),
+    marginHorizontal: hs(3),
   },
   activeDot: {
-    width: 16,
+    width: hs(20),
   },
   inactiveDot: {
-    width: 6,
+    width: ms(6),
   },
   buttonsRow: {
     flexDirection: 'row',
     alignItems: 'center',
   },
   backButton: {
-    paddingVertical: 10,
-    paddingHorizontal: 16,
-    borderRadius: 20,
-    backgroundColor: '#f1f5f9',
-    marginRight: 8,
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: vs(8),
+    paddingHorizontal: hs(14),
+    borderRadius: ms(20),
+    backgroundColor: 'rgba(226,232,240,0.8)',
+    marginRight: hs(8),
+    gap: hs(2),
   },
   backButtonText: {
     color: '#475569',
-    fontSize: 12,
+    fontSize: ms(12),
     fontWeight: '700',
   },
   nextButton: {
-    paddingVertical: 10,
-    paddingHorizontal: 20,
-    borderRadius: 20,
-    justifyContent: 'center',
+    flexDirection: 'row',
     alignItems: 'center',
-    shadowColor: '#2c56f6',
+    paddingVertical: vs(8),
+    paddingHorizontal: hs(16),
+    borderRadius: ms(20),
+    justifyContent: 'center',
+    gap: hs(2),
+    shadowColor: BRAND_BLUE,
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.15,
     shadowRadius: 8,
@@ -325,7 +390,7 @@ const styles = StyleSheet.create({
   },
   nextButtonText: {
     color: '#ffffff',
-    fontSize: 12,
+    fontSize: ms(12),
     fontWeight: '700',
   },
 });

@@ -24,6 +24,7 @@ interface FavouritesViewProps {
   onProductClick?: (product: any) => void;
   favorites: string[];
   toggleFavorite: (productId: string) => void;
+  onScroll?: (offsetY: number) => void;
 }
 
 export default function FavouritesView({
@@ -31,6 +32,7 @@ export default function FavouritesView({
   onProductClick,
   favorites = [],
   toggleFavorite,
+  onScroll,
 }: FavouritesViewProps) {
   const [addedItem, setAddedItem] = useState<string | null>(null);
 
@@ -138,7 +140,9 @@ export default function FavouritesView({
   };
 
   return (
-    <ScrollView style={styles.container} contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+    <ScrollView style={styles.container} contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}
+      onScroll={onScroll ? (e) => onScroll(e.nativeEvent.contentOffset.y) : undefined}
+      scrollEventThrottle={16}>
       
       {/* 1. Header Banner */}
       <View style={styles.headerBanner}>

@@ -3,7 +3,6 @@ import {
   StyleSheet,
   View,
   Text,
-  SafeAreaView,
   ScrollView,
   TouchableOpacity,
   Dimensions,
@@ -60,7 +59,7 @@ export function HomeScreen({ navigation }: any) {
   ];
 
   return (
-    <SafeAreaView style={styles.container}>
+    <View style={styles.container}>
       {/* Top Fixed Location Header */}
       <View style={styles.topBar}>
         <View style={styles.locationWrapper}>
@@ -152,7 +151,7 @@ export function HomeScreen({ navigation }: any) {
           </View>
         </View>
       </ScrollView>
-    </SafeAreaView>
+    </View>
   );
 }
 
