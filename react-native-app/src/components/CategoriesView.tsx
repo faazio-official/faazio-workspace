@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   StyleSheet,
   View,
@@ -7,7 +7,7 @@ import {
   TextInput,
   TouchableOpacity,
   Image,
-  Dimensions,
+  Animated,
 } from 'react-native';
 import {
   Filter,
@@ -16,12 +16,12 @@ import {
   Heart,
   Plus,
   Check,
-  Star,
 } from 'lucide-react-native';
+import Svg, { Defs, LinearGradient, Stop, Rect } from 'react-native-svg';
+import { hs, vs, ms } from '@/utils/responsive';
+import EnterpriseIcon from './EnterpriseIcon';
 import { categoriesSearchDatabase } from '../data/mockProducts';
 import { exploreStacks } from '../data/exploreData';
-
-const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
 interface CategoriesViewProps {
   selectedCategory: string;
@@ -46,6 +46,27 @@ export default function CategoriesView({
   const [activeSubCat, setActiveSubCat] = useState<string>('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [addedItem, setAddedItem] = useState<string | null>(null);
+  const [isFocused, setIsFocused] = useState(false);
+  const pulseAnim = useRef(new Animated.Value(1)).current;
+
+  useEffect(() => {
+    let anim: Animated.CompositeAnimation | null = null;
+    if (addedItem) {
+      anim = Animated.loop(
+        Animated.sequence([
+          Animated.timing(pulseAnim, { toValue: 0.6, duration: 400, useNativeDriver: true }),
+          Animated.timing(pulseAnim, { toValue: 1, duration: 400, useNativeDriver: true }),
+        ])
+      );
+      anim.start();
+    } else {
+      pulseAnim.setValue(1);
+    }
+    return () => {
+      if (anim) anim.stop();
+      pulseAnim.setValue(1);
+    };
+  }, [addedItem, pulseAnim]);
 
   const appFilters = [
     { id: 'ALL' as const, label: 'All Apps', emoji: '✨', activeBg: '#0f172a', activeColor: '#ffffff' },
@@ -56,19 +77,15 @@ export default function CategoriesView({
   ];
 
   const categoriesList = [
-    // FOOD
     { id: 'food-main', name: 'Sizzling Entrees', emoji: '🍛', app: 'FOOD', bg: '#ecfdf5', text: '#065f46', border: '#d1fae5', ringColor: '#1E5D44' },
     { id: 'food-snack', name: 'Combos & Snacks', emoji: '🌯', app: 'FOOD', bg: '#fff1f2', text: '#9f1239', border: '#ffe4e6', ringColor: '#f43f5e' },
     { id: 'food-dessert', name: 'Desserts & Shakes', emoji: '🥞', app: 'FOOD', bg: '#fef3c7', text: '#92400e', border: '#fde68a', ringColor: '#fbbf24' },
-    // MART
     { id: 'mart-tech', name: 'Tech & Keyboards', emoji: '⌨️', app: 'MART', bg: '#eff6ff', text: '#1e40af', border: '#dbeafe', ringColor: '#1162D3' },
     { id: 'mart-foot', name: 'Footwear & Kicks', emoji: '👟', app: 'MART', bg: '#eef2ff', text: '#3730a3', border: '#e0e7ff', ringColor: '#6366f1' },
     { id: 'mart-lounge', name: 'Cozywear Lounge', emoji: '🧥', app: 'MART', bg: '#f5f5f4', text: '#44403c', border: '#e7e5e4', ringColor: '#78716c' },
-    // GROCERY
     { id: 'groc-green', name: 'Fresh Greens', emoji: '🥦', app: 'GROCERY', bg: '#f0fdf4', text: '#166534', border: '#dcfce7', ringColor: '#10B981' },
     { id: 'groc-soda', name: 'Cold Sips & Soda', emoji: '🥤', app: 'GROCERY', bg: '#ecfeff', text: '#155e75', border: '#cffafe', ringColor: '#06b6d4' },
     { id: 'groc-dairy', name: 'Dairy & Milks', emoji: '🥛', app: 'GROCERY', bg: '#f0f9ff', text: '#075985', border: '#e0f2fe', ringColor: '#0ea5e9' },
-    // PHARMA
     { id: 'ph-wellness', name: 'Wellness Gummies', emoji: '🍊', app: 'PHARMA', bg: '#fff7ed', text: '#9a3412', border: '#ffedd5', ringColor: '#f97316' },
     { id: 'ph-sos', name: 'Late-Night SOS', emoji: '🩹', app: 'PHARMA', bg: '#fef2f2', text: '#991b1b', border: '#fee2e2', ringColor: '#ef4444' },
     { id: 'ph-beauty', name: 'K-Beauty Glow', emoji: '✨', app: 'PHARMA', bg: '#f0fdfa', text: '#0f766e', border: '#ccfbf1', ringColor: '#065F46' }
@@ -126,16 +143,25 @@ export default function CategoriesView({
 
   const displayedProducts = getFilteredProducts();
 
+  const searchInputHeight = Math.max(38, vs(38));
+
+  const gradColors: Record<string, string> = {
+    FOOD: 'rgba(236,253,245,0.25)',
+    MART: 'rgba(239,246,255,0.2)',
+    GROCERY: 'rgba(240,253,244,0.25)',
+    PHARMA: 'rgba(240,253,250,0.25)',
+  };
+
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}
       onScroll={onScroll ? (e) => onScroll(e.nativeEvent.contentOffset.y) : undefined}
       scrollEventThrottle={16}>
-      
+
       {/* 1. TOP APP LEVEL FILTER PILLS */}
       <View style={styles.filterSection}>
         <View style={styles.filterHeaderRow}>
           <View style={styles.filterLeftTitle}>
-            <Filter size={10} color="#94a3b8" />
+            <Filter size={ms(10)} color="#94a3b8" />
             <Text style={styles.filterLabelText}>Explore Departments</Text>
           </View>
           <View style={styles.activeChannelBadge}>
@@ -154,11 +180,18 @@ export default function CategoriesView({
                 onPress={() => setSelectedApp(f.id)}
                 style={[
                   styles.appPill,
-                  isSel ? { backgroundColor: f.activeBg, borderColor: f.activeBg } : null,
+                  isSel ? {
+                    backgroundColor: f.activeBg,
+                    borderColor: f.activeBg,
+                    shadowOpacity: 0.15,
+                    shadowRadius: 4,
+                    elevation: 2,
+                    shadowColor: f.activeBg,
+                  } : null,
                 ]}
                 activeOpacity={0.8}
               >
-                <Text style={styles.appPillEmoji}>{f.emoji}</Text>
+                <EnterpriseIcon emoji={f.emoji} variant="flat" size={ms(11)} />
                 <Text style={[styles.appPillText, isSel ? { color: f.activeColor } : null]}>
                   {f.label}
                 </Text>
@@ -169,15 +202,19 @@ export default function CategoriesView({
       </View>
 
       {/* 2. INSTANT SEARCH BAR */}
-      <View style={styles.searchContainer}>
+      <View style={[styles.searchContainer, isFocused && styles.searchContainerFocused]}>
+        <View style={styles.searchIconWrap}>
+          <Search size={ms(12)} color="#94a3b8" />
+        </View>
         <TextInput
           placeholder="Search catalog by product name or details..."
           value={searchQuery}
           onChangeText={setSearchQuery}
-          style={styles.searchInput}
+          style={[styles.searchInput, { height: searchInputHeight }]}
           placeholderTextColor="#94a3b8"
+          onFocus={() => setIsFocused(true)}
+          onBlur={() => setIsFocused(false)}
         />
-        <Search size={12} color="#94a3b8" style={styles.searchIcon} />
       </View>
 
       {/* 3. ENTERPRISE CATEGORY GRID SELECTOR */}
@@ -208,12 +245,21 @@ export default function CategoriesView({
                 style={[
                   styles.categoryCard,
                   { backgroundColor: cat.bg, borderColor: isSel ? cat.ringColor : cat.border },
-                  isSel ? { borderWidth: 2 } : null,
+                  isSel ? {
+                    borderWidth: 2,
+                    backgroundColor: '#ffffff',
+                    transform: [{ scale: 1.03 }],
+                    shadowColor: cat.ringColor,
+                    shadowOffset: { width: 0, height: 2 },
+                    shadowOpacity: 0.15,
+                    shadowRadius: 4,
+                    elevation: 3,
+                  } : null,
                 ]}
                 activeOpacity={0.8}
               >
                 <View style={styles.categoryIconWrap}>
-                  <Text style={styles.categoryEmoji}>{cat.emoji}</Text>
+                  <EnterpriseIcon emoji={cat.emoji} variant="circle" size={ms(32)} bgColor="rgba(255,255,255,0.9)" />
                 </View>
                 <Text style={[styles.categoryName, { color: cat.text }]} numberOfLines={1}>
                   {cat.name.split(' ')[0]}
@@ -229,10 +275,10 @@ export default function CategoriesView({
       <View style={styles.productsSection}>
         <View style={styles.productsHeader}>
           <View style={styles.productsTitleWrap}>
-            <Grid size={11} color="#64748b" />
+            <Grid size={ms(11)} color="#64748b" />
             <Text style={styles.productsTitle}>
               {activeSubCat === 'all'
-                ? searchQuery.trim() !== '' ? 'Search Results' : '🔥 Handpicked Highlights'
+                ? searchQuery.trim() !== '' ? 'Search Results' : 'Handpicked Highlights'
                 : categoriesList.find((c) => c.id === activeSubCat)?.name}
             </Text>
           </View>
@@ -288,15 +334,28 @@ export default function CategoriesView({
                           style={styles.stackProductCard}
                           activeOpacity={0.9}
                         >
+                          <Svg style={StyleSheet.absoluteFill}>
+                            <Defs>
+                              <LinearGradient id={`bg-${stack.type}`} x1="0" y1="0" x2="1" y2="1">
+                                <Stop offset="0" stopColor={gradColors[stack.type] || '#fff'} stopOpacity="1" />
+                                <Stop offset="1" stopColor="#fff" stopOpacity="1" />
+                              </LinearGradient>
+                            </Defs>
+                            <Rect width="100%" height="100%" fill={`url(#bg-${stack.type})`} />
+                          </Svg>
+
                           <View style={styles.stackProductImgWrap}>
+                            <View style={styles.stackEnterpriseStamp}>
+                              <EnterpriseIcon emoji={item.emoji} variant="square" size={ms(28)} />
+                            </View>
                             <Image source={{ uri: item.img }} style={styles.stackProductImg} />
-                            
+
                             <TouchableOpacity
                               onPress={() => toggleFavorite && toggleFavorite(item.id)}
                               style={styles.stackHeartBtn}
                               activeOpacity={0.8}
                             >
-                              <Heart size={10} color="#f43f5e" fill={isFav ? '#f43f5e' : 'transparent'} />
+                              <Heart size={ms(10)} color="#f43f5e" fill={isFav ? '#f43f5e' : 'transparent'} />
                             </TouchableOpacity>
 
                             <View style={styles.stackRatingOverlay}>
@@ -307,6 +366,9 @@ export default function CategoriesView({
                           <View style={styles.stackProductInfo}>
                             <Text style={styles.stackShopName} numberOfLines={1}>{item.shop}</Text>
                             <Text style={styles.stackProductName} numberOfLines={1}>{item.name}</Text>
+                            <Text style={styles.stackProductDesc} numberOfLines={2}>
+                              Fresh curation from {item.shop}. Premium local favorite.
+                            </Text>
                           </View>
 
                           <View style={styles.stackProductFooter}>
@@ -316,8 +378,10 @@ export default function CategoriesView({
                               style={[styles.stackAddBtn, { backgroundColor: isAdded ? '#10b981' : btnBg }]}
                               activeOpacity={0.8}
                             >
-                              <Plus size={8} color="#ffffff" style={{ marginRight: 2 }} />
-                              <Text style={styles.stackAddBtnText}>{isAdded ? 'Added' : 'Add'}</Text>
+                              <Animated.View style={{ flexDirection: 'row', alignItems: 'center', opacity: isAdded ? pulseAnim : 1 }}>
+                                {isAdded ? <Check size={ms(8)} color="#ffffff" /> : <Plus size={ms(8)} color="#ffffff" />}
+                                <Text style={styles.stackAddBtnText}>{isAdded ? 'Added' : 'Add'}</Text>
+                              </Animated.View>
                             </TouchableOpacity>
                           </View>
                         </TouchableOpacity>
@@ -364,27 +428,27 @@ export default function CategoriesView({
                     </View>
                   </View>
 
-                  <View style={styles.gridProductInfo}>
+                  <View style={styles.gridContentBlock}>
                     <View style={styles.gridProductMetaRow}>
-                      <View style={[styles.gridAppBadge, { backgroundColor: appBadgeBg }]}>
+                      <View style={[styles.gridAppBadge, { backgroundColor: appBadgeBg, borderColor: appBadgeText }]}>
                         <Text style={[styles.gridAppBadgeText, { color: appBadgeText }]}>{item.app}</Text>
                       </View>
                       <Text style={styles.gridCatName} numberOfLines={1}>{item.catName}</Text>
                     </View>
                     <Text style={styles.gridProductName} numberOfLines={1}>{item.name}</Text>
                     <Text style={styles.gridProductDesc} numberOfLines={2}>{item.desc}</Text>
-                  </View>
 
-                  <View style={styles.gridProductFooter}>
-                    <Text style={styles.gridProductPrice}>₹{item.price.toLocaleString('en-IN')}</Text>
-                    <TouchableOpacity
-                      onPress={() => triggerAddToCart(item.id, item.name, item.price, item.emoji)}
-                      style={[styles.gridAddBtn, { backgroundColor: isAdded ? '#10b981' : btnBg }]}
-                      activeOpacity={0.8}
-                    >
-                      <Plus size={8} color="#ffffff" style={{ marginRight: 2 }} />
-                      <Text style={styles.gridAddBtnText}>{isAdded ? 'Added' : 'Add'}</Text>
-                    </TouchableOpacity>
+                    <View style={styles.gridProductFooter}>
+                      <Text style={styles.gridProductPrice}>₹{item.price.toLocaleString('en-IN')}</Text>
+                      <TouchableOpacity
+                        onPress={() => triggerAddToCart(item.id, item.name, item.price, item.emoji)}
+                        style={[styles.gridAddBtn, { backgroundColor: isAdded ? '#10b981' : btnBg }]}
+                        activeOpacity={0.8}
+                      >
+                        {isAdded ? <Check size={ms(8)} color="#ffffff" /> : <Plus size={ms(8)} color="#ffffff" />}
+                        <Text style={styles.gridAddBtnText}>{isAdded ? 'Added' : 'Add'}</Text>
+                      </TouchableOpacity>
+                    </View>
                   </View>
                 </TouchableOpacity>
               );
@@ -394,9 +458,12 @@ export default function CategoriesView({
 
         {displayedProducts.length === 0 && (
           <View style={styles.emptyState}>
-            <Search size={24} color="#94a3b8" />
+            <View style={styles.emptyIconContainer}>
+              <Search size={ms(18)} color="#94a3b8" />
+            </View>
             <Text style={styles.emptyTitle}>No matching products</Text>
             <Text style={styles.emptyDesc}>We couldn't find items matching "{searchQuery}" under this category.</Text>
+            <Text style={styles.emptySubText}>Let's try another one!</Text>
           </View>
         )}
       </View>
@@ -410,44 +477,44 @@ const styles = StyleSheet.create({
     backgroundColor: '#ffffff',
   },
   scrollContent: {
-    paddingHorizontal: 16,
-    paddingBottom: 40,
+    paddingHorizontal: hs(16),
+    paddingBottom: vs(40),
   },
   filterSection: {
-    marginTop: 14,
+    marginTop: vs(14),
   },
   filterHeaderRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 8,
+    marginBottom: vs(8),
   },
   filterLeftTitle: {
     flexDirection: 'row',
     alignItems: 'center',
   },
   filterLabelText: {
-    fontSize: 9,
+    fontSize: ms(9),
     fontWeight: '900',
     color: '#94a3b8',
     textTransform: 'uppercase',
     letterSpacing: 0.5,
-    marginLeft: 4,
+    marginLeft: hs(4),
   },
   activeChannelBadge: {
     backgroundColor: '#eff6ff',
-    paddingVertical: 2,
-    paddingHorizontal: 6,
-    borderRadius: 8,
+    paddingVertical: vs(2),
+    paddingHorizontal: hs(6),
+    borderRadius: 999,
   },
   activeChannelText: {
-    fontSize: 8,
+    fontSize: ms(8.5),
     color: '#2563eb',
     fontWeight: '900',
     textTransform: 'uppercase',
   },
   appPillsScroll: {
-    paddingVertical: 2,
+    paddingVertical: vs(2),
   },
   appPill: {
     flexDirection: 'row',
@@ -455,72 +522,77 @@ const styles = StyleSheet.create({
     backgroundColor: '#ffffff',
     borderWidth: 1,
     borderColor: '#f1f5f9',
-    borderRadius: 20,
-    paddingVertical: 6,
-    paddingHorizontal: 12,
-    marginRight: 8,
-  },
-  appPillEmoji: {
-    fontSize: 10,
-    marginRight: 4,
+    borderRadius: ms(20),
+    paddingVertical: vs(6),
+    paddingHorizontal: hs(12),
+    marginRight: hs(8),
   },
   appPillText: {
-    fontSize: 9,
+    fontSize: ms(9.5),
     fontWeight: '900',
     color: '#64748b',
+    textTransform: 'uppercase',
+    letterSpacing: 0.3,
   },
   searchContainer: {
-    position: 'relative',
-    marginTop: 12,
-    marginBottom: 12,
-  },
-  searchInput: {
-    height: 38,
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: vs(12),
+    marginBottom: vs(12),
     backgroundColor: '#f8fafc',
     borderWidth: 1,
     borderColor: '#f1f5f9',
-    borderRadius: 12,
-    paddingLeft: 36,
-    paddingRight: 12,
-    fontSize: 10,
+    borderRadius: ms(12),
+  },
+  searchContainerFocused: {
+    borderColor: '#cbd5e1',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 3,
+    elevation: 2,
+  },
+  searchIconWrap: {
+    paddingLeft: hs(16),
+  },
+  searchInput: {
+    flex: 1,
+    paddingLeft: hs(8),
+    paddingRight: hs(12),
+    fontSize: ms(10.5),
     fontWeight: '600',
     color: '#1e293b',
   },
-  searchIcon: {
-    position: 'absolute',
-    left: 12,
-    top: 13,
-  },
   gridContainer: {
-    backgroundColor: '#f8fafc',
-    borderRadius: 24,
-    padding: 12,
+    backgroundColor: 'rgba(248,250,252,0.5)',
+    borderRadius: ms(24),
+    padding: ms(12),
     borderWidth: 1,
     borderColor: '#f1f5f9',
-    marginBottom: 16,
+    marginBottom: vs(16),
   },
   gridHeaderRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 10,
+    marginBottom: vs(10),
   },
   gridHeaderLabel: {
-    fontSize: 9,
+    fontSize: ms(9),
     fontWeight: '900',
     color: '#94a3b8',
     textTransform: 'uppercase',
   },
   showAllBtn: {
-    paddingVertical: 2,
-    paddingHorizontal: 6,
-    borderRadius: 4,
+    paddingVertical: vs(2),
+    paddingHorizontal: hs(6),
+    borderRadius: ms(4),
   },
   showAllBtnActive: {
     backgroundColor: '#0f172a',
   },
   showAllBtnText: {
-    fontSize: 8,
+    fontSize: ms(8),
     fontWeight: '900',
     color: '#64748b',
     textTransform: 'uppercase',
@@ -531,67 +603,56 @@ const styles = StyleSheet.create({
   categoryGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: 8,
+    gap: hs(8),
     justifyContent: 'space-between',
   },
   categoryCard: {
     width: '31%',
-    borderRadius: 12,
+    borderRadius: ms(12),
     borderWidth: 1,
-    paddingVertical: 10,
+    paddingVertical: vs(10),
     alignItems: 'center',
     justifyContent: 'center',
   },
   categoryIconWrap: {
-    width: 28,
-    height: 28,
-    backgroundColor: '#ffffff',
-    borderRadius: 14,
     alignItems: 'center',
     justifyContent: 'center',
-    shadowColor: '#000000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05,
-    shadowRadius: 2,
-    elevation: 1,
-    marginBottom: 4,
-  },
-  categoryEmoji: {
-    fontSize: 12,
+    marginBottom: vs(4),
   },
   categoryName: {
-    fontSize: 8.5,
+    fontSize: ms(8),
     fontWeight: '900',
     textTransform: 'uppercase',
   },
   categorySubBrand: {
-    fontSize: 6.5,
+    fontSize: ms(6),
     fontWeight: '700',
     color: '#94a3b8',
-    marginTop: 1,
+    marginTop: vs(1),
+    letterSpacing: 0.3,
   },
   productsSection: {
-    marginBottom: 20,
+    marginBottom: vs(20),
   },
   productsHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 10,
+    marginBottom: vs(10),
   },
   productsTitleWrap: {
     flexDirection: 'row',
     alignItems: 'center',
   },
   productsTitle: {
-    fontSize: 9.5,
+    fontSize: ms(9.5),
     fontWeight: '900',
     color: '#475569',
     textTransform: 'uppercase',
-    marginLeft: 6,
+    marginLeft: hs(6),
   },
   productsCount: {
-    fontSize: 8.5,
+    fontSize: ms(8.5),
     color: '#94a3b8',
     fontWeight: '700',
   },
@@ -599,56 +660,57 @@ const styles = StyleSheet.create({
     width: '100%',
   },
   stackWrapper: {
-    marginBottom: 16,
+    marginBottom: vs(16),
   },
   stackHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 10,
+    marginBottom: vs(10),
   },
   stackTitle: {
-    fontSize: 11,
+    fontSize: ms(11),
     fontWeight: '900',
     color: '#1e293b',
     textTransform: 'uppercase',
   },
   stackSubtitle: {
-    fontSize: 8,
+    fontSize: ms(8),
     color: '#94a3b8',
     fontWeight: '600',
-    marginTop: 2,
+    marginTop: vs(2),
   },
   stackBadge: {
-    backgroundColor: '#ffe4e6',
+    backgroundColor: 'rgba(255,74,107,0.05)',
     borderWidth: 1,
-    borderColor: '#ffe4e6',
-    borderRadius: 12,
-    paddingVertical: 2,
-    paddingHorizontal: 6,
+    borderColor: 'rgba(255,74,107,0.1)',
+    borderRadius: ms(12),
+    paddingVertical: vs(2),
+    paddingHorizontal: hs(6),
   },
   stackBadgeText: {
-    fontSize: 7,
+    fontSize: ms(7),
     fontWeight: '900',
-    color: '#e11d48',
+    color: '#FF4A6B',
     textTransform: 'uppercase',
   },
   stackHorizontalScroll: {
-    paddingBottom: 4,
+    paddingBottom: vs(4),
   },
   stackProductCard: {
-    width: 146,
-    backgroundColor: '#ffffff',
+    width: hs(165),
+    backgroundColor: 'transparent',
     borderWidth: 1,
     borderColor: '#f1f5f9',
-    borderRadius: 20,
-    padding: 10,
-    marginRight: 10,
+    borderRadius: ms(24),
+    overflow: 'hidden',
+    padding: ms(10),
+    marginRight: hs(10),
   },
   stackProductImgWrap: {
     width: '100%',
-    height: 100,
-    borderRadius: 12,
+    height: vs(112),
+    borderRadius: ms(16),
     overflow: 'hidden',
     position: 'relative',
     backgroundColor: '#f8fafc',
@@ -657,49 +719,62 @@ const styles = StyleSheet.create({
     width: '100%',
     height: '100%',
   },
+  stackEnterpriseStamp: {
+    position: 'absolute',
+    top: vs(6),
+    left: hs(6),
+    zIndex: 2,
+  },
   stackHeartBtn: {
     position: 'absolute',
-    top: 6,
-    right: 6,
+    top: vs(6),
+    right: hs(6),
     backgroundColor: 'rgba(255,255,255,0.95)',
-    width: 22,
-    height: 22,
-    borderRadius: 11,
+    width: ms(22),
+    height: ms(22),
+    borderRadius: ms(11),
     alignItems: 'center',
     justifyContent: 'center',
   },
   stackRatingOverlay: {
     position: 'absolute',
-    bottom: 6,
-    right: 6,
+    bottom: vs(6),
+    right: hs(6),
     backgroundColor: 'rgba(15, 23, 42, 0.8)',
-    paddingVertical: 2,
-    paddingHorizontal: 4,
-    borderRadius: 4,
+    paddingVertical: vs(2),
+    paddingHorizontal: hs(4),
+    borderRadius: ms(4),
   },
   stackRatingText: {
     color: '#ffffff',
-    fontSize: 6.5,
+    fontSize: ms(6.5),
     fontWeight: '900',
   },
   stackProductInfo: {
-    marginTop: 8,
+    marginTop: vs(8),
     flex: 1,
   },
   stackShopName: {
-    fontSize: 7,
+    fontSize: ms(7),
     fontWeight: '900',
     color: '#94a3b8',
     textTransform: 'uppercase',
   },
   stackProductName: {
-    fontSize: 9.5,
+    fontSize: ms(9.5),
     fontWeight: '900',
     color: '#0f172a',
-    marginTop: 2,
+    marginTop: vs(2),
+  },
+  stackProductDesc: {
+    fontSize: ms(7.5),
+    color: '#94a3b8',
+    fontWeight: '500',
+    marginTop: vs(2),
+    lineHeight: ms(10),
   },
   stackProductPrice: {
-    fontSize: 9.5,
+    fontSize: ms(9.5),
     fontWeight: '900',
     color: '#0f172a',
   },
@@ -707,27 +782,27 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginTop: 8,
-    paddingTop: 6,
+    marginTop: vs(8),
+    paddingTop: vs(6),
     borderTopWidth: 1,
     borderTopColor: '#f8fafc',
   },
   stackAddBtn: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: 3,
-    paddingHorizontal: 8,
-    borderRadius: 6,
+    paddingVertical: vs(3),
+    paddingHorizontal: hs(8),
+    borderRadius: ms(6),
   },
   stackAddBtnText: {
     color: '#ffffff',
-    fontSize: 7,
+    fontSize: ms(7),
     fontWeight: '900',
   },
   productsGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: 12,
+    gap: hs(12),
     justifyContent: 'space-between',
   },
   gridProductCard: {
@@ -735,15 +810,13 @@ const styles = StyleSheet.create({
     backgroundColor: '#ffffff',
     borderWidth: 1,
     borderColor: '#f1f5f9',
-    borderRadius: 20,
-    padding: 10,
-    marginBottom: 6,
+    borderRadius: ms(24),
+    overflow: 'hidden',
+    marginBottom: vs(6),
   },
   gridProductImgWrap: {
     width: '100%',
-    height: 110,
-    borderRadius: 12,
-    overflow: 'hidden',
+    height: vs(128),
     position: 'relative',
     backgroundColor: '#f8fafc',
   },
@@ -753,56 +826,58 @@ const styles = StyleSheet.create({
   },
   gridRatingOverlay: {
     position: 'absolute',
-    bottom: 6,
-    right: 6,
+    bottom: vs(6),
+    right: hs(6),
     backgroundColor: 'rgba(255,255,255,0.95)',
-    paddingVertical: 2,
-    paddingHorizontal: 4,
-    borderRadius: 4,
+    paddingVertical: vs(2),
+    paddingHorizontal: hs(4),
+    borderRadius: ms(4),
   },
   gridRatingText: {
-    fontSize: 7,
+    fontSize: ms(7.5),
     color: '#fbbf24',
     fontWeight: '900',
   },
-  gridProductInfo: {
-    marginTop: 8,
+  gridContentBlock: {
+    paddingHorizontal: vs(14),
+    paddingVertical: vs(12),
   },
   gridProductMetaRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 4,
+    gap: hs(4),
   },
   gridAppBadge: {
-    paddingVertical: 1,
-    paddingHorizontal: 4,
-    borderRadius: 4,
+    paddingVertical: vs(1),
+    paddingHorizontal: hs(4),
+    borderRadius: ms(4),
+    borderWidth: 1,
   },
   gridAppBadgeText: {
-    fontSize: 6,
+    fontSize: ms(6),
     fontWeight: '900',
   },
   gridCatName: {
-    fontSize: 7,
+    fontSize: ms(7),
     fontWeight: '700',
     color: '#94a3b8',
     textTransform: 'uppercase',
   },
   gridProductName: {
-    fontSize: 9.5,
+    fontSize: ms(9.5),
     fontWeight: '900',
     color: '#0f172a',
-    marginTop: 2,
+    marginTop: vs(2),
   },
   gridProductDesc: {
-    fontSize: 7.5,
+    fontSize: ms(7.5),
     color: '#94a3b8',
     fontWeight: '500',
-    marginTop: 2,
-    lineHeight: 10,
+    marginTop: vs(2),
+    lineHeight: ms(10),
   },
   gridProductPrice: {
-    fontSize: 10,
+    fontSize: ms(10.5),
     fontWeight: '900',
     color: '#0f172a',
   },
@@ -810,45 +885,67 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginTop: 8,
-    paddingTop: 6,
+    marginTop: vs(8),
+    paddingTop: vs(6),
     borderTopWidth: 1,
     borderTopColor: '#f8fafc',
   },
   gridAddBtn: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: 3,
-    paddingHorizontal: 8,
-    borderRadius: 6,
+    paddingVertical: vs(3),
+    paddingHorizontal: hs(8),
+    borderRadius: ms(6),
   },
   gridAddBtnText: {
     color: '#ffffff',
-    fontSize: 7,
+    fontSize: ms(7),
     fontWeight: '900',
   },
   emptyState: {
     alignItems: 'center',
-    paddingVertical: 40,
-    borderWidth: 1,
+    backgroundColor: '#f8fafc',
+    borderRadius: ms(28),
     borderStyle: 'dashed',
+    borderWidth: 1,
     borderColor: '#e2e8f0',
-    borderRadius: 20,
-    marginTop: 10,
+    paddingVertical: vs(64),
+    marginTop: vs(10),
+  },
+  emptyIconContainer: {
+    width: ms(48),
+    height: ms(48),
+    borderRadius: ms(24),
+    backgroundColor: '#f1f5f9',
+    borderWidth: 1,
+    borderColor: '#e2e8f0',
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 2,
+    elevation: 1,
   },
   emptyTitle: {
-    fontSize: 10,
+    fontSize: ms(10.5),
     fontWeight: '900',
     color: '#64748b',
     textTransform: 'uppercase',
-    marginTop: 10,
+    marginTop: vs(10),
   },
   emptyDesc: {
-    fontSize: 8,
+    fontSize: ms(8),
     color: '#94a3b8',
     fontWeight: '500',
     textAlign: 'center',
-    marginTop: 4,
-    paddingHorizontal: 20,
+    marginTop: vs(4),
+    paddingHorizontal: hs(20),
+  },
+  emptySubText: {
+    fontSize: ms(9),
+    color: '#94a3b8',
+    fontWeight: '700',
+    marginTop: vs(8),
   },
 });

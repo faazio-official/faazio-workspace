@@ -532,4 +532,30 @@ These tabs render with empty-state messages:
 
 ### Phase 2 — Home Tab Rebuild (HomeView.tsx)
 
-*Pending implementation*
+| # | Task | File | Status | Notes |
+|---|------|------|--------|-------|
+| 1 | Responsive conversion: local `Dimensions` removed, all styles → `hs`/`vs`/`ms` from `@/utils/responsive` | `HomeView.tsx` | ✅ Done | Single-pass conversion |
+| 2 | Data reconciliation: replaced diverged arrays with Vite-exact data; added 6 new datasets (`popularDining`, `recentlyViewedMart`, `recentlyViewedGrocery`, `recentlyViewedPharma`, `faMartFinds`, `restaurantSpecials`) | `HomeView.tsx` | ✅ Done | Inline data, matches both apps' convention |
+| 3 | H2 Top Ad Carousel: 5s auto-rotate via `setInterval` (cleaned on unmount); video slide (index 0) → poster + Play overlay + "LIVE VIDEO CAM" badge + Zap pulse loop | `HomeView.tsx` | ✅ Done | |
+| 4 | H4 Sponsored Showcase: video poster + Play overlay; `isMuted` toggle buttons (Volume2/VolumeX pill) | `HomeView.tsx` | ✅ Done | Ready for native player drop-in |
+| 5 | H5 Recently Viewed: Add button swaps Plus→Check + emerald bg for 1.5s via `addedItemFeedback` | `HomeView.tsx` | ✅ Done | |
+| 6 | H7 Recommended For You: horizontal carousel → 2-column grid; Sparkles slow-rotate loop on header | `HomeView.tsx` | ✅ Done | |
+| 7 | EnterpriseIcon component: 25 emoji→lucide-icon registry, circle/flat/square variants, Tailwind→hex palette | `EnterpriseIcon.tsx` | ✅ Done | New file in `src/components/` |
+| 8 | H8 Popular Dining: horizontal cards (h-128, gradient overlay, glass rating badge, heart FAB, footer) | `HomeView.tsx` | ✅ Done | Heart wired to `favoriteRestaurants` state |
+| 9 | H9–H13: Recently Viewed Mart/Grocery/Pharma (EnterpriseIcon chips, sector dots), FA Mart Finds (blue tag, Discover pill), Restaurant Specials (amber Zap, Award bounce loop, Order Now btn) | `HomeView.tsx` | ✅ Done | |
+| 10 | Cleanup: deleted dead styles (~L917–1007 audit); Flame pulse on H6 header; `tsc --noEmit` | `HomeView.tsx` | ✅ Done | 0 errors |
+
+### Page 7 — Categories Tab (CategoriesView.tsx)
+
+| # | Task | File | Status | Notes |
+|---|------|------|--------|-------|
+| 1 | Data fix: `exploreData.ts` L138 `" waffle"` → `🧇` | `exploreData.ts` | ✅ Done | Only divergence from Vite in otherwise byte-identical file |
+| 2 | Responsive conversion: `Dimensions` removed, all styles → `hs`/`vs`/`ms` | `CategoriesView.tsx` | ✅ Done | |
+| 3 | C1 pills: emoji → `EnterpriseIcon variant="flat"`, text uppercase + letterSpacing, active pill gets tinted shadow, badge fully rounded at `ms(8.5)` | `CategoriesView.tsx` | ✅ Done | |
+| 4 | C2 search: `isFocused` state, focus border `#cbd5e1` + shadow, `fontSize: ms(10.5)`, icon via flex row (no absolute `top:13`) | `CategoriesView.tsx` | ✅ Done | |
+| 5 | C3 category grid: bg `rgba(248,250,252,0.5)`, selected card → white + 2px ring + shadow + scale 1.03, emoji → `EnterpriseIcon variant="circle" 32px` | `CategoriesView.tsx` | ✅ Done | |
+| 6 | C4 stack cards: `hs(165)` width, `ms(24)` radius, per-type SVG gradient bg, image `vs(112)`/`ms(16)` radius, EnterpriseIcon stamp, 2-line desc, `#FF4A6B` tint badge, Plus↔Check swap + pulse loop | `CategoriesView.tsx` | ✅ Done | |
+| 7 | C5 product grid: image edge-to-edge `vs(128)` with card `overflow:hidden` `ms(24)` radius, content padded `vs(14/12)`, app badge 1px border, rating `ms(7.5)` amber, price `ms(10.5)`, Check swap | `CategoriesView.tsx` | ✅ Done | |
+| 8 | C6 empty state: `#f8fafc` fill, `ms(28)` radius, dashed border, `vs(64)` py, 48px circular icon container with Search, "Let's try another one!" line appended | `CategoriesView.tsx` | ✅ Done | |
+| 9 | Cleanup: removed unused `Star` + `Dimensions` + `SCREEN_WIDTH` + dead styles | `CategoriesView.tsx` | ✅ Done | |
+| 10 | Gate: `tsc --noEmit` + catalog | All files | ✅ Done | 0 errors |

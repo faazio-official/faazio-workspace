@@ -135,7 +135,7 @@ export const exploreStacks: ExploreStack[] = [
     items: [
       { id: "exp-ln-1", name: "Spicy Double Chicken Kathi Roll", price: 210, rating: "4.8", emoji: "🌯", img: "https://images.unsplash.com/photo-1626777552726-4a6b54c97e46?auto=format&fit=crop&q=80&w=200&h=150", shop: "Nite Bite Station" },
       { id: "exp-ln-2", name: "Golden Garlic Butter Naan Combo", price: 290, rating: "4.9", emoji: "🥘", img: "https://images.unsplash.com/photo-1631452180519-c014fe946bc7?auto=format&fit=crop&q=80&w=200&h=150", shop: "Midnight Dhaba" },
-      { id: "exp-ln-3", name: "Overloaded Dark Choco Waffle", price: 180, rating: "4.7", emoji: " waffle", img: "https://images.unsplash.com/photo-1562376502-6f769499c886?auto=format&fit=crop&q=80&w=200&h=150", shop: "Waffle Craze" }
+      { id: "exp-ln-3", name: "Overloaded Dark Choco Waffle", price: 180, rating: "4.7", emoji: "🧇", img: "https://images.unsplash.com/photo-1562376502-6f769499c886?auto=format&fit=crop&q=80&w=200&h=150", shop: "Waffle Craze" }
     ]
   },
   {
