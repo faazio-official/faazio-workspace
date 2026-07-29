@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import {
   StyleSheet,
   View,
@@ -6,18 +6,18 @@ import {
   ScrollView,
   TouchableOpacity,
   Image,
-  Dimensions,
+  Animated,
 } from 'react-native';
 import {
   Heart,
   Plus,
   Check,
-  Star,
 } from 'lucide-react-native';
 import { categoriesSearchDatabase } from '../data/mockProducts';
 import { exploreStacks } from '../data/exploreData';
-
-const { width: SCREEN_WIDTH } = Dimensions.get('window');
+import { hs, vs, ms } from '@/utils/responsive';
+import EnterpriseIcon from './EnterpriseIcon';
+import Svg, { Defs, LinearGradient, Stop, Rect, Circle } from 'react-native-svg';
 
 interface FavouritesViewProps {
   addToCart: (id: string, name: string, price: number, emoji: string) => void;
@@ -35,6 +35,18 @@ export default function FavouritesView({
   onScroll,
 }: FavouritesViewProps) {
   const [addedItem, setAddedItem] = useState<string | null>(null);
+  const pulseAnim = useRef(new Animated.Value(1)).current;
+
+  useEffect(() => {
+    const loop = Animated.loop(
+      Animated.sequence([
+        Animated.timing(pulseAnim, { toValue: 0.5, duration: 800, useNativeDriver: true }),
+        Animated.timing(pulseAnim, { toValue: 1, duration: 800, useNativeDriver: true }),
+      ])
+    );
+    loop.start();
+    return () => loop.stop();
+  }, [pulseAnim]);
 
   const handleAddToCart = (id: string, name: string, price: number, emoji: string) => {
     addToCart(id, name, price, emoji);
@@ -146,6 +158,18 @@ export default function FavouritesView({
       
       {/* 1. Header Banner */}
       <View style={styles.headerBanner}>
+        <Svg style={StyleSheet.absoluteFill}>
+          <Defs>
+            <LinearGradient id="favBannerGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+              <Stop offset="0%" stopColor="#4c0519" />
+              <Stop offset="60%" stopColor="#0f172a" />
+              <Stop offset="100%" stopColor="#172033" />
+            </LinearGradient>
+          </Defs>
+          <Rect width="100%" height="100%" fill="url(#favBannerGrad)" />
+          <Circle cx="110%" cy="110%" r={hs(72)} fill="rgba(244,63,94,0.10)" />
+          <Circle cx="-10%" cy="-10%" r={hs(72)} fill="rgba(59,130,246,0.10)" />
+        </Svg>
         <View style={styles.headerBannerContent}>
           <View style={styles.wishlistBadge}>
             <Text style={styles.wishlistBadgeText}>Personal Wishlists</Text>
@@ -168,7 +192,7 @@ export default function FavouritesView({
               <View key={key} style={styles.sectorSection}>
                 <View style={styles.sectorHeaderRow}>
                   <View style={styles.sectorTitleWrap}>
-                    <Text style={styles.sectorEmoji}>{style.emoji}</Text>
+                    <EnterpriseIcon emoji={style.emoji} variant="flat" size={ms(11)} />
                     <Text style={[styles.sectorTitle, { color: style.textColor }]}>
                       {style.title}
                     </Text>
@@ -183,7 +207,7 @@ export default function FavouritesView({
                     const isAdded = addedItem === item.id;
 
                     return (
-                      <View key={item.id} style={[styles.card, { backgroundColor: '#ffffff' }]}>
+                      <View key={item.id} style={[styles.card, { backgroundColor: style.cardBg }]}>
                         <TouchableOpacity
                           onPress={() => onProductClick && onProductClick(item)}
                           style={styles.cardPressable}
@@ -192,12 +216,17 @@ export default function FavouritesView({
                           <View style={styles.cardImgWrap}>
                             <Image source={{ uri: item.image }} style={styles.cardImg} />
                             
+                            <View style={styles.enterpriseIconStamp}>
+                              <EnterpriseIcon emoji={item.emoji || '🛍️'} variant="circle" size={ms(28)} bgColor="rgba(255,255,255,0.95)" />
+                            </View>
+
                             <TouchableOpacity
                               onPress={() => toggleFavorite(item.id)}
                               style={styles.heartBtn}
                               activeOpacity={0.8}
+                              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
                             >
-                              <Heart size={12} color="#f43f5e" fill="#f43f5e" />
+                              <Heart size={ms(12)} color="#f43f5e" fill="#f43f5e" />
                             </TouchableOpacity>
 
                             <View style={styles.ratingOverlay}>
@@ -207,7 +236,7 @@ export default function FavouritesView({
 
                           <View style={styles.cardContent}>
                             <View style={styles.metaRow}>
-                              <View style={[styles.appBadge, { backgroundColor: style.badgeBg }]}>
+                              <View style={[styles.appBadge, { backgroundColor: style.badgeBg, borderColor: style.borderColor }]}>
                                 <Text style={[styles.appBadgeText, { color: style.badgeText }]}>{item.app}</Text>
                               </View>
                               {item.shop ? (
@@ -221,7 +250,7 @@ export default function FavouritesView({
                               {item.name}
                             </Text>
                             <Text style={styles.productDesc} numberOfLines={2}>
-                              {item.desc || 'Premium curation from selected local stores.'}
+                              {item.desc}
                             </Text>
                           </View>
                         </TouchableOpacity>
@@ -232,11 +261,15 @@ export default function FavouritesView({
                             onPress={() => handleAddToCart(item.id, item.name, item.price, item.emoji)}
                             style={[
                               styles.addBtn,
-                              { backgroundColor: isAdded ? '#10b981' : style.btnBg },
+                              { backgroundColor: isAdded ? '#059669' : style.btnBg },
                             ]}
                             activeOpacity={0.8}
                           >
-                            <Plus size={8} color="#ffffff" style={{ marginRight: 2 }} />
+                            {isAdded ? (
+                              <Check size={ms(8)} strokeWidth={3} color="#ffffff" />
+                            ) : (
+                              <Plus size={ms(8)} color="#ffffff" />
+                            )}
                             <Text style={styles.addBtnText}>{isAdded ? 'Added' : 'Add'}</Text>
                           </TouchableOpacity>
                         </View>
@@ -252,7 +285,9 @@ export default function FavouritesView({
         /* Empty State */
         <View style={styles.emptyCard}>
           <View style={styles.emptyIconCircle}>
-            <Heart size={28} color="#f43f5e" />
+            <Animated.View style={{ opacity: pulseAnim }}>
+              <Heart size={ms(20)} color="#fb7185" strokeWidth={2} />
+            </Animated.View>
           </View>
           <Text style={styles.emptyTitle}>No Favourites Yet</Text>
           <Text style={styles.emptyDesc}>
@@ -271,17 +306,24 @@ const styles = StyleSheet.create({
     backgroundColor: '#ffffff',
   },
   scrollContent: {
-    paddingHorizontal: 16,
-    paddingBottom: 40,
+    paddingHorizontal: hs(16),
+    paddingBottom: vs(40),
   },
   headerBanner: {
     backgroundColor: '#0f172a',
-    borderRadius: 24,
-    padding: 16,
-    marginTop: 14,
-    marginBottom: 16,
+    borderRadius: ms(26),
+    padding: ms(16),
+    marginTop: vs(14),
+    marginBottom: vs(16),
     position: 'relative',
     overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: '#1e293b',
+    shadowColor: '#000000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 6,
+    elevation: 1,
   },
   headerBannerContent: {
     zIndex: 1,
@@ -290,35 +332,37 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(255, 74, 107, 0.15)',
     borderWidth: 0.5,
     borderColor: 'rgba(255, 74, 107, 0.2)',
-    paddingVertical: 2,
-    paddingHorizontal: 8,
-    borderRadius: 8,
+    paddingVertical: vs(2),
+    paddingHorizontal: hs(10),
+    borderRadius: 999,
     alignSelf: 'flex-start',
-    marginBottom: 6,
+    marginBottom: vs(6),
   },
   wishlistBadgeText: {
-    fontSize: 7.5,
+    fontSize: ms(8),
     color: '#FF4A6B',
     fontWeight: '900',
     textTransform: 'uppercase',
+    letterSpacing: 1,
   },
   headerTitle: {
-    fontSize: 14,
+    fontSize: ms(14),
     fontWeight: '900',
     color: '#ffffff',
     textTransform: 'uppercase',
+    letterSpacing: -0.3,
   },
   headerDesc: {
-    fontSize: 9.5,
+    fontSize: ms(9.5),
     color: '#94a3b8',
     fontWeight: '600',
-    marginTop: 4,
+    marginTop: vs(4),
   },
   sectionsList: {
     width: '100%',
   },
   sectorSection: {
-    marginBottom: 16,
+    marginBottom: vs(16),
   },
   sectorHeaderRow: {
     flexDirection: 'row',
@@ -326,36 +370,34 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     borderBottomWidth: 1,
     borderBottomColor: '#f1f5f9',
-    paddingBottom: 6,
-    marginBottom: 10,
+    paddingBottom: vs(6),
+    marginBottom: vs(10),
   },
   sectorTitleWrap: {
     flexDirection: 'row',
     alignItems: 'center',
-  },
-  sectorEmoji: {
-    fontSize: 12,
-    marginRight: 6,
+    gap: hs(6),
   },
   sectorTitle: {
-    fontSize: 10.5,
+    fontSize: ms(11),
     fontWeight: '900',
     textTransform: 'uppercase',
+    letterSpacing: 0.5,
   },
   sectorCount: {
-    fontSize: 9,
+    fontSize: ms(9),
     color: '#94a3b8',
     fontWeight: '700',
   },
   grid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: 12,
+    gap: hs(14),
     justifyContent: 'space-between',
   },
   card: {
     width: '48%',
-    borderRadius: 20,
+    borderRadius: ms(24),
     borderWidth: 1,
     borderColor: '#f1f5f9',
     overflow: 'hidden',
@@ -365,22 +407,38 @@ const styles = StyleSheet.create({
   },
   cardImgWrap: {
     width: '100%',
-    height: 110,
+    height: vs(128),
     position: 'relative',
     backgroundColor: '#f8fafc',
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(241,245,249,0.5)',
   },
   cardImg: {
     width: '100%',
     height: '100%',
   },
+  enterpriseIconStamp: {
+    position: 'absolute',
+    top: vs(10),
+    left: hs(10),
+    zIndex: 2,
+    borderWidth: 1,
+    borderColor: 'rgba(241,245,249,0.3)',
+    borderRadius: ms(14),
+    shadowColor: '#000000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.08,
+    shadowRadius: 2,
+    elevation: 1,
+  },
   heartBtn: {
     position: 'absolute',
-    top: 8,
-    right: 8,
+    top: vs(10),
+    right: hs(10),
     backgroundColor: 'rgba(255,255,255,0.95)',
-    width: 24,
-    height: 24,
-    borderRadius: 12,
+    width: ms(28),
+    height: ms(28),
+    borderRadius: ms(14),
     alignItems: 'center',
     justifyContent: 'center',
     shadowColor: '#000000',
@@ -391,85 +449,96 @@ const styles = StyleSheet.create({
   },
   ratingOverlay: {
     position: 'absolute',
-    bottom: 8,
-    left: 8,
+    bottom: vs(10),
+    left: hs(10),
     backgroundColor: 'rgba(15, 23, 42, 0.8)',
-    paddingVertical: 2,
-    paddingHorizontal: 6,
-    borderRadius: 4,
+    paddingVertical: vs(2),
+    paddingHorizontal: hs(6),
+    borderRadius: ms(6),
   },
   ratingText: {
     color: '#ffffff',
-    fontSize: 7,
+    fontSize: ms(7.5),
     fontWeight: '900',
   },
   cardContent: {
-    padding: 10,
+    padding: vs(12),
   },
   metaRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 4,
+    gap: hs(4),
   },
   appBadge: {
-    paddingVertical: 1,
-    paddingHorizontal: 4,
-    borderRadius: 4,
+    paddingVertical: vs(1),
+    paddingHorizontal: hs(4),
+    borderRadius: ms(4),
+    borderWidth: 1,
+    letterSpacing: 0.5,
   },
   appBadgeText: {
-    fontSize: 6,
+    fontSize: ms(6),
     fontWeight: '900',
   },
   shopName: {
-    fontSize: 7.5,
+    fontSize: ms(7.5),
     color: '#94a3b8',
     fontWeight: '700',
     textTransform: 'uppercase',
+    maxWidth: hs(80),
   },
   productName: {
-    fontSize: 9.5,
+    fontSize: ms(10),
     fontWeight: '900',
-    color: '#0f172a',
-    marginTop: 4,
+    color: '#020617',
+    marginTop: vs(4),
   },
   productDesc: {
-    fontSize: 7.5,
+    fontSize: ms(8),
     color: '#94a3b8',
-    fontWeight: '500',
-    marginTop: 2,
-    lineHeight: 10,
+    fontWeight: '600',
+    marginTop: vs(2),
+    lineHeight: ms(10),
+    minHeight: vs(22),
   },
   cardFooter: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingHorizontal: 10,
-    paddingBottom: 10,
+    borderTopWidth: 1,
+    borderColor: '#f8fafc',
+    backgroundColor: 'rgba(255,255,255,0.5)',
+    paddingTop: vs(8),
+    paddingHorizontal: hs(10),
+    paddingBottom: vs(10),
   },
   priceText: {
-    fontSize: 10,
+    fontSize: ms(10.5),
     fontWeight: '900',
     color: '#0f172a',
   },
   addBtn: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: 3,
-    paddingHorizontal: 8,
-    borderRadius: 6,
+    height: Math.max(26, vs(26)),
+    paddingHorizontal: hs(8),
+    borderRadius: ms(8),
+    gap: hs(2),
   },
   addBtnText: {
     color: '#ffffff',
-    fontSize: 7,
+    fontSize: ms(7),
     fontWeight: '900',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
   },
   emptyCard: {
     backgroundColor: '#ffffff',
-    borderRadius: 24,
+    borderRadius: ms(32),
     borderWidth: 1,
     borderColor: '#f1f5f9',
-    paddingVertical: 40,
-    paddingHorizontal: 16,
+    paddingVertical: vs(64),
+    paddingHorizontal: hs(16),
     alignItems: 'center',
     shadowColor: '#000000',
     shadowOffset: { width: 0, height: 2 },
@@ -478,27 +547,30 @@ const styles = StyleSheet.create({
     elevation: 1,
   },
   emptyIconCircle: {
-    width: 56,
-    height: 56,
-    borderRadius: 28,
+    width: ms(64),
+    height: ms(64),
+    borderRadius: ms(32),
     backgroundColor: '#fff1f2',
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: 12,
+    marginBottom: vs(12),
+    borderWidth: 2,
+    borderColor: '#fb7185',
   },
   emptyTitle: {
-    fontSize: 11,
+    fontSize: ms(12),
     fontWeight: '900',
     color: '#0f172a',
     textTransform: 'uppercase',
+    letterSpacing: -0.3,
   },
   emptyDesc: {
-    fontSize: 9,
-    color: '#64748b',
+    fontSize: ms(10),
+    color: '#94a3b8',
     fontWeight: '500',
     textAlign: 'center',
-    marginTop: 6,
-    lineHeight: 14,
-    paddingHorizontal: 20,
+    marginTop: vs(6),
+    lineHeight: ms(14),
+    maxWidth: hs(260),
   },
 });

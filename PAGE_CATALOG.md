@@ -559,3 +559,18 @@ These tabs render with empty-state messages:
 | 8 | C6 empty state: `#f8fafc` fill, `ms(28)` radius, dashed border, `vs(64)` py, 48px circular icon container with Search, "Let's try another one!" line appended | `CategoriesView.tsx` | ✅ Done | |
 | 9 | Cleanup: removed unused `Star` + `Dimensions` + `SCREEN_WIDTH` + dead styles | `CategoriesView.tsx` | ✅ Done | |
 | 10 | Gate: `tsc --noEmit` + catalog | All files | ✅ Done | 0 errors |
+
+### Page 8 — Favourites Tab (FavouritesView.tsx)
+
+| # | Task | File | Status | Notes |
+|---|------|------|--------|-------|
+| 1 | Responsive conversion: `Dimensions` removed, all styles → `hs`/`vs`/`ms` | `FavouritesView.tsx` | ✅ Done | |
+| 2 | F1 banner: SVG diagonal gradient `#4c0519→#0f172a→#172033`, 2 corner orbs (rose+blue rgba), `ms(26)` radius, `#1e293b` border, shadow | `FavouritesView.tsx` | ✅ Done | |
+| 3 | F1 badge: fully rounded (`borderRadius: 999`), `ms(8)` font, letterSpacing 1, `hs(10)` pad; title letterSpacing -0.3 | `FavouritesView.tsx` | ✅ Done | |
+| 4 | F2 sector headers: emoji → `EnterpriseIcon variant="flat" size={ms(11)}`; title `ms(11)` + letterSpacing 0.5 | `FavouritesView.tsx` | ✅ Done | |
+| 5 | F3 card shell: wired `cardBg` tints, `ms(24)` radius, `hs(14)` grid gap | `FavouritesView.tsx` | ✅ Done | |
+| 6 | F3 image: `vs(128)` height + bottom hairline; `ms(28)` heart circle with `hitSlop`; `ms(6)` rating radius; `EnterpriseIcon` overlay top-left with border+shadow | `FavouritesView.tsx` | ✅ Done | |
+| 7 | F3 content: app badge +1px sector border + letterSpacing; name `ms(10)` `#020617`; desc `ms(8)` weight 600; footer hairline + `rgba(255,255,255,0.5)` bg; Check↔Plus swap, added bg `#059669` | `FavouritesView.tsx` | ✅ Done | |
+| 8 | F4 empty state: `ms(32)` radius, `vs(64)` py; `ms(64)` rose circle with 2px `#fb7185` border; pulsing Heart via `Animated.loop`; title `ms(12)` + letterSpacing; desc `ms(10)` `#94a3b8` | `FavouritesView.tsx` | ✅ Done | |
+| 9 | Cleanup: removed unused `Star`/`Dimensions`/`SCREEN_WIDTH`/desc fallback string | `FavouritesView.tsx` | ✅ Done | |
+| 10 | Gate: `tsc --noEmit` + catalog | All files | ✅ Done | 0 errors |
