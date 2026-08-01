@@ -354,10 +354,10 @@ The following routes are typed in `RootStackParamList` but have NO `<Stack.Scree
 
 | RN File | Description | Action |
 |---------|-------------|--------|
-| `features/home/HomeScreen.tsx` | Alternative home view with different layout | Either delete or reconcile with HomeView |
-| `features/profile/ProfileScreen.tsx` | Alternative profile with different UI | Either delete or reconcile with AccountView |
-| `features/ecommerce/EcommerceScreen.tsx` | Standalone e-commerce with different product catalog | Either delete or merge into FaMartScreen |
-| `components/ProductDetailView.tsx` | Full product detail — identical to Vite but never rendered | Wire it into navigation ASAP |
+| ~~`features/home/HomeScreen.tsx`~~ | Alternative home view | 🗑️ Deleted |
+| ~~`features/profile/ProfileScreen.tsx`~~ | Alternative profile UI | 🗑️ Deleted |
+| ~~`features/ecommerce/EcommerceScreen.tsx`~~ | Standalone e-commerce catalog | 🗑️ Deleted |
+| `components/ProductDetailView.tsx` | Full product detail — now rendered via `selectedProduct` state overlay | ✅ Wired (Page 16) |
 
 ### 3.4 Placeholder/Virtual Pages in RN
 
@@ -574,3 +574,156 @@ These tabs render with empty-state messages:
 | 8 | F4 empty state: `ms(32)` radius, `vs(64)` py; `ms(64)` rose circle with 2px `#fb7185` border; pulsing Heart via `Animated.loop`; title `ms(12)` + letterSpacing; desc `ms(10)` `#94a3b8` | `FavouritesView.tsx` | ✅ Done | |
 | 9 | Cleanup: removed unused `Star`/`Dimensions`/`SCREEN_WIDTH`/desc fallback string | `FavouritesView.tsx` | ✅ Done | |
 | 10 | Gate: `tsc --noEmit` + catalog | All files | ✅ Done | 0 errors |
+
+### Page 9 — Cart Tab (CartView.tsx)
+
+| # | Task | File | Status | Notes |
+|---|------|------|--------|-------|
+| 1 | Responsive conversion: `Dimensions`/`SCREEN_WIDTH` removed, all styles → `hs`/`vs`/`ms` | `CartView.tsx` | ✅ Done | |
+| 2 | `onScroll` + `scrollEventThrottle={16}` on all 4 steps (BAG/ADDRESS/PAYMENT/RECEIPT) | `CartView.tsx` | ✅ Done | Was missing on PAYMENT + RECEIPT; header collapse now works mid-checkout |
+| 3 | BAG empty state: icon `ms(56)`, inner-shadow approximation, `Animated.loop` bounce (translateY -6↔0, native driver); desc `maxWidth: hs(220)`; title `ms(12)`, desc `ms(9.5)`; Go-to-Hub padV `vs(10)`/padH `hs(20)`, label `ms(9)` + letterSpacing | `CartView.tsx` | ✅ Done | |
+| 4 | BAG item rows: raw emoji → `<EnterpriseIcon variant="square" size={ms(34)}>` in bordered View; name `ms(11)`, price `ms(8)`; singular/plural count; items box bg `rgba(248,250,252,0.2)`; last row border removed; list `maxHeight: vs(260)`; qty btns `hitSlop` | `CartView.tsx` | ✅ Done | |
+| 5 | BAG coupon + pricing: input height `Math.max(36, vs(36))`, focus border `#0f172a` via `isFocused`; applied discount gets `<Check size={ms(12)} strokeWidth={3}>`; free label → `"FREE (₹49 Saved)"` in `#56B821`; grand total `ms(12)`/`ms(14)` | `CartView.tsx` | ✅ Done | |
+| 6 | Main CTA (all steps): height `Math.max(44, vs(44))`, radius `ms(16)`, bg `#020617`, shadow-lg, label `ms(12)` + letterSpacing, ArrowRight `strokeWidth={2.5}` | `CartView.tsx` | ✅ Done | |
+| 7 | ADDRESS: selected card subtle shadow; ✓ marker `ms(16)` @ offset `hs(14)`; icon tile `ms(32)` radius `ms(12)`; dashed button 2px border; form/labels `ms()` pass | `CartView.tsx` | ✅ Done | |
+| 8 | PAYMENT: pay button green glow shadow `rgba(124,224,69,0.3)` when processing; Verified chip radius `ms(12)` bg `rgba(226,232,240,0.5)`; COD emoji `ms(20)`; method labels `ms(9)` + letterSpacing; SSL strip bg `rgba(236,253,245,0.5)` | `CartView.tsx` | ✅ Done | |
+| 9 | RECEIPT: success disc `ms(48)` bg `#EBFBE5` + shadow, CheckCircle `strokeWidth={2.5}`; ETA pill `#EBFBE5`/`#56B821`; Truck `size={ms(10)}` + `Animated.loop` opacity pulse; tracking dots `ms(10)` both `#56B821` w/ 2px white border + emerald ring, second dot pulsing; receipt rows → `<EnterpriseIcon variant="flat" size={ms(10)}>`; list `maxHeight: vs(120)`; footer btns `Math.max(40, vs(40))`, Go-to-Hub shadow | `CartView.tsx` | ✅ Done | |
+| 10 | Cleanup + gate: removed `Dimensions`/`SCREEN_WIDTH`; added `export { getAppLabel }`; `tsc --noEmit` | All files | ✅ Done | 0 errors |
+
+**Accepted deltas:** no step fade-in entrance (instant swap; RN screen-level transition later if wanted); no hover states (`activeOpacity`); CSS spin → `ActivityIndicator`; inner shadow → light border + tint; active-scale → `activeOpacity 0.85`.
+
+### Page 10 — Account Tab (AccountView.tsx)
+
+| # | Task | File | Status | Notes |
+|---|------|------|--------|-------|
+| 1 | Responsive conversion: `hs`/`vs`/`ms` imported; entire StyleSheet (L147–428) converted | `AccountView.tsx` | ✅ Done | Hairlines & shadow radii raw per convention; bottom padding `vs(64)` |
+| 2 | Profile card: radius `ms(12)` (was 24); avatar `ms(64)` with SVG `#3b82f6→#4f46e5` gradient; initials `ms(20)`; name `ms(14)`; sub `ms(9)`; info boxes radius `ms(8)`, label `ms(7)`, value `ms(9)` `#1e293b` | `AccountView.tsx` | ✅ Done | Avatar pulse via `Animated.loop` on shadow opacity |
+| 3 | Section header: `ms(10)` + `letterSpacing: 0.5` (was 9.5, no tracking) | `AccountView.tsx` | ✅ Done | |
+| 4 | Active delivery banner: SVG `#2563eb→#4f46e5` gradient; radius `ms(12)` (was 20); icon circle `ms(40)` (was 32) + `Animated.loop` opacity pulse; badge `ms(7)` + letterSpacing; order id `ms(12)`; desc `ms(9)` `#dbeafe` | `AccountView.tsx` | ✅ Done | |
+| 5 | Past orders: `app` field added to data (FOOD/MART); raw emoji square → `<EnterpriseIcon variant="circle" size={ms(32)}>` with sector `bgColor`; card radius `ms(12)` (was 16); status pill `#059669`/`#ecfdf5` (was `#16a34a`/`#f0fdf4`), drop uppercase; fonts `ms(8/10/8/10)` | `AccountView.tsx` | ✅ Done | |
+| 6 | Settings group: radius `ms(12)` (was 20); icons `ms(13)` (were 14); labels `ms(10)`; badges pill radius 999; version `ms(8)` monospace | `AccountView.tsx` | ✅ Done | |
+| 7 | Location row — dead tap fix: MainDashboardScreen L205 `setShowLocationRequestState={() => {}}` → `setShowLocationRequestState={() => navigation.navigate('Location')}` | `MainDashboardScreen.tsx` | ✅ Done | Now navigates to Location screen on tap |
+| 8 | Logout button: height `Math.max(40, vs(40))` (was 38), radius `ms(12)` (was 16), label `ms(12)` + letterSpacing (was 10.5), border `rgba(254,205,211,0.5)` | `AccountView.tsx` | ✅ Done | |
+| 9 | Vertical rhythm: uniform `vs(16)` gaps between all 4 sections (Vite space-y-4) | `AccountView.tsx` | ✅ Done | |
+| 10 | Gate: `npx tsc --noEmit` | All files | ✅ Done | 0 errors |
+
+**Accepted deltas:** animate-fade-in/animate-bounce-slow web CSS classes are undefined no-ops even in Vite → intentionally skipped; hover states → `activeOpacity`; press scale-95 → `activeOpacity 0.85`.
+
+### Page 11 — SubAppWrapper Shell (SubAppWrapper.tsx)
+
+| # | Task | File | Status | Notes |
+|---|------|------|--------|-------|
+| 1 | Cleanup: removed `Image`, `Dimensions`/`SCREEN_HEIGHT`, `Percent`, `EcommerceScreen` imports; `accentBg` from all 4 configs; 8 dead styles (`searchBox*`, `modeToggle*` ×5) | `SubAppWrapper.tsx` | ✅ Done | |
+| 2 | Config parity: PHARMA `#db2777` → `#FF7A59` (coral) everywhere; names `'FOOD'`→`'Food'`, `'FA GROCERY'`→`'FA Grocery'`, `'FA PHARMA'`→`'FA Pharma'` | `SubAppWrapper.tsx` | ✅ Done | Web casing match |
+| 3 | Overlay layout model: root bg `#f8fafc`; header absolute top (zIndex 30, vs(64), shadow, no border); tab bar absolute bottom; viewport `paddingTop: vs(64)` / `paddingBottom: vs(72)` | `SubAppWrapper.tsx` | ✅ Done | Web's floating shell parity |
+| 4 | Header fidelity: backBtn transparent (drop fill/border), `marginLeft: hs(-8)`, ArrowLeft `ms(22)` `strokeWidth={2.5}`; eyebrow `'FAAZIO APP HUB'` `ms(8)` spacing 1.2; title `ms(12)`; location pill bg `#f8fafc`, border `rgba(226,232,240,0.5)`, radius `ms(12)`, text `#475569` `ms(9)`, MapPin `#2F80ED` | `SubAppWrapper.tsx` | ✅ Done | |
+| 5 | Bottom navbar shell: height `vs(72)`, bg `rgba(255,255,255,0.95)`, top radius `ms(28)`, shadow, `paddingHorizontal: hs(24)` with `justifyContent: 'space-between'`, tab buttons 56×56 | `SubAppWrapper.tsx` | ✅ Done | |
+| 6 | Active tab pill: `ms(32)×4` rounded, `Animated.spring` translateX via `tabPositions` + `onLayout`; active icon `strokeWidth={2.5}` + `scale: 1.1`; inactive `#94a3b8` | `SubAppWrapper.tsx` | ✅ Done | |
+| 7 | Cart badge: font `ms(8)`; `Animated.loop` bounce (translateY -3↔0, native driver) | `SubAppWrapper.tsx` | ✅ Done | |
+| 8 | Exit sheet: top radius `ms(32)` (was 24), drag bar `hs(48)×6` (was 36×4), title `ms(14)` + 'Exit Food?' copy fix, subtitle `ms(10)`, exit button 'Exit to Main App' (was 'Exit to Hub'), drop border on Keep | `SubAppWrapper.tsx` | ✅ Done | |
+| 9 | Wrapper-owned inline tabs: Mall Categories → 2-col grid; Aisles → color-coded cards no emoji (`#ecfdf5/#065f46`, etc.); My Bookings → VIP header + "Browse Partners" button; fallback → basket UI with steppers + totals + themed checkout | `SubAppWrapper.tsx` | ✅ Done | |
+| 10 | Gate: full StyleSheet `hs`/`vs`/`ms` conversion; `tsc --noEmit` | All files | ✅ Done | 0 errors |
+
+**Accepted deltas:** no backdrop blur (solid rgba); motion spring layout morphs → `Animated.spring` translate; animate-fade-in undefined even on web → skipped; web's pt-17 → `vs(64)`; edge-swipe exit → Android hardware-back (already wired); hover → `activeOpacity`.
+
+### Page 12 — Food Sub-App (FoodScreen.tsx + FoodMenuView.tsx + bookingStore.ts)
+
+| # | Task | Files | Status | Notes |
+|---|------|-------|--------|-------|
+| 1 | Foundation & cleanup: removed `ImageBackground`, `MapPin`, `Calendar`, `Dimensions`/`SCREEN_WIDTH`, orphan `useRef`/`useEffect`; typed props; `hs/vs/ms` import; `searchFocusedInitially` via `TextInput` ref + `useEffect` focus | `FoodScreen.tsx` | ✅ Done | activeSubMode fallback defaults 'order' |
+| 2 | Mode toggle segment: `#F1F5F9` track, active white-on-`#1E5D44`, `ms(11)` 900 uppercase; crossfade `Animated` opacity/translateY 250ms | `FoodScreen.tsx` | ✅ Done | |
+| 3 | Promo card redesign: `#F2F5F3` r24 card, "Discount 25%" chip (`#047857`/`#ECFDF5`), `ms(124)` circular image w/ 4px white border, working "Order Now" → addToCart + 1.5s `#059669` + Check | `FoodScreen.tsx` | ✅ Done | |
+| 4 | Top of Week rail: 170px horizontal snap cards, 112px image, ADD→✓ `#10B981`, wired to search filtering; `onProductClick` payload normalized (`price/10`, `app:'FOOD'`) | `FoodScreen.tsx` | ✅ Done | |
+| 5 | Restaurant directory: "Top Restaurants Near You" + count; Pure Veg / Under-30-mins toggles; 3-way sort segment; conditional rose Clear All; `foodStores` cards (cover+gradient, emoji, VEG badge, rating/delivery/distance/offer rows, chevron circle) | `FoodScreen.tsx` | ✅ Done | Data already mirrored |
+| 6 | Store drill-in: `selectedStore` state; back pill; hero cover + floating rating; 56px emoji tile; pulsing offer tag; 2-col menu grid w/ "{firstWord} Special" badge and + Add → ✓ Added | `FoodScreen.tsx` | ✅ Done | |
+| 7 | Booking mode fidelity: `#54B175` r28 full card header (avatar + dot, 🛒 `#FFA500` circle, back+search+⚙️ chip); tabs w/ "24" badge + animated underline; floating category bubbles card (Vegan/Pizza/Sushi/Hot Dog, active amber ring + ★ badge) overlapping header -24px; vertical Popular Food cards (176px image, heart circle, "Book Table" pill, tab+category filter w/ empty state) | `FoodScreen.tsx` | ✅ Done | |
+| 8 | Reservation modal: RN Modal full-screen; sticky header; Core Dish gradient card; date display (Today/Tomorrow style), 4 time-slot pills (18:00–21:00 w/ labels), guest pills 1/2/4/6/8 active `#54B175`; Iconic Dishes rail inside; sticky confirm + PROMO PASS chip → `addBooking` → `BKG-xxxxxx` → toast + 5s auto-dismiss | `FoodScreen.tsx` + `bookingStore.ts` | ✅ Done | In-memory store (no AsyncStorage dep) |
+| 9 | FoodMenuView port: header w/ pulsing bell dot, dark toast, sticky search + cat tabs w/ spring underline, 2-col `foodProducts` grid w/ floating Plus→Check badge, dashed empty state; SubAppWrapper Menu-tab placeholder replaced; My Bookings wired to `getBookings()` | `FoodMenuView.tsx` + `SubAppWrapper.tsx` | ✅ Done | |
+| 10 | Gate: full `hs()`/`vs()`/`ms()` responsive sweep, container bg `#f8fafc`; `tsc --noEmit` | All files | ✅ Done | 0 errors |
+
+**Accepted deltas:** native date input → Today/Tomorrow preset display; no AsyncStorage → in-memory `bookingStore`; Vite dead code (dinnerRestaurants, unused handlers, Bell/Filter orphans, animate-fade-in) skipped; web motion layout-id → `Animated.spring` translate.
+
+### Page 13 — FA Mart Sub-App (FaMartScreen.tsx)
+
+| # | Task | File | Status | Notes |
+|---|------|------|--------|-------|
+| 1 | Foundation & cleanup: dropped `ImageBackground`, `Dimensions`/`SCREEN_WIDTH`, `Percent`, unused `favorites`/`toggleFavorite` props; imported `martStores`/`StoreProfile`; added `matchCategory` helper + `filteredStores`; added `resolveBadgeBg` hex map (fixes latent invalid-color bug) | `FaMartScreen.tsx` | ✅ Done | |
+| 2 | Live countdown: `timeLeft` state (2:14:45), 1s `setInterval` w/ cleanup, `formatCountdown` zero-padded `HHh : MMm : SSs` | `FaMartScreen.tsx` | ✅ Done | |
+| 3 | Category chips rebuild: 9 consolidated chips (Mobile & Electronics, Toys & Gifts, Books & Stationery, Home Appliances, Furniture w/ proper icons), header "Explore Mall Categories", active `#1162D3` + scale-1.05, tap clears `selectedStore`; rendered FIRST | `FaMartScreen.tsx` | ✅ Done | |
+| 4 | Banner rebuild: 3 banners (restored `photo-1550009158`, added Smart Home), accents `#1162D3`/`#E040FB`/`#10B981`, SVG diagonal `LinearGradient` overlay, category-specific banner on chip select, pulsing rose Timer countdown chip, CTA "Explore {category}", dots only on 'All', `Animated` crossfade | `FaMartScreen.tsx` | ✅ Done | |
+| 5 | Flash Deals strip: header w/ `TrendingUp` + rotating `Clock` (4s loop) + "Ends in {countdown}" chip; 170px snap cards: 112px image + FLASH SALE badge, category/★ row, price + strikethrough ×1.3, "+ Add" `#1162D3`→emerald ✓; max 6 items | `FaMartScreen.tsx` | ✅ Done | |
+| 6 | Vendors Directory: Store icon header + dynamic title/subtitle + count chip; store cards: 64px cover thumb w/ bottom gradient + emoji, amber ★ chip, `Clock`/`MapPin`/🔥 meta chips, 28px chevron circle → `setSelectedStore` | `FaMartScreen.tsx` | ✅ Done | |
+| 7 | Store Profile drill-in: back pill "Back to {category}" + "Verified Partner" `ShieldCheck` chip; hero 140px cover @80% over slate-900 gradient; rating pill (solid `rgba`); 56px emoji tile −24px; pulsing 🔥 offerTag; meta row w/ categories • joined; "Store Product Catalog" header; 2-col grid w/ "Store Deal" badge, payload `{...product, app:'MART', shop: store.name}` | `FaMartScreen.tsx` | ✅ Done | |
+| 8 | Product card redesign: grid gated to 'All' ("All Trending Products" + "100% Authentic" chip); `ms(24)` radius; `resolveBadgeBg` fallback "Trending"; boxed category tag + ★ rating; name 1-line/desc 2-line; `$price.toFixed(2)` + ×1.3 strikethrough; labeled "Add" (`#1162D3`) → "Added!" + `CheckCircle` (emerald); removed dark circle | `FaMartScreen.tsx` | ✅ Done | |
+| 9 | Payload & polish: every `onProductClick` spreads `app:'MART'`; `activeOpacity` 0.8; `Animated.loop` pulses on offer/countdown chips | `FaMartScreen.tsx` | ✅ Done | |
+| 10 | Gate: full `hs()`/`vs()`/`ms()` sweep; container bg `#f8fafc`; `tsc --noEmit` | All files | ✅ Done | 0 errors |
+
+**Accepted deltas:** `$xx.xx` currency (Vite spec, though data is ₹-scale); Vite dead code (motion/AnimatePresence, unused icons, animate-fade-in) skipped; backdrop-blur → solid `rgba`; no wrapper change (Offers tab replaced by Cart/Profile in RN config).
+
+### Page 14 — Grocery Sub-App (GroceryScreen.tsx)
+
+| # | Task | Files | Status | Notes |
+|---|------|-------|--------|-------|
+| 1 | Data fix (critical): deleted inline 3-product fallback + stale comment + unused `martProducts` import; imported canonical `groceryProducts` (7 items, byte-identical in data file) | `GroceryScreen.tsx` | ✅ Done | |
+| 2 | Typed props: replaced `any` with `GroceryScreenProps` interface (`addToCart`, `cartItems`, `updateCartQuantity`, `onProductClick?`); kept RN null-guards | `GroceryScreen.tsx` | ✅ Done | |
+| 3 | Aisle chips fidelity: Vite taxonomy/emojis (All 🍏, Fresh Produce 🥦, Dairy & Eggs 🥚, Bakery 🍞, Beverages 🥛, Snacks 🍿); active chip scale-1.05 + shadow; header "Supermarket Aisles" | `GroceryScreen.tsx` | ✅ Done | |
+| 4 | Banner rebuild: directional SVG `LinearGradient` overlay (emerald-950 `#022c22` → slate-900/95 → transparent); badge text `#56B821` on `rgba(255,255,255,0.1)`; content `maxWidth 70%`; shadow + `#f1f5f9` border | `GroceryScreen.tsx` | ✅ Done | |
+| 5 | Card tap-target restructure: split into pressable image+content block (fires `onProductClick` w/ `app:'GROCERY'`) and non-propagating price/action row — eliminates qty-button tap conflict | `GroceryScreen.tsx` | ✅ Done | |
+| 6 | Card detail fidelity: badge fully-rounded pill; name `numberOfLines={1}`; desc `minHeight: vs(22)`; price `toLocaleString('en-IN')` (guarded try/catch); footer `borderTop #f8fafc` | `GroceryScreen.tsx` | ✅ Done | |
+| 7 | ADD pulse animation: success state (`#059669` + `CheckCircle`) gets `Animated.loop` opacity pulse (1↔0.6, 800ms) during the 1200ms feedback window | `GroceryScreen.tsx` | ✅ Done | |
+| 8 | Wrapper Aisles tab: title "Aisle Map" + subtitle "Fresh organic foods categorized perfectly"; renamed cards Greens & Orchard→Fresh Produce, Sweet Beverages→Beverages (12 Refreshing Drinks) | `SubAppWrapper.tsx` | ✅ Done | |
+| 9 | Responsive sweep: full `hs()`/`vs()`/`ms()` conversion; card width via responsive math `(SCREEN_W - hs(36)) / 2` | `GroceryScreen.tsx` | ✅ Done | |
+| 10 | Gate: `npx tsc --noEmit` | All files | ✅ Done | 0 errors |
+
+**Accepted deltas:** Vite dead code (6 unused lucide imports, motion/AnimatePresence, animate-fade-in, "Fresh Club" unreachable tab) skipped; hover states → `activeOpacity`; `toLocaleString('en-IN')` guarded for Hermes Intl; wrapper primaryColor keeps `#10B981` (already decided in Page 11).
+
+### Page 15 — Pharma Sub-App (PharmaScreen.tsx + SubAppWrapper.tsx)
+
+| # | Task | Files | Status | Notes |
+|---|------|-------|--------|-------|
+| 1 | Data & foundation: replaced 4-item DB with full 12-item `PHARMA_PRODUCTS_DB` (correct `ph-f1` ₹45, restored `ph-s1` Whey Protein, added `ph-t3/t4/f2/v1/a1/h1/as1/d1`, bullets on all); typed `PharmaScreenProps` matching Vite's 7-prop interface; dropped `Dimensions`; page bg `#FAF9F6` | `PharmaScreen.tsx` | ✅ Done | |
+| 2 | View state machine: `currentView` (`HOME`/`ALL_CATEGORIES`/`CATEGORY_PRODUCTS`/`PRODUCT_DETAIL`) + `selectedCategoryId`/`selectedProduct`/`quantity`/`searchQuery`/`addedAnimationId`/`localFavorites`; handlers `toggleLocalFavorite`, `handleAddWithFeedback`, `handleAddMultipleToCart` | `PharmaScreen.tsx` | ✅ Done | |
+| 3 | Peach gradient header: SVG `LinearGradient` `#FFF0E8→#FFD5C8`, radius `ms(42)`; avatar row 44px circle (photo-1534528741775), "Camberline" 15px 800; Search pill (`rgba(255,255,255,0.7)`); bell 32px white circle + 6px `#E05B35` dot; banner 21px/900 + "Shop now" pill → vitamin drill-in; trust card `rgba(255,255,255,0.95)` r16 w/ `ShieldCheck` coral on `#FFF0E8` circle | `PharmaScreen.tsx` | ✅ Done | |
+| 4 | Dots + Category grid: 3 pagination dots (active 14×6 pill `#FF7A59`); "Category" 14px/900 + "View all"; 2×2 grid (first 4), cards r22 white, 40px icon circle border `#FFEAE5` bg `#FFF5F2` | `PharmaScreen.tsx` | ✅ Done | Emoji icons (not custom SVGs) |
+| 5 | Popular Wellness Matches: 2×2 grid (first 4 products); functional heart toggle (rose fill when fav); separate pressable content block (→ `PRODUCT_DETAIL` internally) vs isolated price/add row (fixes nested-touchable conflict); image 80% contain in `#FFFBF9` box; rating ★ coral 9px; 24px dark circle Plus → emerald Check | `PharmaScreen.tsx` | ✅ Done | `onProductClick` unused — all taps navigate internally (matches Vite) |
+| 6 | `ALL_CATEGORIES` + `CATEGORY_PRODUCTS` views: back bar (`ChevronLeft` 16/3 in 32px white circle, uppercase title); full 8-category grid; filtered product grid honoring `searchQuery`, 2-line name min-h `vs(28)`, empty state 💊 card | `PharmaScreen.tsx` | ✅ Done | |
+| 7 | `PRODUCT_DETAIL` view: hero SVG gradient `#FFF2EE→#FFF7F4` r36 w/ back + heart buttons, 192px centered image; name 18px/900, 5 amber stars + reviews; quantity selector bar (30px white circles, `Minus`/`Plus` 11/3); Description; bullets w/ 16px `#FFEAE5` circles + coral `Check` 8/4; total bar + full-width dark "Add to Cart" → emerald "Added to Cart!" | `PharmaScreen.tsx` | ✅ Done | |
+| 8 | For You tab: coral `Sparkles` header + subtitle; curated grid `ph-t1/t2/t4/f1/f2`; `#E05B35` discount badges (guarded); strikethrough `originalPrice` (guarded); tapping product → detail + `setActiveTab('Home')` | `PharmaScreen.tsx` | ✅ Done | |
+| 9 | History tab: coral `ClipboardList` header; Active Medicine Deliveries card (`ORD-93821`, ₹90, pulsing green dot via `Animated.loop`); Scheduled Doctor Consultations list w/ amber "Upcoming"/grey "Completed" badges, `Calendar`/`Clock` 9px meta, grey directive box | `PharmaScreen.tsx` | ✅ Done | |
+| 10 | Wrapper delegation fix + gate: PHARMA route delegates Home/For You/History all to `<PharmaScreen …7 props />` via early return before switch; deleted both placeholder blocks; full `hs()`/`vs()`/`ms()` sweep; `tsc --noEmit` | `SubAppWrapper.tsx`, `PharmaScreen.tsx` | ✅ Done | 0 errors |
+
+**Accepted deltas:** consultation engine (Vite L354–522) skipped; decorative 144px blur-xl → semi-transparent rounded Views (no blur dep); search focus-width grow → fixed-width; Vite dead code (unused icons, motion/AnimatePresence) skipped; hover → `activeOpacity`; latent RN bugs (unguarded `discountBadge`/`originalPrice` "undefined", decorative no-op heart) fixed by rebuild.
+
+### Page 16 — ProductDetail Modal (X01) + M04/G03 Closure
+
+| # | Task | Files | Status | Notes |
+|---|------|-------|--------|-------|
+| A1 | Vite-parity wiring: added `selectedProduct` state + `handleProductClick` in MainDashboardScreen; renders `<ProductDetailView>` conditionally in both hub AND sub-app branches (overlays everything like Vite's z-50); replaced all 3 `navigation.navigate('ProductDetail')` calls; passed `onProductClick` to HomeView | `MainDashboardScreen.tsx` | ✅ Done | |
+| A2 | Phantom routes removed: dropped `ProductDetail`, `BookingConfirmation`, `PrescriptionUpload`, `Cart`, `Checkout` from `RootStackParamList` (none had `<Stack.Screen>` entries) | `AppNavigator.tsx` | ✅ Done | |
+| B3 | Hero rebuild: fixed `vs(256)` height (not 30% screen); per-brand SVG vertical LinearGradient; circle `ms(160)`; emoji `ms(64)`; rating badge inside bottom-right | `ProductDetailView.tsx` | ✅ Done | |
+| B4 | Nav buttons: X `ms(20)/sw2.5`, Share2 `ms(18)`, Heart `ms(18)`; heart button `40×40` while close/share stay `48×48` (Vite's intentional asymmetry) | `ProductDetailView.tsx` | ✅ Done | |
+| B5 | Color/copy corrections: sheet bg `#f8fafc`; tax `#56B821` "Incl. of all taxes"; highlights → `Check` icon `ms(11)/sw3.5` `#059669`; `ShieldCheck` `#059669`; `RotateCcw` `#2563eb`; reviews-avg badge text `#1e293b`; name `ms(20)`, price `ms(24)`, desc `ms(11)` | `ProductDetailView.tsx` | ✅ Done | |
+| B6 | Reviews parity: restored 3rd review for FOOD (Vikram Singh) & MART (Kunal Kapoor); replaced initial-letter circles with 28px Unsplash avatar `Image`s; comment indent `hs(36)` | `ProductDetailView.tsx` | ✅ Done | |
+| B7 | Footer parity: height `vs(80)`; Add-to-Bag `Math.max(44, vs(44))`/r16/px24, Plus `ms(12)/sw2.5`; stepper buttons `ms(32)`/r12, Minus/Plus `ms(14)/sw3` | `ProductDetailView.tsx` | ✅ Done | |
+| B8 | Responsive sweep: full `hs()`/`vs()`/`ms()` conversion of entire StyleSheet; interface fields made optional with fallback guards (`emoji ?? '🛍️'`) | `ProductDetailView.tsx` | ✅ Done | |
+| C9 | M04 (Mart Offers) + G03 (Grocery Fresh Club) closed as "parity by omission" — both tab names absent from both apps' configs; RN matches what users actually see | `PAGE_CATALOG.md` | ✅ Closed | Zero code — Vite parity by omission |
+| 10 | Gate: `npx tsc --noEmit` | All files | ✅ Done | 0 errors |
+
+**Accepted deltas:** M04/G03 unreachable in Vite (tab names absent from both configs) → parity by omission; consultation engine (Vite dead code) skipped; decorative blur-xl → semi-transparent rounded Views; hover → `activeOpacity`.
+
+---
+
+## ✅ Vite → RN Alignment Complete
+
+All **40 top-level pages** from Section 1 are now visually aligned with the RN app. Final summary:
+
+| Phase | Pages | Status |
+|-------|-------|--------|
+| Pages 1–4: Onboarding, Login, Location | 10 (O1–O10) | ✅ |
+| Page 5: Dashboard Shell | 1 (D1) | ✅ |
+| Pages 6–10: Home, Categories, Favourites, Cart, Account tabs | 5 (D2–D6) | ✅ |
+| Page 11: SubAppWrapper Shell | 1 (S0) | ✅ |
+| Pages 12–15: Food, FA Mart, Grocery, Pharma sub-apps | 21 (F01–F08, M01–M04, G01–G03, P01–P06) | ✅ |
+| Page 16: ProductDetail Modal | 1 (X01) + (X02) | ✅ |
+
+**40/40 pages aligned. `npx tsc --noEmit` — 0 errors.**

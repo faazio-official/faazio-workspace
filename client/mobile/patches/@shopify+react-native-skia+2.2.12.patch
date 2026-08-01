@@ -1,0 +1,129 @@
+diff --git a/node_modules/@shopify/react-native-skia/lib/commonjs/external/reanimated/renderHelpers.js b/node_modules/@shopify/react-native-skia/lib/commonjs/external/reanimated/renderHelpers.js
+index 7655ab4..4bced1b 100644
+--- a/node_modules/@shopify/react-native-skia/lib/commonjs/external/reanimated/renderHelpers.js
++++ b/node_modules/@shopify/react-native-skia/lib/commonjs/external/reanimated/renderHelpers.js
+@@ -5,17 +5,4 @@ Object.defineProperty(exports, "__esModule", {
+ });
+ exports.HAS_REANIMATED_3 = void 0;
+ let HAS_REANIMATED_3 = exports.HAS_REANIMATED_3 = false;
+-try {
+-  // This logic is convoluted but necessary
+-  // In most systems, `require("react-native-reanimated")` throws an error, all is well.
+-  // In webpack, in some configuration it will return an empty object.
+-  // So it will not throw an error and we need to check the version to know if it's there.
+-  const reanimatedVersion = require("react-native-reanimated/package.json").version;
+-  require("react-native-reanimated");
+-  if (reanimatedVersion && (reanimatedVersion >= "3.0.0" || reanimatedVersion.includes("3.0.0-"))) {
+-    exports.HAS_REANIMATED_3 = HAS_REANIMATED_3 = true;
+-  }
+-} catch (e) {
+-  // do nothing
+-}
+ //# sourceMappingURL=renderHelpers.js.map
+\ No newline at end of file
+diff --git a/node_modules/@shopify/react-native-skia/lib/commonjs/external/reanimated/useVideoLoading.js b/node_modules/@shopify/react-native-skia/lib/commonjs/external/reanimated/useVideoLoading.js
+index 01dfcfb..d2f3cea 100644
+--- a/node_modules/@shopify/react-native-skia/lib/commonjs/external/reanimated/useVideoLoading.js
++++ b/node_modules/@shopify/react-native-skia/lib/commonjs/external/reanimated/useVideoLoading.js
+@@ -8,11 +8,11 @@ var _react = require("react");
+ var _skia = require("../../skia");
+ var _ReanimatedProxy = _interopRequireDefault(require("./ReanimatedProxy"));
+ function _interopRequireDefault(e) { return e && e.__esModule ? e : { default: e }; }
+-const runtime = _ReanimatedProxy.default.createWorkletRuntime("video-metadata-runtime");
+ const useVideoLoading = source => {
+   const {
+     runOnJS
+   } = _ReanimatedProxy.default;
++  const runtime = (0, _react.useMemo)(() => _ReanimatedProxy.default.createWorkletRuntime("video-metadata-runtime"), []);
+   const [video, setVideo] = (0, _react.useState)(null);
+   const cb = (0, _react.useCallback)(src => {
+     "worklet";
+diff --git a/node_modules/@shopify/react-native-skia/lib/module/external/reanimated/renderHelpers.js b/node_modules/@shopify/react-native-skia/lib/module/external/reanimated/renderHelpers.js
+index 95cd553..17cb278 100644
+--- a/node_modules/@shopify/react-native-skia/lib/module/external/reanimated/renderHelpers.js
++++ b/node_modules/@shopify/react-native-skia/lib/module/external/reanimated/renderHelpers.js
+@@ -1,15 +1,2 @@
+ export let HAS_REANIMATED_3 = false;
+-try {
+-  // This logic is convoluted but necessary
+-  // In most systems, `require("react-native-reanimated")` throws an error, all is well.
+-  // In webpack, in some configuration it will return an empty object.
+-  // So it will not throw an error and we need to check the version to know if it's there.
+-  const reanimatedVersion = require("react-native-reanimated/package.json").version;
+-  require("react-native-reanimated");
+-  if (reanimatedVersion && (reanimatedVersion >= "3.0.0" || reanimatedVersion.includes("3.0.0-"))) {
+-    HAS_REANIMATED_3 = true;
+-  }
+-} catch (e) {
+-  // do nothing
+-}
+ //# sourceMappingURL=renderHelpers.js.map
+\ No newline at end of file
+diff --git a/node_modules/@shopify/react-native-skia/lib/module/external/reanimated/useVideoLoading.js b/node_modules/@shopify/react-native-skia/lib/module/external/reanimated/useVideoLoading.js
+index 307e745..579dfc5 100644
+--- a/node_modules/@shopify/react-native-skia/lib/module/external/reanimated/useVideoLoading.js
++++ b/node_modules/@shopify/react-native-skia/lib/module/external/reanimated/useVideoLoading.js
+@@ -1,11 +1,11 @@
+-import { useCallback, useEffect, useState } from "react";
++import { useCallback, useEffect, useMemo, useState } from "react";
+ import { Skia } from "../../skia";
+ import Rea from "./ReanimatedProxy";
+-const runtime = Rea.createWorkletRuntime("video-metadata-runtime");
+ export const useVideoLoading = source => {
+   const {
+     runOnJS
+   } = Rea;
++  const runtime = useMemo(() => Rea.createWorkletRuntime("video-metadata-runtime"), []);
+   const [video, setVideo] = useState(null);
+   const cb = useCallback(src => {
+     "worklet";
+diff --git a/node_modules/@shopify/react-native-skia/src/external/reanimated/renderHelpers.ts b/node_modules/@shopify/react-native-skia/src/external/reanimated/renderHelpers.ts
+index d46856a..a27b80c 100644
+--- a/node_modules/@shopify/react-native-skia/src/external/reanimated/renderHelpers.ts
++++ b/node_modules/@shopify/react-native-skia/src/external/reanimated/renderHelpers.ts
+@@ -1,19 +1 @@
+ export let HAS_REANIMATED_3 = false;
+-
+-try {
+-  // This logic is convoluted but necessary
+-  // In most systems, `require("react-native-reanimated")` throws an error, all is well.
+-  // In webpack, in some configuration it will return an empty object.
+-  // So it will not throw an error and we need to check the version to know if it's there.
+-  const reanimatedVersion =
+-    require("react-native-reanimated/package.json").version;
+-  require("react-native-reanimated");
+-  if (
+-    reanimatedVersion &&
+-    (reanimatedVersion >= "3.0.0" || reanimatedVersion.includes("3.0.0-"))
+-  ) {
+-    HAS_REANIMATED_3 = true;
+-  }
+-} catch (e) {
+-  // do nothing
+-}
+diff --git a/node_modules/@shopify/react-native-skia/src/external/reanimated/useVideoLoading.ts b/node_modules/@shopify/react-native-skia/src/external/reanimated/useVideoLoading.ts
+index 58c64b6..ba023d4 100644
+--- a/node_modules/@shopify/react-native-skia/src/external/reanimated/useVideoLoading.ts
++++ b/node_modules/@shopify/react-native-skia/src/external/reanimated/useVideoLoading.ts
+@@ -1,16 +1,18 @@
+-import { useCallback, useEffect, useState } from "react";
++import { useCallback, useEffect, useMemo, useState } from "react";
+ 
+ import type { Video } from "../../skia/types";
+ import { Skia } from "../../skia";
+ 
+ import Rea from "./ReanimatedProxy";
+ 
+-const runtime = Rea.createWorkletRuntime("video-metadata-runtime");
+-
+ type VideoSource = string | null;
+ 
+ export const useVideoLoading = (source: VideoSource) => {
+   const { runOnJS } = Rea;
++  const runtime = useMemo(
++    () => Rea.createWorkletRuntime("video-metadata-runtime"),
++    []
++  );
+   const [video, setVideo] = useState<Video | null>(null);
+   const cb = useCallback(
+     (src: string) => {

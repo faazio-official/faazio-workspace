@@ -4,6 +4,25 @@ This file instructs future AI coding agents or assistants on how to build, exten
 
 ---
 
+## 📁 Monorepo Structure
+
+```
+faazio-workspace/
+├── (repo root)            ← Vite web app — UI reference, FROZEN (no edits)
+├── client/
+│   └── mobile/            ← React Native (Expo) SuperApp — all active work
+├── server/                ← Go Chi SDUI backend (placeholder)
+└── data/                  ← SDUI source of truth, consumed via `@data/*`
+```
+
+**Rules:**
+- **Vite web app at repo root is a frozen UI reference.** Do not edit `src/`, `vite.config.ts`, `tsconfig.json`, `index.html`, `package.json`, or any root-level file belonging to Vite. Do not fix, lint, typecheck, or build Vite. Its `tsconfig.json`, aliases, and excludes are left as-is.
+- **All active development lives in `client/mobile/`**. Use `@/` for files inside `client/mobile/src/`.
+- **Shared data lives in `data/`** at the repo root. Import via `@data/` prefix (Metro watchFolders + TS path alias).
+- **`server/`** is a placeholder for the future Go Chi backend. No server code yet.
+
+---
+
 ## 🛑 Critical Rule: Wait For User Intent
 
 **DO NOT build any new screens or pages until the user explicitly requests them.**
@@ -16,6 +35,8 @@ The user has initialized the core structure and folder tree, and will provide th
 ### 1. Absolute Path Configuration
 - Use the `@/` prefix to import files within the `src/` directory.
 - Example: `import { useAuthStore } from '@/state/store';` rather than `import { useAuthStore } from '../../state/store';`.
+- Use the `@data/` prefix to import shared data from the root `data/` folder.
+  Example: `import { martProducts } from '@data/mart/products';`.
 
 ### 2. State Management Strategy (Zustand)
 - All shared states **MUST** live in `src/state/store.ts` (or modular files inside `src/state/` if it scales).

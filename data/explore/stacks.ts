@@ -1,0 +1,79 @@
+import type { ExploreStack } from '../types';
+
+export const exploreStacks: ExploreStack[] = [
+  { id: "trending-street-food", title: "🔥 Trending Street Food", subtitle: "Insane local flavours blowing up on social feeds", type: "FOOD", accent: "#1E5D44", items: [
+    { id: "toy-1", name: "Hot Spicy Noodle Town", price: 180, rating: "4.8", emoji: "🍜", img: "https://images.unsplash.com/photo-1569718212165-3a8278d5f624?auto=format&fit=crop&q=80&w=400&h=400", shop: "Noodle Town" },
+    { id: "toy-2", name: "Crispy Korean Fried Chicken", price: 250, rating: "4.9", emoji: "🍗", img: "https://images.unsplash.com/photo-1598515214211-89d3c73ae83b?auto=format&fit=crop&q=80&w=400&h=400", shop: "Seoul Kitchen" },
+    { id: "toy-3", name: "Peri Peri French Fries", price: 120, rating: "4.7", emoji: "🍟", img: "https://images.unsplash.com/photo-1573080496219-bb080dd4f877?auto=format&fit=crop&q=80&w=400&h=400", shop: "Fry House" },
+  ]},
+  { id: "hype-kicks", title: "👟 Hype Kicks & Drops", subtitle: "Limited street heat you can cop right now", type: "MART", accent: "#1162D3", items: [
+    { id: "hk-1", name: "Air Retro High Mint Kicks", price: 14999, rating: "4.9", emoji: "👟", img: "https://images.unsplash.com/photo-1542291026-7eec264c27ff?auto=format&fit=crop&q=80&w=400&h=400", shop: "Sneaker Spot" },
+    { id: "hk-2", name: "Futuristic Neo-Glow Runners", price: 8499, rating: "4.8", emoji: "👟", img: "https://images.unsplash.com/photo-1539185441755-769473a23570?auto=format&fit=crop&q=80&w=400&h=400", shop: "RunLab" },
+    { id: "hk-3", name: "Limited Drop Metallic Force 1s", price: 18999, rating: "4.7", emoji: "👟", img: "https://images.unsplash.com/photo-1608231387042-66d1773070a5?auto=format&fit=crop&q=80&w=400&h=400", shop: "Kick District" },
+  ]},
+  { id: "aesthetic-cafe", title: "☕ Aesthetic Cafe Finds", subtitle: "Aesthetic driven spaces serving elite cups", type: "FOOD", accent: "#1E5D44", items: [
+    { id: "ac-1", name: "Cinnamon Roll Latte", price: 280, rating: "4.9", emoji: "☕", img: "https://images.unsplash.com/photo-1509042239860-f550ce710b93?auto=format&fit=crop&q=80&w=400&h=400", shop: "Brew & Bean" },
+    { id: "ac-2", name: "Charcoal Croissant Sandwich", price: 320, rating: "4.8", emoji: "🥐", img: "https://images.unsplash.com/photo-1550507992-eb63ffee0847?auto=format&fit=crop&q=80&w=400&h=400", shop: "La Paris" },
+    { id: "ac-3", name: "Vegan Matcha Tiramisu", price: 260, rating: "4.7", emoji: "🍰", img: "https://images.unsplash.com/photo-1556679343-c7306c1976bc?auto=format&fit=crop&q=80&w=400&h=400", shop: "Green Glaze" },
+  ]},
+  { id: "late-night-munchies", title: "🌙 Late-Night Munchies", subtitle: "Insane bites to kill those 1 AM cravings", type: "FOOD", accent: "#1E5D44", items: [
+    { id: "lm-1", name: "Loaded Cheese Fries", price: 160, rating: "4.8", emoji: "🍟", img: "https://images.unsplash.com/photo-1573080496219-bb080dd4f877?auto=format&fit=crop&q=80&w=400&h=400", shop: "Midnight Dhaba" },
+    { id: "lm-2", name: "Spicy Chicken Seekh Roll", price: 220, rating: "4.9", emoji: "🌯", img: "https://images.unsplash.com/photo-1626700051175-6518c4793f4f?auto=format&fit=crop&q=80&w=400&h=400", shop: "Roll Express" },
+    { id: "lm-3", name: "Garlic Chili Mushroom", price: 140, rating: "4.6", emoji: "🍄", img: "https://images.unsplash.com/photo-1565958011703-44f9829ba187?auto=format&fit=crop&q=80&w=400&h=400", shop: "Wok Express" },
+  ]},
+  { id: "gaming-gear", title: "🎮 Gaming Gear Galaxy", subtitle: "Level up your setup with these epic finds", type: "MART", accent: "#1162D3", items: [
+    { id: "gg-1", name: "Wireless RGB Gaming Mouse", price: 2499, rating: "4.9", emoji: "🖱️", img: "https://images.unsplash.com/photo-1527814050087-3793815479db?auto=format&fit=crop&q=80&w=400&h=400", shop: "Tech Zone" },
+    { id: "gg-2", name: "Mechanical Keyboard (Blue Switch)", price: 3999, rating: "4.8", emoji: "⌨️", img: "https://images.unsplash.com/photo-1587829741301-dc798b83add3?auto=format&fit=crop&q=80&w=400&h=400", shop: "GameTech" },
+    { id: "gg-3", name: "HD Gaming Webcam 1080p", price: 3499, rating: "4.7", emoji: "📷", img: "https://images.unsplash.com/photo-1587826080692-f439cd0b70da?auto=format&fit=crop&q=80&w=400&h=400", shop: "StreamLab" },
+  ]},
+  { id: "immunity-gummies", title: "💊 Immunity Gummies", subtitle: "Tasty supplements your body is craving", type: "PHARMA", accent: "#065F46", items: [
+    { id: "ig-1", name: "Vitamin C Gummies 1000mg", price: 499, rating: "4.9", emoji: "🍊", img: "https://images.unsplash.com/photo-1584017911766-d451b3d0e843?auto=format&fit=crop&q=80&w=400&h=400", shop: "Fa Pharma" },
+    { id: "ig-2", name: "Zinc & Elderberry Gummies", price: 550, rating: "4.8", emoji: "💊", img: "https://images.unsplash.com/photo-1607619056574-7b8d304f2c38?auto=format&fit=crop&q=80&w=400&h=400", shop: "Fa Pharma" },
+    { id: "ig-3", name: "Probiotic Digestive Gummies", price: 650, rating: "4.7", emoji: "🦠", img: "https://images.unsplash.com/photo-1584017911766-d451b3d0e843?auto=format&fit=crop&q=80&w=400&h=400", shop: "Fa Pharma" },
+  ]},
+  { id: "budget-feasts", title: "💰 Budget Feasts", subtitle: "Heavy on the taste, light on the wallet", type: "FOOD", accent: "#1E5D44", items: [
+    { id: "bf-1", name: "Masala Dosa Combo", price: 90, rating: "4.9", emoji: "🥞", img: "https://images.unsplash.com/photo-1630383249896-424e482df921?auto=format&fit=crop&q=80&w=400&h=400", shop: "Udupi Grand" },
+    { id: "bf-2", name: "Veg Thali", price: 120, rating: "4.8", emoji: "🍛", img: "https://images.unsplash.com/photo-1546069901-ba9599a7e63c?auto=format&fit=crop&q=80&w=400&h=400", shop: "Green Leaf" },
+    { id: "bf-3", name: "Egg Biryani", price: 150, rating: "4.9", emoji: "🍚", img: "https://images.unsplash.com/photo-1563379091339-03b21ab4a4f8?auto=format&fit=crop&q=80&w=400&h=400", shop: "Paradise" },
+  ]},
+  { id: "organic-farms", title: "🌿 Organic Farms", subtitle: "Pure unadulterated produce from local farms", type: "GROCERY", accent: "#10B981", items: [
+    { id: "of-1", name: "Organic Baby Spinach", price: 80, rating: "4.9", emoji: "🥬", img: "https://images.unsplash.com/photo-1576045057995-568f588f82fb?auto=format&fit=crop&q=80&w=400&h=400", shop: "Farm Fresh" },
+    { id: "of-2", name: "Heirloom Tomatoes Box", price: 130, rating: "4.8", emoji: "🍅", img: "https://images.unsplash.com/photo-1518977822534-7049a61ee0c2?auto=format&fit=crop&q=80&w=400&h=400", shop: "Farm Fresh" },
+    { id: "of-3", name: "Cold Pressed Coconut Oil", price: 340, rating: "4.9", emoji: "🥥", img: "https://images.unsplash.com/photo-1527689368864-3a821dbccc34?auto=format&fit=crop&q=80&w=400&h=400", shop: "Pure Harvest" },
+  ]},
+  { id: "cozywear", title: "🧥 Cozywear Lounge", subtitle: "Because staying in should be stylish", type: "MART", accent: "#1162D3", items: [
+    { id: "cw-1", name: "Oversized Cotton Hoodie", price: 1899, rating: "4.9", emoji: "🧥", img: "https://images.unsplash.com/photo-1556821840-3a63f95609a7?auto=format&fit=crop&q=80&w=400&h=400", shop: "Thread Labs" },
+    { id: "cw-2", name: "Waffle Knit Joggers", price: 1299, rating: "4.8", emoji: "👖", img: "https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?auto=format&fit=crop&q=80&w=400&h=400", shop: "Thread Labs" },
+    { id: "cw-3", name: "Premium Wool Blend Socks", price: 399, rating: "4.7", emoji: "🧦", img: "https://images.unsplash.com/photo-1586350977771-b3b0abd50c82?auto=format&fit=crop&q=80&w=400&h=400", shop: "Cozy Corner" },
+  ]},
+  { id: "late-night-dining", title: "🕯️ Late-Night Dining", subtitle: "Premium restaurants open past midnight", type: "FOOD", accent: "#1E5D44", items: [
+    { id: "ld-1", name: "Truffle Mushroom Risotto", price: 520, rating: "4.9", emoji: "🍚", img: "https://images.unsplash.com/photo-1476124369491-e7addf5db371?auto=format&fit=crop&q=80&w=400&h=400", shop: "Midnight Dhaba" },
+    { id: "ld-2", name: "Charcoal Grilled Lamb Chops", price: 690, rating: "4.9", emoji: "🥩", img: "https://images.unsplash.com/photo-1514516345957-51be1cae4a29?auto=format&fit=crop&q=80&w=400&h=400", shop: "Smoke House" },
+    { id: "ld-3", name: "Ferrero Rocher Shake", price: 230, rating: "4.8", emoji: "🥤", img: "https://images.unsplash.com/photo-1572490122747-3968b75cc699?auto=format&fit=crop&q=80&w=400&h=400", shop: "Shake Lab" },
+  ]},
+  { id: "greek-yogurts", title: "🥛 Greek Yogurts & More", subtitle: "High protein creamy goodness delivered cold", type: "GROCERY", accent: "#10B981", items: [
+    { id: "gy-1", name: "Greek Plain Yogurt (500g)", price: 180, rating: "4.8", emoji: "🥛", img: "https://images.unsplash.com/photo-1488477181946-6428a0291777?auto=format&fit=crop&q=80&w=400&h=400", shop: "Dairy Delight" },
+    { id: "gy-2", name: "Blueberry Honey Yogurt Cup", price: 95, rating: "4.9", emoji: "🍧", img: "https://images.unsplash.com/photo-1511690656952-34342bb7c2f1?auto=format&fit=crop&q=80&w=400&h=400", shop: "Dairy Delight" },
+    { id: "gy-3", name: "A2 Cow Milk (1L)", price: 110, rating: "4.9", emoji: "🥛", img: "https://images.unsplash.com/photo-1550583724-b2692b85b150?auto=format&fit=crop&q=80&w=400&h=400", shop: "Pure Dairy" },
+  ]},
+  { id: "first-aid-sos", title: "🩹 First Aid SOS", subtitle: "Medical essentials when you need them most", type: "PHARMA", accent: "#065F46", items: [
+    { id: "fa-1", name: "Ultimate First Aid Kit", price: 799, rating: "4.9", emoji: "🩹", img: "https://images.unsplash.com/photo-1603398938378-e54eab446dde?auto=format&fit=crop&q=80&w=400&h=400", shop: "Fa Pharma" },
+    { id: "fa-2", name: "Pulse Oximeter", price: 1899, rating: "4.8", emoji: "⌚", img: "https://images.unsplash.com/photo-1551076805-e1869033e561?auto=format&fit=crop&q=80&w=400&h=400", shop: "Fa Pharma" },
+    { id: "fa-3", name: "Instant Ice Pack (4 Pack)", price: 110, rating: "4.7", emoji: "❄️", img: "https://images.unsplash.com/photo-1631553097084-9f0b5cb3caa9?auto=format&fit=crop&q=80&w=400&h=400", shop: "Fa Pharma" },
+  ]},
+  { id: "korean-skincare", title: "✨ Korean Skincare", subtitle: "K-Beauty glow up secrets from Seoul", type: "PHARMA", accent: "#065F46", items: [
+    { id: "ks-1", name: "Snail Mucin 96% Essence", price: 1450, rating: "4.9", emoji: "🧴", img: "https://images.unsplash.com/photo-1608248597481-496100c80836?auto=format&fit=crop&q=80&w=400&h=400", shop: "K-Beauty HQ" },
+    { id: "ks-2", name: "AHA BHA PHA Toner", price: 1150, rating: "4.8", emoji: "🧴", img: "https://images.unsplash.com/photo-1556228720-195a672e8a03?auto=format&fit=crop&q=80&w=400&h=400", shop: "K-Beauty HQ" },
+    { id: "ks-3", name: "Sunscreen SPF 50 PA++++", price: 890, rating: "4.9", emoji: "☀️", img: "https://images.unsplash.com/photo-1556228578-0d85b1a4d571?auto=format&fit=crop&q=80&w=400&h=400", shop: "K-Beauty HQ" },
+  ]},
+  { id: "cold-beverages", title: "🧊 Cold Beverages", subtitle: "Chilled drinks to beat the heat", type: "GROCERY", accent: "#10B981", items: [
+    { id: "cb-1", name: "Cold Brew Coffee Can", price: 160, rating: "4.9", emoji: "🧋", img: "https://images.unsplash.com/photo-1514432324607-a09d9b4aefdd?auto=format&fit=crop&q=80&w=400&h=400", shop: "Brew & Bean" },
+    { id: "cb-2", name: "Sparkling Lychee Drink", price: 95, rating: "4.8", emoji: "🥫", img: "https://images.unsplash.com/photo-1622483767028-3f66f32aef97?auto=format&fit=crop&q=80&w=400&h=400", shop: "Sip Town" },
+    { id: "cb-3", name: "Coconut Water (1L)", price: 80, rating: "4.7", emoji: "🥥", img: "https://images.unsplash.com/photo-1527689368864-3a821dbccc34?auto=format&fit=crop&q=80&w=400&h=400", shop: "Pure Harvest" },
+  ]},
+  { id: "desserts", title: "🍰 Desserts & Sweet Tooth", subtitle: "Indulge your sweet cravings with these treats", type: "FOOD", accent: "#1E5D44", items: [
+    { id: "dt-1", name: "Triple Chocolate Lava Cake", price: 240, rating: "4.9", emoji: "🥞", img: "https://images.unsplash.com/photo-1606313564200-e75d5e30476c?auto=format&fit=crop&q=80&w=400&h=400", shop: "Soul Desserts" },
+    { id: "dt-2", name: "Fluffy Japanese Pancakes", price: 290, rating: "4.8", emoji: "🥞", img: "https://images.unsplash.com/photo-1528207776546-365bb710ee93?auto=format&fit=crop&q=80&w=400&h=400", shop: "Fluffy House" },
+    { id: "dt-3", name: "Salted Caramel Sundae", price: 180, rating: "4.7", emoji: "🍨", img: "https://images.unsplash.com/photo-1563805042-7684c019e1cb?auto=format&fit=crop&q=80&w=400&h=400", shop: "Chill Spot" },
+  ]},
+];
