@@ -1,9 +1,10 @@
 import React, { memo } from 'react';
-import { View, Text, Image, TouchableOpacity, StyleSheet } from 'react-native';
+import { View, Image, TouchableOpacity, StyleSheet } from 'react-native';
 import { Plus, Check, Star } from 'lucide-react-native';
 import { hs, vs, ms } from '@/utils/responsive';
-import { resolveBadgeBg } from './format';
+import { resolveBadgeBg } from '@/components/shared/format';
 import type { AppBrand } from '@data/types';
+import AppText from '@/components/AppText';
 
 interface HomeRailCardProps {
   name: string;
@@ -29,12 +30,12 @@ const HomeRailCard = memo(function HomeRailCard({
         <Image source={{ uri: imageUrl }} style={styles.image} />
         {badge && (
           <View style={[styles.badge, { backgroundColor: resolveBadgeBg(badgeBg) }]}>
-            <Text style={styles.badgeText}>{badge}</Text>
+            <AppText style={styles.badgeText}>{badge}</AppText>
           </View>
         )}
         {emoji && (
           <View style={styles.emojiOverlay}>
-            <Text style={{ fontSize: ms(14) }}>{emoji}</Text>
+            <AppText style={{ fontSize: ms(14) }}>{emoji}</AppText>
           </View>
         )}
       </View>
@@ -42,12 +43,12 @@ const HomeRailCard = memo(function HomeRailCard({
         {rating !== undefined && (
           <View style={styles.ratingRow}>
             <Star size={ms(8)} color="#f59e0b" fill="#f59e0b" />
-            <Text style={styles.ratingText}>{rating}</Text>
+            <AppText style={styles.ratingText}>{rating}</AppText>
           </View>
         )}
-        <Text style={styles.name} numberOfLines={1}>{name}</Text>
+        <AppText style={styles.name} numberOfLines={1}>{name}</AppText>
         <View style={styles.bottomRow}>
-          <Text style={styles.price}>₹{price}</Text>
+          <AppText style={styles.price}>₹{price}</AppText>
           {onAdd && (
             <TouchableOpacity style={styles.addBtn} onPress={onAdd} activeOpacity={0.8}>
               {isAdded ? <Check size={ms(10)} color="#ffffff" strokeWidth={3} /> : <Plus size={ms(10)} color="#ffffff" strokeWidth={3} />}

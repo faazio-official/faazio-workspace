@@ -1,13 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import {
-  StyleSheet,
-  View,
-  Text,
-  ScrollView,
-  TouchableOpacity,
-  Image,
-  Animated,
-} from 'react-native';
+import { StyleSheet, View, ScrollView, TouchableOpacity, Image, Animated } from 'react-native';
 import {
   Heart,
   Plus,
@@ -16,10 +8,12 @@ import {
 import { categoriesSearchDatabase } from '@data/categories/searchDatabase';
 import { exploreStacks } from '@data/explore/stacks';
 import { hs, vs, ms } from '@/utils/responsive';
-import EnterpriseIcon from './EnterpriseIcon';
+import EnterpriseIcon from '@/components/EnterpriseIcon';
 import Svg, { Defs, LinearGradient, Stop, Rect, Circle } from 'react-native-svg';
+import AppText from '@/components/AppText';
 
 interface FavouritesViewProps {
+  contentInset?: number;
   addToCart: (id: string, name: string, price: number, emoji: string) => void;
   onProductClick?: (product: any) => void;
   favorites: string[];
@@ -28,6 +22,7 @@ interface FavouritesViewProps {
 }
 
 export default function FavouritesView({
+  contentInset = 0,
   addToCart,
   onProductClick,
   favorites = [],
@@ -152,7 +147,7 @@ export default function FavouritesView({
   };
 
   return (
-    <ScrollView style={styles.container} contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}
+    <ScrollView style={styles.container} contentContainerStyle={[styles.scrollContent, { paddingTop: contentInset }]} showsVerticalScrollIndicator={false}
       onScroll={onScroll ? (e) => onScroll(e.nativeEvent.contentOffset.y) : undefined}
       scrollEventThrottle={16}>
       
@@ -172,10 +167,10 @@ export default function FavouritesView({
         </Svg>
         <View style={styles.headerBannerContent}>
           <View style={styles.wishlistBadge}>
-            <Text style={styles.wishlistBadgeText}>Personal Wishlists</Text>
+            <AppText style={styles.wishlistBadgeText}>Personal Wishlists</AppText>
           </View>
-          <Text style={styles.headerTitle}>My Curated Favourites</Text>
-          <Text style={styles.headerDesc}>Your saved items categorized across active sub apps</Text>
+          <AppText style={styles.headerTitle}>My Curated Favourites</AppText>
+          <AppText style={styles.headerDesc}>Your saved items categorized across active sub apps</AppText>
         </View>
       </View>
 
@@ -193,13 +188,13 @@ export default function FavouritesView({
                 <View style={styles.sectorHeaderRow}>
                   <View style={styles.sectorTitleWrap}>
                     <EnterpriseIcon emoji={style.emoji} variant="flat" size={ms(11)} />
-                    <Text style={[styles.sectorTitle, { color: style.textColor }]}>
+                    <AppText style={[styles.sectorTitle, { color: style.textColor }]}>
                       {style.title}
-                    </Text>
+                    </AppText>
                   </View>
-                  <Text style={styles.sectorCount}>
+                  <AppText style={styles.sectorCount}>
                     {items.length} {items.length === 1 ? 'item' : 'items'}
-                  </Text>
+                  </AppText>
                 </View>
 
                 <View style={styles.grid}>
@@ -230,33 +225,33 @@ export default function FavouritesView({
                             </TouchableOpacity>
 
                             <View style={styles.ratingOverlay}>
-                              <Text style={styles.ratingText}>★ {item.rating}</Text>
+                              <AppText style={styles.ratingText}>★ {item.rating}</AppText>
                             </View>
                           </View>
 
                           <View style={styles.cardContent}>
                             <View style={styles.metaRow}>
                               <View style={[styles.appBadge, { backgroundColor: style.badgeBg, borderColor: style.borderColor }]}>
-                                <Text style={[styles.appBadgeText, { color: style.badgeText }]}>{item.app}</Text>
+                                <AppText style={[styles.appBadgeText, { color: style.badgeText }]}>{item.app}</AppText>
                               </View>
                               {item.shop ? (
-                                <Text style={styles.shopName} numberOfLines={1}>
+                                <AppText style={styles.shopName} numberOfLines={1}>
                                   {item.shop}
-                                </Text>
+                                </AppText>
                               ) : null}
                             </View>
 
-                            <Text style={styles.productName} numberOfLines={1}>
+                            <AppText style={styles.productName} numberOfLines={1}>
                               {item.name}
-                            </Text>
-                            <Text style={styles.productDesc} numberOfLines={2}>
+                            </AppText>
+                            <AppText style={styles.productDesc} numberOfLines={2}>
                               {item.desc}
-                            </Text>
+                            </AppText>
                           </View>
                         </TouchableOpacity>
 
                         <View style={styles.cardFooter}>
-                          <Text style={styles.priceText}>₹{item.price.toLocaleString('en-IN')}</Text>
+                          <AppText style={styles.priceText}>₹{item.price.toLocaleString('en-IN')}</AppText>
                           <TouchableOpacity
                             onPress={() => handleAddToCart(item.id, item.name, item.price, item.emoji)}
                             style={[
@@ -270,7 +265,7 @@ export default function FavouritesView({
                             ) : (
                               <Plus size={ms(8)} color="#ffffff" />
                             )}
-                            <Text style={styles.addBtnText}>{isAdded ? 'Added' : 'Add'}</Text>
+                            <AppText style={styles.addBtnText}>{isAdded ? 'Added' : 'Add'}</AppText>
                           </TouchableOpacity>
                         </View>
                       </View>
@@ -289,10 +284,10 @@ export default function FavouritesView({
               <Heart size={ms(20)} color="#fb7185" strokeWidth={2} />
             </Animated.View>
           </View>
-          <Text style={styles.emptyTitle}>No Favourites Yet</Text>
-          <Text style={styles.emptyDesc}>
+          <AppText style={styles.emptyTitle}>No Favourites Yet</AppText>
+          <AppText style={styles.emptyDesc}>
             Tap the heart icon on any product in our categories or explore feeds to add them to your curated shortlist here!
-          </Text>
+          </AppText>
         </View>
       )}
 

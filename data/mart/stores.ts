@@ -1,3 +1,7 @@
+/**
+ * @mock Static fixture — seeded sample data for local development until the Go Chi
+ * backend (server/) is wired. See data/DATA_CONTROL.md.
+ */
 import type { StoreProfile } from '../types';
 
 export const martStores: StoreProfile[] = [

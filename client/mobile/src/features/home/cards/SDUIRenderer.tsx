@@ -1,15 +1,16 @@
 import React from 'react';
-import { View, Text, ScrollView, StyleSheet } from 'react-native';
+import { View, ScrollView, StyleSheet } from 'react-native';
 import { hs, vs, ms } from '@/utils/responsive';
-import { brandTokens } from './brandTokens';
-import MartProductCard from './MartProductCard';
-import FoodProductCard from './FoodProductCard';
-import GroceryProductCard from './GroceryProductCard';
-import PharmaProductCard from './PharmaProductCard';
+import { brandTokens } from '@/theme/brandTokens';
+import MartProductCard from '@/features/ecommerce/cards/MartProductCard';
+import FoodProductCard from '@/features/food/cards/FoodProductCard';
+import GroceryProductCard from '@/features/ecommerce/cards/GroceryProductCard';
+import PharmaProductCard from '@/features/pharma/cards/PharmaProductCard';
 import HomeRailCard from './HomeRailCard';
-import StoreCardBase from './StoreCardBase';
+import StoreCardBase from '@/components/shared/StoreCardBase';
 import type { SDUINode } from '@data/schema';
 import type { AppBrand } from '@data/types';
+import AppText from '@/components/AppText';
 
 interface SDUIRendererProps {
   node: SDUINode;
@@ -51,8 +52,8 @@ function renderRail(node: SDUINode, { onProductClick, onAddToCart, cartQuantitie
   if (node.type !== 'Rail') return null;
   return (
     <View style={railStyles.wrapper}>
-      {node.title && <Text style={railStyles.title}>{node.title}</Text>}
-      {node.subtitle && <Text style={railStyles.subtitle}>{node.subtitle}</Text>}
+      {node.title && <AppText style={railStyles.title}>{node.title}</AppText>}
+      {node.subtitle && <AppText style={railStyles.subtitle}>{node.subtitle}</AppText>}
       <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={railStyles.scroll}>
         {node.children.map((child, i) => (
           <View key={i} style={railStyles.itemWrap}>
@@ -69,8 +70,8 @@ function renderSection(node: SDUINode, { onProductClick, onAddToCart, cartQuanti
   const spacing = node.spacing === 'sm' ? vs(8) : node.spacing === 'lg' ? vs(24) : vs(16);
   return (
     <View style={{ marginBottom: spacing }}>
-      {node.title && <Text style={sectionStyles.title}>{node.title}</Text>}
-      {node.subtitle && <Text style={sectionStyles.subtitle}>{node.subtitle}</Text>}
+      {node.title && <AppText style={sectionStyles.title}>{node.title}</AppText>}
+      {node.subtitle && <AppText style={sectionStyles.subtitle}>{node.subtitle}</AppText>}
       {node.children.map((child, i) => (
         <SDUIRenderer key={i} node={child} onProductClick={onProductClick} onAddToCart={onAddToCart} cartQuantities={cartQuantities} addedIds={addedIds} favorites={favorites} onToggleFavorite={onToggleFavorite} />
       ))}
@@ -82,8 +83,8 @@ function renderCategoryPill(node: SDUINode) {
   if (node.type !== 'CategoryPill') return null;
   return (
     <View style={[pillStyles.pill, { backgroundColor: node.color + '20', borderColor: node.color }]}>
-      <Text style={{ fontSize: ms(14) }}>{node.emoji}</Text>
-      <Text style={[pillStyles.label, { color: node.color }]}>{node.label}</Text>
+      <AppText style={{ fontSize: ms(14) }}>{node.emoji}</AppText>
+      <AppText style={[pillStyles.label, { color: node.color }]}>{node.label}</AppText>
     </View>
   );
 }
@@ -92,7 +93,7 @@ function renderSearchBar(node: SDUINode) {
   if (node.type !== 'SearchBar') return null;
   return (
     <View style={searchStyles.bar}>
-      <Text style={searchStyles.text}>🔍 {node.placeholder || 'Search...'}</Text>
+      <AppText style={searchStyles.text}>🔍 {node.placeholder || 'Search...'}</AppText>
     </View>
   );
 }
@@ -101,8 +102,8 @@ function renderEmptyState(node: SDUINode) {
   if (node.type !== 'EmptyState') return null;
   return (
     <View style={emptyStyles.container}>
-      <Text style={{ fontSize: ms(32) }}>{node.icon || '📭'}</Text>
-      <Text style={emptyStyles.message}>{node.message}</Text>
+      <AppText style={{ fontSize: ms(32) }}>{node.icon || '📭'}</AppText>
+      <AppText style={emptyStyles.message}>{node.message}</AppText>
     </View>
   );
 }

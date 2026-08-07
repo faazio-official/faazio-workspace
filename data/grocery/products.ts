@@ -1,3 +1,7 @@
+/**
+ * @mock Static fixture — seeded sample data for local development until the Go Chi
+ * backend (server/) is wired. See data/DATA_CONTROL.md.
+ */
 import type { GroceryProduct } from '../types';
 
 export const groceryProducts: GroceryProduct[] = [
@@ -8,4 +12,7 @@ export const groceryProducts: GroceryProduct[] = [
   { id: 'gr-p5', app: 'GROCERY', category: 'Beverages', name: 'Almond Milk Unsweetened', price: 190, unit: '1 L', emoji: '🥛', rating: 4.7, desc: 'Smooth, tasty dairy-free milk crafted from lightly toasted organic Mediterranean almonds.', image: 'https://images.unsplash.com/photo-1553456558-aff63285bdd1?auto=format&fit=crop&q=80&w=400&h=400', badge: 'Vegan Fit' },
   { id: 'gr-p6', app: 'GROCERY', category: 'Snacks', name: 'Sea Salt Multigrain Crisps', price: 95, unit: '150g', emoji: '🍿', rating: 4.6, desc: 'Baked whole grains with fine crystals of natural pink Himalayan salt, crisp and delicious.', image: 'https://images.unsplash.com/photo-1599490659213-e2b9527bb087?auto=format&fit=crop&q=80&w=400&h=400', badge: 'Gluten-Free' },
   { id: 'gr-p7', app: 'GROCERY', category: 'Beverages', name: 'Arabica Coffee Beans Medium', price: 450, unit: '250g', emoji: '☕', rating: 4.9, desc: 'Freshly roasted single-origin rich aroma beans with subtle notes of caramel and hazelnut.', image: 'https://images.unsplash.com/photo-1514432324607-a09d9b4aefdd?auto=format&fit=crop&q=80&w=400&h=400', badge: 'Premium' },
+  { id: 'gr-p8', app: 'GROCERY', category: 'Snacks', name: 'Masala Corn Chips Party Pack', price: 130, unit: '240g', emoji: '🌽', rating: 4.7, desc: 'Crunchy baked corn curls dusted with tangy chaat masala — a snack-time classic.', image: 'https://images.unsplash.com/photo-1576107232684-1279f390859f?auto=format&fit=crop&q=80&w=400&h=400', badge: 'Party Size' },
+  { id: 'gr-p9', app: 'GROCERY', category: 'Snacks', name: 'Roasted Honey Cashew & Almond Trail Mix', price: 210, unit: '180g', emoji: '🥜', rating: 4.8, desc: 'Oven roasted nuts tossed with wild honey, raisins and pumpkin seeds for an energy boost.', image: 'https://images.unsplash.com/photo-1599599810769-bcde5a160d32?auto=format&fit=crop&q=80&w=400&h=400', badge: 'High Protein' },
+  { id: 'gr-p10', app: 'GROCERY', category: 'Snacks', name: 'Salted Butter Popcorn Tub', price: 175, unit: '150g', emoji: '🍿', rating: 4.6, desc: 'Light and fluffy premium popcorn popped in real butter with a hint of sea salt.', image: 'https://images.unsplash.com/photo-1576460049974-5f96bd33f1a3?auto=format&fit=crop&q=80&w=400&h=400', badge: 'Movie Night' },
 ];

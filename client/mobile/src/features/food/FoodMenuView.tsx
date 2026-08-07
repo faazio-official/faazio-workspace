@@ -1,12 +1,11 @@
 import React, { useState, useRef, useEffect } from 'react';
-import {
-  StyleSheet, View, Text, ScrollView, TouchableOpacity,
-  TextInput, Animated,
-} from 'react-native';
+import { StyleSheet, View, ScrollView, TouchableOpacity, Animated } from 'react-native';
 import { Search, Bell } from 'lucide-react-native';
 import { hs, vs, ms } from '@/utils/responsive';
 import { foodProducts } from '@data/food/products';
-import FoodProductCard from './shared/FoodProductCard';
+import FoodProductCard from '@/features/food/cards/FoodProductCard';
+import AppTextInput from '@/components/AppTextInput';
+import AppText from '@/components/AppText';
 
 interface FoodMenuViewProps {
   addToCart?: (id: string, name: string, price: number, emoji: string) => void;
@@ -42,7 +41,7 @@ export default function FoodMenuView({ addToCart, addedId: externalAddedId, hand
     return () => pulse.stop();
   }, []);
 
-  const categories = ['All', ...new Set(foodProducts.flatMap(p => p.categories))];
+  const categories = ['All', ...new Set(foodProducts.flatMap(p => p.categories).filter(c => c !== 'All'))];
   
   const filteredProducts = foodProducts.filter(p => {
     if (activeCategory !== 'All' && !p.categories.includes(activeCategory)) return false;
@@ -55,7 +54,7 @@ export default function FoodMenuView({ addToCart, addedId: externalAddedId, hand
     <ScrollView style={styles.container} showsVerticalScrollIndicator={false} contentContainerStyle={styles.contentPadding}>
       {/* Header */}
       <View style={styles.headerRow}>
-        <Text style={styles.headerTitle}>FOOD MENU</Text>
+        <AppText style={styles.headerTitle}>FOOD MENU</AppText>
         <Animated.View style={{ opacity: bellPulse }}>
           <Bell size={ms(18)} color="#1E5D44" />
         </Animated.View>
@@ -63,13 +62,13 @@ export default function FoodMenuView({ addToCart, addedId: externalAddedId, hand
       
       {/* Dark Toast */}
       <View style={styles.toast}>
-        <Text style={styles.toastText}>Signature Handpicked Faazio Chef Delivery</Text>
+        <AppText style={styles.toastText}>Signature Handpicked Faazio Chef Delivery</AppText>
       </View>
 
       {/* Search */}
       <View style={styles.searchWrap}>
         <Search size={ms(14)} color="#94a3b8" style={styles.searchIcon} />
-        <TextInput
+        <AppTextInput
           style={styles.searchInput}
           placeholder="Search menu..."
           placeholderTextColor="#94a3b8"
@@ -101,7 +100,7 @@ export default function FoodMenuView({ addToCart, addedId: externalAddedId, hand
                 style={styles.tabBtn}
                 activeOpacity={0.8}
               >
-                <Text style={[styles.tabText, isActive && styles.tabTextActive]}>{cat}</Text>
+                <AppText style={[styles.tabText, isActive && styles.tabTextActive]}>{cat}</AppText>
               </TouchableOpacity>
             );
           })}
@@ -112,9 +111,9 @@ export default function FoodMenuView({ addToCart, addedId: externalAddedId, hand
       {/* Product Grid */}
       {filteredProducts.length === 0 ? (
         <View style={styles.emptyState}>
-          <Text style={styles.emptyEmoji}>🍽️</Text>
-          <Text style={styles.emptyTitle}>No dishes found</Text>
-          <Text style={styles.emptyDesc}>Try a different category or search term</Text>
+          <AppText style={styles.emptyEmoji}>🍽️</AppText>
+          <AppText style={styles.emptyTitle}>No dishes found</AppText>
+          <AppText style={styles.emptyDesc}>Try a different category or search term</AppText>
         </View>
       ) : (
         <View style={styles.productGrid}>

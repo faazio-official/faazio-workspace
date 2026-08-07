@@ -1,13 +1,5 @@
 import React, { useState } from 'react';
-import {
-  StyleSheet,
-  View,
-  Text,
-  Modal,
-  ScrollView,
-  TouchableOpacity,
-  Image,
-} from 'react-native';
+import { StyleSheet, View, Modal, ScrollView, TouchableOpacity, Image } from 'react-native';
 import {
   X,
   Heart,
@@ -24,6 +16,7 @@ import {
 } from 'lucide-react-native';
 import { hs, vs, ms, SCREEN_W } from '@/utils/responsive';
 import Svg, { Defs, LinearGradient, Stop, Rect } from 'react-native-svg';
+import AppText from '@/components/AppText';
 
 interface Product {
   id: string;
@@ -245,7 +238,7 @@ export default function ProductDetailView({
   };
 
   return (
-    <Modal visible animationType="slide" transparent>
+    <Modal visible animationType="slide" transparent onRequestClose={onClose}>
       <View style={styles.modalOverlay}>
         <View style={styles.sheetContainer}>
 
@@ -281,15 +274,15 @@ export default function ProductDetailView({
                 <Rect width="100%" height="100%" fill="url(#heroGrad)" />
               </Svg>
               <View style={styles.emojiOuterRing}>
-                <Text style={styles.emojiHero}>{safeEmoji}</Text>
+                <AppText style={styles.emojiHero}>{safeEmoji}</AppText>
                 <View style={styles.ratingStarsOverlay}>
-                  <Text style={styles.ratingStarsText}>★ {safeRating}</Text>
+                  <AppText style={styles.ratingStarsText}>★ {safeRating}</AppText>
                 </View>
               </View>
 
               <View style={styles.deliverySpeedTag}>
                 <Truck size={ms(10)} color="#7CE045" style={{ marginRight: hs(4) }} />
-                <Text style={styles.deliverySpeedText}>DELIVERS IN 12-15 MINS</Text>
+                <AppText style={styles.deliverySpeedText}>DELIVERS IN 12-15 MINS</AppText>
               </View>
             </View>
 
@@ -297,44 +290,44 @@ export default function ProductDetailView({
             <View style={styles.metaPaddingBox}>
               <View style={styles.metaRow}>
                 <View style={[styles.appBadge, { backgroundColor: brandStyles.badgeBg, borderColor: brandStyles.badgeBorder }]}>
-                  <Text style={[styles.appBadgeText, { color: brandStyles.badgeText }]}>{app}</Text>
+                  <AppText style={[styles.appBadgeText, { color: brandStyles.badgeText }]}>{app}</AppText>
                 </View>
-                <Text style={styles.catNameText}>
+                <AppText style={styles.catNameText}>
                   {product.catName || product.category || 'Premium Pick'}
-                </Text>
+                </AppText>
               </View>
 
               <View style={styles.titlePriceRow}>
-                <Text style={styles.productNameText} numberOfLines={2}>{product.name}</Text>
+                <AppText style={styles.productNameText} numberOfLines={2}>{product.name}</AppText>
                 <View style={styles.priceColumn}>
-                  <Text style={styles.priceValueText}>₹{safePrice.toLocaleString('en-IN')}</Text>
-                  <Text style={styles.taxLabel}>Incl. of taxes</Text>
+                  <AppText style={styles.priceValueText}>₹{safePrice.toLocaleString('en-IN')}</AppText>
+                  <AppText style={styles.taxLabel}>Incl. of taxes</AppText>
                 </View>
               </View>
 
-              <Text style={styles.productDescText}>{safeDesc}</Text>
+              <AppText style={styles.productDescText}>{safeDesc}</AppText>
 
               {/* Highlights list */}
               <View style={styles.highlightsContainer}>
-                <Text style={styles.sectionHeadingText}>Key Highlights</Text>
+                <AppText style={styles.sectionHeadingText}>Key Highlights</AppText>
                 {highlights.map((hlt, idx) => (
                   <View key={idx} style={styles.highlightRow}>
                     <View style={styles.bulletCheckCircle}>
                       <Check size={ms(11)} strokeWidth={3.5} color="#059669" />
                     </View>
-                    <Text style={styles.highlightText}>{hlt}</Text>
+                    <AppText style={styles.highlightText}>{hlt}</AppText>
                   </View>
                 ))}
               </View>
 
               {/* Dynamic Bank Offer */}
               <View style={styles.promoBanner}>
-                <Text style={styles.promoEmoji}>🏷️</Text>
+                <AppText style={styles.promoEmoji}>🏷️</AppText>
                 <View style={styles.promoContentCol}>
-                  <Text style={styles.promoTitle}>EXCLUSIVE BANK OFFER</Text>
-                  <Text style={styles.promoDesc}>
+                  <AppText style={styles.promoTitle}>EXCLUSIVE BANK OFFER</AppText>
+                  <AppText style={styles.promoDesc}>
                     Get extra 10% cashback up to ₹250 on UPI or OneCard payments. Auto-applied during checkout!
-                  </Text>
+                  </AppText>
                 </View>
               </View>
 
@@ -343,16 +336,16 @@ export default function ProductDetailView({
                 <View style={styles.guaranteeBox}>
                   <ShieldCheck size={ms(14)} color="#059669" />
                   <View style={styles.guaranteeTextCol}>
-                    <Text style={styles.guaranteeHeading}>Quality Verified</Text>
-                    <Text style={styles.guaranteeSub}>100% genuine product</Text>
+                    <AppText style={styles.guaranteeHeading}>Quality Verified</AppText>
+                    <AppText style={styles.guaranteeSub}>100% genuine product</AppText>
                   </View>
                 </View>
 
                 <View style={styles.guaranteeBox}>
                   <RotateCcw size={ms(14)} color="#2563eb" />
                   <View style={styles.guaranteeTextCol}>
-                    <Text style={styles.guaranteeHeading}>Hassle-Free Returns</Text>
-                    <Text style={styles.guaranteeSub}>Complimentary replacement</Text>
+                    <AppText style={styles.guaranteeHeading}>Hassle-Free Returns</AppText>
+                    <AppText style={styles.guaranteeSub}>Complimentary replacement</AppText>
                   </View>
                 </View>
               </View>
@@ -362,13 +355,13 @@ export default function ProductDetailView({
             <View style={styles.specificationsBox}>
               <View style={styles.specHeaderRow}>
                 <Info size={ms(11)} color="#94a3b8" style={{ marginRight: hs(6) }} />
-                <Text style={styles.sectionHeadingText}>Product Specifications</Text>
+                <AppText style={styles.sectionHeadingText}>Product Specifications</AppText>
               </View>
               <View style={styles.specsGrid}>
                 {specs.map((spec, idx) => (
                   <View key={idx} style={styles.specCard}>
-                    <Text style={styles.specLabel}>{spec.label}</Text>
-                    <Text style={styles.specValue}>{spec.value}</Text>
+                    <AppText style={styles.specLabel}>{spec.label}</AppText>
+                    <AppText style={styles.specValue}>{spec.value}</AppText>
                   </View>
                 ))}
               </View>
@@ -377,34 +370,34 @@ export default function ProductDetailView({
             {/* 4. Reviews section */}
             <View style={styles.reviewsBox}>
               <View style={styles.reviewsHeaderRow}>
-                <Text style={styles.sectionHeadingText}>Customer Reviews ({reviews.length})</Text>
+                <AppText style={styles.sectionHeadingText}>Customer Reviews ({reviews.length})</AppText>
                 <View style={styles.reviewsAvgBadge}>
-                  <Text style={styles.reviewsAvgText}>★ {safeRating} Average</Text>
+                  <AppText style={styles.reviewsAvgText}>★ {safeRating} Average</AppText>
                 </View>
               </View>
 
               {/* Progress bars block */}
               <View style={styles.reviewProgressCard}>
                 <View style={styles.reviewProgressRow}>
-                  <Text style={styles.progressLabel}>5 Star</Text>
+                  <AppText style={styles.progressLabel}>5 Star</AppText>
                   <View style={styles.progressBarBg}>
                     <View style={[styles.progressBarFill, { width: '88%', backgroundColor: '#f59e0b' }]} />
                   </View>
-                  <Text style={styles.progressPercent}>88%</Text>
+                  <AppText style={styles.progressPercent}>88%</AppText>
                 </View>
                 <View style={styles.reviewProgressRow}>
-                  <Text style={styles.progressLabel}>4 Star</Text>
+                  <AppText style={styles.progressLabel}>4 Star</AppText>
                   <View style={styles.progressBarBg}>
                     <View style={[styles.progressBarFill, { width: '10%', backgroundColor: '#f59e0b' }]} />
                   </View>
-                  <Text style={styles.progressPercent}>10%</Text>
+                  <AppText style={styles.progressPercent}>10%</AppText>
                 </View>
                 <View style={styles.reviewProgressRow}>
-                  <Text style={styles.progressLabel}>3 Star</Text>
+                  <AppText style={styles.progressLabel}>3 Star</AppText>
                   <View style={styles.progressBarBg}>
                     <View style={[styles.progressBarFill, { width: '2%', backgroundColor: '#f59e0b' }]} />
                   </View>
-                  <Text style={styles.progressPercent}>2%</Text>
+                  <AppText style={styles.progressPercent}>2%</AppText>
                 </View>
               </View>
 
@@ -418,8 +411,8 @@ export default function ProductDetailView({
                         <View style={styles.reviewUserLeft}>
                           <Image source={{ uri: avatarMap[rev.user] }} style={{ width: ms(28), height: ms(28), borderRadius: ms(14) }} />
                           <View style={{ marginLeft: hs(8) }}>
-                            <Text style={styles.reviewUserName}>{rev.user}</Text>
-                            <Text style={styles.reviewUserDate}>{rev.date}</Text>
+                            <AppText style={styles.reviewUserName}>{rev.user}</AppText>
+                            <AppText style={styles.reviewUserDate}>{rev.date}</AppText>
                           </View>
                         </View>
                         <View style={styles.starsRow}>
@@ -429,17 +422,17 @@ export default function ProductDetailView({
                         </View>
                       </View>
 
-                      <Text style={styles.reviewComment}>"{rev.comment}"</Text>
+                      <AppText style={styles.reviewComment}>"{rev.comment}"</AppText>
 
                       <View style={styles.reviewFooterRow}>
                         <TouchableOpacity onPress={() => handleHelpfulToggle(rev.id)} style={[styles.helpfulBtn, liked ? styles.helpfulBtnLiked : null]} activeOpacity={0.8}>
                           <ThumbsUp size={ms(10)} color={liked ? '#10b981' : '#64748b'} fill={liked ? '#10b981' : 'none'} style={{ marginRight: hs(4) }} />
-                          <Text style={[styles.helpfulText, liked ? { color: '#10b981' } : null]}>Helpful ({12 + (helpfulCounts[rev.id] || 0)})</Text>
+                          <AppText style={[styles.helpfulText, liked ? { color: '#10b981' } : null]}>Helpful ({12 + (helpfulCounts[rev.id] || 0)})</AppText>
                         </TouchableOpacity>
 
                         <View style={styles.verifiedPurchaseRow}>
                           <ShieldCheck size={ms(9)} color="#10b981" style={{ marginRight: hs(2) }} />
-                          <Text style={styles.verifiedPurchaseText}>Verified Purchase</Text>
+                          <AppText style={styles.verifiedPurchaseText}>Verified Purchase</AppText>
                         </View>
                       </View>
                     </View>
@@ -453,10 +446,10 @@ export default function ProductDetailView({
           {/* Sticky Bottom Action bar */}
           <View style={styles.stickyFooter}>
             <View>
-              <Text style={styles.footerPriceLabel}>Total Price</Text>
-              <Text style={styles.footerPriceValue}>
+              <AppText style={styles.footerPriceLabel}>Total Price</AppText>
+              <AppText style={styles.footerPriceValue}>
                 ₹{(safePrice * (currentQuantity || 1)).toLocaleString('en-IN')}
-              </Text>
+              </AppText>
             </View>
 
             {currentQuantity === 0 ? (
@@ -466,14 +459,14 @@ export default function ProductDetailView({
                 activeOpacity={0.8}
               >
                 <Plus size={ms(12)} color="#ffffff" strokeWidth={2.5} style={{ marginRight: hs(4) }} />
-                <Text style={styles.addToCartBtnText}>Add to Bag</Text>
+                <AppText style={styles.addToCartBtnText}>Add to Bag</AppText>
               </TouchableOpacity>
             ) : (
               <View style={styles.footerQuantityWidget}>
                 <TouchableOpacity onPress={() => updateCartQuantity(product.id, -1)} style={styles.footerQtyBtn} activeOpacity={0.8}>
                   <Minus size={ms(14)} strokeWidth={3} color="#0f172a" />
                 </TouchableOpacity>
-                <Text style={styles.footerQtyValue}>{currentQuantity}</Text>
+                <AppText style={styles.footerQtyValue}>{currentQuantity}</AppText>
                 <TouchableOpacity onPress={() => updateCartQuantity(product.id, 1)} style={styles.footerQtyBtn} activeOpacity={0.8}>
                   <Plus size={ms(14)} strokeWidth={3} color="#0f172a" />
                 </TouchableOpacity>

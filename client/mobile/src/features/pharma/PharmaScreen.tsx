@@ -1,8 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import {
-  StyleSheet, View, Text, ScrollView, Image,
-  TouchableOpacity, TextInput, Animated,
-} from 'react-native';
+import { StyleSheet, View, ScrollView, Image, TouchableOpacity, Animated } from 'react-native';
 import {
   Heart, CheckCircle, ShieldCheck, Search, Bell, ChevronLeft,
   Star, Minus, Plus, Sparkles, ClipboardList, Calendar, Clock,
@@ -10,7 +7,9 @@ import {
 } from 'lucide-react-native';
 import Svg, { Defs, LinearGradient, Stop, Rect } from 'react-native-svg';
 import { hs, vs, ms, SCREEN_W } from '@/utils/responsive';
-import PharmaProductCard from '@/components/shared/PharmaProductCard';
+import PharmaProductCard from '@/features/pharma/cards/PharmaProductCard';
+import AppTextInput from '@/components/AppTextInput';
+import AppText from '@/components/AppText';
 
 const ALL_CATEGORIES = [
   { id: 'vaccine', name: 'Vaccine', count: '250 products', icon: '💉' },
@@ -46,14 +45,15 @@ interface PharmaScreenProps {
   onProductClick?: (product: any) => void;
   activeTab?: string;
   setActiveTab?: (tab: string) => void;
+  searchQuery?: string;
 }
 
-export function PharmaScreen({ addToCart, cartItems, setCartItems, updateCartQuantity, onProductClick, activeTab, setActiveTab }: PharmaScreenProps) {
+export function PharmaScreen({ addToCart, cartItems, setCartItems, updateCartQuantity, onProductClick, activeTab, setActiveTab, searchQuery = '' }: PharmaScreenProps) {
   const [currentView, setCurrentView] = useState<'HOME' | 'ALL_CATEGORIES' | 'CATEGORY_PRODUCTS' | 'PRODUCT_DETAIL'>('HOME');
   const [selectedCategoryId, setSelectedCategoryId] = useState<string | null>(null);
   const [selectedProduct, setSelectedProduct] = useState<any>(null);
   const [quantity, setQuantity] = useState(1);
-  const [searchQuery, setSearchQuery] = useState('');
+  const [categorySearchQuery, setCategorySearchQuery] = useState('');
   const [addedAnimationId, setAddedAnimationId] = useState<string | null>(null);
   const [localFavorites, setLocalFavorites] = useState<string[]>(['ph-t1', 'ph-f1']);
 
@@ -108,7 +108,10 @@ export function PharmaScreen({ addToCart, cartItems, setCartItems, updateCartQua
     }
   };
 
-  const popularProducts = PHARMA_PRODUCTS_DB.slice(0, 4);
+  const homeSearchNormalized = searchQuery.trim().toLowerCase();
+  const popularProducts = homeSearchNormalized
+    ? PHARMA_PRODUCTS_DB.filter(p => p.name.toLowerCase().includes(homeSearchNormalized)).slice(0, 4)
+    : PHARMA_PRODUCTS_DB.slice(0, 4);
   const forYouProducts = PHARMA_PRODUCTS_DB.filter(p => ['ph-t1', 'ph-t2', 'ph-t4', 'ph-f1', 'ph-f2'].includes(p.id));
 
   const renderStars = (rating: number, size: number = 10) => {
@@ -134,8 +137,8 @@ export function PharmaScreen({ addToCart, cartItems, setCartItems, updateCartQua
             <View style={styles.avatarLeft}>
               <Image source={{ uri: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=88&h=88' }} style={styles.avatar} />
               <View>
-                <Text style={styles.greetingText}>Hello,</Text>
-                <Text style={styles.userName}>Camberline</Text>
+                <AppText style={styles.greetingText}>Hello,</AppText>
+                <AppText style={styles.userName}>Camberline</AppText>
               </View>
             </View>
             <View style={styles.bellWrapper}>
@@ -146,19 +149,14 @@ export function PharmaScreen({ addToCart, cartItems, setCartItems, updateCartQua
             </View>
           </View>
 
-          <View style={styles.searchRow}>
-            <Search size={ms(12)} color="#94a3b8" strokeWidth={2.5} />
-            <TextInput style={styles.searchInput} placeholder="Search medicines..." placeholderTextColor="#94a3b8" />
-          </View>
-
-          <Text style={styles.bannerText}>Get exciting products today with 30% off</Text>
+          <AppText style={styles.bannerText}>Get exciting products today with 30% off</AppText>
 
           <TouchableOpacity
             style={styles.shopNowBtn}
             onPress={() => { setSelectedCategoryId('vitamin'); setCurrentView('CATEGORY_PRODUCTS'); }}
             activeOpacity={0.8}
           >
-            <Text style={styles.shopNowText}>Shop now</Text>
+            <AppText style={styles.shopNowText}>Shop now</AppText>
           </TouchableOpacity>
 
           <View style={styles.trustCard}>
@@ -166,7 +164,7 @@ export function PharmaScreen({ addToCart, cartItems, setCartItems, updateCartQua
               <View style={styles.trustCircle}>
                 <ShieldCheck size={ms(16)} color="#FF7A59" strokeWidth={2} />
               </View>
-              <Text style={styles.trustText}> ✅ 100% Genuine | Free Delivery</Text>
+              <AppText style={styles.trustText}> ✅ 100% Genuine | Free Delivery</AppText>
             </View>
           </View>
         </View>
@@ -179,9 +177,9 @@ export function PharmaScreen({ addToCart, cartItems, setCartItems, updateCartQua
       </View>
 
       <View style={styles.sectionHeader}>
-        <Text style={styles.sectionTitle}>Category</Text>
+        <AppText style={styles.sectionTitle}>Category</AppText>
         <TouchableOpacity onPress={() => setCurrentView('ALL_CATEGORIES')}>
-          <Text style={styles.viewAllText}>View all</Text>
+          <AppText style={styles.viewAllText}>View all</AppText>
         </TouchableOpacity>
       </View>
 
@@ -194,16 +192,16 @@ export function PharmaScreen({ addToCart, cartItems, setCartItems, updateCartQua
             activeOpacity={0.8}
           >
             <View style={styles.categoryIconBox}>
-              <Text style={styles.categoryIcon}>{cat.icon}</Text>
+              <AppText style={styles.categoryIcon}>{cat.icon}</AppText>
             </View>
-            <Text style={styles.categoryName}>{cat.name}</Text>
-            <Text style={styles.categoryCount}>{cat.count}</Text>
+            <AppText style={styles.categoryName}>{cat.name}</AppText>
+            <AppText style={styles.categoryCount}>{cat.count}</AppText>
           </TouchableOpacity>
         ))}
       </View>
 
       <View style={styles.sectionHeader}>
-        <Text style={styles.sectionTitle}>Popular Wellness Matches</Text>
+        <AppText style={styles.sectionTitle}>Popular Wellness Matches</AppText>
       </View>
 
       <View style={styles.popularGrid}>
@@ -231,7 +229,7 @@ export function PharmaScreen({ addToCart, cartItems, setCartItems, updateCartQua
         <TouchableOpacity style={styles.backBtn} onPress={goBack} activeOpacity={0.8}>
           <ChevronLeft size={ms(16)} color="#0f172a" strokeWidth={3} />
         </TouchableOpacity>
-        <Text style={styles.topTitle}>CATEGORIES</Text>
+        <AppText style={styles.topTitle}>CATEGORIES</AppText>
         <View style={{ width: ms(32) }} />
       </View>
       <View style={styles.categoryGridFull}>
@@ -243,10 +241,10 @@ export function PharmaScreen({ addToCart, cartItems, setCartItems, updateCartQua
             activeOpacity={0.8}
           >
             <View style={styles.categoryIconBox}>
-              <Text style={styles.categoryIcon}>{cat.icon}</Text>
+              <AppText style={styles.categoryIcon}>{cat.icon}</AppText>
             </View>
-            <Text style={styles.categoryName}>{cat.name}</Text>
-            <Text style={styles.categoryCount}>{cat.count}</Text>
+            <AppText style={styles.categoryName}>{cat.name}</AppText>
+            <AppText style={styles.categoryCount}>{cat.count}</AppText>
           </TouchableOpacity>
         ))}
       </View>
@@ -255,7 +253,7 @@ export function PharmaScreen({ addToCart, cartItems, setCartItems, updateCartQua
 
   const filteredCategoryProducts = PHARMA_PRODUCTS_DB.filter(p =>
     p.category === selectedCategoryId &&
-    (searchQuery === '' || p.name.toLowerCase().includes(searchQuery.toLowerCase()))
+    (categorySearchQuery === '' || p.name.toLowerCase().includes(categorySearchQuery.toLowerCase()))
   );
 
   const categoryProductsView = (
@@ -264,25 +262,25 @@ export function PharmaScreen({ addToCart, cartItems, setCartItems, updateCartQua
         <TouchableOpacity style={styles.backBtn} onPress={goBack} activeOpacity={0.8}>
           <ChevronLeft size={ms(16)} color="#0f172a" strokeWidth={3} />
         </TouchableOpacity>
-        <Text style={styles.topTitle}>CATEGORIES</Text>
+        <AppText style={styles.topTitle}>CATEGORIES</AppText>
         <View style={{ width: ms(32) }} />
       </View>
 
       <View style={styles.searchFilter}>
         <Search size={ms(12)} color="#94a3b8" strokeWidth={2.5} />
-        <TextInput
+        <AppTextInput
           style={styles.searchFilterInput}
           placeholder="Search products..."
           placeholderTextColor="#94a3b8"
-          value={searchQuery}
-          onChangeText={setSearchQuery}
+          value={categorySearchQuery}
+          onChangeText={setCategorySearchQuery}
         />
       </View>
 
       {filteredCategoryProducts.length === 0 ? (
         <View style={styles.emptyStateCard}>
-          <Text style={styles.emptyStateEmoji}>💊</Text>
-          <Text style={styles.emptyStateTitle}>No products found</Text>
+          <AppText style={styles.emptyStateEmoji}>💊</AppText>
+          <AppText style={styles.emptyStateTitle}>No products found</AppText>
         </View>
       ) : (
         <View style={styles.catProductsGrid}>
@@ -328,11 +326,11 @@ export function PharmaScreen({ addToCart, cartItems, setCartItems, updateCartQua
       </View>
 
       <View style={styles.detailContent}>
-        <Text style={styles.detailName}>{selectedProduct.name}</Text>
+        <AppText style={styles.detailName}>{selectedProduct.name}</AppText>
 
         <View style={styles.detailStarsRow}>
           {renderStars(selectedProduct.rating, 12)}
-          <Text style={styles.detailReviewCount}>({selectedProduct.reviewsCount} Reviews)</Text>
+          <AppText style={styles.detailReviewCount}>({selectedProduct.reviewsCount} Reviews)</AppText>
         </View>
 
         <View style={styles.quantityRow}>
@@ -343,7 +341,7 @@ export function PharmaScreen({ addToCart, cartItems, setCartItems, updateCartQua
           >
             <Minus size={ms(11)} color="#0f172a" strokeWidth={3} />
           </TouchableOpacity>
-          <Text style={styles.qtyValue}>{quantity}</Text>
+          <AppText style={styles.qtyValue}>{quantity}</AppText>
           <TouchableOpacity
             style={styles.qtyBtn}
             onPress={() => setQuantity(quantity + 1)}
@@ -353,7 +351,7 @@ export function PharmaScreen({ addToCart, cartItems, setCartItems, updateCartQua
           </TouchableOpacity>
         </View>
 
-        <Text style={styles.detailDesc}>{selectedProduct.desc}</Text>
+        <AppText style={styles.detailDesc}>{selectedProduct.desc}</AppText>
 
         <View style={styles.bulletsContainer}>
           {selectedProduct.bullets?.map((bullet: string, idx: number) => (
@@ -361,15 +359,15 @@ export function PharmaScreen({ addToCart, cartItems, setCartItems, updateCartQua
               <View style={styles.bulletCircle}>
                 <CheckCircle size={ms(8)} color="#FF7A59" strokeWidth={4} />
               </View>
-              <Text style={styles.bulletText}>{bullet}</Text>
+              <AppText style={styles.bulletText}>{bullet}</AppText>
             </View>
           ))}
         </View>
 
         <View style={styles.totalBar}>
           <View>
-            <Text style={styles.totalLabel}>TOTAL AMOUNT</Text>
-            <Text style={styles.totalAmount}>₹{selectedProduct.price * quantity}</Text>
+            <AppText style={styles.totalLabel}>TOTAL AMOUNT</AppText>
+            <AppText style={styles.totalAmount}>₹{selectedProduct.price * quantity}</AppText>
           </View>
           <TouchableOpacity
             style={[styles.addToCartBtn, addedAnimationId === selectedProduct.id && styles.addToCartBtnAdded]}
@@ -380,9 +378,9 @@ export function PharmaScreen({ addToCart, cartItems, setCartItems, updateCartQua
             }}
             activeOpacity={0.9}
           >
-            <Text style={styles.addToCartBtnText}>
+            <AppText style={styles.addToCartBtnText}>
               {addedAnimationId === selectedProduct.id ? 'Added to Cart!' : 'Add to Cart'}
-            </Text>
+            </AppText>
           </TouchableOpacity>
         </View>
       </View>
@@ -395,8 +393,8 @@ export function PharmaScreen({ addToCart, cartItems, setCartItems, updateCartQua
     <ScrollView showsVerticalScrollIndicator={false}>
       <View style={styles.forYouHeader}>
         <Sparkles size={ms(18)} color="#FF7A59" strokeWidth={2} />
-        <Text style={styles.forYouTitle}>Just For You</Text>
-        <Text style={styles.forYouSubtitle}>Curated picks based on your health profile</Text>
+        <AppText style={styles.forYouTitle}>Just For You</AppText>
+        <AppText style={styles.forYouSubtitle}>Curated picks based on your health profile</AppText>
       </View>
       <View style={styles.forYouGrid}>
         {forYouProducts.map(product => (
@@ -420,55 +418,55 @@ export function PharmaScreen({ addToCart, cartItems, setCartItems, updateCartQua
     <ScrollView showsVerticalScrollIndicator={false}>
       <View style={styles.historyHeader}>
         <ClipboardList size={ms(18)} color="#FF7A59" strokeWidth={2} />
-        <Text style={styles.historyTitle}>Medical History</Text>
-        <Text style={styles.historySubtitle}>Your orders & consultations</Text>
+        <AppText style={styles.historyTitle}>Medical History</AppText>
+        <AppText style={styles.historySubtitle}>Your orders & consultations</AppText>
       </View>
 
       <View style={styles.historyCard}>
-        <Text style={styles.historyCardTitle}>Active Medicine Deliveries</Text>
+        <AppText style={styles.historyCardTitle}>Active Medicine Deliveries</AppText>
         <View style={styles.historyCardRow}>
           <Animated.View style={[styles.pulseDot, { opacity: pulseAnim }]} />
-          <Text style={styles.historyMetaText}>ORD-93821</Text>
-          <Text style={styles.historyMetaText}>₹90</Text>
+          <AppText style={styles.historyMetaText}>ORD-93821</AppText>
+          <AppText style={styles.historyMetaText}>₹90</AppText>
         </View>
       </View>
 
       <View style={styles.sectionHeader}>
-        <Text style={styles.sectionTitle}>Scheduled Doctor Consultations</Text>
+        <AppText style={styles.sectionTitle}>Scheduled Doctor Consultations</AppText>
       </View>
 
       <View style={styles.historyCard}>
         <View style={styles.historyRow}>
           <View style={styles.historyBadgePillAmber}>
-            <Text style={styles.historyBadgeText}>Upcoming</Text>
+            <AppText style={styles.historyBadgeText}>Upcoming</AppText>
           </View>
-          <Text style={styles.historyMetaText}>Cardiology - Dr. Mehta</Text>
+          <AppText style={styles.historyMetaText}>Cardiology - Dr. Mehta</AppText>
         </View>
         <View style={styles.historyMeta}>
           <Calendar size={ms(9)} color="#94a3b8" strokeWidth={2} />
-          <Text style={styles.historyMetaText}> 12 Aug 2026</Text>
+          <AppText style={styles.historyMetaText}> 12 Aug 2026</AppText>
           <Clock size={ms(9)} color="#94a3b8" strokeWidth={2} style={{ marginLeft: hs(8) }} />
-          <Text style={styles.historyMetaText}> 10:30 AM</Text>
+          <AppText style={styles.historyMetaText}> 10:30 AM</AppText>
         </View>
       </View>
 
       <View style={styles.historyCard}>
         <View style={styles.historyRow}>
           <View style={styles.historyBadgePillGrey}>
-            <Text style={styles.historyBadgeText}>Completed</Text>
+            <AppText style={styles.historyBadgeText}>Completed</AppText>
           </View>
-          <Text style={styles.historyMetaText}>General - Dr. Sharma</Text>
+          <AppText style={styles.historyMetaText}>General - Dr. Sharma</AppText>
         </View>
         <View style={styles.historyMeta}>
           <Calendar size={ms(9)} color="#94a3b8" strokeWidth={2} />
-          <Text style={styles.historyMetaText}> 28 Jul 2026</Text>
+          <AppText style={styles.historyMetaText}> 28 Jul 2026</AppText>
           <Clock size={ms(9)} color="#94a3b8" strokeWidth={2} style={{ marginLeft: hs(8) }} />
-          <Text style={styles.historyMetaText}> 2:00 PM</Text>
+          <AppText style={styles.historyMetaText}> 2:00 PM</AppText>
         </View>
       </View>
 
       <View style={styles.historyDirectiveBox}>
-        <Text style={styles.historyDirectiveText}>Consult a specialist for persistent symptoms. Your health records are up to date.</Text>
+        <AppText style={styles.historyDirectiveText}>Consult a specialist for persistent symptoms. Your health records are up to date.</AppText>
       </View>
 
       <View style={{ height: vs(24) }} />
@@ -541,23 +539,6 @@ const styles = StyleSheet.create({
     height: ms(6),
     borderRadius: ms(3),
     backgroundColor: '#E05B35',
-  },
-  searchRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: 'rgba(255,255,255,0.7)',
-    borderRadius: ms(20),
-    paddingHorizontal: hs(14),
-    height: vs(36),
-    marginBottom: vs(16),
-    gap: hs(8),
-  },
-  searchInput: {
-    flex: 1,
-    fontSize: ms(11),
-    color: '#0f172a',
-    fontWeight: '600',
-    padding: 0,
   },
   bannerText: {
     fontSize: ms(21),

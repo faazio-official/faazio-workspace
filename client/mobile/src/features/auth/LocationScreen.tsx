@@ -1,17 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import {
-  View,
-  Text,
-  StyleSheet,
-  Pressable,
-  Image,
-  TextInput,
-  ScrollView,
-  Platform,
-  KeyboardAvoidingView,
-  Animated,
-  Easing,
-} from 'react-native';
+import { View, StyleSheet, Pressable, Image, ScrollView, Platform, KeyboardAvoidingView, Animated, Easing } from 'react-native';
 import { hs, vs, ms, wp, hp, STATUS_BAR_INSET } from '@/utils/responsive';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { RootStackParamList } from '@/navigation/AppNavigator';
@@ -30,6 +18,8 @@ import Svg, {
   Rect,
 } from 'react-native-svg';
 import locationAccessPageImg from '@/assets/location_access_page.png';
+import AppTextInput from '@/components/AppTextInput';
+import AppText from '@/components/AppText';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'Location'>;
 
@@ -315,9 +305,9 @@ export function LocationScreen({ navigation }: Props) {
 
           <View style={styles.topTextContent}>
             <View style={styles.titleWrapper}>
-              <Text style={styles.titleText}>
+              <AppText style={styles.titleText}>
                 What is{' '}
-                <Text style={{ position: 'relative' }}>
+                <AppText style={{ position: 'relative' }}>
                   your
                     <View
                       style={{
@@ -342,13 +332,13 @@ export function LocationScreen({ navigation }: Props) {
                       />
                     </Svg>
                   </View>
-                </Text>{' '}
+                </AppText>{' '}
                 location?
-              </Text>
+              </AppText>
             </View>
-            <Text style={styles.subtitleText}>
+            <AppText style={styles.subtitleText}>
               We need your location to show available restaurants & products
-            </Text>
+            </AppText>
           </View>
 
           <Animated.View
@@ -377,7 +367,7 @@ export function LocationScreen({ navigation }: Props) {
                 setStep('loader');
               }}
             >
-              <Text style={styles.allowBtnText}>ALLOW LOCATION ACCESS</Text>
+              <AppText style={styles.allowBtnText}>ALLOW LOCATION ACCESS</AppText>
             </Pressable>
 
             <Pressable
@@ -387,9 +377,9 @@ export function LocationScreen({ navigation }: Props) {
               ]}
               onPress={() => setStep('manual')}
             >
-              <Text style={styles.manualBtnText}>
+              <AppText style={styles.manualBtnText}>
                 Enter Location Manually
-              </Text>
+              </AppText>
               <ArrowRight size={ms(11)} color="#1e293b" />
             </Pressable>
           </View>
@@ -404,7 +394,7 @@ export function LocationScreen({ navigation }: Props) {
           ]}
         >
           <KeyboardAvoidingView
-            behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+            behavior={Platform.OS === 'ios' ? 'padding' : undefined}
             style={{ flex: 1 }}
           >
             <View style={styles.manualHeader}>
@@ -417,9 +407,9 @@ export function LocationScreen({ navigation }: Props) {
               >
                 <ChevronLeft size={ms(20)} color="#334155" />
               </Pressable>
-              <Text style={styles.manualHeaderTitle}>
+              <AppText style={styles.manualHeaderTitle}>
                 Enter your area or apartment name
-              </Text>
+              </AppText>
             </View>
 
             <View style={styles.searchSection}>
@@ -430,7 +420,7 @@ export function LocationScreen({ navigation }: Props) {
                 ]}
               >
                 <Search size={ms(16)} color="#94a3b8" style={styles.searchIcon} />
-                <TextInput
+                <AppTextInput
                   style={styles.searchInput}
                   placeholder="Try Golden Nagar, Church Street, etc."
                   placeholderTextColor="#94a3b8"
@@ -470,9 +460,9 @@ export function LocationScreen({ navigation }: Props) {
                       style={{ transform: [{ rotate: '135deg' }] }}
                     />
                   </View>
-                  <Text style={styles.currentLocationText}>
+                  <AppText style={styles.currentLocationText}>
                     Use my current location
-                  </Text>
+                  </AppText>
                 </View>
                 <ChevronLeft size={ms(14)} color="#3D8CF2" style={{ transform: [{ rotate: '180deg' }] }} />
               </Pressable>
@@ -481,7 +471,7 @@ export function LocationScreen({ navigation }: Props) {
             <View style={styles.separator} />
 
             <ScrollView style={styles.resultsList}>
-              <Text style={styles.resultsHeader}>SEARCH RESULTS</Text>
+              <AppText style={styles.resultsHeader}>SEARCH RESULTS</AppText>
               {searchResults.length > 0 ? (
                 searchResults.map((item, idx) => (
                   <Pressable
@@ -505,18 +495,18 @@ export function LocationScreen({ navigation }: Props) {
                       />
                     </View>
                     <View style={styles.resultTextContainer}>
-                      <Text style={styles.resultTitle}>{item.title}</Text>
-                      <Text style={styles.resultSubtitle}>
+                      <AppText style={styles.resultTitle}>{item.title}</AppText>
+                      <AppText style={styles.resultSubtitle}>
                         {item.subtitle}
-                      </Text>
+                      </AppText>
                     </View>
                   </Pressable>
                 ))
               ) : (
                 <View style={styles.noResultsContainer}>
-                  <Text style={styles.noResultsText}>
+                  <AppText style={styles.noResultsText}>
                     No locations found matching your search
-                  </Text>
+                  </AppText>
                   <Pressable
                     style={({ pressed }) => [
                       styles.useAnywayBtn,
@@ -527,9 +517,9 @@ export function LocationScreen({ navigation }: Props) {
                       setStep('loader');
                     }}
                   >
-                    <Text style={styles.useAnywayText}>
+                    <AppText style={styles.useAnywayText}>
                       USE "{searchQuery}" ANYWAY
-                    </Text>
+                    </AppText>
                   </Pressable>
                 </View>
               )}
@@ -559,20 +549,20 @@ export function LocationScreen({ navigation }: Props) {
                 },
               ]}
             >
-              <Text style={styles.deliveringLabel}>DELIVERING TO</Text>
+              <AppText style={styles.deliveringLabel}>DELIVERING TO</AppText>
               <View style={styles.deliveringLocationRow}>
                 <View style={styles.greenDot} />
-                <Text style={styles.deliveringTitle} numberOfLines={1}>
+                <AppText style={styles.deliveringTitle} numberOfLines={1}>
                   {selectedLocation.split(',')[0]}
-                </Text>
+                </AppText>
               </View>
-              <Text
+              <AppText
                 style={styles.deliveringAddress}
                 numberOfLines={1}
                 ellipsizeMode="tail"
               >
                 {selectedLocation}
-              </Text>
+              </AppText>
             </Animated.View>
           </View>
         </Animated.View>

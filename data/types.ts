@@ -52,6 +52,23 @@ export interface StoreProfile {
   isVeg?: boolean;
 }
 
+export interface StoreOffer {
+  id: string;
+  storeId: string;
+  storeName: string;
+  app: AppBrand;
+  emoji: string;
+  coverImage: string;
+  offerTitle: string;
+  offerTag: string;
+  distance: string;
+  rating: number;
+}
+
+export interface NearbyOffer extends Product {
+  distance: string;
+}
+
 export interface CartItem {
   id: string;
   name: string;
@@ -117,4 +134,124 @@ export interface ExploreStack {
 export interface SpecItem {
   label: string;
   value: string;
+}
+
+/** Account order history entry (owner: features/profile). */
+export interface PastOrder {
+  id: string;
+  item: string;
+  store: string;
+  price: number;
+  date: string;
+  status: string;
+  app: AppBrand;
+}
+
+/** Top-of-week dish rail entry (owner: features/food). */
+export interface TopOfWeekDish {
+  id: string;
+  name: string;
+  price: number;
+  emoji: string;
+  image: string;
+  desc: string;
+  rating: string | number;
+  reviewsCount?: number;
+  time?: string;
+}
+
+/** Pharma department filter (owner: features/pharma). */
+export interface PharmaCategory {
+  id: string;
+  name: string;
+  count: string;
+  icon: string;
+}
+
+/** Home explore sector tile (owner: features/home). */
+export interface PortalSector {
+  emoji: string;
+  name: string;
+  tagline: string;
+  imageUrl: string;
+  themeColor: string;
+  app: AppBrand;
+}
+
+/** Home top ad banner slide (owner: features/home). */
+export interface AdSlide {
+  title: string;
+  tagline: string;
+  badge: string;
+  imageUrl: string;
+  targetApp: AppBrand;
+}
+
+/** Home sponsored ad card (owner: features/home). */
+export interface SponsoredAd {
+  title: string;
+  tagline: string;
+  brand: string;
+  discount: string;
+  imageUrl: string;
+  targetApp: AppBrand;
+}
+
+/** Home "recently viewed history" rail item (owner: features/home). */
+export interface RecentlyViewedItem {
+  id: string;
+  name: string;
+  price: number;
+  emoji: string;
+  imageUrl: string;
+  activityTag: string;
+}
+
+/** Home "today's offers" deal card (owner: features/home). */
+export interface TodaysOffer {
+  dishName: string;
+  originalPrice: number;
+  promoPrice: number;
+  restaurant: string;
+  discountBadge: string;
+  emoji: string;
+  image: string;
+}
+
+/** Home mixed-catalog recommendation card (owner: features/home). */
+export interface MixedRecommendation {
+  id: string;
+  name: string;
+  price: number;
+  sector: string;
+  rating: number;
+  imageUrl: string;
+}
+
+/** Home popular dining card (owner: features/home). */
+export interface PopularDiningItem {
+  name: string;
+  cuisine: string;
+  price: number;
+  rating: string;
+  trending: boolean;
+  image: string;
+}
+
+/** Home "FA Mart finds" card (owner: features/home). */
+export interface FaMartFind {
+  name: string;
+  price: number;
+  rating: string;
+  tag: string;
+  image: string;
+}
+
+/** Home restaurant specials card (owner: features/home). */
+export interface RestaurantSpecial {
+  name: string;
+  cuisine: string;
+  price: number;
+  icon: string;
+  image: string;
 }

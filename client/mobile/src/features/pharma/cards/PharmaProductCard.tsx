@@ -1,5 +1,5 @@
 import React, { memo } from 'react';
-import ProductCardBase from './ProductCardBase';
+import ProductCardBase from '@/components/shared/ProductCardBase';
 import type { Product } from '@data/types';
 
 interface Props {

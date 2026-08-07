@@ -1,18 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
-import {
-  StyleSheet,
-  View,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  Pressable,
-  Platform,
-  Alert,
-  Image,
-  Keyboard,
-  Animated,
-  Easing,
-} from 'react-native';
+import { StyleSheet, View, TouchableOpacity, Pressable, Platform, Alert, Image, Keyboard, KeyboardAvoidingView, Animated, Easing } from 'react-native';
+import type { TextInput } from 'react-native';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { RootStackParamList } from '@/navigation/AppNavigator';
 import { ChevronLeft } from 'lucide-react-native';
@@ -26,12 +14,11 @@ import Svg, {
   Stop,
   Rect,
 } from 'react-native-svg';
-import { SCREEN_W, SCREEN_H, hs, vs, ms, wp, hp, DOME_RADIUS, STATUS_BAR_INSET } from '@/utils/responsive';
-
-const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
-const AnimatedTouchableOpacity = Animated.createAnimatedComponent(TouchableOpacity);
+import { SCREEN_W, hs, vs, ms, wp, hp, DOME_RADIUS, STATUS_BAR_INSET } from '@/utils/responsive';
 
 import phoneAuthBackgroundImg from '@/assets/phone_auth_background.png';
+import AppTextInput from '@/components/AppTextInput';
+import AppText from '@/components/AppText';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'Login'>;
 
@@ -116,70 +103,19 @@ function RotatingSpinner({ size = 14, borderWidth = 2, color = '#212121' }) {
   );
 }
 
-function AllDoneSpinner() {
-  const spinAnim = useRef(new Animated.Value(0)).current;
-  useEffect(() => {
-    const loop = Animated.loop(
-      Animated.timing(spinAnim, { toValue: 1, duration: 1000, useNativeDriver: true })
-    );
-    loop.start();
-    return () => loop.stop();
-  }, [spinAnim]);
-  const rotate = spinAnim.interpolate({ inputRange: [0, 1], outputRange: ['0deg', '360deg'] });
-  return (
-    <View style={{ width: ms(48), height: ms(48), position: 'relative' }}>
-      <View
-        style={{
-          position: 'absolute',
-          top: 0,
-          left: 0,
-          right: 0,
-          bottom: 0,
-          borderRadius: ms(24),
-          borderWidth: 3,
-          borderColor: '#f1f5f9',
-        }}
-      />
-      <Animated.View
-        style={{
-          position: 'absolute',
-          top: 0,
-          left: 0,
-          right: 0,
-          bottom: 0,
-          borderRadius: ms(24),
-          borderWidth: 3,
-          borderTopColor: '#2c56f6',
-          borderRightColor: 'transparent',
-          borderBottomColor: 'transparent',
-          borderLeftColor: 'transparent',
-          transform: [{ rotate }],
-        }}
-      />
-    </View>
-  );
-}
-
 export function LoginScreen({ navigation }: Props) {
   const [phone, setPhone] = useState('');
   const [otpState, setOtpState] = useState(false);
   const [otpCode, setOtpCode] = useState('');
   const [otpError, setOtpError] = useState('');
-  const [showAllDoneState, setShowAllDoneState] = useState(false);
   const [isPhoneFocused, setIsPhoneFocused] = useState(false);
 
   const phoneInputRef = useRef<TextInput>(null);
   const otpInputRef = useRef<TextInput>(null);
 
-  const kbAnim = useRef(new Animated.Value(0)).current;
-  const kbBlurTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const otpLiftAnim = useRef(new Animated.Value(0)).current;
-  const otpBlurTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-
   const pulseAnim = useRef(new Animated.Value(1)).current;
   const shakeAnim = useRef(new Animated.Value(0)).current;
   const fadeAnim = useRef(new Animated.Value(1)).current;
-  const allDoneFade = useRef(new Animated.Value(0)).current;
 
   const digitAnimsRef = useRef<Animated.Value[] | null>(null);
   if (!digitAnimsRef.current) {
@@ -187,91 +123,6 @@ export function LoginScreen({ navigation }: Props) {
   }
   const digitAnims = digitAnimsRef.current;
   const prevOtpLength = useRef(0);
-
-  const heroHeightInterp = kbAnim.interpolate({
-    inputRange: [0, 1],
-    outputRange: [hp(45) + DOME_RADIUS, hp(20) + DOME_RADIUS],
-  });
-  const sheetMarginTopInterp = kbAnim.interpolate({
-    inputRange: [0, 1],
-    outputRange: [-84, -44],
-  });
-  const sheetPaddingTopInterp = kbAnim.interpolate({
-    inputRange: [0, 1],
-    outputRange: [48, 32],
-  });
-  const sheetPaddingBottomInterp = kbAnim.interpolate({
-    inputRange: [0, 1],
-    outputRange: [40, 48],
-  });
-  const exploreScaleInterp = kbAnim.interpolate({
-    inputRange: [0, 1],
-    outputRange: [1, 1.2],
-  });
-  const headerMarginTopInterp = kbAnim.interpolate({
-    inputRange: [0, 1],
-    outputRange: [16, 28],
-  });
-  const headerMarginBottomInterp = kbAnim.interpolate({
-    inputRange: [0, 1],
-    outputRange: [12, 8],
-  });
-  const backLayerTopInterp = kbAnim.interpolate({
-    inputRange: [0, 1],
-    outputRange: [hp(45) - vs(40), hp(20)],
-  });
-  const otpCurveTopInterp = otpLiftAnim.interpolate({
-    inputRange: [0, 1],
-    outputRange: [hp(22.7), hp(13.7)],
-  });
-  const otpDomeTopInterp = otpLiftAnim.interpolate({
-    inputRange: [0, 1],
-    outputRange: [hp(24.2), hp(15.2)],
-  });
-
-  const animateKbActive = () => {
-    if (kbBlurTimer.current != null) clearTimeout(kbBlurTimer.current);
-    Animated.timing(kbAnim, {
-      toValue: 1,
-      duration: 300,
-      useNativeDriver: false,
-    }).start();
-  };
-
-  const animateKbInactive = () => {
-    if (kbBlurTimer.current != null) clearTimeout(kbBlurTimer.current);
-    kbBlurTimer.current = setTimeout(() => {
-      Animated.timing(kbAnim, {
-        toValue: 0,
-        duration: 300,
-        useNativeDriver: false,
-      }).start();
-    }, 150);
-  };
-
-  const animateOtpLiftIn = () => {
-    if (otpBlurTimer.current != null) clearTimeout(otpBlurTimer.current);
-    Animated.timing(otpLiftAnim, {
-      toValue: 1,
-      duration: 300,
-      useNativeDriver: true,
-    }).start();
-  };
-
-  const animateOtpLiftOut = () => {
-    if (otpBlurTimer.current != null) clearTimeout(otpBlurTimer.current);
-    otpBlurTimer.current = setTimeout(() => {
-      Animated.timing(otpLiftAnim, {
-        toValue: 0,
-        duration: 300,
-        useNativeDriver: true,
-      }).start();
-    }, 150);
-  };
-
-  useEffect(() => {
-    if (otpState) kbAnim.setValue(0);
-  }, [otpState]);
 
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -283,21 +134,6 @@ export function LoginScreen({ navigation }: Props) {
     }, 300);
     return () => clearTimeout(timer);
   }, [otpState]);
-
-  useEffect(() => {
-    if (showAllDoneState) {
-      Animated.timing(allDoneFade, {
-        toValue: 1,
-        duration: 350,
-        easing: Easing.inOut(Easing.ease),
-        useNativeDriver: true,
-      }).start();
-      const timer = setTimeout(() => {
-        navigation.navigate('Location');
-      }, 2000);
-      return () => clearTimeout(timer);
-    }
-  }, [showAllDoneState, navigation, allDoneFade]);
 
   useEffect(() => {
     fadeAnim.setValue(0);
@@ -362,10 +198,7 @@ export function LoginScreen({ navigation }: Props) {
 
   const handleVerifyOtp = (code: string) => {
     if (code.length === 6) {
-      setTimeout(() => {
-        setShowAllDoneState(true);
-        setOtpError('');
-      }, 250);
+      navigation.navigate('Location');
     }
   };
 
@@ -376,7 +209,6 @@ export function LoginScreen({ navigation }: Props) {
       setTimeout(() => {
         setOtpState(true);
         setOtpError('');
-        Keyboard.dismiss();
       }, 150);
     }
   };
@@ -401,26 +233,12 @@ export function LoginScreen({ navigation }: Props) {
     );
   };
 
-  if (showAllDoneState) {
-    return (
-      <Animated.View
-        style={[
-          styles.container,
-          {
-            alignItems: 'center',
-            justifyContent: 'center',
-            backgroundColor: '#ffffff',
-            opacity: allDoneFade,
-          },
-        ]}
-      >
-        <AllDoneSpinner />
-      </Animated.View>
-    );
-  }
-
   return (
-    <Animated.View style={[styles.container, { opacity: fadeAnim }]}>
+    <KeyboardAvoidingView
+      style={styles.avoiding}
+      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+    >
+      <Animated.View style={[styles.container, { opacity: fadeAnim }]}>
       {!otpState ? (
         <View style={styles.phoneStateContainer}>
 
@@ -431,7 +249,7 @@ export function LoginScreen({ navigation }: Props) {
             <ChevronLeft size={ms(20)} color="#1e293b" strokeWidth={2.5} />
           </ScalePressable>
 
-          <Animated.View style={[styles.topImageContainer, { height: heroHeightInterp }]}>
+          <View style={styles.topImageContainer}>
             <Pressable style={{ flex: 1 }} onPress={() => Keyboard.dismiss()}>
               <Image
                 source={phoneAuthBackgroundImg}
@@ -439,15 +257,15 @@ export function LoginScreen({ navigation }: Props) {
                 resizeMode="cover"
               />
             </Pressable>
-          </Animated.View>
+          </View>
 
-          <Animated.View style={{ position: 'absolute', left: 0, right: 0, bottom: 0, top: backLayerTopInterp, zIndex: 5, borderTopLeftRadius: DOME_RADIUS, borderTopRightRadius: DOME_RADIUS, overflow: 'hidden' }}>
+          <View style={styles.phoneCurveOverlay}>
             <BrandGradient />
-          </Animated.View>
+          </View>
 
-          <AnimatedPressable
+          <Pressable
             onPress={() => Keyboard.dismiss()}
-            style={[styles.bottomSheet, { marginTop: sheetMarginTopInterp, paddingTop: sheetPaddingTopInterp, paddingBottom: sheetPaddingBottomInterp }]}
+            style={styles.bottomSheet}
           >
             <View style={styles.gradientClipLayer}>
               <BrandGradient />
@@ -457,18 +275,18 @@ export function LoginScreen({ navigation }: Props) {
               <SmilingCoinHandIllustration />
             </View>
 
-            <Animated.View style={{ alignItems: 'center', marginTop: headerMarginTopInterp, marginBottom: headerMarginBottomInterp, transform: [{ scale: exploreScaleInterp }] }}>
-              <Text style={styles.exploreTitle}>
+            <View style={styles.exploreTitleWrap}>
+              <AppText style={styles.exploreTitle}>
                 Explore
-              </Text>
-            </Animated.View>
+              </AppText>
+            </View>
 
             <View style={styles.formContainer}>
               <View>
                 <View style={[styles.phoneInputRow, isPhoneFocused && styles.phoneInputRowFocused]}>
-                  <Text style={styles.countryCode}>(+91)</Text>
+                  <AppText style={styles.countryCode}>(+91)</AppText>
                   <View style={styles.separator} />
-                  <TextInput
+                  <AppTextInput
                     ref={phoneInputRef}
                     style={styles.textInput}
                     placeholder="Enter your mobile number"
@@ -477,34 +295,28 @@ export function LoginScreen({ navigation }: Props) {
                     maxLength={10}
                     value={phone}
                     onChangeText={handlePhoneChange}
-                    onFocus={() => {
-                      setIsPhoneFocused(true);
-                      animateKbActive();
-                    }}
-                    onBlur={() => {
-                      setIsPhoneFocused(false);
-                      animateKbInactive();
-                    }}
+                    onFocus={() => setIsPhoneFocused(true)}
+                    onBlur={() => setIsPhoneFocused(false)}
                   />
                 </View>
 
-                <Text style={styles.termsText}>
+                <AppText style={styles.termsText}>
                   By clicking, I accept the{' '}
-                  <Text style={styles.termsLink}>Terms & Conditions</Text> and{' '}
-                  <Text style={styles.termsLink}>Privacy Policy</Text>
-                </Text>
+                  <AppText style={styles.termsLink}>Terms & Conditions</AppText> and{' '}
+                  <AppText style={styles.termsLink}>Privacy Policy</AppText>
+                </AppText>
 
                 <View style={styles.loaderContainer}>
                   {phone.length === 10 && (
                     <View style={styles.loadingPill}>
                       <RotatingSpinner size={14} borderWidth={2} color="#212121" />
-                      <Text style={styles.loadingText}>Sending OTP...</Text>
+                      <AppText style={styles.loadingText}>Sending OTP...</AppText>
                     </View>
                   )}
                 </View>
               </View>
             </View>
-          </AnimatedPressable>
+          </Pressable>
         </View>
       ) : (
         <View style={styles.otpStateContainer}>
@@ -521,6 +333,7 @@ export function LoginScreen({ navigation }: Props) {
               setOtpState(false);
               setOtpCode('');
               setOtpError('');
+              setPhone('');
             }}
             style={styles.backBtn}
           >
@@ -528,7 +341,7 @@ export function LoginScreen({ navigation }: Props) {
           </ScalePressable>
 
           <View style={styles.otpHeaderContainer}>
-            <Text style={styles.otpHeaderTitle}>Lets get verified</Text>
+            <AppText style={styles.otpHeaderTitle}>Lets get verified</AppText>
           </View>
 
           <View style={styles.checkCircleBg} />
@@ -544,30 +357,28 @@ export function LoginScreen({ navigation }: Props) {
             </Svg>
           </View>
 
-          <Animated.View style={[styles.otpBlueCurve, { top: otpCurveTopInterp }]} />
+          <View style={styles.otpBlueCurve} />
 
-          <AnimatedTouchableOpacity
-            style={[styles.otpWhiteDome, { top: otpDomeTopInterp }]}
+          <TouchableOpacity
+            style={styles.otpWhiteDome}
             onPress={() => otpInputRef.current?.focus()}
             activeOpacity={1}
           >
             <View style={styles.otpWhiteContent}>
               <View style={styles.otpPromptContainer}>
-                <Text style={styles.securePromptSub}>Secure Verification</Text>
-                <Text style={styles.securePromptMain}>Enter the code sent to</Text>
-                <Text style={styles.securePromptPhone}>{phone ? `+91 ${phone}` : '+9876543210'}</Text>
+                <AppText style={styles.securePromptSub}>Secure Verification</AppText>
+                <AppText style={styles.securePromptMain}>Enter the code sent to</AppText>
+                <AppText style={styles.securePromptPhone}>{phone ? `+91 ${phone}` : '+9876543210'}</AppText>
               </View>
 
               <View style={styles.otpSegmentsContainer}>
-                <TextInput
+                <AppTextInput
                   ref={otpInputRef}
                   style={styles.hiddenOtpInput}
                   keyboardType="number-pad"
                   maxLength={6}
                   value={otpCode}
                   onChangeText={handleOtpChange}
-                   onFocus={() => animateOtpLiftIn()}
-                   onBlur={() => animateOtpLiftOut()}
                   caretHidden={true}
                 />
 
@@ -594,10 +405,10 @@ export function LoginScreen({ navigation }: Props) {
                                   ],
                                 }}
                               >
-                                <Text style={styles.segmentDigit}>{digit}</Text>
+                                <AppText style={styles.segmentDigit}>{digit}</AppText>
                               </Animated.View>
                             ) : (
-                              <Text style={styles.segmentDot}>•</Text>
+                              <AppText style={styles.segmentDot}>•</AppText>
                             )}
                           </View>
                           <Animated.View
@@ -644,29 +455,31 @@ export function LoginScreen({ navigation }: Props) {
                       </Svg>
                     </View>
                     <View style={styles.errorToastTextContainer}>
-                      <Text style={styles.errorToastTitle}>Verification Failed</Text>
-                      <Text style={styles.errorToastMessage}>{otpError}</Text>
+                      <AppText style={styles.errorToastTitle}>Verification Failed</AppText>
+                      <AppText style={styles.errorToastMessage}>{otpError}</AppText>
                     </View>
                   </Animated.View>
                 ) : null}
 
                 <View style={styles.resendRow}>
-                  <Text style={styles.resendTextSub}>Didn't get the code? </Text>
+                  <AppText style={styles.resendTextSub}>Didn't get the code? </AppText>
                   <TouchableOpacity activeOpacity={0.7} onPress={handleResend}>
-                    <Text style={styles.resendTextAction}>Resend</Text>
+                    <AppText style={styles.resendTextAction}>Resend</AppText>
                   </TouchableOpacity>
                 </View>
               </View>
             </View>
-          </AnimatedTouchableOpacity>
+          </TouchableOpacity>
         </View>
       )}
-    </Animated.View>
+      </Animated.View>
+    </KeyboardAvoidingView>
   );
 }
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#1f40d4' },
+  avoiding: { flex: 1 },
   phoneStateContainer: { flex: 1, position: 'relative' },
   backBtn: {
     position: 'absolute',
@@ -687,7 +500,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: 'rgba(241, 245, 249, 0.1)',
   },
-  topImageContainer: { width: '100%', backgroundColor: '#ffffff', zIndex: 1 },
+  topImageContainer: { width: '100%', backgroundColor: '#ffffff', zIndex: 1, height: hp(20) + DOME_RADIUS },
   topImage: { width: '100%', height: '100%' },
   bottomSheet: {
     flex: 1,
@@ -700,6 +513,9 @@ const styles = StyleSheet.create({
     shadowRadius: 35,
     elevation: 20,
     paddingHorizontal: hs(24),
+    marginTop: -44,
+    paddingTop: 32,
+    paddingBottom: 48,
     position: 'relative',
     zIndex: 10,
     borderTopWidth: 1,
@@ -715,6 +531,24 @@ const styles = StyleSheet.create({
     borderTopLeftRadius: DOME_RADIUS,
     borderTopRightRadius: DOME_RADIUS,
     overflow: 'hidden',
+  },
+
+  phoneCurveOverlay: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    bottom: 0,
+    top: hp(20),
+    zIndex: 5,
+    borderTopLeftRadius: DOME_RADIUS,
+    borderTopRightRadius: DOME_RADIUS,
+    overflow: 'hidden',
+  },
+
+  exploreTitleWrap: {
+    alignItems: 'center',
+    marginTop: 8,
+    marginBottom: 8,
   },
 
   badgeContainer: {
@@ -740,11 +574,11 @@ const styles = StyleSheet.create({
   exploreTitle: {
     color: '#ffffff',
     fontWeight: '900',
-    fontSize: ms(42),
+    fontSize: ms(28),
     textTransform: 'uppercase',
     letterSpacing: -0.5,
   },
-  formContainer: { flex: 1, alignItems: 'center', justifyContent: 'center' },
+  formContainer: { flex: 1, alignItems: 'center', justifyContent: 'flex-start', paddingTop: vs(20) },
   phoneInputRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -798,11 +632,11 @@ const styles = StyleSheet.create({
   loadingText: { color: '#212121', fontWeight: '900', fontSize: ms(12) },
   otpStateContainer: { flex: 1, backgroundColor: '#1f40d4', position: 'relative' },
   otpTopDismissArea: { position: 'absolute', top: 0, left: 0, right: 0, height: '24.2%', zIndex: 30 },
-  otpHeaderContainer: { position: 'absolute', top: '4.4%', left: 0, right: 0, alignItems: 'center', zIndex: 10 },
+  otpHeaderContainer: { position: 'absolute', top: '9%', left: 0, right: 0, alignItems: 'center', zIndex: 10 },
   otpHeaderTitle: { color: '#ffffff', fontWeight: '900', textTransform: 'uppercase', fontSize: ms(24), letterSpacing: -0.5 },
   checkCircleBg: {
     position: 'absolute',
-    top: '12.65%',
+    top: '14%',
     left: wp(50) - wp(13.3) / 2,
     width: '13.3%',
     aspectRatio: 1,
@@ -814,7 +648,7 @@ const styles = StyleSheet.create({
   },
   checkCircleIcon: {
     position: 'absolute',
-    top: '13.9%',
+    top: '15.25%',
     left: wp(50) - wp(8) / 2,
     width: '8%',
     aspectRatio: 1,
@@ -825,6 +659,7 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     bottom: 0,
+    top: hp(13.7),
     backgroundColor: '#2b51db',
     zIndex: 10,
     shadowColor: '#000000',
@@ -840,6 +675,7 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     bottom: 0,
+    top: hp(15.2),
     backgroundColor: '#ffffff',
     zIndex: 20,
     shadowColor: '#000000',
@@ -855,7 +691,7 @@ const styles = StyleSheet.create({
   securePromptSub: { fontSize: ms(10), fontWeight: '700', color: '#94a3b8', textTransform: 'uppercase', letterSpacing: 1.5, marginBottom: vs(6) },
   securePromptMain: { fontSize: ms(18), fontWeight: '900', color: '#1e293b', marginBottom: vs(2) },
   securePromptPhone: { fontSize: ms(20), fontWeight: '900', color: '#2f80ed', letterSpacing: 0.5 },
-  otpSegmentsContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', width: '100%', position: 'relative' },
+  otpSegmentsContainer: { flex: 1, justifyContent: 'flex-start', alignItems: 'center', width: '100%', position: 'relative', paddingTop: vs(8) },
   hiddenOtpInput: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, opacity: 0, zIndex: 40, color: 'transparent' },
   segmentsRow: { flexDirection: 'row', justifyContent: 'center', alignItems: 'center', gap: hs(12), width: '100%', maxWidth: hs(320), zIndex: 30 },
   segmentColumn: { alignItems: 'center', width: Math.max(44, vs(44)) },
@@ -883,7 +719,7 @@ const styles = StyleSheet.create({
     shadowRadius: 4,
     elevation: 3,
   },
-  otpFooterContainer: { width: '100%', alignItems: 'center', paddingBottom: vs(24), gap: vs(24) },
+  otpFooterContainer: { width: '100%', alignItems: 'center', paddingBottom: vs(56), gap: vs(24) },
   errorToast: {
     flexDirection: 'row',
     alignItems: 'center',

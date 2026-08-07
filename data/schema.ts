@@ -1,3 +1,9 @@
+/**
+ * @aspirational SDUI contract. Types here are consumed by shared renderers
+ * (`components/shared/SDUIRenderer`, `ProductCardBase`), but no data file
+ * produces `SDUINode` trees yet — domain files emit typed entity arrays.
+ * See data/DATA_CONTROL.md.
+ */
 import type { Product, StoreProfile, Review, AppBrand, SpecItem } from './types';
 
 export type CardVariant = 'rail' | 'grid2' | 'stack' | 'tile' | 'detail-row' | 'flash' | 'booking' | 'promo';

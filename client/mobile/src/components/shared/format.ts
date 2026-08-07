@@ -1,4 +1,4 @@
-import { brandTokens } from './brandTokens';
+import { brandTokens } from '@/theme/brandTokens';
 import type { AppBrand } from '@data/types';
 
 export function formatPrice(price: number, locale = 'en-IN', currency = 'INR') {

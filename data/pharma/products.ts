@@ -1,14 +1,19 @@
-import type { PharmaProduct } from '../types';
+/**
+ * @mock Static fixture — seeded sample data for local development until the Go Chi
+ * backend (server/) is wired. See data/DATA_CONTROL.md.
+ */
+import type { PharmaProduct, PharmaCategory } from '../types';
 
-export const PHARMA_CATEGORIES = [
+export const PHARMA_CATEGORIES: PharmaCategory[] = [
   { id: 'vaccine', name: 'Vaccine', count: '250 products', icon: '💉' },
-  { id: 'vitamin', name: 'Vitamine', count: '150 products', icon: '💊' },
+  { id: 'vitamin', name: 'Vitamin', count: '150 products', icon: '💊' },
   { id: 'supplements', name: 'Supplements', count: '300 products', icon: '🧴' },
   { id: 'fever', name: 'Fever', count: '67 products', icon: '🌡️' },
   { id: 'antiseptic', name: 'Antiseptic', count: '250 products', icon: '🧴' },
   { id: 'hypertension', name: 'Hypertension', count: '150 products', icon: '❤️' },
   { id: 'asthma', name: 'Asthma and Breathing', count: '300 products', icon: '🫁' },
   { id: 'diarrhea', name: 'Diarrhea', count: '87 products', icon: '💧' },
+  { id: 'cough', name: 'Cough & Cold', count: '120 products', icon: '🤧' },
 ];
 
 export interface PharmaDBItem {
@@ -39,6 +44,9 @@ export const PHARMA_PRODUCTS_DB: PharmaDBItem[] = [
   { id: 'ph-as1', category: 'asthma', name: 'Salbutamol Inhaler 200 Doses', price: 350, originalPrice: 450, discountBadge: '22% OFF', rating: 4.8, reviewsCount: 410, image: 'https://images.unsplash.com/photo-1584017911766-d451b3d0e843?auto=format&fit=crop&q=80&w=400&h=400', emoji: '🫁', desc: 'Fast-acting bronchodilator inhaler for relief of asthma symptoms and breathing difficulties.', bullets: ['Salbutamol 100mcg', '200 Doses', 'Mouthpiece Included', 'Prescription Required'] },
   { id: 'ph-d1', category: 'diarrhea', name: 'Oral Rehydration Salt (20 Sachets)', price: 75, originalPrice: null, discountBadge: null, rating: 4.9, reviewsCount: 670, image: 'https://images.unsplash.com/photo-1584308666744-24d5c474f2ae?auto=format&fit=crop&q=80&w=400&h=400', emoji: '💧', desc: 'WHO-recommended oral rehydration salts for rapid electrolyte replacement during diarrhea.', bullets: ['WHO Formula', 'Electrolyte Balance', 'Orange Flavor', 'Easy Mix'] },
   { id: 'ph-s1', category: 'supplements', name: 'Whey Protein Isolate 500g', price: 1299, originalPrice: 1699, discountBadge: '23% OFF', rating: 4.9, reviewsCount: 180, image: 'https://images.unsplash.com/photo-1593095948071-474c5cc2c1cf?auto=format&fit=crop&q=80&w=400&h=400', emoji: '💪', desc: 'Premium whey protein isolate with 27g protein per serving, zero sugar, and fast absorption.', bullets: ['27g Protein', 'Zero Sugar', 'BCAA 5.5g', 'Chocolate Flavor'] },
+  { id: 'ph-c1', category: 'cough', name: 'Honey & Tulsi Expectorant Syrup', price: 145, originalPrice: 190, discountBadge: '24% OFF', rating: 4.7, reviewsCount: 420, image: 'https://images.unsplash.com/photo-1584308666744-24d5c474f2ae?auto=format&fit=crop&q=80&w=400&h=400', emoji: '🍯', desc: 'Ayurvedic honey & tulsi based syrup that loosens chest congestion and soothes a dry tickly cough.', bullets: ['Honey 500mg', 'Tulsi Extract', 'Liquorice 30mg', 'Thyme 20mg'] },
+  { id: 'ph-c2', category: 'cough', name: 'Dextromethorphan Cough Syrup', price: 165, originalPrice: 210, discountBadge: '21% OFF', rating: 4.6, reviewsCount: 310, image: 'https://images.unsplash.com/photo-1584017911766-d451b3d0e843?auto=format&fit=crop&q=80&w=400&h=400', emoji: '🤧', desc: 'Fast-acting cough suppressant for dry, hacking coughs. Consult a physician before use.', bullets: ['Dextromethorphan 10mg', 'Non-Drowsy', 'Sugar Free', 'Berry Flavor'] },
+  { id: 'ph-c3', category: 'cough', name: 'Eucalyptus Cough Lozenges (24)', price: 95, originalPrice: null, discountBadge: null, rating: 4.8, reviewsCount: 260, image: 'https://images.unsplash.com/photo-1584308666744-24d5c474f2ae?auto=format&fit=crop&q=80&w=400&h=400', emoji: '🍬', desc: 'Menthol-eucalyptus drops that give instant cooling relief to a sore, scratchy throat.', bullets: ['Menthol 2mg', 'Eucalyptus Oil', 'Cough Relief', 'Dairy Free'] },
 ];
 
 export const pharmaProducts: PharmaProduct[] = PHARMA_PRODUCTS_DB.map(p => ({

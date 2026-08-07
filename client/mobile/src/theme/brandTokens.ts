@@ -10,6 +10,8 @@ export interface BrandTokens {
   btnText: string;
   btnAdded: string;
   gradient: [string, string];
+  headerGradient: [string, string];
+  headerTextColor: string;
   priceColor: string;
   pillBg: string;
 }
@@ -24,6 +26,8 @@ export const brandTokens: Record<AppBrand, BrandTokens> = {
     btnText: '#ffffff',
     btnAdded: '#059669',
     gradient: ['#1E5D44', '#065f46'],
+    headerGradient: ['#C2410C', '#FB923C'],
+    headerTextColor: '#ffffff',
     priceColor: '#1E5D44',
     pillBg: '#1E5D4415',
   },
@@ -36,6 +40,8 @@ export const brandTokens: Record<AppBrand, BrandTokens> = {
     btnText: '#ffffff',
     btnAdded: '#059669',
     gradient: ['#1162D3', '#1e40af'],
+    headerGradient: ['#CA8A04', '#FACC15'],
+    headerTextColor: '#1E1B08',
     priceColor: '#1162D3',
     pillBg: '#1162D315',
   },
@@ -48,6 +54,8 @@ export const brandTokens: Record<AppBrand, BrandTokens> = {
     btnText: '#ffffff',
     btnAdded: '#059669',
     gradient: ['#10B981', '#059669'],
+    headerGradient: ['#15803D', '#4ADE80'],
+    headerTextColor: '#ffffff',
     priceColor: '#10B981',
     pillBg: '#10B98115',
   },
@@ -61,6 +69,8 @@ export const brandTokens: Record<AppBrand, BrandTokens> = {
     btnText: '#ffffff',
     btnAdded: '#059669',
     gradient: ['#FFF0E8', '#FFD5C8'],
+    headerGradient: ['#0F766E', '#2DD4BF'],
+    headerTextColor: '#ffffff',
     priceColor: '#FF7A59',
     pillBg: '#065F4615',
   },

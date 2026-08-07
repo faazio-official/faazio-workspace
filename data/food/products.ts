@@ -1,4 +1,8 @@
-import type { FoodProduct } from '../types';
+/**
+ * @mock Static fixture — seeded sample data for local development until the Go Chi
+ * backend (server/) is wired. See data/DATA_CONTROL.md.
+ */
+import type { FoodProduct, TopOfWeekDish } from '../types';
 
 export const foodProducts: FoodProduct[] = [
   { id: 'm-squid-sweet', app: 'FOOD', category: 'Seafood', name: 'Squid Sweet & Sour', price: 399, emoji: '🦑', image: 'https://images.unsplash.com/photo-1534422298391-e4f8c172dddb?auto=format&fit=crop&q=80&w=400&h=400', categories: ['All', 'Top of Week', 'Seafood'], desc: 'Zesty wok-tossed premium squid, caramelized pineapples, and a rich sweet & sour glaze.', rating: 4.9 },
@@ -9,7 +13,7 @@ export const foodProducts: FoodProduct[] = [
   { id: 'm-crispy-dumplings', app: 'FOOD', category: 'Featured', name: 'Golden Crispy Dumplings', price: 280, emoji: '🥟', image: 'https://images.unsplash.com/photo-1563245372-f21724e3856d?auto=format&fit=crop&q=80&w=400&h=400', categories: ['All', 'Featured'], desc: 'Pan-seared handmade wrappers filled with fresh seasoned chicken & Chinese chives.', rating: 4.6 },
 ];
 
-export const topOfWeekDishes = [
+export const topOfWeekDishes: TopOfWeekDish[] = [
   { id: 'tow-1', name: 'Hongkong Hainanese Chicken Rice', price: 349, emoji: '🍛', image: 'https://images.unsplash.com/photo-1546069901-ba9599a7e63c?auto=format&fit=crop&q=80&w=400&h=400', desc: 'Slow poached organic chicken, fragrant jasmine rice with cool cucumber.', rating: '4.8', reviewsCount: 320, time: '30 mins' },
   { id: 'tow-2', name: 'Hot & Sour Corn Soup', price: 249, emoji: '🍜', image: 'https://images.unsplash.com/photo-1547592180-85f173990554?auto=format&fit=crop&q=80&w=400&h=400', desc: 'Authentic Sichuan spices, sweet golden corn, and organic field greens.', rating: '4.7', reviewsCount: 156, time: '20 mins' },
   { id: 'tow-3', name: 'Singapura Hainan Curry', price: 499, emoji: '🍛', image: 'https://images.unsplash.com/photo-1540189549336-e6e99c3679fe?auto=format&fit=crop&q=80&w=400&h=400', desc: 'Rich coconut curry leaf broth, fresh wild prawns & golden tofu puffs.', rating: '4.9', reviewsCount: 520, time: '40 mins' },

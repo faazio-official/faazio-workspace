@@ -1,14 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import {
-  StyleSheet,
-  View,
-  Text,
-  ScrollView,
-  TextInput,
-  TouchableOpacity,
-  ActivityIndicator,
-  Animated,
-} from 'react-native';
+import { StyleSheet, View, ScrollView, TouchableOpacity, ActivityIndicator, Animated } from 'react-native';
 import {
   ShoppingBag,
   ArrowRight,
@@ -25,10 +16,12 @@ import {
   Check,
 } from 'lucide-react-native';
 import { hs, vs, ms } from '@/utils/responsive';
-import EnterpriseIcon from './EnterpriseIcon';
+import EnterpriseIcon from '@/components/EnterpriseIcon';
 import type { CartItem } from '@/state/cartStore';
 import { defaultAddresses } from '@data/cart/addresses';
 import { coupons } from '@data/cart/coupons';
+import AppTextInput from '@/components/AppTextInput';
+import AppText from '@/components/AppText';
 
 const getAppLabel = (itemId: string) => {
   const id = itemId.toLowerCase();
@@ -45,6 +38,7 @@ const getAppLabel = (itemId: string) => {
 };
 
 interface CartViewProps {
+  contentInset?: number;
   cartItems: CartItem[];
   setCartItems: React.Dispatch<React.SetStateAction<CartItem[]>>;
   updateCartQuantity: (id: string, delta: number) => void;
@@ -55,6 +49,7 @@ interface CartViewProps {
 type CheckoutStep = 'BAG' | 'ADDRESS' | 'PAYMENT' | 'RECEIPT';
 
 export default function CartView({
+  contentInset = 0,
   cartItems,
   setCartItems,
   updateCartQuantity,
@@ -183,19 +178,19 @@ export default function CartView({
 
   if (step === 'BAG') {
     return (
-      <ScrollView style={styles.container} contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}
+      <ScrollView style={styles.container} contentContainerStyle={[styles.scrollContent, { paddingTop: contentInset }]} showsVerticalScrollIndicator={false}
         onScroll={onScroll ? (e) => onScroll(e.nativeEvent.contentOffset.y) : undefined}
         scrollEventThrottle={16}>
         <View style={styles.cardBox}>
           <View style={styles.headerRow}>
             <View style={styles.headerLeft}>
               <ShoppingBag size={ms(13)} color="#0f172a" style={{ marginRight: hs(6) }} />
-              <Text style={styles.headerTitle}>Your Shopping Bag</Text>
+              <AppText style={styles.headerTitle}>Your Shopping Bag</AppText>
             </View>
             <View style={styles.badgeWrap}>
-              <Text style={styles.badgeText}>
+              <AppText style={styles.badgeText}>
                 {cartItems.length} {cartItems.length === 1 ? 'item' : 'items'}
-              </Text>
+              </AppText>
             </View>
           </View>
 
@@ -204,12 +199,12 @@ export default function CartView({
               <Animated.View style={[styles.emptyIconCircle, { transform: [{ translateY: bounceAnim.interpolate({ inputRange: [0, 1], outputRange: [0, -6] }) }] }]}>
                 <ShoppingBag size={ms(22)} color="#94a3b8" />
               </Animated.View>
-              <Text style={styles.emptyTitle}>Your bag is empty</Text>
-              <Text style={styles.emptyDesc}>
+              <AppText style={styles.emptyTitle}>Your bag is empty</AppText>
+              <AppText style={styles.emptyDesc}>
                 Browse Food, FA Mart, Grocery, or Pharma and tap 'Add to Bag' to get started!
-              </Text>
+              </AppText>
               <TouchableOpacity onPress={() => setActiveTab('Home')} style={styles.goToHubBtn} activeOpacity={0.8}>
-                <Text style={styles.goToHubBtnText}>Go to Hub</Text>
+                <AppText style={styles.goToHubBtnText}>Go to Hub</AppText>
               </TouchableOpacity>
             </View>
           ) : (
@@ -230,10 +225,10 @@ export default function CartView({
                     <View key={group.label.name} style={styles.groupedAppSection}>
                       <View style={styles.appOriginRow}>
                         <View style={[styles.appOriginBadge, { backgroundColor: group.label.bgColor, borderColor: group.label.border }]}>
-                          <Text style={styles.appOriginEmoji}>{group.label.icon}</Text>
-                          <Text style={[styles.appOriginName, { color: group.label.textColor }]}>{group.label.name}</Text>
+                          <AppText style={styles.appOriginEmoji}>{group.label.icon}</AppText>
+                          <AppText style={[styles.appOriginName, { color: group.label.textColor }]}>{group.label.name}</AppText>
                         </View>
-                        <Text style={styles.groupCountText}>{group.items.length} {group.items.length === 1 ? 'item' : 'items'}</Text>
+                        <AppText style={styles.groupCountText}>{group.items.length} {group.items.length === 1 ? 'item' : 'items'}</AppText>
                       </View>
 
                       <View style={styles.appItemsBox}>
@@ -244,18 +239,18 @@ export default function CartView({
                                 <EnterpriseIcon emoji={item.emoji} variant="square" size={ms(34)} bgColor="#fff" />
                               </View>
                               <View style={styles.cartItemMeta}>
-                                <Text style={styles.cartItemName} numberOfLines={1}>{item.name}</Text>
-                                <Text style={styles.cartItemPrice}>₹{item.price.toLocaleString('en-IN')} each</Text>
+                                <AppText style={styles.cartItemName} numberOfLines={1}>{item.name}</AppText>
+                                <AppText style={styles.cartItemPrice}>₹{item.price.toLocaleString('en-IN')} each</AppText>
                               </View>
                             </View>
 
                             <View style={styles.quantityWidget}>
                               <TouchableOpacity onPress={() => updateCartQuantity(item.id, -1)} style={styles.qtyBtn} activeOpacity={0.8} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
-                                <Text style={styles.qtyBtnText}>-</Text>
+                                <AppText style={styles.qtyBtnText}>-</AppText>
                               </TouchableOpacity>
-                              <Text style={styles.qtyValue}>{item.quantity}</Text>
+                              <AppText style={styles.qtyValue}>{item.quantity}</AppText>
                               <TouchableOpacity onPress={() => updateCartQuantity(item.id, 1)} style={styles.qtyBtn} activeOpacity={0.8} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
-                                <Text style={styles.qtyBtnText}>+</Text>
+                                <AppText style={styles.qtyBtnText}>+</AppText>
                               </TouchableOpacity>
                             </View>
                           </View>
@@ -268,11 +263,11 @@ export default function CartView({
 
               {/* Coupon System */}
               <View style={styles.couponContainer}>
-                <Text style={styles.sectionLabel}>Have a Promo Coupon?</Text>
+                <AppText style={styles.sectionLabel}>Have a Promo Coupon?</AppText>
                 <View style={styles.couponRow}>
                   <View style={styles.couponInputWrap}>
                     <Ticket size={ms(14)} color="#94a3b8" style={styles.couponIcon} />
-                    <TextInput
+                    <AppTextInput
                       placeholder="e.g. FAAZIO20, SUPER50"
                       value={promoCode}
                       onChangeText={(txt) => {
@@ -287,7 +282,7 @@ export default function CartView({
                     />
                   </View>
                   <TouchableOpacity onPress={applyCoupon} style={styles.couponApplyBtn} activeOpacity={0.8}>
-                    <Text style={styles.couponApplyText}>Apply</Text>
+                    <AppText style={styles.couponApplyText}>Apply</AppText>
                   </TouchableOpacity>
                 </View>
 
@@ -295,10 +290,10 @@ export default function CartView({
                   <View style={styles.appliedDiscountBox}>
                     <View style={{ flexDirection: 'row', alignItems: 'center' }}>
                       <Check size={ms(12)} strokeWidth={3} color="#059669" style={{ marginRight: hs(4) }} />
-                      <Text style={styles.appliedDiscountText}>Applied: {appliedDiscount.code}</Text>
+                      <AppText style={styles.appliedDiscountText}>Applied: {appliedDiscount.code}</AppText>
                     </View>
                     <TouchableOpacity onPress={removeCoupon} activeOpacity={0.8}>
-                      <Text style={styles.removeCouponText}>Remove</Text>
+                      <AppText style={styles.removeCouponText}>Remove</AppText>
                     </TouchableOpacity>
                   </View>
                 )}
@@ -306,7 +301,7 @@ export default function CartView({
                 {promoError && (
                   <View style={styles.promoErrorBox}>
                     <AlertCircle size={ms(10)} color="#ef4444" style={{ marginRight: hs(4) }} />
-                    <Text style={styles.promoErrorText}>{promoError}</Text>
+                    <AppText style={styles.promoErrorText}>{promoError}</AppText>
                   </View>
                 )}
               </View>
@@ -314,48 +309,48 @@ export default function CartView({
               {/* Price Breakdown */}
               <View style={styles.pricingContainer}>
                 <View style={styles.pricingRow}>
-                  <Text style={styles.pricingLabel}>Subtotal</Text>
-                  <Text style={styles.pricingValue}>₹{subtotal.toLocaleString('en-IN')}</Text>
+                  <AppText style={styles.pricingLabel}>Subtotal</AppText>
+                  <AppText style={styles.pricingValue}>₹{subtotal.toLocaleString('en-IN')}</AppText>
                 </View>
 
                 {appliedDiscount && (
                   <View style={styles.pricingRow}>
-                    <Text style={[styles.pricingLabel, { color: '#059669', fontWeight: '900' }]}>Coupon Discount</Text>
-                    <Text style={[styles.pricingValue, { color: '#059669', fontWeight: '900' }]}>-₹{discountAmount.toLocaleString('en-IN')}</Text>
+                    <AppText style={[styles.pricingLabel, { color: '#059669', fontWeight: '900' }]}>Coupon Discount</AppText>
+                    <AppText style={[styles.pricingValue, { color: '#059669', fontWeight: '900' }]}>-₹{discountAmount.toLocaleString('en-IN')}</AppText>
                   </View>
                 )}
 
                 <View style={styles.pricingRow}>
-                  <Text style={styles.pricingLabel}>GST Taxes (5%)</Text>
-                  <Text style={styles.pricingValue}>₹{tax.toLocaleString('en-IN')}</Text>
+                  <AppText style={styles.pricingLabel}>GST Taxes (5%)</AppText>
+                  <AppText style={styles.pricingValue}>₹{tax.toLocaleString('en-IN')}</AppText>
                 </View>
 
                 <View style={styles.pricingRow}>
-                  <Text style={styles.pricingLabel}>Delivery Charges</Text>
+                  <AppText style={styles.pricingLabel}>Delivery Charges</AppText>
                   {deliveryFee === 0 ? (
-                    <Text style={[styles.pricingValue, { color: '#56B821', fontWeight: '900' }]}>FREE (₹49 Saved)</Text>
+                    <AppText style={[styles.pricingValue, { color: '#56B821', fontWeight: '900' }]}>FREE (₹49 Saved)</AppText>
                   ) : (
-                    <Text style={styles.pricingValue}>₹{deliveryFee}</Text>
+                    <AppText style={styles.pricingValue}>₹{deliveryFee}</AppText>
                   )}
                 </View>
 
                 {deliveryFee > 0 && (
                   <View style={styles.tipBox}>
-                    <Text style={styles.tipText}>
-                      💡 Tip: Add items worth <Text style={{ fontWeight: '900', color: '#334155' }}>₹{(500 - subtotal).toLocaleString('en-IN')}</Text> more to qualify for <Text style={{ color: '#059669', fontWeight: '900' }}>FREE Delivery</Text>!
-                    </Text>
+                    <AppText style={styles.tipText}>
+                      💡 Tip: Add items worth <AppText style={{ fontWeight: '900', color: '#334155' }}>₹{(500 - subtotal).toLocaleString('en-IN')}</AppText> more to qualify for <AppText style={{ color: '#059669', fontWeight: '900' }}>FREE Delivery</AppText>!
+                    </AppText>
                   </View>
                 )}
 
                 <View style={[styles.pricingRow, styles.grandTotalRow]}>
-                  <Text style={styles.grandTotalLabel}>Grand Total</Text>
-                  <Text style={styles.grandTotalValue}>₹{finalTotal.toLocaleString('en-IN')}</Text>
+                  <AppText style={styles.grandTotalLabel}>Grand Total</AppText>
+                  <AppText style={styles.grandTotalValue}>₹{finalTotal.toLocaleString('en-IN')}</AppText>
                 </View>
               </View>
 
               {/* Action Button */}
               <TouchableOpacity onPress={() => setStep('ADDRESS')} style={styles.mainActionBtn} activeOpacity={0.8}>
-                <Text style={styles.mainActionBtnText}>Select Delivery Address</Text>
+                <AppText style={styles.mainActionBtnText}>Select Delivery Address</AppText>
                 <ArrowRight size={ms(13)} color="#ffffff" style={{ marginLeft: hs(6) }} strokeWidth={2.5} />
               </TouchableOpacity>
             </View>
@@ -367,16 +362,16 @@ export default function CartView({
 
   if (step === 'ADDRESS') {
     return (
-      <ScrollView style={styles.container} contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}
+      <ScrollView style={styles.container} contentContainerStyle={[styles.scrollContent, { paddingTop: contentInset }]} showsVerticalScrollIndicator={false}
         onScroll={onScroll ? (e) => onScroll(e.nativeEvent.contentOffset.y) : undefined}
         scrollEventThrottle={16}>
         <View style={styles.cardBox}>
           <View style={[styles.headerRow, { borderBottomWidth: 1, borderBottomColor: '#f1f5f9', paddingBottom: vs(10) }]}>
             <TouchableOpacity onPress={() => setStep('BAG')} style={styles.backBtn} activeOpacity={0.8}>
               <ChevronLeft size={ms(12)} color="#94a3b8" />
-              <Text style={styles.backBtnText}>Back</Text>
+              <AppText style={styles.backBtnText}>Back</AppText>
             </TouchableOpacity>
-            <Text style={styles.headerTitleCenter}>Select Delivery Address</Text>
+            <AppText style={styles.headerTitleCenter}>Select Delivery Address</AppText>
             <View style={{ width: hs(40) }} />
           </View>
 
@@ -396,13 +391,13 @@ export default function CartView({
                   <MapPin size={ms(14)} color={addr.selected ? '#ffffff' : '#64748b'} />
                 </View>
                 <View style={styles.addressCardDetails}>
-                  <Text style={styles.addressCardLabel}>{addr.label}</Text>
-                  <Text style={styles.addressCardText}>{addr.address}</Text>
+                  <AppText style={styles.addressCardLabel}>{addr.label}</AppText>
+                  <AppText style={styles.addressCardText}>{addr.address}</AppText>
                 </View>
 
                 {addr.selected && (
                   <View style={styles.addressSelectMarker}>
-                    <Text style={styles.addressSelectMarkerText}>✓</Text>
+                    <AppText style={styles.addressSelectMarkerText}>✓</AppText>
                   </View>
                 )}
               </TouchableOpacity>
@@ -412,8 +407,8 @@ export default function CartView({
           {/* Add custom Address Form */}
           {showAddAddress ? (
             <View style={styles.customAddressForm}>
-              <Text style={styles.sectionLabel}>Type Custom Address</Text>
-              <TextInput
+              <AppText style={styles.sectionLabel}>Type Custom Address</AppText>
+              <AppTextInput
                 placeholder="Apartment/Flat No, Landmark, Street name, Pincode"
                 value={customAddress}
                 onChangeText={setCustomAddress}
@@ -424,22 +419,22 @@ export default function CartView({
               />
               <View style={styles.customAddressBtnRow}>
                 <TouchableOpacity onPress={() => setShowAddAddress(false)} style={styles.customAddressCancel} activeOpacity={0.8}>
-                  <Text style={styles.customAddressCancelText}>Cancel</Text>
+                  <AppText style={styles.customAddressCancelText}>Cancel</AppText>
                 </TouchableOpacity>
                 <TouchableOpacity onPress={addNewAddress} style={styles.customAddressSave} activeOpacity={0.8}>
-                  <Text style={styles.customAddressSaveText}>Save Address</Text>
+                  <AppText style={styles.customAddressSaveText}>Save Address</AppText>
                 </TouchableOpacity>
               </View>
             </View>
           ) : (
             <TouchableOpacity onPress={() => setShowAddAddress(true)} style={styles.addAddressDashedBtn} activeOpacity={0.8}>
-              <Text style={styles.addAddressDashedBtnText}>+ Add Delivery Location</Text>
+              <AppText style={styles.addAddressDashedBtnText}>+ Add Delivery Location</AppText>
             </TouchableOpacity>
           )}
 
           {/* Proceed to Payment Button */}
           <TouchableOpacity onPress={() => setStep('PAYMENT')} style={[styles.mainActionBtn, { marginTop: vs(24) }]} activeOpacity={0.8}>
-            <Text style={styles.mainActionBtnText}>Proceed to Payment</Text>
+            <AppText style={styles.mainActionBtnText}>Proceed to Payment</AppText>
             <ArrowRight size={ms(13)} color="#ffffff" style={{ marginLeft: hs(6) }} strokeWidth={2.5} />
           </TouchableOpacity>
         </View>
@@ -449,16 +444,16 @@ export default function CartView({
 
   if (step === 'PAYMENT') {
     return (
-      <ScrollView style={styles.container} contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}
+      <ScrollView style={styles.container} contentContainerStyle={[styles.scrollContent, { paddingTop: contentInset }]} showsVerticalScrollIndicator={false}
         onScroll={onScroll ? (e) => onScroll(e.nativeEvent.contentOffset.y) : undefined}
         scrollEventThrottle={16}>
         <View style={styles.cardBox}>
           <View style={[styles.headerRow, { borderBottomWidth: 1, borderBottomColor: '#f1f5f9', paddingBottom: vs(10) }]}>
             <TouchableOpacity onPress={() => setStep('ADDRESS')} style={styles.backBtn} activeOpacity={0.8}>
               <ChevronLeft size={ms(12)} color="#94a3b8" />
-              <Text style={styles.backBtnText}>Back</Text>
+              <AppText style={styles.backBtnText}>Back</AppText>
             </TouchableOpacity>
-            <Text style={styles.headerTitleCenter}>Choose Payment Method</Text>
+            <AppText style={styles.headerTitleCenter}>Choose Payment Method</AppText>
             <View style={{ width: hs(40) }} />
           </View>
 
@@ -470,7 +465,7 @@ export default function CartView({
               activeOpacity={0.8}
             >
               <Smartphone size={ms(16)} color={paymentMethod === 'UPI' ? '#0f172a' : '#94a3b8'} />
-              <Text style={styles.paymentGridCardText}>UPI Pay</Text>
+              <AppText style={styles.paymentGridCardText}>UPI Pay</AppText>
             </TouchableOpacity>
 
             <TouchableOpacity
@@ -479,7 +474,7 @@ export default function CartView({
               activeOpacity={0.8}
             >
               <CreditCard size={ms(16)} color={paymentMethod === 'CARD' ? '#0f172a' : '#94a3b8'} />
-              <Text style={styles.paymentGridCardText}>Card</Text>
+              <AppText style={styles.paymentGridCardText}>Card</AppText>
             </TouchableOpacity>
 
             <TouchableOpacity
@@ -488,26 +483,26 @@ export default function CartView({
               activeOpacity={0.8}
             >
               <Coins size={ms(16)} color={paymentMethod === 'COD' ? '#0f172a' : '#94a3b8'} />
-              <Text style={styles.paymentGridCardText}>Cash</Text>
+              <AppText style={styles.paymentGridCardText}>Cash</AppText>
             </TouchableOpacity>
           </View>
 
           {/* UPI dynamic panel details */}
           {paymentMethod === 'UPI' && (
             <View style={styles.paymentDetailPanel}>
-              <Text style={styles.sectionLabel}>Verify Unified Payment VPA</Text>
+              <AppText style={styles.sectionLabel}>Verify Unified Payment VPA</AppText>
               <View style={styles.upiInputRow}>
-                <TextInput
+                <AppTextInput
                   value={upiId}
                   onChangeText={setUpiId}
                   style={styles.upiInput}
                   placeholderTextColor="#94a3b8"
                 />
                 <View style={styles.upiVerifiedLabel}>
-                  <Text style={styles.upiVerifiedText}>Verified</Text>
+                  <AppText style={styles.upiVerifiedText}>Verified</AppText>
                 </View>
               </View>
-              <Text style={styles.securePanelText}>🔒 UPI transaction is encrypted securely under Faazio Gateway protocol.</Text>
+              <AppText style={styles.securePanelText}>🔒 UPI transaction is encrypted securely under Faazio Gateway protocol.</AppText>
             </View>
           )}
 
@@ -515,8 +510,8 @@ export default function CartView({
           {paymentMethod === 'CARD' && (
             <View style={styles.paymentDetailPanel}>
               <View style={styles.cardInputGroup}>
-                <Text style={styles.sectionLabel}>Card Number</Text>
-                <TextInput
+                <AppText style={styles.sectionLabel}>Card Number</AppText>
+                <AppTextInput
                   placeholder="4242 4242 4242 4242"
                   value={cardNumber}
                   onChangeText={(val) => {
@@ -532,8 +527,8 @@ export default function CartView({
 
               <View style={styles.cardTwoColRow}>
                 <View style={styles.cardColInput}>
-                  <Text style={styles.sectionLabel}>Expiry Date</Text>
-                  <TextInput
+                  <AppText style={styles.sectionLabel}>Expiry Date</AppText>
+                  <AppTextInput
                     placeholder="MM/YY"
                     value={cardExpiry}
                     onChangeText={setCardExpiry}
@@ -544,8 +539,8 @@ export default function CartView({
                   />
                 </View>
                 <View style={styles.cardColInput}>
-                  <Text style={styles.sectionLabel}>CVV Code</Text>
-                  <TextInput
+                  <AppText style={styles.sectionLabel}>CVV Code</AppText>
+                  <AppTextInput
                     placeholder="***"
                     value={cardCvv}
                     onChangeText={setCardCvv}
@@ -563,10 +558,10 @@ export default function CartView({
           {/* COD DETAILS */}
           {paymentMethod === 'COD' && (
             <View style={styles.codBox}>
-              <Text style={styles.codBoxEmoji}>💵</Text>
+              <AppText style={styles.codBoxEmoji}>💵</AppText>
               <View style={styles.codBoxTextCol}>
-                <Text style={styles.codBoxTitle}>Cash on Delivery selected</Text>
-                <Text style={styles.codBoxDesc}>Simply pay using cash or local phone QR scanner to your delivery partner when they arrive.</Text>
+                <AppText style={styles.codBoxTitle}>Cash on Delivery selected</AppText>
+                <AppText style={styles.codBoxDesc}>Simply pay using cash or local phone QR scanner to your delivery partner when they arrive.</AppText>
               </View>
             </View>
           )}
@@ -574,18 +569,18 @@ export default function CartView({
           {/* Secure Details */}
           <View style={styles.secureDetailsCard}>
             <ShieldCheck size={ms(14)} color="#059669" style={{ marginRight: hs(6) }} />
-            <Text style={styles.secureDetailsText}>Secure SSL 256-bit Certified Transaction</Text>
+            <AppText style={styles.secureDetailsText}>Secure SSL 256-bit Certified Transaction</AppText>
           </View>
 
           {/* Summary pricing block */}
           <View style={styles.paymentPriceSummary}>
             <View style={{ flex: 1, marginRight: hs(10) }}>
-              <Text style={styles.summaryLabel}>Delivery Address</Text>
-              <Text style={styles.summaryValue} numberOfLines={1}>{selectedAddressObj.address}</Text>
+              <AppText style={styles.summaryLabel}>Delivery Address</AppText>
+              <AppText style={styles.summaryValue} numberOfLines={1}>{selectedAddressObj.address}</AppText>
             </View>
             <View style={styles.summaryRight}>
-              <Text style={styles.summaryLabel}>Total Payment</Text>
-              <Text style={styles.summaryPriceValue}>₹{finalTotal.toLocaleString('en-IN')}</Text>
+              <AppText style={styles.summaryLabel}>Total Payment</AppText>
+              <AppText style={styles.summaryPriceValue}>₹{finalTotal.toLocaleString('en-IN')}</AppText>
             </View>
           </View>
 
@@ -599,11 +594,11 @@ export default function CartView({
             {paymentProcessing ? (
               <View style={styles.loadingRow}>
                 <ActivityIndicator size="small" color="#ffffff" style={{ marginRight: hs(6) }} />
-                <Text style={styles.mainActionBtnText}>Processing Payment...</Text>
+                <AppText style={styles.mainActionBtnText}>Processing Payment...</AppText>
               </View>
             ) : (
               <View style={styles.loadingRow}>
-                <Text style={styles.mainActionBtnText}>PAY & PLACE ORDER NOW</Text>
+                <AppText style={styles.mainActionBtnText}>PAY & PLACE ORDER NOW</AppText>
                 <CheckCircle size={ms(13)} color="#ffffff" style={{ marginLeft: hs(6) }} />
               </View>
             )}
@@ -615,7 +610,7 @@ export default function CartView({
 
   // RECEIPT VIEW
   return (
-    <ScrollView style={styles.container} contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}
+    <ScrollView style={styles.container} contentContainerStyle={[styles.scrollContent, { paddingTop: contentInset }]} showsVerticalScrollIndicator={false}
       onScroll={onScroll ? (e) => onScroll(e.nativeEvent.contentOffset.y) : undefined}
       scrollEventThrottle={16}>
       <View style={styles.cardBox}>
@@ -624,8 +619,8 @@ export default function CartView({
           <View style={styles.receiptCheckCircle}>
             <CheckCircle size={ms(24)} color="#56B821" strokeWidth={2.5} />
           </View>
-          <Text style={styles.receiptTitle}>Order Confirmed!</Text>
-          <Text style={styles.receiptOrderId}>ID: {placedOrderDetails?.orderId}</Text>
+          <AppText style={styles.receiptTitle}>Order Confirmed!</AppText>
+          <AppText style={styles.receiptOrderId}>ID: {placedOrderDetails?.orderId}</AppText>
         </View>
 
         {/* Live Delivery status steps */}
@@ -635,10 +630,10 @@ export default function CartView({
               <Animated.View style={{ opacity: pulseAnim.interpolate({ inputRange: [0, 1], outputRange: [1, 0.3] }) }}>
                 <Truck size={ms(10)} color="#475569" style={{ marginRight: hs(4) }} />
               </Animated.View>
-              <Text style={styles.liveTrackingLabel}>Real-Time Tracking Status</Text>
+              <AppText style={styles.liveTrackingLabel}>Real-Time Tracking Status</AppText>
             </View>
             <View style={styles.etaBadge}>
-              <Text style={styles.etaBadgeText}>Arriving in {placedOrderDetails?.eta}</Text>
+              <AppText style={styles.etaBadgeText}>Arriving in {placedOrderDetails?.eta}</AppText>
             </View>
           </View>
 
@@ -649,8 +644,8 @@ export default function CartView({
                 <View style={styles.liveStepActiveDot} />
               </View>
               <View style={styles.liveStepTextCol}>
-                <Text style={styles.liveStepTitle}>Order Accepted by Hub</Text>
-                <Text style={styles.liveStepDesc}>Confirmed at local Faazio distribution centre</Text>
+                <AppText style={styles.liveStepTitle}>Order Accepted by Hub</AppText>
+                <AppText style={styles.liveStepDesc}>Confirmed at local Faazio distribution centre</AppText>
               </View>
             </View>
 
@@ -659,8 +654,8 @@ export default function CartView({
                 <Animated.View style={[styles.liveStepActiveDotPulse, { opacity: pulseAnim.interpolate({ inputRange: [0, 1], outputRange: [1, 0.4] }) }]} />
               </View>
               <View style={styles.liveStepTextCol}>
-                <Text style={styles.liveStepTitle}>Rider Assigning...</Text>
-                <Text style={styles.liveStepDesc}>Simulated delivery executive moving to pick location</Text>
+                <AppText style={styles.liveStepTitle}>Rider Assigning...</AppText>
+                <AppText style={styles.liveStepDesc}>Simulated delivery executive moving to pick location</AppText>
               </View>
             </View>
           </View>
@@ -668,17 +663,17 @@ export default function CartView({
 
         {/* Purchased list */}
         <View style={styles.purchasedItemsSection}>
-          <Text style={styles.sectionLabel}>Items Purchased</Text>
+          <AppText style={styles.sectionLabel}>Items Purchased</AppText>
           <View style={styles.purchasedItemsList}>
             {placedOrderDetails?.items.map((item) => (
               <View key={item.id} style={styles.purchasedItemRow}>
                 <View style={styles.purchasedItemLeft}>
                   <EnterpriseIcon emoji={item.emoji} variant="flat" size={ms(10)} />
-                  <Text style={styles.purchasedItemName} numberOfLines={1}>
-                    {item.name} <Text style={{ color: '#94a3b8', fontWeight: 'bold' }}>x {item.quantity}</Text>
-                  </Text>
+                  <AppText style={styles.purchasedItemName} numberOfLines={1}>
+                    {item.name} <AppText style={{ color: '#94a3b8', fontWeight: 'bold' }}>x {item.quantity}</AppText>
+                  </AppText>
                 </View>
-                <Text style={styles.purchasedItemPrice}>₹{(item.price * item.quantity).toLocaleString('en-IN')}</Text>
+                <AppText style={styles.purchasedItemPrice}>₹{(item.price * item.quantity).toLocaleString('en-IN')}</AppText>
               </View>
             ))}
           </View>
@@ -686,14 +681,14 @@ export default function CartView({
 
         {/* Delivering to location */}
         <View style={styles.deliveryLocationSection}>
-          <Text style={styles.sectionLabel}>Delivering To</Text>
-          <Text style={styles.deliveryLocationAddress}>{placedOrderDetails?.deliveryAddress}</Text>
+          <AppText style={styles.sectionLabel}>Delivering To</AppText>
+          <AppText style={styles.deliveryLocationAddress}>{placedOrderDetails?.deliveryAddress}</AppText>
         </View>
 
         {/* Payment info info */}
         <View style={styles.receiptPaymentDetails}>
-          <Text style={styles.paymentProtocolLabel}>Payment Protocol:</Text>
-          <Text style={styles.paymentProtocolValue}>{placedOrderDetails?.payment}</Text>
+          <AppText style={styles.paymentProtocolLabel}>Payment Protocol:</AppText>
+          <AppText style={styles.paymentProtocolValue}>{placedOrderDetails?.payment}</AppText>
         </View>
 
         {/* Action Controls */}
@@ -706,7 +701,7 @@ export default function CartView({
             style={styles.receiptNewOrderBtn}
             activeOpacity={0.8}
           >
-            <Text style={styles.receiptNewOrderBtnText}>New Order</Text>
+            <AppText style={styles.receiptNewOrderBtnText}>New Order</AppText>
           </TouchableOpacity>
 
           <TouchableOpacity
@@ -718,7 +713,7 @@ export default function CartView({
             style={styles.receiptGoToHubBtn}
             activeOpacity={0.8}
           >
-            <Text style={styles.receiptGoToHubBtnText}>Go to Hub</Text>
+            <AppText style={styles.receiptGoToHubBtnText}>Go to Hub</AppText>
           </TouchableOpacity>
         </View>
       </View>

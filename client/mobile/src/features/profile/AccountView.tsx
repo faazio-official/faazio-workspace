@@ -1,12 +1,5 @@
 import React, { useRef, useEffect } from 'react';
-import {
-  StyleSheet,
-  View,
-  Text,
-  ScrollView,
-  TouchableOpacity,
-  Animated,
-} from 'react-native';
+import { StyleSheet, View, ScrollView, TouchableOpacity, Animated } from 'react-native';
 import {
   MapPin,
   Compass,
@@ -16,10 +9,12 @@ import {
 } from 'lucide-react-native';
 import { hs, vs, ms } from '@/utils/responsive';
 import Svg, { Defs, LinearGradient, Stop, Rect, Circle } from 'react-native-svg';
-import EnterpriseIcon from './EnterpriseIcon';
+import EnterpriseIcon from '@/components/EnterpriseIcon';
 import { pastOrders } from '@data/account/orders';
+import AppText from '@/components/AppText';
 
 interface AccountViewProps {
+  contentInset?: number;
   handleReset: () => void;
   setShowLocationRequestState: (val: boolean) => void;
   setIsLoggedIn: (val: boolean) => void;
@@ -27,6 +22,7 @@ interface AccountViewProps {
 }
 
 export default function AccountView({
+  contentInset = 0,
   handleReset,
   setShowLocationRequestState,
   setIsLoggedIn,
@@ -46,7 +42,7 @@ export default function AccountView({
   }, [pulseAnim]);
 
   return (
-    <ScrollView style={styles.container} contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}
+    <ScrollView style={styles.container} contentContainerStyle={[styles.scrollContent, { paddingTop: contentInset }]} showsVerticalScrollIndicator={false}
       onScroll={onScroll ? (e) => onScroll(e.nativeEvent.contentOffset.y) : undefined}
       scrollEventThrottle={16}>
       
@@ -63,27 +59,27 @@ export default function AccountView({
               </Defs>
               <Rect width="100%" height="100%" rx={ms(32)} fill="url(#avatarGrad)" />
             </Svg>
-            <Text style={styles.avatarText}>FB</Text>
+            <AppText style={styles.avatarText}>FB</AppText>
           </View>
         </Animated.View>
-        <Text style={styles.profileName}>Faizal Basha</Text>
-        <Text style={styles.profileSub}>Verified SuperApp Member</Text>
+        <AppText style={styles.profileName}>Faizal Basha</AppText>
+        <AppText style={styles.profileSub}>Verified SuperApp Member</AppText>
 
         <View style={styles.profileInfoGrid}>
           <View style={styles.infoBox}>
-            <Text style={styles.infoLabel}>Phone Number</Text>
-            <Text style={styles.infoValue}>+91 98765 43210</Text>
+            <AppText style={styles.infoLabel}>Phone Number</AppText>
+            <AppText style={styles.infoValue}>+91 98765 43210</AppText>
           </View>
           <View style={styles.infoBox}>
-            <Text style={styles.infoLabel}>Email Address</Text>
-            <Text style={styles.infoValue} numberOfLines={1}>faizalbashafaizalbasha07@gmail.com</Text>
+            <AppText style={styles.infoLabel}>Email Address</AppText>
+            <AppText style={styles.infoValue} numberOfLines={1}>faizalbashafaizalbasha07@gmail.com</AppText>
           </View>
         </View>
       </View>
 
       {/* 2. Tracking & History Section */}
       <View style={styles.sectionHeader}>
-        <Text style={styles.sectionTitle}>Order Tracking & History</Text>
+        <AppText style={styles.sectionTitle}>Order Tracking & History</AppText>
       </View>
 
       <View style={styles.activeDeliveryCard}>
@@ -98,10 +94,10 @@ export default function AccountView({
         </Svg>
         <View style={styles.activeDeliveryContent}>
           <View style={styles.activeBadge}>
-            <Text style={styles.activeBadgeText}>Active Delivery</Text>
+            <AppText style={styles.activeBadgeText}>Active Delivery</AppText>
           </View>
-          <Text style={styles.activeOrderId}>Order #FA-882901</Text>
-          <Text style={styles.activeOrderDesc}>Rider is picking up your fresh order basket</Text>
+          <AppText style={styles.activeOrderId}>Order #FA-882901</AppText>
+          <AppText style={styles.activeOrderDesc}>Rider is picking up your fresh order basket</AppText>
         </View>
         <Animated.View style={[styles.activeDeliveryIconCircle, { opacity: pulseAnim }]}>
           <Truck size={18} color="#ffffff" />
@@ -114,15 +110,15 @@ export default function AccountView({
             <EnterpriseIcon emoji={o.app === 'FOOD' ? '🍲' : '🛍️'} variant="circle" size={ms(32)} bgColor={o.app === 'FOOD' ? 'rgba(236,253,245,0.95)' : 'rgba(239,246,255,0.95)'} />
             <View style={styles.historyInfo}>
               <View style={styles.historyRow1}>
-                <Text style={styles.historyOrderId}>Order #{o.id}</Text>
+                <AppText style={styles.historyOrderId}>Order #{o.id}</AppText>
                 <View style={styles.historyStatusBadge}>
-                  <Text style={styles.historyStatusText}>{o.status}</Text>
+                  <AppText style={styles.historyStatusText}>{o.status}</AppText>
                 </View>
               </View>
-              <Text style={styles.historyItemName} numberOfLines={1}>{o.item}</Text>
-              <Text style={styles.historyStoreDetails}>{o.store} • {o.date}</Text>
+              <AppText style={styles.historyItemName} numberOfLines={1}>{o.item}</AppText>
+              <AppText style={styles.historyStoreDetails}>{o.store} • {o.date}</AppText>
             </View>
-            <Text style={styles.historyPrice}>{o.price}</Text>
+            <AppText style={styles.historyPrice}>{o.price}</AppText>
           </View>
         ))}
       </View>
@@ -139,36 +135,36 @@ export default function AccountView({
         >
           <View style={styles.settingRowLeft}>
             <MapPin size={ms(13)} color="#3b82f6" />
-            <Text style={styles.settingRowLabel}>Primary Location Settings</Text>
+            <AppText style={styles.settingRowLabel}>Primary Location Settings</AppText>
           </View>
           <View style={styles.locationBadge}>
-            <Text style={styles.locationBadgeText}>Mumbai, MH</Text>
+            <AppText style={styles.locationBadgeText}>Mumbai, MH</AppText>
           </View>
         </TouchableOpacity>
 
         <View style={styles.settingRow}>
           <View style={styles.settingRowLeft}>
             <Compass size={ms(13)} color="#4f46e5" />
-            <Text style={styles.settingRowLabel}>Notifications Enabled</Text>
+            <AppText style={styles.settingRowLabel}>Notifications Enabled</AppText>
           </View>
           <View style={styles.activeStateBadge}>
-            <Text style={styles.activeStateBadgeText}>Active</Text>
+            <AppText style={styles.activeStateBadgeText}>Active</AppText>
           </View>
         </View>
 
         <View style={[styles.settingRow, { borderBottomWidth: 0 }]}>
           <View style={styles.settingRowLeft}>
             <Activity size={ms(13)} color="#a855f7" />
-            <Text style={styles.settingRowLabel}>Faazio App Version</Text>
+            <AppText style={styles.settingRowLabel}>Faazio App Version</AppText>
           </View>
-          <Text style={styles.versionValue}>v1.2.0-prod</Text>
+          <AppText style={styles.versionValue}>v1.2.0-prod</AppText>
         </View>
       </View>
 
       {/* 4. Log Out button */}
       <TouchableOpacity onPress={handleReset} style={styles.logoutBtn} activeOpacity={0.8}>
         <LogOut size={ms(12)} color="#e11d48" style={{ marginRight: hs(6) }} />
-        <Text style={styles.logoutBtnText}>Log Out From Device</Text>
+        <AppText style={styles.logoutBtnText}>Log Out From Device</AppText>
       </TouchableOpacity>
 
     </ScrollView>
@@ -430,7 +426,6 @@ const styles = StyleSheet.create({
   },
   versionValue: {
     fontSize: ms(8),
-    fontFamily: 'monospace',
     color: '#94a3b8',
   },
   logoutBtn: {

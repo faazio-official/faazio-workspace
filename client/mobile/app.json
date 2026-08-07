@@ -31,7 +31,8 @@
         {
           "photosPermission": "Allow Faazio to access your photos to save invoices and upload prescriptions."
         }
-      ]
+      ],
+      "expo-font"
     ]
   }
 }

@@ -1,13 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import {
-  View,
-  Text,
-  StyleSheet,
-  TouchableOpacity,
-  ScrollView,
-  Image,
-  Animated,
-} from 'react-native';
+import { View, StyleSheet, TouchableOpacity, ScrollView, Image, Animated } from 'react-native';
 import {
   Shirt,
   Smartphone,
@@ -33,8 +25,9 @@ import { hs, vs, ms } from '@/utils/responsive';
 import { martProducts } from '@data/mart/products';
 import { martStores } from '@data/mart/stores';
 import type { StoreProfile, MartProduct } from '@data/types';
-import MartProductCard from '@/components/shared/MartProductCard';
+import MartProductCard from '@/features/ecommerce/cards/MartProductCard';
 import StoreCardBase from '@/components/shared/StoreCardBase';
+import AppText from '@/components/AppText';
 
 const badgeBgHex: Record<string, string> = {
   'bg-amber': '#f59e0b',
@@ -81,9 +74,10 @@ const formatCountdown = (s: number) => {
 interface FaMartScreenProps {
   addToCart?: (id: string, name: string, price: number, emoji: string) => void;
   onProductClick?: (product: any) => void;
+  searchQuery?: string;
 }
 
-export function FaMartScreen({ addToCart, onProductClick }: FaMartScreenProps) {
+export function FaMartScreen({ addToCart, onProductClick, searchQuery = '' }: FaMartScreenProps) {
   const [selectedSubCat, setSelectedSubCat] = useState<string>('All');
   const [selectedStore, setSelectedStore] = useState<StoreProfile | null>(null);
   const [displayedBannerIdx, setDisplayedBannerIdx] = useState<number>(0);
@@ -185,10 +179,15 @@ export function FaMartScreen({ addToCart, onProductClick }: FaMartScreenProps) {
     { name: 'Sports', icon: TrendingUp },
   ];
 
+  const normalizedSearch = searchQuery.trim().toLowerCase();
+
   const filteredStores =
     selectedSubCat === 'All'
       ? martStores
       : martStores.filter((s) => s.categories.includes(selectedSubCat));
+  const filteredStoresWithSearch = normalizedSearch
+    ? filteredStores.filter((s) => s.name.toLowerCase().includes(normalizedSearch))
+    : filteredStores;
 
   const flashDealProducts = martProducts.slice(0, 6);
 
@@ -196,6 +195,9 @@ export function FaMartScreen({ addToCart, onProductClick }: FaMartScreenProps) {
     selectedSubCat === 'All'
       ? martProducts
       : martProducts.filter((p) => matchCategory(p, selectedSubCat));
+  const filteredProductsWithSearch = normalizedSearch
+    ? filteredProducts.filter((p) => p.name.toLowerCase().includes(normalizedSearch))
+    : filteredProducts;
 
   const currentBannerData =
     selectedSubCat === 'All'
@@ -272,11 +274,11 @@ export function FaMartScreen({ addToCart, onProductClick }: FaMartScreenProps) {
           <Rect width="100%" height="100%" fill={`url(#banner-grad-${index})`} />
         </Svg>
         <View style={styles.bannerContent}>
-          <Text style={styles.bannerSubtitle}>{banner.subtitle}</Text>
-          <Text style={styles.bannerTitle}>{banner.title}</Text>
-          <Text style={styles.bannerDesc} numberOfLines={2}>
+          <AppText style={styles.bannerSubtitle}>{banner.subtitle}</AppText>
+          <AppText style={styles.bannerTitle}>{banner.title}</AppText>
+          <AppText style={styles.bannerDesc} numberOfLines={2}>
             {banner.desc}
-          </Text>
+          </AppText>
           <View style={styles.bannerActionRow}>
             <TouchableOpacity
               style={[styles.bannerBtn, { backgroundColor: banner.accent }]}
@@ -287,12 +289,12 @@ export function FaMartScreen({ addToCart, onProductClick }: FaMartScreenProps) {
                 setSelectedStore(null);
               }}
             >
-              <Text style={styles.bannerBtnText}>{`Explore ${banner.category}`}</Text>
+              <AppText style={styles.bannerBtnText}>{`Explore ${banner.category}`}</AppText>
             </TouchableOpacity>
             <Animated.View style={{ opacity: pulseAnim }}>
               <View style={styles.countdownChip}>
                 <Clock size={ms(9)} color="#be123c" />
-                <Text style={styles.countdownChipText}>{formatCountdown(timeLeft)}</Text>
+                <AppText style={styles.countdownChipText}>{formatCountdown(timeLeft)}</AppText>
               </View>
             </Animated.View>
           </View>
@@ -333,7 +335,7 @@ export function FaMartScreen({ addToCart, onProductClick }: FaMartScreenProps) {
     <ScrollView style={styles.container} showsVerticalScrollIndicator={false} contentContainerStyle={styles.contentContainer}>
       {/* Category chips */}
       <View style={styles.sectionContainer}>
-        <Text style={styles.sectionTitle}>Explore Mall Categories</Text>
+        <AppText style={styles.sectionTitle}>Explore Mall Categories</AppText>
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.subCatScrollList}>
           {subCategories.map((sub) => {
             const isSelected = selectedSubCat === sub.name;
@@ -348,9 +350,9 @@ export function FaMartScreen({ addToCart, onProductClick }: FaMartScreenProps) {
                 <View style={[styles.subCatIconBg, { backgroundColor: isSelected ? 'rgba(255,255,255,0.2)' : '#f1f5f9' }]}>
                   <Icon size={ms(12)} color={isSelected ? '#ffffff' : '#475569'} />
                 </View>
-                <Text style={[styles.subCatText, isSelected ? styles.subCatTextActive : styles.subCatTextInactive]}>
+                <AppText style={[styles.subCatText, isSelected ? styles.subCatTextActive : styles.subCatTextInactive]}>
                   {sub.name}
-                </Text>
+                </AppText>
               </TouchableOpacity>
             );
           })}
@@ -371,14 +373,14 @@ export function FaMartScreen({ addToCart, onProductClick }: FaMartScreenProps) {
         <View style={styles.flashDealsHeader}>
           <View style={styles.flashDealsTitleGroup}>
             <TrendingUp size={ms(14)} color="#ef4444" />
-            <Text style={styles.flashDealsTitle}>Flash Deals</Text>
+            <AppText style={styles.flashDealsTitle}>Flash Deals</AppText>
             <Animated.View style={{ transform: [{ rotate: rotation }] }}>
               <Clock size={ms(13)} color="#1162D3" />
             </Animated.View>
           </View>
           <Animated.View style={{ opacity: pulseAnim }}>
             <View style={styles.countdownChipSm}>
-              <Text style={styles.countdownChipSmText}>Ends in {formatCountdown(timeLeft)}</Text>
+              <AppText style={styles.countdownChipSmText}>Ends in {formatCountdown(timeLeft)}</AppText>
             </View>
           </Animated.View>
         </View>
@@ -395,23 +397,23 @@ export function FaMartScreen({ addToCart, onProductClick }: FaMartScreenProps) {
                 <View style={styles.flashImageContainer}>
                   <Image source={{ uri: product.image }} style={styles.flashImage} resizeMode="cover" />
                   <View style={styles.flashBadge}>
-                    <Text style={styles.flashBadgeText}>FLASH SALE</Text>
+                    <AppText style={styles.flashBadgeText}>FLASH SALE</AppText>
                   </View>
                 </View>
                 <View style={styles.flashInfo}>
                   <View style={styles.flashRatingRow}>
-                    <Text style={styles.flashCategory}>{product.category}</Text>
+                    <AppText style={styles.flashCategory}>{product.category}</AppText>
                     <View style={styles.flashStarRow}>
                       <Star size={ms(8)} color="#f59e0b" fill="#f59e0b" />
-                      <Text style={styles.flashRatingText}>{product.rating}</Text>
+                      <AppText style={styles.flashRatingText}>{product.rating}</AppText>
                     </View>
                   </View>
-                  <Text style={styles.flashName} numberOfLines={1}>
+                  <AppText style={styles.flashName} numberOfLines={1}>
                     {product.name}
-                  </Text>
+                  </AppText>
                   <View style={styles.flashPriceRow}>
-                    <Text style={styles.flashPrice}>₹{(product.price * 0.7).toFixed(0)}</Text>
-                    <Text style={styles.flashOriginalPrice}>₹{(product.price * 1.3).toFixed(0)}</Text>
+                    <AppText style={styles.flashPrice}>₹{(product.price * 0.7).toFixed(0)}</AppText>
+                    <AppText style={styles.flashOriginalPrice}>₹{(product.price * 1.3).toFixed(0)}</AppText>
                   </View>
                   <TouchableOpacity
                     style={[styles.flashAddBtn, isAdded && styles.flashAddBtnSuccess]}
@@ -423,10 +425,10 @@ export function FaMartScreen({ addToCart, onProductClick }: FaMartScreenProps) {
                     {isAdded ? (
                       <View style={styles.flashAddedRow}>
                         <CheckCircle size={ms(10)} color="#ffffff" />
-                        <Text style={styles.flashAddBtnText}>Added</Text>
+                        <AppText style={styles.flashAddBtnText}>Added</AppText>
                       </View>
                     ) : (
-                      <Text style={styles.flashAddBtnText}>+ Add</Text>
+                      <AppText style={styles.flashAddBtnText}>+ Add</AppText>
                     )}
                   </TouchableOpacity>
                 </View>
@@ -441,15 +443,15 @@ export function FaMartScreen({ addToCart, onProductClick }: FaMartScreenProps) {
         <View style={styles.vendorHeader}>
           <View style={styles.vendorTitleGroup}>
             <Store size={ms(14)} color="#1162D3" />
-            <Text style={styles.vendorTitle}>
+            <AppText style={styles.vendorTitle}>
               {selectedSubCat === 'All' ? 'All Mall Vendors' : `${selectedSubCat} Vendors`}
-            </Text>
+            </AppText>
           </View>
           <View style={styles.vendorCountChip}>
-            <Text style={styles.vendorCountText}>{filteredStores.length} stores</Text>
+            <AppText style={styles.vendorCountText}>{filteredStoresWithSearch.length} stores</AppText>
           </View>
         </View>
-        {filteredStores.map((store) => (
+        {filteredStoresWithSearch.map((store) => (
           <TouchableOpacity
             key={store.id}
             style={styles.vendorCard}
@@ -467,32 +469,32 @@ export function FaMartScreen({ addToCart, onProductClick }: FaMartScreenProps) {
                 </Defs>
                 <Rect width="100%" height="100%" fill={`url(#vendor-${store.id})`} />
               </Svg>
-              <Text style={styles.vendorEmojiOverlay}>{store.emoji}</Text>
+              <AppText style={styles.vendorEmojiOverlay}>{store.emoji}</AppText>
             </View>
             <View style={styles.vendorInfo}>
               <View style={styles.vendorNameRow}>
-                <Text style={styles.vendorName} numberOfLines={1}>
+                <AppText style={styles.vendorName} numberOfLines={1}>
                   {store.name}
-                </Text>
+                </AppText>
                 <View style={styles.vendorRatingChip}>
                   <Star size={ms(9)} color="#f59e0b" fill="#f59e0b" />
-                  <Text style={styles.vendorRatingText}>{store.rating}</Text>
+                  <AppText style={styles.vendorRatingText}>{store.rating}</AppText>
                 </View>
               </View>
               <View style={styles.vendorMetaRow}>
                 <View style={styles.vendorMetaChip}>
                   <Clock size={ms(9)} color="#64748b" />
-                  <Text style={styles.vendorMetaText}>{store.deliveryTime}</Text>
+                  <AppText style={styles.vendorMetaText}>{store.deliveryTime}</AppText>
                 </View>
                 <View style={styles.vendorMetaChip}>
                   <MapPin size={ms(9)} color="#64748b" />
-                  <Text style={styles.vendorMetaText}>{store.distance}</Text>
+                  <AppText style={styles.vendorMetaText}>{store.distance}</AppText>
                 </View>
                 {store.offerTag && (
                   <View style={styles.vendorOfferChip}>
-                    <Text style={styles.vendorOfferText} numberOfLines={1}>
+                    <AppText style={styles.vendorOfferText} numberOfLines={1}>
                       🔥 {store.offerTag}
-                    </Text>
+                    </AppText>
                   </View>
                 )}
               </View>
@@ -513,13 +515,13 @@ export function FaMartScreen({ addToCart, onProductClick }: FaMartScreenProps) {
             activeOpacity={0.8}
             onPress={() => setSelectedStore(null)}
           >
-            <Text style={styles.backPillText}>← Back to {selectedSubCat}</Text>
+            <AppText style={styles.backPillText}>← Back to {selectedSubCat}</AppText>
           </TouchableOpacity>
 
           {/* Verified Partner */}
           <View style={styles.verifiedChip}>
             <ShieldCheck size={ms(10)} color="#ffffff" />
-            <Text style={styles.verifiedChipText}>Verified Partner</Text>
+            <AppText style={styles.verifiedChipText}>Verified Partner</AppText>
           </View>
 
           {/* Hero cover */}
@@ -528,37 +530,37 @@ export function FaMartScreen({ addToCart, onProductClick }: FaMartScreenProps) {
             <View style={styles.storeHeroOverlay} />
             <View style={styles.storeRatingPill}>
               <Star size={ms(10)} color="#f59e0b" fill="#f59e0b" />
-              <Text style={styles.storeRatingText}>{selectedStore.rating}</Text>
+              <AppText style={styles.storeRatingText}>{selectedStore.rating}</AppText>
               {selectedStore.reviewsCount && (
-                <Text style={styles.storeReviewsText}>({selectedStore.reviewsCount})</Text>
+                <AppText style={styles.storeReviewsText}>({selectedStore.reviewsCount})</AppText>
               )}
             </View>
           </View>
 
           {/* Emoji tile */}
           <View style={styles.storeEmojiTile}>
-            <Text style={styles.storeEmojiText}>{selectedStore.emoji}</Text>
+            <AppText style={styles.storeEmojiText}>{selectedStore.emoji}</AppText>
           </View>
 
           {/* Pulsing offer tag */}
           {selectedStore.offerTag && (
             <Animated.View style={[styles.storeOfferTag, { opacity: pulseAnim }]}>
               <AlertCircle size={ms(10)} color="#dc2626" />
-              <Text style={styles.storeOfferText}>{selectedStore.offerTag}</Text>
+              <AppText style={styles.storeOfferText}>{selectedStore.offerTag}</AppText>
             </Animated.View>
           )}
 
           {/* Store name & categories */}
-          <Text style={styles.storeProfileName}>{selectedStore.name}</Text>
-          <Text style={styles.storeProfileDesc}>{selectedStore.desc}</Text>
-          <Text style={styles.storeCategoriesText}>{selectedStore.categories.join(' • ')}</Text>
+          <AppText style={styles.storeProfileName}>{selectedStore.name}</AppText>
+          <AppText style={styles.storeProfileDesc}>{selectedStore.desc}</AppText>
+          <AppText style={styles.storeCategoriesText}>{selectedStore.categories.join(' • ')}</AppText>
 
           {/* Product catalog header */}
           <View style={styles.storeCatalogHeader}>
-            <Text style={styles.storeCatalogTitle}>Store Product Catalog</Text>
+            <AppText style={styles.storeCatalogTitle}>Store Product Catalog</AppText>
             <View style={styles.deliveryPill}>
               <Clock size={ms(9)} color="#ffffff" />
-              <Text style={styles.deliveryPillText}>Instant Delivery</Text>
+              <AppText style={styles.deliveryPillText}>Instant Delivery</AppText>
             </View>
           </View>
 
@@ -581,15 +583,15 @@ export function FaMartScreen({ addToCart, onProductClick }: FaMartScreenProps) {
           <View style={styles.gridHeader}>
             <View style={styles.gridTitleGroup}>
               <TrendingUp size={ms(14)} color="#1162D3" />
-              <Text style={styles.gridTitleText}>All Trending Products</Text>
+              <AppText style={styles.gridTitleText}>All Trending Products</AppText>
             </View>
             <View style={styles.authenticChip}>
               <ShieldCheck size={ms(9)} color="#ffffff" />
-              <Text style={styles.authenticChipText}>100% Authentic</Text>
+              <AppText style={styles.authenticChipText}>100% Authentic</AppText>
             </View>
           </View>
           <View style={styles.productsGrid}>
-            {filteredProducts.map((product) => (
+            {filteredProductsWithSearch.map((product) => (
               <MartProductCard
                 key={product.id}
                 product={{ ...product, app: 'MART' as const }}

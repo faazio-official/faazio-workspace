@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, Text } from 'react-native';
+import { View } from 'react-native';
 import {
   ShoppingBag, Utensils, Apple, BriefcaseMedical, Dumbbell, Shirt,
   Car, Baby, Book, Dog, Gem, Wine, Gamepad2, Headphones, Camera,
@@ -7,6 +7,7 @@ import {
   Zap, Heart, Award,
 } from 'lucide-react-native';
 import { ms } from '@/utils/responsive';
+import AppText from '@/components/AppText';
 
 const iconMap: Record<string, { icon: React.ComponentType<any>; color: string }> = {
   '🛍️': { icon: ShoppingBag, color: '#1162D3' },
@@ -57,7 +58,7 @@ export default function EnterpriseIcon({ emoji, size = 36, variant = 'circle', b
         backgroundColor: bgColor || '#f1f5f9',
         alignItems: 'center', justifyContent: 'center',
       }}>
-        {Icon ? <Icon size={iconSize} color={defaultColor} /> : <Text style={{ fontSize: iconSize }}>{emoji}</Text>}
+        {Icon ? <Icon size={iconSize} color={defaultColor} /> : <AppText style={{ fontSize: iconSize }}>{emoji}</AppText>}
       </View>
     );
   }
@@ -69,14 +70,14 @@ export default function EnterpriseIcon({ emoji, size = 36, variant = 'circle', b
         backgroundColor: bgColor || '#f1f5f9',
         alignItems: 'center', justifyContent: 'center',
       }}>
-        {Icon ? <Icon size={iconSize} color={defaultColor} /> : <Text style={{ fontSize: iconSize }}>{emoji}</Text>}
+        {Icon ? <Icon size={iconSize} color={defaultColor} /> : <AppText style={{ fontSize: iconSize }}>{emoji}</AppText>}
       </View>
     );
   }
 
   return (
     <View style={{ alignItems: 'center', justifyContent: 'center' }}>
-      {Icon ? <Icon size={iconSize} color={defaultColor} /> : <Text style={{ fontSize: iconSize }}>{emoji}</Text>}
+      {Icon ? <Icon size={iconSize} color={defaultColor} /> : <AppText style={{ fontSize: iconSize }}>{emoji}</AppText>}
     </View>
   );
 }

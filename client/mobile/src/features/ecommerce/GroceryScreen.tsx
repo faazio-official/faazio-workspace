@@ -1,24 +1,18 @@
 import React, { useState, useRef, useEffect } from 'react';
-import {
-  View,
-  Text,
-  StyleSheet,
-  TouchableOpacity,
-  ScrollView,
-  Image,
-  Animated,
-} from 'react-native';
+import { View, StyleSheet, TouchableOpacity, ScrollView, Image, Animated } from 'react-native';
 import { Minus, Plus, CheckCircle } from 'lucide-react-native';
 import { hs, vs, ms, SCREEN_W } from '@/utils/responsive';
 import Svg, { Defs, LinearGradient, Stop, Rect } from 'react-native-svg';
 import { groceryProducts } from '@data/grocery/products';
-import GroceryProductCard from '@/components/shared/GroceryProductCard';
+import GroceryProductCard from '@/features/ecommerce/cards/GroceryProductCard';
+import AppText from '@/components/AppText';
 
 interface GroceryScreenProps {
   addToCart?: (id: string, name: string, price: number, emoji: string) => void;
   cartItems?: { id: string; name: string; price: number; quantity: number; emoji: string }[];
   updateCartQuantity?: (id: string, delta: number) => void;
   onProductClick?: (product: any) => void;
+  searchQuery?: string;
 }
 
 function PulseButton({ children, ...props }: any) {
@@ -50,7 +44,7 @@ const getDisplayPrice = (price: number) => {
   }
 };
 
-export function GroceryScreen({ addToCart, cartItems, updateCartQuantity, onProductClick }: GroceryScreenProps) {
+export function GroceryScreen({ addToCart, cartItems, updateCartQuantity, onProductClick, searchQuery = '' }: GroceryScreenProps) {
   const [selectedGrocCat, setSelectedGrocCat] = useState('All');
   const [addedFeedbackId, setAddedFeedbackId] = useState<string | null>(null);
 
@@ -63,9 +57,12 @@ export function GroceryScreen({ addToCart, cartItems, updateCartQuantity, onProd
     { name: 'Snacks', emoji: '🍿' },
   ];
 
-  const filteredProducts = selectedGrocCat === 'All' 
+  const normalizedSearch = searchQuery.trim().toLowerCase();
+
+  const filteredProducts = (selectedGrocCat === 'All' 
     ? groceryProducts 
-    : groceryProducts.filter(p => p.category === selectedGrocCat);
+    : groceryProducts.filter(p => p.category === selectedGrocCat))
+    .filter(p => !normalizedSearch || p.name.toLowerCase().includes(normalizedSearch));
 
   const getItemQuantity = (id: string) => {
     const item = cartItems?.find(i => i.id === id);
@@ -103,17 +100,17 @@ export function GroceryScreen({ addToCart, cartItems, updateCartQuantity, onProd
           
           <View style={styles.bannerContent}>
             <View style={styles.rocketBadge}>
-              <Text style={styles.rocketBadgeText}>🚀 FA FAST</Text>
+              <AppText style={styles.rocketBadgeText}>🚀 FA FAST</AppText>
             </View>
-            <Text style={styles.bannerTitle}>Daily Grocery & Fresh Essentials</Text>
-            <Text style={styles.bannerDesc}>Delivered to Sunnambukkara Street in exactly 10 minutes!</Text>
+            <AppText style={styles.bannerTitle}>Daily Grocery & Fresh Essentials</AppText>
+            <AppText style={styles.bannerDesc}>Delivered to Sunnambukkara Street in exactly 10 minutes!</AppText>
           </View>
         </View>
       </View>
 
       {/* Horizontal Subcategories Row */}
       <View style={styles.sectionContainer}>
-        <Text style={styles.sectionTitle}>SUPERMARKET AISLES</Text>
+        <AppText style={styles.sectionTitle}>SUPERMARKET AISLES</AppText>
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.subCatScrollList}>
           {subCategories.map((sub, index) => {
             const isSelected = selectedGrocCat === sub.name;
@@ -124,10 +121,10 @@ export function GroceryScreen({ addToCart, cartItems, updateCartQuantity, onProd
                 onPress={() => setSelectedGrocCat(sub.name)}
                 activeOpacity={0.8}
               >
-                <Text style={styles.subCatEmoji}>{sub.emoji}</Text>
-                <Text style={[styles.subCatText, isSelected ? styles.subCatTextActive : styles.subCatTextInactive]}>
+                <AppText style={styles.subCatEmoji}>{sub.emoji}</AppText>
+                <AppText style={[styles.subCatText, isSelected ? styles.subCatTextActive : styles.subCatTextInactive]}>
                   {sub.name}
-                </Text>
+                </AppText>
               </TouchableOpacity>
             );
           })}
@@ -137,10 +134,10 @@ export function GroceryScreen({ addToCart, cartItems, updateCartQuantity, onProd
       {/* Product List header */}
       <View style={styles.productsHeaderRow}>
         <View>
-          <Text style={styles.productsTitleText}>
+          <AppText style={styles.productsTitleText}>
             {selectedGrocCat === 'All' ? 'FARM-FRESH STAPLES' : `${selectedGrocCat.toUpperCase()} COLLECTION`}
-          </Text>
-          <Text style={styles.productsCountText}>{filteredProducts.length} items packed with care</Text>
+          </AppText>
+          <AppText style={styles.productsCountText}>{filteredProducts.length} items packed with care</AppText>
         </View>
       </View>
 

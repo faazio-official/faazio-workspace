@@ -1,13 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import {
-  StyleSheet,
-  View,
-  Text,
-  TouchableOpacity,
-  Image,
-  Animated,
-  Easing,
-} from 'react-native';
+import { StyleSheet, View, TouchableOpacity, Image, Animated, Easing } from 'react-native';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../../navigation/AppNavigator';
 import { ChevronLeft, ChevronRight } from 'lucide-react-native';
@@ -18,6 +10,7 @@ import welcomeIllustration1 from '../../assets/welcome_illustration_1.png';
 import welcomeIllustration2 from '../../assets/welcome_illustration_2.png';
 import welcomeIllustration3 from '../../assets/welcome_illustration_3.png';
 import welcomeIllustration4 from '../../assets/welcome_illustration_4.png';
+import AppText from '@/components/AppText';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'Onboarding'>;
 
@@ -175,7 +168,7 @@ export function OnboardingScreen({ navigation }: Props) {
         <View style={styles.header}>
           <FaazioLogo size={LOGO_HEIGHT} />
           <TouchableOpacity onPress={handleSkip} style={styles.skipButton} activeOpacity={0.8}>
-            <Text style={styles.skipText}>Skip</Text>
+            <AppText style={styles.skipText}>Skip</AppText>
           </TouchableOpacity>
         </View>
 
@@ -191,12 +184,12 @@ export function OnboardingScreen({ navigation }: Props) {
 
           {/* Text Details Section */}
           <View style={styles.textDetails}>
-            <Text style={styles.titleText}>{currentData.title}</Text>
-            <Text style={[styles.subtitleText, { color: BRAND_BLUE }]}>
+            <AppText style={styles.titleText}>{currentData.title}</AppText>
+            <AppText style={[styles.subtitleText, { color: BRAND_BLUE }]}>
               {currentData.subtitle}
-            </Text>
+            </AppText>
             <View style={[styles.underline, { backgroundColor: BRAND_BLUE }]} />
-            <Text style={styles.descriptionText}>{currentData.description}</Text>
+            <AppText style={styles.descriptionText}>{currentData.description}</AppText>
           </View>
         </View>
       </Animated.View>
@@ -230,7 +223,7 @@ export function OnboardingScreen({ navigation }: Props) {
               activeOpacity={0.8}
             >
               <ChevronLeft size={ms(12)} color="#475569" />
-              <Text style={styles.backButtonText}>Back</Text>
+              <AppText style={styles.backButtonText}>Back</AppText>
             </TouchableOpacity>
           )}
           <TouchableOpacity
@@ -238,9 +231,9 @@ export function OnboardingScreen({ navigation }: Props) {
             style={[styles.nextButton, { backgroundColor: BRAND_BLUE }]}
             activeOpacity={0.8}
           >
-            <Text style={styles.nextButtonText}>
+            <AppText style={styles.nextButtonText}>
               {currentStep === ONBOARDING_DATA.length - 1 ? 'Get Started' : 'Next'}
-            </Text>
+            </AppText>
             <ChevronRight size={ms(12)} color="#ffffff" />
           </TouchableOpacity>
         </View>

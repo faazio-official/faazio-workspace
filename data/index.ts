@@ -16,7 +16,16 @@ export { exploreStacks } from './explore/stacks';
 
 export { categoriesSearchDatabase } from './categories/searchDatabase';
 
-export { portalSectors, topAdSlides, sponsoredAds, recentlyViewedHistory, todaysOffers, mixedRecommendations, popularDining, recentlyViewedMart, recentlyViewedGrocery, recentlyViewedPharma, faMartFinds, restaurantSpecials } from './home/rails';
+export { portalSectors, topAdSlides, sponsoredAds, recentlyViewedHistory, todaysOffers, mixedRecommendations, popularDining, recentlyViewedMart, recentlyViewedFood, recentlyViewedGrocery, recentlyViewedPharma, hotBrandDeals, faMartFinds, restaurantSpecials } from './home/rails';
+
+export { homeSections } from './home/sections';
+export type { HomeSectionKind } from './home/sections';
+
+export { storeOffers } from './home/storeOffers';
+export { nearbyOffers } from './home/nearbyOffers';
+
+export { mensPicks, womensPicks, childrensPicks, hairSkinPicks } from './home/demographics';
+export { instantFeed } from './home/instantFeed';
 
 export { avatarMap, getProductReviews, getProductSpecs, getProductHighlights } from './productMeta/reviews';
 

@@ -1,4 +1,8 @@
-import type { Review } from '../types';
+/**
+ * @mock Static fixture — seeded sample data for local development until the Go Chi
+ * backend (server/) is wired. See data/DATA_CONTROL.md.
+ */
+import type { Review, SpecItem, AppBrand } from '../types';
 
 export const avatarMap: Record<string, string> = {
   'Aarav Sharma': 'https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?auto=format&fit=crop&q=80&w=56&h=56',
@@ -13,7 +17,7 @@ export const avatarMap: Record<string, string> = {
   'Dr. Sarah Alvi': 'https://images.unsplash.com/photo-1559839734-2b71ea197ec2?auto=format&fit=crop&q=80&w=56&h=56',
 };
 
-export const getProductReviews = (app: string): Review[] => {
+export const getProductReviews = (app: AppBrand): Review[] => {
   const food: Review[] = [
     { id: 'rev-1', user: 'Aarav Sharma', avatar: avatarMap['Aarav Sharma'], rating: 5, comment: 'Absolutely delicious! The portion size was generous and delivery was impressively quick.', date: '2 weeks ago' },
     { id: 'rev-2', user: 'Priya Patel', avatar: avatarMap['Priya Patel'], rating: 5, comment: 'Authentic flavours. Reminds me of home-cooked food. Will definitely order again.', date: '1 month ago' },
@@ -47,8 +51,8 @@ export const getProductReviews = (app: string): Review[] => {
   }
 };
 
-export const getProductSpecs = (app: string) => {
-  const specs: Record<string, Array<{ label: string; value: string }>> = {
+export const getProductSpecs = (app: AppBrand): SpecItem[] => {
+  const specs: Record<AppBrand, SpecItem[]> = {
     FOOD: [
       { label: 'Cuisine', value: 'Asian Fusion' },
       { label: 'Prep Time', value: '15-20 mins' },
@@ -77,8 +81,8 @@ export const getProductSpecs = (app: string) => {
   return specs[app] || specs.FOOD;
 };
 
-export const getProductHighlights = (app: string): string[] => {
-  const h: Record<string, string[]> = {
+export const getProductHighlights = (app: AppBrand): string[] => {
+  const h: Record<AppBrand, string[]> = {
     FOOD: ['🔥 Chef\'s Special Recipe', '🥬 Fresh Ingredients Sourced Daily', '🚀 Free Delivery on ₹499+', '♻️ Eco-Friendly Packaging'],
     MART: ['✅ 100% Authentic Products', '🔄 Easy 7-Day Returns', '🎁 Free Gift Wrapping', '📦 Secure Packaging'],
     GROCERY: ['🌱 Farm Fresh Daily', '🚜 Direct from Local Farmers', '❄️ Cold Chain Maintained', '🧪 Pesticide-Free'],

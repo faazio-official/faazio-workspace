@@ -1,46 +1,31 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { StyleSheet, View, TouchableOpacity, ScrollView, Alert, BackHandler, Modal, Animated, StatusBar } from 'react-native';
+import type { TextInput } from 'react-native';
 import {
-  StyleSheet,
-  View,
-  Text,
-  TouchableOpacity,
-  ScrollView,
-  Alert,
-  BackHandler,
-  Modal,
-  Animated,
-  StatusBar,
-} from 'react-native';
-import {
-  ArrowLeft,
   Home,
   LayoutGrid,
   User,
   ShoppingBag,
   Sparkles,
-  MapPin,
-  Search,
-  Calendar,
   FileText,
   Check,
   Plus,
   Minus,
   IndianRupee,
-  ArrowRight,
 } from 'lucide-react-native';
 import { hs, vs, ms } from '@/utils/responsive';
 import type { CartItem } from '@/state/cartStore';
 
 import { FaMartScreen } from '../features/ecommerce/FaMartScreen';
 import { GroceryScreen } from '../features/ecommerce/GroceryScreen';
-import { FoodScreen } from '../features/food/FoodScreen';
 import { PharmaScreen } from '../features/pharma/PharmaScreen';
-import AccountView from './AccountView';
-import CartView from './CartView';
-import FoodMenuView from './FoodMenuView';
-import { getBookings } from '../features/food/bookingStore';
-
-const SUB_HEADER_INSET = StatusBar.currentHeight ?? 0;
+import AccountView from '@/features/profile/AccountView';
+import CartView from '@/features/cart/CartView';
+import AppText from '@/components/AppText';
+import SubAppHeader from './shared/SubAppHeader';
+import { SUB_HEADER_H } from './shared/SubAppHeader';
+import { brandTokens } from '@/theme/brandTokens';
+import type { AppBrand } from '@data/types';
 
 interface SubAppWrapperProps {
   subAppId: 'FA_MART' | 'FOOD' | 'GROCERY' | 'PHARMA';
@@ -68,12 +53,23 @@ export default function SubAppWrapper({
   onProductClick,
 }: SubAppWrapperProps) {
   const [activeTab, setActiveTab] = useState<string>('Home');
-  const [activeSubMode, setActiveSubMode] = useState<'order' | 'booking'>('order');
   const [showExitConfirm, setShowExitConfirm] = useState<boolean>(false);
+  const [searchQuery, setSearchQuery] = useState('');
+  const searchInputRef = useRef<TextInput | null>(null);
 
   const tabPositions = useRef<number[]>([]);
   const pillAnim = useRef(new Animated.Value(0)).current;
   const badgeBounce = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    setSearchQuery('');
+  }, [activeTab]);
+
+  useEffect(() => {
+    if (activeTab === 'Search' && searchInputRef.current) {
+      setTimeout(() => searchInputRef.current?.focus(), 300);
+    }
+  }, [activeTab]);
 
   useEffect(() => {
     const onBackPress = () => {
@@ -107,11 +103,6 @@ export default function SubAppWrapper({
     return () => loop.stop();
   }, [badgeBounce]);
 
-  const handleSubModeChange = (mode: 'order' | 'booking') => {
-    setActiveSubMode(mode);
-    setActiveTab('Home');
-  };
-
   const getConfig = () => {
     const configPresets = {
       FA_MART: {
@@ -129,20 +120,12 @@ export default function SubAppWrapper({
         name: 'Food',
         primaryColor: '#1E5D44',
         textColor: '#1E5D44',
-        tabs:
-          activeSubMode === 'order'
-            ? [
-                { name: 'Home', icon: Home },
-                { name: 'Menu', icon: LayoutGrid },
-                { name: 'Cart', icon: ShoppingBag },
-                { name: 'Profile', icon: User },
-              ]
-            : [
-                { name: 'Home', icon: Home },
-                { name: 'Search', icon: Search },
-                { name: 'My Bookings', icon: Calendar },
-                { name: 'Profile', icon: User },
-              ],
+        tabs: [
+          { name: 'Home', icon: Home },
+          { name: 'Menu', icon: LayoutGrid },
+          { name: 'Cart', icon: ShoppingBag },
+          { name: 'Profile', icon: User },
+        ],
       },
       GROCERY: {
         name: 'FA Grocery',
@@ -172,6 +155,23 @@ export default function SubAppWrapper({
 
   const config = getConfig();
   const totalCartQty = cartItems.reduce((acc, curr) => acc + curr.quantity, 0);
+
+  const HEADER_TITLES: Record<SubAppWrapperProps['subAppId'], string> = {
+    FA_MART: 'FA Mart',
+    FOOD: 'Food & Dining',
+    GROCERY: 'FA Grocery',
+    PHARMA: 'FA Pharma',
+  };
+  const brandKey: AppBrand = subAppId === 'FA_MART' ? 'MART' : subAppId;
+  const tokens = brandTokens[brandKey];
+  const searchPlaceholder =
+    subAppId === 'FA_MART'
+      ? 'Search products in Fa Mart...'
+      : subAppId === 'FOOD'
+        ? 'Search on Food'
+        : subAppId === 'GROCERY'
+          ? 'Search groceries...'
+          : 'Search medicines...';
 
   const renderSubAppContent = () => {
     if (activeTab === 'Cart' || activeTab === 'Smart Cart') {
@@ -208,6 +208,7 @@ export default function SubAppWrapper({
           onProductClick={onProductClick}
           activeTab={activeTab}
           setActiveTab={setActiveTab}
+          searchQuery={searchQuery}
         />
       );
     }
@@ -215,13 +216,13 @@ export default function SubAppWrapper({
     switch (subAppId) {
       case 'FA_MART':
         if (activeTab === 'Home') {
-          return <FaMartScreen addToCart={addToCart} onProductClick={onProductClick} />;
+          return <FaMartScreen addToCart={addToCart} onProductClick={onProductClick} searchQuery={searchQuery} />;
         }
         if (activeTab === 'Categories') {
           return (
             <ScrollView style={styles.tabScroll} showsVerticalScrollIndicator={false}>
               <View style={styles.infoSection}>
-                <Text style={styles.infoTitle}>Mall Categories</Text>
+                <AppText style={styles.infoTitle}>Mall Categories</AppText>
                 <View style={styles.gridContainer}>
                   {[
                     { name: 'Smart Phones', desc: 'Sleek OLED screens', icon: '📱' },
@@ -234,75 +235,14 @@ export default function SubAppWrapper({
                       style={styles.mallCard}
                       onPress={() => Alert.alert('Category Select', `Bespoke collection of "${cat.name}" is being filtered.`)}
                     >
-                      <Text style={styles.mallIcon}>{cat.icon}</Text>
+                      <AppText style={styles.mallIcon}>{cat.icon}</AppText>
                       <View>
-                        <Text style={styles.mallName}>{cat.name}</Text>
-                        <Text style={styles.mallDesc}>{cat.desc}</Text>
+                        <AppText style={styles.mallName}>{cat.name}</AppText>
+                        <AppText style={styles.mallDesc}>{cat.desc}</AppText>
                       </View>
                     </TouchableOpacity>
                   ))}
                 </View>
-              </View>
-            </ScrollView>
-          );
-        }
-        break;
-
-      case 'FOOD':
-        if (activeTab === 'Home' || activeTab === 'Search') {
-          return (
-            <FoodScreen 
-              addToCart={addToCart} 
-              activeSubMode={activeSubMode} 
-              setActiveSubMode={handleSubModeChange}
-              searchFocusedInitially={activeTab === 'Search'}
-              onProductClick={onProductClick}
-            />
-          );
-        }
-        if (activeTab === 'Menu') {
-          return (
-            <FoodMenuView addToCart={addToCart} onProductClick={onProductClick} />
-          );
-        }
-        if (activeTab === 'My Bookings') {
-          const myBookings = getBookings();
-          return (
-            <ScrollView style={styles.tabScroll} showsVerticalScrollIndicator={false}>
-              <View style={styles.bookingsBox}>
-                <View style={styles.bookingsHeaderRow}>
-                  <Text style={styles.bookingsTitle}>VIP DINING PASS</Text>
-                  <View style={styles.bookingsActivePill}>
-                    <Text style={styles.bookingsActiveText}>{myBookings.length} Active</Text>
-                  </View>
-                </View>
-                {myBookings.length > 0 ? (
-                  myBookings.map((b, i) => (
-                    <View key={i} style={styles.emptyBookingsCard}>
-                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: hs(8), marginBottom: vs(8) }}>
-                        <Text style={{ fontSize: ms(24) }}>{b.dish.emoji}</Text>
-                        <View>
-                          <Text style={[styles.emptyBookingsTitle, { fontSize: ms(11) }]}>{b.dish.name}</Text>
-                          <Text style={{ fontSize: ms(9), color: '#94a3b8', fontWeight: '600' }}>{b.dish.price}</Text>
-                        </View>
-                      </View>
-                      <Text style={{ fontSize: ms(9), color: '#64748b', fontWeight: '600' }}>{b.date} @ {b.time} · {b.guests} {b.guests === 1 ? 'guest' : 'guests'}</Text>
-                      <Text style={{ fontSize: ms(8), color: '#1E5D44', fontWeight: '900', marginTop: vs(4) }}>{b.orderId}</Text>
-                    </View>
-                  ))
-                ) : (
-                  <View style={styles.emptyBookingsCard}>
-                    <Calendar size={24} color="#1E5D44" />
-                    <Text style={styles.emptyBookingsTitle}>No Reservations Yet</Text>
-                    <Text style={styles.emptyBookingsDesc}>
-                      Explore our curated gourmet partners, select your preferred table menu, and book instantly!
-                    </Text>
-                  </View>
-                )}
-                <TouchableOpacity onPress={() => setActiveTab('Home')} style={[styles.browsePartnersBtn, { backgroundColor: config.primaryColor }]} activeOpacity={0.8}>
-                  <Text style={styles.browsePartnersText}>Browse Partners</Text>
-                  <ArrowRight size={ms(10)} color="#ffffff" />
-                </TouchableOpacity>
               </View>
             </ScrollView>
           );
@@ -317,6 +257,7 @@ export default function SubAppWrapper({
               cartItems={cartItems} 
               updateCartQuantity={updateCartQuantity} 
               onProductClick={onProductClick} 
+              searchQuery={searchQuery}
             />
           );
         }
@@ -324,8 +265,8 @@ export default function SubAppWrapper({
           return (
             <ScrollView style={styles.tabScroll} showsVerticalScrollIndicator={false}>
               <View style={styles.infoSection}>
-                <Text style={styles.infoTitle}>Aisle Map</Text>
-                <Text style={{ fontSize: ms(10), color: '#64748b', fontWeight: '500', marginBottom: vs(12), marginTop: vs(-6) }}>Fresh organic foods categorized perfectly</Text>
+                <AppText style={styles.infoTitle}>Aisle Map</AppText>
+                <AppText style={{ fontSize: ms(10), color: '#64748b', fontWeight: '500', marginBottom: vs(12), marginTop: vs(-6) }}>Fresh organic foods categorized perfectly</AppText>
                 <View style={styles.gridContainer}>
                   {[
                     { name: 'Fresh Produce', count: '14 Fresh Items', bg: '#ecfdf5', text: '#065f46' },
@@ -338,8 +279,8 @@ export default function SubAppWrapper({
                       style={[styles.aisleCard, { backgroundColor: cat.bg }]}
                       onPress={() => Alert.alert('Aisle Select', `Browsing through "${cat.name}" items.`)}
                     >
-                      <Text style={[styles.aisleName, { color: cat.text }]}>{cat.name}</Text>
-                      <Text style={[styles.aisleCount, { color: cat.text, opacity: 0.7 }]}>{cat.count}</Text>
+                      <AppText style={[styles.aisleName, { color: cat.text }]}>{cat.name}</AppText>
+                      <AppText style={[styles.aisleCount, { color: cat.text, opacity: 0.7 }]}>{cat.count}</AppText>
                     </TouchableOpacity>
                   ))}
                 </View>
@@ -354,30 +295,30 @@ export default function SubAppWrapper({
 
     return (
       <View style={styles.basketContainer}>
-        <Text style={styles.basketTitle}>Your Basket</Text>
+        <AppText style={styles.basketTitle}>Your Basket</AppText>
         {cartItems.length === 0 ? (
           <View style={styles.noDataState}>
-            <Text style={styles.noDataEmoji}>🛒</Text>
-            <Text style={styles.noDataTitle}>Your basket is empty</Text>
-            <Text style={styles.noDataSub}>Browse products and add them to your basket.</Text>
+            <AppText style={styles.noDataEmoji}>🛒</AppText>
+            <AppText style={styles.noDataTitle}>Your basket is empty</AppText>
+            <AppText style={styles.noDataSub}>Browse products and add them to your basket.</AppText>
           </View>
         ) : (
           <>
             {cartItems.map((item) => (
               <View key={item.id} style={styles.basketRow}>
                 <View style={styles.basketRowLeft}>
-                  <Text style={styles.basketRowEmoji}>{item.emoji}</Text>
-                  <Text style={styles.basketRowName} numberOfLines={1}>{item.name}</Text>
+                  <AppText style={styles.basketRowEmoji}>{item.emoji}</AppText>
+                  <AppText style={styles.basketRowName} numberOfLines={1}>{item.name}</AppText>
                 </View>
                 <View style={styles.basketStepper}>
                   <View style={{ flexDirection: 'row', alignItems: 'center', gap: hs(4), marginRight: hs(4) }}>
                     <IndianRupee size={ms(8)} color="#94a3b8" />
-                    <Text style={styles.basketRowPrice}>{item.price}×{item.quantity}</Text>
+                    <AppText style={styles.basketRowPrice}>{item.price}×{item.quantity}</AppText>
                   </View>
                   <TouchableOpacity onPress={() => updateCartQuantity(item.id, -1)} style={styles.basketStepperBtn}>
                     <Minus size={ms(12)} color="#64748b" />
                   </TouchableOpacity>
-                  <Text style={styles.basketStepperText}>{item.quantity}</Text>
+                  <AppText style={styles.basketStepperText}>{item.quantity}</AppText>
                   <TouchableOpacity onPress={() => updateCartQuantity(item.id, 1)} style={styles.basketStepperBtn}>
                     <Plus size={ms(12)} color="#64748b" />
                   </TouchableOpacity>
@@ -386,13 +327,13 @@ export default function SubAppWrapper({
             ))}
             <View style={styles.basketTotalCard}>
               <View style={styles.basketTotalRow}>
-                <Text style={styles.basketTotalLabel}>Subtotal</Text>
-                <Text style={styles.basketTotalValue}>
+                <AppText style={styles.basketTotalLabel}>Subtotal</AppText>
+                <AppText style={styles.basketTotalValue}>
                   ₹{cartItems.reduce((s, i) => s + i.price * i.quantity, 0)}
-                </Text>
+                </AppText>
               </View>
               <TouchableOpacity style={[styles.basketCheckoutBtn, { backgroundColor: config.primaryColor }]} activeOpacity={0.8}>
-                <Text style={styles.basketCheckoutText}>Checkout</Text>
+                <AppText style={styles.basketCheckoutText}>Checkout</AppText>
               </TouchableOpacity>
             </View>
           </>
@@ -403,22 +344,16 @@ export default function SubAppWrapper({
 
   return (
     <View style={styles.container}>
-      <View style={styles.header}>
-        <View style={styles.headerLeft}>
-          <TouchableOpacity onPress={() => setShowExitConfirm(true)} style={styles.backBtn}>
-            <ArrowLeft size={ms(22)} color="#0f172a" />
-          </TouchableOpacity>
-          <View style={styles.brandWrapper}>
-            <Text style={styles.hubTitle}>FAAZIO APP HUB</Text>
-            <Text style={styles.appName}>{config.name}</Text>
-          </View>
-        </View>
-
-        <View style={styles.locationBadge}>
-          <MapPin size={ms(10)} color="#2F80ED" />
-          <Text style={styles.locationText}>Utama St no. 14</Text>
-        </View>
-      </View>
+      <SubAppHeader
+        title={HEADER_TITLES[subAppId]}
+        gradient={tokens.headerGradient}
+        textColor={tokens.headerTextColor}
+        onBack={() => setShowExitConfirm(true)}
+        searchValue={searchQuery}
+        onSearchChange={setSearchQuery}
+        searchPlaceholder={searchPlaceholder}
+        inputRef={searchInputRef}
+      />
 
       <View style={styles.viewport}>
         {renderSubAppContent()}
@@ -443,14 +378,14 @@ export default function SubAppWrapper({
                 {tab.name.toLowerCase().includes('cart') && totalCartQty > 0 && (
                   <Animated.View style={{ transform: [{ translateY: badgeBounce.interpolate({ inputRange: [0, 1], outputRange: [0, -3] }) }] }}>
                     <View style={styles.badge}>
-                      <Text style={styles.badgeText}>{totalCartQty}</Text>
+                      <AppText style={styles.badgeText}>{totalCartQty}</AppText>
                     </View>
                   </Animated.View>
                 )}
               </View>
-              <Text style={[styles.tabLabel, isCurrent && { color: config.textColor, fontWeight: '900' }]}>
+              <AppText style={[styles.tabLabel, isCurrent && { color: config.textColor, fontWeight: '900' }]}>
                 {tab.name}
-              </Text>
+              </AppText>
             </TouchableOpacity>
           );
         })}
@@ -466,7 +401,7 @@ export default function SubAppWrapper({
           <TouchableOpacity style={styles.modalBgPressable} onPress={() => setShowExitConfirm(false)} />
           <View style={styles.modalContent}>
             <View style={styles.modalBar} />
-            <Text style={styles.modalTitle}>
+            <AppText style={styles.modalTitle}>
               {subAppId === 'FOOD'
                 ? 'Exit Food?'
                 : subAppId === 'PHARMA'
@@ -474,17 +409,17 @@ export default function SubAppWrapper({
                 : subAppId === 'FA_MART'
                 ? 'Exit Mart?'
                 : 'Exit Grocery?'}
-            </Text>
-            <Text style={styles.modalSubtitle}>
+            </AppText>
+            <AppText style={styles.modalSubtitle}>
               Are you sure you want to exit the current service and return to the main Faazio Hub?
-            </Text>
+            </AppText>
 
             <View style={styles.modalButtons}>
               <TouchableOpacity
                 onPress={() => setShowExitConfirm(false)}
                 style={styles.keepBtn}
               >
-                <Text style={styles.keepBtnText}>Keep Exploring</Text>
+                <AppText style={styles.keepBtnText}>Keep Exploring</AppText>
               </TouchableOpacity>
               <TouchableOpacity
                 onPress={() => {
@@ -493,7 +428,7 @@ export default function SubAppWrapper({
                 }}
                 style={[styles.exitBtn, { backgroundColor: config.primaryColor }]}
               >
-                <Text style={styles.exitBtnText}>Exit to Main App</Text>
+                <AppText style={styles.exitBtnText}>Exit to Main App</AppText>
               </TouchableOpacity>
             </View>
           </View>
@@ -508,73 +443,10 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#f8fafc',
   },
-  header: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    zIndex: 30,
-    height: SUB_HEADER_INSET + vs(64),
-    backgroundColor: '#ffffff',
-    borderBottomWidth: 0,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.03,
-    shadowRadius: 12,
-    elevation: 2,
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingHorizontal: hs(16),
-    paddingTop: SUB_HEADER_INSET,
-  },
-  headerLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  backBtn: {
-    width: 48,
-    height: 48,
-    borderRadius: ms(12),
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginLeft: hs(-8),
-  },
-  brandWrapper: {
-    justifyContent: 'center',
-  },
-  hubTitle: {
-    fontSize: ms(8),
-    fontWeight: '900',
-    color: '#94a3b8',
-    letterSpacing: 1.2,
-  },
-  appName: {
-    fontSize: ms(12),
-    fontWeight: '900',
-    color: '#0f172a',
-    marginTop: vs(1),
-  },
-  locationBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#f8fafc',
-    borderWidth: 0.5,
-    borderColor: 'rgba(226,232,240,0.5)',
-    borderRadius: ms(12),
-    paddingVertical: vs(6),
-    paddingHorizontal: hs(10),
-  },
-  locationText: {
-    fontSize: ms(9),
-    color: '#475569',
-    fontWeight: '800',
-    marginLeft: hs(3),
-  },
   viewport: {
     flex: 1,
     backgroundColor: '#f8fafc',
-    paddingTop: SUB_HEADER_INSET + vs(64),
+    paddingTop: SUB_HEADER_H,
     paddingBottom: vs(72),
   },
   tabScroll: {

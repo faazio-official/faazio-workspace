@@ -2,8 +2,8 @@ import React, { memo } from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import { Star } from 'lucide-react-native';
 import { hs, vs, ms } from '@/utils/responsive';
-import ProductCardBase from './ProductCardBase';
-import { formatRating } from './format';
+import ProductCardBase from '@/components/shared/ProductCardBase';
+import { formatRating } from '@/components/shared/format';
 import type { Product } from '@data/types';
 
 interface Props {

@@ -1,14 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import {
-  StyleSheet,
-  View,
-  Text,
-  ScrollView,
-  TextInput,
-  TouchableOpacity,
-  Image,
-  Animated,
-} from 'react-native';
+import { StyleSheet, View, ScrollView, TouchableOpacity, Image, Animated } from 'react-native';
 import {
   Filter,
   Search,
@@ -19,11 +10,14 @@ import {
 } from 'lucide-react-native';
 import Svg, { Defs, LinearGradient, Stop, Rect } from 'react-native-svg';
 import { hs, vs, ms } from '@/utils/responsive';
-import EnterpriseIcon from './EnterpriseIcon';
+import EnterpriseIcon from '@/components/EnterpriseIcon';
 import { categoriesSearchDatabase } from '@data/categories/searchDatabase';
 import { exploreStacks } from '@data/explore/stacks';
+import AppTextInput from '@/components/AppTextInput';
+import AppText from '@/components/AppText';
 
 interface CategoriesViewProps {
+  contentInset?: number;
   selectedCategory: string;
   setSelectedCategory: (category: string) => void;
   addToCart: (id: string, name: string, price: number, emoji: string) => void;
@@ -34,6 +28,7 @@ interface CategoriesViewProps {
 }
 
 export default function CategoriesView({
+  contentInset = 0,
   selectedCategory,
   setSelectedCategory,
   addToCart,
@@ -153,7 +148,7 @@ export default function CategoriesView({
   };
 
   return (
-    <ScrollView style={styles.container} contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}
+    <ScrollView style={styles.container} contentContainerStyle={[styles.scrollContent, { paddingTop: contentInset }]} showsVerticalScrollIndicator={false}
       onScroll={onScroll ? (e) => onScroll(e.nativeEvent.contentOffset.y) : undefined}
       scrollEventThrottle={16}>
 
@@ -162,12 +157,12 @@ export default function CategoriesView({
         <View style={styles.filterHeaderRow}>
           <View style={styles.filterLeftTitle}>
             <Filter size={ms(10)} color="#94a3b8" />
-            <Text style={styles.filterLabelText}>Explore Departments</Text>
+            <AppText style={styles.filterLabelText}>Explore Departments</AppText>
           </View>
           <View style={styles.activeChannelBadge}>
-            <Text style={styles.activeChannelText}>
+            <AppText style={styles.activeChannelText}>
               {selectedApp === 'ALL' ? 'All Channels' : `${selectedApp} Active`}
-            </Text>
+            </AppText>
           </View>
         </View>
 
@@ -192,9 +187,9 @@ export default function CategoriesView({
                 activeOpacity={0.8}
               >
                 <EnterpriseIcon emoji={f.emoji} variant="flat" size={ms(11)} />
-                <Text style={[styles.appPillText, isSel ? { color: f.activeColor } : null]}>
+                <AppText style={[styles.appPillText, isSel ? { color: f.activeColor } : null]}>
                   {f.label}
-                </Text>
+                </AppText>
               </TouchableOpacity>
             );
           })}
@@ -206,7 +201,7 @@ export default function CategoriesView({
         <View style={styles.searchIconWrap}>
           <Search size={ms(12)} color="#94a3b8" />
         </View>
-        <TextInput
+        <AppTextInput
           placeholder="Search catalog by product name or details..."
           value={searchQuery}
           onChangeText={setSearchQuery}
@@ -220,7 +215,7 @@ export default function CategoriesView({
       {/* 3. ENTERPRISE CATEGORY GRID SELECTOR */}
       <View style={styles.gridContainer}>
         <View style={styles.gridHeaderRow}>
-          <Text style={styles.gridHeaderLabel}>Select Category Filter</Text>
+          <AppText style={styles.gridHeaderLabel}>Select Category Filter</AppText>
           <TouchableOpacity
             onPress={() => setActiveSubCat('all')}
             style={[
@@ -229,9 +224,9 @@ export default function CategoriesView({
             ]}
             activeOpacity={0.8}
           >
-            <Text style={[styles.showAllBtnText, activeSubCat === 'all' ? styles.showAllBtnTextActive : null]}>
+            <AppText style={[styles.showAllBtnText, activeSubCat === 'all' ? styles.showAllBtnTextActive : null]}>
               Show All
-            </Text>
+            </AppText>
           </TouchableOpacity>
         </View>
 
@@ -261,10 +256,10 @@ export default function CategoriesView({
                 <View style={styles.categoryIconWrap}>
                   <EnterpriseIcon emoji={cat.emoji} variant="circle" size={ms(32)} bgColor="rgba(255,255,255,0.9)" />
                 </View>
-                <Text style={[styles.categoryName, { color: cat.text }]} numberOfLines={1}>
+                <AppText style={[styles.categoryName, { color: cat.text }]} numberOfLines={1}>
                   {cat.name.split(' ')[0]}
-                </Text>
-                <Text style={styles.categorySubBrand}>{cat.app}</Text>
+                </AppText>
+                <AppText style={styles.categorySubBrand}>{cat.app}</AppText>
               </TouchableOpacity>
             );
           })}
@@ -276,15 +271,15 @@ export default function CategoriesView({
         <View style={styles.productsHeader}>
           <View style={styles.productsTitleWrap}>
             <Grid size={ms(11)} color="#64748b" />
-            <Text style={styles.productsTitle}>
+            <AppText style={styles.productsTitle}>
               {activeSubCat === 'all'
                 ? searchQuery.trim() !== '' ? 'Search Results' : 'Handpicked Highlights'
                 : categoriesList.find((c) => c.id === activeSubCat)?.name}
-            </Text>
+            </AppText>
           </View>
-          <Text style={styles.productsCount}>
+          <AppText style={styles.productsCount}>
             {displayedProducts.length} {displayedProducts.length === 1 ? 'result' : 'results'}
-          </Text>
+          </AppText>
         </View>
 
         {activeSubCat === 'all' && searchQuery.trim() === '' ? (
@@ -295,11 +290,11 @@ export default function CategoriesView({
                 <View key={stack.id} style={styles.stackWrapper}>
                   <View style={styles.stackHeader}>
                     <View>
-                      <Text style={styles.stackTitle}>{stack.title}</Text>
-                      <Text style={styles.stackSubtitle}>{stack.subtitle}</Text>
+                      <AppText style={styles.stackTitle}>{stack.title}</AppText>
+                      <AppText style={styles.stackSubtitle}>{stack.subtitle}</AppText>
                     </View>
                     <View style={styles.stackBadge}>
-                      <Text style={styles.stackBadgeText}>{stack.type}</Text>
+                      <AppText style={styles.stackBadgeText}>{stack.type}</AppText>
                     </View>
                   </View>
 
@@ -359,20 +354,20 @@ export default function CategoriesView({
                             </TouchableOpacity>
 
                             <View style={styles.stackRatingOverlay}>
-                              <Text style={styles.stackRatingText}>★ {item.rating}</Text>
+                              <AppText style={styles.stackRatingText}>★ {item.rating}</AppText>
                             </View>
                           </View>
 
                           <View style={styles.stackProductInfo}>
-                            <Text style={styles.stackShopName} numberOfLines={1}>{item.shop}</Text>
-                            <Text style={styles.stackProductName} numberOfLines={1}>{item.name}</Text>
-                            <Text style={styles.stackProductDesc} numberOfLines={2}>
+                            <AppText style={styles.stackShopName} numberOfLines={1}>{item.shop}</AppText>
+                            <AppText style={styles.stackProductName} numberOfLines={1}>{item.name}</AppText>
+                            <AppText style={styles.stackProductDesc} numberOfLines={2}>
                               Fresh curation from {item.shop}. Premium local favorite.
-                            </Text>
+                            </AppText>
                           </View>
 
                           <View style={styles.stackProductFooter}>
-                            <Text style={styles.stackProductPrice}>₹{item.price.toLocaleString('en-IN')}</Text>
+                            <AppText style={styles.stackProductPrice}>₹{item.price.toLocaleString('en-IN')}</AppText>
                             <TouchableOpacity
                               onPress={() => triggerAddToCart(item.id, item.name, item.price, item.emoji)}
                               style={[styles.stackAddBtn, { backgroundColor: isAdded ? '#10b981' : btnBg }]}
@@ -380,7 +375,7 @@ export default function CategoriesView({
                             >
                               <Animated.View style={{ flexDirection: 'row', alignItems: 'center', opacity: isAdded ? pulseAnim : 1 }}>
                                 {isAdded ? <Check size={ms(8)} color="#ffffff" /> : <Plus size={ms(8)} color="#ffffff" />}
-                                <Text style={styles.stackAddBtnText}>{isAdded ? 'Added' : 'Add'}</Text>
+                                <AppText style={styles.stackAddBtnText}>{isAdded ? 'Added' : 'Add'}</AppText>
                               </Animated.View>
                             </TouchableOpacity>
                           </View>
@@ -424,29 +419,29 @@ export default function CategoriesView({
                   <View style={styles.gridProductImgWrap}>
                     <Image source={{ uri: item.image }} style={styles.gridProductImg} />
                     <View style={styles.gridRatingOverlay}>
-                      <Text style={styles.gridRatingText}>★ {item.rating}</Text>
+                      <AppText style={styles.gridRatingText}>★ {item.rating}</AppText>
                     </View>
                   </View>
 
                   <View style={styles.gridContentBlock}>
                     <View style={styles.gridProductMetaRow}>
                       <View style={[styles.gridAppBadge, { backgroundColor: appBadgeBg, borderColor: appBadgeText }]}>
-                        <Text style={[styles.gridAppBadgeText, { color: appBadgeText }]}>{item.app}</Text>
+                        <AppText style={[styles.gridAppBadgeText, { color: appBadgeText }]}>{item.app}</AppText>
                       </View>
-                      <Text style={styles.gridCatName} numberOfLines={1}>{item.catName}</Text>
+                      <AppText style={styles.gridCatName} numberOfLines={1}>{item.catName}</AppText>
                     </View>
-                    <Text style={styles.gridProductName} numberOfLines={1}>{item.name}</Text>
-                    <Text style={styles.gridProductDesc} numberOfLines={2}>{item.desc}</Text>
+                    <AppText style={styles.gridProductName} numberOfLines={1}>{item.name}</AppText>
+                    <AppText style={styles.gridProductDesc} numberOfLines={2}>{item.desc}</AppText>
 
                     <View style={styles.gridProductFooter}>
-                      <Text style={styles.gridProductPrice}>₹{item.price.toLocaleString('en-IN')}</Text>
+                      <AppText style={styles.gridProductPrice}>₹{item.price.toLocaleString('en-IN')}</AppText>
                       <TouchableOpacity
                         onPress={() => triggerAddToCart(item.id, item.name, item.price, item.emoji)}
                         style={[styles.gridAddBtn, { backgroundColor: isAdded ? '#10b981' : btnBg }]}
                         activeOpacity={0.8}
                       >
                         {isAdded ? <Check size={ms(8)} color="#ffffff" /> : <Plus size={ms(8)} color="#ffffff" />}
-                        <Text style={styles.gridAddBtnText}>{isAdded ? 'Added' : 'Add'}</Text>
+                        <AppText style={styles.gridAddBtnText}>{isAdded ? 'Added' : 'Add'}</AppText>
                       </TouchableOpacity>
                     </View>
                   </View>
@@ -461,9 +456,9 @@ export default function CategoriesView({
             <View style={styles.emptyIconContainer}>
               <Search size={ms(18)} color="#94a3b8" />
             </View>
-            <Text style={styles.emptyTitle}>No matching products</Text>
-            <Text style={styles.emptyDesc}>We couldn't find items matching "{searchQuery}" under this category.</Text>
-            <Text style={styles.emptySubText}>Let's try another one!</Text>
+            <AppText style={styles.emptyTitle}>No matching products</AppText>
+            <AppText style={styles.emptyDesc}>We couldn't find items matching "{searchQuery}" under this category.</AppText>
+            <AppText style={styles.emptySubText}>Let's try another one!</AppText>
           </View>
         )}
       </View>
