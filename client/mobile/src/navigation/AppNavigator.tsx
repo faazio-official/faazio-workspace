@@ -42,7 +42,7 @@ export function AppNavigator() {
     <ErrorBoundary>
       <Suspense fallback={<SplashFallback />}>
         <Stack.Navigator
-          screenOptions={{ headerShown: false, statusBarStyle: 'light' }}
+          screenOptions={{ headerShown: false, statusBarStyle: 'dark' }}
           initialRouteName="Onboarding"
         >
           <Stack.Screen name="Onboarding" component={OnboardingScreen} />

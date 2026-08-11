@@ -3,7 +3,7 @@ import { View, StyleSheet } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { useFonts } from 'expo-font';
 import { DefaultTheme, NavigationContainer } from '@react-navigation/native';
-import { SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { AppNavigator } from './src/navigation/AppNavigator';
 import { FONT_ASSETS, resolveFontFamily } from './src/theme/fonts';
 
@@ -42,25 +42,13 @@ export default function App() {
 
   return (
     <SafeAreaProvider>
-      <AppRoot />
+      <View style={styles.container}>
+        <StatusBar style="dark" />
+        <NavigationContainer theme={navigationTheme}>
+          <AppNavigator />
+        </NavigationContainer>
+      </View>
     </SafeAreaProvider>
-  );
-}
-
-function AppRoot() {
-  const insets = useSafeAreaInsets();
-
-  return (
-    <View style={styles.container}>
-      <StatusBar style="light" />
-      <View
-        pointerEvents="none"
-        style={[styles.statusBarBand, { height: insets.top }]}
-      />
-      <NavigationContainer theme={navigationTheme}>
-        <AppNavigator />
-      </NavigationContainer>
-    </View>
   );
 }
 
@@ -68,13 +56,5 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#ffffff',
-  },
-  statusBarBand: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    backgroundColor: '#0f172a',
-    zIndex: 10,
   },
 });
