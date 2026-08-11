@@ -62,13 +62,6 @@ const ONBOARDING_DATA: OnboardingStep[] = [
 
 const LOGO_HEIGHT = Math.round(Math.min(Math.max(SCREEN_W * 0.09, 30), 42));
 
-const STEP_ENTRY = [
-  { scale: 0.9, y: 5, rotate: 0, x: 0 },
-  { scale: 0.9, rotate: -2, y: 0, x: 0 },
-  { scale: 0.9, x: -10, y: 0, rotate: 0 },
-  { scale: 0.9, rotate: 2, y: 0, x: 0 },
-];
-
 export function OnboardingScreen({ navigation }: Props) {
   const [currentStep, setCurrentStep] = useState(0);
   const directionRef = useRef<'next' | 'back'>('next');
@@ -76,10 +69,6 @@ export function OnboardingScreen({ navigation }: Props) {
 
   const slideAnim = useRef(new Animated.Value(0)).current;
   const opacityAnim = useRef(new Animated.Value(1)).current;
-  const entryScale = useRef(new Animated.Value(1)).current;
-  const entryY = useRef(new Animated.Value(0)).current;
-  const entryX = useRef(new Animated.Value(0)).current;
-  const entryRotate = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
     if (isFirstRender.current) {
@@ -103,20 +92,6 @@ export function OnboardingScreen({ navigation }: Props) {
         duration: 220,
         useNativeDriver: true,
       }),
-    ]).start();
-
-    const entry = STEP_ENTRY[currentStep];
-    entryScale.setValue(entry.scale);
-    entryY.setValue(entry.y);
-    entryX.setValue(entry.x);
-    entryRotate.setValue(entry.rotate);
-
-    const springConfig = { tension: 120, friction: 10, useNativeDriver: true };
-    Animated.parallel([
-      Animated.spring(entryScale, { toValue: 1, ...springConfig }),
-      Animated.spring(entryY, { toValue: 0, ...springConfig }),
-      Animated.spring(entryX, { toValue: 0, ...springConfig }),
-      Animated.spring(entryRotate, { toValue: 0, ...springConfig }),
     ]).start();
   }, [currentStep]);
 
@@ -142,11 +117,6 @@ export function OnboardingScreen({ navigation }: Props) {
 
   const currentData = ONBOARDING_DATA[currentStep];
 
-  const rotateInterpolation = entryRotate.interpolate({
-    inputRange: [-5, 0, 5],
-    outputRange: ['-5deg', '0deg', '5deg'],
-  });
-
   return (
     <View style={[styles.container, { backgroundColor: currentData.bgColor }]}>
       <Animated.View
@@ -154,13 +124,7 @@ export function OnboardingScreen({ navigation }: Props) {
           styles.animatedWrapper,
           {
             opacity: opacityAnim,
-            transform: [
-              { translateX: slideAnim },
-              { scale: entryScale },
-              { translateY: entryY },
-              { translateX: entryX },
-              { rotate: rotateInterpolation },
-            ],
+            transform: [{ translateX: slideAnim }],
           },
         ]}
       >

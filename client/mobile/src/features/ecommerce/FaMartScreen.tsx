@@ -1,11 +1,14 @@
 import React, { useState, useCallback, useMemo } from 'react';
 import { View, StyleSheet, Dimensions, TouchableOpacity, FlatList } from 'react-native';
+import { useNavigation } from '@react-navigation/native';
+import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { ShoppingCart } from 'lucide-react-native';
 import { hs, ms, vs } from '@/utils/responsive';
 import AppText from '@/components/AppText';
 import { useCartStore } from '@/state/store';
 import { martProducts } from '@data/mart/products';
 import type { MartProduct } from '@data/types';
+import type { RootStackParamList } from '@/navigation/types';
 import MartProductCard from '@/features/ecommerce/cards/MartProductCard';
 
 import {
@@ -84,6 +87,7 @@ export function FaMartScreen({
   const cartItems = useCartStore((s) => s.cart);
   const addToCart = useCartStore((s) => s.addToCart);
   const updateQuantity = useCartStore((s) => s.updateQuantity);
+  const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
 
   const normalizedSearch = searchQuery.trim().toLowerCase();
 
@@ -148,14 +152,14 @@ export function FaMartScreen({
               {selectedVendor.distance} · ⭐ {selectedVendor.rating} · {selectedVendor.deliveryTime}
             </AppText>
           </View>
-          <View style={styles.drillCartBtn}>
+          <TouchableOpacity onPress={() => navigation.navigate('Cart')} style={styles.drillCartBtn} activeOpacity={0.7} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
             <ShoppingCart size={ms(18)} color="#1E2022" strokeWidth={2} />
             {cartItems.length > 0 && (
               <View style={styles.drillCartBadge}>
                 <AppText style={styles.drillCartBadgeText}>{cartItems.length}</AppText>
               </View>
             )}
-          </View>
+          </TouchableOpacity>
         </View>
         <FlatList
           data={filteredVendorProducts}

@@ -1,4 +1,4 @@
-import React, { useCallback } from 'react';
+import React, { useCallback, useState } from 'react';
 import { StyleSheet, View, TouchableOpacity } from 'react-native';
 import { hs, vs, ms } from '@/utils/responsive';
 import { MapPin, ChevronDown, Search } from 'lucide-react-native';
@@ -18,7 +18,6 @@ import {
   HEADER_BOTTOM_PAD,
   HEADER_SEARCH_H,
   EXPANDED_H,
-  SHRINK_H,
 } from '@/features/home/hubHeader';
 import type { MainTabParamList, RootStackParamList } from '@/navigation/types';
 import type { SubAppId } from '@/state/uiStore';
@@ -50,59 +49,77 @@ export function HomeTabScreen({ navigation }: Props) {
 
   const scrollY = useSharedValue(0);
   const clamp = useSharedValue(0);
-  const blockH = useSharedValue(0);
-  const collapseHV = useSharedValue(HEADER_TOPINSET);
+  const blockTravel = useSharedValue(0);
+  const searchTravel = useSharedValue(0);
+  const totalCap = useSharedValue(0);
+  const [blockH, setBlockH] = useState(0);
 
-  const collapsingBlockStyle = useAnimatedStyle(() => ({
-    transform: [{ translateY: -clamp.value }],
+  const blockSlideStyle = useAnimatedStyle(() => ({
+    transform: [{ translateY: -Math.min(clamp.value, blockTravel.value) }],
   }));
 
-  const headerSlidStyle = useAnimatedStyle(() => {
-    const maxC = Math.max(1, collapseHV.value);
-    const progress = Math.min(1, Math.max(0, clamp.value / maxC));
-    return { transform: [{ translateY: -progress * SHRINK_H }] };
-  });
+  const searchSlideStyle = useAnimatedStyle(() => ({
+    transform: [{ translateY: -Math.min(clamp.value, searchTravel.value) }],
+  }));
+
+  const onBlockLayout = useCallback(
+    (e: any) => {
+      const h = e.nativeEvent.layout.height;
+      setBlockH(h);
+      blockTravel.value = HEADER_TOPINSET + h + vs(8);
+      totalCap.value = Math.max(blockTravel.value, searchTravel.value);
+    },
+    [blockTravel, searchTravel],
+  );
+
+  const onSearchWrapLayout = useCallback(
+    (e: any) => {
+      const y = e.nativeEvent.layout.y;
+      searchTravel.value = Math.max(0, y - HEADER_TOPINSET);
+      totalCap.value = Math.max(blockTravel.value, searchTravel.value);
+    },
+    [searchTravel, blockTravel],
+  );
+
+  const headerHeight = Math.max(EXPANDED_H, HEADER_TOPINSET + blockH + HEADER_ROW_GAP + HEADER_SEARCH_H + HEADER_BOTTOM_PAD);
 
   return (
     <View style={styles.container}>
-      <View style={[styles.headerOuter, { height: EXPANDED_H }]} collapsable={false} pointerEvents="box-none">
-        <Animated.View style={[styles.headerSlid, { height: EXPANDED_H }, headerSlidStyle]} collapsable={false}>
-          <HubGradient />
-          <View style={styles.headerContent}>
-            <Animated.View
-              style={[styles.collapsingBlock, collapsingBlockStyle]}
-              onLayout={(e) => {
-                const h = e.nativeEvent.layout.height;
-                blockH.value = h;
-                collapseHV.value = h + HEADER_TOPINSET;
-              }}
-            >
-              <View style={styles.headerTopRow}>
-                <FaazioLogo size={ms(28)} />
+      <View style={[styles.headerOuter, { height: headerHeight }]} collapsable={false} pointerEvents="box-none">
+        <HubGradient />
+        <Animated.View style={[styles.block, blockSlideStyle]} collapsable={false}>
+          <View style={styles.blockInner} onLayout={onBlockLayout}>
+            <View style={styles.headerTopRow}>
+              <FaazioLogo size={ms(28)} />
 
-                <View style={styles.headerCenter}>
-                  <TouchableOpacity
-                    style={styles.locationRow}
-                    activeOpacity={0.7}
-                    onPress={() => navigation.navigate('Location')}
-                  >
-                    <MapPin size={ms(11)} color="#7CE045" />
-                    <AppText style={styles.locationText} numberOfLines={1}>
-                      Sunnambukkara Street, Karaikal
-                    </AppText>
-                    <ChevronDown size={ms(11)} color="rgba(255,255,255,0.6)" />
-                  </TouchableOpacity>
-                </View>
+              <View style={styles.headerCenter}>
+                <TouchableOpacity
+                  style={styles.locationRow}
+                  activeOpacity={0.7}
+                  onPress={() => navigation.navigate('Location')}
+                >
+                  <MapPin size={ms(11)} color="#7CE045" />
+                  <AppText style={styles.locationText} numberOfLines={1}>
+                    Sunnambukkara Street, Karaikal
+                  </AppText>
+                  <ChevronDown size={ms(11)} color="rgba(255,255,255,0.6)" />
+                </TouchableOpacity>
               </View>
+            </View>
 
-              <View style={styles.sectorsRow}>
-                <ExploreSectorsSection
-                  onLaunchSubApp={handleLaunchSubApp}
-                />
-              </View>
-            </Animated.View>
+            <View style={styles.sectorsRow}>
+              <ExploreSectorsSection
+                onLaunchSubApp={handleLaunchSubApp}
+              />
+            </View>
           </View>
+        </Animated.View>
 
+        <Animated.View
+          style={[styles.searchWrap, searchSlideStyle]}
+          collapsable={false}
+          onLayout={onSearchWrapLayout}
+        >
           <TouchableOpacity
             style={styles.searchBar}
             activeOpacity={0.7}
@@ -125,8 +142,8 @@ export function HomeTabScreen({ navigation }: Props) {
           onProductClick={handleProductClick}
           scrollY={scrollY}
           clamp={clamp}
-          collapseH={collapseHV}
-          expandedH={EXPANDED_H}
+          collapseCap={totalCap}
+          expandedH={headerHeight}
         />
       </View>
     </View>
@@ -155,14 +172,28 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
   },
-  collapsingBlock: {
-    overflow: 'hidden',
+  block: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+  },
+  blockInner: {
+    paddingTop: HEADER_TOPINSET,
+    paddingHorizontal: hs(16),
+    paddingBottom: HEADER_ROW_GAP,
     gap: HEADER_ROW_GAP,
+  },
+  searchWrap: {
+    position: 'absolute',
+    left: hs(16),
+    right: hs(16),
+    bottom: HEADER_BOTTOM_PAD,
+    height: HEADER_SEARCH_H,
   },
   sectorsRow: {
     width: '100%',
   },
-  headerContent: { paddingTop: HEADER_TOPINSET, paddingHorizontal: hs(16) },
   headerTopRow: { flexDirection: 'row', alignItems: 'center' },
   headerCenter: { flex: 1, alignItems: 'center' },
   locationRow: {
@@ -179,11 +210,7 @@ const styles = StyleSheet.create({
     maxWidth: hs(160),
   },
   searchBar: {
-    position: 'absolute',
-    bottom: HEADER_BOTTOM_PAD,
-    left: hs(16),
-    right: hs(16),
-    height: HEADER_SEARCH_H,
+    flex: 1,
     borderRadius: ms(22),
     backgroundColor: '#ffffff',
     flexDirection: 'row',

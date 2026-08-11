@@ -5,6 +5,6 @@
 import type { Address } from '../types';
 
 export const defaultAddresses: Address[] = [
-  { id: 'addr-1', label: 'Home', address: '42, Lakeview Apartments, Sunnambukkara Street, Karaikal - 609602', isDefault: true },
-  { id: 'addr-2', label: 'Office', address: '7th Floor, Tech Park, Pondicherry Road, Karaikal - 609602', isDefault: false },
+  { id: 'addr-1', label: 'Greenwood', address: 'Greenwood Regency, Greenwood Regt Rd, Greenwood City - 609602', isDefault: true },
+  { id: 'addr-2', label: 'Greenwood Office', address: '7th Floor, Greenwood Tech Park, Greenwood City - 609602', isDefault: false },
 ];

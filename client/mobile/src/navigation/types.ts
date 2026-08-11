@@ -19,6 +19,8 @@ export type RootStackParamList = {
   ProductDetail: { product: any };
   /** First-class cross-sub-app search. Food keeps its own nested Search. */
   Search: { subApp: 'HOME' | SubAppId; initialQuery?: string };
+  /** Central "Your Cart" checkout page, pushed from any app (back returns). */
+  Cart: undefined;
 };
 
 export type FoodStackParamList = {

@@ -21,9 +21,6 @@ const FavouritesTabScreen = lazy(() =>
 const AccountTabScreen = lazy(() =>
   import('@/features/profile/AccountTabScreen').then((m) => ({ default: m.AccountTabScreen })),
 );
-const CartTabScreen = lazy(() =>
-  import('@/features/cart/CartTabScreen').then((m) => ({ default: m.CartTabScreen })),
-);
 
 const TAB_COLORS: Record<keyof MainTabParamList, string> = {
   Home: '#2F80ED',
@@ -78,11 +75,6 @@ function HubTabBar({ state, navigation }: BottomTabBarProps) {
                   strokeWidth={isActive ? 2.5 : 2}
                   fill={isActive ? tint : 'transparent'}
                 />
-                {name === 'Cart' && totalCartQty > 0 && (
-                  <View style={styles.cartBadge}>
-                    <AppText style={styles.cartBadgeText}>{totalCartQty}</AppText>
-                  </View>
-                )}
               </View>
               <AppText style={[styles.tabLabel, isActive && { color: TAB_COLORS[name], fontWeight: '900' }]}>
                 {TAB_LABELS[name]}
@@ -90,6 +82,23 @@ function HubTabBar({ state, navigation }: BottomTabBarProps) {
             </TouchableOpacity>
           );
         })}
+
+        {/* Central Cart page — pushed on the root stack so the back button returns. */}
+        <TouchableOpacity
+          onPress={() => navigation.getParent()?.navigate('Cart')}
+          style={styles.tabItem}
+          activeOpacity={0.75}
+        >
+          <View>
+            <ShoppingBag size={ms(24)} color={INACTIVE_TINT} strokeWidth={2} />
+            {totalCartQty > 0 && (
+              <View style={styles.cartBadge}>
+                <AppText style={styles.cartBadgeText}>{totalCartQty}</AppText>
+              </View>
+            )}
+          </View>
+          <AppText style={styles.tabLabel}>Cart</AppText>
+        </TouchableOpacity>
       </View>
     </View>
   );
@@ -109,7 +118,6 @@ export function MainTabs() {
           <Tab.Screen name="Categories" component={CategoriesTabScreen} />
           <Tab.Screen name="Favourites" component={FavouritesTabScreen} />
           <Tab.Screen name="Account" component={AccountTabScreen} />
-          <Tab.Screen name="Cart" component={CartTabScreen} />
         </Tab.Navigator>
       </Suspense>
     </View>

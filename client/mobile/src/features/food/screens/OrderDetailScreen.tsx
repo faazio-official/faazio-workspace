@@ -1,7 +1,8 @@
 import React, { useCallback } from 'react';
 import { View, ScrollView, StyleSheet } from 'react-native';
-import type { NativeStackScreenProps } from '@react-navigation/native-stack';
-import type { FoodStackParamList } from '@/navigation/types';
+import { useNavigation } from '@react-navigation/native';
+import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import type { NativeStackScreenProps } from '@react-navigation/native-stack';import type { FoodStackParamList, RootStackParamList } from '@/navigation/types';
 import { vs } from '@/utils/responsive';
 import { PROMOS, CUISINES, MEALS_COMBOS, SNACKS_BEVERAGES } from '../mocks/orderFeed';
 import { TODAYS_SPECIALS } from '../mocks/specials';
@@ -63,7 +64,7 @@ export function OrderDetailScreen({ navigation }: Props) {
         <FoodSectionHeader title="Snacks & Beverages" onSeeAll={openSearch} />
         <SnacksRail snacks={SNACKS_BEVERAGES} />
       </ScrollView>
-      <OrderCartBar />
+      <OrderCartBar onPress={() => navigation.getParent<NativeStackNavigationProp<RootStackParamList>>()?.navigate('Cart')} />
       <FoodBottomNav activeTab="FoodOrder" onChange={handleTabChange} />
     </View>
   );

@@ -8,7 +8,12 @@ export interface CartItem {
   quantity: number;
   imageUrl?: string;
   emoji: string;
+  originalPrice?: number;
+  qtyDesc?: string;
+  category?: 'MART' | 'FOOD' | 'GROCERY' | 'PHARMA';
 }
+
+export type CartCategory = 'MART' | 'FOOD' | 'GROCERY' | 'PHARMA';
 
 interface CartState {
   cart: CartItem[];

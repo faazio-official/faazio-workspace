@@ -28,7 +28,7 @@ interface HomeViewProps {
   onProductClick?: (product: any) => void;
   scrollY: SharedValue<number>;
   clamp: SharedValue<number>;
-  collapseH: SharedValue<number>;
+  collapseCap: SharedValue<number>;
   expandedH: number;
 }
 
@@ -38,7 +38,7 @@ export default function HomeView({
   onProductClick,
   scrollY,
   clamp,
-  collapseH,
+  collapseCap,
   expandedH,
 }: HomeViewProps) {
   const sectionProps = useMemo(
@@ -58,7 +58,7 @@ export default function HomeView({
       if (y <= 0) {
         clamp.value = 0;
       } else {
-        clamp.value = Math.min(collapseH.value, Math.max(0, clamp.value + dy));
+        clamp.value = Math.min(collapseCap.value, Math.max(0, clamp.value + dy));
       }
 
       if (Math.abs(y - lastEmit.value) > 40 || y <= 0) {

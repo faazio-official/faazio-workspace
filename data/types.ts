@@ -82,7 +82,12 @@ export interface CartItem {
   quantity: number;
   emoji: string;
   imageUrl?: string;
+  originalPrice?: number;
+  qtyDesc?: string;
+  category?: CartCategory;
 }
+
+export type CartCategory = 'MART' | 'FOOD' | 'GROCERY' | 'PHARMA';
 
 export interface Review {
   id: string;

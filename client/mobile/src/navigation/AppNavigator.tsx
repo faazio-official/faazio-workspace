@@ -31,6 +31,9 @@ const ProductDetailScreen = lazy(() =>
 const SearchRouteScreen = lazy(() =>
   import('../features/search/SearchRouteScreen').then((m) => ({ default: m.SearchRouteScreen })),
 );
+const CartScreen = lazy(() =>
+  import('../features/cart/CartScreen').then((m) => ({ default: m.CartScreen })),
+);
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
 
@@ -62,6 +65,11 @@ export function AppNavigator() {
             name="Search"
             component={SearchRouteScreen}
             options={{ statusBarStyle: 'dark', animation: 'fade_from_bottom' }}
+          />
+          <Stack.Screen
+            name="Cart"
+            component={CartScreen}
+            options={{ statusBarStyle: 'dark', animation: 'slide_from_right' }}
           />
         </Stack.Navigator>
       </Suspense>

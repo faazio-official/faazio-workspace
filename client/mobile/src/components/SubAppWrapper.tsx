@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { StyleSheet, View, TouchableOpacity, ScrollView, Alert, BackHandler, Modal, Animated, StatusBar } from 'react-native';
+import { StyleSheet, View, TouchableOpacity, ScrollView, Alert, BackHandler, Animated, StatusBar } from 'react-native';
 import type { TextInput } from 'react-native';
 import {
   Home,
@@ -15,6 +15,7 @@ import {
   Search,
 } from 'lucide-react-native';
 import { hs, vs, ms } from '@/utils/responsive';
+import { LinearGradient } from 'expo-linear-gradient';
 import type { CartItem } from '@/state/cartStore';
 
 import { FaMartScreen } from '../features/ecommerce/FaMartScreen';
@@ -23,8 +24,8 @@ import { GroceryScreen } from '../features/ecommerce/GroceryScreen';
 import { GroceryAislesScreen } from '../features/ecommerce/GroceryAislesScreen';
 import { PharmaScreen } from '../features/pharma/PharmaScreen';
 import AccountView from '@/features/profile/AccountView';
-import CartView from '@/features/cart/CartView';
 import AppText from '@/components/AppText';
+import SlideUpSheet from '@/components/shared/SlideUpSheet';
 import SubAppHeader from './shared/SubAppHeader';
 import { SUB_HEADER_H, SUB_HEADER_H_COMPACT } from './shared/SubAppHeader';
 import { brandTokens } from '@/theme/brandTokens';
@@ -43,6 +44,8 @@ interface SubAppWrapperProps {
   onProductClick?: (product: any) => void;
   /** Opens the first-class Search screen (Mart/Grocery/Pharma Search tab). */
   onSearchPress?: () => void;
+  /** Opens the central Cart page (root stack). */
+  onCartPress?: () => void;
 }
 
 export default function SubAppWrapper({
@@ -57,6 +60,7 @@ export default function SubAppWrapper({
   setIsLoggedIn,
   onProductClick,
   onSearchPress,
+  onCartPress,
 }: SubAppWrapperProps) {
   const [activeTab, setActiveTab] = useState<string>('Home');
   const [showExitConfirm, setShowExitConfirm] = useState<boolean>(false);
@@ -188,20 +192,6 @@ export default function SubAppWrapper({
           : 'Search medicines...';
 
   const renderSubAppContent = () => {
-    if (activeTab === 'Cart' || activeTab === 'Smart Cart') {
-      return (
-        <CartView
-          cartItems={cartItems}
-          setCartItems={setCartItems}
-          updateCartQuantity={updateCartQuantity}
-          setActiveTab={(tab) => {
-            if (tab === 'Home') setActiveTab('Home');
-            else if (tab === 'Account') setActiveTab('Profile');
-          }}
-        />
-      );
-    }
-
     if (activeTab === 'Profile') {
       return (
         <AccountView
@@ -347,7 +337,12 @@ export default function SubAppWrapper({
           return (
             <TouchableOpacity
               key={idx}
-              onPress={() => (tab.name === 'Search' ? onSearchPress?.() : setActiveTab(tab.name))}
+              onPress={() => {
+                const lower = tab.name.toLowerCase();
+                if (lower.includes('cart')) onCartPress?.();
+                else if (tab.name === 'Search') onSearchPress?.();
+                else setActiveTab(tab.name);
+              }}
               style={styles.tabItem}
               activeOpacity={0.8}
               onLayout={(e) => { tabPositions.current[idx] = e.nativeEvent.layout.x; }}
@@ -370,49 +365,55 @@ export default function SubAppWrapper({
         })}
       </View>
 
-      <Modal
+      <SlideUpSheet
         visible={showExitConfirm}
-        transparent={true}
-        animationType="slide"
         onRequestClose={() => setShowExitConfirm(false)}
+        sheetTop={
+          <LinearGradient
+            colors={tokens.headerGradient}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 0 }}
+            style={styles.modalBar}
+          />
+        }
       >
-        <View style={styles.modalOverlay}>
-          <TouchableOpacity style={styles.modalBgPressable} onPress={() => setShowExitConfirm(false)} />
-          <View style={styles.modalContent}>
-            <View style={styles.modalBar} />
-            <AppText style={styles.modalTitle}>
-              {subAppId === 'FOOD'
-                ? 'Exit Food?'
-                : subAppId === 'PHARMA'
-                ? 'Exit Pharma?'
-                : subAppId === 'FA_MART'
-                ? 'Exit Mart?'
-                : 'Exit Grocery?'}
-            </AppText>
-            <AppText style={styles.modalSubtitle}>
-              Are you sure you want to exit the current service and return to the main Faazio Hub?
-            </AppText>
+        <AppText style={[styles.modalTitle, { color: config.primaryColor }]}>
+          {subAppId === 'FOOD'
+            ? 'Exit Food?'
+            : subAppId === 'PHARMA'
+            ? 'Exit Pharma?'
+            : subAppId === 'FA_MART'
+            ? 'Exit Mart?'
+            : 'Exit Grocery?'}
+        </AppText>
+        <AppText style={styles.modalSubtitle}>Return to the main Faazio Hub?</AppText>
 
-            <View style={styles.modalButtons}>
-              <TouchableOpacity
-                onPress={() => setShowExitConfirm(false)}
-                style={styles.keepBtn}
-              >
-                <AppText style={styles.keepBtnText}>Keep Exploring</AppText>
-              </TouchableOpacity>
-              <TouchableOpacity
-                onPress={() => {
-                  setShowExitConfirm(false);
-                  onExit();
-                }}
-                style={[styles.exitBtn, { backgroundColor: config.primaryColor }]}
-              >
-                <AppText style={styles.exitBtnText}>Exit to Main App</AppText>
-              </TouchableOpacity>
-            </View>
-          </View>
+        <View style={styles.modalButtons}>
+          <TouchableOpacity
+            onPress={() => setShowExitConfirm(false)}
+            style={styles.keepBtn}
+          >
+            <AppText style={styles.keepBtnText}>Keep Exploring</AppText>
+          </TouchableOpacity>
+          <TouchableOpacity
+            onPress={() => {
+              setShowExitConfirm(false);
+              onExit();
+            }}
+            style={styles.exitBtn}
+            activeOpacity={0.85}
+          >
+            <LinearGradient
+              colors={tokens.headerGradient}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 0 }}
+              style={styles.exitBtnFill}
+            >
+              <AppText style={[styles.exitBtnText, { color: tokens.headerTextColor }]}>Exit App</AppText>
+            </LinearGradient>
+          </TouchableOpacity>
         </View>
-      </Modal>
+      </SlideUpSheet>
     </View>
   );
 }
@@ -638,48 +639,24 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     marginTop: vs(3),
   },
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(15, 23, 42, 0.4)',
-    justifyContent: 'flex-end',
-  },
-  modalBgPressable: {
-    flex: 1,
-  },
-  modalContent: {
-    backgroundColor: '#ffffff',
-    borderTopLeftRadius: ms(32),
-    borderTopRightRadius: ms(32),
-    padding: hs(24),
-    paddingBottom: vs(32),
-    alignItems: 'center',
-    shadowColor: '#000000',
-    shadowOffset: { width: 0, height: -12 },
-    shadowOpacity: 0.15,
-    shadowRadius: 24,
-    elevation: 8,
-  },
   modalBar: {
     width: hs(48),
     height: vs(6),
     borderRadius: vs(3),
-    backgroundColor: '#e2e8f0',
     marginBottom: vs(16),
+    overflow: 'hidden',
   },
   modalTitle: {
-    fontSize: ms(14),
+    fontSize: ms(16),
     fontWeight: '900',
-    color: '#0f172a',
     textTransform: 'uppercase',
     letterSpacing: 0.5,
   },
   modalSubtitle: {
-    fontSize: ms(10),
-    color: '#94a3b8',
+    fontSize: ms(11),
+    color: '#64748b',
     textAlign: 'center',
-    lineHeight: vs(14),
-    marginTop: vs(6),
-    paddingHorizontal: hs(20),
+    marginTop: vs(4),
     fontWeight: '600',
   },
   modalButtons: {
@@ -690,7 +667,7 @@ const styles = StyleSheet.create({
   },
   keepBtn: {
     flex: 1,
-    height: Math.max(40, vs(40)),
+    height: Math.max(44, vs(44)),
     borderRadius: ms(12),
     backgroundColor: '#f1f5f9',
     alignItems: 'center',
@@ -698,19 +675,22 @@ const styles = StyleSheet.create({
   },
   keepBtnText: {
     color: '#475569',
-    fontSize: ms(10),
-    fontWeight: '900',
+    fontSize: ms(11),
+    fontWeight: '800',
   },
   exitBtn: {
     flex: 1,
-    height: Math.max(40, vs(40)),
+    height: Math.max(44, vs(44)),
     borderRadius: ms(12),
+    overflow: 'hidden',
+  },
+  exitBtnFill: {
+    flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
   },
   exitBtnText: {
-    color: '#ffffff',
-    fontSize: ms(10),
+    fontSize: ms(11),
     fontWeight: '900',
   },
   basketContainer: {

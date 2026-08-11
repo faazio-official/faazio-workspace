@@ -1,9 +1,10 @@
 import React, { useCallback, useMemo } from 'react';
 import { View, StyleSheet } from 'react-native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
+import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { vs } from '@/utils/responsive';
 import { foodTheme } from '../constants/theme';
-import type { FoodStackParamList } from '@/navigation/types';
+import type { FoodStackParamList, RootStackParamList } from '@/navigation/types';
 import type { DiningRestaurant, SpecialDish } from '../mocks/types';
 import { createFoodSearchConfig } from '@/features/search/configs/foodSearchConfig';
 import SearchScreen from '@/features/search/SearchScreen';
@@ -41,7 +42,7 @@ export function FoodSearchScreen({ navigation }: Props) {
       } else if (tab === 'Dining') {
         navigation.navigate('DiningDetail');
       } else if (tab === 'FoodOrder') {
-        navigation.navigate('OrderDetail');
+        navigation.getParent<NativeStackNavigationProp<RootStackParamList>>()?.navigate('Cart');
       }
     },
     [navigation],
@@ -50,7 +51,7 @@ export function FoodSearchScreen({ navigation }: Props) {
   return (
     <View style={styles.container}>
       <SearchScreen config={config} onBack={handleBack} />
-      <FloatingCartBar accentColor={foodTheme.primary} bottomOffset={vs(100)} />
+      <FloatingCartBar accentColor={foodTheme.primary} bottomOffset={vs(100)} onPress={() => navigation.getParent<NativeStackNavigationProp<RootStackParamList>>()?.navigate('Cart')} />
       <FoodBottomNav activeTab="Search" onChange={handleTabChange} />
     </View>
   );

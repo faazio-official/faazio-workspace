@@ -2,10 +2,11 @@ import React, { useCallback, useEffect, useState } from 'react';
 import { View, StyleSheet, ActivityIndicator, BackHandler } from 'react-native';
 import { FlashList } from '@shopify/flash-list';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
+import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { vs } from '@/utils/responsive';
 import { foodTheme } from '../constants/theme';
 import { useDiningFeed } from '../hooks/useDiningFeed';
-import type { FoodStackParamList } from '@/navigation/types';
+import type { FoodStackParamList, RootStackParamList } from '@/navigation/types';
 import type { NearbyRestaurant } from '../mocks/homeFeed';
 import FoodHeader from '../components/FoodHeader';
 import HeroCardPair from '../components/HeroCardPair';
@@ -40,7 +41,7 @@ export function FoodHomeScreen({ navigation }: Props) {
       if (tab === 'Dining') {
         navigation.navigate('DiningDetail');
       } else if (tab === 'FoodOrder') {
-        navigation.navigate('OrderDetail');
+        navigation.getParent<NativeStackNavigationProp<RootStackParamList>>()?.navigate('Cart');
       } else if (tab === 'Search') {
         navigation.navigate('Search');
       } else {

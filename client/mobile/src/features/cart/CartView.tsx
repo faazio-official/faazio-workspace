@@ -1,41 +1,76 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { StyleSheet, View, ScrollView, TouchableOpacity, ActivityIndicator, Animated } from 'react-native';
+import { StyleSheet, View, ScrollView, TouchableOpacity, ActivityIndicator, Animated, Image } from 'react-native';
 import {
+  ArrowLeft,
   ShoppingBag,
   ArrowRight,
   ChevronLeft,
+  ChevronDown,
+  ChevronRight,
+  Minus,
+  Plus,
   MapPin,
   Ticket,
+  Tag,
+  Send,
   ShieldCheck,
   CheckCircle,
   Truck,
   Smartphone,
   CreditCard,
   Coins,
-  AlertCircle,
   Check,
+  ChefHat,
+  ShoppingBasket,
+  BriefcaseMedical,
 } from 'lucide-react-native';
-import { hs, vs, ms } from '@/utils/responsive';
+import type { LucideIcon } from 'lucide-react-native';
+import { hs, vs, ms, STATUS_BAR_INSET } from '@/utils/responsive';
 import EnterpriseIcon from '@/components/EnterpriseIcon';
-import type { CartItem } from '@/state/cartStore';
+import type { CartItem, CartCategory } from '@/state/cartStore';
 import { defaultAddresses } from '@data/cart/addresses';
 import { coupons } from '@data/cart/coupons';
 import AppTextInput from '@/components/AppTextInput';
 import AppText from '@/components/AppText';
+import SlideUpSheet from '@/components/shared/SlideUpSheet';
+import { computeTotals } from './utils';
+import type { CheckoutStep } from './utils';
 
-const getAppLabel = (itemId: string) => {
-  const id = itemId.toLowerCase();
-  if (id.startsWith('ph-') || id.includes('pharma') || id.includes('med')) {
-    return { name: 'Pharma', bgColor: '#fff1f2', textColor: '#f43f5e', border: '#ffe4e6', icon: '\u{1F48A}' };
-  }
-  if (id.startsWith('gr-') || id.includes('grocery') || id.startsWith('cat-gr') || id.startsWith('cat-fb')) {
-    return { name: 'Grocery', bgColor: '#ecfdf5', textColor: '#059669', border: '#d1fae5', icon: '\u{1F966}' };
-  }
-  if (id.startsWith('fm-') || id.includes('mart') || id.startsWith('cat-mt') || id.startsWith('cat-mf')) {
-    return { name: 'Mart', bgColor: '#eef2ff', textColor: '#4f46e5', border: '#e0e7ff', icon: '\u{1F6CD}' };
-  }
-  return { name: 'Food', bgColor: '#fffbeb', textColor: '#d97706', border: '#fef3c7', icon: '\u{1F354}' };
+const CATEGORY_META: Record<CartCategory, { label: string; icon: LucideIcon; color: string }> = {
+  MART: { label: 'Mart', icon: ShoppingBag, color: '#10B981' },
+  FOOD: { label: 'Food', icon: ChefHat, color: '#F97316' },
+  GROCERY: { label: 'Grocery', icon: ShoppingBasket, color: '#10B981' },
+  PHARMA: { label: 'Pharma', icon: BriefcaseMedical, color: '#0284C7' },
 };
+
+const CATEGORY_ORDER: CartCategory[] = ['MART', 'FOOD', 'GROCERY', 'PHARMA'];
+
+const inferCategory = (itemId: string): CartCategory => {
+  const id = itemId.toLowerCase();
+  if (id.startsWith('ph-') || id.includes('pharma') || id.includes('med')) return 'PHARMA';
+  if (id.startsWith('gr-') || id.includes('grocery') || id.startsWith('cat-gr') || id.startsWith('cat-fb')) return 'GROCERY';
+  if (id.startsWith('fm-') || id.includes('mart') || id.startsWith('cat-mt') || id.startsWith('cat-mf')) return 'MART';
+  return 'FOOD';
+};
+
+function ItemThumb({ item, size = 48 }: { item: CartItem; size?: number }) {
+  const [errored, setErrored] = useState(false);
+  const showImage = !!item.imageUrl && !errored;
+  return (
+    <View style={[styles.itemThumb, { width: ms(size), height: ms(size), borderRadius: ms(8) }]}>
+      {showImage ? (
+        <Image
+          source={{ uri: item.imageUrl }}
+          style={{ width: '100%', height: '100%', borderRadius: ms(8) }}
+          resizeMode="cover"
+          onError={() => setErrored(true)}
+        />
+      ) : (
+        <EnterpriseIcon emoji={item.emoji} variant="square" size={ms(size * 0.62)} bgColor="#F3F4F6" />
+      )}
+    </View>
+  );
+}
 
 interface CartViewProps {
   contentInset?: number;
@@ -44,9 +79,9 @@ interface CartViewProps {
   updateCartQuantity: (id: string, delta: number) => void;
   setActiveTab: (tab: 'Home' | 'Categories' | 'Explore' | 'Account' | 'Cart') => void;
   onScroll?: (offsetY: number) => void;
+  onBack?: () => void;
+  onGoToHub?: () => void;
 }
-
-type CheckoutStep = 'BAG' | 'ADDRESS' | 'PAYMENT' | 'RECEIPT';
 
 export default function CartView({
   contentInset = 0,
@@ -55,15 +90,17 @@ export default function CartView({
   updateCartQuantity,
   setActiveTab,
   onScroll,
+  onBack,
+  onGoToHub,
 }: CartViewProps) {
   const [step, setStep] = useState<CheckoutStep>('BAG');
-  const [promoCode, setPromoCode] = useState('');
   const [appliedDiscount, setAppliedDiscount] = useState<{ code: string; amount: number } | null>(null);
-  const [promoError, setPromoError] = useState<string | null>(null);
-  const [isFocused, setIsFocused] = useState(false);
+  const [expandedCategories, setExpandedCategories] = useState<CartCategory[]>(CATEGORY_ORDER);
+  const [showCouponSheet, setShowCouponSheet] = useState(false);
+  const [showBillSheet, setShowBillSheet] = useState(false);
 
   const [addresses, setAddresses] = useState(
-    defaultAddresses.map((a, i) => ({ id: a.id, label: `${i === 0 ? '\u{1F3E0}' : '\u{1F3E2}'} ${a.label}${a.isDefault ? ' (Primary)' : ''}`, address: a.address, selected: i === 0 }))
+    defaultAddresses.map((a, i) => ({ id: a.id, label: a.label, address: a.address, selected: i === 0, isPrimary: a.isDefault === true }))
   );
   const [customAddress, setCustomAddress] = useState('');
   const [showAddAddress, setShowAddAddress] = useState(false);
@@ -111,31 +148,48 @@ export default function CartView({
     return () => loop.stop();
   }, [pulseAnim]);
 
-  const subtotal = cartItems.reduce((acc, curr) => acc + curr.price * curr.quantity, 0);
-  const deliveryFee = subtotal > 499 ? 0 : 49;
-  const tax = Math.round(subtotal * 0.05);
   const discountAmount = appliedDiscount ? appliedDiscount.amount : 0;
-  const finalTotal = Math.max(0, subtotal + deliveryFee + tax - discountAmount);
+  const { subtotal, deliveryFee, tax, finalTotal } = computeTotals(cartItems, discountAmount);
+  const originalTotal = cartItems.reduce(
+    (acc, curr) => acc + (curr.originalPrice ?? curr.price) * curr.quantity,
+    0,
+  );
+  const savings = Math.max(0, originalTotal - subtotal);
 
-  const applyCoupon = () => {
-    setPromoError(null);
-    const code = promoCode.toUpperCase().trim();
-    const coupon = coupons.find(c => c.code === code);
-    if (!coupon) {
-      setPromoError('Invalid coupon code. Try FAAZIO20 or SUPER50!');
-      return;
-    }
+  const getCatForItem = (item: CartItem): CartCategory => {
+    if (item.category) return item.category;
+    return inferCategory(item.id);
+  };
+
+  const grouped: { cat: CartCategory; meta: typeof CATEGORY_META[CartCategory]; items: CartItem[] }[] = CATEGORY_ORDER
+    .map((cat) => ({
+      cat,
+      meta: CATEGORY_META[cat],
+      items: cartItems.filter((item) => getCatForItem(item) === cat),
+    }))
+    .filter((g) => g.items.length > 0);
+
+  const toggleCategory = (cat: CartCategory) => {
+    setExpandedCategories((prev) =>
+      prev.includes(cat) ? prev.filter((c) => c !== cat) : [...prev, cat],
+    );
+  };
+
+  const applyCouponCode = (code: string) => {
+    const normalized = code.toUpperCase().trim();
+    const coupon = coupons.find((c) => c.code === normalized);
+    if (!coupon) return;
     if (coupon.isFreeDelivery) {
       setAppliedDiscount({ code: `${coupon.code} (FREE Delivery)`, amount: deliveryFee });
     } else {
       const amt = Math.round(subtotal * (coupon.discountPercent / 100));
       setAppliedDiscount({ code: `${coupon.code} (${coupon.discountPercent}% OFF)`, amount: amt });
     }
+    setShowCouponSheet(false);
   };
 
   const removeCoupon = () => {
     setAppliedDiscount(null);
-    setPromoCode('');
   };
 
   const selectAddress = (id: string) => {
@@ -147,7 +201,7 @@ export default function CartView({
     const newId = `addr-${Date.now()}`;
     setAddresses((prev) => {
       const unselected = prev.map((a) => ({ ...a, selected: false }));
-      return [...unselected, { id: newId, label: '\u{1F4CD} New Address', address: customAddress.trim(), selected: true }];
+      return [...unselected, { id: newId, label: '\u{1F4CD} New Address', address: customAddress.trim(), selected: true, isPrimary: false }];
     });
     setCustomAddress('');
     setShowAddAddress(false);
@@ -178,185 +232,226 @@ export default function CartView({
 
   if (step === 'BAG') {
     return (
-      <ScrollView style={styles.container} contentContainerStyle={[styles.scrollContent, { paddingTop: contentInset }]} showsVerticalScrollIndicator={false}
-        onScroll={onScroll ? (e) => onScroll(e.nativeEvent.contentOffset.y) : undefined}
-        scrollEventThrottle={16}>
-        <View style={styles.cardBox}>
-          <View style={styles.headerRow}>
-            <View style={styles.headerLeft}>
-              <ShoppingBag size={ms(13)} color="#0f172a" style={{ marginRight: hs(6) }} />
-              <AppText style={styles.headerTitle}>Your Shopping Bag</AppText>
-            </View>
-            <View style={styles.badgeWrap}>
-              <AppText style={styles.badgeText}>
-                {cartItems.length} {cartItems.length === 1 ? 'item' : 'items'}
-              </AppText>
-            </View>
-          </View>
+      <View style={styles.bagRoot}>
+        <View style={[styles.bagTopBar, { paddingTop: STATUS_BAR_INSET + vs(12) }]}>
+          <TouchableOpacity onPress={onBack} style={styles.bagBackBtn} activeOpacity={0.7} hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}>
+            <ArrowLeft size={ms(20)} color="#1E2022" strokeWidth={2.4} />
+          </TouchableOpacity>
+          <AppText style={styles.bagTitle}>Your Cart</AppText>
+          <View style={{ width: ms(40) }} />
+        </View>
 
+        <ScrollView
+          style={styles.bagScroll}
+          contentContainerStyle={styles.bagScrollContent}
+          showsVerticalScrollIndicator={false}
+          onScroll={onScroll ? (e) => onScroll(e.nativeEvent.contentOffset.y) : undefined}
+          scrollEventThrottle={16}
+        >
           {cartItems.length === 0 ? (
-            <View style={styles.emptyContainer}>
+            <View style={styles.bagEmpty}>
               <Animated.View style={[styles.emptyIconCircle, { transform: [{ translateY: bounceAnim.interpolate({ inputRange: [0, 1], outputRange: [0, -6] }) }] }]}>
                 <ShoppingBag size={ms(22)} color="#94a3b8" />
               </Animated.View>
-              <AppText style={styles.emptyTitle}>Your bag is empty</AppText>
+              <AppText style={styles.emptyTitle}>Your cart is empty</AppText>
               <AppText style={styles.emptyDesc}>
                 Browse Food, Mart, Grocery, or Pharma and tap 'Add to Bag' to get started!
               </AppText>
-              <TouchableOpacity onPress={() => setActiveTab('Home')} style={styles.goToHubBtn} activeOpacity={0.8}>
+              <TouchableOpacity onPress={() => (onGoToHub ? onGoToHub() : setActiveTab('Home'))} style={styles.goToHubBtn} activeOpacity={0.8}>
                 <AppText style={styles.goToHubBtnText}>Go to Hub</AppText>
               </TouchableOpacity>
             </View>
           ) : (
-            <View style={{ width: '100%' }}>
-              {/* Items List Grouped by App */}
-              <View style={styles.itemsListContainer}>
-                {(() => {
-                  const grouped: Record<string, { label: ReturnType<typeof getAppLabel>; items: CartItem[] }> = {};
-                  cartItems.forEach((item) => {
-                    const label = getAppLabel(item.id);
-                    if (!grouped[label.name]) {
-                      grouped[label.name] = { label, items: [] };
-                    }
-                    grouped[label.name].items.push(item);
-                  });
+            <>
+              {/* Savings & Coupon Card */}
+              <View style={styles.savingsCard}>
+                <View style={styles.savingsStrip}>
+                  <Tag size={ms(14)} color="#118C4F" strokeWidth={2.4} />
+                  <AppText style={styles.savingsText}>
+                    ₹{savings} savings on this order
+                  </AppText>
+                </View>
+                <TouchableOpacity style={styles.couponRow} onPress={() => setShowCouponSheet(true)} activeOpacity={0.7}>
+                  <View style={styles.couponRowLeft}>
+                    <View style={styles.couponRowTitleRow}>
+                      <Ticket size={ms(16)} color="#118C4F" strokeWidth={2.2} style={{ marginRight: hs(6) }} />
+                      <AppText style={styles.couponRowTitle}>Apply Coupon</AppText>
+                    </View>
+                    <AppText style={styles.couponRowSub} numberOfLines={1}>
+                      {appliedDiscount ? `Applied: ${appliedDiscount.code}` : 'Save more with coupons available for you'}
+                    </AppText>
+                  </View>
+                  <ChevronRight size={ms(18)} color="#118C4F" strokeWidth={2.4} />
+                </TouchableOpacity>
+                {appliedDiscount && (
+                  <TouchableOpacity style={styles.appliedChipRow} onPress={removeCoupon} activeOpacity={0.8}>
+                    <Check size={ms(12)} strokeWidth={3} color="#059669" style={{ marginRight: hs(4) }} />
+                    <AppText style={styles.appliedDiscountText}>{appliedDiscount.code}</AppText>
+                    <AppText style={styles.removeCouponText}>  Remove</AppText>
+                  </TouchableOpacity>
+                )}
+              </View>
 
-                  return Object.values(grouped).map((group) => (
-                    <View key={group.label.name} style={styles.groupedAppSection}>
-                      <View style={styles.appOriginRow}>
-                        <View style={[styles.appOriginBadge, { backgroundColor: group.label.bgColor, borderColor: group.label.border }]}>
-                          <AppText style={styles.appOriginEmoji}>{group.label.icon}</AppText>
-                          <AppText style={[styles.appOriginName, { color: group.label.textColor }]}>{group.label.name}</AppText>
+              {/* Review Items */}
+              <AppText style={styles.reviewTitle}>Review Items</AppText>
+              {grouped.map((group) => {
+                const expanded = expandedCategories.includes(group.cat);
+                const Icon = group.meta.icon;
+                return (
+                  <View key={group.cat} style={styles.catCard}>
+                    <TouchableOpacity style={styles.catHeader} onPress={() => toggleCategory(group.cat)} activeOpacity={0.7}>
+                      <View style={styles.catHeaderLeft}>
+                        <View style={[styles.catIconChip, { backgroundColor: `${group.meta.color}1A` }]}>
+                          <Icon size={ms(18)} color={group.meta.color} strokeWidth={2.2} />
                         </View>
-                        <AppText style={styles.groupCountText}>{group.items.length} {group.items.length === 1 ? 'item' : 'items'}</AppText>
+                        <View>
+                          <AppText style={styles.catTitle}>{group.meta.label}</AppText>
+                          <AppText style={styles.catCount}>{group.items.length} item{group.items.length > 1 ? 's' : ''}</AppText>
+                        </View>
                       </View>
+                      <ChevronDown
+                        size={ms(18)}
+                        color="#118C4F"
+                        strokeWidth={2.4}
+                        style={expanded ? { transform: [{ rotate: '180deg' }] } : undefined}
+                      />
+                    </TouchableOpacity>
 
-                      <View style={styles.appItemsBox}>
-                        {group.items.map((item, index) => (
-                          <View key={item.id} style={[styles.cartItemRow, index === group.items.length - 1 && { borderBottomWidth: 0 }]}>
-                            <View style={styles.cartItemLeft}>
-                              <View style={styles.cartItemIconWrap}>
-                                <EnterpriseIcon emoji={item.emoji} variant="square" size={ms(34)} bgColor="#fff" />
-                              </View>
-                              <View style={styles.cartItemMeta}>
-                                <AppText style={styles.cartItemName} numberOfLines={1}>{item.name}</AppText>
-                                <AppText style={styles.cartItemPrice}>₹{item.price.toLocaleString('en-IN')} each</AppText>
-                              </View>
-                            </View>
-
-                            <View style={styles.quantityWidget}>
-                              <TouchableOpacity onPress={() => updateCartQuantity(item.id, -1)} style={styles.qtyBtn} activeOpacity={0.8} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
-                                <AppText style={styles.qtyBtnText}>-</AppText>
+                    {expanded &&
+                      group.items.map((item) => (
+                        <View key={item.id} style={styles.itemRow}>
+                          <ItemThumb item={item} />
+                          <View style={styles.itemDetails}>
+                            <AppText style={styles.itemName} numberOfLines={2}>{item.name}</AppText>
+                            {item.qtyDesc ? <AppText style={styles.itemQtyDesc}>{item.qtyDesc}</AppText> : null}
+                            <View style={styles.stepperPill}>
+                              <TouchableOpacity onPress={() => updateCartQuantity(item.id, -1)} style={styles.stepperBtn} activeOpacity={0.8} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                                <Minus size={ms(12)} color="#118C4F" strokeWidth={2.6} />
                               </TouchableOpacity>
-                              <AppText style={styles.qtyValue}>{item.quantity}</AppText>
-                              <TouchableOpacity onPress={() => updateCartQuantity(item.id, 1)} style={styles.qtyBtn} activeOpacity={0.8} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
-                                <AppText style={styles.qtyBtnText}>+</AppText>
+                              <AppText style={styles.stepperValue}>{item.quantity}</AppText>
+                              <TouchableOpacity onPress={() => updateCartQuantity(item.id, 1)} style={styles.stepperBtn} activeOpacity={0.8} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                                <Plus size={ms(12)} color="#118C4F" strokeWidth={2.6} />
                               </TouchableOpacity>
                             </View>
                           </View>
-                        ))}
-                      </View>
-                    </View>
-                  ));
-                })()}
+                          <View style={styles.itemPriceCol}>
+                            {item.originalPrice != null && (
+                              <AppText style={styles.itemOrigPrice}>₹{item.originalPrice.toLocaleString('en-IN')}</AppText>
+                            )}
+                            <AppText style={styles.itemPrice}>₹{item.price.toLocaleString('en-IN')}</AppText>
+                          </View>
+                        </View>
+                      ))}
+                  </View>
+                );
+              })}
+            </>
+          )}
+        </ScrollView>
+
+        {cartItems.length > 0 && (
+          <View style={styles.bottomBar}>
+            <TouchableOpacity style={styles.billBanner} onPress={() => setShowBillSheet(true)} activeOpacity={0.8}>
+              <View style={styles.billBannerLeft}>
+                <AppText style={styles.toPayLabel}>To Pay: </AppText>
+                <AppText style={styles.toPayValue}>₹{finalTotal.toLocaleString('en-IN')}</AppText>
+                <AppText style={styles.origTotal}>₹{originalTotal.toLocaleString('en-IN')}</AppText>
               </View>
-
-              {/* Coupon System */}
-              <View style={styles.couponContainer}>
-                <AppText style={styles.sectionLabel}>Have a Promo Coupon?</AppText>
-                <View style={styles.couponRow}>
-                  <View style={styles.couponInputWrap}>
-                    <Ticket size={ms(14)} color="#94a3b8" style={styles.couponIcon} />
-                    <AppTextInput
-                      placeholder="e.g. FAAZIO20, SUPER50"
-                      value={promoCode}
-                      onChangeText={(txt) => {
-                        setPromoCode(txt);
-                        setPromoError(null);
-                      }}
-                      style={[styles.couponInput, isFocused && { borderColor: '#0f172a' }]}
-                      placeholderTextColor="#cbd5e1"
-                      autoCapitalize="characters"
-                      onFocus={() => setIsFocused(true)}
-                      onBlur={() => setIsFocused(false)}
-                    />
-                  </View>
-                  <TouchableOpacity onPress={applyCoupon} style={styles.couponApplyBtn} activeOpacity={0.8}>
-                    <AppText style={styles.couponApplyText}>Apply</AppText>
-                  </TouchableOpacity>
-                </View>
-
-                {appliedDiscount && (
-                  <View style={styles.appliedDiscountBox}>
-                    <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                      <Check size={ms(12)} strokeWidth={3} color="#059669" style={{ marginRight: hs(4) }} />
-                      <AppText style={styles.appliedDiscountText}>Applied: {appliedDiscount.code}</AppText>
-                    </View>
-                    <TouchableOpacity onPress={removeCoupon} activeOpacity={0.8}>
-                      <AppText style={styles.removeCouponText}>Remove</AppText>
-                    </TouchableOpacity>
-                  </View>
-                )}
-
-                {promoError && (
-                  <View style={styles.promoErrorBox}>
-                    <AlertCircle size={ms(10)} color="#ef4444" style={{ marginRight: hs(4) }} />
-                    <AppText style={styles.promoErrorText}>{promoError}</AppText>
-                  </View>
-                )}
+              <View style={styles.billBannerRight}>
+                <AppText style={styles.viewBillText}>View Detailed Bill</AppText>
+                <ChevronRight size={ms(14)} color="#F97316" strokeWidth={2.5} />
               </View>
+            </TouchableOpacity>
 
-              {/* Price Breakdown */}
-              <View style={styles.pricingContainer}>
-                <View style={styles.pricingRow}>
-                  <AppText style={styles.pricingLabel}>Subtotal</AppText>
-                  <AppText style={styles.pricingValue}>₹{subtotal.toLocaleString('en-IN')}</AppText>
-                </View>
+            <TouchableOpacity style={styles.addrRow} onPress={() => setStep('ADDRESS')} activeOpacity={0.7}>
+              <View style={styles.addrRowLeft}>
+                <AppText style={styles.addrLabel} numberOfLines={1}>Deliver to {selectedAddressObj?.label ?? 'Home'} in 10 mins</AppText>
+                <AppText style={styles.addrSub} numberOfLines={1}>{selectedAddressObj?.address}</AppText>
+              </View>
+              <View style={styles.locBtn}>
+                <Send size={ms(14)} color="#F97316" strokeWidth={2.2} />
+                <ChevronDown size={ms(13)} color="#F97316" strokeWidth={2.4} />
+              </View>
+            </TouchableOpacity>
 
-                {appliedDiscount && (
-                  <View style={styles.pricingRow}>
-                    <AppText style={[styles.pricingLabel, { color: '#059669', fontWeight: '900' }]}>Coupon Discount</AppText>
-                    <AppText style={[styles.pricingValue, { color: '#059669', fontWeight: '900' }]}>-₹{discountAmount.toLocaleString('en-IN')}</AppText>
-                  </View>
-                )}
+            <TouchableOpacity style={styles.proceedBtn} onPress={() => setStep('ADDRESS')} activeOpacity={0.88}>
+              <AppText style={styles.proceedText}>Proceed to Pay</AppText>
+            </TouchableOpacity>
+          </View>
+        )}
 
-                <View style={styles.pricingRow}>
-                  <AppText style={styles.pricingLabel}>GST Taxes (5%)</AppText>
-                  <AppText style={styles.pricingValue}>₹{tax.toLocaleString('en-IN')}</AppText>
-                </View>
-
-                <View style={styles.pricingRow}>
-                  <AppText style={styles.pricingLabel}>Delivery Charges</AppText>
-                  {deliveryFee === 0 ? (
-                    <AppText style={[styles.pricingValue, { color: '#56B821', fontWeight: '900' }]}>FREE (₹49 Saved)</AppText>
-                  ) : (
-                    <AppText style={styles.pricingValue}>₹{deliveryFee}</AppText>
-                  )}
-                </View>
-
-                {deliveryFee > 0 && (
-                  <View style={styles.tipBox}>
-                    <AppText style={styles.tipText}>
-                      💡 Tip: Add items worth <AppText style={{ fontWeight: '900', color: '#334155' }}>₹{(500 - subtotal).toLocaleString('en-IN')}</AppText> more to qualify for <AppText style={{ color: '#059669', fontWeight: '900' }}>FREE Delivery</AppText>!
+        {/* Coupon Picker Sheet */}
+        <SlideUpSheet visible={showCouponSheet} onRequestClose={() => setShowCouponSheet(false)}>
+          <AppText style={styles.sheetTitle}>Apply Coupon</AppText>
+          <AppText style={styles.sheetSubtitle}>Choose a coupon to save more on this order</AppText>
+          {coupons.map((coupon) => {
+            const active = appliedDiscount?.code?.startsWith(coupon.code);
+            return (
+              <TouchableOpacity
+                key={coupon.code}
+                style={styles.couponOption}
+                activeOpacity={0.7}
+                onPress={() => applyCouponCode(coupon.code)}
+              >
+                <View style={styles.couponOptionLeft}>
+                  <Ticket size={ms(18)} color="#118C4F" strokeWidth={2.2} />
+                  <View style={styles.couponOptionText}>
+                    <AppText style={styles.couponOptionCode}>{coupon.code}</AppText>
+                    <AppText style={styles.couponOptionDesc} numberOfLines={1}>
+                      {coupon.isFreeDelivery ? 'FREE Delivery' : `${coupon.discountPercent}% OFF`} · Min order ₹{coupon.minOrder}
                     </AppText>
                   </View>
-                )}
-
-                <View style={[styles.pricingRow, styles.grandTotalRow]}>
-                  <AppText style={styles.grandTotalLabel}>Grand Total</AppText>
-                  <AppText style={styles.grandTotalValue}>₹{finalTotal.toLocaleString('en-IN')}</AppText>
                 </View>
-              </View>
-
-              {/* Action Button */}
-              <TouchableOpacity onPress={() => setStep('ADDRESS')} style={styles.mainActionBtn} activeOpacity={0.8}>
-                <AppText style={styles.mainActionBtnText}>Select Delivery Address</AppText>
-                <ArrowRight size={ms(13)} color="#ffffff" style={{ marginLeft: hs(6) }} strokeWidth={2.5} />
+                {active ? (
+                  <View style={styles.couponAppliedBadge}>
+                    <AppText style={styles.couponAppliedBadgeText}>APPLIED</AppText>
+                  </View>
+                ) : (
+                  <View style={styles.couponSelectCircle}>
+                    <Check size={ms(12)} color="#118C4F" strokeWidth={3} />
+                  </View>
+                )}
               </TouchableOpacity>
+            );
+          })}
+          {appliedDiscount && (
+            <TouchableOpacity style={styles.couponRemoveAction} onPress={removeCoupon} activeOpacity={0.7}>
+              <AppText style={styles.couponRemoveActionText}>Remove Coupon</AppText>
+            </TouchableOpacity>
+          )}
+        </SlideUpSheet>
+
+        {/* Bill Details Sheet */}
+        <SlideUpSheet visible={showBillSheet} onRequestClose={() => setShowBillSheet(false)}>
+          <AppText style={styles.sheetTitle}>Bill Details</AppText>
+          <View style={styles.billLine}>
+            <AppText style={styles.pricingLabel}>Item Total</AppText>
+            <AppText style={styles.pricingValue}>₹{subtotal.toLocaleString('en-IN')}</AppText>
+          </View>
+          {appliedDiscount && (
+            <View style={styles.billLine}>
+              <AppText style={[styles.pricingLabel, { color: '#059669' }]}>Coupon Discount</AppText>
+              <AppText style={[styles.pricingValue, { color: '#059669' }]}>-₹{discountAmount.toLocaleString('en-IN')}</AppText>
             </View>
           )}
-        </View>
-      </ScrollView>
+          <View style={styles.billLine}>
+            <AppText style={styles.pricingLabel}>GST Taxes (5%)</AppText>
+            <AppText style={styles.pricingValue}>₹{tax.toLocaleString('en-IN')}</AppText>
+          </View>
+          <View style={styles.billLine}>
+            <AppText style={styles.pricingLabel}>Delivery Charges</AppText>
+            {deliveryFee === 0 ? (
+              <AppText style={[styles.pricingValue, { color: '#56B821', fontWeight: '900' }]}>FREE (₹49 Saved)</AppText>
+            ) : (
+              <AppText style={styles.pricingValue}>₹{deliveryFee}</AppText>
+            )}
+          </View>
+          <View style={[styles.billLine, styles.billTotalLine]}>
+            <AppText style={styles.grandTotalLabel}>To Pay</AppText>
+            <AppText style={styles.grandTotalValue}>₹{finalTotal.toLocaleString('en-IN')}</AppText>
+          </View>
+        </SlideUpSheet>
+      </View>
     );
   }
 
@@ -391,7 +486,7 @@ export default function CartView({
                   <MapPin size={ms(14)} color={addr.selected ? '#ffffff' : '#64748b'} />
                 </View>
                 <View style={styles.addressCardDetails}>
-                  <AppText style={styles.addressCardLabel}>{addr.label}</AppText>
+                  <AppText style={styles.addressCardLabel}>{`${addresses.indexOf(addr) === 0 ? '\u{1F3E0}' : '\u{1F3E2}'} ${addr.label}${addr.isPrimary ? ' (Primary)' : ''}`}</AppText>
                   <AppText style={styles.addressCardText}>{addr.address}</AppText>
                 </View>
 
@@ -774,50 +869,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingVertical: vs(40),
   },
-  emptyIconCircle: {
-    width: ms(56),
-    height: ms(56),
-    borderRadius: ms(28),
-    backgroundColor: '#f8fafc',
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderWidth: 1,
-    borderColor: '#e2e8f0',
-    marginBottom: vs(12),
-    shadowColor: '#000000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.04,
-    shadowRadius: 4,
-    elevation: 1,
-  },
-  emptyTitle: {
-    fontSize: ms(12),
-    fontWeight: '900',
-    color: '#1e293b',
-  },
-  emptyDesc: {
-    fontSize: ms(9.5),
-    color: '#94a3b8',
-    fontWeight: '500',
-    textAlign: 'center',
-    marginTop: vs(4),
-    maxWidth: hs(220),
-    lineHeight: ms(13),
-  },
-  goToHubBtn: {
-    backgroundColor: '#0f172a',
-    paddingVertical: vs(10),
-    paddingHorizontal: hs(20),
-    borderRadius: ms(12),
-    marginTop: vs(16),
-  },
-  goToHubBtnText: {
-    color: '#ffffff',
-    fontSize: ms(9),
-    fontWeight: '900',
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
-  },
   itemsListContainer: {
     width: '100%',
     maxHeight: vs(260),
@@ -939,80 +990,6 @@ const styles = StyleSheet.create({
     color: '#94a3b8',
     textTransform: 'uppercase',
     marginBottom: vs(6),
-  },
-  couponRow: {
-    flexDirection: 'row',
-    gap: hs(8),
-  },
-  couponInputWrap: {
-    flex: 1,
-    position: 'relative',
-  },
-  couponIcon: {
-    position: 'absolute',
-    left: hs(10),
-    top: vs(10),
-  },
-  couponInput: {
-    height: Math.max(36, vs(36)),
-    backgroundColor: '#f8fafc',
-    borderWidth: 1,
-    borderColor: '#f1f5f9',
-    borderRadius: ms(10),
-    paddingLeft: hs(30),
-    paddingRight: hs(10),
-    fontSize: ms(9.5),
-    fontWeight: '900',
-    color: '#0f172a',
-  },
-  couponApplyBtn: {
-    backgroundColor: '#0f172a',
-    paddingHorizontal: hs(16),
-    height: Math.max(36, vs(36)),
-    borderRadius: ms(10),
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  couponApplyText: {
-    color: '#ffffff',
-    fontSize: ms(9),
-    fontWeight: '900',
-    textTransform: 'uppercase',
-  },
-  appliedDiscountBox: {
-    backgroundColor: '#ecfdf5',
-    borderWidth: 1,
-    borderColor: '#d1fae5',
-    paddingVertical: vs(6),
-    paddingHorizontal: hs(10),
-    borderRadius: ms(10),
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginTop: vs(8),
-  },
-  appliedDiscountText: {
-    fontSize: ms(8.5),
-    color: '#065f46',
-    fontWeight: '900',
-    textTransform: 'uppercase',
-    marginLeft: hs(4),
-  },
-  removeCouponText: {
-    fontSize: ms(8),
-    color: '#64748b',
-    fontWeight: '700',
-    textDecorationLine: 'underline',
-  },
-  promoErrorBox: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginTop: vs(6),
-  },
-  promoErrorText: {
-    fontSize: ms(8),
-    color: '#ef4444',
-    fontWeight: '900',
   },
   pricingContainer: {
     borderTopWidth: 1,
@@ -1650,6 +1627,419 @@ const styles = StyleSheet.create({
     color: '#ffffff',
     textTransform: 'uppercase',
   },
+  // ---- New "Your Cart" (BAG) UI styles ----
+  bagRoot: {
+    flex: 1,
+    backgroundColor: '#F8F9FA',
+  },
+  bagTopBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: hs(16),
+    paddingBottom: vs(12),
+    backgroundColor: '#FFFFFF',
+  },
+  bagBackBtn: {
+    width: ms(32),
+    height: ms(32),
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  bagTitle: {
+    fontSize: ms(18),
+    fontWeight: '900',
+    color: '#1E2022',
+    marginLeft: hs(12),
+  },
+  bagScroll: {
+    flex: 1,
+  },
+  bagScrollContent: {
+    paddingHorizontal: hs(16),
+    paddingTop: vs(16),
+    paddingBottom: vs(24),
+  },
+  bagEmpty: {
+    alignItems: 'center',
+    paddingVertical: vs(60),
+  },
+  emptyIconCircle: {
+    width: ms(64),
+    height: ms(64),
+    borderRadius: ms(32),
+    backgroundColor: '#f1f5f9',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: vs(16),
+  },
+  emptyTitle: {
+    fontSize: ms(15),
+    fontWeight: '900',
+    color: '#1E2022',
+  },
+  emptyDesc: {
+    fontSize: ms(11),
+    color: '#666666',
+    textAlign: 'center',
+    lineHeight: vs(16),
+    marginTop: vs(8),
+    paddingHorizontal: hs(20),
+  },
+  goToHubBtn: {
+    marginTop: vs(20),
+    height: Math.max(44, vs(44)),
+    borderRadius: ms(12),
+    paddingHorizontal: hs(24),
+    backgroundColor: '#118C4F',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  goToHubBtnText: {
+    fontSize: ms(13),
+    fontWeight: '900',
+    color: '#ffffff',
+  },
+  savingsCard: {
+    marginBottom: vs(4),
+    borderRadius: ms(16),
+    overflow: 'hidden',
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: '#EFEFEF',
+  },
+  savingsStrip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#D8F3E5',
+    padding: 12,
+    gap: hs(8),
+  },
+  savingsText: {
+    fontSize: ms(11.5),
+    fontWeight: '700',
+    color: '#118C4F',
+    flex: 1,
+  },
+  couponRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: hs(16),
+  },
+  couponRowLeft: {
+    flex: 1,
+    marginRight: hs(12),
+  },
+  couponRowTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  couponRowTitle: {
+    fontSize: ms(13),
+    fontWeight: '900',
+    color: '#1E2022',
+  },
+  couponRowSub: {
+    fontSize: ms(10.5),
+    color: '#666666',
+    marginTop: vs(4),
+  },
+  appliedChipRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: hs(16),
+    paddingBottom: vs(12),
+  },
+  appliedDiscountText: {
+    fontSize: ms(10.5),
+    fontWeight: '800',
+    color: '#059669',
+  },
+  removeCouponText: {
+    fontSize: ms(10.5),
+    fontWeight: '800',
+    color: '#ef4444',
+  },
+  reviewTitle: {
+    fontSize: ms(16),
+    fontWeight: '900',
+    color: '#1E2022',
+    marginTop: vs(20),
+    marginBottom: vs(12),
+  },
+  catCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: ms(16),
+    padding: hs(16),
+    borderWidth: 1,
+    borderColor: '#F0F0F0',
+    marginBottom: vs(12),
+  },
+  catHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: vs(16),
+  },
+  catHeaderLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  catIconChip: {
+    width: ms(36),
+    height: ms(36),
+    borderRadius: ms(10),
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: hs(10),
+  },
+  catTitle: {
+    fontSize: ms(13.5),
+    fontWeight: '900',
+    color: '#1E2022',
+  },
+  catCount: {
+    fontSize: ms(10.5),
+    color: '#666666',
+    marginTop: vs(2),
+  },
+  itemRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: vs(8),
+    borderTopWidth: 1,
+    borderTopColor: '#F0F0F0',
+  },
+  itemThumb: {
+    backgroundColor: '#F3F4F6',
+    overflow: 'hidden',
+  },
+  itemDetails: {
+    flex: 1,
+    paddingLeft: hs(12),
+    marginRight: hs(8),
+  },
+  itemName: {
+    fontSize: ms(13),
+    fontWeight: '800',
+    color: '#1E2022',
+  },
+  itemQtyDesc: {
+    fontSize: ms(11),
+    color: '#666666',
+    marginTop: vs(2),
+  },
+  stepperPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#E0E0E0',
+    borderRadius: ms(8),
+    paddingHorizontal: hs(10),
+    paddingVertical: vs(4),
+    marginTop: vs(8),
+    alignSelf: 'flex-start',
+  },
+  stepperBtn: {
+    width: ms(20),
+    height: ms(20),
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  stepperValue: {
+    fontSize: ms(12),
+    fontWeight: '900',
+    color: '#1E2022',
+    marginHorizontal: hs(8),
+  },
+  itemPriceCol: {
+    alignItems: 'flex-end',
+    paddingLeft: hs(12),
+  },
+  itemOrigPrice: {
+    fontSize: ms(10.5),
+    color: '#9CA3AF',
+    textDecorationLine: 'line-through',
+  },
+  itemPrice: {
+    fontSize: ms(14),
+    fontWeight: '900',
+    color: '#1E2022',
+    marginTop: vs(2),
+  },
+  bottomBar: {
+    backgroundColor: '#FFFFFF',
+    borderTopWidth: 1,
+    borderTopColor: '#EFEFEF',
+    paddingHorizontal: hs(16),
+    paddingTop: vs(10),
+    paddingBottom: vs(20),
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: -4 },
+    shadowOpacity: 0.05,
+    shadowRadius: 12,
+    elevation: 8,
+  },
+  billBanner: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    backgroundColor: '#FFF6E5',
+    padding: hs(10),
+    borderRadius: ms(8),
+    marginBottom: vs(12),
+  },
+  billBannerLeft: {
+    flexDirection: 'row',
+    alignItems: 'baseline',
+  },
+  billBannerRight: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  toPayLabel: {
+    fontSize: ms(12),
+    fontWeight: '700',
+    color: '#1E2022',
+  },
+  toPayValue: {
+    fontSize: ms(14),
+    fontWeight: '900',
+    color: '#1E2022',
+  },
+  origTotal: {
+    fontSize: ms(11),
+    color: '#9CA3AF',
+    textDecorationLine: 'line-through',
+    marginLeft: hs(6),
+  },
+  viewBillText: {
+    fontSize: ms(10.5),
+    fontWeight: '800',
+    color: '#F97316',
+  },
+  addrRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: vs(12),
+  },
+  addrRowLeft: {
+    flex: 1,
+    marginRight: hs(10),
+  },
+  addrLabel: {
+    fontSize: ms(12.5),
+    fontWeight: '800',
+    color: '#1E2022',
+  },
+  addrSub: {
+    fontSize: ms(10.5),
+    color: '#666666',
+    marginTop: vs(2),
+  },
+  locBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FDEDE8',
+    borderRadius: ms(8),
+    paddingHorizontal: hs(10),
+    paddingVertical: vs(8),
+    gap: hs(4),
+  },
+  proceedBtn: {
+    height: Math.max(48, vs(48)),
+    borderRadius: ms(12),
+    backgroundColor: '#118C4F',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  proceedText: {
+    fontSize: ms(16),
+    fontWeight: '900',
+    color: '#ffffff',
+  },
+  sheetTitle: {
+    fontSize: ms(16),
+    fontWeight: '900',
+    color: '#1E2022',
+  },
+  sheetSubtitle: {
+    fontSize: ms(11),
+    color: '#666666',
+    marginTop: vs(4),
+    marginBottom: vs(16),
+  },
+  couponOption: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: vs(12),
+    borderWidth: 1,
+    borderColor: '#EFEFEF',
+    borderRadius: ms(12),
+    paddingHorizontal: hs(12),
+    marginBottom: vs(10),
+  },
+  couponOptionLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+  },
+  couponOptionText: {
+    marginLeft: hs(10),
+    flex: 1,
+  },
+  couponOptionCode: {
+    fontSize: ms(13),
+    fontWeight: '900',
+    color: '#1E2022',
+  },
+  couponOptionDesc: {
+    fontSize: ms(10.5),
+    color: '#666666',
+    marginTop: vs(2),
+  },
+  couponAppliedBadge: {
+    backgroundColor: '#D8F3E5',
+    borderRadius: ms(6),
+    paddingHorizontal: hs(8),
+    paddingVertical: vs(4),
+  },
+  couponAppliedBadgeText: {
+    fontSize: ms(9),
+    fontWeight: '900',
+    color: '#118C4F',
+  },
+  couponSelectCircle: {
+    width: ms(22),
+    height: ms(22),
+    borderRadius: ms(11),
+    borderWidth: 1.5,
+    borderColor: '#118C4F',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  couponRemoveAction: {
+    alignItems: 'center',
+    paddingVertical: vs(12),
+    marginTop: vs(4),
+  },
+  couponRemoveActionText: {
+    fontSize: ms(12),
+    fontWeight: '900',
+    color: '#ef4444',
+  },
+  billLine: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    paddingVertical: vs(8),
+  },
+  billTotalLine: {
+    borderTopWidth: 1,
+    borderTopColor: '#EFEFEF',
+    marginTop: vs(6),
+    paddingTop: vs(12),
+  },
 });
-
-export { getAppLabel };

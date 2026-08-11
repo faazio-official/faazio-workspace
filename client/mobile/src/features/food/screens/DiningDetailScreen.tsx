@@ -1,8 +1,9 @@
 import React, { useCallback } from 'react';
 import { View, StyleSheet } from 'react-native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
+import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { foodTheme } from '../constants/theme';
-import type { FoodStackParamList } from '@/navigation/types';
+import type { FoodStackParamList, RootStackParamList } from '@/navigation/types';
 import DiningScreen from './DiningScreen';
 import FoodBottomNav, { type FoodTab } from '../components/FoodBottomNav';
 
@@ -19,7 +20,7 @@ export function DiningDetailScreen({ navigation }: Props) {
       if (tab === 'Home') {
         navigation.popToTop();
       } else if (tab === 'FoodOrder') {
-        navigation.navigate('OrderDetail');
+        navigation.getParent<NativeStackNavigationProp<RootStackParamList>>()?.navigate('Cart');
       } else if (tab === 'Search') {
         navigation.navigate('Search');
       }

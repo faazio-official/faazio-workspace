@@ -51,6 +51,7 @@ export function SubAppScreen({ navigation, route }: Props) {
         setIsLoggedIn={() => {}}
         onProductClick={(product) => navigation.navigate('ProductDetail', { product })}
         onSearchPress={() => navigation.navigate('Search', { subApp: subAppId })}
+        onCartPress={() => navigation.navigate('Cart')}
       />
     </View>
   );

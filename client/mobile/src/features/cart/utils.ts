@@ -31,6 +31,7 @@ export interface AddressView {
   label: string;
   address: string;
   selected: boolean;
+  isPrimary?: boolean;
 }
 
 export type CheckoutStep = 'BAG' | 'ADDRESS' | 'PAYMENT' | 'RECEIPT';
