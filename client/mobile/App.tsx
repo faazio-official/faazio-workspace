@@ -43,7 +43,7 @@ export default function App() {
   return (
     <SafeAreaProvider>
       <View style={styles.container}>
-        <StatusBar style="dark" />
+        <StatusBar style="light" backgroundColor="#0f172a" />
         <NavigationContainer theme={navigationTheme}>
           <AppNavigator />
         </NavigationContainer>

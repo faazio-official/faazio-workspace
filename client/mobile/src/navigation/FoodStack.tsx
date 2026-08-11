@@ -15,7 +15,9 @@ const FoodStackNav = createNativeStackNavigator<FoodStackParamList>();
  */
 export function FoodStack() {
   return (
-    <FoodStackNav.Navigator screenOptions={{ headerShown: false, animation: 'slide_from_right' }}>
+    <FoodStackNav.Navigator
+      screenOptions={{ headerShown: false, animation: 'slide_from_right', statusBarStyle: 'light' }}
+    >
       <FoodStackNav.Screen name="FoodHome" component={FoodHomeScreen} />
       <FoodStackNav.Screen name="Search" component={FoodSearchScreen} />
       <FoodStackNav.Screen name="DiningDetail" component={DiningDetailScreen} />

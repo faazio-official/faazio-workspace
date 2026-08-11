@@ -41,35 +41,38 @@ export function AppNavigator() {
   return (
     <ErrorBoundary>
       <Suspense fallback={<SplashFallback />}>
-        <Stack.Navigator screenOptions={{ headerShown: false }} initialRouteName="Onboarding">
+        <Stack.Navigator
+          screenOptions={{ headerShown: false, statusBarStyle: 'light' }}
+          initialRouteName="Onboarding"
+        >
           <Stack.Screen name="Onboarding" component={OnboardingScreen} />
           <Stack.Screen name="Login" component={LoginScreen} />
           <Stack.Screen name="Location" component={LocationScreen} />
-          <Stack.Screen name="MainTabs" component={MainTabs} options={{ statusBarStyle: 'light' }} />
+          <Stack.Screen name="MainTabs" component={MainTabs} />
           <Stack.Screen
             name="SubApp"
             component={SubAppScreen}
-            options={{ statusBarStyle: 'dark', animation: 'slide_from_right' }}
+            options={{ animation: 'slide_from_right' }}
           />
           <Stack.Screen
             name="FoodApp"
             component={FoodStack}
-            options={{ statusBarStyle: 'dark', animation: 'slide_from_right' }}
+            options={{ animation: 'slide_from_right' }}
           />
           <Stack.Screen
             name="ProductDetail"
             component={ProductDetailScreen}
-            options={{ statusBarStyle: 'dark', animation: 'fade', presentation: 'transparentModal' }}
+            options={{ animation: 'fade', presentation: 'transparentModal' }}
           />
           <Stack.Screen
             name="Search"
             component={SearchRouteScreen}
-            options={{ statusBarStyle: 'dark', animation: 'fade_from_bottom' }}
+            options={{ animation: 'fade_from_bottom' }}
           />
           <Stack.Screen
             name="Cart"
             component={CartScreen}
-            options={{ statusBarStyle: 'dark', animation: 'slide_from_right' }}
+            options={{ animation: 'slide_from_right' }}
           />
         </Stack.Navigator>
       </Suspense>
