@@ -49,46 +49,28 @@ export function HomeTabScreen({ navigation }: Props) {
 
   const scrollY = useSharedValue(0);
   const clamp = useSharedValue(0);
-  const blockTravel = useSharedValue(0);
-  const searchTravel = useSharedValue(0);
-  const totalCap = useSharedValue(0);
-  const [blockH, setBlockH] = useState(0);
+  const collapseCap = useSharedValue(0);
+  const [stackH, setStackH] = useState(EXPANDED_H);
 
-  const blockSlideStyle = useAnimatedStyle(() => ({
-    transform: [{ translateY: -Math.min(clamp.value, blockTravel.value) }],
+  const headerSlideStyle = useAnimatedStyle(() => ({
+    transform: [{ translateY: -Math.min(clamp.value, collapseCap.value) }],
   }));
 
-  const searchSlideStyle = useAnimatedStyle(() => ({
-    transform: [{ translateY: -Math.min(clamp.value, searchTravel.value) }],
-  }));
-
-  const onBlockLayout = useCallback(
+  const onStackLayout = useCallback(
     (e: any) => {
       const h = e.nativeEvent.layout.height;
-      setBlockH(h);
-      blockTravel.value = HEADER_TOPINSET + h + vs(8);
-      totalCap.value = Math.max(blockTravel.value, searchTravel.value);
+      setStackH(h);
+      collapseCap.value = Math.max(0, h - HEADER_TOPINSET - HEADER_SEARCH_H);
     },
-    [blockTravel, searchTravel],
+    [collapseCap],
   );
-
-  const onSearchWrapLayout = useCallback(
-    (e: any) => {
-      const y = e.nativeEvent.layout.y;
-      searchTravel.value = Math.max(0, y - HEADER_TOPINSET);
-      totalCap.value = Math.max(blockTravel.value, searchTravel.value);
-    },
-    [searchTravel, blockTravel],
-  );
-
-  const headerHeight = Math.max(EXPANDED_H, HEADER_TOPINSET + blockH + HEADER_ROW_GAP + HEADER_SEARCH_H + HEADER_BOTTOM_PAD);
 
   return (
     <View style={styles.container}>
-      <View style={[styles.headerOuter, { height: headerHeight }]} collapsable={false} pointerEvents="box-none">
-        <HubGradient />
-        <Animated.View style={[styles.block, blockSlideStyle]} collapsable={false}>
-          <View style={styles.blockInner} onLayout={onBlockLayout}>
+      <View style={[styles.headerOuter, { height: stackH }]} collapsable={false} pointerEvents="box-none">
+        <Animated.View style={[styles.headerSlid, { height: stackH }, headerSlideStyle]} collapsable={false}>
+          <HubGradient />
+          <View style={styles.headerStack} onLayout={onStackLayout}>
             <View style={styles.headerTopRow}>
               <FaazioLogo size={ms(28)} />
 
@@ -112,26 +94,20 @@ export function HomeTabScreen({ navigation }: Props) {
                 onLaunchSubApp={handleLaunchSubApp}
               />
             </View>
-          </View>
-        </Animated.View>
 
-        <Animated.View
-          style={[styles.searchWrap, searchSlideStyle]}
-          collapsable={false}
-          onLayout={onSearchWrapLayout}
-        >
-          <TouchableOpacity
-            style={styles.searchBar}
-            activeOpacity={0.7}
-            onPress={() => navigation.navigate('Search', { subApp: 'HOME' })}
-            accessibilityRole="button"
-            accessibilityLabel="Search"
-          >
-            <Search size={ms(13)} color="#94a3b8" strokeWidth={2.2} />
-            <AppText style={styles.searchText} numberOfLines={1}>
-              Search for food, groceries or more...
-            </AppText>
-          </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.searchBar}
+              activeOpacity={0.7}
+              onPress={() => navigation.navigate('Search', { subApp: 'HOME' })}
+              accessibilityRole="button"
+              accessibilityLabel="Search"
+            >
+              <Search size={ms(13)} color="#94a3b8" strokeWidth={2.2} />
+              <AppText style={styles.searchText} numberOfLines={1}>
+                Search for food, groceries or more...
+              </AppText>
+            </TouchableOpacity>
+          </View>
         </Animated.View>
       </View>
 
@@ -142,8 +118,8 @@ export function HomeTabScreen({ navigation }: Props) {
           onProductClick={handleProductClick}
           scrollY={scrollY}
           clamp={clamp}
-          collapseCap={totalCap}
-          expandedH={headerHeight}
+          collapseCap={collapseCap}
+          expandedH={stackH}
         />
       </View>
     </View>
@@ -172,24 +148,11 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
   },
-  block: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-  },
-  blockInner: {
+  headerStack: {
     paddingTop: HEADER_TOPINSET,
     paddingHorizontal: hs(16),
-    paddingBottom: HEADER_ROW_GAP,
+    paddingBottom: HEADER_BOTTOM_PAD,
     gap: HEADER_ROW_GAP,
-  },
-  searchWrap: {
-    position: 'absolute',
-    left: hs(16),
-    right: hs(16),
-    bottom: HEADER_BOTTOM_PAD,
-    height: HEADER_SEARCH_H,
   },
   sectorsRow: {
     width: '100%',
@@ -210,7 +173,7 @@ const styles = StyleSheet.create({
     maxWidth: hs(160),
   },
   searchBar: {
-    flex: 1,
+    height: HEADER_SEARCH_H,
     borderRadius: ms(22),
     backgroundColor: '#ffffff',
     flexDirection: 'row',
