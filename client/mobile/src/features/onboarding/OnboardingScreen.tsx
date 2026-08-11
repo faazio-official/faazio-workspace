@@ -29,7 +29,7 @@ const ONBOARDING_DATA: OnboardingStep[] = [
   {
     title: 'Welcome to Faazio',
     subtitle: 'Your Daily SuperApp',
-    description: 'Simplify your life. Shop essentials, order delicious food, book travel tickets, and access trusted local e-services inside one seamless interface.',
+    description: 'Everything you need. One app.',
     bgColor: '#ffffff',
     accentColor: BRAND_BLUE,
     image: welcomeIllustration1,
@@ -37,7 +37,7 @@ const ONBOARDING_DATA: OnboardingStep[] = [
   {
     title: 'Smart Shopping',
     subtitle: 'Essentials Made Easy',
-    description: 'Experience instant deliveries of groceries, household essentials, and favorite brands from vetted local stores direct to your doorstep.',
+    description: "Groceries & essentials at your door, fast.",
     bgColor: '#ffffff',
     accentColor: BRAND_BLUE,
     image: welcomeIllustration2,
@@ -45,7 +45,7 @@ const ONBOARDING_DATA: OnboardingStep[] = [
   {
     title: 'Satisfy Your Hunger',
     subtitle: 'Hot Food Ordering',
-    description: 'Craving something hot and delicious? Order from premier local restaurants and track your delivery in real-time with zero hassle.',
+    description: 'Hot food, ordered in seconds.',
     bgColor: '#ffffff',
     accentColor: BRAND_BLUE,
     image: welcomeIllustration3,
@@ -53,7 +53,7 @@ const ONBOARDING_DATA: OnboardingStep[] = [
   {
     title: 'Instant E-Services',
     subtitle: 'And Hassle-Free Booking',
-    description: 'From certified home repairs to booking movie, bus, or train tickets—Faazio handles your entire chore list instantly.',
+    description: 'Services & tickets, booked instantly.',
     bgColor: '#ffffff',
     accentColor: BRAND_BLUE,
     image: welcomeIllustration4,
