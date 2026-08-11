@@ -29,7 +29,7 @@ const ONBOARDING_DATA: OnboardingStep[] = [
   {
     title: 'Welcome to Faazio',
     subtitle: 'Your Daily SuperApp',
-    description: 'Everything you need. One app.',
+    description: 'Everything you need. One app — shop, eat, book & more.',
     bgColor: '#ffffff',
     accentColor: BRAND_BLUE,
     image: welcomeIllustration1,
@@ -37,7 +37,7 @@ const ONBOARDING_DATA: OnboardingStep[] = [
   {
     title: 'Smart Shopping',
     subtitle: 'Essentials Made Easy',
-    description: "Groceries & essentials at your door, fast.",
+    description: "Groceries & essentials at your door, fast — from trusted local stores.",
     bgColor: '#ffffff',
     accentColor: BRAND_BLUE,
     image: welcomeIllustration2,
@@ -45,7 +45,7 @@ const ONBOARDING_DATA: OnboardingStep[] = [
   {
     title: 'Satisfy Your Hunger',
     subtitle: 'Hot Food Ordering',
-    description: 'Hot food, ordered in seconds.',
+    description: 'Hot food, ordered in seconds — from favourite local restaurants.',
     bgColor: '#ffffff',
     accentColor: BRAND_BLUE,
     image: welcomeIllustration3,
@@ -53,7 +53,7 @@ const ONBOARDING_DATA: OnboardingStep[] = [
   {
     title: 'Instant E-Services',
     subtitle: 'And Hassle-Free Booking',
-    description: 'Services & tickets, booked instantly.',
+    description: 'Services & tickets, booked instantly — zero hassle.',
     bgColor: '#ffffff',
     accentColor: BRAND_BLUE,
     image: welcomeIllustration4,
