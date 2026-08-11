@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { memo } from 'react';
 import { View, Image, TouchableOpacity, StyleSheet } from 'react-native';
 import { hs, vs, ms } from '@/utils/responsive';
 import { portalSectors } from '@data/home/rails';
@@ -6,7 +6,7 @@ import { subAppIdFor } from './common';
 import type { SectionProps } from './common';
 import AppText from '@/components/AppText';
 
-export default function ExploreSectorsSection({ onLaunchSubApp }: SectionProps) {
+function ExploreSectorsSection({ onLaunchSubApp }: SectionProps) {
   return (
     <View style={styles.grid}>
       {portalSectors.map((sector) => (
@@ -30,6 +30,8 @@ export default function ExploreSectorsSection({ onLaunchSubApp }: SectionProps) 
     </View>
   );
 }
+
+export default memo(ExploreSectorsSection);
 
 const styles = StyleSheet.create({
   grid: {

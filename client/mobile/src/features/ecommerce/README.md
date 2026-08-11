@@ -1,4 +1,4 @@
-# E-Commerce Module (FA Mart)
+# E-Commerce Module (Mart)
 
 This directory handles the shopping catalogue, global products listings, and specialized cart addition workflows.
 

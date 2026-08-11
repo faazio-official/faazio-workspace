@@ -23,6 +23,8 @@ export interface SpecialDish {
   restaurant: string;
   price: number;
   image: string;
+  isVeg: boolean;
+  description: string;
   cuisine?: string;
   rating?: number;
   deliveryTime?: string;

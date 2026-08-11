@@ -17,6 +17,8 @@ export type RootStackParamList = {
   SubApp: { subAppId: SubAppId };
   FoodApp: NavigatorScreenParams<FoodStackParamList> | undefined;
   ProductDetail: { product: any };
+  /** First-class cross-sub-app search. Food keeps its own nested Search. */
+  Search: { subApp: 'HOME' | SubAppId; initialQuery?: string };
 };
 
 export type FoodStackParamList = {

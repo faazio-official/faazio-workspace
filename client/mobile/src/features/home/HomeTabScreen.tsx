@@ -1,7 +1,7 @@
-import React from 'react';
+import React, { useCallback } from 'react';
 import { StyleSheet, View, TouchableOpacity } from 'react-native';
 import { hs, vs, ms } from '@/utils/responsive';
-import { MapPin, ChevronDown } from 'lucide-react-native';
+import { MapPin, ChevronDown, Search } from 'lucide-react-native';
 import Animated, { useSharedValue, useAnimatedStyle } from 'react-native-reanimated';
 import type { CompositeScreenProps } from '@react-navigation/native';
 import type { BottomTabScreenProps } from '@react-navigation/bottom-tabs';
@@ -9,7 +9,6 @@ import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { FaazioLogo } from '@/components/FaazioLogo';
 import ExploreSectorsSection from '@/features/home/sections/ExploreSectorsSection';
 import HomeView from '@/features/home/HomeView';
-import AppTextInput from '@/components/AppTextInput';
 import AppText from '@/components/AppText';
 import { useCartStore } from '@/state/cartStore';
 import { HubGradient } from '@/features/home/HubGradient';
@@ -39,6 +38,15 @@ const launchSubApp = (navigation: Props['navigation'], id: SubAppId) => {
 
 export function HomeTabScreen({ navigation }: Props) {
   const addToCart = useCartStore((s) => s.addToCart);
+
+  const handleLaunchSubApp = useCallback(
+    (id: SubAppId) => launchSubApp(navigation, id),
+    [navigation],
+  );
+  const handleProductClick = useCallback(
+    (product: any) => navigation.navigate('ProductDetail', { product }),
+    [navigation],
+  );
 
   const scrollY = useSharedValue(0);
   const clamp = useSharedValue(0);
@@ -89,28 +97,32 @@ export function HomeTabScreen({ navigation }: Props) {
 
               <View style={styles.sectorsRow}>
                 <ExploreSectorsSection
-                  onLaunchSubApp={(id) => launchSubApp(navigation, id)}
+                  onLaunchSubApp={handleLaunchSubApp}
                 />
               </View>
             </Animated.View>
           </View>
 
-          <View style={styles.searchBar}>
-            <AppTextInput
-              style={styles.searchInput}
-              placeholder="Search for food, groceries or more..."
-              placeholderTextColor="#94a3b8"
-              textAlign="center"
-            />
-          </View>
+          <TouchableOpacity
+            style={styles.searchBar}
+            activeOpacity={0.7}
+            onPress={() => navigation.navigate('Search', { subApp: 'HOME' })}
+            accessibilityRole="button"
+            accessibilityLabel="Search"
+          >
+            <Search size={ms(13)} color="#94a3b8" strokeWidth={2.2} />
+            <AppText style={styles.searchText} numberOfLines={1}>
+              Search for food, groceries or more...
+            </AppText>
+          </TouchableOpacity>
         </Animated.View>
       </View>
 
       <View style={styles.viewport}>
         <HomeView
-          onLaunchSubApp={(id) => launchSubApp(navigation, id)}
+          onLaunchSubApp={handleLaunchSubApp}
           addToCart={addToCart}
-          onProductClick={(product) => navigation.navigate('ProductDetail', { product })}
+          onProductClick={handleProductClick}
           scrollY={scrollY}
           clamp={clamp}
           collapseH={collapseHV}
@@ -174,17 +186,20 @@ const styles = StyleSheet.create({
     height: HEADER_SEARCH_H,
     borderRadius: ms(22),
     backgroundColor: '#ffffff',
-    justifyContent: 'center',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: hs(8),
+    paddingHorizontal: hs(16),
     shadowColor: '#000000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.06,
     shadowRadius: 6,
     elevation: 2,
   },
-  searchInput: {
+  searchText: {
+    flex: 1,
     fontSize: ms(12),
     fontWeight: '600',
-    color: '#0f172a',
-    paddingHorizontal: hs(20),
+    color: '#94a3b8',
   },
 });

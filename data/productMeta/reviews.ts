@@ -5,16 +5,16 @@
 import type { Review, SpecItem, AppBrand } from '../types';
 
 export const avatarMap: Record<string, string> = {
-  'Aarav Sharma': 'https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?auto=format&fit=crop&q=80&w=56&h=56',
-  'Priya Patel': 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&q=80&w=56&h=56',
-  'Rahul Verma': 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&q=80&w=56&h=56',
-  'Ananya Gupta': 'https://images.unsplash.com/photo-1438761681033-6461ffad8d80?auto=format&fit=crop&q=80&w=56&h=56',
-  'Vikram Singh': 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?auto=format&fit=crop&q=80&w=56&h=56',
-  'Neha Kapoor': 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=56&h=56',
-  'Ravi Desai': 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&q=80&w=56&h=56',
-  'Meera Nair': 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&q=80&w=56&h=56',
-  'Arjun Mehta': 'https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?auto=format&fit=crop&q=80&w=56&h=56',
-  'Dr. Sarah Alvi': 'https://images.unsplash.com/photo-1559839734-2b71ea197ec2?auto=format&fit=crop&q=80&w=56&h=56',
+  'Aarav Sharma': 'https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?fm=jpg&fit=crop&q=80&w=56&h=56',
+  'Priya Patel': 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?fm=jpg&fit=crop&q=80&w=56&h=56',
+  'Rahul Verma': 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?fm=jpg&fit=crop&q=80&w=56&h=56',
+  'Ananya Gupta': 'https://images.unsplash.com/photo-1438761681033-6461ffad8d80?fm=jpg&fit=crop&q=80&w=56&h=56',
+  'Vikram Singh': 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?fm=jpg&fit=crop&q=80&w=56&h=56',
+  'Neha Kapoor': 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?fm=jpg&fit=crop&q=80&w=56&h=56',
+  'Ravi Desai': 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?fm=jpg&fit=crop&q=80&w=56&h=56',
+  'Meera Nair': 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?fm=jpg&fit=crop&q=80&w=56&h=56',
+  'Arjun Mehta': 'https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?fm=jpg&fit=crop&q=80&w=56&h=56',
+  'Dr. Sarah Alvi': 'https://images.unsplash.com/photo-1559839734-2b71ea197ec2?fm=jpg&fit=crop&q=80&w=56&h=56',
 };
 
 export const getProductReviews = (app: AppBrand): Review[] => {

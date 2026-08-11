@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { memo, useEffect, useRef, useState } from 'react';
 import { View, Image, ScrollView, TouchableOpacity, StyleSheet, NativeSyntheticEvent, NativeScrollEvent } from 'react-native';
 import { Tag, ArrowRight } from 'lucide-react-native';
 import { hs, vs, ms } from '@/utils/responsive';
@@ -9,7 +9,7 @@ import AppText from '@/components/AppText';
 
 const SWIPE_INTERVAL = 4500;
 
-export default function AdBannerSection({ onLaunchSubApp }: SectionProps) {
+function AdBannerSection({ onLaunchSubApp }: SectionProps) {
   const [index, setIndex] = useState(0);
   const [width, setWidth] = useState(0);
   const scrollRef = useRef<ScrollView>(null);
@@ -81,6 +81,8 @@ export default function AdBannerSection({ onLaunchSubApp }: SectionProps) {
     </View>
   );
 }
+
+export default memo(AdBannerSection);
 
 const styles = StyleSheet.create({
   wrap: {

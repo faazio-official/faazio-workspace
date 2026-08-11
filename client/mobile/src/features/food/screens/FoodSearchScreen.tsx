@@ -33,7 +33,6 @@ export function FoodSearchScreen({ navigation }: Props) {
   );
 
   const handleBack = useCallback(() => navigation.goBack(), [navigation]);
-  const handleClose = useCallback(() => navigation.goBack(), [navigation]);
 
   const handleTabChange = useCallback(
     (tab: FoodTab) => {
@@ -50,7 +49,7 @@ export function FoodSearchScreen({ navigation }: Props) {
 
   return (
     <View style={styles.container}>
-      <SearchScreen config={config} onBack={handleBack} onClose={handleClose} />
+      <SearchScreen config={config} onBack={handleBack} />
       <FloatingCartBar accentColor={foodTheme.primary} bottomOffset={vs(100)} />
       <FoodBottomNav activeTab="Search" onChange={handleTabChange} />
     </View>

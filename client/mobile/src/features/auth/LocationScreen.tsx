@@ -17,7 +17,7 @@ import Svg, {
   G,
   Rect,
 } from 'react-native-svg';
-import locationAccessPageImg from '@/assets/location_access_page.png';
+import locationAccessPageImg from '@/assets/location_access_page.webp';
 import AppTextInput from '@/components/AppTextInput';
 import AppText from '@/components/AppText';
 

@@ -1,0 +1,112 @@
+# =========================================================================
+#  Secure Docker Compose — Template
+# -------------------------------------------------------------------------
+#  Fixes the anti-pattern found across the codebases (e.g. horserun:
+#  POSTGRES_PASSWORD=123456, INFERX_ADMIN_APIKEY=...-, KEYCLOAK_* hardcoded
+#  directly in docker-compose.yml — DO NOT commit secrets to compose files).
+#
+#  Rules enforced here:
+#   1. NO secrets in this file             -> read from .env (gitignored) or
+#                                                docker secrets mounts
+#   2. DB/cache services use an INTERNAL network only -> never published to
+#      the host/public. Only the web tier is exposed, and ideally only via
+#      Cloudflare (see harden-ufw.sh).
+#   3. Containers run non-root where possible, read-only root FS, resource
+#      limits, and explicit health checks.
+#   4. Pins image tags (no floating latest) and sets no-new-privileges.
+#
+#  USAGE:
+#    1. cp .env.example .env   # fill real values, gitignore .env
+#    2. docker compose up -d   # from the service dir
+# =========================================================================
+
+name: secure-app
+
+x-app-common: &app-common
+  restart: unless-stopped
+  # Never run containers as root in production
+  # (per-image: user: "1000:1000")
+  read_only: true
+  security_opt:
+    - no-new-privileges:true
+  cap_drop:
+    - ALL
+  logging:
+    driver: json-file
+    options:
+      max-size: "10m"
+      max-file: "3"
+
+services:
+  # ---- Web tier (the ONLY thing exposed). No direct DB access. ----------
+  web:
+    <<: *app-common
+    image: myapp/web:1.0.0            # pin a real version, never :latest
+    build: .
+    user: "1000:1000"
+    ports:
+      - "8080:8080"
+    environment:
+      - APP_PORT=8080
+    env_file:
+      - .env                          # secrets live here, NOT in compose
+    # secrets read from Docker secrets files instead of env where possible
+    secrets:
+      - database_url
+      - jwt_secret
+    networks:
+      - front
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:8080/healthz"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    depends_on:
+      db:
+        condition: service_healthy
+
+  # ---- Database: INTERNAL network ONLY (never published to host) -------
+  db:
+    image: postgres:17-alpine
+    user: "999:999"
+    restart: unless-stopped
+    environment:
+      # Values come from .env (gitignored). NEVER hardcode here.
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    networks:
+      - internal
+    # NO `ports:` block -> unreachable from outside the Docker network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ---- Cache: INTERNAL network ONLY -------------------------------------
+  cache:
+    image: redis:7-alpine
+    restart: unless-stopped
+    command: ["redis-server", "--requirepass", "${REDIS_PASSWORD}"]
+    networks:
+      - internal
+    # no ports: block -> internal only
+
+secrets:
+  database_url:
+    file: ./secrets/database_url.txt   # created at deploy, gitignored
+  jwt_secret:
+    file: ./secrets/jwt_secret.txt
+
+volumes:
+  pgdata:
+
+networks:
+  front:
+    internal: false                    # only network attached to a public port
+  internal:
+    internal: true                     # NO external access at all

@@ -1,7 +1,7 @@
-import React from 'react';
+import React, { memo } from 'react';
 import { View, ScrollView, StyleSheet } from 'react-native';
 import { hs, vs, ms } from '@/utils/responsive';
-import ProductCardBase from '@/components/shared/ProductCardBase';
+import UniversalFeedCard from '@/features/home/cards/UniversalFeedCard';
 import { useAddToCartFeedback } from './common';
 import type { SectionProps } from './common';
 import type { AppBrand, Product } from '@data/types';
@@ -14,7 +14,7 @@ interface RecentlyViewedRailSectionProps extends SectionProps {
   appBrand: AppBrand;
 }
 
-export default function RecentlyViewedRailSection({
+function RecentlyViewedRailSection({
   title, products, accent, appBrand,
   onProductClick, addToCart,
 }: RecentlyViewedRailSectionProps) {
@@ -29,10 +29,9 @@ export default function RecentlyViewedRailSection({
       </View>
       <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.scroll}>
         {products.map((product) => (
-          <ProductCardBase
+          <UniversalFeedCard
             key={product.id}
             product={product}
-            appBrand={appBrand}
             variant="rail"
             isAdded={addedId === product.id}
             onPress={() => onProductClick?.(product)}
@@ -43,6 +42,8 @@ export default function RecentlyViewedRailSection({
     </>
   );
 }
+
+export default memo(RecentlyViewedRailSection);
 
 const styles = StyleSheet.create({
   header: {

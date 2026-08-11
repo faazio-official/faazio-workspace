@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { memo, useEffect, useRef, useState } from 'react';
 import { View, StyleSheet, LayoutChangeEvent } from 'react-native';
 import { hs, vs, ms } from '@/utils/responsive';
 import { filterChips, filterFeedPools } from '@data/home/filterFeed';
@@ -22,7 +22,7 @@ interface FilterFeedSectionProps extends SectionProps {
 // a plain flexWrap View (NOT a nested FlatList) because the whole home feed is
 // already one outer FlatList — nesting a second vertical list would hit RN's
 // "VirtualizedLists should never be nested" warning.
-export default function FilterFeedSection({
+function FilterFeedSection({
   onProductClick,
   addToCart,
   scrollY = 0,
@@ -80,6 +80,8 @@ export default function FilterFeedSection({
     </View>
   );
 }
+
+export default memo(FilterFeedSection);
 
 const styles = StyleSheet.create({
   grid: {

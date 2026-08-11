@@ -8,6 +8,7 @@
     "splash": {
       "backgroundColor": "#ffffff"
     },
+    "assetBundlePatterns": ["src/assets/**/*"],
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.faazio.customer",
@@ -18,6 +19,7 @@
     },
     "android": {
       "package": "com.faazio.customer",
+      "jsEngine": "hermes",
       "softwareKeyboardLayoutMode": "resize",
       "permissions": [
         "CAMERA",
@@ -26,12 +28,6 @@
       ]
     },
     "plugins": [
-      [
-        "expo-media-library",
-        {
-          "photosPermission": "Allow Faazio to access your photos to save invoices and upload prescriptions."
-        }
-      ],
       "expo-font"
     ]
   }

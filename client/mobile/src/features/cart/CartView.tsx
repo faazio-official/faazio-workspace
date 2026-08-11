@@ -26,13 +26,13 @@ import AppText from '@/components/AppText';
 const getAppLabel = (itemId: string) => {
   const id = itemId.toLowerCase();
   if (id.startsWith('ph-') || id.includes('pharma') || id.includes('med')) {
-    return { name: 'Fa Pharma', bgColor: '#fff1f2', textColor: '#f43f5e', border: '#ffe4e6', icon: '\u{1F48A}' };
+    return { name: 'Pharma', bgColor: '#fff1f2', textColor: '#f43f5e', border: '#ffe4e6', icon: '\u{1F48A}' };
   }
   if (id.startsWith('gr-') || id.includes('grocery') || id.startsWith('cat-gr') || id.startsWith('cat-fb')) {
-    return { name: 'Faazio Grocery', bgColor: '#ecfdf5', textColor: '#059669', border: '#d1fae5', icon: '\u{1F966}' };
+    return { name: 'Grocery', bgColor: '#ecfdf5', textColor: '#059669', border: '#d1fae5', icon: '\u{1F966}' };
   }
   if (id.startsWith('fm-') || id.includes('mart') || id.startsWith('cat-mt') || id.startsWith('cat-mf')) {
-    return { name: 'FA Mart', bgColor: '#eef2ff', textColor: '#4f46e5', border: '#e0e7ff', icon: '\u{1F6CD}' };
+    return { name: 'Mart', bgColor: '#eef2ff', textColor: '#4f46e5', border: '#e0e7ff', icon: '\u{1F6CD}' };
   }
   return { name: 'Food', bgColor: '#fffbeb', textColor: '#d97706', border: '#fef3c7', icon: '\u{1F354}' };
 };
@@ -201,7 +201,7 @@ export default function CartView({
               </Animated.View>
               <AppText style={styles.emptyTitle}>Your bag is empty</AppText>
               <AppText style={styles.emptyDesc}>
-                Browse Food, FA Mart, Grocery, or Pharma and tap 'Add to Bag' to get started!
+                Browse Food, Mart, Grocery, or Pharma and tap 'Add to Bag' to get started!
               </AppText>
               <TouchableOpacity onPress={() => setActiveTab('Home')} style={styles.goToHubBtn} activeOpacity={0.8}>
                 <AppText style={styles.goToHubBtnText}>Go to Hub</AppText>

@@ -12,18 +12,21 @@ import {
   Plus,
   Minus,
   IndianRupee,
+  Search,
 } from 'lucide-react-native';
 import { hs, vs, ms } from '@/utils/responsive';
 import type { CartItem } from '@/state/cartStore';
 
 import { FaMartScreen } from '../features/ecommerce/FaMartScreen';
+import { MartCategoriesScreen } from '../features/ecommerce/MartCategoriesScreen';
 import { GroceryScreen } from '../features/ecommerce/GroceryScreen';
+import { GroceryAislesScreen } from '../features/ecommerce/GroceryAislesScreen';
 import { PharmaScreen } from '../features/pharma/PharmaScreen';
 import AccountView from '@/features/profile/AccountView';
 import CartView from '@/features/cart/CartView';
 import AppText from '@/components/AppText';
 import SubAppHeader from './shared/SubAppHeader';
-import { SUB_HEADER_H } from './shared/SubAppHeader';
+import { SUB_HEADER_H, SUB_HEADER_H_COMPACT } from './shared/SubAppHeader';
 import { brandTokens } from '@/theme/brandTokens';
 import type { AppBrand } from '@data/types';
 
@@ -38,6 +41,8 @@ interface SubAppWrapperProps {
   setShowLocationRequestState: (val: boolean) => void;
   setIsLoggedIn: (val: boolean) => void;
   onProductClick?: (product: any) => void;
+  /** Opens the first-class Search screen (Mart/Grocery/Pharma Search tab). */
+  onSearchPress?: () => void;
 }
 
 export default function SubAppWrapper({
@@ -51,6 +56,7 @@ export default function SubAppWrapper({
   setShowLocationRequestState,
   setIsLoggedIn,
   onProductClick,
+  onSearchPress,
 }: SubAppWrapperProps) {
   const [activeTab, setActiveTab] = useState<string>('Home');
   const [showExitConfirm, setShowExitConfirm] = useState<boolean>(false);
@@ -60,6 +66,8 @@ export default function SubAppWrapper({
   const tabPositions = useRef<number[]>([]);
   const pillAnim = useRef(new Animated.Value(0)).current;
   const badgeBounce = useRef(new Animated.Value(0)).current;
+
+  const totalCartQty = cartItems.reduce((acc, curr) => acc + curr.quantity, 0);
 
   useEffect(() => {
     setSearchQuery('');
@@ -93,6 +101,8 @@ export default function SubAppWrapper({
   }, [activeTab]);
 
   useEffect(() => {
+    // Only bounce the cart badge while there is something in the cart.
+    if (totalCartQty <= 0) return;
     const loop = Animated.loop(
       Animated.sequence([
         Animated.timing(badgeBounce, { toValue: 1, duration: 600, useNativeDriver: true }),
@@ -101,17 +111,18 @@ export default function SubAppWrapper({
     );
     loop.start();
     return () => loop.stop();
-  }, [badgeBounce]);
+  }, [badgeBounce, totalCartQty]);
 
   const getConfig = () => {
     const configPresets = {
       FA_MART: {
-        name: 'FA MART',
+        name: 'Mart',
         primaryColor: '#1162D3',
         textColor: '#1162D3',
         tabs: [
           { name: 'Home', icon: Home },
           { name: 'Categories', icon: LayoutGrid },
+          { name: 'Search', icon: Search },
           { name: 'Cart', icon: ShoppingBag },
           { name: 'Profile', icon: User },
         ],
@@ -128,23 +139,25 @@ export default function SubAppWrapper({
         ],
       },
       GROCERY: {
-        name: 'FA Grocery',
+        name: 'Grocery',
         primaryColor: '#10B981',
         textColor: '#10B981',
         tabs: [
           { name: 'Home', icon: Home },
           { name: 'Aisles', icon: LayoutGrid },
+          { name: 'Search', icon: Search },
           { name: 'Smart Cart', icon: ShoppingBag },
           { name: 'Profile', icon: User },
         ],
       },
       PHARMA: {
-        name: 'FA Pharma',
+        name: 'Pharma',
         primaryColor: '#FF7A59',
         textColor: '#FF7A59',
         tabs: [
           { name: 'Home', icon: Home },
           { name: 'For You', icon: Sparkles },
+          { name: 'Search', icon: Search },
           { name: 'Cart', icon: ShoppingBag },
           { name: 'History', icon: FileText },
         ],
@@ -154,19 +167,20 @@ export default function SubAppWrapper({
   };
 
   const config = getConfig();
-  const totalCartQty = cartItems.reduce((acc, curr) => acc + curr.quantity, 0);
+
+  const hasAddressBar = subAppId === 'FA_MART' || subAppId === 'GROCERY' || subAppId === 'PHARMA';
 
   const HEADER_TITLES: Record<SubAppWrapperProps['subAppId'], string> = {
-    FA_MART: 'FA Mart',
+    FA_MART: 'Mart',
     FOOD: 'Food & Dining',
-    GROCERY: 'FA Grocery',
-    PHARMA: 'FA Pharma',
+    GROCERY: 'Grocery',
+    PHARMA: 'Pharma',
   };
   const brandKey: AppBrand = subAppId === 'FA_MART' ? 'MART' : subAppId;
   const tokens = brandTokens[brandKey];
   const searchPlaceholder =
     subAppId === 'FA_MART'
-      ? 'Search products in Fa Mart...'
+      ? 'Search products in Mart...'
       : subAppId === 'FOOD'
         ? 'Search on Food'
         : subAppId === 'GROCERY'
@@ -216,36 +230,10 @@ export default function SubAppWrapper({
     switch (subAppId) {
       case 'FA_MART':
         if (activeTab === 'Home') {
-          return <FaMartScreen addToCart={addToCart} onProductClick={onProductClick} searchQuery={searchQuery} />;
+          return <FaMartScreen onProductClick={onProductClick} searchQuery={searchQuery} />;
         }
         if (activeTab === 'Categories') {
-          return (
-            <ScrollView style={styles.tabScroll} showsVerticalScrollIndicator={false}>
-              <View style={styles.infoSection}>
-                <AppText style={styles.infoTitle}>Mall Categories</AppText>
-                <View style={styles.gridContainer}>
-                  {[
-                    { name: 'Smart Phones', desc: 'Sleek OLED screens', icon: '📱' },
-                    { name: 'Casual Wear', desc: 'Classic custom cottons', icon: '👕' },
-                    { name: 'Acoustic Sound', desc: 'Noise-canceling gears', icon: '🎧' },
-                    { name: 'Fitness Gear', desc: 'Heart trackers & weights', icon: '🏋️' },
-                  ].map((cat, idx) => (
-                    <TouchableOpacity
-                      key={idx}
-                      style={styles.mallCard}
-                      onPress={() => Alert.alert('Category Select', `Bespoke collection of "${cat.name}" is being filtered.`)}
-                    >
-                      <AppText style={styles.mallIcon}>{cat.icon}</AppText>
-                      <View>
-                        <AppText style={styles.mallName}>{cat.name}</AppText>
-                        <AppText style={styles.mallDesc}>{cat.desc}</AppText>
-                      </View>
-                    </TouchableOpacity>
-                  ))}
-                </View>
-              </View>
-            </ScrollView>
-          );
+          return <MartCategoriesScreen />;
         }
         break;
 
@@ -263,29 +251,11 @@ export default function SubAppWrapper({
         }
         if (activeTab === 'Aisles') {
           return (
-            <ScrollView style={styles.tabScroll} showsVerticalScrollIndicator={false}>
-              <View style={styles.infoSection}>
-                <AppText style={styles.infoTitle}>Aisle Map</AppText>
-                <AppText style={{ fontSize: ms(10), color: '#64748b', fontWeight: '500', marginBottom: vs(12), marginTop: vs(-6) }}>Fresh organic foods categorized perfectly</AppText>
-                <View style={styles.gridContainer}>
-                  {[
-                    { name: 'Fresh Produce', count: '14 Fresh Items', bg: '#ecfdf5', text: '#065f46' },
-                    { name: 'Dairy & Eggs', count: '10 Vetted Milks', bg: '#f0f9ff', text: '#075569' },
-                    { name: 'Bakery', count: '6 Warm Loaves', bg: '#fffbeb', text: '#92400e' },
-                    { name: 'Beverages', count: '12 Refreshing Drinks', bg: '#eef2ff', text: '#3730a3' },
-                  ].map((cat, idx) => (
-                    <TouchableOpacity
-                      key={idx}
-                      style={[styles.aisleCard, { backgroundColor: cat.bg }]}
-                      onPress={() => Alert.alert('Aisle Select', `Browsing through "${cat.name}" items.`)}
-                    >
-                      <AppText style={[styles.aisleName, { color: cat.text }]}>{cat.name}</AppText>
-                      <AppText style={[styles.aisleCount, { color: cat.text, opacity: 0.7 }]}>{cat.count}</AppText>
-                    </TouchableOpacity>
-                  ))}
-                </View>
-              </View>
-            </ScrollView>
+            <GroceryAislesScreen
+              onCategoryPress={() => Alert.alert('Aisle Select', 'Category aisles coming soon.')}
+              onSearchPress={() => onSearchPress?.()}
+              onOffersPress={() => setActiveTab('Home')}
+            />
           );
         }
         break;
@@ -353,9 +323,18 @@ export default function SubAppWrapper({
         onSearchChange={setSearchQuery}
         searchPlaceholder={searchPlaceholder}
         inputRef={searchInputRef}
+        hideBrandRow={hasAddressBar}
+        addressLabel={hasAddressBar ? 'Anna Nagar, Chennai' : undefined}
+        addressSubLabel={hasAddressBar ? 'Delivering to Home' : undefined}
+        onAddressPress={hasAddressBar ? () => {} : undefined}
       />
 
-      <View style={styles.viewport}>
+      <View
+        style={[
+          styles.viewport,
+          { paddingTop: hasAddressBar ? SUB_HEADER_H_COMPACT : SUB_HEADER_H },
+        ]}
+      >
         {renderSubAppContent()}
       </View>
 
@@ -368,7 +347,7 @@ export default function SubAppWrapper({
           return (
             <TouchableOpacity
               key={idx}
-              onPress={() => setActiveTab(tab.name)}
+              onPress={() => (tab.name === 'Search' ? onSearchPress?.() : setActiveTab(tab.name))}
               style={styles.tabItem}
               activeOpacity={0.8}
               onLayout={(e) => { tabPositions.current[idx] = e.nativeEvent.layout.x; }}
@@ -446,7 +425,6 @@ const styles = StyleSheet.create({
   viewport: {
     flex: 1,
     backgroundColor: '#f8fafc',
-    paddingTop: SUB_HEADER_H,
     paddingBottom: vs(72),
   },
   tabScroll: {
@@ -734,20 +712,6 @@ const styles = StyleSheet.create({
     color: '#ffffff',
     fontSize: ms(10),
     fontWeight: '900',
-  },
-  aisleCard: {
-    padding: vs(16),
-    borderRadius: ms(16),
-    width: '48%',
-  },
-  aisleName: {
-    fontSize: ms(11),
-    fontWeight: '900',
-  },
-  aisleCount: {
-    fontSize: ms(9),
-    fontWeight: '600',
-    marginTop: vs(2),
   },
   basketContainer: {
     padding: hs(16),

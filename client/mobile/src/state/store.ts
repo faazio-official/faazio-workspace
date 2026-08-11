@@ -15,3 +15,5 @@ export type { Prescription } from './pharmaStore';
 
 export { useFavoriteStore } from './favoriteStore';
 
+export { useSearchStore } from './searchStore';
+

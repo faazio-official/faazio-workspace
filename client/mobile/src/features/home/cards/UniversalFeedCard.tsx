@@ -4,15 +4,24 @@ import FoodProductCard from '@/features/food/cards/FoodProductCard';
 import GroceryProductCard from '@/features/ecommerce/cards/GroceryProductCard';
 import PharmaProductCard from '@/features/pharma/cards/PharmaProductCard';
 import type { Product } from '@data/types';
+import type { CardVariant } from '@data/schema';
 
 interface UniversalFeedCardProps {
   product: Product;
   quantity?: number;
   isAdded?: boolean;
+  isFavorite?: boolean;
   onPress?: () => void;
   onAdd?: () => void;
   onIncrement?: () => void;
   onDecrement?: () => void;
+  onFavorite?: () => void;
+  variant?: Extract<CardVariant, 'grid2' | 'rail' | 'stack' | 'tile' | 'detail-row' | 'flash'>;
+  roundedImageBottom?: boolean;
+  showAdLabel?: boolean;
+  showDescription?: boolean;
+  originalPrice?: number;
+  width?: number;
 }
 
 // Renders a product with its native brand card skin, dispatched by `product.app`.

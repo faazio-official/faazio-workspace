@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { memo } from 'react';
 import { ScrollView, StyleSheet } from 'react-native';
 import { hs, vs } from '@/utils/responsive';
 import { storeOffers } from '@data/home/storeOffers';
@@ -30,7 +30,7 @@ const profileFor = (offer: StoreOffer): StoreProfile => {
   };
 };
 
-export default function StoreOffersSection({ onLaunchSubApp }: SectionProps) {
+function StoreOffersSection({ onLaunchSubApp }: SectionProps) {
   return (
     <>
       <SectionHeader title="Store Offers" />
@@ -47,6 +47,8 @@ export default function StoreOffersSection({ onLaunchSubApp }: SectionProps) {
     </>
   );
 }
+
+export default memo(StoreOffersSection);
 
 const styles = StyleSheet.create({
   scroll: {

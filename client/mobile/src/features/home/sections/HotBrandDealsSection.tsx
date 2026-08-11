@@ -1,26 +1,24 @@
-import React from 'react';
+import React, { memo } from 'react';
 import { View, StyleSheet } from 'react-native';
 import { hs, vs, ms } from '@/utils/responsive';
 import { hotBrandDeals } from '@data/home/rails';
-import ProductCardBase from '@/components/shared/ProductCardBase';
+import MartProductCard from '@/features/ecommerce/cards/MartProductCard';
 import { useAddToCartFeedback } from './common';
 import type { SectionProps } from './common';
 import AppText from '@/components/AppText';
 
 const gridItems = hotBrandDeals.slice(0, 4);
 
-export default function HotBrandDealsSection({ onProductClick, addToCart }: SectionProps) {
+function HotBrandDealsSection({ onProductClick, addToCart }: SectionProps) {
   const { addedId, handleAdd } = useAddToCartFeedback(addToCart);
   return (
     <View style={styles.gridContainer}>
       <AppText style={styles.containerTitle}>Hot Brand Deals</AppText>
       <View style={styles.grid}>
         {gridItems.map((product) => (
-          <ProductCardBase
+          <MartProductCard
             key={product.id}
             product={product}
-            appBrand={product.app}
-            variant="grid2"
             showAdLabel
             roundedImageBottom
             isAdded={addedId === product.id}
@@ -32,6 +30,8 @@ export default function HotBrandDealsSection({ onProductClick, addToCart }: Sect
     </View>
   );
 }
+
+export default memo(HotBrandDealsSection);
 
 const styles = StyleSheet.create({
   gridContainer: {

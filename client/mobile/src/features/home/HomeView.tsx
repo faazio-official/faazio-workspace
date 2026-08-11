@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useCallback, useMemo } from 'react';
 import { StyleSheet } from 'react-native';
 import { vs } from '@/utils/responsive';
 import Animated, { useAnimatedScrollHandler, useSharedValue, runOnJS } from 'react-native-reanimated';
@@ -41,7 +41,10 @@ export default function HomeView({
   collapseH,
   expandedH,
 }: HomeViewProps) {
-  const sectionProps = { onLaunchSubApp, addToCart, onProductClick };
+  const sectionProps = useMemo(
+    () => ({ onLaunchSubApp, addToCart, onProductClick }),
+    [onLaunchSubApp, addToCart, onProductClick],
+  );
   const [scrollYState, setScrollYState] = React.useState(0);
   const [viewportHeight, setViewportHeight] = React.useState(0);
   const lastEmit = useSharedValue(0);
@@ -65,26 +68,34 @@ export default function HomeView({
     },
   });
 
-  const renderSection = (id: HomeSectionKind): React.ReactElement | null => {
-    switch (id) {
-      case 'adBanner': return <AdBannerSection {...sectionProps} />;
-      case 'diningSpecials': return <DiningSpecialsSection {...sectionProps} />;
-      case 'hotBrandDeals': return <HotBrandDealsSection {...sectionProps} />;
-      case 'storeOffers': return <StoreOffersSection {...sectionProps} />;
-      case 'mostRatedDining': return <MostRatedDiningSection {...sectionProps} />;
-      case 'recentlyViewedMart': return <RecentlyViewedRailSection {...sectionProps} title="Recently Viewed — Mart" products={recentlyViewedMart} accent="#1162D3" appBrand="MART" />;
-      case 'recentlyViewedFood': return <RecentlyViewedRailSection {...sectionProps} title="Recently Viewed — Food" products={recentlyViewedFood} accent="#1E5D44" appBrand="FOOD" />;
-      case 'recentlyViewedGrocery': return <RecentlyViewedRailSection {...sectionProps} title="Recently Viewed — Grocery" products={recentlyViewedGrocery} accent="#10B981" appBrand="GROCERY" />;
-      case 'recentlyViewedPharma': return <RecentlyViewedRailSection {...sectionProps} title="Recently Viewed — Pharma" products={recentlyViewedPharma} accent="#065F46" appBrand="PHARMA" />;
-      case 'nearbyOffers': return <NearbyOffersSection {...sectionProps} />;
-      case 'mens': return <MensSection {...sectionProps} />;
-      case 'womens': return <WomensSection {...sectionProps} />;
-      case 'childrens': return <ChildrensSection {...sectionProps} />;
-      case 'hairSkinCare': return <HairSkinCareSection {...sectionProps} />;
-      case 'filterFeed': return <FilterFeedSection {...sectionProps} scrollY={scrollYState} viewportHeight={viewportHeight} />;
-      default: return null;
-    }
-  };
+  const renderSection = useCallback(
+    (id: HomeSectionKind): React.ReactElement | null => {
+      switch (id) {
+        case 'adBanner': return <AdBannerSection {...sectionProps} />;
+        case 'diningSpecials': return <DiningSpecialsSection {...sectionProps} />;
+        case 'hotBrandDeals': return <HotBrandDealsSection {...sectionProps} />;
+        case 'storeOffers': return <StoreOffersSection {...sectionProps} />;
+        case 'mostRatedDining': return <MostRatedDiningSection {...sectionProps} />;
+        case 'recentlyViewedMart': return <RecentlyViewedRailSection {...sectionProps} title="Recently Viewed — Mart" products={recentlyViewedMart} accent="#1162D3" appBrand="MART" />;
+        case 'recentlyViewedFood': return <RecentlyViewedRailSection {...sectionProps} title="Recently Viewed — Food" products={recentlyViewedFood} accent="#1E5D44" appBrand="FOOD" />;
+        case 'recentlyViewedGrocery': return <RecentlyViewedRailSection {...sectionProps} title="Recently Viewed — Grocery" products={recentlyViewedGrocery} accent="#10B981" appBrand="GROCERY" />;
+        case 'recentlyViewedPharma': return <RecentlyViewedRailSection {...sectionProps} title="Recently Viewed — Pharma" products={recentlyViewedPharma} accent="#065F46" appBrand="PHARMA" />;
+        case 'nearbyOffers': return <NearbyOffersSection {...sectionProps} />;
+        case 'mens': return <MensSection {...sectionProps} />;
+        case 'womens': return <WomensSection {...sectionProps} />;
+        case 'childrens': return <ChildrensSection {...sectionProps} />;
+        case 'hairSkinCare': return <HairSkinCareSection {...sectionProps} />;
+        case 'filterFeed': return <FilterFeedSection {...sectionProps} scrollY={scrollYState} viewportHeight={viewportHeight} />;
+        default: return null;
+      }
+    },
+    [sectionProps, scrollYState, viewportHeight],
+  );
+
+  const renderItem = useCallback(
+    ({ item }: { item: { id: HomeSectionKind } }) => renderSection(item.id),
+    [renderSection],
+  );
 
   return (
     <Animated.FlatList
@@ -92,12 +103,15 @@ export default function HomeView({
       contentContainerStyle={[styles.content, { paddingTop: expandedH }]}
       data={homeSections}
       keyExtractor={(item) => item.id}
-      renderItem={({ item }) => renderSection(item.id)}
+      renderItem={renderItem}
       showsVerticalScrollIndicator={false}
       onScroll={scrollHandler}
       onLayout={(e) => setViewportHeight(e.nativeEvent.layout.height)}
       scrollEventThrottle={16}
       removeClippedSubviews
+      initialNumToRender={6}
+      maxToRenderPerBatch={8}
+      windowSize={9}
     />
   );
 }

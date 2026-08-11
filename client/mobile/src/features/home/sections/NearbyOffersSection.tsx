@@ -1,22 +1,21 @@
-import React from 'react';
+import React, { memo } from 'react';
 import { ScrollView, StyleSheet } from 'react-native';
 import { hs, vs } from '@/utils/responsive';
 import { nearbyOffers } from '@data/home/nearbyOffers';
-import ProductCardBase from '@/components/shared/ProductCardBase';
+import UniversalFeedCard from '@/features/home/cards/UniversalFeedCard';
 import { SectionHeader, useAddToCartFeedback } from './common';
 import type { SectionProps } from './common';
 
-export default function NearbyOffersSection({ onProductClick, addToCart }: SectionProps) {
+function NearbyOffersSection({ onProductClick, addToCart }: SectionProps) {
   const { addedId, handleAdd } = useAddToCartFeedback(addToCart);
   return (
     <>
       <SectionHeader title="Nearby Offers" />
       <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.scroll}>
         {nearbyOffers.map((product) => (
-          <ProductCardBase
+          <UniversalFeedCard
             key={product.id}
             product={product}
-            appBrand={product.app}
             variant="rail"
             showDescription
             isAdded={addedId === product.id}
@@ -28,6 +27,8 @@ export default function NearbyOffersSection({ onProductClick, addToCart }: Secti
     </>
   );
 }
+
+export default memo(NearbyOffersSection);
 
 const styles = StyleSheet.create({
   scroll: {

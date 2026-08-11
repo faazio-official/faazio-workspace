@@ -44,7 +44,7 @@ const ProductCardBase = memo(function ProductCardBase({
   const isGrid2 = variant === 'grid2';
 
   const cardStyle = {
-    width: width || (isRail ? hs(256) : '48%' as any),
+    width: width || (isRail ? hs(150) : '48%' as any),
     borderRadius: ms(16),
     backgroundColor: '#ffffff',
     borderWidth: 1,
@@ -58,7 +58,7 @@ const ProductCardBase = memo(function ProductCardBase({
   return (
     <TouchableOpacity style={cardStyle} onPress={onPress} activeOpacity={0.9}>
       <View style={styles.imageWrap}>
-        <Image source={{ uri: product.image }} style={[styles.image, isGrid2 ? { aspectRatio: 3 / 4 } : { height: imageH }, roundedImageBottom && { borderBottomLeftRadius: ms(16), borderBottomRightRadius: ms(16) }]} />
+        <Image source={{ uri: product.image }} style={[styles.image, isGrid2 || isRail ? { aspectRatio: 3 / 4 } : { height: imageH }, roundedImageBottom && { borderBottomLeftRadius: ms(16), borderBottomRightRadius: ms(16) }]} />
         {showBadge && product.badge && (
           <View style={[styles.badge, { backgroundColor: resolveBadgeBg(product.badgeBg) }]}>
             <AppText style={styles.badgeText}>{product.badge}</AppText>
@@ -89,7 +89,7 @@ const ProductCardBase = memo(function ProductCardBase({
             <AppText style={styles.ratingText}>{formatRating(product.rating)}</AppText>
           </View>
         )}
-        <AppText style={[styles.name, isRail && { fontSize: ms(9) }]} numberOfLines={2}>{product.name}</AppText>
+        <AppText style={styles.name} numberOfLines={2}>{product.name}</AppText>
         {showDescription && product.desc && (
           <AppText style={styles.desc} numberOfLines={1}>{product.desc}</AppText>
         )}

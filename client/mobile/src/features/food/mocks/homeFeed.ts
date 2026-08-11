@@ -17,10 +17,10 @@ import {
 import type { DiningRestaurant } from './types';
 
 const img = (id: string, w = 900, h = 620) =>
-  `https://images.unsplash.com/${id}?auto=format&fit=crop&q=80&w=${w}&h=${h}`;
+  `https://images.unsplash.com/${id}?fm=jpg&fit=crop&q=80&w=${w}&h=${h}`;
 
 const squareImg = (id: string, w = 560) =>
-  `https://images.unsplash.com/${id}?auto=format&fit=crop&q=80&w=${w}&h=${w}`;
+  `https://images.unsplash.com/${id}?fm=jpg&fit=crop&q=80&w=${w}&h=${w}`;
 
 export interface QuickCategory {
   id: string;

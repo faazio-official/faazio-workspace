@@ -15,6 +15,12 @@ export interface Product {
   shop?: string;
   reviewsCount?: number;
   unit?: string;
+  /**
+   * Facetable product attributes, e.g. `{ processor: 'Apple M2', ram: '16GB',
+   * brand: 'Apple' }`. Search facets are derived from these attributes across
+   * the matched result set — never hand-mapped per keyword.
+   */
+  attributes?: Record<string, string | number | string[]>;
 }
 
 export interface MartProduct extends Product {
@@ -238,7 +244,7 @@ export interface PopularDiningItem {
   image: string;
 }
 
-/** Home "FA Mart finds" card (owner: features/home). */
+/** Home "Mart finds" card (owner: features/home). */
 export interface FaMartFind {
   name: string;
   price: number;

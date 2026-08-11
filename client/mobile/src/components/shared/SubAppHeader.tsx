@@ -1,7 +1,7 @@
 import React from 'react';
 import { StyleSheet, View, TouchableOpacity, StatusBar } from 'react-native';
 import type { TextInput } from 'react-native';
-import { ArrowLeft, Search } from 'lucide-react-native';
+import { ArrowLeft, Search, MapPin, ChevronDown } from 'lucide-react-native';
 import Svg, { Defs, LinearGradient as SvgGrad, Stop, Rect as SvgRect, Circle as SvgCircle } from 'react-native-svg';
 import { SCREEN_W, hs, vs, ms } from '@/utils/responsive';
 import AppText from '@/components/AppText';
@@ -15,6 +15,8 @@ const SUB_HEADER_SEARCH_H = Math.max(40, vs(40));
 const SUB_HEADER_BOTTOM_PAD = vs(12);
 export const SUB_HEADER_H =
   SUB_HEADER_NOTCH_INSET + SUB_HEADER_TOP_GAP + SUB_HEADER_ROW_H + SUB_HEADER_ROW_GAP + SUB_HEADER_SEARCH_H + SUB_HEADER_BOTTOM_PAD;
+export const SUB_HEADER_H_COMPACT =
+  SUB_HEADER_NOTCH_INSET + SUB_HEADER_TOP_GAP + SUB_HEADER_SEARCH_H + SUB_HEADER_BOTTOM_PAD;
 
 interface SubAppHeaderProps {
   title: string;
@@ -26,6 +28,10 @@ interface SubAppHeaderProps {
   searchPlaceholder: string;
   rightSlot?: React.ReactNode;
   inputRef?: React.RefObject<TextInput | null>;
+  hideBrandRow?: boolean;
+  addressLabel?: string;
+  addressSubLabel?: string;
+  onAddressPress?: () => void;
 }
 
 export default function SubAppHeader({
@@ -38,9 +44,13 @@ export default function SubAppHeader({
   searchPlaceholder,
   rightSlot,
   inputRef,
+  hideBrandRow = false,
+  addressLabel,
+  addressSubLabel,
+  onAddressPress,
 }: SubAppHeaderProps) {
   return (
-    <View style={styles.headerOuter}>
+    <View style={[styles.headerOuter, { height: hideBrandRow ? SUB_HEADER_H_COMPACT : SUB_HEADER_H }]}>
       <Svg style={StyleSheet.absoluteFill}>
         <Defs>
           <SvgGrad id="subHeaderGrad" x1="0%" y1="0%" x2="0%" y2="100%">
@@ -52,30 +62,55 @@ export default function SubAppHeader({
         <SvgCircle cx={SCREEN_W * 1.1} cy={vs(-20)} r={ms(96)} fill="rgba(255,255,255,0.05)" />
         <SvgCircle cx={hs(-30)} cy={vs(120)} r={ms(96)} fill="rgba(255,255,255,0.04)" />
       </Svg>
-      <View style={styles.headerContent}>
-        <View style={styles.headerTopRow}>
-          <View style={styles.brandChip}>
-            <AppText style={[styles.brandTitle, { color: textColor }]} numberOfLines={1}>
-              {title}
-            </AppText>
+      <View style={[styles.headerContent, hideBrandRow && styles.headerContentCompact]}>
+        {!hideBrandRow && (
+          <View style={styles.headerTopRow}>
+            <View style={styles.brandChip}>
+              <AppText style={[styles.brandTitle, { color: textColor }]} numberOfLines={1}>
+                {title}
+              </AppText>
+            </View>
+            {rightSlot}
           </View>
-          {rightSlot}
-        </View>
+        )}
         <View style={styles.searchRow}>
           <TouchableOpacity onPress={onBack} style={styles.backBtn} activeOpacity={0.7}>
             <ArrowLeft size={ms(18)} color={textColor} />
           </TouchableOpacity>
-          <View style={styles.searchPill}>
-            <Search size={ms(14)} color="#94a3b8" />
-            <AppTextInput
-              ref={inputRef}
-              style={styles.searchInput}
-              value={searchValue}
-              onChangeText={onSearchChange}
-              placeholder={searchPlaceholder}
-              placeholderTextColor="#94a3b8"
-            />
-          </View>
+          {addressLabel ? (
+            <TouchableOpacity
+              style={styles.addressPill}
+              onPress={onAddressPress}
+              activeOpacity={0.8}
+              accessibilityRole="button"
+              accessibilityLabel={`Location: ${addressLabel}`}
+            >
+              <MapPin size={ms(16)} color="#FFC107" strokeWidth={2.2} />
+              <View style={styles.addressTextWrap}>
+                <View style={styles.addressRow}>
+                  <AppText style={styles.addressArea} numberOfLines={1}>
+                    {addressLabel}
+                  </AppText>
+                  <ChevronDown size={ms(12)} color="#1E2022" strokeWidth={2.4} />
+                </View>
+                {addressSubLabel ? (
+                  <AppText style={styles.addressSub}>{addressSubLabel}</AppText>
+                ) : null}
+              </View>
+            </TouchableOpacity>
+          ) : (
+            <View style={styles.searchPill}>
+              <Search size={ms(14)} color="#94a3b8" />
+              <AppTextInput
+                ref={inputRef}
+                style={styles.searchInput}
+                value={searchValue}
+                onChangeText={onSearchChange}
+                placeholder={searchPlaceholder}
+                placeholderTextColor="#94a3b8"
+              />
+            </View>
+          )}
         </View>
       </View>
     </View>
@@ -89,7 +124,6 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     zIndex: 30,
-    height: SUB_HEADER_H,
     shadowColor: '#000000',
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.08,
@@ -101,6 +135,9 @@ const styles = StyleSheet.create({
     paddingBottom: SUB_HEADER_BOTTOM_PAD,
     paddingHorizontal: hs(16),
     gap: SUB_HEADER_ROW_GAP,
+  },
+  headerContentCompact: {
+    paddingTop: SUB_HEADER_NOTCH_INSET + SUB_HEADER_TOP_GAP,
   },
   headerTopRow: {
     flexDirection: 'row',
@@ -156,5 +193,41 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: '#0f172a',
     padding: 0,
+  },
+  addressPill: {
+    flex: 1,
+    height: SUB_HEADER_SEARCH_H,
+    borderRadius: ms(22),
+    backgroundColor: '#ffffff',
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: hs(14),
+    gap: hs(8),
+    shadowColor: '#000000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.06,
+    shadowRadius: 6,
+    elevation: 2,
+  },
+  addressTextWrap: {
+    flex: 1,
+    justifyContent: 'center',
+    gap: vs(1),
+  },
+  addressRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: hs(2),
+  },
+  addressArea: {
+    fontSize: ms(12),
+    fontWeight: '700',
+    color: '#1E2022',
+    flexShrink: 1,
+  },
+  addressSub: {
+    fontSize: ms(10),
+    fontWeight: '600',
+    color: '#666666',
   },
 });

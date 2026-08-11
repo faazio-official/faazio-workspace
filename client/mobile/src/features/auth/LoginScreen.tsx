@@ -16,7 +16,7 @@ import Svg, {
 } from 'react-native-svg';
 import { SCREEN_W, hs, vs, ms, wp, hp, DOME_RADIUS, STATUS_BAR_INSET } from '@/utils/responsive';
 
-import phoneAuthBackgroundImg from '@/assets/phone_auth_background.png';
+import phoneAuthBackgroundImg from '@/assets/phone_auth_background.webp';
 import AppTextInput from '@/components/AppTextInput';
 import AppText from '@/components/AppText';
 

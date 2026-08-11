@@ -1,7 +1,7 @@
 import type { DiningRestaurant } from './types';
 
 const img = (id: string, w = 900, h = 620) =>
-  `https://images.unsplash.com/${id}?auto=format&fit=crop&q=80&w=${w}&h=${h}`;
+  `https://images.unsplash.com/${id}?fm=jpg&fit=crop&q=80&w=${w}&h=${h}`;
 
 /** Hero carousel — premium dining rooms, rooftop spaces and cafes. */
 export const TOP_RATED_RESTAURANTS: DiningRestaurant[] = [

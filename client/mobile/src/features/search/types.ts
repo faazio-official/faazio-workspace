@@ -26,15 +26,51 @@ export interface SortOption {
   label: string;
 }
 
+/**
+ * One facetable attribute column. Mirrors Algolia/Typesense facet definitions:
+ * the schema always declares a key (product attribute name) + label, never the
+ * option values — options are derived from the matched result set at runtime
+ * via useFacets.
+ */
+export interface FacetSchema {
+  key: string;
+  label: string;
+  multiSelect?: boolean;
+}
+
+/** A single facet option with its live count across the matched result set. */
+export interface FacetOption {
+  value: string;
+  label: string;
+  count: number;
+}
+
+/** A facet group (attribute) with its derived option counts. */
+export interface FacetGroup {
+  key: string;
+  label: string;
+  options: FacetOption[];
+  multiSelect: boolean;
+}
+
+/** Active facet selection: facet key → selected option values. */
+export type ActiveFacets = Record<string, string[]>;
+
 export interface SearchModeConfig<TItem> {
   key: string;
   data: TItem[];
   renderCard: (item: TItem) => ReactElement | null;
   /**
    * Returns true when the item should remain visible given the current free-text
-   * query and the set of active filter chip ids.
+   * query, the set of active filter chip ids, and the active facet selections
+   * (facet key → selected option values).
    */
-  predicate: (item: TItem, query: string, activeFilterIds: string[]) => boolean;
+  predicate: (
+    item: TItem,
+    query: string,
+    activeFilterIds: string[],
+    activeFacets: ActiveFacets,
+  ) => boolean;
   /** Map of sort-option id → comparator. Applied after predicate filtering. */
   sorters: Record<string, (a: TItem, b: TItem) => number>;
   /** Empty-state content rendered when the filtered list is empty. */
@@ -42,7 +78,6 @@ export interface SearchModeConfig<TItem> {
 }
 
 export interface SearchScreenConfig {
-  title: string;
   searchPlaceholder?: string;
   toggles: SearchToggleOption[];
   filterChips: SearchFilterChip[];
@@ -58,4 +93,11 @@ export interface SearchScreenConfig {
   accentColor?: string;
   /** Rendering key used by FlatList. Defaults to the item id. */
   keyFor?: (item: any, index: number) => string;
+  /**
+   * Optional facet schema. When present the shell switches to facet mode: it
+   * renders a Filter + sort bar (instead of the boolean chip rail) and opens a
+   * facet overlay sheet. Facet option counts are always derived from the matched
+   * result set's attributes — never hand-mapped per keyword.
+   */
+  facetSchema?: FacetSchema[];
 }

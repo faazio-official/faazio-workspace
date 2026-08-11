@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { memo } from 'react';
 import { ScrollView, StyleSheet } from 'react-native';
 import { hs, vs } from '@/utils/responsive';
 import { foodStores } from '@data/food/stores';
@@ -6,7 +6,7 @@ import StoreCardBase from '@/components/shared/StoreCardBase';
 import { SectionHeader, subAppIdFor } from './common';
 import type { SectionProps } from './common';
 
-export default function MostRatedDiningSection({ onLaunchSubApp }: SectionProps) {
+function MostRatedDiningSection({ onLaunchSubApp }: SectionProps) {
   const topRated = [...foodStores].sort((a, b) => b.rating - a.rating).slice(0, 3);
   return (
     <>
@@ -24,6 +24,8 @@ export default function MostRatedDiningSection({ onLaunchSubApp }: SectionProps)
     </>
   );
 }
+
+export default memo(MostRatedDiningSection);
 
 const styles = StyleSheet.create({
   scroll: {

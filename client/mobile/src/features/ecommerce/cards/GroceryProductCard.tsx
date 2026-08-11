@@ -1,10 +1,8 @@
 import React, { memo } from 'react';
-import { View, Text, StyleSheet } from 'react-native';
-import { Star } from 'lucide-react-native';
-import { hs, vs, ms } from '@/utils/responsive';
+import { View } from 'react-native';
 import ProductCardBase from '@/components/shared/ProductCardBase';
-import { formatRating } from '@/components/shared/format';
 import type { Product } from '@data/types';
+import type { CardVariant } from '@data/schema';
 
 interface Props {
   product: Product;
@@ -14,19 +12,34 @@ interface Props {
   onAdd?: () => void;
   onIncrement?: () => void;
   onDecrement?: () => void;
+  variant?: Extract<CardVariant, 'grid2' | 'rail' | 'stack' | 'tile' | 'detail-row' | 'flash'>;
+  roundedImageBottom?: boolean;
+  showAdLabel?: boolean;
+  showDescription?: boolean;
+  originalPrice?: number;
+  width?: number;
 }
 
-const GroceryProductCard = memo(function GroceryProductCard(props: Props) {
+const GroceryProductCard = memo(function GroceryProductCard({
+  variant = 'grid2',
+  roundedImageBottom = true,
+  showAdLabel = false,
+  showDescription = false,
+  ...props
+}: Props) {
   return (
     <View style={{ position: 'relative' }}>
       <ProductCardBase
         {...props}
         product={props.product}
         appBrand="GROCERY"
-        variant="grid2"
+        variant={variant}
         showRating={false}
         showBadge
         showHeart={false}
+        roundedImageBottom={roundedImageBottom}
+        showAdLabel={showAdLabel}
+        showDescription={showDescription}
       />
     </View>
   );

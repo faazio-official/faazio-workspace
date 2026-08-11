@@ -21,4 +21,18 @@ config.resolver = {
   sourceExts: [...resolver.sourceExts, 'svg'],
 };
 
+// Defer module evaluation (inlineRequires) so cold start parses less JS.
+// The two store modules are block-listed because they seed from @data at
+// module load (side effects) — inlining them could break cart/favorites seeding.
+config.transformer.getTransformOptions = async () => ({
+  transform: {
+    inlineRequires: {
+      blockList: {
+        [require.resolve('./src/state/cartStore.ts')]: true,
+        [require.resolve('./src/state/favoriteStore.ts')]: true,
+      },
+    },
+  },
+});
+
 module.exports = config;

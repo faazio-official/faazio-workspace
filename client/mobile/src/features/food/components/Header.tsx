@@ -8,7 +8,7 @@ import { hs, ms, vs } from '@/utils/responsive';
 import { foodTheme } from '../constants/theme';
 
 const PROFILE_AVATAR =
-  'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=120&h=120';
+  'https://images.unsplash.com/photo-1534528741775-53994a69daeb?fm=jpg&fit=crop&q=80&w=120&h=120';
 
 interface HeaderProps {
   area?: string;

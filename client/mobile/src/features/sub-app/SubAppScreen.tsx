@@ -50,6 +50,7 @@ export function SubAppScreen({ navigation, route }: Props) {
         setShowLocationRequestState={() => {}}
         setIsLoggedIn={() => {}}
         onProductClick={(product) => navigation.navigate('ProductDetail', { product })}
+        onSearchPress={() => navigation.navigate('Search', { subApp: subAppId })}
       />
     </View>
   );

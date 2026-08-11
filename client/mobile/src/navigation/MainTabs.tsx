@@ -1,16 +1,29 @@
-import React from 'react';
+import React, { lazy, Suspense } from 'react';
 import { StyleSheet, View, TouchableOpacity } from 'react-native';
 import { hs, vs, ms } from '@/utils/responsive';
 import { Home, LayoutGrid, Heart, ShoppingBag, User } from 'lucide-react-native';
 import { createBottomTabNavigator, type BottomTabBarProps } from '@react-navigation/bottom-tabs';
 import { useCartStore } from '@/state/cartStore';
 import AppText from '@/components/AppText';
-import { HomeTabScreen } from '@/features/home/HomeTabScreen';
-import { CategoriesTabScreen } from '@/features/catalog/CategoriesTabScreen';
-import { FavouritesTabScreen } from '@/features/favourites/FavouritesTabScreen';
-import { AccountTabScreen } from '@/features/profile/AccountTabScreen';
-import { CartTabScreen } from '@/features/cart/CartTabScreen';
+import { SplashFallback } from '@/components/SplashFallback';
 import type { MainTabParamList } from '@/navigation/types';
+
+// Lazy-load tab screens so the first tab focus parses only its own chunk.
+const HomeTabScreen = lazy(() =>
+  import('@/features/home/HomeTabScreen').then((m) => ({ default: m.HomeTabScreen })),
+);
+const CategoriesTabScreen = lazy(() =>
+  import('@/features/catalog/CategoriesTabScreen').then((m) => ({ default: m.CategoriesTabScreen })),
+);
+const FavouritesTabScreen = lazy(() =>
+  import('@/features/favourites/FavouritesTabScreen').then((m) => ({ default: m.FavouritesTabScreen })),
+);
+const AccountTabScreen = lazy(() =>
+  import('@/features/profile/AccountTabScreen').then((m) => ({ default: m.AccountTabScreen })),
+);
+const CartTabScreen = lazy(() =>
+  import('@/features/cart/CartTabScreen').then((m) => ({ default: m.CartTabScreen })),
+);
 
 const TAB_COLORS: Record<keyof MainTabParamList, string> = {
   Home: '#2F80ED',
@@ -87,16 +100,18 @@ const Tab = createBottomTabNavigator<MainTabParamList>();
 export function MainTabs() {
   return (
     <View style={styles.entranceRoot}>
-      <Tab.Navigator
-        tabBar={(props) => <HubTabBar {...props} />}
-        screenOptions={{ headerShown: false, lazy: true }}
-      >
-        <Tab.Screen name="Home" component={HomeTabScreen} />
-        <Tab.Screen name="Categories" component={CategoriesTabScreen} />
-        <Tab.Screen name="Favourites" component={FavouritesTabScreen} />
-        <Tab.Screen name="Account" component={AccountTabScreen} />
-        <Tab.Screen name="Cart" component={CartTabScreen} />
-      </Tab.Navigator>
+      <Suspense fallback={<SplashFallback />}>
+        <Tab.Navigator
+          tabBar={(props) => <HubTabBar {...props} />}
+          screenOptions={{ headerShown: false, lazy: true }}
+        >
+          <Tab.Screen name="Home" component={HomeTabScreen} />
+          <Tab.Screen name="Categories" component={CategoriesTabScreen} />
+          <Tab.Screen name="Favourites" component={FavouritesTabScreen} />
+          <Tab.Screen name="Account" component={AccountTabScreen} />
+          <Tab.Screen name="Cart" component={CartTabScreen} />
+        </Tab.Navigator>
+      </Suspense>
     </View>
   );
 }

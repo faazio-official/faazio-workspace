@@ -13,15 +13,9 @@ interface SearchRestaurantCardProps {
   onPress?: (restaurant: DiningRestaurant) => void;
 }
 
-const minutesLabel = (deliveryTime: string) => {
-  const trimmed = deliveryTime.trim();
-  return /^(\d+) min$/.test(trimmed) ? `${trimmed} s` : trimmed;
-};
-
 /**
- * Search result restaurant card — row layout per the search spec: square
- * thumbnail left with an optional offer badge overlay, details right (name +
- * heart, rating/time/cost metrics, cuisines, distance + neighborhood).
+ * Search result restaurant card — row layout: square thumbnail left, details
+ * right (name + heart, rating, cuisines, distance + neighborhood).
  */
 const SearchRestaurantCard = memo(function SearchRestaurantCard({ restaurant, onPress }: SearchRestaurantCardProps) {
   return (
@@ -34,13 +28,6 @@ const SearchRestaurantCard = memo(function SearchRestaurantCard({ restaurant, on
     >
       <View style={styles.imageWrap}>
         <RemoteImage uri={restaurant.image} variant="restaurant" style={styles.image} />
-        {restaurant.offerTag ? (
-          <View style={styles.offerBadge}>
-            <AppText style={styles.offerText} numberOfLines={1}>
-              {restaurant.offerTag}
-            </AppText>
-          </View>
-        ) : null}
       </View>
 
       <View style={styles.details}>
@@ -51,15 +38,11 @@ const SearchRestaurantCard = memo(function SearchRestaurantCard({ restaurant, on
           <FavoriteButton id={restaurant.id} size={ms(28)} iconSize={ms(15)} />
         </View>
 
-        <View style={styles.metricsRow}>
+        <View style={styles.ratingRow}>
           <View style={styles.ratingBadge}>
             <Star size={ms(10)} color="#FFFFFF" fill="#FFFFFF" strokeWidth={2.5} />
             <AppText style={styles.ratingText}>{restaurant.rating.toFixed(1)}</AppText>
           </View>
-          <View style={styles.dot} />
-          <AppText style={styles.metricText}>{minutesLabel(restaurant.deliveryTime)}</AppText>
-          <View style={styles.dot} />
-          <AppText style={styles.metricText}>₹{restaurant.priceForTwo.toLocaleString('en-IN')} for two</AppText>
         </View>
 
         <AppText style={styles.cuisines} numberOfLines={1}>
@@ -101,22 +84,6 @@ const styles = StyleSheet.create({
     borderRadius: ms(12),
     backgroundColor: foodTheme.divider,
   },
-  offerBadge: {
-    position: 'absolute',
-    left: 0,
-    bottom: 0,
-    backgroundColor: foodTheme.primary,
-    borderBottomLeftRadius: ms(12),
-    borderTopRightRadius: ms(8),
-    paddingHorizontal: hs(8),
-    paddingVertical: vs(3),
-    maxWidth: ms(100),
-  },
-  offerText: {
-    fontSize: ms(9),
-    fontWeight: '800',
-    color: '#FFFFFF',
-  },
   details: {
     flex: 1,
     paddingLeft: hs(12),
@@ -135,10 +102,9 @@ const styles = StyleSheet.create({
     color: foodTheme.textPrimary,
     lineHeight: ms(19),
   },
-  metricsRow: {
+  ratingRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: hs(5),
   },
   ratingBadge: {
     flexDirection: 'row',
@@ -153,17 +119,6 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontSize: ms(11),
     fontWeight: '800',
-  },
-  dot: {
-    width: ms(3),
-    height: ms(3),
-    borderRadius: ms(1.5),
-    backgroundColor: foodTheme.dotInactive,
-  },
-  metricText: {
-    fontSize: ms(11),
-    fontWeight: '600',
-    color: foodTheme.textSecondary,
   },
   cuisines: {
     fontSize: ms(11.5),

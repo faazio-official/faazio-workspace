@@ -1,91 +1,65 @@
-# SuperApp Agent Instructions (AGENTS.md)
+# AGENTS.md — Faazio SuperApp
 
-This file instructs future AI coding agents or assistants on how to build, extend, and manage the **SuperApp** React Native codebase. Follow these guidelines strictly to ensure code quality, modularity, and production-readiness.
+## Core mandate
+Build **lightweight, fast, secure**. Every change must justify its size:
+- **Lightweight** — small bundle, lean components, no dead code or unused deps.
+- **Fast** — efficient rendering, lazy/native where sensible, minimal re-renders.
+- **Secure** — never log or commit secrets/PII; tokens via `expo-secure-store`; prescriptions & payments never in plain logs.
 
----
-
-## 📁 Monorepo Structure
-
+## Repo map
 ```
 faazio-workspace/
-├── (repo root)            ← Vite web app — UI reference, FROZEN (no edits)
-├── client/
-│   └── mobile/            ← React Native (Expo) SuperApp — all active work
-├── server/                ← Go Chi SDUI backend (placeholder)
-└── data/                  ← SDUI source of truth, consumed via `@data/*`
+├── (root)          Vite web app — FROZEN reference. Do NOT edit, lint, typecheck, or build it.
+├── client/mobile/  React Native (Expo) SuperApp — ALL active work lives here.
+├── server/         Go Chi SDUI backend — future. Placeholder only.
+└── data/           SDUI source of truth (enterprise-controlled), consumed via @data/*.
+```
+See `ARCHITECTURE.md` (root) for the full mobile + future-Chi design. Data ownership lives in `data/DATA_CONTROL.md`.
+
+## Hard rules
+1. **Vite web app at root is frozen.** Never touch `src/`, `vite.config.ts`, `tsconfig.json`, `index.html`, `root package.json`.
+2. **Wait for user intent.** Do NOT build screens/pages until explicitly requested.
+3. **Imports** — `@/` → `client/mobile/src/`, `@data/` → root `data/`.
+4. **State** — shared state ONLY in Zustand stores under `src/state/`. Keep components presentational; read via selectors. No duplicate shared state.
+5. **Modularity** — small components under `src/components/`; screen helpers under their `src/features/<module>/`; shared widgets under `src/components/shared/`. Reuse before duplicating (avoid parallel mock copies).
+6. **Navigation** — all routes typed in `src/navigation/AppNavigator.tsx`; screens use `NativeStackScreenProps`.
+7. **Native permissions** — document in `app.json` (`ios.infoPlist`/`android.permissions`) and gate with consent dialogs before hardware.
+8. **Brand** — always use the Faazio logo (`<FaazioLogo />`), never raw text placeholders.
+9. **Layout** — full-viewport, non-scrollable (`h-[100dvh]`), no faux device borders/notches.
+10. **Boundaries** — cross-sub-app access only via Home. Enforced by `check:boundaries`.
+
+## Verify after any change
+Run from `client/mobile/`:
+```bash
+npm run ts:check          # typecheck (always)
+npm run check:boundaries  # dependency-cruiser
+# device test: adb devices then npm run android
 ```
 
-**Rules:**
-- **Vite web app at repo root is a frozen UI reference.** Do not edit `src/`, `vite.config.ts`, `tsconfig.json`, `index.html`, `package.json`, or any root-level file belonging to Vite. Do not fix, lint, typecheck, or build Vite. Its `tsconfig.json`, aliases, and excludes are left as-is.
-- **All active development lives in `client/mobile/`**. Use `@/` for files inside `client/mobile/src/`.
-- **Shared data lives in `data/`** at the repo root. Import via `@data/` prefix (Metro watchFolders + TS path alias).
-- **`server/`** is a placeholder for the future Go Chi backend. No server code yet.
+## Planned modules (build only when requested)
+`features/auth`, `features/ecommerce`, `features/dinner-booking`, `features/pharma` — ready to construct on demand.
 
----
+## Security — Phase 1: Security steps for future projects
 
-## 🛑 Critical Rule: Wait For User Intent
+### 1. During development (the code)
+- **Never hardcode secrets** — no DB passwords, API keys, or SSH keys in code. Use environment variables (`.env` files).
+- **Sanitize inputs** — always use parameterized queries for databases (prevents SQL injection); validate and sanitize all user forms.
+- **Keep dependencies updated** — run automated tools like `npm audit` or `pip audit` before deploying to catch known CVEs in third-party packages.
 
-**DO NOT build any new screens or pages until the user explicitly requests them.**
-The user has initialized the core structure and folder tree, and will provide the exact list of pages (from login to booking systems, shop, etc.) in subsequent turns. Wait for their word.
+### 2. During deployment (the infrastructure)
+- **Lock down ports** — close every port except what's necessary. Keep DB ports (e.g. `3306` MySQL, `6379` Redis) closed to the public internet entirely.
+- **Use SSH keys, not passwords** — disable password login for SSH, use cryptographic SSH keys, and change the default SSH port (22) to a custom number.
+- **Hide behind Cloudflare (correctly)** — the backend server firewall must only accept traffic from Cloudflare's official IP ranges. Leaving it open lets attackers bypass Cloudflare and hit the server directly.
+- **Block system files** — block public web access to sensitive dirs like `.git/` or `.DS_Store` in the web-server config (Nginx/Apache).
 
----
+## Security — Phase 2: Prompting an LLM for secure coding
+When using LLMs to write code or deploy scripts, never just ask for "working code" (that prioritizes simplicity over security). Explicitly prompt the AI to include security layers.
 
-## 🛠️ Codebase Patterns & Rules
+### Prompt template 1 — writing code securely
+> "I am building a [insert language/framework, e.g., Node.js Express] application for a school dashboard. Write the code for a user login and data retrieval system. Ensure the code follows strict security best practices, including input sanitization, protection against SQL Injection, secure password hashing using bcrypt, and robust error handling that does not leak system paths."
 
-### 1. Absolute Path Configuration
-- Use the `@/` prefix to import files within the `src/` directory.
-- Example: `import { useAuthStore } from '@/state/store';` rather than `import { useAuthStore } from '../../state/store';`.
-- Use the `@data/` prefix to import shared data from the root `data/` folder.
-  Example: `import { martProducts } from '@data/mart/products';`.
+### Prompt template 2 — deploying a server securely
+> "I am deploying a production web application on an Ubuntu server using [Nginx / Docker / Apache]. Provide a step-by-step checklist and commands to harden this server. Specifically, show me how to block access to hidden folders (like .git), how to configure the firewall (UFW) to block database ports from the public, and how to securely handle environment variables so secrets aren't exposed."
 
-### 2. State Management Strategy (Zustand)
-- All shared states **MUST** live in `src/state/store.ts` (or modular files inside `src/state/` if it scales).
-- Keep components presentationally pure. Fetch state using Zustand selectors:
-  ```ts
-  const user = useAuthStore((state) => state.user);
-  ```
-- Do not duplicate state within local component states if it is shared.
-
-### 3. Component Extraction Rule
-- Keep individual components small and modular.
-- Create reusable visual widgets (e.g., custom Buttons, Input fields, Badges, Loaders) under `src/components/`.
-- Screen-specific helper widgets should live in subfolders of their respective modules under `src/features/`.
-
-### 4. Navigation Architecture
-- The main navigation is handled in `src/navigation/AppNavigator.tsx`.
-- Keep Stack and Tab Parameter Lists synchronized inside `AppNavigator.tsx` to ensure complete type-safety.
-- Ensure all screens have proper TypeScript typing:
-  ```ts
-  import { NativeStackScreenProps } from '@react-navigation/native-stack';
-  import { RootStackParamList } from '@/navigation/AppNavigator';
-  
-  type Props = NativeStackScreenProps<RootStackParamList, 'ProductDetail'>;
-  ```
-
-### 5. Native Permissions Handling
-- When introducing a feature that interacts with native hardware (e.g. upload prescription, camera features, geolocation mapping), you **must**:
-  1. Add appropriate description configurations in `app.json` (inside both `ios.infoPlist` and `android.permissions`).
-  2. Implement grace checks and user consent dialogs using `expo-image-picker` or standard permissions hooks before booting hardware interfaces.
-
-### 6. HIPAA & E-Commerce Security
-- Ensure prescription information and payment details are never saved to unsecure global logs.
-- Utilize secure network adapters to proxy files directly to AWS/Google Cloud storage systems.
-- Use `expo-secure-store` for sensitive authorization tokens.
-
-### 7. Brand Logo Enforcement
-- The official Faazio brand logo must always be used (refer to `/src/assets/logo.svg` or the `<FaazioLogo />` component). Absolutely no raw text placeholders or plain text labels where the brand identity is represented.
-
-### 8. Auto-Edge Full Viewport & Non-Scrollable Layouts
-- All app screens (Onboarding, Login, main menus) must be designed to be completely non-scrollable and fit within 100% of the viewport height (`h-screen` or `h-[100dvh]`).
-- Spacing, padding, and graphic heights must dynamically scale down to guarantee zero scrollbars on any standard display size.
-- Utilize standard edge-to-edge full width and full height layout (auto-edge feature) without artificial device shells, faux status bars, faux notches, and larping device boundaries.
-
----
-
-## 🗺️ Next Steps Blueprint
-
-When the user specifies the screen names and user flows:
-1. **Auth Module (`features/auth`)**: Ready to construct custom screen flows (Login, Sign Up, Verification OTP).
-2. **E-Commerce Module (`features/ecommerce`)**: Ready to construct Catalog lists, Product card components, Cart overlays, and custom Checkout screens.
-3. **Dinner Booking Module (`features/dinner-booking`)**: Ready to construct Restaurant finders, table reservation calendars, and confirmation logs.
-4. **Pharma Module (`features/pharma`)**: Ready to construct medical databases, prescription cameras, and checkout modules.
+### Prompt template 3 — reviewing existing code
+> "Act as a Senior Cyber Security Auditor. Review the following code snippet for potential vulnerabilities (OWASP Top 10). Identify any risks regarding data exposure, broken authentication, or injection flaws, and provide the secure, corrected version of the code: [Insert Code Here]"

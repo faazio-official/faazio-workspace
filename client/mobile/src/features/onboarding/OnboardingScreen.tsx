@@ -6,10 +6,10 @@ import { ChevronLeft, ChevronRight } from 'lucide-react-native';
 import { FaazioLogo } from '../../components/FaazioLogo';
 import { SCREEN_W, SCREEN_H, hs, vs, ms, wp, hp, STATUS_BAR_INSET } from '@/utils/responsive';
 
-import welcomeIllustration1 from '../../assets/welcome_illustration_1.png';
-import welcomeIllustration2 from '../../assets/welcome_illustration_2.png';
-import welcomeIllustration3 from '../../assets/welcome_illustration_3.png';
-import welcomeIllustration4 from '../../assets/welcome_illustration_4.png';
+import welcomeIllustration1 from '../../assets/welcome_illustration_1.webp';
+import welcomeIllustration2 from '../../assets/welcome_illustration_2.webp';
+import welcomeIllustration3 from '../../assets/welcome_illustration_3.webp';
+import welcomeIllustration4 from '../../assets/welcome_illustration_4.webp';
 import AppText from '@/components/AppText';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'Onboarding'>;
