@@ -56,6 +56,10 @@ export function HomeTabScreen({ navigation }: Props) {
     transform: [{ translateY: -Math.min(clamp.value, collapseCap.value) }],
   }));
 
+  const headerFadeStyle = useAnimatedStyle(() => ({
+    opacity: collapseCap.value === 0 ? 1 : 1 - clamp.value / collapseCap.value,
+  }));
+
   const onStackLayout = useCallback(
     (e: any) => {
       const h = e.nativeEvent.layout.height;
@@ -71,29 +75,31 @@ export function HomeTabScreen({ navigation }: Props) {
         <Animated.View style={[styles.headerSlid, { height: stackH }, headerSlideStyle]} collapsable={false}>
           <HubGradient />
           <View style={styles.headerStack} onLayout={onStackLayout}>
-            <View style={styles.headerTopRow}>
-              <FaazioLogo size={ms(28)} />
+            <Animated.View style={headerFadeStyle}>
+              <View style={styles.headerTopRow}>
+                <FaazioLogo size={ms(28)} />
 
-              <View style={styles.headerCenter}>
-                <TouchableOpacity
-                  style={styles.locationRow}
-                  activeOpacity={0.7}
-                  onPress={() => navigation.navigate('Location')}
-                >
-                  <MapPin size={ms(11)} color="#7CE045" />
-                  <AppText style={styles.locationText} numberOfLines={1}>
-                    Sunnambukkara Street, Karaikal
-                  </AppText>
-                  <ChevronDown size={ms(11)} color="rgba(255,255,255,0.6)" />
-                </TouchableOpacity>
+                <View style={styles.headerCenter}>
+                  <TouchableOpacity
+                    style={styles.locationRow}
+                    activeOpacity={0.7}
+                    onPress={() => navigation.navigate('Location')}
+                  >
+                    <MapPin size={ms(11)} color="#7CE045" />
+                    <AppText style={styles.locationText} numberOfLines={1}>
+                      Sunnambukkara Street, Karaikal
+                    </AppText>
+                    <ChevronDown size={ms(11)} color="rgba(255,255,255,0.6)" />
+                  </TouchableOpacity>
+                </View>
               </View>
-            </View>
 
-            <View style={styles.sectorsRow}>
-              <ExploreSectorsSection
-                onLaunchSubApp={handleLaunchSubApp}
-              />
-            </View>
+              <View style={styles.sectorsRow}>
+                <ExploreSectorsSection
+                  onLaunchSubApp={handleLaunchSubApp}
+                />
+              </View>
+            </Animated.View>
 
             <TouchableOpacity
               style={styles.searchBar}

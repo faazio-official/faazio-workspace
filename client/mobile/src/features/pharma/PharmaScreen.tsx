@@ -1,5 +1,7 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { StyleSheet, View, ScrollView, Image, TouchableOpacity, Animated } from 'react-native';
+import { useNavigation } from '@react-navigation/native';
+import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import {
   Heart, CheckCircle, Search, ChevronLeft,
   Star, Minus, Plus, Sparkles, ClipboardList, Calendar, Clock,
@@ -9,24 +11,18 @@ import { hs, vs, ms, SCREEN_W } from '@/utils/responsive';
 import PharmaProductCard from '@/features/pharma/cards/PharmaProductCard';
 import AppTextInput from '@/components/AppTextInput';
 import AppText from '@/components/AppText';
-import { PHARMA_CATEGORIES, PHARMA_PRODUCTS_DB, pharmaProducts } from '@data/pharma/products';
+import { PHARMA_PRODUCTS_DB, pharmaProducts } from '@data/pharma/products';
 import type { PharmaDBItem } from '@data/pharma/products';
+import type { RootStackParamList } from '@/navigation/types';
 
-import {
-  PHARMA_FEATURE_CHIPS,
-  PHARMA_FEED_CATEGORIES,
-  PHARMA_QUICK_REORDER,
-  PHARMA_TOP_OFFERS,
-  PHARMA_POPULAR_MEDICINES,
-  PHARMA_HEALTH_ESSENTIALS,
-  PHARMA_FEATURED_BRANDS,
-  PHARMA_HEALTH_CORNER,
-} from './mocks/pharmaHomeFeed';
 import type { PharmaPopularMedicine, PharmaQuickReorderItem } from './mocks/pharmaHomeFeed';
 
 import FeatureChipsRail from './components/pharma-home/FeatureChipsRail';
 import PharmaHeroBanner from './components/pharma-home/PharmaHeroBanner';
-import CategoryRail from './components/pharma-home/CategoryRail';
+import CategoryCardRail from '@/components/shared/CategoryCardRail';
+import { getCategoryCards } from '@/services/categoryRail';
+import type { CategoryCard } from '@/services/categoryRail';
+import { PHARMA_ACCENT } from '@data/categories/masterCategories';
 import QuickReorderRail from './components/pharma-home/QuickReorderRail';
 import TopOffersRail from './components/pharma-home/TopOffersRail';
 import PopularMedicinesRail from './components/pharma-home/PopularMedicinesRail';
@@ -35,7 +31,9 @@ import FeaturedBrandsRail from './components/pharma-home/FeaturedBrandsRail';
 import HealthCornerRail from './components/pharma-home/HealthCornerRail';
 import FooterFeatures from './components/pharma-home/FooterFeatures';
 import UploadPrescriptionFAB from './components/pharma-home/UploadPrescriptionFAB';
-import PharmaCategoriesScreen from './PharmaCategoriesScreen';
+import CategoriesDualPanel from '@/components/shared/CategoriesDualPanel';
+import { usePharmaFeed } from './hooks/usePharmaFeed';
+import PharmaHomeSkeleton from './components/skeletons/PharmaHomeSkeleton';
 
 interface PharmaScreenProps {
   addToCart?: (id: string, name: string, price: number, emoji: string) => void;
@@ -46,6 +44,8 @@ interface PharmaScreenProps {
   activeTab?: string;
   setActiveTab?: (tab: string) => void;
   searchQuery?: string;
+  /** Reports whether the All Categories view is visible (lets parent hide its header). */
+  onCategoryViewChange?: (visible: boolean) => void;
 }
 
 export function PharmaScreen({
@@ -57,6 +57,7 @@ export function PharmaScreen({
   activeTab,
   setActiveTab,
   searchQuery = '',
+  onCategoryViewChange,
 }: PharmaScreenProps) {
   const [currentView, setCurrentView] = useState<'HOME' | 'ALL_CATEGORIES' | 'CATEGORY_PRODUCTS' | 'PRODUCT_DETAIL'>('HOME');
   const [selectedCategoryId, setSelectedCategoryId] = useState<string | null>(null);
@@ -68,6 +69,23 @@ export function PharmaScreen({
   const [localFavorites, setLocalFavorites] = useState<string[]>(['ph-t1', 'ph-f1']);
 
   const pulseAnim = useRef(new Animated.Value(1)).current;
+
+  const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
+  const feed = usePharmaFeed();
+
+  const handleCategoryPress = useCallback(
+    (card: CategoryCard) => {
+      navigation.navigate('MasterCategories', {
+        initialChip: 'PHARMA',
+        initialTabId: card.id,
+      });
+    },
+    [navigation],
+  );
+
+  const handleViewCategories = useCallback(() => {
+    navigation.navigate('MasterCategories', { initialChip: 'PHARMA' });
+  }, [navigation]);
 
   useEffect(() => {
     const loop = Animated.loop(
@@ -117,6 +135,10 @@ export function PharmaScreen({
       setCurrentView('HOME');
     }
   };
+
+  useEffect(() => {
+    onCategoryViewChange?.(currentView === 'ALL_CATEGORIES');
+  }, [currentView, onCategoryViewChange]);
 
   const homeSearchNormalized = searchQuery.trim().toLowerCase();
   const searchedProducts = pharmaProducts.filter(p =>
@@ -190,54 +212,53 @@ export function PharmaScreen({
     </View>
   );
 
-  const feedView = (
+  const feedView = feed ? (
     <View style={styles.feedWrap}>
       <ScrollView showsVerticalScrollIndicator={false} bounces={false}>
-        <FeatureChipsRail badges={PHARMA_FEATURE_CHIPS} />
+        <FeatureChipsRail badges={feed.featureChips} />
         <PharmaHeroBanner
           onOrderNow={() => { setSelectedCategoryId('vitamin'); setCurrentView('CATEGORY_PRODUCTS'); }}
         />
-        <CategoryRail
-          categories={PHARMA_FEED_CATEGORIES}
-          onPress={() => setCurrentView('ALL_CATEGORIES')}
-          onViewAll={() => setCurrentView('ALL_CATEGORIES')}
+        <CategoryCardRail
+          title="Shop by Category"
+          categories={getCategoryCards('PHARMA')}
+          accent={PHARMA_ACCENT}
+          cardBg="#E0F2F1"
+          onPress={handleCategoryPress}
+          onViewMore={handleViewCategories}
         />
         <QuickReorderRail
-          items={PHARMA_QUICK_REORDER}
+          items={feed.quickReorder}
           onAdd={handleFeedAdd}
         />
-        <TopOffersRail offers={PHARMA_TOP_OFFERS} />
+        <TopOffersRail offers={feed.topOffers} />
         <PopularMedicinesRail
-          items={PHARMA_POPULAR_MEDICINES}
+          items={feed.popularMedicines}
           addedIds={feedAddedIds}
           onPress={handlePopularPress}
           onAdd={handleFeedAdd}
         />
-        <HealthEssentialsRail items={PHARMA_HEALTH_ESSENTIALS} />
-        <FeaturedBrandsRail brands={PHARMA_FEATURED_BRANDS} />
-        <HealthCornerRail items={PHARMA_HEALTH_CORNER} />
+        <HealthEssentialsRail items={feed.healthEssentials} />
+        <FeaturedBrandsRail brands={feed.featuredBrands} />
+        <HealthCornerRail items={feed.healthCorner} />
         <FooterFeatures />
       </ScrollView>
       <UploadPrescriptionFAB />
     </View>
+  ) : (
+    <PharmaHomeSkeleton />
   );
 
   const allCategoriesView = (
-    <PharmaCategoriesScreen
+    <CategoriesDualPanel
+      initialChip="PHARMA"
       onBack={goBack}
-      onCategoryPress={(cat) => {
-        const matchingCategory = PHARMA_CATEGORIES.find((c) => c.name === cat.name) ?? PHARMA_CATEGORIES[0];
-        setSelectedCategoryId(matchingCategory.id);
-        setCurrentView('CATEGORY_PRODUCTS');
+      onSearchPress={() => navigation.navigate('Search', { subApp: 'PHARMA' })}
+      onProductPress={(item, app) => {
+        navigation.navigate('Search', { subApp: app, initialQuery: item.searchQuery });
       }}
-      onSearchPress={() => setCurrentView('HOME')}
-      onQuickAction={(action) => {
-        if (action.id === 2) {
-          setCurrentView('PRODUCT_DETAIL');
-          setSelectedProduct(PHARMA_PRODUCTS_DB[0]);
-        } else {
-          setCurrentView('HOME');
-        }
+      onTitlePress={(title, app) => {
+        navigation.navigate('Search', { subApp: app, initialQuery: title });
       }}
     />
   );

@@ -49,6 +49,8 @@ export default function HomeView({
   const [viewportHeight, setViewportHeight] = React.useState(0);
   const lastEmit = useSharedValue(0);
 
+  const DAMPING = 0.5;
+
   const scrollHandler = useAnimatedScrollHandler({
     onScroll: (e) => {
       const y = e.contentOffset.y;
@@ -58,7 +60,10 @@ export default function HomeView({
       if (y <= 0) {
         clamp.value = 0;
       } else {
-        clamp.value = Math.min(collapseCap.value, Math.max(0, clamp.value + dy));
+        clamp.value = Math.min(
+          collapseCap.value,
+          Math.max(0, clamp.value + dy * DAMPING),
+        );
       }
 
       if (Math.abs(y - lastEmit.value) > 40 || y <= 0) {

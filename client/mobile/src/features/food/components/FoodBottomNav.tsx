@@ -1,9 +1,10 @@
 import React, { memo } from 'react';
 import { View, TouchableOpacity, StyleSheet } from 'react-native';
-import { Home, Search, UtensilsCrossed, ShoppingBag } from 'lucide-react-native';
+import { Home, Search, UtensilsCrossed, ShoppingBag, ShoppingCart } from 'lucide-react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import AppText from '@/components/AppText';
 import { hs, ms, vs } from '@/utils/responsive';
+import { useCartStore } from '@/state/store';
 import { foodTheme } from '../constants/theme';
 
 export type FoodTab = 'Home' | 'Search' | 'Dining' | 'FoodOrder';
@@ -18,14 +19,23 @@ const TABS: { name: FoodTab; icon: any }[] = [
 interface FoodBottomNavProps {
   activeTab: FoodTab;
   onChange: (tab: FoodTab) => void;
+  onCartPress?: () => void;
 }
 
 /**
  * Section 7 — fixed bottom navigation. 4 tabs (Home / Search / Dining /
- * FoodOrder), icon over text, active tab tinted with the brand color.
+ * FoodOrder), icon over text, active tab tinted with the brand color, plus a
+ * dedicated Cart item (with a count badge) that opens the root Cart page.
  */
-const FoodBottomNav = memo(function FoodBottomNav({ activeTab, onChange }: FoodBottomNavProps) {
+const FoodBottomNav = memo(function FoodBottomNav({
+  activeTab,
+  onChange,
+  onCartPress,
+}: FoodBottomNavProps) {
   const insets = useSafeAreaInsets();
+  const cartCount = useCartStore((s) =>
+    s.cart.reduce((acc, curr) => acc + curr.quantity, 0),
+  );
 
   return (
     <View style={[styles.bar, { paddingBottom: Math.max(insets.bottom, vs(8)) }]}>
@@ -48,6 +58,24 @@ const FoodBottomNav = memo(function FoodBottomNav({ activeTab, onChange }: FoodB
           </TouchableOpacity>
         );
       })}
+
+      <TouchableOpacity
+        style={styles.item}
+        onPress={onCartPress}
+        activeOpacity={0.75}
+        accessibilityRole="button"
+        accessibilityLabel="Cart"
+      >
+        <View>
+          <ShoppingCart size={ms(22)} color={foodTheme.textMuted} strokeWidth={2} />
+          {cartCount > 0 && (
+            <View style={styles.cartBadge}>
+              <AppText style={styles.cartBadgeText}>{cartCount}</AppText>
+            </View>
+          )}
+        </View>
+        <AppText style={styles.label}>Cart</AppText>
+      </TouchableOpacity>
     </View>
   );
 });
@@ -88,5 +116,23 @@ const styles = StyleSheet.create({
   labelActive: {
     fontWeight: '800',
     color: foodTheme.primary,
+  },
+  cartBadge: {
+    position: 'absolute',
+    top: -vs(6),
+    right: -hs(10),
+    minWidth: ms(18),
+    height: ms(18),
+    borderRadius: ms(9),
+    paddingHorizontal: hs(4),
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: foodTheme.primary,
+  },
+  cartBadgeText: {
+    fontSize: ms(10),
+    fontWeight: '800',
+    color: '#FFFFFF',
+    lineHeight: ms(16),
   },
 });

@@ -12,7 +12,6 @@ export function SubAppScreen({ navigation, route }: Props) {
   const cartItems = useCartStore((s) => s.cart);
   const addToCart = useCartStore((s) => s.addToCart);
   const storeUpdateQuantity = useCartStore((s) => s.updateQuantity);
-  const clearCart = useCartStore((s) => s.clearCart);
   const replaceCart = useCartStore((s) => s.replaceCart);
 
   const updateCartQuantity = useCallback(
@@ -32,11 +31,6 @@ export function SubAppScreen({ navigation, route }: Props) {
     [replaceCart]
   );
 
-  const handleReset = useCallback(() => {
-    clearCart();
-    navigation.reset({ index: 0, routes: [{ name: 'Login' }] });
-  }, [clearCart, navigation]);
-
   return (
     <View style={styles.container}>
       <SubAppWrapper
@@ -46,9 +40,6 @@ export function SubAppScreen({ navigation, route }: Props) {
         cartItems={cartItems}
         setCartItems={setCartItems}
         updateCartQuantity={updateCartQuantity}
-        handleReset={handleReset}
-        setShowLocationRequestState={() => {}}
-        setIsLoggedIn={() => {}}
         onProductClick={(product) => navigation.navigate('ProductDetail', { product })}
         onSearchPress={() => navigation.navigate('Search', { subApp: subAppId })}
         onCartPress={() => navigation.navigate('Cart')}

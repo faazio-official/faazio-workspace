@@ -10,8 +10,6 @@ import MartProductCard from '@/features/ecommerce/cards/MartProductCard';
 
 const DEAL_CARD_W = hs(150);
 
-const DealSeparator = () => <View style={styles.separator} />;
-
 interface DealsOfDayRailProps {
   deals: MartDeal[];
   onDealPress?: (deal: MartDeal) => void;
@@ -60,7 +58,6 @@ const DealsOfDayRail = memo(function DealsOfDayRail({
         horizontal
         showsHorizontalScrollIndicator={false}
         contentContainerStyle={styles.content}
-        ItemSeparatorComponent={DealSeparator}
         bounces={false}
       />
     </View>
@@ -75,8 +72,5 @@ const styles = StyleSheet.create({
   },
   content: {
     paddingHorizontal: hs(16),
-  },
-  separator: {
-    width: hs(12),
   },
 });

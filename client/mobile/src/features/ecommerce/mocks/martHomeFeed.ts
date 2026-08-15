@@ -14,12 +14,6 @@ export interface MartHeroBanner {
   imageUrl: string;
 }
 
-export interface MartCategory {
-  id: string;
-  name: string;
-  cutoutImageUrl: string;
-}
-
 export interface MartDeal {
   id: string;
   brand: string;
@@ -82,17 +76,6 @@ export const MART_HERO_BANNERS: MartHeroBanner[] = [
     bgHex: '#FFF3E0',
     imageUrl: squareImg('photo-1498050108023-c5249f4df085', 400),
   },
-];
-
-export const MART_CATEGORIES: MartCategory[] = [
-  { id: 'mc-1', name: 'Grocery & Staples', cutoutImageUrl: squareImg('photo-1542838132-92c53300491e', 300) },
-  { id: 'mc-2', name: 'Beverages', cutoutImageUrl: squareImg('photo-1544252890-c3e95e867389', 300) },
-  { id: 'mc-3', name: 'Snacks & Munchies', cutoutImageUrl: squareImg('photo-1600026453320-ef36ea012f6b', 300) },
-  { id: 'mc-4', name: 'Personal Care', cutoutImageUrl: squareImg('photo-1556228578-0d85b1a4d571', 300) },
-  { id: 'mc-5', name: 'Household Needs', cutoutImageUrl: squareImg('photo-1585421514284-efb74c2b69ba', 300) },
-  { id: 'mc-6', name: 'Baby Care', cutoutImageUrl: squareImg('photo-1595815771614-5fc0e125f409', 300) },
-  { id: 'mc-7', name: 'Dairy & Eggs', cutoutImageUrl: squareImg('photo-1628088062854-bbb0bc306575', 300) },
-  { id: 'mc-8', name: 'Frozen Foods', cutoutImageUrl: squareImg('photo-1580915411954-282cb1b0d780', 300) },
 ];
 
 export const MART_DEALS: MartDeal[] = [

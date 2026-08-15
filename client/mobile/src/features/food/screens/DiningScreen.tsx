@@ -1,5 +1,5 @@
 import React, { memo, useCallback, type ReactNode } from 'react';
-import { View, StyleSheet } from 'react-native';
+import { View, StyleSheet, type NativeSyntheticEvent, type NativeScrollEvent } from 'react-native';
 import Animated, { FadeIn, FadeInDown } from 'react-native-reanimated';
 import { hs, vs } from '@/utils/responsive';
 import { foodTheme } from '../constants/theme';
@@ -15,8 +15,10 @@ import LoadingSkeleton from '../components/LoadingSkeleton';
 interface DiningScreenProps {
   onBack?: () => void;
   searchQuery?: string;
+  autoScrollToGrid?: boolean;
   onRestaurantPress?: (restaurant: DiningRestaurant) => void;
   onDishPress?: (dish: SpecialDish) => void;
+  onScroll?: (event: NativeSyntheticEvent<NativeScrollEvent>) => void;
 }
 
 /**
@@ -28,8 +30,10 @@ interface DiningScreenProps {
 const DiningScreen = memo(function DiningScreen({
   onBack,
   searchQuery = '',
+  autoScrollToGrid = false,
   onRestaurantPress,
   onDishPress,
+  onScroll,
 }: DiningScreenProps) {
   const feed = useDiningFeed();
 
@@ -69,8 +73,10 @@ const DiningScreen = memo(function DiningScreen({
       <RestaurantGrid
         restaurants={feed.dining}
         searchQuery={searchQuery}
+        autoScrollToGrid={autoScrollToGrid}
         header={renderTopSections()}
         onPress={onRestaurantPress}
+        onScroll={onScroll}
       />
     </View>
   );

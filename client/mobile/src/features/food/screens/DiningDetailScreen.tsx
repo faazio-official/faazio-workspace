@@ -1,11 +1,13 @@
 import React, { useCallback } from 'react';
-import { View, StyleSheet } from 'react-native';
+import { View, StyleSheet, type NativeSyntheticEvent, type NativeScrollEvent } from 'react-native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import { useSharedValue } from 'react-native-reanimated';
 import { foodTheme } from '../constants/theme';
 import type { FoodStackParamList, RootStackParamList } from '@/navigation/types';
 import DiningScreen from './DiningScreen';
 import FoodBottomNav, { type FoodTab } from '../components/FoodBottomNav';
+import FoodStatusBarStrip from '../components/FoodStatusBarStrip';
 
 type Props = NativeStackScreenProps<FoodStackParamList, 'DiningDetail'>;
 
@@ -14,13 +16,13 @@ type Props = NativeStackScreenProps<FoodStackParamList, 'DiningDetail'>;
  * 4-tab bottom nav (Dining active). Home / Search / FoodOrder navigate to their
  * screens within the Food stack.
  */
-export function DiningDetailScreen({ navigation }: Props) {
+export function DiningDetailScreen({ navigation, route }: Props) {
   const handleTabChange = useCallback(
     (tab: FoodTab) => {
       if (tab === 'Home') {
         navigation.popToTop();
       } else if (tab === 'FoodOrder') {
-        navigation.getParent<NativeStackNavigationProp<RootStackParamList>>()?.navigate('Cart');
+        navigation.navigate('OrderDetail');
       } else if (tab === 'Search') {
         navigation.navigate('Search');
       }
@@ -28,10 +30,27 @@ export function DiningDetailScreen({ navigation }: Props) {
     [navigation],
   );
 
+  const openCart = useCallback(() => {
+    navigation.getParent<NativeStackNavigationProp<RootStackParamList>>()?.navigate('Cart');
+  }, [navigation]);
+
+  const scrollY = useSharedValue(0);
+  const onScroll = useCallback(
+    (e: NativeSyntheticEvent<NativeScrollEvent>) => {
+      scrollY.value = e.nativeEvent.contentOffset.y;
+    },
+    [scrollY],
+  );
+
   return (
     <View style={styles.container}>
-      <DiningScreen onBack={() => navigation.goBack()} />
-      <FoodBottomNav activeTab="Dining" onChange={handleTabChange} />
+      <DiningScreen
+        onBack={() => navigation.goBack()}
+        autoScrollToGrid={route.params?.scrollToGrid}
+        onScroll={onScroll}
+      />
+      <FoodStatusBarStrip scrollY={scrollY} />
+      <FoodBottomNav activeTab="Dining" onChange={handleTabChange} onCartPress={openCart} />
     </View>
   );
 }

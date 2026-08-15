@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { StyleSheet, View, ScrollView, TouchableOpacity, ActivityIndicator, Animated, Image } from 'react-native';
+import { StyleSheet, View, ScrollView, TouchableOpacity, Animated, Image } from 'react-native';
 import {
   ArrowLeft,
   ShoppingBag,
@@ -13,12 +13,8 @@ import {
   Ticket,
   Tag,
   Send,
-  ShieldCheck,
   CheckCircle,
   Truck,
-  Smartphone,
-  CreditCard,
-  Coins,
   Check,
   ChefHat,
   ShoppingBasket,
@@ -33,6 +29,7 @@ import { coupons } from '@data/cart/coupons';
 import AppTextInput from '@/components/AppTextInput';
 import AppText from '@/components/AppText';
 import SlideUpSheet from '@/components/shared/SlideUpSheet';
+import PaymentOptionsScreen from '@/features/cart/payment/PaymentOptionsScreen';
 import { computeTotals } from './utils';
 import type { CheckoutStep } from './utils';
 
@@ -538,168 +535,21 @@ export default function CartView({
   }
 
   if (step === 'PAYMENT') {
+    const itemCount = cartItems.reduce((acc, curr) => acc + curr.quantity, 0);
     return (
-      <ScrollView style={styles.container} contentContainerStyle={[styles.scrollContent, { paddingTop: contentInset }]} showsVerticalScrollIndicator={false}
-        onScroll={onScroll ? (e) => onScroll(e.nativeEvent.contentOffset.y) : undefined}
-        scrollEventThrottle={16}>
-        <View style={styles.cardBox}>
-          <View style={[styles.headerRow, { borderBottomWidth: 1, borderBottomColor: '#f1f5f9', paddingBottom: vs(10) }]}>
-            <TouchableOpacity onPress={() => setStep('ADDRESS')} style={styles.backBtn} activeOpacity={0.8}>
-              <ChevronLeft size={ms(12)} color="#94a3b8" />
-              <AppText style={styles.backBtnText}>Back</AppText>
-            </TouchableOpacity>
-            <AppText style={styles.headerTitleCenter}>Choose Payment Method</AppText>
-            <View style={{ width: hs(40) }} />
-          </View>
-
-          {/* Payment Method Selector Grid */}
-          <View style={styles.paymentSelectorGrid}>
-            <TouchableOpacity
-              onPress={() => setPaymentMethod('UPI')}
-              style={[styles.paymentGridCard, paymentMethod === 'UPI' ? styles.paymentGridCardActive : null]}
-              activeOpacity={0.8}
-            >
-              <Smartphone size={ms(16)} color={paymentMethod === 'UPI' ? '#0f172a' : '#94a3b8'} />
-              <AppText style={styles.paymentGridCardText}>UPI Pay</AppText>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              onPress={() => setPaymentMethod('CARD')}
-              style={[styles.paymentGridCard, paymentMethod === 'CARD' ? styles.paymentGridCardActive : null]}
-              activeOpacity={0.8}
-            >
-              <CreditCard size={ms(16)} color={paymentMethod === 'CARD' ? '#0f172a' : '#94a3b8'} />
-              <AppText style={styles.paymentGridCardText}>Card</AppText>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              onPress={() => setPaymentMethod('COD')}
-              style={[styles.paymentGridCard, paymentMethod === 'COD' ? styles.paymentGridCardActive : null]}
-              activeOpacity={0.8}
-            >
-              <Coins size={ms(16)} color={paymentMethod === 'COD' ? '#0f172a' : '#94a3b8'} />
-              <AppText style={styles.paymentGridCardText}>Cash</AppText>
-            </TouchableOpacity>
-          </View>
-
-          {/* UPI dynamic panel details */}
-          {paymentMethod === 'UPI' && (
-            <View style={styles.paymentDetailPanel}>
-              <AppText style={styles.sectionLabel}>Verify Unified Payment VPA</AppText>
-              <View style={styles.upiInputRow}>
-                <AppTextInput
-                  value={upiId}
-                  onChangeText={setUpiId}
-                  style={styles.upiInput}
-                  placeholderTextColor="#94a3b8"
-                />
-                <View style={styles.upiVerifiedLabel}>
-                  <AppText style={styles.upiVerifiedText}>Verified</AppText>
-                </View>
-              </View>
-              <AppText style={styles.securePanelText}>🔒 UPI transaction is encrypted securely under Faazio Gateway protocol.</AppText>
-            </View>
-          )}
-
-          {/* CARD Details */}
-          {paymentMethod === 'CARD' && (
-            <View style={styles.paymentDetailPanel}>
-              <View style={styles.cardInputGroup}>
-                <AppText style={styles.sectionLabel}>Card Number</AppText>
-                <AppTextInput
-                  placeholder="4242 4242 4242 4242"
-                  value={cardNumber}
-                  onChangeText={(val) => {
-                    const formatted = val.replace(/\s?/g, '').replace(/(\d{4})/g, '$1 ').trim();
-                    setCardNumber(formatted);
-                  }}
-                  maxLength={19}
-                  keyboardType="numeric"
-                  style={styles.cardNumberInput}
-                  placeholderTextColor="#cbd5e1"
-                />
-              </View>
-
-              <View style={styles.cardTwoColRow}>
-                <View style={styles.cardColInput}>
-                  <AppText style={styles.sectionLabel}>Expiry Date</AppText>
-                  <AppTextInput
-                    placeholder="MM/YY"
-                    value={cardExpiry}
-                    onChangeText={setCardExpiry}
-                    maxLength={5}
-                    keyboardType="numeric"
-                    style={styles.cardCenterInput}
-                    placeholderTextColor="#cbd5e1"
-                  />
-                </View>
-                <View style={styles.cardColInput}>
-                  <AppText style={styles.sectionLabel}>CVV Code</AppText>
-                  <AppTextInput
-                    placeholder="***"
-                    value={cardCvv}
-                    onChangeText={setCardCvv}
-                    maxLength={3}
-                    secureTextEntry
-                    keyboardType="numeric"
-                    style={styles.cardCenterInput}
-                    placeholderTextColor="#cbd5e1"
-                  />
-                </View>
-              </View>
-            </View>
-          )}
-
-          {/* COD DETAILS */}
-          {paymentMethod === 'COD' && (
-            <View style={styles.codBox}>
-              <AppText style={styles.codBoxEmoji}>💵</AppText>
-              <View style={styles.codBoxTextCol}>
-                <AppText style={styles.codBoxTitle}>Cash on Delivery selected</AppText>
-                <AppText style={styles.codBoxDesc}>Simply pay using cash or local phone QR scanner to your delivery partner when they arrive.</AppText>
-              </View>
-            </View>
-          )}
-
-          {/* Secure Details */}
-          <View style={styles.secureDetailsCard}>
-            <ShieldCheck size={ms(14)} color="#059669" style={{ marginRight: hs(6) }} />
-            <AppText style={styles.secureDetailsText}>Secure SSL 256-bit Certified Transaction</AppText>
-          </View>
-
-          {/* Summary pricing block */}
-          <View style={styles.paymentPriceSummary}>
-            <View style={{ flex: 1, marginRight: hs(10) }}>
-              <AppText style={styles.summaryLabel}>Delivery Address</AppText>
-              <AppText style={styles.summaryValue} numberOfLines={1}>{selectedAddressObj.address}</AppText>
-            </View>
-            <View style={styles.summaryRight}>
-              <AppText style={styles.summaryLabel}>Total Payment</AppText>
-              <AppText style={styles.summaryPriceValue}>₹{finalTotal.toLocaleString('en-IN')}</AppText>
-            </View>
-          </View>
-
-          {/* Pay Button */}
-          <TouchableOpacity
-            onPress={handlePlaceOrder}
-            disabled={paymentProcessing}
-            style={[styles.mainActionBtn, { backgroundColor: '#7CE045', marginTop: vs(14) }, paymentProcessing && { shadowColor: 'rgba(124,224,69,0.3)', shadowOffset: { width: 0, height: 4 }, shadowRadius: 16, shadowOpacity: 0.75, elevation: 8 }]}
-            activeOpacity={0.8}
-          >
-            {paymentProcessing ? (
-              <View style={styles.loadingRow}>
-                <ActivityIndicator size="small" color="#ffffff" style={{ marginRight: hs(6) }} />
-                <AppText style={styles.mainActionBtnText}>Processing Payment...</AppText>
-              </View>
-            ) : (
-              <View style={styles.loadingRow}>
-                <AppText style={styles.mainActionBtnText}>PAY & PLACE ORDER NOW</AppText>
-                <CheckCircle size={ms(13)} color="#ffffff" style={{ marginLeft: hs(6) }} />
-              </View>
-            )}
-          </TouchableOpacity>
-        </View>
-      </ScrollView>
+      <View style={styles.paymentRoot}>
+        <PaymentOptionsScreen
+          itemCount={itemCount}
+          total={finalTotal}
+          deliveryAddress={{
+            label: selectedAddressObj?.label ?? 'Home',
+            address: selectedAddressObj?.address ?? '',
+          }}
+          originLabel="Instamart"
+          onBack={() => setStep('ADDRESS')}
+          onPlaceOrder={handlePlaceOrder}
+        />
+      </View>
     );
   }
 
@@ -820,6 +670,10 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#ffffff',
+  },
+  paymentRoot: {
+    flex: 1,
+    backgroundColor: '#F3F4F6',
   },
   scrollContent: {
     paddingHorizontal: hs(16),

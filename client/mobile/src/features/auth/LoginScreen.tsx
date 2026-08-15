@@ -19,6 +19,7 @@ import { SCREEN_W, hs, vs, ms, wp, hp, DOME_RADIUS, STATUS_BAR_INSET } from '@/u
 import phoneAuthBackgroundImg from '@/assets/phone_auth_background.webp';
 import AppTextInput from '@/components/AppTextInput';
 import AppText from '@/components/AppText';
+import { useAuthStore } from '@/state/authStore';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'Login'>;
 
@@ -104,6 +105,7 @@ function RotatingSpinner({ size = 14, borderWidth = 2, color = '#212121' }) {
 }
 
 export function LoginScreen({ navigation }: Props) {
+  const login = useAuthStore((s) => s.login);
   const [phone, setPhone] = useState('');
   const [otpState, setOtpState] = useState(false);
   const [otpCode, setOtpCode] = useState('');
@@ -198,7 +200,20 @@ export function LoginScreen({ navigation }: Props) {
 
   const handleVerifyOtp = (code: string) => {
     if (code.length === 6) {
-      navigation.navigate('Location');
+      // PLACEHOLDER tokens — real JWTs will come from the Go backend once live.
+      // Swapping these in requires no auth pipeline changes.
+      const placeholderToken = `placeholder.${phone}.${Date.now()}`;
+      login({
+        user: {
+          id: `user_${phone}`,
+          name: 'Faazio User',
+          email: '',
+          phone,
+        },
+        accessToken: placeholderToken,
+        refreshToken: `${placeholderToken}.refresh`,
+      });
+      navigation.navigate('LanguageSelection');
     }
   };
 

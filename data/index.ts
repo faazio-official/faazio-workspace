@@ -1,5 +1,12 @@
 export * from './types';
-export * from './schema';
+export type {
+  CardVariant,
+  BannerProps,
+  PortalItem,
+  CategoryItem,
+  ProductCardLayout,
+  SDUINode,
+} from './schema';
 
 export { martProducts } from './mart/products';
 export { martStores } from './mart/stores';
@@ -9,6 +16,7 @@ export { groceryProducts } from './grocery/products';
 export { foodProducts, topOfWeekDishes } from './food/products';
 export { foodStores } from './food/stores';
 export { BOOKING_DISHES_DB } from './food/bookingDishes';
+export { TODAYS_SPECIALS } from './food/specials';
 
 export { pharmaProducts, PHARMA_PRODUCTS_DB, PHARMA_CATEGORIES } from './pharma/products';
 
@@ -32,4 +40,9 @@ export { avatarMap, getProductReviews, getProductSpecs, getProductHighlights } f
 export { defaultAddresses } from './cart/addresses';
 export { coupons } from './cart/coupons';
 
-export { pastOrders } from './account/orders';
+export { pastOrders, myOrders, myOrdersTabs } from './account/orders';
+export { userProfile, saverMembership } from './account/profile';
+export { orderStatusCounts } from './account/orderStatus';
+export { accountNavGroups } from './account/accountNav';
+export { accountDetails } from './account/details';
+export { savedAddresses } from './account/addresses';

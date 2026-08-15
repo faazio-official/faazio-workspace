@@ -1,4 +1,5 @@
 import { Dimensions, StatusBar } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 const { width: SCREEN_W, height: SCREEN_H } = Dimensions.get('screen');
 
@@ -8,6 +9,10 @@ const BASELINE_H = 812;
 export { SCREEN_W, SCREEN_H };
 
 export const STATUS_BAR_INSET = StatusBar.currentHeight ?? 0;
+
+export function useTopInset(): number {
+  return useSafeAreaInsets().top;
+}
 
 export function hs(n: number): number {
   return (n * SCREEN_W) / BASELINE_W;

@@ -44,14 +44,19 @@ const predicate = (p: Product, query: string, _chipIds: string[], activeFacets: 
   return true;
 };
 
-const renderCardByApp = (item: Product, onPress?: (p: Product) => void) => {
+const renderCardByApp = (
+  item: Product,
+  index: number,
+  onPress?: (p: Product) => void,
+) => {
+  const columnIndex = index % 2;
   switch (item.app) {
     case 'MART':
-      return <SearchMartProductCard product={item} onPress={onPress} />;
+      return <SearchMartProductCard product={item} columnIndex={columnIndex} onPress={onPress} />;
     case 'GROCERY':
-      return <SearchGroceryProductCard product={item} onPress={onPress} />;
+      return <SearchGroceryProductCard product={item} columnIndex={columnIndex} onPress={onPress} />;
     case 'PHARMA':
-      return <SearchPharmaProductCard product={item} onPress={onPress} />;
+      return <SearchPharmaProductCard product={item} columnIndex={columnIndex} onPress={onPress} />;
     default:
       return null;
   }
@@ -73,7 +78,9 @@ export function createHomeSearchConfig({
       { key: 'grocery', label: 'Grocery', icon: ShoppingBasket },
       { key: 'pharma', label: 'Pharma', icon: Stethoscope },
     ],
+    showToggles: false,
     filterChips: [],
+    numColumns: 2,
     sortOptions: [
       { id: 'relevance', label: 'Relevance' },
       { id: 'popularity', label: 'Popularity' },
@@ -89,7 +96,7 @@ export function createHomeSearchConfig({
         key: 'all',
         data: [...martProducts, ...groceryProducts, ...pharmaProducts],
         predicate,
-        renderCard: (item) => renderCardByApp(item as Product, onProductPress),
+        renderCard: (item, index) => renderCardByApp(item as Product, index, onProductPress),
         sorters: {
           relevance: () => 0,
           popularity: (a, b) => {
@@ -106,7 +113,7 @@ export function createHomeSearchConfig({
         key: 'mart',
         data: martProducts,
         predicate,
-        renderCard: (item) => renderCardByApp(item as Product, onProductPress),
+        renderCard: (item, index) => renderCardByApp(item as Product, index, onProductPress),
         sorters: {
           relevance: () => 0,
           popularity: (a, b) =>
@@ -119,7 +126,7 @@ export function createHomeSearchConfig({
         key: 'grocery',
         data: groceryProducts,
         predicate,
-        renderCard: (item) => renderCardByApp(item as Product, onProductPress),
+        renderCard: (item, index) => renderCardByApp(item as Product, index, onProductPress),
         sorters: {
           relevance: () => 0,
           popularity: (a, b) => (b as Product).rating - (a as Product).rating,
@@ -131,7 +138,7 @@ export function createHomeSearchConfig({
         key: 'pharma',
         data: pharmaProducts,
         predicate,
-        renderCard: (item) => renderCardByApp(item as Product, onProductPress),
+        renderCard: (item, index) => renderCardByApp(item as Product, index, onProductPress),
         sorters: {
           relevance: () => 0,
           popularity: (a, b) => (b as Product).rating - (a as Product).rating,

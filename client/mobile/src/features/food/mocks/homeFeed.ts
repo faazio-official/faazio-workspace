@@ -12,7 +12,6 @@ import {
   Flame,
   Drumstick,
   Pizza,
-  MoreHorizontal,
 } from 'lucide-react-native';
 import type { DiningRestaurant } from './types';
 
@@ -26,6 +25,8 @@ export interface QuickCategory {
   id: string;
   label: string;
   icon: ComponentType<{ size?: number; color?: string; strokeWidth?: number }>;
+  /** Search term submitted in the food Search page when this category is tapped. */
+  searchQuery: string;
 }
 
 export interface FoodType {
@@ -46,16 +47,15 @@ export interface NearbyRestaurant {
   tags: string[];
 }
 
-/** Section 3 — quick category bubbles (horizontal scroll, 8 items). */
+/** Section 3 — quick category bubbles (horizontal scroll, 7 items). */
 export const QUICK_CATEGORIES: QuickCategory[] = [
-  { id: 'fine-dining', label: 'Fine Dining', icon: UtensilsCrossed },
-  { id: 'cafes', label: 'Cafes', icon: Coffee },
-  { id: 'family-dining', label: 'Family Dining', icon: Users },
-  { id: 'buffet', label: 'Buffet', icon: Utensils },
-  { id: 'popular-food', label: 'Popular Food', icon: Flame },
-  { id: 'biryani', label: 'Biryani', icon: Drumstick },
-  { id: 'pizza', label: 'Pizza', icon: Pizza },
-  { id: 'more', label: 'More', icon: MoreHorizontal },
+  { id: 'fine-dining', label: 'Fine Dining', icon: UtensilsCrossed, searchQuery: 'Fine Dining' },
+  { id: 'cafes', label: 'Cafes', icon: Coffee, searchQuery: 'Cafes' },
+  { id: 'family-dining', label: 'Family Dining', icon: Users, searchQuery: 'Family Dining' },
+  { id: 'buffet', label: 'Buffet', icon: Utensils, searchQuery: 'Buffet' },
+  { id: 'popular-food', label: 'Popular Food', icon: Flame, searchQuery: 'Popular Food' },
+  { id: 'biryani', label: 'Biryani', icon: Drumstick, searchQuery: 'Biryani' },
+  { id: 'pizza', label: 'Pizza', icon: Pizza, searchQuery: 'Pizza' },
 ];
 
 /** Section 4 — "Popular Dining Spots" horizontal rail. */

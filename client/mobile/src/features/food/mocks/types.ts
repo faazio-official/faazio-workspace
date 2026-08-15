@@ -17,15 +17,4 @@ export interface DiningRestaurant {
   isFavourite: boolean;
 }
 
-export interface SpecialDish {
-  id: string;
-  dishName: string;
-  restaurant: string;
-  price: number;
-  image: string;
-  isVeg: boolean;
-  description: string;
-  cuisine?: string;
-  rating?: number;
-  deliveryTime?: string;
-}
+export type { SpecialDish } from '@data/types';

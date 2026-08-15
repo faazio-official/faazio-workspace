@@ -1,6 +1,7 @@
 import React, { useCallback } from 'react';
-import { View, ScrollView, StyleSheet } from 'react-native';
+import { View, ScrollView, StyleSheet, type NativeSyntheticEvent, type NativeScrollEvent } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
+import { useSharedValue } from 'react-native-reanimated';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';import type { FoodStackParamList, RootStackParamList } from '@/navigation/types';
 import { vs } from '@/utils/responsive';
@@ -10,13 +11,13 @@ import { TOP_FOODS_TO_ORDER } from '../mocks/homeFeed';
 import FoodSectionHeader from '../components/FoodSectionHeader';
 import FoodBottomNav, { type FoodTab } from '../components/FoodBottomNav';
 import OrderHeader from '../components/order/OrderHeader';
+import FoodStatusBarStrip from '../components/FoodStatusBarStrip';
 import PromoCarousel from '../components/order/PromoCarousel';
 import MindGridRail from '../components/order/MindGridRail';
 import PopularDishRail from '../components/order/PopularDishRail';
 import CuisineRail from '../components/order/CuisineRail';
 import MealsComboRail from '../components/order/MealsComboRail';
 import SnacksRail from '../components/order/SnacksRail';
-import OrderCartBar from '../components/order/OrderCartBar';
 
 type Props = NativeStackScreenProps<FoodStackParamList, 'OrderDetail'>;
 
@@ -25,8 +26,7 @@ type Props = NativeStackScreenProps<FoodStackParamList, 'OrderDetail'>;
  * 1. Location header  2. Hero promo carousel
  * 3. What's on your mind?  4. Popular Dishes  5. Explore Cuisines
  * 6. Meals & Combos  7. Snacks & Beverages
- * plus a floating cart bar (when the cart has items) and the fixed bottom nav
- * (FoodOrder active).
+ * plus the fixed bottom nav (FoodOrder active) with a Cart entry point.
  */
 export function OrderDetailScreen({ navigation }: Props) {
   const handleTabChange = useCallback(
@@ -42,7 +42,19 @@ export function OrderDetailScreen({ navigation }: Props) {
     [navigation],
   );
 
+  const openCart = useCallback(() => {
+    navigation.getParent<NativeStackNavigationProp<RootStackParamList>>()?.navigate('Cart');
+  }, [navigation]);
+
   const openSearch = useCallback(() => navigation.navigate('Search'), [navigation]);
+
+  const scrollY = useSharedValue(0);
+  const onScroll = useCallback(
+    (e: NativeSyntheticEvent<NativeScrollEvent>) => {
+      scrollY.value = e.nativeEvent.contentOffset.y;
+    },
+    [scrollY],
+  );
 
   return (
     <View style={styles.container}>
@@ -50,6 +62,8 @@ export function OrderDetailScreen({ navigation }: Props) {
         style={styles.scroll}
         contentContainerStyle={styles.content}
         showsVerticalScrollIndicator={false}
+        onScroll={onScroll}
+        scrollEventThrottle={16}
         bounces={false}
       >
         <OrderHeader />
@@ -64,8 +78,8 @@ export function OrderDetailScreen({ navigation }: Props) {
         <FoodSectionHeader title="Snacks & Beverages" onSeeAll={openSearch} />
         <SnacksRail snacks={SNACKS_BEVERAGES} />
       </ScrollView>
-      <OrderCartBar onPress={() => navigation.getParent<NativeStackNavigationProp<RootStackParamList>>()?.navigate('Cart')} />
-      <FoodBottomNav activeTab="FoodOrder" onChange={handleTabChange} />
+      <FoodStatusBarStrip scrollY={scrollY} />
+      <FoodBottomNav activeTab="FoodOrder" onChange={handleTabChange} onCartPress={openCart} />
     </View>
   );
 }

@@ -1,5 +1,6 @@
-import React, { memo, useMemo, useRef, useState } from 'react';
-import { View, StyleSheet, FlatList, type TextInput } from 'react-native';
+import React, { memo, useEffect, useMemo, useRef, useState } from 'react';
+import { View, StyleSheet, FlatList, TouchableOpacity, ActivityIndicator, type TextInput, type NativeSyntheticEvent, type NativeScrollEvent } from 'react-native';
+import { Search, ArrowRight } from 'lucide-react-native';
 import { hs, ms, vs } from '@/utils/responsive';
 import AppText from '@/components/AppText';
 import { useSearchStore } from '@/state/searchStore';
@@ -11,13 +12,19 @@ import RecentSearches from './RecentSearches';
 import { useFacets } from './useFacets';
 import type { ActiveFacets, SearchScreenConfig } from './types';
 
+const PAGE_SIZE = 10;
+
 interface SearchScreenProps {
   config: SearchScreenConfig;
   onBack: () => void;
   /** Pre-seed the query (e.g. a term tapped from a Home shortcut). */
   initialQuery?: string;
-  /** Input ref so a parent can focus the field after mount (fade transition). */
+  /** Open in a specific mode/toggle instead of the first one (e.g. 'dishes'). */
+  initialMode?: string;
+  /** Optional external ref to the search input. Falls back to an internal one when omitted; the field auto-focuses on mount regardless. */
   inputRef?: React.RefObject<TextInput | null>;
+  /** Optional scroll callback forwarded to the underlying FlatList. */
+  onScroll?: (event: NativeSyntheticEvent<NativeScrollEvent>) => void;
 }
 
 /**
@@ -31,34 +38,71 @@ const SearchScreen = memo(function SearchScreen({
   config,
   onBack,
   initialQuery,
+  initialMode,
   inputRef,
+  onScroll,
 }: SearchScreenProps) {
-  const [activeKey, setActiveKey] = useState(config.toggles[0]?.key ?? '');
+  const defaultKey = config.toggles[0]?.key ?? '';
+  const [activeKey, setActiveKey] = useState(
+    initialMode && config.toggles.some((t) => t.key === initialMode) ? initialMode : defaultKey,
+  );
   const [query, setQuery] = useState(initialQuery ?? '');
+  const [submittedQuery, setSubmittedQuery] = useState(initialQuery ?? '');
   const [activeFilterIds, setActiveFilterIds] = useState<string[]>([]);
   const [activeSortId, setActiveSortId] = useState(config.sortOptions[0]?.id ?? '');
   const [activeFacets, setActiveFacets] = useState<ActiveFacets>({});
+  const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
+  const [isLoadingMore, setIsLoadingMore] = useState(false);
 
   const addRecentSearch = useSearchStore((s) => s.addRecentSearch);
   const fallbackInputRef = useRef<TextInput | null>(null);
   const headerInputRef = inputRef ?? fallbackInputRef;
 
+  useEffect(() => {
+    const t = setTimeout(() => headerInputRef.current?.focus(), 300);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   const mode = config.modes[activeKey];
   const hasFacets = !!config.facetSchema && config.facetSchema.length > 0;
+  const preSearch = submittedQuery.trim().length === 0;
 
-  const items = useMemo(() => {
+  const allResults = useMemo(() => {
     if (!mode) return [];
+    if (preSearch) return [];
     const filtered = mode.data.filter((item) =>
-      mode.predicate(item, query, activeFilterIds, activeFacets),
+      mode.predicate(item, submittedQuery, activeFilterIds, activeFacets),
     );
     const sorter = mode.sorters[activeSortId];
     return sorter ? [...filtered].sort(sorter) : filtered;
-  }, [mode, query, activeFilterIds, activeFacets, activeSortId]);
+  }, [mode, preSearch, submittedQuery, activeFilterIds, activeFacets, activeSortId]);
+
+  useEffect(() => {
+    setVisibleCount(PAGE_SIZE);
+    setIsLoadingMore(false);
+  }, [submittedQuery, activeFilterIds, activeFacets, activeSortId, activeKey]);
+
+  const visibleItems = useMemo(
+    () => allResults.slice(0, visibleCount),
+    [allResults, visibleCount],
+  );
+
+  const handleLoadMore = () => {
+    if (preSearch) return;
+    if (isLoadingMore) return;
+    if (visibleCount >= allResults.length) return;
+    setIsLoadingMore(true);
+    setTimeout(() => {
+      setVisibleCount((c) => Math.min(c + PAGE_SIZE, allResults.length));
+      setIsLoadingMore(false);
+    }, 400);
+  };
 
   const facetGroups = useFacets({
     data: mode?.data ?? [],
     predicate: mode?.predicate ?? (() => true),
-    query,
+    query: submittedQuery,
     chipIds: activeFilterIds,
     facetSchema: config.facetSchema,
     activeFacets,
@@ -66,10 +110,21 @@ const SearchScreen = memo(function SearchScreen({
 
   const commitQuery = () => {
     const trimmed = query.trim();
+    setSubmittedQuery(trimmed);
     if (trimmed) {
       addRecentSearch(trimmed);
       headerInputRef.current?.blur();
     }
+  };
+
+  const handleChangeText = (text: string) => {
+    setQuery(text);
+    if (text.trim().length === 0) setSubmittedQuery('');
+  };
+
+  const handleRecentSelect = (term: string) => {
+    setQuery(term);
+    setSubmittedQuery(term);
   };
 
   const toggleFilter = (id: string) => {
@@ -80,74 +135,143 @@ const SearchScreen = memo(function SearchScreen({
 
   const applyFacets = (facets: ActiveFacets) => setActiveFacets(facets);
 
-  const renderItem = ({ item }: { item: any }) => {
+  const renderItem = ({ item, index }: { item: any; index: number }) => {
     if (!mode) return null;
-    return mode.renderCard(item);
+    return mode.renderCard(item, index);
   };
 
-  const empty = items.length === 0 ? (mode?.empty ?? <EmptyState query={query} />) : null;
+  const empty = preSearch
+    ? null
+    : allResults.length === 0
+      ? (mode?.empty ?? (
+          <EmptyState
+            accentColor={config.accentColor}
+            hasQuery={submittedQuery.trim().length > 0}
+            hasActiveFilters={activeFilterIds.length > 0 || Object.keys(activeFacets).length > 0}
+            onClearQuery={() => {
+              setQuery('');
+              setSubmittedQuery('');
+            }}
+            onClearFilters={() => {
+              setActiveFilterIds([]);
+              setActiveFacets({});
+            }}
+          />
+        ))
+      : null;
 
   return (
     <View style={styles.container}>
       <SearchHeader
         onBack={onBack}
         value={query}
-        onChangeText={setQuery}
+        onChangeText={handleChangeText}
         placeholder={config.searchPlaceholder}
         inputRef={headerInputRef}
         onSubmit={commitQuery}
       />
 
-      <SegmentedToggle options={config.toggles} activeKey={activeKey} onChange={setActiveKey} />
-
-      {query.trim().length === 0 ? (
-        <RecentSearches onSelect={setQuery} accentColor={config.accentColor} />
-      ) : null}
-
-      {hasFacets ? (
-        <FilterSortBar
-          groups={facetGroups}
-          activeFacets={activeFacets}
-          onApply={applyFacets}
-          sortOptions={config.sortOptions}
-          activeSortId={activeSortId}
-          onSelectSort={setActiveSortId}
-          accentColor={config.accentColor}
-        />
+      {preSearch ? (
+        <RecentSearches onSelect={handleRecentSelect} accentColor={config.accentColor} />
       ) : (
-        <FilterChipsRail
-          chips={config.filterChips}
-          activeIds={activeFilterIds}
-          onToggleChip={toggleFilter}
-          sortOptions={config.sortOptions}
-          activeSortId={activeSortId}
-          onSelectSort={setActiveSortId}
-          accentColor={config.accentColor}
-        />
+        <>
+          {config.showToggles !== false ? (
+            <SegmentedToggle options={config.toggles} activeKey={activeKey} onChange={setActiveKey} />
+          ) : null}
+
+          {hasFacets ? (
+            <FilterSortBar
+              groups={facetGroups}
+              activeFacets={activeFacets}
+              onApply={applyFacets}
+              sortOptions={config.sortOptions}
+              activeSortId={activeSortId}
+              onSelectSort={setActiveSortId}
+              accentColor={config.accentColor}
+            />
+          ) : (
+            <FilterChipsRail
+              chips={config.filterChips}
+              activeIds={activeFilterIds}
+              onToggleChip={toggleFilter}
+              sortOptions={config.sortOptions}
+              activeSortId={activeSortId}
+              onSelectSort={setActiveSortId}
+              accentColor={config.accentColor}
+            />
+          )}
+        </>
       )}
 
       <FlatList
-        data={items}
+        data={visibleItems}
         keyExtractor={config.keyFor ?? ((item: any, index: number) => String((item as { id?: string })?.id ?? `item-${index}`))}
         renderItem={renderItem}
-        contentContainerStyle={styles.listContent}
+        numColumns={config.numColumns ?? 1}
+        columnWrapperStyle={config.numColumns === 2 ? styles.gridRow : undefined}
+        contentContainerStyle={[styles.listContent, config.numColumns === 2 && styles.listContentGrid]}
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
         ListEmptyComponent={empty}
+        ListFooterComponent={
+          isLoadingMore && visibleCount < allResults.length ? (
+            <ActivityIndicator size="small" color={config.accentColor ?? '#2563EB'} style={styles.listFooter} />
+          ) : null
+        }
+        onEndReached={handleLoadMore}
+        onEndReachedThreshold={0.2}
         bounces={false}
+        onScroll={onScroll}
+        scrollEventThrottle={16}
       />
     </View>
   );
 });
 
-function EmptyState({ query }: { query: string }) {
+function EmptyState({
+  accentColor,
+  hasQuery,
+  hasActiveFilters,
+  onClearQuery,
+  onClearFilters,
+}: {
+  accentColor?: string;
+  hasQuery?: boolean;
+  hasActiveFilters?: boolean;
+  onClearQuery?: () => void;
+  onClearFilters?: () => void;
+}) {
+  const linkColor = accentColor ?? '#2563EB';
   return (
-    <View style={styles.empty}>
-      <AppText style={styles.emptyEmoji}>🔍</AppText>
+    <View style={styles.emptyCard}>
+      <View style={styles.emptyIconCircle}>
+        <Search size={ms(24)} strokeWidth={1.75} color="#6B7280" />
+      </View>
       <AppText style={styles.emptyTitle}>No results found</AppText>
-      <AppText style={styles.emptySub}>
-        {query ? `Nothing matches "${query}". Try a different search.` : 'Try adjusting your filters.'}
-      </AppText>
+      <View style={styles.emptyLinks}>
+        {hasQuery && onClearQuery ? (
+          <TouchableOpacity
+            onPress={onClearQuery}
+            style={styles.emptyLink}
+            activeOpacity={0.7}
+            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+          >
+            <AppText style={[styles.emptyLinkText, { color: linkColor }]}>Try another search</AppText>
+            <ArrowRight size={ms(14)} strokeWidth={2} color={linkColor} />
+          </TouchableOpacity>
+        ) : null}
+        {hasActiveFilters && onClearFilters ? (
+          <TouchableOpacity
+            onPress={onClearFilters}
+            style={styles.emptyLink}
+            activeOpacity={0.7}
+            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+          >
+            <AppText style={[styles.emptyLinkText, { color: linkColor }]}>Clear filters</AppText>
+            <ArrowRight size={ms(14)} strokeWidth={2} color={linkColor} />
+          </TouchableOpacity>
+        ) : null}
+      </View>
     </View>
   );
 }
@@ -164,28 +288,55 @@ const styles = StyleSheet.create({
     paddingBottom: vs(120),
     flexGrow: 1,
   },
-  empty: {
+  listContentGrid: {
+    paddingHorizontal: 0,
+  },
+  gridRow: {
+    justifyContent: 'flex-start',
+    marginBottom: vs(0),
+  },
+  listFooter: {
+    paddingVertical: vs(16),
+  },
+  emptyCard: {
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    paddingHorizontal: hs(32),
-    paddingVertical: vs(60),
-    gap: vs(6),
+    backgroundColor: '#ffffff',
+    borderRadius: ms(16),
+    borderWidth: 1,
+    borderColor: '#F0F0F0',
+    paddingVertical: vs(40),
+    paddingHorizontal: hs(24),
+    marginHorizontal: hs(16),
+    marginTop: vs(8),
   },
-  emptyEmoji: {
-    fontSize: ms(34),
-    marginBottom: vs(6),
+  emptyIconCircle: {
+    width: ms(56),
+    height: ms(56),
+    borderRadius: ms(28),
+    backgroundColor: '#F0F3F6',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: vs(14),
   },
   emptyTitle: {
     fontSize: ms(15),
-    fontWeight: '700',
-    color: '#111827',
+    fontWeight: 'bold',
+    color: '#1E2022',
   },
-  emptySub: {
-    fontSize: ms(12),
-    fontWeight: '400',
-    color: '#666666',
-    textAlign: 'center',
-    lineHeight: ms(17),
+  emptyLinks: {
+    alignItems: 'center',
+    marginTop: vs(14),
+    gap: vs(10),
+  },
+  emptyLink: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: hs(5),
+  },
+  emptyLinkText: {
+    fontSize: ms(13),
+    fontWeight: '600',
   },
 });

@@ -45,7 +45,9 @@ export function createGrocerySearchConfig({
     searchPlaceholder: 'Search groceries…',
     accentColor: '#10B981',
     toggles: [{ key: 'products', label: 'Products', icon: ShoppingBasket }],
+    showToggles: false,
     filterChips: [],
+    numColumns: 2,
     sortOptions: [
       { id: 'relevance', label: 'Relevance' },
       { id: 'popularity', label: 'Popularity' },
@@ -62,8 +64,12 @@ export function createGrocerySearchConfig({
         key: 'products',
         data: groceryProducts,
         predicate,
-        renderCard: (item) => (
-          <SearchGroceryProductCard product={item as Product} onPress={onProductPress} />
+        renderCard: (item, index) => (
+          <SearchGroceryProductCard
+            product={item as Product}
+            columnIndex={index % 2}
+            onPress={onProductPress}
+          />
         ),
         sorters: {
           relevance: () => 0,

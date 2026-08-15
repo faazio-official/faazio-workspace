@@ -1,44 +1,42 @@
 import React, { memo } from 'react';
-import { View, StyleSheet } from 'react-native';
-import { hs, vs, SCREEN_W } from '@/utils/responsive';
-import MartProductCard from '@/features/ecommerce/cards/MartProductCard';
+import SearchProductCard from '@/components/shared/SearchProductCard';
+import { useCartProductActions } from '@/components/shared/hooks';
 import type { Product } from '@data/types';
-
-const CARD_WIDTH = SCREEN_W - hs(32);
 
 interface SearchMartProductCardProps {
   product: Product;
+  columnIndex?: number;
   onPress?: (product: Product) => void;
 }
 
 /**
- * Mart search result card wrapper. Owns the full-width list layout variant for
- * the shared Mart card and runs onPress with the product. Lives under
- * components/ (not cards/) so it doesn't trip the dependency-cruiser card
- * boundary for cross-sub-app search.
+ * Mart search result card wrapper. Renders the dense e-commerce grid card
+ * (square contain image, discount/MRP pricing, full-width Add to Cart) and runs
+ * onPress with the product. Wires the shared cart store so results can be added
+ * straight from search. Lives under components/ (not cards/) so it doesn't trip
+ * the dependency-cruiser card boundary for cross-sub-app search.
  */
 const SearchMartProductCard = memo(function SearchMartProductCard({
   product,
+  columnIndex = 0,
   onPress,
 }: SearchMartProductCardProps) {
+  const cart = useCartProductActions(product);
   return (
-    <View style={styles.wrap}>
-      <MartProductCard
-        product={product}
-        variant="stack"
-        width={CARD_WIDTH}
-        showDescription
-        onPress={onPress ? () => onPress(product) : undefined}
-      />
-    </View>
+    <SearchProductCard
+      product={product}
+      appBrand="MART"
+      columnIndex={columnIndex}
+      showFavorite
+      showSponsored
+      isFavorite={false}
+      quantity={cart.quantity}
+      onAdd={cart.onAdd}
+      onIncrement={cart.onIncrement}
+      onDecrement={cart.onDecrement}
+      onPress={onPress ? () => onPress(product) : undefined}
+    />
   );
 });
 
 export default SearchMartProductCard;
-
-const styles = StyleSheet.create({
-  wrap: {
-    paddingHorizontal: hs(16),
-    paddingTop: vs(2),
-  },
-});

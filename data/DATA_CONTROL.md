@@ -102,7 +102,13 @@ Every domain file below carries its tag as a top-of-file banner comment.
 
 | Export | Type | Mobile consumers | Status |
 |---|---|---|---|
-| `pastOrders` | `PastOrder[]` | `AccountView` (order history) | `@mock` |
+| `pastOrders` | `PastOrder[]` | **`@unused`** — old order-history UI removed with `AccountView` | `@mock` + `@unused` |
+| `userProfile` | `UserProfile` | `AccountScreen` (My Account header card) | `@mock` |
+| `saverMembership` | `SaverMembership` | `AccountScreen` (Smart Saver banner) | `@mock` |
+| `orderStatusCounts` | `OrderStatusCount[]` | `AccountScreen` (My Orders grid) | `@mock` |
+| `accountNavGroups` | `AccountNavGroup[]` | `AccountScreen` (nav list) | `@mock` |
+| `accountDetails` | `UserDetailsData` | `UserDetailsScreen` (Your Details) | `@mock` |
+| `savedAddresses` | `SavedAddress[]` | `SavedAddressesScreen` (Addresses) | `@mock` |
 
 ### `@data/home` — owner: `features/home`
 

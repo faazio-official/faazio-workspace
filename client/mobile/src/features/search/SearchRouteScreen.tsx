@@ -1,5 +1,5 @@
-import React, { useCallback, useEffect, useMemo, useRef } from 'react';
-import { View, StyleSheet, type TextInput } from 'react-native';
+import React, { useCallback, useMemo } from 'react';
+import { View, StyleSheet } from 'react-native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { Product } from '@data/types';
 import type { RootStackParamList } from '@/navigation/types';
@@ -13,12 +13,11 @@ type Props = NativeStackScreenProps<RootStackParamList, 'Search'>;
 
 /**
  * Thin router for the first-class Search screen. Picks the right sub-app config
- * from the route param, renders the shared shell, and auto-focuses the field
- * after mount to read as a transition.
+ * from the route param and renders the shared shell. The shell itself
+ * auto-focuses the field after mount.
  */
 export function SearchRouteScreen({ navigation, route }: Props) {
   const { subApp, initialQuery } = route.params;
-  const inputRef = useRef<TextInput | null>(null);
 
   const handleProductPress = useCallback(
     (product: Product) => navigation.navigate('ProductDetail', { product }),
@@ -38,16 +37,11 @@ export function SearchRouteScreen({ navigation, route }: Props) {
     }
   }, [subApp, handleProductPress]);
 
-  useEffect(() => {
-    const t = setTimeout(() => inputRef.current?.focus(), 300);
-    return () => clearTimeout(t);
-  }, []);
-
   const handleBack = useCallback(() => navigation.goBack(), [navigation]);
 
   return (
     <View style={styles.container}>
-      <SearchScreen config={config} onBack={handleBack} inputRef={inputRef} initialQuery={initialQuery} />
+      <SearchScreen config={config} onBack={handleBack} initialQuery={initialQuery} />
     </View>
   );
 }

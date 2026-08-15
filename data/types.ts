@@ -15,6 +15,8 @@ export interface Product {
   shop?: string;
   reviewsCount?: number;
   unit?: string;
+  /** Pre-discount / list price, if the item is on offer. Mirrors the backend MRP field. */
+  originalPrice?: number;
   /**
    * Facetable product attributes, e.g. `{ processor: 'Apple M2', ram: '16GB',
    * brand: 'Apple' }`. Search facets are derived from these attributes across
@@ -105,6 +107,19 @@ export interface Address {
   isDefault?: boolean;
 }
 
+/** Address tag pill shown on the "Saved Addresses" screen (owner: features/profile). */
+export type AddressTag = 'HOME' | 'WORK' | 'OTHER';
+
+/** A saved delivery address card (owner: features/profile / Saved Addresses). */
+export interface SavedAddress {
+  id: string;
+  tag: AddressTag;
+  isDefault?: boolean;
+  name: string;
+  phone: string;
+  address: string;
+}
+
 export interface Coupon {
   code: string;
   discountPercent: number;
@@ -156,6 +171,102 @@ export interface PastOrder {
   date: string;
   status: string;
   app: AppBrand;
+}
+
+/** Delivery status of an order shown on the My Orders screen. */
+export type OrderStatus = 'Delivered' | 'Shipped' | 'Processing';
+
+/** One tappable status tab on the My Orders screen (owner: features/profile). */
+export type MyOrdersTab =
+  | 'All Orders'
+  | 'Processing'
+  | 'Shipped'
+  | 'Delivered'
+  | 'Cancelled';
+
+/** Rich order card fixture for the My Orders screen (owner: features/profile). */
+export interface MyOrder {
+  id: string;
+  orderNumber: string;
+  orderDateTime: string;
+  productName: string;
+  variant: string;
+  qty: number;
+  price: number;
+  status: OrderStatus;
+  statusDate: string;
+  emoji: string;
+}
+
+/** Status tab definition with its order count (owner: features/profile). */
+export interface MyOrdersTabItem {
+  name: MyOrdersTab;
+  count: number;
+}
+
+/** Signed-in user profile (owner: features/profile / My Account). */
+export interface UserProfile {
+  name: string;
+  email: string;
+  phone: string;
+}
+
+/** Smart Saver membership summary (owner: features/profile / My Account). */
+export interface SaverMembership {
+  title: string;
+  savedLabel: string;
+  savedAmount: number;
+}
+
+/** One My Orders status column (owner: features/profile / My Account). */
+export interface OrderStatusCount {
+  key: string;
+  label: string;
+  count: number;
+}
+
+/** One tappable row in the Account navigation list (owner: features/profile). */
+export interface AccountNavRow {
+  key: string;
+  icon: string;
+  title: string;
+  subtitle: string;
+}
+
+/** Grouped navigation rows for the My Account screen. */
+export interface AccountNavGroup {
+  key: string;
+  rows: AccountNavRow[];
+}
+
+/** One info row in the "Your Details" screen (owner: features/profile). */
+export interface UserDetailRow {
+  icon: string;
+  title: string;
+  subtitle: string;
+}
+
+/** Source-of-truth payload for the "Your Details" screen. */
+export interface UserDetailsData {
+  accountId: string;
+  personalInfo: UserDetailRow[];
+  preferences: UserDetailRow[];
+  securityTitle: string;
+  securitySubtitle: string;
+}
+
+/** Food dining "today's special" dish (owner: features/food). */
+export interface SpecialDish {
+  id: string;
+  dishName: string;
+  restaurant: string;
+  price: number;
+  image: string;
+  isVeg: boolean;
+  description: string;
+  cuisine?: string;
+  rating?: number;
+  deliveryTime?: string;
 }
 
 /** Top-of-week dish rail entry (owner: features/food). */

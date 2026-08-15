@@ -12,21 +12,22 @@ import type { RootStackParamList } from '@/navigation/types';
 import MartProductCard from '@/features/ecommerce/cards/MartProductCard';
 
 import {
-  MART_HERO_BANNERS,
-  MART_CATEGORIES,
   MART_DEALS,
   MART_FLASH_SALES,
-  MART_TOP_BRANDS,
-  MART_LOCAL_VENDORS,
 } from './mocks/martHomeFeed';
-import type { MartLocalVendor } from './mocks/martHomeFeed';
+import type { MartLocalVendor, MartTopBrand } from './mocks/martHomeFeed';
+import { useMartFeed } from './hooks/useMartFeed';
+import MartHomeSkeleton from './components/skeletons/MartHomeSkeleton';
 
 import MartHeroCarousel from './components/mart-home/MartHeroCarousel';
-import MartCategoryRail from './components/mart-home/MartCategoryRail';
+import CategoryCardRail from '@/components/shared/CategoryCardRail';
 import DealsOfDayRail from './components/mart-home/DealsOfDayRail';
 import FlashSaleRail from './components/mart-home/FlashSaleRail';
 import TopBrandsRail from './components/mart-home/TopBrandsRail';
 import LocalVendorRail from './components/mart-home/LocalVendorRail';
+import { getCategoryCards } from '@/services/categoryRail';
+import type { CategoryCard } from '@/services/categoryRail';
+import { MART_ACCENT } from '@data/categories/masterCategories';
 
 const SCREEN_W = Dimensions.get('window').width;
 
@@ -71,19 +72,12 @@ const getVendorProducts = (vendorId: string): MartProduct[] => {
 const CARD_GAP = hs(12);
 const CARD_W = (SCREEN_W - hs(32) - CARD_GAP) / 2;
 
-const feedSectionsData: { id: string; component: React.ReactNode }[] = [
-  { id: 'hero', component: <MartHeroCarousel banners={MART_HERO_BANNERS} /> },
-  { id: 'categories', component: <MartCategoryRail categories={MART_CATEGORIES} /> },
-  { id: 'deals', component: <DealsOfDayRail deals={MART_DEALS} /> },
-  { id: 'flash', component: <FlashSaleRail sales={MART_FLASH_SALES} /> },
-  { id: 'brands', component: <TopBrandsRail brands={MART_TOP_BRANDS} /> },
-];
-
 export function FaMartScreen({
   searchQuery = '',
   onProductClick,
 }: FaMartScreenProps) {
   const [selectedVendor, setSelectedVendor] = useState<MartLocalVendor | null>(null);
+  const feed = useMartFeed();
   const cartItems = useCartStore((s) => s.cart);
   const addToCart = useCartStore((s) => s.addToCart);
   const updateQuantity = useCartStore((s) => s.updateQuantity);
@@ -107,6 +101,47 @@ export function FaMartScreen({
   const handleVendorPress = useCallback((vendor: MartLocalVendor) => {
     setSelectedVendor(vendor);
   }, []);
+
+  const handleCategoryPress = useCallback(
+    (card: CategoryCard) => {
+      navigation.navigate('MasterCategories', {
+        initialChip: 'FA_MART',
+        initialTabId: card.id,
+      });
+    },
+    [navigation],
+  );
+
+  const handleViewCategories = useCallback(() => {
+    navigation.navigate('MasterCategories', { initialChip: 'FA_MART' });
+  }, [navigation]);
+
+  const handleBrandPress = useCallback(
+    (brand: MartTopBrand) => {
+      navigation.navigate('Search', { subApp: 'FA_MART', initialQuery: brand.name });
+    },
+    [navigation],
+  );
+
+  const feedSectionsData: { id: string; component: React.ReactNode }[] = [
+    { id: 'hero', component: <MartHeroCarousel banners={feed?.heroBanners ?? []} /> },
+    {
+      id: 'categories',
+      component: (
+        <CategoryCardRail
+          title="Shop by Category"
+          categories={getCategoryCards('FA_MART')}
+          accent={MART_ACCENT}
+          cardBg="#FFF8E1"
+          onPress={handleCategoryPress}
+          onViewMore={handleViewCategories}
+        />
+      ),
+    },
+    { id: 'deals', component: <DealsOfDayRail deals={feed?.deals ?? []} /> },
+    { id: 'flash', component: <FlashSaleRail sales={feed?.flashSales ?? []} /> },
+    { id: 'brands', component: <TopBrandsRail brands={feed?.topBrands ?? []} onPress={handleBrandPress} /> },
+  ];
 
   const handleBackToFeed = useCallback(() => {
     setSelectedVendor(null);
@@ -205,6 +240,10 @@ export function FaMartScreen({
   }
 
   // ---- Feed Mode ----
+  if (!feed) {
+    return <MartHomeSkeleton />;
+  }
+
   return (
     <FlatList
       data={feedSectionsData}
@@ -213,7 +252,7 @@ export function FaMartScreen({
       showsVerticalScrollIndicator={false}
       contentContainerStyle={styles.feedContent}
       ListFooterComponent={
-        <LocalVendorRail vendors={MART_LOCAL_VENDORS} onVendorPress={handleVendorPress} />
+        <LocalVendorRail vendors={feed.localVendors} onVendorPress={handleVendorPress} />
       }
     />
   );

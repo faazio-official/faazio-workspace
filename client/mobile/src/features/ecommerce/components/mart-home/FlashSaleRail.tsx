@@ -10,8 +10,6 @@ import MartProductCard from '@/features/ecommerce/cards/MartProductCard';
 
 const SALE_CARD_W = hs(150);
 
-const SaleSeparator = () => <View style={styles.separator} />;
-
 interface FlashSaleRailProps {
   sales: MartFlashSale[];
   onSalePress?: (sale: MartFlashSale) => void;
@@ -60,7 +58,6 @@ const FlashSaleRail = memo(function FlashSaleRail({
         horizontal
         showsHorizontalScrollIndicator={false}
         contentContainerStyle={styles.content}
-        ItemSeparatorComponent={SaleSeparator}
         bounces={false}
       />
     </View>
@@ -75,8 +72,5 @@ const styles = StyleSheet.create({
   },
   content: {
     paddingHorizontal: hs(16),
-  },
-  separator: {
-    width: hs(12),
   },
 });

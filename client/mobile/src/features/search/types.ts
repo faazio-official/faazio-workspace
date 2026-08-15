@@ -59,7 +59,8 @@ export type ActiveFacets = Record<string, string[]>;
 export interface SearchModeConfig<TItem> {
   key: string;
   data: TItem[];
-  renderCard: (item: TItem) => ReactElement | null;
+  /** Renders one result. `index` is the flat list index, used to derive the grid column for the 2-column layout. */
+  renderCard: (item: TItem, index: number) => ReactElement | null;
   /**
    * Returns true when the item should remain visible given the current free-text
    * query, the set of active filter chip ids, and the active facet selections
@@ -80,6 +81,14 @@ export interface SearchModeConfig<TItem> {
 export interface SearchScreenConfig {
   searchPlaceholder?: string;
   toggles: SearchToggleOption[];
+  /**
+   * When false the shell hides the segmented toggle rail and shows the first
+   * mode. Used for redundant toggle sets: single-option "Products"/"Medicines"
+   * controls and the cross-app "All/Mart/Grocery/Pharma" filter (which would
+   * otherwise force a manual per-app choice when the scope is already known).
+   * Defaults to true; Food's genuine Restaurants/Dishes toggle keeps it.
+   */
+  showToggles?: boolean;
   filterChips: SearchFilterChip[];
   sortOptions: SortOption[];
   /**
@@ -91,6 +100,13 @@ export interface SearchScreenConfig {
   bottomBar?: ReactElement;
   /** Brand accent used for active pill, links and icons. */
   accentColor?: string;
+  /**
+   * Number of columns for the results FlatList. Defaults to 1 (single column,
+   * one full-width row per item). Set to 2 for a two-column product grid where
+   * each card renders at half width. Food's row-layout search cards keep the
+   * default single column.
+   */
+  numColumns?: 1 | 2;
   /** Rendering key used by FlatList. Defaults to the item id. */
   keyFor?: (item: any, index: number) => string;
   /**

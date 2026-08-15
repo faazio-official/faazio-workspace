@@ -18,12 +18,6 @@ export interface PharmaFeatureChip {
   iconName: 'clock' | 'shield' | 'percent' | 'rotate';
 }
 
-export interface PharmaCategoryItem {
-  id: string;
-  name: string;
-  cutoutImageUrl: string;
-}
-
 export interface PharmaQuickReorderItem {
   id: string;
   name: string;
@@ -72,15 +66,6 @@ export const PHARMA_FEATURE_CHIPS: PharmaFeatureChip[] = [
   { id: 'pfc-2', title: '100% Genuine', subtitle: 'Quality assured', iconName: 'shield' },
   { id: 'pfc-3', title: 'Best Prices', subtitle: 'Up to 50% off', iconName: 'percent' },
   { id: 'pfc-4', title: 'Easy Returns', subtitle: 'Within 7 days', iconName: 'rotate' },
-];
-
-export const PHARMA_FEED_CATEGORIES: PharmaCategoryItem[] = [
-  { id: 'pc-1', name: 'Medicines', cutoutImageUrl: squareImg('photo-1584308666744-24d5c474f2ae', 300) },
-  { id: 'pc-2', name: 'Vitamins', cutoutImageUrl: squareImg('photo-1584017911766-d451b3d0e843', 300) },
-  { id: 'pc-3', name: 'Supplements', cutoutImageUrl: squareImg('photo-1593095948071-474c5cc2c1cf', 300) },
-  { id: 'pc-4', name: 'Baby Care', cutoutImageUrl: squareImg('photo-1595815771614-5fc0e125f409', 300) },
-  { id: 'pc-5', name: 'Personal Care', cutoutImageUrl: squareImg('photo-1556228578-0d85b1a4d571', 300) },
-  { id: 'pc-6', name: 'Devices', cutoutImageUrl: squareImg('photo-1586016413664-8e5b6f5e58a5', 300) },
 ];
 
 export const PHARMA_QUICK_REORDER: PharmaQuickReorderItem[] = [

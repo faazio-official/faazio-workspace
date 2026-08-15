@@ -1,14 +1,22 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { View, StyleSheet } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { useFonts } from 'expo-font';
+import * as SplashScreen from 'expo-splash-screen';
 import { DefaultTheme, NavigationContainer } from '@react-navigation/native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { AppNavigator } from './src/navigation/AppNavigator';
+import { SplashFallback } from './src/components/SplashFallback';
+import { useAuthStore } from './src/state/authStore';
+import { useLanguageStore } from './src/state/languageStore';
 import { FONT_ASSETS, resolveFontFamily } from './src/theme/fonts';
 
 const navigationTheme = {
   ...DefaultTheme,
+  colors: {
+    ...DefaultTheme.colors,
+    background: '#ffffff',
+  },
   fonts: {
     regular: {
       fontFamily: resolveFontFamily('400'),
@@ -33,11 +41,37 @@ const navigationTheme = {
   },
 };
 
+SplashScreen.preventAutoHideAsync().catch(() => {});
+
 export default function App() {
   const [fontsLoaded, fontError] = useFonts(FONT_ASSETS);
+  const [ready, setReady] = useState(false);
+  const hydrateAuth = useAuthStore((s) => s.hydrate);
+  const hydrateLanguage = useLanguageStore((s) => s.hydrate);
+
+  useEffect(() => {
+    let active = true;
+    (async () => {
+      await Promise.all([hydrateAuth(), hydrateLanguage()]);
+      if (active) setReady(true);
+    })();
+    return () => {
+      active = false;
+    };
+  }, [hydrateAuth, hydrateLanguage]);
+
+  useEffect(() => {
+    if (fontsLoaded && ready) {
+      SplashScreen.hideAsync().catch(() => {});
+    }
+  }, [fontsLoaded, ready]);
 
   if (!fontsLoaded && !fontError) {
-    return null;
+    return <SplashFallback variant="royal" />;
+  }
+
+  if (!ready) {
+    return <SplashFallback variant="royal" />;
   }
 
   return (

@@ -103,7 +103,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: hs(8),
-    minHeight: vs(42),
+    height: vs(42),
     paddingHorizontal: hs(14),
     borderRadius: 999,
     backgroundColor: '#F5F5F5',
@@ -115,6 +115,8 @@ const styles = StyleSheet.create({
     fontSize: ms(13),
     color: '#111827',
     paddingVertical: 0,
+    height: vs(26),
+    textAlignVertical: 'center',
   },
   clearBtn: {
     width: ms(22),

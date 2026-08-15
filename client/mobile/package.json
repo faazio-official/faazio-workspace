@@ -1,6 +1,7 @@
 {
   "name": "faazio",
   "version": "1.0.0",
+  "main": "expo/AppEntry",
   "license": "SEE LICENSE IN LICENSE",
   "author": "Faizal Basha S <faizalbashafaizalbasha07@gmail.com>",
   "scripts": {
@@ -21,9 +22,12 @@
     "@shopify/flash-list": "2.0.2",
     "babel-preset-expo": "~54.0.10",
     "expo": "~54.0.0",
+    "expo-clipboard": "~8.0.8",
     "expo-font": "~14.0.12",
     "expo-image": "~3.0.11",
     "expo-linear-gradient": "~15.0.8",
+    "expo-secure-store": "~15.0.8",
+    "expo-splash-screen": "~31.0.13",
     "expo-status-bar": "~3.0.9",
     "lucide-react-native": "^1.27.0",
     "react": "19.1.0",

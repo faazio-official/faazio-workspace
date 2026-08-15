@@ -50,6 +50,7 @@ const ProductCardBase = memo(function ProductCardBase({
     borderWidth: 1,
     borderColor: '#ffffff',
     marginBottom: vs(12),
+    ...(isRail ? { marginRight: hs(8) } : null),
     overflow: 'hidden' as const,
   };
 

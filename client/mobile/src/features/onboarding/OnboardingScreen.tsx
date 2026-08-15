@@ -4,7 +4,8 @@ import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../../navigation/AppNavigator';
 import { ChevronLeft, ChevronRight } from 'lucide-react-native';
 import { FaazioLogo } from '../../components/FaazioLogo';
-import { SCREEN_W, SCREEN_H, hs, vs, ms, wp, hp, STATUS_BAR_INSET } from '@/utils/responsive';
+import { SCREEN_W, SCREEN_H, hs, vs, ms, wp, hp } from '@/utils/responsive';
+import { Screen } from '@/components/shared';
 
 import welcomeIllustration1 from '../../assets/welcome_illustration_1.webp';
 import welcomeIllustration2 from '../../assets/welcome_illustration_2.webp';
@@ -23,7 +24,7 @@ interface OnboardingStep {
   image: any;
 }
 
-const BRAND_BLUE = '#2c56f6';
+const BRAND_PURPLE = '#7C3AED';
 
 const ONBOARDING_DATA: OnboardingStep[] = [
   {
@@ -31,7 +32,7 @@ const ONBOARDING_DATA: OnboardingStep[] = [
     subtitle: 'Your Daily SuperApp',
     description: 'Everything you need. One app — shop, eat, book & more.',
     bgColor: '#ffffff',
-    accentColor: BRAND_BLUE,
+    accentColor: BRAND_PURPLE,
     image: welcomeIllustration1,
   },
   {
@@ -39,7 +40,7 @@ const ONBOARDING_DATA: OnboardingStep[] = [
     subtitle: 'Essentials Made Easy',
     description: "Groceries & essentials at your door, fast — from trusted local stores.",
     bgColor: '#ffffff',
-    accentColor: BRAND_BLUE,
+    accentColor: BRAND_PURPLE,
     image: welcomeIllustration2,
   },
   {
@@ -47,7 +48,7 @@ const ONBOARDING_DATA: OnboardingStep[] = [
     subtitle: 'Hot Food Ordering',
     description: 'Hot food, ordered in seconds — from favourite local restaurants.',
     bgColor: '#ffffff',
-    accentColor: BRAND_BLUE,
+    accentColor: BRAND_PURPLE,
     image: welcomeIllustration3,
   },
   {
@@ -55,7 +56,7 @@ const ONBOARDING_DATA: OnboardingStep[] = [
     subtitle: 'And Hassle-Free Booking',
     description: 'Services & tickets, booked instantly — zero hassle.',
     bgColor: '#ffffff',
-    accentColor: BRAND_BLUE,
+    accentColor: BRAND_PURPLE,
     image: welcomeIllustration4,
   },
 ];
@@ -118,7 +119,7 @@ export function OnboardingScreen({ navigation }: Props) {
   const currentData = ONBOARDING_DATA[currentStep];
 
   return (
-    <View style={[styles.container, { backgroundColor: currentData.bgColor }]}>
+    <Screen backgroundColor={currentData.bgColor}>
       <Animated.View
         style={[
           styles.animatedWrapper,
@@ -149,10 +150,10 @@ export function OnboardingScreen({ navigation }: Props) {
           {/* Text Details Section */}
           <View style={styles.textDetails}>
             <AppText style={styles.titleText}>{currentData.title}</AppText>
-            <AppText style={[styles.subtitleText, { color: BRAND_BLUE }]}>
+            <AppText style={[styles.subtitleText, { color: BRAND_PURPLE }]}>
               {currentData.subtitle}
             </AppText>
-            <View style={[styles.underline, { backgroundColor: BRAND_BLUE }]} />
+            <View style={[styles.underline, { backgroundColor: BRAND_PURPLE }]} />
             <AppText style={styles.descriptionText}>{currentData.description}</AppText>
           </View>
         </View>
@@ -170,7 +171,7 @@ export function OnboardingScreen({ navigation }: Props) {
                 style={[
                   styles.dot,
                   isActive
-                    ? [styles.activeDot, { backgroundColor: BRAND_BLUE }]
+                    ? [styles.activeDot, { backgroundColor: BRAND_PURPLE }]
                     : [styles.inactiveDot, { backgroundColor: '#cbd5e1' }],
                 ]}
               />
@@ -192,7 +193,7 @@ export function OnboardingScreen({ navigation }: Props) {
           )}
           <TouchableOpacity
             onPress={handleNext}
-            style={[styles.nextButton, { backgroundColor: BRAND_BLUE }]}
+            style={[styles.nextButton, { backgroundColor: BRAND_PURPLE }]}
             activeOpacity={0.8}
           >
             <AppText style={styles.nextButtonText}>
@@ -202,15 +203,11 @@ export function OnboardingScreen({ navigation }: Props) {
           </TouchableOpacity>
         </View>
       </View>
-    </View>
+    </Screen>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#ffffff',
-  },
   animatedWrapper: {
     flex: 1,
   },
@@ -219,8 +216,8 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     paddingHorizontal: hs(24),
-    paddingTop: STATUS_BAR_INSET + vs(12),
-    height: STATUS_BAR_INSET + vs(54),
+    paddingTop: vs(12),
+    height: vs(54),
   },
   skipButton: {
     paddingVertical: vs(6),
@@ -339,7 +336,7 @@ const styles = StyleSheet.create({
     borderRadius: ms(20),
     justifyContent: 'center',
     gap: hs(2),
-    shadowColor: BRAND_BLUE,
+    shadowColor: BRAND_PURPLE,
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.15,
     shadowRadius: 8,

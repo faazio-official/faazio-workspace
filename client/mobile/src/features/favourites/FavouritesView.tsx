@@ -1,571 +1,569 @@
-import React, { useState, useRef, useEffect } from 'react';
-import { StyleSheet, View, ScrollView, TouchableOpacity, Image, Animated } from 'react-native';
+import React, { useState } from 'react';
 import {
+  StyleSheet,
+  View,
+  ScrollView,
+  TouchableOpacity,
+} from 'react-native';
+import {
+  ArrowLeft,
+  Trash2,
   Heart,
+  Minus,
   Plus,
-  Check,
+  ChevronDown,
+  LayoutGrid,
+  ShoppingBag,
+  Utensils,
+  ShoppingBasket,
+  Pill,
 } from 'lucide-react-native';
-import { categoriesSearchDatabase } from '@data/categories/searchDatabase';
-import { exploreStacks } from '@data/explore/stacks';
-import { hs, vs, ms } from '@/utils/responsive';
-import EnterpriseIcon from '@/components/EnterpriseIcon';
-import Svg, { Defs, LinearGradient, Stop, Rect, Circle } from 'react-native-svg';
+import type { LucideIcon } from 'lucide-react-native';
+import { hs, vs, ms, STATUS_BAR_INSET } from '@/utils/responsive';
 import AppText from '@/components/AppText';
+import {
+  filterChips,
+  favCategories,
+  favsSummary,
+  type FavIconKey,
+  type FilterChip,
+} from './mocks';
+
+const ICON_MAP: Record<FavIconKey, LucideIcon> = {
+  grid: LayoutGrid,
+  bag: ShoppingBag,
+  food: Utensils,
+  grocery: ShoppingBasket,
+  pharma: Pill,
+};
 
 interface FavouritesViewProps {
-  contentInset?: number;
-  addToCart: (id: string, name: string, price: number, emoji: string) => void;
-  onProductClick?: (product: any) => void;
-  favorites: string[];
-  toggleFavorite: (productId: string) => void;
-  onScroll?: (offsetY: number) => void;
+  onBack?: () => void;
 }
 
-export default function FavouritesView({
-  contentInset = 0,
-  addToCart,
-  onProductClick,
-  favorites = [],
-  toggleFavorite,
-  onScroll,
-}: FavouritesViewProps) {
-  const [addedItem, setAddedItem] = useState<string | null>(null);
-  const pulseAnim = useRef(new Animated.Value(1)).current;
+function ChipIcon({ icon, color, size }: { icon: FavIconKey; color: string; size: number }) {
+  const Icon = ICON_MAP[icon];
+  return <Icon size={ms(size)} color={color} strokeWidth={2.4} />;
+}
 
-  useEffect(() => {
-    const loop = Animated.loop(
-      Animated.sequence([
-        Animated.timing(pulseAnim, { toValue: 0.5, duration: 800, useNativeDriver: true }),
-        Animated.timing(pulseAnim, { toValue: 1, duration: 800, useNativeDriver: true }),
-      ])
-    );
-    loop.start();
-    return () => loop.stop();
-  }, [pulseAnim]);
+export default function FavouritesView({ onBack }: FavouritesViewProps) {
+  const [activeChip, setActiveChip] = useState<FilterChip['id']>('all');
+  const [quantities, setQuantities] = useState<Record<string, number>>({});
+  const [cleared, setCleared] = useState(false);
 
-  const handleAddToCart = (id: string, name: string, price: number, emoji: string) => {
-    addToCart(id, name, price, emoji);
-    setAddedItem(id);
-    setTimeout(() => {
-      setAddedItem(null);
-    }, 1200);
-  };
+  const visibleCategories =
+    activeChip === 'all'
+      ? favCategories
+      : favCategories.filter((cat) => cat.id === activeChip);
 
-  const getAllProducts = () => {
-    const list: any[] = [];
+  const allItems = favCategories.flatMap((cat) => cat.items);
+  const visibleItems = visibleCategories.flatMap((cat) => cat.items);
 
-    Object.entries(categoriesSearchDatabase).forEach(([catId, items]: [string, any]) => {
-      let app: 'FOOD' | 'MART' | 'GROCERY' | 'PHARMA' = 'MART';
-      if (catId.startsWith('food-') || catId.startsWith('fd-')) app = 'FOOD';
-      else if (catId.startsWith('groc-') || catId.startsWith('gr-')) app = 'GROCERY';
-      else if (catId.startsWith('ph-')) app = 'PHARMA';
+  const totalCount = allItems.length;
+  const displayCount = visibleCategories === favCategories ? totalCount : visibleItems.length;
 
-      items.forEach((item: any) => {
-        list.push({
-          ...item,
-          app,
-          catId,
-          catName: item.catName || catId,
-          image: item.image || item.img,
-        });
-      });
+  const bumpQty = (id: string, delta: number) => {
+    setQuantities((prev) => {
+      const next = (prev[id] ?? 0) + delta;
+      const copy = { ...prev };
+      if (next <= 0) delete copy[id];
+      else copy[id] = next;
+      return copy;
     });
-
-    exploreStacks.forEach((stack) => {
-      stack.items.forEach((item) => {
-        list.push({
-          id: item.id,
-          name: item.name,
-          price: item.price,
-          rating: Number(item.rating),
-          emoji: item.emoji,
-          image: item.img,
-          desc: `Premium GenZ favorite curated from ${item.shop}. 100% genuine quality with lightning speed delivery.`,
-          app: stack.type,
-          catId: stack.id,
-          catName: stack.title,
-          shop: item.shop,
-        });
-      });
-    });
-
-    return list;
   };
 
-  const favoriteProducts = getAllProducts().filter((p) => favorites.includes(p.id));
+  const qtyOf = (id: string) => quantities[id] ?? 0;
 
-  const categorized = {
-    FOOD: favoriteProducts.filter((p) => p.app === 'FOOD'),
-    MART: favoriteProducts.filter((p) => p.app === 'MART'),
-    GROCERY: favoriteProducts.filter((p) => p.app === 'GROCERY'),
-    PHARMA: favoriteProducts.filter((p) => p.app === 'PHARMA'),
-  };
-
-  const hasAnyFavorites = favoriteProducts.length > 0;
-
-  const sectorStyles = {
-    FOOD: {
-      title: 'Food Delivery & Dining',
-      emoji: '🍲',
-      textColor: '#047857',
-      borderColor: '#d1fae5',
-      badgeBg: '#ecfdf5',
-      badgeText: '#047857',
-      btnBg: '#1E5D44',
-      cardBg: '#f0fdf4',
-    },
-    MART: {
-      title: 'Fashion, Tech & Lifestyle',
-      emoji: '🛍️',
-      textColor: '#1d4ed8',
-      borderColor: '#dbeafe',
-      badgeBg: '#eff6ff',
-      badgeText: '#1d4ed8',
-      btnBg: '#1162D3',
-      cardBg: '#f0f9ff',
-    },
-    GROCERY: {
-      title: 'Grocery & Fresh Essentials',
-      emoji: '🍏',
-      textColor: '#15803d',
-      borderColor: '#dcfce7',
-      badgeBg: '#f0fdf4',
-      badgeText: '#15803d',
-      btnBg: '#10B981',
-      cardBg: '#f0fdf4',
-    },
-    PHARMA: {
-      title: 'Pharma & Wellness Care',
-      emoji: '💊',
-      textColor: '#0f766e',
-      borderColor: '#ccfbf1',
-      badgeBg: '#f0fdfa',
-      badgeText: '#0f766e',
-      btnBg: '#065F46',
-      cardBg: '#f0fdfa',
-    },
-  };
+  const chipLabel = (chip: FilterChip) =>
+    chip.id === 'all' ? `${chip.label} (${chip.count})` : chip.label;
 
   return (
-    <ScrollView style={styles.container} contentContainerStyle={[styles.scrollContent, { paddingTop: contentInset }]} showsVerticalScrollIndicator={false}
-      onScroll={onScroll ? (e) => onScroll(e.nativeEvent.contentOffset.y) : undefined}
-      scrollEventThrottle={16}>
-      
-      {/* 1. Header Banner */}
-      <View style={styles.headerBanner}>
-        <Svg style={StyleSheet.absoluteFill}>
-          <Defs>
-            <LinearGradient id="favBannerGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-              <Stop offset="0%" stopColor="#4c0519" />
-              <Stop offset="60%" stopColor="#0f172a" />
-              <Stop offset="100%" stopColor="#172033" />
-            </LinearGradient>
-          </Defs>
-          <Rect width="100%" height="100%" fill="url(#favBannerGrad)" />
-          <Circle cx="110%" cy="110%" r={hs(72)} fill="rgba(244,63,94,0.10)" />
-          <Circle cx="-10%" cy="-10%" r={hs(72)} fill="rgba(59,130,246,0.10)" />
-        </Svg>
-        <View style={styles.headerBannerContent}>
-          <View style={styles.wishlistBadge}>
-            <AppText style={styles.wishlistBadgeText}>Personal Wishlists</AppText>
-          </View>
-          <AppText style={styles.headerTitle}>My Curated Favourites</AppText>
-          <AppText style={styles.headerDesc}>Your saved items categorized across active sub apps</AppText>
-        </View>
+    <View style={styles.root}>
+      {/* 1. Fixed Top Navigation Bar */}
+      <View style={[styles.topBar, { paddingTop: STATUS_BAR_INSET + vs(12) }]}>
+        <TouchableOpacity
+          onPress={onBack}
+          style={styles.backBtn}
+          activeOpacity={0.7}
+          hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+        >
+          <ArrowLeft size={ms(20)} color="#1E2022" strokeWidth={2.4} />
+        </TouchableOpacity>
+        <AppText style={styles.topBarTitle}>Favourites</AppText>
+        <TouchableOpacity
+          onPress={() => {
+            setCleared(true);
+            setQuantities({});
+          }}
+          style={styles.trashBtn}
+          activeOpacity={0.7}
+          hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+        >
+          <Trash2 size={ms(20)} color="#4B5563" strokeWidth={2.2} />
+        </TouchableOpacity>
       </View>
 
-      {/* 2. Categorized Sections */}
-      {hasAnyFavorites ? (
-        <View style={styles.sectionsList}>
-          {(Object.keys(categorized) as Array<keyof typeof categorized>).map((key) => {
-            const items = categorized[key];
-            if (items.length === 0) return null;
-
-            const style = sectorStyles[key];
-
+      {/* 2. Filter Chips Row */}
+      <View style={styles.chipsBar}>
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.chipsContent}
+        >
+          {filterChips.map((chip) => {
+            const isActive = activeChip === chip.id;
             return (
-              <View key={key} style={styles.sectorSection}>
-                <View style={styles.sectorHeaderRow}>
-                  <View style={styles.sectorTitleWrap}>
-                    <EnterpriseIcon emoji={style.emoji} variant="flat" size={ms(11)} />
-                    <AppText style={[styles.sectorTitle, { color: style.textColor }]}>
-                      {style.title}
-                    </AppText>
+              <TouchableOpacity
+                key={chip.id}
+                onPress={() => setActiveChip(chip.id)}
+                style={[
+                  styles.chip,
+                  isActive ? styles.chipActive : styles.chipInactive,
+                ]}
+                activeOpacity={0.8}
+              >
+                <ChipIcon
+                  icon={chip.icon}
+                  color={isActive ? '#ffffff' : chipColor(chip.id)}
+                  size={12}
+                />
+                <AppText
+                  style={[
+                    styles.chipText,
+                    isActive ? styles.chipTextActive : styles.chipTextInactive,
+                  ]}
+                >
+                  {chipLabel(chip)}
+                </AppText>
+              </TouchableOpacity>
+            );
+          })}
+        </ScrollView>
+      </View>
+
+      {/* 3. Scrollable categorized list */}
+      <ScrollView
+        style={styles.scroll}
+        contentContainerStyle={styles.scrollContent}
+        showsVerticalScrollIndicator={false}
+      >
+        {cleared || totalCount === 0 ? (
+          <View style={styles.emptyCard}>
+            <View style={styles.emptyIconCircle}>
+              <Heart size={ms(22)} color="#FB7185" strokeWidth={2} />
+            </View>
+            <AppText style={styles.emptyTitle}>No Favourites Yet</AppText>
+            <AppText style={styles.emptyDesc}>
+              Tap the heart icon on any product across Mart, Food, Grocery, or
+              Pharma to add it to your favourites.
+            </AppText>
+            <TouchableOpacity
+              onPress={() => setCleared(false)}
+              style={styles.emptyAction}
+              activeOpacity={0.8}
+            >
+              <AppText style={styles.emptyActionText}>Restore Favourites</AppText>
+            </TouchableOpacity>
+          </View>
+        ) : (
+          visibleCategories.map((cat) => {
+            const items = cat.items;
+            if (items.length === 0) return null;
+            return (
+              <View key={cat.id} style={styles.categoryCard}>
+                {/* Category Header */}
+                <View style={styles.catHeader}>
+                  <View style={styles.catHeaderLeft}>
+                    <ChipIcon icon={cat.icon} color={cat.color} size={18} />
+                    <AppText style={styles.catTitle}>{cat.title}</AppText>
                   </View>
-                  <AppText style={styles.sectorCount}>
-                    {items.length} {items.length === 1 ? 'item' : 'items'}
-                  </AppText>
+                  <View style={styles.catHeaderRight}>
+                    <AppText style={styles.catCount}>{items.length} items</AppText>
+                    <ChevronDown size={ms(16)} color="#118C4F" strokeWidth={2.6} />
+                  </View>
                 </View>
 
-                <View style={styles.grid}>
-                  {items.map((item) => {
-                    const isAdded = addedItem === item.id;
+                {/* Item Rows */}
+                {items.map((item, idx) => {
+                  const isLast = idx === items.length - 1;
+                  const qty = qtyOf(item.id);
+                  return (
+                    <View
+                      key={item.id}
+                      style={[styles.itemRow, !isLast && styles.itemRowBorder]}
+                    >
+                      <View style={styles.thumb}>
+                        <AppText style={styles.thumbEmoji}>🛍️</AppText>
+                      </View>
 
-                    return (
-                      <View key={item.id} style={[styles.card, { backgroundColor: style.cardBg }]}>
-                        <TouchableOpacity
-                          onPress={() => onProductClick && onProductClick(item)}
-                          style={styles.cardPressable}
-                          activeOpacity={0.9}
-                        >
-                          <View style={styles.cardImgWrap}>
-                            <Image source={{ uri: item.image }} style={styles.cardImg} />
-                            
-                            <View style={styles.enterpriseIconStamp}>
-                              <EnterpriseIcon emoji={item.emoji || '🛍️'} variant="circle" size={ms(28)} bgColor="rgba(255,255,255,0.95)" />
-                            </View>
+                      <View style={styles.itemDetails}>
+                        <AppText style={styles.itemName} numberOfLines={2}>
+                          {item.name}
+                        </AppText>
+                        <AppText style={styles.itemQty}>{item.qty}</AppText>
+                        <View style={styles.priceRow}>
+                          <AppText style={styles.itemPrice}>₹{item.price}</AppText>
+                          <AppText style={styles.itemOldPrice}>₹{item.oldPrice}</AppText>
+                          <AppText style={styles.itemDiscount}>{item.discount}</AppText>
+                        </View>
+                      </View>
 
-                            <TouchableOpacity
-                              onPress={() => toggleFavorite(item.id)}
-                              style={styles.heartBtn}
-                              activeOpacity={0.8}
-                              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-                            >
-                              <Heart size={ms(12)} color="#f43f5e" fill="#f43f5e" />
-                            </TouchableOpacity>
-
-                            <View style={styles.ratingOverlay}>
-                              <AppText style={styles.ratingText}>★ {item.rating}</AppText>
-                            </View>
-                          </View>
-
-                          <View style={styles.cardContent}>
-                            <View style={styles.metaRow}>
-                              <View style={[styles.appBadge, { backgroundColor: style.badgeBg, borderColor: style.borderColor }]}>
-                                <AppText style={[styles.appBadgeText, { color: style.badgeText }]}>{item.app}</AppText>
-                              </View>
-                              {item.shop ? (
-                                <AppText style={styles.shopName} numberOfLines={1}>
-                                  {item.shop}
-                                </AppText>
-                              ) : null}
-                            </View>
-
-                            <AppText style={styles.productName} numberOfLines={1}>
-                              {item.name}
-                            </AppText>
-                            <AppText style={styles.productDesc} numberOfLines={2}>
-                              {item.desc}
-                            </AppText>
-                          </View>
-                        </TouchableOpacity>
-
-                        <View style={styles.cardFooter}>
-                          <AppText style={styles.priceText}>₹{item.price.toLocaleString('en-IN')}</AppText>
+                      <View style={styles.itemActions}>
+                        <View style={styles.heartWrap}>
+                          <Heart size={ms(14)} color="#E11D48" fill="#E11D48" />
+                        </View>
+                        <View style={styles.stepper}>
                           <TouchableOpacity
-                            onPress={() => handleAddToCart(item.id, item.name, item.price, item.emoji)}
-                            style={[
-                              styles.addBtn,
-                              { backgroundColor: isAdded ? '#059669' : style.btnBg },
-                            ]}
+                            onPress={() => bumpQty(item.id, -1)}
+                            style={styles.stepperBtn}
                             activeOpacity={0.8}
                           >
-                            {isAdded ? (
-                              <Check size={ms(8)} strokeWidth={3} color="#ffffff" />
-                            ) : (
-                              <Plus size={ms(8)} color="#ffffff" />
-                            )}
-                            <AppText style={styles.addBtnText}>{isAdded ? 'Added' : 'Add'}</AppText>
+                            <Minus size={ms(12)} color="#118C4F" strokeWidth={2.6} />
+                          </TouchableOpacity>
+                          <AppText style={styles.stepperValue}>{qty}</AppText>
+                          <TouchableOpacity
+                            onPress={() => bumpQty(item.id, 1)}
+                            style={styles.stepperBtn}
+                            activeOpacity={0.8}
+                          >
+                            <Plus size={ms(12)} color="#118C4F" strokeWidth={2.6} />
                           </TouchableOpacity>
                         </View>
                       </View>
-                    );
-                  })}
-                </View>
+                    </View>
+                  );
+                })}
               </View>
             );
-          })}
-        </View>
-      ) : (
-        /* Empty State */
-        <View style={styles.emptyCard}>
-          <View style={styles.emptyIconCircle}>
-            <Animated.View style={{ opacity: pulseAnim }}>
-              <Heart size={ms(20)} color="#fb7185" strokeWidth={2} />
-            </Animated.View>
+          })
+        )}
+      </ScrollView>
+
+      {/* 4. Sticky Bottom Action Bar */}
+      {!cleared && totalCount > 0 && (
+        <View style={styles.bottomBar}>
+          <View style={styles.bottomDetails}>
+            <Heart size={ms(16)} color="#118C4F" fill="#118C4F" />
+            <View>
+              <AppText style={styles.bottomCountText}>
+                {displayCount} items in favourites
+              </AppText>
+              <View style={styles.bottomTotalRow}>
+                <AppText style={styles.bottomTotal}>{favsSummary.total}</AppText>
+                <AppText style={styles.bottomOldTotal}>{favsSummary.oldTotal}</AppText>
+              </View>
+            </View>
           </View>
-          <AppText style={styles.emptyTitle}>No Favourites Yet</AppText>
-          <AppText style={styles.emptyDesc}>
-            Tap the heart icon on any product in our categories or explore feeds to add them to your curated shortlist here!
-          </AppText>
+          <TouchableOpacity
+            onPress={() => {
+              allItems.forEach((i) => bumpQty(i.id, 1));
+            }}
+            style={styles.addAllBtn}
+            activeOpacity={0.88}
+          >
+            <AppText style={styles.addAllText}>Add All to Cart ({displayCount})</AppText>
+          </TouchableOpacity>
         </View>
       )}
-
-    </ScrollView>
+    </View>
   );
 }
 
+function chipColor(id: FilterChip['id']): string {
+  switch (id) {
+    case 'mart':
+      return '#118C4F';
+    case 'food':
+      return '#F97316';
+    case 'grocery':
+      return '#34D399';
+    case 'pharma':
+      return '#0EA5E9';
+    default:
+      return '#64748B';
+  }
+}
+
 const styles = StyleSheet.create({
-  container: {
+  root: {
     flex: 1,
+    backgroundColor: '#F8F9FA',
+  },
+  topBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: hs(16),
+    paddingBottom: vs(12),
     backgroundColor: '#ffffff',
+  },
+  backBtn: {
+    width: ms(40),
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  topBarTitle: {
+    fontSize: ms(18),
+    fontWeight: 'bold',
+    color: '#1E2022',
+  },
+  trashBtn: {
+    width: ms(40),
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  chipsBar: {
+    backgroundColor: '#ffffff',
+  },
+  chipsContent: {
+    paddingHorizontal: hs(16),
+    paddingBottom: vs(16),
+  },
+  chip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderRadius: ms(20),
+    paddingHorizontal: hs(12),
+    paddingVertical: vs(8),
+    marginRight: hs(8),
+  },
+  chipActive: {
+    backgroundColor: '#118C4F',
+  },
+  chipInactive: {
+    backgroundColor: '#ffffff',
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+  },
+  chipText: {
+    fontSize: ms(12),
+    fontWeight: '600',
+    marginLeft: hs(5),
+  },
+  chipTextActive: {
+    color: '#ffffff',
+  },
+  chipTextInactive: {
+    color: '#1E2022',
+  },
+  scroll: {
+    flex: 1,
   },
   scrollContent: {
     paddingHorizontal: hs(16),
-    paddingBottom: vs(40),
+    paddingBottom: vs(20),
   },
-  headerBanner: {
-    backgroundColor: '#0f172a',
-    borderRadius: ms(26),
-    padding: ms(16),
-    marginTop: vs(14),
-    marginBottom: vs(16),
-    position: 'relative',
-    overflow: 'hidden',
+  categoryCard: {
+    backgroundColor: '#ffffff',
+    borderRadius: ms(16),
+    padding: hs(16),
     borderWidth: 1,
-    borderColor: '#1e293b',
-    shadowColor: '#000000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.08,
-    shadowRadius: 6,
-    elevation: 1,
+    borderColor: '#F0F0F0',
+    marginTop: vs(16),
+    marginBottom: vs(12),
   },
-  headerBannerContent: {
-    zIndex: 1,
-  },
-  wishlistBadge: {
-    backgroundColor: 'rgba(255, 74, 107, 0.15)',
-    borderWidth: 0.5,
-    borderColor: 'rgba(255, 74, 107, 0.2)',
-    paddingVertical: vs(2),
-    paddingHorizontal: hs(10),
-    borderRadius: 999,
-    alignSelf: 'flex-start',
-    marginBottom: vs(6),
-  },
-  wishlistBadgeText: {
-    fontSize: ms(8),
-    color: '#FF4A6B',
-    fontWeight: '900',
-    textTransform: 'uppercase',
-    letterSpacing: 1,
-  },
-  headerTitle: {
-    fontSize: ms(14),
-    fontWeight: '900',
-    color: '#ffffff',
-    textTransform: 'uppercase',
-    letterSpacing: -0.3,
-  },
-  headerDesc: {
-    fontSize: ms(9.5),
-    color: '#94a3b8',
-    fontWeight: '600',
-    marginTop: vs(4),
-  },
-  sectionsList: {
-    width: '100%',
-  },
-  sectorSection: {
+  catHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
     marginBottom: vs(16),
   },
-  sectorHeaderRow: {
+  catHeaderLeft: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
-    borderBottomWidth: 1,
-    borderBottomColor: '#f1f5f9',
-    paddingBottom: vs(6),
-    marginBottom: vs(10),
+    gap: hs(8),
   },
-  sectorTitleWrap: {
+  catTitle: {
+    fontSize: ms(15),
+    fontWeight: 'bold',
+    color: '#1E2022',
+  },
+  catHeaderRight: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: hs(6),
   },
-  sectorTitle: {
-    fontSize: ms(11),
-    fontWeight: '900',
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
+  catCount: {
+    fontSize: ms(12),
+    color: '#888888',
   },
-  sectorCount: {
-    fontSize: ms(9),
-    color: '#94a3b8',
-    fontWeight: '700',
-  },
-  grid: {
+  itemRow: {
     flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: hs(14),
-    justifyContent: 'space-between',
+    paddingVertical: vs(12),
   },
-  card: {
-    width: '48%',
-    borderRadius: ms(24),
-    borderWidth: 1,
-    borderColor: '#f1f5f9',
-    overflow: 'hidden',
-  },
-  cardPressable: {
-    flexDirection: 'column',
-  },
-  cardImgWrap: {
-    width: '100%',
-    height: vs(128),
-    position: 'relative',
-    backgroundColor: '#f8fafc',
+  itemRowBorder: {
     borderBottomWidth: 1,
-    borderBottomColor: 'rgba(241,245,249,0.5)',
+    borderBottomColor: '#F0F0F0',
   },
-  cardImg: {
-    width: '100%',
-    height: '100%',
-  },
-  enterpriseIconStamp: {
-    position: 'absolute',
-    top: vs(10),
-    left: hs(10),
-    zIndex: 2,
-    borderWidth: 1,
-    borderColor: 'rgba(241,245,249,0.3)',
-    borderRadius: ms(14),
-    shadowColor: '#000000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.08,
-    shadowRadius: 2,
-    elevation: 1,
-  },
-  heartBtn: {
-    position: 'absolute',
-    top: vs(10),
-    right: hs(10),
-    backgroundColor: 'rgba(255,255,255,0.95)',
-    width: ms(28),
-    height: ms(28),
-    borderRadius: ms(14),
+  thumb: {
+    width: ms(60),
+    height: ms(60),
+    borderRadius: ms(8),
+    backgroundColor: '#EEEEEE',
     alignItems: 'center',
     justifyContent: 'center',
-    shadowColor: '#000000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
-    shadowRadius: 2,
-    elevation: 1,
   },
-  ratingOverlay: {
-    position: 'absolute',
-    bottom: vs(10),
-    left: hs(10),
-    backgroundColor: 'rgba(15, 23, 42, 0.8)',
-    paddingVertical: vs(2),
-    paddingHorizontal: hs(6),
-    borderRadius: ms(6),
+  thumbEmoji: {
+    fontSize: ms(22),
   },
-  ratingText: {
-    color: '#ffffff',
-    fontSize: ms(7.5),
-    fontWeight: '900',
+  itemDetails: {
+    flex: 1,
+    paddingHorizontal: hs(12),
   },
-  cardContent: {
-    padding: vs(12),
+  itemName: {
+    fontSize: ms(13),
+    fontWeight: 'bold',
+    color: '#1E2022',
   },
-  metaRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: hs(4),
-  },
-  appBadge: {
-    paddingVertical: vs(1),
-    paddingHorizontal: hs(4),
-    borderRadius: ms(4),
-    borderWidth: 1,
-    letterSpacing: 0.5,
-  },
-  appBadgeText: {
-    fontSize: ms(6),
-    fontWeight: '900',
-  },
-  shopName: {
-    fontSize: ms(7.5),
-    color: '#94a3b8',
-    fontWeight: '700',
-    textTransform: 'uppercase',
-    maxWidth: hs(80),
-  },
-  productName: {
-    fontSize: ms(10),
-    fontWeight: '900',
-    color: '#020617',
+  itemQty: {
+    fontSize: ms(11),
+    color: '#888888',
     marginTop: vs(4),
   },
-  productDesc: {
-    fontSize: ms(8),
-    color: '#94a3b8',
-    fontWeight: '600',
-    marginTop: vs(2),
-    lineHeight: ms(10),
-    minHeight: vs(22),
-  },
-  cardFooter: {
+  priceRow: {
     flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: vs(8),
+  },
+  itemPrice: {
+    fontSize: ms(13),
+    fontWeight: 'bold',
+    color: '#1E2022',
+  },
+  itemOldPrice: {
+    fontSize: ms(11),
+    color: '#888888',
+    textDecorationLine: 'line-through',
+    marginLeft: hs(6),
+  },
+  itemDiscount: {
+    fontSize: ms(9),
+    color: '#118C4F',
+    fontWeight: 'bold',
+    marginLeft: hs(8),
+  },
+  itemActions: {
+    alignItems: 'flex-end',
     justifyContent: 'space-between',
+  },
+  heartWrap: {
+    width: ms(26),
+    height: ms(26),
+    borderRadius: ms(6),
+    backgroundColor: '#FFE9EE',
     alignItems: 'center',
-    borderTopWidth: 1,
-    borderColor: '#f8fafc',
-    backgroundColor: 'rgba(255,255,255,0.5)',
-    paddingTop: vs(8),
-    paddingHorizontal: hs(10),
-    paddingBottom: vs(10),
+    justifyContent: 'center',
   },
-  priceText: {
-    fontSize: ms(10.5),
-    fontWeight: '900',
-    color: '#0f172a',
-  },
-  addBtn: {
+  stepper: {
     flexDirection: 'row',
     alignItems: 'center',
-    height: Math.max(26, vs(26)),
-    paddingHorizontal: hs(8),
+    borderWidth: 1,
+    borderColor: '#118C4F',
     borderRadius: ms(8),
-    gap: hs(2),
+    overflow: 'hidden',
   },
-  addBtnText: {
+  stepperBtn: {
+    paddingHorizontal: hs(8),
+    paddingVertical: vs(4),
+  },
+  stepperValue: {
+    fontSize: ms(12),
+    fontWeight: 'bold',
+    color: '#1E2022',
+    minWidth: ms(24),
+    textAlign: 'center',
+  },
+  bottomBar: {
+    backgroundColor: '#E8F5E9',
+    paddingHorizontal: hs(16),
+    paddingTop: vs(12),
+    paddingBottom: vs(24),
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    borderTopWidth: 1,
+    borderTopColor: '#D5EAD8',
+  },
+  bottomDetails: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: hs(10),
+    flexShrink: 1,
+  },
+  bottomCountText: {
+    fontSize: ms(12),
+    fontWeight: 'bold',
+    color: '#118C4F',
+  },
+  bottomTotalRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: vs(2),
+  },
+  bottomTotal: {
+    fontSize: ms(13),
+    fontWeight: 'bold',
+    color: '#1E2022',
+  },
+  bottomOldTotal: {
+    fontSize: ms(11),
+    color: '#888888',
+    textDecorationLine: 'line-through',
+    marginLeft: hs(6),
+  },
+  addAllBtn: {
+    backgroundColor: '#118C4F',
+    borderRadius: ms(8),
+    paddingHorizontal: hs(16),
+    paddingVertical: vs(12),
+    marginLeft: hs(10),
+  },
+  addAllText: {
     color: '#ffffff',
-    fontSize: ms(7),
-    fontWeight: '900',
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
+    fontWeight: 'bold',
+    fontSize: ms(13),
   },
   emptyCard: {
     backgroundColor: '#ffffff',
-    borderRadius: ms(32),
+    borderRadius: ms(16),
     borderWidth: 1,
-    borderColor: '#f1f5f9',
-    paddingVertical: vs(64),
+    borderColor: '#F0F0F0',
+    paddingVertical: vs(48),
     paddingHorizontal: hs(16),
     alignItems: 'center',
-    shadowColor: '#000000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.02,
-    shadowRadius: 6,
-    elevation: 1,
+    marginTop: vs(16),
   },
   emptyIconCircle: {
-    width: ms(64),
-    height: ms(64),
-    borderRadius: ms(32),
-    backgroundColor: '#fff1f2',
+    width: ms(56),
+    height: ms(56),
+    borderRadius: ms(28),
+    backgroundColor: '#FFF1F2',
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: vs(12),
-    borderWidth: 2,
-    borderColor: '#fb7185',
   },
   emptyTitle: {
-    fontSize: ms(12),
-    fontWeight: '900',
-    color: '#0f172a',
-    textTransform: 'uppercase',
-    letterSpacing: -0.3,
+    fontSize: ms(15),
+    fontWeight: 'bold',
+    color: '#1E2022',
   },
   emptyDesc: {
-    fontSize: ms(10),
-    color: '#94a3b8',
-    fontWeight: '500',
+    fontSize: ms(12),
+    color: '#888888',
     textAlign: 'center',
     marginTop: vs(6),
-    lineHeight: ms(14),
-    maxWidth: hs(260),
+    lineHeight: ms(18),
+  },
+  emptyAction: {
+    marginTop: vs(16),
+    backgroundColor: '#118C4F',
+    borderRadius: ms(8),
+    paddingHorizontal: hs(16),
+    paddingVertical: vs(10),
+  },
+  emptyActionText: {
+    color: '#ffffff',
+    fontWeight: 'bold',
+    fontSize: ms(13),
   },
 });

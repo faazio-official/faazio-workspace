@@ -1,44 +1,40 @@
 import React, { memo } from 'react';
-import { View, StyleSheet } from 'react-native';
-import { hs, vs, SCREEN_W } from '@/utils/responsive';
-import PharmaProductCard from '@/features/pharma/cards/PharmaProductCard';
+import SearchProductCard from '@/components/shared/SearchProductCard';
+import { useCartProductActions } from '@/components/shared/hooks';
 import type { Product } from '@data/types';
-
-const CARD_WIDTH = SCREEN_W - hs(32);
 
 interface SearchPharmaProductCardProps {
   product: Product;
+  columnIndex?: number;
   onPress?: (product: Product) => void;
 }
 
 /**
- * Pharma search result card wrapper. Owns the full-width list layout variant
- * for the shared Pharma card and runs onPress with the product. Lives under
- * components/ (not cards/) so it doesn't trip the dependency-cruiser card
- * boundary for cross-sub-app search.
+ * Pharma search result card wrapper. Renders the dense e-commerce grid card
+ * (square contain image, discount/MRP pricing, full-width Add to Cart) and runs
+ * onPress with the product. Wires the shared cart store so results can be added
+ * straight from search. Lives under components/ (not cards/) so it doesn't trip
+ * the dependency-cruiser card boundary for cross-sub-app search.
  */
 const SearchPharmaProductCard = memo(function SearchPharmaProductCard({
   product,
+  columnIndex = 0,
   onPress,
 }: SearchPharmaProductCardProps) {
+  const cart = useCartProductActions(product);
   return (
-    <View style={styles.wrap}>
-      <PharmaProductCard
-        product={product}
-        variant="stack"
-        width={CARD_WIDTH}
-        showDescription
-        onPress={onPress ? () => onPress(product) : undefined}
-      />
-    </View>
+    <SearchProductCard
+      product={product}
+      appBrand="PHARMA"
+      columnIndex={columnIndex}
+      showFavorite
+      quantity={cart.quantity}
+      onAdd={cart.onAdd}
+      onIncrement={cart.onIncrement}
+      onDecrement={cart.onDecrement}
+      onPress={onPress ? () => onPress(product) : undefined}
+    />
   );
 });
 
 export default SearchPharmaProductCard;
-
-const styles = StyleSheet.create({
-  wrap: {
-    paddingHorizontal: hs(16),
-    paddingTop: vs(2),
-  },
-});

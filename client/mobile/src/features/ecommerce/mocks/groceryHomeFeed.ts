@@ -20,12 +20,6 @@ export interface GroceryAdBanner {
   imageUrl: string;
 }
 
-export interface GroceryCategory {
-  id: string;
-  name: string;
-  cutoutImageUrl: string;
-}
-
 export interface GroceryProductItem {
   id: string;
   name: string;
@@ -60,17 +54,6 @@ export interface GroceryTopBrand {
   name: string;
   logoUrl: string;
 }
-
-export const GROCERY_CATEGORIES: GroceryCategory[] = [
-  { id: 'gc-1', name: 'Fruits & Vegetables', cutoutImageUrl: squareImg('photo-1542838132-92c53300491e', 300) },
-  { id: 'gc-2', name: 'Dairy, Bread & Eggs', cutoutImageUrl: squareImg('photo-1550583724-b2692b85b150', 300) },
-  { id: 'gc-3', name: 'Snacks & Munchies', cutoutImageUrl: squareImg('photo-1600026453320-ef36ea012f6b', 300) },
-  { id: 'gc-4', name: 'Beverages', cutoutImageUrl: squareImg('photo-1544252890-c3e95e867389', 300) },
-  { id: 'gc-5', name: 'Personal Care', cutoutImageUrl: squareImg('photo-1556228578-0d85b1a4d571', 300) },
-  { id: 'gc-6', name: 'Household Needs', cutoutImageUrl: squareImg('photo-1585421514284-efb74c2b69ba', 300) },
-  { id: 'gc-7', name: 'Baby Care', cutoutImageUrl: squareImg('photo-1595815771614-5fc0e125f409', 300) },
-  { id: 'gc-8', name: 'Frozen Foods', cutoutImageUrl: squareImg('photo-1580915411954-282cb1b0d780', 300) },
-];
 
 export const GROCERY_TOP_PICKS: GroceryProductItem[] = [
   { id: 'gp-1', name: 'Fresh Farm Whole Milk', size: '1L', price: 128, originalPrice: 198, discountTag: '35% OFF', imageUrl: squareImg('photo-1550583724-b2692b85b150', 400) },

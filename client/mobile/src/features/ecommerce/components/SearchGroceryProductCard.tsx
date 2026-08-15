@@ -1,44 +1,39 @@
 import React, { memo } from 'react';
-import { View, StyleSheet } from 'react-native';
-import { hs, vs, SCREEN_W } from '@/utils/responsive';
-import GroceryProductCard from '@/features/ecommerce/cards/GroceryProductCard';
+import SearchProductCard from '@/components/shared/SearchProductCard';
+import { useCartProductActions } from '@/components/shared/hooks';
 import type { Product } from '@data/types';
-
-const CARD_WIDTH = SCREEN_W - hs(32);
 
 interface SearchGroceryProductCardProps {
   product: Product;
+  columnIndex?: number;
   onPress?: (product: Product) => void;
 }
 
 /**
- * Grocery search result card wrapper. Owns the full-width list layout variant
- * for the shared Grocery card and runs onPress with the product. Lives under
- * components/ (not cards/) so it doesn't trip the dependency-cruiser card
- * boundary for cross-sub-app search.
+ * Grocery search result card wrapper. Renders the dense e-commerce grid card
+ * (square contain image, discount/MRP pricing, full-width Add to Cart) and runs
+ * onPress with the product. Wires the shared cart store so results can be added
+ * straight from search. Lives under components/ (not cards/) so it doesn't trip
+ * the dependency-cruiser card boundary for cross-sub-app search.
  */
 const SearchGroceryProductCard = memo(function SearchGroceryProductCard({
   product,
+  columnIndex = 0,
   onPress,
 }: SearchGroceryProductCardProps) {
+  const cart = useCartProductActions(product);
   return (
-    <View style={styles.wrap}>
-      <GroceryProductCard
-        product={product}
-        variant="stack"
-        width={CARD_WIDTH}
-        showDescription
-        onPress={onPress ? () => onPress(product) : undefined}
-      />
-    </View>
+    <SearchProductCard
+      product={product}
+      appBrand="GROCERY"
+      columnIndex={columnIndex}
+      quantity={cart.quantity}
+      onAdd={cart.onAdd}
+      onIncrement={cart.onIncrement}
+      onDecrement={cart.onDecrement}
+      onPress={onPress ? () => onPress(product) : undefined}
+    />
   );
 });
 
 export default SearchGroceryProductCard;
-
-const styles = StyleSheet.create({
-  wrap: {
-    paddingHorizontal: hs(16),
-    paddingTop: vs(2),
-  },
-});

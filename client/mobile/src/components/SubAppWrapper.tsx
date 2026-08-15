@@ -1,10 +1,9 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { StyleSheet, View, TouchableOpacity, ScrollView, Alert, BackHandler, Animated, StatusBar } from 'react-native';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
+import { StyleSheet, View, TouchableOpacity, ScrollView, BackHandler, StatusBar } from 'react-native';
 import type { TextInput } from 'react-native';
 import {
   Home,
   LayoutGrid,
-  User,
   ShoppingBag,
   Sparkles,
   FileText,
@@ -16,14 +15,15 @@ import {
 } from 'lucide-react-native';
 import { hs, vs, ms } from '@/utils/responsive';
 import { LinearGradient } from 'expo-linear-gradient';
+import { useFocusEffect, useNavigation } from '@react-navigation/native';
+import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import type { CartItem } from '@/state/cartStore';
+import type { SubAppId } from '@/state/uiStore';
+import type { RootStackParamList } from '@/navigation/types';
 
 import { FaMartScreen } from '../features/ecommerce/FaMartScreen';
-import { MartCategoriesScreen } from '../features/ecommerce/MartCategoriesScreen';
 import { GroceryScreen } from '../features/ecommerce/GroceryScreen';
-import { GroceryAislesScreen } from '../features/ecommerce/GroceryAislesScreen';
 import { PharmaScreen } from '../features/pharma/PharmaScreen';
-import AccountView from '@/features/profile/AccountView';
 import AppText from '@/components/AppText';
 import SlideUpSheet from '@/components/shared/SlideUpSheet';
 import SubAppHeader from './shared/SubAppHeader';
@@ -38,9 +38,6 @@ interface SubAppWrapperProps {
   cartItems: CartItem[];
   setCartItems: React.Dispatch<React.SetStateAction<CartItem[]>>;
   updateCartQuantity: (id: string, delta: number) => void;
-  handleReset: () => void;
-  setShowLocationRequestState: (val: boolean) => void;
-  setIsLoggedIn: (val: boolean) => void;
   onProductClick?: (product: any) => void;
   /** Opens the first-class Search screen (Mart/Grocery/Pharma Search tab). */
   onSearchPress?: () => void;
@@ -55,9 +52,6 @@ export default function SubAppWrapper({
   cartItems,
   setCartItems,
   updateCartQuantity,
-  handleReset,
-  setShowLocationRequestState,
-  setIsLoggedIn,
   onProductClick,
   onSearchPress,
   onCartPress,
@@ -65,13 +59,9 @@ export default function SubAppWrapper({
   const [activeTab, setActiveTab] = useState<string>('Home');
   const [showExitConfirm, setShowExitConfirm] = useState<boolean>(false);
   const [searchQuery, setSearchQuery] = useState('');
+  const [pharmaOnCategory, setPharmaOnCategory] = useState<boolean>(false);
   const searchInputRef = useRef<TextInput | null>(null);
-
-  const tabPositions = useRef<number[]>([]);
-  const pillAnim = useRef(new Animated.Value(0)).current;
-  const badgeBounce = useRef(new Animated.Value(0)).current;
-
-  const totalCartQty = cartItems.reduce((acc, curr) => acc + curr.quantity, 0);
+  const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
 
   useEffect(() => {
     setSearchQuery('');
@@ -83,39 +73,25 @@ export default function SubAppWrapper({
     }
   }, [activeTab]);
 
-  useEffect(() => {
-    const onBackPress = () => {
-      setShowExitConfirm(true);
-      return true;
-    };
-    const subscription = BackHandler.addEventListener('hardwareBackPress', onBackPress);
-    return () => subscription.remove();
-  }, []);
-
-  useEffect(() => {
-    const idx = config.tabs.findIndex(t => t.name === activeTab);
-    if (idx >= 0 && tabPositions.current[idx] !== undefined) {
-      Animated.spring(pillAnim, {
-        toValue: tabPositions.current[idx] - ms(12),
-        useNativeDriver: true,
-        stiffness: 300,
-        damping: 30,
-      }).start();
+  const handleBack = useCallback(() => {
+    if (pharmaOnCategory || activeTab !== 'Home') {
+      setPharmaOnCategory(false);
+      setActiveTab('Home');
+      return;
     }
-  }, [activeTab]);
+    setShowExitConfirm(true);
+  }, [activeTab, pharmaOnCategory]);
 
-  useEffect(() => {
-    // Only bounce the cart badge while there is something in the cart.
-    if (totalCartQty <= 0) return;
-    const loop = Animated.loop(
-      Animated.sequence([
-        Animated.timing(badgeBounce, { toValue: 1, duration: 600, useNativeDriver: true }),
-        Animated.timing(badgeBounce, { toValue: 0, duration: 600, useNativeDriver: true }),
-      ])
-    );
-    loop.start();
-    return () => loop.stop();
-  }, [badgeBounce, totalCartQty]);
+  useFocusEffect(
+    useCallback(() => {
+      const onBackPress = () => {
+        handleBack();
+        return true;
+      };
+      const subscription = BackHandler.addEventListener('hardwareBackPress', onBackPress);
+      return () => subscription.remove();
+    }, [handleBack]),
+  );
 
   const getConfig = () => {
     const configPresets = {
@@ -128,7 +104,6 @@ export default function SubAppWrapper({
           { name: 'Categories', icon: LayoutGrid },
           { name: 'Search', icon: Search },
           { name: 'Cart', icon: ShoppingBag },
-          { name: 'Profile', icon: User },
         ],
       },
       FOOD: {
@@ -139,7 +114,6 @@ export default function SubAppWrapper({
           { name: 'Home', icon: Home },
           { name: 'Menu', icon: LayoutGrid },
           { name: 'Cart', icon: ShoppingBag },
-          { name: 'Profile', icon: User },
         ],
       },
       GROCERY: {
@@ -151,7 +125,6 @@ export default function SubAppWrapper({
           { name: 'Aisles', icon: LayoutGrid },
           { name: 'Search', icon: Search },
           { name: 'Smart Cart', icon: ShoppingBag },
-          { name: 'Profile', icon: User },
         ],
       },
       PHARMA: {
@@ -174,6 +147,12 @@ export default function SubAppWrapper({
 
   const hasAddressBar = subAppId === 'FA_MART' || subAppId === 'GROCERY' || subAppId === 'PHARMA';
 
+  // Category pages drop the app header (only the panel's [back] All Categories
+  // header remains). Mart/Grocery now open the common Master Categories route
+  // (a pushed page with its own header). Pharma keeps its internal All
+  // Categories view, reported via onCategoryViewChange.
+  const isCategoryPage = subAppId === 'PHARMA' && pharmaOnCategory;
+
   const HEADER_TITLES: Record<SubAppWrapperProps['subAppId'], string> = {
     FA_MART: 'Mart',
     FOOD: 'Food & Dining',
@@ -192,16 +171,6 @@ export default function SubAppWrapper({
           : 'Search medicines...';
 
   const renderSubAppContent = () => {
-    if (activeTab === 'Profile') {
-      return (
-        <AccountView
-          handleReset={handleReset}
-          setShowLocationRequestState={setShowLocationRequestState}
-          setIsLoggedIn={setIsLoggedIn}
-        />
-      );
-    }
-
     if (subAppId === 'PHARMA') {
       return (
         <PharmaScreen
@@ -213,6 +182,7 @@ export default function SubAppWrapper({
           activeTab={activeTab}
           setActiveTab={setActiveTab}
           searchQuery={searchQuery}
+          onCategoryViewChange={setPharmaOnCategory}
         />
       );
     }
@@ -221,9 +191,6 @@ export default function SubAppWrapper({
       case 'FA_MART':
         if (activeTab === 'Home') {
           return <FaMartScreen onProductClick={onProductClick} searchQuery={searchQuery} />;
-        }
-        if (activeTab === 'Categories') {
-          return <MartCategoriesScreen />;
         }
         break;
 
@@ -239,17 +206,7 @@ export default function SubAppWrapper({
             />
           );
         }
-        if (activeTab === 'Aisles') {
-          return (
-            <GroceryAislesScreen
-              onCategoryPress={() => Alert.alert('Aisle Select', 'Category aisles coming soon.')}
-              onSearchPress={() => onSearchPress?.()}
-              onOffersPress={() => setActiveTab('Home')}
-            />
-          );
-        }
         break;
-
 
     }
 
@@ -304,32 +261,39 @@ export default function SubAppWrapper({
 
   return (
     <View style={styles.container}>
-      <SubAppHeader
-        title={HEADER_TITLES[subAppId]}
-        gradient={tokens.headerGradient}
-        textColor={tokens.headerTextColor}
-        onBack={() => setShowExitConfirm(true)}
-        searchValue={searchQuery}
-        onSearchChange={setSearchQuery}
-        searchPlaceholder={searchPlaceholder}
-        inputRef={searchInputRef}
-        hideBrandRow={hasAddressBar}
-        addressLabel={hasAddressBar ? 'Anna Nagar, Chennai' : undefined}
-        addressSubLabel={hasAddressBar ? 'Delivering to Home' : undefined}
-        onAddressPress={hasAddressBar ? () => {} : undefined}
-      />
+      {!isCategoryPage && (
+        <SubAppHeader
+          title={HEADER_TITLES[subAppId]}
+          gradient={tokens.headerGradient}
+          textColor={tokens.headerTextColor}
+          onBack={handleBack}
+          searchValue={searchQuery}
+          onSearchChange={setSearchQuery}
+          searchPlaceholder={searchPlaceholder}
+          inputRef={searchInputRef}
+          hideBrandRow={hasAddressBar}
+          addressLabel={hasAddressBar ? 'Anna Nagar, Chennai' : undefined}
+          addressSubLabel={hasAddressBar ? 'Delivering to Home' : undefined}
+          onAddressPress={hasAddressBar ? () => {} : undefined}
+        />
+      )}
 
       <View
         style={[
           styles.viewport,
-          { paddingTop: hasAddressBar ? SUB_HEADER_H_COMPACT : SUB_HEADER_H },
+          {
+            paddingTop: isCategoryPage
+              ? 0
+              : hasAddressBar
+                ? SUB_HEADER_H_COMPACT
+                : SUB_HEADER_H,
+          },
         ]}
       >
         {renderSubAppContent()}
       </View>
 
       <View style={styles.tabBar}>
-        <Animated.View style={[styles.activePill, { backgroundColor: config.primaryColor, transform: [{ translateX: pillAnim }] }]} />
         {config.tabs.map((tab, idx) => {
           const isCurrent = activeTab === tab.name;
           const Icon = tab.icon;
@@ -341,21 +305,17 @@ export default function SubAppWrapper({
                 const lower = tab.name.toLowerCase();
                 if (lower.includes('cart')) onCartPress?.();
                 else if (tab.name === 'Search') onSearchPress?.();
-                else setActiveTab(tab.name);
+                else if (subAppId === 'FA_MART' && tab.name === 'Categories') {
+                  navigation.navigate('MasterCategories', { initialChip: 'FA_MART' });
+                } else if (subAppId === 'GROCERY' && tab.name === 'Aisles') {
+                  navigation.navigate('MasterCategories', { initialChip: 'GROCERY' });
+                } else setActiveTab(tab.name);
               }}
               style={styles.tabItem}
               activeOpacity={0.8}
-              onLayout={(e) => { tabPositions.current[idx] = e.nativeEvent.layout.x; }}
             >
               <View style={styles.iconContainer}>
-                <Icon size={ms(18)} color={isCurrent ? config.textColor : '#94a3b8'} strokeWidth={isCurrent ? 2.5 : 2} style={isCurrent ? { transform: [{ scale: 1.1 }] } : undefined} />
-                {tab.name.toLowerCase().includes('cart') && totalCartQty > 0 && (
-                  <Animated.View style={{ transform: [{ translateY: badgeBounce.interpolate({ inputRange: [0, 1], outputRange: [0, -3] }) }] }}>
-                    <View style={styles.badge}>
-                      <AppText style={styles.badgeText}>{totalCartQty}</AppText>
-                    </View>
-                  </Animated.View>
-                )}
+                <Icon size={ms(18)} color={isCurrent ? config.textColor : '#94a3b8'} strokeWidth={isCurrent ? 2.5 : 2} fill={isCurrent ? config.textColor : 'transparent'} />
               </View>
               <AppText style={[styles.tabLabel, isCurrent && { color: config.textColor, fontWeight: '900' }]}>
                 {tab.name}
@@ -604,34 +564,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     position: 'relative',
   },
-  activePill: {
-    position: 'absolute',
-    width: ms(32),
-    height: vs(4),
-    borderRadius: ms(2),
-    bottom: -2,
-  },
   iconContainer: {
     position: 'relative',
-  },
-  badge: {
-    position: 'absolute',
-    top: vs(-6),
-    right: hs(-10),
-    backgroundColor: '#f97316',
-    borderRadius: ms(7),
-    minWidth: ms(14),
-    height: ms(14),
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingHorizontal: hs(2),
-    borderWidth: 1,
-    borderColor: '#ffffff',
-  },
-  badgeText: {
-    color: '#ffffff',
-    fontSize: ms(8),
-    fontWeight: '900',
   },
   tabLabel: {
     fontSize: ms(8.5),

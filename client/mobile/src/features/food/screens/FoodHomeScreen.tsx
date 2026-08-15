@@ -1,13 +1,15 @@
-import React, { useCallback, useEffect, useState } from 'react';
-import { View, StyleSheet, ActivityIndicator, BackHandler } from 'react-native';
+import React, { useCallback, useState } from 'react';
+import { View, StyleSheet, BackHandler, type NativeSyntheticEvent, type NativeScrollEvent } from 'react-native';
 import { FlashList } from '@shopify/flash-list';
+import { useFocusEffect } from '@react-navigation/native';
+import { useSharedValue } from 'react-native-reanimated';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { vs } from '@/utils/responsive';
 import { foodTheme } from '../constants/theme';
 import { useDiningFeed } from '../hooks/useDiningFeed';
 import type { FoodStackParamList, RootStackParamList } from '@/navigation/types';
-import type { NearbyRestaurant } from '../mocks/homeFeed';
+import type { NearbyRestaurant, QuickCategory, FoodType } from '../mocks/homeFeed';
 import FoodHeader from '../components/FoodHeader';
 import HeroCardPair from '../components/HeroCardPair';
 import FoodSectionHeader from '../components/FoodSectionHeader';
@@ -17,6 +19,8 @@ import TopFoodRail from '../components/TopFoodRail';
 import NearbyRestaurantRow from '../components/NearbyRestaurantRow';
 import FoodBottomNav, { type FoodTab } from '../components/FoodBottomNav';
 import ExitConfirmModal from '../components/ExitConfirmModal';
+import LoadingSkeleton from '../components/LoadingSkeleton';
+import FoodStatusBarStrip from '../components/FoodStatusBarStrip';
 
 type Props = NativeStackScreenProps<FoodStackParamList, 'FoodHome'>;
 
@@ -32,16 +36,48 @@ export function FoodHomeScreen({ navigation }: Props) {
   const feed = useDiningFeed();
   const [activeTab, setActiveTab] = useState<FoodTab>('Home');
   const [exitOpen, setExitOpen] = useState(false);
+  const scrollY = useSharedValue(0);
+
+  const onScroll = useCallback(
+    (e: NativeSyntheticEvent<NativeScrollEvent>) => {
+      scrollY.value = e.nativeEvent.contentOffset.y;
+    },
+    [scrollY],
+  );
 
   const openDining = useCallback(() => navigation.navigate('DiningDetail'), [navigation]);
+  const openDiningNearby = useCallback(
+    () => navigation.navigate('DiningDetail', { scrollToGrid: true }),
+    [navigation],
+  );
   const openOrder = useCallback(() => navigation.navigate('OrderDetail'), [navigation]);
+
+  const openCategorySearch = useCallback(
+    (category: QuickCategory) => navigation.navigate('Search', { initialQuery: category.searchQuery }),
+    [navigation],
+  );
+
+  const openPopularSeeAll = useCallback(
+    () => navigation.navigate('Search', { initialQuery: 'Popular Dining Spots' }),
+    [navigation],
+  );
+
+  const openTopFoodSearch = useCallback(
+    (food: FoodType) => navigation.navigate('Search', { initialQuery: food.name, initialMode: 'dishes' }),
+    [navigation],
+  );
+
+  const openTopFoodSeeAll = useCallback(
+    () => navigation.navigate('Search', { initialQuery: 'Top Food To Order', initialMode: 'dishes' }),
+    [navigation],
+  );
 
   const handleTabChange = useCallback(
     (tab: FoodTab) => {
       if (tab === 'Dining') {
         navigation.navigate('DiningDetail');
       } else if (tab === 'FoodOrder') {
-        navigation.getParent<NativeStackNavigationProp<RootStackParamList>>()?.navigate('Cart');
+        navigation.navigate('OrderDetail');
       } else if (tab === 'Search') {
         navigation.navigate('Search');
       } else {
@@ -51,6 +87,10 @@ export function FoodHomeScreen({ navigation }: Props) {
     [navigation],
   );
 
+  const openCart = useCallback(() => {
+    navigation.getParent<NativeStackNavigationProp<RootStackParamList>>()?.navigate('Cart');
+  }, [navigation]);
+
   const requestExit = useCallback(() => setExitOpen(true), []);
   const cancelExit = useCallback(() => setExitOpen(false), []);
   const confirmExit = useCallback(() => {
@@ -58,17 +98,19 @@ export function FoodHomeScreen({ navigation }: Props) {
     navigation.goBack();
   }, [navigation]);
 
-  useEffect(() => {
-    const subscription = BackHandler.addEventListener('hardwareBackPress', () => {
-      if (exitOpen) {
-        setExitOpen(false);
+  useFocusEffect(
+    useCallback(() => {
+      const subscription = BackHandler.addEventListener('hardwareBackPress', () => {
+        if (exitOpen) {
+          setExitOpen(false);
+          return true;
+        }
+        setExitOpen(true);
         return true;
-      }
-      setExitOpen(true);
-      return true;
-    });
-    return () => subscription.remove();
-  }, [exitOpen]);
+      });
+      return () => subscription.remove();
+    }, [exitOpen]),
+  );
 
   const renderNearby = useCallback(
     ({ item }: { item: NearbyRestaurant }) => (
@@ -83,24 +125,22 @@ export function FoodHomeScreen({ navigation }: Props) {
       <View>
         <FoodHeader onBack={requestExit} />
         <HeroCardPair onDiningPress={openDining} onOrderFoodPress={openOrder} />
-        <CategoryRail categories={feed.categories} />
-        <FoodSectionHeader title="Popular Dining Spots" onSeeAll={openDining} />
+        <CategoryRail categories={feed.categories} onPress={openCategorySearch} />
+        <FoodSectionHeader title="Popular Dining Spots" onSeeAll={openPopularSeeAll} />
         <PopularSpotRail spots={feed.popularSpots} onPress={openDining} />
-        <FoodSectionHeader title="Top Food To Order" onSeeAll={openOrder} />
-        <TopFoodRail foods={feed.topFoods} onPress={openOrder} />
-        <FoodSectionHeader title="Restaurants Nearby" onSeeAll={openDining} />
+        <FoodSectionHeader title="Top Food To Order" onSeeAll={openTopFoodSeeAll} />
+        <TopFoodRail foods={feed.topFoods} onPress={openTopFoodSearch} />
+        <FoodSectionHeader title="Restaurants Nearby" onSeeAll={openDiningNearby} />
       </View>
     );
-  }, [feed, openDining, openOrder, requestExit]);
+  }, [feed, openDining, openOrder, openCategorySearch, openPopularSeeAll, openTopFoodSearch, openTopFoodSeeAll, openDiningNearby, requestExit]);
 
   if (!feed) {
     return (
       <View style={styles.container}>
         <FoodHeader onBack={requestExit} />
-        <View style={styles.loadingWrap}>
-          <ActivityIndicator size="large" color={foodTheme.primary} />
-        </View>
-        <FoodBottomNav activeTab={activeTab} onChange={handleTabChange} />
+        <LoadingSkeleton />
+        <FoodBottomNav activeTab={activeTab} onChange={handleTabChange} onCartPress={openCart} />
         <ExitConfirmModal visible={exitOpen} onKeepExploring={cancelExit} onExit={confirmExit} />
       </View>
     );
@@ -115,9 +155,12 @@ export function FoodHomeScreen({ navigation }: Props) {
         ListHeaderComponent={listHeader}
         showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.listContent}
+        onScroll={onScroll}
+        scrollEventThrottle={16}
         bounces={false}
       />
-      <FoodBottomNav activeTab={activeTab} onChange={handleTabChange} />
+      <FoodStatusBarStrip scrollY={scrollY} />
+      <FoodBottomNav activeTab={activeTab} onChange={handleTabChange} onCartPress={openCart} />
       <ExitConfirmModal visible={exitOpen} onKeepExploring={cancelExit} onExit={confirmExit} />
     </View>
   );
@@ -130,10 +173,5 @@ const styles = StyleSheet.create({
   },
   listContent: {
     paddingBottom: vs(96),
-  },
-  loadingWrap: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
   },
 });

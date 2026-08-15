@@ -14,8 +14,8 @@ interface FloatingCartBarProps {
 
 /**
  * Floating checkout bar anchored above the bottom tab bar. Only rendered when
- * the shared cart has items. Left: dish thumbnail + item label + "View Full
- * Menu" link; right: solid green checkout button with count + total.
+ * the shared cart has items. Left: item emoji + label + "View Full Cart" link;
+ * right: solid checkout button with count + total.
  */
 const FloatingCartBar = memo(function FloatingCartBar({
   onPress,
@@ -38,23 +38,17 @@ const FloatingCartBar = memo(function FloatingCartBar({
         onPress={onViewMenu}
         activeOpacity={0.8}
         accessibilityRole="button"
-        accessibilityLabel="View full menu"
+        accessibilityLabel="View full cart"
       >
-        {first.imageUrl ? (
-          <View style={styles.thumb}>
-            <AppText style={styles.thumbEmoji}>{first.emoji}</AppText>
-          </View>
-        ) : (
-          <View style={styles.thumb}>
-            <AppText style={styles.thumbEmoji}>{first.emoji}</AppText>
-          </View>
-        )}
+        <View style={styles.thumb}>
+          <AppText style={styles.thumbEmoji}>{first.emoji}</AppText>
+        </View>
         <View style={styles.leftText}>
           <AppText style={styles.itemName} numberOfLines={1}>
             {first.name}
           </AppText>
           <View style={styles.menuRow}>
-            <AppText style={[styles.menuLink, { color: accentColor }]}>View Full Menu</AppText>
+            <AppText style={[styles.menuLink, { color: accentColor }]}>View Full Cart</AppText>
             <ChevronRight size={ms(13)} color={accentColor} strokeWidth={2.4} />
           </View>
         </View>
@@ -112,7 +106,7 @@ const styles = StyleSheet.create({
     borderRadius: ms(21),
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#FFF1E8',
+    backgroundColor: '#F1F5F9',
     overflow: 'hidden',
   },
   thumbEmoji: {

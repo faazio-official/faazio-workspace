@@ -1,78 +1,93 @@
-import React, { lazy, Suspense } from 'react';
+import React, { Suspense } from 'react';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { ErrorBoundary } from '@/components/ErrorBoundary';
 import { SplashFallback } from '@/components/SplashFallback';
 import type { RootStackParamList } from './types';
+import { OnboardingScreen } from '@/features/onboarding/OnboardingScreen';
+import { LoginScreen } from '@/features/auth/LoginScreen';
+import { LocationScreen } from '@/features/auth/LocationScreen';
+import LanguageSelectionScreen from '@/features/onboarding/LanguageSelectionScreen';
+import { MainTabs } from './MainTabs';
+import { SubAppScreen } from '@/features/sub-app/SubAppScreen';
+import { FoodStack } from './FoodStack';
+import { ProductDetailScreen } from '@/features/product/ProductDetailScreen';
+import { SearchRouteScreen } from '@/features/search/SearchRouteScreen';
+import { CartScreen } from '@/features/cart/CartScreen';
+import PaymentOptionsScreen from '@/features/cart/payment/PaymentOptionsScreen';
+import { MasterCategoriesScreen } from '@/features/catalog/MasterCategoriesScreen';
+import { UserDetailsScreen } from '@/features/profile/UserDetailsScreen';
+import { SavedAddressesScreen } from '@/features/profile/SavedAddressesScreen';
+import { MyOrdersScreen } from '@/features/profile/MyOrdersScreen';
+import { useAuthStore } from '@/state/authStore';
 
 export type { RootStackParamList, MainTabParamList } from './types';
-
-// Lazy-load every screen so cold start parses only the initial route.
-const OnboardingScreen = lazy(() =>
-  import('../features/onboarding/OnboardingScreen').then((m) => ({ default: m.OnboardingScreen })),
-);
-const LoginScreen = lazy(() =>
-  import('../features/auth/LoginScreen').then((m) => ({ default: m.LoginScreen })),
-);
-const LocationScreen = lazy(() =>
-  import('../features/auth/LocationScreen').then((m) => ({ default: m.LocationScreen })),
-);
-const MainTabs = lazy(() =>
-  import('./MainTabs').then((m) => ({ default: m.MainTabs })),
-);
-const SubAppScreen = lazy(() =>
-  import('../features/sub-app/SubAppScreen').then((m) => ({ default: m.SubAppScreen })),
-);
-const FoodStack = lazy(() =>
-  import('./FoodStack').then((m) => ({ default: m.FoodStack })),
-);
-const ProductDetailScreen = lazy(() =>
-  import('../features/product/ProductDetailScreen').then((m) => ({ default: m.ProductDetailScreen })),
-);
-const SearchRouteScreen = lazy(() =>
-  import('../features/search/SearchRouteScreen').then((m) => ({ default: m.SearchRouteScreen })),
-);
-const CartScreen = lazy(() =>
-  import('../features/cart/CartScreen').then((m) => ({ default: m.CartScreen })),
-);
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
 
 export function AppNavigator() {
+  const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
+
   return (
     <ErrorBoundary>
       <Suspense fallback={<SplashFallback />}>
         <Stack.Navigator
           screenOptions={{ headerShown: false, statusBarStyle: 'dark' }}
-          initialRouteName="Onboarding"
+          initialRouteName={isAuthenticated ? 'MainTabs' : 'Onboarding'}
         >
           <Stack.Screen name="Onboarding" component={OnboardingScreen} />
           <Stack.Screen name="Login" component={LoginScreen} />
+          <Stack.Screen name="LanguageSelection" component={LanguageSelectionScreen} />
           <Stack.Screen name="Location" component={LocationScreen} />
           <Stack.Screen name="MainTabs" component={MainTabs} />
           <Stack.Screen
             name="SubApp"
             component={SubAppScreen}
-            options={{ animation: 'slide_from_right' }}
+            options={{ animation: 'fade', animationDuration: 180 }}
+          />
+          <Stack.Screen
+            name="MasterCategories"
+            component={MasterCategoriesScreen}
+            options={{ animation: 'fade', animationDuration: 180 }}
           />
           <Stack.Screen
             name="FoodApp"
             component={FoodStack}
-            options={{ animation: 'slide_from_right' }}
+            options={{ animation: 'fade', animationDuration: 180 }}
           />
           <Stack.Screen
             name="ProductDetail"
             component={ProductDetailScreen}
-            options={{ animation: 'fade', presentation: 'transparentModal' }}
+            options={{ animation: 'fade', animationDuration: 180, presentation: 'transparentModal' }}
           />
           <Stack.Screen
             name="Search"
             component={SearchRouteScreen}
-            options={{ animation: 'fade_from_bottom' }}
+            options={{ animation: 'fade', animationDuration: 180 }}
           />
           <Stack.Screen
             name="Cart"
             component={CartScreen}
-            options={{ animation: 'slide_from_right' }}
+            options={{ animation: 'fade', animationDuration: 180 }}
+          />
+          <Stack.Screen
+            name="PaymentOptions"
+            component={PaymentOptionsScreen}
+            options={{ animation: 'fade', animationDuration: 180 }}
+          />
+          <Stack.Screen
+            name="UserDetails"
+            component={UserDetailsScreen}
+            options={{ animation: 'fade', animationDuration: 180 }}
+          />
+          <Stack.Screen
+            name="SavedAddresses"
+            component={SavedAddressesScreen}
+            options={{ animation: 'fade', animationDuration: 180 }}
+          />
+          <Stack.Screen
+            name="MyOrders"
+            component={MyOrdersScreen}
+            options={{ animation: 'fade', animationDuration: 180 }}
           />
         </Stack.Navigator>
       </Suspense>

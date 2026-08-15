@@ -1,28 +1,26 @@
-import React from 'react';
+import React, { useCallback } from 'react';
 import { View, StyleSheet, ScrollView } from 'react-native';
+import { useNavigation } from '@react-navigation/native';
+import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { hs, ms, vs } from '@/utils/responsive';
 import AppText from '@/components/AppText';
 import { groceryProducts } from '@data/grocery/products';
 import GroceryProductCard from '@/features/ecommerce/cards/GroceryProductCard';
-
-import {
-  GROCERY_CATEGORIES,
-  GROCERY_TOP_PICKS,
-  GROCERY_BEST_DEALS,
-  GROCERY_SEASON_SPECIALS,
-  GROCERY_TOP_BRANDS,
-  GROCERY_ALSO_NEED,
-  GROCERY_AD_BANNERS,
-} from './mocks/groceryHomeFeed';
+import type { RootStackParamList } from '@/navigation/types';
 
 import GroceryHeroBanner from './components/grocery-home/GroceryHeroBanner';
 import GroceryAdCarousel from './components/grocery-home/GroceryAdCarousel';
-import GroceryCategoryRail from './components/grocery-home/GroceryCategoryRail';
+import CategoryCardRail from '@/components/shared/CategoryCardRail';
 import TopPicksRail from './components/grocery-home/TopPicksRail';
 import BestDealsRail from './components/grocery-home/BestDealsRail';
 import SeasonSpecialsRail from './components/grocery-home/SeasonSpecialsRail';
 import TopBrandsRail from './components/grocery-home/TopBrandsRail';
 import AlsoNeedRail from './components/grocery-home/AlsoNeedRail';
+import { getCategoryCards } from '@/services/categoryRail';
+import type { CategoryCard } from '@/services/categoryRail';
+import { GROCERY_ACCENT } from '@data/categories/masterCategories';
+import { useGroceryFeed } from './hooks/useGroceryFeed';
+import GroceryHomeSkeleton from './components/skeletons/GroceryHomeSkeleton';
 
 interface GroceryScreenProps {
   addToCart?: (id: string, name: string, price: number, emoji: string) => void;
@@ -39,7 +37,23 @@ export function GroceryScreen({
   onProductClick,
   searchQuery = '',
 }: GroceryScreenProps) {
+  const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
+  const feed = useGroceryFeed();
   const normalizedSearch = searchQuery.trim().toLowerCase();
+
+  const handleCategoryPress = useCallback(
+    (card: CategoryCard) => {
+      navigation.navigate('MasterCategories', {
+        initialChip: 'GROCERY',
+        initialTabId: card.id,
+      });
+    },
+    [navigation],
+  );
+
+  const handleViewCategories = useCallback(() => {
+    navigation.navigate('MasterCategories', { initialChip: 'GROCERY' });
+  }, [navigation]);
 
   if (normalizedSearch) {
     const searchedProducts = groceryProducts.filter((p) =>
@@ -85,6 +99,10 @@ export function GroceryScreen({
     );
   }
 
+  if (!feed) {
+    return <GroceryHomeSkeleton />;
+  }
+
   return (
     <ScrollView
       style={styles.feed}
@@ -92,13 +110,20 @@ export function GroceryScreen({
       contentContainerStyle={styles.feedContent}
     >
       <GroceryHeroBanner />
-      <GroceryAdCarousel banners={GROCERY_AD_BANNERS} />
-      <GroceryCategoryRail categories={GROCERY_CATEGORIES} />
-      <TopPicksRail items={GROCERY_TOP_PICKS} onProductPress={onProductClick} />
-      <BestDealsRail items={GROCERY_BEST_DEALS} onDealPress={onProductClick} />
-      <SeasonSpecialsRail items={GROCERY_SEASON_SPECIALS} />
-      <TopBrandsRail brands={GROCERY_TOP_BRANDS} />
-      <AlsoNeedRail items={GROCERY_ALSO_NEED} onProductPress={onProductClick} />
+      <GroceryAdCarousel banners={feed.adBanners} />
+      <CategoryCardRail
+        title="Shop by Category"
+        categories={getCategoryCards('GROCERY')}
+        accent={GROCERY_ACCENT}
+        cardBg="#F5F5F5"
+        onPress={handleCategoryPress}
+        onViewMore={handleViewCategories}
+      />
+      <TopPicksRail items={feed.topPicks} onProductPress={onProductClick} />
+      <BestDealsRail items={feed.bestDeals} onDealPress={onProductClick} />
+      <SeasonSpecialsRail items={feed.seasonSpecials} />
+      <TopBrandsRail brands={feed.topBrands} />
+      <AlsoNeedRail items={feed.alsoNeed} onProductPress={onProductClick} />
     </ScrollView>
   );
 }

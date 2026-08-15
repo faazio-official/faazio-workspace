@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { View, StyleSheet, Pressable, Image, ScrollView, Platform, KeyboardAvoidingView, Animated, Easing } from 'react-native';
 import { hs, vs, ms, wp, hp, STATUS_BAR_INSET } from '@/utils/responsive';
+import { Screen } from '@/components/shared';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { RootStackParamList } from '@/navigation/AppNavigator';
 import {
@@ -299,7 +300,7 @@ export function LocationScreen({ navigation }: Props) {
   );
 
   return (
-    <View style={styles.container}>
+    <Screen>
       {step === 'request' && (
         <Animated.View style={[styles.requestContainer, { opacity: fadeAnim }]}>
 
@@ -307,38 +308,9 @@ export function LocationScreen({ navigation }: Props) {
             <View style={styles.titleWrapper}>
               <AppText style={styles.titleText}>
                 What is{' '}
-                <AppText style={{ position: 'relative' }}>
-                  your
-                    <View
-                      style={{
-                        position: 'absolute',
-                        bottom: vs(-5),
-                        left: 0,
-                        right: 0,
-                      }}
-                    >
-                      <Svg
-                        viewBox="0 0 50 10"
-                        width="100%"
-                        height={vs(10)}
-                        preserveAspectRatio="none"
-                      >
-                      <Path
-                        d="M1 9C15 1.5 35 1.5 49 9"
-                        stroke="#232830ff"
-                        strokeWidth={2.5}
-                        strokeLinecap="round"
-                        fill="none"
-                      />
-                    </Svg>
-                  </View>
-                </AppText>{' '}
-                location?
+                <AppText style={styles.titleTextAccent}>your</AppText> location?
               </AppText>
             </View>
-            <AppText style={styles.subtitleText}>
-              We need your location to show available restaurants & products
-            </AppText>
           </View>
 
           <Animated.View
@@ -567,12 +539,11 @@ export function LocationScreen({ navigation }: Props) {
           </View>
         </Animated.View>
       )}
-    </View>
+    </Screen>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#ffffff' },
   requestContainer: {
     flex: 1,
     paddingHorizontal: hs(24),
@@ -591,14 +562,8 @@ const styles = StyleSheet.create({
     letterSpacing: -0.5,
     marginTop: vs(16),
   },
-  subtitleText: {
-    fontSize: ms(11),
-    color: '#64748b',
-    fontWeight: '600',
-    textAlign: 'center',
-    maxWidth: hs(260),
-    marginTop: vs(14),
-    lineHeight: ms(18),
+  titleTextAccent: {
+    color: '#7C3AED',
   },
   graphicContainer: {
     flex: 1,
@@ -615,10 +580,10 @@ const styles = StyleSheet.create({
     width: '100%',
     height: Math.max(44, vs(44)),
     borderRadius: ms(12),
-    backgroundColor: '#7CE045',
+    backgroundColor: '#7C3AED',
     alignItems: 'center',
     justifyContent: 'center',
-    shadowColor: '#7CE045',
+    shadowColor: '#7C3AED',
     shadowOffset: { width: 0, height: 8 },
     shadowOpacity: 0.3,
     shadowRadius: 20,
