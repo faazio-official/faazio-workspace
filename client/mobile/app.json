@@ -10,6 +10,7 @@
       "resizeMode": "contain",
       "backgroundColor": "#7C3AED"
     },
+    "icon": "./src/assets/icon.png",
     "assetBundlePatterns": [
       "src/assets/**/*"
     ],
@@ -25,6 +26,10 @@
       "package": "com.faazio.customer",
       "jsEngine": "hermes",
       "softwareKeyboardLayoutMode": "pan",
+      "adaptiveIcon": {
+        "foregroundImage": "./src/assets/adaptive-icon.png",
+        "backgroundColor": "#7C3AED"
+      },
       "permissions": [
         "CAMERA",
         "READ_EXTERNAL_STORAGE",
@@ -39,7 +44,14 @@
           "configureAndroidBackup": true
         }
       ],
-      "expo-splash-screen"
+      [
+        "expo-splash-screen",
+        {
+          "backgroundColor": "#7C3AED",
+          "image": "./src/assets/faazio-logo.png",
+          "imageWidth": 200
+        }
+      ]
     ]
   }
 }

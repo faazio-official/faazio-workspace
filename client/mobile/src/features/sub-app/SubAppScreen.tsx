@@ -41,7 +41,7 @@ export function SubAppScreen({ navigation, route }: Props) {
         setCartItems={setCartItems}
         updateCartQuantity={updateCartQuantity}
         onProductClick={(product) => navigation.navigate('ProductDetail', { product })}
-        onSearchPress={() => navigation.navigate('Search', { subApp: subAppId })}
+        onSearchPress={(query) => navigation.navigate('Search', { subApp: subAppId, initialQuery: query })}
         onCartPress={() => navigation.navigate('Cart')}
       />
     </View>

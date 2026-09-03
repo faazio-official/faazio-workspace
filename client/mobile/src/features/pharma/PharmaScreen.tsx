@@ -1,10 +1,10 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { StyleSheet, View, ScrollView, Image, TouchableOpacity, Animated } from 'react-native';
+import React, { useState, useEffect, useCallback } from 'react';
+import { StyleSheet, View, ScrollView, Image, TouchableOpacity } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import {
   Heart, CheckCircle, Search, ChevronLeft,
-  Star, Minus, Plus, Sparkles, ClipboardList, Calendar, Clock,
+  Star, Minus, Plus, ClipboardList,
 } from 'lucide-react-native';
 import Svg, { Defs, LinearGradient, Stop, Rect } from 'react-native-svg';
 import { hs, vs, ms, SCREEN_W } from '@/utils/responsive';
@@ -16,6 +16,7 @@ import type { PharmaDBItem } from '@data/pharma/products';
 import type { RootStackParamList } from '@/navigation/types';
 
 import type { PharmaPopularMedicine, PharmaQuickReorderItem } from './mocks/pharmaHomeFeed';
+import { quickReorderToProduct } from './mocks/pharmaHomeFeed';
 
 import FeatureChipsRail from './components/pharma-home/FeatureChipsRail';
 import PharmaHeroBanner from './components/pharma-home/PharmaHeroBanner';
@@ -41,6 +42,7 @@ interface PharmaScreenProps {
   setCartItems?: React.Dispatch<React.SetStateAction<{ id: string; name: string; price: number; quantity: number; emoji: string }[]>>;
   updateCartQuantity?: (id: string, delta: number) => void;
   onProductClick?: (product: any) => void;
+  onSearchPress?: (query?: string) => void;
   activeTab?: string;
   setActiveTab?: (tab: string) => void;
   searchQuery?: string;
@@ -48,12 +50,31 @@ interface PharmaScreenProps {
   onCategoryViewChange?: (visible: boolean) => void;
 }
 
+interface RecentOrder {
+  id: string;
+  name: string;
+  emoji: string;
+  qty: string;
+  orderId: string;
+  date: string;
+  amount: number;
+  status: 'Delivered' | 'Shipped';
+}
+
+const RECENT_ORDERS: RecentOrder[] = [
+  { id: 'ro-1', name: 'Paracetamol 650', emoji: '💊', qty: '1 strip', orderId: 'ORD-93821', date: '12 Aug 2026', amount: 90, status: 'Delivered' },
+  { id: 'ro-2', name: 'Vitamin D3 2000 IU', emoji: '💊', qty: '1 bottle', orderId: 'ORD-93754', date: '04 Aug 2026', amount: 450, status: 'Delivered' },
+  { id: 'ro-3', name: 'Cetirizine 10mg', emoji: '💊', qty: '2 strips', orderId: 'ORD-93610', date: '28 Jul 2026', amount: 76, status: 'Delivered' },
+  { id: 'ro-4', name: 'ORS Sachets', emoji: '🧪', qty: '1 pack', orderId: 'ORD-93482', date: '19 Jul 2026', amount: 75, status: 'Shipped' },
+];
+
 export function PharmaScreen({
   addToCart,
   cartItems,
   setCartItems,
   updateCartQuantity,
   onProductClick,
+  onSearchPress,
   activeTab,
   setActiveTab,
   searchQuery = '',
@@ -67,8 +88,6 @@ export function PharmaScreen({
   const [addedAnimationId, setAddedAnimationId] = useState<string | null>(null);
   const [feedAddedIds, setFeedAddedIds] = useState<Set<string>>(new Set());
   const [localFavorites, setLocalFavorites] = useState<string[]>(['ph-t1', 'ph-f1']);
-
-  const pulseAnim = useRef(new Animated.Value(1)).current;
 
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const feed = usePharmaFeed();
@@ -86,17 +105,6 @@ export function PharmaScreen({
   const handleViewCategories = useCallback(() => {
     navigation.navigate('MasterCategories', { initialChip: 'PHARMA' });
   }, [navigation]);
-
-  useEffect(() => {
-    const loop = Animated.loop(
-      Animated.sequence([
-        Animated.timing(pulseAnim, { toValue: 0.3, duration: 800, useNativeDriver: true }),
-        Animated.timing(pulseAnim, { toValue: 1, duration: 800, useNativeDriver: true }),
-      ])
-    );
-    loop.start();
-    return () => loop.stop();
-  }, [pulseAnim]);
 
   const toggleLocalFavorite = (id: string) => {
     setLocalFavorites(prev =>
@@ -144,7 +152,6 @@ export function PharmaScreen({
   const searchedProducts = pharmaProducts.filter(p =>
     p.name.toLowerCase().includes(homeSearchNormalized)
   );
-  const forYouProducts = PHARMA_PRODUCTS_DB.filter(p => ['ph-t1', 'ph-t2', 'ph-t4', 'ph-f1', 'ph-f2'].includes(p.id));
   const filteredCategoryProducts = PHARMA_PRODUCTS_DB.filter(p =>
     p.category === selectedCategoryId &&
     (categorySearchQuery === '' || p.name.toLowerCase().includes(categorySearchQuery.toLowerCase()))
@@ -173,6 +180,18 @@ export function PharmaScreen({
       app: 'PHARMA',
       category: 'medicine',
     });
+  };
+
+  const handleQuickReorderPress = (item: PharmaQuickReorderItem) => {
+    onProductClick?.(quickReorderToProduct(item));
+  };
+
+  const handleHealthEssentialPress = (item: { title: string }) => {
+    onSearchPress?.(item.title);
+  };
+
+  const handleFeaturedBrandPress = (item: { name: string }) => {
+    onSearchPress?.(item.name);
   };
 
   const searchView = (
@@ -229,18 +248,29 @@ export function PharmaScreen({
         />
         <QuickReorderRail
           items={feed.quickReorder}
+          onPress={handleQuickReorderPress}
           onAdd={handleFeedAdd}
+          onViewAll={() => onSearchPress?.('Quick Reorder')}
         />
-        <TopOffersRail offers={feed.topOffers} />
+        <TopOffersRail offers={feed.topOffers} onViewAll={() => onSearchPress?.('Top Offers')} />
         <PopularMedicinesRail
           items={feed.popularMedicines}
           addedIds={feedAddedIds}
           onPress={handlePopularPress}
           onAdd={handleFeedAdd}
+          onViewAll={() => onSearchPress?.('Popular Medicines')}
         />
-        <HealthEssentialsRail items={feed.healthEssentials} />
-        <FeaturedBrandsRail brands={feed.featuredBrands} />
-        <HealthCornerRail items={feed.healthCorner} />
+        <HealthEssentialsRail
+          items={feed.healthEssentials}
+          onPress={handleHealthEssentialPress}
+          onViewAll={() => onSearchPress?.('Health Essentials')}
+        />
+        <FeaturedBrandsRail
+          brands={feed.featuredBrands}
+          onPress={handleFeaturedBrandPress}
+          onViewAll={() => onSearchPress?.('Featured Brands')}
+        />
+        <HealthCornerRail items={feed.healthCorner} onViewAll={() => onSearchPress?.('Health Corner')} />
         <FooterFeatures />
       </ScrollView>
       <UploadPrescriptionFAB />
@@ -396,91 +426,53 @@ export function PharmaScreen({
     </ScrollView>
   );
 
-  const forYouView = (
-    <ScrollView showsVerticalScrollIndicator={false}>
-      <View style={styles.forYouHeader}>
-        <Sparkles size={ms(18)} color="#FF7A59" strokeWidth={2} />
-        <AppText style={styles.forYouTitle}>Just For You</AppText>
-        <AppText style={styles.forYouSubtitle}>Curated picks based on your health profile</AppText>
-      </View>
-      <View style={styles.forYouGrid}>
-        {forYouProducts.map(product => (
-          <PharmaProductCard
-            key={product.id}
-            product={{ id: product.id, name: product.name, price: product.price, emoji: product.emoji, image: product.image, desc: product.desc, rating: product.rating, app: 'PHARMA', category: product.category, badge: product.discountBadge ?? undefined }}
-            originalPrice={product.originalPrice ?? undefined}
-            isFavorite={localFavorites.includes(product.id)}
-            isAdded={addedAnimationId === product.id}
-            onPress={() => { setSelectedProduct(product); setCurrentView('PRODUCT_DETAIL'); setActiveTab?.('Home'); }}
-            onAdd={() => handleAddWithFeedback(product.id, product.name, product.price, product.emoji)}
-            onFavorite={() => toggleLocalFavorite(product.id)}
-          />
-        ))}
-      </View>
-      <View style={{ height: vs(24) }} />
-    </ScrollView>
-  );
-
   const historyView = (
     <ScrollView showsVerticalScrollIndicator={false}>
       <View style={styles.historyHeader}>
         <ClipboardList size={ms(18)} color="#FF7A59" strokeWidth={2} />
-        <AppText style={styles.historyTitle}>Medical History</AppText>
-        <AppText style={styles.historySubtitle}>Your orders & consultations</AppText>
+        <AppText style={styles.historyTitle}>Recently Ordered</AppText>
+        <AppText style={styles.historySubtitle}>Your latest medicine orders</AppText>
       </View>
 
-      <View style={styles.historyCard}>
-        <AppText style={styles.historyCardTitle}>Active Medicine Deliveries</AppText>
-        <View style={styles.historyCardRow}>
-          <Animated.View style={[styles.pulseDot, { opacity: pulseAnim }]} />
-          <AppText style={styles.historyMetaText}>ORD-93821</AppText>
-          <AppText style={styles.historyMetaText}>₹90</AppText>
-        </View>
-      </View>
-
-      <View style={styles.sectionHeader}>
-        <AppText style={styles.sectionTitle}>Scheduled Doctor Consultations</AppText>
-      </View>
-
-      <View style={styles.historyCard}>
-        <View style={styles.historyRow}>
-          <View style={styles.historyBadgePillAmber}>
-            <AppText style={styles.historyBadgeText}>Upcoming</AppText>
+      {RECENT_ORDERS.map((order) => (
+        <View key={order.id} style={styles.historyCard}>
+          <View style={styles.historyRow}>
+            <View style={styles.historyOrderIcon}>
+              <AppText style={styles.historyOrderEmoji}>{order.emoji}</AppText>
+            </View>
+            <View style={styles.historyOrderDetails}>
+              <AppText style={styles.historyOrderName} numberOfLines={1}>
+                {order.name}
+              </AppText>
+              <AppText style={styles.historyMetaText}>
+                {order.qty} · {order.orderId} · {order.date}
+              </AppText>
+            </View>
+            <View style={styles.historyOrderRight}>
+              <AppText style={styles.historyOrderAmount}>₹{order.amount}</AppText>
+              <View
+                style={[
+                  styles.historyStatusPill,
+                  order.status === 'Delivered' ? styles.historyStatusDelivered : styles.historyStatusShipped,
+                ]}
+              >
+                <AppText style={styles.historyStatusText}>{order.status}</AppText>
+              </View>
+            </View>
           </View>
-          <AppText style={styles.historyMetaText}>Cardiology - Dr. Mehta</AppText>
         </View>
-        <View style={styles.historyMeta}>
-          <Calendar size={ms(9)} color="#94a3b8" strokeWidth={2} />
-          <AppText style={styles.historyMetaText}> 12 Aug 2026</AppText>
-          <Clock size={ms(9)} color="#94a3b8" strokeWidth={2} style={{ marginLeft: hs(8) }} />
-          <AppText style={styles.historyMetaText}> 10:30 AM</AppText>
-        </View>
-      </View>
-
-      <View style={styles.historyCard}>
-        <View style={styles.historyRow}>
-          <View style={styles.historyBadgePillGrey}>
-            <AppText style={styles.historyBadgeText}>Completed</AppText>
-          </View>
-          <AppText style={styles.historyMetaText}>General - Dr. Sharma</AppText>
-        </View>
-        <View style={styles.historyMeta}>
-          <Calendar size={ms(9)} color="#94a3b8" strokeWidth={2} />
-          <AppText style={styles.historyMetaText}> 28 Jul 2026</AppText>
-          <Clock size={ms(9)} color="#94a3b8" strokeWidth={2} style={{ marginLeft: hs(8) }} />
-          <AppText style={styles.historyMetaText}> 2:00 PM</AppText>
-        </View>
-      </View>
+      ))}
 
       <View style={styles.historyDirectiveBox}>
-        <AppText style={styles.historyDirectiveText}>Consult a specialist for persistent symptoms. Your health records are up to date.</AppText>
+        <AppText style={styles.historyDirectiveText}>
+          Reorder medicines you use regularly for faster checkout next time.
+        </AppText>
       </View>
 
       <View style={{ height: vs(24) }} />
     </ScrollView>
   );
 
-  if (activeTab === 'For You') return forYouView;
   if (activeTab === 'History') return historyView;
   switch (currentView) {
     case 'HOME':
@@ -777,33 +769,6 @@ const styles = StyleSheet.create({
     fontWeight: '900',
     color: '#ffffff',
   },
-  forYouHeader: {
-    paddingHorizontal: hs(20),
-    paddingTop: vs(16),
-    paddingBottom: vs(12),
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    alignItems: 'center',
-    gap: hs(8),
-  },
-  forYouTitle: {
-    fontSize: ms(14),
-    fontWeight: '900',
-    color: '#0f172a',
-  },
-  forYouSubtitle: {
-    fontSize: ms(9.5),
-    fontWeight: '600',
-    color: '#94a3b8',
-    width: '100%',
-    marginTop: vs(4),
-  },
-  forYouGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    paddingHorizontal: hs(16),
-    gap: hs(12),
-  },
   historyHeader: {
     paddingHorizontal: hs(20),
     paddingTop: vs(16),
@@ -834,54 +799,60 @@ const styles = StyleSheet.create({
     padding: hs(16),
     marginBottom: vs(12),
   },
-  historyCardTitle: {
-    fontSize: ms(12),
-    fontWeight: '900',
-    color: '#0f172a',
-    marginBottom: vs(8),
-  },
-  historyCardRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: hs(8),
-  },
-  pulseDot: {
-    width: ms(8),
-    height: ms(8),
-    borderRadius: ms(4),
-    backgroundColor: '#059669',
-  },
   historyRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: hs(8),
-    marginBottom: vs(8),
+    gap: hs(12),
   },
-  historyBadgePillAmber: {
-    backgroundColor: '#fef3c7',
-    paddingVertical: vs(2),
-    paddingHorizontal: hs(8),
-    borderRadius: ms(4),
-  },
-  historyBadgePillGrey: {
-    backgroundColor: '#f1f5f9',
-    paddingVertical: vs(2),
-    paddingHorizontal: hs(8),
-    borderRadius: ms(4),
-  },
-  historyBadgeText: {
-    fontSize: ms(8),
-    fontWeight: '900',
-    color: '#92400e',
-  },
-  historyMeta: {
-    flexDirection: 'row',
+  historyOrderIcon: {
+    width: ms(40),
+    height: ms(40),
+    borderRadius: ms(12),
+    backgroundColor: '#FFF0E8',
     alignItems: 'center',
+    justifyContent: 'center',
+  },
+  historyOrderEmoji: {
+    fontSize: ms(18),
+  },
+  historyOrderDetails: {
+    flex: 1,
+    gap: vs(2),
+  },
+  historyOrderName: {
+    fontSize: ms(12),
+    fontWeight: '900',
+    color: '#0f172a',
   },
   historyMetaText: {
     fontSize: ms(9),
     fontWeight: '600',
     color: '#64748b',
+  },
+  historyOrderRight: {
+    alignItems: 'flex-end',
+    gap: vs(4),
+  },
+  historyOrderAmount: {
+    fontSize: ms(13),
+    fontWeight: '900',
+    color: '#0f172a',
+  },
+  historyStatusPill: {
+    paddingVertical: vs(2),
+    paddingHorizontal: hs(8),
+    borderRadius: ms(6),
+  },
+  historyStatusDelivered: {
+    backgroundColor: '#DCFCE7',
+  },
+  historyStatusShipped: {
+    backgroundColor: '#FEF3C7',
+  },
+  historyStatusText: {
+    fontSize: ms(8),
+    fontWeight: '900',
+    color: '#065f46',
   },
   historyDirectiveBox: {
     marginHorizontal: hs(20),

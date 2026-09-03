@@ -5,6 +5,9 @@ import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useSharedValue } from 'react-native-reanimated';
 import { foodTheme } from '../constants/theme';
 import type { FoodStackParamList, RootStackParamList } from '@/navigation/types';
+import type { SpecialDish } from '../mocks/types';
+import type { DiningRestaurant } from '../mocks/types';
+import { dishToProduct } from '../mocks/specials';
 import DiningScreen from './DiningScreen';
 import FoodBottomNav, { type FoodTab } from '../components/FoodBottomNav';
 import FoodStatusBarStrip from '../components/FoodStatusBarStrip';
@@ -34,6 +37,20 @@ export function DiningDetailScreen({ navigation, route }: Props) {
     navigation.getParent<NativeStackNavigationProp<RootStackParamList>>()?.navigate('Cart');
   }, [navigation]);
 
+  const openDishProduct = useCallback(
+    (dish: SpecialDish) => {
+      navigation.getParent<NativeStackNavigationProp<RootStackParamList>>()?.navigate('ProductDetail', { product: dishToProduct(dish) });
+    },
+    [navigation],
+  );
+
+  const openRestaurant = useCallback(
+    (restaurant: DiningRestaurant) => {
+      navigation.navigate('RestaurantProfile', { restaurant });
+    },
+    [navigation],
+  );
+
   const scrollY = useSharedValue(0);
   const onScroll = useCallback(
     (e: NativeSyntheticEvent<NativeScrollEvent>) => {
@@ -47,6 +64,8 @@ export function DiningDetailScreen({ navigation, route }: Props) {
       <DiningScreen
         onBack={() => navigation.goBack()}
         autoScrollToGrid={route.params?.scrollToGrid}
+        onRestaurantPress={openRestaurant}
+        onDishPress={openDishProduct}
         onScroll={onScroll}
       />
       <FoodStatusBarStrip scrollY={scrollY} />

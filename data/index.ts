@@ -10,13 +10,14 @@ export type {
 
 export { martProducts } from './mart/products';
 export { martStores } from './mart/stores';
+export { MART_DEALS, dealToProduct } from './mart/deals';
 
 export { groceryProducts } from './grocery/products';
 
 export { foodProducts, topOfWeekDishes } from './food/products';
 export { foodStores } from './food/stores';
 export { BOOKING_DISHES_DB } from './food/bookingDishes';
-export { TODAYS_SPECIALS } from './food/specials';
+export { TODAYS_SPECIALS, dishToProduct } from './food/specials';
 
 export { pharmaProducts, PHARMA_PRODUCTS_DB, PHARMA_CATEGORIES } from './pharma/products';
 
@@ -29,7 +30,6 @@ export { portalSectors, topAdSlides, sponsoredAds, recentlyViewedHistory, todays
 export { homeSections } from './home/sections';
 export type { HomeSectionKind } from './home/sections';
 
-export { storeOffers } from './home/storeOffers';
 export { nearbyOffers } from './home/nearbyOffers';
 
 export { mensPicks, womensPicks, childrensPicks, hairSkinPicks } from './home/demographics';
@@ -46,3 +46,37 @@ export { orderStatusCounts } from './account/orderStatus';
 export { accountNavGroups } from './account/accountNav';
 export { accountDetails } from './account/details';
 export { savedAddresses } from './account/addresses';
+
+// Normalized microservice-shaped tables (new surface, wired via GatewayClient).
+export {
+  catalogIndex,
+  getCatalogEntryById,
+  getCatalogEntriesByIds,
+  pharmaFacetCategories,
+} from './catalog/products';
+export type { CatalogEntry, CatalogFacetCategory } from './catalog/products';
+
+export { storeDirectory, getStoreById, getStoresByApp } from './directory/stores';
+export type { StoreRecord } from './directory/stores';
+
+export { reviewsTable, specsTable, highlightsTable, getReviewsByProductId } from './reviews/reviews';
+export type { ReviewRow, SpecRow, HighlightRow } from './reviews/reviews';
+
+export { stockTable, getStockByProductId, getStockByProductIds } from './inventory/stock';
+export type { StockRow } from './inventory/stock';
+
+export { usersTable, addressesTable, couponsTable, ordersTable, getOrdersByUser } from './checkout/orders';
+export type { UserRow, AddressRow, CouponRow, OrderRow, OrderLineItem } from './checkout/orders';
+
+export {
+  profileTable,
+  membershipTable,
+  orderStatusTable,
+  navTable,
+  detailsTable,
+  getProfileByUserId,
+} from './accounts/profile';
+export type { ProfileRow, MembershipRow, OrderStatusRow, NavRowGroup, DetailsTable } from './accounts/profile';
+
+export { homeSdui, sduiSectionOrder, getSduiSection } from './home/sdui';
+export type { SduiSection } from './home/sdui';

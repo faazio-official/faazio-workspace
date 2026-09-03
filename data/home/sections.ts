@@ -10,7 +10,7 @@ export type HomeSectionKind =
   | 'adBanner'
   | 'diningSpecials'
   | 'hotBrandDeals'
-  | 'storeOffers'
+  | 'dealsOfDay'
   | 'mostRatedDining'
   | 'recentlyViewedMart'
   | 'recentlyViewedFood'
@@ -31,7 +31,7 @@ export const homeSections: HomeSectionDescriptor[] = [
   { id: 'adBanner' },
   { id: 'diningSpecials' },
   { id: 'hotBrandDeals' },
-  { id: 'storeOffers' },
+  { id: 'dealsOfDay' },
   { id: 'mostRatedDining' },
   { id: 'recentlyViewedMart' },
   { id: 'recentlyViewedFood' },

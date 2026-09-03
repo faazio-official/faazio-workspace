@@ -1,4 +1,4 @@
-import type { SpecialDish } from '../types';
+import type { Product, SpecialDish } from '../types';
 
 const img = (id: string, w = 560, h = 560) =>
   `https://images.unsplash.com/${id}?fm=jpg&fit=crop&q=80&w=${w}&h=${h}`;
@@ -166,3 +166,22 @@ export const TODAYS_SPECIALS: SpecialDish[] = [
     deliveryTime: '25 min',
   },
 ];
+
+/**
+ * Map a dining "today's special" dish to a full Product so it can render in the
+ * unified CommonProductDetail page. FOOD dishes carry no MRP/unit by default,
+ * so those are left undefined (the detail page falls back gracefully).
+ */
+export const dishToProduct = (dish: SpecialDish): Product => ({
+  id: dish.id,
+  app: 'FOOD',
+  category: dish.cuisine ?? 'Featured',
+  name: dish.dishName,
+  price: dish.price,
+  emoji: '🍽️',
+  rating: dish.rating ?? 4.5,
+  desc: dish.description,
+  image: dish.image,
+  shop: dish.restaurant,
+  attributes: { brand: dish.restaurant, dietary: dish.isVeg ? 'Vegetarian' : 'Non-Veg' },
+});

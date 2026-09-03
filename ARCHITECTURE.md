@@ -73,6 +73,10 @@ presentation primitives (src/components/shared/, src/theme/)
 ```
 - Goal: serve the structured SDUI tree currently mocked in `data/`, replacing `@mock` sources when each module is wired (`@mock` → `@server`).
 - **Do not build server code until requested.** The `server/` folder is a placeholder (see readme).
+- **Gateway client:** `client/mobile/src/services/api/GatewayClient.ts` is the intended single
+  data surface. It joins the normalized microservice-shaped tables under `data/` (see
+  `data/DATA_CONTROL.md` → "Normalized Microservice Tables") and is *not yet wired* — screens
+  still read the legacy `@data/*` fixtures until they are migrated onto it.
 - When built: every `data/DATA_CONTROL.md` `@mock` entry becomes a contract for a Chi handler; ownership matrix (feature ↔ data file) stays the source of truth.
 
 ---

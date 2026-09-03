@@ -5,7 +5,6 @@ import {
   Home,
   LayoutGrid,
   ShoppingBag,
-  Sparkles,
   FileText,
   Check,
   Plus,
@@ -22,6 +21,7 @@ import type { SubAppId } from '@/state/uiStore';
 import type { RootStackParamList } from '@/navigation/types';
 
 import { FaMartScreen } from '../features/ecommerce/FaMartScreen';
+import type { MartLocalVendor } from '../features/ecommerce/mocks/martHomeFeed';
 import { GroceryScreen } from '../features/ecommerce/GroceryScreen';
 import { PharmaScreen } from '../features/pharma/PharmaScreen';
 import AppText from '@/components/AppText';
@@ -39,8 +39,9 @@ interface SubAppWrapperProps {
   setCartItems: React.Dispatch<React.SetStateAction<CartItem[]>>;
   updateCartQuantity: (id: string, delta: number) => void;
   onProductClick?: (product: any) => void;
-  /** Opens the first-class Search screen (Mart/Grocery/Pharma Search tab). */
-  onSearchPress?: () => void;
+  /** Opens the first-class Search screen (Mart/Grocery/Pharma Search tab).
+   *  An optional initial query pre-fills the search results. */
+  onSearchPress?: (query?: string) => void;
   /** Opens the central Cart page (root stack). */
   onCartPress?: () => void;
 }
@@ -60,6 +61,7 @@ export default function SubAppWrapper({
   const [showExitConfirm, setShowExitConfirm] = useState<boolean>(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [pharmaOnCategory, setPharmaOnCategory] = useState<boolean>(false);
+  const [martVendor, setMartVendor] = useState<MartLocalVendor | null>(null);
   const searchInputRef = useRef<TextInput | null>(null);
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
 
@@ -74,13 +76,17 @@ export default function SubAppWrapper({
   }, [activeTab]);
 
   const handleBack = useCallback(() => {
+    if (martVendor) {
+      setMartVendor(null);
+      return;
+    }
     if (pharmaOnCategory || activeTab !== 'Home') {
       setPharmaOnCategory(false);
       setActiveTab('Home');
       return;
     }
     setShowExitConfirm(true);
-  }, [activeTab, pharmaOnCategory]);
+  }, [activeTab, pharmaOnCategory, martVendor]);
 
   useFocusEffect(
     useCallback(() => {
@@ -133,7 +139,6 @@ export default function SubAppWrapper({
         textColor: '#FF7A59',
         tabs: [
           { name: 'Home', icon: Home },
-          { name: 'For You', icon: Sparkles },
           { name: 'Search', icon: Search },
           { name: 'Cart', icon: ShoppingBag },
           { name: 'History', icon: FileText },
@@ -150,8 +155,11 @@ export default function SubAppWrapper({
   // Category pages drop the app header (only the panel's [back] All Categories
   // header remains). Mart/Grocery now open the common Master Categories route
   // (a pushed page with its own header). Pharma keeps its internal All
-  // Categories view, reported via onCategoryViewChange.
-  const isCategoryPage = subAppId === 'PHARMA' && pharmaOnCategory;
+  // Categories view, reported via onCategoryViewChange. Mart hides its app
+  // chrome while a vendor profile drill-in is open (martVendor != null).
+  const isChromeHidden =
+    (subAppId === 'PHARMA' && pharmaOnCategory) ||
+    (subAppId === 'FA_MART' && martVendor !== null);
 
   const HEADER_TITLES: Record<SubAppWrapperProps['subAppId'], string> = {
     FA_MART: 'Mart',
@@ -179,6 +187,7 @@ export default function SubAppWrapper({
           setCartItems={setCartItems}
           updateCartQuantity={updateCartQuantity}
           onProductClick={onProductClick}
+          onSearchPress={onSearchPress}
           activeTab={activeTab}
           setActiveTab={setActiveTab}
           searchQuery={searchQuery}
@@ -190,7 +199,15 @@ export default function SubAppWrapper({
     switch (subAppId) {
       case 'FA_MART':
         if (activeTab === 'Home') {
-          return <FaMartScreen onProductClick={onProductClick} searchQuery={searchQuery} />;
+          return (
+            <FaMartScreen
+              onProductClick={onProductClick}
+              onSearchPress={onSearchPress}
+              searchQuery={searchQuery}
+              vendor={martVendor}
+              onVendorPress={setMartVendor}
+            />
+          );
         }
         break;
 
@@ -202,6 +219,7 @@ export default function SubAppWrapper({
               cartItems={cartItems} 
               updateCartQuantity={updateCartQuantity} 
               onProductClick={onProductClick} 
+              onSearchPress={onSearchPress}
               searchQuery={searchQuery}
             />
           );
@@ -261,7 +279,7 @@ export default function SubAppWrapper({
 
   return (
     <View style={styles.container}>
-      {!isCategoryPage && (
+      {!isChromeHidden && (
         <SubAppHeader
           title={HEADER_TITLES[subAppId]}
           gradient={tokens.headerGradient}
@@ -282,21 +300,24 @@ export default function SubAppWrapper({
         style={[
           styles.viewport,
           {
-            paddingTop: isCategoryPage
+            paddingTop: isChromeHidden
               ? 0
               : hasAddressBar
                 ? SUB_HEADER_H_COMPACT
                 : SUB_HEADER_H,
+            paddingBottom: isChromeHidden ? 0 : vs(72),
           },
         ]}
       >
         {renderSubAppContent()}
       </View>
 
-      <View style={styles.tabBar}>
+      {!isChromeHidden && (
+        <View style={styles.tabBar}>
         {config.tabs.map((tab, idx) => {
           const isCurrent = activeTab === tab.name;
           const Icon = tab.icon;
+          const activeColor = tokens.headerGradient[0];
 
           return (
             <TouchableOpacity
@@ -315,15 +336,16 @@ export default function SubAppWrapper({
               activeOpacity={0.8}
             >
               <View style={styles.iconContainer}>
-                <Icon size={ms(18)} color={isCurrent ? config.textColor : '#94a3b8'} strokeWidth={isCurrent ? 2.5 : 2} fill={isCurrent ? config.textColor : 'transparent'} />
+                <Icon size={ms(18)} color={isCurrent ? activeColor : '#94a3b8'} strokeWidth={isCurrent ? 2.5 : 2} fill={isCurrent ? activeColor : 'transparent'} />
               </View>
-              <AppText style={[styles.tabLabel, isCurrent && { color: config.textColor, fontWeight: '900' }]}>
+              <AppText style={[styles.tabLabel, isCurrent && { color: activeColor, fontWeight: '900' }]}>
                 {tab.name}
               </AppText>
             </TouchableOpacity>
           );
         })}
-      </View>
+        </View>
+      )}
 
       <SlideUpSheet
         visible={showExitConfirm}
@@ -541,21 +563,20 @@ const styles = StyleSheet.create({
     right: 0,
     zIndex: 30,
     height: vs(72),
-    backgroundColor: 'rgba(255,255,255,0.95)',
+    backgroundColor: '#FFFFFF',
     borderTopWidth: 1,
-    borderColor: 'rgba(226,232,240,0.5)',
+    borderColor: 'rgba(226,232,240,0.4)',
     flexDirection: 'row',
     justifyContent: 'space-between',
     paddingHorizontal: hs(24),
     alignItems: 'center',
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: -12 },
-    shadowOpacity: 0.12,
-    shadowRadius: 36,
+    shadowOffset: { width: 0, height: -4 },
+    shadowOpacity: 0.08,
+    shadowRadius: 14,
     elevation: 8,
     borderTopLeftRadius: ms(28),
     borderTopRightRadius: ms(28),
-    overflow: 'hidden',
   },
   tabItem: {
     width: 56,

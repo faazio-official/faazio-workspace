@@ -27,6 +27,7 @@ interface GroceryScreenProps {
   cartItems?: { id: string; name: string; price: number; quantity: number; emoji: string }[];
   updateCartQuantity?: (id: string, delta: number) => void;
   onProductClick?: (product: any) => void;
+  onSearchPress?: (query?: string) => void;
   searchQuery?: string;
 }
 
@@ -35,6 +36,7 @@ export function GroceryScreen({
   cartItems,
   updateCartQuantity,
   onProductClick,
+  onSearchPress,
   searchQuery = '',
 }: GroceryScreenProps) {
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
@@ -54,6 +56,20 @@ export function GroceryScreen({
   const handleViewCategories = useCallback(() => {
     navigation.navigate('MasterCategories', { initialChip: 'GROCERY' });
   }, [navigation]);
+
+  const handleBrandPress = useCallback(
+    (brand: { name: string }) => {
+      onSearchPress?.(brand.name);
+    },
+    [onSearchPress],
+  );
+
+  const handleSeasonSpecialPress = useCallback(
+    (item: { title: string }) => {
+      onSearchPress?.(item.title);
+    },
+    [onSearchPress],
+  );
 
   if (normalizedSearch) {
     const searchedProducts = groceryProducts.filter((p) =>
@@ -121,8 +137,8 @@ export function GroceryScreen({
       />
       <TopPicksRail items={feed.topPicks} onProductPress={onProductClick} />
       <BestDealsRail items={feed.bestDeals} onDealPress={onProductClick} />
-      <SeasonSpecialsRail items={feed.seasonSpecials} />
-      <TopBrandsRail brands={feed.topBrands} />
+      <SeasonSpecialsRail items={feed.seasonSpecials} onSpecialPress={handleSeasonSpecialPress} />
+      <TopBrandsRail brands={feed.topBrands} onPress={handleBrandPress} />
       <AlsoNeedRail items={feed.alsoNeed} onProductPress={onProductClick} />
     </ScrollView>
   );

@@ -6,8 +6,11 @@ import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';import type { FoodStackParamList, RootStackParamList } from '@/navigation/types';
 import { vs } from '@/utils/responsive';
 import { PROMOS, CUISINES, MEALS_COMBOS, SNACKS_BEVERAGES } from '../mocks/orderFeed';
+import type { MealCombo } from '../mocks/orderFeed';
 import { TODAYS_SPECIALS } from '../mocks/specials';
+import { dishToProduct } from '../mocks/specials';
 import { TOP_FOODS_TO_ORDER } from '../mocks/homeFeed';
+import type { FoodType } from '../mocks/homeFeed';
 import FoodSectionHeader from '../components/FoodSectionHeader';
 import FoodBottomNav, { type FoodTab } from '../components/FoodBottomNav';
 import OrderHeader from '../components/order/OrderHeader';
@@ -46,7 +49,32 @@ export function OrderDetailScreen({ navigation }: Props) {
     navigation.getParent<NativeStackNavigationProp<RootStackParamList>>()?.navigate('Cart');
   }, [navigation]);
 
-  const openSearch = useCallback(() => navigation.navigate('Search'), [navigation]);
+  const openSearch = useCallback(
+    (query?: string) => navigation.navigate('Search', query ? { initialQuery: query } : undefined),
+    [navigation],
+  );
+
+  const openProduct = useCallback(
+    (product: any) => {
+      navigation.getParent<NativeStackNavigationProp<RootStackParamList>>()?.navigate('ProductDetail', { product });
+    },
+    [navigation],
+  );
+
+  const openDishProduct = useCallback(
+    (dish: any) => openProduct(dishToProduct(dish)),
+    [openProduct],
+  );
+
+  const openMindSearch = useCallback(
+    (item: FoodType) => openSearch(item.name),
+    [openSearch],
+  );
+
+  const openComboSearch = useCallback(
+    (combo: MealCombo) => openSearch(combo.name),
+    [openSearch],
+  );
 
   const scrollY = useSharedValue(0);
   const onScroll = useCallback(
@@ -69,12 +97,12 @@ export function OrderDetailScreen({ navigation }: Props) {
         <OrderHeader />
         <PromoCarousel promos={PROMOS} />
         <FoodSectionHeader title="What's on your mind?" onSeeAll={openSearch} />
-        <MindGridRail items={TOP_FOODS_TO_ORDER} />
-        <PopularDishRail dishes={TODAYS_SPECIALS} onSeeAll={openSearch} />
+        <MindGridRail items={TOP_FOODS_TO_ORDER} onPress={openMindSearch} />
+        <PopularDishRail dishes={TODAYS_SPECIALS} onSeeAll={openSearch} onPress={openDishProduct} />
         <FoodSectionHeader title="Explore Cuisines" onSeeAll={openSearch} />
         <CuisineRail cuisines={CUISINES} />
         <FoodSectionHeader title="Meals & Combos" onSeeAll={openSearch} />
-        <MealsComboRail combos={MEALS_COMBOS} />
+        <MealsComboRail combos={MEALS_COMBOS} onPress={openComboSearch} />
         <FoodSectionHeader title="Snacks & Beverages" onSeeAll={openSearch} />
         <SnacksRail snacks={SNACKS_BEVERAGES} />
       </ScrollView>

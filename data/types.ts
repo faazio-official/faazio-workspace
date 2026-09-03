@@ -60,17 +60,17 @@ export interface StoreProfile {
   isVeg?: boolean;
 }
 
-export interface StoreOffer {
+/** Mart "Deals of the Day" product (owner: features/ecommerce). */
+export interface MartDeal {
   id: string;
-  storeId: string;
-  storeName: string;
-  app: AppBrand;
+  brand: string;
+  name: string;
+  size: string;
+  price: number;
+  originalPrice: number;
+  discountTag: string;
+  imageUrl: string;
   emoji: string;
-  coverImage: string;
-  offerTitle: string;
-  offerTag: string;
-  distance: string;
-  rating: number;
 }
 
 export interface NearbyOffer extends Product {

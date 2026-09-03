@@ -57,7 +57,7 @@ export function AppNavigator() {
           <Stack.Screen
             name="ProductDetail"
             component={ProductDetailScreen}
-            options={{ animation: 'fade', animationDuration: 180, presentation: 'transparentModal' }}
+            options={{ animation: 'fade', animationDuration: 180 }}
           />
           <Stack.Screen
             name="Search"

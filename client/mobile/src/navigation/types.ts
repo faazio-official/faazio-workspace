@@ -45,5 +45,7 @@ export type FoodStackParamList = {
   FoodHome: undefined;
   Search: { initialQuery?: string; initialMode?: string } | undefined;
   DiningDetail: { scrollToGrid?: boolean } | undefined;
+  /** Full restaurant profile drill-in (hero, menu, floating cart footer). */
+  RestaurantProfile: { restaurant: any };
   OrderDetail: undefined;
 };

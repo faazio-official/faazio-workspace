@@ -1,12 +1,12 @@
 import React, { memo } from 'react';
 import { ScrollView, StyleSheet } from 'react-native';
 import { hs, vs } from '@/utils/responsive';
-import { TODAYS_SPECIALS } from '@data/food/specials';
+import { TODAYS_SPECIALS, dishToProduct } from '@data/food/specials';
 import { SpecialDishCard } from '@/features/food/components';
 import { SectionHeader } from './common';
 import type { SectionProps } from './common';
 
-function DiningSpecialsSection({ onLaunchSubApp }: SectionProps) {
+function DiningSpecialsSection({ onProductClick }: SectionProps) {
   return (
     <>
       <SectionHeader title="Today's Dining Special" />
@@ -15,7 +15,7 @@ function DiningSpecialsSection({ onLaunchSubApp }: SectionProps) {
           <SpecialDishCard
             key={dish.id}
             dish={dish}
-            onPress={() => onLaunchSubApp('FOOD')}
+            onPress={() => onProductClick?.(dishToProduct(dish))}
           />
         ))}
       </ScrollView>

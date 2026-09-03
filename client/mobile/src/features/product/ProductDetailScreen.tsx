@@ -1,8 +1,9 @@
 import React, { useCallback } from 'react';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
-import ProductDetailView from '@/features/product/ProductDetailView';
+import CommonProductDetailView from '@/features/product/CommonProductDetailView';
 import { useCartStore } from '@/state/cartStore';
 import { useFavoriteStore } from '@/state/favoriteStore';
+import type { SubAppId } from '@/state/uiStore';
 import type { RootStackParamList } from '@/navigation/types';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'ProductDetail'>;
@@ -16,11 +17,24 @@ export function ProductDetailScreen({ navigation, route }: Props) {
   const toggleFavorite = useFavoriteStore((s) => s.toggleFavorite);
 
   const handleClose = useCallback(() => navigation.goBack(), [navigation]);
+  const appToSubApp: Record<string, SubAppId> = {
+    FOOD: 'FOOD',
+    MART: 'FA_MART',
+    GROCERY: 'GROCERY',
+    PHARMA: 'PHARMA',
+  };
+  const handleSearch = useCallback(
+    () => navigation.navigate('Search', { subApp: product ? (appToSubApp[product.app] ?? 'HOME') : 'HOME' }),
+    [navigation, product, appToSubApp],
+  );
+  const handleCart = useCallback(() => navigation.navigate('Cart'), [navigation]);
 
   return (
-    <ProductDetailView
+    <CommonProductDetailView
       product={product}
       onClose={handleClose}
+      onSearch={handleSearch}
+      onCart={handleCart}
       addToCart={addToCart}
       cartItems={cartItems}
       updateCartQuantity={updateCartQuantity}

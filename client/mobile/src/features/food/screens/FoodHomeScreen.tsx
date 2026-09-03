@@ -10,6 +10,8 @@ import { foodTheme } from '../constants/theme';
 import { useDiningFeed } from '../hooks/useDiningFeed';
 import type { FoodStackParamList, RootStackParamList } from '@/navigation/types';
 import type { NearbyRestaurant, QuickCategory, FoodType } from '../mocks/homeFeed';
+import type { DiningRestaurant } from '../mocks/types';
+import { restaurantToProduct, nearbyToRestaurant } from '../mocks/types';
 import FoodHeader from '../components/FoodHeader';
 import HeroCardPair from '../components/HeroCardPair';
 import FoodSectionHeader from '../components/FoodSectionHeader';
@@ -51,6 +53,25 @@ export function FoodHomeScreen({ navigation }: Props) {
     [navigation],
   );
   const openOrder = useCallback(() => navigation.navigate('OrderDetail'), [navigation]);
+
+  const openNearbyProfile = useCallback(
+    (restaurant: NearbyRestaurant) => {
+      navigation.navigate('RestaurantProfile', { restaurant: nearbyToRestaurant(restaurant) });
+    },
+    [navigation],
+  );
+
+  const openProduct = useCallback(
+    (product: any) => {
+      navigation.getParent<NativeStackNavigationProp<RootStackParamList>>()?.navigate('ProductDetail', { product });
+    },
+    [navigation],
+  );
+
+  const openSpotProduct = useCallback(
+    (spot: DiningRestaurant) => openProduct(restaurantToProduct(spot)),
+    [openProduct],
+  );
 
   const openCategorySearch = useCallback(
     (category: QuickCategory) => navigation.navigate('Search', { initialQuery: category.searchQuery }),
@@ -114,9 +135,9 @@ export function FoodHomeScreen({ navigation }: Props) {
 
   const renderNearby = useCallback(
     ({ item }: { item: NearbyRestaurant }) => (
-      <NearbyRestaurantRow restaurant={item} onPress={openDining} />
+      <NearbyRestaurantRow restaurant={item} onPress={openNearbyProfile} />
     ),
-    [openDining],
+    [openNearbyProfile],
   );
 
   const listHeader = useCallback(() => {
@@ -127,13 +148,13 @@ export function FoodHomeScreen({ navigation }: Props) {
         <HeroCardPair onDiningPress={openDining} onOrderFoodPress={openOrder} />
         <CategoryRail categories={feed.categories} onPress={openCategorySearch} />
         <FoodSectionHeader title="Popular Dining Spots" onSeeAll={openPopularSeeAll} />
-        <PopularSpotRail spots={feed.popularSpots} onPress={openDining} />
+        <PopularSpotRail spots={feed.popularSpots} onPress={openSpotProduct} />
         <FoodSectionHeader title="Top Food To Order" onSeeAll={openTopFoodSeeAll} />
         <TopFoodRail foods={feed.topFoods} onPress={openTopFoodSearch} />
         <FoodSectionHeader title="Restaurants Nearby" onSeeAll={openDiningNearby} />
       </View>
     );
-  }, [feed, openDining, openOrder, openCategorySearch, openPopularSeeAll, openTopFoodSearch, openTopFoodSeeAll, openDiningNearby, requestExit]);
+  }, [feed, openDining, openOrder, openCategorySearch, openPopularSeeAll, openTopFoodSearch, openTopFoodSeeAll, openDiningNearby, openSpotProduct, requestExit]);
 
   if (!feed) {
     return (

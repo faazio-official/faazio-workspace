@@ -1,3 +1,17 @@
 
 # vim
 *.swp
+
+# Generated native projects (created by `expo prebuild`)
+/android/
+/ios/
+
+# Build outputs / installable APKs
+*.apk
+*.aab
+/build/
+
+# Release signing secrets
+/keystore/
+*.keystore
+keystore.properties

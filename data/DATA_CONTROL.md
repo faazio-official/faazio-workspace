@@ -34,7 +34,31 @@ Every domain file below carries its tag as a top-of-file banner comment.
 | `productMeta` | `features/product` (ProductDetail) | `reviews.ts` | `@mock` (+ `@unused` by mobile) |
 | `cart` | `features/cart` | `addresses.ts`, `coupons.ts` | `@mock` |
 | `account` | `features/profile` | `orders.ts` | `@mock` |
-| `home` | `features/home` | `sections.ts`, `rails.ts`, `demographics.ts`, `instantFeed.ts`, `nearbyOffers.ts`, `storeOffers.ts`, `filterFeed.ts`, `seeds.ts` | mixed `@mock` / `@seed` / `@static` |
+| `home` | `features/home` | `sections.ts`, `rails.ts`, `demographics.ts`, `instantFeed.ts`, `nearbyOffers.ts`, `filterFeed.ts`, `seeds.ts` | mixed `@mock` / `@seed` / `@static` |
+
+---
+
+## Normalized Microservice Tables (new surface)
+
+A parallel, **microservice-shaped** view of the same source data, added so the app can
+eventually be served by the Go Chi gateway. The legacy fixtures above stay **live and
+untouched** until each screen is migrated onto `src/services/api/GatewayClient` (the sole
+surface for these tables). These tables **pull from the legacy sources via imports**
+(no hand-copied literals), so the two surfaces never drift.
+
+| Table dir | Simulates | Consolidates | Status |
+|---|---|---|---|
+| `catalog/products.ts` | Rust + Tantivy (search index) | mart/grocery/food/pharma/home/explore/categories product records, deduped by `id`, tokenized | `@mock` |
+| `directory/stores.ts` | Go + PostgreSQL (store directory) | `mart/stores`, `food/stores` | `@mock` |
+| `reviews/reviews.ts` | Go + PostgreSQL (reviews/specs) | `productMeta/reviews` | `@mock` |
+| `inventory/stock.ts` | Go + DynamoDB (key-value stock) | net new — one row per catalog product id | `@mock` |
+| `checkout/orders.ts` | Go + CockroachDB (relational) | account/orders, cart/addresses, account/addresses, cart/coupons | `@mock` |
+| `accounts/profile.ts` | Go + PostgreSQL (profile) | account/profile, orderStatus, accountNav, details | `@mock` |
+| `home/sdui.ts` | Python + MongoDB (doc tree) | home/sections, rails, filterFeed structure — **IDs only** | `@aspirational` |
+
+**Gateway:** `client/mobile/src/services/api/GatewayClient.ts` joins the tables above and is the
+intended single data surface for the app. It is **not yet wired into screens** — the legacy
+`@data/*` fixtures remain the live path until each consumer is migrated.
 
 ---
 
@@ -45,7 +69,8 @@ Every domain file below carries its tag as a top-of-file banner comment.
 | Export | Type | Mobile consumers | Status |
 |---|---|---|---|
 | `martProducts` | `MartProduct[]` | `FaMartScreen`; `data/home/filterFeed` (data-internal pool) | `@mock` |
-| `martStores` | `StoreProfile[]` | `FaMartScreen`; home `StoreOffersSection` | `@mock` |
+| `martStores` | `StoreProfile[]` | `FaMartScreen` | `@mock` |
+| `MART_DEALS` / `dealToProduct` | `MartDeal[]` / `(MartDeal) => Product` | `FaMartScreen` `DealsOfDayRail`; home `DealsOfDaySection` | `@mock` |
 
 ### `@data/grocery` — owner: `features/ecommerce` (Grocery screen)
 
@@ -130,7 +155,6 @@ Every domain file below carries its tag as a top-of-file banner comment.
 | `mensPicks` / `womensPicks` / `childrensPicks` / `hairSkinPicks` | `Product[]` | home `MensSection` / `WomensSection` / `ChildrensSection` / `HairSkinCareSection` | `@mock` |
 | `instantFeed` | `Product[]` | data-internal only (`filterFeed`); not directly by screens | `@mock` |
 | `nearbyOffers` | `NearbyOffer[]` | home `NearbyOffersSection` | `@mock` |
-| `storeOffers` | `StoreOffer[]` | home `StoreOffersSection` | `@mock` |
 | `filterChips` / `filterFeedPools` / `FilterChipId` | typed pools | home `FilterFeedSection` | `@mock` |
 | `seedCartItems` | `CartItem[]` | `state/cartStore` | `@seed` |
 | `seedFavorites` | `string[]` | `state/favoriteStore` | `@seed` |

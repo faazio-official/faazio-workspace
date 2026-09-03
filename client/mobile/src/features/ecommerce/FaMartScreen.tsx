@@ -1,8 +1,7 @@
-import React, { useState, useCallback, useMemo } from 'react';
+import React, { useCallback, useMemo } from 'react';
 import { View, StyleSheet, Dimensions, TouchableOpacity, FlatList } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import { ShoppingCart } from 'lucide-react-native';
 import { hs, ms, vs } from '@/utils/responsive';
 import AppText from '@/components/AppText';
 import { useCartStore } from '@/state/store';
@@ -12,10 +11,10 @@ import type { RootStackParamList } from '@/navigation/types';
 import MartProductCard from '@/features/ecommerce/cards/MartProductCard';
 
 import {
-  MART_DEALS,
-  MART_FLASH_SALES,
+  dealToProduct,
+  flashSaleToProduct,
 } from './mocks/martHomeFeed';
-import type { MartLocalVendor, MartTopBrand } from './mocks/martHomeFeed';
+import type { MartLocalVendor, MartTopBrand, MartDeal, MartFlashSale } from './mocks/martHomeFeed';
 import { useMartFeed } from './hooks/useMartFeed';
 import MartHomeSkeleton from './components/skeletons/MartHomeSkeleton';
 
@@ -25,6 +24,7 @@ import DealsOfDayRail from './components/mart-home/DealsOfDayRail';
 import FlashSaleRail from './components/mart-home/FlashSaleRail';
 import TopBrandsRail from './components/mart-home/TopBrandsRail';
 import LocalVendorRail from './components/mart-home/LocalVendorRail';
+import { VendorProfileView } from './components/vendor';
 import { getCategoryCards } from '@/services/categoryRail';
 import type { CategoryCard } from '@/services/categoryRail';
 import { MART_ACCENT } from '@data/categories/masterCategories';
@@ -34,40 +34,38 @@ const SCREEN_W = Dimensions.get('window').width;
 interface FaMartScreenProps {
   searchQuery?: string;
   onProductClick?: (product: any) => void;
+  onSearchPress?: (query?: string) => void;
+  /** The vendor whose profile drill-in is currently open (owned by the wrapper
+   *  so header/tab-bar hiding and the vendor view update atomically). */
+  vendor?: MartLocalVendor | null;
+  /** Requests opening (vendor) or closing (null) the vendor profile drill-in. */
+  onVendorPress?: (vendor: MartLocalVendor | null) => void;
 }
 
+/**
+ * Each local vendor carries a rotating subset of the real @data/mart inventory,
+ * so category chips genuinely filter across the vendor's available categories.
+ */
 const VENDOR_PRODUCT_MAP: Record<string, string[]> = {
-  'lv-1': ['md-1', 'md-2', 'md-4', 'mf-1', 'mf-5'],
-  'lv-2': ['md-3', 'md-5', 'md-6', 'mf-2', 'mf-3'],
-  'lv-3': ['md-1', 'md-6', 'mf-1', 'mf-4', 'mf-5'],
-  'lv-4': ['md-2', 'md-4', 'md-5', 'mf-3', 'mf-4'],
-  'lv-5': ['md-3', 'md-5', 'md-6', 'mf-2', 'mf-5'],
-  'lv-6': ['md-1', 'md-2', 'md-3', 'mf-1', 'mf-4'],
+  'lv-1': ['fm-f1', 'fm-f2', 'fm-f3', 'fm-b1', 'fm-b2', 'fm-t1', 'fm-bk1', 'fm-bk2'],
+  'lv-2': ['fm-m1', 'fm-m2', 'fm-e1', 'fm-e2', 'fm-e3', 'fm-ha1', 'fm-ha2'],
+  'lv-3': ['fm-f1', 'fm-b1', 'fm-e1', 'fm-t1', 'fm-fur1', 'fm-fur2', 'fm-s1'],
+  'lv-4': ['fm-f2', 'fm-b2', 'fm-ha1', 'fm-t1', 'fm-s1', 'fm-bk1', 'fm-tg1'],
+  'lv-5': ['fm-m1', 'fm-e3', 'fm-ha2', 'fm-fur2', 'fm-bk2', 'fm-t1', 'fm-s1'],
+  'lv-6': ['fm-f3', 'fm-b1', 'fm-e2', 'fm-fur1', 'fm-ha1', 'fm-bk1', 'fm-s1'],
 };
-
-const DEAL_PRODUCT_MAP: Record<string, { id: string; name: string; price: number; emoji: string; imageUrl: string }> = {};
-MART_DEALS.forEach((d) => { DEAL_PRODUCT_MAP[d.id] = d; });
-MART_FLASH_SALES.forEach((s) => { DEAL_PRODUCT_MAP[s.id] = s; });
 
 const getVendorProducts = (vendorId: string): MartProduct[] => {
   const ids = VENDOR_PRODUCT_MAP[vendorId];
   if (!ids) return martProducts.slice(0, 6);
   return ids
-    .map((id) => DEAL_PRODUCT_MAP[id])
-    .filter(Boolean)
-    .map((d) => ({
-      id: d.id,
-      app: 'MART' as const,
-      category: 'Groceries',
-      name: d.name,
-      price: d.price,
-      emoji: d.emoji,
-      rating: 4.5,
-      reviews: 100,
-      desc: '',
-      image: d.imageUrl,
-    }));
+    .map((id) => martProducts.find((p) => p.id === id))
+    .filter((p): p is MartProduct => Boolean(p));
 };
+
+/** Items currently on offer (have a pre-discount MRP) — shown in the discount rail. */
+const getDiscountedProducts = (vendorId: string): MartProduct[] =>
+  getVendorProducts(vendorId).filter((p) => p.originalPrice !== undefined && p.originalPrice > p.price);
 
 const CARD_GAP = hs(12);
 const CARD_W = (SCREEN_W - hs(32) - CARD_GAP) / 2;
@@ -75,8 +73,10 @@ const CARD_W = (SCREEN_W - hs(32) - CARD_GAP) / 2;
 export function FaMartScreen({
   searchQuery = '',
   onProductClick,
+  onSearchPress,
+  vendor = null,
+  onVendorPress,
 }: FaMartScreenProps) {
-  const [selectedVendor, setSelectedVendor] = useState<MartLocalVendor | null>(null);
   const feed = useMartFeed();
   const cartItems = useCartStore((s) => s.cart);
   const addToCart = useCartStore((s) => s.addToCart);
@@ -86,8 +86,8 @@ export function FaMartScreen({
   const normalizedSearch = searchQuery.trim().toLowerCase();
 
   const vendorProducts = useMemo(
-    () => (selectedVendor ? getVendorProducts(selectedVendor.id) : []),
-    [selectedVendor],
+    () => (vendor ? getVendorProducts(vendor.id) : []),
+    [vendor],
   );
 
   const filteredVendorProducts = useMemo(
@@ -98,9 +98,12 @@ export function FaMartScreen({
     [vendorProducts, normalizedSearch],
   );
 
-  const handleVendorPress = useCallback((vendor: MartLocalVendor) => {
-    setSelectedVendor(vendor);
-  }, []);
+  const handleVendorPress = useCallback(
+    (v: MartLocalVendor) => {
+      onVendorPress?.(v);
+    },
+    [onVendorPress],
+  );
 
   const handleCategoryPress = useCallback(
     (card: CategoryCard) => {
@@ -123,6 +126,20 @@ export function FaMartScreen({
     [navigation],
   );
 
+  const handleDealPress = useCallback(
+    (deal: MartDeal) => {
+      onProductClick?.(dealToProduct(deal));
+    },
+    [onProductClick],
+  );
+
+  const handleSalePress = useCallback(
+    (sale: MartFlashSale) => {
+      onProductClick?.(flashSaleToProduct(sale));
+    },
+    [onProductClick],
+  );
+
   const feedSectionsData: { id: string; component: React.ReactNode }[] = [
     { id: 'hero', component: <MartHeroCarousel banners={feed?.heroBanners ?? []} /> },
     {
@@ -138,14 +155,14 @@ export function FaMartScreen({
         />
       ),
     },
-    { id: 'deals', component: <DealsOfDayRail deals={feed?.deals ?? []} /> },
-    { id: 'flash', component: <FlashSaleRail sales={feed?.flashSales ?? []} /> },
+    { id: 'deals', component: <DealsOfDayRail deals={feed?.deals ?? []} onDealPress={handleDealPress} /> },
+    { id: 'flash', component: <FlashSaleRail sales={feed?.flashSales ?? []} onSalePress={handleSalePress} /> },
     { id: 'brands', component: <TopBrandsRail brands={feed?.topBrands ?? []} onPress={handleBrandPress} /> },
   ];
 
   const handleBackToFeed = useCallback(() => {
-    setSelectedVendor(null);
-  }, []);
+    onVendorPress?.(null);
+  }, [onVendorPress]);
 
   const handleAddProduct = useCallback(
     (product: MartProduct) => {
@@ -174,43 +191,19 @@ export function FaMartScreen({
   );
 
   // ---- Store Drill-in Mode ----
-  if (selectedVendor) {
+  if (vendor) {
     return (
-      <View style={styles.drillContainer}>
-        <View style={styles.drillHeader}>
-          <TouchableOpacity onPress={handleBackToFeed} style={styles.backBtn} hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}>
-            <AppText style={styles.backArrow}>←</AppText>
-          </TouchableOpacity>
-          <View style={styles.drillHeaderText}>
-            <AppText style={styles.drillTitle}>{selectedVendor.name}</AppText>
-            <AppText style={styles.drillMeta}>
-              {selectedVendor.distance} · ⭐ {selectedVendor.rating} · {selectedVendor.deliveryTime}
-            </AppText>
-          </View>
-          <TouchableOpacity onPress={() => navigation.navigate('Cart')} style={styles.drillCartBtn} activeOpacity={0.7} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-            <ShoppingCart size={ms(18)} color="#1E2022" strokeWidth={2} />
-            {cartItems.length > 0 && (
-              <View style={styles.drillCartBadge}>
-                <AppText style={styles.drillCartBadgeText}>{cartItems.length}</AppText>
-              </View>
-            )}
-          </TouchableOpacity>
-        </View>
-        <FlatList
-          data={filteredVendorProducts}
-          keyExtractor={(item) => item.id}
-          numColumns={2}
-          contentContainerStyle={styles.productGrid}
-          columnWrapperStyle={styles.productRow}
-          showsVerticalScrollIndicator={false}
-          renderItem={renderProductItem}
-          ListEmptyComponent={
-            <View style={styles.emptyWrap}>
-              <AppText style={styles.emptyText}>No products found</AppText>
-            </View>
-          }
-        />
-      </View>
+      <VendorProfileView
+        vendor={vendor}
+        products={filteredVendorProducts}
+        discountedProducts={getDiscountedProducts(vendor.id)}
+        cartItems={cartItems}
+        onBack={handleBackToFeed}
+        onProductClick={onProductClick}
+        onAddToCart={handleAddProduct}
+        onUpdateQuantity={updateQuantity}
+        onCartPress={() => navigation.navigate('Cart')}
+      />
     );
   }
 
@@ -267,68 +260,6 @@ const styles = StyleSheet.create({
   drillContainer: {
     flex: 1,
     backgroundColor: '#F8FAFC',
-  },
-  drillHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: hs(16),
-    paddingVertical: vs(12),
-    backgroundColor: '#FFFFFF',
-    borderBottomWidth: 1,
-    borderBottomColor: '#EFEFEF',
-  },
-  backBtn: {
-    width: ms(32),
-    height: ms(32),
-    borderRadius: ms(16),
-    backgroundColor: '#F1F5F9',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginRight: hs(10),
-  },
-  backArrow: {
-    fontSize: ms(18),
-    fontWeight: '700',
-    color: '#1E2022',
-    marginTop: vs(-2),
-  },
-  drillHeaderText: {
-    flex: 1,
-  },
-  drillTitle: {
-    fontSize: ms(15),
-    fontWeight: '700',
-    color: '#1E2022',
-  },
-  drillMeta: {
-    fontSize: ms(10),
-    fontWeight: '500',
-    color: '#666666',
-    marginTop: vs(2),
-  },
-  drillCartBtn: {
-    position: 'relative',
-    width: ms(36),
-    height: ms(36),
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  drillCartBadge: {
-    position: 'absolute',
-    top: vs(2),
-    right: hs(2),
-    backgroundColor: '#FFC107',
-    borderRadius: ms(7),
-    minWidth: ms(14),
-    height: ms(14),
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingHorizontal: hs(3),
-  },
-  drillCartBadgeText: {
-    fontSize: ms(8),
-    fontWeight: '900',
-    color: '#1E2022',
   },
   productGrid: {
     padding: hs(16),

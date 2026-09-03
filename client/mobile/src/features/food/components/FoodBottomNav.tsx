@@ -92,7 +92,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-around',
     alignItems: 'center',
-    backgroundColor: foodTheme.background,
+    backgroundColor: '#FFFFFF',
     borderTopWidth: 1,
     borderTopColor: 'rgba(148,163,184,0.18)',
     paddingTop: vs(8),

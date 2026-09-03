@@ -1,5 +1,6 @@
 import React, { memo } from 'react';
-import { View, TouchableOpacity, ImageBackground, StyleSheet } from 'react-native';
+import { View, TouchableOpacity, StyleSheet } from 'react-native';
+import { Image as ExpoImage } from 'expo-image';
 import { ArrowRight } from 'lucide-react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import AppText from '@/components/AppText';
@@ -21,9 +22,10 @@ interface HeroCardPairProps {
 }
 
 /**
- * Section 2 — hero cards replacing the old mode toggle. Two ImageBackground
+ * Section 2 — hero cards replacing the old mode toggle. Two image-backed
  * cards (~48% width each): "Dining" and "Order Food". White circular arrow
- * button bottom-left. No delivery-time badges.
+ * button bottom-left. No delivery-time badges. Uses expo-image so the local
+ * AVIF banners decode correctly.
  */
 const HeroCardPair = memo(function HeroCardPair({
   onDiningPress,
@@ -64,22 +66,21 @@ const HeroCard = memo(function HeroCard({ card }: { card: HeroCardConfig }) {
       accessibilityRole="button"
       accessibilityLabel={`${card.title}. ${card.subtitle}`}
     >
-      <ImageBackground source={card.image} style={styles.imageBg} resizeMode="cover">
-        <LinearGradient
-          colors={['rgba(0,0,0,0)', 'rgba(0,0,0,0.18)', 'rgba(0,0,0,0.62)']}
-          locations={[0, 0.5, 1]}
-          style={StyleSheet.absoluteFill}
-        />
-        <View style={styles.content}>
-          <AppText style={styles.title}>{card.title}</AppText>
-          <AppText style={styles.subtitle} numberOfLines={2}>
-            {card.subtitle}
-          </AppText>
-          <View style={styles.arrowBtn}>
-            <ArrowRight size={ms(18)} color={foodTheme.primary} strokeWidth={2.6} />
-          </View>
+      <ExpoImage source={card.image} style={StyleSheet.absoluteFill} contentFit="cover" transition={180} />
+      <LinearGradient
+        colors={['rgba(0,0,0,0)', 'rgba(0,0,0,0.18)', 'rgba(0,0,0,0.62)']}
+        locations={[0, 0.5, 1]}
+        style={StyleSheet.absoluteFill}
+      />
+      <View style={styles.content}>
+        <AppText style={styles.title}>{card.title}</AppText>
+        <AppText style={styles.subtitle} numberOfLines={2}>
+          {card.subtitle}
+        </AppText>
+        <View style={styles.arrowBtn}>
+          <ArrowRight size={ms(18)} color={foodTheme.primary} strokeWidth={2.6} />
         </View>
-      </ImageBackground>
+      </View>
     </TouchableOpacity>
   );
 });
@@ -100,10 +101,6 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
     backgroundColor: foodTheme.card,
     ...foodTheme.shadowCard,
-  },
-  imageBg: {
-    width: '100%',
-    height: '100%',
   },
   content: {
     position: 'absolute',

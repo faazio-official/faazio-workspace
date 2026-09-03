@@ -14,18 +14,6 @@ export interface MartHeroBanner {
   imageUrl: string;
 }
 
-export interface MartDeal {
-  id: string;
-  brand: string;
-  name: string;
-  size: string;
-  price: number;
-  originalPrice: number;
-  discountTag: string;
-  imageUrl: string;
-  emoji: string;
-}
-
 export interface MartFlashSale {
   id: string;
   brand: string;
@@ -78,15 +66,6 @@ export const MART_HERO_BANNERS: MartHeroBanner[] = [
   },
 ];
 
-export const MART_DEALS: MartDeal[] = [
-  { id: 'md-1', brand: 'Fresh Farm', name: 'Organic Whole Milk', size: '1L', price: 128, originalPrice: 198, discountTag: '35% OFF', imageUrl: squareImg('photo-1550583724-b2692b85b150', 300), emoji: '🥛' },
-  { id: 'md-2', brand: 'Golden Grain', name: 'Basmati Rice Premium', size: '5kg', price: 449, originalPrice: 599, discountTag: '25% OFF', imageUrl: squareImg('photo-1586201375761-83865001e31c', 300), emoji: '🍚' },
-  { id: 'md-3', brand: 'Pure Harvest', name: 'Cold Pressed Coconut Oil', size: '1L', price: 299, originalPrice: 499, discountTag: '40% OFF', imageUrl: squareImg('photo-1474979266404-7eaacbcd87c5', 300), emoji: '🥥' },
-  { id: 'md-4', brand: 'Nature\'s Basket', name: 'Mixed Nuts Combo', size: '500g', price: 349, originalPrice: 549, discountTag: '36% OFF', imageUrl: squareImg('photo-1604068549290-dea0e4a305ca', 300), emoji: '🥜' },
-  { id: 'md-5', brand: 'Daily Fresh', name: 'Free Range Eggs', size: '12 pcs', price: 89, originalPrice: 129, discountTag: '31% OFF', imageUrl: squareImg('photo-1582722872445-44dc5f7e3c8f', 300), emoji: '🥚' },
-  { id: 'md-6', brand: 'Baker\'s Joy', name: 'Whole Wheat Bread', size: '400g', price: 35, originalPrice: 55, discountTag: '36% OFF', imageUrl: squareImg('photo-1509440159596-0249088772ff', 300), emoji: '🍞' },
-];
-
 export const MART_FLASH_SALES: MartFlashSale[] = [
   { id: 'mf-1', brand: 'Cool Drinks', name: 'Sparkling Soda Pack', size: '750ml × 4', price: 99, originalPrice: 199, discountTag: '50% OFF', remainingTimeSec: 3540, imageUrl: squareImg('photo-1527661591475-527312dd65f5', 300), emoji: '🥤' },
   { id: 'mf-2', brand: 'Crispy Co.', name: 'Potato Chips Variety', size: '200g × 3', price: 149, originalPrice: 299, discountTag: '50% OFF', remainingTimeSec: 5400, imageUrl: squareImg('photo-1566478989037-eec170784d71', 300), emoji: '🍟' },
@@ -115,20 +94,6 @@ export const MART_LOCAL_VENDORS: MartLocalVendor[] = [
 
 const MART_DEAL_RATING = 4.5;
 
-export const dealToProduct = (deal: MartDeal): Product => ({
-  id: deal.id,
-  app: 'MART',
-  category: 'Groceries',
-  name: deal.name,
-  price: deal.price,
-  emoji: deal.emoji,
-  rating: MART_DEAL_RATING,
-  desc: `${deal.brand} · ${deal.size}`,
-  badge: deal.discountTag,
-  badgeBg: '#F25C3D',
-  image: deal.imageUrl,
-});
-
 export const flashSaleToProduct = (sale: MartFlashSale): Product => ({
   id: sale.id,
   app: 'MART',
@@ -142,3 +107,6 @@ export const flashSaleToProduct = (sale: MartFlashSale): Product => ({
   badgeBg: '#F25C3D',
   image: sale.imageUrl,
 });
+
+export type { MartDeal } from '@data/types';
+export { MART_DEALS, dealToProduct } from '@data/mart/deals';

@@ -3,6 +3,7 @@ import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { FoodHomeScreen } from '../features/food/screens/FoodHomeScreen';
 import { FoodSearchScreen } from '../features/food/screens/FoodSearchScreen';
 import { DiningDetailScreen } from '../features/food/screens/DiningDetailScreen';
+import { RestaurantProfileScreen } from '../features/food/screens/RestaurantProfileScreen';
 import { OrderDetailScreen } from '../features/food/screens/OrderDetailScreen';
 import type { FoodStackParamList } from './types';
 
@@ -21,6 +22,7 @@ export function FoodStack() {
       <FoodStackNav.Screen name="FoodHome" component={FoodHomeScreen} />
       <FoodStackNav.Screen name="Search" component={FoodSearchScreen} />
       <FoodStackNav.Screen name="DiningDetail" component={DiningDetailScreen} />
+      <FoodStackNav.Screen name="RestaurantProfile" component={RestaurantProfileScreen} />
       <FoodStackNav.Screen name="OrderDetail" component={OrderDetailScreen} />
     </FoodStackNav.Navigator>
   );

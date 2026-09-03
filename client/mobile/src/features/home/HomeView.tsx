@@ -10,7 +10,7 @@ import type { SubAppId } from '@/state/uiStore';
 import AdBannerSection from '@/features/home/sections/AdBannerSection';
 import DiningSpecialsSection from '@/features/home/sections/DiningSpecialsSection';
 import HotBrandDealsSection from '@/features/home/sections/HotBrandDealsSection';
-import StoreOffersSection from '@/features/home/sections/StoreOffersSection';
+import DealsOfDaySection from '@/features/home/sections/DealsOfDaySection';
 import MostRatedDiningSection from '@/features/home/sections/MostRatedDiningSection';
 import RecentlyViewedRailSection from '@/features/home/sections/RecentlyViewedRailSection';
 import NearbyOffersSection from '@/features/home/sections/NearbyOffersSection';
@@ -79,7 +79,7 @@ export default function HomeView({
         case 'adBanner': return <AdBannerSection {...sectionProps} />;
         case 'diningSpecials': return <DiningSpecialsSection {...sectionProps} />;
         case 'hotBrandDeals': return <HotBrandDealsSection {...sectionProps} />;
-        case 'storeOffers': return <StoreOffersSection {...sectionProps} />;
+        case 'dealsOfDay': return <DealsOfDaySection {...sectionProps} />;
         case 'mostRatedDining': return <MostRatedDiningSection {...sectionProps} />;
         case 'recentlyViewedMart': return <RecentlyViewedRailSection {...sectionProps} title="Recently Viewed — Mart" products={recentlyViewedMart} accent="#1162D3" appBrand="MART" />;
         case 'recentlyViewedFood': return <RecentlyViewedRailSection {...sectionProps} title="Recently Viewed — Food" products={recentlyViewedFood} accent="#1E5D44" appBrand="FOOD" />;

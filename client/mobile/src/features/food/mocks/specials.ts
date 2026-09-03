@@ -1,1 +1,1 @@
-export { TODAYS_SPECIALS } from '@data/food/specials';
+export { TODAYS_SPECIALS, dishToProduct } from '@data/food/specials';

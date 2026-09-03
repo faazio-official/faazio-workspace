@@ -45,6 +45,7 @@ const hotMeals: Product[] = readyNowStores.map((s, i) => ({
     : s.id === 'store-f3' ? 'Gourmet Smash Burger & Loaded Fries'
     : 'Fresh Baked French Pastry Box',
   price: s.id === 'store-f1' ? 350 : s.id === 'store-f2' ? 260 : s.id === 'store-f3' ? 240 : 220,
+  originalPrice: (s.id === 'store-f1' ? 350 : s.id === 'store-f2' ? 260 : s.id === 'store-f3' ? 240 : 220) + 80,
   emoji: s.emoji,
   rating: s.rating,
   desc: s.desc,

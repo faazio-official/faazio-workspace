@@ -1,5 +1,5 @@
 import React, { memo } from 'react';
-import { View, TouchableOpacity, StyleSheet } from 'react-native';
+import { View, TouchableOpacity, StyleSheet, type StyleProp, type ViewStyle } from 'react-native';
 import { MapPin } from 'lucide-react-native';
 import AppText from '@/components/AppText';
 import { hs, ms, vs } from '@/utils/responsive';
@@ -11,6 +11,7 @@ import RatingBadge from './RatingBadge';
 interface NearbyRestaurantRowProps {
   restaurant: NearbyRestaurant;
   onPress?: (restaurant: NearbyRestaurant) => void;
+  style?: StyleProp<ViewStyle>;
 }
 
 /**
@@ -20,10 +21,11 @@ interface NearbyRestaurantRowProps {
 const NearbyRestaurantRow = memo(function NearbyRestaurantRow({
   restaurant,
   onPress,
+  style,
 }: NearbyRestaurantRowProps) {
   return (
     <TouchableOpacity
-      style={styles.card}
+      style={[styles.card, style]}
       onPress={() => onPress?.(restaurant)}
       activeOpacity={0.9}
       accessibilityRole="button"
