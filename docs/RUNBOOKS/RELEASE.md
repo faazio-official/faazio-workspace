@@ -1,0 +1,72 @@
+# Release Runbook
+
+> Build, sign, and ship the Faazio mobile app.
+
+## 🔑 Signing credentials
+
+- Debug builds use the generated debug keystore (automatic).
+- **Release** signing reads from `client/mobile/keystore/keystore.properties`
+  (gitignored). `android/app/build.gradle` wires it into the `release` signing config:
+  `STORE_FILE`, `KEYSTORE_PASS`, `KEY_ALIAS`, `ALIAS_PASS`.
+- The keystore file lives at `client/mobile/keystore/faazio-release.keystore` (gitignored).
+  **Back it up securely — losing it means you can never update the app on the store.**
+
+> Never commit `keystore.properties` or the `.keystore` file. Both are gitignored.
+
+## 📱 Android build
+
+```bash
+cd client/mobile
+adb devices                  # confirm a device/emulator
+npm run android              # debug build → install → launch
+```
+
+### Release APK / AAB
+
+```bash
+cd client/mobile/android
+./gradlew assembleRelease            # signed release APK (uses keystore.properties)
+./gradlew bundleRelease              # release AAB (for Play Store)
+```
+
+Outputs land in `android/app/build/outputs/`. Existing manual artifacts:
+`faazio-debug.apk` / `faazio-release.apk` at `client/mobile/` (gitignored via `*.apk`).
+
+### Local debug APK
+
+`npm run android` produces `android/app/build/outputs/apk/debug/app-debug.apk`.
+
+## 🌐 Google Play (manual)
+
+1. Build the release `.aab` (`./gradlew bundleRelease`).
+2. Sign in to [Play Console](https://play.google.com/console/), open the Faazio app
+   (package `com.faazio.customer`).
+3. **Testing** → create a release, upload the `.aab`.
+4. Fill metadata, Content Rating, and Data Safety (note CAMERA + READ/WRITE_EXTERNAL_STORAGE
+   permissions and SecureStore token usage).
+5. **Rollout** to begin review.
+
+> Existing `client/mobile/docs/PLAYSTORE_RELEASE.md` is the older EAS-based manual —
+> EAS (`eas build`) is an alternative to local Gradle if you adopt `eas.json`.
+
+## 🍎 App Store (iOS)
+
+Requires macOS + Xcode.
+
+```bash
+cd client/mobile
+npm run ios                  # build + run in simulator
+npx expo run:ios --configuration Release
+```
+
+- Bundle id `com.faazio.customer` (from `app.json` → `ios.bundleIdentifier`).
+- Upload via Xcode Organizer / Transporter; then fill App Store Connect metadata.
+- Info.plist (via `app.json` `ios.infoPlist`) declares camera + photo-library usage strings.
+
+## ✅ Release checklist
+
+- [ ] `npm run ts:check` and `npm run check:boundaries` pass.
+- [ ] Version bumped in `app.json` (`version`) + `android` `versionCode`.
+- [ ] Keystore backed up and `keystore.properties` present (release builds).
+- [ ] Release signed and smoke-tested on a device.
+- [ ] Store metadata / data-safety updated.

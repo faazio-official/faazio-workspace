@@ -1,6 +1,6 @@
 # Google Play Store Release Manual
 
-This document provides step-by-step instructions to compile, bundle, sign, and upload your **SuperApp** Android application to the Google Play Store Console using **Expo Application Services (EAS)**.
+This document provides step-by-step instructions to compile, bundle, sign, and upload your **Faazio** Android application to the Google Play Store Console using **Expo Application Services (EAS)**.
 
 ---
 
@@ -17,7 +17,7 @@ Verify that the Android metadata is fully configured in the `app.json` root.
 
 ```json
 "android": {
-  "package": "com.superapp.customer",
+  "package": "com.faazio.customer",
   "versionCode": 1,
   "adaptiveIcon": {
     "foregroundImage": "./assets/adaptive-icon.png",
@@ -30,7 +30,7 @@ Verify that the Android metadata is fully configured in the `app.json` root.
   ]
 }
 ```
-> **CRITICAL:** The package name (`com.superapp.customer`) must be globally unique across all Android apps.
+> **CRITICAL:** The package name (`com.faazio.customer`) must be globally unique across all Android apps.
 
 ---
 
@@ -136,6 +136,13 @@ eas submit --platform android
 ---
 
 ## 💡 Play Store Checklist & Troubleshooting
-- **API Target level:** Always ensure your app is built using the latest target SDK (handled automatically by Expo SDK 51).
+- **API Target level:** Always ensure your app is built using the latest target SDK (handled automatically by Expo SDK 57).
 - **Data Safety:** Inform users in the console questionnaire about the use of Camera permissions (Pharma prescription) and SecureStore tokens.
 - **64-bit Compliance:** Android requires compiled bundles to contain native binaries for both 32-bit and 64-bit architectures (EAS cloud compiler processes this natively).
+
+---
+
+## See also
+
+- Root release guide (local Gradle signing via `keystore/keystore.properties` + store
+  checklist): `docs/RUNBOOKS/RELEASE.md`.

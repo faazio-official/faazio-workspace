@@ -1,6 +1,6 @@
 # Apple App Store Release Manual
 
-This document provides step-by-step instructions to compile, bundle, sign, and upload your **SuperApp** iOS application to the Apple App Store Connect portal using **Expo Application Services (EAS)**.
+This document provides step-by-step instructions to compile, bundle, sign, and upload your **Faazio** iOS application to the Apple App Store Connect portal using **Expo Application Services (EAS)**.
 
 ---
 
@@ -18,7 +18,7 @@ Verify that the iOS metadata and strict privacy descriptions are configured insi
 ```json
 "ios": {
   "supportsTablet": true,
-  "bundleIdentifier": "com.superapp.customer",
+  "bundleIdentifier": "com.faazio.customer",
   "infoPlist": {
     "NSCameraUsageDescription": "This app requires camera access to upload medical prescriptions and scan product bar codes.",
     "NSPhotoLibraryUsageDescription": "This app requires photo library access to upload medical prescriptions and custom profile photos."
@@ -105,3 +105,10 @@ If you have a local macOS computer:
 - **Guideline 5.1.1 (Privacy - Data Collection):** Since this app handles pharmaceutical transactions and payments, you **must** supply a valid, publicly hosted **Privacy Policy URL**.
 - **In-App Purchases (Guideline 3.1.1):** Dinner bookings and physical goods/pharmaceuticals fall under **Physical Goods & Services**. Therefore, you **DO NOT** use Apple In-App Purchases; standard credit card gateways (like Stripe or Adyen) are authorized.
 - **Guideline 2.1 (App Completeness):** Apple strictly rejects applications that show incomplete views, dummy placeholders, or broken navigation paths. Populate your screens fully before submitting for production review.
+
+---
+
+## See also
+
+- Root release guide (local Gradle + store checklist): `docs/RUNBOOKS/RELEASE.md`.
+- iOS permission strings live in `app.json` → `ios.infoPlist` (not this EAS example).

@@ -9,12 +9,30 @@ Build **lightweight, fast, secure**. Every change must justify its size:
 ## Repo map
 ```
 faazio-workspace/
-├── (root)          Repo root — docs only (AGENTS.md, ARCHITECTURE.md, LICENSE, PAGE_CATALOG.md).
+├── (root)          Repo root — docs + project docs only (AGENTS.md, ARCHITECTURE.md, LICENSE, PAGE_CATALOG.md, README.md).
 ├── client/mobile/  React Native (Expo) SuperApp — ALL active work lives here.
 ├── server/         Go Chi SDUI backend — future. Placeholder only.
-└── data/           SDUI source of truth (enterprise-controlled), consumed via @data/*.
+├── data/           SDUI source of truth (enterprise-controlled), consumed via @data/*.
+├── docs/           Documentation system — architecture deep-dives + runbooks (see "Documentation map").
+└── security/       Security hardening scripts + remediation guide (see "Security").
 ```
 See `ARCHITECTURE.md` (root) for the full mobile + future-Chi design. Data ownership lives in `data/DATA_CONTROL.md`.
+
+## Documentation map
+Structured docs live under root `docs/` (mirrors the repo layout):
+
+```
+docs/
+├── README.md                       # index + reading order
+├── DEVELOPER_ONBOARDING.md         # numbered getting-started guide
+├── BRAND_COLOR_MIGRATION.md        # royal-purple → Faazio-blue change log + revert
+├── architecture/                   # deep-dives (mobile-app, data-layer-sdui, server-gateway-plan)
+└── RUNBOOKS/                       # operational guides (RELEASE, DATA_FIXTURES, TROUBLESHOOTING)
+```
+
+Reading order for a new contributor: `AGENTS.md` → `ARCHITECTURE.md` →
+`docs/DEVELOPER_ONBOARDING.md` → `data/DATA_CONTROL.md` → `docs/README.md`.
+`client/mobile/` also has `docs/` (appstore/playstore/release) and `PENDING_WORK.md` (backlog).
 
 ## Hard rules
 1. **Wait for user intent.** Do NOT build screens/pages until explicitly requested.
@@ -26,6 +44,7 @@ See `ARCHITECTURE.md` (root) for the full mobile + future-Chi design. Data owner
 7. **Brand** — always use the Faazio logo (`<FaazioLogo />`), never raw text placeholders.
 8. **Layout** — full-viewport, non-scrollable (`h-[100dvh]`), no faux device borders/notches.
 9. **Boundaries** — cross-sub-app access only via Home. Enforced by `check:boundaries`.
+10. **Docs** — architecture deep-dives live in `docs/architecture/`, operational guides in `docs/RUNBOOKS/`; update `docs/README.md` and the "Documentation map" when adding docs.
 
 ## Verify after any change
 Run from `client/mobile/`:
@@ -35,8 +54,14 @@ npm run check:boundaries  # dependency-cruiser
 # device test: adb devices then npm run android
 ```
 
-## Planned modules (build only when requested)
-`features/auth`, `features/ecommerce`, `features/dinner-booking`, `features/pharma` — ready to construct on demand.
+## Modules
+Shipped (`client/mobile/src/features/`): `onboarding`, `auth`, `home`, `ecommerce`
+(mart/grocery), `food`, `cart`, `profile`, `pharma`, `catalog`, `search`, `product`,
+`favourites`, `sub-app`. `dinner-booking` is a scaffold (README only).
+
+Remaining/backlog work is tracked in `client/mobile/PENDING_WORK.md` (e.g. wiring
+`GatewayClient`, server-backed flows, de-duplicating inline mock data). Build new screens
+only when explicitly requested.
 
 ## Security — Phase 1: Security steps for future projects
 
