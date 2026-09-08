@@ -1,20 +1,13 @@
-<div align="center">
-<img width="1200" height="475" alt="GHBanner" src="https://ai.google.dev/static/site-assets/images/share-ais-513315318.png" />
-</div>
+# Faazio SuperApp
 
-# Run and deploy your AI Studio app
+React Native (Expo) superapp. All active work lives in `client/mobile/`.
 
-This contains everything you need to run your app locally.
+## Start
 
-View your app in AI Studio: https://ai.studio/apps/fcd5cf84-ed82-4d4d-83fe-8bbfeb43e3b3
+```bash
+cd client/mobile
+npm install
+npm run android   # device/emulator
+```
 
-## Run Locally
-
-**Prerequisites:**  Node.js
-
-
-1. Install dependencies:
-   `npm install`
-2. Set the `GEMINI_API_KEY` in [.env.local](.env.local) to your Gemini API key
-3. Run the app:
-   `npm run dev`
+Verify: `npm run ts:check` and `npm run check:boundaries` (run from `client/mobile/`).
