@@ -13,6 +13,7 @@ export { martStores } from './mart/stores';
 export { MART_DEALS, dealToProduct } from './mart/deals';
 
 export { groceryProducts } from './grocery/products';
+export { groceryStores } from './grocery/stores';
 
 export { foodProducts, topOfWeekDishes } from './food/products';
 export { foodStores } from './food/stores';
@@ -20,6 +21,7 @@ export { BOOKING_DISHES_DB } from './food/bookingDishes';
 export { TODAYS_SPECIALS, dishToProduct } from './food/specials';
 
 export { pharmaProducts, PHARMA_PRODUCTS_DB, PHARMA_CATEGORIES } from './pharma/products';
+export { pharmaStores } from './pharma/stores';
 
 export { exploreStacks } from './explore/stacks';
 
@@ -39,8 +41,9 @@ export { avatarMap, getProductReviews, getProductSpecs, getProductHighlights } f
 
 export { defaultAddresses } from './cart/addresses';
 export { coupons } from './cart/coupons';
+export { getPickupPointsForItems, NEUTRAL_PICKUP } from './cart/pickup-resolver';
 
-export { pastOrders, myOrders, myOrdersTabs } from './account/orders';
+export { pastOrders, myOrders, myOrdersStatusFilters, getMyOrderById } from './account/orders';
 export { userProfile, saverMembership } from './account/profile';
 export { orderStatusCounts } from './account/orderStatus';
 export { accountNavGroups } from './account/accountNav';
@@ -52,6 +55,7 @@ export {
   catalogIndex,
   getCatalogEntryById,
   getCatalogEntriesByIds,
+  getProductById,
   pharmaFacetCategories,
 } from './catalog/products';
 export type { CatalogEntry, CatalogFacetCategory } from './catalog/products';

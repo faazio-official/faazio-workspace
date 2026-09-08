@@ -166,3 +166,21 @@ export function getCatalogEntryById(id: string): CatalogEntry | undefined {
 export function getCatalogEntriesByIds(ids: string[]): CatalogEntry[] {
   return ids.map(getCatalogEntryById).filter((e): e is CatalogEntry => !!e);
 }
+
+/**
+ * Resolve a real `Product` by id from the four domain fixture arrays (plus the
+ * converted deal/special products). Used to link an order back to a full product
+ * detail page (image, rating, reviews, description, add-to-bag). Returns undefined
+ * if the id is unknown — callers hide any drill-in affordance in that case.
+ */
+export function getProductById(id: string): Product | undefined {
+  const candidates: Product[] = [
+    ...martProducts,
+    ...groceryProducts,
+    ...foodProducts,
+    ...pharmaProducts,
+    ...MART_DEALS.map(dealToProduct),
+    ...TODAYS_SPECIALS.map(dishToProduct),
+  ];
+  return candidates.find((p) => p.id === id);
+}

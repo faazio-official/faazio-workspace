@@ -1,4 +1,5 @@
 import type { CartItem } from '@/state/cartStore';
+import type { FulfillmentMode, PickupPoint } from '@data/types';
 
 export interface AppLabel {
   name: string;
@@ -46,6 +47,10 @@ export interface OrderDetails {
   deliveryAddress: string;
   payment: string;
   eta: string;
+  /** How the order will be fulfilled (delivery vs self-pickup). */
+  fulfillment: FulfillmentMode;
+  /** The chosen pickup point, present only when fulfillment is PICKUP. */
+  pickup?: PickupPoint;
 }
 
 export const getAppLabel = (itemId: string): AppLabel => {
@@ -74,9 +79,13 @@ export function groupCartItems(items: CartItem[]): CartGroup[] {
   return Object.values(grouped);
 }
 
-export function computeTotals(items: CartItem[], discountAmount: number): CartTotals {
+export function computeTotals(
+  items: CartItem[],
+  discountAmount: number,
+  mode: FulfillmentMode = 'DELIVERY',
+): CartTotals {
   const subtotal = items.reduce((acc, curr) => acc + curr.price * curr.quantity, 0);
-  const deliveryFee = subtotal > 499 ? 0 : 49;
+  const deliveryFee = mode === 'PICKUP' ? 0 : subtotal > 499 ? 0 : 49;
   const tax = Math.round(subtotal * 0.05);
   const finalTotal = Math.max(0, subtotal + deliveryFee + tax - discountAmount);
   return { subtotal, deliveryFee, tax, discountAmount, finalTotal };

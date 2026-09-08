@@ -70,7 +70,7 @@
 | # | Step | Lines | Description |
 |---|------|-------|-------------|
 | CA1 | **Bag** (items, promo, pricing) | 159–358 | Grouped by app source, quantity controls, coupon code, price breakdown |
-| CA2 | **Address** (select or add) | 362–467 | Saved addresses list + add custom form |
+| CA2 | **Address** (select or add) | 362–467 | Saved addresses list + add custom form. **RN delta:** adds a Deliver / Self-Pickup toggle (see RN9 / Page 9) |
 | CA3 | **Payment** (UPI/Card/COD) | 471–651 | 3 payment methods with dynamic panels, SSL banner |
 | CA4 | **Receipt** (confirmed + tracking) | 654–758 | Checkmark, live tracking timeline, items summary, ETA |
 
@@ -230,7 +230,7 @@
 | RN6 | **CategoriesView** | `src/components/CategoriesView.tsx` | - | ✅ Active | Hub Explore tab |
 | RN7 | **FavouritesView** | `src/components/FavouritesView.tsx` | - | ✅ Active | Hub Saved tab |
 | RN8 | **AccountView** | `src/components/AccountView.tsx` | - | ✅ Active | Hub Profile tab |
-| RN9 | **CartView** | `src/components/CartView.tsx` | - | ✅ Active | Hub Bag tab |
+| RN9 | **CartView** | `src/features/cart/CartView.tsx` (BAG→ADDRESS→PAYMENT→RECEIPT) | - | ✅ Active | Hub/Sub-app Bag tab; Deliver/Self-Pickup toggle (Self-Pickup lists one point per distinct store via `getPickupPointsForItems`); payment via `features/cart/payment/PaymentOptionsScreen`; wrapper `CartScreen.tsx` |
 
 ### 2.3 Sub-App Wrapper & Sub-Apps (rendered inside SubAppWrapper)
 
@@ -297,6 +297,31 @@ The following routes are typed in `RootStackParamList` but have NO `<Stack.Scree
 | `src/features/profile/ProfileScreen.tsx` | 231 | Standalone profile page with different UI from AccountView | Not imported by any navigator or parent |
 | `src/features/ecommerce/EcommerceScreen.tsx` | 442 | Standalone e-commerce page | Not imported by SubAppWrapper or any parent (SubAppWrapper imports FaMartScreen, GroceryScreen, FoodScreen, PharmaScreen — NOT EcommerceScreen) |
 | `src/components/ProductDetailView.tsx` | - | Full product detail modal component | Rendered nowhere (MainDashboardScreen calls `navigation.navigate('ProductDetail')` but route not registered) |
+
+### 2.6 Root-Stack Screens (current RN navigator — reconciled)
+
+Screens pushed on the root stack via `client/mobile/src/navigation/AppNavigator.tsx`. Paths are
+relative to `client/mobile/`. These were previously undocumented / stale in this catalog.
+
+| Route | Screen | File | Notes |
+|-------|--------|------|-------|
+| `Cart` | **CartScreen** | `src/features/cart/CartScreen.tsx` | Pushed from any app; wraps shared `CartView` (BAG→ADDRESS→PAYMENT→RECEIPT). Payment step = `features/cart/payment/PaymentOptionsScreen`. **Deliver / Self-Pickup toggle** on ADDRESS; Self-Pickup lists **one point per distinct store** in the cart (store-backed via `getPickupPointsForItems`), neutral hub fallback. |
+| `You` | **YouScreen** | `src/features/profile/YouScreen.tsx` | Account page (wraps `AccountView`); pushed from any app, back returns. |
+| `MyOrders` | **MyOrdersScreen** | `src/features/profile/MyOrdersScreen.tsx` | Sub-app rail (All/Mart/Food/Grocery/Pharma) + status filter sheet + minimal order cards (date + status pill, one-line item) with Delivery/Self-Pickup chip; "View Details" → `OrderDetails`. |
+| `OrderDetails` | **OrderDetailsScreen** | `src/features/profile/OrderDetailsScreen.tsx` | Per-order page resolved by `orderId` via `@data` (`getMyOrderById`); status/item/order-meta sections + **View Product** → `ProductDetail` (via `getProductById`; hidden if lookup fails). |
+| `UserDetails` | **UserDetailsScreen** | `src/features/profile/UserDetailsScreen.tsx` | "Your Details" — personal info, preferences, security. |
+| `SavedAddresses` | **SavedAddressesScreen** | `src/features/profile/SavedAddressesScreen.tsx` | Manage/select/add delivery locations. |
+| `MasterCategories` | **MasterCategoriesScreen** | `src/features/catalog/MasterCategoriesScreen.tsx` | Universal cross-sub-app category grid (Hub Categories = `CategoriesTabScreen`). |
+| `Search` | **SearchRouteScreen** | `src/features/search/SearchRouteScreen.tsx` | First-class cross-sub-app search (Food keeps its own nested Search). |
+| `ProductDetail` | **ProductDetailScreen** | `src/features/product/ProductDetailScreen.tsx` | Shared product detail; view component = `CommonProductDetailView.tsx`. |
+| `PaymentOptions` | **PaymentOptionsScreen** | `src/features/cart/payment/PaymentOptionsScreen.tsx` | Standalone payment picker (also used as CartView PAYMENT step). |
+| `FoodApp` | **FoodStack** | `src/navigation/FoodStack.tsx` | Nested food stack: FoodHome → Search → DiningDetail → `RestaurantProfile` → OrderDetail. |
+
+> **Stale-entries note:** RN5–RN8 above still reference Vite-style `src/components/*` paths
+> (`HomeView`, `CategoriesView`, `FavouritesView`, `AccountView`). The current RN hub tabs live
+> under `src/features/` (`HomeTabScreen`, `CategoriesTabScreen`, `FavouritesTabScreen`,
+> `AccountScreen`) and the Cart lives under `features/cart/`. These rows are preserved for the
+> Vite↔RN mapping in Section 3 but should be read as the **Vite** component names.
 
 ---
 
@@ -417,6 +442,13 @@ These tabs render with empty-state messages:
 | `src/components/AccountView.tsx` | Hub/Sub-app Account tab | ✅ Active |
 | `src/components/SubAppWrapper.tsx` | Sub-app shell + inline tabs | ✅ Active |
 | `src/components/ProductDetailView.tsx` | Product detail modal (unwired) | ❌ Unused |
+| `src/features/cart/CartScreen.tsx` | Central "Your Cart" checkout (wraps CartView) | ✅ Active |
+| `src/features/cart/payment/PaymentOptionsScreen.tsx` | Payment picker (preferred card/UPI/cards/more) | ✅ Active |
+| `src/features/profile/MyOrdersScreen.tsx` | My Orders (sub-app rail + status filter + fulfillment chip) | ✅ Active |
+| `src/features/profile/OrderDetailsScreen.tsx` | Per-order details (status/item/meta + View Product) | ✅ Active |
+| `src/features/catalog/MasterCategoriesScreen.tsx` | Universal cross-sub-app category grid | ✅ Active |
+| `src/features/product/CommonProductDetailView.tsx` | Shared product detail view | ✅ Active |
+| `src/navigation/FoodStack.tsx` | Nested food stack (incl. RestaurantProfile) | ✅ Active |
 | `src/components/FaazioLogo.tsx` | Brand logo SVG component (shared) | ✅ Active |
 
 ---
@@ -589,6 +621,9 @@ These tabs render with empty-state messages:
 | 8 | PAYMENT: pay button green glow shadow `rgba(124,224,69,0.3)` when processing; Verified chip radius `ms(12)` bg `rgba(226,232,240,0.5)`; COD emoji `ms(20)`; method labels `ms(9)` + letterSpacing; SSL strip bg `rgba(236,253,245,0.5)` | `CartView.tsx` | ✅ Done | |
 | 9 | RECEIPT: success disc `ms(48)` bg `#EBFBE5` + shadow, CheckCircle `strokeWidth={2.5}`; ETA pill `#EBFBE5`/`#56B821`; Truck `size={ms(10)}` + `Animated.loop` opacity pulse; tracking dots `ms(10)` both `#56B821` w/ 2px white border + emerald ring, second dot pulsing; receipt rows → `<EnterpriseIcon variant="flat" size={ms(10)}>`; list `maxHeight: vs(120)`; footer btns `Math.max(40, vs(40))`, Go-to-Hub shadow | `CartView.tsx` | ✅ Done | |
 | 10 | Cleanup + gate: removed `Dimensions`/`SCREEN_WIDTH`; added `export { getAppLabel }`; `tsc --noEmit` | All files | ✅ Done | 0 errors |
+| 11 | Deliver vs Self-Pickup toggle: `FulfillmentMode` state in `CartView`; segmented toggle on ADDRESS step (Deliver / Self Pickup); pickup-point radio cards + contact row (from `@data/cart/pickup-points` + `userProfile.phone`); `computeTotals` zeroes delivery fee for PICKUP; PaymentOptionsScreen/DeliveryInfoCard pickup variant; RECEIPT "Pickup From" + packed→ready timeline; `MyOrder.fulfillment` drives My Orders Delivery/Self-Pickup chip | `CartView.tsx`, `utils.ts`, `payment/*`, `MyOrdersScreen.tsx`, `@data/*` | ✅ Done | 0 errors (ts:check + check:boundaries) |
+| 12 | Minimal My Orders cards → Order Details → View Product → Product Detail: order fixtures aligned to real products (`productId`); `getMyOrderById` + `getProductById` helpers; card reduced to date + status pill, one-line item, `View Details` now navigates; new `OrderDetailsScreen` (status/item/order-meta + View Product via `getProductById`, hidden on miss) | `MyOrdersScreen.tsx`, `OrderDetailsScreen.tsx`, `nav/types.ts`, `AppNavigator.tsx`, `data/account/orders.ts`, `data/catalog/products.ts`, `data/checkout/orders.ts` | ✅ Done | 0 errors (ts:check + check:boundaries) |
+| 13 | Store-backed Self-Pickup (no more Faazio hub): `StoreProfile` gains `address`/`phone`/`hours`; all 15 MART/FOOD stores get pickup data; new GROCERY/PHARMA stores (`groceryStores`/`pharmaStores`); products linked to stores via `Product.storeId`; `getPickupPointsForItems` returns **one point per distinct store** (neutral hub fallback); `CartView` Self-Pickup lists derived points | `data/cart/pickup-resolver.ts`, `data/mart/stores.ts`, `data/food/stores.ts`, `data/grocery/stores.ts`, `data/pharma/stores.ts`, `data/directory/stores.ts`, `data/mart/products.ts`, `data/food/products.ts`, `data/types.ts`, `CartView.tsx` | ✅ Done | 0 errors (ts:check + check:boundaries) |
 
 **Accepted deltas:** no step fade-in entrance (instant swap; RN screen-level transition later if wanted); no hover states (`activeOpacity`); CSS spin → `ActivityIndicator`; inner shadow → light border + tint; active-scale → `activeOpacity 0.85`.
 

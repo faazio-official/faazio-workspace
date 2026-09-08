@@ -1,4 +1,4 @@
-import React, { useCallback, useState } from 'react';
+import React, { useCallback, useMemo, useState } from 'react';
 import {
   StyleSheet,
   View,
@@ -11,15 +11,19 @@ import {
   Settings,
   ChevronLeft,
   SlidersHorizontal,
-  ChevronDown,
-  MoreVertical,
+  PackageOpen,
+  X,
 } from 'lucide-react-native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import AppText from '@/components/AppText';
 import { hs, vs, ms } from '@/utils/responsive';
-import { myOrders, myOrdersTabs } from '@data/index';
-import type { MyOrder, OrderStatus, MyOrdersTab } from '@data/types';
+import { myOrders } from '@data/index';
+import type { MyOrder, OrderStatus, MyOrdersStatusFilter } from '@data/types';
+import type { AppBrand } from '@data/types';
 import type { RootStackParamList } from '@/navigation/types';
+import MyOrdersAppRail from './MyOrdersAppRail';
+import type { AppFilter } from './MyOrdersAppRail';
+import MyOrdersFilterSheet from './MyOrdersFilterSheet';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'MyOrders'>;
 
@@ -29,19 +33,24 @@ const STATUS_COLORS: Record<OrderStatus, string> = {
   Delivered: '#16A34A',
   Shipped: '#2563EB',
   Processing: '#D97706',
+  Cancelled: '#EF4444',
 };
 
 const STATUS_BADGE_BG: Record<OrderStatus, string> = {
   Delivered: '#DCFCE7',
   Shipped: '#DBEAFE',
   Processing: '#FEF3C7',
+  Cancelled: '#FEE2E2',
 };
 
 export function MyOrdersScreen({ navigation, route }: Props) {
   const insets = useSafeAreaInsets();
-  const [activeTab, setActiveTab] = useState<MyOrdersTab>(
+  const [activeApp, setActiveApp] = useState<AppFilter>('ALL');
+  const [statusFilter, setStatusFilter] = useState<MyOrdersStatusFilter>(
     route.params?.initialTab ?? 'All Orders',
   );
+  const [filterSheetVisible, setFilterSheetVisible] = useState(false);
+  const [stagedStatus, setStagedStatus] = useState<MyOrdersStatusFilter>(statusFilter);
 
   const handleBack = useCallback(() => navigation.goBack(), [navigation]);
   const handleNotificationPress = useCallback(() => {
@@ -51,10 +60,72 @@ export function MyOrdersScreen({ navigation, route }: Props) {
     // TODO: Settings screen — no-op placeholder (no target screen yet).
   }, []);
 
-  const visibleOrders: MyOrder[] =
-    activeTab === 'All Orders'
-      ? myOrders
-      : myOrders.filter((o) => o.status === activeTab);
+  const handleOpenFilter = useCallback(() => {
+    setStagedStatus(statusFilter);
+    setFilterSheetVisible(true);
+  }, [statusFilter]);
+
+  const handleSelectStatus = useCallback((s: MyOrdersStatusFilter) => {
+    setStagedStatus(s);
+  }, []);
+
+  const handleClear = useCallback(() => {
+    setStagedStatus('All Orders');
+  }, []);
+
+  const handleApply = useCallback(() => {
+    setStatusFilter(stagedStatus);
+    setFilterSheetVisible(false);
+  }, [stagedStatus]);
+
+  const handleCloseSheet = useCallback(() => {
+    setFilterSheetVisible(false);
+  }, []);
+
+  const appCounts = useMemo(() => {
+    const counts: Record<string, number> = { ALL: myOrders.length };
+    for (const o of myOrders) {
+      counts[o.app] = (counts[o.app] ?? 0) + 1;
+    }
+    return counts;
+  }, []);
+
+  const statusCounts = useMemo(() => {
+    const inApp = myOrders.filter((o) => activeApp === 'ALL' || o.app === activeApp);
+    const counts: Record<string, number> = {
+      'All Orders': inApp.length,
+      Processing: 0,
+      Shipped: 0,
+      Delivered: 0,
+      Cancelled: 0,
+    };
+    for (const o of inApp) {
+      counts[o.status] = (counts[o.status] ?? 0) + 1;
+    }
+    return counts;
+  }, [activeApp]);
+
+  const visibleOrders = useMemo(
+    () =>
+      myOrders.filter(
+        (o) =>
+          (activeApp === 'ALL' || o.app === activeApp) &&
+          (statusFilter === 'All Orders' || o.status === statusFilter),
+      ),
+    [activeApp, statusFilter],
+  );
+
+  const hasActiveStatus = statusFilter !== 'All Orders';
+
+  const handleClearFilters = useCallback(() => {
+    setActiveApp('ALL');
+    setStatusFilter('All Orders');
+  }, []);
+
+  const handleOpenOrder = useCallback(
+    (orderId: string) => navigation.navigate('OrderDetails', { orderId }),
+    [navigation],
+  );
 
   return (
     <View style={styles.container}>
@@ -103,104 +174,132 @@ export function MyOrdersScreen({ navigation, route }: Props) {
           </View>
         </View>
 
-        {/* 2. Status Tabs */}
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          style={styles.tabScroll}
-          contentContainerStyle={styles.tabScrollContent}
-        >
-          {myOrdersTabs.map((tab) => {
-            const isActive = activeTab === tab.name;
-            return (
-              <TouchableOpacity
-                key={tab.name}
-                onPress={() => setActiveTab(tab.name)}
-                style={[styles.tabItem, isActive && styles.tabItemActive]}
-                activeOpacity={0.7}
-                accessibilityRole="button"
-                accessibilityState={{ selected: isActive }}
-              >
-                <AppText style={[styles.tabText, isActive ? styles.tabTextActive : styles.tabTextInactive]}>
-                  {tab.name}
-                </AppText>
-                <View style={[styles.tabBadge, isActive ? styles.tabBadgeActive : styles.tabBadgeInactive]}>
-                  <AppText style={[styles.tabBadgeText, isActive ? styles.tabBadgeTextActive : styles.tabBadgeTextInactive]}>
-                    {tab.count}
-                  </AppText>
-                </View>
-              </TouchableOpacity>
-            );
-          })}
-        </ScrollView>
+        {/* 2. Sub-app rail */}
+        <MyOrdersAppRail activeApp={activeApp} counts={appCounts} onSelect={setActiveApp} />
 
-        {/* 3. Sort & Filter Bar */}
-        <View style={styles.sortFilterBar}>
-          <TouchableOpacity style={styles.sortLeft} activeOpacity={0.7} accessibilityRole="button">
-            <AppText style={styles.sortLabel}>Sort by</AppText>
-            <AppText style={styles.sortValue}>Latest</AppText>
-            <ChevronDown size={ms(14)} color="#111827" strokeWidth={2.4} />
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.filterRight} activeOpacity={0.7} accessibilityRole="button">
+        {/* 3. Filter bar */}
+        <View style={styles.filterBar}>
+          {hasActiveStatus ? (
+            <TouchableOpacity
+              onPress={handleClearFilters}
+              style={styles.statusChip}
+              activeOpacity={0.7}
+              accessibilityRole="button"
+              accessibilityLabel={`Clear ${statusFilter} filter`}
+            >
+              <AppText style={styles.statusChipText}>{statusFilter}</AppText>
+              <X size={ms(13)} color="#16A34A" strokeWidth={2.4} />
+            </TouchableOpacity>
+          ) : (
+            <AppText style={styles.summaryText}>
+              Showing {visibleOrders.length} {visibleOrders.length === 1 ? 'order' : 'orders'}
+            </AppText>
+          )}
+          <TouchableOpacity
+            onPress={handleOpenFilter}
+            style={styles.filterBtn}
+            activeOpacity={0.7}
+            accessibilityRole="button"
+            accessibilityLabel="Filter orders"
+          >
             <SlidersHorizontal size={ms(15)} color="#374151" strokeWidth={2.2} />
             <AppText style={styles.filterText}>Filter</AppText>
+            {hasActiveStatus ? <View style={styles.filterActiveDot} /> : null}
           </TouchableOpacity>
         </View>
 
-        {/* 4. Order Cards */}
-        <View style={styles.list}>
-          {visibleOrders.map((order) => (
-            <View key={order.id} style={styles.orderCard}>
-              {/* Card Header */}
-              <View style={styles.cardHeader}>
-                <View style={styles.cardHeaderText}>
-                  <AppText style={styles.orderIdLabel}>
-                    Order ID: <AppText style={styles.orderIdValue}>{order.orderNumber}</AppText>
-                  </AppText>
+        {/* 4. Order Cards / Empty State */}
+        {visibleOrders.length === 0 ? (
+          <View style={styles.emptyState}>
+            <View style={styles.emptyIconBox}>
+              <PackageOpen size={ms(34)} color="#9CA3AF" strokeWidth={2} />
+            </View>
+            <AppText style={styles.emptyTitle}>No orders here yet</AppText>
+            <AppText style={styles.emptySubtitle}>
+              Try a different sub-app or clear your filters.
+            </AppText>
+            <TouchableOpacity
+              onPress={handleClearFilters}
+              style={styles.emptyBtn}
+              activeOpacity={0.85}
+              accessibilityRole="button"
+            >
+              <AppText style={styles.emptyBtnText}>Clear filters</AppText>
+            </TouchableOpacity>
+          </View>
+        ) : (
+          <View style={styles.list}>
+            {visibleOrders.map((order) => (
+              <TouchableOpacity
+                key={order.id}
+                style={styles.orderCard}
+                activeOpacity={0.9}
+                onPress={() => handleOpenOrder(order.id)}
+                accessibilityRole="button"
+                accessibilityLabel={`Open order ${order.orderNumber}`}
+              >
+                {/* Card Header — date + status pills */}
+                <View style={styles.cardHeader}>
                   <AppText style={styles.orderDate}>{order.orderDateTime}</AppText>
+                  <View style={styles.headerPills}>
+                    <View style={[styles.statusPill, { backgroundColor: STATUS_BADGE_BG[order.status] }]}>
+                      <AppText style={[styles.statusText, { color: STATUS_COLORS[order.status] }]}>
+                        {order.status}
+                      </AppText>
+                    </View>
+                    {order.fulfillment === 'PICKUP' ? (
+                      <View style={[styles.fulfillmentPill, styles.fulfillmentPillPickup]}>
+                        <AppText style={[styles.fulfillmentPillText, styles.fulfillmentPillTextPickup]}>Self Pickup</AppText>
+                      </View>
+                    ) : (
+                      <View style={[styles.fulfillmentPill, styles.fulfillmentPillDelivery]}>
+                        <AppText style={[styles.fulfillmentPillText, styles.fulfillmentPillTextDelivery]}>Delivery</AppText>
+                      </View>
+                    )}
+                  </View>
                 </View>
-                <TouchableOpacity
-                  style={styles.menuBtn}
-                  activeOpacity={0.7}
-                  accessibilityRole="button"
-                  accessibilityLabel="Order options"
-                >
-                  <MoreVertical size={ms(18)} color="#6B7280" strokeWidth={2.2} />
-                </TouchableOpacity>
-              </View>
 
-              {/* Card Body */}
-              <View style={styles.cardBody}>
-                <View style={styles.productImagePlaceholder}>
-                  <AppText style={styles.productEmoji}>{order.emoji}</AppText>
-                </View>
-                <View style={styles.productInfo}>
-                  <AppText style={styles.productName} numberOfLines={2}>{order.productName}</AppText>
-                  <AppText style={styles.productVariant} numberOfLines={2}>{order.variant}</AppText>
-                  <AppText style={styles.productQty}>Qty: {order.qty}</AppText>
-                </View>
-                <View style={styles.priceStatusInfo}>
-                  <AppText style={styles.priceText}>₹{order.price}</AppText>
-                  <View style={[styles.statusPill, { backgroundColor: STATUS_BADGE_BG[order.status] }]}>
-                    <AppText style={[styles.statusText, { color: STATUS_COLORS[order.status] }]}>
-                      {order.status}
+                {/* Card Body */}
+                <View style={styles.cardBody}>
+                  <View style={styles.productImagePlaceholder}>
+                    <AppText style={styles.productEmoji}>{order.emoji}</AppText>
+                  </View>
+                  <View style={styles.productInfo}>
+                    <AppText style={styles.productName} numberOfLines={1}>{order.productName}</AppText>
+                    <AppText style={styles.productMeta} numberOfLines={1}>
+                      {order.variant} • Qty {order.qty}
                     </AppText>
                   </View>
-                  <AppText style={styles.statusDate}>{order.statusDate}</AppText>
+                  <AppText style={styles.priceText}>₹{order.price}</AppText>
                 </View>
-              </View>
 
-              {/* Card Footer */}
-              <View style={styles.cardFooter}>
-                <TouchableOpacity style={styles.viewDetailsBtn} activeOpacity={0.7} accessibilityRole="button">
-                  <AppText style={styles.viewDetailsText}>View Details &gt;</AppText>
-                </TouchableOpacity>
-              </View>
-            </View>
-          ))}
-          <View style={styles.listBottomSpacer} />
-        </View>
+                {/* Card Footer */}
+                <View style={styles.cardFooter}>
+                  <TouchableOpacity
+                    style={styles.viewDetailsBtn}
+                    activeOpacity={0.7}
+                    accessibilityRole="button"
+                    onPress={() => handleOpenOrder(order.id)}
+                  >
+                    <AppText style={styles.viewDetailsText}>View Details &gt;</AppText>
+                  </TouchableOpacity>
+                </View>
+              </TouchableOpacity>
+            ))}
+            <View style={styles.listBottomSpacer} />
+          </View>
+        )}
       </ScrollView>
+
+      <MyOrdersFilterSheet
+        visible={filterSheetVisible}
+        staged={stagedStatus}
+        counts={statusCounts}
+        onSelectStatus={handleSelectStatus}
+        onClear={handleClear}
+        onApply={handleApply}
+        onClose={handleCloseSheet}
+      />
     </View>
   );
 }
@@ -274,91 +373,92 @@ const styles = StyleSheet.create({
     fontWeight: '900',
   },
 
-  /* Tabs */
-  tabScroll: {
-    backgroundColor: '#FFFFFF',
-    flexGrow: 0,
-    borderBottomWidth: 1,
-    borderBottomColor: '#F3F4F6',
-  },
-  tabScrollContent: {
-    paddingHorizontal: hs(8),
-  },
-  tabItem: {
-    alignItems: 'center',
-    paddingVertical: vs(12),
-    paddingHorizontal: hs(14),
-    borderBottomWidth: 2,
-    borderBottomColor: 'transparent',
-  },
-  tabItemActive: {
-    borderBottomColor: '#16A34A',
-  },
-  tabText: {
-    fontSize: ms(13),
-    fontWeight: '600',
-    marginBottom: vs(6),
-  },
-  tabTextActive: {
-    color: '#16A34A',
-  },
-  tabTextInactive: {
-    color: '#6B7280',
-  },
-  tabBadge: {
-    paddingHorizontal: hs(8),
-    paddingVertical: vs(2),
-    borderRadius: ms(10),
-  },
-  tabBadgeActive: {
-    backgroundColor: '#DCFCE7',
-  },
-  tabBadgeInactive: {
-    backgroundColor: '#F3F4F6',
-  },
-  tabBadgeText: {
-    fontSize: ms(10),
-    fontWeight: '700',
-  },
-  tabBadgeTextActive: {
-    color: '#16A34A',
-  },
-  tabBadgeTextInactive: {
-    color: '#9CA3AF',
-  },
-
-  /* Sort & Filter Bar */
-  sortFilterBar: {
+  /* Filter bar */
+  filterBar: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
     paddingHorizontal: hs(16),
     paddingVertical: vs(12),
   },
-  sortLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  sortLabel: {
+  summaryText: {
     fontSize: ms(13),
     color: '#6B7280',
-    marginRight: hs(4),
   },
-  sortValue: {
-    fontSize: ms(13),
+  statusChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: hs(6),
+    paddingVertical: vs(5),
+    paddingHorizontal: hs(10),
+    borderRadius: ms(14),
+    backgroundColor: '#DCFCE7',
+  },
+  statusChipText: {
+    fontSize: ms(12),
     fontWeight: '700',
-    color: '#111827',
-    marginRight: hs(2),
+    color: '#16A34A',
   },
-  filterRight: {
+  filterBtn: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: hs(4),
+    position: 'relative',
   },
   filterText: {
     fontSize: ms(13),
     fontWeight: '600',
     color: '#374151',
+  },
+  filterActiveDot: {
+    position: 'absolute',
+    top: vs(-2),
+    right: hs(-3),
+    width: ms(8),
+    height: ms(8),
+    borderRadius: ms(4),
+    backgroundColor: '#16A34A',
+  },
+
+  /* Empty state */
+  emptyState: {
+    alignItems: 'center',
+    paddingTop: vs(56),
+    paddingHorizontal: hs(32),
+  },
+  emptyIconBox: {
+    width: ms(72),
+    height: ms(72),
+    borderRadius: ms(36),
+    backgroundColor: '#F3F4F6',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: vs(16),
+  },
+  emptyTitle: {
+    fontSize: ms(16),
+    fontWeight: '800',
+    color: '#111827',
+    marginBottom: vs(6),
+  },
+  emptySubtitle: {
+    fontSize: ms(13),
+    color: '#6B7280',
+    textAlign: 'center',
+    marginBottom: vs(20),
+  },
+  emptyBtn: {
+    paddingVertical: vs(10),
+    paddingHorizontal: hs(20),
+    borderRadius: ms(10),
+    borderWidth: 1,
+    borderColor: '#16A34A',
+    backgroundColor: '#FFFFFF',
+  },
+  emptyBtnText: {
+    fontSize: ms(13),
+    fontWeight: '700',
+    color: '#16A34A',
   },
 
   /* List */
@@ -379,28 +479,19 @@ const styles = StyleSheet.create({
   cardHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    alignItems: 'flex-start',
+    alignItems: 'center',
     marginBottom: vs(12),
-  },
-  cardHeaderText: {
-    flex: 1,
-    paddingRight: hs(8),
-  },
-  orderIdLabel: {
-    fontSize: ms(13),
-    color: '#4B5563',
-    marginBottom: vs(2),
-  },
-  orderIdValue: {
-    fontWeight: '700',
-    color: '#111827',
   },
   orderDate: {
     fontSize: ms(12),
-    color: '#9CA3AF',
+    color: '#6B7280',
+    flexShrink: 1,
   },
-  menuBtn: {
-    padding: hs(2),
+  headerPills: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: hs(6),
+    marginLeft: hs(8),
   },
 
   /* Card Body */
@@ -428,42 +519,47 @@ const styles = StyleSheet.create({
     fontSize: ms(13),
     fontWeight: '700',
     color: '#111827',
-    marginBottom: vs(4),
+    marginBottom: vs(3),
   },
-  productVariant: {
+  productMeta: {
     fontSize: ms(12),
     color: '#6B7280',
-    marginBottom: vs(4),
-  },
-  productQty: {
-    fontSize: ms(12),
-    color: '#6B7280',
-  },
-  priceStatusInfo: {
-    alignItems: 'flex-end',
-    minWidth: hs(80),
   },
   priceText: {
-    fontSize: ms(16),
+    fontSize: ms(15),
     fontWeight: '700',
     color: '#111827',
-    marginBottom: vs(4),
+    alignSelf: 'flex-start',
   },
   statusPill: {
     paddingHorizontal: hs(8),
     paddingVertical: vs(2),
     borderRadius: ms(6),
-    marginBottom: vs(2),
   },
   statusText: {
     fontSize: ms(11),
     fontWeight: '700',
   },
-  statusDate: {
+  fulfillmentPill: {
+    paddingHorizontal: hs(8),
+    paddingVertical: vs(2),
+    borderRadius: ms(6),
+  },
+  fulfillmentPillDelivery: {
+    backgroundColor: '#F3F4F6',
+  },
+  fulfillmentPillPickup: {
+    backgroundColor: '#EEF2FF',
+  },
+  fulfillmentPillText: {
     fontSize: ms(10),
-    color: '#9CA3AF',
-    textAlign: 'right',
-    lineHeight: vs(13),
+    fontWeight: '700',
+  },
+  fulfillmentPillTextDelivery: {
+    color: '#6B7280',
+  },
+  fulfillmentPillTextPickup: {
+    color: '#4F46E5',
   },
 
   /* Card Footer */

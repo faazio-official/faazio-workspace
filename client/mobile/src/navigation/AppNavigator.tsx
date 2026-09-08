@@ -18,6 +18,8 @@ import { MasterCategoriesScreen } from '@/features/catalog/MasterCategoriesScree
 import { UserDetailsScreen } from '@/features/profile/UserDetailsScreen';
 import { SavedAddressesScreen } from '@/features/profile/SavedAddressesScreen';
 import { MyOrdersScreen } from '@/features/profile/MyOrdersScreen';
+import { OrderDetailsScreen } from '@/features/profile/OrderDetailsScreen';
+import { YouScreen } from '@/features/profile/YouScreen';
 import { useAuthStore } from '@/state/authStore';
 
 export type { RootStackParamList, MainTabParamList } from './types';
@@ -70,6 +72,11 @@ export function AppNavigator() {
             options={{ animation: 'fade', animationDuration: 180 }}
           />
           <Stack.Screen
+            name="You"
+            component={YouScreen}
+            options={{ animation: 'fade', animationDuration: 180 }}
+          />
+          <Stack.Screen
             name="PaymentOptions"
             component={PaymentOptionsScreen}
             options={{ animation: 'fade', animationDuration: 180 }}
@@ -87,6 +94,11 @@ export function AppNavigator() {
           <Stack.Screen
             name="MyOrders"
             component={MyOrdersScreen}
+            options={{ animation: 'fade', animationDuration: 180 }}
+          />
+          <Stack.Screen
+            name="OrderDetails"
+            component={OrderDetailsScreen}
             options={{ animation: 'fade', animationDuration: 180 }}
           />
         </Stack.Navigator>

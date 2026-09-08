@@ -112,6 +112,10 @@ export function FoodHomeScreen({ navigation }: Props) {
     navigation.getParent<NativeStackNavigationProp<RootStackParamList>>()?.navigate('Cart');
   }, [navigation]);
 
+  const openYou = useCallback(() => {
+    navigation.getParent<NativeStackNavigationProp<RootStackParamList>>()?.navigate('You');
+  }, [navigation]);
+
   const requestExit = useCallback(() => setExitOpen(true), []);
   const cancelExit = useCallback(() => setExitOpen(false), []);
   const confirmExit = useCallback(() => {
@@ -161,7 +165,7 @@ export function FoodHomeScreen({ navigation }: Props) {
       <View style={styles.container}>
         <FoodHeader onBack={requestExit} />
         <LoadingSkeleton />
-        <FoodBottomNav activeTab={activeTab} onChange={handleTabChange} onCartPress={openCart} />
+        <FoodBottomNav activeTab={activeTab} onChange={handleTabChange} onCartPress={openCart} onYouPress={openYou} />
         <ExitConfirmModal visible={exitOpen} onKeepExploring={cancelExit} onExit={confirmExit} />
       </View>
     );
@@ -181,7 +185,7 @@ export function FoodHomeScreen({ navigation }: Props) {
         bounces={false}
       />
       <FoodStatusBarStrip scrollY={scrollY} />
-      <FoodBottomNav activeTab={activeTab} onChange={handleTabChange} onCartPress={openCart} />
+      <FoodBottomNav activeTab={activeTab} onChange={handleTabChange} onCartPress={openCart} onYouPress={openYou} />
       <ExitConfirmModal visible={exitOpen} onKeepExploring={cancelExit} onExit={confirmExit} />
     </View>
   );

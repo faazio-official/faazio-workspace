@@ -1,6 +1,6 @@
 import React, { memo } from 'react';
 import { View, TouchableOpacity, StyleSheet } from 'react-native';
-import { Home, Search, UtensilsCrossed, ShoppingBag, ShoppingCart } from 'lucide-react-native';
+import { Home, Search, UtensilsCrossed, ShoppingBag, ShoppingCart, User } from 'lucide-react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import AppText from '@/components/AppText';
 import { hs, ms, vs } from '@/utils/responsive';
@@ -20,17 +20,20 @@ interface FoodBottomNavProps {
   activeTab: FoodTab;
   onChange: (tab: FoodTab) => void;
   onCartPress?: () => void;
+  onYouPress?: () => void;
 }
 
 /**
  * Section 7 — fixed bottom navigation. 4 tabs (Home / Search / Dining /
  * FoodOrder), icon over text, active tab tinted with the brand color, plus a
- * dedicated Cart item (with a count badge) that opens the root Cart page.
+ * dedicated Cart item (with a count badge) that opens the root Cart page, and
+ * a "You" item (left of Cart) that pushes the root "You" account page.
  */
 const FoodBottomNav = memo(function FoodBottomNav({
   activeTab,
   onChange,
   onCartPress,
+  onYouPress,
 }: FoodBottomNavProps) {
   const insets = useSafeAreaInsets();
   const cartCount = useCartStore((s) =>
@@ -58,6 +61,17 @@ const FoodBottomNav = memo(function FoodBottomNav({
           </TouchableOpacity>
         );
       })}
+
+      <TouchableOpacity
+        style={styles.item}
+        onPress={onYouPress}
+        activeOpacity={0.75}
+        accessibilityRole="button"
+        accessibilityLabel="You"
+      >
+        <User size={ms(22)} color={foodTheme.textMuted} strokeWidth={2} />
+        <AppText style={styles.label}>You</AppText>
+      </TouchableOpacity>
 
       <TouchableOpacity
         style={styles.item}

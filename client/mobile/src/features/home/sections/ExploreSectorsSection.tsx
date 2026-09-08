@@ -1,25 +1,11 @@
 import React, { memo } from 'react';
 import { View, TouchableOpacity, StyleSheet } from 'react-native';
-import { ShoppingCart, UtensilsCrossed, Carrot, Pill } from 'lucide-react-native';
 import { hs, vs, ms } from '@/utils/responsive';
 import { portalSectors } from '@data/home/rails';
 import { subAppIdFor } from './common';
 import type { SectionProps } from './common';
-import type { AppBrand } from '@data/types';
+import { SECTOR_VISUALS } from '@/theme/sectorVisuals';
 import AppText from '@/components/AppText';
-
-interface SectorVisual {
-  Icon: React.ComponentType<{ size?: number; color?: string; strokeWidth?: number; fill?: string }>;
-  fill: string;
-  iconColor: string;
-}
-
-const SECTOR_VISUALS: Record<AppBrand, SectorVisual> = {
-  MART: { Icon: ShoppingCart, fill: '#FEF9E7', iconColor: '#F59E0B' },
-  FOOD: { Icon: UtensilsCrossed, fill: '#FFF4E6', iconColor: '#F97316' },
-  GROCERY: { Icon: Carrot, fill: '#EAFBF1', iconColor: '#22C55E' },
-  PHARMA: { Icon: Pill, fill: '#E8FBF8', iconColor: '#14B8A6' },
-};
 
 function ExploreSectorsSection({ onLaunchSubApp }: SectionProps) {
   return (

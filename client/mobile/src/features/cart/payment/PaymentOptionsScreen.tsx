@@ -14,6 +14,8 @@ import CvvPayBar from './components/CvvPayBar';
 import { computeTotals } from '../utils';
 import { BRAND } from './constants';
 import { DEFAULT_CARD, OTHER_CARDS, SAVED_UPIS, MORE_OPTIONS } from './paymentData';
+import type { FulfillmentMode, PickupPoint } from '@data/types';
+import { userProfile } from '@data/account/profile';
 
 export interface PaymentOptionsScreenProps {
   /** Items in the cart. Defaults to the shared cart store. */
@@ -24,6 +26,12 @@ export interface PaymentOptionsScreenProps {
   deliveryAddress?: { label: string; address: string };
   /** Origin store name for the delivery timeline. */
   originLabel?: string;
+  /** Fulfillment mode for this checkout (delivery vs self-pickup). */
+  fulfillment?: FulfillmentMode;
+  /** Chosen pickup point — shown when fulfillment is PICKUP. */
+  pickup?: PickupPoint;
+  /** Contact phone for pickup (defaults to the signed-in user profile phone). */
+  contactPhone?: string;
   onBack?: () => void;
   onPlaceOrder?: () => void;
 }
@@ -39,6 +47,9 @@ export default function PaymentOptionsScreen({
   total: totalProp,
   deliveryAddress,
   originLabel = 'Instamart',
+  fulfillment = 'DELIVERY',
+  pickup,
+  contactPhone = userProfile.phone,
   onBack,
   onPlaceOrder,
 }: PaymentOptionsScreenProps) {
@@ -68,9 +79,12 @@ export default function PaymentOptionsScreen({
         <DeliveryInfoCard
           origin={originLabel}
           originAddress={address.address}
-          destination={address.label}
-          destinationAddress={address.address}
-          eta="10 mins"
+          destination={fulfillment === 'PICKUP' ? (pickup?.name ?? address.label) : address.label}
+          destinationAddress={fulfillment === 'PICKUP' ? (pickup?.address ?? address.address) : address.address}
+          eta={fulfillment === 'PICKUP' ? '15 mins' : '10 mins'}
+          fulfillment={fulfillment}
+          pickup={pickup}
+          contactPhone={contactPhone}
         />
 
         <PromoBanner />

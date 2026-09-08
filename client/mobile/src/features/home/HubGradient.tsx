@@ -24,7 +24,7 @@ export function HubGradient() {
 
 const styles = StyleSheet.create({
   wrap: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     borderBottomLeftRadius: ms(32),
     borderBottomRightRadius: ms(32),
     overflow: 'hidden',

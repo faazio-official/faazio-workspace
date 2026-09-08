@@ -1,12 +1,12 @@
 import type { NavigatorScreenParams } from '@react-navigation/native';
 import type { SubAppId } from '@/state/uiStore';
-import type { MyOrdersTab } from '@data/types';
+import type { MyOrdersStatusFilter } from '@data/types';
 
 export type MainTabParamList = {
   Home: undefined;
   Categories: undefined;
   Favourites: undefined;
-  Account: undefined;
+  You: undefined;
   Cart: undefined;
 };
 
@@ -31,6 +31,8 @@ export type RootStackParamList = {
   Search: { subApp: 'HOME' | SubAppId; initialQuery?: string; initialMode?: string };
   /** Central "Your Cart" checkout page, pushed from any app (back returns). */
   Cart: undefined;
+  /** "You" — account page, pushed from any app (back returns). */
+  You: undefined;
   /** Pixel-perfect payment method picker (preferred card, UPI, cards, more). */
   PaymentOptions: undefined;
   /** "Your Details" — personal info, preferences, security (pushed from Account). */
@@ -38,7 +40,9 @@ export type RootStackParamList = {
   /** "Saved Addresses" — manage, select, add delivery locations (pushed from Account). */
   SavedAddresses: undefined;
   /** "My Orders" — status tabs, sort/filter, and order cards (pushed from Account). */
-  MyOrders: { initialTab?: MyOrdersTab };
+  MyOrders: { initialTab?: MyOrdersStatusFilter } | undefined;
+  /** Per-order detail page, resolved by id from `@data` (pushed from My Orders). */
+  OrderDetails: { orderId: string };
 };
 
 export type FoodStackParamList = {

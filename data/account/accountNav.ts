@@ -8,6 +8,7 @@ export const accountNavGroups: AccountNavGroup[] = [
   {
     key: 'primary',
     rows: [
+      { key: 'orders', icon: 'package', title: 'My Orders', subtitle: 'Track and manage your orders' },
       { key: 'details', icon: 'idcard', title: 'Your Details', subtitle: 'Manage your personal information' },
       { key: 'addresses', icon: 'map-pin', title: 'Addresses', subtitle: 'Manage saved addresses' },
       { key: 'payments', icon: 'credit-card', title: 'Payments', subtitle: 'UPI, Cards, Wallets, Gift Cards' },

@@ -16,7 +16,7 @@ const TAB_COLORS: Record<keyof MainTabParamList, string> = {
   Home: '#2F80ED',
   Categories: '#27AE60',
   Favourites: '#FF4A6B',
-  Account: '#6C5CE7',
+  You: '#6C5CE7',
   Cart: '#F2994A',
 };
 
@@ -24,7 +24,7 @@ const TAB_LABELS: Record<keyof MainTabParamList, string> = {
   Home: 'Home',
   Categories: 'Categories',
   Favourites: 'Favourites',
-  Account: 'Account',
+  You: 'You',
   Cart: 'Cart',
 };
 
@@ -32,7 +32,7 @@ const TAB_ICONS: Record<keyof MainTabParamList, React.ComponentType<any>> = {
   Home,
   Categories: LayoutGrid,
   Favourites: Heart,
-  Account: User,
+  You: User,
   Cart: ShoppingBag,
 };
 
@@ -107,7 +107,7 @@ export function MainTabs() {
           <Tab.Screen name="Home" component={HomeTabScreen} />
           <Tab.Screen name="Categories" component={CategoriesTabScreen} />
           <Tab.Screen name="Favourites" component={FavouritesTabScreen} />
-          <Tab.Screen name="Account" component={AccountScreen} />
+          <Tab.Screen name="You" component={AccountScreen} />
         </Tab.Navigator>
       </Suspense>
     </View>

@@ -23,6 +23,11 @@ export interface Product {
    * the matched result set — never hand-mapped per keyword.
    */
   attributes?: Record<string, string | number | string[]>;
+  /**
+   * Id of the `StoreProfile` this product is sold by / picked up from.
+   * Drives store-backed self-pickup points at checkout.
+   */
+  storeId?: string;
 }
 
 export interface MartProduct extends Product {
@@ -58,6 +63,12 @@ export interface StoreProfile {
   desc: string;
   offerTag?: string;
   isVeg?: boolean;
+  /** Pickup address. Present → the store itself is a valid self-pickup point. */
+  address?: string;
+  /** Pickup contact phone for the store. */
+  phone?: string;
+  /** Pickup hours for the store. */
+  hours?: string;
 }
 
 /** Mart "Deals of the Day" product (owner: features/ecommerce). */
@@ -105,6 +116,23 @@ export interface Address {
   label: string;
   address: string;
   isDefault?: boolean;
+}
+
+/**
+ * How an order is fulfilled at checkout. Defaults to delivery; pickup waives the
+ * delivery fee and routes to a pickup point instead of a delivery address.
+ * Contract the future Go Chi backend will mirror.
+ */
+export type FulfillmentMode = 'DELIVERY' | 'PICKUP';
+
+/** A self-pickup location an order can be collected from (owner: features/cart). */
+export interface PickupPoint {
+  id: string;
+  name: string;
+  address: string;
+  phone: string;
+  hours: string;
+  isActive?: boolean;
 }
 
 /** Address tag pill shown on the "Saved Addresses" screen (owner: features/profile). */
@@ -174,10 +202,10 @@ export interface PastOrder {
 }
 
 /** Delivery status of an order shown on the My Orders screen. */
-export type OrderStatus = 'Delivered' | 'Shipped' | 'Processing';
+export type OrderStatus = 'Delivered' | 'Shipped' | 'Processing' | 'Cancelled';
 
-/** One tappable status tab on the My Orders screen (owner: features/profile). */
-export type MyOrdersTab =
+/** One tappable status filter on the My Orders screen (owner: features/profile). */
+export type MyOrdersStatusFilter =
   | 'All Orders'
   | 'Processing'
   | 'Shipped'
@@ -196,12 +224,20 @@ export interface MyOrder {
   status: OrderStatus;
   statusDate: string;
   emoji: string;
+  /** Sub-app the order belongs to (drives the My Orders sub-app rail). */
+  app: AppBrand;
+  /** Fulfillment mode. Absent = delivery (back-compat with existing fixtures). */
+  fulfillment?: FulfillmentMode;
+  /**
+   * Id of the real `Product` this order maps to (searched via `getProductById`).
+   * Absent = the order has no drill-in to a product detail page.
+   */
+  productId?: string;
 }
 
-/** Status tab definition with its order count (owner: features/profile). */
-export interface MyOrdersTabItem {
-  name: MyOrdersTab;
-  count: number;
+/** Status filter definition (labels only — counts are derived at runtime). */
+export interface MyOrdersStatusFilterItem {
+  name: MyOrdersStatusFilter;
 }
 
 /** Signed-in user profile (owner: features/profile / My Account). */

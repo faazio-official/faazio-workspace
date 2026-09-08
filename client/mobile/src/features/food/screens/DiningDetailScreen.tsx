@@ -37,6 +37,10 @@ export function DiningDetailScreen({ navigation, route }: Props) {
     navigation.getParent<NativeStackNavigationProp<RootStackParamList>>()?.navigate('Cart');
   }, [navigation]);
 
+  const openYou = useCallback(() => {
+    navigation.getParent<NativeStackNavigationProp<RootStackParamList>>()?.navigate('You');
+  }, [navigation]);
+
   const openDishProduct = useCallback(
     (dish: SpecialDish) => {
       navigation.getParent<NativeStackNavigationProp<RootStackParamList>>()?.navigate('ProductDetail', { product: dishToProduct(dish) });
@@ -69,7 +73,7 @@ export function DiningDetailScreen({ navigation, route }: Props) {
         onScroll={onScroll}
       />
       <FoodStatusBarStrip scrollY={scrollY} />
-      <FoodBottomNav activeTab="Dining" onChange={handleTabChange} onCartPress={openCart} />
+      <FoodBottomNav activeTab="Dining" onChange={handleTabChange} onCartPress={openCart} onYouPress={openYou} />
     </View>
   );
 }

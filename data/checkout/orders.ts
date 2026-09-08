@@ -3,7 +3,7 @@
  * account/orders, cart/addresses, account/addresses, cart/coupons into Users /
  * Orders / LineItems / Addresses / Coupons tables. See data/DATA_CONTROL.md.
  */
-import type { Coupon, Address, SavedAddress } from '../types';
+import type { Coupon, Address, SavedAddress, FulfillmentMode } from '../types';
 import { defaultAddresses } from '../cart/addresses';
 import { savedAddresses } from '../account/addresses';
 import { coupons as legacyCoupons } from '../cart/coupons';
@@ -89,6 +89,8 @@ export interface OrderRow {
   status: string;
   statusDate?: string;
   lineItems: OrderLineItem[];
+  /** Fulfillment mode. Absent = delivery. Mirrors `MyOrder.fulfillment`. */
+  fulfillment?: FulfillmentMode;
 }
 
 function fromMyOrder(o: (typeof myOrders)[number], idx: number): OrderRow {
@@ -103,6 +105,7 @@ function fromMyOrder(o: (typeof myOrders)[number], idx: number): OrderRow {
     lineItems: [
       {
         lineId: `${o.id}-l1`,
+        productId: o.productId,
         name: o.productName,
         variant: o.variant,
         qty: o.qty,
@@ -110,6 +113,7 @@ function fromMyOrder(o: (typeof myOrders)[number], idx: number): OrderRow {
         emoji: o.emoji,
       },
     ],
+    fulfillment: o.fulfillment,
   };
 }
 

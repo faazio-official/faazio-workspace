@@ -49,6 +49,10 @@ export function OrderDetailScreen({ navigation }: Props) {
     navigation.getParent<NativeStackNavigationProp<RootStackParamList>>()?.navigate('Cart');
   }, [navigation]);
 
+  const openYou = useCallback(() => {
+    navigation.getParent<NativeStackNavigationProp<RootStackParamList>>()?.navigate('You');
+  }, [navigation]);
+
   const openSearch = useCallback(
     (query?: string) => navigation.navigate('Search', query ? { initialQuery: query } : undefined),
     [navigation],
@@ -107,7 +111,7 @@ export function OrderDetailScreen({ navigation }: Props) {
         <SnacksRail snacks={SNACKS_BEVERAGES} />
       </ScrollView>
       <FoodStatusBarStrip scrollY={scrollY} />
-      <FoodBottomNav activeTab="FoodOrder" onChange={handleTabChange} onCartPress={openCart} />
+      <FoodBottomNav activeTab="FoodOrder" onChange={handleTabChange} onCartPress={openCart} onYouPress={openYou} />
     </View>
   );
 }

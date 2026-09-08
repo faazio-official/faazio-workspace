@@ -4,6 +4,7 @@ import { hs, vs, ms } from '@/utils/responsive';
 import AppText from '@/components/AppText';
 import { BRAND } from '../constants';
 import { DELIVERY_ORIGIN } from '../paymentData';
+import type { FulfillmentMode, PickupPoint } from '@data/types';
 
 interface DeliveryInfoCardProps {
   origin?: string;
@@ -11,12 +12,18 @@ interface DeliveryInfoCardProps {
   destination?: string;
   destinationAddress: string;
   eta: string;
+  /** Fulfillment mode. PICKUP renders a single pickup card instead of the timeline. */
+  fulfillment?: FulfillmentMode;
+  /** The chosen pickup point — required when fulfillment is PICKUP. */
+  pickup?: PickupPoint;
+  /** Contact phone shown on the pickup card (no fabricated PII — user profile). */
+  contactPhone?: string;
 }
 
 /**
- * White card with rounded bottom corners + subtle shadow. Renders a vertical
- * timeline: purple-outline origin dot, solid purple destination dot, with a
- * connecting line, plus a bottom "Delivery in: X" row.
+ * White card with rounded bottom corners + subtle shadow. For delivery it renders
+ * a vertical timeline (origin dot → destination dot + "Delivery in: X"). For
+ * self-pickup it collapses to a single "Pickup at" card with hours + contact.
  */
 export default function DeliveryInfoCard({
   origin = DELIVERY_ORIGIN,
@@ -24,7 +31,37 @@ export default function DeliveryInfoCard({
   destination,
   destinationAddress,
   eta,
+  fulfillment = 'DELIVERY',
+  pickup,
+  contactPhone,
 }: DeliveryInfoCardProps) {
+  if (fulfillment === 'PICKUP') {
+    return (
+      <View style={styles.card}>
+        <TimelineRow
+          label={pickup?.name ?? destination ?? 'Pickup point'}
+          address={pickup?.address ?? destinationAddress}
+          dot={<View style={styles.destDot} />}
+          last
+        />
+        {pickup ? (
+          <View style={styles.pickupMeta}>
+            {pickup.hours ? (
+              <AppText style={styles.pickupMetaText}>Open {pickup.hours}</AppText>
+            ) : null}
+            {contactPhone ? (
+              <AppText style={styles.pickupMetaText}>Pickup contact: {contactPhone}</AppText>
+            ) : null}
+          </View>
+        ) : null}
+        <View style={styles.etaRow}>
+          <AppText style={styles.etaLabel}>Ready for pickup in: </AppText>
+          <AppText style={styles.etaValue}>{eta}</AppText>
+        </View>
+      </View>
+    );
+  }
+
   return (
     <View style={styles.card}>
       <TimelineRow
@@ -123,6 +160,16 @@ const styles = StyleSheet.create({
   textCol: {
     flex: 1,
     paddingBottom: vs(14),
+  },
+  pickupMeta: {
+    marginTop: vs(2),
+    gap: vs(4),
+    paddingBottom: vs(14),
+  },
+  pickupMetaText: {
+    fontSize: ms(11),
+    color: '#6B7280',
+    fontWeight: '600',
   },
   label: {
     fontSize: ms(14),

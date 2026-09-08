@@ -1,2 +1,2 @@
-export type TabName = 'Home' | 'Categories' | 'Favourites' | 'Account' | 'Cart';
+export type TabName = 'Home' | 'Categories' | 'Favourites' | 'You' | 'Cart';
 export type SubAppId = 'FA_MART' | 'FOOD' | 'GROCERY' | 'PHARMA';

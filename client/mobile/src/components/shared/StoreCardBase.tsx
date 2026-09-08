@@ -120,7 +120,7 @@ const styles = StyleSheet.create({
   },
   coverWrap: { aspectRatio: 4 / 3, position: 'relative', padding: hs(8) },
   vendorCoverWrap: { height: vs(120), position: 'relative', justifyContent: 'flex-end', padding: hs(12) },
-  cover: { ...StyleSheet.absoluteFillObject, width: '100%', height: '100%', resizeMode: 'cover', borderRadius: ms(12) },
+  cover: { ...StyleSheet.absoluteFill, width: '100%', height: '100%', resizeMode: 'cover', borderRadius: ms(12) },
   gradientOverlay: { position: 'absolute', bottom: 0, left: 0, right: 0, height: '60%', opacity: 0.8 },
   emojiCircle: {
     width: ms(36), height: ms(36), borderRadius: ms(18), backgroundColor: '#ffffff',
