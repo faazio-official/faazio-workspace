@@ -5,7 +5,6 @@
 ## Runtime boundaries (what is live vs frozen vs planned)
 | Surface | Stack | Status |
 |---|---|---|
-| `(root)` Vite web app | React + Vite | **FROZEN reference.** Old UI reference. Never edit, lint, typecheck, or build. |
 | `client/mobile/` | React Native (Expo SDK 54) + TypeScript + Zustand | **LIVE.** All active work. |
 | `data/` | Typed entity arrays (SDUI source of truth) | **LIVE (enterprise-controlled).** Read-only for the app; consumed via `@data/*`. |
 | `server/` | Go Chi SDUI backend | **PLANNED.** Placeholder directory only. |

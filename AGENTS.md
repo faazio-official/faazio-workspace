@@ -9,7 +9,7 @@ Build **lightweight, fast, secure**. Every change must justify its size:
 ## Repo map
 ```
 faazio-workspace/
-├── (root)          Vite web app — FROZEN reference. Do NOT edit, lint, typecheck, or build it.
+├── (root)          Repo root — docs only (AGENTS.md, ARCHITECTURE.md, LICENSE, PAGE_CATALOG.md).
 ├── client/mobile/  React Native (Expo) SuperApp — ALL active work lives here.
 ├── server/         Go Chi SDUI backend — future. Placeholder only.
 └── data/           SDUI source of truth (enterprise-controlled), consumed via @data/*.
@@ -17,16 +17,15 @@ faazio-workspace/
 See `ARCHITECTURE.md` (root) for the full mobile + future-Chi design. Data ownership lives in `data/DATA_CONTROL.md`.
 
 ## Hard rules
-1. **Vite web app at root is frozen.** Never touch `src/`, `vite.config.ts`, `tsconfig.json`, `index.html`, `root package.json`.
-2. **Wait for user intent.** Do NOT build screens/pages until explicitly requested.
-3. **Imports** — `@/` → `client/mobile/src/`, `@data/` → root `data/`.
-4. **State** — shared state ONLY in Zustand stores under `src/state/`. Keep components presentational; read via selectors. No duplicate shared state.
-5. **Modularity** — small components under `src/components/`; screen helpers under their `src/features/<module>/`; shared widgets under `src/components/shared/`. Reuse before duplicating (avoid parallel mock copies).
-6. **Navigation** — all routes typed in `src/navigation/AppNavigator.tsx`; screens use `NativeStackScreenProps`.
-7. **Native permissions** — document in `app.json` (`ios.infoPlist`/`android.permissions`) and gate with consent dialogs before hardware.
-8. **Brand** — always use the Faazio logo (`<FaazioLogo />`), never raw text placeholders.
-9. **Layout** — full-viewport, non-scrollable (`h-[100dvh]`), no faux device borders/notches.
-10. **Boundaries** — cross-sub-app access only via Home. Enforced by `check:boundaries`.
+1. **Wait for user intent.** Do NOT build screens/pages until explicitly requested.
+2. **Imports** — `@/` → `client/mobile/src/`, `@data/` → root `data/`.
+3. **State** — shared state ONLY in Zustand stores under `src/state/`. Keep components presentational; read via selectors. No duplicate shared state.
+4. **Modularity** — small components under `src/components/`; screen helpers under their `src/features/<module>/`; shared widgets under `src/components/shared/`. Reuse before duplicating (avoid parallel mock copies).
+5. **Navigation** — all routes typed in `src/navigation/AppNavigator.tsx`; screens use `NativeStackScreenProps`.
+6. **Native permissions** — document in `app.json` (`ios.infoPlist`/`android.permissions`) and gate with consent dialogs before hardware.
+7. **Brand** — always use the Faazio logo (`<FaazioLogo />`), never raw text placeholders.
+8. **Layout** — full-viewport, non-scrollable (`h-[100dvh]`), no faux device borders/notches.
+9. **Boundaries** — cross-sub-app access only via Home. Enforced by `check:boundaries`.
 
 ## Verify after any change
 Run from `client/mobile/`:
