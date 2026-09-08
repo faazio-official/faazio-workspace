@@ -45,9 +45,9 @@ const ALL_LANGUAGES: Language[] = [
   { id: 'ur', native: 'اردو', english: 'Urdu', avatar: 'اردو' },
 ];
 
-const ACCENT = '#7C3AED';
-const ACCENT_LIGHT = '#EDE9FE';
-const ACCENT_SOFT = '#F5F3FF';
+const ACCENT = '#1162D3';
+const ACCENT_LIGHT = '#DBEAFE';
+const ACCENT_SOFT = '#EFF6FF';
 
 export default function LanguageSelectionScreen({ navigation }: Props) {
   const [searchQuery, setSearchQuery] = useState('');
@@ -269,7 +269,7 @@ const styles = StyleSheet.create({
     transform: [{ rotate: '45deg' }],
   },
   star: { position: 'absolute', fontSize: ms(14) },
-  starOne: { top: 0, right: 10, color: '#C4B5FD' },
+  starOne: { top: 0, right: 10, color: '#93C5FD' },
   starTwo: { top: 10, right: -5, fontSize: ms(15), color: '#FCD34D' },
   starThree: { bottom: -5, left: 10, fontSize: ms(10), color: '#F59E0B' },
 

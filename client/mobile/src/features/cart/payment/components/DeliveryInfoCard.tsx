@@ -139,7 +139,7 @@ const styles = StyleSheet.create({
     height: ms(12),
     borderRadius: ms(6),
     borderWidth: 2,
-    borderColor: BRAND.purple,
+    borderColor: BRAND.blue,
     backgroundColor: '#ffffff',
     marginTop: vs(4),
   },
@@ -147,7 +147,7 @@ const styles = StyleSheet.create({
     width: ms(12),
     height: ms(12),
     borderRadius: ms(6),
-    backgroundColor: BRAND.purple,
+    backgroundColor: BRAND.blue,
     marginTop: vs(4),
   },
   timelineLine: {

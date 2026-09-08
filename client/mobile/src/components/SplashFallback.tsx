@@ -5,7 +5,7 @@ import faazioLogoImg from '@/assets/faazio-logo.png';
 
 interface SplashFallbackProps {
   /**
-   * 'royal' renders the cold-start splash with a royal purple (#7C3AED)
+   * 'royal' renders the cold-start splash with a royal blue (#1162D3)
    * background, a white spinner, and the centered logo image.
    * Default ('default') keeps the lightweight white/blue splash used by
    * navigation Suspense fallbacks.
@@ -47,7 +47,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#ffffff',
   },
   royalContainer: {
-    backgroundColor: '#7C3AED',
+    backgroundColor: '#1162D3',
   },
   royalLogo: {
     width: 140,

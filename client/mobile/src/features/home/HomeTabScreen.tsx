@@ -142,7 +142,7 @@ const styles = StyleSheet.create({
     right: 0,
     zIndex: 30,
     overflow: 'hidden',
-    shadowColor: 'rgba(109,40,217,0.12)',
+    shadowColor: 'rgba(17,98,211,0.12)',
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 1,
     shadowRadius: 12,

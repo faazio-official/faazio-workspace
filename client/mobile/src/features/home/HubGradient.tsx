@@ -9,9 +9,9 @@ export function HubGradient() {
       <Svg style={StyleSheet.absoluteFill}>
         <Defs>
           <SvgGrad id="headerGrad" x1="0%" y1="0%" x2="0%" y2="100%">
-            <Stop offset="0%" stopColor="#6D28D9" />
-            <Stop offset="50%" stopColor="#8B5CF6" />
-            <Stop offset="100%" stopColor="#C4B5FD" stopOpacity={0.85} />
+            <Stop offset="0%" stopColor="#1162D3" />
+            <Stop offset="50%" stopColor="#2F80ED" />
+            <Stop offset="100%" stopColor="#7CB3FF" stopOpacity={0.85} />
           </SvgGrad>
         </Defs>
         <SvgRect width="100%" height="100%" fill="url(#headerGrad)" />

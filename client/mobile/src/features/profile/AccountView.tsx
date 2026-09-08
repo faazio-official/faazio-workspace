@@ -37,7 +37,7 @@ const NAV_ICONS: Record<string, React.ComponentType<any>> = {
   package: Package,
 };
 
-const ROYAL_PURPLE = '#7C3AED';
+const BRAND_BLUE = '#1162D3';
 
 export interface AccountViewProps {
   /** When provided, a back arrow is rendered in the fixed header (pushed mode). */
@@ -117,14 +117,14 @@ export function AccountView({
           onPress={() => handleRowPress({ key: 'details', icon: 'idcard', title: userProfile.name, subtitle: '' })}
         >
           <View style={styles.avatar}>
-            <User size={ms(30)} color={ROYAL_PURPLE} strokeWidth={2.2} />
+            <User size={ms(30)} color={BRAND_BLUE} strokeWidth={2.2} />
           </View>
           <View style={styles.profileInfo}>
             <AppText style={styles.profileName}>{userProfile.name}</AppText>
             <AppText style={styles.profileMeta} numberOfLines={1}>{userProfile.email}</AppText>
             <AppText style={styles.profileMeta}>{userProfile.phone}</AppText>
           </View>
-          <ChevronRight size={ms(20)} color={ROYAL_PURPLE} strokeWidth={2.2} />
+          <ChevronRight size={ms(20)} color={BRAND_BLUE} strokeWidth={2.2} />
         </TouchableOpacity>
 
         {/* 3. Saver Banner */}
@@ -158,13 +158,13 @@ export function AccountView({
                   onPress={() => handleRowPress(row)}
                 >
                   <View style={styles.navIconBox}>
-                    <Icon size={ms(18)} color={ROYAL_PURPLE} strokeWidth={2.2} />
+                    <Icon size={ms(18)} color={BRAND_BLUE} strokeWidth={2.2} />
                   </View>
                   <View style={styles.navText}>
                     <AppText style={styles.navTitle}>{row.title}</AppText>
                     <AppText style={styles.navSubtitle}>{row.subtitle}</AppText>
                   </View>
-                  <ChevronRight size={ms(18)} color={ROYAL_PURPLE} strokeWidth={2.2} />
+                  <ChevronRight size={ms(18)} color={BRAND_BLUE} strokeWidth={2.2} />
                 </TouchableOpacity>
               );
             })}
@@ -238,7 +238,7 @@ const styles = StyleSheet.create({
     width: ms(56),
     height: ms(56),
     borderRadius: ms(28),
-    backgroundColor: '#EDE9FE',
+    backgroundColor: '#DBEAFE',
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -325,7 +325,7 @@ const styles = StyleSheet.create({
     width: ms(40),
     height: ms(40),
     borderRadius: ms(12),
-    backgroundColor: '#EDE9FE',
+    backgroundColor: '#DBEAFE',
     alignItems: 'center',
     justifyContent: 'center',
   },

@@ -563,7 +563,7 @@ const styles = StyleSheet.create({
     marginTop: vs(16),
   },
   titleTextAccent: {
-    color: '#7C3AED',
+    color: '#1162D3',
   },
   graphicContainer: {
     flex: 1,
@@ -580,10 +580,10 @@ const styles = StyleSheet.create({
     width: '100%',
     height: Math.max(44, vs(44)),
     borderRadius: ms(12),
-    backgroundColor: '#7C3AED',
+    backgroundColor: '#1162D3',
     alignItems: 'center',
     justifyContent: 'center',
-    shadowColor: '#7C3AED',
+    shadowColor: '#1162D3',
     shadowOffset: { width: 0, height: 8 },
     shadowOpacity: 0.3,
     shadowRadius: 20,

@@ -13,5 +13,5 @@ export const BRAND = {
   /** Subtle borders / separators. */
   border: '#EEF1F4',
   /** Destination dot / timeline. */
-  purple: '#7C3AED',
+  blue: '#1162D3',
 } as const;
