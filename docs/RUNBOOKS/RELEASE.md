@@ -54,12 +54,41 @@ gh run watch
 #    (gh release upload --clobber replaces any previous APK on that tag).
 ```
 
-The workflow: checkout → setup Node 24 + JDK 21 → `npm ci` →
-`expo prebuild --clean --platform android` → `restore-keystore.sh` →
-`configure-release-signing.sh` → `./gradlew assembleRelease` → upload APK artifact →
+The workflow: checkout → setup Node 24 + JDK 21 → `gradle/actions/setup-gradle` (caches
+`~/.gradle` + build cache) → **CI Gradle tuning** (overrides laptop memory caps via
+`~/.gradle/gradle.properties`, which takes precedence over the generated project file) →
+`npm ci` → `expo prebuild --clean --platform android` → `restore-keystore.sh` →
+`configure-release-signing.sh` → `./gradlew assembleRelease` with **ABI + R8 minify flags**
+(see below) → upload APK artifact → upload **R8 `mapping.txt` (private artifact)** →
 `gh release create` + `gh release upload --clobber`.
 
-The built APK is also saved as a `faazio-release-apk` Actions artifact for direct download.
+The built APK is also saved as a versioned `faazio-<version>-apk` Actions artifact for direct
+download.
+
+### Build flags (faster + smaller + obfuscated)
+
+- **2-ABI build** — `REACT_NATIVE_ARCHS=arm64-v8a,armeabi-v7a` (env in the workflow) is passed as
+  `-PreactNativeArchitectures`. Covers ~95% of devices while roughly halving native (C++)
+  compile work and the `.so` payload vs the old 4-ABI universal build. Override to
+  `arm64-v8a` for an even smaller (arm64-only) APK.
+- **R8 minify + resource shrink ON** — passed as `-Pandroid.enableMinifyInReleaseBuilds=true`
+  and `-Pandroid.enableShrinkResourcesInReleaseBuilds=true`. These read the generated
+  `android/app/build.gradle`'s `findProperty`, so they survive `expo prebuild --clean` without
+  touching the generated file. Smaller dex + obfuscation (raises the reverse-engineering bar for
+  prescriptions/payments logic per the security mandate).
+
+### R8 mapping file (crash retracing)
+
+Minified builds produce `android/app/build/outputs/mapping/release/mapping.txt`. It is uploaded
+as a **private Actions artifact** (`faazio-mapping-<run_id>`) — never attach it to the public
+GitHub Release (that would defeat obfuscation). To retrace a release stack trace, see
+`docs/RUNBOOKS/TROUBLESHOOTING.md` → "Retracing a minified crash".
+
+### Mandatory smoke test (R8 gate)
+
+R8 keep-rule gaps only surface at runtime. Before trusting a minified release, install it on a
+device and walk the core flows: **Home → Cart → Checkout → Pharma**. See
+`docs/RUNBOOKS/TROUBLESHOOTING.md` → "Minified (R8) release install" for how to install.
 
 ### Install the release APK on a device
 
@@ -91,10 +120,15 @@ cd client/mobile
 bash scripts/restore-keystore.sh        # requires KEYSTORE_BASE64 etc. env vars
 npx expo prebuild --clean --platform android
 bash scripts/configure-release-signing.sh
-cd android && ./gradlew assembleRelease
+cd android && ./gradlew assembleRelease \
+  -PreactNativeArchitectures=arm64-v8a,armeabi-v7a \
+  -Pandroid.enableMinifyInReleaseBuilds=true \
+  -Pandroid.enableShrinkResourcesInReleaseBuilds=true
 ```
 
-Output lands in `android/app/build/outputs/apk/release/`.
+Output lands in `android/app/build/outputs/apk/release/`. > Note: on a memory-pressured laptop
+these flags (esp. R8 with a larger heap) make a local build even more likely to be OOM-killed by
+`systemd-oomd` — prefer the CI pipeline for release builds.
 
 ## 🌐 Google Play (manual)
 
@@ -129,5 +163,13 @@ npx expo run:ios --configuration Release
 - [ ] Version bumped in `app.json`: `expo.version` **and** `android.versionCode` (+1 every release).
 - [ ] GitHub secrets set: `KEYSTORE_BASE64`, `KEYSTORE_PASS`, `KEY_ALIAS`, `ALIAS_PASS` (keystore backed up).
 - [ ] `gh workflow run release-apk.yml` succeeded and the signed APK is on the GitHub Release.
-- [ ] Release signed and smoke-tested on a device.
+- [ ] Release signed and smoke-tested on a device (R8 gate: Home → Cart → Checkout → Pharma).
 - [ ] Store metadata / data-safety updated.
+
+### Expected build-time / size impact (CI workflow)
+
+| Metric | Before | After (2-ABI + R8) |
+|---|---|---|
+| CI build time | ~43 min (cold) | ~18–26 min (cached) |
+| GitHub APK download | universal 4-ABI, unminified | ~−50% (2-ABI, minified) |
+| Dex size / cold start | unminified | smaller dex (R8) → faster cold start |

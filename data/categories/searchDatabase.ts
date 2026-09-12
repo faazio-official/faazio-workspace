@@ -64,4 +64,24 @@ export const categoriesSearchDatabase: Record<string, Product[]> = {
     { id: 'cat-pb-1', app: 'PHARMA', category: 'ph-beauty', name: 'Advanced 96% Snail Mucin Essence', price: 1450, emoji: '🧴', desc: 'World famous hydrating formula for glass-like glowing skin.', rating: 4.9, image: 'https://images.unsplash.com/photo-1608248597481-496100c80836?fm=jpg&fit=crop&q=80&w=400&h=400' },
     { id: 'cat-pb-2', app: 'PHARMA', category: 'ph-beauty', name: 'AHA BHA PHA 30D Miracle Toner', price: 1150, emoji: '🧴', desc: 'Gently exfoliates dead cells and reveals natural translucent glow.', rating: 4.8, image: 'https://images.unsplash.com/photo-1556228720-195a672e8a03?fm=jpg&fit=crop&q=80&w=400&h=400' },
   ],
+  'mart-appliances': [
+    { id: 'cat-ma-1', app: 'MART', category: 'mart-appliances', name: 'Smart Wi-Fi Air Purifier Pro', price: 8999, emoji: '🌪️', desc: 'True HEPA H13 filter removes 99.97% of dust and smoke.', rating: 4.9, image: 'https://images.unsplash.com/photo-1585771724684-38269d6639fd?fm=jpg&fit=crop&q=80&w=400&h=400' },
+    { id: 'cat-ma-2', app: 'MART', category: 'mart-appliances', name: 'Digital Touch Air Fryer 5L', price: 5499, emoji: '🍟', desc: 'Rapid hot air circulation with 8 preset cooking modes.', rating: 4.8, image: 'https://images.unsplash.com/photo-1556911220-e15b29be8c8f?fm=jpg&fit=crop&q=80&w=400&h=400' },
+    { id: 'cat-ma-3', app: 'MART', category: 'mart-appliances', name: 'Cordless Stick Vacuum Cleaner', price: 7999, emoji: '🧹', desc: 'Lightweight 2-in-1 vacuum with 45-minute runtime.', rating: 4.8, image: 'https://images.unsplash.com/photo-1558317374-067fb5f30001?fm=jpg&fit=crop&q=80&w=400&h=400' },
+  ],
+  'mart-furniture': [
+    { id: 'cat-mfu-1', app: 'MART', category: 'mart-furniture', name: 'Ergonomic Mesh Office Chair', price: 11999, emoji: '🪑', desc: 'Adjustable lumbar support and breathable Korean mesh.', rating: 4.9, image: 'https://images.unsplash.com/photo-1580481077494-e3299ac2fef6?fm=jpg&fit=crop&q=80&w=400&h=400' },
+    { id: 'cat-mfu-2', app: 'MART', category: 'mart-furniture', name: 'Solid Wood Bookshelf (5 Tier)', price: 8999, emoji: '📚', desc: 'Rustic mango-wood 5-tier bookshelf with ladder frame.', rating: 4.8, image: 'https://images.unsplash.com/photo-1594620302200-9a762244a156?fm=jpg&fit=crop&q=80&w=400&h=400' },
+    { id: 'cat-mfu-3', app: 'MART', category: 'mart-furniture', name: 'Foldable Storage Ottoman', price: 2499, emoji: '🪑', desc: 'Multi-purpose ottoman with hidden storage and linen upholstery.', rating: 4.7, image: 'https://images.unsplash.com/photo-1540574163026-643ea20ade25?fm=jpg&fit=crop&q=80&w=400&h=400' },
+  ],
+  'mart-books': [
+    { id: 'cat-mbk-1', app: 'MART', category: 'mart-books', name: 'Best-Selling Fiction Bundle (4 Books)', price: 1299, emoji: '📖', desc: 'Four hand-picked page-turners across mystery and sci-fi.', rating: 4.9, image: 'https://images.unsplash.com/photo-1512820790803-83ca734da794?fm=jpg&fit=crop&q=80&w=400&h=400' },
+    { id: 'cat-mbk-2', app: 'MART', category: 'mart-books', name: 'Kids Illustrated Storybook Set (12)', price: 899, emoji: '🧒', desc: 'A dozen colourful bedtime storybooks for early readers.', rating: 4.8, image: 'https://images.unsplash.com/photo-1512820790803-83ca734da794?fm=jpg&fit=crop&q=80&w=400&h=400' },
+    { id: 'cat-mbk-3', app: 'MART', category: 'mart-books', name: 'Executive Hardcover Journal & Pen Set', price: 899, emoji: '📓', desc: 'Premium 120gsm bleed-proof dotted paper with brass rollerball.', rating: 4.9, image: 'https://images.unsplash.com/photo-1544716278-ca5e3f4abd8c?fm=jpg&fit=crop&q=80&w=400&h=400' },
+  ],
+  'mart-toys': [
+    { id: 'cat-mty-1', app: 'MART', category: 'mart-toys', name: 'Modular Magnetic Building Blocks (100p)', price: 2499, emoji: '🧱', desc: 'Vibrant translucent magnetic tiles for 3D architecture.', rating: 4.9, image: 'https://images.unsplash.com/photo-1587654780291-39c9404d746b?fm=jpg&fit=crop&q=80&w=400&h=400' },
+    { id: 'cat-mty-2', app: 'MART', category: 'mart-toys', name: 'Soft Plush Teddy Bear (24")', price: 1299, emoji: '🧸', desc: 'Huggable ultra-soft plush teddy with premium polyester fill.', rating: 4.9, image: 'https://images.unsplash.com/photo-1559454403-b8fb8b2d0b8e?fm=jpg&fit=crop&q=80&w=400&h=400' },
+    { id: 'cat-mty-3', app: 'MART', category: 'mart-toys', name: 'Remote Control Dinosaur', price: 1899, emoji: '🦖', desc: 'Roaring RC dinosaur with realistic walking and LED eyes.', rating: 4.7, image: 'https://images.unsplash.com/photo-1566576721346-d4a3b4eaeb55?fm=jpg&fit=crop&q=80&w=400&h=400' },
+  ],
 };

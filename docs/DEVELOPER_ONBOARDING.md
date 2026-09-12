@@ -34,6 +34,21 @@ npm run android             # expo run:android → builds + installs + launches
 - If Metro is already running on port 8081, `expo run:android` reuses it.
 - Full-screen, non-scrollable layout per AGENTS.md rule 8.
 
+### Speed tip: build for one ABI during local dev
+
+Dev builds compile native code (reanimated/worklets C++) for **all 4 ABIs** by default. To build
+only for the device/emulator's ABI (~75% less native work) on a fast, focused dev loop:
+
+```bash
+npx expo run:android -- --active-arch-only
+# or explicitly:
+cd android && ./gradlew installDebug -PreactNativeArchitectures=arm64-v8a
+```
+
+> This is a **dev-only** optimization. Release CI builds use `arm64-v8a,armeabi-v7a` (see
+> `docs/RUNBOOKS/RELEASE.md`). Don't ship a single-ABI release for GitHub distribution unless
+> arm64-only is intentional.
+
 ## 4. Verify every change
 
 ```bash

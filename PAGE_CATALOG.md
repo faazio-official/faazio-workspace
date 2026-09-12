@@ -6,6 +6,12 @@
 > `grocery-home/` component dir, Grocery product cards, `useGroceryFeed`, `groceryService`,
 > `groceryHomeFeed`, `GroceryHomeSkeleton`, `grocerySearchConfig`, `data/grocery/`) are treated as
 > stale. Historical/audit rows that describe the pre-merge state are preserved but flagged.
+>
+> **Note (active RN app):** the shipped React Native app lives under `client/mobile/`. The My
+> Account "Favourites" row now opens a search-results-style page (`features/favourites/FavouritesScreen`
+> on the `Favourites` root route) backed by `useFavoriteStore`, and the Mart sub-app tab bar gained a
+> "You" tab (left of Cart) that pushes the account page. The rows below document the legacy Vite web
+> audit and are preserved for history.
 
 ## Section 1: Vite Web App — All User-Facing Pages
 

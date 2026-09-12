@@ -5,6 +5,49 @@ dependencies exist. Do not build the backend/seller flows until told to.
 
 ---
 
+## Faster release builds + lighter APK (CI caching, ABI trim, R8 minify)
+
+**Status:** 🟢 Shipped (workflow + docs). Numbers not yet measured on a fresh run.
+
+**Feature:** Speed/size hardening of the release pipeline in `.github/workflows/release-apk.yml`:
+- **Gradle cache:** `gradle/actions/setup-gradle` caches `~/.gradle` (Maven deps, wrapper dists,
+  transform outputs) **and** the Gradle build cache across runs — no more ~1–2 GB re-download +
+  re-transform on every (cold, `prebuild --clean`) run.
+- **CI-only Gradle tuning:** a "Tune Gradle for CI runner" step writes `~/.gradle/gradle.properties`
+  (`-Xmx6144m`, `workers.max=4`, `parallel=true`, `caching=true`). `GRADLE_USER_HOME` takes
+  precedence over the generated `android/gradle.properties`, so it lifts the laptop memory caps only
+  on the runner; the repo's `gradle.properties` stays laptop-capped by design (systemd-oomd).
+- **2-ABI build:** `REACT_NATIVE_ARCHS=arm64-v8a,armeabi-v7a` passed as
+  `-PreactNativeArchitectures` — halves native (C++) work + `.so` payload vs the old 4-ABI build.
+- **R8 minify + resource shrink ON:** `-Pandroid.enableMinifyInReleaseBuilds=true` +
+  `-Pandroid.enableShrinkResourcesInReleaseBuilds=true`. Smaller dex + obfuscation (security win).
+  `mapping.txt` uploaded as a **private** artifact (`faazio-mapping-<run_id>`) for retracing.
+- **Workflow hygiene:** `concurrency: group: release-apk` (no parallel builds), versioned APK
+  artifact name (`faazio-<version>-apk`).
+
+**Font note:** audited `fontWeight` usage — `'800'` (110×) and `'900'` (159×) are both heavily used,
+so **no Roboto weight trimming** is possible; `fonts.ts` already loads exactly the used weights.
+GIF/WebP Fresco decoders were left enabled (`expo.gif.enabled`/`expo.webp.enabled`) because
+`expo-image` (Glide) is the primary renderer but the safe-disable audit wasn't completed.
+
+**Future / honest gaps:**
+- **Measure before/after on a real run** (`gh workflow run release-apk.yml`): record step timings,
+  APK size, and APK Analyzer dex/native-lib breakdown; paste here. Expected: CI ~43 min → ~18–26 min,
+  GitHub APK download ~−50%.
+- **Smoke test the minified APK on a device** (Home → Cart → Checkout → Pharma) before trusting an
+  R8 release — keep-rule gaps only show at runtime.
+- **AAB / Google Play** still not wired into the workflow (input-gated plan only); Play App Signing
+  enrollment is a one-time manual step before adopting it.
+- **`proguard-android-optimize.txt`** (more aggressive shrinking) not adopted yet — staying on the
+  default `proguard-android.txt` first until the device smoke test passes.
+- Consider `expo.gif.enabled=false`/`expo.webp.enabled=false` once every image is confirmed to
+  render through `expo-image` (~0.1–0.3 MB).
+- Larger/self-hosted runner or ccache for C++ remain optional if caching + tuning aren't enough.
+
+**Date:** 2026-09-12
+
+---
+
 ## Search type-ahead suggestions (Flipkart-style)
 
 **Status:** 🟢 Shipped (client-side, local fixture data).
@@ -363,9 +406,10 @@ and policies), `support` (Help & Support). The `privacy` and `legal` groups are
 `comingSoon` and render a non-tappable "Coming soon" placeholder row.
 
 **Future / honest gaps:**
-- **Destination screens not built** for Payments, Coupons & Offers, Favourites, Recently
-  Viewed, and Customer Support — these rows keep the TODO stub in
-  `AccountView.handleRowPress` and don't navigate yet.
+- **Destination screens not built** for Payments, Recently Viewed, and Customer Support —
+  these rows keep the TODO stub in `AccountView.handleRowPress` and don't navigate yet.
+  Favourites now opens the search-results-style `Favourites` root route, and the
+  "Coupons & Offers" stub row was removed from the `payments` group.
 - **Privacy / Legal have no content** — no privacy/security settings, referral/
   partner/delivery-partner flow, or legal screens exist. Flip `comingSoon` off and add rows
   to each group once those screens are built; no component change is needed (data-driven).

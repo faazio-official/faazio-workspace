@@ -35,6 +35,15 @@ Every domain file below carries its tag as a top-of-file banner comment.
 | `account` | `features/profile` | `orders.ts` | `@mock` |
 | `home` | `features/home` | `sections.ts`, `rails.ts`, `demographics.ts`, `instantFeed.ts`, `nearbyOffers.ts`, `filterFeed.ts`, `seeds.ts` | mixed `@mock` / `@seed` / `@static` |
 
+**Seed inventory expansion:** the mart/food/pharma/explore/categories/orders/coupons fixtures
+were expanded so the new search-results-style Favourites page and richer catalogs look alive on
+first launch: mart +4 stores and ~20 products (Home Appliances, Furniture, Books, Toys & Gifts,
+Sports, Grocery); food +6 restaurants and ~14 dishes/specials (+2 booking dishes); pharma +10 OTC/
+devices/baby-care/Ayurveda products; explore +3 stacks; categories +4 mart buckets; orders +8
+(MART/FOOD/PHARMA × status × Delivery/Self-Pickup, every `productId` resolvable); coupons +2;
+`seedFavorites` extended to span FOOD/MART/PHARMA. Because the normalized tables import these
+arrays, every new product auto-derives its catalog + stock rows.
+
 ---
 
 ## Normalized Microservice Tables (new surface)
@@ -228,7 +237,7 @@ the `GROCERY` member was dropped from `AppBrand` / `CartCategory` / `SubAppId` /
 | `nearbyOffers` | `NearbyOffer[]` | home `NearbyOffersSection` | `@mock` |
 | `filterChips` / `filterFeedPools` / `FilterChipId` | typed pools | home `FilterFeedSection` | `@mock` |
 | `seedCartItems` | `CartItem[]` | `state/cartStore` | `@seed` |
-| `seedFavorites` | `string[]` | `state/favoriteStore` | `@seed` |
+| `seedFavorites` | `string[]` | `state/favoriteStore` (seeds the search-results-style Favourites page — includes FOOD, MART & PHARMA ids) | `@seed` |
 | `seedLocation` | `string` | **`@unused`** by mobile | `@seed` + `@unused` |
 
 ### `@data/rewards` — owner: `features/rewards`

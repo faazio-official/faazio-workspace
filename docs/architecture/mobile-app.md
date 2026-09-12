@@ -209,10 +209,11 @@ AppNavigator (root native stack)
 ├── MainTabs (bottom tabs)
 │   ├── Home · Categories · Favourites · You   (+ central Cart pill)
 ├── SubApp (generic sub-app wrapper; optional `initialVendorStoreId` opens the Mart vendor drill-in)
+│   (Mart tabs: Home · Categories · Search · You · Cart — "You" pushes the account page)
 ├── FoodApp (FoodStack)
 ├── ProductDetail · Search · Cart · PaymentOptions
 ├── MasterCategories
-├── You · UserDetails · SavedAddresses · MyOrders · OrderDetails · FaazioRewards · SellWithUs
+├── You · UserDetails · SavedAddresses · MyOrders · Favourites · OrderDetails · FaazioRewards · SellWithUs
 ├── BloodDonor (Pharma blood-donor wizard/dashboard)
 ├── BloodRequestDescription (donor request details + nearby requests)
 ```
@@ -229,10 +230,24 @@ via `AccountNavGroup.title`. Six groups render in order: `profile` (Profile sett
 `legal` (Terms and policies), and `support` (Help & Support). The `privacy` and `legal`
 groups are `comingSoon` — they render a single non-tappable "Coming soon" row in place of
 real nav rows. The `earn` group is active and carries a `sell-with-us` row ("Sell with us")
-that pushes the `SellWithUs` screen. Orders / Details / Addresses / Sell-with-us navigate
-today; the remaining rows are placeholders (TODO stub in `AccountView.handleRowPress`).
+that pushes the `SellWithUs` screen. Orders / Details / Addresses / Favourites / Sell-with-us
+navigate today; Favourites opens the search-results-style `Favourites` root route (see below).
+The `payments` group now holds only the `payments` row ("Payments") — the old
+`coupons` "Coupons & Offers" stub row was removed. The remaining rows (Recently Viewed,
+Customer Support, Payments) are placeholders (TODO stub in `AccountView.handleRowPress`).
 A FaazioCoins streak card (title + balance + a row of 7 flame icons, filled per
 `streakCount`) sits above the nav groups and pushes the `FaazioRewards` screen.
+
+## Favourites page (from My Account)
+
+`FavouritesScreen` (root route `Favourites`) wraps the presentational `FavouritesPageView`,
+a search-results-style page reached from the "Favourites" row in My Account. It mirrors the
+search shell: a static header (back chevron + "Favourites (N)" title pill), a
+`SegmentedToggle` (All / Mart / Food / Pharma), a sort-only `FilterChipsRail`, and a
+`FlatList` of favourite items resolved via `getCatalogEntriesByIds(useFavoriteStore.favorites)`
+rendered with the shared `SearchProductRowCard` (each heart toggles the favourite off/on
+live). Tapping an item pushes `ProductDetail`. The store reads `seedFavorites`
+(`@data/home/seeds.ts`) on first launch.
 
 ## Sell with us (mock partner onboarding)
 

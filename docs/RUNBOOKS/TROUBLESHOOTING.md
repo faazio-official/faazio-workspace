@@ -87,6 +87,9 @@ adb devices            # must show "<id>  device"
   `org.gradle.workers.max=2`, `org.gradle.parallel=false`. Free RAM first (close Chrome/VS Code
   windows, or `sudo swapoff -a && sudo swapon -a` to flush exhausted swap). These `android/` edits
   are wiped by `expo prebuild --clean` — re-apply after regenerating.
+  > **CI is tuned separately.** The release workflow writes `~/.gradle/gradle.properties`
+  > (`-Xmx6144m`, `workers.max=4`, `parallel=true`) which **overrides** these laptop caps on the
+  > GitHub runner only — the repo's `gradle.properties` intentionally stays laptop-capped.
 - **`npm run android` / `./gradlew` exits 1 with no Gradle error text (empty output)** →
   **confirmed root cause (2026-09-12): `systemd-oomd` kills the Gradle processes when the
   user-session cgroup exceeds its memory-pressure threshold**. `oomctl dump` showed the
@@ -259,6 +262,36 @@ Judge every perf change against a measured baseline, never by feel. On a **relea
 
 If a change doesn't move its number (jank ≤ baseline ÷ 3, or cold-start ≥ 30% faster), revert it
 instead of keeping the complexity.
+
+## 🔧 Minified (R8) release build
+
+Release CI builds now enable R8 (`minifyEnabled`) + resource shrinking. This is safe **only if**
+you smoke-test the release APK on a device before trusting it — R8 keep-rule gaps surface at
+runtime, not build time.
+
+- **Install a minified release APK on a device:**
+  ```bash
+  cd /tmp/opencode
+  gh release download v1.0.2 --repo FaizalBasha-123/faazio-workspace --pattern "*.apk" --clobber
+  adb uninstall com.faazio.customer     # if a debug-signed install is present
+  adb install -r app-release.apk
+  ```
+  Walk the core flows: **Home → Cart → Checkout → Pharma**. If something crashes that worked
+  before minification, add a keep rule to the generated `android/app/proguard-rules.pro` (re-applied
+  after `expo prebuild --clean` by editing it again, or via a keep-rule snippet in the RN template).
+- **Retracing a minified crash** — release stack traces have obfuscated class/method names. Retrace
+  with the run's `mapping.txt` (private Actions artifact `faazio-mapping-<run_id>` — never publish
+  it, it defeats obfuscation):
+  ```bash
+  # Android SDK build-tools retrace
+  retrace.sh <mapping.txt> <obfuscated-stacktrace.txt>
+  ```
+- **`mapping.txt` missing** → it is uploaded only when R8 runs; confirm the build used the
+  minify flags (`-Pandroid.enableMinifyInReleaseBuilds=true`) and that the job isn't `--no-daemon`
+  skipping minification (it won't; `assembleRelease` always runs R8 with minify on).
+- **Build gets much slower (~+2–4 min) after enabling R8** → expected; size + obfuscation win
+  outweighs it. If a memory-pressured **local** build OOMs under R8, use CI (it tunes the heap up
+  to 6 G safely on the runner).
 
 ## 🔧 Release signing
 

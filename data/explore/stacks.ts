@@ -80,4 +80,19 @@ export const exploreStacks: ExploreStack[] = [
     { id: "dt-2", name: "Fluffy Japanese Pancakes", price: 290, rating: "4.8", emoji: "🥞", img: "https://images.unsplash.com/photo-1528207776546-365bb710ee93?fm=jpg&fit=crop&q=80&w=400&h=400", shop: "Fluffy House" },
     { id: "dt-3", name: "Salted Caramel Sundae", price: 180, rating: "4.7", emoji: "🍨", img: "https://images.unsplash.com/photo-1563805042-7684c019e1cb?fm=jpg&fit=crop&q=80&w=400&h=400", shop: "Chill Spot" },
   ]},
+  { id: "home-office", title: "💼 Home Office Setup", subtitle: "Level up your WFH desk with these essentials", type: "MART", accent: "#1162D3", items: [
+    { id: "ho-1", name: "Ergonomic Desk Chair", price: 11999, rating: "4.9", emoji: "🪑", img: "https://images.unsplash.com/photo-1580481077494-e3299ac2fef6?fm=jpg&fit=crop&q=80&w=400&h=400", shop: "Wood & Steel" },
+    { id: "ho-2", name: "28\" 4K Monitor", price: 18999, rating: "4.8", emoji: "🖥️", img: "https://images.unsplash.com/photo-1527443224154-c4a3942d3acf?fm=jpg&fit=crop&q=80&w=400&h=400", shop: "Volt Electronics" },
+    { id: "ho-3", name: "LED Desk Lamp Wireless Charge", price: 1499, rating: "4.7", emoji: "💡", img: "https://images.unsplash.com/photo-1507473885765-e6ed057f782c?fm=jpg&fit=crop&q=80&w=400&h=400", shop: "SmartHome" },
+  ]},
+  { id: "fitness-kit", title: "🏋️ Fitness Starter Kit", subtitle: "Everything to kickstart your home workouts", type: "MART", accent: "#1162D3", items: [
+    { id: "fk-1", name: "Adjustable Dumbbell Set", price: 3999, rating: "4.9", emoji: "🏋️", img: "https://images.unsplash.com/photo-1517838277536-f5f99be501cd?fm=jpg&fit=crop&q=80&w=400&h=400", shop: "Peak Performance" },
+    { id: "fk-2", name: "Resistance Band Combo (5)", price: 599, rating: "4.8", emoji: "🎗️", img: "https://images.unsplash.com/photo-1571019614242-c5c5dee9f50b?fm=jpg&fit=crop&q=80&w=400&h=400", shop: "Peak Performance" },
+    { id: "fk-3", name: "Non-Slip Yoga Mat", price: 999, rating: "4.8", emoji: "🧘", img: "https://images.unsplash.com/photo-1601925260368-ae2f83cf8b7f?fm=jpg&fit=crop&q=80&w=400&h=400", shop: "Peak Performance" },
+  ]},
+  { id: "kids-party", title: "🎈 Kids Party Planner", subtitle: "Toys, treats and décor for the perfect party", type: "MART", accent: "#1162D3", items: [
+    { id: "kp-1", name: "Party Balloon Décor Kit", price: 450, rating: "4.8", emoji: "🎈", img: "https://images.unsplash.com/photo-1513151233558-d860c5398176?fm=jpg&fit=crop&q=80&w=400&h=400", shop: "Wonderland Toys" },
+    { id: "kp-2", name: "Birthday Cake Candle Set", price: 199, rating: "4.7", emoji: "🕯️", img: "https://images.unsplash.com/photo-1514316454349-750a7fd3da3a?fm=jpg&fit=crop&q=80&w=400&h=400", shop: "Wonderland Toys" },
+    { id: "kp-3", name: "RC Toy Car Racer", price: 1499, rating: "4.9", emoji: "🏎️", img: "https://images.unsplash.com/photo-1594787318286-3d835c1d207f?fm=jpg&fit=crop&q=80&w=400&h=400", shop: "Wonderland Toys" },
+  ]},
 ];

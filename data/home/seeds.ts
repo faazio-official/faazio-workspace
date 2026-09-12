@@ -106,6 +106,6 @@ export const seedCartItems: CartItem[] = [
   },
 ];
 
-export const seedFavorites: string[] = ['cat-fm-1', 'cat-gg-2', 'cat-mt-1'];
+export const seedFavorites: string[] = ['cat-fm-1', 'cat-gg-2', 'cat-mt-1', 'cat-fd-1', 'ph-f1', 'cat-mt-2'];
 
 export const seedLocation: string = 'Sunnambukkara Street, Karaikal';

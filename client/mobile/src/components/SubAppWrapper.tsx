@@ -13,6 +13,7 @@ import {
   IndianRupee,
   Search,
   Droplet,
+  User,
 } from 'lucide-react-native';
 import { hs, vs, ms, SCREEN_W } from '@/utils/responsive';
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
@@ -116,6 +117,7 @@ export default function SubAppWrapper({
           { name: 'Home', icon: Home },
           { name: 'Categories', icon: LayoutGrid },
           { name: 'Search', icon: Search },
+          { name: 'You', icon: User },
           { name: 'Cart', icon: ShoppingBag },
         ],
       },
@@ -315,6 +317,7 @@ export default function SubAppWrapper({
                 const lower = tab.name.toLowerCase();
                 if (lower.includes('cart')) onCartPress?.();
                 else if (tab.name === 'Search') onSearchPress?.();
+                else if (tab.name === 'You') navigation.navigate('You');
                 else if (tab.name === 'Donor') {
                   // Registered → dashboard inside the Pharma wrapper (navbar
                   // stays); not registered → push the wizard route.

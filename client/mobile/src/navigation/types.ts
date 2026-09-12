@@ -35,12 +35,14 @@ export type RootStackParamList = {
   You: undefined;
   /** Pixel-perfect payment method picker (preferred card, UPI, cards, more). */
   PaymentOptions: undefined;
-  /** "my profile" — personal info, preferences, security (pushed from Account). */
+  /** "My Profile" — personal info, preferences, security (pushed from Account). */
   UserDetails: undefined;
   /** "Saved Addresses" — manage, select, add delivery locations (pushed from Account). */
   SavedAddresses: undefined;
   /** "My Orders" — status tabs, sort/filter, and order cards (pushed from Account). */
   MyOrders: { initialTab?: MyOrdersStatusFilter } | undefined;
+  /** Search-results-style Favourites page (pushed from Account). */
+  Favourites: undefined;
   /** Per-order detail page, resolved by id from `@data` (pushed from My Orders). */
   OrderDetails: { orderId: string };
   /** Blood Donor registration wizard + registered dashboard (pushed from Pharma). */

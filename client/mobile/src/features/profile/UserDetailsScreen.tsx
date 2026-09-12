@@ -85,7 +85,7 @@ export function UserDetailsScreen({ navigation }: Props) {
             <TouchableOpacity onPress={handleBack} style={styles.backButton} activeOpacity={0.7} accessibilityRole="button" accessibilityLabel="Go back">
               <ChevronLeft size={ms(26)} color="#0f172a" strokeWidth={2.2} />
             </TouchableOpacity>
-            <AppText style={styles.headerTitle}>my profile</AppText>
+            <AppText style={styles.headerTitle}>My Profile</AppText>
           </View>
         </View>
 

@@ -1,8 +1,9 @@
 # User Profile Module
 
 This directory handles the user account surface. The **My Account** screen lives
-exclusively on the main root tab bar (`MainTabs` → `You`). Sub-app wrappers
-(Mart / Grocery / Pharma / Food) intentionally have **no** Account/Profile tab.
+exclusively on the main root tab bar (`MainTabs` → `You`). The Mart sub-app wrapper
+now also exposes a **"You"** tab (left of Cart) that pushes the account page; other
+sub-app wrappers (Pharma / Food) intentionally have no Account/Profile tab.
 
 ## 📁 Key Files
 - `AccountScreen.tsx` / `YouScreen.tsx`: Thin wrappers rendering the shared
@@ -10,8 +11,12 @@ exclusively on the main root tab bar (`MainTabs` → `You`). Sub-app wrappers
   `YouScreen` (pushed) wires `onBack`.
 - `AccountView.tsx`: Presentational "My Account" page — header,
   FaazioCoins streak card (7-day fire streak + balance), grouped navigation list
-  (incl. **My Orders** and **Sell with us** rows), and logout. Reads content from
+  (incl. **My Orders**, **Favourites** and **Sell with us** rows), and logout. Reads content from
   `@data/account/*`; the FaazioCoins card reads `rewardsStore`.
+- `FavouritesScreen.tsx` / `FavouritesPageView.tsx` (in `features/favourites/`): the
+  search-results-style **Favourites** page opened from My Account — a static header pill,
+  All/Mart/Food/Pharma segmented toggle, sort-only rail, and a list resolved from
+  `useFavoriteStore` via the catalog index (hearts toggle favourites live).
 - `SellWithUsScreen.tsx`: Mock "Sell with us" partner onboarding — lists the required
   details (`SELLER_SETUP_FIELDS` from `@data/seller/sellerSetup.ts`). No backend yet.
 - `MyOrdersScreen.tsx`: "My Orders" — a **sub-app chip rail** (All / Mart / Food /

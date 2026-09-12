@@ -2,7 +2,7 @@
   "expo": {
     "name": "Faazio",
     "slug": "faazio",
-    "version": "1.0.2",
+    "version": "1.0.3",
     "orientation": "portrait",
     "userInterfaceStyle": "light",
     "splash": {
@@ -25,7 +25,7 @@
     },
     "android": {
       "package": "com.faazio.customer",
-      "versionCode": 4,
+      "versionCode": 5,
       "jsEngine": "hermes",
       "softwareKeyboardLayoutMode": "pan",
       "adaptiveIcon": {

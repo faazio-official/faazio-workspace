@@ -10,7 +10,7 @@ export const accountNavGroups: AccountNavGroup[] = [
     title: 'Profile settings',
     rows: [
       { key: 'orders', icon: 'package', title: 'My Orders', subtitle: 'Track and manage your orders' },
-      { key: 'details', icon: 'idcard', title: 'my profile', subtitle: 'Manage your personal information' },
+      { key: 'details', icon: 'idcard', title: 'My Profile', subtitle: 'Manage your personal information' },
       { key: 'addresses', icon: 'map-pin', title: 'Addresses', subtitle: 'Manage saved addresses' },
       { key: 'favourites', icon: 'heart', title: 'Favourites', subtitle: 'Your favourite items across all apps' },
       { key: 'recently-viewed', icon: 'clock', title: 'Recently Viewed', subtitle: 'Items you recently viewed' },
@@ -21,7 +21,6 @@ export const accountNavGroups: AccountNavGroup[] = [
     title: 'Payments and credits',
     rows: [
       { key: 'payments', icon: 'credit-card', title: 'Payments', subtitle: 'UPI, Cards, Wallets, Gift Cards' },
-      { key: 'coupons', icon: 'ticket', title: 'Coupons & Offers', subtitle: 'View all your offers and coupons' },
     ],
   },
   {

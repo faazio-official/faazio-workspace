@@ -14,7 +14,6 @@ import {
   IdCard,
   MapPin,
   CreditCard,
-  Ticket,
   Headphones,
   Heart,
   Clock,
@@ -33,7 +32,6 @@ const NAV_ICONS: Record<string, React.ComponentType<any>> = {
   idcard: IdCard,
   'map-pin': MapPin,
   'credit-card': CreditCard,
-  ticket: Ticket,
   headphones: Headphones,
   heart: Heart,
   clock: Clock,
@@ -49,6 +47,7 @@ export interface AccountViewProps {
   onOpenDetails: () => void;
   onOpenAddresses: () => void;
   onOpenOrders: () => void;
+  onOpenFavourites?: () => void;
   onOpenRewards?: () => void;
   onOpenSellWithUs?: () => void;
   onLogout: () => void;
@@ -65,6 +64,7 @@ export function AccountView({
   onOpenDetails,
   onOpenAddresses,
   onOpenOrders,
+  onOpenFavourites,
   onOpenRewards,
   onOpenSellWithUs,
   onLogout,
@@ -77,6 +77,10 @@ export function AccountView({
     (row: AccountNavRow) => {
       if (row.key === 'orders') {
         onOpenOrders();
+        return;
+      }
+      if (row.key === 'favourites' && onOpenFavourites) {
+        onOpenFavourites();
         return;
       }
       if (row.key === 'sell-with-us' && onOpenSellWithUs) {
@@ -93,7 +97,7 @@ export function AccountView({
       }
       // TODO: Destination screens per row — stubs for now.
     },
-    [onOpenOrders, onOpenSellWithUs, onOpenDetails, onOpenAddresses]
+    [onOpenOrders, onOpenFavourites, onOpenSellWithUs, onOpenDetails, onOpenAddresses]
   );
 
   return (

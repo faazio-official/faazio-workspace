@@ -33,6 +33,18 @@ permissions:
 env:
   NODE_VERSION: "24"
   JAVA_VERSION: "21"
+  # ABIs to build into the GitHub-release APK. arm64-v8a + armeabi-v7a covers
+  # ~95% of devices while roughly halving native compile work and .so payload
+  # vs the 4-ABI universal build. Native work (reanimated/worklets C++) scales
+  # linearly with ABI count, so trimming this is the biggest single build-speed
+  # and APK-size lever. Override per-run if you need arm64-only (smallest).
+  REACT_NATIVE_ARCHS: "arm64-v8a,armeabi-v7a"
+
+# Never run two release builds at once — they share the same tag/artifact names
+# and would clobber each other while burning parallel runners.
+concurrency:
+  group: release-apk
+  cancel-in-progress: false
 
 jobs:
   build-release-apk:
@@ -56,6 +68,31 @@ jobs:
         with:
           distribution: temurin
           java-version: ${{ env.JAVA_VERSION }}
+
+      # Caches ~/.gradle (Maven deps, wrapper dists, transform outputs, and the
+      # Gradle build-cache dir) across runs. Without this every run is a cold
+      # build that re-downloads ~1-2 GB of Maven artifacts. The build cache also
+      # lets unchanged Gradle tasks restore even after `expo prebuild --clean`.
+      - name: Cache Gradle + setup Gradle build cache
+        uses: gradle/actions/setup-gradle@v4
+
+      # CI-only Gradle tuning. GRADLE_USER_HOME (~/.gradle/gradle.properties)
+      # takes precedence over the project's android/gradle.properties, so these
+      # override the laptop caps (workers.max=2, -Xmx2048m, parallel=false) that
+      # exist only to avoid systemd-oomd kills on this dev machine — without
+      # touching the generated file. A 4-vCPU runner × 2 workers leaves the
+      # compile phase running below capacity; 4 workers + a 6G heap is safe on
+      # GitHub's ubuntu-latest (7 GB RAM, no competing desktop apps).
+      - name: Tune Gradle for CI runner
+        run: |
+          mkdir -p ~/.gradle
+          cat > ~/.gradle/gradle.properties <<'EOF'
+          org.gradle.jvmargs=-Xmx6144m -XX:MaxMetaspaceSize=1024m -XX:+UseParallelGC
+          org.gradle.workers.max=4
+          org.gradle.parallel=true
+          org.gradle.caching=true
+          org.gradle.vfs.watch=false
+          EOF
 
       - name: Install dependencies
         run: npm ci
@@ -88,14 +125,30 @@ jobs:
       - name: Build release APK
         run: |
           cd android
-          ./gradlew assembleRelease --no-daemon
+          # R8 minify + resource shrinking ON (via -P, reads the generated
+          # app/build.gradle's findProperty) → smaller dex + obfuscation.
+          # ABI restricted to REACT_NATIVE_ARCHS → less native work + payload.
+          ./gradlew assembleRelease --no-daemon \
+            -PreactNativeArchitectures="$REACT_NATIVE_ARCHS" \
+            -Pandroid.enableMinifyInReleaseBuilds=true \
+            -Pandroid.enableShrinkResourcesInReleaseBuilds=true
 
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
         with:
-          name: faazio-release-apk
+          name: faazio-${{ github.event.inputs.version || 'release' }}-apk
           path: client/mobile/android/app/build/outputs/apk/release/*.apk
           if-no-files-found: error
+
+      # R8 mapping.txt is REQUIRED to retrace minified crash stack traces.
+      # It must never be attached to the public GitHub Release (it would defeat
+      # the obfuscation) — keep it as a private Actions artifact only.
+      - name: Upload R8 mapping (private artifact)
+        uses: actions/upload-artifact@v4
+        with:
+          name: faazio-mapping-${{ github.run_id }}
+          path: client/mobile/android/app/build/outputs/mapping/release/mapping.txt
+          if-no-files-found: ignore
 
       - name: Publish GitHub Release
         env:

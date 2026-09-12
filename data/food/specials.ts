@@ -165,6 +165,58 @@ export const TODAYS_SPECIALS: SpecialDish[] = [
     rating: 4.9,
     deliveryTime: '25 min',
   },
+  {
+    id: 'sp-13',
+    dishName: 'Gamberi al Aglio',
+    restaurant: 'Trattoria Bella Italia',
+    price: 720,
+    image: img('photo-1553621042-f6e147245754'),
+    isVeg: false,
+    description:
+      'Sautéed tiger prawns with garlic, chilli and white wine over grilled crostini.',
+    cuisine: 'Italian',
+    rating: 4.8,
+    deliveryTime: '30 min',
+  },
+  {
+    id: 'sp-14',
+    dishName: 'Murg Malai Tikka',
+    restaurant: 'Royal Mughlai Dastarkhwan',
+    price: 340,
+    image: img('photo-1598103442097-8b74394b95c6'),
+    isVeg: false,
+    description:
+      'Creamy yogurt-marinated chicken tikka grilled in a charcoal tandoor.',
+    cuisine: 'Mughlai',
+    rating: 4.9,
+    deliveryTime: '32 min',
+  },
+  {
+    id: 'sp-15',
+    dishName: 'Korean Kimchi Fried Rice',
+    restaurant: 'Seoul Street Korean Kitchen',
+    price: 380,
+    image: img('photo-1546069901-ba9599a7e63c'),
+    isVeg: false,
+    description:
+      'Wok-tossed rice with spicy kimchi, spring onion and a sunny-side egg.',
+    cuisine: 'Korean',
+    rating: 4.7,
+    deliveryTime: '26 min',
+  },
+  {
+    id: 'sp-16',
+    dishName: 'Grilled Fish Peri Peri',
+    restaurant: 'Catch of the Day Seafood',
+    price: 640,
+    image: img('photo-1519708227418-c8fd9a32b7a2'),
+    isVeg: false,
+    description:
+      'Whole grilled fish glazed in a fiery peri-peri marinade with lemon wedges.',
+    cuisine: 'Seafood',
+    rating: 4.8,
+    deliveryTime: '40 min',
+  },
 ];
 
 /**

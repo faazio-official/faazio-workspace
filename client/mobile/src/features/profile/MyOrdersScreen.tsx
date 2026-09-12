@@ -129,14 +129,9 @@ export function MyOrdersScreen({ navigation, route }: Props) {
 
   return (
     <View style={styles.container}>
-      <ScrollView
-        style={styles.scroll}
-        contentContainerStyle={[styles.scrollContent, { paddingTop: insets.top }]}
-        showsVerticalScrollIndicator={false}
-        bounces={false}
-      >
-        {/* 1. Header */}
-        <View style={styles.header}>
+      {/* 1. Fixed header — stays pinned while the list scrolls (mirrors AccountView). */}
+      <View style={[styles.header, { paddingTop: insets.top }]}>
+        <View style={styles.headerRow}>
           <View style={styles.headerLeft}>
             <TouchableOpacity
               onPress={handleBack}
@@ -173,7 +168,14 @@ export function MyOrdersScreen({ navigation, route }: Props) {
             </TouchableOpacity>
           </View>
         </View>
+      </View>
 
+      <ScrollView
+        style={styles.scroll}
+        contentContainerStyle={styles.scrollContent}
+        showsVerticalScrollIndicator={false}
+        bounces={false}
+      >
         {/* 2. Sub-app rail */}
         <MyOrdersAppRail activeApp={activeApp} counts={appCounts} onSelect={setActiveApp} />
 
@@ -318,13 +320,21 @@ const styles = StyleSheet.create({
 
   /* Header */
   header: {
+    backgroundColor: '#FFFFFF',
+    paddingBottom: vs(10),
+    zIndex: 10,
+    shadowColor: '#000000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 8,
+    elevation: 2,
+  },
+  headerRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: hs(16),
     paddingTop: vs(10),
-    paddingBottom: vs(10),
-    backgroundColor: '#FFFFFF',
   },
   headerLeft: {
     flexDirection: 'row',

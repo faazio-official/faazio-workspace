@@ -38,6 +38,7 @@ const BloodDonorScreen = lazyNamed(() => import('@/features/pharma/blood-donor/B
 const BloodRequestDescriptionScreen = lazyNamed(() => import('@/features/pharma/blood-donor/BloodRequestDescriptionScreen'), 'BloodRequestDescriptionScreen');
 const FaazioRewardsScreen = lazyNamed(() => import('@/features/rewards/FaazioRewardsScreen'), 'FaazioRewardsScreen');
 const SellWithUsScreen = lazyNamed(() => import('@/features/profile/SellWithUsScreen'), 'SellWithUsScreen');
+const FavouritesScreen = lazyNamed(() => import('@/features/favourites/FavouritesScreen'), 'FavouritesScreen');
 
 export function AppNavigator() {
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
@@ -132,6 +133,11 @@ export function AppNavigator() {
           <Stack.Screen
             name="SellWithUs"
             component={SellWithUsScreen}
+            options={{ animation: 'fade', animationDuration: 180 }}
+          />
+          <Stack.Screen
+            name="Favourites"
+            component={FavouritesScreen}
             options={{ animation: 'fade', animationDuration: 180 }}
           />
         </Stack.Navigator>

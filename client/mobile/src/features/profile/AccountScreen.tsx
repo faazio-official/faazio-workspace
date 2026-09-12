@@ -38,6 +38,10 @@ export function AccountScreen({ navigation }: Props) {
     navigation.navigate('MyOrders');
   }, [navigation]);
 
+  const handleOpenFavourites = useCallback(() => {
+    navigation.navigate('Favourites');
+  }, [navigation]);
+
   const handleOpenRewards = useCallback(() => {
     navigation.navigate('FaazioRewards');
   }, [navigation]);
@@ -52,6 +56,7 @@ export function AccountScreen({ navigation }: Props) {
         onOpenDetails={handleOpenDetails}
         onOpenAddresses={handleOpenAddresses}
         onOpenOrders={handleOpenOrders}
+        onOpenFavourites={handleOpenFavourites}
         onOpenRewards={handleOpenRewards}
         onOpenSellWithUs={handleOpenSellWithUs}
         onLogout={handleLogout}
