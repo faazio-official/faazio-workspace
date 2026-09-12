@@ -319,15 +319,15 @@ relative to `client/mobile/`. These were previously undocumented / stale in this
 
 | Route | Screen | File | Notes |
 |-------|--------|------|-------|
-| `Cart` | **CartScreen** | `src/features/cart/CartScreen.tsx` | Pushed from any app; wraps shared `CartView` (BAG→ADDRESS→PAYMENT→RECEIPT). Payment step = `features/cart/payment/PaymentOptionsScreen`. **Deliver / Self-Pickup toggle** on ADDRESS; Self-Pickup lists **one point per distinct store** in the cart (store-backed via `getPickupPointsForItems`), neutral hub fallback. |
+| `Cart` | **CartScreen** | `src/features/cart/CartScreen.tsx` | Pushed from any app; wraps shared `CartView` (BAG→ADDRESS→PAYMENT→RECEIPT). Payment step = `features/cart/payment/PaymentOptionsScreen`. **Deliver / Self-Pickup toggle** on ADDRESS; Self-Pickup lists **one point per distinct store** in the cart (store-backed via `getPickupPointsForItems`), neutral hub fallback. The BAG "To Pay" banner is static (no "View Detailed Bill" link/sheet). |
 | `You` | **YouScreen** | `src/features/profile/YouScreen.tsx` | Account page (wraps `AccountView`); pushed from any app, back returns. |
 | `MyOrders` | **MyOrdersScreen** | `src/features/profile/MyOrdersScreen.tsx` | Sub-app rail (All/Mart/Food/Pharma — Grocery merged into Mart) + status filter sheet + minimal order cards (date + status pill, one-line item) with Delivery/Self-Pickup chip; "View Details" → `OrderDetails`. |
 | `OrderDetails` | **OrderDetailsScreen** | `src/features/profile/OrderDetailsScreen.tsx` | Per-order page resolved by `orderId` via `@data` (`getMyOrderById`); status/item/order-meta sections + **View Product** → `ProductDetail` (via `getProductById`; hidden if lookup fails). |
 | `UserDetails` | **UserDetailsScreen** | `src/features/profile/UserDetailsScreen.tsx` | "Your Details" — personal info, preferences, security. |
 | `SavedAddresses` | **SavedAddressesScreen** | `src/features/profile/SavedAddressesScreen.tsx` | Manage/select/add delivery locations. |
 | `MasterCategories` | **MasterCategoriesScreen** | `src/features/catalog/MasterCategoriesScreen.tsx` | Universal cross-sub-app category grid (Hub Categories = `CategoriesTabScreen`). |
-| `Search` | **SearchRouteScreen** | `src/features/search/SearchRouteScreen.tsx` | First-class cross-sub-app search (Food keeps its own nested Search). |
-| `ProductDetail` | **ProductDetailScreen** | `src/features/product/ProductDetailScreen.tsx` | Shared product detail; view component = `CommonProductDetailView.tsx`. |
+| `Search` | **SearchRouteScreen** | `src/features/search/SearchRouteScreen.tsx` | First-class cross-sub-app search (Food keeps its own nested Search). Product sub-apps (Mart/Pharma/Home Hub) show Flipkart-style type-ahead suggestions while typing. |
+| `ProductDetail` | **ProductDetailScreen** | `src/features/product/ProductDetailScreen.tsx` | Shared product detail; view component = `CommonProductDetailView.tsx`. For MART products with a `storeId`, a store section renders below "Product Details" (store card + "More from {store}" related grid + **View Vendor** → `SubApp` with `initialVendorStoreId`). |
 | `PaymentOptions` | **PaymentOptionsScreen** | `src/features/cart/payment/PaymentOptionsScreen.tsx` | Standalone payment picker (also used as CartView PAYMENT step). |
 | `FoodApp` | **FoodStack** | `src/navigation/FoodStack.tsx` | Nested food stack: FoodHome → Search → DiningDetail → `RestaurantProfile` → OrderDetail. |
 
@@ -457,11 +457,11 @@ These tabs render with empty-state messages:
 | `src/components/SubAppWrapper.tsx` | Sub-app shell + inline tabs | ✅ Active |
 | `src/components/ProductDetailView.tsx` | Product detail modal (unwired) | ❌ Unused |
 | `src/features/cart/CartScreen.tsx` | Central "Your Cart" checkout (wraps CartView) | ✅ Active |
-| `src/features/cart/payment/PaymentOptionsScreen.tsx` | Payment picker (preferred card/UPI/cards/more) | ✅ Active |
+| `src/features/cart/payment/PaymentOptionsScreen.tsx` | Payment picker (preferred card/UPI/cards/more; Swiggy-Money promo removed) | ✅ Active |
 | `src/features/profile/MyOrdersScreen.tsx` | My Orders (sub-app rail + status filter + fulfillment chip) | ✅ Active |
 | `src/features/profile/OrderDetailsScreen.tsx` | Per-order details (status/item/meta + View Product) | ✅ Active |
 | `src/features/catalog/MasterCategoriesScreen.tsx` | Universal cross-sub-app category grid | ✅ Active |
-| `src/features/product/CommonProductDetailView.tsx` | Shared product detail view | ✅ Active |
+| `src/features/product/CommonProductDetailView.tsx` | Shared product detail view (MART store section + related products + View Vendor) | ✅ Active |
 | `src/navigation/FoodStack.tsx` | Nested food stack (incl. RestaurantProfile) | ✅ Active |
 | `src/components/FaazioLogo.tsx` | Brand logo SVG component (shared) | ✅ Active |
 

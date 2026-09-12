@@ -9,6 +9,7 @@ import SegmentedToggle from './SegmentedToggle';
 import FilterChipsRail from './FilterChipsRail';
 import FilterSortBar from './FilterSortBar';
 import RecentSearches from './RecentSearches';
+import SearchSuggestions from './SearchSuggestions';
 import { useFacets } from './useFacets';
 import type { ActiveFacets, SearchScreenConfig } from './types';
 
@@ -108,6 +109,16 @@ const SearchScreen = memo(function SearchScreen({
     activeFacets,
   });
 
+  const trimmedQuery = query.trim();
+  const typing = trimmedQuery.length > 0 && trimmedQuery !== submittedQuery;
+  const suggestions = useMemo(
+    () =>
+      typing && config.buildSuggestions && mode
+        ? config.buildSuggestions(mode.data, trimmedQuery)
+        : [],
+    [typing, config.buildSuggestions, mode, trimmedQuery],
+  );
+
   const commitQuery = () => {
     const trimmed = query.trim();
     setSubmittedQuery(trimmed);
@@ -115,6 +126,13 @@ const SearchScreen = memo(function SearchScreen({
       addRecentSearch(trimmed);
       headerInputRef.current?.blur();
     }
+  };
+
+  const handleSuggestionPress = (term: string) => {
+    setQuery(term);
+    setSubmittedQuery(term);
+    addRecentSearch(term);
+    headerInputRef.current?.blur();
   };
 
   const handleChangeText = (text: string) => {
@@ -169,9 +187,17 @@ const SearchScreen = memo(function SearchScreen({
         placeholder={config.searchPlaceholder}
         inputRef={headerInputRef}
         onSubmit={commitQuery}
+        accentColor={config.accentColor}
       />
 
-      {preSearch ? (
+      {typing ? (
+        <SearchSuggestions
+          suggestions={suggestions}
+          query={trimmedQuery}
+          accentColor={config.accentColor}
+          onSelect={handleSuggestionPress}
+        />
+      ) : preSearch ? (
         <RecentSearches onSelect={handleRecentSelect} accentColor={config.accentColor} />
       ) : (
         <>
@@ -203,26 +229,28 @@ const SearchScreen = memo(function SearchScreen({
         </>
       )}
 
-      <FlatList
-        data={visibleItems}
-        keyExtractor={config.keyFor ?? ((item: any, index: number) => String((item as { id?: string })?.id ?? `item-${index}`))}
-        renderItem={renderItem}
-        numColumns={config.numColumns ?? 1}
-        contentContainerStyle={styles.listContent}
-        showsVerticalScrollIndicator={false}
-        keyboardShouldPersistTaps="handled"
-        ListEmptyComponent={empty}
-        ListFooterComponent={
-          isLoadingMore && visibleCount < allResults.length ? (
-            <ActivityIndicator size="small" color={config.accentColor ?? '#2563EB'} style={styles.listFooter} />
-          ) : null
-        }
-        onEndReached={handleLoadMore}
-        onEndReachedThreshold={0.2}
-        bounces={false}
-        onScroll={onScroll}
-        scrollEventThrottle={16}
-      />
+      {!typing && (
+        <FlatList
+          data={visibleItems}
+          keyExtractor={config.keyFor ?? ((item: any, index: number) => String((item as { id?: string })?.id ?? `item-${index}`))}
+          renderItem={renderItem}
+          numColumns={config.numColumns ?? 1}
+          contentContainerStyle={styles.listContent}
+          showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
+          ListEmptyComponent={empty}
+          ListFooterComponent={
+            isLoadingMore && visibleCount < allResults.length ? (
+              <ActivityIndicator size="small" color={config.accentColor ?? '#2563EB'} style={styles.listFooter} />
+            ) : null
+          }
+          onEndReached={handleLoadMore}
+          onEndReachedThreshold={0.2}
+          bounces={false}
+          onScroll={onScroll}
+          scrollEventThrottle={16}
+        />
+      )}
     </View>
   );
 });

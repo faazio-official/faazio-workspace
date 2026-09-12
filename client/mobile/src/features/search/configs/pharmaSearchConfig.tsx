@@ -3,6 +3,7 @@ import { Stethoscope } from 'lucide-react-native';
 import { pharmaProducts } from '@data/pharma/products';
 import type { Product } from '@data/types';
 import SearchPharmaProductCard from '@/features/pharma/components/SearchPharmaProductCard';
+import { buildProductSuggestions } from '../suggestions';
 import type { ActiveFacets, SearchScreenConfig } from '../types';
 
 const searchableText = (p: Product) => {
@@ -57,6 +58,7 @@ export function createPharmaSearchConfig({
       { key: 'form', label: 'Form', multiSelect: true },
       { key: 'prescription', label: 'Availability', multiSelect: true },
     ],
+    buildSuggestions: buildProductSuggestions,
     modes: {
       products: {
         key: 'products',

@@ -16,7 +16,7 @@ export type RootStackParamList = {
   LanguageSelection: undefined;
   Location: undefined;
   MainTabs: NavigatorScreenParams<MainTabParamList> | undefined;
-  SubApp: { subAppId: SubAppId };
+  SubApp: { subAppId: SubAppId; initialVendorStoreId?: string };
   /** Universal "Master Categories" screen with a cross-sub-app selector. */
   MasterCategories:
     | {

@@ -8,7 +8,7 @@ import type { RootStackParamList } from '@/navigation/types';
 type Props = NativeStackScreenProps<RootStackParamList, 'SubApp'>;
 
 export function SubAppScreen({ navigation, route }: Props) {
-  const { subAppId } = route.params;
+  const { subAppId, initialVendorStoreId } = route.params;
   const cartItems = useCartStore((s) => s.cart);
   const addToCart = useCartStore((s) => s.addToCart);
   const storeUpdateQuantity = useCartStore((s) => s.updateQuantity);
@@ -35,6 +35,7 @@ export function SubAppScreen({ navigation, route }: Props) {
     <View style={styles.container}>
       <SubAppWrapper
         subAppId={subAppId}
+        initialVendorStoreId={initialVendorStoreId}
         onExit={() => navigation.goBack()}
         addToCart={addToCart}
         cartItems={cartItems}

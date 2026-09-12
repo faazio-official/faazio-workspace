@@ -1,4 +1,6 @@
 import type { ComponentType, ReactElement } from 'react';
+import type { Product } from '@data/types';
+import type { SearchSuggestion } from './suggestions';
 
 /**
  * Shared search screen types. The screen shell (SearchScreen) is app-agnostic:
@@ -116,4 +118,12 @@ export interface SearchScreenConfig {
    * result set's attributes — never hand-mapped per keyword.
    */
   facetSchema?: FacetSchema[];
+  /**
+   * Optional Flipkart-style type-ahead engine. When present, the shell replaces
+   * everything below the header with a suggestion list while the user types but
+   * has not yet committed. Receives the active mode's data + the current query
+   * and returns ranked `SearchSuggestion`s. Absent → results render as today.
+   * Product sub-apps use `buildProductSuggestions`; Food is deferred.
+   */
+  buildSuggestions?: (products: Product[], query: string) => SearchSuggestion[];
 }

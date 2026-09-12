@@ -28,10 +28,13 @@ import SubAppHeader from './shared/SubAppHeader';
 import { subAppHeaderH } from './shared/SubAppHeader';
 import { brandTokens } from '@/theme/brandTokens';
 import type { AppBrand, StoreProfile } from '@data/types';
+import { martStores } from '@data/mart/stores';
 import { useBloodDonorStore } from '@/state/bloodDonorStore';
 
 interface SubAppWrapperProps {
   subAppId: 'FA_MART' | 'FOOD' | 'PHARMA';
+  /** If set (Mart), the vendor profile drill-in opens directly on mount. */
+  initialVendorStoreId?: string;
   onExit: () => void;
   addToCart: (id: string, name: string, price: number, emoji: string) => void;
   cartItems: CartItem[];
@@ -47,6 +50,7 @@ interface SubAppWrapperProps {
 
 export default function SubAppWrapper({
   subAppId,
+  initialVendorStoreId,
   onExit,
   addToCart,
   cartItems,
@@ -59,7 +63,11 @@ export default function SubAppWrapper({
   const [activeTab, setActiveTab] = useState<string>('Home');
   const [searchQuery, setSearchQuery] = useState('');
   const [pharmaOnCategory, setPharmaOnCategory] = useState<boolean>(false);
-  const [martVendor, setMartVendor] = useState<StoreProfile | null>(null);
+  const [martVendor, setMartVendor] = useState<StoreProfile | null>(() =>
+    subAppId === 'FA_MART' && initialVendorStoreId
+      ? martStores.find((s) => s.id === initialVendorStoreId) ?? null
+      : null,
+  );
   const searchInputRef = useRef<TextInput | null>(null);
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const insets = useSafeAreaInsets();

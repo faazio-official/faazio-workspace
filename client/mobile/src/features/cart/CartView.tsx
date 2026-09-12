@@ -103,7 +103,6 @@ export default function CartView({
   const [appliedDiscount, setAppliedDiscount] = useState<{ code: string; amount: number } | null>(null);
   const [expandedCategories, setExpandedCategories] = useState<CartCategory[]>(CATEGORY_ORDER);
   const [showCouponSheet, setShowCouponSheet] = useState(false);
-  const [showBillSheet, setShowBillSheet] = useState(false);
 
   const discountCard = useRewardsStore((s) => s.discountCard);
   const streakCardActive = discountCard ? isCardActive(discountCard, new Date()) : false;
@@ -405,17 +404,13 @@ export default function CartView({
                 <AppText style={styles.coinEstimateText}>You'll earn ~{estimatedCoins} coins on this order</AppText>
               </View>
             )}
-            <TouchableOpacity style={styles.billBanner} onPress={() => setShowBillSheet(true)} activeOpacity={0.8}>
+            <View style={styles.billBanner}>
               <View style={styles.billBannerLeft}>
                 <AppText style={styles.toPayLabel}>To Pay: </AppText>
                 <AppText style={styles.toPayValue}>₹{finalTotal.toLocaleString('en-IN')}</AppText>
                 <AppText style={styles.origTotal}>₹{originalTotal.toLocaleString('en-IN')}</AppText>
               </View>
-              <View style={styles.billBannerRight}>
-                <AppText style={styles.viewBillText}>View Detailed Bill</AppText>
-                <ChevronRight size={ms(14)} color="#F97316" strokeWidth={2.5} />
-              </View>
-            </TouchableOpacity>
+            </View>
 
             <TouchableOpacity style={styles.addrRow} onPress={() => setStep('ADDRESS')} activeOpacity={0.7}>
               <View style={styles.addrRowLeft}>
@@ -513,39 +508,6 @@ export default function CartView({
               <AppText style={styles.couponRemoveActionText}>Remove Coupon</AppText>
             </TouchableOpacity>
           )}
-        </SlideUpSheet>
-
-        {/* Bill Details Sheet */}
-        <SlideUpSheet visible={showBillSheet} onRequestClose={() => setShowBillSheet(false)}>
-          <AppText style={styles.sheetTitle}>Bill Details</AppText>
-          <View style={styles.billLine}>
-            <AppText style={styles.pricingLabel}>Item Total</AppText>
-            <AppText style={styles.pricingValue}>₹{subtotal.toLocaleString('en-IN')}</AppText>
-          </View>
-          {appliedDiscount && (
-            <View style={styles.billLine}>
-              <AppText style={[styles.pricingLabel, { color: '#059669' }]}>Coupon Discount</AppText>
-              <AppText style={[styles.pricingValue, { color: '#059669' }]}>-₹{discountAmount.toLocaleString('en-IN')}</AppText>
-            </View>
-          )}
-          <View style={styles.billLine}>
-            <AppText style={styles.pricingLabel}>GST Taxes (5%)</AppText>
-            <AppText style={styles.pricingValue}>₹{tax.toLocaleString('en-IN')}</AppText>
-          </View>
-          <View style={styles.billLine}>
-            <AppText style={styles.pricingLabel}>Delivery Charges</AppText>
-            {fulfillment === 'PICKUP' ? (
-              <AppText style={[styles.pricingValue, { color: '#56B821', fontWeight: '900' }]}>FREE (Self Pickup)</AppText>
-            ) : deliveryFee === 0 ? (
-              <AppText style={[styles.pricingValue, { color: '#56B821', fontWeight: '900' }]}>FREE (₹49 Saved)</AppText>
-            ) : (
-              <AppText style={styles.pricingValue}>₹{deliveryFee}</AppText>
-            )}
-          </View>
-          <View style={[styles.billLine, styles.billTotalLine]}>
-            <AppText style={styles.grandTotalLabel}>To Pay</AppText>
-            <AppText style={styles.grandTotalValue}>₹{finalTotal.toLocaleString('en-IN')}</AppText>
-          </View>
         </SlideUpSheet>
       </View>
     );
@@ -1094,16 +1056,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: vs(6),
   },
-  pricingLabel: {
-    fontSize: ms(9.5),
-    color: '#94a3b8',
-    fontWeight: '700',
-  },
-  pricingValue: {
-    fontSize: ms(9.5),
-    color: '#1e293b',
-    fontWeight: '700',
-  },
   tipBox: {
     backgroundColor: '#f8fafc',
     borderWidth: 1,
@@ -1123,16 +1075,6 @@ const styles = StyleSheet.create({
     borderTopColor: '#f8fafc',
     paddingTop: vs(8),
     marginTop: vs(4),
-  },
-  grandTotalLabel: {
-    fontSize: ms(12),
-    fontWeight: '900',
-    color: '#0f172a',
-  },
-  grandTotalValue: {
-    fontSize: ms(14),
-    fontWeight: '900',
-    color: '#0f172a',
   },
   mainActionBtn: {
     width: '100%',
@@ -2068,10 +2010,6 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'baseline',
   },
-  billBannerRight: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
   toPayLabel: {
     fontSize: ms(12),
     fontWeight: '700',
@@ -2087,11 +2025,6 @@ const styles = StyleSheet.create({
     color: '#9CA3AF',
     textDecorationLine: 'line-through',
     marginLeft: hs(6),
-  },
-  viewBillText: {
-    fontSize: ms(10.5),
-    fontWeight: '800',
-    color: '#F97316',
   },
   addrRow: {
     flexDirection: 'row',
@@ -2204,16 +2137,5 @@ const styles = StyleSheet.create({
     fontSize: ms(12),
     fontWeight: '900',
     color: '#ef4444',
-  },
-  billLine: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    paddingVertical: vs(8),
-  },
-  billTotalLine: {
-    borderTopWidth: 1,
-    borderTopColor: '#EFEFEF',
-    marginTop: vs(6),
-    paddingTop: vs(12),
   },
 });

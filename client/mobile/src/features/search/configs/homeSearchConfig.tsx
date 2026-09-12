@@ -5,6 +5,7 @@ import { pharmaProducts } from '@data/pharma/products';
 import type { Product } from '@data/types';
 import SearchMartProductCard from '@/features/ecommerce/components/SearchMartProductCard';
 import SearchPharmaProductCard from '@/features/pharma/components/SearchPharmaProductCard';
+import { buildProductSuggestions } from '../suggestions';
 import type { ActiveFacets, SearchScreenConfig } from '../types';
 
 /**
@@ -84,6 +85,7 @@ export function createHomeSearchConfig({
       { key: 'type', label: 'Type', multiSelect: true },
       { key: 'brand', label: 'Brand', multiSelect: true },
     ],
+    buildSuggestions: buildProductSuggestions,
     modes: {
       all: {
         key: 'all',

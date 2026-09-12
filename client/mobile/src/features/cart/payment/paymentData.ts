@@ -50,10 +50,3 @@ export const MORE_OPTIONS: MoreOption[] = [
   { id: 'wallet', label: 'Wallets', subtitle: 'Amazon Pay, Paytm & more', icon: Wallet },
   { id: 'cod', label: 'Cash on Delivery', subtitle: 'Pay at your doorstep', icon: Banknote },
 ];
-
-/** Promo banner copy for "Introducing Swiggy Money". */
-export const PROMO = {
-  title: 'Introducing Swiggy Money',
-  body: 'Avail single click payments, instant refunds and cashbacks!',
-  sub: 'Requires Govt. ID verification',
-};

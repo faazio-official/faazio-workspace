@@ -18,10 +18,14 @@ import {
   Truck,
   Plus,
   Minus,
+  ShieldCheck,
 } from 'lucide-react-native';
 import { hs, vs, ms, SCREEN_W } from '@/utils/responsive';
 import AppText from '@/components/AppText';
-import type { Product } from '@data/types';
+import ProductCardBase from '@/components/shared/ProductCardBase';
+import { martStores } from '@data/mart/stores';
+import { martProducts } from '@data/mart/products';
+import type { Product, StoreProfile } from '@data/types';
 
 interface ProductDetailViewProps {
   product?: Product;
@@ -33,6 +37,8 @@ interface ProductDetailViewProps {
   updateCartQuantity: (id: string, delta: number) => void;
   favorites?: string[];
   toggleFavorite?: (productId: string) => void;
+  /** Optional callback to open a store/vendor page for MART products. */
+  onViewVendor?: (storeId: string) => void;
 }
 
 const FALLBACK_PRODUCT: Product = {
@@ -71,6 +77,7 @@ export default function CommonProductDetailView({
   updateCartQuantity,
   favorites = [],
   toggleFavorite,
+  onViewVendor,
 }: ProductDetailViewProps) {
   const product = propProduct ?? FALLBACK_PRODUCT;
   const safePrice = Number(product.price) || 0;
@@ -125,6 +132,89 @@ export default function CommonProductDetailView({
       month: 'short',
     });
   }, []);
+
+  const store = useMemo<StoreProfile | undefined>(() => {
+    if (product.app !== 'MART' || !product.storeId) return undefined;
+    return martStores.find((s) => s.id === product.storeId);
+  }, [product.app, product.storeId]);
+
+  const relatedProducts = useMemo(
+    () =>
+      store
+        ? martProducts.filter((p) => p.storeId === store.id && p.id !== product.id)
+        : [],
+    [store, product.id],
+  );
+
+  const cardWidth = (SCREEN_W - hs(32) - hs(12)) / 2;
+
+  const storeSection = store ? (
+    <View style={styles.padded}>
+      <View style={styles.storeCard}>
+        <View style={styles.storeInfoRow}>
+          <View style={styles.storeLogoContainer}>
+            <Image source={{ uri: store.coverImage }} style={styles.storeCover} resizeMode="cover" />
+            <View style={styles.storeRatingBadge}>
+              <AppText style={styles.storeRatingText}>{store.rating}</AppText>
+            </View>
+          </View>
+          <View style={styles.storeDetails}>
+            <View style={styles.storeNameRow}>
+              <AppText style={styles.storeName} numberOfLines={1}>{store.name}</AppText>
+              <ShieldCheck size={ms(16)} color="#3B82F6" fill="#DBEAFE" />
+            </View>
+            <View style={styles.storeLocationRow}>
+              <MapPin size={ms(14)} color="#94a3b8" />
+              <AppText style={styles.storeLocationText}>
+                Anna Nagar, Chennai · {store.distance} away
+              </AppText>
+            </View>
+            <View style={styles.storeTimeRow}>
+              <View style={styles.storeOpenBadge}>
+                <AppText style={styles.storeOpenText}>Open now</AppText>
+              </View>
+              <AppText style={styles.storeCloseText}> · Closes at 10:00 PM</AppText>
+            </View>
+          </View>
+        </View>
+
+        {relatedProducts.length > 0 && (
+          <>
+            <AppText style={styles.relatedTitle}>More from {store.name}</AppText>
+            <View style={styles.relatedGrid}>
+              {relatedProducts.map((p) => {
+                const qty = cartItems.find((i) => i.id === p.id)?.quantity ?? 0;
+                return (
+                  <ProductCardBase
+                    key={p.id}
+                    product={p}
+                    appBrand="MART"
+                    variant="grid2"
+                    width={cardWidth}
+                    showDescription
+                    originalPrice={p.originalPrice}
+                    quantity={qty}
+                    isAdded={qty > 0}
+                    onAdd={() => addToCart(p.id, p.name, Number(p.price) || 0, p.emoji ?? '🛍️')}
+                    onIncrement={() => updateCartQuantity(p.id, 1)}
+                    onDecrement={() => updateCartQuantity(p.id, -1)}
+                  />
+                );
+              })}
+            </View>
+          </>
+        )}
+
+        <TouchableOpacity
+          style={styles.viewVendorBtn}
+          activeOpacity={0.85}
+          onPress={() => onViewVendor?.(store.id)}
+        >
+          <AppText style={styles.viewVendorBtnText}>View Vendor</AppText>
+        </TouchableOpacity>
+      </View>
+    </View>
+  ) : null;
 
   const heroImage = product.image ? (
     <Image
@@ -274,6 +364,8 @@ export default function CommonProductDetailView({
             </View>
           </View>
         </View>
+
+        {storeSection}
       </ScrollView>
 
       {/* Sticky footer */}
@@ -541,6 +633,115 @@ const styles = StyleSheet.create({
     color: '#334155',
     fontWeight: '500',
     flex: 1,
+  },
+  storeCard: {
+    backgroundColor: '#ffffff',
+    borderWidth: 1,
+    borderColor: '#f1f5f9',
+    borderRadius: ms(16),
+    padding: hs(14),
+  },
+  storeInfoRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+  },
+  storeLogoContainer: {
+    position: 'relative',
+    marginRight: hs(12),
+  },
+  storeCover: {
+    width: ms(64),
+    height: ms(64),
+    borderRadius: ms(12),
+    borderWidth: 1,
+    borderColor: '#eee',
+  },
+  storeRatingBadge: {
+    position: 'absolute',
+    bottom: vs(-8),
+    alignSelf: 'center',
+    backgroundColor: '#059669',
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: hs(6),
+    paddingVertical: vs(2),
+    borderRadius: ms(8),
+  },
+  storeRatingText: {
+    color: '#ffffff',
+    fontSize: ms(10),
+    fontWeight: '800',
+  },
+  storeDetails: {
+    flex: 1,
+  },
+  storeNameRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: hs(4),
+  },
+  storeName: {
+    fontSize: ms(16),
+    fontWeight: '800',
+    color: '#0f172a',
+    flexShrink: 1,
+  },
+  storeLocationRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: vs(6),
+  },
+  storeLocationText: {
+    fontSize: ms(12),
+    color: '#475569',
+    marginLeft: hs(4),
+    flexShrink: 1,
+  },
+  storeTimeRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: vs(4),
+  },
+  storeOpenBadge: {
+    backgroundColor: '#DCFCE7',
+    paddingHorizontal: hs(6),
+    paddingVertical: vs(2),
+    borderRadius: ms(4),
+  },
+  storeOpenText: {
+    color: '#059669',
+    fontSize: ms(10),
+    fontWeight: '700',
+  },
+  storeCloseText: {
+    fontSize: ms(12),
+    color: '#94a3b8',
+  },
+  relatedTitle: {
+    fontSize: ms(14),
+    fontWeight: '800',
+    color: '#0f172a',
+    marginTop: vs(16),
+    marginBottom: vs(12),
+  },
+  relatedGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'space-between',
+    width: '100%',
+  },
+  viewVendorBtn: {
+    height: Math.max(46, vs(46)),
+    borderRadius: ms(12),
+    backgroundColor: '#B45309',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: vs(16),
+  },
+  viewVendorBtnText: {
+    color: '#ffffff',
+    fontSize: ms(14),
+    fontWeight: '800',
   },
   footer: {
     flexDirection: 'row',

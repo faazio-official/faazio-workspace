@@ -5,6 +5,51 @@ dependencies exist. Do not build the backend/seller flows until told to.
 
 ---
 
+## Search type-ahead suggestions (Flipkart-style)
+
+**Status:** 🟢 Shipped (client-side, local fixture data).
+
+**Feature:** While the user types but hasn't committed, the shared `SearchScreen` now swaps
+everything below the header for a suggestion list built by `features/search/suggestions.ts`
+(`buildProductSuggestions` — name prefix > name substring > category match, dedupe, cap 8)
+and rendered by `features/search/SearchSuggestions.tsx` (thumbnail · name · blue "In
+\<category\>" subtitle · ArrowUpLeft, plus a "Search for '\<query\>'" fallback row). Tapping a
+row commits the term, records it in recents and blurs. Wired via the optional
+`buildSuggestions` on `SearchScreenConfig` for Mart / Pharma / Home-Hub. The header pill gets
+a focused accent-tint border.
+
+**Deferred:** no debounce (local fixture data). Once the Go Chi backend ships a `/suggest`
+endpoint, swap the client-side engine for a debounced server suggest call (and add Food
+suggestions — its item shape differs from `Product`).
+
+**Date:** 2026-09-12
+
+---
+
+## Cart "To Pay" banner + Payment promo cleanup & Mart Product Detail store section
+
+**Status:** 🟢 Shipped.
+
+**Feature:** Three targeted UI changes:
+- **Cart (`CartView`) — removed the "View Detailed Bill" link and its Bill Details
+  sheet.** The To Pay banner is now a static `View` (amounts kept); the `showBillSheet` state,
+  the whole `SlideUpSheet`, and the sheet-only styles (`billBannerRight`, `viewBillText`,
+  `billLine`, `billTotalLine`, `pricingLabel`, `pricingValue`, `grandTotalLabel`,
+  `grandTotalValue`) were deleted. `deliveryFee` stays (still used by the free-delivery coupon).
+- **Payment (`PaymentOptionsScreen`) — removed the "Introducing Swiggy Money" promo.**
+  `PromoBanner.tsx` deleted (single consumer), the `<PromoBanner />` render dropped, and the
+  `PROMO` const removed from `payment/paymentData.ts`.
+- **Mart Product Detail (`CommonProductDetailView`) — added a store section** below "Product
+  Details" for MART products with a resolvable `storeId`: a store card (cover + rating chip,
+  name + verified badge, location line, open/closes row), a "More from {store.name}"
+  2-column related-products grid (same-store `martProducts` via the shared `ProductCardBase`
+  — boundary-safe; only Add/steppers interactive), and a "View Vendor" button that pushes
+  `SubApp` with `initialVendorStoreId` so `SubAppWrapper` opens the vendor drill-in directly.
+
+**Date:** 2026-09-12
+
+---
+
 ## Grocery → Mart merge + Home header category rail
 
 **Status:** 🟢 Shipped (data + UI). Home header is a fixed-height **transform-only collapsing

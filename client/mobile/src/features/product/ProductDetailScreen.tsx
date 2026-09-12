@@ -27,6 +27,11 @@ export function ProductDetailScreen({ navigation, route }: Props) {
     [navigation, product, appToSubApp],
   );
   const handleCart = useCallback(() => navigation.navigate('Cart'), [navigation]);
+  const handleViewVendor = useCallback(
+    (storeId: string) =>
+      navigation.navigate('SubApp', { subAppId: 'FA_MART', initialVendorStoreId: storeId }),
+    [navigation],
+  );
 
   return (
     <CommonProductDetailView
@@ -39,6 +44,7 @@ export function ProductDetailScreen({ navigation, route }: Props) {
       updateCartQuantity={updateCartQuantity}
       favorites={favorites}
       toggleFavorite={toggleFavorite}
+      onViewVendor={handleViewVendor}
     />
   );
 }

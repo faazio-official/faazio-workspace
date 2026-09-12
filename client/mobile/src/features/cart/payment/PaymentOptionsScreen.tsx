@@ -8,7 +8,6 @@ import { useRewardsStore } from '@/state/rewardsStore';
 import { defaultAddresses } from '@data/cart/addresses';
 import PaymentHeader from './components/PaymentHeader';
 import DeliveryInfoCard from './components/DeliveryInfoCard';
-import PromoBanner from './components/PromoBanner';
 import PaymentSectionCard from './components/PaymentSectionCard';
 import PaymentRow from './components/PaymentRow';
 import CvvPayBar from './components/CvvPayBar';
@@ -99,8 +98,6 @@ export default function PaymentOptionsScreen({
           pickup={pickup}
           contactPhone={contactPhone}
         />
-
-        <PromoBanner />
 
         {showCoins && (
           <CoinsRedeemRow

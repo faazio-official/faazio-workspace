@@ -1,4 +1,4 @@
-import React, { memo } from 'react';
+import React, { memo, useState } from 'react';
 import { View, TouchableOpacity, StyleSheet, type TextInput } from 'react-native';
 import { ChevronLeft, Search, X } from 'lucide-react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -14,12 +14,15 @@ interface SearchHeaderProps {
   inputRef?: React.RefObject<TextInput | null>;
   /** Called on the keyboard search/return action. */
   onSubmit?: () => void;
+  /** Brand accent used for the focused-pill border tint. */
+  accentColor?: string;
 }
 
 /**
  * Shared search header — back chevron (left) beside a pill search bar. The bar
  * carries an X clear button on the right that is disabled while the input is
- * empty and becomes active once the user types.
+ * empty and becomes active once the user types. While focused, the pill gets a
+ * thin accent-colored border tint.
  */
 const SearchHeader = memo(function SearchHeader({
   onBack,
@@ -28,9 +31,11 @@ const SearchHeader = memo(function SearchHeader({
   placeholder = 'Search…',
   inputRef,
   onSubmit,
+  accentColor = '#2563EB',
 }: SearchHeaderProps) {
   const insets = useSafeAreaInsets();
   const hasText = value.length > 0;
+  const [focused, setFocused] = useState(false);
 
   return (
     <View style={[styles.bar, { paddingTop: insets.top + vs(6) }]}>
@@ -44,7 +49,7 @@ const SearchHeader = memo(function SearchHeader({
         <ChevronLeft size={ms(24)} color="#111827" strokeWidth={2.4} />
       </TouchableOpacity>
 
-      <View style={styles.searchPill}>
+      <View style={[styles.searchPill, focused && { borderColor: accentColor }]}>
         <Search size={ms(18)} color="#94A3B8" strokeWidth={2.2} />
         <AppTextInput
           ref={inputRef}
@@ -56,6 +61,8 @@ const SearchHeader = memo(function SearchHeader({
           autoCorrect={false}
           returnKeyType="search"
           onSubmitEditing={onSubmit}
+          onFocus={() => setFocused(true)}
+          onBlur={() => setFocused(false)}
         />
         <TouchableOpacity
           onPress={() => onChangeText('')}

@@ -53,6 +53,17 @@ search bar** (dining `RestaurantGrid` pattern — filters by name/categories/des
 empty state. Tapping a store opens the vendor drill-in, whose inventory is derived from
 `martProducts` by `storeId` (replacing the old hardcoded `lv-*` product map).
 
+The **Mart Product Detail** (`CommonProductDetailView`) renders a store section below the
+"Product Details" block for any MART product with a resolvable `storeId`: a store card
+(cover thumb + rating chip, name + verified badge, location line, open/closes row), a
+**"More from {store.name}"** 2-column related-products grid (same-store `martProducts`,
+rendered with the shared `ProductCardBase` so the ecommerce-cards boundary stays green —
+only Add / quantity steppers are interactive, card press is disabled), and a **"View Vendor"**
+button. "View Vendor" pushes `SubApp` with `subAppId: 'FA_MART'` plus the optional
+`initialVendorStoreId` param, which `SubAppWrapper` uses to open the vendor drill-in directly
+(header/tab-bar auto-hide for free). FOOD/PHARMA products, deals and products without a
+`storeId` render no store section.
+
 `dinner-booking` is a scaffold (README) — not yet shipped as a full flow.
 
 Pharma hosts the **Blood Donor** feature (`pharma/blood-donor/`) — a 5-step registration
@@ -69,6 +80,17 @@ renders **one dense row per result** via the shared `SearchProductRowCard`
 `storeId`, else `shop`, else the app's single outlet, else category) and a compact Add to
 Cart / quantity stepper. Food search already used 1-column row cards (`SearchRestaurantCard`
 / `SearchDishCard`). No config uses a 2-column grid anymore.
+
+**Flipkart-style type-ahead suggestions** (`features/search/suggestions.ts` +
+`SearchSuggestions.tsx`): while the user types but has not committed, the shell swaps
+everything below the header for a suggestion list. `buildProductSuggestions()` is a pure
+engine ranking products by name prefix > name substring > category match (dedupe by id,
+cap 8), each row a thumbnail · name · blue "In \<category\>" subtitle · ↖ ArrowUpLeft; a
+"Search for '\<query\>'" row covers zero matches. Tapping a row commits the term, records it
+in recents and blurs. Wired via the optional `buildSuggestions` on `SearchScreenConfig`
+(Mart / Pharma / Home-Hub use `buildProductSuggestions`; Food is deferred — different item
+shape). Recent searches still show on empty query; seeded deep-links (`initialQuery`)
+commit immediately so they skip suggestions and show results as before.
 
 The Home hub header (`features/home/HomeTabScreen.tsx` + `hubHeader.ts`) is a **fixed-height
  overlay that collapses via transform only**. `headerOuter` is `position:absolute` with a static
@@ -186,7 +208,7 @@ AppNavigator (root native stack)
 ├── Onboarding ── Login ── LanguageSelection ── Location
 ├── MainTabs (bottom tabs)
 │   ├── Home · Categories · Favourites · You   (+ central Cart pill)
-├── SubApp (generic sub-app wrapper)
+├── SubApp (generic sub-app wrapper; optional `initialVendorStoreId` opens the Mart vendor drill-in)
 ├── FoodApp (FoodStack)
 ├── ProductDetail · Search · Cart · PaymentOptions
 ├── MasterCategories

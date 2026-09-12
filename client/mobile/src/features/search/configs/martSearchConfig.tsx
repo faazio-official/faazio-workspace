@@ -3,6 +3,7 @@ import { Package } from 'lucide-react-native';
 import { martProducts } from '@data/mart/products';
 import type { MartProduct, Product } from '@data/types';
 import SearchMartProductCard from '@/features/ecommerce/components/SearchMartProductCard';
+import { buildProductSuggestions } from '../suggestions';
 import type { ActiveFacets, SearchScreenConfig } from '../types';
 
 const searchableText = (p: Product) => {
@@ -57,6 +58,7 @@ export function createMartSearchConfig({
       { key: 'type', label: 'Type', multiSelect: true },
       { key: 'brand', label: 'Brand', multiSelect: true },
     ],
+    buildSuggestions: buildProductSuggestions,
     modes: {
       products: {
         key: 'products',
