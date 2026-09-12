@@ -414,6 +414,17 @@ replaces the previous "release signs with the debug keystore" gap. Removed the s
 `patches/@shopify+react-native-skia+2.2.12.patch` (skia is no longer a dependency), which was
 breaking `npm ci`'s `postinstall` (`patch-package`) in fresh/CI environments.
 
+**Investigated + documented (2026-09-12): local Gradle builds are killed by `systemd-oomd`.**
+Every local `assembleDebug` attempt (detached, `--no-daemon`, any config) died ~2 min in with
+exit 1 and no output, while the daemon logged `Success` + `EOFException`. Root cause confirmed
+via `oomctl dump`: the whole `user@1000.service` slice (~9.6G: Chrome + VS Code + terminals +
+Gradle) crosses systemd-oomd's 50%/20s memory-pressure threshold, which SIGKILLs the process
+group (kernel `oom_kill` counter never moved). Mitigations applied locally (gitignored
+`android/`): `gradle.properties` memory caps (`-Xmx2048m`, `workers.max=2`, `parallel=false`)
++ `local.properties` `sdk.dir`. These are wiped by `expo prebuild --clean` — re-apply, and
+see TROUBLESHOOTING.md "Gradle / native build failures" for the full diagnosis. **Working
+policy: build via CI (`gh workflow run "Release APK"`); local builds only on a freed machine.**
+
 **Future / honest gaps:**
 - **No remote crash reporting.** The global handler only logs locally (dev). Production needs
   Sentry/Crashlytics (or a `GatewayClient` `/errors` endpoint) to surface real-device crashes.

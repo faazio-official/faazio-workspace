@@ -64,13 +64,53 @@ adb devices            # must show "<id>  device"
   cd client/mobile
   npx expo prebuild --clean
   ```
-  > This wipes the gitignored `android/` folder and rewrites it for the current SDK. The
-  > release-signing config in `android/app/build.gradle` is manual — re-apply it after
-  > prebuild if you regenerated (it references `keystore/keystore.properties`).
+  > This wipes the gitignored `android/` folder and rewrites it for the current SDK. Everything
+  > below is **local-only and must be re-applied after `prebuild --clean`**: (1) release signing
+  > (`scripts/configure-release-signing.sh` — CI does this automatically), (2) the memory caps in
+  > `gradle.properties` (`-Xmx2048m`, `workers.max=2`, `parallel=false`), (3)
+  > `android/local.properties` (`sdk.dir`), (4) the Gradle wrapper version — Expo may generate a
+  > newer Gradle (e.g. 9.3.1) that fails with `The settings are not yet available for build`;
+  > pin back to 8.14.3 in `gradle/wrapper/gradle-wrapper.properties`.
+- **Interrupted `expo prebuild` leaves `android/` broken with template defaults** → if prebuild
+  is killed mid-run (e.g. a shell timeout), the regenerated `android/` may keep Expo template
+  values instead of `app.json`: `com.helloworld` package, `versionCode 1`/`"1.0"`, Gradle 9.3.1
+  wrapper. Symptoms: `The settings are not yet available for build`, or an APK with the wrong
+  package. Fix: verify `app/build.gradle` (`namespace`/`applicationId` = `com.faazio.customer`,
+  `versionCode`/`versionName` from `app.json`), `app/src/main/java/com/faazio/*` `package`
+  lines, and the wrapper version — or re-run prebuild to completion in a detached shell:
+  `setsid npx expo prebuild --clean --platform android > /tmp/prebuild.log 2>&1 &`
 - **NDK / CMake issues** → the project needs a recent NDK (Expo SDK 57 pins NDK 27.1).
   Install via Android Studio SDK Manager; confirm `ANDROID_HOME` points at the SDK.
-- **Out of memory** → bump Gradle heap in `android/gradle.properties`
-  (`org.gradle.jvmargs=-Xmx4096m …` already set).
+- **Out of memory (OOM) on a memory-pressured laptop** → **lower** concurrent Gradle memory,
+  do **not** raise it. The machine is out of RAM, so a bigger heap makes it worse. `android/`
+  `gradle.properties` already caps this: `org.gradle.jvmargs=-Xmx2048m -XX:MaxMetaspaceSize=512m`,
+  `org.gradle.workers.max=2`, `org.gradle.parallel=false`. Free RAM first (close Chrome/VS Code
+  windows, or `sudo swapoff -a && sudo swapon -a` to flush exhausted swap). These `android/` edits
+  are wiped by `expo prebuild --clean` — re-apply after regenerating.
+- **`npm run android` / `./gradlew` exits 1 with no Gradle error text (empty output)** →
+  **confirmed root cause (2026-09-12): `systemd-oomd` kills the Gradle processes when the
+  user-session cgroup exceeds its memory-pressure threshold**. `oomctl dump` showed the
+  entire `user@1000.service` slice (Chrome + VS Code + terminals + Gradle, ~9.6G) monitored
+  at **50% pressure for 20s** (`DefaultMemoryPressureDurationSec=20s`), and swap limit 90%.
+  The kernel OOM killer never fires (`/proc/vmstat` `oom_kill 0`) because systemd-oomd
+  SIGKILLs the whole process group first — the daemon's last line reads `dispatching the
+  build result: Success` followed by `EOFException`, i.e. the client died mid-build and the
+  build produced nothing. Build attempts consistently died ~2 minutes in, detached or not,
+  `--no-daemon` or not, any gradle.properties tuning. Diagnose:
+  ```bash
+  oomctl dump                       # Memory Pressure Monitored CGroups + current usage
+  grep oom_kill /proc/vmstat        # 0 = kernel OOM never fired → it's systemd-oomd
+  ls -t ~/.gradle/daemon/*/daemon-*.out.log | head -1   # EOFException right after "Success"
+  ```
+  Fix: free substantial RAM (close Chrome/VS Code windows; the aarvethu `next-server` +
+  postgres leftovers from another project eat ~1.5G) or flush swap
+  (`sudo swapoff -a && sudo swapon -a`), then retry — pressure must stay under 50% for the
+  whole build. **Realistically: use the CI pipeline** (`gh workflow run "Release APK"`,
+  see `docs/RUNBOOKS/CI_PIPELINE.md`) — CI has repeatedly built the same code successfully
+  (release v1.0.2) while every local attempt on this machine failed under memory pressure.
+  > **Gotcha for tooling/agents:** do NOT use `pkill -9 -f "GradleDaemon"` — the `-f` pattern
+  > matches your own shell command line and kills your session. Kill by PID from
+  > `ps -eo pid,args | grep "[G]radleDaemon"`.
 
 ## 🔧 Reanimated dev-mode crash: "set the key `current` … on an immutable/frozen object"
 
