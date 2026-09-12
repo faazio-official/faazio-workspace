@@ -25,6 +25,7 @@
     },
     "android": {
       "package": "com.faazio.customer",
+      "versionCode": 3,
       "jsEngine": "hermes",
       "softwareKeyboardLayoutMode": "pan",
       "adaptiveIcon": {
