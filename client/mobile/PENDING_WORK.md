@@ -410,7 +410,9 @@ with an 8 s failsafe + 4 s hydration timeouts (prevents a stuck splash → ANR).
 keystore from GitHub secrets (`scripts/restore-keystore.sh`), injects the `release` signingConfig
 (`scripts/configure-release-signing.sh`), builds with `./gradlew assembleRelease`, and publishes the
 signed APK to a GitHub Release (`gh release upload --clobber` replaces any previous APK). This
-replaces the previous "release signs with the debug keystore" gap.
+replaces the previous "release signs with the debug keystore" gap. Removed the stale
+`patches/@shopify+react-native-skia+2.2.12.patch` (skia is no longer a dependency), which was
+breaking `npm ci`'s `postinstall` (`patch-package`) in fresh/CI environments.
 
 **Future / honest gaps:**
 - **No remote crash reporting.** The global handler only logs locally (dev). Production needs
