@@ -20,6 +20,7 @@ Operational and architectural documentation for the **Faazio SuperApp**.
 | [architecture/data-layer-sdui.md](./architecture/data-layer-sdui.md) | Deep dive: `data/` layer + SDUI path + GatewayClient | Engineers |
 | [architecture/server-gateway-plan.md](./architecture/server-gateway-plan.md) | Deep dive: future Go Chi microservices plan | Engineers / infra |
 | [RUNBOOKS/RELEASE.md](./RUNBOOKS/RELEASE.md) | Build, sign, and ship Android + iOS | Release / DevOps |
+| [RUNBOOKS/CI_PIPELINE.md](./RUNBOOKS/CI_PIPELINE.md) | GitHub Actions build + release flow (gh CLI, secrets, dev-vs-CI) | Release / DevOps |
 | [RUNBOOKS/DATA_FIXTURES.md](./RUNBOOKS/DATA_FIXTURES.md) | Authoring rules for `@data/*` fixtures | Engineers |
 | [RUNBOOKS/TROUBLESHOOTING.md](./RUNBOOKS/TROUBLESHOOTING.md) | adb / Metro / Gradle / boundary failure fixes | Engineers |
 

@@ -2,6 +2,9 @@
 
 > Build, sign, and ship the Faazio mobile app.
 
+> **Prefer `docs/RUNBOOKS/CI_PIPELINE.md`** for the CI-based build/release flow (gh CLI + GitHub
+> Actions). This runbook covers the manual/local steps and store upload as fallback.
+
 ## 🔑 Signing credentials
 
 - Debug builds use the generated debug keystore (automatic).
@@ -57,6 +60,19 @@ The workflow: checkout → setup Node 24 + JDK 21 → `npm ci` →
 `gh release create` + `gh release upload --clobber`.
 
 The built APK is also saved as a `faazio-release-apk` Actions artifact for direct download.
+
+### Install the release APK on a device
+
+```bash
+cd /tmp/opencode
+gh release download v1.0.2 --repo FaizalBasha-123/faazio-workspace --pattern "*.apk" --clobber
+adb install -r app-release.apk
+```
+
+> The release APK is a **static release build** — it does **not** hot-reload. For instant preview
+> on code changes, use `npm run start` + Expo Go instead. See `docs/RUNBOOKS/CI_PIPELINE.md` for
+> the dev-vs-CI decision table. If a debug-signed Faazio is already installed, uninstall it first
+> (`adb uninstall com.faazio.customer`).
 
 ### Local debug build
 
