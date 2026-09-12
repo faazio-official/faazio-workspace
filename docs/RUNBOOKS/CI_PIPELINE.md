@@ -69,8 +69,15 @@ uses `gh release upload --clobber`, re-running the same tag **replaces** the old
 
 ### Version bump
 
-The workflow regenerates `versionCode` from `expo prebuild`; you only manage `expo.version` in
-`app.json` (or pass `-f version=...` to the workflow).
+You manage **both** `expo.version` and `android.versionCode` in `app.json`. `expo prebuild` does
+**not** derive a usable versionCode on its own — the v1.0.2 release shipped `versionCode 1`
+until `android.versionCode: 3` was pinned explicitly (a vc-1 APK is a downgrade and `adb install`
+fails with `INSTALL_FAILED_VERSION_DOWNGRADE`). Rule: **bump `android.versionCode` by 1 every
+release** alongside `expo.version`.
+
+> Replacing an older **debug-signed** install with the release-signed APK will fail with
+> `INSTALL_FAILED_UPDATE_INCOMPATIBLE` — `adb uninstall com.faazio.customer` first (clears local
+> data), then `adb install -r`.
 
 ## 📲 Install the release APK on a device
 
