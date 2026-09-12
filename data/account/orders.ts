@@ -31,7 +31,7 @@ export const myOrders: MyOrder[] = [
     status: 'Delivered',
     statusDate: '08 May 2025',
     emoji: '☕',
-    app: 'GROCERY',
+    app: 'MART',
   },
   {
     id: '2',
@@ -59,7 +59,7 @@ export const myOrders: MyOrder[] = [
     status: 'Delivered',
     statusDate: '06 May 2025',
     emoji: '🍎',
-    app: 'GROCERY',
+    app: 'MART',
   },
   {
     id: '4',

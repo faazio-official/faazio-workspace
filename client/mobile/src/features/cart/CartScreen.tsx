@@ -1,9 +1,9 @@
 import React, { useCallback } from 'react';
 import { StyleSheet, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import CartView from '@/features/cart/CartView';
 import { useCartStore, type CartItem } from '@/state/cartStore';
-import { STATUS_BAR_INSET } from '@/utils/responsive';
 import type { RootStackParamList } from '@/navigation/types';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'Cart'>;
@@ -17,6 +17,7 @@ export function CartScreen({ navigation }: Props) {
   const cartItems = useCartStore((s) => s.cart);
   const storeUpdateQuantity = useCartStore((s) => s.updateQuantity);
   const replaceCart = useCartStore((s) => s.replaceCart);
+  const insets = useSafeAreaInsets();
 
   const setCartItems = useCallback(
     (action: CartItem[] | ((prev: CartItem[]) => CartItem[])) => {
@@ -37,7 +38,7 @@ export function CartScreen({ navigation }: Props) {
   return (
     <View style={styles.container}>
       <CartView
-        contentInset={STATUS_BAR_INSET}
+        contentInset={insets.top}
         cartItems={cartItems}
         setCartItems={setCartItems}
         updateCartQuantity={storeUpdateQuantity}

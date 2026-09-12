@@ -18,13 +18,12 @@ import type {
 export const portalSectors: PortalSector[] = [
   { emoji: '🛍️', name: 'Mart', tagline: 'Shop the latest trends', imageUrl: 'https://images.unsplash.com/photo-1483985988355-763728e1935b?fm=jpg&fit=crop&q=80&w=200&h=200', themeColor: '#1162D3', app: 'MART' },
   { emoji: '🍲', name: 'Food', tagline: 'Taste the extraordinary', imageUrl: 'https://images.unsplash.com/photo-1504674900247-0877df9cc836?fm=jpg&fit=crop&q=80&w=200&h=200', themeColor: '#1E5D44', app: 'FOOD' },
-  { emoji: '🍏', name: 'Grocery', tagline: 'Fresh from the farm', imageUrl: 'https://images.unsplash.com/photo-1542838132-92c53300491e?fm=jpg&fit=crop&q=80&w=200&h=200', themeColor: '#10B981', app: 'GROCERY' },
   { emoji: '💊', name: 'Pharma', tagline: 'Your health, our priority', imageUrl: 'https://images.unsplash.com/photo-1585435557343-3b092031a831?fm=jpg&fit=crop&q=80&w=200&h=200', themeColor: '#065F46', app: 'PHARMA' },
 ];
 
 export const topAdSlides: AdSlide[] = [
   { title: '💊 Free Pharma Delivery', tagline: 'On your first order', badge: 'LIVE VIDEO CAM', imageUrl: 'https://images.unsplash.com/photo-1585435557343-3b092031a831?fm=jpg&fit=crop&q=80&w=800&h=400', targetApp: 'PHARMA' },
-  { title: '🍎 Farm Fresh Apples', tagline: 'Direct from Kashmir valleys', badge: 'LIVE NOW', imageUrl: 'https://images.unsplash.com/photo-1560806887-1e4cd0b6cbd6?fm=jpg&fit=crop&q=80&w=800&h=400', targetApp: 'GROCERY' },
+  { title: '🍎 Farm Fresh Apples', tagline: 'Direct from Kashmir valleys', badge: 'LIVE NOW', imageUrl: 'https://images.unsplash.com/photo-1560806887-1e4cd0b6cbd6?fm=jpg&fit=crop&q=80&w=800&h=400', targetApp: 'MART' },
   { title: '🍕 Monsoon Special Pizza', tagline: 'Buy 1 Get 1 Free', badge: 'FLASH DEAL', imageUrl: 'https://images.unsplash.com/photo-1513104890138-7c749659a591?fm=jpg&fit=crop&q=80&w=800&h=400', targetApp: 'FOOD' },
 ];
 
@@ -51,7 +50,7 @@ export const todaysOffers: TodaysOffer[] = [
 export const mixedRecommendations: MixedRecommendation[] = [
   { id: 'mr-1', name: 'Creamy Mushroom Soup', price: 220, sector: 'Food', rating: 4.7, imageUrl: 'https://images.unsplash.com/photo-1547592180-85f173990554?fm=jpg&fit=crop&q=80&w=400&h=300' },
   { id: 'mr-2', name: 'Mechanical Keyboard', price: 2999, sector: 'Mart', rating: 4.8, imageUrl: 'https://images.unsplash.com/photo-1587829741301-dc798b83add3?fm=jpg&fit=crop&q=80&w=400&h=300' },
-  { id: 'mr-3', name: 'Greek Yogurt Tub', price: 180, sector: 'Grocery', rating: 4.8, imageUrl: 'https://images.unsplash.com/photo-1488477181946-6428a0291777?fm=jpg&fit=crop&q=80&w=400&h=300' },
+  { id: 'mr-3', name: 'Greek Yogurt Tub', price: 180, sector: 'Mart', rating: 4.8, imageUrl: 'https://images.unsplash.com/photo-1488477181946-6428a0291777?fm=jpg&fit=crop&q=80&w=400&h=300' },
   { id: 'mr-4', name: 'Sleep Elixir Gummies', price: 420, sector: 'Pharma', rating: 4.7, imageUrl: 'https://images.unsplash.com/photo-1607619056574-7b8d304f2c38?fm=jpg&fit=crop&q=80&w=400&h=300' },
 ];
 
@@ -66,19 +65,17 @@ export const recentlyViewedMart: Product[] = [
   { id: 'rvm-2', app: 'MART', category: 'Electronics', name: 'Slim Mechanical Keyboard', price: 2999, originalPrice: 3999, emoji: '⌨️', image: 'https://images.unsplash.com/photo-1587829741301-dc798b83add3?fm=jpg&fit=crop&q=80&w=200&h=200', desc: 'Gateron brown switches with RGB backlight', rating: 4.8, badge: 'Popular', badgeBg: 'bg-slate-700', attributes: { type: 'Keyboard', brand: 'Faazio' } },
   { id: 'rvm-3', app: 'MART', category: 'Electronics', name: 'Pro Noise Cancelling Headphones', price: 4499, originalPrice: 5999, emoji: '🎧', image: 'https://images.unsplash.com/photo-1546435770-a3e426bf472b?fm=jpg&fit=crop&q=80&w=200&h=200', desc: 'Hybrid ANC with memory foam earcups', rating: 4.9, badge: 'Top Rated', badgeBg: 'bg-purple-600', attributes: { type: 'Audio', brand: 'Faazio' } },
   { id: 'rvm-4', app: 'MART', category: 'Home Appliances', name: 'Smart Wi-Fi Air Purifier Pro', price: 8999, originalPrice: 11999, emoji: '🌪️', image: 'https://images.unsplash.com/photo-1585771724684-38269d6639fd?fm=jpg&fit=crop&q=80&w=200&h=200', desc: 'True HEPA H13 filter with app monitoring', rating: 4.9, badge: 'Mega Deal', badgeBg: 'bg-emerald-600', attributes: { type: 'Air Purifier', brand: 'Faazio' } },
+  // Formerly recentlyViewedGrocery — merged into the Mart rail (grocery → Mart).
+  { id: 'rvg-1', app: 'MART', category: 'Fresh Produce', name: 'Organic Royal Gala Apples', price: 249, originalPrice: 320, unit: '1 kg', emoji: '🍎', image: 'https://images.unsplash.com/photo-1560806887-1e4cd0b6cbd6?fm=jpg&fit=crop&q=80&w=200&h=200', desc: 'Certified zero-pesticide orchard apples', rating: 4.9, badge: 'Weekly staple', badgeBg: 'bg-green-500', attributes: { brand: 'Farm Fresh' } },
+  { id: 'rvg-2', app: 'MART', category: 'Bakery', name: 'Artisan Sourdough Loaf', price: 150, originalPrice: 190, unit: '450g', emoji: '🍞', image: 'https://images.unsplash.com/photo-1509440159596-0249088772ff?fm=jpg&fit=crop&q=80&w=200&h=200', desc: 'Naturally leavened, baked fresh daily', rating: 4.8, badge: 'Baked Daily', badgeBg: 'bg-amber-500', attributes: { brand: 'Baker\'s Joy' } },
+  { id: 'rvg-3', app: 'MART', category: 'Beverages', name: 'Almond Milk Unsweetened', price: 190, originalPrice: 250, unit: '1 L', emoji: '🥛', image: 'https://images.unsplash.com/photo-1553456558-aff63285bdd1?fm=jpg&fit=crop&q=80&w=200&h=200', desc: 'Dairy-free toasted Mediterranean almonds', rating: 4.7, badge: 'Vegan Fit', badgeBg: 'bg-emerald-500', attributes: { brand: 'Plantful' } },
+  { id: 'rvg-4', app: 'MART', category: 'Snacks', name: 'Sea Salt Multigrain Crisps', price: 95, originalPrice: 130, unit: '150g', emoji: '🍿', image: 'https://images.unsplash.com/photo-1599490659213-e2b9527bb087?fm=jpg&fit=crop&q=80&w=200&h=200', desc: 'Baked with pink Himalayan salt', rating: 4.6, badge: 'Gluten-Free', badgeBg: 'bg-orange-500', attributes: { brand: 'CrunchCo' } },
 ];
 
 export const recentlyViewedFood: Product[] = [
   { id: 'rvf-1', app: 'FOOD', category: 'Featured', name: 'Hainanese Chicken Rice', price: 349, emoji: '🍛', image: 'https://images.unsplash.com/photo-1546069901-ba9599a7e63c?fm=jpg&fit=crop&q=80&w=200&h=200', desc: 'Poached chicken over fragrant ginger rice', rating: 4.8, badge: 'Ordered again', shop: 'Hawker Lane' },
   { id: 'rvf-2', app: 'FOOD', category: 'Seafood', name: 'Spicy Seafood Ramen', price: 450, emoji: '🍜', image: 'https://images.unsplash.com/photo-1569718212165-3a8278d5f624?fm=jpg&fit=crop&q=80&w=200&h=200', desc: 'House noodles in spicy seafood broth', rating: 4.9, badge: 'Ordered twice', shop: 'Ramen House' },
   { id: 'rvf-3', app: 'FOOD', category: 'Soup', name: 'Creamy Mushroom Soup', price: 220, emoji: '🥣', image: 'https://images.unsplash.com/photo-1547592180-85f173990554?fm=jpg&fit=crop&q=80&w=200&h=200', desc: 'Puréed mushrooms with truffle oil', rating: 4.7, badge: 'Favourite', shop: 'Soup Bar' },
-];
-
-export const recentlyViewedGrocery: Product[] = [
-  { id: 'rvg-1', app: 'GROCERY', category: 'Fresh Produce', name: 'Organic Royal Gala Apples', price: 249, originalPrice: 320, unit: '1 kg', emoji: '🍎', image: 'https://images.unsplash.com/photo-1560806887-1e4cd0b6cbd6?fm=jpg&fit=crop&q=80&w=200&h=200', desc: 'Certified zero-pesticide orchard apples', rating: 4.9, badge: 'Weekly staple', badgeBg: 'bg-green-500', attributes: { brand: 'Farm Fresh' } },
-  { id: 'rvg-2', app: 'GROCERY', category: 'Bakery', name: 'Artisan Sourdough Loaf', price: 150, originalPrice: 190, unit: '450g', emoji: '🍞', image: 'https://images.unsplash.com/photo-1509440159596-0249088772ff?fm=jpg&fit=crop&q=80&w=200&h=200', desc: 'Naturally leavened, baked fresh daily', rating: 4.8, badge: 'Baked Daily', badgeBg: 'bg-amber-500', attributes: { brand: 'Baker\'s Joy' } },
-  { id: 'rvg-3', app: 'GROCERY', category: 'Beverages', name: 'Almond Milk Unsweetened', price: 190, originalPrice: 250, unit: '1 L', emoji: '🥛', image: 'https://images.unsplash.com/photo-1553456558-aff63285bdd1?fm=jpg&fit=crop&q=80&w=200&h=200', desc: 'Dairy-free toasted Mediterranean almonds', rating: 4.7, badge: 'Vegan Fit', badgeBg: 'bg-emerald-500', attributes: { brand: 'Plantful' } },
-  { id: 'rvg-4', app: 'GROCERY', category: 'Snacks', name: 'Sea Salt Multigrain Crisps', price: 95, originalPrice: 130, unit: '150g', emoji: '🍿', image: 'https://images.unsplash.com/photo-1599490659213-e2b9527bb087?fm=jpg&fit=crop&q=80&w=200&h=200', desc: 'Baked with pink Himalayan salt', rating: 4.6, badge: 'Gluten-Free', badgeBg: 'bg-orange-500', attributes: { brand: 'CrunchCo' } },
 ];
 
 export const recentlyViewedPharma: Product[] = [

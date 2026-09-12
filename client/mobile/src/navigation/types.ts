@@ -20,7 +20,7 @@ export type RootStackParamList = {
   /** Universal "Master Categories" screen with a cross-sub-app selector. */
   MasterCategories:
     | {
-        initialChip?: 'ALL' | 'FA_MART' | 'GROCERY' | 'PHARMA';
+        initialChip?: 'ALL' | 'FA_MART' | 'PHARMA';
         /** Deep-link: sidebar tab id to mount as active (e.g. from a home rail card). */
         initialTabId?: string;
       }
@@ -35,7 +35,7 @@ export type RootStackParamList = {
   You: undefined;
   /** Pixel-perfect payment method picker (preferred card, UPI, cards, more). */
   PaymentOptions: undefined;
-  /** "Your Details" — personal info, preferences, security (pushed from Account). */
+  /** "my profile" — personal info, preferences, security (pushed from Account). */
   UserDetails: undefined;
   /** "Saved Addresses" — manage, select, add delivery locations (pushed from Account). */
   SavedAddresses: undefined;
@@ -43,6 +43,14 @@ export type RootStackParamList = {
   MyOrders: { initialTab?: MyOrdersStatusFilter } | undefined;
   /** Per-order detail page, resolved by id from `@data` (pushed from My Orders). */
   OrderDetails: { orderId: string };
+  /** Blood Donor registration wizard + registered dashboard (pushed from Pharma). */
+  BloodDonor: undefined;
+  /** Blood request detail placeholder (pushed from the donor dashboard). */
+  BloodRequestDescription: { requestId: string };
+  /** FaazioRewards — coins, order streak, and the streak discount card. */
+  FaazioRewards: undefined;
+  /** Mock "Sell with us" partner onboarding — required details (no backend yet). */
+  SellWithUs: undefined;
 };
 
 export type FoodStackParamList = {

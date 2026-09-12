@@ -146,7 +146,7 @@ export default function CommonProductDetailView({
         </TouchableOpacity>
         <View style={styles.headerRight}>
           <TouchableOpacity onPress={onSearch} style={styles.headerBtn} activeOpacity={0.7}>
-            <Search size={ms(20)} color="#0f172a" strokeWidth={2.2} />
+            <Search size={ms(23)} color="#0f172a" strokeWidth={2.2} />
           </TouchableOpacity>
           <TouchableOpacity onPress={onCart} style={styles.headerBtn} activeOpacity={0.7}>
             <ShoppingCart size={ms(20)} color="#0f172a" strokeWidth={2.2} />

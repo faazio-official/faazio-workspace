@@ -11,13 +11,6 @@ export const PHARMA_SOFT = '#F0FDF8';
 export const PHARMA_INK = '#1E2022';
 export const PHARMA_GREY = '#666666';
 
-export interface PharmaFeatureChip {
-  id: string;
-  title: string;
-  subtitle: string;
-  iconName: 'clock' | 'shield' | 'percent' | 'rotate';
-}
-
 export interface PharmaQuickReorderItem {
   id: string;
   name: string;
@@ -81,13 +74,6 @@ export interface PharmaHealthCornerArticle {
   subtitle: string;
   imageUrl: string;
 }
-
-export const PHARMA_FEATURE_CHIPS: PharmaFeatureChip[] = [
-  { id: 'pfc-1', title: 'Express Delivery', subtitle: '15-30 mins', iconName: 'clock' },
-  { id: 'pfc-2', title: '100% Genuine', subtitle: 'Quality assured', iconName: 'shield' },
-  { id: 'pfc-3', title: 'Best Prices', subtitle: 'Up to 50% off', iconName: 'percent' },
-  { id: 'pfc-4', title: 'Easy Returns', subtitle: 'Within 7 days', iconName: 'rotate' },
-];
 
 export const PHARMA_QUICK_REORDER: PharmaQuickReorderItem[] = [
   { id: 'pqr-1', name: 'Paracetamol 650', stripDetails: 'Strip of 15 Tablets', price: 45 },

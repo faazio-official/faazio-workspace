@@ -46,7 +46,6 @@ export function createPharmaSearchConfig({
     toggles: [{ key: 'products', label: 'Medicines', icon: Stethoscope }],
     showToggles: false,
     filterChips: [],
-    numColumns: 2,
     sortOptions: [
       { id: 'relevance', label: 'Relevance' },
       { id: 'popularity', label: 'Popularity' },
@@ -63,12 +62,8 @@ export function createPharmaSearchConfig({
         key: 'products',
         data: pharmaProducts,
         predicate,
-        renderCard: (item, index) => (
-          <SearchPharmaProductCard
-            product={item as Product}
-            columnIndex={index % 2}
-            onPress={onProductPress}
-          />
+        renderCard: (item) => (
+          <SearchPharmaProductCard product={item as Product} onPress={onProductPress} />
         ),
         sorters: {
           relevance: () => 0,

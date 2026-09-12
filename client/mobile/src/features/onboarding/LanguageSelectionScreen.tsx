@@ -105,7 +105,7 @@ export default function LanguageSelectionScreen({ navigation }: Props) {
 
           {/* SEARCH BAR */}
           <View style={styles.searchContainer}>
-            <Search size={ms(18)} color="#9CA3AF" style={styles.searchIcon} />
+            <Search size={ms(21)} color="#9CA3AF" style={styles.searchIcon} />
             <TextInput
               onChangeText={setSearchQuery}
               placeholder="Search language"

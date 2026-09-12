@@ -81,7 +81,6 @@ export default RestaurantCard;
 
 const styles = StyleSheet.create({
   wrap: {
-    marginHorizontal: hs(16),
     marginBottom: vs(12),
     borderRadius: ms(14),
     backgroundColor: foodTheme.card,

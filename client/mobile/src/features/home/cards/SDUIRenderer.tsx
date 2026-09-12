@@ -4,7 +4,6 @@ import { hs, vs, ms } from '@/utils/responsive';
 import { brandTokens } from '@/theme/brandTokens';
 import MartProductCard from '@/features/ecommerce/cards/MartProductCard';
 import FoodProductCard from '@/features/food/cards/FoodProductCard';
-import GroceryProductCard from '@/features/ecommerce/cards/GroceryProductCard';
 import PharmaProductCard from '@/features/pharma/cards/PharmaProductCard';
 import HomeRailCard from './HomeRailCard';
 import StoreCardBase from '@/components/shared/StoreCardBase';
@@ -42,7 +41,6 @@ function renderProductCard(node: SDUINode, props: SDUIRendererProps) {
   switch (node.appBrand) {
     case 'MART': return <MartProductCard {...cardProps} />;
     case 'FOOD': return <FoodProductCard {...cardProps} />;
-    case 'GROCERY': return <GroceryProductCard {...cardProps} />;
     case 'PHARMA': return <PharmaProductCard {...cardProps} />;
     default: return <FoodProductCard {...cardProps} />;
   }

@@ -11,6 +11,8 @@ import { TODAYS_SPECIALS } from '../mocks/specials';
 import { dishToProduct } from '../mocks/specials';
 import { TOP_FOODS_TO_ORDER } from '../mocks/homeFeed';
 import type { FoodType } from '../mocks/homeFeed';
+import { useFoodFilterStore } from '@/state/foodFilterStore';
+import { dishMatches, venueMatches } from '../utils/dietFilter';
 import FoodSectionHeader from '../components/FoodSectionHeader';
 import FoodBottomNav, { type FoodTab } from '../components/FoodBottomNav';
 import OrderHeader from '../components/order/OrderHeader';
@@ -21,6 +23,7 @@ import PopularDishRail from '../components/order/PopularDishRail';
 import CuisineRail from '../components/order/CuisineRail';
 import MealsComboRail from '../components/order/MealsComboRail';
 import SnacksRail from '../components/order/SnacksRail';
+import DietEmptyNote from '../components/DietEmptyNote';
 
 type Props = NativeStackScreenProps<FoodStackParamList, 'OrderDetail'>;
 
@@ -32,6 +35,14 @@ type Props = NativeStackScreenProps<FoodStackParamList, 'OrderDetail'>;
  * plus the fixed bottom nav (FoodOrder active) with a Cart entry point.
  */
 export function OrderDetailScreen({ navigation }: Props) {
+  const dietFilter = useFoodFilterStore((s) => s.dietFilter);
+
+  const filteredSpecialDishes = TODAYS_SPECIALS.filter((d) => dishMatches(dietFilter, d));
+  const filteredCombos = MEALS_COMBOS.filter((c) => dishMatches(dietFilter, c));
+  const filteredSnacks = SNACKS_BEVERAGES.filter((s) => dishMatches(dietFilter, s));
+  const filteredMind = TOP_FOODS_TO_ORDER.filter((f) => venueMatches(dietFilter, f));
+  const filterActive = dietFilter !== 'all';
+
   const handleTabChange = useCallback(
     (tab: FoodTab) => {
       if (tab === 'Home') {
@@ -99,16 +110,32 @@ export function OrderDetailScreen({ navigation }: Props) {
         bounces={false}
       >
         <OrderHeader />
-        <PromoCarousel promos={PROMOS} />
+        {!filterActive ? <PromoCarousel promos={PROMOS} /> : null}
         <FoodSectionHeader title="What's on your mind?" onSeeAll={openSearch} />
-        <MindGridRail items={TOP_FOODS_TO_ORDER} onPress={openMindSearch} />
-        <PopularDishRail dishes={TODAYS_SPECIALS} onSeeAll={openSearch} onPress={openDishProduct} />
-        <FoodSectionHeader title="Explore Cuisines" onSeeAll={openSearch} />
-        <CuisineRail cuisines={CUISINES} />
+        {filteredMind.length > 0 ? (
+          <MindGridRail items={filteredMind} onPress={openMindSearch} />
+        ) : (
+          <DietEmptyNote />
+        )}
+        <PopularDishRail dishes={filteredSpecialDishes} onSeeAll={openSearch} onPress={openDishProduct} />
+        {!filterActive ? (
+          <>
+            <FoodSectionHeader title="Explore Cuisines" onSeeAll={openSearch} />
+            <CuisineRail cuisines={CUISINES} />
+          </>
+        ) : null}
         <FoodSectionHeader title="Meals & Combos" onSeeAll={openSearch} />
-        <MealsComboRail combos={MEALS_COMBOS} onPress={openComboSearch} />
+        {filteredCombos.length > 0 ? (
+          <MealsComboRail combos={filteredCombos} onPress={openComboSearch} />
+        ) : (
+          <DietEmptyNote />
+        )}
         <FoodSectionHeader title="Snacks & Beverages" onSeeAll={openSearch} />
-        <SnacksRail snacks={SNACKS_BEVERAGES} />
+        {filteredSnacks.length > 0 ? (
+          <SnacksRail snacks={filteredSnacks} />
+        ) : (
+          <DietEmptyNote />
+        )}
       </ScrollView>
       <FoodStatusBarStrip scrollY={scrollY} />
       <FoodBottomNav activeTab="FoodOrder" onChange={handleTabChange} onCartPress={openCart} onYouPress={openYou} />

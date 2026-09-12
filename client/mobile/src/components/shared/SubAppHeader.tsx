@@ -1,5 +1,6 @@
 import React from 'react';
-import { StyleSheet, View, TouchableOpacity, StatusBar } from 'react-native';
+import { StyleSheet, View, TouchableOpacity } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { TextInput } from 'react-native';
 import { ArrowLeft, Search, MapPin, ChevronDown } from 'lucide-react-native';
 import Svg, { Defs, LinearGradient as SvgGrad, Stop, Rect as SvgRect, Circle as SvgCircle } from 'react-native-svg';
@@ -7,16 +8,18 @@ import { SCREEN_W, hs, vs, ms } from '@/utils/responsive';
 import AppText from '@/components/AppText';
 import AppTextInput from '@/components/AppTextInput';
 
-const SUB_HEADER_NOTCH_INSET = StatusBar.currentHeight ?? 0;
 const SUB_HEADER_TOP_GAP = vs(12);
 const SUB_HEADER_ROW_H = vs(24);
 const SUB_HEADER_ROW_GAP = vs(10);
 const SUB_HEADER_SEARCH_H = Math.max(40, vs(40));
 const SUB_HEADER_BOTTOM_PAD = vs(12);
-export const SUB_HEADER_H =
-  SUB_HEADER_NOTCH_INSET + SUB_HEADER_TOP_GAP + SUB_HEADER_ROW_H + SUB_HEADER_ROW_GAP + SUB_HEADER_SEARCH_H + SUB_HEADER_BOTTOM_PAD;
-export const SUB_HEADER_H_COMPACT =
-  SUB_HEADER_NOTCH_INSET + SUB_HEADER_TOP_GAP + SUB_HEADER_SEARCH_H + SUB_HEADER_BOTTOM_PAD;
+/** Height of the sub-app header (brand row shown), incl. the OS status-bar inset. */
+export const subAppHeaderH = (topInset: number, compact: boolean) =>
+  topInset +
+  SUB_HEADER_TOP_GAP +
+  (compact ? 0 : SUB_HEADER_ROW_H + SUB_HEADER_ROW_GAP) +
+  SUB_HEADER_SEARCH_H +
+  SUB_HEADER_BOTTOM_PAD;
 
 interface SubAppHeaderProps {
   title: string;
@@ -49,8 +52,10 @@ export default function SubAppHeader({
   addressSubLabel,
   onAddressPress,
 }: SubAppHeaderProps) {
+  const insets = useSafeAreaInsets();
+  const topInset = insets.top;
   return (
-    <View style={[styles.headerOuter, { height: hideBrandRow ? SUB_HEADER_H_COMPACT : SUB_HEADER_H }]}>
+    <View style={[styles.headerOuter, { height: subAppHeaderH(topInset, hideBrandRow) }]}>
       <Svg style={StyleSheet.absoluteFill}>
         <Defs>
           <SvgGrad id="subHeaderGrad" x1="0%" y1="0%" x2="0%" y2="100%">
@@ -62,7 +67,7 @@ export default function SubAppHeader({
         <SvgCircle cx={SCREEN_W * 1.1} cy={vs(-20)} r={ms(96)} fill="rgba(255,255,255,0.05)" />
         <SvgCircle cx={hs(-30)} cy={vs(120)} r={ms(96)} fill="rgba(255,255,255,0.04)" />
       </Svg>
-      <View style={[styles.headerContent, hideBrandRow && styles.headerContentCompact]}>
+      <View style={[styles.headerContent, hideBrandRow && styles.headerContentCompact, { paddingTop: topInset + SUB_HEADER_TOP_GAP }]}>
         {!hideBrandRow && (
           <View style={styles.headerTopRow}>
             <View style={styles.brandChip}>
@@ -100,7 +105,7 @@ export default function SubAppHeader({
             </TouchableOpacity>
           ) : (
             <View style={styles.searchPill}>
-              <Search size={ms(14)} color="#94a3b8" />
+              <Search size={ms(17)} color="#94a3b8" />
               <AppTextInput
                 ref={inputRef}
                 style={styles.searchInput}
@@ -131,13 +136,12 @@ const styles = StyleSheet.create({
     elevation: 6,
   },
   headerContent: {
-    paddingTop: SUB_HEADER_NOTCH_INSET + SUB_HEADER_TOP_GAP,
     paddingBottom: SUB_HEADER_BOTTOM_PAD,
     paddingHorizontal: hs(16),
     gap: SUB_HEADER_ROW_GAP,
   },
   headerContentCompact: {
-    paddingTop: SUB_HEADER_NOTCH_INSET + SUB_HEADER_TOP_GAP,
+    paddingBottom: SUB_HEADER_BOTTOM_PAD,
   },
   headerTopRow: {
     flexDirection: 'row',

@@ -30,7 +30,7 @@ data/
 ├── types.ts            # shared entity types
 ├── schema.ts           # @aspirational SDUI contract types
 ├── DATA_CONTROL.md     # authoritative ownership matrix + known gaps
-├── mart/ grocery/ food/ pharma/   # per-sub-app products + stores (+ deals/specials)
+├── mart/ food/ pharma/   # per-sub-app products + stores (+ deals/specials)
 ├── explore/ categories/ productMeta/ reviews/
 ├── cart/ account/ accounts/ checkout/ inventory/
 └── home/               # sections, rails, feeds, seeds, sdui
@@ -40,7 +40,7 @@ data/
 
 | Domain | Owner | Status |
 |---|---|---|
-| `mart`, `grocery` | `features/ecommerce` | `@mock` |
+| `mart` | `features/ecommerce` | `@mock` |
 | `food` | `features/food` | `@mock` |
 | `pharma` | `features/pharma` | `@mock` (+ `@unused` by mobile) |
 | `explore`, `categories` | `features/catalog` | `@mock` |

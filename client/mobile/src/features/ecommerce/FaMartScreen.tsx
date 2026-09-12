@@ -6,23 +6,22 @@ import { hs, ms, vs } from '@/utils/responsive';
 import AppText from '@/components/AppText';
 import { useCartStore } from '@/state/store';
 import { martProducts } from '@data/mart/products';
-import type { MartProduct } from '@data/types';
+import type { MartProduct, StoreProfile } from '@data/types';
 import type { RootStackParamList } from '@/navigation/types';
 import MartProductCard from '@/features/ecommerce/cards/MartProductCard';
 
 import {
   dealToProduct,
-  flashSaleToProduct,
+  essentialToProduct,
 } from './mocks/martHomeFeed';
-import type { MartLocalVendor, MartTopBrand, MartDeal, MartFlashSale } from './mocks/martHomeFeed';
+import type { MartDeal, MartEssential } from './mocks/martHomeFeed';
 import { useMartFeed } from './hooks/useMartFeed';
 import MartHomeSkeleton from './components/skeletons/MartHomeSkeleton';
 
 import MartHeroCarousel from './components/mart-home/MartHeroCarousel';
 import CategoryCardRail from '@/components/shared/CategoryCardRail';
 import DealsOfDayRail from './components/mart-home/DealsOfDayRail';
-import FlashSaleRail from './components/mart-home/FlashSaleRail';
-import TopBrandsRail from './components/mart-home/TopBrandsRail';
+import DailyEssentialsRail from './components/mart-home/DailyEssentialsRail';
 import LocalVendorRail from './components/mart-home/LocalVendorRail';
 import { VendorProfileView } from './components/vendor';
 import { getCategoryCards } from '@/services/categoryRail';
@@ -37,35 +36,22 @@ interface FaMartScreenProps {
   onSearchPress?: (query?: string) => void;
   /** The vendor whose profile drill-in is currently open (owned by the wrapper
    *  so header/tab-bar hiding and the vendor view update atomically). */
-  vendor?: MartLocalVendor | null;
+  vendor?: StoreProfile | null;
   /** Requests opening (vendor) or closing (null) the vendor profile drill-in. */
-  onVendorPress?: (vendor: MartLocalVendor | null) => void;
+  onVendorPress?: (vendor: StoreProfile | null) => void;
 }
 
 /**
- * Each local vendor carries a rotating subset of the real @data/mart inventory,
- * so category chips genuinely filter across the vendor's available categories.
+ * A store's drill-in inventory is derived from the real @data/mart product set
+ * via each product's `storeId`, so category chips genuinely filter across the
+ * products that store actually sells.
  */
-const VENDOR_PRODUCT_MAP: Record<string, string[]> = {
-  'lv-1': ['fm-f1', 'fm-f2', 'fm-f3', 'fm-b1', 'fm-b2', 'fm-t1', 'fm-bk1', 'fm-bk2'],
-  'lv-2': ['fm-m1', 'fm-m2', 'fm-e1', 'fm-e2', 'fm-e3', 'fm-ha1', 'fm-ha2'],
-  'lv-3': ['fm-f1', 'fm-b1', 'fm-e1', 'fm-t1', 'fm-fur1', 'fm-fur2', 'fm-s1'],
-  'lv-4': ['fm-f2', 'fm-b2', 'fm-ha1', 'fm-t1', 'fm-s1', 'fm-bk1', 'fm-tg1'],
-  'lv-5': ['fm-m1', 'fm-e3', 'fm-ha2', 'fm-fur2', 'fm-bk2', 'fm-t1', 'fm-s1'],
-  'lv-6': ['fm-f3', 'fm-b1', 'fm-e2', 'fm-fur1', 'fm-ha1', 'fm-bk1', 'fm-s1'],
-};
-
-const getVendorProducts = (vendorId: string): MartProduct[] => {
-  const ids = VENDOR_PRODUCT_MAP[vendorId];
-  if (!ids) return martProducts.slice(0, 6);
-  return ids
-    .map((id) => martProducts.find((p) => p.id === id))
-    .filter((p): p is MartProduct => Boolean(p));
-};
+const getVendorProducts = (store: StoreProfile): MartProduct[] =>
+  martProducts.filter((p) => p.storeId === store.id);
 
 /** Items currently on offer (have a pre-discount MRP) — shown in the discount rail. */
-const getDiscountedProducts = (vendorId: string): MartProduct[] =>
-  getVendorProducts(vendorId).filter((p) => p.originalPrice !== undefined && p.originalPrice > p.price);
+const getDiscountedProducts = (store: StoreProfile): MartProduct[] =>
+  getVendorProducts(store).filter((p) => p.originalPrice !== undefined && p.originalPrice > p.price);
 
 const CARD_GAP = hs(12);
 const CARD_W = (SCREEN_W - hs(32) - CARD_GAP) / 2;
@@ -86,7 +72,7 @@ export function FaMartScreen({
   const normalizedSearch = searchQuery.trim().toLowerCase();
 
   const vendorProducts = useMemo(
-    () => (vendor ? getVendorProducts(vendor.id) : []),
+    () => (vendor ? getVendorProducts(vendor) : []),
     [vendor],
   );
 
@@ -99,7 +85,7 @@ export function FaMartScreen({
   );
 
   const handleVendorPress = useCallback(
-    (v: MartLocalVendor) => {
+    (v: StoreProfile) => {
       onVendorPress?.(v);
     },
     [onVendorPress],
@@ -119,13 +105,6 @@ export function FaMartScreen({
     navigation.navigate('MasterCategories', { initialChip: 'FA_MART' });
   }, [navigation]);
 
-  const handleBrandPress = useCallback(
-    (brand: MartTopBrand) => {
-      navigation.navigate('Search', { subApp: 'FA_MART', initialQuery: brand.name });
-    },
-    [navigation],
-  );
-
   const handleDealPress = useCallback(
     (deal: MartDeal) => {
       onProductClick?.(dealToProduct(deal));
@@ -133,9 +112,9 @@ export function FaMartScreen({
     [onProductClick],
   );
 
-  const handleSalePress = useCallback(
-    (sale: MartFlashSale) => {
-      onProductClick?.(flashSaleToProduct(sale));
+  const handleEssentialPress = useCallback(
+    (item: MartEssential) => {
+      onProductClick?.(essentialToProduct(item));
     },
     [onProductClick],
   );
@@ -156,8 +135,7 @@ export function FaMartScreen({
       ),
     },
     { id: 'deals', component: <DealsOfDayRail deals={feed?.deals ?? []} onDealPress={handleDealPress} /> },
-    { id: 'flash', component: <FlashSaleRail sales={feed?.flashSales ?? []} onSalePress={handleSalePress} /> },
-    { id: 'brands', component: <TopBrandsRail brands={feed?.topBrands ?? []} onPress={handleBrandPress} /> },
+    { id: 'essentials', component: <DailyEssentialsRail items={feed?.dailyEssentials ?? []} onItemPress={handleEssentialPress} /> },
   ];
 
   const handleBackToFeed = useCallback(() => {
@@ -196,7 +174,7 @@ export function FaMartScreen({
       <VendorProfileView
         vendor={vendor}
         products={filteredVendorProducts}
-        discountedProducts={getDiscountedProducts(vendor.id)}
+        discountedProducts={getDiscountedProducts(vendor)}
         cartItems={cartItems}
         onBack={handleBackToFeed}
         onProductClick={onProductClick}

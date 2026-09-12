@@ -30,12 +30,6 @@ export const getProductReviews = (app: AppBrand): Review[] => {
     { id: 'rev-m3', user: 'Neha Kapoor', avatar: avatarMap['Neha Kapoor'], rating: 4, comment: 'Nice product but took longer than expected for delivery. Good value for money though.', date: '3 weeks ago' },
   ];
 
-  const grocery: Review[] = [
-    { id: 'rev-g1', user: 'Ravi Desai', avatar: avatarMap['Ravi Desai'], rating: 5, comment: 'Freshest produce I have ever ordered online. The apples were incredibly crisp.', date: '4 days ago' },
-    { id: 'rev-g2', user: 'Meera Nair', avatar: avatarMap['Meera Nair'], rating: 4, comment: 'Good quality but one item was missing. Customer service refunded promptly.', date: '1 week ago' },
-    { id: 'rev-g3', user: 'Arjun Mehta', avatar: avatarMap['Arjun Mehta'], rating: 5, comment: 'The organic vegetables are amazing. Regular weekly order now!', date: '2 weeks ago' },
-  ];
-
   const pharma: Review[] = [
     { id: 'rev-p1', user: 'Dr. Sarah Alvi', avatar: avatarMap['Dr. Sarah Alvi'], rating: 5, comment: 'Genuine pharmaceutical products with proper packaging and expiry dates.', date: '1 week ago' },
     { id: 'rev-p2', user: 'Rahul Verma', avatar: avatarMap['Rahul Verma'], rating: 5, comment: 'Fast delivery of my prescription medicines. Very reliable service.', date: '2 weeks ago' },
@@ -45,7 +39,6 @@ export const getProductReviews = (app: AppBrand): Review[] => {
   switch (app) {
     case 'FOOD': return food;
     case 'MART': return mart;
-    case 'GROCERY': return grocery;
     case 'PHARMA': return pharma;
     default: return food;
   }
@@ -65,12 +58,6 @@ export const getProductSpecs = (app: AppBrand): SpecItem[] => {
       { label: 'Warranty', value: '1 Year' },
       { label: 'Country', value: 'Made in India' },
     ],
-    GROCERY: [
-      { label: 'Shelf Life', value: '5-7 Days' },
-      { label: 'Storage', value: 'Refrigerate' },
-      { label: 'Origin', value: 'Organic Farm' },
-      { label: 'Pesticide Free', value: 'Certified' },
-    ],
     PHARMA: [
       { label: 'Manufacturer', value: 'Faazio Healthcare' },
       { label: 'GMP Certified', value: 'Yes' },
@@ -85,7 +72,6 @@ export const getProductHighlights = (app: AppBrand): string[] => {
   const h: Record<AppBrand, string[]> = {
     FOOD: ['🔥 Chef\'s Special Recipe', '🥬 Fresh Ingredients Sourced Daily', '🚀 Free Delivery on ₹499+', '♻️ Eco-Friendly Packaging'],
     MART: ['✅ 100% Authentic Products', '🔄 Easy 7-Day Returns', '🎁 Free Gift Wrapping', '📦 Secure Packaging'],
-    GROCERY: ['🌱 Farm Fresh Daily', '🚜 Direct from Local Farmers', '❄️ Cold Chain Maintained', '🧪 Pesticide-Free'],
     PHARMA: ['💊 Genuine & Verified', '📋 Prescription Upload Available', '🚚 Discreet Packaging', '🔒 Temperature Controlled'],
   };
   return h[app] || h.FOOD;

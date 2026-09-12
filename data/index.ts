@@ -12,9 +12,6 @@ export { martProducts } from './mart/products';
 export { martStores } from './mart/stores';
 export { MART_DEALS, dealToProduct } from './mart/deals';
 
-export { groceryProducts } from './grocery/products';
-export { groceryStores } from './grocery/stores';
-
 export { foodProducts, topOfWeekDishes } from './food/products';
 export { foodStores } from './food/stores';
 export { BOOKING_DISHES_DB } from './food/bookingDishes';
@@ -22,12 +19,45 @@ export { TODAYS_SPECIALS, dishToProduct } from './food/specials';
 
 export { pharmaProducts, PHARMA_PRODUCTS_DB, PHARMA_CATEGORIES } from './pharma/products';
 export { pharmaStores } from './pharma/stores';
+export {
+  BLOOD_DONOR_STEPS,
+  BLOOD_GROUPS,
+  BLOOD_DONOR_BANNER,
+  AGE_RANGES,
+  YES_NO_OPTIONS,
+  HEALTH_YESNO_QUESTIONS,
+  WEIGHT_LIMITS,
+  DONATION_TYPES,
+  LOCATION_MIN_LENGTH,
+  NOTIFICATION_SOURCES,
+  NOTIFICATIONS_BANNER,
+  CONSENT_LABEL,
+  PRIVACY_NOTE,
+} from './pharma/bloodDonor';
+export type {
+  BloodGroup,
+  YesNo,
+  AgeRangeId,
+  DonationTypeId,
+  NotificationSourceId,
+  BloodDonorDraft,
+  BloodDonorRegistration,
+  BloodDonorStep,
+  HealthYesNoQuestion,
+} from './pharma/bloodDonor';
+
+export {
+  BLOOD_REQUESTS,
+  BLOOD_DONOR_UNREAD_ALERTS,
+  BLOOD_REQUEST_DETAIL_COPY,
+} from './pharma/bloodRequests';
+export type { BloodRequest, BloodRequestUrgency } from './pharma/bloodRequests';
 
 export { exploreStacks } from './explore/stacks';
 
 export { categoriesSearchDatabase } from './categories/searchDatabase';
 
-export { portalSectors, topAdSlides, sponsoredAds, recentlyViewedHistory, todaysOffers, mixedRecommendations, popularDining, recentlyViewedMart, recentlyViewedFood, recentlyViewedGrocery, recentlyViewedPharma, hotBrandDeals, faMartFinds, restaurantSpecials } from './home/rails';
+export { portalSectors, topAdSlides, sponsoredAds, recentlyViewedHistory, todaysOffers, mixedRecommendations, popularDining, recentlyViewedMart, recentlyViewedFood, recentlyViewedPharma, hotBrandDeals, faMartFinds, restaurantSpecials } from './home/rails';
 
 export { homeSections } from './home/sections';
 export type { HomeSectionKind } from './home/sections';
@@ -48,6 +78,19 @@ export { userProfile, saverMembership } from './account/profile';
 export { orderStatusCounts } from './account/orderStatus';
 export { accountNavGroups } from './account/accountNav';
 export { accountDetails } from './account/details';
+
+export {
+  COIN_EARN_RATE,
+  COIN_REDEEM_RATE,
+  COIN_REDEEM_MIN,
+  STREAK_TARGET_DAYS,
+  DISCOUNT_CARD_PERCENT,
+  DISCOUNT_CARD_VALIDITY_DAYS,
+} from './rewards/rewards';
+export type { FaazioDiscountCard } from './rewards/rewards';
+
+export { SELLER_SETUP_FIELDS } from './seller/sellerSetup';
+export type { SellerSetupField } from './seller/sellerSetup';
 export { savedAddresses } from './account/addresses';
 
 // Normalized microservice-shaped tables (new surface, wired via GatewayClient).

@@ -9,8 +9,6 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
   ChevronRight,
   ChevronLeft,
-  Crown,
-  User,
   Package,
   LogOut,
   IdCard,
@@ -20,11 +18,16 @@ import {
   Headphones,
   Heart,
   Clock,
+  Coins,
+  Flame,
+  Store,
 } from 'lucide-react-native';
 import AppText from '@/components/AppText';
 import { hs, vs, ms } from '@/utils/responsive';
-import { userProfile, saverMembership, accountNavGroups } from '@data/index';
-import type { AccountNavRow } from '@data/types';
+import { userProfile, accountNavGroups } from '@data/index';
+import type { AccountNavGroup, AccountNavRow } from '@data/types';
+import { useRewardsStore } from '@/state/rewardsStore';
+import { STREAK_TARGET_DAYS } from '@data/rewards/rewards';
 
 const NAV_ICONS: Record<string, React.ComponentType<any>> = {
   idcard: IdCard,
@@ -35,6 +38,7 @@ const NAV_ICONS: Record<string, React.ComponentType<any>> = {
   heart: Heart,
   clock: Clock,
   package: Package,
+  store: Store,
 };
 
 const BRAND_BLUE = '#1162D3';
@@ -45,7 +49,8 @@ export interface AccountViewProps {
   onOpenDetails: () => void;
   onOpenAddresses: () => void;
   onOpenOrders: () => void;
-  onOpenSaverBenefits?: () => void;
+  onOpenRewards?: () => void;
+  onOpenSellWithUs?: () => void;
   onLogout: () => void;
 }
 
@@ -60,15 +65,22 @@ export function AccountView({
   onOpenDetails,
   onOpenAddresses,
   onOpenOrders,
-  onOpenSaverBenefits,
+  onOpenRewards,
+  onOpenSellWithUs,
   onLogout,
 }: AccountViewProps) {
   const insets = useSafeAreaInsets();
+  const coinBalance = useRewardsStore((s) => s.coinBalance);
+  const streakCount = useRewardsStore((s) => s.streakCount);
 
   const handleRowPress = useCallback(
     (row: AccountNavRow) => {
       if (row.key === 'orders') {
         onOpenOrders();
+        return;
+      }
+      if (row.key === 'sell-with-us' && onOpenSellWithUs) {
+        onOpenSellWithUs();
         return;
       }
       if (row.key === 'details') {
@@ -81,7 +93,7 @@ export function AccountView({
       }
       // TODO: Destination screens per row — stubs for now.
     },
-    [onOpenOrders, onOpenDetails, onOpenAddresses]
+    [onOpenOrders, onOpenSellWithUs, onOpenDetails, onOpenAddresses]
   );
 
   return (
@@ -110,64 +122,88 @@ export function AccountView({
         showsVerticalScrollIndicator={false}
         bounces={false}
       >
-        {/* 2. Profile Card */}
+        {/* FaazioCoins streak card */}
         <TouchableOpacity
-          style={styles.profileCard}
+          style={styles.coinsCard}
           activeOpacity={0.85}
-          onPress={() => handleRowPress({ key: 'details', icon: 'idcard', title: userProfile.name, subtitle: '' })}
+          onPress={onOpenRewards}
+          accessibilityRole="button"
+          accessibilityLabel="Open FaazioRewards"
         >
-          <View style={styles.avatar}>
-            <User size={ms(30)} color={BRAND_BLUE} strokeWidth={2.2} />
+          <View style={styles.coinsHeader}>
+            <View style={styles.coinsTitleRow}>
+              <View style={styles.coinsIcon}>
+                <Coins size={ms(16)} color="#B45309" strokeWidth={2.2} />
+              </View>
+              <AppText style={styles.coinsTitle}>FaazioCoins</AppText>
+            </View>
+            <View style={styles.coinsBalanceWrap}>
+              <AppText style={styles.coinsBalance}>{coinBalance.toLocaleString('en-IN')}</AppText>
+              <AppText style={styles.coinsBalanceUnit}>coins</AppText>
+            </View>
           </View>
-          <View style={styles.profileInfo}>
-            <AppText style={styles.profileName}>{userProfile.name}</AppText>
-            <AppText style={styles.profileMeta} numberOfLines={1}>{userProfile.email}</AppText>
-            <AppText style={styles.profileMeta}>{userProfile.phone}</AppText>
-          </View>
-          <ChevronRight size={ms(20)} color={BRAND_BLUE} strokeWidth={2.2} />
-        </TouchableOpacity>
 
-        {/* 3. Saver Banner */}
-        <TouchableOpacity style={styles.saverBanner} activeOpacity={0.85} onPress={onOpenSaverBenefits}>
-          <View style={styles.saverIcon}>
-            <Crown size={ms(18)} color="#F59E0B" strokeWidth={2.2} />
+          <View style={styles.fireRow}>
+            {Array.from({ length: STREAK_TARGET_DAYS }).map((_, i) => {
+              const filled = i < streakCount;
+              return (
+                <View key={i} style={styles.fireWrap}>
+                  <Flame
+                    size={ms(22)}
+                    color={filled ? '#F97316' : '#E2E8F0'}
+                    strokeWidth={2.2}
+                    fill={filled ? '#F97316' : 'none'}
+                  />
+                </View>
+              );
+            })}
           </View>
-          <View style={styles.saverBody}>
-            <AppText style={styles.saverTitle}>{saverMembership.title}</AppText>
-            <AppText style={styles.saverSub}>
-              {saverMembership.savedLabel} ₹{saverMembership.savedAmount.toLocaleString('en-IN')} so far
-            </AppText>
-          </View>
-          <TouchableOpacity onPress={onOpenSaverBenefits} style={styles.saverLink} activeOpacity={0.7}>
-            <AppText style={styles.saverLinkText}>View Benefits</AppText>
-            <ChevronRight size={ms(14)} color="#10B981" strokeWidth={2.4} />
-          </TouchableOpacity>
+          <AppText style={styles.coinsCaption}>
+            {streakCount} of {STREAK_TARGET_DAYS} days — order today to keep your streak
+          </AppText>
         </TouchableOpacity>
 
         {/* 5 + 6. Nav groups */}
-        {accountNavGroups.map((group) => (
-          <View key={group.key} style={styles.navCard}>
-            {group.rows.map((row, i) => {
-              const Icon = NAV_ICONS[row.icon] ?? IdCard;
-              const isLast = i === group.rows.length - 1;
-              return (
-                <TouchableOpacity
-                  key={row.key}
-                  style={[styles.navRow, isLast && styles.navRowLast]}
-                  activeOpacity={0.7}
-                  onPress={() => handleRowPress(row)}
-                >
-                  <View style={styles.navIconBox}>
-                    <Icon size={ms(18)} color={BRAND_BLUE} strokeWidth={2.2} />
+        {accountNavGroups.map((group: AccountNavGroup) => (
+          <View key={group.key} style={styles.navGroup}>
+            {group.title ? (
+              <AppText style={styles.navGroupTitle}>{group.title}</AppText>
+            ) : null}
+            <View style={styles.navCard}>
+              {group.comingSoon ? (
+                <View style={[styles.navRow, styles.navRowLast, styles.navComingSoon]}>
+                  <View style={styles.navComingSoonBox}>
+                    <AppText style={styles.navComingSoonDot}>•</AppText>
                   </View>
                   <View style={styles.navText}>
-                    <AppText style={styles.navTitle}>{row.title}</AppText>
-                    <AppText style={styles.navSubtitle}>{row.subtitle}</AppText>
+                    <AppText style={styles.navComingSoonTitle}>Coming soon</AppText>
+                    <AppText style={styles.navSubtitle}>This section isn't available yet</AppText>
                   </View>
-                  <ChevronRight size={ms(18)} color={BRAND_BLUE} strokeWidth={2.2} />
-                </TouchableOpacity>
-              );
-            })}
+                </View>
+              ) : (
+                group.rows.map((row, i) => {
+                  const Icon = NAV_ICONS[row.icon] ?? IdCard;
+                  const isLast = i === group.rows.length - 1;
+                  return (
+                    <TouchableOpacity
+                      key={row.key}
+                      style={[styles.navRow, isLast && styles.navRowLast]}
+                      activeOpacity={0.7}
+                      onPress={() => handleRowPress(row)}
+                    >
+                      <View style={styles.navIconBox}>
+                        <Icon size={ms(18)} color={BRAND_BLUE} strokeWidth={2.2} />
+                      </View>
+                      <View style={styles.navText}>
+                        <AppText style={styles.navTitle}>{row.title}</AppText>
+                        <AppText style={styles.navSubtitle}>{row.subtitle}</AppText>
+                      </View>
+                      <ChevronRight size={ms(18)} color={BRAND_BLUE} strokeWidth={2.2} />
+                    </TouchableOpacity>
+                  );
+                })
+              )}
+            </View>
           </View>
         ))}
 
@@ -221,83 +257,68 @@ const styles = StyleSheet.create({
     fontWeight: '900',
     color: '#0f172a',
   },
-  profileCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#ffffff',
-    borderRadius: ms(16),
+  coinsCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: ms(18),
+    borderWidth: 1,
+    borderColor: '#F0F0F0',
     padding: hs(16),
-    marginBottom: vs(14),
-    shadowColor: '#000000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.06,
-    shadowRadius: 12,
-    elevation: 2,
-  },
-  avatar: {
-    width: ms(56),
-    height: ms(56),
-    borderRadius: ms(28),
-    backgroundColor: '#DBEAFE',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  profileInfo: {
-    flex: 1,
-    marginLeft: hs(14),
-    marginRight: hs(8),
-  },
-  profileName: {
-    fontSize: ms(17),
-    fontWeight: '800',
-    color: '#0f172a',
-  },
-  profileMeta: {
-    fontSize: ms(12.5),
-    fontWeight: '500',
-    color: '#64748b',
-    marginTop: vs(3),
-  },
-  saverBanner: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#E8FBF3',
-    borderRadius: ms(12),
-    padding: hs(14),
     marginBottom: vs(22),
   },
-  saverIcon: {
-    width: ms(40),
-    height: ms(40),
-    borderRadius: ms(20),
-    backgroundColor: '#FFFFFF',
+  coinsHeader: {
+    flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
+    justifyContent: 'space-between',
+    marginBottom: vs(14),
   },
-  saverBody: {
-    flex: 1,
-    marginLeft: hs(12),
-    marginRight: hs(8),
-  },
-  saverTitle: {
-    fontSize: ms(14),
-    fontWeight: '800',
-    color: '#0f172a',
-  },
-  saverSub: {
-    fontSize: ms(12),
-    fontWeight: '600',
-    color: '#10B981',
-    marginTop: vs(2),
-  },
-  saverLink: {
+  coinsTitleRow: {
     flexDirection: 'row',
     alignItems: 'center',
   },
-  saverLinkText: {
-    fontSize: ms(12),
-    fontWeight: '800',
-    color: '#10B981',
+  coinsIcon: {
+    width: ms(30),
+    height: ms(30),
+    borderRadius: ms(9),
+    backgroundColor: '#FEF3C7',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: hs(8),
+  },
+  coinsTitle: {
+    fontSize: ms(14),
+    fontWeight: '900',
+    color: '#1E2022',
+  },
+  coinsBalanceWrap: {
+    flexDirection: 'row',
+    alignItems: 'baseline',
+  },
+  coinsBalance: {
+    fontSize: ms(18),
+    fontWeight: '900',
+    color: '#B45309',
+  },
+  coinsBalanceUnit: {
+    fontSize: ms(10),
+    fontWeight: '700',
+    color: '#94A3B8',
+    marginLeft: hs(4),
+  },
+  fireRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    paddingHorizontal: hs(2),
+  },
+  fireWrap: {
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  coinsCaption: {
+    fontSize: ms(11),
+    color: '#64748B',
+    fontWeight: '600',
+    marginTop: vs(10),
+    textAlign: 'center',
   },
   navCard: {
     backgroundColor: '#ffffff',
@@ -309,6 +330,39 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.06,
     shadowRadius: 12,
     elevation: 2,
+  },
+  navGroup: {
+    marginBottom: vs(4),
+  },
+  navGroupTitle: {
+    fontSize: ms(12),
+    fontWeight: '800',
+    color: '#64748b',
+    textTransform: 'uppercase',
+    letterSpacing: 0.6,
+    marginLeft: hs(4),
+    marginBottom: vs(8),
+  },
+  navComingSoon: {
+    opacity: 0.75,
+  },
+  navComingSoonBox: {
+    width: ms(40),
+    height: ms(40),
+    borderRadius: ms(12),
+    backgroundColor: '#F1F5F9',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  navComingSoonDot: {
+    fontSize: ms(22),
+    fontWeight: '800',
+    color: '#94a3b8',
+  },
+  navComingSoonTitle: {
+    fontSize: ms(14),
+    fontWeight: '700',
+    color: '#64748b',
   },
   navRow: {
     flexDirection: 'row',

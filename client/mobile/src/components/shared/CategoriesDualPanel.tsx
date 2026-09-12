@@ -7,7 +7,8 @@ import {
 } from 'react-native';
 import { Image as ExpoImage } from 'expo-image';
 import { ChevronLeft, ChevronRight, Search } from 'lucide-react-native';
-import { hs, vs, ms, wp, STATUS_BAR_INSET } from '@/utils/responsive';
+import { hs, vs, ms, wp } from '@/utils/responsive';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import AppText from '@/components/AppText';
 import type { SubAppId } from '@/state/uiStore';
 import {
@@ -34,14 +35,14 @@ export interface CategoriesDualPanelProps {
   /** Fired when a subgroup's title arrow is tapped (routes to the source app's Search). */
   onTitlePress?: (title: string, subAppId: SubAppId) => void;
   /** Rail chip active on mount — 'ALL' by default, or the originating sub-app. */
-  initialChip?: 'ALL' | 'FA_MART' | 'GROCERY' | 'PHARMA';
+  initialChip?: 'ALL' | 'FA_MART' | 'PHARMA';
   /** Deep-link: sidebar tab id to mount as active (falls back to the first tab). */
   initialTabId?: string;
   /** Fired whenever the active rail chip changes (lets parents route search per app). */
   onChipChange?: (chip: CategoryRailId) => void;
 }
 
-export type CategoryRailId = 'ALL' | 'FA_MART' | 'GROCERY' | 'PHARMA';
+export type CategoryRailId = 'ALL' | 'FA_MART' | 'PHARMA';
 
 const SIDEBAR_W = wp(24);
 const ACCENT_DEFAULT = '#1E50E6';
@@ -240,6 +241,7 @@ export function CategoriesDualPanel({
   initialTabId,
   onChipChange,
 }: CategoriesDualPanelProps) {
+  const insets = useSafeAreaInsets();
   const [activeChip, setActiveChip] = useState<CategoryRailId>(initialChip);
   const tabs = activeChip === 'ALL' ? ALL_TABS : MASTER_CATEGORIES[activeChip];
   const accent =
@@ -307,7 +309,7 @@ export function CategoriesDualPanel({
   return (
     <View style={styles.container}>
       {/* HEADER */}
-      <View style={styles.header}>
+      <View style={[styles.header, { paddingTop: insets.top + vs(12) }]}>
         <TouchableOpacity
           style={styles.backBtn}
           onPress={onBack}
@@ -325,7 +327,7 @@ export function CategoriesDualPanel({
           accessibilityRole="button"
           accessibilityLabel="Search categories"
         >
-          <Search size={ms(18)} color="#1E2022" strokeWidth={2.5} />
+          <Search size={ms(21)} color="#1E2022" strokeWidth={2.5} />
         </TouchableOpacity>
       </View>
 
@@ -412,7 +414,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: hs(12),
     paddingHorizontal: hs(16),
-    paddingTop: STATUS_BAR_INSET + vs(12),
     paddingBottom: vs(10),
   },
   backBtn: {

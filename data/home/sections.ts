@@ -14,7 +14,6 @@ export type HomeSectionKind =
   | 'mostRatedDining'
   | 'recentlyViewedMart'
   | 'recentlyViewedFood'
-  | 'recentlyViewedGrocery'
   | 'recentlyViewedPharma'
   | 'nearbyOffers'
   | 'mens'
@@ -35,7 +34,6 @@ export const homeSections: HomeSectionDescriptor[] = [
   { id: 'mostRatedDining' },
   { id: 'recentlyViewedMart' },
   { id: 'recentlyViewedFood' },
-  { id: 'recentlyViewedGrocery' },
   { id: 'recentlyViewedPharma' },
   { id: 'nearbyOffers' },
   { id: 'mens' },

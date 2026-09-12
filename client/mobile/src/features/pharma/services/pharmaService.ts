@@ -1,12 +1,10 @@
 import {
-  PHARMA_FEATURE_CHIPS,
   PHARMA_QUICK_REORDER,
   PHARMA_TOP_OFFERS,
   PHARMA_POPULAR_MEDICINES,
   PHARMA_HEALTH_ESSENTIALS,
   PHARMA_FEATURED_BRANDS,
   PHARMA_HEALTH_CORNER,
-  type PharmaFeatureChip,
   type PharmaQuickReorderItem,
   type PharmaTopOffer,
   type PharmaPopularMedicine,
@@ -16,7 +14,6 @@ import {
 } from '../mocks/pharmaHomeFeed';
 
 export interface PharmaFeed {
-  featureChips: PharmaFeatureChip[];
   quickReorder: PharmaQuickReorderItem[];
   topOffers: PharmaTopOffer[];
   popularMedicines: PharmaPopularMedicine[];
@@ -37,7 +34,6 @@ function delay(ms: number) {
 export async function fetchPharmaFeed(): Promise<PharmaFeed> {
   await delay(700);
   return {
-    featureChips: PHARMA_FEATURE_CHIPS,
     quickReorder: PHARMA_QUICK_REORDER,
     topOffers: PHARMA_TOP_OFFERS,
     popularMedicines: PHARMA_POPULAR_MEDICINES,

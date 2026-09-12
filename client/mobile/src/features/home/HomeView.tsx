@@ -1,7 +1,7 @@
 import React, { useCallback, useMemo } from 'react';
 import { StyleSheet } from 'react-native';
 import { vs } from '@/utils/responsive';
-import Animated, { useAnimatedScrollHandler, useSharedValue, runOnJS } from 'react-native-reanimated';
+import Animated, { useAnimatedScrollHandler, useSharedValue } from 'react-native-reanimated';
 import type { SharedValue } from 'react-native-reanimated';
 import { homeSections } from '@data/home/sections';
 import type { HomeSectionKind } from '@data/home/sections';
@@ -20,7 +20,7 @@ import ChildrensSection from '@/features/home/sections/ChildrensSection';
 import HairSkinCareSection from '@/features/home/sections/HairSkinCareSection';
 import FilterFeedSection from '@/features/home/sections/FilterFeedSection';
 
-import { recentlyViewedMart, recentlyViewedFood, recentlyViewedGrocery, recentlyViewedPharma } from '@data/home/rails';
+import { recentlyViewedMart, recentlyViewedFood, recentlyViewedPharma } from '@data/home/rails';
 
 interface HomeViewProps {
   onLaunchSubApp: (subAppId: SubAppId) => void;
@@ -29,7 +29,10 @@ interface HomeViewProps {
   scrollY: SharedValue<number>;
   clamp: SharedValue<number>;
   collapseCap: SharedValue<number>;
-  expandedH: number;
+  /** Stable outer-container height (does not change during header collapse). */
+  viewportH: SharedValue<number>;
+  /** Top padding so the first section sits flush below the expanded (overlay) header. */
+  contentPaddingTop: number;
 }
 
 export default function HomeView({
@@ -39,17 +42,17 @@ export default function HomeView({
   scrollY,
   clamp,
   collapseCap,
-  expandedH,
+  viewportH,
+  contentPaddingTop,
 }: HomeViewProps) {
   const sectionProps = useMemo(
     () => ({ onLaunchSubApp, addToCart, onProductClick }),
     [onLaunchSubApp, addToCart, onProductClick],
   );
-  const [scrollYState, setScrollYState] = React.useState(0);
-  const [viewportHeight, setViewportHeight] = React.useState(0);
-  const lastEmit = useSharedValue(0);
 
-  const DAMPING = 0.5;
+  // 1:1 with finger scroll — matches native collapsing toolbars. Damping below 1
+  // made content travel faster than the finger (the "surge" while panning down).
+  const DAMPING = 1.0;
 
   const scrollHandler = useAnimatedScrollHandler({
     onScroll: (e) => {
@@ -57,19 +60,12 @@ export default function HomeView({
       const dy = y - scrollY.value;
       scrollY.value = y;
 
-      if (y <= 0) {
-        clamp.value = 0;
-      } else {
-        clamp.value = Math.min(
-          collapseCap.value,
-          Math.max(0, clamp.value + dy * DAMPING),
-        );
-      }
-
-      if (Math.abs(y - lastEmit.value) > 40 || y <= 0) {
-        lastEmit.value = y;
-        runOnJS(setScrollYState)(y);
-      }
+      // No hard teleport at the top: rubber-band deltas decay naturally, so the
+      // header re-opens interpolated (Flipkart-style) instead of slamming open.
+      clamp.value = Math.min(
+        collapseCap.value,
+        Math.max(0, clamp.value + dy * DAMPING),
+      );
     },
   });
 
@@ -83,18 +79,17 @@ export default function HomeView({
         case 'mostRatedDining': return <MostRatedDiningSection {...sectionProps} />;
         case 'recentlyViewedMart': return <RecentlyViewedRailSection {...sectionProps} title="Recently Viewed — Mart" products={recentlyViewedMart} accent="#1162D3" appBrand="MART" />;
         case 'recentlyViewedFood': return <RecentlyViewedRailSection {...sectionProps} title="Recently Viewed — Food" products={recentlyViewedFood} accent="#1E5D44" appBrand="FOOD" />;
-        case 'recentlyViewedGrocery': return <RecentlyViewedRailSection {...sectionProps} title="Recently Viewed — Grocery" products={recentlyViewedGrocery} accent="#10B981" appBrand="GROCERY" />;
         case 'recentlyViewedPharma': return <RecentlyViewedRailSection {...sectionProps} title="Recently Viewed — Pharma" products={recentlyViewedPharma} accent="#065F46" appBrand="PHARMA" />;
         case 'nearbyOffers': return <NearbyOffersSection {...sectionProps} />;
         case 'mens': return <MensSection {...sectionProps} />;
         case 'womens': return <WomensSection {...sectionProps} />;
         case 'childrens': return <ChildrensSection {...sectionProps} />;
         case 'hairSkinCare': return <HairSkinCareSection {...sectionProps} />;
-        case 'filterFeed': return <FilterFeedSection {...sectionProps} scrollY={scrollYState} viewportHeight={viewportHeight} />;
+        case 'filterFeed': return <FilterFeedSection {...sectionProps} scrollY={scrollY} viewportH={viewportH} />;
         default: return null;
       }
     },
-    [sectionProps, scrollYState, viewportHeight],
+    [sectionProps, scrollY, viewportH],
   );
 
   const renderItem = useCallback(
@@ -105,18 +100,17 @@ export default function HomeView({
   return (
     <Animated.FlatList
       style={styles.list}
-      contentContainerStyle={[styles.content, { paddingTop: expandedH }]}
+      contentContainerStyle={[styles.content, { paddingTop: contentPaddingTop }]}
       data={homeSections}
       keyExtractor={(item) => item.id}
       renderItem={renderItem}
       showsVerticalScrollIndicator={false}
       onScroll={scrollHandler}
-      onLayout={(e) => setViewportHeight(e.nativeEvent.layout.height)}
       scrollEventThrottle={16}
-      removeClippedSubviews
-      initialNumToRender={6}
-      maxToRenderPerBatch={8}
-      windowSize={9}
+      initialNumToRender={2}
+      maxToRenderPerBatch={6}
+      windowSize={5}
+      updateCellsBatchingPeriod={50}
     />
   );
 }

@@ -6,6 +6,7 @@ import { useSharedValue } from 'react-native-reanimated';
 import { foodTheme } from '../constants/theme';
 import type { FoodStackParamList, RootStackParamList } from '@/navigation/types';
 import type { DiningRestaurant, SpecialDish } from '../mocks/types';
+import { useFoodFilterStore } from '@/state/foodFilterStore';
 import { createFoodSearchConfig } from '@/features/search/configs/foodSearchConfig';
 import SearchScreen from '@/features/search/SearchScreen';
 import FoodBottomNav, { type FoodTab } from '../components/FoodBottomNav';
@@ -19,6 +20,8 @@ type Props = NativeStackScreenProps<FoodStackParamList, 'Search'>;
  * the floating cart bar and the fixed 4-tab bottom nav (Search active).
  */
 export function FoodSearchScreen({ navigation, route }: Props) {
+  const dietFilter = useFoodFilterStore((s) => s.dietFilter);
+
   const onRestaurantPress = useCallback(
     (restaurant: DiningRestaurant) => navigation.navigate('OrderDetail'),
     [navigation],
@@ -29,8 +32,8 @@ export function FoodSearchScreen({ navigation, route }: Props) {
   );
 
   const config = useMemo(
-    () => createFoodSearchConfig({ onRestaurantPress, onDishPress }),
-    [onRestaurantPress, onDishPress],
+    () => createFoodSearchConfig({ onRestaurantPress, onDishPress, dietFilter }),
+    [onRestaurantPress, onDishPress, dietFilter],
   );
 
   const handleBack = useCallback(() => navigation.goBack(), [navigation]);

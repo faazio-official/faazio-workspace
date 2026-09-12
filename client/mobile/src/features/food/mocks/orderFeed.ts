@@ -31,12 +31,14 @@ export interface MealCombo {
   name: string;
   startingPrice: number;
   image: string;
+  isVeg?: boolean;
 }
 
 export interface SnackBeverage {
   id: string;
   name: string;
   image: string;
+  isVeg?: boolean;
 }
 
 export const PROMOS: Promo[] = [
@@ -79,18 +81,18 @@ export const CUISINES: CuisineItem[] = [
 ];
 
 export const MEALS_COMBOS: MealCombo[] = [
-  { id: 'mc-1', name: 'Thali Meals', startingPrice: 129, image: img('photo-1567188040759-fb8a883dc6d8', 400, 280) },
-  { id: 'mc-2', name: 'Family Feast', startingPrice: 499, image: img('photo-1552566626-52f8b828add9', 400, 280) },
-  { id: 'mc-3', name: 'Biryani Combo', startingPrice: 249, image: img('photo-1589302168068-964664d93dc0', 400, 280) },
-  { id: 'mc-4', name: 'Lunch Box', startingPrice: 179, image: img('photo-1504674900247-0877df9cc836', 400, 280) },
-  { id: 'mc-5', name: 'Party Pack', startingPrice: 799, image: img('photo-1565299624946-b28f40a0ae38', 400, 280) },
+  { id: 'mc-1', name: 'Thali Meals', startingPrice: 129, image: img('photo-1567188040759-fb8a883dc6d8', 400, 280), isVeg: true },
+  { id: 'mc-2', name: 'Family Feast', startingPrice: 499, image: img('photo-1552566626-52f8b828add9', 400, 280), isVeg: false },
+  { id: 'mc-3', name: 'Biryani Combo', startingPrice: 249, image: img('photo-1589302168068-964664d93dc0', 400, 280), isVeg: false },
+  { id: 'mc-4', name: 'Lunch Box', startingPrice: 179, image: img('photo-1504674900247-0877df9cc836', 400, 280), isVeg: true },
+  { id: 'mc-5', name: 'Party Pack', startingPrice: 799, image: img('photo-1565299624946-b28f40a0ae38', 400, 280), isVeg: false },
 ];
 
 export const SNACKS_BEVERAGES: SnackBeverage[] = [
-  { id: 'sb-1', name: 'Samosa', image: squareImg('photo-1601050690597-df0568f70950') },
-  { id: 'sb-2', name: 'French Fries', image: squareImg('photo-1576107232684-1279f390859f') },
-  { id: 'sb-3', name: 'Spring Rolls', image: squareImg('photo-1606755962773-d324e0a13086') },
-  { id: 'sb-4', name: 'Cold Coffee', image: squareImg('photo-1461023058943-07fcbe16d735') },
-  { id: 'sb-5', name: 'Masala Chai', image: squareImg('photo-1571934811356-5cc061b6821f') },
-  { id: 'sb-6', name: 'Milkshake', image: squareImg('photo-1572490122747-3968b75cc699') },
+  { id: 'sb-1', name: 'Samosa', image: squareImg('photo-1601050690597-df0568f70950'), isVeg: true },
+  { id: 'sb-2', name: 'French Fries', image: squareImg('photo-1576107232684-1279f390859f'), isVeg: true },
+  { id: 'sb-3', name: 'Spring Rolls', image: squareImg('photo-1606755962773-d324e0a13086'), isVeg: true },
+  { id: 'sb-4', name: 'Cold Coffee', image: squareImg('photo-1461023058943-07fcbe16d735'), isVeg: true },
+  { id: 'sb-5', name: 'Masala Chai', image: squareImg('photo-1571934811356-5cc061b6821f'), isVeg: true },
+  { id: 'sb-6', name: 'Milkshake', image: squareImg('photo-1572490122747-3968b75cc699'), isVeg: true },
 ];

@@ -1,18 +1,17 @@
 import React from 'react';
-import { LayoutGrid, Package, ShoppingBasket, Stethoscope } from 'lucide-react-native';
+import { LayoutGrid, Package, Stethoscope } from 'lucide-react-native';
 import { martProducts } from '@data/mart/products';
-import { groceryProducts } from '@data/grocery/products';
 import { pharmaProducts } from '@data/pharma/products';
 import type { Product } from '@data/types';
 import SearchMartProductCard from '@/features/ecommerce/components/SearchMartProductCard';
-import SearchGroceryProductCard from '@/features/ecommerce/components/SearchGroceryProductCard';
 import SearchPharmaProductCard from '@/features/pharma/components/SearchPharmaProductCard';
 import type { ActiveFacets, SearchScreenConfig } from '../types';
 
 /**
  * Home is the sanctioned cross-sub-app consumer, so the Hub search aggregates
- * across Mart, Grocery and Pharma. Each toggle slice searches its own dataset
- * with a shared attribute-facet predicate; cards are selected by app brand.
+ * across Mart (which now includes the former grocery catalog) and Pharma. Each
+ * toggle slice searches its own dataset with a shared attribute-facet predicate;
+ * cards are selected by app brand.
  */
 
 const searchableText = (p: Product) => {
@@ -46,17 +45,13 @@ const predicate = (p: Product, query: string, _chipIds: string[], activeFacets: 
 
 const renderCardByApp = (
   item: Product,
-  index: number,
   onPress?: (p: Product) => void,
 ) => {
-  const columnIndex = index % 2;
   switch (item.app) {
     case 'MART':
-      return <SearchMartProductCard product={item} columnIndex={columnIndex} onPress={onPress} />;
-    case 'GROCERY':
-      return <SearchGroceryProductCard product={item} columnIndex={columnIndex} onPress={onPress} />;
+      return <SearchMartProductCard product={item} onPress={onPress} />;
     case 'PHARMA':
-      return <SearchPharmaProductCard product={item} columnIndex={columnIndex} onPress={onPress} />;
+      return <SearchPharmaProductCard product={item} onPress={onPress} />;
     default:
       return null;
   }
@@ -75,12 +70,10 @@ export function createHomeSearchConfig({
     toggles: [
       { key: 'all', label: 'All', icon: LayoutGrid },
       { key: 'mart', label: 'Mart', icon: Package },
-      { key: 'grocery', label: 'Grocery', icon: ShoppingBasket },
       { key: 'pharma', label: 'Pharma', icon: Stethoscope },
     ],
     showToggles: false,
     filterChips: [],
-    numColumns: 2,
     sortOptions: [
       { id: 'relevance', label: 'Relevance' },
       { id: 'popularity', label: 'Popularity' },
@@ -94,9 +87,9 @@ export function createHomeSearchConfig({
     modes: {
       all: {
         key: 'all',
-        data: [...martProducts, ...groceryProducts, ...pharmaProducts],
+        data: [...martProducts, ...pharmaProducts],
         predicate,
-        renderCard: (item, index) => renderCardByApp(item as Product, index, onProductPress),
+        renderCard: (item) => renderCardByApp(item as Product, onProductPress),
         sorters: {
           relevance: () => 0,
           popularity: (a, b) => {
@@ -113,7 +106,7 @@ export function createHomeSearchConfig({
         key: 'mart',
         data: martProducts,
         predicate,
-        renderCard: (item, index) => renderCardByApp(item as Product, index, onProductPress),
+        renderCard: (item) => renderCardByApp(item as Product, onProductPress),
         sorters: {
           relevance: () => 0,
           popularity: (a, b) =>
@@ -122,23 +115,11 @@ export function createHomeSearchConfig({
           'price-high': (a, b) => (b as Product).price - (a as Product).price,
         },
       },
-      grocery: {
-        key: 'grocery',
-        data: groceryProducts,
-        predicate,
-        renderCard: (item, index) => renderCardByApp(item as Product, index, onProductPress),
-        sorters: {
-          relevance: () => 0,
-          popularity: (a, b) => (b as Product).rating - (a as Product).rating,
-          'price-low': (a, b) => (a as Product).price - (b as Product).price,
-          'price-high': (a, b) => (b as Product).price - (a as Product).price,
-        },
-      },
       pharma: {
         key: 'pharma',
         data: pharmaProducts,
         predicate,
-        renderCard: (item, index) => renderCardByApp(item as Product, index, onProductPress),
+        renderCard: (item) => renderCardByApp(item as Product, onProductPress),
         sorters: {
           relevance: () => 0,
           popularity: (a, b) => (b as Product).rating - (a as Product).rating,

@@ -5,6 +5,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import AppText from '@/components/AppText';
 import { hs, ms, vs } from '@/utils/responsive';
 import { foodTheme } from '../constants/theme';
+import DietToggle from './DietToggle';
 
 interface DiningHeaderProps {
   area?: string;
@@ -24,39 +25,45 @@ const DiningHeader = memo(function DiningHeader({
   const insets = useSafeAreaInsets();
 
   return (
-    <View style={[styles.row, { paddingTop: insets.top + vs(8) }]}>
-      <TouchableOpacity
-        style={styles.iconBtn}
-        onPress={onBack}
-        hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-        accessibilityRole="button"
-        accessibilityLabel="Go back"
-      >
-        <ArrowLeft size={ms(20)} color={foodTheme.textPrimary} strokeWidth={2.4} />
-      </TouchableOpacity>
+    <View style={[styles.container, { paddingTop: insets.top + vs(8) }]}>
+      <View style={styles.row}>
+        <TouchableOpacity
+          style={styles.iconBtn}
+          onPress={onBack}
+          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+          accessibilityRole="button"
+          accessibilityLabel="Go back"
+        >
+          <ArrowLeft size={ms(20)} color={foodTheme.textPrimary} strokeWidth={2.4} />
+        </TouchableOpacity>
 
-      <TouchableOpacity
-        style={styles.location}
-        onPress={onAreaPress}
-        activeOpacity={0.8}
-        accessibilityRole="button"
-        accessibilityLabel={`Location: ${area}`}
-      >
-        <MapPin size={ms(22)} color={foodTheme.primary} strokeWidth={2.2} />
-        <View style={styles.locationTextWrap}>
-          <View style={styles.areaRow}>
-            <AppText style={styles.area} numberOfLines={1}>
-              {area}
-            </AppText>
-            <ChevronDown size={ms(16)} color={foodTheme.textPrimary} strokeWidth={2.4} />
+        <TouchableOpacity
+          style={styles.location}
+          onPress={onAreaPress}
+          activeOpacity={0.8}
+          accessibilityRole="button"
+          accessibilityLabel={`Location: ${area}`}
+        >
+          <MapPin size={ms(22)} color={foodTheme.primary} strokeWidth={2.2} />
+          <View style={styles.locationTextWrap}>
+            <View style={styles.areaRow}>
+              <AppText style={styles.area} numberOfLines={1}>
+                {area}
+              </AppText>
+              <ChevronDown size={ms(16)} color={foodTheme.textPrimary} strokeWidth={2.4} />
+            </View>
+            <View style={styles.deliveryRow}>
+              <AppText style={styles.deliveryText}>Delivering to </AppText>
+              <AppText style={styles.deliveryTo}>Home</AppText>
+              <ChevronRight size={ms(12)} color={foodTheme.primary} strokeWidth={2.6} />
+            </View>
           </View>
-          <View style={styles.deliveryRow}>
-            <AppText style={styles.deliveryText}>Delivering to </AppText>
-            <AppText style={styles.deliveryTo}>Home</AppText>
-            <ChevronRight size={ms(12)} color={foodTheme.primary} strokeWidth={2.6} />
-          </View>
-        </View>
-      </TouchableOpacity>
+        </TouchableOpacity>
+      </View>
+
+      <View style={styles.dietRow}>
+        <DietToggle />
+      </View>
     </View>
   );
 });
@@ -64,13 +71,20 @@ const DiningHeader = memo(function DiningHeader({
 export default DiningHeader;
 
 const styles = StyleSheet.create({
-  row: {
-    minHeight: vs(72),
+  container: {
     paddingHorizontal: hs(16),
     paddingBottom: vs(10),
+    backgroundColor: foodTheme.background,
+  },
+  row: {
+    minHeight: vs(72),
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: foodTheme.background,
+  },
+  dietRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingBottom: vs(4),
   },
   iconBtn: {
     width: ms(40),

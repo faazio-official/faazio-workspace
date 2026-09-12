@@ -38,12 +38,22 @@ export function AccountScreen({ navigation }: Props) {
     navigation.navigate('MyOrders');
   }, [navigation]);
 
+  const handleOpenRewards = useCallback(() => {
+    navigation.navigate('FaazioRewards');
+  }, [navigation]);
+
+  const handleOpenSellWithUs = useCallback(() => {
+    navigation.navigate('SellWithUs');
+  }, [navigation]);
+
   return (
     <View style={styles.container}>
       <AccountView
         onOpenDetails={handleOpenDetails}
         onOpenAddresses={handleOpenAddresses}
         onOpenOrders={handleOpenOrders}
+        onOpenRewards={handleOpenRewards}
+        onOpenSellWithUs={handleOpenSellWithUs}
         onLogout={handleLogout}
       />
     </View>

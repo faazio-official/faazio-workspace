@@ -7,7 +7,6 @@ import { instantFeed } from './instantFeed';
 import { hairSkinPicks } from './demographics';
 import { martProducts } from '../mart/products';
 import { foodProducts } from '../food/products';
-import { groceryProducts } from '../grocery/products';
 import { pharmaProducts } from '../pharma/products';
 import { foodStores } from '../food/stores';
 import { categoriesSearchDatabase } from '../categories/searchDatabase';
@@ -59,7 +58,6 @@ const hotMeals: Product[] = readyNowStores.map((s, i) => ({
 const topRatedAcrossApps = dedupe([
   ...martProducts.filter((p) => p.rating >= 4.8),
   ...foodProducts.filter((p) => p.rating >= 4.8),
-  ...groceryProducts.filter((p) => p.rating >= 4.8),
   ...pharmaProducts.filter((p) => p.rating >= 4.8),
 ]);
 
@@ -69,13 +67,13 @@ const trending = dedupe([
 ]);
 
 const freshVeggies = dedupe([
-  ...groceryProducts.filter((p) => p.category === 'Fresh Produce'),
+  ...martProducts.filter((p) => p.category === 'Fresh Produce'),
   ...(categoriesSearchDatabase['groc-green'] || []),
 ]);
 
 const fastFood = categoriesSearchDatabase['food-snack'] || [];
 
-const snacks = groceryProducts.filter((p) => p.category === 'Snacks');
+const snacks = martProducts.filter((p) => p.category === 'Snacks');
 
 const coughSyrup = pharmaProducts.filter((p) => p.category === 'cough');
 

@@ -4,7 +4,7 @@
  */
 
 /** Category-capable sub-apps (Food has no category tree). */
-export type CategoryAppId = 'FA_MART' | 'GROCERY' | 'PHARMA';
+export type CategoryAppId = 'FA_MART' | 'PHARMA';
 
 /** One tappable subcategory card in the grid. Routes to Search via `searchQuery`. */
 export interface CategoryItem {
@@ -38,7 +38,6 @@ export interface CategoryTab {
 
 /** Brand accents used by the Master Categories panel and Catalog screens. */
 export const MART_ACCENT = '#E6A800';
-export const GROCERY_ACCENT = '#15803D';
 export const PHARMA_ACCENT = '#0B7B83';
 export const ALL_ACCENT = '#7C3AED';
 
@@ -51,7 +50,6 @@ export const CATEGORY_RAIL: {
 }[] = [
   { id: 'ALL', label: 'All', accent: ALL_ACCENT, onAccent: '#FFFFFF' },
   { id: 'FA_MART', label: 'Mart', accent: MART_ACCENT, onAccent: '#FFFFFF' },
-  { id: 'GROCERY', label: 'Grocery', accent: GROCERY_ACCENT, onAccent: '#FFFFFF' },
   { id: 'PHARMA', label: 'Pharma', accent: PHARMA_ACCENT, onAccent: '#FFFFFF' },
 ];
 
@@ -402,10 +400,13 @@ const PHARMA_TABS: CategoryTab[] = [
   },
 ];
 
-/** Deep category tree keyed by sub-app id, consumed by the Master Categories panel. */
+/**
+ * Deep category tree keyed by sub-app id, consumed by the Master Categories panel.
+ * The former standalone Grocery tree (GROCERY_TABS) is folded into the Mart tabs —
+ * grocery categories surface under the Mart chip.
+ */
 export const MASTER_CATEGORIES: Record<CategoryAppId, CategoryTab[]> = {
-  FA_MART: MART_TABS,
-  GROCERY: GROCERY_TABS,
+  FA_MART: [...MART_TABS, ...GROCERY_TABS],
   PHARMA: PHARMA_TABS,
 };
 
@@ -423,6 +424,6 @@ function tagWithApp(tabs: CategoryTab[], app: CategoryAppId): CategoryTab[] {
 /** Merged 'All' tree — every app's top-level tabs combined into one sidebar. */
 export const ALL_TABS: CategoryTab[] = [
   ...tagWithApp(MART_TABS, 'FA_MART'),
-  ...tagWithApp(GROCERY_TABS, 'GROCERY'),
+  ...tagWithApp(GROCERY_TABS, 'FA_MART'),
   ...tagWithApp(PHARMA_TABS, 'PHARMA'),
 ];

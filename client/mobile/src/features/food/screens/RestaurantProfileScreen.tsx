@@ -35,6 +35,8 @@ import type { DiningRestaurant } from '../mocks/types';
 import type { SpecialDish } from '@data/types';
 import { TODAYS_SPECIALS } from '@data/food/specials';
 import { useCartStore } from '@/state/cartStore';
+import { useFoodFilterStore } from '@/state/foodFilterStore';
+import { dishMatches } from '../utils/dietFilter';
 
 type Props = NativeStackScreenProps<FoodStackParamList, 'RestaurantProfile'>;
 
@@ -63,6 +65,8 @@ export function RestaurantProfileScreen({ navigation, route }: Props) {
   const [activeCategory, setActiveCategory] = useState('Bestsellers');
   const [searchQuery, setSearchQuery] = useState('');
 
+  const dietFilter = useFoodFilterStore((s) => s.dietFilter);
+
   const cart = useCartStore((s) => s.cart);
   const cartCount = useCartStore((s) => s.totalQty());
   const addToCart = useCartStore((s) => s.addToCart);
@@ -76,7 +80,10 @@ export function RestaurantProfileScreen({ navigation, route }: Props) {
     [scrollY],
   );
 
-  const menu = useMemo(() => getMenuForRestaurant(restaurant), [restaurant]);
+  const menu = useMemo(
+    () => getMenuForRestaurant(restaurant).filter((d) => dishMatches(dietFilter, d)),
+    [restaurant, dietFilter],
+  );
   const offers = useMemo(() => getOffers(menu), [menu]);
 
   const categories = useMemo(

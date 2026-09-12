@@ -1,7 +1,6 @@
 import React, { useEffect, useState } from 'react';
-import { View, StyleSheet } from 'react-native';
+import { ErrorUtils, View, StyleSheet } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
-import { useFonts } from 'expo-font';
 import * as SplashScreen from 'expo-splash-screen';
 import { DefaultTheme, NavigationContainer } from '@react-navigation/native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
@@ -9,7 +8,47 @@ import { AppNavigator } from './src/navigation/AppNavigator';
 import { SplashFallback } from './src/components/SplashFallback';
 import { useAuthStore } from './src/state/authStore';
 import { useLanguageStore } from './src/state/languageStore';
-import { FONT_ASSETS, resolveFontFamily } from './src/theme/fonts';
+import { useAppFonts, resolveFontFamily } from './src/theme/fonts';
+
+// If a native module (SecureStore/AsyncStorage/fonts) hangs, the splash would
+// otherwise stay up forever and trigger an ANR. Force-dismiss past this budget.
+const SPLASH_TIMEOUT_MS = 8000;
+
+/**
+ * Routes synchronous JS/render errors to a single logger so crashes are not
+ * silently swallowed in release builds (babel strips all console.* there).
+ * Kept as a module-scope install so it runs before any screen mounts.
+ */
+function installGlobalErrorHandlers() {
+  if (ErrorUtils && typeof ErrorUtils.setGlobalHandler === 'function') {
+    ErrorUtils.setGlobalHandler((error: Error, isFatal?: boolean) => {
+      if (__DEV__) {
+        console.warn('[Faazio:global-error]', isFatal, error);
+      }
+    });
+  }
+}
+installGlobalErrorHandlers();
+
+/** Resolves `promise` unless it doesn't settle within `ms` (rejects instead). */
+function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    const timer = setTimeout(
+      () => reject(new Error(`${label} timed out after ${ms}ms`)),
+      ms,
+    );
+    promise.then(
+      (value) => {
+        clearTimeout(timer);
+        resolve(value);
+      },
+      (error) => {
+        clearTimeout(timer);
+        reject(error);
+      },
+    );
+  });
+}
 
 const navigationTheme = {
   ...DefaultTheme,
@@ -44,7 +83,7 @@ const navigationTheme = {
 SplashScreen.preventAutoHideAsync().catch(() => {});
 
 export default function App() {
-  const [fontsLoaded, fontError] = useFonts(FONT_ASSETS);
+  const [fontsLoaded, fontError] = useAppFonts();
   const [ready, setReady] = useState(false);
   const hydrateAuth = useAuthStore((s) => s.hydrate);
   const hydrateLanguage = useLanguageStore((s) => s.hydrate);
@@ -52,13 +91,33 @@ export default function App() {
   useEffect(() => {
     let active = true;
     (async () => {
-      await Promise.all([hydrateAuth(), hydrateLanguage()]);
-      if (active) setReady(true);
+      try {
+        await Promise.all([
+          withTimeout(hydrateAuth(), 4000, 'hydrateAuth'),
+          withTimeout(hydrateLanguage(), 4000, 'hydrateLanguage'),
+        ]);
+      } catch (error) {
+        // A hanging/failing storage module must not block startup or become a
+        // silent unhandled rejection — proceed with default (unauthenticated).
+        if (__DEV__) {
+          console.warn('[Faazio:hydrate]', error);
+        }
+      } finally {
+        if (active) setReady(true);
+      }
     })();
     return () => {
       active = false;
     };
   }, [hydrateAuth, hydrateLanguage]);
+
+  // Failsafe: never leave the native splash up if startup stalls.
+  useEffect(() => {
+    const forceHide = setTimeout(() => {
+      SplashScreen.hideAsync().catch(() => {});
+    }, SPLASH_TIMEOUT_MS);
+    return () => clearTimeout(forceHide);
+  }, []);
 
   useEffect(() => {
     if (fontsLoaded && ready) {

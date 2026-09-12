@@ -15,6 +15,8 @@ export interface DiningRestaurant {
   latitude: number;
   longitude: number;
   isFavourite: boolean;
+  /** Zomato-style venue diet classification for the Veg / Non-Veg filter. */
+  dietType: 'veg' | 'nonveg' | 'both';
 }
 
 import type { Product } from '@data/types';
@@ -57,6 +59,7 @@ export const nearbyToRestaurant = (nearby: NearbyRestaurant): DiningRestaurant =
   latitude: 0,
   longitude: 0,
   isFavourite: false,
+  dietType: nearby.dietType,
 });
 
 export type { SpecialDish } from '@data/types';

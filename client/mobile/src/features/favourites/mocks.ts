@@ -1,7 +1,7 @@
-export type FavIconKey = 'grid' | 'bag' | 'food' | 'grocery' | 'pharma';
+export type FavIconKey = 'grid' | 'bag' | 'food' | 'pharma';
 
 export interface FilterChip {
-  id: 'all' | 'mart' | 'food' | 'grocery' | 'pharma';
+  id: 'all' | 'mart' | 'food' | 'pharma';
   label: string;
   count: number;
   icon: FavIconKey;
@@ -18,7 +18,7 @@ export interface FavItem {
 }
 
 export interface FavCategory {
-  id: 'mart' | 'food' | 'grocery' | 'pharma';
+  id: 'mart' | 'food' | 'pharma';
   title: string;
   icon: FavIconKey;
   color: string;
@@ -27,25 +27,21 @@ export interface FavCategory {
 
 export const filterChips: FilterChip[] = [
   { id: 'all', label: 'All', count: 8, icon: 'grid', active: true },
-  { id: 'mart', label: 'Mart', count: 2, icon: 'bag' },
+  { id: 'mart', label: 'Mart', count: 4, icon: 'bag' },
   { id: 'food', label: 'Food', count: 2, icon: 'food' },
-  { id: 'grocery', label: 'Grocery', count: 2, icon: 'grocery' },
   { id: 'pharma', label: 'Pharma', count: 2, icon: 'pharma' },
 ];
 
 const martItems: FavItem[] = [
   { id: 'm1', name: 'Coca-Cola Diet Coke Can', qty: '300 ml', price: 155, oldPrice: 169, discount: '8% OFF' },
   { id: 'm2', name: 'Red Bull Sugar Free', qty: '250 ml', price: 115, oldPrice: 130, discount: '12% OFF' },
+  { id: 'g1', name: 'Imported Daily Apple (Sebu)', qty: '2 pieces', price: 91, oldPrice: 114, discount: '20% OFF' },
+  { id: 'g2', name: 'Id Fresh Pouch Curd', qty: '500 gm', price: 30, oldPrice: 35, discount: '14% OFF' },
 ];
 
 const foodItems: FavItem[] = [
   { id: 'f1', name: 'Cornitos Cheese and Herbs Nacho Crisps', qty: '55 gm', price: 34, oldPrice: 35, discount: '3% OFF' },
   { id: 'f2', name: 'CookieMan Double Chocolate Cookies', qty: '200 gm', price: 284, oldPrice: 350, discount: '19% OFF' },
-];
-
-const groceryItems: FavItem[] = [
-  { id: 'g1', name: 'Imported Daily Apple (Sebu)', qty: '2 pieces', price: 91, oldPrice: 114, discount: '20% OFF' },
-  { id: 'g2', name: 'Id Fresh Pouch Curd', qty: '500 gm', price: 30, oldPrice: 35, discount: '14% OFF' },
 ];
 
 const pharmaItems: FavItem[] = [
@@ -56,7 +52,6 @@ const pharmaItems: FavItem[] = [
 export const favCategories: FavCategory[] = [
   { id: 'mart', title: 'Mart', icon: 'bag', color: '#118C4F', items: martItems },
   { id: 'food', title: 'Food', icon: 'food', color: '#F97316', items: foodItems },
-  { id: 'grocery', title: 'Grocery', icon: 'grocery', color: '#34D399', items: groceryItems },
   { id: 'pharma', title: 'Pharma', icon: 'pharma', color: '#0EA5E9', items: pharmaItems },
 ];
 

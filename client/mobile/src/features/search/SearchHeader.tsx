@@ -45,7 +45,7 @@ const SearchHeader = memo(function SearchHeader({
       </TouchableOpacity>
 
       <View style={styles.searchPill}>
-        <Search size={ms(15)} color="#94A3B8" strokeWidth={2.2} />
+        <Search size={ms(18)} color="#94A3B8" strokeWidth={2.2} />
         <AppTextInput
           ref={inputRef}
           style={styles.searchInput}

@@ -14,7 +14,8 @@ import Svg, {
   Stop,
   Rect,
 } from 'react-native-svg';
-import { SCREEN_W, hs, vs, ms, wp, hp, DOME_RADIUS, STATUS_BAR_INSET } from '@/utils/responsive';
+import { SCREEN_W, hs, vs, ms, wp, hp, DOME_RADIUS } from '@/utils/responsive';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import phoneAuthBackgroundImg from '@/assets/phone_auth_background.webp';
 import AppTextInput from '@/components/AppTextInput';
@@ -106,6 +107,7 @@ function RotatingSpinner({ size = 14, borderWidth = 2, color = '#212121' }) {
 
 export function LoginScreen({ navigation }: Props) {
   const login = useAuthStore((s) => s.login);
+  const insets = useSafeAreaInsets();
   const [phone, setPhone] = useState('');
   const [otpState, setOtpState] = useState(false);
   const [otpCode, setOtpCode] = useState('');
@@ -259,7 +261,7 @@ export function LoginScreen({ navigation }: Props) {
 
           <ScalePressable
             onPress={() => navigation.navigate('Onboarding')}
-            style={styles.backBtn}
+            style={[styles.backBtn, { top: Platform.OS === 'ios' ? vs(44) : insets.top + vs(8) }]}
           >
             <ChevronLeft size={ms(20)} color="#1e293b" strokeWidth={2.5} />
           </ScalePressable>
@@ -350,7 +352,7 @@ export function LoginScreen({ navigation }: Props) {
               setOtpError('');
               setPhone('');
             }}
-            style={styles.backBtn}
+            style={[styles.backBtn, { top: Platform.OS === 'ios' ? vs(44) : insets.top + vs(8) }]}
           >
             <ChevronLeft size={ms(20)} color="#1e293b" strokeWidth={2.5} />
           </ScalePressable>
@@ -498,7 +500,6 @@ const styles = StyleSheet.create({
   phoneStateContainer: { flex: 1, position: 'relative' },
   backBtn: {
     position: 'absolute',
-    top: Platform.OS === 'ios' ? vs(44) : STATUS_BAR_INSET + vs(8),
     left: hs(16),
     zIndex: 40,
     width: ms(40),

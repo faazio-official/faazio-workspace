@@ -1,7 +1,6 @@
 import React, { useCallback, useState } from 'react';
-import { View, StyleSheet, BackHandler, type NativeSyntheticEvent, type NativeScrollEvent } from 'react-native';
+import { View, StyleSheet, type NativeSyntheticEvent, type NativeScrollEvent } from 'react-native';
 import { FlashList } from '@shopify/flash-list';
-import { useFocusEffect } from '@react-navigation/native';
 import { useSharedValue } from 'react-native-reanimated';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
@@ -12,6 +11,8 @@ import type { FoodStackParamList, RootStackParamList } from '@/navigation/types'
 import type { NearbyRestaurant, QuickCategory, FoodType } from '../mocks/homeFeed';
 import type { DiningRestaurant } from '../mocks/types';
 import { restaurantToProduct, nearbyToRestaurant } from '../mocks/types';
+import { useFoodFilterStore } from '@/state/foodFilterStore';
+import { venueMatches } from '../utils/dietFilter';
 import FoodHeader from '../components/FoodHeader';
 import HeroCardPair from '../components/HeroCardPair';
 import FoodSectionHeader from '../components/FoodSectionHeader';
@@ -19,8 +20,8 @@ import CategoryRail from '../components/CategoryRail';
 import PopularSpotRail from '../components/PopularSpotRail';
 import TopFoodRail from '../components/TopFoodRail';
 import NearbyRestaurantRow from '../components/NearbyRestaurantRow';
+import DietEmptyNote from '../components/DietEmptyNote';
 import FoodBottomNav, { type FoodTab } from '../components/FoodBottomNav';
-import ExitConfirmModal from '../components/ExitConfirmModal';
 import LoadingSkeleton from '../components/LoadingSkeleton';
 import FoodStatusBarStrip from '../components/FoodStatusBarStrip';
 
@@ -37,8 +38,9 @@ type Props = NativeStackScreenProps<FoodStackParamList, 'FoodHome'>;
 export function FoodHomeScreen({ navigation }: Props) {
   const feed = useDiningFeed();
   const [activeTab, setActiveTab] = useState<FoodTab>('Home');
-  const [exitOpen, setExitOpen] = useState(false);
   const scrollY = useSharedValue(0);
+  const dietFilter = useFoodFilterStore((s) => s.dietFilter);
+  const nearby = feed?.nearby.filter((r) => venueMatches(dietFilter, r)) ?? [];
 
   const onScroll = useCallback(
     (e: NativeSyntheticEvent<NativeScrollEvent>) => {
@@ -116,26 +118,7 @@ export function FoodHomeScreen({ navigation }: Props) {
     navigation.getParent<NativeStackNavigationProp<RootStackParamList>>()?.navigate('You');
   }, [navigation]);
 
-  const requestExit = useCallback(() => setExitOpen(true), []);
-  const cancelExit = useCallback(() => setExitOpen(false), []);
-  const confirmExit = useCallback(() => {
-    setExitOpen(false);
-    navigation.goBack();
-  }, [navigation]);
-
-  useFocusEffect(
-    useCallback(() => {
-      const subscription = BackHandler.addEventListener('hardwareBackPress', () => {
-        if (exitOpen) {
-          setExitOpen(false);
-          return true;
-        }
-        setExitOpen(true);
-        return true;
-      });
-      return () => subscription.remove();
-    }, [exitOpen]),
-  );
+  const goBack = useCallback(() => navigation.goBack(), [navigation]);
 
   const renderNearby = useCallback(
     ({ item }: { item: NearbyRestaurant }) => (
@@ -146,27 +129,37 @@ export function FoodHomeScreen({ navigation }: Props) {
 
   const listHeader = useCallback(() => {
     if (!feed) return null;
+    const popular = feed.popularSpots.filter((s) => venueMatches(dietFilter, s));
+    const topFoods = feed.topFoods.filter((f) => venueMatches(dietFilter, f));
     return (
       <View>
-        <FoodHeader onBack={requestExit} />
+        <FoodHeader onBack={goBack} />
         <HeroCardPair onDiningPress={openDining} onOrderFoodPress={openOrder} />
         <CategoryRail categories={feed.categories} onPress={openCategorySearch} />
         <FoodSectionHeader title="Popular Dining Spots" onSeeAll={openPopularSeeAll} />
-        <PopularSpotRail spots={feed.popularSpots} onPress={openSpotProduct} />
+        {popular.length > 0 ? (
+          <PopularSpotRail spots={popular} onPress={openSpotProduct} />
+        ) : (
+          <DietEmptyNote />
+        )}
         <FoodSectionHeader title="Top Food To Order" onSeeAll={openTopFoodSeeAll} />
-        <TopFoodRail foods={feed.topFoods} onPress={openTopFoodSearch} />
+        {topFoods.length > 0 ? (
+          <TopFoodRail foods={topFoods} onPress={openTopFoodSearch} />
+        ) : (
+          <DietEmptyNote />
+        )}
         <FoodSectionHeader title="Restaurants Nearby" onSeeAll={openDiningNearby} />
+        {nearby.length === 0 ? <DietEmptyNote /> : null}
       </View>
     );
-  }, [feed, openDining, openOrder, openCategorySearch, openPopularSeeAll, openTopFoodSearch, openTopFoodSeeAll, openDiningNearby, openSpotProduct, requestExit]);
+  }, [feed, dietFilter, openDining, openOrder, openCategorySearch, openPopularSeeAll, openTopFoodSearch, openTopFoodSeeAll, openDiningNearby, openSpotProduct, goBack]);
 
   if (!feed) {
     return (
       <View style={styles.container}>
-        <FoodHeader onBack={requestExit} />
+        <FoodHeader onBack={goBack} />
         <LoadingSkeleton />
         <FoodBottomNav activeTab={activeTab} onChange={handleTabChange} onCartPress={openCart} onYouPress={openYou} />
-        <ExitConfirmModal visible={exitOpen} onKeepExploring={cancelExit} onExit={confirmExit} />
       </View>
     );
   }
@@ -174,7 +167,7 @@ export function FoodHomeScreen({ navigation }: Props) {
   return (
     <View style={styles.container}>
       <FlashList
-        data={feed.nearby}
+        data={nearby}
         keyExtractor={(item) => item.id}
         renderItem={renderNearby}
         ListHeaderComponent={listHeader}
@@ -186,7 +179,6 @@ export function FoodHomeScreen({ navigation }: Props) {
       />
       <FoodStatusBarStrip scrollY={scrollY} />
       <FoodBottomNav activeTab={activeTab} onChange={handleTabChange} onCartPress={openCart} onYouPress={openYou} />
-      <ExitConfirmModal visible={exitOpen} onKeepExploring={cancelExit} onExit={confirmExit} />
     </View>
   );
 }

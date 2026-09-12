@@ -46,7 +46,6 @@ export function createMartSearchConfig({
     toggles: [{ key: 'products', label: 'Products', icon: Package }],
     showToggles: false,
     filterChips: [],
-    numColumns: 2,
     sortOptions: [
       { id: 'relevance', label: 'Relevance' },
       { id: 'popularity', label: 'Popularity' },
@@ -63,12 +62,8 @@ export function createMartSearchConfig({
         key: 'products',
         data: martProducts,
         predicate,
-        renderCard: (item, index) => (
-          <SearchMartProductCard
-            product={item as Product}
-            columnIndex={index % 2}
-            onPress={onProductPress}
-          />
+        renderCard: (item) => (
+          <SearchMartProductCard product={item as Product} onPress={onProductPress} />
         ),
         sorters: {
           relevance: () => 0,

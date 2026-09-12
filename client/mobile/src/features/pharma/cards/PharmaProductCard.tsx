@@ -8,8 +8,8 @@ interface Props {
   quantity?: number;
   isAdded?: boolean;
   isFavorite?: boolean;
-  onPress?: () => void;
-  onAdd?: () => void;
+  onPress?: (product: Product) => void;
+  onAdd?: (product: Product) => void;
   onIncrement?: () => void;
   onDecrement?: () => void;
   onFavorite?: () => void;

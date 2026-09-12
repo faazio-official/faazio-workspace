@@ -18,7 +18,6 @@ import type { RootStackParamList } from '@/navigation/types';
 import type { PharmaPopularMedicine, PharmaQuickReorderItem } from './mocks/pharmaHomeFeed';
 import { quickReorderToProduct } from './mocks/pharmaHomeFeed';
 
-import FeatureChipsRail from './components/pharma-home/FeatureChipsRail';
 import PharmaHeroBanner from './components/pharma-home/PharmaHeroBanner';
 import CategoryCardRail from '@/components/shared/CategoryCardRail';
 import { getCategoryCards } from '@/services/categoryRail';
@@ -35,6 +34,7 @@ import UploadPrescriptionFAB from './components/pharma-home/UploadPrescriptionFA
 import CategoriesDualPanel from '@/components/shared/CategoriesDualPanel';
 import { usePharmaFeed } from './hooks/usePharmaFeed';
 import PharmaHomeSkeleton from './components/skeletons/PharmaHomeSkeleton';
+import { DonorDashboard } from './blood-donor/DonorDashboard';
 
 interface PharmaScreenProps {
   addToCart?: (id: string, name: string, price: number, emoji: string) => void;
@@ -234,7 +234,6 @@ export function PharmaScreen({
   const feedView = feed ? (
     <View style={styles.feedWrap}>
       <ScrollView showsVerticalScrollIndicator={false} bounces={false}>
-        <FeatureChipsRail badges={feed.featureChips} />
         <PharmaHeroBanner
           onOrderNow={() => { setSelectedCategoryId('vitamin'); setCurrentView('CATEGORY_PRODUCTS'); }}
         />
@@ -304,7 +303,7 @@ export function PharmaScreen({
       </View>
 
       <View style={styles.searchFilter}>
-        <Search size={ms(12)} color="#94a3b8" strokeWidth={2.5} />
+        <Search size={ms(15)} color="#94a3b8" strokeWidth={2.5} />
         <AppTextInput
           style={styles.searchFilterInput}
           placeholder="Search products..."
@@ -474,6 +473,7 @@ export function PharmaScreen({
   );
 
   if (activeTab === 'History') return historyView;
+  if (activeTab === 'Donor') return <DonorDashboard />;
   switch (currentView) {
     case 'HOME':
       return homeSearchNormalized ? searchView : feedView;

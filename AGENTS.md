@@ -46,6 +46,21 @@ Reading order for a new contributor: `AGENTS.md` → `ARCHITECTURE.md` →
 9. **Boundaries** — cross-sub-app access only via Home. Enforced by `check:boundaries`.
 10. **Docs** — architecture deep-dives live in `docs/architecture/`, operational guides in `docs/RUNBOOKS/`; update `docs/README.md` and the "Documentation map" when adding docs.
 
+## Update docs by default
+Any code change that affects behavior, structure, or APIs must update the docs **by default** in
+the same change — do not wait to be asked. Concretely, after implementing:
+- **New/removed/renamed feature, module, screen, route, or store** → update
+  `docs/architecture/mobile-app.md` (module map, stores table, nav graph) and `client/mobile/PENDING_WORK.md`.
+- **Data/`@data/*` changes** → update `data/DATA_CONTROL.md` and `docs/architecture/data-layer-sdui.md`.
+- **Server/API changes** → update `docs/architecture/server-gateway-plan.md`.
+- **Build/deploy/signing changes** → update `docs/RUNBOOKS/RELEASE.md`.
+- **Build/run/verification changes** → update `docs/RUNBOOKS/TROUBLESHOOTING.md` and the relevant section of `docs/DEVELOPER_ONBOARDING.md`.
+- **Behavior removed** (e.g. deleted UI like an exit-confirm sheet) → remove the now-stale
+  description from the deep-dive/runbook that mentioned it.
+
+Keep edits concise and factual (no invented details). If a doc already describes the new state,
+no change is needed — but always check before finishing.
+
 ## Verify after any change
 Run from `client/mobile/`:
 ```bash
@@ -56,7 +71,7 @@ npm run check:boundaries  # dependency-cruiser
 
 ## Modules
 Shipped (`client/mobile/src/features/`): `onboarding`, `auth`, `home`, `ecommerce`
-(mart/grocery), `food`, `cart`, `profile`, `pharma`, `catalog`, `search`, `product`,
+(mart — incl. former grocery catalog), `food`, `cart`, `profile`, `pharma`, `catalog`, `search`, `product`,
 `favourites`, `sub-app`. `dinner-booking` is a scaffold (README only).
 
 Remaining/backlog work is tracked in `client/mobile/PENDING_WORK.md` (e.g. wiring

@@ -1,8 +1,15 @@
 import React, { useCallback, useState } from 'react';
 import { StyleSheet, View, TouchableOpacity } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { hs, vs, ms } from '@/utils/responsive';
 import { MapPin, ChevronDown, Search } from 'lucide-react-native';
-import Animated, { useSharedValue, useAnimatedStyle } from 'react-native-reanimated';
+import Animated, {
+  useSharedValue,
+  useAnimatedStyle,
+  useDerivedValue,
+  interpolate,
+  Extrapolation,
+} from 'react-native-reanimated';
 import type { CompositeScreenProps } from '@react-navigation/native';
 import type { BottomTabScreenProps } from '@react-navigation/bottom-tabs';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
@@ -13,14 +20,18 @@ import AppText from '@/components/AppText';
 import { useCartStore } from '@/state/cartStore';
 import { HubGradient } from '@/features/home/HubGradient';
 import {
-  HEADER_TOPINSET,
   HEADER_ROW_GAP,
   HEADER_BOTTOM_PAD,
   HEADER_SEARCH_H,
-  EXPANDED_H,
+  HEADER_RAIL_H,
+  headerTopInset,
+  expandedHeaderH,
+  collapsedVisibleHeaderH,
 } from '@/features/home/hubHeader';
 import type { MainTabParamList, RootStackParamList } from '@/navigation/types';
 import type { SubAppId } from '@/state/uiStore';
+import HeaderCategoryRail from '@/features/home/HeaderCategoryRail';
+import type { CategoryRailItem } from '@data/categories/railFeed';
 
 type Props = CompositeScreenProps<
   BottomTabScreenProps<MainTabParamList, 'Home'>,
@@ -37,6 +48,7 @@ const launchSubApp = (navigation: Props['navigation'], id: SubAppId) => {
 
 export function HomeTabScreen({ navigation }: Props) {
   const addToCart = useCartStore((s) => s.addToCart);
+  const insets = useSafeAreaInsets();
 
   const handleLaunchSubApp = useCallback(
     (id: SubAppId) => launchSubApp(navigation, id),
@@ -47,57 +59,84 @@ export function HomeTabScreen({ navigation }: Props) {
     [navigation],
   );
 
+  const handleRailCategoryPress = useCallback(
+    (item: CategoryRailItem) => {
+      navigation.navigate('MasterCategories', {
+        initialChip: 'FA_MART',
+        initialTabId: item.id,
+      });
+    },
+    [navigation],
+  );
+
+  const handleRailViewAll = useCallback(() => {
+    navigation.navigate('MasterCategories', { initialChip: 'FA_MART' });
+  }, [navigation]);
+
   const scrollY = useSharedValue(0);
   const clamp = useSharedValue(0);
   const collapseCap = useSharedValue(0);
-  const [stackH, setStackH] = useState(EXPANDED_H);
+  const [stackH, setStackH] = useState(expandedHeaderH(insets.top));
+  const viewportH = useSharedValue(0);
 
   const headerSlideStyle = useAnimatedStyle(() => ({
     transform: [{ translateY: -Math.min(clamp.value, collapseCap.value) }],
   }));
 
-  const headerFadeStyle = useAnimatedStyle(() => ({
-    opacity: collapseCap.value === 0 ? 1 : 1 - clamp.value / collapseCap.value,
+  // 0 at full expand → 1 at full collapse (guarded against a zero measured cap).
+  const clampProgress = useDerivedValue(() => {
+    const cap = collapseCap.value;
+    if (cap <= 0) return 0;
+    return Math.max(0, Math.min(1, clamp.value / cap));
+  });
+
+  // Logo/location + sectors block dissolves by half-collapse (also hides the
+  // clipped sectors-row remnant that would otherwise poke under the status bar).
+  const fadeTopBlockStyle = useAnimatedStyle(() => ({
+    opacity:
+      1 - interpolate(clampProgress.value, [0, 0.5], [0, 1], Extrapolation.CLAMP),
   }));
 
   const onStackLayout = useCallback(
     (e: any) => {
       const h = e.nativeEvent.layout.height;
-      setStackH(h);
-      collapseCap.value = Math.max(0, h - HEADER_TOPINSET - HEADER_SEARCH_H);
+      setStackH((prev) => (Math.abs(prev - h) > 1 ? h : prev));
+      collapseCap.value = Math.max(0, h - collapsedVisibleHeaderH(insets.top));
     },
-    [collapseCap],
+    [collapseCap, insets.top],
   );
 
   return (
-    <View style={styles.container}>
-      <View style={[styles.headerOuter, { height: stackH }]} collapsable={false} pointerEvents="box-none">
+    <View style={styles.container} onLayout={(e) => { viewportH.value = e.nativeEvent.layout.height; }}>
+      <Animated.View style={[styles.headerOuter, { height: stackH }]} collapsable={false} pointerEvents="box-none">
         <Animated.View style={[styles.headerSlid, { height: stackH }, headerSlideStyle]} collapsable={false}>
-          <HubGradient />
-          <View style={styles.headerStack} onLayout={onStackLayout}>
-            <Animated.View style={headerFadeStyle}>
-              <View style={styles.headerTopRow}>
-                <FaazioLogo size={ms(28)} />
+          <HubGradient height={stackH} />
+          <View style={[styles.headerStack, { paddingTop: headerTopInset(insets.top) }]} onLayout={onStackLayout}>
+            <Animated.View style={[styles.fadeBlock, fadeTopBlockStyle]} renderToHardwareTextureAndroid>
+              <View>
+                <View style={styles.headerTopRow}>
+                  <FaazioLogo size={ms(28)} />
 
-                <View style={styles.headerCenter}>
-                  <TouchableOpacity
-                    style={styles.locationRow}
-                    activeOpacity={0.7}
-                    onPress={() => navigation.navigate('Location')}
-                  >
-                    <MapPin size={ms(11)} color="#7CE045" />
-                    <AppText style={styles.locationText} numberOfLines={1}>
-                      Sunnambukkara Street, Karaikal
-                    </AppText>
-                    <ChevronDown size={ms(11)} color="rgba(255,255,255,0.6)" />
-                  </TouchableOpacity>
+                  <View style={styles.headerCenter}>
+                    <TouchableOpacity
+                      style={styles.locationRow}
+                      activeOpacity={0.7}
+                      onPress={() => navigation.navigate('Location')}
+                    >
+                      <MapPin size={ms(11)} color="#7CE045" />
+                      <AppText style={styles.locationText} numberOfLines={1}>
+                        Sunnambukkara Street, Karaikal
+                      </AppText>
+                      <ChevronDown size={ms(11)} color="rgba(255,255,255,0.6)" />
+                    </TouchableOpacity>
+                  </View>
                 </View>
-              </View>
 
-              <View style={styles.sectorsRow}>
-                <ExploreSectorsSection
-                  onLaunchSubApp={handleLaunchSubApp}
-                />
+                <View style={styles.sectorsRow}>
+                  <ExploreSectorsSection
+                    onLaunchSubApp={handleLaunchSubApp}
+                  />
+                </View>
               </View>
             </Animated.View>
 
@@ -108,14 +147,21 @@ export function HomeTabScreen({ navigation }: Props) {
               accessibilityRole="button"
               accessibilityLabel="Search"
             >
-              <Search size={ms(13)} color="#94a3b8" strokeWidth={2.2} />
+              <Search size={ms(16)} color="#94a3b8" strokeWidth={2.2} />
               <AppText style={styles.searchText} numberOfLines={1}>
                 Search for food, groceries or more...
               </AppText>
             </TouchableOpacity>
+
+            <View style={styles.fadeBlock}>
+              <HeaderCategoryRail
+                onCategoryPress={handleRailCategoryPress}
+                onViewAll={handleRailViewAll}
+              />
+            </View>
           </View>
         </Animated.View>
-      </View>
+      </Animated.View>
 
       <View style={styles.viewport}>
         <HomeView
@@ -125,7 +171,8 @@ export function HomeTabScreen({ navigation }: Props) {
           scrollY={scrollY}
           clamp={clamp}
           collapseCap={collapseCap}
-          expandedH={stackH}
+          viewportH={viewportH}
+          contentPaddingTop={stackH}
         />
       </View>
     </View>
@@ -142,11 +189,6 @@ const styles = StyleSheet.create({
     right: 0,
     zIndex: 30,
     overflow: 'hidden',
-    shadowColor: 'rgba(17,98,211,0.12)',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 1,
-    shadowRadius: 12,
-    elevation: 8,
   },
   headerSlid: {
     position: 'absolute',
@@ -155,15 +197,17 @@ const styles = StyleSheet.create({
     right: 0,
   },
   headerStack: {
-    paddingTop: HEADER_TOPINSET,
     paddingHorizontal: hs(16),
     paddingBottom: HEADER_BOTTOM_PAD,
     gap: HEADER_ROW_GAP,
   },
+  fadeBlock: {
+    width: '100%',
+  },
   sectorsRow: {
     width: '100%',
   },
-  headerTopRow: { flexDirection: 'row', alignItems: 'center' },
+  headerTopRow: { flexDirection: 'row', alignItems: 'center', paddingBottom: vs(6) },
   headerCenter: { flex: 1, alignItems: 'center' },
   locationRow: {
     flexDirection: 'row',
@@ -186,11 +230,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: hs(8),
     paddingHorizontal: hs(16),
-    shadowColor: '#000000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.06,
-    shadowRadius: 6,
-    elevation: 2,
+    borderWidth: 1,
+    borderColor: 'rgba(0,0,0,0.05)',
   },
   searchText: {
     flex: 1,

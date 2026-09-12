@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { StyleSheet, View, TouchableOpacity, ScrollView, BackHandler, StatusBar } from 'react-native';
+import { StyleSheet, View, TouchableOpacity, ScrollView, BackHandler } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { TextInput } from 'react-native';
 import {
   Home,
@@ -11,9 +12,9 @@ import {
   Minus,
   IndianRupee,
   Search,
+  Droplet,
 } from 'lucide-react-native';
-import { hs, vs, ms } from '@/utils/responsive';
-import { LinearGradient } from 'expo-linear-gradient';
+import { hs, vs, ms, SCREEN_W } from '@/utils/responsive';
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import type { CartItem } from '@/state/cartStore';
@@ -21,18 +22,16 @@ import type { SubAppId } from '@/state/uiStore';
 import type { RootStackParamList } from '@/navigation/types';
 
 import { FaMartScreen } from '../features/ecommerce/FaMartScreen';
-import type { MartLocalVendor } from '../features/ecommerce/mocks/martHomeFeed';
-import { GroceryScreen } from '../features/ecommerce/GroceryScreen';
 import { PharmaScreen } from '../features/pharma/PharmaScreen';
 import AppText from '@/components/AppText';
-import SlideUpSheet from '@/components/shared/SlideUpSheet';
 import SubAppHeader from './shared/SubAppHeader';
-import { SUB_HEADER_H, SUB_HEADER_H_COMPACT } from './shared/SubAppHeader';
+import { subAppHeaderH } from './shared/SubAppHeader';
 import { brandTokens } from '@/theme/brandTokens';
-import type { AppBrand } from '@data/types';
+import type { AppBrand, StoreProfile } from '@data/types';
+import { useBloodDonorStore } from '@/state/bloodDonorStore';
 
 interface SubAppWrapperProps {
-  subAppId: 'FA_MART' | 'FOOD' | 'GROCERY' | 'PHARMA';
+  subAppId: 'FA_MART' | 'FOOD' | 'PHARMA';
   onExit: () => void;
   addToCart: (id: string, name: string, price: number, emoji: string) => void;
   cartItems: CartItem[];
@@ -58,12 +57,12 @@ export default function SubAppWrapper({
   onCartPress,
 }: SubAppWrapperProps) {
   const [activeTab, setActiveTab] = useState<string>('Home');
-  const [showExitConfirm, setShowExitConfirm] = useState<boolean>(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [pharmaOnCategory, setPharmaOnCategory] = useState<boolean>(false);
-  const [martVendor, setMartVendor] = useState<MartLocalVendor | null>(null);
+  const [martVendor, setMartVendor] = useState<StoreProfile | null>(null);
   const searchInputRef = useRef<TextInput | null>(null);
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
+  const insets = useSafeAreaInsets();
 
   useEffect(() => {
     setSearchQuery('');
@@ -85,8 +84,8 @@ export default function SubAppWrapper({
       setActiveTab('Home');
       return;
     }
-    setShowExitConfirm(true);
-  }, [activeTab, pharmaOnCategory, martVendor]);
+    onExit();
+  }, [activeTab, pharmaOnCategory, martVendor, onExit]);
 
   useFocusEffect(
     useCallback(() => {
@@ -122,17 +121,6 @@ export default function SubAppWrapper({
           { name: 'Cart', icon: ShoppingBag },
         ],
       },
-      GROCERY: {
-        name: 'Grocery',
-        primaryColor: '#10B981',
-        textColor: '#10B981',
-        tabs: [
-          { name: 'Home', icon: Home },
-          { name: 'Aisles', icon: LayoutGrid },
-          { name: 'Search', icon: Search },
-          { name: 'Smart Cart', icon: ShoppingBag },
-        ],
-      },
       PHARMA: {
         name: 'Pharma',
         primaryColor: '#FF7A59',
@@ -142,6 +130,7 @@ export default function SubAppWrapper({
           { name: 'Search', icon: Search },
           { name: 'Cart', icon: ShoppingBag },
           { name: 'History', icon: FileText },
+          { name: 'Donor', icon: Droplet },
         ],
       },
     };
@@ -150,21 +139,32 @@ export default function SubAppWrapper({
 
   const config = getConfig();
 
-  const hasAddressBar = subAppId === 'FA_MART' || subAppId === 'GROCERY' || subAppId === 'PHARMA';
+  // With >4 tabs the fixed 56px items overflow narrow (320dp) screens, so widen
+  // them to share the available bar width evenly when the count increases.
+  const tabCount = config.tabs.length;
+  const adaptiveTabWidth = (SCREEN_W - hs(48)) / tabCount;
+
+  const hasAddressBar = subAppId === 'FA_MART' || subAppId === 'PHARMA';
 
   // Category pages drop the app header (only the panel's [back] All Categories
-  // header remains). Mart/Grocery now open the common Master Categories route
-  // (a pushed page with its own header). Pharma keeps its internal All
-  // Categories view, reported via onCategoryViewChange. Mart hides its app
-  // chrome while a vendor profile drill-in is open (martVendor != null).
+  // header remains). Mart opens the common Master Categories route (a pushed
+  // page with its own header). Pharma keeps its internal All Categories view,
+  // reported via onCategoryViewChange. Mart hides its app chrome while a
+  // vendor profile drill-in is open (martVendor != null).
   const isChromeHidden =
     (subAppId === 'PHARMA' && pharmaOnCategory) ||
     (subAppId === 'FA_MART' && martVendor !== null);
 
+  // Registered-donor dashboard (Pharma Donor tab) renders in-wrapper WITH the
+  // pharma bottom navbar but its own "Hi, …" header — so header hiding is
+  // decoupled from navbar hiding: only the header + viewport paddingTop use
+  // this flag; the navbar + paddingBottom keep using `isChromeHidden`.
+  const donorRegistered = useBloodDonorStore((s) => s.registration !== null);
+  const hideAppHeader = isChromeHidden || (subAppId === 'PHARMA' && activeTab === 'Donor' && donorRegistered);
+
   const HEADER_TITLES: Record<SubAppWrapperProps['subAppId'], string> = {
     FA_MART: 'Mart',
     FOOD: 'Food & Dining',
-    GROCERY: 'Grocery',
     PHARMA: 'Pharma',
   };
   const brandKey: AppBrand = subAppId === 'FA_MART' ? 'MART' : subAppId;
@@ -174,9 +174,7 @@ export default function SubAppWrapper({
       ? 'Search products in Mart...'
       : subAppId === 'FOOD'
         ? 'Search on Food'
-        : subAppId === 'GROCERY'
-          ? 'Search groceries...'
-          : 'Search medicines...';
+        : 'Search medicines...';
 
   const renderSubAppContent = () => {
     if (subAppId === 'PHARMA') {
@@ -206,21 +204,6 @@ export default function SubAppWrapper({
               searchQuery={searchQuery}
               vendor={martVendor}
               onVendorPress={setMartVendor}
-            />
-          );
-        }
-        break;
-
-      case 'GROCERY':
-        if (activeTab === 'Home') {
-          return (
-            <GroceryScreen 
-              addToCart={addToCart} 
-              cartItems={cartItems} 
-              updateCartQuantity={updateCartQuantity} 
-              onProductClick={onProductClick} 
-              onSearchPress={onSearchPress}
-              searchQuery={searchQuery}
             />
           );
         }
@@ -279,7 +262,7 @@ export default function SubAppWrapper({
 
   return (
     <View style={styles.container}>
-      {!isChromeHidden && (
+      {!hideAppHeader && (
         <SubAppHeader
           title={HEADER_TITLES[subAppId]}
           gradient={tokens.headerGradient}
@@ -300,11 +283,9 @@ export default function SubAppWrapper({
         style={[
           styles.viewport,
           {
-            paddingTop: isChromeHidden
+            paddingTop: hideAppHeader
               ? 0
-              : hasAddressBar
-                ? SUB_HEADER_H_COMPACT
-                : SUB_HEADER_H,
+              : subAppHeaderH(insets.top, hasAddressBar),
             paddingBottom: isChromeHidden ? 0 : vs(72),
           },
         ]}
@@ -326,13 +307,20 @@ export default function SubAppWrapper({
                 const lower = tab.name.toLowerCase();
                 if (lower.includes('cart')) onCartPress?.();
                 else if (tab.name === 'Search') onSearchPress?.();
+                else if (tab.name === 'Donor') {
+                  // Registered → dashboard inside the Pharma wrapper (navbar
+                  // stays); not registered → push the wizard route.
+                  if (useBloodDonorStore.getState().registration !== null) {
+                    setActiveTab('Donor');
+                  } else {
+                    navigation.navigate('BloodDonor');
+                  }
+                }
                 else if (subAppId === 'FA_MART' && tab.name === 'Categories') {
                   navigation.navigate('MasterCategories', { initialChip: 'FA_MART' });
-                } else if (subAppId === 'GROCERY' && tab.name === 'Aisles') {
-                  navigation.navigate('MasterCategories', { initialChip: 'GROCERY' });
                 } else setActiveTab(tab.name);
               }}
-              style={styles.tabItem}
+              style={[styles.tabItem, tabCount > 4 && { width: adaptiveTabWidth }]}
               activeOpacity={0.8}
             >
               <View style={styles.iconContainer}>
@@ -346,56 +334,6 @@ export default function SubAppWrapper({
         })}
         </View>
       )}
-
-      <SlideUpSheet
-        visible={showExitConfirm}
-        onRequestClose={() => setShowExitConfirm(false)}
-        sheetTop={
-          <LinearGradient
-            colors={tokens.headerGradient}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 0 }}
-            style={styles.modalBar}
-          />
-        }
-      >
-        <AppText style={[styles.modalTitle, { color: config.primaryColor }]}>
-          {subAppId === 'FOOD'
-            ? 'Exit Food?'
-            : subAppId === 'PHARMA'
-            ? 'Exit Pharma?'
-            : subAppId === 'FA_MART'
-            ? 'Exit Mart?'
-            : 'Exit Grocery?'}
-        </AppText>
-        <AppText style={styles.modalSubtitle}>Return to the main Faazio Hub?</AppText>
-
-        <View style={styles.modalButtons}>
-          <TouchableOpacity
-            onPress={() => setShowExitConfirm(false)}
-            style={styles.keepBtn}
-          >
-            <AppText style={styles.keepBtnText}>Keep Exploring</AppText>
-          </TouchableOpacity>
-          <TouchableOpacity
-            onPress={() => {
-              setShowExitConfirm(false);
-              onExit();
-            }}
-            style={styles.exitBtn}
-            activeOpacity={0.85}
-          >
-            <LinearGradient
-              colors={tokens.headerGradient}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 0 }}
-              style={styles.exitBtnFill}
-            >
-              <AppText style={[styles.exitBtnText, { color: tokens.headerTextColor }]}>Exit App</AppText>
-            </LinearGradient>
-          </TouchableOpacity>
-        </View>
-      </SlideUpSheet>
     </View>
   );
 }
@@ -593,60 +531,6 @@ const styles = StyleSheet.create({
     color: '#94a3b8',
     fontWeight: '700',
     marginTop: vs(3),
-  },
-  modalBar: {
-    width: hs(48),
-    height: vs(6),
-    borderRadius: vs(3),
-    marginBottom: vs(16),
-    overflow: 'hidden',
-  },
-  modalTitle: {
-    fontSize: ms(16),
-    fontWeight: '900',
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
-  },
-  modalSubtitle: {
-    fontSize: ms(11),
-    color: '#64748b',
-    textAlign: 'center',
-    marginTop: vs(4),
-    fontWeight: '600',
-  },
-  modalButtons: {
-    flexDirection: 'row',
-    gap: hs(12),
-    marginTop: vs(20),
-    width: '100%',
-  },
-  keepBtn: {
-    flex: 1,
-    height: Math.max(44, vs(44)),
-    borderRadius: ms(12),
-    backgroundColor: '#f1f5f9',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  keepBtnText: {
-    color: '#475569',
-    fontSize: ms(11),
-    fontWeight: '800',
-  },
-  exitBtn: {
-    flex: 1,
-    height: Math.max(44, vs(44)),
-    borderRadius: ms(12),
-    overflow: 'hidden',
-  },
-  exitBtnFill: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  exitBtnText: {
-    fontSize: ms(11),
-    fontWeight: '900',
   },
   basketContainer: {
     padding: hs(16),

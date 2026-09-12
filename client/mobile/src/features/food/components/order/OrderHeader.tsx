@@ -5,6 +5,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import AppText from '@/components/AppText';
 import { hs, ms, vs } from '@/utils/responsive';
 import { foodTheme } from '../../constants/theme';
+import DietToggle from '../DietToggle';
 
 interface OrderHeaderProps {
   area?: string;
@@ -22,29 +23,35 @@ const OrderHeader = memo(function OrderHeader({
   const insets = useSafeAreaInsets();
 
   return (
-    <View style={[styles.row, { paddingTop: insets.top + vs(8) }]}>
-      <TouchableOpacity
-        style={styles.location}
-        onPress={onAreaPress}
-        activeOpacity={0.8}
-        accessibilityRole="button"
-        accessibilityLabel={`Location: ${area}`}
-      >
-        <MapPin size={ms(22)} color={foodTheme.primary} strokeWidth={2.2} />
-        <View style={styles.locationTextWrap}>
-          <View style={styles.areaRow}>
-            <AppText style={styles.area} numberOfLines={1}>
-              {area}
-            </AppText>
-            <ChevronDown size={ms(15)} color="#1E2022" strokeWidth={2.4} />
+    <View style={[styles.container, { paddingTop: insets.top + vs(8) }]}>
+      <View style={styles.row}>
+        <TouchableOpacity
+          style={styles.location}
+          onPress={onAreaPress}
+          activeOpacity={0.8}
+          accessibilityRole="button"
+          accessibilityLabel={`Location: ${area}`}
+        >
+          <MapPin size={ms(22)} color={foodTheme.primary} strokeWidth={2.2} />
+          <View style={styles.locationTextWrap}>
+            <View style={styles.areaRow}>
+              <AppText style={styles.area} numberOfLines={1}>
+                {area}
+              </AppText>
+              <ChevronDown size={ms(15)} color="#1E2022" strokeWidth={2.4} />
+            </View>
+            <View style={styles.deliveryRow}>
+              <AppText style={styles.deliveryText}>Delivering to </AppText>
+              <AppText style={styles.deliveryTo}>Home</AppText>
+              <ChevronDown size={ms(11)} color={foodTheme.primary} strokeWidth={2.6} />
+            </View>
           </View>
-          <View style={styles.deliveryRow}>
-            <AppText style={styles.deliveryText}>Delivering to </AppText>
-            <AppText style={styles.deliveryTo}>Home</AppText>
-            <ChevronDown size={ms(11)} color={foodTheme.primary} strokeWidth={2.6} />
-          </View>
-        </View>
-      </TouchableOpacity>
+        </TouchableOpacity>
+      </View>
+
+      <View style={styles.dietRow}>
+        <DietToggle />
+      </View>
     </View>
   );
 });
@@ -52,13 +59,20 @@ const OrderHeader = memo(function OrderHeader({
 export default OrderHeader;
 
 const styles = StyleSheet.create({
-  row: {
-    minHeight: vs(72),
+  container: {
     paddingHorizontal: hs(16),
     paddingBottom: vs(10),
+    backgroundColor: '#FFFFFF',
+  },
+  row: {
+    minHeight: vs(72),
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#FFFFFF',
+  },
+  dietRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingBottom: vs(4),
   },
   location: {
     flex: 1,

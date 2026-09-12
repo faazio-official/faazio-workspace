@@ -17,13 +17,14 @@ import {
   Truck,
   Check,
   ChefHat,
-  ShoppingBasket,
   BriefcaseMedical,
   Store,
   Clock,
+  Coins,
 } from 'lucide-react-native';
 import type { LucideIcon } from 'lucide-react-native';
-import { hs, vs, ms, STATUS_BAR_INSET } from '@/utils/responsive';
+import { hs, vs, ms } from '@/utils/responsive';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import EnterpriseIcon from '@/components/EnterpriseIcon';
 import type { CartItem, CartCategory } from '@/state/cartStore';
 import { defaultAddresses } from '@data/cart/addresses';
@@ -37,21 +38,22 @@ import SlideUpSheet from '@/components/shared/SlideUpSheet';
 import PaymentOptionsScreen from '@/features/cart/payment/PaymentOptionsScreen';
 import { computeTotals } from './utils';
 import type { CheckoutStep } from './utils';
+import { useRewardsStore } from '@/state/rewardsStore';
+import { coinsEarnedFor, isCardActive } from '@/features/rewards/rewardsLogic';
+import { COIN_REDEEM_RATE, DISCOUNT_CARD_PERCENT } from '@data/rewards/rewards';
 
 const CATEGORY_META: Record<CartCategory, { label: string; icon: LucideIcon; color: string }> = {
   MART: { label: 'Mart', icon: ShoppingBag, color: '#10B981' },
   FOOD: { label: 'Food', icon: ChefHat, color: '#F97316' },
-  GROCERY: { label: 'Grocery', icon: ShoppingBasket, color: '#10B981' },
   PHARMA: { label: 'Pharma', icon: BriefcaseMedical, color: '#0284C7' },
 };
 
-const CATEGORY_ORDER: CartCategory[] = ['MART', 'FOOD', 'GROCERY', 'PHARMA'];
+const CATEGORY_ORDER: CartCategory[] = ['MART', 'FOOD', 'PHARMA'];
 
 const inferCategory = (itemId: string): CartCategory => {
   const id = itemId.toLowerCase();
   if (id.startsWith('ph-') || id.includes('pharma') || id.includes('med')) return 'PHARMA';
-  if (id.startsWith('gr-') || id.includes('grocery') || id.startsWith('cat-gr') || id.startsWith('cat-fb')) return 'GROCERY';
-  if (id.startsWith('fm-') || id.includes('mart') || id.startsWith('cat-mt') || id.startsWith('cat-mf')) return 'MART';
+  if (id.startsWith('fm-') || id.startsWith('gr-') || id.includes('mart') || id.includes('grocery') || id.startsWith('cat-mt') || id.startsWith('cat-mf') || id.startsWith('cat-gr') || id.startsWith('cat-fb')) return 'MART';
   return 'FOOD';
 };
 
@@ -103,6 +105,10 @@ export default function CartView({
   const [showCouponSheet, setShowCouponSheet] = useState(false);
   const [showBillSheet, setShowBillSheet] = useState(false);
 
+  const discountCard = useRewardsStore((s) => s.discountCard);
+  const streakCardActive = discountCard ? isCardActive(discountCard, new Date()) : false;
+  const insets = useSafeAreaInsets();
+
   const [addresses, setAddresses] = useState(
     defaultAddresses.map((a, i) => ({ id: a.id, label: a.label, address: a.address, selected: i === 0, isPrimary: a.isDefault === true }))
   );
@@ -128,6 +134,8 @@ export default function CartView({
     eta: string;
     fulfillment: FulfillmentMode;
     pickup?: PickupPoint;
+    coinsEarned: number;
+    coinsRedeemed: number;
   } | null>(null);
 
   const bounceAnim = useRef(new Animated.Value(0)).current;
@@ -156,6 +164,7 @@ export default function CartView({
 
   const discountAmount = appliedDiscount ? appliedDiscount.amount : 0;
   const { subtotal, deliveryFee, tax, finalTotal } = computeTotals(cartItems, discountAmount, fulfillment);
+  const estimatedCoins = coinsEarnedFor(finalTotal);
   const originalTotal = cartItems.reduce(
     (acc, curr) => acc + (curr.originalPrice ?? curr.price) * curr.quantity,
     0,
@@ -198,6 +207,13 @@ export default function CartView({
     setAppliedDiscount(null);
   };
 
+  const applyStreakCard = () => {
+    if (!discountCard) return;
+    const amt = Math.round(subtotal * (DISCOUNT_CARD_PERCENT / 100));
+    setAppliedDiscount({ code: `Faazio Streak (${DISCOUNT_CARD_PERCENT}% OFF)`, amount: amt });
+    setShowCouponSheet(false);
+  };
+
   const selectAddress = (id: string) => {
     setAddresses(prev => prev.map(a => ({ ...a, selected: a.id === id })));
   };
@@ -227,17 +243,22 @@ export default function CartView({
 
   const selectedPickup = pickupPointList.find((p) => p.id === selectedPickupId) ?? pickupPointList[0];
 
-  const handlePlaceOrder = () => {
+  const handlePlaceOrder = (coinsRedeemed = 0) => {
     setPaymentProcessing(true);
     setTimeout(() => {
+      const redeemRupees = Math.floor(coinsRedeemed / COIN_REDEEM_RATE);
+      const paidAmount = Math.max(0, finalTotal - redeemRupees);
+      const coinsEarned = coinsEarnedFor(paidAmount);
+      const orderId = `FZ-${Math.floor(100000 + Math.random() * 900000)}`;
+      useRewardsStore.getState().recordOrder(paidAmount, coinsRedeemed, orderId);
       const isPickup = fulfillment === 'PICKUP';
       const details = {
-        orderId: `FZ-${Math.floor(100000 + Math.random() * 900000)}`,
+        orderId,
         items: [...cartItems],
         subtotal,
         discount: discountAmount,
         tax,
-        total: finalTotal,
+        total: paidAmount,
         deliveryAddress: isPickup
           ? selectedPickup?.address ?? 'Pickup point'
           : selectedAddressObj
@@ -247,6 +268,8 @@ export default function CartView({
         eta: isPickup ? '15 Mins' : '12-15 Mins',
         fulfillment,
         pickup: isPickup ? selectedPickup : undefined,
+        coinsEarned,
+        coinsRedeemed,
       };
       setPlacedOrderDetails(details);
       setCartItems([]);
@@ -258,7 +281,7 @@ export default function CartView({
   if (step === 'BAG') {
     return (
       <View style={styles.bagRoot}>
-        <View style={[styles.bagTopBar, { paddingTop: STATUS_BAR_INSET + vs(12) }]}>
+        <View style={[styles.bagTopBar, { paddingTop: insets.top + vs(12) }]}>
           <TouchableOpacity onPress={onBack} style={styles.bagBackBtn} activeOpacity={0.7} hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}>
             <ArrowLeft size={ms(20)} color="#1E2022" strokeWidth={2.4} />
           </TouchableOpacity>
@@ -376,6 +399,12 @@ export default function CartView({
 
         {cartItems.length > 0 && (
           <View style={styles.bottomBar}>
+            {estimatedCoins > 0 && (
+              <View style={styles.coinEstimatePill}>
+                <Coins size={ms(12)} color="#B45309" strokeWidth={2.2} />
+                <AppText style={styles.coinEstimateText}>You'll earn ~{estimatedCoins} coins on this order</AppText>
+              </View>
+            )}
             <TouchableOpacity style={styles.billBanner} onPress={() => setShowBillSheet(true)} activeOpacity={0.8}>
               <View style={styles.billBannerLeft}>
                 <AppText style={styles.toPayLabel}>To Pay: </AppText>
@@ -422,6 +451,33 @@ export default function CartView({
         <SlideUpSheet visible={showCouponSheet} onRequestClose={() => setShowCouponSheet(false)}>
           <AppText style={styles.sheetTitle}>Apply Coupon</AppText>
           <AppText style={styles.sheetSubtitle}>Choose a coupon to save more on this order</AppText>
+          {streakCardActive && discountCard && (
+            <TouchableOpacity
+              key="streak-card"
+              style={styles.couponOption}
+              activeOpacity={0.7}
+              onPress={applyStreakCard}
+            >
+              <View style={styles.couponOptionLeft}>
+                <Ticket size={ms(18)} color="#7C3AED" strokeWidth={2.2} />
+                <View style={styles.couponOptionText}>
+                  <AppText style={styles.couponOptionCode}>Faazio Streak — {discountCard.percent}% OFF</AppText>
+                  <AppText style={styles.couponOptionDesc}>
+                    Valid till {new Date(discountCard.expiresAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}
+                  </AppText>
+                </View>
+              </View>
+              {appliedDiscount?.code?.startsWith('Faazio Streak') ? (
+                <View style={styles.couponAppliedBadge}>
+                  <AppText style={styles.couponAppliedBadgeText}>APPLIED</AppText>
+                </View>
+              ) : (
+                <View style={styles.couponSelectCircle}>
+                  <Check size={ms(12)} color="#118C4F" strokeWidth={3} />
+                </View>
+              )}
+            </TouchableOpacity>
+          )}
           {coupons.map((coupon) => {
             const active = appliedDiscount?.code?.startsWith(coupon.code);
             return (
@@ -777,6 +833,25 @@ export default function CartView({
             ))}
           </View>
         </View>
+
+        {/* FaazioCoins earned / used */}
+        {(placedOrderDetails?.coinsEarned ?? 0) > 0 || (placedOrderDetails?.coinsRedeemed ?? 0) > 0 ? (
+          <View style={styles.receiptRewardsSection}>
+            <AppText style={styles.sectionLabel}>FaazioCoins</AppText>
+            {placedOrderDetails && placedOrderDetails.coinsEarned > 0 && (
+              <View style={styles.receiptRewardsRow}>
+                <AppText style={styles.receiptRewardsLabel}>Coins earned</AppText>
+                <AppText style={styles.receiptRewardsEarn}>+{placedOrderDetails.coinsEarned}</AppText>
+              </View>
+            )}
+            {placedOrderDetails && placedOrderDetails.coinsRedeemed > 0 && (
+              <View style={styles.receiptRewardsRow}>
+                <AppText style={styles.receiptRewardsLabel}>Coins used</AppText>
+                <AppText style={styles.receiptRewardsRedeem}>−{placedOrderDetails.coinsRedeemed}</AppText>
+              </View>
+            )}
+          </View>
+        ) : null}
 
         {/* Delivering to / Pickup from location */}
         <View style={styles.deliveryLocationSection}>
@@ -1607,6 +1682,32 @@ const styles = StyleSheet.create({
     fontWeight: '900',
     color: '#1e293b',
   },
+  receiptRewardsSection: {
+    borderTopWidth: 1,
+    borderTopColor: '#f1f5f9',
+    paddingTop: vs(10),
+  },
+  receiptRewardsRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: vs(3),
+  },
+  receiptRewardsLabel: {
+    fontSize: ms(9),
+    fontWeight: '700',
+    color: '#64748b',
+  },
+  receiptRewardsEarn: {
+    fontSize: ms(9),
+    fontWeight: '900',
+    color: '#7C3AED',
+  },
+  receiptRewardsRedeem: {
+    fontSize: ms(9),
+    fontWeight: '900',
+    color: '#D97706',
+  },
   deliveryLocationSection: {
     borderTopWidth: 1,
     borderTopColor: '#f1f5f9',
@@ -1937,6 +2038,22 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.05,
     shadowRadius: 12,
     elevation: 8,
+  },
+  coinEstimatePill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    alignSelf: 'flex-start',
+    backgroundColor: '#FEF3C7',
+    borderRadius: ms(8),
+    paddingHorizontal: hs(10),
+    paddingVertical: vs(4),
+    marginBottom: vs(8),
+    gap: hs(4),
+  },
+  coinEstimateText: {
+    fontSize: ms(10.5),
+    fontWeight: '800',
+    color: '#92400E',
   },
   billBanner: {
     flexDirection: 'row',

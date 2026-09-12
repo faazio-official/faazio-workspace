@@ -41,9 +41,9 @@ const styles = StyleSheet.create({
     width: '100%',
   },
   sectorButton: {
-    width: '23%',
-    height: vs(44),
-    borderRadius: ms(12),
+    width: '30%',
+    height: vs(38),
+    borderRadius: ms(11),
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',

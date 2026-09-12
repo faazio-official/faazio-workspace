@@ -1,22 +1,19 @@
 import {
   MART_HERO_BANNERS,
   MART_DEALS,
-  MART_FLASH_SALES,
-  MART_TOP_BRANDS,
-  MART_LOCAL_VENDORS,
+  MART_DAILY_ESSENTIALS,
   type MartHeroBanner,
   type MartDeal,
-  type MartFlashSale,
-  type MartTopBrand,
-  type MartLocalVendor,
+  type MartEssential,
 } from '../mocks/martHomeFeed';
+import { martStores } from '@data/mart/stores';
+import type { StoreProfile } from '@data/types';
 
 export interface MartFeed {
   heroBanners: MartHeroBanner[];
   deals: MartDeal[];
-  flashSales: MartFlashSale[];
-  topBrands: MartTopBrand[];
-  localVendors: MartLocalVendor[];
+  dailyEssentials: MartEssential[];
+  localVendors: StoreProfile[];
 }
 
 function delay(ms: number) {
@@ -33,8 +30,7 @@ export async function fetchMartFeed(): Promise<MartFeed> {
   return {
     heroBanners: MART_HERO_BANNERS,
     deals: MART_DEALS,
-    flashSales: MART_FLASH_SALES,
-    topBrands: MART_TOP_BRANDS,
-    localVendors: MART_LOCAL_VENDORS,
+    dailyEssentials: MART_DAILY_ESSENTIALS,
+    localVendors: martStores,
   };
 }

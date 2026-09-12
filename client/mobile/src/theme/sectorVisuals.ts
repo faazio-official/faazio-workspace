@@ -1,4 +1,4 @@
-import { ShoppingCart, UtensilsCrossed, Carrot, Pill } from 'lucide-react-native';
+import { ShoppingCart, UtensilsCrossed, Pill } from 'lucide-react-native';
 import type { AppBrand } from '@data/types';
 
 export interface SectorVisual {
@@ -11,6 +11,5 @@ export interface SectorVisual {
 export const SECTOR_VISUALS: Record<AppBrand, SectorVisual> = {
   MART: { Icon: ShoppingCart, fill: '#FEF9E7', iconColor: '#F59E0B' },
   FOOD: { Icon: UtensilsCrossed, fill: '#FFF4E6', iconColor: '#F97316' },
-  GROCERY: { Icon: Carrot, fill: '#EAFBF1', iconColor: '#22C55E' },
   PHARMA: { Icon: Pill, fill: '#E8FBF8', iconColor: '#14B8A6' },
 };

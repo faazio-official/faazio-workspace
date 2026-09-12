@@ -7,7 +7,7 @@
  *
  * Resolution order per item: product (`getProductById`) → `product.storeId` →
  * store; else `product.shop` matched to a store name; else the app's default
- * outlet (GROCERY/PHARMA each have exactly one); else the neutral hub.
+ * outlet (PHARMA has exactly one); else the neutral hub.
  */
 import type { PickupPoint } from '../types';
 import { getProductById } from '../catalog/products';
@@ -15,7 +15,6 @@ import { storeDirectory, getStoreById } from '../directory/stores';
 
 /** App → default pickup outlet for single-outlet apps. */
 const DEFAULT_STORE_BY_APP: Record<string, string> = {
-  GROCERY: 'store-g1',
   PHARMA: 'store-p1',
 };
 

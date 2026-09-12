@@ -3,6 +3,8 @@ import { UtensilsCrossed, Soup, Zap, Leaf, Star } from 'lucide-react-native';
 import type { DiningRestaurant, SpecialDish } from '@/features/food/mocks/types';
 import { DINING_RESTAURANTS, TOP_RATED_RESTAURANTS } from '@/features/food/mocks/restaurants';
 import { TODAYS_SPECIALS } from '@/features/food/mocks/specials';
+import type { DietFilter } from '@/state/foodFilterStore';
+import { venueMatches, dishMatches } from '@/features/food/utils/dietFilter';
 import SearchRestaurantCard from '@/features/food/components/SearchRestaurantCard';
 import SearchDishCard from '@/features/food/components/SearchDishCard';
 import type { SearchScreenConfig } from '../types';
@@ -10,6 +12,13 @@ import type { SearchScreenConfig } from '../types';
 interface FoodSearchOptions {
   onRestaurantPress?: (restaurant: DiningRestaurant) => void;
   onDishPress?: (dish: SpecialDish) => void;
+  /**
+   * Active Veg / Non-Veg diet filter. Threaded in explicitly (not read from the
+   * store inside the predicate) so the config is deterministic and the
+   * predicates stay pure. The caller subscribes to the store and rebuilds the
+   * config when it changes.
+   */
+  dietFilter?: DietFilter;
 }
 
 const minutesOf = (deliveryTime: string) => {
@@ -23,22 +32,28 @@ const searchableRestaurantText = (r: DiningRestaurant) =>
 const searchableDishText = (d: SpecialDish) =>
   [d.dishName, d.restaurant, d.description, d.cuisine].join(' ').toLowerCase();
 
-function restaurantPredicate(r: DiningRestaurant, query: string, activeFilterIds: string[]) {
-  const q = query.trim().toLowerCase();
-  if (q && !searchableRestaurantText(r).includes(q)) return false;
-  if (activeFilterIds.includes('fast') && minutesOf(r.deliveryTime) > 30) return false;
-  if (activeFilterIds.includes('veg') && !r.cuisines.some((c) => /veg/i.test(c))) return false;
-  if (activeFilterIds.includes('rated') && r.rating < 4.0) return false;
-  return true;
+function makeRestaurantPredicate(dietFilter: DietFilter) {
+  return (r: DiningRestaurant, query: string, activeFilterIds: string[]) => {
+    const q = query.trim().toLowerCase();
+    if (q && !searchableRestaurantText(r).includes(q)) return false;
+    if (activeFilterIds.includes('fast') && minutesOf(r.deliveryTime) > 30) return false;
+    if (activeFilterIds.includes('veg') && r.dietType !== 'veg') return false;
+    if (activeFilterIds.includes('rated') && r.rating < 4.0) return false;
+    if (!venueMatches(dietFilter, r)) return false;
+    return true;
+  };
 }
 
-function dishPredicate(d: SpecialDish, query: string, activeFilterIds: string[]) {
-  const q = query.trim().toLowerCase();
-  if (q && !searchableDishText(d).includes(q)) return false;
-  if (activeFilterIds.includes('fast') && minutesOf(d.deliveryTime ?? '') > 30) return false;
-  if (activeFilterIds.includes('veg') && !d.isVeg) return false;
-  if (activeFilterIds.includes('rated') && (d.rating ?? 0) < 4.0) return false;
-  return true;
+function makeDishPredicate(dietFilter: DietFilter) {
+  return (d: SpecialDish, query: string, activeFilterIds: string[]) => {
+    const q = query.trim().toLowerCase();
+    if (q && !searchableDishText(d).includes(q)) return false;
+    if (activeFilterIds.includes('fast') && minutesOf(d.deliveryTime ?? '') > 30) return false;
+    if (activeFilterIds.includes('veg') && !d.isVeg) return false;
+    if (activeFilterIds.includes('rated') && (d.rating ?? 0) < 4.0) return false;
+    if (!dishMatches(dietFilter, d)) return false;
+    return true;
+  };
 }
 
 const mergedRestaurants: DiningRestaurant[] = [
@@ -55,7 +70,10 @@ const mergedRestaurants: DiningRestaurant[] = [
 export function createFoodSearchConfig({
   onRestaurantPress,
   onDishPress,
+  dietFilter = 'all',
 }: FoodSearchOptions): SearchScreenConfig {
+  const restaurantPredicate = makeRestaurantPredicate(dietFilter);
+  const dishPredicate = makeDishPredicate(dietFilter);
   return {
     searchPlaceholder: 'Search restaurants or cuisines…',
     accentColor: '#FF4500',

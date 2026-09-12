@@ -8,9 +8,12 @@ exclusively on the main root tab bar (`MainTabs` → `You`). Sub-app wrappers
 - `AccountScreen.tsx` / `YouScreen.tsx`: Thin wrappers rendering the shared
   presentational `AccountView`. `AccountScreen` (tab) omits the back arrow;
   `YouScreen` (pushed) wires `onBack`.
-- `AccountView.tsx`: Presentational "My Account" page — header, profile card,
-  Smart Saver banner, grouped navigation list (incl. **My Orders** row), and
-  logout. Reads content from `@data/account/*`.
+- `AccountView.tsx`: Presentational "My Account" page — header,
+  FaazioCoins streak card (7-day fire streak + balance), grouped navigation list
+  (incl. **My Orders** and **Sell with us** rows), and logout. Reads content from
+  `@data/account/*`; the FaazioCoins card reads `rewardsStore`.
+- `SellWithUsScreen.tsx`: Mock "Sell with us" partner onboarding — lists the required
+  details (`SELLER_SETUP_FIELDS` from `@data/seller/sellerSetup.ts`). No backend yet.
 - `MyOrdersScreen.tsx`: "My Orders" — a **sub-app chip rail** (All / Mart / Food /
   Grocery / Pharma) plus a status **filter sheet**. Orders are filtered by
   sub-app × status (AND). Status counts are derived at runtime from `myOrders`.
@@ -22,7 +25,7 @@ exclusively on the main root tab bar (`MainTabs` → `You`). Sub-app wrappers
 ## 🛠️ Implementation Standards
 - **Data-driven**: Screen is presentational; profile / orders / nav content comes
   from `@data/account/*` (`profile.ts`, `orderStatus.ts`, `accountNav.ts`,
-  `orders.ts`).
+  `orders.ts`); seller setup details come from `@data/seller/sellerSetup.ts`.
 - **Single owner**: Account lives only on the root tab bar — never inside a
   sub-app wrapper. Logout clears the cart store and resets navigation to Login.
 - **Responsive**: Uses `hs`/`vs`/`ms` scale helpers and `AppText` throughout.

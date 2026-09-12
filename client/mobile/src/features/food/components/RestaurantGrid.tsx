@@ -99,7 +99,7 @@ const RestaurantGrid = memo(function RestaurantGrid({
         </View>
         <View style={styles.searchWrap}>
           <View style={styles.searchPill}>
-            <Search size={ms(16)} color={foodTheme.textMuted} strokeWidth={2.2} />
+            <Search size={ms(19)} color={foodTheme.textMuted} strokeWidth={2.2} />
             <AppTextInput
               style={styles.searchInput}
               value={query}
@@ -215,7 +215,7 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     paddingHorizontal: hs(16),
     marginBottom: vs(4),
-    marginTop: vs(4),
+    marginTop: vs(16),
   },
   sortChip: {
     flexDirection: 'row',

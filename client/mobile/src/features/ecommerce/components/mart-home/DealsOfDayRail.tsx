@@ -2,11 +2,9 @@ import React, { memo, useCallback } from 'react';
 import { View, StyleSheet } from 'react-native';
 import { FlashList } from '@shopify/flash-list';
 import { hs, vs } from '@/utils/responsive';
-import { useCartStore } from '@/state/store';
 import type { MartDeal } from '../../mocks/martHomeFeed';
-import { dealToProduct } from '../../mocks/martHomeFeed';
 import MartSectionHeader from './MartSectionHeader';
-import MartProductCard from '@/features/ecommerce/cards/MartProductCard';
+import MartDealCard from './MartDealCard';
 
 const DEAL_CARD_W = hs(150);
 
@@ -21,31 +19,20 @@ const DealsOfDayRail = memo(function DealsOfDayRail({
   onDealPress,
   onViewAll,
 }: DealsOfDayRailProps) {
-  const cart = useCartStore((s) => s.cart);
-  const addToCart = useCartStore((s) => s.addToCart);
-  const updateQuantity = useCartStore((s) => s.updateQuantity);
-
   const renderItem = useCallback(
-    ({ item }: { item: MartDeal }) => {
-      const product = dealToProduct(item);
-      const cartItem = cart.find((c) => c.id === item.id);
-      return (
-        <MartProductCard
-          product={product}
-          originalPrice={item.originalPrice}
-          variant="rail"
-          width={DEAL_CARD_W}
-          showDescription
-          quantity={cartItem?.quantity ?? 0}
-          isAdded={!!cartItem && cartItem.quantity > 0}
-          onPress={() => onDealPress?.(item)}
-          onAdd={() => addToCart(item.id, item.name, item.price, item.emoji)}
-          onIncrement={() => updateQuantity(item.id, 1)}
-          onDecrement={() => updateQuantity(item.id, -1)}
-        />
-      );
-    },
-    [cart, addToCart, updateQuantity, onDealPress],
+    ({ item }: { item: MartDeal }) => (
+      <MartDealCard
+        image={item.imageUrl}
+        name={item.name}
+        rating={item.rating}
+        price={item.price}
+        originalPrice={item.originalPrice}
+        priceNote={item.priceNote}
+        width={DEAL_CARD_W}
+        onPress={() => onDealPress?.(item)}
+      />
+    ),
+    [onDealPress],
   );
 
   return (

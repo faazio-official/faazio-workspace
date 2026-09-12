@@ -20,7 +20,6 @@ export function ProductDetailScreen({ navigation, route }: Props) {
   const appToSubApp: Record<string, SubAppId> = {
     FOOD: 'FOOD',
     MART: 'FA_MART',
-    GROCERY: 'GROCERY',
     PHARMA: 'PHARMA',
   };
   const handleSearch = useCallback(

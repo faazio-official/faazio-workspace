@@ -15,11 +15,11 @@ import {
   LayoutGrid,
   ShoppingBag,
   Utensils,
-  ShoppingBasket,
   Pill,
 } from 'lucide-react-native';
 import type { LucideIcon } from 'lucide-react-native';
-import { hs, vs, ms, STATUS_BAR_INSET } from '@/utils/responsive';
+import { hs, vs, ms } from '@/utils/responsive';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import AppText from '@/components/AppText';
 import {
   filterChips,
@@ -33,7 +33,6 @@ const ICON_MAP: Record<FavIconKey, LucideIcon> = {
   grid: LayoutGrid,
   bag: ShoppingBag,
   food: Utensils,
-  grocery: ShoppingBasket,
   pharma: Pill,
 };
 
@@ -50,6 +49,7 @@ export default function FavouritesView({ onBack }: FavouritesViewProps) {
   const [activeChip, setActiveChip] = useState<FilterChip['id']>('all');
   const [quantities, setQuantities] = useState<Record<string, number>>({});
   const [cleared, setCleared] = useState(false);
+  const insets = useSafeAreaInsets();
 
   const visibleCategories =
     activeChip === 'all'
@@ -80,7 +80,7 @@ export default function FavouritesView({ onBack }: FavouritesViewProps) {
   return (
     <View style={styles.root}>
       {/* 1. Fixed Top Navigation Bar */}
-      <View style={[styles.topBar, { paddingTop: STATUS_BAR_INSET + vs(12) }]}>
+      <View style={[styles.topBar, { paddingTop: insets.top + vs(12) }]}>
         <TouchableOpacity
           onPress={onBack}
           style={styles.backBtn}
@@ -275,8 +275,6 @@ function chipColor(id: FilterChip['id']): string {
       return '#118C4F';
     case 'food':
       return '#F97316';
-    case 'grocery':
-      return '#34D399';
     case 'pharma':
       return '#0EA5E9';
     default:

@@ -1,7 +1,6 @@
 import React, { memo } from 'react';
 import MartProductCard from '@/features/ecommerce/cards/MartProductCard';
 import FoodProductCard from '@/features/food/cards/FoodProductCard';
-import GroceryProductCard from '@/features/ecommerce/cards/GroceryProductCard';
 import PharmaProductCard from '@/features/pharma/cards/PharmaProductCard';
 import type { Product } from '@data/types';
 import type { CardVariant } from '@data/schema';
@@ -11,8 +10,8 @@ interface UniversalFeedCardProps {
   quantity?: number;
   isAdded?: boolean;
   isFavorite?: boolean;
-  onPress?: () => void;
-  onAdd?: () => void;
+  onPress?: (product: Product) => void;
+  onAdd?: (product: Product) => void;
   onIncrement?: () => void;
   onDecrement?: () => void;
   onFavorite?: () => void;
@@ -31,7 +30,6 @@ const UniversalFeedCard = memo(function UniversalFeedCard(props: UniversalFeedCa
   switch (props.product.app) {
     case 'MART': return <MartProductCard {...props} />;
     case 'FOOD': return <FoodProductCard {...props} />;
-    case 'GROCERY': return <GroceryProductCard {...props} />;
     case 'PHARMA': return <PharmaProductCard {...props} />;
     default: return <FoodProductCard {...props} />;
   }

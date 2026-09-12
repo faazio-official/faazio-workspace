@@ -1,4 +1,4 @@
-import React, { Suspense } from 'react';
+import React, { Suspense, lazy } from 'react';
 import { StyleSheet, View, TouchableOpacity } from 'react-native';
 import { hs, vs, ms } from '@/utils/responsive';
 import { Home, LayoutGrid, Heart, ShoppingBag, User } from 'lucide-react-native';
@@ -6,11 +6,17 @@ import { createBottomTabNavigator, type BottomTabBarProps } from '@react-navigat
 import { useCartStore } from '@/state/cartStore';
 import AppText from '@/components/AppText';
 import { HomeTabScreen } from '@/features/home/HomeTabScreen';
-import { CategoriesTabScreen } from '@/features/catalog/CategoriesTabScreen';
-import { FavouritesTabScreen } from '@/features/favourites/FavouritesTabScreen';
-import { AccountScreen } from '@/features/profile/AccountScreen';
 import { SplashFallback } from '@/components/SplashFallback';
 import type { MainTabParamList } from '@/navigation/types';
+
+const lazyNamed = <T extends { [K in string]: unknown }>(
+  loader: () => Promise<T>,
+  name: keyof T & string,
+) => lazy(() => loader().then((m) => ({ default: m[name] as React.ComponentType<any> })));
+
+const CategoriesTabScreen = lazyNamed(() => import('@/features/catalog/CategoriesTabScreen'), 'CategoriesTabScreen');
+const FavouritesTabScreen = lazyNamed(() => import('@/features/favourites/FavouritesTabScreen'), 'FavouritesTabScreen');
+const AccountScreen = lazyNamed(() => import('@/features/profile/AccountScreen'), 'AccountScreen');
 
 const TAB_COLORS: Record<keyof MainTabParamList, string> = {
   Home: '#2F80ED',

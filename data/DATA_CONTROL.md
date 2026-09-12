@@ -26,7 +26,6 @@ Every domain file below carries its tag as a top-of-file banner comment.
 | Domain | Owner (feature) | Entry files | Status |
 |---|---|---|---|
 | `mart` | `features/ecommerce` | `products.ts`, `stores.ts` | `@mock` |
-| `grocery` | `features/ecommerce` | `products.ts`, `stores.ts` | `@mock` |
 | `food` | `features/food` | `products.ts`, `stores.ts`, `bookingDishes.ts` | `@mock` |
 | `pharma` | `features/pharma` | `products.ts`, `stores.ts` | `@mock` (+ `@unused` by mobile) |
 | `explore` | `features/catalog` (Categories/Favourites) | `stacks.ts` | `@mock` |
@@ -48,7 +47,7 @@ surface for these tables). These tables **pull from the legacy sources via impor
 
 | Table dir | Simulates | Consolidates | Status |
 |---|---|---|---|
-| `catalog/products.ts` | Rust + Tantivy (search index) | mart/grocery/food/pharma/home/explore/categories product records, deduped by `id`, tokenized. Exposes `getProductById` (resolves a real `Product` from the four domain arrays + converted deal/special products) used by `OrderDetailsScreen`'s **View Product** drill-in | `@mock` |
+| `catalog/products.ts` | Rust + Tantivy (search index) | mart/food/pharma/home/explore/categories product records, deduped by `id`, tokenized. Exposes `getProductById` (resolves a real `Product` from the domain arrays + converted deal/special products) used by `OrderDetailsScreen`'s **View Product** drill-in | `@mock` |
 | `directory/stores.ts` | Go + PostgreSQL (store directory) | `mart/stores`, `food/stores` | `@mock` |
 | `reviews/reviews.ts` | Go + PostgreSQL (reviews/specs) | `productMeta/reviews` | `@mock` |
 | `inventory/stock.ts` | Go + DynamoDB (key-value stock) | net new — one row per catalog product id | `@mock` |
@@ -69,28 +68,30 @@ intended single data surface for the app. It is **not yet wired into screens** �
 | Export | Type | Mobile consumers | Status |
 |---|---|---|---|
 | `martProducts` | `MartProduct[]` | `FaMartScreen`; `data/home/filterFeed` (data-internal pool) | `@mock` |
-| `martStores` | `StoreProfile[]` | `FaMartScreen` | `@mock` |
-| `MART_DEALS` / `dealToProduct` | `MartDeal[]` / `(MartDeal) => Product` | `FaMartScreen` `DealsOfDayRail`; home `DealsOfDaySection` | `@mock` |
+| `martStores` | `StoreProfile[]` | `FaMartScreen` "Local Vendors Near You" rail + vendor drill-in (replaces the retired `MART_LOCAL_VENDORS` mock) | `@mock` |
+| `MART_DEALS` / `dealToProduct` | `MartDeal[]` / `(MartDeal) => Product` | `FaMartScreen` `DealsOfDayRail`; home `DealsOfDaySection`. `MartDeal` gained optional `rating?`/`priceNote?` for the minimal deal card | `@mock` |
 
-### `@data/grocery` — owner: `features/ecommerce` (Grocery screen)
+### `@data/grocery` — **removed (merged into `mart`)**
 
-| Export | Type | Mobile consumers | Status |
-|---|---|---|---|
-| `groceryProducts` | `GroceryProduct[]` | `GroceryScreen` | `@mock` |
-| `groceryStores` | `StoreProfile[]` | self-pickup resolver (single outlet `store-g1`) | `@mock` |
+The standalone `grocery` domain and its `@data/grocery/*` exports were deleted. Grocery
+products (`gr-p*`) and the single outlet `store-g1` ("Faazio Mart Freshmart") were merged
+into `mart/products.ts` and `mart/stores.ts` with `app: 'MART'`; grocery categories merged
+into the Mart category tree; `recentlyViewedGrocery` folded into `recentlyViewedMart`; and
+the `GROCERY` member was dropped from `AppBrand` / `CartCategory` / `SubAppId` /
+`CategoryAppId`. Search, favourites and cart now surface grocery items under Mart.
 
 > **Store-backed pickup:** every `StoreProfile` now carries optional `address`/`phone`/`hours`, and
-> every MART/FOOD product sets `Product.storeId` (GROCERY/PHARMA map to their single outlet by
+> every MART/FOOD product sets `Product.storeId` (PHARMA maps to its single outlet by
 > app). `getPickupPointsForItems` uses this linkage so Self-Pickup shows the actual store(s) the
-> order came from — not a hardcoded Faazio hub. `data/directory/stores.ts` consolidates all four
+> order came from — not a hardcoded Faazio hub. `data/directory/stores.ts` consolidates the
 > apps' stores.
 
 ### `@data/food` — owner: `features/food`
 
 | Export | Type | Mobile consumers | Status |
 |---|---|---|---|
-| `foodProducts` | `FoodProduct[]` | `FoodMenuView`; `data/home/filterFeed` (internal) | `@mock` |
-| `topOfWeekDishes` | `TopOfWeekDish[]` | `FoodScreen` (top-of-week rail) | `@mock` |
+| `foodProducts` | `FoodProduct[]` | `FoodMenuView`; `data/home/filterFeed` (internal). Each carries optional `isVeg?` for the diet filter | `@mock` |
+| `topOfWeekDishes` | `TopOfWeekDish[]` | `FoodScreen` (top-of-week rail). Each carries optional `isVeg?` | `@mock` |
 | `foodStores` | `StoreProfile[]` | `FoodScreen`; home `DiningSpecialsSection`, `MostRatedDiningSection` | `@mock` |
 | `BOOKING_DISHES_DB` | `BookingDish[]` | **`@unused`** — `FoodScreen` defines its own inline copy | `@mock` + `@unused` |
 
@@ -102,6 +103,35 @@ intended single data surface for the app. It is **not yet wired into screens** �
 | `pharmaStores` | `StoreProfile[]` | self-pickup resolver (single outlet `store-p1`) | `@mock` |
 | `PHARMA_PRODUCTS_DB` | `PharmaDBItem[]` | **`@unused`** | `@mock` + `@unused` |
 | `PHARMA_CATEGORIES` | `PharmaCategory[]` | **`@unused`** | `@mock` + `@unused` |
+| `BLOOD_GROUPS` | `BloodGroup[]` | Blood Donor wizard (blood-group chip grid) | `@mock` |
+| `BLOOD_DONOR_STEPS` | `BloodDonorStep[]` | Blood Donor wizard (stepper + step nav) | `@mock` |
+| `BLOOD_DONOR_BANNER` | `{ title; subtitle }` | Blood Donor wizard (info banner, step 1 only) | `@mock` |
+| `AGE_RANGES` | `{ id; label }[]` | Health & Eligibility step (age select) | `@mock` |
+| `YES_NO_OPTIONS` | `{ value; label }[]` | Health & Eligibility step (Yes/No radios) | `@mock` |
+| `HEALTH_YESNO_QUESTIONS` | `HealthYesNoQuestion[]` | Health & Eligibility step (4 questions) | `@mock` |
+| `WEIGHT_LIMITS` | `{ min; max }` | Health & Eligibility step (weight format bounds) | `@mock` |
+| `DONATION_TYPES` | `{ value; label }[]` | Availability step (donation-type radios) | `@mock` |
+| `LOCATION_MIN_LENGTH` | `number` | Availability step (preferred-location min length) | `@mock` |
+| `NOTIFICATION_SOURCES` | `{ id; label }[]` | Notifications step (alert-preference rows) | `@mock` |
+| `NOTIFICATIONS_BANNER` | `{ message }` | Notifications step (info-banner copy) | `@mock` |
+| `CONSENT_LABEL` | `string` | Review step (consent checkbox copy) | `@mock` |
+| `PRIVACY_NOTE` | `string` | Review step (footer privacy note) | `@mock` |
+| `BLOOD_REQUESTS` | `BloodRequest[]` | Donor dashboard + request-details page (feed + detail fields) | `@mock` |
+| `BLOOD_DONOR_UNREAD_ALERTS` | `number` | Donor dashboard (bell badge seed) | `@mock` |
+| `BLOOD_REQUEST_DETAIL_COPY` | `{ bannerTitle; bannerSubtitle; confirmNote }` | Request-details page (banner + privacy note copy) | `@mock` |
+
+> **Blood Donor contract:** `BloodDonorDraft` / `BloodDonorRegistration` are the typed shape
+> the future Go Chi backend will persist (donor registry). `BloodDonorRegistration.profile`
+> snapshots the full draft at submit, plus `accountPhone` (from the logged-in account; null
+> if none on file) — the future server upsert is **keyed by phone** → idempotent, one donor
+> row per account. The mobile store persists draft + registration to AsyncStorage
+> (`faazio/bloodDonor/v1`, plain storage accepted for the mock stage — health data at rest
+> must move server-side with the backend) and is cleared on logout. Health data stays out
+> of plain logs. `BLOOD_REQUESTS` is the dashboard feed + request-details seed (hospital
+> donation requests with full detail fields — photo, patient context/age/gender, hospital
+> contact/address, remarks, distance; all **required** so the detail page renders only real
+> data); the backend feed replaces it later — the `BloodRequest` shape stays stable.
+> "Nearby" filtering is city-vs-donor-`preferredLocation` matching until real geo exists.
 
 ### `@data/explore` — owner: `features/catalog`
 
@@ -137,7 +167,7 @@ intended single data surface for the app. It is **not yet wired into screens** �
 > Chi backend will serve via a real store/geolocation API. Self-pickup points are **store-backed**,
 > not a hardcoded Faazio hub: `getPickupPointsForItems` resolves each cart item → product
 > (`getProductById`) → its `storeId` (or `shop` matched to a store name, or the app's single outlet
-> for GROCERY/PHARMA) and returns **one pickup point per distinct store** (a cart spanning several
+> for PHARMA) and returns **one pickup point per distinct store** (a cart spanning several
 > stores lists all of them; the user visits whichever applies). Items with no determinable store
 > collapse to `NEUTRAL_PICKUP`. Checkout waives the delivery fee (`computeTotals` zeroes it for
 > `PICKUP`). `MyOrder.fulfillment` (optional — absent = delivery) drives the My Orders
@@ -153,9 +183,9 @@ intended single data surface for the app. It is **not yet wired into screens** �
 | `getMyOrderById` | `(id: string) => MyOrder \| undefined` | `OrderDetailsScreen` (resolves the order by `orderId` route param) | `@mock` |
 | `myOrdersStatusFilters` | `MyOrdersStatusFilterItem[]` (labels only) | `MyOrdersScreen` (filter sheet options; counts derived at runtime) | `@mock` |
 | `userProfile` | `UserProfile` | `AccountScreen` (My Account header card) | `@mock` |
-| `saverMembership` | `SaverMembership` | `AccountScreen` (Smart Saver banner) | `@mock` |
+| `saverMembership` | `SaverMembership` | **`@unused` (UI)** — Smart Saver banner removed from `AccountView`; still consumed by `membershipTable` (`data/accounts/profile.ts` → `GatewayClient.getMembership`) | `@mock` |
 | `orderStatusCounts` | `OrderStatusCount[]` | **`@unused` (UI)** — status grid removed from `AccountView`; still consumed by `orderStatusTable` (`data/accounts/profile.ts` → `GatewayClient.getOrderStatus`) | `@mock` |
-| `accountNavGroups` | `AccountNavGroup[]` | `AccountScreen` (nav list, incl. My Orders entry row) | `@mock` |
+| `accountNavGroups` | `AccountNavGroup[]` — six titled groups (`profile`, `payments`, `privacy`, `earn`, `legal`, `support`); `privacy`/`legal` are `comingSoon`; `earn` is active with a `sell-with-us` row | `AccountScreen` (nav list, incl. My Orders + Sell with us entry rows; group titles + Coming-soon placeholders) | `@mock` |
 | `accountDetails` | `UserDetailsData` | `UserDetailsScreen` (Your Details) | `@mock` |
 | `savedAddresses` | `SavedAddress[]` | `SavedAddressesScreen` (Addresses) | `@mock` |
 
@@ -166,6 +196,16 @@ intended single data surface for the app. It is **not yet wired into screens** �
 > `features/profile` → `@data/*` stays clean per the dependency-cruiser rules. `data/checkout/orders.ts`
 > `fromMyOrder` mirrors the id into `OrderLineItem.productId`.
 
+### `@data/seller` — owner: `features/profile`
+
+| Export | Type | Mobile consumers | Status |
+|---|---|---|---|
+| `SELLER_SETUP_FIELDS` | `SellerSetupField[]` — required seller-onboarding details (business name, owner, category, GSTIN, business address, bank account, IFSC, contact phone) | `SellWithUsScreen` (mock "Sell with us" onboarding list) | `@mock` |
+| `SellerSetupField` | type | `SellWithUsScreen` | `@mock` |
+
+> **Contract:** Read-only fixture for the mock seller-onboarding page. Real seller
+> onboarding moves server-side with the Go Chi backend (see `client/mobile/PENDING_WORK.md`).
+
 ### `@data/home` — owner: `features/home`
 
 | Export | Type | Mobile consumers | Status |
@@ -175,7 +215,7 @@ intended single data surface for the app. It is **not yet wired into screens** �
 | `portalSectors` | `PortalSector[]` | home `ExploreSectorsSection` | `@mock` |
 | `topAdSlides` | `AdSlide[]` | home `AdBannerSection` | `@mock` |
 | `hotBrandDeals` | `Product[]` | home `HotBrandDealsSection` | `@mock` |
-| `recentlyViewedMart/Food/Grocery/Pharma` | `Product[]` | `HomeView` (Recently Viewed rail) | `@mock` |
+| `recentlyViewedMart/Food/Pharma` | `Product[]` | `HomeView` (Recently Viewed rail) | `@mock` |
 | `todaysOffers` | `TodaysOffer[]` | **`@unused`** | `@mock` + `@unused` |
 | `mixedRecommendations` | `MixedRecommendation[]` | **`@unused`** | `@mock` + `@unused` |
 | `popularDining` | `PopularDiningItem[]` | **`@unused`** | `@mock` + `@unused` |
@@ -190,6 +230,22 @@ intended single data surface for the app. It is **not yet wired into screens** �
 | `seedCartItems` | `CartItem[]` | `state/cartStore` | `@seed` |
 | `seedFavorites` | `string[]` | `state/favoriteStore` | `@seed` |
 | `seedLocation` | `string` | **`@unused`** by mobile | `@seed` + `@unused` |
+
+### `@data/rewards` — owner: `features/rewards`
+
+| Export | Type | Mobile consumers | Status |
+|---|---|---|---|
+| `COIN_EARN_RATE` | `number` (₹1000 per coin) | `rewardsStore.recordOrder` (coins earned on paid amount) | `@static` |
+| `COIN_REDEEM_RATE` | `number` (100 coins per ₹1) | `rewardsLogic.computeRedeemableRupees`, `rewardsStore.redeemCoins` | `@static` |
+| `COIN_REDEEM_MIN` | `number` (100 coins min redemption) | `CoinsRedeemRow` (gate + validation) | `@static` |
+| `STREAK_TARGET_DAYS` | `number` (7) | `rewardsLogic.evaluateStreak` (card grant threshold) | `@static` |
+| `DISCOUNT_CARD_PERCENT` | `number` (10) | `rewardsStore.recordOrder` (grant), CartView streak coupon | `@static` |
+| `DISCOUNT_CARD_VALIDITY_DAYS` | `number` (5) | `rewardsStore.recordOrder` (card expiry) | `@static` |
+| `FaazioDiscountCard` | type | `rewardsStore`, `rewardsLogic`, `FaazioRewardsScreen` | `@static` |
+
+> **Contract:** All rewards rules are enterprise-controlled constants. Balances, streaks, and
+> cards are **local-device-only** (persisted AsyncStorage, never logged with PII) until the Go
+> Chi backend issues server-side balances — see `client/mobile/PENDING_WORK.md`.
 
 ---
 

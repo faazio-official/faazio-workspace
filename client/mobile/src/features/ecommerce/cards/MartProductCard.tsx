@@ -7,8 +7,8 @@ interface Props {
   product: Product;
   quantity?: number;
   isAdded?: boolean;
-  onPress?: () => void;
-  onAdd?: () => void;
+  onPress?: (product: Product) => void;
+  onAdd?: (product: Product) => void;
   onIncrement?: () => void;
   onDecrement?: () => void;
   variant?: Extract<CardVariant, 'grid2' | 'rail' | 'stack' | 'tile' | 'detail-row' | 'flash'>;

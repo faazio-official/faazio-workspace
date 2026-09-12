@@ -13,7 +13,7 @@ Consolidated change log for migrating the Faazio brand accent from royal purple 
 | Old (purple) | New (blue) | Role |
 |---|---|---|
 | `#7C3AED` / `BRAND_PURPLE` / `ACCENT` / `ROYAL_PURPLE` / `BRAND.purple` | `#1162D3` | Primary accent, buttons |
-| `#6D28D9` | `#1162D3` | Header gradient start |
+| `#6D28D9` | `#0000FF` | Header gradient start |
 | `#8B5CF6` | `#2F80ED` | Header gradient mid |
 | `#C4B5FD` | `#7CB3FF` (gradient tail) / `#93C5FD` (star) | Light accent |
 | `#EDE9FE` | `#DBEAFE` | Light fills (avatars, bubbles, icon boxes) |
@@ -24,11 +24,12 @@ Consolidated change log for migrating the Faazio brand accent from royal purple 
 
 ### Homepage header
 1. `client/mobile/src/features/home/HubGradient.tsx` — gradient stops:
-   `#6D28D9`→`#1162D3`, `#8B5CF6`→`#2F80ED`, `#C4B5FD`→`#7CB3FF` (compact + expanded headers).
-2. `client/mobile/src/features/home/CompactHubHeader.tsx` — header shadow
+   `#6D28D9`→`#0000FF`, `#8B5CF6`→`#2F80ED`, `#C4B5FD`→`#7CB3FF` (compact + expanded headers).
+2. `client/mobile/src/features/home/HomeTabScreen.tsx` — header shadow
    `rgba(109,40,217,0.12)`→`rgba(17,98,211,0.12)`.
-3. `client/mobile/src/features/home/HomeTabScreen.tsx` — header shadow
-   `rgba(109,40,217,0.12)`→`rgba(17,98,211,0.12)`.
+
+> Note: `CompactHubHeader.tsx` (a former duplicate Home header) was deleted; it is no longer part
+> of the change set or the revert list below.
 
 ### Welcome workflow
 4. `client/mobile/src/features/onboarding/OnboardingScreen.tsx` — `BRAND_PURPLE`→`BRAND_BLUE = '#1162D3'`
@@ -60,7 +61,6 @@ One-liner restores today's royal-purple setup (exact pre-migration files):
 ```bash
 git checkout 58c340a -- \
   client/mobile/src/features/home/HubGradient.tsx \
-  client/mobile/src/features/home/CompactHubHeader.tsx \
   client/mobile/src/features/home/HomeTabScreen.tsx \
   client/mobile/src/features/onboarding/OnboardingScreen.tsx \
   client/mobile/src/features/onboarding/LanguageSelectionScreen.tsx \
@@ -83,3 +83,14 @@ Find any remaining royal-purple branding (should return only the intentionally-k
 ```bash
 cd client/mobile && grep -rniE "#7C3AED|#6D28D9|#8B5CF6|#C4B5FD|#EDE9FE|#F5F3FF|royal_purple|royal purple|BRAND_PURPLE" src/
 ```
+
+## Follow-up (2026-09-10): Splash background → `#0000FF`
+
+The cold-start splash background was changed from Faazio Blue `#1162D3` to pure royal blue
+`#0000FF` (matching the native splash already set in `app.json`):
+
+- `client/mobile/src/components/SplashFallback.tsx` — `royal` variant background
+  `#1162D3`→`#0000FF` (+ docstring).
+
+Native splash config in `app.json` (`splash.backgroundColor`, the `expo-splash-screen` plugin,
+and the Android adaptive-icon background) was already `#0000FF`, so no change was needed there.

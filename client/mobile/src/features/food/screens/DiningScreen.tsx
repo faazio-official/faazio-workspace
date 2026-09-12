@@ -5,11 +5,14 @@ import { hs, vs } from '@/utils/responsive';
 import { foodTheme } from '../constants/theme';
 import { useDiningFeed } from '../hooks/useDiningFeed';
 import type { DiningRestaurant, SpecialDish } from '../mocks/types';
+import { useFoodFilterStore } from '@/state/foodFilterStore';
+import { venueMatches, dishMatches } from '../utils/dietFilter';
 import DiningHeader from '../components/DiningHeader';
 import SectionHeader from '../components/SectionHeader';
 import TopRestaurantCarousel from '../components/TopRestaurantCarousel';
 import FeaturedDishCarousel from '../components/FeaturedDishCarousel';
 import RestaurantGrid from '../components/RestaurantGrid';
+import DietEmptyNote from '../components/DietEmptyNote';
 import LoadingSkeleton from '../components/LoadingSkeleton';
 
 interface DiningScreenProps {
@@ -36,9 +39,12 @@ const DiningScreen = memo(function DiningScreen({
   onScroll,
 }: DiningScreenProps) {
   const feed = useDiningFeed();
+  const dietFilter = useFoodFilterStore((s) => s.dietFilter);
 
   const renderTopSections = useCallback((): ReactNode => {
     if (!feed) return null;
+    const topRated = feed.topRated.filter((r) => venueMatches(dietFilter, r));
+    const specials = feed.specials.filter((d) => dishMatches(dietFilter, d));
     return (
       <>
         <Animated.View entering={FadeIn.duration(260)}>
@@ -48,17 +54,25 @@ const DiningScreen = memo(function DiningScreen({
           <View style={styles.sectionHeaderWrap}>
             <SectionHeader title="Top Rated Restaurants" onSeeAll={() => undefined} />
           </View>
-          <TopRestaurantCarousel restaurants={feed.topRated} onPress={onRestaurantPress} />
+          {topRated.length > 0 ? (
+            <TopRestaurantCarousel restaurants={topRated} onPress={onRestaurantPress} />
+          ) : (
+            <DietEmptyNote />
+          )}
         </Animated.View>
         <Animated.View entering={FadeInDown.duration(360)}>
           <View style={styles.sectionHeaderWrap}>
             <SectionHeader title="Today's Special Near You" onSeeAll={() => undefined} />
           </View>
-          <FeaturedDishCarousel dishes={feed.specials} onPress={onDishPress} />
+          {specials.length > 0 ? (
+            <FeaturedDishCarousel dishes={specials} onPress={onDishPress} />
+          ) : (
+            <DietEmptyNote />
+          )}
         </Animated.View>
       </>
     );
-  }, [feed, onBack, onRestaurantPress, onDishPress]);
+  }, [feed, dietFilter, onBack, onRestaurantPress, onDishPress]);
 
   if (!feed) {
     return (
@@ -68,10 +82,12 @@ const DiningScreen = memo(function DiningScreen({
     );
   }
 
+  const dining = feed.dining.filter((r) => venueMatches(dietFilter, r));
+
   return (
     <View style={styles.container}>
       <RestaurantGrid
-        restaurants={feed.dining}
+        restaurants={dining}
         searchQuery={searchQuery}
         autoScrollToGrid={autoScrollToGrid}
         header={renderTopSections()}

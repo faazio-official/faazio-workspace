@@ -13,7 +13,7 @@ import MartImage from '../mart-home/MartImage';
 import MartProductCard from '@/features/ecommerce/cards/MartProductCard';
 import { hs, ms, vs } from '@/utils/responsive';
 import type { CartItem } from '@/state/cartStore';
-import type { MartLocalVendor } from '../../mocks/martHomeFeed';
+import type { StoreProfile } from '@data/types';
 import type { MartProduct } from '@data/types';
 import VendorHighlights from './VendorHighlights';
 import VendorCategoryChips from './VendorCategoryChips';
@@ -25,7 +25,7 @@ const CARD_W = (SCREEN_W - hs(32) - CARD_GAP) / 2;
 const CARD_W_RAIL = hs(150);
 
 interface VendorProfileViewProps {
-  vendor: MartLocalVendor;
+  vendor: StoreProfile;
   products: MartProduct[];
   discountedProducts: MartProduct[];
   cartItems: CartItem[];
@@ -95,7 +95,7 @@ export function VendorProfileView({
         <View style={styles.board}>
           <View style={styles.storeInfoRow}>
             <View style={styles.logoContainer}>
-              <MartImage uri={vendor.imageUrl} style={styles.storeLogo} />
+              <MartImage uri={vendor.coverImage} style={styles.storeLogo} />
               <View style={styles.ratingBadge}>
                 <AppText style={styles.ratingText}>{vendor.rating}</AppText>
               </View>

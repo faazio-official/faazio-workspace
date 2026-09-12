@@ -1,5 +1,12 @@
 # Faazio SuperApp — Page Catalog
 
+> **Note:** The Grocery sub-app was removed and merged into Mart. Grocery products, stores, and
+> categories now live under Mart (`app:'MART'`), surfaced in Home, Mart search, cart, favourites,
+> orders, and Master Categories. Deleted files (`GroceryScreen.tsx`, `GroceryPage.tsx`, the
+> `grocery-home/` component dir, Grocery product cards, `useGroceryFeed`, `groceryService`,
+> `groceryHomeFeed`, `GroceryHomeSkeleton`, `grocerySearchConfig`, `data/grocery/`) are treated as
+> stale. Historical/audit rows that describe the pre-merge state are preserved but flagged.
+
 ## Section 1: Vite Web App — All User-Facing Pages
 
 ### 1.1 Onboarding & Auth Flow
@@ -34,14 +41,14 @@
 |---|-------------|-------|-------------|
 | H1 | Admin Demo Banner | 509–548 | Collapsible "Phase 2 Ditto Demo" status bar |
 | H2 | Top Ad Carousel | 551–618 | 3-slide auto-rotating (video/banner/text) |
-| H3 | 4-Sector Gateway Grid | 620–667 | 2×2: MART, FOOD, GROCERY, PHARMA |
+| H3 | Sector Gateway Grid | 620–667 | MART, FOOD, PHARMA (Grocery merged into Mart) |
 | H4 | Sponsored Showcase Carousel | 669–755 | Full-width banner, video/image, mute toggle |
 | H5 | Recently Viewed Strip | 757–804 | Horizontal scrollable history |
 | H6 | Today's Offers | 806–865 | Deal cards with "Claim Deal" CTA |
 | H7 | Recommended For You | 867–909 | 2-column AI curated grid |
 | H8 | Popular Dining Restaurants | 911–979 | Horizontal cards with heart toggle |
 | H9 | Recently Viewed — Mart | 982–1039 | Horizontal carousel with Add/Added |
-| H10 | Recently Viewed — Grocery | 1041–1087 | Horizontal carousel with Add/Added |
+| H10 | Recently Viewed — Grocery | 1041–1087 | Removed — grocery folded into Recently Viewed — Mart |
 | H11 | Recently Viewed — Pharma | 1089–1135 | Horizontal carousel with Add/Added |
 | H12 | FA Mart Curated Finds | 1138–1188 | "Discover" CTA cards |
 | H13 | Restaurant Specials | 1190–1255 | "Order Now" CTA cards |
@@ -50,7 +57,7 @@
 
 | # | Sub-Section | Lines | Description |
 |---|-------------|-------|-------------|
-| C1 | Filter Pills | 150–182 | ALL/FOOD/MART/GROCERY/PHARMA |
+| C1 | Filter Pills | 150–182 | ALL/FOOD/MART/PHARMA (Grocery merged into Mart) |
 | C2 | Search Bar | 184–194 | Instant search input |
 | C3 | Category Grid | 196–243 | 3-column visual grid |
 | C4 | Explore Stacks (curated) | 263–407 | Horizontal carousels grouped by stack |
@@ -62,7 +69,7 @@
 | # | Sub-Section | Lines | Description |
 |---|-------------|-------|-------------|
 | F1 | Header Banner | 143–159 | Dark gradient |
-| F2 | Per-Sector Product Grids | 161–287 | FOOD/MART/GROCERY/PHARMA |
+| F2 | Per-Sector Product Grids | 161–287 | FOOD/MART/PHARMA (Grocery merged into Mart) |
 | F3 | Empty State | 288–303 | No favourites yet |
 
 #### Cart Tab (D5) — 4 Checkout Steps:
@@ -146,19 +153,22 @@
 |---|-------------|-------|-------------|
 | MT1 | Category Pills | 307–336 | Horizontal scrollable |
 | MT2 | Category Banner + Countdown | 338–382 | Full-width with timer |
-| MT3 | Flash Deals Strip | 384–447 | Horizontal with countdown |
+| MT3 | Daily Essentials Strip | 384–447 | Horizontal minimal deal cards (no countdown) |
 | MT4 | Featured Stores Grid | 449–511 | Store cards |
 | MT5 | All Products Grid | 513–604 | 2-column product grid |
 
-### 1.6 Sub-App: Grocery
+### 1.6 Sub-App: Grocery — REMOVED (merged into Mart)
+
+> The Grocery sub-app was removed. Grocery products/stores/categories now live under Mart
+> (`app:'MART'`). The screens below (G01–G03) are historical/removed.
 
 | # | Screen | File | Lines | Description |
 |---|--------|------|-------|-------------|
-| G01 | **Grocery Home** | `src/components/GroceryPage.tsx` | full (215) | Full grocery landing |
-| G02 | **Grocery — Aisles (SubAppWrapper tab)** | `src/components/SubAppWrapper.tsx` | 387–407 | Aisle directory grid |
-| G03 | **Grocery — Fresh Club (SubAppWrapper tab)** | `src/components/SubAppWrapper.tsx` | 408–425 | Membership card |
+| G01 | ~~**Grocery Home**~~ | `src/components/GroceryPage.tsx` (deleted/nonexistent) | — | ~~Full grocery landing~~ removed |
+| G02 | ~~**Grocery — Aisles (SubAppWrapper tab)**~~ | `src/components/SubAppWrapper.tsx` | — | ~~Aisle directory grid~~ removed |
+| G03 | ~~**Grocery — Fresh Club (SubAppWrapper tab)**~~ | `src/components/SubAppWrapper.tsx` | — | ~~Membership card~~ removed |
 
-#### Grocery Home (G01) sub-sections:
+#### Grocery Home (G01) sub-sections — REMOVED
 
 | # | Sub-Section | Lines | Description |
 |---|-------------|-------|-------------|
@@ -217,7 +227,7 @@
 
 | # | Screen | File | Lines | Status | Notes |
 |---|--------|------|-------|--------|-------|
-| RN1 | **OnboardingScreen** | `src/features/onboarding/OnboardingScreen.tsx` | 331 | ✅ Active | 4 slides, single component |
+| RN1 | **OnboardingScreen** | `src/features/onboarding/OnboardingScreen.tsx` | 331 | ✅ Active | 5 slides, single component (final slide: blood-donation variant) |
 | RN2 | **LoginScreen** | `src/features/auth/LoginScreen.tsx` | 546 | ✅ Active | Combines phone + OTP + loading |
 | RN3 | **LocationScreen** | `src/features/auth/LocationScreen.tsx` | 245 | ✅ Active | 3 steps: request/manual/loader via state |
 | RN4 | **MainDashboardScreen** | `src/features/home/MainDashboardScreen.tsx` | 382 | ✅ Active | Renders hub tabs + SubAppWrapper |
@@ -247,6 +257,7 @@
 | RN13 | **Food — "Menu" tab** | `src/components/SubAppWrapper.tsx` (inline) | 228–237 | ⚠️ Placeholder | "Gourmet Menus" empty state |
 | RN14 | **Food — "Search" tab** | `src/features/food/FoodScreen.tsx` | - | ✅ Active | Reuses FoodScreen with search focus |
 | RN15 | **Food — "My Bookings" tab** | `src/components/SubAppWrapper.tsx` (inline) | 239–253 | ⚠️ Placeholder | Empty state only |
+| RN16 | **Food Veg / Non-Veg diet filter** | `src/state/foodFilterStore.ts` + `DietToggle` | - | ✅ Active | Zomato-style All/Veg/Non-Veg toggle in Food/Dining/Order headers; one store drives all Food screens + food search (ANDs with search chips); venues by `dietType`, dishes by `isVeg`; unclassifiable sections (Promo, Explore Cuisines) hidden while active |
 
 #### Sub-App: FA Mart (rendered by SubAppWrapper)
 
@@ -255,12 +266,15 @@
 | RN16 | **FaMartScreen — Home** | `src/features/ecommerce/FaMartScreen.tsx` | 497 | ✅ Active | Banner, sub-categories, product grid |
 | RN17 | **Mart — "Categories" tab** | `src/components/SubAppWrapper.tsx` (inline) | 185–212 | ✅ Active | Inline category grid |
 
-#### Sub-App: Grocery (rendered by SubAppWrapper)
+#### Sub-App: Grocery — REMOVED (merged into Mart)
+
+The Grocery sub-app was removed and merged into Mart. `GroceryScreen.tsx` is deleted; grocery
+products/stores now surface under Mart. The rows below are historical.
 
 | # | Screen | File | Lines | Status | Notes |
 |---|--------|------|-------|--------|-------|
-| RN18 | **GroceryScreen — Home** | `src/features/ecommerce/GroceryScreen.tsx` | 507 | ✅ Active | Categories, products, stepper |
-| RN19 | **Grocery — "Aisles" tab** | `src/components/SubAppWrapper.tsx` (inline) | 268–295 | ✅ Active | Inline aisle directory |
+| RN18 | ~~**GroceryScreen — Home**~~ | `src/features/ecommerce/GroceryScreen.tsx` (deleted) | — | 🗑️ Removed | Merged into Mart |
+| RN19 | ~~**Grocery — "Aisles" tab**~~ | `src/components/SubAppWrapper.tsx` (inline) | — | 🗑️ Removed | Grocery config preset removed |
 
 #### Sub-App: Pharma (rendered by SubAppWrapper)
 
@@ -295,7 +309,7 @@ The following routes are typed in `RootStackParamList` but have NO `<Stack.Scree
 |------|-------|-------------|------------|
 | `src/features/home/HomeScreen.tsx` | 411 | Standalone service hub landing (different from HomeView) | Not imported by any navigator or parent |
 | `src/features/profile/ProfileScreen.tsx` | 231 | Standalone profile page with different UI from AccountView | Not imported by any navigator or parent |
-| `src/features/ecommerce/EcommerceScreen.tsx` | 442 | Standalone e-commerce page | Not imported by SubAppWrapper or any parent (SubAppWrapper imports FaMartScreen, GroceryScreen, FoodScreen, PharmaScreen — NOT EcommerceScreen) |
+| `src/features/ecommerce/EcommerceScreen.tsx` | 442 | Standalone e-commerce page | Not imported by SubAppWrapper or any parent (SubAppWrapper imports FaMartScreen, FoodScreen, PharmaScreen — NOT EcommerceScreen; GroceryScreen was deleted as Grocery merged into Mart) |
 | `src/components/ProductDetailView.tsx` | - | Full product detail modal component | Rendered nowhere (MainDashboardScreen calls `navigation.navigate('ProductDetail')` but route not registered) |
 
 ### 2.6 Root-Stack Screens (current RN navigator — reconciled)
@@ -307,7 +321,7 @@ relative to `client/mobile/`. These were previously undocumented / stale in this
 |-------|--------|------|-------|
 | `Cart` | **CartScreen** | `src/features/cart/CartScreen.tsx` | Pushed from any app; wraps shared `CartView` (BAG→ADDRESS→PAYMENT→RECEIPT). Payment step = `features/cart/payment/PaymentOptionsScreen`. **Deliver / Self-Pickup toggle** on ADDRESS; Self-Pickup lists **one point per distinct store** in the cart (store-backed via `getPickupPointsForItems`), neutral hub fallback. |
 | `You` | **YouScreen** | `src/features/profile/YouScreen.tsx` | Account page (wraps `AccountView`); pushed from any app, back returns. |
-| `MyOrders` | **MyOrdersScreen** | `src/features/profile/MyOrdersScreen.tsx` | Sub-app rail (All/Mart/Food/Grocery/Pharma) + status filter sheet + minimal order cards (date + status pill, one-line item) with Delivery/Self-Pickup chip; "View Details" → `OrderDetails`. |
+| `MyOrders` | **MyOrdersScreen** | `src/features/profile/MyOrdersScreen.tsx` | Sub-app rail (All/Mart/Food/Pharma — Grocery merged into Mart) + status filter sheet + minimal order cards (date + status pill, one-line item) with Delivery/Self-Pickup chip; "View Details" → `OrderDetails`. |
 | `OrderDetails` | **OrderDetailsScreen** | `src/features/profile/OrderDetailsScreen.tsx` | Per-order page resolved by `orderId` via `@data` (`getMyOrderById`); status/item/order-meta sections + **View Product** → `ProductDetail` (via `getProductById`; hidden if lookup fails). |
 | `UserDetails` | **UserDetailsScreen** | `src/features/profile/UserDetailsScreen.tsx` | "Your Details" — personal info, preferences, security. |
 | `SavedAddresses` | **SavedAddressesScreen** | `src/features/profile/SavedAddressesScreen.tsx` | Manage/select/add delivery locations. |
@@ -331,7 +345,7 @@ relative to `client/mobile/`. These were previously undocumented / stale in this
 
 | Vite Screen | RN Screen | Notes |
 |-------------|-----------|-------|
-| O1–O4: Onboarding Slides (4) | RN1: OnboardingScreen | ✅ Both have 4-slide onboarding |
+| O1–O4: Onboarding Slides (4) | RN1: OnboardingScreen | ✅ RN has 5 slides (4 matching + blood-donation finale) |
 | O5: Login Phone Entry | RN2: LoginScreen | ✅ RN merges phone + OTP into one file |
 | O6: OTP Verification | RN2: LoginScreen | ✅ Same file |
 | O7: Loading Spinner | RN2: LoginScreen | ✅ Same file |
@@ -348,7 +362,7 @@ relative to `client/mobile/`. These were previously undocumented / stale in this
 | F01: Food Order Mode | RN11: FoodScreen | ✅ |
 | F04: Food Booking Mode | RN12: FoodScreen | ✅ |
 | M01: Mart Home | RN16: FaMartScreen | ✅ |
-| G01: Grocery Home | RN18: GroceryScreen | ✅ |
+| G01: Grocery Home | RN18: GroceryScreen | 🗑️ Removed — Grocery merged into Mart (surfaces under RN16 FaMartScreen) |
 | P01: Pharma Home | RN20: PharmaScreen | ✅ |
 | X02: Exit Confirmation | RN10: SubAppWrapper | ✅ Built into SubAppWrapper |
 
@@ -363,7 +377,7 @@ relative to `client/mobile/`. These were previously undocumented / stale in this
 | **Food Menu View** (F06) | RN has only empty-state placeholder | Medium |
 | **Mart — Store Profile** (M02) | RN FaMartScreen has no store profile | High |
 | **Mart — "Offers" tab** (M04) | RN SubAppWrapper has no Offers tab | Low |
-| **Grocery — "Fresh Club" tab** (G03) | RN SubAppWrapper has no Fresh Club tab | Low |
+| **Grocery — "Fresh Club" tab** (G03) | Grocery sub-app removed (merged into Mart); Fresh Club no longer applicable | Removed |
 | **Pharma — "For You" tab** (P05) | RN has only empty-state placeholder | Medium |
 | **Pharma — "History" tab** (P06) | RN has only empty-state placeholder | Medium |
 | **Pharma — All Categories Grid** (P02) | RN has no full category grid view | Low |
@@ -403,18 +417,18 @@ These tabs render with empty-state messages:
 
 | File | Pages/Screens |
 |------|---------------|
-| `src/App.tsx` | Onboarding (4 slides), Login (phone + OTP + spinner), Location (request + manual + map loader), Dashboard shell, Product Detail overlay |
+| `src/App.tsx` | Onboarding (5 slides), Login (phone + OTP + spinner), Location (request + manual + map loader), Dashboard shell, Product Detail overlay |
 | `src/components/HomeView.tsx` | Home tab (13 carousel/section blocks) |
 | `src/components/CategoriesView.tsx` | Categories tab (filter pills, search, category grid, product grid) |
 | `src/components/FavouritesView.tsx` | Favourites tab (per-sector grids, empty state) |
 | `src/components/CartView.tsx` | Cart tab (4-step checkout) |
 | `src/components/AccountView.tsx` | Account tab (profile, orders, settings, logout) |
-| `src/components/SubAppWrapper.tsx` | Sub-app shell, exit modal, Food tabs (My Bookings, Profile), Mart tabs (Categories, Offers), Grocery tabs (Aisles, Fresh Club) |
+| `src/components/SubAppWrapper.tsx` | Sub-app shell, exit modal, Food tabs (My Bookings, Profile), Mart tabs (Categories, Offers) — Grocery config preset removed (Grocery merged into Mart) |
 | `src/components/ProductDetailView.tsx` | Product detail modal (hero, specs, reviews, add-to-cart) |
 | `src/components/FoodPage.tsx` | Food Order mode, Food Booking mode, Store Profile, Reservation Form |
 | `src/components/FoodMenuView.tsx` | Full food menu (category tabs, search, 2-column grid) |
 | `src/components/FaMartPage.tsx` | Mart Home, Mart Store Profile |
-| `src/components/GroceryPage.tsx` | Grocery Home |
+| `src/components/GroceryPage.tsx` | ~~Grocery Home~~ — deleted/nonexistent (Grocery merged into Mart) |
 | `src/components/PharmaPage.tsx` | Pharma Home, For You, History (including inline product detail) |
 | `src/components/EnterpriseIcon.tsx` | Utility component — sector-specific colored icons | — |
 
@@ -424,7 +438,7 @@ These tabs render with empty-state messages:
 |------|---------------|--------|
 | `App.tsx` | Root — NavigationContainer + StatusBar hidden (edge-to-edge) | ✅ Active |
 | `src/navigation/AppNavigator.tsx` | Stack navigator: Onboarding, Login, Location, MainTabs | ✅ Active |
-| `src/features/onboarding/OnboardingScreen.tsx` | 4-slide onboarding | ✅ Active |
+| `src/features/onboarding/OnboardingScreen.tsx` | 5-slide onboarding (blood-donation finale) | ✅ Active |
 | `src/features/auth/LoginScreen.tsx` | Phone input + OTP + loading spinner | ✅ Active |
 | `src/features/auth/LocationScreen.tsx` | 3-step: request / manual / loader | ✅ Active |
 | `src/features/home/MainDashboardScreen.tsx` | Dashboard shell + hub tabs + SubAppWrapper | ✅ Active |
@@ -432,7 +446,7 @@ These tabs render with empty-state messages:
 | `src/features/profile/ProfileScreen.tsx` | Alternative profile (orphan) | ❌ Unused |
 | `src/features/ecommerce/EcommerceScreen.tsx` | Standalone e-commerce (orphan) | ❌ Unused |
 | `src/features/ecommerce/FaMartScreen.tsx` | Mart Home | ✅ Active |
-| `src/features/ecommerce/GroceryScreen.tsx` | Grocery Home | ✅ Active |
+| `src/features/ecommerce/GroceryScreen.tsx` | ~~Grocery Home~~ — deleted (Grocery merged into Mart) | 🗑️ Removed |
 | `src/features/food/FoodScreen.tsx` | Food Order + Booking modes | ✅ Active |
 | `src/features/pharma/PharmaScreen.tsx` | Pharma Home | ✅ Active |
 | `src/components/HomeView.tsx` | Hub Home tab | ✅ Active |
@@ -567,14 +581,14 @@ These tabs render with empty-state messages:
 | # | Task | File | Status | Notes |
 |---|------|------|--------|-------|
 | 1 | Responsive conversion: local `Dimensions` removed, all styles → `hs`/`vs`/`ms` from `@/utils/responsive` | `HomeView.tsx` | ✅ Done | Single-pass conversion |
-| 2 | Data reconciliation: replaced diverged arrays with Vite-exact data; added 6 new datasets (`popularDining`, `recentlyViewedMart`, `recentlyViewedGrocery`, `recentlyViewedPharma`, `faMartFinds`, `restaurantSpecials`) | `HomeView.tsx` | ✅ Done | Inline data, matches both apps' convention |
+| 2 | Data reconciliation: replaced diverged arrays with Vite-exact data; added 6 new datasets (`popularDining`, `recentlyViewedMart`, `recentlyViewedGrocery`, `recentlyViewedPharma`, `faMartFinds`, `restaurantSpecials`) | `HomeView.tsx` | ✅ Done | Inline data, matches both apps' convention. Note: `recentlyViewedGrocery` has since been folded into `recentlyViewedMart`. |
 | 3 | H2 Top Ad Carousel: 5s auto-rotate via `setInterval` (cleaned on unmount); video slide (index 0) → poster + Play overlay + "LIVE VIDEO CAM" badge + Zap pulse loop | `HomeView.tsx` | ✅ Done | |
 | 4 | H4 Sponsored Showcase: video poster + Play overlay; `isMuted` toggle buttons (Volume2/VolumeX pill) | `HomeView.tsx` | ✅ Done | Ready for native player drop-in |
 | 5 | H5 Recently Viewed: Add button swaps Plus→Check + emerald bg for 1.5s via `addedItemFeedback` | `HomeView.tsx` | ✅ Done | |
 | 6 | H7 Recommended For You: horizontal carousel → 2-column grid; Sparkles slow-rotate loop on header | `HomeView.tsx` | ✅ Done | |
 | 7 | EnterpriseIcon component: 25 emoji→lucide-icon registry, circle/flat/square variants, Tailwind→hex palette | `EnterpriseIcon.tsx` | ✅ Done | New file in `src/components/` |
 | 8 | H8 Popular Dining: horizontal cards (h-128, gradient overlay, glass rating badge, heart FAB, footer) | `HomeView.tsx` | ✅ Done | Heart wired to `favoriteRestaurants` state |
-| 9 | H9–H13: Recently Viewed Mart/Grocery/Pharma (EnterpriseIcon chips, sector dots), FA Mart Finds (blue tag, Discover pill), Restaurant Specials (amber Zap, Award bounce loop, Order Now btn) | `HomeView.tsx` | ✅ Done | |
+| 9 | H9–H13: Recently Viewed Mart/Grocery/Pharma (EnterpriseIcon chips, sector dots), FA Mart Finds (blue tag, Discover pill), Restaurant Specials (amber Zap, Award bounce loop, Order Now btn) | `HomeView.tsx` | ✅ Done | Note: the Grocery rail has since been removed (grocery folded into the Mart rail). |
 | 10 | Cleanup: deleted dead styles (~L917–1007 audit); Flame pulse on H6 header; `tsc --noEmit` | `HomeView.tsx` | ✅ Done | 0 errors |
 
 ### Page 7 — Categories Tab (CategoriesView.tsx)
@@ -623,7 +637,7 @@ These tabs render with empty-state messages:
 | 10 | Cleanup + gate: removed `Dimensions`/`SCREEN_WIDTH`; added `export { getAppLabel }`; `tsc --noEmit` | All files | ✅ Done | 0 errors |
 | 11 | Deliver vs Self-Pickup toggle: `FulfillmentMode` state in `CartView`; segmented toggle on ADDRESS step (Deliver / Self Pickup); pickup-point radio cards + contact row (from `@data/cart/pickup-points` + `userProfile.phone`); `computeTotals` zeroes delivery fee for PICKUP; PaymentOptionsScreen/DeliveryInfoCard pickup variant; RECEIPT "Pickup From" + packed→ready timeline; `MyOrder.fulfillment` drives My Orders Delivery/Self-Pickup chip | `CartView.tsx`, `utils.ts`, `payment/*`, `MyOrdersScreen.tsx`, `@data/*` | ✅ Done | 0 errors (ts:check + check:boundaries) |
 | 12 | Minimal My Orders cards → Order Details → View Product → Product Detail: order fixtures aligned to real products (`productId`); `getMyOrderById` + `getProductById` helpers; card reduced to date + status pill, one-line item, `View Details` now navigates; new `OrderDetailsScreen` (status/item/order-meta + View Product via `getProductById`, hidden on miss) | `MyOrdersScreen.tsx`, `OrderDetailsScreen.tsx`, `nav/types.ts`, `AppNavigator.tsx`, `data/account/orders.ts`, `data/catalog/products.ts`, `data/checkout/orders.ts` | ✅ Done | 0 errors (ts:check + check:boundaries) |
-| 13 | Store-backed Self-Pickup (no more Faazio hub): `StoreProfile` gains `address`/`phone`/`hours`; all 15 MART/FOOD stores get pickup data; new GROCERY/PHARMA stores (`groceryStores`/`pharmaStores`); products linked to stores via `Product.storeId`; `getPickupPointsForItems` returns **one point per distinct store** (neutral hub fallback); `CartView` Self-Pickup lists derived points | `data/cart/pickup-resolver.ts`, `data/mart/stores.ts`, `data/food/stores.ts`, `data/grocery/stores.ts`, `data/pharma/stores.ts`, `data/directory/stores.ts`, `data/mart/products.ts`, `data/food/products.ts`, `data/types.ts`, `CartView.tsx` | ✅ Done | 0 errors (ts:check + check:boundaries) |
+| 13 | Store-backed Self-Pickup (no more Faazio hub): `StoreProfile` gains `address`/`phone`/`hours`; all 15 MART/FOOD stores get pickup data; new GROCERY/PHARMA stores (`groceryStores`/`pharmaStores`); products linked to stores via `Product.storeId`; `getPickupPointsForItems` returns **one point per distinct store** (neutral hub fallback); `CartView` Self-Pickup lists derived points | `data/cart/pickup-resolver.ts`, `data/mart/stores.ts`, `data/food/stores.ts`, `data/grocery/stores.ts`, `data/pharma/stores.ts`, `data/directory/stores.ts`, `data/mart/products.ts`, `data/food/products.ts`, `data/types.ts`, `CartView.tsx` | ✅ Done | 0 errors (ts:check + check:boundaries). Note: `data/grocery/stores.ts` has since been deleted — grocery stores/products merged into `data/mart/stores.ts` (`app:'MART'`). |
 
 **Accepted deltas:** no step fade-in entrance (instant swap; RN screen-level transition later if wanted); no hover states (`activeOpacity`); CSS spin → `ActivityIndicator`; inner shadow → light border + tint; active-scale → `activeOpacity 0.85`.
 
@@ -649,7 +663,7 @@ These tabs render with empty-state messages:
 | # | Task | File | Status | Notes |
 |---|------|------|--------|-------|
 | 1 | Cleanup: removed `Image`, `Dimensions`/`SCREEN_HEIGHT`, `Percent`, `EcommerceScreen` imports; `accentBg` from all 4 configs; 8 dead styles (`searchBox*`, `modeToggle*` ×5) | `SubAppWrapper.tsx` | ✅ Done | |
-| 2 | Config parity: PHARMA `#db2777` → `#FF7A59` (coral) everywhere; names `'FOOD'`→`'Food'`, `'FA GROCERY'`→`'FA Grocery'`, `'FA PHARMA'`→`'FA Pharma'` | `SubAppWrapper.tsx` | ✅ Done | Web casing match |
+| 2 | Config parity: PHARMA `#db2777` → `#FF7A59` (coral) everywhere; names `'FOOD'`→`'Food'`, `'FA GROCERY'`→`'FA Grocery'`, `'FA PHARMA'`→`'FA Pharma'` | `SubAppWrapper.tsx` | ✅ Done | Web casing match. Note: the GROCERY config preset has since been removed (Grocery merged into Mart). |
 | 3 | Overlay layout model: root bg `#f8fafc`; header absolute top (zIndex 30, vs(64), shadow, no border); tab bar absolute bottom; viewport `paddingTop: vs(64)` / `paddingBottom: vs(72)` | `SubAppWrapper.tsx` | ✅ Done | Web's floating shell parity |
 | 4 | Header fidelity: backBtn transparent (drop fill/border), `marginLeft: hs(-8)`, ArrowLeft `ms(22)` `strokeWidth={2.5}`; eyebrow `'FAAZIO APP HUB'` `ms(8)` spacing 1.2; title `ms(12)`; location pill bg `#f8fafc`, border `rgba(226,232,240,0.5)`, radius `ms(12)`, text `#475569` `ms(9)`, MapPin `#2F80ED` | `SubAppWrapper.tsx` | ✅ Done | |
 | 5 | Bottom navbar shell: height `vs(72)`, bg `rgba(255,255,255,0.95)`, top radius `ms(28)`, shadow, `paddingHorizontal: hs(24)` with `justifyContent: 'space-between'`, tab buttons 56×56 | `SubAppWrapper.tsx` | ✅ Done | |
@@ -692,10 +706,15 @@ These tabs render with empty-state messages:
 | 8 | Product card redesign: grid gated to 'All' ("All Trending Products" + "100% Authentic" chip); `ms(24)` radius; `resolveBadgeBg` fallback "Trending"; boxed category tag + ★ rating; name 1-line/desc 2-line; `$price.toFixed(2)` + ×1.3 strikethrough; labeled "Add" (`#1162D3`) → "Added!" + `CheckCircle` (emerald); removed dark circle | `FaMartScreen.tsx` | ✅ Done | |
 | 9 | Payload & polish: every `onProductClick` spreads `app:'MART'`; `activeOpacity` 0.8; `Animated.loop` pulses on offer/countdown chips | `FaMartScreen.tsx` | ✅ Done | |
 | 10 | Gate: full `hs()`/`vs()`/`ms()` sweep; container bg `#f8fafc`; `tsc --noEmit` | All files | ✅ Done | 0 errors |
+| 11 | Minimal deal card + "Flash Deals"→"Daily Essentials" rename: new presentational `MartDealCard` (portrait image, optional rating chip, 1-line name, strikethrough-MRP-then-price, optional green price note; no `+`/badge/heart) used by both `DealsOfDayRail` and `DailyEssentialsRail`; cart wiring removed from both rails; feed/section renamed (`flashSales`→`dailyEssentials`, `flashSaleToProduct`→`essentialToProduct`, `MART_FLASH_SALES`→`MART_DAILY_ESSENTIALS`); per-item `rating`/`priceNote` added; `remainingTimeSec` removed | `FaMartScreen.tsx` | ✅ Done | |
 
 **Accepted deltas:** `$xx.xx` currency (Vite spec, though data is ₹-scale); Vite dead code (motion/AnimatePresence, unused icons, animate-fade-in) skipped; backdrop-blur → solid `rgba`; no wrapper change (Offers tab replaced by Cart/Profile in RN config).
 
-### Page 14 — Grocery Sub-App (GroceryScreen.tsx)
+### Page 14 — Grocery Sub-App (GroceryScreen.tsx) — REMOVED (merged into Mart)
+
+> **Note:** `GroceryScreen.tsx` and the `grocery-home/` component directory have been deleted. The
+> Grocery sub-app was removed and merged into Mart (grocery products/stores/categories now live
+> under `app:'MART'`). The audit rows below document the historical build of that now-deleted screen.
 
 | # | Task | Files | Status | Notes |
 |---|------|-------|--------|-------|
@@ -758,7 +777,7 @@ All **40 top-level pages** from Section 1 are now visually aligned with the RN a
 | Page 5: Dashboard Shell | 1 (D1) | ✅ |
 | Pages 6–10: Home, Categories, Favourites, Cart, Account tabs | 5 (D2–D6) | ✅ |
 | Page 11: SubAppWrapper Shell | 1 (S0) | ✅ |
-| Pages 12–15: Food, FA Mart, Grocery, Pharma sub-apps | 21 (F01–F08, M01–M04, G01–G03, P01–P06) | ✅ |
+| Pages 12–15: Food, FA Mart, Pharma sub-apps | 21 (F01–F08, M01–M04, G01–G03, P01–P06) | ✅ |
 | Page 16: ProductDetail Modal | 1 (X01) + (X02) | ✅ |
 
 **40/40 pages aligned. `npx tsc --noEmit` — 0 errors.**

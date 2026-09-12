@@ -18,6 +18,7 @@ function toRow(store: StoreProfile) {
     distance,
     priceForTwo: 0,
     tags: [],
+    dietType: 'both' as const,
   };
 }
 

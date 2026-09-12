@@ -34,6 +34,7 @@ export interface FoodType {
   name: string;
   image: string;
   rating: number;
+  dietType: 'veg' | 'nonveg' | 'both';
 }
 
 export interface NearbyRestaurant {
@@ -45,6 +46,7 @@ export interface NearbyRestaurant {
   distance: number;
   priceForTwo: number;
   tags: string[];
+  dietType: 'veg' | 'nonveg' | 'both';
 }
 
 /** Section 3 — quick category bubbles (horizontal scroll, 7 items). */
@@ -77,6 +79,7 @@ export const POPULAR_DINING_SPOTS: DiningRestaurant[] = [
     latitude: 17.4319,
     longitude: 78.414,
     isFavourite: false,
+    dietType: 'both',
   },
   {
     id: 'pd-2',
@@ -95,6 +98,7 @@ export const POPULAR_DINING_SPOTS: DiningRestaurant[] = [
     latitude: 17.422,
     longitude: 78.442,
     isFavourite: true,
+    dietType: 'both',
   },
   {
     id: 'pd-3',
@@ -113,6 +117,7 @@ export const POPULAR_DINING_SPOTS: DiningRestaurant[] = [
     latitude: 17.4435,
     longitude: 78.3772,
     isFavourite: true,
+    dietType: 'both',
   },
   {
     id: 'pd-4',
@@ -131,6 +136,7 @@ export const POPULAR_DINING_SPOTS: DiningRestaurant[] = [
     latitude: 17.4287,
     longitude: 78.4041,
     isFavourite: false,
+    dietType: 'nonveg',
   },
   {
     id: 'pd-5',
@@ -148,19 +154,20 @@ export const POPULAR_DINING_SPOTS: DiningRestaurant[] = [
     latitude: 17.4137,
     longitude: 78.4621,
     isFavourite: false,
+    dietType: 'both',
   },
 ];
 
 /** Section 5 — "Top Food To Order" horizontal rail (circular food images). */
 export const TOP_FOODS_TO_ORDER: FoodType[] = [
-  { id: 'tf-1', name: 'Burgers', image: squareImg('photo-1571091718767-18b5b1457add'), rating: 4.4 },
-  { id: 'tf-2', name: 'Pizza', image: squareImg('photo-1513104890138-7c749659a591'), rating: 4.6 },
-  { id: 'tf-3', name: 'Biryani', image: squareImg('photo-1589302168068-964664d93dc0'), rating: 4.7 },
-  { id: 'tf-4', name: 'Sushi', image: squareImg('photo-1579871494447-9811cf80d66c'), rating: 4.5 },
-  { id: 'tf-5', name: 'Pasta', image: squareImg('photo-1621996346565-e3dbc646d9a9'), rating: 4.3 },
-  { id: 'tf-6', name: 'Noodles', image: squareImg('photo-1585032226651-759b368d7246'), rating: 4.2 },
-  { id: 'tf-7', name: 'Desserts', image: squareImg('photo-1551024506-0bccd828d307'), rating: 4.8 },
-  { id: 'tf-8', name: 'Salads', image: squareImg('photo-1512621776951-a57141f2eefd'), rating: 4.1 },
+  { id: 'tf-1', name: 'Burgers', image: squareImg('photo-1571091718767-18b5b1457add'), rating: 4.4, dietType: 'nonveg' },
+  { id: 'tf-2', name: 'Pizza', image: squareImg('photo-1513104890138-7c749659a591'), rating: 4.6, dietType: 'nonveg' },
+  { id: 'tf-3', name: 'Biryani', image: squareImg('photo-1589302168068-964664d93dc0'), rating: 4.7, dietType: 'nonveg' },
+  { id: 'tf-4', name: 'Sushi', image: squareImg('photo-1579871494447-9811cf80d66c'), rating: 4.5, dietType: 'nonveg' },
+  { id: 'tf-5', name: 'Pasta', image: squareImg('photo-1621996346565-e3dbc646d9a9'), rating: 4.3, dietType: 'both' },
+  { id: 'tf-6', name: 'Noodles', image: squareImg('photo-1585032226651-759b368d7246'), rating: 4.2, dietType: 'both' },
+  { id: 'tf-7', name: 'Desserts', image: squareImg('photo-1551024506-0bccd828d307'), rating: 4.8, dietType: 'veg' },
+  { id: 'tf-8', name: 'Salads', image: squareImg('photo-1512621776951-a57141f2eefd'), rating: 4.1, dietType: 'veg' },
 ];
 
 /** Section 6 — "Restaurants Nearby" vertical list rows. */
@@ -174,6 +181,7 @@ export const NEARBY_RESTAURANTS: NearbyRestaurant[] = [
     distance: 2.4,
     priceForTwo: 1400,
     tags: ['Great Ambience', 'Valet Parking'],
+    dietType: 'both',
   },
   {
     id: 'nr-2',
@@ -184,6 +192,7 @@ export const NEARBY_RESTAURANTS: NearbyRestaurant[] = [
     distance: 1.8,
     priceForTwo: 900,
     tags: ['Pure Veg', 'Family Friendly'],
+    dietType: 'veg',
   },
   {
     id: 'nr-3',
@@ -194,6 +203,7 @@ export const NEARBY_RESTAURANTS: NearbyRestaurant[] = [
     distance: 3.1,
     priceForTwo: 1300,
     tags: ['Free Delivery', 'Live Music'],
+    dietType: 'nonveg',
   },
   {
     id: 'nr-4',
@@ -204,6 +214,7 @@ export const NEARBY_RESTAURANTS: NearbyRestaurant[] = [
     distance: 4.2,
     priceForTwo: 1700,
     tags: ['Great Ambience', 'Outdoor Seating'],
+    dietType: 'nonveg',
   },
   {
     id: 'nr-5',
@@ -214,6 +225,7 @@ export const NEARBY_RESTAURANTS: NearbyRestaurant[] = [
     distance: 0.9,
     priceForTwo: 1200,
     tags: ['Cozy Vibes', 'Free WiFi'],
+    dietType: 'both',
   },
   {
     id: 'nr-6',
@@ -224,6 +236,7 @@ export const NEARBY_RESTAURANTS: NearbyRestaurant[] = [
     distance: 2.7,
     priceForTwo: 800,
     tags: ['Fast Delivery', 'Spicy Menu'],
+    dietType: 'both',
   },
   {
     id: 'nr-7',
@@ -234,6 +247,7 @@ export const NEARBY_RESTAURANTS: NearbyRestaurant[] = [
     distance: 1.4,
     priceForTwo: 700,
     tags: ['Valet Parking', 'Open Late'],
+    dietType: 'veg',
   },
   {
     id: 'nr-8',
@@ -244,5 +258,6 @@ export const NEARBY_RESTAURANTS: NearbyRestaurant[] = [
     distance: 3.8,
     priceForTwo: 600,
     tags: ['Family Friendly', 'Free Delivery'],
+    dietType: 'both',
   },
 ];

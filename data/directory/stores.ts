@@ -8,7 +8,6 @@
 import type { AppBrand, StoreProfile } from '../types';
 import { martStores } from '../mart/stores';
 import { foodStores } from '../food/stores';
-import { groceryStores } from '../grocery/stores';
 import { pharmaStores } from '../pharma/stores';
 
 /** A store-directory row (PostgreSQL `stores` table). */
@@ -58,7 +57,6 @@ function fromStoreProfile(store: StoreProfile): StoreRecord {
 export const storeDirectory: StoreRecord[] = [
   ...martStores.map(fromStoreProfile),
   ...foodStores.map(fromStoreProfile),
-  ...groceryStores.map(fromStoreProfile),
   ...pharmaStores.map(fromStoreProfile),
 ];
 

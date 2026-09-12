@@ -5,7 +5,6 @@ import type { Product } from '@data/types';
 import type { RootStackParamList } from '@/navigation/types';
 import SearchScreen from './SearchScreen';
 import { createMartSearchConfig } from './configs/martSearchConfig';
-import { createGrocerySearchConfig } from './configs/grocerySearchConfig';
 import { createPharmaSearchConfig } from './configs/pharmaSearchConfig';
 import { createHomeSearchConfig } from './configs/homeSearchConfig';
 
@@ -28,8 +27,6 @@ export function SearchRouteScreen({ navigation, route }: Props) {
     switch (subApp) {
       case 'FA_MART':
         return createMartSearchConfig({ onProductPress: handleProductPress });
-      case 'GROCERY':
-        return createGrocerySearchConfig({ onProductPress: handleProductPress });
       case 'PHARMA':
         return createPharmaSearchConfig({ onProductPress: handleProductPress });
       default:

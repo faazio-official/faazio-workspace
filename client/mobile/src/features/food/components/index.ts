@@ -21,6 +21,5 @@ export { default as TopFoodRail } from './TopFoodRail';
 export { default as NearbyRestaurantRow } from './NearbyRestaurantRow';
 export { default as FoodBottomNav } from './FoodBottomNav';
 export { default as FoodDetailTopBar } from './FoodDetailTopBar';
-export { default as ExitConfirmModal } from './ExitConfirmModal';
 export type { FoodTab } from './FoodBottomNav';
 export type { DiningSort } from './RestaurantGrid';

@@ -22,6 +22,7 @@ export const TOP_RATED_RESTAURANTS: DiningRestaurant[] = [
     latitude: 17.422,
     longitude: 78.442,
     isFavourite: true,
+    dietType: 'both',
   },
   {
     id: 'tr-2',
@@ -40,6 +41,7 @@ export const TOP_RATED_RESTAURANTS: DiningRestaurant[] = [
     latitude: 17.4319,
     longitude: 78.414,
     isFavourite: false,
+    dietType: 'both',
   },
   {
     id: 'tr-3',
@@ -58,6 +60,7 @@ export const TOP_RATED_RESTAURANTS: DiningRestaurant[] = [
     latitude: 17.4435,
     longitude: 78.3772,
     isFavourite: true,
+    dietType: 'both',
   },
   {
     id: 'tr-4',
@@ -76,6 +79,7 @@ export const TOP_RATED_RESTAURANTS: DiningRestaurant[] = [
     latitude: 17.4156,
     longitude: 78.4348,
     isFavourite: false,
+    dietType: 'both',
   },
   {
     id: 'tr-5',
@@ -94,6 +98,7 @@ export const TOP_RATED_RESTAURANTS: DiningRestaurant[] = [
     latitude: 17.4287,
     longitude: 78.4041,
     isFavourite: true,
+    dietType: 'nonveg',
   },
   {
     id: 'tr-6',
@@ -111,6 +116,7 @@ export const TOP_RATED_RESTAURANTS: DiningRestaurant[] = [
     latitude: 17.4137,
     longitude: 78.4621,
     isFavourite: false,
+    dietType: 'both',
   },
 ];
 
@@ -133,6 +139,7 @@ export const DINING_RESTAURANTS: DiningRestaurant[] = [
     latitude: 17.4435,
     longitude: 78.3772,
     isFavourite: false,
+    dietType: 'nonveg',
   },
   {
     id: 'dn-2',
@@ -151,6 +158,7 @@ export const DINING_RESTAURANTS: DiningRestaurant[] = [
     latitude: 17.4496,
     longitude: 78.3914,
     isFavourite: true,
+    dietType: 'veg',
   },
   {
     id: 'dn-3',
@@ -168,6 +176,7 @@ export const DINING_RESTAURANTS: DiningRestaurant[] = [
     latitude: 17.448,
     longitude: 78.3868,
     isFavourite: false,
+    dietType: 'both',
   },
   {
     id: 'dn-4',
@@ -186,6 +195,7 @@ export const DINING_RESTAURANTS: DiningRestaurant[] = [
     latitude: 17.4435,
     longitude: 78.3772,
     isFavourite: false,
+    dietType: 'both',
   },
   {
     id: 'dn-5',
@@ -203,6 +213,7 @@ export const DINING_RESTAURANTS: DiningRestaurant[] = [
     latitude: 17.4367,
     longitude: 78.3577,
     isFavourite: true,
+    dietType: 'both',
   },
   {
     id: 'dn-6',
@@ -221,6 +232,7 @@ export const DINING_RESTAURANTS: DiningRestaurant[] = [
     latitude: 17.4849,
     longitude: 78.3993,
     isFavourite: false,
+    dietType: 'nonveg',
   },
   {
     id: 'dn-7',
@@ -238,6 +250,7 @@ export const DINING_RESTAURANTS: DiningRestaurant[] = [
     latitude: 17.4258,
     longitude: 78.3697,
     isFavourite: false,
+    dietType: 'both',
   },
   {
     id: 'dn-8',
@@ -256,6 +269,7 @@ export const DINING_RESTAURANTS: DiningRestaurant[] = [
     latitude: 17.4415,
     longitude: 78.3813,
     isFavourite: true,
+    dietType: 'both',
   },
   {
     id: 'dn-9',
@@ -273,6 +287,7 @@ export const DINING_RESTAURANTS: DiningRestaurant[] = [
     latitude: 17.4879,
     longitude: 78.3993,
     isFavourite: false,
+    dietType: 'both',
   },
   {
     id: 'dn-10',
@@ -290,6 +305,7 @@ export const DINING_RESTAURANTS: DiningRestaurant[] = [
     latitude: 17.4297,
     longitude: 78.4094,
     isFavourite: false,
+    dietType: 'both',
   },
   {
     id: 'dn-11',
@@ -307,6 +323,7 @@ export const DINING_RESTAURANTS: DiningRestaurant[] = [
     latitude: 17.4803,
     longitude: 78.3923,
     isFavourite: false,
+    dietType: 'both',
   },
   {
     id: 'dn-12',
@@ -325,5 +342,6 @@ export const DINING_RESTAURANTS: DiningRestaurant[] = [
     latitude: 17.4419,
     longitude: 78.3806,
     isFavourite: true,
+    dietType: 'nonveg',
   },
 ];

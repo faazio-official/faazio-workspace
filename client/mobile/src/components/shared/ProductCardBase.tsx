@@ -1,5 +1,6 @@
 import React, { memo } from 'react';
-import { View, Image, TouchableOpacity, StyleSheet } from 'react-native';
+import { View, TouchableOpacity, StyleSheet } from 'react-native';
+import { Image as ExpoImage } from 'expo-image';
 import { Star, Plus, Minus, Check } from 'lucide-react-native';
 import { hs, vs, ms } from '@/utils/responsive';
 import { brandTokens } from '@/theme/brandTokens';
@@ -16,8 +17,8 @@ interface ProductCardBaseProps {
   quantity?: number;
   isFavorite?: boolean;
   isAdded?: boolean;
-  onPress?: () => void;
-  onAdd?: () => void;
+  onPress?: (product: Product) => void;
+  onAdd?: (product: Product) => void;
   onIncrement?: () => void;
   onDecrement?: () => void;
   onFavorite?: () => void;
@@ -57,9 +58,15 @@ const ProductCardBase = memo(function ProductCardBase({
   const imageH = isRail ? vs(100) : vs(120);
 
   return (
-    <TouchableOpacity style={cardStyle} onPress={onPress} activeOpacity={0.9}>
+    <TouchableOpacity style={cardStyle} onPress={() => onPress?.(product)} activeOpacity={0.9}>
       <View style={styles.imageWrap}>
-        <Image source={{ uri: product.image }} style={[styles.image, isGrid2 || isRail ? { aspectRatio: 3 / 4 } : { height: imageH }, roundedImageBottom && { borderBottomLeftRadius: ms(16), borderBottomRightRadius: ms(16) }]} />
+        <ExpoImage
+          source={{ uri: product.image }}
+          contentFit="cover"
+          cachePolicy="memory-disk"
+          transition={120}
+          style={[styles.image, isGrid2 || isRail ? { aspectRatio: 3 / 4 } : { height: imageH }, roundedImageBottom && { borderBottomLeftRadius: ms(16), borderBottomRightRadius: ms(16) }]}
+        />
         {showBadge && product.badge && (
           <View style={[styles.badge, { backgroundColor: resolveBadgeBg(product.badgeBg) }]}>
             <AppText style={styles.badgeText}>{product.badge}</AppText>
@@ -113,7 +120,7 @@ const ProductCardBase = memo(function ProductCardBase({
           ) : (
             <TouchableOpacity
               style={[styles.addBtn, { backgroundColor: tokens.accent }]}
-              onPress={onAdd}
+              onPress={() => onAdd?.(product)}
               activeOpacity={0.8}
               hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
             >
@@ -134,7 +141,7 @@ export default ProductCardBase;
 
 const styles = StyleSheet.create({
   imageWrap: { position: 'relative' },
-  image: { width: '100%', resizeMode: 'cover' },
+  image: { width: '100%', backgroundColor: '#e2e8f0' },
   badge: { position: 'absolute', top: vs(6), left: hs(6), paddingHorizontal: hs(6), paddingVertical: vs(2), borderRadius: ms(4) },
   badgeText: { fontSize: ms(7), fontWeight: '900', color: '#ffffff' },
   flashBadge: { position: 'absolute', top: vs(6), right: hs(6), backgroundColor: '#ef4444', paddingHorizontal: hs(6), paddingVertical: vs(2), borderRadius: ms(4) },

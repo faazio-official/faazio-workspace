@@ -1,6 +1,3 @@
-const img = (id: string, w = 900, h = 620) =>
-  `https://images.unsplash.com/${id}?fm=jpg&fit=crop&q=80&w=${w}&h=${h}`;
-
 const squareImg = (id: string, w = 560) =>
   `https://images.unsplash.com/${id}?fm=jpg&fit=crop&q=80&w=${w}&h=${w}`;
 
@@ -14,7 +11,7 @@ export interface MartHeroBanner {
   imageUrl: string;
 }
 
-export interface MartFlashSale {
+export interface MartEssential {
   id: string;
   brand: string;
   name: string;
@@ -22,24 +19,10 @@ export interface MartFlashSale {
   price: number;
   originalPrice: number;
   discountTag: string;
-  remainingTimeSec: number;
+  rating?: number;
+  priceNote?: string;
   imageUrl: string;
   emoji: string;
-}
-
-export interface MartTopBrand {
-  id: string;
-  name: string;
-  logoUrl: string;
-}
-
-export interface MartLocalVendor {
-  id: string;
-  name: string;
-  distance: string;
-  rating: number;
-  deliveryTime: string;
-  imageUrl: string;
 }
 
 export const MART_HERO_BANNERS: MartHeroBanner[] = [
@@ -66,46 +49,26 @@ export const MART_HERO_BANNERS: MartHeroBanner[] = [
   },
 ];
 
-export const MART_FLASH_SALES: MartFlashSale[] = [
-  { id: 'mf-1', brand: 'Cool Drinks', name: 'Sparkling Soda Pack', size: '750ml × 4', price: 99, originalPrice: 199, discountTag: '50% OFF', remainingTimeSec: 3540, imageUrl: squareImg('photo-1527661591475-527312dd65f5', 300), emoji: '🥤' },
-  { id: 'mf-2', brand: 'Crispy Co.', name: 'Potato Chips Variety', size: '200g × 3', price: 149, originalPrice: 299, discountTag: '50% OFF', remainingTimeSec: 5400, imageUrl: squareImg('photo-1566478989037-eec170784d71', 300), emoji: '🍟' },
-  { id: 'mf-3', brand: 'Clean & Fresh', name: 'Hand Wash 3-Pack', size: '250ml each', price: 199, originalPrice: 399, discountTag: '50% OFF', remainingTimeSec: 7200, imageUrl: squareImg('photo-1585386959984-c4e2e9f0dfc0', 300), emoji: '🧴' },
-  { id: 'mf-4', brand: 'Pure Petals', name: 'Rose Petal Soap Trio', size: '75g × 3', price: 129, originalPrice: 249, discountTag: '48% OFF', remainingTimeSec: 1800, imageUrl: squareImg('photo-1600857544200-b2f666a9f5ab', 300), emoji: '🧼' },
-  { id: 'mf-5', brand: 'HomeFresh', name: 'Almond Milk', size: '1L', price: 79, originalPrice: 159, discountTag: '50% OFF', remainingTimeSec: 9000, imageUrl: squareImg('photo-1563636619-e9143da7973b', 300), emoji: '🥛' },
+export const MART_DAILY_ESSENTIALS: MartEssential[] = [
+  { id: 'mf-1', brand: 'Cool Drinks', name: 'Sparkling Soda Pack', size: '750ml × 4', price: 99, originalPrice: 199, discountTag: '50% OFF', rating: 4.3, priceNote: 'Lowest price in 30 days', imageUrl: squareImg('photo-1527661591475-527312dd65f5', 300), emoji: '🥤' },
+  { id: 'mf-2', brand: 'Crispy Co.', name: 'Potato Chips Variety', size: '200g × 3', price: 149, originalPrice: 299, discountTag: '50% OFF', rating: 4.1, priceNote: 'Lowest price in 30 days', imageUrl: squareImg('photo-1566478989037-eec170784d71', 300), emoji: '🍟' },
+  { id: 'mf-3', brand: 'Clean & Fresh', name: 'Hand Wash 3-Pack', size: '250ml each', price: 199, originalPrice: 399, discountTag: '50% OFF', rating: 4.4, imageUrl: squareImg('photo-1585386959984-c4e2e9f0dfc0', 300), emoji: '🧴' },
+  { id: 'mf-4', brand: 'Pure Petals', name: 'Rose Petal Soap Trio', size: '75g × 3', price: 129, originalPrice: 249, discountTag: '48% OFF', rating: 3.9, imageUrl: squareImg('photo-1600857544200-b2f666a9f5ab', 300), emoji: '🧼' },
+  { id: 'mf-5', brand: 'HomeFresh', name: 'Almond Milk', size: '1L', price: 79, originalPrice: 159, discountTag: '50% OFF', rating: 4.5, priceNote: 'Lowest price in 30 days', imageUrl: squareImg('photo-1563636619-e9143da7973b', 300), emoji: '🥛' },
 ];
 
-export const MART_TOP_BRANDS: MartTopBrand[] = [
-  { id: 'tb-1', name: 'Tata', logoUrl: 'https://upload.wikimedia.org/wikipedia/commons/thumb/1/1e/Tata_logo.svg/120px-Tata_logo.svg.png' },
-  { id: 'tb-2', name: 'Amul', logoUrl: 'https://upload.wikimedia.org/wikipedia/commons/thumb/6/60/Amul_logo.svg/120px-Amul_logo.svg.png' },
-  { id: 'tb-3', name: 'Nestlé', logoUrl: 'https://upload.wikimedia.org/wikipedia/commons/thumb/7/73/Nestl%C3%A9_logo.svg/120px-Nestl%C3%A9_logo.svg.png' },
-  { id: 'tb-4', name: 'P&G', logoUrl: 'https://upload.wikimedia.org/wikipedia/commons/thumb/4/4e/P%26G_logo.svg/120px-P%26G_logo.svg.png' },
-  { id: 'tb-5', name: 'Britannia', logoUrl: 'https://upload.wikimedia.org/wikipedia/commons/thumb/4/43/Britannia_Logo.svg/120px-Britannia_Logo.svg.png' },
-  { id: 'tb-6', name: 'HUL', logoUrl: 'https://upload.wikimedia.org/wikipedia/commons/thumb/e/e4/Hindustan_Unilever_Logo.svg/120px-Hindustan_Unilever_Logo.svg.png' },
-];
-
-export const MART_LOCAL_VENDORS: MartLocalVendor[] = [
-  { id: 'lv-1', name: 'Fresh Mart Express', distance: '0.8 km', rating: 4.8, deliveryTime: '25 min', imageUrl: img('photo-1578916171728-46686eacb58a', 400, 300) },
-  { id: 'lv-2', name: 'Green Grocers', distance: '1.2 km', rating: 4.6, deliveryTime: '30 min', imageUrl: img('photo-1488459716781-31db52582fe9', 400, 300) },
-  { id: 'lv-3', name: 'Daily Needs Store', distance: '0.5 km', rating: 4.9, deliveryTime: '15 min', imageUrl: img('photo-1441986300917-64674bd600d8', 400, 300) },
-  { id: 'lv-4', name: 'Organic Bazaar', distance: '1.5 km', rating: 4.7, deliveryTime: '35 min', imageUrl: img('photo-1488459716781-31db52582fe9', 400, 300) },
-  { id: 'lv-5', name: 'Metro Supermarket', distance: '2.0 km', rating: 4.5, deliveryTime: '40 min', imageUrl: img('photo-1578916171728-46686eacb58a', 400, 300) },
-  { id: 'lv-6', name: 'Corner Grocery', distance: '0.3 km', rating: 4.8, deliveryTime: '10 min', imageUrl: img('photo-1441986300917-64674bd600d8', 400, 300) },
-];
-
-const MART_DEAL_RATING = 4.5;
-
-export const flashSaleToProduct = (sale: MartFlashSale): Product => ({
-  id: sale.id,
+export const essentialToProduct = (item: MartEssential): Product => ({
+  id: item.id,
   app: 'MART',
   category: 'Groceries',
-  name: sale.name,
-  price: sale.price,
-  emoji: sale.emoji,
-  rating: MART_DEAL_RATING,
-  desc: `${sale.brand} · ${sale.size}`,
-  badge: sale.discountTag,
+  name: item.name,
+  price: item.price,
+  emoji: item.emoji,
+  rating: item.rating ?? 4.5,
+  desc: `${item.brand} · ${item.size}`,
+  badge: item.discountTag,
   badgeBg: '#F25C3D',
-  image: sale.imageUrl,
+  image: item.imageUrl,
 });
 
 export type { MartDeal } from '@data/types';

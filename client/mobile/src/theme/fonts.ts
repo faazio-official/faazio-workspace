@@ -1,9 +1,7 @@
 import { Platform, StyleSheet } from 'react-native';
 import type { StyleProp, TextStyle } from 'react-native';
+import { useFonts } from 'expo-font';
 import {
-  Roboto_100Thin,
-  Roboto_200ExtraLight,
-  Roboto_300Light,
   Roboto_400Regular,
   Roboto_500Medium,
   Roboto_600SemiBold,
@@ -12,10 +10,10 @@ import {
   Roboto_900Black,
 } from '@expo-google-fonts/roboto';
 
+// Only the Roboto weights actually used by the app (grep of `fontWeight` usage).
+// Loading fewer assets trims startup font-loading work. iOS resolves to 'System',
+// so no Roboto assets are loaded there at all.
 export const FONT_ASSETS = {
-  Roboto_100Thin,
-  Roboto_200ExtraLight,
-  Roboto_300Light,
   Roboto_400Regular,
   Roboto_500Medium,
   Roboto_600SemiBold,
@@ -25,9 +23,6 @@ export const FONT_ASSETS = {
 } as const;
 
 const ANDROID_FONT_BY_WEIGHT: Record<string, string> = {
-  '100': 'Roboto_100Thin',
-  '200': 'Roboto_200ExtraLight',
-  '300': 'Roboto_300Light',
   '400': 'Roboto_400Regular',
   '500': 'Roboto_500Medium',
   '600': 'Roboto_600SemiBold',
@@ -62,4 +57,10 @@ export function resolveTextStyle(style: StyleProp<TextStyle>): StyleProp<TextSty
   resolved.fontFamily = resolveFontFamily(flat.fontWeight);
   delete resolved.fontWeight;
   return resolved;
+}
+
+// Loads the app fonts, gated to Android. On iOS everything resolves to 'System',
+// so no Roboto assets are requested (instant resolve, no startup waste).
+export function useAppFonts(): [boolean, Error | null] {
+  return useFonts(Platform.OS === 'ios' ? {} : FONT_ASSETS);
 }

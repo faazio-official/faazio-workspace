@@ -13,7 +13,12 @@ export type { FoodBookingRecord } from './foodBookingStore';
 export { usePharmaStore } from './pharmaStore';
 export type { Prescription } from './pharmaStore';
 
+export { useBloodDonorStore } from './bloodDonorStore';
+
 export { useFavoriteStore } from './favoriteStore';
 
 export { useSearchStore } from './searchStore';
+
+export { useRewardsStore } from './rewardsStore';
+export type { RewardLedgerEntry, RewardLedgerType } from './rewardsStore';
 

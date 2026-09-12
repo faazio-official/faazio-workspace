@@ -40,7 +40,7 @@ export const exploreStacks: ExploreStack[] = [
     { id: "bf-2", name: "Veg Thali", price: 120, rating: "4.8", emoji: "🍛", img: "https://images.unsplash.com/photo-1546069901-ba9599a7e63c?fm=jpg&fit=crop&q=80&w=400&h=400", shop: "Green Leaf" },
     { id: "bf-3", name: "Egg Biryani", price: 150, rating: "4.9", emoji: "🍚", img: "https://images.unsplash.com/photo-1563379091339-03b21ab4a4f8?fm=jpg&fit=crop&q=80&w=400&h=400", shop: "Paradise" },
   ]},
-  { id: "organic-farms", title: "🌿 Organic Farms", subtitle: "Pure unadulterated produce from local farms", type: "GROCERY", accent: "#10B981", items: [
+  { id: "organic-farms", title: "🌿 Organic Farms", subtitle: "Pure unadulterated produce from local farms", type: "MART", accent: "#1162D3", items: [
     { id: "of-1", name: "Organic Baby Spinach", price: 80, rating: "4.9", emoji: "🥬", img: "https://images.unsplash.com/photo-1576045057995-568f588f82fb?fm=jpg&fit=crop&q=80&w=400&h=400", shop: "Farm Fresh" },
     { id: "of-2", name: "Heirloom Tomatoes Box", price: 130, rating: "4.8", emoji: "🍅", img: "https://images.unsplash.com/photo-1518977822534-7049a61ee0c2?fm=jpg&fit=crop&q=80&w=400&h=400", shop: "Farm Fresh" },
     { id: "of-3", name: "Cold Pressed Coconut Oil", price: 340, rating: "4.9", emoji: "🥥", img: "https://images.unsplash.com/photo-1527689368864-3a821dbccc34?fm=jpg&fit=crop&q=80&w=400&h=400", shop: "Pure Harvest" },
@@ -55,7 +55,7 @@ export const exploreStacks: ExploreStack[] = [
     { id: "ld-2", name: "Charcoal Grilled Lamb Chops", price: 690, rating: "4.9", emoji: "🥩", img: "https://images.unsplash.com/photo-1514516345957-51be1cae4a29?fm=jpg&fit=crop&q=80&w=400&h=400", shop: "Smoke House" },
     { id: "ld-3", name: "Ferrero Rocher Shake", price: 230, rating: "4.8", emoji: "🥤", img: "https://images.unsplash.com/photo-1572490122747-3968b75cc699?fm=jpg&fit=crop&q=80&w=400&h=400", shop: "Shake Lab" },
   ]},
-  { id: "greek-yogurts", title: "🥛 Greek Yogurts & More", subtitle: "High protein creamy goodness delivered cold", type: "GROCERY", accent: "#10B981", items: [
+  { id: "greek-yogurts", title: "🥛 Greek Yogurts & More", subtitle: "High protein creamy goodness delivered cold", type: "MART", accent: "#1162D3", items: [
     { id: "gy-1", name: "Greek Plain Yogurt (500g)", price: 180, rating: "4.8", emoji: "🥛", img: "https://images.unsplash.com/photo-1488477181946-6428a0291777?fm=jpg&fit=crop&q=80&w=400&h=400", shop: "Dairy Delight" },
     { id: "gy-2", name: "Blueberry Honey Yogurt Cup", price: 95, rating: "4.9", emoji: "🍧", img: "https://images.unsplash.com/photo-1511690656952-34342bb7c2f1?fm=jpg&fit=crop&q=80&w=400&h=400", shop: "Dairy Delight" },
     { id: "gy-3", name: "A2 Cow Milk (1L)", price: 110, rating: "4.9", emoji: "🥛", img: "https://images.unsplash.com/photo-1550583724-b2692b85b150?fm=jpg&fit=crop&q=80&w=400&h=400", shop: "Pure Dairy" },
@@ -70,7 +70,7 @@ export const exploreStacks: ExploreStack[] = [
     { id: "ks-2", name: "AHA BHA PHA Toner", price: 1150, rating: "4.8", emoji: "🧴", img: "https://images.unsplash.com/photo-1556228720-195a672e8a03?fm=jpg&fit=crop&q=80&w=400&h=400", shop: "K-Beauty HQ" },
     { id: "ks-3", name: "Sunscreen SPF 50 PA++++", price: 890, rating: "4.9", emoji: "☀️", img: "https://images.unsplash.com/photo-1556228578-0d85b1a4d571?fm=jpg&fit=crop&q=80&w=400&h=400", shop: "K-Beauty HQ" },
   ]},
-  { id: "cold-beverages", title: "🧊 Cold Beverages", subtitle: "Chilled drinks to beat the heat", type: "GROCERY", accent: "#10B981", items: [
+  { id: "cold-beverages", title: "🧊 Cold Beverages", subtitle: "Chilled drinks to beat the heat", type: "MART", accent: "#1162D3", items: [
     { id: "cb-1", name: "Cold Brew Coffee Can", price: 160, rating: "4.9", emoji: "🧋", img: "https://images.unsplash.com/photo-1514432324607-a09d9b4aefdd?fm=jpg&fit=crop&q=80&w=400&h=400", shop: "Brew & Bean" },
     { id: "cb-2", name: "Sparkling Lychee Drink", price: 95, rating: "4.8", emoji: "🥫", img: "https://images.unsplash.com/photo-1622483767028-3f66f32aef97?fm=jpg&fit=crop&q=80&w=400&h=400", shop: "Sip Town" },
     { id: "cb-3", name: "Coconut Water (1L)", price: 80, rating: "4.7", emoji: "🥥", img: "https://images.unsplash.com/photo-1527689368864-3a821dbccc34?fm=jpg&fit=crop&q=80&w=400&h=400", shop: "Pure Harvest" },

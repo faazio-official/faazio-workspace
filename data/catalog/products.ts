@@ -6,7 +6,6 @@
 import type { Product, NearbyOffer, ExploreItem, ExploreStack } from '../types';
 import { martProducts } from '../mart/products';
 import { MART_DEALS, dealToProduct } from '../mart/deals';
-import { groceryProducts } from '../grocery/products';
 import { foodProducts } from '../food/products';
 import { TODAYS_SPECIALS, dishToProduct } from '../food/specials';
 import { BOOKING_DISHES_DB, type BookingDish } from '../food/bookingDishes';
@@ -14,13 +13,13 @@ import { pharmaProducts, PHARMA_CATEGORIES } from '../pharma/products';
 import { mensPicks, womensPicks, childrensPicks, hairSkinPicks } from '../home/demographics';
 import { instantFeed } from '../home/instantFeed';
 import { nearbyOffers } from '../home/nearbyOffers';
-import { recentlyViewedMart, recentlyViewedFood, recentlyViewedGrocery, recentlyViewedPharma, hotBrandDeals } from '../home/rails';
+import { recentlyViewedMart, recentlyViewedFood, recentlyViewedPharma, hotBrandDeals } from '../home/rails';
 import { exploreStacks } from '../explore/stacks';
 import { categoriesSearchDatabase } from '../categories/searchDatabase';
 
 export interface CatalogEntry {
   id: string;
-  app: 'FOOD' | 'MART' | 'GROCERY' | 'PHARMA';
+  app: 'FOOD' | 'MART' | 'PHARMA';
   category: string;
   name: string;
   searchTokens: string[];
@@ -131,7 +130,6 @@ function fromBookingDish(dish: BookingDish): CatalogEntry {
 const allEntries: CatalogEntry[] = [
   ...martProducts.map(fromProduct),
   ...MART_DEALS.map(dealToProduct).map(fromProduct),
-  ...groceryProducts.map(fromProduct),
   ...foodProducts.map(fromProduct),
   ...TODAYS_SPECIALS.map(dishToProduct).map(fromProduct),
   ...BOOKING_DISHES_DB.map(fromBookingDish),
@@ -143,7 +141,6 @@ const allEntries: CatalogEntry[] = [
   ...instantFeed.map(fromProduct),
   ...recentlyViewedMart.map(fromProduct),
   ...recentlyViewedFood.map(fromProduct),
-  ...recentlyViewedGrocery.map(fromProduct),
   ...recentlyViewedPharma.map(fromProduct),
   ...hotBrandDeals.map(fromProduct),
   ...nearbyOffers.map(fromNearbyOffer),
@@ -176,7 +173,6 @@ export function getCatalogEntriesByIds(ids: string[]): CatalogEntry[] {
 export function getProductById(id: string): Product | undefined {
   const candidates: Product[] = [
     ...martProducts,
-    ...groceryProducts,
     ...foodProducts,
     ...pharmaProducts,
     ...MART_DEALS.map(dealToProduct),

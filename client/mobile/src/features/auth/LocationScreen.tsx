@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { View, StyleSheet, Pressable, Image, ScrollView, Platform, KeyboardAvoidingView, Animated, Easing } from 'react-native';
-import { hs, vs, ms, wp, hp, STATUS_BAR_INSET } from '@/utils/responsive';
+import { hs, vs, ms, wp, hp } from '@/utils/responsive';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Screen } from '@/components/shared';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { RootStackParamList } from '@/navigation/AppNavigator';
@@ -184,6 +185,7 @@ function BouncingPin() {
 }
 
 export function LocationScreen({ navigation }: Props) {
+  const insets = useSafeAreaInsets();
   const [step, setStep] = useState<'request' | 'manual' | 'loader'>('request');
   const [selectedLocation, setSelectedLocation] = useState(
     'Sunnambukkara Street, Karaikal'
@@ -369,7 +371,7 @@ export function LocationScreen({ navigation }: Props) {
             behavior={Platform.OS === 'ios' ? 'padding' : undefined}
             style={{ flex: 1 }}
           >
-            <View style={styles.manualHeader}>
+            <View style={[styles.manualHeader, { paddingTop: Platform.OS === 'ios' ? vs(56) : insets.top + vs(8) }]}>
               <Pressable
                 style={({ pressed }) => [
                   styles.backBtn,
@@ -391,7 +393,7 @@ export function LocationScreen({ navigation }: Props) {
                   isSearchFocused && styles.searchInputContainerFocused,
                 ]}
               >
-                <Search size={ms(16)} color="#94a3b8" style={styles.searchIcon} />
+                <Search size={ms(19)} color="#94a3b8" style={styles.searchIcon} />
                 <AppTextInput
                   style={styles.searchInput}
                   placeholder="Try Golden Nagar, Church Street, etc."
@@ -609,7 +611,6 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: hs(16),
-    paddingTop: Platform.OS === 'ios' ? vs(56) : STATUS_BAR_INSET + vs(8),
     paddingBottom: vs(12),
     borderBottomWidth: 1,
     borderColor: '#f1f5f9',

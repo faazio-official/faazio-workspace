@@ -1,7 +1,8 @@
 import React from 'react';
 import { StyleSheet, View, TouchableOpacity } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ArrowLeft } from 'lucide-react-native';
-import { hs, vs, ms, STATUS_BAR_INSET } from '@/utils/responsive';
+import { hs, vs, ms } from '@/utils/responsive';
 import AppText from '@/components/AppText';
 import { BRAND } from '../constants';
 
@@ -16,8 +17,9 @@ interface PaymentHeaderProps {
  * "Payment Options" title (bold 16px) and a gray summary subtitle.
  */
 export default function PaymentHeader({ itemCount, total, onBack }: PaymentHeaderProps) {
+  const insets = useSafeAreaInsets();
   return (
-    <View style={[styles.header, { paddingTop: STATUS_BAR_INSET + vs(8) }]}>
+    <View style={[styles.header, { paddingTop: insets.top + vs(8) }]}>
       <TouchableOpacity onPress={onBack} style={styles.backBtn} activeOpacity={0.7} hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}>
         <ArrowLeft size={ms(22)} color={BRAND.ink} strokeWidth={2.4} />
       </TouchableOpacity>

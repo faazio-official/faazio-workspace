@@ -1,5 +1,6 @@
 import React, { memo, useEffect, useRef, useState } from 'react';
-import { View, Image, ScrollView, TouchableOpacity, StyleSheet, NativeSyntheticEvent, NativeScrollEvent } from 'react-native';
+import { View, ScrollView, TouchableOpacity, StyleSheet, NativeSyntheticEvent, NativeScrollEvent } from 'react-native';
+import { Image as ExpoImage } from 'expo-image';
 import { Tag, ArrowRight } from 'lucide-react-native';
 import { hs, vs, ms } from '@/utils/responsive';
 import { topAdSlides } from '@data/home/rails';
@@ -51,7 +52,13 @@ function AdBannerSection({ onLaunchSubApp }: SectionProps) {
                 activeOpacity={0.9}
                 onPress={() => slide.targetApp && onLaunchSubApp(subAppIdFor(slide.targetApp))}
               >
-                <Image source={{ uri: slide.imageUrl }} style={styles.bg} />
+                <ExpoImage
+                  source={{ uri: slide.imageUrl }}
+                  style={styles.bg}
+                  contentFit="cover"
+                  cachePolicy="memory-disk"
+                  transition={120}
+                />
                 <View style={styles.overlay} />
                 {slide.badge && (
                   <View style={styles.badge}>

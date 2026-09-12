@@ -1,4 +1,4 @@
-export type AppBrand = 'FOOD' | 'MART' | 'GROCERY' | 'PHARMA';
+export type AppBrand = 'FOOD' | 'MART' | 'PHARMA';
 
 export interface Product {
   id: string;
@@ -28,16 +28,13 @@ export interface Product {
    * Drives store-backed self-pickup points at checkout.
    */
   storeId?: string;
+  /** True = vegetarian dish, false = non-vegetarian, absent = unclassified. */
+  isVeg?: boolean;
 }
 
 export interface MartProduct extends Product {
   app: 'MART';
   reviews: number;
-}
-
-export interface GroceryProduct extends Product {
-  app: 'GROCERY';
-  unit: string;
 }
 
 export interface PharmaProduct extends Product {
@@ -82,6 +79,10 @@ export interface MartDeal {
   discountTag: string;
   imageUrl: string;
   emoji: string;
+  /** User rating shown on the minimal deal card; hidden when absent. */
+  rating?: number;
+  /** Optional green claim line under the price (e.g. "Lowest price in 30 days"). */
+  priceNote?: string;
 }
 
 export interface NearbyOffer extends Product {
@@ -100,7 +101,7 @@ export interface CartItem {
   category?: CartCategory;
 }
 
-export type CartCategory = 'MART' | 'FOOD' | 'GROCERY' | 'PHARMA';
+export type CartCategory = 'MART' | 'FOOD' | 'PHARMA';
 
 export interface Review {
   id: string;
@@ -272,6 +273,10 @@ export interface AccountNavRow {
 /** Grouped navigation rows for the My Account screen. */
 export interface AccountNavGroup {
   key: string;
+  /** Section label rendered above the group's card (e.g. "Profile settings"). */
+  title?: string;
+  /** When true, the group has no real rows yet — render a non-tappable "Coming soon" placeholder. */
+  comingSoon?: boolean;
   rows: AccountNavRow[];
 }
 
@@ -316,6 +321,8 @@ export interface TopOfWeekDish {
   rating: string | number;
   reviewsCount?: number;
   time?: string;
+  /** True = vegetarian, false = non-vegetarian, absent = unclassified. */
+  isVeg?: boolean;
 }
 
 /** Pharma department filter (owner: features/pharma). */

@@ -4,20 +4,24 @@ import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../../navigation/AppNavigator';
 import { ChevronLeft, ChevronRight } from 'lucide-react-native';
 import { FaazioLogo } from '../../components/FaazioLogo';
-import { SCREEN_W, SCREEN_H, hs, vs, ms, wp, hp } from '@/utils/responsive';
+import { SCREEN_W, SCREEN_H, hs, vs, ms } from '@/utils/responsive';
 import { Screen } from '@/components/shared';
 
 import welcomeIllustration1 from '../../assets/welcome_illustration_1.webp';
 import welcomeIllustration2 from '../../assets/welcome_illustration_2.webp';
 import welcomeIllustration3 from '../../assets/welcome_illustration_3.webp';
 import welcomeIllustration4 from '../../assets/welcome_illustration_4.webp';
+import welcomeIllustration5 from '../../assets/welcome_illustration_5.webp';
 import AppText from '@/components/AppText';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'Onboarding'>;
 
 interface OnboardingStep {
   title: string;
+  titleHighlight?: string;
   subtitle: string;
+  tagline?: string;
+  taglineHighlight?: string;
   description: string;
   bgColor: string;
   accentColor: string;
@@ -25,6 +29,7 @@ interface OnboardingStep {
 }
 
 const BRAND_BLUE = '#1162D3';
+const BLOOD_RED = '#E11D2E';
 
 const ONBOARDING_DATA: OnboardingStep[] = [
   {
@@ -58,6 +63,18 @@ const ONBOARDING_DATA: OnboardingStep[] = [
     bgColor: '#ffffff',
     accentColor: BRAND_BLUE,
     image: welcomeIllustration4,
+  },
+  {
+    title: "Be Someone's",
+    titleHighlight: 'Second Chance',
+    subtitle: 'Give The Gift Of Life',
+    tagline: 'Donate Blood.',
+    taglineHighlight: 'Save Lives.',
+    description:
+      'Join a community of life savers and help patients, hospitals and blood banks in times of need.',
+    bgColor: '#ffffff',
+    accentColor: BLOOD_RED,
+    image: welcomeIllustration5,
   },
 ];
 
@@ -117,47 +134,71 @@ export function OnboardingScreen({ navigation }: Props) {
   };
 
   const currentData = ONBOARDING_DATA[currentStep];
+  const isLastStep = currentStep === ONBOARDING_DATA.length - 1;
+  const accentColor = currentData.accentColor;
+
+  const content = (
+    <Animated.View
+      style={[
+        styles.animatedWrapper,
+        {
+          opacity: opacityAnim,
+          transform: [{ translateX: slideAnim }],
+        },
+      ]}
+    >
+      {/* Header Bar */}
+      <View style={styles.header}>
+        <View style={styles.headerLeft}>
+          <FaazioLogo size={LOGO_HEIGHT} />
+        </View>
+        <TouchableOpacity onPress={handleSkip} style={styles.skipButton} activeOpacity={0.8}>
+          <AppText style={styles.skipText}>Skip</AppText>
+        </TouchableOpacity>
+      </View>
+
+      {/* Main Content Area */}
+      <View style={styles.contentContainer}>
+        <View style={styles.illustrationWrapper}>
+          <Image
+            source={currentData.image}
+            style={styles.illustrationImage}
+            resizeMode="contain"
+          />
+        </View>
+
+        {/* Text Details Section */}
+        <View style={styles.textDetails}>
+          <AppText style={styles.titleText}>
+            {currentData.title}
+            {currentData.titleHighlight ? (
+              <AppText style={[styles.titleHighlight, { color: accentColor }]}>
+                {` ${currentData.titleHighlight}`}
+              </AppText>
+            ) : null}
+          </AppText>
+          {currentData.tagline ? (
+            <AppText style={[styles.subtitleText, { color: accentColor }]}>
+              {currentData.tagline}
+              {currentData.taglineHighlight ? (
+                <AppText style={styles.taglineHighlight}>{` ${currentData.taglineHighlight}`}</AppText>
+              ) : null}
+            </AppText>
+          ) : (
+            <AppText style={[styles.subtitleText, { color: accentColor }]}>
+              {currentData.subtitle}
+            </AppText>
+          )}
+          <View style={[styles.underline, { backgroundColor: accentColor }]} />
+          <AppText style={styles.descriptionText}>{currentData.description}</AppText>
+        </View>
+      </View>
+    </Animated.View>
+  );
 
   return (
     <Screen backgroundColor={currentData.bgColor}>
-      <Animated.View
-        style={[
-          styles.animatedWrapper,
-          {
-            opacity: opacityAnim,
-            transform: [{ translateX: slideAnim }],
-          },
-        ]}
-      >
-        {/* Header Bar */}
-        <View style={styles.header}>
-          <FaazioLogo size={LOGO_HEIGHT} />
-          <TouchableOpacity onPress={handleSkip} style={styles.skipButton} activeOpacity={0.8}>
-            <AppText style={styles.skipText}>Skip</AppText>
-          </TouchableOpacity>
-        </View>
-
-        {/* Main Content Area */}
-        <View style={styles.contentContainer}>
-          <View style={styles.illustrationWrapper}>
-            <Image
-              source={currentData.image}
-              style={styles.illustrationImage}
-              resizeMode="contain"
-            />
-          </View>
-
-          {/* Text Details Section */}
-          <View style={styles.textDetails}>
-            <AppText style={styles.titleText}>{currentData.title}</AppText>
-            <AppText style={[styles.subtitleText, { color: BRAND_BLUE }]}>
-              {currentData.subtitle}
-            </AppText>
-            <View style={[styles.underline, { backgroundColor: BRAND_BLUE }]} />
-            <AppText style={styles.descriptionText}>{currentData.description}</AppText>
-          </View>
-        </View>
-      </Animated.View>
+      {content}
 
       {/* Footer Navigation */}
       <View style={styles.footer}>
@@ -171,7 +212,7 @@ export function OnboardingScreen({ navigation }: Props) {
                 style={[
                   styles.dot,
                   isActive
-                    ? [styles.activeDot, { backgroundColor: BRAND_BLUE }]
+                    ? [styles.activeDot, { backgroundColor: accentColor }]
                     : [styles.inactiveDot, { backgroundColor: '#cbd5e1' }],
                 ]}
               />
@@ -193,11 +234,11 @@ export function OnboardingScreen({ navigation }: Props) {
           )}
           <TouchableOpacity
             onPress={handleNext}
-            style={[styles.nextButton, { backgroundColor: BRAND_BLUE }]}
+            style={[styles.nextButton, { backgroundColor: accentColor, shadowColor: accentColor }]}
             activeOpacity={0.8}
           >
             <AppText style={styles.nextButtonText}>
-              {currentStep === ONBOARDING_DATA.length - 1 ? 'Get Started' : 'Next'}
+              {isLastStep ? 'Get Started' : 'Next'}
             </AppText>
             <ChevronRight size={ms(12)} color="#ffffff" />
           </TouchableOpacity>
@@ -218,6 +259,11 @@ const styles = StyleSheet.create({
     paddingHorizontal: hs(24),
     paddingTop: vs(12),
     height: vs(54),
+  },
+  headerLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: hs(8),
   },
   skipButton: {
     paddingVertical: vs(6),
@@ -262,6 +308,12 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     letterSpacing: -0.5,
   },
+  titleHighlight: {
+    fontSize: SCREEN_H < 700 ? ms(18) : ms(20),
+    fontWeight: '900',
+    textAlign: 'center',
+    letterSpacing: -0.5,
+  },
   subtitleText: {
     fontSize: SCREEN_H < 700 ? ms(12) : ms(13),
     fontWeight: '800',
@@ -269,6 +321,13 @@ const styles = StyleSheet.create({
     textTransform: 'uppercase',
     letterSpacing: 0.5,
     marginTop: vs(4),
+  },
+  taglineHighlight: {
+    fontSize: SCREEN_H < 700 ? ms(12) : ms(13),
+    fontWeight: '800',
+    textAlign: 'center',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
   },
   underline: {
     width: hs(40),
@@ -336,7 +395,6 @@ const styles = StyleSheet.create({
     borderRadius: ms(20),
     justifyContent: 'center',
     gap: hs(2),
-    shadowColor: BRAND_BLUE,
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.15,
     shadowRadius: 8,

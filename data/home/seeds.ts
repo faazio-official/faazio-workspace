@@ -57,7 +57,7 @@ export const seedCartItems: CartItem[] = [
     originalPrice: 114,
     quantity: 1,
     emoji: '🍎',
-    category: 'GROCERY',
+    category: 'MART',
     imageUrl: 'https://images.unsplash.com/photo-1560806887-1e4cd0b6cbd6?fm=jpg&fit=crop&q=80&w=96&h=96',
   },
   {
@@ -68,7 +68,7 @@ export const seedCartItems: CartItem[] = [
     originalPrice: 60,
     quantity: 1,
     emoji: '🍌',
-    category: 'GROCERY',
+    category: 'MART',
     imageUrl: 'https://images.unsplash.com/photo-1571771894821-ce9b6c11b08e?fm=jpg&fit=crop&q=80&w=96&h=96',
   },
   {

@@ -14,7 +14,6 @@ export { avatarMap };
 const REPRESENTATIVE_PRODUCT_IDS: Record<AppBrand, string> = {
   FOOD: 'rvf-1',
   MART: 'rvm-1',
-  GROCERY: 'rvg-1',
   PHARMA: 'rvp-1',
 };
 
@@ -34,7 +33,7 @@ function toReviewRow(app: AppBrand, review: Review): ReviewRow {
 }
 
 export const reviewsTable: ReviewRow[] = (
-  ['FOOD', 'MART', 'GROCERY', 'PHARMA'] as AppBrand[]
+  ['FOOD', 'MART', 'PHARMA'] as AppBrand[]
 ).flatMap((app) => getProductReviews(app).map((r) => toReviewRow(app, r)));
 
 export interface SpecRow {
@@ -45,7 +44,7 @@ export interface SpecRow {
 }
 
 export const specsTable: SpecRow[] = (
-  ['FOOD', 'MART', 'GROCERY', 'PHARMA'] as AppBrand[]
+  ['FOOD', 'MART', 'PHARMA'] as AppBrand[]
 ).flatMap((app) =>
   getProductSpecs(app).map((s, i) => ({ id: `${app.toLowerCase()}-spec-${i}`, app, label: s.label, value: s.value })),
 );
@@ -57,7 +56,7 @@ export interface HighlightRow {
 }
 
 export const highlightsTable: HighlightRow[] = (
-  ['FOOD', 'MART', 'GROCERY', 'PHARMA'] as AppBrand[]
+  ['FOOD', 'MART', 'PHARMA'] as AppBrand[]
 ).flatMap((app) =>
   getProductHighlights(app).map((h, i) => ({ id: `${app.toLowerCase()}-hl-${i}`, app, text: h })),
 );

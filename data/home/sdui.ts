@@ -68,7 +68,6 @@ export const homeSdui: SduiSection[] = [
   { id: 'mostRatedDining', title: 'Most Rated Dining', accent: '#1E5D44', productIds: [], storeIds: resolveStoreIds('FOOD') },
   { id: 'recentlyViewedMart', title: 'Recently Viewed — Mart', accent: '#1162D3', productIds: resolveProductIds(['rvm-1', 'rvm-2', 'rvm-3', 'rvm-4']) },
   { id: 'recentlyViewedFood', title: 'Recently Viewed — Food', accent: '#1E5D44', productIds: resolveProductIds(['rvf-1', 'rvf-2', 'rvf-3']) },
-  { id: 'recentlyViewedGrocery', title: 'Recently Viewed — Grocery', accent: '#10B981', productIds: resolveProductIds(['rvg-1', 'rvg-2', 'rvg-3', 'rvg-4']) },
   { id: 'recentlyViewedPharma', title: 'Recently Viewed — Pharma', accent: '#065F46', productIds: resolveProductIds(['rvp-1', 'rvp-2', 'rvp-3']) },
   { id: 'nearbyOffers', title: 'Nearby Offers', accent: '#111827', productIds: resolveProductIds(['nb-1', 'nb-2', 'nb-3', 'nb-4', 'nb-5', 'nb-6']) },
   { id: 'mens', title: 'Men', accent: '#1162D3', productIds: resolveProductIds(['men-1', 'men-2', 'men-3', 'men-4', 'men-5', 'men-6']) },

@@ -10,10 +10,10 @@ export interface CartItem {
   emoji: string;
   originalPrice?: number;
   qtyDesc?: string;
-  category?: 'MART' | 'FOOD' | 'GROCERY' | 'PHARMA';
+  category?: 'MART' | 'FOOD' | 'PHARMA';
 }
 
-export type CartCategory = 'MART' | 'FOOD' | 'GROCERY' | 'PHARMA';
+export type CartCategory = 'MART' | 'FOOD' | 'PHARMA';
 
 interface CartState {
   cart: CartItem[];

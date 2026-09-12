@@ -6,21 +6,48 @@ import type { AccountNavGroup } from '../types';
 
 export const accountNavGroups: AccountNavGroup[] = [
   {
-    key: 'primary',
+    key: 'profile',
+    title: 'Profile settings',
     rows: [
       { key: 'orders', icon: 'package', title: 'My Orders', subtitle: 'Track and manage your orders' },
-      { key: 'details', icon: 'idcard', title: 'Your Details', subtitle: 'Manage your personal information' },
+      { key: 'details', icon: 'idcard', title: 'my profile', subtitle: 'Manage your personal information' },
       { key: 'addresses', icon: 'map-pin', title: 'Addresses', subtitle: 'Manage saved addresses' },
-      { key: 'payments', icon: 'credit-card', title: 'Payments', subtitle: 'UPI, Cards, Wallets, Gift Cards' },
-      { key: 'coupons', icon: 'ticket', title: 'Coupons & Offers', subtitle: 'View all your offers and coupons' },
-      { key: 'support', icon: 'headphones', title: 'Customer Support', subtitle: 'Help center, Chat with us' },
+      { key: 'favourites', icon: 'heart', title: 'Favourites', subtitle: 'Your favourite items across all apps' },
+      { key: 'recently-viewed', icon: 'clock', title: 'Recently Viewed', subtitle: 'Items you recently viewed' },
     ],
   },
   {
-    key: 'preferences',
+    key: 'payments',
+    title: 'Payments and credits',
     rows: [
-      { key: 'favourites', icon: 'heart', title: 'Favourites', subtitle: 'Your favourite items across all apps' },
-      { key: 'recently-viewed', icon: 'clock', title: 'Recently Viewed', subtitle: 'Items you recently viewed' },
+      { key: 'payments', icon: 'credit-card', title: 'Payments', subtitle: 'UPI, Cards, Wallets, Gift Cards' },
+      { key: 'coupons', icon: 'ticket', title: 'Coupons & Offers', subtitle: 'View all your offers and coupons' },
+    ],
+  },
+  {
+    key: 'privacy',
+    title: 'Privacy and security',
+    comingSoon: true,
+    rows: [],
+  },
+  {
+    key: 'earn',
+    title: 'Earn with us',
+    rows: [
+      { key: 'sell-with-us', icon: 'store', title: 'Sell with us', subtitle: 'Partner with Faazio & list your products' },
+    ],
+  },
+  {
+    key: 'legal',
+    title: 'Terms and policies',
+    comingSoon: true,
+    rows: [],
+  },
+  {
+    key: 'support',
+    title: 'Help & Support',
+    rows: [
+      { key: 'support', icon: 'headphones', title: 'Customer Support', subtitle: 'Help center, Chat with us' },
     ],
   },
 ];

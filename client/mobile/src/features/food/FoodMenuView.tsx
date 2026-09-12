@@ -67,7 +67,7 @@ export default function FoodMenuView({ addToCart, addedId: externalAddedId, hand
 
       {/* Search */}
       <View style={styles.searchWrap}>
-        <Search size={ms(14)} color="#94a3b8" style={styles.searchIcon} />
+        <Search size={ms(17)} color="#94a3b8" style={styles.searchIcon} />
         <AppTextInput
           style={styles.searchInput}
           placeholder="Search menu..."

@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { View, TouchableOpacity, StyleSheet } from 'react-native';
 import { hs, vs, ms } from '@/utils/responsive';
 import type { SubAppId } from '@/state/uiStore';
@@ -30,12 +30,12 @@ export function useAddToCartFeedback(addToCart?: (id: string, name: string, pric
     if (timer.current) clearTimeout(timer.current);
   }, []);
 
-  const handleAdd = (id: string, name: string, price: number, emoji: string) => {
+  const handleAdd = useCallback((id: string, name: string, price: number, emoji: string) => {
     addToCart?.(id, name, price, emoji);
     setAddedId(id);
     if (timer.current) clearTimeout(timer.current);
     timer.current = setTimeout(() => setAddedId(null), 1500);
-  };
+  }, [addToCart]);
 
   return { addedId, handleAdd };
 }

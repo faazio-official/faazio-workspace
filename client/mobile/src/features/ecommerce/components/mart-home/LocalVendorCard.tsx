@@ -3,50 +3,55 @@ import { View, TouchableOpacity, StyleSheet } from 'react-native';
 import { Star, Clock, MapPin, ChevronRight } from 'lucide-react-native';
 import AppText from '@/components/AppText';
 import { hs, ms, vs } from '@/utils/responsive';
-import type { MartLocalVendor } from '../../mocks/martHomeFeed';
+import type { StoreProfile } from '@data/types';
 import MartImage from './MartImage';
 
 const IMG_SIZE = 96;
 const MART_YELLOW = '#FFC107';
 
 interface LocalVendorCardProps {
-  vendor: MartLocalVendor;
-  onPress?: (vendor: MartLocalVendor) => void;
+  store: StoreProfile;
+  onPress?: (store: StoreProfile) => void;
 }
 
 const LocalVendorCard = memo(function LocalVendorCard({
-  vendor,
+  store,
   onPress,
 }: LocalVendorCardProps) {
   return (
     <TouchableOpacity
       style={styles.card}
-      onPress={() => onPress?.(vendor)}
+      onPress={() => onPress?.(store)}
       activeOpacity={0.94}
       accessibilityRole="button"
-      accessibilityLabel={`${vendor.name}, ${vendor.distance}`}
+      accessibilityLabel={`${store.name}, ${store.distance}`}
     >
       <View style={styles.imageWrap}>
-        <MartImage uri={vendor.imageUrl} style={styles.image} />
+        <MartImage uri={store.coverImage} style={styles.image} />
         <View style={styles.distanceBadge}>
           <MapPin size={ms(9)} color="#FFFFFF" strokeWidth={2.4} />
-          <AppText style={styles.distanceText}>{vendor.distance}</AppText>
+          <AppText style={styles.distanceText}>{store.distance}</AppText>
         </View>
       </View>
       <View style={styles.body}>
         <AppText style={styles.name} numberOfLines={1}>
-          {vendor.name}
+          {store.name}
         </AppText>
         <View style={styles.metaRow}>
           <View style={styles.ratingBadge}>
             <Star size={ms(10)} color="#FFFFFF" fill="#FFFFFF" strokeWidth={1.5} />
-            <AppText style={styles.ratingText}>{vendor.rating}</AppText>
+            <AppText style={styles.ratingText}>{store.rating}</AppText>
           </View>
           <View style={styles.timeRow}>
             <Clock size={ms(10)} color="#666666" strokeWidth={1.8} />
-            <AppText style={styles.timeText}>{vendor.deliveryTime}</AppText>
+            <AppText style={styles.timeText}>{store.deliveryTime}</AppText>
           </View>
         </View>
+        {store.offerTag ? (
+          <AppText style={styles.offerText} numberOfLines={1}>
+            {store.offerTag}
+          </AppText>
+        ) : null}
         <View style={styles.ctaRow}>
           <AppText style={styles.ctaText}>Visit Store</AppText>
           <ChevronRight size={ms(14)} color={MART_YELLOW} strokeWidth={2.6} />
@@ -67,7 +72,6 @@ const styles = StyleSheet.create({
     borderColor: '#EFEFEF',
     borderRadius: ms(12),
     padding: hs(10),
-    marginHorizontal: hs(16),
   },
   imageWrap: {
     width: IMG_SIZE,
@@ -142,6 +146,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: hs(3),
     alignSelf: 'flex-start',
+  },
+  offerText: {
+    fontSize: ms(9),
+    fontWeight: '600',
+    color: '#B45309',
   },
   ctaText: {
     fontSize: ms(11),

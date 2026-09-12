@@ -208,8 +208,7 @@ const SearchScreen = memo(function SearchScreen({
         keyExtractor={config.keyFor ?? ((item: any, index: number) => String((item as { id?: string })?.id ?? `item-${index}`))}
         renderItem={renderItem}
         numColumns={config.numColumns ?? 1}
-        columnWrapperStyle={config.numColumns === 2 ? styles.gridRow : undefined}
-        contentContainerStyle={[styles.listContent, config.numColumns === 2 && styles.listContentGrid]}
+        contentContainerStyle={styles.listContent}
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
         ListEmptyComponent={empty}
@@ -245,7 +244,7 @@ function EmptyState({
   return (
     <View style={styles.emptyCard}>
       <View style={styles.emptyIconCircle}>
-        <Search size={ms(24)} strokeWidth={1.75} color="#6B7280" />
+        <Search size={ms(27)} strokeWidth={1.75} color="#6B7280" />
       </View>
       <AppText style={styles.emptyTitle}>No results found</AppText>
       <View style={styles.emptyLinks}>
@@ -287,13 +286,6 @@ const styles = StyleSheet.create({
     paddingTop: vs(10),
     paddingBottom: vs(120),
     flexGrow: 1,
-  },
-  listContentGrid: {
-    paddingHorizontal: 0,
-  },
-  gridRow: {
-    justifyContent: 'flex-start',
-    marginBottom: vs(0),
   },
   listFooter: {
     paddingVertical: vs(16),

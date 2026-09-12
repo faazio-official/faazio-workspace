@@ -4,6 +4,7 @@ import { CreditCard, Smartphone } from 'lucide-react-native';
 import { hs, vs, ms } from '@/utils/responsive';
 import AppText from '@/components/AppText';
 import { useCartStore } from '@/state/cartStore';
+import { useRewardsStore } from '@/state/rewardsStore';
 import { defaultAddresses } from '@data/cart/addresses';
 import PaymentHeader from './components/PaymentHeader';
 import DeliveryInfoCard from './components/DeliveryInfoCard';
@@ -11,11 +12,14 @@ import PromoBanner from './components/PromoBanner';
 import PaymentSectionCard from './components/PaymentSectionCard';
 import PaymentRow from './components/PaymentRow';
 import CvvPayBar from './components/CvvPayBar';
+import CoinsRedeemRow from './components/CoinsRedeemRow';
 import { computeTotals } from '../utils';
 import { BRAND } from './constants';
 import { DEFAULT_CARD, OTHER_CARDS, SAVED_UPIS, MORE_OPTIONS } from './paymentData';
 import type { FulfillmentMode, PickupPoint } from '@data/types';
 import { userProfile } from '@data/account/profile';
+import { COIN_REDEEM_MIN } from '@data/rewards/rewards';
+import { coinsForRedemption } from '@/features/rewards/rewardsLogic';
 
 export interface PaymentOptionsScreenProps {
   /** Items in the cart. Defaults to the shared cart store. */
@@ -33,7 +37,8 @@ export interface PaymentOptionsScreenProps {
   /** Contact phone for pickup (defaults to the signed-in user profile phone). */
   contactPhone?: string;
   onBack?: () => void;
-  onPlaceOrder?: () => void;
+  /** Fired with the number of coins being redeemed (0 when none). */
+  onPlaceOrder?: (coinsRedeemed?: number) => void;
 }
 
 /**
@@ -55,6 +60,7 @@ export default function PaymentOptionsScreen({
 }: PaymentOptionsScreenProps) {
   const cartItems = useCartStore((s) => s.cart);
   const { finalTotal } = computeTotals(cartItems, 0);
+  const coinBalance = useRewardsStore((s) => s.coinBalance);
   const itemCount = itemCountProp ?? cartItems.reduce((acc, curr) => acc + curr.quantity, 0);
   const total = totalProp ?? finalTotal;
   const address = deliveryAddress ?? {
@@ -64,13 +70,20 @@ export default function PaymentOptionsScreen({
 
   const [selectedPaymentId, setSelectedPaymentId] = useState<string>(DEFAULT_CARD.id);
   const [cvv, setCvv] = useState('');
+  const [redeemRupees, setRedeemRupees] = useState(0);
 
   const cardSelected = selectedPaymentId === DEFAULT_CARD.id;
   const defaultAddress = DEFAULT_CARD;
+  const showCoins = coinBalance >= COIN_REDEEM_MIN;
+  const payableTotal = Math.max(0, total - redeemRupees);
+
+  const handlePay = () => {
+    onPlaceOrder?.(redeemRupees > 0 ? coinsForRedemption(redeemRupees) : 0);
+  };
 
   return (
     <View style={styles.root}>
-      <PaymentHeader itemCount={itemCount} total={total} onBack={onBack ?? (() => {})} />
+      <PaymentHeader itemCount={itemCount} total={payableTotal} onBack={onBack ?? (() => {})} />
       <ScrollView
         style={styles.scroll}
         contentContainerStyle={styles.scrollContent}
@@ -89,6 +102,13 @@ export default function PaymentOptionsScreen({
 
         <PromoBanner />
 
+        {showCoins && (
+          <CoinsRedeemRow
+            coinBalance={coinBalance}
+            onToggle={(_checked, rupees) => setRedeemRupees(rupees)}
+          />
+        )}
+
         <PaymentSectionCard title="Preferred Payment">
           <PaymentRow
             icon={CreditCard}
@@ -100,7 +120,7 @@ export default function PaymentOptionsScreen({
             onPress={() => setSelectedPaymentId(DEFAULT_CARD.id)}
           />
           {cardSelected && (
-            <CvvPayBar cvv={cvv} onChangeCvv={setCvv} total={total} onPay={onPlaceOrder ?? (() => {})} />
+            <CvvPayBar cvv={cvv} onChangeCvv={setCvv} total={payableTotal} onPay={handlePay} />
           )}
         </PaymentSectionCard>
 
