@@ -398,20 +398,22 @@ so wiring real inputs and a `GatewayClient` seller-application submit is a data/
 
 ## Production crash telemetry + release signing (build hardening)
 
-**Status:** 🟡 Partially addressed; two follow-ups remain.
+**Status:** 🟢 Release signing done (CI); remote crash reporting still open.
 
 **Shipped (2026-09-11):** `App.tsx` now installs a global `ErrorUtils` handler (so JS/render
 errors are no longer swallowed in release, where `babel` strips `console.*`) and guards the splash
 with an 8 s failsafe + 4 s hydration timeouts (prevents a stuck splash → ANR). Stale 188 MB
 `faazio-debug.apk` / `faazio-release.apk` were removed from the repo root (already `*.apk`-ignored).
 
+**Shipped (2026-09-12):** Release builds now run in **GitHub Actions** via `.github/workflows/release-apk.yml`
+(triggered with `gh workflow run`). The workflow runs `expo prebuild --clean`, restores the release
+keystore from GitHub secrets (`scripts/restore-keystore.sh`), injects the `release` signingConfig
+(`scripts/configure-release-signing.sh`), builds with `./gradlew assembleRelease`, and publishes the
+signed APK to a GitHub Release (`gh release upload --clobber` replaces any previous APK). This
+replaces the previous "release signs with the debug keystore" gap.
+
 **Future / honest gaps:**
 - **No remote crash reporting.** The global handler only logs locally (dev). Production needs
   Sentry/Crashlytics (or a `GatewayClient` `/errors` endpoint) to surface real-device crashes.
-- **Release build still signs with the debug keystore.** `android/app/build.gradle`'s `release`
-  build type uses `signingConfigs.debug` — it does **not** yet read `keystore/keystore.properties`
-  (`STORE_FILE`/`KEYSTORE_PASS`/`KEY_ALIAS`/`ALIAS_PASS`) as `docs/RUNBOOKS/RELEASE.md` describes.
-  The keystore + properties exist on disk (gitignored). Wire the `release` signingConfig (re-apply
-  after `expo prebuild --clean` regenerates `android/`) before shipping to the store.
 
 **Date:** 2026-09-11

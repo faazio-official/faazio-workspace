@@ -44,6 +44,16 @@ npm run check:boundaries  # dependency-cruiser — enforces cross-module import 
 Both must pass before pushing. `check:boundaries` fails on any sub-app importing another
 sub-app's internals (only `Home` is allowed to cross sub-apps).
 
+### 4a. Ship a release APK
+
+Release builds run in **GitHub Actions**, not on your machine (see `docs/RUNBOOKS/RELEASE.md`):
+
+```bash
+cd client/mobile
+gh workflow run release-apk.yml -f version=1.0.2 -f tag=v1.0.2
+gh run watch                 # wait; signed APK lands on the GitHub Release
+```
+
 ## 5. Project orientation
 
 | Resource | What it is |

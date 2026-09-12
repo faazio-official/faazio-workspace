@@ -222,11 +222,14 @@ instead of keeping the complexity.
 
 ## 🔧 Release signing
 
-- **Release APK installs as debug-signed / needs `adb install` only** → the `release` build type
-  currently uses `signingConfigs.debug`; the release keystore config is **not yet wired** in
-  `android/app/build.gradle` (see `PENDING_WORK.md`). `keystore/keystore.properties`
-  (`STORE_FILE`/`KEYSTORE_PASS`/`KEY_ALIAS`/`ALIAS_PASS`) exists but isn't read yet.
-- **"Store file not found"** (once wired) → `keystore/keystore.properties` (`STORE_FILE`) points to
-  a missing file. Confirm the keystore exists and the path is correct (relative to project root).
+- **Release APK installs as debug-signed / needs `adb install` only** → the `release` build type is
+  not signed with the release keystore. In CI this should not happen (the workflow runs
+  `scripts/restore-keystore.sh` + `scripts/configure-release-signing.sh` before
+  `./gradlew assembleRelease`). For a manual build, run those two scripts (see RELEASE.md).
+- **"Store file not found"** → `keystore/keystore.properties` (`STORE_FILE`) points to a missing
+  file. Confirm the keystore exists and the path is correct (relative to project root). In CI,
+  ensure `KEYSTORE_BASE64` secret is set.
 - **SigningConfig release missing after `expo prebuild --clean`** → `prebuild` regenerates `android/`
-  and drops manual `build.gradle` edits — re-apply the release `signingConfig` (see RELEASE.md).
+  and drops manual `build.gradle` edits — run `scripts/configure-release-signing.sh` again (see RELEASE.md).
+- **CI build fails on `restore-keystore.sh`** → the `KEYSTORE_BASE64`/`KEYSTORE_PASS`/`KEY_ALIAS`/
+  `ALIAS_PASS` secrets are missing or wrong; verify with `gh secret list`.

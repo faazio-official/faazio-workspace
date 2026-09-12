@@ -1,0 +1,127 @@
+name: Release APK
+
+# Builds a release-signed Android APK in CI and publishes it as a GitHub
+# Release (replacing any existing APK on that release tag via --clobber).
+# Triggered manually so you control when a build runs:
+#   gh workflow run release-apk.yml
+#   gh run watch
+#
+# Secrets required (set once via `gh secret set`):
+#   KEYSTORE_BASE64  base64 of client/mobile/keystore/faazio-release.keystore
+#   KEYSTORE_PASS, KEY_ALIAS, ALIAS_PASS  -> keystore.properties values
+#   STORE_FILE       keystore file name (optional, default faazio-release.keystore)
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Release version (e.g. 1.0.2) — overrides app.json"
+        required: false
+        type: string
+      tag:
+        description: "Git tag for the release (e.g. v1.0.2)"
+        required: false
+        type: string
+      prerelease:
+        description: "Mark as prerelease"
+        required: false
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+
+env:
+  NODE_VERSION: "24"
+  JAVA_VERSION: "21"
+
+jobs:
+  build-release-apk:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: client/mobile
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: client/mobile/package-lock.json
+
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: ${{ env.JAVA_VERSION }}
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Set version (manual override)
+        if: ${{ github.event.inputs.version != '' }}
+        run: |
+          node -e "
+            const fs = require('fs');
+            const p = require('./app.json');
+            p.expo.version = '${{ github.event.inputs.version }}';
+            fs.writeFileSync('./app.json', JSON.stringify(p, null, 2) + '\n');
+          "
+
+      - name: Restore keystore + signing properties
+        run: bash scripts/restore-keystore.sh
+        env:
+          KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
+          KEYSTORE_PASS: ${{ secrets.KEYSTORE_PASS }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+          ALIAS_PASS: ${{ secrets.ALIAS_PASS }}
+          STORE_FILE: ${{ secrets.STORE_FILE }}
+
+      - name: Generate Android project (prebuild)
+        run: npx expo prebuild --clean --platform android
+
+      - name: Wire release signingConfig
+        run: bash scripts/configure-release-signing.sh
+
+      - name: Build release APK
+        run: |
+          cd android
+          ./gradlew assembleRelease --no-daemon
+
+      - name: Upload APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: faazio-release-apk
+          path: client/mobile/android/app/build/outputs/apk/release/*.apk
+          if-no-files-found: error
+
+      - name: Publish GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          VERSION="$(node -p "require('./app.json').expo.version")"
+          TAG="v${VERSION}"
+          if [[ -n "${{ github.event.inputs.tag }}" ]]; then
+            TAG="${{ github.event.inputs.tag }}"
+          fi
+          NOTES="Automated release APK build via GitHub Actions.\n\nVersion: ${VERSION}\n"
+          PRERELEASE=""
+          if [[ "${{ github.event.inputs.prerelease }}" == "true" ]]; then
+            PRERELEASE="--prerelease"
+          fi
+
+          # Create the release (idempotent; --clobber replaces existing APK).
+          gh release create "$TAG" \
+            --title "Faazio ${VERSION}" \
+            --notes "$(printf "$NOTES")" \
+            $PRERELEASE \
+            || true
+
+          # Attach (replace) the APK on the release.
+          gh release upload "$TAG" \
+            android/app/build/outputs/apk/release/*.apk \
+            --clobber
+
+          echo "::notice::Published Faazio ${VERSION} to release ${TAG}"
