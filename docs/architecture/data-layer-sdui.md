@@ -68,7 +68,9 @@ auto-playing carousels). Each `AdCampaign` references a **real Mart vendor by `s
 via `getCampaignStore` against the store directory) and its catalog products **by id only**
 (`productIds`), resolved via `getProductById` (`getCampaignProducts`, which also keeps only rows
 whose `storeId` matches the campaign vendor) — following the same SDUI "ID-only" rule as
-`home/sdui.ts` and `data/catalog/products.ts`.
+`home/sdui.ts` and `data/catalog/products.ts`. `MartProduct.storeId` is a **required top-level**
+field (drives campaign resolution, vendor drill-in, the product-detail store section, and
+self-pickup); a dev-only guard in `campaigns.ts` warns if any campaign resolves <2 products.
 
 **Per-restaurant menus** (`data/food/menus.ts`): exports `restaurantMenus`
 (`Record<string, SpecialDish[]>` keyed by the 18 dining-restaurant names, ~5 dishes each) and

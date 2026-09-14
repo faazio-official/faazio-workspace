@@ -323,6 +323,15 @@ grid → a two-carousel **brand-campaign section**, and a new shared **Deals lan
 `data/index.ts` exports (`getCampaignStore` added); `data/home/sdui.ts` + `docs/architecture/db-schema.md`
 sample titles updated to match.
 
+**Fix note (2026-09-15):** The SmartHome Emporium card (`camp-smarthome`, `store-m7`) rendered only **1**
+product instead of 2 because 5 `martProducts` rows had `storeId` accidentally nested inside `attributes`
+instead of at the top level — `fm-e1`/`fm-e2`/`fm-e3` (`store-m2`) and `fm-ha1`/`fm-ha2` (`store-m7`).
+`getCampaignProducts` filters by **top-level** `storeId`, so those rows resolved but were dropped, leaving
+only `fm-ha3`. Moved the 5 `storeId`s to the top level in `data/mart/products.ts` and made
+`MartProduct.storeId` **required** in `data/types.ts` so any future malformed row fails `ts:check`. Also
+added a dev-only authoring guard in `data/home/campaigns.ts` that `console.warn`s any campaign resolving
+<2 products. No component changes — the cards behaved as designed.
+
 **Date:** 2026-09-14
 
 ## Categories cleanup + Mart vendors pill filter

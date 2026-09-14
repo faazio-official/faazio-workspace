@@ -72,6 +72,22 @@ export const adCampaigns: AdCampaign[] = [
 ];
 
 /**
+ * Dev-only authoring guard: every campaign must resolve at least 2 products from
+ * its own store (via the `storeId` match), otherwise the card renders a broken
+ * 1-product row. Catches stale/mis-linked ids and malformed rows at authoring
+ * time instead of silently producing a visually inconsistent carousel.
+ */
+if (__DEV__) {
+  for (const campaign of adCampaigns) {
+    if (getCampaignProducts(campaign).length < 2) {
+      console.warn(
+        `[faazio:campaigns] campaign "${campaign.id}" resolves <2 products for store ${campaign.storeId} — check productIds and their top-level storeId.`,
+      );
+    }
+  }
+}
+
+/**
  * Resolve a campaign's catalog products by id, keeping only rows that belong to the
  * campaign's vendor (the `storeId` match guards against stale/mis-linked ids).
  */

@@ -81,6 +81,7 @@ intended single data surface for the app. It is **not yet wired into screens** â
 | Export | Type | Mobile consumers | Status |
 |---|---|---|---|
 | `martProducts` | `MartProduct[]` | `FaMartScreen`; `data/home/filterFeed` (data-internal pool) | `@mock` |
+| `MartProduct.storeId` | `string` (**required**) | Vendor link for campaigns, vendor drill-in, product-detail store section, self-pickup. Every `martProducts` row must set **top-level** `storeId` â€” enforced by the type; `ts:check` fails otherwise | contract |
 | `martStores` | `StoreProfile[]` | `FaMartScreen` "Local Vendors Near You" rail + vendor drill-in (replaces the retired `MART_LOCAL_VENDORS` mock) | `@mock` |
 | `MART_DEALS` / `dealToProduct` | `MartDeal[]` / `(MartDeal) => Product` | `FaMartScreen` `DealsOfDayRail`; home `DealsOfDaySection`. `MartDeal` gained optional `rating?`/`priceNote?` for the minimal deal card | `@mock` |
 

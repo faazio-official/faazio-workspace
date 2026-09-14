@@ -35,6 +35,8 @@ export interface Product {
 export interface MartProduct extends Product {
   app: 'MART';
   reviews: number;
+  /** Vendor this row is sold by. Required — drives campaigns, vendor drill-in, pickup. */
+  storeId: string;
 }
 
 export interface PharmaProduct extends Product {
