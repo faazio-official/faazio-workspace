@@ -19,6 +19,8 @@ Operational and architectural documentation for the **Faazio SuperApp**.
 | [architecture/mobile-app.md](./architecture/mobile-app.md) | Deep dive: RN app internals (modules, state, nav, boundaries) | Engineers |
 | [architecture/data-layer-sdui.md](./architecture/data-layer-sdui.md) | Deep dive: `data/` layer + SDUI path + GatewayClient | Engineers |
 | [architecture/server-gateway-plan.md](./architecture/server-gateway-plan.md) | Deep dive: future Go Chi microservices plan | Engineers / infra |
+| [architecture/db-schema.md](./architecture/db-schema.md) | Deep dive: future microservice DB schemas (tables, datatypes, sample rows) | Engineers / infra |
+| [architecture/caching-cloudflare-valkey.md](./architecture/caching-cloudflare-valkey.md) | Deep dive: Cloudflare edge + Aiven Valkey cache layer | Engineers / infra |
 | [RUNBOOKS/RELEASE.md](./RUNBOOKS/RELEASE.md) | Build, sign, and ship Android + iOS | Release / DevOps |
 | [RUNBOOKS/CI_PIPELINE.md](./RUNBOOKS/CI_PIPELINE.md) | GitHub Actions build + release flow (gh CLI, secrets, dev-vs-CI) | Release / DevOps |
 | [RUNBOOKS/DATA_FIXTURES.md](./RUNBOOKS/DATA_FIXTURES.md) | Authoring rules for `@data/*` fixtures | Engineers |

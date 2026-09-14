@@ -5,9 +5,9 @@
 import type { OrderStatusCount } from '../types';
 
 export const orderStatusCounts: OrderStatusCount[] = [
-  { key: 'all', label: 'All Orders', count: 24 },
+  { key: 'all', label: 'All Orders', count: 20 },
   { key: 'processing', label: 'Processing', count: 3 },
-  { key: 'shipped', label: 'Shipped', count: 2 },
-  { key: 'delivered', label: 'Delivered', count: 18 },
-  { key: 'cancelled', label: 'Cancelled', count: 1 },
+  { key: 'shipped', label: 'Shipped', count: 4 },
+  { key: 'delivered', label: 'Delivered', count: 10 },
+  { key: 'cancelled', label: 'Cancelled', count: 3 },
 ];

@@ -21,16 +21,16 @@ export function HubGradient({ height }: HubGradientProps) {
   const hasFade = typeof height === 'number' && height > 0;
   const fadeStartPct = hasFade ? Math.max(0, ((height - BLEND_START_FROM_BOTTOM) / height) * 100) : 100;
   const fadeEndPct = hasFade ? Math.max(0, ((height - BLEND_END_FROM_BOTTOM) / height) * 100) : 100;
-  const tailColor = hasFade ? '#f1f5f9' : '#7CB3FF';
+  const tailColor = hasFade ? '#f1f5f9' : '#6B77FF';
 
   return (
     <View style={styles.wrap} renderToHardwareTextureAndroid>
       <Svg style={StyleSheet.absoluteFill}>
         <Defs>
           <SvgGrad id="headerGrad" x1="0%" y1="0%" x2="0%" y2="100%">
-            <Stop offset="0%" stopColor="#0000FF" />
-            <Stop offset="50%" stopColor="#2F80ED" />
-            <Stop offset={`${fadeStartPct}%`} stopColor="#7CB3FF" />
+            <Stop offset="0%" stopColor="#4250FF" />
+            <Stop offset="50%" stopColor="#3C49E8" />
+            <Stop offset={`${fadeStartPct}%`} stopColor="#6B77FF" />
             <Stop offset={`${fadeEndPct}%`} stopColor={tailColor} />
             <Stop offset="100%" stopColor={tailColor} />
           </SvgGrad>

@@ -8,11 +8,13 @@ import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import AppText from '@/components/AppText';
 import AppTextInput from '@/components/AppTextInput';
 import { hs, vs, ms } from '@/utils/responsive';
-import { BLOOD_REQUESTS, BLOOD_DONOR_UNREAD_ALERTS } from '@data/index';
+import { BLOOD_REQUESTS, BLOOD_DONOR_UNREAD_ALERTS, ASK_BLOOD_COPY } from '@data/index';
 import { useAuthStore } from '@/state/authStore';
 import { useBloodDonorStore } from '@/state/bloodDonorStore';
 import type { RootStackParamList } from '@/navigation/types';
 import { BloodRequestCard } from './components/BloodRequestCard';
+import { UserBloodRequestCard } from './components/UserBloodRequestCard';
+import AskBloodSheet from './components/AskBloodSheet';
 import {
   BLOOD_RED,
   BLOOD_RED_DARK,
@@ -50,14 +52,21 @@ export function DonorDashboard() {
   const insets = useSafeAreaInsets();
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const registration = useBloodDonorStore((s) => s.registration);
+  const askRequests = useBloodDonorStore((s) => s.askRequests);
   const userName = useAuthStore((s) => s.user?.name);
 
   const [filter, setFilter] = useState<FilterId>('all');
   const [query, setQuery] = useState('');
+  const [askOpen, setAskOpen] = useState(false);
+
+  // Simulated fan-out: each "Ask Blood" post bumps the alert badge (one record
+  // per ask, per-device unread). Real per-device delivery + acknowledgement is a
+  // Go Chi backend task — see TODO on the bell.
+  const unreadCount = BLOOD_DONOR_UNREAD_ALERTS + askRequests.length;
 
   const filteredRequests = useMemo(() => {
     const q = query.trim().toLowerCase();
-    return BLOOD_REQUESTS.filter((r) => {
+    const seedMatches = BLOOD_REQUESTS.filter((r) => {
       if (filter === 'nearby') {
         // Honest "nearby" for the mock stage: the request's city vs the donor's
         // own registered preferred location (case-insensitive contains). Real
@@ -74,7 +83,20 @@ export function DonorDashboard() {
       }
       return true;
     });
-  }, [filter, query, registration]);
+
+    // User asks share the same filter semantics (field names intentionally match
+    // the seed requests). They always lead the feed.
+    const askMatches = askRequests.filter((r) => {
+      if (filter === 'urgent' && r.urgency !== 'urgent') return false;
+      if (q) {
+        const haystack = `${r.hospital} ${r.city} ${r.bloodGroup}`.toLowerCase();
+        if (!haystack.includes(q)) return false;
+      }
+      return true;
+    });
+
+    return [...askMatches, ...seedMatches];
+  }, [filter, query, registration, askRequests]);
 
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
@@ -91,15 +113,16 @@ export function DonorDashboard() {
           </View>
           <TouchableOpacity
             // TODO(bell): no notification screen/push infra yet — badge is a
-            // seed constant; wire a real alerts page before enabling this.
+            // seed constant plus one record per user "Ask Blood" post (simulated
+            // fan-out); wire a real alerts page before enabling this.
             style={styles.bellBtn}
             activeOpacity={0.8}
             accessibilityRole="button"
-            accessibilityLabel={`Notifications, ${BLOOD_DONOR_UNREAD_ALERTS} unread`}
+            accessibilityLabel={`Notifications, ${unreadCount} unread`}
           >
             <Bell size={ms(20)} color={BLOOD_TEXT} strokeWidth={2.2} />
             <View style={styles.bellBadge}>
-              <AppText style={styles.bellBadgeText}>{BLOOD_DONOR_UNREAD_ALERTS}</AppText>
+              <AppText style={styles.bellBadgeText}>{unreadCount}</AppText>
             </View>
           </TouchableOpacity>
         </View>
@@ -177,18 +200,39 @@ export function DonorDashboard() {
           </View>
         ) : (
           <View style={styles.list}>
-            {filteredRequests.map((request) => (
-              <BloodRequestCard
-                key={request.id}
-                request={request}
-                onPress={() =>
-                  navigation.navigate('BloodRequestDescription', { requestId: request.id })
-                }
-              />
-            ))}
+            {filteredRequests.map((request) => {
+              // User "Ask Blood" requests are device-local + non-navigating (no
+              // detail page yet); seed hospital requests keep the existing tap.
+              if ('postedAt' in request) {
+                return <UserBloodRequestCard key={request.id} request={request} />;
+              }
+              return (
+                <BloodRequestCard
+                  key={request.id}
+                  request={request}
+                  onPress={() =>
+                    navigation.navigate('BloodRequestDescription', { requestId: request.id })
+                  }
+                />
+              );
+            })}
           </View>
         )}
       </ScrollView>
+
+      {/* Ask Blood floating action — available on the dashboard */}
+      <TouchableOpacity
+        onPress={() => setAskOpen(true)}
+        style={[styles.fab, { bottom: insets.bottom + vs(16) }]}
+        activeOpacity={0.85}
+        accessibilityRole="button"
+        accessibilityLabel={ASK_BLOOD_COPY.fabLabel}
+      >
+        <Droplet size={ms(18)} color="#ffffff" fill="#ffffff" strokeWidth={2.2} />
+        <AppText style={styles.fabText}>{ASK_BLOOD_COPY.fabLabel}</AppText>
+      </TouchableOpacity>
+
+      <AskBloodSheet visible={askOpen} onClose={() => setAskOpen(false)} />
     </View>
   );
 }
@@ -360,6 +404,27 @@ const styles = StyleSheet.create({
   },
   list: {
     gap: vs(12),
+  },
+  fab: {
+    position: 'absolute',
+    right: hs(20),
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: hs(6),
+    backgroundColor: BLOOD_RED,
+    borderRadius: BLOOD_RADII.pill,
+    paddingHorizontal: hs(16),
+    paddingVertical: vs(12),
+    shadowColor: BLOOD_RED_DARK,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.35,
+    shadowRadius: 8,
+    elevation: 8,
+  },
+  fabText: {
+    fontSize: ms(13),
+    fontWeight: '800',
+    color: '#ffffff',
   },
   emptyCard: {
     backgroundColor: '#ffffff',

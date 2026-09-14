@@ -24,6 +24,28 @@ adb devices            # must show "<id>  device"
   ```bash
   npx expo start --clear
   ```
+- **`expo start` crashes with `ERROR ... installing React Native DevTools ... Invalid argument (22)`**
+  (a fatal zygote/dotslash crash that kills Metro before it binds :8081) → this is the known
+  standalone-fusebox-shell bug (see react-native#54906). It is fixed project-wide by a
+  `patch-package` patch that disables the standalone shell:
+  `patches/expo++@expo+cli+57.0.22.patch`. Re-apply after a clean install:
+  ```bash
+  cd client/mobile
+  npm run postinstall    # applies patches/expo++@expo+cli+57.0.22.patch
+  ```
+- **`expo start` hangs forever at "Starting Metro Bundler" (no QR, :8081 never binds)** → the
+  workspace is on an **NTFS3 mount** (`/dev/nvme0n1p5 ntfs3 /media/faizal-basha/Codespace`).
+  The kernel ntfs3 driver deadlocks when several threads `readdir` the same tree concurrently,
+  which is exactly what Metro's file-map crawl does with multiple workers. Fixed in
+  `metro.config.js` with two knobs:
+  - `config.maxWorkers = 1` — serializes the crawl (see `metro:instantiate ... workers: 1`
+    in `.expo/dev/logs/start.log`).
+  - `resolver.blockList` skips Gradle artifacts (`node_modules/*/android/build/`) that are
+    never imported but hold ~26k files.
+  Cold first build on NTFS is slow (~2 min); subsequent cached builds are fast. If a crawl was
+  interrupted, re-run with `npx expo start --clear`.
+  Long-term: hosting the repo on a native Linux filesystem (ext4) avoids the whole class of
+  ntfs3 watcher/crawl issues.
 
 ## 🔧 "Faazio isn't responding" (ANR) or silent crashes
 
@@ -158,7 +180,8 @@ If a header slides under the OS status bar (clock/battery/cutout) or the first s
 content renders behind the header, the screen is using the wrong top inset.
 
 **Convention:** always reserve top space with `useSafeAreaInsets().top` (the Home header,
-`SubAppHeader` via `subAppHeaderH(topInset, compact)`, and all `STATUS_BAR_INSET` consumers now
+`SubAppHeader` via `subAppHeaderH(topInset, compact, withRail?)`, and all `STATUS_BAR_INSET`
+consumers now
 do). **Never use `StatusBar.currentHeight`** — it is a static module constant that is `0` on iOS
 and stale on Android edge-to-edge, so it reserves no real space on iOS.
 

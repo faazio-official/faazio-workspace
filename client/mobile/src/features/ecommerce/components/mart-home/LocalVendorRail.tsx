@@ -5,8 +5,10 @@ import AppText from '@/components/AppText';
 import AppTextInput from '@/components/AppTextInput';
 import { hs, ms, vs } from '@/utils/responsive';
 import type { StoreProfile } from '@data/types';
+import type { CategoryRailItem } from '@data/categories/railFeed';
 import MartSectionHeader from './MartSectionHeader';
 import LocalVendorCard from './LocalVendorCard';
+import VendorCategoryPills from './VendorCategoryPills';
 
 interface LocalVendorRailProps {
   vendors: StoreProfile[];
@@ -20,18 +22,21 @@ const LocalVendorRail = memo(function LocalVendorRail({
   onViewAll,
 }: LocalVendorRailProps) {
   const [query, setQuery] = useState('');
+  const [activePill, setActivePill] = useState<CategoryRailItem | null>(null);
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
-    if (!q) return vendors;
     return vendors.filter(
       (v) =>
-        v.name.toLowerCase().includes(q) ||
-        v.categories.some((c) => c.toLowerCase().includes(q)) ||
-        v.desc.toLowerCase().includes(q) ||
-        (v.offerTag ?? '').toLowerCase().includes(q),
+        (q === '' ||
+          v.name.toLowerCase().includes(q) ||
+          v.categories.some((c) => c.toLowerCase().includes(q)) ||
+          v.desc.toLowerCase().includes(q) ||
+          (v.offerTag ?? '').toLowerCase().includes(q)) &&
+        (activePill === null ||
+          activePill.vendorTags.some((tag) => v.categories.includes(tag))),
     );
-  }, [vendors, query]);
+  }, [vendors, query, activePill]);
 
   return (
     <View style={styles.wrap}>
@@ -61,6 +66,9 @@ const LocalVendorRail = memo(function LocalVendorRail({
           ) : null}
         </View>
       </View>
+      <View style={styles.pillsWrap}>
+        <VendorCategoryPills active={activePill} onSelect={setActivePill} />
+      </View>
       <View style={styles.list}>
         {filtered.map((store) => (
           <LocalVendorCard
@@ -71,7 +79,7 @@ const LocalVendorRail = memo(function LocalVendorRail({
         ))}
         {filtered.length === 0 ? (
           <View style={styles.emptyWrap}>
-            <AppText style={styles.emptyText}>No vendors found for "{query}"</AppText>
+            <AppText style={styles.emptyText}>No vendors found{query ? ` for "${query}"` : ' in this category'}</AppText>
           </View>
         ) : null}
       </View>
@@ -104,6 +112,9 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.05,
     shadowRadius: 8,
     elevation: 2,
+  },
+  pillsWrap: {
+    marginBottom: vs(10),
   },
   searchInput: {
     flex: 1,

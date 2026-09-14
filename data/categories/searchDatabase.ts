@@ -63,6 +63,7 @@ export const categoriesSearchDatabase: Record<string, Product[]> = {
   'ph-beauty': [
     { id: 'cat-pb-1', app: 'PHARMA', category: 'ph-beauty', name: 'Advanced 96% Snail Mucin Essence', price: 1450, emoji: '🧴', desc: 'World famous hydrating formula for glass-like glowing skin.', rating: 4.9, image: 'https://images.unsplash.com/photo-1608248597481-496100c80836?fm=jpg&fit=crop&q=80&w=400&h=400' },
     { id: 'cat-pb-2', app: 'PHARMA', category: 'ph-beauty', name: 'AHA BHA PHA 30D Miracle Toner', price: 1150, emoji: '🧴', desc: 'Gently exfoliates dead cells and reveals natural translucent glow.', rating: 4.8, image: 'https://images.unsplash.com/photo-1556228720-195a672e8a03?fm=jpg&fit=crop&q=80&w=400&h=400' },
+    { id: 'cat-pb-3', app: 'PHARMA', category: 'ph-beauty', name: 'Snail Repair Eye Cream', price: 950, emoji: '👁️', desc: 'Brightening under-eye cream with snail mucin and peptides.', rating: 4.7, image: 'https://images.unsplash.com/photo-1596462502278-27bfdc403348?fm=jpg&fit=crop&q=80&w=400&h=400' },
   ],
   'mart-appliances': [
     { id: 'cat-ma-1', app: 'MART', category: 'mart-appliances', name: 'Smart Wi-Fi Air Purifier Pro', price: 8999, emoji: '🌪️', desc: 'True HEPA H13 filter removes 99.97% of dust and smoke.', rating: 4.9, image: 'https://images.unsplash.com/photo-1585771724684-38269d6639fd?fm=jpg&fit=crop&q=80&w=400&h=400' },

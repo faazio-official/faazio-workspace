@@ -95,4 +95,16 @@ export const exploreStacks: ExploreStack[] = [
     { id: "kp-2", name: "Birthday Cake Candle Set", price: 199, rating: "4.7", emoji: "🕯️", img: "https://images.unsplash.com/photo-1514316454349-750a7fd3da3a?fm=jpg&fit=crop&q=80&w=400&h=400", shop: "Wonderland Toys" },
     { id: "kp-3", name: "RC Toy Car Racer", price: 1499, rating: "4.9", emoji: "🏎️", img: "https://images.unsplash.com/photo-1594787318286-3d835c1d207f?fm=jpg&fit=crop&q=80&w=400&h=400", shop: "Wonderland Toys" },
   ]},
+  { id: "pharma-wellness", title: "🧴 Pharma Wellness Corner", subtitle: "Everyday health essentials for the whole family", type: "PHARMA", accent: "#065F46", items: [
+    { id: "pw-1", name: "Digital BP Monitor", price: 1299, rating: "4.8", emoji: "🩺", img: "https://img.icons8.com/3d-fluency/94/tensiometer.png", shop: "Faazio Health" },
+    { id: "pw-2", name: "Fingertip Pulse Oximeter", price: 899, rating: "4.8", emoji: "🫁", img: "https://img.icons8.com/3d-fluency/94/oximeter.png", shop: "Faazio Health" },
+    { id: "pw-3", name: "Vitamin D3 2000 IU", price: 450, rating: "4.7", emoji: "☀️", img: "https://images.unsplash.com/photo-1584017911766-d451b3d0e843?fm=jpg&fit=crop&q=80&w=400&h=400", shop: "Wellness Plus" },
+    { id: "pw-4", name: "Fish Oil Omega-3 (120)", price: 649, rating: "4.9", emoji: "🐟", img: "https://img.icons8.com/3d-fluency/94/fish-oil.png", shop: "CareFirst Meds" },
+  ]},
+  { id: "monsoon-essentials", title: "🌧️ Monsoon Home Essentials", subtitle: "Beat the rain with these smart picks", type: "MART", accent: "#1162D3", items: [
+    { id: "me-1", name: "Waterproof Rain Jacket", price: 1499, rating: "4.8", emoji: "🧥", img: "https://images.unsplash.com/photo-1520975954732-35dd22299614?fm=jpg&fit=crop&q=80&w=400&h=400", shop: "Thread Labs" },
+    { id: "me-2", name: "Non-Slip Umbrella (Auto Open)", price: 699, rating: "4.7", emoji: "☂️", img: "https://images.unsplash.com/photo-1517701550927-30cf4ba1dba5?fm=jpg&fit=crop&q=80&w=400&h=400", shop: "Vibe Apparel" },
+    { id: "me-3", name: "Instant Water Heater", price: 2499, rating: "4.8", emoji: "♨️", img: "https://images.unsplash.com/photo-1626806787461-102c1bfaaea1?fm=jpg&fit=crop&q=80&w=400&h=400", shop: "SmartHome" },
+    { id: "me-4", name: "Anti-Skid Bathroom Mat", price: 399, rating: "4.6", emoji: "🛁", img: "https://images.unsplash.com/photo-1584622650111-993a426fbf0a?fm=jpg&fit=crop&q=80&w=400&h=400", shop: "Wonderland Toys" },
+  ]},
 ];

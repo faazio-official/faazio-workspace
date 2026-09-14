@@ -11,6 +11,14 @@ import RemoteImage from './RemoteImage';
 interface SearchDishCardProps {
   dish: SpecialDish;
   onPress?: (dish: SpecialDish) => void;
+  /** Optional strikethrough "original" price shown beside the real price (offers view). */
+  oldPrice?: number;
+  /**
+   * Override for the first-add action. When supplied, the "+ ADD" button calls
+   * this instead of adding straight to the cart (used to gate the add behind
+   * the fulfilment sheet). The qty stepper (+/−) always stays direct.
+   */
+  onAdd?: (dish: SpecialDish) => void;
 }
 
 /**
@@ -23,14 +31,22 @@ const CART_EMOJI = '🍽️';
  * Search result dish card — row layout per the Dishes view spec: square
  * thumbnail left, details right (title + price, source restaurant, rating +
  * prep time) with a "+ ADD" button that flips into a quantity stepper once the
- * dish is in the cart.
+ * dish is in the cart. Renders edge-to-edge (no horizontal gutter).
  */
-const SearchDishCard = memo(function SearchDishCard({ dish, onPress }: SearchDishCardProps) {
+const SearchDishCard = memo(function SearchDishCard({ dish, onPress, oldPrice, onAdd }: SearchDishCardProps) {
   const cart = useCartStore((s) => s.cart);
   const addToCart = useCartStore((s) => s.addToCart);
   const updateQuantity = useCartStore((s) => s.updateQuantity);
 
   const quantity = cart.find((i) => i.id === dish.id)?.quantity ?? 0;
+
+  const handleAdd = () => {
+    if (onAdd) {
+      onAdd(dish);
+    } else {
+      addToCart(dish.id, dish.dishName, dish.price, CART_EMOJI);
+    }
+  };
 
   return (
     <TouchableOpacity
@@ -49,7 +65,12 @@ const SearchDishCard = memo(function SearchDishCard({ dish, onPress }: SearchDis
           <AppText style={styles.name} numberOfLines={1}>
             {dish.dishName}
           </AppText>
-          <AppText style={styles.price}>₹{dish.price.toLocaleString('en-IN')}</AppText>
+          <View style={styles.priceCol}>
+            {oldPrice !== undefined ? (
+              <AppText style={styles.oldPrice}>₹{oldPrice.toLocaleString('en-IN')}</AppText>
+            ) : null}
+            <AppText style={styles.price}>₹{dish.price.toLocaleString('en-IN')}</AppText>
+          </View>
         </View>
 
         <AppText style={styles.restaurant} numberOfLines={1}>
@@ -94,7 +115,7 @@ const SearchDishCard = memo(function SearchDishCard({ dish, onPress }: SearchDis
             </View>
           ) : (
             <TouchableOpacity
-              onPress={() => addToCart(dish.id, dish.dishName, dish.price, CART_EMOJI)}
+              onPress={handleAdd}
               style={styles.addBtn}
               activeOpacity={0.8}
               hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
@@ -120,7 +141,7 @@ const styles = StyleSheet.create({
     borderRadius: ms(16),
     borderWidth: 1,
     borderColor: '#F0F0F0',
-    marginHorizontal: hs(16),
+    marginHorizontal: 0,
     marginBottom: vs(12),
   },
   imageWrap: {
@@ -156,6 +177,16 @@ const styles = StyleSheet.create({
     fontSize: ms(16),
     fontWeight: '800',
     color: foodTheme.textPrimary,
+  },
+  priceCol: {
+    alignItems: 'flex-end',
+    gap: vs(1),
+  },
+  oldPrice: {
+    fontSize: ms(11),
+    fontWeight: '600',
+    color: '#999999',
+    textDecorationLine: 'line-through',
   },
   restaurant: {
     fontSize: ms(11.5),

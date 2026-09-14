@@ -58,7 +58,9 @@ server/
 - **CDN & WAF:** Cloudflare in front (DDoS protection + image caching); backend firewall
   accepts traffic only from Cloudflare's IP ranges (AGENTS.md security posture).
 - **Events:** Google Cloud Pub/Sub (or serverless Kafka) for order → stock/email/recommend.
-- **Cache:** Upstash Redis (read-through for search/banners).
+- **Cache:** Aiven Valkey (read-through for search/banners). *Decision note: replaces the earlier
+  "Upstash Redis" plan — see `docs/architecture/caching-cloudflare-valkey.md`. DB schemas: see
+  `docs/architecture/db-schema.md`.*
 - **Observability:** OpenTelemetry + Grafana Cloud.
 
 ## Fail-safe contract

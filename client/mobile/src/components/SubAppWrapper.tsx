@@ -27,6 +27,8 @@ import { PharmaScreen } from '../features/pharma/PharmaScreen';
 import AppText from '@/components/AppText';
 import SubAppHeader from './shared/SubAppHeader';
 import { subAppHeaderH } from './shared/SubAppHeader';
+import HeaderCategoryRail from '@/components/shared/HeaderCategoryRail';
+import type { CategoryRailItem } from '@data/categories/railFeed';
 import { brandTokens } from '@/theme/brandTokens';
 import type { AppBrand, StoreProfile } from '@data/types';
 import { martStores } from '@data/mart/stores';
@@ -63,7 +65,6 @@ export default function SubAppWrapper({
 }: SubAppWrapperProps) {
   const [activeTab, setActiveTab] = useState<string>('Home');
   const [searchQuery, setSearchQuery] = useState('');
-  const [pharmaOnCategory, setPharmaOnCategory] = useState<boolean>(false);
   const [martVendor, setMartVendor] = useState<StoreProfile | null>(() =>
     subAppId === 'FA_MART' && initialVendorStoreId
       ? martStores.find((s) => s.id === initialVendorStoreId) ?? null
@@ -88,13 +89,12 @@ export default function SubAppWrapper({
       setMartVendor(null);
       return;
     }
-    if (pharmaOnCategory || activeTab !== 'Home') {
-      setPharmaOnCategory(false);
+    if (activeTab !== 'Home') {
       setActiveTab('Home');
       return;
     }
     onExit();
-  }, [activeTab, pharmaOnCategory, martVendor, onExit]);
+  }, [activeTab, martVendor, onExit]);
 
   useFocusEffect(
     useCallback(() => {
@@ -115,7 +115,6 @@ export default function SubAppWrapper({
         textColor: '#1162D3',
         tabs: [
           { name: 'Home', icon: Home },
-          { name: 'Categories', icon: LayoutGrid },
           { name: 'Search', icon: Search },
           { name: 'You', icon: User },
           { name: 'Cart', icon: ShoppingBag },
@@ -154,16 +153,24 @@ export default function SubAppWrapper({
   const tabCount = config.tabs.length;
   const adaptiveTabWidth = (SCREEN_W - hs(48)) / tabCount;
 
-  const hasAddressBar = subAppId === 'FA_MART' || subAppId === 'PHARMA';
+  const compactHeader = subAppId === 'FA_MART' || subAppId === 'PHARMA';
 
-  // Category pages drop the app header (only the panel's [back] All Categories
-  // header remains). Mart opens the common Master Categories route (a pushed
-  // page with its own header). Pharma keeps its internal All Categories view,
-  // reported via onCategoryViewChange. Mart hides its app chrome while a
-  // vendor profile drill-in is open (martVendor != null).
-  const isChromeHidden =
-    (subAppId === 'PHARMA' && pharmaOnCategory) ||
-    (subAppId === 'FA_MART' && martVendor !== null);
+  // The pinned Mart category rail below the searchbar opens the category drill-in
+  // page for the tapped main category (same behaviour as the Home hub header's rail).
+  const handleRailCategoryPress = useCallback(
+    (item: CategoryRailItem) => {
+      navigation.navigate('CategoryDrillIn', {
+        tabId: item.id,
+        title: item.name,
+        app: 'FA_MART',
+      });
+    },
+    [navigation],
+  );
+
+  // Mart hides its app chrome while a vendor profile drill-in is open
+  // (martVendor != null).
+  const isChromeHidden = subAppId === 'FA_MART' && martVendor !== null;
 
   // Registered-donor dashboard (Pharma Donor tab) renders in-wrapper WITH the
   // pharma bottom navbar but its own "Hi, …" header — so header hiding is
@@ -199,7 +206,6 @@ export default function SubAppWrapper({
           activeTab={activeTab}
           setActiveTab={setActiveTab}
           searchQuery={searchQuery}
-          onCategoryViewChange={setPharmaOnCategory}
         />
       );
     }
@@ -214,6 +220,13 @@ export default function SubAppWrapper({
               searchQuery={searchQuery}
               vendor={martVendor}
               onVendorPress={setMartVendor}
+              onViewAllDiscounts={(vendor) =>
+                navigation.navigate('DealsLanding', {
+                  mode: 'discounts',
+                  storeId: vendor.id,
+                  app: 'FA_MART',
+                })
+              }
             />
           );
         }
@@ -282,10 +295,14 @@ export default function SubAppWrapper({
           onSearchChange={setSearchQuery}
           searchPlaceholder={searchPlaceholder}
           inputRef={searchInputRef}
-          hideBrandRow={hasAddressBar}
-          addressLabel={hasAddressBar ? 'Anna Nagar, Chennai' : undefined}
-          addressSubLabel={hasAddressBar ? 'Delivering to Home' : undefined}
-          onAddressPress={hasAddressBar ? () => {} : undefined}
+          hideBrandRow={compactHeader}
+          belowSearchSlot={
+            subAppId === 'FA_MART' ? (
+              <HeaderCategoryRail
+                onCategoryPress={handleRailCategoryPress}
+              />
+            ) : undefined
+          }
         />
       )}
 
@@ -295,7 +312,7 @@ export default function SubAppWrapper({
           {
             paddingTop: hideAppHeader
               ? 0
-              : subAppHeaderH(insets.top, hasAddressBar),
+              : subAppHeaderH(insets.top, compactHeader, subAppId === 'FA_MART'),
             paddingBottom: isChromeHidden ? 0 : vs(72),
           },
         ]}
@@ -327,10 +344,7 @@ export default function SubAppWrapper({
                     navigation.navigate('BloodDonor');
                   }
                 }
-                else if (subAppId === 'FA_MART' && tab.name === 'Categories') {
-                  navigation.navigate('MasterCategories', { initialChip: 'FA_MART' });
-                } else setActiveTab(tab.name);
-              }}
+                else setActiveTab(tab.name);              }}
               style={[styles.tabItem, tabCount > 4 && { width: adaptiveTabWidth }]}
               activeOpacity={0.8}
             >

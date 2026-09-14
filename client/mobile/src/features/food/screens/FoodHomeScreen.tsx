@@ -1,25 +1,27 @@
-import React, { useCallback, useState } from 'react';
+import React, { useCallback, useState, type ReactNode } from 'react';
 import { View, StyleSheet, type NativeSyntheticEvent, type NativeScrollEvent } from 'react-native';
-import { FlashList } from '@shopify/flash-list';
+import Animated, { FadeIn, FadeInDown } from 'react-native-reanimated';
 import { useSharedValue } from 'react-native-reanimated';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import { vs } from '@/utils/responsive';
+import { hs, vs } from '@/utils/responsive';
 import { foodTheme } from '../constants/theme';
 import { useDiningFeed } from '../hooks/useDiningFeed';
 import type { FoodStackParamList, RootStackParamList } from '@/navigation/types';
-import type { NearbyRestaurant, QuickCategory, FoodType } from '../mocks/homeFeed';
-import type { DiningRestaurant } from '../mocks/types';
-import { restaurantToProduct, nearbyToRestaurant } from '../mocks/types';
+import type { DiningRestaurant, SpecialDish } from '../mocks/types';
+import type { FoodType } from '../mocks/homeFeed';
+import { SNACKS_BEVERAGES } from '../mocks/homeFeed';
+import { dishToProduct } from '../mocks/specials';
 import { useFoodFilterStore } from '@/state/foodFilterStore';
-import { venueMatches } from '../utils/dietFilter';
-import FoodHeader from '../components/FoodHeader';
-import HeroCardPair from '../components/HeroCardPair';
+import { venueMatches, dishMatches } from '../utils/dietFilter';
+import DiningHeader from '../components/DiningHeader';
+import SectionHeader from '../components/SectionHeader';
+import TopRestaurantCarousel from '../components/TopRestaurantCarousel';
+import FeaturedDishCarousel from '../components/FeaturedDishCarousel';
 import FoodSectionHeader from '../components/FoodSectionHeader';
-import CategoryRail from '../components/CategoryRail';
-import PopularSpotRail from '../components/PopularSpotRail';
-import TopFoodRail from '../components/TopFoodRail';
-import NearbyRestaurantRow from '../components/NearbyRestaurantRow';
+import MindGridRail from '../components/MindGridRail';
+import SnacksRail from '../components/SnacksRail';
+import RestaurantGrid from '../components/RestaurantGrid';
 import DietEmptyNote from '../components/DietEmptyNote';
 import FoodBottomNav, { type FoodTab } from '../components/FoodBottomNav';
 import LoadingSkeleton from '../components/LoadingSkeleton';
@@ -28,19 +30,16 @@ import FoodStatusBarStrip from '../components/FoodStatusBarStrip';
 type Props = NativeStackScreenProps<FoodStackParamList, 'FoodHome'>;
 
 /**
- * New Food sub-app home — the 7-section spec:
- * 1. Location header   2. Hero cards (Dining / Order Food)
- * 3. Quick categories  4. Popular dining spots  5. Top food to order
- * 6. Restaurants nearby (vertical)  7. Bottom nav.
- * The first five sections render as the vertical list header; nearby rows are
- * the list body — no nested virtualized lists.
+ * Dining-first Food sub-app home. Single scroll surface: the pre-grid sections
+ * (DiningHeader, Top Rated carousel, Today's Special, "What's on your mind?",
+ * "Snacks & Beverages") render as the RestaurantGrid's list header, and the
+ * "Restaurants For Dining" grid is the body — no nested vertical lists.
  */
 export function FoodHomeScreen({ navigation }: Props) {
   const feed = useDiningFeed();
   const [activeTab, setActiveTab] = useState<FoodTab>('Home');
   const scrollY = useSharedValue(0);
   const dietFilter = useFoodFilterStore((s) => s.dietFilter);
-  const nearby = feed?.nearby.filter((r) => venueMatches(dietFilter, r)) ?? [];
 
   const onScroll = useCallback(
     (e: NativeSyntheticEvent<NativeScrollEvent>) => {
@@ -49,59 +48,30 @@ export function FoodHomeScreen({ navigation }: Props) {
     [scrollY],
   );
 
-  const openDining = useCallback(() => navigation.navigate('DiningDetail'), [navigation]);
-  const openDiningNearby = useCallback(
-    () => navigation.navigate('DiningDetail', { scrollToGrid: true }),
+  const openRestaurant = useCallback(
+    (restaurant: DiningRestaurant) => navigation.navigate('RestaurantProfile', { restaurant }),
     [navigation],
   );
-  const openOrder = useCallback(() => navigation.navigate('OrderDetail'), [navigation]);
 
-  const openNearbyProfile = useCallback(
-    (restaurant: NearbyRestaurant) => {
-      navigation.navigate('RestaurantProfile', { restaurant: nearbyToRestaurant(restaurant) });
+  const openDishProduct = useCallback(
+    (dish: SpecialDish) => {
+      navigation
+        .getParent<NativeStackNavigationProp<RootStackParamList>>()
+        ?.navigate('ProductDetail', { product: dishToProduct(dish) });
     },
     [navigation],
   );
 
-  const openProduct = useCallback(
-    (product: any) => {
-      navigation.getParent<NativeStackNavigationProp<RootStackParamList>>()?.navigate('ProductDetail', { product });
-    },
+  const openSearch = useCallback(
+    (query?: string) => navigation.navigate('Search', query ? { initialQuery: query } : undefined),
     [navigation],
   );
 
-  const openSpotProduct = useCallback(
-    (spot: DiningRestaurant) => openProduct(restaurantToProduct(spot)),
-    [openProduct],
-  );
-
-  const openCategorySearch = useCallback(
-    (category: QuickCategory) => navigation.navigate('Search', { initialQuery: category.searchQuery }),
-    [navigation],
-  );
-
-  const openPopularSeeAll = useCallback(
-    () => navigation.navigate('Search', { initialQuery: 'Popular Dining Spots' }),
-    [navigation],
-  );
-
-  const openTopFoodSearch = useCallback(
-    (food: FoodType) => navigation.navigate('Search', { initialQuery: food.name, initialMode: 'dishes' }),
-    [navigation],
-  );
-
-  const openTopFoodSeeAll = useCallback(
-    () => navigation.navigate('Search', { initialQuery: 'Top Food To Order', initialMode: 'dishes' }),
-    [navigation],
-  );
+  const openMindSearch = useCallback((item: FoodType) => openSearch(item.name), [openSearch]);
 
   const handleTabChange = useCallback(
     (tab: FoodTab) => {
-      if (tab === 'Dining') {
-        navigation.navigate('DiningDetail');
-      } else if (tab === 'FoodOrder') {
-        navigation.navigate('OrderDetail');
-      } else if (tab === 'Search') {
+      if (tab === 'Search') {
         navigation.navigate('Search');
       } else {
         setActiveTab(tab);
@@ -120,62 +90,75 @@ export function FoodHomeScreen({ navigation }: Props) {
 
   const goBack = useCallback(() => navigation.goBack(), [navigation]);
 
-  const renderNearby = useCallback(
-    ({ item }: { item: NearbyRestaurant }) => (
-      <NearbyRestaurantRow restaurant={item} onPress={openNearbyProfile} />
-    ),
-    [openNearbyProfile],
-  );
-
-  const listHeader = useCallback(() => {
+  const renderTopSections = useCallback((): ReactNode => {
     if (!feed) return null;
-    const popular = feed.popularSpots.filter((s) => venueMatches(dietFilter, s));
-    const topFoods = feed.topFoods.filter((f) => venueMatches(dietFilter, f));
+    const topRated = feed.topRated.filter((r) => venueMatches(dietFilter, r));
+    const specials = feed.specials.filter((d) => dishMatches(dietFilter, d));
+    const mind = feed.topFoods.filter((f) => venueMatches(dietFilter, f));
+    const snacks = SNACKS_BEVERAGES.filter((s) => dishMatches(dietFilter, s));
     return (
-      <View>
-        <FoodHeader onBack={goBack} />
-        <HeroCardPair onDiningPress={openDining} onOrderFoodPress={openOrder} />
-        <CategoryRail categories={feed.categories} onPress={openCategorySearch} />
-        <FoodSectionHeader title="Popular Dining Spots" onSeeAll={openPopularSeeAll} />
-        {popular.length > 0 ? (
-          <PopularSpotRail spots={popular} onPress={openSpotProduct} />
-        ) : (
-          <DietEmptyNote />
-        )}
-        <FoodSectionHeader title="Top Food To Order" onSeeAll={openTopFoodSeeAll} />
-        {topFoods.length > 0 ? (
-          <TopFoodRail foods={topFoods} onPress={openTopFoodSearch} />
-        ) : (
-          <DietEmptyNote />
-        )}
-        <FoodSectionHeader title="Restaurants Nearby" onSeeAll={openDiningNearby} />
-        {nearby.length === 0 ? <DietEmptyNote /> : null}
-      </View>
+      <>
+        <Animated.View entering={FadeIn.duration(260)}>
+          <DiningHeader onBack={goBack} />
+        </Animated.View>
+        <Animated.View entering={FadeInDown.duration(320)}>
+          <View style={styles.sectionHeaderWrap}>
+            <SectionHeader title="Top Rated Restaurants" onSeeAll={() => undefined} />
+          </View>
+          {topRated.length > 0 ? (
+            <TopRestaurantCarousel restaurants={topRated} onPress={openRestaurant} />
+          ) : (
+            <DietEmptyNote />
+          )}
+        </Animated.View>
+        <Animated.View entering={FadeInDown.duration(360)}>
+          <View style={styles.sectionHeaderWrap}>
+            <SectionHeader title="Today's Special Near You" onSeeAll={() => undefined} />
+          </View>
+          {specials.length > 0 ? (
+            <FeaturedDishCarousel dishes={specials} onPress={openDishProduct} />
+          ) : (
+            <DietEmptyNote />
+          )}
+        </Animated.View>
+        <Animated.View entering={FadeInDown.duration(380)}>
+          <FoodSectionHeader title="What's on your mind?" onSeeAll={openSearch} />
+          {mind.length > 0 ? (
+            <MindGridRail items={mind} onPress={openMindSearch} />
+          ) : (
+            <DietEmptyNote />
+          )}
+        </Animated.View>
+        <Animated.View entering={FadeInDown.duration(400)}>
+          <FoodSectionHeader title="Snacks & Beverages" onSeeAll={openSearch} />
+          {snacks.length > 0 ? (
+            <SnacksRail snacks={snacks} />
+          ) : (
+            <DietEmptyNote />
+          )}
+        </Animated.View>
+      </>
     );
-  }, [feed, dietFilter, openDining, openOrder, openCategorySearch, openPopularSeeAll, openTopFoodSearch, openTopFoodSeeAll, openDiningNearby, openSpotProduct, goBack]);
+  }, [feed, dietFilter, openRestaurant, openDishProduct, openSearch, openMindSearch, goBack]);
 
   if (!feed) {
     return (
       <View style={styles.container}>
-        <FoodHeader onBack={goBack} />
         <LoadingSkeleton />
         <FoodBottomNav activeTab={activeTab} onChange={handleTabChange} onCartPress={openCart} onYouPress={openYou} />
       </View>
     );
   }
 
+  const dining = feed.dining.filter((r) => venueMatches(dietFilter, r));
+
   return (
     <View style={styles.container}>
-      <FlashList
-        data={nearby}
-        keyExtractor={(item) => item.id}
-        renderItem={renderNearby}
-        ListHeaderComponent={listHeader}
-        showsVerticalScrollIndicator={false}
-        contentContainerStyle={styles.listContent}
+      <RestaurantGrid
+        restaurants={dining}
+        header={renderTopSections()}
+        onPress={openRestaurant}
         onScroll={onScroll}
-        scrollEventThrottle={16}
-        bounces={false}
       />
       <FoodStatusBarStrip scrollY={scrollY} />
       <FoodBottomNav activeTab={activeTab} onChange={handleTabChange} onCartPress={openCart} onYouPress={openYou} />
@@ -183,12 +166,16 @@ export function FoodHomeScreen({ navigation }: Props) {
   );
 }
 
+export default FoodHomeScreen;
+
 const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: foodTheme.background,
   },
-  listContent: {
-    paddingBottom: vs(96),
+  sectionHeaderWrap: {
+    paddingHorizontal: hs(16),
+    marginBottom: vs(10),
+    marginTop: vs(16),
   },
 });

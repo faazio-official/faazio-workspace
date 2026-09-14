@@ -10,6 +10,7 @@ import {
 } from 'react-native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useSharedValue } from 'react-native-reanimated';
 import {
   ArrowLeft,
@@ -27,6 +28,7 @@ import {
 } from 'lucide-react-native';
 import { hs, vs, ms } from '@/utils/responsive';
 import AppText from '@/components/AppText';
+import AdLabelBadge from '@/components/shared/AdLabelBadge';
 import RemoteImage from '../components/RemoteImage';
 import FoodStatusBarStrip from '../components/FoodStatusBarStrip';
 import { foodTheme } from '../constants/theme';
@@ -34,19 +36,24 @@ import type { FoodStackParamList, RootStackParamList } from '@/navigation/types'
 import type { DiningRestaurant } from '../mocks/types';
 import type { SpecialDish } from '@data/types';
 import { TODAYS_SPECIALS } from '@data/food/specials';
+import { restaurantMenus } from '@data/food/menus';
 import { useCartStore } from '@/state/cartStore';
 import { useFoodFilterStore } from '@/state/foodFilterStore';
 import { dishMatches } from '../utils/dietFilter';
+import FoodAddModeSheet, { type FoodAddMode } from '../components/FoodAddModeSheet';
 
 type Props = NativeStackScreenProps<FoodStackParamList, 'RestaurantProfile'>;
 
 const GREEN = '#16A34A';
 const RED = '#DC2626';
 
-/** Build the restaurant's menu from the shared specials catalog, matching dishes
- *  to the restaurant's cuisines and padding with the remaining dishes so every
- *  restaurant has a full menu. */
+/** Build the restaurant's menu from its per-restaurant menu first (so each dining
+ *  room shows its own dishes), falling back to matching the shared specials
+ *  catalog by cuisine and padding with the remaining dishes so every restaurant
+ *  has a full menu. */
 function getMenuForRestaurant(restaurant: DiningRestaurant): SpecialDish[] {
+  const own = restaurantMenus[restaurant.name];
+  if (own && own.length > 0) return own;
   const cuisines = restaurant.cuisines.map((c) => c.toLowerCase());
   const matched = TODAYS_SPECIALS.filter((d) =>
     cuisines.some((c) => (d.cuisine ?? '').toLowerCase().includes(c) || c.includes((d.cuisine ?? '').toLowerCase())),
@@ -55,15 +62,18 @@ function getMenuForRestaurant(restaurant: DiningRestaurant): SpecialDish[] {
   return [...matched, ...rest];
 }
 
-/** Dishes whose original catalog price exceeds a notional sale price (offers rail). */
-function getOffers(menu: SpecialDish[]): SpecialDish[] {
-  return menu.filter((d, i) => i % 3 === 0).slice(0, 6);
+/** All dishes in the restaurant's menu that belong to the current restaurant —
+ *  the only content the "Recommended & Offers" rail / page should show. */
+function getOwnDishes(menu: SpecialDish[], restaurantName: string): SpecialDish[] {
+  return menu.filter((d) => d.restaurant === restaurantName);
 }
 
 export function RestaurantProfileScreen({ navigation, route }: Props) {
   const restaurant = route.params?.restaurant as DiningRestaurant;
+  const insets = useSafeAreaInsets();
   const [activeCategory, setActiveCategory] = useState('Bestsellers');
   const [searchQuery, setSearchQuery] = useState('');
+  const [pendingDish, setPendingDish] = useState<SpecialDish | null>(null);
 
   const dietFilter = useFoodFilterStore((s) => s.dietFilter);
 
@@ -84,7 +94,10 @@ export function RestaurantProfileScreen({ navigation, route }: Props) {
     () => getMenuForRestaurant(restaurant).filter((d) => dishMatches(dietFilter, d)),
     [restaurant, dietFilter],
   );
-  const offers = useMemo(() => getOffers(menu), [menu]);
+  const restaurantDishes = useMemo(
+    () => getOwnDishes(menu, restaurant.name),
+    [menu, restaurant],
+  );
 
   const categories = useMemo(
     () => ['Bestsellers', ...restaurant.cuisines],
@@ -116,11 +129,18 @@ export function RestaurantProfileScreen({ navigation, route }: Props) {
     navigation.getParent<NativeStackNavigationProp<RootStackParamList>>()?.navigate('Cart');
   }, [navigation]);
 
-  const handleAdd = useCallback(
-    (dish: SpecialDish) => {
-      addToCart(dish.id, dish.dishName, dish.price, '🍽️');
+  const handleAdd = useCallback((dish: SpecialDish) => {
+    setPendingDish(dish);
+  }, []);
+
+  const handleConfirmAdd = useCallback(
+    (mode: FoodAddMode) => {
+      if (pendingDish) {
+        addToCart(pendingDish.id, pendingDish.dishName, pendingDish.price, '🍽️', { fulfilment: mode });
+      }
+      setPendingDish(null);
     },
-    [addToCart],
+    [pendingDish, addToCart],
   );
 
   const dishQuantity = useCallback(
@@ -140,28 +160,6 @@ export function RestaurantProfileScreen({ navigation, route }: Props) {
         <View style={styles.heroContainer}>
           <RemoteImage uri={restaurant.image} variant="restaurant" style={styles.heroImage} />
           <View style={styles.heroOverlay} />
-
-          <View style={styles.header}>
-            <TouchableOpacity
-              style={styles.headerIconBg}
-              onPress={() => navigation.goBack()}
-              accessibilityRole="button"
-              accessibilityLabel="Back"
-            >
-              <ArrowLeft color="#fff" size={ms(20)} />
-            </TouchableOpacity>
-            <View style={styles.headerActions}>
-              <TouchableOpacity style={styles.headerIconBg} accessibilityRole="button">
-                <Search color="#fff" size={ms(20)} />
-              </TouchableOpacity>
-              <TouchableOpacity style={styles.headerIconBg} accessibilityRole="button">
-                <Share2 color="#fff" size={ms(20)} />
-              </TouchableOpacity>
-              <TouchableOpacity style={styles.headerIconBg} accessibilityRole="button">
-                <MoreVertical color="#fff" size={ms(20)} />
-              </TouchableOpacity>
-            </View>
-          </View>
         </View>
 
         {/* OVERLAPPING WHITE BOARD */}
@@ -237,7 +235,10 @@ export function RestaurantProfileScreen({ navigation, route }: Props) {
           {/* RECOMMENDED & OFFERS */}
           <View style={styles.sectionHeader}>
             <AppText style={styles.sectionTitle}>Recommended & Offers</AppText>
-            <TouchableOpacity accessibilityRole="button">
+            <TouchableOpacity
+              onPress={() => navigation.navigate('RestaurantOffers', { restaurant, offers: restaurantDishes })}
+              accessibilityRole="button"
+            >
               <AppText style={styles.seeAllText}>View All {'>'}</AppText>
             </TouchableOpacity>
           </View>
@@ -247,13 +248,15 @@ export function RestaurantProfileScreen({ navigation, route }: Props) {
             horizontal
             showsHorizontalScrollIndicator={false}
           >
-            {offers.map((item) => (
+            {restaurantDishes.map((item) => (
               <View key={item.id} style={styles.discountCard}>
-                <View style={styles.discountTag}>
-                  <AppText style={styles.discountTagText}>{'SPECIAL'}</AppText>
+                <View style={styles.discountImageWrap}>
+                  <RemoteImage uri={item.image} variant="dish" style={styles.discountImage} />
+                  <View style={styles.adLabelWrap}>
+                    <AdLabelBadge />
+                  </View>
                 </View>
-                <RemoteImage uri={item.image} variant="dish" style={styles.discountImage} />
-                <AppText numberOfLines={1} style={styles.productName}>
+                <AppText numberOfLines={3} style={styles.productName}>
                   {item.dishName}
                 </AppText>
                 <View style={styles.priceRowHoriz}>
@@ -261,13 +264,6 @@ export function RestaurantProfileScreen({ navigation, route }: Props) {
                     <AppText style={styles.oldPrice}>₹{Math.round(item.price * 1.2)}</AppText>
                     <AppText style={styles.newPrice}>₹{item.price}</AppText>
                   </View>
-                  <TouchableOpacity
-                    style={styles.addBtnSmall}
-                    onPress={() => handleAdd(item)}
-                    accessibilityRole="button"
-                  >
-                    <Plus color="#fff" size={ms(16)} />
-                  </TouchableOpacity>
                 </View>
               </View>
             ))}
@@ -319,21 +315,6 @@ export function RestaurantProfileScreen({ navigation, route }: Props) {
               return (
                 <View key={item.id} style={styles.listCard}>
                   <View style={styles.listDetails}>
-                    <View style={styles.vegIconContainer}>
-                      <View
-                        style={[
-                          styles.vegSquare,
-                          { borderColor: item.isVeg ? GREEN : RED },
-                        ]}
-                      >
-                        <View
-                          style={[
-                            styles.vegDot,
-                            { backgroundColor: item.isVeg ? GREEN : RED },
-                          ]}
-                        />
-                      </View>
-                    </View>
                     <AppText style={styles.listTitle}>{item.dishName}</AppText>
                     <AppText numberOfLines={2} style={styles.listDesc}>
                       {item.description}
@@ -372,6 +353,29 @@ export function RestaurantProfileScreen({ navigation, route }: Props) {
         </View>
       </ScrollView>
 
+      {/* PINNED TOP TOOLBAR — overlays hero + scrolled content */}
+      <View style={[styles.header, { paddingTop: insets.top + vs(8) }]}>
+        <TouchableOpacity
+          style={styles.headerIconBg}
+          onPress={() => navigation.goBack()}
+          accessibilityRole="button"
+          accessibilityLabel="Back"
+        >
+          <ArrowLeft color="#fff" size={ms(20)} />
+        </TouchableOpacity>
+        <View style={styles.headerActions}>
+          <TouchableOpacity style={styles.headerIconBg} accessibilityRole="button">
+            <Search color="#fff" size={ms(20)} />
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.headerIconBg} accessibilityRole="button">
+            <Share2 color="#fff" size={ms(20)} />
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.headerIconBg} accessibilityRole="button">
+            <MoreVertical color="#fff" size={ms(20)} />
+          </TouchableOpacity>
+        </View>
+      </View>
+
       {/* STICKY CART FOOTER */}
       {cartCount > 0 && (
         <View style={styles.stickyFooterWrapper}>
@@ -403,6 +407,13 @@ export function RestaurantProfileScreen({ navigation, route }: Props) {
       )}
 
       <FoodStatusBarStrip scrollY={scrollY} />
+
+      <FoodAddModeSheet
+        visible={!!pendingDish}
+        itemName={pendingDish?.dishName}
+        onClose={() => setPendingDish(null)}
+        onConfirm={handleConfirmAdd}
+      />
     </View>
   );
 }
@@ -422,9 +433,10 @@ const styles = StyleSheet.create({
   },
   header: {
     position: 'absolute',
-    top: vs(44),
+    top: 0,
     left: 0,
     right: 0,
+    zIndex: 10,
     flexDirection: 'row',
     justifyContent: 'space-between',
     paddingHorizontal: hs(16),
@@ -527,19 +539,15 @@ const styles = StyleSheet.create({
   seeAllText: { fontSize: ms(13), color: foodTheme.primary, fontWeight: '600' },
   discountScroll: { paddingLeft: hs(16), paddingRight: hs(8) },
   discountCard: { width: 140, marginRight: 16 },
-  discountTag: {
-    position: 'absolute',
-    top: 8,
-    left: 8,
-    backgroundColor: '#FEE2E2',
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: 12,
-    zIndex: 1,
+  discountImageWrap: { position: 'relative', marginBottom: 8 },
+  discountImage: { width: '100%', aspectRatio: 1, borderRadius: 16 },
+  adLabelWrap: { position: 'absolute', bottom: vs(4), right: hs(4) },
+  productName: {
+    fontSize: ms(13),
+    color: foodTheme.textPrimary,
+    fontWeight: '600',
+    lineHeight: 18,
   },
-  discountTagText: { color: RED, fontSize: ms(10), fontWeight: 'bold' },
-  discountImage: { width: '100%', height: ms(96), borderRadius: 16, marginBottom: 8 },
-  productName: { fontSize: ms(13), color: foodTheme.textPrimary, fontWeight: '600' },
   priceRowHoriz: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -554,13 +562,12 @@ const styles = StyleSheet.create({
     marginRight: 4,
   },
   newPrice: { fontSize: ms(14), fontWeight: 'bold', color: RED },
-  addBtnSmall: { backgroundColor: foodTheme.primary, borderRadius: 20, padding: 4 },
   menuHeaderContainer: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
     paddingHorizontal: hs(16),
-    marginTop: vs(12),
+    marginTop: vs(28),
     marginBottom: 12,
   },
   menuSearchBox: {
@@ -605,16 +612,6 @@ const styles = StyleSheet.create({
     paddingBottom: 24,
   },
   listDetails: { flex: 1, paddingRight: 16 },
-  vegIconContainer: { marginBottom: 6 },
-  vegSquare: {
-    width: 14,
-    height: 14,
-    borderWidth: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    borderRadius: 2,
-  },
-  vegDot: { width: 6, height: 6, borderRadius: 3 },
   listTitle: { fontSize: ms(16), fontWeight: 'bold', color: foodTheme.textPrimary, marginBottom: 4 },
   listDesc: { fontSize: ms(13), color: foodTheme.textSecondary, lineHeight: 18, marginBottom: 8 },
   listPrice: { fontSize: ms(15), fontWeight: 'bold', color: foodTheme.textPrimary },

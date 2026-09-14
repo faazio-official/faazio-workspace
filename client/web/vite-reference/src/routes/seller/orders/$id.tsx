@@ -1,0 +1,116 @@
+// 'use client'
+import { createFileRoute, Link } from "@tanstack/react-router";
+import { toast } from "sonner";
+import { PageHeader } from "@/components/patterns/PageHeader";
+import { SectionCard } from "@/components/patterns/SectionCard";
+import { EmptyState } from "@/components/patterns/DataState";
+import { StatusPill } from "@/components/patterns/Pills";
+import { Button } from "@/components/ui/button";
+import { pageMeta } from "@/lib/seo";
+import { formatDateTime, formatINR } from "@/lib/format";
+import { advanceOrder } from "@/lib/api";
+import { useOrder } from "@/lib/api/hooks";
+import type { OrderStatus } from "@/data/types";
+
+export const Route = createFileRoute("/seller/orders/$id")({
+  head: () => pageMeta("Order detail", "Items, redacted address, status timeline and SLA countdown."),
+  component: OrderDetail,
+});
+
+const FLOW: OrderStatus[] = ["NEW", "PACKED", "SHIPPED", "DELIVERED"];
+
+function OrderDetail() {
+  const { id } = Route.useParams();
+  const order = useOrder(id);
+
+  if (!order) {
+    return (
+      <SectionCard>
+        <EmptyState
+          title="Order not found"
+          description="This order id is not in your workspace."
+          action={
+            <Button asChild size="sm">
+              <Link to="/seller/orders">Back to orders</Link>
+            </Button>
+          }
+        />
+      </SectionCard>
+    );
+  }
+
+  const currentIndex = FLOW.indexOf(order.status);
+  const next = currentIndex >= 0 ? FLOW[currentIndex + 1] : undefined;
+  const hoursLeft = (new Date(order.slaDueAt).getTime() - Date.now()) / 3600000;
+
+  return (
+    <div className="space-y-4">
+      <PageHeader
+        title={order.orderId}
+        description={`${order.customerName} · ${order.city}, ${order.stateCode}`}
+        actions={
+          <>
+            <StatusPill status={order.status} />
+            {next ? (
+              <Button
+                size="sm"
+                onClick={() => {
+                  advanceOrder(order.orderId, next);
+                  toast.success(`Moved to ${next}`);
+                }}
+              >
+                Mark {next.toLowerCase()}
+              </Button>
+            ) : null}
+          </>
+        }
+      />
+
+      <div className="grid gap-4 lg:grid-cols-3">
+        <SectionCard title="Summary" className="lg:col-span-2">
+          <dl className="grid gap-3 text-[13px] md:grid-cols-2">
+            <Row label="Order value" value={formatINR(order.amountPaisa)} />
+            <Row label="Items" value={`${order.itemsCount}`} />
+            <Row label="Sector" value={order.sector} />
+            <Row label="Placed" value={formatDateTime(order.placedAt)} />
+            <Row label="SLA due" value={formatDateTime(order.slaDueAt)} />
+            <Row
+              label="SLA countdown"
+              value={hoursLeft > 0 ? `${hoursLeft.toFixed(1)} h left` : `${Math.abs(hoursLeft).toFixed(1)} h overdue`}
+            />
+            <Row label="Delivery address" value="Flat •••, ••• Road, ••• (revealed on dispatch)" />
+            <Row label="Store" value={order.storeId} />
+          </dl>
+        </SectionCard>
+
+        <SectionCard title="Timeline">
+          <ol className="space-y-3">
+            {FLOW.map((stage, index) => (
+              <li key={stage} className="flex items-center gap-2 text-[13px]">
+                <span
+                  className={
+                    index <= currentIndex
+                      ? "size-2 rounded-full bg-success"
+                      : "size-2 rounded-full bg-border"
+                  }
+                />
+                <span className={index <= currentIndex ? "font-medium" : "text-muted-foreground"}>
+                  {stage}
+                </span>
+              </li>
+            ))}
+          </ol>
+        </SectionCard>
+      </div>
+    </div>
+  );
+}
+
+function Row({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-lg border border-border px-3 py-2">
+      <dt className="text-[11px] uppercase tracking-wide text-muted-foreground">{label}</dt>
+      <dd className="num mt-0.5 font-medium">{value}</dd>
+    </div>
+  );
+}

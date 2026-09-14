@@ -9,6 +9,8 @@ export interface SectionProps {
   onLaunchSubApp: (subAppId: SubAppId) => void;
   onProductClick?: (product: any) => void;
   addToCart?: (id: string, name: string, price: number, emoji: string) => void;
+  /** Open the Deals landing page for a campaign or vendor discounts. */
+  onOpenDeals?: (params: { mode: 'campaign' | 'discounts'; campaignId?: string; storeId?: string }) => void;
 }
 
 // Maps the data-layer AppBrand to the navigable SubAppId.

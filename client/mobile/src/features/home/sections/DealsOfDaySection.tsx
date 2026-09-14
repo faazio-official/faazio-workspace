@@ -12,7 +12,7 @@ function DealsOfDaySection({ onProductClick, addToCart }: SectionProps) {
   const { addedId, handleAdd } = useAddToCartFeedback(addToCart);
   return (
     <>
-      <SectionHeader title="Deals of the Day" />
+      <SectionHeader title="Daily Essentials" />
       <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.scroll}>
         {MART_DEALS.map((deal) => {
           const product = dealToProduct(deal);

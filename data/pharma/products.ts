@@ -94,6 +94,23 @@ const deriveForm = (name: string): string => {
 
 const PRESCRIPTION_CATEGORIES = ['hypertension', 'asthma', 'fever'];
 
+/**
+ * Map a pharma product category to the store outlet that stocks it, so every
+ * pharma vendor (p1–p6) has real inventory and self-pickup points. The flagship
+ * store-p1 keeps the OTC/vitamin breadth; specialist categories route to the
+ * store whose tags describe them (see data/pharma/stores.ts).
+ */
+const STORE_BY_CATEGORY: Record<string, string> = {
+  vitamin: 'store-p4',
+  supplements: 'store-p6',
+  fever: 'store-p2',
+  antiseptic: 'store-p2',
+  hypertension: 'store-p3',
+  asthma: 'store-p1',
+  diarrhea: 'store-p5',
+  cough: 'store-p5',
+};
+
 export const pharmaProducts: PharmaProduct[] = PHARMA_PRODUCTS_DB.map(p => ({
   id: p.id,
   app: 'PHARMA' as const,
@@ -112,4 +129,5 @@ export const pharmaProducts: PharmaProduct[] = PHARMA_PRODUCTS_DB.map(p => ({
     prescription: PRESCRIPTION_CATEGORIES.includes(p.category) ? 'Prescription' : 'OTC',
     brand: 'Faazio Health',
   },
+  storeId: STORE_BY_CATEGORY[p.category] ?? 'store-p1',
 }));

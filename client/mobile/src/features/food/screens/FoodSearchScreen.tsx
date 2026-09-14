@@ -1,39 +1,58 @@
-import React, { useCallback, useMemo } from 'react';
+import React, { useCallback, useMemo, useState } from 'react';
 import { View, StyleSheet, type NativeSyntheticEvent, type NativeScrollEvent } from 'react-native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useSharedValue } from 'react-native-reanimated';
 import { foodTheme } from '../constants/theme';
 import type { FoodStackParamList, RootStackParamList } from '@/navigation/types';
-import type { DiningRestaurant, SpecialDish } from '../mocks/types';
+import type { SpecialDish } from '../mocks/types';
+import { dishToProduct } from '../mocks/specials';
+import { useCartStore } from '@/state/cartStore';
 import { useFoodFilterStore } from '@/state/foodFilterStore';
 import { createFoodSearchConfig } from '@/features/search/configs/foodSearchConfig';
 import SearchScreen from '@/features/search/SearchScreen';
 import FoodBottomNav, { type FoodTab } from '../components/FoodBottomNav';
 import FoodStatusBarStrip from '../components/FoodStatusBarStrip';
+import FoodAddModeSheet, { type FoodAddMode } from '../components/FoodAddModeSheet';
 
 type Props = NativeStackScreenProps<FoodStackParamList, 'Search'>;
 
+const CART_EMOJI = '🍽️';
+
 /**
  * Food sub-app search screen. Composes the shared SearchScreen shell with the
- * Food search config (Restaurants / Dishes toggle, dining filter chips) plus
- * the floating cart bar and the fixed 4-tab bottom nav (Search active).
+ * Food search config (dishes-only, toggle-less with dining filter chips) plus
+ * the floating cart bar and the fixed 2-tab bottom nav (Search active).
  */
 export function FoodSearchScreen({ navigation, route }: Props) {
   const dietFilter = useFoodFilterStore((s) => s.dietFilter);
+  const addToCart = useCartStore((s) => s.addToCart);
+  const [pendingDish, setPendingDish] = useState<SpecialDish | null>(null);
 
-  const onRestaurantPress = useCallback(
-    (restaurant: DiningRestaurant) => navigation.navigate('OrderDetail'),
+  const onDishPress = useCallback(
+    (dish: SpecialDish) => {
+      navigation
+        .getParent<NativeStackNavigationProp<RootStackParamList>>()
+        ?.navigate('ProductDetail', { product: dishToProduct(dish) });
+    },
     [navigation],
   );
-  const onDishPress = useCallback(
-    (dish: SpecialDish) => navigation.navigate('OrderDetail'),
-    [navigation],
+
+  const onDishAdd = useCallback((dish: SpecialDish) => setPendingDish(dish), []);
+
+  const handleConfirm = useCallback(
+    (mode: FoodAddMode) => {
+      if (pendingDish) {
+        addToCart(pendingDish.id, pendingDish.dishName, pendingDish.price, CART_EMOJI, { fulfilment: mode });
+      }
+      setPendingDish(null);
+    },
+    [pendingDish, addToCart],
   );
 
   const config = useMemo(
-    () => createFoodSearchConfig({ onRestaurantPress, onDishPress, dietFilter }),
-    [onRestaurantPress, onDishPress, dietFilter],
+    () => createFoodSearchConfig({ onDishPress, onDishAdd, dietFilter }),
+    [onDishPress, onDishAdd, dietFilter],
   );
 
   const handleBack = useCallback(() => navigation.goBack(), [navigation]);
@@ -42,10 +61,6 @@ export function FoodSearchScreen({ navigation, route }: Props) {
     (tab: FoodTab) => {
       if (tab === 'Home') {
         navigation.popToTop();
-      } else if (tab === 'Dining') {
-        navigation.navigate('DiningDetail');
-      } else if (tab === 'FoodOrder') {
-        navigation.navigate('OrderDetail');
       }
     },
     [navigation],
@@ -78,6 +93,12 @@ export function FoodSearchScreen({ navigation, route }: Props) {
       />
       <FoodStatusBarStrip scrollY={scrollY} />
       <FoodBottomNav activeTab="Search" onChange={handleTabChange} onCartPress={openCart} onYouPress={openYou} />
+      <FoodAddModeSheet
+        visible={!!pendingDish}
+        itemName={pendingDish?.dishName}
+        onClose={() => setPendingDish(null)}
+        onConfirm={handleConfirm}
+      />
     </View>
   );
 }

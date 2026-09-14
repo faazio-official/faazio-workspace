@@ -55,6 +55,17 @@ npm run check:boundaries    # no sub-app boundary violated
 
 ## Known duplication to avoid re-introducing
 
-A few screens (`PharmaScreen`, `FoodScreen` booking dishes, `ProductDetailView`) keep inline
-copies that already exist under `@data/` (marked `@unused`). **Do not add new inline copies** —
-put data in `@data/*` and consume it; de-dup of the existing copies is a tracked priority.
+A few screens (`FoodScreen` booking dishes, `ProductDetailView`) keep inline copies that already
+exist under `@data/` (marked `@unused`). **Do not add new inline copies** — put data in `@data/*`
+and consume it; de-dup of the existing copies is a tracked priority. (`PharmaScreen`'s former
+inline `RECENT_ORDERS` was already de-duplicated into `data/pharma/recentOrders.ts` — do not
+re-introduce it.)
+
+## New-data checklist
+
+When adding a fixture file (e.g. `data/food/menus.ts`, `data/pharma/recentOrders.ts`):
+
+- Register its exports in `data/index.ts` so screens consume them via `@data/*` (see
+  `data/index.ts`).
+- Add the new exports to the relevant domain table in `data/DATA_CONTROL.md` (food →
+  `restaurantMenus`/`allRestaurantMenuDishes`; pharma → `PHARMA_RECENT_ORDERS`/`PharmaRecentOrder`).

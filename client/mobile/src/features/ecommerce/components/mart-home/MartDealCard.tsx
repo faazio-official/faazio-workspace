@@ -87,7 +87,7 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
   },
   imageWrap: {
-    aspectRatio: 3 / 4,
+    aspectRatio: 1,
     width: '100%',
     backgroundColor: '#FAFAFA',
   },

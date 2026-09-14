@@ -34,6 +34,8 @@ interface VendorProfileViewProps {
   onAddToCart: (product: MartProduct) => void;
   onUpdateQuantity: (id: string, delta: number) => void;
   onCartPress?: () => void;
+  /** Opens the Deals landing page (discounts mode) for this vendor. */
+  onViewAllDiscounts?: () => void;
 }
 
 const ALL = 'All';
@@ -48,6 +50,7 @@ export function VendorProfileView({
   onAddToCart,
   onUpdateQuantity,
   onCartPress,
+  onViewAllDiscounts,
 }: VendorProfileViewProps) {
   const insets = useSafeAreaInsets();
   const [activeCategory, setActiveCategory] = useState<string>(ALL);
@@ -127,7 +130,11 @@ export function VendorProfileView({
 
           <View style={styles.sectionHeader}>
             <AppText style={styles.sectionTitle}>Discounted Products</AppText>
-            <AppText style={styles.seeAllText}>View All {'>'}</AppText>
+            {onViewAllDiscounts && discountedProducts.length > 0 ? (
+              <TouchableOpacity onPress={onViewAllDiscounts} activeOpacity={0.7} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                <AppText style={styles.seeAllText}>View All {'>'}</AppText>
+              </TouchableOpacity>
+            ) : null}
           </View>
 
           <ScrollView
@@ -145,6 +152,7 @@ export function VendorProfileView({
                   variant="rail"
                   width={CARD_W_RAIL}
                   showDescription
+                  showAdLabel
                   quantity={qty}
                   isAdded={qty > 0}
                   onPress={() => onProductClick?.(p)}

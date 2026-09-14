@@ -1,6 +1,6 @@
 import React, { memo } from 'react';
 import { View, Image, TouchableOpacity, StyleSheet } from 'react-native';
-import { Heart } from 'lucide-react-native';
+import { Heart, Store } from 'lucide-react-native';
 import { hs, vs, ms } from '@/utils/responsive';
 import { getStoreById, getStoresByApp } from '@data/directory/stores';
 import AppText from '@/components/AppText';
@@ -21,6 +21,8 @@ interface SearchProductRowCardProps {
   onIncrement?: () => void;
   onDecrement?: () => void;
   onFavorite?: () => void;
+  /** Show a slim one-line vendor header above the row. Default true. */
+  showStoreHeader?: boolean;
 }
 
 function getDiscountPct(price: number, originalPrice?: number): number | null {
@@ -48,10 +50,13 @@ function resolveStoreName(product: Product): string {
 /**
  * Dense, one-per-row search result card. No outer horizontal padding/margin
  * (cards sit flush edge-to-edge); 3:4 portrait image on the left; title +
- * description; the store name as bold text (no "Sold by" prefix); and a price
- * line (offered price + strike-through list price + discount) on its own row.
- * The favourite heart sits at the right end of the card, not over the image.
- * No Add to Cart button — the card is view-only (tap opens product detail).
+ * description; and a price line (offered price + strike-through list price +
+ * discount) on its own row. A slim one-line vendor header (small bold name with
+ * a tiny Store icon, hairline bottom divider) sits above the row when
+ * `showStoreHeader` is on; the inline store name is otherwise removed from the
+ * body. The favourite heart sits at the right end of the card, not over the
+ * image. No Add to Cart button — the card is view-only (tap opens product
+ * detail).
  */
 const SearchProductRowCard = memo(function SearchProductRowCard({
   product,
@@ -60,6 +65,7 @@ const SearchProductRowCard = memo(function SearchProductRowCard({
   isFavorite = false,
   onPress,
   onFavorite,
+  showStoreHeader = true,
 }: SearchProductRowCardProps) {
   const originalPrice = product.originalPrice;
   const discountPct = getDiscountPct(product.price, originalPrice);
@@ -73,33 +79,40 @@ const SearchProductRowCard = memo(function SearchProductRowCard({
       accessibilityRole="button"
       accessibilityLabel={`${product.name}, ${storeName}, ₹${product.price}`}
     >
-      <View style={styles.imageWrap}>
-        <Image source={{ uri: product.image }} style={styles.image} resizeMode="contain" />
-      </View>
-
-      <View style={styles.details}>
-        <AppText style={styles.name} numberOfLines={1} ellipsizeMode="tail">
-          {product.name}
-        </AppText>
-
-        <AppText style={styles.desc} numberOfLines={1} ellipsizeMode="tail">
-          {product.desc}
-        </AppText>
-
-        <AppText style={styles.store} numberOfLines={1}>
-          {storeName}
-        </AppText>
-
-        <View style={styles.priceRow}>
-          <AppText style={styles.price}>
-            ₹{product.price.toLocaleString('en-IN')}
+      {showStoreHeader && (
+        <View style={styles.headerRow}>
+          <Store size={ms(11)} color={TEXT_MUTED} strokeWidth={2} />
+          <AppText style={styles.headerText} numberOfLines={1} ellipsizeMode="tail">
+            {storeName}
           </AppText>
-          {originalPrice !== undefined && originalPrice > product.price && (
-            <AppText style={styles.originalPrice}>₹{originalPrice.toLocaleString('en-IN')}</AppText>
-          )}
-          {discountPct !== null && (
-            <AppText style={styles.discount}>{discountPct}% off</AppText>
-          )}
+        </View>
+      )}
+
+      <View style={styles.row}>
+        <View style={styles.imageWrap}>
+          <Image source={{ uri: product.image }} style={styles.image} resizeMode="contain" />
+        </View>
+
+        <View style={styles.details}>
+          <AppText style={styles.name} numberOfLines={1} ellipsizeMode="tail">
+            {product.name}
+          </AppText>
+
+          <AppText style={styles.desc} numberOfLines={1} ellipsizeMode="tail">
+            {product.desc}
+          </AppText>
+
+          <View style={styles.priceRow}>
+            <AppText style={styles.price}>
+              ₹{product.price.toLocaleString('en-IN')}
+            </AppText>
+            {originalPrice !== undefined && originalPrice > product.price && (
+              <AppText style={styles.originalPrice}>₹{originalPrice.toLocaleString('en-IN')}</AppText>
+            )}
+            {discountPct !== null && (
+              <AppText style={styles.discount}>{discountPct}% off</AppText>
+            )}
+          </View>
         </View>
       </View>
 
@@ -127,13 +140,32 @@ export default SearchProductRowCard;
 
 const styles = StyleSheet.create({
   card: {
+    backgroundColor: '#FFFFFF',
+    marginBottom: vs(12),
+    paddingRight: hs(8),
+    paddingVertical: vs(4),
+  },
+  headerRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: hs(5),
+    paddingLeft: hs(12),
+    paddingRight: hs(32),
+    paddingBottom: vs(6),
+    marginBottom: vs(4),
+    borderBottomWidth: 1,
+    borderBottomColor: '#F0F0F0',
+  },
+  headerText: {
+    flex: 1,
+    fontSize: ms(12),
+    fontWeight: '700',
+    color: TEXT_MUTED,
+  },
+  row: {
     flexDirection: 'row',
     alignItems: 'center',
     paddingLeft: hs(12),
-    paddingRight: hs(8),
-    paddingVertical: vs(8),
-    backgroundColor: '#FFFFFF',
-    marginBottom: vs(12),
   },
   imageWrap: {
     width: ms(90),
@@ -166,11 +198,6 @@ const styles = StyleSheet.create({
     fontSize: ms(11.5),
     fontWeight: '400',
     color: TEXT_MUTED,
-  },
-  store: {
-    fontSize: ms(12),
-    fontWeight: '700',
-    color: TEXT_DARK,
   },
   priceRow: {
     flexDirection: 'row',

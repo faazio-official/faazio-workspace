@@ -1,11 +1,11 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { StyleSheet, View, TouchableOpacity, ScrollView, BackHandler } from 'react-native';
-import { ChevronLeft, ShieldCheck } from 'lucide-react-native';
+import { ChevronLeft, ShieldCheck, Droplet } from 'lucide-react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import AppText from '@/components/AppText';
 import { hs, vs, ms } from '@/utils/responsive';
-import { BLOOD_DONOR_STEPS, PRIVACY_NOTE } from '@data/index';
+import { BLOOD_DONOR_STEPS, PRIVACY_NOTE, ASK_BLOOD_COPY } from '@data/index';
 import type { RootStackParamList } from '@/navigation/types';
 import { useBloodDonorStore } from '@/state/bloodDonorStore';
 import { StepperHeader } from './components/StepperHeader';
@@ -17,9 +17,10 @@ import { NotificationsStep } from './components/NotificationsStep';
 import { ReviewStep } from './components/ReviewStep';
 import { StepPlaceholder } from './components/StepPlaceholder';
 import { WizardFooter } from './components/WizardFooter';
+import AskBloodSheet from './components/AskBloodSheet';
 import { DonorDashboard } from './DonorDashboard';
 import { firstIncompleteStep, isStepComplete } from './stepValidation';
-import { BLOOD_BG, BLOOD_TEXT, BLOOD_TEXT_MUTED } from './tokens';
+import { BLOOD_BG, BLOOD_TEXT, BLOOD_TEXT_MUTED, BLOOD_RED, BLOOD_RED_DARK, BLOOD_RADII } from './tokens';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'BloodDonor'>;
 
@@ -32,6 +33,7 @@ export function BloodDonorScreen({ navigation }: Props) {
   const register = useBloodDonorStore((s) => s.register);
 
   const [stepIndex, setStepIndex] = useState(0);
+  const [askOpen, setAskOpen] = useState(false);
   const total = BLOOD_DONOR_STEPS.length;
   const step = BLOOD_DONOR_STEPS[stepIndex];
   const isLast = stepIndex === total - 1;
@@ -151,6 +153,21 @@ export function BloodDonorScreen({ navigation }: Props) {
           ) : undefined
         }
       />
+
+      {/* Ask Blood floating action — available even mid-wizard; needing blood
+          doesn't require being a registered donor. Anchored above the footer. */}
+      <TouchableOpacity
+        onPress={() => setAskOpen(true)}
+        style={styles.fab}
+        activeOpacity={0.85}
+        accessibilityRole="button"
+        accessibilityLabel={ASK_BLOOD_COPY.fabLabel}
+      >
+        <Droplet size={ms(18)} color="#ffffff" fill="#ffffff" strokeWidth={2.2} />
+        <AppText style={styles.fabText}>{ASK_BLOOD_COPY.fabLabel}</AppText>
+      </TouchableOpacity>
+
+      <AskBloodSheet visible={askOpen} onClose={() => setAskOpen(false)} />
     </View>
   );
 }
@@ -211,5 +228,27 @@ const styles = StyleSheet.create({
     fontSize: ms(11),
     color: BLOOD_TEXT_MUTED,
     textAlign: 'center',
+  },
+  fab: {
+    position: 'absolute',
+    right: hs(20),
+    bottom: vs(112),
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: hs(6),
+    backgroundColor: BLOOD_RED,
+    borderRadius: BLOOD_RADII.pill,
+    paddingHorizontal: hs(16),
+    paddingVertical: vs(12),
+    shadowColor: BLOOD_RED_DARK,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.35,
+    shadowRadius: 8,
+    elevation: 8,
+  },
+  fabText: {
+    fontSize: ms(13),
+    fontWeight: '800',
+    color: '#ffffff',
   },
 });

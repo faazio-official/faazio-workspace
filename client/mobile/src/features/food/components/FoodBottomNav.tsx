@@ -1,19 +1,17 @@
 import React, { memo } from 'react';
 import { View, TouchableOpacity, StyleSheet } from 'react-native';
-import { Home, Search, UtensilsCrossed, ShoppingBag, ShoppingCart, User } from 'lucide-react-native';
+import { Home, Search, ShoppingCart, User } from 'lucide-react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import AppText from '@/components/AppText';
 import { hs, ms, vs } from '@/utils/responsive';
 import { useCartStore } from '@/state/store';
 import { foodTheme } from '../constants/theme';
 
-export type FoodTab = 'Home' | 'Search' | 'Dining' | 'FoodOrder';
+export type FoodTab = 'Home' | 'Search';
 
 const TABS: { name: FoodTab; icon: any }[] = [
   { name: 'Home', icon: Home },
   { name: 'Search', icon: Search },
-  { name: 'Dining', icon: UtensilsCrossed },
-  { name: 'FoodOrder', icon: ShoppingBag },
 ];
 
 interface FoodBottomNavProps {
@@ -24,10 +22,10 @@ interface FoodBottomNavProps {
 }
 
 /**
- * Section 7 — fixed bottom navigation. 4 tabs (Home / Search / Dining /
- * FoodOrder), icon over text, active tab tinted with the brand color, plus a
- * dedicated Cart item (with a count badge) that opens the root Cart page, and
- * a "You" item (left of Cart) that pushes the root "You" account page.
+ * Fixed bottom navigation. 2 tabs (Home / Search), icon over text, active tab
+ * tinted with the brand color, plus a dedicated Cart item (with a count badge)
+ * that opens the root Cart page, and a "You" item (left of Cart) that pushes
+ * the root "You" account page.
  */
 const FoodBottomNav = memo(function FoodBottomNav({
   activeTab,

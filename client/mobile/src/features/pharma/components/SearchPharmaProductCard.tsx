@@ -6,18 +6,21 @@ import type { Product } from '@data/types';
 interface SearchPharmaProductCardProps {
   product: Product;
   onPress?: (product: Product) => void;
+  showStoreHeader?: boolean;
 }
 
 /**
  * Pharma search result card wrapper. Renders the dense one-per-row list card
- * (contain image, title/desc, seller + price, compact Add to Cart) and runs
- * onPress with the product. Wires the shared cart store so results can be added
- * straight from search. Lives under components/ (not cards/) so it doesn't trip
- * the dependency-cruiser card boundary for cross-sub-app search.
+ * (contain image, title/desc, optional vendor header + price, compact Add to
+ * Cart) and runs onPress with the product. Wires the shared cart store so
+ * results can be added straight from search. Lives under components/ (not
+ * cards/) so it doesn't trip the dependency-cruiser card boundary for
+ * cross-sub-app search.
  */
 const SearchPharmaProductCard = memo(function SearchPharmaProductCard({
   product,
   onPress,
+  showStoreHeader = true,
 }: SearchPharmaProductCardProps) {
   const cart = useCartProductActions(product);
   return (
@@ -31,6 +34,7 @@ const SearchPharmaProductCard = memo(function SearchPharmaProductCard({
       onIncrement={cart.onIncrement}
       onDecrement={cart.onDecrement}
       onPress={onPress ? () => onPress(product) : undefined}
+      showStoreHeader={showStoreHeader}
     />
   );
 });

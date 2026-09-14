@@ -2,9 +2,10 @@
  * @mock Static fixture — seeded sample data for local development until the Go Chi
  * backend (server/) is wired. See data/DATA_CONTROL.md.
  *
- * Pharma goods are fulfilled from a single Faazio-run pharmacy outlet (there is no
- * third-party pharma store). This store backs the `storeId` of every pharma product
- * and provides its self-pickup point.
+ * Pharma goods are fulfilled from a network of Faazio-run pharmacy outlets. Each
+ * store backs the `storeId` of nearby pharma products and provides its own
+ * self-pickup point (`address`/`phone`/`hours`). Products still default to
+ * `store-p1` (the flagship outlet) until per-store availability is wired.
  */
 import type { StoreProfile } from '../types';
 
@@ -26,6 +27,91 @@ export const pharmaStores: StoreProfile[] = [
     address: '4, Wellness Plaza, Health Street, Greenwood City - 609602',
     phone: '+91 94004 44401',
     hours: '8 AM – 10 PM',
+  },
+  {
+    id: 'store-p2',
+    name: 'GreenLeaf Chemists',
+    app: 'PHARMA',
+    categories: ['Fever', 'Pain Relief', 'Baby Care', 'First Aid'],
+    rating: 4.7,
+    reviewsCount: 1240,
+    deliveryTime: '18 min',
+    distance: '1.1 km',
+    coverImage: 'https://images.unsplash.com/photo-1585435557343-3b092031a831?fm=jpg&fit=crop&q=80&w=600&h=300',
+    emoji: '💊',
+    desc: 'Neighbourhood chemist with a wide range of OTC and baby-care essentials',
+    offerTag: '10% OFF on first order',
+    address: '12, Rose Avenue, Market Road, Greenwood City - 609603',
+    phone: '+91 94004 44402',
+    hours: '8 AM – 11 PM',
+  },
+  {
+    id: 'store-p3',
+    name: 'CareFirst Meds',
+    app: 'PHARMA',
+    categories: ['Diabetes', 'Cardiac', 'Ayurveda', 'Supplements'],
+    rating: 4.8,
+    reviewsCount: 980,
+    deliveryTime: '22 min',
+    distance: '2.3 km',
+    coverImage: 'https://images.unsplash.com/photo-1576602976047-174e57a47881?fm=jpg&fit=crop&q=80&w=600&h=300',
+    emoji: '💊',
+    desc: 'Specialist store for chronic-care, diabetes and cardiac medicines',
+    offerTag: 'FLAT ₹50 OFF on ₹299+',
+    address: '23, Lakeview Road, Greenwood City - 609604',
+    phone: '+91 94004 44403',
+    hours: '9 AM – 10 PM',
+  },
+  {
+    id: 'store-p4',
+    name: 'Wellness Plus Pharmacy',
+    app: 'PHARMA',
+    categories: ['Skin Care', 'Hair Care', 'Vitamins', 'Devices'],
+    rating: 4.6,
+    reviewsCount: 760,
+    deliveryTime: '20 min',
+    distance: '2.8 km',
+    coverImage: 'https://images.unsplash.com/photo-1584308666744-24d5c474f2ae?fm=jpg&fit=crop&q=80&w=600&h=300',
+    emoji: '🧴',
+    desc: 'Wellness-focused pharmacy with skincare, vitamins and health devices',
+    offerTag: 'BUY 2 GET 5% OFF',
+    address: '8, Garden Street, Greenwood City - 609605',
+    phone: '+91 94004 44404',
+    hours: '8 AM – 10 PM',
+  },
+  {
+    id: 'store-p5',
+    name: 'City Medico',
+    app: 'PHARMA',
+    categories: ['Cough & Cold', 'Fever', 'Digestive', 'First Aid'],
+    rating: 4.5,
+    reviewsCount: 540,
+    deliveryTime: '28 min',
+    distance: '3.4 km',
+    coverImage: 'https://images.unsplash.com/photo-1471864190281-a93a3070b6de?fm=jpg&fit=crop&q=80&w=600&h=300',
+    emoji: '💊',
+    desc: 'Reliable pharmacy for everyday cold, fever and first-aid supplies',
+    offerTag: 'FREE DELIVERY today',
+    address: '45, Central Avenue, Greenwood City - 609606',
+    phone: '+91 94004 44405',
+    hours: '8 AM – 12 AM',
+  },
+  {
+    id: 'store-p6',
+    name: 'MediTrust Pharmacy',
+    app: 'PHARMA',
+    categories: ['Ortho', 'Devices', 'Supplements', 'Baby Care'],
+    rating: 4.9,
+    reviewsCount: 1120,
+    deliveryTime: '24 min',
+    distance: '3.9 km',
+    coverImage: 'https://images.unsplash.com/photo-1587854692152-cbe660dbde88?fm=jpg&fit=crop&q=80&w=600&h=300',
+    emoji: '💊',
+    desc: 'Full-service pharmacy with ortho support and premium health devices',
+    offerTag: 'FLAT ₹150 OFF on ₹899+',
+    address: '101, Civic Plaza, Greenwood City - 609607',
+    phone: '+91 94004 44406',
+    hours: '9 AM – 10 PM',
   },
 ];
 

@@ -2,13 +2,13 @@
   "expo": {
     "name": "Faazio",
     "slug": "faazio",
-    "version": "1.0.3",
+    "version": "1.0.0",
     "orientation": "portrait",
     "userInterfaceStyle": "light",
     "splash": {
       "image": "./src/assets/faazio-logo.png",
       "resizeMode": "contain",
-      "backgroundColor": "#0000FF"
+      "backgroundColor": "#4250FF"
     },
     "icon": "./src/assets/icon.png",
     "assetBundlePatterns": [
@@ -25,12 +25,12 @@
     },
     "android": {
       "package": "com.faazio.customer",
-      "versionCode": 5,
+      "versionCode": 1,
       "jsEngine": "hermes",
       "softwareKeyboardLayoutMode": "pan",
       "adaptiveIcon": {
         "foregroundImage": "./src/assets/adaptive-icon.png",
-        "backgroundColor": "#0000FF"
+        "backgroundColor": "#4250FF"
       },
       "permissions": [
         "CAMERA",
@@ -51,7 +51,7 @@
       [
         "expo-splash-screen",
         {
-          "backgroundColor": "#0000FF",
+          "backgroundColor": "#4250FF",
           "image": "./src/assets/faazio-logo.png",
           "imageWidth": 200
         }
@@ -60,6 +60,12 @@
         "expo-location",
         {
           "locationWhenInUsePermission": "Faazio uses your location to suggest your city for blood donation."
+        }
+      ],
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "This app requires camera access to upload medical prescriptions and scan bar codes."
         }
       ]
     ]

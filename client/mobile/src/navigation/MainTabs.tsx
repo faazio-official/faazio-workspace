@@ -1,7 +1,7 @@
 import React, { Suspense, lazy } from 'react';
 import { StyleSheet, View, TouchableOpacity } from 'react-native';
 import { hs, vs, ms } from '@/utils/responsive';
-import { Home, LayoutGrid, Heart, ShoppingBag, User } from 'lucide-react-native';
+import { Home, Heart, ShoppingBag, User } from 'lucide-react-native';
 import { createBottomTabNavigator, type BottomTabBarProps } from '@react-navigation/bottom-tabs';
 import { useCartStore } from '@/state/cartStore';
 import AppText from '@/components/AppText';
@@ -14,13 +14,11 @@ const lazyNamed = <T extends { [K in string]: unknown }>(
   name: keyof T & string,
 ) => lazy(() => loader().then((m) => ({ default: m[name] as React.ComponentType<any> })));
 
-const CategoriesTabScreen = lazyNamed(() => import('@/features/catalog/CategoriesTabScreen'), 'CategoriesTabScreen');
 const FavouritesTabScreen = lazyNamed(() => import('@/features/favourites/FavouritesTabScreen'), 'FavouritesTabScreen');
 const AccountScreen = lazyNamed(() => import('@/features/profile/AccountScreen'), 'AccountScreen');
 
 const TAB_COLORS: Record<keyof MainTabParamList, string> = {
   Home: '#2F80ED',
-  Categories: '#27AE60',
   Favourites: '#FF4A6B',
   You: '#6C5CE7',
   Cart: '#F2994A',
@@ -28,7 +26,6 @@ const TAB_COLORS: Record<keyof MainTabParamList, string> = {
 
 const TAB_LABELS: Record<keyof MainTabParamList, string> = {
   Home: 'Home',
-  Categories: 'Categories',
   Favourites: 'Favourites',
   You: 'You',
   Cart: 'Cart',
@@ -36,7 +33,6 @@ const TAB_LABELS: Record<keyof MainTabParamList, string> = {
 
 const TAB_ICONS: Record<keyof MainTabParamList, React.ComponentType<any>> = {
   Home,
-  Categories: LayoutGrid,
   Favourites: Heart,
   You: User,
   Cart: ShoppingBag,
@@ -111,7 +107,6 @@ export function MainTabs() {
           screenOptions={{ headerShown: false, lazy: true }}
         >
           <Tab.Screen name="Home" component={HomeTabScreen} />
-          <Tab.Screen name="Categories" component={CategoriesTabScreen} />
           <Tab.Screen name="Favourites" component={FavouritesTabScreen} />
           <Tab.Screen name="You" component={AccountScreen} />
         </Tab.Navigator>

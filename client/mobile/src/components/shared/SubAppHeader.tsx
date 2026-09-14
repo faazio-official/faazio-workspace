@@ -2,7 +2,7 @@ import React from 'react';
 import { StyleSheet, View, TouchableOpacity } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { TextInput } from 'react-native';
-import { ArrowLeft, Search, MapPin, ChevronDown } from 'lucide-react-native';
+import { ArrowLeft, Search } from 'lucide-react-native';
 import Svg, { Defs, LinearGradient as SvgGrad, Stop, Rect as SvgRect, Circle as SvgCircle } from 'react-native-svg';
 import { SCREEN_W, hs, vs, ms } from '@/utils/responsive';
 import AppText from '@/components/AppText';
@@ -13,12 +13,16 @@ const SUB_HEADER_ROW_H = vs(24);
 const SUB_HEADER_ROW_GAP = vs(10);
 const SUB_HEADER_SEARCH_H = Math.max(40, vs(40));
 const SUB_HEADER_BOTTOM_PAD = vs(12);
-/** Height of the sub-app header (brand row shown), incl. the OS status-bar inset. */
-export const subAppHeaderH = (topInset: number, compact: boolean) =>
+/** Height of the sub-app header rail slot, mirroring the Home hub `HEADER_RAIL_H`. */
+const SUB_HEADER_RAIL_H = vs(30);
+/** Height of the sub-app header, incl. the OS status-bar inset. Pass `withRail`
+ *  when a `belowSearchSlot` (e.g. the pinned Mart category rail) is rendered. */
+export const subAppHeaderH = (topInset: number, compact: boolean, withRail = false) =>
   topInset +
   SUB_HEADER_TOP_GAP +
   (compact ? 0 : SUB_HEADER_ROW_H + SUB_HEADER_ROW_GAP) +
   SUB_HEADER_SEARCH_H +
+  (withRail ? SUB_HEADER_ROW_GAP + SUB_HEADER_RAIL_H : 0) +
   SUB_HEADER_BOTTOM_PAD;
 
 interface SubAppHeaderProps {
@@ -32,9 +36,8 @@ interface SubAppHeaderProps {
   rightSlot?: React.ReactNode;
   inputRef?: React.RefObject<TextInput | null>;
   hideBrandRow?: boolean;
-  addressLabel?: string;
-  addressSubLabel?: string;
-  onAddressPress?: () => void;
+  /** Rendered below the search row (e.g. the pinned Mart category rail). */
+  belowSearchSlot?: React.ReactNode;
 }
 
 export default function SubAppHeader({
@@ -48,14 +51,13 @@ export default function SubAppHeader({
   rightSlot,
   inputRef,
   hideBrandRow = false,
-  addressLabel,
-  addressSubLabel,
-  onAddressPress,
+  belowSearchSlot,
 }: SubAppHeaderProps) {
   const insets = useSafeAreaInsets();
   const topInset = insets.top;
+  const withRail = !!belowSearchSlot;
   return (
-    <View style={[styles.headerOuter, { height: subAppHeaderH(topInset, hideBrandRow) }]}>
+    <View style={[styles.headerOuter, { height: subAppHeaderH(topInset, hideBrandRow, withRail) }]}>
       <Svg style={StyleSheet.absoluteFill}>
         <Defs>
           <SvgGrad id="subHeaderGrad" x1="0%" y1="0%" x2="0%" y2="100%">
@@ -82,41 +84,19 @@ export default function SubAppHeader({
           <TouchableOpacity onPress={onBack} style={styles.backBtn} activeOpacity={0.7}>
             <ArrowLeft size={ms(18)} color={textColor} />
           </TouchableOpacity>
-          {addressLabel ? (
-            <TouchableOpacity
-              style={styles.addressPill}
-              onPress={onAddressPress}
-              activeOpacity={0.8}
-              accessibilityRole="button"
-              accessibilityLabel={`Location: ${addressLabel}`}
-            >
-              <MapPin size={ms(16)} color="#FFC107" strokeWidth={2.2} />
-              <View style={styles.addressTextWrap}>
-                <View style={styles.addressRow}>
-                  <AppText style={styles.addressArea} numberOfLines={1}>
-                    {addressLabel}
-                  </AppText>
-                  <ChevronDown size={ms(12)} color="#1E2022" strokeWidth={2.4} />
-                </View>
-                {addressSubLabel ? (
-                  <AppText style={styles.addressSub}>{addressSubLabel}</AppText>
-                ) : null}
-              </View>
-            </TouchableOpacity>
-          ) : (
-            <View style={styles.searchPill}>
-              <Search size={ms(17)} color="#94a3b8" />
-              <AppTextInput
-                ref={inputRef}
-                style={styles.searchInput}
-                value={searchValue}
-                onChangeText={onSearchChange}
-                placeholder={searchPlaceholder}
-                placeholderTextColor="#94a3b8"
-              />
-            </View>
-          )}
+          <View style={styles.searchPill}>
+            <Search size={ms(17)} color="#94a3b8" />
+            <AppTextInput
+              ref={inputRef}
+              style={styles.searchInput}
+              value={searchValue}
+              onChangeText={onSearchChange}
+              placeholder={searchPlaceholder}
+              placeholderTextColor="#94a3b8"
+            />
+          </View>
         </View>
+        {belowSearchSlot}
       </View>
     </View>
   );
@@ -197,41 +177,5 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: '#0f172a',
     padding: 0,
-  },
-  addressPill: {
-    flex: 1,
-    height: SUB_HEADER_SEARCH_H,
-    borderRadius: ms(22),
-    backgroundColor: '#ffffff',
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: hs(14),
-    gap: hs(8),
-    shadowColor: '#000000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.06,
-    shadowRadius: 6,
-    elevation: 2,
-  },
-  addressTextWrap: {
-    flex: 1,
-    justifyContent: 'center',
-    gap: vs(1),
-  },
-  addressRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: hs(2),
-  },
-  addressArea: {
-    fontSize: ms(12),
-    fontWeight: '700',
-    color: '#1E2022',
-    flexShrink: 1,
-  },
-  addressSub: {
-    fontSize: ms(10),
-    fontWeight: '600',
-    color: '#666666',
   },
 });

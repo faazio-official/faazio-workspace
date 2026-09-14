@@ -33,7 +33,7 @@ Every domain file below carries its tag as a top-of-file banner comment.
 | `productMeta` | `features/product` (ProductDetail) | `reviews.ts` | `@mock` (+ `@unused` by mobile) |
 | `cart` | `features/cart` | `addresses.ts`, `coupons.ts`, `pickup-resolver.ts` | `@mock` |
 | `account` | `features/profile` | `orders.ts` | `@mock` |
-| `home` | `features/home` | `sections.ts`, `rails.ts`, `demographics.ts`, `instantFeed.ts`, `nearbyOffers.ts`, `filterFeed.ts`, `seeds.ts` | mixed `@mock` / `@seed` / `@static` |
+| `home` | `features/home` | `sections.ts`, `rails.ts`, `campaigns.ts`, `demographics.ts`, `instantFeed.ts`, `nearbyOffers.ts`, `filterFeed.ts`, `seeds.ts` | mixed `@mock` / `@seed` / `@static` |
 
 **Seed inventory expansion:** the mart/food/pharma/explore/categories/orders/coupons fixtures
 were expanded so the new search-results-style Favourites page and richer catalogs look alive on
@@ -58,11 +58,15 @@ surface for these tables). These tables **pull from the legacy sources via impor
 |---|---|---|---|
 | `catalog/products.ts` | Rust + Tantivy (search index) | mart/food/pharma/home/explore/categories product records, deduped by `id`, tokenized. Exposes `getProductById` (resolves a real `Product` from the domain arrays + converted deal/special products) used by `OrderDetailsScreen`'s **View Product** drill-in | `@mock` |
 | `directory/stores.ts` | Go + PostgreSQL (store directory) | `mart/stores`, `food/stores` | `@mock` |
-| `reviews/reviews.ts` | Go + PostgreSQL (reviews/specs) | `productMeta/reviews` | `@mock` |
+| `reviews/reviews.ts` | Go + PostgreSQL (reviews/specs) | `productMeta/reviews`. Reviews are now **product-keyed** — per-product rows attached to real catalog ids (`fm-*`/`sp-*`/`ph-*` bestsellers) with an app-scoped fallback so `getReviewsByProductId` never returns empty | `@mock` |
 | `inventory/stock.ts` | Go + DynamoDB (key-value stock) | net new — one row per catalog product id | `@mock` |
 | `checkout/orders.ts` | Go + CockroachDB (relational) | account/orders, cart/addresses, account/addresses, cart/coupons | `@mock` |
 | `accounts/profile.ts` | Go + PostgreSQL (profile) | account/profile, orderStatus, accountNav, details | `@mock` |
 | `home/sdui.ts` | Python + MongoDB (doc tree) | home/sections, rails, filterFeed structure — **IDs only** | `@aspirational` |
+
+> **`@schema` reference:** each normalized table above maps **1:1** to a production table specified in
+> `docs/architecture/db-schema.md` (tables, datatypes, sample rows, cache keys). Keep the two in sync
+> when a fixture's shape changes.
 
 **Gateway:** `client/mobile/src/services/api/GatewayClient.ts` joins the tables above and is the
 intended single data surface for the app. It is **not yet wired into screens** — the legacy
@@ -90,10 +94,13 @@ the `GROCERY` member was dropped from `AppBrand` / `CartCategory` / `SubAppId` /
 `CategoryAppId`. Search, favourites and cart now surface grocery items under Mart.
 
 > **Store-backed pickup:** every `StoreProfile` now carries optional `address`/`phone`/`hours`, and
-> every MART/FOOD product sets `Product.storeId` (PHARMA maps to its single outlet by
-> app). `getPickupPointsForItems` uses this linkage so Self-Pickup shows the actual store(s) the
-> order came from — not a hardcoded Faazio hub. `data/directory/stores.ts` consolidates the
-> apps' stores.
+> every MART/FOOD product sets `Product.storeId`. PHARMA products set `storeId` from a
+> category→outlet map (`STORE_BY_CATEGORY` in `data/pharma/products.ts`) so the 6 outlets
+> `store-p1…p6` all hold real inventory instead of defaulting to the flagship `store-p1` —
+> self-pickup and the prescription vendor list now surface all six pharma outlets.
+> `getPickupPointsForItems` uses this
+> linkage so Self-Pickup shows the actual store(s) the order came from — not a hardcoded Faazio
+> hub. `data/directory/stores.ts` consolidates the apps' stores.
 
 ### `@data/food` — owner: `features/food`
 
@@ -103,13 +110,16 @@ the `GROCERY` member was dropped from `AppBrand` / `CartCategory` / `SubAppId` /
 | `topOfWeekDishes` | `TopOfWeekDish[]` | `FoodScreen` (top-of-week rail). Each carries optional `isVeg?` | `@mock` |
 | `foodStores` | `StoreProfile[]` | `FoodScreen`; home `DiningSpecialsSection`, `MostRatedDiningSection` | `@mock` |
 | `BOOKING_DISHES_DB` | `BookingDish[]` | **`@unused`** — `FoodScreen` defines its own inline copy | `@mock` + `@unused` |
+| `restaurantMenus` | `Record<string, SpecialDish[]>` | `RestaurantProfileScreen.getMenuForRestaurant` (per-restaurant menus keyed by dining-restaurant name, so every dining room's "Recommended & Offers" rail + menu is populated) | `@mock` |
+| `allRestaurantMenuDishes` | `SpecialDish[]` | catalog index (search) — flat pool of all per-restaurant menu dishes | `@mock` |
 
 ### `@data/pharma` — owner: `features/pharma`
 
 | Export | Type | Mobile consumers | Status |
 |---|---|---|---|
-| `pharmaProducts` | `PharmaProduct[]` | **`@unused`** — `PharmaScreen` keeps an inline `PHARMA_PRODUCTS_DB` | `@mock` + `@unused` |
-| `pharmaStores` | `StoreProfile[]` | self-pickup resolver (single outlet `store-p1`) | `@mock` |
+| `pharmaProducts` | `PharmaProduct[]` | `services/categoryVendors` (category drill-in / vendor details, via `storeId`); **`@unused`** by `PharmaScreen` (keeps an inline `PHARMA_PRODUCTS_DB`) | `@mock` |
+| `pharmaStores` | `StoreProfile[]` | pharma prescription vendor list + self-pickup resolver (6 outlets `store-p1…p6`, each pickup-capable) | `@mock` |
+| `PHARMA_RECENT_ORDERS` / `PharmaRecentOrder` | `PharmaRecentOrder[]` / type | `PharmaScreen` History tab (recently ordered cards; de-dups the former inline `RECENT_ORDERS`) | `@mock` |
 | `PHARMA_PRODUCTS_DB` | `PharmaDBItem[]` | **`@unused`** | `@mock` + `@unused` |
 | `PHARMA_CATEGORIES` | `PharmaCategory[]` | **`@unused`** | `@mock` + `@unused` |
 | `BLOOD_GROUPS` | `BloodGroup[]` | Blood Donor wizard (blood-group chip grid) | `@mock` |
@@ -128,6 +138,10 @@ the `GROCERY` member was dropped from `AppBrand` / `CartCategory` / `SubAppId` /
 | `BLOOD_REQUESTS` | `BloodRequest[]` | Donor dashboard + request-details page (feed + detail fields) | `@mock` |
 | `BLOOD_DONOR_UNREAD_ALERTS` | `number` | Donor dashboard (bell badge seed) | `@mock` |
 | `BLOOD_REQUEST_DETAIL_COPY` | `{ bannerTitle; bannerSubtitle; confirmNote }` | Request-details page (banner + privacy note copy) | `@mock` |
+| `UserBloodRequest` | `interface` | Ask Blood form + feed card shape (device-local user requests) | `@mock` |
+| `ASK_BLOOD_URGENCY_OPTIONS` | `{ id; label; neededWithin; urgency }[]` | Ask Blood form (deadline chips → deadline + urgency) | `@mock` |
+| `ASK_BLOOD_COPY` | `{ fabLabel; sheetTitle; sheetSubtitle; submitLabel; successTitle; successMessage; doneLabel }` | Ask Blood FAB + sheet copy | `@mock` |
+| `ASK_BLOOD_UNITS` | `{ min; max }` | Ask Blood form (units stepper bounds) | `@mock` |
 
 > **Blood Donor contract:** `BloodDonorDraft` / `BloodDonorRegistration` are the typed shape
 > the future Go Chi backend will persist (donor registry). `BloodDonorRegistration.profile`
@@ -141,6 +155,10 @@ the `GROCERY` member was dropped from `AppBrand` / `CartCategory` / `SubAppId` /
 > contact/address, remarks, distance; all **required** so the detail page renders only real
 > data); the backend feed replaces it later — the `BloodRequest` shape stays stable.
 > "Nearby" filtering is city-vs-donor-`preferredLocation` matching until real geo exists.
+> **Ask Blood fan-out is simulated client-side:** a user-posted request
+> (`UserBloodRequest`, `uba-` id prefix, persisted in the `bloodDonorStore` blob, cleared on
+> logout) leads the dashboard feed and bumps the bell badge (per-device unread). Real
+> multi-device push delivery + acknowledgement is a Go Chi backend task.
 
 ### `@data/explore` — owner: `features/catalog`
 
@@ -153,6 +171,8 @@ the `GROCERY` member was dropped from `AppBrand` / `CartCategory` / `SubAppId` /
 | Export | Type | Mobile consumers | Status |
 |---|---|---|---|
 | `categoriesSearchDatabase` | `Record<string, Product[]>` | `CategoriesView`, `FavouritesView` | `@mock` |
+| `MASTER_CATEGORIES` / `ALL_TABS` | `Record<CategoryAppId, CategoryTab[]>` / `CategoryTab[]` | `CategoryDrillInScreen` (via `CategoryDrillInPanel`), `SubgroupTextRail` | `@mock` |
+| `HEADER_CATEGORY_RAIL` / `getCategoryRailPage` / `HEADER_RAIL_TOTAL` | `CategoryRailItem[]` + paging helpers | `HeaderCategoryRail` + `VendorCategoryPills` (via `usePagedRail`) — Home/Mart header rail + Mart vendors pill filter. Each item carries a `vendorTags: string[]` array (`TAB_VENDOR_TAGS`) mapping rail tab ids to `StoreProfile.categories` tags | `@mock` |
 
 ### `@data/productMeta` — owner: `features/product` (ProductDetail)
 
@@ -180,7 +200,9 @@ the `GROCERY` member was dropped from `AppBrand` / `CartCategory` / `SubAppId` /
 > stores lists all of them; the user visits whichever applies). Items with no determinable store
 > collapse to `NEUTRAL_PICKUP`. Checkout waives the delivery fee (`computeTotals` zeroes it for
 > `PICKUP`). `MyOrder.fulfillment` (optional — absent = delivery) drives the My Orders
-> "Delivery / Self Pickup" chip. Contact phone for pickup is the signed-in user's
+> "Delivery / Self Pickup" chip; `MyOrder.pickup` (a `PickupAddress` snapshot — name, address,
+> hours — taken at placement time, present only for `PICKUP` orders) drives the Order Details
+> "Pickup From" card. Contact phone for pickup is the signed-in user's
 > `userProfile.phone` — no fabricated PII.
 
 ### `@data/account` — owner: `features/profile`
@@ -188,7 +210,7 @@ the `GROCERY` member was dropped from `AppBrand` / `CartCategory` / `SubAppId` /
 | Export | Type | Mobile consumers | Status |
 |---|---|---|---|
 | `pastOrders` | `PastOrder[]` | **`@unused`** — old order-history UI removed with `AccountView` | `@mock` + `@unused` |
-| `myOrders` | `MyOrder[]` (with `app` sub-app field, optional `fulfillment`, and optional `productId` linking to a real product) | `MyOrdersScreen` (order list, sub-app rail, status filter, Delivery/Self-Pickup chip); `getMyOrderById` → `OrderDetailsScreen` | `@mock` |
+| `myOrders` | `MyOrder[]` (with `app` sub-app field, optional `fulfillment`, optional `pickup` pickup-address snapshot for `PICKUP` orders, and optional `productId` linking to a real product) | `MyOrdersScreen` (order list, sub-app rail, status filter, Delivery/Self-Pickup chip); `getMyOrderById` → `OrderDetailsScreen` (incl. "Pickup From" card for pickup orders) | `@mock` |
 | `getMyOrderById` | `(id: string) => MyOrder \| undefined` | `OrderDetailsScreen` (resolves the order by `orderId` route param) | `@mock` |
 | `myOrdersStatusFilters` | `MyOrdersStatusFilterItem[]` (labels only) | `MyOrdersScreen` (filter sheet options; counts derived at runtime) | `@mock` |
 | `userProfile` | `UserProfile` | `AccountScreen` (My Account header card) | `@mock` |
@@ -223,7 +245,8 @@ the `GROCERY` member was dropped from `AppBrand` / `CartCategory` / `SubAppId` /
 | `HomeSectionKind` | type union | `HomeView`, `HomeView` sections | `@static` |
 | `portalSectors` | `PortalSector[]` | home `ExploreSectorsSection` | `@mock` |
 | `topAdSlides` | `AdSlide[]` | home `AdBannerSection` | `@mock` |
-| `hotBrandDeals` | `Product[]` | home `HotBrandDealsSection` | `@mock` |
+| `hotBrandDeals` | `Product[]` | home `BrandCampaignsSection` (ex-`HotBrandDealsSection`); its `hbd-*` rows remain in the catalog index + search | `@mock` |
+| `adCampaigns` / `getCampaignProducts` / `getCampaignStore` / `carouselOneCampaigns` / `carouselTwoCampaigns` | `AdCampaign[]` + resolvers + carousel slices | home `BrandCampaignsSection` (via `BrandCampaignCard`) → `DealsLandingScreen` (`campaign` mode). Each campaign references a **real Mart vendor by `storeId`** (resolved via `getStoreById`) plus products **by id only**, resolved via `getProductById` (kept to the vendor's `storeId`) | `@mock` |
 | `recentlyViewedMart/Food/Pharma` | `Product[]` | `HomeView` (Recently Viewed rail) | `@mock` |
 | `todaysOffers` | `TodaysOffer[]` | **`@unused`** | `@mock` + `@unused` |
 | `mixedRecommendations` | `MixedRecommendation[]` | **`@unused`** | `@mock` + `@unused` |
@@ -236,8 +259,8 @@ the `GROCERY` member was dropped from `AppBrand` / `CartCategory` / `SubAppId` /
 | `instantFeed` | `Product[]` | data-internal only (`filterFeed`); not directly by screens | `@mock` |
 | `nearbyOffers` | `NearbyOffer[]` | home `NearbyOffersSection` | `@mock` |
 | `filterChips` / `filterFeedPools` / `FilterChipId` | typed pools | home `FilterFeedSection` | `@mock` |
-| `seedCartItems` | `CartItem[]` | `state/cartStore` | `@seed` |
-| `seedFavorites` | `string[]` | `state/favoriteStore` (seeds the search-results-style Favourites page — includes FOOD, MART & PHARMA ids) | `@seed` |
+| `seedCartItems` | `CartItem[]` | `state/cartStore` | `@seed` (FOOD seeds carry an explicit `fulfilment` so both cart labels show on first launch) |
+| `seedFavorites` | `string[]` | `state/favoriteStore` (seeds the search-results-style Favourites page — 15 ids spanning FOOD, MART, PHARMA, explore & `cat-*` search ids, all resolvable in `catalogIndex`) | `@seed` |
 | `seedLocation` | `string` | **`@unused`** by mobile | `@seed` + `@unused` |
 
 ### `@data/rewards` — owner: `features/rewards`
@@ -270,14 +293,18 @@ the `GROCERY` member was dropped from `AppBrand` / `CartCategory` / `SubAppId` /
 
 ## Known Gaps (honest inventory)
 
-1. **Duplicated mock data in screens.** `PharmaScreen`, `FoodScreen` (booking dishes), and
-   `ProductDetailView` each keep inline copies of data that already exists under `@data/`.
-   The canonical copies are marked `@unused` until those screens switch to `@data/*`.
-   **This is a deliberate priority for de-duplication.**
+1. **Duplicated mock data in screens.** `PharmaScreen` (home feed arrays in `mocks/pharmaHomeFeed.ts`),
+   `FoodScreen` (booking dishes), `FaMartScreen` (mart home feed in `mocks/martHomeFeed.ts`), and
+   `ProductDetailView` each keep inline/feature copies of data. The `PharmaScreen` recent-orders
+   copy has been de-duplicated into `data/pharma/recentOrders.ts`; the pharma/mart **home-feed**
+   arrays remain feature-local (feature-specific UI types) and are a deliberate de-dup priority.
+   Canonical copies are marked `@unused` until those screens switch to `@data/*`.
 2. **Unused rail exports.** Several `@data/home/rails` exports (`todaysOffers`, `mixedRecommendations`,
    `popularDining`, `recentlyViewedHistory`, `sponsoredAds`, `faMartFinds`, `restaurantSpecials`)
    are exported but not consumed by mobile. They were built for the frozen Vite reference.
-   Prune or wire up when a home section needs them.
+   **Prune candidates** — keep exported, prune when a home section is ready for them.
 3. **`schema.ts` (`SDUINode`)** is `@aspirational` — defined but not produced by any data file yet.
    Data files emit typed entity arrays, not SDUI trees. Do not rely on it as a live contract.
 4. **All live data is mock.** Until `server/` (Go Chi) ships, nothing in `@data/` is fetched from a backend.
+5. **Per-restaurant menus are seeded only for the 18 dining restaurants.** The 12 food-delivery
+   `foodStores` still derive menus from the shared `TODAYS_SPECIALS` catalog.

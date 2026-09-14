@@ -30,6 +30,8 @@ interface ProductCardBaseProps {
   showAdLabel?: boolean;
   originalPrice?: number;
   roundedImageBottom?: boolean;
+  /** Image aspect ratio for grid2/rail/flash variants. Default 3/4 portrait. */
+  imageAspect?: number;
 }
 
 const ProductCardBase = memo(function ProductCardBase({
@@ -38,7 +40,7 @@ const ProductCardBase = memo(function ProductCardBase({
   onIncrement, onDecrement, onFavorite,
   width, showRating = true, showDescription = false,
   showHeart = false, showBadge = true, showAdLabel = false, originalPrice,
-  roundedImageBottom = false,
+  roundedImageBottom = false, imageAspect = 3 / 4,
 }: ProductCardBaseProps) {
   const tokens = brandTokens[appBrand];
   const isRail = variant === 'rail' || variant === 'flash';
@@ -65,7 +67,7 @@ const ProductCardBase = memo(function ProductCardBase({
           contentFit="cover"
           cachePolicy="memory-disk"
           transition={120}
-          style={[styles.image, isGrid2 || isRail ? { aspectRatio: 3 / 4 } : { height: imageH }, roundedImageBottom && { borderBottomLeftRadius: ms(16), borderBottomRightRadius: ms(16) }]}
+          style={[styles.image, isGrid2 || isRail ? { aspectRatio: imageAspect } : { height: imageH }, roundedImageBottom && { borderBottomLeftRadius: ms(16), borderBottomRightRadius: ms(16) }]}
         />
         {showBadge && product.badge && (
           <View style={[styles.badge, { backgroundColor: resolveBadgeBg(product.badgeBg) }]}>

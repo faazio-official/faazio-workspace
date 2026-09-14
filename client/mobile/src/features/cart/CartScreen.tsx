@@ -35,6 +35,13 @@ export function CartScreen({ navigation }: Props) {
     navigation.navigate('MainTabs', { screen: 'Home' });
   }, [navigation]);
 
+  const handleTrackOrder = useCallback(
+    (orderId: string) => {
+      navigation.navigate('MyOrders', { highlightOrderId: orderId });
+    },
+    [navigation],
+  );
+
   return (
     <View style={styles.container}>
       <CartView
@@ -45,6 +52,7 @@ export function CartScreen({ navigation }: Props) {
         setActiveTab={() => {}}
         onBack={() => navigation.goBack()}
         onGoToHub={handleGoToHub}
+        onTrackOrder={handleTrackOrder}
       />
     </View>
   );

@@ -77,6 +77,8 @@ presentation primitives (src/components/shared/, src/theme/)
   `data/DATA_CONTROL.md` → "Normalized Microservice Tables") and is *not yet wired* — screens
   still read the legacy `@data/*` fixtures until they are migrated onto it.
 - When built: every `data/DATA_CONTROL.md` `@mock` entry becomes a contract for a Chi handler; ownership matrix (feature ↔ data file) stays the source of truth.
+- **DB schemas** for the microservices are specified in `docs/architecture/db-schema.md`; the cache
+  layer (Cloudflare edge + Aiven Valkey) is specified in `docs/architecture/caching-cloudflare-valkey.md`.
 
 ---
 

@@ -99,9 +99,18 @@ export interface CartItem {
   originalPrice?: number;
   qtyDesc?: string;
   category?: CartCategory;
+  /**
+   * Food-only fulfilment mode chosen at the add sheet (Dining / Delivery /
+   * Pickup). Drives the per-row fulfilment label in the cart. Absent = falls
+   * back to "Food order · Delivery". Mart/Pharma items never set this.
+   */
+  fulfilment?: CartFulfilment;
 }
 
 export type CartCategory = 'MART' | 'FOOD' | 'PHARMA';
+
+/** Food fulfilment mode captured when a dish is added to the cart. */
+export type CartFulfilment = 'dining' | 'delivery' | 'pickup';
 
 export interface Review {
   id: string;
@@ -205,6 +214,13 @@ export interface PastOrder {
 /** Delivery status of an order shown on the My Orders screen. */
 export type OrderStatus = 'Delivered' | 'Shipped' | 'Processing' | 'Cancelled';
 
+/** Snapshot of where a self-pickup order is collected from (owner: features/profile). */
+export interface PickupAddress {
+  name: string;
+  address: string;
+  hours?: string;
+}
+
 /** One tappable status filter on the My Orders screen (owner: features/profile). */
 export type MyOrdersStatusFilter =
   | 'All Orders'
@@ -229,6 +245,12 @@ export interface MyOrder {
   app: AppBrand;
   /** Fulfillment mode. Absent = delivery (back-compat with existing fixtures). */
   fulfillment?: FulfillmentMode;
+  /**
+   * Where the order is collected from. Present only when `fulfillment` is
+   * PICKUP — a snapshot taken at placement time so the detail screen stays a
+   * dumb renderer (mirrors a real backend).
+   */
+  pickup?: PickupAddress;
   /**
    * Id of the real `Product` this order maps to (searched via `getProductById`).
    * Absent = the order has no drill-in to a product detail page.
@@ -419,4 +441,20 @@ export interface RestaurantSpecial {
   price: number;
   icon: string;
   image: string;
+}
+
+/**
+ * Home ad-campaign card (owner: features/home). Promotes a real Mart vendor
+ * (resolved by `storeId` against the mart store directory) and a row of that
+ * store's catalog products referenced **by id only** (SDUI rule — resolved via
+ * `getProductById`, never duplicated). See `data/home/campaigns.ts`.
+ */
+export interface AdCampaign {
+  id: string;
+  /** Id of the `martStores` vendor this campaign promotes, resolved via `getStoreById`. */
+  storeId: string;
+  /** >= 2 catalog product ids from the campaign store, resolved via `getProductById`. */
+  productIds: string[];
+  /** Which of the two stacked home carousels this campaign renders in (1 | 2). */
+  carousel: 1 | 2;
 }

@@ -19,6 +19,7 @@ interface Props {
   showDescription?: boolean;
   originalPrice?: number;
   width?: number;
+  imageAspect?: number;
 }
 
 const PharmaProductCard = memo(function PharmaProductCard({
@@ -26,6 +27,7 @@ const PharmaProductCard = memo(function PharmaProductCard({
   roundedImageBottom = true,
   showAdLabel = false,
   showDescription = false,
+  imageAspect = 1,
   ...props
 }: Props) {
   return (
@@ -40,6 +42,7 @@ const PharmaProductCard = memo(function PharmaProductCard({
       roundedImageBottom={roundedImageBottom}
       showAdLabel={showAdLabel}
       showDescription={showDescription}
+      imageAspect={imageAspect}
     />
   );
 });

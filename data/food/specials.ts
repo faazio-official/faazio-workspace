@@ -1,3 +1,7 @@
+/**
+ * @mock Static fixture — seeded sample data for local development until the Go Chi
+ * backend (server/) is wired. See data/DATA_CONTROL.md.
+ */
 import type { Product, SpecialDish } from '../types';
 
 const img = (id: string, w = 560, h = 560) =>

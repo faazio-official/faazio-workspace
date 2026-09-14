@@ -13,32 +13,42 @@ import {
   ShoppingCart,
   Heart,
   MapPin,
-  BadgeCheck,
-  RotateCcw,
-  Truck,
+  ShieldCheck,
   Plus,
   Minus,
-  ShieldCheck,
 } from 'lucide-react-native';
 import { hs, vs, ms, SCREEN_W } from '@/utils/responsive';
 import AppText from '@/components/AppText';
 import ProductCardBase from '@/components/shared/ProductCardBase';
 import { martStores } from '@data/mart/stores';
 import { martProducts } from '@data/mart/products';
+import { foodStores } from '@data/food/stores';
+import { TODAYS_SPECIALS, dishToProduct } from '@data/food/specials';
 import type { Product, StoreProfile } from '@data/types';
+import FoodAddModeSheet, { type FoodAddMode } from '@/features/food/components/FoodAddModeSheet';
 
 interface ProductDetailViewProps {
   product?: Product;
   onClose: () => void;
   onSearch?: () => void;
   onCart?: () => void;
-  addToCart: (id: string, name: string, price: number, emoji: string) => void;
+  addToCart: (
+    id: string,
+    name: string,
+    price: number,
+    emoji: string,
+    opts?: { fulfilment?: 'dining' | 'delivery' | 'pickup' },
+  ) => void;
   cartItems: { id: string; name: string; price: number; quantity: number; emoji: string }[];
   updateCartQuantity: (id: string, delta: number) => void;
   favorites?: string[];
   toggleFavorite?: (productId: string) => void;
   /** Optional callback to open a store/vendor page for MART products. */
   onViewVendor?: (storeId: string) => void;
+  /** Optional callback to open the FOOD restaurant's profile page. */
+  onViewRestaurant?: () => void;
+  /** Optional callback to open another product's detail page (FOOD related dishes). */
+  onOpenProduct?: (product: Product) => void;
 }
 
 const FALLBACK_PRODUCT: Product = {
@@ -56,12 +66,6 @@ const FALLBACK_PRODUCT: Product = {
   unit: '1 Pack',
 };
 
-const DELIVERY_TRUST = [
-  { icon: 'cash', label: 'COD Available' },
-  { icon: 'return', label: '10-Day Return' },
-  { icon: 'assured', label: 'Assured' },
-];
-
 function discountPercent(price: number, original?: number): number {
   if (!original || original <= price) return 0;
   return Math.round(((original - price) / original) * 100);
@@ -78,6 +82,8 @@ export default function CommonProductDetailView({
   favorites = [],
   toggleFavorite,
   onViewVendor,
+  onViewRestaurant,
+  onOpenProduct,
 }: ProductDetailViewProps) {
   const product = propProduct ?? FALLBACK_PRODUCT;
   const safePrice = Number(product.price) || 0;
@@ -107,12 +113,27 @@ export default function CommonProductDetailView({
   const cartItem = cartItems.find((i) => i.id === product.id);
   const cartQty = cartItem?.quantity ?? 0;
 
+  const [pendingAdd, setPendingAdd] = useState<Product | null>(null);
+
   const handleToggleFavorite = () => {
     if (toggleFavorite) toggleFavorite(product.id);
   };
 
+  const confirmAdd = (p: Product) => {
+    addToCart(p.id, p.name, Number(p.price) || 0, p.emoji ?? '🍽️');
+  };
+
   const handleAddToCart = () => {
-    addToCart(product.id, product.name, safePrice, safeEmoji);
+    if (product.app === 'FOOD') {
+      setPendingAdd(product);
+    } else {
+      confirmAdd(product);
+    }
+  };
+
+  const handleFoodConfirm = (mode: FoodAddMode) => {
+    if (pendingAdd) addToCart(pendingAdd.id, pendingAdd.name, Number(pendingAdd.price) || 0, pendingAdd.emoji ?? '🍽️', { fulfilment: mode });
+    setPendingAdd(null);
   };
 
   const handleIncrement = () => {
@@ -122,16 +143,6 @@ export default function CommonProductDetailView({
   const handleDecrement = () => {
     updateCartQuantity(product.id, -1);
   };
-
-  const deliveryDate = useMemo(() => {
-    const d = new Date();
-    d.setDate(d.getDate() + 2);
-    return d.toLocaleDateString('en-IN', {
-      weekday: 'short',
-      day: 'numeric',
-      month: 'short',
-    });
-  }, []);
 
   const store = useMemo<StoreProfile | undefined>(() => {
     if (product.app !== 'MART' || !product.storeId) return undefined;
@@ -145,6 +156,18 @@ export default function CommonProductDetailView({
         : [],
     [store, product.id],
   );
+
+  const foodStore = useMemo<StoreProfile | undefined>(() => {
+    if (product.app !== 'FOOD' || !product.shop) return undefined;
+    return foodStores.find((s) => s.app === 'FOOD' && s.name === product.shop);
+  }, [product.app, product.shop]);
+
+  const relatedDishes = useMemo<Product[]>(() => {
+    if (product.app !== 'FOOD' || !product.shop) return [];
+    return TODAYS_SPECIALS.filter(
+      (d) => d.restaurant === product.shop && d.id !== product.id,
+    ).map(dishToProduct);
+  }, [product.app, product.shop, product.id]);
 
   const cardWidth = (SCREEN_W - hs(32) - hs(12)) / 2;
 
@@ -215,6 +238,92 @@ export default function CommonProductDetailView({
       </View>
     </View>
   ) : null;
+
+  const foodSection =
+    product.app === 'FOOD' && product.shop ? (
+      <View style={styles.padded}>
+        <View style={styles.storeCard}>
+          <TouchableOpacity
+            style={styles.storeInfoRow}
+            activeOpacity={0.7}
+            onPress={onViewRestaurant}
+            disabled={!onViewRestaurant}
+          >
+            <View style={styles.storeLogoContainer}>
+              <Image
+                source={{ uri: foodStore?.coverImage ?? product.image }}
+                style={styles.storeCover}
+                resizeMode="cover"
+              />
+              {foodStore ? (
+                <View style={styles.storeRatingBadge}>
+                  <AppText style={styles.storeRatingText}>{foodStore.rating}</AppText>
+                </View>
+              ) : null}
+            </View>
+            <View style={styles.storeDetails}>
+              <View style={styles.storeNameRow}>
+                <AppText style={styles.storeName} numberOfLines={1}>{product.shop}</AppText>
+                <ShieldCheck size={ms(16)} color="#3B82F6" fill="#DBEAFE" />
+              </View>
+              <View style={styles.storeLocationRow}>
+                <MapPin size={ms(14)} color="#94a3b8" />
+                <AppText style={styles.storeLocationText}>
+                  {foodStore?.desc ?? 'Restaurant verified'}
+                </AppText>
+              </View>
+              {foodStore ? (
+                <View style={styles.storeTimeRow}>
+                  <View style={styles.storeOpenBadge}>
+                    <AppText style={styles.storeOpenText}>Open now</AppText>
+                  </View>
+                  <AppText style={styles.storeCloseText}>
+                    {' '}
+                    · {foodStore.distance} · {foodStore.deliveryTime}
+                  </AppText>
+                </View>
+              ) : null}
+            </View>
+          </TouchableOpacity>
+
+          {onViewRestaurant ? (
+            <TouchableOpacity
+              style={styles.viewRestaurantBtn}
+              activeOpacity={0.85}
+              onPress={onViewRestaurant}
+            >
+              <AppText style={styles.viewRestaurantBtnText}>View Restaurant</AppText>
+            </TouchableOpacity>
+          ) : null}
+
+          {relatedDishes.length > 0 && (
+            <>
+              <AppText style={styles.relatedTitle}>More from {product.shop}</AppText>
+              <View style={styles.relatedGrid}>
+                {relatedDishes.map((p) => {
+                  const qty = cartItems.find((i) => i.id === p.id)?.quantity ?? 0;
+                  return (
+                    <ProductCardBase
+                      key={p.id}
+                      product={p}
+                      appBrand="FOOD"
+                      variant="grid2"
+                      width={cardWidth}
+                      quantity={qty}
+                      isAdded={qty > 0}
+                      onPress={onOpenProduct}
+                      onAdd={() => setPendingAdd(p)}
+                      onIncrement={() => updateCartQuantity(p.id, 1)}
+                      onDecrement={() => updateCartQuantity(p.id, -1)}
+                    />
+                  );
+                })}
+              </View>
+            </>
+          )}
+        </View>
+      </View>
+    ) : null;
 
   const heroImage = product.image ? (
     <Image
@@ -321,30 +430,6 @@ export default function CommonProductDetailView({
           </View>
         </View>
 
-        {/* Delivery & trust */}
-        <View style={[styles.padded, styles.trustBlock]}>
-          <View style={styles.deliveryRow}>
-            <MapPin size={ms(16)} color="#334155" strokeWidth={2} />
-            <AppText style={styles.deliveryText}>
-              Free Delivery by <AppText style={styles.deliveryBold}>{deliveryDate}</AppText>
-            </AppText>
-          </View>
-          <View style={styles.trustRow}>
-            {DELIVERY_TRUST.map((t) => (
-              <View key={t.label} style={styles.trustItem}>
-                {t.icon === 'cash' ? (
-                  <Truck size={ms(16)} color="#059669" strokeWidth={2} />
-                ) : t.icon === 'return' ? (
-                  <RotateCcw size={ms(16)} color="#059669" strokeWidth={2} />
-                ) : (
-                  <BadgeCheck size={ms(16)} color="#059669" strokeWidth={2} />
-                )}
-                <AppText style={styles.trustLabel}>{t.label}</AppText>
-              </View>
-            ))}
-          </View>
-        </View>
-
         {/* Product details */}
         <View style={styles.padded}>
           <AppText style={styles.sectionLabel}>Product Details</AppText>
@@ -366,6 +451,7 @@ export default function CommonProductDetailView({
         </View>
 
         {storeSection}
+        {foodSection}
       </ScrollView>
 
       {/* Sticky footer */}
@@ -400,6 +486,13 @@ export default function CommonProductDetailView({
           </>
         )}
       </View>
+
+      <FoodAddModeSheet
+        visible={!!pendingAdd}
+        itemName={pendingAdd?.name}
+        onClose={() => setPendingAdd(null)}
+        onConfirm={handleFoodConfirm}
+      />
     </SafeAreaView>
   );
 }
@@ -569,44 +662,6 @@ const styles = StyleSheet.create({
   variantPillTextActive: {
     color: '#ffffff',
   },
-  trustBlock: {
-    backgroundColor: '#f8fafc',
-    borderRadius: ms(14),
-    marginHorizontal: hs(16),
-    marginTop: vs(16),
-    paddingBottom: vs(14),
-  },
-  deliveryRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: hs(8),
-  },
-  deliveryText: {
-    fontSize: ms(12),
-    color: '#334155',
-    fontWeight: '500',
-  },
-  deliveryBold: {
-    fontWeight: '800',
-    color: '#0f172a',
-  },
-  trustRow: {
-    flexDirection: 'row',
-    marginTop: vs(12),
-    gap: hs(12),
-  },
-  trustItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: hs(5),
-    flex: 1,
-  },
-  trustLabel: {
-    fontSize: ms(10),
-    color: '#475569',
-    fontWeight: '600',
-    flexShrink: 1,
-  },
   descText: {
     fontSize: ms(13),
     color: '#475569',
@@ -739,6 +794,19 @@ const styles = StyleSheet.create({
     marginTop: vs(16),
   },
   viewVendorBtnText: {
+    color: '#ffffff',
+    fontSize: ms(14),
+    fontWeight: '800',
+  },
+  viewRestaurantBtn: {
+    height: Math.max(46, vs(46)),
+    borderRadius: ms(12),
+    backgroundColor: '#B45309',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: vs(16),
+  },
+  viewRestaurantBtnText: {
     color: '#ffffff',
     fontSize: ms(14),
     fontWeight: '800',

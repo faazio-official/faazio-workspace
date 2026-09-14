@@ -30,7 +30,7 @@ data/
 ├── types.ts            # shared entity types
 ├── schema.ts           # @aspirational SDUI contract types
 ├── DATA_CONTROL.md     # authoritative ownership matrix + known gaps
-├── mart/ food/ pharma/   # per-sub-app products + stores (+ deals/specials)
+├── mart/ food/ pharma/   # per-sub-app products + stores (+ deals/specials, food menus, pharma recent orders)
 ├── explore/ categories/ productMeta/ reviews/
 ├── cart/ account/ accounts/ checkout/ inventory/
 └── home/               # sections, rails, feeds, seeds, sdui
@@ -42,11 +42,49 @@ data/
 |---|---|---|
 | `mart` | `features/ecommerce` | `@mock` |
 | `food` | `features/food` | `@mock` |
-| `pharma` | `features/pharma` | `@mock` (+ `@unused` by mobile) |
+| `pharma` | `features/pharma` + `services/categoryVendors` (via `storeId`) | `@mock` |
 | `explore`, `categories` | `features/catalog` | `@mock` |
 | `cart` | `features/cart` | `@mock` |
 | `account` | `features/profile` | `@mock` |
 | `home` | `features/home` | mixed `@mock` / `@seed` / `@static` |
+
+The category rail feed (`data/categories/railFeed.ts`, consumed by `HeaderCategoryRail` and the
+Mart vendors `VendorCategoryPills` via `usePagedRail`) is derived from `MASTER_CATEGORIES.FA_MART`.
+Each `CategoryRailItem` also carries a `vendorTags: string[]` array (`TAB_VENDOR_TAGS`) that maps a
+rail tab id to the `StoreProfile.categories` tags a vendor must match — this lives in the data layer
+because the rail taxonomy names don't equal the store category tags, and the future Go
+`GET /categories/rail?page=` endpoint will serve the same shape.
+
+**Blood Donor "Ask Blood"** (`data/pharma/bloodRequests.ts`) exports the user-posted request
+shape and copy: `UserBloodRequest` (lighter than the hospital-owned `BloodRequest` — only the
+fields the Ask form collects; `uba-` id prefix avoids seed collisions), `ASK_BLOOD_URGENCY_OPTIONS`
+(deadline chips → `neededWithin` + `urgency`), `ASK_BLOOD_COPY` (FAB/sheet/submit/success copy),
+and `ASK_BLOOD_UNITS` (units stepper bounds). These keep the Ask form presentational; the user's
+posted requests persist device-locally via the `bloodDonorStore` blob until the backend owns them.
+
+**Home ad campaigns** (`data/home/campaigns.ts`): the "Deals of the day" section's vendor campaigns
+(`adCampaigns`, split into `carouselOneCampaigns` / `carouselTwoCampaigns` for the two stacked
+auto-playing carousels). Each `AdCampaign` references a **real Mart vendor by `storeId`** (resolved
+via `getCampaignStore` against the store directory) and its catalog products **by id only**
+(`productIds`), resolved via `getProductById` (`getCampaignProducts`, which also keeps only rows
+whose `storeId` matches the campaign vendor) — following the same SDUI "ID-only" rule as
+`home/sdui.ts` and `data/catalog/products.ts`.
+
+**Per-restaurant menus** (`data/food/menus.ts`): exports `restaurantMenus`
+(`Record<string, SpecialDish[]>` keyed by the 18 dining-restaurant names, ~5 dishes each) and
+`allRestaurantMenuDishes` (flat pool for the catalog index/search). `RestaurantProfileScreen`
+`getMenuForRestaurant()` reads `restaurantMenus[restaurant.name]` first, falling back to the
+old `TODAYS_SPECIALS` cuisine-match + padding logic, so every dining room's menu is populated.
+
+**Product-keyed reviews** (`data/reviews/reviews.ts`): `PRODUCT_REVIEWS` maps real catalog
+product ids (e.g. `fm-m1`, `gr-p1`, `sp-1`, `m-italian-margherita`, `ph-f1`) to 3-4 reviews
+each; `getReviewsByProductId` returns the keyed rows or falls back to the app's representative
+set (never empty). Representative ids: FOOD→`sp-1`, MART→`fm-m1`, PHARMA→`ph-f1`.
+
+**Pharma recent orders** (`data/pharma/recentOrders.ts`): exports `PHARMA_RECENT_ORDERS`
+(`PharmaRecentOrder[]`, 4 rows, each with an optional `productId` mapping to real pharma ids
+`ph-f1`/`ph-t3`/`ph-d1`) + the `PharmaRecentOrder` type. `PharmaScreen` now imports it,
+replacing its former inline `RECENT_ORDERS` copy (Phase 7 de-dup).
 
 ### Normalized microservice tables (new surface)
 
@@ -62,6 +100,10 @@ legacy fixtures (never hand-copied), so the two surfaces can't drift:
 | `checkout/orders.ts` | Go + CockroachDB | account/cart/addresses/coupons |
 | `accounts/profile.ts` | Go + PostgreSQL | account profile/orders/nav/details |
 | `home/sdui.ts` | Python + MongoDB | home section structure — **IDs only** |
+
+The **production** counterparts of every normalized table above (per-service DB schema, datatypes,
+sample rows) are specified in `docs/architecture/db-schema.md` — traceability is 1:1 (mock table ↔
+production table).
 
 ## Data flow today vs future
 

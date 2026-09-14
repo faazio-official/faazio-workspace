@@ -36,6 +36,7 @@ export const seedCartItems: CartItem[] = [
     quantity: 1,
     emoji: '🍟',
     category: 'FOOD',
+    fulfilment: 'delivery',
     imageUrl: 'https://images.unsplash.com/photo-1513456852971-30c0b8199d4d?fm=jpg&fit=crop&q=80&w=96&h=96',
   },
   {
@@ -47,6 +48,7 @@ export const seedCartItems: CartItem[] = [
     quantity: 1,
     emoji: '🍰',
     category: 'FOOD',
+    fulfilment: 'pickup',
     imageUrl: 'https://images.unsplash.com/photo-1606313564200-e75d5e30476c?fm=jpg&fit=crop&q=80&w=96&h=96',
   },
   {
@@ -106,6 +108,22 @@ export const seedCartItems: CartItem[] = [
   },
 ];
 
-export const seedFavorites: string[] = ['cat-fm-1', 'cat-gg-2', 'cat-mt-1', 'cat-fd-1', 'ph-f1', 'cat-mt-2'];
+export const seedFavorites: string[] = [
+  'cat-fm-1',
+  'cat-gg-2',
+  'cat-mt-1',
+  'cat-fd-1',
+  'ph-f1',
+  'cat-mt-2',
+  'fm-m1',
+  'fm-e1',
+  'fm-f1',
+  'gr-p1',
+  'sp-1',
+  'm-italian-pasta',
+  'm-korean-fc',
+  'ph-t3',
+  'cat-pw-1',
+];
 
 export const seedLocation: string = 'Sunnambukkara Street, Karaikal';

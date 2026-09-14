@@ -2,17 +2,17 @@ import React from 'react';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { FoodHomeScreen } from '../features/food/screens/FoodHomeScreen';
 import { FoodSearchScreen } from '../features/food/screens/FoodSearchScreen';
-import { DiningDetailScreen } from '../features/food/screens/DiningDetailScreen';
 import { RestaurantProfileScreen } from '../features/food/screens/RestaurantProfileScreen';
-import { OrderDetailScreen } from '../features/food/screens/OrderDetailScreen';
+import { RestaurantOffersScreen } from '../features/food/screens/RestaurantOffersScreen';
 import type { FoodStackParamList } from './types';
 
 const FoodStackNav = createNativeStackNavigator<FoodStackParamList>();
 
 /**
  * Self-contained Food sub-app navigator. Bypasses SubAppWrapper: the root
- * FoodHome owns its own location header + 5-tab bottom nav, and the hero cards
- * push into the Dining / Order / Search screens.
+ * FoodHome owns its own location header + 2-tab bottom nav and the dining-first
+ * home content (carousels + order rails + dining grid). Search, the restaurant
+ * profile drill-in, and the profile's "View All" offers page complete the stack.
  */
 export function FoodStack() {
   return (
@@ -21,9 +21,8 @@ export function FoodStack() {
     >
       <FoodStackNav.Screen name="FoodHome" component={FoodHomeScreen} />
       <FoodStackNav.Screen name="Search" component={FoodSearchScreen} />
-      <FoodStackNav.Screen name="DiningDetail" component={DiningDetailScreen} />
       <FoodStackNav.Screen name="RestaurantProfile" component={RestaurantProfileScreen} />
-      <FoodStackNav.Screen name="OrderDetail" component={OrderDetailScreen} />
+      <FoodStackNav.Screen name="RestaurantOffers" component={RestaurantOffersScreen} />
     </FoodStackNav.Navigator>
   );
 }

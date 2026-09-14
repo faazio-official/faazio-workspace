@@ -26,7 +26,7 @@ docs/
 ├── README.md                       # index + reading order
 ├── DEVELOPER_ONBOARDING.md         # numbered getting-started guide
 ├── BRAND_COLOR_MIGRATION.md        # royal-purple → Faazio-blue change log + revert
-├── architecture/                   # deep-dives (mobile-app, data-layer-sdui, server-gateway-plan)
+├── architecture/                   # deep-dives (mobile-app, data-layer-sdui, server-gateway-plan, db-schema, caching-cloudflare-valkey)
 └── RUNBOOKS/                       # operational guides (RELEASE, CI_PIPELINE, DATA_FIXTURES, TROUBLESHOOTING)
 ```
 
@@ -53,6 +53,8 @@ the same change — do not wait to be asked. Concretely, after implementing:
   `docs/architecture/mobile-app.md` (module map, stores table, nav graph) and `client/mobile/PENDING_WORK.md`.
 - **Data/`@data/*` changes** → update `data/DATA_CONTROL.md` and `docs/architecture/data-layer-sdui.md`.
 - **Server/API changes** → update `docs/architecture/server-gateway-plan.md`.
+- **DB / schema / migration changes** → update `docs/architecture/db-schema.md`.
+- **Cache key / TTL / purge changes** → update `docs/architecture/caching-cloudflare-valkey.md`.
 - **Build/deploy/signing changes** → update `docs/RUNBOOKS/RELEASE.md`.
 - **Build/run/verification changes** → update `docs/RUNBOOKS/TROUBLESHOOTING.md` and the relevant section of `docs/DEVELOPER_ONBOARDING.md`.
 - **Behavior removed** (e.g. deleted UI like an exit-confirm sheet) → remove the now-stale

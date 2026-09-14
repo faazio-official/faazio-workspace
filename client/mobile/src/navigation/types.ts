@@ -4,7 +4,6 @@ import type { MyOrdersStatusFilter } from '@data/types';
 
 export type MainTabParamList = {
   Home: undefined;
-  Categories: undefined;
   Favourites: undefined;
   You: undefined;
   Cart: undefined;
@@ -17,14 +16,27 @@ export type RootStackParamList = {
   Location: undefined;
   MainTabs: NavigatorScreenParams<MainTabParamList> | undefined;
   SubApp: { subAppId: SubAppId; initialVendorStoreId?: string };
-  /** Universal "Master Categories" screen with a cross-sub-app selector. */
-  MasterCategories:
-    | {
-        initialChip?: 'ALL' | 'FA_MART' | 'PHARMA';
-        /** Deep-link: sidebar tab id to mount as active (e.g. from a home rail card). */
-        initialTabId?: string;
-      }
-    | undefined;
+  /**
+   * Category drill-in page (opened from the Home/Mart header rail). Renders one
+   * main category's subgroups as a plain-text rail, each listing its vendors.
+   */
+  CategoryDrillIn: {
+    /** `CategoryTab.id` of the tapped rail chip, resolved via `MASTER_CATEGORIES[app]`. */
+    tabId: string;
+    /** Header title — the tapped rail name (never "All Categories"). */
+    title: string;
+    /** Sub-app whose category tree + product pool backs this page. */
+    app: 'FA_MART' | 'PHARMA';
+  };
+  /** Vendor details page — a single store's products with a live searchbar. */
+  VendorDetails: {
+    /** Id of the `StoreProfile` to show. */
+    storeId: string;
+    /** Sub-app the vendor belongs to (drives card render + product pool). */
+    app: 'FA_MART' | 'PHARMA';
+    /** Pre-applied search query (usually the tapped sub-category name). */
+    initialQuery?: string;
+  };
   FoodApp: NavigatorScreenParams<FoodStackParamList> | undefined;
   ProductDetail: { product: any };
   /** First-class cross-sub-app search. Food keeps its own nested Search. */
@@ -40,7 +52,7 @@ export type RootStackParamList = {
   /** "Saved Addresses" — manage, select, add delivery locations (pushed from Account). */
   SavedAddresses: undefined;
   /** "My Orders" — status tabs, sort/filter, and order cards (pushed from Account). */
-  MyOrders: { initialTab?: MyOrdersStatusFilter } | undefined;
+  MyOrders: { initialTab?: MyOrdersStatusFilter; highlightOrderId?: string } | undefined;
   /** Search-results-style Favourites page (pushed from Account). */
   Favourites: undefined;
   /** Per-order detail page, resolved by id from `@data` (pushed from My Orders). */
@@ -53,13 +65,26 @@ export type RootStackParamList = {
   FaazioRewards: undefined;
   /** Mock "Sell with us" partner onboarding — required details (no backend yet). */
   SellWithUs: undefined;
+  /**
+   * Deals landing page — one page, two entry modes:
+   * - `campaign`: a brand campaign's products (from the Home "Deals of the day" carousel).
+   * - `discounts`: a vendor's discounted products (from the Mart vendor profile "View All").
+   */
+  DealsLanding: {
+    mode: 'campaign' | 'discounts';
+    campaignId?: string;
+    storeId?: string;
+    app?: 'FA_MART' | 'PHARMA';
+  };
+  /** Full-bleed prescription capture flow (camera can't live in the sub-app wrapper). */
+  PrescriptionFlow: undefined;
 };
 
 export type FoodStackParamList = {
   FoodHome: undefined;
   Search: { initialQuery?: string; initialMode?: string } | undefined;
-  DiningDetail: { scrollToGrid?: boolean } | undefined;
   /** Full restaurant profile drill-in (hero, menu, floating cart footer). */
   RestaurantProfile: { restaurant: any };
-  OrderDetail: undefined;
+  /** "View All" — every discounted dish for a restaurant, search-result-style list. */
+  RestaurantOffers: { restaurant: any; offers: any[] };
 };

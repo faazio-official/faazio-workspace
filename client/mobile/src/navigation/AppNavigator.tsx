@@ -28,7 +28,8 @@ const ProductDetailScreen = lazyNamed(() => import('@/features/product/ProductDe
 const SearchRouteScreen = lazyNamed(() => import('@/features/search/SearchRouteScreen'), 'SearchRouteScreen');
 const CartScreen = lazyNamed(() => import('@/features/cart/CartScreen'), 'CartScreen');
 const PaymentOptionsScreen = lazyNamed(() => import('@/features/cart/payment/PaymentOptionsScreen'), 'default');
-const MasterCategoriesScreen = lazyNamed(() => import('@/features/catalog/MasterCategoriesScreen'), 'MasterCategoriesScreen');
+const CategoryDrillInScreen = lazyNamed(() => import('@/features/catalog/CategoryDrillInScreen'), 'CategoryDrillInScreen');
+const VendorDetailScreen = lazyNamed(() => import('@/features/catalog/VendorDetailScreen'), 'VendorDetailScreen');
 const UserDetailsScreen = lazyNamed(() => import('@/features/profile/UserDetailsScreen'), 'UserDetailsScreen');
 const SavedAddressesScreen = lazyNamed(() => import('@/features/profile/SavedAddressesScreen'), 'SavedAddressesScreen');
 const MyOrdersScreen = lazyNamed(() => import('@/features/profile/MyOrdersScreen'), 'MyOrdersScreen');
@@ -39,6 +40,8 @@ const BloodRequestDescriptionScreen = lazyNamed(() => import('@/features/pharma/
 const FaazioRewardsScreen = lazyNamed(() => import('@/features/rewards/FaazioRewardsScreen'), 'FaazioRewardsScreen');
 const SellWithUsScreen = lazyNamed(() => import('@/features/profile/SellWithUsScreen'), 'SellWithUsScreen');
 const FavouritesScreen = lazyNamed(() => import('@/features/favourites/FavouritesScreen'), 'FavouritesScreen');
+const DealsLandingScreen = lazyNamed(() => import('@/features/ecommerce/DealsLandingScreen'), 'DealsLandingScreen');
+const PrescriptionFlowScreen = lazyNamed(() => import('@/features/pharma/prescription/PrescriptionFlowScreen'), 'PrescriptionFlowScreen');
 
 export function AppNavigator() {
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
@@ -61,8 +64,13 @@ export function AppNavigator() {
             options={{ animation: 'fade', animationDuration: 180 }}
           />
           <Stack.Screen
-            name="MasterCategories"
-            component={MasterCategoriesScreen}
+            name="CategoryDrillIn"
+            component={CategoryDrillInScreen}
+            options={{ animation: 'fade', animationDuration: 180 }}
+          />
+          <Stack.Screen
+            name="VendorDetails"
+            component={VendorDetailScreen}
             options={{ animation: 'fade', animationDuration: 180 }}
           />
           <Stack.Screen
@@ -138,6 +146,16 @@ export function AppNavigator() {
           <Stack.Screen
             name="Favourites"
             component={FavouritesScreen}
+            options={{ animation: 'fade', animationDuration: 180 }}
+          />
+          <Stack.Screen
+            name="DealsLanding"
+            component={DealsLandingScreen}
+            options={{ animation: 'fade', animationDuration: 180 }}
+          />
+          <Stack.Screen
+            name="PrescriptionFlow"
+            component={PrescriptionFlowScreen}
             options={{ animation: 'fade', animationDuration: 180 }}
           />
         </Stack.Navigator>

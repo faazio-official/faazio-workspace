@@ -30,7 +30,7 @@ import {
 } from '@/features/home/hubHeader';
 import type { MainTabParamList, RootStackParamList } from '@/navigation/types';
 import type { SubAppId } from '@/state/uiStore';
-import HeaderCategoryRail from '@/features/home/HeaderCategoryRail';
+import HeaderCategoryRail from '@/components/shared/HeaderCategoryRail';
 import type { CategoryRailItem } from '@data/categories/railFeed';
 
 type Props = CompositeScreenProps<
@@ -59,19 +59,23 @@ export function HomeTabScreen({ navigation }: Props) {
     [navigation],
   );
 
-  const handleRailCategoryPress = useCallback(
-    (item: CategoryRailItem) => {
-      navigation.navigate('MasterCategories', {
-        initialChip: 'FA_MART',
-        initialTabId: item.id,
-      });
+  const handleOpenDeals = useCallback(
+    (params: { mode: 'campaign' | 'discounts'; campaignId?: string; storeId?: string }) => {
+      navigation.navigate('DealsLanding', params);
     },
     [navigation],
   );
 
-  const handleRailViewAll = useCallback(() => {
-    navigation.navigate('MasterCategories', { initialChip: 'FA_MART' });
-  }, [navigation]);
+  const handleRailCategoryPress = useCallback(
+    (item: CategoryRailItem) => {
+      navigation.navigate('CategoryDrillIn', {
+        tabId: item.id,
+        title: item.name,
+        app: 'FA_MART',
+      });
+    },
+    [navigation],
+  );
 
   const scrollY = useSharedValue(0);
   const clamp = useSharedValue(0);
@@ -156,7 +160,6 @@ export function HomeTabScreen({ navigation }: Props) {
             <View style={styles.fadeBlock}>
               <HeaderCategoryRail
                 onCategoryPress={handleRailCategoryPress}
-                onViewAll={handleRailViewAll}
               />
             </View>
           </View>
@@ -168,6 +171,7 @@ export function HomeTabScreen({ navigation }: Props) {
           onLaunchSubApp={handleLaunchSubApp}
           addToCart={addToCart}
           onProductClick={handleProductClick}
+          onOpenDeals={handleOpenDeals}
           scrollY={scrollY}
           clamp={clamp}
           collapseCap={collapseCap}

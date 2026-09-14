@@ -14,18 +14,14 @@ import {
   Tag,
   Send,
   CheckCircle,
-  Truck,
   Check,
-  ChefHat,
-  BriefcaseMedical,
   Store,
-  Clock,
   Coins,
 } from 'lucide-react-native';
-import type { LucideIcon } from 'lucide-react-native';
 import { hs, vs, ms } from '@/utils/responsive';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import EnterpriseIcon from '@/components/EnterpriseIcon';
+import Checkbox from '@/components/shared/Checkbox';
 import type { CartItem, CartCategory } from '@/state/cartStore';
 import { defaultAddresses } from '@data/cart/addresses';
 import { coupons } from '@data/cart/coupons';
@@ -39,13 +35,14 @@ import PaymentOptionsScreen from '@/features/cart/payment/PaymentOptionsScreen';
 import { computeTotals } from './utils';
 import type { CheckoutStep } from './utils';
 import { useRewardsStore } from '@/state/rewardsStore';
+import { useOrdersStore } from '@/state/ordersStore';
 import { coinsEarnedFor, isCardActive } from '@/features/rewards/rewardsLogic';
 import { COIN_REDEEM_RATE, DISCOUNT_CARD_PERCENT } from '@data/rewards/rewards';
 
-const CATEGORY_META: Record<CartCategory, { label: string; icon: LucideIcon; color: string }> = {
-  MART: { label: 'Mart', icon: ShoppingBag, color: '#10B981' },
-  FOOD: { label: 'Food', icon: ChefHat, color: '#F97316' },
-  PHARMA: { label: 'Pharma', icon: BriefcaseMedical, color: '#0284C7' },
+const CATEGORY_META: Record<CartCategory, { label: string }> = {
+  MART: { label: 'Mart' },
+  FOOD: { label: 'Food' },
+  PHARMA: { label: 'Pharma' },
 };
 
 const CATEGORY_ORDER: CartCategory[] = ['MART', 'FOOD', 'PHARMA'];
@@ -57,7 +54,19 @@ const inferCategory = (itemId: string): CartCategory => {
   return 'FOOD';
 };
 
-function ItemThumb({ item, size = 48 }: { item: CartItem; size?: number }) {
+const fulfilmentLabel = (mode?: CartItem['fulfilment']): string => {
+  switch (mode) {
+    case 'dining':
+      return 'Dining';
+    case 'pickup':
+      return 'Food order · Self pickup';
+    case 'delivery':
+    default:
+      return 'Food order · Delivery';
+  }
+};
+
+function ItemThumb({ item, size = 64 }: { item: CartItem; size?: number }) {
   const [errored, setErrored] = useState(false);
   const showImage = !!item.imageUrl && !errored;
   return (
@@ -85,6 +94,7 @@ interface CartViewProps {
   onScroll?: (offsetY: number) => void;
   onBack?: () => void;
   onGoToHub?: () => void;
+  onTrackOrder?: (orderId: string) => void;
 }
 
 export default function CartView({
@@ -96,6 +106,7 @@ export default function CartView({
   onScroll,
   onBack,
   onGoToHub,
+  onTrackOrder,
 }: CartViewProps) {
   const [step, setStep] = useState<CheckoutStep>('BAG');
   const [fulfillment, setFulfillment] = useState<FulfillmentMode>('DELIVERY');
@@ -103,6 +114,7 @@ export default function CartView({
   const [appliedDiscount, setAppliedDiscount] = useState<{ code: string; amount: number } | null>(null);
   const [expandedCategories, setExpandedCategories] = useState<CartCategory[]>(CATEGORY_ORDER);
   const [showCouponSheet, setShowCouponSheet] = useState(false);
+  const [deselectedIds, setDeselectedIds] = useState<Set<string>>(new Set());
 
   const discountCard = useRewardsStore((s) => s.discountCard);
   const streakCardActive = discountCard ? isCardActive(discountCard, new Date()) : false;
@@ -162,9 +174,13 @@ export default function CartView({
   }, [pulseAnim]);
 
   const discountAmount = appliedDiscount ? appliedDiscount.amount : 0;
-  const { subtotal, deliveryFee, tax, finalTotal } = computeTotals(cartItems, discountAmount, fulfillment);
+  const selectedItems = useMemo(
+    () => cartItems.filter((i) => !deselectedIds.has(i.id)),
+    [cartItems, deselectedIds],
+  );
+  const { subtotal, deliveryFee, tax, finalTotal } = computeTotals(selectedItems, discountAmount, fulfillment);
   const estimatedCoins = coinsEarnedFor(finalTotal);
-  const originalTotal = cartItems.reduce(
+  const originalTotal = selectedItems.reduce(
     (acc, curr) => acc + (curr.originalPrice ?? curr.price) * curr.quantity,
     0,
   );
@@ -231,8 +247,8 @@ export default function CartView({
   const selectedAddressObj = addresses.find((a) => a.selected) || addresses[0];
 
   const pickupPointList = useMemo(
-    () => getPickupPointsForItems(cartItems),
-    [cartItems],
+    () => getPickupPointsForItems(selectedItems),
+    [selectedItems],
   );
 
   useEffect(() => {
@@ -251,9 +267,28 @@ export default function CartView({
       const orderId = `FZ-${Math.floor(100000 + Math.random() * 900000)}`;
       useRewardsStore.getState().recordOrder(paidAmount, coinsRedeemed, orderId);
       const isPickup = fulfillment === 'PICKUP';
+      useOrdersStore.getState().recordOrder({
+        orderId,
+        kind: 'items',
+        fulfillment,
+        vendorName: isPickup
+          ? selectedPickup?.name ?? 'Pickup point'
+          : selectedAddressObj?.label ?? 'Delivery',
+        pickup: isPickup && selectedPickup
+          ? { name: selectedPickup.name, address: selectedPickup.address }
+          : undefined,
+        items: [...selectedItems].map((i) => ({
+          id: i.id,
+          name: i.name,
+          price: i.price,
+          quantity: i.quantity,
+          emoji: i.emoji,
+        })),
+        total: paidAmount,
+      });
       const details = {
         orderId,
-        items: [...cartItems],
+        items: [...selectedItems],
         subtotal,
         discount: discountAmount,
         tax,
@@ -271,7 +306,8 @@ export default function CartView({
         coinsRedeemed,
       };
       setPlacedOrderDetails(details);
-      setCartItems([]);
+      setCartItems(cartItems.filter((i) => deselectedIds.has(i.id)));
+      setDeselectedIds(new Set());
       setStep('RECEIPT');
       setPaymentProcessing(false);
     }, 2000);
@@ -339,19 +375,111 @@ export default function CartView({
                 )}
               </View>
 
-              {/* Review Items */}
-              <AppText style={styles.reviewTitle}>Review Items</AppText>
+              {/* Fulfilment — how do you want this order? */}
+              <View style={styles.fulfilmentCard}>
+                <AppText style={styles.fulfilmentTitle}>How do you want your order?</AppText>
+                <View style={styles.fulfillmentToggle}>
+                  <TouchableOpacity
+                    onPress={() => setFulfillment('DELIVERY')}
+                    style={[styles.fulfillmentToggleOption, fulfillment !== 'PICKUP' && styles.fulfillmentToggleOptionActive]}
+                    activeOpacity={0.8}
+                    accessibilityRole="button"
+                    accessibilityState={{ selected: fulfillment === 'DELIVERY' }}
+                  >
+                    <Send size={ms(14)} color={fulfillment === 'PICKUP' ? '#6B7280' : '#ffffff'} strokeWidth={2.2} />
+                    <AppText style={[styles.fulfillmentToggleText, fulfillment !== 'PICKUP' && styles.fulfillmentToggleTextActive]}>
+                      Food Delivery
+                    </AppText>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    onPress={() => setFulfillment('PICKUP')}
+                    style={[styles.fulfillmentToggleOption, fulfillment === 'PICKUP' && styles.fulfillmentToggleOptionActive]}
+                    activeOpacity={0.8}
+                    accessibilityRole="button"
+                    accessibilityState={{ selected: fulfillment === 'PICKUP' }}
+                  >
+                    <Store size={ms(14)} color={fulfillment === 'PICKUP' ? '#ffffff' : '#6B7280'} strokeWidth={2.2} />
+                    <AppText style={[styles.fulfillmentToggleText, fulfillment === 'PICKUP' && styles.fulfillmentToggleTextActive]}>
+                      Self Pickup
+                    </AppText>
+                  </TouchableOpacity>
+                </View>
+
+                {fulfillment === 'PICKUP' ? (
+                  <View style={styles.fulfilmentPickup}>
+                    {pickupPointList.map((point) => {
+                      const isSelected = point.id === selectedPickupId;
+                      return (
+                        <TouchableOpacity
+                          key={point.id}
+                          onPress={() => setSelectedPickupId(point.id)}
+                          style={[
+                            styles.addressCard,
+                            isSelected ? { borderColor: '#0f172a', backgroundColor: '#f8fafc', shadowColor: '#000000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.08, shadowRadius: 6, elevation: 2 } : null,
+                          ]}
+                          activeOpacity={0.9}
+                        >
+                          <View style={[styles.addressCardIconCircle, isSelected ? { backgroundColor: '#0f172a' } : null]}>
+                            <Store size={ms(14)} color={isSelected ? '#ffffff' : '#64748b'} />
+                          </View>
+                          <View style={styles.addressCardDetails}>
+                            <AppText style={styles.addressCardLabel}>{point.name}</AppText>
+                            <AppText style={styles.addressCardText}>{point.address}</AppText>
+                            <AppText style={styles.addressCardText}>Open {point.hours}</AppText>
+                          </View>
+                          {isSelected && (
+                            <View style={styles.addressSelectMarker}>
+                              <AppText style={styles.addressSelectMarkerText}>✓</AppText>
+                            </View>
+                          )}
+                        </TouchableOpacity>
+                      );
+                    })}
+                    <View style={styles.pickupContactRow}>
+                      <AppText style={styles.pickupContactLabel}>Pickup contact: </AppText>
+                      <AppText style={styles.pickupContactValue}>{userProfile.phone}</AppText>
+                    </View>
+                  </View>
+                ) : (
+                  <TouchableOpacity
+                    style={styles.fulfilmentAddrRow}
+                    onPress={() => setStep('ADDRESS')}
+                    activeOpacity={0.7}
+                  >
+                    <View style={styles.fulfilmentAddrLeft}>
+                      <AppText style={styles.addrLabel} numberOfLines={1}>Deliver to {selectedAddressObj?.label ?? 'Home'}</AppText>
+                      <AppText style={styles.addrSub} numberOfLines={1}>{selectedAddressObj?.address}</AppText>
+                    </View>
+                    <View style={styles.locBtn}>
+                      <Send size={ms(14)} color="#F97316" strokeWidth={2.2} />
+                      <ChevronDown size={ms(13)} color="#F97316" strokeWidth={2.4} />
+                    </View>
+                  </TouchableOpacity>
+                )}
+              </View>
+
               {grouped.map((group) => {
                 const expanded = expandedCategories.includes(group.cat);
-                const Icon = group.meta.icon;
+                const catSelectedCount = group.items.filter((i) => !deselectedIds.has(i.id)).length;
+                const allChecked = catSelectedCount === group.items.length;
+                const someChecked = catSelectedCount > 0 && catSelectedCount < group.items.length;
+                const toggleGroup = () => {
+                  setDeselectedIds((prev) => {
+                    const next = new Set(prev);
+                    if (allChecked) {
+                      group.items.forEach((i) => next.add(i.id));
+                    } else {
+                      group.items.forEach((i) => next.delete(i.id));
+                    }
+                    return next;
+                  });
+                };
                 return (
                   <View key={group.cat} style={styles.catCard}>
                     <TouchableOpacity style={styles.catHeader} onPress={() => toggleCategory(group.cat)} activeOpacity={0.7}>
                       <View style={styles.catHeaderLeft}>
-                        <View style={[styles.catIconChip, { backgroundColor: `${group.meta.color}1A` }]}>
-                          <Icon size={ms(18)} color={group.meta.color} strokeWidth={2.2} />
-                        </View>
-                        <View>
+                        <Checkbox checked={allChecked} indeterminate={someChecked} onToggle={toggleGroup} />
+                        <View style={styles.catHeaderText}>
                           <AppText style={styles.catTitle}>{group.meta.label}</AppText>
                           <AppText style={styles.catCount}>{group.items.length} item{group.items.length > 1 ? 's' : ''}</AppText>
                         </View>
@@ -365,30 +493,47 @@ export default function CartView({
                     </TouchableOpacity>
 
                     {expanded &&
-                      group.items.map((item) => (
-                        <View key={item.id} style={styles.itemRow}>
-                          <ItemThumb item={item} />
-                          <View style={styles.itemDetails}>
-                            <AppText style={styles.itemName} numberOfLines={2}>{item.name}</AppText>
-                            {item.qtyDesc ? <AppText style={styles.itemQtyDesc}>{item.qtyDesc}</AppText> : null}
-                            <View style={styles.stepperPill}>
-                              <TouchableOpacity onPress={() => updateCartQuantity(item.id, -1)} style={styles.stepperBtn} activeOpacity={0.8} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-                                <Minus size={ms(12)} color="#118C4F" strokeWidth={2.6} />
-                              </TouchableOpacity>
-                              <AppText style={styles.stepperValue}>{item.quantity}</AppText>
-                              <TouchableOpacity onPress={() => updateCartQuantity(item.id, 1)} style={styles.stepperBtn} activeOpacity={0.8} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-                                <Plus size={ms(12)} color="#118C4F" strokeWidth={2.6} />
-                              </TouchableOpacity>
+                      group.items.map((item) => {
+                        const isDeselected = deselectedIds.has(item.id);
+                        return (
+                          <View key={item.id} style={[styles.itemRow, isDeselected && styles.itemRowDeselected]}>
+                            <Checkbox
+                              checked={!isDeselected}
+                              onToggle={() =>
+                                setDeselectedIds((prev) => {
+                                  const next = new Set(prev);
+                                  if (next.has(item.id)) next.delete(item.id);
+                                  else next.add(item.id);
+                                  return next;
+                                })
+                              }
+                            />
+                            <ItemThumb item={item} />
+                            <View style={styles.itemDetails}>
+                              <AppText style={styles.itemName} numberOfLines={2}>{item.name}</AppText>
+                              {item.qtyDesc ? <AppText style={styles.itemQtyDesc}>{item.qtyDesc}</AppText> : null}
+                              {group.cat === 'FOOD' && (
+                                <AppText style={styles.itemFulfilment}>{fulfilmentLabel(item.fulfilment)}</AppText>
+                              )}
+                              <View style={styles.stepperPill}>
+                                <TouchableOpacity onPress={() => updateCartQuantity(item.id, -1)} style={styles.stepperBtn} activeOpacity={0.8} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                                  <Minus size={ms(12)} color="#118C4F" strokeWidth={2.6} />
+                                </TouchableOpacity>
+                                <AppText style={styles.stepperValue}>{item.quantity}</AppText>
+                                <TouchableOpacity onPress={() => updateCartQuantity(item.id, 1)} style={styles.stepperBtn} activeOpacity={0.8} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                                  <Plus size={ms(12)} color="#118C4F" strokeWidth={2.6} />
+                                </TouchableOpacity>
+                              </View>
+                            </View>
+                            <View style={styles.itemPriceCol}>
+                              {item.originalPrice != null && (
+                                <AppText style={styles.itemOrigPrice}>₹{item.originalPrice.toLocaleString('en-IN')}</AppText>
+                              )}
+                              <AppText style={styles.itemPrice}>₹{item.price.toLocaleString('en-IN')}</AppText>
                             </View>
                           </View>
-                          <View style={styles.itemPriceCol}>
-                            {item.originalPrice != null && (
-                              <AppText style={styles.itemOrigPrice}>₹{item.originalPrice.toLocaleString('en-IN')}</AppText>
-                            )}
-                            <AppText style={styles.itemPrice}>₹{item.price.toLocaleString('en-IN')}</AppText>
-                          </View>
-                        </View>
-                      ))}
+                        );
+                      })}
                   </View>
                 );
               })}
@@ -412,32 +557,43 @@ export default function CartView({
               </View>
             </View>
 
-            <TouchableOpacity style={styles.addrRow} onPress={() => setStep('ADDRESS')} activeOpacity={0.7}>
-              <View style={styles.addrRowLeft}>
-                {fulfillment === 'PICKUP' ? (
-                  <>
-                    <AppText style={styles.addrLabel} numberOfLines={1}>Pickup from {selectedPickup?.name ?? 'Store'} • Ready in 15 mins</AppText>
-                    <AppText style={styles.addrSub} numberOfLines={1}>{selectedPickup?.address}</AppText>
-                  </>
-                ) : (
-                  <>
-                    <AppText style={styles.addrLabel} numberOfLines={1}>Deliver to {selectedAddressObj?.label ?? 'Home'} in 10 mins</AppText>
-                    <AppText style={styles.addrSub} numberOfLines={1}>{selectedAddressObj?.address}</AppText>
-                  </>
-                )}
-              </View>
-              <View style={styles.locBtn}>
-                {fulfillment === 'PICKUP' ? (
+            {fulfillment === 'PICKUP' ? (
+              <View style={[styles.addrRow, selectedItems.length === 0 && styles.controlDisabled]}>
+                <View style={styles.addrRowLeft}>
+                  <AppText style={styles.addrLabel} numberOfLines={1}>Pickup from {selectedPickup?.name ?? 'Store'} • Ready in 15 mins</AppText>
+                  <AppText style={styles.addrSub} numberOfLines={1}>{selectedPickup?.address}</AppText>
+                </View>
+                <View style={styles.locBtn}>
                   <Store size={ms(14)} color="#F97316" strokeWidth={2.2} />
-                ) : (
-                  <Send size={ms(14)} color="#F97316" strokeWidth={2.2} />
-                )}
-                <ChevronDown size={ms(13)} color="#F97316" strokeWidth={2.4} />
+                </View>
               </View>
-            </TouchableOpacity>
+            ) : (
+              <TouchableOpacity
+                style={[styles.addrRow, selectedItems.length === 0 && styles.controlDisabled]}
+                onPress={() => setStep('ADDRESS')}
+                activeOpacity={0.7}
+                disabled={selectedItems.length === 0}
+              >
+                <View style={styles.addrRowLeft}>
+                  <AppText style={styles.addrLabel} numberOfLines={1}>Deliver to {selectedAddressObj?.label ?? 'Home'} in 10 mins</AppText>
+                  <AppText style={styles.addrSub} numberOfLines={1}>{selectedAddressObj?.address}</AppText>
+                </View>
+                <View style={styles.locBtn}>
+                  <Send size={ms(14)} color="#F97316" strokeWidth={2.2} />
+                  <ChevronDown size={ms(13)} color="#F97316" strokeWidth={2.4} />
+                </View>
+              </TouchableOpacity>
+            )}
 
-            <TouchableOpacity style={styles.proceedBtn} onPress={() => setStep('ADDRESS')} activeOpacity={0.88}>
-              <AppText style={styles.proceedText}>Proceed to Pay</AppText>
+            <TouchableOpacity
+              style={[styles.proceedBtn, selectedItems.length === 0 && styles.proceedBtnDisabled]}
+              onPress={() => setStep(fulfillment === 'PICKUP' ? 'PAYMENT' : 'ADDRESS')}
+              activeOpacity={0.88}
+              disabled={selectedItems.length === 0}
+            >
+              <AppText style={styles.proceedText}>
+                {selectedItems.length === 0 ? 'Select items to pay' : 'Proceed to Pay'}
+              </AppText>
             </TouchableOpacity>
           </View>
         )}
@@ -524,135 +680,65 @@ export default function CartView({
               <ChevronLeft size={ms(12)} color="#94a3b8" />
               <AppText style={styles.backBtnText}>Back</AppText>
             </TouchableOpacity>
-            <AppText style={styles.headerTitleCenter}>
-              {fulfillment === 'PICKUP' ? 'Select Pickup Point' : 'Select Delivery Address'}
-            </AppText>
+            <AppText style={styles.headerTitleCenter}>Select Delivery Address</AppText>
             <View style={{ width: hs(40) }} />
           </View>
 
-          {/* Deliver / Self-Pickup toggle */}
-          <View style={styles.fulfillmentToggle}>
-            <TouchableOpacity
-              onPress={() => setFulfillment('DELIVERY')}
-              style={[styles.fulfillmentToggleOption, fulfillment !== 'PICKUP' && styles.fulfillmentToggleOptionActive]}
-              activeOpacity={0.8}
-              accessibilityRole="button"
-              accessibilityState={{ selected: fulfillment === 'DELIVERY' }}
-            >
-              <Send size={ms(14)} color={fulfillment === 'PICKUP' ? '#6B7280' : '#ffffff'} strokeWidth={2.2} />
-              <AppText style={[styles.fulfillmentToggleText, fulfillment !== 'PICKUP' && styles.fulfillmentToggleTextActive]}>
-                Deliver
-              </AppText>
-            </TouchableOpacity>
-            <TouchableOpacity
-              onPress={() => setFulfillment('PICKUP')}
-              style={[styles.fulfillmentToggleOption, fulfillment === 'PICKUP' && styles.fulfillmentToggleOptionActive]}
-              activeOpacity={0.8}
-              accessibilityRole="button"
-              accessibilityState={{ selected: fulfillment === 'PICKUP' }}
-            >
-              <Store size={ms(14)} color={fulfillment === 'PICKUP' ? '#ffffff' : '#6B7280'} strokeWidth={2.2} />
-              <AppText style={[styles.fulfillmentToggleText, fulfillment === 'PICKUP' && styles.fulfillmentToggleTextActive]}>
-                Self Pickup
-              </AppText>
-            </TouchableOpacity>
+          {/* Address List */}
+          <View style={styles.addressList}>
+            {addresses.map((addr) => (
+              <TouchableOpacity
+                key={addr.id}
+                onPress={() => selectAddress(addr.id)}
+                style={[
+                  styles.addressCard,
+                  addr.selected ? { borderColor: '#0f172a', backgroundColor: '#f8fafc', shadowColor: '#000000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.08, shadowRadius: 6, elevation: 2 } : null,
+                ]}
+                activeOpacity={0.9}
+              >
+                <View style={[styles.addressCardIconCircle, addr.selected ? { backgroundColor: '#0f172a' } : null]}>
+                  <MapPin size={ms(14)} color={addr.selected ? '#ffffff' : '#64748b'} />
+                </View>
+                <View style={styles.addressCardDetails}>
+                  <AppText style={styles.addressCardLabel}>{`${addresses.indexOf(addr) === 0 ? '\u{1F3E0}' : '\u{1F3E2}'} ${addr.label}${addr.isPrimary ? ' (Primary)' : ''}`}</AppText>
+                  <AppText style={styles.addressCardText}>{addr.address}</AppText>
+                </View>
+
+                {addr.selected && (
+                  <View style={styles.addressSelectMarker}>
+                    <AppText style={styles.addressSelectMarkerText}>✓</AppText>
+                  </View>
+                )}
+              </TouchableOpacity>
+            ))}
           </View>
 
-          {fulfillment === 'PICKUP' ? (
-            /* Pickup Point List — one per distinct store in the cart */
-            <View style={styles.addressList}>
-              {pickupPointList.map((point) => {
-                const isSelected = point.id === selectedPickupId;
-                return (
-                  <TouchableOpacity
-                    key={point.id}
-                    onPress={() => setSelectedPickupId(point.id)}
-                    style={[
-                      styles.addressCard,
-                      isSelected ? { borderColor: '#0f172a', backgroundColor: '#f8fafc', shadowColor: '#000000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.08, shadowRadius: 6, elevation: 2 } : null,
-                    ]}
-                    activeOpacity={0.9}
-                  >
-                    <View style={[styles.addressCardIconCircle, isSelected ? { backgroundColor: '#0f172a' } : null]}>
-                      <Store size={ms(14)} color={isSelected ? '#ffffff' : '#64748b'} />
-                    </View>
-                    <View style={styles.addressCardDetails}>
-                      <AppText style={styles.addressCardLabel}>{point.name}</AppText>
-                      <AppText style={styles.addressCardText}>{point.address}</AppText>
-                      <AppText style={styles.addressCardText}>Open {point.hours}</AppText>
-                    </View>
-                    {isSelected && (
-                      <View style={styles.addressSelectMarker}>
-                        <AppText style={styles.addressSelectMarkerText}>✓</AppText>
-                      </View>
-                    )}
-                  </TouchableOpacity>
-                );
-              })}
-              <View style={styles.pickupContactRow}>
-                <AppText style={styles.pickupContactLabel}>Pickup contact: </AppText>
-                <AppText style={styles.pickupContactValue}>{userProfile.phone}</AppText>
+          {/* Add custom Address Form */}
+          {showAddAddress ? (
+            <View style={styles.customAddressForm}>
+              <AppText style={styles.sectionLabel}>Type Custom Address</AppText>
+              <AppTextInput
+                placeholder="Apartment/Flat No, Landmark, Street name, Pincode"
+                value={customAddress}
+                onChangeText={setCustomAddress}
+                multiline
+                numberOfLines={3}
+                style={styles.customAddressInput}
+                placeholderTextColor="#cbd5e1"
+              />
+              <View style={styles.customAddressBtnRow}>
+                <TouchableOpacity onPress={() => setShowAddAddress(false)} style={styles.customAddressCancel} activeOpacity={0.8}>
+                  <AppText style={styles.customAddressCancelText}>Cancel</AppText>
+                </TouchableOpacity>
+                <TouchableOpacity onPress={addNewAddress} style={styles.customAddressSave} activeOpacity={0.8}>
+                  <AppText style={styles.customAddressSaveText}>Save Address</AppText>
+                </TouchableOpacity>
               </View>
             </View>
           ) : (
-            <>
-              {/* Address List */}
-              <View style={styles.addressList}>
-                {addresses.map((addr) => (
-                  <TouchableOpacity
-                    key={addr.id}
-                    onPress={() => selectAddress(addr.id)}
-                    style={[
-                      styles.addressCard,
-                      addr.selected ? { borderColor: '#0f172a', backgroundColor: '#f8fafc', shadowColor: '#000000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.08, shadowRadius: 6, elevation: 2 } : null,
-                    ]}
-                    activeOpacity={0.9}
-                  >
-                    <View style={[styles.addressCardIconCircle, addr.selected ? { backgroundColor: '#0f172a' } : null]}>
-                      <MapPin size={ms(14)} color={addr.selected ? '#ffffff' : '#64748b'} />
-                    </View>
-                    <View style={styles.addressCardDetails}>
-                      <AppText style={styles.addressCardLabel}>{`${addresses.indexOf(addr) === 0 ? '\u{1F3E0}' : '\u{1F3E2}'} ${addr.label}${addr.isPrimary ? ' (Primary)' : ''}`}</AppText>
-                      <AppText style={styles.addressCardText}>{addr.address}</AppText>
-                    </View>
-
-                    {addr.selected && (
-                      <View style={styles.addressSelectMarker}>
-                        <AppText style={styles.addressSelectMarkerText}>✓</AppText>
-                      </View>
-                    )}
-                  </TouchableOpacity>
-                ))}
-              </View>
-
-              {/* Add custom Address Form */}
-              {showAddAddress ? (
-                <View style={styles.customAddressForm}>
-                  <AppText style={styles.sectionLabel}>Type Custom Address</AppText>
-                  <AppTextInput
-                    placeholder="Apartment/Flat No, Landmark, Street name, Pincode"
-                    value={customAddress}
-                    onChangeText={setCustomAddress}
-                    multiline
-                    numberOfLines={3}
-                    style={styles.customAddressInput}
-                    placeholderTextColor="#cbd5e1"
-                  />
-                  <View style={styles.customAddressBtnRow}>
-                    <TouchableOpacity onPress={() => setShowAddAddress(false)} style={styles.customAddressCancel} activeOpacity={0.8}>
-                      <AppText style={styles.customAddressCancelText}>Cancel</AppText>
-                    </TouchableOpacity>
-                    <TouchableOpacity onPress={addNewAddress} style={styles.customAddressSave} activeOpacity={0.8}>
-                      <AppText style={styles.customAddressSaveText}>Save Address</AppText>
-                    </TouchableOpacity>
-                  </View>
-                </View>
-              ) : (
-                <TouchableOpacity onPress={() => setShowAddAddress(true)} style={styles.addAddressDashedBtn} activeOpacity={0.8}>
-                  <AppText style={styles.addAddressDashedBtnText}>+ Add Delivery Location</AppText>
-                </TouchableOpacity>
-              )}
-            </>
+            <TouchableOpacity onPress={() => setShowAddAddress(true)} style={styles.addAddressDashedBtn} activeOpacity={0.8}>
+              <AppText style={styles.addAddressDashedBtnText}>+ Add Delivery Location</AppText>
+            </TouchableOpacity>
           )}
 
           {/* Proceed to Payment Button */}
@@ -666,7 +752,7 @@ export default function CartView({
   }
 
   if (step === 'PAYMENT') {
-    const itemCount = cartItems.reduce((acc, curr) => acc + curr.quantity, 0);
+    const itemCount = selectedItems.reduce((acc, curr) => acc + curr.quantity, 0);
     return (
       <View style={styles.paymentRoot}>
         <PaymentOptionsScreen
@@ -679,7 +765,7 @@ export default function CartView({
           originLabel="Instamart"
           fulfillment={fulfillment}
           pickup={selectedPickup}
-          onBack={() => setStep('ADDRESS')}
+          onBack={() => setStep('BAG')}
           onPlaceOrder={handlePlaceOrder}
         />
       </View>
@@ -702,81 +788,34 @@ export default function CartView({
         </View>
 
         {/* Live Delivery/Pickup status steps */}
-        {placedOrderDetails?.fulfillment === 'PICKUP' ? (
-          <View style={styles.liveTrackingBox}>
-            <View style={styles.liveTrackingHeader}>
-              <View style={styles.liveTrackingHeaderLeft}>
-                <Animated.View style={{ opacity: pulseAnim.interpolate({ inputRange: [0, 1], outputRange: [1, 0.3] }) }}>
-                  <Store size={ms(10)} color="#475569" style={{ marginRight: hs(4) }} />
-                </Animated.View>
-                <AppText style={styles.liveTrackingLabel}>Pickup Status</AppText>
-              </View>
-              <View style={styles.etaBadge}>
-                <AppText style={styles.etaBadgeText}>Ready in {placedOrderDetails?.eta}</AppText>
-              </View>
+        <View style={styles.liveTrackingBox}>
+          <View style={styles.liveTrackingHeader}>
+            <View style={styles.liveTrackingHeaderLeft}>
+              <Animated.View style={{ opacity: pulseAnim.interpolate({ inputRange: [0, 1], outputRange: [1, 0.3] }) }}>
+                <Store size={ms(10)} color="#475569" style={{ marginRight: hs(4) }} />
+              </Animated.View>
+              <AppText style={styles.liveTrackingLabel}>Real-Time Tracking Status</AppText>
             </View>
+          </View>
 
-            <View style={styles.liveStepsContainer}>
-              <View style={styles.liveStepRow}>
-                <View style={styles.liveStepConnectorLine} />
-                <View style={styles.liveStepDotOuter}>
-                  <View style={styles.liveStepActiveDot} />
-                </View>
-                <View style={styles.liveStepTextCol}>
-                  <AppText style={styles.liveStepTitle}>Order Packed</AppText>
-                  <AppText style={styles.liveStepDesc}>Packed and ready at {placedOrderDetails?.pickup?.name}</AppText>
-                </View>
+          <View style={styles.liveStepsContainer}>
+            <View style={[styles.liveStepRow, { marginBottom: 0 }]}>
+              <View style={styles.liveStepDotOuter}>
+                <Animated.View style={[styles.liveStepActiveDotPulse, { opacity: pulseAnim.interpolate({ inputRange: [0, 1], outputRange: [1, 0.4] }) }]} />
               </View>
-
-              <View style={[styles.liveStepRow, { marginBottom: 0 }]}>
-                <View style={styles.liveStepDotOuter}>
-                  <Animated.View style={[styles.liveStepActiveDotPulse, { opacity: pulseAnim.interpolate({ inputRange: [0, 1], outputRange: [1, 0.4] }) }]} />
-                </View>
-                <View style={styles.liveStepTextCol}>
-                  <AppText style={styles.liveStepTitle}>Ready for pickup</AppText>
-                  <AppText style={styles.liveStepDesc}>Show your order ID {placedOrderDetails?.orderId} at the counter</AppText>
-                </View>
+              <View style={styles.liveStepTextCol}>
+                <AppText style={styles.liveStepTitle}>Order has been placed</AppText>
+                {placedOrderDetails?.fulfillment === 'PICKUP' && placedOrderDetails?.pickup ? (
+                  <AppText style={styles.liveStepDesc} numberOfLines={2}>
+                    Pickup from: {placedOrderDetails.pickup.name}, {placedOrderDetails.pickup.address}
+                  </AppText>
+                ) : (
+                  <AppText style={styles.liveStepDesc}>Preparing your order for delivery</AppText>
+                )}
               </View>
             </View>
           </View>
-        ) : (
-          <View style={styles.liveTrackingBox}>
-            <View style={styles.liveTrackingHeader}>
-              <View style={styles.liveTrackingHeaderLeft}>
-                <Animated.View style={{ opacity: pulseAnim.interpolate({ inputRange: [0, 1], outputRange: [1, 0.3] }) }}>
-                  <Truck size={ms(10)} color="#475569" style={{ marginRight: hs(4) }} />
-                </Animated.View>
-                <AppText style={styles.liveTrackingLabel}>Real-Time Tracking Status</AppText>
-              </View>
-              <View style={styles.etaBadge}>
-                <AppText style={styles.etaBadgeText}>Arriving in {placedOrderDetails?.eta}</AppText>
-              </View>
-            </View>
-
-            <View style={styles.liveStepsContainer}>
-              <View style={styles.liveStepRow}>
-                <View style={styles.liveStepConnectorLine} />
-                <View style={styles.liveStepDotOuter}>
-                  <View style={styles.liveStepActiveDot} />
-                </View>
-                <View style={styles.liveStepTextCol}>
-                  <AppText style={styles.liveStepTitle}>Order Accepted by Hub</AppText>
-                  <AppText style={styles.liveStepDesc}>Confirmed at local Faazio distribution centre</AppText>
-                </View>
-              </View>
-
-              <View style={[styles.liveStepRow, { marginBottom: 0 }]}>
-                <View style={styles.liveStepDotOuter}>
-                  <Animated.View style={[styles.liveStepActiveDotPulse, { opacity: pulseAnim.interpolate({ inputRange: [0, 1], outputRange: [1, 0.4] }) }]} />
-                </View>
-                <View style={styles.liveStepTextCol}>
-                  <AppText style={styles.liveStepTitle}>Rider Assigning...</AppText>
-                  <AppText style={styles.liveStepDesc}>Simulated delivery executive moving to pick location</AppText>
-                </View>
-              </View>
-            </View>
-          </View>
-        )}
+        </View>
 
         {/* Purchased list */}
         <View style={styles.purchasedItemsSection}>
@@ -785,10 +824,10 @@ export default function CartView({
             {placedOrderDetails?.items.map((item) => (
               <View key={item.id} style={styles.purchasedItemRow}>
                 <View style={styles.purchasedItemLeft}>
-                  <EnterpriseIcon emoji={item.emoji} variant="flat" size={ms(10)} />
                   <AppText style={styles.purchasedItemName} numberOfLines={1}>
-                    {item.name} <AppText style={{ color: '#94a3b8', fontWeight: 'bold' }}>x {item.quantity}</AppText>
+                    {item.name}
                   </AppText>
+                  <AppText style={styles.purchasedItemQty}>x {item.quantity}</AppText>
                 </View>
                 <AppText style={styles.purchasedItemPrice}>₹{(item.price * item.quantity).toLocaleString('en-IN')}</AppText>
               </View>
@@ -837,6 +876,16 @@ export default function CartView({
 
         {/* Action Controls */}
         <View style={styles.receiptActionBtnRow}>
+          {onTrackOrder && placedOrderDetails?.orderId ? (
+            <TouchableOpacity
+              onPress={() => onTrackOrder(placedOrderDetails!.orderId)}
+              style={styles.receiptTrackOrderBtn}
+              activeOpacity={0.9}
+            >
+              <AppText style={styles.receiptTrackOrderBtnText}>Track My Order</AppText>
+            </TouchableOpacity>
+          ) : null}
+
           <TouchableOpacity
             onPress={() => {
               setStep('BAG');
@@ -1242,6 +1291,38 @@ const styles = StyleSheet.create({
     padding: vs(4),
     marginTop: vs(4),
   },
+  fulfilmentCard: {
+    backgroundColor: '#ffffff',
+    borderRadius: ms(16),
+    borderWidth: 1,
+    borderColor: '#f1f5f9',
+    padding: hs(14),
+    marginBottom: vs(12),
+  },
+  fulfilmentTitle: {
+    fontSize: ms(11),
+    fontWeight: '900',
+    color: '#0f172a',
+    textTransform: 'uppercase',
+    marginBottom: vs(4),
+  },
+  fulfilmentPickup: {
+    marginTop: vs(4),
+  },
+  fulfilmentAddrRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    borderWidth: 1,
+    borderColor: '#f1f5f9',
+    borderRadius: ms(16),
+    padding: hs(12),
+    marginTop: vs(10),
+  },
+  fulfilmentAddrLeft: {
+    flex: 1,
+    marginRight: hs(10),
+  },
   fulfillmentToggleOption: {
     flex: 1,
     flexDirection: 'row',
@@ -1618,6 +1699,12 @@ const styles = StyleSheet.create({
     fontSize: ms(9),
     fontWeight: '900',
     color: '#334155',
+    maxWidth: '75%',
+  },
+  purchasedItemQty: {
+    fontSize: ms(9),
+    fontWeight: '700',
+    color: '#94a3b8',
   },
   purchasedItemPrice: {
     fontSize: ms(9),
@@ -1693,6 +1780,25 @@ const styles = StyleSheet.create({
     paddingTop: vs(14),
     marginTop: vs(12),
   },
+  receiptTrackOrderBtn: {
+    flex: 1,
+    height: Math.max(40, vs(40)),
+    borderRadius: ms(10),
+    backgroundColor: '#56B821',
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#000000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  receiptTrackOrderBtnText: {
+    fontSize: ms(9),
+    fontWeight: '900',
+    color: '#ffffff',
+    textTransform: 'uppercase',
+  },
   receiptNewOrderBtn: {
     flex: 1,
     height: Math.max(40, vs(40)),
@@ -1755,7 +1861,6 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   bagScrollContent: {
-    paddingHorizontal: hs(16),
     paddingTop: vs(16),
     paddingBottom: vs(24),
   },
@@ -1800,7 +1905,8 @@ const styles = StyleSheet.create({
     color: '#ffffff',
   },
   savingsCard: {
-    marginBottom: vs(4),
+    marginHorizontal: hs(16),
+    marginBottom: vs(12),
     borderRadius: ms(16),
     overflow: 'hidden',
     backgroundColor: '#FFFFFF',
@@ -1860,19 +1966,11 @@ const styles = StyleSheet.create({
     fontWeight: '800',
     color: '#ef4444',
   },
-  reviewTitle: {
-    fontSize: ms(16),
-    fontWeight: '900',
-    color: '#1E2022',
-    marginTop: vs(20),
-    marginBottom: vs(12),
-  },
   catCard: {
     backgroundColor: '#FFFFFF',
-    borderRadius: ms(16),
-    padding: hs(16),
-    borderWidth: 1,
-    borderColor: '#F0F0F0',
+    paddingHorizontal: hs(16),
+    paddingTop: vs(16),
+    paddingBottom: vs(4),
     marginBottom: vs(12),
   },
   catHeader: {
@@ -1884,14 +1982,10 @@ const styles = StyleSheet.create({
   catHeaderLeft: {
     flexDirection: 'row',
     alignItems: 'center',
+    gap: hs(12),
   },
-  catIconChip: {
-    width: ms(36),
-    height: ms(36),
-    borderRadius: ms(10),
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginRight: hs(10),
+  catHeaderText: {
+    flex: 1,
   },
   catTitle: {
     fontSize: ms(13.5),
@@ -1907,9 +2001,13 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingVertical: vs(8),
+    gap: hs(10),
+    paddingVertical: vs(10),
     borderTopWidth: 1,
     borderTopColor: '#F0F0F0',
+  },
+  itemRowDeselected: {
+    opacity: 0.45,
   },
   itemThumb: {
     backgroundColor: '#F3F4F6',
@@ -1917,8 +2015,6 @@ const styles = StyleSheet.create({
   },
   itemDetails: {
     flex: 1,
-    paddingLeft: hs(12),
-    marginRight: hs(8),
   },
   itemName: {
     fontSize: ms(13),
@@ -1929,6 +2025,17 @@ const styles = StyleSheet.create({
     fontSize: ms(11),
     color: '#666666',
     marginTop: vs(2),
+  },
+  itemFulfilment: {
+    fontSize: ms(10.5),
+    fontWeight: '700',
+    color: '#F97316',
+    backgroundColor: '#FDEDE8',
+    borderRadius: ms(6),
+    paddingHorizontal: hs(6),
+    paddingVertical: vs(2),
+    marginTop: vs(4),
+    alignSelf: 'flex-start',
   },
   stepperPill: {
     flexDirection: 'row',
@@ -1955,7 +2062,6 @@ const styles = StyleSheet.create({
   },
   itemPriceCol: {
     alignItems: 'flex-end',
-    paddingLeft: hs(12),
   },
   itemOrigPrice: {
     fontSize: ms(10.5),
@@ -2055,12 +2161,18 @@ const styles = StyleSheet.create({
     paddingVertical: vs(8),
     gap: hs(4),
   },
+  controlDisabled: {
+    opacity: 0.4,
+  },
   proceedBtn: {
     height: Math.max(48, vs(48)),
     borderRadius: ms(12),
     backgroundColor: '#118C4F',
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  proceedBtnDisabled: {
+    backgroundColor: '#94A3B8',
   },
   proceedText: {
     fontSize: ms(16),

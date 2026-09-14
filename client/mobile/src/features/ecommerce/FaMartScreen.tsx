@@ -8,6 +8,7 @@ import { useCartStore } from '@/state/store';
 import { martProducts } from '@data/mart/products';
 import type { MartProduct, StoreProfile } from '@data/types';
 import type { RootStackParamList } from '@/navigation/types';
+import { getDiscountedProducts as getStoreDiscountedProducts } from '@/services/categoryVendors';
 import MartProductCard from '@/features/ecommerce/cards/MartProductCard';
 
 import {
@@ -19,14 +20,10 @@ import { useMartFeed } from './hooks/useMartFeed';
 import MartHomeSkeleton from './components/skeletons/MartHomeSkeleton';
 
 import MartHeroCarousel from './components/mart-home/MartHeroCarousel';
-import CategoryCardRail from '@/components/shared/CategoryCardRail';
 import DealsOfDayRail from './components/mart-home/DealsOfDayRail';
 import DailyEssentialsRail from './components/mart-home/DailyEssentialsRail';
 import LocalVendorRail from './components/mart-home/LocalVendorRail';
 import { VendorProfileView } from './components/vendor';
-import { getCategoryCards } from '@/services/categoryRail';
-import type { CategoryCard } from '@/services/categoryRail';
-import { MART_ACCENT } from '@data/categories/masterCategories';
 
 const SCREEN_W = Dimensions.get('window').width;
 
@@ -39,6 +36,8 @@ interface FaMartScreenProps {
   vendor?: StoreProfile | null;
   /** Requests opening (vendor) or closing (null) the vendor profile drill-in. */
   onVendorPress?: (vendor: StoreProfile | null) => void;
+  /** Open the Deals landing page for this vendor's discounted products. */
+  onViewAllDiscounts?: (vendor: StoreProfile) => void;
 }
 
 /**
@@ -49,9 +48,10 @@ interface FaMartScreenProps {
 const getVendorProducts = (store: StoreProfile): MartProduct[] =>
   martProducts.filter((p) => p.storeId === store.id);
 
-/** Items currently on offer (have a pre-discount MRP) — shown in the discount rail. */
+/** Items currently on offer (have a pre-discount MRP) — shared predicate via the
+ *  category-vendors repository seam (mart cast: the pool is all `MartProduct`s). */
 const getDiscountedProducts = (store: StoreProfile): MartProduct[] =>
-  getVendorProducts(store).filter((p) => p.originalPrice !== undefined && p.originalPrice > p.price);
+  getStoreDiscountedProducts(store.id, 'FA_MART') as MartProduct[];
 
 const CARD_GAP = hs(12);
 const CARD_W = (SCREEN_W - hs(32) - CARD_GAP) / 2;
@@ -62,6 +62,7 @@ export function FaMartScreen({
   onSearchPress,
   vendor = null,
   onVendorPress,
+  onViewAllDiscounts,
 }: FaMartScreenProps) {
   const feed = useMartFeed();
   const cartItems = useCartStore((s) => s.cart);
@@ -91,20 +92,6 @@ export function FaMartScreen({
     [onVendorPress],
   );
 
-  const handleCategoryPress = useCallback(
-    (card: CategoryCard) => {
-      navigation.navigate('MasterCategories', {
-        initialChip: 'FA_MART',
-        initialTabId: card.id,
-      });
-    },
-    [navigation],
-  );
-
-  const handleViewCategories = useCallback(() => {
-    navigation.navigate('MasterCategories', { initialChip: 'FA_MART' });
-  }, [navigation]);
-
   const handleDealPress = useCallback(
     (deal: MartDeal) => {
       onProductClick?.(dealToProduct(deal));
@@ -121,19 +108,6 @@ export function FaMartScreen({
 
   const feedSectionsData: { id: string; component: React.ReactNode }[] = [
     { id: 'hero', component: <MartHeroCarousel banners={feed?.heroBanners ?? []} /> },
-    {
-      id: 'categories',
-      component: (
-        <CategoryCardRail
-          title="Shop by Category"
-          categories={getCategoryCards('FA_MART')}
-          accent={MART_ACCENT}
-          cardBg="#FFF8E1"
-          onPress={handleCategoryPress}
-          onViewMore={handleViewCategories}
-        />
-      ),
-    },
     { id: 'deals', component: <DealsOfDayRail deals={feed?.deals ?? []} onDealPress={handleDealPress} /> },
     { id: 'essentials', component: <DailyEssentialsRail items={feed?.dailyEssentials ?? []} onItemPress={handleEssentialPress} /> },
   ];
@@ -181,6 +155,7 @@ export function FaMartScreen({
         onAddToCart={handleAddProduct}
         onUpdateQuantity={updateQuantity}
         onCartPress={() => navigation.navigate('Cart')}
+        onViewAllDiscounts={onViewAllDiscounts ? () => onViewAllDiscounts(vendor) : undefined}
       />
     );
   }

@@ -1,10 +1,12 @@
-import React, { useCallback } from 'react';
+import React, { useCallback, useMemo } from 'react';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import CommonProductDetailView from '@/features/product/CommonProductDetailView';
 import { useCartStore } from '@/state/cartStore';
 import { useFavoriteStore } from '@/state/favoriteStore';
+import { getDiningRestaurantForProduct } from '@/features/food/utils/restaurantForProduct';
 import type { SubAppId } from '@/state/uiStore';
 import type { RootStackParamList } from '@/navigation/types';
+import type { Product } from '@data/types';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'ProductDetail'>;
 
@@ -32,6 +34,22 @@ export function ProductDetailScreen({ navigation, route }: Props) {
       navigation.navigate('SubApp', { subAppId: 'FA_MART', initialVendorStoreId: storeId }),
     [navigation],
   );
+  const handleOpenProduct = useCallback(
+    (p: Product) => navigation.push('ProductDetail', { product: p }),
+    [navigation],
+  );
+
+  const restaurant = useMemo(
+    () => (product?.app === 'FOOD' ? getDiningRestaurantForProduct(product) : undefined),
+    [product],
+  );
+  const handleViewRestaurant = useCallback(() => {
+    if (!restaurant) return;
+    navigation.navigate('FoodApp', {
+      screen: 'RestaurantProfile',
+      params: { restaurant },
+    });
+  }, [navigation, restaurant]);
 
   return (
     <CommonProductDetailView
@@ -45,6 +63,8 @@ export function ProductDetailScreen({ navigation, route }: Props) {
       favorites={favorites}
       toggleFavorite={toggleFavorite}
       onViewVendor={handleViewVendor}
+      onViewRestaurant={handleViewRestaurant}
+      onOpenProduct={handleOpenProduct}
     />
   );
 }

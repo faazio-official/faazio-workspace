@@ -1,0 +1,12 @@
+diff --git a/node_modules/expo/node_modules/@expo/cli/build/src/start/server/metro/debugging/createDebugMiddleware.js b/node_modules/expo/node_modules/@expo/cli/build/src/start/server/metro/debugging/createDebugMiddleware.js
+index 3ddd5ea..f8e8613 100644
+--- a/node_modules/expo/node_modules/@expo/cli/build/src/start/server/metro/debugging/createDebugMiddleware.js
++++ b/node_modules/expo/node_modules/@expo/cli/build/src/start/server/metro/debugging/createDebugMiddleware.js
+@@ -46,6 +46,6 @@
+             // The standalone fusebox shell (@react-native/debugger-shell) starts installing almost
+             // immediately in the background when the dev middleware is created, which we don't
+             // always want to happen
+-            enableStandaloneFuseboxShell: !(0, _env.envIsHeadless)()
++            enableStandaloneFuseboxShell: false
+         }
+     });

@@ -5,19 +5,12 @@ import { SkeletonBlock } from '@/components/shared/Skeleton';
 
 /**
  * Mart home loading skeleton — mirrors the Mart feed layout (hero carousel,
- * category rail, deals, flash sale, top brands, local vendors).
+ * deals, daily essentials, local vendors).
  */
 const MartHomeSkeleton = memo(function MartHomeSkeleton() {
   return (
     <View style={styles.container}>
       <SkeletonBlock width="90%" height={vs(150)} radius={ms(16)} />
-
-      <SkeletonBlock width="45%" height={vs(16)} radius={ms(6)} style={styles.title} />
-      <View style={styles.gridRow}>
-        {[0, 1, 2, 3].map((i) => (
-          <SkeletonBlock key={i} width={hs(70)} height={vs(86)} radius={ms(14)} />
-        ))}
-      </View>
 
       <SkeletonBlock width="40%" height={vs(16)} radius={ms(6)} style={styles.title} />
       <View style={styles.railRow}>
@@ -46,11 +39,6 @@ const styles = StyleSheet.create({
   title: {
     marginTop: vs(22),
     marginBottom: vs(12),
-  },
-  gridRow: {
-    flexDirection: 'row',
-    gap: hs(12),
-    overflow: 'hidden',
   },
   railRow: {
     flexDirection: 'row',

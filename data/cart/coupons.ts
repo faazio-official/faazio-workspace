@@ -10,4 +10,6 @@ export const coupons: Coupon[] = [
   { code: 'FREESHIP', discountPercent: 0, label: 'FREE Delivery', isFreeDelivery: true, minOrder: 500 },
   { code: 'MART30', discountPercent: 30, label: 'MART30', minOrder: 799 },
   { code: 'WELCOME15', discountPercent: 15, label: 'WELCOME15', minOrder: 299 },
+  { code: 'MONSOON25', discountPercent: 25, label: 'MONSOON25', minOrder: 899 },
+  { code: 'HEALTH10', discountPercent: 10, label: 'HEALTH10', minOrder: 399 },
 ];

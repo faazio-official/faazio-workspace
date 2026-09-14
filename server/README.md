@@ -152,10 +152,10 @@ server/
 - **Where:** checkout service emits events → cart/stock, notifications, recommendations.
 
 ### ⚡ Distributed Caching
-- **Use:** Upstash Redis (serverless).
+- **Use:** Aiven Valkey (serverless). *Decision note: replaces the earlier "Upstash Redis" plan —
+  full config in `docs/architecture/caching-cloudflare-valkey.md`.*
 - **Why:** keep hot data (top search results, homepage banners) in RAM for flash sales
-  without choking the database; generous free tier (up to 10k requests/day), pay per
-  execution instead of a fixed $30–60/mo managed Redis instance.
+  without choking the database; Aiven free tier → Startup ~$60/mo (research-verified).
 - **Where:** gateway / search read-through cache.
 
 ### 📋 Observability (Logging, Metrics & Tracing)
@@ -181,3 +181,6 @@ server/
   - `data/home/*` (rails, offers, filters) → **recommendations / gateway**
 - Security posture (AGENTS.md): DB ports closed to the public, only necessary ports open,
   secrets via env/secret manager, SSH keys not passwords, traffic via Cloudflare IP ranges.
+- **Schemas & cache:** the per-service DB schemas (tables, datatypes, sample rows) are specified in
+  `docs/architecture/db-schema.md`; the cache layer (Cloudflare edge + Aiven Valkey) in
+  `docs/architecture/caching-cloudflare-valkey.md`.

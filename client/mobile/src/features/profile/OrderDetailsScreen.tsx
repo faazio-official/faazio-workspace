@@ -5,7 +5,7 @@ import { ChevronLeft, ExternalLink, PackageOpen } from 'lucide-react-native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import AppText from '@/components/AppText';
 import { hs, vs, ms } from '@/utils/responsive';
-import { getMyOrderById, getProductById, portalSectors } from '@data/index';
+import { getMyOrderById, getProductById, portalSectors, userProfile } from '@data/index';
 import { SECTOR_VISUALS } from '@/theme/sectorVisuals';
 import type { RootStackParamList } from '@/navigation/types';
 
@@ -140,6 +140,22 @@ export function OrderDetailsScreen({ navigation, route }: Props) {
             </AppText>
           </View>
         </View>
+
+        {/* Pickup from — present only for self-pickup orders */}
+        {order.fulfillment === 'PICKUP' && order.pickup ? (
+          <View style={styles.card}>
+            <AppText style={styles.sectionTitle}>Pickup From</AppText>
+            <AppText style={styles.productName}>{order.pickup.name}</AppText>
+            <AppText style={styles.pickupAddress}>{order.pickup.address}</AppText>
+            {order.pickup.hours ? (
+              <AppText style={styles.pickupHours}>Open {order.pickup.hours}</AppText>
+            ) : null}
+            <View style={styles.pickupContactRow}>
+              <AppText style={styles.pickupContactLabel}>Pickup contact: </AppText>
+              <AppText style={styles.pickupContactValue}>{userProfile.phone}</AppText>
+            </View>
+          </View>
+        ) : null}
 
         {/* View Product */}
         {product ? (
@@ -302,6 +318,31 @@ const styles = StyleSheet.create({
     fontSize: ms(12),
     fontWeight: '700',
     color: '#374151',
+  },
+  pickupAddress: {
+    fontSize: ms(13),
+    color: '#6B7280',
+    lineHeight: ms(19),
+    marginBottom: vs(4),
+  },
+  pickupHours: {
+    fontSize: ms(12),
+    color: '#374151',
+    marginBottom: vs(4),
+  },
+  pickupContactRow: {
+    flexDirection: 'row',
+    marginTop: vs(6),
+  },
+  pickupContactLabel: {
+    fontSize: ms(12),
+    fontWeight: '600',
+    color: '#6B7280',
+  },
+  pickupContactValue: {
+    fontSize: ms(12),
+    fontWeight: '700',
+    color: '#111827',
   },
 
   viewProductBtn: {

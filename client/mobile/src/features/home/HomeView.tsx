@@ -9,7 +9,7 @@ import type { SubAppId } from '@/state/uiStore';
 
 import AdBannerSection from '@/features/home/sections/AdBannerSection';
 import DiningSpecialsSection from '@/features/home/sections/DiningSpecialsSection';
-import HotBrandDealsSection from '@/features/home/sections/HotBrandDealsSection';
+import BrandCampaignsSection from '@/features/home/sections/BrandCampaignsSection';
 import DealsOfDaySection from '@/features/home/sections/DealsOfDaySection';
 import MostRatedDiningSection from '@/features/home/sections/MostRatedDiningSection';
 import RecentlyViewedRailSection from '@/features/home/sections/RecentlyViewedRailSection';
@@ -26,6 +26,7 @@ interface HomeViewProps {
   onLaunchSubApp: (subAppId: SubAppId) => void;
   addToCart: (id: string, name: string, price: number, emoji: string) => void;
   onProductClick?: (product: any) => void;
+  onOpenDeals?: (params: { mode: 'campaign' | 'discounts'; campaignId?: string; storeId?: string }) => void;
   scrollY: SharedValue<number>;
   clamp: SharedValue<number>;
   collapseCap: SharedValue<number>;
@@ -39,6 +40,7 @@ export default function HomeView({
   onLaunchSubApp,
   addToCart,
   onProductClick,
+  onOpenDeals,
   scrollY,
   clamp,
   collapseCap,
@@ -46,8 +48,8 @@ export default function HomeView({
   contentPaddingTop,
 }: HomeViewProps) {
   const sectionProps = useMemo(
-    () => ({ onLaunchSubApp, addToCart, onProductClick }),
-    [onLaunchSubApp, addToCart, onProductClick],
+    () => ({ onLaunchSubApp, addToCart, onProductClick, onOpenDeals }),
+    [onLaunchSubApp, addToCart, onProductClick, onOpenDeals],
   );
 
   // 1:1 with finger scroll — matches native collapsing toolbars. Damping below 1
@@ -74,7 +76,7 @@ export default function HomeView({
       switch (id) {
         case 'adBanner': return <AdBannerSection {...sectionProps} />;
         case 'diningSpecials': return <DiningSpecialsSection {...sectionProps} />;
-        case 'hotBrandDeals': return <HotBrandDealsSection {...sectionProps} />;
+        case 'hotBrandDeals': return <BrandCampaignsSection {...sectionProps} />;
         case 'dealsOfDay': return <DealsOfDaySection {...sectionProps} />;
         case 'mostRatedDining': return <MostRatedDiningSection {...sectionProps} />;
         case 'recentlyViewedMart': return <RecentlyViewedRailSection {...sectionProps} title="Recently Viewed — Mart" products={recentlyViewedMart} accent="#1162D3" appBrand="MART" />;
