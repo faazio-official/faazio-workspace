@@ -10,6 +10,9 @@
 # It reads `keystore/keystore.properties` (restored from GitHub secrets by
 # restore-keystore.sh) and injects:
 #   - a `release` signingConfig keyed off those properties
+#   - `v1SigningEnabled true` + `v2SigningEnabled true` (see inline note — the
+#     project's high targetSdkVersion otherwise yields a v2-only, uninstallable
+#     APK on some devices)
 #   - `signingConfig signingConfigs.release` on the `release` build type
 #
 # Usage:  scripts/configure-release-signing.sh
@@ -65,12 +68,19 @@ with open(path, "r") as f:
 def esc(v: str) -> str:
     return v.replace("\\", "\\\\").replace('"', '\\"')
 
+# v1 (JAR) signing MUST be explicitly re-enabled: with AGP 8.x and
+# targetSdkVersion >= 30 (this project uses 36) AGP defaults v1SigningEnabled
+# to false, producing a v2-only APK. PackageInstaller on some devices/install
+# paths rejects v2-only APKs with "App not installed as package appears to be
+# invalid". Signing with both v1+v2 is the recommended practice for APKs.
 release_block = (
     "\n        release {\n"
     f"            storeFile file('{store_abs}')\n"
     f"            storePassword \"{esc(store_pass)}\"\n"
     f"            keyAlias \"{esc(key_alias)}\"\n"
     f"            keyPassword \"{esc(alias_pass)}\"\n"
+    "            v1SigningEnabled true\n"
+    "            v2SigningEnabled true\n"
     "        }\n"
 )
 

@@ -329,3 +329,15 @@ runtime, not build time.
   and drops manual `build.gradle` edits — run `scripts/configure-release-signing.sh` again (see RELEASE.md).
 - **CI build fails on `restore-keystore.sh`** → the `KEYSTORE_BASE64`/`KEYSTORE_PASS`/`KEY_ALIAS`/
   `ALIAS_PASS` secrets are missing or wrong; verify with `gh secret list`.
+- **"App not installed as package appears to be invalid" (with a Done button, app name in the
+  header)** → the release APK was signed with **only the v2 APK Signature Scheme — the v1 (JAR)
+  signature is missing**. This happens because AGP 8.x with `targetSdkVersion >= 30` (this project
+  uses 36) defaults `v1SigningEnabled` to `false`, and PackageInstaller on some devices/install
+  paths rejects v2-only APKs with this exact error. Verify the shared APK:
+  ```bash
+  apksigner verify --verbose --print-certs faazio.apk
+  # EXPECT both: "Verified using v1 scheme (JAR signing): true" and v2: true
+  ```
+  **Fix:** ensure the release signingConfig carries `v1SigningEnabled true` + `v2SigningEnabled true`.
+  Both `scripts/configure-release-signing.sh` and the `plugins/with-release-signing.js` config plugin
+  (registered in `app.json`) inject these. Rebuild and re-share a version with a bumped `versionCode`.

@@ -914,7 +914,20 @@ policy: build via CI (`gh workflow run "Release APK"`); local builds only on a f
 - **No remote crash reporting.** The global handler only logs locally (dev). Production needs
   Sentry/Crashlytics (or a `GatewayClient` `/errors` endpoint) to surface real-device crashes.
 
-**Date:** 2026-09-11
+**Shipped (2026-09-15): release APK install failure fix.** A shared release APK failed on a
+friend's device with **"App not installed as package appears to be invalid"** — root-caused to a
+**v2-only signature (missing v1/JAR signature)**. With AGP 8.x + `targetSdkVersion 36` (≥30) AGP
+defaults `v1SigningEnabled` to `false`. Fix:
+- `scripts/configure-release-signing.sh` now injects `v1SigningEnabled true` + `v2SigningEnabled true`
+  into the `release` signingConfig.
+- New config plugin `plugins/with-release-signing.js` (registered in `app.json`) deterministically
+  wires the release keystore + forces v1+v2 after every `expo prebuild --clean`, so signing survives
+  regeneration without relying solely on the shell script.
+- Version bumped to `1.0.1` / `android.versionCode 2` so the rebuilt APK is a fresh install.
+- Docs: TROUBLESHOOTING.md "Release signing" + RELEASE.md now cover the v1+v2 requirement and the
+  `apksigner verify` gate.
+
+**Date:** 2026-09-15
 
 ---
 
