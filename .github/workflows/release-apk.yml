@@ -133,6 +133,35 @@ jobs:
             -Pandroid.enableMinifyInReleaseBuilds=true \
             -Pandroid.enableShrinkResourcesInReleaseBuilds=true
 
+      # AGP 8.x with targetSdkVersion >= 30 signs the release APK with the v2
+      # scheme only (no v1/JAR signature). Some devices/install paths reject a
+      # v2-only APK with "App not installed as package appears to be invalid".
+      # The Gradle `v1SigningEnabled true` flag is not reliably honored here, so
+      # we deterministically re-sign the built APK with apksigner forcing v1+v2+v3.
+      - name: Re-sign release APK (v1+v2+v3)
+        run: |
+          set -euo pipefail
+          cd android
+          SDK_ROOT="${ANDROID_HOME:-${ANDROID_SDK_ROOT}}"
+          BT="$(ls -1d "$SDK_ROOT"/build-tools/* | sort -V | tail -1)"
+          APK="$(ls app/build/outputs/apk/release/*.apk | head -1)"
+          TMP="$(mktemp -d)"
+          cp "$APK" "$TMP/release.apk"
+          "$BT/apksigner" sign \
+            --ks ../keystore/faazio-release.keystore \
+            --ks-key-alias "$KEY_ALIAS" \
+            --ks-pass "pass:$KEYSTORE_PASS" \
+            --key-pass "pass:$ALIAS_PASS" \
+            --v1-signing-enabled true \
+            --v2-signing-enabled true \
+            --v3-signing-enabled true \
+            --out "$APK" "$TMP/release.apk"
+          "$BT/apksigner" verify --verbose --print-certs "$APK"
+        env:
+          KEYSTORE_PASS: ${{ secrets.KEYSTORE_PASS }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+          ALIAS_PASS: ${{ secrets.ALIAS_PASS }}
+
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
         with:
