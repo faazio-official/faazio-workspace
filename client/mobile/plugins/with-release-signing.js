@@ -86,30 +86,37 @@ module.exports = function withReleaseSigning(config) {
 
     let src = config.modResults.contents;
 
-    // 1. Add a `release` signingConfig (if not already present).
+    // 1. Add a `release` signingConfig INSIDE the `signingConfigs { ... }`
+    //    block, right after the `debug { ... }` block's closing brace (matching
+    //    scripts/configure-release-signing.sh). Placing it outside the block
+    //    makes Gradle treat `release()` as a method on the android extension
+    //    -> "Could not find method release()".
     if (!/signingConfigs\.release/.test(src)) {
-      // Find the closing brace of the `signingConfigs { ... }` block by
-      // counting braces from its opening.
       const scStart = src.indexOf("signingConfigs {");
       if (scStart === -1) {
         throw new Error("[with-release-signing] could not locate signingConfigs block");
       }
+      // Locate the `debug { ... }` block's closing brace inside signingConfigs.
+      const dbgStart = src.indexOf("debug {", scStart);
+      if (dbgStart === -1) {
+        throw new Error("[with-release-signing] could not locate debug signingConfig");
+      }
       let depth = 0;
-      let blockEnd = -1;
-      for (let i = scStart; i < src.length; i++) {
+      let dbgEnd = -1;
+      for (let i = dbgStart; i < src.length; i++) {
         if (src[i] === "{") depth++;
         else if (src[i] === "}") {
           depth--;
           if (depth === 0) {
-            blockEnd = i;
+            dbgEnd = i;
             break;
           }
         }
       }
-      if (blockEnd === -1) {
-        throw new Error("[with-release-signing] could not parse signingConfigs block");
+      if (dbgEnd === -1) {
+        throw new Error("[with-release-signing] could not parse debug signingConfig");
       }
-      src = src.slice(0, blockEnd + 1) + releaseBlock + src.slice(blockEnd + 1);
+      src = src.slice(0, dbgEnd + 1) + releaseBlock + src.slice(dbgEnd + 1);
     }
 
     // 2. Point the `release` build type at the release signingConfig, leaving
