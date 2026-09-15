@@ -10,10 +10,13 @@
 # It reads `keystore/keystore.properties` (restored from GitHub secrets by
 # restore-keystore.sh) and injects:
 #   - a `release` signingConfig keyed off those properties
-#   - `v1SigningEnabled true` + `v2SigningEnabled true` (see inline note — the
-#     project's high targetSdkVersion otherwise yields a v2-only, uninstallable
-#     APK on some devices)
 #   - `signingConfig signingConfigs.release` on the `release` build type
+#
+# Note: this wiring matters — without it the generated `release` buildType
+# defaults to the DEBUG keystore, producing a different signing cert. Anyone
+# who previously installed a debug-signed build could then no longer update
+# (signature conflict → "App not installed"). See plugins/with-release-signing.js,
+# the version-controlled equivalent applied during prebuild.
 #
 # Usage:  scripts/configure-release-signing.sh
 # Run from:  client/mobile/  (the Expo project root)
@@ -68,19 +71,12 @@ with open(path, "r") as f:
 def esc(v: str) -> str:
     return v.replace("\\", "\\\\").replace('"', '\\"')
 
-# v1 (JAR) signing MUST be explicitly re-enabled: with AGP 8.x and
-# targetSdkVersion >= 30 (this project uses 36) AGP defaults v1SigningEnabled
-# to false, producing a v2-only APK. PackageInstaller on some devices/install
-# paths rejects v2-only APKs with "App not installed as package appears to be
-# invalid". Signing with both v1+v2 is the recommended practice for APKs.
 release_block = (
     "\n        release {\n"
     f"            storeFile file('{store_abs}')\n"
     f"            storePassword \"{esc(store_pass)}\"\n"
     f"            keyAlias \"{esc(key_alias)}\"\n"
     f"            keyPassword \"{esc(alias_pass)}\"\n"
-    "            v1SigningEnabled true\n"
-    "            v2SigningEnabled true\n"
     "        }\n"
 )
 

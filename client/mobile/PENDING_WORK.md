@@ -914,18 +914,23 @@ policy: build via CI (`gh workflow run "Release APK"`); local builds only on a f
 - **No remote crash reporting.** The global handler only logs locally (dev). Production needs
   Sentry/Crashlytics (or a `GatewayClient` `/errors` endpoint) to surface real-device crashes.
 
-**Shipped (2026-09-15): release APK install failure fix.** A shared release APK failed on a
-friend's device with **"App not installed as package appears to be invalid"** — root-caused to a
-**v2-only signature (missing v1/JAR signature)**. With AGP 8.x + `targetSdkVersion 36` (≥30) AGP
-defaults `v1SigningEnabled` to `false`. Fix:
-- `scripts/configure-release-signing.sh` now injects `v1SigningEnabled true` + `v2SigningEnabled true`
-  into the `release` signingConfig.
+**Shipped (2026-09-15): release APK install failure diagnosis + hardening.** A shared release APK
+failed on a friend's device with **"App not installed as package appears to be invalid."**
+Root cause: the friend had a **debug-signed** Faazio installed (from earlier `npm run android` dev
+testing); the release APK is signed with the **release** keystore (`CN=Faazio`), a *different cert*
+from the debug keystore (`CN=Android Debug`), so Android refuses the update. The fix is on the
+installer side — **uninstall the old Faazio first, then install the release APK** (see
+TROUBLESHOOTING.md → "Release signing"). Hardening shipped alongside:
 - New config plugin `plugins/with-release-signing.js` (registered in `app.json`) deterministically
-  wires the release keystore + forces v1+v2 after every `expo prebuild --clean`, so signing survives
-  regeneration without relying solely on the shell script.
-- Version bumped to `1.0.1` / `android.versionCode 2` so the rebuilt APK is a fresh install.
-- Docs: TROUBLESHOOTING.md "Release signing" + RELEASE.md now cover the v1+v2 requirement and the
-  `apksigner verify` gate.
+  wires the `release` buildType to the release keystore after every `expo prebuild --clean`, so
+  signing survives regeneration without relying solely on the shell script (removes the
+  "release falls back to the debug keystore" foot-gun).
+- `scripts/configure-release-signing.sh` re-documented to the same effect.
+- Version bumped to `1.0.1` / `android.versionCode 2` so the rebuilt APK is a clean install.
+- Docs: TROUBLESHOOTING.md "Release signing" + RELEASE.md document the debug-vs-release cert
+  conflict and the `apksigner verify` cert check.
+- Note: the APK is v2-signed only (correct for `minSdkVersion 24`); v1/JAR signing is intentionally
+  omitted by AGP/apksigner for minSdk ≥ 24 and is not the cause of the install failure.
 
 **Date:** 2026-09-15
 

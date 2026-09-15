@@ -330,14 +330,24 @@ runtime, not build time.
 - **CI build fails on `restore-keystore.sh`** → the `KEYSTORE_BASE64`/`KEYSTORE_PASS`/`KEY_ALIAS`/
   `ALIAS_PASS` secrets are missing or wrong; verify with `gh secret list`.
 - **"App not installed as package appears to be invalid" (with a Done button, app name in the
-  header)** → the release APK was signed with **only the v2 APK Signature Scheme — the v1 (JAR)
-  signature is missing**. This happens because AGP 8.x with `targetSdkVersion >= 30` (this project
-  uses 36) defaults `v1SigningEnabled` to `false`, and PackageInstaller on some devices/install
-  paths rejects v2-only APKs with this exact error. Verify the shared APK:
+  header)** → the device already has a **different-signature** Faazio installed, almost always a
+  **debug-signed** build (from earlier `npm run android` dev testing) that was never uninstalled.
+  The release APK is signed with the release keystore (`CN=Faazio`); the debug build is signed
+  with the debug keystore (`CN=Android Debug`) — a *different cert*, so Android refuses the update
+  with this exact error. Verify the certs differ:
   ```bash
-  apksigner verify --verbose --print-certs faazio.apk
-  # EXPECT both: "Verified using v1 scheme (JAR signing): true" and v2: true
+  keytool -printcert -jarfile faazio.apk | grep Owner   # release: CN=Faazio
+  # prior debug install: CN=Android Debug
   ```
-  **Fix:** ensure the release signingConfig carries `v1SigningEnabled true` + `v2SigningEnabled true`.
-  Both `scripts/configure-release-signing.sh` and the `plugins/with-release-signing.js` config plugin
-  (registered in `app.json`) inject these. Rebuild and re-share a version with a bumped `versionCode`.
+  **Fix (installer side):** uninstall the existing Faazio first, then install the release APK:
+  ```bash
+  adb uninstall com.faazio.customer
+  adb install faazio.apk
+  ```
+  On the phone: Settings → Apps → Faazio → Uninstall, then open the release APK. The release APK
+  itself is valid (v2-signed, minSdk 24 → installs on Android 7.0+); a v1/JAR signature is not
+  required for minSdk ≥ 24 (AGP/apksigner skip it by design).
+- **Release APK is signed with only v2 (no v1)** → this is **expected and correct** for
+  `minSdkVersion 24` (Android 7.0+); v1 (JAR) signing is only needed for Android < 7.0. Do not try
+  to force v1 — both AGP and `apksigner` intentionally omit it when minSdk ≥ 24, and v2-only APKs
+  install fine on Android 7.0+.

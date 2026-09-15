@@ -1,15 +1,14 @@
 /**
  * with-release-signing.js — Expo config plugin
  *
- * Wires the Android `release` build type to the release keystore and forces
- * BOTH v1 (JAR) + v2 APK signature schemes, deterministically, after every
- * `expo prebuild --clean` regenerates the gitignored `android/` dir.
- *
- * Why v1 is required: with AGP 8.x and targetSdkVersion >= 30 (this project
- * uses 36) AGP defaults `v1SigningEnabled` to `false`, producing a v2-only
- * APK. Some devices/install paths reject v2-only APKs with "App not installed
- * as package appears to be invalid". Signing with v1+v2 is the recommended
- * practice for APK distribution.
+ * Wires the Android `release` build type to the release keystore,
+ * deterministically, after every `expo prebuild --clean` regenerates the
+ * gitignored `android/` dir. This is the version-controlled equivalent of
+ * `scripts/configure-release-signing.sh`, so release signing survives
+ * regeneration without relying on a post-hoc shell edit — and it removes the
+ * foot-gun where the generated `release` buildType would otherwise default to
+ * the DEBUG keystore (which produces a different signing cert, breaking
+ * updates for anyone who previously installed a debug-signed build).
  *
  * Credentials are read from `keystore/keystore.properties` (restored in CI by
  * `scripts/restore-keystore.sh`, or present locally). The keystore itself and
@@ -80,8 +79,6 @@ module.exports = function withReleaseSigning(config) {
       `            storePassword "${escape(props.KEYSTORE_PASS)}"\n` +
       `            keyAlias "${escape(props.KEY_ALIAS)}"\n` +
       `            keyPassword "${escape(props.ALIAS_PASS)}"\n` +
-      `            v1SigningEnabled true\n` +
-      `            v2SigningEnabled true\n` +
       `        }\n`;
 
     let src = config.modResults.contents;
