@@ -10,7 +10,7 @@ const img = (id: string, w = 560, h = 560) =>
 /**
  * Today's Special — clean food photography, no promotional labels.
  * Single source of truth: read by the Food Dining "Today's Special Near You"
- * rail and the Home "Today's Dining Special" rail.
+ * rail and the Home "Today's Special" stacked rail (2-up columns).
  */
 export const TODAYS_SPECIALS: SpecialDish[] = [
   {

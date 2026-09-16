@@ -75,6 +75,15 @@ live in `@data/home/campaigns.ts` (`adCampaigns`), each referencing a **real Mar
 **`DealsLanding`** route in `campaign` mode (see nav graph). The sibling `DealsOfDaySection` (title
 "Daily Essentials") is a display-only rename — its section id `dealsOfDay` is unchanged.
 
+**Home "Today's Special" stacked rail** (`features/home/sections/DiningSpecialsSection.tsx`,
+section id `diningSpecials`, titled "Today's Special"): renders `TODAYS_SPECIALS`
+(`@data/food/specials.ts`) as a **horizontal rail of 2-up stacked columns** — each column holds two
+cards one below the other, so two columns fill the viewport like a grid and the rail scrolls right.
+Each card is the Home-local `TodaysSpecialCard` (`features/home/cards/TodaysSpecialCard.tsx`): a
+**square (1:1) image** + a 2-line tail-ellipsized title. Card taps map through `dishToProduct` to the
+shared `CommonProductDetailView` (unchanged). The Food sub-app's shared portrait `SpecialDishCard`
+is untouched.
+
 The **Mart Product Detail** (`CommonProductDetailView`) renders a store section below the
 "Product Details" block for any MART product with a resolvable `storeId`: a store card
 (cover thumb + rating chip, name + verified badge, location line, open/closes row), a
@@ -245,8 +254,11 @@ paginated reads from `@data/*` — the contract the future Go Chi gateway will f
 - **Global error handler** — `ErrorUtils.setGlobalHandler` is installed at module scope so
   synchronous JS/render errors are not silently swallowed in release builds (where `babel` strips
   all `console.*`). Logs via `[Faazio:global-error]` in dev; production telemetry is a backlog item.
-- **Splash failsafe** — `SplashScreen.hideAsync()` is force-called after `SPLASH_TIMEOUT_MS` (8 s)
+- **Splash failsafe** — `SplashScreen.hideAsync()` is force-called after `SPLASH_TIMEOUT_MS` (10 s)
   even if fonts/hydration stall, preventing a stuck native splash that would trigger an ANR.
+- **Branded splash minimum** — the cold-start splash (`SplashFallback` `royal` variant) shows the
+  wide `logo.png` centered on Faazio blue (`#4250FF`) with no spinner, and stays up for at least
+  `SPLASH_MIN_DISPLAY_MS` (5 s) via `App.tsx` before the app UI renders.
 - **Hydration timeout** — `hydrateAuth()` / `hydrateLanguage()` run under a 4 s `withTimeout`
   guard; a hanging or failing storage module no longer blocks startup (defaults to unauthenticated)
   and can't become a silent unhandled rejection.

@@ -62,7 +62,7 @@ function chipProductIds(chipId: string): string[] {
 
 export const homeSdui: SduiSection[] = [
   { id: 'adBanner', title: 'Offers', accent: '#111827', productIds: [] },
-  { id: 'diningSpecials', title: 'Dining Specials', accent: '#1E5D44', productIds: [], storeIds: resolveStoreIds('FOOD') },
+  { id: 'diningSpecials', title: "Today's Special", accent: '#1E5D44', productIds: [], storeIds: resolveStoreIds('FOOD') },
   { id: 'hotBrandDeals', title: 'Deals of the day', accent: '#1162D3', productIds: resolveProductIds(['hbd-1', 'hbd-2', 'hbd-3', 'hbd-4', 'hbd-5']) },
   { id: 'dealsOfDay', title: 'Daily Essentials', accent: '#F25C3D', productIds: resolveProductIds(['md-1', 'md-2', 'md-3', 'md-4', 'md-5', 'md-6']) },
   { id: 'mostRatedDining', title: 'Most Rated Dining', accent: '#1E5D44', productIds: [], storeIds: resolveStoreIds('FOOD') },
