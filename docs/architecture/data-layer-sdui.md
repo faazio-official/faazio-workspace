@@ -48,8 +48,8 @@ data/
 | `account` | `features/profile` | `@mock` |
 | `home` | `features/home` | mixed `@mock` / `@seed` / `@static` |
 
-The category rail feed (`data/categories/railFeed.ts`, consumed by `HeaderCategoryRail` and the
-Mart vendors `VendorCategoryPills` via `usePagedRail`) is derived from `MASTER_CATEGORIES.FA_MART`.
+The category rail feed (`data/categories/railFeed.ts`, consumed by `HeaderCategoryRail` via
+`usePagedRail`) is derived from `MASTER_CATEGORIES.FA_MART`.
 Each `CategoryRailItem` also carries a `vendorTags: string[]` array (`TAB_VENDOR_TAGS`) that maps a
 rail tab id to the `StoreProfile.categories` tags a vendor must match — this lives in the data layer
 because the rail taxonomy names don't equal the store category tags, and the future Go

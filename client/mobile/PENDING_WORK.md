@@ -1011,17 +1011,14 @@ removed as obsolete.
 
 **Date:** 2026-09-16
 
-## Mart sub-app header: removed searchbar + category rail
+## Mart "Local Vendors Near You" — remove in-section search + category pill rail
 
 **Status:** 🟢 Shipped (client-side).
 
-**Feature:** The Mart sub-app (`FA_MART`) header no longer shows a searchbar or the pinned category
-rail below it — they are removed, not hidden. A new lean `MartSubAppHeader`
-(`components/shared/MartSubAppHeader.tsx`) renders only the gradient backdrop + back button for
-Mart (height via `martSubAppHeaderH`), while Food/Pharma keep the full `SubAppHeader` with its live
-searchbar. The shared gradient backdrop is extracted into `SubAppHeaderBackdrop`. The
-`HeaderCategoryRail` is no longer rendered in the Mart header (the component is still used by the
-Home hub header). The Mart search tab / `onSearchPress` behaviour is unchanged.
+**Feature:** The Mart feed's `LocalVendorRail` drops its **in-section search bar** and the
+**category pill rail** (`VendorCategoryPills`) beneath it. The section keeps its
+`MartSectionHeader` title and renders the full `martStores` list directly (with its empty state).
+The Mart **header** search + header category rail are untouched. `VendorCategoryPills` was removed
+(only used by this rail); `usePagedRail` remains in use by the header rail.
 
 **Date:** 2026-09-16
-

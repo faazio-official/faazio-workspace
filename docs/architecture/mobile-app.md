@@ -48,11 +48,10 @@ and the `grocery` search/favourites toggles were deleted. Grocery categories now
 under the Mart rail chips (merged into the `FA_MART` category tree).
 
 The Mart home feed's **"Local Vendors Near You"** rail now renders the richer `martStores`
-(`StoreProfile[]`) instead of the retired `MART_LOCAL_VENDORS` mock, with a **live in-place
-search bar** (dining `RestaurantGrid` pattern — filters by name/categories/desc/offerTag), a
-**category pill filter** (`VendorCategoryPills`) that shows the same feed as the Mart header rail
-and filters the vendor list in place (AND-combined with the search text via each rail item's
-`vendorTags` against `StoreProfile.categories`), and an empty state. Tapping a store opens the
+(`StoreProfile[]`) instead of the retired `MART_LOCAL_VENDORS` mock, with an empty state. The
+in-section **search bar** and **category pill filter** (`VendorCategoryPills`) were removed (the
+Mart header search + header category rail are untouched); the section shows the full vendor list.
+Tapping a store opens the
 vendor drill-in, whose inventory is derived from `martProducts` by `storeId` (replacing the old
 hardcoded `lv-*` product map). The vendor drill-in's **"Discounted Products" rail** renders each
 promoted product with the shared **'AD' pill** (`showAdLabel` on `MartProductCard` → `AdLabelBadge`

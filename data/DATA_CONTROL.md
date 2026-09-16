@@ -173,7 +173,7 @@ the `GROCERY` member was dropped from `AppBrand` / `CartCategory` / `SubAppId` /
 |---|---|---|---|
 | `categoriesSearchDatabase` | `Record<string, Product[]>` | `CategoriesView`, `FavouritesView` | `@mock` |
 | `MASTER_CATEGORIES` / `ALL_TABS` | `Record<CategoryAppId, CategoryTab[]>` / `CategoryTab[]` | `CategoryDrillInScreen` (via `CategoryDrillInPanel`), `SubgroupTextRail` | `@mock` |
-| `HEADER_CATEGORY_RAIL` / `getCategoryRailPage` / `HEADER_RAIL_TOTAL` | `CategoryRailItem[]` + paging helpers | `HeaderCategoryRail` + `VendorCategoryPills` (via `usePagedRail`) — Home/Mart header rail + Mart vendors pill filter. Each item carries a `vendorTags: string[]` array (`TAB_VENDOR_TAGS`) mapping rail tab ids to `StoreProfile.categories` tags | `@mock` |
+| `HEADER_CATEGORY_RAIL` / `getCategoryRailPage` / `HEADER_RAIL_TOTAL` | `CategoryRailItem[]` + paging helpers | `HeaderCategoryRail` (via `usePagedRail`) — Home/Mart header rail. Each item carries a `vendorTags: string[]` array (`TAB_VENDOR_TAGS`) mapping rail tab ids to `StoreProfile.categories` tags | `@mock` |
 
 ### `@data/productMeta` — owner: `features/product` (ProductDetail)
 
