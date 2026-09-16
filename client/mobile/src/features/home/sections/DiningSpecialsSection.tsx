@@ -55,6 +55,8 @@ function DiningSpecialsSection({ onProductClick }: SectionProps) {
           showRating={false}
           showPrice={false}
           showAddButton={false}
+          showBadge={false}
+          showHeart={false}
           onPress={() => onProductClick?.(product)}
         />
       ))}

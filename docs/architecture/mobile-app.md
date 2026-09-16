@@ -82,9 +82,9 @@ products (`TODAYS_SPECIALS` via `dishToProduct`, `recentlyViewedMart`, `hotBrand
 `recentlyViewedPharma`). Each rail scrolls horizontally on its own (no shared scroll state); the
 mix is sampled once per mount so re-renders don't reshuffle. Cards are the shared
 `UniversalFeedCard` (`variant="rail"`, `hs(150)` wide, **square 1:1** image with **rounded
-corners**) — the same styling as the "Daily Essentials" (Deals of the day) rail. Rating, price and
-the add-to-cart control are hidden (`showRating`/`showPrice`/`showAddButton` off); taps open the
-shared `CommonProductDetailView`.
+corners**) — the same styling as the "Daily Essentials" (Deals of the day) rail. Rating, price,
+badges and the add-to-cart control are hidden (`showRating`/`showPrice`/`showBadge`/`showAddButton`
+off); taps open the shared `CommonProductDetailView`.
 
 The **Mart Product Detail** (`CommonProductDetailView`) renders a store section below the
 "Product Details" block for any MART product with a resolvable `storeId`: a store card

@@ -25,6 +25,8 @@ interface UniversalFeedCardProps {
   showRating?: boolean;
   showPrice?: boolean;
   showAddButton?: boolean;
+  showBadge?: boolean;
+  showHeart?: boolean;
 }
 
 // Renders a product with its native brand card skin, dispatched by `product.app`.

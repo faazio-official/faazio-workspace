@@ -20,6 +20,9 @@ interface Props {
   imageAspect?: number;
   showPrice?: boolean;
   showAddButton?: boolean;
+  showRating?: boolean;
+  showBadge?: boolean;
+  showHeart?: boolean;
 }
 
 const MartProductCard = memo(function MartProductCard({
@@ -28,6 +31,7 @@ const MartProductCard = memo(function MartProductCard({
   showAdLabel = false,
   showDescription = false,
   imageAspect = 1,
+  showHeart = false,
   ...props
 }: Props) {
   return (
@@ -36,9 +40,7 @@ const MartProductCard = memo(function MartProductCard({
       product={props.product}
       appBrand="MART"
       variant={variant}
-      showRating
-      showBadge
-      showHeart={false}
+      showHeart={showHeart}
       roundedImageBottom={roundedImageBottom}
       showAdLabel={showAdLabel}
       showDescription={showDescription}
