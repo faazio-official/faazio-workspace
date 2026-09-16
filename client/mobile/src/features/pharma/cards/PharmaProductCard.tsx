@@ -20,6 +20,8 @@ interface Props {
   originalPrice?: number;
   width?: number;
   imageAspect?: number;
+  showPrice?: boolean;
+  showAddButton?: boolean;
 }
 
 const PharmaProductCard = memo(function PharmaProductCard({

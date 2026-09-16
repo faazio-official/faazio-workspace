@@ -1004,9 +1004,9 @@ Pharma** pool (`TODAYS_SPECIALS` via `dishToProduct`, `recentlyViewedMart`, `hot
 `recentlyViewedPharma`). Each rail scrolls horizontally on its own (no shared scroll state); the mix
 is sampled once per mount so re-renders don't reshuffle. Cards use the shared `UniversalFeedCard`
 (`variant="rail"`, `hs(150)` wide, **square 1:1** image with **rounded corners**) — matching the
-"Daily Essentials" (Deals of the day) rail. Mart/Pharma cards use the "+" add-to-cart action; taps
-open the shared `CommonProductDetailView`. The earlier Home-local `TodaysSpecialCard` (2-up stacked
-columns) was removed as obsolete.
+"Daily Essentials" (Deals of the day) rail. Rating, price and the add-to-cart control are hidden
+(`showRating`/`showPrice`/`showAddButton` off); taps open the shared `CommonProductDetailView`.
+The earlier Home-local `TodaysSpecialCard` (2-up stacked columns) was removed as obsolete.
 
 **Date:** 2026-09-16
 

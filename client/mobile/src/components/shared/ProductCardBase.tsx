@@ -28,6 +28,10 @@ interface ProductCardBaseProps {
   showHeart?: boolean;
   showBadge?: boolean;
   showAdLabel?: boolean;
+  /** Hide the price row (name-only compact cards). */
+  showPrice?: boolean;
+  /** Hide the add-to-cart / stepper control. */
+  showAddButton?: boolean;
   originalPrice?: number;
   roundedImageBottom?: boolean;
   /** Image aspect ratio for grid2/rail/flash variants. Default 3/4 portrait. */
@@ -41,6 +45,7 @@ const ProductCardBase = memo(function ProductCardBase({
   width, showRating = true, showDescription = false,
   showHeart = false, showBadge = true, showAdLabel = false, originalPrice,
   roundedImageBottom = false, imageAspect = 3 / 4,
+  showPrice = true, showAddButton = true,
 }: ProductCardBaseProps) {
   const tokens = brandTokens[appBrand];
   const isRail = variant === 'rail' || variant === 'flash';
@@ -103,37 +108,43 @@ const ProductCardBase = memo(function ProductCardBase({
         {showDescription && product.desc && (
           <AppText style={styles.desc} numberOfLines={1}>{product.desc}</AppText>
         )}
-        <View style={styles.priceRow}>
-          <AppText style={[styles.price, { color: tokens.priceColor }]}>₹{product.price}</AppText>
-          {originalPrice !== undefined && originalPrice > product.price && (
-            <AppText style={styles.originalPrice}>₹{originalPrice}</AppText>
-          )}
-          <View style={{ flex: 1 }} />
-          {quantity > 0 ? (
-            <View style={[styles.stepper, { backgroundColor: tokens.btnAdded }]}>
-              <TouchableOpacity onPress={onDecrement} hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}>
-                <Minus size={ms(10)} color="#ffffff" strokeWidth={3} />
+        {(showPrice || showAddButton) && (
+          <View style={styles.priceRow}>
+            {showPrice && (
+              <>
+                <AppText style={[styles.price, { color: tokens.priceColor }]}>₹{product.price}</AppText>
+                {originalPrice !== undefined && originalPrice > product.price && (
+                  <AppText style={styles.originalPrice}>₹{originalPrice}</AppText>
+                )}
+              </>
+            )}
+            {showAddButton && <View style={{ flex: 1 }} />}
+            {showAddButton && (quantity > 0 ? (
+              <View style={[styles.stepper, { backgroundColor: tokens.btnAdded }]}>
+                <TouchableOpacity onPress={onDecrement} hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}>
+                  <Minus size={ms(10)} color="#ffffff" strokeWidth={3} />
+                </TouchableOpacity>
+                <AppText style={styles.stepperQty}>{quantity}</AppText>
+                <TouchableOpacity onPress={onIncrement} hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}>
+                  <Plus size={ms(10)} color="#ffffff" strokeWidth={3} />
+                </TouchableOpacity>
+              </View>
+            ) : (
+              <TouchableOpacity
+                style={[styles.addBtn, { backgroundColor: tokens.accent }]}
+                onPress={() => onAdd?.(product)}
+                activeOpacity={0.8}
+                hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
+              >
+                {isAdded ? (
+                  <Check size={ms(10)} color="#ffffff" strokeWidth={3} />
+                ) : (
+                  <Plus size={ms(10)} color="#ffffff" strokeWidth={3} />
+                )}
               </TouchableOpacity>
-              <AppText style={styles.stepperQty}>{quantity}</AppText>
-              <TouchableOpacity onPress={onIncrement} hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}>
-                <Plus size={ms(10)} color="#ffffff" strokeWidth={3} />
-              </TouchableOpacity>
-            </View>
-          ) : (
-            <TouchableOpacity
-              style={[styles.addBtn, { backgroundColor: tokens.accent }]}
-              onPress={() => onAdd?.(product)}
-              activeOpacity={0.8}
-              hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
-            >
-              {isAdded ? (
-                <Check size={ms(10)} color="#ffffff" strokeWidth={3} />
-              ) : (
-                <Plus size={ms(10)} color="#ffffff" strokeWidth={3} />
-              )}
-            </TouchableOpacity>
-          )}
-        </View>
+            ))}
+          </View>
+        )}
       </View>
     </TouchableOpacity>
   );

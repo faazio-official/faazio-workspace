@@ -5,7 +5,7 @@ import { TODAYS_SPECIALS, dishToProduct } from '@data/food/specials';
 import { recentlyViewedMart, recentlyViewedPharma, hotBrandDeals } from '@data/home/rails';
 import type { Product } from '@data/types';
 import UniversalFeedCard from '@/features/home/cards/UniversalFeedCard';
-import { SectionHeader, useAddToCartFeedback } from './common';
+import { SectionHeader } from './common';
 import type { SectionProps } from './common';
 
 const DEAL_CARD_W = hs(150);
@@ -21,7 +21,7 @@ function shuffle<T>(arr: T[]): T[] {
 }
 
 // Stable, non-overlapping samples for the two rails, computed once per mount so a
-// re-render (e.g. add-to-cart feedback) doesn't reshuffle the layout.
+// re-render doesn't reshuffle the layout.
 function planRails(pool: Product[]): [Product[], Product[]] {
   const shuffled = shuffle(pool);
   const railA = shuffled.slice(0, CARDS_PER_RAIL);
@@ -29,9 +29,7 @@ function planRails(pool: Product[]): [Product[], Product[]] {
   return [railA, railB];
 }
 
-function DiningSpecialsSection({ onProductClick, addToCart }: SectionProps) {
-  const { addedId, handleAdd } = useAddToCartFeedback(addToCart);
-
+function DiningSpecialsSection({ onProductClick }: SectionProps) {
   const pool = useMemo<Product[]>(
     () => [
       ...TODAYS_SPECIALS.map(dishToProduct),
@@ -54,9 +52,10 @@ function DiningSpecialsSection({ onProductClick, addToCart }: SectionProps) {
           width={DEAL_CARD_W}
           imageAspect={1}
           roundedImageBottom
-          isAdded={addedId === product.id}
+          showRating={false}
+          showPrice={false}
+          showAddButton={false}
           onPress={() => onProductClick?.(product)}
-          onAdd={() => handleAdd(product.id, product.name, product.price, product.emoji)}
         />
       ))}
     </ScrollView>
