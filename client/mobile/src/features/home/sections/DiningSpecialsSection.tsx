@@ -1,42 +1,72 @@
-import React, { memo } from 'react';
+import React, { memo, useMemo } from 'react';
 import { View, ScrollView, StyleSheet } from 'react-native';
-import { hs, vs, SCREEN_W } from '@/utils/responsive';
+import { hs, vs } from '@/utils/responsive';
 import { TODAYS_SPECIALS, dishToProduct } from '@data/food/specials';
-import type { SpecialDish } from '@data/types';
-import TodaysSpecialCard from '@/features/home/cards/TodaysSpecialCard';
-import { SectionHeader } from './common';
+import { recentlyViewedMart, recentlyViewedPharma, hotBrandDeals } from '@data/home/rails';
+import type { Product } from '@data/types';
+import UniversalFeedCard from '@/features/home/cards/UniversalFeedCard';
+import { SectionHeader, useAddToCartFeedback } from './common';
 import type { SectionProps } from './common';
 
-// 16pt page gutters + 12pt rail gap → exactly 2 columns per viewport.
-const COL_W = (SCREEN_W - hs(16) * 2 - hs(12)) / 2;
+const DEAL_CARD_W = hs(150);
+const CARDS_PER_RAIL = 8;
 
-function chunkPairs(dishes: SpecialDish[]): SpecialDish[][] {
-  const pairs: SpecialDish[][] = [];
-  for (let i = 0; i < dishes.length; i += 2) {
-    pairs.push(dishes.slice(i, i + 2));
+function shuffle<T>(arr: T[]): T[] {
+  const a = [...arr];
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [a[i], a[j]] = [a[j], a[i]];
   }
-  return pairs;
+  return a;
 }
 
-function DiningSpecialsSection({ onProductClick }: SectionProps) {
-  const columns = chunkPairs(TODAYS_SPECIALS);
+// Stable, non-overlapping samples for the two rails, computed once per mount so a
+// re-render (e.g. add-to-cart feedback) doesn't reshuffle the layout.
+function planRails(pool: Product[]): [Product[], Product[]] {
+  const shuffled = shuffle(pool);
+  const railA = shuffled.slice(0, CARDS_PER_RAIL);
+  const railB = shuffled.slice(CARDS_PER_RAIL, CARDS_PER_RAIL * 2);
+  return [railA, railB];
+}
+
+function DiningSpecialsSection({ onProductClick, addToCart }: SectionProps) {
+  const { addedId, handleAdd } = useAddToCartFeedback(addToCart);
+
+  const pool = useMemo<Product[]>(
+    () => [
+      ...TODAYS_SPECIALS.map(dishToProduct),
+      ...recentlyViewedMart,
+      ...hotBrandDeals,
+      ...recentlyViewedPharma,
+    ],
+    [],
+  );
+
+  const [railA, railB] = useMemo(() => planRails(pool), [pool]);
+
+  const renderRail = (rail: Product[]) => (
+    <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.scroll}>
+      {rail.map((product) => (
+        <UniversalFeedCard
+          key={product.id}
+          product={product}
+          variant="rail"
+          width={DEAL_CARD_W}
+          imageAspect={1}
+          roundedImageBottom
+          isAdded={addedId === product.id}
+          onPress={() => onProductClick?.(product)}
+          onAdd={() => handleAdd(product.id, product.name, product.price, product.emoji)}
+        />
+      ))}
+    </ScrollView>
+  );
+
   return (
     <>
       <SectionHeader title="Today's Special" />
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.scroll}>
-        {columns.map((pair, idx) => (
-          <View key={`col-${idx}`} style={styles.column}>
-            {pair.map((dish) => (
-              <TodaysSpecialCard
-                key={dish.id}
-                dish={dish}
-                width={COL_W}
-                onPress={() => onProductClick?.(dishToProduct(dish))}
-              />
-            ))}
-          </View>
-        ))}
-      </ScrollView>
+      {renderRail(railA)}
+      <View style={styles.secondRail}>{renderRail(railB)}</View>
     </>
   );
 }
@@ -47,11 +77,9 @@ const styles = StyleSheet.create({
   scroll: {
     paddingLeft: hs(16),
     paddingRight: hs(4),
-    paddingBottom: vs(16),
+    paddingBottom: vs(12),
   },
-  column: {
-    width: COL_W,
-    marginRight: hs(12),
-    gap: vs(12),
+  secondRail: {
+    marginTop: vs(8),
   },
 });

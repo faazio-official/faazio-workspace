@@ -75,14 +75,15 @@ live in `@data/home/campaigns.ts` (`adCampaigns`), each referencing a **real Mar
 **`DealsLanding`** route in `campaign` mode (see nav graph). The sibling `DealsOfDaySection` (title
 "Daily Essentials") is a display-only rename — its section id `dealsOfDay` is unchanged.
 
-**Home "Today's Special" stacked rail** (`features/home/sections/DiningSpecialsSection.tsx`,
-section id `diningSpecials`, titled "Today's Special"): renders `TODAYS_SPECIALS`
-(`@data/food/specials.ts`) as a **horizontal rail of 2-up stacked columns** — each column holds two
-cards one below the other, so two columns fill the viewport like a grid and the rail scrolls right.
-Each card is the Home-local `TodaysSpecialCard` (`features/home/cards/TodaysSpecialCard.tsx`): a
-**square (1:1) image** + a 2-line tail-ellipsized title. Card taps map through `dishToProduct` to the
-shared `CommonProductDetailView` (unchanged). The Food sub-app's shared portrait `SpecialDishCard`
-is untouched.
+**Home "Today's Special" randomized rails** (`features/home/sections/DiningSpecialsSection.tsx`,
+section id `diningSpecials`, titled "Today's Special"): renders **two stacked, independent
+horizontal rails** of randomized cards drawn from a combined pool of **Food + Mart + Pharma**
+products (`TODAYS_SPECIALS` via `dishToProduct`, `recentlyViewedMart`, `hotBrandDeals`,
+`recentlyViewedPharma`). Each rail scrolls horizontally on its own (no shared scroll state); the
+mix is sampled once per mount so re-renders don't reshuffle. Cards are the shared
+`UniversalFeedCard` (`variant="rail"`, `hs(150)` wide, **square 1:1** image with **rounded
+corners**) — the same styling as the "Daily Essentials" (Deals of the day) rail. Mart/Pharma cards
+use the "+" add-to-cart action; taps open the shared `CommonProductDetailView`.
 
 The **Mart Product Detail** (`CommonProductDetailView`) renders a store section below the
 "Product Details" block for any MART product with a resolvable `storeId`: a store card

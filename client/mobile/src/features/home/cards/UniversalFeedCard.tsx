@@ -21,6 +21,7 @@ interface UniversalFeedCardProps {
   showDescription?: boolean;
   originalPrice?: number;
   width?: number;
+  imageAspect?: number;
 }
 
 // Renders a product with its native brand card skin, dispatched by `product.app`.

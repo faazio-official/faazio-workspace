@@ -993,18 +993,20 @@ the store name inline in the body. `showStoreHeader` (default `true`, forwarded 
 
 **Date:** 2026-09-13
 
-## Home "Today's Special" stacked rail
+## Home "Today's Special" randomized rails
 
-**Status:** 🟢 Shipped (client-side + data parity).
+**Status:** 🟢 Shipped (client-side).
 
-**Feature:** The Home `diningSpecials` section is retitled **"Today's Dining Special" →
-"Today's Special"** (also in `data/home/sdui.ts`) and its portrait row of food `SpecialDishCard`s is
-replaced by a **horizontal rail of 2-up stacked columns** (`DiningSpecialsSection.tsx`). Each column
-holds two square cards one below the other; two columns fill the viewport, and the rail scrolls
-right through all 16 `TODAYS_SPECIALS` (8 columns). Cards are the Home-local
-`TodaysSpecialCard` (`features/home/cards/`): a 1:1 `RemoteImage` + a 2-line tail-ellipsized title.
-Taps still map through `dishToProduct` to the shared `CommonProductDetailView`. The Food sub-app's
-shared portrait `SpecialDishCard` is untouched.
+**Feature:** The Home `diningSpecials` section is titled **"Today's Special"** (renamed from "Today's
+Dining Special"; parity in `data/home/sdui.ts`) and renders **two stacked, independent horizontal
+rails** (`DiningSpecialsSection.tsx`) of **randomized cards** drawn from a combined **Food + Mart +
+Pharma** pool (`TODAYS_SPECIALS` via `dishToProduct`, `recentlyViewedMart`, `hotBrandDeals`,
+`recentlyViewedPharma`). Each rail scrolls horizontally on its own (no shared scroll state); the mix
+is sampled once per mount so re-renders don't reshuffle. Cards use the shared `UniversalFeedCard`
+(`variant="rail"`, `hs(150)` wide, **square 1:1** image with **rounded corners**) — matching the
+"Daily Essentials" (Deals of the day) rail. Mart/Pharma cards use the "+" add-to-cart action; taps
+open the shared `CommonProductDetailView`. The earlier Home-local `TodaysSpecialCard` (2-up stacked
+columns) was removed as obsolete.
 
 **Date:** 2026-09-16
 
