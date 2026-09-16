@@ -19,6 +19,10 @@ export interface PlacedOrder {
   fulfillment: FulfillmentMode;
   vendorName: string;
   pickup?: { name: string; address: string };
+  /** Self-pickup orders — one pickup point per distinct vendor. Present only when fulfillment is PICKUP. */
+  pickups?: { name: string; address: string; hours?: string; phone?: string }[];
+  /** Delivery orders — optional live GPS fix captured at checkout (not uploaded yet). */
+  location?: { lat: number; lng: number };
   /** Prescription orders only — captured page count. */
   pages?: number;
   /** Prescription orders only — optional pharmacist note. Never PII-logged. */
@@ -35,6 +39,8 @@ interface PlacedOrderInput {
   fulfillment: FulfillmentMode;
   vendorName: string;
   pickup?: { name: string; address: string };
+  pickups?: { name: string; address: string; hours?: string; phone?: string }[];
+  location?: { lat: number; lng: number };
   pages?: number;
   note?: string;
   items?: PlacedOrderItem[];

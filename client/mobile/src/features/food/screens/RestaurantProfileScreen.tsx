@@ -40,7 +40,6 @@ import { restaurantMenus } from '@data/food/menus';
 import { useCartStore } from '@/state/cartStore';
 import { useFoodFilterStore } from '@/state/foodFilterStore';
 import { dishMatches } from '../utils/dietFilter';
-import FoodAddModeSheet, { type FoodAddMode } from '../components/FoodAddModeSheet';
 
 type Props = NativeStackScreenProps<FoodStackParamList, 'RestaurantProfile'>;
 
@@ -73,7 +72,6 @@ export function RestaurantProfileScreen({ navigation, route }: Props) {
   const insets = useSafeAreaInsets();
   const [activeCategory, setActiveCategory] = useState('Bestsellers');
   const [searchQuery, setSearchQuery] = useState('');
-  const [pendingDish, setPendingDish] = useState<SpecialDish | null>(null);
 
   const dietFilter = useFoodFilterStore((s) => s.dietFilter);
 
@@ -129,18 +127,11 @@ export function RestaurantProfileScreen({ navigation, route }: Props) {
     navigation.getParent<NativeStackNavigationProp<RootStackParamList>>()?.navigate('Cart');
   }, [navigation]);
 
-  const handleAdd = useCallback((dish: SpecialDish) => {
-    setPendingDish(dish);
-  }, []);
-
-  const handleConfirmAdd = useCallback(
-    (mode: FoodAddMode) => {
-      if (pendingDish) {
-        addToCart(pendingDish.id, pendingDish.dishName, pendingDish.price, '🍽️', { fulfilment: mode });
-      }
-      setPendingDish(null);
+  const handleAdd = useCallback(
+    (dish: SpecialDish) => {
+      addToCart(dish.id, dish.dishName, dish.price, '🍽️');
     },
-    [pendingDish, addToCart],
+    [addToCart],
   );
 
   const dishQuantity = useCallback(
@@ -407,13 +398,6 @@ export function RestaurantProfileScreen({ navigation, route }: Props) {
       )}
 
       <FoodStatusBarStrip scrollY={scrollY} />
-
-      <FoodAddModeSheet
-        visible={!!pendingDish}
-        itemName={pendingDish?.dishName}
-        onClose={() => setPendingDish(null)}
-        onConfirm={handleConfirmAdd}
-      />
     </View>
   );
 }

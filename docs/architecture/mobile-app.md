@@ -101,8 +101,8 @@ any FOOD product (below "Product Details") resolved by `product.shop` against `@
 `foodStores` (name + verified badge, desc, open/distance/delivery row; name-only header when the
 restaurant isn't in `foodStores`), plus a **"More from {restaurant}"** 2-column grid of the
 restaurant's other `TODAYS_SPECIALS` (via `dishToProduct`). Card tap pushes another `ProductDetail`
-(`onOpenProduct`); grid + footer adds for FOOD are gated by the **fulfilment sheet**
-(`FoodAddModeSheet`) instead of adding straight to the cart. The old "Free Delivery / COD /
+(`onOpenProduct`); grid + footer adds for FOOD are **direct** (the fulfilment gate was
+removed — the mode is chosen later on the cart BAG step). The old "Free Delivery / COD /
 10-Day Return / Assured" trust block was removed from the shared view (applies to MART/PHARMA
 too — one component).
 
@@ -172,13 +172,14 @@ The Home hub header (`features/home/HomeTabScreen.tsx` + `hubHeader.ts`) is a **
  overlay that collapses via transform only**. `headerOuter` is `position:absolute` with a static
  `height = expandedHeaderH(top)` and is never animated; the inner `headerSlid` stack slides up with
  a `translateY` (`headerSlideStyle`), so the header never triggers a per-frame layout pass. The
-   list container is full-screen with `contentContainerStyle.paddingTop = expandedHeaderH(top)`, so at
-   rest the first section sits flush below the expanded header and, as the header slides up, the
-    freed area simply reveals already-laid-out content. It pins a compact **category rail**
-    (`components/shared/HeaderCategoryRail.tsx`) below the search bar, fed by `usePagedRail` over
-     `@data/categories/railFeed` (derived from the merged Mart category tree). Tapping a chip opens
-     the **category drill-in page** (`features/catalog/CategoryDrillInScreen.tsx`, route
-     `CategoryDrillIn`) scoped to that tab (see below). On scroll the header
+ list container is full-screen with `contentContainerStyle.paddingTop = expandedHeaderH(top)`, so at
+ rest the first section sits flush below the expanded header and, as the header slides up, the
+  freed area simply reveals already-laid-out content. It pins a compact **category rail**
+  (`components/shared/HeaderCategoryRail.tsx`) below the search bar, fed by `usePagedRail` over
+   `@data/categories/railFeed` (derived from the merged Mart category tree). The same rail is reused
+   by the Mart sub-app header (pinned below its searchbar). Tapping a chip opens the **category
+   drill-in page** (`features/catalog/CategoryDrillInScreen.tsx`, route `CategoryDrillIn`) scoped to
+   that tab (see below). On scroll the header
  **shrinks**: the `headerSlid` stack translates up by `min(clamp, collapseCap)`, and the two blocks
  that would otherwise be hard-clipped fade out **on the UI thread** (Reanimated, reading only
  shared values — no JS work per frame):
@@ -216,22 +217,18 @@ Visually, the header blends into the `#f1f5f9` content below: the **gradient is 
  #23090), so it must not coexist with the fades.
 
 **Top-inset convention:** one canonical source of truth — `useSafeAreaInsets().top`. The Home
-header and every sub-app header read the same measured inset (`SubAppHeader` via `subAppHeaderH`,
-the lean `MartSubAppHeader` via `martSubAppHeaderH`); never use `StatusBar.currentHeight` (a static
-module constant that is `0` on iOS and stale on Android edge-to-edge). Both share the
-`SubAppHeaderBackdrop` gradient. The optional `withRail` on `subAppHeaderH` adds a pinned rail slot
-(`SUB_HEADER_RAIL_H`, mirroring the Home `HEADER_RAIL_H`).
+header and every sub-app header (`SubAppHeader` via `subAppHeaderH(topInset, compact, withRail?)`) read the
+same measured inset; never use `StatusBar.currentHeight` (a static module constant that is `0`
+on iOS and stale on Android edge-to-edge). The optional `withRail` adds the pinned rail slot
+(`SUB_HEADER_RAIL_H`, mirroring the Home `HEADER_RAIL_H`) — passed for the Mart sub-app header.
 
-**Sub-app header (Food / Pharma):** `components/shared/SubAppHeader.tsx` renders the app header —
-back button + a **white live searchbar** (no address pill anymore) that filters the in-place feed
-via `searchQuery`. When `hideBrandRow` is set the brand row is dropped. It is used by Food and
-Pharma.
-
-**Sub-app header (Mart):** `components/shared/MartSubAppHeader.tsx` is a lean header for the Mart
-sub-app — just the gradient backdrop + a back button, with **no searchbar and no category rail**.
-It uses `martSubAppHeaderH` for its height, so it is shorter than the Food/Pharma header. The
-wrapper (`components/SubAppWrapper.tsx`) picks `MartSubAppHeader` for `FA_MART` and `SubAppHeader`
-for Food/Pharma.
+**Sub-app header (Mart / Pharma):** `components/shared/SubAppHeader.tsx` renders a compact header
+for Mart & Pharma — back button + a **white live searchbar** (no address pill anymore) that filters
+the in-place feed via `searchQuery`. When `hideBrandRow` is set the brand row is dropped. Mart's
+header additionally pins the shared `HeaderCategoryRail` below the searchbar (via `belowSearchSlot`),
+so the category rail stays visible while the feed scrolls beneath it — the same pattern as the Home
+hub header. The wrapper (`components/SubAppWrapper.tsx`) passes `compactHeader` (renamed from the old
+`hasAddressBar`) to toggle the compact layout and supplies the rail for `FA_MART`.
 
 **Home feed performance:** the home feed (`HomeView`) runs on an **`Animated.FlatList`**
 (reanimated-wrapped `FlatList`; migrating to `@shopify/flash-list` v2 is tracked in
@@ -273,7 +270,7 @@ paginated reads from `@data/*` — the contract the future Go Chi gateway will f
 | Store | Purpose |
 |---|---|
 | `authStore` | Session, login payload, auth state |
-| `cartStore` | Cart items, quantity, totals; `addToCart` accepts optional `{ fulfilment }` for FOOD items |
+| `cartStore` | Cart items, quantity, totals; `addToCart(id, name, price, emoji)` — fulfilment is chosen order-level on the cart, not per item |
 | `favoriteStore` | Favourites (ids) |
 | `bookingStore` | Dinner bookings |
 | `foodBookingStore` | Food bookings |
@@ -402,20 +399,15 @@ helpers (`venueMatches` / `dishMatches`). Food search follows the same pattern �
 captures it in the (pure) dish predicate, so the config stays deterministic and rebuilds
 when the filter changes.
 
-## Food fulfilment sheet
+## Food add-to-cart — direct adds, fulfilment on the cart
 
-Every first-add of a dish in the Food sub-app is gated by `FoodAddModeSheet`
-(`features/food/components/FoodAddModeSheet.tsx`, built on the shared `SlideUpSheet`).
-Step 1 asks **Dining / Food order**; "Dining" confirms immediately, "Food order" advances
-to step 2 (**Delivery / Self pickup**) with a back affordance. The chosen mode is
-**persisted** on the cart item (`CartItem.fulfilment` — `'dining' | 'delivery' | 'pickup'`)
-via the `addToCart(…, { fulfilment })` option, and rendered as a small per-row label in the
-cart for FOOD rows only (`Dining` / `Food order · Delivery` / `Food order · Self pickup`;
-items without a stored mode fall back to `Food order · Delivery`). Re-adding an existing
-item never overwrites its stored mode. Wired into the dishes-only search results, the
-restaurant offers page, the restaurant profile menu "Add", and the FOOD product-detail
-footer + related-dish grid adds. Qty stepper (+/−) stays direct everywhere. Food home
-promo/Top-of-Week add buttons remain direct (unchanged, defaulting to Delivery).
+Every add of a dish in the Food sub-app is **direct** — `addToCart(id, name, price, emoji)` with
+no popup. The old `FoodAddModeSheet` (Dining / Food order → Delivery / Self pickup) was **deleted**;
+fulfilment is no longer captured per item (`CartItem.fulfilment` and the `CartFulfilment` type were
+removed). Instead the **order-level** Delivery / Self Pickup choice is made on the cart BAG step.
+This applies everywhere: the dishes-only search results, the restaurant offers page, the restaurant
+profile menu "Add", and the FOOD product-detail footer + related-dish grid adds. Qty steppers (+/−)
+stay direct everywhere. Food home promo/Top-of-Week add buttons were already direct (unchanged).
 
 The **RestaurantProfile "Recommended & Offers" rail** (`features/food/screens/RestaurantProfileScreen.tsx`)
 renders its deal-card dish images with the shared **'AD' pill** (`AdLabelBadge`, bottom-right of
@@ -442,41 +434,48 @@ and wiped). When zero items are ticked the Proceed button is disabled. The 3 cat
 are now **full-bleed** (edge-to-edge, no side gutters/borders) with a larger 64px item
 thumbnail; the savings/coupon card keeps its 16px inset.
 
-## Cart checkout — fulfilment + pickup on the BAG step
+## Cart checkout — fulfilment + live-location delivery on the BAG step
 
-The order-level **Food Delivery ⇄ Self Pickup** switch lives on the cart **BAG** step
-(`features/cart/CartView.tsx`), not the address page. `fulfillment` (`'DELIVERY' |
-'PICKUP'`) remains a single `CartView`-scoped state driving `computeTotals` (pickup waives
-the ₹49 fee), `PaymentOptionsScreen`, and the receipt timeline.
+The order-level **Delivery ⇄ Self Pickup** toggle lives on the cart **BAG** step
+(`features/cart/CartView.tsx`). `fulfillment` (`'DELIVERY' | 'PICKUP'`) is a single
+`CartView`-scoped state, starting as `null` — **nothing selected by default**, so the
+**Proceed to Pay** button stays disabled until a mode is chosen. It drives `computeTotals`
+(pickup waives the ₹49 fee), `PaymentOptionsScreen`, and the receipt timeline.
 
 - **BAG:** a "How do you want your order?" card renders the segmented toggle. In **Delivery**
-  mode it shows a compact "Deliver to {label}" row that opens the **ADDRESS** step to pick a
-  saved/custom address. In **Self Pickup** mode it renders the pickup-point radio cards (one
-  per distinct store, store-backed via `getPickupPointsForItems`) + the "Pickup contact" row
-  directly on the page, so pickup needs no address detour.
-- **ADDRESS step** is now **delivery-only** (`Select Delivery Address`); the toggle and
-  pickup branch were removed from it.
-- **BAG bottom bar:** Delivery shows the tappable `addrRow` → ADDRESS; Pickup shows a static
-  (non-navigating) "Pickup from …" summary since the picker is on this page. **Proceed to
-  Pay** goes straight to **PAYMENT** for pickup, **ADDRESS** for delivery. Payment's back
-  button returns to BAG in both modes.
+  mode a live-address row appears below it — resolved via the `useLiveAddress` hook
+  (`src/hooks/useLiveAddress.ts`, expo-location: in-UI consent → `getCurrentPositionAsync`
+  → `reverseGeocodeAsync`; coordinates/address are never logged). If permission is denied or
+  no fix is available it falls back to the saved primary `defaultAddresses[0]` with a
+  "using saved address" note so ordering never dead-ends. In **Self Pickup** mode nothing
+  extra renders — vendors are derived at order placement (no picker UI).
+- **ADDRESS step removed entirely** (`'ADDRESS'` dropped from `CheckoutStep`); there is no
+  manual saved-address selection page. Proceed to Pay goes to **PAYMENT** in both modes;
+  Payment's back button returns to BAG.
+- **Order placement:** for Delivery, the live fix (or fallback) is the delivery address and
+  the GPS coordinates are captured on the order (`PlacedOrder.location`). For Self Pickup,
+  `getPickupPointsForItems` auto-derives **one pickup point per distinct vendor** and all of
+  them are snapshotted as `PlacedOrder.pickups` (with `pickups[0]` also kept in `pickup` for
+  the My Orders chip + prescription flow).
 
-The **My Orders → Order Details** page renders a "Pickup From" card (store name, address,
-`Open {hours}`, pickup contact) when an order is `fulfillment: 'PICKUP'` with `pickup` data.
-The FOOD product-detail store section (`CommonProductDetailView`) now exposes a tappable
-restaurant row + a "View Restaurant" button (`onViewRestaurant`) that deep-links into the
-nested `FoodApp → RestaurantProfile` via `getDiningRestaurantForProduct`
-(`features/food/utils/restaurantForProduct.ts`).
+The **My Orders → Order Details** page resolves an order via `ordersStore.getOrderById` first
+(in-session placed orders), falling back to `@data getMyOrderById` for fixtures — fixing the
+placed-order "not found" gap — and renders a **"Pickup From" card per vendor** (name, address,
+`Open {hours}`, contact) for `PICKUP` orders. The FOOD product-detail store section
+(`CommonProductDetailView`) now exposes a tappable restaurant row + a "View Restaurant" button
+(`onViewRestaurant`) that deep-links into the nested `FoodApp → RestaurantProfile` via
+`getDiningRestaurantForProduct` (`features/food/utils/restaurantForProduct.ts`).
 
 ## Order receipt — unified tracking
 
 The receipt (`CartView`) shows a **single unified Real-Time Tracking Status** box for every
 order: a pulsing "Order has been placed" row (no ETA badge, no two-step variants). For
-PICKUP it additionally renders a "Pickup from: {store}, {address}" line. `handlePlaceOrder`
-now also writes to `ordersStore.recordOrder` (items kind) so the order is real in My Orders.
-A primary **Track My Order** button (optional `onTrackOrder` prop, wired in `CartScreen` to
-`navigation.navigate('MyOrders', { highlightOrderId })`) sits in the receipt actions.
-"Items Purchased" rows no longer show an icon: the name is ¾-width ellipsized
+PICKUP it additionally renders a "Pickup from: {store} +N more, {address}" line and a
+**"Pickup From" section listing one card per vendor** (name, address, hours, contact).
+`handlePlaceOrder` also writes to `ordersStore.recordOrder` (items kind) so the order is real
+in My Orders. A primary **Track My Order** button (optional `onTrackOrder` prop, wired in
+`CartScreen` to `navigation.navigate('MyOrders', { highlightOrderId })`) sits in the receipt
+actions. "Items Purchased" rows no longer show an icon: the name is ¾-width ellipsized
 (`maxWidth: '75%'`) with a grey "x {qty}" and right-aligned price.
 
 ## Prescription flow (pharma)

@@ -8,18 +8,14 @@ import { foodTheme } from '../constants/theme';
 import type { FoodStackParamList, RootStackParamList } from '@/navigation/types';
 import type { SpecialDish } from '../mocks/types';
 import { dishToProduct } from '../mocks/specials';
-import { useCartStore } from '@/state/cartStore';
 import AppText from '@/components/AppText';
 import FoodDetailTopBar from '../components/FoodDetailTopBar';
 import SearchDishCard from '../components/SearchDishCard';
-import FoodAddModeSheet, { type FoodAddMode } from '../components/FoodAddModeSheet';
 
 type Props = NativeStackScreenProps<FoodStackParamList, 'RestaurantOffers'>;
 
 /** Synthetic original price — mirrors the profile page's offers discount rule. */
 const originalPrice = (d: SpecialDish) => Math.round(d.price * 1.2);
-
-const CART_EMOJI = '🍽️';
 
 /**
  * "View All" offers page — a food-search-result-style list of a restaurant's
@@ -29,8 +25,6 @@ const CART_EMOJI = '🍽️';
 export function RestaurantOffersScreen({ navigation, route }: Props) {
   const { restaurant, offers } = route.params;
   const [searchQuery, setSearchQuery] = useState('');
-  const [pendingDish, setPendingDish] = useState<SpecialDish | null>(null);
-  const addToCart = useCartStore((s) => s.addToCart);
 
   const filteredOffers = useMemo(() => {
     const q = searchQuery.trim().toLowerCase();
@@ -49,16 +43,6 @@ export function RestaurantOffersScreen({ navigation, route }: Props) {
         ?.navigate('ProductDetail', { product: dishToProduct(dish) });
     },
     [navigation],
-  );
-
-  const handleConfirm = useCallback(
-    (mode: FoodAddMode) => {
-      if (pendingDish) {
-        addToCart(pendingDish.id, pendingDish.dishName, pendingDish.price, CART_EMOJI, { fulfilment: mode });
-      }
-      setPendingDish(null);
-    },
-    [pendingDish, addToCart],
   );
 
   return (
@@ -89,7 +73,6 @@ export function RestaurantOffersScreen({ navigation, route }: Props) {
               dish={item}
               oldPrice={originalPrice(item)}
               onPress={openDish}
-              onAdd={setPendingDish}
             />
           )}
           showsVerticalScrollIndicator={false}
@@ -101,13 +84,6 @@ export function RestaurantOffersScreen({ navigation, route }: Props) {
           }
         />
       )}
-
-      <FoodAddModeSheet
-        visible={!!pendingDish}
-        itemName={pendingDish?.dishName}
-        onClose={() => setPendingDish(null)}
-        onConfirm={handleConfirm}
-      />
     </View>
   );
 }

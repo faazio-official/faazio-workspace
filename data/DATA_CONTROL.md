@@ -188,9 +188,9 @@ the `GROCERY` member was dropped from `AppBrand` / `CartCategory` / `SubAppId` /
 
 | Export | Type | Mobile consumers | Status |
 |---|---|---|---|
-| `defaultAddresses` | `Address[]` | `CartView` (checkout addresses) | `@mock` |
+| `defaultAddresses` | `Address[]` | `CartView` (saved-address fallback when live location is unavailable) | `@mock` |
 | `coupons` | `Coupon[]` | `CartView` (promo codes) | `@mock` |
-| `getPickupPointsForItems` | `(items) => PickupPoint[]` | `CartView` (self-pickup toggle → pickup-point radio cards, one per distinct store in the cart) | `@mock` |
+| `getPickupPointsForItems` | `(items) => PickupPoint[]` | `CartView` (order placement — auto-derives one pickup point per distinct vendor for self-pickup orders) | `@mock` |
 | `NEUTRAL_PICKUP` | `PickupPoint` | fallback hub for cart items whose store can't be determined | `@mock` |
 
 > **Self-pickup contract:** `FulfillmentMode` / `PickupPoint` are the typed contract the future Go
@@ -200,10 +200,12 @@ the `GROCERY` member was dropped from `AppBrand` / `CartCategory` / `SubAppId` /
 > for PHARMA) and returns **one pickup point per distinct store** (a cart spanning several
 > stores lists all of them; the user visits whichever applies). Items with no determinable store
 > collapse to `NEUTRAL_PICKUP`. Checkout waives the delivery fee (`computeTotals` zeroes it for
-> `PICKUP`). `MyOrder.fulfillment` (optional — absent = delivery) drives the My Orders
-> "Delivery / Self Pickup" chip; `MyOrder.pickup` (a `PickupAddress` snapshot — name, address,
-> hours — taken at placement time, present only for `PICKUP` orders) drives the Order Details
-> "Pickup From" card. Contact phone for pickup is the signed-in user's
+> `PICKUP`). There is **no pickup-point picker** in the cart — the vendors are auto-derived at
+> order placement and **all** are snapshotted on the order (`ordersStore.PlacedOrder.pickups`) and
+> shown on the receipt + Order Details. `MyOrder.fulfillment` (optional — absent = delivery) drives
+> the My Orders "Delivery / Self Pickup" chip; `MyOrder.pickup` (a `PickupAddress` snapshot —
+> name, address, hours — taken at placement time, present only for `PICKUP` orders) drives the
+> Order Details "Pickup From" card. Contact phone for pickup is the signed-in user's
 > `userProfile.phone` — no fabricated PII.
 
 ### `@data/account` — owner: `features/profile`
@@ -260,7 +262,7 @@ the `GROCERY` member was dropped from `AppBrand` / `CartCategory` / `SubAppId` /
 | `instantFeed` | `Product[]` | data-internal only (`filterFeed`); not directly by screens | `@mock` |
 | `nearbyOffers` | `NearbyOffer[]` | home `NearbyOffersSection` | `@mock` |
 | `filterChips` / `filterFeedPools` / `FilterChipId` | typed pools | home `FilterFeedSection` | `@mock` |
-| `seedCartItems` | `CartItem[]` | `state/cartStore` | `@seed` (FOOD seeds carry an explicit `fulfilment` so both cart labels show on first launch) |
+| `seedCartItems` | `CartItem[]` | `state/cartStore` | `@seed` |
 | `seedFavorites` | `string[]` | `state/favoriteStore` (seeds the search-results-style Favourites page — 15 ids spanning FOOD, MART, PHARMA, explore & `cat-*` search ids, all resolvable in `catalogIndex`) | `@seed` |
 | `seedLocation` | `string` | **`@unused`** by mobile | `@seed` + `@unused` |
 

@@ -36,7 +36,6 @@ export const seedCartItems: CartItem[] = [
     quantity: 1,
     emoji: '🍟',
     category: 'FOOD',
-    fulfilment: 'delivery',
     imageUrl: 'https://images.unsplash.com/photo-1513456852971-30c0b8199d4d?fm=jpg&fit=crop&q=80&w=96&h=96',
   },
   {
@@ -48,7 +47,6 @@ export const seedCartItems: CartItem[] = [
     quantity: 1,
     emoji: '🍰',
     category: 'FOOD',
-    fulfilment: 'pickup',
     imageUrl: 'https://images.unsplash.com/photo-1606313564200-e75d5e30476c?fm=jpg&fit=crop&q=80&w=96&h=96',
   },
   {

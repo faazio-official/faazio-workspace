@@ -9,8 +9,6 @@ import type { SearchScreenConfig } from '../types';
 
 interface FoodSearchOptions {
   onDishPress?: (dish: SpecialDish) => void;
-  /** Override for the first-add action (fulfilment gate). */
-  onDishAdd?: (dish: SpecialDish) => void;
   /**
    * Active Veg / Non-Veg diet filter. Threaded in explicitly (not read from the
    * store inside the predicate) so the config is deterministic and the
@@ -47,7 +45,6 @@ function makeDishPredicate(dietFilter: DietFilter) {
  */
 export function createFoodSearchConfig({
   onDishPress,
-  onDishAdd,
   dietFilter = 'all',
 }: FoodSearchOptions): SearchScreenConfig {
   const dishPredicate = makeDishPredicate(dietFilter);
@@ -74,7 +71,7 @@ export function createFoodSearchConfig({
         data: TODAYS_SPECIALS,
         predicate: dishPredicate,
         renderCard: (item) => (
-          <SearchDishCard dish={item as SpecialDish} onPress={onDishPress} onAdd={onDishAdd} />
+          <SearchDishCard dish={item as SpecialDish} onPress={onDishPress} />
         ),
         sorters: {
           relevance: () => 0,

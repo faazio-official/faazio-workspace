@@ -1,6 +1,5 @@
 import { create } from 'zustand';
 import { seedCartItems } from '@data/home/seeds';
-import type { CartFulfilment } from '@data/types';
 
 export interface CartItem {
   id: string;
@@ -12,20 +11,13 @@ export interface CartItem {
   originalPrice?: number;
   qtyDesc?: string;
   category?: 'MART' | 'FOOD' | 'PHARMA';
-  fulfilment?: CartFulfilment;
 }
 
 export type CartCategory = 'MART' | 'FOOD' | 'PHARMA';
 
 interface CartState {
   cart: CartItem[];
-  addToCart: (
-    id: string,
-    name: string,
-    price: number,
-    emoji: string,
-    opts?: { fulfilment?: CartFulfilment },
-  ) => void;
+  addToCart: (id: string, name: string, price: number, emoji: string) => void;
   removeFromCart: (itemId: string) => void;
   updateQuantity: (itemId: string, delta: number) => void;
   clearCart: () => void;
@@ -35,7 +27,7 @@ interface CartState {
 
 export const useCartStore = create<CartState>()((set, get) => ({
   cart: [...seedCartItems],
-  addToCart: (id, name, price, emoji, opts) => set((state) => {
+  addToCart: (id, name, price, emoji) => set((state) => {
     const existing = state.cart.find((i) => i.id === id);
     if (existing) {
       return {
@@ -44,7 +36,7 @@ export const useCartStore = create<CartState>()((set, get) => ({
         ),
       };
     }
-    return { cart: [...state.cart, { id, name, price, quantity: 1, emoji, fulfilment: opts?.fulfilment }] };
+    return { cart: [...state.cart, { id, name, price, quantity: 1, emoji }] };
   }),
   removeFromCart: (itemId) => set((state) => ({
     cart: state.cart.filter((i) => i.id !== itemId),

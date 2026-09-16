@@ -56,8 +56,9 @@ adb devices            # must show "<id>  device"
   npm run android -- --variant release      # or ./gradlew -p android assembleRelease then adb install
   ```
 - **Stuck on the splash / never advances** → startup (fonts/hydration) stalled. `App.tsx` now has a
-  **splash failsafe** (auto-dismiss after 8 s) and **4 s hydration timeouts**, so a hanging native
-  module no longer blocks launch. If it still hangs, `adb logcat -s ReactNativeJS` for `[Faazio:hydrate]`.
+  **splash failsafe** (auto-dismiss after 10 s) and **4 s hydration timeouts**, so a hanging native
+  module no longer blocks launch. (The branded splash normally shows for a **minimum of 5 s**.)
+  If it still hangs, `adb logcat -s ReactNativeJS` for `[Faazio:hydrate]`.
 - **Crashes with no error shown** → release builds strip `console.*`; unhandled JS/render errors now
   surface via the global `ErrorUtils` handler (`[Faazio:global-error]` in dev). Add remote
   telemetry (Sentry/Crashlytics) for production visibility — tracked in `PENDING_WORK.md`.
@@ -69,7 +70,7 @@ adb devices            # must show "<id>  device"
   OS didn't see a version change. **Bump `versionCode`/`versionName`** in
   `android/app/build.gradle` (+ `app.json` `version`), rebuild, and reinstall.
 - Icon source files: `src/assets/icon.png` (1024 launcher), `adaptive-icon.png` (1024 foreground,
-  artwork in the 66% safe zone), `faazio-logo.png` (400 splash). Regenerate all three from the
+  artwork in the 66% safe zone), `logo.png` (wide splash wordmark). Regenerate all three from the
   1254×1254 source artwork via `python3 scripts/regenerate-icons.py` (keep them distinct — they
   must **not** be byte-identical, or the adaptive mask/splash render incorrectly).
 
@@ -80,6 +81,9 @@ adb devices            # must show "<id>  device"
   ```bash
   cd client/mobile && npm run android
   ```
+  > Changing the `expo-location` permission string (or `NSLocationWhenInUseUsageDescription` /
+  > the `app.json` plugin message — e.g. to cover checkout live-address auto-fill) **also
+  > requires a native rebuild** (`npm run android`) so the new prompt text is baked into the client.
 - **`compileDebugKotlin FAILED` — `Unresolved reference 'ReactNativeHostWrapper'`**
   → the generated `android/` project is **stale** vs the installed Expo SDK. Regenerate:
   ```bash

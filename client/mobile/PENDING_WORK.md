@@ -5,6 +5,47 @@ dependencies exist. Do not build the backend/seller flows until told to.
 
 ---
 
+## Kill the add-mode popup — fulfilment moves to the cart, live-location delivery, vendor pickup addresses
+
+**Status:** 🟢 Shipped.
+
+**Feature:** Adds are instant everywhere (no dining/pickup popup). Fulfilment is chosen on the
+cart BAG step as a **Delivery / Self Pickup** toggle (nothing selected by default → Proceed to
+Pay stays disabled). Delivery auto-fills the **live GPS address** (no manual ADDRESS step);
+Self Pickup needs no address UI. Self-pickup orders record **all vendor pickup addresses** and
+show them on the order-success receipt and on Order Details.
+
+**Changes:**
+- **Remove the gate** — deleted `FoodAddModeSheet.tsx`. `RestaurantProfileScreen`,
+  `RestaurantOffersScreen`, `FoodSearchScreen` (config `foodSearchConfig.tsx`), and
+  `CommonProductDetailView` now `addToCart(id, name, price, emoji)` directly. Dropped
+  `onDishAdd`/`onAdd` from the search config + `SearchDishCard`.
+- **Store/data** — `CartItem.fulfilment`, `CartFulfilment`, and the `addToCart(…, opts)`
+  param removed (`cartStore.ts`, `data/types.ts`, `@data/home/seeds.ts`).
+- **Cart BAG** (`CartView.tsx`) — single Delivery / Self Pickup toggle; the pickup-point
+  radio list, contact row, "Deliver to" row, and the whole **ADDRESS step** are removed.
+  Delivery shows the live address (or a "using saved address" fallback). Proceed to Pay is
+  disabled until a mode is chosen; both modes go to PAYMENT.
+- **Live location** — new `src/hooks/useLiveAddress.ts` (expo-location: consent →
+  `getCurrentPositionAsync` → `reverseGeocodeAsync`; no PII logged). Delivery capture is
+  stored on the order (`PlacedOrder.location`); `app.json` location-permission text updated
+  (needs a native rebuild).
+- **Vendor pickup addresses** — `ordersStore` gained `PlacedOrder.pickups` (one point per
+  vendor, derived from `getPickupPointsForItems`). The RECEIPT and **Order Details**
+  (`OrderDetailsScreen.tsx`) render one "Pickup From" card per vendor. Order Details now
+  resolves via `ordersStore.getOrderById` first, falling back to `@data getMyOrderById` —
+  fixing the placed-order "not found" gap.
+
+**Native:** `app.json` `expo-location` permission message + iOS `NSLocationWhenInUseUsageDescription`
+updated to cover checkout auto-fill. Requires `npm run android`.
+
+**Future / honest gaps:**
+- The live location is captured on the order but nothing uploads it yet (future Go backend).
+
+**Date:** 2026-09-16
+
+---
+
 ## Pharma prescription flow + unified receipt tracking & My Orders merge
 
 **Feature:** New full-bleed **PrescriptionFlow** (route `PrescriptionFlow`, `features/pharma/prescription/`):
@@ -37,8 +78,6 @@ a native rebuild (`npm run android`).
 
 **Future / honest gaps:**
 - Photos are captured and shown only in-session; nothing uploads them yet (future Go backend).
-- `OrderDetails` still resolves via `getMyOrderById` (@data), so placed-order "View Details" shows
-  the "not found" fallback until OrderDetails is backed by `ordersStore`.
 
 ---
 
@@ -104,13 +143,12 @@ looks populated (no empty outlets/buckets, no empty review sets).
 details; let the food product-detail page open the restaurant profile.
 
 **Changes:**
-- **Cart BAG** (`CartView.tsx`): the order-level **Deliver / Self-Pickup** toggle moved from
-  the ADDRESS step onto the BAG step (a "How do you want your order?" card). Pickup renders
-  the pickup-point radio cards (one per distinct store via `getPickupPointsForItems`) +
-  contact row directly on the page; Delivery shows a "Deliver to" row → ADDRESS. The ADDRESS
-  step is now **delivery-only** (`Select Delivery Address`). Proceed to Pay goes straight to
-  PAYMENT for pickup; payment's back button returns to BAG in both modes. `computeTotals`
-  still zeroes the fee for pickup.
+- **Cart BAG** (`CartView.tsx`): the order-level **Delivery / Self Pickup** toggle lives on the
+  BAG step (a "How do you want your order?" card). Nothing is selected by default — Proceed to
+  Pay stays disabled until a mode is chosen. Delivery shows the **live location** (GPS +
+  reverse geocode via `useLiveAddress`); Self Pickup adds no address UI. There is **no ADDRESS
+  step** — the manual saved-address page was removed. Proceed to Pay goes to PAYMENT in both
+  modes. `computeTotals` still zeroes the fee for pickup.
 - **Order Details** (`OrderDetailsScreen.tsx` + `data/account/orders.ts` + `data/types.ts`):
   new optional `MyOrder.pickup` (`PickupAddress` snapshot) drives a **"Pickup From"** card
   (store name, address, `Open {hours}`, pickup contact). The 6 PICKUP fixtures were populated
@@ -131,8 +169,7 @@ details; let the food product-detail page open the restaurant profile.
 
 **Status:** 🟢 Shipped.
 
-**Feature:** The cart BAG step lets the user tick/untick items before paying; FOOD rows
-show their fulfilment mode.
+**Feature:** The cart BAG step lets the user tick/untick items before paying.
 
 **Changes:**
 - **Shared `Checkbox`** (`components/shared/Checkbox.tsx`, exported from
@@ -147,16 +184,12 @@ show their fulfilment mode.
 - **Layout:** removed the "Review Items" heading; the 3 category cards are now **full-bleed**
   (edge-to-edge, no gutters/borders; savings card keeps its 16px inset); item thumbnails
   bumped 48 → 64px.
-- **Food fulfilment label** (FOOD rows only): `Dining` / `Food order · Delivery` /
-  `Food order · Self pickup`, rendered from the persisted `CartItem.fulfilment` (fallback
-  Delivery when absent). The mode is now captured at all four gated add sites
-  (`RestaurantProfileScreen`, `RestaurantOffersScreen`, `FoodSearchScreen`,
-  `CommonProductDetailView`) via `addToCart(…, { fulfilment })`; re-adding never overwrites
-  the stored mode. `data/types.ts` + `cartStore.ts` gained the `fulfilment` field /
-  `CartFulfilment` type; `@data/home/seeds.ts` FOOD seeds carry explicit modes so both
-  labels show on first launch.
 
 **Data:** `@data/types` `CartFulfilment` + `CartItem.fulfilment`; `@data/home/seeds.ts`.
+> **Removed (2026-09-16):** per-item FOOD fulfilment is gone — the mode moved to an order-level
+> **Delivery / Self Pickup** toggle on the cart BAG step (nothing chosen by default). The
+> `FoodAddModeSheet` add-gate, `CartItem.fulfilment`, the `CartFulfilment` type, the FOOD
+> per-row label, and `addToCart(…, { fulfilment })` were deleted across the four add sites.
 
 **Date:** 2026-09-14
 
@@ -199,6 +232,9 @@ behind a fulfilment chooser.
   on the cart item (`CartItem.fulfilment`, via `addToCart(…, { fulfilment })`) and
   shown as a per-row label in the cart for FOOD rows (see the Cart item-selection
   entry below).
+> **Removed (2026-09-16):** the `FoodAddModeSheet` fulfilment gate is deleted. Every Food
+> add (search, offers, restaurant menu, product-detail) now adds **directly**; the
+> order-level Delivery / Self Pickup toggle moved to the cart BAG step.
 
 **Date:** 2026-09-14
 

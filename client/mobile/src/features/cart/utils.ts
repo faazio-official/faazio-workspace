@@ -1,5 +1,5 @@
 import type { CartItem } from '@/state/cartStore';
-import type { FulfillmentMode, PickupPoint } from '@data/types';
+import type { FulfillmentMode } from '@data/types';
 
 export interface AppLabel {
   name: string;
@@ -27,31 +27,7 @@ export interface AppliedDiscount {
   amount: number;
 }
 
-export interface AddressView {
-  id: string;
-  label: string;
-  address: string;
-  selected: boolean;
-  isPrimary?: boolean;
-}
-
-export type CheckoutStep = 'BAG' | 'ADDRESS' | 'PAYMENT' | 'RECEIPT';
-
-export interface OrderDetails {
-  orderId: string;
-  items: CartItem[];
-  subtotal: number;
-  discount: number;
-  tax: number;
-  total: number;
-  deliveryAddress: string;
-  payment: string;
-  eta: string;
-  /** How the order will be fulfilled (delivery vs self-pickup). */
-  fulfillment: FulfillmentMode;
-  /** The chosen pickup point, present only when fulfillment is PICKUP. */
-  pickup?: PickupPoint;
-}
+export type CheckoutStep = 'BAG' | 'PAYMENT' | 'RECEIPT';
 
 export const getAppLabel = (itemId: string): AppLabel => {
   const id = itemId.toLowerCase();

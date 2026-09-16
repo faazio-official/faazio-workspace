@@ -101,18 +101,9 @@ export interface CartItem {
   originalPrice?: number;
   qtyDesc?: string;
   category?: CartCategory;
-  /**
-   * Food-only fulfilment mode chosen at the add sheet (Dining / Delivery /
-   * Pickup). Drives the per-row fulfilment label in the cart. Absent = falls
-   * back to "Food order · Delivery". Mart/Pharma items never set this.
-   */
-  fulfilment?: CartFulfilment;
 }
 
 export type CartCategory = 'MART' | 'FOOD' | 'PHARMA';
-
-/** Food fulfilment mode captured when a dish is added to the cart. */
-export type CartFulfilment = 'dining' | 'delivery' | 'pickup';
 
 export interface Review {
   id: string;

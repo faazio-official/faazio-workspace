@@ -25,20 +25,13 @@ import { martProducts } from '@data/mart/products';
 import { foodStores } from '@data/food/stores';
 import { TODAYS_SPECIALS, dishToProduct } from '@data/food/specials';
 import type { Product, StoreProfile } from '@data/types';
-import FoodAddModeSheet, { type FoodAddMode } from '@/features/food/components/FoodAddModeSheet';
 
 interface ProductDetailViewProps {
   product?: Product;
   onClose: () => void;
   onSearch?: () => void;
   onCart?: () => void;
-  addToCart: (
-    id: string,
-    name: string,
-    price: number,
-    emoji: string,
-    opts?: { fulfilment?: 'dining' | 'delivery' | 'pickup' },
-  ) => void;
+  addToCart: (id: string, name: string, price: number, emoji: string) => void;
   cartItems: { id: string; name: string; price: number; quantity: number; emoji: string }[];
   updateCartQuantity: (id: string, delta: number) => void;
   favorites?: string[];
@@ -113,8 +106,6 @@ export default function CommonProductDetailView({
   const cartItem = cartItems.find((i) => i.id === product.id);
   const cartQty = cartItem?.quantity ?? 0;
 
-  const [pendingAdd, setPendingAdd] = useState<Product | null>(null);
-
   const handleToggleFavorite = () => {
     if (toggleFavorite) toggleFavorite(product.id);
   };
@@ -124,16 +115,7 @@ export default function CommonProductDetailView({
   };
 
   const handleAddToCart = () => {
-    if (product.app === 'FOOD') {
-      setPendingAdd(product);
-    } else {
-      confirmAdd(product);
-    }
-  };
-
-  const handleFoodConfirm = (mode: FoodAddMode) => {
-    if (pendingAdd) addToCart(pendingAdd.id, pendingAdd.name, Number(pendingAdd.price) || 0, pendingAdd.emoji ?? '🍽️', { fulfilment: mode });
-    setPendingAdd(null);
+    confirmAdd(product);
   };
 
   const handleIncrement = () => {
@@ -312,7 +294,7 @@ export default function CommonProductDetailView({
                       quantity={qty}
                       isAdded={qty > 0}
                       onPress={onOpenProduct}
-                      onAdd={() => setPendingAdd(p)}
+                      onAdd={() => confirmAdd(p)}
                       onIncrement={() => updateCartQuantity(p.id, 1)}
                       onDecrement={() => updateCartQuantity(p.id, -1)}
                     />
@@ -486,13 +468,6 @@ export default function CommonProductDetailView({
           </>
         )}
       </View>
-
-      <FoodAddModeSheet
-        visible={!!pendingAdd}
-        itemName={pendingAdd?.name}
-        onClose={() => setPendingAdd(null)}
-        onConfirm={handleFoodConfirm}
-      />
     </SafeAreaView>
   );
 }
