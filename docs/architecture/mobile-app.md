@@ -173,14 +173,13 @@ The Home hub header (`features/home/HomeTabScreen.tsx` + `hubHeader.ts`) is a **
  overlay that collapses via transform only**. `headerOuter` is `position:absolute` with a static
  `height = expandedHeaderH(top)` and is never animated; the inner `headerSlid` stack slides up with
  a `translateY` (`headerSlideStyle`), so the header never triggers a per-frame layout pass. The
- list container is full-screen with `contentContainerStyle.paddingTop = expandedHeaderH(top)`, so at
- rest the first section sits flush below the expanded header and, as the header slides up, the
-  freed area simply reveals already-laid-out content. It pins a compact **category rail**
-  (`components/shared/HeaderCategoryRail.tsx`) below the search bar, fed by `usePagedRail` over
-   `@data/categories/railFeed` (derived from the merged Mart category tree). The same rail is reused
-   by the Mart sub-app header (pinned below its searchbar). Tapping a chip opens the **category
-   drill-in page** (`features/catalog/CategoryDrillInScreen.tsx`, route `CategoryDrillIn`) scoped to
-   that tab (see below). On scroll the header
+   list container is full-screen with `contentContainerStyle.paddingTop = expandedHeaderH(top)`, so at
+   rest the first section sits flush below the expanded header and, as the header slides up, the
+    freed area simply reveals already-laid-out content. It pins a compact **category rail**
+    (`components/shared/HeaderCategoryRail.tsx`) below the search bar, fed by `usePagedRail` over
+     `@data/categories/railFeed` (derived from the merged Mart category tree). Tapping a chip opens
+     the **category drill-in page** (`features/catalog/CategoryDrillInScreen.tsx`, route
+     `CategoryDrillIn`) scoped to that tab (see below). On scroll the header
  **shrinks**: the `headerSlid` stack translates up by `min(clamp, collapseCap)`, and the two blocks
  that would otherwise be hard-clipped fade out **on the UI thread** (Reanimated, reading only
  shared values — no JS work per frame):
@@ -218,18 +217,18 @@ Visually, the header blends into the `#f1f5f9` content below: the **gradient is 
  #23090), so it must not coexist with the fades.
 
 **Top-inset convention:** one canonical source of truth — `useSafeAreaInsets().top`. The Home
-header and every sub-app header (`SubAppHeader` via `subAppHeaderH(topInset, compact, withRail?)`) read the
+header and every sub-app header (`SubAppHeader` via `subAppHeaderH(topInset, compact, withRail?, hideSearch?)`) read the
 same measured inset; never use `StatusBar.currentHeight` (a static module constant that is `0`
 on iOS and stale on Android edge-to-edge). The optional `withRail` adds the pinned rail slot
-(`SUB_HEADER_RAIL_H`, mirroring the Home `HEADER_RAIL_H`) — passed for the Mart sub-app header.
+(`SUB_HEADER_RAIL_H`, mirroring the Home `HEADER_RAIL_H`); `hideSearch` drops the search-row height.
 
 **Sub-app header (Mart / Pharma):** `components/shared/SubAppHeader.tsx` renders a compact header
 for Mart & Pharma — back button + a **white live searchbar** (no address pill anymore) that filters
-the in-place feed via `searchQuery`. When `hideBrandRow` is set the brand row is dropped. Mart's
-header additionally pins the shared `HeaderCategoryRail` below the searchbar (via `belowSearchSlot`),
-so the category rail stays visible while the feed scrolls beneath it — the same pattern as the Home
-hub header. The wrapper (`components/SubAppWrapper.tsx`) passes `compactHeader` (renamed from the old
-`hasAddressBar`) to toggle the compact layout and supplies the rail for `FA_MART`.
+the in-place feed via `searchQuery`. When `hideBrandRow` is set the brand row is dropped. The Mart
+sub-app hides the searchbar entirely (`hideSearch` — no category rail either), leaving just the back
+button, so its header is shorter than Pharma's (which keeps the searchbar). The wrapper
+(`components/SubAppWrapper.tsx`) passes `compactHeader` (renamed from the old `hasAddressBar`) to
+toggle the compact layout and `hideSearch` for `FA_MART`.
 
 **Home feed performance:** the home feed (`HomeView`) runs on an **`Animated.FlatList`**
 (reanimated-wrapped `FlatList`; migrating to `@shopify/flash-list` v2 is tracked in

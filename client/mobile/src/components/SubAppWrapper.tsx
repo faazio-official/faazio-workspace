@@ -27,8 +27,6 @@ import { PharmaScreen } from '../features/pharma/PharmaScreen';
 import AppText from '@/components/AppText';
 import SubAppHeader from './shared/SubAppHeader';
 import { subAppHeaderH } from './shared/SubAppHeader';
-import HeaderCategoryRail from '@/components/shared/HeaderCategoryRail';
-import type { CategoryRailItem } from '@data/categories/railFeed';
 import { brandTokens } from '@/theme/brandTokens';
 import type { AppBrand, StoreProfile } from '@data/types';
 import { martStores } from '@data/mart/stores';
@@ -154,19 +152,6 @@ export default function SubAppWrapper({
   const adaptiveTabWidth = (SCREEN_W - hs(48)) / tabCount;
 
   const compactHeader = subAppId === 'FA_MART' || subAppId === 'PHARMA';
-
-  // The pinned Mart category rail below the searchbar opens the category drill-in
-  // page for the tapped main category (same behaviour as the Home hub header's rail).
-  const handleRailCategoryPress = useCallback(
-    (item: CategoryRailItem) => {
-      navigation.navigate('CategoryDrillIn', {
-        tabId: item.id,
-        title: item.name,
-        app: 'FA_MART',
-      });
-    },
-    [navigation],
-  );
 
   // Mart hides its app chrome while a vendor profile drill-in is open
   // (martVendor != null).
@@ -296,13 +281,7 @@ export default function SubAppWrapper({
           searchPlaceholder={searchPlaceholder}
           inputRef={searchInputRef}
           hideBrandRow={compactHeader}
-          belowSearchSlot={
-            subAppId === 'FA_MART' ? (
-              <HeaderCategoryRail
-                onCategoryPress={handleRailCategoryPress}
-              />
-            ) : undefined
-          }
+          hideSearch={subAppId === 'FA_MART'}
         />
       )}
 
@@ -312,7 +291,12 @@ export default function SubAppWrapper({
           {
             paddingTop: hideAppHeader
               ? 0
-              : subAppHeaderH(insets.top, compactHeader, subAppId === 'FA_MART'),
+              : subAppHeaderH(
+                  insets.top,
+                  compactHeader,
+                  false,
+                  subAppId === 'FA_MART',
+                ),
             paddingBottom: isChromeHidden ? 0 : vs(72),
           },
         ]}

@@ -16,12 +16,18 @@ const SUB_HEADER_BOTTOM_PAD = vs(12);
 /** Height of the sub-app header rail slot, mirroring the Home hub `HEADER_RAIL_H`. */
 const SUB_HEADER_RAIL_H = vs(30);
 /** Height of the sub-app header, incl. the OS status-bar inset. Pass `withRail`
- *  when a `belowSearchSlot` (e.g. the pinned Mart category rail) is rendered. */
-export const subAppHeaderH = (topInset: number, compact: boolean, withRail = false) =>
+ *  when a `belowSearchSlot` (e.g. the pinned Mart category rail) is rendered and
+ *  `hideSearch` when the search row is hidden (e.g. the Mart sub-app). */
+export const subAppHeaderH = (
+  topInset: number,
+  compact: boolean,
+  withRail = false,
+  hideSearch = false,
+) =>
   topInset +
   SUB_HEADER_TOP_GAP +
   (compact ? 0 : SUB_HEADER_ROW_H + SUB_HEADER_ROW_GAP) +
-  SUB_HEADER_SEARCH_H +
+  (hideSearch ? 0 : SUB_HEADER_SEARCH_H) +
   (withRail ? SUB_HEADER_ROW_GAP + SUB_HEADER_RAIL_H : 0) +
   SUB_HEADER_BOTTOM_PAD;
 
@@ -36,6 +42,8 @@ interface SubAppHeaderProps {
   rightSlot?: React.ReactNode;
   inputRef?: React.RefObject<TextInput | null>;
   hideBrandRow?: boolean;
+  /** Hides the search pill (keeps the back button). Used by the Mart sub-app. */
+  hideSearch?: boolean;
   /** Rendered below the search row (e.g. the pinned Mart category rail). */
   belowSearchSlot?: React.ReactNode;
 }
@@ -51,13 +59,14 @@ export default function SubAppHeader({
   rightSlot,
   inputRef,
   hideBrandRow = false,
+  hideSearch = false,
   belowSearchSlot,
 }: SubAppHeaderProps) {
   const insets = useSafeAreaInsets();
   const topInset = insets.top;
   const withRail = !!belowSearchSlot;
   return (
-    <View style={[styles.headerOuter, { height: subAppHeaderH(topInset, hideBrandRow, withRail) }]}>
+    <View style={[styles.headerOuter, { height: subAppHeaderH(topInset, hideBrandRow, withRail, hideSearch) }]}>
       <Svg style={StyleSheet.absoluteFill}>
         <Defs>
           <SvgGrad id="subHeaderGrad" x1="0%" y1="0%" x2="0%" y2="100%">
@@ -84,17 +93,19 @@ export default function SubAppHeader({
           <TouchableOpacity onPress={onBack} style={styles.backBtn} activeOpacity={0.7}>
             <ArrowLeft size={ms(18)} color={textColor} />
           </TouchableOpacity>
-          <View style={styles.searchPill}>
-            <Search size={ms(17)} color="#94a3b8" />
-            <AppTextInput
-              ref={inputRef}
-              style={styles.searchInput}
-              value={searchValue}
-              onChangeText={onSearchChange}
-              placeholder={searchPlaceholder}
-              placeholderTextColor="#94a3b8"
-            />
-          </View>
+          {!hideSearch && (
+            <View style={styles.searchPill}>
+              <Search size={ms(17)} color="#94a3b8" />
+              <AppTextInput
+                ref={inputRef}
+                style={styles.searchInput}
+                value={searchValue}
+                onChangeText={onSearchChange}
+                placeholder={searchPlaceholder}
+                placeholderTextColor="#94a3b8"
+              />
+            </View>
+          )}
         </View>
         {belowSearchSlot}
       </View>
