@@ -1016,11 +1016,12 @@ removed as obsolete.
 **Status:** 🟢 Shipped (client-side).
 
 **Feature:** The Mart sub-app (`FA_MART`) header no longer shows a searchbar or the pinned category
-rail below it. `SubAppHeader` gained a `hideSearch` prop (hides the search pill, keeps the back
-button; `subAppHeaderH` now takes `hideSearch` to shrink the header height accordingly).
-`SubAppWrapper` passes `hideSearch` for `FA_MART` and no longer renders `HeaderCategoryRail` as the
-Mart `belowSearchSlot` (the shared rail component is still used by the Home hub header). The Mart
-search tab / `onSearchPress` behaviour is unchanged.
+rail below it — they are removed, not hidden. A new lean `MartSubAppHeader`
+(`components/shared/MartSubAppHeader.tsx`) renders only the gradient backdrop + back button for
+Mart (height via `martSubAppHeaderH`), while Food/Pharma keep the full `SubAppHeader` with its live
+searchbar. The shared gradient backdrop is extracted into `SubAppHeaderBackdrop`. The
+`HeaderCategoryRail` is no longer rendered in the Mart header (the component is still used by the
+Home hub header). The Mart search tab / `onSearchPress` behaviour is unchanged.
 
 **Date:** 2026-09-16
 

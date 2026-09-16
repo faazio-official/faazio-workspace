@@ -217,18 +217,22 @@ Visually, the header blends into the `#f1f5f9` content below: the **gradient is 
  #23090), so it must not coexist with the fades.
 
 **Top-inset convention:** one canonical source of truth — `useSafeAreaInsets().top`. The Home
-header and every sub-app header (`SubAppHeader` via `subAppHeaderH(topInset, compact, withRail?, hideSearch?)`) read the
-same measured inset; never use `StatusBar.currentHeight` (a static module constant that is `0`
-on iOS and stale on Android edge-to-edge). The optional `withRail` adds the pinned rail slot
-(`SUB_HEADER_RAIL_H`, mirroring the Home `HEADER_RAIL_H`); `hideSearch` drops the search-row height.
+header and every sub-app header read the same measured inset (`SubAppHeader` via `subAppHeaderH`,
+the lean `MartSubAppHeader` via `martSubAppHeaderH`); never use `StatusBar.currentHeight` (a static
+module constant that is `0` on iOS and stale on Android edge-to-edge). Both share the
+`SubAppHeaderBackdrop` gradient. The optional `withRail` on `subAppHeaderH` adds a pinned rail slot
+(`SUB_HEADER_RAIL_H`, mirroring the Home `HEADER_RAIL_H`).
 
-**Sub-app header (Mart / Pharma):** `components/shared/SubAppHeader.tsx` renders a compact header
-for Mart & Pharma — back button + a **white live searchbar** (no address pill anymore) that filters
-the in-place feed via `searchQuery`. When `hideBrandRow` is set the brand row is dropped. The Mart
-sub-app hides the searchbar entirely (`hideSearch` — no category rail either), leaving just the back
-button, so its header is shorter than Pharma's (which keeps the searchbar). The wrapper
-(`components/SubAppWrapper.tsx`) passes `compactHeader` (renamed from the old `hasAddressBar`) to
-toggle the compact layout and `hideSearch` for `FA_MART`.
+**Sub-app header (Food / Pharma):** `components/shared/SubAppHeader.tsx` renders the app header —
+back button + a **white live searchbar** (no address pill anymore) that filters the in-place feed
+via `searchQuery`. When `hideBrandRow` is set the brand row is dropped. It is used by Food and
+Pharma.
+
+**Sub-app header (Mart):** `components/shared/MartSubAppHeader.tsx` is a lean header for the Mart
+sub-app — just the gradient backdrop + a back button, with **no searchbar and no category rail**.
+It uses `martSubAppHeaderH` for its height, so it is shorter than the Food/Pharma header. The
+wrapper (`components/SubAppWrapper.tsx`) picks `MartSubAppHeader` for `FA_MART` and `SubAppHeader`
+for Food/Pharma.
 
 **Home feed performance:** the home feed (`HomeView`) runs on an **`Animated.FlatList`**
 (reanimated-wrapped `FlatList`; migrating to `@shopify/flash-list` v2 is tracked in

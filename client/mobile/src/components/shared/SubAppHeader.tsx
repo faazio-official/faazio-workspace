@@ -3,10 +3,10 @@ import { StyleSheet, View, TouchableOpacity } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { TextInput } from 'react-native';
 import { ArrowLeft, Search } from 'lucide-react-native';
-import Svg, { Defs, LinearGradient as SvgGrad, Stop, Rect as SvgRect, Circle as SvgCircle } from 'react-native-svg';
-import { SCREEN_W, hs, vs, ms } from '@/utils/responsive';
+import { hs, vs, ms } from '@/utils/responsive';
 import AppText from '@/components/AppText';
 import AppTextInput from '@/components/AppTextInput';
+import SubAppHeaderBackdrop from './SubAppHeaderBackdrop';
 
 const SUB_HEADER_TOP_GAP = vs(12);
 const SUB_HEADER_ROW_H = vs(24);
@@ -16,18 +16,12 @@ const SUB_HEADER_BOTTOM_PAD = vs(12);
 /** Height of the sub-app header rail slot, mirroring the Home hub `HEADER_RAIL_H`. */
 const SUB_HEADER_RAIL_H = vs(30);
 /** Height of the sub-app header, incl. the OS status-bar inset. Pass `withRail`
- *  when a `belowSearchSlot` (e.g. the pinned Mart category rail) is rendered and
- *  `hideSearch` when the search row is hidden (e.g. the Mart sub-app). */
-export const subAppHeaderH = (
-  topInset: number,
-  compact: boolean,
-  withRail = false,
-  hideSearch = false,
-) =>
+ *  when a `belowSearchSlot` (e.g. a pinned category rail) is rendered. */
+export const subAppHeaderH = (topInset: number, compact: boolean, withRail = false) =>
   topInset +
   SUB_HEADER_TOP_GAP +
   (compact ? 0 : SUB_HEADER_ROW_H + SUB_HEADER_ROW_GAP) +
-  (hideSearch ? 0 : SUB_HEADER_SEARCH_H) +
+  SUB_HEADER_SEARCH_H +
   (withRail ? SUB_HEADER_ROW_GAP + SUB_HEADER_RAIL_H : 0) +
   SUB_HEADER_BOTTOM_PAD;
 
@@ -42,9 +36,7 @@ interface SubAppHeaderProps {
   rightSlot?: React.ReactNode;
   inputRef?: React.RefObject<TextInput | null>;
   hideBrandRow?: boolean;
-  /** Hides the search pill (keeps the back button). Used by the Mart sub-app. */
-  hideSearch?: boolean;
-  /** Rendered below the search row (e.g. the pinned Mart category rail). */
+  /** Rendered below the search row (e.g. a pinned category rail). */
   belowSearchSlot?: React.ReactNode;
 }
 
@@ -59,25 +51,14 @@ export default function SubAppHeader({
   rightSlot,
   inputRef,
   hideBrandRow = false,
-  hideSearch = false,
   belowSearchSlot,
 }: SubAppHeaderProps) {
   const insets = useSafeAreaInsets();
   const topInset = insets.top;
   const withRail = !!belowSearchSlot;
   return (
-    <View style={[styles.headerOuter, { height: subAppHeaderH(topInset, hideBrandRow, withRail, hideSearch) }]}>
-      <Svg style={StyleSheet.absoluteFill}>
-        <Defs>
-          <SvgGrad id="subHeaderGrad" x1="0%" y1="0%" x2="0%" y2="100%">
-            <Stop offset="0%" stopColor={gradient[0]} />
-            <Stop offset="100%" stopColor={gradient[1]} />
-          </SvgGrad>
-        </Defs>
-        <SvgRect width="100%" height="100%" fill="url(#subHeaderGrad)" />
-        <SvgCircle cx={SCREEN_W * 1.1} cy={vs(-20)} r={ms(96)} fill="rgba(255,255,255,0.05)" />
-        <SvgCircle cx={hs(-30)} cy={vs(120)} r={ms(96)} fill="rgba(255,255,255,0.04)" />
-      </Svg>
+    <View style={[styles.headerOuter, { height: subAppHeaderH(topInset, hideBrandRow, withRail) }]}>
+      <SubAppHeaderBackdrop gradient={gradient} />
       <View style={[styles.headerContent, hideBrandRow && styles.headerContentCompact, { paddingTop: topInset + SUB_HEADER_TOP_GAP }]}>
         {!hideBrandRow && (
           <View style={styles.headerTopRow}>
@@ -93,19 +74,17 @@ export default function SubAppHeader({
           <TouchableOpacity onPress={onBack} style={styles.backBtn} activeOpacity={0.7}>
             <ArrowLeft size={ms(18)} color={textColor} />
           </TouchableOpacity>
-          {!hideSearch && (
-            <View style={styles.searchPill}>
-              <Search size={ms(17)} color="#94a3b8" />
-              <AppTextInput
-                ref={inputRef}
-                style={styles.searchInput}
-                value={searchValue}
-                onChangeText={onSearchChange}
-                placeholder={searchPlaceholder}
-                placeholderTextColor="#94a3b8"
-              />
-            </View>
-          )}
+          <View style={styles.searchPill}>
+            <Search size={ms(17)} color="#94a3b8" />
+            <AppTextInput
+              ref={inputRef}
+              style={styles.searchInput}
+              value={searchValue}
+              onChangeText={onSearchChange}
+              placeholder={searchPlaceholder}
+              placeholderTextColor="#94a3b8"
+            />
+          </View>
         </View>
         {belowSearchSlot}
       </View>

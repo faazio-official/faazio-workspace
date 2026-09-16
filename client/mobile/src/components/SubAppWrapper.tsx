@@ -27,6 +27,8 @@ import { PharmaScreen } from '../features/pharma/PharmaScreen';
 import AppText from '@/components/AppText';
 import SubAppHeader from './shared/SubAppHeader';
 import { subAppHeaderH } from './shared/SubAppHeader';
+import MartSubAppHeader from './shared/MartSubAppHeader';
+import { martSubAppHeaderH } from './shared/MartSubAppHeader';
 import { brandTokens } from '@/theme/brandTokens';
 import type { AppBrand, StoreProfile } from '@data/types';
 import { martStores } from '@data/mart/stores';
@@ -270,20 +272,26 @@ export default function SubAppWrapper({
 
   return (
     <View style={styles.container}>
-      {!hideAppHeader && (
-        <SubAppHeader
-          title={HEADER_TITLES[subAppId]}
-          gradient={tokens.headerGradient}
-          textColor={tokens.headerTextColor}
-          onBack={handleBack}
-          searchValue={searchQuery}
-          onSearchChange={setSearchQuery}
-          searchPlaceholder={searchPlaceholder}
-          inputRef={searchInputRef}
-          hideBrandRow={compactHeader}
-          hideSearch={subAppId === 'FA_MART'}
-        />
-      )}
+      {!hideAppHeader &&
+        (subAppId === 'FA_MART' ? (
+          <MartSubAppHeader
+            gradient={tokens.headerGradient}
+            textColor={tokens.headerTextColor}
+            onBack={handleBack}
+          />
+        ) : (
+          <SubAppHeader
+            title={HEADER_TITLES[subAppId]}
+            gradient={tokens.headerGradient}
+            textColor={tokens.headerTextColor}
+            onBack={handleBack}
+            searchValue={searchQuery}
+            onSearchChange={setSearchQuery}
+            searchPlaceholder={searchPlaceholder}
+            inputRef={searchInputRef}
+            hideBrandRow={compactHeader}
+          />
+        ))}
 
       <View
         style={[
@@ -291,12 +299,9 @@ export default function SubAppWrapper({
           {
             paddingTop: hideAppHeader
               ? 0
-              : subAppHeaderH(
-                  insets.top,
-                  compactHeader,
-                  false,
-                  subAppId === 'FA_MART',
-                ),
+              : subAppId === 'FA_MART'
+                ? martSubAppHeaderH(insets.top)
+                : subAppHeaderH(insets.top, compactHeader),
             paddingBottom: isChromeHidden ? 0 : vs(72),
           },
         ]}
