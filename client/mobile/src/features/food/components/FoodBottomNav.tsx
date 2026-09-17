@@ -1,11 +1,12 @@
-import React, { memo } from 'react';
+import React, { memo, useState } from 'react';
 import { View, TouchableOpacity, StyleSheet } from 'react-native';
 import { Home, Search, ShoppingCart, User } from 'lucide-react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import AppText from '@/components/AppText';
-import { hs, ms, vs } from '@/utils/responsive';
+import { hs, ms, vs, SCREEN_W } from '@/utils/responsive';
 import { useCartStore } from '@/state/store';
 import { foodTheme } from '../constants/theme';
+import NavbarHomeShortcut from '@/components/shared/NavbarHomeShortcut';
 
 export type FoodTab = 'Home' | 'Search';
 
@@ -19,6 +20,7 @@ interface FoodBottomNavProps {
   onChange: (tab: FoodTab) => void;
   onCartPress?: () => void;
   onYouPress?: () => void;
+  onHomePress?: () => void;
 }
 
 /**
@@ -32,14 +34,19 @@ const FoodBottomNav = memo(function FoodBottomNav({
   onChange,
   onCartPress,
   onYouPress,
+  onHomePress,
 }: FoodBottomNavProps) {
   const insets = useSafeAreaInsets();
+  const [barHeight, setBarHeight] = useState(0);
   const cartCount = useCartStore((s) =>
     s.cart.reduce((acc, curr) => acc + curr.quantity, 0),
   );
 
   return (
-    <View style={[styles.bar, { paddingBottom: Math.max(insets.bottom, vs(8)) }]}>
+    <View
+      style={[styles.bar, { paddingBottom: Math.max(insets.bottom, vs(8)) }]}
+      onLayout={(event) => setBarHeight(event.nativeEvent.layout.height)}
+    >
       {TABS.map((tab) => {
         const isActive = activeTab === tab.name;
         const Icon = tab.icon;
@@ -88,6 +95,13 @@ const FoodBottomNav = memo(function FoodBottomNav({
         </View>
         <AppText style={styles.label}>Cart</AppText>
       </TouchableOpacity>
+      {onHomePress && barHeight > 0 ? (
+        <NavbarHomeShortcut
+          centerX={SCREEN_W / 8}
+          barHeight={barHeight}
+          onPress={onHomePress}
+        />
+      ) : null}
     </View>
   );
 });

@@ -56,6 +56,10 @@ export function FoodSearchScreen({ navigation, route }: Props) {
     navigation.getParent<NativeStackNavigationProp<RootStackParamList>>()?.navigate('You');
   }, [navigation]);
 
+  const openHubHome = useCallback(() => {
+    navigation.getParent<NativeStackNavigationProp<RootStackParamList>>()?.navigate('MainTabs', { screen: 'Home' });
+  }, [navigation]);
+
   const scrollY = useSharedValue(0);
   const onScroll = useCallback(
     (e: NativeSyntheticEvent<NativeScrollEvent>) => {
@@ -74,7 +78,7 @@ export function FoodSearchScreen({ navigation, route }: Props) {
         onScroll={onScroll}
       />
       <FoodStatusBarStrip scrollY={scrollY} />
-      <FoodBottomNav activeTab="Search" onChange={handleTabChange} onCartPress={openCart} onYouPress={openYou} />
+      <FoodBottomNav activeTab="Search" onChange={handleTabChange} onCartPress={openCart} onYouPress={openYou} onHomePress={openHubHome} />
     </View>
   );
 }

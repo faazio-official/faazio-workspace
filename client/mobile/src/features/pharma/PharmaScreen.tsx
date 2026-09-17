@@ -12,6 +12,8 @@ import PharmaProductCard from '@/features/pharma/cards/PharmaProductCard';
 import AppTextInput from '@/components/AppTextInput';
 import AppText from '@/components/AppText';
 import { PHARMA_PRODUCTS_DB, pharmaProducts } from '@data/pharma/products';
+import { pharmaStores } from '@data/pharma/stores';
+import type { StoreProfile } from '@data/types';
 import type { PharmaDBItem } from '@data/pharma/products';
 import { PHARMA_RECENT_ORDERS } from '@data/pharma/recentOrders';
 import type { PharmaRecentOrder } from '@data/pharma/recentOrders';
@@ -27,6 +29,7 @@ import PopularMedicinesRail from './components/pharma-home/PopularMedicinesRail'
 import HealthEssentialsRail from './components/pharma-home/HealthEssentialsRail';
 import FeaturedBrandsRail from './components/pharma-home/FeaturedBrandsRail';
 import HealthCornerRail from './components/pharma-home/HealthCornerRail';
+import LocalMedicalsRail from './components/pharma-home/LocalMedicalsRail';
 import UploadPrescriptionFAB from './components/pharma-home/UploadPrescriptionFAB';
 import { usePharmaFeed } from './hooks/usePharmaFeed';
 import PharmaHomeSkeleton from './components/skeletons/PharmaHomeSkeleton';
@@ -151,6 +154,10 @@ export function PharmaScreen({
     onSearchPress?.(item.name);
   };
 
+  const handleMedicalPress = (store: StoreProfile) => {
+    navigation.navigate('MedicalShopDetails', { storeId: store.id });
+  };
+
   const searchView = (
     <View style={styles.searchContainer}>
       <View style={styles.searchHeaderRow}>
@@ -219,6 +226,7 @@ export function PharmaScreen({
           onViewAll={() => onSearchPress?.('Featured Brands')}
         />
         <HealthCornerRail items={feed.healthCorner} onViewAll={() => onSearchPress?.('Health Corner')} />
+        <LocalMedicalsRail stores={pharmaStores} onMedicalPress={handleMedicalPress} />
       </ScrollView>
       <UploadPrescriptionFAB onPress={() => navigation.navigate('PrescriptionFlow')} />
     </View>

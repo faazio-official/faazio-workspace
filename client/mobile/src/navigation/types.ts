@@ -61,6 +61,8 @@ export type RootStackParamList = {
   BloodDonor: undefined;
   /** Blood request detail placeholder (pushed from the donor dashboard). */
   BloodRequestDescription: { requestId: string };
+  /** Pharma store profile with products and prescription entry point. */
+  MedicalShopDetails: { storeId: string };
   /** FaazioRewards — coins, order streak, and the streak discount card. */
   FaazioRewards: undefined;
   /** Mock "Sell with us" partner onboarding — required details (no backend yet). */
@@ -77,7 +79,7 @@ export type RootStackParamList = {
     app?: 'FA_MART' | 'PHARMA';
   };
   /** Full-bleed prescription capture flow (camera can't live in the sub-app wrapper). */
-  PrescriptionFlow: undefined;
+  PrescriptionFlow: { presetVendorId?: string } | undefined;
 };
 
 export type FoodStackParamList = {

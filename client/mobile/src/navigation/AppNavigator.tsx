@@ -42,6 +42,7 @@ const SellWithUsScreen = lazyNamed(() => import('@/features/profile/SellWithUsSc
 const FavouritesScreen = lazyNamed(() => import('@/features/favourites/FavouritesScreen'), 'FavouritesScreen');
 const DealsLandingScreen = lazyNamed(() => import('@/features/ecommerce/DealsLandingScreen'), 'DealsLandingScreen');
 const PrescriptionFlowScreen = lazyNamed(() => import('@/features/pharma/prescription/PrescriptionFlowScreen'), 'PrescriptionFlowScreen');
+const MedicalShopDetailsScreen = lazyNamed(() => import('@/features/pharma/MedicalShopDetailsScreen'), 'MedicalShopDetailsScreen');
 
 export function AppNavigator() {
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
@@ -156,6 +157,11 @@ export function AppNavigator() {
           <Stack.Screen
             name="PrescriptionFlow"
             component={PrescriptionFlowScreen}
+            options={{ animation: 'fade', animationDuration: 180 }}
+          />
+          <Stack.Screen
+            name="MedicalShopDetails"
+            component={MedicalShopDetailsScreen}
             options={{ animation: 'fade', animationDuration: 180 }}
           />
         </Stack.Navigator>

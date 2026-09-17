@@ -346,6 +346,11 @@ export default function SubAppWrapper({
             </TouchableOpacity>
           );
         })}
+        <NavbarHomeShortcut
+          centerX={hs(24) + (tabCount > 4 ? adaptiveTabWidth : ms(56)) / 2}
+          barHeight={vs(72)}
+          onPress={() => navigation.navigate('MainTabs', { screen: 'Home' })}
+        />
         </View>
       )}
     </View>

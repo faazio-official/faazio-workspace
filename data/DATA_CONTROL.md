@@ -119,7 +119,7 @@ the `GROCERY` member was dropped from `AppBrand` / `CartCategory` / `SubAppId` /
 | Export | Type | Mobile consumers | Status |
 |---|---|---|---|
 | `pharmaProducts` | `PharmaProduct[]` | `services/categoryVendors` (category drill-in / vendor details, via `storeId`); **`@unused`** by `PharmaScreen` (keeps an inline `PHARMA_PRODUCTS_DB`) | `@mock` |
-| `pharmaStores` | `StoreProfile[]` | pharma prescription vendor list + self-pickup resolver (6 outlets `store-p1…p6`, each pickup-capable) | `@mock` |
+| `pharmaStores` | `StoreProfile[]` | Pharma home **Local Medicals Near You** rail + `MedicalShopDetails` profile/inventory entry + prescription vendor list, preset flow, and self-pickup resolver (6 outlets `store-p1…p6`, each pickup-capable) | `@mock` |
 | `PHARMA_RECENT_ORDERS` / `PharmaRecentOrder` | `PharmaRecentOrder[]` / type | `PharmaScreen` History tab (recently ordered cards; de-dups the former inline `RECENT_ORDERS`) | `@mock` |
 | `PHARMA_PRODUCTS_DB` | `PharmaDBItem[]` | **`@unused`** | `@mock` + `@unused` |
 | `PHARMA_CATEGORIES` | `PharmaCategory[]` | **`@unused`** | `@mock` + `@unused` |

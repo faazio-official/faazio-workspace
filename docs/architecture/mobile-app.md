@@ -27,7 +27,7 @@ cross-cutting home/search/cart/profile.
 src/
 ├── App.tsx                     # root — providers + AppNavigator
 ├── components/                 # global atomic UI (AppText, FaazioLogo, shared/, …)
-│   └── shared/                 # 13 reusable primitives (ProductCardBase, StoreCardBase, Screen, …)
+│   └── shared/                 # 14 reusable primitives (ProductCardBase, StoreCardBase, Screen, …)
 ├── features/                   # vertical feature modules (15)
 ├── navigation/                 # AppNavigator, MainTabs, FoodStack, types
 ├── services/                   # GatewayClient, logout, secureSession, categoryVendors, homeFeed
@@ -57,6 +57,14 @@ hardcoded `lv-*` product map). The vendor drill-in's **"Discounted Products" rai
 promoted product with the shared **'AD' pill** (`showAdLabel` on `MartProductCard` → `AdLabelBadge`
 bottom-right of the image), matching Home's disclosure for promoted rails; the plain **"All
 Products"** grid below stays unlabelled (the vendor's own catalog, not promoted placement).
+
+Pharma's home feed ends with a pharma-local **"Local Medicals Near You"** rail backed by
+`@data/pharma/stores`. Each stacked card shows distance, rating, delivery time, offer and a
+**Visit Store** CTA that opens `MedicalShopDetails`; the rail has an empty state and intentionally
+does not render a "View all" action. `MedicalShopDetails` keeps the pharmacy boundary local while
+using `getVendorProducts`/`matchesQuery` and `SearchPharmaProductCard` for its live product list.
+Its shop info block includes the cover, contact details, hours and pickup address, and its
+`UploadPrescriptionFAB` opens `PrescriptionFlow` with the pharmacy preselected.
 
 **Home "Deals of the day" vendor-campaign zone** (`features/home/sections/BrandCampaignsSection.tsx`,
 section id `hotBrandDeals`): the renamed section (was "Hot Brand Deals") renders **two stacked,
@@ -230,6 +238,11 @@ so the category rail stays visible while the feed scrolls beneath it — the sam
 hub header. The wrapper (`components/SubAppWrapper.tsx`) passes `compactHeader` (renamed from the old
 `hasAddressBar`) to toggle the compact layout and supplies the rail for `FA_MART`.
 
+Every visible bottom navbar also exposes the shared `components/shared/NavbarHomeShortcut`: a
+Faazio-blue circular Home button centered over the first tab, with three quarters of the circle
+above the bar. It appears on Favourites/You in `MainTabs`, on Mart/Pharma wrapper tabs, and on both
+Food tabs; it is hidden on the main Home tab and when Mart's vendor drill-in hides its chrome.
+
 **Home feed performance:** the home feed (`HomeView`) runs on an **`Animated.FlatList`**
 (reanimated-wrapped `FlatList`; migrating to `@shopify/flash-list` v2 is tracked in
 `PENDING_WORK.md`) and never mirrors scroll position into JS state: `scrollY`/`viewportH` are
@@ -310,7 +323,9 @@ AppNavigator (root native stack)
 ├── You · UserDetails · SavedAddresses · MyOrders · Favourites · OrderDetails · FaazioRewards · SellWithUs
 ├── BloodDonor (Pharma blood-donor wizard/dashboard)
 ├── BloodRequestDescription (donor request details + nearby requests)
-├── PrescriptionFlow (full-bleed pharma prescription capture → note → vendor → confirmed)
+├── MedicalShopDetails (pharma store profile + live store inventory)
+├── PrescriptionFlow (full-bleed pharma prescription capture → note → vendor → confirmed;
+│   optional `presetVendorId` skips the vendor step and opens fulfilment for that pharmacy)
 ```
 
 Entry is `Onboarding` (or `MainTabs` when authenticated) — decided in `AppNavigator.tsx`
@@ -481,7 +496,8 @@ actions. "Items Purchased" rows no longer show an icon: the name is ¾-width ell
 ## Prescription flow (pharma)
 
 `PrescriptionFlowScreen` (root route `PrescriptionFlow`, full-bleed — the camera can't live
-in the sub-app wrapper) runs a step machine `CAPTURE → NOTE → VENDORS → CONFIRMED`:
+in the sub-app wrapper) runs a step machine `CAPTURE → NOTE → VENDORS → CONFIRMED` for the
+normal entry:
 - **CAPTURE** (`PrescriptionCameraStep`) — full-screen `CameraView` with a consent dialog
   (`requestCameraPermissionsAsync`) before mount, shutter, flash toggle, thumbnail strip with
   per-photo delete, "n/10" counter, `Confirm (n)` enabled at ≥1 and hard-capped at 10 pages.
@@ -496,6 +512,9 @@ in the sub-app wrapper) runs a step machine `CAPTURE → NOTE → VENDORS → CO
   subtitle = vendor name) gates the direct order — not persisted to the cart. Placing the
   order calls `ordersStore.recordOrder` (prescription kind) and shows in My Orders with a
   📄 "Prescription order" card ("N pages • {vendor}", Delivery/Self-Pickup chip, Processing).
+  When opened from `MedicalShopDetails` with `presetVendorId`, the flow stores that pharmacy after
+  NOTE, skips `VENDORS`, and shows the same fulfilment sheet in the flow screen; dismissing it
+  returns to NOTE.
 
 ## My Orders — merged list + prescription cards
 

@@ -5,6 +5,34 @@ dependencies exist. Do not build the backend/seller flows until told to.
 
 ---
 
+## Pharma local medicals, medical shop details & navbar Home shortcut
+
+**Status:** 🟢 Shipped.
+
+**Feature:** Pharma home now ends with a **Local Medicals Near You** rail. Tapping a medical opens
+`MedicalShopDetails`, a pharma-local shop profile with contact/hours/pickup information, live
+store-product search, and the existing prescription FAB. The FAB opens `PrescriptionFlow` with the
+shop preset, so the vendor picker is skipped and fulfilment opens after the note step. A shared
+Faazio-blue Home shortcut now floats above every visible bottom navbar: Favourites/You, Mart/Pharma,
+and both Food tabs; it is hidden on main Home and Mart vendor drill-in chrome.
+
+**Changes:**
+- Added `LocalMedicalsRail`/`LocalMedicalCard`, the `MedicalShopDetails` root route and lazy screen,
+  `presetVendorId` typing/branching in the prescription flow, and conditional Pharma section
+  "View all" rendering.
+- Added shared `NavbarHomeShortcut`; wired its measured geometry into `MainTabs`, `SubAppWrapper`,
+  and the dynamic-height `FoodBottomNav`.
+- Reused `pharmaStores`, `getVendorProducts`, `matchesQuery`, `SearchPharmaProductCard`, and
+  `PharmaImage`; no new data shapes or duplicate product pools.
+
+**Future / honest gaps:**
+- Medical inventory and prescription photos remain fixture/in-session data until the Go Chi gateway
+  and upload API are wired.
+
+**Date:** 2026-09-17
+
+---
+
 ## Kill the add-mode popup — fulfilment moves to the cart, live-location delivery, vendor pickup addresses
 
 **Status:** 🟢 Shipped.

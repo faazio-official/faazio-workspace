@@ -88,6 +88,10 @@ export function FoodHomeScreen({ navigation }: Props) {
     navigation.getParent<NativeStackNavigationProp<RootStackParamList>>()?.navigate('You');
   }, [navigation]);
 
+  const openHubHome = useCallback(() => {
+    navigation.getParent<NativeStackNavigationProp<RootStackParamList>>()?.navigate('MainTabs', { screen: 'Home' });
+  }, [navigation]);
+
   const goBack = useCallback(() => navigation.goBack(), [navigation]);
 
   const renderTopSections = useCallback((): ReactNode => {
@@ -145,7 +149,7 @@ export function FoodHomeScreen({ navigation }: Props) {
     return (
       <View style={styles.container}>
         <LoadingSkeleton />
-        <FoodBottomNav activeTab={activeTab} onChange={handleTabChange} onCartPress={openCart} onYouPress={openYou} />
+        <FoodBottomNav activeTab={activeTab} onChange={handleTabChange} onCartPress={openCart} onYouPress={openYou} onHomePress={openHubHome} />
       </View>
     );
   }
@@ -161,7 +165,7 @@ export function FoodHomeScreen({ navigation }: Props) {
         onScroll={onScroll}
       />
       <FoodStatusBarStrip scrollY={scrollY} />
-      <FoodBottomNav activeTab={activeTab} onChange={handleTabChange} onCartPress={openCart} onYouPress={openYou} />
+      <FoodBottomNav activeTab={activeTab} onChange={handleTabChange} onCartPress={openCart} onYouPress={openYou} onHomePress={openHubHome} />
     </View>
   );
 }

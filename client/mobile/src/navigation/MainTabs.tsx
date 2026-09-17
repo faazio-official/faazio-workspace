@@ -1,6 +1,6 @@
 import React, { Suspense, lazy } from 'react';
 import { StyleSheet, View, TouchableOpacity } from 'react-native';
-import { hs, vs, ms } from '@/utils/responsive';
+import { hs, vs, ms, SCREEN_W } from '@/utils/responsive';
 import { Home, Heart, ShoppingBag, User } from 'lucide-react-native';
 import { createBottomTabNavigator, type BottomTabBarProps } from '@react-navigation/bottom-tabs';
 import { useCartStore } from '@/state/cartStore';
@@ -8,6 +8,7 @@ import AppText from '@/components/AppText';
 import { HomeTabScreen } from '@/features/home/HomeTabScreen';
 import { SplashFallback } from '@/components/SplashFallback';
 import type { MainTabParamList } from '@/navigation/types';
+import NavbarHomeShortcut from '@/components/shared/NavbarHomeShortcut';
 
 const lazyNamed = <T extends { [K in string]: unknown }>(
   loader: () => Promise<T>,
@@ -92,6 +93,13 @@ function HubTabBar({ state, navigation }: BottomTabBarProps) {
           <AppText style={styles.tabLabel}>Cart</AppText>
         </TouchableOpacity>
       </View>
+      {state.index !== 0 ? (
+        <NavbarHomeShortcut
+          centerX={TAB_BAR_PAD + (SCREEN_W - 2 * TAB_BAR_PAD) / 8}
+          barHeight={TAB_BAR_H}
+          onPress={() => navigation.navigate('Home')}
+        />
+      ) : null}
     </View>
   );
 }

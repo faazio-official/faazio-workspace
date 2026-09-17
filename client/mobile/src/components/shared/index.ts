@@ -7,4 +7,5 @@ export { default as FloatingCartBar } from './FloatingCartBar';
 export { usePulse, useSpringBounce, useCartProductActions } from './hooks';
 export { default as SkeletonBlock } from './Skeleton';
 export { default as Checkbox } from './Checkbox';
+export { default as NavbarHomeShortcut } from './NavbarHomeShortcut';
 export { formatPrice, formatRating, resolveBadgeBg } from './format';

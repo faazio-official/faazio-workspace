@@ -19,16 +19,18 @@ const PharmaSectionHeader = memo(function PharmaSectionHeader({
       <AppText style={styles.title} numberOfLines={1}>
         {title}
       </AppText>
-      <TouchableOpacity
-        onPress={onViewAll}
-        style={styles.viewAllBtn}
-        hitSlop={{ top: 12, bottom: 12, left: 12, right: 8 }}
-        accessibilityRole="button"
-        accessibilityLabel={`${title}, view all`}
-      >
-        <AppText style={styles.viewAllText}>View all</AppText>
-        <ChevronRight size={ms(14)} color={PHARMA_TEAL} strokeWidth={2.6} />
-      </TouchableOpacity>
+      {onViewAll ? (
+        <TouchableOpacity
+          onPress={onViewAll}
+          style={styles.viewAllBtn}
+          hitSlop={{ top: 12, bottom: 12, left: 12, right: 8 }}
+          accessibilityRole="button"
+          accessibilityLabel={`${title}, view all`}
+        >
+          <AppText style={styles.viewAllText}>View all</AppText>
+          <ChevronRight size={ms(14)} color={PHARMA_TEAL} strokeWidth={2.6} />
+        </TouchableOpacity>
+      ) : null}
     </View>
   );
 });
