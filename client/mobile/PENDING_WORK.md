@@ -5,6 +5,31 @@ dependencies exist. Do not build the backend/seller flows until told to.
 
 ---
 
+## OTA / differential update delivery (expo-updates)
+
+**Status:** 🔴 Backlog — not chosen or implemented.
+
+**Gap:** The app ships as a single Metro bundle with no over-the-air JS update channel. There is
+no `expo-updates`, EAS Update, CodePush, or Play Feature Delivery wiring in `package.json` /
+`app.json`. `React.lazy` routes only defer module *evaluation* — they neither reduce download size
+nor deliver features on demand (see "Home feed scroll & startup performance").
+
+**Options considered:**
+- **`expo-updates` / EAS Update (recommended pragmatic path)** — Expo-native OTA JS-bundle updates;
+  no store resubmit for JS-only changes. Whole-bundle (not per-feature); needs a hosted update
+  server/channel config.
+- **Play Feature Delivery / dynamic feature modules** — per-feature native delivery, but effectively
+  incompatible with the current `expo prebuild` single-module Android project without significant
+  config-plugin work.
+- **Flipkart-style per-feature OTA** — custom infrastructure (their plugin system); out of scope.
+
+**Decision:** not adopted yet. If adopted, add the OTA-promote step to `docs/RUNBOOKS/RELEASE.md`
+and record the update channel here.
+
+**Date:** 2026-09-21
+
+---
+
 ## Pharma local medicals, medical shop details & navbar Home shortcut
 
 **Status:** 🟢 Shipped.

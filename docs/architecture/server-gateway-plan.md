@@ -63,6 +63,30 @@ server/
   `docs/architecture/db-schema.md`.*
 - **Observability:** OpenTelemetry + Grafana Cloud.
 
+## Delivery strategy (Flipkart-style alignment)
+
+Flipkart itself is one of the largest React Native shops (RN client + in-house SDUI/plugin
+system), so this plan's RN choice is consistent with that model. The plan matches the
+lightweight-superapp playbook on two of three axes:
+
+- **Server-driven widget layouts — aligned, data-driven first.** The gateway serves the render
+  tree contract in `data/schema.ts` (`SDUINode`); the client composes typed entity arrays from a
+  fixed component bank (`src/components/shared/`, 14 primitives) through repository seams
+  (`src/services/homeFeed.ts`, `categoryVendors.ts`). That is the "backend sends a payload, app
+  pulls pre-existing components" model. **Nuance:** the widget-tree half of `SDUINode` is tagged
+  `@aspirational` — layout composition (section order/registry) is still client-side (`@static`),
+  so today this is **server-driven data, not full server-driven layout**. The chosen trajectory is
+  data-driven → widget-tree, moving composition server-side once the gateway exists; the interim
+  keeps payloads small and typed.
+- **Aggressive code shrinking — handled client-side.** R8 minify + resource shrinking, 2-ABI
+  trimming and Hermes keep the shipped JS/native payload small; see `docs/RUNBOOKS/RELEASE.md`
+  and `docs/architecture/mobile-app.md` ("Size & delivery strategy").
+- **Differential / per-feature OTA — not covered (out of scope for now).** There is no
+  `expo-updates` / EAS Update / CodePush wiring; `React.lazy` routes defer module *evaluation* on
+  a single Metro bundle, not per-feature download. `expo-updates` (OTA JS channel) is the
+  pragmatic RN option; Flipkart-style per-feature delivery is custom infrastructure. Tracked in
+  `client/mobile/PENDING_WORK.md`.
+
 ## Fail-safe contract
 
 1. Each service is independently deployable and owns its schema; communicates only via gRPC

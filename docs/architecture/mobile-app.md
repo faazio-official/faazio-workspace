@@ -537,6 +537,31 @@ sub-app in the rail and rings its card.
 - `react-native-svg-transformer` + `sharp` for asset optimization.
 - `babel-plugin-transform-remove-console` trims logs in production builds.
 
+## Size & delivery strategy
+
+The "lightweight, fast, secure" mandate (AGENTS.md) is enforced at build and delivery time:
+
+- **Hermes + New Architecture** (RN 0.86.3) — precompiled bytecode, lower memory, faster cold start.
+- **R8 minify + resource shrinking ON for release** — `-Pandroid.enableMinifyInReleaseBuilds=true`
+  and `-Pandroid.enableShrinkResourcesInReleaseBuilds=true`; `mapping.txt` kept as a **private**
+  artifact for crash retracing, behind a mandatory device smoke test. See `docs/RUNBOOKS/RELEASE.md`.
+- **2-ABI build** (`arm64-v8a,armeabi-v7a`, ~95% device coverage) — roughly halves native `.so`
+  payload and C++ build work vs the old 4-ABI universal build (APK download ~−50%).
+- **Asset + console trimming** — `react-native-svg-transformer` + `sharp` for assets;
+  `babel-plugin-transform-remove-console` strips `console.*` from production. Expo GIF/WebP
+  decoders stay enabled pending a full `expo-image` coverage audit.
+- **Startup deferral** — non-initial routes use `React.lazy`; only the used Roboto weights
+  (`400`–`900`) load, gated to Android. **Honest caveat:** Metro still ships **one bundle**, so
+  `React.lazy` defers module *evaluation*, not download size (`PENDING_WORK.md`).
+- **OTA / differential delivery — not implemented.** There is **no `expo-updates` / EAS Update /
+  CodePush** wiring in `package.json`/`app.json`; `React.lazy` is startup deferral, not per-feature
+  delivery. The pragmatic RN path is **`expo-updates` (EAS Update)** for JS-bundle OTA
+  (whole-bundle, but no store resubmit for JS-only changes); true Flipkart-style per-feature
+  delivery is custom infrastructure and **out of scope**. Decision tracked in `PENDING_WORK.md`.
+- **Server-driven content reduces how often native layouts must ship** — data/content changes are
+  server-side once the gateway exists (`server-gateway-plan.md`), the lever that keeps an RN
+  superapp light.
+
 ## Honest limitations
 
 - **All data is mock** — served from `@data/*`, not a backend (see `data-layer-sdui.md`).
