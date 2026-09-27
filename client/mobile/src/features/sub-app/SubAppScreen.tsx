@@ -62,7 +62,7 @@ export function SubAppScreen({ navigation, route }: Props) {
           updateCartQuantity={updateCartQuantity}
           onProductClick={(product) => navigation.navigate('ProductDetail', { product })}
           onSearchPress={(query) => navigation.navigate('Search', { subApp: subAppId, initialQuery: query })}
-          onCartPress={() => navigation.navigate('Cart')}
+          onCartPress={() => navigation.navigate('Cart', {})}
         />
       </ErrorBoundary>
     </View>

@@ -312,7 +312,7 @@ paginated reads from `@data/*` — the contract the future Go Chi gateway will f
 | Store | Purpose |
 |---|---|
 | `authStore` | Session, login payload, auth state |
-| `cartStore` | Cart items, quantity, totals; `addToCart(id, name, price, emoji)` — fulfilment is chosen order-level on the cart, not per item |
+| `cartStore` | Cart items, quantity, totals; `addToCart(id, name, price, emoji, restaurantId?)` — the optional 5th arg tags a line to a restaurant (adopts an untagged line on re-add); `clearRestaurantCart(id)` removes only that restaurant's lines. Fulfilment is chosen order-level on the cart, not per item |
 | `favoriteStore` | Favourites (ids) |
 | `bookingStore` | Dinner bookings |
 | `foodBookingStore` | Food bookings |
@@ -346,7 +346,7 @@ AppNavigator (root native stack)
 ├── SubApp (generic sub-app wrapper; optional `initialVendorStoreId` opens the Mart vendor drill-in)
 │   (Mart tabs: Home · Search · You · Cart — "You" pushes the account page)
 ├── FoodApp (FoodStack — FoodHome dining-first → Search → RestaurantProfile → RestaurantOffers; 2-tab bottom nav Home/Search + You/Cart)
-├── ProductDetail · Search · Cart · PaymentOptions
+├── ProductDetail · Search · Cart (`{ restaurantId?, restaurantName? }`) · PaymentOptions
 ├── CategoryDrillIn (category drill-in page from the Home/Mart rail) ── VendorDetails (single-store search)
 ├── DealsLanding (deals page — `campaign` mode from the Home "Deals of the day" carousel, `discounts` mode from the Mart vendor profile "View All")
 ├── You · UserDetails · SavedAddresses · MyOrders · Favourites · OrderDetails · FaazioRewards · SellWithUs
@@ -469,6 +469,25 @@ The **RestaurantProfile "Recommended & Offers" rail** (`features/food/screens/Re
 renders its deal-card dish images with the shared **'AD' pill** (`AdLabelBadge`, bottom-right of
 each image) to disclose the promoted placement — matching Home and the Mart vendor drill-in.
 The "View All" page (`RestaurantOffersScreen`) is intentionally left unlabelled (scope note).
+
+## Restaurant-isolated cart (one cart, scoped by ownership)
+
+There is still **one `cartStore`**; a `CartItem.restaurantId` (optional) tags lines added from a
+restaurant page (the profile menu and its offers page, via `SearchDishCard.restaurantId`). Lines
+added elsewhere — food search, product detail, Mart/Pharma, seeds — stay **untagged** and belong
+to the common cart only. Re-adding an untagged dish from a restaurant page **adopts** it (backfills
+`restaurantId`).
+
+- **RestaurantProfile** shows only its own lines: the white **View Cart** pill (no orange card, no
+  ₹ amount — just icon + "View Cart" + item count + arrow) and the menu **− qty +** stepper both
+  derive from `cart.filter(i => i.restaurantId === restaurant.id)`, so other restaurants'/common
+  lines never show. Its "View Cart" pushes `Cart` with `{ restaurantId, restaurantName }`.
+- **Cart (`CartScreen`)** reads those params: scoped mode shows **only** that restaurant's lines,
+  with a scoped title, a red **Clear** action (`clearRestaurantCart`) and a per-row **trash**
+  delete (`removeFromCart`); the common cart (no params) shows everything with no Clear/trash.
+  Writes are **scope-aware** — `setCartItems` replaces only the scoped slice, so checkout/clear
+  can never wipe other restaurants'/common items. `CartView` gates the scoped chrome purely on the
+  presence of `onClearItems`/`onDeleteItem` (presentational, no cart imports added).
 
 ## Cart (BAG) item selection
 

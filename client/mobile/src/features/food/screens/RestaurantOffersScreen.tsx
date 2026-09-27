@@ -73,6 +73,7 @@ export function RestaurantOffersScreen({ navigation, route }: Props) {
               dish={item}
               oldPrice={originalPrice(item)}
               onPress={openDish}
+              restaurantId={restaurant.id}
             />
           )}
           showsVerticalScrollIndicator={false}

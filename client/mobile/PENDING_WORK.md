@@ -5,6 +5,49 @@ dependencies exist. Do not build the backend/seller flows until told to.
 
 ---
 
+## Food — Restaurant-isolated cart, bigger menu search, − qty + stepper, white View Cart pill
+
+**Status:** 🟢 Shipped.
+
+**Feature:** Adds from a restaurant are scoped to that restaurant on the cart page, the menu search
+bar is enlarged to full width, menu rows get a real − qty + stepper, and the restaurant footer is a
+plain white "View Cart" pill.
+
+**Changes:**
+- **One cart, scoped by ownership** (`state/cartStore.ts`): `CartItem.restaurantId?`; `addToCart`
+  gained an optional 5th `restaurantId` arg (adopts an untagged line on re-add via `i.restaurantId ??
+  restaurantId`); new `clearRestaurantCart(id)` removes only that restaurant's lines. No second
+  store — checkout/payment/orders stay single-sourced.
+- **Nav** (`navigation/types.ts`): `Cart` params are now `{ restaurantId?; restaurantName? }`
+  (kept `| undefined` — a required-param object breaks React Navigation's composite `navigate`
+  typing). All 7 call sites pass a params object explicitly: `{}` for the common cart,
+  `{ restaurantId, restaurantName }` from `RestaurantProfileScreen.openCart`.
+- **`CartScreen.tsx`**: reads `route.params`, filters to the scoped slice, and its `setCartItems` is
+  **scope-aware** (replaces only the scoped slice) so placing an order / clearing can't wipe other
+  lines. Wires `onClearItems` (`clearRestaurantCart`) and `onDeleteItem` (`removeFromCart`) only in
+  scoped mode.
+- **`CartView.tsx`**: new optional `restaurantName` / `onClearItems` / `onDeleteItem` props
+  (presentational, no cart imports). Scoped title (`{restaurant} Cart`), red **Clear** in the BAG
+  top bar, per-row **trash** delete, and a scoped empty state ("No items from {restaurant} yet").
+  Common cart is unchanged (no Clear/trash).
+- **`RestaurantProfileScreen.tsx`**: cart selectors now derive from
+  `cart.filter(i => i.restaurantId === restaurant.id)` (footer count + `dishQuantity`); menu rows
+  render a bordered **− qty +** stepper once added; the menu search header is a full-width **column**
+  (title above, larger `ms(14)` input below) and its `onLayout` feeds a new `menuSearchYRef` so the
+  toolbar's search-icon jump still lands on the input; the footer is a white **View Cart** pill
+  (icon + label + item count + arrow, no ₹ amount / orange card). Dead footer styles + `cartTotal`
+  memo removed.
+- **`SearchDishCard.tsx`**: optional `restaurantId` prop passed to `addToCart`;
+  `RestaurantOffersScreen` passes `restaurant.id` (its adds count toward that restaurant). Food
+  search keeps not passing it → search adds stay common-cart only.
+
+**Out of scope:** tagging adds made from `CommonProductDetailView` / `FoodSearchScreen`, and any
+Mart/Pharma cart UX change.
+
+**Date:** 2026-09-27
+
+---
+
 ## Food — Restaurant details local diet toggle + menu-search jump
 
 **Status:** 🟢 Shipped.

@@ -20,6 +20,7 @@ import {
   MapPin,
   Star,
   Plus,
+  Minus,
   ShoppingCart,
   ArrowRight,
   ShieldCheck,
@@ -85,11 +86,22 @@ export function RestaurantProfileScreen({ navigation, route }: Props) {
   const menuSearchRef = useRef<TextInput>(null);
   const boardYRef = useRef(0);
   const menuHeaderYRef = useRef(0);
+  const menuSearchYRef = useRef(0);
 
   const cart = useCartStore((s) => s.cart);
-  const cartCount = useCartStore((s) => s.totalQty());
   const addToCart = useCartStore((s) => s.addToCart);
   const updateQuantity = useCartStore((s) => s.updateQuantity);
+
+  // This restaurant's isolated cart slice — untagged/other-restaurant lines don't
+  // show here, so the footer + steppers never reflect the common cart.
+  const restaurantItems = useMemo(
+    () => cart.filter((i) => i.restaurantId === restaurant.id),
+    [cart, restaurant.id],
+  );
+  const restaurantCartCount = useMemo(
+    () => restaurantItems.reduce((acc, i) => acc + i.quantity, 0),
+    [restaurantItems],
+  );
 
   const scrollY = useSharedValue(0);
   const onScroll = useCallback(
@@ -129,34 +141,34 @@ export function RestaurantProfileScreen({ navigation, route }: Props) {
     );
   }, [menu, activeCategory, searchQuery]);
 
-  const cartTotal = useMemo(
-    () => cart.reduce((acc, i) => acc + i.price * i.quantity, 0),
-    [cart],
-  );
-
   const openCart = useCallback(() => {
-    navigation.getParent<NativeStackNavigationProp<RootStackParamList>>()?.navigate('Cart');
-  }, [navigation]);
+    navigation
+      .getParent<NativeStackNavigationProp<RootStackParamList>>()
+      ?.navigate('Cart', { restaurantId: restaurant.id, restaurantName: restaurant.name });
+  }, [navigation, restaurant.id, restaurant.name]);
 
   // Toolbar search icon → park the menu search bar just under the pinned
   // toolbar, then focus it (works from any scroll offset; scrollTo clamps).
   const focusMenuSearch = useCallback(() => {
     const clearance = insets.top + vs(64);
-    const y = Math.max(0, boardYRef.current + menuHeaderYRef.current - clearance);
+    const y = Math.max(
+      0,
+      boardYRef.current + menuHeaderYRef.current + menuSearchYRef.current - clearance,
+    );
     scrollRef.current?.scrollTo({ y, animated: true });
     menuSearchRef.current?.focus();
   }, [insets.top]);
 
   const handleAdd = useCallback(
     (dish: SpecialDish) => {
-      addToCart(dish.id, dish.dishName, dish.price, '🍽️');
+      addToCart(dish.id, dish.dishName, dish.price, '🍽️', restaurant.id);
     },
-    [addToCart],
+    [addToCart, restaurant.id],
   );
 
   const dishQuantity = useCallback(
-    (id: string) => cart.find((i) => i.id === id)?.quantity ?? 0,
-    [cart],
+    (id: string) => restaurantItems.find((i) => i.id === id)?.quantity ?? 0,
+    [restaurantItems],
   );
 
   return (
@@ -299,7 +311,12 @@ export function RestaurantProfileScreen({ navigation, route }: Props) {
             }}
           >
             <AppText style={styles.sectionTitle}>Menu</AppText>
-            <View style={styles.menuSearchBox}>
+            <View
+              style={styles.menuSearchBox}
+              onLayout={(e) => {
+                menuSearchYRef.current = e.nativeEvent.layout.y;
+              }}
+            >
               <Search color={foodTheme.textSecondary} size={ms(16)} />
               <TextInput
                 ref={menuSearchRef}
@@ -352,22 +369,39 @@ export function RestaurantProfileScreen({ navigation, route }: Props) {
                   </View>
                   <View style={styles.listImageWrapper}>
                     <RemoteImage uri={item.image} variant="dish" style={styles.listImage} />
-                    <TouchableOpacity
-                      style={styles.addBtnOutline}
-                      onPress={() => {
-                        if (isAdded) {
-                          updateQuantity(item.id, -1);
-                        } else {
-                          handleAdd(item);
-                        }
-                      }}
-                      accessibilityRole="button"
-                    >
-                      <Plus color={foodTheme.primary} size={ms(14)} style={styles.addBtnPlus} />
-                      <AppText style={styles.addBtnOutlineText}>
-                        {isAdded ? `${qty}` : 'Add'}
-                      </AppText>
-                    </TouchableOpacity>
+                    {isAdded ? (
+                      <View style={styles.qtyStepper}>
+                        <TouchableOpacity
+                          style={styles.qtyStepperBtn}
+                          onPress={() => updateQuantity(item.id, -1)}
+                          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                          accessibilityRole="button"
+                          accessibilityLabel={`Decrease quantity of ${item.dishName}`}
+                        >
+                          <Minus color={foodTheme.primary} size={ms(14)} />
+                        </TouchableOpacity>
+                        <AppText style={styles.qtyStepperValue}>{qty}</AppText>
+                        <TouchableOpacity
+                          style={styles.qtyStepperBtn}
+                          onPress={() => updateQuantity(item.id, 1)}
+                          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                          accessibilityRole="button"
+                          accessibilityLabel={`Increase quantity of ${item.dishName}`}
+                        >
+                          <Plus color={foodTheme.primary} size={ms(14)} />
+                        </TouchableOpacity>
+                      </View>
+                    ) : (
+                      <TouchableOpacity
+                        style={styles.addBtnOutline}
+                        onPress={() => handleAdd(item)}
+                        accessibilityRole="button"
+                        accessibilityLabel={`Add ${item.dishName}`}
+                      >
+                        <Plus color={foodTheme.primary} size={ms(14)} style={styles.addBtnPlus} />
+                        <AppText style={styles.addBtnOutlineText}>Add</AppText>
+                      </TouchableOpacity>
+                    )}
                   </View>
                 </View>
               );
@@ -419,33 +453,24 @@ export function RestaurantProfileScreen({ navigation, route }: Props) {
         </View>
       </View>
 
-      {/* STICKY CART FOOTER */}
-      {cartCount > 0 && (
+      {/* STICKY CART FOOTER — restaurant-scoped white pill, no orange card / amount */}
+      {restaurantCartCount > 0 && (
         <View style={styles.stickyFooterWrapper}>
-          <View style={styles.cartFooter}>
-            <View style={styles.cartInfo}>
-              <View style={styles.cartIconBadge}>
-                <ShoppingCart color="#fff" size={ms(24)} />
-                <View style={styles.badgeCircle}>
-                  <AppText style={styles.badgeText}>{cartCount}</AppText>
-                </View>
-              </View>
-              <View style={styles.cartTexts}>
-                <AppText style={styles.cartTotalText}>
-                  {cartCount} Items | ₹{cartTotal}
-                </AppText>
-                <AppText style={styles.cartSavingsText}>Proceed to checkout</AppText>
-              </View>
-            </View>
-            <TouchableOpacity
-              style={styles.viewCartBtn}
-              onPress={openCart}
-              accessibilityRole="button"
-            >
-              <AppText style={styles.viewCartText}>View Cart</AppText>
-              <ArrowRight color={foodTheme.primary} size={ms(18)} style={styles.viewCartArrow} />
-            </TouchableOpacity>
-          </View>
+          <TouchableOpacity
+            style={styles.viewCartBtn}
+            onPress={openCart}
+            activeOpacity={0.9}
+            accessibilityRole="button"
+            accessibilityLabel={`View cart, ${restaurantCartCount} ${restaurantCartCount === 1 ? 'item' : 'items'}`}
+          >
+            <ShoppingCart color={foodTheme.primary} size={ms(18)} />
+            <AppText style={styles.viewCartText}>View Cart</AppText>
+            <View style={styles.viewCartDivider} />
+            <AppText style={styles.viewCartCount}>
+              {restaurantCartCount} {restaurantCartCount === 1 ? 'item' : 'items'}
+            </AppText>
+            <ArrowRight color={foodTheme.primary} size={ms(16)} />
+          </TouchableOpacity>
         </View>
       )}
 
@@ -600,25 +625,22 @@ const styles = StyleSheet.create({
   },
   newPrice: { fontSize: ms(14), fontWeight: 'bold', color: RED },
   menuHeaderContainer: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
     paddingHorizontal: hs(16),
     marginTop: vs(28),
     marginBottom: 12,
+    gap: vs(10),
   },
   menuSearchBox: {
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: '#F9FAFB',
-    borderRadius: 20,
-    paddingHorizontal: 12,
-    paddingVertical: 6,
+    borderRadius: ms(12),
+    minHeight: vs(44),
+    paddingHorizontal: hs(14),
     borderWidth: 1,
     borderColor: '#E5E7EB',
-    width: hs(160),
   },
-  menuSearchInput: { flex: 1, fontSize: ms(12), marginLeft: 6, color: foodTheme.textPrimary, padding: 0 },
+  menuSearchInput: { flex: 1, fontSize: ms(14), marginLeft: hs(8), color: foodTheme.textPrimary, padding: 0 },
   categoryScroll: {
     paddingHorizontal: hs(16),
     marginBottom: 12,
@@ -672,47 +694,52 @@ const styles = StyleSheet.create({
   },
   addBtnPlus: { marginRight: 2 },
   addBtnOutlineText: { color: foodTheme.primary, fontWeight: 'bold', fontSize: 14 },
+  qtyStepper: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#fff',
+    borderWidth: 1,
+    borderColor: foodTheme.primary,
+    borderRadius: 8,
+    marginTop: -14,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  qtyStepperBtn: {
+    paddingHorizontal: hs(12),
+    paddingVertical: vs(6),
+  },
+  qtyStepperValue: {
+    minWidth: ms(24),
+    textAlign: 'center',
+    color: foodTheme.primary,
+    fontWeight: 'bold',
+    fontSize: 14,
+  },
   emptyText: { color: foodTheme.textSecondary, textAlign: 'center', marginVertical: 24 },
   footerPad: { height: vs(100) },
   stickyFooterWrapper: { position: 'absolute', bottom: vs(20), left: hs(16), right: hs(16) },
-  cartFooter: {
-    backgroundColor: foodTheme.primary,
-    borderRadius: 16,
-    padding: 16,
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    shadowColor: foodTheme.primary,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 8,
-  },
-  cartInfo: { flexDirection: 'row', alignItems: 'center' },
-  cartIconBadge: { position: 'relative', marginRight: 12 },
-  badgeCircle: {
-    position: 'absolute',
-    top: -6,
-    right: -8,
-    backgroundColor: '#fff',
-    width: 18,
-    height: 18,
-    borderRadius: 9,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  badgeText: { color: foodTheme.primary, fontSize: ms(10), fontWeight: 'bold' },
-  cartTexts: { justifyContent: 'center' },
-  cartTotalText: { color: '#fff', fontSize: ms(15), fontWeight: 'bold' },
-  cartSavingsText: { color: '#FFD1BC', fontSize: ms(11), marginTop: 2 },
   viewCartBtn: {
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'center',
+    gap: hs(8),
     backgroundColor: '#fff',
-    paddingHorizontal: 16,
-    paddingVertical: 10,
+    paddingHorizontal: hs(16),
+    paddingVertical: vs(12),
     borderRadius: 24,
+    borderWidth: 1,
+    borderColor: '#F0F0F0',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.12,
+    shadowRadius: 10,
+    elevation: 6,
   },
   viewCartText: { color: foodTheme.primary, fontSize: ms(14), fontWeight: 'bold' },
-  viewCartArrow: { marginLeft: 4 },
+  viewCartDivider: { width: 1, height: vs(16), backgroundColor: '#E5E7EB' },
+  viewCartCount: { color: foodTheme.primary, fontSize: ms(14), fontWeight: 'bold' },
 });

@@ -28,7 +28,7 @@ export function ProductDetailScreen({ navigation, route }: Props) {
     () => navigation.navigate('Search', { subApp: product ? (appToSubApp[product.app] ?? 'HOME') : 'HOME' }),
     [navigation, product, appToSubApp],
   );
-  const handleCart = useCallback(() => navigation.navigate('Cart'), [navigation]);
+  const handleCart = useCallback(() => navigation.navigate('Cart', {}), [navigation]);
   const handleViewVendor = useCallback(
     (storeId: string) =>
       navigation.navigate('SubApp', { subAppId: 'FA_MART', initialVendorStoreId: storeId }),

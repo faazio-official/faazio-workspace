@@ -16,6 +16,7 @@ import {
   Check,
   Store,
   Coins,
+  Trash2,
 } from 'lucide-react-native';
 import { hs, vs, ms } from '@/utils/responsive';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -82,6 +83,12 @@ interface CartViewProps {
   onBack?: () => void;
   onGoToHub?: () => void;
   onTrackOrder?: (orderId: string) => void;
+  /** Restaurant-isolated cart mode (from a restaurant page). */
+  restaurantName?: string;
+  /** Scoped-only: clear this restaurant's lines. */
+  onClearItems?: () => void;
+  /** Scoped-only: remove a single line. */
+  onDeleteItem?: (itemId: string) => void;
 }
 
 export default function CartView({
@@ -94,6 +101,9 @@ export default function CartView({
   onBack,
   onGoToHub,
   onTrackOrder,
+  restaurantName,
+  onClearItems,
+  onDeleteItem,
 }: CartViewProps) {
   const [step, setStep] = useState<CheckoutStep>('BAG');
   const [fulfillment, setFulfillment] = useState<FulfillmentMode | null>(null);
@@ -192,6 +202,20 @@ export default function CartView({
     setExpandedCategories((prev) =>
       prev.includes(cat) ? prev.filter((c) => c !== cat) : [...prev, cat],
     );
+  };
+
+  const handleClearItems = () => {
+    onClearItems?.();
+    setDeselectedIds(new Set());
+  };
+
+  const handleDeleteItem = (id: string) => {
+    onDeleteItem?.(id);
+    setDeselectedIds((prev) => {
+      const next = new Set(prev);
+      next.delete(id);
+      return next;
+    });
   };
 
   const applyCouponCode = (code: string) => {
@@ -297,8 +321,22 @@ export default function CartView({
           <TouchableOpacity onPress={onBack} style={styles.bagBackBtn} activeOpacity={0.7} hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}>
             <ArrowLeft size={ms(20)} color="#1E2022" strokeWidth={2.4} />
           </TouchableOpacity>
-          <AppText style={styles.bagTitle}>Your Cart</AppText>
-          <View style={{ width: ms(40) }} />
+          <AppText style={styles.bagTitle} numberOfLines={1}>
+            {restaurantName ? `${restaurantName} Cart` : 'Your Cart'}
+          </AppText>
+          {onClearItems ? (
+            <TouchableOpacity
+              onPress={handleClearItems}
+              style={styles.clearBtn}
+              activeOpacity={0.7}
+              accessibilityRole="button"
+              accessibilityLabel={restaurantName ? `Clear ${restaurantName} cart` : 'Clear cart'}
+            >
+              <AppText style={styles.clearText}>Clear</AppText>
+            </TouchableOpacity>
+          ) : (
+            <View style={{ width: ms(40) }} />
+          )}
         </View>
 
         <ScrollView
@@ -313,9 +351,13 @@ export default function CartView({
               <Animated.View style={[styles.emptyIconCircle, { transform: [{ translateY: bounceAnim.interpolate({ inputRange: [0, 1], outputRange: [0, -6] }) }] }]}>
                 <ShoppingBag size={ms(22)} color="#94a3b8" />
               </Animated.View>
-              <AppText style={styles.emptyTitle}>Your cart is empty</AppText>
+              <AppText style={styles.emptyTitle}>
+                {restaurantName ? `No items from ${restaurantName} yet` : 'Your cart is empty'}
+              </AppText>
               <AppText style={styles.emptyDesc}>
-                Browse Food, Mart, Grocery, or Pharma and tap 'Add to Bag' to get started!
+                {restaurantName
+                  ? 'Add dishes from this restaurant to get started!'
+                  : "Browse Food, Mart, Grocery, or Pharma and tap 'Add to Bag' to get started!"}
               </AppText>
               <TouchableOpacity onPress={() => (onGoToHub ? onGoToHub() : setActiveTab('Home'))} style={styles.goToHubBtn} activeOpacity={0.8}>
                 <AppText style={styles.goToHubBtnText}>Go to Hub</AppText>
@@ -473,6 +515,18 @@ export default function CartView({
                               )}
                               <AppText style={styles.itemPrice}>₹{item.price.toLocaleString('en-IN')}</AppText>
                             </View>
+                            {onDeleteItem ? (
+                              <TouchableOpacity
+                                onPress={() => handleDeleteItem(item.id)}
+                                style={styles.deleteItemBtn}
+                                activeOpacity={0.7}
+                                accessibilityRole="button"
+                                accessibilityLabel={`Remove ${item.name}`}
+                                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                              >
+                                <Trash2 size={ms(16)} color="#ef4444" strokeWidth={2.2} />
+                              </TouchableOpacity>
+                            ) : null}
                           </View>
                         );
                       })}
@@ -1586,10 +1640,20 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   bagTitle: {
+    flex: 1,
     fontSize: ms(18),
     fontWeight: '900',
     color: '#1E2022',
     marginLeft: hs(12),
+  },
+  clearBtn: {
+    paddingHorizontal: hs(10),
+    paddingVertical: vs(4),
+  },
+  clearText: {
+    fontSize: ms(13),
+    fontWeight: '800',
+    color: '#ef4444',
   },
   bagScroll: {
     flex: 1,
@@ -1796,6 +1860,10 @@ const styles = StyleSheet.create({
     fontWeight: '900',
     color: '#1E2022',
     marginTop: vs(2),
+  },
+  deleteItemBtn: {
+    marginLeft: hs(8),
+    padding: vs(4),
   },
   bottomBar: {
     backgroundColor: '#FFFFFF',

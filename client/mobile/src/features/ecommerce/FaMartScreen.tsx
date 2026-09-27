@@ -154,7 +154,7 @@ export function FaMartScreen({
         onProductClick={onProductClick}
         onAddToCart={handleAddProduct}
         onUpdateQuantity={updateQuantity}
-        onCartPress={() => navigation.navigate('Cart')}
+        onCartPress={() => navigation.navigate('Cart', {})}
         onViewAllDiscounts={onViewAllDiscounts ? () => onViewAllDiscounts(vendor) : undefined}
       />
     );

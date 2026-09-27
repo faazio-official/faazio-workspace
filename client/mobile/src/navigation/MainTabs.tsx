@@ -80,7 +80,7 @@ function HubTabBar({ state, navigation }: BottomTabBarProps) {
 
         {/* Central Cart page — pushed on the root stack so the back button returns. */}
         <TouchableOpacity
-          onPress={() => navigation.getParent()?.navigate('Cart')}
+          onPress={() => navigation.getParent()?.navigate('Cart', {})}
           style={styles.tabItem}
           activeOpacity={0.75}
         >

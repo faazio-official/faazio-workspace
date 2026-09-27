@@ -49,7 +49,7 @@ export function FoodSearchScreen({ navigation, route }: Props) {
   );
 
   const openCart = useCallback(() => {
-    navigation.getParent<NativeStackNavigationProp<RootStackParamList>>()?.navigate('Cart');
+    navigation.getParent<NativeStackNavigationProp<RootStackParamList>>()?.navigate('Cart', {});
   }, [navigation]);
 
   const openYou = useCallback(() => {

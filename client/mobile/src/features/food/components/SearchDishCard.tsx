@@ -13,6 +13,8 @@ interface SearchDishCardProps {
   onPress?: (dish: SpecialDish) => void;
   /** Optional strikethrough "original" price shown beside the real price (offers view). */
   oldPrice?: number;
+  /** When set, adds from this card are tagged to the restaurant's isolated cart. */
+  restaurantId?: string;
 }
 
 /**
@@ -27,7 +29,7 @@ const CART_EMOJI = '🍽️';
  * prep time) with a "+ ADD" button that flips into a quantity stepper once the
  * dish is in the cart. Renders edge-to-edge (no horizontal gutter).
  */
-const SearchDishCard = memo(function SearchDishCard({ dish, onPress, oldPrice }: SearchDishCardProps) {
+const SearchDishCard = memo(function SearchDishCard({ dish, onPress, oldPrice, restaurantId }: SearchDishCardProps) {
   const cart = useCartStore((s) => s.cart);
   const addToCart = useCartStore((s) => s.addToCart);
   const updateQuantity = useCartStore((s) => s.updateQuantity);
@@ -35,7 +37,7 @@ const SearchDishCard = memo(function SearchDishCard({ dish, onPress, oldPrice }:
   const quantity = cart.find((i) => i.id === dish.id)?.quantity ?? 0;
 
   const handleAdd = () => {
-    addToCart(dish.id, dish.dishName, dish.price, CART_EMOJI);
+    addToCart(dish.id, dish.dishName, dish.price, CART_EMOJI, restaurantId);
   };
 
   return (

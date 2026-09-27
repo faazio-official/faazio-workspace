@@ -1,4 +1,4 @@
-import React, { useCallback } from 'react';
+import React, { useCallback, useMemo } from 'react';
 import { StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
@@ -13,23 +13,44 @@ type Props = NativeStackScreenProps<RootStackParamList, 'Cart'>;
  * or tab so the back arrow (`onBack`) naturally returns to the previous screen.
  * Renders the shared CartView (BAG -> ADDRESS -> PAYMENT -> RECEIPT wizard).
  */
-export function CartScreen({ navigation }: Props) {
-  const cartItems = useCartStore((s) => s.cart);
+export function CartScreen({ navigation, route }: Props) {
+  const { restaurantId, restaurantName } = route.params ?? {};
+  const allItems = useCartStore((s) => s.cart);
   const storeUpdateQuantity = useCartStore((s) => s.updateQuantity);
   const replaceCart = useCartStore((s) => s.replaceCart);
+  const clearRestaurantCart = useCartStore((s) => s.clearRestaurantCart);
+  const removeFromCart = useCartStore((s) => s.removeFromCart);
   const insets = useSafeAreaInsets();
 
+  // Scoped mode ("redirected from a restaurant") shows only that restaurant's
+  // lines; the common cart (no params) is unchanged and still shows them.
+  const cartItems = useMemo(
+    () => (restaurantId ? allItems.filter((i) => i.restaurantId === restaurantId) : allItems),
+    [allItems, restaurantId],
+  );
+
+  // Scope-aware write-back: in scoped mode only the scoped slice is replaced,
+  // so checkout/clear can never wipe other restaurants'/common items.
   const setCartItems = useCallback(
     (action: CartItem[] | ((prev: CartItem[]) => CartItem[])) => {
-      if (typeof action === 'function') {
-        const prev = useCartStore.getState().cart;
-        replaceCart(action(prev));
+      const prevAll = useCartStore.getState().cart;
+      const prevScoped = restaurantId
+        ? prevAll.filter((i) => i.restaurantId === restaurantId)
+        : prevAll;
+      const nextScoped = typeof action === 'function' ? action(prevScoped) : action;
+      if (restaurantId) {
+        const others = prevAll.filter((i) => i.restaurantId !== restaurantId);
+        replaceCart([...others, ...nextScoped]);
       } else {
-        replaceCart(action);
+        replaceCart(nextScoped);
       }
     },
-    [replaceCart]
+    [replaceCart, restaurantId]
   );
+
+  const handleClearScoped = useCallback(() => {
+    if (restaurantId) clearRestaurantCart(restaurantId);
+  }, [clearRestaurantCart, restaurantId]);
 
   const handleGoToHub = useCallback(() => {
     navigation.navigate('MainTabs', { screen: 'Home' });
@@ -53,6 +74,9 @@ export function CartScreen({ navigation }: Props) {
         onBack={() => navigation.goBack()}
         onGoToHub={handleGoToHub}
         onTrackOrder={handleTrackOrder}
+        restaurantName={restaurantName}
+        onClearItems={restaurantId ? handleClearScoped : undefined}
+        onDeleteItem={restaurantId ? removeFromCart : undefined}
       />
     </View>
   );

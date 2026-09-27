@@ -41,8 +41,15 @@ export type RootStackParamList = {
   ProductDetail: { product: any };
   /** First-class cross-sub-app search. Food keeps its own nested Search. */
   Search: { subApp: 'HOME' | SubAppId; initialQuery?: string; initialMode?: string };
-  /** Central "Your Cart" checkout page, pushed from any app (back returns). */
-  Cart: undefined;
+  /**
+   * Central "Your Cart" checkout page, pushed from any app (back returns).
+   * Passing `restaurantId` scopes the page to that restaurant's lines (isolated
+   * cart). Every caller passes a params object explicitly — `{}` for the common
+   * cart, `{ restaurantId, restaurantName }` from a restaurant page — so a stale
+   * scope never leaks between entries. (The object stays `| undefined`; a
+   * required-param object trips React Navigation's composite navigate typing.)
+   */
+  Cart: { restaurantId?: string; restaurantName?: string } | undefined;
   /** "You" — account page, pushed from any app (back returns). */
   You: undefined;
   /** Pixel-perfect payment method picker (preferred card, UPI, cards, more). */
