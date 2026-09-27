@@ -7,3 +7,5 @@ coverage/
 .env*
 !.env.example
 .expo/
+*.apk
+*.aab

@@ -222,7 +222,7 @@ export function DonorDashboard() {
       {/* Ask Blood floating action — available on the dashboard */}
       <TouchableOpacity
         onPress={() => setAskOpen(true)}
-        style={[styles.fab, { bottom: insets.bottom + vs(16) }]}
+        style={[styles.fab, { bottom: vs(16) }]}
         activeOpacity={0.85}
         accessibilityRole="button"
         accessibilityLabel={ASK_BLOOD_COPY.fabLabel}

@@ -1,7 +1,7 @@
 import React, { memo, useCallback } from 'react';
 import { StyleSheet } from 'react-native';
 import { FlashList } from '@shopify/flash-list';
-import { hs } from '@/utils/responsive';
+import { hs, vs } from '@/utils/responsive';
 import type { SpecialDish } from '../mocks/types';
 import SpecialDishCard from './SpecialDishCard';
 
@@ -39,7 +39,8 @@ export default FeaturedDishCarousel;
 
 const styles = StyleSheet.create({
   content: {
-    paddingHorizontal: hs(16),
-    paddingBottom: hs(4),
+    paddingLeft: hs(16),
+    paddingRight: hs(4),
+    paddingBottom: vs(8),
   },
 });

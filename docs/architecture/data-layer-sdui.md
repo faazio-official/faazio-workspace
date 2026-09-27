@@ -74,9 +74,10 @@ self-pickup); a dev-only guard in `campaigns.ts` warns if any campaign resolves 
 
 **Per-restaurant menus** (`data/food/menus.ts`): exports `restaurantMenus`
 (`Record<string, SpecialDish[]>` keyed by the 18 dining-restaurant names, ~5 dishes each) and
-`allRestaurantMenuDishes` (flat pool for the catalog index/search). `RestaurantProfileScreen`
-`getMenuForRestaurant()` reads `restaurantMenus[restaurant.name]` first, falling back to the
-old `TODAYS_SPECIALS` cuisine-match + padding logic, so every dining room's menu is populated.
+`allRestaurantMenuDishes` (flat pool for the catalog index/search). The shared
+`features/food/utils/menu.ts` `getMenuForRestaurant()` reads `restaurantMenus[restaurant.name]`
+first, falling back to the old `TODAYS_SPECIALS` cuisine-match + padding logic, so every dining
+room's menu is populated (both `RestaurantProfileScreen` and `RestaurantMenuScreen` consume it).
 
 **Product-keyed reviews** (`data/reviews/reviews.ts`): `PRODUCT_REVIEWS` maps real catalog
 product ids (e.g. `fm-m1`, `gr-p1`, `sp-1`, `m-italian-margherita`, `ph-f1`) to 3-4 reviews

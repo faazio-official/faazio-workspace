@@ -1,5 +1,7 @@
 import type { NavigatorScreenParams } from '@react-navigation/native';
 import type { SubAppId } from '@/state/uiStore';
+import type { DietFilter } from '@/state/foodFilterStore';
+import type { DiningRestaurant } from '@/features/food/mocks/types';
 import type { MyOrdersStatusFilter } from '@data/types';
 
 export type MainTabParamList = {
@@ -102,4 +104,6 @@ export type FoodStackParamList = {
   RestaurantProfile: { restaurant: any };
   /** "View All" — every discounted dish for a restaurant, search-result-style list. */
   RestaurantOffers: { restaurant: any; offers: any[] };
+  /** Full restaurant menu page — every dish + its own search bar. */
+  RestaurantMenu: { restaurant: DiningRestaurant; dietFilter: DietFilter };
 };

@@ -4,7 +4,6 @@ import { ChevronLeft, Search, X, PackageOpen } from 'lucide-react-native';
 import AppText from '@/components/AppText';
 import AppTextInput from '@/components/AppTextInput';
 import { hs, ms, vs } from '@/utils/responsive';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { pharmaStores } from '@data/index';
 import type { StoreProfile } from '@data/types';
 import type { FulfillmentMode } from '@data/types';
@@ -29,7 +28,6 @@ const PharmaVendorList = memo(function PharmaVendorList({
   onSelect,
   onConfirm,
 }: PharmaVendorListProps) {
-  const insets = useSafeAreaInsets();
   const [query, setQuery] = useState('');
   const [sheetVisible, setSheetVisible] = useState(false);
   const [activeVendor, setActiveVendor] = useState<StoreProfile | null>(selected);
@@ -53,7 +51,7 @@ const PharmaVendorList = memo(function PharmaVendorList({
   };
 
   return (
-    <View style={[styles.root, { paddingBottom: insets.bottom }]}>
+    <View style={styles.root}>
       <View style={styles.topBar}>
         <TouchableOpacity style={styles.backBtn} onPress={onBack} activeOpacity={0.8}>
           <ChevronLeft size={ms(20)} color={PHARMA_INK} strokeWidth={2.6} />

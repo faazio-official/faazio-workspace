@@ -12,10 +12,13 @@ export function useTopInset(): number {
   return useSafeAreaInsets().top;
 }
 
-/** Bottom safe-area padding every bottom navbar must reserve for the Android
- *  gesture pill / 3-button bar (the window is edge-to-edge: `android:
- *  navigationBarColor` is transparent) and the iOS home indicator. Mirrors
- *  `useTopInset` — one canonical formula, applied by every bottom navbar. */
+/** Bottom safe-area value reserved **once** by the app root (`App.tsx`'s
+ *  `AppLayout`), for the Android gesture pill / 3-button bar (the window is
+ *  edge-to-edge: `android:navigationBarColor` is transparent) and the iOS home
+ *  indicator. Screens and bottom navbars sit inside the reserved area, so they
+ *  use their base heights and must not also add `insets.bottom`. Modals render
+ *  in separate native windows and keep their own insets. `Math.max(…, vs(8))`
+ *  keeps a minimum strip on devices with no reported inset. */
 export function useBottomInset(): number {
   return Math.max(useSafeAreaInsets().bottom, vs(8));
 }

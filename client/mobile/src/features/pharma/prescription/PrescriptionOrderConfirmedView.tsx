@@ -3,7 +3,6 @@ import { View, TouchableOpacity, StyleSheet, ScrollView, Animated } from 'react-
 import { CheckCircle, Store, FileText, PackageCheck } from 'lucide-react-native';
 import AppText from '@/components/AppText';
 import { hs, ms, vs } from '@/utils/responsive';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { StoreProfile } from '@data/types';
 import type { FulfillmentMode } from '@data/types';
 import { PHARMA_TEAL, PHARMA_INK } from '../mocks/pharmaHomeFeed';
@@ -27,7 +26,6 @@ const PrescriptionOrderConfirmedView = memo(function PrescriptionOrderConfirmedV
   onTrack,
   onDone,
 }: PrescriptionOrderConfirmedViewProps) {
-  const insets = useSafeAreaInsets();
   const pulseAnim = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
@@ -44,7 +42,7 @@ const PrescriptionOrderConfirmedView = memo(function PrescriptionOrderConfirmedV
   return (
     <ScrollView
       style={styles.root}
-      contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + vs(16) }]}
+      contentContainerStyle={[styles.content, { paddingBottom: vs(16) }]}
       showsVerticalScrollIndicator={false}
     >
       {/* Receipt Success */}

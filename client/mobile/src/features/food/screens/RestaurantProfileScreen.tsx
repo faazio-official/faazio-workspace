@@ -1,10 +1,9 @@
-import React, { useCallback, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useMemo, useState } from 'react';
 import {
   View,
   StyleSheet,
   ScrollView,
   TouchableOpacity,
-  TextInput,
   type NativeSyntheticEvent,
   type NativeScrollEvent,
 } from 'react-native';
@@ -16,13 +15,8 @@ import {
   ArrowLeft,
   Search,
   Share2,
-  MoreVertical,
   MapPin,
   Star,
-  Plus,
-  Minus,
-  ShoppingCart,
-  ArrowRight,
   ShieldCheck,
   Clock,
   CheckCircle2,
@@ -32,12 +26,13 @@ import AppText from '@/components/AppText';
 import AdLabelBadge from '@/components/shared/AdLabelBadge';
 import RemoteImage from '../components/RemoteImage';
 import FoodStatusBarStrip from '../components/FoodStatusBarStrip';
+import MenuItemRow from '../components/MenuItemRow';
+import ViewCartPill from '../components/ViewCartPill';
 import { foodTheme } from '../constants/theme';
 import type { FoodStackParamList, RootStackParamList } from '@/navigation/types';
 import type { DiningRestaurant } from '../mocks/types';
 import type { SpecialDish } from '@data/types';
-import { TODAYS_SPECIALS } from '@data/food/specials';
-import { restaurantMenus } from '@data/food/menus';
+import { getMenuForRestaurant, getOwnDishes, getMenuCategories } from '../utils/menu';
 import { useCartStore } from '@/state/cartStore';
 import { useFoodFilterStore, type DietFilter } from '@/state/foodFilterStore';
 import { dishMatches } from '../utils/dietFilter';
@@ -48,32 +43,10 @@ type Props = NativeStackScreenProps<FoodStackParamList, 'RestaurantProfile'>;
 const GREEN = '#16A34A';
 const RED = '#DC2626';
 
-/** Build the restaurant's menu from its per-restaurant menu first (so each dining
- *  room shows its own dishes), falling back to matching the shared specials
- *  catalog by cuisine and padding with the remaining dishes so every restaurant
- *  has a full menu. */
-function getMenuForRestaurant(restaurant: DiningRestaurant): SpecialDish[] {
-  const own = restaurantMenus[restaurant.name];
-  if (own && own.length > 0) return own;
-  const cuisines = restaurant.cuisines.map((c) => c.toLowerCase());
-  const matched = TODAYS_SPECIALS.filter((d) =>
-    cuisines.some((c) => (d.cuisine ?? '').toLowerCase().includes(c) || c.includes((d.cuisine ?? '').toLowerCase())),
-  );
-  const rest = TODAYS_SPECIALS.filter((d) => !matched.includes(d));
-  return [...matched, ...rest];
-}
-
-/** All dishes in the restaurant's menu that belong to the current restaurant —
- *  the only content the "Recommended & Offers" rail / page should show. */
-function getOwnDishes(menu: SpecialDish[], restaurantName: string): SpecialDish[] {
-  return menu.filter((d) => d.restaurant === restaurantName);
-}
-
 export function RestaurantProfileScreen({ navigation, route }: Props) {
   const restaurant = route.params?.restaurant as DiningRestaurant;
   const insets = useSafeAreaInsets();
   const [activeCategory, setActiveCategory] = useState('Bestsellers');
-  const [searchQuery, setSearchQuery] = useState('');
 
   // Screen-local diet override seeded once from the shared store. Toggling here
   // never writes back, so home/search keep their value; re-opening this screen
@@ -81,12 +54,6 @@ export function RestaurantProfileScreen({ navigation, route }: Props) {
   const [dietFilter, setDietFilter] = useState<DietFilter>(
     () => useFoodFilterStore.getState().dietFilter,
   );
-
-  const scrollRef = useRef<ScrollView>(null);
-  const menuSearchRef = useRef<TextInput>(null);
-  const boardYRef = useRef(0);
-  const menuHeaderYRef = useRef(0);
-  const menuSearchYRef = useRef(0);
 
   const cart = useCartStore((s) => s.cart);
   const addToCart = useCartStore((s) => s.addToCart);
@@ -121,25 +88,22 @@ export function RestaurantProfileScreen({ navigation, route }: Props) {
   );
 
   const categories = useMemo(
-    () => ['Bestsellers', ...restaurant.cuisines],
-    [restaurant],
+    () => ['Bestsellers', ...getMenuCategories(menu)],
+    [menu],
   );
 
-  const filteredMenu = useMemo(() => {
-    const q = searchQuery.trim().toLowerCase();
-    const base =
-      activeCategory === 'Bestsellers'
+  // Keep the selected chip valid when the diet filter removes its dishes.
+  const active = categories.includes(activeCategory) ? activeCategory : 'Bestsellers';
+
+  const filteredMenu = useMemo(
+    () =>
+      active === 'Bestsellers'
         ? menu
         : menu.filter(
-            (d) => (d.cuisine ?? '').toLowerCase() === activeCategory.toLowerCase(),
-          );
-    if (!q) return base;
-    return base.filter(
-      (d) =>
-        d.dishName.toLowerCase().includes(q) ||
-        (d.description ?? '').toLowerCase().includes(q),
-    );
-  }, [menu, activeCategory, searchQuery]);
+            (d) => (d.cuisine ?? '').toLowerCase() === active.toLowerCase(),
+          ),
+    [menu, active],
+  );
 
   const openCart = useCallback(() => {
     navigation
@@ -147,17 +111,9 @@ export function RestaurantProfileScreen({ navigation, route }: Props) {
       ?.navigate('Cart', { restaurantId: restaurant.id, restaurantName: restaurant.name });
   }, [navigation, restaurant.id, restaurant.name]);
 
-  // Toolbar search icon → park the menu search bar just under the pinned
-  // toolbar, then focus it (works from any scroll offset; scrollTo clamps).
-  const focusMenuSearch = useCallback(() => {
-    const clearance = insets.top + vs(64);
-    const y = Math.max(
-      0,
-      boardYRef.current + menuHeaderYRef.current + menuSearchYRef.current - clearance,
-    );
-    scrollRef.current?.scrollTo({ y, animated: true });
-    menuSearchRef.current?.focus();
-  }, [insets.top]);
+  const openMenuSearch = useCallback(() => {
+    navigation.navigate('RestaurantMenu', { restaurant, dietFilter });
+  }, [navigation, restaurant, dietFilter]);
 
   const handleAdd = useCallback(
     (dish: SpecialDish) => {
@@ -174,7 +130,6 @@ export function RestaurantProfileScreen({ navigation, route }: Props) {
   return (
     <View style={styles.container}>
       <ScrollView
-        ref={scrollRef}
         showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.scrollContent}
         onScroll={onScroll}
@@ -188,12 +143,7 @@ export function RestaurantProfileScreen({ navigation, route }: Props) {
         </View>
 
         {/* OVERLAPPING WHITE BOARD */}
-        <View
-          style={styles.mainBoard}
-          onLayout={(e) => {
-            boardYRef.current = e.nativeEvent.layout.y;
-          }}
-        >
+        <View style={styles.mainBoard}>
           {/* STORE INFO CARD */}
           <View style={styles.storeInfoRow}>
             <View style={styles.logoContainer}>
@@ -304,30 +254,17 @@ export function RestaurantProfileScreen({ navigation, route }: Props) {
           )}
 
           {/* MENU SECTION HEADER */}
-          <View
-            style={styles.menuHeaderContainer}
-            onLayout={(e) => {
-              menuHeaderYRef.current = e.nativeEvent.layout.y;
-            }}
-          >
+          <View style={styles.menuHeaderContainer}>
             <AppText style={styles.sectionTitle}>Menu</AppText>
-            <View
+            <TouchableOpacity
               style={styles.menuSearchBox}
-              onLayout={(e) => {
-                menuSearchYRef.current = e.nativeEvent.layout.y;
-              }}
+              onPress={openMenuSearch}
+              accessibilityRole="button"
+              accessibilityLabel="Search menu"
             >
               <Search color={foodTheme.textSecondary} size={ms(16)} />
-              <TextInput
-                ref={menuSearchRef}
-                placeholder="Search in menu"
-                placeholderTextColor={foodTheme.textSecondary}
-                style={styles.menuSearchInput}
-                value={searchQuery}
-                onChangeText={setSearchQuery}
-                returnKeyType="search"
-              />
-            </View>
+              <AppText style={styles.menuSearchPlaceholder}>Search in menu</AppText>
+            </TouchableOpacity>
           </View>
 
           {/* CATEGORY CHIPS */}
@@ -337,15 +274,16 @@ export function RestaurantProfileScreen({ navigation, route }: Props) {
             showsHorizontalScrollIndicator={false}
           >
             {categories.map((cat) => {
-              const active = activeCategory === cat;
+              const isActive = active === cat;
               return (
                 <TouchableOpacity
                   key={cat}
                   onPress={() => setActiveCategory(cat)}
-                  style={[styles.categoryChip, active && styles.activeCategoryChip]}
+                  style={[styles.categoryChip, isActive && styles.activeCategoryChip]}
                   accessibilityRole="button"
+                  accessibilityState={{ selected: isActive }}
                 >
-                  <AppText style={[styles.categoryText, active && styles.activeCategoryText]}>
+                  <AppText style={[styles.categoryText, isActive && styles.activeCategoryText]}>
                     {cat}
                   </AppText>
                 </TouchableOpacity>
@@ -355,66 +293,23 @@ export function RestaurantProfileScreen({ navigation, route }: Props) {
 
           {/* MENU LIST */}
           <View style={styles.productList}>
-            {filteredMenu.map((item) => {
-              const qty = dishQuantity(item.id);
-              const isAdded = qty > 0;
-              return (
-                <View key={item.id} style={styles.listCard}>
-                  <View style={styles.listDetails}>
-                    <AppText style={styles.listTitle}>{item.dishName}</AppText>
-                    <AppText numberOfLines={2} style={styles.listDesc}>
-                      {item.description}
-                    </AppText>
-                    <AppText style={styles.listPrice}>₹{item.price}</AppText>
-                  </View>
-                  <View style={styles.listImageWrapper}>
-                    <RemoteImage uri={item.image} variant="dish" style={styles.listImage} />
-                    {isAdded ? (
-                      <View style={styles.qtyStepper}>
-                        <TouchableOpacity
-                          style={styles.qtyStepperBtn}
-                          onPress={() => updateQuantity(item.id, -1)}
-                          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-                          accessibilityRole="button"
-                          accessibilityLabel={`Decrease quantity of ${item.dishName}`}
-                        >
-                          <Minus color={foodTheme.primary} size={ms(14)} />
-                        </TouchableOpacity>
-                        <AppText style={styles.qtyStepperValue}>{qty}</AppText>
-                        <TouchableOpacity
-                          style={styles.qtyStepperBtn}
-                          onPress={() => updateQuantity(item.id, 1)}
-                          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-                          accessibilityRole="button"
-                          accessibilityLabel={`Increase quantity of ${item.dishName}`}
-                        >
-                          <Plus color={foodTheme.primary} size={ms(14)} />
-                        </TouchableOpacity>
-                      </View>
-                    ) : (
-                      <TouchableOpacity
-                        style={styles.addBtnOutline}
-                        onPress={() => handleAdd(item)}
-                        accessibilityRole="button"
-                        accessibilityLabel={`Add ${item.dishName}`}
-                      >
-                        <Plus color={foodTheme.primary} size={ms(14)} style={styles.addBtnPlus} />
-                        <AppText style={styles.addBtnOutlineText}>Add</AppText>
-                      </TouchableOpacity>
-                    )}
-                  </View>
-                </View>
-              );
-            })}
+            {filteredMenu.map((item) => (
+              <MenuItemRow
+                key={item.id}
+                dish={item}
+                quantity={dishQuantity(item.id)}
+                onAdd={() => handleAdd(item)}
+                onIncrement={() => updateQuantity(item.id, 1)}
+                onDecrement={() => updateQuantity(item.id, -1)}
+              />
+            ))}
             {filteredMenu.length === 0 && (
               <AppText style={styles.emptyText}>
-                {searchQuery.trim()
-                  ? 'No dishes match your search.'
-                  : dietFilter === 'veg'
-                    ? 'No veg dishes in this menu.'
-                    : dietFilter === 'nonveg'
-                      ? 'No non-veg dishes in this menu.'
-                      : 'No dishes available.'}
+                {dietFilter === 'veg'
+                  ? 'No veg dishes in this menu.'
+                  : dietFilter === 'nonveg'
+                    ? 'No non-veg dishes in this menu.'
+                    : 'No dishes available.'}
               </AppText>
             )}
           </View>
@@ -438,7 +333,7 @@ export function RestaurantProfileScreen({ navigation, route }: Props) {
         <View style={styles.headerActions}>
           <TouchableOpacity
             style={styles.headerIconBg}
-            onPress={focusMenuSearch}
+            onPress={openMenuSearch}
             accessibilityRole="button"
             accessibilityLabel="Search menu"
           >
@@ -447,31 +342,12 @@ export function RestaurantProfileScreen({ navigation, route }: Props) {
           <TouchableOpacity style={styles.headerIconBg} accessibilityRole="button">
             <Share2 color="#fff" size={ms(20)} />
           </TouchableOpacity>
-          <TouchableOpacity style={styles.headerIconBg} accessibilityRole="button">
-            <MoreVertical color="#fff" size={ms(20)} />
-          </TouchableOpacity>
         </View>
       </View>
 
       {/* STICKY CART FOOTER — restaurant-scoped white pill, no orange card / amount */}
       {restaurantCartCount > 0 && (
-        <View style={styles.stickyFooterWrapper}>
-          <TouchableOpacity
-            style={styles.viewCartBtn}
-            onPress={openCart}
-            activeOpacity={0.9}
-            accessibilityRole="button"
-            accessibilityLabel={`View cart, ${restaurantCartCount} ${restaurantCartCount === 1 ? 'item' : 'items'}`}
-          >
-            <ShoppingCart color={foodTheme.primary} size={ms(18)} />
-            <AppText style={styles.viewCartText}>View Cart</AppText>
-            <View style={styles.viewCartDivider} />
-            <AppText style={styles.viewCartCount}>
-              {restaurantCartCount} {restaurantCartCount === 1 ? 'item' : 'items'}
-            </AppText>
-            <ArrowRight color={foodTheme.primary} size={ms(16)} />
-          </TouchableOpacity>
-        </View>
+        <ViewCartPill count={restaurantCartCount} onPress={openCart} />
       )}
 
       <FoodStatusBarStrip scrollY={scrollY} />
@@ -640,7 +516,12 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#E5E7EB',
   },
-  menuSearchInput: { flex: 1, fontSize: ms(14), marginLeft: hs(8), color: foodTheme.textPrimary, padding: 0 },
+  menuSearchPlaceholder: {
+    flex: 1,
+    fontSize: ms(14),
+    marginLeft: hs(8),
+    color: foodTheme.textSecondary,
+  },
   categoryScroll: {
     paddingHorizontal: hs(16),
     marginBottom: 12,
@@ -662,84 +543,6 @@ const styles = StyleSheet.create({
   categoryText: { fontSize: ms(14), color: foodTheme.textSecondary, fontWeight: '500' },
   activeCategoryText: { color: foodTheme.primary, fontWeight: 'bold' },
   productList: { paddingHorizontal: hs(16) },
-  listCard: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginBottom: 24,
-    borderBottomWidth: 1,
-    borderBottomColor: '#F3F4F6',
-    paddingBottom: 24,
-  },
-  listDetails: { flex: 1, paddingRight: 16 },
-  listTitle: { fontSize: ms(16), fontWeight: 'bold', color: foodTheme.textPrimary, marginBottom: 4 },
-  listDesc: { fontSize: ms(13), color: foodTheme.textSecondary, lineHeight: 18, marginBottom: 8 },
-  listPrice: { fontSize: ms(15), fontWeight: 'bold', color: foodTheme.textPrimary },
-  listImageWrapper: { alignItems: 'center' },
-  listImage: { width: 110, height: 110, borderRadius: 16, backgroundColor: '#F3F4F6' },
-  addBtnOutline: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#fff',
-    borderWidth: 1,
-    borderColor: foodTheme.primary,
-    borderRadius: 8,
-    paddingHorizontal: 16,
-    paddingVertical: 6,
-    marginTop: -14,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
-  },
-  addBtnPlus: { marginRight: 2 },
-  addBtnOutlineText: { color: foodTheme.primary, fontWeight: 'bold', fontSize: 14 },
-  qtyStepper: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#fff',
-    borderWidth: 1,
-    borderColor: foodTheme.primary,
-    borderRadius: 8,
-    marginTop: -14,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
-  },
-  qtyStepperBtn: {
-    paddingHorizontal: hs(12),
-    paddingVertical: vs(6),
-  },
-  qtyStepperValue: {
-    minWidth: ms(24),
-    textAlign: 'center',
-    color: foodTheme.primary,
-    fontWeight: 'bold',
-    fontSize: 14,
-  },
   emptyText: { color: foodTheme.textSecondary, textAlign: 'center', marginVertical: 24 },
   footerPad: { height: vs(100) },
-  stickyFooterWrapper: { position: 'absolute', bottom: vs(20), left: hs(16), right: hs(16) },
-  viewCartBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: hs(8),
-    backgroundColor: '#fff',
-    paddingHorizontal: hs(16),
-    paddingVertical: vs(12),
-    borderRadius: 24,
-    borderWidth: 1,
-    borderColor: '#F0F0F0',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.12,
-    shadowRadius: 10,
-    elevation: 6,
-  },
-  viewCartText: { color: foodTheme.primary, fontSize: ms(14), fontWeight: 'bold' },
-  viewCartDivider: { width: 1, height: vs(16), backgroundColor: '#E5E7EB' },
-  viewCartCount: { color: foodTheme.primary, fontSize: ms(14), fontWeight: 'bold' },
 });

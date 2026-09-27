@@ -89,7 +89,7 @@ export function DonorDetailsScreen({ navigation, route }: Props) {
         </View>
       </ScrollView>
 
-      <View style={[styles.footer, { paddingBottom: Math.max(insets.bottom, vs(14)) }]}>
+      <View style={[styles.footer, { paddingBottom: vs(14) }]}>
         <TouchableOpacity onPress={requestComplete ? () => navigation.goBack() : handleRequest} style={[styles.requestButton, requestComplete && styles.requestButtonComplete]} activeOpacity={0.85} accessibilityRole="button">
           {requestComplete ? <CheckCircle2 size={ms(18)} color="#ffffff" strokeWidth={2.4} /> : <Droplet size={ms(18)} color="#ffffff" fill="#ffffff" strokeWidth={2.2} />}
           <AppText style={styles.requestButtonText}>{requestComplete ? 'Request Sent · Done' : 'Request This Donor'}</AppText>

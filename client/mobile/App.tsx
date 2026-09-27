@@ -10,6 +10,7 @@ import { SplashFallback } from './src/components/SplashFallback';
 import { useAuthStore } from './src/state/authStore';
 import { useLanguageStore } from './src/state/languageStore';
 import { useAppFonts, resolveFontFamily } from './src/theme/fonts';
+import { useBottomInset } from './src/utils/responsive';
 
 // If a native module (SecureStore/AsyncStorage/fonts) hangs, the splash would
 // otherwise stay up forever and trigger an ANR. Force-dismiss past this budget.
@@ -87,6 +88,22 @@ const navigationTheme = {
 
 SplashScreen.preventAutoHideAsync().catch(() => {});
 
+/**
+ * Single owner of the bottom safe-area reservation. The window is edge-to-edge
+ * (transparent Android nav bar), so content would otherwise slip under the
+ * gesture pill / 3-button bar and the iOS home indicator. Reserving the inset
+ * once here — instead of in every screen/bottom navbar — keeps the top
+ * full-bleed (per-screen `insets.top` still applies) while every bottom edge
+ * stays clear. Modals render in separate native windows, so those keep their
+ * own insets.
+ */
+function AppLayout({ children }: { children: React.ReactNode }) {
+  const bottomInset = useBottomInset();
+  return (
+    <View style={[styles.container, { paddingBottom: bottomInset }]}>{children}</View>
+  );
+}
+
 export default function App() {
   const [fontsLoaded, fontError] = useAppFonts();
   const [ready, setReady] = useState(false);
@@ -153,12 +170,12 @@ export default function App() {
 
   return (
     <SafeAreaProvider>
-      <View style={styles.container}>
+      <AppLayout>
         <StatusBar style="dark" />
         <NavigationContainer ref={navigationRef} theme={navigationTheme}>
           <AppNavigator />
         </NavigationContainer>
-      </View>
+      </AppLayout>
     </SafeAreaProvider>
   );
 }

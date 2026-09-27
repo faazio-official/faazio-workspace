@@ -4,7 +4,7 @@ import { FlashList, type FlashListRef } from '@shopify/flash-list';
 import { ChevronDown, Search, X } from 'lucide-react-native';
 import AppText from '@/components/AppText';
 import AppTextInput from '@/components/AppTextInput';
-import { hs, ms, vs, useBottomInset } from '@/utils/responsive';
+import { hs, ms, vs } from '@/utils/responsive';
 import { foodTheme } from '../constants/theme';
 import type { DiningRestaurant } from '../mocks/types';
 import SectionHeader from './SectionHeader';
@@ -42,7 +42,6 @@ const RestaurantGrid = memo(function RestaurantGrid({
   onPress,
   onScroll,
 }: RestaurantGridProps) {
-  const bottomInset = useBottomInset();
   const [sort, setSort] = useState<DiningSort>('nearest');
   const [menuOpen, setMenuOpen] = useState(false);
   const [query, setQuery] = useState('');
@@ -147,7 +146,7 @@ const RestaurantGrid = memo(function RestaurantGrid({
         renderItem={renderItem}
         showsVerticalScrollIndicator={false}
         ListHeaderComponent={listHeader}
-        contentContainerStyle={{ paddingBottom: vs(104) + bottomInset - vs(8) }}
+        contentContainerStyle={{ paddingBottom: vs(104) - vs(8) }}
         keyboardShouldPersistTaps="handled"
         onScroll={onScroll}
         scrollEventThrottle={16}

@@ -2,7 +2,7 @@ import React, { memo, useState } from 'react';
 import { View, TouchableOpacity, StyleSheet } from 'react-native';
 import { Home, Search, ShoppingCart, User } from 'lucide-react-native';
 import AppText from '@/components/AppText';
-import { hs, ms, vs, SCREEN_W, useBottomInset } from '@/utils/responsive';
+import { hs, ms, vs, SCREEN_W } from '@/utils/responsive';
 import { useCartStore } from '@/state/store';
 import { foodTheme } from '../constants/theme';
 import NavbarHomeShortcut from '@/components/shared/NavbarHomeShortcut';
@@ -35,7 +35,6 @@ const FoodBottomNav = memo(function FoodBottomNav({
   onYouPress,
   onHomePress,
 }: FoodBottomNavProps) {
-  const bottomInset = useBottomInset();
   const [barHeight, setBarHeight] = useState(0);
   const cartCount = useCartStore((s) =>
     s.cart.reduce((acc, curr) => acc + curr.quantity, 0),
@@ -43,7 +42,7 @@ const FoodBottomNav = memo(function FoodBottomNav({
 
   return (
     <View
-      style={[styles.bar, { paddingBottom: bottomInset }]}
+      style={styles.bar}
       onLayout={(event) => setBarHeight(event.nativeEvent.layout.height)}
     >
       {TABS.map((tab) => {

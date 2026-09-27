@@ -320,7 +320,7 @@ export default function CommonProductDetailView({
   );
 
   return (
-    <SafeAreaView edges={['top', 'bottom']} style={styles.root}>
+    <SafeAreaView edges={['top']} style={styles.root}>
       <View style={styles.header}>
         <TouchableOpacity onPress={onClose} style={styles.headerBtn} activeOpacity={0.7}>
           <ArrowLeft size={ms(22)} color="#0f172a" strokeWidth={2.2} />

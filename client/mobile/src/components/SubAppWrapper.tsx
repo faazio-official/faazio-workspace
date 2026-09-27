@@ -16,7 +16,7 @@ import {
   User,
 } from 'lucide-react-native';
 import type { LucideIcon } from 'lucide-react-native';
-import { hs, vs, ms, SCREEN_W, useBottomInset } from '@/utils/responsive';
+import { hs, vs, ms, SCREEN_W } from '@/utils/responsive';
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import type { CartItem } from '@/state/cartStore';
@@ -131,7 +131,6 @@ export default function SubAppWrapper({
   const searchInputRef = useRef<TextInput | null>(null);
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const insets = useSafeAreaInsets();
-  const bottomInset = useBottomInset();
 
   useEffect(() => {
     setSearchQuery('');
@@ -193,10 +192,11 @@ export default function SubAppWrapper({
   // (martVendor != null).
   const isChromeHidden = subAppId === 'FA_MART' && martVendor !== null;
 
-  // Total navbar height (base vs(72) + system inset). Every consumer below — the
-  // absolute bar itself, the viewport clearance and the Home shortcut — must use
-  // this total, never the bare vs(72).
-  const navBarH = vs(72) + bottomInset;
+  // Base navbar height. The app layout (App.tsx `AppLayout`) reserves the bottom
+  // safe-area inset once for the whole app, so every consumer below — the
+  // absolute bar itself, the viewport clearance and the Home shortcut — uses this
+  // bare vs(72), never vs(72) + inset.
+  const navBarH = vs(72);
 
   // Registered-donor dashboard (Pharma Donor tab) renders in-wrapper WITH the
   // pharma bottom navbar but its own "Hi, …" header — so header hiding is
@@ -359,7 +359,7 @@ export default function SubAppWrapper({
       </View>
 
       {!isChromeHidden && (
-        <View style={[styles.tabBar, { height: navBarH, paddingBottom: bottomInset }]}>
+        <View style={[styles.tabBar, { height: navBarH }]}>
         {tabs.map((tab, idx) => {
           const isCurrent = activeTab === tab.name;
           const Icon = tab.icon;

@@ -167,7 +167,7 @@ export function MedicalShopDetailsScreen({ navigation, route }: Props) {
             <AppText style={styles.emptySub}>Try a different search for this medical.</AppText>
           </View>
         }
-        contentContainerStyle={[styles.listContent, { paddingBottom: insets.bottom + vs(96) }]}
+        contentContainerStyle={[styles.listContent, { paddingBottom: vs(96) }]}
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
       />

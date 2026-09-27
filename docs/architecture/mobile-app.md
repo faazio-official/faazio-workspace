@@ -95,9 +95,11 @@ off); taps open the shared `CommonProductDetailView`. Each rail samples up to `C
 (10) items.
 
 **Food "Today's Special Near You"** (`features/food/components/SpecialDishCard.tsx`, consumed only
-by `FeaturedDishCarousel` ← `FoodHomeScreen`): compact `hs(116)`-wide card — a **square**
-(`aspectRatio: 1`) dish image on top, then the dish name / restaurant / price stacked underneath
-(no image overlay); the card height is content-driven.
+by `FeaturedDishCarousel` ← `FoodHomeScreen`): a thin adapter over the Food sub-app's
+`FoodProductCard` (→ shared `ProductCardBase`) passing the Home rail's exact props (`variant="rail"`,
+`hs(116)` wide, `aspectRatio: 1` rounded image, name-only body with rating/price/badge/heart/add
+hidden) — so the Food card is pixel-identical to the Home "Today's Special" card and the two can't
+drift. Food renders a single rail of all diet-filtered specials (Home stacks two).
 
 The **Mart Product Detail** (`CommonProductDetailView`) renders a store section below the
 "Product Details" block for any MART product with a resolvable `storeId`: a store card
@@ -238,17 +240,17 @@ same measured inset; never use `StatusBar.currentHeight` (a static module consta
 on iOS and stale on Android edge-to-edge). The optional `withRail` adds the pinned rail slot
 (`SUB_HEADER_RAIL_H`, mirroring the Home `HEADER_RAIL_H`) — passed for the Mart sub-app header.
 
-**Bottom-inset convention:** one canonical source of truth — `useBottomInset()` in
-`src/utils/responsive.ts`, i.e. `Math.max(useSafeAreaInsets().bottom, vs(8))`. It exists because the
-app is edge-to-edge at the native level (`android:navigationBarColor` is transparent), so the
-window draws behind the system gesture pill / 3-button bar and `insets.bottom` is non-zero
-(≈24 dp gesture, ≈48 dp 3-button, ≈34 dp iOS home indicator). Every bottom navbar reserves it as
-`paddingBottom` and uses **no fixed height** — the bar grows downward so the icon/label row keeps
-its position and the extra space becomes a background strip over the system bar. Consumed by
-`features/food/components/FoodBottomNav`, `navigation/MainTabs` (`HubTabBar`), and the
-`components/SubAppWrapper` bar. Total bar height = base height + inset, and **every** consumer of
-that bar — content/viewport `paddingBottom`, and `NavbarHomeShortcut`'s `barHeight` — must use the
-total, never the base, or the Home circle is misplaced and content hides behind a taller bar.
+**Bottom-inset convention:** reserved **once, centrally** by `App.tsx`'s `AppLayout`, which pads the
+whole app with `useBottomInset()` (`src/utils/responsive.ts`, i.e.
+`Math.max(useSafeAreaInsets().bottom, vs(8))`). It exists because the app is edge-to-edge at the
+native level (`android:navigationBarColor` is transparent), so the window draws behind the system
+gesture pill / 3-button bar (`insets.bottom` ≈24 dp gesture, ≈48 dp 3-button, ≈34 dp iOS home
+indicator) and every bottom edge must stay clear. Reserving it at the root keeps the top full-bleed
+(per-screen `insets.top` still applies) while bottom navbars, sticky footers/pills and scroll
+`contentContainerStyle`s use their **base** heights with no inset math — e.g.
+`features/food/components/FoodBottomNav`, `navigation/MainTabs` (`HubTabBar`),
+`components/SubAppWrapper`, the `ViewCartPill`, and the pharma prescription/donor screens. Modals
+render in separate native windows, so those keep their own insets.
 
 **Sub-app header (Mart / Pharma):** `components/shared/SubAppHeader.tsx` renders a compact header
 for Mart & Pharma — back button + a **white live searchbar** (no address pill anymore) that filters
@@ -262,8 +264,8 @@ Every visible bottom navbar also exposes the shared `components/shared/NavbarHom
 Faazio-blue circular Home button centered over the first tab, with three quarters of the circle
 above the bar. It appears on Favourites/You in `MainTabs`, on Mart/Pharma wrapper tabs, and on both
 Food tabs; it is hidden on the main Home tab and when Mart's vendor drill-in hides its chrome.
-`barHeight` must be the **total** bar height including the bottom inset (see "Bottom-inset
-convention" above), never the bare base height.
+`barHeight` is the bar's own measured height (its base height, since the bottom inset is reserved
+centrally — see "Bottom-inset convention" above).
 
 **Home feed performance:** the home feed (`HomeView`) runs on an **`Animated.FlatList`**
 (reanimated-wrapped `FlatList`; migrating to `@shopify/flash-list` v2 is tracked in
@@ -345,7 +347,7 @@ AppNavigator (root native stack)
 │   ├── Home · Favourites · You   (+ central Cart pill)
 ├── SubApp (generic sub-app wrapper; optional `initialVendorStoreId` opens the Mart vendor drill-in)
 │   (Mart tabs: Home · Search · You · Cart — "You" pushes the account page)
-├── FoodApp (FoodStack — FoodHome dining-first → Search → RestaurantProfile → RestaurantOffers; 2-tab bottom nav Home/Search + You/Cart)
+├── FoodApp (FoodStack — FoodHome dining-first → Search → RestaurantProfile → RestaurantMenu / RestaurantOffers; 2-tab bottom nav Home/Search + You/Cart)
 ├── ProductDetail · Search · Cart (`{ restaurantId?, restaurantName? }`) · PaymentOptions
 ├── CategoryDrillIn (category drill-in page from the Home/Mart rail) ── VendorDetails (single-store search)
 ├── DealsLanding (deals page — `campaign` mode from the Home "Deals of the day" carousel, `discounts` mode from the Mart vendor profile "View All")
@@ -446,14 +448,40 @@ when the filter changes.
 
 `DietToggle` is **optionally controlled**: with no props it reads/writes the shared store
 (home + Search headers, unchanged), while passing `value` + `onChange` drives a screen-local
-override without touching the store. `RestaurantProfileScreen` uses the controlled form: it
-seeds a screen-local `dietFilter` once from `foodFilterStore.getState()` and never writes
-back, so the restaurant toggle follows home by default (re-seeded on each open because the
-screen is popped), overrides only that restaurant's menu/rail, and leaves home/search
-untouched. The toggle sits between the back button and the search/share/more actions in the
-profile's pinned top toolbar, and that toolbar's Search icon scrolls the menu search bar just
-under the toolbar and focuses it (measurement via `onLayout`, same convention as
-`RestaurantGrid`).
+override without touching the store. `RestaurantProfileScreen` and `RestaurantMenuScreen` both use
+the controlled form: they seed a screen-local `dietFilter` once from
+`foodFilterStore.getState()` and never write back, so each restaurant screen's toggle follows home
+by default (re-seeded on each open because the screen is popped), overrides only that restaurant's
+menu/rail, and leaves home/search untouched. On the profile the toggle sits between the back button
+and the search/share actions in the pinned top toolbar; on the full menu it is the toolbar's
+trailing node (via `FoodDetailTopBar.right`). The profile's in-menu **"Search in menu"** button and
+its toolbar Search icon both push the **`RestaurantMenu`** page (threading the current
+`dietFilter`), which owns the real, autofocused full-width search bar — the profile no longer hosts
+a live `TextInput` or the old `onLayout` scroll-and-focus jump.
+
+## Food — Restaurant profile vs full menu
+
+`RestaurantProfileScreen` is the restaurant's landing page (hero, info card, Recommended & Offers
+rail, category chips, menu preview) and `RestaurantMenuScreen` is the dedicated full-menu page.
+
+- Both render identical dish rows via the shared `features/food/components/MenuItemRow` (thumb,
+  name/description/price, outlined **Add** → **− qty +** stepper) and the same restaurant-scoped
+  white `ViewCartPill`. Their menu is built by `features/food/utils/menu.ts`
+  (`getMenuForRestaurant` / `getOwnDishes` / `getMenuCategories`), extracted from the profile so the
+  profile and the menu page can't drift.
+- Both screens' category chips are derived from the **actual menu's dish cuisines**
+  (`getMenuCategories`) rather than the venue-level `restaurant.cuisines` labels, so every chip maps
+  to at least one dish under the exact-equality `dish.cuisine` filter; the selected chip falls back
+  to `Bestsellers` if the active diet filter removes its dishes.
+- `RestaurantMenuScreen` shows the restaurant name below the `FoodDetailTopBar` (whose title is now
+  just **"Menu"**) and above the full-width search bar, so long names get a full-width two-line
+  heading instead of being truncated in the toolbar. It adds the full-width search bar (filters on
+  dish name/description), the `Bestsellers` + cuisine category chips and the diet toggle; the chip
+  rail sets `keyboardShouldPersistTaps="handled"` so the first chip tap isn't swallowed by the
+  autofocused search keyboard. It adds/steppers through the same restaurant-scoped cart slice as the
+  profile, so the **View Cart** count stays in sync between both.
+- `RestaurantMenu` is typed as `{ restaurant: DiningRestaurant; dietFilter: DietFilter }` in
+  `FoodStackParamList`.
 
 ## Food add-to-cart — direct adds, fulfilment on the cart
 
@@ -478,10 +506,11 @@ added elsewhere — food search, product detail, Mart/Pharma, seeds — stay **u
 to the common cart only. Re-adding an untagged dish from a restaurant page **adopts** it (backfills
 `restaurantId`).
 
-- **RestaurantProfile** shows only its own lines: the white **View Cart** pill (no orange card, no
-  ₹ amount — just icon + "View Cart" + item count + arrow) and the menu **− qty +** stepper both
-  derive from `cart.filter(i => i.restaurantId === restaurant.id)`, so other restaurants'/common
-  lines never show. Its "View Cart" pushes `Cart` with `{ restaurantId, restaurantName }`.
+- **RestaurantProfile / RestaurantMenu** show only their own lines: the white **View Cart** pill (no
+  orange card, no ₹ amount — just icon + "View Cart" + item count + arrow) and the menu **− qty +**
+  stepper both derive from `cart.filter(i => i.restaurantId === restaurant.id)`, so other
+  restaurants'/common lines never show. Its "View Cart" pushes `Cart` with
+  `{ restaurantId, restaurantName }`.
 - **Cart (`CartScreen`)** reads those params: scoped mode shows **only** that restaurant's lines,
   with a scoped title, a red **Clear** action (`clearRestaurantCart`) and a per-row **trash**
   delete (`removeFromCart`); the common cart (no params) shows everything with no Clear/trash.

@@ -5,6 +5,69 @@ dependencies exist. Do not build the backend/seller flows until told to.
 
 ---
 
+## Food — "Today's Special" home-card parity + Restaurant menu header / category rail fixes
+
+**Status:** 🟢 Shipped (client-side).
+
+**Feature:** Three parity/UX fixes in the Food sub-app.
+
+**Changes:**
+- **Food "Today's Special Near You" = Home card.** `SpecialDishCard.tsx` is now a thin adapter over
+  `features/food/cards/FoodProductCard` → shared `ProductCardBase`, passing the Home rail's exact
+  props (`variant="rail"`, `hs(116)`, `imageAspect: 1`, `roundedImageBottom`, rating/price/badge/
+  heart/add hidden). `FeaturedDishCarousel` rail padding aligned to Home
+  (`paddingLeft hs(16)` / `paddingRight hs(4)` / `paddingBottom vs(8)`). One row of all diet-filtered
+  specials (Home stacks two) — accepted delta, and the food cards lose the old restaurant/price
+  lines to match Home strictly.
+- **Restaurant menu header.** `RestaurantMenuScreen` toolbar title is now just **"Menu"**; the full
+  restaurant name renders below the toolbar, above the search bar (full-width, two-line wrap) instead
+  of being truncated in the toolbar.
+- **Category rail.** The chip `ScrollView` sets `keyboardShouldPersistTaps="handled"` (the autofocused
+  search keyboard previously swallowed the first chip tap); chips are now derived from the menu's
+  actual dish cuisines via the new `getMenuCategories` in `utils/menu.ts` (venue `restaurant.cuisines`
+  carried labels no dish matched → dead chips), with the selected chip falling back to `Bestsellers`.
+  Applied to `RestaurantMenuScreen` and `RestaurantProfileScreen`; the data fixtures are untouched.
+  This supersedes the Food half of the earlier "Smaller Today's Special cards" entry.
+
+**Date:** 2026-09-27
+
+---
+
+## Food — dedicated Restaurant Menu page + shared menu row / cart pill, central bottom inset
+
+**Status:** 🟢 Shipped.
+
+**Feature:** The restaurant profile's inline menu search is replaced by a dedicated **RestaurantMenu**
+page with its own autofocused full-width search bar and diet toggle. Menu rows and the white View
+Cart pill are extracted into shared components, and the bottom safe-area inset is now reserved once
+at the app root instead of per screen/navbar.
+
+**Changes:**
+- **`features/food/screens/RestaurantMenuScreen.tsx`** (new): full restaurant menu — autofocused
+  search bar (dish name/description), `Bestsellers` + cuisine chips, `DietToggle` in the toolbar
+  (via `FoodDetailTopBar.right`), shared `MenuItemRow` list and `ViewCartPill`. Adds/steppers write
+  to the same restaurant-scoped cart slice as the profile.
+- **`features/food/components/MenuItemRow.tsx`** (new): shared dish row (thumb, name/desc/price,
+  outlined **Add** → **− qty +** stepper), used by the profile and the menu page.
+- **`features/food/components/ViewCartPill.tsx`** (new): shared restaurant-scoped white View Cart
+  pill; absolute, right-aligned, no per-screen inset math.
+- **`features/food/utils/menu.ts`** (new): `getMenuForRestaurant` / `getOwnDishes` extracted from
+  `RestaurantProfileScreen` so both screens share one menu builder.
+- **`navigation/types.ts` / `FoodStack.tsx`**: new `RestaurantMenu` route
+  (`{ restaurant: DiningRestaurant; dietFilter: DietFilter }`).
+- **`RestaurantProfileScreen.tsx`**: dropped the live menu `TextInput`, the `onLayout`
+  scroll-and-focus jump and the `MoreVertical` action; the in-menu box is now a **"Search in menu"**
+  button and the toolbar Search icon both push `RestaurantMenu` (threading `dietFilter`).
+- **`App.tsx`**: new `AppLayout` reserves `useBottomInset()` once for the whole app, so bottom
+  navbars/sticky footers/scroll paddings use base heights. Removed the now-redundant per-screen
+  inset handling in `MainTabs` (`HubTabBar`), `SubAppWrapper`, `FoodBottomNav`, `RestaurantGrid`,
+  `MedicalShopDetailsScreen`, `DonorDashboard`, `DonorDetailsScreen`, `PharmaVendorList`,
+  `PrescriptionNoteStep` and `PrescriptionOrderConfirmedView`.
+
+**Date:** 2026-09-27
+
+---
+
 ## Food — Restaurant-isolated cart, bigger menu search, − qty + stepper, white View Cart pill
 
 **Status:** 🟢 Shipped.

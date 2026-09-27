@@ -9,13 +9,15 @@ import { foodTheme } from '../constants/theme';
 interface FoodDetailTopBarProps {
   title: string;
   onBack: () => void;
+  /** Optional trailing node (e.g. a diet toggle) shown at the right edge. */
+  right?: React.ReactNode;
 }
 
 /**
  * Simple back + title bar for pushed Food detail screens (Dining / Order).
  * Respects the status-bar inset.
  */
-const FoodDetailTopBar = memo(function FoodDetailTopBar({ title, onBack }: FoodDetailTopBarProps) {
+const FoodDetailTopBar = memo(function FoodDetailTopBar({ title, onBack, right }: FoodDetailTopBarProps) {
   const insets = useSafeAreaInsets();
   return (
     <View style={[styles.bar, { paddingTop: insets.top + vs(6) }]}>
@@ -31,7 +33,7 @@ const FoodDetailTopBar = memo(function FoodDetailTopBar({ title, onBack }: FoodD
       <AppText style={styles.title} numberOfLines={1}>
         {title}
       </AppText>
-      <View style={styles.spacer} />
+      {right ? <View style={styles.rightSlot}>{right}</View> : <View style={styles.spacer} />}
     </View>
   );
 });
@@ -64,5 +66,9 @@ const styles = StyleSheet.create({
   },
   spacer: {
     width: ms(40),
+  },
+  rightSlot: {
+    minWidth: ms(40),
+    alignItems: 'flex-end',
   },
 });
