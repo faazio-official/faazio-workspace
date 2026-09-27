@@ -13,7 +13,7 @@ import { useAuthStore } from '@/state/authStore';
 import { useBloodDonorStore } from '@/state/bloodDonorStore';
 import type { RootStackParamList } from '@/navigation/types';
 import { BloodRequestCard } from './components/BloodRequestCard';
-import { UserBloodRequestCard } from './components/UserBloodRequestCard';
+import { IncomingDonorRequestCard } from './components/IncomingDonorRequestCard';
 import AskBloodSheet from './components/AskBloodSheet';
 import {
   BLOOD_RED,
@@ -52,17 +52,19 @@ export function DonorDashboard() {
   const insets = useSafeAreaInsets();
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const registration = useBloodDonorStore((s) => s.registration);
-  const askRequests = useBloodDonorStore((s) => s.askRequests);
+  const donorMatchRequests = useBloodDonorStore((s) => s.donorMatchRequests);
   const userName = useAuthStore((s) => s.user?.name);
+  const userId = useAuthStore((s) => s.user?.id);
 
   const [filter, setFilter] = useState<FilterId>('all');
   const [query, setQuery] = useState('');
   const [askOpen, setAskOpen] = useState(false);
 
-  // Simulated fan-out: each "Ask Blood" post bumps the alert badge (one record
-  // per ask, per-device unread). Real per-device delivery + acknowledgement is a
-  // Go Chi backend task — see TODO on the bell.
-  const unreadCount = BLOOD_DONOR_UNREAD_ALERTS + askRequests.length;
+  const incomingRequests = useMemo(
+    () => donorMatchRequests.filter((request) => request.donorUserId === userId),
+    [donorMatchRequests, userId],
+  );
+  const unreadCount = BLOOD_DONOR_UNREAD_ALERTS + incomingRequests.length;
 
   const filteredRequests = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -84,19 +86,8 @@ export function DonorDashboard() {
       return true;
     });
 
-    // User asks share the same filter semantics (field names intentionally match
-    // the seed requests). They always lead the feed.
-    const askMatches = askRequests.filter((r) => {
-      if (filter === 'urgent' && r.urgency !== 'urgent') return false;
-      if (q) {
-        const haystack = `${r.hospital} ${r.city} ${r.bloodGroup}`.toLowerCase();
-        if (!haystack.includes(q)) return false;
-      }
-      return true;
-    });
-
-    return [...askMatches, ...seedMatches];
-  }, [filter, query, registration, askRequests]);
+    return seedMatches;
+  }, [filter, query, registration]);
 
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
@@ -112,9 +103,8 @@ export function DonorDashboard() {
             <AppText style={styles.greetingSub}>Ready to save lives?</AppText>
           </View>
           <TouchableOpacity
-            // TODO(bell): no notification screen/push infra yet — badge is a
-            // seed constant plus one record per user "Ask Blood" post (simulated
-            // fan-out); wire a real alerts page before enabling this.
+            // TODO(bell): no notification screen/push infra yet — the badge is
+            // the seed count plus local incoming targeted requests.
             style={styles.bellBtn}
             activeOpacity={0.8}
             accessibilityRole="button"
@@ -146,6 +136,20 @@ export function DonorDashboard() {
             </View>
           </View>
         </LinearGradient>
+
+        {incomingRequests.length > 0 ? (
+          <View style={styles.incomingSection}>
+            <View style={styles.sectionHeaderRow}>
+              <AppText style={styles.sectionTitle}>Requests for You</AppText>
+              <AppText style={styles.sectionCount}>{incomingRequests.length}</AppText>
+            </View>
+            <View style={styles.incomingList}>
+              {incomingRequests.map((request) => (
+                <IncomingDonorRequestCard key={request.id} request={request} />
+              ))}
+            </View>
+          </View>
+        ) : null}
 
         <View style={styles.chipRow}>
           {FILTERS.map((f) => {
@@ -201,11 +205,6 @@ export function DonorDashboard() {
         ) : (
           <View style={styles.list}>
             {filteredRequests.map((request) => {
-              // User "Ask Blood" requests are device-local + non-navigating (no
-              // detail page yet); seed hospital requests keep the existing tap.
-              if ('postedAt' in request) {
-                return <UserBloodRequestCard key={request.id} request={request} />;
-              }
               return (
                 <BloodRequestCard
                   key={request.id}
@@ -306,6 +305,33 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     gap: hs(12),
+  },
+  incomingSection: {
+    gap: vs(9),
+  },
+  sectionHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: hs(7),
+  },
+  sectionTitle: {
+    color: BLOOD_TEXT,
+    fontSize: ms(14),
+    fontWeight: '900',
+  },
+  sectionCount: {
+    minWidth: ms(20),
+    paddingHorizontal: hs(6),
+    paddingVertical: vs(2),
+    borderRadius: BLOOD_RADII.pill,
+    backgroundColor: BLOOD_RED_SOFT,
+    color: BLOOD_RED,
+    fontSize: ms(10),
+    fontWeight: '900',
+    textAlign: 'center',
+  },
+  incomingList: {
+    gap: vs(10),
   },
   impactCopy: {
     flex: 1,

@@ -59,6 +59,12 @@ export type RootStackParamList = {
   OrderDetails: { orderId: string };
   /** Blood Donor registration wizard + registered dashboard (pushed from Pharma). */
   BloodDonor: undefined;
+  /** Targeted donor profile opened from Ask Blood matching results. */
+  BloodDonorDetails: {
+    donorId: string;
+    requestCity: string;
+    bloodGroup: import('@data/index').BloodGroup;
+  };
   /** Blood request detail placeholder (pushed from the donor dashboard). */
   BloodRequestDescription: { requestId: string };
   /** Pharma store profile with products and prescription entry point. */

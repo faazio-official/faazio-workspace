@@ -37,6 +37,7 @@ const MyOrdersScreen = lazyNamed(() => import('@/features/profile/MyOrdersScreen
 const OrderDetailsScreen = lazyNamed(() => import('@/features/profile/OrderDetailsScreen'), 'OrderDetailsScreen');
 const YouScreen = lazyNamed(() => import('@/features/profile/YouScreen'), 'YouScreen');
 const BloodDonorScreen = lazyNamed(() => import('@/features/pharma/blood-donor/BloodDonorScreen'), 'BloodDonorScreen');
+const BloodDonorDetailsScreen = lazyNamed(() => import('@/features/pharma/blood-donor/DonorDetailsScreen'), 'DonorDetailsScreen');
 const BloodRequestDescriptionScreen = lazyNamed(() => import('@/features/pharma/blood-donor/BloodRequestDescriptionScreen'), 'BloodRequestDescriptionScreen');
 const FaazioRewardsScreen = lazyNamed(() => import('@/features/rewards/FaazioRewardsScreen'), 'FaazioRewardsScreen');
 const SellWithUsScreen = lazyNamed(() => import('@/features/profile/SellWithUsScreen'), 'SellWithUsScreen');
@@ -135,6 +136,11 @@ export function AppNavigator() {
           <Stack.Screen
             name="BloodDonor"
             component={BloodDonorScreen}
+            options={{ animation: 'fade', animationDuration: 180 }}
+          />
+          <Stack.Screen
+            name="BloodDonorDetails"
+            component={BloodDonorDetailsScreen}
             options={{ animation: 'fade', animationDuration: 180 }}
           />
           <Stack.Screen

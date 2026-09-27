@@ -55,12 +55,12 @@ rail tab id to the `StoreProfile.categories` tags a vendor must match — this l
 because the rail taxonomy names don't equal the store category tags, and the future Go
 `GET /categories/rail?page=` endpoint will serve the same shape.
 
-**Blood Donor "Ask Blood"** (`data/pharma/bloodRequests.ts`) exports the user-posted request
-shape and copy: `UserBloodRequest` (lighter than the hospital-owned `BloodRequest` — only the
-fields the Ask form collects; `uba-` id prefix avoids seed collisions), `ASK_BLOOD_URGENCY_OPTIONS`
-(deadline chips → `neededWithin` + `urgency`), `ASK_BLOOD_COPY` (FAB/sheet/submit/success copy),
-and `ASK_BLOOD_UNITS` (units stepper bounds). These keep the Ask form presentational; the user's
-posted requests persist device-locally via the `bloodDonorStore` blob until the backend owns them.
+**Blood Donor targeted Ask Blood** (`data/pharma/bloodRequests.ts` and
+`data/pharma/bloodDonors.ts`) exports `DonorMatchRequest`, `DonorProfile`, `BLOOD_DONORS`,
+and `ASK_BLOOD_COPY`. The mobile Ask form searches by city + blood group, selects one donor,
+and persists a request containing both requester and recipient user IDs. The mock donor
+directory is accessed through `services/donorDirectory.ts`; the future backend replaces that
+seam and owns authorization, request status, secure contact disclosure, and notifications.
 
 **Home ad campaigns** (`data/home/campaigns.ts`): the "Deals of the day" section's vendor campaigns
 (`adCampaigns`, split into `carouselOneCampaigns` / `carouselTwoCampaigns` for the two stacked

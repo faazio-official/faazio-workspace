@@ -124,15 +124,17 @@ too — one component).
 
 Pharma hosts the **Blood Donor** feature (`pharma/blood-donor/`) — a 5-step registration
 wizard (persistent draft/registration via AsyncStorage; the wizard closes permanently on
-submit) + a registered-donor dashboard (`DonorDashboard` — request feed with filter chips +
-search; rendered inside the Pharma wrapper with the navbar kept and the gradient header
-hidden), entered via the `Droplet` tab in the Pharma navbar. Both the wizard and the
-dashboard host a floating **"Ask Blood"** action (`AskBloodSheet` on the shared `SlideUpSheet`)
-that posts a user blood request (`bloodDonorStore.askRequests`, persisted in the same blob)
-which appears at the top of the dashboard feed as a non-navigating `UserBloodRequestCard`
-("Your Request" chip — never fake-verified). Each post bumps the bell unread badge (simulated
-fan-out: `BLOOD_DONOR_UNREAD_ALERTS` + ask count) — real per-device push delivery is a Go Chi
-backend task.
+submit) + a registered-donor dashboard (`DonorDashboard` — targeted "Requests for You"
+section plus the hospital request feed with filter chips + search; rendered inside the
+Pharma wrapper with the navbar kept and the gradient header hidden), entered via the
+`Droplet` tab in the Pharma navbar. Both the wizard and dashboard host a floating
+**"Ask Blood"** action (`AskBloodSheet` on the shared `SlideUpSheet`) that collects only
+city and blood group, then resolves matching donors through the async
+`services/donorDirectory.ts` repository seam. Selecting a donor opens `BloodDonorDetails`,
+where the user can send one targeted `DonorMatchRequest`; the request is persisted in the
+same blob and rendered only for the selected donor by `donorUserId`. It is never inserted
+into the common hospital feed or broadcast to all donors. The donor registry and targeted
+request delivery remain mock/local until Go Chi owns them.
 
 `search` hosts the shared `SearchScreen` shell (`features/search/SearchScreen.tsx`) plus
 per-sub-app configs (`configs/*`). Product search (Mart / Pharma / Home Hub)
@@ -301,7 +303,7 @@ paginated reads from `@data/*` — the contract the future Go Chi gateway will f
 | `bookingStore` | Dinner bookings |
 | `foodBookingStore` | Food bookings |
 | `pharmaStore` | Prescriptions |
-| `bloodDonorStore` | Blood Donor wizard draft + committed registration + posted "Ask Blood" requests (`askRequests`) |
+| `bloodDonorStore` | Blood Donor wizard draft + committed registration + targeted donor requests (`donorMatchRequests`) |
 | `searchStore` | Search state/history |
 | `languageStore` | Selected language |
 | `uiStore` | Sub-app id (`FA_MART`/`FOOD`/`PHARMA`), tab name |
@@ -335,6 +337,7 @@ AppNavigator (root native stack)
 ├── DealsLanding (deals page — `campaign` mode from the Home "Deals of the day" carousel, `discounts` mode from the Mart vendor profile "View All")
 ├── You · UserDetails · SavedAddresses · MyOrders · Favourites · OrderDetails · FaazioRewards · SellWithUs
 ├── BloodDonor (Pharma blood-donor wizard/dashboard)
+├── BloodDonorDetails (selected matching donor profile + targeted request)
 ├── BloodRequestDescription (donor request details + nearby requests)
 ├── MedicalShopDetails (pharma store profile + live store inventory)
 ├── PrescriptionFlow (full-bleed pharma prescription capture → note → vendor → confirmed;

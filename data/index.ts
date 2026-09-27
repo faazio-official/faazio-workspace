@@ -53,11 +53,11 @@ export {
   BLOOD_REQUESTS,
   BLOOD_DONOR_UNREAD_ALERTS,
   BLOOD_REQUEST_DETAIL_COPY,
-  ASK_BLOOD_URGENCY_OPTIONS,
   ASK_BLOOD_COPY,
-  ASK_BLOOD_UNITS,
 } from './pharma/bloodRequests';
-export type { BloodRequest, BloodRequestUrgency, UserBloodRequest } from './pharma/bloodRequests';
+export type { BloodRequest, BloodRequestUrgency, DonorMatchRequest } from './pharma/bloodRequests';
+export { BLOOD_DONORS } from './pharma/bloodDonors';
+export type { DonorProfile } from './pharma/bloodDonors';
 
 export { exploreStacks } from './explore/stacks';
 

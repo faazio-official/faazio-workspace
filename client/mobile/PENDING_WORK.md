@@ -739,7 +739,8 @@ plus a registered-donor dashboard.
 - **Registered-donor dashboard** (`DonorDashboard.tsx`): greeting ("Hi, …" from
   `authStore.user.name`), bell with unread-badge seed, red gradient impact banner, filter
   chips (Donation Requests / Nearby / Urgent) + real search over hospital/city/state/blood
-  group, and the `BLOOD_REQUESTS` seed feed via `BloodRequestCard`. The Donor tab renders
+  group, targeted **Requests for You** filtered by the active account's `user.id`, and the
+  `BLOOD_REQUESTS` seed feed via `BloodRequestCard`. The Donor tab renders
   it **inside the Pharma wrapper** (pharma navbar visible, gradient header hidden — header
   hiding decoupled from navbar hiding in `SubAppWrapper`); the wizard completion moment
   shows it in-route (navbar-less). `RegisteredDonorView` was deleted (fully replaced).
@@ -755,18 +756,14 @@ plus a registered-donor dashboard.
 - The "Every drop counts" banner is now `showBanner`-driven (step 1 only); the header
   chevron steps back within the wizard (exits only on step 1); the footer is a full-width
   Next on every step (back-nav via chevron + hardware back).
-- **"Ask Blood" shipped** (`components/AskBloodSheet.tsx` on the shared `SlideUpSheet`):
-  a floating FAB (red pill, `Droplet` + label) on **both** the wizard and the dashboard
-  (needing blood doesn't require being a registered donor). The sheet collects blood
-  group (`OptionChipGrid`), units (stepper, `ASK_BLOOD_UNITS`-bounded), hospital, city,
-  contact (prefilled from the account phone), a deadline chip (`ASK_BLOOD_URGENCY_OPTIONS`)
-  and an optional note; a local `canAsk` gate enables the pinned **Ask** button. On submit
-  `bloodDonorStore.postAskRequest` stamps `uba-` id + ISO `postedAt`, prepends to
-  `askRequests` (persisted in the same AsyncStorage blob, cleared on logout) and the sheet
-  shows an honest success state. The posted request appears at the **top of the dashboard
-  feed** as a non-navigating `UserBloodRequestCard` ("Your Request" chip — never
-  fake-verified), searchable/filterable like the seed feed, and bumps the bell unread
-  badge (simulated fan-out).
+- **Targeted "Ask Blood" shipped** (`components/AskBloodSheet.tsx` on the shared
+  `SlideUpSheet`): a floating FAB on both the wizard and dashboard opens a two-stage flow.
+  The user enters only city and blood group, taps Continue, and receives matching available
+  donors from the async `services/donorDirectory.ts` mock repository. Tapping a donor opens
+  `DonorDetailsScreen`, where `Request This Donor` creates one `DonorMatchRequest` addressed
+  to that donor's `donorUserId`. Requests are persisted in the existing blood-donor blob
+  and render only in the selected donor's dashboard under **Requests for You**; they are not
+  inserted into the common hospital request feed or broadcast to all donors.
 
 **Future / honest gaps:**
 - **Interested/Accepted are local-only** (persisted AsyncStorage) — the actual
@@ -775,19 +772,16 @@ plus a registered-donor dashboard.
 - **Distance (`distanceKm`) is mock seed data** — no real geo between donor and hospital
   yet; the nearby sort is a real sort over the seeded values.
 - **Bell press is a no-op** (TODO in `DonorDashboard`) — no notification screen or push
-  infra; the badge count is the `BLOOD_DONOR_UNREAD_ALERTS` seed **plus one record per
-  user "Ask Blood" post** (simulated per-device fan-out; see the Ask Blood bullet below).
+  infra; the badge count remains the `BLOOD_DONOR_UNREAD_ALERTS` seed plus the current
+  donor's incoming targeted-request count. Cross-device delivery is not built.
 - **Funnel icon is visual-only** — a filter sheet is not designed yet; ditto presence only.
 - **"Nearby" is city-matching, not geo**: request `city` vs the donor's registered
   `preferredLocation` (case-insensitive contains). Real geo swaps the matcher, not the UI.
 - **Request feed is a static seed** (`BLOOD_REQUESTS`, 5 fixtures) — the Go Chi backend
   owns the real feed; `BloodRequest` shape documented as the interim contract.
-- **User "Ask Blood" requests are device-local + non-navigating** — they render as
-  `UserBloodRequestCard`s with no detail push (the full `BloodRequest` detail page requires
-  hospital-owned fields the Ask form never collects). A detail/support page for user
-  requests waits for the backend to own them.
-- **Ask Blood fan-out is simulated** (badge bump, intent-framed copy) — real multi-device
-  push delivery + acknowledgement is a Go Chi backend task.
+- **Targeted donor requests are device-local** during the mock stage. The recipient filter
+  is user-specific, but cross-device delivery and donor response/status transitions require
+  the Go Chi backend.
 - **AD label is not on `RestaurantOffersScreen`** ("View All") — scope-limited to the
   restaurant profile rail; add the same `AdLabelBadge` there as a one-line follow-up if
   wanted.
@@ -800,9 +794,9 @@ plus a registered-donor dashboard.
   `registration.accountPhone` → idempotent, one donor row per account. `accountPhone` is
   `null` when the account has no phone on file (no fabrication).
 - Notification **delivery** is not built: no `expo-notifications`, no push infra, no
-  backend. The step-4 banner copy describes eventual server behavior; "Ask Blood" fan-out
-  is **simulated client-side** (badge bump + intent-framed copy) until then. Matching +
-  push will live in the Go Chi backend (`server/`) once wired.
+  backend. Targeted Ask Blood matching currently uses the mock donor repository and local
+  persistence; matching, push, authorization, and request status will live in the Go Chi
+  backend (`server/`) once wired.
 - Age is a **range select**, not a real date-of-birth — a data-layer swap is needed for
   true eligibility (DOB-based).
 - **No medical deferral logic** (e.g. underweight or chronic = Yes → block). Not in the

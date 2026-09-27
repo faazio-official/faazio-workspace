@@ -139,10 +139,9 @@ the `GROCERY` member was dropped from `AppBrand` / `CartCategory` / `SubAppId` /
 | `BLOOD_REQUESTS` | `BloodRequest[]` | Donor dashboard + request-details page (feed + detail fields) | `@mock` |
 | `BLOOD_DONOR_UNREAD_ALERTS` | `number` | Donor dashboard (bell badge seed) | `@mock` |
 | `BLOOD_REQUEST_DETAIL_COPY` | `{ bannerTitle; bannerSubtitle; confirmNote }` | Request-details page (banner + privacy note copy) | `@mock` |
-| `UserBloodRequest` | `interface` | Ask Blood form + feed card shape (device-local user requests) | `@mock` |
-| `ASK_BLOOD_URGENCY_OPTIONS` | `{ id; label; neededWithin; urgency }[]` | Ask Blood form (deadline chips → deadline + urgency) | `@mock` |
-| `ASK_BLOOD_COPY` | `{ fabLabel; sheetTitle; sheetSubtitle; submitLabel; successTitle; successMessage; doneLabel }` | Ask Blood FAB + sheet copy | `@mock` |
-| `ASK_BLOOD_UNITS` | `{ min; max }` | Ask Blood form (units stepper bounds) | `@mock` |
+| `DonorMatchRequest` | `interface` | Targeted Ask Blood request persisted by `bloodDonorStore` and shown to its recipient | `@mock` |
+| `ASK_BLOOD_COPY` | `{ fabLabel; sheetTitle; searchSubtitle; resultsSubtitle; continueLabel }` | Ask Blood search/results copy | `@mock` |
+| `BLOOD_DONORS` / `DonorProfile` | `DonorProfile[]` / type | Mock donor-directory repository for city + blood-group matching | `@mock` |
 
 > **Blood Donor contract:** `BloodDonorDraft` / `BloodDonorRegistration` are the typed shape
 > the future Go Chi backend will persist (donor registry). `BloodDonorRegistration.profile`
@@ -155,11 +154,13 @@ the `GROCERY` member was dropped from `AppBrand` / `CartCategory` / `SubAppId` /
 > donation requests with full detail fields — photo, patient context/age/gender, hospital
 > contact/address, remarks, distance; all **required** so the detail page renders only real
 > data); the backend feed replaces it later — the `BloodRequest` shape stays stable.
-> "Nearby" filtering is city-vs-donor-`preferredLocation` matching until real geo exists.
-> **Ask Blood fan-out is simulated client-side:** a user-posted request
-> (`UserBloodRequest`, `uba-` id prefix, persisted in the `bloodDonorStore` blob, cleared on
-> logout) leads the dashboard feed and bumps the bell badge (per-device unread). Real
-> multi-device push delivery + acknowledgement is a Go Chi backend task.
+> Nearby filtering is city-vs-donor-`preferredLocation` matching until real geo exists.
+> **Targeted Ask Blood contract:** the user searches by city + blood group, selects one
+> `DonorProfile`, and creates one `DonorMatchRequest` containing both requester and
+> recipient user IDs. It is persisted in the `bloodDonorStore` blob, cleared on logout,
+> and rendered only when `donorUserId` matches the active account. The current donor
+> registry and delivery are mock/local; backend search, authorization, status changes,
+> contact disclosure, and notifications remain Go Chi work.
 
 ### `@data/explore` — owner: `features/catalog`
 

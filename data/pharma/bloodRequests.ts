@@ -185,56 +185,25 @@ export const BLOOD_REQUEST_DETAIL_COPY = {
   confirmNote: 'Your details will be shared with the hospital only after you confirm.',
 };
 
-/**
- * A blood request posted by the app user ("Ask Blood") rather than a hospital.
- * Deliberately lighter than `BloodRequest`: the Ask form only collects these
- * fields, so we never fabricate required detail-page fields (patientAge,
- * verified, imageUrl, …). `id` uses a `uba-` prefix so it never collides with
- * the `br-` seed ids.
- */
-export interface UserBloodRequest {
+/** A targeted request from one app user to one matching donor. */
+export interface DonorMatchRequest {
   id: string;
+  requesterUserId: string;
+  requesterName: string;
+  donorId: string;
+  donorUserId: string;
+  donorName: string;
   bloodGroup: BloodGroup;
-  unitsRequired: number;
-  hospital: string;
   city: string;
-  contact: string;
-  /** Deadline chip label (e.g. "Needed within 24 hours"). */
-  neededWithin: string;
-  /** Urgency band derived from the chosen deadline chip. */
-  urgency: BloodRequestUrgency;
-  /** Optional "For: …" patient context. */
-  note: string | null;
-  /** ISO timestamp — the relative "Just now / x hours ago" label is computed from this. */
-  postedAt: string;
+  requestedAt: string;
+  status: 'pending';
 }
 
-/** Deadline chip options for the Ask Blood form — each maps to a deadline + urgency band. */
-export const ASK_BLOOD_URGENCY_OPTIONS: {
-  id: string;
-  label: string;
-  neededWithin: string;
-  urgency: BloodRequestUrgency;
-}[] = [
-  { id: '6h', label: 'Within 6 hours', neededWithin: 'Needed within 6 hours', urgency: 'urgent' },
-  { id: '24h', label: 'Within 24 hours', neededWithin: 'Needed within 24 hours', urgency: 'high' },
-  { id: '48h', label: 'Within 48 hours', neededWithin: 'Needed within 48 hours', urgency: 'high' },
-  { id: 'flexible', label: 'Flexible', neededWithin: 'Flexible date', urgency: 'normal' },
-];
-
-/** Copy for the Ask Blood sheet. Success copy frames the (client-side) fan-out honestly. */
+/** Copy for the two-stage donor search flow. */
 export const ASK_BLOOD_COPY = {
   fabLabel: 'Ask Blood',
   sheetTitle: 'Ask for Blood',
-  sheetSubtitle: 'Registered donors in your area will be alerted to help.',
-  submitLabel: 'Ask',
-  successTitle: 'Request posted',
-  successMessage: 'Registered donors will be alerted to your request. We will let you know when someone responds.',
-  doneLabel: 'Done',
-};
-
-/** Units stepper bounds for the Ask Blood form. */
-export const ASK_BLOOD_UNITS = {
-  min: 1,
-  max: 10,
+  searchSubtitle: 'Find registered donors by city and blood group.',
+  resultsSubtitle: 'Matching donors near your selected city.',
+  continueLabel: 'Continue',
 };

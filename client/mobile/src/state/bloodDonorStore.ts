@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useAuthStore } from '@/state/authStore';
-import type { BloodDonorDraft, BloodDonorRegistration, UserBloodRequest } from '@data/index';
+import type { BloodDonorDraft, BloodDonorRegistration, DonorMatchRequest, DonorProfile } from '@data/index';
 
 const STORAGE_KEY = 'faazio/bloodDonor/v1';
 
@@ -29,7 +29,7 @@ interface PersistedBlob {
   registration?: BloodDonorRegistration | null;
   interestedRequestIds?: string[];
   acceptedRequestIds?: string[];
-  askRequests?: UserBloodRequest[];
+  donorMatchRequests?: DonorMatchRequest[];
 }
 
 const persist = (
@@ -37,11 +37,11 @@ const persist = (
   registration: BloodDonorRegistration | null,
   interestedRequestIds: string[],
   acceptedRequestIds: string[],
-  askRequests: UserBloodRequest[],
+  donorMatchRequests: DonorMatchRequest[],
 ) => {
   AsyncStorage.setItem(
     STORAGE_KEY,
-    JSON.stringify({ draft, registration, interestedRequestIds, acceptedRequestIds, askRequests }),
+    JSON.stringify({ draft, registration, interestedRequestIds, acceptedRequestIds, donorMatchRequests }),
   ).catch(() => {
     // Best-effort device-local state; failures are silent and never logged (PII rule).
   });
@@ -56,8 +56,8 @@ interface BloodDonorState {
   interestedRequestIds: string[];
   /** Request ids the donor accepted via the confirm dialog (not toggleable). */
   acceptedRequestIds: string[];
-  /** Blood requests the user posted via "Ask Blood" (newest first, device-local). */
-  askRequests: UserBloodRequest[];
+  /** Targeted donor requests, owned by the requester and selected donor. */
+  donorMatchRequests: DonorMatchRequest[];
   /** True once the AsyncStorage hydration read has settled. */
   hydrated: boolean;
   updateDraft: (patch: Partial<BloodDonorDraft>) => void;
@@ -67,8 +67,8 @@ interface BloodDonorState {
   toggleInterested: (requestId: string) => void;
   /** Records the donor's confirmed acceptance of a request (persisted). */
   acceptRequest: (requestId: string) => void;
-  /** Posts a user "Ask Blood" request (stamps id + postedAt, prepends, persists). */
-  postAskRequest: (input: Omit<UserBloodRequest, 'id' | 'postedAt'>) => void;
+  /** Sends one targeted request to the selected matching donor. */
+  requestDonor: (donor: DonorProfile, city: string) => boolean;
   reset: () => void;
 }
 
@@ -77,12 +77,12 @@ export const useBloodDonorStore = create<BloodDonorState>()((set, get) => ({
   registration: null,
   interestedRequestIds: [],
   acceptedRequestIds: [],
-  askRequests: [],
+  donorMatchRequests: [],
   hydrated: false,
   updateDraft: (patch) => {
     const draft = { ...get().draft, ...patch };
     set({ draft });
-    persist(draft, get().registration, get().interestedRequestIds, get().acceptedRequestIds, get().askRequests);
+    persist(draft, get().registration, get().interestedRequestIds, get().acceptedRequestIds, get().donorMatchRequests);
   },
   register: () => {
     const { draft } = get();
@@ -95,7 +95,7 @@ export const useBloodDonorStore = create<BloodDonorState>()((set, get) => ({
       accountPhone,
     };
     set({ registration });
-    persist(draft, registration, get().interestedRequestIds, get().acceptedRequestIds, get().askRequests);
+    persist(draft, registration, get().interestedRequestIds, get().acceptedRequestIds, get().donorMatchRequests);
   },
   toggleInterested: (requestId) => {
     const { interestedRequestIds } = get();
@@ -103,27 +103,48 @@ export const useBloodDonorStore = create<BloodDonorState>()((set, get) => ({
       ? interestedRequestIds.filter((id) => id !== requestId)
       : [...interestedRequestIds, requestId];
     set({ interestedRequestIds: next });
-    persist(get().draft, get().registration, next, get().acceptedRequestIds, get().askRequests);
+    persist(get().draft, get().registration, next, get().acceptedRequestIds, get().donorMatchRequests);
   },
   acceptRequest: (requestId) => {
     const { acceptedRequestIds } = get();
     if (acceptedRequestIds.includes(requestId)) return;
     const next = [...acceptedRequestIds, requestId];
     set({ acceptedRequestIds: next });
-    persist(get().draft, get().registration, get().interestedRequestIds, next, get().askRequests);
+    persist(get().draft, get().registration, get().interestedRequestIds, next, get().donorMatchRequests);
   },
-  postAskRequest: (input) => {
-    const request: UserBloodRequest = {
-      ...input,
-      id: 'uba-' + Math.random().toString(36).substring(2, 10),
-      postedAt: new Date().toISOString(),
+  requestDonor: (donor, city) => {
+    const user = useAuthStore.getState().user;
+    const requesterUserId = user?.id ?? 'anonymous-user';
+    const normalizedCity = city.trim();
+    const alreadyPending = get().donorMatchRequests.some(
+      (request) =>
+        request.requesterUserId === requesterUserId &&
+        request.donorId === donor.id &&
+        request.bloodGroup === donor.bloodGroup &&
+        request.city.toLowerCase() === normalizedCity.toLowerCase() &&
+        request.status === 'pending',
+    );
+    if (alreadyPending) return false;
+
+    const request: DonorMatchRequest = {
+      id: 'dmr-' + Math.random().toString(36).substring(2, 10),
+      requesterUserId,
+      requesterName: user?.name?.trim() || 'Faazio User',
+      donorId: donor.id,
+      donorUserId: donor.userId,
+      donorName: donor.name,
+      bloodGroup: donor.bloodGroup,
+      city: normalizedCity,
+      requestedAt: new Date().toISOString(),
+      status: 'pending',
     };
-    const askRequests = [request, ...get().askRequests];
-    set({ askRequests });
-    persist(get().draft, get().registration, get().interestedRequestIds, get().acceptedRequestIds, askRequests);
+    const donorMatchRequests = [request, ...get().donorMatchRequests];
+    set({ donorMatchRequests });
+    persist(get().draft, get().registration, get().interestedRequestIds, get().acceptedRequestIds, donorMatchRequests);
+    return true;
   },
   reset: () => {
-    set({ draft: EMPTY_DRAFT, registration: null, interestedRequestIds: [], acceptedRequestIds: [], askRequests: [] });
+    set({ draft: EMPTY_DRAFT, registration: null, interestedRequestIds: [], acceptedRequestIds: [], donorMatchRequests: [] });
     AsyncStorage.removeItem(STORAGE_KEY).catch(() => {});
   },
 }));
@@ -149,7 +170,7 @@ AsyncStorage.getItem(STORAGE_KEY)
       registration: parsed.registration ?? null,
       interestedRequestIds: parsed.interestedRequestIds ?? [],
       acceptedRequestIds: parsed.acceptedRequestIds ?? [],
-      askRequests: parsed.askRequests ?? [],
+      donorMatchRequests: parsed.donorMatchRequests ?? [],
     });
   })
   .catch(() => {})
