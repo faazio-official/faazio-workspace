@@ -2,6 +2,7 @@ import React, { Suspense, lazy } from 'react';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { ErrorBoundary } from '@/components/ErrorBoundary';
 import { SplashFallback } from '@/components/SplashFallback';
+import { navigationRef } from './navigationRef';
 import type { RootStackParamList } from './types';
 import { OnboardingScreen } from '@/features/onboarding/OnboardingScreen';
 import { LoginScreen } from '@/features/auth/LoginScreen';
@@ -48,7 +49,14 @@ export function AppNavigator() {
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
 
   return (
-    <ErrorBoundary>
+    <ErrorBoundary
+      scope="App"
+      onReset={() => {
+        if (navigationRef.isReady()) {
+          navigationRef.reset({ index: 0, routes: [{ name: 'MainTabs' }] });
+        }
+      }}
+    >
       <Suspense fallback={<SplashFallback />}>
         <Stack.Navigator
           screenOptions={{ headerShown: false, statusBarStyle: 'dark' }}

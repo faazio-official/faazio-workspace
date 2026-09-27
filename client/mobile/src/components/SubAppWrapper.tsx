@@ -15,24 +15,82 @@ import {
   Droplet,
   User,
 } from 'lucide-react-native';
+import type { LucideIcon } from 'lucide-react-native';
 import { hs, vs, ms, SCREEN_W } from '@/utils/responsive';
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import type { CartItem } from '@/state/cartStore';
 import type { SubAppId } from '@/state/uiStore';
 import type { RootStackParamList } from '@/navigation/types';
+import NavbarHomeShortcut from '@/components/shared/NavbarHomeShortcut';
 
 import { FaMartScreen } from '../features/ecommerce/FaMartScreen';
 import { PharmaScreen } from '../features/pharma/PharmaScreen';
 import AppText from '@/components/AppText';
 import SubAppHeader from './shared/SubAppHeader';
 import { subAppHeaderH } from './shared/SubAppHeader';
-import MartSubAppHeader from './shared/MartSubAppHeader';
-import { martSubAppHeaderH } from './shared/MartSubAppHeader';
+import HeaderCategoryRail from '@/components/shared/HeaderCategoryRail';
+import type { CategoryRailItem } from '@data/categories/railFeed';
 import { brandTokens } from '@/theme/brandTokens';
 import type { AppBrand, StoreProfile } from '@data/types';
 import { martStores } from '@data/mart/stores';
 import { useBloodDonorStore } from '@/state/bloodDonorStore';
+
+type SubAppKey = 'FA_MART' | 'FOOD' | 'PHARMA';
+
+interface SubAppPreset {
+  name: string;
+  primaryColor: string;
+  textColor: string;
+  tabs: { name: string; icon: LucideIcon }[];
+}
+
+const SUB_APP_PRESETS: Record<SubAppKey, SubAppPreset> = {
+  FA_MART: {
+    name: 'Mart',
+    primaryColor: '#1162D3',
+    textColor: '#1162D3',
+    tabs: [
+      { name: 'Home', icon: Home },
+      { name: 'Search', icon: Search },
+      { name: 'You', icon: User },
+      { name: 'Cart', icon: ShoppingBag },
+    ],
+  },
+  FOOD: {
+    name: 'Food',
+    primaryColor: '#1E5D44',
+    textColor: '#1E5D44',
+    tabs: [
+      { name: 'Home', icon: Home },
+      { name: 'Menu', icon: LayoutGrid },
+      { name: 'Cart', icon: ShoppingBag },
+    ],
+  },
+  PHARMA: {
+    name: 'Pharma',
+    primaryColor: '#FF7A59',
+    textColor: '#FF7A59',
+    tabs: [
+      { name: 'Home', icon: Home },
+      { name: 'Search', icon: Search },
+      { name: 'Cart', icon: ShoppingBag },
+      { name: 'History', icon: FileText },
+      { name: 'Donor', icon: Droplet },
+    ],
+  },
+};
+
+/** Never-undefined fallback so an unknown id degrades in-app instead of
+ *  dereferencing `config.tabs` on `undefined`. */
+const FALLBACK_SUB_APP_PRESET: SubAppPreset = {
+  name: 'Faazio',
+  primaryColor: '#1162D3',
+  textColor: '#1162D3',
+  tabs: [],
+};
+
+const SUPPORTED_SUB_APPS: readonly string[] = ['FA_MART', 'FOOD', 'PHARMA'];
 
 interface SubAppWrapperProps {
   subAppId: 'FA_MART' | 'FOOD' | 'PHARMA';
@@ -66,7 +124,7 @@ export default function SubAppWrapper({
   const [activeTab, setActiveTab] = useState<string>('Home');
   const [searchQuery, setSearchQuery] = useState('');
   const [martVendor, setMartVendor] = useState<StoreProfile | null>(() =>
-    subAppId === 'FA_MART' && initialVendorStoreId
+    subAppId === 'FA_MART' && initialVendorStoreId && Array.isArray(martStores)
       ? martStores.find((s) => s.id === initialVendorStoreId) ?? null
       : null,
   );
@@ -107,53 +165,28 @@ export default function SubAppWrapper({
     }, [handleBack]),
   );
 
-  const getConfig = () => {
-    const configPresets = {
-      FA_MART: {
-        name: 'Mart',
-        primaryColor: '#1162D3',
-        textColor: '#1162D3',
-        tabs: [
-          { name: 'Home', icon: Home },
-          { name: 'Search', icon: Search },
-          { name: 'You', icon: User },
-          { name: 'Cart', icon: ShoppingBag },
-        ],
-      },
-      FOOD: {
-        name: 'Food',
-        primaryColor: '#1E5D44',
-        textColor: '#1E5D44',
-        tabs: [
-          { name: 'Home', icon: Home },
-          { name: 'Menu', icon: LayoutGrid },
-          { name: 'Cart', icon: ShoppingBag },
-        ],
-      },
-      PHARMA: {
-        name: 'Pharma',
-        primaryColor: '#FF7A59',
-        textColor: '#FF7A59',
-        tabs: [
-          { name: 'Home', icon: Home },
-          { name: 'Search', icon: Search },
-          { name: 'Cart', icon: ShoppingBag },
-          { name: 'History', icon: FileText },
-          { name: 'Donor', icon: Droplet },
-        ],
-      },
-    };
-    return configPresets[subAppId];
-  };
-
-  const config = getConfig();
+  const config = SUB_APP_PRESETS[subAppId as SubAppKey] ?? FALLBACK_SUB_APP_PRESET;
 
   // With >4 tabs the fixed 56px items overflow narrow (320dp) screens, so widen
   // them to share the available bar width evenly when the count increases.
-  const tabCount = config.tabs.length;
-  const adaptiveTabWidth = (SCREEN_W - hs(48)) / tabCount;
+  const tabs = config.tabs;
+  const tabCount = tabs.length;
+  const adaptiveTabWidth = tabCount > 0 ? (SCREEN_W - hs(48)) / tabCount : 0;
 
   const compactHeader = subAppId === 'FA_MART' || subAppId === 'PHARMA';
+
+  // The pinned Mart category rail below the searchbar opens the category drill-in
+  // page for the tapped main category (same behaviour as the Home hub header's rail).
+  const handleRailCategoryPress = useCallback(
+    (item: CategoryRailItem) => {
+      navigation.navigate('CategoryDrillIn', {
+        tabId: item.id,
+        title: item.name,
+        app: 'FA_MART',
+      });
+    },
+    [navigation],
+  );
 
   // Mart hides its app chrome while a vendor profile drill-in is open
   // (martVendor != null).
@@ -165,6 +198,18 @@ export default function SubAppWrapper({
   // this flag; the navbar + paddingBottom keep using `isChromeHidden`.
   const donorRegistered = useBloodDonorStore((s) => s.registration !== null);
   const hideAppHeader = isChromeHidden || (subAppId === 'PHARMA' && activeTab === 'Donor' && donorRegistered);
+
+  if (!SUPPORTED_SUB_APPS.includes(subAppId)) {
+    return (
+      <View style={styles.unsupportedContainer}>
+        <AppText style={styles.unsupportedTitle}>Unsupported sub-app</AppText>
+        <AppText style={styles.unsupportedSub}>This section isn&apos;t available yet.</AppText>
+        <TouchableOpacity style={styles.unsupportedBtn} onPress={onExit} activeOpacity={0.8}>
+          <AppText style={styles.unsupportedBtnText}>Go back</AppText>
+        </TouchableOpacity>
+      </View>
+    );
+  }
 
   const HEADER_TITLES: Record<SubAppWrapperProps['subAppId'], string> = {
     FA_MART: 'Mart',
@@ -272,26 +317,26 @@ export default function SubAppWrapper({
 
   return (
     <View style={styles.container}>
-      {!hideAppHeader &&
-        (subAppId === 'FA_MART' ? (
-          <MartSubAppHeader
-            gradient={tokens.headerGradient}
-            textColor={tokens.headerTextColor}
-            onBack={handleBack}
-          />
-        ) : (
-          <SubAppHeader
-            title={HEADER_TITLES[subAppId]}
-            gradient={tokens.headerGradient}
-            textColor={tokens.headerTextColor}
-            onBack={handleBack}
-            searchValue={searchQuery}
-            onSearchChange={setSearchQuery}
-            searchPlaceholder={searchPlaceholder}
-            inputRef={searchInputRef}
-            hideBrandRow={compactHeader}
-          />
-        ))}
+      {!hideAppHeader && (
+        <SubAppHeader
+          title={HEADER_TITLES[subAppId]}
+          gradient={tokens.headerGradient}
+          textColor={tokens.headerTextColor}
+          onBack={handleBack}
+          searchValue={searchQuery}
+          onSearchChange={setSearchQuery}
+          searchPlaceholder={searchPlaceholder}
+          inputRef={searchInputRef}
+          hideBrandRow={compactHeader}
+          belowSearchSlot={
+            subAppId === 'FA_MART' ? (
+              <HeaderCategoryRail
+                onCategoryPress={handleRailCategoryPress}
+              />
+            ) : undefined
+          }
+        />
+      )}
 
       <View
         style={[
@@ -299,9 +344,7 @@ export default function SubAppWrapper({
           {
             paddingTop: hideAppHeader
               ? 0
-              : subAppId === 'FA_MART'
-                ? martSubAppHeaderH(insets.top)
-                : subAppHeaderH(insets.top, compactHeader),
+              : subAppHeaderH(insets.top, compactHeader, subAppId === 'FA_MART'),
             paddingBottom: isChromeHidden ? 0 : vs(72),
           },
         ]}
@@ -311,7 +354,7 @@ export default function SubAppWrapper({
 
       {!isChromeHidden && (
         <View style={styles.tabBar}>
-        {config.tabs.map((tab, idx) => {
+        {tabs.map((tab, idx) => {
           const isCurrent = activeTab === tab.name;
           const Icon = tab.icon;
           const activeColor = tokens.headerGradient[0];
@@ -645,5 +688,37 @@ const styles = StyleSheet.create({
     color: '#ffffff',
     fontWeight: '900',
     letterSpacing: 0.5,
+  },
+  unsupportedContainer: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: hs(24),
+    backgroundColor: '#ffffff',
+  },
+  unsupportedTitle: {
+    fontSize: ms(15),
+    fontWeight: '900',
+    color: '#1e293b',
+    marginBottom: vs(8),
+  },
+  unsupportedSub: {
+    fontSize: ms(11),
+    color: '#64748b',
+    textAlign: 'center',
+    marginBottom: vs(20),
+  },
+  unsupportedBtn: {
+    height: Math.max(44, vs(44)),
+    borderRadius: ms(12),
+    backgroundColor: '#1162D3',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: hs(24),
+  },
+  unsupportedBtnText: {
+    fontSize: ms(12),
+    color: '#ffffff',
+    fontWeight: '900',
   },
 });

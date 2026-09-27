@@ -63,6 +63,24 @@ adb devices            # must show "<id>  device"
   surface via the global `ErrorUtils` handler (`[Faazio:global-error]` in dev). Add remote
   telemetry (Sentry/Crashlytics) for production visibility — tracked in `PENDING_WORK.md`.
 
+## 🔧 "Something went wrong" error screen (Mart / Pharma sub-app)
+
+An error thrown while a sub-app is mounting is caught by the boundary and shows
+**"Something went wrong"**. Since release builds strip `console.*`, **read the thrown `message`
+rendered on the error card** (plus the first stack frame in a dev build) — that is the signal.
+
+- The **root** boundary (`scope="App"`, `AppNavigator`) wraps the whole navigator; the **scoped**
+  `scope="SubApp"` boundary in `SubAppScreen` contains a Mart/Pharma-only failure so Home/Food keep
+  working. Both offer **"Go to Home"** (resets navigation via `navigationRef`).
+- For a **full stack immediately**, run a local dev build (`npx expo run:android` + `npx expo start`)
+  — dev does **not** strip `console.*`, so the RedBox and `adb logcat -s ReactNativeJS` both show it.
+- Likely causes: an unknown `subAppId` (handler: "Unsupported sub-app" state, no crash), a bad
+  `initialVendorStoreId` (guarded), or a release-only native/keep-rule gap (message mentions
+  `requireNativeComponent` / `UIManager` / `Invariant Violation`).
+- **Reinstall caveat:** a debug build and a release APK are signed differently. After installing a
+  debug build, `adb uninstall com.faazio.customer` before installing a release APK (otherwise
+  `INSTALL_FAILED_UPDATE_INCOMPATIBLE` / "package appears to be invalid").
+
 ## 🔧 Stale / wrong app icon after an update
 
 - The launcher icon is baked into the APK at build time — it only changes on **reinstall**.

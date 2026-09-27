@@ -88,10 +88,16 @@ horizontal rails** of randomized cards drawn from a combined pool of **Food + Ma
 products (`TODAYS_SPECIALS` via `dishToProduct`, `recentlyViewedMart`, `hotBrandDeals`,
 `recentlyViewedPharma`). Each rail scrolls horizontally on its own (no shared scroll state); the
 mix is sampled once per mount so re-renders don't reshuffle. Cards are the shared
-`UniversalFeedCard` (`variant="rail"`, `hs(150)` wide, **square 1:1** image with **rounded
+`UniversalFeedCard` (`variant="rail"`, `hs(116)` wide, **square 1:1** image with **rounded
 corners**) — the same styling as the "Daily Essentials" (Deals of the day) rail. Rating, price,
 badges and the add-to-cart control are hidden (`showRating`/`showPrice`/`showBadge`/`showAddButton`
-off); taps open the shared `CommonProductDetailView`.
+off); taps open the shared `CommonProductDetailView`. Each rail samples up to `CARDS_PER_RAIL`
+(10) items.
+
+**Food "Today's Special Near You"** (`features/food/components/SpecialDishCard.tsx`, consumed only
+by `FeaturedDishCarousel` ← `FoodHomeScreen`): compact `hs(116)`-wide card — a **square**
+(`aspectRatio: 1`) dish image on top, then the dish name / restaurant / price stacked underneath
+(no image overlay); the card height is content-driven.
 
 The **Mart Product Detail** (`CommonProductDetailView`) renders a store section below the
 "Product Details" block for any MART product with a resolvable `storeId`: a store card
@@ -268,6 +274,13 @@ paginated reads from `@data/*` — the contract the future Go Chi gateway will f
 - **Global error handler** — `ErrorUtils.setGlobalHandler` is installed at module scope so
   synchronous JS/render errors are not silently swallowed in release builds (where `babel` strips
   all `console.*`). Logs via `[Faazio:global-error]` in dev; production telemetry is a backlog item.
+- **Error boundaries & recovery** — `components/ErrorBoundary.tsx` shows a recoverable card that
+  always renders the thrown `message` (plus the first stack frame in dev) — release builds strip
+  `console.*`, so this is the only in-app signal. The root boundary in `AppNavigator` (`scope="App"`)
+  wraps the whole navigator and offers **"Go to Home"**; `SubAppScreen` adds a **scoped**
+  `scope="SubApp"` boundary so a Mart/Pharma render failure degrades inside the sub-app instead of
+  blanking the app. Recovery resets navigation via `navigationRef`
+  (`src/navigation/navigationRef.ts`, wired as `ref` on `NavigationContainer`).
 - **Splash failsafe** — `SplashScreen.hideAsync()` is force-called after `SPLASH_TIMEOUT_MS` (10 s)
   even if fonts/hydration stall, preventing a stuck native splash that would trigger an ANR.
 - **Branded splash minimum** — the cold-start splash (`SplashFallback` `royal` variant) shows the

@@ -1111,3 +1111,34 @@ The Mart **header** search + header category rail are untouched. `VendorCategory
 (only used by this rail); `usePagedRail` remains in use by the header rail.
 
 **Date:** 2026-09-16
+
+## Sub-app crash hardening — visible, scoped, recoverable
+
+**Status:** 🟢 Shipped (client-side).
+
+**Feature:** A render error while Mart/Pharma mounts previously blanked the whole navigator with an
+opaque "Something went wrong" card, and release builds strip `console.*` so the cause was invisible.
+- `components/ErrorBoundary.tsx` now takes `scope` / `onReset`, always renders the thrown `message`
+  (first stack frame in dev only), and offers **"Go to Home"** alongside "Try again" (reset
+  navigation via `navigationRef`, `src/navigation/navigationRef.ts`).
+- `SubAppScreen` wraps `SubAppWrapper` in a **scoped** `scope="SubApp"` boundary so a sub-app-only
+  failure degrades in place and Home/Food keep working; it also guards an absent `route.params`.
+- `SubAppWrapper` derives its config from a module-scope `SUB_APP_PRESETS` with a
+  **never-undefined fallback** + an in-app "Unsupported sub-app" state (no more `config.tabs` on
+  `undefined`), and guards `initialVendorStoreId` (`Array.isArray(martStores)`).
+- Header consolidation finished: one `SubAppHeader` for all sub-apps (Mart pins `HeaderCategoryRail`
+  via `belowSearchSlot`); `MartSubAppHeader.tsx` + `SubAppHeaderBackdrop.tsx` deleted.
+
+**Date:** 2026-09-27
+
+## Smaller "Today's Special" cards (Home + Food)
+
+**Status:** 🟢 Shipped (client-side).
+
+**Feature:** Food's **"Today's Special Near You"** card (`SpecialDishCard.tsx`) is rebuilt as a
+compact `hs(116)`-wide card — **square** (`aspectRatio: 1`) image on top, dish name / restaurant /
+price stacked below, no gradient overlay (the old 175×250 portrait card). On Home, the
+`diningSpecials` rails shrink from `hs(150)` → `hs(116)` (`DiningSpecialsSection.tsx`), rails
+tightened (`paddingBottom vs(8)`, `marginTop vs(4)`) and `CARDS_PER_RAIL` 8 → 10.
+
+**Date:** 2026-09-27

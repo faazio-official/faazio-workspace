@@ -3,36 +3,79 @@ import { StyleSheet, View, Text, TouchableOpacity } from 'react-native';
 
 interface ErrorBoundaryProps {
   children: React.ReactNode;
+  /** Short label shown with the message, e.g. "SubApp" or "App". */
+  scope?: string;
+  /** When provided, a "Go to Home" action is offered to escape the broken tree. */
+  onReset?: () => void;
 }
 
 interface ErrorBoundaryState {
   hasError: boolean;
+  error: Error | null;
 }
 
+/**
+ * Catches render/lifecycle errors in its subtree and shows a recoverable card.
+ *
+ * The thrown `message` is always surfaced (release builds strip `console.*`, so
+ * this is often the only signal) and the first stack frame is shown in dev.
+ * Never render props/route params here — message + stack only (PII-free).
+ */
 export class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoundaryState> {
-  state: ErrorBoundaryState = { hasError: false };
+  state: ErrorBoundaryState = { hasError: false, error: null };
 
-  static getDerivedStateFromError(): ErrorBoundaryState {
-    return { hasError: true };
+  static getDerivedStateFromError(error: Error): ErrorBoundaryState {
+    return { hasError: true, error };
   }
 
   componentDidCatch(error: Error, info: React.ErrorInfo) {
-    console.error('[ErrorBoundary]', error, info);
+    console.error('[ErrorBoundary]', this.props.scope ?? 'app', error, info);
   }
 
   private reset = () => {
-    this.setState({ hasError: false });
+    this.setState({ hasError: false, error: null });
+  };
+
+  private goHome = () => {
+    this.setState({ hasError: false, error: null });
+    this.props.onReset?.();
   };
 
   render() {
     if (this.state.hasError) {
+      const { scope, onReset } = this.props;
+      const error = this.state.error;
+      const firstFrame = __DEV__ ? error?.stack?.split('\n')[1]?.trim() : undefined;
+
       return (
         <View style={styles.container}>
           <Text style={styles.title}>Something went wrong</Text>
           <Text style={styles.subtitle}>An unexpected error occurred. Please try again.</Text>
-          <TouchableOpacity style={styles.button} onPress={this.reset} activeOpacity={0.8}>
-            <Text style={styles.buttonText}>Try again</Text>
-          </TouchableOpacity>
+          {!!scope && <Text style={styles.scope}>{scope}</Text>}
+          {!!error?.message && (
+            <Text style={styles.message} numberOfLines={4}>
+              {error.message}
+            </Text>
+          )}
+          {!!firstFrame && (
+            <Text style={styles.stack} numberOfLines={2}>
+              {firstFrame}
+            </Text>
+          )}
+          <View style={styles.actions}>
+            <TouchableOpacity style={styles.button} onPress={this.reset} activeOpacity={0.8}>
+              <Text style={styles.buttonText}>Try again</Text>
+            </TouchableOpacity>
+            {!!onReset && (
+              <TouchableOpacity
+                style={[styles.button, styles.secondaryButton]}
+                onPress={this.goHome}
+                activeOpacity={0.8}
+              >
+                <Text style={[styles.buttonText, styles.secondaryButtonText]}>Go to Home</Text>
+              </TouchableOpacity>
+            )}
+          </View>
         </View>
       );
     }
@@ -58,7 +101,32 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: '#64748b',
     textAlign: 'center',
-    marginBottom: 20,
+    marginBottom: 12,
+  },
+  scope: {
+    fontSize: 11,
+    fontWeight: '800',
+    color: '#1162D3',
+    letterSpacing: 0.5,
+    textTransform: 'uppercase',
+    marginBottom: 6,
+  },
+  message: {
+    fontSize: 12,
+    color: '#334155',
+    textAlign: 'center',
+    marginBottom: 6,
+  },
+  stack: {
+    fontSize: 10,
+    color: '#94a3b8',
+    textAlign: 'center',
+    marginBottom: 12,
+  },
+  actions: {
+    flexDirection: 'row',
+    gap: 12,
+    marginTop: 8,
   },
   button: {
     height: 44,
@@ -68,9 +136,15 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     paddingHorizontal: 24,
   },
+  secondaryButton: {
+    backgroundColor: '#eef2ff',
+  },
   buttonText: {
     color: '#ffffff',
     fontSize: 14,
     fontWeight: '800',
+  },
+  secondaryButtonText: {
+    color: '#1162D3',
   },
 });

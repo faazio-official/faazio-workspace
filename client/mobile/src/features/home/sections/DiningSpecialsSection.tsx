@@ -8,8 +8,8 @@ import UniversalFeedCard from '@/features/home/cards/UniversalFeedCard';
 import { SectionHeader } from './common';
 import type { SectionProps } from './common';
 
-const DEAL_CARD_W = hs(150);
-const CARDS_PER_RAIL = 8;
+const DEAL_CARD_W = hs(116);
+const CARDS_PER_RAIL = 10;
 
 function shuffle<T>(arr: T[]): T[] {
   const a = [...arr];
@@ -78,9 +78,9 @@ const styles = StyleSheet.create({
   scroll: {
     paddingLeft: hs(16),
     paddingRight: hs(4),
-    paddingBottom: vs(12),
+    paddingBottom: vs(8),
   },
   secondRail: {
-    marginTop: vs(8),
+    marginTop: vs(4),
   },
 });

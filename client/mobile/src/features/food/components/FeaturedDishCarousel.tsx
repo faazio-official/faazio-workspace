@@ -11,7 +11,7 @@ interface FeaturedDishCarouselProps {
 }
 
 /**
- * "Today's Special Near You" — horizontal rail of clean 175×250 food cards.
+ * "Today's Special Near You" — horizontal rail of compact square-image cards.
  */
 const FeaturedDishCarousel = memo(function FeaturedDishCarousel({
   dishes,

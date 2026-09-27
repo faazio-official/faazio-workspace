@@ -1,14 +1,12 @@
 import React, { memo } from 'react';
 import { View, TouchableOpacity, StyleSheet } from 'react-native';
-import { LinearGradient } from 'expo-linear-gradient';
 import AppText from '@/components/AppText';
 import { hs, ms, vs } from '@/utils/responsive';
 import { foodTheme } from '../constants/theme';
 import type { SpecialDish } from '../mocks/types';
 import RemoteImage from './RemoteImage';
 
-export const SPECIAL_CARD_W = 175;
-export const SPECIAL_CARD_H = 250;
+export const SPECIAL_CARD_W = hs(116);
 
 interface SpecialDishCardProps {
   dish: SpecialDish;
@@ -16,9 +14,8 @@ interface SpecialDishCardProps {
 }
 
 /**
- * Portrait special-dish card — close-up food fills the card, a dark gradient
- * rises from the bottom and the dish name / restaurant / price sit overlaid on
- * the image in white.
+ * Compact special-dish card — a square dish image with the name / restaurant /
+ * price stacked underneath (no image overlay). Sized to the content height.
  */
 const SpecialDishCard = memo(function SpecialDishCard({ dish, onPress }: SpecialDishCardProps) {
   return (
@@ -30,13 +27,8 @@ const SpecialDishCard = memo(function SpecialDishCard({ dish, onPress }: Special
       accessibilityLabel={`${dish.dishName} from ${dish.restaurant}, ₹${dish.price}`}
     >
       <RemoteImage uri={dish.image} variant="dish" style={styles.image} />
-      <LinearGradient
-        colors={['rgba(0,0,0,0)', 'rgba(0,0,0,0.28)', 'rgba(0,0,0,0.78)']}
-        locations={[0, 0.45, 1]}
-        style={StyleSheet.absoluteFill}
-      />
       <View style={styles.content}>
-        <AppText style={styles.dishName} numberOfLines={2}>
+        <AppText style={styles.dishName} numberOfLines={1}>
           {dish.dishName}
         </AppText>
         <AppText style={styles.restaurant} numberOfLines={1}>
@@ -53,7 +45,6 @@ export default SpecialDishCard;
 const styles = StyleSheet.create({
   card: {
     width: SPECIAL_CARD_W,
-    height: SPECIAL_CARD_H,
     marginRight: hs(12),
     borderRadius: ms(12),
     backgroundColor: foodTheme.card,
@@ -62,33 +53,28 @@ const styles = StyleSheet.create({
   },
   image: {
     width: '100%',
-    height: '100%',
+    aspectRatio: 1,
   },
   content: {
-    position: 'absolute',
-    left: 0,
-    right: 0,
-    bottom: 0,
-    paddingHorizontal: hs(12),
-    paddingBottom: vs(12),
-    paddingTop: vs(40),
+    paddingHorizontal: hs(10),
+    paddingTop: vs(8),
+    paddingBottom: vs(10),
   },
   dishName: {
-    fontSize: ms(15),
+    fontSize: ms(12.5),
     fontWeight: '700',
-    color: foodTheme.white,
-    lineHeight: ms(19),
+    color: foodTheme.textPrimary,
   },
   restaurant: {
-    fontSize: ms(12),
+    fontSize: ms(10.5),
     fontWeight: '400',
-    color: 'rgba(255,255,255,0.85)',
+    color: foodTheme.textSecondary,
     marginTop: vs(2),
   },
   price: {
-    fontSize: ms(15),
+    fontSize: ms(12.5),
     fontWeight: '700',
-    color: foodTheme.white,
+    color: foodTheme.primary,
     marginTop: vs(5),
   },
 });

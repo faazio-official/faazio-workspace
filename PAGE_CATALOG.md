@@ -101,7 +101,7 @@
 
 | # | Screen | File | Lines | Description |
 |---|--------|------|-------|-------------|
-| S0 | **Sub-App Shell** | `src/components/SubAppWrapper.tsx` | full (671) | Header, viewport, bottom tabs, exit modal |
+| S0 | **Sub-App Shell** | `src/components/SubAppWrapper.tsx` | full (671) | Unified sub-app header, viewport, bottom tabs; wrapped by a scoped `ErrorBoundary` |
 
 #### Sub-App Shell sub-sections:
 
@@ -252,7 +252,7 @@
 
 | # | Screen | File | Lines | Status | Notes |
 |---|--------|------|-------|--------|-------|
-| RN10 | **SubAppWrapper** | `src/components/SubAppWrapper.tsx` | 799 | ✅ Active | Shell + exit modal + tabs |
+| RN10 | **SubAppWrapper** | `src/components/SubAppWrapper.tsx` | 799 | ✅ Active | Shell + unified sub-app header + tabs; scoped error boundary on the `SubApp` route |
 
 #### Sub-App: Food (rendered by SubAppWrapper)
 
@@ -339,7 +339,7 @@ relative to `client/mobile/`. These were previously undocumented / stale in this
 | `Search` | **SearchRouteScreen** | `src/features/search/SearchRouteScreen.tsx` | First-class cross-sub-app search (Food keeps its own nested Search). Product sub-apps (Mart/Pharma/Home Hub) show Flipkart-style type-ahead suggestions while typing; results render one-per-row via `SearchProductRowCard` with a one-line vendor header above each row. |
 | `ProductDetail` | **ProductDetailScreen** | `src/features/product/ProductDetailScreen.tsx` | Shared product detail; view component = `CommonProductDetailView.tsx`. For MART products with a `storeId`, a store section renders below "Product Details" (store card + "More from {store}" related grid + **View Vendor** → `SubApp` with `initialVendorStoreId`). For FOOD products, the restaurant store section is tappable + has a **View Restaurant** button (`onViewRestaurant`) that deep-links into nested `FoodApp → RestaurantProfile` via `getDiningRestaurantForProduct` (`features/food/utils/restaurantForProduct.ts`). |
 | `PaymentOptions` | **PaymentOptionsScreen** | `src/features/cart/payment/PaymentOptionsScreen.tsx` | Standalone payment picker (also used as CartView PAYMENT step). |
-| `FoodApp` | **FoodStack** | `src/navigation/FoodStack.tsx` | Nested food stack (dining-first): FoodHome → Search → `RestaurantProfile` → `RestaurantOffers`. Search is **dishes-only** (toggle-less, edge-to-edge `SearchDishCard`); `RestaurantProfile`'s "Recommended & Offers" rail shows only the current restaurant's own dishes, with each deal-card image carrying the shared **'AD' pill** (`AdLabelBadge`) bottom-right; `RestaurantOffers` (reached via "View All") is the same restaurant-only set as a searchable, edge-to-edge result list. Restaurant menu + offers + search + FOOD product-detail first-adds are **direct** (the old `FoodAddModeSheet` fulfilment gate was removed — the mode is chosen later on the cart BAG step as an order-level Delivery / Self Pickup toggle). FoodHome is a single scroll surface = Dining content (Top Rated carousel, Today's Special) + the "What's on your mind?" and "Snacks & Beverages" order rails + the "Restaurants For Dining" grid; 2-tab bottom nav (Home / Search) + You/Cart. |
+| `FoodApp` | **FoodStack** | `src/navigation/FoodStack.tsx` | Nested food stack (dining-first): FoodHome → Search → `RestaurantProfile` → `RestaurantOffers`. Search is **dishes-only** (toggle-less, edge-to-edge `SearchDishCard`); `RestaurantProfile`'s "Recommended & Offers" rail shows only the current restaurant's own dishes, with each deal-card image carrying the shared **'AD' pill** (`AdLabelBadge`) bottom-right; `RestaurantOffers` (reached via "View All") is the same restaurant-only set as a searchable, edge-to-edge result list. Restaurant menu + offers + search + FOOD product-detail first-adds are **direct** (the old `FoodAddModeSheet` fulfilment gate was removed — the mode is chosen later on the cart BAG step as an order-level Delivery / Self Pickup toggle). FoodHome is a single scroll surface = Dining content (Top Rated carousel, Today's Special) + the "What's on your mind?" and "Snacks & Beverages" order rails + the "Restaurants For Dining" grid; 2-tab bottom nav (Home / Search) + You/Cart. Food's "Today's Special Near You" rail uses compact `hs(116)` square-image cards with the text stacked below (`SpecialDishCard`). |
 
 > **Stale-entries note:** RN5–RN8 above still reference Vite-style `src/components/*` paths
 > (`HomeView`, `CategoriesView`, `FavouritesView`, `AccountView`). The current RN hub tabs live

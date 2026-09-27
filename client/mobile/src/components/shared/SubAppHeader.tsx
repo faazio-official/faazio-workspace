@@ -3,10 +3,10 @@ import { StyleSheet, View, TouchableOpacity } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { TextInput } from 'react-native';
 import { ArrowLeft, Search } from 'lucide-react-native';
-import { hs, vs, ms } from '@/utils/responsive';
+import Svg, { Defs, LinearGradient as SvgGrad, Stop, Rect as SvgRect, Circle as SvgCircle } from 'react-native-svg';
+import { SCREEN_W, hs, vs, ms } from '@/utils/responsive';
 import AppText from '@/components/AppText';
 import AppTextInput from '@/components/AppTextInput';
-import SubAppHeaderBackdrop from './SubAppHeaderBackdrop';
 
 const SUB_HEADER_TOP_GAP = vs(12);
 const SUB_HEADER_ROW_H = vs(24);
@@ -16,7 +16,7 @@ const SUB_HEADER_BOTTOM_PAD = vs(12);
 /** Height of the sub-app header rail slot, mirroring the Home hub `HEADER_RAIL_H`. */
 const SUB_HEADER_RAIL_H = vs(30);
 /** Height of the sub-app header, incl. the OS status-bar inset. Pass `withRail`
- *  when a `belowSearchSlot` (e.g. a pinned category rail) is rendered. */
+ *  when a `belowSearchSlot` (e.g. the pinned Mart category rail) is rendered. */
 export const subAppHeaderH = (topInset: number, compact: boolean, withRail = false) =>
   topInset +
   SUB_HEADER_TOP_GAP +
@@ -36,7 +36,7 @@ interface SubAppHeaderProps {
   rightSlot?: React.ReactNode;
   inputRef?: React.RefObject<TextInput | null>;
   hideBrandRow?: boolean;
-  /** Rendered below the search row (e.g. a pinned category rail). */
+  /** Rendered below the search row (e.g. the pinned Mart category rail). */
   belowSearchSlot?: React.ReactNode;
 }
 
@@ -58,7 +58,17 @@ export default function SubAppHeader({
   const withRail = !!belowSearchSlot;
   return (
     <View style={[styles.headerOuter, { height: subAppHeaderH(topInset, hideBrandRow, withRail) }]}>
-      <SubAppHeaderBackdrop gradient={gradient} />
+      <Svg style={StyleSheet.absoluteFill}>
+        <Defs>
+          <SvgGrad id="subHeaderGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+            <Stop offset="0%" stopColor={gradient[0]} />
+            <Stop offset="100%" stopColor={gradient[1]} />
+          </SvgGrad>
+        </Defs>
+        <SvgRect width="100%" height="100%" fill="url(#subHeaderGrad)" />
+        <SvgCircle cx={SCREEN_W * 1.1} cy={vs(-20)} r={ms(96)} fill="rgba(255,255,255,0.05)" />
+        <SvgCircle cx={hs(-30)} cy={vs(120)} r={ms(96)} fill="rgba(255,255,255,0.04)" />
+      </Svg>
       <View style={[styles.headerContent, hideBrandRow && styles.headerContentCompact, { paddingTop: topInset + SUB_HEADER_TOP_GAP }]}>
         {!hideBrandRow && (
           <View style={styles.headerTopRow}>
