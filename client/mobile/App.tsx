@@ -1,10 +1,11 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { ErrorUtils, View, StyleSheet } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import * as SplashScreen from 'expo-splash-screen';
 import { DefaultTheme, NavigationContainer } from '@react-navigation/native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { AppNavigator } from './src/navigation/AppNavigator';
+import { navigationRef } from './src/navigation/navigationRef';
 import { SplashFallback } from './src/components/SplashFallback';
 import { useAuthStore } from './src/state/authStore';
 import { useLanguageStore } from './src/state/languageStore';
@@ -12,7 +13,11 @@ import { useAppFonts, resolveFontFamily } from './src/theme/fonts';
 
 // If a native module (SecureStore/AsyncStorage/fonts) hangs, the splash would
 // otherwise stay up forever and trigger an ANR. Force-dismiss past this budget.
-const SPLASH_TIMEOUT_MS = 8000;
+// Budget keeps the branded splash up for the 5s minimum plus headroom.
+const SPLASH_TIMEOUT_MS = 10000;
+
+// Branded splash stays visible for at least this long on cold start.
+const SPLASH_MIN_DISPLAY_MS = 5000;
 
 /**
  * Routes synchronous JS/render errors to a single logger so crashes are not
@@ -85,6 +90,8 @@ SplashScreen.preventAutoHideAsync().catch(() => {});
 export default function App() {
   const [fontsLoaded, fontError] = useAppFonts();
   const [ready, setReady] = useState(false);
+  const [minSplashDone, setMinSplashDone] = useState(false);
+  const mountedAt = useRef(Date.now());
   const hydrateAuth = useAuthStore((s) => s.hydrate);
   const hydrateLanguage = useLanguageStore((s) => s.hydrate);
 
@@ -121,7 +128,18 @@ export default function App() {
 
   useEffect(() => {
     if (fontsLoaded && ready) {
-      SplashScreen.hideAsync().catch(() => {});
+      const remaining = SPLASH_MIN_DISPLAY_MS - (Date.now() - mountedAt.current);
+      if (remaining <= 0) {
+        setMinSplashDone(true);
+        SplashScreen.hideAsync().catch(() => {});
+        return;
+      }
+      // Keep the branded splash up for the minimum display window.
+      const timer = setTimeout(() => {
+        setMinSplashDone(true);
+        SplashScreen.hideAsync().catch(() => {});
+      }, remaining);
+      return () => clearTimeout(timer);
     }
   }, [fontsLoaded, ready]);
 
@@ -129,7 +147,7 @@ export default function App() {
     return <SplashFallback variant="royal" />;
   }
 
-  if (!ready) {
+  if (!ready || !minSplashDone) {
     return <SplashFallback variant="royal" />;
   }
 
@@ -137,7 +155,7 @@ export default function App() {
     <SafeAreaProvider>
       <View style={styles.container}>
         <StatusBar style="dark" />
-        <NavigationContainer theme={navigationTheme}>
+        <NavigationContainer ref={navigationRef} theme={navigationTheme}>
           <AppNavigator />
         </NavigationContainer>
       </View>
