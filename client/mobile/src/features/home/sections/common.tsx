@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { View, TouchableOpacity, StyleSheet } from 'react-native';
 import { hs, vs, ms } from '@/utils/responsive';
+import { SPACE } from '@/theme/spacing';
 import type { SubAppId } from '@/state/uiStore';
 import type { AppBrand } from '@data/types';
 import AppText from '@/components/AppText';
@@ -78,8 +79,8 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     paddingHorizontal: hs(16),
-    marginTop: vs(14),
-    marginBottom: vs(10),
+    marginTop: SPACE.SECTION,
+    marginBottom: SPACE.BLOCK,
   },
   headerTitleGroup: {
     flexDirection: 'row',

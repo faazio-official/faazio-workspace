@@ -15,6 +15,7 @@ import Svg, {
   Rect,
 } from 'react-native-svg';
 import { SCREEN_W, hs, vs, ms, wp, hp, DOME_RADIUS } from '@/utils/responsive';
+import { SPACE } from '@/theme/spacing';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import phoneAuthBackgroundImg from '@/assets/phone_auth_background.webp';
@@ -594,7 +595,7 @@ const styles = StyleSheet.create({
     textTransform: 'uppercase',
     letterSpacing: -0.5,
   },
-  formContainer: { flex: 1, alignItems: 'center', justifyContent: 'flex-start', paddingTop: vs(20) },
+  formContainer: { flex: 1, alignItems: 'center', justifyContent: 'flex-start', paddingTop: SPACE.SECTION },
   phoneInputRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -625,12 +626,12 @@ const styles = StyleSheet.create({
     fontSize: ms(10),
     color: 'rgba(255, 255, 255, 0.9)',
     textAlign: 'center',
-    marginTop: vs(14),
+    marginTop: SPACE.BLOCK,
     paddingHorizontal: hs(8),
     lineHeight: ms(16),
   },
   termsLink: { fontWeight: '800', textDecorationLine: 'underline' },
-  loaderContainer: { minHeight: Math.max(44, vs(44)), marginTop: vs(14), alignItems: 'center', justifyContent: 'center' },
+  loaderContainer: { minHeight: Math.max(44, vs(44)), marginTop: SPACE.BLOCK, alignItems: 'center', justifyContent: 'center' },
   loadingPill: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -702,8 +703,8 @@ const styles = StyleSheet.create({
     borderTopLeftRadius: DOME_RADIUS,
     borderTopRightRadius: DOME_RADIUS,
   },
-  otpWhiteContent: { flex: 1, paddingVertical: vs(32), paddingHorizontal: hs(24), alignItems: 'center' },
-  otpPromptContainer: { alignItems: 'center', marginBottom: vs(20) },
+  otpWhiteContent: { flex: 1, paddingVertical: SPACE.SECTION, paddingHorizontal: hs(24), alignItems: 'center' },
+  otpPromptContainer: { alignItems: 'center', marginBottom: SPACE.SECTION },
   securePromptSub: { fontSize: ms(10), fontWeight: '700', color: '#94a3b8', textTransform: 'uppercase', letterSpacing: 1.5, marginBottom: vs(6) },
   securePromptMain: { fontSize: ms(18), fontWeight: '900', color: '#1e293b', marginBottom: vs(2) },
   securePromptPhone: { fontSize: ms(20), fontWeight: '900', color: '#2f80ed', letterSpacing: 0.5 },
@@ -735,7 +736,7 @@ const styles = StyleSheet.create({
     shadowRadius: 4,
     elevation: 3,
   },
-  otpFooterContainer: { width: '100%', alignItems: 'center', paddingBottom: vs(56), gap: vs(24) },
+  otpFooterContainer: { width: '100%', alignItems: 'center', paddingBottom: SPACE.LIST_BOTTOM, gap: SPACE.SECTION },
   errorToast: {
     flexDirection: 'row',
     alignItems: 'center',

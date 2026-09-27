@@ -19,6 +19,7 @@ import {
 } from 'lucide-react-native';
 import type { LucideIcon } from 'lucide-react-native';
 import { hs, vs, ms } from '@/utils/responsive';
+import { SPACE } from '@/theme/spacing';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import AppText from '@/components/AppText';
 import {
@@ -292,7 +293,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: hs(16),
-    paddingBottom: vs(12),
+    paddingBottom: SPACE.BLOCK,
     backgroundColor: '#ffffff',
   },
   backBtn: {
@@ -315,7 +316,7 @@ const styles = StyleSheet.create({
   },
   chipsContent: {
     paddingHorizontal: hs(16),
-    paddingBottom: vs(16),
+    paddingBottom: SPACE.BLOCK,
   },
   chip: {
     flexDirection: 'row',
@@ -349,7 +350,7 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     paddingHorizontal: hs(16),
-    paddingBottom: vs(20),
+    paddingBottom: SPACE.SECTION,
   },
   categoryCard: {
     backgroundColor: '#ffffff',
@@ -357,14 +358,14 @@ const styles = StyleSheet.create({
     padding: hs(16),
     borderWidth: 1,
     borderColor: '#F0F0F0',
-    marginTop: vs(16),
-    marginBottom: vs(12),
+    marginTop: SPACE.SECTION,
+    marginBottom: SPACE.ITEM,
   },
   catHeader: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    marginBottom: vs(16),
+    marginBottom: SPACE.BLOCK,
   },
   catHeaderLeft: {
     flexDirection: 'row',
@@ -387,7 +388,7 @@ const styles = StyleSheet.create({
   },
   itemRow: {
     flexDirection: 'row',
-    paddingVertical: vs(12),
+    paddingVertical: SPACE.ITEM,
   },
   itemRowBorder: {
     borderBottomWidth: 1,
@@ -474,8 +475,8 @@ const styles = StyleSheet.create({
   bottomBar: {
     backgroundColor: '#E8F5E9',
     paddingHorizontal: hs(16),
-    paddingTop: vs(12),
-    paddingBottom: vs(24),
+    paddingTop: SPACE.BLOCK,
+    paddingBottom: SPACE.SECTION,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
@@ -526,10 +527,10 @@ const styles = StyleSheet.create({
     borderRadius: ms(16),
     borderWidth: 1,
     borderColor: '#F0F0F0',
-    paddingVertical: vs(48),
+    paddingVertical: SPACE.LIST_BOTTOM,
     paddingHorizontal: hs(16),
     alignItems: 'center',
-    marginTop: vs(16),
+    marginTop: SPACE.SECTION,
   },
   emptyIconCircle: {
     width: ms(56),
@@ -538,7 +539,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#FFF1F2',
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: vs(12),
+    marginBottom: SPACE.BLOCK,
   },
   emptyTitle: {
     fontSize: ms(15),
@@ -553,7 +554,7 @@ const styles = StyleSheet.create({
     lineHeight: ms(18),
   },
   emptyAction: {
-    marginTop: vs(16),
+    marginTop: SPACE.SECTION,
     backgroundColor: '#118C4F',
     borderRadius: ms(8),
     paddingHorizontal: hs(16),

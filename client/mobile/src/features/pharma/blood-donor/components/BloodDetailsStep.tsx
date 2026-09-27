@@ -1,7 +1,8 @@
 import React from 'react';
 import { StyleSheet, View } from 'react-native';
 import AppText from '@/components/AppText';
-import { hs, vs, ms } from '@/utils/responsive';
+import { hs, ms } from '@/utils/responsive';
+import { SPACE } from '@/theme/spacing';
 import { BLOOD_GROUPS } from '@data/index';
 import type { BloodGroup, BloodDonorDraft } from '@data/index';
 import { InfoBanner } from './InfoBanner';
@@ -30,10 +31,10 @@ export function BloodDetailsStep({ draft, onUpdate }: BloodDetailsStepProps) {
 
 const styles = StyleSheet.create({
   section: {
-    gap: vs(24),
+    gap: SPACE.SECTION,
   },
   block: {
-    gap: vs(10),
+    gap: SPACE.BLOCK,
   },
   label: {
     fontSize: ms(14),

@@ -1,6 +1,7 @@
 import React from 'react';
 import { View, ScrollView, StyleSheet } from 'react-native';
 import { hs, vs, ms } from '@/utils/responsive';
+import { SPACE } from '@/theme/spacing';
 import { brandTokens } from '@/theme/brandTokens';
 import MartProductCard from '@/features/ecommerce/cards/MartProductCard';
 import FoodProductCard from '@/features/food/cards/FoodProductCard';
@@ -65,7 +66,7 @@ function renderRail(node: SDUINode, { onProductClick, onAddToCart, cartQuantitie
 
 function renderSection(node: SDUINode, { onProductClick, onAddToCart, cartQuantities, addedIds, favorites, onToggleFavorite }: SDUIRendererProps) {
   if (node.type !== 'Section') return null;
-  const spacing = node.spacing === 'sm' ? vs(8) : node.spacing === 'lg' ? vs(24) : vs(16);
+  const spacing = node.spacing === 'sm' ? SPACE.ITEM : node.spacing === 'lg' ? SPACE.SECTION : SPACE.BLOCK;
   return (
     <View style={{ marginBottom: spacing }}>
       {node.title && <AppText style={sectionStyles.title}>{node.title}</AppText>}

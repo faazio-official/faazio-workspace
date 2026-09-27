@@ -2,6 +2,7 @@ import React, { memo, useEffect, useMemo, useRef, useState } from 'react';
 import { View, StyleSheet, FlatList, TouchableOpacity, ActivityIndicator, type TextInput, type NativeSyntheticEvent, type NativeScrollEvent } from 'react-native';
 import { Search, ArrowRight } from 'lucide-react-native';
 import { hs, ms, vs } from '@/utils/responsive';
+import { SPACE } from '@/theme/spacing';
 import AppText from '@/components/AppText';
 import { useSearchStore } from '@/state/searchStore';
 import SearchHeader from './SearchHeader';
@@ -311,7 +312,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#F5F5F5',
   },
   listContent: {
-    paddingTop: vs(10),
+    paddingTop: SPACE.BLOCK,
     paddingBottom: vs(120),
     flexGrow: 1,
   },
@@ -347,8 +348,8 @@ const styles = StyleSheet.create({
   },
   emptyLinks: {
     alignItems: 'center',
-    marginTop: vs(14),
-    gap: vs(10),
+    marginTop: SPACE.BLOCK,
+    gap: SPACE.BLOCK,
   },
   emptyLink: {
     flexDirection: 'row',

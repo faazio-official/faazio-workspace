@@ -4,6 +4,7 @@ import { ArrowLeft } from 'lucide-react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { hs, ms, vs } from '@/utils/responsive';
+import { SPACE } from '@/theme/spacing';
 import AppText from '@/components/AppText';
 import type { Product } from '@data/types';
 import { adCampaigns, getCampaignProducts, getCampaignStore } from '@data/home/campaigns';
@@ -180,14 +181,14 @@ const styles = StyleSheet.create({
   },
   listContent: {
     padding: hs(16),
-    paddingBottom: vs(40),
+    paddingBottom: SPACE.LIST_BOTTOM,
   },
   productRow: {
     gap: CARD_GAP,
-    marginBottom: vs(16),
+    marginBottom: SPACE.ITEM,
   },
   hero: {
-    marginBottom: vs(16),
+    marginBottom: SPACE.BLOCK,
   },
   heroBrand: {
     fontSize: ms(20),

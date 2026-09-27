@@ -1,6 +1,7 @@
 import React, { memo } from 'react';
 import { StyleSheet } from 'react-native';
 import { hs, vs } from '@/utils/responsive';
+import { SPACE } from '@/theme/spacing';
 import { topAdSlides } from '@data/home/rails';
 import { AdBannerCarousel } from '@/components/shared';
 import { subAppIdFor } from './common';
@@ -27,6 +28,6 @@ const styles = StyleSheet.create({
   carousel: {
     marginHorizontal: hs(16),
     marginTop: vs(4),
-    marginBottom: vs(12),
+    marginBottom: SPACE.BLOCK,
   },
 });

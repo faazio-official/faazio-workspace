@@ -1,6 +1,6 @@
 import React from 'react';
 import { StyleSheet, View } from 'react-native';
-import { hs, vs } from '@/utils/responsive';
+import { SPACE } from '@/theme/spacing';
 import { DONATION_TYPES } from '@data/index';
 import type { BloodDonorDraft, DonationTypeId } from '@data/index';
 import { LocationField } from './LocationField';
@@ -40,6 +40,6 @@ export function AvailabilityStep({ draft, onUpdate }: AvailabilityStepProps) {
 
 const styles = StyleSheet.create({
   section: {
-    gap: vs(24),
+    gap: SPACE.SECTION,
   },
 });

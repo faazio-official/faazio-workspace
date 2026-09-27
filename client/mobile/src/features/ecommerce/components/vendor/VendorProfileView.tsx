@@ -12,6 +12,7 @@ import AppText from '@/components/AppText';
 import MartImage from '../mart-home/MartImage';
 import MartProductCard from '@/features/ecommerce/cards/MartProductCard';
 import { hs, ms, vs } from '@/utils/responsive';
+import { SPACE } from '@/theme/spacing';
 import type { CartItem } from '@/state/cartStore';
 import type { StoreProfile } from '@data/types';
 import type { MartProduct } from '@data/types';
@@ -245,7 +246,7 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   scrollContent: {
-    paddingBottom: vs(32),
+    paddingBottom: SPACE.SECTION,
   },
   board: {
     backgroundColor: '#fff',
@@ -256,7 +257,7 @@ const styles = StyleSheet.create({
   storeInfoRow: {
     flexDirection: 'row',
     paddingHorizontal: hs(16),
-    marginBottom: vs(20),
+    marginBottom: SPACE.SECTION,
     alignItems: 'flex-start',
   },
   logoContainer: {
@@ -341,10 +342,10 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     paddingHorizontal: hs(16),
-    marginBottom: vs(12),
+    marginBottom: SPACE.BLOCK,
   },
   allProductsHeader: {
-    marginTop: vs(20),
+    marginTop: SPACE.SECTION,
   },
   sectionTitle: {
     fontSize: ms(16),
@@ -370,7 +371,7 @@ const styles = StyleSheet.create({
     width: '100%',
   },
   emptyWrap: {
-    paddingVertical: vs(40),
+    paddingVertical: SPACE.LIST_BOTTOM,
     alignItems: 'center',
   },
   emptyText: {

@@ -9,6 +9,7 @@ import {
 import { ChevronLeft, ChevronRight, Search, X } from 'lucide-react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { hs, ms, vs } from '@/utils/responsive';
+import { SPACE } from '@/theme/spacing';
 import AppText from '@/components/AppText';
 import { MASTER_CATEGORIES, MART_ACCENT, PHARMA_ACCENT } from '@data/categories/masterCategories';
 import type { CategoryItem, CategoryTab } from '@data/categories/masterCategories';
@@ -264,7 +265,7 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   bodyContent: {
-    paddingBottom: vs(28),
+    paddingBottom: SPACE.LIST_BOTTOM,
   },
   section: {
     marginTop: vs(8),
@@ -274,7 +275,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: hs(16),
-    paddingVertical: vs(12),
+    paddingVertical: SPACE.ITEM,
     gap: hs(8),
   },
   sectionTitle: {

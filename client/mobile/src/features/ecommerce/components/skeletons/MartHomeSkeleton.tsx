@@ -1,6 +1,7 @@
 import React, { memo } from 'react';
 import { View, StyleSheet } from 'react-native';
 import { hs, ms, vs } from '@/utils/responsive';
+import { SPACE } from '@/theme/spacing';
 import { SkeletonBlock } from '@/components/shared/Skeleton';
 
 /**
@@ -34,11 +35,11 @@ const styles = StyleSheet.create({
   container: {
     paddingHorizontal: hs(16),
     paddingTop: vs(12),
-    paddingBottom: vs(24),
+    paddingBottom: SPACE.LIST_BOTTOM,
   },
   title: {
-    marginTop: vs(22),
-    marginBottom: vs(12),
+    marginTop: SPACE.SECTION,
+    marginBottom: SPACE.BLOCK,
   },
   railRow: {
     flexDirection: 'row',

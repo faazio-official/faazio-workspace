@@ -24,6 +24,7 @@ import {
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import AppText from '@/components/AppText';
 import { hs, vs, ms } from '@/utils/responsive';
+import { SPACE } from '@/theme/spacing';
 import { userProfile, accountDetails } from '@data/index';
 import type { RootStackParamList } from '@/navigation/types';
 
@@ -163,7 +164,7 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     paddingHorizontal: hs(16),
-    paddingBottom: vs(40),
+    paddingBottom: SPACE.LIST_BOTTOM,
   },
 
   /* Header */
@@ -171,7 +172,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingBottom: vs(16),
+    paddingBottom: SPACE.BLOCK,
   },
   headerLeft: {
     flexDirection: 'row',
@@ -229,7 +230,7 @@ const styles = StyleSheet.create({
   profileCard: {
     backgroundColor: '#FFFFFF',
     borderRadius: ms(16),
-    marginBottom: vs(24),
+    marginBottom: SPACE.SECTION,
     shadowColor: '#000000',
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.03,
@@ -323,14 +324,14 @@ const styles = StyleSheet.create({
     fontSize: ms(15),
     fontWeight: '800',
     color: '#111827',
-    marginBottom: vs(12),
+    marginBottom: SPACE.BLOCK,
     marginLeft: hs(4),
   },
   listCard: {
     backgroundColor: '#FFFFFF',
     borderRadius: ms(16),
     paddingVertical: vs(4),
-    marginBottom: vs(24),
+    marginBottom: SPACE.SECTION,
     shadowColor: '#000000',
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.03,

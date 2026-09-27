@@ -19,6 +19,7 @@ import {
   Trash2,
 } from 'lucide-react-native';
 import { hs, vs, ms } from '@/utils/responsive';
+import { SPACE } from '@/theme/spacing';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import EnterpriseIcon from '@/components/EnterpriseIcon';
 import Checkbox from '@/components/shared/Checkbox';
@@ -833,7 +834,7 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     paddingHorizontal: hs(16),
-    paddingBottom: vs(40),
+    paddingBottom: SPACE.LIST_BOTTOM,
   },
   cardBox: {
     backgroundColor: '#ffffff',
@@ -871,14 +872,14 @@ const styles = StyleSheet.create({
   },
   emptyContainer: {
     alignItems: 'center',
-    paddingVertical: vs(40),
+    paddingVertical: SPACE.LIST_BOTTOM,
   },
   itemsListContainer: {
     width: '100%',
     maxHeight: vs(260),
   },
   groupedAppSection: {
-    marginBottom: vs(16),
+    marginBottom: SPACE.BLOCK,
   },
   appOriginRow: {
     flexDirection: 'row',
@@ -986,7 +987,7 @@ const styles = StyleSheet.create({
     borderTopWidth: 1,
     borderTopColor: '#f1f5f9',
     paddingTop: vs(12),
-    marginBottom: vs(16),
+    marginBottom: SPACE.BLOCK,
   },
   sectionLabel: {
     fontSize: ms(8.5),
@@ -999,7 +1000,7 @@ const styles = StyleSheet.create({
     borderTopWidth: 1,
     borderTopColor: '#f1f5f9',
     paddingTop: vs(12),
-    marginBottom: vs(16),
+    marginBottom: SPACE.BLOCK,
   },
   pricingRow: {
     flexDirection: 'row',
@@ -1660,7 +1661,7 @@ const styles = StyleSheet.create({
   },
   bagScrollContent: {
     paddingTop: vs(16),
-    paddingBottom: vs(24),
+    paddingBottom: SPACE.SECTION,
   },
   bagEmpty: {
     alignItems: 'center',
@@ -1775,7 +1776,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    marginBottom: vs(16),
+    marginBottom: SPACE.BLOCK,
   },
   catHeaderLeft: {
     flexDirection: 'row',
@@ -1957,7 +1958,7 @@ const styles = StyleSheet.create({
     fontSize: ms(11),
     color: '#666666',
     marginTop: vs(4),
-    marginBottom: vs(16),
+    marginBottom: SPACE.BLOCK,
   },
   couponOption: {
     flexDirection: 'row',

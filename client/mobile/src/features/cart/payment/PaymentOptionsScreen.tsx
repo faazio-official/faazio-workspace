@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { StyleSheet, ScrollView, View } from 'react-native';
 import { CreditCard, Smartphone } from 'lucide-react-native';
 import { hs, vs, ms } from '@/utils/responsive';
+import { SPACE } from '@/theme/spacing';
 import AppText from '@/components/AppText';
 import { useCartStore } from '@/state/cartStore';
 import { useRewardsStore } from '@/state/rewardsStore';
@@ -201,7 +202,7 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   scrollContent: {
-    paddingBottom: vs(40),
+    paddingBottom: SPACE.LIST_BOTTOM,
   },
   secureNote: {
     fontSize: ms(11),

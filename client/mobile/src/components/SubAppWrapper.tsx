@@ -17,6 +17,7 @@ import {
 } from 'lucide-react-native';
 import type { LucideIcon } from 'lucide-react-native';
 import { hs, vs, ms, SCREEN_W } from '@/utils/responsive';
+import { SPACE } from '@/theme/spacing';
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import type { CartItem } from '@/state/cartStore';
@@ -430,7 +431,7 @@ const styles = StyleSheet.create({
   },
   noDataEmoji: {
     fontSize: ms(32),
-    marginBottom: vs(12),
+    marginBottom: SPACE.BLOCK,
   },
   noDataTitle: {
     fontSize: ms(12),
@@ -455,7 +456,7 @@ const styles = StyleSheet.create({
     color: '#0f172a',
     textTransform: 'uppercase',
     letterSpacing: 0.5,
-    marginBottom: vs(12),
+    marginBottom: SPACE.BLOCK,
   },
   gridContainer: {
     flexDirection: 'row',
@@ -500,7 +501,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: vs(12),
+    marginBottom: SPACE.BLOCK,
   },
   bookingsTitle: {
     fontSize: ms(11),
@@ -606,7 +607,7 @@ const styles = StyleSheet.create({
     fontSize: ms(14),
     fontWeight: '900',
     color: '#0f172a',
-    marginBottom: vs(12),
+    marginBottom: SPACE.BLOCK,
   },
   basketRow: {
     flexDirection: 'row',
@@ -710,7 +711,7 @@ const styles = StyleSheet.create({
     fontSize: ms(11),
     color: '#64748b',
     textAlign: 'center',
-    marginBottom: vs(20),
+    marginBottom: SPACE.SECTION,
   },
   unsupportedBtn: {
     height: Math.max(44, vs(44)),

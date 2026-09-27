@@ -18,6 +18,7 @@ import {
   Minus,
 } from 'lucide-react-native';
 import { hs, vs, ms, SCREEN_W } from '@/utils/responsive';
+import { SPACE } from '@/theme/spacing';
 import AppText from '@/components/AppText';
 import ProductCardBase from '@/components/shared/ProductCardBase';
 import { martStores } from '@data/mart/stores';
@@ -503,7 +504,7 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   scrollContent: {
-    paddingBottom: vs(24),
+    paddingBottom: SPACE.LIST_BOTTOM,
   },
   hero: {
     width: SCREEN_W,
@@ -542,7 +543,7 @@ const styles = StyleSheet.create({
   },
   padded: {
     paddingHorizontal: hs(16),
-    paddingTop: vs(14),
+    paddingTop: SPACE.SECTION,
   },
   brandText: {
     fontSize: ms(13),
@@ -751,8 +752,8 @@ const styles = StyleSheet.create({
     fontSize: ms(14),
     fontWeight: '800',
     color: '#0f172a',
-    marginTop: vs(16),
-    marginBottom: vs(12),
+    marginTop: SPACE.BLOCK,
+    marginBottom: SPACE.BLOCK,
   },
   relatedGrid: {
     flexDirection: 'row',
@@ -766,7 +767,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#B45309',
     alignItems: 'center',
     justifyContent: 'center',
-    marginTop: vs(16),
+    marginTop: SPACE.BLOCK,
   },
   viewVendorBtnText: {
     color: '#ffffff',
@@ -779,7 +780,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#B45309',
     alignItems: 'center',
     justifyContent: 'center',
-    marginTop: vs(16),
+    marginTop: SPACE.BLOCK,
   },
   viewRestaurantBtnText: {
     color: '#ffffff',

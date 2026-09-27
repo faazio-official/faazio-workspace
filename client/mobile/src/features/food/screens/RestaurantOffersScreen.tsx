@@ -4,6 +4,7 @@ import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { Search } from 'lucide-react-native';
 import { hs, vs, ms } from '@/utils/responsive';
+import { SPACE } from '@/theme/spacing';
 import { foodTheme } from '../constants/theme';
 import type { FoodStackParamList, RootStackParamList } from '@/navigation/types';
 import type { SpecialDish } from '../mocks/types';
@@ -117,7 +118,7 @@ const styles = StyleSheet.create({
   },
   listContent: {
     paddingTop: vs(4),
-    paddingBottom: vs(40),
+    paddingBottom: SPACE.LIST_BOTTOM,
   },
   emptyWrap: {
     alignItems: 'center',

@@ -3,6 +3,7 @@ import { StyleSheet, View, TouchableOpacity } from 'react-native';
 import { Pencil, Check } from 'lucide-react-native';
 import AppText from '@/components/AppText';
 import { hs, vs, ms } from '@/utils/responsive';
+import { SPACE } from '@/theme/spacing';
 import { AGE_RANGES, NOTIFICATION_SOURCES, CONSENT_LABEL } from '@data/index';
 import type { BloodDonorDraft, YesNo } from '@data/index';
 import { BLOOD_RED, BLOOD_TEXT, BLOOD_TEXT_MUTED, BLOOD_BORDER, BLOOD_RADII } from '../tokens';
@@ -86,7 +87,7 @@ export function ReviewStep({ draft, onUpdate, onEdit }: ReviewStepProps) {
 
 const styles = StyleSheet.create({
   section: {
-    gap: vs(20),
+    gap: SPACE.SECTION,
   },
   card: {
     backgroundColor: '#ffffff',
@@ -127,7 +128,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     gap: hs(12),
-    paddingVertical: vs(10),
+    paddingVertical: SPACE.ITEM,
   },
   rowLabel: {
     fontSize: ms(13),

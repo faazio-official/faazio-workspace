@@ -1,6 +1,7 @@
 import React, { memo, useMemo } from 'react';
 import { View, ScrollView, StyleSheet } from 'react-native';
 import { hs, vs } from '@/utils/responsive';
+import { SPACE } from '@/theme/spacing';
 import { TODAYS_SPECIALS, dishToProduct } from '@data/food/specials';
 import { recentlyViewedMart, recentlyViewedPharma, hotBrandDeals } from '@data/home/rails';
 import type { Product } from '@data/types';
@@ -78,7 +79,7 @@ const styles = StyleSheet.create({
   scroll: {
     paddingLeft: hs(16),
     paddingRight: hs(4),
-    paddingBottom: vs(8),
+    paddingBottom: SPACE.BLOCK,
   },
   secondRail: {
     marginTop: vs(4),

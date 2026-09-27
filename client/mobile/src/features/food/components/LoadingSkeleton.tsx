@@ -1,6 +1,7 @@
 import React, { memo } from 'react';
 import { View, StyleSheet } from 'react-native';
 import { hs, ms, vs } from '@/utils/responsive';
+import { SPACE } from '@/theme/spacing';
 import { SkeletonBlock } from '@/components/shared/Skeleton';
 import { foodTheme } from '../constants/theme';
 
@@ -56,7 +57,7 @@ export default LoadingSkeleton;
 const styles = StyleSheet.create({
   container: {
     paddingHorizontal: hs(16),
-    paddingBottom: vs(24),
+    paddingBottom: SPACE.LIST_BOTTOM,
   },
   headerRow: {
     flexDirection: 'row',
@@ -78,8 +79,8 @@ const styles = StyleSheet.create({
     marginTop: vs(6),
   },
   sectionTitle: {
-    marginTop: vs(24),
-    marginBottom: vs(12),
+    marginTop: SPACE.SECTION,
+    marginBottom: SPACE.BLOCK,
   },
   railRow: {
     flexDirection: 'row',

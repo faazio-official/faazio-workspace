@@ -1,6 +1,7 @@
 import React, { memo } from 'react';
 import { View, StyleSheet } from 'react-native';
 import { hs, ms, vs } from '@/utils/responsive';
+import { SPACE } from '@/theme/spacing';
 import { BG_GRAY } from './theme';
 
 const VendorProfileSkeleton = memo(function VendorProfileSkeleton() {
@@ -43,10 +44,10 @@ const styles = StyleSheet.create({
     borderTopLeftRadius: ms(24),
     borderTopRightRadius: ms(24),
     marginTop: vs(-24),
-    paddingTop: vs(20),
+    paddingTop: SPACE.SECTION,
     paddingHorizontal: hs(16),
   },
-  storeRow: { flexDirection: 'row', marginBottom: vs(20) },
+  storeRow: { flexDirection: 'row', marginBottom: SPACE.SECTION },
   logo: {
     width: ms(64),
     height: ms(64),
@@ -61,14 +62,14 @@ const styles = StyleSheet.create({
     height: vs(90),
     borderRadius: ms(12),
     backgroundColor: BG_GRAY,
-    marginBottom: vs(20),
+    marginBottom: SPACE.SECTION,
   },
   sectionTitle: {
     height: vs(16),
     width: '40%',
     borderRadius: 4,
     backgroundColor: BG_GRAY,
-    marginBottom: vs(12),
+    marginBottom: SPACE.BLOCK,
   },
   rail: { flexDirection: 'row' },
   railCard: {

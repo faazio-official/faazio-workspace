@@ -8,6 +8,7 @@ import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import AppText from '@/components/AppText';
 import AppTextInput from '@/components/AppTextInput';
 import { hs, vs, ms } from '@/utils/responsive';
+import { SPACE } from '@/theme/spacing';
 import { BLOOD_REQUESTS, BLOOD_DONOR_UNREAD_ALERTS, ASK_BLOOD_COPY } from '@data/index';
 import { useAuthStore } from '@/state/authStore';
 import { useBloodDonorStore } from '@/state/bloodDonorStore';
@@ -246,9 +247,9 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     paddingHorizontal: hs(20),
-    paddingTop: vs(16),
-    paddingBottom: vs(32),
-    gap: vs(16),
+    paddingTop: SPACE.BLOCK,
+    paddingBottom: SPACE.SECTION,
+    gap: SPACE.SECTION,
   },
   headerRow: {
     flexDirection: 'row',
@@ -307,7 +308,7 @@ const styles = StyleSheet.create({
     gap: hs(12),
   },
   incomingSection: {
-    gap: vs(9),
+    gap: SPACE.BLOCK,
   },
   sectionHeaderRow: {
     flexDirection: 'row',
@@ -331,7 +332,7 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   incomingList: {
-    gap: vs(10),
+    gap: SPACE.ITEM,
   },
   impactCopy: {
     flex: 1,
@@ -429,7 +430,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   list: {
-    gap: vs(12),
+    gap: SPACE.ITEM,
   },
   fab: {
     position: 'absolute',
@@ -460,7 +461,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingHorizontal: hs(24),
     paddingVertical: vs(36),
-    gap: vs(8),
+    gap: SPACE.BLOCK,
   },
   emptyTitle: {
     fontSize: ms(13),

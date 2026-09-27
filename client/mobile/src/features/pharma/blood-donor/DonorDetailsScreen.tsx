@@ -5,6 +5,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import AppText from '@/components/AppText';
 import { hs, vs, ms } from '@/utils/responsive';
+import { SPACE } from '@/theme/spacing';
 import type { RootStackParamList } from '@/navigation/types';
 import { useAuthStore } from '@/state/authStore';
 import { useBloodDonorStore } from '@/state/bloodDonorStore';
@@ -101,17 +102,17 @@ export function DonorDetailsScreen({ navigation, route }: Props) {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#F8FAFC' },
-  header: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: hs(16), paddingTop: vs(10), paddingBottom: vs(12), backgroundColor: '#ffffff' },
+  header: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: hs(16), paddingTop: vs(10), paddingBottom: SPACE.BLOCK, backgroundColor: '#ffffff' },
   backButton: { marginRight: hs(8), padding: hs(2) },
   headerTitle: { fontSize: ms(17), fontWeight: '800', color: BLOOD_TEXT },
   scroll: { flex: 1 },
-  content: { padding: hs(20), gap: vs(14), paddingBottom: vs(28) },
-  profileCard: { alignItems: 'center', backgroundColor: '#ffffff', borderRadius: BLOOD_RADII.card, borderWidth: 1, borderColor: BLOOD_BORDER, paddingVertical: vs(24), gap: vs(8) },
+  content: { padding: hs(20), gap: SPACE.SECTION, paddingBottom: SPACE.SECTION },
+  profileCard: { alignItems: 'center', backgroundColor: '#ffffff', borderRadius: BLOOD_RADII.card, borderWidth: 1, borderColor: BLOOD_BORDER, paddingVertical: vs(24), gap: SPACE.BLOCK },
   avatar: { width: ms(72), height: ms(72), borderRadius: ms(24), alignItems: 'center', justifyContent: 'center', backgroundColor: BLOOD_RED_SOFT },
   name: { color: BLOOD_TEXT, fontSize: ms(21), fontWeight: '900' },
   availableRow: { flexDirection: 'row', alignItems: 'center', gap: hs(5) },
   availableText: { color: '#059669', fontSize: ms(11), fontWeight: '800' },
-  infoCard: { backgroundColor: '#ffffff', borderRadius: BLOOD_RADII.card, borderWidth: 1, borderColor: BLOOD_BORDER, padding: hs(16), gap: vs(14) },
+  infoCard: { backgroundColor: '#ffffff', borderRadius: BLOOD_RADII.card, borderWidth: 1, borderColor: BLOOD_BORDER, padding: hs(16), gap: SPACE.BLOCK },
   sectionTitle: { color: BLOOD_TEXT, fontSize: ms(13), fontWeight: '900', marginBottom: vs(2) },
   infoRow: { flexDirection: 'row', alignItems: 'center', gap: hs(11) },
   infoIcon: { width: ms(34), height: ms(34), borderRadius: ms(11), alignItems: 'center', justifyContent: 'center', backgroundColor: '#FEF2F2' },
@@ -119,11 +120,11 @@ const styles = StyleSheet.create({
   infoValue: { color: BLOOD_TEXT, fontSize: ms(13), fontWeight: '800', marginTop: vs(2) },
   privacyCard: { flexDirection: 'row', alignItems: 'flex-start', gap: hs(8), backgroundColor: '#ECFDF5', borderRadius: BLOOD_RADII.card, padding: hs(13) },
   privacyText: { flex: 1, color: '#166534', fontSize: ms(11), lineHeight: vs(16), fontWeight: '600' },
-  footer: { paddingHorizontal: hs(20), paddingTop: vs(10), backgroundColor: '#ffffff', borderTopWidth: 1, borderTopColor: BLOOD_BORDER },
+  footer: { paddingHorizontal: hs(20), paddingTop: SPACE.BLOCK, backgroundColor: '#ffffff', borderTopWidth: 1, borderTopColor: BLOOD_BORDER },
   requestButton: { minHeight: ms(50), flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: hs(7), borderRadius: BLOOD_RADII.pill, backgroundColor: BLOOD_RED },
   requestButtonComplete: { backgroundColor: '#059669' },
   requestButtonText: { color: '#ffffff', fontSize: ms(14), fontWeight: '900' },
-  emptyState: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: vs(8), padding: hs(32) },
+  emptyState: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: SPACE.BLOCK, padding: hs(32) },
   emptyTitle: { color: BLOOD_TEXT, fontSize: ms(14), fontWeight: '900', textAlign: 'center' },
   emptyText: { color: BLOOD_TEXT_MUTED, fontSize: ms(12), lineHeight: vs(17), textAlign: 'center' },
 });

@@ -1,7 +1,8 @@
 import React from 'react';
 import { StyleSheet, View } from 'react-native';
 import { Hospital, Droplets, Siren, Bell } from 'lucide-react-native';
-import { vs, ms } from '@/utils/responsive';
+import { ms } from '@/utils/responsive';
+import { SPACE } from '@/theme/spacing';
 import { NOTIFICATION_SOURCES, NOTIFICATIONS_BANNER } from '@data/index';
 import type { BloodDonorDraft, NotificationSourceId } from '@data/index';
 import { LabeledSwitchRow } from './LabeledSwitchRow';
@@ -54,10 +55,10 @@ export function NotificationsStep({ draft, onUpdate }: NotificationsStepProps) {
 
 const styles = StyleSheet.create({
   section: {
-    gap: vs(20),
+    gap: SPACE.SECTION,
   },
   rows: {
-    gap: vs(12),
+    gap: SPACE.ITEM,
   },
   bannerIconBox: {
     width: ms(40),

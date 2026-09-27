@@ -3,6 +3,7 @@ import { View, StyleSheet, Dimensions, TouchableOpacity, FlatList } from 'react-
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { hs, ms, vs } from '@/utils/responsive';
+import { SPACE } from '@/theme/spacing';
 import AppText from '@/components/AppText';
 import { useCartStore } from '@/state/store';
 import { martProducts } from '@data/mart/products';
@@ -208,7 +209,7 @@ export default FaMartScreen;
 
 const styles = StyleSheet.create({
   feedContent: {
-    paddingBottom: vs(24),
+    paddingBottom: SPACE.LIST_BOTTOM,
   },
   drillContainer: {
     flex: 1,
@@ -216,7 +217,7 @@ const styles = StyleSheet.create({
   },
   productGrid: {
     padding: hs(16),
-    paddingBottom: vs(40),
+    paddingBottom: SPACE.LIST_BOTTOM,
   },
   productRow: {
     gap: CARD_GAP,

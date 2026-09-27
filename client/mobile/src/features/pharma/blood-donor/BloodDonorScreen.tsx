@@ -5,6 +5,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import AppText from '@/components/AppText';
 import { hs, vs, ms } from '@/utils/responsive';
+import { SPACE } from '@/theme/spacing';
 import { BLOOD_DONOR_STEPS, PRIVACY_NOTE, ASK_BLOOD_COPY } from '@data/index';
 import type { RootStackParamList } from '@/navigation/types';
 import { useBloodDonorStore } from '@/state/bloodDonorStore';
@@ -182,7 +183,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingHorizontal: hs(16),
     paddingTop: vs(10),
-    paddingBottom: vs(12),
+    paddingBottom: SPACE.BLOCK,
     backgroundColor: '#ffffff',
   },
   backButton: {
@@ -199,9 +200,9 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     paddingHorizontal: hs(20),
-    paddingTop: vs(20),
-    paddingBottom: vs(32),
-    gap: vs(22),
+    paddingTop: SPACE.SECTION,
+    paddingBottom: SPACE.SECTION,
+    gap: SPACE.SECTION,
   },
   titleBlock: {
     gap: vs(4),

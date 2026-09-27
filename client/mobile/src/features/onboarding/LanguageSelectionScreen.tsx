@@ -15,6 +15,7 @@ import AppText from '@/components/AppText';
 import { Screen } from '@/components/shared';
 import { useLanguageStore } from '@/state/languageStore';
 import { hs, vs, ms } from '@/utils/responsive';
+import { SPACE } from '@/theme/spacing';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'LanguageSelection'>;
 
@@ -209,14 +210,14 @@ export default function LanguageSelectionScreen({ navigation }: Props) {
 
 const styles = StyleSheet.create({
   flexContainer: { flex: 1 },
-  scrollContent: { paddingHorizontal: hs(20), paddingTop: vs(20) },
+  scrollContent: { paddingHorizontal: hs(20), paddingTop: SPACE.SECTION },
 
   /* Header */
   headerContainer: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'flex-start',
-    marginBottom: vs(24),
+    marginBottom: SPACE.SECTION,
   },
   headerTextContainer: {
     flex: 1,
@@ -281,7 +282,7 @@ const styles = StyleSheet.create({
     borderRadius: ms(24),
     paddingHorizontal: hs(16),
     height: vs(48),
-    marginBottom: vs(24),
+    marginBottom: SPACE.SECTION,
   },
   searchIcon: { marginRight: hs(8) },
   searchInput: { flex: 1, fontSize: ms(15), color: '#111827' },
@@ -291,13 +292,13 @@ const styles = StyleSheet.create({
     fontSize: ms(14),
     fontWeight: '700',
     color: ACCENT,
-    marginBottom: vs(12),
+    marginBottom: SPACE.BLOCK,
   },
   sectionTitleDark: {
     fontSize: ms(14),
     fontWeight: '700',
     color: '#111827',
-    marginBottom: vs(12),
+    marginBottom: SPACE.BLOCK,
     marginTop: vs(8),
   },
 
@@ -310,13 +311,13 @@ const styles = StyleSheet.create({
     borderRadius: ms(16),
     paddingHorizontal: hs(16),
     paddingVertical: vs(14),
-    marginBottom: vs(12),
+    marginBottom: SPACE.ITEM,
   },
   rowPillSelected: {
     backgroundColor: ACCENT_SOFT,
   },
   suggestedPill: {
-    marginBottom: vs(24),
+    marginBottom: SPACE.SECTION,
     borderRadius: ms(20),
   },
   rowLeft: { flexDirection: 'row', alignItems: 'center' },
@@ -365,7 +366,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#FFFFFF',
     paddingHorizontal: hs(20),
     paddingTop: vs(16),
-    paddingBottom: Platform.OS === 'ios' ? vs(34) : vs(24),
+    paddingBottom: SPACE.LIST_BOTTOM,
     borderTopWidth: 1,
     borderTopColor: '#F3F4F6',
   },

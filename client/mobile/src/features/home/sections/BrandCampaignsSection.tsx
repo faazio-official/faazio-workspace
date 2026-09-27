@@ -7,6 +7,7 @@ import {
   type NativeScrollEvent,
 } from 'react-native';
 import { hs, vs, ms } from '@/utils/responsive';
+import { SPACE } from '@/theme/spacing';
 import type { AdCampaign, Product } from '@data/types';
 import { carouselOneCampaigns, carouselTwoCampaigns } from '@data/home/campaigns';
 import BrandCampaignCard from '@/features/home/cards/BrandCampaignCard';
@@ -124,15 +125,15 @@ const styles = StyleSheet.create({
     borderRadius: ms(16),
     backgroundColor: '#EDE9FE',
     padding: hs(10),
-    marginTop: vs(14),
-    marginBottom: vs(8),
+    marginTop: SPACE.SECTION,
+    marginBottom: SPACE.BLOCK,
   },
   containerTitle: {
     fontSize: ms(18),
     fontWeight: '900',
     color: '#0f172a',
     letterSpacing: 0.3,
-    marginBottom: vs(10),
+    marginBottom: SPACE.BLOCK,
     marginLeft: hs(2),
   },
   viewport: {
@@ -144,7 +145,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: hs(1),
   },
   secondCarousel: {
-    marginTop: vs(12),
+    marginTop: SPACE.BLOCK,
   },
   dots: {
     position: 'absolute',

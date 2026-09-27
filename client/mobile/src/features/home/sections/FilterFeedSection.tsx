@@ -1,7 +1,8 @@
 import React, { memo, useCallback, useState } from 'react';
 import { View, StyleSheet, LayoutChangeEvent } from 'react-native';
 import { Image as ExpoImage } from 'expo-image';
-import { hs, vs, ms } from '@/utils/responsive';
+import { hs, ms } from '@/utils/responsive';
+import { SPACE } from '@/theme/spacing';
 import { useDerivedValue, useSharedValue, runOnJS, type SharedValue } from 'react-native-reanimated';
 import { filterChips, filterFeedPools } from '@data/home/filterFeed';
 import type { FilterChipId } from '@data/home/filterFeed';
@@ -127,13 +128,13 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: '#94a3b8',
     textAlign: 'center',
-    paddingVertical: vs(32),
+    paddingVertical: SPACE.SECTION,
   },
   endState: {
     fontSize: ms(10),
     fontWeight: '700',
     color: '#94a3b8',
     textAlign: 'center',
-    paddingVertical: vs(18),
+    paddingVertical: SPACE.BLOCK,
   },
 });

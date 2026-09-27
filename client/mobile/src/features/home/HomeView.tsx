@@ -1,6 +1,6 @@
 import React, { useCallback, useMemo } from 'react';
 import { StyleSheet } from 'react-native';
-import { vs } from '@/utils/responsive';
+import { SPACE } from '@/theme/spacing';
 import Animated, { useAnimatedScrollHandler, useSharedValue } from 'react-native-reanimated';
 import type { SharedValue } from 'react-native-reanimated';
 import { homeSections } from '@data/home/sections';
@@ -123,6 +123,6 @@ const styles = StyleSheet.create({
     backgroundColor: '#f1f5f9',
   },
   content: {
-    paddingBottom: vs(40),
+    paddingBottom: SPACE.LIST_BOTTOM,
   },
 });

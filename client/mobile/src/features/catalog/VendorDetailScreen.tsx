@@ -13,6 +13,7 @@ import { Image as ExpoImage } from 'expo-image';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import AppText from '@/components/AppText';
 import { hs, ms, vs } from '@/utils/responsive';
+import { SPACE } from '@/theme/spacing';
 import { getStoreById } from '@data/directory/stores';
 import type { Product } from '@data/types';
 import { getVendorProducts, matchesQuery } from '@/services/categoryVendors';
@@ -211,7 +212,7 @@ const styles = StyleSheet.create({
     paddingVertical: 0,
   },
   listContent: {
-    paddingBottom: vs(28),
+    paddingBottom: SPACE.LIST_BOTTOM,
   },
   board: {
     paddingHorizontal: hs(16),
@@ -226,7 +227,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: hs(12),
-    marginTop: vs(12),
+    marginTop: SPACE.ITEM,
   },
   logoContainer: {
     position: 'relative',
@@ -296,7 +297,7 @@ const styles = StyleSheet.create({
   },
   emptyWrap: {
     alignItems: 'center',
-    paddingVertical: vs(40),
+    paddingVertical: SPACE.LIST_BOTTOM,
     paddingHorizontal: hs(24),
   },
   emptyTitle: {

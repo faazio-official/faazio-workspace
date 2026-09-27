@@ -8,6 +8,7 @@ import {
 } from 'lucide-react-native';
 import Svg, { Defs, LinearGradient, Stop, Rect } from 'react-native-svg';
 import { hs, vs, ms, SCREEN_W } from '@/utils/responsive';
+import { SPACE } from '@/theme/spacing';
 import PharmaProductCard from '@/features/pharma/cards/PharmaProductCard';
 import AppTextInput from '@/components/AppTextInput';
 import AppText from '@/components/AppText';
@@ -454,7 +455,7 @@ const styles = StyleSheet.create({
   },
   searchContent: {
     paddingHorizontal: hs(16),
-    paddingBottom: vs(24),
+    paddingBottom: SPACE.SECTION,
   },
   productsGrid: {
     flexDirection: 'row',
@@ -601,7 +602,7 @@ const styles = StyleSheet.create({
   },
   detailContent: {
     paddingHorizontal: hs(20),
-    paddingTop: vs(16),
+    paddingTop: SPACE.BLOCK,
   },
   detailName: {
     fontSize: ms(18),
@@ -653,7 +654,7 @@ const styles = StyleSheet.create({
   },
   bulletsContainer: {
     gap: vs(10),
-    marginBottom: vs(20),
+    marginBottom: SPACE.SECTION,
   },
   bulletRow: {
     flexDirection: 'row',
@@ -677,7 +678,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingVertical: vs(16),
+    paddingVertical: SPACE.ITEM,
     borderTopWidth: 1,
     borderTopColor: '#f1f5f9',
     gap: hs(12),

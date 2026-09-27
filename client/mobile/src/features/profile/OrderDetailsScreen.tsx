@@ -5,6 +5,7 @@ import { ChevronLeft, ExternalLink, PackageOpen } from 'lucide-react-native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import AppText from '@/components/AppText';
 import { hs, vs, ms } from '@/utils/responsive';
+import { SPACE } from '@/theme/spacing';
 import { getMyOrderById, getProductById, portalSectors, userProfile } from '@data/index';
 import { SECTOR_VISUALS } from '@/theme/sectorVisuals';
 import { useOrdersStore } from '@/state/ordersStore';
@@ -269,13 +270,13 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     paddingHorizontal: hs(16),
-    paddingBottom: vs(32),
+    paddingBottom: SPACE.LIST_BOTTOM,
   },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
     paddingVertical: vs(10),
-    marginBottom: vs(8),
+    marginBottom: SPACE.BLOCK,
   },
   backButton: {
     marginRight: hs(8),
@@ -296,7 +297,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#E5E7EB',
     padding: hs(16),
-    marginBottom: vs(16),
+    marginBottom: SPACE.BLOCK,
   },
   statusPill: {
     paddingHorizontal: hs(10),
@@ -318,7 +319,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#E5E7EB',
     padding: hs(16),
-    marginBottom: vs(16),
+    marginBottom: SPACE.BLOCK,
   },
   sectionTitle: {
     fontSize: ms(11),
@@ -326,7 +327,7 @@ const styles = StyleSheet.create({
     color: '#9CA3AF',
     textTransform: 'uppercase',
     letterSpacing: ms(0.6),
-    marginBottom: vs(12),
+    marginBottom: SPACE.BLOCK,
   },
 
   itemRow: {
@@ -429,8 +430,8 @@ const styles = StyleSheet.create({
   pickupDivider: {
     borderTopWidth: 1,
     borderTopColor: '#E5E7EB',
-    paddingTop: vs(12),
-    marginTop: vs(12),
+    paddingTop: SPACE.ITEM,
+    marginTop: SPACE.ITEM,
   },
 
   viewProductBtn: {

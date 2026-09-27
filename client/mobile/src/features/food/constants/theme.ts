@@ -73,7 +73,7 @@ export const foodTheme = {
     32: 32,
   },
   pagePad: 16,
-  sectionGap: 28,
+  sectionGap: 14,
   cardGap: 12,
   cardPad: 12,
   // Grid: card width = (screenWidth - 48) / 2 → 16 page-pad ×2 + 16 gap = 48

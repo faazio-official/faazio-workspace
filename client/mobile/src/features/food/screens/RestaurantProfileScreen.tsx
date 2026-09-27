@@ -22,6 +22,7 @@ import {
   CheckCircle2,
 } from 'lucide-react-native';
 import { hs, vs, ms } from '@/utils/responsive';
+import { SPACE } from '@/theme/spacing';
 import AppText from '@/components/AppText';
 import { AdBannerCarousel, AdLabelBadge } from '@/components/shared';
 import { topAdSlides } from '@data/home/rails';
@@ -359,7 +360,7 @@ export default RestaurantProfileScreen;
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#fff' },
-  scrollContent: { paddingBottom: vs(40) },
+  scrollContent: { paddingBottom: SPACE.LIST_BOTTOM },
   heroContainer: {
     backgroundColor: '#F3F4F6',
     paddingHorizontal: hs(16),
@@ -382,13 +383,13 @@ const styles = StyleSheet.create({
     backgroundColor: '#fff',
     borderTopLeftRadius: 32,
     borderTopRightRadius: 32,
-    marginTop: -vs(40),
-    paddingTop: vs(24),
+    marginTop: -vs(24),
+    paddingTop: SPACE.SECTION,
   },
   storeInfoRow: {
     flexDirection: 'row',
     paddingHorizontal: hs(16),
-    marginBottom: vs(20),
+    marginBottom: SPACE.SECTION,
     alignItems: 'flex-start',
   },
   logoContainer: { position: 'relative', marginRight: hs(16) },
@@ -455,7 +456,7 @@ const styles = StyleSheet.create({
   highlightDivider: { width: 1, backgroundColor: '#F3F4F6' },
   offerBanner: {
     marginHorizontal: hs(16),
-    marginTop: vs(16),
+    marginTop: SPACE.BLOCK,
     backgroundColor: foodTheme.primarySoft,
     paddingHorizontal: 12,
     paddingVertical: 10,
@@ -468,7 +469,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingHorizontal: hs(16),
     marginBottom: 12,
-    marginTop: vs(16),
+    marginTop: SPACE.SECTION,
   },
   sectionTitle: { fontSize: ms(16), fontWeight: 'bold', color: foodTheme.textPrimary },
   seeAllText: { fontSize: ms(13), color: foodTheme.primary, fontWeight: '600' },
@@ -499,9 +500,9 @@ const styles = StyleSheet.create({
   newPrice: { fontSize: ms(14), fontWeight: 'bold', color: RED },
   menuHeaderContainer: {
     paddingHorizontal: hs(16),
-    marginTop: vs(28),
+    marginTop: SPACE.SECTION,
     marginBottom: 12,
-    gap: vs(10),
+    gap: SPACE.BLOCK,
   },
   menuSearchBox: {
     flexDirection: 'row',

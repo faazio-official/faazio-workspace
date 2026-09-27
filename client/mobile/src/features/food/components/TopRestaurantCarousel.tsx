@@ -11,6 +11,7 @@ import Animated, {
 } from 'react-native-reanimated';
 import type { SharedValue } from 'react-native-reanimated';
 import { SCREEN_W, hs, ms, vs } from '@/utils/responsive';
+import { SPACE } from '@/theme/spacing';
 import AppText from '@/components/AppText';
 import { foodTheme } from '../constants/theme';
 import type { DiningRestaurant } from '../mocks/types';
@@ -212,7 +213,7 @@ const styles = StyleSheet.create({
     right: 0,
     bottom: 0,
     paddingHorizontal: hs(16),
-    paddingBottom: vs(16),
+    paddingBottom: SPACE.BLOCK,
     paddingTop: vs(40),
   },
   name: {

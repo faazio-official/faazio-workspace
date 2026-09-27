@@ -7,6 +7,7 @@ import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import AppText from '@/components/AppText';
 import AppTextInput from '@/components/AppTextInput';
 import { hs, vs, ms } from '@/utils/responsive';
+import { SPACE } from '@/theme/spacing';
 import { BLOOD_GROUPS, ASK_BLOOD_COPY } from '@data/index';
 import type { BloodGroup, DonorProfile } from '@data/index';
 import type { RootStackParamList } from '@/navigation/types';
@@ -132,23 +133,23 @@ const styles = StyleSheet.create({
   title: { fontSize: ms(18), fontWeight: '900', color: BLOOD_TEXT },
   subtitle: { width: '100%', marginTop: vs(5), color: BLOOD_TEXT_MUTED, fontSize: ms(12), lineHeight: vs(17) },
   scroll: { width: '100%' },
-  searchContent: { paddingTop: vs(20), paddingBottom: vs(16), gap: vs(22) },
-  resultsContent: { paddingTop: vs(16), paddingBottom: vs(16) },
-  block: { gap: vs(9) },
+  searchContent: { paddingTop: SPACE.BLOCK, paddingBottom: SPACE.BLOCK, gap: SPACE.SECTION },
+  resultsContent: { paddingTop: SPACE.BLOCK, paddingBottom: SPACE.BLOCK },
+  block: { gap: SPACE.BLOCK },
   label: { fontSize: ms(12), fontWeight: '900', color: BLOOD_TEXT },
   req: { color: BLOOD_RED },
   field: { borderWidth: 1, borderColor: BLOOD_BORDER, borderRadius: BLOOD_RADII.chip, backgroundColor: '#ffffff' },
   input: { minHeight: ms(48), paddingHorizontal: hs(14), color: BLOOD_TEXT, fontSize: ms(13) },
-  footer: { width: '100%', paddingTop: vs(8) },
+  footer: { width: '100%', paddingTop: SPACE.BLOCK },
   continueBtn: { minHeight: ms(48), borderRadius: BLOOD_RADII.pill, backgroundColor: BLOOD_RED, alignItems: 'center', justifyContent: 'center' },
   disabledBtn: { backgroundColor: '#CBD5E1' },
   continueText: { color: '#ffffff', fontSize: ms(14), fontWeight: '900' },
   criteriaRow: { flexDirection: 'row', alignItems: 'center', alignSelf: 'flex-start', gap: hs(8), backgroundColor: '#FEF2F2', borderRadius: BLOOD_RADII.pill, paddingHorizontal: hs(12), paddingVertical: vs(7) },
   criteriaText: { color: BLOOD_RED_DARK, fontSize: ms(12), fontWeight: '800' },
   criteriaDivider: { color: BLOOD_RED, fontSize: ms(14), fontWeight: '900' },
-  resultsList: { gap: vs(10), paddingTop: vs(14) },
-  loadingState: { alignItems: 'center', gap: vs(8), paddingVertical: vs(36) },
-  emptyState: { alignItems: 'center', gap: vs(8), paddingVertical: vs(30), paddingHorizontal: hs(20) },
+  resultsList: { gap: SPACE.ITEM, paddingTop: SPACE.BLOCK },
+  loadingState: { alignItems: 'center', gap: SPACE.BLOCK, paddingVertical: vs(36) },
+  emptyState: { alignItems: 'center', gap: SPACE.BLOCK, paddingVertical: vs(30), paddingHorizontal: hs(20) },
   emptyTitle: { color: BLOOD_TEXT, fontSize: ms(14), fontWeight: '900', textAlign: 'center' },
   emptyText: { color: BLOOD_TEXT_MUTED, fontSize: ms(12), lineHeight: vs(17), textAlign: 'center' },
 });

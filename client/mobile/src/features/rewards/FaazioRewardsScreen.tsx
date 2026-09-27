@@ -18,6 +18,7 @@ import {
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import AppText from '@/components/AppText';
 import { hs, vs, ms } from '@/utils/responsive';
+import { SPACE } from '@/theme/spacing';
 import SlideUpSheet from '@/components/shared/SlideUpSheet';
 import { useRewardsStore } from '@/state/rewardsStore';
 import {
@@ -223,13 +224,13 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     paddingHorizontal: hs(16),
-    paddingBottom: vs(32),
+    paddingBottom: SPACE.LIST_BOTTOM,
   },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingVertical: vs(14),
+    paddingVertical: SPACE.ITEM,
   },
   backButton: {
     width: ms(40),
@@ -271,7 +272,7 @@ const styles = StyleSheet.create({
     fontSize: ms(13),
     fontWeight: '700',
     color: '#EDE9FE',
-    marginTop: vs(14),
+    marginTop: SPACE.SECTION,
     textTransform: 'uppercase',
     letterSpacing: 0.5,
   },
@@ -290,7 +291,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#FFFFFF',
     borderRadius: ms(18),
     padding: hs(16),
-    marginBottom: vs(12),
+    marginBottom: SPACE.ITEM,
   },
   cardTitle: {
     fontSize: ms(13),
@@ -298,7 +299,7 @@ const styles = StyleSheet.create({
     color: '#0f172a',
     textTransform: 'uppercase',
     letterSpacing: 0.4,
-    marginBottom: vs(12),
+    marginBottom: SPACE.BLOCK,
   },
   streakRow: {
     flexDirection: 'row',
@@ -327,7 +328,7 @@ const styles = StyleSheet.create({
     fontSize: ms(11.5),
     color: '#475569',
     fontWeight: '600',
-    marginTop: vs(12),
+    marginTop: SPACE.BLOCK,
   },
   streakNote: {
     fontSize: ms(10.5),
@@ -424,12 +425,12 @@ const styles = StyleSheet.create({
     fontSize: ms(16),
     fontWeight: '900',
     color: '#0f172a',
-    marginBottom: vs(12),
+    marginBottom: SPACE.BLOCK,
   },
   infoRow: {
     flexDirection: 'row',
     alignItems: 'flex-start',
-    marginBottom: vs(10),
+    marginBottom: SPACE.BLOCK,
   },
   infoBullet: {
     fontSize: ms(13),

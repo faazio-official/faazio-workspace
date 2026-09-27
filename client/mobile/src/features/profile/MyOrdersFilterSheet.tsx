@@ -2,6 +2,7 @@ import React, { memo } from 'react';
 import { View, TouchableOpacity, StyleSheet } from 'react-native';
 import { Check, X } from 'lucide-react-native';
 import { hs, vs, ms } from '@/utils/responsive';
+import { SPACE } from '@/theme/spacing';
 import { myOrdersStatusFilters } from '@data/index';
 import type { MyOrdersStatusFilter } from '@data/types';
 import SlideUpSheet from '@/components/shared/SlideUpSheet';
@@ -104,7 +105,7 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignSelf: 'stretch',
     marginTop: vs(6),
-    marginBottom: vs(16),
+    marginBottom: SPACE.BLOCK,
   },
   title: {
     fontSize: ms(18),
@@ -180,7 +181,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     gap: hs(12),
     alignSelf: 'stretch',
-    marginTop: vs(20),
+    marginTop: SPACE.BLOCK,
   },
   clearBtn: {
     flex: 0.4,

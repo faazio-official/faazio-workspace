@@ -1,6 +1,7 @@
 import React from 'react';
 import { StyleSheet, View } from 'react-native';
 import { hs, vs, ms } from '@/utils/responsive';
+import { SPACE } from '@/theme/spacing';
 import AppText from '@/components/AppText';
 import { BRAND } from '../constants';
 
@@ -24,13 +25,13 @@ export default function PaymentSectionCard({ title, children }: PaymentSectionCa
 
 const styles = StyleSheet.create({
   sectionWrap: {
-    marginBottom: vs(18),
+    marginBottom: SPACE.SECTION,
   },
   title: {
     fontSize: ms(14),
     fontWeight: '700',
     color: BRAND.section,
-    marginBottom: vs(9),
+    marginBottom: SPACE.BLOCK,
     paddingHorizontal: hs(4),
   },
   card: {

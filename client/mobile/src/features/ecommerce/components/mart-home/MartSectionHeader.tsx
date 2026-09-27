@@ -3,6 +3,7 @@ import { View, TouchableOpacity, StyleSheet } from 'react-native';
 import { ChevronRight } from 'lucide-react-native';
 import AppText from '@/components/AppText';
 import { hs, ms, vs } from '@/utils/responsive';
+import { SPACE } from '@/theme/spacing';
 
 const MART_YELLOW = '#FFC107';
 
@@ -44,7 +45,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: hs(16),
-    paddingVertical: vs(10),
+    paddingTop: SPACE.SECTION,
+    paddingBottom: SPACE.BLOCK,
   },
   title: {
     fontSize: ms(16),

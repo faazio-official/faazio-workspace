@@ -3,6 +3,7 @@ import { StyleSheet, View } from 'react-native';
 import AppText from '@/components/AppText';
 import AppTextInput from '@/components/AppTextInput';
 import { hs, vs, ms } from '@/utils/responsive';
+import { SPACE } from '@/theme/spacing';
 import { AGE_RANGES, HEALTH_YESNO_QUESTIONS } from '@data/index';
 import type { AgeRangeId, BloodDonorDraft, YesNo } from '@data/index';
 import { SelectField } from './SelectField';
@@ -77,10 +78,10 @@ export function HealthInfoStep({ draft, onUpdate }: HealthInfoStepProps) {
 
 const styles = StyleSheet.create({
   section: {
-    gap: vs(24),
+    gap: SPACE.SECTION,
   },
   block: {
-    gap: vs(8),
+    gap: SPACE.BLOCK,
   },
   label: {
     fontSize: ms(14),

@@ -17,6 +17,7 @@ import {
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import AppText from '@/components/AppText';
 import { hs, vs, ms } from '@/utils/responsive';
+import { SPACE } from '@/theme/spacing';
 import { myOrders } from '@data/index';
 import type { MyOrder, OrderStatus, MyOrdersStatusFilter } from '@data/types';
 import type { AppBrand } from '@data/types';
@@ -495,13 +496,13 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   scrollContent: {
-    paddingBottom: vs(32),
+    paddingBottom: SPACE.LIST_BOTTOM,
   },
 
   /* Header */
   header: {
     backgroundColor: '#FFFFFF',
-    paddingBottom: vs(10),
+    paddingBottom: SPACE.BLOCK,
     zIndex: 10,
     shadowColor: '#000000',
     shadowOffset: { width: 0, height: 2 },
@@ -623,7 +624,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#F3F4F6',
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: vs(16),
+    marginBottom: SPACE.BLOCK,
   },
   emptyTitle: {
     fontSize: ms(16),
@@ -635,7 +636,7 @@ const styles = StyleSheet.create({
     fontSize: ms(13),
     color: '#6B7280',
     textAlign: 'center',
-    marginBottom: vs(20),
+    marginBottom: SPACE.SECTION,
   },
   emptyBtn: {
     paddingVertical: vs(10),
@@ -660,7 +661,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#FFFFFF',
     borderRadius: ms(12),
     padding: hs(16),
-    marginBottom: vs(16),
+    marginBottom: SPACE.BLOCK,
     borderWidth: 1,
     borderColor: '#E5E7EB',
   },
@@ -679,7 +680,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: vs(12),
+    marginBottom: SPACE.BLOCK,
   },
   orderDate: {
     fontSize: ms(12),
@@ -765,7 +766,7 @@ const styles = StyleSheet.create({
   cardFooter: {
     flexDirection: 'row',
     justifyContent: 'flex-end',
-    marginTop: vs(12),
+    marginTop: SPACE.ITEM,
   },
   viewDetailsBtn: {
     paddingVertical: vs(6),

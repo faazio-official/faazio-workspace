@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { View, StyleSheet, Pressable, Image, ScrollView, Platform, KeyboardAvoidingView, Animated, Easing } from 'react-native';
 import { hs, vs, ms, wp, hp } from '@/utils/responsive';
+import { SPACE } from '@/theme/spacing';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Screen } from '@/components/shared';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
@@ -549,12 +550,12 @@ const styles = StyleSheet.create({
   requestContainer: {
     flex: 1,
     paddingHorizontal: hs(24),
-    paddingVertical: vs(24),
+    paddingVertical: SPACE.SECTION,
     justifyContent: 'space-between',
     alignItems: 'center',
     position: 'relative',
   },
-  topTextContent: { alignItems: 'center', paddingTop: vs(16), zIndex: 10 },
+  topTextContent: { alignItems: 'center', zIndex: 10 },
   titleWrapper: { alignItems: 'center' },
   titleText: {
     fontWeight: '900',
@@ -562,7 +563,7 @@ const styles = StyleSheet.create({
     fontSize: ms(24),
     textAlign: 'center',
     letterSpacing: -0.5,
-    marginTop: vs(16),
+    marginTop: SPACE.BLOCK,
   },
   titleTextAccent: {
     color: '#1162D3',
@@ -680,14 +681,14 @@ const styles = StyleSheet.create({
   resultsList: {
     flex: 1,
     paddingHorizontal: hs(16),
-    paddingTop: vs(16),
+    paddingTop: SPACE.BLOCK,
   },
   resultsHeader: {
     fontSize: ms(10),
     letterSpacing: 1,
     color: '#94a3b8',
     fontWeight: '700',
-    marginBottom: vs(12),
+    marginBottom: SPACE.BLOCK,
     paddingHorizontal: hs(4),
   },
   resultItem: {
@@ -753,7 +754,7 @@ const styles = StyleSheet.create({
   loaderCardArea: {
     width: '100%',
     paddingHorizontal: hs(20),
-    paddingBottom: vs(48),
+    paddingBottom: SPACE.LIST_BOTTOM,
     zIndex: 10,
   },
   deliveringCard: {

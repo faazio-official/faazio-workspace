@@ -30,6 +30,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import AppText from '@/components/AppText';
 import { hs, vs, ms } from '@/utils/responsive';
+import { SPACE } from '@/theme/spacing';
 import { BLOOD_REQUESTS, BLOOD_REQUEST_DETAIL_COPY } from '@data/index';
 import { useBloodDonorStore } from '@/state/bloodDonorStore';
 import type { RootStackParamList } from '@/navigation/types';
@@ -377,7 +378,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingHorizontal: hs(16),
     paddingTop: vs(10),
-    paddingBottom: vs(12),
+    paddingBottom: SPACE.BLOCK,
     backgroundColor: '#ffffff',
   },
   backButton: {
@@ -401,16 +402,16 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     paddingHorizontal: hs(20),
-    paddingTop: vs(16),
-    paddingBottom: vs(32),
-    gap: vs(14),
+    paddingTop: SPACE.BLOCK,
+    paddingBottom: SPACE.SECTION,
+    gap: SPACE.SECTION,
   },
   missingBody: {
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
     padding: hs(32),
-    gap: vs(8),
+    gap: SPACE.BLOCK,
   },
   missingTitle: {
     fontSize: ms(14),
@@ -490,7 +491,7 @@ const styles = StyleSheet.create({
     borderColor: BLOOD_BORDER,
     paddingHorizontal: hs(16),
     paddingVertical: vs(14),
-    gap: vs(10),
+    gap: SPACE.BLOCK,
   },
   sectionLabel: {
     fontSize: ms(12),
@@ -533,7 +534,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     gap: hs(12),
-    paddingVertical: vs(8),
+    paddingVertical: SPACE.ITEM,
     borderTopWidth: 1,
     borderTopColor: '#F1F5F9',
   },
@@ -687,7 +688,7 @@ const styles = StyleSheet.create({
   },
   nearbySection: {
     marginTop: vs(4),
-    gap: vs(10),
+    gap: SPACE.BLOCK,
   },
   nearbyHeaderRow: {
     flexDirection: 'row',
@@ -710,6 +711,6 @@ const styles = StyleSheet.create({
     color: BLOOD_RED_DARK,
   },
   nearbyList: {
-    gap: vs(10),
+    gap: SPACE.ITEM,
   },
 });

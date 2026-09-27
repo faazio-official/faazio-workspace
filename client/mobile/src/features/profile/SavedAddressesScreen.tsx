@@ -21,6 +21,7 @@ import {
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import AppText from '@/components/AppText';
 import { hs, vs, ms } from '@/utils/responsive';
+import { SPACE } from '@/theme/spacing';
 import { savedAddresses } from '@data/index';
 import type { SavedAddress } from '@data/types';
 import type { RootStackParamList } from '@/navigation/types';
@@ -199,7 +200,7 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     paddingHorizontal: hs(16),
-    paddingBottom: vs(32),
+    paddingBottom: SPACE.LIST_BOTTOM,
   },
   bottomSpacer: {
     height: vs(40),
@@ -210,7 +211,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingBottom: vs(16),
+    paddingBottom: SPACE.BLOCK,
   },
   headerLeft: {
     flexDirection: 'row',
@@ -249,7 +250,7 @@ const styles = StyleSheet.create({
     fontSize: ms(15),
     fontWeight: '800',
     color: '#111827',
-    marginBottom: vs(12),
+    marginBottom: SPACE.BLOCK,
     marginLeft: hs(2),
   },
 
@@ -257,7 +258,7 @@ const styles = StyleSheet.create({
   addressCard: {
     borderRadius: ms(16),
     padding: hs(16),
-    marginBottom: vs(16),
+    marginBottom: SPACE.BLOCK,
     borderWidth: 1,
   },
   selectedCard: {
@@ -273,7 +274,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: vs(12),
+    marginBottom: SPACE.BLOCK,
   },
   badgeRow: {
     flexDirection: 'row',
@@ -353,7 +354,7 @@ const styles = StyleSheet.create({
     fontWeight: '500',
     color: '#4B5563',
     lineHeight: vs(18),
-    marginBottom: vs(12),
+    marginBottom: SPACE.ITEM,
   },
 
   deliverHereRow: {
@@ -398,7 +399,7 @@ const styles = StyleSheet.create({
     padding: hs(12),
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: vs(16),
+    marginBottom: SPACE.BLOCK,
   },
   tipIconBox: {
     marginRight: hs(12),

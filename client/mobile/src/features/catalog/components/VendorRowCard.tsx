@@ -4,6 +4,7 @@ import { Image as ExpoImage } from 'expo-image';
 import { MapPin, Star } from 'lucide-react-native';
 import AppText from '@/components/AppText';
 import { hs, ms, vs } from '@/utils/responsive';
+import { SPACE } from '@/theme/spacing';
 import type { VendorMatch } from '@/services/categoryVendors';
 
 interface VendorRowCardProps {
@@ -69,7 +70,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: hs(12),
-    paddingVertical: vs(10),
+    paddingVertical: SPACE.ITEM,
     paddingHorizontal: hs(16),
     borderBottomWidth: StyleSheet.hairlineWidth,
     borderBottomColor: '#F1F5F9',

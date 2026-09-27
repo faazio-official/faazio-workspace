@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { StyleSheet, View, TouchableOpacity } from 'react-native';
 import { Coins, Info } from 'lucide-react-native';
 import { hs, vs, ms } from '@/utils/responsive';
+import { SPACE } from '@/theme/spacing';
 import AppText from '@/components/AppText';
 import { BRAND } from '../constants';
 import { COIN_REDEEM_RATE } from '@data/rewards/rewards';
@@ -99,7 +100,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: BRAND.border,
     padding: hs(14),
-    marginBottom: vs(12),
+    marginBottom: SPACE.SECTION,
   },
   row: {
     flexDirection: 'row',
@@ -154,8 +155,8 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginTop: vs(12),
-    paddingTop: vs(10),
+    marginTop: SPACE.ITEM,
+    paddingTop: SPACE.ITEM,
     borderTopWidth: 1,
     borderTopColor: BRAND.border,
   },
@@ -173,7 +174,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#F8FAFC',
     borderRadius: ms(10),
     padding: hs(10),
-    marginTop: vs(10),
+    marginTop: SPACE.ITEM,
   },
   infoText: {
     fontSize: ms(11),

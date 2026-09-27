@@ -32,7 +32,7 @@ src/
 ├── navigation/                 # AppNavigator, MainTabs, FoodStack, types
 ├── services/                   # GatewayClient, logout, secureSession, categoryVendors, homeFeed
 ├── state/                      # Zustand stores (12)
-├── theme/                      # brandTokens, fonts, sectorVisuals
+├── theme/                      # brandTokens, spacing (SPACE tokens), fonts, sectorVisuals
 └── utils/                      # responsive (hs/vs/ms/wp/hp)
 ```
 
@@ -317,6 +317,26 @@ paginated reads from `@data/*` — the contract the future Go Chi gateway will f
   guard; a hanging or failing storage module no longer blocks startup (defaults to unauthenticated)
   and can't become a silent unhandled rejection.
 
+
+### Vertical rhythm (`src/theme/spacing.ts`)
+
+Vertical gaps use a single canonical scale instead of per-screen magic numbers.
+`SPACE` (all `vs()`-scaled) owns the four rhythm values:
+
+| Token | Base | Owns |
+|---|---|---|
+| `SPACE.SECTION` | `vs(14)` | Gap between two major sections — the **one** owner of a section boundary |
+| `SPACE.BLOCK` | `vs(8)` | Section header → its own content |
+| `SPACE.ITEM` | `vs(6)` | Rows/cards inside a block |
+| `SPACE.LIST_BOTTOM` | `vs(24)` | Scroll tail at the bottom of a list |
+
+Ownership rule: a boundary has exactly one owner of its gap. A section header (e.g.
+`features/home/sections/common.tsx` `SectionHeader`, or the food/mart/pharma
+`*SectionHeader`s) owns its top gap (`SPACE.SECTION`); parents must not also add
+`paddingTop`/`marginTop` for the same boundary, and headers do not own a bottom gap
+beyond `SPACE.BLOCK`. Skeletons mirror the tightened real layout so loading → loaded
+does not jump vertically. The five visually-parallel `SectionHeader` components are
+still separate files; consolidating them is tracked in `client/mobile/PENDING_WORK.md`.
 
 ### State (`src/state/`)
 

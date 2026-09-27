@@ -5,6 +5,7 @@ import { RootStackParamList } from '../../navigation/AppNavigator';
 import { ChevronLeft, ChevronRight } from 'lucide-react-native';
 import { FaazioLogo } from '../../components/FaazioLogo';
 import { SCREEN_W, SCREEN_H, hs, vs, ms } from '@/utils/responsive';
+import { SPACE } from '@/theme/spacing';
 import { Screen } from '@/components/shared';
 
 import welcomeIllustration1 from '../../assets/welcome_illustration_1.webp';
@@ -290,7 +291,7 @@ const styles = StyleSheet.create({
     aspectRatio: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    marginBottom: SCREEN_H < 700 ? vs(16) : vs(20),
+    marginBottom: SPACE.SECTION,
   },
   illustrationImage: {
     width: '100%',
@@ -348,7 +349,7 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     paddingHorizontal: hs(24),
-    paddingBottom: SCREEN_H < 700 ? vs(16) : vs(24),
+    paddingBottom: SPACE.SECTION,
     height: vs(70),
     borderTopWidth: 1,
     borderColor: 'rgba(226,232,240,0.5)',

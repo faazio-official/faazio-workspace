@@ -1,6 +1,7 @@
 import React, { memo } from 'react';
 import { ScrollView, StyleSheet } from 'react-native';
-import { hs, vs } from '@/utils/responsive';
+import { hs } from '@/utils/responsive';
+import { SPACE } from '@/theme/spacing';
 import { MART_DEALS, dealToProduct } from '@data/mart/deals';
 import MartProductCard from '@/features/ecommerce/cards/MartProductCard';
 import { SectionHeader, useAddToCartFeedback } from './common';
@@ -41,6 +42,6 @@ const styles = StyleSheet.create({
   scroll: {
     paddingLeft: hs(16),
     paddingRight: hs(4),
-    paddingBottom: vs(16),
+    paddingBottom: SPACE.BLOCK,
   },
 });

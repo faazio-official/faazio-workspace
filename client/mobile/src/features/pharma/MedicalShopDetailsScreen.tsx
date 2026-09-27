@@ -12,6 +12,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import AppText from '@/components/AppText';
 import { hs, ms, vs } from '@/utils/responsive';
+import { SPACE } from '@/theme/spacing';
 import type { Product, StoreProfile } from '@data/types';
 import { pharmaStores } from '@data/pharma/stores';
 import { getVendorProducts, matchesQuery } from '@/services/categoryVendors';
@@ -187,7 +188,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: hs(10),
     paddingHorizontal: hs(16),
-    paddingBottom: vs(10),
+    paddingBottom: SPACE.BLOCK,
     backgroundColor: '#FFFFFF',
     borderBottomWidth: 1,
     borderBottomColor: '#E6F2F1',
@@ -201,9 +202,9 @@ const styles = StyleSheet.create({
     flexDirection: 'row', alignItems: 'center', gap: hs(8), paddingHorizontal: hs(14),
   },
   searchInput: { flex: 1, fontSize: ms(12), color: PHARMA_INK, paddingVertical: 0 },
-  infoSection: { paddingHorizontal: hs(16), paddingTop: vs(12) },
+  infoSection: { paddingHorizontal: hs(16), paddingTop: SPACE.BLOCK },
   cover: { width: '100%', height: vs(130), borderRadius: ms(16) },
-  identityRow: { flexDirection: 'row', alignItems: 'center', gap: hs(12), marginTop: vs(12) },
+  identityRow: { flexDirection: 'row', alignItems: 'center', gap: hs(12), marginTop: SPACE.BLOCK },
   logoWrap: { position: 'relative' },
   logo: { width: ms(60), height: ms(60), borderRadius: ms(15) },
   ratingBadge: {
@@ -215,16 +216,16 @@ const styles = StyleSheet.create({
   storeName: { fontSize: ms(17), fontWeight: '900', color: PHARMA_INK },
   metaRow: { flexDirection: 'row', alignItems: 'center', gap: hs(5) },
   metaText: { fontSize: ms(10), fontWeight: '700', color: '#64748B' },
-  offerRow: { alignSelf: 'flex-start', marginTop: vs(14), paddingHorizontal: hs(9), paddingVertical: vs(5), borderRadius: ms(7), backgroundColor: '#E8F6F4' },
+  offerRow: { alignSelf: 'flex-start', marginTop: SPACE.SECTION, paddingHorizontal: hs(9), paddingVertical: vs(5), borderRadius: ms(7), backgroundColor: '#E8F6F4' },
   offerText: { fontSize: ms(10), fontWeight: '800', color: PHARMA_TEAL },
-  contactCard: { marginTop: vs(14), padding: hs(12), gap: vs(9), borderRadius: ms(12), backgroundColor: '#F8FAFC', borderWidth: 1, borderColor: '#EEF2F6' },
+  contactCard: { marginTop: SPACE.SECTION, padding: hs(12), gap: SPACE.ITEM, borderRadius: ms(12), backgroundColor: '#F8FAFC', borderWidth: 1, borderColor: '#EEF2F6' },
   contactRow: { flexDirection: 'row', alignItems: 'flex-start', gap: hs(9) },
   contactText: { flex: 1, fontSize: ms(10), lineHeight: vs(15), fontWeight: '600', color: '#475569' },
-  productsHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: hs(16), paddingTop: vs(18), paddingBottom: vs(10) },
+  productsHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: hs(16), paddingTop: SPACE.SECTION, paddingBottom: SPACE.BLOCK },
   productsTitle: { fontSize: ms(14), fontWeight: '900', color: PHARMA_INK },
   productsCount: { fontSize: ms(10), fontWeight: '700', color: '#94A3B8' },
   listContent: { paddingTop: vs(2) },
-  emptyProducts: { alignItems: 'center', paddingVertical: vs(40), paddingHorizontal: hs(24) },
+  emptyProducts: { alignItems: 'center', paddingVertical: SPACE.LIST_BOTTOM, paddingHorizontal: hs(24) },
   emptyTitle: { fontSize: ms(13), fontWeight: '800', color: PHARMA_INK },
   emptySub: { marginTop: vs(5), fontSize: ms(10), fontWeight: '600', textAlign: 'center', color: '#94A3B8' },
 });

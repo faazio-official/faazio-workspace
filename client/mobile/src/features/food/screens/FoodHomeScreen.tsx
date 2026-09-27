@@ -4,7 +4,8 @@ import Animated, { FadeIn, FadeInDown } from 'react-native-reanimated';
 import { useSharedValue } from 'react-native-reanimated';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import { hs, vs } from '@/utils/responsive';
+import { hs } from '@/utils/responsive';
+import { SPACE } from '@/theme/spacing';
 import { foodTheme } from '../constants/theme';
 import { useDiningFeed } from '../hooks/useDiningFeed';
 import type { FoodStackParamList, RootStackParamList } from '@/navigation/types';
@@ -179,7 +180,6 @@ const styles = StyleSheet.create({
   },
   sectionHeaderWrap: {
     paddingHorizontal: hs(16),
-    marginBottom: vs(10),
-    marginTop: vs(16),
+    marginTop: SPACE.SECTION,
   },
 });

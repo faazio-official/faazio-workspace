@@ -10,6 +10,7 @@ import { CameraView, useCameraPermissions, type CameraCapturedPicture } from 'ex
 import { ChevronLeft, Zap, ZapOff, Camera as CameraIcon, Trash2 } from 'lucide-react-native';
 import AppText from '@/components/AppText';
 import { hs, ms, vs } from '@/utils/responsive';
+import { SPACE } from '@/theme/spacing';
 import { PHARMA_TEAL, PHARMA_INK } from '../mocks/pharmaHomeFeed';
 
 interface PrescriptionCameraStepProps {
@@ -205,7 +206,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#E0F2F1',
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: vs(16),
+    marginBottom: SPACE.BLOCK,
   },
   consentTitle: {
     fontSize: ms(18),
@@ -219,7 +220,7 @@ const styles = StyleSheet.create({
     color: '#64748B',
     textAlign: 'center',
     lineHeight: vs(18),
-    marginBottom: vs(20),
+    marginBottom: SPACE.SECTION,
   },
   consentAllowBtn: {
     width: '100%',
@@ -296,7 +297,7 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     paddingBottom: vs(24),
-    paddingTop: vs(16),
+    paddingTop: SPACE.BLOCK,
     backgroundColor: 'rgba(0,0,0,0.35)',
     borderTopLeftRadius: ms(24),
     borderTopRightRadius: ms(24),
@@ -304,7 +305,7 @@ const styles = StyleSheet.create({
   thumbStrip: {
     paddingHorizontal: hs(16),
     gap: hs(10),
-    marginBottom: vs(16),
+    marginBottom: SPACE.BLOCK,
   },
   thumbWrap: {
     position: 'relative',
@@ -330,7 +331,7 @@ const styles = StyleSheet.create({
   },
   controlRow: {
     alignItems: 'center',
-    marginBottom: vs(16),
+    marginBottom: SPACE.BLOCK,
   },
   shutterBtn: {
     width: ms(68),

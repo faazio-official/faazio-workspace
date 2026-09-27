@@ -23,6 +23,7 @@ import {
 } from 'lucide-react-native';
 import AppText from '@/components/AppText';
 import { hs, vs, ms } from '@/utils/responsive';
+import { SPACE } from '@/theme/spacing';
 import { userProfile, accountNavGroups } from '@data/index';
 import type { AccountNavGroup, AccountNavRow } from '@data/types';
 import { useRewardsStore } from '@/state/rewardsStore';
@@ -230,16 +231,16 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   scrollContent: {
-    paddingTop: vs(16),
+    paddingTop: SPACE.SECTION,
     paddingHorizontal: hs(16),
-    paddingBottom: vs(32),
+    paddingBottom: SPACE.LIST_BOTTOM,
   },
   fixedHeader: {
     flexDirection: 'row',
     alignItems: 'flex-start',
     justifyContent: 'space-between',
     paddingHorizontal: hs(16),
-    paddingBottom: vs(16),
+    paddingBottom: SPACE.BLOCK,
     backgroundColor: '#FFFFFF',
     zIndex: 10,
     shadowColor: '#000000',
@@ -267,7 +268,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#F0F0F0',
     padding: hs(16),
-    marginBottom: vs(22),
+    marginBottom: SPACE.SECTION,
   },
   coinsHeader: {
     flexDirection: 'row',
@@ -321,14 +322,14 @@ const styles = StyleSheet.create({
     fontSize: ms(11),
     color: '#64748B',
     fontWeight: '600',
-    marginTop: vs(10),
+    marginTop: SPACE.BLOCK,
     textAlign: 'center',
   },
   navCard: {
     backgroundColor: '#ffffff',
     borderRadius: ms(16),
     paddingHorizontal: hs(6),
-    marginBottom: vs(16),
+    marginBottom: SPACE.SECTION,
     shadowColor: '#000000',
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.06,
@@ -345,7 +346,7 @@ const styles = StyleSheet.create({
     textTransform: 'uppercase',
     letterSpacing: 0.6,
     marginLeft: hs(4),
-    marginBottom: vs(8),
+    marginBottom: SPACE.BLOCK,
   },
   navComingSoon: {
     opacity: 0.75,

@@ -1,6 +1,7 @@
 import React, { memo } from 'react';
 import { View, StyleSheet } from 'react-native';
-import { hs, vs } from '@/utils/responsive';
+import { hs } from '@/utils/responsive';
+import { SPACE } from '@/theme/spacing';
 import MartProductCard from '@/features/ecommerce/cards/MartProductCard';
 import { SectionHeader, useAddToCartFeedback } from './common';
 import type { SectionProps } from './common';
@@ -43,6 +44,6 @@ const styles = StyleSheet.create({
     flexWrap: 'wrap',
     justifyContent: 'space-between',
     paddingHorizontal: hs(16),
-    paddingBottom: vs(8),
+    paddingBottom: SPACE.BLOCK,
   },
 });

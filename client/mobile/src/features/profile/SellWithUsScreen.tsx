@@ -10,6 +10,7 @@ import { ChevronLeft, Store, BadgeCheck, Lock } from 'lucide-react-native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import AppText from '@/components/AppText';
 import { hs, vs, ms } from '@/utils/responsive';
+import { SPACE } from '@/theme/spacing';
 import { SELLER_SETUP_FIELDS } from '@data/index';
 import type { RootStackParamList } from '@/navigation/types';
 
@@ -98,16 +99,16 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   scrollContent: {
-    paddingTop: vs(16),
+    paddingTop: SPACE.SECTION,
     paddingHorizontal: hs(16),
-    paddingBottom: vs(32),
+    paddingBottom: SPACE.LIST_BOTTOM,
   },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: hs(16),
-    paddingBottom: vs(12),
+    paddingBottom: SPACE.BLOCK,
     backgroundColor: '#FFFFFF',
     zIndex: 10,
     shadowColor: '#000000',
@@ -131,7 +132,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#1162D3',
     borderRadius: ms(20),
     padding: hs(18),
-    marginBottom: vs(14),
+    marginBottom: SPACE.SECTION,
   },
   heroIcon: {
     width: ms(42),
@@ -140,7 +141,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#FFFFFF',
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: vs(12),
+    marginBottom: SPACE.BLOCK,
   },
   heroTitle: {
     fontSize: ms(18),
@@ -157,7 +158,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#FFFFFF',
     borderRadius: ms(18),
     padding: hs(16),
-    marginBottom: vs(14),
+    marginBottom: SPACE.SECTION,
   },
   sectionTitle: {
     fontSize: ms(14),
@@ -170,7 +171,7 @@ const styles = StyleSheet.create({
     fontSize: ms(11),
     color: '#94A3B8',
     marginTop: vs(2),
-    marginBottom: vs(12),
+    marginBottom: SPACE.BLOCK,
   },
   fieldRow: {
     paddingVertical: vs(10),

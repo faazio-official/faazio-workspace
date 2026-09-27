@@ -3,6 +3,7 @@ import { View, TouchableOpacity, StyleSheet, FlatList } from 'react-native';
 import { ChevronLeft, Heart, LayoutGrid, ShoppingBag, Utensils, Pill } from 'lucide-react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { hs, vs, ms } from '@/utils/responsive';
+import { SPACE } from '@/theme/spacing';
 import AppText from '@/components/AppText';
 import { useFavoriteStore } from '@/state/favoriteStore';
 import { getCatalogEntriesByIds } from '@data/catalog/products';
@@ -164,7 +165,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: hs(10),
     paddingHorizontal: hs(12),
-    paddingBottom: vs(10),
+    paddingBottom: SPACE.BLOCK,
     backgroundColor: '#FFFFFF',
     borderBottomWidth: 1,
     borderBottomColor: '#EFEFEF',
@@ -200,7 +201,7 @@ const styles = StyleSheet.create({
     color: '#111827',
   },
   listContent: {
-    paddingTop: vs(10),
+    paddingTop: SPACE.BLOCK,
     paddingBottom: vs(120),
     flexGrow: 1,
   },
@@ -212,10 +213,10 @@ const styles = StyleSheet.create({
     borderRadius: ms(16),
     borderWidth: 1,
     borderColor: '#F0F0F0',
-    paddingVertical: vs(40),
+    paddingVertical: SPACE.LIST_BOTTOM,
     paddingHorizontal: hs(24),
     marginHorizontal: hs(16),
-    marginTop: vs(8),
+    marginTop: SPACE.BLOCK,
   },
   emptyIconCircle: {
     width: ms(56),
@@ -224,7 +225,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#F0F3F6',
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: vs(14),
+    marginBottom: SPACE.BLOCK,
   },
   emptyTitle: {
     fontSize: ms(15),

@@ -5,7 +5,49 @@ dependencies exist. Do not build the backend/seller flows until told to.
 
 ---
 
-## Food — shared ad-banner hero on the restaurant profile + slimmer dining header
+## Vertical-spacing reduction pass — canonical `SPACE` tokens
+
+**Status:** 🟢 Shipped (code); on-device visual verification pending.
+
+**Feature:** Tightened the vertical rhythm across every page by replacing per-screen
+spacing magic numbers with a single token scale.
+
+**Changes:**
+- **New `src/theme/spacing.ts`** — `SPACE.SECTION` (`vs(14)`), `SPACE.BLOCK` (`vs(8)`),
+  `SPACE.ITEM` (`vs(6)`), `SPACE.LIST_BOTTOM` (`vs(24)`). One owner per section boundary:
+  a header owns its top gap (`SECTION`), parents no longer double-pad the same boundary,
+  and headers no longer own a bottom gap beyond `BLOCK`.
+- **Shared components first** (propagates to ~30 screens): `home/sections/common.tsx`
+  `SectionHeader`, `home/cards/SDUIRenderer.tsx`, the food/mart/pharma `*SectionHeader`s,
+  `food/components/SectionHeader.tsx` (`minHeight vs(40) → vs(32)`, `hitSlop` retained),
+  `HomeView` list tail, and `components/SubAppWrapper.tsx` block/section gaps.
+- **Per-page pass** across cart/checkout, auth (location/login), onboarding, pharma
+  (home/prescription/blood-donor), favourites, profile, search, rewards, food
+  (profile/home/offers), ecommerce (deals/vendor/mart-home), catalog, product, and Home
+  sections — oversize section gaps downshifted to `SECTION`, list tails to
+  `LIST_BOTTOM`, header→content to `BLOCK`, intra-block rows to `ITEM`. Skeletons
+  (`MartHomeSkeleton`, `PharmaHomeSkeleton`, `VendorProfileSkeleton`, food
+  `LoadingSkeleton`) mirror the tightened real layout so loading → loaded does not jump.
+- `features/food/constants/theme.ts` `sectionGap` 28 → 14 (dead code, aligned).
+- `-vs(40)`/`paddingTop vs(24)` hero-overlap pair in `RestaurantProfileScreen` → `-vs(24)`
+  / `SPACE.SECTION`.
+
+**Deferred — consolidate the 5 section headers (not executed):** `common/SectionHeader`,
+`food/SectionHeader`, `food/FoodSectionHeader`, `MartSectionHeader` and
+`PharmaSectionHeader` differ only by accent color + See-all label. Collapsing them into
+one parameterized component would enforce the rhythm in one place, but touches many
+imports (higher regression surface) and the token pass already fixes every page. Do it
+as a follow-up.
+
+**Verification:** `npm run ts:check` + `npm run check:boundaries` pass. On-device visual
+pass still needed (Home/Food/Mart/Pharma feeds; cart + location multi-step forms;
+short-device `SCREEN_H < 700`; skeleton → loaded frames).
+
+**Docs:** `docs/architecture/mobile-app.md` "Vertical rhythm" section.
+
+**Date:** 2026-09-28
+
+---
 
 **Status:** 🟢 Shipped (client-side).
 

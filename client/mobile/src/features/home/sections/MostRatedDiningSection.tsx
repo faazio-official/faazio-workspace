@@ -1,6 +1,7 @@
 import React, { memo } from 'react';
 import { ScrollView, StyleSheet } from 'react-native';
-import { hs, vs } from '@/utils/responsive';
+import { hs } from '@/utils/responsive';
+import { SPACE } from '@/theme/spacing';
 import { foodStores } from '@data/food/stores';
 import type { StoreProfile } from '@data/types';
 import NearbyRestaurantRow from '@/features/food/components/NearbyRestaurantRow';
@@ -47,7 +48,7 @@ const styles = StyleSheet.create({
   scroll: {
     paddingLeft: hs(16),
     paddingRight: hs(4),
-    paddingBottom: vs(16),
+    paddingBottom: SPACE.BLOCK,
   },
   railItem: {
     width: hs(280),

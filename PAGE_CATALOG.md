@@ -229,6 +229,12 @@
 
 ## Section 2: React Native App — All User-Facing Pages
 
+> **Spacing pass (2026-09-28):** every active RN screen below received a vertical-spacing
+> tightening pass — per-screen spacing numbers were replaced by the canonical `SPACE`
+> tokens in `client/mobile/src/theme/spacing.ts` (`SECTION`/`BLOCK`/`ITEM`/`LIST_BOTTOM`).
+> See `client/mobile/PENDING_WORK.md` (top entry) and `docs/architecture/mobile-app.md`
+> → "Vertical rhythm". No route, screen, or behavior changed.
+
 ### 2.1 Active Navigation (AppNavigator.tsx)
 
 | # | Screen | File | Lines | Status | Notes |

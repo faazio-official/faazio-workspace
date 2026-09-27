@@ -4,6 +4,7 @@ import { ChevronLeft, Search, X } from 'lucide-react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import AppTextInput from '@/components/AppTextInput';
 import { hs, ms, vs } from '@/utils/responsive';
+import { SPACE } from '@/theme/spacing';
 
 interface SearchHeaderProps {
   onBack: () => void;
@@ -88,7 +89,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: hs(10),
     paddingHorizontal: hs(12),
-    paddingBottom: vs(10),
+    paddingBottom: SPACE.BLOCK,
     backgroundColor: '#FFFFFF',
     borderBottomWidth: 1,
     borderBottomColor: '#EFEFEF',

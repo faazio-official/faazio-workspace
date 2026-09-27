@@ -1,6 +1,7 @@
 import React, { memo } from 'react';
 import { View, ScrollView, StyleSheet } from 'react-native';
 import { hs, vs, ms } from '@/utils/responsive';
+import { SPACE } from '@/theme/spacing';
 import UniversalFeedCard from '@/features/home/cards/UniversalFeedCard';
 import { useAddToCartFeedback } from './common';
 import type { SectionProps } from './common';
@@ -51,8 +52,8 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     paddingHorizontal: hs(16),
-    marginTop: vs(12),
-    marginBottom: vs(8),
+    marginTop: SPACE.SECTION,
+    marginBottom: SPACE.BLOCK,
   },
   titleGroup: {
     flexDirection: 'row',
@@ -73,6 +74,6 @@ const styles = StyleSheet.create({
   scroll: {
     paddingLeft: hs(16),
     paddingRight: hs(4),
-    paddingBottom: vs(10),
+    paddingBottom: SPACE.BLOCK,
   },
 });

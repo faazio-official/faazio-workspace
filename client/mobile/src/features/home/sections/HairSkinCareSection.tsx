@@ -1,6 +1,7 @@
 import React, { memo } from 'react';
 import { View, StyleSheet } from 'react-native';
-import { hs, vs } from '@/utils/responsive';
+import { hs } from '@/utils/responsive';
+import { SPACE } from '@/theme/spacing';
 import { hairSkinPicks } from '@data/home/demographics';
 import UniversalFeedCard from '@/features/home/cards/UniversalFeedCard';
 import { SectionHeader, useAddToCartFeedback } from './common';
@@ -36,6 +37,6 @@ const styles = StyleSheet.create({
     flexWrap: 'wrap',
     justifyContent: 'space-between',
     paddingHorizontal: hs(16),
-    paddingBottom: vs(8),
+    paddingBottom: SPACE.BLOCK,
   },
 });

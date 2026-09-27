@@ -5,6 +5,7 @@ import { ChevronDown, Search, X } from 'lucide-react-native';
 import AppText from '@/components/AppText';
 import AppTextInput from '@/components/AppTextInput';
 import { hs, ms, vs } from '@/utils/responsive';
+import { SPACE } from '@/theme/spacing';
 import { foodTheme } from '../constants/theme';
 import type { DiningRestaurant } from '../mocks/types';
 import SectionHeader from './SectionHeader';
@@ -212,7 +213,7 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     paddingHorizontal: hs(16),
     marginBottom: vs(4),
-    marginTop: vs(16),
+    marginTop: SPACE.SECTION,
   },
   sortChip: {
     flexDirection: 'row',
@@ -230,7 +231,7 @@ const styles = StyleSheet.create({
   },
   searchWrap: {
     paddingHorizontal: hs(16),
-    marginBottom: vs(8),
+    marginBottom: SPACE.BLOCK,
   },
   searchPill: {
     height: vs(42),

@@ -3,6 +3,7 @@ import { View, TouchableOpacity, StyleSheet } from 'react-native';
 import { ChevronRight } from 'lucide-react-native';
 import AppText from '@/components/AppText';
 import { hs, ms, vs } from '@/utils/responsive';
+import { SPACE } from '@/theme/spacing';
 import { foodTheme } from '../constants/theme';
 
 interface SectionHeaderProps {
@@ -45,7 +46,7 @@ const styles = StyleSheet.create({
   seeAllBtn: {
     flexDirection: 'row',
     alignItems: 'center',
-    minHeight: vs(40),
+    minHeight: vs(32),
     paddingHorizontal: hs(4),
     marginLeft: hs(8),
   },
