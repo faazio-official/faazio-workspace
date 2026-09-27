@@ -444,6 +444,17 @@ helpers (`venueMatches` / `dishMatches`). Food search follows the same pattern �
 captures it in the (pure) dish predicate, so the config stays deterministic and rebuilds
 when the filter changes.
 
+`DietToggle` is **optionally controlled**: with no props it reads/writes the shared store
+(home + Search headers, unchanged), while passing `value` + `onChange` drives a screen-local
+override without touching the store. `RestaurantProfileScreen` uses the controlled form: it
+seeds a screen-local `dietFilter` once from `foodFilterStore.getState()` and never writes
+back, so the restaurant toggle follows home by default (re-seeded on each open because the
+screen is popped), overrides only that restaurant's menu/rail, and leaves home/search
+untouched. The toggle sits between the back button and the search/share/more actions in the
+profile's pinned top toolbar, and that toolbar's Search icon scrolls the menu search bar just
+under the toolbar and focuses it (measurement via `onLayout`, same convention as
+`RestaurantGrid`).
+
 ## Food add-to-cart — direct adds, fulfilment on the cart
 
 Every add of a dish in the Food sub-app is **direct** — `addToCart(id, name, price, emoji)` with

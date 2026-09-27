@@ -10,14 +10,29 @@ const SEGMENTS: { value: DietFilter; label: string; activeBg: string }[] = [
   { value: 'nonveg', label: 'Non-Veg', activeBg: '#DC2626' },
 ];
 
+interface DietToggleProps {
+  /** Controlled value; omit to use the shared `foodFilterStore` (home/search). */
+  value?: DietFilter;
+  /** Controlled change handler; omit to write the shared `foodFilterStore`. */
+  onChange?: (filter: DietFilter) => void;
+}
+
 /**
- * Zomato-style 3-segment All / Veg / Non-Veg pill. Reads + writes the shared
- * `foodFilterStore`, so flipping it on any screen updates every Food screen at
- * once. Rendered in the empty top-right slot of the food headers.
+ * Zomato-style 3-segment All / Veg / Non-Veg pill.
+ *
+ * Uncontrolled (no props): reads + writes the shared `foodFilterStore`, so
+ * flipping it on any Food screen updates every Food screen at once — used in
+ * the Food home + Search headers. Controlled (`value` + `onChange`): drives a
+ * screen-local override without touching the store — used on RestaurantProfile
+ * so the restaurant toggle seeds from home but never leaks back.
  */
-const DietToggle = memo(function DietToggle() {
-  const dietFilter = useFoodFilterStore((s) => s.dietFilter);
+const DietToggle = memo(function DietToggle({ value, onChange }: DietToggleProps) {
+  const storeValue = useFoodFilterStore((s) =>
+    value === undefined ? s.dietFilter : undefined,
+  );
   const setDietFilter = useFoodFilterStore((s) => s.setDietFilter);
+  const dietFilter = value ?? storeValue ?? 'all';
+  const handleChange = onChange ?? setDietFilter;
 
   return (
     <View style={styles.container} accessibilityRole="tablist">
@@ -27,7 +42,7 @@ const DietToggle = memo(function DietToggle() {
           <TouchableOpacity
             key={seg.value}
             style={[styles.segment, active && { backgroundColor: seg.activeBg }]}
-            onPress={() => setDietFilter(seg.value)}
+            onPress={() => handleChange(seg.value)}
             activeOpacity={0.8}
             accessibilityRole="tab"
             accessibilityLabel={seg.label}

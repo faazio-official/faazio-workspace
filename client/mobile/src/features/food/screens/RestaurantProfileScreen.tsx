@@ -1,4 +1,4 @@
-import React, { useCallback, useMemo, useState } from 'react';
+import React, { useCallback, useMemo, useRef, useState } from 'react';
 import {
   View,
   StyleSheet,
@@ -38,8 +38,9 @@ import type { SpecialDish } from '@data/types';
 import { TODAYS_SPECIALS } from '@data/food/specials';
 import { restaurantMenus } from '@data/food/menus';
 import { useCartStore } from '@/state/cartStore';
-import { useFoodFilterStore } from '@/state/foodFilterStore';
+import { useFoodFilterStore, type DietFilter } from '@/state/foodFilterStore';
 import { dishMatches } from '../utils/dietFilter';
+import DietToggle from '../components/DietToggle';
 
 type Props = NativeStackScreenProps<FoodStackParamList, 'RestaurantProfile'>;
 
@@ -73,7 +74,17 @@ export function RestaurantProfileScreen({ navigation, route }: Props) {
   const [activeCategory, setActiveCategory] = useState('Bestsellers');
   const [searchQuery, setSearchQuery] = useState('');
 
-  const dietFilter = useFoodFilterStore((s) => s.dietFilter);
+  // Screen-local diet override seeded once from the shared store. Toggling here
+  // never writes back, so home/search keep their value; re-opening this screen
+  // re-seeds from home ("follows home by default").
+  const [dietFilter, setDietFilter] = useState<DietFilter>(
+    () => useFoodFilterStore.getState().dietFilter,
+  );
+
+  const scrollRef = useRef<ScrollView>(null);
+  const menuSearchRef = useRef<TextInput>(null);
+  const boardYRef = useRef(0);
+  const menuHeaderYRef = useRef(0);
 
   const cart = useCartStore((s) => s.cart);
   const cartCount = useCartStore((s) => s.totalQty());
@@ -127,6 +138,15 @@ export function RestaurantProfileScreen({ navigation, route }: Props) {
     navigation.getParent<NativeStackNavigationProp<RootStackParamList>>()?.navigate('Cart');
   }, [navigation]);
 
+  // Toolbar search icon → park the menu search bar just under the pinned
+  // toolbar, then focus it (works from any scroll offset; scrollTo clamps).
+  const focusMenuSearch = useCallback(() => {
+    const clearance = insets.top + vs(64);
+    const y = Math.max(0, boardYRef.current + menuHeaderYRef.current - clearance);
+    scrollRef.current?.scrollTo({ y, animated: true });
+    menuSearchRef.current?.focus();
+  }, [insets.top]);
+
   const handleAdd = useCallback(
     (dish: SpecialDish) => {
       addToCart(dish.id, dish.dishName, dish.price, '🍽️');
@@ -142,10 +162,12 @@ export function RestaurantProfileScreen({ navigation, route }: Props) {
   return (
     <View style={styles.container}>
       <ScrollView
+        ref={scrollRef}
         showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.scrollContent}
         onScroll={onScroll}
         scrollEventThrottle={16}
+        keyboardShouldPersistTaps="handled"
       >
         {/* HERO IMAGE BACKGROUND */}
         <View style={styles.heroContainer}>
@@ -154,7 +176,12 @@ export function RestaurantProfileScreen({ navigation, route }: Props) {
         </View>
 
         {/* OVERLAPPING WHITE BOARD */}
-        <View style={styles.mainBoard}>
+        <View
+          style={styles.mainBoard}
+          onLayout={(e) => {
+            boardYRef.current = e.nativeEvent.layout.y;
+          }}
+        >
           {/* STORE INFO CARD */}
           <View style={styles.storeInfoRow}>
             <View style={styles.logoContainer}>
@@ -223,54 +250,65 @@ export function RestaurantProfileScreen({ navigation, route }: Props) {
             </View>
           ) : null}
 
-          {/* RECOMMENDED & OFFERS */}
-          <View style={styles.sectionHeader}>
-            <AppText style={styles.sectionTitle}>Recommended & Offers</AppText>
-            <TouchableOpacity
-              onPress={() => navigation.navigate('RestaurantOffers', { restaurant, offers: restaurantDishes })}
-              accessibilityRole="button"
-            >
-              <AppText style={styles.seeAllText}>View All {'>'}</AppText>
-            </TouchableOpacity>
-          </View>
-
-          <ScrollView
-            contentContainerStyle={styles.discountScroll}
-            horizontal
-            showsHorizontalScrollIndicator={false}
-          >
-            {restaurantDishes.map((item) => (
-              <View key={item.id} style={styles.discountCard}>
-                <View style={styles.discountImageWrap}>
-                  <RemoteImage uri={item.image} variant="dish" style={styles.discountImage} />
-                  <View style={styles.adLabelWrap}>
-                    <AdLabelBadge />
-                  </View>
-                </View>
-                <AppText numberOfLines={3} style={styles.productName}>
-                  {item.dishName}
-                </AppText>
-                <View style={styles.priceRowHoriz}>
-                  <View style={styles.priceCol}>
-                    <AppText style={styles.oldPrice}>₹{Math.round(item.price * 1.2)}</AppText>
-                    <AppText style={styles.newPrice}>₹{item.price}</AppText>
-                  </View>
-                </View>
+          {/* RECOMMENDED & OFFERS — hidden when the active diet filter emptied it */}
+          {restaurantDishes.length > 0 && (
+            <>
+              <View style={styles.sectionHeader}>
+                <AppText style={styles.sectionTitle}>Recommended & Offers</AppText>
+                <TouchableOpacity
+                  onPress={() => navigation.navigate('RestaurantOffers', { restaurant, offers: restaurantDishes })}
+                  accessibilityRole="button"
+                >
+                  <AppText style={styles.seeAllText}>View All {'>'}</AppText>
+                </TouchableOpacity>
               </View>
-            ))}
-          </ScrollView>
+
+              <ScrollView
+                contentContainerStyle={styles.discountScroll}
+                horizontal
+                showsHorizontalScrollIndicator={false}
+              >
+                {restaurantDishes.map((item) => (
+                  <View key={item.id} style={styles.discountCard}>
+                    <View style={styles.discountImageWrap}>
+                      <RemoteImage uri={item.image} variant="dish" style={styles.discountImage} />
+                      <View style={styles.adLabelWrap}>
+                        <AdLabelBadge />
+                      </View>
+                    </View>
+                    <AppText numberOfLines={3} style={styles.productName}>
+                      {item.dishName}
+                    </AppText>
+                    <View style={styles.priceRowHoriz}>
+                      <View style={styles.priceCol}>
+                        <AppText style={styles.oldPrice}>₹{Math.round(item.price * 1.2)}</AppText>
+                        <AppText style={styles.newPrice}>₹{item.price}</AppText>
+                      </View>
+                    </View>
+                  </View>
+                ))}
+              </ScrollView>
+            </>
+          )}
 
           {/* MENU SECTION HEADER */}
-          <View style={styles.menuHeaderContainer}>
+          <View
+            style={styles.menuHeaderContainer}
+            onLayout={(e) => {
+              menuHeaderYRef.current = e.nativeEvent.layout.y;
+            }}
+          >
             <AppText style={styles.sectionTitle}>Menu</AppText>
             <View style={styles.menuSearchBox}>
               <Search color={foodTheme.textSecondary} size={ms(16)} />
               <TextInput
+                ref={menuSearchRef}
                 placeholder="Search in menu"
                 placeholderTextColor={foodTheme.textSecondary}
                 style={styles.menuSearchInput}
                 value={searchQuery}
                 onChangeText={setSearchQuery}
+                returnKeyType="search"
               />
             </View>
           </View>
@@ -335,7 +373,15 @@ export function RestaurantProfileScreen({ navigation, route }: Props) {
               );
             })}
             {filteredMenu.length === 0 && (
-              <AppText style={styles.emptyText}>No dishes match your search.</AppText>
+              <AppText style={styles.emptyText}>
+                {searchQuery.trim()
+                  ? 'No dishes match your search.'
+                  : dietFilter === 'veg'
+                    ? 'No veg dishes in this menu.'
+                    : dietFilter === 'nonveg'
+                      ? 'No non-veg dishes in this menu.'
+                      : 'No dishes available.'}
+              </AppText>
             )}
           </View>
 
@@ -354,8 +400,14 @@ export function RestaurantProfileScreen({ navigation, route }: Props) {
         >
           <ArrowLeft color="#fff" size={ms(20)} />
         </TouchableOpacity>
+        <DietToggle value={dietFilter} onChange={setDietFilter} />
         <View style={styles.headerActions}>
-          <TouchableOpacity style={styles.headerIconBg} accessibilityRole="button">
+          <TouchableOpacity
+            style={styles.headerIconBg}
+            onPress={focusMenuSearch}
+            accessibilityRole="button"
+            accessibilityLabel="Search menu"
+          >
             <Search color="#fff" size={ms(20)} />
           </TouchableOpacity>
           <TouchableOpacity style={styles.headerIconBg} accessibilityRole="button">
@@ -423,6 +475,7 @@ const styles = StyleSheet.create({
     zIndex: 10,
     flexDirection: 'row',
     justifyContent: 'space-between',
+    alignItems: 'center',
     paddingHorizontal: hs(16),
   },
   headerIconBg: { backgroundColor: 'rgba(0,0,0,0.5)', padding: 8, borderRadius: 20 },

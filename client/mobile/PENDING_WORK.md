@@ -5,6 +5,36 @@ dependencies exist. Do not build the backend/seller flows until told to.
 
 ---
 
+## Food — Restaurant details local diet toggle + menu-search jump
+
+**Status:** 🟢 Shipped.
+
+**Feature:** The restaurant profile now carries its own All/Veg/Non-Veg toggle in the pinned
+toolbar and the toolbar's Search icon jumps to (and focuses) the in-menu search bar.
+
+**Changes:**
+- `DietToggle.tsx` is now **optionally controlled** (`value?` + `onChange?`): no props keeps the
+  existing shared-store behavior for the home/Search headers; passing both drives a screen-local
+  value. When controlled it does not subscribe to the store (no wasted re-renders).
+- `RestaurantProfileScreen.tsx` seeds a screen-local `dietFilter` once from
+  `foodFilterStore.getState().dietFilter` and never writes back — the restaurant toggle follows
+  home by default (re-seeded on each open) and overriding it leaves home/search untouched. The
+  toggle sits between the back button and the search/share/more actions (`alignItems: 'center'`).
+- The Menu-search `TextInput` and the main `ScrollView` are now ref'd; `focusMenuSearch` measures
+  `mainBoard` + `menuHeaderContainer` via `onLayout` (same pure-JS convention as `RestaurantGrid`)
+  and scrolls the search bar under the pinned toolbar, then focuses it. Works from any offset.
+- Main `ScrollView` gained `keyboardShouldPersistTaps="handled"` so the toggle/icons stay tappable
+  while the keyboard is open.
+- Honest empty states: the menu empty text now distinguishes a search miss from a diet filter that
+  emptied the list; the "Recommended & Offers" header + rail hide entirely when the active filter
+  leaves no dishes (so "View All" can't navigate to an empty page).
+
+**Scope:** `foodFilterStore`, `FoodHomeScreen`, `DiningHeader`, and `FoodSearchScreen` unchanged.
+
+**Date:** 2026-09-27
+
+---
+
 ## Bottom navbars hidden behind Android's gesture bar
 
 **Status:** 🟢 Shipped.
