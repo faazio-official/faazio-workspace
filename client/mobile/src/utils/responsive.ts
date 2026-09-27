@@ -12,6 +12,14 @@ export function useTopInset(): number {
   return useSafeAreaInsets().top;
 }
 
+/** Bottom safe-area padding every bottom navbar must reserve for the Android
+ *  gesture pill / 3-button bar (the window is edge-to-edge: `android:
+ *  navigationBarColor` is transparent) and the iOS home indicator. Mirrors
+ *  `useTopInset` — one canonical formula, applied by every bottom navbar. */
+export function useBottomInset(): number {
+  return Math.max(useSafeAreaInsets().bottom, vs(8));
+}
+
 export function hs(n: number): number {
   return (n * SCREEN_W) / BASELINE_W;
 }

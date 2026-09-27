@@ -16,7 +16,7 @@ import {
   User,
 } from 'lucide-react-native';
 import type { LucideIcon } from 'lucide-react-native';
-import { hs, vs, ms, SCREEN_W } from '@/utils/responsive';
+import { hs, vs, ms, SCREEN_W, useBottomInset } from '@/utils/responsive';
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import type { CartItem } from '@/state/cartStore';
@@ -131,6 +131,7 @@ export default function SubAppWrapper({
   const searchInputRef = useRef<TextInput | null>(null);
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const insets = useSafeAreaInsets();
+  const bottomInset = useBottomInset();
 
   useEffect(() => {
     setSearchQuery('');
@@ -191,6 +192,11 @@ export default function SubAppWrapper({
   // Mart hides its app chrome while a vendor profile drill-in is open
   // (martVendor != null).
   const isChromeHidden = subAppId === 'FA_MART' && martVendor !== null;
+
+  // Total navbar height (base vs(72) + system inset). Every consumer below — the
+  // absolute bar itself, the viewport clearance and the Home shortcut — must use
+  // this total, never the bare vs(72).
+  const navBarH = vs(72) + bottomInset;
 
   // Registered-donor dashboard (Pharma Donor tab) renders in-wrapper WITH the
   // pharma bottom navbar but its own "Hi, …" header — so header hiding is
@@ -345,7 +351,7 @@ export default function SubAppWrapper({
             paddingTop: hideAppHeader
               ? 0
               : subAppHeaderH(insets.top, compactHeader, subAppId === 'FA_MART'),
-            paddingBottom: isChromeHidden ? 0 : vs(72),
+            paddingBottom: isChromeHidden ? 0 : navBarH,
           },
         ]}
       >
@@ -353,7 +359,7 @@ export default function SubAppWrapper({
       </View>
 
       {!isChromeHidden && (
-        <View style={styles.tabBar}>
+        <View style={[styles.tabBar, { height: navBarH, paddingBottom: bottomInset }]}>
         {tabs.map((tab, idx) => {
           const isCurrent = activeTab === tab.name;
           const Icon = tab.icon;
@@ -391,7 +397,7 @@ export default function SubAppWrapper({
         })}
         <NavbarHomeShortcut
           centerX={hs(24) + (tabCount > 4 ? adaptiveTabWidth : ms(56)) / 2}
-          barHeight={vs(72)}
+          barHeight={navBarH}
           onPress={() => navigation.navigate('MainTabs', { screen: 'Home' })}
         />
         </View>
@@ -408,7 +414,6 @@ const styles = StyleSheet.create({
   viewport: {
     flex: 1,
     backgroundColor: '#f8fafc',
-    paddingBottom: vs(72),
   },
   tabScroll: {
     flex: 1,
@@ -562,7 +567,6 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     zIndex: 30,
-    height: vs(72),
     backgroundColor: '#FFFFFF',
     borderTopWidth: 1,
     borderColor: 'rgba(226,232,240,0.4)',

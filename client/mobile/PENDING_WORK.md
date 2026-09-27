@@ -5,6 +5,49 @@ dependencies exist. Do not build the backend/seller flows until told to.
 
 ---
 
+## Bottom navbars hidden behind Android's gesture bar
+
+**Status:** 🟢 Shipped.
+
+**Symptom:** The Main app tabs (`HubTabBar`), the Mart/Pharma wrapper bar, and (less visibly) their
+labels sat under Android's gesture pill / 3-button bar because the window is edge-to-edge
+(`android:navigationBarColor` is transparent) and those bars used a fixed height with no
+`paddingBottom`.
+
+**Cause:** React Navigation's default tab bar reserves `insets.bottom`; our custom `tabBar` render
+prop bypassed it. Only `FoodBottomNav` was correct (it already used
+`Math.max(insets.bottom, vs(8))` and measured its real height via `onLayout`).
+
+**Changes:**
+- New `useBottomInset()` in `src/utils/responsive.ts` (`Math.max(insets.bottom, vs(8))`) — one
+  canonical formula alongside `useTopInset`, mirrored from the Food bar.
+- `navigation/MainTabs.tsx` — `HubTabBar` grows by the inset (`height: TAB_BAR_H + inset`,
+  `paddingBottom: inset`); fixed `height` removed from `tabBarWrap`; `NavbarHomeShortcut` gets the
+  total height.
+- `components/SubAppWrapper.tsx` — `navBarH = vs(72) + inset` feeds the absolute bar, the viewport
+  `paddingBottom`, and the Home shortcut; the two dead `height: vs(72)` / `paddingBottom: vs(72)`
+  style entries removed.
+- `features/food/components/FoodBottomNav.tsx` — inline formula swapped to `useBottomInset()`
+  (identical output; the `onLayout` height measurement is unchanged).
+- `features/food/components/RestaurantGrid.tsx` — food-feed clearance now tracks the inset
+  (`vs(104) + useBottomInset() - vs(8)`) so the last row stays clear on 3-button / iOS.
+
+**Future / honest gaps:** No navigation/state/native/API change; purely inset wiring.
+
+**On-device checklist** (Settings → System → Navigation mode; build via
+`gh workflow run android-debug.yml`):
+- Gesture nav (inset ≈24) + 3-button nav (inset ≈48): Main tabs, Mart (4 tabs), Pharma (5 tabs,
+  adaptive width) — labels fully above the pill, bar background reaches the screen bottom, items
+  centered.
+- Mart/Pharma feed last row scrolls clear of the taller bar; Mart vendor drill-in still hides
+  chrome (`isChromeHidden`).
+- `NavbarHomeShortcut` still overlaps ~¼ of every bar.
+- Food unchanged (regression); iOS home indicator (~34) now clears all bars too.
+
+**Date:** 2026-09-27
+
+---
+
 ## OTA / differential update delivery (expo-updates)
 
 **Status:** 🔴 Backlog — not chosen or implemented.

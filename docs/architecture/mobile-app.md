@@ -238,6 +238,18 @@ same measured inset; never use `StatusBar.currentHeight` (a static module consta
 on iOS and stale on Android edge-to-edge). The optional `withRail` adds the pinned rail slot
 (`SUB_HEADER_RAIL_H`, mirroring the Home `HEADER_RAIL_H`) — passed for the Mart sub-app header.
 
+**Bottom-inset convention:** one canonical source of truth — `useBottomInset()` in
+`src/utils/responsive.ts`, i.e. `Math.max(useSafeAreaInsets().bottom, vs(8))`. It exists because the
+app is edge-to-edge at the native level (`android:navigationBarColor` is transparent), so the
+window draws behind the system gesture pill / 3-button bar and `insets.bottom` is non-zero
+(≈24 dp gesture, ≈48 dp 3-button, ≈34 dp iOS home indicator). Every bottom navbar reserves it as
+`paddingBottom` and uses **no fixed height** — the bar grows downward so the icon/label row keeps
+its position and the extra space becomes a background strip over the system bar. Consumed by
+`features/food/components/FoodBottomNav`, `navigation/MainTabs` (`HubTabBar`), and the
+`components/SubAppWrapper` bar. Total bar height = base height + inset, and **every** consumer of
+that bar — content/viewport `paddingBottom`, and `NavbarHomeShortcut`'s `barHeight` — must use the
+total, never the base, or the Home circle is misplaced and content hides behind a taller bar.
+
 **Sub-app header (Mart / Pharma):** `components/shared/SubAppHeader.tsx` renders a compact header
 for Mart & Pharma — back button + a **white live searchbar** (no address pill anymore) that filters
 the in-place feed via `searchQuery`. When `hideBrandRow` is set the brand row is dropped. Mart's
@@ -250,6 +262,8 @@ Every visible bottom navbar also exposes the shared `components/shared/NavbarHom
 Faazio-blue circular Home button centered over the first tab, with three quarters of the circle
 above the bar. It appears on Favourites/You in `MainTabs`, on Mart/Pharma wrapper tabs, and on both
 Food tabs; it is hidden on the main Home tab and when Mart's vendor drill-in hides its chrome.
+`barHeight` must be the **total** bar height including the bottom inset (see "Bottom-inset
+convention" above), never the bare base height.
 
 **Home feed performance:** the home feed (`HomeView`) runs on an **`Animated.FlatList`**
 (reanimated-wrapped `FlatList`; migrating to `@shopify/flash-list` v2 is tracked in

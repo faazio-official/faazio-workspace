@@ -1,6 +1,6 @@
 import React, { Suspense, lazy } from 'react';
 import { StyleSheet, View, TouchableOpacity } from 'react-native';
-import { hs, vs, ms, SCREEN_W } from '@/utils/responsive';
+import { hs, vs, ms, SCREEN_W, useBottomInset } from '@/utils/responsive';
 import { Home, Heart, ShoppingBag, User } from 'lucide-react-native';
 import { createBottomTabNavigator, type BottomTabBarProps } from '@react-navigation/bottom-tabs';
 import { useCartStore } from '@/state/cartStore';
@@ -44,10 +44,12 @@ const TAB_BAR_H = vs(60);
 const INACTIVE_TINT = '#94a3b8';
 
 function HubTabBar({ state, navigation }: BottomTabBarProps) {
+  const bottomInset = useBottomInset();
+  const tabBarH = TAB_BAR_H + bottomInset;
   const totalCartQty = useCartStore((s) => s.cart).reduce((acc, curr) => acc + curr.quantity, 0);
 
   return (
-    <View style={styles.tabBarWrap}>
+    <View style={[styles.tabBarWrap, { height: tabBarH, paddingBottom: bottomInset }]}>
       <View style={styles.tabBarInner}>
         {state.routes.map((route, index) => {
           const name = route.name as keyof MainTabParamList;
@@ -96,7 +98,7 @@ function HubTabBar({ state, navigation }: BottomTabBarProps) {
       {state.index !== 0 ? (
         <NavbarHomeShortcut
           centerX={TAB_BAR_PAD + (SCREEN_W - 2 * TAB_BAR_PAD) / 8}
-          barHeight={TAB_BAR_H}
+          barHeight={tabBarH}
           onPress={() => navigation.navigate('Home')}
         />
       ) : null}
@@ -126,7 +128,6 @@ export function MainTabs() {
 const styles = StyleSheet.create({
   entranceRoot: { flex: 1 },
   tabBarWrap: {
-    height: TAB_BAR_H,
     backgroundColor: '#ffffff',
     borderTopLeftRadius: ms(18),
     borderTopRightRadius: ms(18),
