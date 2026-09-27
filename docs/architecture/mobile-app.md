@@ -27,7 +27,7 @@ cross-cutting home/search/cart/profile.
 src/
 ├── App.tsx                     # root — providers + AppNavigator
 ├── components/                 # global atomic UI (AppText, FaazioLogo, shared/, …)
-│   └── shared/                 # 14 reusable primitives (ProductCardBase, StoreCardBase, Screen, …)
+│   └── shared/                 # 15 reusable primitives (ProductCardBase, StoreCardBase, Screen, AdBannerCarousel, …)
 ├── features/                   # vertical feature modules (15)
 ├── navigation/                 # AppNavigator, MainTabs, FoodStack, types
 ├── services/                   # GatewayClient, logout, secureSession, categoryVendors, homeFeed
@@ -100,6 +100,15 @@ by `FeaturedDishCarousel` ← `FoodHomeScreen`): a thin adapter over the Food su
 `hs(116)` wide, `aspectRatio: 1` rounded image, name-only body with rating/price/badge/heart/add
 hidden) — so the Food card is pixel-identical to the Home "Today's Special" card and the two can't
 drift. Food renders a single rail of all diet-filtered specials (Home stacks two).
+
+The **shared `AdBannerCarousel`** (`components/shared/AdBannerCarousel.tsx`) is the extracted Home
+top-ad banner — a 156-high rounded card (`expo-image` bg + overlay + badge + title/tagline) that
+auto-advances every 4.5s with paging dots, manually swipeable, timer cleared on unmount and
+re-anchored on `width` (skipped when there are fewer than 2 slides). It is presentation-only:
+spacing comes from the caller via `style`, taps via an optional `onSlidePress` (no handler → the tap
+is a no-op). Home's `AdBannerSection` is now a thin wrapper over it (passing `topAdSlides`, the
+AppBrand → SubAppId press mapping and the hub's margins), so the hub banner is pixel-identical; Food
+renders the same carousel in the restaurant profile's gray hero band.
 
 The **Mart Product Detail** (`CommonProductDetailView`) renders a store section below the
 "Product Details" block for any MART product with a resolvable `storeId`: a store card
@@ -432,8 +441,11 @@ loyalty loop that is entirely device-local (no backend yet — see `PENDING_WORK
 ## Food diet filter
 
 The Food sub-app exposes a Zomato-style **All / Veg / Non-Veg** toggle (`DietToggle` in the
-Food home + Search headers) backed by the session-scoped `foodFilterStore`. One store
-drives every Food screen + food search at once. Venues are classified by `dietType`
+Food home header + Search headers) backed by the session-scoped `foodFilterStore`. One store
+drives every Food screen + food search at once. The Food home header (`DiningHeader`) is now a
+back chevron with the toggle centered in the row (the old address block — area + "Delivering to
+Home" — was removed); the toggle is uncontrolled, so it writes the shared store like the rest of
+the home. Venues are classified by `dietType`
 (`veg`/`nonveg`/`both`); dishes by `isVeg?`. Pure-veg venues drop in Non-Veg mode and
 pure-non-veg venues drop in Veg mode; `both` venues stay in both. Unclassifiable dishes
 (`isVeg` undefined) are hidden while a filter is active. Match semantics live in
@@ -461,8 +473,15 @@ a live `TextInput` or the old `onLayout` scroll-and-focus jump.
 
 ## Food — Restaurant profile vs full menu
 
-`RestaurantProfileScreen` is the restaurant's landing page (hero, info card, Recommended & Offers
-rail, category chips, menu preview) and `RestaurantMenuScreen` is the dedicated full-menu page.
+`RestaurantProfileScreen` is the restaurant's landing page (ad-banner hero band, info card,
+Recommended & Offers rail, category chips, menu preview) and `RestaurantMenuScreen` is the dedicated
+full-menu page.
+
+The profile hero is a solid light-gray `#F3F4F6` band (padded clear of the pinned toolbar) holding
+the shared `AdBannerCarousel` over `topAdSlides` — the old restaurant `RemoteImage` + dark overlay
+was dropped. The carousel has no press handler here, so taps are a no-op inside Food; the pinned
+back/search/share toolbar, the `−40` overlapping white board, menu, offers rail and cart pill are
+unchanged.
 
 - Both render identical dish rows via the shared `features/food/components/MenuItemRow` (thumb,
   name/description/price, outlined **Add** → **− qty +** stepper) and the same restaurant-scoped

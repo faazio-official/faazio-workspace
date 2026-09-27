@@ -248,7 +248,7 @@ the `GROCERY` member was dropped from `AppBrand` / `CartCategory` / `SubAppId` /
 | `homeSections` | `HomeSectionDescriptor[]` | `HomeView` (section registry) | `@static` |
 | `HomeSectionKind` | type union | `HomeView`, `HomeView` sections | `@static` |
 | `portalSectors` | `PortalSector[]` | home `ExploreSectorsSection` | `@mock` |
-| `topAdSlides` | `AdSlide[]` | home `AdBannerSection` | `@mock` |
+| `topAdSlides` | `AdSlide[]` | home `AdBannerSection` (via shared `AdBannerCarousel`) + food `RestaurantProfileScreen` hero (same carousel) | `@mock` |
 | `hotBrandDeals` | `Product[]` | home `BrandCampaignsSection` (ex-`HotBrandDealsSection`); its `hbd-*` rows remain in the catalog index + search | `@mock` |
 | `adCampaigns` / `getCampaignProducts` / `getCampaignStore` / `carouselOneCampaigns` / `carouselTwoCampaigns` | `AdCampaign[]` + resolvers + carousel slices | home `BrandCampaignsSection` (via `BrandCampaignCard`) → `DealsLandingScreen` (`campaign` mode). Each campaign references a **real Mart vendor by `storeId`** (resolved via `getStoreById`) plus products **by id only**, resolved via `getProductById` (kept to the vendor's `storeId`) | `@mock` |
 | `recentlyViewedMart/Food/Pharma` | `Product[]` | `HomeView` (Recently Viewed rail) | `@mock` |

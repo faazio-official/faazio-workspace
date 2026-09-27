@@ -5,6 +5,40 @@ dependencies exist. Do not build the backend/seller flows until told to.
 
 ---
 
+## Food — shared ad-banner hero on the restaurant profile + slimmer dining header
+
+**Status:** 🟢 Shipped (client-side).
+
+**Feature:** The Home top-ad banner is extracted into a shared carousel and reused as the restaurant
+profile's hero; the Food home header drops its address block.
+
+**Changes:**
+- **`components/shared/AdBannerCarousel.tsx`** (new, exported from `components/shared/index.ts`):
+  the Home top-ad banner extracted byte-for-byte — 156-high rounded card (`expo-image` bg + overlay +
+  badge + title/tagline), 4.5s auto-advance, paging dots, momentum resync, timer cleanup, re-anchor
+  on `width`, plus a `< 2 slides` timer/dots guard. Presentation-only: `slides: AdSlide[]`,
+  optional `onSlidePress`, optional `style` (no built-in margins) — so it is boundary-safe
+  (`components/shared` may not import features).
+- **`features/home/sections/AdBannerSection.tsx`** is now a thin wrapper over it: passes
+  `topAdSlides`, the `targetApp → subAppIdFor → onLaunchSubApp` press mapping and the hub's margins
+  (`marginHorizontal hs(16)`, `marginTop vs(4)`, `marginBottom vs(12)`) — pixel-identical to before.
+- **`RestaurantProfileScreen.tsx`**: the `RemoteImage` hero + 40% dark overlay are replaced by a solid
+  `#F3F4F6` band (`paddingTop: insets.top + 52`, `paddingHorizontal hs(16)`, `paddingBottom vs(52)`)
+  holding `<AdBannerCarousel slides={topAdSlides} />` with no press handler (taps are a no-op inside
+  Food). The pinned toolbar, `−40` white-board overlap, menu, offers rail and cart pill are unchanged.
+- **`DiningHeader.tsx`**: removed the address section (area + "Delivering to Home", `area` /
+  `onAreaPress` props, `MapPin`/`ChevronDown`/`ChevronRight`, location styles, second `dietRow`). The
+  row is now back chevron · centered `DietToggle` (`flex-1`, `alignItems: 'center'`) · equal-width
+  right spacer; the toggle stays uncontrolled and still writes the shared `foodFilterStore`.
+  `FoodHomeScreen` needs no change.
+
+**Docs:** `docs/architecture/mobile-app.md` (shared carousel, RestaurantProfile hero, Food home
+header), `data/DATA_CONTROL.md` (`topAdSlides` consumer row).
+
+**Date:** 2026-09-27
+
+---
+
 ## Food — "Today's Special" home-card parity + Restaurant menu header / category rail fixes
 
 **Status:** 🟢 Shipped (client-side).

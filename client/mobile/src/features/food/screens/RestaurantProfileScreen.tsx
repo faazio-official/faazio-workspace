@@ -23,7 +23,8 @@ import {
 } from 'lucide-react-native';
 import { hs, vs, ms } from '@/utils/responsive';
 import AppText from '@/components/AppText';
-import AdLabelBadge from '@/components/shared/AdLabelBadge';
+import { AdBannerCarousel, AdLabelBadge } from '@/components/shared';
+import { topAdSlides } from '@data/home/rails';
 import RemoteImage from '../components/RemoteImage';
 import FoodStatusBarStrip from '../components/FoodStatusBarStrip';
 import MenuItemRow from '../components/MenuItemRow';
@@ -136,10 +137,9 @@ export function RestaurantProfileScreen({ navigation, route }: Props) {
         scrollEventThrottle={16}
         keyboardShouldPersistTaps="handled"
       >
-        {/* HERO IMAGE BACKGROUND */}
-        <View style={styles.heroContainer}>
-          <RemoteImage uri={restaurant.image} variant="restaurant" style={styles.heroImage} />
-          <View style={styles.heroOverlay} />
+        {/* AD BANNER HERO — light gray band, tap is a no-op inside Food */}
+        <View style={[styles.heroContainer, { paddingTop: insets.top + vs(52) }]}>
+          <AdBannerCarousel slides={topAdSlides} />
         </View>
 
         {/* OVERLAPPING WHITE BOARD */}
@@ -360,13 +360,10 @@ export default RestaurantProfileScreen;
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#fff' },
   scrollContent: { paddingBottom: vs(40) },
-  heroContainer: { height: vs(260), position: 'relative' },
-  heroImage: { width: '100%', height: '100%' },
-  heroOverlay: {
-    position: 'absolute',
-    width: '100%',
-    height: '100%',
-    backgroundColor: 'rgba(0,0,0,0.4)',
+  heroContainer: {
+    backgroundColor: '#F3F4F6',
+    paddingHorizontal: hs(16),
+    paddingBottom: vs(52),
   },
   header: {
     position: 'absolute',

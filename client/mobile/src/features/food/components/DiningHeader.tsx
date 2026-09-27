@@ -1,27 +1,21 @@
 import React, { memo } from 'react';
 import { View, TouchableOpacity, StyleSheet } from 'react-native';
-import { ArrowLeft, MapPin, ChevronDown, ChevronRight } from 'lucide-react-native';
+import { ArrowLeft } from 'lucide-react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import AppText from '@/components/AppText';
 import { hs, ms, vs } from '@/utils/responsive';
 import { foodTheme } from '../constants/theme';
 import DietToggle from './DietToggle';
 
 interface DiningHeaderProps {
-  area?: string;
   onBack?: () => void;
-  onAreaPress?: () => void;
 }
 
 /**
- * Dedicated Dining header — back chevron + location block. Renders below the
- * status-bar inset.
+ * Dedicated Dining header — back chevron + centered diet toggle. Renders below
+ * the status-bar inset. The toggle is uncontrolled, so it reads/writes the
+ * shared `foodFilterStore` like the rest of the Food home.
  */
-const DiningHeader = memo(function DiningHeader({
-  area = 'Anna Nagar, Chennai',
-  onBack,
-  onAreaPress,
-}: DiningHeaderProps) {
+const DiningHeader = memo(function DiningHeader({ onBack }: DiningHeaderProps) {
   const insets = useSafeAreaInsets();
 
   return (
@@ -37,32 +31,11 @@ const DiningHeader = memo(function DiningHeader({
           <ArrowLeft size={ms(20)} color={foodTheme.textPrimary} strokeWidth={2.4} />
         </TouchableOpacity>
 
-        <TouchableOpacity
-          style={styles.location}
-          onPress={onAreaPress}
-          activeOpacity={0.8}
-          accessibilityRole="button"
-          accessibilityLabel={`Location: ${area}`}
-        >
-          <MapPin size={ms(22)} color={foodTheme.primary} strokeWidth={2.2} />
-          <View style={styles.locationTextWrap}>
-            <View style={styles.areaRow}>
-              <AppText style={styles.area} numberOfLines={1}>
-                {area}
-              </AppText>
-              <ChevronDown size={ms(16)} color={foodTheme.textPrimary} strokeWidth={2.4} />
-            </View>
-            <View style={styles.deliveryRow}>
-              <AppText style={styles.deliveryText}>Delivering to </AppText>
-              <AppText style={styles.deliveryTo}>Home</AppText>
-              <ChevronRight size={ms(12)} color={foodTheme.primary} strokeWidth={2.6} />
-            </View>
-          </View>
-        </TouchableOpacity>
-      </View>
+        <View style={styles.toggleWrap}>
+          <DietToggle />
+        </View>
 
-      <View style={styles.dietRow}>
-        <DietToggle />
+        <View style={styles.spacer} />
       </View>
     </View>
   );
@@ -81,11 +54,6 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
   },
-  dietRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingBottom: vs(4),
-  },
   iconBtn: {
     width: ms(40),
     height: vs(40),
@@ -94,42 +62,11 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     backgroundColor: '#FFFFFF',
   },
-  location: {
+  toggleWrap: {
     flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: hs(8),
-    minHeight: vs(48),
-    marginLeft: hs(8),
-  },
-  locationTextWrap: {
-    flex: 1,
-    justifyContent: 'center',
-    gap: vs(2),
-  },
-  areaRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: hs(2),
-  },
-  area: {
-    fontSize: ms(17),
-    fontWeight: '700',
-    color: foodTheme.textPrimary,
-    flexShrink: 1,
-  },
-  deliveryRow: {
-    flexDirection: 'row',
     alignItems: 'center',
   },
-  deliveryText: {
-    fontSize: ms(12.5),
-    fontWeight: '400',
-    color: foodTheme.textSecondary,
-  },
-  deliveryTo: {
-    fontSize: ms(12.5),
-    fontWeight: '700',
-    color: foodTheme.primary,
+  spacer: {
+    width: ms(40),
   },
 });
