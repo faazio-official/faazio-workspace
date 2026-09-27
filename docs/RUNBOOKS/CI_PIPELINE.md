@@ -5,13 +5,20 @@
 
 ## 🧩 The one rule
 
-**Never build the release APK on a local machine.** Whenever a release APK is needed, run it
-through the CI pipeline via `gh`. Local `npm run android` is for **development** (debug build +
-hot reload), not for shipping.
+**Never build on a local machine — neither the release APK nor a debug APK.** Whenever an Android
+build is needed, run it through the CI pipeline via `gh`. Local `npm run android` /
+`expo run:android` / `./gradlew` is **forbidden**: the laptop's `systemd-oomd` SIGKILLs Gradle at
+its 50% memory-pressure threshold (see `TROUBLESHOOTING.md` → "Gradle / native build failures") and
+it wastes the user's RAM. Local `npm run start` (Metro) is fine — it is the JS bundler, not Gradle.
 
 ## 📐 Pipeline overview
 
-One workflow: [`.github/workflows/release-apk.yml`](../../.github/workflows/release-apk.yml).
+Two workflows:
+
+- [`.github/workflows/release-apk.yml`](../../.github/workflows/release-apk.yml) — signed release
+  APK → GitHub Release.
+- [`.github/workflows/android-debug.yml`](../../.github/workflows/android-debug.yml) — debug APK →
+  downloadable Actions artifact (for device testing with a local Metro).
 
 ```
 you (gh CLI) ──► GitHub Actions
@@ -20,17 +27,17 @@ you (gh CLI) ──► GitHub Actions
                     ├─ gradle/actions/setup-gradle      ← caches ~/.gradle + build cache
                     ├─ Tune Gradle for CI runner         ← ~/.gradle overrides laptop caps
                     ├─ npm ci                        (postinstall: patch-package)
-                    ├─ Set version (manual override)
-                    ├─ restore-keystore.sh           ← decode keystore from secrets
+                    ├─ Set version (manual override)      [release only]
+                    ├─ restore-keystore.sh           ← decode keystore from secrets  [release only]
                     ├─ expo prebuild --clean --platform android
-                    ├─ configure-release-signing.sh  ← inject release signingConfig
-                    ├─ ./gradlew assembleRelease \
-                    │    -PreactNativeArchitectures=arm64-v8a,armeabi-v7a \
-                    │    -Pandroid.enableMinifyInReleaseBuilds=true \
-                    │    -Pandroid.enableShrinkResourcesInReleaseBuilds=true
-                    ├─ Upload APK artifact (faazio-<version>-apk)
-                    ├─ Upload R8 mapping (faazio-mapping-<run_id>, private)
-                    └─ gh release create + upload --clobber
+                    ├─ configure-release-signing.sh  ← inject release signingConfig  [release only]
+                    ├─ ./gradlew assembleRelease|assembleDebug --no-daemon \
+                    │    -PreactNativeArchitectures=... \
+                    │    [-Pandroid.enableMinifyInReleaseBuilds=true \
+                    │     -Pandroid.enableShrinkResourcesInReleaseBuilds=true]   [release only]
+                    ├─ Upload APK artifact
+                    ├─ Upload R8 mapping (faazio-mapping-<run_id>, private)        [release only]
+                    └─ gh release create + upload --clobber                        [release only]
 ```
 
 ### Speed + size knobs (CI-only)
@@ -75,7 +82,27 @@ Set on the repo with `gh secret set`:
 cd client/mobile
 gh workflow run "Release APK" -f version=1.0.2 -f tag=v1.0.2
 gh run watch              # wait for the green check
+gh run view --log-failed  # if it fails, pull the Gradle error here
 ```
+
+## 🐞 Trigger a debug build (device testing)
+
+Builds a debug APK in CI without touching local Gradle, then installs it for use with a local
+Metro bundler (so ErrorBoundary messages / RedBox are visible, since dev does not strip
+`console.*`):
+
+```bash
+gh workflow run android-debug.yml
+gh run watch
+gh run view --log-failed                           # build errors, if any
+gh run download <run-id> -n faazio-debug-apk       # -> app-debug.apk
+adb install -r app-debug.apk
+adb reverse tcp:8081 tcp:8081                       # then `npx expo start` locally
+```
+
+> A debug APK is signed with the CI runner's **debug** keystore — different from the release key.
+> If a release build is installed, `adb uninstall com.faazio.customer` before installing it (and
+> vice-versa).
 
 The signed APK lands on the GitHub Release at `<tag>` (e.g. `v1.0.2`). Because the publish step
 uses `gh release upload --clobber`, re-running the same tag **replaces** the old APK.
@@ -119,9 +146,11 @@ adb install -r app-release.apk
 | Need | Command |
 |---|---|
 | Instant preview / hot reload on code change | `npm run start` + Expo Go / dev client |
-| Local debug build + install | `npm run android` |
+| **Debug APK for device testing** (no local Gradle) | `gh workflow run android-debug.yml` → `gh run download` |
 | **Ship / replace a release APK** | `gh workflow run "Release APK" …` |
 | Download the latest release APK | `gh release download … --pattern "*.apk"` |
+
+> **Never** `npm run android` / `expo run:android` / `./gradlew` locally — CI only (memory).
 
 ## ⚠️ Failure triage
 

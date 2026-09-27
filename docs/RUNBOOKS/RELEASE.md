@@ -114,38 +114,41 @@ adb install -r app-release.apk
 > the dev-vs-CI decision table. If a debug-signed Faazio is already installed, uninstall it first
 > (`adb uninstall com.faazio.customer`).
 
-### Local debug build
+### Debug build (CI-only)
+
+**Never build locally** (`npm run android` / `expo run:android` / `./gradlew`) — the host's
+`systemd-oomd` kills Gradle under memory pressure. Build on GitHub's runners instead:
 
 ```bash
-cd client/mobile
-adb devices                  # confirm a device/emulator
-npm run android              # debug build → install → launch
+gh workflow run android-debug.yml
+gh run watch
+gh run download <run-id> -n faazio-debug-apk   # -> app-debug.apk
+adb install -r app-debug.apk
+adb reverse tcp:8081 tcp:8081                   # then `npx expo start` locally for Metro
 ```
 
-`npm run android` produces `android/app/build/outputs/apk/debug/app-debug.apk`.
+See `docs/RUNBOOKS/CI_PIPELINE.md` → "Trigger a debug build".
 
-### Manual local release APK (fallback, not the primary path)
+### No local release build (CI-only)
+
+There is **no supported local release build** — `./gradlew assembleRelease` is forbidden on this
+machine (systemd-oomd OOM-kills Gradle). Use `gh workflow run "Release APK"` (see
+`docs/RUNBOOKS/CI_PIPELINE.md`). The CI workflow runs the equivalent of:
 
 ```bash
-cd client/mobile
-bash scripts/restore-keystore.sh        # requires KEYSTORE_BASE64 etc. env vars
 npx expo prebuild --clean --platform android
 bash scripts/configure-release-signing.sh
-cd android && ./gradlew assembleRelease \
+cd android && ./gradlew assembleRelease --no-daemon \
   -PreactNativeArchitectures=arm64-v8a,armeabi-v7a \
   -Pandroid.enableMinifyInReleaseBuilds=true \
   -Pandroid.enableShrinkResourcesInReleaseBuilds=true
 ```
 
-Output lands in `android/app/build/outputs/apk/release/`. Verify the APK is signed with the
-**release** cert (not the debug cert) before sharing:
+To verify a **downloaded** APK is signed with the release cert (not the debug cert):
 ```bash
-apksigner verify --verbose --print-certs android/app/build/outputs/apk/release/*.apk
+apksigner verify --verbose --print-certs app-release.apk
 # EXPECT "Signer #1 certificate DN: CN=Faazio, ..."  (release cert, NOT "CN=Android Debug")
 ```
-> Note: on a memory-pressured laptop these flags (esp. R8 with a larger heap) make a local build
-> even more likely to be OOM-killed by `systemd-oomd` — prefer the CI pipeline for release builds.
-
 ## 🌐 Google Play (manual)
 
 1. Build the release `.aab` (`./gradlew bundleRelease`).

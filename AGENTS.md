@@ -68,8 +68,40 @@ Run from `client/mobile/`:
 ```bash
 npm run ts:check          # typecheck (always)
 npm run check:boundaries  # dependency-cruiser
-# device test: adb devices then npm run android
 ```
+
+## Builds are CI-only — never run Gradle locally
+**Never run `npm run android` / `expo run:android` / `./gradlew` on this machine.** Local Gradle
+builds get SIGKILLed by `systemd-oomd` at the 50% memory-pressure threshold (see
+`docs/RUNBOOKS/TROUBLESHOOTING.md` → "Gradle / native build failures") and waste the user's RAM.
+Instead let GitHub Actions build and surface any build errors:
+
+```bash
+gh workflow run android-debug.yml          # debug APK artifact (device testing)
+gh workflow run "Release APK"              # signed release APK -> GitHub Release
+gh run watch                               # wait for the run to finish
+gh run view --log-failed                   # <-- pull build errors from CI
+```
+
+The CI Gradle build command (do not reproduce locally; it lives in the workflow):
+```bash
+cd android
+./gradlew assembleDebug --no-daemon -PreactNativeArchitectures="arm64-v8a"
+# release: ./gradlew assembleRelease --no-daemon \
+#   -PreactNativeArchitectures="arm64-v8a,armeabi-v7a" \
+#   -Pandroid.enableMinifyInReleaseBuilds=true \
+#   -Pandroid.enableShrinkResourcesInReleaseBuilds=true
+```
+
+Install a CI artifact on the device (never build it locally):
+```bash
+gh run download <run-id> -n faazio-debug-apk
+adb install -r app-debug.apk
+adb reverse tcp:8081 tcp:8081        # then `npx expo start` locally for Metro
+```
+
+Full details: `docs/RUNBOOKS/CI_PIPELINE.md`. Local `npm run start` (Metro) is fine — it is the
+bundler, **not** Gradle.
 
 ## Modules
 Shipped (`client/mobile/src/features/`): `onboarding`, `auth`, `home`, `ecommerce`

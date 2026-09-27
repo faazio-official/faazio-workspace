@@ -1,0 +1,84 @@
+name: Android Debug APK
+
+# Builds a debug APK entirely in GitHub Actions (no local Gradle / systemd-oomd
+# risk) and uploads it as a downloadable artifact for device testing with a
+# local Metro bundler:
+#   gh workflow run android-debug.yml
+#   gh run watch
+#   gh run download <run-id> -n faazio-debug-apk
+#   adb install -r app-debug.apk
+#   adb reverse tcp:8081 tcp:8081   # then run `npx expo start` locally
+#
+# Debug builds are NOT signed with the release key and do NOT hot-reload on
+# their own — Metro serves the JS over adb reverse.
+on:
+  workflow_dispatch:
+    inputs:
+      archs:
+        description: "ABIs to build (comma-separated)"
+        required: false
+        type: string
+        default: "arm64-v8a"
+
+permissions:
+  contents: read
+
+env:
+  NODE_VERSION: "24"
+  JAVA_VERSION: "21"
+
+jobs:
+  build-debug-apk:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: client/mobile
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: client/mobile/package-lock.json
+
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: ${{ env.JAVA_VERSION }}
+
+      - name: Cache Gradle + setup Gradle build cache
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Tune Gradle for CI runner
+        run: |
+          mkdir -p ~/.gradle
+          cat > ~/.gradle/gradle.properties <<'EOF'
+          org.gradle.jvmargs=-Xmx6144m -XX:MaxMetaspaceSize=1024m -XX:+UseParallelGC
+          org.gradle.workers.max=4
+          org.gradle.parallel=true
+          org.gradle.caching=true
+          org.gradle.vfs.watch=false
+          EOF
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Generate Android project (prebuild)
+        run: npx expo prebuild --clean --platform android
+
+      - name: Build debug APK
+        run: |
+          cd android
+          ./gradlew assembleDebug --no-daemon \
+            -PreactNativeArchitectures="${{ github.event.inputs.archs }}"
+
+      - name: Upload debug APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: faazio-debug-apk
+          path: client/mobile/android/app/build/outputs/apk/debug/*.apk
+          if-no-files-found: error

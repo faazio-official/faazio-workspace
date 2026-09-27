@@ -594,5 +594,6 @@ The "lightweight, fast, secure" mandate (AGENTS.md) is enforced at build and del
 cd client/mobile
 npm run ts:check            # typecheck
 npm run check:boundaries    # dependency-cruiser
-adb devices && npm run android
+# Android build is CI-only (never local Gradle):
+gh workflow run android-debug.yml && gh run watch
 ```

@@ -90,7 +90,7 @@ show them on the order-success receipt and on Order Details.
   fixing the placed-order "not found" gap.
 
 **Native:** `app.json` `expo-location` permission message + iOS `NSLocationWhenInUseUsageDescription`
-updated to cover checkout auto-fill. Requires `npm run android`.
+updated to cover checkout auto-fill. Requires a CI debug build (`gh workflow run android-debug.yml`).
 
 **Future / honest gaps:**
 - The live location is captured on the order but nothing uploads it yet (future Go backend).
@@ -127,7 +127,7 @@ param auto-selects that order's sub-app and rings its card.
 `src/state/ordersStore.ts` (`PlacedOrder` with `kind: 'items' | 'prescription'`).
 
 **Native:** `expo-camera` installed + registered in `app.json` (camera permission message). Requires
-a native rebuild (`npm run android`).
+a CI debug build (`gh workflow run android-debug.yml`).
 
 **Future / honest gaps:**
 - Photos are captured and shown only in-session; nothing uploads them yet (future Go backend).

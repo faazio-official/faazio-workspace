@@ -50,10 +50,12 @@ adb devices            # must show "<id>  device"
 ## 🔧 "Faazio isn't responding" (ANR) or silent crashes
 
 - **App frozen / ANR on launch** → the device is usually running an **old debug build** (a debug
-  APK is un-optimized and ANR-prone). Reinstall a fresh **release** build:
+  APK is un-optimized and ANR-prone). Reinstall a fresh **release** build from CI (never build
+  locally — systemd-oomd kills Gradle):
   ```bash
-  cd client/mobile
-  npm run android -- --variant release      # or ./gradlew -p android assembleRelease then adb install
+  gh workflow run "Release APK"
+  gh run watch && gh release download v<version> --pattern "*.apk" --clobber
+  adb uninstall com.faazio.customer && adb install -r app-release.apk
   ```
 - **Stuck on the splash / never advances** → startup (fonts/hydration) stalled. `App.tsx` now has a
   **splash failsafe** (auto-dismiss after 10 s) and **4 s hydration timeouts**, so a hanging native
@@ -72,8 +74,9 @@ rendered on the error card** (plus the first stack frame in a dev build) — tha
 - The **root** boundary (`scope="App"`, `AppNavigator`) wraps the whole navigator; the **scoped**
   `scope="SubApp"` boundary in `SubAppScreen` contains a Mart/Pharma-only failure so Home/Food keep
   working. Both offer **"Go to Home"** (resets navigation via `navigationRef`).
-- For a **full stack immediately**, run a local dev build (`npx expo run:android` + `npx expo start`)
-  — dev does **not** strip `console.*`, so the RedBox and `adb logcat -s ReactNativeJS` both show it.
+- For a **full stack immediately**, install a **debug build from CI** (`gh workflow run
+  android-debug.yml`, then `adb install` + `npx expo start`) — dev does **not** strip `console.*`,
+  so the RedBox and `adb logcat -s ReactNativeJS` both show it. Do **not** build locally.
 - Likely causes: an unknown `subAppId` (handler: "Unsupported sub-app" state, no crash), a bad
   `initialVendorStoreId` (guarded), or a release-only native/keep-rule gap (message mentions
   `requireNativeComponent` / `UIManager` / `Invariant Violation`).
@@ -94,14 +97,23 @@ rendered on the error card** (plus the first stack frame in a dev build) — tha
 
 ## 🔧 Gradle / native build failures
 
+> **Rule: do not run Gradle locally on this machine.** Build in GitHub Actions
+> (`gh workflow run android-debug.yml` for a debug artifact, `gh workflow run "Release APK"` for a
+> signed release) and read errors with `gh run view --log-failed`. The diagnosis below is kept for
+> reference / when forcing a build on a freed machine.
+
 - **Native module changed (e.g. `expo-location` added/updated)** → a dev client built
-  before the change will crash with a missing module error. Rebuild the dev client:
+  before the change will crash with a missing module error. Rebuild the dev client **in CI**
+  (never locally):
   ```bash
-  cd client/mobile && npm run android
+  gh workflow run android-debug.yml
+  gh run watch
+  gh run download <run-id> -n faazio-debug-apk
+  adb install -r app-debug.apk
   ```
   > Changing the `expo-location` permission string (or `NSLocationWhenInUseUsageDescription` /
   > the `app.json` plugin message — e.g. to cover checkout live-address auto-fill) **also
-  > requires a native rebuild** (`npm run android`) so the new prompt text is baked into the client.
+  > requires a native rebuild** (CI debug build, as above) so the new prompt text is baked into the client.
 - **`compileDebugKotlin FAILED` — `Unresolved reference 'ReactNativeHostWrapper'`**
   → the generated `android/` project is **stale** vs the installed Expo SDK. Regenerate:
   ```bash
@@ -152,9 +164,10 @@ rendered on the error card** (plus the first stack frame in a dev build) — tha
   Fix: free substantial RAM (close Chrome/VS Code windows; the aarvethu `next-server` +
   postgres leftovers from another project eat ~1.5G) or flush swap
   (`sudo swapoff -a && sudo swapon -a`), then retry — pressure must stay under 50% for the
-  whole build. **Realistically: use the CI pipeline** (`gh workflow run "Release APK"`,
-  see `docs/RUNBOOKS/CI_PIPELINE.md`) — CI has repeatedly built the same code successfully
-  (release v1.0.2) while every local attempt on this machine failed under memory pressure.
+  whole build. **Realistically: use the CI pipeline** (`gh workflow run "Release APK"` or
+  `gh workflow run android-debug.yml`, see `docs/RUNBOOKS/CI_PIPELINE.md`) — CI has repeatedly
+  built the same code successfully (release v1.0.2) while every local attempt on this machine
+  failed under memory pressure.
   > **Gotcha for tooling/agents:** do NOT use `pkill -9 -f "GradleDaemon"` — the `-f` pattern
   > matches your own shell command line and kills your session. Kill by PID from
   > `ps -eo pid,args | grep "[G]radleDaemon"`.
@@ -189,8 +202,8 @@ guards the mutation so it's skipped when the container is already frozen:
 The mapper (`startMapper`) still drives the animation, so behavior is unchanged. The patch is
 re-applied automatically on `npm install` via the `postinstall: patch-package` script.
 
-- **After editing the patch**, the native dev build must be rebuilt so the JS source change is
-  picked up: `cd client/mobile && npm run android`.
+- **After editing the patch**, the native build must be rebuilt **in CI** so the JS source change
+  is picked up: `gh workflow run android-debug.yml` → download artifact → `adb install -r`.
 - **Quick verification** that Metro serves the patched code:
   ```bash
   curl -s "http://localhost:8081/node_modules/expo/AppEntry.bundle?platform=android&dev=true&minify=false&app=com.faazio.customer&lazy=true" | grep -c "Object.isFrozen(updaterContainer)"   # expect >= 1
@@ -243,7 +256,7 @@ with the frame stats over a fling through the collapse zone + to the bottom:
 adb shell dumpsys gfxinfo com.faazio.customer
 ```
 Look at `Janky frames` % / 90th-percentile frame time. Don't judge smoothness on a debug
-`npm run android` build (Reanimated is far slower in debug).
+build (Reanimated is far slower in debug); use a **CI release** build.
 
 ## 🔧 Typecheck / boundary failures
 
@@ -259,10 +272,10 @@ Look at `Janky frames` % / 90th-percentile frame time. Don't judge smoothness on
 
 ## 🔧 Scroll jank / slow first load
 
-**Rule: judge performance on a release build, not dev.** Dev mode (Metro, `expo run:android`
-debug) exaggerates jank and startup time. Verify before/after with:
+**Rule: judge performance on a release build, not dev.** Dev mode (Metro, debug build) exaggerates
+jank and startup time. Verify before/after with a **CI release** build:
 ```bash
-npx expo run:android --variant release
+gh workflow run "Release APK"
 ```
 
 Conventions that keep the Home feed smooth (see `docs/architecture/mobile-app.md`):

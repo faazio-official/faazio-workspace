@@ -25,29 +25,28 @@ npm install
 
 ## 3. Run on a device / emulator
 
+> **Builds are CI-only on this project.** Do **not** run `npm run android` / `expo run:android` /
+> `./gradlew` — the host's `systemd-oomd` SIGKILLs Gradle under memory pressure (see
+> `docs/RUNBOOKS/TROUBLESHOOTING.md` → "Gradle / native build failures"). Let GitHub Actions build
+> the APK, then install the artifact:
+
 ```bash
-adb devices                 # confirm a device shows up (e.g. RZ8NA1WCLWL device)
-npm run android             # expo run:android → builds + installs + launches
+adb devices                                   # confirm a device shows up
+gh workflow run android-debug.yml             # debug APK built on GitHub's runners
+gh run watch
+gh run download <run-id> -n faazio-debug-apk  # -> app-debug.apk
+adb install -r app-debug.apk
+adb reverse tcp:8081 tcp:8081                 # then: npx expo start   (Metro, local)
 ```
 
-- First build compiles native code (Gradle) and can take several minutes.
-- If Metro is already running on port 8081, `expo run:android` reuses it.
+- Metro (`npx expo start`) runs **locally** — it is the JS bundler, not Gradle.
+- The debug APK connects to Metro over `adb reverse` (no rebuild needed for JS changes).
 - Full-screen, non-scrollable layout per AGENTS.md rule 8.
 
-### Speed tip: build for one ABI during local dev
+### Speed tip: single-ABI debug builds
 
-Dev builds compile native code (reanimated/worklets C++) for **all 4 ABIs** by default. To build
-only for the device/emulator's ABI (~75% less native work) on a fast, focused dev loop:
-
-```bash
-npx expo run:android -- --active-arch-only
-# or explicitly:
-cd android && ./gradlew installDebug -PreactNativeArchitectures=arm64-v8a
-```
-
-> This is a **dev-only** optimization. Release CI builds use `arm64-v8a,armeabi-v7a` (see
-> `docs/RUNBOOKS/RELEASE.md`). Don't ship a single-ABI release for GitHub distribution unless
-> arm64-only is intentional.
+The CI debug workflow defaults to `arm64-v8a`; pass `-f archs=arm64-v8a,armeabi-v7a` if you need
+more. Release CI builds use `arm64-v8a,armeabi-v7a` (see `docs/RUNBOOKS/RELEASE.md`).
 
 ## 4. Verify every change
 
