@@ -1,7 +1,7 @@
 import { martProducts } from '@data/mart/products';
 import { pharmaProducts } from '@data/pharma/products';
 import { getStoreById } from '@data/directory/stores';
-import type { Product, StoreProfile } from '@data/types';
+import type { AppBrand, AdSlide, Product, StoreProfile } from '@data/types';
 import type { SubAppId } from '@/state/uiStore';
 
 /** Sub-apps that have a product-to-vendor mapping (Mart & Pharma only). */
@@ -11,6 +11,21 @@ export type VendorApp = Extract<SubAppId, 'FA_MART' | 'PHARMA'>;
 export interface VendorMatch {
   store: StoreProfile;
   matchCount: number;
+}
+
+/** A vendor plus the product rows that matched a query (for the drill-in rails). */
+export interface VendorProducts {
+  store: StoreProfile;
+  matchCount: number;
+  products: Product[];
+}
+
+/** A store-derived ad slide that keeps its source `storeId` for tap-through. */
+export type VendorAdSlide = AdSlide & { storeId: string };
+
+/** Maps a drill-in `VendorApp` to its public `AppBrand`. */
+function brandFor(app: VendorApp): AppBrand {
+  return app === 'FA_MART' ? 'MART' : 'PHARMA';
 }
 
 /** The product pool backing a sub-app's catalog. */
@@ -74,11 +89,58 @@ export function getVendorsForApp(app: VendorApp, searchQuery = ''): VendorMatch[
 }
 
 /**
+ * Like `getVendorsForApp`, but each vendor also carries the product rows that
+ * matched the query — the flat store-grouped rails rendered by the category
+ * drill-in body. Products stay scoped to the same `matchesQuery` predicate so
+ * the rail and the store's match count never disagree.
+ */
+export function getVendorsWithProducts(
+  app: VendorApp,
+  searchQuery = '',
+): VendorProducts[] {
+  return getVendorsForApp(app, searchQuery).map(({ store, matchCount }) => ({
+    store,
+    matchCount,
+    products: getVendorProducts(store.id, app).filter((p) => matchesQuery(p, searchQuery)),
+  }));
+}
+
+/**
  * Resolves a vendor's product pool (all products carrying `storeId`). Same logic
  * as `FaMartScreen.getVendorProducts`, generalised to both Mart and Pharma.
  */
 export function getVendorProducts(storeId: string, app: VendorApp): Product[] {
   return APP_PRODUCTS[app].filter((p) => p.storeId === storeId);
+}
+
+/** Builds one store-derived ad slide (cover image + offer) for a store row. */
+function adSlideFor(store: StoreProfile, app: VendorApp): VendorAdSlide {
+  return {
+    title: store.name,
+    tagline: store.offerTag ?? store.desc,
+    badge: 'SPONSORED',
+    imageUrl: store.coverImage,
+    targetApp: brandFor(app),
+    storeId: store.id,
+  };
+}
+
+/**
+ * Contextual ad slides for the category drill-in titles rail: the top-ranked
+ * vendors for the selected title become the carousel slides. Derived from the
+ * same ranked vendors the page already resolves, so no separate ad fixtures are
+ * needed (cover images are 2:1 and crop cleanly to the 16:9 banner).
+ */
+export function getAdsForQuery(app: VendorApp, searchQuery: string, limit = 4): VendorAdSlide[] {
+  return getVendorsForApp(app, searchQuery)
+    .slice(0, limit)
+    .map(({ store }) => adSlideFor(store, app));
+}
+
+/** The single ad slide for a store (rendered under that store's product rail). */
+export function getVendorAds(storeId: string, app: VendorApp): VendorAdSlide[] {
+  const store = getStoreById(storeId);
+  return store ? [adSlideFor(store, app)] : [];
 }
 
 /**

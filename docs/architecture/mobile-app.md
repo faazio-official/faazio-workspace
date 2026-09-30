@@ -102,13 +102,16 @@ hidden) — so the Food card is pixel-identical to the Home "Today's Special" ca
 drift. Food renders a single rail of all diet-filtered specials (Home stacks two).
 
 The **shared `AdBannerCarousel`** (`components/shared/AdBannerCarousel.tsx`) is the extracted Home
-top-ad banner — a 156-high rounded card (`expo-image` bg + overlay + badge + title/tagline) that
-auto-advances every 4.5s with paging dots, manually swipeable, timer cleared on unmount and
+top-ad banner — a **16:9 full-width rounded card** (`expo-image` bg + overlay + badge + title/tagline)
+that auto-advances every 4.5s with paging dots, manually swipeable, timer cleared on unmount and
 re-anchored on `width` (skipped when there are fewer than 2 slides). It is presentation-only:
 spacing comes from the caller via `style`, taps via an optional `onSlidePress` (no handler → the tap
-is a no-op). Home's `AdBannerSection` is now a thin wrapper over it (passing `topAdSlides`, the
-AppBrand → SubAppId press mapping and the hub's margins), so the hub banner is pixel-identical; Food
-renders the same carousel in the restaurant profile's gray hero band.
+is a no-op), and an optional `showAdLabel` overlays the shared "AD" pill for genuinely paid
+placements. Home's `AdBannerSection` is now a thin wrapper over it (passing `topAdSlides`, the
+AppBrand → SubAppId press mapping and the hub's margins); Food renders the same carousel in the
+restaurant profile's gray hero band. The Mart hero (`MartHeroCarousel`) and Pharma hero
+(`PharmaHeroBanner`) are also **16:9** now (single source of ratio for the one-card-per-row
+banners); they stay unlabelled as organic hero banners.
 
 The **Mart Product Detail** (`CommonProductDetailView`) renders a store section below the
 "Product Details" block for any MART product with a resolvable `storeId`: a store card
@@ -180,20 +183,25 @@ commit immediately so they skip suggestions and show results as before.
 **Category drill-in + vendor details** (`features/catalog/`): a rail chip (Home hub or Mart
 sub-app header) opens `CategoryDrillInScreen` (route `CategoryDrillIn`, params `tabId`/`title`/
 `app`). `CategoryDrillInPanel` resolves the tab from `MASTER_CATEGORIES[app]` (falling back to the
-first tab), renders the tapped category's **subgroups as a plain-text rail** (`SubgroupTextRail` —
-first auto-selected, active tinted with the app accent + underline; no pill background), and shows
-a section per sub-category (`item`) listing **one-per-row vendor cards** (`VendorRowCard` — cover
-thumb, name, rating, locality + distance). It also owns an **inline searchbar** (this page only)
-that live-filters the vendor rows by name/locality. Section headers keep an arrow that routes to
-the `Search` screen with that sub-category's query. Vendors are grouped by `storeId` via the
-repository seam `services/categoryVendors.ts` (`getVendorsForApp` — per-token match over the same
-`searchableText` as the search configs, grouped per store, sorted by match count then rating;
-`getVendorProducts`). Tapping a vendor pushes `VendorDetailScreen` (route `VendorDetails`, params
-`storeId`/`app`/`initialQuery`) — a back arrow with an **inline searchbar to its right** (auto-
-focused, sub-category query pre-applied), a compact profile block, and a one-per-row product list
-reusing `SearchMartProductCard`/`SearchPharmaProductCard` (per-app), plus a results-count line and
-a "No matches" empty state. Sub-categories with no matching products show a subtle "No vendors yet"
-row so the taxonomy stays visible.
+first tab) and flattens `subgroups → items` into a **flat, unbounded text rail** of every
+sub-category title (`CategoryTitleRail` — first auto-selected, active tinted with the app accent +
+underline; no grouping, no pill background). For the selected title it renders a **store-grouped
+body**: a **16:9 carousel of the title's top-ranked store ads** (AD-labelled, tap → that store's
+page), then one `StoreProductSection` per matching store — a **big store-name heading** (tap →
+vendor page), a **horizontal product rail** (shared `ProductCardBase`, `variant="rail"`, `appBrand`
+MART/PHARMA, rating + price + add-to-cart, card tap → `ProductDetail`), and a **16:9 store ad**
+directly below the rail. Ads are derived from the real store rows (`coverImage` + `offerTag`/`desc`)
+via the seam, so no separate ad fixtures exist. An **inline searchbar** (this page only) live-filters
+the store list by name/locality; a title with no matching stores shows a subtle "No vendors yet"
+row. Vendors/products are grouped by `storeId` via the repository seam
+`services/categoryVendors.ts` (`getVendorsForApp` + `getVendorsWithProducts` — per-token match over
+the same `searchableText` as the search configs, grouped per store, sorted by match count then
+rating; `getVendorProducts`; `getAdsForQuery`/`getVendorAds` build the store ad slides). Tapping a
+store pushes `VendorDetailScreen` (route `VendorDetails`, params `storeId`/`app`/`initialQuery`) — a
+back arrow with an **inline searchbar to its right** (auto-focused, title query pre-applied), a
+compact profile block, and a one-per-row product list reusing
+`SearchMartProductCard`/`SearchPharmaProductCard` (per-app), plus a results-count line and a "No
+matches" empty state.
 
 The Home hub header (`features/home/HomeTabScreen.tsx` + `hubHeader.ts`) is a **fixed-height
  overlay that collapses via transform only**. `headerOuter` is `position:absolute` with a static
@@ -363,7 +371,9 @@ still separate files; consolidating them is tracked in `client/mobile/PENDING_WO
 - `logout.ts` — clears auth + cart + favourites + search + pharma + blood donor + rewards stores.
 - `categoryVendors.ts` — repository seam for the category drill-in: `getVendorsForApp(app, q)`
   (per-token match over the search configs' `searchableText`, grouped per `storeId`, sorted by
-  match count then rating), `getVendorProducts(storeId, app)`, `matchesQuery`, `productSearchableText`.
+  match count then rating), `getVendorsWithProducts(app, q)` (adds each store's matching product
+  rows for the rails), `getVendorProducts(storeId, app)`, `getAdsForQuery(app, q)` /
+  `getVendorAds(storeId, app)` (store-derived `VendorAdSlide`s), `matchesQuery`, `productSearchableText`.
 - `homeFeed.ts` — repository seam: `getHomeSections` / `getFilterFeedPage(chip, page)` /
   `getFilterChips` (promise-based, paginated reads from `@data/*`; future Go gateway contract).
 

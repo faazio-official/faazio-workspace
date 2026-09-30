@@ -6,16 +6,24 @@ import {
   TouchableOpacity,
   TextInput,
 } from 'react-native';
-import { ChevronLeft, ChevronRight, Search, X } from 'lucide-react-native';
+import { ChevronLeft, Search, X } from 'lucide-react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { hs, ms, vs } from '@/utils/responsive';
 import { SPACE } from '@/theme/spacing';
 import AppText from '@/components/AppText';
+import AdBannerCarousel from '@/components/shared/AdBannerCarousel';
 import { MASTER_CATEGORIES, MART_ACCENT, PHARMA_ACCENT } from '@data/categories/masterCategories';
-import type { CategoryItem, CategoryTab } from '@data/categories/masterCategories';
-import { getVendorsForApp, type VendorApp, type VendorMatch } from '@/services/categoryVendors';
-import SubgroupTextRail from './SubgroupTextRail';
-import VendorRowCard from './VendorRowCard';
+import type { CategoryTab } from '@data/categories/masterCategories';
+import type { Product, AdSlide } from '@data/types';
+import {
+  getVendorsWithProducts,
+  getAdsForQuery,
+  getVendorAds,
+  type VendorApp,
+  type VendorAdSlide,
+} from '@/services/categoryVendors';
+import CategoryTitleRail from './CategoryTitleRail';
+import StoreProductSection from './StoreProductSection';
 
 interface CategoryDrillInPanelProps {
   tabId: string;
@@ -23,80 +31,17 @@ interface CategoryDrillInPanelProps {
   app: VendorApp;
   onBack: () => void;
   onVendorPress: (storeId: string, initialQuery: string) => void;
-  onDeepSearch: (query: string) => void;
+  onProductPress: (product: Product) => void;
 }
-
-/** Vendor rows for one sub-category item, via its search query. */
-function vendorsForItem(app: VendorApp, item: CategoryItem): VendorMatch[] {
-  return getVendorsForApp(app, item.searchQuery);
-}
-
-/** A titled section of vendor rows (one sub-category). */
-const VendorSection = memo(function VendorSection({
-  app,
-  item,
-  accent,
-  searchQuery,
-  onVendorPress,
-  onDeepSearch,
-}: {
-  app: VendorApp;
-  item: CategoryItem;
-  accent: string;
-  searchQuery: string;
-  onVendorPress: (storeId: string, initialQuery: string) => void;
-  onDeepSearch: (query: string) => void;
-}) {
-  const vendors = useMemo(() => {
-    let list = vendorsForItem(app, item);
-    const q = searchQuery.trim().toLowerCase();
-    if (q) {
-      list = list.filter((m) => {
-        const store = m.store;
-        const haystack = `${store.name} ${store.address ?? ''} ${store.distance}`.toLowerCase();
-        return haystack.includes(q);
-      });
-    }
-    return list;
-  }, [app, item, searchQuery]);
-
-  return (
-    <View style={styles.section}>
-      <View style={styles.sectionHeader}>
-        <AppText style={styles.sectionTitle} numberOfLines={1}>{item.name}</AppText>
-        <TouchableOpacity
-          style={[styles.sectionArrow, { backgroundColor: accent }]}
-          onPress={() => onDeepSearch(item.searchQuery)}
-          activeOpacity={0.8}
-          accessibilityRole="button"
-          accessibilityLabel={`Search ${item.name}`}
-        >
-          <ChevronRight size={ms(15)} color="#FFFFFF" strokeWidth={2.5} />
-        </TouchableOpacity>
-      </View>
-
-      {vendors.length === 0 ? (
-        <View style={styles.emptySection}>
-          <AppText style={styles.emptySectionText}>No vendors yet</AppText>
-        </View>
-      ) : (
-        vendors.map((match) => (
-          <VendorRowCard
-            key={match.store.id}
-            match={match}
-            onPress={() => onVendorPress(match.store.id, item.searchQuery)}
-          />
-        ))
-      )}
-    </View>
-  );
-});
 
 /**
  * Category drill-in page panel. Resolves the tapped main category (`tabId`) from
- * `MASTER_CATEGORIES[app]`, shows its subgroups as a plain-text rail (first auto-
- * selected), and renders a section per sub-category listing one-per-row vendor
- * cards. An inline searchbar (this page only) filters the vendor rows live.
+ * `MASTER_CATEGORIES[app]` and shows every sub-category title as one flat,
+ * scrollable text rail (first auto-selected). For the selected title it renders a
+ * store-grouped body: a big store-name heading, a horizontal product rail and a
+ * contextual 16:9 store ad per matching store — with a 16:9 carousel of the
+ * title's top store ads pinned under the rail. An inline searchbar (this page
+ * only) filters the store list by name/locality.
  */
 export function CategoryDrillInPanel({
   tabId,
@@ -104,7 +49,7 @@ export function CategoryDrillInPanel({
   app,
   onBack,
   onVendorPress,
-  onDeepSearch,
+  onProductPress,
 }: CategoryDrillInPanelProps) {
   const insets = useSafeAreaInsets();
   const accent = app === 'FA_MART' ? MART_ACCENT : PHARMA_ACCENT;
@@ -115,17 +60,49 @@ export function CategoryDrillInPanel({
   );
   const activeTab = tab ?? (MASTER_CATEGORIES[app] ?? [])[0];
 
-  const [activeSubgroupId, setActiveSubgroupId] = useState<string | null>(null);
-  const activeSubgroup =
-    activeTab?.subgroups.find((s) => s.id === activeSubgroupId) ??
-    activeTab?.subgroups[0];
+  /** Flat list of every sub-category title in the tab (no grouping). */
+  const items = useMemo(
+    () => activeTab?.subgroups.flatMap((s) => s.items) ?? [],
+    [activeTab],
+  );
+
+  const [activeItemId, setActiveItemId] = useState<string | null>(null);
+  const activeItem = items.find((i) => i.id === activeItemId) ?? items[0];
 
   const [searchQuery, setSearchQuery] = useState('');
 
-  const handleSelectSubgroup = useCallback((id: string) => {
-    setActiveSubgroupId(id);
+  const handleSelectItem = useCallback((id: string) => {
+    setActiveItemId(id);
     setSearchQuery('');
   }, []);
+
+  /** Top of the body: ads for the selected title's top-ranked stores. */
+  const topAds = useMemo(
+    () => (activeItem ? getAdsForQuery(app, activeItem.searchQuery) : []),
+    [app, activeItem],
+  );
+
+  /** Store-grouped body for the selected title, filtered by the inline search. */
+  const vendors = useMemo(() => {
+    if (!activeItem) return [];
+    let list = getVendorsWithProducts(app, activeItem.searchQuery);
+    const q = searchQuery.trim().toLowerCase();
+    if (q) {
+      list = list.filter(({ store }) => {
+        const haystack = `${store.name} ${store.address ?? ''} ${store.distance}`.toLowerCase();
+        return haystack.includes(q);
+      });
+    }
+    return list;
+  }, [app, activeItem, searchQuery]);
+
+  const handleTopAdPress = useCallback(
+    (slide: AdSlide) => {
+      const storeId = (slide as VendorAdSlide).storeId;
+      if (storeId && activeItem) onVendorPress(storeId, activeItem.searchQuery);
+    },
+    [activeItem, onVendorPress],
+  );
 
   if (!activeTab) {
     return (
@@ -138,7 +115,7 @@ export function CategoryDrillInPanel({
           <View style={styles.headerSpacer} />
         </View>
         <View style={styles.emptyWrap}>
-          <AppText style={styles.emptySectionText}>Category not found</AppText>
+          <AppText style={styles.emptyText}>Category not found</AppText>
         </View>
       </View>
     );
@@ -174,34 +151,50 @@ export function CategoryDrillInPanel({
         </View>
       </View>
 
-      {/* Subgroup rail (plain text). */}
+      {/* Flat titles rail — every sub-category title, no grouping. */}
       <View style={styles.railWrap}>
-        <SubgroupTextRail
-          options={activeTab.subgroups.map((s) => ({ id: s.id, title: s.title }))}
-          activeId={activeSubgroup?.id ?? ''}
+        <CategoryTitleRail
+          options={items.map((i) => ({ id: i.id, title: i.name }))}
+          activeId={activeItem?.id ?? ''}
           accent={accent}
-          onSelect={handleSelectSubgroup}
+          onSelect={handleSelectItem}
         />
       </View>
 
-      {/* Sections per sub-category in the active subgroup. */}
+      {/* Store-grouped body: title ad, then per-store heading → product rail → ad. */}
       <ScrollView
         style={styles.body}
         contentContainerStyle={styles.bodyContent}
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
       >
-        {activeSubgroup?.items.map((item) => (
-          <VendorSection
-            key={item.id}
-            app={app}
-            item={item}
-            accent={accent}
-            searchQuery={searchQuery}
-            onVendorPress={onVendorPress}
-            onDeepSearch={onDeepSearch}
+        {topAds.length > 0 && activeItem && (
+          <AdBannerCarousel
+            slides={topAds}
+            showAdLabel
+            onSlidePress={handleTopAdPress}
+            style={styles.topAd}
           />
-        ))}
+        )}
+
+        {vendors.length === 0 ? (
+          <View style={styles.emptyWrap}>
+            <AppText style={styles.emptyText}>No vendors yet</AppText>
+          </View>
+        ) : (
+          vendors.map(({ store, products }) => (
+            <StoreProductSection
+              key={store.id}
+              app={app}
+              store={store}
+              products={products}
+              ads={getVendorAds(store.id, app)}
+              accent={accent}
+              onStorePress={() => onVendorPress(store.id, activeItem?.searchQuery ?? '')}
+              onProductPress={onProductPress}
+            />
+          ))
+        )}
       </ScrollView>
     </View>
   );
@@ -267,42 +260,19 @@ const styles = StyleSheet.create({
   bodyContent: {
     paddingBottom: SPACE.LIST_BOTTOM,
   },
-  section: {
-    marginTop: vs(8),
-  },
-  sectionHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: hs(16),
-    paddingVertical: SPACE.ITEM,
-    gap: hs(8),
-  },
-  sectionTitle: {
-    flex: 1,
-    fontSize: ms(14),
-    fontWeight: '800',
-    color: '#1E2022',
-  },
-  sectionArrow: {
-    width: ms(28),
-    height: ms(28),
-    borderRadius: ms(14),
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  emptySection: {
-    paddingHorizontal: hs(16),
-    paddingBottom: vs(12),
-  },
-  emptySectionText: {
-    fontSize: ms(11),
-    fontWeight: '500',
-    color: '#94a3b8',
-    fontStyle: 'italic',
+  topAd: {
+    marginHorizontal: hs(16),
+    marginTop: SPACE.SECTION,
   },
   emptyWrap: {
     alignItems: 'center',
     paddingTop: vs(60),
+    paddingHorizontal: hs(24),
+  },
+  emptyText: {
+    fontSize: ms(11),
+    fontWeight: '500',
+    color: '#94a3b8',
+    fontStyle: 'italic',
   },
 });

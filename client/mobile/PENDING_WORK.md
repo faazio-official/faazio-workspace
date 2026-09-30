@@ -5,6 +5,51 @@ dependencies exist. Do not build the backend/seller flows until told to.
 
 ---
 
+## Category drill-in — flat rail + store product rails + 16:9 store ads
+
+**Status:** 🟢 Shipped (code); on-device visual verification pending.
+
+**Feature:** Redesigned the category drill-in page (`CategoryDrillIn`) from
+grouped vendor rows into a flat title rail with store-grouped horizontal product
+rails and contextual 16:9 store ads.
+
+**Changes:**
+- **Titles rail flattened** (`features/catalog/components/CategoryTitleRail.tsx`, renamed from
+  `SubgroupTextRail`): fed `subgroups.flatMap(s => s.items)` — every sub-category title in one
+  long, ungrouped horizontal scroll; first item auto-selected, accent tint + underline unchanged.
+  `CategoryDrillInPanel` state moved from `activeSubgroupId` to `activeItemId`.
+- **New store-grouped body** (`features/catalog/components/StoreProductSection.tsx`): per matching
+  store, a big store-name heading (tap → `VendorDetails` with the title query), a horizontal
+  product rail built directly on shared `ProductCardBase` (`variant="rail"`, `appBrand` MART/PHARMA,
+  cart wired via `useCartProductActions`, card tap → `ProductDetail`; keeps the
+  `catalog → features/*/cards/` boundary green), then a 16:9 store ad.
+- **Contextual store ads** (`services/categoryVendors.ts`): new `getVendorsWithProducts(app, q)`
+  (vendor + matching product rows), `getAdsForQuery(app, q)` (top-ranked stores → `VendorAdSlide`s)
+  and `getVendorAds(storeId, app)` (single-store ad). Ads derive from the real store rows
+  (`coverImage` + `offerTag`/`desc`, `badge: 'SPONSORED'`, `storeId` retained for tap-through) — no
+  new `@data` fixtures, so `data/DATA_CONTROL.md` is unchanged.
+- **`AdBannerCarousel`** (`components/shared/`): fixed height `vs(156)` → `aspectRatio: 16/9`;
+  added optional `showAdLabel` (AD pill, top-right) used by the Home top ad and the drill-in ads.
+- **16:9 heroes**: `MartHeroCarousel` (dropped `BANNER_H`) and `PharmaHeroBanner` (`vs(180)` →) now
+  `aspectRatio: 16/9`; both stay unlabelled organic heroes.
+- **Removed** the now-unused `VendorRowCard.tsx` (no dead code).
+
+**Interpretation notes (per approved plan):** the top ad carousel sits immediately below the titles
+rail and is contextual to the selected title; each store's product rail gets its own 16:9 store ad;
+the inline searchbar still filters stores by name/locality; the section "deep search" arrow was
+removed along with the per-subgroup sections (the app-wide `Search` route is unchanged).
+
+**Verification:** `npm run ts:check` + `npm run check:boundaries` pass (276 modules, no violations).
+On-device pass still needed (rail length + auto-select, ad swap on title switch, product → detail,
+heading → vendor, add/stepper → cart, 16:9 banners on Home/Mart/Pharma/restaurant hero).
+
+**Docs:** `docs/architecture/mobile-app.md` (AdBannerCarousel + category drill-in + services seam),
+`PAGE_CATALOG.md`.
+
+**Date:** 2026-09-30
+
+---
+
 ## Vertical-spacing reduction pass — canonical `SPACE` tokens
 
 **Status:** 🟢 Shipped (code); on-device visual verification pending.

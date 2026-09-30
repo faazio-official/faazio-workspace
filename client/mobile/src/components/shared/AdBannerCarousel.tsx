@@ -14,25 +14,29 @@ import { Tag, ArrowRight } from 'lucide-react-native';
 import { hs, vs, ms } from '@/utils/responsive';
 import type { AdSlide } from '@data/types';
 import AppText from '@/components/AppText';
+import AdLabelBadge from './AdLabelBadge';
 
 const SWIPE_INTERVAL = 4500;
 
 interface AdBannerCarouselProps {
   slides: AdSlide[];
   onSlidePress?: (slide: AdSlide) => void;
+  /** Overlay the shared "AD" disclosure pill (for genuinely paid placements). */
+  showAdLabel?: boolean;
   style?: StyleProp<ViewStyle>;
 }
 
 /**
- * Auto-playing paged ad-banner carousel (156-high rounded card, expo-image bg +
+ * Auto-playing paged ad-banner carousel (16:9 full-width rounded card, expo-image bg +
  * overlay + badge + title/tagline). Presentation-only: the caller owns spacing
  * via `style` and optional tap handling via `onSlidePress` (no handler → tap is
  * a no-op). Extracted from the Home hub's `AdBannerSection` so Food can reuse it
- * without crossing the food→home boundary.
+ * without crossing the food→home boundary. Optional `showAdLabel` adds the AD pill.
  */
 const AdBannerCarousel = memo(function AdBannerCarousel({
   slides,
   onSlidePress,
+  showAdLabel = false,
   style,
 }: AdBannerCarouselProps) {
   const [index, setIndex] = useState(0);
@@ -69,6 +73,7 @@ const AdBannerCarousel = memo(function AdBannerCarousel({
             pagingEnabled
             showsHorizontalScrollIndicator={false}
             onMomentumScrollEnd={onMomentumScrollEnd}
+            style={styles.scroll}
           >
             {slides.map((slide) => (
               <TouchableOpacity
@@ -89,6 +94,11 @@ const AdBannerCarousel = memo(function AdBannerCarousel({
                   <View style={styles.badge}>
                     <Tag size={ms(9)} color="#fbbf24" fill="#fbbf24" />
                     <AppText style={styles.badgeText}>{slide.badge}</AppText>
+                  </View>
+                )}
+                {showAdLabel && (
+                  <View style={styles.adLabelWrap}>
+                    <AdLabelBadge />
                   </View>
                 )}
                 <View style={styles.content}>
@@ -118,14 +128,18 @@ export default AdBannerCarousel;
 
 const styles = StyleSheet.create({
   viewport: {
-    height: vs(156),
+    width: '100%',
+    aspectRatio: 16 / 9,
     borderRadius: ms(24),
     overflow: 'hidden',
     backgroundColor: '#0f172a',
     position: 'relative',
   },
+  scroll: {
+    flex: 1,
+  },
   slide: {
-    height: vs(156),
+    height: '100%',
     position: 'relative',
     overflow: 'hidden',
   },
@@ -159,6 +173,11 @@ const styles = StyleSheet.create({
     textTransform: 'uppercase',
     letterSpacing: 0.5,
     marginLeft: hs(4),
+  },
+  adLabelWrap: {
+    position: 'absolute',
+    top: vs(14),
+    right: hs(14),
   },
   content: {
     position: 'absolute',

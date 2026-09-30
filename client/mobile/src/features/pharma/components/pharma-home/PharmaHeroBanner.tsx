@@ -64,7 +64,8 @@ const styles = StyleSheet.create({
     marginTop: vs(16),
   },
   card: {
-    height: vs(180),
+    width: '100%',
+    aspectRatio: 16 / 9,
     borderRadius: ms(16),
     overflow: 'hidden',
     flexDirection: 'row',

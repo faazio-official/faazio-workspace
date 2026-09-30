@@ -2,15 +2,17 @@ import React, { useCallback } from 'react';
 import { StyleSheet, View } from 'react-native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import CategoryDrillInPanel from './components/CategoryDrillInPanel';
+import type { Product } from '@data/types';
 import type { RootStackParamList } from '@/navigation/types';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'CategoryDrillIn'>;
 
 /**
- * Category drill-in screen (opened from the Home/Mart header rail). Renders one
- * main category's subgroups as a plain-text rail with per-sub-category vendor
- * lists, plus an inline searchbar that filters the page. Tapping a vendor opens
- * its details page with that sub-category's search pre-applied.
+ * Category drill-in screen (opened from the Home/Mart header rail). Renders every
+ * sub-category title as a flat text rail, then a store-grouped body of product
+ * rails + contextual 16:9 store ads for the selected title, with an inline
+ * searchbar that filters the store list. Tapping a store opens its details page
+ * with that title's search pre-applied; tapping a product opens product detail.
  */
 export function CategoryDrillInScreen({ navigation, route }: Props) {
   const { tabId, title, app } = route.params;
@@ -24,11 +26,11 @@ export function CategoryDrillInScreen({ navigation, route }: Props) {
     [navigation, app],
   );
 
-  const handleDeepSearch = useCallback(
-    (query: string) => {
-      navigation.navigate('Search', { subApp: app, initialQuery: query });
+  const handleProductPress = useCallback(
+    (product: Product) => {
+      navigation.navigate('ProductDetail', { product });
     },
-    [navigation, app],
+    [navigation],
   );
 
   return (
@@ -39,7 +41,7 @@ export function CategoryDrillInScreen({ navigation, route }: Props) {
         app={app}
         onBack={handleBack}
         onVendorPress={handleVendorPress}
-        onDeepSearch={handleDeepSearch}
+        onProductPress={handleProductPress}
       />
     </View>
   );

@@ -3,29 +3,30 @@ import { ScrollView, TouchableOpacity, StyleSheet, View } from 'react-native';
 import AppText from '@/components/AppText';
 import { hs, ms, vs } from '@/utils/responsive';
 
-export interface SubgroupRailOption {
+export interface CategoryTitleRailOption {
   id: string;
   title: string;
 }
 
-interface SubgroupTextRailProps {
-  options: SubgroupRailOption[];
+interface CategoryTitleRailProps {
+  options: CategoryTitleRailOption[];
   activeId: string;
   accent: string;
   onSelect: (id: string) => void;
 }
 
 /**
- * Plain-text subgroup rail for the category drill-in page. Unlike the pill chips
- * elsewhere, these are text-only (no background/border); the active one is tinted
- * with the accent colour and an underline bar beneath it.
+ * Plain-text category-title rail for the category drill-in page. Unlike the pill
+ * chips elsewhere, these are text-only (no background/border); the active one is
+ * tinted with the accent colour and an underline bar beneath it. Fed a flat list
+ * of every sub-category title (no grouping), so the rail can run long.
  */
-const SubgroupTextRail = memo(function SubgroupTextRail({
+const CategoryTitleRail = memo(function CategoryTitleRail({
   options,
   activeId,
   accent,
   onSelect,
-}: SubgroupTextRailProps) {
+}: CategoryTitleRailProps) {
   return (
     <ScrollView
       horizontal
@@ -55,7 +56,7 @@ const SubgroupTextRail = memo(function SubgroupTextRail({
   );
 });
 
-export default SubgroupTextRail;
+export default CategoryTitleRail;
 
 const styles = StyleSheet.create({
   content: {

@@ -7,7 +7,6 @@ import { hs, ms, vs } from '@/utils/responsive';
 import type { MartHeroBanner } from '../../mocks/martHomeFeed';
 import MartImage from './MartImage';
 
-const BANNER_H = 180;
 const MART_YELLOW = '#FFC107';
 
 interface MartHeroCarouselProps {
@@ -102,7 +101,7 @@ const styles = StyleSheet.create({
   },
   content: {},
   banner: {
-    height: vs(BANNER_H),
+    aspectRatio: 16 / 9,
     borderRadius: ms(16),
     overflow: 'hidden',
     position: 'relative',
