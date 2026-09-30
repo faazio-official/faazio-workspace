@@ -5,6 +5,49 @@ dependencies exist. Do not build the backend/seller flows until told to.
 
 ---
 
+## Food — Restaurant menu category rail clipped (shared MenuCategoryRail)
+
+**Status:** 🟢 Shipped (code); on-device visual verification pending.
+
+**Feature:** On `RestaurantMenuScreen` the horizontal category chip rail rendered as a ~12–15px
+sliver — every glyph half-cut, pills not positioned properly.
+
+**Root cause:** RN injects `flexGrow: 1, flexShrink: 1` into every ScrollView
+(`ScrollView.js` `baseHorizontal`). The menu page stacked the rail and the tall vertical menu list as
+plain siblings in one `flex: 1` column with neither overriding those injected styles. A ScrollView
+has no measure override (`ScrollViewShadowNode::layout`), so its base size is its content: the list's
+basis ≈ thousands of px, the rail's ≈ ~50px. Yoga weights shrink by flex-basis, so the large negative
+free space squeezed the ~50px rail by roughly the list's ratio → collapse. A ScrollView clips to its
+frame (`overflow: scroll`) and the rail's content container centers its chips, so only a horizontal
+band of each glyph survived. `RestaurantProfileScreen` nests the identical rail inside a single
+vertical ScrollView (no sibling to compete with) — hence the bug was unique to the full-menu page.
+
+**Changes:**
+- New shared `features/food/components/MenuCategoryRail.tsx` (exported from the food components
+  index): owns the pill chip metrics (`hs/vs/ms`, `gap`, `alignItems: 'center'`) and the layout
+  contract — `flexGrow: 0` / `flexShrink: 0` on the rail box (plain `flex: 0` is insufficient, it
+  leaves `flexShrink: 1`).
+- `RestaurantMenuScreen.tsx`: consumes `MenuCategoryRail`; the vertical list ScrollView now owns
+  `style={styles.list}` (`flex: 1`), so exactly one child takes the leftover space. Kept
+  `keyboardShouldPersistTaps="handled"` (now in the shared rail) so the first chip tap is still not
+  swallowed by the autofocused search keyboard.
+- `RestaurantProfileScreen.tsx`: consumes the same rail (passing `marginBottom` via `style`),
+  removing the duplicated inline chip styles. `flexGrow/flexShrink: 0` is a no-op for a child of a
+  ScrollView content container.
+- Natural rail height (padding + chip) rather than a fixed `height` — stays correct at larger system
+  font scale and with long category names.
+
+**Verification:** `npm run ts:check` and `npm run check:boundaries` pass (278 modules, no
+violations). On-device pass pending: pills render fully and flush under the search box, rail scrolls
+clean, first chip tap registers with the keyboard open, diet toggle shrink/grow does not clip, list
+scrolls independently, and `RestaurantProfileScreen` chips look unchanged.
+
+**Docs:** `docs/architecture/mobile-app.md` (Food — Restaurant profile vs full menu).
+
+**Date:** 2026-09-30
+
+---
+
 ## Category drill-in — pill rail + single ad + one-per-row product cards
 
 **Status:** 🟢 Shipped (code); on-device visual verification pending.

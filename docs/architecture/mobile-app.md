@@ -522,6 +522,14 @@ unchanged.
   white `ViewCartPill`. Their menu is built by `features/food/utils/menu.ts`
   (`getMenuForRestaurant` / `getOwnDishes` / `getMenuCategories`), extracted from the profile so the
   profile and the menu page can't drift.
+- Both category rails are the shared `features/food/components/MenuCategoryRail` (pill chips,
+  `hs/vs/ms` metrics, gap-based content container). **Layout contract:** the rail is a **fixed,
+  non-flexing** sibling — `flexGrow: 0` / `flexShrink: 0`. RN injects `flexGrow: 1, flexShrink: 1`
+  into every ScrollView; on the full menu the tall vertical list used to win the flex competition and
+  squeeze the rail into a clipped sliver (half-cut glyphs). The full-menu list ScrollView now owns
+  `flex: 1`, so exactly one child takes the leftover space and the rail's height stays padding + chip
+  (font-scale-proof — no fixed rail height). Both hosts pass only a box override (menu: vertical
+  padding; profile: `marginBottom`). Do not drop the two flex styles.
 - Both screens' category chips are derived from the **actual menu's dish cuisines**
   (`getMenuCategories`) rather than the venue-level `restaurant.cuisines` labels, so every chip maps
   to at least one dish under the exact-equality `dish.cuisine` filter; the selected chip falls back
@@ -529,8 +537,8 @@ unchanged.
 - `RestaurantMenuScreen` shows the restaurant name below the `FoodDetailTopBar` (whose title is now
   just **"Menu"**) and above the full-width search bar, so long names get a full-width two-line
   heading instead of being truncated in the toolbar. It adds the full-width search bar (filters on
-  dish name/description), the `Bestsellers` + cuisine category chips and the diet toggle; the chip
-  rail sets `keyboardShouldPersistTaps="handled"` so the first chip tap isn't swallowed by the
+  dish name/description), the `Bestsellers` + cuisine category chips and the diet toggle; the shared
+  chip rail sets `keyboardShouldPersistTaps="handled"` so the first chip tap isn't swallowed by the
   autofocused search keyboard. It adds/steppers through the same restaurant-scoped cart slice as the
   profile, so the **View Cart** count stays in sync between both.
 - `RestaurantMenu` is typed as `{ restaurant: DiningRestaurant; dietFilter: DietFilter }` in

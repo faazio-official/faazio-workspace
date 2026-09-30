@@ -29,6 +29,7 @@ import { topAdSlides } from '@data/home/rails';
 import RemoteImage from '../components/RemoteImage';
 import FoodStatusBarStrip from '../components/FoodStatusBarStrip';
 import MenuItemRow from '../components/MenuItemRow';
+import MenuCategoryRail from '../components/MenuCategoryRail';
 import ViewCartPill from '../components/ViewCartPill';
 import { foodTheme } from '../constants/theme';
 import type { FoodStackParamList, RootStackParamList } from '@/navigation/types';
@@ -269,28 +270,12 @@ export function RestaurantProfileScreen({ navigation, route }: Props) {
           </View>
 
           {/* CATEGORY CHIPS */}
-          <ScrollView
-            contentContainerStyle={styles.categoryScroll}
-            horizontal
-            showsHorizontalScrollIndicator={false}
-          >
-            {categories.map((cat) => {
-              const isActive = active === cat;
-              return (
-                <TouchableOpacity
-                  key={cat}
-                  onPress={() => setActiveCategory(cat)}
-                  style={[styles.categoryChip, isActive && styles.activeCategoryChip]}
-                  accessibilityRole="button"
-                  accessibilityState={{ selected: isActive }}
-                >
-                  <AppText style={[styles.categoryText, isActive && styles.activeCategoryText]}>
-                    {cat}
-                  </AppText>
-                </TouchableOpacity>
-              );
-            })}
-          </ScrollView>
+          <MenuCategoryRail
+            categories={categories}
+            active={active}
+            onSelect={setActiveCategory}
+            style={styles.categoryRail}
+          />
 
           {/* MENU LIST */}
           <View style={styles.productList}>
@@ -520,26 +505,7 @@ const styles = StyleSheet.create({
     marginLeft: hs(8),
     color: foodTheme.textSecondary,
   },
-  categoryScroll: {
-    paddingHorizontal: hs(16),
-    marginBottom: 12,
-    alignItems: 'center',
-  },
-  categoryChip: {
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 20,
-    marginRight: 12,
-    backgroundColor: '#fff',
-    borderWidth: 1,
-    borderColor: 'transparent',
-  },
-  activeCategoryChip: {
-    backgroundColor: foodTheme.primarySoft,
-    borderColor: foodTheme.primary,
-  },
-  categoryText: { fontSize: ms(14), color: foodTheme.textSecondary, fontWeight: '500' },
-  activeCategoryText: { color: foodTheme.primary, fontWeight: 'bold' },
+  categoryRail: { marginBottom: 12 },
   productList: { paddingHorizontal: hs(16) },
   emptyText: { color: foodTheme.textSecondary, textAlign: 'center', marginVertical: 24 },
   footerPad: { height: vs(100) },

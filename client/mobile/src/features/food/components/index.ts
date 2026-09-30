@@ -14,6 +14,7 @@ export { default as FoodSectionHeader } from './FoodSectionHeader';
 export { default as NearbyRestaurantRow } from './NearbyRestaurantRow';
 export { default as MindGridRail } from './MindGridRail';
 export { default as SnacksRail } from './SnacksRail';
+export { default as MenuCategoryRail } from './MenuCategoryRail';
 export { default as FoodBottomNav } from './FoodBottomNav';
 export { default as FoodDetailTopBar } from './FoodDetailTopBar';
 export type { FoodTab } from './FoodBottomNav';
