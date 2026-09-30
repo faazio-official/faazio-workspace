@@ -6,6 +6,8 @@ import { navigationRef } from './navigationRef';
 import type { RootStackParamList } from './types';
 import { OnboardingScreen } from '@/features/onboarding/OnboardingScreen';
 import { LoginScreen } from '@/features/auth/LoginScreen';
+import LanguageSelectionScreen from '@/features/onboarding/LanguageSelectionScreen';
+import { LocationScreen } from '@/features/auth/LocationScreen';
 import { MainTabs } from './MainTabs';
 import { useAuthStore } from '@/state/authStore';
 
@@ -16,13 +18,17 @@ const Stack = createNativeStackNavigator<RootStackParamList>();
 // Non-initial routes are lazy-loaded so only the first-frame screens (Onboarding
 // / Login → MainTabs/Home) are evaluated at startup. Each still suspends into the
 // SplashFallback boundary below while its module evaluates on first navigation.
+//
+// First-run auth chain (Login → LanguageSelection → Location) is kept EAGER on
+// purpose: <Suspense> wraps the whole Stack.Navigator, so the first lazy push in
+// the flow would swap the entire native tree for SplashFallback mid-navigation
+// (a stall/white-flash with no recovery) instead of sliding a screen in. Metro
+// ships one bundle, so lazy only defers evaluation — no download is saved.
 const lazyNamed = <T extends { [K in string]: unknown }>(
   loader: () => Promise<T>,
   name: keyof T & string,
 ) => lazy(() => loader().then((m) => ({ default: m[name] as React.ComponentType<any> })));
 
-const LanguageSelectionScreen = lazyNamed(() => import('@/features/onboarding/LanguageSelectionScreen'), 'default');
-const LocationScreen = lazyNamed(() => import('@/features/auth/LocationScreen'), 'LocationScreen');
 const SubAppScreen = lazyNamed(() => import('@/features/sub-app/SubAppScreen'), 'SubAppScreen');
 const FoodStack = lazyNamed(() => import('./FoodStack'), 'FoodStack');
 const ProductDetailScreen = lazyNamed(() => import('@/features/product/ProductDetailScreen'), 'ProductDetailScreen');

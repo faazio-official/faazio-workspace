@@ -1,8 +1,10 @@
-import React, { useState, useRef, useEffect } from 'react';
-import { StyleSheet, View, TouchableOpacity, Pressable, Platform, Alert, Image, Keyboard, KeyboardAvoidingView, Animated, Easing } from 'react-native';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
+import { StyleSheet, View, TouchableOpacity, Pressable, Platform, Alert, Image, Keyboard, KeyboardAvoidingView, Animated, Easing, BackHandler, ActivityIndicator } from 'react-native';
 import type { TextInput } from 'react-native';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
+import { useFocusEffect } from '@react-navigation/native';
 import { RootStackParamList } from '@/navigation/AppNavigator';
+import { navigationRef } from '@/navigation/navigationRef';
 import { ChevronLeft } from 'lucide-react-native';
 import Svg, {
   Circle,
@@ -114,9 +116,13 @@ export function LoginScreen({ navigation }: Props) {
   const [otpCode, setOtpCode] = useState('');
   const [otpError, setOtpError] = useState('');
   const [isPhoneFocused, setIsPhoneFocused] = useState(false);
+  const [isVerifying, setIsVerifying] = useState(false);
+  const [keyboardVisible, setKeyboardVisible] = useState(false);
 
   const phoneInputRef = useRef<TextInput>(null);
   const otpInputRef = useRef<TextInput>(null);
+  const submitRef = useRef(false);
+  const phoneAdvanceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const pulseAnim = useRef(new Animated.Value(1)).current;
   const shakeAnim = useRef(new Animated.Value(0)).current;
@@ -130,15 +136,33 @@ export function LoginScreen({ navigation }: Props) {
   const prevOtpLength = useRef(0);
 
   useEffect(() => {
+    let retryTimer: ReturnType<typeof setTimeout> | undefined;
     const timer = setTimeout(() => {
-      if (!otpState) {
-        phoneInputRef.current?.focus();
-      } else {
-        otpInputRef.current?.focus();
+      const target = otpState ? otpInputRef.current : phoneInputRef.current;
+      if (!target) return;
+      target.focus();
+      if (!target.isFocused()) {
+        retryTimer = setTimeout(() => target.focus(), 200);
       }
     }, 300);
-    return () => clearTimeout(timer);
+    return () => {
+      clearTimeout(timer);
+      if (retryTimer) clearTimeout(retryTimer);
+    };
   }, [otpState]);
+
+  useEffect(() => {
+    const showSub = Keyboard.addListener('keyboardDidShow', () => setKeyboardVisible(true));
+    const hideSub = Keyboard.addListener('keyboardDidHide', () => setKeyboardVisible(false));
+    return () => {
+      showSub.remove();
+      hideSub.remove();
+    };
+  }, []);
+
+  useEffect(() => () => {
+    if (phoneAdvanceRef.current) clearTimeout(phoneAdvanceRef.current);
+  }, []);
 
   useEffect(() => {
     fadeAnim.setValue(0);
@@ -201,12 +225,18 @@ export function LoginScreen({ navigation }: Props) {
     prevOtpLength.current = otpCode.length;
   }, [otpCode, digitAnims]);
 
-  const handleVerifyOtp = (code: string) => {
-    if (code.length === 6) {
-      // PLACEHOLDER tokens — real JWTs will come from the Go backend once live.
-      // Swapping these in requires no auth pipeline changes.
-      const placeholderToken = `placeholder.${phone}.${Date.now()}`;
-      login({
+  const submitOtp = useCallback(async () => {
+    if (submitRef.current || otpCode.length !== 6 || phone.length < 10) return;
+    submitRef.current = true;
+    setIsVerifying(true);
+    Keyboard.dismiss();
+    otpInputRef.current?.blur();
+
+    // PLACEHOLDER tokens — real JWTs will come from the Go backend once live.
+    // Swapping these in requires no auth pipeline changes.
+    const placeholderToken = `placeholder.${phone}.${Date.now()}`;
+    try {
+      await login({
         user: {
           id: `user_${phone}`,
           name: 'Faazio User',
@@ -216,15 +246,40 @@ export function LoginScreen({ navigation }: Props) {
         accessToken: placeholderToken,
         refreshToken: `${placeholderToken}.refresh`,
       });
-      navigation.navigate('LanguageSelection');
+    } catch {
+      submitRef.current = false;
+      setIsVerifying(false);
+      setOtpError('Could not start your session. Please try again.');
+      return;
     }
-  };
+
+    if (navigationRef.isReady()) {
+      navigation.replace('LanguageSelection');
+    } else {
+      submitRef.current = false;
+      setIsVerifying(false);
+    }
+  }, [otpCode, phone, login, navigation]);
+
+  // Submission derives from state, not from the 6th keystroke's onChangeText:
+  // this fires however the code arrived (fast typing, paste, re-render race).
+  useEffect(() => {
+    if (otpState && otpCode.length === 6 && !submitRef.current) {
+      void submitOtp();
+    }
+  }, [otpState, otpCode, submitOtp]);
 
   const handlePhoneChange = (val: string) => {
-    const numericVal = val.replace(/\D/g, '');
+    const numericVal = val.replace(/\D/g, '').slice(0, 10);
     setPhone(numericVal);
-    if (numericVal.length === 10) {
-      setTimeout(() => {
+    if (phoneAdvanceRef.current) {
+      clearTimeout(phoneAdvanceRef.current);
+      phoneAdvanceRef.current = null;
+    }
+    if (numericVal.length === 10 && !otpState) {
+      phoneAdvanceRef.current = setTimeout(() => {
+        phoneAdvanceRef.current = null;
+        Keyboard.dismiss();
         setOtpState(true);
         setOtpError('');
       }, 150);
@@ -232,15 +287,40 @@ export function LoginScreen({ navigation }: Props) {
   };
 
   const handleOtpChange = (val: string) => {
-    const numericVal = val.replace(/\D/g, '');
-    if (numericVal.length <= 6) {
-      setOtpCode(numericVal);
-      setOtpError('');
-      if (numericVal.length === 6) {
-        handleVerifyOtp(numericVal);
-      }
+    const numericVal = val.replace(/\D/g, '').slice(0, 6);
+    setOtpCode(numericVal);
+    setOtpError('');
+    if (numericVal.length < 6) {
+      submitRef.current = false;
+      setIsVerifying(false);
     }
   };
+
+  // Two-step back from OTP: close the keyboard first, then return to phone entry
+  // (preserving the typed number). Used by both the chevron and hardware back.
+  const goBackFromOtp = useCallback(() => {
+    if (keyboardVisible) {
+      Keyboard.dismiss();
+      return;
+    }
+    setOtpState(false);
+    setOtpCode('');
+    setOtpError('');
+    submitRef.current = false;
+    setIsVerifying(false);
+  }, [keyboardVisible]);
+
+  useFocusEffect(
+    useCallback(() => {
+      const onBackPress = () => {
+        if (!otpState) return false; // phone entry → let the stack pop to Welcome
+        goBackFromOtp();
+        return true;
+      };
+      const sub = BackHandler.addEventListener('hardwareBackPress', onBackPress);
+      return () => sub.remove();
+    }, [otpState, goBackFromOtp]),
+  );
 
   const handleResend = () => {
     setOtpCode('');
@@ -347,12 +427,7 @@ export function LoginScreen({ navigation }: Props) {
           />
 
           <ScalePressable
-            onPress={() => {
-              setOtpState(false);
-              setOtpCode('');
-              setOtpError('');
-              setPhone('');
-            }}
+            onPress={goBackFromOtp}
             style={[styles.backBtn, { top: Platform.OS === 'ios' ? vs(44) : insets.top + vs(8) }]}
           >
             <ChevronLeft size={ms(20)} color="#1e293b" strokeWidth={2.5} />
@@ -478,6 +553,22 @@ export function LoginScreen({ navigation }: Props) {
                     </View>
                   </Animated.View>
                 ) : null}
+
+                <TouchableOpacity
+                  activeOpacity={0.85}
+                  disabled={otpCode.length !== 6 || isVerifying}
+                  onPress={() => { void submitOtp(); }}
+                  style={[
+                    styles.verifyBtn,
+                    (otpCode.length !== 6 || isVerifying) && styles.verifyBtnDisabled,
+                  ]}
+                >
+                  {isVerifying ? (
+                    <ActivityIndicator size="small" color="#ffffff" />
+                  ) : (
+                    <AppText style={styles.verifyBtnText}>Verify</AppText>
+                  )}
+                </TouchableOpacity>
 
                 <View style={styles.resendRow}>
                   <AppText style={styles.resendTextSub}>Didn't get the code? </AppText>
@@ -770,6 +861,22 @@ const styles = StyleSheet.create({
   errorToastTextContainer: { flexShrink: 1 },
   errorToastTitle: { fontSize: ms(11), fontWeight: '900', color: '#9f1239', lineHeight: ms(14) },
   errorToastMessage: { fontSize: ms(10), fontWeight: '700', color: '#e11d48', marginTop: vs(2), lineHeight: ms(14) },
+  verifyBtn: {
+    width: '100%',
+    maxWidth: hs(290),
+    height: vs(48),
+    borderRadius: ms(24),
+    backgroundColor: '#2f80ed',
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#2f80ed',
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.28,
+    shadowRadius: 12,
+    elevation: 6,
+  },
+  verifyBtnDisabled: { backgroundColor: '#cbd5e1', shadowOpacity: 0, elevation: 0 },
+  verifyBtnText: { color: '#ffffff', fontWeight: '900', fontSize: ms(15), letterSpacing: 0.5 },
   resendRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center' },
   resendTextSub: { fontSize: ms(12), color: '#64748b', fontWeight: '600' },
   resendTextAction: { fontSize: ms(12), color: '#2f80ed', fontWeight: '800' },

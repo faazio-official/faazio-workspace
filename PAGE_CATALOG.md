@@ -365,7 +365,7 @@ relative to `client/mobile/`. These were previously undocumented / stale in this
 | O1–O4: Onboarding Slides (4) | RN1: OnboardingScreen | ✅ RN has 5 slides (4 matching + blood-donation finale) |
 | O5: Login Phone Entry | RN2: LoginScreen | ✅ RN merges phone + OTP into one file |
 | O6: OTP Verification | RN2: LoginScreen | ✅ Same file |
-| O7: Loading Spinner | RN2: LoginScreen | ✅ Same file |
+| O7: Loading Spinner | RN2: LoginScreen | ✅ RN dropped the "All-Done" phase: login awaits persistence then `replace`s to `LanguageSelection` |
 | O8: Location Request | RN3: LocationScreen | ✅ Single file with step state |
 | O9: Manual Location | RN3: LocationScreen | ✅ Same file |
 | O10: Map Loader | RN3: LocationScreen | ✅ Simplified in RN, no SVG map animation |
@@ -456,7 +456,7 @@ These tabs render with empty-state messages:
 | `App.tsx` | Root — NavigationContainer + StatusBar hidden (edge-to-edge) | ✅ Active |
 | `src/navigation/AppNavigator.tsx` | Stack navigator: Onboarding, Login, Location, MainTabs | ✅ Active |
 | `src/features/onboarding/OnboardingScreen.tsx` | 5-slide onboarding (blood-donation finale) | ✅ Active |
-| `src/features/auth/LoginScreen.tsx` | Phone input + OTP + loading spinner | ✅ Active |
+| `src/features/auth/LoginScreen.tsx` | Phone input + OTP (auto-submit state machine + Verify CTA, awaited login → `LanguageSelection`) | ✅ Active |
 | `src/features/auth/LocationScreen.tsx` | 3-step: request / manual / loader | ✅ Active |
 | `src/features/home/MainDashboardScreen.tsx` | Dashboard shell + hub tabs + SubAppWrapper | ✅ Active |
 | `src/features/home/HomeScreen.tsx` | Alternative home view (orphan) | ❌ Unused |
@@ -534,7 +534,7 @@ These tabs render with empty-state messages:
 
 **Result:** Status bar (time, battery, notifications) is now hidden on both iOS and Android. The app fills 100% of the screen edge-to-edge with no artificial safe-area gaps.
 
-### Page 3 — Login Flow (Phone → OTP → All-Done)
+### Page 3 — Login Flow (Phone → OTP → Choose Language)
 
 | # | Task | File | Status | Notes |
 |---|------|------|--------|-------|
@@ -548,8 +548,9 @@ These tabs render with empty-state messages:
 | 8 | Replace `ActivityIndicator` with 48px custom spinner: slate `#f1f5f9` full ring + blue `#2c56f6` top-arc rotating | `LoginScreen.tsx` | ✅ Done | Two stacked ring Views (`AllDoneSpinner`), animated rotate |
 | 9 | Green focus ring on phone input (border `#41E68F` while focused) + back-button press scale 0.9 | `LoginScreen.tsx` | ✅ Done | `isPhoneFocused` state + `phoneInputRowFocused` style with green border/shadow; `ScalePressable` component (`Animated.spring`) |
 | 10 | Effects pixel pass: filled-track blue glow + error-track rose glow + segment 300ms LayoutAnimation transitions; then `tsc` check + log catalog | `LoginScreen.tsx` + `PAGE_CATALOG.md` | ✅ Done | Shadows/glows on filled/error tracks + error toast; `tsc --noEmit` clean |
+| 11 | OTP submit resilience: submit derives from `otpCode` (auto-fires at 6 digits) + always-present **Verify** CTA; `await login()` then `replace('LanguageSelection')`; `otpError` shake/toast now reachable; two-step back (keyboard → phone entry, number preserved) via chevron + hardware back | `LoginScreen.tsx`, `AppNavigator.tsx` | ✅ Done | Removed the "All-Done" phase; `LanguageSelection`/`Location` made eager (no navigator-wide `<Suspense>` swap mid-flow) |
 
-**Final Verdict:** Login Flow (Page 3) is now visually and behaviorally aligned with the Vite web app.
+**Final Verdict:** Login Flow (Page 3) is visually aligned with the Vite web app; the RN implementation uses an explicit OTP submit state machine (no "All-Done" spinner) and advances directly to Choose Language.
 
 ### Page 4 — Location Flow (Request → Manual Search → Map Loader)
 

@@ -5,6 +5,35 @@ dependencies exist. Do not build the backend/seller flows until told to.
 
 ---
 
+## Phone-auth OTP — typed full code stuck + broken back (fixed)
+
+**Status:** 🟢 Shipped (code); on-device verification pending.
+
+**Symptom:** entering the 6th OTP digit left the user on the OTP screen — no advance, no error,
+no slide — and back erased the typed phone number.
+
+**Root cause:** submit was a one-shot side effect inside the 6th keystroke's `onChangeText`
+(no retry, no guard), `login()` was **not awaited** and had no `.catch` (silent rejection),
+`otpError` was dead code (only ever set to `''`), there was no Verify button, and the target
+`LanguageSelection` route was `React.lazy` behind a navigator-wide `<Suspense>` so the first push
+swapped the whole native tree for `SplashFallback` mid-navigation.
+
+**Fix:**
+- `submitOtp` derives from `otpCode` via `useEffect` (fires however 6 digits arrive), guarded by
+  `submitRef`; it dismisses the keyboard, `await`s `login()`, then `navigation.replace`s
+  (guarded by `navigationRef.isReady()`). Failures set `otpError` (shake + toast now reachable)
+  and reset the guard for retry.
+- Always-present **Verify** CTA (enabled at 6 digits, spinner while awaiting) as the manual fallback.
+- Input hardening: clamp to 6 digits instead of dropping over-length values; verified/retried
+  focus; guarded phone auto-advance timer + keyboard dismiss.
+- Two-step back (keyboard → phone entry, number preserved) wired to chevron + hardware
+  `BackHandler`; `replace` removes the consumed OTP screen so back from Choose-language lands on
+  Welcome.
+- `LanguageSelection` + `Location` are now eager imports (first-run chain); other pushed screens
+  stay lazy.
+
+---
+
 ## Onboarding — welcome wordmark ships as raster
 
 **Status:** 🟢 Shipped (PNG); design follow-up open.

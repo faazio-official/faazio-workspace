@@ -310,8 +310,13 @@ so cards decode ahead of the fold. The header collapse is **1:1** with the finge
 (`src/services/homeFeed.ts`:
 `getHomeSections` / `getFilterFeedPage(chip, page)` / `getFilterChips`) exposes promise-based,
 paginated reads from `@data/*` — the contract the future Go Chi gateway will fulfil. Startup
- defers non-initial routes with `React.lazy` (kept eager: `Onboarding`, `Login`, `MainTabs`/`Home`)
- and loads only the used Roboto weights (`400`–`900`), gated to Android (iOS uses `System`).
+ defers non-initial routes with `React.lazy` (kept eager: `Onboarding`, `Login`,
+ `LanguageSelection`, `Location`, `MainTabs`/`Home`) and loads only the used Roboto weights
+ (`400`–`900`), gated to Android (iOS uses `System`). The whole `Stack.Navigator` is wrapped in one
+ `<Suspense fallback={<SplashFallback />}>`, so the first-run auth chain is intentionally eager:
+ a lazy push there would swap the entire native screen tree for the splash mid-navigation instead of
+ sliding a screen in. Since Metro ships a single bundle, `React.lazy` only defers module evaluation
+ (no download saved).
 
 #### Startup resilience & crash visibility (`App.tsx`)
 
@@ -417,6 +422,22 @@ AppNavigator (root native stack)
 
 Entry is `Onboarding` (or `MainTabs` when authenticated) — decided in `AppNavigator.tsx`
 from `useAuthStore.isAuthenticated`.
+
+### Phone-auth flow (Login)
+
+`LoginScreen` is a two-phase screen (phone → OTP). Phone entry auto-advances 150 ms after the
+10th digit. OTP submission is an explicit state machine, **not** a side effect of the 6th
+keystroke: a `useEffect` keyed on `otpCode` calls `submitOtp()` whenever the code reaches 6
+digits (covers typing, paste, and re-render races), guarded by a `submitRef` so it fires once.
+`submitOtp` dismisses the keyboard, **awaits** `authStore.login()` (3 SecureStore writes), and
+only then `navigation.replace('LanguageSelection')` (guarded by `navigationRef.isReady()`). A
+failure sets `otpError`, which drives the shake + "Verification Failed" toast; `submitRef` resets
+so the user can retry. A always-present **Verify** CTA (enabled at 6 digits, spinner while
+awaiting) is the manual fallback, so the user can never be stranded. Back is two-step and wired to
+both the chevron and Android hardware back (`BackHandler` via `useFocusEffect`): first press closes
+the keyboard, second returns to phone entry with the typed number preserved; on phone entry the
+hardware back pops to Welcome. `replace` deliberately removes the consumed OTP screen so back from
+Choose-language lands on Welcome, not a filled OTP form.
 
 ## Account navigation groups
 
