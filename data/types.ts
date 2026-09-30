@@ -202,6 +202,11 @@ export interface PastOrder {
   date: string;
   status: string;
   app: AppBrand;
+  /**
+   * Vendor this order was placed with, resolved at placement (vendor identity
+   * snapshot). Drives the derived rating-eligibility gate — never a stored flag.
+   */
+  storeId?: string;
 }
 
 /** Delivery status of an order shown on the My Orders screen. */
@@ -249,6 +254,12 @@ export interface MyOrder {
    * Absent = the order has no drill-in to a product detail page.
    */
   productId?: string;
+  /**
+   * Vendor this order was placed with, resolved once at placement and snapshotted
+   * (so old orders keep resolving to the same vendor). Drives the derived
+   * rating-eligibility gate — never a stored flag.
+   */
+  storeId?: string;
 }
 
 /** Status filter definition (labels only — counts are derived at runtime). */

@@ -89,6 +89,17 @@ set (never empty). Representative ids: FOOD→`sp-1`, MART→`fm-m1`, PHARMA→`
 `ph-f1`/`ph-t3`/`ph-d1`) + the `PharmaRecentOrder` type. `PharmaScreen` now imports it,
 replacing its former inline `RECENT_ORDERS` copy (Phase 7 de-dup).
 
+**Vendor identity & ratings** (`data/directory/vendors.ts`, `data/food/diningVenues.ts`,
+`data/reviews/vendorReviews.ts`): `resolveVendorForProduct(product)` is the single owner of
+"which vendor does this product/order belong to", merging `directory/stores` with the
+dining-venue identity table. Vendor identity is resolved once and snapshotted onto orders
+(`MyOrder.storeId`, `OrderRow.vendorStoreIds`, `PlacedOrder.storeIds`), so an old order keeps
+resolving to the same vendor. `hasPurchasedFromVendor(userId, vendorId)` is the **derived**
+rating-eligibility gate (non-cancelled order; server later tightens to `DELIVERED`; stays true
+once earned). `reviews/vendorReviews.ts` holds seeded public reviews (full name only); the
+signed-in user's live rating is device-local (`state/vendorRatingStore.ts`), merged in by
+`services/vendorRatings.ts`.
+
 ### Normalized microservice tables (new surface)
 
 A parallel, microservice-shaped view of the same source data that **imports** from the
@@ -98,7 +109,10 @@ legacy fixtures (never hand-copied), so the two surfaces can't drift:
 |---|---|---|
 | `catalog/products.ts` | Rust + Tantivy search index | all product records, deduped by `id`; `getProductById` |
 | `directory/stores.ts` | Go + PostgreSQL | mart + food stores |
+| `directory/vendors.ts` | Go + PostgreSQL | vendor identity view (stores + `food/diningVenues`) — `resolveVendorForProduct` |
+| `food/diningVenues.ts` | Go + PostgreSQL | dining-venue ids/names only (identity) |
 | `reviews/reviews.ts` | Go + PostgreSQL | `productMeta/reviews` |
+| `reviews/vendorReviews.ts` | Go + PostgreSQL | seeded public vendor reviews (full name only) |
 | `inventory/stock.ts` | Go + DynamoDB | net-new stock rows |
 | `checkout/orders.ts` | Go + CockroachDB | account/cart/addresses/coupons |
 | `accounts/profile.ts` | Go + PostgreSQL | account profile/orders/nav/details |

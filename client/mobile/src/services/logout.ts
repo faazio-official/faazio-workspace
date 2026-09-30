@@ -7,6 +7,7 @@ import { useBloodDonorStore } from '@/state/bloodDonorStore';
 import { useBookingStore } from '@/state/bookingStore';
 import { useFoodBookingStore } from '@/state/foodBookingStore';
 import { useRewardsStore } from '@/state/rewardsStore';
+import { useVendorRatingStore } from '@/state/vendorRatingStore';
 
 /**
  * Clears every piece of per-user local state on explicit logout.
@@ -21,6 +22,7 @@ export async function logoutUser(): Promise<void> {
   useBookingStore.setState({ bookings: [] });
   useFoodBookingStore.setState({ bookings: [] });
   useRewardsStore.getState().reset();
+  useVendorRatingStore.getState().reset();
 
   await useAuthStore.getState().logout();
 }

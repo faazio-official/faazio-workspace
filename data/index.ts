@@ -80,7 +80,7 @@ export { avatarMap, getProductReviews, getProductSpecs, getProductHighlights } f
 
 export { defaultAddresses } from './cart/addresses';
 export { coupons } from './cart/coupons';
-export { getPickupPointsForItems, NEUTRAL_PICKUP } from './cart/pickup-resolver';
+export { getPickupPointsForItems, getStoreIdsForItems, NEUTRAL_PICKUP } from './cart/pickup-resolver';
 
 export { pastOrders, myOrders, myOrdersStatusFilters, getMyOrderById } from './account/orders';
 export { userProfile, saverMembership } from './account/profile';
@@ -115,13 +115,38 @@ export type { CatalogEntry, CatalogFacetCategory } from './catalog/products';
 export { storeDirectory, getStoreById, getStoresByApp } from './directory/stores';
 export type { StoreRecord } from './directory/stores';
 
+export {
+  vendorDirectory,
+  getVendorById,
+  findVendorByName,
+  resolveVendorForProduct,
+  resolveVendorIdForProduct,
+  resolveVendorIdByName,
+} from './directory/vendors';
+export type { VendorRef } from './directory/vendors';
+
+export { diningVenues, getDiningVenueById, findDiningVenueByName } from './food/diningVenues';
+export type { DiningVenue } from './food/diningVenues';
+
 export { reviewsTable, specsTable, highlightsTable, getReviewsByProductId } from './reviews/reviews';
 export type { ReviewRow, SpecRow, HighlightRow } from './reviews/reviews';
+
+export { vendorReviewsTable, getReviewsByVendorId } from './reviews/vendorReviews';
+export type { VendorReviewRow } from './reviews/vendorReviews';
 
 export { stockTable, getStockByProductId, getStockByProductIds } from './inventory/stock';
 export type { StockRow } from './inventory/stock';
 
-export { usersTable, addressesTable, couponsTable, ordersTable, getOrdersByUser } from './checkout/orders';
+export {
+  usersTable,
+  addressesTable,
+  couponsTable,
+  ordersTable,
+  getOrdersByUser,
+  hasPurchasedFromVendor,
+  getVendorOrderIds,
+  MOCK_USER_ID,
+} from './checkout/orders';
 export type { UserRow, AddressRow, CouponRow, OrderRow, OrderLineItem } from './checkout/orders';
 
 export {

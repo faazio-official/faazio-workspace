@@ -5,6 +5,35 @@ dependencies exist. Do not build the backend/seller flows until told to.
 
 ---
 
+## Vendor ratings & reviews — phase 1 (client-side, derived gate)
+
+**Status:** 🟢 Shipped (phase 1). Server build is deferred (see below).
+
+**Feature:** Verified buyers rate the vendor they bought from, from five entry points
+(My Orders card, Order Details, Mart vendor profile, Pharma shop, Food restaurant
+profile). The rating form is a root `RateVendor` route.
+
+**Design (locked):**
+- **Eligibility = any non-cancelled order** (Delivered / Shipped / Processing); the
+  server later tightens to `DELIVERED`. **Derived, never a stored flag**, permanently
+  true for a `(user, vendor)` pair once it exists ("old customer keeps the ability").
+- Vendor identity resolved once via `resolveVendorForProduct`
+  (`data/directory/vendors.ts`) and snapshotted at placement (`PlacedOrder.storeIds`,
+  `OrderRow.vendorStoreIds`, `MyOrder.storeId`).
+- `hasPurchasedFromVendor` (`data/checkout/orders.ts`) + in-session `ordersStore` merge
+  (`services/vendorRatings.ts`) drives all five entry points; the rating screen re-checks.
+- One live rating per `(user, vendor)`, latest wins; `orderIds[]` kept as
+  verified-purchase provenance; revisiting shows "Update your rating".
+- Public display full name only (no id, phone, order id, avatar); nothing rating-related logged.
+- Food dining-venue identity table (`data/food/diningVenues.ts`) holds ids/names only —
+  full venue-data migration remains a separate task.
+
+**Deferred:** the Go reviews service + endpoints (`server/README.md`, gateway plan,
+`db-schema.md` §7.7); the `DELIVERED`-only tightening; pagination/moderation on the
+public review list.
+
+---
+
 ## Food — Restaurant menu category rail clipped (shared MenuCategoryRail)
 
 **Status:** 🟢 Shipped (code); on-device visual verification pending.

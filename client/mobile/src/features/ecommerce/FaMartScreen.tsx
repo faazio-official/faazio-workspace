@@ -117,6 +117,11 @@ export function FaMartScreen({
     onVendorPress?.(null);
   }, [onVendorPress]);
 
+  const handleRateVendor = useCallback(
+    (v: StoreProfile) => navigation.navigate('RateVendor', { vendorId: v.id, vendorName: v.name }),
+    [navigation],
+  );
+
   const handleAddProduct = useCallback(
     (product: MartProduct) => {
       addToCart(product.id, product.name, product.price, product.emoji);
@@ -157,6 +162,7 @@ export function FaMartScreen({
         onUpdateQuantity={updateQuantity}
         onCartPress={() => navigation.navigate('Cart', {})}
         onViewAllDiscounts={onViewAllDiscounts ? () => onViewAllDiscounts(vendor) : undefined}
+        onRateVendor={handleRateVendor}
       />
     );
   }

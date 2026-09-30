@@ -9,6 +9,7 @@ import {
 import { ArrowLeft, MapPin, ShieldCheck, ShoppingCart } from 'lucide-react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import AppText from '@/components/AppText';
+import { VendorReviewsSection } from '@/components/shared';
 import MartImage from '../mart-home/MartImage';
 import MartProductCard from '@/features/ecommerce/cards/MartProductCard';
 import { hs, ms, vs } from '@/utils/responsive';
@@ -37,6 +38,8 @@ interface VendorProfileViewProps {
   onCartPress?: () => void;
   /** Opens the Deals landing page (discounts mode) for this vendor. */
   onViewAllDiscounts?: () => void;
+  /** Opens the vendor rating form (verified buyers only). */
+  onRateVendor?: (vendor: StoreProfile) => void;
 }
 
 const ALL = 'All';
@@ -52,6 +55,7 @@ export function VendorProfileView({
   onUpdateQuantity,
   onCartPress,
   onViewAllDiscounts,
+  onRateVendor,
 }: VendorProfileViewProps) {
   const insets = useSafeAreaInsets();
   const [activeCategory, setActiveCategory] = useState<string>(ALL);
@@ -128,6 +132,13 @@ export function VendorProfileView({
           </View>
 
           <VendorHighlights />
+
+          <VendorReviewsSection
+            vendorId={vendor.id}
+            accentColor={GREEN}
+            onRatePress={onRateVendor ? () => onRateVendor(vendor) : undefined}
+            style={styles.reviewsSection}
+          />
 
           <View style={styles.sectionHeader}>
             <AppText style={styles.sectionTitle}>Discounted Products</AppText>
@@ -336,6 +347,10 @@ const styles = StyleSheet.create({
   closeText: {
     fontSize: ms(12),
     color: TEXT_LIGHT,
+  },
+  reviewsSection: {
+    paddingHorizontal: hs(16),
+    marginBottom: SPACE.SECTION,
   },
   sectionHeader: {
     flexDirection: 'row',

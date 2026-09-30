@@ -35,6 +35,7 @@ const UserDetailsScreen = lazyNamed(() => import('@/features/profile/UserDetails
 const SavedAddressesScreen = lazyNamed(() => import('@/features/profile/SavedAddressesScreen'), 'SavedAddressesScreen');
 const MyOrdersScreen = lazyNamed(() => import('@/features/profile/MyOrdersScreen'), 'MyOrdersScreen');
 const OrderDetailsScreen = lazyNamed(() => import('@/features/profile/OrderDetailsScreen'), 'OrderDetailsScreen');
+const RateVendorScreen = lazyNamed(() => import('@/features/profile/RateVendorScreen'), 'RateVendorScreen');
 const YouScreen = lazyNamed(() => import('@/features/profile/YouScreen'), 'YouScreen');
 const BloodDonorScreen = lazyNamed(() => import('@/features/pharma/blood-donor/BloodDonorScreen'), 'BloodDonorScreen');
 const BloodDonorDetailsScreen = lazyNamed(() => import('@/features/pharma/blood-donor/DonorDetailsScreen'), 'DonorDetailsScreen');
@@ -132,6 +133,11 @@ export function AppNavigator() {
             name="OrderDetails"
             component={OrderDetailsScreen}
             options={{ animation: 'fade', animationDuration: 180 }}
+          />
+          <Stack.Screen
+            name="RateVendor"
+            component={RateVendorScreen}
+            options={{ animation: 'slide_from_bottom', animationDuration: 220 }}
           />
           <Stack.Screen
             name="BloodDonor"

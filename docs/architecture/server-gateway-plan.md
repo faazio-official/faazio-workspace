@@ -20,6 +20,7 @@ is silently re-invented. `server/` today holds only this plan.
             ├── gRPC ────────────▶ [ search — Rust : Axum + Tantivy ]
             ├── gRPC ────────────▶ [ cart / stock — Go : chi + DynamoDB/Firestore ]
             ├── gRPC ────────────▶ [ checkout — Go : chi + CockroachDB ]
+            ├── gRPC ────────────▶ [ reviews & ratings — Go : chi + PostgreSQL ]
             └── gRPC ────────────▶ [ recommendations — Python : FastAPI + MongoDB ]
 ```
 
@@ -35,7 +36,32 @@ is silently re-invented. `server/` today holds only this plan.
 | Search & Catalog | Rust | Tantivy/Meilisearch | 0.5 vCPU / 512 MB | sub-ms, no GC pauses |
 | Cart & Stock | Go | DynamoDB/Firestore | 0.5 vCPU / 256 MB | high concurrency, flat perf |
 | Checkout & Orders | Go | CockroachDB | 0.25 vCPU / 256 MB | financial consistency |
+| Reviews & Ratings | Go | PostgreSQL | 0.25 vCPU / 256 MB | vendor-rating gate + reviews |
 | Recommendations | Python | MongoDB | 1 vCPU / 1 GB | ML/analytics |
+
+## Vendor reviews & ratings (planned)
+
+Vendor rating is the first **write** surface the mobile app mocks end-to-end; the
+gate must be identical on client and server so it can ship ahead of the backend.
+
+- **Vendor identity** — resolved once via `resolveVendorForProduct`
+  (`data/directory/vendors.ts`) and snapshotted onto the order at placement
+  (`PlacedOrder.storeIds`, `OrderRow.vendorStoreIds`), so an old order keeps
+  resolving to the same vendor.
+- **Eligibility (derived, never a stored flag):** `hasPurchasedFromVendor(userId, vendorId)`
+  is true iff a non-cancelled order resolves to that vendor. Phase 1 keeps any
+  non-cancelled order; the server later tightens to `DELIVERED`. Once true it stays
+  true for the `(user, vendor)` pair ("old customer keeps the ability").
+- **One live rating per `(user, vendor)`**, latest wins; `orderIds[]` is kept as
+  verified-purchase provenance (never shown). Public display is **full name only** —
+  no user id, phone, order id, or avatar; nothing rating-related is logged.
+- **Endpoints (gateway-facing, planned):** `GET /vendors/{id}/reviews`,
+  `GET /vendors/{id}/reviews/summary`, `GET /vendors/{id}/rating`,
+  `PUT /vendors/{id}/rating` (server re-checks eligibility).
+- **Mobile owner:** `src/services/vendorRatings.ts` (single owner, reused by all five
+  entry points) + `src/state/vendorRatingStore.ts` (persisted `faazio/vendor-ratings/v1`).
+- **Cache:** `faazio:v1:reviews:vendor:{id}` (TTL 24 h); the user's own rating is
+  auth-scoped and never edge-cached. See `docs/architecture/db-schema.md` §7.7.
 
 ## Planned module tree
 
@@ -47,6 +73,7 @@ server/
 │   ├── search/              # Rust — Axum + Tantivy, gRPC via Tonic
 │   ├── cart/                # Go — chi, DynamoDB/Firestore
 │   ├── checkout/            # Go — chi, CockroachDB
+│   ├── reviews/             # Go — chi, PostgreSQL (vendor ratings + eligibility)
 │   └── recommendations/     # Python — FastAPI, MongoDB
 ├── contracts/               # shared proto / OpenAPI contracts
 └── deployments/             # Cloud Run / Docker manifests, env templates (no secrets)

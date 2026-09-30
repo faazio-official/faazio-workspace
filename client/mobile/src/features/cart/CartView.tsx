@@ -26,7 +26,7 @@ import Checkbox from '@/components/shared/Checkbox';
 import type { CartItem, CartCategory } from '@/state/cartStore';
 import { defaultAddresses } from '@data/cart/addresses';
 import { coupons } from '@data/cart/coupons';
-import { getPickupPointsForItems } from '@data/cart/pickup-resolver';
+import { getPickupPointsForItems, getStoreIdsForItems } from '@data/cart/pickup-resolver';
 import { userProfile } from '@data/account/profile';
 import type { FulfillmentMode, PickupPoint } from '@data/types';
 import AppText from '@/components/AppText';
@@ -260,10 +260,13 @@ export default function CartView({
       const mode = fulfillment ?? 'DELIVERY';
       const pickups = isPickup ? pickupPointList : [];
       const primaryPickup = pickups[0];
+      // Vendor identity snapshot — resolved once at placement (see data/directory/vendors.ts).
+      const storeIds = getStoreIdsForItems(selectedItems);
       useOrdersStore.getState().recordOrder({
         orderId,
         kind: 'items',
         fulfillment: mode,
+        storeIds,
         vendorName: isPickup
           ? primaryPickup?.name ?? 'Pickup point'
           : deliveryAddress.label ?? 'Delivery',

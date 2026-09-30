@@ -24,7 +24,7 @@ import {
 import { hs, vs, ms } from '@/utils/responsive';
 import { SPACE } from '@/theme/spacing';
 import AppText from '@/components/AppText';
-import { AdBannerCarousel, AdLabelBadge } from '@/components/shared';
+import { AdBannerCarousel, AdLabelBadge, VendorReviewsSection } from '@/components/shared';
 import { topAdSlides } from '@data/home/rails';
 import RemoteImage from '../components/RemoteImage';
 import FoodStatusBarStrip from '../components/FoodStatusBarStrip';
@@ -117,6 +117,12 @@ export function RestaurantProfileScreen({ navigation, route }: Props) {
   const openMenuSearch = useCallback(() => {
     navigation.navigate('RestaurantMenu', { restaurant, dietFilter });
   }, [navigation, restaurant, dietFilter]);
+
+  const openRateVendor = useCallback(() => {
+    navigation
+      .getParent<NativeStackNavigationProp<RootStackParamList>>()
+      ?.navigate('RateVendor', { vendorId: restaurant.id, vendorName: restaurant.name });
+  }, [navigation, restaurant.id, restaurant.name]);
 
   const handleAdd = useCallback(
     (dish: SpecialDish) => {
@@ -213,6 +219,13 @@ export function RestaurantProfileScreen({ navigation, route }: Props) {
               <AppText style={styles.offerBannerText}>{restaurant.offerTag}</AppText>
             </View>
           ) : null}
+
+          <VendorReviewsSection
+            vendorId={restaurant.id}
+            accentColor={foodTheme.primary}
+            onRatePress={openRateVendor}
+            style={styles.reviewsSection}
+          />
 
           {/* RECOMMENDED & OFFERS — hidden when the active diet filter emptied it */}
           {restaurantDishes.length > 0 && (
@@ -448,6 +461,7 @@ const styles = StyleSheet.create({
     borderRadius: 12,
   },
   offerBannerText: { color: foodTheme.primaryDark, fontSize: ms(13), fontWeight: '700' },
+  reviewsSection: { paddingHorizontal: hs(16), marginTop: SPACE.SECTION },
   sectionHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',

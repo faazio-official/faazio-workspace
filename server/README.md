@@ -22,6 +22,7 @@ no monolith, no framework-heavy baggage, each concern owning exactly one home.
             ├── gRPC ────────────▶ [ search — Rust : Axum + Tantivy ]
             ├── gRPC ────────────▶ [ cart / stock — Go : chi + DynamoDB/Firestore ]
             ├── gRPC ────────────▶ [ checkout — Go : chi + CockroachDB ]
+            ├── gRPC ────────────▶ [ reviews & ratings — Go : chi + PostgreSQL ]
             └── gRPC ────────────▶ [ recommendations — Python : FastAPI + MongoDB ]
 ```
 
@@ -81,6 +82,26 @@ Four focused services, each choosing the best language/database for its job:
 - **Stack:** FastAPI (Starlette + Pydantic, native async, auto Swagger docs).
 - **Target spec (Google Cloud Run):** 1 vCPU / 1 GB RAM.
 
+### ⭐ 5. Reviews & Ratings Service
+- **Language:** Go
+- **Database:** PostgreSQL
+- **Why:** Vendor ratings are a small, consistency-sensitive read/write surface (one
+  live rating per `(user, vendor)`, latest wins) with an eligibility gate derived
+  from order history. Keeping it separate from Search keeps read-heavy catalog traffic
+  off the review DB, and mirroring the mobile contract keeps the gate identical on
+  both sides.
+- **Eligibility (phase 1):** a user may rate a vendor iff they have a **non-cancelled**
+  order resolving to that vendor. The server later tightens to `DELIVERED`. It is
+  **derived, never a stored flag**, and stays true for the `(user, vendor)` pair once it
+  exists ("old customer keeps the ability").
+- **Endpoints (gateway-facing, planned):**
+  - `GET  /vendors/{vendorId}/reviews` — public reviews (full name only; never id/phone/order id/avatar)
+  - `GET  /vendors/{vendorId}/reviews/summary` — average, count, 1–5 distribution
+  - `GET  /vendors/{vendorId}/rating` — the signed-in user's own rating for this vendor
+  - `PUT  /vendors/{vendorId}/rating` — upsert the user's rating (server re-checks eligibility)
+- **Stack:** go-chi/chi/v5, go-playground/validator/v10.
+- **Target spec (Google Cloud Run):** 0.25 vCPU / 256 MB RAM.
+
 ---
 
 ## 3. Target modular folder tree
@@ -104,6 +125,7 @@ server/
 │   ├── search/                  # Rust — Axum + Tantivy, gRPC via Tonic
 │   ├── cart/                    # Go — chi, gRPC, DynamoDB/Firestore
 │   ├── checkout/                # Go — chi, CockroachDB
+│   ├── reviews/                 # Go — chi, PostgreSQL (vendor ratings + eligibility)
 │   └── recommendations/         # Python — FastAPI, MongoDB
 ├── contracts/                   # shared proto / OpenAPI contracts between services
 └── deployments/                 # Cloud Run / Docker manifests, env templates (no secrets)
@@ -126,6 +148,7 @@ server/
 | Search | Rust | 0.5 vCPU / 512 MB | Meilisearch / Tantivy (embedded) | ~$0 (scales down to 0) |
 | Cart & Stock | Go | 0.5 vCPU / 256 MB | Firestore (Datastore mode) | ~$0 (50k daily free reads) |
 | Checkout | Go | 0.25 vCPU / 256 MB | CockroachDB Serverless | ~$0 (large free tier) |
+| Reviews & Ratings | Go | 0.25 vCPU / 256 MB | PostgreSQL | ~$0 (free shared tier) |
 | AI & Insights | Python | 1 vCPU / 1 GB | MongoDB Atlas M0 | ~$0 (free shared cluster) |
 
 ---
@@ -178,6 +201,7 @@ server/
 - Each `@mock` data file in `data/DATA_CONTROL.md` is a future handler contract:
   - `data/mart/products.ts`, `data/grocery/products.ts` → **search** service
   - `data/cart/*` (addresses, coupons) → **cart / checkout** services
+  - `data/directory/vendors.ts`, `data/reviews/vendorReviews.ts` → **reviews & ratings** service
   - `data/home/*` (rails, offers, filters) → **recommendations / gateway**
 - Security posture (AGENTS.md): DB ports closed to the public, only necessary ports open,
   secrets via env/secret manager, SSH keys not passwords, traffic via Cloudflare IP ranges.

@@ -29,6 +29,11 @@ export interface PlacedOrder {
   note?: string;
   /** Itemised orders only — purchased line items. */
   items?: PlacedOrderItem[];
+  /**
+   * Distinct vendor ids this order resolves to, resolved once at placement
+   * (vendor identity snapshot). Drives the derived rating-eligibility gate.
+   */
+  storeIds?: string[];
   total: number;
   placedAt: string;
 }
@@ -44,6 +49,7 @@ interface PlacedOrderInput {
   pages?: number;
   note?: string;
   items?: PlacedOrderItem[];
+  storeIds?: string[];
   total: number;
 }
 

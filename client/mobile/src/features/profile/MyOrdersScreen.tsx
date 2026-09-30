@@ -16,9 +16,10 @@ import {
 } from 'lucide-react-native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import AppText from '@/components/AppText';
+import { VendorRateButton } from '@/components/shared';
 import { hs, vs, ms } from '@/utils/responsive';
 import { SPACE } from '@/theme/spacing';
-import { myOrders } from '@data/index';
+import { myOrders, getVendorById } from '@data/index';
 import type { MyOrder, OrderStatus, MyOrdersStatusFilter } from '@data/types';
 import type { AppBrand } from '@data/types';
 import type { RootStackParamList } from '@/navigation/types';
@@ -181,6 +182,12 @@ export function MyOrdersScreen({ navigation, route }: Props) {
 
   const handleOpenOrder = useCallback(
     (orderId: string) => navigation.navigate('OrderDetails', { orderId }),
+    [navigation],
+  );
+
+  const handleRateVendor = useCallback(
+    (vendor: { id: string; name: string }) =>
+      navigation.navigate('RateVendor', { vendorId: vendor.id, vendorName: vendor.name }),
     [navigation],
   );
 
@@ -399,6 +406,11 @@ export function MyOrdersScreen({ navigation, route }: Props) {
                     </View>
 
                     <View style={styles.cardFooter}>
+                      <VendorRateButton
+                        vendorId={po.storeIds?.[0]}
+                        variant="compact"
+                        onPress={handleRateVendor}
+                      />
                       <TouchableOpacity
                         style={styles.viewDetailsBtn}
                         activeOpacity={0.7}
@@ -457,6 +469,12 @@ export function MyOrdersScreen({ navigation, route }: Props) {
                   </View>
 
                   <View style={styles.cardFooter}>
+                    <VendorRateButton
+                      vendorId={order.storeId}
+                      vendorName={getVendorById(order.storeId ?? '')?.name}
+                      variant="compact"
+                      onPress={handleRateVendor}
+                    />
                     <TouchableOpacity
                       style={styles.viewDetailsBtn}
                       activeOpacity={0.7}
@@ -766,6 +784,8 @@ const styles = StyleSheet.create({
   cardFooter: {
     flexDirection: 'row',
     justifyContent: 'flex-end',
+    alignItems: 'center',
+    gap: hs(8),
     marginTop: SPACE.ITEM,
   },
   viewDetailsBtn: {

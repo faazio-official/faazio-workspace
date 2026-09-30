@@ -72,4 +72,13 @@ When adding a fixture file (e.g. `data/food/menus.ts`, `data/pharma/recentOrders
 - Register its exports in `data/index.ts` so screens consume them via `@data/*` (see
   `data/index.ts`).
 - Add the new exports to the relevant domain table in `data/DATA_CONTROL.md` (food →
-  `restaurantMenus`/`allRestaurantMenuDishes`; pharma → `PHARMA_RECENT_ORDERS`/`PharmaRecentOrder`).
+  `restaurantMenus`/`allRestaurantMenuDishes`; pharma → `PHARMA_RECENT_ORDERS`/`PharmaRecentOrder`;
+  vendor identity/ratings → `directory/vendors.ts`, `food/diningVenues.ts`, `reviews/vendorReviews.ts`).
+
+**Vendor identity & ratings fixtures:** vendor identity is resolved by
+`data/directory/vendors.ts` `resolveVendorForProduct` (stores + `food/diningVenues`). Never
+duplicate a vendor id/name elsewhere — add it to `directory/stores.ts` (Mart/Pharma) or
+`food/diningVenues.ts` (Food venues) and re-export as needed. Vendor order snapshots stay on
+`MyOrder.storeId` / `OrderRow.vendorStoreIds`. Public vendor reviews live in
+`data/reviews/vendorReviews.ts` (full name only — never add id/phone/order id/avatar). The
+production schema is `docs/architecture/db-schema.md` §7.7.

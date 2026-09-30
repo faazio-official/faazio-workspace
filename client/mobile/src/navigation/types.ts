@@ -66,6 +66,12 @@ export type RootStackParamList = {
   Favourites: undefined;
   /** Per-order detail page, resolved by id from `@data` (pushed from My Orders). */
   OrderDetails: { orderId: string };
+  /**
+   * Vendor rating form — reachable from every vendor surface (My Orders, Order
+   * Details, Mart vendor, Pharma shop, Food restaurant). Verified buyers only;
+   * the gate is re-checked inside the screen.
+   */
+  RateVendor: { vendorId: string; vendorName?: string };
   /** Blood Donor registration wizard + registered dashboard (pushed from Pharma). */
   BloodDonor: undefined;
   /** Targeted donor profile opened from Ask Blood matching results. */

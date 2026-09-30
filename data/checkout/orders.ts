@@ -8,6 +8,7 @@ import { defaultAddresses } from '../cart/addresses';
 import { savedAddresses } from '../account/addresses';
 import { coupons as legacyCoupons } from '../cart/coupons';
 import { myOrders, pastOrders } from '../account/orders';
+import { resolveVendorIdByName } from '../directory/vendors';
 
 export interface UserRow {
   id: string;
@@ -20,6 +21,9 @@ export interface UserRow {
 export const usersTable: UserRow[] = [
   { id: 'user-1', name: 'Rohit Sharma', email: 'rohit.sharma@gmail.com', phone: '+91 98765 43210', defaultAddressId: 'addr_1' },
 ];
+
+/** The mock fixture tables are single-user: all seeded orders belong to this id. */
+export const MOCK_USER_ID = usersTable[0]?.id ?? 'user-1';
 
 export interface AddressRow {
   id: string;
@@ -91,6 +95,12 @@ export interface OrderRow {
   lineItems: OrderLineItem[];
   /** Fulfillment mode. Absent = delivery. Mirrors `MyOrder.fulfillment`. */
   fulfillment?: FulfillmentMode;
+  /**
+   * Vendor identity snapshot — the distinct vendor ids this order resolves to,
+   * captured once at placement via `resolveVendorForProduct`. Drives the derived
+   * rating-eligibility gate. See `docs/architecture/db-schema.md` §7.7.
+   */
+  vendorStoreIds: string[];
 }
 
 function fromMyOrder(o: (typeof myOrders)[number], idx: number): OrderRow {
@@ -114,10 +124,12 @@ function fromMyOrder(o: (typeof myOrders)[number], idx: number): OrderRow {
       },
     ],
     fulfillment: o.fulfillment,
+    vendorStoreIds: o.storeId ? [o.storeId] : [],
   };
 }
 
 function fromPastOrder(o: (typeof pastOrders)[number], idx: number): OrderRow {
+  const vendorStoreId = o.storeId ?? resolveVendorIdByName(o.store);
   return {
     id: `past-${idx}`,
     orderNumber: o.id,
@@ -133,6 +145,7 @@ function fromPastOrder(o: (typeof pastOrders)[number], idx: number): OrderRow {
         unitPrice: o.price,
       },
     ],
+    vendorStoreIds: vendorStoreId ? [vendorStoreId] : [],
   };
 }
 
@@ -143,4 +156,36 @@ export const ordersTable: OrderRow[] = [
 
 export function getOrdersByUser(userId: string): OrderRow[] {
   return ordersTable.filter((o) => o.userId === userId);
+}
+
+/** Phase-1 gate keeps any **non-cancelled** order (server later tightens to DELIVERED). */
+function isRatableStatus(status: string): boolean {
+  return status !== 'Cancelled';
+}
+
+/**
+ * The rating-eligibility gate, derived — never a stored flag: true iff `userId`
+ * has an order that resolves to `vendorId` and was not cancelled. Permanently
+ * true for that (user, vendor) pair once it exists ("old customer keeps the
+ * ability").
+ */
+export function hasPurchasedFromVendor(userId: string, vendorId: string): boolean {
+  return ordersTable.some(
+    (order) =>
+      order.userId === userId &&
+      isRatableStatus(order.status) &&
+      order.vendorStoreIds.includes(vendorId),
+  );
+}
+
+/** Order ids proving a (user, vendor) purchase — verified-purchase provenance. */
+export function getVendorOrderIds(userId: string, vendorId: string): string[] {
+  return ordersTable
+    .filter(
+      (order) =>
+        order.userId === userId &&
+        isRatableStatus(order.status) &&
+        order.vendorStoreIds.includes(vendorId),
+    )
+    .map((order) => order.id);
 }

@@ -4,11 +4,13 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ChevronLeft, ExternalLink, PackageOpen } from 'lucide-react-native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import AppText from '@/components/AppText';
+import { VendorRateButton } from '@/components/shared';
 import { hs, vs, ms } from '@/utils/responsive';
 import { SPACE } from '@/theme/spacing';
-import { getMyOrderById, getProductById, portalSectors, userProfile } from '@data/index';
+import { getMyOrderById, getProductById, getVendorById, portalSectors, userProfile } from '@data/index';
 import { SECTOR_VISUALS } from '@/theme/sectorVisuals';
 import { useOrdersStore } from '@/state/ordersStore';
+import { useCanRateVendor } from '@/hooks/useVendorRating';
 import type { MyOrder } from '@data/types';
 import type { RootStackParamList } from '@/navigation/types';
 
@@ -50,6 +52,8 @@ interface OrderView {
   lineTotal: number;
   pickups: PickupView[];
   productId?: string;
+  /** Vendor identity snapshot — drives the rating CTA gate. */
+  vendorId?: string;
 }
 
 export function OrderDetailsScreen({ navigation, route }: Props) {
@@ -84,6 +88,7 @@ export function OrderDetailsScreen({ navigation, route }: Props) {
         qty: placedOrder.items?.reduce((s, i) => s + i.quantity, 0) ?? 1,
         lineTotal: placedOrder.total,
         pickups,
+        vendorId: placedOrder.storeIds?.[0],
       };
     }
     if (dataOrder) {
@@ -101,10 +106,14 @@ export function OrderDetailsScreen({ navigation, route }: Props) {
         lineTotal: dataOrder.price * dataOrder.qty,
         pickups: dataOrder.pickup ? [dataOrder.pickup] : [],
         productId: dataOrder.productId,
+        vendorId: dataOrder.storeId,
       };
     }
     return null;
   }, [placedOrder, dataOrder]);
+
+  const canRate = useCanRateVendor(order?.vendorId);
+  const vendorName = order?.vendorId ? getVendorById(order.vendorId)?.name : undefined;
 
   const product = useMemo(
     () => (order?.productId ? getProductById(order.productId) : undefined),
@@ -117,6 +126,12 @@ export function OrderDetailsScreen({ navigation, route }: Props) {
     if (!product) return;
     navigation.navigate('ProductDetail', { product });
   }, [navigation, product]);
+
+  const handleRateVendor = useCallback(
+    (vendor: { id: string; name: string }) =>
+      navigation.navigate('RateVendor', { vendorId: vendor.id, vendorName: vendor.name }),
+    [navigation],
+  );
 
   if (!order) {
     return (
@@ -237,6 +252,25 @@ export function OrderDetailsScreen({ navigation, route }: Props) {
                 </View>
               </View>
             ))}
+          </View>
+        ) : null}
+
+        {/* Rate vendor — verified buyers only (gate re-checked inside the screen) */}
+        {canRate && order.vendorId ? (
+          <View style={styles.card}>
+            <AppText style={styles.sectionTitle}>Rate your purchase</AppText>
+            <AppText style={styles.rateIntro}>
+              {vendorName
+                ? `How was your experience with ${vendorName}?`
+                : 'Share your experience with this vendor.'}
+            </AppText>
+            <View style={styles.rateBtnWrap}>
+              <VendorRateButton
+                vendorId={order.vendorId}
+                vendorName={vendorName}
+                onPress={handleRateVendor}
+              />
+            </View>
           </View>
         ) : null}
 
@@ -432,6 +466,16 @@ const styles = StyleSheet.create({
     borderTopColor: '#E5E7EB',
     paddingTop: SPACE.ITEM,
     marginTop: SPACE.ITEM,
+  },
+
+  rateIntro: {
+    fontSize: ms(13),
+    color: '#6B7280',
+    lineHeight: ms(19),
+    marginBottom: SPACE.BLOCK,
+  },
+  rateBtnWrap: {
+    marginTop: vs(2),
   },
 
   viewProductBtn: {

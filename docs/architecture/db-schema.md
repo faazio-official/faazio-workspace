@@ -48,8 +48,9 @@ Every table uses one identical 9-part template:
 | 1 | Gateway | Go Chi | — (stateless) + Valkey/CDN cache | no durable DB | 0.25 vCPU / 256 MB | app ↔ all services |
 | 2 | Search & Catalog | Rust (Axum + Tantivy) | Tantivy (embedded) + CockroachDB `catalog` master | index + sync source | 0.5 vCPU / 512 MB | gateway, checkout |
 | 3 | Cart & Stock | Go | DynamoDB (Firestore alt) | KV store | 0.5 vCPU / 256 MB | gateway, checkout |
-| 4 | Checkout & Orders | Go | CockroachDB | relational (orders + catalog master + accounts) | 0.25 vCPU / 256 MB | gateway, cart, search, recommendations |
-| 5 | Recommendations | Python (FastAPI) | MongoDB | doc store (events, layout) | 1 vCPU / 1 GB | gateway |
+| 4 | Checkout & Orders | Go | CockroachDB | relational (orders + catalog master + accounts) | 0.25 vCPU / 256 MB | gateway, cart, search, recommendations, reviews |
+| 5 | Reviews & Ratings | Go | PostgreSQL | relational (vendor reviews + eligibility) | 0.25 vCPU / 256 MB | gateway, checkout |
+| 6 | Recommendations | Python (FastAPI) | MongoDB | doc store (events, layout) | 1 vCPU / 1 GB | gateway |
 
 Communication is always **gRPC** service-to-service through `contracts/`; the gateway is the only
 public HTTPS/JSON surface. Every `@mock` entry in `data/DATA_CONTROL.md` maps to a handler contract.
@@ -83,6 +84,7 @@ Traceability is 1:1 — each production table documents its `@data/*` source.
 | Tantivy index (search) | `data/catalog/products.ts` (tokenized) | Tantivy |
 | `directory.stores` | `data/directory/stores.ts` `storeDirectory` | CockroachDB (PostgreSQL-shaped) |
 | `reviews.reviews` / `reviews.specs` / `reviews.highlights` | `data/reviews/reviews.ts` | CockroachDB (PostgreSQL-shaped) |
+| `directory.vendors` / `reviews.vendor_reviews` | `data/directory/vendors.ts`, `data/reviews/vendorReviews.ts` | PostgreSQL |
 | `inventory.stock` / `carts` / `reservations` / `pickup_points` | `data/inventory/stock.ts`, `data/cart/*` | DynamoDB |
 | `checkout.*` (users/addresses/coupons/orders/order_items/payments/events) | `data/checkout/orders.ts` | CockroachDB |
 | `accounts.*` (profile/membership/order_status/nav/details) | `data/accounts/profile.ts` | CockroachDB (PostgreSQL-shaped) |
@@ -486,9 +488,69 @@ CREATE TABLE reviews.reviews (
 `reviews.highlights`: `id, app, text`. **Cache:** `faazio:v1:reviews:product:{id}` (TTL 24 h).
 **Admin:** reviewer `user`/`avatar` — treat as PII; moderation queries by `product_id`.
 
+### 7.7 `directory.vendors` / `reviews.vendor_reviews` — source `data/directory/vendors.ts`, `data/reviews/vendorReviews.ts`
+
+A **vendor** is a ratable place: a Mart/Pharma store (`directory.stores`) or a Food
+dining venue. `directory.vendors` is a derived identity view (ids + names only); the
+full food venue-data migration is a separate task.
+
+```sql
+-- Derived view: stores + dining venues, identity only.
+CREATE VIEW directory.vendors AS
+  SELECT id, app, name FROM directory.stores
+  UNION ALL
+  SELECT id, 'FOOD'::app_brand, name FROM directory.dining_venues;
+
+CREATE TABLE reviews.vendor_reviews (
+  id          TEXT PRIMARY KEY,        -- 'vr-g1-1'
+  vendor_id   TEXT NOT NULL,           -- → directory.vendors.id
+  app         app_brand NOT NULL,
+  user_id     TEXT NOT NULL,           -- author (PII linkage — never public)
+  user_name   TEXT NOT NULL,           -- public display name only
+  rating      INT8 NOT NULL CHECK (rating BETWEEN 1 AND 5),
+  comment     TEXT,                    -- optional, <= 280 chars
+  order_ids   TEXT[] NOT NULL DEFAULT '{}', -- verified-purchase provenance (never public)
+  created_at  TIMESTAMPTZ NOT NULL,
+  updated_at  TIMESTAMPTZ NOT NULL,
+  UNIQUE (vendor_id, user_id)          -- one live rating per (user, vendor), latest wins
+);
+```
+
+**Eligibility — derived, never a stored flag** (the exact phase-1 gate; the server
+later tightens `status <> 'Cancelled'` to `status = 'Delivered'`):
+
+```sql
+SELECT EXISTS (
+  SELECT 1 FROM checkout.orders o
+  WHERE o.user_id = $1
+    AND o.status <> 'Cancelled'
+    AND $2 = ANY (o.vendor_store_ids)   -- vendor identity snapshot taken at placement
+);
+```
+
+`checkout.orders` carries `vendor_store_ids TEXT[]` (snapshot of
+`PlacedOrder.storeIds` / `OrderRow.vendorStoreIds`), so old orders keep resolving to
+the same vendor. The gate is permanently true for a `(user, vendor)` pair once it
+exists ("old customer keeps the ability").
+
+**Sample rows** (provenance `data/reviews/vendorReviews.ts`):
+
+| id | vendor_id | app | user_name | rating | comment |
+|---|---|---|---|---|---|
+| `vr-g1-1` | `store-g1` | MART | Pooja Nair | 5 | Fresh produce every single time… |
+| `vr-p1-1` | `store-p1` | PHARMA | Dr. Sarah Alvi | 5 | Genuine medicines with clear expiry dates… |
+| `vr-f3-1` | `store-f3` | FOOD | Aarav Sharma | 5 | Smash burgers were juicy… |
+| `vr-dn12-1` | `dn-12` | FOOD | Priya Patel | 5 | Best Hyderabadi biryani in the city… |
+
+**Cache:** `faazio:v1:reviews:vendor:{id}` (TTL 24 h) for the public list/summary;
+the signed-in user's own rating is auth-scoped and **never** edge-cached.
+**Admin:** `user_id`/`order_ids` are PII linkage and are never rendered publicly;
+public output exposes `user_name`, `rating`, `comment` only. Moderation queries by
+`vendor_id`. Nothing rating-related is ever logged.
+
 ---
 
-## 8. Service 5 — Recommendations (Python · FastAPI + MongoDB)
+## 8. Service 6 — Recommendations (Python · FastAPI + MongoDB)
 
 **Collections:** `user_events` (TTL), `recommendations`, `segments`, `product_stats`, `sdui_layouts`.
 
@@ -560,6 +622,7 @@ retention window.
 | Search | top-query results (10 min) | search results, images |
 | Cart & Stock | `stock:{productId}` (30–60 s); never carts | — |
 | Checkout | `orders:{userId}` (60 s, auth-scoped); idempotency locks | — |
+| Reviews & Ratings | `reviews:vendor:{id}` (24 h); user's own rating auth-scoped (not cached) | — |
 | Recommendations | `reco:{userIdHash}` (1 h), `sdui:home:{version}` | SDUI, images |
 
 Full mechanics, key taxonomy, TTL matrix, and invalidation event map live in
@@ -574,6 +637,7 @@ Full mechanics, key taxonomy, TTL matrix, and invalidation event map live in
 | `catalog.products` | no | search/filter/sort | keyset by `id` |
 | `directory.stores` | address/phone = PII | list by app | keyset by `id` |
 | `reviews.*` | reviewer name/avatar | by product_id | keyset by `id` |
+| `reviews.vendor_reviews` | author `user_id`/`order_ids` = PII linkage (never public) | by `vendor_id` | keyset by `id` |
 | `stock` | no | low-stock scan | keyset by `productId` |
 | `carts` | user linkage | by cart (rare) | keyset |
 | `checkout.users/addresses/orders` | **heavy PII** | by user/order (redacted) | keyset `(user_id, placed_at)` |

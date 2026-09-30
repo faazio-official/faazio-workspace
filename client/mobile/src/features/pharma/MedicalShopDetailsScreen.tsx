@@ -11,6 +11,7 @@ import { ArrowLeft, Clock, MapPin, Phone, Search, Star, X } from 'lucide-react-n
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import AppText from '@/components/AppText';
+import { VendorReviewsSection } from '@/components/shared';
 import { hs, ms, vs } from '@/utils/responsive';
 import { SPACE } from '@/theme/spacing';
 import type { Product, StoreProfile } from '@data/types';
@@ -156,6 +157,12 @@ export function MedicalShopDetailsScreen({ navigation, route }: Props) {
         ListHeaderComponent={
           <>
             <StoreInfo store={store} />
+            <VendorReviewsSection
+              vendorId={store.id}
+              accentColor={PHARMA_TEAL}
+              onRatePress={() => navigation.navigate('RateVendor', { vendorId: store.id, vendorName: store.name })}
+              style={styles.reviewsSection}
+            />
             <View style={styles.productsHeader}>
               <AppText style={styles.productsTitle}>Medicines & Essentials</AppText>
               <AppText style={styles.productsCount}>{filtered.length} items</AppText>
@@ -221,6 +228,7 @@ const styles = StyleSheet.create({
   contactCard: { marginTop: SPACE.SECTION, padding: hs(12), gap: SPACE.ITEM, borderRadius: ms(12), backgroundColor: '#F8FAFC', borderWidth: 1, borderColor: '#EEF2F6' },
   contactRow: { flexDirection: 'row', alignItems: 'flex-start', gap: hs(9) },
   contactText: { flex: 1, fontSize: ms(10), lineHeight: vs(15), fontWeight: '600', color: '#475569' },
+  reviewsSection: { paddingHorizontal: hs(16), paddingTop: SPACE.SECTION },
   productsHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: hs(16), paddingTop: SPACE.SECTION, paddingBottom: SPACE.BLOCK },
   productsTitle: { fontSize: ms(14), fontWeight: '900', color: PHARMA_INK },
   productsCount: { fontSize: ms(10), fontWeight: '700', color: '#94A3B8' },

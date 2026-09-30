@@ -12,6 +12,7 @@
 import type { PickupPoint } from '../types';
 import { getProductById } from '../catalog/products';
 import { storeDirectory, getStoreById } from '../directory/stores';
+import { getVendorById, resolveVendorIdForProduct } from '../directory/vendors';
 
 /** App → default pickup outlet for single-outlet apps. */
 const DEFAULT_STORE_BY_APP: Record<string, string> = {
@@ -31,6 +32,45 @@ export const NEUTRAL_PICKUP: PickupPoint = {
 interface PickupSourceItem {
   id: string;
   category?: string;
+}
+
+/** A cart/order line that can resolve to a vendor (restaurant-tagged lines included). */
+interface VendorSourceItem {
+  id: string;
+  category?: string;
+  /** Owning restaurant id set when a line was added from a food restaurant page. */
+  restaurantId?: string;
+}
+
+/** Resolve one line's vendor id: explicit restaurant tag → product → app default. */
+function resolveItemVendorId(item: VendorSourceItem): string | undefined {
+  if (item.restaurantId) {
+    const tagged = getVendorById(item.restaurantId);
+    if (tagged) return tagged.id;
+    return item.restaurantId;
+  }
+  const product = getProductById(item.id);
+  if (product) {
+    const vendorId = resolveVendorIdForProduct(product);
+    if (vendorId) return vendorId;
+  }
+  return DEFAULT_STORE_BY_APP[item.category ?? ''];
+}
+
+/**
+ * Distinct vendor ids for a set of cart lines, resolved once at placement and
+ * snapshotted onto the order (vendor identity). Preserves first-seen order.
+ */
+export function getStoreIdsForItems(items: VendorSourceItem[]): string[] {
+  const ids: string[] = [];
+  const seen = new Set<string>();
+  for (const item of items) {
+    const vendorId = resolveItemVendorId(item);
+    if (!vendorId || seen.has(vendorId)) continue;
+    seen.add(vendorId);
+    ids.push(vendorId);
+  }
+  return ids;
 }
 
 function storeToPickup(storeId: string): PickupPoint | undefined {

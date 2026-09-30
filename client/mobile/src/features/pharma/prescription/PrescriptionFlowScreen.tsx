@@ -89,6 +89,7 @@ export function PrescriptionFlowScreen({ navigation, route }: Props) {
         kind: 'prescription',
         fulfillment,
         vendorName: draft.vendor.name,
+        storeIds: [draft.vendor.id],
         pickup: fulfillment === 'PICKUP' && draft.vendor.address
           ? { name: draft.vendor.name, address: draft.vendor.address }
           : undefined,

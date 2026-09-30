@@ -366,13 +366,19 @@ still separate files; consolidating them is tracked in `client/mobile/PENDING_WO
 | `uiStore` | Sub-app id (`FA_MART`/`FOOD`/`PHARMA`), tab name |
 | `foodFilterStore` | Food sub-app Veg / Non-Veg diet filter (`all`/`veg`/`nonveg`), session-scoped |
 | `rewardsStore` | FaazioCoins balance, order streak, discount card + activity ledger (persisted AsyncStorage `faazio/rewards/v1`, reset on logout) |
-| `ordersStore` | In-session placed orders (`PlacedOrder`: items or prescription kind) merged above `@data` fixtures in My Orders; `recordOrder` / `getOrderById` |
+| `ordersStore` | In-session placed orders (`PlacedOrder`: items or prescription kind) merged above `@data` fixtures in My Orders; `recordOrder` / `getOrderById`; `storeIds` vendor-identity snapshot captured at placement |
+| `vendorRatingStore` | The signed-in user's live vendor ratings (one per `(user, vendor)`, latest wins) + verified-purchase `orderIds`; persisted AsyncStorage `faazio/vendor-ratings/v1`, reset on logout |
 
 ### Services (`src/services/`)
 
 - `api/GatewayClient.ts` — intended single data surface; **not yet wired** (see data doc).
 - `secureSession.ts` — tokens via `expo-secure-store` (never AsyncStorage for secrets).
-- `logout.ts` — clears auth + cart + favourites + search + pharma + blood donor + rewards stores.
+- `logout.ts` — clears auth + cart + favourites + search + pharma + blood donor + rewards + vendor-rating stores.
+- `vendorRatings.ts` — single owner of the vendor rating gate: `canRateVendor(vendorId)`
+  (derived from fixture orders via `hasPurchasedFromVendor` + in-session `ordersStore`),
+  `getUserVendorRating`, `submitVendorRating` (re-checks eligibility; one live rating per
+  `(user, vendor)`), `getVendorReviews` / `getVendorReviewSummary` (seeded `@data` reviews
+  merged with the user's own). Reused by all five entry points.
 - `categoryVendors.ts` — repository seam for the category drill-in: `getVendorsForApp(app, q)`
   (per-token match over the search configs' `searchableText`, grouped per `storeId`, sorted by
   match count then rating), `getVendorsWithProducts(app, q)` (adds each store's matching product
@@ -395,6 +401,7 @@ AppNavigator (root native stack)
 ├── CategoryDrillIn (category drill-in page from the Home/Mart rail) ── VendorDetails (single-store search)
 ├── DealsLanding (deals page — `campaign` mode from the Home "Deals of the day" carousel, `discounts` mode from the Mart vendor profile "View All")
 ├── You · UserDetails · SavedAddresses · MyOrders · Favourites · OrderDetails · FaazioRewards · SellWithUs
+├── RateVendor (verified-buyer rating form; every vendor surface + order screens link here)
 ├── BloodDonor (Pharma blood-donor wizard/dashboard)
 ├── BloodDonorDetails (selected matching donor profile + targeted request)
 ├── BloodRequestDescription (donor request details + nearby requests)
@@ -672,6 +679,28 @@ normal entry:
 fixtures; the sub-app rail counts recompute from the merged list. Prescription placed orders
 render a distinct 📄 card, and a `highlightOrderId` route param auto-selects that order's
 sub-app in the rail and rings its card.
+
+## Vendor ratings & reviews (phase 1)
+
+Verified buyers can rate a vendor from five entry points, all gated by the same derived rule.
+The rating form is the root `RateVendor` route (`features/profile/RateVendorScreen.tsx`), not a
+sheet.
+
+- **Gate (single owner, `services/vendorRatings.ts`):** `canRateVendor(vendorId)` is derived from
+  `hasPurchasedFromVendor` (`@data/checkout/orders.ts`) plus in-session `ordersStore` — true iff a
+  non-cancelled order resolves to the vendor; the server later tightens to `DELIVERED`, and it stays
+  true for the `(user, vendor)` pair once earned. The screen re-checks it on open.
+- **Identity:** `resolveVendorForProduct` (`data/directory/vendors.ts`) resolves once at placement;
+  the order snapshots `storeIds` (`ordersStore`), so old orders keep the ability.
+- **Rating:** one live rating per `(user, vendor)`, latest wins; stars + optional ≤280-char comment;
+  resubmitting shows "Update your rating". Public display is full name only — no id, phone, order
+  id, or avatar — and nothing rating-related is logged.
+- **Entry points:** My Orders card CTA, Order Details "Rate your purchase" card, the Mart vendor
+  profile (`VendorProfileView`), the Pharma shop (`MedicalShopDetailsScreen`), and the Food
+  restaurant profile (`RestaurantProfileScreen`) — each renders the shared `VendorReviewsSection` +
+  `VendorRateButton`.
+- **Shared widgets** (`src/components/shared/`): `StarRatingInput`, `VendorRatingSummaryBar`,
+  `VendorReviewsSection`, `VendorRateButton`; hook `useVendorRating` re-derives on store changes.
 
 ## Boundary enforcement
 

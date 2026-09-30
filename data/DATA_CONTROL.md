@@ -33,6 +33,7 @@ Every domain file below carries its tag as a top-of-file banner comment.
 | `productMeta` | `features/product` (ProductDetail) | `reviews.ts` | `@mock` (+ `@unused` by mobile) |
 | `cart` | `features/cart` | `addresses.ts`, `coupons.ts`, `pickup-resolver.ts` | `@mock` |
 | `account` | `features/profile` | `orders.ts` | `@mock` |
+| `directory` / `reviews` (vendor) | `features/profile` (rating form/CTA) + every vendor surface | `directory/vendors.ts`, `food/diningVenues.ts`, `reviews/vendorReviews.ts` | `@mock` |
 | `home` | `features/home` | `sections.ts`, `rails.ts`, `campaigns.ts`, `demographics.ts`, `instantFeed.ts`, `nearbyOffers.ts`, `filterFeed.ts`, `seeds.ts` | mixed `@mock` / `@seed` / `@static` |
 
 **Seed inventory expansion:** the mart/food/pharma/explore/categories/orders/coupons fixtures
@@ -69,6 +70,9 @@ surface for these tables). These tables **pull from the legacy sources via impor
 |---|---|---|---|
 | `catalog/products.ts` | Rust + Tantivy (search index) | mart/food/pharma/home/explore/categories product records, deduped by `id`, tokenized. Exposes `getProductById` (resolves a real `Product` from the domain arrays + converted deal/special products) used by `OrderDetailsScreen`'s **View Product** drill-in | `@mock` |
 | `directory/stores.ts` | Go + PostgreSQL (store directory) | `mart/stores`, `food/stores` | `@mock` |
+| `directory/vendors.ts` | Go + PostgreSQL (vendor identity view) | `directory/stores` + `food/diningVenues` — deduped `VendorRef[]` with `resolveVendorForProduct` (identity resolver, single owner). Snapshotted onto orders at placement | `@mock` |
+| `food/diningVenues.ts` | Go + PostgreSQL (dining-venue identity) | ids/names mirroring `features/food/mocks/restaurants.ts` + `food/stores` — **identity only** (full venue-data migration is a separate task) | `@mock` |
+| `reviews/vendorReviews.ts` | Go + PostgreSQL (vendor reviews) | vendor-scoped public reviews (full name only) keyed by vendor id; merged with the user's live rating from `state/vendorRatingStore` by `services/vendorRatings` | `@mock` |
 | `reviews/reviews.ts` | Go + PostgreSQL (reviews/specs) | `productMeta/reviews`. Reviews are now **product-keyed** — per-product rows attached to real catalog ids (`fm-*`/`sp-*`/`ph-*` bestsellers) with an app-scoped fallback so `getReviewsByProductId` never returns empty | `@mock` |
 | `inventory/stock.ts` | Go + DynamoDB (key-value stock) | net new — one row per catalog product id | `@mock` |
 | `checkout/orders.ts` | Go + CockroachDB (relational) | account/orders, cart/addresses, account/addresses, cart/coupons | `@mock` |
@@ -78,6 +82,19 @@ surface for these tables). These tables **pull from the legacy sources via impor
 > **`@schema` reference:** each normalized table above maps **1:1** to a production table specified in
 > `docs/architecture/db-schema.md` (tables, datatypes, sample rows, cache keys). Keep the two in sync
 > when a fixture's shape changes.
+
+**Vendor-rating eligibility (derived, never a stored flag):**
+`checkout/orders.ts` `hasPurchasedFromVendor(userId, vendorId)` is true iff the user has a
+**non-cancelled** order that resolves to that vendor — phase 1 keeps any non-cancelled order (the
+future server tightens to `DELIVERED`), and it stays true for the `(user, vendor)` pair once it
+exists ("old customer keeps the ability"). Vendor identity is resolved once via
+`directory/vendors.ts` `resolveVendorForProduct` and snapshotted at placement
+(`MyOrder.storeId`, `OrderRow.vendorStoreIds`, `PlacedOrder.storeIds`), so an old order keeps
+resolving to the same vendor. The signed-in user's live rating (one per `(user, vendor)`, latest
+wins) lives in `client/mobile/src/state/vendorRatingStore.ts` (persisted `faazio/vendor-ratings/v1`);
+`services/vendorRatings.ts` is the single owner of the gate, reused by all five entry points.
+Public display is **full name only** — no id, phone, order id, or avatar — and nothing
+rating-related is logged. Production schema: `docs/architecture/db-schema.md` §7.7.
 
 **Gateway:** `client/mobile/src/services/api/GatewayClient.ts` joins the tables above and is the
 intended single data surface for the app. It is **not yet wired into screens** — the legacy
