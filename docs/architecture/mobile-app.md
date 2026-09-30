@@ -27,6 +27,11 @@ cross-cutting home/search/cart/profile.
 src/
 ├── App.tsx                     # root — providers + AppNavigator
 ├── components/                 # global atomic UI (AppText, FaazioLogo, shared/, …)
+│   # FaazioLogo: `default` = 2171×724 vector badge (Home/Splash); `welcome` = 855×292
+│   # raster wordmark (onboarding header). `welcome` ships as a PNG extracted from
+│   # the designer SVG (source at assets/brand/logo-welcomepage.svg) to avoid the
+│   # fragile react-native-svg `<Image>` + base64 data-URI path; size is applied to
+│   # the visible glyph box (829×227) so both variants share one optical scale.
 │   └── shared/                 # 15 reusable primitives (ProductCardBase, StoreCardBase, Screen, AdBannerCarousel, …)
 ├── features/                   # vertical feature modules (15)
 ├── navigation/                 # AppNavigator, MainTabs, FoodStack, types

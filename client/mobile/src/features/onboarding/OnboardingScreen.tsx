@@ -151,7 +151,7 @@ export function OnboardingScreen({ navigation }: Props) {
       {/* Header Bar */}
       <View style={styles.header}>
         <View style={styles.headerLeft}>
-          <FaazioLogo size={LOGO_HEIGHT} />
+          <FaazioLogo size={LOGO_HEIGHT} variant="welcome" />
         </View>
         <TouchableOpacity onPress={handleSkip} style={styles.skipButton} activeOpacity={0.8}>
           <AppText style={styles.skipText}>Skip</AppText>
@@ -259,7 +259,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingHorizontal: hs(24),
     paddingTop: vs(12),
-    height: vs(54),
+    minHeight: vs(54),
   },
   headerLeft: {
     flexDirection: 'row',

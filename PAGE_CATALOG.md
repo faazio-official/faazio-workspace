@@ -493,7 +493,7 @@ These tabs render with empty-state messages:
 | `src/features/ecommerce/components/vendor/VendorProfileView.tsx` | Mart vendor drill-in ("Discounted Products" rail shows the shared 'AD' pill via `showAdLabel`; "All Products" grid unlabelled) | ✅ Active |
 | `src/features/pharma/blood-donor/components/AskBloodSheet.tsx` | "Ask Blood" form sheet (blood group, units, hospital, city, contact, deadline, note → `bloodDonorStore.postAskRequest`) | ✅ Active |
 | `src/features/pharma/blood-donor/components/UserBloodRequestCard.tsx` | Non-navigating feed card for a user "Ask Blood" request ("Your Request" chip) | ✅ Active |
-| `src/components/FaazioLogo.tsx` | Brand logo SVG component (shared) | ✅ Active |
+| `src/components/FaazioLogo.tsx` | Brand logo component (shared); `variant="default"` vector badge (Home/Splash) + `variant="welcome"` wordmark (`logo-welcomepage.png`) for the onboarding header | ✅ Active |
 
 ---
 
@@ -513,6 +513,7 @@ These tabs render with empty-state messages:
 | 8 | Add footer border-top divider | `OnboardingScreen.tsx` | ✅ Done | `borderTopWidth: 1, borderColor: rgba(226,232,240,0.5)` |
 | 9 | Adjust dot sizes to match Vite (active 20×6, inactive 6×6) | `OnboardingScreen.tsx` | ✅ Done | |
 | 10 | Per-step entry spring animations (scale/rotate/translate) | `OnboardingScreen.tsx` | ✅ Done | Springs match Vite's per-step visual effects |
+| 11 | Swap header to badge-less welcome wordmark | `FaazioLogo.tsx` + `OnboardingScreen.tsx` | ✅ Done | `variant="welcome"` (829×227 content in a 855×292 canvas); `size` matches visible glyph height so optical weight is unchanged; source SVG kept at `assets/brand/` |
 
 **Final Verdict:** Onboarding (Page 1) is now visually aligned with the Vite web app.
 
