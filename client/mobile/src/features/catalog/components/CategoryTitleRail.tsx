@@ -1,5 +1,5 @@
 import React, { memo } from 'react';
-import { ScrollView, TouchableOpacity, StyleSheet, View } from 'react-native';
+import { ScrollView, TouchableOpacity, StyleSheet } from 'react-native';
 import AppText from '@/components/AppText';
 import { hs, ms, vs } from '@/utils/responsive';
 
@@ -16,10 +16,10 @@ interface CategoryTitleRailProps {
 }
 
 /**
- * Plain-text category-title rail for the category drill-in page. Unlike the pill
- * chips elsewhere, these are text-only (no background/border); the active one is
- * tinted with the accent colour and an underline bar beneath it. Fed a flat list
- * of every sub-category title (no grouping), so the rail can run long.
+ * Pill-chip category-title rail for the category drill-in page. Inactive chips
+ * are transparent with dark text; the active one is filled with the accent
+ * colour and white text (brand blue on this surface). Fed a flat list of every
+ * sub-category title (no grouping), so the rail can run long.
  */
 const CategoryTitleRail = memo(function CategoryTitleRail({
   options,
@@ -40,15 +40,14 @@ const CategoryTitleRail = memo(function CategoryTitleRail({
             key={opt.id}
             onPress={() => onSelect(opt.id)}
             activeOpacity={0.7}
-            style={styles.item}
+            style={[styles.chip, active && { backgroundColor: accent }]}
             accessibilityRole="button"
             accessibilityState={{ selected: active }}
             accessibilityLabel={opt.title}
           >
-            <AppText style={[styles.label, active && { color: accent }]}>
+            <AppText style={[styles.label, active && styles.labelActive]}>
               {opt.title}
             </AppText>
-            {active && <View style={[styles.underline, { backgroundColor: accent }]} />}
           </TouchableOpacity>
         );
       })}
@@ -61,22 +60,23 @@ export default CategoryTitleRail;
 const styles = StyleSheet.create({
   content: {
     paddingHorizontal: hs(16),
-    gap: hs(20),
-    alignItems: 'flex-start',
-  },
-  item: {
-    alignItems: 'center',
     paddingVertical: vs(8),
+    gap: hs(8),
+  },
+  chip: {
+    paddingHorizontal: hs(14),
+    height: vs(32),
+    borderRadius: ms(16),
+    backgroundColor: 'transparent',
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   label: {
-    fontSize: ms(12.5),
-    fontWeight: '700',
-    color: '#64748b',
+    fontSize: ms(11),
+    fontWeight: '800',
+    color: '#111827',
   },
-  underline: {
-    marginTop: vs(4),
-    height: vs(3),
-    borderRadius: ms(2),
-    alignSelf: 'stretch',
+  labelActive: {
+    color: '#FFFFFF',
   },
 });

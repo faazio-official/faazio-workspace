@@ -183,26 +183,29 @@ commit immediately so they skip suggestions and show results as before.
 **Category drill-in + vendor details** (`features/catalog/`): a rail chip (Home hub or Mart
 sub-app header) opens `CategoryDrillInScreen` (route `CategoryDrillIn`, params `tabId`/`title`/
 `app`). `CategoryDrillInPanel` resolves the tab from `MASTER_CATEGORIES[app]` (falling back to the
-first tab) and flattens `subgroups → items` into a **flat, unbounded text rail** of every
-sub-category title (`CategoryTitleRail` — first auto-selected, active tinted with the app accent +
-underline; no grouping, no pill background). For the selected title it renders a **store-grouped
-body**: a **16:9 carousel of the title's top-ranked store ads** (AD-labelled, tap → that store's
-page), then one `StoreProductSection` per matching store — a **big store-name heading** (tap →
-vendor page), a **horizontal product rail** (shared `ProductCardBase`, `variant="rail"`, `appBrand`
-MART/PHARMA, rating + price + add-to-cart, card tap → `ProductDetail`), and a **16:9 store ad**
-directly below the rail. Ads are derived from the real store rows (`coverImage` + `offerTag`/`desc`)
-via the seam, so no separate ad fixtures exist. An **inline searchbar** (this page only) live-filters
-the store list by name/locality; a title with no matching stores shows a subtle "No vendors yet"
-row. Every one of the 112 `MASTER_CATEGORIES` titles is seeded to resolve ≥1 vendor (guarded by
-`npm run check:drillin`), so the page never opens empty. Vendors/products are grouped by `storeId` via the repository seam
-`services/categoryVendors.ts` (`getVendorsForApp` + `getVendorsWithProducts` — per-token match over
-the same `searchableText` as the search configs, grouped per store, sorted by match count then
-rating; `getVendorProducts`; `getAdsForQuery`/`getVendorAds` build the store ad slides). Tapping a
-store pushes `VendorDetailScreen` (route `VendorDetails`, params `storeId`/`app`/`initialQuery`) — a
-back arrow with an **inline searchbar to its right** (auto-focused, title query pre-applied), a
-compact profile block, and a one-per-row product list reusing
-`SearchMartProductCard`/`SearchPharmaProductCard` (per-app), plus a results-count line and a "No
-matches" empty state.
+first tab) and flattens `subgroups → items` into a **flat, unbounded pill rail** of every
+sub-category title (`CategoryTitleRail` — first auto-selected; inactive chips transparent with dark
+text, the active one filled with the **Faazio-blue** page accent; no grouping). The page is a brand
+surface, so it uses `#1162D3` rather than the per-app `MART_ACCENT`/`PHARMA_ACCENT`. For the selected
+title it renders a **store-grouped body**: a **single 16:9 carousel of the title's top-ranked store
+ads** (AD-labelled, tap → that store's page), then one `StoreProductSection` per matching store — a
+**store-name heading** (tap → vendor page; rating · distance, no chevron) over a **continuous
+vertical list of one-per-row `ProductRowCard`s** (96px square image left; name/desc/price + discount
+and the add/stepper on the right; cart wired via `useCartProductActions`, card tap → `ProductDetail`).
+Only this one ad carousel is shown per page (per-store ads were removed). Ads are derived from the
+real store rows (`coverImage` + `offerTag`/`desc`) via the seam, so no separate ad fixtures exist. An
+**inline searchbar** (this page only) live-filters the store list by name/locality; a title with no
+matching stores shows a subtle "No vendors yet" row. Selecting a different rail chip resets the
+search query **and** snaps the body back to the top. Every one of the 112 `MASTER_CATEGORIES` titles
+is seeded to resolve ≥1 vendor (guarded by `npm run check:drillin`), so the page never opens empty.
+Vendors/products are grouped by `storeId` via the repository seam `services/categoryVendors.ts`
+(`getVendorsForApp` + `getVendorsWithProducts` — per-token match over the same `searchableText` as
+the search configs, grouped per store, sorted by match count then rating; `getVendorProducts`;
+`getAdsForQuery` builds the top-store ad slides). Tapping a store pushes `VendorDetailScreen` (route
+`VendorDetails`, params `storeId`/`app`/`initialQuery`) — a back arrow with an **inline searchbar to
+its right** (auto-focused, title query pre-applied), a compact profile block, and a one-per-row
+product list reusing `SearchMartProductCard`/`SearchPharmaProductCard` (per-app), plus a
+results-count line and a "No matches" empty state.
 
 The Home hub header (`features/home/HomeTabScreen.tsx` + `hubHeader.ts`) is a **fixed-height
  overlay that collapses via transform only**. `headerOuter` is `position:absolute` with a static

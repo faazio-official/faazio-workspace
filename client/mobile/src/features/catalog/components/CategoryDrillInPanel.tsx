@@ -1,4 +1,4 @@
-import React, { memo, useCallback, useMemo, useState } from 'react';
+import React, { memo, useCallback, useMemo, useRef, useState } from 'react';
 import {
   View,
   StyleSheet,
@@ -12,18 +12,20 @@ import { hs, ms, vs } from '@/utils/responsive';
 import { SPACE } from '@/theme/spacing';
 import AppText from '@/components/AppText';
 import AdBannerCarousel from '@/components/shared/AdBannerCarousel';
-import { MASTER_CATEGORIES, MART_ACCENT, PHARMA_ACCENT } from '@data/categories/masterCategories';
+import { MASTER_CATEGORIES } from '@data/categories/masterCategories';
 import type { CategoryTab } from '@data/categories/masterCategories';
 import type { Product, AdSlide } from '@data/types';
 import {
   getVendorsWithProducts,
   getAdsForQuery,
-  getVendorAds,
   type VendorApp,
   type VendorAdSlide,
 } from '@/services/categoryVendors';
 import CategoryTitleRail from './CategoryTitleRail';
 import StoreProductSection from './StoreProductSection';
+
+/** Faazio brand blue — the category drill-in page is a brand surface. */
+const FAAZIO_BLUE = '#1162D3';
 
 interface CategoryDrillInPanelProps {
   tabId: string;
@@ -37,11 +39,11 @@ interface CategoryDrillInPanelProps {
 /**
  * Category drill-in page panel. Resolves the tapped main category (`tabId`) from
  * `MASTER_CATEGORIES[app]` and shows every sub-category title as one flat,
- * scrollable text rail (first auto-selected). For the selected title it renders a
- * store-grouped body: a big store-name heading, a horizontal product rail and a
- * contextual 16:9 store ad per matching store — with a 16:9 carousel of the
- * title's top store ads pinned under the rail. An inline searchbar (this page
- * only) filters the store list by name/locality.
+ * scrollable pill rail (first auto-selected). For the selected title it renders a
+ * store-grouped body: a single 16:9 carousel of the title's top store ads under
+ * the rail, then one section per matching store — a store-name heading followed
+ * by a continuous vertical list of one-per-row product cards. An inline searchbar
+ * (this page only) filters the store list by name/locality.
  */
 export function CategoryDrillInPanel({
   tabId,
@@ -52,7 +54,8 @@ export function CategoryDrillInPanel({
   onProductPress,
 }: CategoryDrillInPanelProps) {
   const insets = useSafeAreaInsets();
-  const accent = app === 'FA_MART' ? MART_ACCENT : PHARMA_ACCENT;
+  const accent = FAAZIO_BLUE;
+  const bodyRef = useRef<ScrollView>(null);
 
   const tab: CategoryTab | undefined = useMemo(
     () => (MASTER_CATEGORIES[app] ?? []).find((t) => t.id === tabId),
@@ -74,6 +77,7 @@ export function CategoryDrillInPanel({
   const handleSelectItem = useCallback((id: string) => {
     setActiveItemId(id);
     setSearchQuery('');
+    bodyRef.current?.scrollTo({ y: 0, animated: false });
   }, []);
 
   /** Top of the body: ads for the selected title's top-ranked stores. */
@@ -151,7 +155,7 @@ export function CategoryDrillInPanel({
         </View>
       </View>
 
-      {/* Flat titles rail — every sub-category title, no grouping. */}
+      {/* Flat pill rail — every sub-category title, no grouping. */}
       <View style={styles.railWrap}>
         <CategoryTitleRail
           options={items.map((i) => ({ id: i.id, title: i.name }))}
@@ -161,8 +165,9 @@ export function CategoryDrillInPanel({
         />
       </View>
 
-      {/* Store-grouped body: title ad, then per-store heading → product rail → ad. */}
+      {/* Store-grouped body: title ad, then a per-store heading → product list. */}
       <ScrollView
+        ref={bodyRef}
         style={styles.body}
         contentContainerStyle={styles.bodyContent}
         showsVerticalScrollIndicator={false}
@@ -188,8 +193,6 @@ export function CategoryDrillInPanel({
               app={app}
               store={store}
               products={products}
-              ads={getVendorAds(store.id, app)}
-              accent={accent}
               onStorePress={() => onVendorPress(store.id, activeItem?.searchQuery ?? '')}
               onProductPress={onProductPress}
             />

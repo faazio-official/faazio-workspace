@@ -5,6 +5,48 @@ dependencies exist. Do not build the backend/seller flows until told to.
 
 ---
 
+## Category drill-in — pill rail + single ad + one-per-row product cards
+
+**Status:** 🟢 Shipped (code); on-device visual verification pending.
+
+**Feature:** Refined the category drill-in page (`CategoryDrillIn`) to a pill-chip
+title rail, a single ad carousel, and a continuous one-per-row product list per
+vendor — replacing the text/underline rail, per-store ads and horizontal product rails.
+
+**Changes:**
+- **Pill title rail** (`features/catalog/components/CategoryTitleRail.tsx`): chips mirror the
+  shared filter-chip metrics (`height: vs(32)`, `paddingHorizontal: hs(14)`, `borderRadius: ms(16)`,
+  `gap: hs(8)`). Inactive chips are transparent with dark (`#111827`) text; the active chip is
+  filled with the accent and white text. The underline bar was removed.
+- **Faazio-blue page accent** (`CategoryDrillInPanel.tsx`): added `FAAZIO_BLUE = '#1162D3'` and
+  use it for the rail on this (brand-surface) page only — `MART_ACCENT`/`PHARMA_ACCENT` stay in
+  `@data` for the Master Categories / vendor theme. Selecting a chip clears the search query and
+  snaps the body `ScrollView` back to the top.
+- **Single ad section**: the top title-contextual `AdBannerCarousel` under the rail is now the only
+  ad placement; per-store ads were removed.
+- **`StoreProductSection`**: store-name heading is a full-width tap target → vendor page (rating ·
+  distance kept, **no chevron circle**), followed by a plain vertical list (`gap: hs(10)`,
+  `paddingHorizontal: hs(16)`) of the new `ProductRowCard`s.
+- **New `ProductRowCard.tsx`** (feature-local, catalog): white bordered card (`borderColor
+  #EFEFEF`, `borderRadius ms(12)`, `padding hs(10)`), 96px square `expo-image` on the left, and a
+  body with name / one-line desc / price + strike-through + green % off, plus the add / quantity
+  stepper on the right — cart wired via `useCartProductActions`, row tap → `ProductDetail`.
+- **Dead code**: `getVendorAds` removed from `services/categoryVendors.ts` (no remaining callers);
+  `getAdsForQuery` unchanged and still feeds the single ad.
+
+**Decisions:** rating star stays amber (`#F59E0B`); inactive pills transparent + black text, active
+filled brand blue; per-row add-to-cart stepper kept.
+
+**Verification:** `npm run ts:check`, `npm run check:boundaries` (277 modules, no violations) and
+`npm run check:drillin` (112 titles, 0 unresolved) pass. On-device visual pass pending (pill rail,
+ad swap + scroll reset on title switch, product → detail, heading → vendor, add/stepper → cart).
+
+**Docs:** `docs/architecture/mobile-app.md` (category drill-in), `PAGE_CATALOG.md`.
+
+**Date:** 2026-09-30
+
+---
+
 ## Category drill-in — seed catalog so every taxonomy title resolves vendors
 
 **Status:** 🟢 Shipped (data + guard); on-device visual verification pending.

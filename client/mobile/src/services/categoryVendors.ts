@@ -137,12 +137,6 @@ export function getAdsForQuery(app: VendorApp, searchQuery: string, limit = 4): 
     .map(({ store }) => adSlideFor(store, app));
 }
 
-/** The single ad slide for a store (rendered under that store's product rail). */
-export function getVendorAds(storeId: string, app: VendorApp): VendorAdSlide[] {
-  const store = getStoreById(storeId);
-  return store ? [adSlideFor(store, app)] : [];
-}
-
 /**
  * A vendor's items currently on offer — products with a pre-discount MRP
  * (`originalPrice` > `price`). Shared by the Mart vendor profile "Discounted
