@@ -137,6 +137,10 @@ future handler contract.
 4. Data files may cross-link within `data/` (e.g. `getProductById`) but must not import
    `client/mobile` internals.
 5. Prefer typed exports over `as` casts.
+6. **Taxonomy ↔ catalog coverage:** every `MASTER_CATEGORIES` `searchQuery` must resolve ≥1
+   vendor in the matching app's product pool (the drill-in's `matchesQuery` per-token predicate).
+   After editing `data/categories/masterCategories.ts` or the mart/pharma product fixtures, run
+   `npm run check:drillin` (fails on any unresolved title or duplicate product id).
 
 ## Honest limitations
 

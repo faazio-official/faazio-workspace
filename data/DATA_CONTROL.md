@@ -44,6 +44,17 @@ devices/baby-care/Ayurveda products; explore +3 stacks; categories +4 mart bucke
 `seedFavorites` extended to span FOOD/MART/PHARMA. Because the normalized tables import these
 arrays, every new product auto-derives its catalog + stock rows.
 
+**Drill-in coverage seeding:** the category drill-in page resolves each `MASTER_CATEGORIES`
+`searchQuery` to vendors via `services/categoryVendors.ts` (`matchesQuery` — per-token AND over a
+product's name + category + desc + attributes). The taxonomy had outgrown the catalog, so 80 of
+112 titles resolved **zero** vendors (`No vendors yet`, ad carousel hidden). `data/mart/products.ts`
+(+74 rows) and `data/pharma/products.ts` (+11 rows, plus `STORE_BY_CATEGORY` keys `allergy` and
+`personal-care`) were seeded so every one of the 112 titles now resolves ≥1 vendor, and the thin
+first-of-tab titles (Bluetooth Headphones, Fresh Apples, Fresh Milk, BP Monitor, Multivitamin,
+Nebulizer) gained a second store. `client/mobile/scripts/check-drillin-coverage.mjs`
+(`npm run check:drillin`) re-runs the predicate and fails if any title resolves 0 vendors or a
+product id is duplicated — run it whenever the taxonomy or catalog changes.
+
 ---
 
 ## Normalized Microservice Tables (new surface)

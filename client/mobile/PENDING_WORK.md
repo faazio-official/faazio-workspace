@@ -5,6 +5,43 @@ dependencies exist. Do not build the backend/seller flows until told to.
 
 ---
 
+## Category drill-in — seed catalog so every taxonomy title resolves vendors
+
+**Status:** 🟢 Shipped (data + guard); on-device visual verification pending.
+
+**Root cause:** the category drill-in page renders `No vendors yet` (and hides the ad carousel)
+whenever the auto-selected title's `MASTER_CATEGORIES.searchQuery` matches no product via
+`services/categoryVendors.ts` `matchesQuery` (per-token AND over name + category + desc +
+attributes). The taxonomy had outgrown the fixtures: **80 of 112 titles (71%)** resolved zero
+vendors, so most tabs opened empty even though the screen wiring was correct (this was a data
+coverage bug, not a component bug — `matchesQuery` is shared with `VendorDetailScreen`, and
+Search parity matters, so the matcher was left as-is).
+
+**Fix (data, not code):**
+- `data/mart/products.ts` +74 rows and `data/pharma/products.ts` +11 rows (plus `STORE_BY_CATEGORY`
+  keys `allergy` → `store-p2`, `personal-care` → `store-p4`) seed every title: each new row keeps
+  the exact query tokens (incl. plurals/gender/number words) in one product's searchable text.
+- Thin first-of-tab titles gained depth (second product ± store): Bluetooth Headphones, Fresh
+  Apples, Fresh Milk, BP Monitor, Multivitamin, Nebulizer.
+- No new stores and no component/service changes; existing 13 Mart + 6 Pharma outlets cover all
+  titles.
+
+**Guard:** `client/mobile/scripts/check-drillin-coverage.mjs` (`npm run check:drillin`) re-runs
+the predicate over the raw fixtures and exits 1 if any title resolves 0 vendors or a product id is
+duplicated.
+
+**Verification:** `npm run check:drillin` → `112 titles, 0 unresolved`; `npm run ts:check` +
+`npm run check:boundaries` pass. On-device pass still needed (open several tabs, confirm each shows
+store heading → product rail → 16:9 ad and the top ad carousel).
+
+**Docs:** `data/DATA_CONTROL.md`, `docs/architecture/data-layer-sdui.md`,
+`docs/architecture/mobile-app.md`, `docs/DEVELOPER_ONBOARDING.md`,
+`docs/RUNBOOKS/DATA_FIXTURES.md`, `docs/RUNBOOKS/TROUBLESHOOTING.md`.
+
+**Date:** 2026-09-30
+
+---
+
 ## Category drill-in — flat rail + store product rails + 16:9 store ads
 
 **Status:** 🟢 Shipped (code); on-device visual verification pending.

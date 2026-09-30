@@ -53,10 +53,12 @@ more. Release CI builds use `arm64-v8a,armeabi-v7a` (see `docs/RUNBOOKS/RELEASE.
 ```bash
 npm run ts:check          # TypeScript typecheck
 npm run check:boundaries  # dependency-cruiser — enforces cross-module import rules
+npm run check:drillin     # category taxonomy ↔ mart/pharma catalog coverage guard
 ```
 
-Both must pass before pushing. `check:boundaries` fails on any sub-app importing another
-sub-app's internals (only `Home` is allowed to cross sub-apps).
+All three must pass before pushing. `check:boundaries` fails on any sub-app importing another
+sub-app's internals (only `Home` is allowed to cross sub-apps). `check:drillin` fails if any
+`MASTER_CATEGORIES` title resolves no vendor (the category drill-in would render empty).
 
 ### 4a. Ship a release APK
 

@@ -51,7 +51,11 @@ After adding, register the export in `data/index.ts` (if screens consume it via 
 cd client/mobile
 npm run ts:check            # type safety of new fixtures
 npm run check:boundaries    # no sub-app boundary violated
+npm run check:drillin       # every MASTER_CATEGORIES searchQuery resolves ≥1 vendor
 ```
+
+`check:drillin` mirrors the drill-in's `matchesQuery` predicate over the raw fixtures — run it
+after any change to `data/categories/masterCategories.ts` or the mart/pharma product arrays.
 
 ## Known duplication to avoid re-introducing
 

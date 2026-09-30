@@ -269,6 +269,10 @@ build (Reanimated is far slower in debug); use a **CI release** build.
 - `npm run check:boundaries` fails → you imported another sub-app's internals. **Only
   `Home` may cross sub-apps.** Move the import to the sanctioned owner
   (shared primitive, theme, state, or `@data/*`), or route through Home.
+- `npm run check:drillin` fails → a `MASTER_CATEGORIES` `searchQuery` resolves 0 vendors (the
+  drill-in page would render "No vendors yet" with no ad carousel). Add/extend a mart/pharma
+  product whose name/category/desc/attributes contain **every** query token (see
+  `data/DATA_CONTROL.md` → "Drill-in coverage seeding").
 
 ## 🔧 Scroll jank / slow first load
 

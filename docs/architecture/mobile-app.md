@@ -193,7 +193,8 @@ MART/PHARMA, rating + price + add-to-cart, card tap → `ProductDetail`), and a 
 directly below the rail. Ads are derived from the real store rows (`coverImage` + `offerTag`/`desc`)
 via the seam, so no separate ad fixtures exist. An **inline searchbar** (this page only) live-filters
 the store list by name/locality; a title with no matching stores shows a subtle "No vendors yet"
-row. Vendors/products are grouped by `storeId` via the repository seam
+row. Every one of the 112 `MASTER_CATEGORIES` titles is seeded to resolve ≥1 vendor (guarded by
+`npm run check:drillin`), so the page never opens empty. Vendors/products are grouped by `storeId` via the repository seam
 `services/categoryVendors.ts` (`getVendorsForApp` + `getVendorsWithProducts` — per-token match over
 the same `searchableText` as the search configs, grouped per store, sorted by match count then
 rating; `getVendorProducts`; `getAdsForQuery`/`getVendorAds` build the store ad slides). Tapping a

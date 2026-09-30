@@ -11,6 +11,7 @@
     "web": "expo start --web --port 3000",
     "ts:check": "tsc",
     "check:boundaries": "depcruise src --config .dependency-cruiser.cjs",
+    "check:drillin": "node scripts/check-drillin-coverage.mjs",
     "postinstall": "patch-package"
   },
   "dependencies": {
