@@ -770,9 +770,9 @@ logged.
 
 ## 12. MVP additions — previously-orphaned workflows get a durable home
 
-> **Status:** MVP code active (migrations `0007`–`0014`). These tables close the "DB gap": workflows
-> that lived only in client memory / `AsyncStorage` now have a Supabase table + gateway endpoint.
-> Money is INT8 paisa; IDs are stable slugs; RLS is own-rows unless noted.
+> **Status:** MVP code active (migrations `0007`–`0015`). These tables close the "DB gap": workflows
+> that lived only in client memory / `AsyncStorage` / Portal `localStorage` now have a Supabase table +
+> gateway endpoint. Money is INT8 paisa; IDs are stable slugs; RLS is own-rows unless noted.
 
 ### 12.1 `favourites.items` — source `data/home/seeds.ts` `seedFavorites` (migration `0007`)
 
@@ -987,3 +987,81 @@ Cross-cutting integrity: one generic `updated_at` trigger (the catalog-specific 
 `pg_notify`), a bounded idempotency table, the two hot ordering indexes, and schema `USAGE` grants to
 `anon`/`authenticated` so RLS — not a missing grant — is the only gate (Supabase-only). All idempotent
 and re-runnable; `FOREACH`/`format` keep the trigger attach DRY. This closes the 0007–0014 series.
+
+### 12.9 Partner control plane — Portal workflows get an origin (migration `0015`)
+
+```sql
+CREATE SCHEMA sellers; CREATE SCHEMA promo; CREATE SCHEMA ads; CREATE SCHEMA payments;
+CREATE SCHEMA admins; CREATE SCHEMA support;
+
+CREATE TYPE seller_status   AS ENUM ('PENDING_REVIEW','ACTIVE','SUSPENDED','REJECTED');
+CREATE TYPE kyc_doc_type    AS ENUM ('GSTIN','PAN','BANK_PROOF','SHOP_LICENSE');
+CREATE TYPE product_status  AS ENUM ('DRAFT','PENDING_REVIEW','ACTIVE','REJECTED','DELISTED');
+CREATE TYPE campaign_status AS ENUM ('DRAFT','SCHEDULED','LIVE','ENDED');
+CREATE TYPE campaign_scope  AS ENUM ('GLOBAL','STATE');
+CREATE TYPE optin_status    AS ENUM ('PENDING','APPROVED','REJECTED');
+CREATE TYPE ad_placement    AS ENUM ('HOME_TOP','SPONSORED_SHOWCASE','SECTOR_RAIL');
+CREATE TYPE ad_status       AS ENUM ('REQUESTED','APPROVED','REJECTED','LIVE');
+CREATE TYPE payout_status   AS ENUM ('SCHEDULED','PAID','ON_HOLD');
+CREATE TYPE ticket_status   AS ENUM ('OPEN','IN_PROGRESS','RESOLVED','CLOSED');
+CREATE TYPE return_status   AS ENUM ('REQUESTED','APPROVED','REJECTED','COMPLETED');
+
+-- Order lifecycle: one enum both apps read (Option A). Mobile 'Processing' maps to NEW/PACKED.
+ALTER TYPE order_status ADD VALUE IF NOT EXISTS 'NEW';
+ALTER TYPE order_status ADD VALUE IF NOT EXISTS 'PACKED';
+ALTER TYPE order_status ADD VALUE IF NOT EXISTS 'RETURNED';
+
+-- Seller scoping on the existing catalog/directory tables.
+ALTER TABLE directory.stores  ADD COLUMN seller_id TEXT, ADD COLUMN state_code CHAR(2);
+ALTER TABLE directory.stores  ALTER COLUMN rating TYPE REAL USING rating::real;  -- 0005 missed it
+ALTER TABLE catalog.products  ADD COLUMN seller_id TEXT, ADD COLUMN status product_status NOT NULL DEFAULT 'DRAFT';
+
+CREATE TABLE sellers.sellers (              -- seller_id TEXT PK, category app_brand, rating REAL,
+  … gstin, pan, address, phone /*PII*/, state_code CHAR(2), status seller_status,
+  created_at/updated_at TIMESTAMPTZ
+);
+CREATE TABLE sellers.kyc_documents (kyc_id PK, seller_id FK, doc_type kyc_doc_type,
+  file_key TEXT /* Storage object key — never a URL */, verified BOOL, uploaded_at);
+CREATE TABLE sellers.bank_accounts (bank_account_id PK, seller_id FK,
+  account_number_masked TEXT /* masked tail only */, ifsc, beneficiary_name);
+
+CREATE TABLE promo.sector_caps        (cap_id PK, sector app_brand, state_code CHAR(2),
+  max_discount SMALLINT CHECK 0–90, updated_at);
+CREATE TABLE promo.festival_campaigns (campaign_id PK, name, scope campaign_scope, state_code,
+  starts_at/ends_at TIMESTAMPTZ CHECK ends_at>starts_at, status campaign_status, created_by);
+CREATE TABLE promo.festival_optins    (optin_id PK, campaign_id FK, seller_id FK, product_id,
+  discount SMALLINT 0–90, status optin_status, UNIQUE(campaign_id,product_id));
+CREATE TABLE promo.coupons            (coupon_id PK, code UNIQUE, scope, state_code, sector,
+  value_percent SMALLINT 0–90, max_discount_paisa INT8, valid_till TIMESTAMPTZ, active BOOL);
+
+CREATE TABLE ads.sponsored_slots (slot_id PK, seller_id FK, product_id, placement ad_placement,
+  state_code, status ad_status, impressions/clicks INT4, orders_attributed INT8, requested_at);
+
+CREATE TABLE payments.settlement_ledger (entry_id PK, seller_id FK, cycle TEXT /* YYYY-MM */,
+  order_value_paisa INT8, commission_paisa INT8, tcs_paisa INT8, net_paisa INT8);  -- service_role only
+CREATE TABLE payments.payouts (payout_id PK, seller_id FK, cycle, amount_paisa INT8,
+  status payout_status, scheduled_for TIMESTAMPTZ);
+
+CREATE TABLE admins.state_admins (admin_id PK, name, email/phone /*PII*/, state_code CHAR(2),
+  active BOOL, created_at/last_active_at);
+CREATE TABLE admins.audit_logs (log_id PK, actor_id, actor_role TEXT CHECK seller/state/super,
+  action, entity, entity_id, before/after JSONB CHECK ≤8192, created_at);
+
+CREATE TABLE support.tickets (ticket_id PK, user_id FK NULL, seller_id FK NULL, subject, body ≤2000,
+  status ticket_status, created_at/updated_at);
+CREATE TABLE checkout.returns (return_id PK, order_id FK, user_id FK, seller_id,
+  reason ≤2000, status return_status, created_at/updated_at);
+```
+
+The Portal previously wrote 45 routes to `localStorage` only. This migration is the additive origin
+they converge on — **no rewrite of `0001`–`0014`**, so the mobile app keeps running. It inherits the
+lean dtype policy (§2/§12): every new money column is INT8 paisa, ratings REAL, percents/qty SMALLINT,
+ids TEXT slugs, timestamps TIMESTAMPTZ, statuses native ENUMs, free JSONB guarded ≤ 8 KB. Real money
+(`payments.settlement_ledger`, `payments.payouts`) is **service_role-only** — there are no RLS
+update/delete policies, so rows are append-by-convention (mirrors `rewards.ledger`) and commission/TCS
+can never be client-computed. `util.touch_updated_at()` (0014) is attached to the new mutable tables.
+Schema `USAGE` + RLS are granted under the Supabase-only guard; app roles travel in custom JWT claims
+(`app_role`, `seller_id`, `state_code`) read via `auth.jwt()` — the gateway (service_role) remains the
+real enforcer. Adds `order_status` values `NEW`/`PACKED`/`RETURNED` (Option A) so the Portal and mobile
+share one lifecycle; `directory.stores.rating` is narrowed to REAL (0005 narrowed only products).
+Idempotent and re-runnable.

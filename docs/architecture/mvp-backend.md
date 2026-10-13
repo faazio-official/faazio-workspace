@@ -35,6 +35,8 @@ bucket for the MVP.
 ## 2. Supabase project (one project, many schemas)
 
 - **Schemas:** `catalog`, `directory`, `reviews`, `checkout`, `accounts`, `inventory`, `favourites`.
+  The partner control plane (`0015`) adds `sellers`, `promo`, `ads`, `payments`, `admins`, `support`
+  (see `db-schema.md` §12.9) — additive, so existing tables/rows are untouched.
 - **Extensions:** `pg_trgm`, `unaccent`, `pg_cron` (`pgcrypto` ships enabled).
 - **Datatypes:** unchanged from `db-schema.md` §2 — stable string slug public keys, INT8 paisa money,
   `TIMESTAMPTZ`, native ENUMs. The Cockroach DDL there is near-verbatim Postgres.
@@ -48,7 +50,8 @@ bucket for the MVP.
 |---|---|---|
 | **anon read** | public catalog / stores / public reviews | `catalog.products`, `directory.stores`, `reviews.vendor_reviews` (public columns only) |
 | **auth-scoped** | own rows only (`auth.uid()`) | `checkout.orders`, `inventory.carts`, own `reviews.vendor_ratings` |
-| **service-role only** | writes / stock mutations / admin | `inventory.stock` decrements, `checkout` writes, moderation |
+| **partner/role-scoped** (`0015`) | custom JWT claims `app_role`/`seller_id`/`state_code` | `sellers.*`, `promo.*`, `ads.*`, `payments.*`, `admins.*`, `support.tickets`, `checkout.returns` |
+| **service-role only** | writes / stock mutations / admin | `inventory.stock` decrements, `checkout` writes, moderation, `payments.settlement_ledger`/`payouts` |
 
 - PII columns (`phone`/`email`/address/`user_id` linkage) are never exposed by anon/auth read policies.
 - Never commit secrets; service-role key is server-side only.
@@ -172,6 +175,11 @@ contract stable so the swap is invisible to the app):
     `auth_uid → user_id` cache, bounded product reviews, `/sdui/home` ETag. Keys/TTLs and the
     `GatewayClient` wire shape are unchanged — see `monolith-breakdown.md` §4 and
     `caching-cloudflare-valkey.md` §5/§7a.
+12. ✅ **Partner control plane (`0015`):** additive schemas `sellers`/`promo`/`ads`/`payments`/`admins`/
+    `support`, seller scoping on `directory.stores`/`catalog.products`, `order_status` gains
+    `NEW`/`PACKED`/`RETURNED` (Option A), `directory.stores.rating` narrowed to REAL. Owner:
+    `db-schema.md` §12.9. Gateway contexts + Portal cutover are the next phases (see
+    `WORKFLOW_SCRATCHPAD.md`).
 
 ---
 
