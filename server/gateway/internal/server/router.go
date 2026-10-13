@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/faazio/server/gateway/internal/admins"
+	"github.com/faazio/server/gateway/internal/ads"
 	"github.com/faazio/server/gateway/internal/blood"
 	"github.com/faazio/server/gateway/internal/bookings"
 	"github.com/faazio/server/gateway/internal/cartstock"
@@ -22,12 +23,15 @@ import (
 	"github.com/faazio/server/gateway/internal/platform/config"
 	"github.com/faazio/server/gateway/internal/platform/db"
 	"github.com/faazio/server/gateway/internal/platform/httpx"
+	"github.com/faazio/server/gateway/internal/promo"
 	"github.com/faazio/server/gateway/internal/reco"
 	"github.com/faazio/server/gateway/internal/reviews"
 	"github.com/faazio/server/gateway/internal/rewards"
 	"github.com/faazio/server/gateway/internal/sdui"
 	"github.com/faazio/server/gateway/internal/search"
 	"github.com/faazio/server/gateway/internal/sellers"
+	"github.com/faazio/server/gateway/internal/settlement"
+	"github.com/faazio/server/gateway/internal/support"
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
 	gomongo "go.mongodb.org/mongo-driver/mongo"
@@ -72,6 +76,10 @@ func NewRouter(d Deps) http.Handler {
 	// partner mutation is recorded.
 	sellersRepo := sellers.New(d.Pool)
 	adminsRepo := admins.New(d.Pool)
+	promoRepo := promo.New(d.Pool)
+	adsRepo := ads.New(d.Pool)
+	settlementRepo := settlement.New(d.Pool)
+	supportRepo := support.New(d.Pool)
 
 	// Auth: checkout resolves the auth subject → app user slug.
 	r.Use(auth.Middleware(auth.Config{
@@ -112,6 +120,10 @@ func NewRouter(d Deps) http.Handler {
 	sdui.NewHandler(sduiService).Register(r)
 	admins.NewHandler(adminsRepo).Register(r)
 	sellers.NewHandler(sellersRepo, d.Cache, adminsRepo).Register(r)
+	promo.NewHandler(promoRepo, d.Cache, adminsRepo).Register(r)
+	ads.NewHandler(adsRepo, d.Cache, adminsRepo).Register(r)
+	settlement.NewHandler(settlementRepo, d.Cache, adminsRepo).Register(r)
+	support.NewHandler(supportRepo, adminsRepo).Register(r)
 
 	return r
 }

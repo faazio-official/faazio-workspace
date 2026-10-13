@@ -46,6 +46,10 @@ search extraction is a pure index-replica swap.
 | reviews → Go+Postgres | `internal/reviews` | `reviews` (+ `reviews.vendor_summary` counter/trigger) | `faazio:v1:reviews:vendor:{id}` 24 h · `faazio:v1:reviews:product:{id}` 24 h | `getReviews` (product), `getVendorReviews`, `rateVendor` | standalone Postgres |
 | sellers → Go+Postgres | `internal/sellers` | `sellers` (+ `sellers.sellers`, `kyc_documents`, `bank_accounts`; `directory.stores`/`catalog.products` `seller_id`) | **none** — seller records carry PII (caching doc §8) | portal-only (no `GatewayClient` method yet) | Go + Postgres |
 | admins → Go | `internal/admins` | `admins` (+ `state_admins`, `audit_logs`) | none (append-only audit) | portal-only | CockroachDB |
+| promo → Go+Postgres | `internal/promo` | `promo` (+ `festival_campaigns`, `seller_optins`, `coupons`, `sector_caps`) | `faazio:v1:promo:campaign:{id}` 300 s (invalidated on status change) | portal-only | Go + Postgres |
+| ads → Go+Postgres | `internal/ads` | `ads` (+ `sponsored_slots`) | `faazio:v1:ads:slot:{id}` 300 s (invalidated on status change) | portal-only | Go + Postgres |
+| settlement → Go+Cockroach | `internal/settlement` | `payments` (+ `settlement_ledger`, `payouts`) | `faazio:v1:settlement:{sellerId}:{cycle}` 600 s (invalidated on payout create) | portal-only | CockroachDB |
+| support → Go+Postgres | `internal/support` | `support` (+ `tickets`), `checkout.returns` | none (auth-scoped, never edge-cached) | portal-only | Go + Postgres |
 | recommendations → Python+Mongo | `internal/reco`, `internal/sdui` | MongoDB `sdui_layouts`, `user_events`, `recommendations`, `product_stats` | `faazio:v1:reco:{userIdHash}:{context}` 1 h · `faazio:v1:gateway:sdui:{locale}:{path}` 300 s | `getHomeFeed`, `trackEvent`, `getRecommendations` | Python FastAPI |
 | shared | `internal/platform/{db,cache,auth,config,otel,testenv}`, `internal/contracts` | — | — | — | gRPC via `contracts/` |
 

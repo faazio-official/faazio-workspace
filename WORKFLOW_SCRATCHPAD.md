@@ -79,10 +79,10 @@ wire. Mobile `GatewayClient.ts` + `@data/*` already speak integer rupees — unc
 | # | Gap | Phase | Status |
 |---|---|---|---|
 | W1 | Missing `seller` gateway context | 2 | **done** (list/get/onboard/kyc/bank/status + tests) |
-| W2 | Missing `promo` gateway context | 3 | pending |
-| W3 | Missing `ads` gateway context | 3 | pending |
-| W4 | Missing `settlement`/payouts gateway context | 3 | pending |
-| W5 | Missing `support`/returns gateway context | 3 | pending |
+| W2 | Missing `promo` gateway context | 3 | **done** (caps/campaigns/optins/coupons + tests) |
+| W3 | Missing `ads` gateway context | 3 | **done** (slots list/get/request/status + tests) |
+| W4 | Missing `settlement`/payouts gateway context | 3 | **done** (ledger + payouts + tests) |
+| W5 | Missing `support`/returns gateway context | 3 | **done** (tickets + returns + tests) |
 | W6 | Missing `admins` audit/state-admin context | 3 | **done** (audit + state-admins + tests) |
 | W7 | Web seller prescriptions page + endpoint | 4 | pending |
 | W8 | Web seller bookings page + endpoint | 4 | pending |
@@ -91,9 +91,9 @@ wire. Mobile `GatewayClient.ts` + `@data/*` already speak integer rupees — unc
 | W11 | `catalog.products` seller scope + status column | 1/2 | DB done (0015); gateway routes pending |
 | W12 | `directory.stores` seller_id + state_code | 1/2 | DB done (0015); gateway routes pending |
 | W13 | `checkout.orders` NEW→PACKED→SHIPPED→DELIVERED lifecycle | 1/2 | DB enum done (0015); gateway mapping pending |
-| W14 | Real settlement ledger (no client-computed money) | 3 | pending |
+| W14 | Real settlement ledger (no client-computed money) | 3 | **done** (server-only write) |
 | W15 | Audit log durability (admins.audit_logs) | 3 | **done** |
-| W16 | Payout records (payments.payouts) | 3 | pending |
+| W16 | Payout records (payments.payouts) | 3 | **done** (admin-scheduled, invalidates cache) |
 
 ## 6. dtype-gap matrix D1–D15
 
@@ -117,15 +117,15 @@ wire. Mobile `GatewayClient.ts` + `@data/*` already speak integer rupees — unc
 
 ## 7. DB delta 0015 checklist
 
-- [ ] `directory.stores` ADD `seller_id TEXT`, `state_code CHAR(2)` + indexes
-- [ ] `catalog.products` ADD `seller_id TEXT`, `status TEXT DEFAULT 'DRAFT' CHECK(...)` + indexes
-- [ ] `sellers` schema: `sellers`, `kyc_documents` (`file_key`), `bank_accounts` + RLS
-- [ ] `promo` schema: `festival_campaigns`, `festival_optins`, `sector_caps`, `coupons` + RLS
-- [ ] `ads.sponsored_slots` + RLS
-- [ ] `payments.settlement_ledger` + `payments.payouts` (append-only) + RLS
-- [ ] `admins.state_admins` + `admins.audit_logs` + `support.tickets` + `checkout.returns`
-- [ ] enum alignment Option A: `ALTER TYPE order_status ADD VALUE 'NEW'/'PACKED'/'RETURNED'`
-- [ ] same-change docs (`db-schema.md` §12.9, `mvp-backend.md` §2, `monolith-breakdown.md` §1,
+- [x] `directory.stores` ADD `seller_id TEXT`, `state_code CHAR(2)` + indexes
+- [x] `catalog.products` ADD `seller_id TEXT`, `status TEXT DEFAULT 'DRAFT' CHECK(...)` + indexes
+- [x] `sellers` schema: `sellers`, `kyc_documents` (`file_key`), `bank_accounts` + RLS
+- [x] `promo` schema: `festival_campaigns`, `festival_optins`, `sector_caps`, `coupons` + RLS
+- [x] `ads.sponsored_slots` + RLS
+- [x] `payments.settlement_ledger` + `payments.payouts` (append-only) + RLS
+- [x] `admins.state_admins` + `admins.audit_logs` + `support.tickets` + `checkout.returns`
+- [x] enum alignment Option A: `ALTER TYPE order_status ADD VALUE 'NEW'/'PACKED'/'RETURNED'`
+- [x] same-change docs (`db-schema.md` §12.9, `mvp-backend.md` §2, `monolith-breakdown.md` §1,
       `caching-cloudflare-valkey.md`)
 
 ## 8. Web delta checklist
@@ -139,12 +139,12 @@ wire. Mobile `GatewayClient.ts` + `@data/*` already speak integer rupees — unc
 
 ## 9. Gateway delta checklist
 
-- [ ] new contexts `sellers`, `promo`, `ads`, `settlement`, `support` (+ `admins` audit)
+- [x] new contexts `sellers`, `promo`, `ads`, `settlement`, `support` (+ `admins` audit)
 - [ ] extend `catalog` (status transitions + seller scope), `directory` (live flag + seller scope),
       `checkout` (NEW→PACKED→SHIPPED→DELIVERED + returns), `pharma` (fulfill), `blood`/`bookings`
       (moderate)
-- [ ] `platform/auth` role middleware (seller→own, state→state_code, super→all)
-- [ ] new cache keys/TTLs (`sellers`, `promo`, `ads`, `settlement`) + cache_test freeze
+- [x] `platform/auth` role middleware (seller→own, state→state_code, super→all)
+- [x] new cache keys/TTLs (`sellers`, `promo`, `ads`, `settlement`) + cache_test freeze
 - [ ] tests: paisa roundtrip, rating clamp, qty/smallint reject, JSONB-size reject, RLS, idempotency
 
 ## 10. Decisions (approved)
