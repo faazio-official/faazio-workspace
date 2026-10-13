@@ -340,3 +340,62 @@ export interface SduiLayout {
   sections: SduiSection[];
   updatedAt: string;
 }
+
+/** checkout.users_admin — PII-redacted customer projection (no phone/address/email). */
+export interface CustomerRecord {
+  userId: string;
+  name: string;
+  stateCode?: string | undefined;
+  ordersCount: number;
+  spendPaisa: number;
+  lastOrderAt?: string | undefined;
+  createdAt: string;
+}
+
+/** directory.menus — seller-scoped, state-moderated vendor menu item. */
+export interface MenuItemRecord {
+  venueId: string;
+  dishId: string;
+  name: string;
+  pricePaisa: number;
+  isVeg?: boolean | undefined;
+  cuisine?: string | undefined;
+  rating?: number | undefined;
+  image?: string | undefined;
+  sellerId?: string | undefined;
+  status: ProductStatus;
+}
+
+export type TicketStatus = "OPEN" | "IN_PROGRESS" | "RESOLVED" | "CLOSED";
+
+/** support.tickets */
+export interface TicketRecord {
+  ticketId: string;
+  userId?: string | undefined;
+  sellerId?: string | undefined;
+  stateCode?: string | undefined;
+  subject: string;
+  body: string;
+  status: TicketStatus;
+  createdAt: string;
+}
+
+/** rewards.rates — the single admin-tunable rewards program row. */
+export interface RewardsRates {
+  coinEarnRate: number;
+  coinRedeemRate: number;
+  streakTargetDays: number;
+  discountCardPercent: number;
+  cardValidityDays: number;
+  updatedAt?: string | undefined;
+}
+
+/** rewards.ledger — append-only coin ledger (server is the only writer; userId stays off the wire). */
+export interface RewardLedgerEntry {
+  entryId: string;
+  type: "EARN" | "REDEEM" | "STREAK";
+  coins: number;
+  rupees: number;
+  orderId?: string | undefined;
+  at: string;
+}

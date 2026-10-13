@@ -3,6 +3,7 @@
 // When a real backend arrives, only the internals of this module change.
 import { usePortalStore, AUTH_DIRECTORY, type PortalState } from "@/lib/api/store";
 import { authConfigured } from "@/lib/config";
+import { writeBehind } from "@/lib/api/http";
 import { getSession, signInWithPassword, signOutRemote } from "@/lib/supabase/auth";
 import { sellerSeries, stateSeries, globalSeries, productSeries } from "@/data/analytics/series";
 import type {
@@ -10,16 +11,22 @@ import type {
   BookingStatus,
   CampaignScope,
   CouponRecord,
+  CustomerRecord,
   FestivalCampaign,
+  MenuItemRecord,
   OrderStatus,
   PrescriptionStatus,
   ProductRecord,
   ProductStatus,
+  RewardLedgerEntry,
+  RewardsRates,
   Role,
   Sector,
   SellerStatus,
   SduiLayoutStatus,
   StateAdmin,
+  TicketRecord,
+  TicketStatus,
 } from "@/data/types";
 
 function state(): PortalState {
@@ -28,6 +35,11 @@ function state(): PortalState {
 
 function nowIso(): string {
   return new Date().toISOString();
+}
+
+/** paisa -> whole rupees for gateway write bodies (the gateway speaks rupee integers). */
+function toRupees(paisa: number): number {
+  return Math.round(paisa / 100);
 }
 
 function audit(input: {
@@ -187,6 +199,7 @@ export function deleteProduct(productId: string, reason: string): void {
 export function setProductStatus(productId: string, status: ProductStatus, reason?: string): void {
   const before = getProduct(productId);
   updateProduct(productId, { status });
+  writeBehind("put", `/seller/products/${encodeURIComponent(productId)}/status`, { status });
   audit({
     action: `PRODUCT_${status}`,
     entity: "catalog.products",
@@ -240,6 +253,7 @@ export function advanceOrder(orderId: string, status: OrderStatus): void {
   state().set((s) => ({
     orders: s.orders.map((o) => (o.orderId === orderId ? { ...o, status } : o)),
   }));
+  writeBehind("put", `/orders/${encodeURIComponent(orderId)}/status`, { status });
   audit({
     action: "ORDER_STATUS",
     entity: "checkout.orders",
@@ -278,6 +292,7 @@ export function setSellerStatus(sellerId: string, status: SellerStatus, reason?:
       seller.sellerId === sellerId ? { ...seller, status } : seller,
     ),
   }));
+  writeBehind("patch", `/sellers/${encodeURIComponent(sellerId)}/status`, { status, reason });
   audit({
     action: `SELLER_${status}`,
     entity: "sellers.sellers",
@@ -301,6 +316,9 @@ export function updateStore(storeId: string, patch: Partial<import("@/data/types
   state().set((s) => ({
     stores: s.stores.map((st) => (st.storeId === storeId ? { ...st, ...patch } : st)),
   }));
+  if (patch.isLive !== undefined) {
+    writeBehind("put", `/seller/stores/${encodeURIComponent(storeId)}/live`, { live: patch.isLive });
+  }
   audit({ action: "STORE_UPDATE", entity: "directory.stores", entityId: storeId, after: patch });
 }
 
@@ -338,6 +356,7 @@ export function setSectorCap(sector: Sector, maxDiscountPercent: number, stateCo
           },
         ],
   }));
+  writeBehind("put", "/promo/sector-caps", { sector, maxDiscountPercent, stateCode });
   audit({
     action: "SECTOR_CAP_UPDATE",
     entity: "promo.festival_sector_caps",
@@ -372,6 +391,15 @@ export function createFestivalCampaign(dto: CampaignDto): FestivalCampaign {
     ...dto,
   };
   state().set((s) => ({ campaigns: [record, ...s.campaigns] }));
+  writeBehind("post", "/promo/campaigns", {
+    name: dto.name,
+    scope: dto.scope,
+    stateCode: dto.stateCode ?? "",
+    startsAt: dto.startsAt,
+    endsAt: dto.endsAt,
+    bannerUrl: dto.bannerUrl,
+    status: dto.status,
+  });
   audit({
     action: "CAMPAIGN_CREATE",
     entity: "promo.festival_campaigns",
@@ -385,6 +413,9 @@ export function updateCampaign(campaignId: string, patch: Partial<FestivalCampai
   state().set((s) => ({
     campaigns: s.campaigns.map((c) => (c.campaignId === campaignId ? { ...c, ...patch } : c)),
   }));
+  if (patch.status !== undefined) {
+    writeBehind("put", `/promo/campaigns/${encodeURIComponent(campaignId)}`, { status: patch.status });
+  }
   audit({
     action: "CAMPAIGN_UPDATE",
     entity: "promo.festival_campaigns",
@@ -426,6 +457,7 @@ export function upsertOptin(input: {
           ...s.optins,
         ],
   }));
+  writeBehind("put", "/promo/optins", input);
   audit({
     action: "FESTIVAL_OPTIN",
     entity: "promo.festival_optins",
@@ -438,6 +470,7 @@ export function setOptinStatus(optinId: string, status: "APPROVED" | "REJECTED")
   state().set((s) => ({
     optins: s.optins.map((o) => (o.optinId === optinId ? { ...o, status } : o)),
   }));
+  writeBehind("put", `/promo/optins/${encodeURIComponent(optinId)}/status`, { status });
   audit({ action: `OPTIN_${status}`, entity: "promo.festival_optins", entityId: optinId, after: { status } });
 }
 
@@ -452,6 +485,15 @@ export function listCoupons(filter: { stateCode?: string | undefined; scope?: "G
 export function createCoupon(dto: Omit<CouponRecord, "couponId">): CouponRecord {
   const record: CouponRecord = { couponId: `cpn-${Date.now()}`, ...dto };
   state().set((s) => ({ coupons: [record, ...s.coupons] }));
+  writeBehind("post", "/promo/coupons", {
+    code: dto.code,
+    scope: dto.scope,
+    stateCode: dto.stateCode ?? "",
+    sector: dto.sector ?? "",
+    valuePercent: dto.valuePercent,
+    maxDiscount: toRupees(dto.maxDiscountPaisa),
+    validTill: dto.validTill,
+  });
   audit({ action: "COUPON_CREATE", entity: "promo.coupons", entityId: record.couponId, after: record });
   return record;
 }
@@ -461,6 +503,7 @@ export function toggleCoupon(couponId: string): void {
   state().set((s) => ({
     coupons: s.coupons.map((c) => (c.couponId === couponId ? { ...c, active: !c.active } : c)),
   }));
+  writeBehind("put", `/promo/coupons/${encodeURIComponent(couponId)}/toggle`);
   audit({
     action: "COUPON_TOGGLE",
     entity: "promo.coupons",
@@ -496,6 +539,7 @@ export function requestAdSlot(dto: {
     ...dto,
   };
   state().set((s) => ({ adSlots: [record, ...s.adSlots] }));
+  writeBehind("post", "/ads/slots", { sellerId: dto.sellerId, productId: dto.productId, placement: dto.placement, stateCode: dto.stateCode });
   audit({ action: "AD_REQUEST", entity: "ads.sponsored_slots", entityId: record.slotId, after: record });
 }
 
@@ -503,6 +547,7 @@ export function setAdStatus(slotId: string, status: import("@/data/types").AdSta
   state().set((s) => ({
     adSlots: s.adSlots.map((a) => (a.slotId === slotId ? { ...a, status } : a)),
   }));
+  writeBehind("put", `/ads/slots/${encodeURIComponent(slotId)}`, { status });
   audit({ action: `AD_${status}`, entity: "ads.sponsored_slots", entityId: slotId, after: { status } });
 }
 
@@ -521,6 +566,7 @@ export function createStateAdmin(dto: Omit<StateAdmin, "adminId" | "createdAt" |
     ...dto,
   };
   state().set((s) => ({ stateAdmins: [record, ...s.stateAdmins] }));
+  writeBehind("post", "/state-admins", { name: dto.name, email: dto.email, phone: dto.phone, stateCode: dto.stateCode });
   audit({ action: "STATE_ADMIN_CREATE", entity: "admins.state_admins", entityId: record.adminId, after: record });
   return record;
 }
@@ -530,6 +576,9 @@ export function updateStateAdmin(adminId: string, patch: Partial<StateAdmin>): v
   state().set((s) => ({
     stateAdmins: s.stateAdmins.map((a) => (a.adminId === adminId ? { ...a, ...patch } : a)),
   }));
+  if (patch.active !== undefined) {
+    writeBehind("put", `/state-admins/${encodeURIComponent(adminId)}`, { active: patch.active });
+  }
   audit({
     action: "STATE_ADMIN_UPDATE",
     entity: "admins.state_admins",
@@ -542,6 +591,7 @@ export function updateStateAdmin(adminId: string, patch: Partial<StateAdmin>): v
 export function deleteStateAdmin(adminId: string): void {
   const before = state().stateAdmins.find((a) => a.adminId === adminId);
   state().set((s) => ({ stateAdmins: s.stateAdmins.filter((a) => a.adminId !== adminId) }));
+  writeBehind("delete", `/state-admins/${encodeURIComponent(adminId)}`);
   audit({ action: "STATE_ADMIN_DELETE", entity: "admins.state_admins", entityId: adminId, before });
 }
 
@@ -623,6 +673,7 @@ export function setPrescriptionStatus(prescriptionId: string, status: Prescripti
       p.prescriptionId === prescriptionId ? { ...p, status, updatedAt: nowIso() } : p,
     ),
   }));
+  writeBehind("put", `/prescriptions/${encodeURIComponent(prescriptionId)}/status`, { status });
   audit({
     action: `RX_${status}`,
     entity: "pharma.prescriptions",
@@ -650,6 +701,7 @@ export function setBookingStatus(bookingId: string, status: BookingStatus): void
   state().set((s) => ({
     bookings: s.bookings.map((b) => (b.bookingId === bookingId ? { ...b, status } : b)),
   }));
+  writeBehind("put", `/bookings/${encodeURIComponent(bookingId)}/status`, { status });
   audit({
     action: `BOOKING_${status.toUpperCase()}`,
     entity: "bookings.tables",
@@ -675,6 +727,7 @@ export function listBloodRequests(
 export function removeBloodRequest(requestId: string): void {
   const before = state().bloodRequests.find((r) => r.requestId === requestId);
   state().set((s) => ({ bloodRequests: s.bloodRequests.filter((r) => r.requestId !== requestId) }));
+  writeBehind("delete", `/blood-requests/${encodeURIComponent(requestId)}`);
   audit({
     action: "BLOOD_REQUEST_REMOVE",
     entity: "blood.requests",
@@ -709,4 +762,143 @@ export function setSduiLayoutStatus(layoutId: string, version: number, status: S
     before: before && { status: before.status },
     after: { status },
   });
+}
+
+/* ------------------------------- customers ------------------------------- */
+
+export function listCustomers(filter: { stateCode?: string | undefined; query?: string | undefined } = {}): CustomerRecord[] {
+  return state().customers.filter((c) => {
+    if (filter.stateCode && c.stateCode !== filter.stateCode) return false;
+    if (filter.query) {
+      const q = filter.query.toLowerCase();
+      if (!c.name.toLowerCase().includes(q) && !c.userId.toLowerCase().includes(q)) return false;
+    }
+    return true;
+  });
+}
+
+/* ---------------------------------- menus -------------------------------- */
+
+export function listMenus(
+  filter: { sellerId?: string | undefined; venueId?: string | undefined; status?: ProductStatus | "ALL" | undefined } = {},
+): MenuItemRecord[] {
+  return state().menus.filter((m) => {
+    if (filter.sellerId && m.sellerId !== filter.sellerId) return false;
+    if (filter.venueId && m.venueId !== filter.venueId) return false;
+    if (filter.status && filter.status !== "ALL" && m.status !== filter.status) return false;
+    return true;
+  });
+}
+
+export interface MenuDto {
+  venueId: string;
+  dishId: string;
+  name: string;
+  pricePaisa: number;
+  isVeg?: boolean | undefined;
+  cuisine?: string | undefined;
+  rating?: number | undefined;
+  image?: string | undefined;
+  sellerId?: string | undefined;
+}
+
+export function upsertMenu(dto: MenuDto): void {
+  const existing = state().menus.find((m) => m.venueId === dto.venueId && m.dishId === dto.dishId);
+  const record: MenuItemRecord = {
+    ...dto,
+    sellerId: dto.sellerId ?? existing?.sellerId,
+    status: existing?.status ?? "DRAFT",
+  };
+  state().set((s) => ({
+    menus: existing
+      ? s.menus.map((m) => (m.venueId === dto.venueId && m.dishId === dto.dishId ? { ...m, ...record } : m))
+      : [record, ...s.menus],
+  }));
+  writeBehind("put", `/seller/menus/${encodeURIComponent(dto.venueId)}/${encodeURIComponent(dto.dishId)}`, {
+    name: dto.name,
+    price: toRupees(dto.pricePaisa),
+    isVeg: dto.isVeg,
+    cuisine: dto.cuisine ?? "",
+    rating: dto.rating,
+    image: dto.image ?? "",
+  });
+  audit({
+    action: existing ? "MENU_UPDATE" : "MENU_CREATE",
+    entity: "directory.menus",
+    entityId: `${dto.venueId}:${dto.dishId}`,
+    before: existing,
+    after: record,
+  });
+}
+
+export function setMenuStatus(venueId: string, dishId: string, status: ProductStatus): void {
+  state().set((s) => ({
+    menus: s.menus.map((m) =>
+      m.venueId === venueId && m.dishId === dishId ? { ...m, status } : m,
+    ),
+  }));
+  writeBehind("put", `/seller/menus/${encodeURIComponent(venueId)}/${encodeURIComponent(dishId)}/status`, { status });
+  audit({ action: `MENU_${status}`, entity: "directory.menus", entityId: `${venueId}:${dishId}`, after: { status } });
+}
+
+export function deleteMenu(venueId: string, dishId: string): void {
+  const before = state().menus.find((m) => m.venueId === venueId && m.dishId === dishId);
+  state().set((s) => ({ menus: s.menus.filter((m) => !(m.venueId === venueId && m.dishId === dishId)) }));
+  writeBehind("delete", `/seller/menus/${encodeURIComponent(venueId)}/${encodeURIComponent(dishId)}`);
+  audit({ action: "MENU_DELETE", entity: "directory.menus", entityId: `${venueId}:${dishId}`, before });
+}
+
+/* --------------------------------- tickets ------------------------------- */
+
+export function listTickets(
+  filter: { stateCode?: string | undefined; status?: TicketStatus | "ALL" | undefined; query?: string | undefined } = {},
+): TicketRecord[] {
+  return state().tickets.filter((t) => {
+    if (filter.stateCode && t.stateCode !== filter.stateCode) return false;
+    if (filter.status && filter.status !== "ALL" && t.status !== filter.status) return false;
+    if (filter.query) {
+      const q = filter.query.toLowerCase();
+      if (!t.subject.toLowerCase().includes(q) && !t.ticketId.toLowerCase().includes(q)) return false;
+    }
+    return true;
+  });
+}
+
+export function setTicketStatus(ticketId: string, status: TicketStatus): void {
+  const before = state().tickets.find((t) => t.ticketId === ticketId);
+  state().set((s) => ({
+    tickets: s.tickets.map((t) => (t.ticketId === ticketId ? { ...t, status } : t)),
+  }));
+  writeBehind("put", `/support/tickets/${encodeURIComponent(ticketId)}`, { status });
+  audit({
+    action: `TICKET_${status}`,
+    entity: "support.tickets",
+    entityId: ticketId,
+    before: before && { status: before.status },
+    after: { status },
+  });
+}
+
+/* ------------------------------ rewards rates ---------------------------- */
+
+export function getRewardRates(): RewardsRates {
+  return state().rewardRates;
+}
+
+export function listRewardLedger(): RewardLedgerEntry[] {
+  return state().rewardLedger;
+}
+
+export function updateRewardRates(patch: Partial<RewardsRates>): void {
+  const before = state().rewardRates;
+  const next: RewardsRates = { ...before, ...patch, updatedAt: nowIso() };
+  state().set(() => ({ rewardRates: next }));
+  writeBehind("put", "/rewards/rates", {
+    coinEarnRate: next.coinEarnRate,
+    coinRedeemRate: next.coinRedeemRate,
+    streakTargetDays: next.streakTargetDays,
+    discountCardPercent: next.discountCardPercent,
+    cardValidityDays: next.cardValidityDays,
+  });
+  audit({ action: "REWARDS_RATES_UPDATE", entity: "rewards.rates", entityId: "default", before, after: next });
 }

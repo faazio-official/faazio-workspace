@@ -16,7 +16,7 @@ export class ApiError extends Error {
 }
 
 interface RequestOptions {
-  method?: "GET" | "POST" | "PUT" | "DELETE";
+  method?: "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
   body?: unknown;
   /** Query string params; undefined/empty values are dropped. */
   query?: Record<string, string | number | boolean | undefined>;
@@ -70,9 +70,28 @@ export const remote = {
     request<T>(path, { ...opts, method: "POST", body }),
   put: <T>(path: string, body?: unknown, opts?: Omit<RequestOptions, "method" | "body">) =>
     request<T>(path, { ...opts, method: "PUT", body }),
+  patch: <T>(path: string, body?: unknown, opts?: Omit<RequestOptions, "method" | "body">) =>
+    request<T>(path, { ...opts, method: "PATCH", body }),
   delete: <T>(path: string, opts?: Omit<RequestOptions, "method" | "body">) =>
     request<T>(path, { ...opts, method: "DELETE" }),
 };
+
+/**
+ * Fire-and-forget write-behind. The portal writes optimistically to the local store first; this
+ * pushes the same change to the gateway when configured, and silently keeps the optimistic state
+ * (seed fallback) if the call fails. Callers never await, so pages stay synchronous.
+ */
+export function writeBehind(
+  method: "post" | "put" | "patch" | "delete",
+  path: string,
+  body?: unknown,
+): void {
+  if (!remoteConfigured()) return;
+  const pending = method === "delete" ? remote.delete(path) : remote[method](path, body);
+  Promise.resolve(pending).catch(() => {
+    /* keep the optimistic local state; the next hydrate reconciles */
+  });
+}
 
 /**
  * Defensive snack_case -> camelCase normalizer. The gateway already emits

@@ -153,3 +153,37 @@ export function useSduiLayouts(
   const key = JSON.stringify(filter);
   return useMemo(() => api.listSduiLayouts(filter), [sduiLayouts, key]);
 }
+
+export function useCustomers(
+  filter: { stateCode?: string | undefined; query?: string | undefined } = {},
+) {
+  const customers = usePortalStore((s) => s.customers);
+  const key = JSON.stringify(filter);
+  return useMemo(() => api.listCustomers(filter), [customers, key]);
+}
+
+export function useMenus(
+  filter: { sellerId?: string | undefined; venueId?: string | undefined; status?: import("@/data/types").ProductStatus | "ALL" | undefined } = {},
+) {
+  const menus = usePortalStore((s) => s.menus);
+  const key = JSON.stringify(filter);
+  return useMemo(() => api.listMenus(filter), [menus, key]);
+}
+
+export function useTickets(
+  filter: { stateCode?: string | undefined; status?: import("@/data/types").TicketStatus | "ALL" | undefined; query?: string | undefined } = {},
+) {
+  const tickets = usePortalStore((s) => s.tickets);
+  const key = JSON.stringify(filter);
+  return useMemo(() => api.listTickets(filter), [tickets, key]);
+}
+
+export function useRewardRates() {
+  const rate = usePortalStore((s) => s.rewardRates);
+  return useMemo(() => api.getRewardRates(), [rate]);
+}
+
+export function useRewardLedger() {
+  const ledger = usePortalStore((s) => s.rewardLedger);
+  return useMemo(() => api.listRewardLedger(), [ledger]);
+}

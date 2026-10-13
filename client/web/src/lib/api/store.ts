@@ -22,6 +22,11 @@ import { PRESCRIPTIONS } from "@/data/pharma/prescriptions";
 import { BOOKINGS } from "@/data/bookings/bookings";
 import { BLOOD_REQUESTS } from "@/data/blood/bloodRequests";
 import { SDUI_LAYOUTS } from "@/data/sdui/layouts";
+import { CUSTOMERS } from "@/data/customers/customers";
+import { MENUS } from "@/data/menus/menus";
+import { TICKETS } from "@/data/support/tickets";
+import { REWARDS_RATES } from "@/data/rewards/rates";
+import { REWARDS_LEDGER } from "@/data/rewards/ledger";
 import type {
   AdSlot,
   AuditLog,
@@ -30,14 +35,18 @@ import type {
   BloodRequestRecord,
   BookingRecord,
   CouponRecord,
+  CustomerRecord,
   FestivalCampaign,
   KycDocument,
   LedgerEntry,
+  MenuItemRecord,
   OrderRecord,
   PayoutRecord,
   PrescriptionRecord,
   ProductRecord,
   ReviewRecord,
+  RewardLedgerEntry,
+  RewardsRates,
   SduiLayout,
   SectorCap,
   SellerOptin,
@@ -45,6 +54,7 @@ import type {
   StateAdmin,
   StockRecord,
   StoreRecord,
+  TicketRecord,
 } from "@/data/types";
 
 export interface PortalState {
@@ -70,6 +80,11 @@ export interface PortalState {
   bookings: BookingRecord[];
   bloodRequests: BloodRequestRecord[];
   sduiLayouts: SduiLayout[];
+  customers: CustomerRecord[];
+  menus: MenuItemRecord[];
+  tickets: TicketRecord[];
+  rewardRates: RewardsRates;
+  rewardLedger: RewardLedgerEntry[];
   set: (updater: (state: PortalState) => Partial<PortalState>) => void;
 }
 
@@ -96,6 +111,11 @@ const seed = {
   bookings: BOOKINGS,
   bloodRequests: BLOOD_REQUESTS,
   sduiLayouts: SDUI_LAYOUTS,
+  customers: CUSTOMERS,
+  menus: MENUS,
+  tickets: TICKETS,
+  rewardRates: REWARDS_RATES,
+  rewardLedger: REWARDS_LEDGER,
 };
 
 export const usePortalStore = create<PortalState>()(

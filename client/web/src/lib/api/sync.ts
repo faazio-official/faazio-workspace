@@ -13,11 +13,14 @@ import type {
   CampaignScope,
   CampaignStatus,
   CouponRecord,
+  CustomerRecord,
   FestivalCampaign,
   LedgerEntry,
+  MenuItemRecord,
   PayoutRecord,
   PrescriptionRecord,
   ReviewRecord,
+  RewardLedgerEntry,
   Role,
   Sector,
   SellerOptin,
@@ -25,6 +28,7 @@ import type {
   SellerStatus,
   SduiLayout,
   StateAdmin,
+  TicketRecord,
 } from "@/data/types";
 
 type Raw = Record<string, unknown>;
@@ -90,6 +94,9 @@ async function safe<T>(fn: () => Promise<T>): Promise<T | undefined> {
 }
 
 function mergeById<T>(incoming: T[], existing: T[], id: (x: T) => string): T[] {
+  // A missing/empty gateway slice keeps the seeded rows (demo seed fallback), matching the
+  // list-slice behaviour above; only a non-empty remote response replaces local state.
+  if (incoming.length === 0) return existing;
   if (existing.length === 0) return incoming;
   const byId = new Map(existing.map((x) => [id(x), x]));
   return incoming.map((x) => ({ ...(byId.get(id(x)) ?? ({} as T)), ...x }));
@@ -104,7 +111,7 @@ export async function hydrateFromGateway(): Promise<boolean> {
   const cur = usePortalStore.getState();
   const role = cur.session?.role;
 
-  const [sellers, campaigns, coupons, caps, optins, slots, admins, logs, ledger, payouts, rx, bookings, blood, sdui, reviews] =
+  const [sellers, campaigns, coupons, caps, optins, slots, admins, logs, ledger, payouts, rx, bookings, blood, sdui, reviews, customers, menus, tickets, rates, rewardLedger] =
     await Promise.all([
       safe(() => remote.get<RawSeller[]>("/sellers").then(toCamel)),
       safe(() => remote.get<FestivalCampaign[]>("/promo/campaigns").then(toCamel)),
@@ -127,12 +134,24 @@ export async function hydrateFromGateway(): Promise<boolean> {
       safe(() => remote.get<Raw[]>("/blood-requests").then(toCamel)),
       safe(() => remote.get<Raw>("/sdui/home").then(toCamel)),
       safe(() => remote.get<ReviewRecord[]>("/reviews").then(toCamel)),
+      // Partner-completion (0017). Customers/tickets are admin surfaces; menus/rates are partner-wide.
+      safe(() =>
+        (role === "SELLER" ? Promise.resolve<Raw[]>([]) : remote.get<Raw[]>("/customers").then(toCamel)),
+      ),
+      safe(() => remote.get<Raw[]>("/seller/menus").then(toCamel)),
+      safe(() =>
+        role === "SELLER" ? Promise.resolve<Raw[]>([]) : remote.get<Raw[]>("/support/tickets").then(toCamel),
+      ),
+      safe(() => remote.get<Raw>("/rewards/rates").then(toCamel)),
+      safe(() =>
+        role === "SELLER" ? Promise.resolve<Raw[]>([]) : remote.get<Raw[]>("/rewards/ledger").then(toCamel),
+      ),
     ]);
 
   const patch: Record<string, unknown> = {};
   let touched = false;
 
-  if (sellers) {
+  if (sellers && sellers.length) {
     patch["sellers"] = sellers.map(
       (s): SellerRecord => ({
         ...s,
@@ -143,7 +162,7 @@ export async function hydrateFromGateway(): Promise<boolean> {
     );
     touched = true;
   }
-  if (campaigns) {
+  if (campaigns && campaigns.length) {
     patch["campaigns"] = campaigns.map(
       (c): FestivalCampaign => ({
         ...c,
@@ -153,7 +172,7 @@ export async function hydrateFromGateway(): Promise<boolean> {
     );
     touched = true;
   }
-  if (coupons) {
+  if (coupons && coupons.length) {
     patch["coupons"] = coupons.map(
       (c): CouponRecord => ({
         ...c,
@@ -163,7 +182,7 @@ export async function hydrateFromGateway(): Promise<boolean> {
     );
     touched = true;
   }
-  if (caps) {
+  if (caps && caps.length) {
     patch["sectorCaps"] = caps.map((c) => ({
       capId: str(c["capId"]),
       sector: str(c["sector"]) as Sector,
@@ -173,19 +192,19 @@ export async function hydrateFromGateway(): Promise<boolean> {
     }));
     touched = true;
   }
-  if (optins) {
+  if (optins && optins.length) {
     patch["optins"] = optins;
     touched = true;
   }
-  if (slots) {
+  if (slots && slots.length) {
     patch["adSlots"] = slots;
     touched = true;
   }
-  if (admins) {
+  if (admins && admins.length) {
     patch["stateAdmins"] = admins;
     touched = true;
   }
-  if (logs) {
+  if (logs && logs.length) {
     patch["auditLogs"] = logs.map(
       (l): AuditLog => ({
         ...l,
@@ -196,7 +215,7 @@ export async function hydrateFromGateway(): Promise<boolean> {
     );
     touched = true;
   }
-  if (ledger) {
+  if (ledger && ledger.length) {
     patch["ledger"] = ledger.map(
       (l): LedgerEntry => ({
         entryId: l.entryId,
@@ -210,7 +229,7 @@ export async function hydrateFromGateway(): Promise<boolean> {
     );
     touched = true;
   }
-  if (payouts) {
+  if (payouts && payouts.length) {
     patch["payouts"] = payouts.map(
       (p): PayoutRecord => ({
         payoutId: p.payoutId,
@@ -223,7 +242,7 @@ export async function hydrateFromGateway(): Promise<boolean> {
     );
     touched = true;
   }
-  if (rx) {
+  if (rx && rx.length) {
     // Gateway prescription rows are thin; merge onto seeded rows for display fields.
     const mapped = rx.map(
       (r): PrescriptionRecord => ({
@@ -243,7 +262,7 @@ export async function hydrateFromGateway(): Promise<boolean> {
     patch["prescriptions"] = mergeById(mapped, cur.prescriptions, (x) => x.prescriptionId);
     touched = true;
   }
-  if (bookings) {
+  if (bookings && bookings.length) {
     const mapped = bookings.map(
       (b): BookingRecord => ({
         bookingId: str(b["bookingId"] ?? b["id"]),
@@ -264,7 +283,7 @@ export async function hydrateFromGateway(): Promise<boolean> {
     patch["bookings"] = mergeById(mapped, cur.bookings, (x) => x.bookingId);
     touched = true;
   }
-  if (blood) {
+  if (blood && blood.length) {
     patch["bloodRequests"] = blood.map(
       (r): BloodRequestRecord => ({
         requestId: str(r["requestId"] ?? r["id"]),
@@ -295,8 +314,78 @@ export async function hydrateFromGateway(): Promise<boolean> {
     patch["sduiLayouts"] = [layout];
     touched = true;
   }
-  if (reviews) {
+  if (reviews && reviews.length) {
     patch["reviews"] = reviews;
+    touched = true;
+  }
+  if (customers && customers.length) {
+    patch["customers"] = customers.map(
+      (c): CustomerRecord => ({
+        userId: str(c["userId"]),
+        name: str(c["name"]),
+        stateCode: c["stateCode"] ? str(c["stateCode"]) : undefined,
+        ordersCount: num(c["ordersCount"]),
+        spendPaisa: toPaisa(num(c["spend"])),
+        lastOrderAt: c["lastOrderAt"] ? str(c["lastOrderAt"]) : undefined,
+        createdAt: str(c["createdAt"]),
+      }),
+    );
+    touched = true;
+  }
+  if (menus && menus.length) {
+    patch["menus"] = menus.map(
+      (m): MenuItemRecord => ({
+        venueId: str(m["venueId"]),
+        dishId: str(m["dishId"]),
+        name: str(m["name"]),
+        pricePaisa: toPaisa(num(m["price"])),
+        isVeg: typeof m["isVeg"] === "boolean" ? m["isVeg"] : undefined,
+        cuisine: m["cuisine"] ? str(m["cuisine"]) : undefined,
+        rating: m["rating"] == null ? undefined : num(m["rating"]),
+        image: m["image"] ? str(m["image"]) : undefined,
+        sellerId: m["sellerId"] ? str(m["sellerId"]) : undefined,
+        status: str(m["status"], "DRAFT") as MenuItemRecord["status"],
+      }),
+    );
+    touched = true;
+  }
+  if (tickets && tickets.length) {
+    patch["tickets"] = tickets.map(
+      (t): TicketRecord => ({
+        ticketId: str(t["ticketId"]),
+        userId: t["userId"] ? str(t["userId"]) : undefined,
+        sellerId: t["sellerId"] ? str(t["sellerId"]) : undefined,
+        stateCode: t["stateCode"] ? str(t["stateCode"]) : undefined,
+        subject: str(t["subject"]),
+        body: str(t["body"]),
+        status: str(t["status"], "OPEN") as TicketRecord["status"],
+        createdAt: str(t["createdAt"]),
+      }),
+    );
+    touched = true;
+  }
+  if (rates && rates["coinEarnRate"] != null) {
+    patch["rewardRates"] = {
+      coinEarnRate: num(rates["coinEarnRate"], 1000),
+      coinRedeemRate: num(rates["coinRedeemRate"], 100),
+      streakTargetDays: num(rates["streakTargetDays"], 7),
+      discountCardPercent: num(rates["discountCardPercent"], 10),
+      cardValidityDays: num(rates["cardValidityDays"], 5),
+      updatedAt: rates["updatedAt"] ? str(rates["updatedAt"]) : undefined,
+    };
+    touched = true;
+  }
+  if (rewardLedger && rewardLedger.length) {
+    patch["rewardLedger"] = rewardLedger.map(
+      (e): RewardLedgerEntry => ({
+        entryId: str(e["entryId"]),
+        type: str(e["type"], "EARN") as RewardLedgerEntry["type"],
+        coins: num(e["coins"]),
+        rupees: num(e["rupees"]),
+        orderId: e["orderId"] ? str(e["orderId"]) : undefined,
+        at: str(e["at"]),
+      }),
+    );
     touched = true;
   }
 
