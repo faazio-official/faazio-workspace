@@ -72,6 +72,22 @@ go build ./... && go vet ./... && go test ./...
 go run ./tools/importlint          # fails on sibling-context imports
 ```
 
+`docker compose up` boots Postgres + Valkey + Mongo, applies the migrations + seed automatically,
+runs `mongosh` on `server/supabase/seed/mongo/seed.js` (upserts the ID-only Home layout + TTL index),
+and starts the gateway. `curl localhost:8080/health` should report `db:true cache:true mongo:true`.
+
+Integration tests (FTS, order lock/decrement, rating gate, PII redaction, pagination) **skip**
+unless pointed at the stack; run them fully with:
+
+```bash
+TEST_DATABASE_URL='postgres://postgres:faazio@localhost:5432/faazio?sslmode=disable' \
+TEST_VALKEY_URL='redis://localhost:6379/0' \
+go test ./...
+```
+
+> Managed Atlas M0 does **not** auto-run `seed.js` (only the local `mongo` image does). Seed Atlas
+> manually: `mongosh "$MONGO_URI/faazio" --file server/supabase/seed/mongo/seed.js`.
+
 Local dev is auth-open (`AUTH_DISABLED=true`, user `user-1`). To point the app at it, set
 `EXPO_PUBLIC_GATEWAY_URL=http://<host>:8080` and `EXPO_PUBLIC_USE_GATEWAY=true`; `GatewayClient`
 falls back to `@data/*` on any error. Regenerate the DB seed after editing `@data/*`:

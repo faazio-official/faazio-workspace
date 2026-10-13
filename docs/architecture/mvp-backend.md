@@ -76,7 +76,12 @@ All read-through: Valkey → Supabase/Mongo → populate. Cloudflare caches publ
 | `GET/POST/PUT/DELETE /cart…` | cartstock | auth-scoped; `inventory.carts` JSONB, never edge-cached |
 | `GET/POST /orders` | checkout | `POST` uses `SET NX EX 300` idempotency + `SELECT … FOR UPDATE SKIP LOCKED` stock decrement |
 | `PUT /vendors/{id}/rating` | reviews | derived eligibility gate (`hasPurchasedFromVendor`); never a stored flag |
-| `POST /events` | reco | ID-only `userIdHash`, 90-day Mongo TTL |
+| `POST /events` | reco | ID-only `userIdHash`, 90-day Mongo TTL; event allowlist + `productId ≤ 64` chars |
+
+Every endpoint above now has a `GatewayClient` method (`getVendorReviews`, `rateVendor`,
+`getCart`/`addToCart`/`updateCartItem`/`removeCartItem`, `placeOrder`, `trackEvent`) with the
+`@data/*` fallback, so the per-module `@mock` → `@server` migration can begin once Supabase phone
+OTP replaces `authStore.login()`.
 
 No gRPC yet; `contracts/` holds Go interfaces that mirror the future `.proto` shape. Method
 signatures above keep the `@mock` → `@server` swap call-site-compatible (`GatewayClient` adds a
@@ -133,6 +138,16 @@ contract stable so the swap is invisible to the app):
    `EXPO_PUBLIC_USE_GATEWAY`; wired in `data-layer-sdui.md` order; `@data/*` fallback per method.
 7. ✅ Verify: `go build/vet/test ./...` + `go run ./tools/importlint`; `npm run ts:check`,
    `check:boundaries`, `check:drillin`.
+8. ✅ **DB layer verified locally** (`docker compose up`): 421 products / 32 stores / 32 orders seeded,
+   Postgres FTS returns `coffee` hits, no orphan `store_id`s, Mongo `sdui_layouts` v1 (14 sections) +
+   `user_events_ttl` index, `/health` reports `db:true cache:true mongo:true`.
+9. ✅ **Hardening (Phase 2):** directory PII redaction (public vs authed), global 1 MiB body limit,
+   `Timeout(10s)` + `Throttle(100)`, keyset pagination (`/stores`, `/vendors/:id/reviews`) bounded
+   `limit` (`/search`), `/events` allowlist, opt-in `slog` request logs, stock read-through + decrement
+   invalidation. Money freeze clarified: DB paisa, JSON integer rupees (`monolith-breakdown.md` §4).
+10. ✅ **Tests + CI:** unit tests plus Docker-backed integration tests (FTS, order lock/decrement,
+    rating gate, PII redaction, keyset pagination) skip cleanly without services; `.github/workflows/server-gateway.yml`
+    runs build/vet/test/importlint with Postgres + Valkey service containers.
 
 ---
 

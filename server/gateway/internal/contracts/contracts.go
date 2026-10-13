@@ -8,6 +8,10 @@ package contracts
 
 import "context"
 
+// Money freeze (monolith-breakdown.md §4): the DB stores INT8 paisa (₹1 = 100); every
+// JSON DTO here exposes whole rupees as an integer. The repo layer is the single
+// conversion boundary (paisa → rupees on read, rupees → paisa on write) — no floats.
+//
 // App is the sub-app brand. Frozen enum (contract-freeze §4).
 type App = string
 

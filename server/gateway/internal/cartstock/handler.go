@@ -3,18 +3,21 @@ package cartstock
 import (
 	"net/http"
 
+	"github.com/faazio/server/gateway/internal/contracts"
 	"github.com/faazio/server/gateway/internal/platform/auth"
+	"github.com/faazio/server/gateway/internal/platform/cache"
 	"github.com/faazio/server/gateway/internal/platform/httpx"
 	"github.com/go-chi/chi/v5"
 )
 
 // Handler serves cart + stock endpoints.
 type Handler struct {
-	repo *Repo
+	repo  *Repo
+	cache *cache.Cache
 }
 
 // NewHandler builds the cartstock handler.
-func NewHandler(repo *Repo) *Handler { return &Handler{repo: repo} }
+func NewHandler(repo *Repo, c *cache.Cache) *Handler { return &Handler{repo: repo, cache: c} }
 
 // Register mounts public stock + auth-scoped cart endpoints.
 func (h *Handler) Register(r chi.Router) {
@@ -29,7 +32,13 @@ func (h *Handler) Register(r chi.Router) {
 }
 
 func (h *Handler) getStock(w http.ResponseWriter, r *http.Request) {
-	stock, ok, err := h.repo.StockByProductID(r.Context(), chi.URLParam(r, "productId"))
+	id := chi.URLParam(r, "productId")
+	var cached contracts.Stock
+	if h.cache.GetJSON(r.Context(), cache.Stock(id), &cached) {
+		httpx.JSON(w, http.StatusOK, cached)
+		return
+	}
+	stock, ok, err := h.repo.StockByProductID(r.Context(), id)
 	if err != nil {
 		httpx.Fail(w, http.StatusInternalServerError, "stock_unavailable", "stock unavailable")
 		return
@@ -38,6 +47,7 @@ func (h *Handler) getStock(w http.ResponseWriter, r *http.Request) {
 		httpx.Fail(w, http.StatusNotFound, "not_found", "stock not found")
 		return
 	}
+	h.cache.SetJSON(r.Context(), cache.Stock(id), stock, cache.TTLStock)
 	httpx.JSON(w, http.StatusOK, stock)
 }
 

@@ -636,10 +636,20 @@ The Home feed is stored as **ID-only** documents — every leaf references `cata
 Raw user-behavior events (browse/view/add-to-cart), **ID-only + no PII**, auto-expired.
 
 ```js
-{ _id: ObjectId, userIdHash: 'sha256…', productId: 'fm-f1', event: 'view', at: ISODate(), ttl: 90d }
+{ _id: ObjectId, userIdHash: 'sha256…', productId: 'fm-f1', event: 'view', at: ISODate(), expiresAt: ISODate() }
 ```
 
+**MVP (live):** written by `POST /events` (`server/gateway/internal/reco/repo.go`); the 90-day
+TTL is the native Mongo TTL index `user_events_ttl` (`expireAfterSeconds: 0` on `expiresAt`),
+created by `server/supabase/seed/mongo/seed.js`. The handler bounds the vocabulary to
+`event ∈ {view, cart_add, order, search}` and `productId ≤ 64` chars so the Atlas M0 collection
+cannot be grown with junk. The raw `user_id` is never stored — only the `sha256:` hash.
+
 ### 8.3 `recommendations` / `segments` / `product_stats`
+
+> **MVP status:** these three collections are **empty** — MongoDB in the MVP is exactly
+> **`sdui_layouts` + `user_events`** (kept live), roughly 10% of the data surface. The shapes below
+> are Future Prod; an empty collection is created lazily on first write.
 
 - `recommendations`: precomputed per-user (`userIdHash`) or per-segment product-id lists, ID-only.
 - `segments`: user-segment mappings (ID-only).

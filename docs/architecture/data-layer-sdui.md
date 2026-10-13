@@ -155,6 +155,13 @@ can never regress data. Wiring order (all methods implemented):
 5. `getOrders` / `getProfile` (auth-scoped, last), plus `getStores`/`getStore`/`getStock`/
 `getProductsByIds`/`getMembership`/`getOrderStatus`/`getAccountNav`/`getDetails`.
 
+**Write + vendor methods (server routes live; client seam added):** `getVendorReviews` /
+`rateVendor` (derived purchase gate re-checked server-side), `getCart` / `addToCart` /
+`updateCartItem` / `removeCartItem` (auth-scoped, never edge-cached), `placeOrder`
+(idempotency lock + `SELECT … FOR UPDATE SKIP LOCKED` stock decrement), and `trackEvent`
+(ID-only; mock fallback is a silent no-op). These unblock the `@mock` → `@server` per-module
+migration, which waits on Supabase phone OTP replacing `authStore.login()`.
+
 Screens still read `@data/*` directly and migrate onto `gateway` incrementally — no call-site changes
 are required. Every `@mock` entry is now a gateway handler contract.
 

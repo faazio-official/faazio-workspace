@@ -3,7 +3,9 @@
 package server
 
 import (
+	"log/slog"
 	"net/http"
+	"os"
 	"time"
 
 	"github.com/faazio/server/gateway/internal/cartstock"
@@ -38,7 +40,13 @@ func NewRouter(d Deps) http.Handler {
 	r.Use(middleware.RequestID)
 	r.Use(middleware.RealIP)
 	r.Use(middleware.Recoverer)
+	r.Use(middleware.Timeout(10 * time.Second))
+	r.Use(middleware.Throttle(100))
+	r.Use(httpx.MaxBytes(httpx.DefaultMaxBodyBytes))
 	r.Use(corsMiddleware(d.Config.AllowedOrigins))
+	if d.Config.OTelEnabled {
+		r.Use(requestLogger())
+	}
 
 	catalogRepo := catalog.New(d.Pool)
 	directoryRepo := directory.New(d.Pool)
@@ -73,13 +81,34 @@ func NewRouter(d Deps) http.Handler {
 	catalog.NewHandler(catalogRepo, d.Cache).Register(r)
 	search.NewHandler(catalogRepo, d.Cache).Register(r)
 	directory.NewHandler(directoryRepo, d.Cache).Register(r)
-	cartstock.NewHandler(cartRepo).Register(r)
+	cartstock.NewHandler(cartRepo, d.Cache).Register(r)
 	checkout.NewHandler(checkoutRepo, checkoutService, d.Cache).Register(r)
 	reviews.NewHandler(reviewsRepo, reviewsService, d.Cache).Register(r)
 	reco.NewHandler(recoRepo).Register(r)
 	sdui.NewHandler(sduiService).Register(r)
 
 	return r
+}
+
+// requestLogger emits one structured slog line per request. It is gated by OTEL_ENABLED
+// so local dev (and tests) stay quiet; never logs request bodies or auth headers.
+func requestLogger() func(http.Handler) http.Handler {
+	logger := slog.New(slog.NewJSONHandler(os.Stdout, nil))
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			start := time.Now()
+			ww := middleware.NewWrapResponseWriter(w, r.ProtoMajor)
+			next.ServeHTTP(ww, r)
+			logger.Info("request",
+				"method", r.Method,
+				"path", r.URL.Path,
+				"status", ww.Status(),
+				"bytes", ww.BytesWritten(),
+				"request_id", middleware.GetReqID(r.Context()),
+				"duration_ms", time.Since(start).Milliseconds(),
+			)
+		})
+	}
 }
 
 func corsMiddleware(origins []string) func(http.Handler) http.Handler {

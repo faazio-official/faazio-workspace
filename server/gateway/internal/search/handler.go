@@ -6,13 +6,17 @@ package search
 
 import (
 	"net/http"
-	"strconv"
 	"strings"
 
 	"github.com/faazio/server/gateway/internal/contracts"
 	"github.com/faazio/server/gateway/internal/platform/cache"
 	"github.com/faazio/server/gateway/internal/platform/httpx"
 	"github.com/go-chi/chi/v5"
+)
+
+const (
+	defaultSearchLimit = 40
+	maxSearchLimit     = 100
 )
 
 // Handler serves search.
@@ -34,7 +38,7 @@ func (h *Handler) Register(r chi.Router) {
 func (h *Handler) search(w http.ResponseWriter, r *http.Request) {
 	q := strings.TrimSpace(r.URL.Query().Get("q"))
 	app := strings.ToUpper(strings.TrimSpace(r.URL.Query().Get("app")))
-	limit, _ := strconv.Atoi(r.URL.Query().Get("limit"))
+	limit := httpx.LimitParam(r, defaultSearchLimit, maxSearchLimit)
 
 	// Cache key: faazio:v1:search:q:{query}, app-scoped variant includes the app.
 	key := cache.SearchQuery(q)

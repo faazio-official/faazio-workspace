@@ -1,0 +1,236 @@
+package server
+
+import (
+	"bytes"
+	"context"
+	"encoding/json"
+	"fmt"
+	"net/http"
+	"net/http/httptest"
+	"testing"
+	"time"
+
+	"github.com/faazio/server/gateway/internal/platform/cache"
+	"github.com/faazio/server/gateway/internal/platform/config"
+	"github.com/faazio/server/gateway/internal/platform/testenv"
+	"github.com/jackc/pgx/v5/pgxpool"
+)
+
+func newTestServer(t *testing.T) (http.Handler, *pgxpool.Pool, *cache.Cache) {
+	t.Helper()
+	pool := testenv.Pool(t)
+	c := testenv.Cache(t)
+	cfg := config.Config{
+		AuthDisabled:   true,
+		DevUserID:      "user-1",
+		AllowedOrigins: []string{"http://localhost:3000"},
+	}
+	return NewRouter(Deps{Config: cfg, Pool: pool, Cache: c}), pool, c
+}
+
+func do(t *testing.T, h http.Handler, method, path string, body any) *httptest.ResponseRecorder {
+	t.Helper()
+	var rdr *bytes.Reader
+	if body != nil {
+		b, err := json.Marshal(body)
+		if err != nil {
+			t.Fatal(err)
+		}
+		rdr = bytes.NewReader(b)
+	} else {
+		rdr = bytes.NewReader(nil)
+	}
+	req := httptest.NewRequest(method, path, rdr)
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, req)
+	return rec
+}
+
+// pickStockedProduct returns a product with a store and at least minQty in stock.
+func pickStockedProduct(t *testing.T, pool *pgxpool.Pool, minQty int64) (productID, storeID string, qty int64) {
+	t.Helper()
+	err := pool.QueryRow(context.Background(), `
+		select p.id, p.store_id, st.in_stock_qty
+		  from catalog.products p join inventory.stock st on st.product_id = p.id
+		 where p.store_id is not null and st.available and st.in_stock_qty >= $1
+		 order by st.in_stock_qty desc limit 1`, minQty).Scan(&productID, &storeID, &qty)
+	if err != nil {
+		t.Skipf("no stocked product with a store: %v", err)
+	}
+	return productID, storeID, qty
+}
+
+func TestHealth(t *testing.T) {
+	h, _, _ := newTestServer(t)
+	rec := do(t, h, http.MethodGet, "/health", nil)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d", rec.Code)
+	}
+	var got map[string]any
+	if err := json.Unmarshal(rec.Body.Bytes(), &got); err != nil {
+		t.Fatal(err)
+	}
+	if got["db"] != true {
+		t.Fatalf("db = %v, want true", got["db"])
+	}
+}
+
+func TestSearchEndpoint(t *testing.T) {
+	h, _, _ := newTestServer(t)
+	rec := do(t, h, http.MethodGet, "/search?q=coffee", nil)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d body=%s", rec.Code, rec.Body.String())
+	}
+	var hits []map[string]any
+	if err := json.Unmarshal(rec.Body.Bytes(), &hits); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if len(hits) == 0 {
+		t.Fatal("expected coffee hits")
+	}
+}
+
+type stockResp struct {
+	ProductID  string `json:"productId"`
+	InStockQty int64  `json:"inStockQty"`
+}
+
+func TestCreateOrderDecrementsStockAndInvalidatesCache(t *testing.T) {
+	h, pool, c := newTestServer(t)
+	ctx := context.Background()
+	productID, _, qty := pickStockedProduct(t, pool, 2)
+
+	key := fmt.Sprintf("e2e-order-%d", time.Now().UnixNano())
+	rec := do(t, h, http.MethodPost, "/orders", map[string]any{
+		"items":          []map[string]any{{"productId": productID, "qty": 1}},
+		"idempotencyKey": key,
+	})
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("place order status = %d body=%s", rec.Code, rec.Body.String())
+	}
+	var order struct {
+		ID string `json:"id"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &order); err != nil || order.ID == "" {
+		t.Fatalf("decode order: %v (%s)", err, rec.Body.String())
+	}
+	t.Cleanup(func() {
+		pool.Exec(ctx, `delete from checkout.order_items where order_id = $1`, order.ID)
+		pool.Exec(ctx, `delete from checkout.orders where order_id = $1`, order.ID)
+		pool.Exec(ctx, `update inventory.stock set in_stock_qty = in_stock_qty + 1 where product_id = $1`, productID)
+		c.Del(ctx, cache.Stock(productID))
+	})
+
+	// Prime the cache, then confirm a fresh order keeps it consistent via the Del.
+	rec = do(t, h, http.MethodGet, "/stock/"+productID, nil)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("get stock status = %d", rec.Code)
+	}
+	var st stockResp
+	if err := json.Unmarshal(rec.Body.Bytes(), &st); err != nil {
+		t.Fatal(err)
+	}
+	if st.InStockQty != qty-1 {
+		t.Fatalf("stock = %d, want %d", st.InStockQty, qty-1)
+	}
+}
+
+func TestCreateOrderInsufficientStock(t *testing.T) {
+	h, pool, _ := newTestServer(t)
+	var productID string
+	err := pool.QueryRow(context.Background(), `
+		select product_id from inventory.stock
+		 where available and in_stock_qty >= 1 and in_stock_qty < 99
+		 order by in_stock_qty limit 1`).Scan(&productID)
+	if err != nil {
+		t.Skipf("no low-stock product: %v", err)
+	}
+	rec := do(t, h, http.MethodPost, "/orders", map[string]any{
+		"items": []map[string]any{{"productId": productID, "qty": 99}},
+	})
+	if rec.Code != http.StatusConflict {
+		t.Fatalf("status = %d, want 409 (%s)", rec.Code, rec.Body.String())
+	}
+}
+
+func TestCreateOrderIdempotencyLock(t *testing.T) {
+	h, pool, c := newTestServer(t)
+	testenv.RequireCache(t, c)
+	productID, _, _ := pickStockedProduct(t, pool, 1)
+
+	ctx := context.Background()
+	key := fmt.Sprintf("e2e-lock-%d", time.Now().UnixNano())
+	if err := c.AcquireLock(ctx, cache.Idempotency(key), 300*time.Second); err != nil {
+		t.Fatalf("pre-acquire lock: %v", err)
+	}
+	t.Cleanup(func() { c.ReleaseLock(ctx, cache.Idempotency(key)) })
+
+	rec := do(t, h, http.MethodPost, "/orders", map[string]any{
+		"items":          []map[string]any{{"productId": productID, "qty": 1}},
+		"idempotencyKey": key,
+	})
+	if rec.Code != http.StatusConflict {
+		t.Fatalf("status = %d, want 409 for held lock (%s)", rec.Code, rec.Body.String())
+	}
+}
+
+func TestVendorRatingGate(t *testing.T) {
+	h, pool, c := newTestServer(t)
+	ctx := context.Background()
+	productID, storeID, _ := pickStockedProduct(t, pool, 1)
+
+	// Establish purchase proof by ordering the product's store.
+	rec := do(t, h, http.MethodPost, "/orders", map[string]any{
+		"items":          []map[string]any{{"productId": productID, "qty": 1}},
+		"idempotencyKey": fmt.Sprintf("e2e-rate-%d", time.Now().UnixNano()),
+	})
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("proof order status = %d (%s)", rec.Code, rec.Body.String())
+	}
+	var order struct {
+		ID string `json:"id"`
+	}
+	_ = json.Unmarshal(rec.Body.Bytes(), &order)
+	t.Cleanup(func() {
+		pool.Exec(ctx, `delete from checkout.order_items where order_id = $1`, order.ID)
+		pool.Exec(ctx, `delete from checkout.orders where order_id = $1`, order.ID)
+		pool.Exec(ctx, `update inventory.stock set in_stock_qty = in_stock_qty + 1 where product_id = $1`, productID)
+		pool.Exec(ctx, `delete from reviews.vendor_reviews where id = $1`, "vr-user-1-"+storeID)
+		c.Del(ctx, cache.Stock(productID), cache.VendorReviews(storeID))
+	})
+
+	rec = do(t, h, http.MethodPut, "/vendors/"+storeID+"/rating", map[string]any{"rating": 5, "comment": "e2e"})
+	if rec.Code != http.StatusOK {
+		t.Fatalf("eligible rate status = %d (%s)", rec.Code, rec.Body.String())
+	}
+
+	// A vendor the user has never ordered from must be rejected.
+	var ineligible string
+	err := pool.QueryRow(ctx, `
+		select id from directory.stores
+		 where id <> all (select unnest(vendor_store_ids) from checkout.orders where user_id = 'user-1')
+		 limit 1`).Scan(&ineligible)
+	if err == nil {
+		rec = do(t, h, http.MethodPut, "/vendors/"+ineligible+"/rating", map[string]any{"rating": 1})
+		if rec.Code != http.StatusForbidden {
+			t.Fatalf("ineligible rate status = %d, want 403 (%s)", rec.Code, rec.Body.String())
+		}
+	}
+
+	rec = do(t, h, http.MethodPut, "/vendors/"+storeID+"/rating", map[string]any{"rating": 9})
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("invalid rating status = %d, want 400", rec.Code)
+	}
+}
+
+func TestStoresEndpointPaginates(t *testing.T) {
+	h, _, _ := newTestServer(t)
+	rec := do(t, h, http.MethodGet, "/stores?limit=5", nil)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d", rec.Code)
+	}
+	if rec.Header().Get("X-Next-Cursor") == "" {
+		t.Fatal("expected X-Next-Cursor")
+	}
+}

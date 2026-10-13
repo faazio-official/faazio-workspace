@@ -6,6 +6,7 @@ package reviews
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"github.com/faazio/server/gateway/internal/contracts"
 	"github.com/faazio/server/gateway/internal/platform/db"
@@ -52,27 +53,54 @@ func (r *Repo) ProductReviews(ctx context.Context, productID string) ([]contract
 	return out, rows.Err()
 }
 
-// VendorReviews returns the public vendor review projection.
-func (r *Repo) VendorReviews(ctx context.Context, vendorID string) ([]contracts.VendorReview, error) {
+// VendorReviewsPage returns review rows ordered by (created_at desc, id asc) with keyset
+// pagination. It fetches limit+1 rows; when a further page exists it reports hasMore and
+// the sort key (lastCreatedAt, lastID) of the final returned row for the caller's cursor.
+func (r *Repo) VendorReviewsPage(ctx context.Context, vendorID string, limit int, cursorTime time.Time, cursorID string, hasCursor bool) (out []contracts.VendorReview, lastCreatedAt time.Time, lastID string, hasMore bool, err error) {
 	if r.pool == nil {
-		return nil, fmt.Errorf("reviews: database not configured")
+		return nil, time.Time{}, "", false, fmt.Errorf("reviews: database not configured")
 	}
 	rows, err := r.pool.Query(ctx, `
-		select id, vendor_id, app::text, user_name, rating, coalesce(comment,''), date_label
-		  from reviews.vendor_reviews where vendor_id = $1 order by created_at desc`, vendorID)
+		select id, vendor_id, app::text, user_name, rating, coalesce(comment,''), date_label, created_at
+		  from reviews.vendor_reviews
+		 where vendor_id = $1
+		   and (not $2::bool or created_at < $3::timestamptz or (created_at = $3::timestamptz and id > $4))
+		 order by created_at desc, id asc
+		 limit $5`, vendorID, hasCursor, cursorTime, cursorID, limit+1)
 	if err != nil {
-		return nil, err
+		return nil, time.Time{}, "", false, err
 	}
 	defer rows.Close()
-	out := []contracts.VendorReview{}
+	out = []contracts.VendorReview{}
+	type keyed struct {
+		created time.Time
+		id      string
+	}
+	keys := []keyed{}
 	for rows.Next() {
-		var rv contracts.VendorReview
-		if err := rows.Scan(&rv.ID, &rv.VendorID, &rv.App, &rv.UserName, &rv.Rating, &rv.Comment, &rv.Date); err != nil {
-			return nil, err
+		var (
+			rv      contracts.VendorReview
+			created time.Time
+		)
+		if err := rows.Scan(&rv.ID, &rv.VendorID, &rv.App, &rv.UserName, &rv.Rating, &rv.Comment, &rv.Date, &created); err != nil {
+			return nil, time.Time{}, "", false, err
 		}
 		out = append(out, rv)
+		keys = append(keys, keyed{created: created, id: rv.ID})
 	}
-	return out, rows.Err()
+	if err := rows.Err(); err != nil {
+		return nil, time.Time{}, "", false, err
+	}
+	if len(out) > limit {
+		out = out[:limit]
+		keys = keys[:limit]
+		hasMore = true
+	}
+	if len(keys) > 0 {
+		lastCreatedAt = keys[len(keys)-1].created
+		lastID = keys[len(keys)-1].id
+	}
+	return out, lastCreatedAt, lastID, hasMore, nil
 }
 
 // VendorSummary aggregates ratings for a vendor.

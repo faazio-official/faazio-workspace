@@ -36,14 +36,19 @@ search extraction is a pure index-replica swap.
 |---|---|---|---|---|---|
 | search → Rust/Tantivy | `internal/search` | `catalog` (read: `products_search`) | `faazio:v1:search:q:{query}` 600 s | `searchProducts` | Rust Axum + Tantivy |
 | catalog/directory → Go | `internal/catalog`, `internal/directory` | `catalog`, `directory` | `faazio:v1:catalog:product:{id}` 24 h · `faazio:v1:directory:store:{id}` 24 h | `getProduct`, `getProductsByIds`, `getStores`, `getStore` | CockroachDB + Postgres |
-| cart/stock → Go+Dynamo | `internal/cartstock` | `inventory` | `faazio:v1:stock:{productId}` 30–60 s; **never** carts | `getStock`, `addToCart`, `updateCartItem`, `getCart` | DynamoDB / Firestore |
-| checkout → Go+Cockroach | `internal/checkout` | `checkout`, `accounts` | `faazio:v1:checkout:orders:{userId}` 60 s · idem `NX EX 300` | `getOrders`, `getProfile`, `getMembership`, `getOrderStatus`, `getAccountNav`, `getDetails` | CockroachDB |
+| cart/stock → Go+Dynamo | `internal/cartstock` | `inventory` | `faazio:v1:stock:{productId}` 30–60 s; **never** carts | `getStock`, `getCart`, `addToCart`, `updateCartItem`, `removeCartItem` | DynamoDB / Firestore |
+| checkout → Go+Cockroach | `internal/checkout` | `checkout`, `accounts` | `faazio:v1:checkout:orders:{userId}` 60 s · idem `NX EX 300` | `getOrders`, `placeOrder`, `getProfile`, `getMembership`, `getOrderStatus`, `getAccountNav`, `getDetails` | CockroachDB |
 | reviews → Go+Postgres | `internal/reviews` | `reviews` | `faazio:v1:reviews:vendor:{id}` 24 h · `faazio:v1:reviews:product:{id}` 24 h | `getReviews` (product), `getVendorReviews`, `rateVendor` | standalone Postgres |
 | recommendations → Python+Mongo | `internal/reco`, `internal/sdui` | MongoDB `sdui_layouts`, `user_events` | `faazio:v1:reco:{userIdHash}:{context}` 1 h · `faazio:v1:gateway:sdui:{locale}:{path}` 300 s | `getHomeFeed`, `trackEvent` | Python FastAPI |
-| shared | `internal/platform/{db,cache,auth,config,otel}`, `internal/contracts` | — | — | — | gRPC via `contracts/` |
+| shared | `internal/platform/{db,cache,auth,config,otel,testenv}`, `internal/contracts` | — | — | — | gRPC via `contracts/` |
 
 Mongo `user_events` stores **ID-only** `{ userIdHash, productId, event, at }` with a 90-day TTL; the
 raw user id is never stored (hash only). **Nothing rating-related is ever logged.**
+
+All `GatewayClient` methods in the table are now implemented (reads + writes; `getVendorReviews`,
+`rateVendor`, `getCart`/`addToCart`/`updateCartItem`/`removeCartItem`, `placeOrder`, `trackEvent`
+included). Cache behaviour is built per the TTL matrix: `GET /stock/:id` is read-through and every
+order decrement invalidates `stock:{id}`.
 
 ## 2. Boundary rules (enforced)
 
@@ -82,7 +87,7 @@ Extract the **first** context (search) as the reference. The others repeat the s
 | Contract | Frozen value | Reason it must not drift |
 |---|---|---|
 | Public IDs | stable string slugs (`md-1`, `store-m3`, `user-1`, `ORD-001`) | CDN URLs, Valkey keys, `GatewayClient` args |
-| Money | **INT8 paisa** (₹1 = 100); JSON as integer `*_paisa` or `price`/`mrp` | no float drift; Tantivy/Cockroach parity |
+| Money | DB: **INT8 paisa** (₹1 = 100). JSON: whole **integer rupees** (`price`/`mrp`, no paisa, no float). Repo layer is the only conversion boundary (paisa → rupees on read, ×100 on write) | no float drift; `@data/*`/`GatewayClient` already use integer rupees, so the client shape is unchanged; Tantivy/Cockroach parity |
 | Time | `TIMESTAMPTZ`; JSON ISO-8601 | fixed width; no epoch/ISO mixing |
 | Enums | `app_brand`, `order_status`, `fulfillment_mode` (Postgres ENUM) | validated, 1–4 B |
 | `GatewayClient` | method names + signatures in `client/mobile/src/services/api/GatewayClient.ts` | screens swap `@mock` → `@server` without call-site edits |

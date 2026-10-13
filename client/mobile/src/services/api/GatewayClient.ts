@@ -17,8 +17,9 @@ import { catalogIndex, getCatalogEntryById, getCatalogEntriesByIds, type Catalog
 import { storeDirectory, getStoreById, getStoresByApp, type StoreRecord } from '@data/directory/stores';
 import { getReviewsByProductId, type ReviewRow } from '@data/reviews/reviews';
 import { getStockByProductId, type StockRow } from '@data/inventory/stock';
-import { getOrdersByUser, type OrderRow } from '@data/checkout/orders';
+import { getOrdersByUser, MOCK_USER_ID, type OrderRow } from '@data/checkout/orders';
 import { profileTable, membershipTable, orderStatusTable, navTable, detailsTable, type ProfileRow, type MembershipRow, type OrderStatusRow, type NavRowGroup, type DetailsTable } from '@data/accounts/profile';
+import { getReviewsByVendorId, type VendorReviewRow } from '@data/reviews/vendorReviews';
 import { homeSdui, type SduiSection } from '@data/home/sdui';
 import { loadSession } from '../secureSession';
 
@@ -36,6 +37,39 @@ function delay<T>(value: T, ms = LATENCY_MS): Promise<T> {
 /** A catalog entry joined with its live stock row. */
 export interface ProductView extends CatalogEntry {
   stock: StockRow | undefined;
+}
+
+/** One auth-scoped cart line (inventory.carts). */
+export interface CartItem {
+  productId: string;
+  qty: number;
+}
+
+/** The auth-scoped cart payload. */
+export interface Cart {
+  items: CartItem[];
+}
+
+/** Public vendor review (no user id / order ids — display fields only). */
+export interface VendorReview {
+  id: string;
+  vendorId: string;
+  app: string;
+  userName: string;
+  rating: number;
+  comment: string;
+  date: string;
+}
+
+/** Accepted `POST /events` vocabulary (server-enforced). */
+export type TrackableEvent = 'view' | 'cart_add' | 'order' | 'search';
+
+/** `POST /orders` request body. */
+export interface PlaceOrderInput {
+  items: CartItem[];
+  addressId?: string;
+  fulfillment?: 'DELIVERY' | 'PICKUP';
+  idempotencyKey?: string;
 }
 
 export class GatewayClient {
@@ -209,6 +243,116 @@ export class GatewayClient {
       products: this.joinStock(getCatalogEntriesByIds(section.productIds)),
     }));
     return delay(sections);
+  }
+
+  /** Public vendor reviews (server projection hides user_id / order_ids). */
+  async getVendorReviews(vendorId: string): Promise<VendorReview[]> {
+    return this.withFallback(
+      () => this.http<VendorReview[]>(`/vendors/${encodeURIComponent(vendorId)}/reviews`),
+      () => delay(this.getVendorReviewsMock(vendorId)),
+    );
+  }
+
+  private getVendorReviewsMock(vendorId: string): VendorReview[] {
+    return getReviewsByVendorId(vendorId).map((r: VendorReviewRow) => ({
+      id: r.id,
+      vendorId: r.vendorId,
+      app: r.app,
+      userName: r.userName,
+      rating: r.rating,
+      comment: r.comment,
+      date: r.date,
+    }));
+  }
+
+  /**
+   * Upsert the signed-in user's live rating for a vendor. The server re-checks the
+   * derived purchase gate, so a false result means "not a verified buyer".
+   * Mock fallback is a no-op (offline ratings are owned by vendorRatingStore).
+   */
+  async rateVendor(vendorId: string, rating: number, comment?: string): Promise<boolean> {
+    return this.withFallback(
+      () =>
+        this.http<{ ok: boolean }>(`/vendors/${encodeURIComponent(vendorId)}/rating`, {
+          method: 'PUT',
+          body: JSON.stringify({ rating, comment: comment ?? '' }),
+        }).then((r) => r.ok === true),
+      () => delay(false),
+    );
+  }
+
+  /** The auth-scoped cart (never edge-cached). */
+  async getCart(): Promise<Cart> {
+    return this.withFallback(
+      () => this.http<Cart>('/cart'),
+      () => delay({ items: [] as CartItem[] }),
+    );
+  }
+
+  async addToCart(productId: string, qty = 1): Promise<Cart> {
+    return this.withFallback(
+      () => this.http<Cart>('/cart/items', { method: 'POST', body: JSON.stringify({ productId, qty }) }),
+      () => delay({ items: [] as CartItem[] }),
+    );
+  }
+
+  async updateCartItem(productId: string, qty: number): Promise<Cart> {
+    return this.withFallback(
+      () => this.http<Cart>('/cart/items', { method: 'PUT', body: JSON.stringify({ productId, qty }) }),
+      () => delay({ items: [] as CartItem[] }),
+    );
+  }
+
+  async removeCartItem(productId: string): Promise<Cart> {
+    return this.withFallback(
+      () => this.http<Cart>(`/cart/items/${encodeURIComponent(productId)}`, { method: 'DELETE' }),
+      () => delay({ items: [] as CartItem[] }),
+    );
+  }
+
+  /** Place an order (server decrements stock + holds an idempotency lock). */
+  async placeOrder(input: PlaceOrderInput): Promise<OrderRow> {
+    return this.withFallback(
+      () => this.http<OrderRow>('/orders', { method: 'POST', body: JSON.stringify(input) }),
+      () => delay(this.placeOrderMock(input)),
+    );
+  }
+
+  private placeOrderMock(input: PlaceOrderInput): OrderRow {
+    const entries = getCatalogEntriesByIds(input.items.map((i) => i.productId));
+    const lineItems = input.items.map((it, idx) => {
+      const entry = entries.find((e) => e.id === it.productId);
+      return {
+        lineId: `local-${idx + 1}`,
+        productId: it.productId,
+        name: entry?.name ?? it.productId,
+        qty: it.qty,
+        unitPrice: entry?.price ?? 0,
+      };
+    });
+    const id = `ORD-LOCAL-${Date.now()}`;
+    return {
+      id,
+      orderNumber: `#${id}`,
+      userId: MOCK_USER_ID,
+      addressId: input.addressId ?? '',
+      placedAt: new Date().toISOString(),
+      status: 'Processing',
+      lineItems,
+      fulfillment: input.fulfillment,
+      vendorStoreIds: [],
+    };
+  }
+
+  /** Fire-and-forget behavior event (ID-only; mock fallback is a silent no-op). */
+  async trackEvent(productId: string, event: TrackableEvent = 'view'): Promise<void> {
+    await this.withFallback(
+      () =>
+        this.http<{ ok: boolean }>('/events', { method: 'POST', body: JSON.stringify({ productId, event }) }).then(
+          () => undefined,
+        ),
+      () => delay(undefined),
+    );
   }
 }
 

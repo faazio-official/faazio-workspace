@@ -105,6 +105,20 @@ Examples: `faazio:v1:stock:fm-f1`, `faazio:v1:search:q:hoodie`, `faazio:v1:sdui:
 - **Single-flight locks (checkout idempotency):** `SET faazio:v1:checkout:idem:{orderRef} 1 NX EX 300`
   prevents double-place of the same order; release on completion.
 
+### 7a. MVP implementation notes (built)
+
+- **Stock read-through is live** (`GET /stock/:id` → `faazio:v1:stock:{id}`, TTL 45 s); every order
+  decrement (`internal/checkout/service.go`) calls `Del(stock:{id})` after the `FOR UPDATE SKIP LOCKED`
+  update, so the next read reflects the sale (write-around).
+- **Orders** are cached per user for 60 s and invalidated on `POST /orders` (`Del(orders:{userId})`).
+  The recurrence/recommendation key `faazio:v1:reco:{userIdHash}` is **not** invalidated on order for
+  the MVP — a ≤1 h staleness window on recommendations is accepted (recompute on the Future Prod
+  Python service / `user_events` flush).
+- **SDUI layout publish (MVP, manual):** bump `sdui_layouts.version` and `Del(faazio:v1:gateway:sdui:*)`.
+  A `pg_notify`/Pub/Sub automation is Future Prod; the TTL (300 s) bounds staleness if the purge is missed.
+- **PII never enters the cache:** `GET /store/:id` caches only the redacted projection; authenticated
+  reads bypass the cache (see §8).
+
 ---
 
 ## 8. What NOT to cache

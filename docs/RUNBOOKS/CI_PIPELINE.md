@@ -13,12 +13,15 @@ it wastes the user's RAM. Local `npm run start` (Metro) is fine — it is the JS
 
 ## 📐 Pipeline overview
 
-Two workflows:
+Three workflows:
 
 - [`.github/workflows/release-apk.yml`](../../.github/workflows/release-apk.yml) — signed release
   APK → GitHub Release.
 - [`.github/workflows/android-debug.yml`](../../.github/workflows/android-debug.yml) — debug APK →
   downloadable Actions artifact (for device testing with a local Metro).
+- [`.github/workflows/server-gateway.yml`](../../.github/workflows/server-gateway.yml) — Go monolith
+  `build` / `vet` / `test` / `importlint` with Postgres + Valkey service containers (integration
+  tests run; they skip cleanly when the services are absent). Triggers on `server/**` changes.
 
 ```
 you (gh CLI) ──► GitHub Actions

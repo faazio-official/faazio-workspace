@@ -10,7 +10,8 @@
 
 The app will eventually be served by a backend instead of local `@data/*` mocks. This doc
 captures the **target** microservices layout so scaffolding follows one plan and no concern
-is silently re-invented. `server/` today holds only this plan.
+is silently re-invented. `server/` today holds the **built MVP monolith** (`server/gateway`) +
+Supabase migrations/seed; the full microservices below remain the Future Prod target.
 
 ## Runtime surfaces
 

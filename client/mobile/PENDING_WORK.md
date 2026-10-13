@@ -70,9 +70,11 @@ profile). The rating form is a root `RateVendor` route.
 - Food dining-venue identity table (`data/food/diningVenues.ts`) holds ids/names only —
   full venue-data migration remains a separate task.
 
-**Deferred:** the Go reviews service + endpoints (`server/README.md`, gateway plan,
-`db-schema.md` §7.7); the `DELIVERED`-only tightening; pagination/moderation on the
-public review list.
+**Deferred:** the `DELIVERED`-only tightening; moderation on the public review list. **Now built
+(server):** the Go reviews endpoints (`GET /vendors/:id/reviews`, `GET /vendors/:id/reviews/summary`,
+`PUT /vendors/:id/rating`) with the server-side derived purchase gate, plus the `GatewayClient`
+seam (`getVendorReviews`, `rateVendor`). The screen migration waits on Supabase phone OTP replacing
+`authStore.login()`.
 
 ---
 

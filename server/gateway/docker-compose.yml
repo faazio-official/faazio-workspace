@@ -32,6 +32,11 @@ services:
     command: ["valkey-server", "--save", "", "--appendonly", "no"]
     ports:
       - "6379:6379"
+    healthcheck:
+      test: ["CMD", "valkey-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
 
   mongo:
     image: mongo:7
@@ -41,11 +46,20 @@ services:
       - "27017:27017"
     volumes:
       - ../supabase/seed/mongo/seed.js:/docker-entrypoint-initdb.d/seed.js:ro
+    healthcheck:
+      test: ["CMD-SHELL", "mongosh --quiet --eval \"db.adminCommand('ping').ok\" | grep 1"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
 
   gateway:
     build: .
     depends_on:
       postgres:
+        condition: service_healthy
+      valkey:
+        condition: service_healthy
+      mongo:
         condition: service_healthy
     environment:
       GATEWAY_ADDR: ":8080"

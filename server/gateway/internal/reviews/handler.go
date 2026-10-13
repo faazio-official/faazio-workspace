@@ -3,12 +3,18 @@ package reviews
 import (
 	"errors"
 	"net/http"
+	"time"
 
 	"github.com/faazio/server/gateway/internal/contracts"
 	"github.com/faazio/server/gateway/internal/platform/auth"
 	"github.com/faazio/server/gateway/internal/platform/cache"
 	"github.com/faazio/server/gateway/internal/platform/httpx"
 	"github.com/go-chi/chi/v5"
+)
+
+const (
+	defaultReviewLimit = 50
+	maxReviewLimit     = 200
 )
 
 // Handler serves product + vendor review endpoints.
@@ -52,17 +58,40 @@ func (h *Handler) productReviews(w http.ResponseWriter, r *http.Request) {
 
 func (h *Handler) vendorReviews(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "id")
-	var cached []contracts.VendorReview
-	if h.cache.GetJSON(r.Context(), cache.VendorReviews(id), &cached) {
-		httpx.JSON(w, http.StatusOK, cached)
-		return
+	limit := httpx.LimitParam(r, defaultReviewLimit, maxReviewLimit)
+	cursorRaw := r.URL.Query().Get("cursor")
+
+	// The cache holds only the first page (no cursor); deeper pages hit the origin.
+	if cursorRaw == "" {
+		var cached []contracts.VendorReview
+		if h.cache.GetJSON(r.Context(), cache.VendorReviews(id), &cached) {
+			httpx.JSON(w, http.StatusOK, cached)
+			return
+		}
 	}
-	rows, err := h.repo.VendorReviews(r.Context(), id)
+
+	var (
+		cursorTime time.Time
+		cursorID   string
+		hasCursor  bool
+	)
+	if parts, ok := httpx.DecodeCursor(cursorRaw, 2); ok {
+		if t, err := time.Parse(time.RFC3339Nano, parts[0]); err == nil {
+			cursorTime, cursorID, hasCursor = t, parts[1], true
+		}
+	}
+
+	rows, lastCreated, lastID, hasMore, err := h.repo.VendorReviewsPage(r.Context(), id, limit, cursorTime, cursorID, hasCursor)
 	if err != nil {
 		httpx.Fail(w, http.StatusInternalServerError, "reviews_unavailable", "reviews unavailable")
 		return
 	}
-	h.cache.SetJSON(r.Context(), cache.VendorReviews(id), rows, cache.TTLReviews)
+	if cursorRaw == "" {
+		h.cache.SetJSON(r.Context(), cache.VendorReviews(id), rows, cache.TTLReviews)
+	}
+	if hasMore {
+		httpx.SetNextCursor(w, httpx.EncodeCursor(lastCreated.UTC().Format(time.RFC3339Nano), lastID))
+	}
 	httpx.JSON(w, http.StatusOK, rows)
 }
 

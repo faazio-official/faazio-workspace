@@ -49,6 +49,18 @@ go test ./...
 go run ./tools/importlint          # fails on sibling-context imports
 ```
 
+Unit tests run standalone. Integration tests (FTS, order lock/decrement, rating gate, PII
+redaction, keyset pagination) **skip** unless pointed at the compose stack:
+
+```bash
+TEST_DATABASE_URL='postgres://postgres:faazio@localhost:5432/faazio?sslmode=disable' \
+TEST_VALKEY_URL='redis://localhost:6379/0' \
+go test ./...
+```
+
+CI runs the full suite with Postgres + Valkey service containers
+(`.github/workflows/server-gateway.yml`).
+
 ## Endpoints
 
 | Method + path | Auth | Context |

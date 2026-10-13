@@ -37,6 +37,25 @@ func (r *Repo) ByApp(ctx context.Context, app string) ([]contracts.Store, error)
 	return scanStores(rows)
 }
 
+// ByAppPage returns stores ordered by (rating desc, id asc) using keyset pagination.
+// When hasCursor is true, rows at or before (cursorRating, cursorID) are skipped. The
+// query fetches limit+1 rows so the caller can tell whether another page exists.
+func (r *Repo) ByAppPage(ctx context.Context, app string, limit int, cursorRating float64, cursorID string, hasCursor bool) ([]contracts.Store, error) {
+	if r.pool == nil {
+		return nil, fmt.Errorf("directory: database not configured")
+	}
+	rows, err := r.pool.Query(ctx, storeSelect+`
+		where ($1 = '' or app::text = $1)
+		  and (not $2::bool or rating < $3::float8 or (rating = $3::float8 and id > $4))
+		order by rating desc, id asc
+		limit $5`, app, hasCursor, cursorRating, cursorID, limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	return scanStores(rows)
+}
+
 // ByID returns one store.
 func (r *Repo) ByID(ctx context.Context, id string) (contracts.Store, bool, error) {
 	if r.pool == nil {

@@ -769,8 +769,10 @@ The "lightweight, fast, secure" mandate (AGENTS.md) is enforced at build and del
 
 ## Honest limitations
 
-- **All data is mock** — served from `@data/*`, not a backend (see `data-layer-sdui.md`).
-- **`GatewayClient` is unwired** — screens still read legacy `@data/*` fixtures.
+- **Screen data is still mock** — screens read `@data/*`. The MVP gateway (Go monolith over
+  Supabase + Mongo + Valkey) is built and `GatewayClient` is wired with a `@data/*` fallback;
+  per-screen `@mock` → `@server` migration is in progress and waits on Supabase phone OTP
+  replacing `authStore.login()` (see `data-layer-sdui.md`).
 - **Duplicated mock data** in a few screens (`PharmaScreen`, `FoodScreen` booking dishes,
   `ProductDetailView`) — canonical copies exist under `@data/` marked `@unused`; de-dup is
   a tracked priority (see `data/DATA_CONTROL.md` "Known Gaps").

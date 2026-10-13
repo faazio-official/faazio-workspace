@@ -79,6 +79,8 @@ func (s *Service) CreateOrder(ctx context.Context, userID string, req PlaceOrder
 		} else if !ok {
 			return Order{}, ErrInsufficientStock
 		}
+		// Invalidate the stock read-through cache so the next GET reflects the decrement.
+		s.cache.Del(ctx, cache.Stock(it.ProductID))
 		lines = append(lines, OrderLineItem{
 			LineID:    fmt.Sprintf("%s-l%d", newOrderID(), i+1),
 			ProductID: it.ProductID,
