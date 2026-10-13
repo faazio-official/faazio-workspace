@@ -48,3 +48,49 @@ func TestEarnAndView(t *testing.T) {
 		t.Fatalf("ledger = %+v", after.Ledger)
 	}
 }
+
+func TestRatesAndLedger(t *testing.T) {
+	pool := testenv.Pool(t)
+	repo := New(pool)
+	ctx := context.Background()
+
+	orig := repo.Rates(ctx)
+	t.Cleanup(func() { _, _ = repo.SetRates(ctx, orig) })
+
+	const uid = "user-rewards-rate-test"
+	if _, err := pool.Exec(ctx, `
+		insert into checkout.users (user_id, name, email, phone) values ($1, 'T', 't@t', '0')
+		on conflict (user_id) do nothing`, uid); err != nil {
+		t.Fatalf("seed test user: %v", err)
+	}
+	t.Cleanup(func() { pool.Exec(ctx, `delete from checkout.users where user_id = $1`, uid) })
+
+	// Tune the earn rate to ₹500/coin; a ₹2500 paid order then earns 5 coins.
+	if _, err := repo.SetRates(ctx, RateSet{
+		CoinEarnRate: 500, CoinRedeemRate: 100, StreakTargetDays: 7,
+		DiscountCardPercent: 10, CardValidityDays: 5,
+	}); err != nil {
+		t.Fatalf("SetRates: %v", err)
+	}
+	got := repo.Rates(ctx)
+	if got.CoinEarnRate != 500 {
+		t.Fatalf("Rates echo = %+v, want coinEarnRate 500", got)
+	}
+	if err := repo.Earn(ctx, uid, "ORD-TEST-RATE", 2500, 0); err != nil {
+		t.Fatalf("Earn: %v", err)
+	}
+	view, err := repo.View(ctx, uid)
+	if err != nil {
+		t.Fatalf("View: %v", err)
+	}
+	if view.Coins != 5 {
+		t.Fatalf("coins = %d, want 5 at the tuned rate", view.Coins)
+	}
+	ledger, err := repo.Ledger(ctx, uid, 10)
+	if err != nil {
+		t.Fatalf("Ledger: %v", err)
+	}
+	if len(ledger) != 1 || ledger[0].Coins != 5 {
+		t.Fatalf("ledger = %+v", ledger)
+	}
+}

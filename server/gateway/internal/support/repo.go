@@ -20,6 +20,7 @@ type Ticket struct {
 	TicketID  string `json:"ticketId"`
 	UserID    string `json:"userId,omitempty"`
 	SellerID  string `json:"sellerId,omitempty"`
+	StateCode string `json:"stateCode,omitempty"`
 	Subject   string `json:"subject"`
 	Body      string `json:"body"`
 	Status    string `json:"status"`
@@ -45,16 +46,17 @@ type Repo struct {
 // New returns a support repo.
 func New(pool *db.Pool) *Repo { return &Repo{pool: pool} }
 
-// Tickets lists tickets scoped by user and/or seller.
-func (r *Repo) Tickets(ctx context.Context, userID, sellerID string) ([]Ticket, error) {
+// Tickets lists tickets scoped by user, seller and/or state (empty = all).
+func (r *Repo) Tickets(ctx context.Context, userID, sellerID, stateCode string) ([]Ticket, error) {
 	if r.pool == nil {
 		return nil, fmt.Errorf("support: database not configured")
 	}
 	rows, err := r.pool.Query(ctx, `
-		select ticket_id, coalesce(user_id,''), coalesce(seller_id,''), subject, body, status::text, created_at
+		select ticket_id, coalesce(user_id,''), coalesce(seller_id,''), coalesce(state_code,''),
+		       subject, body, status::text, created_at
 		  from support.tickets
-		 where ($1 = '' or user_id = $1) and ($2 = '' or seller_id = $2)
-		 order by created_at desc`, userID, sellerID)
+		 where ($1 = '' or user_id = $1) and ($2 = '' or seller_id = $2) and ($3 = '' or state_code = $3)
+		 order by created_at desc`, userID, sellerID, stateCode)
 	if err != nil {
 		return nil, err
 	}
@@ -65,7 +67,7 @@ func (r *Repo) Tickets(ctx context.Context, userID, sellerID string) ([]Ticket, 
 			t         Ticket
 			createdAt time.Time
 		)
-		if err := rows.Scan(&t.TicketID, &t.UserID, &t.SellerID, &t.Subject, &t.Body, &t.Status, &createdAt); err != nil {
+		if err := rows.Scan(&t.TicketID, &t.UserID, &t.SellerID, &t.StateCode, &t.Subject, &t.Body, &t.Status, &createdAt); err != nil {
 			return nil, err
 		}
 		t.CreatedAt = createdAt.UTC().Format(time.RFC3339)

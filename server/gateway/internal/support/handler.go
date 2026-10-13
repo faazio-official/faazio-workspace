@@ -43,9 +43,14 @@ func (h *Handler) Register(r chi.Router) {
 }
 
 func (h *Handler) listTickets(w http.ResponseWriter, r *http.Request) {
-	var userID, sellerID string
+	var userID, sellerID, stateCode string
 	switch auth.Role(r.Context()) {
-	case auth.RoleStateAdmin, auth.RoleSuperAdmin:
+	case auth.RoleStateAdmin:
+		stateCode = auth.StateCode(r.Context())
+		userID = strings.TrimSpace(r.URL.Query().Get("userId"))
+		sellerID = strings.TrimSpace(r.URL.Query().Get("sellerId"))
+	case auth.RoleSuperAdmin:
+		stateCode = strings.ToUpper(strings.TrimSpace(r.URL.Query().Get("state")))
 		userID = strings.TrimSpace(r.URL.Query().Get("userId"))
 		sellerID = strings.TrimSpace(r.URL.Query().Get("sellerId"))
 	case auth.RoleSeller:
@@ -53,7 +58,7 @@ func (h *Handler) listTickets(w http.ResponseWriter, r *http.Request) {
 	default:
 		userID = auth.UserID(r.Context())
 	}
-	items, err := h.repo.Tickets(r.Context(), userID, sellerID)
+	items, err := h.repo.Tickets(r.Context(), userID, sellerID, stateCode)
 	if err != nil {
 		httpx.Fail(w, http.StatusInternalServerError, "support_unavailable", "support unavailable")
 		return

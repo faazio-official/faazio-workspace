@@ -45,3 +45,51 @@ func TestAuditAndStateAdmins(t *testing.T) {
 		t.Fatalf("DeleteStateAdmin: %v", err)
 	}
 }
+
+func TestCustomersProjection(t *testing.T) {
+	pool := testenv.Pool(t)
+	repo := New(pool)
+	ctx := context.Background()
+
+	uid := "user-cust-" + shortID()
+	orderID := "ord-" + shortID()
+	if _, err := pool.Exec(ctx, `
+		insert into checkout.users (user_id, name, email, phone, state_code)
+		values ($1, 'Customer Test', 'c@t', '0', 'KA')`, uid); err != nil {
+		t.Fatalf("seed user: %v", err)
+	}
+	t.Cleanup(func() { _, _ = pool.Exec(ctx, `delete from checkout.users where user_id=$1`, uid) })
+	if _, err := pool.Exec(ctx, `
+		insert into checkout.orders (order_id, order_number, user_id, placed_at, status, total_paisa)
+		values ($1, 'CUST-1', $2, now(), 'Delivered', 12345)`, orderID, uid); err != nil {
+		t.Fatalf("seed order: %v", err)
+	}
+	t.Cleanup(func() { _, _ = pool.Exec(ctx, `delete from checkout.orders where order_id=$1`, orderID) })
+
+	list, err := repo.Customers(ctx, "KA", 10)
+	if err != nil {
+		t.Fatalf("Customers: %v", err)
+	}
+	var found *Customer
+	for i := range list {
+		if list[i].UserID == uid {
+			found = &list[i]
+		}
+	}
+	if found == nil {
+		t.Fatalf("customer %s missing from projection", uid)
+	}
+	if found.OrdersCount != 1 || found.Spend != 123 { // 12345 paisa -> 123 rupees (integer)
+		t.Fatalf("customer projection wrong: %+v", *found)
+	}
+	// Other states are filtered out.
+	other, err := repo.Customers(ctx, "DL", 10)
+	if err != nil {
+		t.Fatalf("Customers DL: %v", err)
+	}
+	for _, c := range other {
+		if c.UserID == uid {
+			t.Fatal("state filter leaked a KA customer into DL")
+		}
+	}
+}

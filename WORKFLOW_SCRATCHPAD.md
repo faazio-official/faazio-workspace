@@ -176,6 +176,12 @@ wire. Mobile `GatewayClient.ts` + `@data/*` already speak integer rupees — unc
 - [x] `platform/auth` role middleware (seller→own, state→state_code, super→all)
 - [x] new cache keys/TTLs (`sellers`, `promo`, `ads`, `settlement`) + cache_test freeze
 - [x] tests: paisa roundtrip, cross-seller denial, seller order/booking/rx transitions, live flag, blood delete
+- [x] **(v3, 0017)** `internal/admins` `GET /customers` (redacted `checkout.users_admin`, state-scoped);
+      `internal/directory` `GET/POST/PUT /seller/menus` + `/status` + `DELETE` (seller-scoped, purges
+      `directory:menu:{venueId}`); `internal/rewards` `GET /rewards/ledger` + `GET`/`PUT /rewards/rates`
+      (Earn reads the rates row, defaults on absence) + `REWARDS_RATES_UPDATE` audit;
+      `internal/support` `?state=` ticket filter (state claim / super query)
+- [x] tests (v3): customers projection + state filter, menu lifecycle cross-seller denial, rates-tuned earn + ledger, ticket state filter
 
 ## 10. Decisions (approved)
 

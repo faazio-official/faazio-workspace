@@ -193,6 +193,57 @@ func (r *Repo) DeleteStateAdmin(ctx context.Context, adminID string) error {
 	return err
 }
 
+// Customer is one checkout.users_admin projection row — PII-redacted (no phone/address/email).
+type Customer struct {
+	UserID      string `json:"userId"`
+	Name        string `json:"name"`
+	StateCode   string `json:"stateCode,omitempty"`
+	OrdersCount int64  `json:"ordersCount"`
+	Spend       int64  `json:"spend"` // whole rupees
+	LastOrderAt string `json:"lastOrderAt,omitempty"`
+	CreatedAt   string `json:"createdAt,omitempty"`
+}
+
+// Customers reads the PII-safe customer projection, optionally scoped to one state. The gateway
+// connects as service_role, so it reads the full (redacted) view; direct Supabase clients are never
+// granted SELECT on it (0017).
+func (r *Repo) Customers(ctx context.Context, stateCode string, limit int) ([]Customer, error) {
+	if r.pool == nil {
+		return nil, fmt.Errorf("admins: database not configured")
+	}
+	if limit <= 0 || limit > 500 {
+		limit = 200
+	}
+	rows, err := r.pool.Query(ctx, `
+		select user_id, name, coalesce(state_code,''), orders_count, spend_paisa, last_order_at, created_at
+		  from checkout.users_admin
+		 where ($1 = '' or state_code = $1)
+		 order by spend_paisa desc, user_id asc
+		 limit $2`, stateCode, limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := []Customer{}
+	for rows.Next() {
+		var (
+			c           Customer
+			lastOrderAt *time.Time
+			createdAt   time.Time
+		)
+		if err := rows.Scan(&c.UserID, &c.Name, &c.StateCode, &c.OrdersCount, &c.Spend, &lastOrderAt, &createdAt); err != nil {
+			return nil, err
+		}
+		c.Spend = c.Spend / 100
+		if lastOrderAt != nil {
+			c.LastOrderAt = lastOrderAt.UTC().Format(time.RFC3339)
+		}
+		c.CreatedAt = createdAt.UTC().Format(time.RFC3339)
+		out = append(out, c)
+	}
+	return out, rows.Err()
+}
+
 func shortID() string {
 	b := make([]byte, 5)
 	_, _ = rand.Read(b)

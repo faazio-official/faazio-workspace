@@ -40,6 +40,11 @@ func (h *Handler) Register(r chi.Router) {
 		g.Use(auth.RequireRole(auth.RoleSeller, auth.RoleStateAdmin, auth.RoleSuperAdmin))
 		g.Get("/seller/stores", h.sellerStores)
 		g.Put("/seller/stores/{id}/live", h.setStoreLive)
+		g.Get("/seller/menus", h.sellerMenus)
+		g.Post("/seller/menus", h.upsertMenu)
+		g.Put("/seller/menus/{venueId}/{dishId}", h.upsertMenu)
+		g.Put("/seller/menus/{venueId}/{dishId}/status", h.setMenuStatus)
+		g.Delete("/seller/menus/{venueId}/{dishId}", h.deleteMenu)
 	})
 }
 
@@ -199,7 +204,7 @@ func (h *Handler) setStoreLive(w http.ResponseWriter, r *http.Request) {
 	}
 	// The store projection is cached per id (24 h) for anonymous callers.
 	h.cache.Del(r.Context(), cache.Store(id))
-	h.log(r, "STORE_LIVE_"+boolToken(*body.Live), id)
+	h.log(r, "directory.stores", "STORE_LIVE_"+boolToken(*body.Live), id)
 	httpx.JSON(w, http.StatusOK, store)
 }
 
@@ -210,7 +215,145 @@ func boolToken(b bool) string {
 	return "OFF"
 }
 
-func (h *Handler) log(r *http.Request, action, entityID string) {
+func (h *Handler) sellerMenus(w http.ResponseWriter, r *http.Request) {
+	sellerID := strings.TrimSpace(r.URL.Query().Get("sellerId"))
+	if auth.Role(r.Context()) == auth.RoleSeller {
+		sellerID = auth.SellerID(r.Context())
+		if sellerID == "" {
+			httpx.Fail(w, http.StatusForbidden, "forbidden", "no seller scope on this account")
+			return
+		}
+	}
+	items, err := h.repo.SellerMenus(r.Context(), sellerID, strings.TrimSpace(r.URL.Query().Get("venueId")))
+	if err != nil {
+		httpx.Fail(w, http.StatusInternalServerError, "directory_unavailable", "directory unavailable")
+		return
+	}
+	httpx.JSON(w, http.StatusOK, items)
+}
+
+type menuRequest struct {
+	VenueID string   `json:"venueId"`
+	DishID  string   `json:"dishId"`
+	Name    string   `json:"name"`
+	Price   int64    `json:"price"`
+	IsVeg   *bool    `json:"isVeg"`
+	Cuisine string   `json:"cuisine"`
+	Rating  *float64 `json:"rating"`
+	Image   string   `json:"image"`
+}
+
+func (h *Handler) upsertMenu(w http.ResponseWriter, r *http.Request) {
+	var req menuRequest
+	if err := httpx.Decode(r, &req); err != nil {
+		httpx.Fail(w, http.StatusBadRequest, "bad_request", "invalid request body")
+		return
+	}
+	if v := chi.URLParam(r, "venueId"); v != "" {
+		req.VenueID = v
+	}
+	if d := chi.URLParam(r, "dishId"); d != "" {
+		req.DishID = d
+	}
+	req.VenueID = strings.TrimSpace(req.VenueID)
+	req.DishID = strings.TrimSpace(req.DishID)
+	req.Name = strings.TrimSpace(req.Name)
+	if req.VenueID == "" || req.DishID == "" || req.Name == "" || req.Price < 0 {
+		httpx.Fail(w, http.StatusBadRequest, "bad_request", "venueId, dishId, name and a non-negative price are required")
+		return
+	}
+	admin := roleAdmin(r)
+	sellerID := auth.SellerID(r.Context())
+	if !admin && sellerID == "" {
+		httpx.Fail(w, http.StatusForbidden, "forbidden", "no seller scope on this account")
+		return
+	}
+	m, ok, err := h.repo.UpsertMenu(r.Context(), SellerMenu{
+		VenueID: req.VenueID, DishID: req.DishID, Name: req.Name, Price: req.Price,
+		IsVeg: req.IsVeg, Cuisine: req.Cuisine, Rating: req.Rating, Image: req.Image,
+	}, sellerID, admin)
+	if err != nil {
+		httpx.Fail(w, http.StatusInternalServerError, "directory_unavailable", "directory unavailable")
+		return
+	}
+	if !ok {
+		httpx.Fail(w, http.StatusForbidden, "forbidden", "dish belongs to another seller")
+		return
+	}
+	h.cache.Del(r.Context(), cache.Menu(req.VenueID))
+	h.log(r, "directory.menus", "MENU_UPSERT", req.VenueID+":"+req.DishID)
+	httpx.JSON(w, http.StatusOK, m)
+}
+
+func (h *Handler) setMenuStatus(w http.ResponseWriter, r *http.Request) {
+	status := ""
+	var body struct {
+		Status string `json:"status"`
+	}
+	if err := httpx.Decode(r, &body); err != nil {
+		httpx.Fail(w, http.StatusBadRequest, "bad_request", "invalid request body")
+		return
+	}
+	status = strings.ToUpper(strings.TrimSpace(body.Status))
+	admin := roleAdmin(r)
+	if !allowedMenuStatus(status, admin) {
+		httpx.Fail(w, http.StatusBadRequest, "bad_request", "status not permitted for this role")
+		return
+	}
+	venueID := chi.URLParam(r, "venueId")
+	m, ok, err := h.repo.SetMenuStatus(r.Context(), venueID, chi.URLParam(r, "dishId"), auth.SellerID(r.Context()), status, admin)
+	if err != nil {
+		httpx.Fail(w, http.StatusInternalServerError, "directory_unavailable", "directory unavailable")
+		return
+	}
+	if !ok {
+		httpx.Fail(w, http.StatusNotFound, "not_found", "dish not found")
+		return
+	}
+	h.cache.Del(r.Context(), cache.Menu(venueID))
+	h.log(r, "directory.menus", "MENU_"+status, venueID+":"+m.DishID)
+	httpx.JSON(w, http.StatusOK, m)
+}
+
+func (h *Handler) deleteMenu(w http.ResponseWriter, r *http.Request) {
+	venueID := chi.URLParam(r, "venueId")
+	ok, err := h.repo.DeleteMenu(r.Context(), venueID, chi.URLParam(r, "dishId"), auth.SellerID(r.Context()), roleAdmin(r))
+	if err != nil {
+		httpx.Fail(w, http.StatusInternalServerError, "directory_unavailable", "directory unavailable")
+		return
+	}
+	if !ok {
+		httpx.Fail(w, http.StatusNotFound, "not_found", "dish not found")
+		return
+	}
+	h.cache.Del(r.Context(), cache.Menu(venueID))
+	h.log(r, "directory.menus", "MENU_DELETE", venueID)
+	httpx.JSON(w, http.StatusOK, map[string]bool{"ok": true})
+}
+
+func roleAdmin(r *http.Request) bool {
+	role := auth.Role(r.Context())
+	return role == auth.RoleStateAdmin || role == auth.RoleSuperAdmin
+}
+
+// allowedMenuStatus mirrors catalog's product-status gate: sellers self-serve DRAFT/PENDING/DELISTED,
+// admins moderate ACTIVE/REJECTED/DELISTED.
+func allowedMenuStatus(status string, admin bool) bool {
+	if admin {
+		switch status {
+		case "ACTIVE", "REJECTED", "DELISTED":
+			return true
+		}
+		return false
+	}
+	switch status {
+	case "DRAFT", "PENDING_REVIEW", "DELISTED":
+		return true
+	}
+	return false
+}
+
+func (h *Handler) log(r *http.Request, entity, action, entityID string) {
 	if h.audit == nil {
 		return
 	}
@@ -228,6 +371,6 @@ func (h *Handler) log(r *http.Request, action, entityID string) {
 	raw, _ := json.Marshal(map[string]string{"action": action})
 	_ = h.audit.Audit(r.Context(), contracts.AuditEntry{
 		ActorID: actorID, ActorRole: role, Action: action,
-		Entity: "directory.stores", EntityID: entityID, After: raw,
+		Entity: entity, EntityID: entityID, After: raw,
 	})
 }

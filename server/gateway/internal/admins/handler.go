@@ -24,6 +24,7 @@ func (h *Handler) Register(r chi.Router) {
 	r.Group(func(g chi.Router) {
 		g.Use(auth.RequireRole(auth.RoleStateAdmin, auth.RoleSuperAdmin))
 		g.Get("/audit-logs", h.listLogs)
+		g.Get("/customers", h.listCustomers)
 	})
 	// State-admin directory: super admin only.
 	r.Group(func(g chi.Router) {
@@ -44,6 +45,19 @@ func (h *Handler) listLogs(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	httpx.JSON(w, http.StatusOK, logs)
+}
+
+func (h *Handler) listCustomers(w http.ResponseWriter, r *http.Request) {
+	stateCode := strings.ToUpper(strings.TrimSpace(r.URL.Query().Get("state")))
+	if auth.Role(r.Context()) == auth.RoleStateAdmin {
+		stateCode = auth.StateCode(r.Context())
+	}
+	items, err := h.repo.Customers(r.Context(), stateCode, httpx.LimitParam(r, 200, 500))
+	if err != nil {
+		httpx.Fail(w, http.StatusInternalServerError, "customers_unavailable", "customers unavailable")
+		return
+	}
+	httpx.JSON(w, http.StatusOK, items)
 }
 
 func (h *Handler) listAdmins(w http.ResponseWriter, r *http.Request) {

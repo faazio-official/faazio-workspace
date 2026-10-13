@@ -15,7 +15,9 @@ import (
 	"github.com/jackc/pgx/v5"
 )
 
-// Reward-rate constants mirror @data/rewards (frozen; a future admin console owns these).
+// Reward-rate defaults mirror @data/rewards (frozen). The admin console may override them via the
+// single rewards.rates row (0008/0017); the defaults are used when that row or table is absent, so
+// reward earning never fails because of a missing config row.
 const (
 	coinEarnRate        = 1000 // rupees spent per coin earned
 	coinRedeemRate      = 100  // coins per ₹1 of redemption value
@@ -23,6 +25,104 @@ const (
 	discountCardPercent = 10
 	cardValidityDays    = 5
 )
+
+// RateSet is the tunable rewards program (rewards.rates). It mirrors the constants above; the admin
+// console edits the row, and Earn reads it live so a change applies to the next order.
+type RateSet struct {
+	CoinEarnRate        int64 `json:"coinEarnRate"`
+	CoinRedeemRate      int64 `json:"coinRedeemRate"`
+	StreakTargetDays    int64 `json:"streakTargetDays"`
+	DiscountCardPercent int64 `json:"discountCardPercent"`
+	CardValidityDays    int64 `json:"cardValidityDays"`
+	UpdatedAt           string `json:"updatedAt,omitempty"`
+}
+
+func defaultRates() RateSet {
+	return RateSet{
+		CoinEarnRate: coinEarnRate, CoinRedeemRate: coinRedeemRate,
+		StreakTargetDays: streakTargetDays, DiscountCardPercent: discountCardPercent,
+		CardValidityDays: cardValidityDays,
+	}
+}
+
+// Rates returns the configured rewards program, falling back to the frozen defaults when the row or
+// table is absent (so it is always safe to call).
+func (r *Repo) Rates(ctx context.Context) RateSet {
+	rs := defaultRates()
+	if r.pool == nil {
+		return rs
+	}
+	var updatedAt time.Time
+	err := r.pool.QueryRow(ctx, `
+		select coin_earn_rate, coin_redeem_rate, streak_target_days, discount_card_percent,
+		       card_validity_days, updated_at
+		  from rewards.rates where rate_id = 'default'`).
+		Scan(&rs.CoinEarnRate, &rs.CoinRedeemRate, &rs.StreakTargetDays, &rs.DiscountCardPercent,
+			&rs.CardValidityDays, &updatedAt)
+	if err != nil {
+		return defaultRates()
+	}
+	rs.UpdatedAt = updatedAt.UTC().Format(time.RFC3339)
+	return rs
+}
+
+// SetRates upserts the single default rewards program row.
+func (r *Repo) SetRates(ctx context.Context, rs RateSet) (RateSet, error) {
+	if r.pool == nil {
+		return RateSet{}, fmt.Errorf("rewards: database not configured")
+	}
+	var updatedAt time.Time
+	err := r.pool.QueryRow(ctx, `
+		insert into rewards.rates
+			(rate_id, coin_earn_rate, coin_redeem_rate, streak_target_days, discount_card_percent, card_validity_days)
+		values ('default', $1, $2, $3, $4, $5)
+		on conflict (rate_id) do update
+		   set coin_earn_rate = excluded.coin_earn_rate,
+		       coin_redeem_rate = excluded.coin_redeem_rate,
+		       streak_target_days = excluded.streak_target_days,
+		       discount_card_percent = excluded.discount_card_percent,
+		       card_validity_days = excluded.card_validity_days,
+		       updated_at = now()
+		returning updated_at`,
+		rs.CoinEarnRate, rs.CoinRedeemRate, rs.StreakTargetDays, rs.DiscountCardPercent, rs.CardValidityDays).
+		Scan(&updatedAt)
+	if err != nil {
+		return RateSet{}, err
+	}
+	rs.UpdatedAt = updatedAt.UTC().Format(time.RFC3339)
+	return rs, nil
+}
+
+// Ledger returns one user's most recent ledger entries (admin view; the server is the only writer).
+func (r *Repo) Ledger(ctx context.Context, userID string, limit int) ([]LedgerEntry, error) {
+	if r.pool == nil {
+		return nil, fmt.Errorf("rewards: database not configured")
+	}
+	if limit <= 0 || limit > 200 {
+		limit = 100
+	}
+	rows, err := r.pool.Query(ctx, `
+		select id, type::text, coins, rupees, coalesce(order_id,''), created_at
+		  from rewards.ledger where ($1 = '' or user_id = $1)
+		 order by created_at desc limit $2`, userID, limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := []LedgerEntry{}
+	for rows.Next() {
+		var (
+			e  LedgerEntry
+			at time.Time
+		)
+		if err := rows.Scan(&e.ID, &e.Type, &e.Coins, &e.Rupees, &e.OrderID, &at); err != nil {
+			return nil, err
+		}
+		e.At = at.UTC().Format(time.RFC3339)
+		out = append(out, e)
+	}
+	return out, rows.Err()
+}
 
 // Balance is a rewards.balances row.
 type Balance struct {
@@ -64,6 +164,7 @@ func (r *Repo) Earn(ctx context.Context, userID, orderID string, paidRupees, coi
 	if r.pool == nil {
 		return fmt.Errorf("rewards: database not configured")
 	}
+	rates := r.Rates(ctx)
 	tx, err := r.pool.Begin(ctx)
 	if err != nil {
 		return err
@@ -106,12 +207,12 @@ func (r *Repo) Earn(ctx context.Context, userID, orderID string, paidRupees, coi
 
 	// Discount card grant at the streak target.
 	var newCard []byte
-	if streakChanged && streak >= streakTargetDays {
+	if streakChanged && streak >= rates.StreakTargetDays {
 		c := map[string]any{
 			"id":        "card-" + shortID(),
-			"percent":   discountCardPercent,
+			"percent":   rates.DiscountCardPercent,
 			"grantedAt": now.Format(time.RFC3339),
-			"expiresAt": now.AddDate(0, 0, cardValidityDays).Format(time.RFC3339),
+			"expiresAt": now.AddDate(0, 0, int(rates.CardValidityDays)).Format(time.RFC3339),
 		}
 		newCard, _ = json.Marshal(c)
 		streak = 0
@@ -124,7 +225,7 @@ func (r *Repo) Earn(ctx context.Context, userID, orderID string, paidRupees, coi
 	if coinsRedeemed > coins {
 		coinsRedeemed = coins
 	}
-	earned := paidRupees / coinEarnRate
+	earned := paidRupees / rates.CoinEarnRate
 	if paidRupees < 0 {
 		earned = 0
 	}
@@ -140,7 +241,7 @@ func (r *Repo) Earn(ctx context.Context, userID, orderID string, paidRupees, coi
 		}
 	}
 	if coinsRedeemed > 0 {
-		if _, err := tx.Exec(ctx, `insert into rewards.ledger (id, user_id, type, coins, rupees, order_id) values ($1,$2,'REDEEM',$3,$4,$5)`, "rw-"+shortID(), userID, -coinsRedeemed, coinsRedeemed/coinRedeemRate, nullIfEmpty(orderID)); err != nil {
+		if _, err := tx.Exec(ctx, `insert into rewards.ledger (id, user_id, type, coins, rupees, order_id) values ($1,$2,'REDEEM',$3,$4,$5)`, "rw-"+shortID(), userID, -coinsRedeemed, coinsRedeemed/rates.CoinRedeemRate, nullIfEmpty(orderID)); err != nil {
 			return err
 		}
 	}

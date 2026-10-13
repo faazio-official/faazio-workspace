@@ -110,7 +110,7 @@ func NewRouter(d Deps) http.Handler {
 	directory.NewHandler(directoryRepo, d.Cache, adminsRepo).Register(r)
 	cartstock.NewHandler(cartRepo, d.Cache).Register(r)
 	favourites.NewHandler(favouritesRepo, d.Cache).Register(r)
-	rewards.NewHandler(rewardsRepo, d.Cache).Register(r)
+	rewards.NewHandler(rewardsRepo, d.Cache, adminsRepo).Register(r)
 	pharma.NewHandler(pharmaRepo, pharmaStorage, d.Cache, adminsRepo).Register(r)
 	blood.NewHandler(bloodRepo, d.Cache, adminsRepo).Register(r)
 	bookings.NewHandler(bookingsRepo, d.Cache, adminsRepo).Register(r)

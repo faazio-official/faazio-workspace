@@ -257,3 +257,151 @@ func (r *Repo) SetStoreLive(ctx context.Context, id, sellerID string, live, admi
 	s.UpdatedAt = updatedAt.UTC().Format(time.RFC3339)
 	return s, true, nil
 }
+
+// SellerMenu is the portal-facing menu-management projection (includes seller scope + status).
+type SellerMenu struct {
+	VenueID  string   `json:"venueId"`
+	DishID   string   `json:"dishId"`
+	Name     string   `json:"name"`
+	Price    int64    `json:"price"` // rupees
+	IsVeg    *bool    `json:"isVeg,omitempty"`
+	Cuisine  string   `json:"cuisine,omitempty"`
+	Rating   *float64 `json:"rating,omitempty"`
+	Image    string   `json:"image,omitempty"`
+	SellerID string   `json:"sellerId,omitempty"`
+	Status   string   `json:"status"`
+}
+
+const sellerMenuSelect = `
+select venue_id, dish_id, name, price_paisa, is_veg, cuisine, rating, image,
+       coalesce(seller_id,''), status::text
+from directory.menus`
+
+// SellerMenus lists menus scoped by seller and/or venue (empty filters = all). Admin moderation sees
+// every status; a seller only ever queries their own seller_id.
+func (r *Repo) SellerMenus(ctx context.Context, sellerID, venueID string) ([]SellerMenu, error) {
+	if r.pool == nil {
+		return nil, fmt.Errorf("directory: database not configured")
+	}
+	rows, err := r.pool.Query(ctx, sellerMenuSelect+`
+		where ($1 = '' or seller_id = $1)
+		  and ($2 = '' or venue_id = $2)
+		order by venue_id asc, name asc`, sellerID, venueID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := []SellerMenu{}
+	for rows.Next() {
+		var (
+			m       SellerMenu
+			isVeg   *bool
+			cuisine *string
+			rating  *float64
+		)
+		if err := rows.Scan(&m.VenueID, &m.DishID, &m.Name, &m.Price, &isVeg, &cuisine, &rating, &m.Image, &m.SellerID, &m.Status); err != nil {
+			return nil, err
+		}
+		m.Price = m.Price / 100
+		m.IsVeg = isVeg
+		m.Rating = rating
+		if cuisine != nil {
+			m.Cuisine = *cuisine
+		}
+		out = append(out, m)
+	}
+	return out, rows.Err()
+}
+
+// UpsertMenu inserts (owner = sellerID) or updates a dish. A non-admin may only update their own
+// row; an update outside scope returns ok=false without changing data.
+func (r *Repo) UpsertMenu(ctx context.Context, m SellerMenu, sellerID string, admin bool) (SellerMenu, bool, error) {
+	if r.pool == nil {
+		return SellerMenu{}, false, fmt.Errorf("directory: database not configured")
+	}
+	var (
+		out     SellerMenu
+		isVeg   *bool
+		cuisine *string
+		rating  *float64
+	)
+	err := r.pool.QueryRow(ctx, `
+		insert into directory.menus (venue_id, dish_id, name, price_paisa, is_veg, cuisine, rating, image, seller_id, status)
+		values ($1,$2,$3,$4,$5,$6,$7,$8,$9,'DRAFT')
+		on conflict (venue_id, dish_id) do update
+		   set name = excluded.name, price_paisa = excluded.price_paisa, is_veg = excluded.is_veg,
+		       cuisine = excluded.cuisine, rating = excluded.rating, image = excluded.image
+		 where $10 or directory.menus.seller_id = $9
+		returning venue_id, dish_id, name, price_paisa, is_veg, cuisine, rating, image,
+		          coalesce(seller_id,''), status::text`,
+		m.VenueID, m.DishID, m.Name, m.Price*100, m.IsVeg, nullIfEmpty(m.Cuisine), m.Rating, m.Image, sellerID, admin).
+		Scan(&out.VenueID, &out.DishID, &out.Name, &out.Price, &isVeg, &cuisine, &rating, &out.Image, &out.SellerID, &out.Status)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return SellerMenu{}, false, nil
+		}
+		return SellerMenu{}, false, err
+	}
+	out.Price = out.Price / 100
+	out.IsVeg = isVeg
+	out.Rating = rating
+	if cuisine != nil {
+		out.Cuisine = *cuisine
+	}
+	return out, true, nil
+}
+
+// SetMenuStatus updates a dish's moderation status, scoped like UpsertMenu.
+func (r *Repo) SetMenuStatus(ctx context.Context, venueID, dishID, sellerID, status string, admin bool) (SellerMenu, bool, error) {
+	if r.pool == nil {
+		return SellerMenu{}, false, fmt.Errorf("directory: database not configured")
+	}
+	var (
+		m       SellerMenu
+		isVeg   *bool
+		cuisine *string
+		rating  *float64
+	)
+	err := r.pool.QueryRow(ctx, `
+		update directory.menus set status = $4::product_status
+		 where venue_id = $1 and dish_id = $2 and ($5 or seller_id = $3)
+		 returning venue_id, dish_id, name, price_paisa, is_veg, cuisine, rating, image,
+		           coalesce(seller_id,''), status::text`,
+		venueID, dishID, sellerID, status, admin).
+		Scan(&m.VenueID, &m.DishID, &m.Name, &m.Price, &isVeg, &cuisine, &rating, &m.Image, &m.SellerID, &m.Status)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return SellerMenu{}, false, nil
+		}
+		return SellerMenu{}, false, err
+	}
+	m.Price = m.Price / 100
+	m.IsVeg = isVeg
+	m.Rating = rating
+	if cuisine != nil {
+		m.Cuisine = *cuisine
+	}
+	return m, true, nil
+}
+
+// DeleteMenu removes a dish, scoped like UpsertMenu.
+func (r *Repo) DeleteMenu(ctx context.Context, venueID, dishID, sellerID string, admin bool) (bool, error) {
+	if r.pool == nil {
+		return false, fmt.Errorf("directory: database not configured")
+	}
+	tag, err := r.pool.Exec(ctx, `
+		delete from directory.menus
+		 where venue_id = $1 and dish_id = $2 and ($3 or seller_id = $4)`,
+		venueID, dishID, admin, sellerID)
+	if err != nil {
+		return false, err
+	}
+	return tag.RowsAffected() > 0, nil
+}
+
+func nullIfEmpty(v string) any {
+	if v == "" {
+		return nil
+	}
+	return v
+}
