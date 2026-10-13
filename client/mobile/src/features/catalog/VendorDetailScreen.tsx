@@ -1,8 +1,9 @@
-import React, { memo, useCallback, useMemo, useRef, useState } from 'react';
+import React, { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   View,
   StyleSheet,
   FlatList,
+  ActivityIndicator,
   TouchableOpacity,
   TextInput,
   type ListRenderItemInfo,
@@ -14,7 +15,8 @@ import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import AppText from '@/components/AppText';
 import { hs, ms, vs } from '@/utils/responsive';
 import { SPACE } from '@/theme/spacing';
-import { getStoreById } from '@data/directory/stores';
+import { getStoreById, type StoreRecord } from '@data/directory/stores';
+import { gateway } from '@/services/api/GatewayClient';
 import type { Product } from '@data/types';
 import { getVendorProducts, matchesQuery } from '@/services/categoryVendors';
 import type { RootStackParamList } from '@/navigation/types';
@@ -50,7 +52,26 @@ export function VendorDetailScreen({ navigation, route }: Props) {
   const inputRef = useRef<TextInput | null>(null);
   const [query, setQuery] = useState(initialQuery ?? '');
 
-  const store = useMemo(() => getStoreById(storeId), [storeId]);
+  // Progressive enhancement: render the local directory fixture immediately, then
+  // upgrade to the server row (directory.stores) when it arrives. `GatewayClient`
+  // falls back to the fixture offline, so this never regresses.
+  const [store, setStore] = useState<StoreRecord | undefined>(() => getStoreById(storeId));
+  const [resolved, setResolved] = useState(false);
+  useEffect(() => {
+    let active = true;
+    gateway
+      .getStore(storeId)
+      .then((s) => {
+        if (active && s) setStore(s);
+      })
+      .catch(() => {})
+      .finally(() => {
+        if (active) setResolved(true);
+      });
+    return () => {
+      active = false;
+    };
+  }, [storeId]);
 
   const products = useMemo(() => getVendorProducts(storeId, app), [storeId, app]);
 
@@ -74,6 +95,13 @@ export function VendorDetailScreen({ navigation, route }: Props) {
   );
 
   if (!store) {
+    if (!resolved) {
+      return (
+        <View style={[styles.container, styles.center]}>
+          <ActivityIndicator color="#1162D3" />
+        </View>
+      );
+    }
     return (
       <View style={[styles.container, styles.center]}>
         <AppText style={styles.emptyTitle}>Store not found</AppText>

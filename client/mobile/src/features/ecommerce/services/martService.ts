@@ -6,7 +6,7 @@ import {
   type MartDeal,
   type MartEssential,
 } from '../mocks/martHomeFeed';
-import { martStores } from '@data/mart/stores';
+import { gateway } from '@/services/api/GatewayClient';
 import type { StoreProfile } from '@data/types';
 
 export interface MartFeed {
@@ -16,21 +16,18 @@ export interface MartFeed {
   localVendors: StoreProfile[];
 }
 
-function delay(ms: number) {
-  return new Promise<void>((resolve) => setTimeout(resolve, ms));
-}
-
 /**
- * Simulated network boundary for the Mart home feed. Once the Go Chi backend
- * (server/) lands, replace the internals with an API client while keeping the
- * `MartFeed` shape intact.
+ * Mart home feed. Vendors are **server-backed** (`directory.stores`, app=MART) via
+ * `GatewayClient.getStores`, which falls back to the local directory fixture offline,
+ * so the feed never regresses. Curated banners/deals/essentials stay feature-local
+ * until they move to the SDUI home doc (see docs/architecture/data-layer-sdui.md).
  */
 export async function fetchMartFeed(): Promise<MartFeed> {
-  await delay(700);
+  const localVendors = await gateway.getStores('MART');
   return {
     heroBanners: MART_HERO_BANNERS,
     deals: MART_DEALS,
     dailyEssentials: MART_DAILY_ESSENTIALS,
-    localVendors: martStores,
+    localVendors,
   };
 }
