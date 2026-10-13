@@ -1109,4 +1109,21 @@ insert into accounts.nav (user_id, key, rows) values
 insert into accounts.details (user_id, account_id, data) values
   ('user-1', 'HC12345678', '{"userId":"user-1","accountId":"HC12345678","personalInfo":[{"icon":"user","title":"Full Name","subtitle":"Rohit Sharma"},{"icon":"mail","title":"Email Address","subtitle":"rohit.sharma@gmail.com"},{"icon":"phone","title":"Mobile Number","subtitle":"+91 98765 43210"},{"icon":"calendar","title":"Date of Birth","subtitle":"15 May 1992"},{"icon":"gender","title":"Gender","subtitle":"Male"},{"icon":"globe","title":"Preferred Language","subtitle":"English"}],"preferences":[{"icon":"map-pin","title":"Default Location","subtitle":"Greenwood Regency, Bengaluru, Karnataka 560001"},{"icon":"bell","title":"Notification Preferences","subtitle":"Manage what you want to be notified"},{"icon":"lock","title":"Privacy Settings","subtitle":"Manage your privacy and data"}],"securityTitle":"Your data is 100% secure with us","securitySubtitle":"We never share your personal information with anyone."}'::jsonb);
 
+insert into favourites.items (user_id, product_id) values
+  ('user-1', 'cat-fm-1'),
+  ('user-1', 'cat-gg-2'),
+  ('user-1', 'cat-mt-1'),
+  ('user-1', 'cat-fd-1'),
+  ('user-1', 'ph-f1'),
+  ('user-1', 'cat-mt-2'),
+  ('user-1', 'fm-m1'),
+  ('user-1', 'fm-e1'),
+  ('user-1', 'fm-f1'),
+  ('user-1', 'gr-p1'),
+  ('user-1', 'sp-1'),
+  ('user-1', 'm-italian-pasta'),
+  ('user-1', 'm-korean-fc'),
+  ('user-1', 'ph-t3'),
+  ('user-1', 'cat-pw-1');
+
 commit;

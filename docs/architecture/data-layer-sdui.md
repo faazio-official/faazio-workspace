@@ -158,7 +158,8 @@ can never regress data. Wiring order (all methods implemented):
 **Write + vendor methods (server routes live; client seam added):** `getVendorReviews` /
 `rateVendor` (derived purchase gate re-checked server-side), `getCart` / `addToCart` /
 `updateCartItem` / `removeCartItem` (auth-scoped, never edge-cached), `placeOrder`
-(idempotency lock + `SELECT … FOR UPDATE SKIP LOCKED` stock decrement), and `trackEvent`
+(idempotency lock + `SELECT … FOR UPDATE SKIP LOCKED` stock decrement), `getFavourites` /
+`addFavourite` / `removeFavourite` (auth-scoped durable shelf, never edge-cached), and `trackEvent`
 (ID-only; mock fallback is a silent no-op). These unblock the `@mock` → `@server` per-module
 migration, which waits on Supabase phone OTP replacing `authStore.login()`.
 

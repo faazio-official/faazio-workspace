@@ -12,6 +12,7 @@ import (
 	"github.com/faazio/server/gateway/internal/catalog"
 	"github.com/faazio/server/gateway/internal/checkout"
 	"github.com/faazio/server/gateway/internal/directory"
+	"github.com/faazio/server/gateway/internal/favourites"
 	"github.com/faazio/server/gateway/internal/platform/auth"
 	"github.com/faazio/server/gateway/internal/platform/cache"
 	"github.com/faazio/server/gateway/internal/platform/config"
@@ -51,6 +52,7 @@ func NewRouter(d Deps) http.Handler {
 	catalogRepo := catalog.New(d.Pool)
 	directoryRepo := directory.New(d.Pool)
 	cartRepo := cartstock.New(d.Pool)
+	favouritesRepo := favourites.New(d.Pool)
 	checkoutRepo := checkout.NewWithCache(d.Pool, d.Cache)
 	reviewsRepo := reviews.New(d.Pool)
 	recoRepo := reco.New(d.Mongo)
@@ -82,6 +84,7 @@ func NewRouter(d Deps) http.Handler {
 	search.NewHandler(catalogRepo, d.Cache).Register(r)
 	directory.NewHandler(directoryRepo, d.Cache).Register(r)
 	cartstock.NewHandler(cartRepo, d.Cache).Register(r)
+	favourites.NewHandler(favouritesRepo, d.Cache).Register(r)
 	checkout.NewHandler(checkoutRepo, checkoutService, d.Cache).Register(r)
 	reviews.NewHandler(reviewsRepo, reviewsService, d.Cache).Register(r)
 	reco.NewHandler(recoRepo).Register(r)

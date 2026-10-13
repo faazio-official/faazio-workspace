@@ -79,6 +79,7 @@ Examples: `faazio:v1:stock:fm-f1`, `faazio:v1:search:q:hoodie`, `faazio:v1:sdui:
 | Product detail | 86400 s (24 h) | `public, max-age=86400, immutable` | `catalog.updated` |
 | Stock (per product) | 30–60 s | — | stock decrement / reservation commit |
 | Orders (per user, auth-scoped) | 60 s | **never** | order write |
+| Favourites (per user, auth-scoped) | 60 s | **never** | favourite add/remove |
 | Recommendations (per userHash) | 3600 s (1 h) | — | `user_events` flush |
 | Store directory / reviews | 86400 s (24 h) | — | edit event |
 | Idempotency locks (checkout) | 300 s | — | auto-expire |

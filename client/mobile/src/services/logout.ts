@@ -15,7 +15,7 @@ import { useVendorRatingStore } from '@/state/vendorRatingStore';
  */
 export async function logoutUser(): Promise<void> {
   useCartStore.getState().clearCart();
-  useFavoriteStore.setState({ favorites: [] });
+  useFavoriteStore.getState().reset();
   useSearchStore.getState().clearRecentSearches();
   usePharmaStore.setState({ prescriptions: [] });
   useBloodDonorStore.getState().reset();

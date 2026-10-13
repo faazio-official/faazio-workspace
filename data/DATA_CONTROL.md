@@ -300,7 +300,7 @@ the `GROCERY` member was dropped from `AppBrand` / `CartCategory` / `SubAppId` /
 | `nearbyOffers` | `NearbyOffer[]` | home `NearbyOffersSection` | `@mock` |
 | `filterChips` / `filterFeedPools` / `FilterChipId` | typed pools | home `FilterFeedSection` | `@mock` |
 | `seedCartItems` | `CartItem[]` | `state/cartStore` | `@seed` |
-| `seedFavorites` | `string[]` | `state/favoriteStore` (seeds the search-results-style Favourites page — 15 ids spanning FOOD, MART, PHARMA, explore & `cat-*` search ids, all resolvable in `catalogIndex`) | `@seed` |
+| `seedFavorites` | `string[]` | `state/favoriteStore` (seeds the search-results-style Favourites page — 15 ids spanning FOOD, MART, PHARMA, explore & `cat-*` search ids, all resolvable in `catalogIndex`); also seeded into `favourites.items` (migration `0007`) | `@seed` → `@server` |
 | `seedLocation` | `string` | **`@unused`** by mobile | `@seed` + `@unused` |
 
 ### `@data/rewards` — owner: `features/rewards`

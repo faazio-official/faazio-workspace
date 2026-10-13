@@ -761,3 +761,28 @@ logged.
   documented per section and may be split into separate clusters later.
 - The **cache layer** decision (Aiven Valkey + Cloudflare) supersedes the older "Upstash Redis"
   mentions in `server/README.md` / `server-gateway-plan.md` — see those docs' decision notes.
+
+---
+
+## 12. MVP additions — previously-orphaned workflows get a durable home
+
+> **Status:** MVP code active (migrations `0007`–`0014`). These tables close the "DB gap": workflows
+> that lived only in client memory / `AsyncStorage` now have a Supabase table + gateway endpoint.
+> Money is INT8 paisa; IDs are stable slugs; RLS is own-rows unless noted.
+
+### 12.1 `favourites.items` — source `data/home/seeds.ts` `seedFavorites` (migration `0007`)
+
+```sql
+CREATE TABLE favourites.items (
+  user_id    TEXT NOT NULL REFERENCES checkout.users(user_id) ON DELETE CASCADE,
+  product_id TEXT NOT NULL CHECK (char_length(product_id) BETWEEN 1 AND 64),
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  PRIMARY KEY (user_id, product_id)
+);
+CREATE INDEX favourites_items_user_created_idx ON favourites.items (user_id, created_at DESC);
+```
+
+Highest-traffic write after the cart; previously in-memory only (`state/favoriteStore.ts`), lost on
+logout/restart. **No FK on `product_id`** (deliberate): the seed mixes catalog product ids with
+category/rail ids (`cat-*`, `m-*`) that are not `catalog.products` rows. RLS own-rows only; the key
+`faazio:v1:favourites:items:{userId}` is never edge-cached.

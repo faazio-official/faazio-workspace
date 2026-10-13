@@ -21,6 +21,7 @@ import { getOrdersByUser, MOCK_USER_ID, type OrderRow } from '@data/checkout/ord
 import { profileTable, membershipTable, orderStatusTable, navTable, detailsTable, type ProfileRow, type MembershipRow, type OrderStatusRow, type NavRowGroup, type DetailsTable } from '@data/accounts/profile';
 import { getReviewsByVendorId, type VendorReviewRow } from '@data/reviews/vendorReviews';
 import { homeSdui, type SduiSection } from '@data/home/sdui';
+import { seedFavorites } from '@data/home/seeds';
 import { loadSession } from '../secureSession';
 
 /** Simulated network latency (ms) for mock mode. Drop to 0 to run pure in-memory. */
@@ -75,6 +76,8 @@ export interface PlaceOrderInput {
 export class GatewayClient {
   private accessToken: string | null = null;
   private tokenLoaded = false;
+  /** In-memory favourites shelf for mock mode (mirrors the durable favourites.items table). */
+  private mockFavourites: string[] = [...seedFavorites];
 
   /** True when the client will attempt real HTTP before falling back to fixtures. */
   get remoteEnabled(): boolean {
@@ -226,6 +229,33 @@ export class GatewayClient {
     return this.withFallback(
       () => this.http<DetailsTable>('/profile/details'),
       () => delay(detailsTable.find((d) => d.userId === userId)),
+    );
+  }
+
+  /** Durable favourites shelf (auth-scoped, never edge-cached). */
+  async getFavourites(): Promise<string[]> {
+    return this.withFallback(
+      () => this.http<{ items: string[] }>('/favourites').then((r) => r.items ?? []),
+      () => delay([...this.mockFavourites]),
+    );
+  }
+
+  async addFavourite(productId: string): Promise<string[]> {
+    return this.withFallback(
+      () => this.http<{ items: string[] }>(`/favourites/${encodeURIComponent(productId)}`, { method: 'PUT' }).then((r) => r.items ?? []),
+      () =>
+        delay(
+          this.mockFavourites.includes(productId)
+            ? [...this.mockFavourites]
+            : [...this.mockFavourites, productId],
+        ),
+    );
+  }
+
+  async removeFavourite(productId: string): Promise<string[]> {
+    return this.withFallback(
+      () => this.http<{ items: string[] }>(`/favourites/${encodeURIComponent(productId)}`, { method: 'DELETE' }).then((r) => r.items ?? []),
+      () => delay((this.mockFavourites = this.mockFavourites.filter((id) => id !== productId))),
     );
   }
 

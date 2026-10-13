@@ -235,6 +235,14 @@ sql.push(inserts(
   d.detailsTable.map((t) => [q(t.userId), q(t.accountId), jsonb(t)]),
 ));
 
+// ---------------------------------------------------------------- favourites
+// The demo user's shelf (seedFavorites) — durable hearts, previously in-memory only.
+sql.push(inserts(
+  'favourites.items',
+  ['user_id', 'product_id'],
+  (d.seedFavorites ?? []).map((productId) => [q('user-1'), q(productId)]),
+));
+
 sql.push('commit;');
 sql.push('');
 
@@ -294,4 +302,4 @@ writeFileSync(join(mongoDir, 'seed.js'), [
 ].join('\n'));
 
 rmSync(buildDir, { recursive: true, force: true });
-console.log(`seed written: ${d.catalogIndex.length} products, ${d.storeDirectory.length} stores, ${orders.length} orders, ${d.vendorReviewsTable.length} vendor reviews`);
+console.log(`seed written: ${d.catalogIndex.length} products, ${d.storeDirectory.length} stores, ${orders.length} orders, ${d.vendorReviewsTable.length} vendor reviews, ${(d.seedFavorites ?? []).length} favourites`);

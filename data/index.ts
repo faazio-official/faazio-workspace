@@ -161,3 +161,5 @@ export type { ProfileRow, MembershipRow, OrderStatusRow, NavRowGroup, DetailsTab
 
 export { homeSdui, sduiSectionOrder, getSduiSection } from './home/sdui';
 export type { SduiSection } from './home/sdui';
+
+export { seedCartItems, seedFavorites, seedLocation } from './home/seeds';

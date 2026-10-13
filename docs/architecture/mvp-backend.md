@@ -34,7 +34,7 @@ bucket for the MVP.
 
 ## 2. Supabase project (one project, many schemas)
 
-- **Schemas:** `catalog`, `directory`, `reviews`, `checkout`, `accounts`, `inventory`.
+- **Schemas:** `catalog`, `directory`, `reviews`, `checkout`, `accounts`, `inventory`, `favourites`.
 - **Extensions:** `pg_trgm`, `unaccent`, `pg_cron` (`pgcrypto` ships enabled).
 - **Datatypes:** unchanged from `db-schema.md` §2 — stable string slug public keys, INT8 paisa money,
   `TIMESTAMPTZ`, native ENUMs. The Cockroach DDL there is near-verbatim Postgres.
@@ -74,6 +74,7 @@ All read-through: Valkey → Supabase/Mongo → populate. Cloudflare caches publ
 | Method + path | Context | Notes |
 |---|---|---|
 | `GET/POST/PUT/DELETE /cart…` | cartstock | auth-scoped; `inventory.carts` JSONB, never edge-cached |
+| `GET/PUT/DELETE /favourites…` | favourites | auth-scoped durable shelf (`favourites.items`), never edge-cached |
 | `GET/POST /orders` | checkout | `POST` uses `SET NX EX 300` idempotency + `SELECT … FOR UPDATE SKIP LOCKED` stock decrement |
 | `PUT /vendors/{id}/rating` | reviews | derived eligibility gate (`hasPurchasedFromVendor`); never a stored flag |
 | `POST /events` | reco | ID-only `userIdHash`, 90-day Mongo TTL; event allowlist + `productId ≤ 64` chars |
