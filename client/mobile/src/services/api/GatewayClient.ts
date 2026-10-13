@@ -144,6 +144,36 @@ export interface PrescriptionRecord {
   updatedAt: string;
 }
 
+/** Body for POST /sellers — a partner onboarding application (sellers.sellers). */
+export interface SellerApplicationInput {
+  businessName: string;
+  ownerName: string;
+  /** app_brand enum (MART | FOOD | PHARMA). */
+  category: AppBrand;
+  gstin?: string;
+  pan?: string;
+  businessAddress?: string;
+  contactPhone?: string;
+  /** 2-letter state code (sellers.sellers.state_code). */
+  stateCode: string;
+}
+
+/** A sellers.sellers row (server creates it PENDING_REVIEW; contactPhone is PII). */
+export interface SellerApplication {
+  sellerId: string;
+  businessName: string;
+  ownerName: string;
+  category: string;
+  gstin: string;
+  pan: string;
+  businessAddress: string;
+  contactPhone?: string;
+  stateCode: string;
+  status: string;
+  rating: number;
+  createdAt: string;
+}
+
 /** Body for POST /prescriptions. */
 export interface PrescriptionInput {
   vendorId?: string;
@@ -617,6 +647,32 @@ export class GatewayClient {
     return this.withFallback(
       () => this.http<ProductView[]>('/recommendations'),
       () => delay(this.joinStock([...catalogIndex].sort((a, b) => b.rating - a.rating).slice(0, 12))),
+    );
+  }
+
+  /**
+   * Submit a partner onboarding application. The server creates a PENDING_REVIEW seller
+   * (sellers.sellers) and audits the write; KYC documents + bank account are added afterwards.
+   * Mock fallback returns a local PENDING_REVIEW row so the screen still confirms.
+   */
+  async submitSellerApplication(input: SellerApplicationInput): Promise<SellerApplication> {
+    return this.withFallback(
+      () => this.http<SellerApplication>('/sellers', { method: 'POST', body: JSON.stringify(input) }),
+      () =>
+        delay({
+          sellerId: `sel-local-${Date.now().toString(36)}`,
+          businessName: input.businessName,
+          ownerName: input.ownerName,
+          category: input.category,
+          gstin: input.gstin ?? '',
+          pan: input.pan ?? '',
+          businessAddress: input.businessAddress ?? '',
+          contactPhone: input.contactPhone,
+          stateCode: input.stateCode.toUpperCase(),
+          status: 'PENDING_REVIEW',
+          rating: 0,
+          createdAt: new Date().toISOString(),
+        }),
     );
   }
 

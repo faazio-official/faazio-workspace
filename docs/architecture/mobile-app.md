@@ -467,14 +467,17 @@ rendered with the shared `SearchProductRowCard` (each heart toggles the favourit
 live). Tapping an item pushes `ProductDetail`. The store reads `seedFavorites`
 (`@data/home/seeds.ts`) on first launch.
 
-## Sell with us (mock partner onboarding)
+## Sell with us (partner onboarding)
 
-`SellWithUsScreen` (route `SellWithUs`) is a mock partner-onboarding page reached from the
-Account `earn` group. It lists the required seller details (`business name`, `owner`,
-`category`, `GSTIN`, `business address`, `bank account`, `IFSC`, `contact phone`) from the
-`@data/seller/sellerSetup.ts` fixture (`SELLER_SETUP_FIELDS`) and shows a read-only mock
-"Submit for review" action. No data is sent — the real seller onboarding moves server-side
-with the Go Chi backend (see `PENDING_WORK.md`).
+`SellWithUsScreen` (route `SellWithUs`) is the partner-onboarding form reached from the
+Account `earn` group. It collects the minimum seller-account details (business name, owner,
+category `MART`/`FOOD`/`PHARMA`, GSTIN, PAN, business address, contact phone, 2-letter state
+code) — field labels/placeholders still sourced from the `@data/seller/sellerSetup.ts`
+fixture (`SELLER_SETUP_FIELDS`) — and submits a `PENDING_REVIEW` application via
+`GatewayClient.submitSellerApplication` (`POST /sellers`, audited server-side). On success the
+screen shows the returned `sellerId`; KYC documents and the payout bank account are collected
+after approval. In mock mode the client returns a local `PENDING_REVIEW` row so the flow still
+completes offline.
 
 ## FaazioRewards (coins + streak)
 

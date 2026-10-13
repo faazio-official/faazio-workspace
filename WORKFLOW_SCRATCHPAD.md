@@ -49,6 +49,17 @@ wire. Mobile `GatewayClient.ts` + `@data/*` already speak integer rupees — unc
   `searchStore`, `languageStore`, `vendorRatingStore`, `foodFilterStore`, `store`.
 - `@data/*` normalized tables consumed via `GatewayClient` fallback.
 
+### 1.1 Mobile delta (Phase 6)
+
+- [x] `GatewayClient.submitSellerApplication` (`POST /sellers`, mock fallback) + `SellWithUsScreen`
+      real form (business/owner/category/GSTIN/PAN/address/phone/state) → PENDING_REVIEW
+- [x] `SellWithUsScreen` field labels/placeholders still sourced from `@data/seller/sellerSetup.ts`
+- [x] seed generator `assertLeanContract()` — integer rupees, rating 0–5/1dp, search token ≤64,
+      no `slug_uid`/`quality_score` (fails the build if `@data` drifts)
+- [x] verify-only: money stays integer rupees across `GatewayClient` (repo `/100` boundary);
+      stores keep `userIdHash` off-device and stay within JSONB bounds (cart ≤50 lines,
+      pickup/card/dish ≤2 KB) — no code change needed
+
 ## 2. Web inventory (`client/web`)
 
 - 45 `page.tsx` + 45 `page.client.tsx` pairs under `app/` (seller 20, state admin 12, super admin 13).
@@ -132,12 +143,14 @@ wire. Mobile `GatewayClient.ts` + `@data/*` already speak integer rupees — unc
 
 ## 8. Web delta checklist
 
-- [ ] `src/data/types.ts` dtype contract (guards, drop discountPercent/qualityScore) — Phase 5
-- [ ] `src/lib/pricing/rules.ts` paisa-int math only — Phase 5
-- [ ] `src/lib/media/productImages.ts` Storage-key flow — Phase 5
-- [ ] `src/lib/api/store.ts` fetch-backed seam + snake↔camel mapper + auth header — Phase 5
-- [ ] `src/lib/auth/permissions.ts` Supabase Auth + role claims — Phase 5
+- [x] `src/data/types.ts` dtype contract (drop discountPercent/qualityScore; derive)
+- [x] `src/lib/pricing/rules.ts` paisa-int math only (`isIntPaisa` guard)
+- [x] `src/lib/media/productImages.ts` Storage-key flow (`resolveImage` + `uploadProductImage`)
+- [x] `src/lib/api/{http,sync}.ts` fetch seam + rupee↔paisa mapper + bearer auth
+- [x] `src/lib/supabase/auth.ts` Supabase Auth (GoTrue REST, no SDK) + role claims
 - [x] 5 thin pages (prescriptions, bookings, blood, state bookings, sdui) + seed records/hooks/nav
+- [x] env-gated (`NEXT_PUBLIC_GATEWAY_URL`/`SUPABASE_*`); `.env.example`; degrades to seed mode
+- [x] `.gitignore` `coverage/`→`/coverage/` (un-hid `app/admin/super/coverage`)
 
 ## 9. Gateway delta checklist
 

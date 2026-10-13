@@ -275,11 +275,12 @@ the `GROCERY` member was dropped from `AppBrand` / `CartCategory` / `SubAppId` /
 
 | Export | Type | Mobile consumers | Status |
 |---|---|---|---|
-| `SELLER_SETUP_FIELDS` | `SellerSetupField[]` — required seller-onboarding details (business name, owner, category, GSTIN, business address, bank account, IFSC, contact phone) | `SellWithUsScreen` (mock "Sell with us" onboarding list) | `@mock` |
+| `SELLER_SETUP_FIELDS` | `SellerSetupField[]` — seller-onboarding field labels/placeholders (business name, owner, category, GSTIN, business address, bank account, IFSC, contact phone) | `SellWithUsScreen` (labels/placeholders for the onboarding form; submission goes to `POST /sellers` via `GatewayClient.submitSellerApplication`) | `@mock` |
 | `SellerSetupField` | type | `SellWithUsScreen` | `@mock` |
 
-> **Contract:** Read-only fixture for the mock seller-onboarding page. Real seller
-> onboarding moves server-side with the Go Chi backend (see `client/mobile/PENDING_WORK.md`).
+> **Contract:** Read-only label/placeholder source for the seller-onboarding form. The list is
+> stable; FK/field changes to the server contract happen in `GatewayClient.submitSellerApplication`
+> (`sellers.sellers`), not here.
 
 ### `@data/home` — owner: `features/home`
 

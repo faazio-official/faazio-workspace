@@ -361,6 +361,41 @@ sql.push(inserts(
 sql.push('commit;');
 sql.push('');
 
+// ---------------------------------------------------------------- lean-contract checks
+// Fail loudly if a fixture ever violates the dtype freeze (WORKFLOW_SCRATCHPAD.md §0):
+// money is integer paisa, ratings are 0–5 at 1 decimal, search tokens must fit the 64-char
+// JSONB key bound, and the dropped `slug_uid` / `quality_score` columns must never reappear.
+function assertLeanContract() {
+  const violations = [];
+  const isRupees = (v) => v === null || v === undefined || Number.isInteger(v);
+  const isRating = (v) =>
+    v === null || v === undefined ||
+    (typeof v === 'number' && v >= 0 && v <= 5 && Math.abs(v * 10 - Math.round(v * 10)) < 1e-9);
+
+  for (const e of d.catalogIndex) {
+    if (!isRupees(e.price) || !isRupees(e.originalPrice)) violations.push(`product ${e.id}: non-integer rupees price`);
+    if (!isRating(e.rating)) violations.push(`product ${e.id}: rating ${e.rating} out of 0–5/1dp`);
+    for (const t of e.searchTokens ?? []) {
+      if (String(t).length > 64) violations.push(`product ${e.id}: search token >64 chars`);
+    }
+  }
+  for (const s of d.storeDirectory) {
+    if (!isRating(s.rating)) violations.push(`store ${s.id}: rating ${s.rating} out of 0–5/1dp`);
+  }
+  for (const s of d.stockTable) {
+    if (!isRupees(s.price) || !isRupees(s.mrp)) violations.push(`stock ${s.productId}: non-integer rupees price`);
+  }
+  const sqlText = sql.join('\n');
+  if (sqlText.includes('slug_uid')) violations.push('dropped column `slug_uid` leaked into seed');
+  if (sqlText.includes('quality_score')) violations.push('dropped column `quality_score` leaked into seed');
+
+  if (violations.length) {
+    console.error(`seed lean-contract violations (${violations.length}):\n - ${violations.join('\n - ')}`);
+    process.exit(1);
+  }
+}
+assertLeanContract();
+
 writeFileSync(join(here, '0001_seed.sql'), sql.join('\n'));
 
 // ---------------------------------------------------------------- Mongo seed

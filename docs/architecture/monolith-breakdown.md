@@ -44,7 +44,7 @@ search extraction is a pure index-replica swap.
 | rewards → Go+Postgres | `internal/rewards` | `rewards` | `faazio:v1:rewards:view:{userId}` 60 s; never edge-cached | `getRewards` (earn happens in-process via `contracts.RewardsWriter`) | CockroachDB |
 | checkout → Go+Cockroach | `internal/checkout` | `checkout` (+ `checkout.idempotency_keys`, `checkout.payments`), `accounts` | `faazio:v1:checkout:orders:{userId}` 60 s · idem `NX EX 300` · `faazio:v1:auth:uid:{sha256}` 3600 s | `getOrders`, `placeOrder`, `payForOrder`, `getPayments`, `getProfile`, `getMembership`, `getOrderStatus`, `getAccountNav`, `getDetails` | CockroachDB |
 | reviews → Go+Postgres | `internal/reviews` | `reviews` (+ `reviews.vendor_summary` counter/trigger) | `faazio:v1:reviews:vendor:{id}` 24 h · `faazio:v1:reviews:product:{id}` 24 h | `getReviews` (product), `getVendorReviews`, `rateVendor` | standalone Postgres |
-| sellers → Go+Postgres | `internal/sellers` | `sellers` (+ `sellers.sellers`, `kyc_documents`, `bank_accounts`; `directory.stores`/`catalog.products` `seller_id`) | **none** — seller records carry PII (caching doc §8) | portal-only (no `GatewayClient` method yet) | Go + Postgres |
+| sellers → Go+Postgres | `internal/sellers` | `sellers` (+ `sellers.sellers`, `kyc_documents`, `bank_accounts`; `directory.stores`/`catalog.products` `seller_id`) | **none** — seller records carry PII (caching doc §8) | `submitSellerApplication` (`POST /sellers`, any authenticated applicant); reads/moderation are portal-only | Go + Postgres |
 | admins → Go | `internal/admins` | `admins` (+ `state_admins`, `audit_logs`) | none (append-only audit) | portal-only | CockroachDB |
 | promo → Go+Postgres | `internal/promo` | `promo` (+ `festival_campaigns`, `seller_optins`, `coupons`, `sector_caps`) | `faazio:v1:promo:campaign:{id}` 300 s (invalidated on status change) | portal-only | Go + Postgres |
 | ads → Go+Postgres | `internal/ads` | `ads` (+ `sponsored_slots`) | `faazio:v1:ads:slot:{id}` 300 s (invalidated on status change) | portal-only | Go + Postgres |
@@ -68,7 +68,9 @@ order decrement invalidates `stock:{id}`.
 `PUT /prescriptions/{id}/status` (pharma), `GET /seller/bookings` + `PUT /bookings/{id}/status`
 (bookings), `DELETE /blood-requests/{id}` (blood moderation), plus the sellers/promo/ads/settlement/
 support/admin contexts above. Every write is scoped to the caller's `seller_id` unless the role is
-`STATE_ADMIN`/`SUPER_ADMIN`.
+`STATE_ADMIN`/`SUPER_ADMIN`. The one sellers-context write exposed to the mobile client is
+`POST /sellers` (partner onboarding, `GatewayClient.submitSellerApplication`) — any authenticated
+applicant may create a `PENDING_REVIEW` seller; KYC/bank writes stay portal-only.
 
 ## 2. Boundary rules (enforced)
 

@@ -1456,27 +1456,25 @@ with `GatewayClient` balance calls).
 
 ---
 
-## Sell with us — mock partner onboarding (no backend yet)
+## Sell with us — live partner onboarding
 
-**Status:** 🟡 Mock read-only page; no submission or seller backend.
+**Status:** 🟢 Live submit (gateway wired; `@data` label fixture retained).
 
 **Feature:** `SellWithUsScreen` (route `SellWithUs`, from the Account `earn` group's
-`Sell with us` row) lists the required seller details from
-`@data/seller/sellerSetup.ts` (`SELLER_SETUP_FIELDS`: business name, owner, category,
-GSTIN, business address, bank account, IFSC, contact phone). The "Submit for review"
-button is a read-only mock — no data is captured or sent.
+`Sell with us` row) is a real onboarding form. It collects business name, owner, category
+(`MART`/`FOOD`/`PHARMA` chips), GSTIN, PAN, business address, contact phone and a 2-letter
+state code, then submits a `PENDING_REVIEW` application via
+`GatewayClient.submitSellerApplication` (`POST /sellers`, audited). On success it shows the
+returned `sellerId`; offline/mock mode returns a local `PENDING_REVIEW` row so the flow still
+completes. Field labels/placeholders still come from the stable
+`@data/seller/sellerSetup.ts` fixture (`SELLER_SETUP_FIELDS`).
 
-**Future / honest gaps:**
-- **Not a real form.** Fields are static sample values, not inputs; nothing is validated or
-  submitted. Real onboarding needs a seller backend (see AGENTS.md rule: don't build
-  backend/seller flows until told to).
-- **Server-side seller onboarding** (KYC, GST/bank verification, product listing) belongs to
-  the Go Chi backend (`server/`) + a seller portal.
+**Remaining / honest gaps:**
+- **KYC + bank** are collected after approval (`POST /sellers/{id}/kyc`,
+  `PUT /sellers/{id}/bank-account`, portal/seller-scoped) — not on this first screen.
+- **No document picker yet** — KYC upload from mobile is a later step (Storage object keys).
 
-**Interim contract:** Keep the `SellerSetupField` shape and `SELLER_SETUP_FIELDS` list stable
-so wiring real inputs and a `GatewayClient` seller-application submit is a data/screen change.
-
-**Date:** 2026-09-10
+**Date:** 2026-09-10 — updated 2026-10-13 (live submit).
 
 ---
 
