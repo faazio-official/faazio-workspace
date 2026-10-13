@@ -26,6 +26,7 @@ func VendorReviews(id string) string  { return fmt.Sprintf("faazio:v1:reviews:ve
 func ProductReviews(id string) string { return fmt.Sprintf("faazio:v1:reviews:product:%s", id) }
 func Orders(userID string) string     { return fmt.Sprintf("faazio:v1:checkout:orders:%s", userID) }
 func Favourites(userID string) string { return fmt.Sprintf("faazio:v1:favourites:items:%s", userID) }
+func Rewards(userID string) string    { return fmt.Sprintf("faazio:v1:rewards:view:%s", userID) }
 func SduiHome(locale string) string   { return fmt.Sprintf("faazio:v1:gateway:sdui:%s:/home", locale) }
 func Idempotency(ref string) string   { return fmt.Sprintf("faazio:v1:checkout:idem:%s", ref) }
 func AuthUser(authUID string) string {
@@ -46,6 +47,9 @@ const (
 
 	// TTLFavourites bounds the auth-scoped favourites projection (mutable; invalidated on write).
 	TTLFavourites = 60 * time.Second
+
+	// TTLRewards bounds the auth-scoped rewards view (mutable; invalidated on earn/redeem).
+	TTLRewards = 60 * time.Second
 )
 
 // Cache is a JSON read-through cache. A nil *Client (disabled) is safe to call.

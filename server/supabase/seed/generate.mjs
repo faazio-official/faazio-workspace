@@ -257,6 +257,14 @@ sql.push(inserts(
   (d.seedFavorites ?? []).map((productId) => [q('user-1'), q(productId)]),
 ));
 
+// ---------------------------------------------------------------- rewards
+// Demo balance mirrors the client seed (SEED_COIN_BALANCE / SEED_STREAK_COUNT).
+sql.push(inserts(
+  'rewards.balances',
+  ['user_id', 'coins', 'streak', 'last_order_day', 'card'],
+  [[q('user-1'), n(245), n(5), 'null', 'null']],
+));
+
 sql.push('commit;');
 sql.push('');
 

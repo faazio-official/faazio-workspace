@@ -1161,4 +1161,7 @@ insert into favourites.items (user_id, product_id) values
   ('user-1', 'ph-t3'),
   ('user-1', 'cat-pw-1');
 
+insert into rewards.balances (user_id, coins, streak, last_order_day, card) values
+  ('user-1', 245, 5, null, null);
+
 commit;

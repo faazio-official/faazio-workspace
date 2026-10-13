@@ -157,6 +157,13 @@ type PurchaseGate interface {
 	PurchaseProof(ctx context.Context, userID, vendorID string) (eligible bool, orderIDs []string, err error)
 }
 
+// RewardsWriter applies an order's reward effect during checkout (implemented by internal/rewards).
+// The server is the money-adjacent authority: the client is optimistic and reconciles via
+// GET /rewards. chosen over a public reconcile endpoint so coins can never be forged.
+type RewardsWriter interface {
+	Earn(ctx context.Context, userID, orderID string, paidRupees, coinsRedeemed int64) error
+}
+
 // HomeSection is a compiled Home section (SduiSection + joined products).
 type HomeSection struct {
 	SduiSection

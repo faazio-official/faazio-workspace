@@ -43,14 +43,15 @@ type PlaceOrderRequest struct {
 
 // Service orchestrates order placement with the idempotency lock + stock decrement.
 type Service struct {
-	repo  *Repo
-	stock contracts.StockWriter
-	cache *cache.Cache
+	repo    *Repo
+	stock   contracts.StockWriter
+	rewards contracts.RewardsWriter
+	cache   *cache.Cache
 }
 
-// NewService builds the checkout service.
-func NewService(repo *Repo, stock contracts.StockWriter, c *cache.Cache) *Service {
-	return &Service{repo: repo, stock: stock, cache: c}
+// NewService builds the checkout service. rewards may be nil (rewards disabled / unit contexts).
+func NewService(repo *Repo, stock contracts.StockWriter, cache *cache.Cache, rewards contracts.RewardsWriter) *Service {
+	return &Service{repo: repo, stock: stock, cache: cache, rewards: rewards}
 }
 
 // CreateOrder places an order: idempotency lock → price → stock decrement → insert.
@@ -145,20 +146,20 @@ func (s *Service) CreateOrder(ctx context.Context, userID string, req PlaceOrder
 
 	// Durable payment ledger: recorded in the same transaction as the order. The amount is derived
 	// server-side from the priced lines minus the coins redeemed (client never dictates the amount).
+	totalRupees := int64(0)
+	for _, li := range lines {
+		totalRupees += li.Qty * li.UnitPrice
+	}
+	coins := req.CoinsRedeemed
+	if coins < 0 {
+		coins = 0
+	}
+	paidRupees := totalRupees - coins/coinsPerRupee
+	if paidRupees < 0 {
+		paidRupees = 0
+	}
 	var payments []Payment
-	if req.PaymentMethod != "" || req.CoinsRedeemed > 0 {
-		totalRupees := int64(0)
-		for _, li := range lines {
-			totalRupees += li.Qty * li.UnitPrice
-		}
-		coins := req.CoinsRedeemed
-		if coins < 0 {
-			coins = 0
-		}
-		amount := totalRupees - coins/coinsPerRupee
-		if amount < 0 {
-			amount = 0
-		}
+	if req.PaymentMethod != "" || coins > 0 {
 		method := req.PaymentMethod
 		if method == "" {
 			method = "COINS"
@@ -168,7 +169,7 @@ func (s *Service) CreateOrder(ctx context.Context, userID string, req PlaceOrder
 			OrderID:       order.ID,
 			UserID:        userID,
 			Method:        method,
-			Amount:        amount,
+			Amount:        paidRupees,
 			CoinsRedeemed: coins,
 			Status:        "PAID",
 		})
@@ -178,6 +179,16 @@ func (s *Service) CreateOrder(ctx context.Context, userID string, req PlaceOrder
 		return Order{}, err
 	}
 	s.cache.Del(ctx, cache.Orders(userID))
+
+	// Server-authoritative rewards: best-effort, since the order is already committed. The client
+	// mirrors this optimistically and reconciles on the next GET /rewards.
+	if s.rewards != nil {
+		if err := s.rewards.Earn(ctx, userID, order.ID, paidRupees, coins); err != nil {
+			_ = err
+		} else {
+			s.cache.Del(ctx, cache.Rewards(userID))
+		}
+	}
 	return order, nil
 }
 

@@ -817,3 +817,33 @@ amount is derived server-side (`order.total - coins/100` rupees) and written in 
 when `coinsRedeemed > 0` or a payment method is supplied. The order `pickup`/`pickups` JSONB columns
 persist today's `PlacedOrder.pickup/pickups` snapshot, so the "Pickup From" card survives a server
 round-trip. Payments are own-rows, never edge-cached.
+
+### 12.3 `rewards.balances` + `rewards.ledger` — source `data/rewards/rewards.ts` (migration `0008`)
+
+```sql
+CREATE TYPE reward_entry_type AS ENUM ('EARN','REDEEM','EXPIRE','STREAK');
+
+CREATE TABLE rewards.balances (
+  user_id TEXT PRIMARY KEY REFERENCES checkout.users(user_id) ON DELETE CASCADE,
+  coins INT4 NOT NULL DEFAULT 0 CHECK (coins >= 0),
+  streak INT4 NOT NULL DEFAULT 0 CHECK (streak >= 0),
+  last_order_day DATE,
+  card JSONB CHECK (card IS NULL OR octet_length(card::text) <= 2048),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE TABLE rewards.ledger (
+  id TEXT PRIMARY KEY, user_id TEXT NOT NULL REFERENCES checkout.users(user_id) ON DELETE CASCADE,
+  type reward_entry_type NOT NULL, coins INT4 NOT NULL, rupees INT4 NOT NULL DEFAULT 0,
+  order_id TEXT, created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX rewards_ledger_user_created_idx ON rewards.ledger (user_id, created_at DESC);
+```
+
+Coins were client-forgeable (`state/rewardsStore.ts` AsyncStorage) and money-adjacent; the server is
+now the authority. Rates mirror `@data/rewards` (`COIN_EARN_RATE=1000` ₹/coin, `COIN_REDEEM_RATE=100`
+coins/₹, `STREAK_TARGET_DAYS=7`, `DISCOUNT_CARD_PERCENT=10`). `rewards.ledger` is **append-only**
+(authenticated SELECT own only; no INSERT/UPDATE/DELETE — service_role writes). The earn path runs
+inside `checkout.CreateOrder` via `contracts.RewardsWriter` (no public reconcile endpoint, so coins
+cannot be forged); the client stays optimistic and reconciles on `GET /rewards`
+(`faazio:v1:rewards:view:{userId}` 60 s, invalidated on earn).

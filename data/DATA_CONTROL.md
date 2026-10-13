@@ -315,9 +315,12 @@ the `GROCERY` member was dropped from `AppBrand` / `CartCategory` / `SubAppId` /
 | `DISCOUNT_CARD_VALIDITY_DAYS` | `number` (5) | `rewardsStore.recordOrder` (card expiry) | `@static` |
 | `FaazioDiscountCard` | type | `rewardsStore`, `rewardsLogic`, `FaazioRewardsScreen` | `@static` |
 
-> **Contract:** All rewards rules are enterprise-controlled constants. Balances, streaks, and
-> cards are **local-device-only** (persisted AsyncStorage, never logged with PII) until the Go
-> Chi backend issues server-side balances — see `client/mobile/PENDING_WORK.md`.
+> **Contract:** All rewards rules are enterprise-controlled constants. As of migration `0008`, the
+> **server is the authority**: `rewards.balances` + append-only `rewards.ledger` are written by
+> `checkout.CreateOrder` (via `contracts.RewardsWriter`) and read back through `GET /rewards`
+> (`faazio:v1:rewards:view:{userId}` 60 s). The AsyncStorage balance is now an optimistic cache that
+> reconciles on `rewardsStore.reconcile()` when the gateway is remote; these constants remain the
+> shared rate contract (a future admin console will own them).
 
 ---
 

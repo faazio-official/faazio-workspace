@@ -92,6 +92,22 @@ export interface PaymentRecord {
   createdAt: string;
 }
 
+/** Server-authoritative rewards view (GET /rewards) — the client reconciles against this. */
+export interface RewardsView {
+  coins: number;
+  streak: number;
+  lastOrderDay?: string | null;
+  card?: { id: string; percent: number; grantedAt: string; expiresAt: string } | null;
+  ledger: {
+    id: string;
+    type: 'EARN' | 'REDEEM' | 'EXPIRE' | 'STREAK';
+    coins: number;
+    rupees: number;
+    orderId?: string;
+    at: string;
+  }[];
+}
+
 export class GatewayClient {
   private accessToken: string | null = null;
   private tokenLoaded = false;
@@ -275,6 +291,14 @@ export class GatewayClient {
     return this.withFallback(
       () => this.http<{ items: string[] }>(`/favourites/${encodeURIComponent(productId)}`, { method: 'DELETE' }).then((r) => r.items ?? []),
       () => delay((this.mockFavourites = this.mockFavourites.filter((id) => id !== productId))),
+    );
+  }
+
+  /** Server-authoritative rewards (coins / streak / card / ledger) — client reconciles on read. */
+  async getRewards(): Promise<RewardsView> {
+    return this.withFallback(
+      () => this.http<RewardsView>('/rewards'),
+      () => delay({ coins: 0, streak: 0, lastOrderDay: null, card: null, ledger: [] }),
     );
   }
 

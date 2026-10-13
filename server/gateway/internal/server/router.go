@@ -20,6 +20,7 @@ import (
 	"github.com/faazio/server/gateway/internal/platform/httpx"
 	"github.com/faazio/server/gateway/internal/reco"
 	"github.com/faazio/server/gateway/internal/reviews"
+	"github.com/faazio/server/gateway/internal/rewards"
 	"github.com/faazio/server/gateway/internal/sdui"
 	"github.com/faazio/server/gateway/internal/search"
 	"github.com/go-chi/chi/v5"
@@ -55,6 +56,7 @@ func NewRouter(d Deps) http.Handler {
 	favouritesRepo := favourites.New(d.Pool)
 	checkoutRepo := checkout.NewWithCache(d.Pool, d.Cache)
 	reviewsRepo := reviews.New(d.Pool)
+	rewardsRepo := rewards.New(d.Pool)
 	recoRepo := reco.New(d.Mongo)
 
 	// Auth: checkout resolves the auth subject → app user slug.
@@ -76,7 +78,7 @@ func NewRouter(d Deps) http.Handler {
 	})
 
 	// Contexts. Each owns its routes; cross-context calls use contracts interfaces.
-	checkoutService := checkout.NewService(checkoutRepo, cartRepo, d.Cache)
+	checkoutService := checkout.NewService(checkoutRepo, cartRepo, d.Cache, rewardsRepo)
 	reviewsService := reviews.NewService(reviewsRepo, checkoutRepo, d.Cache)
 	sduiService := sdui.NewService(recoRepo, catalogRepo, directoryRepo, d.Cache)
 
@@ -85,6 +87,7 @@ func NewRouter(d Deps) http.Handler {
 	directory.NewHandler(directoryRepo, d.Cache).Register(r)
 	cartstock.NewHandler(cartRepo, d.Cache).Register(r)
 	favourites.NewHandler(favouritesRepo, d.Cache).Register(r)
+	rewards.NewHandler(rewardsRepo, d.Cache).Register(r)
 	checkout.NewHandler(checkoutRepo, checkoutService, d.Cache).Register(r)
 	reviews.NewHandler(reviewsRepo, reviewsService, d.Cache).Register(r)
 	reco.NewHandler(recoRepo).Register(r)

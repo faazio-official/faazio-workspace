@@ -81,6 +81,7 @@ Examples: `faazio:v1:stock:fm-f1`, `faazio:v1:search:q:hoodie`, `faazio:v1:sdui:
 | Orders (per user, auth-scoped) | 60 s | **never** | order write |
 | Favourites (per user, auth-scoped) | 60 s | **never** | favourite add/remove |
 | Pickup points (public) | 86400 s (24 h) | — | pickup_point edit |
+| Rewards (per user, auth-scoped) | 60 s | **never** | order earn / redeem |
 | Recommendations (per userHash) | 3600 s (1 h) | — | `user_events` flush |
 | Store directory / reviews | 86400 s (24 h) | — | edit event |
 | Idempotency locks (checkout) | 300 s | — | auto-expire |

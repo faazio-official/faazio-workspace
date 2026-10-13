@@ -13,6 +13,7 @@ import {
   isCardActive,
   cardExpiryFrom,
 } from '@/features/rewards/rewardsLogic';
+import { gateway } from '@/services/api/GatewayClient';
 
 const STORAGE_KEY = 'faazio/rewards/v1';
 /** Ledger is capped to keep the persisted blob small and render cheap. */
@@ -67,6 +68,8 @@ interface RewardsState {
   redeemCoins: (coins: number, orderId: string, rupees: number) => void;
   /** Pure check invoked at read time: nulls the card if it has expired. */
   expireStaleCard: (now?: Date) => void;
+  /** Reconcile against the server-authoritative balance (no-op unless the gateway is remote). */
+  reconcile: () => Promise<void>;
   reset: () => void;
 }
 
@@ -212,6 +215,20 @@ export const useRewardsStore = create<RewardsState>()((set, get) => ({
     set(empty);
     AsyncStorage.removeItem(STORAGE_KEY).catch(() => {});
   },
+
+  reconcile: async () => {
+    // Server is the money-adjacent authority; only reconcile when actually talking to it.
+    if (!gateway.remoteEnabled) return;
+    const view = await gateway.getRewards();
+    set({
+      coinBalance: view.coins,
+      streakCount: view.streak,
+      lastOrderDay: view.lastOrderDay ?? null,
+      discountCard: view.card ?? null,
+      ledger: view.ledger ?? [],
+      hydrated: true,
+    });
+  },
 }));
 
 // Hydrate at store creation (fire-and-forget, bloodDonorStore-style).
@@ -232,4 +249,6 @@ AsyncStorage.getItem(STORAGE_KEY)
     useRewardsStore.setState({ hydrated: true });
     // A stale card is cleared on hydration so the account screen never shows it.
     useRewardsStore.getState().expireStaleCard();
+    // Reconcile against the server-authoritative balance when the gateway is remote.
+    void useRewardsStore.getState().reconcile().catch(() => {});
   });
