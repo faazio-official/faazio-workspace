@@ -30,6 +30,7 @@ func NewHandler(repo *Repo, c *cache.Cache) *Handler { return &Handler{repo: rep
 func (h *Handler) Register(r chi.Router) {
 	r.Get("/stores", h.list)
 	r.Get("/store/{id}", h.get)
+	r.Get("/pickup-points", h.pickupPoints)
 }
 
 func (h *Handler) list(w http.ResponseWriter, r *http.Request) {
@@ -98,4 +99,37 @@ func (h *Handler) get(w http.ResponseWriter, r *http.Request) {
 func redactStore(s *contracts.Store) {
 	s.Address = ""
 	s.Phone = ""
+}
+
+// pickupPoints serves durable self-pickup locations. When `storeIds` (comma-separated) is supplied,
+// only those stores plus the neutral hub are returned; all active otherwise. Public business info.
+func (h *Handler) pickupPoints(w http.ResponseWriter, r *http.Request) {
+	raw := strings.TrimSpace(r.URL.Query().Get("storeIds"))
+	var storeIDs []string
+	if raw != "" {
+		for _, id := range strings.Split(raw, ",") {
+			if id = strings.TrimSpace(id); id != "" {
+				storeIDs = append(storeIDs, id)
+			}
+		}
+	}
+	cacheKey := "all"
+	if len(storeIDs) > 0 {
+		cacheKey = strings.Join(storeIDs, ",")
+	}
+	var cached []contracts.PickupPoint
+	if h.cache.GetJSON(r.Context(), cache.PickupPoints(cacheKey), &cached) {
+		httpx.JSON(w, http.StatusOK, cached)
+		return
+	}
+	points, err := h.repo.PickupPoints(r.Context(), storeIDs)
+	if err != nil {
+		httpx.Fail(w, http.StatusInternalServerError, "directory_unavailable", "directory unavailable")
+		return
+	}
+	if points == nil {
+		points = []contracts.PickupPoint{}
+	}
+	h.cache.SetJSON(r.Context(), cache.PickupPoints(cacheKey), points, cache.TTLStore)
+	httpx.JSON(w, http.StatusOK, points)
 }

@@ -75,6 +75,8 @@ All read-through: Valkey → Supabase/Mongo → populate. Cloudflare caches publ
 |---|---|---|
 | `GET/POST/PUT/DELETE /cart…` | cartstock | auth-scoped; `inventory.carts` JSONB, never edge-cached |
 | `GET/PUT/DELETE /favourites…` | favourites | auth-scoped durable shelf (`favourites.items`), never edge-cached |
+| `POST /orders/{id}/payments`, `GET /payments` | checkout | real-money ledger (`checkout.payments`); amount derived server-side, never edge-cached |
+| `GET /pickup-points` | directory | durable `inventory.pickup_points` (public business locations, cached 24 h) |
 | `GET/POST /orders` | checkout | `POST` uses `SET NX EX 300` idempotency + `SELECT … FOR UPDATE SKIP LOCKED` stock decrement |
 | `PUT /vendors/{id}/rating` | reviews | derived eligibility gate (`hasPurchasedFromVendor`); never a stored flag |
 | `POST /events` | reco | ID-only `userIdHash`, 90-day Mongo TTL; event allowlist + `productId ≤ 64` chars |

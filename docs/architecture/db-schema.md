@@ -786,3 +786,34 @@ Highest-traffic write after the cart; previously in-memory only (`state/favorite
 logout/restart. **No FK on `product_id`** (deliberate): the seed mixes catalog product ids with
 category/rail ids (`cat-*`, `m-*`) that are not `catalog.products` rows. RLS own-rows only; the key
 `faazio:v1:favourites:items:{userId}` is never edge-cached.
+
+### 12.2 `inventory.pickup_points` + `checkout.payments` + order pickup snapshot (migration `0012`)
+
+```sql
+CREATE TABLE inventory.pickup_points (
+  id TEXT PRIMARY KEY,                     -- store.id, or 'pickup-neutral'
+  store_id TEXT UNIQUE REFERENCES directory.stores(id),
+  name TEXT NOT NULL, address TEXT NOT NULL, phone TEXT, hours TEXT,
+  is_active BOOLEAN NOT NULL DEFAULT true, updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE TABLE checkout.payments (
+  id TEXT PRIMARY KEY,                     -- 'pay-*'
+  order_id TEXT NOT NULL REFERENCES checkout.orders(order_id) ON DELETE CASCADE,
+  user_id TEXT NOT NULL REFERENCES checkout.users(user_id),
+  method TEXT NOT NULL DEFAULT '', amount_paisa INT8 NOT NULL CHECK (amount_paisa >= 0),
+  coins_redeemed INT4 NOT NULL DEFAULT 0 CHECK (coins_redeemed >= 0),
+  status TEXT NOT NULL DEFAULT 'PAID', created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+ALTER TABLE checkout.orders ADD COLUMN pickup  JSONB CHECK (pickup  IS NULL OR octet_length(pickup::text)  <= 2048);
+ALTER TABLE checkout.orders ADD COLUMN pickups JSONB CHECK (pickups IS NULL OR octet_length(pickups::text) <= 2048);
+```
+
+`pickup_points` replaces the runtime-only `NEUTRAL_PICKUP` derivation with a durable, cacheable row;
+ids are the store id (or `pickup-neutral`), so the client resolver stays stable. Public info → anon
+read + cached (`faazio:v1:directory:pickup:{key}` 24 h). `payments` is the real-money ledger: the
+amount is derived server-side (`order.total - coins/100` rupees) and written in the order transaction
+when `coinsRedeemed > 0` or a payment method is supplied. The order `pickup`/`pickups` JSONB columns
+persist today's `PlacedOrder.pickup/pickups` snapshot, so the "Pickup From" card survives a server
+round-trip. Payments are own-rows, never edge-cached.

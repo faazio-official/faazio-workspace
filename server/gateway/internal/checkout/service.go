@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/rand"
 	"encoding/hex"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"time"
@@ -11,6 +12,10 @@ import (
 	"github.com/faazio/server/gateway/internal/contracts"
 	"github.com/faazio/server/gateway/internal/platform/cache"
 )
+
+// coinsPerRupee is the redemption rate (100 coins = ₹1) — mirrors @data/rewards COIN_REDEEM_RATE.
+// 1 coin = 1 paisa of value (100 paisa/rupee ÷ 100 coins/rupee).
+const coinsPerRupee = 100
 
 // ErrEmptyItems is returned for an order with no line items.
 var ErrEmptyItems = errors.New("order has no items")
@@ -27,9 +32,13 @@ type PlaceOrderRequest struct {
 		ProductID string `json:"productId"`
 		Qty       int64  `json:"qty"`
 	} `json:"items"`
-	AddressID      string `json:"addressId"`
-	Fulfillment    string `json:"fulfillment"`
-	IdempotencyKey string `json:"idempotencyKey"`
+	AddressID      string          `json:"addressId"`
+	Fulfillment    string          `json:"fulfillment"`
+	IdempotencyKey string          `json:"idempotencyKey"`
+	Pickup         json.RawMessage `json:"pickup,omitempty"`
+	Pickups        json.RawMessage `json:"pickups,omitempty"`
+	PaymentMethod  string          `json:"paymentMethod,omitempty"`
+	CoinsRedeemed  int64           `json:"coinsRedeemed,omitempty"`
 }
 
 // Service orchestrates order placement with the idempotency lock + stock decrement.
@@ -130,12 +139,52 @@ func (s *Service) CreateOrder(ctx context.Context, userID string, req PlaceOrder
 		Fulfillment:    req.Fulfillment,
 		VendorStoreIDs: vendors,
 		LineItems:      lines,
+		Pickup:         req.Pickup,
+		Pickups:        req.Pickups,
 	}
-	if err := s.repo.InsertOrder(ctx, order, lines, req.IdempotencyKey); err != nil {
+
+	// Durable payment ledger: recorded in the same transaction as the order. The amount is derived
+	// server-side from the priced lines minus the coins redeemed (client never dictates the amount).
+	var payments []Payment
+	if req.PaymentMethod != "" || req.CoinsRedeemed > 0 {
+		totalRupees := int64(0)
+		for _, li := range lines {
+			totalRupees += li.Qty * li.UnitPrice
+		}
+		coins := req.CoinsRedeemed
+		if coins < 0 {
+			coins = 0
+		}
+		amount := totalRupees - coins/coinsPerRupee
+		if amount < 0 {
+			amount = 0
+		}
+		method := req.PaymentMethod
+		if method == "" {
+			method = "COINS"
+		}
+		payments = append(payments, Payment{
+			ID:            newPaymentID(),
+			OrderID:       order.ID,
+			UserID:        userID,
+			Method:        method,
+			Amount:        amount,
+			CoinsRedeemed: coins,
+			Status:        "PAID",
+		})
+	}
+
+	if err := s.repo.InsertOrder(ctx, order, lines, req.IdempotencyKey, payments...); err != nil {
 		return Order{}, err
 	}
 	s.cache.Del(ctx, cache.Orders(userID))
 	return order, nil
+}
+
+func newPaymentID() string {
+	b := make([]byte, 6)
+	_, _ = rand.Read(b)
+	return "pay-" + hex.EncodeToString(b)
 }
 
 func newOrderID() string {

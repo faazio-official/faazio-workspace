@@ -20,6 +20,7 @@ import (
 func SearchQuery(q string) string     { return fmt.Sprintf("faazio:v1:search:q:%s", q) }
 func Product(id string) string        { return fmt.Sprintf("faazio:v1:catalog:product:%s", id) }
 func Store(id string) string          { return fmt.Sprintf("faazio:v1:directory:store:%s", id) }
+func PickupPoints(key string) string  { return fmt.Sprintf("faazio:v1:directory:pickup:%s", key) }
 func Stock(id string) string          { return fmt.Sprintf("faazio:v1:stock:%s", id) }
 func VendorReviews(id string) string  { return fmt.Sprintf("faazio:v1:reviews:vendor:%s", id) }
 func ProductReviews(id string) string { return fmt.Sprintf("faazio:v1:reviews:product:%s", id) }

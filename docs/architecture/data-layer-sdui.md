@@ -159,9 +159,11 @@ can never regress data. Wiring order (all methods implemented):
 `rateVendor` (derived purchase gate re-checked server-side), `getCart` / `addToCart` /
 `updateCartItem` / `removeCartItem` (auth-scoped, never edge-cached), `placeOrder`
 (idempotency lock + `SELECT … FOR UPDATE SKIP LOCKED` stock decrement), `getFavourites` /
-`addFavourite` / `removeFavourite` (auth-scoped durable shelf, never edge-cached), and `trackEvent`
-(ID-only; mock fallback is a silent no-op). These unblock the `@mock` → `@server` per-module
-migration, which waits on Supabase phone OTP replacing `authStore.login()`.
+`addFavourite` / `removeFavourite` (auth-scoped durable shelf, never edge-cached), `getPickupPoints`
+(durable `inventory.pickup_points`, replaces the runtime `NEUTRAL_PICKUP` derivation), `payForOrder`
+(server-derived payment ledger), and `trackEvent` (ID-only; mock fallback is a silent no-op). These
+unblock the `@mock` → `@server` per-module migration, which waits on Supabase phone OTP replacing
+`authStore.login()`.
 
 Screens still read `@data/*` directly and migrate onto `gateway` incrementally — no call-site changes
 are required. Every `@mock` entry is now a gateway handler contract.

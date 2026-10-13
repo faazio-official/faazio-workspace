@@ -83,6 +83,36 @@ func (r *Repo) ByID(ctx context.Context, id string) (contracts.Store, bool, erro
 	return stores[0], true, nil
 }
 
+// PickupPoints returns active pickup points. When storeIDs is non-empty it returns only those
+// stores plus the neutral fallback hub; otherwise every active point.
+func (r *Repo) PickupPoints(ctx context.Context, storeIDs []string) ([]contracts.PickupPoint, error) {
+	if r.pool == nil {
+		return nil, fmt.Errorf("directory: database not configured")
+	}
+	if len(storeIDs) == 0 {
+		storeIDs = nil
+	}
+	rows, err := r.pool.Query(ctx, `
+		select id, coalesce(store_id,''), name, address, coalesce(phone,''), coalesce(hours,''), is_active
+		  from inventory.pickup_points
+		 where is_active
+		   and ($1::text[] is null or id = any($1) or id = 'pickup-neutral')
+		 order by name`, storeIDs)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := []contracts.PickupPoint{}
+	for rows.Next() {
+		var p contracts.PickupPoint
+		if err := rows.Scan(&p.ID, &p.StoreID, &p.Name, &p.Address, &p.Phone, &p.Hours, &p.IsActive); err != nil {
+			return nil, err
+		}
+		out = append(out, p)
+	}
+	return out, rows.Err()
+}
+
 func scanStores(rows pgx.Rows) ([]contracts.Store, error) {
 	out := []contracts.Store{}
 	for rows.Next() {

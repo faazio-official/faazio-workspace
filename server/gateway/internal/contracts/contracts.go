@@ -73,6 +73,17 @@ type Store struct {
 	Hours        string   `json:"hours,omitempty"`
 }
 
+// PickupPoint is a durable inventory.pickup_points row (a business location; no customer PII).
+type PickupPoint struct {
+	ID       string `json:"id"`
+	StoreID  string `json:"storeId,omitempty"`
+	Name     string `json:"name"`
+	Address  string `json:"address"`
+	Phone    string `json:"phone,omitempty"`
+	Hours    string `json:"hours,omitempty"`
+	IsActive bool   `json:"isActive"`
+}
+
 // Review is one product review row, JSON shaped for ReviewRow.
 type Review struct {
 	ID        string `json:"id"`

@@ -122,6 +122,20 @@ sql.push(inserts(
   d.diningVenues.filter((v) => !storeIds.has(v.id)).map((v) => [q(v.id), q(v.name)]),
 ));
 
+// ---------------------------------------------------------------- pickup points
+// Durable self-pickup locations: one per store that has a full address/phone/hours, plus the
+// neutral fallback hub (replaces the runtime-only NEUTRAL_PICKUP derivation).
+sql.push(inserts(
+  'inventory.pickup_points',
+  ['id', 'store_id', 'name', 'address', 'phone', 'hours', 'is_active'],
+  [
+    ...d.storeDirectory
+      .filter((s) => s.address && s.phone && s.hours)
+      .map((s) => [q(s.id), q(s.id), q(s.name), q(s.address), q(s.phone), q(s.hours), 'true']),
+    [q(d.NEUTRAL_PICKUP.id), 'null', q(d.NEUTRAL_PICKUP.name), q(d.NEUTRAL_PICKUP.address), q(d.NEUTRAL_PICKUP.phone), q(d.NEUTRAL_PICKUP.hours), 'true'],
+  ],
+));
+
 // ---------------------------------------------------------------- catalog + inventory
 sql.push(inserts(
   'catalog.products',

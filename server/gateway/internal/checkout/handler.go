@@ -28,6 +28,8 @@ func (h *Handler) Register(r chi.Router) {
 		g.Use(auth.Require)
 		g.Get("/orders", h.getOrders)
 		g.Post("/orders", h.placeOrder)
+		g.Post("/orders/{orderID}/payments", h.payOrder)
+		g.Get("/payments", h.getPayments)
 		g.Get("/profile", h.getProfile)
 		g.Get("/profile/details", h.getDetails)
 		g.Get("/membership", h.getMembership)
@@ -76,6 +78,67 @@ func (h *Handler) placeOrder(w http.ResponseWriter, r *http.Request) {
 	default:
 		httpx.JSON(w, http.StatusCreated, order)
 	}
+}
+
+// payOrder records a payment for an order the caller owns. The amount is derived server-side from
+// the stored order total minus coins redeemed (1 coin = 1 paisa); the client never sets the amount.
+func (h *Handler) payOrder(w http.ResponseWriter, r *http.Request) {
+	userID := auth.UserID(r.Context())
+	orderID := chi.URLParam(r, "orderID")
+	var body struct {
+		Method        string `json:"method"`
+		CoinsRedeemed int64  `json:"coinsRedeemed"`
+	}
+	_ = httpx.Decode(r, &body)
+
+	totalPaisa, ok, err := h.repo.OrderTotalForUser(r.Context(), orderID, userID)
+	if err != nil {
+		httpx.Fail(w, http.StatusInternalServerError, "payment_failed", "could not record payment")
+		return
+	}
+	if !ok {
+		httpx.Fail(w, http.StatusNotFound, "not_found", "order not found")
+		return
+	}
+	coins := body.CoinsRedeemed
+	if coins < 0 {
+		coins = 0
+	}
+	totalRupees := totalPaisa / 100
+	amount := totalRupees - coins/coinsPerRupee
+	if amount < 0 {
+		amount = 0
+	}
+	method := body.Method
+	if method == "" {
+		method = "COINS"
+	}
+	payment := Payment{
+		ID:            newPaymentID(),
+		OrderID:       orderID,
+		UserID:        userID,
+		Method:        method,
+		Amount:        amount,
+		CoinsRedeemed: coins,
+		Status:        "PAID",
+	}
+	if err := h.repo.InsertPayment(r.Context(), payment); err != nil {
+		httpx.Fail(w, http.StatusInternalServerError, "payment_failed", "could not record payment")
+		return
+	}
+	httpx.JSON(w, http.StatusCreated, payment)
+}
+
+func (h *Handler) getPayments(w http.ResponseWriter, r *http.Request) {
+	payments, err := h.repo.PaymentsByUser(r.Context(), auth.UserID(r.Context()))
+	if err != nil {
+		httpx.Fail(w, http.StatusInternalServerError, "payments_unavailable", "payments unavailable")
+		return
+	}
+	if payments == nil {
+		payments = []Payment{}
+	}
+	httpx.JSON(w, http.StatusOK, payments)
 }
 
 func (h *Handler) getProfile(w http.ResponseWriter, r *http.Request) {

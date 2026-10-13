@@ -35,6 +35,20 @@ type Order struct {
 	LineItems      []OrderLineItem `json:"lineItems"`
 	Fulfillment    string          `json:"fulfillment,omitempty"`
 	VendorStoreIDs []string        `json:"vendorStoreIds"`
+	Pickup         json.RawMessage `json:"pickup,omitempty"`
+	Pickups        json.RawMessage `json:"pickups,omitempty"`
+}
+
+// Payment is one checkout.payments row, JSON shaped for PaymentRow (amount in rupees).
+type Payment struct {
+	ID            string `json:"id"`
+	OrderID       string `json:"orderId"`
+	UserID        string `json:"userId"`
+	Method        string `json:"method"`
+	Amount        int64  `json:"amount"`
+	CoinsRedeemed int64  `json:"coinsRedeemed"`
+	Status        string `json:"status"`
+	CreatedAt     string `json:"createdAt"`
 }
 
 // Profile is accounts.profile.
@@ -158,7 +172,7 @@ func (r *Repo) OrdersByUser(ctx context.Context, userID string) ([]Order, error)
 	}
 	rows, err := r.pool.Query(ctx, `
 		select order_id, order_number, user_id, coalesce(address_id,''), placed_at, status::text,
-		       status_date, coalesce(fulfillment::text,''), vendor_store_ids
+		       status_date, coalesce(fulfillment::text,''), vendor_store_ids, pickup, pickups
 		  from checkout.orders where user_id = $1 order by placed_at desc`, userID)
 	if err != nil {
 		return nil, err
@@ -172,11 +186,15 @@ func (r *Repo) OrdersByUser(ctx context.Context, userID string) ([]Order, error)
 			o          Order
 			placedAt   time.Time
 			statusDate *time.Time
+			pickup     []byte
+			pickups    []byte
 		)
 		if err := rows.Scan(&o.ID, &o.OrderNumber, &o.UserID, &o.AddressID, &placedAt, &o.Status,
-			&statusDate, &o.Fulfillment, &o.VendorStoreIDs); err != nil {
+			&statusDate, &o.Fulfillment, &o.VendorStoreIDs, &pickup, &pickups); err != nil {
 			return nil, err
 		}
+		o.Pickup = json.RawMessage(pickup)
+		o.Pickups = json.RawMessage(pickups)
 		o.PlacedAt = placedAt.UTC().Format(time.RFC3339)
 		if statusDate != nil {
 			o.StatusDate = statusDate.UTC().Format(time.RFC3339)
@@ -224,19 +242,23 @@ func (r *Repo) OrderByID(ctx context.Context, orderID string) (Order, bool, erro
 		o          Order
 		placedAt   time.Time
 		statusDate *time.Time
+		pickup     []byte
+		pickups    []byte
 	)
 	err := r.pool.QueryRow(ctx, `
 		select order_id, order_number, user_id, coalesce(address_id,''), placed_at, status::text,
-		       status_date, coalesce(fulfillment::text,''), vendor_store_ids
+		       status_date, coalesce(fulfillment::text,''), vendor_store_ids, pickup, pickups
 		  from checkout.orders where order_id = $1`, orderID).
 		Scan(&o.ID, &o.OrderNumber, &o.UserID, &o.AddressID, &placedAt, &o.Status,
-			&statusDate, &o.Fulfillment, &o.VendorStoreIDs)
+			&statusDate, &o.Fulfillment, &o.VendorStoreIDs, &pickup, &pickups)
 	if err != nil {
 		if err == pgx.ErrNoRows {
 			return Order{}, false, nil
 		}
 		return Order{}, false, err
 	}
+	o.Pickup = json.RawMessage(pickup)
+	o.Pickups = json.RawMessage(pickups)
 	o.PlacedAt = placedAt.UTC().Format(time.RFC3339)
 	if statusDate != nil {
 		o.StatusDate = statusDate.UTC().Format(time.RFC3339)
@@ -324,9 +346,10 @@ func (r *Repo) ProductSnapshots(ctx context.Context, ids []string) (map[string]P
 	return out, rows.Err()
 }
 
-// InsertOrder writes an order, its line items, and (when idempotencyKey is set) the replay record
-// in one transaction, so a retry can never observe an order without its idempotency key.
-func (r *Repo) InsertOrder(ctx context.Context, o Order, lines []OrderLineItem, idempotencyKey string) error {
+// InsertOrder writes an order, its line items, an optional payment row, and (when idempotencyKey is
+// set) the replay record in one transaction, so a retry can never observe an order without its
+// idempotency key. The optional payment is passed as a variadic to keep existing callers source-stable.
+func (r *Repo) InsertOrder(ctx context.Context, o Order, lines []OrderLineItem, idempotencyKey string, payments ...Payment) error {
 	if r.pool == nil {
 		return fmt.Errorf("checkout: database not configured")
 	}
@@ -342,9 +365,10 @@ func (r *Repo) InsertOrder(ctx context.Context, o Order, lines []OrderLineItem, 
 	}
 	if _, err := tx.Exec(ctx, `
 		insert into checkout.orders
-		  (order_id, order_number, user_id, address_id, placed_at, status, fulfillment, total_paisa, vendor_store_ids)
-		values ($1,$2,$3,$4, now(), $5::order_status, $6::fulfillment_mode, $7, $8)`,
-		o.ID, o.OrderNumber, o.UserID, nullIfEmpty(o.AddressID), o.Status, fulfillment, totalPaisa(lines), o.VendorStoreIDs); err != nil {
+		  (order_id, order_number, user_id, address_id, placed_at, status, fulfillment, total_paisa, vendor_store_ids, pickup, pickups)
+		values ($1,$2,$3,$4, now(), $5::order_status, $6::fulfillment_mode, $7, $8, $9::jsonb, $10::jsonb)`,
+		o.ID, o.OrderNumber, o.UserID, nullIfEmpty(o.AddressID), o.Status, fulfillment, totalPaisa(lines), o.VendorStoreIDs,
+		nullIfEmptyJSON(o.Pickup), nullIfEmptyJSON(o.Pickups)); err != nil {
 		return err
 	}
 	for _, li := range lines {
@@ -352,6 +376,15 @@ func (r *Repo) InsertOrder(ctx context.Context, o Order, lines []OrderLineItem, 
 			insert into checkout.order_items (line_id, order_id, product_id, name, variant, qty, unit_price_paisa)
 			values ($1,$2,$3,$4,$5,$6,$7)`,
 			li.LineID, o.ID, nullIfEmpty(li.ProductID), li.Name, nullIfEmpty(li.Variant), li.Qty, li.UnitPrice*100); err != nil {
+			return err
+		}
+	}
+	if len(payments) > 0 {
+		p := payments[0]
+		if _, err := tx.Exec(ctx, `
+			insert into checkout.payments (id, order_id, user_id, method, amount_paisa, coins_redeemed, status)
+			values ($1,$2,$3,$4,$5,$6,$7)`,
+			p.ID, o.ID, o.UserID, p.Method, p.Amount*100, p.CoinsRedeemed, p.Status); err != nil {
 			return err
 		}
 	}
@@ -380,6 +413,70 @@ func nullIfEmpty(v string) any {
 		return nil
 	}
 	return v
+}
+
+func nullIfEmptyJSON(v json.RawMessage) any {
+	if len(v) == 0 {
+		return nil
+	}
+	return string(v)
+}
+
+// OrderTotalForUser returns an order's stored total (paisa) when it belongs to userID.
+func (r *Repo) OrderTotalForUser(ctx context.Context, orderID, userID string) (int64, bool, error) {
+	if r.pool == nil {
+		return 0, false, fmt.Errorf("checkout: database not configured")
+	}
+	var total int64
+	err := r.pool.QueryRow(ctx, `
+		select total_paisa from checkout.orders where order_id = $1 and user_id = $2`, orderID, userID).Scan(&total)
+	if err != nil {
+		if err == pgx.ErrNoRows {
+			return 0, false, nil
+		}
+		return 0, false, err
+	}
+	return total, true, nil
+}
+
+// InsertPayment records a payment for an order the caller owns (server derives the order link).
+func (r *Repo) InsertPayment(ctx context.Context, p Payment) error {
+	if r.pool == nil {
+		return fmt.Errorf("checkout: database not configured")
+	}
+	_, err := r.pool.Exec(ctx, `
+		insert into checkout.payments (id, order_id, user_id, method, amount_paisa, coins_redeemed, status)
+		values ($1,$2,$3,$4,$5,$6,$7)`,
+		p.ID, p.OrderID, p.UserID, p.Method, p.Amount*100, p.CoinsRedeemed, p.Status)
+	return err
+}
+
+// PaymentsByUser returns the caller's payment rows, newest first.
+func (r *Repo) PaymentsByUser(ctx context.Context, userID string) ([]Payment, error) {
+	if r.pool == nil {
+		return nil, fmt.Errorf("checkout: database not configured")
+	}
+	rows, err := r.pool.Query(ctx, `
+		select id, order_id, user_id, method, amount_paisa, coins_redeemed, status, created_at
+		  from checkout.payments where user_id = $1 order by created_at desc`, userID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := []Payment{}
+	for rows.Next() {
+		var (
+			p         Payment
+			createdAt time.Time
+		)
+		if err := rows.Scan(&p.ID, &p.OrderID, &p.UserID, &p.Method, &p.Amount, &p.CoinsRedeemed, &p.Status, &createdAt); err != nil {
+			return nil, err
+		}
+		p.Amount = p.Amount / 100
+		p.CreatedAt = createdAt.UTC().Format(time.RFC3339)
+		out = append(out, p)
+	}
+	return out, rows.Err()
 }
 
 // ProfileByUser returns accounts.profile.

@@ -12,9 +12,10 @@
  * See data/DATA_CONTROL.md, docs/architecture/data-layer-sdui.md,
  * docs/architecture/mvp-backend.md §3, docs/architecture/monolith-breakdown.md.
  */
-import type { AppBrand } from '@data/types';
+import type { AppBrand, PickupPoint } from '@data/types';
 import { catalogIndex, getCatalogEntryById, getCatalogEntriesByIds, type CatalogEntry } from '@data/catalog/products';
 import { storeDirectory, getStoreById, getStoresByApp, type StoreRecord } from '@data/directory/stores';
+import { NEUTRAL_PICKUP } from '@data/cart/pickup-resolver';
 import { getReviewsByProductId, type ReviewRow } from '@data/reviews/reviews';
 import { getStockByProductId, type StockRow } from '@data/inventory/stock';
 import { getOrdersByUser, MOCK_USER_ID, type OrderRow } from '@data/checkout/orders';
@@ -71,6 +72,24 @@ export interface PlaceOrderInput {
   addressId?: string;
   fulfillment?: 'DELIVERY' | 'PICKUP';
   idempotencyKey?: string;
+  /** Self-pickup snapshot (single) persisted on the order. */
+  pickup?: { name: string; address: string };
+  /** Multi-vendor self-pickup snapshot persisted on the order. */
+  pickups?: { name: string; address: string; hours?: string; phone?: string }[];
+  paymentMethod?: string;
+  coinsRedeemed?: number;
+}
+
+/** One durable payment row (checkout.payments), amount in whole rupees. */
+export interface PaymentRecord {
+  id: string;
+  orderId: string;
+  userId: string;
+  method: string;
+  amount: number;
+  coinsRedeemed: number;
+  status: string;
+  createdAt: string;
 }
 
 export class GatewayClient {
@@ -345,6 +364,46 @@ export class GatewayClient {
     return this.withFallback(
       () => this.http<OrderRow>('/orders', { method: 'POST', body: JSON.stringify(input) }),
       () => delay(this.placeOrderMock(input)),
+    );
+  }
+
+  /** Durable self-pickup locations (public). Falls back to the store-backed resolver. */
+  async getPickupPoints(storeIds?: string[]): Promise<PickupPoint[]> {
+    return this.withFallback(
+      () =>
+        this.http<PickupPoint[]>(
+          `/pickup-points${storeIds && storeIds.length ? `?storeIds=${encodeURIComponent(storeIds.join(','))}` : ''}`,
+        ),
+      () => {
+        const wanted = new Set(storeIds ?? []);
+        const points: PickupPoint[] = storeDirectory
+          .filter((s) => (wanted.size === 0 || wanted.has(s.id)) && s.address && s.phone && s.hours)
+          .map((s) => ({ id: s.id, name: s.name, address: s.address as string, phone: s.phone as string, hours: s.hours as string, isActive: true }));
+        if (points.length === 0) points.push(NEUTRAL_PICKUP);
+        return delay(points);
+      },
+    );
+  }
+
+  /** Record a payment for an owned order (server derives the amount). */
+  async payForOrder(orderId: string, method: string, coinsRedeemed = 0): Promise<PaymentRecord> {
+    return this.withFallback(
+      () =>
+        this.http<PaymentRecord>(`/orders/${encodeURIComponent(orderId)}/payments`, {
+          method: 'POST',
+          body: JSON.stringify({ method, coinsRedeemed }),
+        }),
+      () =>
+        delay({
+          id: `pay-local-${Date.now()}`,
+          orderId,
+          userId: MOCK_USER_ID,
+          method,
+          amount: 0,
+          coinsRedeemed,
+          status: 'PAID',
+          createdAt: new Date().toISOString(),
+        }),
     );
   }
 
