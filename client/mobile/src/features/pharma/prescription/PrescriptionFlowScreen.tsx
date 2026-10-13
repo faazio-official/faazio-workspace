@@ -7,6 +7,7 @@ import type { StoreProfile } from '@data/types';
 import type { FulfillmentMode } from '@data/types';
 import { pharmaStores } from '@data/pharma/stores';
 import { useOrdersStore } from '@/state/ordersStore';
+import { gateway } from '@/services/api/GatewayClient';
 import PrescriptionCameraStep from './PrescriptionCameraStep';
 import PrescriptionNoteStep from './PrescriptionNoteStep';
 import PharmaVendorList from './PharmaVendorList';
@@ -100,6 +101,17 @@ export function PrescriptionFlowScreen({ navigation, route }: Props) {
       setPlacedOrderId(orderId);
       setConfirmedFulfillment(fulfillment);
       setStep('CONFIRMED');
+      // Best-effort durable Rx (server owns the authoritative id + Storage keys). The local order
+      // stays the UI source of truth; this only prevents the prescription from being lost entirely.
+      void gateway
+        .createPrescription({
+          vendorId: draft.vendor.id,
+          fulfillment,
+          pages: draft.photos.length,
+          note: draft.note.trim() ? draft.note : undefined,
+          imagePaths: [],
+        })
+        .catch(() => {});
     },
     [draft, recordOrder],
   );

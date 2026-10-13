@@ -78,6 +78,8 @@ All read-through: Valkey → Supabase/Mongo → populate. Cloudflare caches publ
 | `POST /orders/{id}/payments`, `GET /payments` | checkout | real-money ledger (`checkout.payments`); amount derived server-side, never edge-cached |
 | `GET /pickup-points` | directory | durable `inventory.pickup_points` (public business locations, cached 24 h) |
 | `GET /rewards` | rewards | server-authoritative coins/streak/ledger; earn runs inside `POST /orders` via `contracts.RewardsWriter` (never client-forgeable) |
+| `GET /venues/{id}/menu` | directory | durable `directory.menus` (public catalog data, cached 24 h) |
+| `POST /prescriptions`, `GET /prescriptions`, `POST /prescriptions/upload-url` | pharma | durable Rx; images in private Supabase Storage (object keys), signed URLs env-gated |
 | `GET/POST /orders` | checkout | `POST` uses `SET NX EX 300` idempotency + `SELECT … FOR UPDATE SKIP LOCKED` stock decrement |
 | `PUT /vendors/{id}/rating` | reviews | derived eligibility gate (`hasPurchasedFromVendor`); never a stored flag |
 | `POST /events` | reco | ID-only `userIdHash`, 90-day Mongo TTL; event allowlist + `productId ≤ 64` chars |

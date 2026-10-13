@@ -16,6 +16,9 @@ type Config struct {
 	MongoURI          string
 	MongoDatabase     string
 	SupabaseJWTSecret string
+	SupabaseURL       string
+	SupabaseServiceKey string
+	PrescriptionBucket string
 	AuthDisabled      bool
 	DevUserID         string
 	AllowedOrigins    []string
@@ -31,6 +34,9 @@ func Load() Config {
 		MongoURI:          env("MONGO_URI", ""),
 		MongoDatabase:     env("MONGO_DATABASE", "faazio"),
 		SupabaseJWTSecret: env("SUPABASE_JWT_SECRET", ""),
+		SupabaseURL:        env("SUPABASE_URL", ""),
+		SupabaseServiceKey: env("SUPABASE_SERVICE_KEY", ""),
+		PrescriptionBucket: env("PRESCRIPTION_BUCKET", "prescriptions"),
 		AuthDisabled:      envBool("AUTH_DISABLED", false),
 		DevUserID:         env("DEV_USER_ID", "user-1"),
 		AllowedOrigins:    splitCSV(env("ALLOWED_ORIGINS", "")),

@@ -84,6 +84,17 @@ type PickupPoint struct {
 	IsActive bool   `json:"isActive"`
 }
 
+// MenuDish is one directory.menus row (a vendor menu item; price in rupees).
+type MenuDish struct {
+	ID      string   `json:"id"`
+	Name    string   `json:"name"`
+	Price   int64    `json:"price"`
+	IsVeg   *bool    `json:"isVeg,omitempty"`
+	Cuisine string   `json:"cuisine,omitempty"`
+	Rating  *float64 `json:"rating,omitempty"`
+	Image   string   `json:"image,omitempty"`
+}
+
 // Review is one product review row, JSON shaped for ReviewRow.
 type Review struct {
 	ID        string `json:"id"`

@@ -113,6 +113,41 @@ func (r *Repo) PickupPoints(ctx context.Context, storeIDs []string) ([]contracts
 	return out, rows.Err()
 }
 
+// Menu returns a venue's menu rows (public catalog data), ordered by rating then name.
+func (r *Repo) Menu(ctx context.Context, venueID string) ([]contracts.MenuDish, error) {
+	if r.pool == nil {
+		return nil, fmt.Errorf("directory: database not configured")
+	}
+	rows, err := r.pool.Query(ctx, `
+		select dish_id, name, price_paisa, is_veg, cuisine, rating, image
+		  from directory.menus where venue_id = $1
+		 order by rating desc nulls last, name asc`, venueID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := []contracts.MenuDish{}
+	for rows.Next() {
+		var (
+			d       contracts.MenuDish
+			isVeg   *bool
+			cuisine *string
+			rating  *float64
+		)
+		if err := rows.Scan(&d.ID, &d.Name, &d.Price, &isVeg, &cuisine, &rating, &d.Image); err != nil {
+			return nil, err
+		}
+		d.Price = d.Price / 100
+		d.IsVeg = isVeg
+		d.Rating = rating
+		if cuisine != nil {
+			d.Cuisine = *cuisine
+		}
+		out = append(out, d)
+	}
+	return out, rows.Err()
+}
+
 func scanStores(rows pgx.Rows) ([]contracts.Store, error) {
 	out := []contracts.Store{}
 	for rows.Next() {

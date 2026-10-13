@@ -118,8 +118,30 @@ sql.push(inserts(
 const storeIds = new Set(d.storeDirectory.map((s) => s.id));
 sql.push(inserts(
   'directory.dining_venues',
-  ['id', 'name'],
-  d.diningVenues.filter((v) => !storeIds.has(v.id)).map((v) => [q(v.id), q(v.name)]),
+  ['id', 'name', 'app', 'rating', 'cover_image', 'address', 'phone', 'hours', 'categories'],
+  d.diningVenues.filter((v) => !storeIds.has(v.id)).map((v) => [
+    q(v.id), q(v.name), APP('FOOD'), 'null', q(''), 'null', 'null', 'null', `ARRAY[]::text[]`,
+  ]),
+));
+
+// ---------------------------------------------------------------- menus
+// Per-venue dishes (data/food/menus.ts `restaurantMenus`, keyed by restaurant name); venue_id is the
+// resolved vendor id (store or dining venue) — no FK, matching directory.vendors.
+const menuRows = [];
+for (const [name, dishes] of Object.entries(d.restaurantMenus ?? {})) {
+  const venue = d.findDiningVenueByName(name);
+  const venueId = venue ? venue.id : slug(name);
+  for (const dish of dishes) {
+    menuRows.push([
+      q(venueId), q(dish.id), q(dish.dishName), paisa(dish.price), b(dish.isVeg),
+      q(dish.cuisine), n(dish.rating), q(dish.image),
+    ]);
+  }
+}
+sql.push(inserts(
+  'directory.menus',
+  ['venue_id', 'dish_id', 'name', 'price_paisa', 'is_veg', 'cuisine', 'rating', 'image'],
+  menuRows,
 ));
 
 // ---------------------------------------------------------------- pickup points
@@ -265,6 +287,17 @@ sql.push(inserts(
   [[q('user-1'), n(245), n(5), 'null', 'null']],
 ));
 
+// ---------------------------------------------------------------- prescriptions
+// Two demo Rx rows; image_paths stay empty (no binary in seed — images live in Supabase Storage).
+sql.push(inserts(
+  'pharma.prescriptions',
+  ['id', 'user_id', 'vendor_id', 'fulfillment', 'pages', 'note', 'image_paths', 'status'],
+  [
+    [q('RX-000001'), q('user-1'), q('store-p1'), FULFIL('DELIVERY'), n(1), q('Blood pressure medication refill'), arr([]), `'RECEIVED'::prescription_status`],
+    [q('RX-000002'), q('user-1'), q('store-p2'), FULFIL('PICKUP'), n(2), q('Post-surgery antibiotics'), arr([]), `'PROCESSING'::prescription_status`],
+  ],
+));
+
 sql.push('commit;');
 sql.push('');
 
@@ -324,4 +357,4 @@ writeFileSync(join(mongoDir, 'seed.js'), [
 ].join('\n'));
 
 rmSync(buildDir, { recursive: true, force: true });
-console.log(`seed written: ${d.catalogIndex.length} products, ${d.storeDirectory.length} stores, ${orders.length} orders, ${d.vendorReviewsTable.length} vendor reviews, ${(d.seedFavorites ?? []).length} favourites`);
+console.log(`seed written: ${d.catalogIndex.length} products, ${d.storeDirectory.length} stores, ${orders.length} orders, ${d.vendorReviewsTable.length} vendor reviews, ${(d.seedFavorites ?? []).length} favourites, ${menuRows.length} menu dishes`);

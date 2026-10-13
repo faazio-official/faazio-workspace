@@ -16,6 +16,8 @@ import type { AppBrand, PickupPoint } from '@data/types';
 import { catalogIndex, getCatalogEntryById, getCatalogEntriesByIds, type CatalogEntry } from '@data/catalog/products';
 import { storeDirectory, getStoreById, getStoresByApp, type StoreRecord } from '@data/directory/stores';
 import { NEUTRAL_PICKUP } from '@data/cart/pickup-resolver';
+import { diningVenues } from '@data/food/diningVenues';
+import { restaurantMenus } from '@data/food/menus';
 import { getReviewsByProductId, type ReviewRow } from '@data/reviews/reviews';
 import { getStockByProductId, type StockRow } from '@data/inventory/stock';
 import { getOrdersByUser, MOCK_USER_ID, type OrderRow } from '@data/checkout/orders';
@@ -106,6 +108,40 @@ export interface RewardsView {
     orderId?: string;
     at: string;
   }[];
+}
+
+/** One venue menu dish (directory.menus). */
+export interface MenuDish {
+  id: string;
+  name: string;
+  price: number;
+  isVeg?: boolean;
+  cuisine?: string;
+  rating?: number;
+  image?: string;
+}
+
+/** A durable prescription (pharma.prescriptions); imagePaths are Storage object keys. */
+export interface PrescriptionRecord {
+  id: string;
+  userId: string;
+  vendorId?: string;
+  fulfillment?: 'DELIVERY' | 'PICKUP';
+  pages: number;
+  note?: string;
+  imagePaths: string[];
+  status: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+/** Body for POST /prescriptions. */
+export interface PrescriptionInput {
+  vendorId?: string;
+  fulfillment?: 'DELIVERY' | 'PICKUP';
+  pages?: number;
+  note?: string;
+  imagePaths?: string[];
 }
 
 export class GatewayClient {
@@ -299,6 +335,60 @@ export class GatewayClient {
     return this.withFallback(
       () => this.http<RewardsView>('/rewards'),
       () => delay({ coins: 0, streak: 0, lastOrderDay: null, card: null, ledger: [] }),
+    );
+  }
+
+  /** A venue's dishes (durable directory.menus; falls back to the @data menu fixture). */
+  async getMenu(venueId: string): Promise<MenuDish[]> {
+    return this.withFallback(
+      () => this.http<MenuDish[]>(`/venues/${encodeURIComponent(venueId)}/menu`),
+      () => {
+        const venue = getStoreById(venueId) ?? diningVenues.find((v) => v.id === venueId);
+        const dishes = venue ? restaurantMenus[venue.name] ?? [] : [];
+        return delay(
+          dishes.map((d) => ({
+            id: d.id,
+            name: d.dishName,
+            price: d.price,
+            isVeg: d.isVeg,
+            cuisine: d.cuisine,
+            rating: d.rating,
+            image: d.image,
+          })),
+        );
+      },
+    );
+  }
+
+  /** Create a durable prescription (images are Storage object keys, never bytes/URLs). */
+  async createPrescription(input: PrescriptionInput): Promise<PrescriptionRecord> {
+    return this.withFallback(
+      () =>
+        this.http<PrescriptionRecord>('/prescriptions', {
+          method: 'POST',
+          body: JSON.stringify(input),
+        }),
+      () =>
+        delay({
+          id: `RX-LOCAL-${Date.now()}`,
+          userId: MOCK_USER_ID,
+          vendorId: input.vendorId,
+          fulfillment: input.fulfillment,
+          pages: input.pages ?? 1,
+          note: input.note,
+          imagePaths: input.imagePaths ?? [],
+          status: 'RECEIVED',
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+        }),
+    );
+  }
+
+  /** The signed-in user's durable prescriptions. */
+  async getPrescriptions(): Promise<PrescriptionRecord[]> {
+    return this.withFallback(
+      () => this.http<{ items: PrescriptionRecord[] }>('/prescriptions').then((r) => r.items ?? []),
+      () => delay([] as PrescriptionRecord[]),
     );
   }
 

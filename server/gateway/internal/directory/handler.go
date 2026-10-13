@@ -31,6 +31,7 @@ func (h *Handler) Register(r chi.Router) {
 	r.Get("/stores", h.list)
 	r.Get("/store/{id}", h.get)
 	r.Get("/pickup-points", h.pickupPoints)
+	r.Get("/venues/{id}/menu", h.menu)
 }
 
 func (h *Handler) list(w http.ResponseWriter, r *http.Request) {
@@ -132,4 +133,24 @@ func (h *Handler) pickupPoints(w http.ResponseWriter, r *http.Request) {
 	}
 	h.cache.SetJSON(r.Context(), cache.PickupPoints(cacheKey), points, cache.TTLStore)
 	httpx.JSON(w, http.StatusOK, points)
+}
+
+// menu serves a venue's dishes (public catalog data, cached 24 h).
+func (h *Handler) menu(w http.ResponseWriter, r *http.Request) {
+	id := chi.URLParam(r, "id")
+	var cached []contracts.MenuDish
+	if h.cache.GetJSON(r.Context(), cache.Menu(id), &cached) {
+		httpx.JSON(w, http.StatusOK, cached)
+		return
+	}
+	dishes, err := h.repo.Menu(r.Context(), id)
+	if err != nil {
+		httpx.Fail(w, http.StatusInternalServerError, "directory_unavailable", "directory unavailable")
+		return
+	}
+	if dishes == nil {
+		dishes = []contracts.MenuDish{}
+	}
+	h.cache.SetJSON(r.Context(), cache.Menu(id), dishes, cache.TTLStore)
+	httpx.JSON(w, http.StatusOK, dishes)
 }

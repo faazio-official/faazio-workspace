@@ -18,6 +18,7 @@ import (
 	"github.com/faazio/server/gateway/internal/platform/config"
 	"github.com/faazio/server/gateway/internal/platform/db"
 	"github.com/faazio/server/gateway/internal/platform/httpx"
+	"github.com/faazio/server/gateway/internal/pharma"
 	"github.com/faazio/server/gateway/internal/reco"
 	"github.com/faazio/server/gateway/internal/reviews"
 	"github.com/faazio/server/gateway/internal/rewards"
@@ -58,6 +59,8 @@ func NewRouter(d Deps) http.Handler {
 	reviewsRepo := reviews.New(d.Pool)
 	rewardsRepo := rewards.New(d.Pool)
 	recoRepo := reco.New(d.Mongo)
+	pharmaRepo := pharma.New(d.Pool)
+	pharmaStorage := pharma.NewStorage(d.Config.SupabaseURL, d.Config.SupabaseServiceKey, d.Config.PrescriptionBucket)
 
 	// Auth: checkout resolves the auth subject → app user slug.
 	r.Use(auth.Middleware(auth.Config{
@@ -88,6 +91,7 @@ func NewRouter(d Deps) http.Handler {
 	cartstock.NewHandler(cartRepo, d.Cache).Register(r)
 	favourites.NewHandler(favouritesRepo, d.Cache).Register(r)
 	rewards.NewHandler(rewardsRepo, d.Cache).Register(r)
+	pharma.NewHandler(pharmaRepo, pharmaStorage, d.Cache).Register(r)
 	checkout.NewHandler(checkoutRepo, checkoutService, d.Cache).Register(r)
 	reviews.NewHandler(reviewsRepo, reviewsService, d.Cache).Register(r)
 	reco.NewHandler(recoRepo).Register(r)

@@ -847,3 +847,48 @@ coins/₹, `STREAK_TARGET_DAYS=7`, `DISCOUNT_CARD_PERCENT=10`). `rewards.ledger`
 inside `checkout.CreateOrder` via `contracts.RewardsWriter` (no public reconcile endpoint, so coins
 cannot be forged); the client stays optimistic and reconciles on `GET /rewards`
 (`faazio:v1:rewards:view:{userId}` 60 s, invalidated on earn).
+
+### 12.4 `directory.dining_venues` (extended) + `directory.menus` — source `data/food/diningVenues.ts`, `data/food/menus.ts` (migration `0013`)
+
+```sql
+ALTER TABLE directory.dining_venues
+  ADD COLUMN app app_brand NOT NULL DEFAULT 'FOOD', rating REAL, cover_image TEXT NOT NULL DEFAULT '',
+  ADD COLUMN address TEXT, phone TEXT, hours TEXT, categories TEXT[] NOT NULL DEFAULT '{}';
+
+CREATE TABLE directory.menus (
+  venue_id TEXT NOT NULL, dish_id TEXT NOT NULL, name TEXT NOT NULL,
+  price_paisa INT8 NOT NULL CHECK (price_paisa >= 0), is_veg BOOL, cuisine TEXT, rating REAL,
+  image TEXT NOT NULL DEFAULT '', PRIMARY KEY (venue_id, dish_id)
+);
+CREATE INDEX menus_venue_idx ON directory.menus (venue_id);
+```
+
+`dining_venues` was an identity stub (`id,name`), so every restaurant profile was hollow in the DB.
+Menus are seeded from `restaurantMenus` (61 dishes / 18 venues). **No FK on `venue_id`** (deliberate): a
+menu belongs to a *vendor* id that resolves to either `directory.stores` (food stores) or
+`directory.dining_venues` — the `directory.vendors` union. Public catalog data → anon read, cached
+`faazio:v1:directory:menu:{venueId}` 24 h; venue PII (address/phone) is redacted by the gateway.
+
+### 12.5 `pharma.prescriptions` — source `features/pharma/prescription` (migration `0009`)
+
+```sql
+CREATE TYPE prescription_status AS ENUM ('RECEIVED','PROCESSING','FULFILLED','CANCELLED');
+
+CREATE TABLE pharma.prescriptions (
+  id TEXT PRIMARY KEY,                          -- 'RX-*'
+  user_id TEXT NOT NULL REFERENCES checkout.users(user_id) ON DELETE CASCADE,
+  vendor_id TEXT, fulfillment fulfillment_mode,
+  pages SMALLINT NOT NULL DEFAULT 1 CHECK (pages BETWEEN 1 AND 10),
+  note TEXT CHECK (note IS NULL OR char_length(note) <= 2000),
+  image_paths TEXT[] NOT NULL DEFAULT '{}',     -- Storage object keys (never URLs)
+  status prescription_status NOT NULL DEFAULT 'RECEIVED',
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(), updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX prescriptions_user_created_idx ON pharma.prescriptions (user_id, created_at DESC);
+```
+
+Pharma could not go live without a durable Rx: the flow lived in screen state + `ordersStore` (in
+memory). Images live in the private Supabase Storage bucket `prescriptions` as object keys (never
+bytea, never URLs, never logged); the gateway mints signed upload URLs (`POST
+/prescriptions/upload-url`, service_role, env-gated by `SUPABASE_URL`/`SUPABASE_SERVICE_KEY`). RLS
+own-rows SELECT; writes are service_role. The list is auth-scoped, cached 60 s, never at the edge.

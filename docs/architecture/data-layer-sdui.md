@@ -162,9 +162,10 @@ can never regress data. Wiring order (all methods implemented):
 `addFavourite` / `removeFavourite` (auth-scoped durable shelf, never edge-cached), `getPickupPoints`
 (durable `inventory.pickup_points`, replaces the runtime `NEUTRAL_PICKUP` derivation), `payForOrder`
 (server-derived payment ledger), `getRewards` (server-authoritative coins/streak/ledger — earned
-in-process during `POST /orders`), and `trackEvent` (ID-only; mock fallback is a silent no-op). These
-unblock the `@mock` → `@server` per-module migration, which waits on Supabase phone OTP replacing
-`authStore.login()`.
+in-process during `POST /orders`), `getMenu` (durable `directory.menus`), `createPrescription` /
+`getPrescriptions` (durable Rx; images in Supabase Storage), and `trackEvent` (ID-only; mock fallback
+is a silent no-op). These unblock the `@mock` → `@server` per-module migration, which waits on
+Supabase phone OTP replacing `authStore.login()`.
 
 Screens still read `@data/*` directly and migrate onto `gateway` incrementally — no call-site changes
 are required. Every `@mock` entry is now a gateway handler contract.

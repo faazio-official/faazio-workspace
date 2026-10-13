@@ -24,7 +24,9 @@ services:
       - ../supabase/migrations/0005_lean_types.sql:/docker-entrypoint-initdb.d/0005_lean_types.sql:ro
       - ../supabase/migrations/0006_idempotency.sql:/docker-entrypoint-initdb.d/0006_idempotency.sql:ro
       - ../supabase/migrations/0007_favourites.sql:/docker-entrypoint-initdb.d/0007_favourites.sql:ro
+      - ../supabase/migrations/0009_prescriptions.sql:/docker-entrypoint-initdb.d/0009_prescriptions.sql:ro
       - ../supabase/migrations/0012_payments_pickup.sql:/docker-entrypoint-initdb.d/0012_payments_pickup.sql:ro
+      - ../supabase/migrations/0013_menus_venues.sql:/docker-entrypoint-initdb.d/0013_menus_venues.sql:ro
       - ../supabase/seed/0001_seed.sql:/docker-entrypoint-initdb.d/0099_seed.sql:ro
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U postgres -d faazio"]

@@ -21,6 +21,10 @@ func SearchQuery(q string) string     { return fmt.Sprintf("faazio:v1:search:q:%
 func Product(id string) string        { return fmt.Sprintf("faazio:v1:catalog:product:%s", id) }
 func Store(id string) string          { return fmt.Sprintf("faazio:v1:directory:store:%s", id) }
 func PickupPoints(key string) string  { return fmt.Sprintf("faazio:v1:directory:pickup:%s", key) }
+func Menu(venueID string) string      { return fmt.Sprintf("faazio:v1:directory:menu:%s", venueID) }
+func Prescriptions(userID string) string {
+	return fmt.Sprintf("faazio:v1:pharma:prescriptions:%s", userID)
+}
 func Stock(id string) string          { return fmt.Sprintf("faazio:v1:stock:%s", id) }
 func VendorReviews(id string) string  { return fmt.Sprintf("faazio:v1:reviews:vendor:%s", id) }
 func ProductReviews(id string) string { return fmt.Sprintf("faazio:v1:reviews:product:%s", id) }
@@ -50,6 +54,9 @@ const (
 
 	// TTLRewards bounds the auth-scoped rewards view (mutable; invalidated on earn/redeem).
 	TTLRewards = 60 * time.Second
+
+	// TTLPrescriptions bounds the auth-scoped Rx list (mutable; invalidated on create).
+	TTLPrescriptions = 60 * time.Second
 )
 
 // Cache is a JSON read-through cache. A nil *Client (disabled) is safe to call.
