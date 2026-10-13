@@ -1652,3 +1652,22 @@ price stacked below, no gradient overlay (the old 175×250 portrait card). On Ho
 tightened (`paddingBottom vs(8)`, `marginTop vs(4)`) and `CARDS_PER_RAIL` 8 → 10.
 
 **Date:** 2026-09-27
+
+## Durable backend seam — blood (0010) + bookings (0011)
+
+**Status:** 🟡 Server + seed + `GatewayClient` shipped; screen reconciliation pending.
+
+**Done:** the previously memory-only workflows now have a durable home served by the gateway:
+- **blood** (`internal/blood`, migration `0010`): donor registry (`blood.donors` + the
+  `blood.donor_directory` consented view), request board (`blood.requests`, `contact`/`address`
+  redacted for anon), `blood.interests`, `blood.match_requests`. `bloodDonorStore` now mirrors
+  `register()` → `PUT /donors/me`, `toggleInterested`/`acceptRequest` → `setBloodInterest`, and
+  `requestDonor` → `createDonorMatch` (best-effort; AsyncStorage stays the optimistic cache).
+- **bookings** (`internal/bookings`, migration `0011`): `bookings.tables` + `bookings.food_orders`.
+  `GatewayClient` exposes `getBookings/createBooking/cancelBooking/getFoodBookings/createFoodBooking`.
+
+**Remaining:** wire `bookingStore`/`foodBookingStore` (currently unused by any screen) to hydrate
+from and write to the gateway; migrate the blood dashboard/request board off the `BLOOD_REQUESTS` /
+`BLOOD_DONORS` `@data` seeds to `GET /blood-requests` / `GET /donors`.
+
+**Date:** 2026-10-13

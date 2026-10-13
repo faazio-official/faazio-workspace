@@ -98,6 +98,11 @@ for (const dish of d.TODAYS_SPECIALS ?? []) addProduct(d.dishToProduct(dish));
 const PRESCRIPTION_CATEGORIES = new Set(['hypertension', 'asthma', 'fever']);
 const isPrescription = (e) => e.app === 'PHARMA' && PRESCRIPTION_CATEGORIES.has(e.category);
 
+// Seed donor directory users into checkout.users so blood.donors FKs hold (they are demo accounts).
+const donorUsers = (d.BLOOD_DONORS ?? []).map((donor) => [
+  q(donor.userId), q(donor.name), q(`${String(donor.name).toLowerCase().replace(/[^a-z0-9]+/g, '.')}@example.com`), q(''), 'null',
+]);
+
 const sql = [];
 sql.push('-- Faazio MVP seed — generated from @data/* by server/supabase/seed/generate.mjs.');
 sql.push('-- Do not edit by hand; re-run the generator after any @data fixture change.');
@@ -208,7 +213,10 @@ sql.push(inserts(
 sql.push(inserts(
   'checkout.users',
   ['user_id', 'name', 'email', 'phone', 'default_address_id'],
-  d.usersTable.map((u) => [q(u.id), q(u.name), q(u.email), q(u.phone), q(u.defaultAddressId)]),
+  [
+    ...d.usersTable.map((u) => [q(u.id), q(u.name), q(u.email), q(u.phone), q(u.defaultAddressId)]),
+    ...donorUsers,
+  ],
 ));
 sql.push(inserts(
   'checkout.addresses',
@@ -298,6 +306,58 @@ sql.push(inserts(
   ],
 ));
 
+// ---------------------------------------------------------------- blood donor registry
+// Consented donor directory + the request board + sample interests/matches. Donor user_ids were
+// seeded into checkout.users above so the FKs hold. consent=true puts them in blood.donor_directory.
+sql.push(inserts(
+  'blood.donors',
+  ['user_id', 'name', 'blood_group', 'city', 'donation_type', 'willing_to_travel', 'available', 'consent', 'consent_at'],
+  (d.BLOOD_DONORS ?? []).map((donor) => [
+    q(donor.userId), q(donor.name), q(donor.bloodGroup), q(donor.city), q(donor.donationType),
+    b(donor.willingToTravel === 'yes'), b(donor.available), 'true', 'now()',
+  ]),
+));
+sql.push(inserts(
+  'blood.requests',
+  ['id', 'hospital', 'city', 'state', 'blood_group', 'units', 'patient_context', 'needed_within', 'verified', 'urgency', 'contact', 'address', 'remarks', 'posted_at', 'expires_at'],
+  (d.BLOOD_REQUESTS ?? []).map((r) => [
+    q(r.id), q(r.hospital), q(r.city), q(r.state), q(r.bloodGroup), n(r.unitsRequired),
+    q(r.patientContext), q(r.neededWithin), b(r.verified), q(r.urgency), q(r.hospitalContact),
+    q(r.hospitalAddress), q(r.remarks), `(now() - interval '${n(r.postedHoursAgo) || 0} hours')`, `(now() + interval '14 days')`,
+  ]),
+));
+sql.push(inserts(
+  'blood.interests',
+  ['request_id', 'donor_user_id', 'kind'],
+  [
+    [q('br-1'), q('user-1'), q('interested')],
+    [q('br-4'), q('user-1'), q('accepted')],
+  ],
+));
+sql.push(inserts(
+  'blood.match_requests',
+  ['id', 'requester_user_id', 'donor_user_id', 'blood_group', 'city', 'status'],
+  [[q('dmr-000001'), q('user-1'), q((d.BLOOD_DONORS ?? [])[0]?.userId ?? 'user-2'), q('O+'), q('Chennai'), `'pending'::match_status`]],
+));
+
+// ---------------------------------------------------------------- bookings (tables + food orders)
+const seedVenue = (d.diningVenues ?? [])[0];
+const seedVenueId = seedVenue ? seedVenue.id : slug('The Green Garden Bistro');
+const seedVenueName = seedVenue ? seedVenue.name : 'The Green Garden Bistro';
+sql.push(inserts(
+  'bookings.tables',
+  ['id', 'user_id', 'vendor_id', 'restaurant_name', 'booking_date', 'slot', 'guests', 'status'],
+  [
+    [q('BKG-000001'), q('user-1'), q(seedVenueId), q(seedVenueName), q('2026-02-01'), q('19:00'), n(2), `'confirmed'::booking_status`],
+    [q('BKG-000002'), q('user-1'), q(seedVenueId), q(seedVenueName), q('2026-02-05'), q('20:30'), n(4), `'pending'::booking_status`],
+  ],
+));
+sql.push(inserts(
+  'bookings.food_orders',
+  ['order_id', 'user_id', 'dish', 'guests', 'booking_date', 'slot', 'added_ids'],
+  [[q('FB-000001'), q('user-1'), jsonb((d.BOOKING_DISHES_DB ?? [])[0]), n(2), q('2026-02-01'), q('20:00'), arr([])]],
+));
+
 sql.push('commit;');
 sql.push('');
 
@@ -357,4 +417,4 @@ writeFileSync(join(mongoDir, 'seed.js'), [
 ].join('\n'));
 
 rmSync(buildDir, { recursive: true, force: true });
-console.log(`seed written: ${d.catalogIndex.length} products, ${d.storeDirectory.length} stores, ${orders.length} orders, ${d.vendorReviewsTable.length} vendor reviews, ${(d.seedFavorites ?? []).length} favourites, ${menuRows.length} menu dishes`);
+console.log(`seed written: ${d.catalogIndex.length} products, ${d.storeDirectory.length} stores, ${orders.length} orders, ${d.vendorReviewsTable.length} vendor reviews, ${(d.seedFavorites ?? []).length} favourites, ${menuRows.length} menu dishes, ${(d.BLOOD_DONORS ?? []).length} blood donors, ${(d.BLOOD_REQUESTS ?? []).length} blood requests`);

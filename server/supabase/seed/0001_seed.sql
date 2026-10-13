@@ -1097,7 +1097,12 @@ insert into reviews.vendor_reviews (id, vendor_id, app, user_id, user_name, rati
   ('vr-dn12-1', 'dn-12', 'FOOD'::app_brand, 'seed-priya-patel', 'Priya Patel', 5, 'Best Hyderabadi biryani in the city. The raita and salan were a lovely bonus.', ARRAY[]::text[], '1 week ago');
 
 insert into checkout.users (user_id, name, email, phone, default_address_id) values
-  ('user-1', 'Rohit Sharma', 'rohit.sharma@gmail.com', '+91 98765 43210', 'addr_1');
+  ('user-1', 'Rohit Sharma', 'rohit.sharma@gmail.com', '+91 98765 43210', 'addr_1'),
+  ('user_9000000001', 'Ananya Kumar', 'ananya.kumar@example.com', '', null),
+  ('user_9000000002', 'Vikram Rao', 'vikram.rao@example.com', '', null),
+  ('user_9000000003', 'Meera Iyer', 'meera.iyer@example.com', '', null),
+  ('user_9000000004', 'Arjun Nair', 'arjun.nair@example.com', '', null),
+  ('user_9000000005', 'Priya Menon', 'priya.menon@example.com', '', null);
 
 insert into checkout.addresses (address_id, user_id, label, name, phone, address, is_default) values
   ('addr-1', 'user-1', 'Greenwood', null, null, 'Greenwood Regency, Greenwood Regt Rd, Greenwood City - 609602', true),
@@ -1230,5 +1235,33 @@ insert into rewards.balances (user_id, coins, streak, last_order_day, card) valu
 insert into pharma.prescriptions (id, user_id, vendor_id, fulfillment, pages, note, image_paths, status) values
   ('RX-000001', 'user-1', 'store-p1', 'DELIVERY'::fulfillment_mode, 1, 'Blood pressure medication refill', ARRAY[]::text[], 'RECEIVED'::prescription_status),
   ('RX-000002', 'user-1', 'store-p2', 'PICKUP'::fulfillment_mode, 2, 'Post-surgery antibiotics', ARRAY[]::text[], 'PROCESSING'::prescription_status);
+
+insert into blood.donors (user_id, name, blood_group, city, donation_type, willing_to_travel, available, consent, consent_at) values
+  ('user_9000000001', 'Ananya Kumar', 'O+', 'Chennai', 'both', true, true, true, now()),
+  ('user_9000000002', 'Vikram Rao', 'A+', 'Chennai', 'hospital', false, true, true, now()),
+  ('user_9000000003', 'Meera Iyer', 'B+', 'Bengaluru', 'blood-bank', true, true, true, now()),
+  ('user_9000000004', 'Arjun Nair', 'O-', 'Kochi', 'both', true, true, true, now()),
+  ('user_9000000005', 'Priya Menon', 'AB+', 'Chennai', 'blood-bank', true, true, true, now());
+
+insert into blood.requests (id, hospital, city, state, blood_group, units, patient_context, needed_within, verified, urgency, contact, address, remarks, posted_at, expires_at) values
+  ('br-1', 'Government General Hospital', 'Chennai', 'Tamil Nadu', 'O+', 3, 'Accident Patient (Emergency)', 'Needed within 24 hours', true, 'urgent', '+91 98765 43210', 'Park Town, Chennai, Tamil Nadu', 'Donor should carry a valid ID proof at the time of donation.', (now() - interval '2 hours'), (now() + interval '14 days')),
+  ('br-2', 'Apollo Hospitals', 'Chennai', 'Tamil Nadu', 'A-', 2, 'Thalassemia patient — regular transfusion', 'Needed within 48 hours', true, 'high', '+91 98450 11223', 'Greams Road, Chennai, Tamil Nadu', 'Prefer donors who have donated at Apollo before.', (now() - interval '5 hours'), (now() + interval '14 days')),
+  ('br-3', 'MIOT International', 'Chennai', 'Tamil Nadu', 'B+', 1, 'Cancer patient — platelet transfusion', 'Flexible date', true, 'normal', '+91 97110 44556', 'Manapakkam, Chennai, Tamil Nadu', 'Platelet donors should be non-smokers.', (now() - interval '8 hours'), (now() + interval '14 days')),
+  ('br-4', 'Global Hospitals', 'Chennai', 'Tamil Nadu', 'AB+', 4, 'Emergency surgery patient', 'Needed within 6 hours', true, 'urgent', '+91 99410 88776', 'Perumbakkam, Chennai, Tamil Nadu', 'Hospital can arrange pickup for the donor if needed.', (now() - interval '1 hours'), (now() + interval '14 days')),
+  ('br-5', 'Kauvery Hospital', 'Chennai', 'Tamil Nadu', 'O-', 1, 'Postpartum complication patient', 'Needed within 72 hours', true, 'normal', '+91 90030 22110', 'Alwarpet, Chennai, Tamil Nadu', 'Universal donor type — most impactful donation.', (now() - interval '24 hours'), (now() + interval '14 days'));
+
+insert into blood.interests (request_id, donor_user_id, kind) values
+  ('br-1', 'user-1', 'interested'),
+  ('br-4', 'user-1', 'accepted');
+
+insert into blood.match_requests (id, requester_user_id, donor_user_id, blood_group, city, status) values
+  ('dmr-000001', 'user-1', 'user_9000000001', 'O+', 'Chennai', 'pending'::match_status);
+
+insert into bookings.tables (id, user_id, vendor_id, restaurant_name, booking_date, slot, guests, status) values
+  ('BKG-000001', 'user-1', 'store-f1', 'Paradise Biryani House', '2026-02-01', '19:00', 2, 'confirmed'::booking_status),
+  ('BKG-000002', 'user-1', 'store-f1', 'Paradise Biryani House', '2026-02-05', '20:30', 4, 'pending'::booking_status);
+
+insert into bookings.food_orders (order_id, user_id, dish, guests, booking_date, slot, added_ids) values
+  ('FB-000001', 'user-1', '{"id":"bd-1","name":"Garasen Vegetarian Platter","restaurant":"The Green Garden Bistro","category":"Vegan","tab":"Dinner","rating":"4.9","tags":"Vegetables • Salad • Hummus","price":"₹250","emoji":"🥗","isSpecial":true,"image":"https://images.unsplash.com/photo-1512621776951-a57141f2eefd?fm=jpg&fit=crop&q=80&w=400&h=300"}'::jsonb, 2, '2026-02-01', '20:00', ARRAY[]::text[]);
 
 commit;

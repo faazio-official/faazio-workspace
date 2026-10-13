@@ -84,6 +84,8 @@ Examples: `faazio:v1:stock:fm-f1`, `faazio:v1:search:q:hoodie`, `faazio:v1:sdui:
 | Rewards (per user, auth-scoped) | 60 s | **never** | order earn / redeem |
 | Venue menus (public) | 86400 s (24 h) | — | menu edit |
 | Prescriptions (per user, auth-scoped) | 60 s | **never** | Rx create (PII/health data) |
+| Blood requests board (public, redacted; auth callers bypass) | 60 s | **never** | request post / expiry sweep (contact/address stripped for anon) |
+| Bookings — tables + food orders (per user, auth-scoped) | 60 s | **never** | booking create / cancel |
 | Recommendations (per userHash) | 3600 s (1 h) | — | `user_events` flush |
 | Store directory / reviews | 86400 s (24 h) | — | edit event |
 | Idempotency locks (checkout) | 300 s | — | auto-expire |

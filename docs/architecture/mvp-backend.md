@@ -80,14 +80,21 @@ All read-through: Valkey → Supabase/Mongo → populate. Cloudflare caches publ
 | `GET /rewards` | rewards | server-authoritative coins/streak/ledger; earn runs inside `POST /orders` via `contracts.RewardsWriter` (never client-forgeable) |
 | `GET /venues/{id}/menu` | directory | durable `directory.menus` (public catalog data, cached 24 h) |
 | `POST /prescriptions`, `GET /prescriptions`, `POST /prescriptions/upload-url` | pharma | durable Rx; images in private Supabase Storage (object keys), signed URLs env-gated |
+| `GET/PUT /donors/me`, `GET /donors` | blood | donor profile + consented directory (`blood.donor_directory` view); auth-scoped |
+| `GET/POST /blood-requests`, `PUT /blood-requests/{id}/interest` | blood | request board (public read, `contact`/`address` redacted for anon); interest/accept idempotent |
+| `POST/GET /donor-match-requests` | blood | targeted donor request (own rows) |
+| `GET/POST /bookings`, `DELETE /bookings/{id}` | bookings | table reservations; partial unique index rejects live double-books (409 `slot_taken`) |
+| `GET/POST /food-bookings` | bookings | durable food order bookings (dish snapshot JSONB) |
 | `GET/POST /orders` | checkout | `POST` uses `SET NX EX 300` idempotency + `SELECT … FOR UPDATE SKIP LOCKED` stock decrement |
 | `PUT /vendors/{id}/rating` | reviews | derived eligibility gate (`hasPurchasedFromVendor`); never a stored flag |
 | `POST /events` | reco | ID-only `userIdHash`, 90-day Mongo TTL; event allowlist + `productId ≤ 64` chars |
 
 Every endpoint above now has a `GatewayClient` method (`getVendorReviews`, `rateVendor`,
-`getCart`/`addToCart`/`updateCartItem`/`removeCartItem`, `placeOrder`, `trackEvent`) with the
-`@data/*` fallback, so the per-module `@mock` → `@server` migration can begin once Supabase phone
-OTP replaces `authStore.login()`.
+`getCart`/`addToCart`/`updateCartItem`/`removeCartItem`, `placeOrder`, `trackEvent`,
+`getDonorProfile`/`saveDonorProfile`/`getBloodDonors`/`getBloodRequests`/`createBloodRequest`/
+`setBloodInterest`/`createDonorMatch`/`getDonorMatches`, `getBookings`/`createBooking`/`cancelBooking`/
+`getFoodBookings`/`createFoodBooking`) with the `@data/*` fallback, so the per-module `@mock` →
+`@server` migration can begin once Supabase phone OTP replaces `authStore.login()`.
 
 No gRPC yet; `contracts/` holds Go interfaces that mirror the future `.proto` shape. Method
 signatures above keep the `@mock` → `@server` swap call-site-compatible (`GatewayClient` adds a

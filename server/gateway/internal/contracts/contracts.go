@@ -6,7 +6,85 @@
 // interfaces only — never on a sibling context's repo.
 package contracts
 
-import "context"
+import (
+	"context"
+	"encoding/json"
+)
+
+// ------------------------------------------------------------------ blood-donor DTOs (blood schema)
+
+// BloodDonor is a blood.donors row (own profile) or a blood.donor_directory projection.
+type BloodDonor struct {
+	UserID          string          `json:"userId"`
+	Name            string          `json:"name"`
+	BloodGroup      string          `json:"bloodGroup"`
+	AgeRange        string          `json:"ageRange,omitempty"`
+	WeightKg        *int64          `json:"weightKg,omitempty"`
+	City            string          `json:"city"`
+	WillingToTravel bool            `json:"willingToTravel"`
+	DonationType    string          `json:"donationType,omitempty"`
+	Notif           json.RawMessage `json:"notif,omitempty"`
+	Available       bool            `json:"available"`
+	Consent         bool            `json:"consent"`
+}
+
+// BloodRequest is a blood.requests row (contact/address redacted for anon).
+type BloodRequest struct {
+	ID             string `json:"id"`
+	Hospital       string `json:"hospital"`
+	City           string `json:"city"`
+	State          string `json:"state"`
+	BloodGroup     string `json:"bloodGroup"`
+	UnitsRequired  int64  `json:"unitsRequired"`
+	PatientContext string `json:"patientContext"`
+	NeededWithin   string `json:"neededWithin"`
+	Verified       bool   `json:"verified"`
+	Urgency        string `json:"urgency"`
+	Contact        string `json:"contact,omitempty"`
+	Address        string `json:"address,omitempty"`
+	Remarks        string `json:"remarks,omitempty"`
+	PostedAt       string `json:"postedAt"`
+	PostedHoursAgo int64  `json:"postedHoursAgo"`
+	ExpiresAt      string `json:"expiresAt,omitempty"`
+}
+
+// DonorMatch is a blood.match_requests row.
+type DonorMatch struct {
+	ID              string `json:"id"`
+	RequesterUserID string `json:"requesterUserId"`
+	DonorUserID     string `json:"donorUserId"`
+	BloodGroup      string `json:"bloodGroup"`
+	City            string `json:"city"`
+	Status          string `json:"status"`
+	CreatedAt       string `json:"createdAt"`
+}
+
+// ------------------------------------------------------------------ bookings DTOs (bookings schema)
+
+// Booking is a bookings.tables row (dinner/table reservation).
+type Booking struct {
+	ID             string `json:"id"`
+	UserID         string `json:"userId"`
+	VendorID       string `json:"vendorId"`
+	RestaurantName string `json:"restaurantName"`
+	Date           string `json:"date"`
+	Time           string `json:"time"`
+	Guests         int64  `json:"guests"`
+	Status         string `json:"status"`
+	CreatedAt      string `json:"createdAt"`
+}
+
+// FoodBooking is a bookings.food_orders row (dish snapshot in JSON).
+type FoodBooking struct {
+	OrderID   string          `json:"orderId"`
+	UserID    string          `json:"userId"`
+	Dish      json.RawMessage `json:"dish"`
+	Guests    int64           `json:"guests"`
+	Date      string          `json:"date"`
+	Time      string          `json:"time"`
+	AddedIDs  []string        `json:"addedIds"`
+	Timestamp int64           `json:"timestamp"`
+}
 
 // Money freeze (monolith-breakdown.md §4): the DB stores INT8 paisa (₹1 = 100); every
 // JSON DTO here exposes whole rupees as an integer. The repo layer is the single

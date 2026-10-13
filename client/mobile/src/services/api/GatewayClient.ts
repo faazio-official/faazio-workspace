@@ -38,6 +38,15 @@ function delay<T>(value: T, ms = LATENCY_MS): Promise<T> {
   return new Promise((resolve) => setTimeout(() => resolve(value), ms));
 }
 
+/** Build a `?a=b&c=d` string from defined, non-empty filter values. */
+function queryString(params?: Record<string, string | undefined>): string {
+  if (!params) return '';
+  const parts = Object.entries(params)
+    .filter(([, v]) => v !== undefined && v !== '')
+    .map(([k, v]) => `${encodeURIComponent(k)}=${encodeURIComponent(v as string)}`);
+  return parts.length ? `?${parts.join('&')}` : '';
+}
+
 /** A catalog entry joined with its live stock row. */
 export interface ProductView extends CatalogEntry {
   stock: StockRow | undefined;
@@ -142,6 +151,77 @@ export interface PrescriptionInput {
   pages?: number;
   note?: string;
   imagePaths?: string[];
+}
+
+/** A blood.donors row / blood.donor_directory projection. */
+export interface BloodDonorProfile {
+  userId: string;
+  name: string;
+  bloodGroup: string;
+  ageRange?: string;
+  weightKg?: number;
+  city: string;
+  willingToTravel: boolean;
+  donationType?: string;
+  notif?: Record<string, boolean>;
+  available: boolean;
+  consent: boolean;
+}
+
+/** A blood.requests row (contact/address omitted for anon). */
+export interface BloodRequestRecord {
+  id: string;
+  hospital: string;
+  city: string;
+  state: string;
+  bloodGroup: string;
+  unitsRequired: number;
+  patientContext: string;
+  neededWithin: string;
+  verified: boolean;
+  urgency: string;
+  contact?: string;
+  address?: string;
+  remarks?: string;
+  postedAt: string;
+  postedHoursAgo: number;
+  expiresAt?: string;
+}
+
+/** A blood.match_requests row. */
+export interface DonorMatchRecord {
+  id: string;
+  requesterUserId: string;
+  donorUserId: string;
+  bloodGroup: string;
+  city: string;
+  status: string;
+  createdAt: string;
+}
+
+/** A bookings.tables row. */
+export interface BookingRecordDto {
+  id: string;
+  userId: string;
+  vendorId: string;
+  restaurantName: string;
+  date: string;
+  time: string;
+  guests: number;
+  status: string;
+  createdAt: string;
+}
+
+/** A bookings.food_orders row (dish is the opaque snapshot). */
+export interface FoodBookingDto {
+  orderId: string;
+  userId: string;
+  dish: unknown;
+  guests: number;
+  date: string;
+  time: string;
+  addedIds: string[];
+  timestamp: number;
 }
 
 export class GatewayClient {
@@ -389,6 +469,127 @@ export class GatewayClient {
     return this.withFallback(
       () => this.http<{ items: PrescriptionRecord[] }>('/prescriptions').then((r) => r.items ?? []),
       () => delay([] as PrescriptionRecord[]),
+    );
+  }
+
+  /** The caller's own donor profile, or null if not registered. */
+  async getDonorProfile(): Promise<BloodDonorProfile | null> {
+    return this.withFallback(
+      () => this.http<BloodDonorProfile | null>('/donors/me'),
+      () => delay(null),
+    );
+  }
+
+  /** Upsert the caller's donor profile (consent gates the public directory). */
+  async saveDonorProfile(profile: Partial<BloodDonorProfile> & { bloodGroup: string; name: string; city: string }): Promise<BloodDonorProfile> {
+    return this.withFallback(
+      () => this.http<BloodDonorProfile>('/donors/me', { method: 'PUT', body: JSON.stringify(profile) }),
+      () => delay({ userId: MOCK_USER_ID, willingToTravel: false, available: true, consent: true, ...profile } as BloodDonorProfile),
+    );
+  }
+
+  /** The consented donor directory, filtered by blood group / city when provided. */
+  async getBloodDonors(filters?: { bloodGroup?: string; city?: string }): Promise<BloodDonorProfile[]> {
+    return this.withFallback(
+      () => this.http<BloodDonorProfile[]>(`/donors${queryString(filters)}`),
+      () => delay([] as BloodDonorProfile[]),
+    );
+  }
+
+  /** The public blood-request board (contact/address hidden for anon callers). */
+  async getBloodRequests(filters?: { bloodGroup?: string; city?: string }): Promise<BloodRequestRecord[]> {
+    return this.withFallback(
+      () => this.http<BloodRequestRecord[]>(`/blood-requests${queryString(filters)}`),
+      () => delay([] as BloodRequestRecord[]),
+    );
+  }
+
+  /** Post a blood request. */
+  async createBloodRequest(input: Partial<BloodRequestRecord> & { bloodGroup: string }): Promise<BloodRequestRecord> {
+    return this.withFallback(
+      () => this.http<BloodRequestRecord>('/blood-requests', { method: 'POST', body: JSON.stringify(input) }),
+      () =>
+        delay({
+          id: `br-local-${Date.now()}`,
+          hospital: '', city: '', state: '', unitsRequired: 1,
+          patientContext: '', neededWithin: '', verified: false, urgency: 'normal',
+          postedAt: new Date().toISOString(), postedHoursAgo: 0,
+          ...input,
+        } as BloodRequestRecord),
+    );
+  }
+
+  /** Mark interest / acceptance on a blood request (idempotent). */
+  async setBloodInterest(requestId: string, kind: 'interested' | 'accepted'): Promise<void> {
+    await this.withFallback(
+      () => this.http<{ ok: boolean }>(`/blood-requests/${encodeURIComponent(requestId)}/interest`, { method: 'PUT', body: JSON.stringify({ kind }) }).then(() => undefined),
+      () => delay(undefined),
+    );
+  }
+
+  /** Send a targeted request to one matching donor. */
+  async createDonorMatch(donorUserId: string, bloodGroup: string, city: string): Promise<DonorMatchRecord> {
+    return this.withFallback(
+      () => this.http<DonorMatchRecord>('/donor-match-requests', { method: 'POST', body: JSON.stringify({ donorUserId, bloodGroup, city }) }),
+      () => delay({ id: `dmr-local-${Date.now()}`, requesterUserId: MOCK_USER_ID, donorUserId, bloodGroup, city, status: 'pending', createdAt: new Date().toISOString() }),
+    );
+  }
+
+  /** The caller's outgoing donor-match requests. */
+  async getDonorMatches(): Promise<DonorMatchRecord[]> {
+    return this.withFallback(
+      () => this.http<DonorMatchRecord[]>('/donor-match-requests'),
+      () => delay([] as DonorMatchRecord[]),
+    );
+  }
+
+  /** The caller's table reservations. */
+  async getBookings(): Promise<BookingRecordDto[]> {
+    return this.withFallback(
+      () => this.http<BookingRecordDto[]>('/bookings'),
+      () => delay([] as BookingRecordDto[]),
+    );
+  }
+
+  /** Create a table reservation (409 slot_taken when the slot is already booked). */
+  async createBooking(input: { vendorId: string; restaurantName?: string; date: string; time: string; guests: number }): Promise<BookingRecordDto> {
+    return this.withFallback(
+      () => this.http<BookingRecordDto>('/bookings', { method: 'POST', body: JSON.stringify(input) }),
+      () =>
+        delay({
+          id: `BKG-LOCAL-${Date.now()}`, userId: MOCK_USER_ID, vendorId: input.vendorId,
+          restaurantName: input.restaurantName ?? '', date: input.date, time: input.time,
+          guests: input.guests, status: 'confirmed', createdAt: new Date().toISOString(),
+        }),
+    );
+  }
+
+  /** Cancel a table reservation (own rows only). */
+  async cancelBooking(id: string): Promise<void> {
+    await this.withFallback(
+      () => this.http<{ ok: boolean }>(`/bookings/${encodeURIComponent(id)}`, { method: 'DELETE' }).then(() => undefined),
+      () => delay(undefined),
+    );
+  }
+
+  /** The caller's food order bookings. */
+  async getFoodBookings(): Promise<FoodBookingDto[]> {
+    return this.withFallback(
+      () => this.http<FoodBookingDto[]>('/food-bookings'),
+      () => delay([] as FoodBookingDto[]),
+    );
+  }
+
+  /** Create a food order booking. */
+  async createFoodBooking(input: { dish: unknown; guests: number; date: string; time: string; addedIds?: string[] }): Promise<FoodBookingDto> {
+    return this.withFallback(
+      () => this.http<FoodBookingDto>('/food-bookings', { method: 'POST', body: JSON.stringify(input) }),
+      () =>
+        delay({
+          orderId: `BKG-LOCAL-${Date.now()}`, userId: MOCK_USER_ID, dish: input.dish,
+          guests: input.guests, date: input.date, time: input.time,
+          addedIds: input.addedIds ?? [], timestamp: Date.now(),
+        }),
     );
   }
 

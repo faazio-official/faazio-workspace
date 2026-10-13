@@ -1,0 +1,200 @@
+package blood
+
+import (
+	"net/http"
+	"strings"
+
+	"github.com/faazio/server/gateway/internal/contracts"
+	"github.com/faazio/server/gateway/internal/platform/auth"
+	"github.com/faazio/server/gateway/internal/platform/cache"
+	"github.com/faazio/server/gateway/internal/platform/httpx"
+	"github.com/go-chi/chi/v5"
+)
+
+// Handler serves blood-donor endpoints. Health PII: the directory is auth-scoped; the requests board
+// is public but contact/address are redacted for anon (same pattern as directory.stores).
+type Handler struct {
+	repo  *Repo
+	cache *cache.Cache
+}
+
+// NewHandler builds the blood handler.
+func NewHandler(repo *Repo, c *cache.Cache) *Handler { return &Handler{repo: repo, cache: c} }
+
+// Register mounts blood endpoints. The requests board is public; everything else is auth-scoped.
+func (h *Handler) Register(r chi.Router) {
+	r.Get("/blood-requests", h.listRequests)
+	r.Group(func(g chi.Router) {
+		g.Use(auth.Require)
+		g.Get("/donors/me", h.getDonor)
+		g.Put("/donors/me", h.putDonor)
+		g.Get("/donors", h.directory)
+		g.Post("/blood-requests", h.createRequest)
+		g.Put("/blood-requests/{id}/interest", h.interest)
+		g.Post("/donor-match-requests", h.createMatch)
+		g.Get("/donor-match-requests", h.listMatches)
+	})
+}
+
+func (h *Handler) getDonor(w http.ResponseWriter, r *http.Request) {
+	d, ok, err := h.repo.Donor(r.Context(), auth.UserID(r.Context()))
+	if err != nil {
+		httpx.Fail(w, http.StatusInternalServerError, "donors_unavailable", "donor profile unavailable")
+		return
+	}
+	if !ok {
+		httpx.JSON(w, http.StatusOK, nil)
+		return
+	}
+	httpx.JSON(w, http.StatusOK, d)
+}
+
+func (h *Handler) putDonor(w http.ResponseWriter, r *http.Request) {
+	var body contracts.BloodDonor
+	if err := httpx.Decode(r, &body); err != nil {
+		httpx.Fail(w, http.StatusBadRequest, "bad_request", "invalid body")
+		return
+	}
+	if body.Name == "" || len(body.Name) > 120 || len(body.City) > 120 {
+		httpx.Fail(w, http.StatusBadRequest, "bad_request", "name required")
+		return
+	}
+	if !validBloodGroup(body.BloodGroup) {
+		httpx.Fail(w, http.StatusBadRequest, "bad_request", "invalid blood group")
+		return
+	}
+	body.UserID = auth.UserID(r.Context())
+	if err := h.repo.UpsertDonor(r.Context(), body); err != nil {
+		httpx.Fail(w, http.StatusInternalServerError, "donor_save_failed", "could not save donor profile")
+		return
+	}
+	httpx.JSON(w, http.StatusOK, body)
+}
+
+func (h *Handler) directory(w http.ResponseWriter, r *http.Request) {
+	group, city := queryFilter(r)
+	donors, err := h.repo.Directory(r.Context(), group, city)
+	if err != nil {
+		httpx.Fail(w, http.StatusInternalServerError, "donors_unavailable", "donor directory unavailable")
+		return
+	}
+	if donors == nil {
+		donors = []contracts.BloodDonor{}
+	}
+	httpx.JSON(w, http.StatusOK, donors)
+}
+
+func (h *Handler) listRequests(w http.ResponseWriter, r *http.Request) {
+	authed := auth.UserID(r.Context()) != ""
+	group, city := queryFilter(r)
+
+	cacheKey := "group=" + group + ";city=" + city
+	var cached []contracts.BloodRequest
+	if authed == false && h.cache.GetJSON(r.Context(), cache.BloodRequests(cacheKey), &cached) {
+		httpx.JSON(w, http.StatusOK, cached)
+		return
+	}
+	requests, err := h.repo.Requests(r.Context(), group, city)
+	if err != nil {
+		httpx.Fail(w, http.StatusInternalServerError, "requests_unavailable", "blood requests unavailable")
+		return
+	}
+	if requests == nil {
+		requests = []contracts.BloodRequest{}
+	}
+	if !authed {
+		// Public projection: contact/address are PII and are dropped; cache the redacted view only.
+		for i := range requests {
+			requests[i].Contact = ""
+			requests[i].Address = ""
+		}
+		h.cache.SetJSON(r.Context(), cache.BloodRequests(cacheKey), requests, cache.TTLBloodRequests)
+	}
+	httpx.JSON(w, http.StatusOK, requests)
+}
+
+func (h *Handler) createRequest(w http.ResponseWriter, r *http.Request) {
+	var body contracts.BloodRequest
+	if err := httpx.Decode(r, &body); err != nil {
+		httpx.Fail(w, http.StatusBadRequest, "bad_request", "invalid body")
+		return
+	}
+	if !validBloodGroup(body.BloodGroup) {
+		httpx.Fail(w, http.StatusBadRequest, "bad_request", "invalid blood group")
+		return
+	}
+	req, err := h.repo.CreateRequest(r.Context(), body)
+	if err != nil {
+		httpx.Fail(w, http.StatusInternalServerError, "request_failed", "could not post request")
+		return
+	}
+	h.cache.Del(r.Context(), cache.BloodRequests("group=;city="))
+	httpx.JSON(w, http.StatusCreated, req)
+}
+
+func (h *Handler) interest(w http.ResponseWriter, r *http.Request) {
+	var body struct {
+		Kind string `json:"kind"`
+	}
+	if err := httpx.Decode(r, &body); err != nil || (body.Kind != "interested" && body.Kind != "accepted") {
+		httpx.Fail(w, http.StatusBadRequest, "bad_request", "kind must be interested|accepted")
+		return
+	}
+	if err := h.repo.SetInterest(r.Context(), chi.URLParam(r, "id"), auth.UserID(r.Context()), body.Kind); err != nil {
+		httpx.Fail(w, http.StatusInternalServerError, "interest_failed", "could not record interest")
+		return
+	}
+	httpx.JSON(w, http.StatusOK, map[string]any{"ok": true})
+}
+
+func (h *Handler) createMatch(w http.ResponseWriter, r *http.Request) {
+	var body struct {
+		DonorUserID string `json:"donorUserId"`
+		BloodGroup  string `json:"bloodGroup"`
+		City        string `json:"city"`
+	}
+	if err := httpx.Decode(r, &body); err != nil || body.DonorUserID == "" {
+		httpx.Fail(w, http.StatusBadRequest, "bad_request", "donorUserId required")
+		return
+	}
+	m, err := h.repo.CreateMatch(r.Context(), contracts.DonorMatch{
+		RequesterUserID: auth.UserID(r.Context()),
+		DonorUserID:     body.DonorUserID,
+		BloodGroup:      body.BloodGroup,
+		City:            body.City,
+	})
+	if err != nil {
+		httpx.Fail(w, http.StatusInternalServerError, "match_failed", "could not request donor")
+		return
+	}
+	httpx.JSON(w, http.StatusCreated, m)
+}
+
+func (h *Handler) listMatches(w http.ResponseWriter, r *http.Request) {
+	matches, err := h.repo.MatchesByRequester(r.Context(), auth.UserID(r.Context()))
+	if err != nil {
+		httpx.Fail(w, http.StatusInternalServerError, "matches_unavailable", "matches unavailable")
+		return
+	}
+	if matches == nil {
+		matches = []contracts.DonorMatch{}
+	}
+	httpx.JSON(w, http.StatusOK, matches)
+}
+
+func queryFilter(r *http.Request) (group, city string) {
+	group = strings.TrimSpace(r.URL.Query().Get("bloodGroup"))
+	city = strings.TrimSpace(r.URL.Query().Get("city"))
+	if !validBloodGroup(group) {
+		group = ""
+	}
+	return group, city
+}
+
+func validBloodGroup(g string) bool {
+	switch g {
+	case "A+", "A-", "B+", "B-", "O+", "O-", "AB+", "AB-":
+		return true
+	}
+	return false
+}

@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useAuthStore } from '@/state/authStore';
+import { gateway } from '@/services/api/GatewayClient';
 import type { BloodDonorDraft, BloodDonorRegistration, DonorMatchRequest, DonorProfile } from '@data/index';
 
 const STORAGE_KEY = 'faazio/bloodDonor/v1';
@@ -96,14 +97,31 @@ export const useBloodDonorStore = create<BloodDonorState>()((set, get) => ({
     };
     set({ registration });
     persist(draft, registration, get().interestedRequestIds, get().acceptedRequestIds, get().donorMatchRequests);
+    // Best-effort durable write: the donor registry is server-authoritative; local state is the UX cache.
+    void gateway
+      .saveDonorProfile({
+        name: useAuthStore.getState().user?.name?.trim() || 'Faazio User',
+        bloodGroup: draft.bloodGroup,
+        city: draft.preferredLocation?.trim() || '',
+        ageRange: draft.ageRange ?? undefined,
+        weightKg: draft.weightKg ?? undefined,
+        donationType: draft.donationType ?? undefined,
+        willingToTravel: draft.willingToTravel === 'yes',
+        available: true,
+        consent: draft.consentGiven,
+        notif: draft.notificationPrefs,
+      })
+      .catch(() => {});
   },
   toggleInterested: (requestId) => {
     const { interestedRequestIds } = get();
-    const next = interestedRequestIds.includes(requestId)
-      ? interestedRequestIds.filter((id) => id !== requestId)
-      : [...interestedRequestIds, requestId];
+    const isAdding = !interestedRequestIds.includes(requestId);
+    const next = isAdding
+      ? [...interestedRequestIds, requestId]
+      : interestedRequestIds.filter((id) => id !== requestId);
     set({ interestedRequestIds: next });
     persist(get().draft, get().registration, next, get().acceptedRequestIds, get().donorMatchRequests);
+    if (isAdding) void gateway.setBloodInterest(requestId, 'interested').catch(() => {});
   },
   acceptRequest: (requestId) => {
     const { acceptedRequestIds } = get();
@@ -111,6 +129,7 @@ export const useBloodDonorStore = create<BloodDonorState>()((set, get) => ({
     const next = [...acceptedRequestIds, requestId];
     set({ acceptedRequestIds: next });
     persist(get().draft, get().registration, get().interestedRequestIds, next, get().donorMatchRequests);
+    void gateway.setBloodInterest(requestId, 'accepted').catch(() => {});
   },
   requestDonor: (donor, city) => {
     const user = useAuthStore.getState().user;
@@ -141,6 +160,8 @@ export const useBloodDonorStore = create<BloodDonorState>()((set, get) => ({
     const donorMatchRequests = [request, ...get().donorMatchRequests];
     set({ donorMatchRequests });
     persist(get().draft, get().registration, get().interestedRequestIds, get().acceptedRequestIds, donorMatchRequests);
+    // Best-effort durable write (server-authoritative match request).
+    void gateway.createDonorMatch(donor.userId, donor.bloodGroup, normalizedCity).catch(() => {});
     return true;
   },
   reset: () => {

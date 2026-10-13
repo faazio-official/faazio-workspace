@@ -150,6 +150,13 @@ the `GROCERY` member was dropped from `AppBrand` / `CartCategory` / `SubAppId` /
 | `restaurantMenus` | `Record<string, SpecialDish[]>` | `RestaurantProfileScreen.getMenuForRestaurant` (per-restaurant menus keyed by dining-restaurant name, so every dining room's "Recommended & Offers" rail + menu is populated); seeded into `directory.menus` (migration `0013`) | `@mock` → `@server` |
 | `allRestaurantMenuDishes` | `SpecialDish[]` | catalog index (search) — flat pool of all per-restaurant menu dishes | `@mock` |
 
+> **Dinner/table + food bookings (migration `0011`):** `state/bookingStore` (`BookingRecord`) and
+> `state/foodBookingStore` (`FoodBookingRecord`) were memory-only. They now have a durable home in
+> `bookings.tables` + `bookings.food_orders`, served by `internal/bookings` (`GET/POST /bookings`,
+> `DELETE /bookings/{id}`, `GET/POST /food-bookings`). The partial unique index is the double-book
+> guard. `GatewayClient` methods exist; store/screen reconciliation is pending (see
+> `client/mobile/PENDING_WORK.md`).
+
 ### `@data/pharma` — owner: `features/pharma`
 
 | Export | Type | Mobile consumers | Status |
@@ -180,23 +187,20 @@ the `GROCERY` member was dropped from `AppBrand` / `CartCategory` / `SubAppId` /
 | `BLOOD_DONORS` / `DonorProfile` | `DonorProfile[]` / type | Mock donor-directory repository for city + blood-group matching | `@mock` |
 
 > **Blood Donor contract:** `BloodDonorDraft` / `BloodDonorRegistration` are the typed shape
-> the future Go Chi backend will persist (donor registry). `BloodDonorRegistration.profile`
-> snapshots the full draft at submit, plus `accountPhone` (from the logged-in account; null
-> if none on file) — the future server upsert is **keyed by phone** → idempotent, one donor
-> row per account. The mobile store persists draft + registration to AsyncStorage
-> (`faazio/bloodDonor/v1`, plain storage accepted for the mock stage — health data at rest
-> must move server-side with the backend) and is cleared on logout. Health data stays out
-> of plain logs. `BLOOD_REQUESTS` is the dashboard feed + request-details seed (hospital
-> donation requests with full detail fields — photo, patient context/age/gender, hospital
-> contact/address, remarks, distance; all **required** so the detail page renders only real
-> data); the backend feed replaces it later — the `BloodRequest` shape stays stable.
-> Nearby filtering is city-vs-donor-`preferredLocation` matching until real geo exists.
+> the Go Chi backend persists (donor registry). As of migration `0010`, the server is the
+> durable home: `blood.donors` (health PII, RLS own-rows), the `blood.donor_directory`
+> security-definer view (consented, display-safe columns only), `blood.requests` (public board;
+> `contact`/`address` redacted for anon), `blood.interests`, and `blood.match_requests`.
+> `bloodDonorStore` keeps AsyncStorage (`faazio/bloodDonor/v1`) as an optimistic cache and mirrors
+> writes to `PUT /donors/me` + `setBloodInterest`/`createDonorMatch` best-effort. Health data
+> stays out of plain logs. `BLOOD_REQUESTS` remains the local dashboard/detail seed; the gateway
+> feed (`GET /blood-requests`) replaces it as the screen wires up. `BLOOD_DONORS` is the
+> donor-directory seed; `GET /donors` (auth-scoped) replaces it.
 > **Targeted Ask Blood contract:** the user searches by city + blood group, selects one
 > `DonorProfile`, and creates one `DonorMatchRequest` containing both requester and
-> recipient user IDs. It is persisted in the `bloodDonorStore` blob, cleared on logout,
-> and rendered only when `donorUserId` matches the active account. The current donor
-> registry and delivery are mock/local; backend search, authorization, status changes,
-> contact disclosure, and notifications remain Go Chi work.
+> recipient user IDs. `POST/GET /donor-match-requests` persists it server-side; the local blob is
+> an optimistic cache. Backend authorization, status changes, contact disclosure, and
+> notifications remain Go Chi work.
 
 ### `@data/explore` — owner: `features/catalog`
 

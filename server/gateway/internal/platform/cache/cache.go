@@ -31,6 +31,11 @@ func ProductReviews(id string) string { return fmt.Sprintf("faazio:v1:reviews:pr
 func Orders(userID string) string     { return fmt.Sprintf("faazio:v1:checkout:orders:%s", userID) }
 func Favourites(userID string) string { return fmt.Sprintf("faazio:v1:favourites:items:%s", userID) }
 func Rewards(userID string) string    { return fmt.Sprintf("faazio:v1:rewards:view:%s", userID) }
+func BloodRequests(key string) string { return fmt.Sprintf("faazio:v1:blood:requests:%s", key) }
+func Bookings(userID string) string   { return fmt.Sprintf("faazio:v1:bookings:tables:%s", userID) }
+func FoodBookings(userID string) string {
+	return fmt.Sprintf("faazio:v1:bookings:food:%s", userID)
+}
 func SduiHome(locale string) string   { return fmt.Sprintf("faazio:v1:gateway:sdui:%s:/home", locale) }
 func Idempotency(ref string) string   { return fmt.Sprintf("faazio:v1:checkout:idem:%s", ref) }
 func AuthUser(authUID string) string {
@@ -57,6 +62,12 @@ const (
 
 	// TTLPrescriptions bounds the auth-scoped Rx list (mutable; invalidated on create).
 	TTLPrescriptions = 60 * time.Second
+
+	// TTLBloodRequests bounds the public (redacted) blood-requests board; auth callers bypass it.
+	TTLBloodRequests = 60 * time.Second
+
+	// TTLBookings bounds the auth-scoped booking lists (mutable; invalidated on write).
+	TTLBookings = 60 * time.Second
 )
 
 // Cache is a JSON read-through cache. A nil *Client (disabled) is safe to call.

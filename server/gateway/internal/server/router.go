@@ -8,6 +8,8 @@ import (
 	"os"
 	"time"
 
+	"github.com/faazio/server/gateway/internal/blood"
+	"github.com/faazio/server/gateway/internal/bookings"
 	"github.com/faazio/server/gateway/internal/cartstock"
 	"github.com/faazio/server/gateway/internal/catalog"
 	"github.com/faazio/server/gateway/internal/checkout"
@@ -61,6 +63,8 @@ func NewRouter(d Deps) http.Handler {
 	recoRepo := reco.New(d.Mongo)
 	pharmaRepo := pharma.New(d.Pool)
 	pharmaStorage := pharma.NewStorage(d.Config.SupabaseURL, d.Config.SupabaseServiceKey, d.Config.PrescriptionBucket)
+	bloodRepo := blood.New(d.Pool)
+	bookingsRepo := bookings.New(d.Pool)
 
 	// Auth: checkout resolves the auth subject → app user slug.
 	r.Use(auth.Middleware(auth.Config{
@@ -92,6 +96,8 @@ func NewRouter(d Deps) http.Handler {
 	favourites.NewHandler(favouritesRepo, d.Cache).Register(r)
 	rewards.NewHandler(rewardsRepo, d.Cache).Register(r)
 	pharma.NewHandler(pharmaRepo, pharmaStorage, d.Cache).Register(r)
+	blood.NewHandler(bloodRepo, d.Cache).Register(r)
+	bookings.NewHandler(bookingsRepo, d.Cache).Register(r)
 	checkout.NewHandler(checkoutRepo, checkoutService, d.Cache).Register(r)
 	reviews.NewHandler(reviewsRepo, reviewsService, d.Cache).Register(r)
 	reco.NewHandler(recoRepo).Register(r)

@@ -892,3 +892,70 @@ memory). Images live in the private Supabase Storage bucket `prescriptions` as o
 bytea, never URLs, never logged); the gateway mints signed upload URLs (`POST
 /prescriptions/upload-url`, service_role, env-gated by `SUPABASE_URL`/`SUPABASE_SERVICE_KEY`). RLS
 own-rows SELECT; writes are service_role. The list is auth-scoped, cached 60 s, never at the edge.
+
+### 12.6 `blood.*` — source `data/pharma/bloodDonors.ts`, `data/pharma/bloodRequests.ts` (migration `0010`)
+
+```sql
+CREATE SCHEMA blood;
+
+CREATE TABLE blood.donors (                     -- health PII; consent gates the public directory
+  user_id TEXT PRIMARY KEY REFERENCES checkout.users(user_id) ON DELETE CASCADE,
+  name TEXT NOT NULL DEFAULT '',
+  blood_group TEXT NOT NULL CHECK (blood_group IN ('A+','A-','B+','B-','O+','O-','AB+','AB-')),
+  age_range TEXT, weight_kg SMALLINT CHECK (weight_kg IS NULL OR weight_kg BETWEEN 30 AND 300),
+  city TEXT NOT NULL DEFAULT '', willing_to_travel BOOL NOT NULL DEFAULT false,
+  donation_type TEXT, notif JSONB CHECK (octet_length(notif::text) <= 1024),
+  available BOOL NOT NULL DEFAULT true, consent BOOL NOT NULL DEFAULT false, consent_at TIMESTAMPTZ,
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE VIEW blood.donor_directory AS
+  SELECT user_id, name, blood_group, city, donation_type, willing_to_travel, available
+  FROM blood.donors WHERE consent AND available;   -- display-safe subset (no age/weight/notif)
+
+CREATE TABLE blood.requests (
+  id TEXT PRIMARY KEY, hospital TEXT, city TEXT, state TEXT,
+  blood_group TEXT NOT NULL CHECK (blood_group IN ('A+','A-','B+','B-','O+','O-','AB+','AB-')),
+  units SMALLINT NOT NULL DEFAULT 1, patient_context TEXT, needed_within TEXT,
+  verified BOOL NOT NULL DEFAULT false, urgency TEXT NOT NULL DEFAULT 'normal',
+  contact TEXT, address TEXT, remarks TEXT,          -- PII: redacted for anon by the gateway
+  posted_at TIMESTAMPTZ NOT NULL DEFAULT now(), expires_at TIMESTAMPTZ
+);
+CREATE TABLE blood.interests (request_id, donor_user_id, kind, PRIMARY KEY (request_id, donor_user_id, kind));
+CREATE TYPE match_status AS ENUM ('pending','accepted','declined','completed');
+CREATE TABLE blood.match_requests (id, requester_user_id, donor_user_id, blood_group, city, status, created_at);
+```
+
+Donor data is health PII and matching needs a queryable registry — it cannot stay in `AsyncStorage`.
+The public surface is the `blood.donor_directory` security-definer view (consented, display-safe
+columns only); own rows are RLS-scoped. The request board is public but `contact`/`address` are
+stripped for anon. `blood.expire_requests()` is scheduled (pg_cron, daily) to prune expired requests.
+Donor directory + request board cached 60 s (`faazio:v1:blood:requests:{bloodGroup};{city}`).
+
+### 12.7 `bookings.tables` + `bookings.food_orders` — source `state/bookingStore.ts`, `state/foodBookingStore.ts` (migration `0011`)
+
+```sql
+CREATE SCHEMA bookings;
+CREATE TYPE booking_status AS ENUM ('pending','confirmed','cancelled');
+
+CREATE TABLE bookings.tables (
+  id TEXT PRIMARY KEY, user_id TEXT NOT NULL REFERENCES checkout.users(user_id) ON DELETE CASCADE,
+  vendor_id TEXT NOT NULL, restaurant_name TEXT NOT NULL DEFAULT '', booking_date DATE NOT NULL,
+  slot TEXT NOT NULL DEFAULT '', guests SMALLINT NOT NULL DEFAULT 1 CHECK (guests BETWEEN 1 AND 30),
+  status booking_status NOT NULL DEFAULT 'confirmed',
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(), updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+-- one live booking per (vendor, date, slot); cancelled rows free the slot
+CREATE UNIQUE INDEX bookings_vendor_slot_live_idx
+  ON bookings.tables (vendor_id, booking_date, slot) WHERE status <> 'cancelled';
+
+CREATE TABLE bookings.food_orders (
+  order_id TEXT PRIMARY KEY, user_id TEXT NOT NULL REFERENCES checkout.users(user_id) ON DELETE CASCADE,
+  dish JSONB NOT NULL CHECK (octet_length(dish::text) <= 2048), guests SMALLINT NOT NULL DEFAULT 1,
+  booking_date DATE NOT NULL, slot TEXT NOT NULL DEFAULT '', added_ids TEXT[] NOT NULL DEFAULT '{}',
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+```
+
+Both booking stores were memory-only (lost on restart); they are unified here so they cannot diverge.
+The partial unique index is the double-book guard (a re-book of a cancelled slot succeeds → 23505 is
+surfaced as HTTP 409 `slot_taken`). RLS own-rows; lists auth-scoped, cached 60 s, never at the edge.
