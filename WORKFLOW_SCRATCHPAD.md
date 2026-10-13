@@ -1,8 +1,12 @@
 # WORKFLOW_SCRATCHPAD.md — Faazio End-to-End dtype-alignment
 
 > **Status:** LIVE control surface (repo root). Supersedes ad-hoc notes.
-> Plan: "Faazio End-to-End Plan v2 — Mobile → Lean DB → Web → Go Chi Gateway".
+> Plan: "Faazio End-to-End Plan v3 — Mobile → Web → DB → Go Chi Gateway".
 > This file is the single live matrix; stop 6-doc drift. Update it as phases land.
+> **v3 delta (0017 `partner_complete`):** closes the last web↔mobile gaps — customer-user
+> monitoring (W17), food/menu seller editor (W18), rewards ledger + admin-tunable rates (W19),
+> support state/super queue (W20) — plus web write-through (W21), mobile `@mock`→`@server` (W22),
+> and auth/Storage/edge cutover (W23). Additive only; never rewrites `0001`–`0016`.
 
 ## 0. dtype freeze (the lean contract everything obeys)
 
@@ -105,6 +109,13 @@ wire. Mobile `GatewayClient.ts` + `@data/*` already speak integer rupees — unc
 | W14 | Real settlement ledger (no client-computed money) | 3 | **done** (server-only write) |
 | W15 | Audit log durability (admins.audit_logs) | 3 | **done** |
 | W16 | Payout records (payments.payouts) | 3 | **done** (admin-scheduled, invalidates cache) |
+| W17 | Customer-user monitoring page (PII-safe per-user view, block/suspend) | 1/2/4 | **v3** (0017 view + `internal/admins` customers list + `/admin/state/customers`) |
+| W18 | Food menu seller editor (directory.menus seller-scoped CRUD) | 1/2/4 | **v3** (0017 seller_id/status + `/seller/menus` + `internal/directory` menu writes) |
+| W19 | Rewards admin knobs (ledger view + admin-tunable rates) | 1/2/4 | **v3** (0017 `rewards.rates` + `/admin/super/rewards` + `internal/rewards` read/rates) |
+| W20 | Support state/super ticket queue | 1/2/4 | **v3** (0017 `tickets.state_code` + `/admin/state/support` + state filter in `internal/support`) |
+| W21 | Web write-through (mutations → gateway, keep seed fallback) | 3/4 | **v3** (`http.ts` toSnake/₹↔paisa, `index.ts` mutators call `remote.*`) |
+| W22 | Mobile `@mock`→`@server` per-module migration | 4 | **v3** (`EXPO_PUBLIC_USE_GATEWAY=true` per module, fallback retained) |
+| W23 | Auth cutover (Supabase JWT + RequireRole) + Storage object-key uploads + edge purge | 5 | **v3** (mobile `authStore`, product/KYC buckets, Cloudflare rules) |
 
 ## 6. dtype-gap matrix D1–D15
 
@@ -125,6 +136,10 @@ wire. Mobile `GatewayClient.ts` + `@data/*` already speak integer rupees — unc
 | D13 | plaintext `demo1234` + localStorage | Supabase Auth JWT + RLS | auth cutover (Phase 5) |
 | D14 | client-computed settlement | payments.settlement_ledger | server-only write |
 | D15 | camelCase everywhere | snake_case DB | single mapper |
+| D16 | no customer-user projection | checkout.users (PII) + orders | **0017** `checkout.users_admin` view (redacted: no phone/address/email) |
+| D17 | `directory.menus` has no owner/status | menu edits seller-scoped like products | **0017** `menus.seller_id` + `status` (nullable, backfilled) |
+| D18 | rewards rates as static constants (`data/rewards/rewards.ts`, `config.ts`) | admin-editable row | **0017** `rewards.rates` (single row) + gateway read; server stays sole ledger writer |
+| D19 | `support.tickets` has no state scope | state queue filter | **0017** `tickets.state_code` (nullable) + gateway filter |
 
 ## 7. DB delta 0015 checklist
 
@@ -184,3 +199,17 @@ cd client/web    && npm run ts:check && npm run build
 Dtype spot-checks: INSERT rating 4.666 → stored 4.7; qty 99999 → CHECK fail; `discountPercent`
 column absent; `mock://` insert rejected; settlement client-write rejected; raw `user_id` in
 `user_events` rejected by validator.
+
+## 12. E2E slices (v3) — one workflow at a time, mobile → web → DB → gateway
+
+Each slice is closed only when the mobile screen, the web control, the DB row, and the gateway
+endpoint all agree. Fallback stays in place until the slice is green end-to-end.
+
+| Slice | Mobile (read/write) | Web control | DB (0017) | Gateway |
+|---|---|---|---|---|
+| S1 Customers | checkout.orders/returns | `/admin/state/customers` (PII-safe) | `checkout.users_admin` view | `GET /customers` (state/super, redacted) |
+| S2 Food menu | `getMenu` / seller edits | `/seller/menus` | `directory.menus.seller_id/status` | `GET/POST/PUT /seller/menus/{id}` + invalidation |
+| S3 Rewards | `getRewards` | `/admin/super/rewards` | `rewards.rates` (read policy for admin) | `GET /rewards/ledger`, `GET/PUT /rewards/rates` |
+| S4 Support | create ticket/return | `/admin/state/support` | `support.tickets.state_code` | `GET /tickets?state=`, `PUT /tickets/{id}/status` |
+| S5 Write-through | — | all portal mutators | existing rows | `remote.post/put/delete` + audit + cache purge |
+| S6 Auth/media | `authStore` JWT | Supabase GoTrue session | RLS claims | `RequireRole`; Storage object keys |

@@ -143,7 +143,7 @@ contract stable so the swap is invisible to the app):
 
 ---
 
-## 7. Build order (done)
+## 7. Build order
 
 1. ✅ `server/supabase/migrations/0001_mvp_schemas.sql` — schemas + extensions + tables ported from
    `db-schema.md` (slug public keys, INT8 paisa, `TIMESTAMPTZ`, ENUMs).
@@ -184,6 +184,11 @@ contract stable so the swap is invisible to the app):
     `(state_code, is_live)` index (0015's comment assumed the flag existed but it did not). Owner:
     `db-schema.md` §12.10. The gateway now exposes role-scoped partner management endpoints over
     `catalog`/`directory`/`checkout`/`pharma`/`bookings`/`blood` (see `monolith-breakdown.md` §1).
+14. 🔜 **Partner completion (`0017`, v3):** `checkout.users_admin` redacted view (customer monitoring),
+    `directory.menus.seller_id/status` (food-menu editing), admin-tunable `rewards.rates`, and
+    `support.tickets.state_code` (state queue). Owner: `db-schema.md` §12.11. Closes the remaining
+    web↔mobile control-plane gaps (W17–W20 in `WORKFLOW_SCRATCHPAD.md`), then web write-through (W21),
+    mobile `@mock`→`@server` (W22) and auth/Storage/edge (W23). Additive only — mobile keeps running.
 
 ---
 

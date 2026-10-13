@@ -1081,3 +1081,51 @@ CREATE INDEX IF NOT EXISTS stores_state_live_idx ON directory.stores (state_code
 The composite index keeps the public list (`WHERE app = ? AND is_live`) state-aligned (it still serves
 `state_code`-only lookups). Stores remain public anon-readable; writes are `service_role` (the gateway is
 the only write path), so no new RLS policy is needed. Idempotent and re-runnable.
+
+### 12.11 Partner completion — customers, menus, rewards rates, ticket scope (migration `0017`)
+
+`0015`/`0016` gave the Portal a durable origin but left four control-plane surfaces with no row to
+read: customer monitoring, food-menu editing, admin-tunable rewards rates, and a state-scoped support
+queue. `0017` supplies them additively (never rewrites `0001`–`0016`), reusing the §0.1 lean dtypes.
+
+```sql
+-- W17: PII-redacted customer projection for the state/super customers page. The base
+-- checkout.users table keeps its own-rows RLS untouched; this view exposes counts only, never
+-- phone/address/email.
+CREATE VIEW checkout.users_admin AS
+  SELECT u.user_id, u.name, u.state_code, u.created_at,
+         count(o.order_id)::int4               AS orders_count,
+         coalesce(sum(o.total_paisa),0)::int8  AS spend_paisa,
+         max(o.placed_at)                      AS last_order_at
+    FROM checkout.users u
+    LEFT JOIN checkout.orders o ON o.user_id = u.user_id
+   GROUP BY u.user_id, u.name, u.state_code, u.created_at;
+
+-- W18: seller-scoped menu editing (mirrors catalog.products.seller_id/status from 0015).
+ALTER TABLE directory.menus ADD COLUMN IF NOT EXISTS seller_id TEXT;
+ALTER TABLE directory.menus ADD COLUMN IF NOT EXISTS status    product_status NOT NULL DEFAULT 'DRAFT';
+
+-- W19: admin-tunable rewards rates replace the static constants; server remains the sole ledger writer.
+CREATE TABLE rewards.rates (
+  rate_id              text PRIMARY KEY DEFAULT 'default',
+  coin_earn_rate       smallint NOT NULL CHECK (coin_earn_rate       BETWEEN 1 AND 10000),  -- ₹ spent per coin
+  coin_redeem_rate     smallint NOT NULL CHECK (coin_redeem_rate     BETWEEN 1 AND 10000),  -- coins per ₹1
+  streak_target_days   smallint NOT NULL CHECK (streak_target_days   BETWEEN 1 AND 60),
+  discount_card_percent smallint NOT NULL CHECK (discount_card_percent BETWEEN 0 AND 90),
+  card_validity_days   smallint NOT NULL CHECK (card_validity_days   BETWEEN 1 AND 90),
+  updated_at           timestamptz NOT NULL DEFAULT now()
+);
+
+-- W20: state-scoped support queue (nullable = unassigned/global).
+ALTER TABLE support.tickets ADD COLUMN IF NOT EXISTS state_code CHAR(2);
+CREATE INDEX IF NOT EXISTS tickets_state_status_idx ON support.tickets (state_code, status);
+```
+
+The customers view is a projection, not a table: `checkout.users` own-rows RLS is unchanged and the
+gateway reads the view as `service_role`. `directory.menus` gains the same seller/status model as
+`catalog.products`, so menu writes are seller-scoped and state-moddable. `rewards.rates` is a single
+admin-editable row (deleted-to-default is a no-op because the gateway falls back to the `config.ts`
+constants when absent); `rewards.ledger` stays append-only — the rate row changes the *earn* factor,
+never a past entry, and the server remains the only writer of balances/ledger. `support.tickets`
+gains a nullable `state_code` so the state queue filters without breaking customer-created tickets.
+`util.touch_updated_at()` is attached to `rewards.rates`. Idempotent and re-runnable.

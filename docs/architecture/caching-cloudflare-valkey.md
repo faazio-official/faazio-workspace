@@ -153,6 +153,12 @@ Examples: `faazio:v1:stock:fm-f1`, `faazio:v1:search:q:hoodie`, `faazio:v1:sdui:
 > `catalog:product:{id}`, a store live toggle invalidates `directory:store:{id}`, an order status change
 > invalidates the owning user's `checkout:orders:{userId}`, and a prescription status change invalidates
 > `pharma:prescriptions:{userId}`. Seller lists are never cached.
+>
+> **Partner completion (v3, `0017`):** a food-menu edit (`/seller/menus`) invalidates
+> `directory:menu:{venueId}`. Customer monitoring (`/customers`) reads the redacted `checkout.users_admin`
+> projection and is **never cached** (auth-scoped, join-heavy). `rewards.rates` is a single admin-editable
+> row read live (no key); the rewards *view* keeps `faazio:v1:rewards:view:{userId}` 60 s and the ledger
+> stays append-only under the server-only writer. The state support queue is auth-scoped, never cached.
 
 ---
 

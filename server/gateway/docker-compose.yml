@@ -33,6 +33,7 @@ services:
       - ../supabase/migrations/0014_hardening.sql:/docker-entrypoint-initdb.d/0014_hardening.sql:ro
       - ../supabase/migrations/0015_partner_control.sql:/docker-entrypoint-initdb.d/0015_partner_control.sql:ro
       - ../supabase/migrations/0016_store_live.sql:/docker-entrypoint-initdb.d/0016_store_live.sql:ro
+      - ../supabase/migrations/0017_partner_complete.sql:/docker-entrypoint-initdb.d/0017_partner_complete.sql:ro
       - ../supabase/seed/0001_seed.sql:/docker-entrypoint-initdb.d/0099_seed.sql:ro
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U postgres -d faazio"]

@@ -385,6 +385,15 @@ function assertLeanContract() {
   for (const s of d.stockTable) {
     if (!isRupees(s.price) || !isRupees(s.mrp)) violations.push(`stock ${s.productId}: non-integer rupees price`);
   }
+  // Rewards rates mirror `0017` rewards.rates defaults; keep them positive integers so the DB
+  // default row and @data never drift (admin console tunes a copy, not the source constant).
+  for (const [name, v] of [
+    ['COIN_EARN_RATE', d.COIN_EARN_RATE], ['COIN_REDEEM_RATE', d.COIN_REDEEM_RATE],
+    ['STREAK_TARGET_DAYS', d.STREAK_TARGET_DAYS], ['DISCOUNT_CARD_PERCENT', d.DISCOUNT_CARD_PERCENT],
+    ['DISCOUNT_CARD_VALIDITY_DAYS', d.DISCOUNT_CARD_VALIDITY_DAYS],
+  ]) {
+    if (!Number.isInteger(v) || v <= 0) violations.push(`rewards ${name}: ${v} must be a positive integer`);
+  }
   const sqlText = sql.join('\n');
   if (sqlText.includes('slug_uid')) violations.push('dropped column `slug_uid` leaked into seed');
   if (sqlText.includes('quality_score')) violations.push('dropped column `quality_score` leaked into seed');
