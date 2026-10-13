@@ -117,5 +117,8 @@ Examples: `faazio:v1:stock:fm-f1`, `faazio:v1:search:q:hoodie`, `faazio:v1:sdui:
 
 - **Nothing is built.** This is a plan; no Valkey instance, no Cloudflare rules, no cache code exist yet.
 - **TTLs are starting points** — tune from real traffic (hit ratio, origin load).
+- **MVP unchanged:** Aiven Valkey + Cloudflare are kept exactly as specified; only the **origin**
+  swaps from `@mock` fixtures to Supabase/Mongo (`docs/architecture/mvp-backend.md`) — **no key or TTL
+  change**.
 - The **Upstash Redis** supersession is recorded here and in `server/README.md` /
   `server-gateway-plan.md`; the old mentions stay as history notes, not active config.

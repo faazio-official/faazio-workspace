@@ -1,15 +1,49 @@
 # Faazio Server (Go Chi)
 
-> **Status: PLANNED — not yet implemented.** The `server/` folder is a placeholder.
-> Per `AGENTS.md`, do **not** build server code until explicitly requested. This document
-> captures the **future plan** so scaffolding follows one target layout and no concern
-> is silently re-invented.
+> **Status: MVP ACTIVE (thin) / Future Prod (full).** The MVP is a **thin Go Chi gateway** over
+> Supabase (Postgres) + MongoDB Atlas M0 + Aiven Valkey, with Cloudflare in front — single authority:
+> `docs/architecture/mvp-backend.md`. The full microservices plan below is **Future Prod** and stays
+> documented so scaffolding follows one target layout and no concern is silently re-invented.
+> Per `AGENTS.md`, build the MVP gateway + Supabase migrations when requested; do **not** build the
+> full microservices until explicitly requested.
 
-This directory will host the Faazio backend. It is designed as a **highly modular,
-enterprise-grade microservices codebase** for scalability and long-term maintenance —
-no monolith, no framework-heavy baggage, each concern owning exactly one home.
+This directory hosts the Faazio backend. MVP scope (thin gateway) is §0; the enterprise-grade
+microservices target is the **Future Prod** sections below — no monolith, no framework-heavy
+baggage, each concern owning exactly one home.
 
 ---
+
+## 0. MVP thin gateway (active scope)
+
+The MVP is a **single thin Go Chi service** that serves the app while each `@mock` module is
+migrated (`@mock` → `@server`). No gRPC, no separate services yet.
+
+```
+server/
+├── README.md                    # this file
+├── gateway/                     # thin Go Chi service (only public surface)
+│   ├── cmd/server/main.go       # GET /health first
+│   └── internal/                # handlers + Supabase / Mongo / Valkey clients
+├── supabase/
+│   ├── migrations/              # 0001 schemas, 0002 FTS search (mvp-backend.md §7)
+│   └── seed/                    # @data/* twins, IDs unchanged
+└── contracts/                   # stub (gRPC contracts arrive with Future Prod)
+```
+
+- **Endpoints (read-through):** `GET /health`, `/search?q=`, `/sdui/home`, `/product/:id`,
+  `/vendors/:id/reviews`, `/stores`, `/store/:id`, `/orders`, `/profile` — origins and the
+  `@data/*` / `GatewayClient` mapping in `docs/architecture/mvp-backend.md` §3.
+- **Origins:** Supabase (Postgres) for catalog/directory/reviews/checkout/accounts/inventory;
+  MongoDB Atlas for `sdui_layouts` + events; Aiven Valkey read-through; Cloudflare in front.
+- **Auth:** Supabase Auth phone OTP + RLS. Never commit the service-role key.
+- **Build order:** `docs/architecture/mvp-backend.md` §7.
+
+---
+
+## Future Prod (full microservices)
+
+The enterprise-grade target: five focused services, gRPC through `contracts/`, each owning its own
+schema and deployable independently.
 
 ## 1. Runtime surfaces (who talks to what)
 

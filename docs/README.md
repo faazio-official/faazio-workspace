@@ -16,6 +16,7 @@ Operational and architectural documentation for the **Faazio SuperApp**.
 |---|---|---|
 | [DEVELOPER_ONBOARDING.md](./DEVELOPER_ONBOARDING.md) | Numbered getting-started guide (setup → run → verify) | Everyone |
 | [BRAND_COLOR_MIGRATION.md](./BRAND_COLOR_MIGRATION.md) | Royal-purple → Faazio-blue change log + revert command | Design / maintainers |
+| [architecture/mvp-backend.md](./architecture/mvp-backend.md) | **MVP authority**: thin Go Chi gateway over Supabase + MongoDB + Valkey (build order, endpoints, RLS) | Engineers / infra |
 | [architecture/mobile-app.md](./architecture/mobile-app.md) | Deep dive: RN app internals (modules, state, nav, boundaries) | Engineers |
 | [architecture/data-layer-sdui.md](./architecture/data-layer-sdui.md) | Deep dive: `data/` layer + SDUI path + GatewayClient | Engineers |
 | [architecture/server-gateway-plan.md](./architecture/server-gateway-plan.md) | Deep dive: future Go Chi microservices plan | Engineers / infra |

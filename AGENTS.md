@@ -6,17 +6,23 @@ Build **lightweight, fast, secure**. Every change must justify its size:
 - **Fast** — efficient rendering, lazy/native where sensible, minimal re-renders.
 - **Secure** — never log or commit secrets/PII; tokens via `expo-secure-store`; prescriptions & payments never in plain logs.
 
+## Phase: MVP (now)
+**Status: MVP.** The backend is a **thin Go Chi gateway** over **Supabase (Postgres) + MongoDB Atlas M0 + Aiven Valkey**, with Cloudflare in front. This replaces the mocked `@mock` data per module (`@mock` → `@server`).
+The full microservices target — Rust/Tantivy search, CockroachDB, DynamoDB, per-service Postgres — is **Future Prod** and stays documented. Single authority: **`docs/architecture/mvp-backend.md`**.
+- MVP = docs-first; no code written yet. When the build phase is approved, scaffold per `mvp-backend.md` (Supabase migrations → thin gateway → wire `GatewayClient`).
+- Cache keys/TTLs are **unchanged** (Aiven Valkey + Cloudflare); Supabase is the origin, not the cache.
+
 ## Repo map
 ```
 faazio-workspace/
 ├── (root)          Repo root — docs + project docs only (AGENTS.md, ARCHITECTURE.md, LICENSE, PAGE_CATALOG.md, README.md).
 ├── client/mobile/  React Native (Expo) SuperApp — ALL active work lives here.
-├── server/         Go Chi SDUI backend — future. Placeholder only.
+├── server/         MVP thin Go Chi gateway (active) + future full microservices (see docs/architecture/mvp-backend.md).
 ├── data/           SDUI source of truth (enterprise-controlled), consumed via @data/*.
 ├── docs/           Documentation system — architecture deep-dives + runbooks (see "Documentation map").
 └── security/       Security hardening scripts + remediation guide (see "Security").
 ```
-See `ARCHITECTURE.md` (root) for the full mobile + future-Chi design. Data ownership lives in `data/DATA_CONTROL.md`.
+See `ARCHITECTURE.md` (root) for the full mobile + backend design. Data ownership lives in `data/DATA_CONTROL.md`.
 
 ## Documentation map
 Structured docs live under root `docs/` (mirrors the repo layout):
@@ -26,7 +32,7 @@ docs/
 ├── README.md                       # index + reading order
 ├── DEVELOPER_ONBOARDING.md         # numbered getting-started guide
 ├── BRAND_COLOR_MIGRATION.md        # royal-purple → Faazio-blue change log + revert
-├── architecture/                   # deep-dives (mobile-app, data-layer-sdui, server-gateway-plan, db-schema, caching-cloudflare-valkey)
+├── architecture/                   # deep-dives (mvp-backend, mobile-app, data-layer-sdui, server-gateway-plan, db-schema, caching-cloudflare-valkey)
 └── RUNBOOKS/                       # operational guides (RELEASE, CI_PIPELINE, DATA_FIXTURES, TROUBLESHOOTING)
 ```
 
@@ -35,7 +41,7 @@ Reading order for a new contributor: `AGENTS.md` → `ARCHITECTURE.md` →
 `client/mobile/` also has `docs/` (appstore/playstore/release) and `PENDING_WORK.md` (backlog).
 
 ## Hard rules
-1. **Wait for user intent.** Do NOT build screens/pages until explicitly requested.
+1. **Wait for user intent.** Do NOT build screens/pages until explicitly requested. **Exception:** the MVP thin gateway + Supabase migrations (`docs/architecture/mvp-backend.md`) are the sanctioned server scope — build them when the user asks for the MVP backend.
 2. **Imports** — `@/` → `client/mobile/src/`, `@data/` → root `data/`.
 3. **State** — shared state ONLY in Zustand stores under `src/state/`. Keep components presentational; read via selectors. No duplicate shared state.
 4. **Modularity** — small components under `src/components/`; screen helpers under their `src/features/<module>/`; shared widgets under `src/components/shared/`. Reuse before duplicating (avoid parallel mock copies).
@@ -109,7 +115,8 @@ Shipped (`client/mobile/src/features/`): `onboarding`, `auth`, `home`, `ecommerc
 `favourites`, `sub-app`. `dinner-booking` is a scaffold (README only).
 
 Remaining/backlog work is tracked in `client/mobile/PENDING_WORK.md` (e.g. wiring
-`GatewayClient`, server-backed flows, de-duplicating inline mock data). Build new screens
+`GatewayClient`, server-backed flows, de-duplicating inline mock data). `GatewayClient` wiring is
+**unblocked by the MVP thin gateway** (`docs/architecture/mvp-backend.md`); build new screens
 only when explicitly requested.
 
 ## Security — Phase 1: Security steps for future projects

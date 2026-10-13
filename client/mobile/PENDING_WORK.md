@@ -943,18 +943,30 @@ added a dev-only authoring guard in `data/home/campaigns.ts` that `console.warn`
 
 **Date:** 2026-09-13
 
-## Wire GatewayClient → production tables (per db-schema.md)
+## Wire GatewayClient → production tables (per mvp-backend.md / db-schema.md)
 
-**Status:** 🟡 Planned — backend not built.
+**Status:** 🟢 MVP unblocked (thin gateway) — docs-first; no code yet.
 
-**Feature:** When `server/` ships, wire `src/services/api/GatewayClient.ts` (the intended single data
-surface) onto the production tables specified in `docs/architecture/db-schema.md`, replacing the live
-`@data/*` fixtures per module (`@mock` → `@server`). Cache keys/TTLs follow
-`docs/architecture/caching-cloudflare-valkey.md`.
+**Feature:** Wire `src/services/api/GatewayClient.ts` (the intended single data surface) onto the
+production tables. The **MVP** path is the thin Go Chi gateway over Supabase (Postgres) + MongoDB +
+Aiven Valkey (`docs/architecture/mvp-backend.md`); the Future Prod target is the microservice tables in
+`docs/architecture/db-schema.md`. Replace the live `@data/*` fixtures per module (`@mock` → `@server`),
+keeping `@data/*` as fallback. Cache keys/TTLs follow `docs/architecture/caching-cloudflare-valkey.md`
+(unchanged).
 
-**Blocked by:** `server/` backend (not built yet).
+**Wiring order** (`docs/architecture/data-layer-sdui.md`): `searchProducts` → `getProduct` →
+`getHomeFeed` → `getReviews` → `getOrders`/`getProfile`.
 
-**Date:** 2026-09-12
+**MVP endpoint checklist** (`mvp-backend.md` §3):
+- [ ] `GET /health`
+- [ ] `GET /search?q=&app=` → `searchProducts`
+- [ ] `GET /product/:id` → `getProduct`
+- [ ] `GET /sdui/home` → `getHomeFeed`
+- [ ] `GET /vendors/:id/reviews` → `getReviews`
+- [ ] `GET /stores`, `/store/:id` → `getStores` / `getStore`
+- [ ] `GET /orders`, `/profile` (auth-scoped) → `getOrders` / `getProfile`
+
+**Date:** 2026-09-12 (updated: MVP thin-gateway scope)
 
 ---
 
@@ -1316,7 +1328,7 @@ currently reads a static seed array from `data/home/storeOffers.ts`.
 **Future:** Must be backed by seller/store-owner dashboard writes — a store owner
 creates/edits/expires their own offer, which flows into this Home section per-store,
 geofenced/ranked by relevance. This will likely be served by the Go Chi backend in
-`server/` (currently a placeholder per `AGENTS.md`).
+`server/` (MVP thin-gateway scope: `docs/architecture/mvp-backend.md`).
 
 **Blocked by:**
 - `server/` backend (not yet built).

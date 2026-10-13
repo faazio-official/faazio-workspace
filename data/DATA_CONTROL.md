@@ -5,6 +5,10 @@
 > for each entry in the shared `data/` layer. The React Native app (`client/mobile/`) is the only
 > current consumer — the root Vite web app (frozen reference) uses its own `src/data/` copies.
 
+> **MVP (docs-first):** live `@mock` data migrates **per module** to Supabase (Postgres) + MongoDB
+> via `GatewayClient` (`@mock` → `@server`) — see `docs/architecture/mvp-backend.md`. `@data/*`
+> stays the live fallback until each consumer is migrated.
+
 ---
 
 ## Status Taxonomy
@@ -98,7 +102,8 @@ rating-related is logged. Production schema: `docs/architecture/db-schema.md` §
 
 **Gateway:** `client/mobile/src/services/api/GatewayClient.ts` joins the tables above and is the
 intended single data surface for the app. It is **not yet wired into screens** — the legacy
-`@data/*` fixtures remain the live path until each consumer is migrated.
+`@data/*` fixtures remain the live path until each consumer is migrated. The MVP thin gateway
+(`docs/architecture/mvp-backend.md`) unblocks this; wiring order in `docs/architecture/data-layer-sdui.md`.
 
 ---
 
@@ -337,6 +342,8 @@ the `GROCERY` member was dropped from `AppBrand` / `CartCategory` / `SubAppId` /
    **Prune candidates** — keep exported, prune when a home section is ready for them.
 3. **`schema.ts` (`SDUINode`)** is `@aspirational` — defined but not produced by any data file yet.
    Data files emit typed entity arrays, not SDUI trees. Do not rely on it as a live contract.
-4. **All live data is mock.** Until `server/` (Go Chi) ships, nothing in `@data/` is fetched from a backend.
+4. **All live data is mock.** Until the MVP thin gateway ships (`docs/architecture/mvp-backend.md`),
+   nothing in `@data/` is fetched from a backend; migration is per-module via `GatewayClient`
+   (`@mock` → `@server`).
 5. **Per-restaurant menus are seeded only for the 18 dining restaurants.** The 12 food-delivery
    `foodStores` still derive menus from the shared `TODAYS_SPECIALS` catalog.

@@ -1,13 +1,13 @@
 # Architecture.md — Faazio SuperApp
 
-> **Concern:** high-level technical architecture for the two real runtimes — the **React Native (Expo) mobile app** (`client/mobile/`) and the **future Go Chi SDUI backend** (`server/`). Modular, layered, and trackable so every concern has one owner and nothing is silently re-invented (or duplicated) because it "was modular."
+> **Concern:** high-level technical architecture for the two real runtimes — the **React Native (Expo) mobile app** (`client/mobile/`) and the **Go Chi backend** (`server/`, MVP thin gateway + Future Prod microservices). Modular, layered, and trackable so every concern has one owner and nothing is silently re-invented (or duplicated) because it "was modular."
 
 ## Runtime boundaries (what is live vs frozen vs planned)
 | Surface | Stack | Status |
 |---|---|---|
 | `client/mobile/` | React Native (Expo SDK 54) + TypeScript + Zustand | **LIVE.** All active work. |
 | `data/` | Typed entity arrays (SDUI source of truth) | **LIVE (enterprise-controlled).** Read-only for the app; consumed via `@data/*`. |
-| `server/` | Go Chi SDUI backend | **PLANNED.** Placeholder directory only. |
+| `server/` | Go Chi backend — MVP thin gateway over Supabase + MongoDB + Valkey | **MVP ACTIVE (docs-first).** Future Prod = full microservices. See `docs/architecture/mvp-backend.md`. |
 | `data/DATA_CONTROL.md` | Ownership + mock/seed/static inventory | **LIVE.** Authoritative ownership map. |
 
 ---
@@ -62,7 +62,25 @@ presentation primitives (src/components/shared/, src/theme/)
 
 ---
 
-## 2. Future Go Chi backend (`server/`) — planned, not yet built
+## 2. Go Chi backend (`server/`)
+
+### 2a. MVP — thin gateway (active scope, docs-first)
+```
+[ mobile app ] --HTTPS/JSON--> [ Go Chi thin gateway ]
+                                   │
+                    Supabase (Postgres) + MongoDB Atlas M0 + Aiven Valkey
+                                   ▲
+                          Cloudflare (edge)
+```
+- MVP = a **thin Go Chi gateway** over **Supabase (Postgres) + MongoDB Atlas M0 + Aiven Valkey**,
+  replacing mocked `@mock` sources per module (`@mock` → `@server`). Cache keys/TTLs unchanged
+  (Supabase is the origin, not the cache).
+- Single authority: `docs/architecture/mvp-backend.md` (decision matrix, schemas, endpoints). No code yet.
+- `GatewayClient` (`client/mobile/src/services/api/GatewayClient.ts`) remains the intended single data
+  surface; its wiring is **unblocked by the MVP gateway** — see `docs/architecture/data-layer-sdui.md`.
+- When built: every `data/DATA_CONTROL.md` `@mock` entry becomes a contract for a gateway handler.
+
+### 2b. Future Prod — full microservices (planned, not yet built)
 ```
 [ mobile app ] --HTTPS/JSON--> [ Go Chi router ]
                                    ↓
@@ -71,7 +89,7 @@ presentation primitives (src/components/shared/, src/theme/)
                         [ data/ (single source of truth) ]
 ```
 - Goal: serve the structured SDUI tree currently mocked in `data/`, replacing `@mock` sources when each module is wired (`@mock` → `@server`).
-- **Do not build server code until requested.** The `server/` folder is a placeholder (see readme).
+- **Do not build full-microservice server code until requested.** The `server/` folder is the Future Prod target; MVP scope is §2a.
 - **Gateway client:** `client/mobile/src/services/api/GatewayClient.ts` is the intended single
   data surface. It joins the normalized microservice-shaped tables under `data/` (see
   `data/DATA_CONTROL.md` → "Normalized Microservice Tables") and is *not yet wired* — screens

@@ -1,7 +1,9 @@
 # Server & Gateway Plan Deep-Dive
 
-> **Status:** PLANNED — not yet implemented · **Scope:** `server/` (placeholder).
-> This condenses `server/README.md`. Do **not** build server code until explicitly requested.
+> **Status:** MVP ACTIVE (thin) / Future Prod (full) · **Scope:** `server/`.
+> MVP authority: `docs/architecture/mvp-backend.md`. Build the MVP gateway + Supabase migrations when
+> requested; do **not** build the full microservices until explicitly requested. This doc condenses
+> `server/README.md` and keeps the **Future Prod** target.
 
 ## Why this exists
 
@@ -28,6 +30,19 @@ is silently re-invented. `server/` today holds only this plan.
   mocked in `data/`, replacing `@mock` sources as modules are wired (`@mock` → `@server`).
 - Internal service-to-service calls use **gRPC** (HTTP/2 + binary) for sub-2ms latency.
 - Every `data/DATA_CONTROL.md` `@mock` entry becomes a handler contract.
+
+## MVP thin gateway (active scope)
+
+The MVP is a **single thin Go Chi service** — no gRPC, no separate microservices, `contracts/` stays a
+stub. It serves read-through endpoints directly against **Supabase (Postgres) + MongoDB Atlas M0 +
+Aiven Valkey**, with Cloudflare in front; cache keys/TTLs unchanged.
+
+- **Endpoints:** `GET /health`, `/search?q=`, `/sdui/home`, `/product/:id`, `/vendors/:id/reviews`,
+  `/stores`, `/store/:id`, `/orders`, `/profile`.
+- **Mapping** (`@data/*` twin + `GatewayClient` method) and RLS classes: `docs/architecture/mvp-backend.md` §1–§3.
+- **Build order:** `docs/architecture/mvp-backend.md` §7.
+
+The sections below are the **Future Prod** target.
 
 ## Service matrix
 
@@ -124,6 +139,8 @@ lightweight-superapp playbook on two of three axes:
 
 ## Honest limitations
 
-- **Nothing is built yet.** `server/` is a placeholder — plan only.
+- **Nothing is built yet.** `server/` is the Future Prod target — plan only; the MVP thin gateway
+  (`docs/architecture/mvp-backend.md`) is docs-first, no code yet.
 - Cost estimates assume free tiers scale-to-zero; real cost depends on traffic.
-- Gateway remains unbuilt, so `GatewayClient` in the app stays unwired.
+- The full microservices gateway remains unbuilt; the MVP thin gateway is what unblocks
+  `GatewayClient` wiring in the app.

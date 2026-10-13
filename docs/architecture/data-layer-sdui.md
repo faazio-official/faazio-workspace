@@ -105,18 +105,18 @@ signed-in user's live rating is device-local (`state/vendorRatingStore.ts`), mer
 A parallel, microservice-shaped view of the same source data that **imports** from the
 legacy fixtures (never hand-copied), so the two surfaces can't drift:
 
-| Table | Simulates | Consolidates |
-|---|---|---|
-| `catalog/products.ts` | Rust + Tantivy search index | all product records, deduped by `id`; `getProductById` |
-| `directory/stores.ts` | Go + PostgreSQL | mart + food stores |
-| `directory/vendors.ts` | Go + PostgreSQL | vendor identity view (stores + `food/diningVenues`) — `resolveVendorForProduct` |
-| `food/diningVenues.ts` | Go + PostgreSQL | dining-venue ids/names only (identity) |
-| `reviews/reviews.ts` | Go + PostgreSQL | `productMeta/reviews` |
-| `reviews/vendorReviews.ts` | Go + PostgreSQL | seeded public vendor reviews (full name only) |
-| `inventory/stock.ts` | Go + DynamoDB | net-new stock rows |
-| `checkout/orders.ts` | Go + CockroachDB | account/cart/addresses/coupons |
-| `accounts/profile.ts` | Go + PostgreSQL | account profile/orders/nav/details |
-| `home/sdui.ts` | Python + MongoDB | home section structure — **IDs only** |
+| Table | Simulates (Future Prod) | Consolidates | MVP origin |
+|---|---|---|---|
+| `catalog/products.ts` | Rust + Tantivy search index | all product records, deduped by `id`; `getProductById` | Supabase `catalog` + Postgres FTS |
+| `directory/stores.ts` | Go + PostgreSQL | mart + food stores | Supabase `directory` |
+| `directory/vendors.ts` | Go + PostgreSQL | vendor identity view (stores + `food/diningVenues`) — `resolveVendorForProduct` | Supabase `directory` (derived view) |
+| `food/diningVenues.ts` | Go + PostgreSQL | dining-venue ids/names only (identity) | Supabase `directory` (identity) |
+| `reviews/reviews.ts` | Go + PostgreSQL | `productMeta/reviews` | Supabase `reviews` |
+| `reviews/vendorReviews.ts` | Go + PostgreSQL | seeded public vendor reviews (full name only) | Supabase `reviews` |
+| `inventory/stock.ts` | Go + DynamoDB | net-new stock rows | Supabase `inventory` |
+| `checkout/orders.ts` | Go + CockroachDB | account/cart/addresses/coupons | Supabase `checkout` |
+| `accounts/profile.ts` | Go + PostgreSQL | account profile/orders/nav/details | Supabase `accounts` |
+| `home/sdui.ts` | Python + MongoDB | home section structure — **IDs only** | MongoDB `sdui_layouts` |
 
 The **production** counterparts of every normalized table above (per-service DB schema, datatypes,
 sample rows) are specified in `docs/architecture/db-schema.md` — traceability is 1:1 (mock table ↔
@@ -128,7 +128,15 @@ production table).
  TODAY (legacy)
  screen ──► @data/<domain>/* (typed arrays)          [@mock fixtures]
 
- FUTURE (server-driven)
+ MVP (thin gateway — active scope)
+ screen ──► GatewayClient (src/services/api/GatewayClient.ts)
+                │ HTTP/JSON
+                ▼
+         thin Go Chi gateway ──► Supabase (Postgres) + MongoDB + Valkey
+                │                          ▲
+                └── Cloudflare edge ───────┘
+
+ FUTURE PROD (server-driven)
  screen ──► GatewayClient (src/services/api/GatewayClient.ts)
                 │ joins the normalized tables above
                 ▼
@@ -139,8 +147,14 @@ production table).
 ```
 
 `GatewayClient` is the intended single data surface but is **not yet wired** — the legacy
-`@data/*` path stays live until each consumer is migrated. Every `@mock` entry becomes a
-future handler contract.
+`@data/*` path stays live until each consumer is migrated. The MVP thin gateway
+(`docs/architecture/mvp-backend.md`) unblocks it; wire methods in this order, keeping the
+`@data/*` fallback (flagged) until each is proven:
+
+1. `searchProducts` → 2. `getProduct` → 3. `getHomeFeed` → 4. `getReviews` →
+5. `getOrders` / `getProfile` (auth-scoped, last).
+
+Every `@mock` entry becomes a gateway handler contract.
 
 ## Fail-safe contract
 

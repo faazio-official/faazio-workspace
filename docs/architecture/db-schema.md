@@ -1,11 +1,17 @@
 # Faazio DB Schema Bible
 
 > **Status:** PLANNED — not yet implemented. This is the canonical, LLM-greppable reference for the
-> **future** microservice databases behind `server/`. It answers, for every table: *which microservice →
+> **Future Prod** microservice databases behind `server/`. It answers, for every table: *which microservice →
 > which DB → which language → which schema → which datatype → which cache key → which admin queries*.
 > All sample rows are derived from the **real `@data/*` fixtures** (provenance noted per row) — nothing is
 > invented. Do **not** build server code, migrations, or SQL files until explicitly requested
 > (AGENTS.md hard rule 1).
+>
+> **MVP vs Future Prod:** the **MVP** (single authority: `docs/architecture/mvp-backend.md`) runs on
+> **one Supabase (Postgres) project + MongoDB Atlas M0 + Aiven Valkey**. The CockroachDB / Tantivy /
+> DynamoDB / per-service Postgres targets in this doc are **Future Prod**. See the MVP mapping in §0.
+> The DDL below stays copy-paste-ready (CockroachDB → Postgres is near-verbatim; the datatype policy §2
+> is Postgres-compatible).
 >
 > **Scope / companion docs:** `server/README.md` (microservices plan), `docs/architecture/server-gateway-plan.md`
 > (gateway plan), `docs/architecture/data-layer-sdui.md` (data layer + SDUI), `docs/architecture/caching-cloudflare-valkey.md`
@@ -38,6 +44,23 @@ Every table uses one identical 9-part template:
 | Attributes/facets | Tantivy `json` field + DynamoDB sparse attributes. |
 | Compression | **None** at DB/app layer — Cloudflare does gzip/zstd at the edge; Valkey values are plain JSON. |
 | PII | Never at the edge; Valkey ACL-scoped keys; app-layer hashing where required; never logged. |
+
+### MVP mapping (read this first)
+
+The **MVP** runs each production table below on **one Supabase (Postgres) project** + **MongoDB
+Atlas M0** + **Aiven Valkey**; the CockroachDB / Tantivy / DynamoDB / standalone Postgres targets
+specified in this doc are **Future Prod**. Datatypes (§2) are unchanged — the policy is
+Postgres-compatible.
+
+| Production table (§) | MVP origin | Future Prod DB |
+|---|---|---|
+| `catalog.products` + search (§5) | Supabase `catalog` + Postgres FTS `catalog.products_search` (`tsvector`/`pg_trgm`/`unaccent`) | CockroachDB + Tantivy |
+| `inventory.*` stock/carts/reservations/pickup_points (§6) | Supabase `inventory` + `SELECT … FOR UPDATE SKIP LOCKED` + `pg_cron` TTL | DynamoDB / Firestore |
+| `checkout.*`, `directory.*`, `reviews.*`, `accounts.*` (§7) | Supabase schemas `checkout`/`directory`/`reviews`/`accounts`, RLS on | CockroachDB + standalone Postgres |
+| `recommendations.*` (§8) | MongoDB Atlas M0 (unchanged) | Same (no change) |
+| Gateway (§4) | Thin Go Chi over Supabase + Mongo + Valkey | Full gateway + gRPC microservices |
+
+Full MVP matrix, RLS classes, and endpoints: `docs/architecture/mvp-backend.md`.
 
 ---
 
@@ -117,6 +140,10 @@ stateless JWT (Valkey-scoped, see cache doc).
 ---
 
 ## 5. Service 2 — Search & Catalog (Rust · Axum + Tantivy)
+
+> **MVP:** Supabase `catalog.products` + Postgres FTS `catalog.products_search` (`tsvector` + `pg_trgm`
+> GIN + `unaccent`, `search_tokens` generated col) replace the Tantivy index. The Tantivy spec below is
+> **Future Prod**; the datatypes here stay.
 
 ### 5.1 CockroachDB master: `catalog.products` (owned by Checkout schema, read by Search)
 
@@ -216,6 +243,10 @@ truth — the durable master is `catalog.products`.
 
 ## 6. Service 3 — Cart & Stock (Go · DynamoDB — Firestore mapping)
 
+> **MVP:** Supabase `inventory` schema; atomic decrement via `SELECT … FOR UPDATE SKIP LOCKED`, TTL
+> sweep via `pg_cron` (replaces DynamoDB condition expressions + TTL). The DynamoDB/Firestore mapping
+> below is **Future Prod**.
+
 **Tables:** `carts`, `stock`, `stock_reservations` (TTL), `pickup_points`. Key-value design.
 
 ### 6.1 `stock` — one row per catalog product id
@@ -295,6 +326,10 @@ queries: low-stock scan, pickup-point list.
 ---
 
 ## 7. Service 4 — Checkout & Orders (Go · CockroachDB)
+
+> **MVP:** the `checkout`, `directory`, `reviews`, and `accounts` schemas all live in the one Supabase
+> project (RLS on); the CockroachDB + standalone Postgres split below is **Future Prod**. DDL is
+> Postgres-compatible.
 
 **One DB, three logical schemas** (all ownership-annotated): `checkout` (primary owner), `catalog`
 (documented in §5 — physical home), `accounts` (§8), `directory` (§7.5), `reviews` (§7.6).
@@ -551,6 +586,9 @@ public output exposes `user_name`, `rating`, `comment` only. Moderation queries 
 ---
 
 ## 8. Service 6 — Recommendations (Python · FastAPI + MongoDB)
+
+> **MVP:** MongoDB Atlas M0 is kept **as-is** (no change); the Python service is Future Prod — the thin
+> gateway reads `sdui_layouts` directly (ID-only) until then.
 
 **Collections:** `user_events` (TTL), `recommendations`, `segments`, `product_stats`, `sdui_layouts`.
 
