@@ -1,0 +1,8 @@
+import { pageMetadata } from "@/lib/seo";
+import PageClient from "./page.client";
+
+export const metadata = pageMetadata("State dashboard", "State GMV, orders, seller supply, SLA health and live festival campaigns at a glance.");
+
+export default function Page() {
+  return <PageClient />;
+}

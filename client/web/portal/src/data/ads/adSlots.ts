@@ -1,0 +1,53 @@
+// Provenance: ads.sponsored_slots (slot_id, seller_id, placement, status, impressions, clicks)
+import type { AdSlot } from "@/data/types";
+
+export const AD_SLOTS: AdSlot[] = [
+  {
+    slotId: "ad-1",
+    sellerId: "sel-1",
+    productId: "fm-m1",
+    placement: "HOME_TOP",
+    stateCode: "MH",
+    status: "LIVE",
+    impressions: 184320,
+    clicks: 7412,
+    ordersAttributed: 212,
+    requestedAt: "2026-08-30T08:00:00.000Z",
+  },
+  {
+    slotId: "ad-2",
+    sellerId: "sel-1",
+    productId: "md-1",
+    placement: "SPONSORED_SHOWCASE",
+    stateCode: "MH",
+    status: "REQUESTED",
+    impressions: 0,
+    clicks: 0,
+    ordersAttributed: 0,
+    requestedAt: "2026-09-11T08:00:00.000Z",
+  },
+  {
+    slotId: "ad-3",
+    sellerId: "sel-4",
+    productId: "ph-2",
+    placement: "SECTOR_RAIL",
+    stateCode: "DL",
+    status: "APPROVED",
+    impressions: 42110,
+    clicks: 1580,
+    ordersAttributed: 63,
+    requestedAt: "2026-09-02T08:00:00.000Z",
+  },
+  {
+    slotId: "ad-4",
+    sellerId: "sel-2",
+    productId: "gr-p7",
+    placement: "SECTOR_RAIL",
+    stateCode: "MH",
+    status: "REJECTED",
+    impressions: 0,
+    clicks: 0,
+    ordersAttributed: 0,
+    requestedAt: "2026-08-18T08:00:00.000Z",
+  },
+];

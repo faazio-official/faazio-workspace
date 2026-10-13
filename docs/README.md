@@ -19,6 +19,7 @@ Operational and architectural documentation for the **Faazio SuperApp**.
 | [architecture/mvp-backend.md](./architecture/mvp-backend.md) | **MVP authority**: Go Chi modular monolith over Supabase + MongoDB + Valkey (contexts, endpoints, RLS) | Engineers / infra |
 | [architecture/monolith-breakdown.md](./architecture/monolith-breakdown.md) | **Refactor authority**: context → package → schema → future-service ownership, boundaries, extraction playbook | Engineers / infra |
 | [architecture/mobile-app.md](./architecture/mobile-app.md) | Deep dive: RN app internals (modules, state, nav, boundaries) | Engineers |
+| [architecture/web-portal.md](./architecture/web-portal.md) | Deep dive: Next.js Partner Portal (routing split, migration decisions, data seam) | Engineers |
 | [architecture/data-layer-sdui.md](./architecture/data-layer-sdui.md) | Deep dive: `data/` layer + SDUI path + GatewayClient | Engineers |
 | [architecture/server-gateway-plan.md](./architecture/server-gateway-plan.md) | Deep dive: future Go Chi microservices plan | Engineers / infra |
 | [architecture/db-schema.md](./architecture/db-schema.md) | Deep dive: future microservice DB schemas (tables, datatypes, sample rows) | Engineers / infra |

@@ -17,6 +17,7 @@ The full microservices target — Rust/Tantivy search, CockroachDB, DynamoDB, pe
 faazio-workspace/
 ├── (root)          Repo root — docs + project docs only (AGENTS.md, ARCHITECTURE.md, LICENSE, PAGE_CATALOG.md, README.md).
 ├── client/mobile/  React Native (Expo) SuperApp — ALL active work lives here.
+├── client/web/     Partner Portal — Next.js App Router console (`portal/`, shipping) + the Vite/TanStack reference (`vite-reference/`, read-only diff baseline). See docs/architecture/web-portal.md.
 ├── server/         MVP Go Chi modular monolith `gateway/` + Supabase migrations/seed (active) + future full microservices (see docs/architecture/mvp-backend.md, monolith-breakdown.md).
 ├── data/           SDUI source of truth (enterprise-controlled), consumed via @data/*.
 ├── docs/           Documentation system — architecture deep-dives + runbooks (see "Documentation map").
@@ -32,7 +33,7 @@ docs/
 ├── README.md                       # index + reading order
 ├── DEVELOPER_ONBOARDING.md         # numbered getting-started guide
 ├── BRAND_COLOR_MIGRATION.md        # royal-purple → Faazio-blue change log + revert
-├── architecture/                   # deep-dives (mvp-backend, monolith-breakdown, mobile-app, data-layer-sdui, server-gateway-plan, db-schema, caching-cloudflare-valkey)
+├── architecture/                   # deep-dives (mvp-backend, monolith-breakdown, mobile-app, web-portal, data-layer-sdui, server-gateway-plan, db-schema, caching-cloudflare-valkey)
 └── RUNBOOKS/                       # operational guides (RELEASE, CI_PIPELINE, DATA_FIXTURES, TROUBLESHOOTING)
 ```
 
