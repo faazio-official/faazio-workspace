@@ -70,15 +70,39 @@ const SearchScreen = memo(function SearchScreen({
   const hasFacets = !!config.facetSchema && config.facetSchema.length > 0;
   const preSearch = submittedQuery.trim().length === 0;
 
+  // Server-backed results (progressive): when a mode supplies `fetch` and a query is
+  // committed, load the server result pool; the local predicate/facets still apply.
+  // `remoteData` is null until a response lands, so the local `mode.data` shows first.
+  const [remoteData, setRemoteData] = useState<any[] | null>(null);
+  useEffect(() => {
+    setRemoteData(null);
+    if (preSearch || !mode?.fetch) return;
+    let active = true;
+    mode
+      .fetch(submittedQuery)
+      .then((rows) => {
+        if (active) setRemoteData(rows);
+      })
+      .catch(() => {});
+    return () => {
+      active = false;
+    };
+  }, [mode, submittedQuery, preSearch]);
+
+  const dataPool = remoteData ?? mode?.data ?? [];
+  // Server FTS already matched the query text; only re-apply the local substring
+  // predicate in local mode. Facets/chips still refine server results either way.
+  const effectiveQuery = remoteData ? '' : submittedQuery;
+
   const allResults = useMemo(() => {
     if (!mode) return [];
     if (preSearch) return [];
-    const filtered = mode.data.filter((item) =>
-      mode.predicate(item, submittedQuery, activeFilterIds, activeFacets),
+    const filtered = dataPool.filter((item) =>
+      mode.predicate(item, effectiveQuery, activeFilterIds, activeFacets),
     );
     const sorter = mode.sorters[activeSortId];
     return sorter ? [...filtered].sort(sorter) : filtered;
-  }, [mode, preSearch, submittedQuery, activeFilterIds, activeFacets, activeSortId]);
+  }, [mode, preSearch, effectiveQuery, activeFilterIds, activeFacets, activeSortId, dataPool]);
 
   useEffect(() => {
     setVisibleCount(PAGE_SIZE);
@@ -102,9 +126,9 @@ const SearchScreen = memo(function SearchScreen({
   };
 
   const facetGroups = useFacets({
-    data: mode?.data ?? [],
+    data: dataPool,
     predicate: mode?.predicate ?? (() => true),
-    query: submittedQuery,
+    query: effectiveQuery,
     chipIds: activeFilterIds,
     facetSchema: config.facetSchema,
     activeFacets,

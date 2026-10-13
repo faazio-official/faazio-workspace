@@ -1,4 +1,4 @@
-import React, { memo, useMemo, useState } from 'react';
+import React, { memo, useEffect, useMemo, useState } from 'react';
 import { View, TouchableOpacity, StyleSheet, FlatList } from 'react-native';
 import { ChevronLeft, Heart, LayoutGrid, ShoppingBag, Utensils, Pill } from 'lucide-react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -8,6 +8,7 @@ import AppText from '@/components/AppText';
 import { useFavoriteStore } from '@/state/favoriteStore';
 import { getCatalogEntriesByIds } from '@data/catalog/products';
 import type { CatalogEntry } from '@data/catalog/products';
+import { gateway } from '@/services/api/GatewayClient';
 import SegmentedToggle from '@/features/search/SegmentedToggle';
 import FilterChipsRail from '@/features/search/FilterChipsRail';
 import type { SortOption, SearchToggleOption } from '@/features/search/types';
@@ -59,7 +60,26 @@ const FavouritesPageView = memo(function FavouritesPageView({
   const [activeKey, setActiveKey] = useState('ALL');
   const [activeSortId, setActiveSortId] = useState('relevance');
 
-  const entries = useMemo(() => getCatalogEntriesByIds(favorites), [favorites]);
+  // Progressive enhancement: resolve the shelf from the local catalog index immediately,
+  // then upgrade to the server projection (`/products/batch`) when it arrives. The
+  // GatewayClient falls back to the local index offline, so this never regresses.
+  const [entries, setEntries] = useState<CatalogEntry[]>(() => getCatalogEntriesByIds(favorites));
+  useEffect(() => {
+    if (favorites.length === 0) {
+      setEntries([]);
+      return;
+    }
+    let active = true;
+    gateway
+      .getProductsByIds(favorites)
+      .then((rows) => {
+        if (active) setEntries(rows as CatalogEntry[]);
+      })
+      .catch(() => {});
+    return () => {
+      active = false;
+    };
+  }, [favorites]);
 
   const visibleEntries = useMemo(() => {
     const filtered =
@@ -83,7 +103,11 @@ const FavouritesPageView = memo(function FavouritesPageView({
 
   const totalCount = entries.length;
 
-  const handleToggleFavorite = (id: string) => toggleFavorite(id);
+  const handleToggleFavorite = (id: string) => {
+    toggleFavorite(id);
+    // Remove immediately so the card disappears without waiting for the refetch.
+    setEntries((prev) => prev.filter((e) => e.id !== id));
+  };
 
   const renderItem = ({ item }: { item: CatalogEntry }) => (
     <SearchProductRowCard

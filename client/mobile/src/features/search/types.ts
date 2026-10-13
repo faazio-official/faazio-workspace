@@ -78,6 +78,13 @@ export interface SearchModeConfig<TItem> {
   sorters: Record<string, (a: TItem, b: TItem) => number>;
   /** Empty-state content rendered when the filtered list is empty. */
   empty?: ReactElement;
+  /**
+   * Optional server fetch. When the gateway is remote, the shell loads results for
+   * the committed query from the server and uses them as the data pool (the local
+   * predicate + facet derivation still run). Absent or on error/offline, the shell
+   * falls back to `data`, so search never regresses. See `GatewayClient.searchProducts`.
+   */
+  fetch?: (query: string) => Promise<TItem[]>;
 }
 
 export interface SearchScreenConfig {

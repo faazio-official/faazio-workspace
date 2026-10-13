@@ -2,6 +2,7 @@ import React from 'react';
 import { Stethoscope } from 'lucide-react-native';
 import { pharmaProducts } from '@data/pharma/products';
 import type { Product } from '@data/types';
+import { gateway } from '@/services/api/GatewayClient';
 import SearchPharmaProductCard from '@/features/pharma/components/SearchPharmaProductCard';
 import { buildProductSuggestions } from '../suggestions';
 import type { ActiveFacets, SearchScreenConfig } from '../types';
@@ -67,6 +68,7 @@ export function createPharmaSearchConfig({
         renderCard: (item) => (
           <SearchPharmaProductCard product={item as Product} onPress={onProductPress} />
         ),
+        fetch: (q) => gateway.searchProducts(q, 'PHARMA'),
         sorters: {
           relevance: () => 0,
           popularity: (a, b) => (b as Product).rating - (a as Product).rating,

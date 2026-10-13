@@ -1,7 +1,8 @@
 import React from 'react';
 import { Package } from 'lucide-react-native';
 import { martProducts } from '@data/mart/products';
-import type { MartProduct, Product } from '@data/types';
+import type { Product } from '@data/types';
+import { gateway } from '@/services/api/GatewayClient';
 import SearchMartProductCard from '@/features/ecommerce/components/SearchMartProductCard';
 import { buildProductSuggestions } from '../suggestions';
 import type { ActiveFacets, SearchScreenConfig } from '../types';
@@ -67,9 +68,15 @@ export function createMartSearchConfig({
         renderCard: (item) => (
           <SearchMartProductCard product={item as Product} onPress={onProductPress} />
         ),
+        // Server FTS result pool (directory/catalog, app=MART); local pool is the fallback.
+        fetch: (q) => gateway.searchProducts(q, 'MART'),
         sorters: {
           relevance: () => 0,
-          popularity: (a, b) => (b as MartProduct).reviews - (a as MartProduct).reviews,
+          popularity: (a, b) => {
+            const reviews = (p: Product) =>
+              (p as { reviews?: number }).reviews ?? p.reviewsCount ?? 0;
+            return reviews(b as Product) - reviews(a as Product);
+          },
           'price-low': (a, b) => (a as Product).price - (b as Product).price,
           'price-high': (a, b) => (b as Product).price - (a as Product).price,
           newest: () => 0,
