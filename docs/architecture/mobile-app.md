@@ -381,7 +381,7 @@ still separate files; consolidating them is tracked in `client/mobile/PENDING_WO
 
 ### Services (`src/services/`)
 
-- `api/GatewayClient.ts` — single data surface; **wired** to the MVP gateway (`EXPO_PUBLIC_GATEWAY_URL` + flag) with `@data/*` fallback; screens migrate incrementally (see data doc).
+- `api/GatewayClient.ts` — single data surface; **wired** to the MVP gateway (`EXPO_PUBLIC_GATEWAY_URL` + flag) with `@data/*` fallback; screens migrate incrementally (see data doc). Migration (W22) started with the mart feed (`martService` → `getStores('MART')`) and the catalog vendor detail (`VendorDetailScreen` → `getStore`); dining/search/favourites/home/SDUI remain.
 - `secureSession.ts` — tokens via `expo-secure-store` (never AsyncStorage for secrets).
 - `logout.ts` — clears auth + cart + favourites + search + pharma + blood donor + rewards + vendor-rating stores.
 - `vendorRatings.ts` — single owner of the vendor rating gate: `canRateVendor(vendorId)`
@@ -774,7 +774,8 @@ The "lightweight, fast, secure" mandate (AGENTS.md) is enforced at build and del
 
 - **Screen data is still mock** — screens read `@data/*`. The MVP gateway (Go monolith over
   Supabase + Mongo + Valkey) is built and `GatewayClient` is wired with a `@data/*` fallback;
-  per-screen `@mock` → `@server` migration is in progress and waits on Supabase phone OTP
+  per-screen `@mock` → `@server` migration is in progress (W22: mart feed + catalog vendor detail
+  done; see `client/mobile/PENDING_WORK.md`) and waits on Supabase phone OTP
   replacing `authStore.login()` (see `data-layer-sdui.md`).
 - **Duplicated mock data** in a few screens (`PharmaScreen`, `FoodScreen` booking dishes,
   `ProductDetailView`) — canonical copies exist under `@data/` marked `@unused`; de-dup is

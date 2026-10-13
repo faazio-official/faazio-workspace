@@ -114,7 +114,7 @@ wire. Mobile `GatewayClient.ts` + `@data/*` already speak integer rupees — unc
 | W19 | Rewards admin knobs (ledger view + admin-tunable rates) | 1/2/4 | **done** (0017 `rewards.rates` + `/admin/super/rewards` + `internal/rewards` rates/ledger read) |
 | W20 | Support state/super ticket queue | 1/2/4 | **done** (0017 `tickets.state_code` + `/admin/state/support` + state filter in `internal/support`) |
 | W21 | Web write-through (mutations → gateway, keep seed fallback) | 3/4 | **done** (`http.ts` toSnake/₹↔paisa `writeBehind`, `index.ts` mutators call `remote.*`) |
-| W22 | Mobile `@mock`→`@server` per-module migration | 4 | **pending** (`EXPO_PUBLIC_USE_GATEWAY=true` per module, fallback retained) |
+| W22 | Mobile `@mock`→`@server` per-module migration | 4 | **in progress** — mart feed (`getStores('MART')`) + catalog vendor detail (`getStore`) done; dining blocked (venues not in `directory.stores`); search/favourites/home-SDUI/cart pending |
 | W23 | Auth cutover (Supabase JWT + RequireRole) + Storage object-key uploads + edge purge | 5 | **pending** (mobile `authStore`, product/KYC buckets, Cloudflare rules) |
 
 ## 6. dtype-gap matrix D1–D15
