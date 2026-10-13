@@ -30,11 +30,11 @@ func (r *Repo) Donor(ctx context.Context, userID string) (contracts.BloodDonor, 
 		return contracts.BloodDonor{}, false, fmt.Errorf("blood: database not configured")
 	}
 	var (
-		d       contracts.BloodDonor
-		age     *string
-		weight  *int64
-		dtype   *string
-		notif   []byte
+		d      contracts.BloodDonor
+		age    *string
+		weight *int64
+		dtype  *string
+		notif  []byte
 	)
 	err := r.pool.QueryRow(ctx, `
 		select user_id, name, blood_group, age_range, weight_kg, city, willing_to_travel,
@@ -180,6 +180,18 @@ func (r *Repo) CreateRequest(ctx context.Context, req contracts.BloodRequest) (c
 		req.ExpiresAt = expiresAt.UTC().Format(time.RFC3339)
 	}
 	return req, nil
+}
+
+// DeleteRequest removes a request (moderation). Reports whether a row existed.
+func (r *Repo) DeleteRequest(ctx context.Context, id string) (bool, error) {
+	if r.pool == nil {
+		return false, fmt.Errorf("blood: database not configured")
+	}
+	tag, err := r.pool.Exec(ctx, `delete from blood.requests where id = $1`, id)
+	if err != nil {
+		return false, err
+	}
+	return tag.RowsAffected() > 0, nil
 }
 
 // SetInterest records an "interested"/"accepted" interest (idempotent).

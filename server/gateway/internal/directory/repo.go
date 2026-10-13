@@ -4,7 +4,10 @@ package directory
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"math"
+	"time"
 
 	"github.com/faazio/server/gateway/internal/contracts"
 	"github.com/faazio/server/gateway/internal/platform/db"
@@ -53,6 +56,7 @@ func (r *Repo) ByAppPage(ctx context.Context, app string, limit int, cursorRatin
 	}
 	rows, err := r.pool.Query(ctx, storeListSelect+`
 		where ($1 = '' or app::text = $1)
+		  and is_live
 		  and (not $2::bool or rating < $3::float8 or (rating = $3::float8 and id > $4))
 		order by rating desc, id asc
 		limit $5`, app, hasCursor, cursorRating, cursorID, limit)
@@ -183,4 +187,73 @@ func derefStr(v *string) string {
 		return ""
 	}
 	return *v
+}
+
+// SellerStore is the portal-facing store-management projection (includes seller scope + live flag).
+type SellerStore struct {
+	ID        string  `json:"id"`
+	Name      string  `json:"name"`
+	App       string  `json:"app"`
+	SellerID  string  `json:"sellerId,omitempty"`
+	StateCode string  `json:"stateCode,omitempty"`
+	IsLive    bool    `json:"isLive"`
+	Rating    float64 `json:"rating"`
+	UpdatedAt string  `json:"updatedAt"`
+}
+
+// SellerStores lists the stores a seller owns.
+func (r *Repo) SellerStores(ctx context.Context, sellerID string) ([]SellerStore, error) {
+	if r.pool == nil {
+		return nil, fmt.Errorf("directory: database not configured")
+	}
+	rows, err := r.pool.Query(ctx, `
+		select id, name, app::text, coalesce(seller_id,''), coalesce(state_code,''), is_live, rating, updated_at
+		  from directory.stores
+		 where ($1 = '' or seller_id = $1)
+		 order by name asc`, sellerID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := []SellerStore{}
+	for rows.Next() {
+		var (
+			s         SellerStore
+			updatedAt time.Time
+		)
+		if err := rows.Scan(&s.ID, &s.Name, &s.App, &s.SellerID, &s.StateCode, &s.IsLive, &s.Rating, &updatedAt); err != nil {
+			return nil, err
+		}
+		s.Rating = math.Round(s.Rating*10) / 10
+		s.UpdatedAt = updatedAt.UTC().Format(time.RFC3339)
+		out = append(out, s)
+	}
+	return out, rows.Err()
+}
+
+// SetStoreLive flips a store's live flag, scoped to the caller's seller_id unless admin.
+func (r *Repo) SetStoreLive(ctx context.Context, id, sellerID string, live, admin bool) (SellerStore, bool, error) {
+	if r.pool == nil {
+		return SellerStore{}, false, fmt.Errorf("directory: database not configured")
+	}
+	var (
+		s         SellerStore
+		updatedAt time.Time
+	)
+	err := r.pool.QueryRow(ctx, `
+		update directory.stores
+		   set is_live = $2, updated_at = now()
+		 where id = $1 and ($3 or seller_id = $4)
+		 returning id, name, app::text, coalesce(seller_id,''), coalesce(state_code,''), is_live, rating, updated_at`,
+		id, live, admin, sellerID).
+		Scan(&s.ID, &s.Name, &s.App, &s.SellerID, &s.StateCode, &s.IsLive, &s.Rating, &updatedAt)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return SellerStore{}, false, nil
+		}
+		return SellerStore{}, false, err
+	}
+	s.Rating = math.Round(s.Rating*10) / 10
+	s.UpdatedAt = updatedAt.UTC().Format(time.RFC3339)
+	return s, true, nil
 }

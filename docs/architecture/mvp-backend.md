@@ -180,6 +180,10 @@ contract stable so the swap is invisible to the app):
     `NEW`/`PACKED`/`RETURNED` (Option A), `directory.stores.rating` narrowed to REAL. Owner:
     `db-schema.md` §12.9. Gateway contexts + Portal cutover are the next phases (see
     `WORKFLOW_SCRATCHPAD.md`).
+13. ✅ **Store live flag (`0016`):** `directory.stores.is_live BOOLEAN NOT NULL DEFAULT true` + a
+    `(state_code, is_live)` index (0015's comment assumed the flag existed but it did not). Owner:
+    `db-schema.md` §12.10. The gateway now exposes role-scoped partner management endpoints over
+    `catalog`/`directory`/`checkout`/`pharma`/`bookings`/`blood` (see `monolith-breakdown.md` §1).
 
 ---
 

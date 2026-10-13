@@ -149,6 +149,11 @@ Examples: `faazio:v1:stock:fm-f1`, `faazio:v1:search:q:hoodie`, `faazio:v1:sdui:
   reads bypass the cache entirely (no `faazio:v1:sellers:*` key exists).
 - **Anything auth-scoped or PII-bearing** (addresses, phone, prescriptions, blood-donor health data).
 
+> Partner management writes purge the affected public keys: a product status change invalidates
+> `catalog:product:{id}`, a store live toggle invalidates `directory:store:{id}`, an order status change
+> invalidates the owning user's `checkout:orders:{userId}`, and a prescription status change invalidates
+> `pharma:prescriptions:{userId}`. Seller lists are never cached.
+
 ---
 
 ## 9. Honest limitations

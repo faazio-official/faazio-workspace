@@ -18,19 +18,27 @@ import { AD_SLOTS } from "@/data/ads/adSlots";
 import { STATE_ADMINS } from "@/data/admins/stateAdmins";
 import { AUDIT_LOGS } from "@/data/admins/auditLogs";
 import { REVIEWS } from "@/data/reviews/reviews";
+import { PRESCRIPTIONS } from "@/data/pharma/prescriptions";
+import { BOOKINGS } from "@/data/bookings/bookings";
+import { BLOOD_REQUESTS } from "@/data/blood/bloodRequests";
+import { SDUI_LAYOUTS } from "@/data/sdui/layouts";
 import type {
   AdSlot,
   AuditLog,
   AuthUser,
   BankAccount,
+  BloodRequestRecord,
+  BookingRecord,
   CouponRecord,
   FestivalCampaign,
   KycDocument,
   LedgerEntry,
   OrderRecord,
   PayoutRecord,
+  PrescriptionRecord,
   ProductRecord,
   ReviewRecord,
+  SduiLayout,
   SectorCap,
   SellerOptin,
   SellerRecord,
@@ -58,6 +66,10 @@ export interface PortalState {
   stateAdmins: StateAdmin[];
   auditLogs: AuditLog[];
   reviews: ReviewRecord[];
+  prescriptions: PrescriptionRecord[];
+  bookings: BookingRecord[];
+  bloodRequests: BloodRequestRecord[];
+  sduiLayouts: SduiLayout[];
   set: (updater: (state: PortalState) => Partial<PortalState>) => void;
 }
 
@@ -80,6 +92,10 @@ const seed = {
   stateAdmins: STATE_ADMINS,
   auditLogs: AUDIT_LOGS,
   reviews: REVIEWS,
+  prescriptions: PRESCRIPTIONS,
+  bookings: BOOKINGS,
+  bloodRequests: BLOOD_REQUESTS,
+  sduiLayouts: SDUI_LAYOUTS,
 };
 
 export const usePortalStore = create<PortalState>()(

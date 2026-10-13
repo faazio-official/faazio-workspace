@@ -13,6 +13,7 @@ import (
 
 	"github.com/faazio/server/gateway/internal/contracts"
 	"github.com/faazio/server/gateway/internal/platform/db"
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
 )
 
@@ -92,6 +93,71 @@ func (r *Repo) Cancel(ctx context.Context, userID, id string) error {
 		update bookings.tables set status = 'cancelled', updated_at = now()
 		 where id = $1 and user_id = $2 and status <> 'cancelled'`, id, userID)
 	return err
+}
+
+// SellerBookings lists reservations at a seller's venues (admin: all), newest first.
+func (r *Repo) SellerBookings(ctx context.Context, sellerID, status string) ([]contracts.Booking, error) {
+	if r.pool == nil {
+		return nil, fmt.Errorf("bookings: database not configured")
+	}
+	rows, err := r.pool.Query(ctx, `
+		select id, user_id, vendor_id, restaurant_name, booking_date::text, slot, guests, status::text, created_at
+		  from bookings.tables
+		 where ($1 = '' or exists (
+		         select 1 from directory.stores s
+		          where s.seller_id = $1 and s.id = vendor_id))
+		   and ($2 = '' or status::text = $2)
+		 order by booking_date desc, created_at desc`, sellerID, status)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	return scanBookings(rows)
+}
+
+// SetStatus moderates a reservation (confirmed/cancelled), scoped to a seller's venues unless admin.
+func (r *Repo) SetStatus(ctx context.Context, id, sellerID, status string, admin bool) (contracts.Booking, bool, error) {
+	if r.pool == nil {
+		return contracts.Booking{}, false, fmt.Errorf("bookings: database not configured")
+	}
+	var (
+		b         contracts.Booking
+		createdAt time.Time
+	)
+	err := r.pool.QueryRow(ctx, `
+		update bookings.tables t set status = $2::booking_status, updated_at = now()
+		 where t.id = $1
+		   and ($3 or exists (
+		         select 1 from directory.stores s
+		          where s.seller_id = $4 and s.id = t.vendor_id))
+		 returning t.id, t.user_id, t.vendor_id, t.restaurant_name, t.booking_date::text,
+		           t.slot, t.guests, t.status::text, t.created_at`,
+		id, status, admin, sellerID).
+		Scan(&b.ID, &b.UserID, &b.VendorID, &b.RestaurantName, &b.Date, &b.Time, &b.Guests, &b.Status, &createdAt)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return contracts.Booking{}, false, nil
+		}
+		return contracts.Booking{}, false, err
+	}
+	b.CreatedAt = createdAt.UTC().Format(time.RFC3339)
+	return b, true, nil
+}
+
+func scanBookings(rows pgx.Rows) ([]contracts.Booking, error) {
+	out := []contracts.Booking{}
+	for rows.Next() {
+		var (
+			b         contracts.Booking
+			createdAt time.Time
+		)
+		if err := rows.Scan(&b.ID, &b.UserID, &b.VendorID, &b.RestaurantName, &b.Date, &b.Time, &b.Guests, &b.Status, &createdAt); err != nil {
+			return nil, err
+		}
+		b.CreatedAt = createdAt.UTC().Format(time.RFC3339)
+		out = append(out, b)
+	}
+	return out, rows.Err()
 }
 
 // CreateFood inserts a food order booking for userID.

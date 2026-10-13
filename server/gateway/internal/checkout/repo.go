@@ -170,17 +170,25 @@ func (r *Repo) OrdersByUser(ctx context.Context, userID string) ([]Order, error)
 	if r.pool == nil {
 		return nil, fmt.Errorf("checkout: database not configured")
 	}
-	rows, err := r.pool.Query(ctx, `
-		select order_id, order_number, user_id, coalesce(address_id,''), placed_at, status::text,
-		       status_date, coalesce(fulfillment::text,''), vendor_store_ids, pickup, pickups
-		  from checkout.orders where user_id = $1 order by placed_at desc`, userID)
+	rows, err := r.pool.Query(ctx, orderHeaderSelect+` where user_id = $1 order by placed_at desc`, userID)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
+	orders, err := scanOrderHeaders(rows)
+	if err != nil {
+		return nil, err
+	}
+	return r.attachOrderItems(ctx, orders)
+}
 
+const orderHeaderSelect = `
+select order_id, order_number, user_id, coalesce(address_id,''), placed_at, status::text,
+       status_date, coalesce(fulfillment::text,''), vendor_store_ids, pickup, pickups
+  from checkout.orders`
+
+func scanOrderHeaders(rows pgx.Rows) ([]Order, error) {
 	orders := []Order{}
-	index := map[string]int{}
 	for rows.Next() {
 		var (
 			o          Order
@@ -200,16 +208,19 @@ func (r *Repo) OrdersByUser(ctx context.Context, userID string) ([]Order, error)
 			o.StatusDate = statusDate.UTC().Format(time.RFC3339)
 		}
 		o.LineItems = []OrderLineItem{}
-		index[o.ID] = len(orders)
 		orders = append(orders, o)
 	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
+	return orders, rows.Err()
+}
+
+func (r *Repo) attachOrderItems(ctx context.Context, orders []Order) ([]Order, error) {
 	if len(orders) == 0 {
 		return orders, nil
 	}
-
+	index := make(map[string]int, len(orders))
+	for i, o := range orders {
+		index[o.ID] = i
+	}
 	itemRows, err := r.pool.Query(ctx, `
 		select line_id, order_id, coalesce(product_id,''), name, coalesce(variant,''), qty, unit_price_paisa
 		  from checkout.order_items where order_id = any($1)`, orderIDs(orders))
@@ -231,6 +242,67 @@ func (r *Repo) OrdersByUser(ctx context.Context, userID string) ([]Order, error)
 		}
 	}
 	return orders, itemRows.Err()
+}
+
+// SellerOrders returns orders touching a seller's stores (via vendor_store_ids), newest first.
+// An empty sellerID returns all orders (admin scope); status filters the native enum when set.
+func (r *Repo) SellerOrders(ctx context.Context, sellerID, status string) ([]Order, error) {
+	if r.pool == nil {
+		return nil, fmt.Errorf("checkout: database not configured")
+	}
+	rows, err := r.pool.Query(ctx, orderHeaderSelect+`
+		where ($1 = '' or exists (
+		        select 1 from directory.stores s
+		         where s.seller_id = $1 and s.id = any(vendor_store_ids)))
+		  and ($2 = '' or status::text = $2)
+		order by placed_at desc`, sellerID, status)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	orders, err := scanOrderHeaders(rows)
+	if err != nil {
+		return nil, err
+	}
+	return r.attachOrderItems(ctx, orders)
+}
+
+// SetOrderStatus transitions an order, scoped to a seller's stores unless admin.
+func (r *Repo) SetOrderStatus(ctx context.Context, orderID, sellerID, status string, admin bool) (Order, bool, error) {
+	if r.pool == nil {
+		return Order{}, false, fmt.Errorf("checkout: database not configured")
+	}
+	rows, err := r.pool.Query(ctx, orderHeaderSelect+`
+		where order_id = $1
+		  and ($2 or exists (
+		        select 1 from directory.stores s
+		         where s.seller_id = $3 and s.id = any(vendor_store_ids)))`,
+		orderID, admin, sellerID)
+	if err != nil {
+		return Order{}, false, err
+	}
+	orders, err := scanOrderHeaders(rows)
+	rows.Close()
+	if err != nil {
+		return Order{}, false, err
+	}
+	if len(orders) == 0 {
+		return Order{}, false, nil
+	}
+	var (
+		statusDate time.Time
+		newStatus  string
+	)
+	if err := r.pool.QueryRow(ctx, `
+		update checkout.orders set status = $2::order_status, status_date = now()
+		 where order_id = $1
+		 returning status::text, status_date`, orderID, status).Scan(&newStatus, &statusDate); err != nil {
+		return Order{}, false, err
+	}
+	o := orders[0]
+	o.Status = newStatus
+	o.StatusDate = statusDate.UTC().Format(time.RFC3339)
+	return o, true, nil
 }
 
 // OrderByID returns one order with its line items.

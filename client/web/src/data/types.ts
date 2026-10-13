@@ -268,3 +268,77 @@ export interface StateInfo {
   stateCode: string;
   name: string;
 }
+
+export type PrescriptionStatus = "RECEIVED" | "PROCESSING" | "FULFILLED" | "CANCELLED";
+export type PrescriptionFulfillment = "DELIVERY" | "PICKUP";
+
+/** pharma.prescriptions (image paths are Storage object keys, never URLs). */
+export interface PrescriptionRecord {
+  prescriptionId: string;
+  userId: string;
+  sellerId: string;
+  storeId: string;
+  vendorName: string;
+  pages: number;
+  note: string;
+  fulfillment: PrescriptionFulfillment;
+  status: PrescriptionStatus;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export type BookingStatus = "pending" | "confirmed" | "cancelled";
+
+/** bookings.tables */
+export interface BookingRecord {
+  bookingId: string;
+  userId: string;
+  sellerId: string;
+  storeId: string;
+  venueName: string;
+  customerName: string;
+  city: string;
+  stateCode: string;
+  bookingDate: string;
+  slot: string;
+  guests: number;
+  status: BookingStatus;
+  createdAt: string;
+}
+
+export type BloodGroup = "A+" | "A-" | "B+" | "B-" | "O+" | "O-" | "AB+" | "AB-";
+
+/** blood.requests */
+export interface BloodRequestRecord {
+  requestId: string;
+  hospital: string;
+  city: string;
+  stateCode: string;
+  bloodGroup: BloodGroup;
+  unitsRequired: number;
+  urgency: "normal" | "urgent" | "critical";
+  patientContext: string;
+  contact: string;
+  postedAt: string;
+  expiresAt: string;
+}
+
+export type SduiLayoutStatus = "DRAFT" | "PUBLISHED";
+
+/** MongoDB sdui_layouts (ID-only refs; the gateway joins the content). */
+export interface SduiSection {
+  sectionId: string;
+  title: string;
+  type: "banner" | "rail" | "grid";
+  itemIds: string[];
+}
+
+export interface SduiLayout {
+  layoutId: string;
+  locale: string;
+  path: string;
+  version: number;
+  status: SduiLayoutStatus;
+  sections: SduiSection[];
+  updatedAt: string;
+}

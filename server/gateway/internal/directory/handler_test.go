@@ -29,7 +29,7 @@ func testRouter(t *testing.T, pool *pgxpool.Pool, authed bool) http.Handler {
 	}
 	r := chi.NewRouter()
 	r.Use(auth.Middleware(cfg))
-	NewHandler(New(pool), c).Register(r)
+	NewHandler(New(pool), c, nil).Register(r)
 	return r
 }
 

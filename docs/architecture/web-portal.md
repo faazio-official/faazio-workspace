@@ -20,7 +20,9 @@ Recharts, Zod, react-hook-form, sonner, lucide-react.
 
 ## Routing contract
 
-URLs are unchanged from the Vite reference (all 3 consoles, 46 routes). Every
+URLs extend the Vite reference (all 3 consoles; the MVP added 5 partner pages —
+`seller/prescriptions`, `seller/bookings`, `admin/state/blood`,
+`admin/state/bookings`, `admin/super/sdui`). Every
 route is an interactive dashboard, so each route is split:
 
 - `app/**/page.tsx` — **server** component. Exports `metadata` (from

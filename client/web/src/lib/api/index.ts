@@ -6,15 +6,18 @@ import { discountPercent } from "@/lib/pricing/rules";
 import { sellerSeries, stateSeries, globalSeries, productSeries } from "@/data/analytics/series";
 import type {
   AuthUser,
+  BookingStatus,
   CampaignScope,
   CouponRecord,
   FestivalCampaign,
   OrderStatus,
+  PrescriptionStatus,
   ProductRecord,
   ProductStatus,
   Role,
   Sector,
   SellerStatus,
+  SduiLayoutStatus,
   StateAdmin,
 } from "@/data/types";
 
@@ -582,5 +585,113 @@ export function listAuditLogs(filter: { actorRole?: Role | undefined; entity?: s
         return false;
     }
     return true;
+  });
+}
+
+/* ------------------------------ prescriptions ---------------------------- */
+
+export function listPrescriptions(
+  filter: { sellerId?: string | undefined; storeId?: string | undefined; status?: PrescriptionStatus | "ALL" | undefined } = {},
+) {
+  return state().prescriptions.filter((p) => {
+    if (filter.sellerId && p.sellerId !== filter.sellerId) return false;
+    if (filter.storeId && p.storeId !== filter.storeId) return false;
+    if (filter.status && filter.status !== "ALL" && p.status !== filter.status) return false;
+    return true;
+  });
+}
+
+export function setPrescriptionStatus(prescriptionId: string, status: PrescriptionStatus): void {
+  const before = state().prescriptions.find((p) => p.prescriptionId === prescriptionId);
+  state().set((s) => ({
+    prescriptions: s.prescriptions.map((p) =>
+      p.prescriptionId === prescriptionId ? { ...p, status, updatedAt: nowIso() } : p,
+    ),
+  }));
+  audit({
+    action: `RX_${status}`,
+    entity: "pharma.prescriptions",
+    entityId: prescriptionId,
+    before: before && { status: before.status },
+    after: { status },
+  });
+}
+
+/* --------------------------------- bookings ------------------------------ */
+
+export function listBookings(
+  filter: { sellerId?: string | undefined; stateCode?: string | undefined; status?: BookingStatus | "ALL" | undefined } = {},
+) {
+  return state().bookings.filter((b) => {
+    if (filter.sellerId && b.sellerId !== filter.sellerId) return false;
+    if (filter.stateCode && b.stateCode !== filter.stateCode) return false;
+    if (filter.status && filter.status !== "ALL" && b.status !== filter.status) return false;
+    return true;
+  });
+}
+
+export function setBookingStatus(bookingId: string, status: BookingStatus): void {
+  const before = state().bookings.find((b) => b.bookingId === bookingId);
+  state().set((s) => ({
+    bookings: s.bookings.map((b) => (b.bookingId === bookingId ? { ...b, status } : b)),
+  }));
+  audit({
+    action: `BOOKING_${status.toUpperCase()}`,
+    entity: "bookings.tables",
+    entityId: bookingId,
+    before: before && { status: before.status },
+    after: { status },
+  });
+}
+
+/* ------------------------------ blood requests --------------------------- */
+
+export function listBloodRequests(
+  filter: { stateCode?: string | undefined; city?: string | undefined; bloodGroup?: string | undefined } = {},
+) {
+  return state().bloodRequests.filter((r) => {
+    if (filter.stateCode && r.stateCode !== filter.stateCode) return false;
+    if (filter.city && r.city !== filter.city) return false;
+    if (filter.bloodGroup && r.bloodGroup !== filter.bloodGroup) return false;
+    return true;
+  });
+}
+
+export function removeBloodRequest(requestId: string): void {
+  const before = state().bloodRequests.find((r) => r.requestId === requestId);
+  state().set((s) => ({ bloodRequests: s.bloodRequests.filter((r) => r.requestId !== requestId) }));
+  audit({
+    action: "BLOOD_REQUEST_REMOVE",
+    entity: "blood.requests",
+    entityId: requestId,
+    before,
+  });
+}
+
+/* ---------------------------------- sdui --------------------------------- */
+
+export function listSduiLayouts(
+  filter: { layoutId?: string | undefined; status?: SduiLayoutStatus | "ALL" | undefined } = {},
+) {
+  return state().sduiLayouts.filter((l) => {
+    if (filter.layoutId && l.layoutId !== filter.layoutId) return false;
+    if (filter.status && filter.status !== "ALL" && l.status !== filter.status) return false;
+    return true;
+  });
+}
+
+export function setSduiLayoutStatus(layoutId: string, version: number, status: SduiLayoutStatus): void {
+  const before = state().sduiLayouts.find((l) => l.layoutId === layoutId && l.version === version);
+  state().set((s) => ({
+    sduiLayouts: s.sduiLayouts.map((l) =>
+      l.layoutId === layoutId && l.version === version ? { ...l, status, updatedAt: nowIso() } : l,
+    ),
+  }));
+  audit({
+    action: `SDUI_${status}`,
+    entity: "sdui_layouts",
+    entityId: `${layoutId}@v${version}`,
+    before: before && { status: before.status },
+    after: { status },
   });
 }

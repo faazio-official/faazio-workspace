@@ -5,8 +5,10 @@ package catalog
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"math"
+	"time"
 
 	"github.com/faazio/server/gateway/internal/contracts"
 	"github.com/faazio/server/gateway/internal/platform/db"
@@ -210,4 +212,82 @@ func deref(v *string) string {
 		return ""
 	}
 	return *v
+}
+
+// SellerProduct is the portal-facing product-management projection (not the mobile catalog shape).
+type SellerProduct struct {
+	ID        string `json:"id"`
+	Name      string `json:"name"`
+	App       string `json:"app"`
+	Category  string `json:"category"`
+	Status    string `json:"status"`
+	SellerID  string `json:"sellerId,omitempty"`
+	Price     int64  `json:"price"` // rupees
+	UpdatedAt string `json:"updatedAt"`
+}
+
+const sellerProductSelect = `
+select p.id, p.name, p.app::text, p.category, p.status::text, coalesce(p.seller_id,''),
+       p.price_paisa, p.updated_at
+from catalog.products p`
+
+// SellerProducts lists a seller's products (status "" = all), newest edit first.
+func (r *Repo) SellerProducts(ctx context.Context, sellerID, status string) ([]SellerProduct, error) {
+	if r.pool == nil {
+		return nil, fmt.Errorf("catalog: database not configured")
+	}
+	rows, err := r.pool.Query(ctx, sellerProductSelect+`
+		where ($1 = '' or p.seller_id = $1)
+		  and ($2 = '' or p.status::text = $2)
+		order by p.updated_at desc`, sellerID, status)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	return scanSellerProducts(rows)
+}
+
+// SetProductStatus transitions a product's status. When admin is false the write is scoped to the
+// caller's seller_id, so a seller can never mutate another seller's product.
+func (r *Repo) SetProductStatus(ctx context.Context, id, sellerID, status string, admin bool) (SellerProduct, bool, error) {
+	if r.pool == nil {
+		return SellerProduct{}, false, fmt.Errorf("catalog: database not configured")
+	}
+	var (
+		p         SellerProduct
+		updatedAt time.Time
+	)
+	err := r.pool.QueryRow(ctx, `
+		update catalog.products p set status = $2::product_status
+		 where p.id = $1 and ($3 or p.seller_id = $4)
+		 returning p.id, p.name, p.app::text, p.category, p.status::text,
+		           coalesce(p.seller_id,''), p.price_paisa, p.updated_at`,
+		id, status, admin, sellerID).
+		Scan(&p.ID, &p.Name, &p.App, &p.Category, &p.Status, &p.SellerID, &p.Price, &updatedAt)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return SellerProduct{}, false, nil
+		}
+		return SellerProduct{}, false, err
+	}
+	p.Price /= 100
+	p.UpdatedAt = updatedAt.UTC().Format(time.RFC3339)
+	return p, true, nil
+}
+
+func scanSellerProducts(rows pgx.Rows) ([]SellerProduct, error) {
+	out := []SellerProduct{}
+	for rows.Next() {
+		var (
+			p         SellerProduct
+			updatedAt time.Time
+		)
+		if err := rows.Scan(&p.ID, &p.Name, &p.App, &p.Category, &p.Status, &p.SellerID, &p.Price, &updatedAt); err != nil {
+			return nil, err
+		}
+		p.Price /= 100
+		p.UpdatedAt = updatedAt.UTC().Format(time.RFC3339)
+		out = append(out, p)
+	}
+	return out, rows.Err()
 }

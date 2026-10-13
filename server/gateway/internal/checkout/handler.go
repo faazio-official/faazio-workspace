@@ -1,9 +1,12 @@
 package checkout
 
 import (
+	"encoding/json"
 	"errors"
 	"net/http"
+	"strings"
 
+	"github.com/faazio/server/gateway/internal/contracts"
 	"github.com/faazio/server/gateway/internal/platform/auth"
 	"github.com/faazio/server/gateway/internal/platform/cache"
 	"github.com/faazio/server/gateway/internal/platform/httpx"
@@ -15,11 +18,12 @@ type Handler struct {
 	repo    *Repo
 	service *Service
 	cache   *cache.Cache
+	audit   contracts.AuditWriter
 }
 
 // NewHandler builds the checkout handler.
-func NewHandler(repo *Repo, service *Service, c *cache.Cache) *Handler {
-	return &Handler{repo: repo, service: service, cache: c}
+func NewHandler(repo *Repo, service *Service, c *cache.Cache, audit contracts.AuditWriter) *Handler {
+	return &Handler{repo: repo, service: service, cache: c, audit: audit}
 }
 
 // Register mounts auth-scoped order + account endpoints.
@@ -36,12 +40,20 @@ func (h *Handler) Register(r chi.Router) {
 		g.Get("/order-status", h.getOrderStatus)
 		g.Get("/account-nav", h.getAccountNav)
 	})
+	r.Group(func(g chi.Router) {
+		g.Use(auth.RequireRole(auth.RoleSeller, auth.RoleStateAdmin, auth.RoleSuperAdmin))
+		g.Get("/seller/orders", h.sellerOrders)
+		g.Put("/orders/{orderID}/status", h.setOrderStatus)
+	})
 }
 
 func (h *Handler) getOrders(w http.ResponseWriter, r *http.Request) {
 	userID := auth.UserID(r.Context())
 	var cached []Order
 	if h.cache.GetJSON(r.Context(), cache.Orders(userID), &cached) {
+		for i := range cached {
+			cached[i].Status = mobileStatus(cached[i].Status)
+		}
 		httpx.JSON(w, http.StatusOK, cached)
 		return
 	}
@@ -54,6 +66,7 @@ func (h *Handler) getOrders(w http.ResponseWriter, r *http.Request) {
 		orders = []Order{}
 	}
 	h.cache.SetJSON(r.Context(), cache.Orders(userID), orders, cache.TTLOrders)
+	h.projectMobileStatus(orders)
 	httpx.JSON(w, http.StatusOK, orders)
 }
 
@@ -202,4 +215,126 @@ func (h *Handler) getAccountNav(w http.ResponseWriter, r *http.Request) {
 		rows = []Nav{}
 	}
 	httpx.JSON(w, http.StatusOK, rows)
+}
+
+func (h *Handler) sellerOrders(w http.ResponseWriter, r *http.Request) {
+	sellerID := strings.TrimSpace(r.URL.Query().Get("sellerId"))
+	if auth.Role(r.Context()) == auth.RoleSeller {
+		sellerID = auth.SellerID(r.Context())
+	}
+	status := strings.ToUpper(strings.TrimSpace(r.URL.Query().Get("status")))
+	if status == "NEW" {
+		// NEW is the portal projection of the legacy mobile Processing rows.
+		orders, err := h.repo.SellerOrders(r.Context(), sellerID, "")
+		if err != nil {
+			httpx.Fail(w, http.StatusInternalServerError, "orders_unavailable", "orders unavailable")
+			return
+		}
+		filtered := []Order{}
+		for i := range orders {
+			if portalStatus(orders[i].Status) == "NEW" {
+				orders[i].Status = "NEW"
+				filtered = append(filtered, orders[i])
+			}
+		}
+		httpx.JSON(w, http.StatusOK, filtered)
+		return
+	}
+	orders, err := h.repo.SellerOrders(r.Context(), sellerID, status)
+	if err != nil {
+		httpx.Fail(w, http.StatusInternalServerError, "orders_unavailable", "orders unavailable")
+		return
+	}
+	if orders == nil {
+		orders = []Order{}
+	}
+	for i := range orders {
+		orders[i].Status = portalStatus(orders[i].Status)
+	}
+	httpx.JSON(w, http.StatusOK, orders)
+}
+
+func (h *Handler) setOrderStatus(w http.ResponseWriter, r *http.Request) {
+	orderID := chi.URLParam(r, "orderID")
+	var body struct {
+		Status string `json:"status"`
+	}
+	if err := httpx.Decode(r, &body); err != nil {
+		httpx.Fail(w, http.StatusBadRequest, "bad_request", "invalid body")
+		return
+	}
+	status := strings.ToUpper(strings.TrimSpace(body.Status))
+	if !allowedOrderStatus(status) {
+		httpx.Fail(w, http.StatusBadRequest, "bad_request", "invalid order status")
+		return
+	}
+	role := auth.Role(r.Context())
+	admin := role == auth.RoleStateAdmin || role == auth.RoleSuperAdmin
+	order, ok, err := h.repo.SetOrderStatus(r.Context(), orderID, auth.SellerID(r.Context()), status, admin)
+	if err != nil {
+		httpx.Fail(w, http.StatusInternalServerError, "order_update_failed", "could not update order")
+		return
+	}
+	if !ok {
+		httpx.Fail(w, http.StatusNotFound, "not_found", "order not found")
+		return
+	}
+	h.cache.Del(r.Context(), cache.Orders(order.UserID))
+	order.Status = portalStatus(order.Status)
+	h.log(r, "ORDER_"+status, orderID)
+	httpx.JSON(w, http.StatusOK, order)
+}
+
+// portalStatus maps the legacy mobile status onto the portal lifecycle (Processing -> NEW).
+func portalStatus(s string) string {
+	if s == "Processing" {
+		return "NEW"
+	}
+	return s
+}
+
+// mobileStatus collapses the portal lifecycle back to the mobile vocabulary (NEW/PACKED -> Processing).
+func mobileStatus(s string) string {
+	if s == "NEW" || s == "PACKED" {
+		return "Processing"
+	}
+	return s
+}
+
+func (h *Handler) projectMobileStatus(orders []Order) {
+	for i := range orders {
+		orders[i].Status = mobileStatus(orders[i].Status)
+	}
+}
+
+// allowedOrderStatus is the portal order lifecycle. Mobile's Processing is expressed as NEW/PACKED.
+func allowedOrderStatus(s string) bool {
+	switch s {
+	case "NEW", "PACKED", "SHIPPED", "DELIVERED", "RETURNED", "CANCELLED":
+		return true
+	default:
+		return false
+	}
+}
+
+func (h *Handler) log(r *http.Request, action, entityID string) {
+	if h.audit == nil {
+		return
+	}
+	actorID := auth.UserID(r.Context())
+	if actorID == "" {
+		actorID = auth.SellerID(r.Context())
+	}
+	if actorID == "" {
+		actorID = "anonymous"
+	}
+	role := auth.Role(r.Context())
+	if role == "" {
+		role = auth.RoleSeller
+	}
+	raw, _ := json.Marshal(map[string]string{"action": action})
+	_ = h.audit.Audit(r.Context(), contracts.AuditEntry{
+		ActorID: actorID, ActorRole: role, Action: action,
+		Entity: "checkout.orders", EntityID: entityID, After: raw,
+	})
 }

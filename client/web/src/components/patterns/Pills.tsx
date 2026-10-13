@@ -66,6 +66,16 @@ const STATUS_TONE: Record<string, Tone> = {
   REJECTED: "danger",
   CANCELLED: "danger",
   RETURNED: "danger",
+  RECEIVED: "info",
+  PROCESSING: "warning",
+  FULFILLED: "success",
+  PUBLISHED: "success",
+  pending: "warning",
+  confirmed: "success",
+  cancelled: "danger",
+  normal: "neutral",
+  urgent: "warning",
+  critical: "danger",
 };
 
 export function StatusPill({ status }: { status: string }) {

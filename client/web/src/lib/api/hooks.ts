@@ -121,3 +121,35 @@ export function useSeller(sellerId: string) {
   const sellers = usePortalStore((s) => s.sellers);
   return useMemo(() => api.getSeller(sellerId), [sellers, sellerId]);
 }
+
+export function usePrescriptions(
+  filter: { sellerId?: string | undefined; storeId?: string | undefined; status?: import("@/data/types").PrescriptionStatus | "ALL" | undefined } = {},
+) {
+  const prescriptions = usePortalStore((s) => s.prescriptions);
+  const key = JSON.stringify(filter);
+  return useMemo(() => api.listPrescriptions(filter), [prescriptions, key]);
+}
+
+export function useBookings(
+  filter: { sellerId?: string | undefined; stateCode?: string | undefined; status?: import("@/data/types").BookingStatus | "ALL" | undefined } = {},
+) {
+  const bookings = usePortalStore((s) => s.bookings);
+  const key = JSON.stringify(filter);
+  return useMemo(() => api.listBookings(filter), [bookings, key]);
+}
+
+export function useBloodRequests(
+  filter: { stateCode?: string | undefined; city?: string | undefined; bloodGroup?: string | undefined } = {},
+) {
+  const bloodRequests = usePortalStore((s) => s.bloodRequests);
+  const key = JSON.stringify(filter);
+  return useMemo(() => api.listBloodRequests(filter), [bloodRequests, key]);
+}
+
+export function useSduiLayouts(
+  filter: { layoutId?: string | undefined; status?: import("@/data/types").SduiLayoutStatus | "ALL" | undefined } = {},
+) {
+  const sduiLayouts = usePortalStore((s) => s.sduiLayouts);
+  const key = JSON.stringify(filter);
+  return useMemo(() => api.listSduiLayouts(filter), [sduiLayouts, key]);
+}

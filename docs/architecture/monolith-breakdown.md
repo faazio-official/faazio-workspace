@@ -61,6 +61,15 @@ All `GatewayClient` methods in the table are now implemented (reads + writes; `g
 included). Cache behaviour is built per the TTL matrix: `GET /stock/:id` is read-through and every
 order decrement invalidates `stock:{id}`.
 
+**Portal-only management endpoints** (role-scoped, audited via `admins`; no `GatewayClient` method):
+`GET /seller/products` + `PUT /seller/products/{id}/status` (catalog), `GET /seller/stores` +
+`PUT /seller/stores/{id}/live` (directory), `GET /seller/orders` + `PUT /orders/{id}/status`
+(checkout, maps mobile `Processing ↔ NEW/PACKED`), `GET /seller/prescriptions` +
+`PUT /prescriptions/{id}/status` (pharma), `GET /seller/bookings` + `PUT /bookings/{id}/status`
+(bookings), `DELETE /blood-requests/{id}` (blood moderation), plus the sellers/promo/ads/settlement/
+support/admin contexts above. Every write is scoped to the caller's `seller_id` unless the role is
+`STATE_ADMIN`/`SUPER_ADMIN`.
+
 ## 2. Boundary rules (enforced)
 
 1. A context lives **only** under `internal/<context>/{handler,service,repo}.go` (handler = HTTP,

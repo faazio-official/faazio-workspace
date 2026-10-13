@@ -1,8 +1,10 @@
 package bookings
 
 import (
+	"encoding/json"
 	"errors"
 	"net/http"
+	"strings"
 
 	"github.com/faazio/server/gateway/internal/contracts"
 	"github.com/faazio/server/gateway/internal/platform/auth"
@@ -15,10 +17,13 @@ import (
 type Handler struct {
 	repo  *Repo
 	cache *cache.Cache
+	audit contracts.AuditWriter
 }
 
 // NewHandler builds the bookings handler.
-func NewHandler(repo *Repo, c *cache.Cache) *Handler { return &Handler{repo: repo, cache: c} }
+func NewHandler(repo *Repo, c *cache.Cache, audit contracts.AuditWriter) *Handler {
+	return &Handler{repo: repo, cache: c, audit: audit}
+}
 
 // Register mounts booking endpoints (all auth-scoped).
 func (h *Handler) Register(r chi.Router) {
@@ -29,6 +34,11 @@ func (h *Handler) Register(r chi.Router) {
 		g.Delete("/bookings/{id}", h.cancel)
 		g.Get("/food-bookings", h.listFood)
 		g.Post("/food-bookings", h.createFood)
+	})
+	r.Group(func(g chi.Router) {
+		g.Use(auth.RequireRole(auth.RoleSeller, auth.RoleStateAdmin, auth.RoleSuperAdmin))
+		g.Get("/seller/bookings", h.sellerList)
+		g.Put("/bookings/{id}/status", h.setStatus)
 	})
 }
 
@@ -114,4 +124,70 @@ func (h *Handler) createFood(w http.ResponseWriter, r *http.Request) {
 	}
 	h.cache.Del(r.Context(), cache.FoodBookings(f.UserID))
 	httpx.JSON(w, http.StatusCreated, f)
+}
+
+func (h *Handler) sellerList(w http.ResponseWriter, r *http.Request) {
+	sellerID := strings.TrimSpace(r.URL.Query().Get("sellerId"))
+	if auth.Role(r.Context()) == auth.RoleSeller {
+		sellerID = auth.SellerID(r.Context())
+	}
+	status := strings.ToLower(strings.TrimSpace(r.URL.Query().Get("status")))
+	items, err := h.repo.SellerBookings(r.Context(), sellerID, status)
+	if err != nil {
+		httpx.Fail(w, http.StatusInternalServerError, "bookings_unavailable", "bookings unavailable")
+		return
+	}
+	httpx.JSON(w, http.StatusOK, items)
+}
+
+func (h *Handler) setStatus(w http.ResponseWriter, r *http.Request) {
+	id := chi.URLParam(r, "id")
+	var body struct {
+		Status string `json:"status"`
+	}
+	if err := httpx.Decode(r, &body); err != nil {
+		httpx.Fail(w, http.StatusBadRequest, "bad_request", "invalid body")
+		return
+	}
+	status := strings.ToLower(strings.TrimSpace(body.Status))
+	if status != "confirmed" && status != "cancelled" {
+		httpx.Fail(w, http.StatusBadRequest, "bad_request", "status must be confirmed or cancelled")
+		return
+	}
+	role := auth.Role(r.Context())
+	admin := role == auth.RoleStateAdmin || role == auth.RoleSuperAdmin
+	b, ok, err := h.repo.SetStatus(r.Context(), id, auth.SellerID(r.Context()), status, admin)
+	if err != nil {
+		httpx.Fail(w, http.StatusInternalServerError, "booking_failed", "could not update booking")
+		return
+	}
+	if !ok {
+		httpx.Fail(w, http.StatusNotFound, "not_found", "booking not found")
+		return
+	}
+	h.cache.Del(r.Context(), cache.Bookings(b.UserID))
+	h.log(r, "BOOKING_"+strings.ToUpper(status), id)
+	httpx.JSON(w, http.StatusOK, b)
+}
+
+func (h *Handler) log(r *http.Request, action, entityID string) {
+	if h.audit == nil {
+		return
+	}
+	actorID := auth.UserID(r.Context())
+	if actorID == "" {
+		actorID = auth.SellerID(r.Context())
+	}
+	if actorID == "" {
+		actorID = "anonymous"
+	}
+	role := auth.Role(r.Context())
+	if role == "" {
+		role = auth.RoleSeller
+	}
+	raw, _ := json.Marshal(map[string]string{"action": action})
+	_ = h.audit.Audit(r.Context(), contracts.AuditEntry{
+		ActorID: actorID, ActorRole: role, Action: action,
+		Entity: "bookings.tables", EntityID: entityID, After: raw,
+	})
 }

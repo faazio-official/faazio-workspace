@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/faazio/server/gateway/internal/platform/db"
+	"github.com/jackc/pgx/v5"
 )
 
 // Prescription is a pharma.prescriptions row. ImagePaths are Storage object keys (never URLs).
@@ -72,14 +73,73 @@ func (r *Repo) ByUser(ctx context.Context, userID string) ([]Prescription, error
 	if r.pool == nil {
 		return nil, fmt.Errorf("pharma: database not configured")
 	}
-	rows, err := r.pool.Query(ctx, `
-		select id, user_id, coalesce(vendor_id,''), coalesce(fulfillment::text,''), pages,
-		       coalesce(note,''), image_paths, status::text, created_at, updated_at
-		  from pharma.prescriptions where user_id = $1 order by created_at desc`, userID)
+	rows, err := r.pool.Query(ctx, prescriptionSelect+` where user_id = $1 order by created_at desc`, userID)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
+	return scanPrescriptions(rows)
+}
+
+const prescriptionSelect = `
+select id, user_id, coalesce(vendor_id,''), coalesce(fulfillment::text,''), pages,
+       coalesce(note,''), image_paths, status::text, created_at, updated_at
+  from pharma.prescriptions`
+
+// VendorPrescriptions lists prescriptions routed to a seller's stores (admin: all), by status.
+func (r *Repo) VendorPrescriptions(ctx context.Context, sellerID, status string) ([]Prescription, error) {
+	if r.pool == nil {
+		return nil, fmt.Errorf("pharma: database not configured")
+	}
+	rows, err := r.pool.Query(ctx, prescriptionSelect+`
+		where ($1 = '' or exists (
+		        select 1 from directory.stores s
+		         where s.seller_id = $1 and s.id = vendor_id))
+		  and ($2 = '' or status::text = $2)
+		order by created_at desc`, sellerID, status)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	return scanPrescriptions(rows)
+}
+
+// SetStatus advances a prescription's status, scoped to a seller's stores unless admin.
+// Prescription images are PII — the caller must invalidate the owner cache key.
+func (r *Repo) SetStatus(ctx context.Context, id, sellerID, status string, admin bool) (Prescription, bool, error) {
+	if r.pool == nil {
+		return Prescription{}, false, fmt.Errorf("pharma: database not configured")
+	}
+	rows, err := r.pool.Query(ctx, prescriptionSelect+`
+		where id = $1
+		  and ($2 or exists (
+		        select 1 from directory.stores s
+		         where s.seller_id = $3 and s.id = vendor_id))`, id, admin, sellerID)
+	if err != nil {
+		return Prescription{}, false, err
+	}
+	items, err := scanPrescriptions(rows)
+	rows.Close()
+	if err != nil {
+		return Prescription{}, false, err
+	}
+	if len(items) == 0 {
+		return Prescription{}, false, nil
+	}
+	var updatedAt time.Time
+	if err := r.pool.QueryRow(ctx, `
+		update pharma.prescriptions set status = $2::prescription_status, updated_at = now()
+		 where id = $1
+		 returning updated_at`, id, status).Scan(&updatedAt); err != nil {
+		return Prescription{}, false, err
+	}
+	p := items[0]
+	p.Status = status
+	p.UpdatedAt = updatedAt.UTC().Format(time.RFC3339)
+	return p, true, nil
+}
+
+func scanPrescriptions(rows pgx.Rows) ([]Prescription, error) {
 	out := []Prescription{}
 	for rows.Next() {
 		var (

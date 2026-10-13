@@ -1065,3 +1065,19 @@ Schema `USAGE` + RLS are granted under the Supabase-only guard; app roles travel
 real enforcer. Adds `order_status` values `NEW`/`PACKED`/`RETURNED` (Option A) so the Portal and mobile
 share one lifecycle; `directory.stores.rating` is narrowed to REAL (0005 narrowed only products).
 Idempotent and re-runnable.
+
+### 12.10 Store live flag (migration `0016`)
+
+`0015` added seller scoping to `directory.stores` and its comment assumed a live flag already existed on
+the table — it did not, so the Portal `Store.isLive` field and the directory moderation flow had nothing
+to read or flip. `0016` supplies it additively (never rewrites `0001`–`0015`):
+
+```sql
+ALTER TABLE directory.stores ADD COLUMN IF NOT EXISTS is_live BOOLEAN NOT NULL DEFAULT true;
+DROP INDEX IF EXISTS directory.stores_state_live_idx;   -- 0015's (state_code) only
+CREATE INDEX IF NOT EXISTS stores_state_live_idx ON directory.stores (state_code, is_live);
+```
+
+The composite index keeps the public list (`WHERE app = ? AND is_live`) state-aligned (it still serves
+`state_code`-only lookups). Stores remain public anon-readable; writes are `service_role` (the gateway is
+the only write path), so no new RLS policy is needed. Idempotent and re-runnable.

@@ -3,9 +3,11 @@ package pharma
 import (
 	"crypto/rand"
 	"encoding/hex"
+	"encoding/json"
 	"net/http"
 	"strings"
 
+	"github.com/faazio/server/gateway/internal/contracts"
 	"github.com/faazio/server/gateway/internal/platform/auth"
 	"github.com/faazio/server/gateway/internal/platform/cache"
 	"github.com/faazio/server/gateway/internal/platform/httpx"
@@ -24,11 +26,12 @@ type Handler struct {
 	repo    *Repo
 	storage *Storage
 	cache   *cache.Cache
+	audit   contracts.AuditWriter
 }
 
 // NewHandler builds the pharma handler. storage may be nil (signed URLs disabled).
-func NewHandler(repo *Repo, storage *Storage, c *cache.Cache) *Handler {
-	return &Handler{repo: repo, storage: storage, cache: c}
+func NewHandler(repo *Repo, storage *Storage, c *cache.Cache, audit contracts.AuditWriter) *Handler {
+	return &Handler{repo: repo, storage: storage, cache: c, audit: audit}
 }
 
 // Register mounts prescription endpoints (all auth-scoped).
@@ -38,6 +41,11 @@ func (h *Handler) Register(r chi.Router) {
 		g.Get("/prescriptions", h.list)
 		g.Post("/prescriptions", h.create)
 		g.Post("/prescriptions/upload-url", h.uploadURL)
+	})
+	r.Group(func(g chi.Router) {
+		g.Use(auth.RequireRole(auth.RoleSeller, auth.RoleStateAdmin, auth.RoleSuperAdmin))
+		g.Get("/seller/prescriptions", h.vendorList)
+		g.Put("/prescriptions/{id}/status", h.setStatus)
 	})
 }
 
@@ -133,4 +141,81 @@ func randomObjectName() string {
 	b := make([]byte, 8)
 	_, _ = rand.Read(b)
 	return "rx-" + hex.EncodeToString(b)
+}
+
+func (h *Handler) vendorList(w http.ResponseWriter, r *http.Request) {
+	sellerID := strings.TrimSpace(r.URL.Query().Get("sellerId"))
+	if auth.Role(r.Context()) == auth.RoleSeller {
+		sellerID = auth.SellerID(r.Context())
+	}
+	status := strings.ToUpper(strings.TrimSpace(r.URL.Query().Get("status")))
+	items, err := h.repo.VendorPrescriptions(r.Context(), sellerID, status)
+	if err != nil {
+		httpx.Fail(w, http.StatusInternalServerError, "prescriptions_unavailable", "prescriptions unavailable")
+		return
+	}
+	httpx.JSON(w, http.StatusOK, items)
+}
+
+// setStatus fulfils/cancels a prescription. Only the status is audited — never image paths or note
+// (health PII; AGENTS.md security).
+func (h *Handler) setStatus(w http.ResponseWriter, r *http.Request) {
+	id := chi.URLParam(r, "id")
+	var body struct {
+		Status string `json:"status"`
+	}
+	if err := httpx.Decode(r, &body); err != nil {
+		httpx.Fail(w, http.StatusBadRequest, "bad_request", "invalid body")
+		return
+	}
+	status := strings.ToUpper(strings.TrimSpace(body.Status))
+	if !allowedRxStatus(status) {
+		httpx.Fail(w, http.StatusBadRequest, "bad_request", "invalid prescription status")
+		return
+	}
+	role := auth.Role(r.Context())
+	admin := role == auth.RoleStateAdmin || role == auth.RoleSuperAdmin
+	p, ok, err := h.repo.SetStatus(r.Context(), id, auth.SellerID(r.Context()), status, admin)
+	if err != nil {
+		httpx.Fail(w, http.StatusInternalServerError, "prescription_failed", "could not update prescription")
+		return
+	}
+	if !ok {
+		httpx.Fail(w, http.StatusNotFound, "not_found", "prescription not found")
+		return
+	}
+	h.cache.Del(r.Context(), cache.Prescriptions(p.UserID))
+	h.log(r, "RX_"+status, id)
+	httpx.JSON(w, http.StatusOK, p)
+}
+
+func allowedRxStatus(s string) bool {
+	switch s {
+	case "PROCESSING", "FULFILLED", "CANCELLED":
+		return true
+	default:
+		return false
+	}
+}
+
+func (h *Handler) log(r *http.Request, action, entityID string) {
+	if h.audit == nil {
+		return
+	}
+	actorID := auth.UserID(r.Context())
+	if actorID == "" {
+		actorID = auth.SellerID(r.Context())
+	}
+	if actorID == "" {
+		actorID = "anonymous"
+	}
+	role := auth.Role(r.Context())
+	if role == "" {
+		role = auth.RoleSeller
+	}
+	raw, _ := json.Marshal(map[string]string{"action": action})
+	_ = h.audit.Audit(r.Context(), contracts.AuditEntry{
+		ActorID: actorID, ActorRole: role, Action: action,
+		Entity: "pharma.prescriptions", EntityID: entityID, After: raw,
+	})
 }

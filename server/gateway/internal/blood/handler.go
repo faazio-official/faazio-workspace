@@ -1,6 +1,7 @@
 package blood
 
 import (
+	"encoding/json"
 	"net/http"
 	"strings"
 
@@ -16,10 +17,13 @@ import (
 type Handler struct {
 	repo  *Repo
 	cache *cache.Cache
+	audit contracts.AuditWriter
 }
 
 // NewHandler builds the blood handler.
-func NewHandler(repo *Repo, c *cache.Cache) *Handler { return &Handler{repo: repo, cache: c} }
+func NewHandler(repo *Repo, c *cache.Cache, audit contracts.AuditWriter) *Handler {
+	return &Handler{repo: repo, cache: c, audit: audit}
+}
 
 // Register mounts blood endpoints. The requests board is public; everything else is auth-scoped.
 func (h *Handler) Register(r chi.Router) {
@@ -33,6 +37,10 @@ func (h *Handler) Register(r chi.Router) {
 		g.Put("/blood-requests/{id}/interest", h.interest)
 		g.Post("/donor-match-requests", h.createMatch)
 		g.Get("/donor-match-requests", h.listMatches)
+	})
+	r.Group(func(g chi.Router) {
+		g.Use(auth.RequireRole(auth.RoleStateAdmin, auth.RoleSuperAdmin))
+		g.Delete("/blood-requests/{id}", h.moderateRequest)
 	})
 }
 
@@ -189,6 +197,42 @@ func queryFilter(r *http.Request) (group, city string) {
 		group = ""
 	}
 	return group, city
+}
+
+// moderateRequest removes an inappropriate or stale public request (state/super admin only).
+func (h *Handler) moderateRequest(w http.ResponseWriter, r *http.Request) {
+	id := chi.URLParam(r, "id")
+	ok, err := h.repo.DeleteRequest(r.Context(), id)
+	if err != nil {
+		httpx.Fail(w, http.StatusInternalServerError, "request_failed", "could not remove request")
+		return
+	}
+	if !ok {
+		httpx.Fail(w, http.StatusNotFound, "not_found", "request not found")
+		return
+	}
+	h.cache.Del(r.Context(), cache.BloodRequests("group=;city="))
+	h.log(r, id)
+	w.WriteHeader(http.StatusNoContent)
+}
+
+func (h *Handler) log(r *http.Request, entityID string) {
+	if h.audit == nil {
+		return
+	}
+	actorID := auth.UserID(r.Context())
+	if actorID == "" {
+		actorID = "admin"
+	}
+	role := auth.Role(r.Context())
+	if role == "" {
+		role = auth.RoleStateAdmin
+	}
+	raw, _ := json.Marshal(map[string]string{"action": "BLOOD_REQUEST_REMOVE"})
+	_ = h.audit.Audit(r.Context(), contracts.AuditEntry{
+		ActorID: actorID, ActorRole: role, Action: "BLOOD_REQUEST_REMOVE",
+		Entity: "blood.requests", EntityID: entityID, After: raw,
+	})
 }
 
 func validBloodGroup(g string) bool {

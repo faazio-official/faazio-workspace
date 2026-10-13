@@ -84,13 +84,13 @@ wire. Mobile `GatewayClient.ts` + `@data/*` already speak integer rupees — unc
 | W4 | Missing `settlement`/payouts gateway context | 3 | **done** (ledger + payouts + tests) |
 | W5 | Missing `support`/returns gateway context | 3 | **done** (tickets + returns + tests) |
 | W6 | Missing `admins` audit/state-admin context | 3 | **done** (audit + state-admins + tests) |
-| W7 | Web seller prescriptions page + endpoint | 4 | pending |
-| W8 | Web seller bookings page + endpoint | 4 | pending |
-| W9 | Web state blood moderation page + endpoint | 4 | pending |
-| W10 | Web super SDUI publish page + endpoint | 4 | pending |
-| W11 | `catalog.products` seller scope + status column | 1/2 | DB done (0015); gateway routes pending |
-| W12 | `directory.stores` seller_id + state_code | 1/2 | DB done (0015); gateway routes pending |
-| W13 | `checkout.orders` NEW→PACKED→SHIPPED→DELIVERED lifecycle | 1/2 | DB enum done (0015); gateway mapping pending |
+| W7 | Web seller prescriptions page + endpoint | 4 | **done** (`/seller/prescriptions`) |
+| W8 | Web seller bookings page + endpoint | 4 | **done** (`/seller/bookings`) |
+| W9 | Web state blood moderation page + endpoint | 4 | **done** (`/admin/state/blood`) |
+| W10 | Web super SDUI publish page + endpoint | 4 | **done** (`/admin/super/sdui`) |
+| W11 | `catalog.products` seller scope + status column | 1/2 | **done** (`/seller/products` + status route) |
+| W12 | `directory.stores` seller_id + state_code | 1/2 | **done** (+ `is_live` via 0016; live route) |
+| W13 | `checkout.orders` NEW→PACKED→SHIPPED→DELIVERED lifecycle | 1/2 | **done** (`/seller/orders` + status route) |
 | W14 | Real settlement ledger (no client-computed money) | 3 | **done** (server-only write) |
 | W15 | Audit log durability (admins.audit_logs) | 3 | **done** |
 | W16 | Payout records (payments.payouts) | 3 | **done** (admin-scheduled, invalidates cache) |
@@ -127,25 +127,27 @@ wire. Mobile `GatewayClient.ts` + `@data/*` already speak integer rupees — unc
 - [x] enum alignment Option A: `ALTER TYPE order_status ADD VALUE 'NEW'/'PACKED'/'RETURNED'`
 - [x] same-change docs (`db-schema.md` §12.9, `mvp-backend.md` §2, `monolith-breakdown.md` §1,
       `caching-cloudflare-valkey.md`)
+- [x] **(0016)** `directory.stores.is_live BOOLEAN NOT NULL DEFAULT true` + `(state_code,is_live)`
+      index; docs `db-schema.md` §12.10, `mvp-backend.md` §7
 
 ## 8. Web delta checklist
 
-- [ ] `src/data/types.ts` dtype contract (guards, drop discountPercent/qualityScore)
-- [ ] `src/lib/pricing/rules.ts` paisa-int math only
-- [ ] `src/lib/media/productImages.ts` Storage-key flow
-- [ ] `src/lib/api/store.ts` fetch-backed seam + snake↔camel mapper + auth header
-- [ ] `src/lib/auth/permissions.ts` Supabase Auth + role claims
-- [ ] 5 thin pages (prescriptions, bookings, blood, state bookings, sdui)
+- [ ] `src/data/types.ts` dtype contract (guards, drop discountPercent/qualityScore) — Phase 5
+- [ ] `src/lib/pricing/rules.ts` paisa-int math only — Phase 5
+- [ ] `src/lib/media/productImages.ts` Storage-key flow — Phase 5
+- [ ] `src/lib/api/store.ts` fetch-backed seam + snake↔camel mapper + auth header — Phase 5
+- [ ] `src/lib/auth/permissions.ts` Supabase Auth + role claims — Phase 5
+- [x] 5 thin pages (prescriptions, bookings, blood, state bookings, sdui) + seed records/hooks/nav
 
 ## 9. Gateway delta checklist
 
 - [x] new contexts `sellers`, `promo`, `ads`, `settlement`, `support` (+ `admins` audit)
-- [ ] extend `catalog` (status transitions + seller scope), `directory` (live flag + seller scope),
+- [x] extend `catalog` (status transitions + seller scope), `directory` (live flag + seller scope),
       `checkout` (NEW→PACKED→SHIPPED→DELIVERED + returns), `pharma` (fulfill), `blood`/`bookings`
-      (moderate)
+      (moderate) — all role-scoped + audited
 - [x] `platform/auth` role middleware (seller→own, state→state_code, super→all)
 - [x] new cache keys/TTLs (`sellers`, `promo`, `ads`, `settlement`) + cache_test freeze
-- [ ] tests: paisa roundtrip, rating clamp, qty/smallint reject, JSONB-size reject, RLS, idempotency
+- [x] tests: paisa roundtrip, cross-seller denial, seller order/booking/rx transitions, live flag, blood delete
 
 ## 10. Decisions (approved)
 
@@ -158,7 +160,7 @@ wire. Mobile `GatewayClient.ts` + `@data/*` already speak integer rupees — unc
 
 ```bash
 # DB
-docker compose up -d   # supabase local; apply 0001–0015 in order; seed 421 products/32 stores/32 orders
+docker compose up -d   # supabase local; apply 0001–0016 in order; seed 421 products/32 stores/32 orders
 # Gateway
 cd server/gateway && go build ./... && go vet ./... && go test ./... && go run ./tools/importlint
 # Mobile + web

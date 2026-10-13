@@ -1,6 +1,7 @@
 package directory
 
 import (
+	"encoding/json"
 	"net/http"
 	"strconv"
 	"strings"
@@ -21,10 +22,13 @@ const (
 type Handler struct {
 	repo  *Repo
 	cache *cache.Cache
+	audit contracts.AuditWriter
 }
 
 // NewHandler builds the directory handler.
-func NewHandler(repo *Repo, c *cache.Cache) *Handler { return &Handler{repo: repo, cache: c} }
+func NewHandler(repo *Repo, c *cache.Cache, audit contracts.AuditWriter) *Handler {
+	return &Handler{repo: repo, cache: c, audit: audit}
+}
 
 // Register mounts directory endpoints onto the shared router.
 func (h *Handler) Register(r chi.Router) {
@@ -32,6 +36,11 @@ func (h *Handler) Register(r chi.Router) {
 	r.Get("/store/{id}", h.get)
 	r.Get("/pickup-points", h.pickupPoints)
 	r.Get("/venues/{id}/menu", h.menu)
+	r.Group(func(g chi.Router) {
+		g.Use(auth.RequireRole(auth.RoleSeller, auth.RoleStateAdmin, auth.RoleSuperAdmin))
+		g.Get("/seller/stores", h.sellerStores)
+		g.Put("/seller/stores/{id}/live", h.setStoreLive)
+	})
 }
 
 func (h *Handler) list(w http.ResponseWriter, r *http.Request) {
@@ -153,4 +162,72 @@ func (h *Handler) menu(w http.ResponseWriter, r *http.Request) {
 	}
 	h.cache.SetJSON(r.Context(), cache.Menu(id), dishes, cache.TTLStore)
 	httpx.JSON(w, http.StatusOK, dishes)
+}
+
+func (h *Handler) sellerStores(w http.ResponseWriter, r *http.Request) {
+	sellerID := strings.TrimSpace(r.URL.Query().Get("sellerId"))
+	if auth.Role(r.Context()) == auth.RoleSeller {
+		sellerID = auth.SellerID(r.Context())
+	}
+	items, err := h.repo.SellerStores(r.Context(), sellerID)
+	if err != nil {
+		httpx.Fail(w, http.StatusInternalServerError, "directory_unavailable", "directory unavailable")
+		return
+	}
+	httpx.JSON(w, http.StatusOK, items)
+}
+
+func (h *Handler) setStoreLive(w http.ResponseWriter, r *http.Request) {
+	id := chi.URLParam(r, "id")
+	var body struct {
+		Live *bool `json:"live"`
+	}
+	if err := httpx.Decode(r, &body); err != nil || body.Live == nil {
+		httpx.Fail(w, http.StatusBadRequest, "bad_request", "`live` boolean is required")
+		return
+	}
+	role := auth.Role(r.Context())
+	admin := role == auth.RoleStateAdmin || role == auth.RoleSuperAdmin
+	store, ok, err := h.repo.SetStoreLive(r.Context(), id, auth.SellerID(r.Context()), *body.Live, admin)
+	if err != nil {
+		httpx.Fail(w, http.StatusInternalServerError, "directory_unavailable", "directory unavailable")
+		return
+	}
+	if !ok {
+		httpx.Fail(w, http.StatusNotFound, "not_found", "store not found")
+		return
+	}
+	// The store projection is cached per id (24 h) for anonymous callers.
+	h.cache.Del(r.Context(), cache.Store(id))
+	h.log(r, "STORE_LIVE_"+boolToken(*body.Live), id)
+	httpx.JSON(w, http.StatusOK, store)
+}
+
+func boolToken(b bool) string {
+	if b {
+		return "ON"
+	}
+	return "OFF"
+}
+
+func (h *Handler) log(r *http.Request, action, entityID string) {
+	if h.audit == nil {
+		return
+	}
+	actorID := auth.UserID(r.Context())
+	if actorID == "" {
+		actorID = auth.SellerID(r.Context())
+	}
+	if actorID == "" {
+		actorID = "anonymous"
+	}
+	role := auth.Role(r.Context())
+	if role == "" {
+		role = auth.RoleSeller
+	}
+	raw, _ := json.Marshal(map[string]string{"action": action})
+	_ = h.audit.Audit(r.Context(), contracts.AuditEntry{
+		ActorID: actorID, ActorRole: role, Action: action,
+		Entity: "directory.stores", EntityID: entityID, After: raw,
+	})
 }
