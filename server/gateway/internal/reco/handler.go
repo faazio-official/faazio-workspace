@@ -8,19 +8,21 @@ import (
 	"github.com/go-chi/chi/v5"
 )
 
-// Handler serves event tracking (layouts are read via LayoutSource by the sdui context).
+// Handler serves event tracking + the personalized recommendations read.
 type Handler struct {
-	repo *Repo
+	repo    *Repo
+	service *Service
 }
 
 // NewHandler builds the reco handler.
-func NewHandler(repo *Repo) *Handler { return &Handler{repo: repo} }
+func NewHandler(repo *Repo, service *Service) *Handler { return &Handler{repo: repo, service: service} }
 
-// Register mounts event tracking onto the shared router.
+// Register mounts event tracking + recommendations onto the shared router.
 func (h *Handler) Register(r chi.Router) {
 	r.Group(func(g chi.Router) {
 		g.Use(auth.Require)
 		g.Post("/events", h.track)
+		g.Get("/recommendations", h.recommendations)
 	})
 }
 
@@ -60,4 +62,13 @@ func (h *Handler) track(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	httpx.JSON(w, http.StatusAccepted, map[string]any{"ok": true})
+}
+
+func (h *Handler) recommendations(w http.ResponseWriter, r *http.Request) {
+	items, err := h.service.Recommendations(r.Context(), auth.UserID(r.Context()))
+	if err != nil {
+		httpx.Fail(w, http.StatusServiceUnavailable, "reco_unavailable", "recommendations unavailable")
+		return
+	}
+	httpx.JSON(w, http.StatusOK, items)
 }

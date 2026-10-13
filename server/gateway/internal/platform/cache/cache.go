@@ -37,6 +37,9 @@ func FoodBookings(userID string) string {
 	return fmt.Sprintf("faazio:v1:bookings:food:%s", userID)
 }
 func SduiHome(locale string) string   { return fmt.Sprintf("faazio:v1:gateway:sdui:%s:/home", locale) }
+func Reco(userIDHash, context string) string {
+	return fmt.Sprintf("faazio:v1:reco:%s:%s", userIDHash, context)
+}
 func Idempotency(ref string) string   { return fmt.Sprintf("faazio:v1:checkout:idem:%s", ref) }
 func AuthUser(authUID string) string {
 	sum := sha256.Sum256([]byte(authUID))
@@ -68,6 +71,9 @@ const (
 
 	// TTLBookings bounds the auth-scoped booking lists (mutable; invalidated on write).
 	TTLBookings = 60 * time.Second
+
+	// TTLReco bounds the per-userHash recommendation projection (caching doc §5).
+	TTLReco = 3600 * time.Second
 )
 
 // Cache is a JSON read-through cache. A nil *Client (disabled) is safe to call.

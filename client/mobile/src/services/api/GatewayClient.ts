@@ -609,6 +609,17 @@ export class GatewayClient {
     return delay(sections);
   }
 
+  /**
+   * Personalized recommendations (Mongo `recommendations`/`product_stats` joined to catalog).
+   * Cold-start / offline fallback: highest-rated catalog entries (mirrors the trending rail).
+   */
+  async getRecommendations(): Promise<ProductView[]> {
+    return this.withFallback(
+      () => this.http<ProductView[]>('/recommendations'),
+      () => delay(this.joinStock([...catalogIndex].sort((a, b) => b.rating - a.rating).slice(0, 12))),
+    );
+  }
+
   /** Public vendor reviews (server projection hides user_id / order_ids). */
   async getVendorReviews(vendorId: string): Promise<VendorReview[]> {
     return this.withFallback(

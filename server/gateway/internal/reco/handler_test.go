@@ -13,7 +13,7 @@ import (
 func newTestRouter() http.Handler {
 	r := chi.NewRouter()
 	r.Use(auth.Middleware(auth.Config{Disabled: true, DevUserID: "user-1"}))
-	NewHandler(New(nil)).Register(r) // nil Mongo: valid input reaches the repo and fails 500
+	NewHandler(New(nil), NewService(New(nil), nil, nil)).Register(r) // nil Mongo: valid input reaches the repo and fails 500
 	return r
 }
 

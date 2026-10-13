@@ -30,6 +30,7 @@ services:
       - ../supabase/migrations/0011_bookings.sql:/docker-entrypoint-initdb.d/0011_bookings.sql:ro
       - ../supabase/migrations/0012_payments_pickup.sql:/docker-entrypoint-initdb.d/0012_payments_pickup.sql:ro
       - ../supabase/migrations/0013_menus_venues.sql:/docker-entrypoint-initdb.d/0013_menus_venues.sql:ro
+      - ../supabase/migrations/0014_hardening.sql:/docker-entrypoint-initdb.d/0014_hardening.sql:ro
       - ../supabase/seed/0001_seed.sql:/docker-entrypoint-initdb.d/0099_seed.sql:ro
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U postgres -d faazio"]

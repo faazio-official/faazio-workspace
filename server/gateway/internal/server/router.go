@@ -88,6 +88,7 @@ func NewRouter(d Deps) http.Handler {
 	checkoutService := checkout.NewService(checkoutRepo, cartRepo, d.Cache, rewardsRepo)
 	reviewsService := reviews.NewService(reviewsRepo, checkoutRepo, d.Cache)
 	sduiService := sdui.NewService(recoRepo, catalogRepo, directoryRepo, d.Cache)
+	recoService := reco.NewService(recoRepo, catalogRepo, d.Cache)
 
 	catalog.NewHandler(catalogRepo, d.Cache).Register(r)
 	search.NewHandler(catalogRepo, d.Cache).Register(r)
@@ -100,7 +101,7 @@ func NewRouter(d Deps) http.Handler {
 	bookings.NewHandler(bookingsRepo, d.Cache).Register(r)
 	checkout.NewHandler(checkoutRepo, checkoutService, d.Cache).Register(r)
 	reviews.NewHandler(reviewsRepo, reviewsService, d.Cache).Register(r)
-	reco.NewHandler(recoRepo).Register(r)
+	reco.NewHandler(recoRepo, recoService).Register(r)
 	sdui.NewHandler(sduiService).Register(r)
 
 	return r

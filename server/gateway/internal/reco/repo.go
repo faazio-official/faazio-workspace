@@ -100,6 +100,46 @@ func hashUser(userID string) string {
 	return "sha256:" + hex.EncodeToString(sum[:])
 }
 
+// Recommendations returns the caller's ranked product ids: the precomputed `recommendations` doc for
+// the user's hash, else the global top-`product_stats`. Both collections are written by the Future
+// Prod batch job; on the empty MVP they resolve to no ids (the client falls back to fixtures).
+func (r *Repo) Recommendations(ctx context.Context, userID string) ([]string, error) {
+	if r.db == nil {
+		return nil, fmt.Errorf("reco: mongo not configured")
+	}
+	var doc struct {
+		ProductIDs []string `bson:"productIds"`
+	}
+	err := r.db.Collection("recommendations").FindOne(ctx, bson.M{"userIdHash": hashUser(userID)}).Decode(&doc)
+	if err == nil {
+		return emptyIfNil(doc.ProductIDs), nil
+	}
+	if err != mongo.ErrNoDocuments {
+		return nil, err
+	}
+
+	// Cold-start fallback: globally trending products by precomputed score.
+	cur, err := r.db.Collection("product_stats").Find(ctx, bson.M{},
+		options.Find().SetSort(bson.D{{Key: "score", Value: -1}}).SetLimit(20).SetProjection(bson.M{"productId": 1, "_id": 0}))
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = cur.Close(ctx) }()
+	var stats []struct {
+		ProductID string `bson:"productId"`
+	}
+	if err := cur.All(ctx, &stats); err != nil {
+		return nil, err
+	}
+	ids := make([]string, 0, len(stats))
+	for _, s := range stats {
+		if s.ProductID != "" {
+			ids = append(ids, s.ProductID)
+		}
+	}
+	return ids, nil
+}
+
 func emptyIfNil(v []string) []string {
 	if v == nil {
 		return []string{}

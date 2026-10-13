@@ -121,7 +121,7 @@ Traceability is 1:1 — each production table documents its `@data/*` source.
 | `inventory.stock` / `carts` / `reservations` / `pickup_points` | `data/inventory/stock.ts`, `data/cart/*` | DynamoDB |
 | `checkout.*` (users/addresses/coupons/orders/order_items/payments/events) | `data/checkout/orders.ts` | CockroachDB |
 | `accounts.*` (profile/membership/order_status/nav/details) | `data/accounts/profile.ts` | CockroachDB (PostgreSQL-shaped) |
-| `recommendations.*` (user_events/segments/product_stats/sdui_layouts) | `data/home/sdui.ts` | MongoDB |
+| `recommendations.*` (sdui_layouts/user_events/recommendations/product_stats; segments Future Prod) | `data/home/sdui.ts` | MongoDB |
 
 > **Ownership note:** `catalog.*`, `directory.*`, `reviews.*`, and `accounts.*` physically live in the
 > same CockroachDB cluster as `checkout.*`, but each is owned by a distinct logical schema (documented
@@ -691,17 +691,21 @@ the TTL index is the only index, keeping M0 writes/space minimal.
 
 ### 8.3 `recommendations` / `segments` / `product_stats`
 
-> **MVP status:** these three collections are **empty** — MongoDB in the MVP is exactly
-> **`sdui_layouts` + `user_events`** (kept live), roughly 10% of the data surface. The shapes below
-> are Future Prod; an empty collection is created lazily on first write.
+> **MVP status:** the gateway now ships a **read path** over these collections (`GET /recommendations`,
+> migration `0014` series). MongoDB in the MVP is **exactly four collections**: `sdui_layouts` +
+> `user_events` (live writes) and `recommendations` + `product_stats` (validated, read-only — written
+> by the Future Prod batch job). `segments` remains Future Prod. Both read-only collections are
+> created + validated eagerly by `server/supabase/seed/mongo/seed.js` (`collMod`, moderate validation).
 
-- `recommendations`: precomputed per-user (`userIdHash`) or per-segment product-id lists, ID-only.
-- `segments`: user-segment mappings (ID-only).
-- `product_stats`: aggregate view/cart/order counts per product id (ID-only, no PII).
+- `recommendations`: precomputed per-user (`userIdHash`) product-id list (`{ userIdHash, productIds[], generatedAt }`), ID-only, ≤ 100 ids.
+- `segments`: user-segment mappings (ID-only) — still Future Prod, no validator/writes.
+- `product_stats`: aggregate score per product id (`{ productId, score, views, cartAdds, orders, updatedAt }`), ID-only, no PII.
 
-**Access patterns:** fetch precomputed recommendation list → return ID-only ids → gateway joins
-catalog. **Cache:** `faazio:v1:reco:{userIdHash}:{context}` (TTL 1 h); `faazio:v1:sdui:home:{version}`
-(edge TTL 300 s). **Invalidation:** on `user_events` batch flush / layout version bump.
+**Access patterns:** `GET /recommendations` reads the caller's `recommendations` doc by `userIdHash`;
+on a cold-start miss (`ErrNoDocuments`) it falls back to the global top-20 `product_stats` by `score`,
+then the gateway joins catalog. **Cache:** `faazio:v1:reco:{userIdHash}:{context}` (TTL 1 h);
+`faazio:v1:sdui:home:{version}` (edge TTL 300 s). **Invalidation:** on `user_events` batch flush /
+layout version bump.
 
 **Admin notes:** `userIdHash` is a **hash, never a raw user id**; events carry no PII; TTL bounds the
 retention window.
@@ -959,3 +963,27 @@ CREATE TABLE bookings.food_orders (
 Both booking stores were memory-only (lost on restart); they are unified here so they cannot diverge.
 The partial unique index is the double-book guard (a re-book of a cancelled slot succeeds → 23505 is
 surfaced as HTTP 409 `slot_taken`). RLS own-rows; lists auth-scoped, cached 60 s, never at the edge.
+
+### 12.8 Hardening — triggers, purge sweep, hot-path indexes, schema grants (migration `0014`)
+
+```sql
+CREATE SCHEMA util;
+CREATE FUNCTION util.touch_updated_at() RETURNS trigger LANGUAGE plpgsql
+  SET search_path = pg_catalog AS $$ begin new.updated_at := now(); return new; end; $$;
+-- attached (BEFORE UPDATE … FOR EACH ROW) to: directory.stores, inventory.stock, inventory.carts,
+-- inventory.pickup_points, accounts.profile, reviews.vendor_reviews, pharma.prescriptions,
+-- bookings.tables, blood.donors, rewards.balances.
+
+CREATE FUNCTION checkout.purge_idempotency_keys(max_age interval DEFAULT '7 days') RETURNS integer
+  LANGUAGE plpgsql SECURITY DEFINER SET search_path = pg_catalog AS $$ … $$;
+-- pg_cron: 'faazio-purge-idempotency-keys' daily (the Valkey NX lock lives 300 s; the DB row is a
+-- 7-day replay record).
+
+CREATE INDEX vendor_reviews_vendor_created_idx ON reviews.vendor_reviews (vendor_id, created_at DESC);
+CREATE INDEX prescriptions_user_status_idx    ON pharma.prescriptions (user_id, status);
+```
+
+Cross-cutting integrity: one generic `updated_at` trigger (the catalog-specific one still fires
+`pg_notify`), a bounded idempotency table, the two hot ordering indexes, and schema `USAGE` grants to
+`anon`/`authenticated` so RLS — not a missing grant — is the only gate (Supabase-only). All idempotent
+and re-runnable; `FOREACH`/`format` keep the trigger attach DRY. This closes the 0007–0014 series.

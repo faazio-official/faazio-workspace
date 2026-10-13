@@ -88,12 +88,13 @@ All read-through: Valkey → Supabase/Mongo → populate. Cloudflare caches publ
 | `GET/POST /orders` | checkout | `POST` uses `SET NX EX 300` idempotency + `SELECT … FOR UPDATE SKIP LOCKED` stock decrement |
 | `PUT /vendors/{id}/rating` | reviews | derived eligibility gate (`hasPurchasedFromVendor`); never a stored flag |
 | `POST /events` | reco | ID-only `userIdHash`, 90-day Mongo TTL; event allowlist + `productId ≤ 64` chars |
+| `GET /recommendations` | reco | per-user `recommendations` doc (else top `product_stats`), joined to catalog; `faazio:v1:reco:{userIdHash}:home` 1 h |
 
 Every endpoint above now has a `GatewayClient` method (`getVendorReviews`, `rateVendor`,
 `getCart`/`addToCart`/`updateCartItem`/`removeCartItem`, `placeOrder`, `trackEvent`,
 `getDonorProfile`/`saveDonorProfile`/`getBloodDonors`/`getBloodRequests`/`createBloodRequest`/
 `setBloodInterest`/`createDonorMatch`/`getDonorMatches`, `getBookings`/`createBooking`/`cancelBooking`/
-`getFoodBookings`/`createFoodBooking`) with the `@data/*` fallback, so the per-module `@mock` →
+`getFoodBookings`/`createFoodBooking`, `getRecommendations`) with the `@data/*` fallback, so the per-module `@mock` →
 `@server` migration can begin once Supabase phone OTP replaces `authStore.login()`.
 
 No gRPC yet; `contracts/` holds Go interfaces that mirror the future `.proto` shape. Method

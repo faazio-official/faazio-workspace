@@ -1671,3 +1671,24 @@ from and write to the gateway; migrate the blood dashboard/request board off the
 `BLOOD_DONORS` `@data` seeds to `GET /blood-requests` / `GET /donors`.
 
 **Date:** 2026-10-13
+
+## DB-gap series closed — hardening (0014) + reco read path
+
+**Status:** 🟢 Server + seed + `GatewayClient` shipped (phase 6, final).
+
+**Done:**
+- **`0014_hardening.sql`**: one generic `util.touch_updated_at()` trigger attached to every mutable
+  table (stores/stock/carts/pickup_points/profile/vendor_reviews/prescriptions/bookings.tables/
+  blood.donors/rewards.balances), a `checkout.purge_idempotency_keys()` pg_cron sweep (7-day window),
+  hot-path indexes (`vendor_reviews(vendor_id, created_at desc)`, `prescriptions(user_id, status)`),
+  and schema `USAGE` grants to `anon`/`authenticated` (Supabase-only). Idempotent/re-runnable.
+- **Mongo**: `seed.js` now validates + creates the four MVP collections
+  (`sdui_layouts`, `user_events`, `recommendations`, `product_stats`).
+- **reco read path**: `GET /recommendations` (auth-scoped) reads the caller's `recommendations` doc by
+  `userIdHash`, falls back to top `product_stats`, joins catalog, cached `faazio:v1:reco:{hash}:home`
+  1 h. Client `getRecommendations()` falls back to highest-rated catalog entries.
+
+**Remaining (Future Prod):** the batch job that writes `recommendations` / `product_stats` (and the
+`segments` collection); wiring recommendations into a Home rail.
+
+**Date:** 2026-10-13

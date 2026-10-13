@@ -388,10 +388,11 @@ writeFileSync(
   JSON.stringify({ _id: '65f000000000000000000000', userIdHash: 'sha256:<hex>', productId: 'fm-f1', event: 'view', at: '2026-01-01T00:00:00Z', ttlDays: 90 }, null, 2) + '\n',
 );
 
-// mongosh init script (docker-compose / Atlas): upsert the layout + TTL index.
+// mongosh init script (docker-compose / Atlas): upsert the layout, indexes, and the four MVP
+// collection validators (sdui_layouts, user_events, recommendations, product_stats).
 writeFileSync(join(mongoDir, 'seed.js'), [
-  '// Faazio Mongo seed — generated. Upserts the ID-only Home layout, the TTL index, and the',
-  '// user_events defence-in-depth validator.',
+  '// Faazio Mongo seed — generated. Upserts the ID-only Home layout, the user_events TTL index,',
+  '// and the defence-in-depth validators for the four MVP collections. `segments` stays Future Prod.',
   'db = db.getSiblingDB(process.env.MONGO_DATABASE || "faazio");',
   'db.sdui_layouts.replaceOne({ _id: "home" }, ' + JSON.stringify(sduiDoc) + ', { upsert: true });',
   'db.user_events.createIndex({ expiresAt: 1 }, { expireAfterSeconds: 0, name: "user_events_ttl" });',
@@ -412,7 +413,34 @@ writeFileSync(join(mongoDir, 'seed.js'), [
   '  validationLevel: "moderate",',
   '  validationAction: "error"',
   '});',
-  'print("mongo seed: sdui_layouts=home version=" + ' + JSON.stringify(sduiDoc.version) + ');',
+  '// recommendations + product_stats are written by the Future Prod batch job; empty on the MVP.',
+  '// Validators are created lazily via collMod so the read path never has to create the collection.',
+  'for (const def of [',
+  '  { name: "recommendations", schema: {',
+  '    bsonType: "object",',
+  '    required: ["userIdHash", "productIds", "generatedAt"],',
+  '    properties: {',
+  '      userIdHash: { bsonType: "string" },',
+  '      productIds: { bsonType: "array", maxItems: 100, items: { bsonType: "string", maxLength: 64 } },',
+  '      generatedAt: { bsonType: "date" }',
+  '    } } },',
+  '  { name: "product_stats", schema: {',
+  '    bsonType: "object",',
+  '    required: ["productId", "score", "updatedAt"],',
+  '    properties: {',
+  '      productId: { bsonType: "string", maxLength: 64 },',
+  '      score: { bsonType: "double" },',
+  '      views: { bsonType: "long" },',
+  '      cartAdds: { bsonType: "long" },',
+  '      orders: { bsonType: "long" },',
+  '      updatedAt: { bsonType: "date" }',
+  '    } } },',
+  ']) {',
+  '  if (!db.getCollectionNames().includes(def.name)) db.createCollection(def.name);',
+  '  db.runCommand({ collMod: def.name, validator: { $jsonSchema: def.schema },',
+  '    validationLevel: "moderate", validationAction: "error" });',
+  '}',
+  'print("mongo seed: sdui_layouts=home version=" + ' + JSON.stringify(sduiDoc.version) + ' + " + 4 collections");',
   '',
 ].join('\n'));
 
