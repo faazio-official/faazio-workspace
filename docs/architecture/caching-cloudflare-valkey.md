@@ -88,6 +88,9 @@ Examples: `faazio:v1:stock:fm-f1`, `faazio:v1:search:q:hoodie`, `faazio:v1:sdui:
 | Bookings — tables + food orders (per user, auth-scoped) | 60 s | **never** | booking create / cancel |
 | Recommendations (per userHash) | 3600 s (1 h) | — | `user_events` flush |
 | Store directory / reviews | 86400 s (24 h) | — | edit event |
+| Promo campaigns / coupons (partner) | 300 s | **never** | campaign/coupon write |
+| Ad slots (partner) | 300 s | **never** | ad status/stat write |
+| Settlement cycles (per seller) | 600 s | **never** | settlement/payout write |
 | Idempotency locks (checkout) | 300 s | — | auto-expire |
 | Auth subject → app user_id | 3600 s (1 h) | — | delete on profile merge (mapping is otherwise immutable) |
 
@@ -142,6 +145,8 @@ Examples: `faazio:v1:stock:fm-f1`, `faazio:v1:search:q:hoodie`, `faazio:v1:sdui:
 
 - **Carts** — auth-scoped, per-user, mutable.
 - **Payments / order PII** — never at the edge; only short-lived auth-scoped Valkey keys.
+- **Seller records (`0015`)** — carry PII (phone/address) and are role-scoped, so `internal/sellers`
+  reads bypass the cache entirely (no `faazio:v1:sellers:*` key exists).
 - **Anything auth-scoped or PII-bearing** (addresses, phone, prescriptions, blood-donor health data).
 
 ---

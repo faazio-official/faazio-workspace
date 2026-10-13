@@ -78,21 +78,21 @@ wire. Mobile `GatewayClient.ts` + `@data/*` already speak integer rupees — unc
 
 | # | Gap | Phase | Status |
 |---|---|---|---|
-| W1 | Missing `seller` gateway context | 2 | pending |
+| W1 | Missing `seller` gateway context | 2 | **done** (list/get/onboard/kyc/bank/status + tests) |
 | W2 | Missing `promo` gateway context | 3 | pending |
 | W3 | Missing `ads` gateway context | 3 | pending |
 | W4 | Missing `settlement`/payouts gateway context | 3 | pending |
 | W5 | Missing `support`/returns gateway context | 3 | pending |
-| W6 | Missing `admins` audit/state-admin context | 3 | pending |
+| W6 | Missing `admins` audit/state-admin context | 3 | **done** (audit + state-admins + tests) |
 | W7 | Web seller prescriptions page + endpoint | 4 | pending |
 | W8 | Web seller bookings page + endpoint | 4 | pending |
 | W9 | Web state blood moderation page + endpoint | 4 | pending |
 | W10 | Web super SDUI publish page + endpoint | 4 | pending |
-| W11 | `catalog.products` seller scope + status column | 1/2 | pending |
-| W12 | `directory.stores` seller_id + state_code | 1/2 | pending |
-| W13 | `checkout.orders` NEW→PACKED→SHIPPED→DELIVERED lifecycle | 1/2 | pending |
+| W11 | `catalog.products` seller scope + status column | 1/2 | DB done (0015); gateway routes pending |
+| W12 | `directory.stores` seller_id + state_code | 1/2 | DB done (0015); gateway routes pending |
+| W13 | `checkout.orders` NEW→PACKED→SHIPPED→DELIVERED lifecycle | 1/2 | DB enum done (0015); gateway mapping pending |
 | W14 | Real settlement ledger (no client-computed money) | 3 | pending |
-| W15 | Audit log durability (admins.audit_logs) | 3 | pending |
+| W15 | Audit log durability (admins.audit_logs) | 3 | **done** |
 | W16 | Payout records (payments.payouts) | 3 | pending |
 
 ## 6. dtype-gap matrix D1–D15

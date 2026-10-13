@@ -17,11 +17,11 @@ import (
 
 // Key builders — the frozen taxonomy (contract-freeze §4). AuthUser hashes the Supabase
 // auth subject so no raw identifier is used as a key.
-func SearchQuery(q string) string     { return fmt.Sprintf("faazio:v1:search:q:%s", q) }
-func Product(id string) string        { return fmt.Sprintf("faazio:v1:catalog:product:%s", id) }
-func Store(id string) string          { return fmt.Sprintf("faazio:v1:directory:store:%s", id) }
-func PickupPoints(key string) string  { return fmt.Sprintf("faazio:v1:directory:pickup:%s", key) }
-func Menu(venueID string) string      { return fmt.Sprintf("faazio:v1:directory:menu:%s", venueID) }
+func SearchQuery(q string) string    { return fmt.Sprintf("faazio:v1:search:q:%s", q) }
+func Product(id string) string       { return fmt.Sprintf("faazio:v1:catalog:product:%s", id) }
+func Store(id string) string         { return fmt.Sprintf("faazio:v1:directory:store:%s", id) }
+func PickupPoints(key string) string { return fmt.Sprintf("faazio:v1:directory:pickup:%s", key) }
+func Menu(venueID string) string     { return fmt.Sprintf("faazio:v1:directory:menu:%s", venueID) }
 func Prescriptions(userID string) string {
 	return fmt.Sprintf("faazio:v1:pharma:prescriptions:%s", userID)
 }
@@ -36,11 +36,16 @@ func Bookings(userID string) string   { return fmt.Sprintf("faazio:v1:bookings:t
 func FoodBookings(userID string) string {
 	return fmt.Sprintf("faazio:v1:bookings:food:%s", userID)
 }
-func SduiHome(locale string) string   { return fmt.Sprintf("faazio:v1:gateway:sdui:%s:/home", locale) }
+func SduiHome(locale string) string { return fmt.Sprintf("faazio:v1:gateway:sdui:%s:/home", locale) }
 func Reco(userIDHash, context string) string {
 	return fmt.Sprintf("faazio:v1:reco:%s:%s", userIDHash, context)
 }
-func Idempotency(ref string) string   { return fmt.Sprintf("faazio:v1:checkout:idem:%s", ref) }
+func Idempotency(ref string) string  { return fmt.Sprintf("faazio:v1:checkout:idem:%s", ref) }
+func PromoCampaign(id string) string { return fmt.Sprintf("faazio:v1:promo:campaign:%s", id) }
+func AdSlot(id string) string        { return fmt.Sprintf("faazio:v1:ads:slot:%s", id) }
+func Settlement(sellerID, cycle string) string {
+	return fmt.Sprintf("faazio:v1:settlement:%s:%s", sellerID, cycle)
+}
 func AuthUser(authUID string) string {
 	sum := sha256.Sum256([]byte(authUID))
 	return "faazio:v1:auth:uid:" + hex.EncodeToString(sum[:])
@@ -74,6 +79,12 @@ const (
 
 	// TTLReco bounds the per-userHash recommendation projection (caching doc §5).
 	TTLReco = 3600 * time.Second
+
+	// Partner control plane (0015). Seller records carry PII and are never cached; these keys
+	// cover non-PII business data (campaigns, ad slots, settlement cycles).
+	TTLPromo      = 300 * time.Second
+	TTLAds        = 300 * time.Second
+	TTLSettlement = 600 * time.Second
 )
 
 // Cache is a JSON read-through cache. A nil *Client (disabled) is safe to call.

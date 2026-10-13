@@ -8,6 +8,7 @@ import (
 	"os"
 	"time"
 
+	"github.com/faazio/server/gateway/internal/admins"
 	"github.com/faazio/server/gateway/internal/blood"
 	"github.com/faazio/server/gateway/internal/bookings"
 	"github.com/faazio/server/gateway/internal/cartstock"
@@ -15,17 +16,18 @@ import (
 	"github.com/faazio/server/gateway/internal/checkout"
 	"github.com/faazio/server/gateway/internal/directory"
 	"github.com/faazio/server/gateway/internal/favourites"
+	"github.com/faazio/server/gateway/internal/pharma"
 	"github.com/faazio/server/gateway/internal/platform/auth"
 	"github.com/faazio/server/gateway/internal/platform/cache"
 	"github.com/faazio/server/gateway/internal/platform/config"
 	"github.com/faazio/server/gateway/internal/platform/db"
 	"github.com/faazio/server/gateway/internal/platform/httpx"
-	"github.com/faazio/server/gateway/internal/pharma"
 	"github.com/faazio/server/gateway/internal/reco"
 	"github.com/faazio/server/gateway/internal/reviews"
 	"github.com/faazio/server/gateway/internal/rewards"
 	"github.com/faazio/server/gateway/internal/sdui"
 	"github.com/faazio/server/gateway/internal/search"
+	"github.com/faazio/server/gateway/internal/sellers"
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
 	gomongo "go.mongodb.org/mongo-driver/mongo"
@@ -66,6 +68,11 @@ func NewRouter(d Deps) http.Handler {
 	bloodRepo := blood.New(d.Pool)
 	bookingsRepo := bookings.New(d.Pool)
 
+	// Partner control plane (0015). adminsRepo also implements contracts.AuditWriter so every
+	// partner mutation is recorded.
+	sellersRepo := sellers.New(d.Pool)
+	adminsRepo := admins.New(d.Pool)
+
 	// Auth: checkout resolves the auth subject → app user slug.
 	r.Use(auth.Middleware(auth.Config{
 		Disabled:  d.Config.AuthDisabled,
@@ -103,6 +110,8 @@ func NewRouter(d Deps) http.Handler {
 	reviews.NewHandler(reviewsRepo, reviewsService, d.Cache).Register(r)
 	reco.NewHandler(recoRepo, recoService).Register(r)
 	sdui.NewHandler(sduiService).Register(r)
+	admins.NewHandler(adminsRepo).Register(r)
+	sellers.NewHandler(sellersRepo, d.Cache, adminsRepo).Register(r)
 
 	return r
 }

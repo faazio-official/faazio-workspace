@@ -253,6 +253,24 @@ type RewardsWriter interface {
 	Earn(ctx context.Context, userID, orderID string, paidRupees, coinsRedeemed int64) error
 }
 
+// AuditEntry is one admins.audit_logs row (who did what to which entity). Before/After are opaque
+// JSON snapshots, guarded ≤ 8 KB at the DB.
+type AuditEntry struct {
+	ActorID   string
+	ActorRole string
+	Action    string
+	Entity    string
+	EntityID  string
+	Before    json.RawMessage
+	After     json.RawMessage
+}
+
+// AuditWriter records a partner-console mutation (implemented by internal/admins). Every mutation
+// in a partner context should write one row; the caller never trusts a client-supplied actor.
+type AuditWriter interface {
+	Audit(ctx context.Context, e AuditEntry) error
+}
+
 // HomeSection is a compiled Home section (SduiSection + joined products).
 type HomeSection struct {
 	SduiSection

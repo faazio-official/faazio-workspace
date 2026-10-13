@@ -44,6 +44,8 @@ search extraction is a pure index-replica swap.
 | rewards → Go+Postgres | `internal/rewards` | `rewards` | `faazio:v1:rewards:view:{userId}` 60 s; never edge-cached | `getRewards` (earn happens in-process via `contracts.RewardsWriter`) | CockroachDB |
 | checkout → Go+Cockroach | `internal/checkout` | `checkout` (+ `checkout.idempotency_keys`, `checkout.payments`), `accounts` | `faazio:v1:checkout:orders:{userId}` 60 s · idem `NX EX 300` · `faazio:v1:auth:uid:{sha256}` 3600 s | `getOrders`, `placeOrder`, `payForOrder`, `getPayments`, `getProfile`, `getMembership`, `getOrderStatus`, `getAccountNav`, `getDetails` | CockroachDB |
 | reviews → Go+Postgres | `internal/reviews` | `reviews` (+ `reviews.vendor_summary` counter/trigger) | `faazio:v1:reviews:vendor:{id}` 24 h · `faazio:v1:reviews:product:{id}` 24 h | `getReviews` (product), `getVendorReviews`, `rateVendor` | standalone Postgres |
+| sellers → Go+Postgres | `internal/sellers` | `sellers` (+ `sellers.sellers`, `kyc_documents`, `bank_accounts`; `directory.stores`/`catalog.products` `seller_id`) | **none** — seller records carry PII (caching doc §8) | portal-only (no `GatewayClient` method yet) | Go + Postgres |
+| admins → Go | `internal/admins` | `admins` (+ `state_admins`, `audit_logs`) | none (append-only audit) | portal-only | CockroachDB |
 | recommendations → Python+Mongo | `internal/reco`, `internal/sdui` | MongoDB `sdui_layouts`, `user_events`, `recommendations`, `product_stats` | `faazio:v1:reco:{userIdHash}:{context}` 1 h · `faazio:v1:gateway:sdui:{locale}:{path}` 300 s | `getHomeFeed`, `trackEvent`, `getRecommendations` | Python FastAPI |
 | shared | `internal/platform/{db,cache,auth,config,otel,testenv}`, `internal/contracts` | — | — | — | gRPC via `contracts/` |
 
@@ -96,6 +98,8 @@ Extract the **first** context (search) as the reference. The others repeat the s
 | Non-money column types | MVP `0005`: `rating` REAL, counts/qty `INT4`/`SMALLINT`, `slug_uid` and `products_name_trgm_idx` dropped | byte diet only — JSON DTOs/`GatewayClient` are type-agnostic, so the wire shape is unchanged |
 | Time | `TIMESTAMPTZ`; JSON ISO-8601 | fixed width; no epoch/ISO mixing |
 | Enums | `app_brand`, `order_status`, `fulfillment_mode` (Postgres ENUM) | validated, 1–4 B |
+| Partner enums (`0015`) | `seller_status`, `product_status`, `kyc_doc_type`, `campaign_status`, `campaign_scope`, `optin_status`, `ad_placement`, `ad_status`, `payout_status`, `ticket_status`, `return_status`; `order_status` gains `NEW`/`PACKED`/`RETURNED` (Option A, mobile `Processing` ⇄ `NEW`/`PACKED`) | one lifecycle both apps read; validated at the DB |
+| Partner roles | JWT claims `app_role` (`SELLER`/`STATE_ADMIN`/`SUPER_ADMIN`) + `seller_id`/`state_code`; `auth.RequireRole` | role checks in Go (`service_role` bypasses RLS); never trust a request-body actor |
 | `GatewayClient` | method names + signatures in `client/mobile/src/services/api/GatewayClient.ts` | screens swap `@mock` → `@server` without call-site edits |
 | Cache | `faazio:v1:{service}:{entity}:{id}` + TTL matrix (`caching-cloudflare-valkey.md` §4–§5). Includes `faazio:v1:auth:uid:{sha256}` (3600 s) | Cloudflare purge + Valkey invalidation map |
 | Cache `v{N}` | bump to invalidate a key class | no scan needed |

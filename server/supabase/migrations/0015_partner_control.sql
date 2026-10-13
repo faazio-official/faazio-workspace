@@ -64,6 +64,8 @@ create table if not exists sellers.bank_accounts (
   created_at            timestamptz not null default now()
 );
 create index if not exists bank_accounts_seller_idx on sellers.bank_accounts (seller_id);
+-- One current payout account per seller (MVP): makes the upsert idempotent.
+create unique index if not exists bank_accounts_seller_uniq on sellers.bank_accounts (seller_id);
 
 -- ================================================================ extend catalog + directory
 -- Seller scoping + the moderation queue need a column to filter on; the live flag already exists
