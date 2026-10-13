@@ -3,6 +3,8 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { toast } from "sonner";
 import { DEMO_ACCOUNTS, signIn } from "@/lib/api";
+import { hydrateFromGateway } from "@/lib/api/sync";
+import { authConfigured } from "@/lib/config";
 import { homeFor, ROLE_LABEL } from "@/lib/auth/permissions";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -15,16 +17,21 @@ function LoginPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
 
-  function submit(nextEmail: string, nextPassword: string) {
-    const user = signIn(nextEmail, nextPassword);
-    if (!user) {
-      setError("That email and password pair is not in the demo directory.");
-      return;
-    }
+  async function submit(nextEmail: string, nextPassword: string) {
+    setBusy(true);
     setError(null);
-    toast.success(`Signed in as ${ROLE_LABEL[user.role]}`);
-    router.push(homeFor(user.role));
+    try {
+      const user = await signIn(nextEmail, nextPassword);
+      await hydrateFromGateway();
+      toast.success(`Signed in as ${ROLE_LABEL[user.role]}`);
+      router.push(homeFor(user.role));
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not sign in.");
+    } finally {
+      setBusy(false);
+    }
   }
 
   return (
@@ -44,7 +51,7 @@ function LoginPage() {
           className="surface space-y-4 p-5"
           onSubmit={(event) => {
             event.preventDefault();
-            submit(email, password);
+            void submit(email, password);
           }}
         >
           <div className="space-y-1.5">
@@ -70,36 +77,38 @@ function LoginPage() {
             />
           </div>
           {error ? <p className="text-[12px] text-destructive">{error}</p> : null}
-          <Button type="submit" className="w-full">
-            Sign in
+          <Button type="submit" className="w-full" disabled={busy}>
+            {busy ? "Signing in…" : "Sign in"}
           </Button>
         </form>
 
-        <div className="mt-4">
-          <p className="mb-2 text-[12px] font-semibold text-muted-foreground">
-            Demo accounts — one click fills and signs in
-          </p>
-          <div className="flex flex-wrap gap-2">
-            {DEMO_ACCOUNTS.map((account) => (
-              <button
-                key={account.email}
-                type="button"
-                className="rounded-full border border-border bg-card px-3 py-1.5 text-left text-[12px] transition-colors hover:border-interactive hover:text-interactive"
-                onClick={() => {
-                  setEmail(account.email);
-                  setPassword(account.password);
-                  submit(account.email, account.password);
-                }}
-              >
-                <span className="font-semibold">{ROLE_LABEL[account.role]}</span>
-                <span className="text-muted-foreground">
-                  {" "}
-                  · {account.stateCode ? stateName(account.stateCode) : "All states"}
-                </span>
-              </button>
-            ))}
+        {authConfigured() ? null : (
+          <div className="mt-4">
+            <p className="mb-2 text-[12px] font-semibold text-muted-foreground">
+              Demo accounts — local seed mode (Supabase Auth not configured)
+            </p>
+            <div className="flex flex-wrap gap-2">
+              {DEMO_ACCOUNTS.map((account) => (
+                <button
+                  key={account.email}
+                  type="button"
+                  className="rounded-full border border-border bg-card px-3 py-1.5 text-left text-[12px] transition-colors hover:border-interactive hover:text-interactive"
+                  onClick={() => {
+                    setEmail(account.email);
+                    setPassword(account.password);
+                    void submit(account.email, account.password);
+                  }}
+                >
+                  <span className="font-semibold">{ROLE_LABEL[account.role]}</span>
+                  <span className="text-muted-foreground">
+                    {" "}
+                    · {account.stateCode ? stateName(account.stateCode) : "All states"}
+                  </span>
+                </button>
+              ))}
+            </div>
           </div>
-        </div>
+        )}
       </div>
     </div>
   );

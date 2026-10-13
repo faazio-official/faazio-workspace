@@ -180,7 +180,7 @@ export function AdminShell({
                   <DropdownMenuSeparator />
                   <DropdownMenuItem
                     onClick={() => {
-                      signOut();
+                      void signOut();
                       router.push("/login");
                     }}
                   >

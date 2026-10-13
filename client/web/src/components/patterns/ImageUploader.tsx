@@ -3,13 +3,13 @@ import { useRef, useState } from "react";
 import { ImagePlus, Loader2, Star, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
-import { MAX_PRODUCT_IMAGES, fileToProductImage } from "@/lib/media/productImages";
+import { MAX_PRODUCT_IMAGES, resolveImage, uploadProductImage } from "@/lib/media/productImages";
 import { cn } from "@/lib/utils";
 
 /**
  * Product photo uploader: drag-and-drop or pick files, reorder the primary
- * shot, and remove images. Values are compressed data URLs so a listing keeps
- * its photos across reloads without a storage backend.
+ * shot, and remove images. With Supabase configured the value stored is a
+ * Storage object key; otherwise a compressed data URL keeps the demo working.
  */
 export function ImageUploader({
   images,
@@ -39,7 +39,7 @@ export function ImageUploader({
     const accepted: string[] = [];
     for (const file of Array.from(files).slice(0, room)) {
       try {
-        accepted.push(await fileToProductImage(file));
+        accepted.push(await uploadProductImage(file));
       } catch (error) {
         toast.error(error instanceof Error ? error.message : "That image could not be added.");
       }
@@ -64,7 +64,7 @@ export function ImageUploader({
             key={`${index}-${src.slice(-24)}`}
             className="group relative size-24 overflow-hidden rounded-lg border border-border bg-muted"
           >
-            <img src={src} alt={`Product photo ${index + 1}`} className="size-full object-cover" />
+            <img src={resolveImage(src) ?? src} alt={`Product photo ${index + 1}`} className="size-full object-cover" />
             {index === 0 ? (
               <span className="absolute left-1 top-1 rounded bg-primary px-1.5 py-0.5 text-[10px] font-semibold text-primary-foreground">
                 Primary

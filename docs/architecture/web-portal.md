@@ -1,16 +1,18 @@
 # Web Portal (Next.js) — architecture deep dive
 
 The Faazio Partner Portal is the seller / state-admin / super-admin console. It
-is a client-side dashboard app: all data is mock data seeded from
-`client/web/portal/src/data/**` into a Zustand store persisted to `localStorage`
-under `faazio.portal.v1`. There is no backend and no server-side data fetching.
+renders from a Zustand store that is seeded from `client/web/src/data/**` and, when
+`NEXT_PUBLIC_GATEWAY_URL` is set, hydrated from the Go Chi gateway
+(`client/web/src/lib/api/sync.ts`). Auth is Supabase (GoTrue) when configured; with
+no env it runs in **local seed mode** (demo login + `localStorage` under
+`faazio.portal.v1`). See "Data + auth" below.
 
 ## Locations
 
 | Path | Role |
 | --- | --- |
-| `client/web/portal/` | **Shipping app** — Next.js App Router. All future portal work lands here. |
-| `client/web/vite-reference/` | Original Vite + TanStack Start app, kept read-only as a visual diff baseline. `MIGRATION_NEXTJS.md` there is the hand-off contract. |
+| `client/web/` | **Shipping app** — Next.js App Router. All future portal work lands here. |
+| `client/vite-reference/` | Original Vite + TanStack Start app, kept read-only as a visual diff baseline. `MIGRATION_NEXTJS.md` there is the hand-off contract. |
 
 ## Stack
 
@@ -62,14 +64,42 @@ metadata + `src/styles.css`) plus `app/providers.tsx`
 
 ## Data ownership
 
-The portal reads seed rows from `src/data/**` through `src/lib/api/*`
+The portal reads records from `src/data/**` through `src/lib/api/*`
 (`hooks.ts` reactive reads, `index.ts` mutations). Pages never import
-`src/data/**` directly. This is the same seam as the mobile `GatewayClient`: a
-real backend later replaces the internals of `src/lib/api/*` only.
+`src/data/**` directly. This is the same seam as the mobile `GatewayClient`.
+
+## Data + auth
+
+`src/lib/config.ts` is the only module that reads env. Two integrations are
+env-gated and degrade to local seed mode when unset:
+
+- **Gateway reads** — `src/lib/api/http.ts` is the single fetch seam (bearer auth,
+  query builder, error envelope, defensive snake→camel). `src/lib/api/sync.ts`
+  implements `hydrateFromGateway()`: it best-effort fetches the gateway-owned
+  slices (sellers, promo, ads, settlement, admins, prescriptions, bookings, blood,
+  SDUI, reviews) and writes them into the store. The gateway speaks **whole
+  rupees**; the portal stores **paisa**, so the mapper multiplies by 100.
+- **Supabase Auth** — `src/lib/supabase/auth.ts` is a minimal GoTrue REST client
+  (no `supabase-js` dependency) that signs in with password, refreshes, and decodes
+  role claims (`app_role`/`seller_id`/`state_code`, top-level or `app_metadata`).
+  The bearer token is attached to every gateway call.
+- **Supabase Storage** — `src/lib/media/productImages.ts` stores a **Storage object
+  key**, never a URL, and derives the public object URL at render (`PRODUCT_BUCKET`
+  = `product-images`). `uploadProductImage()` uploads the session-authenticated
+  compressed JPEG, falling back to a data URL when unconfigured.
+
+Bootstrap (`app/providers.tsx`) restores the session then hydrates. Copy
+`client/web/.env.example` to `.env.local`:
+
+```bash
+NEXT_PUBLIC_GATEWAY_URL=        # e.g. http://localhost:8080
+NEXT_PUBLIC_SUPABASE_URL=
+NEXT_PUBLIC_SUPABASE_ANON_KEY=
+```
 
 ## Verify
 
-Run from `client/web/portal/`:
+Run from `client/web/`:
 
 ```bash
 npm run ts:check   # tsc --noEmit

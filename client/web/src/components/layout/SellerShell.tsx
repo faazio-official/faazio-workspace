@@ -140,7 +140,7 @@ export function SellerShell({ children }: { children: ReactNode }) {
                   </DropdownMenuItem>
                   <DropdownMenuItem
                     onClick={() => {
-                      signOut();
+                      void signOut();
                       router.push("/login");
                     }}
                   >

@@ -2,6 +2,8 @@
 // GatewayClient pattern: the only door between pages and data.
 // When a real backend arrives, only the internals of this module change.
 import { usePortalStore, AUTH_DIRECTORY, type PortalState } from "@/lib/api/store";
+import { authConfigured } from "@/lib/config";
+import { getSession, signInWithPassword, signOutRemote } from "@/lib/supabase/auth";
 import { sellerSeries, stateSeries, globalSeries, productSeries } from "@/data/analytics/series";
 import type {
   AuthUser,
@@ -56,16 +58,35 @@ function audit(input: {
 
 /* ---------------------------------- auth --------------------------------- */
 
-export function signIn(email: string, password: string): AuthUser | null {
+/**
+ * Signs in. Uses Supabase Auth when configured; otherwise falls back to the
+ * built-in demo directory so the portal still runs in local seed mode.
+ */
+export async function signIn(email: string, password: string): Promise<AuthUser> {
+  if (authConfigured()) {
+    const session = await signInWithPassword(email, password);
+    state().set(() => ({ session: session.user }));
+    return session.user;
+  }
   const user = AUTH_DIRECTORY.find(
     (u) => u.email.toLowerCase() === email.trim().toLowerCase() && u.password === password,
   );
-  if (!user) return null;
+  if (!user) throw new Error("That email and password pair is not in the demo directory.");
   state().set(() => ({ session: user }));
   return user;
 }
 
-export function signOut(): void {
+/** Restores a persisted Supabase session into the store (no-op when unconfigured). */
+export async function restoreSession(): Promise<AuthUser | null> {
+  if (!authConfigured()) return state().session;
+  const session = await getSession();
+  if (!session) return null;
+  state().set(() => ({ session: session.user }));
+  return session.user;
+}
+
+export async function signOut(): Promise<void> {
+  if (authConfigured()) await signOutRemote();
   state().set(() => ({ session: null }));
 }
 
