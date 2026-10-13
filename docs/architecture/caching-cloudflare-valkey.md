@@ -1,8 +1,10 @@
 # Faazio Caching — Cloudflare Edge + Aiven Valkey
 
-> **Status:** PLANNED — not yet implemented. Cross-cutting cache layer that touches all five
-> microservices and the CDN. Referenced by every table in `docs/architecture/db-schema.md` for
-> cache-key → TTL → invalidation without re-explaining mechanics here.
+> **Status:** MVP code active / edge config planned. The Valkey read-through layer ships in
+> `server/gateway/internal/platform/cache` (search/product/store/reviews/orders/sdui keys + checkout
+> idempotency lock). The Cloudflare edge rules + `pg_cron`/Pub-Sub invalidation remain ops setup.
+> Referenced by every table in `docs/architecture/db-schema.md` for cache-key → TTL → invalidation
+> without re-explaining mechanics here.
 > **Decision:** this plan supersedes the older **Upstash Redis** mentions in `server/README.md` /
 > `docs/architecture/server-gateway-plan.md` — Aiven Valkey + Cloudflare is now the choice.
 
@@ -115,7 +117,9 @@ Examples: `faazio:v1:stock:fm-f1`, `faazio:v1:search:q:hoodie`, `faazio:v1:sdui:
 
 ## 9. Honest limitations
 
-- **Nothing is built.** This is a plan; no Valkey instance, no Cloudflare rules, no cache code exist yet.
+- **Valkey read-through is built** (`internal/platform/cache`, JSON values, TTL matrix §5);
+  a nil client is a safe no-op. **Cloudflare edge rules + event-triggered purge are not wired** —
+  they are ops configuration, not code.
 - **TTLs are starting points** — tune from real traffic (hit ratio, origin load).
 - **MVP unchanged:** Aiven Valkey + Cloudflare are kept exactly as specified; only the **origin**
   swaps from `@mock` fixtures to Supabase/Mongo (`docs/architecture/mvp-backend.md`) — **no key or TTL

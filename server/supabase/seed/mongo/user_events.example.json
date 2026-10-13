@@ -1,0 +1,8 @@
+{
+  "_id": "65f000000000000000000000",
+  "userIdHash": "sha256:<hex>",
+  "productId": "fm-f1",
+  "event": "view",
+  "at": "2026-01-01T00:00:00Z",
+  "ttlDays": 90
+}

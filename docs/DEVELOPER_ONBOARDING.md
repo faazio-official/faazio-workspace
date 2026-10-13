@@ -60,7 +60,24 @@ All three must pass before pushing. `check:boundaries` fails on any sub-app impo
 sub-app's internals (only `Home` is allowed to cross sub-apps). `check:drillin` fails if any
 `MASTER_CATEGORIES` title resolves no vendor (the category drill-in would render empty).
 
-### 4a. Ship a release APK
+### 4a. Run & verify the backend (Go modular monolith)
+
+The MVP backend is one Go Chi binary at `server/gateway`. Run it with the local stack
+(Postgres + Valkey + Mongo, migrations + seed applied automatically):
+
+```bash
+cd server/gateway
+docker compose up --build          # then: curl localhost:8080/health
+go build ./... && go vet ./... && go test ./...
+go run ./tools/importlint          # fails on sibling-context imports
+```
+
+Local dev is auth-open (`AUTH_DISABLED=true`, user `user-1`). To point the app at it, set
+`EXPO_PUBLIC_GATEWAY_URL=http://<host>:8080` and `EXPO_PUBLIC_USE_GATEWAY=true`; `GatewayClient`
+falls back to `@data/*` on any error. Regenerate the DB seed after editing `@data/*`:
+`node server/supabase/seed/generate.mjs`. Details: `server/gateway/README.md`.
+
+### 4b. Ship a release APK
 
 Release builds run in **GitHub Actions**, not on your machine (see `docs/RUNBOOKS/RELEASE.md`):
 

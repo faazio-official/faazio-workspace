@@ -5,9 +5,9 @@
 > for each entry in the shared `data/` layer. The React Native app (`client/mobile/`) is the only
 > current consumer — the root Vite web app (frozen reference) uses its own `src/data/` copies.
 
-> **MVP (docs-first):** live `@mock` data migrates **per module** to Supabase (Postgres) + MongoDB
+> **MVP (active):** live `@mock` data migrates **per module** to Supabase (Postgres) + MongoDB
 > via `GatewayClient` (`@mock` → `@server`) — see `docs/architecture/mvp-backend.md`. `@data/*`
-> stays the live fallback until each consumer is migrated.
+> stays the live fallback in mock mode and on remote error until each consumer is migrated.
 
 ---
 
@@ -101,9 +101,12 @@ Public display is **full name only** — no id, phone, order id, or avatar — a
 rating-related is logged. Production schema: `docs/architecture/db-schema.md` §7.7.
 
 **Gateway:** `client/mobile/src/services/api/GatewayClient.ts` joins the tables above and is the
-intended single data surface for the app. It is **not yet wired into screens** — the legacy
-`@data/*` fixtures remain the live path until each consumer is migrated. The MVP thin gateway
-(`docs/architecture/mvp-backend.md`) unblocks this; wiring order in `docs/architecture/data-layer-sdui.md`.
+single data surface for the app. It is **wired** — set `EXPO_PUBLIC_GATEWAY_URL` +
+`EXPO_PUBLIC_USE_GATEWAY=true` to hit the MVP monolith (`server/gateway`); otherwise it reads the
+`@data/*` fixtures, and every remote call falls back to fixtures on error. Screens migrate
+incrementally with no call-site change. Authored by the MVP backend
+(`docs/architecture/mvp-backend.md`); context mapping in `docs/architecture/monolith-breakdown.md`;
+wiring order in `docs/architecture/data-layer-sdui.md`.
 
 ---
 
@@ -342,8 +345,8 @@ the `GROCERY` member was dropped from `AppBrand` / `CartCategory` / `SubAppId` /
    **Prune candidates** — keep exported, prune when a home section is ready for them.
 3. **`schema.ts` (`SDUINode`)** is `@aspirational` — defined but not produced by any data file yet.
    Data files emit typed entity arrays, not SDUI trees. Do not rely on it as a live contract.
-4. **All live data is mock.** Until the MVP thin gateway ships (`docs/architecture/mvp-backend.md`),
-   nothing in `@data/` is fetched from a backend; migration is per-module via `GatewayClient`
-   (`@mock` → `@server`).
+4. **Screens still read mock data.** The MVP monolith ships
+   (`docs/architecture/mvp-backend.md`) and `GatewayClient` is wired, but screens read `@data/*`
+   until migrated per module (`@mock` → `@server`); `GatewayClient` falls back to `@data/*` on error.
 5. **Per-restaurant menus are seeded only for the 18 dining restaurants.** The 12 food-delivery
    `foodStores` still derive menus from the shared `TODAYS_SPECIALS` catalog.

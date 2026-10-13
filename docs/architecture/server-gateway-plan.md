@@ -1,9 +1,10 @@
 # Server & Gateway Plan Deep-Dive
 
-> **Status:** MVP ACTIVE (thin) / Future Prod (full) · **Scope:** `server/`.
-> MVP authority: `docs/architecture/mvp-backend.md`. Build the MVP gateway + Supabase migrations when
-> requested; do **not** build the full microservices until explicitly requested. This doc condenses
-> `server/README.md` and keeps the **Future Prod** target.
+> **Status:** MVP ACTIVE (built) / Future Prod (full) · **Scope:** `server/`.
+> MVP authority: `docs/architecture/mvp-backend.md`; refactor mapping:
+> `docs/architecture/monolith-breakdown.md`. The MVP is built — one Go Chi modular monolith
+> (`server/gateway`) hosting all 6 contexts. Do **not** build the full microservices until explicitly
+> requested. This doc condenses `server/README.md` and keeps the **Future Prod** target.
 
 ## Why this exists
 
@@ -31,16 +32,23 @@ is silently re-invented. `server/` today holds only this plan.
 - Internal service-to-service calls use **gRPC** (HTTP/2 + binary) for sub-2ms latency.
 - Every `data/DATA_CONTROL.md` `@mock` entry becomes a handler contract.
 
-## MVP thin gateway (active scope)
+## MVP modular monolith (active scope — built)
 
-The MVP is a **single thin Go Chi service** — no gRPC, no separate microservices, `contracts/` stays a
-stub. It serves read-through endpoints directly against **Supabase (Postgres) + MongoDB Atlas M0 +
-Aiven Valkey**, with Cloudflare in front; cache keys/TTLs unchanged.
+The MVP is a **single Go Chi modular monolith** (`server/gateway`) hosting all 6 bounded contexts as
+packages — no gRPC, no separate services. `contracts/` holds Go interfaces (the future `.proto`
+shape); contexts talk through them, never through sibling imports. It serves read + write endpoints
+against **Supabase (Postgres) + MongoDB Atlas M0 + Aiven Valkey**, with Cloudflare in front; cache
+keys/TTLs unchanged.
 
-- **Endpoints:** `GET /health`, `/search?q=`, `/sdui/home`, `/product/:id`, `/vendors/:id/reviews`,
-  `/stores`, `/store/:id`, `/orders`, `/profile`.
+- **Endpoints:** reads `GET /health`, `/search?q=`, `/sdui/home`, `/product/:id`, `/product/:id/reviews`,
+  `/vendors/:id/reviews` (+ `/summary`), `/stores`, `/store/:id`, `/stock/:id`, `/orders`, `/profile`,
+  `/profile/details`, `/membership`, `/order-status`, `/account-nav`; writes `POST/PUT/DELETE /cart…`,
+  `POST /orders`, `PUT /vendors/:id/rating`, `POST /events`.
+- **Packages:** `internal/{search,catalog,directory,cartstock,checkout,reviews,reco,sdui}` +
+  `internal/{contracts,platform/*,server}`. Ownership table: `monolith-breakdown.md` §1.
+- **Boundaries:** `go run ./tools/importlint` fails on sibling-context imports.
 - **Mapping** (`@data/*` twin + `GatewayClient` method) and RLS classes: `docs/architecture/mvp-backend.md` §1–§3.
-- **Build order:** `docs/architecture/mvp-backend.md` §7.
+- **Build order / status:** `docs/architecture/mvp-backend.md` §7.
 
 The sections below are the **Future Prod** target.
 
@@ -139,8 +147,8 @@ lightweight-superapp playbook on two of three axes:
 
 ## Honest limitations
 
-- **Nothing is built yet.** `server/` is the Future Prod target — plan only; the MVP thin gateway
-  (`docs/architecture/mvp-backend.md`) is docs-first, no code yet.
+- **The MVP monolith is built; the Future Prod microservices are not.** `server/services/*` and
+  `contracts/` as `.proto` remain plan-only — see `docs/architecture/monolith-breakdown.md` for the
+  extraction playbook.
 - Cost estimates assume free tiers scale-to-zero; real cost depends on traffic.
-- The full microservices gateway remains unbuilt; the MVP thin gateway is what unblocks
-  `GatewayClient` wiring in the app.
+- `GatewayClient` is wired (remote + `@data/*` fallback); screens migrate onto it incrementally.

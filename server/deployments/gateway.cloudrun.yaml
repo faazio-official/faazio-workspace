@@ -1,0 +1,52 @@
+# Cloud Run service manifest for the Faazio MVP gateway (scale-to-zero).
+# Secrets are injected from Secret Manager — never inline them here.
+#
+#   gcloud run deploy faazio-gateway \
+#     --source server/gateway --region asia-south1 \
+#     --set-secrets DATABASE_URL=faazio-database-url:latest,VALKEY_URL=faazio-valkey-url:latest,MONGO_URI=faazio-mongo-uri:latest,SUPABASE_JWT_SECRET=faazio-supabase-jwt:latest
+apiVersion: serving.knative.dev/v1
+kind: Service
+metadata:
+  name: faazio-gateway
+  labels:
+    cloud.googleapis.com/location: asia-south1
+spec:
+  template:
+    metadata:
+      annotations:
+        autoscaling.knative.dev/minScale: "0"
+        autoscaling.knative.dev/maxScale: "10"
+        run.googleapis.com/cpu-throttling: "true"
+    spec:
+      containerConcurrency: 80
+      timeoutSeconds: 30
+      containers:
+        - image: REGION-docker.pkg.dev/PROJECT/faazio/gateway:latest
+          ports:
+            - containerPort: 8080
+          resources:
+            limits:
+              cpu: "1"
+              memory: 256Mi
+          env:
+            - name: MONGO_DATABASE
+              value: faazio
+            - name: AUTH_DISABLED
+              value: "false"
+            - name: ALLOWED_ORIGINS
+              value: "https://app.faazio.com"
+            - name: DATABASE_URL
+              valueFrom: { secretKeyRef: { name: faazio-database-url, key: latest } }
+            - name: VALKEY_URL
+              valueFrom: { secretKeyRef: { name: faazio-valkey-url, key: latest } }
+            - name: MONGO_URI
+              valueFrom: { secretKeyRef: { name: faazio-mongo-uri, key: latest } }
+            - name: SUPABASE_JWT_SECRET
+              valueFrom: { secretKeyRef: { name: faazio-supabase-jwt, key: latest } }
+          startupProbe:
+            httpGet: { path: /health, port: 8080 }
+            failureThreshold: 10
+            periodSeconds: 3
+          livenessProbe:
+            httpGet: { path: /health, port: 8080 }
+            periodSeconds: 30

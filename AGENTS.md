@@ -8,8 +8,8 @@ Build **lightweight, fast, secure**. Every change must justify its size:
 
 ## Phase: MVP (now)
 **Status: MVP.** The backend is a **thin Go Chi gateway** over **Supabase (Postgres) + MongoDB Atlas M0 + Aiven Valkey**, with Cloudflare in front. This replaces the mocked `@mock` data per module (`@mock` → `@server`).
-The full microservices target — Rust/Tantivy search, CockroachDB, DynamoDB, per-service Postgres — is **Future Prod** and stays documented. Single authority: **`docs/architecture/mvp-backend.md`**.
-- MVP = docs-first; no code written yet. When the build phase is approved, scaffold per `mvp-backend.md` (Supabase migrations → thin gateway → wire `GatewayClient`).
+The full microservices target — Rust/Tantivy search, CockroachDB, DynamoDB, per-service Postgres — is **Future Prod** and stays documented. Single authorities: **`docs/architecture/mvp-backend.md`** (MVP) and **`docs/architecture/monolith-breakdown.md`** (context → package → future-service mapping + extraction playbook).
+- MVP = **one Go Chi modular monolith** (`server/gateway`) hosting all 6 bounded contexts (reads + writes), with Supabase migrations + seed under `server/supabase/`. Extract Rust/Go services later per `monolith-breakdown.md` — no rewrite.
 - Cache keys/TTLs are **unchanged** (Aiven Valkey + Cloudflare); Supabase is the origin, not the cache.
 
 ## Repo map
@@ -17,7 +17,7 @@ The full microservices target — Rust/Tantivy search, CockroachDB, DynamoDB, pe
 faazio-workspace/
 ├── (root)          Repo root — docs + project docs only (AGENTS.md, ARCHITECTURE.md, LICENSE, PAGE_CATALOG.md, README.md).
 ├── client/mobile/  React Native (Expo) SuperApp — ALL active work lives here.
-├── server/         MVP thin Go Chi gateway (active) + future full microservices (see docs/architecture/mvp-backend.md).
+├── server/         MVP Go Chi modular monolith `gateway/` + Supabase migrations/seed (active) + future full microservices (see docs/architecture/mvp-backend.md, monolith-breakdown.md).
 ├── data/           SDUI source of truth (enterprise-controlled), consumed via @data/*.
 ├── docs/           Documentation system — architecture deep-dives + runbooks (see "Documentation map").
 └── security/       Security hardening scripts + remediation guide (see "Security").
@@ -32,7 +32,7 @@ docs/
 ├── README.md                       # index + reading order
 ├── DEVELOPER_ONBOARDING.md         # numbered getting-started guide
 ├── BRAND_COLOR_MIGRATION.md        # royal-purple → Faazio-blue change log + revert
-├── architecture/                   # deep-dives (mvp-backend, mobile-app, data-layer-sdui, server-gateway-plan, db-schema, caching-cloudflare-valkey)
+├── architecture/                   # deep-dives (mvp-backend, monolith-breakdown, mobile-app, data-layer-sdui, server-gateway-plan, db-schema, caching-cloudflare-valkey)
 └── RUNBOOKS/                       # operational guides (RELEASE, CI_PIPELINE, DATA_FIXTURES, TROUBLESHOOTING)
 ```
 
@@ -51,6 +51,7 @@ Reading order for a new contributor: `AGENTS.md` → `ARCHITECTURE.md` →
 8. **Layout** — full-viewport, non-scrollable (`h-[100dvh]`), no faux device borders/notches.
 9. **Boundaries** — cross-sub-app access only via Home. Enforced by `check:boundaries`.
 10. **Docs** — architecture deep-dives live in `docs/architecture/`, operational guides in `docs/RUNBOOKS/`; update `docs/README.md` and the "Documentation map" when adding docs.
+11. **Refactor-doc freshness** — any new server function/handler/package, DB table/column/index, cache key/TTL, endpoint, or `GatewayClient` method MUST update `docs/architecture/monolith-breakdown.md` (ownership table + extraction checklist) in the same change. PRs that add server code without the doc touch fail review. If no doc change is needed, state why in the PR.
 
 ## Update docs by default
 Any code change that affects behavior, structure, or APIs must update the docs **by default** in
@@ -58,8 +59,10 @@ the same change — do not wait to be asked. Concretely, after implementing:
 - **New/removed/renamed feature, module, screen, route, or store** → update
   `docs/architecture/mobile-app.md` (module map, stores table, nav graph) and `client/mobile/PENDING_WORK.md`.
 - **Data/`@data/*` changes** → update `data/DATA_CONTROL.md` and `docs/architecture/data-layer-sdui.md`.
-- **Server/API changes** → update `docs/architecture/server-gateway-plan.md`.
-- **DB / schema / migration changes** → update `docs/architecture/db-schema.md`.
+- **Server/API changes** → update `docs/architecture/server-gateway-plan.md` and, for package/context
+  or endpoint changes, `docs/architecture/monolith-breakdown.md` (§1 ownership table).
+- **DB / schema / migration changes** → update `docs/architecture/db-schema.md` (and
+  `monolith-breakdown.md` §1 when a context's schema set changes).
 - **Cache key / TTL / purge changes** → update `docs/architecture/caching-cloudflare-valkey.md`.
 - **Build/deploy/signing changes** → update `docs/RUNBOOKS/RELEASE.md`.
 - **Build/run/verification changes** → update `docs/RUNBOOKS/TROUBLESHOOTING.md` and the relevant section of `docs/DEVELOPER_ONBOARDING.md`.

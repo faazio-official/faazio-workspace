@@ -1,42 +1,56 @@
 # Faazio Server (Go Chi)
 
-> **Status: MVP ACTIVE (thin) / Future Prod (full).** The MVP is a **thin Go Chi gateway** over
-> Supabase (Postgres) + MongoDB Atlas M0 + Aiven Valkey, with Cloudflare in front — single authority:
-> `docs/architecture/mvp-backend.md`. The full microservices plan below is **Future Prod** and stays
-> documented so scaffolding follows one target layout and no concern is silently re-invented.
-> Per `AGENTS.md`, build the MVP gateway + Supabase migrations when requested; do **not** build the
-> full microservices until explicitly requested.
+> **Status: MVP ACTIVE (built) / Future Prod (planned).** The MVP is a **Go Chi modular monolith**
+> (`server/gateway`) hosting all 6 bounded contexts over Supabase (Postgres) + MongoDB Atlas M0 +
+> Aiven Valkey, with Cloudflare in front — single authorities: `docs/architecture/mvp-backend.md`
+> (MVP) and `docs/architecture/monolith-breakdown.md` (context → package → future-service mapping).
+> The full microservices plan below is **Future Prod** and stays documented so extraction follows one
+> target layout and no concern is silently re-invented. Do **not** build the full microservices until
+> explicitly requested — the monolith is extracted per the playbook, not rewritten.
 
-This directory hosts the Faazio backend. MVP scope (thin gateway) is §0; the enterprise-grade
-microservices target is the **Future Prod** sections below — no monolith, no framework-heavy
-baggage, each concern owning exactly one home.
+This directory hosts the Faazio backend. MVP scope (modular monolith) is §0; the enterprise-grade
+microservices target is the **Future Prod** sections below — one target layout, each concern owning
+exactly one home, boundaries enforced inside the monolith so extraction is a packaging change.
 
 ---
 
-## 0. MVP thin gateway (active scope)
+## 0. MVP modular monolith (active scope — built)
 
-The MVP is a **single thin Go Chi service** that serves the app while each `@mock` module is
-migrated (`@mock` → `@server`). No gRPC, no separate services yet.
+The MVP is a **single Go Chi modular monolith** (`server/gateway`) hosting all 6 bounded contexts
+while each `@mock` module is migrated (`@mock` → `@server`). No gRPC, no separate services yet;
+contexts talk through `internal/contracts` interfaces.
 
 ```
 server/
 ├── README.md                    # this file
-├── gateway/                     # thin Go Chi service (only public surface)
-│   ├── cmd/server/main.go       # GET /health first
-│   └── internal/                # handlers + Supabase / Mongo / Valkey clients
+├── gateway/                     # Go Chi modular monolith (only public surface)
+│   ├── cmd/server/main.go       # entrypoint (GET /health first)
+│   ├── internal/
+│   │   ├── contracts/           # cross-context interfaces + DTOs (future .proto shape)
+│   │   ├── platform/            # config, db, cache, mongo, auth, httpx
+│   │   ├── search/ catalog/ directory/ cartstock/ checkout/ reviews/ reco/ sdui/
+│   │   └── server/              # composition root
+│   ├── tools/importlint/        # boundary gate
+│   ├── docker-compose.yml       # local postgres + valkey + mongo + gateway
+│   └── Dockerfile
 ├── supabase/
-│   ├── migrations/              # 0001 schemas, 0002 FTS search (mvp-backend.md §7)
-│   └── seed/                    # @data/* twins, IDs unchanged
-└── contracts/                   # stub (gRPC contracts arrive with Future Prod)
+│   ├── migrations/              # 0001 schemas, 0002 FTS, 0003 TTL/RLS
+│   └── seed/                    # generate.mjs + @data/* twins (IDs unchanged)
+└── deployments/                 # Cloud Run manifest, env template
 ```
 
-- **Endpoints (read-through):** `GET /health`, `/search?q=`, `/sdui/home`, `/product/:id`,
-  `/vendors/:id/reviews`, `/stores`, `/store/:id`, `/orders`, `/profile` — origins and the
-  `@data/*` / `GatewayClient` mapping in `docs/architecture/mvp-backend.md` §3.
+- **Endpoints:** reads `GET /health`, `/search?q=`, `/sdui/home`, `/product/:id`,
+  `/product/:id/reviews`, `/vendors/:id/reviews` (+ `/summary`), `/stores`, `/store/:id`,
+  `/stock/:id`, `/orders`, `/profile`, `/profile/details`, `/membership`, `/order-status`,
+  `/account-nav`; writes `POST/PUT/DELETE /cart…`, `POST /orders`, `PUT /vendors/:id/rating`,
+  `POST /events` — origins and the `@data/*` / `GatewayClient` mapping in
+  `docs/architecture/mvp-backend.md` §3; context mapping in `monolith-breakdown.md` §1.
+- **Run locally:** `cd server/gateway && docker compose up --build` → `curl localhost:8080/health`.
+- **Verify:** `go build/vet/test ./...` + `go run ./tools/importlint`.
 - **Origins:** Supabase (Postgres) for catalog/directory/reviews/checkout/accounts/inventory;
   MongoDB Atlas for `sdui_layouts` + events; Aiven Valkey read-through; Cloudflare in front.
-- **Auth:** Supabase Auth phone OTP + RLS. Never commit the service-role key.
-- **Build order:** `docs/architecture/mvp-backend.md` §7.
+- **Auth:** Supabase Auth phone OTP (HS256 JWT) + RLS; `AUTH_DISABLED=true` for local dev.
+- **Build order / status:** `docs/architecture/mvp-backend.md` §7.
 
 ---
 
@@ -233,7 +247,7 @@ server/
 - The gateway serves the **SDUI render tree** (`data/schema.ts`) that `client/mobile/`
   renders today — no change to how the app consumes structure.
 - Each `@mock` data file in `data/DATA_CONTROL.md` is a future handler contract:
-  - `data/mart/products.ts`, `data/grocery/products.ts` → **search** service
+  - `data/mart/products.ts` (incl. former grocery) → **search** service
   - `data/cart/*` (addresses, coupons) → **cart / checkout** services
   - `data/directory/vendors.ts`, `data/reviews/vendorReviews.ts` → **reviews & ratings** service
   - `data/home/*` (rails, offers, filters) → **recommendations / gateway**

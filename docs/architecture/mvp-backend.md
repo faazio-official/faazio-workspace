@@ -1,13 +1,16 @@
 # Faazio MVP Backend — Supabase + MongoDB + Aiven Valkey
 
-> **Status:** MVP — ACTIVE (docs-first). The MVP backend is a **thin Go Chi gateway** over
-> **Supabase (Postgres) + MongoDB Atlas M0 + Aiven Valkey**, with **Cloudflare** in front. It replaces
-> the mocked `@mock` data per module (`@mock` → `@server`).
+> **Status:** MVP — ACTIVE (code). The MVP backend is a **Go Chi modular monolith**
+> (`server/gateway`) over **Supabase (Postgres) + MongoDB Atlas M0 + Aiven Valkey**, with
+> **Cloudflare** in front. It replaces the mocked `@mock` data per module (`@mock` → `@server`).
 > The full microservices target — Rust/Tantivy search, CockroachDB, DynamoDB, per-service Postgres —
 > is **Future Prod** and stays documented in `server/README.md`, `server-gateway-plan.md`, and
 > `db-schema.md`.
-> **No code yet.** This doc is the single authority for "which DB for what in the MVP"; the
-> deep-dives keep the Future Prod spec.
+> **Code is live:** migrations + seed under `server/supabase/`, contexts + HTTP handlers under
+> `server/gateway/internal/`, and `GatewayClient` wired (remote with `@data/*` fallback). This doc is
+> the single authority for "which DB for what in the MVP"; the deep-dives keep the Future Prod spec.
+> Context → package → future-service mapping + extraction playbook:
+> **`docs/architecture/monolith-breakdown.md`**.
 
 ---
 
@@ -20,7 +23,7 @@
 | `stock` / `carts` / `reservations` / `pickup_points` | Supabase `inventory` schema + `SELECT … FOR UPDATE SKIP LOCKED`, `pg_cron` TTL sweep | DynamoDB / Firestore KV | Postgres locking is fine for MVP contention; Dynamo only at 1000s concurrent decrements |
 | `user_events` / `recommendations` / `segments` / `product_stats` / `sdui_layouts` | Keep MongoDB Atlas M0 (ID-only, `userIdHash`, TTL 90d) | Same (no change) | Flexible doc shape + TTL; don't force into Postgres |
 | Cache + edge | Keep **Aiven Valkey + Cloudflare** exactly per `caching-cloudflare-valkey.md` | Same | Supabase is origin, not cache; keys/TTLs unchanged (`faazio:v1:{service}:{entity}:{id}`, stock 30–60s, search 600s, product 24h, idempotency `NX EX 300`) |
-| Gateway | Thin Go Chi: `GET /health`, `/search?q=`, `/sdui/home`, `/product/:id`, `/vendors/:id/reviews` → Supabase + Mongo + Valkey read-through, Cloudflare in front | Full gateway + 5 gRPC microservices via `contracts/` | Thin gateway proves the `@mock` → `@server` seam; `GatewayClient` method signatures don't change |
+| Gateway | Go Chi modular monolith (`server/gateway`): all 6 contexts, `/health`, `/search?q=`, `/sdui/home`, `/product/:id`, `/vendors/:id/reviews`, `/stores`, `/orders`, `/profile`, cart/order/rating/event writes → Supabase + Mongo + Valkey, Cloudflare in front | Full gateway + 5 gRPC microservices via `contracts/` | Monolith proves the `@mock` → `@server` seam; extracted per `monolith-breakdown.md`; `GatewayClient` signatures don't change |
 | Auth | Supabase Auth phone OTP + RLS (replaces mocked `authStore.login()`) | Same, hardened | Server sessions + per-user orders/carts/rating scoping now |
 
 **Product images (recommendation):** serve from **Supabase Storage** (same project) with Cloudflare
@@ -52,7 +55,7 @@ bucket for the MVP.
 
 ---
 
-## 3. Thin gateway (MVP) — endpoints
+## 3. Gateway (MVP) — endpoints
 
 All read-through: Valkey → Supabase/Mongo → populate. Cloudflare caches public GETs.
 
@@ -66,8 +69,19 @@ All read-through: Valkey → Supabase/Mongo → populate. Cloudflare caches publ
 | `GET /stores`, `GET /store/:id` | Supabase `directory.stores` | `data/directory/stores.ts` | `getStores` / `getStore` |
 | `GET /orders`, `GET /profile` | Supabase `checkout` / `accounts` (auth-scoped) | `data/checkout/orders.ts`, `data/accounts/profile.ts` | `getOrders` / `getProfile` |
 
-No gRPC yet; `contracts/` stays a stub. Method signatures above keep the `@mock` → `@server` swap
-call-site-compatible.
+**Write endpoints (MVP, win chosen over the original read-only list):**
+
+| Method + path | Context | Notes |
+|---|---|---|
+| `GET/POST/PUT/DELETE /cart…` | cartstock | auth-scoped; `inventory.carts` JSONB, never edge-cached |
+| `GET/POST /orders` | checkout | `POST` uses `SET NX EX 300` idempotency + `SELECT … FOR UPDATE SKIP LOCKED` stock decrement |
+| `PUT /vendors/{id}/rating` | reviews | derived eligibility gate (`hasPurchasedFromVendor`); never a stored flag |
+| `POST /events` | reco | ID-only `userIdHash`, 90-day Mongo TTL |
+
+No gRPC yet; `contracts/` holds Go interfaces that mirror the future `.proto` shape. Method
+signatures above keep the `@mock` → `@server` swap call-site-compatible (`GatewayClient` adds a
+`baseUrl`/flag and keeps the `@data/*` fallback). Phased onboarding skips phone OTP for local dev:
+`AUTH_DISABLED=true` uses `DEV_USER_ID` / `X-Dev-User`.
 
 ---
 
@@ -103,18 +117,22 @@ contract stable so the swap is invisible to the app):
 
 ---
 
-## 7. Build order (when the build phase is approved — no code now)
+## 7. Build order (done)
 
-1. `supabase/migrations/0001_mvp_schemas.sql` — schemas + extensions + tables ported from
+1. ✅ `server/supabase/migrations/0001_mvp_schemas.sql` — schemas + extensions + tables ported from
    `db-schema.md` (slug public keys, INT8 paisa, `TIMESTAMPTZ`, ENUMs).
-2. `supabase/migrations/0002_fts_search.sql` — `catalog.products_search` + GIN/btree indexes +
-   `catalog.updated` refresh trigger.
-3. `supabase/seed/` — import the `@data/*` twins (keep IDs identical for cache stability).
-4. `server/gateway/` (thin Go Chi) — the endpoints in §3; `GET /health` first → Supabase/PostgREST/SQL
-   + Mongo + Valkey read-through.
-5. `client/mobile/src/services/api/GatewayClient.ts` — add `baseUrl` + flag; wire methods in the
-   order in `data-layer-sdui.md`; keep `@data/*` fallback.
-6. Verify from `client/mobile/`: `npm run ts:check`, `npm run check:boundaries`, `npm run check:drillin`.
+2. ✅ `server/supabase/migrations/0002_fts_search.sql` — `catalog.products_search` view + generated
+   `search_vec` + GIN/btree indexes + `catalog.touch_updated_at` (`pg_notify('catalog_updated')`).
+3. ✅ `server/supabase/migrations/0003_inventory_ttl_rls.sql` — `pg_cron` TTL sweeps + RLS (Supabase-only,
+   guarded) + reservation release.
+4. ✅ `server/supabase/seed/` — generator (`generate.mjs`) compiles `@data/*` and emits
+   `0001_seed.sql` + `mongo/seed.js` (IDs identical for cache stability).
+5. ✅ `server/gateway/` (Go Chi) — all 6 contexts in one binary; `GET /health` + the §3 endpoints;
+   Supabase + Mongo + Valkey read-through; `contracts/` interfaces; `tools/importlint` boundary gate.
+6. ✅ `client/mobile/src/services/api/GatewayClient.ts` — `EXPO_PUBLIC_GATEWAY_URL` +
+   `EXPO_PUBLIC_USE_GATEWAY`; wired in `data-layer-sdui.md` order; `@data/*` fallback per method.
+7. ✅ Verify: `go build/vet/test ./...` + `go run ./tools/importlint`; `npm run ts:check`,
+   `check:boundaries`, `check:drillin`.
 
 ---
 

@@ -7,7 +7,7 @@
 |---|---|---|
 | `client/mobile/` | React Native (Expo SDK 54) + TypeScript + Zustand | **LIVE.** All active work. |
 | `data/` | Typed entity arrays (SDUI source of truth) | **LIVE (enterprise-controlled).** Read-only for the app; consumed via `@data/*`. |
-| `server/` | Go Chi backend — MVP thin gateway over Supabase + MongoDB + Valkey | **MVP ACTIVE (docs-first).** Future Prod = full microservices. See `docs/architecture/mvp-backend.md`. |
+| `server/` | Go Chi backend — MVP modular monolith over Supabase + MongoDB + Valkey | **MVP ACTIVE (built).** Future Prod = full microservices. See `docs/architecture/mvp-backend.md`, `monolith-breakdown.md`. |
 | `data/DATA_CONTROL.md` | Ownership + mock/seed/static inventory | **LIVE.** Authoritative ownership map. |
 
 ---
@@ -34,7 +34,7 @@ presentation primitives (src/components/shared/, src/theme/)
 |---|---|---|
 | onboarding / auth | first-run flow, login, OTP | `features/auth` |
 | home | aggregated feed; sanctioned cross-module consumer | `features/home/sections/*` |
-| ecommerce | mart + grocery rails, catalog | `features/ecommerce/*-home/` |
+| ecommerce | mart rails + catalog (incl. former grocery) | `features/ecommerce/*-home/` |
 | food | restaurant/dish browsing, booking | `features/food/` |
 | dinner-booking | table reservations | `features/dinner-booking/` |
 | pharma | medical database, prescriptions | `features/pharma/` |
@@ -64,21 +64,23 @@ presentation primitives (src/components/shared/, src/theme/)
 
 ## 2. Go Chi backend (`server/`)
 
-### 2a. MVP — thin gateway (active scope, docs-first)
+### 2a. MVP — modular monolith (active scope, built)
 ```
-[ mobile app ] --HTTPS/JSON--> [ Go Chi thin gateway ]
+[ mobile app ] --HTTPS/JSON--> [ Go Chi modular monolith  server/gateway ]
+   GatewayClient                  6 contexts in one binary (contracts interfaces)
                                    │
                     Supabase (Postgres) + MongoDB Atlas M0 + Aiven Valkey
                                    ▲
                           Cloudflare (edge)
 ```
-- MVP = a **thin Go Chi gateway** over **Supabase (Postgres) + MongoDB Atlas M0 + Aiven Valkey**,
-  replacing mocked `@mock` sources per module (`@mock` → `@server`). Cache keys/TTLs unchanged
-  (Supabase is the origin, not the cache).
-- Single authority: `docs/architecture/mvp-backend.md` (decision matrix, schemas, endpoints). No code yet.
-- `GatewayClient` (`client/mobile/src/services/api/GatewayClient.ts`) remains the intended single data
-  surface; its wiring is **unblocked by the MVP gateway** — see `docs/architecture/data-layer-sdui.md`.
-- When built: every `data/DATA_CONTROL.md` `@mock` entry becomes a contract for a gateway handler.
+- MVP = **one Go Chi modular monolith** (`server/gateway`) hosting all 6 bounded contexts as packages
+  behind `internal/contracts` interfaces, replacing mocked `@mock` sources per module
+  (`@mock` → `@server`). Cache keys/TTLs unchanged (Supabase is the origin, not the cache).
+- Authority: `docs/architecture/mvp-backend.md` (decision matrix, schemas, endpoints) +
+  `docs/architecture/monolith-breakdown.md` (context → package → future-service mapping).
+- `GatewayClient` (`client/mobile/src/services/api/GatewayClient.ts`) is **wired** (baseUrl + flag,
+  `@data/*` fallback) — see `docs/architecture/data-layer-sdui.md`.
+- Every `data/DATA_CONTROL.md` `@mock` entry is now a contract for a gateway handler.
 
 ### 2b. Future Prod — full microservices (planned, not yet built)
 ```
@@ -90,10 +92,10 @@ presentation primitives (src/components/shared/, src/theme/)
 ```
 - Goal: serve the structured SDUI tree currently mocked in `data/`, replacing `@mock` sources when each module is wired (`@mock` → `@server`).
 - **Do not build full-microservice server code until requested.** The `server/` folder is the Future Prod target; MVP scope is §2a.
-- **Gateway client:** `client/mobile/src/services/api/GatewayClient.ts` is the intended single
-  data surface. It joins the normalized microservice-shaped tables under `data/` (see
-  `data/DATA_CONTROL.md` → "Normalized Microservice Tables") and is *not yet wired* — screens
-  still read the legacy `@data/*` fixtures until they are migrated onto it.
+- **Gateway client:** `client/mobile/src/services/api/GatewayClient.ts` is the single data surface.
+  It joins the normalized microservice-shaped tables under `data/` (see `data/DATA_CONTROL.md` →
+  "Normalized Microservice Tables") and is now wired to the MVP monolith (with `@data/*` fallback);
+  screens migrate onto it incrementally.
 - When built: every `data/DATA_CONTROL.md` `@mock` entry becomes a contract for a Chi handler; ownership matrix (feature ↔ data file) stays the source of truth.
 - **DB schemas** for the microservices are specified in `docs/architecture/db-schema.md`; the cache
   layer (Cloudflare edge + Aiven Valkey) is specified in `docs/architecture/caching-cloudflare-valkey.md`.

@@ -945,28 +945,31 @@ added a dev-only authoring guard in `data/home/campaigns.ts` that `console.warn`
 
 ## Wire GatewayClient → production tables (per mvp-backend.md / db-schema.md)
 
-**Status:** 🟢 MVP unblocked (thin gateway) — docs-first; no code yet.
+**Status:** 🟢 Shipped (client wiring + MVP monolith). Screens still read `@data/*` and migrate
+incrementally.
 
-**Feature:** Wire `src/services/api/GatewayClient.ts` (the intended single data surface) onto the
-production tables. The **MVP** path is the thin Go Chi gateway over Supabase (Postgres) + MongoDB +
-Aiven Valkey (`docs/architecture/mvp-backend.md`); the Future Prod target is the microservice tables in
-`docs/architecture/db-schema.md`. Replace the live `@data/*` fixtures per module (`@mock` → `@server`),
-keeping `@data/*` as fallback. Cache keys/TTLs follow `docs/architecture/caching-cloudflare-valkey.md`
-(unchanged).
+**Feature:** `src/services/api/GatewayClient.ts` is wired to the MVP **Go Chi modular monolith**
+(`server/gateway`, `docs/architecture/mvp-backend.md` + `docs/architecture/monolith-breakdown.md`)
+over Supabase (Postgres) + MongoDB + Aiven Valkey. Set `EXPO_PUBLIC_GATEWAY_URL` +
+`EXPO_PUBLIC_USE_GATEWAY=true` to go remote; otherwise it reads `@data/*` and every remote call
+**falls back to fixtures on error**, so screen migration can't regress. Cache keys/TTLs follow
+`docs/architecture/caching-cloudflare-valkey.md` (unchanged). Caveat: local dev is auth-open
+(`AUTH_DISABLED=true`); phone-OTP → gateway JWT still to be exercised end-to-end on device.
 
 **Wiring order** (`docs/architecture/data-layer-sdui.md`): `searchProducts` → `getProduct` →
-`getHomeFeed` → `getReviews` → `getOrders`/`getProfile`.
+`getHomeFeed` → `getReviews` → `getOrders`/`getProfile` — all implemented.
 
-**MVP endpoint checklist** (`mvp-backend.md` §3):
-- [ ] `GET /health`
-- [ ] `GET /search?q=&app=` → `searchProducts`
-- [ ] `GET /product/:id` → `getProduct`
-- [ ] `GET /sdui/home` → `getHomeFeed`
-- [ ] `GET /vendors/:id/reviews` → `getReviews`
-- [ ] `GET /stores`, `/store/:id` → `getStores` / `getStore`
-- [ ] `GET /orders`, `/profile` (auth-scoped) → `getOrders` / `getProfile`
+**MVP endpoint checklist** (`mvp-backend.md` §3) — all shipped server-side:
+- [x] `GET /health`
+- [x] `GET /search?q=&app=` → `searchProducts`
+- [x] `GET /product/:id` (+ `/product/:id/reviews`) → `getProduct`
+- [x] `GET /sdui/home` → `getHomeFeed`
+- [x] `GET /vendors/:id/reviews` (+ `/summary`, `PUT /rating`) → `getReviews` / `rateVendor`
+- [x] `GET /stores`, `/store/:id` → `getStores` / `getStore`
+- [x] `GET /orders`, `/profile` (+ `/membership`, `/order-status`, `/account-nav`, `/profile/details`)
+- [x] writes: `/cart…`, `POST /orders`, `POST /events`
 
-**Date:** 2026-09-12 (updated: MVP thin-gateway scope)
+**Date:** 2026-10-13 (updated: MVP monolith built)
 
 ---
 
@@ -1328,10 +1331,10 @@ currently reads a static seed array from `data/home/storeOffers.ts`.
 **Future:** Must be backed by seller/store-owner dashboard writes — a store owner
 creates/edits/expires their own offer, which flows into this Home section per-store,
 geofenced/ranked by relevance. This will likely be served by the Go Chi backend in
-`server/` (MVP thin-gateway scope: `docs/architecture/mvp-backend.md`).
+`server/` (MVP modular monolith: `docs/architecture/mvp-backend.md`).
 
 **Blocked by:**
-- `server/` backend (not yet built).
+- Seller/store-owner write APIs (the MVP monolith exists; this seller surface is not modelled yet).
 - Auth/roles for store owners.
 - An admin/seller app or web portal (out of scope for `client/mobile/`).
 

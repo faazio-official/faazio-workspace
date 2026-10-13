@@ -1,0 +1,60 @@
+# Local dev stack for the Faazio MVP monolith. Mirrors the managed services:
+#   Postgres  <-> Supabase      (migrations + seed applied on first boot)
+#   Valkey    <-> Aiven Valkey
+#   MongoDB   <-> Atlas M0      (sdui_layouts seeded)
+#
+#   docker compose up --build
+#   curl localhost:8080/health
+#   curl 'localhost:8080/search?q=coffee'
+#
+# Dev auth is open: AUTH_DISABLED=true, user = user-1 (or X-Dev-User header).
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_PASSWORD: faazio
+      POSTGRES_DB: faazio
+    ports:
+      - "5432:5432"
+    volumes:
+      - ../supabase/migrations/0001_mvp_schemas.sql:/docker-entrypoint-initdb.d/0001_schemas.sql:ro
+      - ../supabase/migrations/0002_fts_search.sql:/docker-entrypoint-initdb.d/0002_fts.sql:ro
+      - ../supabase/migrations/0003_inventory_ttl_rls.sql:/docker-entrypoint-initdb.d/0003_ttl_rls.sql:ro
+      - ../supabase/seed/0001_seed.sql:/docker-entrypoint-initdb.d/0004_seed.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d faazio"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  valkey:
+    image: valkey/valkey:8-alpine
+    command: ["valkey-server", "--save", "", "--appendonly", "no"]
+    ports:
+      - "6379:6379"
+
+  mongo:
+    image: mongo:7
+    environment:
+      MONGO_DATABASE: faazio
+    ports:
+      - "27017:27017"
+    volumes:
+      - ../supabase/seed/mongo/seed.js:/docker-entrypoint-initdb.d/seed.js:ro
+
+  gateway:
+    build: .
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      GATEWAY_ADDR: ":8080"
+      DATABASE_URL: "postgres://postgres:faazio@postgres:5432/faazio?sslmode=disable"
+      VALKEY_URL: "redis://valkey:6379/0"
+      MONGO_URI: "mongodb://mongo:27017"
+      MONGO_DATABASE: "faazio"
+      AUTH_DISABLED: "true"
+      DEV_USER_ID: "user-1"
+      ALLOWED_ORIGINS: "http://localhost:3000"
+    ports:
+      - "8080:8080"

@@ -274,6 +274,23 @@ build (Reanimated is far slower in debug); use a **CI release** build.
   product whose name/category/desc/attributes contain **every** query token (see
   `data/DATA_CONTROL.md` → "Drill-in coverage seeding").
 
+## 🔧 Gateway / backend (Go) run failures
+
+- `panic: chi: attempting to Mount() a handler on an existing path, '/'` → you used `r.Mount("/", …)`
+  for a context. Contexts expose `Register(r)` and add routes to the **shared** router; only the
+  composition root (`internal/server`) builds the router. See `server/gateway/README.md`.
+- `go run ./tools/importlint` fails → a context imported a sibling context. Route the call through a
+  `internal/contracts` interface injected at the composition root
+  (`docs/architecture/monolith-breakdown.md` §2).
+- `/health` shows `"db":false` / `"mongo":false` → the matching env var is unset
+  (`DATABASE_URL`/`MONGO_URI`); the gateway starts without them for `/health`-only runs. Use
+  `docker compose up --build` in `server/gateway/`, or set `.env` from `.env.example`.
+- Search/detail returns `*_unavailable` → Postgres reachable but migrations/seed not applied. Apply
+  `server/supabase/migrations/*.sql` then `server/supabase/seed/0001_seed.sql` (compose does this on
+  first boot; for an existing volume, re-create it).
+- Mongo `home feed unavailable` → `mongodb` not seeded. Run `server/supabase/seed/mongo/seed.js`
+  (compose mounts it into `/docker-entrypoint-initdb.d`).
+
 ## 🔧 Scroll jank / slow first load
 
 **Rule: judge performance on a release build, not dev.** Dev mode (Metro, debug build) exaggerates

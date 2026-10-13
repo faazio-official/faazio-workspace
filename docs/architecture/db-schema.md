@@ -1,11 +1,13 @@
 # Faazio DB Schema Bible
 
-> **Status:** PLANNED — not yet implemented. This is the canonical, LLM-greppable reference for the
-> **Future Prod** microservice databases behind `server/`. It answers, for every table: *which microservice →
-> which DB → which language → which schema → which datatype → which cache key → which admin queries*.
-> All sample rows are derived from the **real `@data/*` fixtures** (provenance noted per row) — nothing is
-> invented. Do **not** build server code, migrations, or SQL files until explicitly requested
-> (AGENTS.md hard rule 1).
+> **Status:** REFERENCE — MVP implemented, Future Prod planned. This is the canonical, LLM-greppable
+> reference for the microservice databases behind `server/`. It answers, for every table: *which
+> microservice → which DB → which language → which schema → which datatype → which cache key → which
+> admin queries*. All sample rows are derived from the **real `@data/*` fixtures** (provenance noted
+> per row) — nothing is invented.
+> **Implemented (MVP):** the DDL in §5–§8 ships as Postgres migrations under
+> `server/supabase/migrations/` (schemas, INT8 paisa, `TIMESTAMPTZ`, ENUMs verbatim) with seed under
+> `server/supabase/seed/`. The CockroachDB / Tantivy / DynamoDB targets remain **Future Prod**.
 >
 > **MVP vs Future Prod:** the **MVP** (single authority: `docs/architecture/mvp-backend.md`) runs on
 > **one Supabase (Postgres) project + MongoDB Atlas M0 + Aiven Valkey**. The CockroachDB / Tantivy /
@@ -689,8 +691,10 @@ logged.
 
 ## 11. Honest limitations
 
-- **Nothing is wired.** All schemas above are **plan** — no code, no migrations, no SQL files on
-  disk. The DDL/BSON is copy-paste-ready for a future "build it" request.
+- **MVP implemented, Future Prod plan-only.** The Postgres migrations
+  (`server/supabase/migrations/0001–0003`) and generated seed exist on disk; the CockroachDB /
+  Tantivy / DynamoDB / Python targets do **not**. The DDL below is the authority those migrations
+  port from.
 - **Sample rows** are `@data/*`-derived where noted; the `stock` numbers are **algorithm-derived**
   (not hardcoded) to avoid drift, and `ph-c1`/`sp-1` point to their fixture files rather than repeating
   values.

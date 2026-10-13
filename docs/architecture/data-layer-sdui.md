@@ -128,7 +128,7 @@ production table).
  TODAY (legacy)
  screen ──► @data/<domain>/* (typed arrays)          [@mock fixtures]
 
- MVP (thin gateway — active scope)
+ MVP (Go Chi modular monolith — active)
  screen ──► GatewayClient (src/services/api/GatewayClient.ts)
                 │ HTTP/JSON
                 ▼
@@ -146,15 +146,17 @@ production table).
         search / cart / checkout / recommendations
 ```
 
-`GatewayClient` is the intended single data surface but is **not yet wired** — the legacy
-`@data/*` path stays live until each consumer is migrated. The MVP thin gateway
-(`docs/architecture/mvp-backend.md`) unblocks it; wire methods in this order, keeping the
-`@data/*` fallback (flagged) until each is proven:
+`GatewayClient` is **wired to the real gateway** (`EXPO_PUBLIC_GATEWAY_URL` +
+`EXPO_PUBLIC_USE_GATEWAY=true`); in its default (mock) mode it reads `@data/*` as before, and in
+remote mode **every method falls back to `@data/*` on a network/HTTP error**, so migrating a screen
+can never regress data. Wiring order (all methods implemented):
 
 1. `searchProducts` → 2. `getProduct` → 3. `getHomeFeed` → 4. `getReviews` →
-5. `getOrders` / `getProfile` (auth-scoped, last).
+5. `getOrders` / `getProfile` (auth-scoped, last), plus `getStores`/`getStore`/`getStock`/
+`getProductsByIds`/`getMembership`/`getOrderStatus`/`getAccountNav`/`getDetails`.
 
-Every `@mock` entry becomes a gateway handler contract.
+Screens still read `@data/*` directly and migrate onto `gateway` incrementally — no call-site changes
+are required. Every `@mock` entry is now a gateway handler contract.
 
 ## Fail-safe contract
 
