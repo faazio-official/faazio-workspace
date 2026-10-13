@@ -983,8 +983,8 @@ client change is required. Authority: `docs/architecture/{db-schema,caching-clou
 
 ## `@mock` → `@server` per-module migration (W22)
 
-**Status:** 🟡 In progress. Mart feed, catalog vendor detail, favourites and product search are
-migrated to the gateway; the remaining modules still read `@data/*` directly.
+**Status:** 🟡 In progress. Mart feed, catalog vendor detail, favourites, product search and the Home
+SDUI section registry are migrated to the gateway; the remaining modules still read `@data/*` directly.
 
 **Feature:** Flipping `EXPO_PUBLIC_USE_GATEWAY=true` only helps modules that call `GatewayClient`.
 This item routes each module through it, one at a time, keeping the built-in fixture fallback.
@@ -1001,11 +1001,14 @@ This item routes each module through it, one at a time, keeping the built-in fix
       (local predicate/facets still refine; the substring predicate is skipped for server FTS hits).
       Wired in the mart/pharma/home product configs; food search stays local (dining venues aren't in
       `directory.stores`), and Food's `getMenu` is already remote.
+- [x] **home/SDUI** — new `features/home/hooks/useHomeFeed.ts` loads the server SDUI doc
+      (`gateway.getHomeFeed`) and `HomeView` renders its ordered sections, threading the doc's joined
+      rail products into the Recently-Viewed sections; the static `@data/home/sections` registry is the
+      offline/first-paint fallback. Bespoke hero sections (ad/brand/dining/filter-feed) keep their local
+      fixtures until the SDUI doc is extended to carry their content.
 - [ ] **dining** — blocked: the `tr-*`/`dn-*` dining venues are identity-only in `data/food/diningVenues.ts`
       and are **not** in `directory.stores`, so `diningService` cannot be server-backed until the
       dining-venue profile data is seeded. `gateway.getMenu(venueId)` (dish lists) is already remote-ready.
-- [ ] **home/SDUI** — `useHomeFeed`/`HomeView` still compose local sections; `gateway.getHomeFeed`
-      is remote-ready.
 - [ ] **cart/checkout, orders, rewards, pharma, blood, bookings** — stores already call `GatewayClient`;
       verify on-device with `AUTH_DISABLED=true` before flipping the flag for release.
 

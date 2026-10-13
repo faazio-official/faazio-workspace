@@ -381,7 +381,7 @@ still separate files; consolidating them is tracked in `client/mobile/PENDING_WO
 
 ### Services (`src/services/`)
 
-- `api/GatewayClient.ts` — single data surface; **wired** to the MVP gateway (`EXPO_PUBLIC_GATEWAY_URL` + flag) with `@data/*` fallback; screens migrate incrementally (see data doc). Migration (W22) done so far: mart feed (`martService` → `getStores('MART')`), catalog vendor detail (`VendorDetailScreen` → `getStore`), favourites (`getProductsByIds`) and product search (`SearchModeConfig.fetch` → `searchProducts`, wired in the mart/pharma/home configs). Dining/search-venues, home/SDUI and cart/checkout remain.
+- `api/GatewayClient.ts` — single data surface; **wired** to the MVP gateway (`EXPO_PUBLIC_GATEWAY_URL` + flag) with `@data/*` fallback; screens migrate incrementally (see data doc). Migration (W22) done so far: mart feed (`martService` → `getStores('MART')`), catalog vendor detail (`VendorDetailScreen` → `getStore`), favourites (`getProductsByIds`), product search (`SearchModeConfig.fetch` → `searchProducts`) and the Home SDUI registry + recently-viewed rails (`useHomeFeed` → `getHomeFeed`, static `@data/home/sections` fallback). Dining/search-venues and cart/checkout remain.
 - `secureSession.ts` — tokens via `expo-secure-store` (never AsyncStorage for secrets).
 - `logout.ts` — clears auth + cart + favourites + search + pharma + blood donor + rewards + vendor-rating stores.
 - `vendorRatings.ts` — single owner of the vendor rating gate: `canRateVendor(vendorId)`
@@ -775,7 +775,7 @@ The "lightweight, fast, secure" mandate (AGENTS.md) is enforced at build and del
 - **Screen data is still mock** — screens read `@data/*`. The MVP gateway (Go monolith over
   Supabase + Mongo + Valkey) is built and `GatewayClient` is wired with a `@data/*` fallback;
   per-screen `@mock` → `@server` migration is in progress (W22: mart feed, catalog vendor detail,
-  favourites and product search done; see `client/mobile/PENDING_WORK.md`) and waits on Supabase phone OTP
+  favourites, product search and Home SDUI registry done; see `client/mobile/PENDING_WORK.md`) and waits on Supabase phone OTP
   replacing `authStore.login()` (see `data-layer-sdui.md`).
 - **Duplicated mock data** in a few screens (`PharmaScreen`, `FoodScreen` booking dishes,
   `ProductDetailView`) — canonical copies exist under `@data/` marked `@unused`; de-dup is
