@@ -18,6 +18,9 @@ var ErrEmptyItems = errors.New("order has no items")
 // ErrInsufficientStock is returned when an item cannot be reserved.
 var ErrInsufficientStock = errors.New("insufficient stock")
 
+// ErrAddressNotOwned is returned when the supplied addressId does not belong to the caller.
+var ErrAddressNotOwned = errors.New("address does not belong to user")
+
 // PlaceOrderRequest is the POST /orders body.
 type PlaceOrderRequest struct {
 	Items []struct {
@@ -46,12 +49,32 @@ func (s *Service) CreateOrder(ctx context.Context, userID string, req PlaceOrder
 	if len(req.Items) == 0 {
 		return Order{}, ErrEmptyItems
 	}
+	// Replay: a completed order for this key returns as-is (no snapshots, no decrements).
 	if req.IdempotencyKey != "" {
+		if orderID, found, err := s.repo.OrderByIdempotencyKey(ctx, userID, req.IdempotencyKey); err != nil {
+			return Order{}, err
+		} else if found {
+			if existing, ok, err := s.repo.OrderByID(ctx, orderID); err != nil {
+				return Order{}, err
+			} else if ok {
+				return existing, nil
+			}
+		}
 		lockKey := cache.Idempotency(req.IdempotencyKey)
 		if err := s.cache.AcquireLock(ctx, lockKey, 300*time.Second); err != nil {
 			return Order{}, err
 		}
 		defer s.cache.ReleaseLock(ctx, lockKey)
+	}
+	// Server-side address ownership: never let a caller ship to someone else's address.
+	if req.AddressID != "" {
+		owned, err := s.repo.OwnsAddress(ctx, userID, req.AddressID)
+		if err != nil {
+			return Order{}, err
+		}
+		if !owned {
+			return Order{}, ErrAddressNotOwned
+		}
 	}
 
 	ids := make([]string, 0, len(req.Items))
@@ -108,7 +131,7 @@ func (s *Service) CreateOrder(ctx context.Context, userID string, req PlaceOrder
 		VendorStoreIDs: vendors,
 		LineItems:      lines,
 	}
-	if err := s.repo.InsertOrder(ctx, order, lines); err != nil {
+	if err := s.repo.InsertOrder(ctx, order, lines, req.IdempotencyKey); err != nil {
 		return Order{}, err
 	}
 	s.cache.Del(ctx, cache.Orders(userID))

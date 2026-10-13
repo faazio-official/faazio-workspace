@@ -69,6 +69,8 @@ func (h *Handler) placeOrder(w http.ResponseWriter, r *http.Request) {
 		httpx.Fail(w, http.StatusBadRequest, "empty_items", "order has no items")
 	case errors.Is(err, ErrInsufficientStock):
 		httpx.Fail(w, http.StatusConflict, "out_of_stock", "one or more items are out of stock")
+	case errors.Is(err, ErrAddressNotOwned):
+		httpx.Fail(w, http.StatusBadRequest, "invalid_address", "address does not belong to you")
 	case err != nil:
 		httpx.Fail(w, http.StatusInternalServerError, "order_failed", "could not place order")
 	default:

@@ -30,27 +30,54 @@ type Repo struct {
 // New returns a reviews repo.
 func New(pool *db.Pool) *Repo { return &Repo{pool: pool} }
 
-// ProductReviews returns product-scoped reviews.
-func (r *Repo) ProductReviews(ctx context.Context, productID string) ([]contracts.Review, error) {
+// ProductReviewsPage returns product-scoped reviews ordered by (created_at desc, id asc) with
+// keyset pagination. It fetches limit+1 rows; when a further page exists it reports hasMore and the
+// sort key (lastCreatedAt, lastID) of the final returned row for the caller's cursor.
+func (r *Repo) ProductReviewsPage(ctx context.Context, productID string, limit int, cursorTime time.Time, cursorID string, hasCursor bool) (out []contracts.Review, lastCreatedAt time.Time, lastID string, hasMore bool, err error) {
 	if r.pool == nil {
-		return nil, fmt.Errorf("reviews: database not configured")
+		return nil, time.Time{}, "", false, fmt.Errorf("reviews: database not configured")
 	}
 	rows, err := r.pool.Query(ctx, `
-		select id, product_id, app::text, user_name, coalesce(avatar,''), rating, comment, date_label
-		  from reviews.reviews where product_id = $1 order by created_at desc`, productID)
+		select id, product_id, app::text, user_name, coalesce(avatar,''), rating, comment, date_label, created_at
+		  from reviews.reviews
+		 where product_id = $1
+		   and (not $2::bool or created_at < $3::timestamptz or (created_at = $3::timestamptz and id > $4))
+		 order by created_at desc, id asc
+		 limit $5`, productID, hasCursor, cursorTime, cursorID, limit+1)
 	if err != nil {
-		return nil, err
+		return nil, time.Time{}, "", false, err
 	}
 	defer rows.Close()
-	out := []contracts.Review{}
+	out = []contracts.Review{}
+	type keyed struct {
+		created time.Time
+		id      string
+	}
+	keys := []keyed{}
 	for rows.Next() {
-		var rv contracts.Review
-		if err := rows.Scan(&rv.ID, &rv.ProductID, &rv.App, &rv.User, &rv.Avatar, &rv.Rating, &rv.Comment, &rv.Date); err != nil {
-			return nil, err
+		var (
+			rv      contracts.Review
+			created time.Time
+		)
+		if err := rows.Scan(&rv.ID, &rv.ProductID, &rv.App, &rv.User, &rv.Avatar, &rv.Rating, &rv.Comment, &rv.Date, &created); err != nil {
+			return nil, time.Time{}, "", false, err
 		}
 		out = append(out, rv)
+		keys = append(keys, keyed{created: created, id: rv.ID})
 	}
-	return out, rows.Err()
+	if err := rows.Err(); err != nil {
+		return nil, time.Time{}, "", false, err
+	}
+	if len(out) > limit {
+		out = out[:limit]
+		keys = keys[:limit]
+		hasMore = true
+	}
+	if len(keys) > 0 {
+		lastCreatedAt = keys[len(keys)-1].created
+		lastID = keys[len(keys)-1].id
+	}
+	return out, lastCreatedAt, lastID, hasMore, nil
 }
 
 // VendorReviewsPage returns review rows ordered by (created_at desc, id asc) with keyset
@@ -103,31 +130,23 @@ func (r *Repo) VendorReviewsPage(ctx context.Context, vendorID string, limit int
 	return out, lastCreatedAt, lastID, hasMore, nil
 }
 
-// VendorSummary aggregates ratings for a vendor.
+// VendorSummary reads the trigger-maintained aggregate (reviews.vendor_summary) — an O(1) PK
+// lookup instead of a per-request GROUP BY over reviews.vendor_reviews.
 func (r *Repo) VendorSummary(ctx context.Context, vendorID string) (Summary, error) {
 	if r.pool == nil {
 		return Summary{}, fmt.Errorf("reviews: database not configured")
 	}
 	s := Summary{VendorID: vendorID}
-	rows, err := r.pool.Query(ctx, `
-		select rating, count(*) from reviews.vendor_reviews where vendor_id = $1 group by rating`, vendorID)
-	if err != nil {
-		return Summary{}, err
-	}
-	defer rows.Close()
 	var sum int64
-	for rows.Next() {
-		var star, count int64
-		if err := rows.Scan(&star, &count); err != nil {
-			return Summary{}, err
+	err := r.pool.QueryRow(ctx, `
+		select rating_sum, reviews_count, star1, star2, star3, star4, star5
+		  from reviews.vendor_summary where vendor_id = $1`, vendorID).
+		Scan(&sum, &s.Count,
+			&s.Distribution[0], &s.Distribution[1], &s.Distribution[2], &s.Distribution[3], &s.Distribution[4])
+	if err != nil {
+		if err == pgx.ErrNoRows {
+			return s, nil
 		}
-		if star >= 1 && star <= 5 {
-			s.Distribution[star-1] = count
-		}
-		s.Count += count
-		sum += star * count
-	}
-	if err := rows.Err(); err != nil {
 		return Summary{}, err
 	}
 	if s.Count > 0 {
@@ -149,13 +168,18 @@ func (r *Repo) UserName(ctx context.Context, userID string) (string, error) {
 	return name, err
 }
 
-// VendorApp returns the app brand for a vendor id.
+// VendorApp returns the app brand for a vendor id. Two indexed PK lookups (stores, then dining
+// venues) instead of scanning the directory.vendors UNION ALL view.
 func (r *Repo) VendorApp(ctx context.Context, vendorID string) (string, error) {
 	if r.pool == nil {
 		return "", fmt.Errorf("reviews: database not configured")
 	}
 	var app string
-	err := r.pool.QueryRow(ctx, `select app::text from directory.vendors where id = $1`, vendorID).Scan(&app)
+	err := r.pool.QueryRow(ctx, `
+		select app::text from directory.stores where id = $1
+		union all
+		select 'FOOD'::text from directory.dining_venues where id = $1
+		limit 1`, vendorID).Scan(&app)
 	if err == pgx.ErrNoRows {
 		return "MART", nil
 	}

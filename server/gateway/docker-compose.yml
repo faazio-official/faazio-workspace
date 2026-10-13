@@ -20,7 +20,10 @@ services:
       - ../supabase/migrations/0001_mvp_schemas.sql:/docker-entrypoint-initdb.d/0001_schemas.sql:ro
       - ../supabase/migrations/0002_fts_search.sql:/docker-entrypoint-initdb.d/0002_fts.sql:ro
       - ../supabase/migrations/0003_inventory_ttl_rls.sql:/docker-entrypoint-initdb.d/0003_ttl_rls.sql:ro
-      - ../supabase/seed/0001_seed.sql:/docker-entrypoint-initdb.d/0004_seed.sql:ro
+      - ../supabase/migrations/0004_lean_indexes.sql:/docker-entrypoint-initdb.d/0004_lean_indexes.sql:ro
+      - ../supabase/migrations/0005_lean_types.sql:/docker-entrypoint-initdb.d/0005_lean_types.sql:ro
+      - ../supabase/migrations/0006_idempotency.sql:/docker-entrypoint-initdb.d/0006_idempotency.sql:ro
+      - ../supabase/seed/0001_seed.sql:/docker-entrypoint-initdb.d/0009_seed.sql:ro
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U postgres -d faazio"]
       interval: 5s

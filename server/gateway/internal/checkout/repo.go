@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/faazio/server/gateway/internal/platform/cache"
 	"github.com/faazio/server/gateway/internal/platform/db"
 	"github.com/jackc/pgx/v5"
 )
@@ -79,16 +80,30 @@ type Details struct {
 
 // Repo reads/writes checkout + accounts.
 type Repo struct {
-	pool *db.Pool
+	pool  *db.Pool
+	cache *cache.Cache
 }
 
 // New returns a checkout repo.
 func New(pool *db.Pool) *Repo { return &Repo{pool: pool} }
 
-// ResolveUserID maps a Supabase auth subject to the app user slug (auth.UserResolver).
+// NewWithCache returns a checkout repo that also caches the auth_uid → user_id mapping.
+func NewWithCache(pool *db.Pool, c *cache.Cache) *Repo { return &Repo{pool: pool, cache: c} }
+
+// ResolveUserID maps a Supabase auth subject to the app user slug (auth.UserResolver). The mapping
+// is immutable for a given subject, so it is read-through cached for 1 h — removing a query from
+// every authenticated request. Invalidation (profile merge) deletes cache.AuthUser(subject).
 func (r *Repo) ResolveUserID(ctx context.Context, authUID string) (string, error) {
 	if r.pool == nil {
 		return "", fmt.Errorf("checkout: database not configured")
+	}
+	cacheKey := ""
+	if r.cache != nil && r.cache.Enabled() {
+		cacheKey = cache.AuthUser(authUID)
+		var cached string
+		if r.cache.GetJSON(ctx, cacheKey, &cached) && cached != "" {
+			return cached, nil
+		}
 	}
 	var userID string
 	err := r.pool.QueryRow(ctx, `select user_id from checkout.users where auth_uid = $1`, authUID).Scan(&userID)
@@ -98,7 +113,42 @@ func (r *Repo) ResolveUserID(ctx context.Context, authUID string) (string, error
 		}
 		return "", err
 	}
+	if cacheKey != "" && userID != "" {
+		r.cache.SetJSON(ctx, cacheKey, userID, cache.TTLAuth)
+	}
 	return userID, nil
+}
+
+// OwnsAddress reports whether addressID belongs to userID (server-side ownership check).
+func (r *Repo) OwnsAddress(ctx context.Context, userID, addressID string) (bool, error) {
+	if r.pool == nil {
+		return false, fmt.Errorf("checkout: database not configured")
+	}
+	var one int
+	err := r.pool.QueryRow(ctx, `select 1 from checkout.addresses where address_id = $1 and user_id = $2`, addressID, userID).Scan(&one)
+	if err != nil {
+		if err == pgx.ErrNoRows {
+			return false, nil
+		}
+		return false, err
+	}
+	return true, nil
+}
+
+// OrderByIdempotencyKey returns the order id previously recorded for (userID, key).
+func (r *Repo) OrderByIdempotencyKey(ctx context.Context, userID, key string) (string, bool, error) {
+	if r.pool == nil {
+		return "", false, fmt.Errorf("checkout: database not configured")
+	}
+	var orderID string
+	err := r.pool.QueryRow(ctx, `select order_id from checkout.idempotency_keys where user_id = $1 and key = $2`, userID, key).Scan(&orderID)
+	if err != nil {
+		if err == pgx.ErrNoRows {
+			return "", false, nil
+		}
+		return "", false, err
+	}
+	return orderID, true, nil
 }
 
 // OrdersByUser returns a user's orders with line items.
@@ -165,6 +215,52 @@ func (r *Repo) OrdersByUser(ctx context.Context, userID string) ([]Order, error)
 	return orders, itemRows.Err()
 }
 
+// OrderByID returns one order with its line items.
+func (r *Repo) OrderByID(ctx context.Context, orderID string) (Order, bool, error) {
+	if r.pool == nil {
+		return Order{}, false, fmt.Errorf("checkout: database not configured")
+	}
+	var (
+		o          Order
+		placedAt   time.Time
+		statusDate *time.Time
+	)
+	err := r.pool.QueryRow(ctx, `
+		select order_id, order_number, user_id, coalesce(address_id,''), placed_at, status::text,
+		       status_date, coalesce(fulfillment::text,''), vendor_store_ids
+		  from checkout.orders where order_id = $1`, orderID).
+		Scan(&o.ID, &o.OrderNumber, &o.UserID, &o.AddressID, &placedAt, &o.Status,
+			&statusDate, &o.Fulfillment, &o.VendorStoreIDs)
+	if err != nil {
+		if err == pgx.ErrNoRows {
+			return Order{}, false, nil
+		}
+		return Order{}, false, err
+	}
+	o.PlacedAt = placedAt.UTC().Format(time.RFC3339)
+	if statusDate != nil {
+		o.StatusDate = statusDate.UTC().Format(time.RFC3339)
+	}
+	o.LineItems = []OrderLineItem{}
+
+	itemRows, err := r.pool.Query(ctx, `
+		select line_id, coalesce(product_id,''), name, coalesce(variant,''), qty, unit_price_paisa
+		  from checkout.order_items where order_id = $1`, orderID)
+	if err != nil {
+		return Order{}, false, err
+	}
+	defer itemRows.Close()
+	for itemRows.Next() {
+		var li OrderLineItem
+		if err := itemRows.Scan(&li.LineID, &li.ProductID, &li.Name, &li.Variant, &li.Qty, &li.UnitPrice); err != nil {
+			return Order{}, false, err
+		}
+		li.UnitPrice = li.UnitPrice / 100
+		o.LineItems = append(o.LineItems, li)
+	}
+	return o, true, itemRows.Err()
+}
+
 func orderIDs(orders []Order) []string {
 	out := make([]string, 0, len(orders))
 	for _, o := range orders {
@@ -228,8 +324,9 @@ func (r *Repo) ProductSnapshots(ctx context.Context, ids []string) (map[string]P
 	return out, rows.Err()
 }
 
-// InsertOrder writes an order and its line items in one transaction.
-func (r *Repo) InsertOrder(ctx context.Context, o Order, lines []OrderLineItem) error {
+// InsertOrder writes an order, its line items, and (when idempotencyKey is set) the replay record
+// in one transaction, so a retry can never observe an order without its idempotency key.
+func (r *Repo) InsertOrder(ctx context.Context, o Order, lines []OrderLineItem, idempotencyKey string) error {
 	if r.pool == nil {
 		return fmt.Errorf("checkout: database not configured")
 	}
@@ -255,6 +352,15 @@ func (r *Repo) InsertOrder(ctx context.Context, o Order, lines []OrderLineItem) 
 			insert into checkout.order_items (line_id, order_id, product_id, name, variant, qty, unit_price_paisa)
 			values ($1,$2,$3,$4,$5,$6,$7)`,
 			li.LineID, o.ID, nullIfEmpty(li.ProductID), li.Name, nullIfEmpty(li.Variant), li.Qty, li.UnitPrice*100); err != nil {
+			return err
+		}
+	}
+	if idempotencyKey != "" {
+		if _, err := tx.Exec(ctx, `
+			insert into checkout.idempotency_keys (user_id, key, order_id)
+			values ($1, $2, $3)
+			on conflict (user_id, key) do nothing`,
+			o.UserID, idempotencyKey, o.ID); err != nil {
 			return err
 		}
 	}

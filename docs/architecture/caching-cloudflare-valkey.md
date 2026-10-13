@@ -82,6 +82,7 @@ Examples: `faazio:v1:stock:fm-f1`, `faazio:v1:search:q:hoodie`, `faazio:v1:sdui:
 | Recommendations (per userHash) | 3600 s (1 h) | — | `user_events` flush |
 | Store directory / reviews | 86400 s (24 h) | — | edit event |
 | Idempotency locks (checkout) | 300 s | — | auto-expire |
+| Auth subject → app user_id | 3600 s (1 h) | — | delete on profile merge (mapping is otherwise immutable) |
 
 ---
 
@@ -95,6 +96,7 @@ Examples: `faazio:v1:stock:fm-f1`, `faazio:v1:search:q:hoodie`, `faazio:v1:sdui:
 | `layout.updated` | `sdui:home:{version}` | `/sdui/home` |
 | `user_events.flush` | `reco:{userIdHash}` | — |
 | `store.updated` / `review.moderated` | `directory:store:{id}`, `reviews:product:{id}` | store/review URLs |
+| profile merge | `auth:uid:{sha256}` (delete) | — |
 
 ---
 
@@ -118,6 +120,14 @@ Examples: `faazio:v1:stock:fm-f1`, `faazio:v1:search:q:hoodie`, `faazio:v1:sdui:
   A `pg_notify`/Pub/Sub automation is Future Prod; the TTL (300 s) bounds staleness if the purge is missed.
 - **PII never enters the cache:** `GET /store/:id` caches only the redacted projection; authenticated
   reads bypass the cache (see §8).
+- **Slim values (no key/TTL change):** list/search reads cache the lean product projection
+  (`productListSelect`), so `faazio:v1:search:q:*` values shrink ~5–6× versus shipping `desc_text` +
+  `attributes` per row. `GET /sdui/home` emits `ETag: "home-v{version}"` and answers `If-None-Match`
+  with `304`, turning repeat polls into ~50 B responses.
+- **Auth subject cache:** the checkout resolver read-through caches `auth_uid → user_id` under
+  `faazio:v1:auth:uid:{sha256}` for 1 h, removing one DB round-trip from every authenticated request.
+  The key hashes the subject; the mapping is immutable, so only a profile merge (not yet implemented)
+  would delete it.
 
 ---
 

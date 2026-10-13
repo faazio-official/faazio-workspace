@@ -51,7 +51,7 @@ func NewRouter(d Deps) http.Handler {
 	catalogRepo := catalog.New(d.Pool)
 	directoryRepo := directory.New(d.Pool)
 	cartRepo := cartstock.New(d.Pool)
-	checkoutRepo := checkout.New(d.Pool)
+	checkoutRepo := checkout.NewWithCache(d.Pool, d.Cache)
 	reviewsRepo := reviews.New(d.Pool)
 	recoRepo := reco.New(d.Mongo)
 

@@ -47,15 +47,11 @@ func (h *Handler) list(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	// ByAppPage reads the PII-free list projection, so no redaction is needed here.
 	stores, err := h.repo.ByAppPage(r.Context(), app, limit+1, cursorRating, cursorID, hasCursor)
 	if err != nil {
 		httpx.Fail(w, http.StatusInternalServerError, "directory_unavailable", "directory unavailable")
 		return
-	}
-	if auth.UserID(r.Context()) == "" {
-		for i := range stores {
-			redactStore(&stores[i])
-		}
 	}
 	if len(stores) > limit {
 		stores = stores[:limit]

@@ -5,6 +5,8 @@ package cache
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -13,7 +15,8 @@ import (
 	"github.com/redis/go-redis/v9"
 )
 
-// Key builders — the frozen taxonomy (contract-freeze §4).
+// Key builders — the frozen taxonomy (contract-freeze §4). AuthUser hashes the Supabase
+// auth subject so no raw identifier is used as a key.
 func SearchQuery(q string) string     { return fmt.Sprintf("faazio:v1:search:q:%s", q) }
 func Product(id string) string        { return fmt.Sprintf("faazio:v1:catalog:product:%s", id) }
 func Store(id string) string          { return fmt.Sprintf("faazio:v1:directory:store:%s", id) }
@@ -23,6 +26,10 @@ func ProductReviews(id string) string { return fmt.Sprintf("faazio:v1:reviews:pr
 func Orders(userID string) string     { return fmt.Sprintf("faazio:v1:checkout:orders:%s", userID) }
 func SduiHome(locale string) string   { return fmt.Sprintf("faazio:v1:gateway:sdui:%s:/home", locale) }
 func Idempotency(ref string) string   { return fmt.Sprintf("faazio:v1:checkout:idem:%s", ref) }
+func AuthUser(authUID string) string {
+	sum := sha256.Sum256([]byte(authUID))
+	return "faazio:v1:auth:uid:" + hex.EncodeToString(sum[:])
+}
 
 // TTL helpers.
 const (
@@ -33,6 +40,7 @@ const (
 	TTLReviews = 24 * time.Hour
 	TTLOrders  = 60 * time.Second
 	TTLSdui    = 300 * time.Second
+	TTLAuth    = 3600 * time.Second
 )
 
 // Cache is a JSON read-through cache. A nil *Client (disabled) is safe to call.

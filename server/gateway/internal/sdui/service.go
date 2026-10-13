@@ -9,6 +9,13 @@ import (
 	"github.com/faazio/server/gateway/internal/platform/cache"
 )
 
+// cachedHome is the internal Valkey value: compiled sections + the layout version the ETag derives
+// from. The key/TTL are unchanged (caching-cloudflare-valkey.md §5); only the value shape is.
+type cachedHome struct {
+	Version  int64                   `json:"version"`
+	Sections []contracts.HomeSection `json:"sections"`
+}
+
 // Service compiles the Home feed.
 type Service struct {
 	layouts  contracts.LayoutSource
@@ -22,30 +29,64 @@ func NewService(layouts contracts.LayoutSource, products contracts.ProductReader
 	return &Service{layouts: layouts, products: products, stores: stores, cache: c}
 }
 
-// Home returns the compiled Home feed (ID-only sections + joined products), cached.
-func (s *Service) Home(ctx context.Context, locale string) ([]contracts.HomeSection, error) {
+// Home returns the compiled Home feed (ID-only sections + joined products) and the layout version.
+func (s *Service) Home(ctx context.Context, locale string) ([]contracts.HomeSection, int64, error) {
 	if locale == "" {
 		locale = "en"
 	}
-	var cached []contracts.HomeSection
+	var cached cachedHome
 	if s.cache.GetJSON(ctx, cache.SduiHome(locale), &cached) {
-		return cached, nil
+		return cached.Sections, cached.Version, nil
 	}
-	sections, err := s.layouts.Home(ctx)
+	sections, version, err := s.layouts.Home(ctx)
 	if err != nil {
-		return nil, err
+		return nil, 0, err
 	}
+
+	// One batch join across every section's product ids (was one round-trip per section).
+	byID, err := s.productsByID(ctx, sections)
+	if err != nil {
+		return nil, 0, err
+	}
+
 	out := make([]contracts.HomeSection, 0, len(sections))
 	for _, section := range sections {
-		products, err := s.products.ByIDs(ctx, section.ProductIDs)
-		if err != nil {
-			return nil, err
-		}
-		if products == nil {
-			products = []contracts.Product{}
+		products := make([]contracts.Product, 0, len(section.ProductIDs))
+		for _, id := range section.ProductIDs {
+			if p, ok := byID[id]; ok {
+				products = append(products, p)
+			}
 		}
 		out = append(out, contracts.HomeSection{SduiSection: section, Products: products})
 	}
-	s.cache.SetJSON(ctx, cache.SduiHome(locale), out, cache.TTLSdui)
-	return out, nil
+	s.cache.SetJSON(ctx, cache.SduiHome(locale), cachedHome{Version: version, Sections: out}, cache.TTLSdui)
+	return out, version, nil
+}
+
+// productsByID fetches every referenced product in a single query, de-duplicating ids while
+// preserving section order for the caller's fan-out.
+func (s *Service) productsByID(ctx context.Context, sections []contracts.SduiSection) (map[string]contracts.Product, error) {
+	seen := map[string]struct{}{}
+	ids := make([]string, 0)
+	for _, section := range sections {
+		for _, id := range section.ProductIDs {
+			if _, ok := seen[id]; ok {
+				continue
+			}
+			seen[id] = struct{}{}
+			ids = append(ids, id)
+		}
+	}
+	byID := make(map[string]contracts.Product, len(ids))
+	if len(ids) == 0 {
+		return byID, nil
+	}
+	products, err := s.products.ByIDs(ctx, ids)
+	if err != nil {
+		return nil, err
+	}
+	for _, p := range products {
+		byID[p.ID] = p
+	}
+	return byID, nil
 }

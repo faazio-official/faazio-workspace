@@ -24,6 +24,13 @@ select id, app::text, name, categories, rating, reviews_count, delivery_time, di
        cover_image, emoji, desc_text, offer_tag, is_veg, address, phone, hours
 from directory.stores`
 
+// storeListSelect is the public list projection: it never fetches the PII columns (address/phone),
+// so they cannot reach the gateway, the wire, or the edge cache. Product detail keeps storeSelect.
+const storeListSelect = `
+select id, app::text, name, categories, rating, reviews_count, delivery_time, distance,
+       cover_image, emoji, desc_text, offer_tag, is_veg, null::text as address, null::text as phone, hours
+from directory.stores`
+
 // ByApp returns stores for one app (empty app = all).
 func (r *Repo) ByApp(ctx context.Context, app string) ([]contracts.Store, error) {
 	if r.pool == nil {
@@ -44,7 +51,7 @@ func (r *Repo) ByAppPage(ctx context.Context, app string, limit int, cursorRatin
 	if r.pool == nil {
 		return nil, fmt.Errorf("directory: database not configured")
 	}
-	rows, err := r.pool.Query(ctx, storeSelect+`
+	rows, err := r.pool.Query(ctx, storeListSelect+`
 		where ($1 = '' or app::text = $1)
 		  and (not $2::bool or rating < $3::float8 or (rating = $3::float8 and id > $4))
 		order by rating desc, id asc

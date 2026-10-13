@@ -40,6 +40,18 @@ func (h *Handler) search(w http.ResponseWriter, r *http.Request) {
 	app := strings.ToUpper(strings.TrimSpace(r.URL.Query().Get("app")))
 	limit := httpx.LimitParam(r, defaultSearchLimit, maxSearchLimit)
 
+	// Empty queries have no FTS term — return empty instead of running an ORDER BY rating full scan.
+	if q == "" {
+		httpx.JSON(w, http.StatusOK, []contracts.Product{})
+		return
+	}
+	// Whitelist the app filter so an arbitrary app::text value can never bypass the app index.
+	switch app {
+	case contracts.AppMart, contracts.AppFood, contracts.AppPharma:
+	default:
+		app = ""
+	}
+
 	// Cache key: faazio:v1:search:q:{query}, app-scoped variant includes the app.
 	key := cache.SearchQuery(q)
 	if app != "" {

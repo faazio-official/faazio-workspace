@@ -8,9 +8,14 @@ import (
 	"github.com/faazio/server/gateway/internal/platform/cache"
 )
 
-type fakeLayouts struct{ sections []contracts.SduiSection }
+type fakeLayouts struct {
+	sections []contracts.SduiSection
+	version  int64
+}
 
-func (f fakeLayouts) Home(context.Context) ([]contracts.SduiSection, error) { return f.sections, nil }
+func (f fakeLayouts) Home(context.Context) ([]contracts.SduiSection, int64, error) {
+	return f.sections, f.version, nil
+}
 
 type fakeProducts struct{ byID map[string]contracts.Product }
 
@@ -57,7 +62,7 @@ func TestHomeCompilesSectionsWithProducts(t *testing.T) {
 		c,
 	)
 
-	sections, err := svc.Home(ctx, "en")
+	sections, _, err := svc.Home(ctx, "en")
 	if err != nil {
 		t.Fatal(err)
 	}

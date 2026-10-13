@@ -25,10 +25,11 @@ type Repo struct {
 func New(db *mongo.Database) *Repo { return &Repo{db: db} }
 
 type layoutDoc struct {
-	ID       string       `bson:"_id"`
-	Version  int64        `bson:"version"`
-	Locale   string       `bson:"locale"`
-	Sections []sectionDoc `bson:"sections"`
+	ID        string       `bson:"_id"`
+	Version   int64        `bson:"version"`
+	Locale    string       `bson:"locale"`
+	UpdatedAt time.Time    `bson:"updatedAt,omitempty"`
+	Sections  []sectionDoc `bson:"sections"`
 }
 
 type sectionDoc struct {
@@ -48,15 +49,15 @@ type chipDoc struct {
 	ProductIDs []string `bson:"productIds"`
 }
 
-// Home reads the ID-only Home SDUI layout.
-func (r *Repo) Home(ctx context.Context) ([]contracts.SduiSection, error) {
+// Home reads the ID-only Home SDUI layout plus its version (for ETag).
+func (r *Repo) Home(ctx context.Context) ([]contracts.SduiSection, int64, error) {
 	if r.db == nil {
-		return nil, fmt.Errorf("reco: mongo not configured")
+		return nil, 0, fmt.Errorf("reco: mongo not configured")
 	}
 	var doc layoutDoc
 	err := r.db.Collection("sdui_layouts").FindOne(ctx, bson.M{"_id": "home"}).Decode(&doc)
 	if err != nil {
-		return nil, err
+		return nil, 0, err
 	}
 	out := make([]contracts.SduiSection, 0, len(doc.Sections))
 	for _, s := range doc.Sections {
@@ -75,7 +76,7 @@ func (r *Repo) Home(ctx context.Context) ([]contracts.SduiSection, error) {
 		}
 		out = append(out, sec)
 	}
-	return out, nil
+	return out, doc.Version, nil
 }
 
 // TrackEvent stores an anonymous, ID-only behavior event with a 90-day TTL.

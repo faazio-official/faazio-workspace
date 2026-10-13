@@ -971,7 +971,13 @@ over Supabase (Postgres) + MongoDB + Aiven Valkey. Set `EXPO_PUBLIC_GATEWAY_URL`
 - [x] `GET /orders`, `/profile` (+ `/membership`, `/order-status`, `/account-nav`, `/profile/details`)
 - [x] writes: `/cart…`, `POST /orders`, `POST /events`
 
-**Date:** 2026-10-13 (updated: MVP monolith built)
+**Sweetspot pass (server-side, wire-compatible):** migrations `0004`–`0006` (lean indexes +
+JSONB guards + vendor rating counter, non-money type byte diet, checkout idempotency); slim
+product/store list projections, one-batch SDUI join, `auth_uid → user_id` cache, bounded product
+reviews, `/sdui/home` ETag. Cache keys/TTLs and `GatewayClient` signatures are unchanged, so no
+client change is required. Authority: `docs/architecture/{db-schema,caching-cloudflare-valkey,monolith-breakdown}.md`.
+
+**Date:** 2026-10-13 (updated: MVP monolith built + sweetspot pass)
 
 ---
 

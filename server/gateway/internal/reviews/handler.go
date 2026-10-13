@@ -42,17 +42,40 @@ func (h *Handler) Register(r chi.Router) {
 
 func (h *Handler) productReviews(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "id")
-	var cached []contracts.Review
-	if h.cache.GetJSON(r.Context(), cache.ProductReviews(id), &cached) {
-		httpx.JSON(w, http.StatusOK, cached)
-		return
+	limit := httpx.LimitParam(r, defaultReviewLimit, maxReviewLimit)
+	cursorRaw := r.URL.Query().Get("cursor")
+
+	// The cache holds only the first page (no cursor); deeper pages hit the origin.
+	if cursorRaw == "" {
+		var cached []contracts.Review
+		if h.cache.GetJSON(r.Context(), cache.ProductReviews(id), &cached) {
+			httpx.JSON(w, http.StatusOK, cached)
+			return
+		}
 	}
-	rows, err := h.repo.ProductReviews(r.Context(), id)
+
+	var (
+		cursorTime time.Time
+		cursorID   string
+		hasCursor  bool
+	)
+	if parts, ok := httpx.DecodeCursor(cursorRaw, 2); ok {
+		if t, err := time.Parse(time.RFC3339Nano, parts[0]); err == nil {
+			cursorTime, cursorID, hasCursor = t, parts[1], true
+		}
+	}
+
+	rows, lastCreated, lastID, hasMore, err := h.repo.ProductReviewsPage(r.Context(), id, limit, cursorTime, cursorID, hasCursor)
 	if err != nil {
 		httpx.Fail(w, http.StatusInternalServerError, "reviews_unavailable", "reviews unavailable")
 		return
 	}
-	h.cache.SetJSON(r.Context(), cache.ProductReviews(id), rows, cache.TTLReviews)
+	if cursorRaw == "" {
+		h.cache.SetJSON(r.Context(), cache.ProductReviews(id), rows, cache.TTLReviews)
+	}
+	if hasMore {
+		httpx.SetNextCursor(w, httpx.EncodeCursor(lastCreated.UTC().Format(time.RFC3339Nano), lastID))
+	}
 	httpx.JSON(w, http.StatusOK, rows)
 }
 

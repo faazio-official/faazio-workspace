@@ -128,9 +128,10 @@ type StoreReader interface {
 	ByID(ctx context.Context, id string) (Store, bool, error)
 }
 
-// LayoutSource reads ID-only SDUI layouts (implemented by internal/reco).
+// LayoutSource reads ID-only SDUI layouts (implemented by internal/reco). Home returns the
+// layout version alongside its sections so the gateway can emit a stable ETag per publish.
 type LayoutSource interface {
-	Home(ctx context.Context) ([]SduiSection, error)
+	Home(ctx context.Context) ([]SduiSection, int64, error)
 }
 
 // StockWriter atomically decrements inventory.stock (implemented by internal/cartstock).

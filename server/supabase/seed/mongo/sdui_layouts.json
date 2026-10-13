@@ -2,6 +2,7 @@
   "_id": "home",
   "version": 1,
   "locale": "en",
+  "updatedAt": "2026-01-01T00:00:00.000Z",
   "sections": [
     {
       "id": "adBanner",

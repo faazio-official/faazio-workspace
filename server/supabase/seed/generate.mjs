@@ -245,6 +245,8 @@ const sduiDoc = {
   _id: 'home',
   version: 1,
   locale: 'en',
+  // Deterministic publish stamp: version drives the gateway ETag, this is informational only.
+  updatedAt: '2026-01-01T00:00:00.000Z',
   sections: d.homeSdui.map((s) => ({
     id: s.id,
     title: s.title,
@@ -265,10 +267,28 @@ writeFileSync(
 
 // mongosh init script (docker-compose / Atlas): upsert the layout + TTL index.
 writeFileSync(join(mongoDir, 'seed.js'), [
-  '// Faazio Mongo seed — generated. Upserts the ID-only Home layout and TTL index.',
+  '// Faazio Mongo seed — generated. Upserts the ID-only Home layout, the TTL index, and the',
+  '// user_events defence-in-depth validator.',
   'db = db.getSiblingDB(process.env.MONGO_DATABASE || "faazio");',
   'db.sdui_layouts.replaceOne({ _id: "home" }, ' + JSON.stringify(sduiDoc) + ', { upsert: true });',
   'db.user_events.createIndex({ expiresAt: 1 }, { expireAfterSeconds: 0, name: "user_events_ttl" });',
+  '// Reject junk at write time (the gateway handler already allowlists); keeps Atlas M0 bounded.',
+  'db.runCommand({',
+  '  collMod: "user_events",',
+  '  validator: { $jsonSchema: {',
+  '    bsonType: "object",',
+  '    required: ["userIdHash", "productId", "event", "at", "expiresAt"],',
+  '    properties: {',
+  '      userIdHash: { bsonType: "string" },',
+  '      productId: { bsonType: "string", maxLength: 64 },',
+  '      event: { enum: ["view", "cart_add", "order", "search"] },',
+  '      at: { bsonType: "date" },',
+  '      expiresAt: { bsonType: "date" }',
+  '    }',
+  '  } },',
+  '  validationLevel: "moderate",',
+  '  validationAction: "error"',
+  '});',
   'print("mongo seed: sdui_layouts=home version=" + ' + JSON.stringify(sduiDoc.version) + ');',
   '',
 ].join('\n'));

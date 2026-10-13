@@ -96,6 +96,14 @@ public HTTPS/JSON surface. Every `@mock` entry in `data/DATA_CONTROL.md` maps to
 | Compression | None at DB/app layer; Cloudflare gzip/zstd at edge; Valkey plain JSON | No decrypt/decompress tax per request. |
 | PII | Never at edge; Valkey ACL-scoped keys; app-layer hashing; never logged | AGENTS.md security mandate. |
 
+**MVP narrowing (migrations `0004`–`0006`).** The Postgres MVP applies a byte diet on top of this
+policy without changing any wire shape: `catalog.products.rating` → `real` (1-decimal), `rating`
+counts/`reviews_count`/`in_stock_qty` → `int4`, `qty` on `checkout.order_items` /
+`inventory.stock_reservations` → `smallint`, and the dead `catalog.products.slug_uid` column plus the
+`products_name_trgm_idx` trigram index are dropped. **Money stays INT8** (`INT4` paisa caps at ₹21M —
+unsafe for order/cart totals and breaks CockroachDB parity). `TIMESTAMPTZ`, ENUMs, slug PKs, and the
+`search_vec` STORED column + FTS GIN are unchanged.
+
 ---
 
 ## 3. Data flow: `@data/*` mock tables ↔ production tables
@@ -156,15 +164,14 @@ CREATE TYPE app_brand AS ENUM ('MART','FOOD','PHARMA');
 
 CREATE TABLE catalog.products (
   id            TEXT PRIMARY KEY,            -- stable slug, e.g. 'md-1'
-  slug_uid      UUID NOT NULL DEFAULT gen_random_uuid(), -- relational join PK
   app           app_brand NOT NULL,
   category      TEXT NOT NULL,
   name          TEXT NOT NULL,
   search_tokens TEXT[] NOT NULL DEFAULT '{}',
   price_paisa   INT8 NOT NULL,               -- money as paisa (₹1 = 100)
   mrp_paisa     INT8,                        -- optional original price
-  rating        FLOAT8 NOT NULL DEFAULT 0,   -- 0..5
-  reviews_count INT8 NOT NULL DEFAULT 0,
+  rating        REAL NOT NULL DEFAULT 0,     -- 0..5, 1-decimal (MVP 0005; Future Prod f64/FAST)
+  reviews_count INT4 NOT NULL DEFAULT 0,
   emoji         TEXT NOT NULL,
   image_url     TEXT NOT NULL,
   desc_text     TEXT NOT NULL,               -- indexed in Tantivy, not here
@@ -182,22 +189,26 @@ CREATE TABLE catalog.products (
 | Column | Type | Bytes | Why this type | Indexed by |
 |---|---|---|---|---|
 | `id` | TEXT PK | ~4–8 | stable slug public key | PK, hash index |
-| `slug_uid` | UUID | 16 | join key (cheaper than 36-char string) | btree |
 | `app` | ENUM | 1–4 | validation + filtering | partial index `(app)` |
 | `category` | TEXT | ~12 | grouping | btree |
 | `name` | TEXT | ~24 | display | — |
 | `search_tokens` | TEXT[] | var | Tantivy source | — |
 | `price_paisa` | INT8 | 8 | money as paisa | btree (price sort/filter) |
 | `mrp_paisa` | INT8 | 8 | optional original | — |
-| `rating` | FLOAT8 | 8 | sort | btree desc |
-| `reviews_count` | INT8 | 8 | sort | — |
+| `rating` | REAL | 4 | sort | btree desc |
+| `reviews_count` | INT4 | 4 | sort | — |
 | `emoji` / `image_url` | TEXT | var | display | — |
-| `desc_text` | TEXT | var | detail page (Tantivy NOT-stored) | — |
+| `desc_text` | TEXT | var | detail page (Tantivy NOT-stored) — **not fetched by list/search reads** | — |
 | `badge`/`shop`/`unit` | TEXT | var | display | — |
-| `attributes` | JSONB | var | facets | GIN |
+| `attributes` | JSONB | var | facets — **not fetched by list/search reads** | GIN |
 | `store_id` | TEXT | ~8 | FK to stores | btree |
 | `is_prescription` | BOOL | 1 | pharma gating | — |
 | `created_at`/`updated_at` | TIMESTAMPTZ | 8 each | audit | — |
+
+**Read projections:** product **detail** (`catalog/repo.go` `ByID`) selects the full row; **list,
+search, and batch/SDUI** reads use a slim projection (`productListSelect`) that substitutes constant
+placeholders for `desc_text`/`attributes`/`shop`, so those TOAST-able bytes never leave Postgres and
+the Valkey `search:q:*` value shrinks with it.
 
 **5 sample rows** (provenance: `data/catalog/products.ts` `catalogIndex` → `data/mart/products.ts`,
 `data/pharma/products.ts`):
@@ -434,13 +445,16 @@ CREATE TABLE checkout.order_items (
   product_id   TEXT,                  -- nullable, links to catalog
   name         TEXT NOT NULL,
   variant      TEXT,
-  qty          INT8 NOT NULL,
+  qty          SMALLINT NOT NULL,     -- app caps qty at 99 (MVP 0005)
   unit_price_paisa INT8 NOT NULL
 );
 ```
 
 **Access patterns:** `getOrdersByUser(userId)`, My Orders list, order detail by `order_id`, status
 filter. **Keyset pagination index:** `(user_id, placed_at DESC)` for cursor-based order history.
+`POST /orders` is idempotent: a durable `checkout.idempotency_keys (user_id, key) → order_id` record
+written in the same transaction lets a retry return the original order; the server also derives the
+total from `catalog.products` snapshots and verifies the address belongs to the caller.
 
 **Sample orders** (`data/account/orders.ts:22-35,123-137`):
 
@@ -471,7 +485,7 @@ CREATE TABLE directory.stores (
   name          TEXT NOT NULL,
   categories    TEXT[] NOT NULL,
   rating        FLOAT8 NOT NULL,
-  reviews_count INT8 NOT NULL DEFAULT 0,
+  reviews_count INT4 NOT NULL DEFAULT 0,
   delivery_time TEXT NOT NULL,
   distance      TEXT NOT NULL,
   cover_image   TEXT NOT NULL,
@@ -495,7 +509,10 @@ CREATE TABLE directory.stores (
 | `store-m7` | MART | SmartHome Emporium | 4.9 | 1120 | 4.5 km | — |
 | `store-m13` | MART | Faazio Mart Freshmart Plus | 4.7 | 1340 | 2.7 km | true |
 
-**Cache:** `faazio:v1:directory:store:{id}` (TTL 24 h). **Admin:** `address`/`phone` are PII — redact.
+**Cache:** `faazio:v1:directory:store:{id}` (TTL 24 h). **Admin:** `address`/`phone` are PII —
+redact. The **list** endpoint (`GET /stores`) reads a PII-free projection (`storeListSelect`, address
+and phone never selected) and paginates by `(app, rating DESC, id ASC)` via
+`stores_app_rating_id_idx`; only detail (`GET /store/:id`) reads the full row.
 
 ### 7.6 `reviews.reviews` / `reviews.specs` / `reviews.highlights` — source `data/reviews/reviews.ts`
 
@@ -523,6 +540,8 @@ CREATE TABLE reviews.reviews (
 
 `reviews.specs`: `id, app, label, value` (`data/reviews/reviews.ts` `specsTable`);
 `reviews.highlights`: `id, app, text`. **Cache:** `faazio:v1:reviews:product:{id}` (TTL 24 h).
+**Pagination:** `GET /product/:id/reviews` is keyset-bounded (`limit` ≤ 200, default 50) over
+`reviews_product_created_idx (product_id, created_at DESC, id ASC)` — no unbounded scan.
 **Admin:** reviewer `user`/`avatar` — treat as PII; moderation queries by `product_id`.
 
 ### 7.7 `directory.vendors` / `reviews.vendor_reviews` — source `data/directory/vendors.ts`, `data/reviews/vendorReviews.ts`
@@ -569,6 +588,25 @@ SELECT EXISTS (
 `PlacedOrder.storeIds` / `OrderRow.vendorStoreIds`), so old orders keep resolving to
 the same vendor. The gate is permanently true for a `(user, vendor)` pair once it
 exists ("old customer keeps the ability").
+
+**O(1) rating aggregate (MVP 0004).** `GET /vendors/:id/reviews/summary` reads a
+trigger-maintained counter row instead of a per-request `GROUP BY`:
+
+```sql
+CREATE TABLE reviews.vendor_summary (
+  vendor_id     TEXT PRIMARY KEY,
+  rating_sum    INT8 NOT NULL DEFAULT 0,
+  reviews_count INT8 NOT NULL DEFAULT 0,
+  star1 INT4 NOT NULL DEFAULT 0, star2 INT4 NOT NULL DEFAULT 0, star3 INT4 NOT NULL DEFAULT 0,
+  star4 INT4 NOT NULL DEFAULT 0, star5 INT4 NOT NULL DEFAULT 0
+);
+-- reviews.vendor_reviews AFTER INSERT/UPDATE/DELETE keeps it in sync (reviews.sync_vendor_summary).
+```
+
+The five `starN` counters exist because the client renders a 5-star distribution. This is kept
+separate from `directory.stores.rating` (the fixture/catalog rating used by the `/stores` sort).
+`VendorApp` resolves a vendor's brand with two indexed PK lookups (`directory.stores`, then
+`directory.dining_venues`) instead of scanning the `directory.vendors` UNION ALL view.
 
 **Sample rows** (provenance `data/reviews/vendorReviews.ts`):
 
@@ -631,6 +669,9 @@ The Home feed is stored as **ID-only** documents — every leaf references `cata
 | `sections[].chips` | array<doc> | filter chips (ID-only) |
 | `updatedAt` | Date (int64 millis) | freshness |
 
+The gateway emits `ETag: "home-v{version}"` on `GET /sdui/home`; a matching `If-None-Match` returns
+`304`, so repeat polls cost ~50 B instead of the full compiled tree.
+
 ### 8.2 `user_events` (TTL)
 
 Raw user-behavior events (browse/view/add-to-cart), **ID-only + no PII**, auto-expired.
@@ -643,7 +684,10 @@ Raw user-behavior events (browse/view/add-to-cart), **ID-only + no PII**, auto-e
 TTL is the native Mongo TTL index `user_events_ttl` (`expireAfterSeconds: 0` on `expiresAt`),
 created by `server/supabase/seed/mongo/seed.js`. The handler bounds the vocabulary to
 `event ∈ {view, cart_add, order, search}` and `productId ≤ 64` chars so the Atlas M0 collection
-cannot be grown with junk. The raw `user_id` is never stored — only the `sha256:` hash.
+cannot be grown with junk. The raw `user_id` is never stored — only the `sha256:` hash. The seed also
+installs a `$jsonSchema` validator (`collMod`, `validationAction: "error"`) as write-time
+defence-in-depth behind the handler allowlist. `user_events` stays **write-only** (no read index):
+the TTL index is the only index, keeping M0 writes/space minimal.
 
 ### 8.3 `recommendations` / `segments` / `product_stats`
 
@@ -702,9 +746,10 @@ logged.
 ## 11. Honest limitations
 
 - **MVP implemented, Future Prod plan-only.** The Postgres migrations
-  (`server/supabase/migrations/0001–0003`) and generated seed exist on disk; the CockroachDB /
+  (`server/supabase/migrations/0001–0006`) and generated seed exist on disk; the CockroachDB /
   Tantivy / DynamoDB / Python targets do **not**. The DDL below is the authority those migrations
-  port from.
+  port from. `0004` adds lean indexes + guards, `0005` the type byte diet, `0006` the checkout
+  idempotency table.
 - **Sample rows** are `@data/*`-derived where noted; the `stock` numbers are **algorithm-derived**
   (not hardcoded) to avoid drift, and `ph-c1`/`sp-1` point to their fixture files rather than repeating
   values.

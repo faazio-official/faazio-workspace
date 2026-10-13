@@ -6,6 +6,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"math"
 
 	"github.com/faazio/server/gateway/internal/contracts"
 	"github.com/faazio/server/gateway/internal/platform/db"
@@ -24,6 +25,18 @@ const productSelect = `
 select p.id, p.app::text, p.category, p.name, p.search_tokens,
        p.price_paisa, p.mrp_paisa, p.rating, p.reviews_count,
        p.emoji, p.image_url, p.desc_text, p.badge, p.shop, p.unit, p.attributes,
+       s.available, s.in_stock_qty, s.price_paisa, s.mrp_paisa, s.eta, s.is_prescription
+from catalog.products p
+left join inventory.stock s on s.product_id = p.id`
+
+// productListSelect is the slim projection for list/search/batch reads. It never fetches the
+// TOAST-able desc_text / attributes columns (constant placeholders keep the scan shape identical),
+// so search/list stop paying their bytes on the wire and in the Valkey value. Product detail
+// (ByID) keeps the full productSelect.
+const productListSelect = `
+select p.id, p.app::text, p.category, p.name, p.search_tokens,
+       p.price_paisa, p.mrp_paisa, p.rating, p.reviews_count,
+       p.emoji, p.image_url, ''::text as desc_text, p.badge, null::text as shop, p.unit, null::jsonb as attributes,
        s.available, s.in_stock_qty, s.price_paisa, s.mrp_paisa, s.eta, s.is_prescription
 from catalog.products p
 left join inventory.stock s on s.product_id = p.id`
@@ -56,7 +69,7 @@ func (r *Repo) ByIDs(ctx context.Context, ids []string) ([]contracts.Product, er
 	if len(ids) == 0 {
 		return []contracts.Product{}, nil
 	}
-	rows, err := r.pool.Query(ctx, productSelect+" where p.id = any($1)", ids)
+	rows, err := r.pool.Query(ctx, productListSelect+" where p.id = any($1)", ids)
 	if err != nil {
 		return nil, err
 	}
@@ -97,15 +110,14 @@ func (r *Repo) SearchScoped(ctx context.Context, q, app string, limit int) ([]co
 		err  error
 	)
 	if q == "" {
-		rows, err = r.pool.Query(ctx, productSelect+
+		rows, err = r.pool.Query(ctx, productListSelect+
 			` where ($1 = '' or p.app::text = $1) order by p.rating desc, p.reviews_count desc limit $2`, app, limit)
 	} else {
-		rows, err = r.pool.Query(ctx, productSelect+`
-			where (
-			  p.search_vec @@ websearch_to_tsquery('simple', catalog.immutable_unaccent($1))
-			  or p.name % $1
-			)
-			and ($2 = '' or p.app::text = $2)
+		// FTS only: the pg_trgm `%` fallback was dropped with products_name_trgm_idx (0005) so the
+		// planner stays on products_search_vec_idx instead of seq-scanning the OR.
+		rows, err = r.pool.Query(ctx, productListSelect+`
+			where p.search_vec @@ websearch_to_tsquery('simple', catalog.immutable_unaccent($1))
+			  and ($2 = '' or p.app::text = $2)
 			order by ts_rank(p.search_vec, websearch_to_tsquery('simple', catalog.immutable_unaccent($1))) desc,
 			         p.rating desc
 			limit $3`, q, app, limit)
@@ -140,7 +152,9 @@ func scanProducts(rows pgx.Rows) ([]contracts.Product, error) {
 		); err != nil {
 			return nil, err
 		}
-		p.Rating = rating
+		// rating is stored as real (float4); round to the 1-decimal domain precision so the JSON
+		// number is exact (e.g. 4.9, not 4.900000095367432).
+		p.Rating = math.Round(rating*10) / 10
 		p.Price = toRupees(pricePaisa)
 		p.OriginalPrice = moneyPtr(mrpPaisa)
 		p.ReviewsCount = reviewsCount

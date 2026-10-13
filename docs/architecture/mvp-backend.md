@@ -102,7 +102,11 @@ MVP origin swap. No key/TTL change.
 
 - **FTS vs Tantivy:** Postgres FTS loses sub-ms + FAST ranking + fuzzy quality vs Tantivy; acceptable
   to ~100k–1M rows / few-hundred rps. Migration path: keep `id` slug, `searchTokens`, `price_paisa`
-  INT8, `rating` stable → Tantivy becomes a pure index replica later.
+  INT8, `rating` stable → Tantivy becomes a pure index replica later. The `pg_trgm` fuzzy fallback was
+  dropped (`0005`) so the planner stays on the FTS GIN index; re-add it (index + query `OR`) if typo
+  analytics demand it.
+- **Rating counters:** `reviews.vendor_summary` trades one trigger write per rating for O(1) summary
+  reads; `directory.stores.rating` is untouched (it is the catalog rating used for the `/stores` sort).
 - **Single Supabase project** = single failure domain + RLS misconfig risk; mitigate with per-schema
   ownership notes, never committing secrets, Valkey ACL, Cloudflare-only firewall (existing posture).
 - **Cost:** Supabase free-tier + Atlas M0 + Aiven free → ~$60/mo; Cloud Run scale-to-zero keeps cost
@@ -148,6 +152,12 @@ contract stable so the swap is invisible to the app):
 10. ✅ **Tests + CI:** unit tests plus Docker-backed integration tests (FTS, order lock/decrement,
     rating gate, PII redaction, keyset pagination) skip cleanly without services; `.github/workflows/server-gateway.yml`
     runs build/vet/test/importlint with Postgres + Valkey service containers.
+11. ✅ **Sweetspot (DB + read-path optimization):** `0004` lean indexes + JSONB guards +
+    `reviews.vendor_summary` trigger, `0005` non-money type byte diet (money stays INT8), `0006`
+    checkout idempotency table; slim product/store projections, one-batch SDUI join, auth
+    `auth_uid → user_id` cache, bounded product reviews, `/sdui/home` ETag. Keys/TTLs and the
+    `GatewayClient` wire shape are unchanged — see `monolith-breakdown.md` §4 and
+    `caching-cloudflare-valkey.md` §5/§7a.
 
 ---
 
