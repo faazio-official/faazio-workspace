@@ -6,6 +6,11 @@ export function discountPercent(mrpPaisa: number, sellingPricePaisa: number): nu
   return Math.round(((mrpPaisa - sellingPricePaisa) / mrpPaisa) * 100);
 }
 
+/** Money is integer paisa on every wire (D1) — reject any fractional input. */
+export function isIntPaisa(value: number): boolean {
+  return Number.isInteger(value);
+}
+
 /** Commission-aware floor: seller cannot price below cost of doing business. */
 export function floorPaisa(mrpPaisa: number): number {
   const commissionShare = (config.commissionPercent + config.tcsPercent) / 100;
@@ -20,6 +25,9 @@ export interface PriceValidation {
 
 export function validatePrice(mrpPaisa: number, sellingPricePaisa: number): PriceValidation {
   const pct = discountPercent(mrpPaisa, sellingPricePaisa);
+  if (!isIntPaisa(mrpPaisa) || !isIntPaisa(sellingPricePaisa)) {
+    return { ok: false, message: "Prices must be whole paisa (integers).", discountPercent: pct };
+  }
   if (sellingPricePaisa <= 0) {
     return { ok: false, message: "Selling price is required.", discountPercent: pct };
   }

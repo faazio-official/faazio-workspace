@@ -1,6 +1,7 @@
 "use client";
 import { toast } from "sonner";
 import { PageHeader } from "@/components/patterns/PageHeader";
+import { discountPercent } from "@/lib/pricing/rules";
 import { SectionCard } from "@/components/patterns/SectionCard";
 import { KpiStrip } from "@/components/patterns/KpiCard";
 import { DataShell, EmptyState } from "@/components/patterns/DataState";
@@ -43,7 +44,7 @@ function PricingAudit() {
     .map((product) => {
       const median = medianByCategory.get(product.category) ?? product.pricePaisa;
       const reasons: string[] = [];
-      if (product.discountPercent >= 60) reasons.push("Discount above 60%");
+      if (discountPercent(product.mrpPaisa, product.pricePaisa) >= 60) reasons.push("Discount above 60%");
       if (product.mrpPaisa > median * 2.5) reasons.push("MRP far above category median");
       if (product.pricePaisa < median * 0.4) reasons.push("Price far below category median");
       return { product, median, reasons };

@@ -2,6 +2,7 @@
 import Link from "next/link";
 import { AlertTriangle, CheckCircle2, Circle, TriangleAlert } from "lucide-react";
 import { PageHeader } from "@/components/patterns/PageHeader";
+import { discountPercent } from "@/lib/pricing/rules";
 import { KpiStrip } from "@/components/patterns/KpiCard";
 import { SectionCard } from "@/components/patterns/SectionCard";
 import { GmvTrend } from "@/components/patterns/Charts";
@@ -10,7 +11,7 @@ import { StatusPill } from "@/components/patterns/Pills";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { formatINR, formatNumber } from "@/lib/format";
-import { periodDelta, sellerHealth, sparkline, sumGmv, sumOrders } from "@/lib/analytics/derive";
+import { listingQuality, periodDelta, sellerHealth, sparkline, sumGmv, sumOrders } from "@/lib/analytics/derive";
 import { sellerMetrics } from "@/lib/api";
 import { useMockLoading, useOrders, useProducts, useCampaigns } from "@/lib/api/hooks";
 import { useSession } from "@/lib/hooks/useSession";
@@ -31,16 +32,13 @@ function SellerDashboard() {
   const cancelled = orders.filter((o) => o.status === "CANCELLED").length;
   const pendingDispatch = orders.filter((o) => o.status === "NEW" || o.status === "PACKED");
   const returns = orders.filter((o) => o.status === "RETURNED").length;
-  const avgQuality =
-    products.length > 0
-      ? products.reduce((t, p) => t + p.qualityScore, 0) / products.length
-      : 0;
+  const avgQuality = listingQuality(products);
 
   const health = sellerHealth({
     slaPercent: orders.length ? (delivered / Math.max(1, orders.length)) * 100 + 62 : 0,
     cancellationPercent: orders.length ? (cancelled / orders.length) * 100 : 0,
     rating: 4.4,
-    qualityScore: avgQuality,
+    listingQuality: avgQuality,
   });
 
   const liveCampaign = campaigns.find((c) => c.status === "LIVE");
@@ -182,7 +180,7 @@ function SellerDashboard() {
                     <p className="truncate text-[13px] font-medium">{product.name}</p>
                     <p className="num text-[12px] text-muted-foreground">
                       {formatINR(product.pricePaisa)} · MRP {formatINR(product.mrpPaisa)} ·{" "}
-                      {product.discountPercent}% off
+                      {discountPercent(product.mrpPaisa, product.pricePaisa)}% off
                     </p>
                   </div>
                   <StatusPill status={product.status} />

@@ -79,7 +79,6 @@ function NewProduct() {
       isVeg,
       isPrescription,
       status: "PENDING_REVIEW",
-      qualityScore: 60 + Math.min(30, description.trim().length / 4),
     });
     updateStock(productId, Number(quantity), Number(eta));
     toast.success("Product submitted for review");

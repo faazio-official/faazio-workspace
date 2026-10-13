@@ -1,4 +1,4 @@
-import type { DailyPoint } from "@/data/types";
+import type { DailyPoint, ProductRecord } from "@/data/types";
 
 export function sumGmv(points: DailyPoint[]): number {
   return points.reduce((total, p) => total + p.gmvPaisa, 0);
@@ -32,12 +32,12 @@ export function sellerHealth(input: {
   slaPercent: number;
   cancellationPercent: number;
   rating: number;
-  qualityScore: number;
+  listingQuality: number;
 }): HealthScore {
   const slaPart = Math.min(1, input.slaPercent / 95) * 40;
   const cancelPart = Math.max(0, 1 - input.cancellationPercent / 5) * 20;
   const ratingPart = Math.min(1, input.rating / 4.5) * 25;
-  const qualityPart = Math.min(1, input.qualityScore / 85) * 15;
+  const qualityPart = Math.min(1, input.listingQuality / 85) * 15;
   const score = Math.round(slaPart + cancelPart + ratingPart + qualityPart);
   const band: HealthScore["band"] =
     score >= 85 ? "Excellent" : score >= 70 ? "Good" : score >= 55 ? "At-risk" : "Poor";
@@ -60,10 +60,28 @@ export function sellerHealth(input: {
       { label: "Rating", value: input.rating.toFixed(1), weight: 25, pass: input.rating >= 4.2 },
       {
         label: "Listing quality",
-        value: `${Math.round(input.qualityScore)}/100`,
+        value: `${Math.round(input.listingQuality)}/100`,
         weight: 15,
-        pass: input.qualityScore >= 75,
+        pass: input.listingQuality >= 75,
       },
     ],
   };
+}
+
+/**
+ * Listing quality is derived, never stored (D3/D4): completeness of the listing
+ * (description, photo, live status) replaces the removed `qualityScore` column.
+ */
+export function productListingQuality(p: ProductRecord): number {
+  let score = 40;
+  if (p.description.trim().length >= 40) score += 20;
+  if (p.imageUrl) score += 20;
+  if (p.status === "ACTIVE") score += 20;
+  return Math.min(100, score);
+}
+
+export function listingQuality(products: ProductRecord[]): number {
+  if (products.length === 0) return 0;
+  const total = products.reduce((t, p) => t + productListingQuality(p), 0);
+  return Math.round(total / products.length);
 }

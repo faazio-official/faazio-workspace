@@ -2,7 +2,6 @@
 // GatewayClient pattern: the only door between pages and data.
 // When a real backend arrives, only the internals of this module change.
 import { usePortalStore, AUTH_DIRECTORY, type PortalState } from "@/lib/api/store";
-import { discountPercent } from "@/lib/pricing/rules";
 import { sellerSeries, stateSeries, globalSeries, productSeries } from "@/data/analytics/series";
 import type {
   AuthUser,
@@ -109,10 +108,9 @@ export function getProduct(productId: string): ProductRecord | undefined {
   return state().products.find((p) => p.productId === productId);
 }
 
-export function createProduct(dto: Omit<ProductRecord, "createdAt" | "discountPercent">): ProductRecord {
+export function createProduct(dto: Omit<ProductRecord, "createdAt">): ProductRecord {
   const record: ProductRecord = {
     ...dto,
-    discountPercent: discountPercent(dto.mrpPaisa, dto.pricePaisa),
     createdAt: nowIso(),
   };
   state().set((s) => ({
@@ -134,10 +132,6 @@ export function updateProduct(productId: string, patch: Partial<ProductRecord>):
         ? {
             ...p,
             ...patch,
-            discountPercent: discountPercent(
-              patch.mrpPaisa ?? p.mrpPaisa,
-              patch.pricePaisa ?? p.pricePaisa,
-            ),
           }
         : p,
     ),

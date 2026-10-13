@@ -2,6 +2,7 @@
 import { useState } from "react";
 import { toast } from "sonner";
 import { PageHeader } from "@/components/patterns/PageHeader";
+import { discountPercent } from "@/lib/pricing/rules";
 import { SectionCard } from "@/components/patterns/SectionCard";
 import { KpiStrip } from "@/components/patterns/KpiCard";
 import { DataShell, EmptyState } from "@/components/patterns/DataState";
@@ -163,7 +164,7 @@ function SuperProducts() {
                   <TableCell className="num text-[12px] text-muted-foreground">{product.sellerId}</TableCell>
                   <TableCell className="num text-right">{formatINR(product.mrpPaisa)}</TableCell>
                   <TableCell className="num text-right">{formatINR(product.pricePaisa)}</TableCell>
-                  <TableCell className="num text-right">{product.discountPercent}%</TableCell>
+                  <TableCell className="num text-right">{discountPercent(product.mrpPaisa, product.pricePaisa)}%</TableCell>
                   <TableCell>
                     <StatusPill status={product.status} />
                   </TableCell>

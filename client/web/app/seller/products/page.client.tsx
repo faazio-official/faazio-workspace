@@ -17,6 +17,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { formatINR } from "@/lib/format";
+import { discountPercent } from "@/lib/pricing/rules";
 import { useMockLoading, useProducts } from "@/lib/api/hooks";
 import { useSession } from "@/lib/hooks/useSession";
 import { FilterChip } from "@/components/patterns/FilterChip";
@@ -113,7 +114,6 @@ function SellerProducts() {
                 <TableHead className="text-right">Price</TableHead>
                 <TableHead className="text-right">MRP</TableHead>
                 <TableHead className="text-right">Discount</TableHead>
-                <TableHead className="text-right">Quality</TableHead>
                 <TableHead>Status</TableHead>
                 <TableHead />
               </TableRow>
@@ -140,8 +140,9 @@ function SellerProducts() {
                   <TableCell className="num text-right text-muted-foreground">
                     {formatINR(product.mrpPaisa)}
                   </TableCell>
-                  <TableCell className="num text-right">{product.discountPercent}%</TableCell>
-                  <TableCell className="num text-right">{product.qualityScore}</TableCell>
+                  <TableCell className="num text-right">
+                    {discountPercent(product.mrpPaisa, product.pricePaisa)}%
+                  </TableCell>
                   <TableCell>
                     <StatusPill status={product.status} />
                   </TableCell>

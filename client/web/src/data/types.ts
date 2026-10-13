@@ -105,11 +105,9 @@ export interface ProductRecord {
   unit: string;
   pricePaisa: number;
   mrpPaisa: number;
-  discountPercent: number;
   isVeg: boolean;
   isPrescription: boolean;
   status: ProductStatus;
-  qualityScore: number;
   createdAt: string;
 }
 
