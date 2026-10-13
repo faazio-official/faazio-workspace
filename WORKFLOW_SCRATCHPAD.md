@@ -109,13 +109,13 @@ wire. Mobile `GatewayClient.ts` + `@data/*` already speak integer rupees — unc
 | W14 | Real settlement ledger (no client-computed money) | 3 | **done** (server-only write) |
 | W15 | Audit log durability (admins.audit_logs) | 3 | **done** |
 | W16 | Payout records (payments.payouts) | 3 | **done** (admin-scheduled, invalidates cache) |
-| W17 | Customer-user monitoring page (PII-safe per-user view, block/suspend) | 1/2/4 | **v3** (0017 view + `internal/admins` customers list + `/admin/state/customers`) |
-| W18 | Food menu seller editor (directory.menus seller-scoped CRUD) | 1/2/4 | **v3** (0017 seller_id/status + `/seller/menus` + `internal/directory` menu writes) |
-| W19 | Rewards admin knobs (ledger view + admin-tunable rates) | 1/2/4 | **v3** (0017 `rewards.rates` + `/admin/super/rewards` + `internal/rewards` read/rates) |
-| W20 | Support state/super ticket queue | 1/2/4 | **v3** (0017 `tickets.state_code` + `/admin/state/support` + state filter in `internal/support`) |
-| W21 | Web write-through (mutations → gateway, keep seed fallback) | 3/4 | **v3** (`http.ts` toSnake/₹↔paisa, `index.ts` mutators call `remote.*`) |
-| W22 | Mobile `@mock`→`@server` per-module migration | 4 | **v3** (`EXPO_PUBLIC_USE_GATEWAY=true` per module, fallback retained) |
-| W23 | Auth cutover (Supabase JWT + RequireRole) + Storage object-key uploads + edge purge | 5 | **v3** (mobile `authStore`, product/KYC buckets, Cloudflare rules) |
+| W17 | Customer-user monitoring page (PII-safe per-user view, block/suspend) | 1/2/4 | **done** (0017 view + `internal/admins` customers list + `/admin/state/customers` + `/admin/super/users`) |
+| W18 | Food menu seller editor (directory.menus seller-scoped CRUD) | 1/2/4 | **done** (0017 seller_id/status + `/seller/menus` + `internal/directory` menu writes) |
+| W19 | Rewards admin knobs (ledger view + admin-tunable rates) | 1/2/4 | **done** (0017 `rewards.rates` + `/admin/super/rewards` + `internal/rewards` rates/ledger read) |
+| W20 | Support state/super ticket queue | 1/2/4 | **done** (0017 `tickets.state_code` + `/admin/state/support` + state filter in `internal/support`) |
+| W21 | Web write-through (mutations → gateway, keep seed fallback) | 3/4 | **done** (`http.ts` toSnake/₹↔paisa `writeBehind`, `index.ts` mutators call `remote.*`) |
+| W22 | Mobile `@mock`→`@server` per-module migration | 4 | **pending** (`EXPO_PUBLIC_USE_GATEWAY=true` per module, fallback retained) |
+| W23 | Auth cutover (Supabase JWT + RequireRole) + Storage object-key uploads + edge purge | 5 | **pending** (mobile `authStore`, product/KYC buckets, Cloudflare rules) |
 
 ## 6. dtype-gap matrix D1–D15
 
@@ -219,3 +219,8 @@ endpoint all agree. Fallback stays in place until the slice is green end-to-end.
 | S4 Support | create ticket/return | `/admin/state/support` | `support.tickets.state_code` | `GET /tickets?state=`, `PUT /tickets/{id}/status` |
 | S5 Write-through | — | all portal mutators | existing rows | `remote.post/put/delete` + audit + cache purge |
 | S6 Auth/media | `authStore` JWT | Supabase GoTrue session | RLS claims | `RequireRole`; Storage object keys |
+
+Status: **S1–S5 closed** (web control + DB + gateway all shipped; every portal mutator
+now calls `writeBehind`). **S6 pending** (W23: mobile `authStore` cutover, product/KYC
+Storage buckets, Cloudflare edge rules). Mobile `@mock`→`@server` (W22) still pending;
+the seam (`GatewayClient` + per-feature fallback) is ready to flip per module.

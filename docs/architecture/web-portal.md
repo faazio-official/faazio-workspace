@@ -24,7 +24,9 @@ Recharts, Zod, react-hook-form, sonner, lucide-react.
 
 URLs extend the Vite reference (all 3 consoles; the MVP added 5 partner pages —
 `seller/prescriptions`, `seller/bookings`, `admin/state/blood`,
-`admin/state/bookings`, `admin/super/sdui`). Every
+`admin/state/bookings`, `admin/super/sdui`). Partner completion (`0017`) added
+`seller/menus`, `admin/state/customers`, `admin/state/support`, `admin/super/rewards`
+and `admin/super/users`. Every
 route is an interactive dashboard, so each route is split:
 
 - `app/**/page.tsx` — **server** component. Exports `metadata` (from
@@ -68,6 +70,11 @@ The portal reads records from `src/data/**` through `src/lib/api/*`
 (`hooks.ts` reactive reads, `index.ts` mutations). Pages never import
 `src/data/**` directly. This is the same seam as the mobile `GatewayClient`.
 
+Mutations write optimistically to the store first, then push the change to the
+gateway through `writeBehind()` (`src/lib/api/http.ts`) when configured; a failed
+call keeps the optimistic state (seed fallback) and the next hydrate reconciles.
+Write bodies send **whole rupee** integers (the mapper divides paisa by 100).
+
 ## Data + auth
 
 `src/lib/config.ts` is the only module that reads env. Two integrations are
@@ -77,7 +84,9 @@ env-gated and degrade to local seed mode when unset:
   query builder, error envelope, defensive snake→camel). `src/lib/api/sync.ts`
   implements `hydrateFromGateway()`: it best-effort fetches the gateway-owned
   slices (sellers, promo, ads, settlement, admins, prescriptions, bookings, blood,
-  SDUI, reviews) and writes them into the store. The gateway speaks **whole
+  SDUI, reviews, and — partner completion — customers, menus, support tickets,
+  rewards rates/ledger) and writes them into the store. An empty remote slice
+  keeps the seeded rows (demo fallback). The gateway speaks **whole
   rupees**; the portal stores **paisa**, so the mapper multiplies by 100.
 - **Supabase Auth** — `src/lib/supabase/auth.ts` is a minimal GoTrue REST client
   (no `supabase-js` dependency) that signs in with password, refreshes, and decodes
