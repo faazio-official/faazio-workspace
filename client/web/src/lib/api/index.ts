@@ -176,6 +176,11 @@ export function updateProduct(productId: string, patch: Partial<ProductRecord>):
 export function upsertPrice(productId: string, pricePaisa: number, mrpPaisa: number): void {
   const before = getProduct(productId);
   updateProduct(productId, { pricePaisa, mrpPaisa });
+  // The gateway speaks whole rupees and writes price to catalog.products + inventory.stock in lockstep.
+  writeBehind("put", `/seller/products/${encodeURIComponent(productId)}`, {
+    price: toRupees(pricePaisa),
+    mrp: toRupees(mrpPaisa),
+  });
   audit({
     action: "PRICE_UPDATE",
     entity: "catalog.products",
@@ -231,6 +236,8 @@ export function updateStock(productId: string, quantity: number, etaMinutes: num
       row.productId === productId ? { ...row, quantity, etaMinutes, updatedAt: nowIso() } : row,
     ),
   }));
+  // inventory.stock in_stock_qty is the gateway-owned field; etaMinutes stays portal-local for now.
+  writeBehind("put", `/seller/products/${encodeURIComponent(productId)}`, { inStockQty: quantity });
   audit({ action: "STOCK_UPDATE", entity: "inventory.stock", entityId: productId, after: { quantity, etaMinutes } });
 }
 

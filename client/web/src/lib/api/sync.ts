@@ -21,7 +21,6 @@ import type {
   PrescriptionHistoryEntry,
   PrescriptionRecord,
   QuoteItemRecord,
-  ReviewRecord,
   RewardLedgerEntry,
   Role,
   Sector,
@@ -142,7 +141,7 @@ export async function hydrateFromGateway(): Promise<boolean> {
   const cur = usePortalStore.getState();
   const role = cur.session?.role;
 
-  const [sellers, campaigns, coupons, caps, optins, slots, admins, logs, ledger, payouts, rx, bookings, blood, sdui, reviews, customers, menus, tickets, rates, rewardLedger] =
+  const [sellers, campaigns, coupons, caps, optins, slots, admins, logs, ledger, payouts, rx, bookings, blood, sdui, customers, menus, tickets, rates, rewardLedger] =
     await Promise.all([
       safe(() => remote.get<RawSeller[]>("/sellers").then(toCamel)),
       safe(() => remote.get<FestivalCampaign[]>("/promo/campaigns").then(toCamel)),
@@ -164,7 +163,6 @@ export async function hydrateFromGateway(): Promise<boolean> {
       ),
       safe(() => remote.get<Raw[]>("/blood-requests").then(toCamel)),
       safe(() => remote.get<Raw>("/sdui/home").then(toCamel)),
-      safe(() => remote.get<ReviewRecord[]>("/reviews").then(toCamel)),
       // Partner-completion (0017). Customers/tickets are admin surfaces; menus/rates are partner-wide.
       safe(() =>
         (role === "SELLER" ? Promise.resolve<Raw[]>([]) : remote.get<Raw[]>("/customers").then(toCamel)),
@@ -354,10 +352,6 @@ export async function hydrateFromGateway(): Promise<boolean> {
       updatedAt: str(sdui["updatedAt"], new Date().toISOString()),
     };
     patch["sduiLayouts"] = [layout];
-    touched = true;
-  }
-  if (reviews && reviews.length) {
-    patch["reviews"] = reviews;
     touched = true;
   }
   if (customers && customers.length) {
