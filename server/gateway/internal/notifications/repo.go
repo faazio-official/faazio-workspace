@@ -13,6 +13,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/faazio/server/gateway/internal/platform/cache"
 	"github.com/faazio/server/gateway/internal/platform/db"
 )
 
@@ -31,11 +32,12 @@ type Notification struct {
 
 // Repo reads/writes the notifications schema.
 type Repo struct {
-	pool *db.Pool
+	pool  *db.Pool
+	cache *cache.Cache
 }
 
 // New returns a notifications repo.
-func New(pool *db.Pool) *Repo { return &Repo{pool: pool} }
+func New(pool *db.Pool, c *cache.Cache) *Repo { return &Repo{pool: pool, cache: c} }
 
 // Enqueue inserts one PENDING outbox row (contracts.Notifier). data must be PII-free.
 func (r *Repo) Enqueue(ctx context.Context, userID, kind, title, body string, data map[string]any) error {
@@ -54,7 +56,14 @@ func (r *Repo) Enqueue(ctx context.Context, userID, kind, title, body string, da
 		insert into notifications.outbox (id, user_id, kind, title, body, data)
 		values ($1,$2,$3,$4,$5,$6)`,
 		"ntf-"+shortID(), userID, kind, title, body, nullJSON(raw))
-	return err
+	if err != nil {
+		return err
+	}
+	// The user's cached inbox is now stale (TTLNotifications); invalidate on enqueue.
+	if r.cache != nil {
+		r.cache.Del(ctx, cache.Notifications(userID))
+	}
+	return nil
 }
 
 // Inbox returns a user's notifications, newest first.

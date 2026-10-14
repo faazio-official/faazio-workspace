@@ -70,7 +70,7 @@ func NewRouter(d Deps) http.Handler {
 	recoRepo := reco.New(d.Mongo)
 	pharmaRepo := pharma.New(d.Pool)
 	pharmaStorage := pharma.NewStorage(d.Config.SupabaseURL, d.Config.SupabaseServiceKey, d.Config.PrescriptionBucket)
-	notificationsRepo := notifications.New(d.Pool)
+	notificationsRepo := notifications.New(d.Pool, d.Cache)
 	bloodRepo := blood.New(d.Pool)
 	bookingsRepo := bookings.New(d.Pool)
 

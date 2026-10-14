@@ -80,6 +80,7 @@ type VendorPrescription struct {
 	Quote           []QuoteItem   `json:"quote"`
 	History         []StatusEntry `json:"history,omitempty"`
 	RevealedAt      string        `json:"revealedAt,omitempty"`
+	RevealedBy      string        `json:"revealedBy,omitempty"`
 	CreatedAt       string        `json:"createdAt"`
 	UpdatedAt       string        `json:"updatedAt"`
 	CustomerPhone   string        `json:"customerPhone,omitempty"`
@@ -160,7 +161,7 @@ func (r *Repo) VendorPrescriptions(ctx context.Context, sellerID, status string)
 	rows, err := r.pool.Query(ctx, `
 		select p.id, coalesce(u.name, 'Faazio Customer'), p.status::text,
 		       coalesce(p.fulfillment::text,''), p.pages, coalesce(p.note,''), p.image_paths,
-		       p.quoted_total_paisa / 100, p.revealed_at, p.created_at, p.updated_at,
+		       p.quoted_total_paisa / 100, p.revealed_at, coalesce(p.revealed_by,''), p.created_at, p.updated_at,
 		       case when p.status in ('READY','FULFILLED') then coalesce(u.phone,'') else '' end,
 		       case when p.status in ('READY','FULFILLED') then coalesce(a.address,'') else '' end
 		  from pharma.prescriptions p
@@ -184,7 +185,7 @@ func (r *Repo) VendorPrescriptions(ctx context.Context, sellerID, status string)
 			updatedAt  time.Time
 		)
 		if err := rows.Scan(&v.ID, &v.CustomerName, &v.Status, &v.Fulfillment, &v.Pages, &v.Note,
-			&v.ImagePaths, &v.QuotedTotal, &revealedAt, &createdAt, &updatedAt,
+			&v.ImagePaths, &v.QuotedTotal, &revealedAt, &v.RevealedBy, &createdAt, &updatedAt,
 			&v.CustomerPhone, &v.CustomerAddress); err != nil {
 			return nil, err
 		}
@@ -203,9 +204,16 @@ func (r *Repo) VendorPrescriptions(ctx context.Context, sellerID, status string)
 	if err != nil {
 		return nil, err
 	}
+	hist, err := r.historyForIDs(ctx, vendorIDs(out))
+	if err != nil {
+		return nil, err
+	}
 	for i := range out {
 		if q, ok := quotes[out[i].ID]; ok {
 			out[i].Quote = q
+		}
+		if h, ok := hist[out[i].ID]; ok {
+			out[i].History = h
 		}
 	}
 	return out, nil
