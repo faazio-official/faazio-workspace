@@ -1,5 +1,7 @@
 import { create } from 'zustand';
-import type { FulfillmentMode } from '@data/types';
+import type { FulfillmentMode, OrderStatus } from '@data/types';
+import { orderRowToPlaced } from '@/services/orderHistory';
+import { gateway } from '@/services/api/GatewayClient';
 
 export type PlacedOrderKind = 'items' | 'prescription';
 
@@ -15,7 +17,12 @@ export interface PlacedOrder {
   id: string;
   orderId: string;
   kind: PlacedOrderKind;
-  status: 'Processing';
+  /**
+   * Customer-facing lifecycle status. In-session optimistic placements start as
+   * `Processing`; server-hydrated history carries the durable status (NEW/PACKED
+   * are projected to `Processing` by the gateway). Mirrors `MyOrder.status`.
+   */
+  status: OrderStatus;
   fulfillment: FulfillmentMode;
   vendorName: string;
   pickup?: { name: string; address: string };
@@ -54,13 +61,25 @@ interface PlacedOrderInput {
 }
 
 interface OrdersState {
+  /** In-session optimistic placements (not persisted). */
   orders: PlacedOrder[];
+  /**
+   * Durable order history pulled from the gateway. Kept separate from `orders`
+   * so an empty server slice never clobbers an in-session placement.
+   */
+  serverOrders: PlacedOrder[];
+  /** True once the durable history read has settled (success or empty), remote mode only. */
+  ordersHydrated: boolean;
   recordOrder: (order: PlacedOrderInput) => void;
+  /** Merge the durable history (server is authoritative for status). */
+  hydrateServerOrders: (orders: PlacedOrder[]) => void;
   getOrderById: (orderId: string) => PlacedOrder | undefined;
 }
 
 export const useOrdersStore = create<OrdersState>()((set, get) => ({
   orders: [],
+  serverOrders: [],
+  ordersHydrated: false,
 
   recordOrder: (input) => {
     const order: PlacedOrder = {
@@ -72,5 +91,23 @@ export const useOrdersStore = create<OrdersState>()((set, get) => ({
     set((state) => ({ orders: [order, ...state.orders] }));
   },
 
-  getOrderById: (orderId) => get().orders.find((o) => o.orderId === orderId),
+  hydrateServerOrders: (orders) => set({ serverOrders: orders, ordersHydrated: true }),
+
+  // Server history wins over a same-id in-session placement (fresh status), but keep
+  // in-session placements the server hasn't adopted yet (e.g. just placed, mock mode).
+  getOrderById: (orderId) =>
+    get().serverOrders.find((o) => o.orderId === orderId) ??
+    get().orders.find((o) => o.orderId === orderId),
 }));
+
+/**
+ * Pull the durable order history once at startup (remote mode only). The gateway
+ * projects NEW/PACKED → Processing so this shares the mobile `OrderStatus` union.
+ * Best-effort: a failure leaves the fixture-backed view untouched.
+ */
+if (gateway.remoteEnabled) {
+  void gateway
+    .getOrders()
+    .then((rows) => useOrdersStore.getState().hydrateServerOrders(rows.map(orderRowToPlaced)))
+    .catch(() => {});
+}

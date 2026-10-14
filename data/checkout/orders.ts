@@ -101,6 +101,13 @@ export interface OrderRow {
    * rating-eligibility gate. See `docs/architecture/db-schema.md` §7.7.
    */
   vendorStoreIds: string[];
+  /**
+   * Self-pickup snapshot persisted at placement (single + per-vendor). Present
+   * only when `fulfillment` is `PICKUP`; mirrors the server `checkout.orders`
+   * pickup/pickups JSONB. Absent on delivery orders.
+   */
+  pickup?: { name: string; address: string; hours?: string; phone?: string };
+  pickups?: { name: string; address: string; hours?: string; phone?: string }[];
 }
 
 function fromMyOrder(o: (typeof myOrders)[number], idx: number): OrderRow {

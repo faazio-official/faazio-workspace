@@ -12,6 +12,7 @@ import FilterSortBar from './FilterSortBar';
 import RecentSearches from './RecentSearches';
 import SearchSuggestions from './SearchSuggestions';
 import { useFacets } from './useFacets';
+import { gateway } from '@/services/api/GatewayClient';
 import type { ActiveFacets, SearchScreenConfig } from './types';
 
 const PAGE_SIZE = 10;
@@ -81,7 +82,12 @@ const SearchScreen = memo(function SearchScreen({
     mode
       .fetch(submittedQuery)
       .then((rows) => {
-        if (active) setRemoteData(rows);
+        if (!active) return;
+        setRemoteData(rows);
+        // Behavior analytics (ID-only, allowlisted). The `search` event has no product id of
+        // its own, so it is anchored to the top result — the closest stable ID available.
+        const anchor = rows.find((r) => r?.id)?.id;
+        if (anchor) void gateway.trackEvent(String(anchor), 'search').catch(() => {});
       })
       .catch(() => {});
     return () => {

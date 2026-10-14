@@ -376,19 +376,23 @@ still separate files; consolidating them is tracked in `client/mobile/PENDING_WO
 | `uiStore` | Sub-app id (`FA_MART`/`FOOD`/`PHARMA`), tab name |
 | `foodFilterStore` | Food sub-app Veg / Non-Veg diet filter (`all`/`veg`/`nonveg`), session-scoped |
 | `rewardsStore` | FaazioCoins balance, order streak, discount card + activity ledger (persisted AsyncStorage `faazio/rewards/v1`, reset on logout) |
-| `ordersStore` | In-session placed orders (`PlacedOrder`: items or prescription kind) merged above `@data` fixtures in My Orders; `recordOrder` / `getOrderById`; `storeIds` vendor-identity snapshot captured at placement |
+| `ordersStore` | In-session placed orders (`PlacedOrder`: items or prescription kind) + a durable `serverOrders` slice hydrated from `gateway.getOrders()` at startup (remote mode); `recordOrder` / `hydrateServerOrders` / `getOrderById` (server history wins); `storeIds` vendor-identity snapshot captured at placement |
 | `vendorRatingStore` | The signed-in user's live vendor ratings (one per `(user, vendor)`, latest wins) + verified-purchase `orderIds`; persisted AsyncStorage `faazio/vendor-ratings/v1`, reset on logout |
 
 ### Services (`src/services/`)
 
-- `api/GatewayClient.ts` — single data surface; **wired** to the MVP gateway (`EXPO_PUBLIC_GATEWAY_URL` + flag) with `@data/*` fallback; screens migrate incrementally (see data doc). Migration (W22) done so far: mart feed (`martService` → `getStores('MART')`), catalog vendor detail (`VendorDetailScreen` → `getStore`), favourites (`getProductsByIds`), product search (`SearchModeConfig.fetch` → `searchProducts`), the Home SDUI registry + recently-viewed rails (`useHomeFeed` → `getHomeFeed`, static `@data/home/sections` fallback), the **cart/checkout** path (see below) and the **Pharma Rx** capture/upload/create path. Dining/search-venues remain; the cart/checkout order lifecycle + Rx quote polling are the remaining slices.
+- `api/GatewayClient.ts` — single data surface; **wired** to the MVP gateway (`EXPO_PUBLIC_GATEWAY_URL` + flag) with `@data/*` fallback; screens migrate incrementally (see data doc). Migration (W22) done so far: mart feed (`martService` → `getStores('MART')`), catalog vendor detail (`VendorDetailScreen` → `getStore`), favourites (`getProductsByIds`), product search (`SearchModeConfig.fetch` → `searchProducts`), the Home SDUI registry + recently-viewed rails (`useHomeFeed` → `getHomeFeed`, static `@data/home/sections` fallback), the **cart/checkout** path (see below), the **Pharma Rx** capture/upload/create path, the **orders history** (`ordersStore` ← `getOrders`), **vendor reviews** (`useVendorReviews` ← `getVendorReviews` + `getVendorReviewSummary`) and the `search` analytics event. Remaining: profile/account reads, food menus/bookings, dining/search-venues.
 - `secureSession.ts` — tokens via `expo-secure-store` (never AsyncStorage for secrets).
 - `logout.ts` — clears auth + cart + favourites + search + pharma + blood donor + rewards + vendor-rating stores.
 - `vendorRatings.ts` — single owner of the vendor rating gate: `canRateVendor(vendorId)`
-  (derived from fixture orders via `hasPurchasedFromVendor` + in-session `ordersStore`),
-  `getUserVendorRating`, `submitVendorRating` (re-checks eligibility; one live rating per
-  `(user, vendor)`), `getVendorReviews` / `getVendorReviewSummary` (seeded `@data` reviews
-  merged with the user's own). Reused by all five entry points.
+  (derived from fixture orders via `hasPurchasedFromVendor` + in-session `ordersStore.orders`
+  + durable `ordersStore.serverOrders`), `getUserVendorRating`, `submitVendorRating` (re-checks
+  eligibility; one live rating per `(user, vendor)`), `getVendorReviews` / `getVendorReviewSummary`
+  (seeded `@data` reviews merged with the user's own — the offline fallback for the remote
+  `useVendorReviews`). Reused by all five entry points.
+- `orderHistory.ts` — projects a durable `checkout.orders` row (`OrderRow`) onto the app's
+  `PlacedOrder` view model (status map: `NEW`/`PACKED`→`Processing`, `RETURNED`→`Cancelled`,
+  vendor name resolved from the store snapshot). Used by the `ordersStore` hydration.
 - `categoryVendors.ts` — repository seam for the category drill-in: `getVendorsForApp(app, q)`
   (per-token match over the search configs' `searchableText`, grouped per `storeId`, sorted by
   match count then rating), `getVendorsWithProducts(app, q)` (adds each store's matching product
@@ -685,8 +689,8 @@ The order-level **Delivery ⇄ Self Pickup** toggle lives on the cart **BAG** st
   the My Orders chip + prescription flow).
 
 The **My Orders → Order Details** page resolves an order via `ordersStore.getOrderById` first
-(in-session placed orders), falling back to `@data getMyOrderById` for fixtures — fixing the
-placed-order "not found" gap — and renders a **"Pickup From" card per vendor** (name, address,
+(durable server history, then in-session placed orders), falling back to `@data getMyOrderById`
+for fixtures — fixing the placed-order "not found" gap — and renders a **"Pickup From" card per vendor** (name, address,
 `Open {hours}`, contact) for `PICKUP` orders. The FOOD product-detail store section
 (`CommonProductDetailView`) now exposes a tappable restaurant row + a "View Restaurant" button
 (`onViewRestaurant`) that deep-links into the nested `FoodApp → RestaurantProfile` via
@@ -729,10 +733,13 @@ normal entry:
 
 ## My Orders — merged list + prescription cards
 
-`MyOrdersScreen` merges `ordersStore.orders` (newest first) above the `@data myOrders`
-fixtures; the sub-app rail counts recompute from the merged list. Prescription placed orders
-render a distinct 📄 card, and a `highlightOrderId` route param auto-selects that order's
-sub-app in the rail and rings its card.
+`MyOrdersScreen` merges `ordersStore.orders` (in-session, newest first) above the durable
+history; the history is the hydrated `ordersStore.serverOrders` when the gateway read settled,
+else the `@data myOrders` fixtures. Rows already present as an in-session placement are dropped
+(deduped by order id) and the placed card renders the order's real status (server status wins).
+The sub-app rail counts recompute from the merged list. Prescription placed orders render a
+distinct 📄 card, and a `highlightOrderId` route param auto-selects that order's sub-app in the
+rail and rings its card.
 
 ## Vendor ratings & reviews (phase 1)
 
@@ -797,11 +804,13 @@ The "lightweight, fast, secure" mandate (AGENTS.md) is enforced at build and del
 
 ## Honest limitations
 
-- **Screen data is still mock** — screens read `@data/*`. The MVP gateway (Go monolith over
+- **Screen data is still partially mock** — screens read `@data/*`. The MVP gateway (Go monolith over
   Supabase + Mongo + Valkey) is built and `GatewayClient` is wired with a `@data/*` fallback;
   per-screen `@mock` → `@server` migration is in progress (W22: mart feed, catalog vendor detail,
-  favourites, product search and Home SDUI registry done; see `client/mobile/PENDING_WORK.md`) and waits on Supabase phone OTP
-  replacing `authStore.login()` (see `data-layer-sdui.md`).
+  favourites, product search, Home SDUI registry, cart/checkout, Pharma Rx, orders history, vendor
+  reviews and the `search` event done; see `client/mobile/PENDING_WORK.md`). Remaining reads
+  (profile, food menus/bookings, dining) are tracked there. Auth stays mocked by design
+  (`authStore.login()`), so the gateway runs `AUTH_DISABLED=true` in dev (see `data-layer-sdui.md`).
 - **Duplicated mock data** in a few screens (`PharmaScreen`, `FoodScreen` booking dishes,
   `ProductDetailView`) — canonical copies exist under `@data/` marked `@unused`; de-dup is
   a tracked priority (see `data/DATA_CONTROL.md` "Known Gaps").

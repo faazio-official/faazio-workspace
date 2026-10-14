@@ -984,8 +984,9 @@ client change is required. Authority: `docs/architecture/{db-schema,caching-clou
 ## `@mock` → `@server` per-module migration (W22)
 
 **Status:** 🟡 In progress. Mart feed, catalog vendor detail, favourites, product search, the Home
-SDUI section registry, the cart/checkout path and the Pharma Rx capture/upload/create path are
-migrated to the gateway; the remaining modules still read `@data/*` directly.
+SDUI section registry, the cart/checkout path, the Pharma Rx capture/upload/create path, the orders
+history, vendor-review reads and the `search` analytics event are migrated to the gateway; the
+remaining modules still read `@data/*` directly.
 
 **Feature:** Flipping `EXPO_PUBLIC_USE_GATEWAY=true` only helps modules that call `GatewayClient`.
 This item routes each module through it, one at a time, keeping the built-in fixture fallback.
@@ -1024,10 +1025,24 @@ This item routes each module through it, one at a time, keeping the built-in fix
       durable Rx (`usePrescriptionDetail`, remote mode only) and renders the seller quote line items +
       total, the customer-facing status label (Awaiting quote / Quote ready / Ready / Fulfilled) and
       the recent status history; polling stops on a terminal status.
-- [ ] **orders/rewards, blood, bookings** — stores already call `GatewayClient`; verify on-device with
+- [x] **orders history** — `state/ordersStore.ts` hydrates a separate `serverOrders` slice from
+      `gateway.getOrders()` at startup (remote mode); `MyOrdersScreen` renders that durable history
+      (server status wins — `NEW`/`PACKED`→`Processing`, `RETURNED`→`Cancelled`) instead of the `@data`
+      fixtures and dedupes in-session placements by order id. `OrderDetails` resolves hydrated rows via
+      `getOrderById`, and the rating gate counts durable orders too. Mapping lives in
+      `services/orderHistory.ts`.
+- [x] **vendor reviews read** — `useVendorReviews` upgrades to `gateway.getVendorReviews` +
+      `getVendorReviewSummary` (the server `reviews.vendor_summary` aggregate) in remote mode; the
+      local derivation is the fallback and the user's own rating stays first.
+- [x] **search analytics** — `SearchScreen` fires `gateway.trackEvent(topResultId, 'search')` once the
+      server result pool lands; the allowlisted `search` event is anchored to the top result id.
+- [ ] **profile reads** — `GET /profile` hydrates the header safely, but `/profile/details` returns the
+      nested `{userId, accountId, data}` blob (not the flat `DetailsTable`), and seeded
+      `checkout.addresses` include non-tag labels — wire these when the projection is aligned.
+- [ ] **rewards, blood, bookings** — stores already call `GatewayClient`; verify on-device with
       `AUTH_DISABLED=true` before flipping the flag for release.
 
-**Date:** 2026-10-14 (updated: cart/checkout + pharma Rx client wiring)
+**Date:** 2026-10-14 (updated: orders history + vendor reviews + search analytics)
 
 ---
 

@@ -19,7 +19,7 @@ import AppText from '@/components/AppText';
 import { VendorRateButton } from '@/components/shared';
 import { hs, vs, ms } from '@/utils/responsive';
 import { SPACE } from '@/theme/spacing';
-import { myOrders, getVendorById } from '@data/index';
+import { myOrders, getVendorById, getCatalogEntryById } from '@data/index';
 import type { MyOrder, OrderStatus, MyOrdersStatusFilter } from '@data/types';
 import type { AppBrand } from '@data/types';
 import type { RootStackParamList } from '@/navigation/types';
@@ -57,6 +57,10 @@ type ViewOrder =
 const inferPlacedApp = (o: PlacedOrder): AppBrand => {
   if (o.kind === 'prescription') return 'PHARMA';
   const first = o.items?.[0]?.id ?? '';
+  // Prefer the catalog entry's own brand (covers server-hydrated history whose
+  // line items may not match the legacy id heuristics below).
+  const entry = getCatalogEntryById(first);
+  if (entry) return entry.app;
   const id = first.toLowerCase();
   if (id.startsWith('ph-') || id.includes('pharma') || id.includes('med')) return 'PHARMA';
   if (
@@ -83,6 +87,8 @@ const viewOrderRefId = (vo: ViewOrder): string =>
 export function MyOrdersScreen({ navigation, route }: Props) {
   const insets = useSafeAreaInsets();
   const placedOrders = useOrdersStore((s) => s.orders);
+  const serverOrders = useOrdersStore((s) => s.serverOrders);
+  const ordersHydrated = useOrdersStore((s) => s.ordersHydrated);
   const highlightOrderId = route.params?.highlightOrderId;
   const [activeApp, setActiveApp] = useState<AppFilter>('ALL');
   const [statusFilter, setStatusFilter] = useState<MyOrdersStatusFilter>(
@@ -121,12 +127,20 @@ export function MyOrdersScreen({ navigation, route }: Props) {
     setFilterSheetVisible(false);
   }, []);
 
-  /** Merged list: in-session placed orders (newest first) above @data fixtures. */
+  /**
+   * Merged list: in-session placed orders above durable history. When the
+   * gateway history has hydrated we show it (authoritative), otherwise the
+   * `@data` fixtures (offline / mock). Any history row already present as an
+   * in-session placement is dropped so it isn't listed twice.
+   */
   const allOrders = useMemo<ViewOrder[]>(() => {
     const placed: ViewOrder[] = placedOrders.map(placedToViewOrder);
-    const data: ViewOrder[] = myOrders.map((o) => ({ kind: 'data' as const, order: o, app: o.app }));
-    return [...placed, ...data];
-  }, [placedOrders]);
+    const history: ViewOrder[] = ordersHydrated
+      ? serverOrders.map(placedToViewOrder)
+      : myOrders.map((o) => ({ kind: 'data' as const, order: o, app: o.app }));
+    const placedIds = new Set(placed.map((vo) => viewOrderRefId(vo)));
+    return [...placed, ...history.filter((vo) => !placedIds.has(viewOrderRefId(vo)))];
+  }, [placedOrders, serverOrders, ordersHydrated]);
 
   const appCounts = useMemo(() => {
     const counts: Record<string, number> = { ALL: allOrders.length };
@@ -375,9 +389,9 @@ export function MyOrdersScreen({ navigation, route }: Props) {
                         })}
                       </AppText>
                       <View style={styles.headerPills}>
-                        <View style={[styles.statusPill, { backgroundColor: STATUS_BADGE_BG.Processing }]}>
-                          <AppText style={[styles.statusText, { color: STATUS_COLORS.Processing }]}>
-                            Processing
+                        <View style={[styles.statusPill, { backgroundColor: STATUS_BADGE_BG[po.status] }]}>
+                          <AppText style={[styles.statusText, { color: STATUS_COLORS[po.status] }]}>
+                            {po.status}
                           </AppText>
                         </View>
                         {po.fulfillment === 'PICKUP' ? (

@@ -43,9 +43,9 @@ function currentUserId(): string {
  * inherently non-cancelled — only the vendor snapshot needs checking.
  */
 function sessionOrderIdsForVendor(vendorId: string): string[] {
-  return useOrdersStore
-    .getState()
-    .orders.filter((order) => (order.storeIds ?? []).includes(vendorId))
+  const { orders, serverOrders } = useOrdersStore.getState();
+  return [...orders, ...serverOrders]
+    .filter((order) => (order.storeIds ?? []).includes(vendorId))
     .map((order) => order.orderId);
 }
 

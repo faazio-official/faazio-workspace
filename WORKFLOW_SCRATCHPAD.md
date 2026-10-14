@@ -114,7 +114,7 @@ wire. Mobile `GatewayClient.ts` + `@data/*` already speak integer rupees — unc
 | W19 | Rewards admin knobs (ledger view + admin-tunable rates) | 1/2/4 | **done** (0017 `rewards.rates` + `/admin/super/rewards` + `internal/rewards` rates/ledger read) |
 | W20 | Support state/super ticket queue | 1/2/4 | **done** (0017 `tickets.state_code` + `/admin/state/support` + state filter in `internal/support`) |
 | W21 | Web write-through (mutations → gateway, keep seed fallback) | 3/4 | **done** (`http.ts` toSnake/₹↔paisa `writeBehind`, `index.ts` mutators call `remote.*`) |
-| W22 | Mobile `@mock`→`@server` per-module migration | 4 | **in progress** — mart feed, catalog vendor detail, favourites, product search + home SDUI registry done; **cart durability + checkout (`placeOrder`) + Pharma Rx capture/upload/create + customer Rx quote/READY polling view done**; dining blocked (venues not in `directory.stores`) |
+| W22 | Mobile `@mock`→`@server` per-module migration | 4 | **in progress** — mart feed, catalog vendor detail, favourites, product search + home SDUI registry done; **cart durability + checkout (`placeOrder`) + Pharma Rx capture/upload/create + customer Rx quote/READY polling view done**; **orders history + vendor-review reads + `search` analytics done**; dining blocked (venues not in `directory.stores`); profile reads + food menus/bookings pending |
 | W23 | Auth cutover (Supabase JWT + RequireRole) + Storage object-key uploads + edge purge | 5 | **pending** (mobile `authStore`, product/KYC buckets, Cloudflare rules) |
 | W24 | Pharma quote → READY reveal → notify + durable notification outbox | 1/2/4 | **done** (`0018` + `internal/pharma` quote/reveal + `internal/notifications` + gap PUTs; owner `db-schema.md` §12.12) |
 
@@ -195,10 +195,13 @@ wire. Mobile `GatewayClient.ts` + `@data/*` already speak integer rupees — unc
       `GET /seller/prescriptions` attaches `status_history` + surfaces `revealed_by` so the portal audit
       trail is populated. Portal: product price/stock edits (`upsertPrice`/`updateStock`) write behind to
       `PUT /seller/products/{id}`; the phantom `GET /reviews` hydrate (no bulk endpoint) is removed.
-      Mobile: `gateway.trackEvent` fires on product view / cart add / order; `submitVendorRating` mirrors to
-      `PUT /vendors/{id}/rating`. Remaining mobile W22: orders-history hydration (needs non-Processing status
-      display), reviews/vendor-review reads, profile/account reads, food menus/bookings, analytics `search`
-      event (Mongo `user_events` requires a product-id anchor), dining venue seeding.
+Mobile: `gateway.trackEvent` fires on product view / cart add / order; `submitVendorRating` mirrors to
+        `PUT /vendors/{id}/rating`. **(W22 reads)** orders history now hydrates `gateway.getOrders()` into a
+        separate `serverOrders` slice (`services/orderHistory.ts`) with non-`Processing` status display;
+        vendor reviews read `gateway.getVendorReviews` + `getVendorReviewSummary`; `SearchScreen` fires the
+        `search` event anchored to the top result. Remaining mobile W22: profile/account reads (blocked on the
+        `/profile/details` nested-blob shape + non-tag seeded address labels), food menus/bookings, dining
+        venue seeding.
 
 ## 10. Decisions (approved)
 
@@ -248,10 +251,13 @@ now mirrors to `inventory.carts` and **checkout** places through `gateway.placeO
 prices/stock/idempotency; local order keyed by the server id), and the **Pharma Rx** flow uploads
 photos to the private bucket and creates the Rx with real `imagePaths` + `addressId` (server id),
 and **Order Details polls the durable Rx** (`usePrescriptionDetail`) to show the seller quote +
-status as it is quoted/readied. Remaining mobile slices: dining (venues not seeded), the
-orders/rewards/blood/bookings on-device verification, and the `AUTH_DISABLED=true` pass before
-flipping the flag. The seam (`GatewayClient` + per-feature fallback) stays in place until each
-slice is green. **W24 follow-up shipped:** notifications inbox cache invalidation + seller Rx
-`status_history`/`revealed_by`, portal product price/stock write-through, and mobile analytics +
-vendor-rating writes (see §9). Remaining mobile reads (orders, reviews, profile, food, `search`
-analytics) are tracked in §9.
+status as it is quoted/readied. **W22 reads shipped:** My Orders hydrates `gateway.getOrders()` into a
+durable `serverOrders` slice (server status wins; `NEW`/`PACKED`→`Processing`, `RETURNED`→`Cancelled`),
+vendor reviews read the server list + aggregate, and the `search` analytics event fires anchored to the
+top result. Remaining mobile slices: profile reads (blocked on the `/profile/details` nested blob),
+food menus/bookings, dining (venues not seeded), the rewards/blood/bookings on-device verification, and
+the `AUTH_DISABLED=true` pass before flipping the flag. The seam (`GatewayClient` + per-feature
+fallback) stays in place until each slice is green. **W24 follow-up shipped:** notifications inbox
+cache invalidation + seller Rx `status_history`/`revealed_by`, portal product price/stock
+write-through, and mobile analytics + vendor-rating writes (see §9). Remaining mobile reads (profile,
+food, dining) are tracked in §9.

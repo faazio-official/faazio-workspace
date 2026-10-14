@@ -74,6 +74,14 @@ export interface VendorReview {
   date: string;
 }
 
+/** Server-maintained vendor rating aggregate (reviews.vendor_summary). */
+export interface VendorReviewSummary {
+  average: number;
+  count: number;
+  /** Counts for 1..5 stars, index 0 = 1 star. */
+  distribution: number[];
+}
+
 /** Accepted `POST /events` vocabulary (server-enforced). */
 export type TrackableEvent = 'view' | 'cart_add' | 'order' | 'search';
 
@@ -746,6 +754,31 @@ export class GatewayClient {
       comment: r.comment,
       date: r.date,
     }));
+  }
+
+  /**
+   * The server-maintained vendor rating aggregate (`reviews.vendor_summary`) — an O(1) read
+   * that covers ALL reviews, not just the fetched page. Falls back to a local derivation.
+   */
+  async getVendorReviewSummary(vendorId: string): Promise<VendorReviewSummary> {
+    return this.withFallback(
+      () => this.http<VendorReviewSummary>(`/vendors/${encodeURIComponent(vendorId)}/reviews/summary`),
+      () => {
+        const reviews = getReviewsByVendorId(vendorId);
+        const distribution = [0, 0, 0, 0, 0];
+        let sum = 0;
+        for (const r of reviews) {
+          const v = Math.max(1, Math.min(5, Math.round(r.rating)));
+          distribution[v - 1] += 1;
+          sum += v;
+        }
+        return delay({
+          average: reviews.length ? sum / reviews.length : 0,
+          count: reviews.length,
+          distribution,
+        });
+      },
+    );
   }
 
   /**
