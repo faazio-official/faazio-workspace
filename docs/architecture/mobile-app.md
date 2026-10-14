@@ -365,7 +365,7 @@ still separate files; consolidating them is tracked in `client/mobile/PENDING_WO
 | Store | Purpose |
 |---|---|
 | `authStore` | Session, login payload, auth state |
-| `cartStore` | Cart items, quantity, totals; `addToCart(id, name, price, emoji, restaurantId?)` — the optional 5th arg tags a line to a restaurant (adopts an untagged line on re-add); `clearRestaurantCart(id)` removes only that restaurant's lines. Fulfilment is chosen order-level on the cart, not per item |
+| `cartStore` | Cart items, quantity, totals; `addToCart(id, name, price, emoji, restaurantId?)` — the optional 5th arg tags a line to a restaurant (adopts an untagged line on re-add); `clearRestaurantCart(id)` removes only that restaurant's lines. Fulfilment is chosen order-level on the cart, not per item. The local cart is the optimistic UI model; every mutation mirrors best-effort to the durable `inventory.carts` row (`gateway.addToCart`/`updateCartItem`/`removeCartItem`) and `hydrate()` pulls + rejoins catalog details at startup (remote mode only) |
 | `favoriteStore` | Favourites (ids) |
 | `bookingStore` | Dinner bookings |
 | `foodBookingStore` | Food bookings |
@@ -381,7 +381,7 @@ still separate files; consolidating them is tracked in `client/mobile/PENDING_WO
 
 ### Services (`src/services/`)
 
-- `api/GatewayClient.ts` — single data surface; **wired** to the MVP gateway (`EXPO_PUBLIC_GATEWAY_URL` + flag) with `@data/*` fallback; screens migrate incrementally (see data doc). Migration (W22) done so far: mart feed (`martService` → `getStores('MART')`), catalog vendor detail (`VendorDetailScreen` → `getStore`), favourites (`getProductsByIds`), product search (`SearchModeConfig.fetch` → `searchProducts`) and the Home SDUI registry + recently-viewed rails (`useHomeFeed` → `getHomeFeed`, static `@data/home/sections` fallback). Dining/search-venues and cart/checkout remain.
+- `api/GatewayClient.ts` — single data surface; **wired** to the MVP gateway (`EXPO_PUBLIC_GATEWAY_URL` + flag) with `@data/*` fallback; screens migrate incrementally (see data doc). Migration (W22) done so far: mart feed (`martService` → `getStores('MART')`), catalog vendor detail (`VendorDetailScreen` → `getStore`), favourites (`getProductsByIds`), product search (`SearchModeConfig.fetch` → `searchProducts`), the Home SDUI registry + recently-viewed rails (`useHomeFeed` → `getHomeFeed`, static `@data/home/sections` fallback), the **cart/checkout** path (see below) and the **Pharma Rx** capture/upload/create path. Dining/search-venues remain; the cart/checkout order lifecycle + Rx quote polling are the remaining slices.
 - `secureSession.ts` — tokens via `expo-secure-store` (never AsyncStorage for secrets).
 - `logout.ts` — clears auth + cart + favourites + search + pharma + blood donor + rewards + vendor-rating stores.
 - `vendorRatings.ts` — single owner of the vendor rating gate: `canRateVendor(vendorId)`
@@ -396,6 +396,28 @@ still separate files; consolidating them is tracked in `client/mobile/PENDING_WO
   `getVendorAds(storeId, app)` (store-derived `VendorAdSlide`s), `matchesQuery`, `productSearchableText`.
 - `homeFeed.ts` — repository seam: `getHomeSections` / `getFilterFeedPage(chip, page)` /
   `getFilterChips` (promise-based, paginated reads from `@data/*`; future Go gateway contract).
+
+### Cart / checkout → gateway (W22)
+
+- **Cart durability:** `cartStore` mutations optimistically update local state, then mirror
+  best-effort to `inventory.carts` (`gateway.addToCart`/`updateCartItem`/`removeCartItem`/
+  `clearCart`). No-op in mock mode. `hydrate()` runs once at startup (remote mode only): it pulls
+  the durable cart, resolves `productId`s via `getProductsByIds`, and replaces local state — an
+  empty server cart leaves local state untouched.
+- **Order placement:** `CartView.handlePlaceOrder` calls `gateway.placeOrder({ items, addressId,
+  fulfillment, idempotencyKey, pickup, pickups, coinsRedeemed })`; the **server is the money/stock
+  authority** (prices, decrements stock, holds the idempotency lock) and returns the durable order
+  `id`, now used as the `ordersStore` key (fallback `FZ-*` only if the call fails). `paymentMethod`
+  is **not** sent — payment capture is deferred. On success the purchased lines are removed from the
+  durable server cart; rewards (`recordOrder`) stay local-first. A 1.2s minimum delay preserves the
+  processing spinner.
+- **Pharma Rx:** `PrescriptionFlowScreen.handleConfirm` uploads each captured photo to the private
+  `prescriptions` bucket via a signed URL (`gateway.uploadPrescriptionImage` → object **key**, never
+  a URL/logged), then calls `gateway.createPrescription({ vendorId, fulfillment, pages, note,
+  imagePaths, addressId })`. The Rx is keyed by the **server-owned id** so My Orders can poll it;
+  failed photo uploads drop that page but never block the Rx. Seller quote/READY reveal + outbox
+  notifications are served by the gateway (see `mvp-backend.md`); the customer quote-polling view is
+  still pending.
 
 ## Navigation graph
 

@@ -983,8 +983,9 @@ client change is required. Authority: `docs/architecture/{db-schema,caching-clou
 
 ## `@mock` → `@server` per-module migration (W22)
 
-**Status:** 🟡 In progress. Mart feed, catalog vendor detail, favourites, product search and the Home
-SDUI section registry are migrated to the gateway; the remaining modules still read `@data/*` directly.
+**Status:** 🟡 In progress. Mart feed, catalog vendor detail, favourites, product search, the Home
+SDUI section registry, the cart/checkout path and the Pharma Rx capture/upload/create path are
+migrated to the gateway; the remaining modules still read `@data/*` directly.
 
 **Feature:** Flipping `EXPO_PUBLIC_USE_GATEWAY=true` only helps modules that call `GatewayClient`.
 This item routes each module through it, one at a time, keeping the built-in fixture fallback.
@@ -1009,10 +1010,22 @@ This item routes each module through it, one at a time, keeping the built-in fix
 - [ ] **dining** — blocked: the `tr-*`/`dn-*` dining venues are identity-only in `data/food/diningVenues.ts`
       and are **not** in `directory.stores`, so `diningService` cannot be server-backed until the
       dining-venue profile data is seeded. `gateway.getMenu(venueId)` (dish lists) is already remote-ready.
-- [ ] **cart/checkout, orders, rewards, pharma, blood, bookings** — stores already call `GatewayClient`;
-      verify on-device with `AUTH_DISABLED=true` before flipping the flag for release.
+- [x] **cart durability** — `state/cartStore.ts` mirrors every mutation to `inventory.carts`
+      best-effort and `hydrate()`s the durable cart at startup (remote mode; empty server cart is a
+      no-op). Local state stays the optimistic model.
+- [x] **checkout/orders** — `CartView.handlePlaceOrder` calls `gateway.placeOrder(...)` and keys the
+      local order by the **server-returned id** (server prices + decrements stock + holds the
+      idempotency lock); purchased lines are dropped from the durable server cart. `paymentMethod` is
+      not sent (payment deferred).
+- [x] **pharma Rx** — `PrescriptionFlowScreen.handleConfirm` uploads photos to the private bucket via
+      signed URLs (`gateway.uploadPrescriptionImage` → object key), then creates the Rx with
+      `gateway.createPrescription` (real `imagePaths` + `addressId`), keyed by the server id.
+- [ ] **pharma Rx quote view** — the customer-facing quote/READY polling + reveal view (My Orders)
+      still shows the local receipt only; the gateway serves quote/READY + outbox notifications.
+- [ ] **orders/rewards, blood, bookings** — stores already call `GatewayClient`; verify on-device with
+      `AUTH_DISABLED=true` before flipping the flag for release.
 
-**Date:** 2026-10-13
+**Date:** 2026-10-14 (updated: cart/checkout + pharma Rx client wiring)
 
 ---
 

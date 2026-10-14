@@ -6,6 +6,7 @@ import type { RootStackParamList } from '@/navigation/types';
 import type { StoreProfile } from '@data/types';
 import type { FulfillmentMode } from '@data/types';
 import { pharmaStores } from '@data/pharma/stores';
+import { defaultAddresses } from '@data/cart/addresses';
 import { useOrdersStore } from '@/state/ordersStore';
 import { gateway } from '@/services/api/GatewayClient';
 import PrescriptionCameraStep from './PrescriptionCameraStep';
@@ -83,35 +84,45 @@ export function PrescriptionFlowScreen({ navigation, route }: Props) {
 
   const handleConfirm = useCallback(
     (fulfillment: FulfillmentMode) => {
-      if (!draft.vendor) return;
-      const orderId = `RX-${Math.floor(100000 + Math.random() * 900000)}`;
-      recordOrder({
-        orderId,
-        kind: 'prescription',
-        fulfillment,
-        vendorName: draft.vendor.name,
-        storeIds: [draft.vendor.id],
-        pickup: fulfillment === 'PICKUP' && draft.vendor.address
-          ? { name: draft.vendor.name, address: draft.vendor.address }
-          : undefined,
-        pages: draft.photos.length,
-        note: draft.note.trim() ? draft.note : undefined,
-        total: 0,
-      });
-      setPlacedOrderId(orderId);
-      setConfirmedFulfillment(fulfillment);
-      setStep('CONFIRMED');
-      // Best-effort durable Rx (server owns the authoritative id + Storage keys). The local order
-      // stays the UI source of truth; this only prevents the prescription from being lost entirely.
-      void gateway
-        .createPrescription({
-          vendorId: draft.vendor.id,
+      const vendor = draft.vendor;
+      if (!vendor) return;
+      const pages = draft.photos.length;
+      const note = draft.note.trim() ? draft.note : undefined;
+      const addressId =
+        defaultAddresses.find((a) => a.isDefault === true)?.id ?? defaultAddresses[0]?.id;
+      void (async () => {
+        // 1. Upload each photo to the private bucket via a signed URL; keep the object KEYS
+        //    (never URLs, never logged). Failures drop that photo but never block the Rx.
+        const keys = (
+          await Promise.all(draft.photos.map((uri) => gateway.uploadPrescriptionImage(uri)))
+        ).filter((k): k is string => Boolean(k));
+        // 2. Create the durable Rx — the SERVER owns the authoritative id (and the quote/reveal
+        //    lifecycle). The local order is keyed by that id so MyOrders can poll it.
+        const rx = await gateway.createPrescription({
+          vendorId: vendor.id,
           fulfillment,
-          pages: draft.photos.length,
-          note: draft.note.trim() ? draft.note : undefined,
-          imagePaths: [],
-        })
-        .catch(() => {});
+          pages,
+          note,
+          imagePaths: keys,
+          ...(fulfillment === 'DELIVERY' && addressId ? { addressId } : {}),
+        });
+        recordOrder({
+          orderId: rx.id,
+          kind: 'prescription',
+          fulfillment,
+          vendorName: vendor.name,
+          storeIds: [vendor.id],
+          pickup: fulfillment === 'PICKUP' && vendor.address
+            ? { name: vendor.name, address: vendor.address }
+            : undefined,
+          pages,
+          note,
+          total: 0,
+        });
+        setPlacedOrderId(rx.id);
+        setConfirmedFulfillment(fulfillment);
+        setStep('CONFIRMED');
+      })();
     },
     [draft, recordOrder],
   );

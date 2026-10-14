@@ -130,6 +130,25 @@ export interface MenuDish {
   image?: string;
 }
 
+/** One seller quote line (pharma.quote_items); money in whole rupees. */
+export interface PrescriptionQuoteItem {
+  id?: string;
+  name: string;
+  qty: number;
+  mrp: number;
+  price: number;
+  discount: number;
+}
+
+/** One status-history transition (pharma.status_history). */
+export interface PrescriptionHistoryEntry {
+  fromStatus?: string;
+  toStatus: string;
+  actorId: string;
+  actorRole: string;
+  createdAt: string;
+}
+
 /** A durable prescription (pharma.prescriptions); imagePaths are Storage object keys. */
 export interface PrescriptionRecord {
   id: string;
@@ -140,6 +159,11 @@ export interface PrescriptionRecord {
   note?: string;
   imagePaths: string[];
   status: string;
+  /** Seller quote + server-derived total (whole rupees); present once quoted. */
+  quote?: PrescriptionQuoteItem[];
+  quotedTotal?: number;
+  revealedAt?: string;
+  history?: PrescriptionHistoryEntry[];
   createdAt: string;
   updatedAt: string;
 }
@@ -180,7 +204,10 @@ export interface PrescriptionInput {
   fulfillment?: 'DELIVERY' | 'PICKUP';
   pages?: number;
   note?: string;
+  /** Storage object keys (never URLs) — mint with uploadPrescriptionImage. */
   imagePaths?: string[];
+  /** Delivery address id for a DELIVERY Rx (revealed to the seller only after READY). */
+  addressId?: string;
 }
 
 /** A blood.donors row / blood.donor_directory projection. */
@@ -468,6 +495,31 @@ export class GatewayClient {
         );
       },
     );
+  }
+
+  /**
+   * Upload one Rx photo to the private `prescriptions` bucket via a signed upload URL, returning the
+   * Storage object key (never a URL). Returns null in mock mode or on any failure so the caller can
+   * still create the Rx with whatever keys succeeded. The key/bytes are never logged.
+   */
+  async uploadPrescriptionImage(uri: string): Promise<string | null> {
+    if (!REMOTE_ENABLED) return null;
+    try {
+      const { objectPath, uploadUrl } = await this.http<{ objectPath: string; uploadUrl: string }>(
+        '/prescriptions/upload-url',
+        { method: 'POST' },
+      );
+      const blob = await (await fetch(uri)).blob();
+      const res = await fetch(uploadUrl, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'image/jpeg' },
+        body: blob,
+      });
+      if (!res.ok) return null;
+      return objectPath;
+    } catch {
+      return null;
+    }
   }
 
   /** Create a durable prescription (images are Storage object keys, never bytes/URLs). */

@@ -36,6 +36,7 @@ import { computeTotals } from './utils';
 import type { CheckoutStep } from './utils';
 import { useRewardsStore } from '@/state/rewardsStore';
 import { useOrdersStore } from '@/state/ordersStore';
+import { gateway } from '@/services/api/GatewayClient';
 import { coinsEarnedFor, isCardActive } from '@/features/rewards/rewardsLogic';
 import { COIN_REDEEM_RATE, DISCOUNT_CARD_PERCENT } from '@data/rewards/rewards';
 import { useLiveAddress } from '@/hooks/useLiveAddress';
@@ -250,18 +251,47 @@ export default function CartView({
 
   const handlePlaceOrder = (coinsRedeemed = 0) => {
     setPaymentProcessing(true);
-    setTimeout(() => {
+    void (async () => {
       const redeemRupees = Math.floor(coinsRedeemed / COIN_REDEEM_RATE);
       const paidAmount = Math.max(0, finalTotal - redeemRupees);
       const coinsEarned = coinsEarnedFor(paidAmount);
-      const orderId = `FZ-${Math.floor(100000 + Math.random() * 900000)}`;
-      useRewardsStore.getState().recordOrder(paidAmount, coinsRedeemed, orderId);
       const isPickup = fulfillment === 'PICKUP';
       const mode = fulfillment ?? 'DELIVERY';
       const pickups = isPickup ? pickupPointList : [];
       const primaryPickup = pickups[0];
       // Vendor identity snapshot — resolved once at placement (see data/directory/vendors.ts).
       const storeIds = getStoreIdsForItems(selectedItems);
+      const addressId = defaultAddresses.find((a) => a.isDefault === true)?.id ?? defaultAddresses[0]?.id;
+
+      // Server is the money/stock authority: it prices, decrements stock and holds the idempotency
+      // lock, returning the durable order id. In mock mode this resolves to a local order of the
+      // same shape (the withFallback seam keeps checkout working offline).
+      const [placed] = await Promise.all([
+        gateway.placeOrder({
+          items: selectedItems.map((i) => ({ productId: i.id, qty: i.quantity })),
+          ...(addressId ? { addressId } : {}),
+          fulfillment: mode,
+          idempotencyKey: `cart-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+          ...(primaryPickup
+            ? { pickup: { name: primaryPickup.name, address: primaryPickup.address } }
+            : {}),
+          ...(pickups.length
+            ? {
+                pickups: pickups.map((p) => ({
+                  name: p.name,
+                  address: p.address,
+                  hours: p.hours,
+                  phone: p.phone,
+                })),
+              }
+            : {}),
+          ...(coinsRedeemed > 0 ? { coinsRedeemed } : {}),
+        }),
+        new Promise((resolve) => setTimeout(resolve, 1200)),
+      ]);
+      const orderId = placed?.id ?? `FZ-${Math.floor(100000 + Math.random() * 900000)}`;
+
+      useRewardsStore.getState().recordOrder(paidAmount, coinsRedeemed, orderId);
       useOrdersStore.getState().recordOrder({
         orderId,
         kind: 'items',
@@ -291,6 +321,10 @@ export default function CartView({
         })),
         total: paidAmount,
       });
+
+      // The order already took the stock; drop the purchased lines from the durable server cart.
+      selectedItems.forEach((i) => void gateway.removeCartItem(i.id).catch(() => {}));
+
       const details = {
         orderId,
         items: [...selectedItems],
@@ -315,7 +349,7 @@ export default function CartView({
       setDeselectedIds(new Set());
       setStep('RECEIPT');
       setPaymentProcessing(false);
-    }, 2000);
+    })();
   };
 
   if (step === 'BAG') {
