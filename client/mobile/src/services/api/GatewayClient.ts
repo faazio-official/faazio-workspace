@@ -12,7 +12,7 @@
  * See data/DATA_CONTROL.md, docs/architecture/data-layer-sdui.md,
  * docs/architecture/mvp-backend.md §3, docs/architecture/monolith-breakdown.md.
  */
-import type { AppBrand, PickupPoint } from '@data/types';
+import type { AppBrand, PickupPoint, SavedAddress, UserDetailsData } from '@data/types';
 import { catalogIndex, getCatalogEntryById, getCatalogEntriesByIds, type CatalogEntry } from '@data/catalog/products';
 import { storeDirectory, getStoreById, getStoresByApp, type StoreRecord } from '@data/directory/stores';
 import { NEUTRAL_PICKUP } from '@data/cart/pickup-resolver';
@@ -25,6 +25,7 @@ import { profileTable, membershipTable, orderStatusTable, navTable, detailsTable
 import { getReviewsByVendorId, type VendorReviewRow } from '@data/reviews/vendorReviews';
 import { homeSdui, type SduiSection } from '@data/home/sdui';
 import { seedFavorites } from '@data/home/seeds';
+import { savedAddresses } from '@data/account/addresses';
 import { loadSession } from '../secureSession';
 
 /** Simulated network latency (ms) for mock mode. Drop to 0 to run pure in-memory. */
@@ -289,6 +290,22 @@ export interface FoodBookingDto {
   timestamp: number;
 }
 
+/** A checkout.addresses row as served by `GET /profile/addresses` (delivery PII, auth-scoped). */
+interface AddressRecord {
+  addressId: string;
+  label?: string;
+  name?: string;
+  phone?: string;
+  address: string;
+  isDefault: boolean;
+}
+
+/** Map a server address row onto the app's `SavedAddress` card shape (label → tag). */
+function toSavedAddress(a: AddressRecord): SavedAddress {
+  const tag = a.label === 'HOME' || a.label === 'WORK' ? a.label : 'OTHER';
+  return { id: a.addressId, tag, isDefault: a.isDefault, name: a.name ?? '', phone: a.phone ?? '', address: a.address };
+}
+
 export class GatewayClient {
   private accessToken: string | null = null;
   private tokenLoaded = false;
@@ -443,8 +460,21 @@ export class GatewayClient {
 
   async getDetails(userId = 'user-1'): Promise<DetailsTable | undefined> {
     return this.withFallback(
-      () => this.http<DetailsTable>('/profile/details'),
+      async () => {
+        // The server stores the payload as a nested blob ({ userId, accountId, data }); flatten it
+        // to the app's `DetailsTable` row so the screen can read personalInfo/preferences directly.
+        const d = await this.http<{ userId: string; accountId?: string; data: UserDetailsData }>('/profile/details');
+        return { ...d.data, accountId: d.accountId ?? d.data?.accountId ?? '', userId: d.userId };
+      },
       () => delay(detailsTable.find((d) => d.userId === userId)),
+    );
+  }
+
+  /** The caller's saved delivery addresses (auth-scoped; falls back to the @data fixtures). */
+  async getAddresses(): Promise<SavedAddress[]> {
+    return this.withFallback(
+      () => this.http<AddressRecord[]>('/profile/addresses').then((rows) => rows.map(toSavedAddress)),
+      () => delay([...savedAddresses]),
     );
   }
 

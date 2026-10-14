@@ -1,4 +1,4 @@
-import React, { useCallback } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import {
   StyleSheet,
   View,
@@ -26,6 +26,8 @@ import AppText from '@/components/AppText';
 import { hs, vs, ms } from '@/utils/responsive';
 import { SPACE } from '@/theme/spacing';
 import { userProfile, accountDetails } from '@data/index';
+import type { UserProfile, UserDetailsData } from '@data/types';
+import { gateway } from '@/services/api/GatewayClient';
 import type { RootStackParamList } from '@/navigation/types';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'UserDetails'>;
@@ -69,8 +71,25 @@ function InfoRow({ icon: Icon, title, subtitle, showDivider = true }: InfoRowPro
 
 export function UserDetailsScreen({ navigation }: Props) {
   const insets = useSafeAreaInsets();
+  const [profile, setProfile] = useState<UserProfile>(userProfile);
+  const [details, setDetails] = useState<UserDetailsData>(accountDetails);
 
   const handleBack = useCallback(() => navigation.goBack(), [navigation]);
+
+  // Hydrate the durable profile + details; silently keep the @data fixtures on mock/error.
+  useEffect(() => {
+    let alive = true;
+    Promise.all([gateway.getProfile(), gateway.getDetails()])
+      .then(([p, d]) => {
+        if (!alive) return;
+        if (p) setProfile(p);
+        if (d) setDetails(d);
+      })
+      .catch(() => {});
+    return () => {
+      alive = false;
+    };
+  }, []);
 
   return (
     <View style={styles.container}>
@@ -102,9 +121,9 @@ export function UserDetailsScreen({ navigation }: Props) {
               </View>
             </View>
             <View style={styles.profileInfo}>
-              <AppText style={styles.profileName}>{userProfile.name}</AppText>
-              <AppText style={styles.profileEmail} numberOfLines={1}>{userProfile.email}</AppText>
-              <AppText style={styles.profilePhone}>{userProfile.phone}</AppText>
+              <AppText style={styles.profileName}>{profile.name}</AppText>
+              <AppText style={styles.profileEmail} numberOfLines={1}>{profile.email}</AppText>
+              <AppText style={styles.profilePhone}>{profile.phone}</AppText>
             </View>
             <ChevronRight size={ms(20)} color="#94a3b8" strokeWidth={2.2} />
           </TouchableOpacity>
@@ -113,13 +132,13 @@ export function UserDetailsScreen({ navigation }: Props) {
         {/* 3. Personal Information */}
         <AppText style={styles.sectionTitle}>Personal Information</AppText>
         <View style={styles.listCard}>
-          {accountDetails.personalInfo.map((row, i) => (
+          {details.personalInfo.map((row, i) => (
             <InfoRow
               key={row.title}
               icon={DETAIL_ICONS[row.icon] ?? User}
               title={row.title}
               subtitle={row.subtitle}
-              showDivider={i < accountDetails.personalInfo.length - 1}
+              showDivider={i < details.personalInfo.length - 1}
             />
           ))}
         </View>
@@ -127,13 +146,13 @@ export function UserDetailsScreen({ navigation }: Props) {
         {/* 4. Account Preferences */}
         <AppText style={styles.sectionTitle}>Account Preferences</AppText>
         <View style={styles.listCard}>
-          {accountDetails.preferences.map((row, i) => (
+          {details.preferences.map((row, i) => (
             <InfoRow
               key={row.title}
               icon={DETAIL_ICONS[row.icon] ?? User}
               title={row.title}
               subtitle={row.subtitle}
-              showDivider={i < accountDetails.preferences.length - 1}
+              showDivider={i < details.preferences.length - 1}
             />
           ))}
         </View>
@@ -144,8 +163,8 @@ export function UserDetailsScreen({ navigation }: Props) {
             <ShieldCheck size={ms(26)} color="#16A34A" strokeWidth={2.2} />
           </View>
           <View style={styles.securityTextContainer}>
-            <AppText style={styles.securityTitle}>{accountDetails.securityTitle}</AppText>
-            <AppText style={styles.securitySubtitle}>{accountDetails.securitySubtitle}</AppText>
+            <AppText style={styles.securityTitle}>{details.securityTitle}</AppText>
+            <AppText style={styles.securitySubtitle}>{details.securitySubtitle}</AppText>
           </View>
           <ChevronRight size={ms(20)} color="#16A34A" strokeWidth={2.4} />
         </TouchableOpacity>

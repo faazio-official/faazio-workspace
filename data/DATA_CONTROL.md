@@ -257,12 +257,12 @@ the `GROCERY` member was dropped from `AppBrand` / `CartCategory` / `SubAppId` /
 | `myOrders` | `MyOrder[]` (with `app` sub-app field, optional `fulfillment`, optional `pickup` pickup-address snapshot for `PICKUP` orders, and optional `productId` linking to a real product) | `MyOrdersScreen` (order list, sub-app rail, status filter, Delivery/Self-Pickup chip); `getMyOrderById` → `OrderDetailsScreen` (incl. "Pickup From" card for pickup orders) | `@mock` |
 | `getMyOrderById` | `(id: string) => MyOrder \| undefined` | `OrderDetailsScreen` (resolves the order by `orderId` route param) | `@mock` |
 | `myOrdersStatusFilters` | `MyOrdersStatusFilterItem[]` (labels only) | `MyOrdersScreen` (filter sheet options; counts derived at runtime) | `@mock` |
-| `userProfile` | `UserProfile` | `AccountScreen` (My Account header card) | `@mock` |
+| `userProfile` | `UserProfile` | `AccountScreen` (My Account header card) | `@mock` → `@server` |
 | `saverMembership` | `SaverMembership` | **`@unused` (UI)** — Smart Saver banner removed from `AccountView`; still consumed by `membershipTable` (`data/accounts/profile.ts` → `GatewayClient.getMembership`) | `@mock` |
 | `orderStatusCounts` | `OrderStatusCount[]` | **`@unused` (UI)** — status grid removed from `AccountView`; still consumed by `orderStatusTable` (`data/accounts/profile.ts` → `GatewayClient.getOrderStatus`) | `@mock` |
 | `accountNavGroups` | `AccountNavGroup[]` — six titled groups (`profile`, `payments`, `privacy`, `earn`, `legal`, `support`); `privacy`/`legal` are `comingSoon`; `earn` is active with a `sell-with-us` row | `AccountScreen` (nav list, incl. My Orders + Sell with us entry rows; group titles + Coming-soon placeholders) | `@mock` |
-| `accountDetails` | `UserDetailsData` | `UserDetailsScreen` (Your Details) | `@mock` |
-| `savedAddresses` | `SavedAddress[]` | `SavedAddressesScreen` (Addresses) | `@mock` |
+| `accountDetails` | `UserDetailsData` | `UserDetailsScreen` (Your Details) — hydrated via `GatewayClient.getDetails()` (server `accounts.details` nested blob flattened; fixture fallback) | `@mock` → `@server` |
+| `savedAddresses` | `SavedAddress[]` | `SavedAddressesScreen` (Addresses) — hydrated via `GatewayClient.getAddresses()` (`GET /profile/addresses`, label→tag mapped; fixture fallback) | `@mock` → `@server` |
 
 > **Order → product link:** each `MyOrder.productId` (optional) references a real product in the
 > four domain fixtures (order names are aligned to those products so the card and the product
@@ -356,5 +356,10 @@ the `GROCERY` member was dropped from `AppBrand` / `CartCategory` / `SubAppId` /
 4. **Screens still read mock data.** The MVP monolith ships
    (`docs/architecture/mvp-backend.md`) and `GatewayClient` is wired, but screens read `@data/*`
    until migrated per module (`@mock` → `@server`); `GatewayClient` falls back to `@data/*` on error.
+   Migrated so far: Home SDUI feed, mart/catalog vendor drill-in, product search (3 configs),
+   favourites, cart durability, checkout `placeOrder`, Pharma Rx capture/upload/create + quote/READY
+   polling, orders history, vendor-review reads, `search` analytics, and **profile reads**
+   (`userProfile`/`accountDetails`/`savedAddresses`). Remaining slices (food menus, blood feed,
+   dining, booking create) are blocked on server-contract deltas — see `WORKFLOW_SCRATCHPAD.md` §9.
 5. **Per-restaurant menus are seeded only for the 18 dining restaurants.** The 12 food-delivery
    `foodStores` still derive menus from the shared `TODAYS_SPECIALS` catalog.

@@ -1,4 +1,4 @@
-import React, { useCallback, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   StyleSheet,
   View,
@@ -24,6 +24,7 @@ import { hs, vs, ms } from '@/utils/responsive';
 import { SPACE } from '@/theme/spacing';
 import { savedAddresses } from '@data/index';
 import type { SavedAddress } from '@data/types';
+import { gateway } from '@/services/api/GatewayClient';
 import type { RootStackParamList } from '@/navigation/types';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'SavedAddresses'>;
@@ -103,12 +104,31 @@ function AddressCard({ item, isSelected, onSelect }: AddressCardProps) {
 
 export function SavedAddressesScreen({ navigation }: Props) {
   const insets = useSafeAreaInsets();
-  const [selectedId, setSelectedId] = useState<string>(
-    savedAddresses.find((a) => a.isDefault)?.id ?? savedAddresses[0]?.id ?? '',
-  );
+  const [addresses, setAddresses] = useState<SavedAddress[]>(savedAddresses);
+  const [selectedId, setSelectedId] = useState<string>('');
   const [showBanner, setShowBanner] = useState<boolean>(true);
 
   const handleBack = useCallback(() => navigation.goBack(), [navigation]);
+
+  // Hydrate the caller's durable addresses; keep the @data fixtures when empty/mock/error.
+  useEffect(() => {
+    let alive = true;
+    gateway
+      .getAddresses()
+      .then((rows) => {
+        if (alive && rows.length > 0) setAddresses(rows);
+      })
+      .catch(() => {});
+    return () => {
+      alive = false;
+    };
+  }, []);
+
+  // Explicit selection wins; otherwise default → first.
+  const activeId = useMemo(
+    () => selectedId || addresses.find((a) => a.isDefault)?.id || addresses[0]?.id || '',
+    [selectedId, addresses],
+  );
   const handleAddNew = useCallback(() => {
     // TODO: Add New Address screen — no-op placeholder (no target screen yet).
   }, []);
@@ -146,11 +166,11 @@ export function SavedAddressesScreen({ navigation }: Props) {
         <AppText style={styles.sectionTitle}>Saved Addresses</AppText>
 
         {/* Address cards */}
-        {savedAddresses.map((item) => (
+        {addresses.map((item) => (
           <AddressCard
             key={item.id}
             item={item}
-            isSelected={selectedId === item.id}
+            isSelected={activeId === item.id}
             onSelect={setSelectedId}
           />
         ))}

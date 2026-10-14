@@ -5,6 +5,39 @@ dependencies exist. Do not build the backend/seller flows until told to.
 
 ---
 
+## W22 `@mock` → `@server` — profile reads shipped; remaining slices blocked on server contracts
+
+**Status:** 🟢 Shipped (profile reads); remaining slices blocked.
+
+**Shipped:** `GatewayClient.getDetails()` now flattens the server's nested
+`accounts.details` blob (`{userId, accountId, data}` → `DetailsTable`); new
+`GatewayClient.getAddresses()` reads `GET /profile/addresses` (server `label` → app `tag`).
+`UserDetailsScreen` hydrates `getProfile`+`getDetails` and `SavedAddressesScreen` hydrates
+`getAddresses`, each keeping the `@data/*` fixtures as mock/error fallback (the seam pattern).
+
+**Remaining — each needs a server-contract delta, not just wiring:**
+- **Food menu read.** `GET /venues/{id}/menu` returns `contracts.MenuDish`
+  (`{id,name,price,isVeg?,cuisine?,rating?,image?}`); the screens need `SpecialDish`
+  (`dishName`, `restaurant`, `description`, `emoji`/`deliveryTime`). Extend the menu contract +
+  `directory.menus` columns before flipping `RestaurantMenuScreen`/`RestaurantProfileScreen`.
+- **Blood dashboard feed.** `GET /blood-requests` (`BloodRequestRecord`) omits the card's
+  `imageUrl`/`distanceKm`/`purposeDescription`/patient demographics; `GET /donors` needs the
+  donor-card fields. Extend the `blood.requests` projection before replacing `BLOOD_REQUESTS`/
+  `BLOOD_DONORS`.
+- **Dining venues.** `directory.dining_venues` (seeded) has no list endpoint — `/stores` reads only
+  `directory.stores`. Add a venue query/source to `internal/directory` (or seed venues into
+  `directory.stores`) before `FoodHomeScreen` stops using feature mocks.
+- **Table/food booking create.** `GatewayClient.createBooking`/`createFoodBooking` + server routes
+  exist, but no booking screen/route exists in the app; `bookingStore`/`foodBookingStore` have no
+  call sites. A booking UI is a screen-build (needs explicit intent), not a wiring flip.
+
+**Dropped by product decision:** mobile auth stays **mocked** (`authStore.login()`) — no Supabase
+phone-OTP/JWT cutover. `GatewayClient` still attaches a bearer when a session is present.
+
+**Date:** 2026-10-14
+
+---
+
 ## Phone-auth OTP — typed full code stuck + broken back (fixed)
 
 **Status:** 🟢 Shipped (code); on-device verification pending.

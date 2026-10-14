@@ -42,7 +42,7 @@ search extraction is a pure index-replica swap.
 | bookings → Go+Postgres | `internal/bookings` | `bookings` | `faazio:v1:bookings:tables:{userId}` 60 s · `faazio:v1:bookings:food:{userId}` 60 s; never edge-cached | `getBookings`, `createBooking`, `cancelBooking`, `getFoodBookings`, `createFoodBooking` | CockroachDB |
 | cart/stock → Go+Dynamo | `internal/cartstock` | `inventory` | `faazio:v1:stock:{productId}` 30–60 s; **never** carts | `getStock`, `getCart`, `addToCart`, `updateCartItem`, `removeCartItem` | DynamoDB / Firestore |
 | favourites → Go+Postgres | `internal/favourites` | `favourites` | `faazio:v1:favourites:items:{userId}` 60 s; never edge-cached | `getFavourites`, `addFavourite`, `removeFavourite` | CockroachDB |
-| checkout → Go+Cockroach | `internal/checkout` | `checkout` (+ `checkout.idempotency_keys`, `checkout.payments`, `checkout.users_admin` read view), `accounts` | `faazio:v1:checkout:orders:{userId}` 60 s · idem `NX EX 300` · `faazio:v1:auth:uid:{sha256}` 3600 s | `getOrders`, `placeOrder`, `payForOrder`, `getPayments`, `getProfile`, `getMembership`, `getOrderStatus`, `getAccountNav`, `getDetails` | CockroachDB |
+| checkout → Go+Cockroach | `internal/checkout` | `checkout` (+ `checkout.idempotency_keys`, `checkout.payments`, `checkout.users_admin` read view), `accounts` | `faazio:v1:checkout:orders:{userId}` 60 s · idem `NX EX 300` · `faazio:v1:auth:uid:{sha256}` 3600 s | `getOrders`, `placeOrder`, `payForOrder`, `getPayments`, `getProfile`, `getMembership`, `getOrderStatus`, `getAccountNav`, `getDetails`, `getAddresses` | CockroachDB |
 | rewards → Go+Postgres | `internal/rewards` | `rewards` (+ `rewards.rates`) | `faazio:v1:rewards:view:{userId}` 60 s; never edge-cached | `getRewards` (earn happens in-process via `contracts.RewardsWriter`); portal reads ledger + rates | CockroachDB |
 | reviews → Go+Postgres | `internal/reviews` | `reviews` (+ `reviews.vendor_summary` counter/trigger) | `faazio:v1:reviews:vendor:{id}` 24 h · `faazio:v1:reviews:product:{id}` 24 h | `getReviews` (product), `getVendorReviews`, `rateVendor` | standalone Postgres |
 | sellers → Go+Postgres | `internal/sellers` | `sellers` (+ `sellers.sellers`, `kyc_documents`, `bank_accounts`; `directory.stores`/`catalog.products` `seller_id`) | **none** — seller records carry PII (caching doc §8) | `submitSellerApplication` (`POST /sellers`, any authenticated applicant); reads/moderation are portal-only | Go + Postgres |
@@ -75,11 +75,12 @@ applicant may create a `PENDING_REVIEW` seller; KYC/bank writes stay portal-only
 
 **Partner completion (v3, `0017`)** adds four portal-only control surfaces: customer monitoring
 (`GET /customers` in `internal/admins`, reads the redacted `checkout.users_admin` view — state/super
-only, never cached), food-menu editing (`GET /seller/menus` + `POST`/`PUT /seller/menus/{id}` in
-`internal/directory`, seller-scoped, invalidates `directory:menu:{venueId}`), rewards administration
+only, never cached), food-menu editing (`GET /seller/menus` + `POST /seller/menus` /
+`PUT /seller/menus/{venueId}/{dishId}` in `internal/directory`, seller-scoped, invalidates
+`directory:menu:{venueId}`), rewards administration
 (`GET /rewards/ledger` + `GET`/`PUT /rewards/rates` in `internal/rewards`; the server stays the sole
-`rewards.ledger`/`balances` writer), and a state-scoped support queue (`GET /tickets?state=` in
-`internal/support`). All are role-gated (`STATE_ADMIN`/`SUPER_ADMIN`, or the owning seller) and
+`rewards.ledger`/`balances` writer), and a state-scoped support queue (`GET /support/tickets?state=`
+in `internal/support`). All are role-gated (`STATE_ADMIN`/`SUPER_ADMIN`, or the owning seller) and
 audited via `admins.audit_logs`.
 
 **Pharma quote → READY reveal → notify (W24, `0018`)** adds the partner quote workflow. The seller
