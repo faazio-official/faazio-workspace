@@ -3,9 +3,10 @@
 The Faazio Partner Portal is the seller / state-admin / super-admin console. It
 renders from a Zustand store that is seeded from `client/web/src/data/**` and, when
 `NEXT_PUBLIC_GATEWAY_URL` is set, hydrated from the Go Chi gateway
-(`client/web/src/lib/api/sync.ts`). Auth is Supabase (GoTrue) when configured; with
-no env it runs in **local seed mode** (demo login + `localStorage` under
-`faazio.portal.v1`). See "Data + auth" below.
+(`client/web/src/lib/api/sync.ts`). **Auth is mocked by default** — the portal signs
+in against the built-in demo directory even when Supabase credentials are present;
+set `NEXT_PUBLIC_AUTH_MODE=supabase` to opt into GoTrue. The session persists in
+`localStorage` under `faazio.portal.v1`. See "Data + auth" below.
 
 ## Locations
 
@@ -107,10 +108,13 @@ env-gated and degrade to local seed mode when unset:
   projection is name-only until `READY`/`FULFILLED`. An empty remote slice
   keeps the seeded rows (demo fallback). The gateway speaks **whole
   rupees**; the portal stores **paisa**, so the mapper multiplies by 100.
-- **Supabase Auth** — `src/lib/supabase/auth.ts` is a minimal GoTrue REST client
-  (no `supabase-js` dependency) that signs in with password, refreshes, and decodes
-  role claims (`app_role`/`seller_id`/`state_code`, top-level or `app_metadata`).
-  The bearer token is attached to every gateway call.
+- **Auth (mocked by default)** — `src/lib/api/index.ts` `signIn` authenticates against
+  the built-in demo directory (`src/data/auth/users.ts`) and never calls Supabase unless
+  `NEXT_PUBLIC_AUTH_MODE=supabase`. `src/lib/supabase/auth.ts` is the dormant GoTrue REST
+  seam (no `supabase-js` dependency): password sign-in, refresh, role-claim decode
+  (`app_role`/`seller_id`/`state_code`, top-level or `app_metadata`). When Supabase mode is
+  on, its bearer token is attached to every gateway call; in mock mode the calls go
+  unauthenticated and rely on the gateway's `AUTH_DISABLED=true` dev setting.
 - **Supabase Storage** — `src/lib/media/productImages.ts` stores a **Storage object
   key**, never a URL, and derives the public object URL at render (`PRODUCT_BUCKET`
   = `product-images`). `uploadProductImage()` uploads the session-authenticated
@@ -121,7 +125,8 @@ Bootstrap (`app/providers.tsx`) restores the session then hydrates. Copy
 
 ```bash
 NEXT_PUBLIC_GATEWAY_URL=        # e.g. http://localhost:8080
-NEXT_PUBLIC_SUPABASE_URL=
+NEXT_PUBLIC_AUTH_MODE=mock      # "mock" (default) | "supabase" (GoTrue)
+NEXT_PUBLIC_SUPABASE_URL=       # Storage always; Auth only when AUTH_MODE=supabase
 NEXT_PUBLIC_SUPABASE_ANON_KEY=
 ```
 

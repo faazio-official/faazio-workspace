@@ -4,7 +4,7 @@ import { useState } from "react";
 import { toast } from "sonner";
 import { DEMO_ACCOUNTS, signIn } from "@/lib/api";
 import { hydrateFromGateway } from "@/lib/api/sync";
-import { authConfigured } from "@/lib/config";
+import { authMocked } from "@/lib/config";
 import { homeFor, ROLE_LABEL } from "@/lib/auth/permissions";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -82,10 +82,10 @@ function LoginPage() {
           </Button>
         </form>
 
-        {authConfigured() ? null : (
+        {authMocked() && (
           <div className="mt-4">
             <p className="mb-2 text-[12px] font-semibold text-muted-foreground">
-              Demo accounts — local seed mode (Supabase Auth not configured)
+              Demo accounts — mocked auth (set NEXT_PUBLIC_AUTH_MODE=supabase for GoTrue)
             </p>
             <div className="flex flex-wrap gap-2">
               {DEMO_ACCOUNTS.map((account) => (

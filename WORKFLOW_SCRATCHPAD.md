@@ -134,7 +134,7 @@ wire. Mobile `GatewayClient.ts` + `@data/*` already speak integer rupees — unc
 | D10 | ISO strings no TZ enforcement | TIMESTAMPTZ | TZ-aware ISO type |
 | D11 | flat `customerName`/`sellerId` | joins + JSONB pickup | DB-shape map |
 | D12 | seeded analytics ints | Mongo user_events/product_stats | real pipeline (Phase 5) |
-| D13 | plaintext `demo1234` + localStorage | Supabase Auth JWT + RLS | auth cutover (Phase 5) |
+| D13 | plaintext `demo1234` + localStorage | Supabase Auth JWT + RLS | **decision: portal auth stays mocked** (demo directory, `NEXT_PUBLIC_AUTH_MODE=supabase` opt-in); GoTrue seam kept dormant |
 | D14 | client-computed settlement | payments.settlement_ledger | server-only write |
 | D15 | camelCase everywhere | snake_case DB | single mapper |
 | D16 | no customer-user projection | checkout.users (PII) + orders | **0017** `checkout.users_admin` view (redacted: no phone/address/email) |
@@ -163,9 +163,11 @@ wire. Mobile `GatewayClient.ts` + `@data/*` already speak integer rupees — unc
 - [x] `src/lib/pricing/rules.ts` paisa-int math only (`isIntPaisa` guard)
 - [x] `src/lib/media/productImages.ts` Storage-key flow (`resolveImage` + `uploadProductImage`)
 - [x] `src/lib/api/{http,sync}.ts` fetch seam + rupee↔paisa mapper + bearer auth
-- [x] `src/lib/supabase/auth.ts` Supabase Auth (GoTrue REST, no SDK) + role claims
+- [x] `src/lib/supabase/auth.ts` Supabase Auth (GoTrue REST, no SDK) + role claims — **dormant by
+      default**: portal auth is **mocked** (demo directory) even when Supabase creds are present;
+      `NEXT_PUBLIC_AUTH_MODE=supabase` opts back into GoTrue
 - [x] 5 thin pages (prescriptions, bookings, blood, state bookings, sdui) + seed records/hooks/nav
-- [x] env-gated (`NEXT_PUBLIC_GATEWAY_URL`/`SUPABASE_*`); `.env.example`; degrades to seed mode
+- [x] env-gated (`NEXT_PUBLIC_GATEWAY_URL`/`AUTH_MODE`/`SUPABASE_*`); `.env.example`; degrades to seed mode
 - [x] `.gitignore` `coverage/`→`/coverage/` (un-hid `app/admin/super/coverage`)
 
 ## 9. Gateway delta checklist
