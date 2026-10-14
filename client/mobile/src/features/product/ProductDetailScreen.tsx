@@ -1,6 +1,7 @@
-import React, { useCallback, useMemo } from 'react';
+import React, { useCallback, useEffect, useMemo } from 'react';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import CommonProductDetailView from '@/features/product/CommonProductDetailView';
+import { gateway } from '@/services/api/GatewayClient';
 import { useCartStore } from '@/state/cartStore';
 import { useFavoriteStore } from '@/state/favoriteStore';
 import { getDiningRestaurantForProduct } from '@/features/food/utils/restaurantForProduct';
@@ -17,6 +18,11 @@ export function ProductDetailScreen({ navigation, route }: Props) {
   const updateCartQuantity = useCartStore((s) => s.updateQuantity);
   const favorites = useFavoriteStore((s) => s.favorites);
   const toggleFavorite = useFavoriteStore((s) => s.toggleFavorite);
+
+  // Behavior analytics (ID-only, allowlisted); best-effort and a no-op in mock mode.
+  useEffect(() => {
+    if (product?.id) void gateway.trackEvent(product.id, 'view').catch(() => {});
+  }, [product?.id]);
 
   const handleClose = useCallback(() => navigation.goBack(), [navigation]);
   const appToSubApp: Record<string, SubAppId> = {

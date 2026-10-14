@@ -324,6 +324,8 @@ export default function CartView({
 
       // The order already took the stock; drop the purchased lines from the durable server cart.
       selectedItems.forEach((i) => void gateway.removeCartItem(i.id).catch(() => {}));
+      // Behavior analytics (ID-only, allowlisted) — the outbox is best-effort.
+      selectedItems.forEach((i) => void gateway.trackEvent(i.id, 'order').catch(() => {}));
 
       const details = {
         orderId,

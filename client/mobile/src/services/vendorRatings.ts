@@ -6,6 +6,7 @@ import {
 } from '@data/index';
 import { useAuthStore } from '@/state/authStore';
 import { useOrdersStore } from '@/state/ordersStore';
+import { gateway } from '@/services/api/GatewayClient';
 import {
   useVendorRatingStore,
   MAX_VENDOR_RATING_COMMENT,
@@ -90,6 +91,11 @@ export function submitVendorRating(
     comment: comment?.trim().slice(0, MAX_VENDOR_RATING_COMMENT) || undefined,
     orderIds,
   });
+  // Mirror the rating to the durable source of truth (server re-checks the purchase gate);
+  // best-effort so offline/local rating still succeeds, no-op in mock mode.
+  void gateway
+    .rateVendor(vendorId, value, comment?.trim().slice(0, MAX_VENDOR_RATING_COMMENT))
+    .catch(() => {});
   return true;
 }
 

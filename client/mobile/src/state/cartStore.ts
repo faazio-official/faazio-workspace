@@ -68,6 +68,7 @@ export const useCartStore = create<CartState>()((set, get) => ({
       return { cart: [...state.cart, { id, name, price, quantity: 1, emoji, restaurantId }] };
     });
     void gateway.addToCart(id, 1).catch(() => {});
+    void gateway.trackEvent(id, 'cart_add').catch(() => {});
   },
 
   removeFromCart: (itemId) => {
