@@ -190,6 +190,15 @@ wire. Mobile `GatewayClient.ts` + `@data/*` already speak integer rupees — unc
       admin outbox); gap writes `GET/PUT /profile/addresses` + `GET /orders/{id}` (checkout),
       `PUT /reviews/{id}/moderate` (reviews HIDDEN flag), `PUT /seller/products/{id}` (catalog price/stock edit);
       pharma repo test covers quote total + cross-seller denial + READY-without-quote + reveal + history
+- [x] **(W24 follow-up)** `internal/notifications` `Enqueue` now purges `faazio:v1:notifications:inbox:{userId}`
+      (was stale for `TTLNotifications`; the caching doc's promise is now implemented);
+      `GET /seller/prescriptions` attaches `status_history` + surfaces `revealed_by` so the portal audit
+      trail is populated. Portal: product price/stock edits (`upsertPrice`/`updateStock`) write behind to
+      `PUT /seller/products/{id}`; the phantom `GET /reviews` hydrate (no bulk endpoint) is removed.
+      Mobile: `gateway.trackEvent` fires on product view / cart add / order; `submitVendorRating` mirrors to
+      `PUT /vendors/{id}/rating`. Remaining mobile W22: orders-history hydration (needs non-Processing status
+      display), reviews/vendor-review reads, profile/account reads, food menus/bookings, analytics `search`
+      event (Mongo `user_events` requires a product-id anchor), dining venue seeding.
 
 ## 10. Decisions (approved)
 
@@ -242,4 +251,7 @@ and **Order Details polls the durable Rx** (`usePrescriptionDetail`) to show the
 status as it is quoted/readied. Remaining mobile slices: dining (venues not seeded), the
 orders/rewards/blood/bookings on-device verification, and the `AUTH_DISABLED=true` pass before
 flipping the flag. The seam (`GatewayClient` + per-feature fallback) stays in place until each
-slice is green.
+slice is green. **W24 follow-up shipped:** notifications inbox cache invalidation + seller Rx
+`status_history`/`revealed_by`, portal product price/stock write-through, and mobile analytics +
+vendor-rating writes (see §9). Remaining mobile reads (orders, reviews, profile, food, `search`
+analytics) are tracked in §9.

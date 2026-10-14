@@ -1185,7 +1185,9 @@ ALTER TABLE reviews.vendor_reviews ADD COLUMN IF NOT EXISTS hidden BOOLEAN NOT N
 
 Money stays INT8 paisa (whole rupees on the wire, `/100` at the repo boundary). The seller projection
 (`GET /seller/prescriptions`) is **name-only until READY/FULFILLED** — `checkout.users.phone` and the
-address are surfaced by the query's `CASE` only in those states, and the reveal is recorded in
+address are surfaced by the query's `CASE` only in those states; the projection also returns
+`revealed_at`/`revealed_by` + the append-only `status_history` so the portal audit trail is populated
+(the `revealed_by` actor is never the customer phone/address). The reveal is recorded in
 `revealed_at`/`revealed_by` + `status_history` + `admins.audit_logs` (RX_READY). `POST
 /seller/prescriptions/{id}/quotes` replaces the quote lines, recomputes `quoted_total_paisa`, advances
 `RECEIVED/QUOTED → QUOTED` and appends history. `PUT /prescriptions/{id}/status READY` requires ≥1
