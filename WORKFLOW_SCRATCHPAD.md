@@ -231,7 +231,8 @@ endpoint all agree. Fallback stays in place until the slice is green end-to-end.
 
 Status: **S1–S5 closed** (web control + DB + gateway all shipped; every portal mutator
 now calls `writeBehind`). **S6 pending** (W23: mobile `authStore` cutover, product/KYC
-Storage buckets, Cloudflare edge rules). **S7 gateway/DB shipped** (`0018` + pharma
-quote/reveal + notifications + gap PUTs); the web quote editor and mobile Rx/cart cutover
-are the next slices. Mobile `@mock`→`@server` (W22) is in progress; the seam
+Storage buckets, Cloudflare edge rules). **S7 gateway/DB + web shipped** (`0018` + pharma
+quote/reveal + notifications + gap PUTs; `seller/prescriptions` rebuilt with the quote editor,
+READY-gated reveal + audit trail, signed Rx images, and a production seed-mode banner); the mobile
+Rx/cart cutover is the next slice. Mobile `@mock`→`@server` (W22) is in progress; the seam
 (`GatewayClient` + per-feature fallback) is ready to flip per module.

@@ -2,8 +2,8 @@
 // GatewayClient pattern: the only door between pages and data.
 // When a real backend arrives, only the internals of this module change.
 import { usePortalStore, AUTH_DIRECTORY, type PortalState } from "@/lib/api/store";
-import { authConfigured } from "@/lib/config";
-import { writeBehind } from "@/lib/api/http";
+import { authConfigured, remoteConfigured } from "@/lib/config";
+import { remote, writeBehind } from "@/lib/api/http";
 import { getSession, signInWithPassword, signOutRemote } from "@/lib/supabase/auth";
 import { sellerSeries, stateSeries, globalSeries, productSeries } from "@/data/analytics/series";
 import type {
@@ -17,6 +17,7 @@ import type {
   OrderStatus,
   PrescriptionStatus,
   ProductRecord,
+  QuoteItemRecord,
   ProductStatus,
   RewardLedgerEntry,
   RewardsRates,
@@ -681,6 +682,91 @@ export function setPrescriptionStatus(prescriptionId: string, status: Prescripti
     before: before && { status: before.status },
     after: { status },
   });
+}
+
+/**
+ * Replaces the seller's priced lines and advances the Rx to QUOTED (optimistic + write-behind).
+ * The server recomputes the total and appends status history; a READY/FULFILLED/CANCELLED Rx keeps
+ * its status (only the lines change).
+ */
+export function savePrescriptionQuote(prescriptionId: string, items: QuoteItemRecord[]): void {
+  const before = state().prescriptions.find((p) => p.prescriptionId === prescriptionId);
+  const totalPaisa = items.reduce((sum, it) => sum + it.qty * (it.pricePaisa - it.discountPaisa), 0);
+  const frozen = before?.status === "READY" || before?.status === "FULFILLED" || before?.status === "CANCELLED";
+  state().set((s) => ({
+    prescriptions: s.prescriptions.map((p) =>
+      p.prescriptionId === prescriptionId
+        ? {
+            ...p,
+            quote: items,
+            quotedTotalPaisa: totalPaisa,
+            status: frozen ? p.status : "QUOTED",
+            updatedAt: nowIso(),
+          }
+        : p,
+    ),
+  }));
+  writeBehind("post", `/seller/prescriptions/${encodeURIComponent(prescriptionId)}/quotes`, {
+    items: items.map((it) => ({
+      name: it.name,
+      qty: it.qty,
+      mrp: toRupees(it.mrpPaisa),
+      price: toRupees(it.pricePaisa),
+      discount: toRupees(it.discountPaisa),
+    })),
+  });
+  audit({
+    action: "RX_QUOTED",
+    entity: "pharma.prescriptions",
+    entityId: prescriptionId,
+    before: before && { status: before.status, total: before.quotedTotalPaisa ?? 0 },
+    after: { status: frozen ? before?.status : "QUOTED", total: totalPaisa, lines: items.length },
+  });
+}
+
+/**
+ * Marks an Rx READY. Requires at least one quote line and a positive total (mirrors the server gate).
+ * The reveal (customer phone/address visible to the seller) is recorded + audited server-side.
+ */
+export function setPrescriptionReady(prescriptionId: string): boolean {
+  const rx = state().prescriptions.find((p) => p.prescriptionId === prescriptionId);
+  const lines = rx?.quote?.length ?? 0;
+  const totalPaisa = rx?.quotedTotalPaisa ?? 0;
+  if (lines < 1 || totalPaisa <= 0) return false;
+  state().set((s) => ({
+    prescriptions: s.prescriptions.map((p) =>
+      p.prescriptionId === prescriptionId
+        ? { ...p, status: "READY", revealedAt: nowIso(), updatedAt: nowIso() }
+        : p,
+    ),
+  }));
+  writeBehind("put", `/prescriptions/${encodeURIComponent(prescriptionId)}/status`, { status: "READY" });
+  audit({
+    action: "RX_READY",
+    entity: "pharma.prescriptions",
+    entityId: prescriptionId,
+    before: rx && { status: rx.status },
+    after: { status: "READY", total: totalPaisa },
+  });
+  return true;
+}
+
+/**
+ * Fetches short-lived signed download URLs for an Rx's images. Only the owner, assigned vendor or
+ * an admin may call it; returns [] in seed mode or on any failure.
+ */
+export async function fetchPrescriptionImages(
+  prescriptionId: string,
+): Promise<{ objectPath: string; url: string }[]> {
+  if (!remoteConfigured()) return [];
+  try {
+    const res = await remote.get<{ images?: { objectPath: string; url: string }[] }>(
+      `/prescriptions/${encodeURIComponent(prescriptionId)}/images`,
+    );
+    return res.images ?? [];
+  } catch {
+    return [];
+  }
 }
 
 /* --------------------------------- bookings ------------------------------ */

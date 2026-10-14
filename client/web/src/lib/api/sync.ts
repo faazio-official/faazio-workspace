@@ -18,7 +18,9 @@ import type {
   LedgerEntry,
   MenuItemRecord,
   PayoutRecord,
+  PrescriptionHistoryEntry,
   PrescriptionRecord,
+  QuoteItemRecord,
   ReviewRecord,
   RewardLedgerEntry,
   Role,
@@ -83,6 +85,35 @@ function str(v: unknown, fallback = ""): string {
 function num(v: unknown, fallback = 0): number {
   const n = Number(v);
   return Number.isFinite(n) ? n : fallback;
+}
+
+/** Gateway quote lines expose money in whole rupees; the portal stores paisa. */
+function mapRxQuote(v: unknown): QuoteItemRecord[] | undefined {
+  if (!Array.isArray(v)) return undefined;
+  return v.map((raw): QuoteItemRecord => {
+    const it = raw as Raw;
+    return {
+      name: str(it["name"]),
+      qty: num(it["qty"], 1),
+      mrpPaisa: toPaisa(num(it["mrp"])),
+      pricePaisa: toPaisa(num(it["price"])),
+      discountPaisa: toPaisa(num(it["discount"])),
+    };
+  });
+}
+
+function mapRxHistory(v: unknown): PrescriptionHistoryEntry[] | undefined {
+  if (!Array.isArray(v)) return undefined;
+  return v.map((raw): PrescriptionHistoryEntry => {
+    const h = raw as Raw;
+    return {
+      fromStatus: h["fromStatus"] ? str(h["fromStatus"]) : undefined,
+      toStatus: str(h["toStatus"]),
+      actorId: str(h["actorId"]),
+      actorRole: str(h["actorRole"]),
+      createdAt: str(h["createdAt"]),
+    };
+  });
 }
 
 async function safe<T>(fn: () => Promise<T>): Promise<T | undefined> {
@@ -243,18 +274,29 @@ export async function hydrateFromGateway(): Promise<boolean> {
     touched = true;
   }
   if (rx && rx.length) {
-    // Gateway prescription rows are thin; merge onto seeded rows for display fields.
+    // Gateway prescription rows are thin; merge onto seeded rows for display fields. The seller
+    // projection is name-only until READY/FULFILLED — phone/address stay empty before the reveal.
     const mapped = rx.map(
       (r): PrescriptionRecord => ({
         prescriptionId: str(r["prescriptionId"] ?? r["id"]),
-        userId: str(r["userId"]),
+        userId: r["userId"] ? str(r["userId"]) : undefined,
         sellerId: str(r["sellerId"]),
         storeId: str(r["storeId"] ?? r["vendorId"]),
         vendorName: str(r["vendorName"]),
+        customerName: r["customerName"] ? str(r["customerName"]) : undefined,
+        customerPhone: r["customerPhone"] ? str(r["customerPhone"]) : undefined,
+        customerAddress: r["customerAddress"] ? str(r["customerAddress"]) : undefined,
         pages: num(r["pages"], 1),
         note: str(r["note"]),
         fulfillment: r["fulfillment"] === "PICKUP" ? "PICKUP" : "DELIVERY",
         status: str(r["status"], "RECEIVED") as PrescriptionRecord["status"],
+        imagePaths: Array.isArray(r["imagePaths"])
+          ? (r["imagePaths"] as unknown[]).map((x) => String(x))
+          : undefined,
+        quote: mapRxQuote(r["quote"]),
+        quotedTotalPaisa: toPaisa(num(r["quotedTotal"])),
+        revealedAt: r["revealedAt"] ? str(r["revealedAt"]) : undefined,
+        history: mapRxHistory(r["history"]),
         createdAt: str(r["createdAt"]),
         updatedAt: str(r["updatedAt"] ?? r["createdAt"]),
       }),

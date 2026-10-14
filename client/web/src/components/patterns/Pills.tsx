@@ -68,6 +68,8 @@ const STATUS_TONE: Record<string, Tone> = {
   RETURNED: "danger",
   RECEIVED: "info",
   PROCESSING: "warning",
+  QUOTED: "info",
+  READY: "success",
   FULFILLED: "success",
   PUBLISHED: "success",
   pending: "warning",

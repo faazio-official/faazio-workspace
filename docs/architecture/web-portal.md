@@ -75,6 +75,23 @@ gateway through `writeBehind()` (`src/lib/api/http.ts`) when configured; a faile
 call keeps the optimistic state (seed fallback) and the next hydrate reconciles.
 Write bodies send **whole rupee** integers (the mapper divides paisa by 100).
 
+A production build with `NEXT_PUBLIC_GATEWAY_URL` unset renders a fixed
+`SEED MODE — not connected to gateway` badge (`SeedModeBanner`), so seed data can
+never masquerade as live data. Dev builds stay quiet.
+
+### Pharma quote → READY reveal (`seller/prescriptions`)
+
+The prescriptions page is the control surface for the W24 quote workflow
+(`db-schema.md` §12.12). Opening a row shows a drawer with the seller-safe header
+(name only until READY), the Rx image keys resolved on demand via
+`fetchPrescriptionImages` (short-lived signed URLs — the private bucket is never
+public), a quote editor (name/qty/MRP/price/discount, live total), and an audit
+trail. `savePrescriptionQuote` replaces the priced lines (→ `QUOTED`);
+`setPrescriptionReady` is gated on ≥1 line and a positive total, matching the
+server, and flips the Rx to `READY` — after which the customer's phone/address
+appear under an amber "PII revealed — audited" banner and the customer is
+notified. `Fulfil`/`Cancel` follow the same optimistic + write-behind path.
+
 ## Data + auth
 
 `src/lib/config.ts` is the only module that reads env. Two integrations are
@@ -85,7 +102,9 @@ env-gated and degrade to local seed mode when unset:
   implements `hydrateFromGateway()`: it best-effort fetches the gateway-owned
   slices (sellers, promo, ads, settlement, admins, prescriptions, bookings, blood,
   SDUI, reviews, and — partner completion — customers, menus, support tickets,
-  rewards rates/ledger) and writes them into the store. An empty remote slice
+  rewards rates/ledger) and writes them into the store. Prescription rows carry
+  the quote lines, `quotedTotal`, reveal fields and status history; the seller
+  projection is name-only until `READY`/`FULFILLED`. An empty remote slice
   keeps the seeded rows (demo fallback). The gateway speaks **whole
   rupees**; the portal stores **paisa**, so the mapper multiplies by 100.
 - **Supabase Auth** — `src/lib/supabase/auth.ts` is a minimal GoTrue REST client

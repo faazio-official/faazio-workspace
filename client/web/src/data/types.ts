@@ -267,20 +267,55 @@ export interface StateInfo {
   name: string;
 }
 
-export type PrescriptionStatus = "RECEIVED" | "PROCESSING" | "FULFILLED" | "CANCELLED";
+export type PrescriptionStatus =
+  | "RECEIVED"
+  | "PROCESSING"
+  | "QUOTED"
+  | "READY"
+  | "FULFILLED"
+  | "CANCELLED";
 export type PrescriptionFulfillment = "DELIVERY" | "PICKUP";
+
+/** pharma.quote_items — one seller-entered quote line (money in integer paisa on the web). */
+export interface QuoteItemRecord {
+  name: string;
+  qty: number;
+  mrpPaisa: number;
+  pricePaisa: number;
+  discountPaisa: number;
+}
+
+/** pharma.status_history — one append-only Rx transition. */
+export interface PrescriptionHistoryEntry {
+  fromStatus?: string | undefined;
+  toStatus: string;
+  actorId: string;
+  actorRole: string;
+  createdAt: string;
+}
 
 /** pharma.prescriptions (image paths are Storage object keys, never URLs). */
 export interface PrescriptionRecord {
   prescriptionId: string;
-  userId: string;
+  /** Present only for admin/derived views; the seller projection is name-only until READY. */
+  userId?: string | undefined;
   sellerId: string;
   storeId: string;
   vendorName: string;
+  /** Seller-safe display name (no phone/address until READY/FULFILLED). */
+  customerName?: string | undefined;
+  customerPhone?: string | undefined;
+  customerAddress?: string | undefined;
   pages: number;
   note: string;
   fulfillment: PrescriptionFulfillment;
   status: PrescriptionStatus;
+  /** Storage object keys (private bucket) — resolve with fetchPrescriptionImages. */
+  imagePaths?: string[] | undefined;
+  quote?: QuoteItemRecord[] | undefined;
+  quotedTotalPaisa?: number | undefined;
+  revealedAt?: string | undefined;
+  history?: PrescriptionHistoryEntry[] | undefined;
   createdAt: string;
   updatedAt: string;
 }

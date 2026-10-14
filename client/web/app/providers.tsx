@@ -5,6 +5,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { Toaster } from "@/components/ui/sonner";
+import { SeedModeBanner } from "@/components/patterns/SeedModeBanner";
 import { restoreSession } from "@/lib/api";
 import { hydrateFromGateway } from "@/lib/api/sync";
 
@@ -27,6 +28,7 @@ export function Providers({ children }: { children: ReactNode }) {
   return (
     <QueryClientProvider client={queryClient}>
       <TooltipProvider delayDuration={120}>{children}</TooltipProvider>
+      <SeedModeBanner />
       <Toaster position="top-right" />
     </QueryClientProvider>
   );
