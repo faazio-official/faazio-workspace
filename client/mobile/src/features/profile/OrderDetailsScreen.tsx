@@ -11,6 +11,8 @@ import { getMyOrderById, getProductById, getVendorById, portalSectors, userProfi
 import { SECTOR_VISUALS } from '@/theme/sectorVisuals';
 import { useOrdersStore } from '@/state/ordersStore';
 import { useCanRateVendor } from '@/hooks/useVendorRating';
+import { gateway } from '@/services/api/GatewayClient';
+import { usePrescriptionDetail } from '@/features/pharma/prescription/usePrescriptionDetail';
 import type { MyOrder } from '@data/types';
 import type { RootStackParamList } from '@/navigation/types';
 
@@ -21,6 +23,10 @@ const STATUS_COLORS: Record<string, string> = {
   Shipped: '#2563EB',
   Processing: '#D97706',
   Cancelled: '#EF4444',
+  'Awaiting quote': '#D97706',
+  'Quote ready': '#2563EB',
+  Ready: '#16A34A',
+  Fulfilled: '#16A34A',
 };
 
 const STATUS_BADGE_BG: Record<string, string> = {
@@ -28,6 +34,19 @@ const STATUS_BADGE_BG: Record<string, string> = {
   Shipped: '#DBEAFE',
   Processing: '#FEF3C7',
   Cancelled: '#FEE2E2',
+  'Awaiting quote': '#FEF3C7',
+  'Quote ready': '#DBEAFE',
+  Ready: '#DCFCE7',
+  Fulfilled: '#DCFCE7',
+};
+
+/** Server Rx status → customer-facing label (pharma.prescription_status). */
+const RX_STATUS_LABEL: Record<string, string> = {
+  RECEIVED: 'Awaiting quote',
+  QUOTED: 'Quote ready',
+  READY: 'Ready',
+  FULFILLED: 'Fulfilled',
+  CANCELLED: 'Cancelled',
 };
 
 interface PickupView {
@@ -60,6 +79,11 @@ export function OrderDetailsScreen({ navigation, route }: Props) {
   const insets = useSafeAreaInsets();
   const placedOrder = useOrdersStore((s) => s.getOrderById(route.params.orderId));
   const dataOrder = useMemo(() => getMyOrderById(route.params.orderId), [route.params.orderId]);
+  // Prescription orders poll the durable Rx for the seller quote + READY reveal (remote mode only).
+  const rxEnabled = Boolean(
+    placedOrder?.kind === 'prescription' && gateway.remoteEnabled,
+  );
+  const rx = usePrescriptionDetail(placedOrder?.orderId, rxEnabled);
 
   const order = useMemo<OrderView | null>(() => {
     if (placedOrder) {
@@ -157,8 +181,9 @@ export function OrderDetailsScreen({ navigation, route }: Props) {
 
   const sector = portalSectors.find((s) => s.app === order.app);
   const visual = SECTOR_VISUALS[order.app];
-  const statusColor = STATUS_COLORS[order.status] ?? '#374151';
-  const statusBg = STATUS_BADGE_BG[order.status] ?? '#F3F4F6';
+  const statusLabel = rx ? RX_STATUS_LABEL[rx.status] ?? rx.status : order.status;
+  const statusColor = STATUS_COLORS[statusLabel] ?? '#374151';
+  const statusBg = STATUS_BADGE_BG[statusLabel] ?? '#F3F4F6';
 
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
@@ -185,7 +210,7 @@ export function OrderDetailsScreen({ navigation, route }: Props) {
         {/* Status card */}
         <View style={styles.statusCard}>
           <View style={[styles.statusPill, { backgroundColor: statusBg }]}>
-            <AppText style={[styles.statusText, { color: statusColor }]}>{order.status}</AppText>
+            <AppText style={[styles.statusText, { color: statusColor }]}>{statusLabel}</AppText>
           </View>
           <AppText style={styles.statusDate}>{order.statusDate}</AppText>
         </View>
@@ -231,6 +256,43 @@ export function OrderDetailsScreen({ navigation, route }: Props) {
             </AppText>
           </View>
         </View>
+
+        {/* Pharmacy quote — durable Rx status + seller quote + recent history (remote only) */}
+        {rx ? (
+          <View style={styles.card}>
+            <AppText style={styles.sectionTitle}>Pharmacy quote</AppText>
+            {rx.status === 'RECEIVED' ? (
+              <AppText style={styles.quoteHint}>
+                Your prescription is with the pharmacy. The price appears here once they quote it.
+              </AppText>
+            ) : null}
+            {rx.quote && rx.quote.length > 0 ? (
+              <>
+                {rx.quote.map((line, i) => (
+                  <View key={`${line.name}-${i}`} style={styles.metaRow}>
+                    <AppText style={styles.metaLabel}>
+                      {line.name} × {line.qty}
+                    </AppText>
+                    <AppText style={styles.metaValue}>₹{line.price * line.qty}</AppText>
+                  </View>
+                ))}
+                <View style={[styles.metaRow, styles.quoteTotalRow]}>
+                  <AppText style={styles.quoteTotalLabel}>Total</AppText>
+                  <AppText style={styles.lineTotal}>₹{rx.quotedTotal ?? 0}</AppText>
+                </View>
+              </>
+            ) : null}
+            {rx.history && rx.history.length > 0 ? (
+              <View style={styles.historyWrap}>
+                {rx.history.slice(-3).map((h, i) => (
+                  <AppText key={`${h.toStatus}-${i}`} style={styles.historyLine}>
+                    • {RX_STATUS_LABEL[h.toStatus] ?? h.toStatus}
+                  </AppText>
+                ))}
+              </View>
+            ) : null}
+          </View>
+        ) : null}
 
         {/* Pickup from — one card per vendor for self-pickup orders */}
         {order.fulfillment === 'PICKUP' && order.pickups.length > 0 ? (
@@ -473,6 +535,33 @@ const styles = StyleSheet.create({
     color: '#6B7280',
     lineHeight: ms(19),
     marginBottom: SPACE.BLOCK,
+  },
+  quoteHint: {
+    fontSize: ms(13),
+    color: '#6B7280',
+    lineHeight: ms(19),
+  },
+  quoteTotalRow: {
+    borderTopWidth: 1,
+    borderTopColor: '#E5E7EB',
+    marginTop: SPACE.ITEM,
+    paddingTop: SPACE.ITEM,
+  },
+  quoteTotalLabel: {
+    fontSize: ms(14),
+    fontWeight: '700',
+    color: '#111827',
+  },
+  historyWrap: {
+    marginTop: SPACE.ITEM,
+    borderTopWidth: 1,
+    borderTopColor: '#F3F4F6',
+    paddingTop: SPACE.ITEM,
+  },
+  historyLine: {
+    fontSize: ms(12),
+    color: '#6B7280',
+    marginBottom: vs(2),
   },
   rateBtnWrap: {
     marginTop: vs(2),

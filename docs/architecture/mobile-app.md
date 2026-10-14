@@ -416,8 +416,11 @@ still separate files; consolidating them is tracked in `client/mobile/PENDING_WO
   a URL/logged), then calls `gateway.createPrescription({ vendorId, fulfillment, pages, note,
   imagePaths, addressId })`. The Rx is keyed by the **server-owned id** so My Orders can poll it;
   failed photo uploads drop that page but never block the Rx. Seller quote/READY reveal + outbox
-  notifications are served by the gateway (see `mvp-backend.md`); the customer quote-polling view is
-  still pending.
+  notifications are served by the gateway (see `mvp-backend.md`). The customer sees the quote in
+  **Order Details**: `usePrescriptionDetail` (`features/pharma/prescription/`) polls the durable Rx
+  in remote mode and renders the seller's line items + total, a customer-facing status label
+  (Awaiting quote / Quote ready / Ready / Fulfilled / Cancelled) and the recent status history,
+  stopping on a terminal status.
 
 ## Navigation graph
 

@@ -1020,8 +1020,10 @@ This item routes each module through it, one at a time, keeping the built-in fix
 - [x] **pharma Rx** — `PrescriptionFlowScreen.handleConfirm` uploads photos to the private bucket via
       signed URLs (`gateway.uploadPrescriptionImage` → object key), then creates the Rx with
       `gateway.createPrescription` (real `imagePaths` + `addressId`), keyed by the server id.
-- [ ] **pharma Rx quote view** — the customer-facing quote/READY polling + reveal view (My Orders)
-      still shows the local receipt only; the gateway serves quote/READY + outbox notifications.
+- [x] **pharma Rx quote view** — Order Details (`features/profile/OrderDetailsScreen.tsx`) polls the
+      durable Rx (`usePrescriptionDetail`, remote mode only) and renders the seller quote line items +
+      total, the customer-facing status label (Awaiting quote / Quote ready / Ready / Fulfilled) and
+      the recent status history; polling stops on a terminal status.
 - [ ] **orders/rewards, blood, bookings** — stores already call `GatewayClient`; verify on-device with
       `AUTH_DISABLED=true` before flipping the flag for release.
 

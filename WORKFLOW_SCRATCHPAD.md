@@ -114,7 +114,7 @@ wire. Mobile `GatewayClient.ts` + `@data/*` already speak integer rupees — unc
 | W19 | Rewards admin knobs (ledger view + admin-tunable rates) | 1/2/4 | **done** (0017 `rewards.rates` + `/admin/super/rewards` + `internal/rewards` rates/ledger read) |
 | W20 | Support state/super ticket queue | 1/2/4 | **done** (0017 `tickets.state_code` + `/admin/state/support` + state filter in `internal/support`) |
 | W21 | Web write-through (mutations → gateway, keep seed fallback) | 3/4 | **done** (`http.ts` toSnake/₹↔paisa `writeBehind`, `index.ts` mutators call `remote.*`) |
-| W22 | Mobile `@mock`→`@server` per-module migration | 4 | **in progress** — mart feed, catalog vendor detail, favourites, product search + home SDUI registry done; **cart durability + checkout (`placeOrder`) + Pharma Rx capture/upload/create done**; dining blocked (venues not in `directory.stores`); Rx quote view pending |
+| W22 | Mobile `@mock`→`@server` per-module migration | 4 | **in progress** — mart feed, catalog vendor detail, favourites, product search + home SDUI registry done; **cart durability + checkout (`placeOrder`) + Pharma Rx capture/upload/create + customer Rx quote/READY polling view done**; dining blocked (venues not in `directory.stores`) |
 | W23 | Auth cutover (Supabase JWT + RequireRole) + Storage object-key uploads + edge purge | 5 | **pending** (mobile `authStore`, product/KYC buckets, Cloudflare rules) |
 | W24 | Pharma quote → READY reveal → notify + durable notification outbox | 1/2/4 | **done** (`0018` + `internal/pharma` quote/reveal + `internal/notifications` + gap PUTs; owner `db-schema.md` §12.12) |
 
@@ -237,7 +237,9 @@ READY-gated reveal + audit trail, signed Rx images, and a production seed-mode b
 Rx/cart cutover is the next slice. Mobile `@mock`→`@server` (W22) is in progress: the **cart**
 now mirrors to `inventory.carts` and **checkout** places through `gateway.placeOrder` (server
 prices/stock/idempotency; local order keyed by the server id), and the **Pharma Rx** flow uploads
-photos to the private bucket and creates the Rx with real `imagePaths` + `addressId` (server id).
-Remaining mobile slices: the customer **Rx quote/READY polling view**, dining (venues not seeded),
-and the on-device `AUTH_DISABLED=true` verification before flipping the flag. The seam
-(`GatewayClient` + per-feature fallback) stays in place until each slice is green.
+photos to the private bucket and creates the Rx with real `imagePaths` + `addressId` (server id),
+and **Order Details polls the durable Rx** (`usePrescriptionDetail`) to show the seller quote +
+status as it is quoted/readied. Remaining mobile slices: dining (venues not seeded), the
+orders/rewards/blood/bookings on-device verification, and the `AUTH_DISABLED=true` pass before
+flipping the flag. The seam (`GatewayClient` + per-feature fallback) stays in place until each
+slice is green.
