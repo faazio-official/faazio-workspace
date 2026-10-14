@@ -25,6 +25,9 @@ func Menu(venueID string) string     { return fmt.Sprintf("faazio:v1:directory:m
 func Prescriptions(userID string) string {
 	return fmt.Sprintf("faazio:v1:pharma:prescriptions:%s", userID)
 }
+func Notifications(userID string) string {
+	return fmt.Sprintf("faazio:v1:notifications:inbox:%s", userID)
+}
 func Stock(id string) string          { return fmt.Sprintf("faazio:v1:stock:%s", id) }
 func VendorReviews(id string) string  { return fmt.Sprintf("faazio:v1:reviews:vendor:%s", id) }
 func ProductReviews(id string) string { return fmt.Sprintf("faazio:v1:reviews:product:%s", id) }
@@ -70,6 +73,9 @@ const (
 
 	// TTLPrescriptions bounds the auth-scoped Rx list (mutable; invalidated on create).
 	TTLPrescriptions = 60 * time.Second
+
+	// TTLNotifications bounds the auth-scoped notification inbox (mutable; invalidated on enqueue).
+	TTLNotifications = 30 * time.Second
 
 	// TTLBloodRequests bounds the public (redacted) blood-requests board; auth callers bypass it.
 	TTLBloodRequests = 60 * time.Second

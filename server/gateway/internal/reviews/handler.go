@@ -1,6 +1,7 @@
 package reviews
 
 import (
+	"encoding/json"
 	"errors"
 	"net/http"
 	"time"
@@ -22,11 +23,12 @@ type Handler struct {
 	repo    *Repo
 	service *Service
 	cache   *cache.Cache
+	audit   contracts.AuditWriter
 }
 
 // NewHandler builds the reviews handler.
-func NewHandler(repo *Repo, service *Service, c *cache.Cache) *Handler {
-	return &Handler{repo: repo, service: service, cache: c}
+func NewHandler(repo *Repo, service *Service, c *cache.Cache, audit contracts.AuditWriter) *Handler {
+	return &Handler{repo: repo, service: service, cache: c, audit: audit}
 }
 
 // Register mounts review endpoints onto the shared router.
@@ -37,6 +39,55 @@ func (h *Handler) Register(r chi.Router) {
 	r.Group(func(g chi.Router) {
 		g.Use(auth.Require)
 		g.Put("/vendors/{id}/rating", h.rateVendor)
+	})
+	r.Group(func(g chi.Router) {
+		g.Use(auth.RequireRole(auth.RoleStateAdmin, auth.RoleSuperAdmin))
+		g.Put("/reviews/{id}/moderate", h.moderate)
+	})
+}
+
+// moderate hides or restores a vendor review (never a hard DELETE; vendor_summary is trigger-owned).
+func (h *Handler) moderate(w http.ResponseWriter, r *http.Request) {
+	id := chi.URLParam(r, "id")
+	var body struct {
+		Hidden bool `json:"hidden"`
+	}
+	if err := httpx.Decode(r, &body); err != nil {
+		httpx.Fail(w, http.StatusBadRequest, "bad_request", "invalid body")
+		return
+	}
+	ok, err := h.repo.SetVendorReviewHidden(r.Context(), id, body.Hidden)
+	if err != nil {
+		httpx.Fail(w, http.StatusInternalServerError, "moderate_failed", "could not moderate review")
+		return
+	}
+	if !ok {
+		httpx.Fail(w, http.StatusNotFound, "not_found", "review not found")
+		return
+	}
+	h.log(r, "REVIEW_MODERATED", id, map[string]bool{"hidden": body.Hidden})
+	httpx.JSON(w, http.StatusOK, map[string]any{"ok": true})
+}
+
+func (h *Handler) log(r *http.Request, action, entityID string, after any) {
+	if h.audit == nil {
+		return
+	}
+	actorID := auth.UserID(r.Context())
+	if actorID == "" {
+		actorID = "anonymous"
+	}
+	role := auth.Role(r.Context())
+	if role == "" {
+		role = auth.RoleStateAdmin
+	}
+	var raw json.RawMessage
+	if b, err := json.Marshal(after); err == nil {
+		raw = b
+	}
+	_ = h.audit.Audit(r.Context(), contracts.AuditEntry{
+		ActorID: actorID, ActorRole: role, Action: action,
+		Entity: "reviews.vendor_reviews", EntityID: entityID, After: raw,
 	})
 }
 

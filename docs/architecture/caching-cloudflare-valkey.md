@@ -83,7 +83,8 @@ Examples: `faazio:v1:stock:fm-f1`, `faazio:v1:search:q:hoodie`, `faazio:v1:sdui:
 | Pickup points (public) | 86400 s (24 h) | — | pickup_point edit |
 | Rewards (per user, auth-scoped) | 60 s | **never** | order earn / redeem |
 | Venue menus (public) | 86400 s (24 h) | — | menu edit |
-| Prescriptions (per user, auth-scoped) | 60 s | **never** | Rx create (PII/health data) |
+| Prescriptions (per user, auth-scoped) | 60 s | **never** | Rx create / quote / READY (PII/health data) |
+| Notifications inbox (per user, auth-scoped) | 30 s | **never** | `RX_READY` / order-status enqueue |
 | Blood requests board (public, redacted; auth callers bypass) | 60 s | **never** | request post / expiry sweep (contact/address stripped for anon) |
 | Bookings — tables + food orders (per user, auth-scoped) | 60 s | **never** | booking create / cancel |
 | Recommendations (per userHash) | 3600 s (1 h) | — | `user_events` flush |
@@ -153,6 +154,12 @@ Examples: `faazio:v1:stock:fm-f1`, `faazio:v1:search:q:hoodie`, `faazio:v1:sdui:
 > `catalog:product:{id}`, a store live toggle invalidates `directory:store:{id}`, an order status change
 > invalidates the owning user's `checkout:orders:{userId}`, and a prescription status change invalidates
 > `pharma:prescriptions:{userId}`. Seller lists are never cached.
+>
+> **Pharma quote + notify (W24, `0018`):** a quote save (`POST /seller/prescriptions/{id}/quotes`) or a
+> `READY` status change invalidates the owning user's `pharma:prescriptions:{userId}`. The notification
+> inbox key `faazio:v1:notifications:inbox:{userId}` (30 s) is invalidated when the outbox enqueues
+> (`RX_READY`, order status); the vendor projection is never cached (auth-scoped + PII-gated), and
+> `notifications.push_tokens` is never cached.
 >
 > **Partner completion (v3, `0017`):** a food-menu edit (`/seller/menus`) invalidates
 > `directory:menu:{venueId}`. Customer monitoring (`/customers`) reads the redacted `checkout.users_admin`

@@ -91,6 +91,7 @@ func (r *Repo) VendorReviewsPage(ctx context.Context, vendorID string, limit int
 		select id, vendor_id, app::text, user_name, rating, coalesce(comment,''), date_label, created_at
 		  from reviews.vendor_reviews
 		 where vendor_id = $1
+		   and not hidden
 		   and (not $2::bool or created_at < $3::timestamptz or (created_at = $3::timestamptz and id > $4))
 		 order by created_at desc, id asc
 		 limit $5`, vendorID, hasCursor, cursorTime, cursorID, limit+1)
@@ -184,6 +185,18 @@ func (r *Repo) VendorApp(ctx context.Context, vendorID string) (string, error) {
 		return "MART", nil
 	}
 	return app, err
+}
+
+// SetVendorReviewHidden flips the moderation flag on a vendor review. Returns ok=false when absent.
+func (r *Repo) SetVendorReviewHidden(ctx context.Context, id string, hidden bool) (bool, error) {
+	if r.pool == nil {
+		return false, fmt.Errorf("reviews: database not configured")
+	}
+	tag, err := r.pool.Exec(ctx, `update reviews.vendor_reviews set hidden = $2, updated_at = now() where id = $1`, id, hidden)
+	if err != nil {
+		return false, err
+	}
+	return tag.RowsAffected() > 0, nil
 }
 
 // UpsertRating inserts or replaces the user's live rating (one per user/vendor).

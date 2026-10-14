@@ -4,6 +4,7 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"strings"
 
@@ -19,19 +20,23 @@ const (
 	maxNoteLen    = 2000
 	maxImagePaths = 10
 	maxObjectLen  = 256
+	maxQuoteLines = 50
+	maxQuoteName  = 120
+	maxRupees     = 10_000_000
 )
 
 // Handler serves the auth-scoped prescription endpoints.
 type Handler struct {
-	repo    *Repo
-	storage *Storage
-	cache   *cache.Cache
-	audit   contracts.AuditWriter
+	repo     *Repo
+	storage  *Storage
+	cache    *cache.Cache
+	audit    contracts.AuditWriter
+	notifier contracts.Notifier
 }
 
-// NewHandler builds the pharma handler. storage may be nil (signed URLs disabled).
-func NewHandler(repo *Repo, storage *Storage, c *cache.Cache, audit contracts.AuditWriter) *Handler {
-	return &Handler{repo: repo, storage: storage, cache: c, audit: audit}
+// NewHandler builds the pharma handler. storage and notifier may be nil.
+func NewHandler(repo *Repo, storage *Storage, c *cache.Cache, audit contracts.AuditWriter, notifier contracts.Notifier) *Handler {
+	return &Handler{repo: repo, storage: storage, cache: c, audit: audit, notifier: notifier}
 }
 
 // Register mounts prescription endpoints (all auth-scoped).
@@ -41,10 +46,12 @@ func (h *Handler) Register(r chi.Router) {
 		g.Get("/prescriptions", h.list)
 		g.Post("/prescriptions", h.create)
 		g.Post("/prescriptions/upload-url", h.uploadURL)
+		g.Get("/prescriptions/{id}/images", h.imageURLs)
 	})
 	r.Group(func(g chi.Router) {
 		g.Use(auth.RequireRole(auth.RoleSeller, auth.RoleStateAdmin, auth.RoleSuperAdmin))
 		g.Get("/seller/prescriptions", h.vendorList)
+		g.Post("/seller/prescriptions/{id}/quotes", h.upsertQuote)
 		g.Put("/prescriptions/{id}/status", h.setStatus)
 	})
 }
@@ -80,6 +87,7 @@ func (h *Handler) create(w http.ResponseWriter, r *http.Request) {
 		Pages       int64    `json:"pages"`
 		Note        string   `json:"note"`
 		ImagePaths  []string `json:"imagePaths"`
+		AddressID   string   `json:"addressId"`
 	}
 	if err := httpx.Decode(r, &body); err != nil {
 		httpx.Fail(w, http.StatusBadRequest, "bad_request", "invalid body")
@@ -102,6 +110,10 @@ func (h *Handler) create(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
+	if len(body.AddressID) > maxObjectLen {
+		httpx.Fail(w, http.StatusBadRequest, "bad_request", "invalid address")
+		return
+	}
 	userID := auth.UserID(r.Context())
 	p, err := h.repo.Create(r.Context(), Prescription{
 		UserID:      userID,
@@ -110,6 +122,7 @@ func (h *Handler) create(w http.ResponseWriter, r *http.Request) {
 		Pages:       body.Pages,
 		Note:        body.Note,
 		ImagePaths:  body.ImagePaths,
+		AddressID:   body.AddressID,
 	})
 	if err != nil {
 		httpx.Fail(w, http.StatusInternalServerError, "prescription_failed", "could not save prescription")
@@ -137,6 +150,36 @@ func (h *Handler) uploadURL(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
+// imageURLs returns short-lived signed download URLs for the prescription's images. Only the owner,
+// the assigned vendor or an admin may call it; the private bucket is never made public.
+func (h *Handler) imageURLs(w http.ResponseWriter, r *http.Request) {
+	if h.storage == nil {
+		httpx.Fail(w, http.StatusServiceUnavailable, "storage_unavailable", "prescription storage not configured")
+		return
+	}
+	id := chi.URLParam(r, "id")
+	role := auth.Role(r.Context())
+	admin := role == auth.RoleStateAdmin || role == auth.RoleSuperAdmin
+	paths, ok, err := h.repo.ImagePathsFor(r.Context(), id, auth.UserID(r.Context()), auth.SellerID(r.Context()), admin)
+	if err != nil {
+		httpx.Fail(w, http.StatusInternalServerError, "prescriptions_unavailable", "prescriptions unavailable")
+		return
+	}
+	if !ok {
+		httpx.Fail(w, http.StatusNotFound, "not_found", "prescription not found")
+		return
+	}
+	images := make([]map[string]string, 0, len(paths))
+	for _, p := range paths {
+		url, err := h.storage.SignDownload(r.Context(), p, 300)
+		if err != nil {
+			continue
+		}
+		images = append(images, map[string]string{"objectPath": p, "url": url})
+	}
+	httpx.JSON(w, http.StatusOK, map[string]any{"images": images})
+}
+
 func randomObjectName() string {
 	b := make([]byte, 8)
 	_, _ = rand.Read(b)
@@ -157,8 +200,60 @@ func (h *Handler) vendorList(w http.ResponseWriter, r *http.Request) {
 	httpx.JSON(w, http.StatusOK, items)
 }
 
-// setStatus fulfils/cancels a prescription. Only the status is audited — never image paths or note
-// (health PII; AGENTS.md security).
+// upsertQuote saves the seller's priced lines and advances the Rx to QUOTED. Only the seller who
+// owns the routed store (or an admin) may quote.
+func (h *Handler) upsertQuote(w http.ResponseWriter, r *http.Request) {
+	id := chi.URLParam(r, "id")
+	var body struct {
+		Items []struct {
+			Name     string `json:"name"`
+			Qty      int64  `json:"qty"`
+			MRP      int64  `json:"mrp"`
+			Price    int64  `json:"price"`
+			Discount int64  `json:"discount"`
+		} `json:"items"`
+	}
+	if err := httpx.Decode(r, &body); err != nil {
+		httpx.Fail(w, http.StatusBadRequest, "bad_request", "invalid body")
+		return
+	}
+	if len(body.Items) == 0 || len(body.Items) > maxQuoteLines {
+		httpx.Fail(w, http.StatusBadRequest, "bad_request", "quote must have 1-50 lines")
+		return
+	}
+	items := make([]QuoteItem, 0, len(body.Items))
+	for _, it := range body.Items {
+		name := strings.TrimSpace(it.Name)
+		if name == "" || len(name) > maxQuoteName {
+			httpx.Fail(w, http.StatusBadRequest, "bad_request", "invalid quote item name")
+			return
+		}
+		if it.Qty < 1 || it.Qty > 99 || it.MRP < 0 || it.Price < 0 || it.Discount < 0 ||
+			it.MRP > maxRupees || it.Price > maxRupees || it.Discount > it.Price {
+			httpx.Fail(w, http.StatusBadRequest, "bad_request", "invalid quote item values")
+			return
+		}
+		items = append(items, QuoteItem{Name: name, Qty: it.Qty, MRP: it.MRP, Price: it.Price, Discount: it.Discount})
+	}
+	role := auth.Role(r.Context())
+	admin := role == auth.RoleStateAdmin || role == auth.RoleSuperAdmin
+	p, ok, err := h.repo.UpsertQuote(r.Context(), id, auth.SellerID(r.Context()), actorID(r), role, admin, items)
+	if err != nil {
+		httpx.Fail(w, http.StatusInternalServerError, "quote_failed", "could not save quote")
+		return
+	}
+	if !ok {
+		httpx.Fail(w, http.StatusNotFound, "not_found", "prescription not found")
+		return
+	}
+	h.cache.Del(r.Context(), cache.Prescriptions(p.UserID))
+	h.log(r, "RX_QUOTED", id)
+	httpx.JSON(w, http.StatusOK, p)
+}
+
+// setStatus fulfils/cancels/marks-ready a prescription. Only the status is audited — never image
+// paths or note (health PII; AGENTS.md security). READY requires a quote and triggers a customer
+// notification.
 func (h *Handler) setStatus(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "id")
 	var body struct {
@@ -175,8 +270,12 @@ func (h *Handler) setStatus(w http.ResponseWriter, r *http.Request) {
 	}
 	role := auth.Role(r.Context())
 	admin := role == auth.RoleStateAdmin || role == auth.RoleSuperAdmin
-	p, ok, err := h.repo.SetStatus(r.Context(), id, auth.SellerID(r.Context()), status, admin)
-	if err != nil {
+	p, ok, err := h.repo.SetStatus(r.Context(), id, auth.SellerID(r.Context()), status, actorID(r), role, admin)
+	switch {
+	case errors.Is(err, ErrEmptyQuote):
+		httpx.Fail(w, http.StatusBadRequest, "empty_quote", "add at least one quoted item before marking ready")
+		return
+	case err != nil:
 		httpx.Fail(w, http.StatusInternalServerError, "prescription_failed", "could not update prescription")
 		return
 	}
@@ -186,28 +285,47 @@ func (h *Handler) setStatus(w http.ResponseWriter, r *http.Request) {
 	}
 	h.cache.Del(r.Context(), cache.Prescriptions(p.UserID))
 	h.log(r, "RX_"+status, id)
+	if status == "READY" {
+		h.notifyReady(r, p)
+	}
 	httpx.JSON(w, http.StatusOK, p)
+}
+
+// notifyReady enqueues the customer notification for a READY prescription. Best-effort: the reveal is
+// already committed, so a delivery hiccup must not fail the seller's action.
+func (h *Handler) notifyReady(r *http.Request, p Prescription) {
+	if h.notifier == nil {
+		return
+	}
+	_ = h.notifier.Enqueue(r.Context(), p.UserID, "RX_READY",
+		"Your prescription is ready",
+		"The pharmacy has quoted your prescription. Tap to review and order.",
+		map[string]any{"prescriptionId": p.ID})
 }
 
 func allowedRxStatus(s string) bool {
 	switch s {
-	case "PROCESSING", "FULFILLED", "CANCELLED":
+	case "PROCESSING", "READY", "FULFILLED", "CANCELLED":
 		return true
 	default:
 		return false
 	}
 }
 
+// actorID resolves the acting subject for audit/history (user, then seller, then anonymous).
+func actorID(r *http.Request) string {
+	if id := auth.UserID(r.Context()); id != "" {
+		return id
+	}
+	if id := auth.SellerID(r.Context()); id != "" {
+		return id
+	}
+	return "anonymous"
+}
+
 func (h *Handler) log(r *http.Request, action, entityID string) {
 	if h.audit == nil {
 		return
-	}
-	actorID := auth.UserID(r.Context())
-	if actorID == "" {
-		actorID = auth.SellerID(r.Context())
-	}
-	if actorID == "" {
-		actorID = "anonymous"
 	}
 	role := auth.Role(r.Context())
 	if role == "" {
@@ -215,7 +333,7 @@ func (h *Handler) log(r *http.Request, action, entityID string) {
 	}
 	raw, _ := json.Marshal(map[string]string{"action": action})
 	_ = h.audit.Audit(r.Context(), contracts.AuditEntry{
-		ActorID: actorID, ActorRole: role, Action: action,
+		ActorID: actorID(r), ActorRole: role, Action: action,
 		Entity: "pharma.prescriptions", EntityID: entityID, After: raw,
 	})
 }

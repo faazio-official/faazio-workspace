@@ -4,6 +4,8 @@ package checkout
 
 import (
 	"context"
+	crand "crypto/rand"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"time"
@@ -626,6 +628,111 @@ func (r *Repo) NavByUser(ctx context.Context, userID string) ([]Nav, error) {
 		out = append(out, n)
 	}
 	return out, rows.Err()
+}
+
+// Address is one checkout.addresses row (delivery PII — auth-scoped only).
+type Address struct {
+	AddressID string `json:"addressId"`
+	Label     string `json:"label,omitempty"`
+	Name      string `json:"name,omitempty"`
+	Phone     string `json:"phone,omitempty"`
+	Address   string `json:"address"`
+	IsDefault bool   `json:"isDefault"`
+}
+
+// AddressesByUser returns the caller's saved addresses (default first).
+func (r *Repo) AddressesByUser(ctx context.Context, userID string) ([]Address, error) {
+	if r.pool == nil {
+		return nil, fmt.Errorf("checkout: database not configured")
+	}
+	rows, err := r.pool.Query(ctx, `
+		select coalesce(address_id,''), coalesce(label,''), coalesce(name,''), coalesce(phone,''), address, is_default
+		  from checkout.addresses where user_id = $1 order by is_default desc, address_id`, userID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := []Address{}
+	for rows.Next() {
+		var a Address
+		if err := rows.Scan(&a.AddressID, &a.Label, &a.Name, &a.Phone, &a.Address, &a.IsDefault); err != nil {
+			return nil, err
+		}
+		out = append(out, a)
+	}
+	return out, rows.Err()
+}
+
+// UpsertAddress inserts or updates an address owned by userID. When the supplied id does not belong
+// to the caller the write is refused (ok=false). Setting isDefault clears the caller's other defaults.
+func (r *Repo) UpsertAddress(ctx context.Context, userID string, a Address) (Address, bool, error) {
+	if r.pool == nil {
+		return Address{}, false, fmt.Errorf("checkout: database not configured")
+	}
+	if a.Address == "" || len(a.Address) > 512 {
+		return Address{}, false, fmt.Errorf("checkout: invalid address")
+	}
+	tx, err := r.pool.Begin(ctx)
+	if err != nil {
+		return Address{}, false, err
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+
+	if a.AddressID == "" {
+		a.AddressID = "addr-" + shortAddrID()
+	} else {
+		var owner string
+		err := tx.QueryRow(ctx, `select user_id from checkout.addresses where address_id = $1`, a.AddressID).Scan(&owner)
+		if err != nil {
+			if err != pgx.ErrNoRows {
+				return Address{}, false, err
+			}
+		} else if owner != userID {
+			return Address{}, false, nil
+		}
+	}
+	if a.IsDefault {
+		if _, err := tx.Exec(ctx, `update checkout.addresses set is_default = false where user_id = $1`, userID); err != nil {
+			return Address{}, false, err
+		}
+	}
+	if _, err := tx.Exec(ctx, `
+		insert into checkout.addresses (address_id, user_id, label, name, phone, address, is_default)
+		values ($1,$2,$3,$4,$5,$6,$7)
+		on conflict (address_id) do update
+		  set label = excluded.label, name = excluded.name, phone = excluded.phone,
+		      address = excluded.address, is_default = excluded.is_default`,
+		a.AddressID, userID, a.Label, nullIfEmpty(a.Name), nullIfEmpty(a.Phone), a.Address, a.IsDefault); err != nil {
+		return Address{}, false, err
+	}
+	if err := tx.Commit(ctx); err != nil {
+		return Address{}, false, err
+	}
+	return a, true, nil
+}
+
+// OrderDetail returns one order with line items when it belongs to userID.
+func (r *Repo) OrderDetail(ctx context.Context, orderID, userID string) (Order, bool, error) {
+	if r.pool == nil {
+		return Order{}, false, fmt.Errorf("checkout: database not configured")
+	}
+	var owner string
+	if err := r.pool.QueryRow(ctx, `select user_id from checkout.orders where order_id = $1`, orderID).Scan(&owner); err != nil {
+		if err == pgx.ErrNoRows {
+			return Order{}, false, nil
+		}
+		return Order{}, false, err
+	}
+	if owner != userID {
+		return Order{}, false, nil
+	}
+	return r.OrderByID(ctx, orderID)
+}
+
+func shortAddrID() string {
+	b := make([]byte, 5)
+	_, _ = crand.Read(b)
+	return hex.EncodeToString(b)
 }
 
 // DetailsByUser returns accounts.details.

@@ -32,7 +32,51 @@ func (h *Handler) Register(r chi.Router) {
 		g.Use(auth.RequireRole(auth.RoleSeller, auth.RoleStateAdmin, auth.RoleSuperAdmin))
 		g.Get("/seller/products", h.sellerProducts)
 		g.Put("/seller/products/{id}/status", h.setProductStatus)
+		g.Put("/seller/products/{id}", h.updateProduct)
 	})
+}
+
+// updateProduct edits price/MRP/stock (seller-scoped). Body: {price?, mrp?, inStockQty?, available?}.
+func (h *Handler) updateProduct(w http.ResponseWriter, r *http.Request) {
+	id := chi.URLParam(r, "id")
+	var body struct {
+		Price      *int64 `json:"price"`
+		MRP        *int64 `json:"mrp"`
+		InStockQty *int64 `json:"inStockQty"`
+		Available  *bool  `json:"available"`
+	}
+	if err := httpx.Decode(r, &body); err != nil {
+		httpx.Fail(w, http.StatusBadRequest, "bad_request", "invalid body")
+		return
+	}
+	if body.Price != nil && (*body.Price < 0 || *body.Price > 10_000_000) {
+		httpx.Fail(w, http.StatusBadRequest, "bad_request", "invalid price")
+		return
+	}
+	if body.MRP != nil && (*body.MRP < 0 || *body.MRP > 10_000_000) {
+		httpx.Fail(w, http.StatusBadRequest, "bad_request", "invalid mrp")
+		return
+	}
+	if body.InStockQty != nil && (*body.InStockQty < 0 || *body.InStockQty > 1_000_000) {
+		httpx.Fail(w, http.StatusBadRequest, "bad_request", "invalid stock quantity")
+		return
+	}
+	role := auth.Role(r.Context())
+	admin := role == auth.RoleStateAdmin || role == auth.RoleSuperAdmin
+	p, ok, err := h.repo.UpdateProduct(r.Context(), id, auth.SellerID(r.Context()), admin, ProductEdit{
+		Price: body.Price, MRP: body.MRP, InStockQty: body.InStockQty, Available: body.Available,
+	})
+	if err != nil {
+		httpx.Fail(w, http.StatusInternalServerError, "catalog_unavailable", "catalog unavailable")
+		return
+	}
+	if !ok {
+		httpx.Fail(w, http.StatusNotFound, "not_found", "product not found")
+		return
+	}
+	h.cache.Del(r.Context(), cache.Product(id), cache.Stock(id))
+	h.log(r, "PRODUCT_EDIT", id, map[string]any{"price": p.Price})
+	httpx.JSON(w, http.StatusOK, p)
 }
 
 func (h *Handler) getProduct(w http.ResponseWriter, r *http.Request) {

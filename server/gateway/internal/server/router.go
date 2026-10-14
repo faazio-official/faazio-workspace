@@ -17,6 +17,7 @@ import (
 	"github.com/faazio/server/gateway/internal/checkout"
 	"github.com/faazio/server/gateway/internal/directory"
 	"github.com/faazio/server/gateway/internal/favourites"
+	"github.com/faazio/server/gateway/internal/notifications"
 	"github.com/faazio/server/gateway/internal/pharma"
 	"github.com/faazio/server/gateway/internal/platform/auth"
 	"github.com/faazio/server/gateway/internal/platform/cache"
@@ -69,6 +70,7 @@ func NewRouter(d Deps) http.Handler {
 	recoRepo := reco.New(d.Mongo)
 	pharmaRepo := pharma.New(d.Pool)
 	pharmaStorage := pharma.NewStorage(d.Config.SupabaseURL, d.Config.SupabaseServiceKey, d.Config.PrescriptionBucket)
+	notificationsRepo := notifications.New(d.Pool)
 	bloodRepo := blood.New(d.Pool)
 	bookingsRepo := bookings.New(d.Pool)
 
@@ -111,11 +113,12 @@ func NewRouter(d Deps) http.Handler {
 	cartstock.NewHandler(cartRepo, d.Cache).Register(r)
 	favourites.NewHandler(favouritesRepo, d.Cache).Register(r)
 	rewards.NewHandler(rewardsRepo, d.Cache, adminsRepo).Register(r)
-	pharma.NewHandler(pharmaRepo, pharmaStorage, d.Cache, adminsRepo).Register(r)
+	pharma.NewHandler(pharmaRepo, pharmaStorage, d.Cache, adminsRepo, notificationsRepo).Register(r)
+	notifications.NewHandler(notificationsRepo, d.Cache).Register(r)
 	blood.NewHandler(bloodRepo, d.Cache, adminsRepo).Register(r)
 	bookings.NewHandler(bookingsRepo, d.Cache, adminsRepo).Register(r)
-	checkout.NewHandler(checkoutRepo, checkoutService, d.Cache, adminsRepo).Register(r)
-	reviews.NewHandler(reviewsRepo, reviewsService, d.Cache).Register(r)
+	checkout.NewHandler(checkoutRepo, checkoutService, d.Cache, adminsRepo, notificationsRepo).Register(r)
+	reviews.NewHandler(reviewsRepo, reviewsService, d.Cache, adminsRepo).Register(r)
 	reco.NewHandler(recoRepo, recoService).Register(r)
 	sdui.NewHandler(sduiService).Register(r)
 	admins.NewHandler(adminsRepo).Register(r)

@@ -271,6 +271,13 @@ type AuditWriter interface {
 	Audit(ctx context.Context, e AuditEntry) error
 }
 
+// Notifier enqueues a durable user-facing notification (implemented by internal/notifications).
+// Contexts that trigger a customer event (pharma Rx READY, order status) call this; delivery
+// (push/polling) is drained by the notifications context. data must stay PII-free.
+type Notifier interface {
+	Enqueue(ctx context.Context, userID, kind, title, body string, data map[string]any) error
+}
+
 // HomeSection is a compiled Home section (SduiSection + joined products).
 type HomeSection struct {
 	SduiSection

@@ -34,9 +34,11 @@ bucket for the MVP.
 
 ## 2. Supabase project (one project, many schemas)
 
-- **Schemas:** `catalog`, `directory`, `reviews`, `checkout`, `accounts`, `inventory`, `favourites`.
-  The partner control plane (`0015`) adds `sellers`, `promo`, `ads`, `payments`, `admins`, `support`
-  (see `db-schema.md` §12.9) — additive, so existing tables/rows are untouched.
+- **Schemas:** `catalog`, `directory`, `reviews`, `checkout`, `accounts`, `inventory`, `favourites`,
+  `rewards`, `pharma`, `blood`, `bookings`, `util`. The partner control plane (`0015`) adds `sellers`,
+  `promo`, `ads`, `payments`, `admins`, `support` (see `db-schema.md` §12.9) and `0018` adds
+  `notifications` (outbox + push tokens; `db-schema.md` §12.12) — all additive, so existing
+  tables/rows are untouched.
 - **Extensions:** `pg_trgm`, `unaccent`, `pg_cron` (`pgcrypto` ships enabled).
 - **Datatypes:** unchanged from `db-schema.md` §2 — stable string slug public keys, INT8 paisa money,
   `TIMESTAMPTZ`, native ENUMs. The Cockroach DDL there is near-verbatim Postgres.
@@ -82,7 +84,11 @@ All read-through: Valkey → Supabase/Mongo → populate. Cloudflare caches publ
 | `GET /pickup-points` | directory | durable `inventory.pickup_points` (public business locations, cached 24 h) |
 | `GET /rewards` | rewards | server-authoritative coins/streak/ledger; earn runs inside `POST /orders` via `contracts.RewardsWriter` (never client-forgeable) |
 | `GET /venues/{id}/menu` | directory | durable `directory.menus` (public catalog data, cached 24 h) |
-| `POST /prescriptions`, `GET /prescriptions`, `POST /prescriptions/upload-url` | pharma | durable Rx; images in private Supabase Storage (object keys), signed URLs env-gated |
+| `POST /prescriptions`, `GET /prescriptions`, `POST /prescriptions/upload-url`, `GET /prescriptions/{id}/images` | pharma | durable Rx; images in private Supabase Storage (object keys), signed upload/download URLs env-gated (owner/vendor/admin only) |
+| `POST /seller/prescriptions/{id}/quotes`, `PUT /prescriptions/{id}/status` (incl. `READY`) | pharma | seller-scoped quote lines + `QUOTED`/`READY`; vendor projection is name-only until READY/FULFILLED (contact blanked by query), reveal audited + `status_history`, READY enqueues a notification |
+| `GET/PUT /profile/addresses`, `GET /orders/{id}` | checkout | auth-scoped saved addresses (server-enforced ownership) + order detail |
+| `PUT /reviews/{id}/moderate`, `PUT /seller/products/{id}` | reviews/catalog | admin review HIDDEN flag (no hard delete); seller price/MRP/stock edit (writes catalog + inventory in lockstep) |
+| `GET /notifications`, `POST /notifications/register`, `GET /admin/notifications` | notifications | auth inbox + Expo push-token upsert; admin outbox view (`notifications.outbox`, enqueued by pharma/checkout via `contracts.Notifier`) |
 | `GET/PUT /donors/me`, `GET /donors` | blood | donor profile + consented directory (`blood.donor_directory` view); auth-scoped |
 | `GET/POST /blood-requests`, `PUT /blood-requests/{id}/interest` | blood | request board (public read, `contact`/`address` redacted for anon); interest/accept idempotent |
 | `POST/GET /donor-match-requests` | blood | targeted donor request (own rows) |
@@ -184,11 +190,17 @@ contract stable so the swap is invisible to the app):
     `(state_code, is_live)` index (0015's comment assumed the flag existed but it did not). Owner:
     `db-schema.md` §12.10. The gateway now exposes role-scoped partner management endpoints over
     `catalog`/`directory`/`checkout`/`pharma`/`bookings`/`blood` (see `monolith-breakdown.md` §1).
-14. 🔜 **Partner completion (`0017`, v3):** `checkout.users_admin` redacted view (customer monitoring),
+14. ✅ **Partner completion (`0017`, v3):** `checkout.users_admin` redacted view (customer monitoring),
     `directory.menus.seller_id/status` (food-menu editing), admin-tunable `rewards.rates`, and
-    `support.tickets.state_code` (state queue). Owner: `db-schema.md` §12.11. Closes the remaining
-    web↔mobile control-plane gaps (W17–W20 in `WORKFLOW_SCRATCHPAD.md`), then web write-through (W21),
-    mobile `@mock`→`@server` (W22) and auth/Storage/edge (W23). Additive only — mobile keeps running.
+    `support.tickets.state_code` (state queue). Owner: `db-schema.md` §12.11. Closed the web↔mobile
+    control-plane gaps (W17–W20), web write-through (W21) and mobile `@mock`→`@server` (W22, in
+    progress); auth/Storage/edge (W23) stays pending. Additive only — mobile keeps running.
+15. 🔜 **Pharma quote + notify (`0018`, W24):** `pharma.quote_items`/`status_history`, `QUOTED`/`READY`
+    enum values, `quoted_total_paisa`/`revealed_at`/`revealed_by`/`address_id`, `notifications.outbox` +
+    `push_tokens`, `reviews.vendor_reviews.hidden`. Owner: `db-schema.md` §12.12. Gateway adds the
+    pharma quote/reveal path + a new `internal/notifications` context (`contracts.Notifier`), and the
+    gap writes `/profile/addresses`, `/reviews/{id}/moderate`, `/seller/products/{id}` price/stock.
+    Mobile Rx/cart/web slice cutover follows (W22/D). Additive only.
 
 ---
 

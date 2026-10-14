@@ -1129,3 +1129,67 @@ constants when absent); `rewards.ledger` stays append-only — the rate row chan
 never a past entry, and the server remains the only writer of balances/ledger. `support.tickets`
 gains a nullable `state_code` so the state queue filters without breaking customer-created tickets.
 `util.touch_updated_at()` is attached to `rewards.rates`. Idempotent and re-runnable.
+
+### 12.12 Pharma quote → READY reveal → notify + notification outbox (migration `0018`)
+
+The partner quote workflow (seller prices an Rx, flips it READY, the customer is told) and every other
+"tell the customer" event had no home. `0018` supplies them additively (never rewrites `0001`–`0017`),
+reusing the §0.1 lean dtypes.
+
+```sql
+-- W24: quote lifecycle. QUOTED / READY extend the frozen enum.
+ALTER TYPE prescription_status ADD VALUE IF NOT EXISTS 'QUOTED';
+ALTER TYPE prescription_status ADD VALUE IF NOT EXISTS 'READY';
+
+CREATE TABLE pharma.quote_items (
+  id              text PRIMARY KEY,                              -- 'qi-*'
+  prescription_id text NOT NULL REFERENCES pharma.prescriptions (id) ON DELETE CASCADE,
+  name            text NOT NULL,
+  qty             smallint NOT NULL DEFAULT 1 CHECK (qty BETWEEN 1 AND 99),
+  mrp_paisa       int8 NOT NULL DEFAULT 0 CHECK (mrp_paisa >= 0),
+  price_paisa     int8 NOT NULL DEFAULT 0 CHECK (price_paisa >= 0),
+  discount_paisa  int8 NOT NULL DEFAULT 0 CHECK (discount_paisa >= 0),
+  created_at/updated_at timestamptz
+);
+
+-- Denormalized quote total + the audited PII reveal gate. address_id ties the reveal to the
+-- delivery address the customer chose at request time.
+ALTER TABLE pharma.prescriptions ADD COLUMN IF NOT EXISTS quoted_total_paisa INT8 NOT NULL DEFAULT 0;
+ALTER TABLE pharma.prescriptions ADD COLUMN IF NOT EXISTS revealed_at  TIMESTAMPTZ;
+ALTER TABLE pharma.prescriptions ADD COLUMN IF NOT EXISTS revealed_by  TEXT;
+ALTER TABLE pharma.prescriptions ADD COLUMN IF NOT EXISTS address_id   TEXT;
+
+CREATE TABLE pharma.status_history (                              -- append-only per Rx
+  id bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+  prescription_id text NOT NULL REFERENCES pharma.prescriptions (id) ON DELETE CASCADE,
+  from_status prescription_status, to_status prescription_status NOT NULL,
+  actor_id TEXT NOT NULL, actor_role TEXT NOT NULL, created_at timestamptz NOT NULL DEFAULT now()
+);
+
+-- W24: durable, transactional "tell the customer" record + device push-token registry.
+CREATE SCHEMA notifications;
+CREATE TABLE notifications.outbox (
+  id text PRIMARY KEY, user_id text NOT NULL REFERENCES checkout.users (user_id) ON DELETE CASCADE,
+  kind text NOT NULL, title text NOT NULL, body text NOT NULL,
+  data jsonb CHECK (data IS NULL OR pg_column_size(data) <= 2048),
+  status text NOT NULL DEFAULT 'PENDING' CHECK (status IN ('PENDING','SENT','FAILED')),
+  created_at timestamptz NOT NULL DEFAULT now(), sent_at timestamptz
+);
+CREATE TABLE notifications.push_tokens (
+  user_id text PRIMARY KEY, token text NOT NULL, platform text, updated_at timestamptz
+);
+
+-- W24b: admin moderation is a HIDDEN flag (never a hard DELETE; vendor_summary is trigger-owned).
+ALTER TABLE reviews.vendor_reviews ADD COLUMN IF NOT EXISTS hidden BOOLEAN NOT NULL DEFAULT false;
+```
+
+Money stays INT8 paisa (whole rupees on the wire, `/100` at the repo boundary). The seller projection
+(`GET /seller/prescriptions`) is **name-only until READY/FULFILLED** — `checkout.users.phone` and the
+address are surfaced by the query's `CASE` only in those states, and the reveal is recorded in
+`revealed_at`/`revealed_by` + `status_history` + `admins.audit_logs` (RX_READY). `POST
+/seller/prescriptions/{id}/quotes` replaces the quote lines, recomputes `quoted_total_paisa`, advances
+`RECEIVED/QUOTED → QUOTED` and appends history. `PUT /prescriptions/{id}/status READY` requires ≥1
+quote line, sets the reveal and enqueues `notifications.outbox` (`RX_READY`). The outbox carries no PII
+beyond `user_id`; `push_tokens.token` is a device credential and is never logged. New tables are
+deny-all to `anon`/`authenticated` (gateway-only); `pharma.prescriptions`' own-rows RLS is untouched.
+`util.touch_updated_at()` is attached to `pharma.quote_items`. Idempotent and re-runnable.

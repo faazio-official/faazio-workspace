@@ -116,6 +116,7 @@ wire. Mobile `GatewayClient.ts` + `@data/*` already speak integer rupees — unc
 | W21 | Web write-through (mutations → gateway, keep seed fallback) | 3/4 | **done** (`http.ts` toSnake/₹↔paisa `writeBehind`, `index.ts` mutators call `remote.*`) |
 | W22 | Mobile `@mock`→`@server` per-module migration | 4 | **in progress** — mart feed, catalog vendor detail, favourites, product search + home SDUI registry done; dining blocked (venues not in `directory.stores`); cart-checkout pending |
 | W23 | Auth cutover (Supabase JWT + RequireRole) + Storage object-key uploads + edge purge | 5 | **pending** (mobile `authStore`, product/KYC buckets, Cloudflare rules) |
+| W24 | Pharma quote → READY reveal → notify + durable notification outbox | 1/2/4 | **done** (`0018` + `internal/pharma` quote/reveal + `internal/notifications` + gap PUTs; owner `db-schema.md` §12.12) |
 
 ## 6. dtype-gap matrix D1–D15
 
@@ -182,6 +183,13 @@ wire. Mobile `GatewayClient.ts` + `@data/*` already speak integer rupees — unc
       (Earn reads the rates row, defaults on absence) + `REWARDS_RATES_UPDATE` audit;
       `internal/support` `?state=` ticket filter (state claim / super query)
 - [x] tests (v3): customers projection + state filter, menu lifecycle cross-seller denial, rates-tuned earn + ledger, ticket state filter
+- [x] **(W24, 0018)** `internal/pharma`: `pharma.quote_items` CRUD (`POST /seller/prescriptions/{id}/quotes`) +
+      `READY` reveal (requires ≥1 line, sets `revealed_at/by`, appends `status_history`, enqueues outbox) +
+      redacted `GET /seller/prescriptions` (name-only until READY/FULFILLED) + `GET /prescriptions/{id}/images`
+      (signed download); `internal/notifications` (`contracts.Notifier`, outbox + push tokens, inbox/register +
+      admin outbox); gap writes `GET/PUT /profile/addresses` + `GET /orders/{id}` (checkout),
+      `PUT /reviews/{id}/moderate` (reviews HIDDEN flag), `PUT /seller/products/{id}` (catalog price/stock edit);
+      pharma repo test covers quote total + cross-seller denial + READY-without-quote + reveal + history
 
 ## 10. Decisions (approved)
 
@@ -219,8 +227,11 @@ endpoint all agree. Fallback stays in place until the slice is green end-to-end.
 | S4 Support | create ticket/return | `/admin/state/support` | `support.tickets.state_code` | `GET /tickets?state=`, `PUT /tickets/{id}/status` |
 | S5 Write-through | — | all portal mutators | existing rows | `remote.post/put/delete` + audit + cache purge |
 | S6 Auth/media | `authStore` JWT | Supabase GoTrue session | RLS claims | `RequireRole`; Storage object keys |
+| S7 Pharma quote (W24) | Rx upload → quote view (poll) | `/seller/prescriptions` quote editor + READY reveal | `pharma.quote_items`/`status_history`, `notifications.outbox` | `POST quotes`, `PUT READY`, `GET images`, `GET /notifications` |
 
 Status: **S1–S5 closed** (web control + DB + gateway all shipped; every portal mutator
 now calls `writeBehind`). **S6 pending** (W23: mobile `authStore` cutover, product/KYC
-Storage buckets, Cloudflare edge rules). Mobile `@mock`→`@server` (W22) still pending;
-the seam (`GatewayClient` + per-feature fallback) is ready to flip per module.
+Storage buckets, Cloudflare edge rules). **S7 gateway/DB shipped** (`0018` + pharma
+quote/reveal + notifications + gap PUTs); the web quote editor and mobile Rx/cart cutover
+are the next slices. Mobile `@mock`→`@server` (W22) is in progress; the seam
+(`GatewayClient` + per-feature fallback) is ready to flip per module.

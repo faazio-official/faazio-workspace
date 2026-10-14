@@ -275,6 +275,92 @@ func (r *Repo) SetProductStatus(ctx context.Context, id, sellerID, status string
 	return p, true, nil
 }
 
+// ProductEdit is the seller price/stock edit payload (money in whole rupees; nil = leave unchanged).
+type ProductEdit struct {
+	Price      *int64
+	MRP        *int64
+	InStockQty *int64
+	Available  *bool
+}
+
+// UpdateProduct edits price/MRP/stock for a seller's product (admin: any). Price is written to both
+// catalog.products and inventory.stock so the two stay in lockstep. Returns ok=false when the
+// product is absent or not owned.
+func (r *Repo) UpdateProduct(ctx context.Context, id, sellerID string, admin bool, e ProductEdit) (SellerProduct, bool, error) {
+	if r.pool == nil {
+		return SellerProduct{}, false, fmt.Errorf("catalog: database not configured")
+	}
+	tx, err := r.pool.Begin(ctx)
+	if err != nil {
+		return SellerProduct{}, false, err
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+
+	var owner *string
+	if err := tx.QueryRow(ctx, `select seller_id from catalog.products where id = $1 for update`, id).Scan(&owner); err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return SellerProduct{}, false, nil
+		}
+		return SellerProduct{}, false, err
+	}
+	if !admin && (owner == nil || *owner != sellerID) {
+		return SellerProduct{}, false, nil
+	}
+	if e.Price != nil || e.MRP != nil {
+		if _, err := tx.Exec(ctx, `
+			update catalog.products
+			   set price_paisa = coalesce($2, price_paisa),
+			       mrp_paisa   = coalesce($3, mrp_paisa)
+			 where id = $1`, id,
+			mul100(e.Price), mul100(e.MRP)); err != nil {
+			return SellerProduct{}, false, err
+		}
+	}
+	if e.InStockQty != nil || e.Available != nil || e.Price != nil || e.MRP != nil {
+		if _, err := tx.Exec(ctx, `
+			update inventory.stock
+			   set price_paisa  = coalesce($2, price_paisa),
+			       mrp_paisa    = coalesce($3, mrp_paisa),
+			       in_stock_qty = coalesce($4, in_stock_qty),
+			       available    = coalesce($5, available),
+			       updated_at   = now()
+			 where product_id = $1`, id,
+			mul100(e.Price), mul100(e.MRP), e.InStockQty, e.Available); err != nil {
+			return SellerProduct{}, false, err
+		}
+	}
+	if err := tx.Commit(ctx); err != nil {
+		return SellerProduct{}, false, err
+	}
+	return r.sellerProductByID(ctx, id)
+}
+
+func (r *Repo) sellerProductByID(ctx context.Context, id string) (SellerProduct, bool, error) {
+	var (
+		p         SellerProduct
+		updatedAt time.Time
+	)
+	err := r.pool.QueryRow(ctx, sellerProductSelect+` where p.id = $1`, id).
+		Scan(&p.ID, &p.Name, &p.App, &p.Category, &p.Status, &p.SellerID, &p.Price, &updatedAt)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return SellerProduct{}, false, nil
+		}
+		return SellerProduct{}, false, err
+	}
+	p.Price /= 100
+	p.UpdatedAt = updatedAt.UTC().Format(time.RFC3339)
+	return p, true, nil
+}
+
+func mul100(v *int64) *int64 {
+	if v == nil {
+		return nil
+	}
+	r := *v * 100
+	return &r
+}
+
 func scanSellerProducts(rows pgx.Rows) ([]SellerProduct, error) {
 	out := []SellerProduct{}
 	for rows.Next() {

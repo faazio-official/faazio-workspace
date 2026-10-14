@@ -15,15 +15,16 @@ import (
 
 // Handler serves orders + account endpoints.
 type Handler struct {
-	repo    *Repo
-	service *Service
-	cache   *cache.Cache
-	audit   contracts.AuditWriter
+	repo     *Repo
+	service  *Service
+	cache    *cache.Cache
+	audit    contracts.AuditWriter
+	notifier contracts.Notifier
 }
 
-// NewHandler builds the checkout handler.
-func NewHandler(repo *Repo, service *Service, c *cache.Cache, audit contracts.AuditWriter) *Handler {
-	return &Handler{repo: repo, service: service, cache: c, audit: audit}
+// NewHandler builds the checkout handler. notifier may be nil.
+func NewHandler(repo *Repo, service *Service, c *cache.Cache, audit contracts.AuditWriter, notifier contracts.Notifier) *Handler {
+	return &Handler{repo: repo, service: service, cache: c, audit: audit, notifier: notifier}
 }
 
 // Register mounts auth-scoped order + account endpoints.
@@ -32,9 +33,12 @@ func (h *Handler) Register(r chi.Router) {
 		g.Use(auth.Require)
 		g.Get("/orders", h.getOrders)
 		g.Post("/orders", h.placeOrder)
+		g.Get("/orders/{orderID}", h.getOrder)
 		g.Post("/orders/{orderID}/payments", h.payOrder)
 		g.Get("/payments", h.getPayments)
 		g.Get("/profile", h.getProfile)
+		g.Get("/profile/addresses", h.getAddresses)
+		g.Put("/profile/addresses", h.putAddress)
 		g.Get("/profile/details", h.getDetails)
 		g.Get("/membership", h.getMembership)
 		g.Get("/order-status", h.getOrderStatus)
@@ -68,6 +72,51 @@ func (h *Handler) getOrders(w http.ResponseWriter, r *http.Request) {
 	h.cache.SetJSON(r.Context(), cache.Orders(userID), orders, cache.TTLOrders)
 	h.projectMobileStatus(orders)
 	httpx.JSON(w, http.StatusOK, orders)
+}
+
+func (h *Handler) getOrder(w http.ResponseWriter, r *http.Request) {
+	orderID := chi.URLParam(r, "orderID")
+	order, ok, err := h.repo.OrderDetail(r.Context(), orderID, auth.UserID(r.Context()))
+	if err != nil {
+		httpx.Fail(w, http.StatusInternalServerError, "orders_unavailable", "orders unavailable")
+		return
+	}
+	if !ok {
+		httpx.Fail(w, http.StatusNotFound, "not_found", "order not found")
+		return
+	}
+	order.Status = mobileStatus(order.Status)
+	httpx.JSON(w, http.StatusOK, order)
+}
+
+func (h *Handler) getAddresses(w http.ResponseWriter, r *http.Request) {
+	items, err := h.repo.AddressesByUser(r.Context(), auth.UserID(r.Context()))
+	if err != nil {
+		httpx.Fail(w, http.StatusInternalServerError, "addresses_unavailable", "addresses unavailable")
+		return
+	}
+	if items == nil {
+		items = []Address{}
+	}
+	httpx.JSON(w, http.StatusOK, items)
+}
+
+func (h *Handler) putAddress(w http.ResponseWriter, r *http.Request) {
+	var body Address
+	if err := httpx.Decode(r, &body); err != nil {
+		httpx.Fail(w, http.StatusBadRequest, "bad_request", "invalid body")
+		return
+	}
+	addr, ok, err := h.repo.UpsertAddress(r.Context(), auth.UserID(r.Context()), body)
+	if err != nil {
+		httpx.Fail(w, http.StatusBadRequest, "invalid_address", "could not save address")
+		return
+	}
+	if !ok {
+		httpx.Fail(w, http.StatusNotFound, "not_found", "address not found")
+		return
+	}
+	httpx.JSON(w, http.StatusOK, addr)
 }
 
 func (h *Handler) placeOrder(w http.ResponseWriter, r *http.Request) {
@@ -282,7 +331,25 @@ func (h *Handler) setOrderStatus(w http.ResponseWriter, r *http.Request) {
 	h.cache.Del(r.Context(), cache.Orders(order.UserID))
 	order.Status = portalStatus(order.Status)
 	h.log(r, "ORDER_"+status, orderID)
+	h.notifyStatus(r, order, status)
 	httpx.JSON(w, http.StatusOK, order)
+}
+
+// notifyStatus enqueues a customer notification for customer-facing status changes. Best-effort:
+// the status is already committed, so a delivery hiccup must not fail the seller's action.
+func (h *Handler) notifyStatus(r *http.Request, order Order, status string) {
+	if h.notifier == nil || order.UserID == "" {
+		return
+	}
+	switch status {
+	case "PACKED", "SHIPPED", "DELIVERED", "CANCELLED", "RETURNED":
+	default:
+		return
+	}
+	_ = h.notifier.Enqueue(r.Context(), order.UserID, "ORDER_"+status,
+		"Order "+order.ID+" updated",
+		"Your order is now "+strings.ToLower(status)+".",
+		map[string]any{"orderId": order.ID, "status": status})
 }
 
 // portalStatus maps the legacy mobile status onto the portal lifecycle (Processing -> NEW).

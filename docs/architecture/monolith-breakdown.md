@@ -36,7 +36,8 @@ search extraction is a pure index-replica swap.
 |---|---|---|---|---|---|
 | search → Rust/Tantivy | `internal/search` | `catalog` (read: `products_search`) | `faazio:v1:search:q:{query}` 600 s | `searchProducts` | Rust Axum + Tantivy |
 | catalog/directory → Go | `internal/catalog`, `internal/directory` | `catalog`, `directory` (+ `inventory.pickup_points`, `directory.menus` incl. `seller_id`/`status`) | `faazio:v1:catalog:product:{id}` 24 h · `faazio:v1:directory:store:{id}` 24 h · `faazio:v1:directory:pickup:{key}` 24 h · `faazio:v1:directory:menu:{venueId}` 24 h (invalidated on menu edit) | `getProduct`, `getProductsByIds`, `getStores`, `getStore`, `getPickupPoints`, `getMenu`; portal menu CRUD (`/seller/menus`) | CockroachDB + Postgres |
-| pharma (prescriptions) → Go | `internal/pharma` | `pharma` | `faazio:v1:pharma:prescriptions:{userId}` 60 s; never edge-cached | `createPrescription`, `getPrescriptions` | Go + Postgres + Supabase Storage |
+| pharma (prescriptions) → Go | `internal/pharma` | `pharma` (+ `pharma.quote_items`, `pharma.status_history`) | `faazio:v1:pharma:prescriptions:{userId}` 60 s; never edge-cached | `createPrescription`, `uploadPrescriptionImage`, `getPrescriptions`; portal quote/reveal (`GET /seller/prescriptions`, `POST /seller/prescriptions/{id}/quotes`, `PUT /prescriptions/{id}/status`) | Go + Postgres + Supabase Storage |
+| notifications → Go+worker | `internal/notifications` | `notifications` (+ `outbox`, `push_tokens`) | `faazio:v1:notifications:inbox:{userId}` 30 s; never edge-cached | — (enqueue via `contracts.Notifier`; `POST /notifications/register`, `GET /notifications`; portal `GET /admin/notifications`) | Go + queue worker |
 | blood → Go+Postgres | `internal/blood` | `blood` (+ `blood.donor_directory` view, pg_cron expiry) | `faazio:v1:blood:requests:{bloodGroup};{city}` 60 s (public/redacted); never edge-cached | `getDonorProfile`, `saveDonorProfile`, `getBloodDonors`, `getBloodRequests`, `createBloodRequest`, `setBloodInterest`, `createDonorMatch`, `getDonorMatches` | Go + Postgres |
 | bookings → Go+Postgres | `internal/bookings` | `bookings` | `faazio:v1:bookings:tables:{userId}` 60 s · `faazio:v1:bookings:food:{userId}` 60 s; never edge-cached | `getBookings`, `createBooking`, `cancelBooking`, `getFoodBookings`, `createFoodBooking` | CockroachDB |
 | cart/stock → Go+Dynamo | `internal/cartstock` | `inventory` | `faazio:v1:stock:{productId}` 30–60 s; **never** carts | `getStock`, `getCart`, `addToCart`, `updateCartItem`, `removeCartItem` | DynamoDB / Firestore |
@@ -80,6 +81,17 @@ only, never cached), food-menu editing (`GET /seller/menus` + `POST`/`PUT /selle
 `rewards.ledger`/`balances` writer), and a state-scoped support queue (`GET /tickets?state=` in
 `internal/support`). All are role-gated (`STATE_ADMIN`/`SUPER_ADMIN`, or the owning seller) and
 audited via `admins.audit_logs`.
+
+**Pharma quote → READY reveal → notify (W24, `0018`)** adds the partner quote workflow. The seller
+projection (`GET /seller/prescriptions`) is **name-only until READY/FULFILLED** (contact columns are
+blanked by the query's `CASE`); `POST /seller/prescriptions/{id}/quotes` replaces the priced lines
+(`pharma.quote_items`), recomputes `quoted_total_paisa` and advances to `QUOTED`; `PUT
+/prescriptions/{id}/status READY` requires ≥1 line, stamps `revealed_at`/`revealed_by`, appends
+`pharma.status_history` + an `RX_READY` audit row, and enqueues `notifications.outbox`. The new
+`internal/notifications` context is the single writer of the outbox/push-token registry and exposes
+`contracts.Notifier`; checkout order-status changes also enqueue through it. `GET
+/prescriptions/{id}/images` mints short-lived signed download URLs for the private bucket (owner,
+assigned vendor or admin only). Repo wiring per `db-schema.md` §12.12.
 
 ## 2. Boundary rules (enforced)
 
@@ -125,7 +137,7 @@ Extract the **first** context (search) as the reference. The others repeat the s
 | Partner enums (`0015`) | `seller_status`, `product_status`, `kyc_doc_type`, `campaign_status`, `campaign_scope`, `optin_status`, `ad_placement`, `ad_status`, `payout_status`, `ticket_status`, `return_status`; `order_status` gains `NEW`/`PACKED`/`RETURNED` (Option A, mobile `Processing` ⇄ `NEW`/`PACKED`) | one lifecycle both apps read; validated at the DB |
 | Partner roles | JWT claims `app_role` (`SELLER`/`STATE_ADMIN`/`SUPER_ADMIN`) + `seller_id`/`state_code`; `auth.RequireRole` | role checks in Go (`service_role` bypasses RLS); never trust a request-body actor |
 | `GatewayClient` | method names + signatures in `client/mobile/src/services/api/GatewayClient.ts` | screens swap `@mock` → `@server` without call-site edits |
-| Cache | `faazio:v1:{service}:{entity}:{id}` + TTL matrix (`caching-cloudflare-valkey.md` §4–§5). Includes `faazio:v1:auth:uid:{sha256}` (3600 s) | Cloudflare purge + Valkey invalidation map |
+| Cache | `faazio:v1:{service}:{entity}:{id}` + TTL matrix (`caching-cloudflare-valkey.md` §4–§5). Includes `faazio:v1:auth:uid:{sha256}` (3600 s), `faazio:v1:pharma:prescriptions:{userId}` (60 s), `faazio:v1:notifications:inbox:{userId}` (30 s) | Cloudflare purge + Valkey invalidation map |
 | Cache `v{N}` | bump to invalidate a key class | no scan needed |
 | Idempotency | `SET faazio:v1:checkout:idem:{orderRef} 1 NX EX 300` | prevents double-place |
 

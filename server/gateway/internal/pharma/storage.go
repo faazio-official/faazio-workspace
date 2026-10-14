@@ -70,3 +70,48 @@ func (s *Storage) SignUpload(ctx context.Context, objectPath string) (string, er
 	}
 	return s.baseURL + out.URL, nil
 }
+
+// SignDownload asks Storage for a short-lived signed download URL for objectPath (private bucket).
+// Used by the owner/vendor projections to render Rx images without ever making the bucket public.
+func (s *Storage) SignDownload(ctx context.Context, objectPath string, expiresIn int) (string, error) {
+	if s == nil {
+		return "", ErrStorageDisabled
+	}
+	if expiresIn <= 0 || expiresIn > 3600 {
+		expiresIn = 300
+	}
+	endpoint := fmt.Sprintf("%s/storage/v1/object/sign/%s/%s", s.baseURL, s.bucket, objectPath)
+	body, _ := json.Marshal(map[string]int{"expiresIn": expiresIn})
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, endpoint, strings.NewReader(string(body)))
+	if err != nil {
+		return "", err
+	}
+	req.Header.Set("Authorization", "Bearer "+s.key)
+	req.Header.Set("Content-Type", "application/json")
+	resp, err := s.client.Do(req)
+	if err != nil {
+		return "", err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode/100 != 2 {
+		return "", fmt.Errorf("storage sign download: status %d", resp.StatusCode)
+	}
+	var out struct {
+		SignedURL string `json:"signedURL"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&out); err != nil {
+		return "", err
+	}
+	if out.SignedURL == "" {
+		return "", errors.New("storage returned no signed url")
+	}
+	if strings.HasPrefix(out.SignedURL, "http") {
+		return out.SignedURL, nil
+	}
+	// Supabase returns a path like "/object/sign/..."; prefix the storage host for a usable URL.
+	path := out.SignedURL
+	if !strings.HasPrefix(path, "/storage/v1") {
+		path = "/storage/v1" + path
+	}
+	return s.baseURL + path, nil
+}
