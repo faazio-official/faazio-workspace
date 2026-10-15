@@ -42,6 +42,37 @@ phone-OTP/JWT cutover. `GatewayClient` still attaches a bearer when a session is
 
 ---
 
+## Home rails — editorial content stays fixture-owned (open product decisions)
+
+**Status:** 🟡 By design — not a wiring gap.
+
+The DB-backed parts of every home are already migrated: Mart/Food/Pharma **vendors** (`getStores`),
+food **dining** (`getVenues('FOOD')`) and **menus** (`getMenu`), the Home **SDUI** doc, search,
+product detail, stock and reviews all read the gateway with `@data/*` fallback.
+
+What remains on `@data` is **editorial/marketing** content that has no table yet:
+`MART_HERO_BANNERS`/`MART_DEALS`/`MART_DAILY_ESSENTIALS`, food `TOP_RATED_RESTAURANTS`/`TODAYS_SPECIALS`/
+`TOP_FOODS_TO_ORDER`, and the Pharma rails. Their product ids (`mf-*`, `pm-*`, `pe-*`) are
+presentation-only and are **not** catalog rows, so they cannot be swapped to `getProductsByIds`
+without either seeding them into `catalog.products` or replacing them with real catalog picks.
+That is a product/design call, and the correct long-term home is the SDUI layout doc
+(`docs/architecture/data-layer-sdui.md`).
+
+**Open product decisions (need answers before more app cutover):**
+- **Public promo/ads reads.** `promo.coupons` and `ads.sponsored_slots` exist but only expose
+  role-gated routes; the app's offers/ads rails would need a new **public, cached** read contract
+  (`GET /coupons`, a live-ads projection) plus, for coupons, `minOrder`/free-delivery fields the
+  schema does not model. Not built — inventing that contract without product input would be wrong.
+- **Food-order bookings.** `GatewayClient.createFoodBooking`/`getFoodBookings`, `foodBookingStore`
+  and the `/food-bookings` endpoints have **no screen or route** on mobile — build the screen or
+  delete the path.
+- **Razorpay native checkout.** Still the mock adapter seam (`services/payments/checkout.ts`); needs
+  the SDK adapter, no screen change (see the W22 entry above).
+
+**Date:** 2026-10-15
+
+---
+
 ## Phone-auth OTP — typed full code stuck + broken back (fixed)
 
 **Status:** 🟢 Shipped (code); on-device verification pending.

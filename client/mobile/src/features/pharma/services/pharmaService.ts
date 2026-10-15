@@ -22,17 +22,15 @@ export interface PharmaFeed {
   healthCorner: PharmaHealthCornerArticle[];
 }
 
-function delay(ms: number) {
-  return new Promise<void>((resolve) => setTimeout(resolve, ms));
-}
-
 /**
- * Simulated network boundary for the Pharma home feed. Once the Go Chi backend
- * (server/) lands, replace the internals with an API client while keeping the
- * `PharmaFeed` shape intact.
+ * Pharma home feed. Pharmacy **stores** are already server-backed
+ * (`directory.stores`, app=PHARMA) via `usePharmaStores` → `GatewayClient.getStores`.
+ * The rails here (quick-reorder, offers, health corner, brands) are curated
+ * editorial content, and the two product rails below use presentation-only fixture
+ * ids (`pm-*`, `pe-*`) that are not catalog rows — they move to `catalog.products`
+ * when they get their own app contract (SDUI home, `data-layer-sdui.md`), not before.
  */
 export async function fetchPharmaFeed(): Promise<PharmaFeed> {
-  await delay(700);
   return {
     quickReorder: PHARMA_QUICK_REORDER,
     topOffers: PHARMA_TOP_OFFERS,
