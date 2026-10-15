@@ -381,7 +381,7 @@ still separate files; consolidating them is tracked in `client/mobile/PENDING_WO
 
 ### Services (`src/services/`)
 
-- `api/GatewayClient.ts` — single data surface; **wired** to the MVP gateway (`EXPO_PUBLIC_GATEWAY_URL` + flag) with `@data/*` fallback; screens migrate incrementally (see data doc). Migration (W22) done so far: mart feed (`martService` → `getStores('MART')`), catalog vendor detail (`VendorDetailScreen` → `getStore`), favourites (`getProductsByIds`), product search (`SearchModeConfig.fetch` → `searchProducts`), the Home SDUI registry + recently-viewed rails (`useHomeFeed` → `getHomeFeed`, static `@data/home/sections` fallback), the **cart/checkout** path (see below), the **Pharma Rx** capture/upload/create path, the **orders history** (`ordersStore` ← `getOrders`), **vendor reviews** (`useVendorReviews` ← `getVendorReviews` + `getVendorReviewSummary`) and the `search` analytics event. **(W25)** pharma store rails/vendor picker (`usePharmaStores` → `getStores('PHARMA')`), `getVenues` + `getNotifications` added; `getMenu` now carries `description`/`deliveryTime`. Remaining: profile/account edit, food menus/bookings, dining screens, blood feed (redacted).
+- `api/GatewayClient.ts` — single data surface; **wired** to the MVP gateway (`EXPO_PUBLIC_GATEWAY_URL` + flag) with `@data/*` fallback; screens migrate incrementally (see data doc). Migration (W22) done so far: mart feed (`martService` → `getStores('MART')`), catalog vendor detail (`VendorDetailScreen` → `getStore`), favourites (`getProductsByIds`), product search (`SearchModeConfig.fetch` → `searchProducts`), the Home SDUI registry + recently-viewed rails (`useHomeFeed` → `getHomeFeed`, static `@data/home/sections` fallback), the **cart/checkout** path (see below), the **Pharma Rx** capture/upload/create path, the **orders history** (`ordersStore` ← `getOrders`), **vendor reviews** (`useVendorReviews` ← `getVendorReviews` + `getVendorReviewSummary`) and the `search` analytics event. **(W25)** pharma store rails/vendor picker (`usePharmaStores` → `getStores('PHARMA')`), `getVenues` + `getNotifications` added; `getMenu` now carries `description`/`deliveryTime`. **(W26)** food restaurant menus (`useRestaurantMenu` → `getMenu`) and the FoodHome dining grid (`diningService` → `getVenues('FOOD')`, fixture-enriched). Remaining: profile/account edit, table/food booking create (no screen), blood feed (redacted by decision — the detail page is fixture/PII-bound).
 - `secureSession.ts` — tokens via `expo-secure-store` (never AsyncStorage for secrets).
 - `logout.ts` — clears auth + cart + favourites + search + pharma + blood donor + rewards + vendor-rating stores.
 - `vendorRatings.ts` — single owner of the vendor rating gate: `canRateVendor(vendorId)`
@@ -550,6 +550,14 @@ pure-non-veg venues drop in Veg mode; `both` venues stay in both. Unclassifiable
 (`isVeg` undefined) are hidden while a filter is active. Match semantics live in
 `features/food/utils/dietFilter.ts` (`venueMatches` / `dishMatches`).
 
+The dining grid ("Restaurants For Dining") is driven by the durable
+`directory.dining_venues` list — `diningService.fetchDiningFeed` calls
+`GatewayClient.getVenues('FOOD')` and merges the result with the feature fixture by id
+(known venues keep their rich distance/price-for-two copy; server-only venues get neutral
+defaults). A network/HTTP error degrades to the `@data` venue identity table and an empty
+result keeps the fixture, so the grid never renders blank. The curated hero carousel
+(`TOP_RATED_RESTAURANTS`) and the specials / mind / snack rails stay fixture-owned.
+
 The filter is threaded explicitly rather than read from the store inside a predicate:
 each Food screen subscribes to `foodFilterStore` and passes the value into its pure
 helpers (`venueMatches` / `dishMatches`). Food search follows the same pattern —
@@ -584,9 +592,13 @@ unchanged.
 
 - Both render identical dish rows via the shared `features/food/components/MenuItemRow` (thumb,
   name/description/price, outlined **Add** → **− qty +** stepper) and the same restaurant-scoped
-  white `ViewCartPill`. Their menu is built by `features/food/utils/menu.ts`
-  (`getMenuForRestaurant` / `getOwnDishes` / `getMenuCategories`), extracted from the profile so the
-  profile and the menu page can't drift.
+  white `ViewCartPill`. Both read the menu through `features/food/hooks/useRestaurantMenu`, which is
+  **remote-first**: it seeds from the `@data/food/menus.ts` fixture (via
+  `features/food/utils/menu.ts` `getMenuForRestaurant`, extracted from the profile so the two can't
+  drift), then swaps in the durable `directory.menus` dishes from `GatewayClient.getMenu(venueId)`
+  once they arrive (mapping the gateway `MenuDish` onto `SpecialDish`). A network/HTTP error falls
+  back to the fixture inside `getMenu`; an empty remote menu keeps the seed. `getOwnDishes` /
+  `getMenuCategories` operate on the resolved list unchanged.
 - Both category rails are the shared `features/food/components/MenuCategoryRail` (pill chips,
   `hs/vs/ms` metrics, gap-based content container). **Layout contract:** the rail is a **fixed,
   non-flexing** sibling — `flexGrow: 0` / `flexShrink: 0`. RN injects `flexGrow: 1, flexShrink: 1`

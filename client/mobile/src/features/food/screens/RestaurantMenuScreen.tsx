@@ -14,7 +14,8 @@ import { foodTheme } from '../constants/theme';
 import type { FoodStackParamList, RootStackParamList } from '@/navigation/types';
 import type { DiningRestaurant } from '../mocks/types';
 import type { SpecialDish } from '@data/types';
-import { getMenuForRestaurant, getMenuCategories } from '../utils/menu';
+import { getMenuCategories } from '../utils/menu';
+import { useRestaurantMenu } from '../hooks/useRestaurantMenu';
 import { dishMatches } from '../utils/dietFilter';
 import { useCartStore } from '@/state/cartStore';
 import type { DietFilter } from '@/state/foodFilterStore';
@@ -57,9 +58,11 @@ export function RestaurantMenuScreen({ navigation, route }: Props) {
     [restaurantItems],
   );
 
+  const dishes = useRestaurantMenu(diningRestaurant);
+
   const menu = useMemo(
-    () => getMenuForRestaurant(diningRestaurant).filter((d) => dishMatches(dietFilter, d)),
-    [diningRestaurant, dietFilter],
+    () => dishes.filter((d) => dishMatches(dietFilter, d)),
+    [dishes, dietFilter],
   );
 
   const categories = useMemo(

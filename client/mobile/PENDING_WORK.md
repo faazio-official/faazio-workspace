@@ -5,9 +5,9 @@ dependencies exist. Do not build the backend/seller flows until told to.
 
 ---
 
-## W22 `@mock` → `@server` — profile reads shipped; remaining slices blocked on server contracts
+## W22 `@mock` → `@server` — food menus + dining shipped; remaining slices are screen builds
 
-**Status:** 🟢 Shipped (profile reads); remaining slices blocked.
+**Status:** 🟢 Shipped (profile reads, W25/W26); remaining slices need a decision or a screen build.
 
 **Shipped:** `GatewayClient.getDetails()` now flattens the server's nested
 `accounts.details` blob (`{userId, accountId, data}` → `DetailsTable`); new
@@ -17,19 +17,22 @@ dependencies exist. Do not build the backend/seller flows until told to.
 **(W25)** Pharma store rails + vendor picker flipped to `getStores('PHARMA')` via
 `usePharmaStores`; My Orders notification badge now reads the inbox count
 (`gateway.getNotifications()`).
+**(W26)** Food restaurant menus now read `directory.menus` via `useRestaurantMenu`
+(`GatewayClient.getMenu(venueId)`, `MenuDish → SpecialDish` mapper, fixture fallback) in
+`RestaurantProfileScreen` + `RestaurantMenuScreen`; the FoodHome dining grid is driven by
+`directory.dining_venues` via `diningService` → `getVenues('FOOD')` (fixture-enriched, neutral
+defaults for server-only venues).
 
-**Remaining — each needs a server-contract delta or a screen flip, not just wiring:**
-- **Food menu read — contract unblocked (W25), screen flip remains.** `directory.menus` now carries
-  `description`/`emoji`/`delivery_time` (`0019`) and `contracts.MenuDish`/`GatewayClient.MenuDish`
-  expose them; `RestaurantMenuScreen`/`RestaurantProfileScreen` still read the `@data/food/menus.ts`
-  fixture and need a `MenuDish → SpecialDish` mapper before flipping.
-- **Dining venues — endpoint shipped (W25), screen flip remains.** `GET /venues?app=` +
-  `GatewayClient.getVenues()` now expose `directory.dining_venues`; `FoodHomeScreen` still uses the
-  feature dining mocks and needs a `Venue → DiningRestaurant` mapper (rating/distance/priceForTwo/
-  cuisines/neighbourhood are not all in the venue projection).
-- **Blood dashboard feed — decision: stay redacted.** `GET /blood-requests` deliberately omits
-  `imageUrl`/`distanceKm`/`purposeDescription`/demographics (no PII widening, `db-schema.md` §12.6);
-  flipping `DonorDashboard` means accepting redacted cards and computing distance client-side.
+**Remaining — each needs a server-contract delta or a screen build, not just wiring:**
+- **Blood dashboard feed — defer (decision).** `GET /blood-requests` deliberately omits
+  `imageUrl`/`distanceKm`/`purposeDescription`/demographics (no PII widening, `db-schema.md`
+  §12.6), and `BloodRequestDescriptionScreen` is fixture/PII-bound (patient age/gender, hospital
+  contact/address, remarks). Flipping the feed would require reworking the detail page too, so the
+  board stays on `@data` until an explicit decision to widen the projection or pass the request
+  through navigation.
+- **SavedAddresses edit / delete.** `PUT /profile/addresses` exists (upsert) but the screen's
+  Edit/Delete buttons are still placeholders — a form + delete UI (and a server `DELETE` route) is a
+  screen build, not a wiring flip. Deferred.
 - **Table/food booking create.** `GatewayClient.createBooking`/`createFoodBooking` + server routes
   exist, but no booking screen/route exists in the app; `bookingStore`/`foodBookingStore` have no
   call sites. A booking UI is a screen-build (needs explicit intent), not a wiring flip.

@@ -35,7 +35,8 @@ import { foodTheme } from '../constants/theme';
 import type { FoodStackParamList, RootStackParamList } from '@/navigation/types';
 import type { DiningRestaurant } from '../mocks/types';
 import type { SpecialDish } from '@data/types';
-import { getMenuForRestaurant, getOwnDishes, getMenuCategories } from '../utils/menu';
+import { getOwnDishes, getMenuCategories } from '../utils/menu';
+import { useRestaurantMenu } from '../hooks/useRestaurantMenu';
 import { useCartStore } from '@/state/cartStore';
 import { useFoodFilterStore, type DietFilter } from '@/state/foodFilterStore';
 import { dishMatches } from '../utils/dietFilter';
@@ -81,9 +82,11 @@ export function RestaurantProfileScreen({ navigation, route }: Props) {
     [scrollY],
   );
 
+  const dishes = useRestaurantMenu(restaurant);
+
   const menu = useMemo(
-    () => getMenuForRestaurant(restaurant).filter((d) => dishMatches(dietFilter, d)),
-    [restaurant, dietFilter],
+    () => dishes.filter((d) => dishMatches(dietFilter, d)),
+    [dishes, dietFilter],
   );
   const restaurantDishes = useMemo(
     () => getOwnDishes(menu, restaurant.name),
