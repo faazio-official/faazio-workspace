@@ -123,7 +123,7 @@ func (r *Repo) Menu(ctx context.Context, venueID string) ([]contracts.MenuDish, 
 		return nil, fmt.Errorf("directory: database not configured")
 	}
 	rows, err := r.pool.Query(ctx, `
-		select dish_id, name, price_paisa, is_veg, cuisine, rating, image
+		select dish_id, name, price_paisa, is_veg, cuisine, rating, image, description, emoji, delivery_time
 		  from directory.menus where venue_id = $1
 		 order by rating desc nulls last, name asc`, venueID)
 	if err != nil {
@@ -133,21 +133,68 @@ func (r *Repo) Menu(ctx context.Context, venueID string) ([]contracts.MenuDish, 
 	out := []contracts.MenuDish{}
 	for rows.Next() {
 		var (
-			d       contracts.MenuDish
-			isVeg   *bool
-			cuisine *string
-			rating  *float64
+			d        contracts.MenuDish
+			isVeg    *bool
+			cuisine  *string
+			rating   *float64
+			desc     *string
+			emoji    *string
+			delivery *string
 		)
-		if err := rows.Scan(&d.ID, &d.Name, &d.Price, &isVeg, &cuisine, &rating, &d.Image); err != nil {
+		if err := rows.Scan(&d.ID, &d.Name, &d.Price, &isVeg, &cuisine, &rating, &d.Image, &desc, &emoji, &delivery); err != nil {
 			return nil, err
 		}
 		d.Price = d.Price / 100
 		d.IsVeg = isVeg
 		d.Rating = rating
+		d.Description = derefStr(desc)
+		d.Emoji = derefStr(emoji)
+		d.DeliveryTime = derefStr(delivery)
 		if cuisine != nil {
 			d.Cuisine = *cuisine
 		}
 		out = append(out, d)
+	}
+	return out, rows.Err()
+}
+
+// venueListSelect is the public list projection: like storeListSelect it never fetches the PII
+// columns (address/phone), so an anonymous venue list cannot reach the wire or the edge cache.
+const venueListSelect = `
+select id, app::text, name, rating, cover_image, categories,
+       null::text as address, null::text as phone, hours
+from directory.dining_venues`
+
+// Venues returns dining venues for one app (empty app = all), best-rated first. This is the list
+// surface the Food home needs; only the PII-free projection is used (caching doc §6).
+func (r *Repo) Venues(ctx context.Context, app string) ([]contracts.Venue, error) {
+	if r.pool == nil {
+		return nil, fmt.Errorf("directory: database not configured")
+	}
+	rows, err := r.pool.Query(ctx, venueListSelect+`
+		where ($1 = '' or app::text = $1)
+		order by rating desc nulls last, name asc`, app)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := []contracts.Venue{}
+	for rows.Next() {
+		var (
+			v       contracts.Venue
+			rating  *float64
+			address *string
+			phone   *string
+			hours   *string
+		)
+		if err := rows.Scan(&v.ID, &v.App, &v.Name, &rating, &v.CoverImage, &v.Categories, &address, &phone, &hours); err != nil {
+			return nil, err
+		}
+		v.Rating = rating
+		v.Address = derefStr(address)
+		v.Phone = derefStr(phone)
+		v.Hours = derefStr(hours)
+		out = append(out, v)
 	}
 	return out, rows.Err()
 }

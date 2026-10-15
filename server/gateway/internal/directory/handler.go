@@ -34,6 +34,7 @@ func NewHandler(repo *Repo, c *cache.Cache, audit contracts.AuditWriter) *Handle
 func (h *Handler) Register(r chi.Router) {
 	r.Get("/stores", h.list)
 	r.Get("/store/{id}", h.get)
+	r.Get("/venues", h.venues)
 	r.Get("/pickup-points", h.pickupPoints)
 	r.Get("/venues/{id}/menu", h.menu)
 	r.Group(func(g chi.Router) {
@@ -167,6 +168,31 @@ func (h *Handler) menu(w http.ResponseWriter, r *http.Request) {
 	}
 	h.cache.SetJSON(r.Context(), cache.Menu(id), dishes, cache.TTLStore)
 	httpx.JSON(w, http.StatusOK, dishes)
+}
+
+// venues serves the dining-venue list (public catalog data, cached 24 h). The repo reads only the
+// PII-free projection, so the cached payload is safe for anonymous callers.
+func (h *Handler) venues(w http.ResponseWriter, r *http.Request) {
+	app := strings.ToUpper(strings.TrimSpace(r.URL.Query().Get("app")))
+	key := app
+	if key == "" {
+		key = "all"
+	}
+	var cached []contracts.Venue
+	if h.cache.GetJSON(r.Context(), cache.Venues(key), &cached) {
+		httpx.JSON(w, http.StatusOK, cached)
+		return
+	}
+	venues, err := h.repo.Venues(r.Context(), app)
+	if err != nil {
+		httpx.Fail(w, http.StatusInternalServerError, "directory_unavailable", "directory unavailable")
+		return
+	}
+	if venues == nil {
+		venues = []contracts.Venue{}
+	}
+	h.cache.SetJSON(r.Context(), cache.Venues(key), venues, cache.TTLStore)
+	httpx.JSON(w, http.StatusOK, venues)
 }
 
 func (h *Handler) sellerStores(w http.ResponseWriter, r *http.Request) {

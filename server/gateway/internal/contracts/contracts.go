@@ -162,15 +162,34 @@ type PickupPoint struct {
 	IsActive bool   `json:"isActive"`
 }
 
-// MenuDish is one directory.menus row (a vendor menu item; price in rupees).
+// MenuDish is one directory.menus row (a vendor menu item; price in rupees). The display fields
+// (Description/Emoji/DeliveryTime) mirror the app's SpecialDish card so the Food restaurant
+// screens can leave the `@data/food/menus.ts` fixture (migration 0019).
 type MenuDish struct {
-	ID      string   `json:"id"`
-	Name    string   `json:"name"`
-	Price   int64    `json:"price"`
-	IsVeg   *bool    `json:"isVeg,omitempty"`
-	Cuisine string   `json:"cuisine,omitempty"`
-	Rating  *float64 `json:"rating,omitempty"`
-	Image   string   `json:"image,omitempty"`
+	ID           string   `json:"id"`
+	Name         string   `json:"name"`
+	Price        int64    `json:"price"`
+	IsVeg        *bool    `json:"isVeg,omitempty"`
+	Cuisine      string   `json:"cuisine,omitempty"`
+	Rating       *float64 `json:"rating,omitempty"`
+	Image        string   `json:"image,omitempty"`
+	Description  string   `json:"description,omitempty"`
+	Emoji        string   `json:"emoji,omitempty"`
+	DeliveryTime string   `json:"deliveryTime,omitempty"`
+}
+
+// Venue is a directory.dining_venues row (a pure dining room / food venue). Public list reads use
+// the PII-free projection; address/phone are only present on an authenticated read.
+type Venue struct {
+	ID         string   `json:"id"`
+	App        App      `json:"app"`
+	Name       string   `json:"name"`
+	Rating     *float64 `json:"rating,omitempty"`
+	CoverImage string   `json:"coverImage"`
+	Categories []string `json:"categories"`
+	Address    string   `json:"address,omitempty"` // PII — auth-scoped only
+	Phone      string   `json:"phone,omitempty"`   // PII
+	Hours      string   `json:"hours,omitempty"`
 }
 
 // Review is one product review row, JSON shaped for ReviewRow.

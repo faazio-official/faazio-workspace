@@ -35,7 +35,7 @@ search extraction is a pure index-replica swap.
 | Context (future service) | MVP package | Schema(s) | Cache keys / TTL | `GatewayClient` method(s) | Future Prod |
 |---|---|---|---|---|---|
 | search → Rust/Tantivy | `internal/search` | `catalog` (read: `products_search`) | `faazio:v1:search:q:{query}` 600 s | `searchProducts` | Rust Axum + Tantivy |
-| catalog/directory → Go | `internal/catalog`, `internal/directory` | `catalog`, `directory` (+ `inventory.pickup_points`, `directory.menus` incl. `seller_id`/`status`) | `faazio:v1:catalog:product:{id}` 24 h · `faazio:v1:directory:store:{id}` 24 h · `faazio:v1:directory:pickup:{key}` 24 h · `faazio:v1:directory:menu:{venueId}` 24 h (invalidated on menu edit) | `getProduct`, `getProductsByIds`, `getStores`, `getStore`, `getPickupPoints`, `getMenu`; portal menu CRUD (`/seller/menus`) | CockroachDB + Postgres |
+| catalog/directory → Go | `internal/catalog`, `internal/directory` | `catalog`, `directory` (+ `inventory.pickup_points`, `directory.dining_venues`, `directory.menus` incl. `seller_id`/`status`) | `faazio:v1:catalog:product:{id}` 24 h · `faazio:v1:directory:store:{id}` 24 h · `faazio:v1:directory:pickup:{key}` 24 h · `faazio:v1:directory:menu:{venueId}` 24 h (invalidated on menu edit) · `faazio:v1:directory:venues:{app}` 24 h | `getProduct`, `getProductsByIds`, `getStores`, `getStore`, `getVenues`, `getPickupPoints`, `getMenu`; portal menu CRUD (`/seller/menus`) | CockroachDB + Postgres |
 | pharma (prescriptions) → Go | `internal/pharma` | `pharma` (+ `pharma.quote_items`, `pharma.status_history`) | `faazio:v1:pharma:prescriptions:{userId}` 60 s; never edge-cached | `createPrescription`, `uploadPrescriptionImage`, `getPrescriptions`; portal quote/reveal (`GET /seller/prescriptions`, `POST /seller/prescriptions/{id}/quotes`, `PUT /prescriptions/{id}/status`) | Go + Postgres + Supabase Storage |
 | notifications → Go+worker | `internal/notifications` | `notifications` (+ `outbox`, `push_tokens`) | `faazio:v1:notifications:inbox:{userId}` 30 s; never edge-cached | — (enqueue via `contracts.Notifier`; `POST /notifications/register`, `GET /notifications`; portal `GET /admin/notifications`) | Go + queue worker |
 | blood → Go+Postgres | `internal/blood` | `blood` (+ `blood.donor_directory` view, pg_cron expiry) | `faazio:v1:blood:requests:{bloodGroup};{city}` 60 s (public/redacted); never edge-cached | `getDonorProfile`, `saveDonorProfile`, `getBloodDonors`, `getBloodRequests`, `createBloodRequest`, `setBloodInterest`, `createDonorMatch`, `getDonorMatches` | Go + Postgres |
@@ -61,6 +61,12 @@ All `GatewayClient` methods in the table are now implemented (reads + writes; `g
 `rateVendor`, `getCart`/`addToCart`/`updateCartItem`/`removeCartItem`, `placeOrder`, `trackEvent`
 included). Cache behaviour is built per the TTL matrix: `GET /stock/:id` is read-through and every
 order decrement invalidates `stock:{id}`.
+
+**App-gap deltas (W25, `0019`)** add the `getVenues`/`getNotifications` client methods to the
+catalog/directory row: `GET /venues?app=` reads the PII-free `directory.dining_venues` projection
+(cached `directory:venues:{app}` 24 h), and `directory.menus` gains `description`/`emoji`/
+`delivery_time` so the Food restaurant screens can leave the fixture. The blood board is unchanged —
+it stays redacted (no PII widening).
 
 **Portal-only management endpoints** (role-scoped, audited via `admins`; no `GatewayClient` method):
 `GET /seller/products` + `PUT /seller/products/{id}/status` (catalog), `GET /seller/stores` +

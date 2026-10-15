@@ -86,6 +86,53 @@ func TestPublicListHidesPII(t *testing.T) {
 	}
 }
 
+func TestPublicVenuesHidesPII(t *testing.T) {
+	pool := testenv.Pool(t)
+	rec := httptest.NewRecorder()
+	testRouter(t, pool, false).ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/venues?app=FOOD", nil))
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d", rec.Code)
+	}
+	if strings.Contains(rec.Body.String(), `"phone"`) || strings.Contains(rec.Body.String(), `"address"`) {
+		t.Fatalf("public venues leaked PII: %s", rec.Body.String())
+	}
+	var venues []contracts.Venue
+	if err := json.Unmarshal(rec.Body.Bytes(), &venues); err != nil {
+		t.Fatalf("decode venues: %v", err)
+	}
+	if len(venues) == 0 {
+		t.Skip("no seeded dining venues")
+	}
+}
+
+func TestMenuIncludesDisplayFields(t *testing.T) {
+	pool := testenv.Pool(t)
+	var venueID string
+	err := pool.QueryRow(context.Background(), `select venue_id from directory.menus limit 1`).Scan(&venueID)
+	if err != nil {
+		t.Skipf("no seeded menu rows: %v", err)
+	}
+	rec := httptest.NewRecorder()
+	testRouter(t, pool, false).ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/venues/"+venueID+"/menu", nil))
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d", rec.Code)
+	}
+	var dishes []contracts.MenuDish
+	if err := json.Unmarshal(rec.Body.Bytes(), &dishes); err != nil {
+		t.Fatalf("decode menu: %v", err)
+	}
+	found := false
+	for _, d := range dishes {
+		if d.Description != "" && d.DeliveryTime != "" {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Fatalf("menu projection dropped description/deliveryTime: %s", rec.Body.String())
+	}
+}
+
 func TestStoresKeysetPagination(t *testing.T) {
 	pool := testenv.Pool(t)
 	router := testRouter(t, pool, false)

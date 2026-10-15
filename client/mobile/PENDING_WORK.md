@@ -14,19 +14,22 @@ dependencies exist. Do not build the backend/seller flows until told to.
 `GatewayClient.getAddresses()` reads `GET /profile/addresses` (server `label` → app `tag`).
 `UserDetailsScreen` hydrates `getProfile`+`getDetails` and `SavedAddressesScreen` hydrates
 `getAddresses`, each keeping the `@data/*` fixtures as mock/error fallback (the seam pattern).
+**(W25)** Pharma store rails + vendor picker flipped to `getStores('PHARMA')` via
+`usePharmaStores`; My Orders notification badge now reads the inbox count
+(`gateway.getNotifications()`).
 
-**Remaining — each needs a server-contract delta, not just wiring:**
-- **Food menu read.** `GET /venues/{id}/menu` returns `contracts.MenuDish`
-  (`{id,name,price,isVeg?,cuisine?,rating?,image?}`); the screens need `SpecialDish`
-  (`dishName`, `restaurant`, `description`, `emoji`/`deliveryTime`). Extend the menu contract +
-  `directory.menus` columns before flipping `RestaurantMenuScreen`/`RestaurantProfileScreen`.
-- **Blood dashboard feed.** `GET /blood-requests` (`BloodRequestRecord`) omits the card's
-  `imageUrl`/`distanceKm`/`purposeDescription`/patient demographics; `GET /donors` needs the
-  donor-card fields. Extend the `blood.requests` projection before replacing `BLOOD_REQUESTS`/
-  `BLOOD_DONORS`.
-- **Dining venues.** `directory.dining_venues` (seeded) has no list endpoint — `/stores` reads only
-  `directory.stores`. Add a venue query/source to `internal/directory` (or seed venues into
-  `directory.stores`) before `FoodHomeScreen` stops using feature mocks.
+**Remaining — each needs a server-contract delta or a screen flip, not just wiring:**
+- **Food menu read — contract unblocked (W25), screen flip remains.** `directory.menus` now carries
+  `description`/`emoji`/`delivery_time` (`0019`) and `contracts.MenuDish`/`GatewayClient.MenuDish`
+  expose them; `RestaurantMenuScreen`/`RestaurantProfileScreen` still read the `@data/food/menus.ts`
+  fixture and need a `MenuDish → SpecialDish` mapper before flipping.
+- **Dining venues — endpoint shipped (W25), screen flip remains.** `GET /venues?app=` +
+  `GatewayClient.getVenues()` now expose `directory.dining_venues`; `FoodHomeScreen` still uses the
+  feature dining mocks and needs a `Venue → DiningRestaurant` mapper (rating/distance/priceForTwo/
+  cuisines/neighbourhood are not all in the venue projection).
+- **Blood dashboard feed — decision: stay redacted.** `GET /blood-requests` deliberately omits
+  `imageUrl`/`distanceKm`/`purposeDescription`/demographics (no PII widening, `db-schema.md` §12.6);
+  flipping `DonorDashboard` means accepting redacted cards and computing distance client-side.
 - **Table/food booking create.** `GatewayClient.createBooking`/`createFoodBooking` + server routes
   exist, but no booking screen/route exists in the app; `bookingStore`/`foodBookingStore` have no
   call sites. A booking UI is a screen-build (needs explicit intent), not a wiring flip.

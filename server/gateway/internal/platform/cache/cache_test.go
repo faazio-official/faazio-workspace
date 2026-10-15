@@ -15,6 +15,7 @@ func TestKeyBuildersFreeze(t *testing.T) {
 		{SearchQuery("coffee"), "faazio:v1:search:q:coffee"},
 		{Product("md-1"), "faazio:v1:catalog:product:md-1"},
 		{Store("store-m3"), "faazio:v1:directory:store:store-m3"},
+		{Venues("FOOD"), "faazio:v1:directory:venues:FOOD"},
 		{Stock("md-1"), "faazio:v1:stock:md-1"},
 		{VendorReviews("store-f1"), "faazio:v1:reviews:vendor:store-f1"},
 		{ProductReviews("md-1"), "faazio:v1:reviews:product:md-1"},

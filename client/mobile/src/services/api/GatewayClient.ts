@@ -128,7 +128,7 @@ export interface RewardsView {
   }[];
 }
 
-/** One venue menu dish (directory.menus). */
+/** One venue menu dish (directory.menus). Display fields mirror the Food SpecialDish card. */
 export interface MenuDish {
   id: string;
   name: string;
@@ -137,6 +137,36 @@ export interface MenuDish {
   cuisine?: string;
   rating?: number;
   image?: string;
+  description?: string;
+  emoji?: string;
+  deliveryTime?: string;
+}
+
+/** One dining venue (directory.dining_venues) as served by `GET /venues`. */
+export interface Venue {
+  id: string;
+  app: string;
+  name: string;
+  rating?: number;
+  coverImage: string;
+  categories: string[];
+  /** PII — only present on an authenticated read. */
+  address?: string;
+  /** PII — only present on an authenticated read. */
+  phone?: string;
+  hours?: string;
+}
+
+/** One notifications.outbox row (user-facing copy only). */
+export interface NotificationRecord {
+  id: string;
+  kind: string;
+  title: string;
+  body: string;
+  status: string;
+  createdAt: string;
+  sentAt?: string;
+  data?: unknown;
 }
 
 /** One seller quote line (pharma.quote_items); money in whole rupees. */
@@ -409,6 +439,23 @@ export class GatewayClient {
     );
   }
 
+  /** Dining venues (durable directory.dining_venues; falls back to the @data identity table). */
+  async getVenues(app?: string): Promise<Venue[]> {
+    return this.withFallback(
+      () => this.http<Venue[]>(`/venues${app ? `?app=${app}` : ''}`),
+      () =>
+        delay(
+          diningVenues.map((v) => ({
+            id: v.id,
+            app: 'FOOD',
+            name: v.name,
+            coverImage: '',
+            categories: [],
+          })),
+        ),
+    );
+  }
+
   async getStock(productId: string): Promise<StockRow | undefined> {
     return this.withFallback(
       () => this.http<StockRow>(`/stock/${encodeURIComponent(productId)}`),
@@ -513,6 +560,14 @@ export class GatewayClient {
     );
   }
 
+  /** The caller's notification inbox (newest first); mock fallback is empty. */
+  async getNotifications(): Promise<NotificationRecord[]> {
+    return this.withFallback(
+      () => this.http<NotificationRecord[]>('/notifications'),
+      () => delay([] as NotificationRecord[]),
+    );
+  }
+
   /** A venue's dishes (durable directory.menus; falls back to the @data menu fixture). */
   async getMenu(venueId: string): Promise<MenuDish[]> {
     return this.withFallback(
@@ -529,6 +584,8 @@ export class GatewayClient {
             cuisine: d.cuisine,
             rating: d.rating,
             image: d.image,
+            description: d.description,
+            deliveryTime: d.deliveryTime,
           })),
         );
       },

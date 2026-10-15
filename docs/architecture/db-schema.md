@@ -852,7 +852,7 @@ inside `checkout.CreateOrder` via `contracts.RewardsWriter` (no public reconcile
 cannot be forged); the client stays optimistic and reconciles on `GET /rewards`
 (`faazio:v1:rewards:view:{userId}` 60 s, invalidated on earn).
 
-### 12.4 `directory.dining_venues` (extended) + `directory.menus` — source `data/food/diningVenues.ts`, `data/food/menus.ts` (migration `0013`)
+### 12.4 `directory.dining_venues` (extended) + `directory.menus` — source `data/food/diningVenues.ts`, `data/food/menus.ts` (migrations `0013`, `0019`)
 
 ```sql
 ALTER TABLE directory.dining_venues
@@ -864,6 +864,11 @@ CREATE TABLE directory.menus (
   price_paisa INT8 NOT NULL CHECK (price_paisa >= 0), is_veg BOOL, cuisine TEXT, rating REAL,
   image TEXT NOT NULL DEFAULT '', PRIMARY KEY (venue_id, dish_id)
 );
+-- 0019: display fields the app's SpecialDish card needs (additive, NOT NULL DEFAULT '').
+ALTER TABLE directory.menus
+  ADD COLUMN description TEXT NOT NULL DEFAULT '',
+  ADD COLUMN emoji TEXT NOT NULL DEFAULT '',
+  ADD COLUMN delivery_time TEXT NOT NULL DEFAULT '';
 CREATE INDEX menus_venue_idx ON directory.menus (venue_id);
 ```
 
@@ -872,6 +877,8 @@ Menus are seeded from `restaurantMenus` (61 dishes / 18 venues). **No FK on `ven
 menu belongs to a *vendor* id that resolves to either `directory.stores` (food stores) or
 `directory.dining_venues` — the `directory.vendors` union. Public catalog data → anon read, cached
 `faazio:v1:directory:menu:{venueId}` 24 h; venue PII (address/phone) is redacted by the gateway.
+The dining-venue **list** is served by `GET /venues?app=` (PII-free projection of
+`directory.dining_venues`), cached `faazio:v1:directory:venues:{app}` 24 h.
 
 ### 12.5 `pharma.prescriptions` — source `features/pharma/prescription` (migration `0009`)
 
@@ -934,6 +941,9 @@ The public surface is the `blood.donor_directory` security-definer view (consent
 columns only); own rows are RLS-scoped. The request board is public but `contact`/`address` are
 stripped for anon. `blood.expire_requests()` is scheduled (pg_cron, daily) to prune expired requests.
 Donor directory + request board cached 60 s (`faazio:v1:blood:requests:{bloodGroup};{city}`).
+**Decision (0019):** the donor dashboard stays on the redacted `blood.requests` projection and computes
+distance client-side rather than adding display columns (`image_url`/`distance_km`/`demographics`) —
+no PII widening. `purposeDescription`/`demographics` remain out of the public board by design.
 
 ### 12.7 `bookings.tables` + `bookings.food_orders` — source `state/bookingStore.ts`, `state/foodBookingStore.ts` (migration `0011`)
 

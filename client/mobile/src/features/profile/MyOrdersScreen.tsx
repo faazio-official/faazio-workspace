@@ -24,13 +24,12 @@ import type { MyOrder, OrderStatus, MyOrdersStatusFilter } from '@data/types';
 import type { AppBrand } from '@data/types';
 import type { RootStackParamList } from '@/navigation/types';
 import { useOrdersStore, type PlacedOrder } from '@/state/ordersStore';
+import { gateway } from '@/services/api/GatewayClient';
 import MyOrdersAppRail from './MyOrdersAppRail';
 import type { AppFilter } from './MyOrdersAppRail';
 import MyOrdersFilterSheet from './MyOrdersFilterSheet';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'MyOrders'>;
-
-const NOTIFICATION_BADGE = '3';
 
 const STATUS_COLORS: Record<OrderStatus, string> = {
   Delivered: '#16A34A',
@@ -96,6 +95,22 @@ export function MyOrdersScreen({ navigation, route }: Props) {
   );
   const [filterSheetVisible, setFilterSheetVisible] = useState(false);
   const [stagedStatus, setStagedStatus] = useState<MyOrdersStatusFilter>(statusFilter);
+  const [notificationCount, setNotificationCount] = useState(0);
+
+  useEffect(() => {
+    let active = true;
+    gateway
+      .getNotifications()
+      .then((items) => {
+        if (active) setNotificationCount(items.length);
+      })
+      .catch(() => {
+        // Inbox is best-effort; the badge simply stays hidden on failure.
+      });
+    return () => {
+      active = false;
+    };
+  }, []);
 
   const handleBack = useCallback(() => navigation.goBack(), [navigation]);
   const handleNotificationPress = useCallback(() => {
@@ -231,9 +246,11 @@ export function MyOrdersScreen({ navigation, route }: Props) {
               accessibilityLabel="Notifications"
             >
               <Bell size={ms(22)} color="#0f172a" strokeWidth={2} />
-              <View style={styles.notifBadge}>
-                <AppText style={styles.notifBadgeText}>{NOTIFICATION_BADGE}</AppText>
-              </View>
+              {notificationCount > 0 ? (
+                <View style={styles.notifBadge}>
+                  <AppText style={styles.notifBadgeText}>{notificationCount > 9 ? '9+' : notificationCount}</AppText>
+                </View>
+              ) : null}
             </TouchableOpacity>
             <TouchableOpacity
               onPress={handleSettingsPress}

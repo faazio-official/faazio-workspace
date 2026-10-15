@@ -140,12 +140,13 @@ for (const [name, dishes] of Object.entries(d.restaurantMenus ?? {})) {
     menuRows.push([
       q(venueId), q(dish.id), q(dish.dishName), paisa(dish.price), b(dish.isVeg),
       q(dish.cuisine), n(dish.rating), q(dish.image),
+      q(dish.description ?? ''), q(dish.emoji ?? ''), q(dish.deliveryTime ?? ''),
     ]);
   }
 }
 sql.push(inserts(
   'directory.menus',
-  ['venue_id', 'dish_id', 'name', 'price_paisa', 'is_veg', 'cuisine', 'rating', 'image'],
+  ['venue_id', 'dish_id', 'name', 'price_paisa', 'is_veg', 'cuisine', 'rating', 'image', 'description', 'emoji', 'delivery_time'],
   menuRows,
 ));
 

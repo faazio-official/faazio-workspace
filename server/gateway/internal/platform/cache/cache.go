@@ -22,6 +22,7 @@ func Product(id string) string       { return fmt.Sprintf("faazio:v1:catalog:pro
 func Store(id string) string         { return fmt.Sprintf("faazio:v1:directory:store:%s", id) }
 func PickupPoints(key string) string { return fmt.Sprintf("faazio:v1:directory:pickup:%s", key) }
 func Menu(venueID string) string     { return fmt.Sprintf("faazio:v1:directory:menu:%s", venueID) }
+func Venues(key string) string       { return fmt.Sprintf("faazio:v1:directory:venues:%s", key) }
 func Prescriptions(userID string) string {
 	return fmt.Sprintf("faazio:v1:pharma:prescriptions:%s", userID)
 }

@@ -23,7 +23,7 @@
 | `stock` / `carts` / `reservations` / `pickup_points` | Supabase `inventory` schema + `SELECT … FOR UPDATE SKIP LOCKED`, `pg_cron` TTL sweep | DynamoDB / Firestore KV | Postgres locking is fine for MVP contention; Dynamo only at 1000s concurrent decrements |
 | `user_events` / `recommendations` / `segments` / `product_stats` / `sdui_layouts` | Keep MongoDB Atlas M0 (ID-only, `userIdHash`, TTL 90d) | Same (no change) | Flexible doc shape + TTL; don't force into Postgres |
 | Cache + edge | Keep **Aiven Valkey + Cloudflare** exactly per `caching-cloudflare-valkey.md` | Same | Supabase is origin, not cache; keys/TTLs unchanged (`faazio:v1:{service}:{entity}:{id}`, stock 30–60s, search 600s, product 24h, idempotency `NX EX 300`) |
-| Gateway | Go Chi modular monolith (`server/gateway`): all 6 contexts, `/health`, `/search?q=`, `/sdui/home`, `/product/:id`, `/vendors/:id/reviews`, `/stores`, `/orders`, `/profile`, cart/order/rating/event writes → Supabase + Mongo + Valkey, Cloudflare in front | Full gateway + 5 gRPC microservices via `contracts/` | Monolith proves the `@mock` → `@server` seam; extracted per `monolith-breakdown.md`; `GatewayClient` signatures don't change |
+| Gateway | Go Chi modular monolith (`server/gateway`): all 6 contexts, `/health`, `/search?q=`, `/sdui/home`, `/product/:id`, `/vendors/:id/reviews`, `/stores`, `/venues`, `/orders`, `/profile`, cart/order/rating/event writes → Supabase + Mongo + Valkey, Cloudflare in front | Full gateway + 5 gRPC microservices via `contracts/` | Monolith proves the `@mock` → `@server` seam; extracted per `monolith-breakdown.md`; `GatewayClient` signatures don't change |
 | Auth | Supabase Auth phone OTP + RLS (replaces mocked `authStore.login()`) | Same, hardened | Server sessions + per-user orders/carts/rating scoping now |
 
 **Product images (recommendation):** serve from **Supabase Storage** (same project) with Cloudflare
@@ -71,7 +71,7 @@ All read-through: Valkey → Supabase/Mongo → populate. Cloudflare caches publ
 | `GET /sdui/home` | Mongo `sdui_layouts` + Supabase catalog/stores `getProductsByIds` | `data/home/sdui.ts` | `getHomeFeed` |
 | `GET /product/:id` | Supabase `catalog.products` + `inventory.stock` + `reviews.reviews` | `data/catalog/products.ts` | `getProduct` |
 | `GET /vendors/:id/reviews` | Supabase `reviews.vendor_reviews` (public columns only) | `data/reviews/vendorReviews.ts` | `getReviews` |
-| `GET /stores`, `GET /store/:id` | Supabase `directory.stores` | `data/directory/stores.ts` | `getStores` / `getStore` |
+| `GET /stores`, `GET /store/:id`, `GET /venues?app=` | Supabase `directory.stores` / `directory.dining_venues` | `data/directory/stores.ts`, `data/food/diningVenues.ts` | `getStores` / `getStore` / `getVenues` |
 | `GET /orders`, `GET /profile` | Supabase `checkout` / `accounts` (auth-scoped) | `data/checkout/orders.ts`, `data/accounts/profile.ts` | `getOrders` / `getProfile` |
 
 **Write endpoints (MVP, win chosen over the original read-only list):**
@@ -83,7 +83,7 @@ All read-through: Valkey → Supabase/Mongo → populate. Cloudflare caches publ
 | `POST /orders/{id}/payments`, `GET /payments` | checkout | real-money ledger (`checkout.payments`); amount derived server-side, never edge-cached |
 | `GET /pickup-points` | directory | durable `inventory.pickup_points` (public business locations, cached 24 h) |
 | `GET /rewards` | rewards | server-authoritative coins/streak/ledger; earn runs inside `POST /orders` via `contracts.RewardsWriter` (never client-forgeable) |
-| `GET /venues/{id}/menu` | directory | durable `directory.menus` (public catalog data, cached 24 h) |
+| `GET /venues/{id}/menu` | directory | durable `directory.menus` (public catalog data, cached 24 h); menu rows carry `description`/`emoji`/`delivery_time` (`0019`) |
 | `POST /prescriptions`, `GET /prescriptions`, `POST /prescriptions/upload-url`, `GET /prescriptions/{id}/images` | pharma | durable Rx; images in private Supabase Storage (object keys), signed upload/download URLs env-gated (owner/vendor/admin only) |
 | `POST /seller/prescriptions/{id}/quotes`, `PUT /prescriptions/{id}/status` (incl. `READY`) | pharma | seller-scoped quote lines + `QUOTED`/`READY`; vendor projection is name-only until READY/FULFILLED (contact blanked by query), reveal audited + `status_history`, READY enqueues a notification |
 | `GET/PUT /profile/addresses`, `GET /orders/{id}` | checkout | auth-scoped saved addresses (server-enforced ownership) + order detail |
@@ -195,12 +195,17 @@ contract stable so the swap is invisible to the app):
     `support.tickets.state_code` (state queue). Owner: `db-schema.md` §12.11. Closed the web↔mobile
     control-plane gaps (W17–W20), web write-through (W21) and mobile `@mock`→`@server` (W22, in
     progress); auth/Storage/edge (W23) stays pending. Additive only — mobile keeps running.
-15. 🔜 **Pharma quote + notify (`0018`, W24):** `pharma.quote_items`/`status_history`, `QUOTED`/`READY`
+15. ✅ **Pharma quote + notify (`0018`, W24):** `pharma.quote_items`/`status_history`, `QUOTED`/`READY`
     enum values, `quoted_total_paisa`/`revealed_at`/`revealed_by`/`address_id`, `notifications.outbox` +
     `push_tokens`, `reviews.vendor_reviews.hidden`. Owner: `db-schema.md` §12.12. Gateway adds the
     pharma quote/reveal path + a new `internal/notifications` context (`contracts.Notifier`), and the
     gap writes `/profile/addresses`, `/reviews/{id}/moderate`, `/seller/products/{id}` price/stock.
     Mobile Rx/cart/web slice cutover follows (W22/D). Additive only.
+16. ✅ **App-gap contract deltas (`0019`, W25):** `directory.menus.description/emoji/delivery_time`
+    (additive) so the Food restaurant screens can leave the `@data` fixture; `GET /venues?app=` venue
+    list (`internal/directory.Venues`, PII-free, cached 24 h) + `GatewayClient.getVenues`; inbox badge
+    count via `getNotifications`. Blood board deliberately stays redacted (no PII widening). Owner:
+    `db-schema.md` §12.4/§12.6. Auth stays mocked by product decision.
 
 ---
 

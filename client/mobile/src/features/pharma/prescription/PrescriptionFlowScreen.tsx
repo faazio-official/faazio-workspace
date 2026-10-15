@@ -5,10 +5,10 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { RootStackParamList } from '@/navigation/types';
 import type { StoreProfile } from '@data/types';
 import type { FulfillmentMode } from '@data/types';
-import { pharmaStores } from '@data/pharma/stores';
 import { defaultAddresses } from '@data/cart/addresses';
 import { useOrdersStore } from '@/state/ordersStore';
 import { gateway } from '@/services/api/GatewayClient';
+import { usePharmaStores } from '../hooks/usePharmaStores';
 import PrescriptionCameraStep from './PrescriptionCameraStep';
 import PrescriptionNoteStep from './PrescriptionNoteStep';
 import PharmaVendorList from './PharmaVendorList';
@@ -31,9 +31,10 @@ const MAX_PHOTOS = 10;
 export function PrescriptionFlowScreen({ navigation, route }: Props) {
   const insets = useSafeAreaInsets();
   const presetVendorId = route.params?.presetVendorId;
+  const stores = usePharmaStores();
   const presetVendor = useMemo(
-    () => presetVendorId ? pharmaStores.find((store) => store.id === presetVendorId) ?? null : null,
-    [presetVendorId],
+    () => presetVendorId ? stores.find((store) => store.id === presetVendorId) ?? null : null,
+    [presetVendorId, stores],
   );
   const [step, setStep] = useState<PrescriptionFlowStep>('CAPTURE');
   const [draft, setDraft] = useState<Draft>({

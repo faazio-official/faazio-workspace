@@ -4,12 +4,12 @@ import { ChevronLeft, Search, X, PackageOpen } from 'lucide-react-native';
 import AppText from '@/components/AppText';
 import AppTextInput from '@/components/AppTextInput';
 import { hs, ms, vs } from '@/utils/responsive';
-import { pharmaStores } from '@data/index';
 import type { StoreProfile } from '@data/types';
 import type { FulfillmentMode } from '@data/types';
 import PharmaVendorCard from './PharmaVendorCard';
 import PharmaFulfilmentSheet from './PharmaFulfilmentSheet';
 import { PHARMA_INK } from '../mocks/pharmaHomeFeed';
+import { usePharmaStores } from '../hooks/usePharmaStores';
 
 interface PharmaVendorListProps {
   selected: StoreProfile | null;
@@ -31,18 +31,19 @@ const PharmaVendorList = memo(function PharmaVendorList({
   const [query, setQuery] = useState('');
   const [sheetVisible, setSheetVisible] = useState(false);
   const [activeVendor, setActiveVendor] = useState<StoreProfile | null>(selected);
+  const stores = usePharmaStores();
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
-    if (q === '') return pharmaStores;
-    return pharmaStores.filter(
+    if (q === '') return stores;
+    return stores.filter(
       (v) =>
         v.name.toLowerCase().includes(q) ||
         v.categories.some((c) => c.toLowerCase().includes(q)) ||
         v.desc.toLowerCase().includes(q) ||
         (v.offerTag ?? '').toLowerCase().includes(q),
     );
-  }, [query]);
+  }, [query, stores]);
 
   const handleOrder = (store: StoreProfile) => {
     setActiveVendor(store);

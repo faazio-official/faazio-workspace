@@ -13,7 +13,6 @@ import PharmaProductCard from '@/features/pharma/cards/PharmaProductCard';
 import AppTextInput from '@/components/AppTextInput';
 import AppText from '@/components/AppText';
 import { PHARMA_PRODUCTS_DB, pharmaProducts } from '@data/pharma/products';
-import { pharmaStores } from '@data/pharma/stores';
 import type { StoreProfile } from '@data/types';
 import type { PharmaDBItem } from '@data/pharma/products';
 import { PHARMA_RECENT_ORDERS } from '@data/pharma/recentOrders';
@@ -33,6 +32,7 @@ import HealthCornerRail from './components/pharma-home/HealthCornerRail';
 import LocalMedicalsRail from './components/pharma-home/LocalMedicalsRail';
 import UploadPrescriptionFAB from './components/pharma-home/UploadPrescriptionFAB';
 import { usePharmaFeed } from './hooks/usePharmaFeed';
+import { usePharmaStores } from './hooks/usePharmaStores';
 import PharmaHomeSkeleton from './components/skeletons/PharmaHomeSkeleton';
 import { DonorDashboard } from './blood-donor/DonorDashboard';
 
@@ -70,6 +70,7 @@ export function PharmaScreen({
 
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const feed = usePharmaFeed();
+  const stores = usePharmaStores();
 
   const toggleLocalFavorite = (id: string) => {
     setLocalFavorites(prev =>
@@ -227,7 +228,7 @@ export function PharmaScreen({
           onViewAll={() => onSearchPress?.('Featured Brands')}
         />
         <HealthCornerRail items={feed.healthCorner} onViewAll={() => onSearchPress?.('Health Corner')} />
-        <LocalMedicalsRail stores={pharmaStores} onMedicalPress={handleMedicalPress} />
+        <LocalMedicalsRail stores={stores} onMedicalPress={handleMedicalPress} />
       </ScrollView>
       <UploadPrescriptionFAB onPress={() => navigation.navigate('PrescriptionFlow')} />
     </View>

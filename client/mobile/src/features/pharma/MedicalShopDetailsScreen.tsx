@@ -15,8 +15,8 @@ import { VendorReviewsSection } from '@/components/shared';
 import { hs, ms, vs } from '@/utils/responsive';
 import { SPACE } from '@/theme/spacing';
 import type { Product, StoreProfile } from '@data/types';
-import { pharmaStores } from '@data/pharma/stores';
 import { getVendorProducts, matchesQuery } from '@/services/categoryVendors';
+import { usePharmaStores } from './hooks/usePharmaStores';
 import type { RootStackParamList } from '@/navigation/types';
 import SearchPharmaProductCard from './components/SearchPharmaProductCard';
 import PharmaImage from './components/pharma-home/PharmaImage';
@@ -84,9 +84,10 @@ export function MedicalShopDetailsScreen({ navigation, route }: Props) {
   const insets = useSafeAreaInsets();
   const inputRef = useRef<TextInput | null>(null);
   const [query, setQuery] = useState('');
+  const stores = usePharmaStores();
   const store = useMemo(
-    () => pharmaStores.find((candidate) => candidate.id === route.params.storeId),
-    [route.params.storeId],
+    () => stores.find((candidate) => candidate.id === route.params.storeId),
+    [stores, route.params.storeId],
   );
   const products = useMemo(
     () => getVendorProducts(route.params.storeId, 'PHARMA'),
