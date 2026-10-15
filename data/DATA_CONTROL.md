@@ -179,7 +179,7 @@ the `GROCERY` member was dropped from `AppBrand` / `CartCategory` / `SubAppId` /
 | `NOTIFICATIONS_BANNER` | `{ message }` | Notifications step (info-banner copy) | `@mock` |
 | `CONSENT_LABEL` | `string` | Review step (consent checkbox copy) | `@mock` |
 | `PRIVACY_NOTE` | `string` | Review step (footer privacy note) | `@mock` |
-| `BLOOD_REQUESTS` | `BloodRequest[]` | Donor dashboard + request-details page (feed + detail fields) | `@mock` |
+| `BLOOD_REQUESTS` | `BloodRequest[]` | Donor dashboard + request-details page (feed + detail fields) — dashboard feed hydrated via `GatewayClient.getBloodRequests()` (`useBloodRequests`; fixture-enriched display extras, fixture fallback) | `@mock` → `@server` |
 | `BLOOD_DONOR_UNREAD_ALERTS` | `number` | Donor dashboard (bell badge seed) | `@mock` |
 | `BLOOD_REQUEST_DETAIL_COPY` | `{ bannerTitle; bannerSubtitle; confirmNote }` | Request-details page (banner + privacy note copy) | `@mock` |
 | `DonorMatchRequest` | `interface` | Targeted Ask Blood request persisted by `bloodDonorStore` and shown to its recipient | `@mock` |
@@ -193,8 +193,10 @@ the `GROCERY` member was dropped from `AppBrand` / `CartCategory` / `SubAppId` /
 > `contact`/`address` redacted for anon), `blood.interests`, and `blood.match_requests`.
 > `bloodDonorStore` keeps AsyncStorage (`faazio/bloodDonor/v1`) as an optimistic cache and mirrors
 > writes to `PUT /donors/me` + `setBloodInterest`/`createDonorMatch` best-effort. Health data
-> stays out of plain logs. `BLOOD_REQUESTS` remains the local dashboard/detail seed; the gateway
-> feed (`GET /blood-requests`) replaces it as the screen wires up. `BLOOD_DONORS` is the
+> stays out of plain logs. `BLOOD_REQUESTS` is now the fixture **fallback** for the dashboard feed:
+> `hooks/useBloodRequests` reads `GET /blood-requests` (`blood.requests`) remote-first and merges
+> fixture-only display extras (`imageUrl`/`purposeDescription`/patient demographics/`distanceKm`) by
+> id; the detail page renders redacted rows gracefully. `BLOOD_DONORS` is the
 > donor-directory seed; `GET /donors` (auth-scoped) replaces it.
 > **Targeted Ask Blood contract:** the user searches by city + blood group, selects one
 > `DonorProfile`, and creates one `DonorMatchRequest` containing both requester and

@@ -5,9 +5,9 @@ dependencies exist. Do not build the backend/seller flows until told to.
 
 ---
 
-## W22 `@mock` → `@server` — food menus + dining shipped; remaining slices are screen builds
+## W22 `@mock` → `@server` — food, dining + addresses + blood shipped; only booking remains
 
-**Status:** 🟢 Shipped (profile reads, W25/W26); remaining slices need a decision or a screen build.
+**Status:** 🟢 Shipped (profile reads, W25/W26/W27); only the booking screen build remains.
 
 **Shipped:** `GatewayClient.getDetails()` now flattens the server's nested
 `accounts.details` blob (`{userId, accountId, data}` → `DetailsTable`); new
@@ -23,15 +23,11 @@ dependencies exist. Do not build the backend/seller flows until told to.
 `directory.dining_venues` via `diningService` → `getVenues('FOOD')` (fixture-enriched, neutral
 defaults for server-only venues); `SavedAddressesScreen` now has a full add/edit/delete
 `AddressEditor` wired to `GatewayClient.saveAddress` (`PUT`) / `deleteAddress` (`DELETE
-/profile/addresses/{id}`, new server route).
+/profile/addresses/{id}`, new server route); the blood donor dashboard feed is now server-backed
+(`useBloodRequests` → `getBloodRequests`, fixture-enriched display extras, detail renders redacted
+rows gracefully).
 
-**Remaining — each needs a decision or a screen build, not just wiring:**
-- **Blood dashboard feed — defer (decision).** `GET /blood-requests` deliberately omits
-  `imageUrl`/`distanceKm`/`purposeDescription`/demographics (no PII widening, `db-schema.md`
-  §12.6), and `BloodRequestDescriptionScreen` is fixture/PII-bound (patient age/gender, hospital
-  contact/address, remarks). Flipping the feed would require reworking the detail page too, so the
-  board stays on `@data` until an explicit decision to widen the projection or pass the request
-  through navigation.
+**Remaining — needs an explicit screen build, not just wiring:**
 - **Table/food booking create.** `GatewayClient.createBooking`/`createFoodBooking` + server routes
   exist, but no booking screen/route exists in the app; `bookingStore`/`foodBookingStore` have no
   call sites. A booking UI is a screen-build (needs explicit intent), not a wiring flip.

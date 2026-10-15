@@ -155,6 +155,17 @@ same blob and rendered only for the selected donor by `donorUserId`. It is never
 into the common hospital feed or broadcast to all donors. The donor registry and targeted
 request delivery remain mock/local until Go Chi owns them.
 
+The dashboard hospital-request feed is **server-backed** (`hooks/useBloodRequests` →
+`GatewayClient.getBloodRequests()` → `blood.requests`). Server rows are mapped onto the app's
+`BloodRequest` card/detail shape; display-only extras the server does not carry
+(`imageUrl`, `purposeDescription`, patient age/gender, `distanceKm`) are borrowed from the
+`@data/pharma/bloodRequests.ts` fixture when the id matches and otherwise rendered as graceful
+"not provided" (the detail screen conditionally hides the photo, age/gender, contact and location
+rows). `contact`/`address` come from the server (present for an authenticated caller, redacted for
+anon) — no PII is widened in the projection. A module-level cache of the resolved feed means the
+detail screen (which resolves by `requestId`) renders instantly after the dashboard has loaded.
+The wizard/registration and targeted donor-match stores stay local (unchanged).
+
 `search` hosts the shared `SearchScreen` shell (`features/search/SearchScreen.tsx`) plus
 per-sub-app configs (`configs/*`). Product search (Mart / Pharma / Home Hub)
 renders **one dense row per result** via the shared `SearchProductRowCard`
@@ -381,7 +392,7 @@ still separate files; consolidating them is tracked in `client/mobile/PENDING_WO
 
 ### Services (`src/services/`)
 
-- `api/GatewayClient.ts` — single data surface; **wired** to the MVP gateway (`EXPO_PUBLIC_GATEWAY_URL` + flag) with `@data/*` fallback; screens migrate incrementally (see data doc). Migration (W22) done so far: mart feed (`martService` → `getStores('MART')`), catalog vendor detail (`VendorDetailScreen` → `getStore`), favourites (`getProductsByIds`), product search (`SearchModeConfig.fetch` → `searchProducts`), the Home SDUI registry + recently-viewed rails (`useHomeFeed` → `getHomeFeed`, static `@data/home/sections` fallback), the **cart/checkout** path (see below), the **Pharma Rx** capture/upload/create path, the **orders history** (`ordersStore` ← `getOrders`), **vendor reviews** (`useVendorReviews` ← `getVendorReviews` + `getVendorReviewSummary`) and the `search` analytics event. **(W25)** pharma store rails/vendor picker (`usePharmaStores` → `getStores('PHARMA')`), `getVenues` + `getNotifications` added; `getMenu` now carries `description`/`deliveryTime`. **(W26)** food restaurant menus (`useRestaurantMenu` → `getMenu`) and the FoodHome dining grid (`diningService` → `getVenues('FOOD')`, fixture-enriched). Remaining: profile/account edit, table/food booking create (no screen), blood feed (redacted by decision — the detail page is fixture/PII-bound).
+- `api/GatewayClient.ts` — single data surface; **wired** to the MVP gateway (`EXPO_PUBLIC_GATEWAY_URL` + flag) with `@data/*` fallback; screens migrate incrementally (see data doc). Migration (W22) done so far: mart feed (`martService` → `getStores('MART')`), catalog vendor detail (`VendorDetailScreen` → `getStore`), favourites (`getProductsByIds`), product search (`SearchModeConfig.fetch` → `searchProducts`), the Home SDUI registry + recently-viewed rails (`useHomeFeed` → `getHomeFeed`, static `@data/home/sections` fallback), the **cart/checkout** path (see below), the **Pharma Rx** capture/upload/create path, the **orders history** (`ordersStore` ← `getOrders`), **vendor reviews** (`useVendorReviews` ← `getVendorReviews` + `getVendorReviewSummary`) and the `search` analytics event. **(W25)** pharma store rails/vendor picker (`usePharmaStores` → `getStores('PHARMA')`), `getVenues` + `getNotifications` added; `getMenu` now carries `description`/`deliveryTime`. **(W26)** food restaurant menus (`useRestaurantMenu` → `getMenu`) and the FoodHome dining grid (`diningService` → `getVenues('FOOD')`, fixture-enriched); saved-address add/edit/delete (`saveAddress`/`deleteAddress`). **(W27)** blood donor dashboard feed (`useBloodRequests` → `getBloodRequests`, server-backed, fixture-enriched display extras; detail renders redacted rows gracefully). Remaining: table/food booking create (no screen).
 - `secureSession.ts` — tokens via `expo-secure-store` (never AsyncStorage for secrets).
 - `logout.ts` — clears auth + cart + favourites + search + pharma + blood donor + rewards + vendor-rating stores.
 - `vendorRatings.ts` — single owner of the vendor rating gate: `canRateVendor(vendorId)`

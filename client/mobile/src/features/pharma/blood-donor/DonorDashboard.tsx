@@ -9,9 +9,10 @@ import AppText from '@/components/AppText';
 import AppTextInput from '@/components/AppTextInput';
 import { hs, vs, ms } from '@/utils/responsive';
 import { SPACE } from '@/theme/spacing';
-import { BLOOD_REQUESTS, BLOOD_DONOR_UNREAD_ALERTS, ASK_BLOOD_COPY } from '@data/index';
+import { BLOOD_DONOR_UNREAD_ALERTS, ASK_BLOOD_COPY } from '@data/index';
 import { useAuthStore } from '@/state/authStore';
 import { useBloodDonorStore } from '@/state/bloodDonorStore';
+import { useBloodRequests } from './hooks/useBloodRequests';
 import type { RootStackParamList } from '@/navigation/types';
 import { BloodRequestCard } from './components/BloodRequestCard';
 import { IncomingDonorRequestCard } from './components/IncomingDonorRequestCard';
@@ -60,6 +61,7 @@ export function DonorDashboard() {
   const [filter, setFilter] = useState<FilterId>('all');
   const [query, setQuery] = useState('');
   const [askOpen, setAskOpen] = useState(false);
+  const requests = useBloodRequests();
 
   const incomingRequests = useMemo(
     () => donorMatchRequests.filter((request) => request.donorUserId === userId),
@@ -69,7 +71,7 @@ export function DonorDashboard() {
 
   const filteredRequests = useMemo(() => {
     const q = query.trim().toLowerCase();
-    const seedMatches = BLOOD_REQUESTS.filter((r) => {
+    const matches = requests.filter((r) => {
       if (filter === 'nearby') {
         // Honest "nearby" for the mock stage: the request's city vs the donor's
         // own registered preferred location (case-insensitive contains). Real
@@ -87,8 +89,8 @@ export function DonorDashboard() {
       return true;
     });
 
-    return seedMatches;
-  }, [filter, query, registration]);
+    return matches;
+  }, [filter, query, registration, requests]);
 
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>

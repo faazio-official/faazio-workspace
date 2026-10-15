@@ -31,12 +31,13 @@ import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import AppText from '@/components/AppText';
 import { hs, vs, ms } from '@/utils/responsive';
 import { SPACE } from '@/theme/spacing';
-import { BLOOD_REQUESTS, BLOOD_REQUEST_DETAIL_COPY } from '@data/index';
+import { BLOOD_REQUEST_DETAIL_COPY } from '@data/index';
 import { useBloodDonorStore } from '@/state/bloodDonorStore';
 import type { RootStackParamList } from '@/navigation/types';
 import { BloodRequestInfoGrid } from './components/BloodRequestInfoGrid';
 import { NearbyRequestCard } from './components/NearbyRequestCard';
 import { postedLabel } from './components/BloodRequestCard';
+import { useBloodRequests } from './hooks/useBloodRequests';
 import {
   BLOOD_RED,
   BLOOD_RED_DARK,
@@ -58,7 +59,8 @@ function neededWithinValue(neededWithin: string): string {
 
 export function BloodRequestDescriptionScreen({ navigation, route }: Props) {
   const insets = useSafeAreaInsets();
-  const request = BLOOD_REQUESTS.find((r) => r.id === route.params.requestId) ?? null;
+  const requests = useBloodRequests();
+  const request = requests.find((r) => r.id === route.params.requestId) ?? null;
   const interestedRequestIds = useBloodDonorStore((s) => s.interestedRequestIds);
   const acceptedRequestIds = useBloodDonorStore((s) => s.acceptedRequestIds);
   const toggleInterested = useBloodDonorStore((s) => s.toggleInterested);
@@ -69,10 +71,10 @@ export function BloodRequestDescriptionScreen({ navigation, route }: Props) {
 
   const nearby = useMemo(
     () =>
-      BLOOD_REQUESTS.filter((r) => r.id !== route.params.requestId).sort(
-        (a, b) => a.distanceKm - b.distanceKm,
-      ),
-    [route.params.requestId],
+      requests
+        .filter((r) => r.id !== route.params.requestId)
+        .sort((a, b) => a.distanceKm - b.distanceKm),
+    [requests, route.params.requestId],
   );
 
   /** Honest empty state — a bad/stale id never crashes the page. */
@@ -104,13 +106,14 @@ export function BloodRequestDescriptionScreen({ navigation, route }: Props) {
   }
 
   const handleShare = () => {
-    Share.share({
-      message:
-        `Blood donation request — ${request.hospital}\n` +
-        `Blood group ${request.bloodGroup}, ${request.unitsRequired} unit(s) required.\n` +
-        `${request.patientContext} · ${request.neededWithin}\n` +
-        `${request.hospitalAddress} · Contact ${request.hospitalContact}`,
-    }).catch(() => {
+    const lines = [
+      `Blood donation request — ${request.hospital}`,
+      `Blood group ${request.bloodGroup}, ${request.unitsRequired} unit(s) required.`,
+      `${request.patientContext} · ${request.neededWithin}`,
+      request.hospitalAddress ? request.hospitalAddress : '',
+      request.hospitalContact ? `Contact ${request.hospitalContact}` : '',
+    ].filter(Boolean);
+    Share.share({ message: lines.join('\n') }).catch(() => {
       // Share sheet cancellation/failure — nothing to surface.
     });
   };
@@ -161,6 +164,18 @@ export function BloodRequestDescriptionScreen({ navigation, route }: Props) {
     },
   ];
 
+  // The first row rendered gets no top border (server-redacted rows may be absent).
+  const firstInfoKey = request.patientAge > 0
+    ? 'age'
+    : request.patientGender
+      ? 'gender'
+      : request.hospitalContact
+        ? 'contact'
+        : request.hospitalAddress
+          ? 'location'
+          : 'remarks';
+  const firstInfo = (key: string) => (firstInfoKey === key ? styles.infoRowFirst : undefined);
+
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
       <View style={styles.header}>
@@ -193,13 +208,19 @@ export function BloodRequestDescriptionScreen({ navigation, route }: Props) {
       >
         {/* Hospital card */}
         <View style={styles.hospitalCard}>
-          <ExpoImage
-            source={{ uri: request.imageUrl }}
-            style={styles.hospitalPhoto}
-            contentFit="cover"
-            cachePolicy="memory-disk"
-            transition={180}
-          />
+          {request.imageUrl ? (
+            <ExpoImage
+              source={{ uri: request.imageUrl }}
+              style={styles.hospitalPhoto}
+              contentFit="cover"
+              cachePolicy="memory-disk"
+              transition={180}
+            />
+          ) : (
+            <View style={[styles.hospitalPhoto, styles.hospitalPhotoPlaceholder]}>
+              <Droplet size={ms(26)} color={BLOOD_RED_SOFT} fill={BLOOD_RED_SOFT} strokeWidth={2} />
+            </View>
+          )}
           <View style={styles.hospitalCopy}>
             <AppText style={styles.hospitalName} numberOfLines={2}>
               {request.hospital}
@@ -215,15 +236,17 @@ export function BloodRequestDescriptionScreen({ navigation, route }: Props) {
               </AppText>
             </View>
           </View>
-          <TouchableOpacity
-            onPress={handleCall}
-            style={styles.phoneFab}
-            activeOpacity={0.85}
-            accessibilityRole="button"
-            accessibilityLabel={`Call ${request.hospital}`}
-          >
-            <Phone size={ms(18)} color="#ffffff" strokeWidth={2.4} />
-          </TouchableOpacity>
+          {request.hospitalContact ? (
+            <TouchableOpacity
+              onPress={handleCall}
+              style={styles.phoneFab}
+              activeOpacity={0.85}
+              accessibilityRole="button"
+              accessibilityLabel={`Call ${request.hospital}`}
+            >
+              <Phone size={ms(18)} color="#ffffff" strokeWidth={2.4} />
+            </TouchableOpacity>
+          ) : null}
         </View>
 
         {/* 2×2 info grid */}
@@ -242,7 +265,9 @@ export function BloodRequestDescriptionScreen({ navigation, route }: Props) {
               >
                 {request.patientContext}
               </AppText>
-              <AppText style={styles.purposeDesc}>{request.purposeDescription}</AppText>
+              {request.purposeDescription ? (
+                <AppText style={styles.purposeDesc}>{request.purposeDescription}</AppText>
+              ) : null}
             </View>
           </View>
         </View>
@@ -251,42 +276,52 @@ export function BloodRequestDescriptionScreen({ navigation, route }: Props) {
         <View style={styles.sectionCard}>
           <AppText style={styles.sectionLabel}>Additional Information</AppText>
 
-          <View style={[styles.infoRow, styles.infoRowFirst]}>
-            <AppText style={styles.infoLabel}>Age</AppText>
-            <AppText style={styles.infoValue}>{request.patientAge} years</AppText>
-          </View>
-
-          <View style={styles.infoRow}>
-            <AppText style={styles.infoLabel}>Gender</AppText>
-            <AppText style={styles.infoValue}>{request.patientGender}</AppText>
-          </View>
-
-          <View style={styles.infoRow}>
-            <AppText style={styles.infoLabel}>Contact</AppText>
-            <View style={styles.contactWrap}>
-              <TouchableOpacity onPress={handleCall} style={styles.contactChip} activeOpacity={0.8}>
-                <Phone size={ms(11)} color={BLOOD_RED_DARK} strokeWidth={2.4} />
-                <AppText style={styles.contactText}>{request.hospitalContact}</AppText>
-              </TouchableOpacity>
+          {request.patientAge > 0 ? (
+            <View style={[styles.infoRow, firstInfo('age')]}>
+              <AppText style={styles.infoLabel}>Age</AppText>
+              <AppText style={styles.infoValue}>{request.patientAge} years</AppText>
             </View>
-          </View>
+          ) : null}
 
-          <View style={styles.infoRow}>
-            <AppText style={styles.infoLabel}>Location</AppText>
-            <View style={styles.locationWrap}>
-              <AppText style={styles.locationText} numberOfLines={1}>
-                {request.hospitalAddress}
-              </AppText>
-              <TouchableOpacity onPress={handleMap} activeOpacity={0.8}>
-                <AppText style={styles.mapLink}>View on Map</AppText>
-              </TouchableOpacity>
+          {request.patientGender ? (
+            <View style={[styles.infoRow, firstInfo('gender')]}>
+              <AppText style={styles.infoLabel}>Gender</AppText>
+              <AppText style={styles.infoValue}>{request.patientGender}</AppText>
             </View>
-          </View>
+          ) : null}
 
-          <View style={[styles.infoRow, styles.infoRowLast]}>
-            <AppText style={styles.infoLabel}>Remarks</AppText>
-            <AppText style={styles.remarksText}>{request.remarks}</AppText>
-          </View>
+          {request.hospitalContact ? (
+            <View style={[styles.infoRow, firstInfo('contact')]}>
+              <AppText style={styles.infoLabel}>Contact</AppText>
+              <View style={styles.contactWrap}>
+                <TouchableOpacity onPress={handleCall} style={styles.contactChip} activeOpacity={0.8}>
+                  <Phone size={ms(11)} color={BLOOD_RED_DARK} strokeWidth={2.4} />
+                  <AppText style={styles.contactText}>{request.hospitalContact}</AppText>
+                </TouchableOpacity>
+              </View>
+            </View>
+          ) : null}
+
+          {request.hospitalAddress ? (
+            <View style={[styles.infoRow, firstInfo('location')]}>
+              <AppText style={styles.infoLabel}>Location</AppText>
+              <View style={styles.locationWrap}>
+                <AppText style={styles.locationText} numberOfLines={1}>
+                  {request.hospitalAddress}
+                </AppText>
+                <TouchableOpacity onPress={handleMap} activeOpacity={0.8}>
+                  <AppText style={styles.mapLink}>View on Map</AppText>
+                </TouchableOpacity>
+              </View>
+            </View>
+          ) : null}
+
+          {request.remarks ? (
+            <View style={[styles.infoRow, firstInfo('remarks'), request.remarks ? styles.infoRowLast : undefined]}>
+              <AppText style={styles.infoLabel}>Remarks</AppText>
+              <AppText style={styles.remarksText}>{request.remarks}</AppText>
+            </View>
+          ) : null}
         </View>
 
         {/* Save-a-life banner */}
@@ -439,6 +474,11 @@ const styles = StyleSheet.create({
     width: ms(72),
     height: ms(72),
     borderRadius: ms(14),
+  },
+  hospitalPhotoPlaceholder: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: BLOOD_RED_TINT,
   },
   hospitalCopy: {
     flex: 1,
