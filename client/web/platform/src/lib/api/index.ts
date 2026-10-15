@@ -8,6 +8,7 @@ import { getSession, signInWithPassword, signOutRemote } from "@/lib/supabase/au
 import { sellerSeries, stateSeries, globalSeries, productSeries } from "@/data/analytics/series";
 import type {
   AuthUser,
+  BookingConfigRecord,
   BookingStatus,
   CampaignScope,
   CouponRecord,
@@ -805,6 +806,76 @@ export function setBookingStatus(bookingId: string, status: BookingStatus): void
     entityId: bookingId,
     before: before && { status: before.status },
     after: { status },
+  });
+}
+
+/** Seller decision: accept a pending request (server captures the held fee). */
+export function acceptBooking(bookingId: string): void {
+  decideBooking(bookingId, "confirmed", "accept");
+}
+
+/** Seller decision: reject a pending request (server refunds the held fee). */
+export function rejectBooking(bookingId: string): void {
+  decideBooking(bookingId, "rejected", "reject");
+}
+
+function decideBooking(bookingId: string, status: BookingStatus, action: "accept" | "reject"): void {
+  const before = state().bookings.find((b) => b.bookingId === bookingId);
+  state().set((s) => ({
+    bookings: s.bookings.map((b) => (b.bookingId === bookingId ? { ...b, status } : b)),
+  }));
+  writeBehind("put", `/bookings/${encodeURIComponent(bookingId)}/status`, { status: action });
+  audit({
+    action: `BOOKING_${action.toUpperCase()}`,
+    entity: "bookings.tables",
+    entityId: bookingId,
+    before: before && { status: before.status },
+    after: { status },
+  });
+}
+
+/** Mark an accepted party as vacated (occupancy freed) once the floor clears it. */
+export function vacateBooking(bookingId: string): void {
+  const before = state().bookings.find((b) => b.bookingId === bookingId);
+  state().set((s) => ({
+    bookings: s.bookings.map((b) => (b.bookingId === bookingId ? { ...b, status: "completed" } : b)),
+  }));
+  writeBehind("post", `/bookings/${encodeURIComponent(bookingId)}/vacate`, {});
+  audit({
+    action: "BOOKING_VACATE",
+    entity: "bookings.tables",
+    entityId: bookingId,
+    before: before && { status: before.status },
+    after: { status: "completed" },
+  });
+}
+
+/** Seller-private booking config for a vendor (defaults when never configured). */
+export function getBookingConfig(vendorId: string): BookingConfigRecord {
+  const existing = state().bookingConfigs.find((c) => c.vendorId === vendorId);
+  if (existing) return existing;
+  return {
+    vendorId,
+    enabled: false,
+    totalSeats: 0,
+    trackOccupancy: true,
+    openTime: "09:00",
+    closeTime: "21:00",
+    paused: false,
+  };
+}
+
+/** Save the seller-private booking config (seats / timings / tracking / pause). */
+export function saveBookingConfig(cfg: BookingConfigRecord): void {
+  state().set((s) => ({
+    bookingConfigs: [...s.bookingConfigs.filter((c) => c.vendorId !== cfg.vendorId), cfg],
+  }));
+  writeBehind("put", "/seller/booking-config", cfg);
+  audit({
+    action: "BOOKING_CONFIG_UPDATE",
+    entity: "bookings.venue_configs",
+    entityId: cfg.vendorId,
+    after: { enabled: cfg.enabled, totalSeats: cfg.totalSeats, paused: cfg.paused },
   });
 }
 

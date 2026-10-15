@@ -1,4 +1,4 @@
-import React, { useCallback, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   View,
   StyleSheet,
@@ -41,6 +41,8 @@ import { useCartStore } from '@/state/cartStore';
 import { useFoodFilterStore, type DietFilter } from '@/state/foodFilterStore';
 import { dishMatches } from '../utils/dietFilter';
 import DietToggle from '../components/DietToggle';
+import BookingSheet from '@/features/dinner-booking/BookingSheet';
+import { gateway, type BookingAvailabilityDto } from '@/services/api/GatewayClient';
 
 type Props = NativeStackScreenProps<FoodStackParamList, 'RestaurantProfile'>;
 
@@ -58,6 +60,26 @@ export function RestaurantProfileScreen({ navigation, route }: Props) {
   const [dietFilter, setDietFilter] = useState<DietFilter>(
     () => useFoodFilterStore.getState().dietFilter,
   );
+
+  const [bookingVisible, setBookingVisible] = useState(false);
+  const [availability, setAvailability] = useState<BookingAvailabilityDto | null>(null);
+
+  useEffect(() => {
+    let alive = true;
+    gateway
+      .getBookingAvailability(restaurant.id)
+      .then((a) => {
+        if (alive) setAvailability(a);
+      })
+      .catch(() => undefined);
+    return () => {
+      alive = false;
+    };
+  }, [restaurant.id]);
+
+  const openMyBookings = useCallback(() => {
+    navigation.getParent<NativeStackNavigationProp<RootStackParamList>>()?.navigate('MyBookings');
+  }, [navigation]);
 
   const cart = useCartStore((s) => s.cart);
   const addToCart = useCartStore((s) => s.addToCart);
@@ -217,6 +239,32 @@ export function RestaurantProfileScreen({ navigation, route }: Props) {
             </View>
           </View>
 
+          {availability?.bookable ? (
+            <View style={styles.bookingCard}>
+              <View style={styles.bookingInfo}>
+                <AppText style={styles.bookingTitle}>Reserve seats</AppText>
+                <AppText style={styles.bookingSub}>
+                  ₹{availability.feePerSeat}/seat • {availability.timingLabel ?? 'Today'}
+                </AppText>
+              </View>
+              <TouchableOpacity
+                style={styles.bookingBtn}
+                onPress={() => setBookingVisible(true)}
+                accessibilityRole="button"
+                accessibilityLabel="Reserve seats"
+              >
+                <AppText style={styles.bookingBtnText}>Book</AppText>
+              </TouchableOpacity>
+            </View>
+          ) : null}
+          <TouchableOpacity
+            style={styles.myBookingsLink}
+            onPress={openMyBookings}
+            accessibilityRole="button"
+          >
+            <AppText style={styles.myBookingsText}>My bookings</AppText>
+          </TouchableOpacity>
+
           {restaurant.offerTag ? (
             <View style={styles.offerBanner}>
               <AppText style={styles.offerBannerText}>{restaurant.offerTag}</AppText>
@@ -353,6 +401,12 @@ export function RestaurantProfileScreen({ navigation, route }: Props) {
       )}
 
       <FoodStatusBarStrip scrollY={scrollY} />
+
+      <BookingSheet
+        visible={bookingVisible}
+        venue={{ id: restaurant.id, name: restaurant.name }}
+        onClose={() => setBookingVisible(false)}
+      />
     </View>
   );
 }
@@ -464,6 +518,31 @@ const styles = StyleSheet.create({
     borderRadius: 12,
   },
   offerBannerText: { color: foodTheme.primaryDark, fontSize: ms(13), fontWeight: '700' },
+  bookingCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginHorizontal: hs(16),
+    marginTop: SPACE.BLOCK,
+    paddingHorizontal: hs(14),
+    paddingVertical: vs(12),
+    borderRadius: 14,
+    backgroundColor: foodTheme.primarySoft,
+    borderWidth: 1,
+    borderColor: foodTheme.primaryLight,
+  },
+  bookingInfo: { flex: 1 },
+  bookingTitle: { fontSize: ms(15), fontWeight: '700', color: foodTheme.primaryDark },
+  bookingSub: { fontSize: ms(12), color: foodTheme.textSecondary, marginTop: 2 },
+  bookingBtn: {
+    backgroundColor: foodTheme.primary,
+    paddingHorizontal: hs(18),
+    paddingVertical: vs(8),
+    borderRadius: 10,
+  },
+  bookingBtnText: { color: '#fff', fontSize: ms(13), fontWeight: '700' },
+  myBookingsLink: { alignSelf: 'flex-end', paddingHorizontal: hs(16), paddingVertical: vs(8), marginTop: vs(2) },
+  myBookingsText: { fontSize: ms(12), fontWeight: '600', color: foodTheme.primary },
   reviewsSection: { paddingHorizontal: hs(16), marginTop: SPACE.SECTION },
   sectionHeader: {
     flexDirection: 'row',

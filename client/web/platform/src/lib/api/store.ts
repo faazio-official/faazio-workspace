@@ -33,6 +33,7 @@ import type {
   AuthUser,
   BankAccount,
   BloodRequestRecord,
+  BookingConfigRecord,
   BookingRecord,
   CouponRecord,
   CustomerRecord,
@@ -78,6 +79,7 @@ export interface PortalState {
   reviews: ReviewRecord[];
   prescriptions: PrescriptionRecord[];
   bookings: BookingRecord[];
+  bookingConfigs: BookingConfigRecord[];
   bloodRequests: BloodRequestRecord[];
   sduiLayouts: SduiLayout[];
   customers: CustomerRecord[];
@@ -109,6 +111,7 @@ const seed = {
   reviews: REVIEWS,
   prescriptions: PRESCRIPTIONS,
   bookings: BOOKINGS,
+  bookingConfigs: [],
   bloodRequests: BLOOD_REQUESTS,
   sduiLayouts: SDUI_LAYOUTS,
   customers: CUSTOMERS,

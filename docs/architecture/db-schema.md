@@ -974,6 +974,43 @@ Both booking stores were memory-only (lost on restart); they are unified here so
 The partial unique index is the double-book guard (a re-book of a cancelled slot succeeds → 23505 is
 surfaced as HTTP 409 `slot_taken`). RLS own-rows; lists auth-scoped, cached 60 s, never at the edge.
 
+**Decision (0020) — seat-based bookings + ₹50/seat platform fee.** The 0011 slot model (one live
+booking per vendor/date/slot) is the opposite of a restaurant opting into N-seat reservations, so it
+is replaced additively (never rewriting 0011):
+
+```sql
+ALTER TYPE booking_status ADD VALUE 'rejected';   -- seller declined (refund)
+ALTER TYPE booking_status ADD VALUE 'completed';  -- accepted party marked vacated (history kept)
+
+-- Seller-private config (RLS on, no policy → service_role only). No FK on vendor_id: a vendor is a
+-- store or a dining venue (directory.vendors union). dining_venues gains seller_id for ownership.
+CREATE TABLE bookings.venue_configs (
+  vendor_id TEXT PRIMARY KEY, seller_id TEXT NOT NULL,
+  booking_enabled BOOL NOT NULL DEFAULT false, total_seats INT NOT NULL DEFAULT 0 CHECK (0..500),
+  track_occupancy BOOL NOT NULL DEFAULT true,   -- false = "don't track filled seats"
+  open_time TIME NOT NULL DEFAULT '09:00', close_time TIME NOT NULL DEFAULT '21:00',
+  paused BOOL NOT NULL DEFAULT false);          -- rush kill-switch
+
+ALTER TABLE bookings.tables
+  ADD seats INT NOT NULL DEFAULT 1 CHECK (1..30), ADD fee_paisa INT8 NOT NULL DEFAULT 0,
+  ADD razorpay_order_id TEXT, ADD razorpay_payment_id TEXT, ADD idempotency_key TEXT;
+ALTER TABLE bookings.tables ALTER COLUMN status SET DEFAULT 'pending';  -- requests are holds
+CREATE UNIQUE INDEX tables_idempotency_idx ON bookings.tables (user_id, idempotency_key)
+  WHERE idempotency_key IS NOT NULL;
+DROP INDEX bookings.bookings_vendor_slot_live_idx;
+
+-- Money audit trail independent of booking status (checkout.payments is order-only).
+CREATE TABLE bookings.payments (
+  id TEXT PRIMARY KEY, booking_id TEXT NOT NULL REFERENCES bookings.tables(id) ON DELETE CASCADE,
+  user_id TEXT NOT NULL, amount_paisa INT8 NOT NULL, razorpay_order_id TEXT, razorpay_payment_id TEXT,
+  status TEXT NOT NULL DEFAULT 'CREATED');      -- CREATED|AUTHORIZED|CAPTURED|VOIDED|REFUNDED|FAILED
+```
+
+Fee = `BookingFeePaisa` (5000, deploy constant) × seats, derived server-side under a `FOR UPDATE`
+lock on the config row (no slots, no tables — pure seats). Occupancy sums `confirmed` + live
+`pending` holds (15-min TTL); `track_occupancy = false` skips the sum entirely. `slot` is deprecated
+and no longer written/read.
+
 ### 12.8 Hardening — triggers, purge sweep, hot-path indexes, schema grants (migration `0014`)
 
 ```sql

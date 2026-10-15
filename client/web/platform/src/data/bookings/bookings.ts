@@ -1,7 +1,9 @@
 // Provenance: bookings.tables
 import type { BookingRecord } from "@/data/types";
 
-export const BOOKINGS: BookingRecord[] = [
+const FEE_PER_SEAT = 50;
+
+const rows: Omit<BookingRecord, "seats" | "fee" | "paymentStatus">[] = [
   {
     bookingId: "BKG-2001",
     userId: "user-1",
@@ -44,7 +46,7 @@ export const BOOKINGS: BookingRecord[] = [
     bookingDate: "2026-10-03",
     slot: "13:00",
     guests: 6,
-    status: "cancelled",
+    status: "rejected",
     createdAt: "2026-09-22T09:45:00.000Z",
   },
   {
@@ -63,3 +65,11 @@ export const BOOKINGS: BookingRecord[] = [
     createdAt: "2026-09-21T07:20:00.000Z",
   },
 ];
+
+export const BOOKINGS: BookingRecord[] = rows.map((b) => ({
+  ...b,
+  seats: b.guests,
+  fee: b.guests * FEE_PER_SEAT,
+  paymentStatus:
+    b.status === "confirmed" ? "CAPTURED" : b.status === "rejected" ? "REFUNDED" : "AUTHORIZED",
+}));

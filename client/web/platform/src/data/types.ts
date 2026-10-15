@@ -320,7 +320,7 @@ export interface PrescriptionRecord {
   updatedAt: string;
 }
 
-export type BookingStatus = "pending" | "confirmed" | "cancelled";
+export type BookingStatus = "pending" | "confirmed" | "rejected" | "completed" | "cancelled";
 
 /** bookings.tables */
 export interface BookingRecord {
@@ -335,8 +335,24 @@ export interface BookingRecord {
   bookingDate: string;
   slot: string;
   guests: number;
+  /** Seat-based reservations: seats requested and the server-derived ₹50/seat fee (rupees). */
+  seats: number;
+  fee: number;
+  paymentStatus?: string | undefined;
   status: BookingStatus;
   createdAt: string;
+}
+
+/** bookings.venue_configs (seller-private: seats/timings/tracking/pause). */
+export interface BookingConfigRecord {
+  vendorId: string;
+  sellerId?: string | undefined;
+  enabled: boolean;
+  totalSeats: number;
+  trackOccupancy: boolean;
+  openTime: string;
+  closeTime: string;
+  paused: boolean;
 }
 
 export type BloodGroup = "A+" | "A-" | "B+" | "B-" | "O+" | "O-" | "AB+" | "AB-";

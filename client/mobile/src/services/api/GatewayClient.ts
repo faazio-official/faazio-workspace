@@ -39,6 +39,14 @@ function delay<T>(value: T, ms = LATENCY_MS): Promise<T> {
   return new Promise((resolve) => setTimeout(() => resolve(value), ms));
 }
 
+/** Fixed per-seat booking platform fee shown in the UI (server authoritatively derives ₹50/seat). */
+const BOOKING_FEE_PER_SEAT = 50;
+
+/** Client-side idempotency key so a retried POST /bookings never double-holds. */
+function bookingIdempotencyKey(): string {
+  return `bkg-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+}
+
 /** Build a `?a=b&c=d` string from defined, non-empty filter values. */
 function queryString(params?: Record<string, string | undefined>): string {
   if (!params) return '';
@@ -295,17 +303,35 @@ export interface DonorMatchRecord {
   createdAt: string;
 }
 
-/** A bookings.tables row. */
+/** A bookings.tables row (seat reservation). `fee` is whole rupees, `amountPaisa` for Razorpay. */
 export interface BookingRecordDto {
   id: string;
   userId: string;
   vendorId: string;
   restaurantName: string;
   date: string;
-  time: string;
-  guests: number;
+  time?: string;
+  seats: number;
+  fee: number;
   status: string;
+  paymentStatus?: string;
+  razorpayOrderId?: string;
+  razorpayPaymentId?: string;
+  amountPaisa?: number;
+  paymentKeyId?: string;
+  currency?: string;
   createdAt: string;
+  /** Legacy alias for `seats` (server mirrors it). */
+  guests?: number;
+}
+
+/** Public, seat-count-free availability projection (never totals/remaining seats). */
+export interface BookingAvailabilityDto {
+  vendorId: string;
+  bookable: boolean;
+  feePerSeat: number;
+  timingLabel?: string;
+  openNow: boolean;
 }
 
 /** A bookings.food_orders row (dish is the opaque snapshot). */
@@ -754,6 +780,21 @@ export class GatewayClient {
     );
   }
 
+  /** Public booking availability for a venue (bookable / ₹ per seat / timing only). */
+  async getBookingAvailability(venueId: string): Promise<BookingAvailabilityDto> {
+    return this.withFallback(
+      () => this.http<BookingAvailabilityDto>(`/venues/${encodeURIComponent(venueId)}/booking-availability`),
+      () =>
+        delay({
+          vendorId: venueId,
+          bookable: true,
+          feePerSeat: BOOKING_FEE_PER_SEAT,
+          timingLabel: '09:00 – 21:00',
+          openNow: true,
+        } as BookingAvailabilityDto),
+    );
+  }
+
   /** The caller's table reservations. */
   async getBookings(): Promise<BookingRecordDto[]> {
     return this.withFallback(
@@ -762,20 +803,63 @@ export class GatewayClient {
     );
   }
 
-  /** Create a table reservation (409 slot_taken when the slot is already booked). */
-  async createBooking(input: { vendorId: string; restaurantName?: string; date: string; time: string; guests: number }): Promise<BookingRecordDto> {
+  /**
+   * Create a seat reservation hold. The server derives the ₹50/seat fee (the client never sets an
+   * amount) and returns a Razorpay order for checkout. `idempotencyKey` makes a retry a no-op.
+   */
+  async createBooking(input: {
+    vendorId: string;
+    restaurantName?: string;
+    date: string;
+    time?: string;
+    seats: number;
+    idempotencyKey?: string;
+  }): Promise<BookingRecordDto> {
+    const body = JSON.stringify({ ...input, idempotencyKey: input.idempotencyKey ?? bookingIdempotencyKey() });
     return this.withFallback(
-      () => this.http<BookingRecordDto>('/bookings', { method: 'POST', body: JSON.stringify(input) }),
+      () => this.http<BookingRecordDto>('/bookings', { method: 'POST', body }),
       () =>
         delay({
-          id: `BKG-LOCAL-${Date.now()}`, userId: MOCK_USER_ID, vendorId: input.vendorId,
-          restaurantName: input.restaurantName ?? '', date: input.date, time: input.time,
-          guests: input.guests, status: 'confirmed', createdAt: new Date().toISOString(),
+          id: `BKG-LOCAL-${Date.now()}`,
+          userId: MOCK_USER_ID,
+          vendorId: input.vendorId,
+          restaurantName: input.restaurantName ?? '',
+          date: input.date,
+          seats: input.seats,
+          fee: input.seats * BOOKING_FEE_PER_SEAT,
+          status: 'pending',
+          paymentStatus: 'CREATED',
+          createdAt: new Date().toISOString(),
         }),
     );
   }
 
-  /** Cancel a table reservation (own rows only). */
+  /** Attach the Razorpay payment id returned by the client checkout (marks it authorized server-side). */
+  async attachBookingPayment(id: string, razorpayPaymentId: string): Promise<BookingRecordDto> {
+    return this.withFallback(
+      () =>
+        this.http<BookingRecordDto>(`/bookings/${encodeURIComponent(id)}/payment`, {
+          method: 'POST',
+          body: JSON.stringify({ razorpayPaymentId }),
+        }),
+      () =>
+        delay({
+          id,
+          userId: MOCK_USER_ID,
+          vendorId: '',
+          restaurantName: '',
+          date: '',
+          seats: 0,
+          fee: 0,
+          status: 'pending',
+          paymentStatus: 'AUTHORIZED',
+          razorpayPaymentId,
+          createdAt: new Date().toISOString(),
+        }),
+    );
+  }
+
+  /** Cancel a table reservation (own rows only; server refunds the held fee). */
   async cancelBooking(id: string): Promise<void> {
     await this.withFallback(
       () => this.http<{ ok: boolean }>(`/bookings/${encodeURIComponent(id)}`, { method: 'DELETE' }).then(() => undefined),

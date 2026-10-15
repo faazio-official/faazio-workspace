@@ -44,9 +44,12 @@ keys/TTLs unchanged.
 - **Endpoints:** reads `GET /health`, `/search?q=`, `/sdui/home`, `/product/:id`, `/product/:id/reviews`,
   `/vendors/:id/reviews` (+ `/summary`), `/stores`, `/store/:id`, `/venues`, `/venues/:id/menu`,
   `/stock/:id`, `/orders`, `/profile`, `/profile/details`, `/profile/addresses` (GET/PUT/DELETE),
-  `/membership`, `/order-status`, `/account-nav`; writes `POST/PUT/DELETE /cart…`,
-  `POST /orders`, `PUT /vendors/:id/rating`, `POST /events`.
-- **Packages:** `internal/{search,catalog,directory,cartstock,checkout,reviews,reco,sdui}` +
+  `/membership`, `/order-status`, `/account-nav`, `/bookings`, `/venues/:id/booking-availability`;
+  writes `POST/PUT/DELETE /cart…`, `POST /orders`, `PUT /vendors/:id/rating`, `POST /events`,
+  `POST /bookings` (seat hold + Razorpay order), `DELETE /bookings/:id`,
+  `POST /bookings/:id/payment`, seller `GET/PUT /seller/booking-config`, `GET /seller/bookings`,
+  `PUT /bookings/:id/status` (accept/reject), `POST /bookings/:id/vacate`, `POST /webhooks/razorpay`.
+- **Packages:** `internal/{search,catalog,directory,cartstock,checkout,reviews,reco,sdui,bookings}` +
   `internal/{contracts,platform/*,server}`. Ownership table: `monolith-breakdown.md` §1.
 - **Boundaries:** `go run ./tools/importlint` fails on sibling-context imports.
 - **Mapping** (`@data/*` twin + `GatewayClient` method) and RLS classes: `docs/architecture/mvp-backend.md` §1–§3.

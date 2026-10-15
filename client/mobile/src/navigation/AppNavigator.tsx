@@ -40,6 +40,7 @@ const VendorDetailScreen = lazyNamed(() => import('@/features/catalog/VendorDeta
 const UserDetailsScreen = lazyNamed(() => import('@/features/profile/UserDetailsScreen'), 'UserDetailsScreen');
 const SavedAddressesScreen = lazyNamed(() => import('@/features/profile/SavedAddressesScreen'), 'SavedAddressesScreen');
 const MyOrdersScreen = lazyNamed(() => import('@/features/profile/MyOrdersScreen'), 'MyOrdersScreen');
+const MyBookingsScreen = lazyNamed(() => import('@/features/dinner-booking/MyBookingsScreen'), 'MyBookingsScreen');
 const OrderDetailsScreen = lazyNamed(() => import('@/features/profile/OrderDetailsScreen'), 'OrderDetailsScreen');
 const RateVendorScreen = lazyNamed(() => import('@/features/profile/RateVendorScreen'), 'RateVendorScreen');
 const YouScreen = lazyNamed(() => import('@/features/profile/YouScreen'), 'YouScreen');
@@ -133,6 +134,11 @@ export function AppNavigator() {
           <Stack.Screen
             name="MyOrders"
             component={MyOrdersScreen}
+            options={{ animation: 'fade', animationDuration: 180 }}
+          />
+          <Stack.Screen
+            name="MyBookings"
+            component={MyBookingsScreen}
             options={{ animation: 'fade', animationDuration: 180 }}
           />
           <Stack.Screen

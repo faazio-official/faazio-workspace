@@ -139,7 +139,14 @@ removed — the mode is chosen later on the cart BAG step). The old "Free Delive
 10-Day Return / Assured" trust block was removed from the shared view (applies to MART/PHARMA
 too — one component).
 
-`dinner-booking` is a scaffold (README) — not yet shipped as a full flow.
+`dinner-booking` ships the seat-reservation flow: `BookingSheet` (opened from the Food restaurant
+profile's "Reserve seats • ₹50/seat" banner, shown only when `getBookingAvailability` reports the
+venue bookable) takes a seat count and shows the live N × ₹50 total; `createBooking` places a server
+hold and returns a Razorpay order (fee derived server-side; the app renders only bookable/fee/timing,
+never totals or remaining seats). `MyBookingsScreen` lists the caller's reservations with the fixed
+rejection line ("Restaurant couldn't accommodate — likely limited seats. Refund initiated.") and a
+cancel/refund action. The Razorpay native checkout SDK is not yet wired (the order id is returned; a
+follow-up opens the SDK), so a real-device payment is pending.
 
 Pharma hosts the **Blood Donor** feature (`pharma/blood-donor/`) — a 5-step registration
 wizard (persistent draft/registration via AsyncStorage; the wizard closes permanently on
@@ -378,7 +385,7 @@ still separate files; consolidating them is tracked in `client/mobile/PENDING_WO
 | `authStore` | Session, login payload, auth state |
 | `cartStore` | Cart items, quantity, totals; `addToCart(id, name, price, emoji, restaurantId?)` — the optional 5th arg tags a line to a restaurant (adopts an untagged line on re-add); `clearRestaurantCart(id)` removes only that restaurant's lines. Fulfilment is chosen order-level on the cart, not per item. The local cart is the optimistic UI model; every mutation mirrors best-effort to the durable `inventory.carts` row (`gateway.addToCart`/`updateCartItem`/`removeCartItem`) and `hydrate()` pulls + rejoins catalog details at startup (remote mode only) |
 | `favoriteStore` | Favourites (ids) |
-| `bookingStore` | Dinner bookings |
+| `bookingStore` | Dinner bookings (optimistic local cache only; the durable path is `GatewayClient.getBookings`/`createBooking`/`cancelBooking`) |
 | `foodBookingStore` | Food bookings |
 | `pharmaStore` | Prescriptions |
 | `bloodDonorStore` | Blood Donor wizard draft + committed registration + targeted donor requests (`donorMatchRequests`) |
@@ -450,7 +457,7 @@ AppNavigator (root native stack)
 ├── ProductDetail · Search · Cart (`{ restaurantId?, restaurantName? }`) · PaymentOptions
 ├── CategoryDrillIn (category drill-in page from the Home/Mart rail) ── VendorDetails (single-store search)
 ├── DealsLanding (deals page — `campaign` mode from the Home "Deals of the day" carousel, `discounts` mode from the Mart vendor profile "View All")
-├── You · UserDetails · SavedAddresses · MyOrders · Favourites · OrderDetails · FaazioRewards · SellWithUs
+├── You · UserDetails · SavedAddresses · MyOrders · MyBookings (seat reservations) · Favourites · OrderDetails · FaazioRewards · SellWithUs
 ├── RateVendor (verified-buyer rating form; every vendor surface + order screens link here)
 ├── BloodDonor (Pharma blood-donor wizard/dashboard)
 ├── BloodDonorDetails (selected matching donor profile + targeted request)

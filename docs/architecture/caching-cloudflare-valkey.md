@@ -88,6 +88,7 @@ Examples: `faazio:v1:stock:fm-f1`, `faazio:v1:search:q:hoodie`, `faazio:v1:sdui:
 | Notifications inbox (per user, auth-scoped) | 30 s | **never** | `RX_READY` / order-status enqueue |
 | Blood requests board (public, redacted; auth callers bypass) | 60 s | **never** | request post / expiry sweep (contact/address stripped for anon) |
 | Bookings — tables + food orders (per user, auth-scoped) | 60 s | **never** | booking create / cancel |
+| Booking availability (public, seat-count-free `{bookable,fee,timing}`) | 30 s | **never** | booking-config write / accept / reject / vacate / cancel (seller config row itself is never cached) |
 | Recommendations (per userHash) | 3600 s (1 h) | — | `user_events` flush |
 | Store directory / reviews | 86400 s (24 h) | — | edit event |
 | Promo campaigns / coupons (partner) | 300 s | **never** | campaign/coupon write |

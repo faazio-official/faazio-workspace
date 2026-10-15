@@ -92,7 +92,10 @@ All read-through: Valkey → Supabase/Mongo → populate. Cloudflare caches publ
 | `GET/PUT /donors/me`, `GET /donors` | blood | donor profile + consented directory (`blood.donor_directory` view); auth-scoped |
 | `GET/POST /blood-requests`, `PUT /blood-requests/{id}/interest` | blood | request board (public read, `contact`/`address` redacted for anon); interest/accept idempotent |
 | `POST/GET /donor-match-requests` | blood | targeted donor request (own rows) |
-| `GET/POST /bookings`, `DELETE /bookings/{id}` | bookings | table reservations; partial unique index rejects live double-books (409 `slot_taken`) |
+| `GET/POST /bookings`, `DELETE /bookings/{id}`, `POST /bookings/{id}/payment` | bookings | seat reservations (hold at request); ₹50/seat fee derived server-side, occupancy checked under a `FOR UPDATE` config lock, idempotent per `Idempotency-Key`; payment attaches the Razorpay authorized payment id |
+| `GET /venues/{id}/booking-availability` | bookings | public, seat-count-free `{bookable, feePerSeat, timingLabel, openNow}` (never totals/remaining) |
+| `GET/PUT /seller/booking-config`, `GET /seller/bookings`, `PUT /bookings/{id}/status`, `POST /bookings/{id}/vacate` | bookings | seller-private config (seats/timings/tracking/pause); accept captures / reject refunds; vacate frees occupancy; owner-scoped |
+| `POST /webhooks/razorpay` | bookings | HMAC-signature-verified Razorpay events → idempotent ledger update (`payment.authorized/captured/failed`, `refund.*`) |
 | `GET/POST /food-bookings` | bookings | durable food order bookings (dish snapshot JSONB) |
 | `GET/POST /orders` | checkout | `POST` uses `SET NX EX 300` idempotency + `SELECT … FOR UPDATE SKIP LOCKED` stock decrement |
 | `PUT /vendors/{id}/rating` | reviews | derived eligibility gate (`hasPurchasedFromVendor`); never a stored flag |
@@ -103,7 +106,8 @@ Every endpoint above now has a `GatewayClient` method (`getVendorReviews`, `rate
 `getCart`/`addToCart`/`updateCartItem`/`removeCartItem`, `placeOrder`, `trackEvent`,
 `getDonorProfile`/`saveDonorProfile`/`getBloodDonors`/`getBloodRequests`/`createBloodRequest`/
 `setBloodInterest`/`createDonorMatch`/`getDonorMatches`, `getBookings`/`createBooking`/`cancelBooking`/
-`getFoodBookings`/`createFoodBooking`, `getRecommendations`) with the `@data/*` fallback, so the per-module `@mock` →
+`attachBookingPayment`/`getBookingAvailability`/`getFoodBookings`/`createFoodBooking`,
+`getRecommendations`) with the `@data/*` fallback, so the per-module `@mock` →
 `@server` migration can begin once Supabase phone OTP replaces `authStore.login()`.
 
 No gRPC yet; `contracts/` holds Go interfaces that mirror the future `.proto` shape. Method

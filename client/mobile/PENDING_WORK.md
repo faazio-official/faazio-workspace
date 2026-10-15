@@ -5,9 +5,9 @@ dependencies exist. Do not build the backend/seller flows until told to.
 
 ---
 
-## W22 `@mock` → `@server` — food, dining + addresses + blood shipped; only booking remains
+## W22 `@mock` → `@server` — food, dining, addresses, blood + seat bookings shipped
 
-**Status:** 🟢 Shipped (profile reads, W25/W26/W27); only the booking screen build remains.
+**Status:** 🟢 Shipped (profile reads, W25/W26/W27; seat bookings W28).
 
 **Shipped:** `GatewayClient.getDetails()` now flattens the server's nested
 `accounts.details` blob (`{userId, accountId, data}` → `DetailsTable`); new
@@ -28,9 +28,10 @@ defaults for server-only venues); `SavedAddressesScreen` now has a full add/edit
 rows gracefully).
 
 **Remaining — needs an explicit screen build, not just wiring:**
-- **Table/food booking create.** `GatewayClient.createBooking`/`createFoodBooking` + server routes
-  exist, but no booking screen/route exists in the app; `bookingStore`/`foodBookingStore` have no
-  call sites. A booking UI is a screen-build (needs explicit intent), not a wiring flip.
+- **Razorpay native checkout.** `BookingSheet` places the hold and receives the Razorpay order id
+  (`createBooking`), but the device SDK (`react-native-razorpay`) is not installed, so no real payment
+  sheet opens yet; `attachBookingPayment` (`POST /bookings/{id}/payment`) is ready for the callback.
+  Food order bookings (`createFoodBooking`) still have no screen/route.
 
 **Dropped by product decision:** mobile auth stays **mocked** (`authStore.login()`) — no Supabase
 phone-OTP/JWT cutover. `GatewayClient` still attaches a bearer when a session is present.

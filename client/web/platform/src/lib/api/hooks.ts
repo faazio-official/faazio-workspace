@@ -138,6 +138,11 @@ export function useBookings(
   return useMemo(() => api.listBookings(filter), [bookings, key]);
 }
 
+export function useBookingConfig(vendorId: string) {
+  const configs = usePortalStore((s) => s.bookingConfigs);
+  return useMemo(() => api.getBookingConfig(vendorId), [configs, vendorId]);
+}
+
 export function useBloodRequests(
   filter: { stateCode?: string | undefined; city?: string | undefined; bloodGroup?: string | undefined } = {},
 ) {

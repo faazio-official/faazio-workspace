@@ -27,7 +27,9 @@ URLs extend the Vite reference (all 3 consoles; the MVP added 5 partner pages �
 `seller/prescriptions`, `seller/bookings`, `admin/state/blood`,
 `admin/state/bookings`, `admin/super/sdui`). Partner completion (`0017`) added
 `seller/menus`, `admin/state/customers`, `admin/state/support`, `admin/super/rewards`
-and `admin/super/users`. Every
+and `admin/super/users`. Seat bookings (`0020`) added `seller/bookings/settings`
+(opt-in / total seats / timings / occupancy tracking / pause) and reworked
+`seller/bookings` into a pending-first accept/reject/vacate queue. Every
 route is an interactive dashboard, so each route is split:
 
 - `app/**/page.tsx` — **server** component. Exports `metadata` (from
@@ -105,7 +107,10 @@ env-gated and degrade to local seed mode when unset:
   SDUI, reviews, and — partner completion — customers, menus, support tickets,
   rewards rates/ledger) and writes them into the store. Prescription rows carry
   the quote lines, `quotedTotal`, reveal fields and status history; the seller
-  projection is name-only until `READY`/`FULFILLED`. An empty remote slice
+  projection is name-only until `READY`/`FULFILLED`. Booking rows carry `seats`,
+  `fee` (rupees) and `paymentStatus`, and the queue issues accept/reject/vacate
+  decisions through `writeBehind` (`PUT /bookings/{id}/status`, `POST /bookings/{id}/vacate`).
+  An empty remote slice
   keeps the seeded rows (demo fallback). The gateway speaks **whole
   rupees**; the portal stores **paisa**, so the mapper multiplies by 100.
 - **Auth (mocked by default)** — `src/lib/api/index.ts` `signIn` authenticates against
