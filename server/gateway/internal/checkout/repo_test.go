@@ -35,6 +35,12 @@ func TestDeleteAddress(t *testing.T) {
 	repo := New(pool)
 	ctx := context.Background()
 
+	// addresses.user_id references checkout.users; seed the caller first.
+	if _, err := pool.Exec(ctx, `insert into checkout.users (user_id, name, email, phone) values ('user-del-test','T','t@t','0') on conflict (user_id) do nothing`); err != nil {
+		t.Fatalf("seed user: %v", err)
+	}
+	t.Cleanup(func() { _, _ = pool.Exec(ctx, `delete from checkout.users where user_id = 'user-del-test'`) })
+
 	addr, ok, err := repo.UpsertAddress(ctx, "user-del-test", Address{Address: "1 Test Street, Testville"})
 	if err != nil || !ok {
 		t.Fatalf("upsert: ok=%v err=%v", ok, err)

@@ -19,6 +19,14 @@ type Config struct {
 	SupabaseURL       string
 	SupabaseServiceKey string
 	PrescriptionBucket string
+	// Razorpay (bookings): secrets are env-only and never committed. When KeyID/KeySecret are empty
+	// the bookings context stays in mock mode (orders are simulated; no network calls).
+	RazorpayKeyID         string
+	RazorpayKeySecret     string
+	RazorpayWebhookSecret string
+	// BookingFeePaisa is the fixed per-seat platform fee (₹50). A deploy constant — a restaurant can
+	// never set its own fee (client-supplied amounts are ignored; the gateway derives it).
+	BookingFeePaisa int64
 	AuthDisabled      bool
 	DevUserID         string
 	AllowedOrigins    []string
@@ -37,6 +45,10 @@ func Load() Config {
 		SupabaseURL:        env("SUPABASE_URL", ""),
 		SupabaseServiceKey: env("SUPABASE_SERVICE_KEY", ""),
 		PrescriptionBucket: env("PRESCRIPTION_BUCKET", "prescriptions"),
+		RazorpayKeyID:         env("RAZORPAY_KEY_ID", ""),
+		RazorpayKeySecret:     env("RAZORPAY_KEY_SECRET", ""),
+		RazorpayWebhookSecret: env("RAZORPAY_WEBHOOK_SECRET", ""),
+		BookingFeePaisa:       envInt64("BOOKING_FEE_PAISA", 5000),
 		AuthDisabled:      envBool("AUTH_DISABLED", false),
 		DevUserID:         env("DEV_USER_ID", "user-1"),
 		AllowedOrigins:    splitCSV(env("ALLOWED_ORIGINS", "")),
@@ -61,6 +73,18 @@ func envBool(key string, fallback bool) bool {
 		return fallback
 	}
 	return b
+}
+
+func envInt64(key string, fallback int64) int64 {
+	v, ok := os.LookupEnv(key)
+	if !ok || strings.TrimSpace(v) == "" {
+		return fallback
+	}
+	n, err := strconv.ParseInt(strings.TrimSpace(v), 10, 64)
+	if err != nil || n < 0 {
+		return fallback
+	}
+	return n
 }
 
 func splitCSV(v string) []string {

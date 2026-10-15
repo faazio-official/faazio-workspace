@@ -72,7 +72,8 @@ func NewRouter(d Deps) http.Handler {
 	pharmaStorage := pharma.NewStorage(d.Config.SupabaseURL, d.Config.SupabaseServiceKey, d.Config.PrescriptionBucket)
 	notificationsRepo := notifications.New(d.Pool, d.Cache)
 	bloodRepo := blood.New(d.Pool)
-	bookingsRepo := bookings.New(d.Pool)
+	bookingsRepo := bookings.New(d.Pool, d.Config.BookingFeePaisa)
+	bookingsGateway := bookings.NewGateway(d.Config.RazorpayKeyID, d.Config.RazorpayKeySecret, d.Config.RazorpayWebhookSecret)
 
 	// Partner control plane (0015). adminsRepo also implements contracts.AuditWriter so every
 	// partner mutation is recorded.
@@ -103,6 +104,7 @@ func NewRouter(d Deps) http.Handler {
 
 	// Contexts. Each owns its routes; cross-context calls use contracts interfaces.
 	checkoutService := checkout.NewService(checkoutRepo, cartRepo, d.Cache, rewardsRepo)
+	bookingsService := bookings.NewService(bookingsRepo, bookingsGateway, notificationsRepo, d.Cache)
 	reviewsService := reviews.NewService(reviewsRepo, checkoutRepo, d.Cache)
 	sduiService := sdui.NewService(recoRepo, catalogRepo, directoryRepo, d.Cache)
 	recoService := reco.NewService(recoRepo, catalogRepo, d.Cache)
@@ -116,7 +118,7 @@ func NewRouter(d Deps) http.Handler {
 	pharma.NewHandler(pharmaRepo, pharmaStorage, d.Cache, adminsRepo, notificationsRepo).Register(r)
 	notifications.NewHandler(notificationsRepo, d.Cache).Register(r)
 	blood.NewHandler(bloodRepo, d.Cache, adminsRepo).Register(r)
-	bookings.NewHandler(bookingsRepo, d.Cache, adminsRepo).Register(r)
+	bookings.NewHandler(bookingsRepo, bookingsService, d.Cache, adminsRepo).Register(r)
 	checkout.NewHandler(checkoutRepo, checkoutService, d.Cache, adminsRepo, notificationsRepo).Register(r)
 	reviews.NewHandler(reviewsRepo, reviewsService, d.Cache, adminsRepo).Register(r)
 	reco.NewHandler(recoRepo, recoService).Register(r)

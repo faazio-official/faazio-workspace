@@ -40,6 +40,12 @@ func Bookings(userID string) string   { return fmt.Sprintf("faazio:v1:bookings:t
 func FoodBookings(userID string) string {
 	return fmt.Sprintf("faazio:v1:bookings:food:%s", userID)
 }
+
+// BookingAvail caches the public, seat-count-free availability projection for a vendor. The
+// seller-private config row itself is never cached (PII/internal rules, caching doc §6).
+func BookingAvail(vendorID string) string {
+	return fmt.Sprintf("faazio:v1:bookings:avail:%s", vendorID)
+}
 func SduiHome(locale string) string { return fmt.Sprintf("faazio:v1:gateway:sdui:%s:/home", locale) }
 func Reco(userIDHash, context string) string {
 	return fmt.Sprintf("faazio:v1:reco:%s:%s", userIDHash, context)
@@ -83,6 +89,10 @@ const (
 
 	// TTLBookings bounds the auth-scoped booking lists (mutable; invalidated on write).
 	TTLBookings = 60 * time.Second
+
+	// TTLBookingAvail bounds the public vendor availability projection (bookable/fee/timing only;
+	// invalidated on config write and on every accept/reject so long holds free up promptly).
+	TTLBookingAvail = 30 * time.Second
 
 	// TTLReco bounds the per-userHash recommendation projection (caching doc §5).
 	TTLReco = 3600 * time.Second
