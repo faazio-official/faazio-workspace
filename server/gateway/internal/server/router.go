@@ -166,7 +166,9 @@ func corsMiddleware(origins []string) func(http.Handler) http.Handler {
 					w.Header().Set("Access-Control-Allow-Origin", origin)
 					w.Header().Set("Vary", "Origin")
 					w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
-					w.Header().Set("Access-Control-Allow-Headers", "Authorization, Content-Type, X-Dev-User")
+					// Dev headers (X-Dev-*) are only honored when AUTH_DISABLED=true; listing them here
+					// lets a local portal exercise role-gated routes against the dev stack.
+					w.Header().Set("Access-Control-Allow-Headers", "Authorization, Content-Type, X-Dev-User, X-Dev-Role, X-Dev-Seller, X-Dev-State")
 				}
 			}
 			if r.Method == http.MethodOptions {

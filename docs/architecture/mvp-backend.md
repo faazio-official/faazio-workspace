@@ -113,7 +113,9 @@ Every endpoint above now has a `GatewayClient` method (`getVendorReviews`, `rate
 No gRPC yet; `contracts/` holds Go interfaces that mirror the future `.proto` shape. Method
 signatures above keep the `@mock` → `@server` swap call-site-compatible (`GatewayClient` adds a
 `baseUrl`/flag and keeps the `@data/*` fallback). Phased onboarding skips phone OTP for local dev:
-`AUTH_DISABLED=true` uses `DEV_USER_ID` / `X-Dev-User`.
+`AUTH_DISABLED=true` uses `DEV_USER_ID` / `X-Dev-User`, and role probing accepts `X-Dev-Role` /
+`X-Dev-Seller` / `X-Dev-State` (all three are on the CORS allow-list so the local portal can exercise
+role-gated routes; they are ignored whenever auth is enabled).
 
 ---
 

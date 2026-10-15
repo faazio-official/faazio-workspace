@@ -120,21 +120,29 @@ env-gated and degrade to local seed mode when unset:
   `NEXT_PUBLIC_AUTH_MODE=supabase`. `src/lib/supabase/auth.ts` is the dormant GoTrue REST
   seam (no `supabase-js` dependency): password sign-in, refresh, role-claim decode
   (`app_role`/`seller_id`/`state_code`, top-level or `app_metadata`). When Supabase mode is
-  on, its bearer token is attached to every gateway call; in mock mode the calls go
-  unauthenticated and rely on the gateway's `AUTH_DISABLED=true` dev setting.
+  on, its bearer token is attached to every gateway call. In mock mode the calls carry no token
+  and rely on the gateway's `AUTH_DISABLED=true` dev setting plus the **dev-only** `NEXT_PUBLIC_DEV_ROLE`
+  / `NEXT_PUBLIC_DEV_SELLER` / `NEXT_PUBLIC_DEV_STATE` values (mapped to the gateway's `X-Dev-Role` /
+  `X-Dev-Seller` / `X-Dev-State` headers; sent only when `NODE_ENV !== "production"`). Without a
+  `DEV_ROLE` the mocked portal can read public data but role-gated routes reject it — set
+  `NEXT_PUBLIC_DEV_ROLE=SUPER_ADMIN` to exercise the full control plane against the dev stack. The
+  gateway CORS allow-list includes these `X-Dev-*` headers for `http://localhost:3000`.
 - **Supabase Storage** — `src/lib/media/productImages.ts` stores a **Storage object
   key**, never a URL, and derives the public object URL at render (`PRODUCT_BUCKET`
   = `product-images`). `uploadProductImage()` uploads the session-authenticated
   compressed JPEG, falling back to a data URL when unconfigured.
 
 Bootstrap (`app/providers.tsx`) restores the session then hydrates. Copy
-`client/web/.env.example` to `.env.local`:
+`client/web/platform/.env.example` to `.env.local`:
 
 ```bash
 NEXT_PUBLIC_GATEWAY_URL=        # e.g. http://localhost:8080
 NEXT_PUBLIC_AUTH_MODE=mock      # "mock" (default) | "supabase" (GoTrue)
 NEXT_PUBLIC_SUPABASE_URL=       # Storage always; Auth only when AUTH_MODE=supabase
 NEXT_PUBLIC_SUPABASE_ANON_KEY=
+NEXT_PUBLIC_DEV_ROLE=           # dev-only X-Dev-Role override (e.g. SUPER_ADMIN); ignored in prod builds
+NEXT_PUBLIC_DEV_SELLER=         # dev-only X-Dev-Seller (seller scope)
+NEXT_PUBLIC_DEV_STATE=          # dev-only X-Dev-State (state scope)
 ```
 
 ## Verify

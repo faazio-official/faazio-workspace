@@ -5,6 +5,13 @@ const env = {
   supabaseAnonKey: process.env["NEXT_PUBLIC_SUPABASE_ANON_KEY"] ?? "",
   /** Auth mode. Mocked unless explicitly opted into Supabase (`NEXT_PUBLIC_AUTH_MODE=supabase`). */
   authMode: process.env["NEXT_PUBLIC_AUTH_MODE"] === "supabase" ? "supabase" : "mock",
+  /**
+   * Dev-only identity override for an `AUTH_DISABLED=true` gateway (local/MVP staging). Mapped to
+   * the `X-Dev-*` headers; never sent in production builds. Empty in any real deployment.
+   */
+  devRole: process.env["NEXT_PUBLIC_DEV_ROLE"] ?? "",
+  devSeller: process.env["NEXT_PUBLIC_DEV_SELLER"] ?? "",
+  devState: process.env["NEXT_PUBLIC_DEV_STATE"] ?? "",
 };
 
 export const config = {
@@ -23,6 +30,10 @@ export const config = {
   supabaseAnonKey: env.supabaseAnonKey,
   /** "mock" (default) signs in against the built-in demo directory; "supabase" uses GoTrue. */
   authMode: env.authMode,
+  /** Dev-only `X-Dev-*` identity override for an AUTH_DISABLED gateway (empty in production). */
+  devRole: env.devRole,
+  devSeller: env.devSeller,
+  devState: env.devState,
 } as const;
 
 /** True when the portal is wired to the live gateway. */

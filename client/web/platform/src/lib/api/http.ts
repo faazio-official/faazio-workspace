@@ -40,6 +40,12 @@ async function request<T>(path: string, options: RequestOptions = {}): Promise<T
   const token = accessToken();
   if (token) headers["Authorization"] = `Bearer ${token}`;
   if (options.body !== undefined) headers["Content-Type"] = "application/json";
+  // Dev-only role override (mock-auth portal against an AUTH_DISABLED gateway). Never in prod.
+  if (process.env.NODE_ENV !== "production") {
+    if (config.devRole) headers["X-Dev-Role"] = config.devRole;
+    if (config.devSeller) headers["X-Dev-Seller"] = config.devSeller;
+    if (config.devState) headers["X-Dev-State"] = config.devState;
+  }
 
   const init: RequestInit = { method: options.method ?? "GET", headers };
   if (options.body !== undefined) init.body = JSON.stringify(options.body);
