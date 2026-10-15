@@ -1011,6 +1011,16 @@ lock on the config row (no slots, no tables — pure seats). Occupancy sums `con
 `pending` holds (15-min TTL); `track_occupancy = false` skips the sum entirely. `slot` is deprecated
 and no longer written/read.
 
+**Cross-store alignment.** Seat bookings stay **Postgres-only** — Mongo Atlas (`sdui_layouts`,
+`user_events`, `recommendations`, `product_stats`) holds no booking collection and needs no change;
+availability is a short-lived Valkey/edge cache keyed off `venue_configs`. The three schemas agree on:
+`seat`/`fee_paisa` (`INT8` paisa, wire = whole rupees), the `booking_status` enum
+(`pending|confirmed|rejected|completed|cancelled`), and the seller-private config shape
+(`venue_configs` ↔ the web `BookingConfigRecord` ↔ the gateway `contracts.BookingConfig`). The seed
+generator emits one demo bookable venue (`bookings.venue_configs` for `store-f1`, `sel-3`,
+`booking_enabled=true`, 40 seats) so the app banner and the seller settings default both resolve on a
+fresh database.
+
 ### 12.8 Hardening — triggers, purge sweep, hot-path indexes, schema grants (migration `0014`)
 
 ```sql

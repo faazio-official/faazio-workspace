@@ -110,6 +110,8 @@ env-gated and degrade to local seed mode when unset:
   projection is name-only until `READY`/`FULFILLED`. Booking rows carry `seats`,
   `fee` (rupees) and `paymentStatus`, and the queue issues accept/reject/vacate
   decisions through `writeBehind` (`PUT /bookings/{id}/status`, `POST /bookings/{id}/vacate`).
+  The `seller/bookings/settings` form is prefilled from `GET /seller/booking-config?vendorId=…`
+  (`refreshBookingConfig`, best-effort; seed mode keeps the local default).
   An empty remote slice
   keeps the seeded rows (demo fallback). The gateway speaks **whole
   rupees**; the portal stores **paisa**, so the mapper multiplies by 100.

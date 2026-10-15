@@ -251,6 +251,13 @@ func (h *Handler) sellerList(w http.ResponseWriter, r *http.Request) {
 		httpx.Fail(w, http.StatusInternalServerError, "bookings_unavailable", "bookings unavailable")
 		return
 	}
+	// The rows are already scoped server-side; echo the scope so a seller-scoped client can filter
+	// without a second lookup (bookings.tables has no seller_id column — ownership is via the venue).
+	if sellerID != "" {
+		for i := range items {
+			items[i].SellerID = sellerID
+		}
+	}
 	httpx.JSON(w, http.StatusOK, items)
 }
 

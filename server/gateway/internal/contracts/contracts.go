@@ -65,24 +65,27 @@ type DonorMatch struct {
 // freeze §4); AmountPaisa is present only on the create response so the client can open Razorpay
 // checkout (Razorpay speaks paisa), and PaymentKeyID is the publishable key for that checkout.
 type Booking struct {
-	ID               string `json:"id"`
-	UserID           string `json:"userId"`
-	VendorID         string `json:"vendorId"`
-	RestaurantName   string `json:"restaurantName"`
-	Date             string `json:"date"`
-	Time             string `json:"time"`
-	Seats            int64  `json:"seats"`
-	Guests           int64  `json:"guests,omitempty"` // legacy alias, mirrors Seats
-	Fee              int64  `json:"fee"`              // rupees (server-derived: feePerSeat × seats)
-	Status           string `json:"status"`
-	PaymentStatus    string `json:"paymentStatus,omitempty"`
-	RazorpayOrderID  string `json:"razorpayOrderId,omitempty"`
+	ID                string `json:"id"`
+	UserID            string `json:"userId"`
+	VendorID          string `json:"vendorId"`
+	RestaurantName    string `json:"restaurantName"`
+	Date              string `json:"date"`
+	Time              string `json:"time"`
+	Seats             int64  `json:"seats"`
+	Guests            int64  `json:"guests,omitempty"` // legacy alias, mirrors Seats
+	Fee               int64  `json:"fee"`              // rupees (server-derived: feePerSeat × seats)
+	Status            string `json:"status"`
+	PaymentStatus     string `json:"paymentStatus,omitempty"`
+	RazorpayOrderID   string `json:"razorpayOrderId,omitempty"`
 	RazorpayPaymentID string `json:"razorpayPaymentId,omitempty"`
-	AmountPaisa      int64  `json:"amountPaisa,omitempty"` // paisa, create-response only
-	PaymentKeyID     string `json:"paymentKeyId,omitempty"` // publishable key, create-response only
-	Currency         string `json:"currency,omitempty"`     // create-response only
-	IdempotencyKey   string `json:"idempotencyKey,omitempty"`
-	CreatedAt        string `json:"createdAt"`
+	AmountPaisa       int64  `json:"amountPaisa,omitempty"`  // paisa, create-response only
+	PaymentKeyID      string `json:"paymentKeyId,omitempty"` // publishable key, create-response only
+	Currency          string `json:"currency,omitempty"`     // create-response only
+	IdempotencyKey    string `json:"idempotencyKey,omitempty"`
+	// SellerID is set by the seller list endpoint (the caller's scope) so the portal can filter
+	// rows it already received scoped; it is never stored on bookings.tables.
+	SellerID  string `json:"sellerId,omitempty"`
+	CreatedAt string `json:"createdAt"`
 }
 
 // BookingConfig is the seller-private bookings.venue_configs row (never exposed to the app: seats,

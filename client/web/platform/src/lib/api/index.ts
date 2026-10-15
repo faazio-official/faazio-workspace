@@ -3,7 +3,7 @@
 // When a real backend arrives, only the internals of this module change.
 import { usePortalStore, AUTH_DIRECTORY, type PortalState } from "@/lib/api/store";
 import { authConfigured, authMocked, remoteConfigured } from "@/lib/config";
-import { remote, writeBehind } from "@/lib/api/http";
+import { remote, toCamel, writeBehind } from "@/lib/api/http";
 import { getSession, signInWithPassword, signOutRemote } from "@/lib/supabase/auth";
 import { sellerSeries, stateSeries, globalSeries, productSeries } from "@/data/analytics/series";
 import type {
@@ -877,6 +877,35 @@ export function saveBookingConfig(cfg: BookingConfigRecord): void {
     entityId: cfg.vendorId,
     after: { enabled: cfg.enabled, totalSeats: cfg.totalSeats, paused: cfg.paused },
   });
+}
+
+/**
+ * Best-effort fetch of a vendor's seller-private config (remote mode only). Merges the server row
+ * into the store so the settings form reflects what was saved; seed mode keeps the local default.
+ */
+export async function refreshBookingConfig(vendorId: string): Promise<BookingConfigRecord | null> {
+  if (!remoteConfigured() || !vendorId) return null;
+  try {
+    const raw = toCamel(await remote.get<Record<string, unknown>>("/seller/booking-config", {
+      query: { vendorId },
+    }));
+    const cfg: BookingConfigRecord = {
+      vendorId: raw["vendorId"] ? String(raw["vendorId"]) : vendorId,
+      sellerId: raw["sellerId"] ? String(raw["sellerId"]) : undefined,
+      enabled: raw["enabled"] === true,
+      totalSeats: Number(raw["totalSeats"] ?? 0),
+      trackOccupancy: raw["trackOccupancy"] === undefined ? true : raw["trackOccupancy"] === true,
+      openTime: raw["openTime"] ? String(raw["openTime"]) : "09:00",
+      closeTime: raw["closeTime"] ? String(raw["closeTime"]) : "21:00",
+      paused: raw["paused"] === true,
+    };
+    state().set((s) => ({
+      bookingConfigs: [...s.bookingConfigs.filter((c) => c.vendorId !== vendorId), cfg],
+    }));
+    return cfg;
+  } catch {
+    return null;
+  }
 }
 
 /* ------------------------------ blood requests --------------------------- */

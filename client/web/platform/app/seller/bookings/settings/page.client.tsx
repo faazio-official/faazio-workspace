@@ -9,7 +9,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
-import { saveBookingConfig } from "@/lib/api";
+import { saveBookingConfig, refreshBookingConfig } from "@/lib/api";
 import { useBookingConfig, useStores } from "@/lib/api/hooks";
 import { useSession } from "@/lib/hooks/useSession";
 
@@ -34,6 +34,11 @@ function BookingSettings() {
       setVendorId(first);
     }
   }, [stores, vendorId]);
+
+  // Pull the saved server config once a venue is selected (remote mode; no-op on seed).
+  useEffect(() => {
+    if (vendorId) void refreshBookingConfig(vendorId);
+  }, [vendorId]);
 
   const [enabled, setEnabled] = useState(config.enabled);
   const [totalSeats, setTotalSeats] = useState(config.totalSeats);

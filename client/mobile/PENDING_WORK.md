@@ -28,9 +28,11 @@ defaults for server-only venues); `SavedAddressesScreen` now has a full add/edit
 rows gracefully).
 
 **Remaining — needs an explicit screen build, not just wiring:**
-- **Razorpay native checkout.** `BookingSheet` places the hold and receives the Razorpay order id
-  (`createBooking`), but the device SDK (`react-native-razorpay`) is not installed, so no real payment
-  sheet opens yet; `attachBookingPayment` (`POST /bookings/{id}/payment`) is ready for the callback.
+- **Razorpay native checkout.** `BookingSheet` runs the full hold → **mock authorize** → `attachBookingPayment`
+  flow through `services/payments/checkout.ts` (a `PaymentCheckout` seam with a mock adapter — no
+  `react-native-razorpay` install, no network). To go live: install the SDK, implement a `PaymentCheckout`
+  adapter, and register it once via `setPaymentCheckout()`; no screen change. The mock refuses to
+  fabricate a payment when a real publishable key is present (fails loudly).
   Food order bookings (`createFoodBooking`) still have no screen/route.
 
 **Dropped by product decision:** mobile auth stays **mocked** (`authStore.login()`) — no Supabase

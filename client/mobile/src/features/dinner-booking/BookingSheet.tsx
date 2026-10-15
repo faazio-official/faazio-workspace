@@ -7,6 +7,7 @@ import { hs, ms, vs } from '@/utils/responsive';
 import { foodTheme } from '@/features/food/constants/theme';
 import { gateway } from '@/services/api/GatewayClient';
 import type { BookingAvailabilityDto, BookingRecordDto } from '@/services/api/GatewayClient';
+import { paymentCheckout } from '@/services/payments/checkout';
 
 const FEE_FALLBACK = 50;
 const MAX_SEATS = 10;
@@ -59,16 +60,38 @@ export default function BookingSheet({ visible, venue, onClose }: BookingSheetPr
     if (!venue || submitting) return;
     setSubmitting(true);
     setError(null);
-    try {
-      const booking = await gateway.createBooking({
+    const held = await gateway
+      .createBooking({
         vendorId: venue.id,
         restaurantName: venue.name,
         date: new Date().toISOString().slice(0, 10),
         seats,
-      });
-      setResult(booking);
-    } catch {
+      })
+      .catch(() => null);
+    if (!held) {
       setError('Could not place the request. Please try again.');
+      setSubmitting(false);
+      return;
+    }
+    // Authorize the hold (mock sheet in dev; the real Razorpay SDK in prod). The fee is
+    // server-derived — the client only returns the authorized payment id.
+    try {
+      const payment = await paymentCheckout().open({
+        orderId: held.razorpayOrderId ?? '',
+        amountPaisa: held.amountPaisa ?? held.fee * 100,
+        currency: held.currency ?? 'INR',
+        keyId: held.paymentKeyId,
+        name: venue.name,
+        description: `${seats} seat${seats === 1 ? '' : 's'}`,
+      });
+      const authorized = payment.razorpayPaymentId
+        ? await gateway.attachBookingPayment(held.id, payment.razorpayPaymentId)
+        : held;
+      setResult(authorized);
+    } catch {
+      // Payment dismissed/failed → release the unpaid hold so no stale pending row lingers.
+      await gateway.cancelBooking(held.id).catch(() => undefined);
+      setError('Payment was not completed — no charge was made.');
     } finally {
       setSubmitting(false);
     }

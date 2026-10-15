@@ -94,7 +94,7 @@ All read-through: Valkey → Supabase/Mongo → populate. Cloudflare caches publ
 | `POST/GET /donor-match-requests` | blood | targeted donor request (own rows) |
 | `GET/POST /bookings`, `DELETE /bookings/{id}`, `POST /bookings/{id}/payment` | bookings | seat reservations (hold at request); ₹50/seat fee derived server-side, occupancy checked under a `FOR UPDATE` config lock, idempotent per `Idempotency-Key`; payment attaches the Razorpay authorized payment id |
 | `GET /venues/{id}/booking-availability` | bookings | public, seat-count-free `{bookable, feePerSeat, timingLabel, openNow}` (never totals/remaining) |
-| `GET/PUT /seller/booking-config`, `GET /seller/bookings`, `PUT /bookings/{id}/status`, `POST /bookings/{id}/vacate` | bookings | seller-private config (seats/timings/tracking/pause); accept captures / reject refunds; vacate frees occupancy; owner-scoped |
+| `GET/PUT /seller/booking-config`, `GET /seller/bookings`, `PUT /bookings/{id}/status`, `POST /bookings/{id}/vacate` | bookings | seller-private config (seats/timings/tracking/pause); accept captures / reject refunds; vacate frees occupancy; owner-scoped. `GET /seller/bookings` echoes the caller's `sellerId` on each row (bookings have no seller column; ownership is via the venue) |
 | `POST /webhooks/razorpay` | bookings | HMAC-signature-verified Razorpay events → idempotent ledger update (`payment.authorized/captured/failed`, `refund.*`) |
 | `GET/POST /food-bookings` | bookings | durable food order bookings (dish snapshot JSONB) |
 | `GET/POST /orders` | checkout | `POST` uses `SET NX EX 300` idempotency + `SELECT … FOR UPDATE SKIP LOCKED` stock decrement |

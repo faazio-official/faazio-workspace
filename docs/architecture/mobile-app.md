@@ -143,10 +143,16 @@ too — one component).
 profile's "Reserve seats • ₹50/seat" banner, shown only when `getBookingAvailability` reports the
 venue bookable) takes a seat count and shows the live N × ₹50 total; `createBooking` places a server
 hold and returns a Razorpay order (fee derived server-side; the app renders only bookable/fee/timing,
-never totals or remaining seats). `MyBookingsScreen` lists the caller's reservations with the fixed
-rejection line ("Restaurant couldn't accommodate — likely limited seats. Refund initiated.") and a
-cancel/refund action. The Razorpay native checkout SDK is not yet wired (the order id is returned; a
-follow-up opens the SDK), so a real-device payment is pending.
+never totals or remaining seats). The sheet then authorizes the hold through
+`services/payments/checkout.ts` — a `PaymentCheckout` seam that ships a **mock adapter** (synthetic
+`pay_mock_…` id, no native module, no network) and calls `attachBookingPayment` to record it; the
+server captures on accept / refunds on reject. `MyBookingsScreen` lists the caller's reservations
+with the fixed rejection line ("Restaurant couldn't accommodate — likely limited seats. Refund
+initiated.") and a cancel/refund action. **Production swap (no screen change):** install
+`react-native-razorpay`, implement a `PaymentCheckout` adapter and register it once via
+`setPaymentCheckout()`; when a real publishable key is present but no adapter is registered, the mock
+refuses to fabricate a payment (fails loudly). The gateway likewise runs a mock payment rail when
+`RAZORPAY_KEY_ID`/`RAZORPAY_KEY_SECRET` are unset.
 
 Pharma hosts the **Blood Donor** feature (`pharma/blood-donor/`) — a 5-step registration
 wizard (persistent draft/registration via AsyncStorage; the wizard closes permanently on

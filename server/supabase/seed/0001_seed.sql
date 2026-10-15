@@ -1257,9 +1257,16 @@ insert into blood.interests (request_id, donor_user_id, kind) values
 insert into blood.match_requests (id, requester_user_id, donor_user_id, blood_group, city, status) values
   ('dmr-000001', 'user-1', 'user_9000000001', 'O+', 'Chennai', 'pending'::match_status);
 
-insert into bookings.tables (id, user_id, vendor_id, restaurant_name, booking_date, slot, guests, status) values
-  ('BKG-000001', 'user-1', 'store-f1', 'Paradise Biryani House', '2026-02-01', '19:00', 2, 'confirmed'::booking_status),
-  ('BKG-000002', 'user-1', 'store-f1', 'Paradise Biryani House', '2026-02-05', '20:30', 4, 'pending'::booking_status);
+insert into bookings.tables (id, user_id, vendor_id, restaurant_name, booking_date, slot, guests, seats, fee_paisa, status) values
+  ('BKG-000001', 'user-1', 'store-f1', 'Paradise Biryani House', '2026-02-01', '', 2, 2, 10000, 'confirmed'::booking_status),
+  ('BKG-000002', 'user-1', 'store-f1', 'Paradise Biryani House', '2026-02-05', '', 4, 4, 20000, 'pending'::booking_status);
+
+insert into bookings.payments (id, booking_id, user_id, amount_paisa, razorpay_order_id, razorpay_payment_id, status) values
+  ('bpay-seed-1', 'BKG-000001', 'user-1', 10000, 'order_seed_1', 'pay_seed_1', 'CAPTURED'),
+  ('bpay-seed-2', 'BKG-000002', 'user-1', 20000, 'order_seed_2', 'pay_seed_2', 'AUTHORIZED');
+
+insert into bookings.venue_configs (vendor_id, seller_id, booking_enabled, total_seats, track_occupancy, open_time, close_time, paused) values
+  ('store-f1', 'sel-3', true, 40, true, '09:00', '21:00', false);
 
 insert into bookings.food_orders (order_id, user_id, dish, guests, booking_date, slot, added_ids) values
   ('FB-000001', 'user-1', '{"id":"bd-1","name":"Garasen Vegetarian Platter","restaurant":"The Green Garden Bistro","category":"Vegan","tab":"Dinner","rating":"4.9","tags":"Vegetables • Salad • Hummus","price":"₹250","emoji":"🥗","isSpecial":true,"image":"https://images.unsplash.com/photo-1512621776951-a57141f2eefd?fm=jpg&fit=crop&q=80&w=400&h=300"}'::jsonb, 2, '2026-02-01', '20:00', ARRAY[]::text[]);
