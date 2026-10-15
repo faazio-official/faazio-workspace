@@ -76,6 +76,12 @@ go run ./tools/importlint          # fails on sibling-context imports
 runs `mongosh` on `server/supabase/seed/mongo/seed.js` (upserts the ID-only Home layout + TTL index),
 and starts the gateway. `curl localhost:8080/health` should report `db:true cache:true mongo:true`.
 
+> **Migrations only run on a *fresh* volume.** `docker-entrypoint-initdb.d` executes once, when the
+> Postgres data directory is created. After pulling new migrations (`0021+`) or editing `@data/*`
+> (then `node server/supabase/seed/generate.mjs`), reset and re-seed with
+> `docker compose down -v && docker compose up -d`. A stale volume makes integration tests fail
+> with `column … does not exist` even though `/health` looks green.
+
 Integration tests (FTS, order lock/decrement, rating gate, PII redaction, pagination) **skip**
 unless pointed at the stack; run them fully with:
 
