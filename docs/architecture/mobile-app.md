@@ -496,6 +496,18 @@ rendered with the shared `SearchProductRowCard` (each heart toggles the favourit
 live). Tapping an item pushes `ProductDetail`. The store reads `seedFavorites`
 (`@data/home/seeds.ts`) on first launch.
 
+## Saved addresses (edit / delete)
+
+`SavedAddressesScreen` (root route `SavedAddresses`) hydrates the caller's durable addresses from
+`GatewayClient.getAddresses()` (keeping the `@data/account/addresses.ts` fixtures on mock/empty/error)
+and now owns the full lifecycle through a bottom-sheet `AddressEditor` (tag chips, name, phone,
+address, default switch): **Add New** opens a blank draft, **Edit** seeds it from the card, and both
+save via `GatewayClient.saveAddress()` → `PUT /profile/addresses` (upsert; the server mints the id for
+a new address and clears the caller's other defaults when one is set default). **Delete** (card or
+sheet) calls `GatewayClient.deleteAddress()` → `DELETE /profile/addresses/{id}`; a cross-user or
+unknown id is a 404 and still drops the row locally so the list stays consistent. Money/PII stay on
+the server — the screen only ever sends `{tag, name, phone, address, isDefault}`.
+
 ## Sell with us (partner onboarding)
 
 `SellWithUsScreen` (route `SellWithUs`) is the partner-onboarding form reached from the

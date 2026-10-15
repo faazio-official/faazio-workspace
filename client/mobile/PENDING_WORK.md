@@ -21,18 +21,17 @@ dependencies exist. Do not build the backend/seller flows until told to.
 (`GatewayClient.getMenu(venueId)`, `MenuDish → SpecialDish` mapper, fixture fallback) in
 `RestaurantProfileScreen` + `RestaurantMenuScreen`; the FoodHome dining grid is driven by
 `directory.dining_venues` via `diningService` → `getVenues('FOOD')` (fixture-enriched, neutral
-defaults for server-only venues).
+defaults for server-only venues); `SavedAddressesScreen` now has a full add/edit/delete
+`AddressEditor` wired to `GatewayClient.saveAddress` (`PUT`) / `deleteAddress` (`DELETE
+/profile/addresses/{id}`, new server route).
 
-**Remaining — each needs a server-contract delta or a screen build, not just wiring:**
+**Remaining — each needs a decision or a screen build, not just wiring:**
 - **Blood dashboard feed — defer (decision).** `GET /blood-requests` deliberately omits
   `imageUrl`/`distanceKm`/`purposeDescription`/demographics (no PII widening, `db-schema.md`
   §12.6), and `BloodRequestDescriptionScreen` is fixture/PII-bound (patient age/gender, hospital
   contact/address, remarks). Flipping the feed would require reworking the detail page too, so the
   board stays on `@data` until an explicit decision to widen the projection or pass the request
   through navigation.
-- **SavedAddresses edit / delete.** `PUT /profile/addresses` exists (upsert) but the screen's
-  Edit/Delete buttons are still placeholders — a form + delete UI (and a server `DELETE` route) is a
-  screen build, not a wiring flip. Deferred.
 - **Table/food booking create.** `GatewayClient.createBooking`/`createFoodBooking` + server routes
   exist, but no booking screen/route exists in the app; `bookingStore`/`foodBookingStore` have no
   call sites. A booking UI is a screen-build (needs explicit intent), not a wiring flip.

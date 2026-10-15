@@ -711,6 +711,22 @@ func (r *Repo) UpsertAddress(ctx context.Context, userID string, a Address) (Add
 	return a, true, nil
 }
 
+// DeleteAddress removes an address owned by userID. It returns ok=false when the address does not
+// exist or belongs to a different caller, so a cross-user delete is a no-op, never an error.
+func (r *Repo) DeleteAddress(ctx context.Context, userID, addressID string) (bool, error) {
+	if r.pool == nil {
+		return false, fmt.Errorf("checkout: database not configured")
+	}
+	if addressID == "" {
+		return false, nil
+	}
+	tag, err := r.pool.Exec(ctx, `delete from checkout.addresses where address_id = $1 and user_id = $2`, addressID, userID)
+	if err != nil {
+		return false, err
+	}
+	return tag.RowsAffected() > 0, nil
+}
+
 // OrderDetail returns one order with line items when it belongs to userID.
 func (r *Repo) OrderDetail(ctx context.Context, orderID, userID string) (Order, bool, error) {
 	if r.pool == nil {

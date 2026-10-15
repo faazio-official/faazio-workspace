@@ -86,7 +86,7 @@ All read-through: Valkey → Supabase/Mongo → populate. Cloudflare caches publ
 | `GET /venues/{id}/menu` | directory | durable `directory.menus` (public catalog data, cached 24 h); menu rows carry `description`/`emoji`/`delivery_time` (`0019`) |
 | `POST /prescriptions`, `GET /prescriptions`, `POST /prescriptions/upload-url`, `GET /prescriptions/{id}/images` | pharma | durable Rx; images in private Supabase Storage (object keys), signed upload/download URLs env-gated (owner/vendor/admin only) |
 | `POST /seller/prescriptions/{id}/quotes`, `PUT /prescriptions/{id}/status` (incl. `READY`) | pharma | seller-scoped quote lines + `QUOTED`/`READY`; vendor projection is name-only until READY/FULFILLED (contact blanked by query), reveal audited + `status_history`, READY enqueues a notification |
-| `GET/PUT /profile/addresses`, `GET /orders/{id}` | checkout | auth-scoped saved addresses (server-enforced ownership) + order detail |
+| `GET/PUT /profile/addresses`, `DELETE /profile/addresses/{id}`, `GET /orders/{id}` | checkout | auth-scoped saved addresses (server-enforced ownership; upsert + delete) + order detail |
 | `PUT /reviews/{id}/moderate`, `PUT /seller/products/{id}` | reviews/catalog | admin review HIDDEN flag (no hard delete); seller price/MRP/stock edit (writes catalog + inventory in lockstep) |
 | `GET /notifications`, `POST /notifications/register`, `GET /admin/notifications` | notifications | auth inbox + Expo push-token upsert; admin outbox view (`notifications.outbox`, enqueued by pharma/checkout via `contracts.Notifier`) |
 | `GET/PUT /donors/me`, `GET /donors` | blood | donor profile + consented directory (`blood.donor_directory` view); auth-scoped |

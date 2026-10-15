@@ -525,6 +525,40 @@ export class GatewayClient {
     );
   }
 
+  /**
+   * Upsert the caller's saved address (PUT /profile/addresses; server-enforced ownership). An
+   * empty `id` creates a new address (the server mints the id); a non-empty id updates it. Mock
+   * fallback is a no-op echo so the screen still confirms offline.
+   */
+  async saveAddress(addr: SavedAddress): Promise<SavedAddress> {
+    const body = {
+      addressId: addr.id,
+      label: addr.tag,
+      name: addr.name,
+      phone: addr.phone,
+      address: addr.address,
+      isDefault: !!addr.isDefault,
+    };
+    return this.withFallback(
+      () =>
+        this.http<AddressRecord>('/profile/addresses', { method: 'PUT', body: JSON.stringify(body) }).then(
+          toSavedAddress,
+        ),
+      () => delay(addr),
+    );
+  }
+
+  /** Remove one of the caller's saved addresses (DELETE /profile/addresses/{id}). */
+  async deleteAddress(id: string): Promise<void> {
+    await this.withFallback(
+      () =>
+        this.http<{ ok: boolean }>(`/profile/addresses/${encodeURIComponent(id)}`, { method: 'DELETE' }).then(
+          () => undefined,
+        ),
+      () => delay(undefined),
+    );
+  }
+
   /** Durable favourites shelf (auth-scoped, never edge-cached). */
   async getFavourites(): Promise<string[]> {
     return this.withFallback(

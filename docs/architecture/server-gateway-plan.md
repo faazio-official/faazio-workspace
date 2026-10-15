@@ -42,8 +42,9 @@ against **Supabase (Postgres) + MongoDB Atlas M0 + Aiven Valkey**, with Cloudfla
 keys/TTLs unchanged.
 
 - **Endpoints:** reads `GET /health`, `/search?q=`, `/sdui/home`, `/product/:id`, `/product/:id/reviews`,
-  `/vendors/:id/reviews` (+ `/summary`), `/stores`, `/store/:id`, `/stock/:id`, `/orders`, `/profile`,
-  `/profile/details`, `/membership`, `/order-status`, `/account-nav`; writes `POST/PUT/DELETE /cart…`,
+  `/vendors/:id/reviews` (+ `/summary`), `/stores`, `/store/:id`, `/venues`, `/venues/:id/menu`,
+  `/stock/:id`, `/orders`, `/profile`, `/profile/details`, `/profile/addresses` (GET/PUT/DELETE),
+  `/membership`, `/order-status`, `/account-nav`; writes `POST/PUT/DELETE /cart…`,
   `POST /orders`, `PUT /vendors/:id/rating`, `POST /events`.
 - **Packages:** `internal/{search,catalog,directory,cartstock,checkout,reviews,reco,sdui}` +
   `internal/{contracts,platform/*,server}`. Ownership table: `monolith-breakdown.md` §1.

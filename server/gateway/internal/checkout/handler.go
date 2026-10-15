@@ -39,6 +39,7 @@ func (h *Handler) Register(r chi.Router) {
 		g.Get("/profile", h.getProfile)
 		g.Get("/profile/addresses", h.getAddresses)
 		g.Put("/profile/addresses", h.putAddress)
+		g.Delete("/profile/addresses/{addressID}", h.deleteAddress)
 		g.Get("/profile/details", h.getDetails)
 		g.Get("/membership", h.getMembership)
 		g.Get("/order-status", h.getOrderStatus)
@@ -117,6 +118,22 @@ func (h *Handler) putAddress(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	httpx.JSON(w, http.StatusOK, addr)
+}
+
+// deleteAddress removes one of the caller's saved addresses. A missing address or a cross-user id
+// returns 404 (never leaks ownership); success is an idempotent `{"ok":true}`.
+func (h *Handler) deleteAddress(w http.ResponseWriter, r *http.Request) {
+	addressID := chi.URLParam(r, "addressID")
+	ok, err := h.repo.DeleteAddress(r.Context(), auth.UserID(r.Context()), addressID)
+	if err != nil {
+		httpx.Fail(w, http.StatusInternalServerError, "addresses_unavailable", "could not delete address")
+		return
+	}
+	if !ok {
+		httpx.Fail(w, http.StatusNotFound, "not_found", "address not found")
+		return
+	}
+	httpx.JSON(w, http.StatusOK, map[string]any{"ok": true})
 }
 
 func (h *Handler) placeOrder(w http.ResponseWriter, r *http.Request) {

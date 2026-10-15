@@ -30,6 +30,28 @@ func TestOwnsAddress(t *testing.T) {
 	}
 }
 
+func TestDeleteAddress(t *testing.T) {
+	pool := testenv.Pool(t)
+	repo := New(pool)
+	ctx := context.Background()
+
+	addr, ok, err := repo.UpsertAddress(ctx, "user-del-test", Address{Address: "1 Test Street, Testville"})
+	if err != nil || !ok {
+		t.Fatalf("upsert: ok=%v err=%v", ok, err)
+	}
+	t.Cleanup(func() { _, _ = pool.Exec(ctx, `delete from checkout.addresses where address_id = $1`, addr.AddressID) })
+
+	if ok, err := repo.DeleteAddress(ctx, "user-other", addr.AddressID); err != nil || ok {
+		t.Fatalf("cross-user delete must be a no-op: ok=%v err=%v", ok, err)
+	}
+	if ok, err := repo.DeleteAddress(ctx, "user-del-test", addr.AddressID); err != nil || !ok {
+		t.Fatalf("owner delete: ok=%v err=%v", ok, err)
+	}
+	if ok, err := repo.DeleteAddress(ctx, "user-del-test", addr.AddressID); err != nil || ok {
+		t.Fatalf("second delete must miss: ok=%v err=%v", ok, err)
+	}
+}
+
 func TestOrderByIdempotencyKeyMiss(t *testing.T) {
 	pool := testenv.Pool(t)
 	repo := New(pool)
