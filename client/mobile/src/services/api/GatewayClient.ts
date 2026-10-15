@@ -709,6 +709,14 @@ export class GatewayClient {
     );
   }
 
+  /** One of the signed-in user's own prescriptions (owner-scoped; undefined off-server). */
+  async getPrescription(id: string): Promise<PrescriptionRecord | undefined> {
+    return this.withFallback(
+      () => this.http<PrescriptionRecord>(`/prescriptions/${encodeURIComponent(id)}`),
+      () => delay(undefined),
+    );
+  }
+
   /** The caller's own donor profile, or null if not registered. */
   async getDonorProfile(): Promise<BloodDonorProfile | null> {
     return this.withFallback(

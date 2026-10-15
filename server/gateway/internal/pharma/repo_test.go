@@ -86,4 +86,14 @@ func TestVendorPrescriptionQuoteAndReveal(t *testing.T) {
 	if err != nil || len(items) != 1 {
 		t.Fatalf("VendorPrescriptions READY: err=%v n=%d", err, len(items))
 	}
+
+	// The owner detail carries the quote + total + status.
+	detail, ok, err := repo.ByIDForUser(ctx, rx.ID, "user-1")
+	if err != nil || !ok || detail.Status != "READY" || detail.QuotedTotal != q.QuotedTotal || len(detail.Quote) != 2 {
+		t.Fatalf("owner detail: ok=%v err=%v status=%q total=%d lines=%d", ok, err, detail.Status, detail.QuotedTotal, len(detail.Quote))
+	}
+	// A different user must never read it (owner-scoped).
+	if _, ok, err := repo.ByIDForUser(ctx, rx.ID, "user-2"); err != nil || ok {
+		t.Fatalf("cross-user detail must be hidden: ok=%v err=%v", ok, err)
+	}
 }

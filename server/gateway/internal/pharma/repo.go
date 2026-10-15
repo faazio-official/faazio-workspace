@@ -146,6 +146,28 @@ func (r *Repo) ByUser(ctx context.Context, userID string) ([]Prescription, error
 	return r.attachQuoteAndHistory(ctx, out)
 }
 
+// ByIDForUser returns one of the caller's own prescriptions (owner-scoped). Returns ok=false for an
+// unknown id or a prescription owned by someone else — the row is never exposed cross-user.
+func (r *Repo) ByIDForUser(ctx context.Context, id, userID string) (Prescription, bool, error) {
+	if r.pool == nil {
+		return Prescription{}, false, fmt.Errorf("pharma: database not configured")
+	}
+	rows, err := r.pool.Query(ctx, prescriptionSelect+` where id = $1 and user_id = $2`, id, userID)
+	if err != nil {
+		return Prescription{}, false, err
+	}
+	defer rows.Close()
+	items, err := scanPrescriptions(rows)
+	if err != nil || len(items) == 0 {
+		return Prescription{}, false, err
+	}
+	withQuote, err := r.attachQuoteAndHistory(ctx, items)
+	if err != nil {
+		return Prescription{}, false, err
+	}
+	return withQuote[0], true, nil
+}
+
 const prescriptionSelect = `
 select id, user_id, coalesce(vendor_id,''), coalesce(fulfillment::text,''), pages,
        coalesce(note,''), image_paths, status::text, coalesce(address_id,''),

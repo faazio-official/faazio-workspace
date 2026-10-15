@@ -44,6 +44,7 @@ func (h *Handler) Register(r chi.Router) {
 	r.Group(func(g chi.Router) {
 		g.Use(auth.Require)
 		g.Get("/prescriptions", h.list)
+		g.Get("/prescriptions/{id}", h.get)
 		g.Post("/prescriptions", h.create)
 		g.Post("/prescriptions/upload-url", h.uploadURL)
 		g.Get("/prescriptions/{id}/images", h.imageURLs)
@@ -78,6 +79,21 @@ func (h *Handler) list(w http.ResponseWriter, r *http.Request) {
 	}{Items: items}
 	h.cache.SetJSON(r.Context(), cache.Prescriptions(userID), payload, cache.TTLPrescriptions)
 	httpx.JSON(w, http.StatusOK, payload)
+}
+
+// get returns one of the caller's own prescriptions (owner-scoped; 404 for another user's row).
+func (h *Handler) get(w http.ResponseWriter, r *http.Request) {
+	id := chi.URLParam(r, "id")
+	p, ok, err := h.repo.ByIDForUser(r.Context(), id, auth.UserID(r.Context()))
+	if err != nil {
+		httpx.Fail(w, http.StatusInternalServerError, "prescriptions_unavailable", "prescriptions unavailable")
+		return
+	}
+	if !ok {
+		httpx.Fail(w, http.StatusNotFound, "not_found", "prescription not found")
+		return
+	}
+	httpx.JSON(w, http.StatusOK, p)
 }
 
 func (h *Handler) create(w http.ResponseWriter, r *http.Request) {

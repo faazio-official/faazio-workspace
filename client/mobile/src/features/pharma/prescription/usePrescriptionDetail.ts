@@ -19,8 +19,9 @@ export function usePrescriptionDetail(orderId: string | undefined, enabled: bool
 
     const poll = async () => {
       try {
-        const list = await gateway.getPrescriptions();
-        const match = list.find((r) => r.id === orderId);
+        // Prefer the owner-scoped detail (one small row); fall back to scanning the list on error.
+        const one = await gateway.getPrescription(orderId);
+        const match = one ?? (await gateway.getPrescriptions()).find((r) => r.id === orderId);
         if (!cancelled && match) {
           setRx(match);
           if (TERMINAL.has(match.status)) return;
