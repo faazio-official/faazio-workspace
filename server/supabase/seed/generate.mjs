@@ -187,7 +187,7 @@ sql.push(inserts(
 // ---------------------------------------------------------------- catalog + inventory
 sql.push(inserts(
   'catalog.products',
-  ['id', 'app', 'category', 'name', 'search_tokens', 'price_paisa', 'mrp_paisa', 'rating', 'reviews_count', 'emoji', 'image_url', 'desc_text', 'badge', 'shop', 'unit', 'attributes', 'store_id', 'is_prescription', 'is_veg'],
+  ['id', 'app', 'category', 'name', 'search_tokens', 'price_paisa', 'mrp_paisa', 'rating', 'reviews_count', 'emoji', 'image_url', 'desc_text', 'badge', 'shop', 'unit', 'attributes', 'store_id', 'is_prescription', 'is_veg', 'status'],
   d.catalogIndex.map((e) => {
     const meta = productMeta.get(e.id);
     const storeId = meta?.storeId && storeIds.has(meta.storeId) ? meta.storeId : null;
@@ -195,7 +195,7 @@ sql.push(inserts(
       q(e.id), APP(e.app), q(e.category), q(e.name), arr(e.searchTokens),
       paisa(e.price), paisa(e.originalPrice), n(e.rating), n(e.reviewsCount ?? 0),
       q(e.emoji), q(e.image), q(e.desc), q(e.badge), q(e.shop), q(e.unit), jsonb(e.attributes),
-      q(storeId), b(isPrescription(e)), b(meta?.isVeg),
+      q(storeId), b(isPrescription(e)), b(meta?.isVeg), `'ACTIVE'::product_status`,
     ];
   }),
 ));

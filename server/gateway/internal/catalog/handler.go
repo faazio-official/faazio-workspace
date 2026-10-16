@@ -3,6 +3,7 @@ package catalog
 import (
 	"encoding/json"
 	"net/http"
+	"strconv"
 	"strings"
 
 	"github.com/faazio/server/gateway/internal/contracts"
@@ -10,6 +11,11 @@ import (
 	"github.com/faazio/server/gateway/internal/platform/cache"
 	"github.com/faazio/server/gateway/internal/platform/httpx"
 	"github.com/go-chi/chi/v5"
+)
+
+const (
+	defaultStoreProductLimit = 40
+	maxStoreProductLimit     = 100
 )
 
 // Handler serves product detail + batch endpoints and seller product management.
@@ -28,6 +34,7 @@ func NewHandler(repo *Repo, c *cache.Cache, audit contracts.AuditWriter) *Handle
 func (h *Handler) Register(r chi.Router) {
 	r.Get("/product/{id}", h.getProduct)
 	r.Post("/products/batch", h.batch)
+	r.Get("/stores/{id}/products", h.storeProducts)
 	r.Group(func(g chi.Router) {
 		g.Use(auth.RequireRole(auth.RoleSeller, auth.RoleStateAdmin, auth.RoleSuperAdmin))
 		g.Get("/seller/products", h.sellerProducts)
@@ -74,7 +81,7 @@ func (h *Handler) updateProduct(w http.ResponseWriter, r *http.Request) {
 		httpx.Fail(w, http.StatusNotFound, "not_found", "product not found")
 		return
 	}
-	h.cache.Del(r.Context(), cache.Product(id), cache.Stock(id))
+	h.cache.Del(r.Context(), cache.Product(id), cache.Stock(id), cache.StoreProducts(p.StoreID))
 	h.log(r, "PRODUCT_EDIT", id, map[string]any{"price": p.Price})
 	httpx.JSON(w, http.StatusOK, p)
 }
@@ -118,6 +125,55 @@ func (h *Handler) batch(w http.ResponseWriter, r *http.Request) {
 	httpx.JSON(w, http.StatusOK, products)
 }
 
+// storeProducts serves a store's ACTIVE catalog rows (vendor drill-in) with keyset pagination.
+// Anonymous/public: the projection is PII-free product data, so the first page is edge-cacheable.
+func (h *Handler) storeProducts(w http.ResponseWriter, r *http.Request) {
+	storeID := strings.TrimSpace(chi.URLParam(r, "id"))
+	if storeID == "" {
+		httpx.Fail(w, http.StatusBadRequest, "bad_request", "store id is required")
+		return
+	}
+	limit := httpx.LimitParam(r, defaultStoreProductLimit, maxStoreProductLimit)
+
+	var (
+		cursorRating float64
+		cursorID     string
+		hasCursor    bool
+	)
+	if parts, ok := httpx.DecodeCursor(r.URL.Query().Get("cursor"), 2); ok {
+		if rating, err := strconv.ParseFloat(parts[0], 64); err == nil {
+			cursorRating, cursorID, hasCursor = rating, parts[1], true
+		}
+	}
+
+	// Only the first (cursor-free) page is cached; later pages are cheap and stay fresh.
+	if !hasCursor {
+		var cached []contracts.Product
+		if h.cache.GetJSON(r.Context(), cache.StoreProducts(storeID), &cached) {
+			httpx.JSON(w, http.StatusOK, cached)
+			return
+		}
+	}
+
+	products, err := h.repo.ByStorePage(r.Context(), storeID, limit+1, cursorRating, cursorID, hasCursor)
+	if err != nil {
+		httpx.Fail(w, http.StatusInternalServerError, "catalog_unavailable", "catalog unavailable")
+		return
+	}
+	if len(products) > limit {
+		products = products[:limit]
+		last := products[len(products)-1]
+		httpx.SetNextCursor(w, httpx.EncodeCursor(strconv.FormatFloat(last.Rating, 'f', -1, 64), last.ID))
+	}
+	if products == nil {
+		products = []contracts.Product{}
+	}
+	if !hasCursor {
+		h.cache.SetJSON(r.Context(), cache.StoreProducts(storeID), products, cache.TTLStoreProducts)
+	}
+	httpx.JSON(w, http.StatusOK, products)
+}
+
 func (h *Handler) sellerProducts(w http.ResponseWriter, r *http.Request) {
 	sellerID := strings.TrimSpace(r.URL.Query().Get("sellerId"))
 	if auth.Role(r.Context()) == auth.RoleSeller {
@@ -156,7 +212,7 @@ func (h *Handler) setProductStatus(w http.ResponseWriter, r *http.Request) {
 		httpx.Fail(w, http.StatusNotFound, "not_found", "product not found")
 		return
 	}
-	h.cache.Del(r.Context(), cache.Product(id))
+	h.cache.Del(r.Context(), cache.Product(id), cache.StoreProducts(p.StoreID))
 	h.log(r, "PRODUCT_"+status, id, map[string]string{"status": status})
 	httpx.JSON(w, http.StatusOK, p)
 }

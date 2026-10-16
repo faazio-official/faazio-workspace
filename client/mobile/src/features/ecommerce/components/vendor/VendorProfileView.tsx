@@ -15,8 +15,7 @@ import MartProductCard from '@/features/ecommerce/cards/MartProductCard';
 import { hs, ms, vs } from '@/utils/responsive';
 import { SPACE } from '@/theme/spacing';
 import type { CartItem } from '@/state/cartStore';
-import type { StoreProfile } from '@data/types';
-import type { MartProduct } from '@data/types';
+import type { Product, StoreProfile } from '@data/types';
 import VendorHighlights from './VendorHighlights';
 import VendorCategoryChips from './VendorCategoryChips';
 import { VENDOR_YELLOW, GREEN, TEXT_DARK, TEXT_LIGHT } from './theme';
@@ -28,12 +27,12 @@ const CARD_W_RAIL = hs(150);
 
 interface VendorProfileViewProps {
   vendor: StoreProfile;
-  products: MartProduct[];
-  discountedProducts: MartProduct[];
+  products: Product[];
+  discountedProducts: Product[];
   cartItems: CartItem[];
   onBack: () => void;
-  onProductClick?: (product: MartProduct) => void;
-  onAddToCart: (product: MartProduct) => void;
+  onProductClick?: (product: Product) => void;
+  onAddToCart: (product: Product) => void;
   onUpdateQuantity: (id: string, delta: number) => void;
   onCartPress?: () => void;
   /** Opens the Deals landing page (discounts mode) for this vendor. */
@@ -118,15 +117,17 @@ export function VendorProfileView({
               <AppText style={styles.storeSub}>Your Local Store</AppText>
               <View style={styles.locationRow}>
                 <MapPin size={ms(14)} color={TEXT_LIGHT} />
-                <AppText style={styles.locationText}>
-                  Anna Nagar, Chennai · {vendor.distance} away
+                <AppText style={styles.locationText} numberOfLines={1}>
+                  {vendor.address ? vendor.address : `${vendor.distance} away`}
                 </AppText>
               </View>
               <View style={styles.timeRow}>
                 <View style={styles.openBadge}>
                   <AppText style={styles.openText}>Open now</AppText>
                 </View>
-                <AppText style={styles.closeText}> · Closes at 10:00 PM</AppText>
+                {vendor.hours ? (
+                  <AppText style={styles.closeText} numberOfLines={1}> · {vendor.hours}</AppText>
+                ) : null}
               </View>
             </View>
           </View>

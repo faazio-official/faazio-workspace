@@ -13,7 +13,7 @@
  * docs/architecture/mvp-backend.md §3, docs/architecture/monolith-breakdown.md.
  */
 import type { AppBrand, PickupPoint, SavedAddress, UserDetailsData } from '@data/types';
-import { catalogIndex, getCatalogEntryById, getCatalogEntriesByIds, type CatalogEntry } from '@data/catalog/products';
+import { catalogIndex, getCatalogEntryById, getCatalogEntriesByIds, getCatalogEntriesByStore, type CatalogEntry } from '@data/catalog/products';
 import { storeDirectory, getStoreById, getStoresByApp, type StoreRecord } from '@data/directory/stores';
 import { NEUTRAL_PICKUP } from '@data/cart/pickup-resolver';
 import { coupons as fixtureCoupons } from '@data/cart/coupons';
@@ -542,6 +542,21 @@ export class GatewayClient {
     return this.withFallback(
       () => this.http<StoreRecord>(`/store/${encodeURIComponent(id)}`),
       () => delay(getStoreById(id)),
+    );
+  }
+
+  /**
+   * A store's ACTIVE catalog rows (vendor drill-in; mirrors `catalog.products` filtered by
+   * `store_id` + `status = 'ACTIVE'`). Server is the origin; the local mock filters `catalogIndex`
+   * by `storeId` so the drill-in never regresses offline. The server caps a page at 100.
+   */
+  async getStoreProducts(storeId: string, cursor?: string): Promise<ProductView[]> {
+    return this.withFallback(
+      () =>
+        this.http<ProductView[]>(
+          `/stores/${encodeURIComponent(storeId)}/products${cursor ? `?cursor=${encodeURIComponent(cursor)}` : ''}`,
+        ),
+      () => delay(this.joinStock(getCatalogEntriesByStore(storeId, 'MART'))),
     );
   }
 

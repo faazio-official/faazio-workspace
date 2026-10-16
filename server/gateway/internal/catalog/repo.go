@@ -94,6 +94,26 @@ func (r *Repo) ByIDs(ctx context.Context, ids []string) ([]contracts.Product, er
 	return out, nil
 }
 
+// ByStorePage returns a store's ACTIVE products (vendor drill-in), ordered by (rating desc, id asc)
+// using keyset pagination. The query fetches limit+1 rows so the caller can tell whether another page
+// exists. Only ACTIVE rows surface, so a delisted/pending product never reaches a shopper.
+func (r *Repo) ByStorePage(ctx context.Context, storeID string, limit int, cursorRating float64, cursorID string, hasCursor bool) ([]contracts.Product, error) {
+	if r.pool == nil {
+		return nil, fmt.Errorf("catalog: database not configured")
+	}
+	rows, err := r.pool.Query(ctx, productListSelect+`
+		where p.store_id = $1
+		  and p.status = 'ACTIVE'
+		  and (not $2::bool or p.rating < $3::float8 or (p.rating = $3::float8 and p.id > $4))
+		order by p.rating desc, p.id asc
+		limit $5`, storeID, hasCursor, cursorRating, cursorID, limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	return scanProducts(rows)
+}
+
 // Search runs the Postgres FTS query (tsvector + pg_trgm), optionally app-scoped.
 func (r *Repo) Search(ctx context.Context, q, app string, limit int) ([]contracts.Product, error) {
 	return r.SearchScoped(ctx, q, app, limit)
@@ -222,13 +242,14 @@ type SellerProduct struct {
 	Category  string `json:"category"`
 	Status    string `json:"status"`
 	SellerID  string `json:"sellerId,omitempty"`
+	StoreID   string `json:"storeId,omitempty"`
 	Price     int64  `json:"price"` // rupees
 	UpdatedAt string `json:"updatedAt"`
 }
 
 const sellerProductSelect = `
 select p.id, p.name, p.app::text, p.category, p.status::text, coalesce(p.seller_id,''),
-       p.price_paisa, p.updated_at
+       coalesce(p.store_id,''), p.price_paisa, p.updated_at
 from catalog.products p`
 
 // SellerProducts lists a seller's products (status "" = all), newest edit first.
@@ -261,9 +282,9 @@ func (r *Repo) SetProductStatus(ctx context.Context, id, sellerID, status string
 		update catalog.products p set status = $2::product_status
 		 where p.id = $1 and ($3 or p.seller_id = $4)
 		 returning p.id, p.name, p.app::text, p.category, p.status::text,
-		           coalesce(p.seller_id,''), p.price_paisa, p.updated_at`,
+		           coalesce(p.seller_id,''), coalesce(p.store_id,''), p.price_paisa, p.updated_at`,
 		id, status, admin, sellerID).
-		Scan(&p.ID, &p.Name, &p.App, &p.Category, &p.Status, &p.SellerID, &p.Price, &updatedAt)
+		Scan(&p.ID, &p.Name, &p.App, &p.Category, &p.Status, &p.SellerID, &p.StoreID, &p.Price, &updatedAt)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return SellerProduct{}, false, nil
@@ -341,7 +362,7 @@ func (r *Repo) sellerProductByID(ctx context.Context, id string) (SellerProduct,
 		updatedAt time.Time
 	)
 	err := r.pool.QueryRow(ctx, sellerProductSelect+` where p.id = $1`, id).
-		Scan(&p.ID, &p.Name, &p.App, &p.Category, &p.Status, &p.SellerID, &p.Price, &updatedAt)
+		Scan(&p.ID, &p.Name, &p.App, &p.Category, &p.Status, &p.SellerID, &p.StoreID, &p.Price, &updatedAt)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return SellerProduct{}, false, nil
@@ -368,7 +389,7 @@ func scanSellerProducts(rows pgx.Rows) ([]SellerProduct, error) {
 			p         SellerProduct
 			updatedAt time.Time
 		)
-		if err := rows.Scan(&p.ID, &p.Name, &p.App, &p.Category, &p.Status, &p.SellerID, &p.Price, &updatedAt); err != nil {
+		if err := rows.Scan(&p.ID, &p.Name, &p.App, &p.Category, &p.Status, &p.SellerID, &p.StoreID, &p.Price, &updatedAt); err != nil {
 			return nil, err
 		}
 		p.Price /= 100

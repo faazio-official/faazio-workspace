@@ -1,4 +1,4 @@
-import React, { useCallback, useMemo } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { View, StyleSheet, Dimensions, TouchableOpacity, FlatList } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
@@ -6,9 +6,9 @@ import { hs, ms, vs } from '@/utils/responsive';
 import { SPACE } from '@/theme/spacing';
 import AppText from '@/components/AppText';
 import { useCartStore } from '@/state/store';
-import { martProducts } from '@data/mart/products';
-import type { MartProduct, StoreProfile } from '@data/types';
+import type { Product, StoreProfile } from '@data/types';
 import type { RootStackParamList } from '@/navigation/types';
+import { gateway } from '@/services/api/GatewayClient';
 import { isDiscounted } from '@/services/categoryVendors';
 import { applyActiveDiscounts, useActiveDiscounts } from '@/services/pricing';
 import MartProductCard from '@/features/ecommerce/cards/MartProductCard';
@@ -44,13 +44,10 @@ interface FaMartScreenProps {
 }
 
 /**
- * A store's drill-in inventory is derived from the real @data/mart product set
- * via each product's `storeId`, so category chips genuinely filter across the
- * products that store actually sells.
+ * A store's drill-in inventory is served by the gateway (`GET /stores/{id}/products`,
+ * `catalog.products` filtered by `store_id` + `status = ACTIVE`). The local empty fallback keeps the
+ * drill-in renderable offline; the server is the origin.
  */
-const getVendorProducts = (store: StoreProfile): MartProduct[] =>
-  martProducts.filter((p) => p.storeId === store.id);
-
 const CARD_GAP = hs(12);
 const CARD_W = (SCREEN_W - hs(32) - CARD_GAP) / 2;
 
@@ -70,10 +67,63 @@ export function FaMartScreen({
 
   const normalizedSearch = searchQuery.trim().toLowerCase();
 
-  const vendorProducts = useMemo(
-    () => (vendor ? getVendorProducts(vendor) : []),
-    [vendor],
-  );
+  // Vendor header enrichment: the rail serves the PII-free list projection, so fetch the single
+  // store (authed → full address/phone, anon → redacted). Falls back to the list row when absent.
+  const [vendorDetail, setVendorDetail] = useState<StoreProfile | null>(vendor);
+  useEffect(() => {
+    setVendorDetail(vendor);
+    if (!vendor) return;
+    let active = true;
+    gateway
+      .getStore(vendor.id)
+      .then((s) => {
+        if (active && s) setVendorDetail(s);
+      })
+      .catch(() => undefined);
+    return () => {
+      active = false;
+    };
+  }, [vendor]);
+
+  // Vendor drill-in inventory: server-backed (catalog.products by store_id + ACTIVE), refetched
+  // whenever the open vendor changes. Empty in feed mode.
+  const [vendorProducts, setVendorProducts] = useState<Product[]>([]);
+  useEffect(() => {
+    if (!vendor) {
+      setVendorProducts([]);
+      return;
+    }
+    let active = true;
+    gateway
+      .getStoreProducts(vendor.id)
+      .then((rows) => {
+        if (active) setVendorProducts(rows);
+      })
+      .catch(() => undefined);
+    return () => {
+      active = false;
+    };
+  }, [vendor]);
+
+  // Feed search mode: full catalog search (FTS on the server, local mirror offline), so results
+  // are no longer limited to the local fixture pool. Empty when no query.
+  const [searchResults, setSearchResults] = useState<Product[]>([]);
+  useEffect(() => {
+    if (!normalizedSearch || vendor) {
+      setSearchResults([]);
+      return;
+    }
+    let active = true;
+    gateway
+      .searchProducts(searchQuery.trim(), 'MART')
+      .then((rows) => {
+        if (active) setSearchResults(rows);
+      })
+      .catch(() => undefined);
+    return () => {
+      active = false;
+    };
+  }, [normalizedSearch, searchQuery, vendor]);
 
   // "Discounted Products" rail: every vendor product, with any server-owned festival discount
   // overlaid, filtered to what is actually on offer (authored MRP or an active opt-in). Fetching
@@ -128,7 +178,7 @@ export function FaMartScreen({
           renderCard={(product, h) => (
             <MartProductCard
               key={product.id}
-              product={product as unknown as MartProduct}
+              product={product as unknown as Product}
               width={CARD_W}
               variant="rail"
               showAdLabel
@@ -154,14 +204,14 @@ export function FaMartScreen({
   );
 
   const handleAddProduct = useCallback(
-    (product: MartProduct) => {
+    (product: Product) => {
       addToCart(product.id, product.name, product.price, product.emoji);
     },
     [addToCart],
   );
 
   const renderProductItem = useCallback(
-    ({ item }: { item: MartProduct }) => {
+    ({ item }: { item: Product }) => {
       const cartItem = cartItems.find((c) => c.id === item.id);
       return (
         <MartProductCard
@@ -183,7 +233,7 @@ export function FaMartScreen({
   if (vendor) {
     return (
       <VendorProfileView
-        vendor={vendor}
+        vendor={vendorDetail ?? vendor}
         products={filteredVendorProducts}
         discountedProducts={discountedProducts}
         cartItems={cartItems}
@@ -200,13 +250,10 @@ export function FaMartScreen({
 
   // ---- Search Mode ----
   if (normalizedSearch) {
-    const searchedProducts = martProducts.filter((p) =>
-      p.name.toLowerCase().includes(normalizedSearch),
-    );
     return (
       <View style={styles.drillContainer}>
         <FlatList
-          data={searchedProducts}
+          data={searchResults}
           keyExtractor={(item) => item.id}
           numColumns={2}
           contentContainerStyle={styles.productGrid}

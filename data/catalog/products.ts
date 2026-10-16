@@ -34,6 +34,8 @@ export interface CatalogEntry {
   reviewsCount?: number;
   unit?: string;
   attributes?: Record<string, string | number | string[]>;
+  /** Id of the `StoreProfile` this entry is sold by (mirrors `Product.storeId`). */
+  storeId?: string;
 }
 
 export interface CatalogFacetCategory {
@@ -74,6 +76,7 @@ function fromProduct(p: Product): CatalogEntry {
     reviewsCount: p.reviewsCount,
     unit: p.unit,
     attributes: p.attributes,
+    storeId: p.storeId,
   };
 }
 
@@ -162,6 +165,17 @@ export function getCatalogEntryById(id: string): CatalogEntry | undefined {
 
 export function getCatalogEntriesByIds(ids: string[]): CatalogEntry[] {
   return ids.map(getCatalogEntryById).filter((e): e is CatalogEntry => !!e);
+}
+
+/**
+ * Entries sold by one store (mirrors the server's `GET /stores/{id}/products`). Optionally
+ * app-scoped. Backs the offline mock fallback for the vendor drill-in; the server is the origin.
+ */
+export function getCatalogEntriesByStore(
+  storeId: string,
+  app?: CatalogEntry['app'],
+): CatalogEntry[] {
+  return catalogIndex.filter((e) => e.storeId === storeId && (!app || e.app === app));
 }
 
 /**

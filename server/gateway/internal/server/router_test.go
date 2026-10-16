@@ -61,6 +61,14 @@ func pickStockedProduct(t *testing.T, pool *pgxpool.Pool, minQty int64) (product
 	return productID, storeID, qty
 }
 
+// TestRouterRegistersWithDeps exercises every route registration (chi panics on conflicts) using a
+// dependency-free router, so a new/duplicated pattern fails fast without a database.
+func TestRouterRegistersWithDeps(t *testing.T) {
+	if NewRouter(Deps{Config: config.Config{AuthDisabled: true}}) == nil {
+		t.Fatal("nil router")
+	}
+}
+
 func TestHealth(t *testing.T) {
 	h, _, _ := newTestServer(t)
 	rec := do(t, h, http.MethodGet, "/health", nil)
@@ -232,5 +240,43 @@ func TestStoresEndpointPaginates(t *testing.T) {
 	}
 	if rec.Header().Get("X-Next-Cursor") == "" {
 		t.Fatal("expected X-Next-Cursor")
+	}
+}
+
+func TestStoreProductsEndpoint(t *testing.T) {
+	h, pool, _ := newTestServer(t)
+	ctx := context.Background()
+	storeID := fmt.Sprintf("st-e2e-%d", time.Now().UnixNano())
+	if _, err := pool.Exec(ctx, `
+		insert into directory.stores (id, app, name, rating)
+		values ($1,'MART','Store Products E2E', 4.2)`, storeID); err != nil {
+		t.Fatalf("seed store: %v", err)
+	}
+	t.Cleanup(func() { _, _ = pool.Exec(ctx, `delete from directory.stores where id=$1`, storeID) })
+
+	pid := fmt.Sprintf("prod-e2e-%d", time.Now().UnixNano())
+	if _, err := pool.Exec(ctx, `
+		insert into catalog.products (id, app, category, name, price_paisa, store_id, rating, status)
+		values ($1,'MART','Test','E2E Active', 10000, $2, 4.2, 'ACTIVE')`, pid, storeID); err != nil {
+		t.Fatalf("seed product: %v", err)
+	}
+	t.Cleanup(func() { _, _ = pool.Exec(ctx, `delete from catalog.products where id=$1`, pid) })
+
+	rec := do(t, h, http.MethodGet, "/stores/"+storeID+"/products", nil)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d body=%s", rec.Code, rec.Body.String())
+	}
+	var got []map[string]any
+	if err := json.Unmarshal(rec.Body.Bytes(), &got); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if len(got) != 1 || got[0]["id"] != pid {
+		t.Fatalf("products = %+v, want the seeded ACTIVE row", got)
+	}
+
+	// Unknown store → 200 with an empty list (not a 404), so the drill-in renders "no products".
+	rec = do(t, h, http.MethodGet, "/stores/does-not-exist/products", nil)
+	if rec.Code != http.StatusOK || rec.Body.String() != "[]\n" {
+		t.Fatalf("unknown store = %d %q, want 200 []", rec.Code, rec.Body.String())
 	}
 }

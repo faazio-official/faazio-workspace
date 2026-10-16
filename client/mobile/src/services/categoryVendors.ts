@@ -106,8 +106,12 @@ export function getVendorsWithProducts(
 }
 
 /**
- * Resolves a vendor's product pool (all products carrying `storeId`). Same logic
- * as `FaMartScreen.getVendorProducts`, generalised to both Mart and Pharma.
+ * Resolves a vendor's product pool (all products carrying `storeId`) from the local `@data`
+ * fixtures. Mart now reads the server (`GatewayClient.getStoreProducts`); this local path remains
+ * the offline/mock fallback for the category drill-in and Pharma.
+ *
+ * @deprecated for Mart drill-in — use `gateway.getStoreProducts(storeId)`. Kept as the offline
+ * fallback / Pharma source until that surface is server-linked.
  */
 export function getVendorProducts(storeId: string, app: VendorApp): Product[] {
   return APP_PRODUCTS[app].filter((p) => p.storeId === storeId);

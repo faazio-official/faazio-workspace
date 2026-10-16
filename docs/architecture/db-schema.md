@@ -1330,3 +1330,25 @@ list; cross-seller id → 404), `GET /venues/{id}` (single venue, PII-redacted f
 also rejects `price > mrp` (when an MRP is authored) and makes a repeated `READY` a no-op (no duplicate
 `status_history` row, no duplicate `RX_READY` notification). No RLS change — `pharma.prescriptions`
 keeps its owner read-only policy, and every seller/admin write is gateway `service_role`.
+
+### 12.15 Mart vendor-inventory read (migration `0024`)
+
+The buyer vendor drill-in (`GET /stores/{id}/products`) filters `catalog.products` by
+`store_id = $1 AND status = 'ACTIVE'`. The pre-existing `products_store_idx` (0001) and
+`products_status_idx` (0015) do not cover the joint filter, so add a composite index. The seeded
+catalog rows were inserted before `status` existed and defaulted to `DRAFT`; backfill them (scoped to
+sellerless demo rows so a real seller's DRAFT/PENDING_REVIEW is never promoted) — otherwise the
+ACTIVE-only endpoint returns empty on a fresh seed. `generate.mjs` now writes `status = 'ACTIVE'` for
+every seed row. Additive and idempotent:
+
+```sql
+CREATE INDEX IF NOT EXISTS products_store_status_idx ON catalog.products (store_id, status);
+
+UPDATE catalog.products SET status = 'ACTIVE'
+ WHERE status = 'DRAFT' AND seller_id IS NULL;
+```
+
+Reads: `GET /stores/{id}/products` (anonymous, keyset-paginated by `(rating DESC, id ASC)`, only
+`ACTIVE` rows, PII-free product projection). The first page is cached `catalog:store-products:{storeId}`
+300 s (caching doc §5) and purged on `PRODUCT_EDIT` / status change. No new table — hero banners and the
+`mf-*` daily-essentials cards remain SDUI-owned (`docs/architecture/data-layer-sdui.md`).

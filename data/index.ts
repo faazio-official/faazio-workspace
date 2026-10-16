@@ -112,6 +112,7 @@ export {
   catalogIndex,
   getCatalogEntryById,
   getCatalogEntriesByIds,
+  getCatalogEntriesByStore,
   getProductById,
   pharmaFacetCategories,
 } from './catalog/products';

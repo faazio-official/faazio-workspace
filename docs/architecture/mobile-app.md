@@ -57,11 +57,18 @@ The Mart home feed's **"Local Vendors Near You"** rail now renders the richer `m
 in-section **search bar** and **category pill filter** (`VendorCategoryPills`) were removed (the
 Mart header search + header category rail are untouched); the section shows the full vendor list.
 Tapping a store opens the
-vendor drill-in, whose inventory is derived from `martProducts` by `storeId` (replacing the old
-hardcoded `lv-*` product map). The vendor drill-in's **"Discounted Products" rail** renders each
+vendor drill-in, whose inventory is served by the gateway
+(`GatewayClient.getStoreProducts` → `GET /stores/{id}/products`, `catalog.products` filtered by
+`store_id` + `status = 'ACTIVE'`, replacing the local `martProducts` filter / old `lv-*` product
+map). The local `catalogIndex`/`getCatalogEntriesByStore` mirror is the offline fallback. The vendor
+drill-in's **"Discounted Products" rail** renders each
 promoted product with the shared **'AD' pill** (`showAdLabel` on `MartProductCard` → `AdLabelBadge`
 bottom-right of the image), matching Home's disclosure for promoted rails; the plain **"All
 Products"** grid below stays unlabelled (the vendor's own catalog, not promoted placement).
+
+The Mart feed **search mode** (header searchbar query) now calls `GatewayClient.searchProducts(q, 'MART')`
+— the server FTS index (`GET /search`) — with the local filter as the offline fallback, so results are
+no longer limited to the local `@data` fixture pool.
 
 Pharma's home feed ends with a pharma-local **"Local Medicals Near You"** rail backed by
 `@data/pharma/stores`. Each stacked card shows distance, rating, delivery time, offer and a

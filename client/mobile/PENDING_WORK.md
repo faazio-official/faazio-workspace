@@ -5,6 +5,40 @@ dependencies exist. Do not build the backend/seller flows until told to.
 
 ---
 
+## W37 — Mart vendor inventory server-linked (de-mock slice, M1)
+
+**Status:** 🟢 Shipped (server + DB + app). No web change.
+
+The Mart vendor drill-in (`VendorProfileView`) was 100% local — `martProducts.filter(storeId)` — and
+the feed **search mode** filtered the local fixture pool even in remote mode. The server already had
+`catalog.products.store_id` + `status`, but no list endpoint.
+
+- **Server (`internal/catalog`).** New anonymous `GET /stores/{id}/products`
+  (`Repo.ByStorePage`) — `store_id = $1 AND status = 'ACTIVE'`, keyset-paginated
+  (`rating DESC, id ASC`, `X-Next-Cursor`), PII-free product projection. First page cached
+  `faazio:v1:catalog:store-products:{storeId}` 300 s; purged on `PRODUCT_EDIT` / status change.
+  `SellerProduct` now carries `storeId` (for the purge). Tests: `TestByStorePageActiveOnly`,
+  `TestStoreProductsEndpoint`.
+- **DB (`0024_mart_vendor_list.sql`).** Composite `products_store_status_idx (store_id, status)` and a
+  backfill of sellerless `DRAFT` seed rows → `ACTIVE` (the ACTIVE-only endpoint would otherwise be
+  empty). `generate.mjs` now writes `status = 'ACTIVE'` for seed rows.
+- **App.** `GatewayClient.getStoreProducts` (fixture fallback `getCatalogEntriesByStore`);
+  `FaMartScreen` fetches the drill-in inventory + feed search (`searchProducts(q,'MART')`) asynchronously;
+  `VendorProfileView` props widened to `Product[]`. Vendor header now fetches the single store
+  (`getStore`) so an authed caller sees the real address/hours (anon stays redacted) instead of the old
+  hardcoded location. `categoryVendors.getVendorProducts` marked `@deprecated` (offline/Pharma fallback).
+
+**Still mocked (next slices):** `MartHeroCarousel` (`hb-*`) + `DailyEssentialsRail` (`mf-*` ghost ids)
+— move to the Mongo SDUI Home doc (M2); `DealsLandingScreen` **campaign mode** (no campaigns read —
+delete or add `GET /promo/campaigns`, M3); Mart **view/search event emission** for the reco funnel (M4).
+
+**Docs:** `db-schema.md §12.15`, `monolith-breakdown.md §1`, `caching-cloudflare-valkey.md §5/§7a`,
+`mobile-app.md`, `data/DATA_CONTROL.md`.
+
+**Date:** 2026-10-16
+
+---
+
 ## W36 — Web takes control of the Home SDUI (publish pipeline)
 
 **Status:** 🟢 Shipped (server + web). No app or DB change.

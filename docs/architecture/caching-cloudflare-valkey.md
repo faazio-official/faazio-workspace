@@ -91,6 +91,7 @@ Examples: `faazio:v1:stock:fm-f1`, `faazio:v1:search:q:hoodie`, `faazio:v1:sdui:
 | Booking availability (public, seat-count-free `{bookable,fee,timing}`) | 30 s | **never** | booking-config write / accept / reject / vacate / cancel (seller config row itself is never cached) |
 | Recommendations (per userHash) | 3600 s (1 h) | — | `user_events` flush |
 | Store directory / reviews | 86400 s (24 h) | — | edit event |
+| Store products (anon `GET /stores/{id}/products`, ACTIVE first page) | 300 s | — | product edit / status change (purges `catalog:store-products:{storeId}`; later pages are not cached) |
 | Single dining venue (anon `GET /venues/{id}`, PII-redacted) | 86400 s (24 h) | — | venue edit / store live toggle (authed reads bypass the cache) |
 | Promo campaigns / coupons (partner) | 300 s | **never** | campaign/coupon write |
 | Public coupons (anon `GET /coupons?app=&state=`) | 600 s | — | coupon write (TTL-bounded) |
@@ -180,6 +181,11 @@ LIVE fill collapses the rail to `null` (never an empty shelf).
 > `catalog:product:{id}`, a store live toggle invalidates `directory:store:{id}`, an order status change
 > invalidates the owning user's `checkout:orders:{userId}`, and a prescription status change invalidates
 > `pharma:prescriptions:{userId}`. Seller lists are never cached.
+>
+> **Mart vendor inventory (`0024`):** `GET /stores/{id}/products` caches the store's first ACTIVE page
+> under `faazio:v1:catalog:store-products:{storeId}` (300 s); a price/MRP/stock edit
+> (`PUT /seller/products/{id}`) or a status change (`PUT /seller/products/{id}/status`) purges that key
+> alongside `catalog:product:{id}` / `stock:{id}`.
 >
 > **Pharma quote + notify (W24, `0018`):** a quote save (`POST /seller/prescriptions/{id}/quotes`) or a
 > `READY` status change invalidates the owning user's `pharma:prescriptions:{userId}`. The notification

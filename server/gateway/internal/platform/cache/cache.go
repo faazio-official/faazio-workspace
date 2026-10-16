@@ -31,6 +31,9 @@ func Notifications(userID string) string {
 	return fmt.Sprintf("faazio:v1:notifications:inbox:%s", userID)
 }
 func Stock(id string) string          { return fmt.Sprintf("faazio:v1:stock:%s", id) }
+func StoreProducts(storeID string) string {
+	return fmt.Sprintf("faazio:v1:catalog:store-products:%s", storeID)
+}
 func VendorReviews(id string) string  { return fmt.Sprintf("faazio:v1:reviews:vendor:%s", id) }
 func ProductReviews(id string) string { return fmt.Sprintf("faazio:v1:reviews:product:%s", id) }
 func Orders(userID string) string     { return fmt.Sprintf("faazio:v1:checkout:orders:%s", userID) }
@@ -90,6 +93,10 @@ const (
 	TTLOrders  = 60 * time.Second
 	TTLSdui    = 300 * time.Second
 	TTLAuth    = 3600 * time.Second
+
+	// TTLStoreProducts bounds the anon-visible first page of a store's ACTIVE product list
+	// (vendor drill-in). Purged on product edit/status change (caching doc §4).
+	TTLStoreProducts = 300 * time.Second
 
 	// TTLFavourites bounds the auth-scoped favourites projection (mutable; invalidated on write).
 	TTLFavourites = 60 * time.Second

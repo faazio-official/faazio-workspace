@@ -73,7 +73,7 @@ surface for these tables). These tables **pull from the legacy sources via impor
 
 | Table dir | Simulates | Consolidates | Status |
 |---|---|---|---|
-| `catalog/products.ts` | Rust + Tantivy (search index) | mart/food/pharma/home/explore/categories product records, deduped by `id`, tokenized. Exposes `getProductById` (resolves a real `Product` from the domain arrays + converted deal/special products) used by `OrderDetailsScreen`'s **View Product** drill-in | `@mock` |
+| `catalog/products.ts` | Rust + Tantivy (search index) | mart/food/pharma/home/explore/categories product records, deduped by `id`, tokenized. Exposes `getProductById` (resolves a real `Product` from the domain arrays + converted deal/special products) used by `OrderDetailsScreen`'s **View Product** drill-in; `CatalogEntry.storeId` + `getCatalogEntriesByStore` back the offline mirror of `GET /stores/{id}/products` (Mart vendor drill-in) | `@mock` |
 | `directory/stores.ts` | Go + PostgreSQL (store directory) | `mart/stores`, `food/stores` | `@mock` |
 | `directory/vendors.ts` | Go + PostgreSQL (vendor identity view) | `directory/stores` + `food/diningVenues` — deduped `VendorRef[]` with `resolveVendorForProduct` (identity resolver, single owner). Snapshotted onto orders at placement | `@mock` |
 | `food/diningVenues.ts` | Go + PostgreSQL (dining-venue identity + data) | ids/names mirroring `features/food/mocks/restaurants.ts` + `food/stores`. `directory.dining_venues` now carries `app`/`rating`/`cover_image`/`categories` (+ gated `address`/`phone`/`hours`) — migration `0013` | `@mock` → `@server` |
