@@ -19,6 +19,7 @@ import { getStoreById, type StoreRecord } from '@data/directory/stores';
 import { gateway } from '@/services/api/GatewayClient';
 import type { Product } from '@data/types';
 import { getVendorProducts, matchesQuery } from '@/services/categoryVendors';
+import { applyActiveDiscounts, useActiveDiscounts } from '@/services/pricing';
 import type { RootStackParamList } from '@/navigation/types';
 import SearchMartProductCard from '@/features/ecommerce/components/SearchMartProductCard';
 import SearchPharmaProductCard from '@/features/pharma/components/SearchPharmaProductCard';
@@ -75,10 +76,17 @@ export function VendorDetailScreen({ navigation, route }: Props) {
 
   const products = useMemo(() => getVendorProducts(storeId, app), [storeId, app]);
 
+  // Overlay approved festival discounts on the vendor's pool (no-op offline / when none apply).
+  const discounts = useActiveDiscounts(products.map((p) => p.id));
+  const pricedProducts = useMemo(
+    () => applyActiveDiscounts(products, discounts),
+    [products, discounts],
+  );
+
   const filtered = useMemo(() => {
-    if (!query.trim()) return products;
-    return products.filter((p) => matchesQuery(p, query));
-  }, [products, query]);
+    if (!query.trim()) return pricedProducts;
+    return pricedProducts.filter((p) => matchesQuery(p, query));
+  }, [pricedProducts, query]);
 
   const handleBack = useCallback(() => navigation.goBack(), [navigation]);
 

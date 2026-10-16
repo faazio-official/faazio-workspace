@@ -21,6 +21,7 @@ import { hs, vs, ms, SCREEN_W } from '@/utils/responsive';
 import { SPACE } from '@/theme/spacing';
 import AppText from '@/components/AppText';
 import ProductCardBase from '@/components/shared/ProductCardBase';
+import { applyActiveDiscounts, useActiveDiscounts } from '@/services/pricing';
 import { martStores } from '@data/mart/stores';
 import { martProducts } from '@data/mart/products';
 import { foodStores } from '@data/food/stores';
@@ -140,6 +141,13 @@ export default function CommonProductDetailView({
     [store, product.id],
   );
 
+  // Overlay approved festival discounts on the "More from store" rail (no-op offline / none apply).
+  const relatedDiscounts = useActiveDiscounts(relatedProducts.map((p) => p.id));
+  const pricedRelatedProducts = useMemo(
+    () => applyActiveDiscounts(relatedProducts, relatedDiscounts),
+    [relatedProducts, relatedDiscounts],
+  );
+
   const foodStore = useMemo<StoreProfile | undefined>(() => {
     if (product.app !== 'FOOD' || !product.shop) return undefined;
     return foodStores.find((s) => s.app === 'FOOD' && s.name === product.shop);
@@ -188,7 +196,7 @@ export default function CommonProductDetailView({
           <>
             <AppText style={styles.relatedTitle}>More from {store.name}</AppText>
             <View style={styles.relatedGrid}>
-              {relatedProducts.map((p) => {
+              {pricedRelatedProducts.map((p) => {
                 const qty = cartItems.find((i) => i.id === p.id)?.quantity ?? 0;
                 return (
                   <ProductCardBase

@@ -9,6 +9,7 @@ import { useFavoriteStore } from '@/state/favoriteStore';
 import { getCatalogEntriesByIds } from '@data/catalog/products';
 import type { CatalogEntry } from '@data/catalog/products';
 import { gateway } from '@/services/api/GatewayClient';
+import { applyActiveDiscounts, useActiveDiscounts } from '@/services/pricing';
 import SegmentedToggle from '@/features/search/SegmentedToggle';
 import FilterChipsRail from '@/features/search/FilterChipsRail';
 import type { SortOption, SearchToggleOption } from '@/features/search/types';
@@ -81,9 +82,16 @@ const FavouritesPageView = memo(function FavouritesPageView({
     };
   }, [favorites]);
 
+  // Overlay approved festival discounts on the shelf (no-op offline / when none apply).
+  const discounts = useActiveDiscounts(entries.map((e) => e.id));
+  const pricedEntries = useMemo(
+    () => applyActiveDiscounts(entries, discounts),
+    [entries, discounts],
+  );
+
   const visibleEntries = useMemo(() => {
     const filtered =
-      activeKey === 'ALL' ? entries : entries.filter((e) => e.app === activeKey);
+      activeKey === 'ALL' ? pricedEntries : pricedEntries.filter((e) => e.app === activeKey);
     const sorted = [...filtered];
     switch (activeSortId) {
       case 'price-low':
@@ -99,7 +107,7 @@ const FavouritesPageView = memo(function FavouritesPageView({
         break;
     }
     return sorted;
-  }, [entries, activeKey, activeSortId]);
+  }, [pricedEntries, activeKey, activeSortId]);
 
   const totalCount = entries.length;
 

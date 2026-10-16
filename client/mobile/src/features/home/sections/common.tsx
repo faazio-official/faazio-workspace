@@ -1,9 +1,10 @@
-import React, { useState, useRef, useEffect, useCallback } from 'react';
+import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 import { View, TouchableOpacity, StyleSheet } from 'react-native';
 import { hs, vs, ms } from '@/utils/responsive';
 import { SPACE } from '@/theme/spacing';
 import type { SubAppId } from '@/state/uiStore';
-import type { AppBrand } from '@data/types';
+import type { AppBrand, Product } from '@data/types';
+import { applyActiveDiscounts, useActiveDiscounts } from '@/services/pricing';
 import AppText from '@/components/AppText';
 
 export interface SectionProps {
@@ -41,6 +42,16 @@ export function useAddToCartFeedback(addToCart?: (id: string, name: string, pric
   }, [addToCart]);
 
   return { addedId, handleAdd };
+}
+
+/**
+ * Overlay the approved festival discounts on a Home section's product list. Sections read
+ * canonical sources (curated fixtures / server feed rows), so the overlay is applied exactly once.
+ * No-op offline or when no discount is live.
+ */
+export function usePricedProducts<T extends Product>(products: T[]): T[] {
+  const discounts = useActiveDiscounts(products.map((p) => p.id));
+  return useMemo(() => applyActiveDiscounts(products, discounts), [products, discounts]);
 }
 
 interface SectionHeaderProps {

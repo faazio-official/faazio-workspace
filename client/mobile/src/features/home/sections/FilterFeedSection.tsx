@@ -9,7 +9,7 @@ import type { FilterChipId } from '@data/home/filterFeed';
 import type { Product } from '@data/types';
 import UniversalFeedCard from '@/features/home/cards/UniversalFeedCard';
 import FilterChipsRail from '@/features/home/cards/FilterChipsRail';
-import { SectionHeader, useAddToCartFeedback } from './common';
+import { SectionHeader, useAddToCartFeedback, usePricedProducts } from './common';
 import type { SectionProps } from './common';
 import { useBatchedFeed } from '@/hooks/useBatchedFeed';
 import AppText from '@/components/AppText';
@@ -39,7 +39,8 @@ function FilterFeedSection({
 }: FilterFeedSectionProps) {
   const [activeChip, setActiveChip] = useState<FilterChipId>(filterChips[0].id);
   const pool = filterFeedPools[activeChip] ?? [];
-  const { visibleItems, hasMore, loadMore, total, visibleCount } = useBatchedFeed(pool, BATCH_SIZE);
+  const pricedPool = usePricedProducts(pool);
+  const { visibleItems, hasMore, loadMore, total, visibleCount } = useBatchedFeed(pricedPool, BATCH_SIZE);
   const { addedId, handleAdd } = useAddToCartFeedback(addToCart);
 
   const sectionTop = useSharedValue(0);

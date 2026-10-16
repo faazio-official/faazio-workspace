@@ -1,7 +1,8 @@
-import React, { useCallback, useEffect, useMemo } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import CommonProductDetailView from '@/features/product/CommonProductDetailView';
 import { gateway } from '@/services/api/GatewayClient';
+import { applyActiveDiscount, useActiveDiscounts } from '@/services/pricing';
 import { useCartStore } from '@/state/cartStore';
 import { useFavoriteStore } from '@/state/favoriteStore';
 import { getDiningRestaurantForProduct } from '@/features/food/utils/restaurantForProduct';
@@ -23,6 +24,36 @@ export function ProductDetailScreen({ navigation, route }: Props) {
   useEffect(() => {
     if (product?.id) void gateway.trackEvent(product.id, 'view').catch(() => {});
   }, [product?.id]);
+
+  // Price authority: re-resolve the canonical catalog row (base price) so an already-overlaid
+  // object from a rail/search never gets the festival discount applied twice. Offline / on error
+  // the passed product is used as-is.
+  const [canonical, setCanonical] = useState<Product | undefined>(undefined);
+  useEffect(() => {
+    if (!product?.id || !gateway.remoteEnabled) {
+      setCanonical(undefined);
+      return;
+    }
+    let active = true;
+    gateway
+      .getProduct(product.id)
+      .then((r) => {
+        if (active && r?.product) setCanonical(r.product);
+      })
+      .catch(() => undefined);
+    return () => {
+      active = false;
+    };
+  }, [product?.id]);
+
+  const discounts = useActiveDiscounts(canonical ? [canonical.id] : []);
+  const pricedProduct = useMemo<Product | undefined>(() => {
+    if (!product) return undefined;
+    if (!canonical) return product;
+    const priced = applyActiveDiscount(canonical, discounts[canonical.id]);
+    // Keep the richer passed object (storeId/shop/…) but take the server's price authority.
+    return { ...product, price: priced.price, originalPrice: priced.originalPrice };
+  }, [product, canonical, discounts]);
 
   const handleClose = useCallback(() => navigation.goBack(), [navigation]);
   const appToSubApp: Record<string, SubAppId> = {
@@ -59,7 +90,7 @@ export function ProductDetailScreen({ navigation, route }: Props) {
 
   return (
     <CommonProductDetailView
-      product={product}
+      product={pricedProduct}
       onClose={handleClose}
       onSearch={handleSearch}
       onCart={handleCart}

@@ -3,6 +3,7 @@ import { Package } from 'lucide-react-native';
 import { martProducts } from '@data/mart/products';
 import type { Product } from '@data/types';
 import { gateway } from '@/services/api/GatewayClient';
+import { withActiveDiscounts } from '@/services/pricing';
 import SearchMartProductCard from '@/features/ecommerce/components/SearchMartProductCard';
 import { buildProductSuggestions } from '../suggestions';
 import type { ActiveFacets, SearchScreenConfig } from '../types';
@@ -68,8 +69,9 @@ export function createMartSearchConfig({
         renderCard: (item) => (
           <SearchMartProductCard product={item as Product} onPress={onProductPress} />
         ),
-        // Server FTS result pool (directory/catalog, app=MART); local pool is the fallback.
-        fetch: (q) => gateway.searchProducts(q, 'MART'),
+        // Server FTS result pool (directory/catalog, app=MART), with any approved festival discount
+        // overlaid; the local pool is the fallback.
+        fetch: async (q) => withActiveDiscounts(await gateway.searchProducts(q, 'MART')),
         sorters: {
           relevance: () => 0,
           popularity: (a, b) => {

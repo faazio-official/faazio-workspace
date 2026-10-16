@@ -23,8 +23,15 @@ on-device; a festival opt-in only reaches the app after an admin approves it.
   best live `festival_optins` per product (campaign `LIVE` + in-window, opt-in `APPROVED`, clamped by
   the effective `sector_caps` row), cached `faazio:v1:promo:active:{productId}` 300 s, invalidated on
   opt-in/campaign status change. Consumed by `GatewayClient.getActiveDiscounts` +
-  `services/pricing.ts` (`useActiveDiscounts`/`applyActiveDiscount[s]`), overlaid on the Mart vendor
-  rail and `DealsLanding` (`discounts`). Mock/offline returns none — base prices stand.
+  `services/pricing.ts` (`useActiveDiscounts`/`fetchActiveDiscounts`/`withActiveDiscounts`/
+  `applyActiveDiscount[s]`). Mock/offline returns none — base prices stand.
+- **Overlay coverage.** The shopper pays the same price on every surface: Mart vendor rail +
+  `DealsLanding` (full-pool overlay then `isDiscounted`), search results (Mart + Home configs via the
+  `fetch` seam → `withActiveDiscounts`), category/vendor drill-in (`VendorDetailScreen`), PDP
+  (`ProductDetailScreen` re-resolves the canonical row before overlaying once, so a pre-overlaid
+  object is never double-discounted), favourites (`FavouritesPageView`), and the Home product
+  surfaces (`usePricedProducts` in `AudienceGrid`/`HairSkinCare`/`RecentlyViewed`/`FilterFeed`/
+  `NearbyOffers`/`SponsoredRail`).
 - **Portal.** `seller/promotions` gained a **Live price** column + approval hint (cap enforced
   server-side).
 - **Auth unchanged** — the app keeps its mocked login (no Supabase phone OTP by product decision).

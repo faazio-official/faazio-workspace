@@ -72,3 +72,32 @@ export function useActiveDiscounts(productIds: string[]): Record<string, ActiveD
 
   return map;
 }
+
+/**
+ * Non-hook counterpart to `useActiveDiscounts` for async list sources (e.g. the search `fetch`
+ * seam): fetch the active discounts for a set of ids as a lookup map. Remote-only — `{}` in mock
+ * mode or on failure, so a discount is never invented.
+ */
+export async function fetchActiveDiscounts(
+  productIds: string[],
+): Promise<Record<string, ActiveDiscount>> {
+  if (!gateway.remoteEnabled || productIds.length === 0) return {};
+  try {
+    const discounts = await gateway.getActiveDiscounts(productIds);
+    const map: Record<string, ActiveDiscount> = {};
+    for (const d of discounts) map[d.productId] = d;
+    return map;
+  } catch {
+    return {};
+  }
+}
+
+/**
+ * Fetch the active discounts for `products` and overlay them in one step. The convenience used by
+ * async product sources (search) so their result rows carry the shopper price with no synthesized
+ * fallback.
+ */
+export async function withActiveDiscounts<T extends Product>(products: T[]): Promise<T[]> {
+  if (products.length === 0) return products;
+  return applyActiveDiscounts(products, await fetchActiveDiscounts(products.map((p) => p.id)));
+}

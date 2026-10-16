@@ -4,6 +4,7 @@ import { martProducts } from '@data/mart/products';
 import { pharmaProducts } from '@data/pharma/products';
 import type { Product } from '@data/types';
 import { gateway } from '@/services/api/GatewayClient';
+import { withActiveDiscounts } from '@/services/pricing';
 import SearchMartProductCard from '@/features/ecommerce/components/SearchMartProductCard';
 import SearchPharmaProductCard from '@/features/pharma/components/SearchPharmaProductCard';
 import { buildProductSuggestions } from '../suggestions';
@@ -93,7 +94,7 @@ export function createHomeSearchConfig({
         data: [...martProducts, ...pharmaProducts],
         predicate,
         renderCard: (item) => renderCardByApp(item as Product, onProductPress),
-        fetch: (q) => gateway.searchProducts(q),
+        fetch: async (q) => withActiveDiscounts(await gateway.searchProducts(q)),
         sorters: {
           relevance: () => 0,
           popularity: (a, b) => {
@@ -111,7 +112,7 @@ export function createHomeSearchConfig({
         data: martProducts,
         predicate,
         renderCard: (item) => renderCardByApp(item as Product, onProductPress),
-        fetch: (q) => gateway.searchProducts(q, 'MART'),
+        fetch: async (q) => withActiveDiscounts(await gateway.searchProducts(q, 'MART')),
         sorters: {
           relevance: () => 0,
           popularity: (a, b) =>

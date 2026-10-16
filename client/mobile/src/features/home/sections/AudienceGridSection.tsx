@@ -3,7 +3,7 @@ import { View, StyleSheet } from 'react-native';
 import { hs } from '@/utils/responsive';
 import { SPACE } from '@/theme/spacing';
 import MartProductCard from '@/features/ecommerce/cards/MartProductCard';
-import { SectionHeader, useAddToCartFeedback } from './common';
+import { SectionHeader, useAddToCartFeedback, usePricedProducts } from './common';
 import type { SectionProps } from './common';
 import type { Product } from '@data/types';
 
@@ -18,11 +18,12 @@ function AudienceGridSection({
   onProductClick, addToCart,
 }: AudienceGridSectionProps) {
   const { addedId, handleAdd } = useAddToCartFeedback(addToCart);
+  const priced = usePricedProducts(products);
   return (
     <>
       <SectionHeader title={title} />
       <View style={styles.grid}>
-        {products.map((product) => (
+        {priced.map((product) => (
           <MartProductCard
             key={product.id}
             product={product}

@@ -8,7 +8,7 @@ import { gateway, type ProductView } from '@/services/api/GatewayClient';
 import UniversalFeedCard from '@/features/home/cards/UniversalFeedCard';
 import SlideUpSheet from '@/components/shared/SlideUpSheet';
 import AppText from '@/components/AppText';
-import { useAddToCartFeedback } from './common';
+import { useAddToCartFeedback, usePricedProducts } from './common';
 import type { SectionProps } from './common';
 
 /** The placement this rail reads (`GET /ads/live?slot=HOME_TOP`). */
@@ -25,6 +25,8 @@ function SponsoredRailSection({ onProductClick, addToCart }: SectionProps) {
   const [products, setProducts] = useState<ProductView[]>([]);
   const [infoOpen, setInfoOpen] = useState(false);
   const { addedId, handleAdd } = useAddToCartFeedback(addToCart);
+  // The shopper pays the same price everywhere: overlay any live festival discount on the paid shelf.
+  const priced = usePricedProducts(products);
 
   useEffect(() => {
     let active = true;
@@ -60,7 +62,7 @@ function SponsoredRailSection({ onProductClick, addToCart }: SectionProps) {
       </View>
 
       <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.scroll}>
-        {products.map((product) => (
+        {priced.map((product) => (
           <UniversalFeedCard
             key={product.id}
             product={product as unknown as Product}

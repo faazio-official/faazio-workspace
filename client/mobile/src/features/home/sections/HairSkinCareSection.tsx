@@ -4,18 +4,19 @@ import { hs } from '@/utils/responsive';
 import { SPACE } from '@/theme/spacing';
 import { hairSkinPicks } from '@data/home/demographics';
 import UniversalFeedCard from '@/features/home/cards/UniversalFeedCard';
-import { SectionHeader, useAddToCartFeedback } from './common';
+import { SectionHeader, useAddToCartFeedback, usePricedProducts } from './common';
 import type { SectionProps } from './common';
 
 // Hair & Skin Care pulls from BOTH the Mart Beauty catalog and Pharma OTC/wellness.
 // Items carry their own `app`, so UniversalFeedCard renders each with its native skin.
 function HairSkinCareSection({ onProductClick, addToCart }: SectionProps) {
   const { addedId, handleAdd } = useAddToCartFeedback(addToCart);
+  const priced = usePricedProducts(hairSkinPicks);
   return (
     <>
       <SectionHeader title="Hair & Skin Care" />
       <View style={styles.grid}>
-        {hairSkinPicks.map((product) => (
+        {priced.map((product) => (
           <UniversalFeedCard
             key={product.id}
             product={product}
