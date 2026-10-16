@@ -192,7 +192,11 @@ The gateway also exposes `GET /ads/live` (LIVE slots); the shared **`components/
 result collapses the rail (never a fabricated sponsored shelf), and every card carries the AD
 disclosure. Impressions/clicks post to `POST /ads/events` (`GatewayClient.recordAdEvent`, de-duped
 per user); the last tapped slot attributes the next order via `services/adsAttribution.ts`. Money/Rx/address writes honour `EXPO_PUBLIC_STRICT=true`, which disables the fixture fallback so
-a failed write can never masquerade as a local success.
+a failed write can never masquerade as a local success. Under the same flag, **money-critical reads**
+(`getProduct`, `getStock`, `getProductsByIds`, `getMenu`, `getCoupons`, `validateCoupon`,
+`getOrderTracking`) also go strict — a price/stock/discount/Rx status is never fabricated from a
+fixture on a remote error (W34). `getVenue(id)`/`getOrderTracking(orderId)` surface the W34 single
+reads.
 
 **Shopper price + discount integrity (W31).** Discount percentage is always derived from an
 authoritative source, never invented on-device. `data/food/menus.ts` dishes may carry an authored

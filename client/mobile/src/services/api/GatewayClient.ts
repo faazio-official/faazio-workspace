@@ -234,6 +234,14 @@ export interface ActiveDiscount {
   discountPercent: number;
 }
 
+/** Lightweight owner-scoped order status (GET /orders/tracking/{id}) for the tracking poll. */
+export interface OrderTrackingView {
+  id: string;
+  status: string;
+  statusDate?: string;
+  placedAt: string;
+}
+
 /** One notifications.outbox row (user-facing copy only). */
 export interface NotificationRecord {
   id: string;
@@ -497,9 +505,9 @@ export class GatewayClient {
     return delay(this.joinStock(scoped));
   }
 
-  /** Fetch one catalog entry with stock and reviews. */
+  /** Fetch one catalog entry with stock and reviews. Price/stock are money-critical → strict. */
   async getProduct(id: string): Promise<{ product: ProductView; reviews: ReviewRow[] } | undefined> {
-    return this.withFallback(
+    return this.withStrict(
       async () => {
         const { product } = await this.http<{ product: ProductView }>(`/product/${encodeURIComponent(id)}`);
         const reviews = await this.http<ReviewRow[]>(`/product/${encodeURIComponent(id)}/reviews`).catch(() => [] as ReviewRow[]);
@@ -515,8 +523,9 @@ export class GatewayClient {
     return delay({ product: this.joinStock([entry])[0], reviews: getReviewsByProductId(id) });
   }
 
+  /** Batch catalog read (used by deals/home price overlays). Strict — prices are never fabricated. */
   async getProductsByIds(ids: string[]): Promise<ProductView[]> {
-    return this.withFallback(
+    return this.withStrict(
       () => this.http<ProductView[]>('/products/batch', { method: 'POST', body: JSON.stringify({ ids }) }),
       () => delay(this.joinStock(getCatalogEntriesByIds(ids))),
     );
@@ -553,8 +562,20 @@ export class GatewayClient {
     );
   }
 
-  async getStock(productId: string): Promise<StockRow | undefined> {
+  /** Live stock for a product. Strict — availability/price must not be faked offline. */
+  /** One dining venue by id (single read). Mirrors the @data identity table offline. */
+  async getVenue(id: string): Promise<Venue | undefined> {
     return this.withFallback(
+      () => this.http<Venue>(`/venues/${encodeURIComponent(id)}`),
+      () => {
+        const v = diningVenues.find((x) => x.id === id);
+        return delay(v ? { id: v.id, app: 'FOOD', name: v.name, coverImage: '', categories: [] } : undefined);
+      },
+    );
+  }
+
+  async getStock(productId: string): Promise<StockRow | undefined> {
+    return this.withStrict(
       () => this.http<StockRow>(`/stock/${encodeURIComponent(productId)}`),
       () => delay(getStockByProductId(productId)),
     );
@@ -571,6 +592,18 @@ export class GatewayClient {
     return this.withFallback(
       () => this.http<OrderRow[]>('/orders'),
       () => delay(getOrdersByUser(userId)),
+    );
+  }
+
+  /**
+   * Lightweight status poll for one of the caller's own orders (GET /orders/tracking/{id}) — no line
+   * items/PII. Used to watch a delivery without refetching the full orders list. Strict, so a status
+   * is never fabricated offline.
+   */
+  async getOrderTracking(orderId: string): Promise<OrderTrackingView | undefined> {
+    return this.withStrict(
+      () => this.http<OrderTrackingView>(`/orders/tracking/${encodeURIComponent(orderId)}`),
+      () => delay(undefined),
     );
   }
 
@@ -700,11 +733,11 @@ export class GatewayClient {
   }
 
   /**
-   * Active, unexpired coupons visible to an app (public, anon, cached). The server is the
-   * authority for which coupons exist; the mock fallback mirrors the `@data/cart/coupons` fixture.
+   * Active, unexpired coupons visible to an app (public, anon, cached). Strict: the server is the
+   * authority for which coupons exist and their terms — a discount is never fabricated offline.
    */
   async getCoupons(app?: AppBrand): Promise<PublicCoupon[]> {
-    return this.withFallback(
+    return this.withStrict(
       () => this.http<PublicCoupon[]>(`/coupons${app ? `?app=${app}` : ''}`),
       () =>
         delay(
@@ -771,7 +804,7 @@ export class GatewayClient {
 
   /**
    * Server-authoritative coupon ruling for a cart (`POST /checkout/validate-coupon`, auth-scoped).
-   * Fallback validates the local `@data/cart/coupons` fixture so the sheet still behaves offline.
+   * Strict — a coupon discount is money and is never fabricated from a local fixture.
    */
   async validateCoupon(input: {
     code: string;
@@ -779,7 +812,7 @@ export class GatewayClient {
     state?: string;
     subtotal: number;
   }): Promise<CouponValidation> {
-    return this.withFallback(
+    return this.withStrict(
       () =>
         this.http<CouponValidation>('/checkout/validate-coupon', {
           method: 'POST',
@@ -836,9 +869,9 @@ export class GatewayClient {
     );
   }
 
-  /** A venue's dishes (durable directory.menus; falls back to the @data menu fixture). */
+  /** A venue's dishes (durable directory.menus). Strict — menu prices are money-critical. */
   async getMenu(venueId: string): Promise<MenuDish[]> {
-    return this.withFallback(
+    return this.withStrict(
       () => this.http<MenuDish[]>(`/venues/${encodeURIComponent(venueId)}/menu`),
       () => {
         const venue = getStoreById(venueId) ?? diningVenues.find((v) => v.id === venueId);

@@ -5,6 +5,28 @@ dependencies exist. Do not build the backend/seller flows until told to.
 
 ---
 
+## W34 — Server quench + strict money reads (Phase 0/1/2 of production-readiness plan)
+
+**Status:** 🟢 Shipped (server) + 🔵 Partial (app).
+
+- **Server (additive, existing contexts):** `GET /venues/{id}` (directory), `GET
+  /seller/prescriptions/{id}` (pharma, name-only-until-READY; cross-seller 404), `GET
+  /orders/tracking/{id}` (checkout, owner-scoped lightweight status), admin `POST
+  /notifications/drain` (`contracts.Drainer`, 503 without a push provider). Pharma quote
+  `price<=mrp` + idempotent `READY`. Migration `0023` (seller-queue index + `NOT VALID` quote
+  CHECKs).
+- **App:** `GatewayClient` money-critical reads are now **strict** (no fixture on a remote error):
+  `getProduct`, `getStock`, `getProductsByIds`, `getMenu`, `getCoupons`, `validateCoupon`,
+  `getOrderTracking`. New client methods `getVenue(id)` and `getOrderTracking(orderId)` expose the
+  new endpoints. Offline behaviour is unchanged when `EXPO_PUBLIC_USE_GATEWAY`/`STRICT` are unset.
+- **Still mocked / not de-mocked (remaining Phase 2/4):** app auth (`authStore.login()`), cart +
+  favourites + rewards + orders stores remain device-local-first (gateway mirrors best-effort),
+  and there is no app-side notification poll/FCM (in-app inbox is read on demand only).
+
+**Date:** 2026-10-16
+
+---
+
 ## W33 — De-mock slice 1: Mart home deals + Food delivery-store menus
 
 **Status:** 🟢 Shipped (finish-and-cutover pass, Phase A+B slice 1).
