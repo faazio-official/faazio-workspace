@@ -37,9 +37,6 @@ func Favourites(userID string) string { return fmt.Sprintf("faazio:v1:favourites
 func Rewards(userID string) string    { return fmt.Sprintf("faazio:v1:rewards:view:%s", userID) }
 func BloodRequests(key string) string { return fmt.Sprintf("faazio:v1:blood:requests:%s", key) }
 func Bookings(userID string) string   { return fmt.Sprintf("faazio:v1:bookings:tables:%s", userID) }
-func FoodBookings(userID string) string {
-	return fmt.Sprintf("faazio:v1:bookings:food:%s", userID)
-}
 
 // BookingAvail caches the public, seat-count-free availability projection for a vendor. The
 // seller-private config row itself is never cached (PII/internal rules, caching doc §6).

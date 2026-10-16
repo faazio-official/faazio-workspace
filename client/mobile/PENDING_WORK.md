@@ -53,7 +53,6 @@ rows gracefully).
   `react-native-razorpay` install, no network). To go live: install the SDK, implement a `PaymentCheckout`
   adapter, and register it once via `setPaymentCheckout()`; no screen change. The mock refuses to
   fabricate a payment when a real publishable key is present (fails loudly).
-  Food order bookings (`createFoodBooking`) still have no screen/route.
 
 **Dropped by product decision:** mobile auth stays **mocked** (`authStore.login()`) — no Supabase
 phone-OTP/JWT cutover. `GatewayClient` still attaches a bearer when a session is present.
@@ -83,9 +82,9 @@ That is a product/design call, and the correct long-term home is the SDUI layout
   `promo.coupons`; the gateway serves anon `GET /coupons?app=&state=` (cached 600 s) and
   `GET /ads/live?slot=`. `GatewayClient.getCoupons` feeds the cart coupon sheet (fixture fallback).
   The brand-campaign/hero rails stay **`@static-editorial`** — no ceiling on the SDUI layout doc.
-- **Food-order bookings — open.** `GatewayClient.createFoodBooking`/`getFoodBookings`,
-  `foodBookingStore` and the `/food-bookings` endpoints still have **no screen or route**; build the
-  screen or delete the path (kept as the future seam this pass).
+- **Food-order bookings — removed.** `GatewayClient.createFoodBooking`/`getFoodBookings`,
+  `state/foodBookingStore`, the `/food-bookings` routes and `contracts.FoodBooking` were dead code
+  (no screen/route); deleted. `bookings.food_orders` stays a reserved, unseeded table seam.
 - **Rewards writes — local by decision.** `rewardsStore.recordOrder`/`redeemCoins` stay device-local
   for MVP; the server view (`GET /rewards`) is reconciled on read only.
 - **Razorpay native checkout.** Still the mock adapter seam (`services/payments/checkout.ts`); needs
@@ -1816,10 +1815,11 @@ tightened (`paddingBottom vs(8)`, `marginTop vs(4)`) and `CARDS_PER_RAIL` 8 → 
   redacted for anon), `blood.interests`, `blood.match_requests`. `bloodDonorStore` now mirrors
   `register()` → `PUT /donors/me`, `toggleInterested`/`acceptRequest` → `setBloodInterest`, and
   `requestDonor` → `createDonorMatch` (best-effort; AsyncStorage stays the optimistic cache).
-- **bookings** (`internal/bookings`, migration `0011`): `bookings.tables` + `bookings.food_orders`.
-  `GatewayClient` exposes `getBookings/createBooking/cancelBooking/getFoodBookings/createFoodBooking`.
+- **bookings** (`internal/bookings`, migration `0011`/`0020`): `bookings.tables` (+ `venue_configs`,
+  `payments`). `GatewayClient` exposes `getBookings/createBooking/cancelBooking/attachBookingPayment`.
+  `bookings.food_orders` is reserved/unseeded (W29 follow-up removed the dead food-booking path).
 
-**Remaining:** wire `bookingStore`/`foodBookingStore` (currently unused by any screen) to hydrate
+**Remaining:** wire `bookingStore` (currently unused by any screen) to hydrate
 from and write to the gateway; migrate the blood dashboard/request board off the `BLOOD_REQUESTS` /
 `BLOOD_DONORS` `@data` seeds to `GET /blood-requests` / `GET /donors`.
 

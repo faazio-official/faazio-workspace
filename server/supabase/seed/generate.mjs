@@ -379,12 +379,6 @@ sql.push(inserts(
   ['vendor_id', 'seller_id', 'booking_enabled', 'total_seats', 'track_occupancy', 'open_time', 'close_time', 'paused'],
   [[q(seedVenueId), q('sel-3'), b(true), n(40), b(true), q('09:00'), q('21:00'), b(false)]],
 ));
-sql.push(inserts(
-  'bookings.food_orders',
-  ['order_id', 'user_id', 'dish', 'guests', 'booking_date', 'slot', 'added_ids'],
-  [[q('FB-000001'), q('user-1'), jsonb((d.BOOKING_DISHES_DB ?? [])[0]), n(2), q('2026-02-01'), q('20:00'), arr([])]],
-));
-
 sql.push('commit;');
 sql.push('');
 

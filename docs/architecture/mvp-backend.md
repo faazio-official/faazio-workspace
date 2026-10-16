@@ -96,7 +96,6 @@ All read-through: Valkey → Supabase/Mongo → populate. Cloudflare caches publ
 | `GET /venues/{id}/booking-availability` | bookings | public, seat-count-free `{bookable, feePerSeat, timingLabel, openNow}` (never totals/remaining) |
 | `GET/PUT /seller/booking-config`, `GET /seller/bookings`, `PUT /bookings/{id}/status`, `POST /bookings/{id}/vacate` | bookings | seller-private config (seats/timings/tracking/pause); accept captures / reject refunds; vacate frees occupancy; owner-scoped. `GET /seller/bookings` echoes the caller's `sellerId` on each row (bookings have no seller column; ownership is via the venue) |
 | `POST /webhooks/razorpay` | bookings | HMAC-signature-verified Razorpay events → idempotent ledger update (`payment.authorized/captured/failed`, `refund.*`) |
-| `GET/POST /food-bookings` | bookings | durable food order bookings (dish snapshot JSONB) |
 | `GET/POST /orders` | checkout | `POST` uses `SET NX EX 300` idempotency + `SELECT … FOR UPDATE SKIP LOCKED` stock decrement |
 | `PUT /vendors/{id}/rating` | reviews | derived eligibility gate (`hasPurchasedFromVendor`); never a stored flag |
 | `POST /events` | reco | ID-only `userIdHash`, 90-day Mongo TTL; event allowlist + `productId ≤ 64` chars |
@@ -106,7 +105,7 @@ Every endpoint above now has a `GatewayClient` method (`getVendorReviews`, `rate
 `getCart`/`addToCart`/`updateCartItem`/`removeCartItem`, `placeOrder`, `trackEvent`,
 `getDonorProfile`/`saveDonorProfile`/`getBloodDonors`/`getBloodRequests`/`createBloodRequest`/
 `setBloodInterest`/`createDonorMatch`/`getDonorMatches`, `getBookings`/`createBooking`/`cancelBooking`/
-`attachBookingPayment`/`getBookingAvailability`/`getFoodBookings`/`createFoodBooking`,
+`attachBookingPayment`/`getBookingAvailability`,
 `getRecommendations`) with the `@data/*` fallback, so the per-module `@mock` →
 `@server` migration can begin once Supabase phone OTP replaces `authStore.login()`.
 

@@ -1,7 +1,9 @@
-// Package bookings persists seat-based dinner reservations (bookings.tables), food order bookings
-// (bookings.food_orders) and the seller-private booking config (bookings.venue_configs) plus the
-// booking-scoped payments ledger (bookings.payments). Future service: Go + Postgres
-// (monolith-breakdown.md §1).
+// Package bookings persists seat-based dinner reservations (bookings.tables) and the seller-private
+// booking config (bookings.venue_configs) plus the booking-scoped payments ledger (bookings.payments).
+// Future service: Go + Postgres (monolith-breakdown.md §1).
+//
+// `bookings.food_orders` (0011) is a reserved, unseeded table: food-order bookings have no screen or
+// gateway route in the MVP (W29 follow-up removed the dead handler/repo/contract).
 //
 // Money: the DB stores INT8 paisa; this layer is the only conversion boundary and every JSON DTO it
 // returns exposes whole rupees (money freeze §4). The per-seat platform fee is a server constant the
@@ -573,65 +575,6 @@ func scanBookings(rows pgx.Rows) ([]contracts.Booking, error) {
 			return nil, err
 		}
 		out = append(out, b)
-	}
-	return out, rows.Err()
-}
-
-// CreateFood inserts a food order booking for userID.
-func (r *Repo) CreateFood(ctx context.Context, userID string, f contracts.FoodBooking) (contracts.FoodBooking, error) {
-	if r.pool == nil {
-		return contracts.FoodBooking{}, fmt.Errorf("bookings: database not configured")
-	}
-	f.OrderID = "BKG-" + shortID()
-	f.UserID = userID
-	if f.Guests < 1 {
-		f.Guests = 1
-	}
-	if len(f.Dish) == 0 {
-		f.Dish = []byte("{}")
-	}
-	if f.AddedIDs == nil {
-		f.AddedIDs = []string{}
-	}
-	var createdAt time.Time
-	err := r.pool.QueryRow(ctx, `
-		insert into bookings.food_orders
-		  (order_id, user_id, dish, guests, booking_date, slot, added_ids)
-		values ($1,$2,$3::jsonb,$4,$5::date,$6,$7)
-		returning created_at`,
-		f.OrderID, f.UserID, string(f.Dish), f.Guests, f.Date, f.Time, f.AddedIDs).Scan(&createdAt)
-	if err != nil {
-		return contracts.FoodBooking{}, err
-	}
-	f.Timestamp = createdAt.UnixMilli()
-	return f, nil
-}
-
-// FoodByUser lists the caller's food order bookings, newest first.
-func (r *Repo) FoodByUser(ctx context.Context, userID string) ([]contracts.FoodBooking, error) {
-	if r.pool == nil {
-		return nil, fmt.Errorf("bookings: database not configured")
-	}
-	rows, err := r.pool.Query(ctx, `
-		select order_id, user_id, dish, guests, booking_date::text, slot, added_ids, created_at
-		  from bookings.food_orders where user_id = $1 order by created_at desc`, userID)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	out := []contracts.FoodBooking{}
-	for rows.Next() {
-		var (
-			f         contracts.FoodBooking
-			dish      []byte
-			createdAt time.Time
-		)
-		if err := rows.Scan(&f.OrderID, &f.UserID, &dish, &f.Guests, &f.Date, &f.Time, &f.AddedIDs, &createdAt); err != nil {
-			return nil, err
-		}
-		f.Dish = dish
-		f.Timestamp = createdAt.UnixMilli()
-		out = append(out, f)
 	}
 	return out, rows.Err()
 }

@@ -353,18 +353,6 @@ export interface BookingAvailabilityDto {
   openNow: boolean;
 }
 
-/** A bookings.food_orders row (dish is the opaque snapshot). */
-export interface FoodBookingDto {
-  orderId: string;
-  userId: string;
-  dish: unknown;
-  guests: number;
-  date: string;
-  time: string;
-  addedIds: string[];
-  timestamp: number;
-}
-
 /** A checkout.addresses row as served by `GET /profile/addresses` (delivery PII, auth-scoped). */
 interface AddressRecord {
   addressId: string;
@@ -927,27 +915,6 @@ export class GatewayClient {
     await this.withFallback(
       () => this.http<{ ok: boolean }>(`/bookings/${encodeURIComponent(id)}`, { method: 'DELETE' }).then(() => undefined),
       () => delay(undefined),
-    );
-  }
-
-  /** The caller's food order bookings. */
-  async getFoodBookings(): Promise<FoodBookingDto[]> {
-    return this.withFallback(
-      () => this.http<FoodBookingDto[]>('/food-bookings'),
-      () => delay([] as FoodBookingDto[]),
-    );
-  }
-
-  /** Create a food order booking. */
-  async createFoodBooking(input: { dish: unknown; guests: number; date: string; time: string; addedIds?: string[] }): Promise<FoodBookingDto> {
-    return this.withFallback(
-      () => this.http<FoodBookingDto>('/food-bookings', { method: 'POST', body: JSON.stringify(input) }),
-      () =>
-        delay({
-          orderId: `BKG-LOCAL-${Date.now()}`, userId: MOCK_USER_ID, dish: input.dish,
-          guests: input.guests, date: input.date, time: input.time,
-          addedIds: input.addedIds ?? [], timestamp: Date.now(),
-        }),
     );
   }
 

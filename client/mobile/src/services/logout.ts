@@ -5,7 +5,6 @@ import { useSearchStore } from '@/state/searchStore';
 import { usePharmaStore } from '@/state/pharmaStore';
 import { useBloodDonorStore } from '@/state/bloodDonorStore';
 import { useBookingStore } from '@/state/bookingStore';
-import { useFoodBookingStore } from '@/state/foodBookingStore';
 import { useRewardsStore } from '@/state/rewardsStore';
 import { useVendorRatingStore } from '@/state/vendorRatingStore';
 
@@ -20,7 +19,6 @@ export async function logoutUser(): Promise<void> {
   usePharmaStore.setState({ prescriptions: [] });
   useBloodDonorStore.getState().reset();
   useBookingStore.setState({ bookings: [] });
-  useFoodBookingStore.setState({ bookings: [] });
   useRewardsStore.getState().reset();
   useVendorRatingStore.getState().reset();
 

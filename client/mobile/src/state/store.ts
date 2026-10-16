@@ -7,9 +7,6 @@ export type { CartItem } from './cartStore';
 export { useBookingStore } from './bookingStore';
 export type { Booking } from './bookingStore';
 
-export { useFoodBookingStore } from './foodBookingStore';
-export type { FoodBookingRecord } from './foodBookingStore';
-
 export { usePharmaStore } from './pharmaStore';
 export type { Prescription } from './pharmaStore';
 

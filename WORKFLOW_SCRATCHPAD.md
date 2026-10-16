@@ -31,6 +31,10 @@
 > (`scope=GLOBAL`, all-sector, future `valid_till`, `active`) from `data/cart/coupons.ts`;
 > `docker-compose.yml` mounts the missing `0021_public_promos.sql`; `TestPublicCoupons` locks the
 > active/unexpired/sector-filtered projection. Additive; `checkout.coupons` is now legacy/unseeded.
+> **P2.8 (same pass):** the dead food-order-booking path (`GatewayClient.createFoodBooking`/
+> `getFoodBookings`, `state/foodBookingStore`, `/food-bookings` routes, `contracts.FoodBooking`,
+> `cache.FoodBookings`, seed row) was deleted — no screen/route existed. `bookings.food_orders` stays a
+> reserved, unseeded table seam.
 
 ## 0. dtype freeze (the lean contract everything obeys)
 

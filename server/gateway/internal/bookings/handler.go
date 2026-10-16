@@ -41,8 +41,6 @@ func (h *Handler) Register(r chi.Router) {
 		g.Post("/bookings", h.create)
 		g.Delete("/bookings/{id}", h.cancel)
 		g.Post("/bookings/{id}/payment", h.attachPayment)
-		g.Get("/food-bookings", h.listFood)
-		g.Post("/food-bookings", h.createFood)
 	})
 	r.Group(func(g chi.Router) {
 		g.Use(auth.RequireRole(auth.RoleSeller, auth.RoleStateAdmin, auth.RoleSuperAdmin))
@@ -152,41 +150,6 @@ func (h *Handler) attachPayment(w http.ResponseWriter, r *http.Request) {
 	}
 	h.cache.Del(r.Context(), cache.Bookings(b.UserID))
 	httpx.JSON(w, http.StatusOK, b)
-}
-
-func (h *Handler) listFood(w http.ResponseWriter, r *http.Request) {
-	userID := auth.UserID(r.Context())
-	var cached []contracts.FoodBooking
-	if h.cache.GetJSON(r.Context(), cache.FoodBookings(userID), &cached) {
-		httpx.JSON(w, http.StatusOK, cached)
-		return
-	}
-	items, err := h.repo.FoodByUser(r.Context(), userID)
-	if err != nil {
-		httpx.Fail(w, http.StatusInternalServerError, "bookings_unavailable", "food bookings unavailable")
-		return
-	}
-	h.cache.SetJSON(r.Context(), cache.FoodBookings(userID), items, cache.TTLBookings)
-	httpx.JSON(w, http.StatusOK, items)
-}
-
-func (h *Handler) createFood(w http.ResponseWriter, r *http.Request) {
-	var body contracts.FoodBooking
-	if err := httpx.Decode(r, &body); err != nil {
-		httpx.Fail(w, http.StatusBadRequest, "bad_request", "invalid body")
-		return
-	}
-	if body.Date == "" {
-		httpx.Fail(w, http.StatusBadRequest, "bad_request", "date required")
-		return
-	}
-	f, err := h.repo.CreateFood(r.Context(), auth.UserID(r.Context()), body)
-	if err != nil {
-		httpx.Fail(w, http.StatusInternalServerError, "booking_failed", "could not create food booking")
-		return
-	}
-	h.cache.Del(r.Context(), cache.FoodBookings(f.UserID))
-	httpx.JSON(w, http.StatusCreated, f)
 }
 
 func (h *Handler) getConfig(w http.ResponseWriter, r *http.Request) {

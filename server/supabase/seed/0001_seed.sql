@@ -1268,7 +1268,4 @@ insert into bookings.payments (id, booking_id, user_id, amount_paisa, razorpay_o
 insert into bookings.venue_configs (vendor_id, seller_id, booking_enabled, total_seats, track_occupancy, open_time, close_time, paused) values
   ('store-f1', 'sel-3', true, 40, true, '09:00', '21:00', false);
 
-insert into bookings.food_orders (order_id, user_id, dish, guests, booking_date, slot, added_ids) values
-  ('FB-000001', 'user-1', '{"id":"bd-1","name":"Garasen Vegetarian Platter","restaurant":"The Green Garden Bistro","category":"Vegan","tab":"Dinner","rating":"4.9","tags":"Vegetables • Salad • Hummus","price":"₹250","emoji":"🥗","isSpecial":true,"image":"https://images.unsplash.com/photo-1512621776951-a57141f2eefd?fm=jpg&fit=crop&q=80&w=400&h=300"}'::jsonb, 2, '2026-02-01', '20:00', ARRAY[]::text[]);
-
 commit;

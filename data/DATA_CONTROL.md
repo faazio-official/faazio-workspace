@@ -151,12 +151,12 @@ the `GROCERY` member was dropped from `AppBrand` / `CartCategory` / `SubAppId` /
 | `restaurantMenus` | `Record<string, SpecialDish[]>` | `RestaurantProfileScreen.getMenuForRestaurant` (per-restaurant menus keyed by dining-restaurant name, so every dining room's "Recommended & Offers" rail + menu is populated); seeded into `directory.menus` (migration `0013`) | `@mock` → `@server` |
 | `allRestaurantMenuDishes` | `SpecialDish[]` | catalog index (search) — flat pool of all per-restaurant menu dishes | `@mock` |
 
-> **Dinner/table + food bookings (migration `0011`):** `state/bookingStore` (`BookingRecord`) and
-> `state/foodBookingStore` (`FoodBookingRecord`) were memory-only. They now have a durable home in
-> `bookings.tables` + `bookings.food_orders`, served by `internal/bookings` (`GET/POST /bookings`,
-> `DELETE /bookings/{id}`, `GET/POST /food-bookings`). The partial unique index is the double-book
-> guard. `GatewayClient` methods exist; store/screen reconciliation is pending (see
-> `client/mobile/PENDING_WORK.md`).
+> **Dinner/table bookings (migration `0011`/`0020`):** `state/bookingStore` (`BookingRecord`) was
+> memory-only; it now has a durable home in `bookings.tables`, served by `internal/bookings`
+> (`GET/POST /bookings`, `DELETE /bookings/{id}`, `POST /bookings/{id}/payment`). The partial unique
+> index is the double-book guard. Food-order bookings (`state/foodBookingStore`, `bookings.food_orders`,
+> `GET/POST /food-bookings`) were removed as dead code (W29 follow-up) — the table is reserved and
+> unseeded (see `docs/architecture/db-schema.md` §12.7).
 
 ### `@data/pharma` — owner: `features/pharma`
 

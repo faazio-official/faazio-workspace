@@ -112,18 +112,6 @@ type BookingAvailability struct {
 	OpenNow     bool   `json:"openNow"`
 }
 
-// FoodBooking is a bookings.food_orders row (dish snapshot in JSON).
-type FoodBooking struct {
-	OrderID   string          `json:"orderId"`
-	UserID    string          `json:"userId"`
-	Dish      json.RawMessage `json:"dish"`
-	Guests    int64           `json:"guests"`
-	Date      string          `json:"date"`
-	Time      string          `json:"time"`
-	AddedIDs  []string        `json:"addedIds"`
-	Timestamp int64           `json:"timestamp"`
-}
-
 // Money freeze (monolith-breakdown.md §4): the DB stores INT8 paisa (₹1 = 100); every
 // JSON DTO here exposes whole rupees as an integer. The repo layer is the single
 // conversion boundary (paisa → rupees on read, rupees → paisa on write) — no floats.

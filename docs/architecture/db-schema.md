@@ -950,7 +950,7 @@ Donor directory + request board cached 60 s (`faazio:v1:blood:requests:{bloodGro
 distance client-side rather than adding display columns (`image_url`/`distance_km`/`demographics`) —
 no PII widening. `purposeDescription`/`demographics` remain out of the public board by design.
 
-### 12.7 `bookings.tables` + `bookings.food_orders` — source `state/bookingStore.ts`, `state/foodBookingStore.ts` (migration `0011`)
+### 12.7 `bookings.tables` + `bookings.food_orders` — source `state/bookingStore.ts` (migration `0011`)
 
 ```sql
 CREATE SCHEMA bookings;
@@ -978,6 +978,12 @@ CREATE TABLE bookings.food_orders (
 Both booking stores were memory-only (lost on restart); they are unified here so they cannot diverge.
 The partial unique index is the double-book guard (a re-book of a cancelled slot succeeds → 23505 is
 surfaced as HTTP 409 `slot_taken`). RLS own-rows; lists auth-scoped, cached 60 s, never at the edge.
+
+> **`bookings.food_orders` reserved (W29 follow-up).** Food-order bookings have no MVP screen or
+> gateway route: `GatewayClient.createFoodBooking`/`getFoodBookings`, `state/foodBookingStore`, the
+> `/food-bookings` routes and the `contracts.FoodBooking` DTO were removed as dead code. The table
+> (and its RLS/index) stays as a schema-ahead seam for a future food-order flow and is **no longer
+> seeded**.
 
 **Decision (0020) — seat-based bookings + ₹50/seat platform fee.** The 0011 slot model (one live
 booking per vendor/date/slot) is the opposite of a restaurant opting into N-seat reservations, so it
