@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useState } from "react";
+import { Fragment, useEffect, useState } from "react";
 import { toast } from "sonner";
 import { PageHeader } from "@/components/patterns/PageHeader";
 import { SectionCard } from "@/components/patterns/SectionCard";
@@ -18,7 +18,7 @@ import {
 import { formatDateTime } from "@/lib/format";
 import { useMockLoading, useSduiLayouts } from "@/lib/api/hooks";
 import { saveSduiLayoutHome } from "@/lib/api";
-import type { SduiSection } from "@/data/types";
+import type { SduiBanner, SduiSection } from "@/data/types";
 
 /** Comma/newline separated id list -> trimmed, non-empty ids. */
 function parseIds(value: string): string[] {
@@ -42,6 +42,17 @@ function SuperSdui() {
 
   const patch = (id: string, next: Partial<SduiSection>) => {
     setDraft((rows) => rows.map((s) => (s.id === id ? { ...s, ...next } : s)));
+    setDirty(true);
+  };
+
+  const patchBanner = (sectionId: string, bannerId: string, next: Partial<SduiBanner>) => {
+    setDraft((rows) =>
+      rows.map((s) =>
+        s.id === sectionId
+          ? { ...s, banners: (s.banners ?? []).map((b) => (b.id === bannerId ? { ...b, ...next } : b)) }
+          : s,
+      ),
+    );
     setDirty(true);
   };
 
@@ -94,29 +105,69 @@ function SuperSdui() {
             </TableHeader>
             <TableBody>
               {draft.map((s) => (
-                <TableRow key={s.id}>
-                  <TableCell className="num align-top text-muted-foreground">{s.id}</TableCell>
-                  <TableCell className="align-top">
-                    <Input
-                      value={s.title}
-                      onChange={(e) => patch(s.id, { title: e.target.value })}
-                      aria-label={`${s.id} title`}
-                    />
-                  </TableCell>
-                  <TableCell className="align-top">
-                    <Textarea
-                      value={s.productIds.join(", ")}
-                      rows={2}
-                      onChange={(e) => patch(s.id, { productIds: parseIds(e.target.value) })}
-                      aria-label={`${s.id} product ids`}
-                      placeholder="md-1, md-2, …"
-                    />
-                  </TableCell>
-                  <TableCell className="align-top text-xs text-muted-foreground">
-                    {s.storeIds?.length ? <div>{s.storeIds.length} stores</div> : null}
-                    {s.chips?.length ? <div>{s.chips.length} chips</div> : null}
-                  </TableCell>
-                </TableRow>
+                <Fragment key={s.id}>
+                  <TableRow>
+                    <TableCell className="num align-top text-muted-foreground">{s.id}</TableCell>
+                    <TableCell className="align-top">
+                      <Input
+                        value={s.title}
+                        onChange={(e) => patch(s.id, { title: e.target.value })}
+                        aria-label={`${s.id} title`}
+                      />
+                    </TableCell>
+                    <TableCell className="align-top">
+                      <Textarea
+                        value={s.productIds.join(", ")}
+                        rows={2}
+                        onChange={(e) => patch(s.id, { productIds: parseIds(e.target.value) })}
+                        aria-label={`${s.id} product ids`}
+                        placeholder="md-1, md-2, …"
+                      />
+                    </TableCell>
+                    <TableCell className="align-top text-xs text-muted-foreground">
+                      {s.storeIds?.length ? <div>{s.storeIds.length} stores</div> : null}
+                      {s.chips?.length ? <div>{s.chips.length} chips</div> : null}
+                      {s.banners?.length ? <div>{s.banners.length} banners</div> : null}
+                    </TableCell>
+                  </TableRow>
+                  {s.banners?.length ? (
+                    <TableRow>
+                      <TableCell colSpan={4} className="bg-muted/30">
+                        <div className="space-y-2">
+                          <p className="text-xs font-medium text-muted-foreground">
+                            {s.id} banners (image + copy; prices are always joined from the catalog)
+                          </p>
+                          {s.banners.map((b) => (
+                            <div
+                              key={b.id}
+                              className="grid grid-cols-1 gap-2 rounded border border-border p-2 md:grid-cols-4"
+                            >
+                              <div className="num self-center text-xs text-muted-foreground">{b.id}</div>
+                              <Input
+                                value={b.title}
+                                onChange={(e) => patchBanner(s.id, b.id, { title: e.target.value })}
+                                aria-label={`${b.id} title`}
+                                placeholder="Title"
+                              />
+                              <Input
+                                value={b.subtitle ?? ""}
+                                onChange={(e) => patchBanner(s.id, b.id, { subtitle: e.target.value })}
+                                aria-label={`${b.id} subtitle`}
+                                placeholder="Subtitle"
+                              />
+                              <Input
+                                value={b.imageUrl ?? ""}
+                                onChange={(e) => patchBanner(s.id, b.id, { imageUrl: e.target.value })}
+                                aria-label={`${b.id} image url`}
+                                placeholder="Image URL"
+                              />
+                            </div>
+                          ))}
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  ) : null}
+                </Fragment>
               ))}
             </TableBody>
           </Table>

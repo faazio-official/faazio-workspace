@@ -5,6 +5,38 @@
   "updatedAt": "2026-01-01T00:00:00.000Z",
   "sections": [
     {
+      "id": "martHero",
+      "title": "Mart Highlights",
+      "subtitle": null,
+      "accent": "#F25C3D",
+      "productIds": [],
+      "storeIds": [],
+      "chips": [],
+      "banners": [
+        {
+          "id": "hb-1",
+          "title": "Big Savings Everyday",
+          "subtitle": "UP TO 50% OFF",
+          "accent": "#FFF8D6",
+          "imageUrl": "https://images.unsplash.com/photo-1542838132-92c53300491e?fm=jpg&fit=crop&q=80&w=400&h=400"
+        },
+        {
+          "id": "hb-2",
+          "title": "Fresh Groceries Doorstep",
+          "subtitle": "FREE DELIVERY",
+          "accent": "#E8F5E9",
+          "imageUrl": "https://images.unsplash.com/photo-1579113800032-c38bd1625818?fm=jpg&fit=crop&q=80&w=400&h=400"
+        },
+        {
+          "id": "hb-3",
+          "title": "Electronics Mega Sale",
+          "subtitle": "FLAT 40% OFF",
+          "accent": "#FFF3E0",
+          "imageUrl": "https://images.unsplash.com/photo-1498050108023-c5249f4df085?fm=jpg&fit=crop&q=80&w=400&h=400"
+        }
+      ]
+    },
+    {
       "id": "adBanner",
       "title": "Offers",
       "subtitle": null,
@@ -62,6 +94,21 @@
         "md-4",
         "md-5",
         "md-6"
+      ],
+      "storeIds": [],
+      "chips": []
+    },
+    {
+      "id": "martEssentials",
+      "title": "Daily Essentials",
+      "subtitle": null,
+      "accent": "#0F766E",
+      "productIds": [
+        "gr-p3",
+        "gr-p4",
+        "gr-p5",
+        "gr-p6",
+        "gr-p7"
       ],
       "storeIds": [],
       "chips": []

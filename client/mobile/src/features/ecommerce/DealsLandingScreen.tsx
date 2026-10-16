@@ -1,4 +1,4 @@
-import React, { useCallback, useMemo } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { View, StyleSheet, FlatList, TouchableOpacity, Dimensions, type ListRenderItemInfo } from 'react-native';
 import { ArrowLeft } from 'lucide-react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -7,9 +7,10 @@ import { hs, ms, vs } from '@/utils/responsive';
 import { SPACE } from '@/theme/spacing';
 import AppText from '@/components/AppText';
 import type { Product } from '@data/types';
+import { gateway } from '@/services/api/GatewayClient';
 import { adCampaigns, getCampaignProducts, getCampaignStore } from '@data/home/campaigns';
 import { getStoreById } from '@data/directory/stores';
-import { getVendorProducts, isDiscounted } from '@/services/categoryVendors';
+import { isDiscounted } from '@/services/categoryVendors';
 import { applyActiveDiscounts, useActiveDiscounts } from '@/services/pricing';
 import { useCartStore } from '@/state/cartStore';
 import type { RootStackParamList } from '@/navigation/types';
@@ -30,7 +31,7 @@ const GRID_CARD_W = (SCREEN_W - hs(32) - CARD_GAP) / 2;
  *   "View All").
  */
 export function DealsLandingScreen({ navigation, route }: Props) {
-  const { mode, campaignId, storeId, app = 'FA_MART' } = route.params;
+  const { mode, campaignId, storeId } = route.params;
   const insets = useSafeAreaInsets();
   const cartItems = useCartStore((s) => s.cart);
   const addToCart = useCartStore((s) => s.addToCart);
@@ -49,12 +50,33 @@ export function DealsLandingScreen({ navigation, route }: Props) {
     [mode, storeId],
   );
 
+  // `discounts` mode reads the vendor's ACTIVE catalog rows from the server (the same
+// `GET /stores/{id}/products` the vendor drill-in uses); the `@data` local pool is the offline
+// fallback inside `GatewayClient`. `campaign` mode stays on the Home-owned `@data` campaigns.
+  const [storeProducts, setStoreProducts] = useState<Product[]>([]);
+  useEffect(() => {
+    if (mode !== 'discounts' || !store) {
+      setStoreProducts([]);
+      return;
+    }
+    let active = true;
+    gateway
+      .getStoreProducts(store.id)
+      .then((rows) => {
+        if (active) setStoreProducts(rows as unknown as Product[]);
+      })
+      .catch(() => undefined);
+    return () => {
+      active = false;
+    };
+  }, [mode, store]);
+
   const baseProducts = useMemo<Product[]>(() => {
     if (mode === 'campaign') return campaign ? getCampaignProducts(campaign) : [];
     // The full vendor pool (not just fixture-discounted rows) so an approved festival opt-in on a
     // product without an authored MRP still surfaces once the server discount is overlaid.
-    return store ? getVendorProducts(store.id, app) : [];
-  }, [mode, campaign, store, app]);
+    return storeProducts;
+  }, [mode, campaign, storeProducts]);
 
   // Overlay server-owned festival discounts (no-op in mock mode / when none apply), then keep only
   // what is actually on offer in `discounts` mode (authored MRP or an active opt-in).

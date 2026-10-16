@@ -24,10 +24,22 @@ export const SDUI_LAYOUTS: SduiLayout[] = [
     version: 1,
     updatedAt: "2026-01-01T00:00:00.000Z",
     sections: [
+      {
+        id: "martHero",
+        title: "Mart Highlights",
+        accent: "#F25C3D",
+        productIds: [],
+        banners: [
+          { id: "hb-1", title: "Big Savings Everyday", subtitle: "UP TO 50% OFF", accent: "#FFF8D6", imageUrl: "https://images.unsplash.com/photo-1542838132-92c53300491e?fm=jpg&fit=crop&q=80&w=400&h=400" },
+          { id: "hb-2", title: "Fresh Groceries Doorstep", subtitle: "FREE DELIVERY", accent: "#E8F5E9", imageUrl: "https://images.unsplash.com/photo-1579113800032-c38bd1625818?fm=jpg&fit=crop&q=80&w=400&h=400" },
+          { id: "hb-3", title: "Electronics Mega Sale", subtitle: "FLAT 40% OFF", accent: "#FFF3E0", imageUrl: "https://images.unsplash.com/photo-1498050108023-c5249f4df085?fm=jpg&fit=crop&q=80&w=400&h=400" },
+        ],
+      },
       { id: "adBanner", title: "Offers", accent: "#111827", productIds: [] },
       { id: "diningSpecials", title: "Today's Special", accent: "#1E5D44", productIds: [], storeIds: FOOD_STORE_IDS },
       { id: "hotBrandDeals", title: "Deals of the day", accent: "#1162D3", productIds: ["hbd-1", "hbd-2", "hbd-3", "hbd-4", "hbd-5"] },
       { id: "dealsOfDay", title: "Daily Essentials", accent: "#F25C3D", productIds: ["md-1", "md-2", "md-3", "md-4", "md-5", "md-6"] },
+      { id: "martEssentials", title: "Daily Essentials", accent: "#0F766E", productIds: ["gr-p3", "gr-p4", "gr-p5", "gr-p6", "gr-p7"] },
       { id: "sponsoredRail", title: "Sponsored picks", accent: "#B45309", productIds: [] },
       { id: "mostRatedDining", title: "Most Rated Dining", accent: "#1E5D44", productIds: [], storeIds: FOOD_STORE_IDS },
       { id: "recentlyViewedMart", title: "Recently Viewed — Mart", accent: "#1162D3", productIds: ["rvm-1", "rvm-2", "rvm-3", "rvm-4"] },

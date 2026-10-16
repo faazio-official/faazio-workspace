@@ -79,7 +79,9 @@ support/admin contexts above. Every write is scoped to the caller's `seller_id` 
 `POST /sellers` (partner onboarding, `GatewayClient.submitSellerApplication`) — any authenticated
 applicant may create a `PENDING_REVIEW` seller; KYC/bank writes stay portal-only. The Home
 SDUI editor is super-admin-only: `GET`/`PUT /admin/sdui/home` (`internal/sdui`) reads/writes the
-raw ID-only `sdui_layouts` doc and publishes a version bump the app picks up on its next poll.
+raw `sdui_layouts` doc and publishes a version bump the app picks up on its next poll. The doc is
+ID-only except for optional editorial `banners[]` on a section (`martHero`); no new endpoint,
+table or cache key — `internal/sdui` + `contracts` + `internal/reco` own the shape.
 
 **Partner completion (v3, `0017`)** adds four portal-only control surfaces: customer monitoring
 (`GET /customers` in `internal/admins`, reads the redacted `checkout.users_admin` view — state/super

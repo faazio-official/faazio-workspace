@@ -5,6 +5,43 @@ dependencies exist. Do not build the backend/seller flows until told to.
 
 ---
 
+## W38 — Mart hero + Daily Essentials server-controlled via SDUI (de-mock slice, M2–M4)
+
+**Status:** 🟢 Shipped (server + Mongo + app + web). Docs-only otherwise.
+
+The two remaining 100%-mock Mart rails — the **hero carousel** (`hb-*`) and the **Daily Essentials**
+rail (`mf-*` ghost ids) — had no backing table, no endpoint and no web control. Rather than invent a
+per-rail SQL table (rejected: duplicates SDUI, needs new cache/TTL + CRUD), both are now sections in
+the existing Mongo `sdui_layouts/home` doc.
+
+- **Server/Mongo (`internal/contracts`, `internal/reco`, `internal/sdui`).** `SduiSection` gained
+  optional `banners[]` (`SduiBanner{id,title,subtitle,accent,imageUrl}`) — the only non-ID leaf in
+  the doc (copy + image URL, **never money**). Handler bounds: ≤8 banners/section, `imageUrl` ≤512
+  chars (tests: banner publish + overlong-URL reject). Seed adds `martHero` (3 banners) and
+  `martEssentials` (real `gr-p3..p7` catalog ids).
+- **App (`martService.fetchMartFeed`).** Reads `martHero.banners` / `martEssentials.productIds` via
+  `gateway.getHomeFeed()`; the `mocks/martHomeFeed.ts` fixture is now offline first-paint only and
+  the retired `mf-*` ghost ids were replaced with real `gr-*` ids.
+- **M3.** `DealsLandingScreen` **`discounts` mode** now reads the vendor pool from the server
+  (`getStoreProducts`), matching the drill-in; `campaign` mode stays Home-owned `@data` (out of the
+  Mart slice — deleting it would regress Home's `BrandCampaignsSection`).
+- **M4.** Mart **feed search** now emits the `search` behavior event (anchored to the top result,
+  mirrors `SearchScreen`). Checkout re-pricing was already server-authoritative
+  (`checkout.Service` snapshots `catalog.products`; client price is display-only) — no change.
+- **Web (`admin/super/sdui`).** Sections with `banners` render an inline title/subtitle/image-url
+  editor; publishing flows through the existing `saveSduiLayoutHome` → `PUT /admin/sdui/home`.
+
+**Still deferred:** Mart media path (Supabase Storage object-keys + `ImageUploader`; Unsplash stays
+as fallback) and card-impression `view` events (PDP already emits `view`; only `search` + `cart_add`
++ ad events fire for Mart surfaces). Its `DealsLanding` **campaign** mode is Home-owned.
+
+**Docs:** `docs/architecture/db-schema.md §8.1`, `data-layer-sdui.md`, `mobile-app.md`,
+`web-portal.md`, `data/DATA_CONTROL.md`.
+
+**Date:** 2026-10-16
+
+---
+
 ## W37 — Mart vendor inventory server-linked (de-mock slice, M1)
 
 **Status:** 🟢 Shipped (server + DB + app). No web change.
@@ -28,9 +65,10 @@ the feed **search mode** filtered the local fixture pool even in remote mode. Th
   (`getStore`) so an authed caller sees the real address/hours (anon stays redacted) instead of the old
   hardcoded location. `categoryVendors.getVendorProducts` marked `@deprecated` (offline/Pharma fallback).
 
-**Still mocked (next slices):** `MartHeroCarousel` (`hb-*`) + `DailyEssentialsRail` (`mf-*` ghost ids)
-— move to the Mongo SDUI Home doc (M2); `DealsLandingScreen` **campaign mode** (no campaigns read —
-delete or add `GET /promo/campaigns`, M3); Mart **view/search event emission** for the reco funnel (M4).
+**Still mocked (next slices):** ~~`MartHeroCarousel` (`hb-*`) + `DailyEssentialsRail` (`mf-*` ghost
+ids)~~ (shipped in W38 — Mongo SDUI doc); `DealsLandingScreen` **campaign mode** stays Home-owned
+`@data` (no campaigns read endpoint — out of the Mart slice); Mart **view event emission** for the
+reco funnel (W38 shipped `search`; card-impression `view` still open, M4).
 
 **Docs:** `db-schema.md §12.15`, `monolith-breakdown.md §1`, `caching-cloudflare-valkey.md §5/§7a`,
 `mobile-app.md`, `data/DATA_CONTROL.md`.

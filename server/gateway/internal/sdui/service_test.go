@@ -71,6 +71,9 @@ func TestHomeCompilesSectionsWithProducts(t *testing.T) {
 			{ID: "deals", Title: "Deals", ProductIDs: []string{"md-1", "md-2"}},
 			{ID: "empty", Title: "Empty", ProductIDs: []string{}},
 			{ID: "mostRatedDining", Title: "Dining", StoreIDs: []string{"store-f1", "store-f2"}},
+		{ID: "martHero", Title: "Highlights", Banners: []contracts.SduiBanner{
+			{ID: "hb-1", Title: "Big Savings", Subtitle: "UP TO 50% OFF", ImageURL: "https://img.example/hb1.jpg"},
+		}},
 		}},
 		&fakeLayouts{},
 		fakeProducts{byID: map[string]contracts.Product{
@@ -88,8 +91,8 @@ func TestHomeCompilesSectionsWithProducts(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(sections) != 3 {
-		t.Fatalf("sections = %d, want 3", len(sections))
+	if len(sections) != 4 {
+		t.Fatalf("sections = %d, want 4", len(sections))
 	}
 	if len(sections[0].Products) != 2 || sections[0].Products[0].ID != "md-1" {
 		t.Fatalf("deals products = %+v", sections[0].Products)
@@ -99,6 +102,9 @@ func TestHomeCompilesSectionsWithProducts(t *testing.T) {
 	}
 	if len(sections[2].Stores) != 2 || sections[2].Stores[0].ID != "store-f1" {
 		t.Fatalf("dining stores = %+v", sections[2].Stores)
+	}
+	if len(sections[3].Banners) != 1 || sections[3].Banners[0].ID != "hb-1" {
+		t.Fatalf("martHero banners = %+v", sections[3].Banners)
 	}
 }
 

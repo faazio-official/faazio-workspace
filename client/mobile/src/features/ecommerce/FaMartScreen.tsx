@@ -117,7 +117,12 @@ export function FaMartScreen({
     gateway
       .searchProducts(searchQuery.trim(), 'MART')
       .then((rows) => {
-        if (active) setSearchResults(rows);
+        if (!active) return;
+        setSearchResults(rows);
+        // Behavior analytics (ID-only, allowlisted): the `search` event has no product id of its
+        // own, so it is anchored to the top result — mirrors SearchScreen.
+        const anchor = rows.find((r) => r?.id)?.id;
+        if (anchor) void gateway.trackEvent(String(anchor), 'search').catch(() => {});
       })
       .catch(() => undefined);
     return () => {

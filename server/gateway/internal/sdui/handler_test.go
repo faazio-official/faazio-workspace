@@ -45,6 +45,8 @@ func TestAdminPutHomeValidatesSections(t *testing.T) {
 		{"missing id", `{"sections":[{"title":"x","productIds":[]}]}`, http.StatusBadRequest},
 		{"overlong product id", `{"sections":[{"id":"deals","title":"Deals","accent":"#111","productIds":["` + longRef + `"]}]}`, http.StatusBadRequest},
 		{"valid publishes", `{"sections":[{"id":"deals","title":"Deals","accent":"#111827","productIds":["md-1"]}]}`, http.StatusOK},
+		{"valid banners publish", `{"sections":[{"id":"martHero","title":"Highlights","accent":"#F25C3D","productIds":[],"banners":[{"id":"hb-1","title":"Big Savings","subtitle":"UP TO 50% OFF","accent":"#FFF8D6","imageUrl":"https://img.example/hb1.jpg"}]}]}`, http.StatusOK},
+		{"overlong banner image url", `{"sections":[{"id":"martHero","title":"Highlights","accent":"#F25C3D","productIds":[],"banners":[{"id":"hb-1","title":"Big Savings","imageUrl":"` + strings.Repeat("x", 513) + `"}]}]}`, http.StatusBadRequest},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {

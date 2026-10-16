@@ -128,6 +128,15 @@ publishes edits via `PUT /admin/sdui/home` (super-admin, `internal/sdui` → `re
 `$inc version` + compiled-feed cache purge). The app's `GET /sdui/home` then recompiles on its next
 poll — no app release.
 
+**Mart merchandising via the same doc.** The Mart feed's hero carousel and *Daily Essentials* rail
+are server-controlled by two sections in the same `sdui_layouts/home` doc — `martHero` (an array of
+editorial `banners` with image + copy) and `martEssentials` (real `catalog` product ids). Because
+the Home renderer ignores unknown section ids, one doc drives both feeds.
+`martService.fetchMartFeed` reads them through `gateway.getHomeFeed()` and falls back to the
+`mocks/martHomeFeed.ts` fixture offline. `banners` is the only non-ID leaf in the doc — it carries
+display copy + an image URL, **never money** (prices are always joined from `catalog.products`), so
+the ID-only rule holds and no per-rail SQL table is needed.
+
 The **production** counterparts of every normalized table above (per-service DB schema, datatypes,
 sample rows) are specified in `docs/architecture/db-schema.md` — traceability is 1:1 (mock table ↔
 production table).

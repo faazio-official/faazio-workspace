@@ -381,6 +381,15 @@ export interface SduiChip {
   productIds: string[];
 }
 
+/** One editorial hero banner (image + copy). Never money — prices are always joined from the catalog. */
+export interface SduiBanner {
+  id: string;
+  title: string;
+  subtitle?: string | undefined;
+  accent?: string | undefined;
+  imageUrl?: string | undefined;
+}
+
 export interface SduiSection {
   id: string;
   title: string;
@@ -389,6 +398,7 @@ export interface SduiSection {
   productIds: string[];
   storeIds?: string[] | undefined;
   chips?: SduiChip[] | undefined;
+  banners?: SduiBanner[] | undefined;
 }
 
 export interface SduiLayout {

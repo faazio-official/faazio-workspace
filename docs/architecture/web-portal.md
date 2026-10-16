@@ -94,7 +94,9 @@ ID-only layout from `GET /admin/sdui/home` (super-admin only) and publishes edit
 (`internal/sdui` → `reco.Repo.SaveHome`) bumps `sdui_layouts.version`, purges the compiled-feed
 cache and audits `SDUI_PUBLISH`, so the mobile `GET /sdui/home` recompiles on its next poll with no
 app release. The page edits section titles and `productIds` (id-only refs to `catalog.products`);
-`storeIds`/`chips` are shown read-only. The portal's `SduiSection`/`SduiLayout` types mirror the
+`storeIds`/`chips` are shown read-only. Sections that carry editorial hero `banners` (the Mart
+`martHero` rail) render an inline banner editor (title/subtitle/image URL per banner) — images are
+display copy only, never money. The portal's `SduiSection`/`SduiBanner`/`SduiLayout` types mirror the
 gateway `contracts` doc so a published layout round-trips without remapping.
 
 ### Pharma quote → READY reveal (`seller/prescriptions`)

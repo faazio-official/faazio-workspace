@@ -649,11 +649,16 @@ The Home feed is stored as **ID-only** documents — every leaf references `cata
   _id: 'home',                       // the single live layout (per locale/env)
   version: 7,                        // version prefix for cache keys + purge
   sections: [
+    { id: 'martHero', title: 'Mart Highlights', accent: '#F25C3D', productIds: [],
+      banners: [{ id: 'hb-1', title: 'Big Savings Everyday', subtitle: 'UP TO 50% OFF',
+                  accent: '#FFF8D6', imageUrl: 'https://…/hb1.jpg' }] },   // Mart hero carousel
     { id: 'adBanner', title: 'Offers', accent: '#111827', productIds: [], storeIds: [] },
     { id: 'hotBrandDeals', title: 'Deals of the day', accent: '#1162D3',
       productIds: ['hbd-1','hbd-2','hbd-3','hbd-4','hbd-5'] },
     { id: 'dealsOfDay', title: 'Daily Essentials', accent: '#F25C3D',
       productIds: ['md-1','md-2','md-3','md-4','md-5','md-6'] },
+    { id: 'martEssentials', title: 'Daily Essentials', accent: '#0F766E',
+      productIds: ['gr-p3','gr-p4','gr-p5','gr-p6','gr-p7'] },             // Mart essentials rail
     { id: 'mens', title: 'Men', accent: '#1162D3',
       productIds: ['men-1','men-2','men-3','men-4','men-5','men-6'] },
     { id: 'filterFeed', title: 'Filter Feed', accent: '#8B5CF6', productIds: [], chips: [...] }
@@ -662,7 +667,9 @@ The Home feed is stored as **ID-only** documents — every leaf references `cata
 }
 ```
 
-(provenance `data/home/sdui.ts:63-78` — section ids/titles/accents/productIds exact).
+(provenance `data/home/sdui.ts:63-78` — section ids/titles/accents/productIds exact). The `martHero`
+/ `martEssentials` sections are the Mart feed's merchandising surface: the Home renderer ignores
+unknown section ids, so a single doc drives both the Home and Mart feeds.
 
 | Field | BSON type | Why |
 |---|---|---|
@@ -672,6 +679,7 @@ The Home feed is stored as **ID-only** documents — every leaf references `cata
 | `sections[].productIds` | array<string> | **ID-only** refs to catalog |
 | `sections[].storeIds` | array<string> | refs to directory.stores |
 | `sections[].chips` | array<doc> | filter chips (ID-only) |
+| `sections[].banners` | array<doc> | editorial hero banners (`{id,title,subtitle,accent,imageUrl}`) — the only non-ID leaf; **never money** (prices are always joined from `catalog.products`) |
 | `updatedAt` | Date (int64 millis) | freshness |
 
 The gateway emits `ETag: "home-v{version}"` on `GET /sdui/home`; a matching `If-None-Match` returns
@@ -682,8 +690,9 @@ The gateway emits `ETag: "home-v{version}"` on `GET /sdui/home`; a matching `If-
 `reco.Repo.SaveHome`). `SaveHome` upserts with an atomic `$inc version` (+ `updatedAt`) so the
 version is monotonic, and the handler purges `faazio:v1:gateway:sdui:en:/home` after the write —
 the app picks up the new content on its next poll with no release. The write is audited
-(`SDUI_PUBLISH`). Payload bounds (≤40 sections, ≤100 id refs/section, ids ≤64 chars, ≤20 chips)
-mirror the ID-only contract; the raw user id is never involved.
+(`SDUI_PUBLISH`). Payload bounds (≤40 sections, ≤100 id refs/section, ids ≤64 chars, ≤20 chips,
+≤8 banners/section with `imageUrl` ≤512 chars) mirror the ID-only contract; the raw user id is
+never involved.
 
 ### 8.2 `user_events` (TTL)
 
@@ -1350,5 +1359,6 @@ UPDATE catalog.products SET status = 'ACTIVE'
 
 Reads: `GET /stores/{id}/products` (anonymous, keyset-paginated by `(rating DESC, id ASC)`, only
 `ACTIVE` rows, PII-free product projection). The first page is cached `catalog:store-products:{storeId}`
-300 s (caching doc §5) and purged on `PRODUCT_EDIT` / status change. No new table — hero banners and the
-`mf-*` daily-essentials cards remain SDUI-owned (`docs/architecture/data-layer-sdui.md`).
+300 s (caching doc §5) and purged on `PRODUCT_EDIT` / status change. No new table — the Mart hero
+banners and Daily Essentials rail are SDUI-owned (`sdui_layouts/home` sections `martHero`/`martEssentials`,
+§8.1 / `docs/architecture/data-layer-sdui.md`); `mf-*` ghost ids were retired for real `gr-*` catalog ids.

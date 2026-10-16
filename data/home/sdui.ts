@@ -12,6 +12,16 @@ import { catalogIndex } from '../catalog/products';
 import { storeDirectory } from '../directory/stores';
 import { filterChips } from './filterFeed';
 
+/** One editorial hero banner (image + copy) carried by a section. Never money — prices are joined. */
+export interface SduiBanner {
+  id: string;
+  title: string;
+  subtitle?: string;
+  /** Background hex for the banner card (mirrors `bgHex`). */
+  accent?: string;
+  imageUrl?: string;
+}
+
 /** A Home feed section, resolved by ID only. */
 export interface SduiSection {
   id: HomeSectionKind;
@@ -24,6 +34,8 @@ export interface SduiSection {
   storeIds?: string[];
   /** Optional per-chip product ids (filter feed). */
   chips?: { id: string; label: string; accent: string; productIds: string[] }[];
+  /** Optional editorial hero banners (Mart hero rail). */
+  banners?: SduiBanner[];
 }
 
 /** Resolve catalog ids for a set of product ids that exist in the index. */

@@ -117,6 +117,8 @@ const (
 	maxRefs         = 100
 	maxRefLen       = 64
 	maxChips        = 20
+	maxBanners      = 8
+	maxImageURLLen  = 512
 )
 
 func validSections(sections []contracts.SduiSection) bool {
@@ -131,7 +133,7 @@ func validSections(sections []contracts.SduiSection) bool {
 		if !validRefs(s.ProductIDs) || !validRefs(s.StoreIDs) {
 			return false
 		}
-		if len(s.Chips) > maxChips {
+		if len(s.Chips) > maxChips || len(s.Banners) > maxBanners {
 			return false
 		}
 		for _, c := range s.Chips {
@@ -139,6 +141,12 @@ func validSections(sections []contracts.SduiSection) bool {
 				return false
 			}
 			if !validRefs(c.ProductIDs) {
+				return false
+			}
+		}
+		for _, b := range s.Banners {
+			if b.ID == "" || len(b.ID) > maxSectionIDLen || len(b.Title) > maxTitleLen ||
+				len(b.Subtitle) > maxSubtitleLen || len(b.Accent) > maxAccentLen || len(b.ImageURL) > maxImageURLLen {
 				return false
 			}
 		}

@@ -245,13 +245,14 @@ type VendorReview struct {
 
 // SduiSection is one ID-only Home section (Mongo sdui_layouts).
 type SduiSection struct {
-	ID         string     `json:"id"`
-	Title      string     `json:"title"`
-	Subtitle   string     `json:"subtitle,omitempty"`
-	Accent     string     `json:"accent"`
-	ProductIDs []string   `json:"productIds"`
-	StoreIDs   []string   `json:"storeIds,omitempty"`
-	Chips      []SduiChip `json:"chips,omitempty"`
+	ID         string       `json:"id"`
+	Title      string       `json:"title"`
+	Subtitle   string       `json:"subtitle,omitempty"`
+	Accent     string       `json:"accent"`
+	ProductIDs []string     `json:"productIds"`
+	StoreIDs   []string     `json:"storeIds,omitempty"`
+	Chips      []SduiChip   `json:"chips,omitempty"`
+	Banners    []SduiBanner `json:"banners,omitempty"`
 }
 
 // SduiChip is a filter-feed chip (ID-only product refs).
@@ -260,6 +261,17 @@ type SduiChip struct {
 	Label      string   `json:"label"`
 	Accent     string   `json:"accent"`
 	ProductIDs []string `json:"productIds"`
+}
+
+// SduiBanner is one editorial hero banner (image + copy) carried by a section. It is the only
+// non-ID leaf in the SDUI doc: an image URL + display copy, never money or a joined row — so the
+// Mart hero rail can be controlled from the portal without a backing SQL table (db-schema §8).
+type SduiBanner struct {
+	ID       string `json:"id"`
+	Title    string `json:"title"`
+	Subtitle string `json:"subtitle,omitempty"`
+	Accent   string `json:"accent,omitempty"`
+	ImageURL string `json:"imageUrl,omitempty"`
 }
 
 // ProductReader reads catalog products (implemented by internal/catalog).
