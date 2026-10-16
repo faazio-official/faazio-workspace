@@ -7,7 +7,7 @@ dependencies exist. Do not build the backend/seller flows until told to.
 
 ## W31 — Shopper price + discount integrity
 
-**Status:** 🟢 Shipped (Phase 1 + 2 of the discounted-items/ads plan).
+**Status:** 🟢 Shipped (Phases 1–2 of the discounted-items/ads plan). Phases 3–5 landed as **W32**.
 
 Enterprise rule: a discount % is always derived from an authoritative source, never invented
 on-device; a festival opt-in only reaches the app after an admin approves it.
@@ -36,9 +36,37 @@ on-device; a festival opt-in only reaches the app after an admin approves it.
   server-side).
 - **Auth unchanged** — the app keeps its mocked login (no Supabase phone OTP by product decision).
 
-**Still open (later phases):** coupon validate/settle at checkout, ads impression/click/attribution
-events (W30 future), portal `writeBehind` error surfacing, and `SPONSORED_SHOWCASE`/`SECTOR_RAIL`
-consumption.
+---
+
+## W32 — Coupon settlement + closed-loop ads (Phases 3–5)
+
+**Status:** 🟢 Shipped.
+
+- **Coupon validate → settle.** `POST /checkout/validate-coupon` (auth) previews a code via
+  `contracts.CouponValidator` (pure `DecideCoupon`: not-found/inactive/expired/wrong-sector/
+  wrong-state/min-order). `POST /orders` re-validates **before** the stock decrement and settles
+  `paid = subtotal − couponDiscount − coins` (`ErrInvalidCoupon` → 400 `invalid_coupon`), so the
+  display-only cart sheet can never discount an unsanctioned order. Cart consumes it via
+  `GatewayClient.validateCoupon`.
+- **Ads closed loop.** Authenticated `POST /ads/events` records impression/click
+  (`internal/ads.RecordEvent`); impressions de-dupe per user via
+  `faazio:v1:ads:seen:{userId}:{slotId}` 300 s. `contracts.AdAttributor.AttributeOrder` bumps
+  `orders_attributed` best-effort after the order commits, using the last-clicked slot
+  (`services/adsAttribution.ts`). Portal ads KPIs are now live (they read the counters that the app
+  increments).
+- **Placement expansion.** The paid shelf moved to the boundary-safe
+  `components/shared/SponsoredRail` (fill + events + AD disclosure + "Why sponsored?" sheet) with a
+  caller-supplied card. Consumed at `HOME_TOP` (Home), `SPONSORED_SHOWCASE` (Mart home), `SECTOR_RAIL`
+  (vendor deals landing). Seed adds one demo LIVE slot per placement.
+- **Portal write robustness.** `writeAwaited` + optimistic rollback + `sonner` toast replace
+  fire-and-forget `writeBehind` for `requestAdSlot`/`setAdStatus`/`createCoupon`/`toggleCoupon`/
+  `upsertOptin`/`setOptinStatus`, so a failed promo/ads write is visible and reverted.
+- **No schema change** — settlement reuses `promo.coupons`; ads reuse the existing
+  `ads.sponsored_slots` counters.
+
+**Still open (future):** `BrandCampaignCard` preview products are deliberately not festival-overlaid
+(a brand campaign promo is not a festival discount); `DiningSpecialsSection` renders `showPrice=false`
+so it is N/A; standalone `SDUIRenderer` ProductCard nodes are not overlaid.
 
 **Rollback:** revert `services/pricing.ts` + `getActiveDiscounts` + the rail overlays; server = drop
 the `/promo/active-discounts` route/`ActiveDiscounts`/`OptinProductIDs` + cache key; migration `0022`
@@ -66,8 +94,9 @@ A new, **separately-labelled** paid rail on Home — editorial (`hotBrandDeals` 
   after `dealsOfDay`): horizontal rail of `UniversalFeedCard variant="rail" showAdLabel`, header (i)
   opens a "Why sponsored?" `SlideUpSheet`. No LIVE rows / offline / error → renders `null` (fill-rate
   collapse), never an empty shelf; no change to `DealsLanding`/`BrandCampaigns`.
-- **Future (doc-only).** Impression/click events + budget pacing (Flipkart closed-loop) are out of
-  scope until the `ads` counters get a consumer.
+- **Events/attribution + placement expansion shipped in W32.** The rail now delegates to the shared
+  `components/shared/SponsoredRail`; impression/click reporting and last-click attribution are live,
+  and `SPONSORED_SHOWCASE`/`SECTOR_RAIL` are consumed.
 
 **Rollback:** delete the `getLiveAds`/`getSponsoredProducts` methods + `SponsoredRailSection` + the
 HomeView case + the `sponsoredRail` registry entries; seed revert = drop the two inserts. No migration

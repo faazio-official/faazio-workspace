@@ -100,6 +100,20 @@ export function writeBehind(
 }
 
 /**
+ * Awaited write to the gateway. Unlike `writeBehind`, the returned promise rejects on failure, so a
+ * caller can roll back its optimistic state and surface the error. No-op (resolved) in seed mode.
+ */
+export function writeAwaited(
+  method: "post" | "put" | "patch" | "delete",
+  path: string,
+  body?: unknown,
+): Promise<void> {
+  if (!remoteConfigured()) return Promise.resolve();
+  const pending = method === "delete" ? remote.delete(path) : remote[method](path, body);
+  return Promise.resolve(pending).then(() => undefined);
+}
+
+/**
  * Defensive snack_case -> camelCase normalizer. The gateway already emits
  * camelCase JSON, but handlers that pass DB rows through keep the web honest.
  */

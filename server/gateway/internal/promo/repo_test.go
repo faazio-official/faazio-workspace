@@ -3,6 +3,7 @@ package promo
 import (
 	"context"
 	"testing"
+	"time"
 
 	"github.com/faazio/server/gateway/internal/platform/testenv"
 )
@@ -274,5 +275,54 @@ func TestActiveDiscountsCampaignWindow(t *testing.T) {
 	}
 	if got, err := repo.ActiveDiscounts(ctx, []string{"md-2"}); err != nil || len(got) != 0 {
 		t.Fatalf("DRAFT campaign must not surface a discount: err=%v got=%+v", err, got)
+	}
+}
+
+// TestDecideCoupon locks the pure coupon ruling (no DB): active/expiry/sector/state/min-order and
+// the server-computed capped discount.
+func TestDecideCoupon(t *testing.T) {
+	now := time.Date(2026, 10, 16, 12, 0, 0, 0, time.UTC)
+	base := CouponRow{
+		Code: "SAVE10", ValuePercent: 10, MaxDiscountPaisa: 5000, MinOrderPaisa: 20000,
+		ValidTill: now.Add(24 * time.Hour), Active: true,
+	}
+
+	// Valid: 10% of ₹300 = ₹30 (30000 paisa < ₹50 cap).
+	v := DecideCoupon(base, "MART", "KA", 30000, now)
+	if !v.Valid || v.DiscountPaisa != 3000 || v.Reason != "" {
+		t.Fatalf("valid coupon: %+v", v)
+	}
+
+	// Capped: 10% of ₹1000 = ₹100 → capped at ₹50.
+	if v := DecideCoupon(base, "", "", 100000, now); v.DiscountPaisa != 5000 {
+		t.Fatalf("cap not applied: %d", v.DiscountPaisa)
+	}
+
+	// Expiry, inactivity, sector, state and min-order each reject with a reason.
+	expired := base
+	expired.ValidTill = now.Add(-time.Minute)
+	if v := DecideCoupon(expired, "", "", 30000, now); v.Valid || v.Reason != "expired" {
+		t.Fatalf("expired: %+v", v)
+	}
+	inactive := base
+	inactive.Active = false
+	if v := DecideCoupon(inactive, "", "", 30000, now); v.Valid || v.Reason != "inactive" {
+		t.Fatalf("inactive: %+v", v)
+	}
+	sector := base
+	sector.Sector = "FOOD"
+	if v := DecideCoupon(sector, "MART", "", 30000, now); v.Valid || v.Reason != "wrong_sector" {
+		t.Fatalf("wrong_sector: %+v", v)
+	}
+	if v := DecideCoupon(sector, "", "", 30000, now); !v.Valid {
+		t.Fatalf("empty app must be permissive: %+v", v)
+	}
+	state := base
+	state.StateCode = "KA"
+	if v := DecideCoupon(state, "", "TN", 30000, now); v.Valid || v.Reason != "wrong_state" {
+		t.Fatalf("wrong_state: %+v", v)
+	}
+	if v := DecideCoupon(base, "", "", 10000, now); v.Valid || v.Reason != "min_order" {
+		t.Fatalf("min_order: %+v", v)
 	}
 }

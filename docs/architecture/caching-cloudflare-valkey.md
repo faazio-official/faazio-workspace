@@ -96,9 +96,26 @@ Examples: `faazio:v1:stock:fm-f1`, `faazio:v1:search:q:hoodie`, `faazio:v1:sdui:
 | Active festival discounts (anon `GET /promo/active-discounts?ids=`, per product) | 300 s | — | opt-in approve/reject or campaign status change (invalidated per product; `none` sentinel cached) |
 | Ad slots (partner) | 300 s | **never** | ad status/stat write |
 | Live ads (anon `GET /ads/live?slot=`) | 600 s | — | ad status write (invalidated on `LIVE`) |
+| Ad impression de-dupe lock (`faazio:v1:ads:seen:{userId}:{slotId}`, `POST /ads/events`) | 300 s (`NX EX`) | **never** | auto-expire (one impression per user per slot) |
 | Settlement cycles (per seller) | 600 s | **never** | settlement/payout write |
 | Idempotency locks (checkout) | 300 s | — | auto-expire |
 | Auth subject → app user_id | 3600 s (1 h) | — | delete on profile merge (mapping is otherwise immutable) |
+
+### 5a. Ad placement → surface map
+
+One closed-loop pipeline (`GET /ads/live?slot=` fill → `POST /ads/events` impression/click →
+last-click attribution at checkout) serves every paid shelf. The shared
+`components/shared/SponsoredRail` renders it; each sub-app supplies its own card.
+
+| Placement | Surface | Mobile entry |
+|---|---|---|
+| `HOME_TOP` | Home sponsored rail | `home/sections/SponsoredRailSection` → `SponsoredRail` |
+| `SPONSORED_SHOWCASE` | Mart home feed (below the hero) | `ecommerce/FaMartScreen` |
+| `SECTOR_RAIL` | Vendor "Discounted Products" landing | `ecommerce/DealsLandingScreen` (`discounts` mode) |
+
+Seed (`0001_seed.sql`) carries one LIVE demo slot per placement (`ad-demo-home-*`,
+`ad-demo-showcase-1`, `ad-demo-sector-1`) so a fresh deploy exercises all three; a placement with no
+LIVE fill collapses the rail to `null` (never an empty shelf).
 
 ---
 

@@ -14,6 +14,7 @@ import { applyActiveDiscounts, useActiveDiscounts } from '@/services/pricing';
 import { useCartStore } from '@/state/cartStore';
 import type { RootStackParamList } from '@/navigation/types';
 import MartProductCard from '@/features/ecommerce/cards/MartProductCard';
+import SponsoredRail from '@/components/shared/SponsoredRail';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'DealsLanding'>;
 
@@ -140,9 +141,29 @@ export function DealsLandingScreen({ navigation, route }: Props) {
               ) : null}
             </View>
           ) : mode === 'discounts' ? (
-            <View style={styles.hero}>
-              <AppText style={styles.heroBrand}>{store?.name}</AppText>
-              <AppText style={styles.heroSub}>Discounted Products</AppText>
+            <View>
+              <View style={styles.hero}>
+                <AppText style={styles.heroBrand}>{store?.name}</AppText>
+                <AppText style={styles.heroSub}>Discounted Products</AppText>
+              </View>
+              {/* Paid sector rail (SECTOR_RAIL) — same ad-server fill/labelling as the Home rail. */}
+              <SponsoredRail
+                placement="SECTOR_RAIL"
+                onProductClick={handleProductPress}
+                addToCart={addToCart}
+                renderCard={(product, h) => (
+                  <MartProductCard
+                    key={product.id}
+                    product={product as unknown as Product}
+                    width={GRID_CARD_W}
+                    variant="rail"
+                    showAdLabel
+                    isAdded={h.isAdded}
+                    onPress={h.onPress}
+                    onAdd={h.onAdd}
+                  />
+                )}
+              />
             </View>
           ) : null
         }

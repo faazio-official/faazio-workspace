@@ -316,6 +316,13 @@ the `GROCERY` member was dropped from `AppBrand` / `CartCategory` / `SubAppId` /
 > seed `ads.sponsored_slots` + `sel-3`). It has **no** `@data` fixture by design — paid placements
 > never fabricate a fallback, so an empty/offline result collapses the section. The legacy
 > `sponsoredAds` export above (`data/home/rails.ts`) is unrelated and stays `@unused`.
+>
+> **Placements (W32):** the same fill/event pipeline now serves three surfaces off the boundary-safe
+> shared `components/shared/SponsoredRail` — `HOME_TOP` (Home rail), `SPONSORED_SHOWCASE` (Mart home
+> feed) and `SECTOR_RAIL` (vendor "Discounted Products" landing). Impressions/clicks post to
+> `POST /ads/events`; the last tapped slot attributes the next order (`orders_attributed`). See
+> `docs/architecture/caching-cloudflare-valkey.md` §5a for the surface map. Seed carries one demo
+> LIVE slot per placement.
 
 ### `@data/rewards` — owner: `features/rewards`
 

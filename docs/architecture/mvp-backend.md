@@ -96,7 +96,9 @@ All read-through: Valkey → Supabase/Mongo → populate. Cloudflare caches publ
 | `GET /venues/{id}/booking-availability` | bookings | public, seat-count-free `{bookable, feePerSeat, timingLabel, openNow}` (never totals/remaining) |
 | `GET/PUT /seller/booking-config`, `GET /seller/bookings`, `PUT /bookings/{id}/status`, `POST /bookings/{id}/vacate` | bookings | seller-private config (seats/timings/tracking/pause); accept captures / reject refunds; vacate frees occupancy; owner-scoped. `GET /seller/bookings` echoes the caller's `sellerId` on each row (bookings have no seller column; ownership is via the venue) |
 | `POST /webhooks/razorpay` | bookings | HMAC-signature-verified Razorpay events → idempotent ledger update (`payment.authorized/captured/failed`, `refund.*`) |
-| `GET/POST /orders` | checkout | `POST` uses `SET NX EX 300` idempotency + `SELECT … FOR UPDATE SKIP LOCKED` stock decrement |
+| `GET/POST /orders` | checkout | `POST` uses `SET NX EX 300` idempotency + `SELECT … FOR UPDATE SKIP LOCKED` stock decrement; re-validates any `couponCode` via `contracts.CouponValidator` **before** the decrement and settles `paid = subtotal − couponDiscount − coins`, then attributes the last-clicked ad slot best-effort |
+| `POST /checkout/validate-coupon` | checkout | authenticated coupon preview (`{code, app, state, subtotal}` → `{valid, reason, discount, …}`); delegates to `contracts.CouponValidator` (pure `DecideCoupon`), same rules as settlement |
+| `POST /ads/events` | ads | authenticated impression/click (`RecordEvent`); impressions de-duped per user via `faazio:v1:ads:seen:{userId}:{slotId}` 300 s; `orders_attributed` bumped server-side at checkout |
 | `PUT /vendors/{id}/rating` | reviews | derived eligibility gate (`hasPurchasedFromVendor`); never a stored flag |
 | `POST /events` | reco | ID-only `userIdHash`, 90-day Mongo TTL; event allowlist + `productId ≤ 64` chars |
 | `GET /recommendations` | reco | per-user `recommendations` doc (else top `product_stats`), joined to catalog; `faazio:v1:reco:{userIdHash}:home` 1 h |

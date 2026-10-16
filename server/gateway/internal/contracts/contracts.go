@@ -300,6 +300,33 @@ type RewardsWriter interface {
 	Earn(ctx context.Context, userID, orderID string, paidRupees, coinsRedeemed int64) error
 }
 
+// CouponValidation is the server-authoritative verdict on a coupon code for a given cart. Money is
+// paisa internally; the HTTP layer projects whole rupees. Reason is a machine code when invalid
+// (not_found|inactive|expired|wrong_sector|wrong_state|min_order) and empty when valid.
+type CouponValidation struct {
+	Valid            bool
+	Reason           string
+	Code             string
+	ValuePercent     int
+	MaxDiscountPaisa int64
+	MinOrderPaisa    int64
+	DiscountPaisa    int64 // server-computed: min(subtotal*valuePercent, maxDiscount)
+	FreeDelivery     bool
+}
+
+// CouponValidator validates a coupon code against an app/sector, state and cart subtotal
+// (implemented by internal/promo). Checkout is the money authority: it calls this both for the
+// public preview endpoint and again at order settlement — the client never dictates the discount.
+type CouponValidator interface {
+	ValidateCoupon(ctx context.Context, code, app, stateCode string, subtotalPaisa int64) (CouponValidation, error)
+}
+
+// AdAttributor records a closed-loop ad conversion (implemented by internal/ads). Checkout calls it
+// best-effort after an order commits, crediting the last-clicked sponsored slot.
+type AdAttributor interface {
+	AttributeOrder(ctx context.Context, slotID string) error
+}
+
 // AuditEntry is one admins.audit_logs row (who did what to which entity). Before/After are opaque
 // JSON snapshots, guarded ≤ 8 KB at the DB.
 type AuditEntry struct {

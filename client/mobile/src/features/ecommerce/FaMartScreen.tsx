@@ -25,6 +25,7 @@ import MartHeroCarousel from './components/mart-home/MartHeroCarousel';
 import DealsOfDayRail from './components/mart-home/DealsOfDayRail';
 import DailyEssentialsRail from './components/mart-home/DailyEssentialsRail';
 import LocalVendorRail from './components/mart-home/LocalVendorRail';
+import SponsoredRail from '@/components/shared/SponsoredRail';
 import { VendorProfileView } from './components/vendor';
 
 const SCREEN_W = Dimensions.get('window').width;
@@ -115,6 +116,30 @@ export function FaMartScreen({
 
   const feedSectionsData: { id: string; component: React.ReactNode }[] = [
     { id: 'hero', component: <MartHeroCarousel banners={feed?.heroBanners ?? []} /> },
+    // Paid Mart showcase (SPONSORED_SHOWCASE) — same closed-loop pipeline as the Home rail; collapses
+    // to nothing when there is no LIVE fill.
+    {
+      id: 'sponsoredShowcase',
+      component: (
+        <SponsoredRail
+          placement="SPONSORED_SHOWCASE"
+          onProductClick={onProductClick}
+          addToCart={addToCart}
+          renderCard={(product, h) => (
+            <MartProductCard
+              key={product.id}
+              product={product as unknown as MartProduct}
+              width={CARD_W}
+              variant="rail"
+              showAdLabel
+              isAdded={h.isAdded}
+              onPress={h.onPress}
+              onAdd={h.onAdd}
+            />
+          )}
+        />
+      ),
+    },
     { id: 'deals', component: <DealsOfDayRail deals={feed?.deals ?? []} onDealPress={handleDealPress} /> },
     { id: 'essentials', component: <DailyEssentialsRail items={feed?.dailyEssentials ?? []} onItemPress={handleEssentialPress} /> },
   ];

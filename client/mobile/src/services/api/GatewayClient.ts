@@ -114,6 +114,31 @@ export interface PlaceOrderInput {
   pickups?: { name: string; address: string; hours?: string; phone?: string }[];
   paymentMethod?: string;
   coinsRedeemed?: number;
+  /** Coupon code the server re-validates + settles (the client figure is display-only). */
+  couponCode?: string;
+  /** Buyer state for state-scoped coupon validation. */
+  stateCode?: string;
+  /** Last-clicked sponsored slot for closed-loop ads attribution (best-effort). */
+  attribution?: { slotId?: string };
+}
+
+/** Server-authoritative coupon ruling (`POST /checkout/validate-coupon`); money in whole rupees. */
+export interface CouponValidation {
+  valid: boolean;
+  /** Machine reason when invalid: not_found | inactive | expired | wrong_sector | wrong_state | min_order. */
+  reason: string;
+  code: string;
+  valuePercent: number;
+  maxDiscount: number;
+  minOrder: number;
+  /** Server-computed discount in whole rupees (capped); 0 for free-delivery-only coupons. */
+  discount: number;
+  freeDelivery: boolean;
+}
+
+/** A LIVE sponsored product joined to the catalog, carrying its slot id for event attribution. */
+export interface SponsoredProduct extends ProductView {
+  slotId: string;
 }
 
 /** One durable payment row (checkout.payments), amount in whole rupees. */
@@ -711,15 +736,90 @@ export class GatewayClient {
   /**
    * LIVE sponsored products for a placement, joined to the catalog. `LiveAd`s are ID-only (SDUI
    * rule): resolve each `productId` via `getProductsByIds` and drop any id the catalog no longer
-   * has, preserving ad order. Empty when there are no LIVE rows.
+   * has, preserving ad order. Empty when there are no LIVE rows. Each row keeps its `slotId` so the
+   * rail can report impressions/clicks.
    */
-  async getSponsoredProducts(placement?: string): Promise<ProductView[]> {
+  async getSponsoredProducts(placement?: string): Promise<SponsoredProduct[]> {
     const ads = await this.getLiveAds(placement);
     const ids = ads.map((a) => a.productId);
     if (ids.length === 0) return [];
     const products = await this.getProductsByIds(ids);
     const byId = new Map(products.map((p) => [p.id, p]));
-    return ids.map((id) => byId.get(id)).filter((p): p is ProductView => p !== undefined);
+    const out: SponsoredProduct[] = [];
+    for (const a of ads) {
+      const p = byId.get(a.productId);
+      if (p) out.push({ ...p, slotId: a.slotId });
+    }
+    return out;
+  }
+
+  /**
+   * Report a sponsored impression/click (`POST /ads/events`). Best-effort: the server de-dupes
+   * impressions per (user, slot), and any failure is swallowed so rendering never blocks.
+   */
+  async recordAdEvent(slotId: string, event: 'impression' | 'click'): Promise<void> {
+    if (!slotId) return;
+    await this.withFallback(
+      () =>
+        this.http<{ ok: boolean }>('/ads/events', {
+          method: 'POST',
+          body: JSON.stringify({ slotId, event }),
+        }).then(() => undefined),
+      () => delay(undefined),
+    );
+  }
+
+  /**
+   * Server-authoritative coupon ruling for a cart (`POST /checkout/validate-coupon`, auth-scoped).
+   * Fallback validates the local `@data/cart/coupons` fixture so the sheet still behaves offline.
+   */
+  async validateCoupon(input: {
+    code: string;
+    app?: string;
+    state?: string;
+    subtotal: number;
+  }): Promise<CouponValidation> {
+    return this.withFallback(
+      () =>
+        this.http<CouponValidation>('/checkout/validate-coupon', {
+          method: 'POST',
+          body: JSON.stringify(input),
+        }),
+      () => delay(this.validateCouponMock(input)),
+    );
+  }
+
+  private validateCouponMock(input: {
+    code: string;
+    subtotal: number;
+  }): CouponValidation {
+    const code = input.code.toUpperCase().trim();
+    const empty: CouponValidation = {
+      valid: false,
+      reason: 'not_found',
+      code,
+      valuePercent: 0,
+      maxDiscount: 0,
+      minOrder: 0,
+      discount: 0,
+      freeDelivery: false,
+    };
+    const c = fixtureCoupons.find((x) => x.code === code);
+    if (!c) return empty;
+    if (c.minOrder && input.subtotal < c.minOrder) {
+      return { ...empty, reason: 'min_order', minOrder: c.minOrder };
+    }
+    const discount = c.isFreeDelivery ? 0 : Math.round((input.subtotal * c.discountPercent) / 100);
+    return {
+      valid: true,
+      reason: '',
+      code,
+      valuePercent: c.discountPercent,
+      maxDiscount: 0,
+      minOrder: c.minOrder ?? 0,
+      discount,
+      freeDelivery: !!c.isFreeDelivery,
+    };
   }
 
   /**

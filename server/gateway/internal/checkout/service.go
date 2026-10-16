@@ -26,6 +26,11 @@ var ErrInsufficientStock = errors.New("insufficient stock")
 // ErrAddressNotOwned is returned when the supplied addressId does not belong to the caller.
 var ErrAddressNotOwned = errors.New("address does not belong to user")
 
+// ErrInvalidCoupon is returned when a supplied coupon code fails server-side validation at
+// settlement (unknown/expired/sector/state/min-order). The client must never apply a discount the
+// server did not rule valid.
+var ErrInvalidCoupon = errors.New("coupon not valid for this order")
+
 // PlaceOrderRequest is the POST /orders body.
 type PlaceOrderRequest struct {
 	Items []struct {
@@ -39,6 +44,15 @@ type PlaceOrderRequest struct {
 	Pickups        json.RawMessage `json:"pickups,omitempty"`
 	PaymentMethod  string          `json:"paymentMethod,omitempty"`
 	CoinsRedeemed  int64           `json:"coinsRedeemed,omitempty"`
+	// CouponCode + StateCode are optional. When CouponCode is set the server re-validates it against
+	// the order's app (derived from the products) and settles the discount authoritatively — the
+	// client's applied discount is display-only.
+	CouponCode string `json:"couponCode,omitempty"`
+	StateCode  string `json:"stateCode,omitempty"`
+	// Attribution carries the last-clicked sponsored slot id (closed-loop ads). Best-effort.
+	Attribution struct {
+		SlotID string `json:"slotId,omitempty"`
+	} `json:"attribution,omitempty"`
 }
 
 // Service orchestrates order placement with the idempotency lock + stock decrement.
@@ -46,12 +60,15 @@ type Service struct {
 	repo    *Repo
 	stock   contracts.StockWriter
 	rewards contracts.RewardsWriter
+	coupons contracts.CouponValidator
+	ads     contracts.AdAttributor
 	cache   *cache.Cache
 }
 
-// NewService builds the checkout service. rewards may be nil (rewards disabled / unit contexts).
-func NewService(repo *Repo, stock contracts.StockWriter, cache *cache.Cache, rewards contracts.RewardsWriter) *Service {
-	return &Service{repo: repo, stock: stock, cache: cache, rewards: rewards}
+// NewService builds the checkout service. rewards/coupons/ads may be nil (rewards disabled / unit
+// contexts / ads not wired).
+func NewService(repo *Repo, stock contracts.StockWriter, cache *cache.Cache, rewards contracts.RewardsWriter, coupons contracts.CouponValidator, ads contracts.AdAttributor) *Service {
+	return &Service{repo: repo, stock: stock, cache: cache, rewards: rewards, coupons: coupons, ads: ads}
 }
 
 // CreateOrder places an order: idempotency lock → price → stock decrement → insert.
@@ -98,6 +115,8 @@ func (s *Service) CreateOrder(ctx context.Context, userID string, req PlaceOrder
 
 	lines := make([]OrderLineItem, 0, len(req.Items))
 	vendorSet := map[string]struct{}{}
+	orderApp := ""
+	totalRupees := int64(0)
 	for i, it := range req.Items {
 		snap, ok := snapshots[it.ProductID]
 		if !ok {
@@ -107,23 +126,54 @@ func (s *Service) CreateOrder(ctx context.Context, userID string, req PlaceOrder
 		if qty <= 0 || qty > 99 {
 			return Order{}, errors.New("invalid quantity")
 		}
-		if _, ok, err := s.stock.Decrement(ctx, it.ProductID, qty); err != nil {
+		if orderApp == "" && snap.App != "" {
+			orderApp = snap.App
+		}
+		unit := snap.PricePaisa / 100
+		lines = append(lines, OrderLineItem{
+			LineID:    fmt.Sprintf("%s-l%d", newOrderID(), i+1),
+			ProductID: it.ProductID,
+			Name:      snap.Name,
+			Qty:       qty,
+			UnitPrice: unit,
+		})
+		totalRupees += qty * unit
+		if snap.StoreID != nil && *snap.StoreID != "" {
+			vendorSet[*snap.StoreID] = struct{}{}
+		}
+	}
+
+	coins := req.CoinsRedeemed
+	if coins < 0 {
+		coins = 0
+	}
+	// Coupon settlement: the server re-validates any supplied code against the order's app + state
+	// and settles the discount itself (the client's applied discount is display-only). This runs
+	// before the stock decrement so an invalid coupon never reserves inventory.
+	couponDiscount := int64(0)
+	if req.CouponCode != "" {
+		if s.coupons == nil {
+			return Order{}, ErrInvalidCoupon
+		}
+		v, err := s.coupons.ValidateCoupon(ctx, req.CouponCode, orderApp, req.StateCode, totalRupees*100)
+		if err != nil {
+			return Order{}, err
+		}
+		if !v.Valid {
+			return Order{}, fmt.Errorf("%w: %s", ErrInvalidCoupon, v.Reason)
+		}
+		couponDiscount = v.DiscountPaisa / 100
+	}
+
+	// Reserve inventory only after all pricing/validation has passed.
+	for _, it := range req.Items {
+		if _, ok, err := s.stock.Decrement(ctx, it.ProductID, it.Qty); err != nil {
 			return Order{}, err
 		} else if !ok {
 			return Order{}, ErrInsufficientStock
 		}
 		// Invalidate the stock read-through cache so the next GET reflects the decrement.
 		s.cache.Del(ctx, cache.Stock(it.ProductID))
-		lines = append(lines, OrderLineItem{
-			LineID:    fmt.Sprintf("%s-l%d", newOrderID(), i+1),
-			ProductID: it.ProductID,
-			Name:      snap.Name,
-			Qty:       qty,
-			UnitPrice: snap.PricePaisa / 100,
-		})
-		if snap.StoreID != nil && *snap.StoreID != "" {
-			vendorSet[*snap.StoreID] = struct{}{}
-		}
 	}
 
 	vendors := make([]string, 0, len(vendorSet))
@@ -145,16 +195,9 @@ func (s *Service) CreateOrder(ctx context.Context, userID string, req PlaceOrder
 	}
 
 	// Durable payment ledger: recorded in the same transaction as the order. The amount is derived
-	// server-side from the priced lines minus the coins redeemed (client never dictates the amount).
-	totalRupees := int64(0)
-	for _, li := range lines {
-		totalRupees += li.Qty * li.UnitPrice
-	}
-	coins := req.CoinsRedeemed
-	if coins < 0 {
-		coins = 0
-	}
-	paidRupees := totalRupees - coins/coinsPerRupee
+	// server-side from the priced lines minus the coupon discount and coins redeemed (client never
+	// dictates the amount).
+	paidRupees := totalRupees - couponDiscount - coins/coinsPerRupee
 	if paidRupees < 0 {
 		paidRupees = 0
 	}
@@ -188,6 +231,11 @@ func (s *Service) CreateOrder(ctx context.Context, userID string, req PlaceOrder
 		} else {
 			s.cache.Del(ctx, cache.Rewards(userID))
 		}
+	}
+	// Closed-loop ads: credit the last-clicked sponsored slot. Best-effort — the order is committed,
+	// so an attribution hiccup must not fail checkout.
+	if s.ads != nil && req.Attribution.SlotID != "" {
+		_ = s.ads.AttributeOrder(ctx, req.Attribution.SlotID)
 	}
 	return order, nil
 }

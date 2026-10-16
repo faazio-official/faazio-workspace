@@ -392,6 +392,7 @@ func (r *Repo) PurchaseProof(ctx context.Context, userID, vendorID string) (bool
 type ProductSnapshot struct {
 	ID         string
 	Name       string
+	App        string
 	PricePaisa int64
 	StoreID    *string
 }
@@ -405,14 +406,14 @@ func (r *Repo) ProductSnapshots(ctx context.Context, ids []string) (map[string]P
 	if len(ids) == 0 {
 		return out, nil
 	}
-	rows, err := r.pool.Query(ctx, `select id, name, price_paisa, store_id from catalog.products where id = any($1)`, ids)
+	rows, err := r.pool.Query(ctx, `select id, name, app::text, price_paisa, store_id from catalog.products where id = any($1)`, ids)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
 	for rows.Next() {
 		var s ProductSnapshot
-		if err := rows.Scan(&s.ID, &s.Name, &s.PricePaisa, &s.StoreID); err != nil {
+		if err := rows.Scan(&s.ID, &s.Name, &s.App, &s.PricePaisa, &s.StoreID); err != nil {
 			return nil, err
 		}
 		out[s.ID] = s

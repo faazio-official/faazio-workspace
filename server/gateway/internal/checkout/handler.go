@@ -20,11 +20,12 @@ type Handler struct {
 	cache    *cache.Cache
 	audit    contracts.AuditWriter
 	notifier contracts.Notifier
+	coupons  contracts.CouponValidator
 }
 
-// NewHandler builds the checkout handler. notifier may be nil.
-func NewHandler(repo *Repo, service *Service, c *cache.Cache, audit contracts.AuditWriter, notifier contracts.Notifier) *Handler {
-	return &Handler{repo: repo, service: service, cache: c, audit: audit, notifier: notifier}
+// NewHandler builds the checkout handler. notifier/coupons may be nil.
+func NewHandler(repo *Repo, service *Service, c *cache.Cache, audit contracts.AuditWriter, notifier contracts.Notifier, coupons contracts.CouponValidator) *Handler {
+	return &Handler{repo: repo, service: service, cache: c, audit: audit, notifier: notifier, coupons: coupons}
 }
 
 // Register mounts auth-scoped order + account endpoints.
@@ -33,6 +34,7 @@ func (h *Handler) Register(r chi.Router) {
 		g.Use(auth.Require)
 		g.Get("/orders", h.getOrders)
 		g.Post("/orders", h.placeOrder)
+		g.Post("/checkout/validate-coupon", h.validateCoupon)
 		g.Get("/orders/{orderID}", h.getOrder)
 		g.Post("/orders/{orderID}/payments", h.payOrder)
 		g.Get("/payments", h.getPayments)
@@ -152,11 +154,49 @@ func (h *Handler) placeOrder(w http.ResponseWriter, r *http.Request) {
 		httpx.Fail(w, http.StatusConflict, "out_of_stock", "one or more items are out of stock")
 	case errors.Is(err, ErrAddressNotOwned):
 		httpx.Fail(w, http.StatusBadRequest, "invalid_address", "address does not belong to you")
+	case errors.Is(err, ErrInvalidCoupon):
+		httpx.Fail(w, http.StatusBadRequest, "invalid_coupon", "coupon is not valid for this order")
 	case err != nil:
 		httpx.Fail(w, http.StatusInternalServerError, "order_failed", "could not place order")
 	default:
 		httpx.JSON(w, http.StatusCreated, order)
 	}
+}
+
+// validateCoupon is the authoritative coupon preview: it rules a code valid/invalid for the given
+// app/sector, state and cart subtotal (rupees on the wire) and returns the server-computed discount.
+// Checkout settles the same ruling again at order placement, so the client's figure is display-only.
+func (h *Handler) validateCoupon(w http.ResponseWriter, r *http.Request) {
+	var body struct {
+		Code     string `json:"code"`
+		App      string `json:"app"`
+		State    string `json:"state"`
+		Subtotal int64  `json:"subtotal"` // whole rupees
+	}
+	if err := httpx.Decode(r, &body); err != nil || strings.TrimSpace(body.Code) == "" || body.Subtotal < 0 {
+		httpx.Fail(w, http.StatusBadRequest, "bad_request", "code and subtotal required")
+		return
+	}
+	if h.coupons == nil {
+		httpx.Fail(w, http.StatusServiceUnavailable, "promo_unavailable", "promo unavailable")
+		return
+	}
+	v, err := h.coupons.ValidateCoupon(r.Context(), body.Code,
+		strings.ToUpper(strings.TrimSpace(body.App)), strings.ToUpper(strings.TrimSpace(body.State)), body.Subtotal*100)
+	if err != nil {
+		httpx.Fail(w, http.StatusInternalServerError, "promo_unavailable", "promo unavailable")
+		return
+	}
+	httpx.JSON(w, http.StatusOK, map[string]any{
+		"valid":        v.Valid,
+		"reason":       v.Reason,
+		"code":         v.Code,
+		"valuePercent": v.ValuePercent,
+		"maxDiscount":  v.MaxDiscountPaisa / 100,
+		"minOrder":     v.MinOrderPaisa / 100,
+		"discount":     v.DiscountPaisa / 100,
+		"freeDelivery": v.FreeDelivery,
+	})
 }
 
 // payOrder records a payment for an order the caller owns. The amount is derived server-side from

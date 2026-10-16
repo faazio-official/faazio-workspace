@@ -2,6 +2,7 @@ package ads
 
 import (
 	"encoding/json"
+	"errors"
 	"net/http"
 	"strings"
 
@@ -29,6 +30,11 @@ func NewHandler(repo *Repo, c *cache.Cache, audit contracts.AuditWriter) *Handle
 func (h *Handler) Register(r chi.Router) {
 	// Public: the anon-visible LIVE ad projection the app rails read (no auth, cached).
 	r.Get("/ads/live", h.live)
+	// Auth: closed-loop performance events (impression/click) from the app rail.
+	r.Group(func(g chi.Router) {
+		g.Use(auth.Require)
+		g.Post("/ads/events", h.recordEvent)
+	})
 	r.Group(func(g chi.Router) {
 		g.Use(auth.RequireRole(auth.RoleSeller, auth.RoleStateAdmin, auth.RoleSuperAdmin))
 		g.Get("/ads/slots", h.list)
@@ -39,6 +45,39 @@ func (h *Handler) Register(r chi.Router) {
 		g.Use(auth.RequireRole(auth.RoleStateAdmin, auth.RoleSuperAdmin))
 		g.Put("/ads/slots/{id}", h.setStatus)
 	})
+}
+
+// recordEvent increments a sponsored slot's impression/click counter. Impressions are de-duped per
+// (user, slot) so a re-render never inflates the count; clicks are always counted. Best-effort and
+// cache-locked so a burst can't amplify a single view into many writes.
+func (h *Handler) recordEvent(w http.ResponseWriter, r *http.Request) {
+	var body struct {
+		SlotID string `json:"slotId"`
+		Event  string `json:"event"`
+	}
+	if err := httpx.Decode(r, &body); err != nil {
+		httpx.Fail(w, http.StatusBadRequest, "bad_request", "invalid body")
+		return
+	}
+	slotID := strings.TrimSpace(body.SlotID)
+	event := strings.ToLower(strings.TrimSpace(body.Event))
+	if slotID == "" || len(slotID) > 64 || (event != "impression" && event != "click") {
+		httpx.Fail(w, http.StatusBadRequest, "bad_request", "slotId and a valid event required")
+		return
+	}
+	if event == "impression" {
+		if err := h.cache.AcquireLock(r.Context(), cache.AdsSeen(auth.UserID(r.Context()), slotID), cache.TTLAdSeen); err != nil {
+			if errors.Is(err, cache.ErrLockHeld) {
+				httpx.JSON(w, http.StatusAccepted, map[string]any{"ok": true, "deduped": true})
+				return
+			}
+		}
+	}
+	if err := h.repo.RecordEvent(r.Context(), slotID, event); err != nil {
+		httpx.Fail(w, http.StatusInternalServerError, "ads_unavailable", "could not record event")
+		return
+	}
+	httpx.JSON(w, http.StatusAccepted, map[string]any{"ok": true})
 }
 
 // live serves the anon-visible LIVE ad projection for a placement, read-through cached.

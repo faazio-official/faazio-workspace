@@ -58,6 +58,12 @@ func PromoPublicCoupons(app, state string) string {
 }
 func AdsLive(placement string) string { return fmt.Sprintf("faazio:v1:ads:live:%s", placement) }
 
+// AdsSeen de-dupes an impression for (user, slot) within TTLAdSeen so a card re-render never
+// inflates the count (set NX). Clicks are always counted, so this key is impressions-only.
+func AdsSeen(userID, slotID string) string {
+	return fmt.Sprintf("faazio:v1:ads:seen:%s:%s", userID, slotID)
+}
+
 // PromoActiveDiscount caches one product's active festival discount (LIVE campaign + APPROVED
 // opt-in, sector-capped). A cached `none` sentinel means "checked, no active discount" so a
 // catalog batch never re-queries absent products. Invalidated on opt-in/campaign status change
@@ -117,6 +123,10 @@ const (
 
 	// TTLPublicPromo bounds the anon-visible active-coupon projection (caching doc §5).
 	TTLPublicPromo = 600 * time.Second
+
+	// TTLAdSeen de-dupes a sponsored impression per (user, slot) — longer than any realistic
+	// re-render storm, short enough to count a genuine re-view on a later session.
+	TTLAdSeen = 300 * time.Second
 
 	// TTLPromoActive bounds the anon-visible active festival discount projection per product
 	// (LIVE campaign + APPROVED opt-in, sector-capped); invalidated on opt-in/campaign change.

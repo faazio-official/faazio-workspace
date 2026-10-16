@@ -146,6 +146,38 @@ func (r *Repo) SetStatus(ctx context.Context, id, status string) (Slot, bool, er
 	return s, true, nil
 }
 
+// RecordEvent increments a slot's impression/click counter. A nil/absent slot is a no-op (the
+// caller is best-effort), so the app never breaks on a stale slot id.
+func (r *Repo) RecordEvent(ctx context.Context, slotID, event string) error {
+	if r.pool == nil {
+		return fmt.Errorf("ads: database not configured")
+	}
+	var col string
+	switch event {
+	case "impression":
+		col = "impressions"
+	case "click":
+		col = "clicks"
+	default:
+		return fmt.Errorf("ads: unknown event %q", event)
+	}
+	_, err := r.pool.Exec(ctx, `update ads.sponsored_slots set `+col+` = `+col+` + 1 where slot_id = $1`, slotID)
+	return err
+}
+
+// AttributeOrder increments a slot's attributed-order counter (closed-loop conversion). Implements
+// contracts.AdAttributor so checkout can credit the last-clicked slot after an order commits.
+func (r *Repo) AttributeOrder(ctx context.Context, slotID string) error {
+	if r.pool == nil {
+		return fmt.Errorf("ads: database not configured")
+	}
+	if slotID == "" {
+		return nil
+	}
+	_, err := r.pool.Exec(ctx, `update ads.sponsored_slots set orders_attributed = orders_attributed + 1 where slot_id = $1`, slotID)
+	return err
+}
+
 func scanSlot(row interface{ Scan(...any) error }) (Slot, error) {
 	var (
 		s           Slot

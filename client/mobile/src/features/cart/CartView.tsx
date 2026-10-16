@@ -37,6 +37,7 @@ import type { CheckoutStep } from './utils';
 import { useRewardsStore } from '@/state/rewardsStore';
 import { useOrdersStore } from '@/state/ordersStore';
 import { gateway } from '@/services/api/GatewayClient';
+import { consumeLastClickedSlotId } from '@/services/adsAttribution';
 import { coinsEarnedFor, isCardActive } from '@/features/rewards/rewardsLogic';
 import { COIN_REDEEM_RATE, DISCOUNT_CARD_PERCENT } from '@data/rewards/rewards';
 import { useLiveAddress } from '@/hooks/useLiveAddress';
@@ -54,6 +55,26 @@ const inferCategory = (itemId: string): CartCategory => {
   if (id.startsWith('ph-') || id.includes('pharma') || id.includes('med')) return 'PHARMA';
   if (id.startsWith('fm-') || id.startsWith('gr-') || id.includes('mart') || id.includes('grocery') || id.startsWith('cat-mt') || id.startsWith('cat-mf') || id.startsWith('cat-gr') || id.startsWith('cat-fb')) return 'MART';
   return 'FOOD';
+};
+
+/** Human copy for the server's machine reason code on an invalid coupon. */
+const couponErrorMessage = (reason: string): string => {
+  switch (reason) {
+    case 'not_found':
+      return 'That coupon code was not found.';
+    case 'inactive':
+      return 'This coupon is no longer available.';
+    case 'expired':
+      return 'This coupon has expired.';
+    case 'wrong_sector':
+      return 'This coupon is not valid for the items in your cart.';
+    case 'wrong_state':
+      return 'This coupon is not available in your location.';
+    case 'min_order':
+      return 'Your order does not meet this coupon\u2019s minimum value.';
+    default:
+      return 'This coupon cannot be applied.';
+  }
 };
 
 function ItemThumb({ item, size = 64 }: { item: CartItem; size?: number }) {
@@ -110,6 +131,9 @@ export default function CartView({
   const [step, setStep] = useState<CheckoutStep>('BAG');
   const [fulfillment, setFulfillment] = useState<FulfillmentMode | null>(null);
   const [appliedDiscount, setAppliedDiscount] = useState<{ code: string; amount: number } | null>(null);
+  // The raw code (without the display suffix) the server re-validates + settles at placement.
+  const [appliedCouponCode, setAppliedCouponCode] = useState<string | null>(null);
+  const [couponError, setCouponError] = useState<string | null>(null);
   const [expandedCategories, setExpandedCategories] = useState<CartCategory[]>(CATEGORY_ORDER);
   const [showCouponSheet, setShowCouponSheet] = useState(false);
   const [deselectedIds, setDeselectedIds] = useState<Set<string>>(new Set());
@@ -249,23 +273,40 @@ export default function CartView({
     const normalized = code.toUpperCase().trim();
     const coupon = couponList.find((c) => c.code === normalized);
     if (!coupon) return;
-    if (coupon.isFreeDelivery) {
-      setAppliedDiscount({ code: `${coupon.code} (FREE Delivery)`, amount: deliveryFee });
-    } else {
-      const amt = Math.round(subtotal * (coupon.discountPercent / 100));
-      setAppliedDiscount({ code: `${coupon.code} (${coupon.discountPercent}% OFF)`, amount: amt });
-    }
-    setShowCouponSheet(false);
+    setCouponError(null);
+    // Server is the discount authority: validate the code against the cart before applying. The
+    // figure shown is the server's (fixture-validated offline), never client-computed % math.
+    const cats = new Set(selectedItems.map(getCatForItem));
+    const app = cats.size === 1 ? [...cats][0] : undefined;
+    void gateway
+      .validateCoupon({ code: normalized, app, subtotal })
+      .then((v) => {
+        if (!v.valid) {
+          setCouponError(couponErrorMessage(v.reason));
+          return;
+        }
+        if (v.freeDelivery) {
+          setAppliedDiscount({ code: `${normalized} (FREE Delivery)`, amount: deliveryFee });
+        } else {
+          setAppliedDiscount({ code: `${normalized} (${v.valuePercent}% OFF)`, amount: v.discount });
+        }
+        setAppliedCouponCode(normalized);
+        setShowCouponSheet(false);
+      })
+      .catch(() => setCouponError('Could not validate this coupon. Please try again.'));
   };
 
   const removeCoupon = () => {
     setAppliedDiscount(null);
+    setAppliedCouponCode(null);
+    setCouponError(null);
   };
 
   const applyStreakCard = () => {
     if (!discountCard) return;
     const amt = Math.round(subtotal * (DISCOUNT_CARD_PERCENT / 100));
     setAppliedDiscount({ code: `Faazio Streak (${DISCOUNT_CARD_PERCENT}% OFF)`, amount: amt });
+    setAppliedCouponCode(null);
     setShowCouponSheet(false);
   };
 
@@ -290,13 +331,17 @@ export default function CartView({
 
       // Server is the money/stock authority: it prices, decrements stock and holds the idempotency
       // lock, returning the durable order id. In mock mode this resolves to a local order of the
-      // same shape (the withFallback seam keeps checkout working offline).
+      // same shape (the withFallback seam keeps checkout working offline). The coupon is re-validated
+      // and settled server-side; the applied discount in the UI is display-only.
+      const attributedSlotId = consumeLastClickedSlotId();
       const [placed] = await Promise.all([
         gateway.placeOrder({
           items: selectedItems.map((i) => ({ productId: i.id, qty: i.quantity })),
           ...(addressId ? { addressId } : {}),
           fulfillment: mode,
           idempotencyKey: `cart-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+          ...(appliedCouponCode ? { couponCode: appliedCouponCode } : {}),
+          ...(attributedSlotId ? { attribution: { slotId: attributedSlotId } } : {}),
           ...(primaryPickup
             ? { pickup: { name: primaryPickup.name, address: primaryPickup.address } }
             : {}),
@@ -639,6 +684,7 @@ export default function CartView({
         <SlideUpSheet visible={showCouponSheet} onRequestClose={() => setShowCouponSheet(false)}>
           <AppText style={styles.sheetTitle}>Apply Coupon</AppText>
           <AppText style={styles.sheetSubtitle}>Choose a coupon to save more on this order</AppText>
+          {couponError ? <AppText style={styles.couponErrorText}>{couponError}</AppText> : null}
           {streakCardActive && discountCard && (
             <TouchableOpacity
               key="streak-card"
@@ -2022,6 +2068,12 @@ const styles = StyleSheet.create({
     fontSize: ms(11),
     color: '#666666',
     marginTop: vs(4),
+    marginBottom: SPACE.BLOCK,
+  },
+  couponErrorText: {
+    fontSize: ms(11),
+    fontWeight: '600',
+    color: '#DC2626',
     marginBottom: SPACE.BLOCK,
   },
   couponOption: {

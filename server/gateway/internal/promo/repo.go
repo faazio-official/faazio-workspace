@@ -10,8 +10,10 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
+	"github.com/faazio/server/gateway/internal/contracts"
 	"github.com/faazio/server/gateway/internal/platform/db"
 	"github.com/jackc/pgx/v5"
 )
@@ -447,6 +449,78 @@ func (r *Repo) PublicCoupons(ctx context.Context, app, stateCode string) ([]Publ
 		out = append(out, c)
 	}
 	return out, rows.Err()
+}
+
+// CouponRow is the internal coupon read (paisa + ruling fields) used for server-side validation.
+type CouponRow struct {
+	Code             string
+	StateCode        string
+	Sector           string
+	ValuePercent     int
+	MaxDiscountPaisa int64
+	MinOrderPaisa    int64
+	FreeDelivery     bool
+	ValidTill        time.Time
+	Active           bool
+}
+
+// ValidateCoupon is the server-authoritative coupon ruling for a cart: active + unexpired + sector +
+// state + min-order, returning the server-computed discount in paisa. Implements
+// contracts.CouponValidator so checkout (not the client) owns the settled discount.
+func (r *Repo) ValidateCoupon(ctx context.Context, code, app, stateCode string, subtotalPaisa int64) (contracts.CouponValidation, error) {
+	if r.pool == nil {
+		return contracts.CouponValidation{}, fmt.Errorf("promo: database not configured")
+	}
+	code = strings.ToUpper(strings.TrimSpace(code))
+	if code == "" {
+		return contracts.CouponValidation{Reason: "not_found"}, nil
+	}
+	var row CouponRow
+	err := r.pool.QueryRow(ctx, `
+		select code, coalesce(state_code,''), coalesce(sector::text,''), value_percent,
+		       max_discount_paisa, min_order_paisa, free_delivery, valid_till, active
+		  from promo.coupons where code = $1`, code).
+		Scan(&row.Code, &row.StateCode, &row.Sector, &row.ValuePercent, &row.MaxDiscountPaisa,
+			&row.MinOrderPaisa, &row.FreeDelivery, &row.ValidTill, &row.Active)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return contracts.CouponValidation{Reason: "not_found", Code: code}, nil
+		}
+		return contracts.CouponValidation{}, err
+	}
+	return DecideCoupon(row, strings.ToUpper(strings.TrimSpace(app)), strings.ToUpper(strings.TrimSpace(stateCode)), subtotalPaisa, time.Now()), nil
+}
+
+// DecideCoupon is the pure ruling behind ValidateCoupon (unit-tested without a DB). An empty app or
+// stateCode is permissive (matches the public projection); a populated value is enforced.
+func DecideCoupon(row CouponRow, app, stateCode string, subtotalPaisa int64, now time.Time) contracts.CouponValidation {
+	v := contracts.CouponValidation{
+		Code:             row.Code,
+		ValuePercent:     row.ValuePercent,
+		MaxDiscountPaisa: row.MaxDiscountPaisa,
+		MinOrderPaisa:    row.MinOrderPaisa,
+		FreeDelivery:     row.FreeDelivery,
+	}
+	switch {
+	case !row.Active:
+		v.Reason = "inactive"
+	case !row.ValidTill.After(now):
+		v.Reason = "expired"
+	case row.Sector != "" && app != "" && row.Sector != app:
+		v.Reason = "wrong_sector"
+	case row.StateCode != "" && stateCode != "" && row.StateCode != stateCode:
+		v.Reason = "wrong_state"
+	case subtotalPaisa < row.MinOrderPaisa:
+		v.Reason = "min_order"
+	default:
+		v.Valid = true
+		discount := subtotalPaisa * int64(row.ValuePercent) / 100
+		if row.MaxDiscountPaisa > 0 && discount > row.MaxDiscountPaisa {
+			discount = row.MaxDiscountPaisa
+		}
+		v.DiscountPaisa = discount
+	}
+	return v
 }
 
 // CreateCoupon inserts a coupon (maxDiscount is rupees on the wire, paisa in the DB).

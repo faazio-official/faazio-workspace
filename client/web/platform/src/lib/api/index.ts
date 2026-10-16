@@ -3,7 +3,8 @@
 // When a real backend arrives, only the internals of this module change.
 import { usePortalStore, AUTH_DIRECTORY, type PortalState } from "@/lib/api/store";
 import { authConfigured, authMocked, remoteConfigured } from "@/lib/config";
-import { remote, toCamel, writeBehind } from "@/lib/api/http";
+import { remote, toCamel, writeBehind, writeAwaited } from "@/lib/api/http";
+import { toast } from "sonner";
 import { getSession, signInWithPassword, signOutRemote } from "@/lib/supabase/auth";
 import { sellerSeries, stateSeries, globalSeries, productSeries } from "@/data/analytics/series";
 import type {
@@ -42,6 +43,26 @@ function nowIso(): string {
 /** paisa -> whole rupees for gateway write bodies (the gateway speaks rupee integers). */
 function toRupees(paisa: number): number {
   return Math.round(paisa / 100);
+}
+
+/**
+ * Push an optimistic mutation to the gateway and, on failure, restore the caller's pre-mutation
+ * snapshot and surface a toast. Replaces fire-and-forget `writeBehind` for the promo/ads writes so a
+ * seller/admin always knows the change did not persist (Phase 5).
+ */
+function pushWrite(
+  label: string,
+  method: "post" | "put" | "patch" | "delete",
+  path: string,
+  body: unknown,
+  rollback: () => void,
+): void {
+  void writeAwaited(method, path, body).catch((err: unknown) => {
+    rollback();
+    const description =
+      err instanceof Error && err.message ? err.message : "The server rejected the change.";
+    toast.error(`${label} failed`, { description });
+  });
 }
 
 function audit(input: {
@@ -454,6 +475,7 @@ export function upsertOptin(input: {
   const existing = state().optins.find(
     (o) => o.campaignId === input.campaignId && o.productId === input.productId,
   );
+  const before = state().optins;
   state().set((s) => ({
     optins: existing
       ? s.optins.map((o) =>
@@ -470,7 +492,7 @@ export function upsertOptin(input: {
           ...s.optins,
         ],
   }));
-  writeBehind("put", "/promo/optins", input);
+  pushWrite("Opt-in", "put", "/promo/optins", input, () => state().set(() => ({ optins: before })));
   audit({
     action: "FESTIVAL_OPTIN",
     entity: "promo.festival_optins",
@@ -480,10 +502,13 @@ export function upsertOptin(input: {
 }
 
 export function setOptinStatus(optinId: string, status: "APPROVED" | "REJECTED"): void {
+  const before = state().optins;
   state().set((s) => ({
     optins: s.optins.map((o) => (o.optinId === optinId ? { ...o, status } : o)),
   }));
-  writeBehind("put", `/promo/optins/${encodeURIComponent(optinId)}/status`, { status });
+  pushWrite("Opt-in review", "put", `/promo/optins/${encodeURIComponent(optinId)}/status`, { status }, () =>
+    state().set(() => ({ optins: before })),
+  );
   audit({ action: `OPTIN_${status}`, entity: "promo.festival_optins", entityId: optinId, after: { status } });
 }
 
@@ -497,32 +522,42 @@ export function listCoupons(filter: { stateCode?: string | undefined; scope?: "G
 
 export function createCoupon(dto: Omit<CouponRecord, "couponId">): CouponRecord {
   const record: CouponRecord = { couponId: `cpn-${Date.now()}`, ...dto };
+  const before = state().coupons;
   state().set((s) => ({ coupons: [record, ...s.coupons] }));
-  writeBehind("post", "/promo/coupons", {
-    code: dto.code,
-    scope: dto.scope,
-    stateCode: dto.stateCode ?? "",
-    sector: dto.sector ?? "",
-    valuePercent: dto.valuePercent,
-    maxDiscount: toRupees(dto.maxDiscountPaisa),
-    validTill: dto.validTill,
-  });
+  pushWrite(
+    "Coupon",
+    "post",
+    "/promo/coupons",
+    {
+      code: dto.code,
+      scope: dto.scope,
+      stateCode: dto.stateCode ?? "",
+      sector: dto.sector ?? "",
+      valuePercent: dto.valuePercent,
+      maxDiscount: toRupees(dto.maxDiscountPaisa),
+      validTill: dto.validTill,
+    },
+    () => state().set(() => ({ coupons: before })),
+  );
   audit({ action: "COUPON_CREATE", entity: "promo.coupons", entityId: record.couponId, after: record });
   return record;
 }
 
 export function toggleCoupon(couponId: string): void {
-  const before = state().coupons.find((c) => c.couponId === couponId);
+  const before = state().coupons;
+  const prev = state().coupons.find((c) => c.couponId === couponId);
   state().set((s) => ({
     coupons: s.coupons.map((c) => (c.couponId === couponId ? { ...c, active: !c.active } : c)),
   }));
-  writeBehind("put", `/promo/coupons/${encodeURIComponent(couponId)}/toggle`);
+  pushWrite("Coupon toggle", "put", `/promo/coupons/${encodeURIComponent(couponId)}/toggle`, undefined, () =>
+    state().set(() => ({ coupons: before })),
+  );
   audit({
     action: "COUPON_TOGGLE",
     entity: "promo.coupons",
     entityId: couponId,
-    before: before && { active: before.active },
-    after: { active: !before?.active },
+    before: prev && { active: prev.active },
+    after: { active: !prev?.active },
   });
 }
 
@@ -551,16 +586,26 @@ export function requestAdSlot(dto: {
     requestedAt: nowIso(),
     ...dto,
   };
+  const before = state().adSlots;
   state().set((s) => ({ adSlots: [record, ...s.adSlots] }));
-  writeBehind("post", "/ads/slots", { sellerId: dto.sellerId, productId: dto.productId, placement: dto.placement, stateCode: dto.stateCode });
+  pushWrite(
+    "Ad slot request",
+    "post",
+    "/ads/slots",
+    { sellerId: dto.sellerId, productId: dto.productId, placement: dto.placement, stateCode: dto.stateCode },
+    () => state().set(() => ({ adSlots: before })),
+  );
   audit({ action: "AD_REQUEST", entity: "ads.sponsored_slots", entityId: record.slotId, after: record });
 }
 
 export function setAdStatus(slotId: string, status: import("@/data/types").AdStatus): void {
+  const before = state().adSlots;
   state().set((s) => ({
     adSlots: s.adSlots.map((a) => (a.slotId === slotId ? { ...a, status } : a)),
   }));
-  writeBehind("put", `/ads/slots/${encodeURIComponent(slotId)}`, { status });
+  pushWrite("Ad slot update", "put", `/ads/slots/${encodeURIComponent(slotId)}`, { status }, () =>
+    state().set(() => ({ adSlots: before })),
+  );
   audit({ action: `AD_${status}`, entity: "ads.sponsored_slots", entityId: slotId, after: { status } });
 }
 

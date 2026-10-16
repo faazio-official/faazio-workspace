@@ -101,10 +101,10 @@ const isPrescription = (e) => e.app === 'PHARMA' && PRESCRIPTION_CATEGORIES.has(
 // ---------------------------------------------------------------- demo seller + sponsored ads
 // `sellers.sellers` has NO seeded row (there is no seller fixture in @data), yet
 // `ads.sponsored_slots.seller_id` FKs to it — so a fresh deploy served an empty `GET /ads/live`.
-// Seed one ACTIVE demo seller (the store-m1 owner), then the LIVE HOME_TOP slots the sponsored
-// rail reads. It also satisfies the pre-existing `sel-3` reference in `bookings.venue_configs`.
-// Product ids must be catalog rows (asserted by `assertLeanContract`), so the app's
-// `getProductsByIds` join never drops a paid placement.
+// Seed one ACTIVE demo seller (the store-m1 owner), then the LIVE slots each placement reads
+// (HOME_TOP rail, SPONSORED_SHOWCASE Mart hero, SECTOR_RAIL category drill-in). It also satisfies
+// the pre-existing `sel-3` reference in `bookings.venue_configs`. Product ids must be catalog rows
+// (asserted by `assertLeanContract`), so the app's `getProductsByIds` join never drops a placement.
 const DEMO_SELLERS = [
   { id: 'sel-3', businessName: 'Faazio Mart Flagship', ownerName: 'Faazio Retail', app: 'MART', state: 'KA' },
 ];
@@ -112,6 +112,8 @@ const SPONSORED_SLOTS = [
   { slotId: 'ad-demo-home-1', sellerId: 'sel-3', productId: 'fm-m1', placement: 'HOME_TOP' },
   { slotId: 'ad-demo-home-2', sellerId: 'sel-3', productId: 'fm-m2', placement: 'HOME_TOP' },
   { slotId: 'ad-demo-home-3', sellerId: 'sel-3', productId: 'fm-gad10', placement: 'HOME_TOP' },
+  { slotId: 'ad-demo-showcase-1', sellerId: 'sel-3', productId: 'fm-b1', placement: 'SPONSORED_SHOWCASE' },
+  { slotId: 'ad-demo-sector-1', sellerId: 'sel-3', productId: 'fm-s1', placement: 'SECTOR_RAIL' },
 ];
 
 // Seed donor directory users into checkout.users so blood.donors FKs hold (they are demo accounts).

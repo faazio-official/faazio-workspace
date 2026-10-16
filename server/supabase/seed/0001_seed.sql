@@ -1274,6 +1274,8 @@ insert into sellers.sellers (seller_id, business_name, owner_name, category, sta
 insert into ads.sponsored_slots (slot_id, seller_id, product_id, placement, status, impressions, clicks, orders_attributed) values
   ('ad-demo-home-1', 'sel-3', 'fm-m1', 'HOME_TOP'::ad_placement, 'LIVE'::ad_status, 0, 0, 0),
   ('ad-demo-home-2', 'sel-3', 'fm-m2', 'HOME_TOP'::ad_placement, 'LIVE'::ad_status, 0, 0, 0),
-  ('ad-demo-home-3', 'sel-3', 'fm-gad10', 'HOME_TOP'::ad_placement, 'LIVE'::ad_status, 0, 0, 0);
+  ('ad-demo-home-3', 'sel-3', 'fm-gad10', 'HOME_TOP'::ad_placement, 'LIVE'::ad_status, 0, 0, 0),
+  ('ad-demo-showcase-1', 'sel-3', 'fm-b1', 'SPONSORED_SHOWCASE'::ad_placement, 'LIVE'::ad_status, 0, 0, 0),
+  ('ad-demo-sector-1', 'sel-3', 'fm-s1', 'SECTOR_RAIL'::ad_placement, 'LIVE'::ad_status, 0, 0, 0);
 
 commit;
