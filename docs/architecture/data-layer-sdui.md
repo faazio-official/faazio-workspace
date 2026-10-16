@@ -178,6 +178,13 @@ of its own). These unblock the `@mock` → `@server` per-module migration. Auth 
 Screens still read `@data/*` directly and migrate onto `gateway` incrementally — no call-site changes
 are required. Every `@mock` entry is now a gateway handler contract.
 
+**Home SDUI cutover (W35).** `getHomeFeed` (`GET /sdui/home`) is now the single source of truth for
+every Home section whose doc carries the data: the gateway joins each section's `productIds` **and**
+`storeIds` (`HomeSection.stores`, via the previously unused `contracts.StoreReader`), and the app
+threads `products`/`stores`/`chips[].productIds` into the rails, keeping each `@data/home/*` fixture
+as the offline first-paint. Only the paid `HOME_HERO` banner and the vendor-campaign carousels stay
+fixture-owned (no server surface yet).
+
 **Public promo reads + editorial rails (W29).** `cart/coupons.ts` is now `@mock → @server`:
 `GatewayClient.getCoupons(app?)` reads the anon `GET /coupons` projection (fixture fallback), and the
 cart coupon sheet hydrates from it. The fixture seeds `promo.coupons` (the table `GET /coupons`

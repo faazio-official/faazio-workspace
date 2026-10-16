@@ -87,6 +87,37 @@ func (r *Repo) ByID(ctx context.Context, id string) (contracts.Store, bool, erro
 	return stores[0], true, nil
 }
 
+// ByIDs returns stores for the given ids using the PII-free list projection (public reads only),
+// preserving the requested id order. Used by the SDUI compiler to join Home store rails.
+func (r *Repo) ByIDs(ctx context.Context, ids []string) ([]contracts.Store, error) {
+	if r.pool == nil {
+		return nil, fmt.Errorf("directory: database not configured")
+	}
+	if len(ids) == 0 {
+		return []contracts.Store{}, nil
+	}
+	rows, err := r.pool.Query(ctx, storeListSelect+` where id = any($1)`, ids)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	stores, err := scanStores(rows)
+	if err != nil {
+		return nil, err
+	}
+	byID := make(map[string]contracts.Store, len(stores))
+	for _, s := range stores {
+		byID[s.ID] = s
+	}
+	out := make([]contracts.Store, 0, len(ids))
+	for _, id := range ids {
+		if s, ok := byID[id]; ok {
+			out = append(out, s)
+		}
+	}
+	return out, nil
+}
+
 // PickupPoints returns active pickup points. When storeIDs is non-empty it returns only those
 // stores plus the neutral fallback hub; otherwise every active point.
 func (r *Repo) PickupPoints(ctx context.Context, storeIDs []string) ([]contracts.PickupPoint, error) {

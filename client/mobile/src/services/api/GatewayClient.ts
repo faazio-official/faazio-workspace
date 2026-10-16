@@ -1118,17 +1118,18 @@ export class GatewayClient {
   }
 
   /** Resolve the Home SDUI doc tree into rendered sections with joined data. */
-  async getHomeFeed(): Promise<(SduiSection & { products: ProductView[] })[]> {
+  async getHomeFeed(): Promise<(SduiSection & { products: ProductView[]; stores?: StoreRecord[] })[]> {
     return this.withFallback(
-      () => this.http<(SduiSection & { products: ProductView[] })[]>('/sdui/home'),
+      () => this.http<(SduiSection & { products: ProductView[]; stores?: StoreRecord[] })[]>('/sdui/home'),
       () => this.getHomeFeedMock(),
     );
   }
 
-  private async getHomeFeedMock(): Promise<(SduiSection & { products: ProductView[] })[]> {
+  private async getHomeFeedMock(): Promise<(SduiSection & { products: ProductView[]; stores?: StoreRecord[] })[]> {
     const sections = homeSdui.map((section) => ({
       ...section,
       products: this.joinStock(getCatalogEntriesByIds(section.productIds)),
+      stores: (section.storeIds ?? []).map((id) => getStoreById(id)).filter((s): s is StoreRecord => !!s),
     }));
     return delay(sections);
   }

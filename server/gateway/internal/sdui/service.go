@@ -48,6 +48,11 @@ func (s *Service) Home(ctx context.Context, locale string) ([]contracts.HomeSect
 	if err != nil {
 		return nil, 0, err
 	}
+	// Dining rails reference stores instead of products; join them in the same pass.
+	storesByID, err := s.storesByID(ctx, sections)
+	if err != nil {
+		return nil, 0, err
+	}
 
 	out := make([]contracts.HomeSection, 0, len(sections))
 	for _, section := range sections {
@@ -57,7 +62,13 @@ func (s *Service) Home(ctx context.Context, locale string) ([]contracts.HomeSect
 				products = append(products, p)
 			}
 		}
-		out = append(out, contracts.HomeSection{SduiSection: section, Products: products})
+		stores := make([]contracts.Store, 0, len(section.StoreIDs))
+		for _, id := range section.StoreIDs {
+			if st, ok := storesByID[id]; ok {
+				stores = append(stores, st)
+			}
+		}
+		out = append(out, contracts.HomeSection{SduiSection: section, Products: products, Stores: stores})
 	}
 	s.cache.SetJSON(ctx, cache.SduiHome(locale), cachedHome{Version: version, Sections: out}, cache.TTLSdui)
 	return out, version, nil
@@ -87,6 +98,34 @@ func (s *Service) productsByID(ctx context.Context, sections []contracts.SduiSec
 	}
 	for _, p := range products {
 		byID[p.ID] = p
+	}
+	return byID, nil
+}
+
+// storesByID fetches every store referenced by a section's StoreIDs in a single query,
+// de-duplicating ids while preserving section order for the caller's fan-out.
+func (s *Service) storesByID(ctx context.Context, sections []contracts.SduiSection) (map[string]contracts.Store, error) {
+	seen := map[string]struct{}{}
+	ids := make([]string, 0)
+	for _, section := range sections {
+		for _, id := range section.StoreIDs {
+			if _, ok := seen[id]; ok {
+				continue
+			}
+			seen[id] = struct{}{}
+			ids = append(ids, id)
+		}
+	}
+	byID := make(map[string]contracts.Store, len(ids))
+	if len(ids) == 0 {
+		return byID, nil
+	}
+	stores, err := s.stores.ByIDs(ctx, ids)
+	if err != nil {
+		return nil, err
+	}
+	for _, st := range stores {
+		byID[st.ID] = st
 	}
 	return byID, nil
 }

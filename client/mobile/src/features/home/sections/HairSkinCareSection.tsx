@@ -3,15 +3,21 @@ import { View, StyleSheet } from 'react-native';
 import { hs } from '@/utils/responsive';
 import { SPACE } from '@/theme/spacing';
 import { hairSkinPicks } from '@data/home/demographics';
+import type { Product } from '@data/types';
 import UniversalFeedCard from '@/features/home/cards/UniversalFeedCard';
 import { SectionHeader, useAddToCartFeedback, usePricedProducts } from './common';
 import type { SectionProps } from './common';
 
+interface HairSkinCareSectionProps extends SectionProps {
+  /** SDUI feed rows; falls back to the local fixture for first paint / offline. */
+  products?: Product[];
+}
+
 // Hair & Skin Care pulls from BOTH the Mart Beauty catalog and Pharma OTC/wellness.
 // Items carry their own `app`, so UniversalFeedCard renders each with its native skin.
-function HairSkinCareSection({ onProductClick, addToCart }: SectionProps) {
+function HairSkinCareSection({ products = hairSkinPicks, onProductClick, addToCart }: HairSkinCareSectionProps) {
   const { addedId, handleAdd } = useAddToCartFeedback(addToCart);
-  const priced = usePricedProducts(hairSkinPicks);
+  const priced = usePricedProducts(products);
   return (
     <>
       <SectionHeader title="Hair & Skin Care" />

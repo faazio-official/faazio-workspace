@@ -6,8 +6,16 @@ import type { SharedValue } from 'react-native-reanimated';
 import { homeSections } from '@data/home/sections';
 import type { HomeSectionKind } from '@data/home/sections';
 import type { Product } from '@data/types';
+import type { StoreRecord } from '@data/directory/stores';
 import type { SubAppId } from '@/state/uiStore';
 import { useHomeFeed } from './hooks/useHomeFeed';
+import {
+  mensPicks,
+  womensPicks,
+  childrensPicks,
+  hairSkinPicks,
+} from '@data/home/demographics';
+import { nearbyOffers } from '@data/home/nearbyOffers';
 
 import AdBannerSection from '@/features/home/sections/AdBannerSection';
 import DiningSpecialsSection from '@/features/home/sections/DiningSpecialsSection';
@@ -59,11 +67,29 @@ export default function HomeView({
   // the gateway doc once loaded; the static registry renders first and is the offline
   // fallback. Section components keep their local data where the doc has no join.
   const feed = useHomeFeed();
-  const rows = useMemo<{ id: HomeSectionKind; products?: Product[] }[]>(() => {
+
+  // Feed rows: the SDUI doc supplies the ordered sections plus the joined product/store rows
+  // and filter chips. The static `homeSections` registry is the offline fallback; each section
+  // still carries its own first-paint fixture so the rail never flashes empty.
+  interface HomeRow {
+    id: HomeSectionKind;
+    products?: Product[];
+    stores?: StoreRecord[];
+    chipProducts?: Record<string, string[]>;
+  }
+
+  const rows = useMemo<HomeRow[]>(() => {
     if (feed && feed.length > 0) {
-      return feed.map((s) => ({ id: s.id, products: s.products as unknown as Product[] }));
+      return feed.map((s): HomeRow => ({
+        id: s.id,
+        products: s.products as unknown as Product[],
+        stores: s.stores,
+        chipProducts: s.chips?.length
+          ? Object.fromEntries(s.chips.map((c) => [c.id, c.productIds]))
+          : undefined,
+      }));
     }
-    return homeSections.map((s) => ({ id: s.id }));
+    return homeSections.map((s): HomeRow => ({ id: s.id }));
   }, [feed]);
 
   // 1:1 with finger scroll — matches native collapsing toolbars. Damping below 1
@@ -86,24 +112,24 @@ export default function HomeView({
   });
 
   const renderSection = useCallback(
-    ({ id, products }: { id: HomeSectionKind; products?: Product[] }): React.ReactElement | null => {
+    ({ id, products, stores, chipProducts }: HomeRow): React.ReactElement | null => {
       const rail = (fallback: Product[]) => (products && products.length > 0 ? products : fallback);
       switch (id) {
         case 'adBanner': return <AdBannerSection {...sectionProps} />;
-        case 'diningSpecials': return <DiningSpecialsSection {...sectionProps} />;
+        case 'diningSpecials': return <DiningSpecialsSection {...sectionProps} products={products} />;
         case 'hotBrandDeals': return <BrandCampaignsSection {...sectionProps} />;
         case 'dealsOfDay': return <DealsOfDaySection {...sectionProps} />;
         case 'sponsoredRail': return <SponsoredRailSection {...sectionProps} />;
-        case 'mostRatedDining': return <MostRatedDiningSection {...sectionProps} />;
+        case 'mostRatedDining': return <MostRatedDiningSection {...sectionProps} stores={stores} />;
         case 'recentlyViewedMart': return <RecentlyViewedRailSection {...sectionProps} title="Recently Viewed — Mart" products={rail(recentlyViewedMart)} accent="#1162D3" appBrand="MART" />;
         case 'recentlyViewedFood': return <RecentlyViewedRailSection {...sectionProps} title="Recently Viewed — Food" products={rail(recentlyViewedFood)} accent="#1E5D44" appBrand="FOOD" />;
         case 'recentlyViewedPharma': return <RecentlyViewedRailSection {...sectionProps} title="Recently Viewed — Pharma" products={rail(recentlyViewedPharma)} accent="#065F46" appBrand="PHARMA" />;
-        case 'nearbyOffers': return <NearbyOffersSection {...sectionProps} />;
-        case 'mens': return <MensSection {...sectionProps} />;
-        case 'womens': return <WomensSection {...sectionProps} />;
-        case 'childrens': return <ChildrensSection {...sectionProps} />;
-        case 'hairSkinCare': return <HairSkinCareSection {...sectionProps} />;
-        case 'filterFeed': return <FilterFeedSection {...sectionProps} scrollY={scrollY} viewportH={viewportH} />;
+        case 'nearbyOffers': return <NearbyOffersSection {...sectionProps} products={rail(nearbyOffers)} />;
+        case 'mens': return <MensSection {...sectionProps} products={rail(mensPicks)} />;
+        case 'womens': return <WomensSection {...sectionProps} products={rail(womensPicks)} />;
+        case 'childrens': return <ChildrensSection {...sectionProps} products={rail(childrensPicks)} />;
+        case 'hairSkinCare': return <HairSkinCareSection {...sectionProps} products={rail(hairSkinPicks)} />;
+        case 'filterFeed': return <FilterFeedSection {...sectionProps} chipProducts={chipProducts} scrollY={scrollY} viewportH={viewportH} />;
         default: return null;
       }
     },
@@ -111,7 +137,7 @@ export default function HomeView({
   );
 
   const renderItem = useCallback(
-    ({ item }: { item: { id: HomeSectionKind; products?: Product[] } }) => renderSection(item),
+    ({ item }: { item: HomeRow }) => renderSection(item),
     [renderSection],
   );
 

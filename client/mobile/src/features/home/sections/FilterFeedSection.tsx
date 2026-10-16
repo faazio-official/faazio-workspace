@@ -1,4 +1,4 @@
-import React, { memo, useCallback, useState } from 'react';
+import React, { memo, useCallback, useEffect, useState } from 'react';
 import { View, StyleSheet, LayoutChangeEvent } from 'react-native';
 import { Image as ExpoImage } from 'expo-image';
 import { hs, ms } from '@/utils/responsive';
@@ -7,6 +7,7 @@ import { useDerivedValue, useSharedValue, runOnJS, type SharedValue } from 'reac
 import { filterChips, filterFeedPools } from '@data/home/filterFeed';
 import type { FilterChipId } from '@data/home/filterFeed';
 import type { Product } from '@data/types';
+import { gateway } from '@/services/api/GatewayClient';
 import UniversalFeedCard from '@/features/home/cards/UniversalFeedCard';
 import FilterChipsRail from '@/features/home/cards/FilterChipsRail';
 import { SectionHeader, useAddToCartFeedback, usePricedProducts } from './common';
@@ -17,6 +18,11 @@ import AppText from '@/components/AppText';
 const BATCH_SIZE = 8;
 
 interface FilterFeedSectionProps extends SectionProps {
+  /**
+   * SDUI feed chips → product ids, keyed by chip id. When present the active chip's rows are
+   * resolved through the gateway; the local `filterFeedPools` fixture is the offline fallback.
+   */
+  chipProducts?: Record<string, string[]>;
   scrollY: SharedValue<number>;
   viewportH: SharedValue<number>;
 }
@@ -32,13 +38,37 @@ interface FilterFeedSectionProps extends SectionProps {
 // state) so scrolling does not re-render the section or its cards. Batch
 // loading is edge-triggered in a UI-thread worklet and dispatched via runOnJS.
 function FilterFeedSection({
+  chipProducts,
   onProductClick,
   addToCart,
   scrollY,
   viewportH,
 }: FilterFeedSectionProps) {
   const [activeChip, setActiveChip] = useState<FilterChipId>(filterChips[0].id);
-  const pool = filterFeedPools[activeChip] ?? [];
+  // SDUI-resolved rows for the active chip; null → use the local fixture pool.
+  const [feedPool, setFeedPool] = useState<Product[] | null>(null);
+  const feedIds = chipProducts?.[activeChip];
+
+  useEffect(() => {
+    if (!feedIds || feedIds.length === 0) {
+      setFeedPool(null);
+      return;
+    }
+    let active = true;
+    gateway
+      .getProductsByIds(feedIds)
+      .then((rows) => {
+        if (active) setFeedPool(rows as unknown as Product[]);
+      })
+      .catch(() => {
+        if (active) setFeedPool(null);
+      });
+    return () => {
+      active = false;
+    };
+  }, [feedIds]);
+
+  const pool = feedPool && feedPool.length > 0 ? feedPool : filterFeedPools[activeChip] ?? [];
   const pricedPool = usePricedProducts(pool);
   const { visibleItems, hasMore, loadMore, total, visibleCount } = useBatchedFeed(pricedPool, BATCH_SIZE);
   const { addedId, handleAdd } = useAddToCartFeedback(addToCart);

@@ -4,11 +4,27 @@ import { hs } from '@/utils/responsive';
 import { SPACE } from '@/theme/spacing';
 import { foodStores } from '@data/food/stores';
 import type { StoreProfile } from '@data/types';
+import type { StoreRecord } from '@data/directory/stores';
 import NearbyRestaurantRow from '@/features/food/components/NearbyRestaurantRow';
 import { SectionHeader, subAppIdFor } from './common';
 import type { SectionProps } from './common';
 
-function toRow(store: StoreProfile) {
+interface MostRatedDiningSectionProps extends SectionProps {
+  /** SDUI-joined stores (directory.stores); falls back to the food fixture offline. */
+  stores?: StoreRecord[];
+}
+
+interface DiningStore {
+  id: string;
+  name: string;
+  coverImage: string;
+  categories: string[];
+  rating: number;
+  distance: string;
+  app: StoreProfile['app'];
+}
+
+function toRow(store: DiningStore) {
   const distance = parseFloat(store.distance) || 0;
   return {
     id: store.id,
@@ -23,8 +39,9 @@ function toRow(store: StoreProfile) {
   };
 }
 
-function MostRatedDiningSection({ onLaunchSubApp }: SectionProps) {
-  const topRated = [...foodStores].sort((a, b) => b.rating - a.rating).slice(0, 3);
+function MostRatedDiningSection({ stores, onLaunchSubApp }: MostRatedDiningSectionProps) {
+  const source: DiningStore[] = stores && stores.length > 0 ? stores : foodStores;
+  const topRated = [...source].sort((a, b) => b.rating - a.rating).slice(0, 3);
   return (
     <>
       <SectionHeader title="Most Rated Dining" />

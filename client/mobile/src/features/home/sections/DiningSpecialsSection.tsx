@@ -30,15 +30,23 @@ function planRails(pool: Product[]): [Product[], Product[]] {
   return [railA, railB];
 }
 
-function DiningSpecialsSection({ onProductClick }: SectionProps) {
+interface DiningSpecialsSectionProps extends SectionProps {
+  /** SDUI feed rows; falls back to the local fixture pool for first paint / offline. */
+  products?: Product[];
+}
+
+function DiningSpecialsSection({ products, onProductClick }: DiningSpecialsSectionProps) {
   const pool = useMemo<Product[]>(
-    () => [
-      ...TODAYS_SPECIALS.map(dishToProduct),
-      ...recentlyViewedMart,
-      ...hotBrandDeals,
-      ...recentlyViewedPharma,
-    ],
-    [],
+    () =>
+      products && products.length > 0
+        ? products
+        : [
+            ...TODAYS_SPECIALS.map(dishToProduct),
+            ...recentlyViewedMart,
+            ...hotBrandDeals,
+            ...recentlyViewedPharma,
+          ],
+    [products],
   );
 
   const [railA, railB] = useMemo(() => planRails(pool), [pool]);

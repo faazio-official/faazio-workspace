@@ -5,6 +5,40 @@ dependencies exist. Do not build the backend/seller flows until told to.
 
 ---
 
+## W35 — Home SDUI cutover: feed drives every data-backed rail (Home slice 1)
+
+**Status:** 🟢 Shipped (app) + 🟢 Shipped (server, additive).
+
+The Home feed (`GET /sdui/home`) previously drove only the sponsored rail and half of
+`DealsOfDay`; the other rails rendered their `@data/home/*` fixtures directly while the
+server doc sat unused. This slice makes the SDUI doc the single source of truth for every
+Home section whose doc carries the data, with each fixture kept as the offline first-paint.
+
+- **Server (additive).** `sdui.Service.Home` now also joins each section's `storeIds` via
+  the (previously unused) `contracts.StoreReader`, exposing `HomeSection.stores`; a new
+  `directory.Repo.ByIDs` reads the PII-free store-list projection. No new endpoint, table,
+  column or cache key — the same `faazio:v1:gateway:sdui:{locale}:/home` value (`TTLSdui`
+  300 s) now carries the store join.
+- **App.** `HomeView` threads the feed's `products`, `stores` and `chips[].productIds` into
+  the sections, which accept them as props and fall back to their fixtures when absent:
+  `NearbyOffersSection`, `Mens/Womens/ChildrensSection`, `HairSkinCareSection`
+  (`getHomeFeedMock` also joins `storeIds` for offline parity), `MostRatedDiningSection`
+  (server-joined `directory.stores`), `DiningSpecialsSection` and `FilterFeedSection`
+  (resolves the active chip's `productIds` through `getProductsByIds`).
+- **Still fixture-owned (unchanged, needs new server surfaces).** `adBanner` (paid
+  `HOME_HERO` slot), `hotBrandDeals` (vendor-campaign carousels — no campaigns Home read),
+  and the editorial copy inside the migrated rails. Tracked below.
+- **Docs:** `docs/architecture/monolith-breakdown.md` §1, `docs/architecture/mobile-app.md`,
+  `docs/architecture/data-layer-sdui.md`, this file.
+
+**Rollback:** revert the `HomeView` prop threading + the section `products`/`stores`/
+`chipProducts` props (fixtures resume), and the `contracts.StoreReader.ByIDs` /
+`directory.Repo.ByIDs` / `sdui.Service` store join. No migration.
+
+**Date:** 2026-10-16
+
+---
+
 ## W34 — Server quench + strict money reads (Phase 0/1/2 of production-readiness plan)
 
 **Status:** 🟢 Shipped (server) + 🔵 Partial (app).
@@ -232,12 +266,15 @@ food **dining** (`getVenues('FOOD')`) and **menus** (`getMenu`), the Home **SDUI
 product detail, stock and reviews all read the gateway with `@data/*` fallback.
 
 What remains on `@data` is **editorial/marketing** content that has no table yet:
-`MART_HERO_BANNERS`/`MART_DEALS`/`MART_DAILY_ESSENTIALS`, food `TOP_RATED_RESTAURANTS`/`TODAYS_SPECIALS`/
-`TOP_FOODS_TO_ORDER`, and the Pharma rails. Their product ids (`mf-*`, `pm-*`, `pe-*`) are
-presentation-only and are **not** catalog rows, so they cannot be swapped to `getProductsByIds`
-without either seeding them into `catalog.products` or replacing them with real catalog picks.
-That is a product/design call, and the correct long-term home is the SDUI layout doc
-(`docs/architecture/data-layer-sdui.md`).
+`MART_HERO_BANNERS`/`MART_DAILY_ESSENTIALS`, food `TOP_RATED_RESTAURANTS`/`TOP_FOODS_TO_ORDER`,
+and the Pharma rails. Their product ids (`mf-*`, `pm-*`, `pe-*`) are presentation-only and are
+**not** catalog rows, so they cannot be swapped to `getProductsByIds` without either seeding
+them into `catalog.products` or replacing them with real catalog picks. That is a product/design
+call, and the correct long-term home is the SDUI layout doc
+(`docs/architecture/data-layer-sdui.md`). On Home the same now applies to the `adBanner`
+(needs a paid `HOME_HERO` slot) and `hotBrandDeals` (needs a campaign read) sections (W35);
+`MART_DEALS` is server-priced via `getProductsByIds` (W33) and the Home rails otherwise read
+the SDUI doc.
 
 **Resolved / still open (W29):**
 - **Public promo/ads reads — shipped.** `0021` adds `title`/`min_order_paisa`/`free_delivery` to

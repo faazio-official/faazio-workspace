@@ -273,6 +273,7 @@ type ProductReader interface {
 type StoreReader interface {
 	ByApp(ctx context.Context, app string) ([]Store, error)
 	ByID(ctx context.Context, id string) (Store, bool, error)
+	ByIDs(ctx context.Context, ids []string) ([]Store, error)
 }
 
 // LayoutSource reads ID-only SDUI layouts (implemented by internal/reco). Home returns the
@@ -358,8 +359,11 @@ type Drainer interface {
 	DrainOnce(ctx context.Context) error
 }
 
-// HomeSection is a compiled Home section (SduiSection + joined products).
+// HomeSection is a compiled Home section (SduiSection + joined products/stores).
 type HomeSection struct {
 	SduiSection
 	Products []Product `json:"products"`
+	// Stores are the rows joined from the section's StoreIDs (dining rails). Empty for
+	// product-only sections.
+	Stores []Store `json:"stores,omitempty"`
 }

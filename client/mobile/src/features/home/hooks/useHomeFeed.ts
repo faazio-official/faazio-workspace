@@ -1,9 +1,13 @@
 import { useEffect, useState } from 'react';
 import { gateway, type ProductView } from '@/services/api/GatewayClient';
 import type { SduiSection } from '@data/home/sdui';
+import type { StoreRecord } from '@data/directory/stores';
 
-/** A Home feed section joined with its resolved product rows (SDUI doc + catalog join). */
-export type HomeFeedSection = SduiSection & { products: ProductView[] };
+/**
+ * A Home feed section joined with its resolved rows (SDUI doc + catalog/store join).
+ * `stores` is populated for dining rails (sections that carry `storeIds`).
+ */
+export type HomeFeedSection = SduiSection & { products: ProductView[]; stores?: StoreRecord[] };
 
 /**
  * Server-driven Home SDUI doc. Returns the ordered sections the gateway compiles

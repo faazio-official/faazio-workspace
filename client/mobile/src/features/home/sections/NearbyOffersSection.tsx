@@ -3,13 +3,19 @@ import { ScrollView, StyleSheet } from 'react-native';
 import { hs } from '@/utils/responsive';
 import { SPACE } from '@/theme/spacing';
 import { nearbyOffers } from '@data/home/nearbyOffers';
+import type { Product } from '@data/types';
 import UniversalFeedCard from '@/features/home/cards/UniversalFeedCard';
 import { SectionHeader, useAddToCartFeedback, usePricedProducts } from './common';
 import type { SectionProps } from './common';
 
-function NearbyOffersSection({ onProductClick, addToCart }: SectionProps) {
+interface NearbyOffersSectionProps extends SectionProps {
+  /** SDUI feed rows; falls back to the local fixture for first paint / offline. */
+  products?: Product[];
+}
+
+function NearbyOffersSection({ products = nearbyOffers, onProductClick, addToCart }: NearbyOffersSectionProps) {
   const { addedId, handleAdd } = useAddToCartFeedback(addToCart);
-  const priced = usePricedProducts(nearbyOffers);
+  const priced = usePricedProducts(products);
   return (
     <>
       <SectionHeader title="Nearby Offers" />
