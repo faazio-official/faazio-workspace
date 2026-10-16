@@ -184,6 +184,17 @@ export interface PublicCoupon {
   validTill: string;
 }
 
+/**
+ * One anon-visible LIVE sponsored ad (`GET /ads/live?slot=`). Display fields only — the
+ * app joins `productId` to the catalog; performance counters stay control-plane.
+ */
+export interface LiveAd {
+  slotId: string;
+  sellerId: string;
+  productId: string;
+  placement: string;
+}
+
 /** One notifications.outbox row (user-facing copy only). */
 export interface NotificationRecord {
   id: string;
@@ -669,6 +680,32 @@ export class GatewayClient {
           })),
         ),
     );
+  }
+
+  /**
+   * LIVE sponsored ads for a placement (public, anon, cached 600 s server-side). Paid placements
+   * are **never** fabricated offline: the fallback is an empty list, so the rail collapses rather
+   * than faking a sponsored disclosure.
+   */
+  async getLiveAds(placement?: string): Promise<LiveAd[]> {
+    return this.withFallback(
+      () => this.http<LiveAd[]>(`/ads/live${queryString({ slot: placement })}`),
+      () => delay([] as LiveAd[]),
+    );
+  }
+
+  /**
+   * LIVE sponsored products for a placement, joined to the catalog. `LiveAd`s are ID-only (SDUI
+   * rule): resolve each `productId` via `getProductsByIds` and drop any id the catalog no longer
+   * has, preserving ad order. Empty when there are no LIVE rows.
+   */
+  async getSponsoredProducts(placement?: string): Promise<ProductView[]> {
+    const ads = await this.getLiveAds(placement);
+    const ids = ads.map((a) => a.productId);
+    if (ids.length === 0) return [];
+    const products = await this.getProductsByIds(ids);
+    const byId = new Map(products.map((p) => [p.id, p]));
+    return ids.map((id) => byId.get(id)).filter((p): p is ProductView => p !== undefined);
   }
 
   /** A venue's dishes (durable directory.menus; falls back to the @data menu fixture). */

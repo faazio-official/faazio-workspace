@@ -13,6 +13,7 @@ import AdBannerSection from '@/features/home/sections/AdBannerSection';
 import DiningSpecialsSection from '@/features/home/sections/DiningSpecialsSection';
 import BrandCampaignsSection from '@/features/home/sections/BrandCampaignsSection';
 import DealsOfDaySection from '@/features/home/sections/DealsOfDaySection';
+import SponsoredRailSection from '@/features/home/sections/SponsoredRailSection';
 import MostRatedDiningSection from '@/features/home/sections/MostRatedDiningSection';
 import RecentlyViewedRailSection from '@/features/home/sections/RecentlyViewedRailSection';
 import NearbyOffersSection from '@/features/home/sections/NearbyOffersSection';
@@ -92,6 +93,7 @@ export default function HomeView({
         case 'diningSpecials': return <DiningSpecialsSection {...sectionProps} />;
         case 'hotBrandDeals': return <BrandCampaignsSection {...sectionProps} />;
         case 'dealsOfDay': return <DealsOfDaySection {...sectionProps} />;
+        case 'sponsoredRail': return <SponsoredRailSection {...sectionProps} />;
         case 'mostRatedDining': return <MostRatedDiningSection {...sectionProps} />;
         case 'recentlyViewedMart': return <RecentlyViewedRailSection {...sectionProps} title="Recently Viewed — Mart" products={rail(recentlyViewedMart)} accent="#1162D3" appBrand="MART" />;
         case 'recentlyViewedFood': return <RecentlyViewedRailSection {...sectionProps} title="Recently Viewed — Food" products={rail(recentlyViewedFood)} accent="#1E5D44" appBrand="FOOD" />;

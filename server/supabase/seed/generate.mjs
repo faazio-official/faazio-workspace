@@ -98,6 +98,22 @@ for (const dish of d.TODAYS_SPECIALS ?? []) addProduct(d.dishToProduct(dish));
 const PRESCRIPTION_CATEGORIES = new Set(['hypertension', 'asthma', 'fever']);
 const isPrescription = (e) => e.app === 'PHARMA' && PRESCRIPTION_CATEGORIES.has(e.category);
 
+// ---------------------------------------------------------------- demo seller + sponsored ads
+// `sellers.sellers` has NO seeded row (there is no seller fixture in @data), yet
+// `ads.sponsored_slots.seller_id` FKs to it — so a fresh deploy served an empty `GET /ads/live`.
+// Seed one ACTIVE demo seller (the store-m1 owner), then the LIVE HOME_TOP slots the sponsored
+// rail reads. It also satisfies the pre-existing `sel-3` reference in `bookings.venue_configs`.
+// Product ids must be catalog rows (asserted by `assertLeanContract`), so the app's
+// `getProductsByIds` join never drops a paid placement.
+const DEMO_SELLERS = [
+  { id: 'sel-3', businessName: 'Faazio Mart Flagship', ownerName: 'Faazio Retail', app: 'MART', state: 'KA' },
+];
+const SPONSORED_SLOTS = [
+  { slotId: 'ad-demo-home-1', sellerId: 'sel-3', productId: 'fm-m1', placement: 'HOME_TOP' },
+  { slotId: 'ad-demo-home-2', sellerId: 'sel-3', productId: 'fm-m2', placement: 'HOME_TOP' },
+  { slotId: 'ad-demo-home-3', sellerId: 'sel-3', productId: 'fm-gad10', placement: 'HOME_TOP' },
+];
+
 // Seed donor directory users into checkout.users so blood.donors FKs hold (they are demo accounts).
 const donorUsers = (d.BLOOD_DONORS ?? []).map((donor) => [
   q(donor.userId), q(donor.name), q(`${String(donor.name).toLowerCase().replace(/[^a-z0-9]+/g, '.')}@example.com`), q(''), 'null',
@@ -379,6 +395,21 @@ sql.push(inserts(
   ['vendor_id', 'seller_id', 'booking_enabled', 'total_seats', 'track_occupancy', 'open_time', 'close_time', 'paused'],
   [[q(seedVenueId), q('sel-3'), b(true), n(40), b(true), q('09:00'), q('21:00'), b(false)]],
 ));
+
+// ---------------------------------------------------------------- demo seller + sponsored ads
+// Must follow the seller insert (FK) — the ads rail is the anon `GET /ads/live` projection.
+sql.push(inserts(
+  'sellers.sellers',
+  ['seller_id', 'business_name', 'owner_name', 'category', 'state_code', 'status'],
+  DEMO_SELLERS.map((s) => [q(s.id), q(s.businessName), q(s.ownerName), APP(s.app), q(s.state), `'ACTIVE'::seller_status`]),
+));
+sql.push(inserts(
+  'ads.sponsored_slots',
+  ['slot_id', 'seller_id', 'product_id', 'placement', 'status', 'impressions', 'clicks', 'orders_attributed'],
+  SPONSORED_SLOTS.map((a) => [
+    q(a.slotId), q(a.sellerId), q(a.productId), `'${a.placement}'::ad_placement`, `'LIVE'::ad_status`, n(0), n(0), n(0),
+  ]),
+));
 sql.push('commit;');
 sql.push('');
 
@@ -418,6 +449,15 @@ function assertLeanContract() {
   const sqlText = sql.join('\n');
   if (sqlText.includes('slug_uid')) violations.push('dropped column `slug_uid` leaked into seed');
   if (sqlText.includes('quality_score')) violations.push('dropped column `quality_score` leaked into seed');
+
+  // Sponsored slots must reference a real catalog row + a seeded seller, or the app's
+  // `getProductsByIds` join silently drops a paid placement (and `ads.sponsored_slots.seller_id` FK).
+  const catalogIds = new Set(d.catalogIndex.map((e) => e.id));
+  const sellerIds = new Set(DEMO_SELLERS.map((s) => s.id));
+  for (const a of SPONSORED_SLOTS) {
+    if (!catalogIds.has(a.productId)) violations.push(`sponsored slot ${a.slotId}: product ${a.productId} not in catalogIndex`);
+    if (!sellerIds.has(a.sellerId)) violations.push(`sponsored slot ${a.slotId}: seller ${a.sellerId} not seeded`);
+  }
 
   if (violations.length) {
     console.error(`seed lean-contract violations (${violations.length}):\n - ${violations.join('\n - ')}`);

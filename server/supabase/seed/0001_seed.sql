@@ -1268,4 +1268,12 @@ insert into bookings.payments (id, booking_id, user_id, amount_paisa, razorpay_o
 insert into bookings.venue_configs (vendor_id, seller_id, booking_enabled, total_seats, track_occupancy, open_time, close_time, paused) values
   ('store-f1', 'sel-3', true, 40, true, '09:00', '21:00', false);
 
+insert into sellers.sellers (seller_id, business_name, owner_name, category, state_code, status) values
+  ('sel-3', 'Faazio Mart Flagship', 'Faazio Retail', 'MART'::app_brand, 'KA', 'ACTIVE'::seller_status);
+
+insert into ads.sponsored_slots (slot_id, seller_id, product_id, placement, status, impressions, clicks, orders_attributed) values
+  ('ad-demo-home-1', 'sel-3', 'fm-m1', 'HOME_TOP'::ad_placement, 'LIVE'::ad_status, 0, 0, 0),
+  ('ad-demo-home-2', 'sel-3', 'fm-m2', 'HOME_TOP'::ad_placement, 'LIVE'::ad_status, 0, 0, 0),
+  ('ad-demo-home-3', 'sel-3', 'fm-gad10', 'HOME_TOP'::ad_placement, 'LIVE'::ad_status, 0, 0, 0);
+
 commit;

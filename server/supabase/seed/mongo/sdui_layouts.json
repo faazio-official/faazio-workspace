@@ -67,6 +67,15 @@
       "chips": []
     },
     {
+      "id": "sponsoredRail",
+      "title": "Sponsored picks",
+      "subtitle": null,
+      "accent": "#B45309",
+      "productIds": [],
+      "storeIds": [],
+      "chips": []
+    },
+    {
       "id": "mostRatedDining",
       "title": "Most Rated Dining",
       "subtitle": null,

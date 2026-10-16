@@ -48,7 +48,7 @@ search extraction is a pure index-replica swap.
 | sellers → Go+Postgres | `internal/sellers` | `sellers` (+ `sellers.sellers`, `kyc_documents`, `bank_accounts`; `directory.stores`/`catalog.products` `seller_id`) | **none** — seller records carry PII (caching doc §8) | `submitSellerApplication` (`POST /sellers`, any authenticated applicant); reads/moderation are portal-only | Go + Postgres |
 | admins → Go | `internal/admins` | `admins` (+ `state_admins`, `audit_logs`); reads `checkout.users_admin` | none (append-only audit); customer list auth-scoped, never cached | portal-only (`GET /customers`, customer monitoring) | CockroachDB |
 | promo → Go+Postgres | `internal/promo` | `promo` (+ `festival_campaigns`, `seller_optins`, `coupons` incl. `title`/`min_order_paisa`/`free_delivery`, `sector_caps`) | `faazio:v1:promo:campaign:{id}` 300 s · `faazio:v1:promo:coupons:public:{app}:{state}` 600 s | portal control + public `GET /coupons?app=&state=` (anon, active/unexpired projection) | Go + Postgres |
-| ads → Go+Postgres | `internal/ads` | `ads` (+ `sponsored_slots`) | `faazio:v1:ads:slot:{id}` 300 s · `faazio:v1:ads:live:{placement}` 600 s (invalidated on status change) | portal control + public `GET /ads/live?slot=` (anon, LIVE projection) | Go + Postgres |
+| ads → Go+Postgres | `internal/ads` | `ads` (+ `sponsored_slots`) | `faazio:v1:ads:slot:{id}` 300 s · `faazio:v1:ads:live:{placement}` 600 s (invalidated on status change) | portal control + public `GET /ads/live?slot=` (anon, LIVE projection); `GatewayClient.getLiveAds` (+ `getSponsoredProducts` catalog join) feeds the Home sponsored rail | Go + Postgres |
 | settlement → Go+Cockroach | `internal/settlement` | `payments` (+ `settlement_ledger`, `payouts`) | `faazio:v1:settlement:{sellerId}:{cycle}` 600 s (invalidated on payout create) | portal-only | CockroachDB |
 | support → Go+Postgres | `internal/support` | `support` (+ `tickets` incl. `state_code`), `checkout.returns` | none (auth-scoped, never edge-cached) | portal-only (state/super ticket queue) | Go + Postgres |
 | recommendations → Python+Mongo | `internal/reco`, `internal/sdui` | MongoDB `sdui_layouts`, `user_events`, `recommendations`, `product_stats` | `faazio:v1:reco:{userIdHash}:{context}` 1 h · `faazio:v1:gateway:sdui:{locale}:{path}` 300 s | `getHomeFeed`, `trackEvent` (app) + `getRecommendations`; portal monitoring `GET /admin/user-trail?userId=&limit=` (admin-only, ID-only `user_events` read) | Python FastAPI |
@@ -106,7 +106,10 @@ assigned vendor or admin only). Repo wiring per `db-schema.md` §12.12.
 had no anon-readable contract: `promo.coupons` gained `title`/`min_order_paisa`/`free_delivery`
 (`0021`) and a public `GET /coupons?app=&state=` projection (`internal/promo`), and `ads` gained a
 public `GET /ads/live?slot=` LIVE projection. The app consumes coupons through
-`GatewayClient.getCoupons` (cart coupon sheet; `@data/cart/coupons` fallback). Monitoring:
+`GatewayClient.getCoupons` (cart coupon sheet; `@data/cart/coupons` fallback) and LIVE ads through
+`GatewayClient.getLiveAds`/`getSponsoredProducts` (Home `SponsoredRailSection`, `HOME_TOP`; paid
+placements have **no** fixture fallback — empty collapses the rail). Seed: `sel-3` (ACTIVE MART
+seller) + three LIVE `HOME_TOP` slots (`ad-demo-home-*`) in `0001_seed.sql`. Monitoring:
 `internal/reco` exposes admin-only `GET /admin/user-trail?userId=&limit=` reading the same ID-only
 `user_events` (hash match; no raw user id), surfaced as an activity-trail panel on the portal
 customers page. Delivery: `internal/notifications` gained a provider-agnostic outbox **drain worker**

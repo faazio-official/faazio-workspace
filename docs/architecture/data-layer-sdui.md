@@ -181,8 +181,10 @@ reads); the legacy `checkout.coupons` is unseeded and unused by any repo. The br
 deal rails (`home/campaigns.ts`, `MART_DEALS`, `TOP_RATED_*`) are tagged **`@static-editorial`** —
 they are presentation fixtures with no backing table, and their correct long-term home is the SDUI
 layout doc, not a coupon/ads table.
-The gateway also exposes `GET /ads/live` (LIVE slots) for a future rail; the app does not consume it
-yet. Money/Rx/address writes honour `EXPO_PUBLIC_STRICT=true`, which disables the fixture fallback so
+The gateway also exposes `GET /ads/live` (LIVE slots); the Home **`SponsoredRailSection`** consumes it
+via `GatewayClient.getLiveAds` (+ `getSponsoredProducts`, the catalog join) for the `HOME_TOP`
+placement. Paid placements have **no** fixture fallback — an empty/offline result collapses the rail
+(never a fabricated sponsored shelf), and every card carries the AD disclosure. Money/Rx/address writes honour `EXPO_PUBLIC_STRICT=true`, which disables the fixture fallback so
 a failed write can never masquerade as a local success.
 
 ## Fail-safe contract

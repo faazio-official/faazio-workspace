@@ -5,6 +5,35 @@ dependencies exist. Do not build the backend/seller flows until told to.
 
 ---
 
+## W30 — Sponsored live-ads rail (HOME_TOP)
+
+**Status:** 🟢 Shipped.
+
+A new, **separately-labelled** paid rail on Home — editorial (`hotBrandDeals` /
+`BrandCampaignsSection` → `DealsLandingScreen`) stays `@static-editorial` and untouched.
+
+- **Server.** Seed `sel-3` (ACTIVE MART seller) + three LIVE `HOME_TOP` `ads.sponsored_slots`
+  (`ad-demo-home-*` → `fm-m1`/`fm-m2`/`fm-gad10`) in `0001_seed.sql`; `assertLeanContract` now fails
+  if a slot's product is not in `catalog.products` or its seller is not seeded. Served by the anon
+  `GET /ads/live?slot=HOME_TOP` (`ads:live:{placement}` 600 s, invalidated on status change).
+- **Client seam.** `GatewayClient.getLiveAds(placement?)` + `getSponsoredProducts(placement)` (ID-only
+  `LiveAd` → `getProductsByIds` catalog join). Paid placements have **no** fixture fallback — empty
+  collapses the rail.
+- **UI.** `features/home/sections/SponsoredRailSection.tsx` (added to `homeSections` + `homeSdui`
+  after `dealsOfDay`): horizontal rail of `UniversalFeedCard variant="rail" showAdLabel`, header (i)
+  opens a "Why sponsored?" `SlideUpSheet`. No LIVE rows / offline / error → renders `null` (fill-rate
+  collapse), never an empty shelf; no change to `DealsLanding`/`BrandCampaigns`.
+- **Future (doc-only).** Impression/click events + budget pacing (Flipkart closed-loop) are out of
+  scope until the `ads` counters get a consumer.
+
+**Rollback:** delete the `getLiveAds`/`getSponsoredProducts` methods + `SponsoredRailSection` + the
+HomeView case + the `sponsoredRail` registry entries; seed revert = drop the two inserts. No migration
+(table `0015` already shipped).
+
+**Date:** 2026-10-16
+
+---
+
 ## W29 — Full-stack readiness cleanup (P0–P4)
 
 **Status:** 🟢 Shipped.
@@ -80,7 +109,8 @@ That is a product/design call, and the correct long-term home is the SDUI layout
 **Resolved / still open (W29):**
 - **Public promo/ads reads — shipped.** `0021` adds `title`/`min_order_paisa`/`free_delivery` to
   `promo.coupons`; the gateway serves anon `GET /coupons?app=&state=` (cached 600 s) and
-  `GET /ads/live?slot=`. `GatewayClient.getCoupons` feeds the cart coupon sheet (fixture fallback).
+  `GET /ads/live?slot=`. `GatewayClient.getCoupons` feeds the cart coupon sheet (fixture fallback);
+  LIVE ads are consumed by the Home `SponsoredRailSection` (W30).
   The brand-campaign/hero rails stay **`@static-editorial`** — no ceiling on the SDUI layout doc.
 - **Food-order bookings — removed.** `GatewayClient.createFoodBooking`/`getFoodBookings`,
   `state/foodBookingStore`, the `/food-bookings` routes and `contracts.FoodBooking` were dead code

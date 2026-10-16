@@ -65,6 +65,9 @@ export const homeSdui: SduiSection[] = [
   { id: 'diningSpecials', title: "Today's Special", accent: '#1E5D44', productIds: [], storeIds: resolveStoreIds('FOOD') },
   { id: 'hotBrandDeals', title: 'Deals of the day', accent: '#1162D3', productIds: resolveProductIds(['hbd-1', 'hbd-2', 'hbd-3', 'hbd-4', 'hbd-5']) },
   { id: 'dealsOfDay', title: 'Daily Essentials', accent: '#F25C3D', productIds: resolveProductIds(['md-1', 'md-2', 'md-3', 'md-4', 'md-5', 'md-6']) },
+  // Paid placement: the doc owns the slot order, the ad-server (`GET /ads/live`) owns the fill.
+  // No productIds are baked in — the app resolves LIVE ads at render time (they expire).
+  { id: 'sponsoredRail', title: 'Sponsored picks', accent: '#B45309', productIds: [] },
   { id: 'mostRatedDining', title: 'Most Rated Dining', accent: '#1E5D44', productIds: [], storeIds: resolveStoreIds('FOOD') },
   { id: 'recentlyViewedMart', title: 'Recently Viewed — Mart', accent: '#1162D3', productIds: resolveProductIds(['rvm-1', 'rvm-2', 'rvm-3', 'rvm-4']) },
   { id: 'recentlyViewedFood', title: 'Recently Viewed — Food', accent: '#1E5D44', productIds: resolveProductIds(['rvf-1', 'rvf-2', 'rvf-3']) },

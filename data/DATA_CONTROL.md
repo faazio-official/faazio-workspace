@@ -311,6 +311,12 @@ the `GROCERY` member was dropped from `AppBrand` / `CartCategory` / `SubAppId` /
 | `seedFavorites` | `string[]` | `state/favoriteStore` (seeds the search-results-style Favourites page — 15 ids spanning FOOD, MART, PHARMA, explore & `cat-*` search ids, all resolvable in `catalogIndex`); also seeded into `favourites.items` (migration `0007`) | `@seed` → `@server` |
 | `seedLocation` | `string` | **`@unused`** by mobile | `@seed` + `@unused` |
 
+> **Sponsored rail (W30):** `HomeSectionKind` gained `sponsoredRail` — a paid, separately-labelled
+> Home rail fed by `GatewayClient.getLiveAds`/`getSponsoredProducts` (`GET /ads/live?slot=HOME_TOP`;
+> seed `ads.sponsored_slots` + `sel-3`). It has **no** `@data` fixture by design — paid placements
+> never fabricate a fallback, so an empty/offline result collapses the section. The legacy
+> `sponsoredAds` export above (`data/home/rails.ts`) is unrelated and stays `@unused`.
+
 ### `@data/rewards` — owner: `features/rewards`
 
 | Export | Type | Mobile consumers | Status |
