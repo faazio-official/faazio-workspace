@@ -4,7 +4,9 @@ import (
 	"context"
 	"crypto/rand"
 	"encoding/hex"
+	"encoding/json"
 	"errors"
+	"strings"
 	"testing"
 
 	"github.com/faazio/server/gateway/internal/platform/testenv"
@@ -50,6 +52,15 @@ func TestVendorPrescriptionQuoteAndReveal(t *testing.T) {
 	}
 	if items[0].CustomerName == "" || items[0].CustomerPhone != "" || items[0].CustomerAddress != "" {
 		t.Fatalf("redaction: name=%q phone=%q addr=%q", items[0].CustomerName, items[0].CustomerPhone, items[0].CustomerAddress)
+	}
+	// The seller projection must never carry a user_id key or the raw owner id anywhere in its
+	// JSON — the name-only gate is the PII contract (db-schema §12.12).
+	raw, err := json.Marshal(items[0])
+	if err != nil {
+		t.Fatalf("marshal vendor projection: %v", err)
+	}
+	if strings.Contains(string(raw), "userId") || strings.Contains(string(raw), `"user-1"`) {
+		t.Fatalf("seller projection leaked identity: %s", raw)
 	}
 
 	// READY without a quote is refused.

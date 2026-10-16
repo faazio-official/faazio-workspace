@@ -168,7 +168,8 @@ contract stable so the swap is invisible to the app):
 5. ✅ `server/gateway/` (Go Chi) — all 6 contexts in one binary; `GET /health` + the §3 endpoints;
    Supabase + Mongo + Valkey read-through; `contracts/` interfaces; `tools/importlint` boundary gate.
 6. ✅ `client/mobile/src/services/api/GatewayClient.ts` — `EXPO_PUBLIC_GATEWAY_URL` +
-   `EXPO_PUBLIC_USE_GATEWAY`; wired in `data-layer-sdui.md` order; `@data/*` fallback per method.
+   `EXPO_PUBLIC_USE_GATEWAY` (+ `EXPO_PUBLIC_STRICT` to fail money/Rx/address writes loudly);
+   wired in `data-layer-sdui.md` order; `@data/*` fallback per method.
 7. ✅ Verify: `go build/vet/test ./...` + `go run ./tools/importlint`; `npm run ts:check`,
    `check:boundaries`, `check:drillin`.
 8. ✅ **DB layer verified locally** (`docker compose up`): 421 products / 32 stores / 32 orders seeded,

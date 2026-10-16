@@ -49,7 +49,10 @@ server/
 - **Verify:** `go build/vet/test ./...` + `go run ./tools/importlint`.
 - **Origins:** Supabase (Postgres) for catalog/directory/reviews/checkout/accounts/inventory;
   MongoDB Atlas for `sdui_layouts` + events; Aiven Valkey read-through; Cloudflare in front.
-- **Auth:** Supabase Auth phone OTP (HS256 JWT) + RLS; `AUTH_DISABLED=true` for local dev.
+- **Auth:** Supabase Auth phone OTP (HS256 JWT) + RLS; `AUTH_DISABLED=true` for local dev (logs a
+  loud warning). The app keeps a mocked login by product decision; portal JWT is fail-closed.
+- **Notifications:** the durable outbox drains to a provider-agnostic push webhook when
+  `PUSH_WEBHOOK_URL` is set (`PENDING`→`SENT`/`FAILED`, 30 s polling; unset = in-app inbox only).
 - **Build order / status:** `docs/architecture/mvp-backend.md` §7.
 
 ---

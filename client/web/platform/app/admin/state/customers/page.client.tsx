@@ -12,16 +12,18 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { formatINR, formatDate } from "@/lib/format";
-import { useCustomers, useMockLoading } from "@/lib/api/hooks";
+import { formatINR, formatDate, formatDateTime } from "@/lib/format";
+import { useCustomers, useMockLoading, useUserTrail } from "@/lib/api/hooks";
 import { useSession } from "@/lib/hooks/useSession";
 
 function StateCustomers() {
   const session = useSession();
   const stateCode = session?.stateCode;
   const [query, setQuery] = useState("");
+  const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
   const loading = useMockLoading();
   const customers = useCustomers({ stateCode, query });
+  const { events: trail, loading: trailLoading } = useUserTrail(selectedUserId);
 
   const totalSpend = useMemo(
     () => customers.reduce((sum, c) => sum + c.spendPaisa, 0),
@@ -71,7 +73,11 @@ function StateCustomers() {
             </TableHeader>
             <TableBody>
               {customers.map((c) => (
-                <TableRow key={c.userId} className="h-12">
+                <TableRow
+                  key={c.userId}
+                  className={`h-12 cursor-pointer ${selectedUserId === c.userId ? "bg-muted/50" : ""}`}
+                  onClick={() => setSelectedUserId((prev) => (prev === c.userId ? null : c.userId))}
+                >
                   <TableCell className="font-medium">{c.name}</TableCell>
                   <TableCell className="text-muted-foreground">{c.userId}</TableCell>
                   <TableCell>{c.stateCode ?? "—"}</TableCell>
@@ -87,6 +93,44 @@ function StateCustomers() {
           </Table>
         </DataShell>
       </SectionCard>
+
+      {selectedUserId && (
+        <SectionCard
+          title="Activity trail"
+          description={`ID-only behaviour events for ${selectedUserId} (no PII; sourced from the app's event stream).`}
+          bodyClassName="p-0"
+        >
+          <DataShell
+            loading={trailLoading}
+            isEmpty={trail.length === 0}
+            empty={
+              <EmptyState
+                title="No activity yet"
+                description="Events appear here once the customer browses products with the gateway connected."
+              />
+            }
+          >
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Event</TableHead>
+                  <TableHead>Product</TableHead>
+                  <TableHead>When</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {trail.map((e, i) => (
+                  <TableRow key={`${e.productId}-${e.at}-${i}`} className="h-12">
+                    <TableCell className="font-medium">{e.event}</TableCell>
+                    <TableCell className="text-muted-foreground">{e.productId}</TableCell>
+                    <TableCell className="text-muted-foreground">{formatDateTime(e.at)}</TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </DataShell>
+        </SectionCard>
+      )}
     </div>
   );
 }

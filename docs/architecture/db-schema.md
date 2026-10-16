@@ -1088,8 +1088,9 @@ CREATE TABLE promo.festival_campaigns (campaign_id PK, name, scope campaign_scop
   starts_at/ends_at TIMESTAMPTZ CHECK ends_at>starts_at, status campaign_status, created_by);
 CREATE TABLE promo.festival_optins    (optin_id PK, campaign_id FK, seller_id FK, product_id,
   discount SMALLINT 0–90, status optin_status, UNIQUE(campaign_id,product_id));
-CREATE TABLE promo.coupons            (coupon_id PK, code UNIQUE, scope, state_code, sector,
-  value_percent SMALLINT 0–90, max_discount_paisa INT8, valid_till TIMESTAMPTZ, active BOOL);
+CREATE TABLE promo.coupons            (coupon_id PK, code UNIQUE, title, scope, state_code, sector,
+  value_percent SMALLINT 0–90, max_discount_paisa INT8, min_order_paisa INT8, free_delivery BOOL,
+  valid_till TIMESTAMPTZ, active BOOL);  -- title/min_order/free_delivery added in 0021
 
 CREATE TABLE ads.sponsored_slots (slot_id PK, seller_id FK, product_id, placement ad_placement,
   state_code, status ad_status, impressions/clicks INT4, orders_attributed INT8, requested_at);
@@ -1252,3 +1253,21 @@ quote line, sets the reveal and enqueues `notifications.outbox` (`RX_READY`). Th
 beyond `user_id`; `push_tokens.token` is a device credential and is never logged. New tables are
 deny-all to `anon`/`authenticated` (gateway-only); `pharma.prescriptions`' own-rows RLS is untouched.
 `util.touch_updated_at()` is attached to `pharma.quote_items`. Idempotent and re-runnable.
+
+### 12.13 Public promo/ads reads (migration `0021`)
+
+The app-facing promotional surfaces had no anon-readable contract (`0015` exposed coupons/slots only
+through role-gated control-plane routes). `0021` is additive and idempotent:
+
+```sql
+-- Display fields the public coupon projection needs (NOT NULL defaults keep it re-runnable).
+ALTER TABLE promo.coupons ADD COLUMN IF NOT EXISTS title           TEXT    NOT NULL DEFAULT '';
+ALTER TABLE promo.coupons ADD COLUMN IF NOT EXISTS min_order_paisa INT8    NOT NULL DEFAULT 0 CHECK (min_order_paisa >= 0);
+ALTER TABLE promo.coupons ADD COLUMN IF NOT EXISTS free_delivery   BOOLEAN NOT NULL DEFAULT false;
+CREATE INDEX IF NOT EXISTS coupons_public_idx ON promo.coupons (active, valid_till) WHERE active;
+```
+
+Reads: `GET /coupons?app=&state=` (anon; `active AND valid_till > now()`, sector/state match or
+global; money whole rupees; cached `promo:coupons:public:{app}:{state}` 600 s) and `GET /ads/live?slot=`
+(anon; `status = 'LIVE'`; cached `ads:live:{placement}` 600 s). No new table, no RLS change — the
+public projections are non-PII business data, computed by the gateway from existing rows.

@@ -2,6 +2,8 @@ package reco
 
 import (
 	"net/http"
+	"strconv"
+	"strings"
 
 	"github.com/faazio/server/gateway/internal/platform/auth"
 	"github.com/faazio/server/gateway/internal/platform/httpx"
@@ -23,6 +25,11 @@ func (h *Handler) Register(r chi.Router) {
 		g.Use(auth.Require)
 		g.Post("/events", h.track)
 		g.Get("/recommendations", h.recommendations)
+	})
+	// Admin-only: read a user's behaviour trail (ID-only; closes the monitoring loop).
+	r.Group(func(g chi.Router) {
+		g.Use(auth.RequireRole(auth.RoleStateAdmin, auth.RoleSuperAdmin))
+		g.Get("/admin/user-trail", h.userTrail)
 	})
 }
 
@@ -71,4 +78,21 @@ func (h *Handler) recommendations(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	httpx.JSON(w, http.StatusOK, items)
+}
+
+// userTrail returns a user's recent ID-only behaviour events (admin monitoring). The raw user id is
+// only ever used to derive the stored hash — it is never returned or logged.
+func (h *Handler) userTrail(w http.ResponseWriter, r *http.Request) {
+	userID := strings.TrimSpace(r.URL.Query().Get("userId"))
+	if userID == "" || len(userID) > 64 {
+		httpx.Fail(w, http.StatusBadRequest, "bad_request", "userId required")
+		return
+	}
+	limit, _ := strconv.ParseInt(strings.TrimSpace(r.URL.Query().Get("limit")), 10, 64)
+	events, err := h.repo.UserTrail(r.Context(), userID, limit)
+	if err != nil {
+		httpx.Fail(w, http.StatusServiceUnavailable, "reco_unavailable", "user trail unavailable")
+		return
+	}
+	httpx.JSON(w, http.StatusOK, events)
 }

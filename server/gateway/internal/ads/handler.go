@@ -27,6 +27,8 @@ func NewHandler(repo *Repo, c *cache.Cache, audit contracts.AuditWriter) *Handle
 
 // Register mounts the ads routes.
 func (h *Handler) Register(r chi.Router) {
+	// Public: the anon-visible LIVE ad projection the app rails read (no auth, cached).
+	r.Get("/ads/live", h.live)
 	r.Group(func(g chi.Router) {
 		g.Use(auth.RequireRole(auth.RoleSeller, auth.RoleStateAdmin, auth.RoleSuperAdmin))
 		g.Get("/ads/slots", h.list)
@@ -37,6 +39,28 @@ func (h *Handler) Register(r chi.Router) {
 		g.Use(auth.RequireRole(auth.RoleStateAdmin, auth.RoleSuperAdmin))
 		g.Put("/ads/slots/{id}", h.setStatus)
 	})
+}
+
+// live serves the anon-visible LIVE ad projection for a placement, read-through cached.
+func (h *Handler) live(w http.ResponseWriter, r *http.Request) {
+	placement := strings.ToUpper(strings.TrimSpace(r.URL.Query().Get("slot")))
+	if placement != "" && !validPlacement(placement) {
+		httpx.Fail(w, http.StatusBadRequest, "bad_request", "invalid slot")
+		return
+	}
+	key := cache.AdsLive(placement)
+	var cached []LiveAd
+	if h.cache.GetJSON(r.Context(), key, &cached) {
+		httpx.JSON(w, http.StatusOK, cached)
+		return
+	}
+	ads, err := h.repo.Live(r.Context(), placement)
+	if err != nil {
+		httpx.Fail(w, http.StatusInternalServerError, "ads_unavailable", "ads unavailable")
+		return
+	}
+	h.cache.SetJSON(r.Context(), key, ads, cache.TTLPublicPromo)
+	httpx.JSON(w, http.StatusOK, ads)
 }
 
 func (h *Handler) list(w http.ResponseWriter, r *http.Request) {
@@ -147,7 +171,7 @@ func (h *Handler) setStatus(w http.ResponseWriter, r *http.Request) {
 		httpx.Fail(w, http.StatusNotFound, "not_found", "ad slot not found")
 		return
 	}
-	h.cache.Del(r.Context(), cache.AdSlot(id))
+	h.cache.Del(r.Context(), cache.AdSlot(id), cache.AdsLive(after.Placement))
 	h.log(r, "AD_"+req.Status, id, map[string]string{"status": before.Status}, map[string]string{"status": after.Status})
 	httpx.JSON(w, http.StatusOK, after)
 }

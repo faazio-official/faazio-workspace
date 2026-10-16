@@ -13,6 +13,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/faazio/server/gateway/internal/notifications"
 	"github.com/faazio/server/gateway/internal/platform/cache"
 	"github.com/faazio/server/gateway/internal/platform/config"
 	"github.com/faazio/server/gateway/internal/platform/db"
@@ -49,12 +50,26 @@ func main() {
 		log.Printf("mongo connected (db=%s)", cfg.MongoDatabase)
 	}
 
+	if cfg.AuthDisabled {
+		log.Print("AUTH_DISABLED=true — partner roles come from X-Dev-* headers. Never run this in production.")
+	}
+
 	handler := server.NewRouter(server.Deps{
 		Config: cfg,
 		Pool:   pool,
 		Cache:  valkey,
 		Mongo:  mongoDB,
 	})
+
+	// Notification outbox drain worker (provider-agnostic webhook). Only runs when configured, so
+	// PENDING rows are never marked SENT without a real delivery attempt.
+	workerCtx, stopWorkers := context.WithCancel(context.Background())
+	defer stopWorkers()
+	if cfg.PushWebhookURL != "" && pool != nil {
+		notifyRepo := notifications.New(pool, valkey)
+		worker := notifications.NewWorker(notifyRepo, notifications.NewWebhookSender(cfg.PushWebhookURL), nil)
+		go worker.Run(workerCtx)
+	}
 
 	srv := &http.Server{
 		Addr:              cfg.Addr,

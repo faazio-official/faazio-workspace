@@ -25,10 +25,10 @@ import EnterpriseIcon from '@/components/EnterpriseIcon';
 import Checkbox from '@/components/shared/Checkbox';
 import type { CartItem, CartCategory } from '@/state/cartStore';
 import { defaultAddresses } from '@data/cart/addresses';
-import { coupons } from '@data/cart/coupons';
+import { coupons as fixtureCoupons } from '@data/cart/coupons';
 import { getPickupPointsForItems, getStoreIdsForItems } from '@data/cart/pickup-resolver';
 import { userProfile } from '@data/account/profile';
-import type { FulfillmentMode, PickupPoint } from '@data/types';
+import type { Coupon, FulfillmentMode, PickupPoint } from '@data/types';
 import AppText from '@/components/AppText';
 import SlideUpSheet from '@/components/shared/SlideUpSheet';
 import PaymentOptionsScreen from '@/features/cart/payment/PaymentOptionsScreen';
@@ -113,6 +113,31 @@ export default function CartView({
   const [expandedCategories, setExpandedCategories] = useState<CartCategory[]>(CATEGORY_ORDER);
   const [showCouponSheet, setShowCouponSheet] = useState(false);
   const [deselectedIds, setDeselectedIds] = useState<Set<string>>(new Set());
+  // Coupon list is server-owned when the gateway is reachable (GET /coupons); otherwise the
+  // `@data/cart/coupons` fixture keeps the sheet working offline.
+  const [couponList, setCouponList] = useState<Coupon[]>(fixtureCoupons);
+
+  useEffect(() => {
+    let cancelled = false;
+    void gateway
+      .getCoupons()
+      .then((list) => {
+        if (cancelled || list.length === 0) return;
+        setCouponList(
+          list.map((c) => ({
+            code: c.code,
+            discountPercent: c.valuePercent,
+            label: c.title || c.code,
+            minOrder: c.minOrder,
+            isFreeDelivery: c.freeDelivery,
+          })),
+        );
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const discountCard = useRewardsStore((s) => s.discountCard);
   const streakCardActive = discountCard ? isCardActive(discountCard, new Date()) : false;
@@ -222,7 +247,7 @@ export default function CartView({
 
   const applyCouponCode = (code: string) => {
     const normalized = code.toUpperCase().trim();
-    const coupon = coupons.find((c) => c.code === normalized);
+    const coupon = couponList.find((c) => c.code === normalized);
     if (!coupon) return;
     if (coupon.isFreeDelivery) {
       setAppliedDiscount({ code: `${coupon.code} (FREE Delivery)`, amount: deliveryFee });
@@ -641,7 +666,7 @@ export default function CartView({
               )}
             </TouchableOpacity>
           )}
-          {coupons.map((coupon) => {
+          {couponList.map((coupon) => {
             const active = appliedDiscount?.code?.startsWith(coupon.code);
             return (
               <TouchableOpacity

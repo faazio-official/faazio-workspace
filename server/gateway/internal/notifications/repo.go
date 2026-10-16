@@ -96,6 +96,72 @@ func (r *Repo) Outbox(ctx context.Context, status string, limit int) ([]Notifica
 		 order by created_at desc limit $2`, status, limit)
 }
 
+// PendingMessage is one drainable outbox row joined to the target's registered push token (the
+// token is never returned to a client or logged).
+type PendingMessage struct {
+	ID     string
+	UserID string
+	Token  string
+	Title  string
+	Body   string
+	Data   []byte
+}
+
+// Pending returns up to limit PENDING rows that have a registered push token, oldest first.
+// Rows without a token stay PENDING (they are still visible in the in-app inbox).
+func (r *Repo) Pending(ctx context.Context, limit int) ([]PendingMessage, error) {
+	if r.pool == nil {
+		return nil, fmt.Errorf("notifications: database not configured")
+	}
+	if limit <= 0 || limit > 500 {
+		limit = 100
+	}
+	rows, err := r.pool.Query(ctx, `
+		select o.id, o.user_id, t.token, o.title, o.body, o.data
+		  from notifications.outbox o
+		  join notifications.push_tokens t on t.user_id = o.user_id
+		 where o.status = 'PENDING'
+		 order by o.created_at asc
+		 limit $1`, limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := []PendingMessage{}
+	for rows.Next() {
+		var (
+			m    PendingMessage
+			data []byte
+		)
+		if err := rows.Scan(&m.ID, &m.UserID, &m.Token, &m.Title, &m.Body, &data); err != nil {
+			return nil, err
+		}
+		m.Data = data
+		out = append(out, m)
+	}
+	return out, rows.Err()
+}
+
+// MarkSent flips a row to SENT and stamps sent_at.
+func (r *Repo) MarkSent(ctx context.Context, id string) error {
+	if r.pool == nil {
+		return fmt.Errorf("notifications: database not configured")
+	}
+	_, err := r.pool.Exec(ctx,
+		`update notifications.outbox set status = 'SENT', sent_at = now() where id = $1`, id)
+	return err
+}
+
+// MarkFailed flips a row to FAILED (a terminal delivery error for this attempt).
+func (r *Repo) MarkFailed(ctx context.Context, id string) error {
+	if r.pool == nil {
+		return fmt.Errorf("notifications: database not configured")
+	}
+	_, err := r.pool.Exec(ctx,
+		`update notifications.outbox set status = 'FAILED' where id = $1`, id)
+	return err
+}
+
 // Register upserts a device push token for the user.
 func (r *Repo) Register(ctx context.Context, userID, token, platform string) error {
 	if r.pool == nil {

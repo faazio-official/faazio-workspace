@@ -5,7 +5,6 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { RootStackParamList } from '@/navigation/types';
 import type { StoreProfile } from '@data/types';
 import type { FulfillmentMode } from '@data/types';
-import { defaultAddresses } from '@data/cart/addresses';
 import { useOrdersStore } from '@/state/ordersStore';
 import { gateway } from '@/services/api/GatewayClient';
 import { usePharmaStores } from '../hooks/usePharmaStores';
@@ -89,9 +88,13 @@ export function PrescriptionFlowScreen({ navigation, route }: Props) {
       if (!vendor) return;
       const pages = draft.photos.length;
       const note = draft.note.trim() ? draft.note : undefined;
-      const addressId =
-        defaultAddresses.find((a) => a.isDefault === true)?.id ?? defaultAddresses[0]?.id;
       void (async () => {
+        // Resolve the delivery address from the SERVER-owned list (auth-scoped) so the
+        // prescription's address_id FK never points at a phantom @data fixture id. Falls back
+        // to the fixture list only when the gateway is offline (mock mode).
+        const addresses = await gateway.getAddresses();
+        const addressId =
+          addresses.find((a) => a.isDefault === true)?.id ?? addresses[0]?.id;
         // 1. Upload each photo to the private bucket via a signed URL; keep the object KEYS
         //    (never URLs, never logged). Failures drop that photo but never block the Rx.
         const keys = (

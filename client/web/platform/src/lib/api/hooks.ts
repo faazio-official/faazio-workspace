@@ -2,8 +2,56 @@
 // Reactive read hooks over the service layer. Pages use these instead of src/data/**.
 import { useEffect, useMemo, useState } from "react";
 import { usePortalStore } from "@/lib/api/store";
+import { remote } from "@/lib/api/http";
+import { remoteConfigured } from "@/lib/config";
 import * as api from "@/lib/api";
 import type { OrderStatus, Role, SellerStatus } from "@/data/types";
+
+/** One ID-only behaviour event (`GET /admin/user-trail`); never carries a raw user id or PII. */
+export interface UserTrailEvent {
+  event: string;
+  productId: string;
+  at: string;
+}
+
+/**
+ * Admin-only user behaviour trail. Fetched on demand (per selected customer) rather than hydrated
+ * into the store — it is a live monitoring read, not a control-plane slice.
+ */
+export function useUserTrail(userId: string | null): { events: UserTrailEvent[]; loading: boolean } {
+  const [events, setEvents] = useState<UserTrailEvent[]>([]);
+  const [loading, setLoading] = useState(false);
+  useEffect(() => {
+    if (!userId || !remoteConfigured()) {
+      setEvents([]);
+      return;
+    }
+    let cancelled = false;
+    setLoading(true);
+    remote
+      .get<Record<string, unknown>[]>("/admin/user-trail", { query: { userId, limit: 100 } })
+      .then((rows) => {
+        if (cancelled) return;
+        setEvents(
+          rows.map((r) => ({
+            event: String(r["event"] ?? ""),
+            productId: String(r["productId"] ?? ""),
+            at: String(r["at"] ?? ""),
+          })),
+        );
+      })
+      .catch(() => {
+        if (!cancelled) setEvents([]);
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [userId]);
+  return { events, loading };
+}
 
 /** Short mock latency so every page exercises its loading state. */
 export function useMockLoading(ms = 320): boolean {

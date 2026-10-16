@@ -48,17 +48,32 @@ type Optin struct {
 	Status          string `json:"status"`
 }
 
-// Coupon is one promo.coupons row (maxDiscount is whole rupees).
+// Coupon is one promo.coupons row (maxDiscount/minOrder are whole rupees).
 type Coupon struct {
 	CouponID     string `json:"couponId"`
 	Code         string `json:"code"`
+	Title        string `json:"title,omitempty"`
 	Scope        string `json:"scope"`
 	StateCode    string `json:"stateCode,omitempty"`
 	Sector       string `json:"sector,omitempty"`
 	ValuePercent int    `json:"valuePercent"`
 	MaxDiscount  int64  `json:"maxDiscount"`
+	MinOrder     int64  `json:"minOrder"`
+	FreeDelivery bool   `json:"freeDelivery"`
 	ValidTill    string `json:"validTill"`
 	Active       bool   `json:"active"`
+}
+
+// PublicCoupon is the anon-visible active-coupon projection (display fields only; money in whole
+// rupees). It is the app-facing contract — no scope/state/admin internals leak.
+type PublicCoupon struct {
+	Code         string `json:"code"`
+	Title        string `json:"title,omitempty"`
+	ValuePercent int    `json:"valuePercent"`
+	MaxDiscount  int64  `json:"maxDiscount"`
+	MinOrder     int64  `json:"minOrder"`
+	FreeDelivery bool   `json:"freeDelivery"`
+	ValidTill    string `json:"validTill"`
 }
 
 // Repo reads/writes the promo schema.
@@ -281,8 +296,8 @@ func (r *Repo) Coupons(ctx context.Context, stateCode, scope string) ([]Coupon, 
 		return nil, fmt.Errorf("promo: database not configured")
 	}
 	rows, err := r.pool.Query(ctx, `
-		select coupon_id, code, scope::text, coalesce(state_code,''), coalesce(sector::text,''),
-		       value_percent, max_discount_paisa, valid_till, active
+		select coupon_id, code, title, scope::text, coalesce(state_code,''), coalesce(sector::text,''),
+		       value_percent, max_discount_paisa, min_order_paisa, free_delivery, valid_till, active
 		  from promo.coupons
 		 where ($1 = '' or scope::text = $1)
 		   and ($2 = '' or state_code = $2 or scope = 'GLOBAL')
@@ -294,14 +309,52 @@ func (r *Repo) Coupons(ctx context.Context, stateCode, scope string) ([]Coupon, 
 	out := []Coupon{}
 	for rows.Next() {
 		var (
-			c         Coupon
-			validTill time.Time
+			c             Coupon
+			validTill     time.Time
+			maxDiscount   int64
+			minOrderPaisa int64
 		)
-		if err := rows.Scan(&c.CouponID, &c.Code, &c.Scope, &c.StateCode, &c.Sector,
-			&c.ValuePercent, &c.MaxDiscount, &validTill, &c.Active); err != nil {
+		if err := rows.Scan(&c.CouponID, &c.Code, &c.Title, &c.Scope, &c.StateCode, &c.Sector,
+			&c.ValuePercent, &maxDiscount, &minOrderPaisa, &c.FreeDelivery, &validTill, &c.Active); err != nil {
 			return nil, err
 		}
-		c.MaxDiscount = c.MaxDiscount / 100 // paisa -> rupees
+		c.MaxDiscount = maxDiscount / 100 // paisa -> rupees
+		c.MinOrder = minOrderPaisa / 100
+		c.ValidTill = validTill.UTC().Format(time.RFC3339)
+		out = append(out, c)
+	}
+	return out, rows.Err()
+}
+
+// PublicCoupons lists active, unexpired coupons visible to an app (sector match or all-sector) and
+// optionally a state (state match or global). Money is whole rupees for the app contract.
+func (r *Repo) PublicCoupons(ctx context.Context, app, stateCode string) ([]PublicCoupon, error) {
+	if r.pool == nil {
+		return nil, fmt.Errorf("promo: database not configured")
+	}
+	rows, err := r.pool.Query(ctx, `
+		select code, title, value_percent, max_discount_paisa / 100, min_order_paisa / 100,
+		       free_delivery, valid_till
+		  from promo.coupons
+		 where active
+		   and valid_till > now()
+		   and ($1 = '' or sector is null or sector::text = $1)
+		   and ($2 = '' or state_code is null or state_code = $2)
+		 order by value_percent desc, created_at desc`, app, stateCode)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := []PublicCoupon{}
+	for rows.Next() {
+		var (
+			c         PublicCoupon
+			validTill time.Time
+		)
+		if err := rows.Scan(&c.Code, &c.Title, &c.ValuePercent, &c.MaxDiscount, &c.MinOrder,
+			&c.FreeDelivery, &validTill); err != nil {
+			return nil, err
+		}
 		c.ValidTill = validTill.UTC().Format(time.RFC3339)
 		out = append(out, c)
 	}
@@ -314,21 +367,27 @@ func (r *Repo) CreateCoupon(ctx context.Context, c Coupon) (Coupon, error) {
 		return Coupon{}, fmt.Errorf("promo: database not configured")
 	}
 	c.CouponID = "cpn-" + shortID()
-	var validTill time.Time
+	var (
+		validTill     time.Time
+		maxDiscount   int64
+		minOrderPaisa int64
+	)
 	err := r.pool.QueryRow(ctx, `
 		insert into promo.coupons
-		  (coupon_id, code, scope, state_code, sector, value_percent, max_discount_paisa, valid_till, active)
-		values ($1,$2,$3::campaign_scope,$4,$5::app_brand,$6,$7,$8::timestamptz,$9)
-		returning coupon_id, code, scope::text, coalesce(state_code,''), coalesce(sector::text,''),
-		          value_percent, max_discount_paisa, valid_till, active`,
-		c.CouponID, c.Code, c.Scope, nullIfEmpty(c.StateCode), nullIfEmpty(c.Sector),
-		c.ValuePercent, c.MaxDiscount*100, c.ValidTill, c.Active).
-		Scan(&c.CouponID, &c.Code, &c.Scope, &c.StateCode, &c.Sector, &c.ValuePercent,
-			&c.MaxDiscount, &validTill, &c.Active)
+		  (coupon_id, code, title, scope, state_code, sector, value_percent, max_discount_paisa,
+		   min_order_paisa, free_delivery, valid_till, active)
+		values ($1,$2,$3,$4::campaign_scope,$5,$6::app_brand,$7,$8,$9,$10,$11::timestamptz,$12)
+		returning coupon_id, code, title, scope::text, coalesce(state_code,''), coalesce(sector::text,''),
+		          value_percent, max_discount_paisa, min_order_paisa, free_delivery, valid_till, active`,
+		c.CouponID, c.Code, c.Title, c.Scope, nullIfEmpty(c.StateCode), nullIfEmpty(c.Sector),
+		c.ValuePercent, c.MaxDiscount*100, c.MinOrder*100, c.FreeDelivery, c.ValidTill, c.Active).
+		Scan(&c.CouponID, &c.Code, &c.Title, &c.Scope, &c.StateCode, &c.Sector, &c.ValuePercent,
+			&maxDiscount, &minOrderPaisa, &c.FreeDelivery, &validTill, &c.Active)
 	if err != nil {
 		return Coupon{}, err
 	}
-	c.MaxDiscount = c.MaxDiscount / 100
+	c.MaxDiscount = maxDiscount / 100
+	c.MinOrder = minOrderPaisa / 100
 	c.ValidTill = validTill.UTC().Format(time.RFC3339)
 	return c, nil
 }

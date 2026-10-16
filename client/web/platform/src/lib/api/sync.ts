@@ -34,6 +34,17 @@ import type {
 
 type Raw = Record<string, unknown>;
 
+/**
+ * Production builds must never show phantom demo rows: an empty (but successfully fetched) gateway
+ * slice clears the local slice. In development the seeded rows stay as a demo fallback.
+ */
+const isProd = process.env.NODE_ENV === "production";
+
+/** True when a gateway list slice should replace local state (non-empty, or prod + fetched). */
+function hasSlice<T>(v: T[] | undefined | null): v is T[] {
+  return Array.isArray(v) && (v.length > 0 || isProd);
+}
+
 interface RawSeller {
   sellerId: string;
   businessName: string;
@@ -124,9 +135,9 @@ async function safe<T>(fn: () => Promise<T>): Promise<T | undefined> {
 }
 
 function mergeById<T>(incoming: T[], existing: T[], id: (x: T) => string): T[] {
-  // A missing/empty gateway slice keeps the seeded rows (demo seed fallback), matching the
-  // list-slice behaviour above; only a non-empty remote response replaces local state.
-  if (incoming.length === 0) return existing;
+  // A missing/empty gateway slice keeps the seeded rows in dev; in prod an empty remote response
+  // clears local state so sellers/admins never see phantom demo rows.
+  if (incoming.length === 0) return isProd ? incoming : existing;
   if (existing.length === 0) return incoming;
   const byId = new Map(existing.map((x) => [id(x), x]));
   return incoming.map((x) => ({ ...(byId.get(id(x)) ?? ({} as T)), ...x }));
@@ -180,7 +191,7 @@ export async function hydrateFromGateway(): Promise<boolean> {
   const patch: Record<string, unknown> = {};
   let touched = false;
 
-  if (sellers && sellers.length) {
+  if (hasSlice(sellers)) {
     patch["sellers"] = sellers.map(
       (s): SellerRecord => ({
         ...s,
@@ -191,7 +202,7 @@ export async function hydrateFromGateway(): Promise<boolean> {
     );
     touched = true;
   }
-  if (campaigns && campaigns.length) {
+  if (hasSlice(campaigns)) {
     patch["campaigns"] = campaigns.map(
       (c): FestivalCampaign => ({
         ...c,
@@ -201,7 +212,7 @@ export async function hydrateFromGateway(): Promise<boolean> {
     );
     touched = true;
   }
-  if (coupons && coupons.length) {
+  if (hasSlice(coupons)) {
     patch["coupons"] = coupons.map(
       (c): CouponRecord => ({
         ...c,
@@ -211,7 +222,7 @@ export async function hydrateFromGateway(): Promise<boolean> {
     );
     touched = true;
   }
-  if (caps && caps.length) {
+  if (hasSlice(caps)) {
     patch["sectorCaps"] = caps.map((c) => ({
       capId: str(c["capId"]),
       sector: str(c["sector"]) as Sector,
@@ -221,19 +232,19 @@ export async function hydrateFromGateway(): Promise<boolean> {
     }));
     touched = true;
   }
-  if (optins && optins.length) {
+  if (hasSlice(optins)) {
     patch["optins"] = optins;
     touched = true;
   }
-  if (slots && slots.length) {
+  if (hasSlice(slots)) {
     patch["adSlots"] = slots;
     touched = true;
   }
-  if (admins && admins.length) {
+  if (hasSlice(admins)) {
     patch["stateAdmins"] = admins;
     touched = true;
   }
-  if (logs && logs.length) {
+  if (hasSlice(logs)) {
     patch["auditLogs"] = logs.map(
       (l): AuditLog => ({
         ...l,
@@ -244,7 +255,7 @@ export async function hydrateFromGateway(): Promise<boolean> {
     );
     touched = true;
   }
-  if (ledger && ledger.length) {
+  if (hasSlice(ledger)) {
     patch["ledger"] = ledger.map(
       (l): LedgerEntry => ({
         entryId: l.entryId,
@@ -258,7 +269,7 @@ export async function hydrateFromGateway(): Promise<boolean> {
     );
     touched = true;
   }
-  if (payouts && payouts.length) {
+  if (hasSlice(payouts)) {
     patch["payouts"] = payouts.map(
       (p): PayoutRecord => ({
         payoutId: p.payoutId,
@@ -271,7 +282,7 @@ export async function hydrateFromGateway(): Promise<boolean> {
     );
     touched = true;
   }
-  if (rx && rx.length) {
+  if (hasSlice(rx)) {
     // Gateway prescription rows are thin; merge onto seeded rows for display fields. The seller
     // projection is name-only until READY/FULFILLED — phone/address stay empty before the reveal.
     const mapped = rx.map(
@@ -302,7 +313,7 @@ export async function hydrateFromGateway(): Promise<boolean> {
     patch["prescriptions"] = mergeById(mapped, cur.prescriptions, (x) => x.prescriptionId);
     touched = true;
   }
-  if (bookings && bookings.length) {
+  if (hasSlice(bookings)) {
     const mapped = bookings.map(
       (b): BookingRecord => ({
         bookingId: str(b["bookingId"] ?? b["id"]),
@@ -326,7 +337,7 @@ export async function hydrateFromGateway(): Promise<boolean> {
     patch["bookings"] = mergeById(mapped, cur.bookings, (x) => x.bookingId);
     touched = true;
   }
-  if (blood && blood.length) {
+  if (hasSlice(blood)) {
     patch["bloodRequests"] = blood.map(
       (r): BloodRequestRecord => ({
         requestId: str(r["requestId"] ?? r["id"]),
@@ -357,7 +368,7 @@ export async function hydrateFromGateway(): Promise<boolean> {
     patch["sduiLayouts"] = [layout];
     touched = true;
   }
-  if (customers && customers.length) {
+  if (hasSlice(customers)) {
     patch["customers"] = customers.map(
       (c): CustomerRecord => ({
         userId: str(c["userId"]),
@@ -371,7 +382,7 @@ export async function hydrateFromGateway(): Promise<boolean> {
     );
     touched = true;
   }
-  if (menus && menus.length) {
+  if (hasSlice(menus)) {
     patch["menus"] = menus.map(
       (m): MenuItemRecord => ({
         venueId: str(m["venueId"]),
@@ -388,7 +399,7 @@ export async function hydrateFromGateway(): Promise<boolean> {
     );
     touched = true;
   }
-  if (tickets && tickets.length) {
+  if (hasSlice(tickets)) {
     patch["tickets"] = tickets.map(
       (t): TicketRecord => ({
         ticketId: str(t["ticketId"]),
@@ -414,7 +425,7 @@ export async function hydrateFromGateway(): Promise<boolean> {
     };
     touched = true;
   }
-  if (rewardLedger && rewardLedger.length) {
+  if (hasSlice(rewardLedger)) {
     patch["rewardLedger"] = rewardLedger.map(
       (e): RewardLedgerEntry => ({
         entryId: str(e["entryId"]),

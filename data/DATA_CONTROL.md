@@ -18,6 +18,7 @@
 | `@mock` | Static seeded fixture for local development. Will be replaced by the Go Chi backend (`server/`). **Not production data.** |
 | `@seed` | Bootstrap seed hydrated into client state stores on first launch (cart / favourites / location). |
 | `@static` | Deliberately immutable in-code config (e.g. the Home section registry order). Expected to become server-driven later. |
+| `@static-editorial` | Editorial/marketing fixture with no backing table (brand campaign cards, Mart/Food/Pharma hero + deal rails). Presentation-owned; the correct long-term home is the SDUI layout doc, **not** a per-table migration. Not a wiring gap. |
 | `@unused` | Exported from `data/index.ts` but **not imported** by `client/mobile` today. Candidate for pruning or wiring up. |
 | `@aspirational` | Type-only contract not yet produced by any data file (e.g. `schema.ts` `SDUINode`). |
 
@@ -35,7 +36,7 @@ Every domain file below carries its tag as a top-of-file banner comment.
 | `explore` | `features/catalog` (Categories/Favourites) | `stacks.ts` | `@mock` |
 | `categories` | `features/catalog` | `searchDatabase.ts` | `@mock` |
 | `productMeta` | `features/product` (ProductDetail) | `reviews.ts` | `@mock` (+ `@unused` by mobile) |
-| `cart` | `features/cart` | `addresses.ts`, `coupons.ts`, `pickup-resolver.ts` | `@mock` |
+| `cart` | `features/cart` | `addresses.ts`, `coupons.ts`, `pickup-resolver.ts` | `@mock` (`coupons.ts` now hydrates from `GET /coupons` via `GatewayClient.getCoupons`, fixture fallback) |
 | `account` | `features/profile` | `orders.ts` | `@mock` |
 | `directory` / `reviews` (vendor) | `features/profile` (rating form/CTA) + every vendor surface | `directory/vendors.ts`, `food/diningVenues.ts`, `reviews/vendorReviews.ts` | `@mock` |
 | `home` | `features/home` | `sections.ts`, `rails.ts`, `campaigns.ts`, `demographics.ts`, `instantFeed.ts`, `nearbyOffers.ts`, `filterFeed.ts`, `seeds.ts` | mixed `@mock` / `@seed` / `@static` |
@@ -119,7 +120,7 @@ wiring order in `docs/architecture/data-layer-sdui.md`.
 | `martProducts` | `MartProduct[]` | `FaMartScreen`; `data/home/filterFeed` (data-internal pool) | `@mock` |
 | `MartProduct.storeId` | `string` (**required**) | Vendor link for campaigns, vendor drill-in, product-detail store section, self-pickup. Every `martProducts` row must set **top-level** `storeId` — enforced by the type; `ts:check` fails otherwise | contract |
 | `martStores` | `StoreProfile[]` | `FaMartScreen` "Local Vendors Near You" rail + vendor drill-in (replaces the retired `MART_LOCAL_VENDORS` mock) | `@mock` |
-| `MART_DEALS` / `dealToProduct` | `MartDeal[]` / `(MartDeal) => Product` | `FaMartScreen` `DealsOfDayRail`; home `DealsOfDaySection`. `MartDeal` gained optional `rating?`/`priceNote?` for the minimal deal card | `@mock` |
+| `MART_DEALS` / `dealToProduct` | `MartDeal[]` / `(MartDeal) => Product` | `FaMartScreen` `DealsOfDayRail`; home `DealsOfDaySection`. `MartDeal` gained optional `rating?`/`priceNote?` for the minimal deal card | `@static-editorial` |
 
 ### `@data/grocery` — **removed (merged into `mart`)**
 
@@ -293,7 +294,7 @@ the `GROCERY` member was dropped from `AppBrand` / `CartCategory` / `SubAppId` /
 | `portalSectors` | `PortalSector[]` | home `ExploreSectorsSection` | `@mock` |
 | `topAdSlides` | `AdSlide[]` | home `AdBannerSection` (via shared `AdBannerCarousel`) + food `RestaurantProfileScreen` hero (same carousel) | `@mock` |
 | `hotBrandDeals` | `Product[]` | home `BrandCampaignsSection` (ex-`HotBrandDealsSection`); its `hbd-*` rows remain in the catalog index + search | `@mock` |
-| `adCampaigns` / `getCampaignProducts` / `getCampaignStore` / `carouselOneCampaigns` / `carouselTwoCampaigns` | `AdCampaign[]` + resolvers + carousel slices | home `BrandCampaignsSection` (via `BrandCampaignCard`) → `DealsLandingScreen` (`campaign` mode). Each campaign references a **real Mart vendor by `storeId`** (resolved via `getStoreById`) plus products **by id only**, resolved via `getProductById` (kept to the vendor's `storeId`) | `@mock` |
+| `adCampaigns` / `getCampaignProducts` / `getCampaignStore` / `carouselOneCampaigns` / `carouselTwoCampaigns` | `AdCampaign[]` + resolvers + carousel slices | home `BrandCampaignsSection` (via `BrandCampaignCard`) → `DealsLandingScreen` (`campaign` mode). Each campaign references a **real Mart vendor by `storeId`** (resolved via `getStoreById`) plus products **by id only**, resolved via `getProductById` (kept to the vendor's `storeId`) | `@static-editorial` → SDUI layout doc |
 | `recentlyViewedMart/Food/Pharma` | `Product[]` | `HomeView` (Recently Viewed rail) | `@mock` |
 | `todaysOffers` | `TodaysOffer[]` | **`@unused`** | `@mock` + `@unused` |
 | `mixedRecommendations` | `MixedRecommendation[]` | **`@unused`** | `@mock` + `@unused` |

@@ -28,6 +28,8 @@ func NewHandler(repo *Repo, c *cache.Cache, audit contracts.AuditWriter) *Handle
 
 // Register mounts the promo routes.
 func (h *Handler) Register(r chi.Router) {
+	// Public: the anon-visible active-coupon projection the app rails read (no auth, cached).
+	r.Get("/coupons", h.publicCoupons)
 	// Seller + admin reads/writes.
 	r.Group(func(g chi.Router) {
 		g.Use(auth.RequireRole(auth.RoleSeller, auth.RoleStateAdmin, auth.RoleSuperAdmin))
@@ -128,6 +130,34 @@ func (h *Handler) getCampaign(w http.ResponseWriter, r *http.Request) {
 	}
 	h.cache.SetJSON(r.Context(), cache.PromoCampaign(id), c, cache.TTLPromo)
 	httpx.JSON(w, http.StatusOK, c)
+}
+
+// publicCoupons serves active, unexpired coupons for an app/sector and optional state. Non-PII,
+// anon, read-through cached for TTLPublicPromo (caching doc §5).
+func (h *Handler) publicCoupons(w http.ResponseWriter, r *http.Request) {
+	app := strings.ToUpper(strings.TrimSpace(r.URL.Query().Get("app")))
+	state := strings.ToUpper(strings.TrimSpace(r.URL.Query().Get("state")))
+	if app != "" && !validSector(app) {
+		httpx.Fail(w, http.StatusBadRequest, "bad_request", "invalid app")
+		return
+	}
+	if state != "" && len(state) != 2 {
+		httpx.Fail(w, http.StatusBadRequest, "bad_request", "invalid state")
+		return
+	}
+	key := cache.PromoPublicCoupons(app, state)
+	var cached []PublicCoupon
+	if h.cache.GetJSON(r.Context(), key, &cached) {
+		httpx.JSON(w, http.StatusOK, cached)
+		return
+	}
+	coupons, err := h.repo.PublicCoupons(r.Context(), app, state)
+	if err != nil {
+		httpx.Fail(w, http.StatusInternalServerError, "promo_unavailable", "promo unavailable")
+		return
+	}
+	h.cache.SetJSON(r.Context(), key, coupons, cache.TTLPublicPromo)
+	httpx.JSON(w, http.StatusOK, coupons)
 }
 
 type campaignRequest struct {
@@ -304,11 +334,14 @@ func (h *Handler) listCoupons(w http.ResponseWriter, r *http.Request) {
 
 type couponRequest struct {
 	Code         string `json:"code"`
+	Title        string `json:"title"`
 	Scope        string `json:"scope"`
 	StateCode    string `json:"stateCode"`
 	Sector       string `json:"sector"`
 	ValuePercent int    `json:"valuePercent"`
 	MaxDiscount  int64  `json:"maxDiscount"`
+	MinOrder     int64  `json:"minOrder"`
+	FreeDelivery bool   `json:"freeDelivery"`
 	ValidTill    string `json:"validTill"`
 }
 
@@ -325,16 +358,19 @@ func (h *Handler) createCoupon(w http.ResponseWriter, r *http.Request) {
 		req.Scope = "STATE"
 		req.StateCode = auth.StateCode(r.Context())
 	}
+	req.Title = strings.TrimSpace(req.Title)
 	if strings.TrimSpace(req.Code) == "" || !validScope(req.Scope) ||
 		(req.Scope == "STATE") != (req.StateCode != "") ||
 		(req.Sector != "" && !validSector(req.Sector)) ||
-		req.ValuePercent <= 0 || req.ValuePercent > 90 || req.MaxDiscount < 0 {
+		req.ValuePercent <= 0 || req.ValuePercent > 90 || req.MaxDiscount < 0 || req.MinOrder < 0 ||
+		len(req.Title) > 80 {
 		httpx.Fail(w, http.StatusBadRequest, "bad_request", "invalid coupon")
 		return
 	}
 	c, err := h.repo.CreateCoupon(r.Context(), Coupon{
-		Code: req.Code, Scope: req.Scope, StateCode: req.StateCode, Sector: req.Sector,
-		ValuePercent: req.ValuePercent, MaxDiscount: req.MaxDiscount, ValidTill: req.ValidTill, Active: true,
+		Code: req.Code, Title: req.Title, Scope: req.Scope, StateCode: req.StateCode, Sector: req.Sector,
+		ValuePercent: req.ValuePercent, MaxDiscount: req.MaxDiscount, MinOrder: req.MinOrder,
+		FreeDelivery: req.FreeDelivery, ValidTill: req.ValidTill, Active: true,
 	})
 	if err != nil {
 		httpx.Fail(w, http.StatusInternalServerError, "coupon_create_failed", "could not create coupon")

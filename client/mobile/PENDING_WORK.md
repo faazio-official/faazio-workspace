@@ -5,6 +5,26 @@ dependencies exist. Do not build the backend/seller flows until told to.
 
 ---
 
+## W29 — Full-stack readiness cleanup (P0–P4)
+
+**Status:** 🟢 Shipped.
+
+- **Rx address fix.** `PrescriptionFlow` now resolves the delivery `addressId` from
+  `GatewayClient.getAddresses()` (server-owned) instead of the `@data/cart/addresses` fixture, so a
+  `DELIVERY` Rx never stores a phantom fixture FK.
+- **Strict writes.** `EXPO_PUBLIC_STRICT=true` disables the fixture fallback for `placeOrder`,
+  `createPrescription`, `payForOrder` and `saveAddress` — a failed remote write fails loudly instead
+  of fabricating a local success (`GatewayClient.strictWritesEnabled`).
+- **Coupon read.** `GatewayClient.getCoupons` + cart coupon sheet hydration (see Home rails entry).
+- **Rewards** documented as device-local writes for MVP.
+- Web portal seed-keep is removed in production (empty gateway slice clears the slice, so sellers
+  never see phantom demo rows) and the customers page gained an **activity-trail** panel fed by the
+  admin-only `GET /admin/user-trail`.
+
+**Date:** 2026-10-16
+
+---
+
 ## W22 `@mock` → `@server` — food, dining, addresses, blood + seat bookings shipped
 
 **Status:** 🟢 Shipped (profile reads, W25/W26/W27; seat bookings W28).
@@ -58,18 +78,20 @@ without either seeding them into `catalog.products` or replacing them with real 
 That is a product/design call, and the correct long-term home is the SDUI layout doc
 (`docs/architecture/data-layer-sdui.md`).
 
-**Open product decisions (need answers before more app cutover):**
-- **Public promo/ads reads.** `promo.coupons` and `ads.sponsored_slots` exist but only expose
-  role-gated routes; the app's offers/ads rails would need a new **public, cached** read contract
-  (`GET /coupons`, a live-ads projection) plus, for coupons, `minOrder`/free-delivery fields the
-  schema does not model. Not built — inventing that contract without product input would be wrong.
-- **Food-order bookings.** `GatewayClient.createFoodBooking`/`getFoodBookings`, `foodBookingStore`
-  and the `/food-bookings` endpoints have **no screen or route** on mobile — build the screen or
-  delete the path.
+**Resolved / still open (W29):**
+- **Public promo/ads reads — shipped.** `0021` adds `title`/`min_order_paisa`/`free_delivery` to
+  `promo.coupons`; the gateway serves anon `GET /coupons?app=&state=` (cached 600 s) and
+  `GET /ads/live?slot=`. `GatewayClient.getCoupons` feeds the cart coupon sheet (fixture fallback).
+  The brand-campaign/hero rails stay **`@static-editorial`** — no ceiling on the SDUI layout doc.
+- **Food-order bookings — open.** `GatewayClient.createFoodBooking`/`getFoodBookings`,
+  `foodBookingStore` and the `/food-bookings` endpoints still have **no screen or route**; build the
+  screen or delete the path (kept as the future seam this pass).
+- **Rewards writes — local by decision.** `rewardsStore.recordOrder`/`redeemCoins` stay device-local
+  for MVP; the server view (`GET /rewards`) is reconciled on read only.
 - **Razorpay native checkout.** Still the mock adapter seam (`services/payments/checkout.ts`); needs
   the SDK adapter, no screen change (see the W22 entry above).
 
-**Date:** 2026-10-15
+**Date:** 2026-10-16
 
 ---
 

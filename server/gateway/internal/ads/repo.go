@@ -29,6 +29,14 @@ type Slot struct {
 	RequestedAt      string `json:"requestedAt"`
 }
 
+// LiveAd is the anon-visible LIVE ad projection (display fields only; no performance counters).
+type LiveAd struct {
+	SlotID    string `json:"slotId"`
+	SellerID  string `json:"sellerId"`
+	ProductID string `json:"productId"`
+	Placement string `json:"placement"`
+}
+
 // Repo reads/writes the ads schema.
 type Repo struct {
 	pool *db.Pool
@@ -61,6 +69,31 @@ func (r *Repo) List(ctx context.Context, sellerID, stateCode string) ([]Slot, er
 			return nil, err
 		}
 		out = append(out, s)
+	}
+	return out, rows.Err()
+}
+
+// Live lists LIVE slots, optionally filtered by placement, as the anon-visible projection.
+func (r *Repo) Live(ctx context.Context, placement string) ([]LiveAd, error) {
+	if r.pool == nil {
+		return nil, fmt.Errorf("ads: database not configured")
+	}
+	rows, err := r.pool.Query(ctx, `
+		select slot_id, seller_id, product_id, placement::text
+		  from ads.sponsored_slots
+		 where status = 'LIVE' and ($1 = '' or placement::text = $1)
+		 order by requested_at desc`, placement)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := []LiveAd{}
+	for rows.Next() {
+		var a LiveAd
+		if err := rows.Scan(&a.SlotID, &a.SellerID, &a.ProductID, &a.Placement); err != nil {
+			return nil, err
+		}
+		out = append(out, a)
 	}
 	return out, rows.Err()
 }

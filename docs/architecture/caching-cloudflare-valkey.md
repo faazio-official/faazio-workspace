@@ -92,7 +92,9 @@ Examples: `faazio:v1:stock:fm-f1`, `faazio:v1:search:q:hoodie`, `faazio:v1:sdui:
 | Recommendations (per userHash) | 3600 s (1 h) | — | `user_events` flush |
 | Store directory / reviews | 86400 s (24 h) | — | edit event |
 | Promo campaigns / coupons (partner) | 300 s | **never** | campaign/coupon write |
+| Public coupons (anon `GET /coupons?app=&state=`) | 600 s | — | coupon write (TTL-bounded) |
 | Ad slots (partner) | 300 s | **never** | ad status/stat write |
+| Live ads (anon `GET /ads/live?slot=`) | 600 s | — | ad status write (invalidated on `LIVE`) |
 | Settlement cycles (per seller) | 600 s | **never** | settlement/payout write |
 | Idempotency locks (checkout) | 300 s | — | auto-expire |
 | Auth subject → app user_id | 3600 s (1 h) | — | delete on profile merge (mapping is otherwise immutable) |

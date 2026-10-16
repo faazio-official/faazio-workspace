@@ -37,7 +37,7 @@ search extraction is a pure index-replica swap.
 | search → Rust/Tantivy | `internal/search` | `catalog` (read: `products_search`) | `faazio:v1:search:q:{query}` 600 s | `searchProducts` | Rust Axum + Tantivy |
 | catalog/directory → Go | `internal/catalog`, `internal/directory` | `catalog`, `directory` (+ `inventory.pickup_points`, `directory.dining_venues`, `directory.menus` incl. `seller_id`/`status`) | `faazio:v1:catalog:product:{id}` 24 h · `faazio:v1:directory:store:{id}` 24 h · `faazio:v1:directory:pickup:{key}` 24 h · `faazio:v1:directory:menu:{venueId}` 24 h (invalidated on menu edit) · `faazio:v1:directory:venues:{app}` 24 h | `getProduct`, `getProductsByIds`, `getStores`, `getStore`, `getVenues`, `getPickupPoints`, `getMenu`; portal menu CRUD (`/seller/menus`) | CockroachDB + Postgres |
 | pharma (prescriptions) → Go | `internal/pharma` | `pharma` (+ `pharma.quote_items`, `pharma.status_history`) | `faazio:v1:pharma:prescriptions:{userId}` 60 s; never edge-cached | `createPrescription`, `uploadPrescriptionImage`, `getPrescriptions`/`getPrescription` (owner-scoped `GET /prescriptions/{id}`); portal quote/reveal (`GET /seller/prescriptions`, `POST /seller/prescriptions/{id}/quotes`, `PUT /prescriptions/{id}/status`) | Go + Postgres + Supabase Storage |
-| notifications → Go+worker | `internal/notifications` | `notifications` (+ `outbox`, `push_tokens`) | `faazio:v1:notifications:inbox:{userId}` 30 s; never edge-cached | — (enqueue via `contracts.Notifier`; `POST /notifications/register`, `GET /notifications`; portal `GET /admin/notifications`) | Go + queue worker |
+| notifications → Go+worker | `internal/notifications` | `notifications` (+ `outbox`, `push_tokens`) | `faazio:v1:notifications:inbox:{userId}` 30 s; never edge-cached | — (enqueue via `contracts.Notifier`; `POST /notifications/register`, `GET /notifications`; portal `GET /admin/notifications`; outbox **drain worker** → `PENDING`→`SENT`/`FAILED`, provider-agnostic `WebhookSender`, 30 s polling SLA, enabled by `PUSH_WEBHOOK_URL`) | Go + queue worker |
 | blood → Go+Postgres | `internal/blood` | `blood` (+ `blood.donor_directory` view, pg_cron expiry) | `faazio:v1:blood:requests:{bloodGroup};{city}` 60 s (public/redacted); never edge-cached | `getDonorProfile`, `saveDonorProfile`, `getBloodDonors`, `getBloodRequests`, `createBloodRequest`, `setBloodInterest`, `createDonorMatch`, `getDonorMatches` | Go + Postgres |
 | bookings → Go+Postgres | `internal/bookings` | `bookings` (+ `venue_configs` seller-private, `payments` ledger), `directory.dining_venues.seller_id` | `faazio:v1:bookings:tables:{userId}` 60 s · `faazio:v1:bookings:food:{userId}` 60 s · `faazio:v1:bookings:avail:{vendorId}` 30 s (public seat-count-free projection; invalidated on config write + decision); never edge-cached | `getBookings`, `createBooking` (seats + idempotency), `cancelBooking`, `attachBookingPayment`, `getFoodBookings`, `createFoodBooking`, `getBookingAvailability`; seller web `GET/PUT /seller/booking-config`, `PUT /bookings/{id}/status` (accept/reject), `POST /bookings/{id}/vacate`; `POST /webhooks/razorpay` | CockroachDB + Razorpay |
 | cart/stock → Go+Dynamo | `internal/cartstock` | `inventory` | `faazio:v1:stock:{productId}` 30–60 s; **never** carts | `getStock`, `getCart`, `addToCart`, `updateCartItem`, `removeCartItem` | DynamoDB / Firestore |
@@ -47,11 +47,11 @@ search extraction is a pure index-replica swap.
 | reviews → Go+Postgres | `internal/reviews` | `reviews` (+ `reviews.vendor_summary` counter/trigger) | `faazio:v1:reviews:vendor:{id}` 24 h · `faazio:v1:reviews:product:{id}` 24 h | `getReviews` (product), `getVendorReviews`, `rateVendor` | standalone Postgres |
 | sellers → Go+Postgres | `internal/sellers` | `sellers` (+ `sellers.sellers`, `kyc_documents`, `bank_accounts`; `directory.stores`/`catalog.products` `seller_id`) | **none** — seller records carry PII (caching doc §8) | `submitSellerApplication` (`POST /sellers`, any authenticated applicant); reads/moderation are portal-only | Go + Postgres |
 | admins → Go | `internal/admins` | `admins` (+ `state_admins`, `audit_logs`); reads `checkout.users_admin` | none (append-only audit); customer list auth-scoped, never cached | portal-only (`GET /customers`, customer monitoring) | CockroachDB |
-| promo → Go+Postgres | `internal/promo` | `promo` (+ `festival_campaigns`, `seller_optins`, `coupons`, `sector_caps`) | `faazio:v1:promo:campaign:{id}` 300 s (invalidated on status change) | portal-only | Go + Postgres |
-| ads → Go+Postgres | `internal/ads` | `ads` (+ `sponsored_slots`) | `faazio:v1:ads:slot:{id}` 300 s (invalidated on status change) | portal-only | Go + Postgres |
+| promo → Go+Postgres | `internal/promo` | `promo` (+ `festival_campaigns`, `seller_optins`, `coupons` incl. `title`/`min_order_paisa`/`free_delivery`, `sector_caps`) | `faazio:v1:promo:campaign:{id}` 300 s · `faazio:v1:promo:coupons:public:{app}:{state}` 600 s | portal control + public `GET /coupons?app=&state=` (anon, active/unexpired projection) | Go + Postgres |
+| ads → Go+Postgres | `internal/ads` | `ads` (+ `sponsored_slots`) | `faazio:v1:ads:slot:{id}` 300 s · `faazio:v1:ads:live:{placement}` 600 s (invalidated on status change) | portal control + public `GET /ads/live?slot=` (anon, LIVE projection) | Go + Postgres |
 | settlement → Go+Cockroach | `internal/settlement` | `payments` (+ `settlement_ledger`, `payouts`) | `faazio:v1:settlement:{sellerId}:{cycle}` 600 s (invalidated on payout create) | portal-only | CockroachDB |
 | support → Go+Postgres | `internal/support` | `support` (+ `tickets` incl. `state_code`), `checkout.returns` | none (auth-scoped, never edge-cached) | portal-only (state/super ticket queue) | Go + Postgres |
-| recommendations → Python+Mongo | `internal/reco`, `internal/sdui` | MongoDB `sdui_layouts`, `user_events`, `recommendations`, `product_stats` | `faazio:v1:reco:{userIdHash}:{context}` 1 h · `faazio:v1:gateway:sdui:{locale}:{path}` 300 s | `getHomeFeed`, `trackEvent`, `getRecommendations` | Python FastAPI |
+| recommendations → Python+Mongo | `internal/reco`, `internal/sdui` | MongoDB `sdui_layouts`, `user_events`, `recommendations`, `product_stats` | `faazio:v1:reco:{userIdHash}:{context}` 1 h · `faazio:v1:gateway:sdui:{locale}:{path}` 300 s | `getHomeFeed`, `trackEvent` (app) + `getRecommendations`; portal monitoring `GET /admin/user-trail?userId=&limit=` (admin-only, ID-only `user_events` read) | Python FastAPI |
 | shared | `internal/platform/{db,cache,auth,config,otel,testenv}`, `internal/contracts` | — | — | — | gRPC via `contracts/` |
 
 Mongo `user_events` stores **ID-only** `{ userIdHash, productId, event, at }` with a 90-day TTL; the
@@ -101,6 +101,18 @@ blanked by the query's `CASE`); `POST /seller/prescriptions/{id}/quotes` replace
 app polls a single row instead of the whole list; a non-owner id is a 404. `GET
 /prescriptions/{id}/images` mints short-lived signed download URLs for the private bucket (owner,
 assigned vendor or admin only). Repo wiring per `db-schema.md` §12.12.
+
+**Public promo/ads reads, user trail + outbox worker (W29, `0021`).** The app's promotional surfaces
+had no anon-readable contract: `promo.coupons` gained `title`/`min_order_paisa`/`free_delivery`
+(`0021`) and a public `GET /coupons?app=&state=` projection (`internal/promo`), and `ads` gained a
+public `GET /ads/live?slot=` LIVE projection. The app consumes coupons through
+`GatewayClient.getCoupons` (cart coupon sheet; `@data/cart/coupons` fallback). Monitoring:
+`internal/reco` exposes admin-only `GET /admin/user-trail?userId=&limit=` reading the same ID-only
+`user_events` (hash match; no raw user id), surfaced as an activity-trail panel on the portal
+customers page. Delivery: `internal/notifications` gained a provider-agnostic outbox **drain worker**
+(`WebhookSender`; start with `PUSH_WEBHOOK_URL`) that moves `PENDING`→`SENT`/`FAILED` — the app's
+inbox stays poll-based until it is configured. Prod auth is unchanged in code (dev `X-Dev-*` headers
+are only honoured when `AUTH_DISABLED=true`, which now logs a loud warning).
 
 ## 2. Boundary rules (enforced)
 

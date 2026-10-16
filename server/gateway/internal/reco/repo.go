@@ -95,6 +95,48 @@ func (r *Repo) TrackEvent(ctx context.Context, userID, productID, event string) 
 	return err
 }
 
+// TrailEvent is one user_events row as an admin reads it (ID-only: never a raw user id or PII).
+type TrailEvent struct {
+	Event     string `json:"event"`
+	ProductID string `json:"productId"`
+	At        string `json:"at"`
+}
+
+// UserTrail returns a user's recent behaviour events (newest first) by matching the stored hash.
+// Admin-only read over the same ID-only collection the app writes; the raw user id never leaves.
+func (r *Repo) UserTrail(ctx context.Context, userID string, limit int64) ([]TrailEvent, error) {
+	if r.db == nil {
+		return nil, fmt.Errorf("reco: mongo not configured")
+	}
+	if limit <= 0 || limit > 200 {
+		limit = 100
+	}
+	cur, err := r.db.Collection("user_events").Find(ctx,
+		bson.M{"userIdHash": hashUser(userID)},
+		options.Find().SetSort(bson.D{{Key: "at", Value: -1}}).SetLimit(limit))
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = cur.Close(ctx) }()
+	out := []TrailEvent{}
+	for cur.Next(ctx) {
+		var row struct {
+			Event     string    `bson:"event"`
+			ProductID string    `bson:"productId"`
+			At        time.Time `bson:"at"`
+		}
+		if err := cur.Decode(&row); err != nil {
+			return nil, err
+		}
+		out = append(out, TrailEvent{
+			Event:     row.Event,
+			ProductID: row.ProductID,
+			At:        row.At.UTC().Format(time.RFC3339),
+		})
+	}
+	return out, cur.Err()
+}
+
 func hashUser(userID string) string {
 	sum := sha256.Sum256([]byte(userID))
 	return "sha256:" + hex.EncodeToString(sum[:])

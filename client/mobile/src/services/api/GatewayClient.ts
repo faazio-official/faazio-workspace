@@ -16,6 +16,7 @@ import type { AppBrand, PickupPoint, SavedAddress, UserDetailsData } from '@data
 import { catalogIndex, getCatalogEntryById, getCatalogEntriesByIds, type CatalogEntry } from '@data/catalog/products';
 import { storeDirectory, getStoreById, getStoresByApp, type StoreRecord } from '@data/directory/stores';
 import { NEUTRAL_PICKUP } from '@data/cart/pickup-resolver';
+import { coupons as fixtureCoupons } from '@data/cart/coupons';
 import { diningVenues } from '@data/food/diningVenues';
 import { restaurantMenus } from '@data/food/menus';
 import { getReviewsByProductId, type ReviewRow } from '@data/reviews/reviews';
@@ -34,6 +35,13 @@ const LATENCY_MS = 40;
 const GATEWAY_URL = (process.env.EXPO_PUBLIC_GATEWAY_URL ?? '').replace(/\/+$/, '');
 const GATEWAY_FLAG = (process.env.EXPO_PUBLIC_USE_GATEWAY ?? '').toLowerCase();
 const REMOTE_ENABLED = GATEWAY_URL.length > 0 && ['1', 'true', 'yes'].includes(GATEWAY_FLAG);
+/**
+ * Strict mode (`EXPO_PUBLIC_STRICT=true`): money/Rx/address WRITES never silently fall back to a
+ * local mock. A failed remote write surfaces as an error instead of a fake local success — the
+ * safety net that keeps reads working during migration must never fabricate a payment or a script.
+ */
+const STRICT_FLAG = ['1', 'true', 'yes'].includes((process.env.EXPO_PUBLIC_STRICT ?? '').toLowerCase());
+const REMOTE_STRICT = REMOTE_ENABLED && STRICT_FLAG;
 
 function delay<T>(value: T, ms = LATENCY_MS): Promise<T> {
   return new Promise((resolve) => setTimeout(() => resolve(value), ms));
@@ -163,6 +171,17 @@ export interface Venue {
   /** PII — only present on an authenticated read. */
   phone?: string;
   hours?: string;
+}
+
+/** One anon-visible active coupon (`GET /coupons`); money in whole rupees. */
+export interface PublicCoupon {
+  code: string;
+  title?: string;
+  valuePercent: number;
+  maxDiscount: number;
+  minOrder: number;
+  freeDelivery: boolean;
+  validTill: string;
 }
 
 /** One notifications.outbox row (user-facing copy only). */
@@ -403,6 +422,20 @@ export class GatewayClient {
     }
   }
 
+  /**
+   * The strict variant for money/Rx/address WRITES. In strict mode the remote error propagates
+   * (no fake local success); otherwise it behaves exactly like `withFallback`.
+   */
+  private async withStrict<T>(remote: () => Promise<T>, mock: () => Promise<T>): Promise<T> {
+    if (REMOTE_STRICT) return remote();
+    return this.withFallback(remote, mock);
+  }
+
+  /** True when money/Rx/address writes fail loudly instead of using the local mock. */
+  get strictWritesEnabled(): boolean {
+    return REMOTE_STRICT;
+  }
+
   private joinStock(entries: CatalogEntry[]): ProductView[] {
     return entries.map((entry) => ({ ...entry, stock: getStockByProductId(entry.id) }));
   }
@@ -565,7 +598,7 @@ export class GatewayClient {
       address: addr.address,
       isDefault: !!addr.isDefault,
     };
-    return this.withFallback(
+    return this.withStrict(
       () =>
         this.http<AddressRecord>('/profile/addresses', { method: 'PUT', body: JSON.stringify(body) }).then(
           toSavedAddress,
@@ -628,6 +661,28 @@ export class GatewayClient {
     );
   }
 
+  /**
+   * Active, unexpired coupons visible to an app (public, anon, cached). The server is the
+   * authority for which coupons exist; the mock fallback mirrors the `@data/cart/coupons` fixture.
+   */
+  async getCoupons(app?: AppBrand): Promise<PublicCoupon[]> {
+    return this.withFallback(
+      () => this.http<PublicCoupon[]>(`/coupons${app ? `?app=${app}` : ''}`),
+      () =>
+        delay(
+          fixtureCoupons.map((c) => ({
+            code: c.code,
+            title: c.label,
+            valuePercent: c.discountPercent,
+            maxDiscount: 0,
+            minOrder: c.minOrder ?? 0,
+            freeDelivery: !!c.isFreeDelivery,
+            validTill: '',
+          })),
+        ),
+    );
+  }
+
   /** A venue's dishes (durable directory.menus; falls back to the @data menu fixture). */
   async getMenu(venueId: string): Promise<MenuDish[]> {
     return this.withFallback(
@@ -679,7 +734,7 @@ export class GatewayClient {
 
   /** Create a durable prescription (images are Storage object keys, never bytes/URLs). */
   async createPrescription(input: PrescriptionInput): Promise<PrescriptionRecord> {
-    return this.withFallback(
+    return this.withStrict(
       () =>
         this.http<PrescriptionRecord>('/prescriptions', {
           method: 'POST',
@@ -1041,7 +1096,7 @@ export class GatewayClient {
 
   /** Place an order (server decrements stock + holds an idempotency lock). */
   async placeOrder(input: PlaceOrderInput): Promise<OrderRow> {
-    return this.withFallback(
+    return this.withStrict(
       () => this.http<OrderRow>('/orders', { method: 'POST', body: JSON.stringify(input) }),
       () => delay(this.placeOrderMock(input)),
     );
@@ -1067,7 +1122,7 @@ export class GatewayClient {
 
   /** Record a payment for an owned order (server derives the amount). */
   async payForOrder(orderId: string, method: string, coinsRedeemed = 0): Promise<PaymentRecord> {
-    return this.withFallback(
+    return this.withStrict(
       () =>
         this.http<PaymentRecord>(`/orders/${encodeURIComponent(orderId)}/payments`, {
           method: 'POST',

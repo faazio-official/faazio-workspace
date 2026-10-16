@@ -53,6 +53,13 @@ func Reco(userIDHash, context string) string {
 func Idempotency(ref string) string  { return fmt.Sprintf("faazio:v1:checkout:idem:%s", ref) }
 func PromoCampaign(id string) string { return fmt.Sprintf("faazio:v1:promo:campaign:%s", id) }
 func AdSlot(id string) string        { return fmt.Sprintf("faazio:v1:ads:slot:%s", id) }
+
+// PromoPublicCoupons caches the anon-visible active-coupon projection for (app, state) — non-PII
+// business data (caching doc §5). AdsLive caches the anon-visible LIVE ad projection per placement.
+func PromoPublicCoupons(app, state string) string {
+	return fmt.Sprintf("faazio:v1:promo:coupons:public:%s:%s", app, state)
+}
+func AdsLive(placement string) string { return fmt.Sprintf("faazio:v1:ads:live:%s", placement) }
 func Settlement(sellerID, cycle string) string {
 	return fmt.Sprintf("faazio:v1:settlement:%s:%s", sellerID, cycle)
 }
@@ -102,6 +109,9 @@ const (
 	TTLPromo      = 300 * time.Second
 	TTLAds        = 300 * time.Second
 	TTLSettlement = 600 * time.Second
+
+	// TTLPublicPromo bounds the anon-visible active-coupon projection (caching doc §5).
+	TTLPublicPromo = 600 * time.Second
 )
 
 // Cache is a JSON read-through cache. A nil *Client (disabled) is safe to call.

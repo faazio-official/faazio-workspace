@@ -10,13 +10,13 @@ import (
 
 // Config holds environment-derived settings.
 type Config struct {
-	Addr              string
-	DatabaseURL       string
-	ValkeyURL         string
-	MongoURI          string
-	MongoDatabase     string
-	SupabaseJWTSecret string
-	SupabaseURL       string
+	Addr               string
+	DatabaseURL        string
+	ValkeyURL          string
+	MongoURI           string
+	MongoDatabase      string
+	SupabaseJWTSecret  string
+	SupabaseURL        string
 	SupabaseServiceKey string
 	PrescriptionBucket string
 	// Razorpay (bookings): secrets are env-only and never committed. When KeyID/KeySecret are empty
@@ -27,32 +27,36 @@ type Config struct {
 	// BookingFeePaisa is the fixed per-seat platform fee (₹50). A deploy constant — a restaurant can
 	// never set its own fee (client-supplied amounts are ignored; the gateway derives it).
 	BookingFeePaisa int64
-	AuthDisabled      bool
-	DevUserID         string
-	AllowedOrigins    []string
-	OTelEnabled       bool
+	AuthDisabled    bool
+	DevUserID       string
+	// PushWebhookURL enables the notification outbox drain worker. Empty = worker not started
+	// (notifications stay durable + readable in-app). See internal/notifications/worker.go.
+	PushWebhookURL string
+	AllowedOrigins []string
+	OTelEnabled    bool
 }
 
 // Load reads config from the environment with safe local-dev defaults.
 func Load() Config {
 	return Config{
-		Addr:              env("GATEWAY_ADDR", ":8080"),
-		DatabaseURL:       env("DATABASE_URL", ""),
-		ValkeyURL:         env("VALKEY_URL", ""),
-		MongoURI:          env("MONGO_URI", ""),
-		MongoDatabase:     env("MONGO_DATABASE", "faazio"),
-		SupabaseJWTSecret: env("SUPABASE_JWT_SECRET", ""),
-		SupabaseURL:        env("SUPABASE_URL", ""),
-		SupabaseServiceKey: env("SUPABASE_SERVICE_KEY", ""),
-		PrescriptionBucket: env("PRESCRIPTION_BUCKET", "prescriptions"),
+		Addr:                  env("GATEWAY_ADDR", ":8080"),
+		DatabaseURL:           env("DATABASE_URL", ""),
+		ValkeyURL:             env("VALKEY_URL", ""),
+		MongoURI:              env("MONGO_URI", ""),
+		MongoDatabase:         env("MONGO_DATABASE", "faazio"),
+		SupabaseJWTSecret:     env("SUPABASE_JWT_SECRET", ""),
+		SupabaseURL:           env("SUPABASE_URL", ""),
+		SupabaseServiceKey:    env("SUPABASE_SERVICE_KEY", ""),
+		PrescriptionBucket:    env("PRESCRIPTION_BUCKET", "prescriptions"),
 		RazorpayKeyID:         env("RAZORPAY_KEY_ID", ""),
 		RazorpayKeySecret:     env("RAZORPAY_KEY_SECRET", ""),
 		RazorpayWebhookSecret: env("RAZORPAY_WEBHOOK_SECRET", ""),
 		BookingFeePaisa:       envInt64("BOOKING_FEE_PAISA", 5000),
-		AuthDisabled:      envBool("AUTH_DISABLED", false),
-		DevUserID:         env("DEV_USER_ID", "user-1"),
-		AllowedOrigins:    splitCSV(env("ALLOWED_ORIGINS", "")),
-		OTelEnabled:       envBool("OTEL_ENABLED", false),
+		AuthDisabled:          envBool("AUTH_DISABLED", false),
+		DevUserID:             env("DEV_USER_ID", "user-1"),
+		PushWebhookURL:        env("PUSH_WEBHOOK_URL", ""),
+		AllowedOrigins:        splitCSV(env("ALLOWED_ORIGINS", "")),
+		OTelEnabled:           envBool("OTEL_ENABLED", false),
 	}
 }
 
