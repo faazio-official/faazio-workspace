@@ -30,6 +30,9 @@ func NewHandler(repo *Repo, c *cache.Cache, audit contracts.AuditWriter) *Handle
 func (h *Handler) Register(r chi.Router) {
 	// Public: the anon-visible active-coupon projection the app rails read (no auth, cached).
 	r.Get("/coupons", h.publicCoupons)
+	// Public: the anon-visible active festival discount per product (LIVE campaign + APPROVED
+	// opt-in, sector-capped) the app overlays on base prices (no auth, cached per product).
+	r.Get("/promo/active-discounts", h.activeDiscounts)
 	// Seller + admin reads/writes.
 	r.Group(func(g chi.Router) {
 		g.Use(auth.RequireRole(auth.RoleSeller, auth.RoleStateAdmin, auth.RoleSuperAdmin))
@@ -160,6 +163,96 @@ func (h *Handler) publicCoupons(w http.ResponseWriter, r *http.Request) {
 	httpx.JSON(w, http.StatusOK, coupons)
 }
 
+// activeDiscounts serves the anon-visible active festival discount for a batch of products. It is
+// the shopper price authority's read side: the app keeps base catalog prices pure and overlays this
+// projection. Cached per product (TTLPromoActive) with a `none` sentinel, invalidated when an
+// opt-in or campaign status changes.
+func (h *Handler) activeDiscounts(w http.ResponseWriter, r *http.Request) {
+	ids := parseIDs(r.URL.Query().Get("ids"))
+	if len(ids) == 0 {
+		httpx.JSON(w, http.StatusOK, []ActiveDiscount{})
+		return
+	}
+	res := make(map[string]ActiveDiscount, len(ids))
+	misses := make([]string, 0, len(ids))
+	for _, id := range ids {
+		var cd cachedActive
+		if h.cache.GetJSON(r.Context(), cache.PromoActiveDiscount(id), &cd) {
+			if !cd.None {
+				res[id] = cd.ActiveDiscount
+			}
+			continue
+		}
+		misses = append(misses, id)
+	}
+	if len(misses) > 0 {
+		found, err := h.repo.ActiveDiscounts(r.Context(), misses)
+		if err != nil {
+			httpx.Fail(w, http.StatusInternalServerError, "promo_unavailable", "promo unavailable")
+			return
+		}
+		for _, a := range found {
+			res[a.ProductID] = a
+		}
+		for _, id := range misses {
+			if a, ok := res[id]; ok {
+				h.cache.SetJSON(r.Context(), cache.PromoActiveDiscount(id), cachedActive{ActiveDiscount: a}, cache.TTLPromoActive)
+			} else {
+				h.cache.SetJSON(r.Context(), cache.PromoActiveDiscount(id), cachedActive{None: true}, cache.TTLPromoActive)
+			}
+		}
+	}
+	out := make([]ActiveDiscount, 0, len(res))
+	for _, id := range ids { // preserve requested order
+		if a, ok := res[id]; ok {
+			out = append(out, a)
+		}
+	}
+	httpx.JSON(w, http.StatusOK, out)
+}
+
+// cachedActive wraps a product's active discount with a `none` sentinel so a checked-but-absent
+// product is cached too (a hot catalog batch never re-queries it).
+type cachedActive struct {
+	ActiveDiscount
+	None bool `json:"none,omitempty"`
+}
+
+// invalidateActive drops the cached active-discount projection for the given products.
+func (h *Handler) invalidateActive(r *http.Request, productIDs ...string) {
+	keys := make([]string, 0, len(productIDs))
+	for _, id := range productIDs {
+		if id != "" {
+			keys = append(keys, cache.PromoActiveDiscount(id))
+		}
+	}
+	if len(keys) > 0 {
+		h.cache.Del(r.Context(), keys...)
+	}
+}
+
+// parseIDs splits a comma-separated id list, de-dupes it and caps it at 200 (mirrors the catalog
+// batch cap) so a malformed query can't amplify into an unbounded read.
+func parseIDs(raw string) []string {
+	seen := make(map[string]struct{})
+	out := make([]string, 0, 16)
+	for _, part := range strings.Split(raw, ",") {
+		id := strings.TrimSpace(part)
+		if id == "" || len(id) > 64 {
+			continue
+		}
+		if _, ok := seen[id]; ok {
+			continue
+		}
+		seen[id] = struct{}{}
+		out = append(out, id)
+		if len(out) == 200 {
+			break
+		}
+	}
+	return out
+}
+
 type campaignRequest struct {
 	Name      string `json:"name"`
 	Scope     string `json:"scope"`
@@ -239,6 +332,9 @@ func (h *Handler) setCampaignStatus(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	h.cache.Del(r.Context(), cache.PromoCampaign(id))
+	if products, err := h.repo.OptinProductIDs(r.Context(), id); err == nil {
+		h.invalidateActive(r, products...)
+	}
 	h.log(r, "CAMPAIGN_"+req.Status, id, nil, map[string]string{"status": c.Status})
 	httpx.JSON(w, http.StatusOK, c)
 }
@@ -290,6 +386,7 @@ func (h *Handler) upsertOptin(w http.ResponseWriter, r *http.Request) {
 		httpx.Fail(w, http.StatusInternalServerError, "optin_update_failed", "could not save opt-in")
 		return
 	}
+	h.invalidateActive(r, o.ProductID)
 	h.log(r, "FESTIVAL_OPTIN", req.CampaignID+":"+productID, nil, o)
 	httpx.JSON(w, http.StatusOK, o)
 }
@@ -315,6 +412,7 @@ func (h *Handler) setOptinStatus(w http.ResponseWriter, r *http.Request) {
 		httpx.Fail(w, http.StatusNotFound, "not_found", "opt-in not found")
 		return
 	}
+	h.invalidateActive(r, o.ProductID)
 	h.log(r, "OPTIN_"+req.Status, id, nil, map[string]string{"status": o.Status})
 	httpx.JSON(w, http.StatusOK, o)
 }

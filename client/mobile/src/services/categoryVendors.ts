@@ -138,13 +138,11 @@ export function getAdsForQuery(app: VendorApp, searchQuery: string, limit = 4): 
 }
 
 /**
- * A vendor's items currently on offer — products with a pre-discount MRP
- * (`originalPrice` > `price`). Shared by the Mart vendor profile "Discounted
- * Products" rail and the `DealsLanding` page in `discounts` mode, so the
- * predicate isn't duplicated across screens.
+ * True when a product is on offer — it carries a list price above what the shopper pays
+ * (`originalPrice > price`). The single predicate shared by the Mart vendor profile "Discounted
+ * Products" rail and the `DealsLanding` page in `discounts` mode; applied after any server festival
+ * discount is overlaid, so it must not be duplicated across screens.
  */
-export function getDiscountedProducts(storeId: string, app: VendorApp): Product[] {
-  return getVendorProducts(storeId, app).filter(
-    (p) => p.originalPrice !== undefined && p.originalPrice > p.price,
-  );
+export function isDiscounted(product: Product): boolean {
+  return product.originalPrice !== undefined && product.originalPrice > product.price;
 }

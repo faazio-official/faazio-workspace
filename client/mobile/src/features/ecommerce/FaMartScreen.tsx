@@ -9,7 +9,8 @@ import { useCartStore } from '@/state/store';
 import { martProducts } from '@data/mart/products';
 import type { MartProduct, StoreProfile } from '@data/types';
 import type { RootStackParamList } from '@/navigation/types';
-import { getDiscountedProducts as getStoreDiscountedProducts } from '@/services/categoryVendors';
+import { isDiscounted } from '@/services/categoryVendors';
+import { applyActiveDiscounts, useActiveDiscounts } from '@/services/pricing';
 import MartProductCard from '@/features/ecommerce/cards/MartProductCard';
 
 import {
@@ -49,11 +50,6 @@ interface FaMartScreenProps {
 const getVendorProducts = (store: StoreProfile): MartProduct[] =>
   martProducts.filter((p) => p.storeId === store.id);
 
-/** Items currently on offer (have a pre-discount MRP) — shared predicate via the
- *  category-vendors repository seam (mart cast: the pool is all `MartProduct`s). */
-const getDiscountedProducts = (store: StoreProfile): MartProduct[] =>
-  getStoreDiscountedProducts(store.id, 'FA_MART') as MartProduct[];
-
 const CARD_GAP = hs(12);
 const CARD_W = (SCREEN_W - hs(32) - CARD_GAP) / 2;
 
@@ -76,6 +72,16 @@ export function FaMartScreen({
   const vendorProducts = useMemo(
     () => (vendor ? getVendorProducts(vendor) : []),
     [vendor],
+  );
+
+  // "Discounted Products" rail: every vendor product, with any server-owned festival discount
+  // overlaid, filtered to what is actually on offer (authored MRP or an active opt-in). Fetching
+  // discounts for the full pool means an approved opt-in shows even when the product has no MRP
+  // fixture. In mock mode `useActiveDiscounts` returns {} so only the authored MRP set shows.
+  const vendorDiscounts = useActiveDiscounts(vendorProducts.map((p) => p.id));
+  const discountedProducts = useMemo(
+    () => applyActiveDiscounts(vendorProducts, vendorDiscounts).filter(isDiscounted),
+    [vendorProducts, vendorDiscounts],
   );
 
   const filteredVendorProducts = useMemo(
@@ -154,7 +160,7 @@ export function FaMartScreen({
       <VendorProfileView
         vendor={vendor}
         products={filteredVendorProducts}
-        discountedProducts={getDiscountedProducts(vendor)}
+        discountedProducts={discountedProducts}
         cartItems={cartItems}
         onBack={handleBackToFeed}
         onProductClick={onProductClick}

@@ -93,6 +93,7 @@ Examples: `faazio:v1:stock:fm-f1`, `faazio:v1:search:q:hoodie`, `faazio:v1:sdui:
 | Store directory / reviews | 86400 s (24 h) | — | edit event |
 | Promo campaigns / coupons (partner) | 300 s | **never** | campaign/coupon write |
 | Public coupons (anon `GET /coupons?app=&state=`) | 600 s | — | coupon write (TTL-bounded) |
+| Active festival discounts (anon `GET /promo/active-discounts?ids=`, per product) | 300 s | — | opt-in approve/reject or campaign status change (invalidated per product; `none` sentinel cached) |
 | Ad slots (partner) | 300 s | **never** | ad status/stat write |
 | Live ads (anon `GET /ads/live?slot=`) | 600 s | — | ad status write (invalidated on `LIVE`) |
 | Settlement cycles (per seller) | 600 s | **never** | settlement/payout write |

@@ -22,7 +22,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { formatDate } from "@/lib/format";
+import { formatDate, formatINR } from "@/lib/format";
 import { capFor, validateOptin } from "@/lib/pricing/rules";
 import { upsertOptin } from "@/lib/api";
 import { useCampaigns, useMockLoading, useOptins, useProducts, useSectorCaps } from "@/lib/api/hooks";
@@ -89,6 +89,10 @@ function SellerPromotions() {
               </div>
             ))}
           </div>
+          <p className="w-full text-[11px] text-muted-foreground">
+            Shoppers see the live price only after a state admin approves the opt-in; the sector cap
+            is enforced server-side.
+          </p>
         </div>
       ) : null}
 
@@ -113,6 +117,7 @@ function SellerPromotions() {
                 <TableHead>Product</TableHead>
                 <TableHead>Sector</TableHead>
                 <TableHead className="text-right">Cap</TableHead>
+                <TableHead className="text-right">Live price</TableHead>
                 <TableHead className="w-36 text-right">Your discount %</TableHead>
                 <TableHead>Opt-in status</TableHead>
                 <TableHead />
@@ -147,6 +152,25 @@ function SellerPromotions() {
                       <SectorPill sector={product.sector} />
                     </TableCell>
                     <TableCell className="num text-right">{cap}%</TableCell>
+                    <TableCell className="num text-right">
+                      {(() => {
+                        const pct = check.ok ? Number(draft) : 0;
+                        const livePaisa =
+                          pct > 0
+                            ? Math.round((product.pricePaisa * (100 - pct)) / 100)
+                            : product.pricePaisa;
+                        return (
+                          <div className="flex flex-col items-end leading-tight">
+                            <span className="font-semibold">{formatINR(livePaisa)}</span>
+                            {product.mrpPaisa > livePaisa ? (
+                              <span className="text-[11px] text-muted-foreground line-through">
+                                {formatINR(product.mrpPaisa)}
+                              </span>
+                            ) : null}
+                          </div>
+                        );
+                      })()}
+                    </TableCell>
                     <TableCell>
                       <Input
                         className="num h-8 text-right"

@@ -874,6 +874,9 @@ ALTER TABLE directory.menus
   ADD COLUMN description TEXT NOT NULL DEFAULT '',
   ADD COLUMN emoji TEXT NOT NULL DEFAULT '',
   ADD COLUMN delivery_time TEXT NOT NULL DEFAULT '';
+-- 0022: list price (MRP) so a dish discount is `mrp_paisa > price_paisa`, never synthesized.
+ALTER TABLE directory.menus ADD COLUMN mrp_paisa INT8
+  CHECK (mrp_paisa IS NULL OR mrp_paisa >= price_paisa);
 CREATE INDEX menus_venue_idx ON directory.menus (venue_id);
 ```
 
@@ -1279,9 +1282,12 @@ CREATE INDEX IF NOT EXISTS coupons_public_idx ON promo.coupons (active, valid_ti
 ```
 
 Reads: `GET /coupons?app=&state=` (anon; `active AND valid_till > now()`, sector/state match or
-global; money whole rupees; cached `promo:coupons:public:{app}:{state}` 600 s) and `GET /ads/live?slot=`
-(anon; `status = 'LIVE'`; cached `ads:live:{placement}` 600 s). No new table, no RLS change — the
-public projections are non-PII business data, computed by the gateway from existing rows.
+global; money whole rupees; cached `promo:coupons:public:{app}:{state}` 600 s), `GET
+/promo/active-discounts?ids=` (anon; best live `festival_optins` discount per product — campaign
+`LIVE` and in `[starts_at, ends_at)`, opt-in `APPROVED`, clamped by the effective `sector_caps` row;
+cached `promo:active:{productId}` 300 s, invalidated on opt-in/campaign status change) and `GET
+/ads/live?slot=` (anon; `status = 'LIVE'`; cached `ads:live:{placement}` 600 s). No new table, no RLS
+change — the public projections are non-PII business data, computed by the gateway from existing rows.
 
 **Seed:** the coupon fixture (`data/cart/coupons.ts`) now seeds `promo.coupons`, not the legacy
 `checkout.coupons` (0001) — no repo reads the latter, so the app's `GET /coupons` rail is populated on

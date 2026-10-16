@@ -154,7 +154,7 @@ for (const [name, dishes] of Object.entries(d.restaurantMenus ?? {})) {
   const venueId = venue ? venue.id : slug(name);
   for (const dish of dishes) {
     menuRows.push([
-      q(venueId), q(dish.id), q(dish.dishName), paisa(dish.price), b(dish.isVeg),
+      q(venueId), q(dish.id), q(dish.dishName), paisa(dish.price), paisa(dish.mrp), b(dish.isVeg),
       q(dish.cuisine), n(dish.rating), q(dish.image),
       q(dish.description ?? ''), q(dish.emoji ?? ''), q(dish.deliveryTime ?? ''),
     ]);
@@ -162,7 +162,7 @@ for (const [name, dishes] of Object.entries(d.restaurantMenus ?? {})) {
 }
 sql.push(inserts(
   'directory.menus',
-  ['venue_id', 'dish_id', 'name', 'price_paisa', 'is_veg', 'cuisine', 'rating', 'image', 'description', 'emoji', 'delivery_time'],
+  ['venue_id', 'dish_id', 'name', 'price_paisa', 'mrp_paisa', 'is_veg', 'cuisine', 'rating', 'image', 'description', 'emoji', 'delivery_time'],
   menuRows,
 ));
 
@@ -436,6 +436,15 @@ function assertLeanContract() {
   }
   for (const s of d.stockTable) {
     if (!isRupees(s.price) || !isRupees(s.mrp)) violations.push(`stock ${s.productId}: non-integer rupees price`);
+  }
+  // Menu MRP is the Food discount authority (`mrp_paisa >= price_paisa`); a bad fixture must not
+  // produce a DB row the `0022` CHECK rejects.
+  for (const dishes of Object.values(d.restaurantMenus ?? {})) {
+    for (const dish of dishes) {
+      if (dish.mrp !== undefined && (!isRupees(dish.mrp) || dish.mrp < dish.price)) {
+        violations.push(`menu ${dish.id}: MRP ${dish.mrp} must be an integer >= price ${dish.price}`);
+      }
+    }
   }
   // Rewards rates mirror `0017` rewards.rates defaults; keep them positive integers so the DB
   // default row and @data never drift (admin console tunes a copy, not the source constant).

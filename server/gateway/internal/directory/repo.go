@@ -123,7 +123,7 @@ func (r *Repo) Menu(ctx context.Context, venueID string) ([]contracts.MenuDish, 
 		return nil, fmt.Errorf("directory: database not configured")
 	}
 	rows, err := r.pool.Query(ctx, `
-		select dish_id, name, price_paisa, is_veg, cuisine, rating, image, description, emoji, delivery_time
+		select dish_id, name, price_paisa, mrp_paisa, is_veg, cuisine, rating, image, description, emoji, delivery_time
 		  from directory.menus where venue_id = $1
 		 order by rating desc nulls last, name asc`, venueID)
 	if err != nil {
@@ -134,6 +134,7 @@ func (r *Repo) Menu(ctx context.Context, venueID string) ([]contracts.MenuDish, 
 	for rows.Next() {
 		var (
 			d        contracts.MenuDish
+			mrp      *int64
 			isVeg    *bool
 			cuisine  *string
 			rating   *float64
@@ -141,10 +142,14 @@ func (r *Repo) Menu(ctx context.Context, venueID string) ([]contracts.MenuDish, 
 			emoji    *string
 			delivery *string
 		)
-		if err := rows.Scan(&d.ID, &d.Name, &d.Price, &isVeg, &cuisine, &rating, &d.Image, &desc, &emoji, &delivery); err != nil {
+		if err := rows.Scan(&d.ID, &d.Name, &d.Price, &mrp, &isVeg, &cuisine, &rating, &d.Image, &desc, &emoji, &delivery); err != nil {
 			return nil, err
 		}
 		d.Price = d.Price / 100
+		if mrp != nil {
+			mrpRupees := *mrp / 100
+			d.OriginalPrice = &mrpRupees
+		}
 		d.IsVeg = isVeg
 		d.Rating = rating
 		d.Description = derefStr(desc)

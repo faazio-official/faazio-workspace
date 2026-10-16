@@ -187,6 +187,17 @@ placement. Paid placements have **no** fixture fallback — an empty/offline res
 (never a fabricated sponsored shelf), and every card carries the AD disclosure. Money/Rx/address writes honour `EXPO_PUBLIC_STRICT=true`, which disables the fixture fallback so
 a failed write can never masquerade as a local success.
 
+**Shopper price + discount integrity (W31).** Discount percentage is always derived from an
+authoritative source, never invented on-device. `data/food/menus.ts` dishes may carry an authored
+`mrp` (`SpecialDish.mrp`) — only `mrp > price` shows a strike-through, and the Food
+"Recommended & Offers" rail (`RestaurantProfileScreen`, `RestaurantOffersScreen`) no longer
+synthesizes `price × 1.2`. Festival opt-ins reach the app via anon `GET /promo/active-discounts?ids=`
+(`GatewayClient.getActiveDiscounts`); `services/pricing.ts` (`effectivePrice`, `applyActiveDiscount`,
+`useActiveDiscounts`) overlays them on base prices in the Mart vendor rail and `DealsLanding`
+(`discounts` mode). Mock mode returns no discounts — base prices stand. The Home
+`DealsOfDaySection` (daily essentials) resolves its `md-*` ids through the catalog
+(`getProductsByIds`) with `dealToProduct` only as the offline fallback (the `md-*` rows are seeded).
+
 ## Fail-safe contract
 
 1. **Always** add/keep the status banner (`@mock`/`@seed`/...) at the top of a data file.

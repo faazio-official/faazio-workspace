@@ -15,9 +15,6 @@ import SearchDishCard from '../components/SearchDishCard';
 
 type Props = NativeStackScreenProps<FoodStackParamList, 'RestaurantOffers'>;
 
-/** Synthetic original price — mirrors the profile page's offers discount rule. */
-const originalPrice = (d: SpecialDish) => Math.round(d.price * 1.2);
-
 /**
  * "View All" offers page — a food-search-result-style list of a restaurant's
  * own discounted dishes. Reuses the SearchDishCard row (square thumb + ADD/stepper)
@@ -72,7 +69,7 @@ export function RestaurantOffersScreen({ navigation, route }: Props) {
           renderItem={({ item }) => (
             <SearchDishCard
               dish={item}
-              oldPrice={originalPrice(item)}
+              oldPrice={item.mrp !== undefined && item.mrp > item.price ? item.mrp : undefined}
               onPress={openDish}
               restaurantId={restaurant.id}
             />

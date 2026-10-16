@@ -166,3 +166,113 @@ func hasCode(coupons []PublicCoupon, code string) bool {
 	}
 	return false
 }
+
+// TestActiveDiscounts locks the shopper price authority's read side: a discount is live only for an
+// APPROVED opt-in on a LIVE, in-window campaign, is best-wins per product, is capped by the sector
+// cap, and disappears when the opt-in is rejected. `md-1` is a seeded MART catalog row.
+func TestActiveDiscounts(t *testing.T) {
+	pool := testenv.Pool(t)
+	repo := New(pool)
+	ctx := context.Background()
+
+	sellerID := "sel-disc-" + shortID()
+	if _, err := pool.Exec(ctx, `
+		insert into sellers.sellers (seller_id, business_name, owner_name, category, state_code)
+		values ($1,'Discount Test','O','MART','KA')`, sellerID); err != nil {
+		t.Fatalf("seed seller: %v", err)
+	}
+	t.Cleanup(func() { _, _ = pool.Exec(ctx, `delete from sellers.sellers where seller_id=$1`, sellerID) })
+
+	c, err := repo.CreateCampaign(ctx, Campaign{
+		Name: "Shopper Price", Scope: "GLOBAL", StartsAt: "2020-01-01T00:00:00Z",
+		EndsAt: "2030-01-01T00:00:00Z", Status: "LIVE",
+	})
+	if err != nil {
+		t.Fatalf("CreateCampaign: %v", err)
+	}
+	t.Cleanup(func() {
+		_, _ = pool.Exec(ctx, `delete from promo.festival_campaigns where campaign_id=$1`, c.CampaignID)
+	})
+
+	o, err := repo.UpsertOptin(ctx, Optin{CampaignID: c.CampaignID, SellerID: sellerID, ProductID: "md-1", DiscountPercent: 15})
+	if err != nil {
+		t.Fatalf("UpsertOptin: %v", err)
+	}
+	if _, ok, err := repo.SetOptinStatus(ctx, o.OptinID, "APPROVED"); err != nil || !ok {
+		t.Fatalf("Approve opt-in: ok=%v err=%v", ok, err)
+	}
+
+	got, err := repo.ActiveDiscounts(ctx, []string{"md-1"})
+	if err != nil {
+		t.Fatalf("ActiveDiscounts: %v", err)
+	}
+	if len(got) != 1 || got[0].DiscountPercent != 15 || got[0].CampaignID != c.CampaignID {
+		t.Fatalf("active discount = %+v, want 15%% on %s", got, c.CampaignID)
+	}
+	// Products with no live discount are simply omitted (no fabricated entry).
+	if none, err := repo.ActiveDiscounts(ctx, []string{"does-not-exist"}); err != nil || len(none) != 0 {
+		t.Fatalf("absent product must be omitted: err=%v got=%+v", err, none)
+	}
+
+	// A global MART cap clamps the approved 15% down to the cap.
+	if _, err := repo.SetSectorCap(ctx, SectorCap{Sector: "MART", MaxDiscountPercent: 10}); err != nil {
+		t.Fatalf("SetSectorCap: %v", err)
+	}
+	t.Cleanup(func() {
+		_, _ = pool.Exec(ctx, `delete from promo.sector_caps where sector='MART' and state_code is null`)
+	})
+	capped, err := repo.ActiveDiscounts(ctx, []string{"md-1"})
+	if err != nil || len(capped) != 1 || capped[0].DiscountPercent != 10 {
+		t.Fatalf("capped discount = %+v err=%v, want 10%%", capped, err)
+	}
+
+	// OptinProductIDs drives cache invalidation on campaign status change.
+	ids, err := repo.OptinProductIDs(ctx, c.CampaignID)
+	if err != nil || len(ids) != 1 || ids[0] != "md-1" {
+		t.Fatalf("OptinProductIDs = %v err=%v, want [md-1]", ids, err)
+	}
+
+	// A rejected opt-in drops out of the projection.
+	if _, ok, err := repo.SetOptinStatus(ctx, o.OptinID, "REJECTED"); err != nil || !ok {
+		t.Fatalf("Reject opt-in: ok=%v err=%v", ok, err)
+	}
+	if after, err := repo.ActiveDiscounts(ctx, []string{"md-1"}); err != nil || len(after) != 0 {
+		t.Fatalf("rejected opt-in must not be active: err=%v got=%+v", err, after)
+	}
+}
+
+// TestActiveDiscountsCampaignWindow verifies a non-LIVE campaign never surfaces a discount.
+func TestActiveDiscountsCampaignWindow(t *testing.T) {
+	pool := testenv.Pool(t)
+	repo := New(pool)
+	ctx := context.Background()
+
+	sellerID := "sel-disc2-" + shortID()
+	if _, err := pool.Exec(ctx, `
+		insert into sellers.sellers (seller_id, business_name, owner_name, category, state_code)
+		values ($1,'Window Test','O','MART','KA')`, sellerID); err != nil {
+		t.Fatalf("seed seller: %v", err)
+	}
+	t.Cleanup(func() { _, _ = pool.Exec(ctx, `delete from sellers.sellers where seller_id=$1`, sellerID) })
+
+	c, err := repo.CreateCampaign(ctx, Campaign{
+		Name: "Draft Price", Scope: "GLOBAL", StartsAt: "2020-01-01T00:00:00Z",
+		EndsAt: "2030-01-01T00:00:00Z", Status: "DRAFT",
+	})
+	if err != nil {
+		t.Fatalf("CreateCampaign: %v", err)
+	}
+	t.Cleanup(func() {
+		_, _ = pool.Exec(ctx, `delete from promo.festival_campaigns where campaign_id=$1`, c.CampaignID)
+	})
+	o, err := repo.UpsertOptin(ctx, Optin{CampaignID: c.CampaignID, SellerID: sellerID, ProductID: "md-2", DiscountPercent: 20})
+	if err != nil {
+		t.Fatalf("UpsertOptin: %v", err)
+	}
+	if _, ok, err := repo.SetOptinStatus(ctx, o.OptinID, "APPROVED"); err != nil || !ok {
+		t.Fatalf("Approve opt-in: ok=%v err=%v", ok, err)
+	}
+	if got, err := repo.ActiveDiscounts(ctx, []string{"md-2"}); err != nil || len(got) != 0 {
+		t.Fatalf("DRAFT campaign must not surface a discount: err=%v got=%+v", err, got)
+	}
+}

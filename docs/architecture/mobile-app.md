@@ -35,7 +35,7 @@ src/
 │   └── shared/                 # 15 reusable primitives (ProductCardBase, StoreCardBase, Screen, AdBannerCarousel, …)
 ├── features/                   # vertical feature modules (15)
 ├── navigation/                 # AppNavigator, MainTabs, FoodStack, types
-├── services/                   # GatewayClient, logout, secureSession, categoryVendors, homeFeed
+├── services/                   # GatewayClient, logout, secureSession, categoryVendors, homeFeed, pricing
 ├── state/                      # Zustand stores (12)
 ├── theme/                      # brandTokens, spacing (SPACE tokens), fonts, sectorVisuals
 └── utils/                      # responsive (hs/vs/ms/wp/hp)
@@ -85,7 +85,9 @@ live in `@data/home/campaigns.ts` (`adCampaigns`), each referencing a **real Mar
 `storeId`** (resolved via `getCampaignStore` against the store directory) plus catalog products
 **by id only**, resolved via `getProductById`/`getCampaignProducts`. The "View all" opens the
 **`DealsLanding`** route in `campaign` mode (see nav graph). The sibling `DealsOfDaySection` (title
-"Daily Essentials") is a display-only rename — its section id `dealsOfDay` is unchanged.
+"Daily Essentials") is a display-only rename — its section id `dealsOfDay` is unchanged; it now
+loads its products from the catalog (`getProductsByIds`) with the `MART_DEALS` fixture as the
+offline first-paint/fallback.
 
 **Home sponsored rail** (`features/home/sections/SponsoredRailSection.tsx`, section id
 `sponsoredRail`, titled "Sponsored picks", placed after `dealsOfDay`): a **paid, separately-labelled**
@@ -414,7 +416,7 @@ still separate files; consolidating them is tracked in `client/mobile/PENDING_WO
 
 ### Services (`src/services/`)
 
-- `api/GatewayClient.ts` — single data surface; **wired** to the MVP gateway (`EXPO_PUBLIC_GATEWAY_URL` + flag) with `@data/*` fallback; screens migrate incrementally (see data doc). Migration (W22) done so far: mart feed (`martService` → `getStores('MART')`), catalog vendor detail (`VendorDetailScreen` → `getStore`), favourites (`getProductsByIds`), product search (`SearchModeConfig.fetch` → `searchProducts`), the Home SDUI registry + recently-viewed rails (`useHomeFeed` → `getHomeFeed`, static `@data/home/sections` fallback), the **cart/checkout** path (see below), the **Pharma Rx** capture/upload/create path, the **orders history** (`ordersStore` ← `getOrders`), **vendor reviews** (`useVendorReviews` ← `getVendorReviews` + `getVendorReviewSummary`) and the `search` analytics event. **(W25)** pharma store rails/vendor picker (`usePharmaStores` → `getStores('PHARMA')`), `getVenues` + `getNotifications` added; `getMenu` now carries `description`/`deliveryTime`. **(W26)** food restaurant menus (`useRestaurantMenu` → `getMenu`) and the FoodHome dining grid (`diningService` → `getVenues('FOOD')`, fixture-enriched); saved-address add/edit/delete (`saveAddress`/`deleteAddress`). **(W27)** blood donor dashboard feed (`useBloodRequests` → `getBloodRequests`, server-backed, fixture-enriched display extras; detail renders redacted rows gracefully). **(W29)** `getCoupons` feeds the cart coupon sheet; money/Rx/address writes honour `EXPO_PUBLIC_STRICT=true` (no silent fixture success). **(W30)** Home sponsored rail (`SponsoredRailSection` → `getLiveAds`/`getSponsoredProducts`, `HOME_TOP`, paid placements collapse on empty — no fixture fallback) and the Home SDUI `sponsoredRail` section. Remaining: table/food booking create (no screen).
+- `api/GatewayClient.ts` — single data surface; **wired** to the MVP gateway (`EXPO_PUBLIC_GATEWAY_URL` + flag) with `@data/*` fallback; screens migrate incrementally (see data doc). Migration (W22) done so far: mart feed (`martService` → `getStores('MART')`), catalog vendor detail (`VendorDetailScreen` → `getStore`), favourites (`getProductsByIds`), product search (`SearchModeConfig.fetch` → `searchProducts`), the Home SDUI registry + recently-viewed rails (`useHomeFeed` → `getHomeFeed`, static `@data/home/sections` fallback), the **cart/checkout** path (see below), the **Pharma Rx** capture/upload/create path, the **orders history** (`ordersStore` ← `getOrders`), **vendor reviews** (`useVendorReviews` ← `getVendorReviews` + `getVendorReviewSummary`) and the `search` analytics event. **(W25)** pharma store rails/vendor picker (`usePharmaStores` → `getStores('PHARMA')`), `getVenues` + `getNotifications` added; `getMenu` now carries `description`/`deliveryTime`. **(W26)** food restaurant menus (`useRestaurantMenu` → `getMenu`) and the FoodHome dining grid (`diningService` → `getVenues('FOOD')`, fixture-enriched); saved-address add/edit/delete (`saveAddress`/`deleteAddress`). **(W27)** blood donor dashboard feed (`useBloodRequests` → `getBloodRequests`, server-backed, fixture-enriched display extras; detail renders redacted rows gracefully). **(W29)** `getCoupons` feeds the cart coupon sheet; money/Rx/address writes honour `EXPO_PUBLIC_STRICT=true` (no silent fixture success). **(W30)** Home sponsored rail (`SponsoredRailSection` → `getLiveAds`/`getSponsoredProducts`, `HOME_TOP`, paid placements collapse on empty — no fixture fallback) and the Home SDUI `sponsoredRail` section. **(W31)** shopper pricing: `getActiveDiscounts` + `services/pricing.ts` (`effectivePrice`/`applyActiveDiscount`/`useActiveDiscounts`) overlay approved festival discounts on the Mart vendor rail and `DealsLanding` (`discounts`); the Food offers rail uses authored `SpecialDish.mrp` (no more `price × 1.2`); the Home `DealsOfDaySection` resolves `md-*` through the catalog. Remaining: table/food booking create (no screen).
 - `secureSession.ts` — tokens via `expo-secure-store` (never AsyncStorage for secrets).
 - `logout.ts` — clears auth + cart + favourites + search + pharma + blood donor + rewards + vendor-rating stores.
 - `vendorRatings.ts` — single owner of the vendor rating gate: `canRateVendor(vendorId)`
@@ -430,7 +432,14 @@ still separate files; consolidating them is tracked in `client/mobile/PENDING_WO
   (per-token match over the search configs' `searchableText`, grouped per `storeId`, sorted by
   match count then rating), `getVendorsWithProducts(app, q)` (adds each store's matching product
   rows for the rails), `getVendorProducts(storeId, app)`, `getAdsForQuery(app, q)` /
-  `getVendorAds(storeId, app)` (store-derived `VendorAdSlide`s), `matchesQuery`, `productSearchableText`.
+  `getVendorAds(storeId, app)` (store-derived `VendorAdSlide`s), `matchesQuery`, `productSearchableText`,
+  `isDiscounted(product)` (the single "on offer" predicate — `originalPrice > price` — shared by the
+  Mart vendor rail and `DealsLanding` after any server discount is overlaid).
+- `pricing.ts` — shopper pricing overlay: `effectivePrice(basePrice, discountPercent)`,
+  `listPrice(product)`, `applyActiveDiscount(product, discount)` / `applyActiveDiscounts(products, map)`
+  and the `useActiveDiscounts(ids)` hook backed by `GatewayClient.getActiveDiscounts`
+  (`GET /promo/active-discounts`). Server-owned discounts are overlaid on base prices; mock/offline
+  returns none (never synthesized).
 - `homeFeed.ts` — repository seam: `getHomeSections` / `getFilterFeedPage(chip, page)` /
   `getFilterChips` (promise-based, paginated reads from `@data/*`; future Go gateway contract).
 

@@ -309,7 +309,9 @@ export function RestaurantProfileScreen({ navigation, route }: Props) {
                     </AppText>
                     <View style={styles.priceRowHoriz}>
                       <View style={styles.priceCol}>
-                        <AppText style={styles.oldPrice}>₹{Math.round(item.price * 1.2)}</AppText>
+                        {item.mrp !== undefined && item.mrp > item.price ? (
+                          <AppText style={styles.oldPrice}>₹{item.mrp}</AppText>
+                        ) : null}
                         <AppText style={styles.newPrice}>₹{item.price}</AppText>
                       </View>
                     </View>

@@ -76,6 +76,15 @@ type PublicCoupon struct {
 	ValidTill    string `json:"validTill"`
 }
 
+// ActiveDiscount is the shopper-visible projection of a LIVE festival opt-in for one product:
+// the approved discount capped by the sector cap in effect. It carries no seller/internal ids, so
+// it is safe to serve anonymously and cache per product.
+type ActiveDiscount struct {
+	ProductID       string `json:"productId"`
+	CampaignID      string `json:"campaignId"`
+	DiscountPercent int    `json:"discountPercent"`
+}
+
 // Repo reads/writes the promo schema.
 type Repo struct {
 	pool *db.Pool
@@ -288,6 +297,85 @@ func (r *Repo) SetOptinStatus(ctx context.Context, id, status string) (Optin, bo
 		return Optin{}, false, err
 	}
 	return o, true, nil
+}
+
+// ActiveDiscounts returns the best (largest) live approved discount per requested product. A
+// discount is live when its campaign is LIVE and within [starts_at, ends_at) and the opt-in is
+// APPROVED; it is capped by the sector cap in effect for the product's app (state override, else
+// global). Products without a live discount (or capped to 0%) are omitted. Product ids are catalog
+// rows, so a company that removes a product automatically drops its discount.
+func (r *Repo) ActiveDiscounts(ctx context.Context, productIDs []string) ([]ActiveDiscount, error) {
+	if r.pool == nil {
+		return nil, fmt.Errorf("promo: database not configured")
+	}
+	if len(productIDs) == 0 {
+		return []ActiveDiscount{}, nil
+	}
+	rows, err := r.pool.Query(ctx, `
+		select product_id, campaign_id, discount
+		  from (
+			select distinct on (o.product_id)
+			       o.product_id,
+			       o.campaign_id,
+			       least(o.discount, coalesce(cap.max_discount, o.discount)) as discount
+			  from promo.festival_optins o
+			  join promo.festival_campaigns c on c.campaign_id = o.campaign_id
+			  join catalog.products p on p.id = o.product_id
+			  left join lateral (
+			    select sc.max_discount
+			      from promo.sector_caps sc
+			     where sc.sector = p.app
+			       and (sc.state_code is null or sc.state_code = c.state_code)
+			     order by sc.state_code nulls last
+			     limit 1
+			  ) cap on true
+			 where o.status = 'APPROVED'
+			   and c.status = 'LIVE'
+			   and now() >= c.starts_at
+			   and now() < c.ends_at
+			   and o.product_id = any($1)
+			 order by o.product_id, discount desc
+		  ) ranked
+		 where discount > 0`, productIDs)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := []ActiveDiscount{}
+	for rows.Next() {
+		var a ActiveDiscount
+		if err := rows.Scan(&a.ProductID, &a.CampaignID, &a.DiscountPercent); err != nil {
+			return nil, err
+		}
+		out = append(out, a)
+	}
+	return out, rows.Err()
+}
+
+// OptinProductIDs returns the distinct product ids carrying an opt-in for a campaign. Used to
+// invalidate the cached active-discount projection when a campaign's status changes.
+func (r *Repo) OptinProductIDs(ctx context.Context, campaignID string) ([]string, error) {
+	if r.pool == nil {
+		return nil, fmt.Errorf("promo: database not configured")
+	}
+	if campaignID == "" {
+		return []string{}, nil
+	}
+	rows, err := r.pool.Query(ctx, `
+		select distinct product_id from promo.festival_optins where campaign_id = $1`, campaignID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := []string{}
+	for rows.Next() {
+		var id string
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		out = append(out, id)
+	}
+	return out, rows.Err()
 }
 
 // Coupons lists coupons scoped by state/scope.

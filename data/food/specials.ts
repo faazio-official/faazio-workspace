@@ -234,6 +234,7 @@ export const dishToProduct = (dish: SpecialDish): Product => ({
   category: dish.cuisine ?? 'Featured',
   name: dish.dishName,
   price: dish.price,
+  originalPrice: dish.mrp !== undefined && dish.mrp > dish.price ? dish.mrp : undefined,
   emoji: '🍽️',
   rating: dish.rating ?? 4.5,
   desc: dish.description,

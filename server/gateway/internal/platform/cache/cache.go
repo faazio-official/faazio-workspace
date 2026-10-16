@@ -57,6 +57,14 @@ func PromoPublicCoupons(app, state string) string {
 	return fmt.Sprintf("faazio:v1:promo:coupons:public:%s:%s", app, state)
 }
 func AdsLive(placement string) string { return fmt.Sprintf("faazio:v1:ads:live:%s", placement) }
+
+// PromoActiveDiscount caches one product's active festival discount (LIVE campaign + APPROVED
+// opt-in, sector-capped). A cached `none` sentinel means "checked, no active discount" so a
+// catalog batch never re-queries absent products. Invalidated on opt-in/campaign status change
+// (caching doc §5).
+func PromoActiveDiscount(productID string) string {
+	return fmt.Sprintf("faazio:v1:promo:active:%s", productID)
+}
 func Settlement(sellerID, cycle string) string {
 	return fmt.Sprintf("faazio:v1:settlement:%s:%s", sellerID, cycle)
 }
@@ -109,6 +117,10 @@ const (
 
 	// TTLPublicPromo bounds the anon-visible active-coupon projection (caching doc §5).
 	TTLPublicPromo = 600 * time.Second
+
+	// TTLPromoActive bounds the anon-visible active festival discount projection per product
+	// (LIVE campaign + APPROVED opt-in, sector-capped); invalidated on opt-in/campaign change.
+	TTLPromoActive = 300 * time.Second
 )
 
 // Cache is a JSON read-through cache. A nil *Client (disabled) is safe to call.

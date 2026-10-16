@@ -149,6 +149,8 @@ export interface MenuDish {
   id: string;
   name: string;
   price: number;
+  /** List price (MRP) in whole rupees; present only when authored (discount = mrp > price). */
+  mrp?: number;
   isVeg?: boolean;
   cuisine?: string;
   rating?: number;
@@ -193,6 +195,18 @@ export interface LiveAd {
   sellerId: string;
   productId: string;
   placement: string;
+}
+
+/**
+ * One anon-visible active festival discount (`GET /promo/active-discounts`). It is the shopper
+ * price authority's read side: the app keeps base catalog prices pure and overlays this. The
+ * discount is already approved + LIVE + sector-capped server-side; the client only derives the
+ * effective price. Never fabricated offline (fallback is empty).
+ */
+export interface ActiveDiscount {
+  productId: string;
+  campaignId: string;
+  discountPercent: number;
 }
 
 /** One notifications.outbox row (user-facing copy only). */
@@ -708,6 +722,20 @@ export class GatewayClient {
     return ids.map((id) => byId.get(id)).filter((p): p is ProductView => p !== undefined);
   }
 
+  /**
+   * Active festival discounts for a batch of products (public, anon, cached per product). The
+   * server only returns approved + LIVE + sector-capped discounts, so the client never invents one.
+   * Fallback is empty — a discount is never fabricated offline.
+   */
+  async getActiveDiscounts(productIds: string[]): Promise<ActiveDiscount[]> {
+    if (productIds.length === 0) return [];
+    const ids = productIds.slice(0, 200).join(',');
+    return this.withFallback(
+      () => this.http<ActiveDiscount[]>(`/promo/active-discounts?ids=${encodeURIComponent(ids)}`),
+      () => delay([] as ActiveDiscount[]),
+    );
+  }
+
   /** A venue's dishes (durable directory.menus; falls back to the @data menu fixture). */
   async getMenu(venueId: string): Promise<MenuDish[]> {
     return this.withFallback(
@@ -720,6 +748,7 @@ export class GatewayClient {
             id: d.id,
             name: d.dishName,
             price: d.price,
+            mrp: d.mrp,
             isVeg: d.isVeg,
             cuisine: d.cuisine,
             rating: d.rating,

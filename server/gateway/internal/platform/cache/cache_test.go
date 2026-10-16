@@ -26,6 +26,7 @@ func TestKeyBuildersFreeze(t *testing.T) {
 		{SduiHome("en"), "faazio:v1:gateway:sdui:en:/home"},
 		{Idempotency("ORD-1"), "faazio:v1:checkout:idem:ORD-1"},
 		{PromoCampaign("cmp-1"), "faazio:v1:promo:campaign:cmp-1"},
+		{PromoActiveDiscount("md-1"), "faazio:v1:promo:active:md-1"},
 		{AdSlot("ad-1"), "faazio:v1:ads:slot:ad-1"},
 		{Settlement("sel-1", "2026-01"), "faazio:v1:settlement:sel-1:2026-01"},
 	}
@@ -52,6 +53,7 @@ func TestTTLMatrixFreeze(t *testing.T) {
 		{TTLSdui, 300 * time.Second},
 		{TTLPromo, 300 * time.Second},
 		{TTLAds, 300 * time.Second},
+		{TTLPromoActive, 300 * time.Second},
 		{TTLSettlement, 600 * time.Second},
 	}
 	for _, tc := range cases {

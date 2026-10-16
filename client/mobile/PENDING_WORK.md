@@ -5,6 +5,42 @@ dependencies exist. Do not build the backend/seller flows until told to.
 
 ---
 
+## W31 — Shopper price + discount integrity
+
+**Status:** 🟢 Shipped (Phase 1 + 2 of the discounted-items/ads plan).
+
+Enterprise rule: a discount % is always derived from an authoritative source, never invented
+on-device; a festival opt-in only reaches the app after an admin approves it.
+
+- **Food (integrity).** Removed the on-device `price × 1.2` synthesis in
+  `RestaurantProfileScreen`/`RestaurantOffersScreen`. `directory.menus` gained an authored
+  `mrp_paisa` (`0022`), exposed as `MenuDish.mrp` → `SpecialDish.mrp`; only `mrp > price` shows a
+  strike-through (no MRP ⇒ no discount label).
+- **Mart deals join.** Home `DealsOfDaySection` resolves its `md-*` ids through the catalog
+  (`getProductsByIds`); `dealToProduct` is the offline first-paint/fallback. The `md-*` rows were
+  already seeded into `catalog.products`.
+- **Festival → shopper price.** Anon `GET /promo/active-discounts?ids=` (`internal/promo`) —
+  best live `festival_optins` per product (campaign `LIVE` + in-window, opt-in `APPROVED`, clamped by
+  the effective `sector_caps` row), cached `faazio:v1:promo:active:{productId}` 300 s, invalidated on
+  opt-in/campaign status change. Consumed by `GatewayClient.getActiveDiscounts` +
+  `services/pricing.ts` (`useActiveDiscounts`/`applyActiveDiscount[s]`), overlaid on the Mart vendor
+  rail and `DealsLanding` (`discounts`). Mock/offline returns none — base prices stand.
+- **Portal.** `seller/promotions` gained a **Live price** column + approval hint (cap enforced
+  server-side).
+- **Auth unchanged** — the app keeps its mocked login (no Supabase phone OTP by product decision).
+
+**Still open (later phases):** coupon validate/settle at checkout, ads impression/click/attribution
+events (W30 future), portal `writeBehind` error surfacing, and `SPONSORED_SHOWCASE`/`SECTOR_RAIL`
+consumption.
+
+**Rollback:** revert `services/pricing.ts` + `getActiveDiscounts` + the rail overlays; server = drop
+the `/promo/active-discounts` route/`ActiveDiscounts`/`OptinProductIDs` + cache key; migration `0022`
+is additive (`mrp_paisa` nullable) so it can stay.
+
+**Date:** 2026-10-16
+
+---
+
 ## W30 — Sponsored live-ads rail (HOME_TOP)
 
 **Status:** 🟢 Shipped.
@@ -1019,8 +1055,10 @@ grid → a two-carousel **brand-campaign section**, and a new shared **Deals lan
   wiring + empty/unknown-id fallbacks.
 - **Vendor profile "View All" now navigates** — `VendorProfileView` gained an optional
   `onViewAllDiscounts` (hidden when absent/empty); `FaMartScreen` passes it via `SubAppWrapper`.
-- **De-duplicated the discount predicate** — `getDiscountedProducts(storeId, app)` moved into the
-  `services/categoryVendors.ts` repository seam; `FaMartScreen` and the landing page share it.
+- **De-duplicated the discount predicate** — `isDiscounted(product)` lives in the
+  `services/categoryVendors.ts` repository seam; `FaMartScreen` and the landing page share it
+  (the `getDiscountedProducts` list helper was folded in during W31 — both now overlay the full
+  vendor pool with server festival discounts and filter afterwards).
 
 **Data:** `data/home/campaigns.ts` (new, vendor/`storeId`-based), `data/types.ts` (`AdCampaign`),
 `data/index.ts` exports (`getCampaignStore` added); `data/home/sdui.ts` + `docs/architecture/db-schema.md`

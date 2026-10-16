@@ -328,6 +328,8 @@ export interface SpecialDish {
   dishName: string;
   restaurant: string;
   price: number;
+  /** List price (MRP) in whole rupees; a discount exists only when `mrp > price`. Never synthesized. */
+  mrp?: number;
   image: string;
   isVeg: boolean;
   description: string;

@@ -9,7 +9,8 @@ import AppText from '@/components/AppText';
 import type { Product } from '@data/types';
 import { adCampaigns, getCampaignProducts, getCampaignStore } from '@data/home/campaigns';
 import { getStoreById } from '@data/directory/stores';
-import { getDiscountedProducts } from '@/services/categoryVendors';
+import { getVendorProducts, isDiscounted } from '@/services/categoryVendors';
+import { applyActiveDiscounts, useActiveDiscounts } from '@/services/pricing';
 import { useCartStore } from '@/state/cartStore';
 import type { RootStackParamList } from '@/navigation/types';
 import MartProductCard from '@/features/ecommerce/cards/MartProductCard';
@@ -47,10 +48,20 @@ export function DealsLandingScreen({ navigation, route }: Props) {
     [mode, storeId],
   );
 
-  const products = useMemo<Product[]>(() => {
+  const baseProducts = useMemo<Product[]>(() => {
     if (mode === 'campaign') return campaign ? getCampaignProducts(campaign) : [];
-    return store ? getDiscountedProducts(store.id, app) : [];
+    // The full vendor pool (not just fixture-discounted rows) so an approved festival opt-in on a
+    // product without an authored MRP still surfaces once the server discount is overlaid.
+    return store ? getVendorProducts(store.id, app) : [];
   }, [mode, campaign, store, app]);
+
+  // Overlay server-owned festival discounts (no-op in mock mode / when none apply), then keep only
+  // what is actually on offer in `discounts` mode (authored MRP or an active opt-in).
+  const discounts = useActiveDiscounts(baseProducts.map((p) => p.id));
+  const products = useMemo(() => {
+    const overlaid = applyActiveDiscounts(baseProducts, discounts);
+    return mode === 'discounts' ? overlaid.filter(isDiscounted) : overlaid;
+  }, [baseProducts, discounts, mode]);
 
   const handleBack = useCallback(() => navigation.goBack(), [navigation]);
 

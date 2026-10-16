@@ -45,7 +45,8 @@ keys/TTLs unchanged.
   `/vendors/:id/reviews` (+ `/summary`), `/stores`, `/store/:id`, `/venues`, `/venues/:id/menu`,
   `/stock/:id`, `/orders`, `/profile`, `/profile/details`, `/profile/addresses` (GET/PUT/DELETE),
   `/membership`, `/order-status`, `/account-nav`, `/bookings`, `/venues/:id/booking-availability`,
-  `/coupons?app=` (anon), `/ads/live?slot=` (anon), `/admin/user-trail?userId=` (admin, ID-only);
+  `/coupons?app=` (anon), `/promo/active-discounts?ids=` (anon), `/ads/live?slot=` (anon),
+  `/admin/user-trail?userId=` (admin, ID-only);
   writes `POST/PUT/DELETE /cart…`, `POST /orders`, `PUT /vendors/:id/rating`, `POST /events`,
   `POST /bookings` (seat hold + Razorpay order), `DELETE /bookings/:id`,
   `POST /bookings/:id/payment`, seller `GET/PUT /seller/booking-config`, `GET /seller/bookings`,

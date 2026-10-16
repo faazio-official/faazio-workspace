@@ -190,18 +190,20 @@ type PickupPoint struct {
 
 // MenuDish is one directory.menus row (a vendor menu item; price in rupees). The display fields
 // (Description/Emoji/DeliveryTime) mirror the app's SpecialDish card so the Food restaurant
-// screens can leave the `@data/food/menus.ts` fixture (migration 0019).
+// screens can leave the `@data/food/menus.ts` fixture (migration 0019). OriginalPrice is the MRP
+// (list price) and is present only when authored — a discount is `MRP > Price`, never synthesized.
 type MenuDish struct {
-	ID           string   `json:"id"`
-	Name         string   `json:"name"`
-	Price        int64    `json:"price"`
-	IsVeg        *bool    `json:"isVeg,omitempty"`
-	Cuisine      string   `json:"cuisine,omitempty"`
-	Rating       *float64 `json:"rating,omitempty"`
-	Image        string   `json:"image,omitempty"`
-	Description  string   `json:"description,omitempty"`
-	Emoji        string   `json:"emoji,omitempty"`
-	DeliveryTime string   `json:"deliveryTime,omitempty"`
+	ID            string   `json:"id"`
+	Name          string   `json:"name"`
+	Price         int64    `json:"price"`
+	OriginalPrice *int64   `json:"mrp,omitempty"`
+	IsVeg         *bool    `json:"isVeg,omitempty"`
+	Cuisine       string   `json:"cuisine,omitempty"`
+	Rating        *float64 `json:"rating,omitempty"`
+	Image         string   `json:"image,omitempty"`
+	Description   string   `json:"description,omitempty"`
+	Emoji         string   `json:"emoji,omitempty"`
+	DeliveryTime  string   `json:"deliveryTime,omitempty"`
 }
 
 // Venue is a directory.dining_venues row (a pure dining room / food venue). Public list reads use

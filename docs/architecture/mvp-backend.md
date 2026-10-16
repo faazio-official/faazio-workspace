@@ -212,6 +212,12 @@ contract stable so the swap is invisible to the app):
     list (`internal/directory.Venues`, PII-free, cached 24 h) + `GatewayClient.getVenues`; inbox badge
     count via `getNotifications`. Blood board deliberately stays redacted (no PII widening). Owner:
     `db-schema.md` §12.4/§12.6. Auth stays mocked by product decision.
+17. ✅ **Shopper price + menu MRP (`0022`, W31):** `directory.menus.mrp_paisa` (additive, `mrp >= price`)
+    so a Food discount is authored, never synthesized; anon `GET /promo/active-discounts?ids=` in
+    `internal/promo` (LIVE campaign + APPROVED opt-in, clamp by the effective `sector_caps` row,
+    cached `promo:active:{productId}` 300 s) is the shopper-price read side. The app overlays it
+    (`services/pricing.ts`) and the Home daily-essentials rail joins the catalog (`getProductsByIds`).
+    Owner: `db-schema.md` §12.4/§12.9.
 
 ---
 

@@ -35,7 +35,7 @@ search extraction is a pure index-replica swap.
 | Context (future service) | MVP package | Schema(s) | Cache keys / TTL | `GatewayClient` method(s) | Future Prod |
 |---|---|---|---|---|---|
 | search → Rust/Tantivy | `internal/search` | `catalog` (read: `products_search`) | `faazio:v1:search:q:{query}` 600 s | `searchProducts` | Rust Axum + Tantivy |
-| catalog/directory → Go | `internal/catalog`, `internal/directory` | `catalog`, `directory` (+ `inventory.pickup_points`, `directory.dining_venues`, `directory.menus` incl. `seller_id`/`status`) | `faazio:v1:catalog:product:{id}` 24 h · `faazio:v1:directory:store:{id}` 24 h · `faazio:v1:directory:pickup:{key}` 24 h · `faazio:v1:directory:menu:{venueId}` 24 h (invalidated on menu edit) · `faazio:v1:directory:venues:{app}` 24 h | `getProduct`, `getProductsByIds`, `getStores`, `getStore`, `getVenues`, `getPickupPoints`, `getMenu`; portal menu CRUD (`/seller/menus`) | CockroachDB + Postgres |
+| catalog/directory → Go | `internal/catalog`, `internal/directory` | `catalog`, `directory` (+ `inventory.pickup_points`, `directory.dining_venues`, `directory.menus` incl. `seller_id`/`status`/`mrp_paisa`) | `faazio:v1:catalog:product:{id}` 24 h · `faazio:v1:directory:store:{id}` 24 h · `faazio:v1:directory:pickup:{key}` 24 h · `faazio:v1:directory:menu:{venueId}` 24 h (invalidated on menu edit) · `faazio:v1:directory:venues:{app}` 24 h | `getProduct`, `getProductsByIds`, `getStores`, `getStore`, `getVenues`, `getPickupPoints`, `getMenu`; portal menu CRUD (`/seller/menus`) | CockroachDB + Postgres |
 | pharma (prescriptions) → Go | `internal/pharma` | `pharma` (+ `pharma.quote_items`, `pharma.status_history`) | `faazio:v1:pharma:prescriptions:{userId}` 60 s; never edge-cached | `createPrescription`, `uploadPrescriptionImage`, `getPrescriptions`/`getPrescription` (owner-scoped `GET /prescriptions/{id}`); portal quote/reveal (`GET /seller/prescriptions`, `POST /seller/prescriptions/{id}/quotes`, `PUT /prescriptions/{id}/status`) | Go + Postgres + Supabase Storage |
 | notifications → Go+worker | `internal/notifications` | `notifications` (+ `outbox`, `push_tokens`) | `faazio:v1:notifications:inbox:{userId}` 30 s; never edge-cached | — (enqueue via `contracts.Notifier`; `POST /notifications/register`, `GET /notifications`; portal `GET /admin/notifications`; outbox **drain worker** → `PENDING`→`SENT`/`FAILED`, provider-agnostic `WebhookSender`, 30 s polling SLA, enabled by `PUSH_WEBHOOK_URL`) | Go + queue worker |
 | blood → Go+Postgres | `internal/blood` | `blood` (+ `blood.donor_directory` view, pg_cron expiry) | `faazio:v1:blood:requests:{bloodGroup};{city}` 60 s (public/redacted); never edge-cached | `getDonorProfile`, `saveDonorProfile`, `getBloodDonors`, `getBloodRequests`, `createBloodRequest`, `setBloodInterest`, `createDonorMatch`, `getDonorMatches` | Go + Postgres |
@@ -47,7 +47,7 @@ search extraction is a pure index-replica swap.
 | reviews → Go+Postgres | `internal/reviews` | `reviews` (+ `reviews.vendor_summary` counter/trigger) | `faazio:v1:reviews:vendor:{id}` 24 h · `faazio:v1:reviews:product:{id}` 24 h | `getReviews` (product), `getVendorReviews`, `rateVendor` | standalone Postgres |
 | sellers → Go+Postgres | `internal/sellers` | `sellers` (+ `sellers.sellers`, `kyc_documents`, `bank_accounts`; `directory.stores`/`catalog.products` `seller_id`) | **none** — seller records carry PII (caching doc §8) | `submitSellerApplication` (`POST /sellers`, any authenticated applicant); reads/moderation are portal-only | Go + Postgres |
 | admins → Go | `internal/admins` | `admins` (+ `state_admins`, `audit_logs`); reads `checkout.users_admin` | none (append-only audit); customer list auth-scoped, never cached | portal-only (`GET /customers`, customer monitoring) | CockroachDB |
-| promo → Go+Postgres | `internal/promo` | `promo` (+ `festival_campaigns`, `seller_optins`, `coupons` incl. `title`/`min_order_paisa`/`free_delivery`, `sector_caps`) | `faazio:v1:promo:campaign:{id}` 300 s · `faazio:v1:promo:coupons:public:{app}:{state}` 600 s | portal control + public `GET /coupons?app=&state=` (anon, active/unexpired projection) | Go + Postgres |
+| promo → Go+Postgres | `internal/promo` | `promo` (+ `festival_campaigns`, `seller_optins`, `coupons` incl. `title`/`min_order_paisa`/`free_delivery`, `sector_caps`) | `faazio:v1:promo:campaign:{id}` 300 s · `faazio:v1:promo:coupons:public:{app}:{state}` 600 s · `faazio:v1:promo:active:{productId}` 300 s (LIVE+APPROVED, sector-capped; invalidated on opt-in/campaign change) | portal control + public `GET /coupons?app=&state=` (anon, active/unexpired projection) + `GET /promo/active-discounts?ids=` (anon shopper-price projection the app overlays on base prices) | Go + Postgres |
 | ads → Go+Postgres | `internal/ads` | `ads` (+ `sponsored_slots`) | `faazio:v1:ads:slot:{id}` 300 s · `faazio:v1:ads:live:{placement}` 600 s (invalidated on status change) | portal control + public `GET /ads/live?slot=` (anon, LIVE projection); `GatewayClient.getLiveAds` (+ `getSponsoredProducts` catalog join) feeds the Home sponsored rail | Go + Postgres |
 | settlement → Go+Cockroach | `internal/settlement` | `payments` (+ `settlement_ledger`, `payouts`) | `faazio:v1:settlement:{sellerId}:{cycle}` 600 s (invalidated on payout create) | portal-only | CockroachDB |
 | support → Go+Postgres | `internal/support` | `support` (+ `tickets` incl. `state_code`), `checkout.returns` | none (auth-scoped, never edge-cached) | portal-only (state/super ticket queue) | Go + Postgres |
@@ -116,6 +116,19 @@ customers page. Delivery: `internal/notifications` gained a provider-agnostic ou
 (`WebhookSender`; start with `PUSH_WEBHOOK_URL`) that moves `PENDING`→`SENT`/`FAILED` — the app's
 inbox stays poll-based until it is configured. Prod auth is unchanged in code (dev `X-Dev-*` headers
 are only honoured when `AUTH_DISABLED=true`, which now logs a loud warning).
+
+**Shopper price authority + discount integrity (W31, `0022`).** Festival opt-ins were control-plane
+only: an approved `discount_percent` never reached the app, and two surfaces fabricated discounts
+on-device. `internal/promo` now exposes an anon `GET /promo/active-discounts?ids=` projection
+(`ActiveDiscounts`, best-wins per product, capped by the effective `sector_caps` row in SQL) cached
+per product (`faazio:v1:promo:active:{productId}` 300 s, invalidated on opt-in/campaign status
+change). Base catalog prices stay pure — the app overlays the projection (`GatewayClient.
+getActiveDiscounts` → `services/pricing.ts` `applyActiveDiscount[s]`/`useActiveDiscounts`) in the
+Mart vendor rail and `DealsLanding` (`discounts` mode); no discount means base price. `directory.
+menus` gained `mrp_paisa` (`0022`) so the Food "Recommended & Offers" rail shows an authored MRP
+(`mrp > price`) instead of the removed `price × 1.2` synthesis; the Home `Daily Essentials` rail now
+resolves its `md-*` ids through the catalog (`getProductsByIds`) with the authored fixture only as
+the offline fallback (the `md-*` rows were already seeded via `generate.mjs`).
 
 ## 2. Boundary rules (enforced)
 
