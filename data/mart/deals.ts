@@ -1,6 +1,8 @@
 /**
- * @mock Static fixture — seeded sample data for local development until the Go Chi
- * backend (server/) is wired. See data/DATA_CONTROL.md.
+ * @static-editorial Curated Mart deal ids + presentation copy. The `md-*` rows are seeded
+ * into `catalog.products`, so the app resolves price/MRP through the server
+ * (`martService.fetchMartFeed` / home `DealsOfDaySection` via `getProductsByIds`);
+ * `dealToProduct` is the offline first-paint fallback. See data/DATA_CONTROL.md.
  */
 import type { MartDeal, Product } from '../types';
 

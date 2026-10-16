@@ -5,6 +5,41 @@ dependencies exist. Do not build the backend/seller flows until told to.
 
 ---
 
+## W33 — De-mock slice 1: Mart home deals + Food delivery-store menus
+
+**Status:** 🟢 Shipped (finish-and-cutover pass, Phase A+B slice 1).
+
+Scope was the first slice of the "de-mock → single DB source" plan: Mart home and the
+Food delivery menus. Auth stays mocked (no Supabase phone OTP) by product decision.
+
+- **Mart home deals de-mock.** `features/ecommerce/services/martService.ts`
+  `fetchMartFeed` now resolves the `md-*` deal ids through the catalog
+  (`GatewayClient.getProductsByIds`) and overlays the server **name/price/MRP/rating/image**
+  onto the `@data/mart/deals` `MART_DEALS` row (which keeps only the editorial
+  brand/size/discountTag/priceNote copy). `dealToProduct` is now the offline first-paint
+  fallback, matching the Home `DealsOfDaySection` behavior. `mocks/martHomeFeed.ts` is tagged
+  `@static-editorial` — hero banners and the `mf-*` daily-essentials rail have no backing
+  table and stay for offline/SDUI-doc migration.
+- **Food delivery-store menus (seed gap closed).** `data/food/menus.ts` now derives
+  `storeMenus` (`Record<storeName, SpecialDish[]>`) from `foodProducts` via `storeId`, plus
+  `menuForVenueName(name)` (dining menu first, then delivery). `GatewayClient.getMenu` and
+  `features/food/utils/menu.ts` `getMenuForRestaurant` use the resolver, so the 12
+  `store-f1…f12` kitchens no longer fall back to the shared `TODAYS_SPECIALS` cuisine-match.
+  The seed generator emits `directory.menus` rows for both pools — **88 dishes / 30 venues**
+  (was 61 / 18). Additive only, no DDL.
+- **Docs:** `data/DATA_CONTROL.md` (food `storeMenus`/`menuForVenueName`; `MART_DEALS`
+  server-priced; gap #5 resolved), `docs/architecture/db-schema.md` §12.4,
+  `docs/architecture/data-layer-sdui.md`, `docs/architecture/mobile-app.md` (service log +
+  restaurant/delivery menu), this file.
+
+**Rollback:** revert `martService`/`mocks/martHomeFeed.ts` and the `menus.ts`/`GatewayClient`/
+`utils/menu.ts` resolver; re-run `node server/supabase/seed/generate.mjs` (seed is generated, so
+dropping the `storeMenus` derivation regenerates the 61-dish file). No migration to revert.
+
+**Date:** 2026-10-16
+
+---
+
 ## W31 — Shopper price + discount integrity
 
 **Status:** 🟢 Shipped (Phases 1–2 of the discounted-items/ads plan). Phases 3–5 landed as **W32**.

@@ -1,12 +1,15 @@
 /**
- * @mock Static fixture — per-restaurant menu items for the dining rooms surfaced
- * in the Food dining tab (see `features/food/mocks/restaurants.ts`). Each row is
- * a `SpecialDish` whose `restaurant` field matches the dining restaurant's name,
- * so `RestaurantProfileScreen.getMenuForRestaurant()` can populate every
- * restaurant's "Recommended & Offers" rail with its own dishes instead of padding
- * the shared specials. See data/DATA_CONTROL.md.
+ * @mock Static fixture — per-venue menu items for both the dining rooms surfaced
+ * in the Food dining tab (see `features/food/mocks/restaurants.ts`) and the 12
+ * food-delivery kitchens (`foodStores`, `store-f1…f12`). Dining rows are authored
+ * as `SpecialDish` (keyed by restaurant name); delivery rows are derived from
+ * `foodProducts` by `storeId`. `RestaurantProfileScreen.getMenuForRestaurant()`
+ * populates every venue's "Recommended & Offers" rail from here instead of padding
+ * the shared specials. Seeded into `directory.menus`. See data/DATA_CONTROL.md.
  */
 import type { SpecialDish } from '../types';
+import { foodProducts } from './products';
+import { foodStores } from './stores';
 
 const img = (id: string, w = 400, h = 300) =>
   `https://images.unsplash.com/${id}?fm=jpg&fit=crop&q=80&w=${w}&h=${h}`;
@@ -108,3 +111,42 @@ export const restaurantMenus: Record<string, SpecialDish[]> = MENUS.reduce<Recor
 
 /** Flat list of all per-restaurant menu dishes (for search / catalog indexing). */
 export const allRestaurantMenuDishes: SpecialDish[] = Object.values(restaurantMenus).flat();
+
+/**
+ * Delivery-store menus keyed by `foodStores[].name`, derived from `foodProducts`
+ * via each dish's `storeId`. These are the 12 food-delivery kitchens (`store-f1…f12`)
+ * that had no per-venue menu — their profile previously fell back to a cuisine match
+ * over the shared `TODAYS_SPECIALS` pool. Deriving the rows from the single product
+ * source keeps the app fallback and the `directory.menus` seed in lockstep
+ * (no hand-copied literals). See data/DATA_CONTROL.md.
+ */
+const STORE_NAME_BY_ID = new Map(foodStores.map((store) => [store.id, store.name]));
+
+export const storeMenus: Record<string, SpecialDish[]> = (() => {
+  const acc: Record<string, SpecialDish[]> = {};
+  for (const product of foodProducts) {
+    const storeName = product.storeId ? STORE_NAME_BY_ID.get(product.storeId) : undefined;
+    if (!storeName) continue;
+    (acc[storeName] ??= []).push({
+      id: product.id,
+      dishName: product.name,
+      restaurant: storeName,
+      price: product.price,
+      image: product.image,
+      isVeg: product.isVeg ?? true,
+      description: product.desc,
+      cuisine: product.category,
+      rating: product.rating,
+    });
+  }
+  return acc;
+})();
+
+/**
+ * The menu for a venue, by name — per-restaurant (dining room) first, then the derived
+ * delivery-store menu. Empty when the name matches neither (the caller may then fall
+ * back to a cuisine match).
+ */
+export function menuForVenueName(name: string): SpecialDish[] {
+  return restaurantMenus[name] ?? storeMenus[name] ?? [];
+}

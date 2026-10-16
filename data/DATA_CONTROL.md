@@ -120,7 +120,7 @@ wiring order in `docs/architecture/data-layer-sdui.md`.
 | `martProducts` | `MartProduct[]` | `FaMartScreen`; `data/home/filterFeed` (data-internal pool) | `@mock` |
 | `MartProduct.storeId` | `string` (**required**) | Vendor link for campaigns, vendor drill-in, product-detail store section, self-pickup. Every `martProducts` row must set **top-level** `storeId` — enforced by the type; `ts:check` fails otherwise | contract |
 | `martStores` | `StoreProfile[]` | `FaMartScreen` "Local Vendors Near You" rail + vendor drill-in (replaces the retired `MART_LOCAL_VENDORS` mock) | `@mock` |
-| `MART_DEALS` / `dealToProduct` | `MartDeal[]` / `(MartDeal) => Product` | `FaMartScreen` `DealsOfDayRail`; home `DealsOfDaySection` (now resolves `md-*` through the catalog via `getProductsByIds`, `dealToProduct` is the offline fallback; rows seeded into `catalog.products`). `MartDeal` gained optional `rating?`/`priceNote?` for the minimal deal card | `@static-editorial` |
+| `MART_DEALS` / `dealToProduct` | `MartDeal[]` / `(MartDeal) => Product` | `FaMartScreen` `DealsOfDayRail` + home `DealsOfDaySection` — both now resolve `md-*` through the catalog (`martService.fetchMartFeed` / `getProductsByIds`, overlaying server name/price/MRP/rating/image onto the editorial row); `dealToProduct` is the offline first-paint fallback. Rows seeded into `catalog.products`. `MartDeal` gained optional `rating?`/`priceNote?` for the minimal deal card | `@static-editorial` (ids + copy) → server-priced |
 
 ### `@data/grocery` — **removed (merged into `mart`)**
 
@@ -149,7 +149,9 @@ the `GROCERY` member was dropped from `AppBrand` / `CartCategory` / `SubAppId` /
 | `foodStores` | `StoreProfile[]` | `FoodScreen`; home `DiningSpecialsSection`, `MostRatedDiningSection` | `@mock` |
 | `BOOKING_DISHES_DB` | `BookingDish[]` | **`@unused`** — `FoodScreen` defines its own inline copy | `@mock` + `@unused` |
 | `restaurantMenus` | `Record<string, SpecialDish[]>` | `RestaurantProfileScreen.getMenuForRestaurant` (per-restaurant menus keyed by dining-restaurant name, so every dining room's "Recommended & Offers" rail + menu is populated); seeded into `directory.menus` (migrations `0013`/`0019`/`0022`). Dishes may carry an authored `SpecialDish.mrp`; only `mrp > price` shows a strike-through (never synthesized) | `@mock` → `@server` |
+| `storeMenus` | `Record<string, SpecialDish[]>` | delivery-kitchen menus keyed by `foodStores[].name`, derived from `foodProducts` via `storeId` (single source — no hand-copied literals); consumed by `getMenuForRestaurant` / `GatewayClient.getMenu` fallback and seeded into `directory.menus` (88 dishes / 30 venues). Removes the old per-venue `TODAYS_SPECIALS` cuisine-match for the 12 `store-f*` kitchens | `@mock` → `@server` |
 | `allRestaurantMenuDishes` | `SpecialDish[]` | catalog index (search) — flat pool of all per-restaurant menu dishes | `@mock` |
+| `menuForVenueName` | `(name: string) => SpecialDish[]` | `getMenuForRestaurant` + `GatewayClient.getMenu` — dining menu first, then delivery menu (the single resolver for both) | `@mock` |
 
 > **Dinner/table bookings (migration `0011`/`0020`):** `state/bookingStore` (`BookingRecord`) was
 > memory-only; it now has a durable home in `bookings.tables`, served by `internal/bookings`
@@ -374,8 +376,12 @@ the `GROCERY` member was dropped from `AppBrand` / `CartCategory` / `SubAppId` /
    until migrated per module (`@mock` → `@server`); `GatewayClient` falls back to `@data/*` on error.
    Migrated so far: Home SDUI feed, mart/catalog vendor drill-in, product search (3 configs),
    favourites, cart durability, checkout `placeOrder`, Pharma Rx capture/upload/create + quote/READY
-   polling, orders history, vendor-review reads, `search` analytics, and **profile reads**
-   (`userProfile`/`accountDetails`/`savedAddresses`). Remaining slices (food menus, blood feed,
-   dining, booking create) are blocked on server-contract deltas — see `WORKFLOW_SCRATCHPAD.md` §9.
-5. **Per-restaurant menus are seeded only for the 18 dining restaurants.** The 12 food-delivery
-   `foodStores` still derive menus from the shared `TODAYS_SPECIALS` catalog.
+   polling, orders history, vendor-review reads, `search` analytics, **profile reads**
+   (`userProfile`/`accountDetails`/`savedAddresses`), **Mart home deals** and **Food venue menus**
+   (dining + delivery, W33). Remaining slices (blood feed, dining, booking create) are blocked on
+   server-contract deltas — see `WORKFLOW_SCRATCHPAD.md` §9.
+5. **~~Per-restaurant menus are seeded only for the 18 dining restaurants.~~ Resolved (W33).**
+   The 12 food-delivery `foodStores` now have their own menus: `data/food/menus.ts` derives
+   `storeMenus` from `foodProducts` by `storeId`, and the seed emits `directory.menus` rows for
+   every `store-f*` kitchen (88 dishes / 30 venues). `TODAYS_SPECIALS` cuisine-match is now only
+   the fallback for a venue with no menu at all.

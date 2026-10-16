@@ -18,7 +18,7 @@ import { storeDirectory, getStoreById, getStoresByApp, type StoreRecord } from '
 import { NEUTRAL_PICKUP } from '@data/cart/pickup-resolver';
 import { coupons as fixtureCoupons } from '@data/cart/coupons';
 import { diningVenues } from '@data/food/diningVenues';
-import { restaurantMenus } from '@data/food/menus';
+import { menuForVenueName } from '@data/food/menus';
 import { getReviewsByProductId, type ReviewRow } from '@data/reviews/reviews';
 import { getStockByProductId, type StockRow } from '@data/inventory/stock';
 import { getOrdersByUser, MOCK_USER_ID, type OrderRow } from '@data/checkout/orders';
@@ -842,7 +842,7 @@ export class GatewayClient {
       () => this.http<MenuDish[]>(`/venues/${encodeURIComponent(venueId)}/menu`),
       () => {
         const venue = getStoreById(venueId) ?? diningVenues.find((v) => v.id === venueId);
-        const dishes = venue ? restaurantMenus[venue.name] ?? [] : [];
+        const dishes = venue ? menuForVenueName(venue.name) : [];
         return delay(
           dishes.map((d) => ({
             id: d.id,

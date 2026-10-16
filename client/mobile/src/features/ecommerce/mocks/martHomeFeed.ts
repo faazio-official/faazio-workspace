@@ -1,3 +1,12 @@
+/**
+ * @static-editorial Feature-local Mart home rail content with no backing table — hero
+ * banners and the `mf-*` daily-essentials cards. Presentation-owned; the correct long-term
+ * home is the SDUI layout doc, not a per-table migration (see data/DATA_CONTROL.md,
+ * docs/architecture/data-layer-sdui.md). `MART_DEALS` / `dealToProduct` are re-exported from
+ * `@data/mart/deals`; the `md-*` deals are seeded catalog rows and are resolved through the
+ * server (`martService.fetchMartFeed` → `getProductsByIds`), this fixture being the offline
+ * first-paint fallback.
+ */
 const squareImg = (id: string, w = 560) =>
   `https://images.unsplash.com/${id}?fm=jpg&fit=crop&q=80&w=${w}&h=${w}`;
 

@@ -148,10 +148,12 @@ sql.push(inserts(
 ));
 
 // ---------------------------------------------------------------- menus
-// Per-venue dishes (data/food/menus.ts `restaurantMenus`, keyed by restaurant name); venue_id is the
-// resolved vendor id (store or dining venue) — no FK, matching directory.vendors.
+// Per-venue dishes (data/food/menus.ts): `restaurantMenus` (dining rooms, keyed by name) + the
+// derived `storeMenus` (the 12 delivery kitchens, keyed by store name). venue_id is the resolved
+// vendor id (store or dining venue) — no FK, matching directory.vendors.
+const venueMenus = { ...(d.restaurantMenus ?? {}), ...(d.storeMenus ?? {}) };
 const menuRows = [];
-for (const [name, dishes] of Object.entries(d.restaurantMenus ?? {})) {
+for (const [name, dishes] of Object.entries(venueMenus)) {
   const venue = d.findDiningVenueByName(name);
   const venueId = venue ? venue.id : slug(name);
   for (const dish of dishes) {

@@ -881,7 +881,9 @@ CREATE INDEX menus_venue_idx ON directory.menus (venue_id);
 ```
 
 `dining_venues` was an identity stub (`id,name`), so every restaurant profile was hollow in the DB.
-Menus are seeded from `restaurantMenus` (61 dishes / 18 venues). **No FK on `venue_id`** (deliberate): a
+Menus are seeded from `restaurantMenus` (61 dishes / 18 dining venues) **and** `storeMenus`
+(27 dishes / 12 delivery kitchens `store-f1…f12`, derived from `foodProducts` by `storeId`) —
+88 dishes / 30 venues. **No FK on `venue_id`** (deliberate): a
 menu belongs to a *vendor* id that resolves to either `directory.stores` (food stores) or
 `directory.dining_venues` — the `directory.vendors` union. Public catalog data → anon read, cached
 `faazio:v1:directory:menu:{venueId}` 24 h; venue PII (address/phone) is redacted by the gateway.

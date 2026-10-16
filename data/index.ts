@@ -16,7 +16,12 @@ export { foodProducts, topOfWeekDishes } from './food/products';
 export { foodStores } from './food/stores';
 export { BOOKING_DISHES_DB } from './food/bookingDishes';
 export { TODAYS_SPECIALS, dishToProduct } from './food/specials';
-export { restaurantMenus, allRestaurantMenuDishes } from './food/menus';
+export {
+  restaurantMenus,
+  allRestaurantMenuDishes,
+  storeMenus,
+  menuForVenueName,
+} from './food/menus';
 
 export { pharmaProducts, PHARMA_PRODUCTS_DB, PHARMA_CATEGORIES } from './pharma/products';
 export { pharmaStores } from './pharma/stores';

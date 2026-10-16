@@ -35,6 +35,12 @@
 > `getFoodBookings`, `state/foodBookingStore`, `/food-bookings` routes, `contracts.FoodBooking`,
 > `cache.FoodBookings`, seed row) was deleted — no screen/route existed. `bookings.food_orders` stays a
 > reserved, unseeded table seam.
+> **W33 delta (de-mock slice 1, no DDL):** Mart home deals resolve through the catalog
+> (`martService.fetchMartFeed` → `getProductsByIds`, server name/price/MRP/rating/image over the
+> `@static-editorial` row); Food **delivery-store menus** now exist — `data/food/menus.ts`
+> `storeMenus` derives from `foodProducts` by `storeId`, `menuForVenueName` resolves dining→delivery,
+> and the generator seeds `directory.menus` for the 12 `store-f1…f12` kitchens (**88 dishes / 30
+> venues**, was 61/18). Seed regenerate only; no migration.
 
 ## 0. dtype freeze (the lean contract everything obeys)
 
@@ -142,7 +148,7 @@ wire. Mobile `GatewayClient.ts` + `@data/*` already speak integer rupees — unc
 | W19 | Rewards admin knobs (ledger view + admin-tunable rates) | 1/2/4 | **done** (0017 `rewards.rates` + `/admin/super/rewards` + `internal/rewards` rates/ledger read) |
 | W20 | Support state/super ticket queue | 1/2/4 | **done** (0017 `tickets.state_code` + `/admin/state/support` + state filter in `internal/support`) |
 | W21 | Web write-through (mutations → gateway, keep seed fallback) | 3/4 | **done** (`http.ts` toSnake/₹↔paisa `writeBehind`, `index.ts` mutators call `remote.*`) |
-| W22 | Mobile `@mock`→`@server` per-module migration | 4 | **in progress** — mart feed, catalog vendor detail, favourites, product search + home SDUI registry done; **cart durability + checkout (`placeOrder`) + Pharma Rx capture/upload/create + customer Rx quote/READY polling view done**; **orders history + vendor-review reads + `search` analytics done**; **profile reads done** (`getDetails` blob-flatten + `getAddresses` + UserDetails/SavedAddresses hydration); **pharma store rails + vendor picker flipped to `getStores('PHARMA')` (W25) + notification badge count (W25)**; **(W26) food restaurant menus via `useRestaurantMenu` (`getMenu`, `MenuDish→SpecialDish`) + FoodHome dining grid via `diningService`→`getVenues('FOOD')` + `SavedAddressesScreen` add/edit/delete (`saveAddress` PUT, `deleteAddress` DELETE)**; **(W27) blood donor dashboard feed via `useBloodRequests` (`getBloodRequests`, server-backed, fixture-enriched extras; detail renders redacted rows gracefully)**; **(W28) seat bookings — `BookingSheet` (create hold, ₹50/seat, mock Razorpay authorize seam → `attachBookingPayment`) + `MyBookingsScreen` (`getBookings`/`cancelBooking`) + `getBookingAvailability`; remaining: real Razorpay SDK adapter + food-order-booking screen** |
+| W22 | Mobile `@mock`→`@server` per-module migration | 4 | **in progress** — mart feed, catalog vendor detail, favourites, product search + home SDUI registry done; **cart durability + checkout (`placeOrder`) + Pharma Rx capture/upload/create + customer Rx quote/READY polling view done**; **orders history + vendor-review reads + `search` analytics done**; **profile reads done** (`getDetails` blob-flatten + `getAddresses` + UserDetails/SavedAddresses hydration); **pharma store rails + vendor picker flipped to `getStores('PHARMA')` (W25) + notification badge count (W25)**; **(W26) food restaurant menus via `useRestaurantMenu` (`getMenu`, `MenuDish→SpecialDish`) + FoodHome dining grid via `diningService`→`getVenues('FOOD')` + `SavedAddressesScreen` add/edit/delete (`saveAddress` PUT, `deleteAddress` DELETE)**; **(W27) blood donor dashboard feed via `useBloodRequests` (`getBloodRequests`, server-backed, fixture-enriched extras; detail renders redacted rows gracefully)**; **(W28) seat bookings — `BookingSheet` (create hold, ₹50/seat, mock Razorpay authorize seam → `attachBookingPayment`) + `MyBookingsScreen` (`getBookings`/`cancelBooking`) + `getBookingAvailability`; **(W33) mart home deals via `getProductsByIds` + food delivery-store menus (`storeMenus` → `directory.menus`, 88 dishes/30 venues)**; remaining: real Razorpay SDK adapter + food-order-booking screen** |
 | W23 | Auth cutover (Supabase JWT + RequireRole) + Storage object-key uploads + edge purge | 5 | **partial** — app auth intentionally stays **mocked** (`authStore.login()`), so the Supabase phone-OTP/JWT cutover is **dropped by product decision**; Storage object-key uploads shipped for Rx (`0018`) + portal product images; product/KYC buckets + Cloudflare edge rules remain |
 | W24 | Pharma quote → READY reveal → notify + durable notification outbox | 1/2/4 | **done** (`0018` + `internal/pharma` quote/reveal + `internal/notifications` + gap PUTs; owner `db-schema.md` §12.12) |
 | W25 | App-gap contract deltas (venues list + menu display fields + inbox badge) | 1/2/4 | **done** (`0019` adds `menus.description/emoji/delivery_time`; `GET /venues?app=` + `internal/directory.Venues`; `GatewayClient.getVenues`/`getNotifications`; pharma stores hook; My Orders badge from inbox count; blood board stays redacted — no PII widening) |
@@ -237,9 +243,11 @@ Mobile: `gateway.trackEvent` fires on product view / cart add / order; `submitVe
         `search` event anchored to the top result. **(W22 profile reads)** `getDetails` now flattens the
         server's nested `{userId,accountId,data}` blob; `getAddresses` (`GET /profile/addresses`, label→tag
         mapped) is wired; `UserDetailsScreen` hydrates `getProfile`+`getDetails` and `SavedAddressesScreen`
-        hydrates `getAddresses`, each keeping the `@data` fixtures on mock/error. Remaining mobile W22
-        (each blocked on a server-contract delta, not wiring): food menus (`GET /venues/{id}/menu` returns
-        `MenuDish` — needs `description`/`emoji`/restaurant fields for `SpecialDish` parity), the blood
+        hydrates `getAddresses`, each keeping the `@data` fixtures on mock/error. **(W26 food menus done:** `getMenu`
+        now carries `description`/`emoji`/`delivery_time`, `useRestaurantMenu` maps `MenuDish→SpecialDish`). **(W33)**
+        the 12 delivery kitchens now have `directory.menus` rows (`storeMenus` derived from `foodProducts`) — no
+        `TODAYS_SPECIALS` fallback for a seeded venue. Remaining mobile W22
+        (each blocked on a server-contract delta, not wiring): the blood
         dashboard feed (`GET /blood-requests` lacks card fields: `imageUrl`/`distanceKm`/
         `purposeDescription`/patient demographics), dining venue seeding (`directory.dining_venues` has no
         list endpoint on `/stores`), and table/food booking creation (no booking screen/route exists).

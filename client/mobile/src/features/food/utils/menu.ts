@@ -1,15 +1,15 @@
 import type { SpecialDish } from '@data/types';
 import { TODAYS_SPECIALS } from '@data/food/specials';
-import { restaurantMenus } from '@data/food/menus';
+import { menuForVenueName } from '@data/food/menus';
 import type { DiningRestaurant } from '../mocks/types';
 
-/** Build the restaurant's menu from its per-restaurant menu first (so each dining
- *  room shows its own dishes), falling back to matching the shared specials
- *  catalog by cuisine and padding with the remaining dishes so every restaurant
- *  has a full menu. */
+/** Build the venue's menu from its own dishes first — the authored dining menu or the
+ *  derived delivery-store menu (`menuForVenueName`) — falling back to matching the
+ *  shared specials catalog by cuisine and padding with the remaining dishes so an
+ *  unseeded venue still has a full menu. */
 export function getMenuForRestaurant(restaurant: DiningRestaurant): SpecialDish[] {
-  const own = restaurantMenus[restaurant.name];
-  if (own && own.length > 0) return own;
+  const own = menuForVenueName(restaurant.name);
+  if (own.length > 0) return own;
   const cuisines = restaurant.cuisines.map((c) => c.toLowerCase());
   const matched = TODAYS_SPECIALS.filter((d) =>
     cuisines.some((c) => (d.cuisine ?? '').toLowerCase().includes(c) || c.includes((d.cuisine ?? '').toLowerCase())),

@@ -72,12 +72,16 @@ whose `storeId` matches the campaign vendor) — following the same SDUI "ID-onl
 field (drives campaign resolution, vendor drill-in, the product-detail store section, and
 self-pickup); a dev-only guard in `campaigns.ts` warns if any campaign resolves <2 products.
 
-**Per-restaurant menus** (`data/food/menus.ts`): exports `restaurantMenus`
-(`Record<string, SpecialDish[]>` keyed by the 18 dining-restaurant names, ~5 dishes each) and
-`allRestaurantMenuDishes` (flat pool for the catalog index/search). The shared
-`features/food/utils/menu.ts` `getMenuForRestaurant()` reads `restaurantMenus[restaurant.name]`
-first, falling back to the old `TODAYS_SPECIALS` cuisine-match + padding logic, so every dining
-room's menu is populated (both `RestaurantProfileScreen` and `RestaurantMenuScreen` consume it).
+**Per-venue menus** (`data/food/menus.ts`): exports `restaurantMenus`
+(`Record<string, SpecialDish[]>` keyed by the 18 dining-restaurant names, ~5 dishes each),
+`storeMenus` (keyed by the 12 delivery-store names, derived from `foodProducts` via `storeId`)
+and the flat pool `allRestaurantMenuDishes`. `menuForVenueName(name)`
+resolves dining first then delivery; the shared `features/food/utils/menu.ts`
+`getMenuForRestaurant()` reads it first, falling back to the `TODAYS_SPECIALS` cuisine-match +
+padding logic only for an unseeded venue, so every dining room **and delivery kitchen** has its
+own menu (`RestaurantProfileScreen` + `RestaurantMenuScreen` consume it). Both pools are seeded
+into `directory.menus` (88 dishes / 30 venues), so `GatewayClient.getMenu` serves the durable
+rows remote-first with the fixture as the offline fallback.
 
 **Product-keyed reviews** (`data/reviews/reviews.ts`): `PRODUCT_REVIEWS` maps real catalog
 product ids (e.g. `fm-m1`, `gr-p1`, `sp-1`, `m-italian-margherita`, `ph-f1`) to 3-4 reviews
