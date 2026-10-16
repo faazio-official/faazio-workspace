@@ -48,6 +48,11 @@
 > `POST /notifications/drain` (`contracts.Drainer`, 503 sans provider). Pharma quote gets
 > `price<=mrp` + idempotent `READY`; `0023` adds the seller-queue index + `NOT VALID` quote CHECKs.
 > Mobile `.env.example` added. Additive only.
+> **De-mock Phase 2/3/4:** mobile money-critical reads are strict (product/stock/menu/coupons/coupon
+> validation/order tracking) + new `getVenue`/`getOrderTracking` clients + `MyOrders` 60 s inbox poll;
+> portal money/status/Rx/menu/booking/rewards writes are awaited with rollback (`pushWrite`) instead
+> of silent `writeBehind`. App auth stays mocked; cart/favourites/rewards/orders stores stay
+> device-local-first. FCM sender remains backlog.
 
 ## 0. dtype freeze (the lean contract everything obeys)
 

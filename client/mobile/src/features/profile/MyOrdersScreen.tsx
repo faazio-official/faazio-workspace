@@ -99,16 +99,22 @@ export function MyOrdersScreen({ navigation, route }: Props) {
 
   useEffect(() => {
     let active = true;
-    gateway
-      .getNotifications()
-      .then((items) => {
-        if (active) setNotificationCount(items.length);
-      })
-      .catch(() => {
-        // Inbox is best-effort; the badge simply stays hidden on failure.
-      });
+    const refresh = () =>
+      gateway
+        .getNotifications()
+        .then((items) => {
+          if (active) setNotificationCount(items.length);
+        })
+        .catch(() => {
+          // Inbox is best-effort; the badge simply stays hidden on failure.
+        });
+    refresh();
+    // Poll while the screen is mounted (MVP monitoring without FCM): Rx READY / order-status
+    // notifications land in the in-app inbox and the badge updates within the poll window.
+    const timer = setInterval(refresh, 60_000);
     return () => {
       active = false;
+      clearInterval(timer);
     };
   }, []);
 

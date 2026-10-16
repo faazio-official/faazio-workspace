@@ -18,10 +18,14 @@ dependencies exist. Do not build the backend/seller flows until told to.
 - **App:** `GatewayClient` money-critical reads are now **strict** (no fixture on a remote error):
   `getProduct`, `getStock`, `getProductsByIds`, `getMenu`, `getCoupons`, `validateCoupon`,
   `getOrderTracking`. New client methods `getVenue(id)` and `getOrderTracking(orderId)` expose the
-  new endpoints. Offline behaviour is unchanged when `EXPO_PUBLIC_USE_GATEWAY`/`STRICT` are unset.
+  new endpoints. `MyOrdersScreen` polls `GET /notifications` every 60 s while mounted (MVP monitoring
+  without FCM). Offline behaviour is unchanged when `EXPO_PUBLIC_USE_GATEWAY`/`STRICT` are unset.
+- **Web portal:** every money/status/Rx/menu/booking/rewards mutation is now an awaited write with
+  store-snapshot rollback + error toast (`pushWrite` → `writeAwaited`), replacing the silent
+  `writeBehind` fallback.
 - **Still mocked / not de-mocked (remaining Phase 2/4):** app auth (`authStore.login()`), cart +
-  favourites + rewards + orders stores remain device-local-first (gateway mirrors best-effort),
-  and there is no app-side notification poll/FCM (in-app inbox is read on demand only).
+  favourites + rewards + orders stores remain device-local-first (gateway mirrors best-effort), and
+  there is no FCM/APNs sender (in-app inbox is poll-based).
 
 **Date:** 2026-10-16
 
