@@ -25,6 +25,12 @@
 > + reworked queue; mobile `BookingSheet` (hold → **mock** Razorpay authorize seam →
 > `attachBookingPayment`) + `MyBookings`. Seed ships one demo bookable venue. Additive only
 > (rollback = `booking_enabled=false`). Mongo untouched (bookings stay Postgres-only).
+> **W29 follow-up (public promo seed):** the W29 public reads target `promo.coupons`, but the seed
+> still populated the legacy `checkout.coupons` (read by no repo), so a fresh `GET /coupons` returned
+> empty and the cart coupon sheet silently kept fixtures. The generator now seeds `promo.coupons`
+> (`scope=GLOBAL`, all-sector, future `valid_till`, `active`) from `data/cart/coupons.ts`;
+> `docker-compose.yml` mounts the missing `0021_public_promos.sql`; `TestPublicCoupons` locks the
+> active/unexpired/sector-filtered projection. Additive; `checkout.coupons` is now legacy/unseeded.
 
 ## 0. dtype freeze (the lean contract everything obeys)
 

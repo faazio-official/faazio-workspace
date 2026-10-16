@@ -401,7 +401,12 @@ CREATE TABLE checkout.addresses (
 
 **Admin notes:** **PII** — never log full address; keyset paginate by `address_id`; redact phone.
 
-### 7.3 `checkout.coupons` — source `data/checkout/orders.ts` `couponsTable` + `data/cart/coupons.ts`
+### 7.3 `checkout.coupons` — **legacy, unseeded** (superseded by `promo.coupons`, §12.13)
+
+> **Superseded (`0021`/W29):** the app's public coupon read now targets `promo.coupons`
+> (`GET /coupons`); no gateway repo reads `checkout.coupons`, so it is no longer seeded. The table and
+> its `anon` read policy remain for the historical `0001` contract only. The coupon fixture
+> (`data/cart/coupons.ts`) seeds `promo.coupons` via `seed/generate.mjs`.
 
 ```sql
 CREATE TABLE checkout.coupons (
@@ -1271,3 +1276,9 @@ Reads: `GET /coupons?app=&state=` (anon; `active AND valid_till > now()`, sector
 global; money whole rupees; cached `promo:coupons:public:{app}:{state}` 600 s) and `GET /ads/live?slot=`
 (anon; `status = 'LIVE'`; cached `ads:live:{placement}` 600 s). No new table, no RLS change — the
 public projections are non-PII business data, computed by the gateway from existing rows.
+
+**Seed:** the coupon fixture (`data/cart/coupons.ts`) now seeds `promo.coupons`, not the legacy
+`checkout.coupons` (0001) — no repo reads the latter, so the app's `GET /coupons` rail is populated on
+a fresh deploy. Rows are `scope='GLOBAL'`, `sector`/`state_code` null (visible to every app),
+`valid_till='2027-12-31'`, `active=true`. The seed generator is the single writer
+(`server/supabase/seed/generate.mjs`) and `docker-compose.yml` mounts `0021` so local stacks match.

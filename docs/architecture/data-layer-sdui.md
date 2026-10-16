@@ -176,9 +176,11 @@ are required. Every `@mock` entry is now a gateway handler contract.
 
 **Public promo reads + editorial rails (W29).** `cart/coupons.ts` is now `@mock → @server`:
 `GatewayClient.getCoupons(app?)` reads the anon `GET /coupons` projection (fixture fallback), and the
-cart coupon sheet hydrates from it. The brand-campaign / hero / deal rails (`home/campaigns.ts`,
-`MART_DEALS`, `TOP_RATED_*`) are tagged **`@static-editorial`** — they are presentation fixtures with
-no backing table, and their correct long-term home is the SDUI layout doc, not a coupon/ads table.
+cart coupon sheet hydrates from it. The fixture seeds `promo.coupons` (the table `GET /coupons`
+reads); the legacy `checkout.coupons` is unseeded and unused by any repo. The brand-campaign / hero /
+deal rails (`home/campaigns.ts`, `MART_DEALS`, `TOP_RATED_*`) are tagged **`@static-editorial`** —
+they are presentation fixtures with no backing table, and their correct long-term home is the SDUI
+layout doc, not a coupon/ads table.
 The gateway also exposes `GET /ads/live` (LIVE slots) for a future rail; the app does not consume it
 yet. Money/Rx/address writes honour `EXPO_PUBLIC_STRICT=true`, which disables the fixture fallback so
 a failed write can never masquerade as a local success.

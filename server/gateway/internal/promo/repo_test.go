@@ -85,3 +85,84 @@ func TestPromoLifecycle(t *testing.T) {
 		t.Fatalf("Coupons: err=%v n=%d", err, len(coupons))
 	}
 }
+
+// TestPublicCoupons locks the anon projection the app's `GET /coupons` reads: only active,
+// unexpired coupons, sector match-or-global, money in whole rupees.
+func TestPublicCoupons(t *testing.T) {
+	pool := testenv.Pool(t)
+	repo := New(pool)
+	ctx := context.Background()
+
+	liveCode := "PUBLIVE-" + shortID()
+	expiredCode := "PUBEXP-" + shortID()
+	inactiveCode := "PUBOFF-" + shortID()
+	martCode := "PUBMART-" + shortID()
+	t.Cleanup(func() {
+		_, _ = pool.Exec(ctx, `delete from promo.coupons where code = any($1)`,
+			[]string{liveCode, expiredCode, inactiveCode, martCode})
+	})
+
+	insert := func(code, title string, sector any, validTill, active string) {
+		t.Helper()
+		if _, err := pool.Exec(ctx, `
+			insert into promo.coupons
+			  (coupon_id, code, title, scope, sector, value_percent, max_discount_paisa,
+			   min_order_paisa, free_delivery, valid_till, active)
+			values ($1,$2,$3,'GLOBAL',$4,25,5000,99900,true,`+validTill+`,`+active+`)`,
+			"cpn-"+code, code, title, sector); err != nil {
+			t.Fatalf("insert %s: %v", code, err)
+		}
+	}
+	insert(liveCode, "Public Live", nil, "now() + interval '30 days'", "true")
+	insert(expiredCode, "Public Expired", nil, "now() - interval '1 day'", "true")
+	insert(inactiveCode, "Public Inactive", nil, "now() + interval '30 days'", "false")
+	insert(martCode, "Public Mart", "MART", "now() + interval '30 days'", "true")
+
+	got, err := repo.PublicCoupons(ctx, "", "")
+	if err != nil {
+		t.Fatalf("PublicCoupons: %v", err)
+	}
+	byCode := map[string]PublicCoupon{}
+	for _, c := range got {
+		byCode[c.Code] = c
+	}
+	live, ok := byCode[liveCode]
+	if !ok {
+		t.Fatalf("active unexpired coupon %q missing from public projection", liveCode)
+	}
+	if live.Title != "Public Live" || live.ValuePercent != 25 || live.MaxDiscount != 50 ||
+		live.MinOrder != 999 || !live.FreeDelivery {
+		t.Fatalf("public coupon shape = %+v", live)
+	}
+	if _, ok := byCode[expiredCode]; ok {
+		t.Fatalf("expired coupon %q leaked into public projection", expiredCode)
+	}
+	if _, ok := byCode[inactiveCode]; ok {
+		t.Fatalf("inactive coupon %q leaked into public projection", inactiveCode)
+	}
+
+	// Sector filter: a MART coupon shows for MART only, never for FOOD.
+	mart, err := repo.PublicCoupons(ctx, "MART", "")
+	if err != nil {
+		t.Fatalf("PublicCoupons(MART): %v", err)
+	}
+	if !hasCode(mart, martCode) {
+		t.Fatalf("MART coupon %q missing for app MART", martCode)
+	}
+	food, err := repo.PublicCoupons(ctx, "FOOD", "")
+	if err != nil {
+		t.Fatalf("PublicCoupons(FOOD): %v", err)
+	}
+	if hasCode(food, martCode) {
+		t.Fatalf("MART coupon %q leaked into the FOOD sector", martCode)
+	}
+}
+
+func hasCode(coupons []PublicCoupon, code string) bool {
+	for _, c := range coupons {
+		if c.Code == code {
+			return true
+		}
+	}
+	return false
+}

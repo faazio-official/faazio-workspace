@@ -1111,14 +1111,14 @@ insert into checkout.addresses (address_id, user_id, label, name, phone, address
   ('addr_2', 'user-1', 'WORK', 'Rohit Sharma', '+91 98765 43210', 'Upcraft Solutions Pvt Ltd, 3rd Floor, 27th Cross, HSR Layout, Sector 2, Bangalore – 560102, Karnataka', false),
   ('addr_3', 'user-1', 'OTHER', 'Rohit Sharma', '+91 98765 43210', '12-8-134, New Friends Colony, Tolichowki, Hyderabad – 500008, Telangana', false);
 
-insert into checkout.coupons (code, discount_percent, label, min_order_paisa, is_free_delivery) values
-  ('FAAZIO20', 20, 'FAAZIO20', 49900, false),
-  ('SUPER50', 50, 'SUPER50', 99900, false),
-  ('FREESHIP', 0, 'FREE Delivery', 50000, true),
-  ('MART30', 30, 'MART30', 79900, false),
-  ('WELCOME15', 15, 'WELCOME15', 29900, false),
-  ('MONSOON25', 25, 'MONSOON25', 89900, false),
-  ('HEALTH10', 10, 'HEALTH10', 39900, false);
+insert into promo.coupons (coupon_id, code, title, scope, state_code, sector, value_percent, max_discount_paisa, min_order_paisa, free_delivery, valid_till, active) values
+  ('cpn-faazio20', 'FAAZIO20', 'FAAZIO20', 'GLOBAL'::campaign_scope, null, null, 20, 0, 49900, false, '2027-12-31T23:59:59Z'::timestamptz, true),
+  ('cpn-super50', 'SUPER50', 'SUPER50', 'GLOBAL'::campaign_scope, null, null, 50, 0, 99900, false, '2027-12-31T23:59:59Z'::timestamptz, true),
+  ('cpn-freeship', 'FREESHIP', 'FREE Delivery', 'GLOBAL'::campaign_scope, null, null, 0, 0, 50000, true, '2027-12-31T23:59:59Z'::timestamptz, true),
+  ('cpn-mart30', 'MART30', 'MART30', 'GLOBAL'::campaign_scope, null, null, 30, 0, 79900, false, '2027-12-31T23:59:59Z'::timestamptz, true),
+  ('cpn-welcome15', 'WELCOME15', 'WELCOME15', 'GLOBAL'::campaign_scope, null, null, 15, 0, 29900, false, '2027-12-31T23:59:59Z'::timestamptz, true),
+  ('cpn-monsoon25', 'MONSOON25', 'MONSOON25', 'GLOBAL'::campaign_scope, null, null, 25, 0, 89900, false, '2027-12-31T23:59:59Z'::timestamptz, true),
+  ('cpn-health10', 'HEALTH10', 'HEALTH10', 'GLOBAL'::campaign_scope, null, null, 10, 0, 39900, false, '2027-12-31T23:59:59Z'::timestamptz, true);
 
 insert into checkout.orders (order_id, order_number, user_id, address_id, placed_at, status, status_date, fulfillment, total_paisa, vendor_store_ids) values
   ('1', '#ORD123456789', 'user-1', 'addr_1', '2025-05-06T06:00:00.000Z'::timestamptz, 'Delivered'::order_status, '2025-05-07T18:30:00.000Z'::timestamptz, null, 45000, ARRAY['store-g1']::text[]),

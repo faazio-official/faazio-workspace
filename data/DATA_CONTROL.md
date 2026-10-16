@@ -36,7 +36,7 @@ Every domain file below carries its tag as a top-of-file banner comment.
 | `explore` | `features/catalog` (Categories/Favourites) | `stacks.ts` | `@mock` |
 | `categories` | `features/catalog` | `searchDatabase.ts` | `@mock` |
 | `productMeta` | `features/product` (ProductDetail) | `reviews.ts` | `@mock` (+ `@unused` by mobile) |
-| `cart` | `features/cart` | `addresses.ts`, `coupons.ts`, `pickup-resolver.ts` | `@mock` (`coupons.ts` now hydrates from `GET /coupons` via `GatewayClient.getCoupons`, fixture fallback) |
+| `cart` | `features/cart` | `addresses.ts`, `coupons.ts`, `pickup-resolver.ts` | `@mock` (`coupons.ts` hydrates from `GET /coupons` via `GatewayClient.getCoupons`, fixture fallback; the fixture seeds `promo.coupons`, not legacy `checkout.coupons`) |
 | `account` | `features/profile` | `orders.ts` | `@mock` |
 | `directory` / `reviews` (vendor) | `features/profile` (rating form/CTA) + every vendor surface | `directory/vendors.ts`, `food/diningVenues.ts`, `reviews/vendorReviews.ts` | `@mock` |
 | `home` | `features/home` | `sections.ts`, `rails.ts`, `campaigns.ts`, `demographics.ts`, `instantFeed.ts`, `nearbyOffers.ts`, `filterFeed.ts`, `seeds.ts` | mixed `@mock` / `@seed` / `@static` |

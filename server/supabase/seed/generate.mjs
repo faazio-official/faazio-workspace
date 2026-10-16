@@ -224,10 +224,19 @@ sql.push(inserts(
   ['address_id', 'user_id', 'label', 'name', 'phone', 'address', 'is_default'],
   d.addressesTable.map((a) => [q(a.id), q(a.userId), q(a.label ?? a.tag ?? ''), q(a.name), q(a.phone), q(a.address), a.isDefault ? 'true' : 'false']),
 ));
+// Coupons live in `promo.coupons` (0015, extended by 0021) — the anon `GET /coupons` projection the
+// app reads. `checkout.coupons` (0001) is legacy and no longer seeded: no repo reads it. `sector` /
+// `state_code` stay null so every app sees them; `valid_till` is a fixed future stamp so the
+// `valid_till > now()` public filter keeps them live. `max_discount_paisa` = 0 (no cap in @data).
 sql.push(inserts(
-  'checkout.coupons',
-  ['code', 'discount_percent', 'label', 'min_order_paisa', 'is_free_delivery'],
-  d.couponsTable.map((c) => [q(c.code), n(c.discountPercent), q(c.label), paisa(c.minOrder), c.isFreeDelivery ? 'true' : 'false']),
+  'promo.coupons',
+  ['coupon_id', 'code', 'title', 'scope', 'state_code', 'sector', 'value_percent',
+    'max_discount_paisa', 'min_order_paisa', 'free_delivery', 'valid_till', 'active'],
+  d.couponsTable.map((c) => [
+    q(`cpn-${String(c.code).toLowerCase()}`), q(c.code), q(c.label), `'GLOBAL'::campaign_scope`,
+    'null', 'null', n(c.discountPercent ?? 0), n(0), paisa(c.minOrder ?? 0),
+    c.isFreeDelivery ? 'true' : 'false', ts('2027-12-31T23:59:59Z'), 'true',
+  ]),
 ));
 
 const orders = d.ordersTable.map((o, i) => ({
