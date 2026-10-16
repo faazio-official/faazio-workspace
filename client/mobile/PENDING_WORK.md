@@ -21,8 +21,10 @@ Two production-testing gaps from the Mart slice:
   remote hydrate when the server cart is empty, so a shopper never sees/checks out fixture lines the
   server doesn't have. Later empty responses leave the current cart alone.
 
-**Still deferred (Mart):** Supabase Storage media path for hero/product images (Unsplash stays as
-fallback), and `DealsLanding` **campaign** mode (Home-owned `@data`).
+**Media:** the portal SDUI editor can now **upload** a Mart hero banner image (stored as a resolved
+public Supabase Storage URL; seed mode rejects the data-URL fallback). **Still deferred:** product
+photos (seller-owned) and the mobile Unsplash fallbacks, and `DealsLanding` **campaign** mode
+(Home-owned `@data`).
 
 **Docs:** `docs/architecture/mobile-app.md`.
 

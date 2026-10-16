@@ -18,6 +18,7 @@ import {
 import { formatDateTime } from "@/lib/format";
 import { useMockLoading, useSduiLayouts } from "@/lib/api/hooks";
 import { saveSduiLayoutHome } from "@/lib/api";
+import { resolveImage, uploadProductImage } from "@/lib/media/productImages";
 import type { SduiBanner, SduiSection } from "@/data/types";
 
 /** Comma/newline separated id list -> trimmed, non-empty ids. */
@@ -26,6 +27,27 @@ function parseIds(value: string): string[] {
     .split(/[\s,]+/)
     .map((s) => s.trim())
     .filter(Boolean);
+}
+
+/**
+ * Uploads a banner image and returns the **resolved public Storage URL** (not the object key), so
+ * the mobile app can render it directly from the ID-only doc. In seed mode (no Supabase Storage)
+ * the uploader yields a data URL, which is far too large for the bounded SDUI doc — reject it and
+ * tell the admin to paste a hosted URL instead.
+ */
+async function uploadBannerImage(file: File): Promise<string | null> {
+  try {
+    const key = await uploadProductImage(file);
+    const url = resolveImage(key);
+    if (!url || url.startsWith("data:") || url.startsWith("blob:")) {
+      toast.error("Image uploads need Supabase Storage configured. Paste a hosted image URL instead.");
+      return null;
+    }
+    return url;
+  } catch (error) {
+    toast.error(error instanceof Error ? error.message : "That image could not be uploaded.");
+    return null;
+  }
 }
 
 function SuperSdui() {
@@ -155,12 +177,29 @@ function SuperSdui() {
                                 aria-label={`${b.id} subtitle`}
                                 placeholder="Subtitle"
                               />
-                              <Input
-                                value={b.imageUrl ?? ""}
-                                onChange={(e) => patchBanner(s.id, b.id, { imageUrl: e.target.value })}
-                                aria-label={`${b.id} image url`}
-                                placeholder="Image URL"
-                              />
+                              <div className="flex items-center gap-2">
+                                <Input
+                                  value={b.imageUrl ?? ""}
+                                  onChange={(e) => patchBanner(s.id, b.id, { imageUrl: e.target.value })}
+                                  aria-label={`${b.id} image url`}
+                                  placeholder="Image URL"
+                                />
+                                <label className="cursor-pointer whitespace-nowrap text-xs text-primary hover:underline">
+                                  Upload
+                                  <input
+                                    type="file"
+                                    accept="image/*"
+                                    className="hidden"
+                                    onChange={async (e) => {
+                                      const file = e.target.files?.[0];
+                                      e.target.value = "";
+                                      if (!file) return;
+                                      const url = await uploadBannerImage(file);
+                                      if (url) patchBanner(s.id, b.id, { imageUrl: url });
+                                    }}
+                                  />
+                                </label>
+                              </div>
                             </div>
                           ))}
                         </div>
