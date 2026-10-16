@@ -1,9 +1,9 @@
 # Web Portal (Next.js) — architecture deep dive
 
 The Faazio Partner Portal is the seller / state-admin / super-admin console. It
-renders from a Zustand store that is seeded from `client/web/src/data/**` and, when
+renders from a Zustand store that is seeded from `client/web/platform/src/data/**` and, when
 `NEXT_PUBLIC_GATEWAY_URL` is set, hydrated from the Go Chi gateway
-(`client/web/src/lib/api/sync.ts`). **Auth is mocked by default** — the portal signs
+(`client/web/platform/src/lib/api/sync.ts`). **Auth is mocked by default** — the portal signs
 in against the built-in demo directory even when Supabase credentials are present;
 set `NEXT_PUBLIC_AUTH_MODE=supabase` to opt into GoTrue. The session persists in
 `localStorage` under `faazio.portal.v1`. See "Data + auth" below.
@@ -12,8 +12,9 @@ set `NEXT_PUBLIC_AUTH_MODE=supabase` to opt into GoTrue. The session persists in
 
 | Path | Role |
 | --- | --- |
-| `client/web/` | **Shipping app** — Next.js App Router. All future portal work lands here. |
-| `client/vite-reference/` | Original Vite + TanStack Start app, kept read-only as a visual diff baseline. `MIGRATION_NEXTJS.md` there is the hand-off contract. |
+| `client/web/platform/` | **Shipping app** — Next.js App Router. All future portal work lands here. |
+| `client/web/vite-reference/` | Original Vite + TanStack Start app, kept read-only as a visual diff baseline. `MIGRATION_NEXTJS.md` there is the hand-off contract. |
+| `client/web/landingpage/` | Marketing landing page (TanStack Start + Nitro, deployed on Vercel). Separate app; see its own README/AGENTS. |
 
 ## Stack
 
@@ -112,9 +113,12 @@ env-gated and degrade to local seed mode when unset:
   decisions through `writeBehind` (`PUT /bookings/{id}/status`, `POST /bookings/{id}/vacate`).
   The `seller/bookings/settings` form is prefilled from `GET /seller/booking-config?vendorId=…`
   (`refreshBookingConfig`, best-effort; seed mode keeps the local default).
-  An empty remote slice
-  keeps the seeded rows (demo fallback). The gateway speaks **whole
+  In **development** an empty remote slice keeps the seeded rows (demo fallback); in
+  **production** (`NODE_ENV=production`) an empty but successfully-fetched slice clears the local
+  slice, so sellers/admins never see phantom demo rows. The gateway speaks **whole
   rupees**; the portal stores **paisa**, so the mapper multiplies by 100.
+  The `admin/state/customers` page adds an on-demand **activity trail** panel per selected customer
+  (`useUserTrail` → admin-only `GET /admin/user-trail?userId=`, ID-only `user_events`).
 - **Auth (mocked by default)** — `src/lib/api/index.ts` `signIn` authenticates against
   the built-in demo directory (`src/data/auth/users.ts`) and never calls Supabase unless
   `NEXT_PUBLIC_AUTH_MODE=supabase`. `src/lib/supabase/auth.ts` is the dormant GoTrue REST
@@ -147,10 +151,34 @@ NEXT_PUBLIC_DEV_STATE=          # dev-only X-Dev-State (state scope)
 
 ## Verify
 
-Run from `client/web/`:
+Run from `client/web/platform/`:
 
 ```bash
 npm run ts:check   # tsc --noEmit
 npm run build      # next build (must prerender all routes with no errors)
 npm run lint       # eslint (prettier is `npm run format`, not a lint error)
 ```
+
+## Deployment (Vercel)
+
+The portal is a standard Next.js App Router app and deploys **zero-config** on
+Vercel — set the project **Root Directory** to `client/web/platform`, framework
+preset **Next.js**, build `next build`, and it produces the standard `.next`
+output. There is no custom server and no build output API bundle.
+
+Readiness config that ships with the app:
+
+- **`vercel.json`** — security headers on every route (`X-Content-Type-Options`,
+  `X-Frame-Options: SAMEORIGIN`, `Referrer-Policy`, `Permissions-Policy`),
+  mirroring the landing page. No rewrites/redirects/regions.
+- **`package.json` `engines.node`** (`>=22.12.0`) — pins the Vercel build Node
+  runtime (matches `client/web/landingpage`).
+- **`public/robots.txt`** — `Disallow: /`; the console is private and every route
+  also carries `metadata.robots: { index: false, follow: false }`.
+- **`public/favicon.*`** + `app/layout.tsx` `metadata.icons` — the Faazio mark
+  (same assets as the landing page), plus `viewport.themeColor` (`#1162D3`).
+
+No secrets are baked into the build: `NEXT_PUBLIC_*` values are read at build
+time, so a demo deployment that leaves them unset renders in seed mode and
+shows the `SEED MODE — not connected to gateway` badge. Set them in the Vercel
+project's Environment Variables for a live deployment.

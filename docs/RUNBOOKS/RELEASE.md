@@ -176,6 +176,15 @@ npx expo run:ios --configuration Release
 - Upload via Xcode Organizer / Transporter; then fill App Store Connect metadata.
 - Info.plist (via `app.json` `ios.infoPlist`) declares camera + photo-library usage strings.
 
+## 🌍 Web (Partner Portal) — Vercel
+
+The portal (`client/web/platform`) deploys **zero-config** on Vercel: import the
+repo, set **Root Directory** to `client/web/platform`, framework preset
+**Next.js**, then set the `NEXT_PUBLIC_*` env vars in the project (unset ⇒ seed
+mode). `vercel.json` ships the security headers, `engines.node` pins the build
+runtime, and `public/robots.txt` + `metadata.robots` keep the console
+unindexed. See `docs/architecture/web-portal.md` → "Deployment (Vercel)".
+
 ## ✅ Release checklist
 
 - [ ] `npm run ts:check` and `npm run check:boundaries` pass.

@@ -239,7 +239,6 @@ function SellerPrescriptions() {
                 {images && images.length > 0 ? (
                   <div className="mt-2 flex flex-wrap gap-2">
                     {images.map((img) => (
-                      // eslint-disable-next-line @next/next/no-img-element
                       <img
                         key={img.objectPath}
                         src={img.url}
@@ -268,7 +267,6 @@ function SellerPrescriptions() {
 
                 <div className="space-y-2">
                   {draft.map((row, i) => (
-                    // eslint-disable-next-line react/no-array-index-key
                     <div key={i} className="grid grid-cols-12 gap-1.5">
                       <Input
                         className="col-span-4 h-8 text-[12px]"
@@ -386,7 +384,6 @@ function SellerPrescriptions() {
                   </Label>
                   <ul className="mt-2 space-y-1 text-[12px] text-muted-foreground">
                     {selected.history.map((h, i) => (
-                      // eslint-disable-next-line react/no-array-index-key
                       <li key={i} className="flex justify-between gap-2">
                         <span>
                           {h.fromStatus ? `${h.fromStatus} → ` : ""}
