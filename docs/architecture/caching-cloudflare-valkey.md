@@ -150,8 +150,11 @@ LIVE fill collapses the rail to `null` (never an empty shelf).
   The recurrence/recommendation key `faazio:v1:reco:{userIdHash}` is **not** invalidated on order for
   the MVP — a ≤1 h staleness window on recommendations is accepted (recompute on the Future Prod
   Python service / `user_events` flush).
-- **SDUI layout publish (MVP, manual):** bump `sdui_layouts.version` and `Del(faazio:v1:gateway:sdui:*)`.
-  A `pg_notify`/Pub/Sub automation is Future Prod; the TTL (300 s) bounds staleness if the purge is missed.
+- **SDUI layout publish (super-admin, implemented):** `PUT /admin/sdui/home` (`internal/sdui`)
+  writes the ID-only sections to `sdui_layouts` with an atomic `$inc version` and calls
+  `Del(faazio:v1:gateway:sdui:en:/home)`, so the next `GET /sdui/home` recompiles and the ETag
+  changes (`home-v{version}` → the app's `If-None-Match` no longer 304s). A `pg_notify`/Pub/Sub
+  automation is Future Prod; the reply-level TTL (300 s) still bounds staleness if a purge is missed.
 - **PII never enters the cache:** `GET /store/:id` caches only the redacted projection; authenticated
   reads bypass the cache (see §8).
 - **Slim values (no key/TTL change):** list/search reads cache the lean product projection

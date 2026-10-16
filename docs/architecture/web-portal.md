@@ -86,6 +86,17 @@ A production build with `NEXT_PUBLIC_GATEWAY_URL` unset renders a fixed
 `SEED MODE — not connected to gateway` badge (`SeedModeBanner`), so seed data can
 never masquerade as live data. Dev builds stay quiet.
 
+### Home SDUI publish (`admin/super/sdui`)
+
+The **App content (SDUI)** page is the control surface for the Home feed. It hydrates the raw
+ID-only layout from `GET /admin/sdui/home` (super-admin only) and publishes edits through
+`saveSduiLayoutHome` → `PUT /admin/sdui/home` (`pushWrite`, optimistic with rollback). The gateway
+(`internal/sdui` → `reco.Repo.SaveHome`) bumps `sdui_layouts.version`, purges the compiled-feed
+cache and audits `SDUI_PUBLISH`, so the mobile `GET /sdui/home` recompiles on its next poll with no
+app release. The page edits section titles and `productIds` (id-only refs to `catalog.products`);
+`storeIds`/`chips` are shown read-only. The portal's `SduiSection`/`SduiLayout` types mirror the
+gateway `contracts` doc so a published layout round-trips without remapping.
+
 ### Pharma quote → READY reveal (`seller/prescriptions`)
 
 The prescriptions page is the control surface for the W24 quote workflow

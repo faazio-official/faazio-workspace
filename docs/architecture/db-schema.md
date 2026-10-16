@@ -677,6 +677,14 @@ The Home feed is stored as **ID-only** documents — every leaf references `cata
 The gateway emits `ETag: "home-v{version}"` on `GET /sdui/home`; a matching `If-None-Match` returns
 `304`, so repeat polls cost ~50 B instead of the full compiled tree.
 
+**Write path (super-admin):** the portal's *App content (SDUI)* page edits this doc through
+`GET`/`PUT /admin/sdui/home` (`internal/sdui` → `contracts.LayoutWriter` →
+`reco.Repo.SaveHome`). `SaveHome` upserts with an atomic `$inc version` (+ `updatedAt`) so the
+version is monotonic, and the handler purges `faazio:v1:gateway:sdui:en:/home` after the write —
+the app picks up the new content on its next poll with no release. The write is audited
+(`SDUI_PUBLISH`). Payload bounds (≤40 sections, ≤100 id refs/section, ids ≤64 chars, ≤20 chips)
+mirror the ID-only contract; the raw user id is never involved.
+
 ### 8.2 `user_events` (TTL)
 
 Raw user-behavior events (browse/view/add-to-cart), **ID-only + no PII**, auto-expired.

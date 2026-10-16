@@ -282,6 +282,13 @@ type LayoutSource interface {
 	Home(ctx context.Context) ([]SduiSection, int64, error)
 }
 
+// LayoutWriter persists an ID-only SDUI layout (implemented by internal/reco, Mongo sdui_layouts).
+// SaveHome replaces the Home sections and returns the new version (a monotonic bump), which the
+// caller uses to purge the compiled-feed cache so the next read recompiles and the ETag changes.
+type LayoutWriter interface {
+	SaveHome(ctx context.Context, sections []SduiSection) (int64, error)
+}
+
 // StockWriter atomically decrements inventory.stock (implemented by internal/cartstock).
 // Future service: Go + DynamoDB (monolith-breakdown §1).
 type StockWriter interface {

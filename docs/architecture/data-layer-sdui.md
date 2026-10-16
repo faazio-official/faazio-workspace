@@ -122,6 +122,12 @@ legacy fixtures (never hand-copied), so the two surfaces can't drift:
 | `accounts/profile.ts` | Go + PostgreSQL | account profile/orders/nav/details | Supabase `accounts` |
 | `home/sdui.ts` | Python + MongoDB | home section structure — **IDs only** | MongoDB `sdui_layouts` |
 
+The Home SDUI doc is now **web-editable** end to end: `client/web/platform`'s *App content (SDUI)*
+page (`app/admin/super/sdui`) reads the raw ID-only sections from `GET /admin/sdui/home` and
+publishes edits via `PUT /admin/sdui/home` (super-admin, `internal/sdui` → `reco.Repo.SaveHome`
+`$inc version` + compiled-feed cache purge). The app's `GET /sdui/home` then recompiles on its next
+poll — no app release.
+
 The **production** counterparts of every normalized table above (per-service DB schema, datatypes,
 sample rows) are specified in `docs/architecture/db-schema.md` — traceability is 1:1 (mock table ↔
 production table).

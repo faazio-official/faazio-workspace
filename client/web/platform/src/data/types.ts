@@ -372,22 +372,29 @@ export interface BloodRequestRecord {
   expiresAt: string;
 }
 
-export type SduiLayoutStatus = "DRAFT" | "PUBLISHED";
+/** MongoDB sdui_layouts (ID-only refs; the gateway joins the content). Mirrors the gateway
+ * contracts.SduiSection/SduiChip so a published layout round-trips without remapping. */
+export interface SduiChip {
+  id: string;
+  label: string;
+  accent: string;
+  productIds: string[];
+}
 
-/** MongoDB sdui_layouts (ID-only refs; the gateway joins the content). */
 export interface SduiSection {
-  sectionId: string;
+  id: string;
   title: string;
-  type: "banner" | "rail" | "grid";
-  itemIds: string[];
+  subtitle?: string | undefined;
+  accent: string;
+  productIds: string[];
+  storeIds?: string[] | undefined;
+  chips?: SduiChip[] | undefined;
 }
 
 export interface SduiLayout {
   layoutId: string;
   locale: string;
-  path: string;
   version: number;
-  status: SduiLayoutStatus;
   sections: SduiSection[];
   updatedAt: string;
 }

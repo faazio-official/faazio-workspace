@@ -11,10 +11,17 @@ import (
 type fakeLayouts struct {
 	sections []contracts.SduiSection
 	version  int64
+	saved    []contracts.SduiSection
 }
 
-func (f fakeLayouts) Home(context.Context) ([]contracts.SduiSection, int64, error) {
+func (f *fakeLayouts) Home(context.Context) ([]contracts.SduiSection, int64, error) {
 	return f.sections, f.version, nil
+}
+
+func (f *fakeLayouts) SaveHome(_ context.Context, sections []contracts.SduiSection) (int64, error) {
+	f.saved = sections
+	f.version++
+	return f.version, nil
 }
 
 type fakeProducts struct{ byID map[string]contracts.Product }
@@ -60,11 +67,12 @@ func TestHomeCompilesSectionsWithProducts(t *testing.T) {
 		t.Fatal(err)
 	}
 	svc := NewService(
-		fakeLayouts{sections: []contracts.SduiSection{
+		&fakeLayouts{sections: []contracts.SduiSection{
 			{ID: "deals", Title: "Deals", ProductIDs: []string{"md-1", "md-2"}},
 			{ID: "empty", Title: "Empty", ProductIDs: []string{}},
 			{ID: "mostRatedDining", Title: "Dining", StoreIDs: []string{"store-f1", "store-f2"}},
 		}},
+		&fakeLayouts{},
 		fakeProducts{byID: map[string]contracts.Product{
 			"md-1": {ID: "md-1", Name: "Milk", Price: 60},
 			"md-2": {ID: "md-2", Name: "Bread", Price: 40},
@@ -91,5 +99,27 @@ func TestHomeCompilesSectionsWithProducts(t *testing.T) {
 	}
 	if len(sections[2].Stores) != 2 || sections[2].Stores[0].ID != "store-f1" {
 		t.Fatalf("dining stores = %+v", sections[2].Stores)
+	}
+}
+
+func TestSaveHomeBumpsVersionAndForwardsSections(t *testing.T) {
+	ctx := context.Background()
+	c, err := cache.Connect(ctx, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	w := &fakeLayouts{version: 3}
+	svc := NewService(w, w, fakeProducts{}, fakeStores{}, c)
+
+	sections := []contracts.SduiSection{{ID: "deals", Title: "Deals", ProductIDs: []string{"md-1"}}}
+	version, err := svc.SaveHome(ctx, sections)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if version != 4 {
+		t.Fatalf("version = %d, want 4", version)
+	}
+	if len(w.saved) != 1 || w.saved[0].ID != "deals" {
+		t.Fatalf("saved = %+v", w.saved)
 	}
 }

@@ -51,7 +51,7 @@ search extraction is a pure index-replica swap.
 | ads → Go+Postgres | `internal/ads` | `ads` (+ `sponsored_slots`) | `faazio:v1:ads:slot:{id}` 300 s · `faazio:v1:ads:live:{placement}` 600 s (invalidated on status change) · `faazio:v1:ads:seen:{userId}:{slotId}` 300 s (impression dedupe) | portal control + public `GET /ads/live?slot=` (anon, LIVE projection); authenticated `POST /ads/events` records impression/click (`RecordEvent`); `contracts.AdAttributor` `AttributeOrder` bumps `orders_attributed` best-effort at checkout; `GatewayClient.getLiveAds`/`getSponsoredProducts`/`recordAdEvent` feed the shared sponsored rail (HOME_TOP/SPONSORED_SHOWCASE/SECTOR_RAIL) | Go + Postgres |
 | settlement → Go+Cockroach | `internal/settlement` | `payments` (+ `settlement_ledger`, `payouts`) | `faazio:v1:settlement:{sellerId}:{cycle}` 600 s (invalidated on payout create) | portal-only | CockroachDB |
 | support → Go+Postgres | `internal/support` | `support` (+ `tickets` incl. `state_code`), `checkout.returns` | none (auth-scoped, never edge-cached) | portal-only (state/super ticket queue) | Go + Postgres |
-| recommendations → Python+Mongo | `internal/reco`, `internal/sdui` | MongoDB `sdui_layouts`, `user_events`, `recommendations`, `product_stats`; `sdui` composes `catalog` + `directory` (`HomeSection` joins each section's `productIds` **and** `storeIds` via `contracts.ProductReader`/`contracts.StoreReader` — `directory.Repo.ByIDs`, PII-free projection) | `faazio:v1:reco:{userIdHash}:{context}` 1 h · `faazio:v1:gateway:sdui:{locale}:{path}` 300 s (same key now carries the store join) | `getHomeFeed`, `trackEvent` (app) + `getRecommendations`; portal monitoring `GET /admin/user-trail?userId=&limit=` (admin-only, ID-only `user_events` read) | Python FastAPI |
+| recommendations → Python+Mongo | `internal/reco`, `internal/sdui` | MongoDB `sdui_layouts`, `user_events`, `recommendations`, `product_stats`; `sdui` composes `catalog` + `directory` (`HomeSection` joins each section's `productIds` **and** `storeIds` via `contracts.ProductReader`/`contracts.StoreReader` — `directory.Repo.ByIDs`, PII-free projection) | `faazio:v1:reco:{userIdHash}:{context}` 1 h · `faazio:v1:gateway:sdui:{locale}:{path}` 300 s (same key now carries the store join; purged on publish) | `getHomeFeed`, `trackEvent` (app) + `getRecommendations`; portal monitoring `GET /admin/user-trail?userId=&limit=` (admin-only, ID-only `user_events` read); super-admin Home-layout editor `GET`/`PUT /admin/sdui/home` (raw ID-only sections, `contracts.LayoutWriter` → `reco.Repo.SaveHome` `$inc version` + purges the compiled-feed cache; audited `SDUI_PUBLISH`) | Python FastAPI |
 | shared | `internal/platform/{db,cache,auth,config,otel,testenv}`, `internal/contracts` | — | — | — | gRPC via `contracts/` |
 
 Mongo `user_events` stores **ID-only** `{ userIdHash, productId, event, at }` with a 90-day TTL; the
@@ -77,7 +77,9 @@ it stays redacted (no PII widening).
 support/admin contexts above. Every write is scoped to the caller's `seller_id` unless the role is
 `STATE_ADMIN`/`SUPER_ADMIN`. The one sellers-context write exposed to the mobile client is
 `POST /sellers` (partner onboarding, `GatewayClient.submitSellerApplication`) — any authenticated
-applicant may create a `PENDING_REVIEW` seller; KYC/bank writes stay portal-only.
+applicant may create a `PENDING_REVIEW` seller; KYC/bank writes stay portal-only. The Home
+SDUI editor is super-admin-only: `GET`/`PUT /admin/sdui/home` (`internal/sdui`) reads/writes the
+raw ID-only `sdui_layouts` doc and publishes a version bump the app picks up on its next poll.
 
 **Partner completion (v3, `0017`)** adds four portal-only control surfaces: customer monitoring
 (`GET /customers` in `internal/admins`, reads the redacted `checkout.users_admin` view — state/super

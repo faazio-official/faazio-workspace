@@ -1,10 +1,12 @@
 "use client";
+import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { PageHeader } from "@/components/patterns/PageHeader";
 import { SectionCard } from "@/components/patterns/SectionCard";
 import { DataShell, EmptyState } from "@/components/patterns/DataState";
-import { StatusPill } from "@/components/patterns/Pills";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import {
   Table,
   TableBody,
@@ -15,78 +17,104 @@ import {
 } from "@/components/ui/table";
 import { formatDateTime } from "@/lib/format";
 import { useMockLoading, useSduiLayouts } from "@/lib/api/hooks";
-import { setSduiLayoutStatus } from "@/lib/api";
+import { saveSduiLayoutHome } from "@/lib/api";
+import type { SduiSection } from "@/data/types";
+
+/** Comma/newline separated id list -> trimmed, non-empty ids. */
+function parseIds(value: string): string[] {
+  return value
+    .split(/[\s,]+/)
+    .map((s) => s.trim())
+    .filter(Boolean);
+}
 
 function SuperSdui() {
   const loading = useMockLoading();
-  const layouts = useSduiLayouts();
+  const layouts = useSduiLayouts({ layoutId: "home" });
+  const layout = layouts[0];
+  const [draft, setDraft] = useState<SduiSection[]>([]);
+  const [dirty, setDirty] = useState(false);
+
+  useEffect(() => {
+    setDraft(layout?.sections ?? []);
+    setDirty(false);
+  }, [layout]);
+
+  const patch = (id: string, next: Partial<SduiSection>) => {
+    setDraft((rows) => rows.map((s) => (s.id === id ? { ...s, ...next } : s)));
+    setDirty(true);
+  };
+
+  const publish = () => {
+    saveSduiLayoutHome(draft);
+    setDirty(false);
+    toast.success(`Home layout v${(layout?.version ?? 0) + 1} published`);
+  };
 
   return (
     <div className="space-y-4">
       <PageHeader
         title="App content (SDUI)"
-        description="Server-driven home layouts the mobile app renders at runtime. Publishing bumps the live version."
+        description="Server-driven home layouts the mobile app renders at runtime. Publishing bumps the live version (Mongo sdui_layouts) and the app picks it up on its next poll."
       />
 
-      <SectionCard bodyClassName="p-0">
+      <SectionCard
+        title="Home layout"
+        actions={
+          <Button size="sm" onClick={publish} disabled={!dirty}>
+            {dirty ? "Publish changes" : "Published"}
+          </Button>
+        }
+      >
+        {layout ? (
+          <p className="mb-3 text-sm text-muted-foreground">
+            Locale <span className="num">{layout.locale}</span> · v{layout.version} · updated{" "}
+            {formatDateTime(layout.updatedAt)} · {draft.length} sections. Ids reference catalog
+            products / directory stores (ID-only).
+          </p>
+        ) : null}
         <DataShell
           loading={loading}
-          isEmpty={layouts.length === 0}
+          isEmpty={draft.length === 0}
           empty={
             <EmptyState
-              title="No layouts"
-              description="Server-driven layouts for the mobile home feed appear here."
+              title="No layout"
+              description="The gateway has no Home SDUI layout (or you are offline)."
             />
           }
         >
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>Layout</TableHead>
-                <TableHead>Locale</TableHead>
-                <TableHead>Path</TableHead>
-                <TableHead className="text-right">Version</TableHead>
-                <TableHead className="text-right">Sections</TableHead>
-                <TableHead>Updated</TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead />
+                <TableHead className="w-40">Section</TableHead>
+                <TableHead className="w-56">Title</TableHead>
+                <TableHead>Product ids</TableHead>
+                <TableHead className="w-32">Refs</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
-              {layouts.map((l) => (
-                <TableRow key={`${l.layoutId}-${l.version}`} className="h-12">
-                  <TableCell className="font-medium">{l.layoutId}</TableCell>
-                  <TableCell>{l.locale}</TableCell>
-                  <TableCell className="num">{l.path}</TableCell>
-                  <TableCell className="num text-right">v{l.version}</TableCell>
-                  <TableCell className="num text-right">{l.sections.length}</TableCell>
-                  <TableCell className="text-muted-foreground">{formatDateTime(l.updatedAt)}</TableCell>
-                  <TableCell>
-                    <StatusPill status={l.status} />
+              {draft.map((s) => (
+                <TableRow key={s.id}>
+                  <TableCell className="num align-top text-muted-foreground">{s.id}</TableCell>
+                  <TableCell className="align-top">
+                    <Input
+                      value={s.title}
+                      onChange={(e) => patch(s.id, { title: e.target.value })}
+                      aria-label={`${s.id} title`}
+                    />
                   </TableCell>
-                  <TableCell className="space-x-1 text-right">
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      disabled={l.status === "PUBLISHED"}
-                      onClick={() => {
-                        setSduiLayoutStatus(l.layoutId, l.version, "PUBLISHED");
-                        toast.success(`${l.layoutId} v${l.version} published`);
-                      }}
-                    >
-                      Publish
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      disabled={l.status === "DRAFT"}
-                      onClick={() => {
-                        setSduiLayoutStatus(l.layoutId, l.version, "DRAFT");
-                        toast.success(`${l.layoutId} v${l.version} moved to draft`);
-                      }}
-                    >
-                      Unpublish
-                    </Button>
+                  <TableCell className="align-top">
+                    <Textarea
+                      value={s.productIds.join(", ")}
+                      rows={2}
+                      onChange={(e) => patch(s.id, { productIds: parseIds(e.target.value) })}
+                      aria-label={`${s.id} product ids`}
+                      placeholder="md-1, md-2, …"
+                    />
+                  </TableCell>
+                  <TableCell className="align-top text-xs text-muted-foreground">
+                    {s.storeIds?.length ? <div>{s.storeIds.length} stores</div> : null}
+                    {s.chips?.length ? <div>{s.chips.length} chips</div> : null}
                   </TableCell>
                 </TableRow>
               ))}

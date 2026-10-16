@@ -19,14 +19,32 @@ type cachedHome struct {
 // Service compiles the Home feed.
 type Service struct {
 	layouts  contracts.LayoutSource
+	writer   contracts.LayoutWriter
 	products contracts.ProductReader
 	stores   contracts.StoreReader
 	cache    *cache.Cache
 }
 
 // NewService builds the SDUI service.
-func NewService(layouts contracts.LayoutSource, products contracts.ProductReader, stores contracts.StoreReader, c *cache.Cache) *Service {
-	return &Service{layouts: layouts, products: products, stores: stores, cache: c}
+func NewService(layouts contracts.LayoutSource, writer contracts.LayoutWriter, products contracts.ProductReader, stores contracts.StoreReader, c *cache.Cache) *Service {
+	return &Service{layouts: layouts, writer: writer, products: products, stores: stores, cache: c}
+}
+
+// Layout returns the raw ID-only Home sections + version (no product/store join) for the admin
+// editor. It reads the source directly so a just-saved layout is never masked by the feed cache.
+func (s *Service) Layout(ctx context.Context) ([]contracts.SduiSection, int64, error) {
+	return s.layouts.Home(ctx)
+}
+
+// SaveHome persists a new Home layout (admin publish) and purges the compiled-feed cache so the
+// next GET /sdui/home recompiles with the new sections and a bumped ETag.
+func (s *Service) SaveHome(ctx context.Context, sections []contracts.SduiSection) (int64, error) {
+	version, err := s.writer.SaveHome(ctx, sections)
+	if err != nil {
+		return 0, err
+	}
+	s.cache.Del(ctx, cache.SduiHome("en"))
+	return version, nil
 }
 
 // Home returns the compiled Home feed (ID-only sections + joined products) and the layout version.

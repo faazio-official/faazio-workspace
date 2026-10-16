@@ -79,6 +79,42 @@ func (r *Repo) Home(ctx context.Context) ([]contracts.SduiSection, int64, error)
 	return out, doc.Version, nil
 }
 
+// SaveHome replaces the Home layout's sections and bumps its version, returning the new version.
+// Admin-published (super-admin only) — the ID-only shape is preserved (no embedded docs, ID refs
+// only) and the atomic `$inc` guarantees a monotonic version for the ETag / cache purge.
+func (r *Repo) SaveHome(ctx context.Context, sections []contracts.SduiSection) (int64, error) {
+	if r.db == nil {
+		return 0, fmt.Errorf("reco: mongo not configured")
+	}
+	docs := make([]sectionDoc, 0, len(sections))
+	for _, s := range sections {
+		sec := sectionDoc{
+			ID: s.ID, Title: s.Title, Subtitle: s.Subtitle, Accent: s.Accent,
+			ProductIDs: emptyIfNil(s.ProductIDs), StoreIDs: emptyIfNil(s.StoreIDs),
+		}
+		for _, c := range s.Chips {
+			sec.Chips = append(sec.Chips, chipDoc{
+				ID: c.ID, Label: c.Label, Accent: c.Accent, ProductIDs: emptyIfNil(c.ProductIDs),
+			})
+		}
+		docs = append(docs, sec)
+	}
+	var out layoutDoc
+	err := r.db.Collection("sdui_layouts").FindOneAndUpdate(ctx,
+		bson.M{"_id": "home"},
+		bson.M{
+			"$set":         bson.M{"sections": docs, "updatedAt": time.Now().UTC()},
+			"$setOnInsert": bson.M{"locale": "en"},
+			"$inc":         bson.M{"version": 1},
+		},
+		options.FindOneAndUpdate().SetUpsert(true).SetReturnDocument(options.After),
+	).Decode(&out)
+	if err != nil {
+		return 0, err
+	}
+	return out.Version, nil
+}
+
 // TrackEvent stores an anonymous, ID-only behavior event with a 90-day TTL.
 func (r *Repo) TrackEvent(ctx context.Context, userID, productID, event string) error {
 	if r.db == nil {

@@ -173,7 +173,11 @@ export async function hydrateFromGateway(): Promise<boolean> {
         remote.get<Raw[]>(role === "SELLER" ? "/seller/bookings" : "/bookings").then(toCamel),
       ),
       safe(() => remote.get<Raw[]>("/blood-requests").then(toCamel)),
-      safe(() => remote.get<Raw>("/sdui/home").then(toCamel)),
+      safe(() =>
+        role === "SUPER_ADMIN"
+          ? remote.get<Raw>("/admin/sdui/home").then(toCamel)
+          : Promise.resolve<Raw | undefined>(undefined),
+      ),
       // Partner-completion (0017). Customers/tickets are admin surfaces; menus/rates are partner-wide.
       safe(() =>
         (role === "SELLER" ? Promise.resolve<Raw[]>([]) : remote.get<Raw[]>("/customers").then(toCamel)),
@@ -357,11 +361,9 @@ export async function hydrateFromGateway(): Promise<boolean> {
   }
   if (sdui && sdui["version"] != null) {
     const layout: SduiLayout = {
-      layoutId: "home",
-      locale: str(sdui["locale"], "en-IN"),
-      path: "/home",
+      layoutId: str(sdui["layoutId"], "home"),
+      locale: str(sdui["locale"], "en"),
       version: num(sdui["version"]),
-      status: "PUBLISHED",
       sections: (Array.isArray(sdui["sections"]) ? sdui["sections"] : []) as SduiLayout["sections"],
       updatedAt: str(sdui["updatedAt"], new Date().toISOString()),
     };

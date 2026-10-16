@@ -26,7 +26,7 @@ import type {
   Role,
   Sector,
   SellerStatus,
-  SduiLayoutStatus,
+  SduiSection,
   StateAdmin,
   TicketRecord,
   TicketStatus,
@@ -1106,28 +1106,44 @@ export function removeBloodRequest(requestId: string): void {
 /* ---------------------------------- sdui --------------------------------- */
 
 export function listSduiLayouts(
-  filter: { layoutId?: string | undefined; status?: SduiLayoutStatus | "ALL" | undefined } = {},
+  filter: { layoutId?: string | undefined } = {},
 ) {
-  return state().sduiLayouts.filter((l) => {
-    if (filter.layoutId && l.layoutId !== filter.layoutId) return false;
-    if (filter.status && filter.status !== "ALL" && l.status !== filter.status) return false;
-    return true;
-  });
+  return state().sduiLayouts.filter((l) => !filter.layoutId || l.layoutId === filter.layoutId);
 }
 
-export function setSduiLayoutStatus(layoutId: string, version: number, status: SduiLayoutStatus): void {
-  const before = state().sduiLayouts.find((l) => l.layoutId === layoutId && l.version === version);
+/**
+ * Publishes the Home SDUI layout: writes ID-only sections to the gateway (Mongo sdui_layouts),
+ * which bumps the version, purges the compiled-feed cache and changes the ETag — the app picks up
+ * the new content on its next poll with no release. Optimistic with rollback (Phase 3 pattern).
+ */
+export function saveSduiLayoutHome(sections: SduiSection[], locale = "en"): void {
+  const before = state().sduiLayouts.find((l) => l.layoutId === "home");
+  const prev = before ? { ...before, sections: before.sections } : undefined;
+  const version = (before?.version ?? 0) + 1;
+  const next = {
+    layoutId: "home",
+    locale,
+    version,
+    sections,
+    updatedAt: nowIso(),
+  };
   state().set((s) => ({
-    sduiLayouts: s.sduiLayouts.map((l) =>
-      l.layoutId === layoutId && l.version === version ? { ...l, status, updatedAt: nowIso() } : l,
-    ),
+    sduiLayouts: before
+      ? s.sduiLayouts.map((l) => (l.layoutId === "home" ? next : l))
+      : [next],
   }));
+  pushWrite("Publish Home layout", "put", "/admin/sdui/home", { locale, sections }, () => {
+    if (!prev) return;
+    state().set((s) => ({
+      sduiLayouts: s.sduiLayouts.map((l) => (l.layoutId === "home" ? prev : l)),
+    }));
+  });
   audit({
-    action: `SDUI_${status}`,
+    action: "SDUI_PUBLISH",
     entity: "sdui_layouts",
-    entityId: `${layoutId}@v${version}`,
-    before: before && { status: before.status },
-    after: { status },
+    entityId: `home@v${version}`,
+    before: prev && { version: prev.version },
+    after: { version },
   });
 }
 

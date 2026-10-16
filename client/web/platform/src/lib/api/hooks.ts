@@ -200,7 +200,7 @@ export function useBloodRequests(
 }
 
 export function useSduiLayouts(
-  filter: { layoutId?: string | undefined; status?: import("@/data/types").SduiLayoutStatus | "ALL" | undefined } = {},
+  filter: { layoutId?: string | undefined } = {},
 ) {
   const sduiLayouts = usePortalStore((s) => s.sduiLayouts);
   const key = JSON.stringify(filter);

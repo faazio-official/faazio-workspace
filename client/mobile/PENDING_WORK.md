@@ -5,6 +5,37 @@ dependencies exist. Do not build the backend/seller flows until told to.
 
 ---
 
+## W36 — Web takes control of the Home SDUI (publish pipeline)
+
+**Status:** 🟢 Shipped (server + web). No app or DB change.
+
+Before this, the portal's `admin/super/sdui` page mutated a local-only `setSduiLayoutStatus()`
+(no `pushWrite`, no server endpoint) whose record shape didn't match the gateway doc — and the
+`/sdui/home` hydrate was dead code (it expected `{version, sections}`, the endpoint returns an
+array). Web could not change a single Home pixel.
+
+- **Server (additive, `internal/sdui`).** Super-admin `GET /admin/sdui/home` returns the raw
+  ID-only layout (`{layoutId, locale, version, sections}`); `PUT /admin/sdui/home` validates bounds
+  (≤40 sections, ≤100 id refs, ids ≤64, ≤20 chips) and publishes via `contracts.LayoutWriter` →
+  `reco.Repo.SaveHome` (atomic `$inc version` + `updatedAt`), purges `faazio:v1:gateway:sdui:en:/home`
+  and audits `SDUI_PUBLISH`. New tests: section validation, super-admin gate, service version bump.
+- **Portal.** `SduiSection`/`SduiLayout` now mirror the gateway doc (ID-only, no `path`/`status`);
+  `SDUI_LAYOUTS` seeds the real 15-section Home doc; `saveSduiLayoutHome` pushes to the gateway
+  (`pushWrite`, optimistic + rollback); hydrate reads `/admin/sdui/home` for super-admins; the page
+  edits section titles + `productIds` and publishes.
+- **Not in this slice (needs new data surfaces, still fixture-backed):** `adBanner` (image banners —
+  no slot table), `hotBrandDeals` (vendor campaigns — no campaigns read), the header category rail
+  (`GET /categories/rail` — no categories table), and personalized Recently Viewed (H4). The
+  `nearbyOffers`/demographic rails already read the SDUI feed (W35), so web edits to their
+  `productIds` now reach the app.
+
+**Rollback:** revert the `internal/sdui` admin routes + `contracts.LayoutWriter`/`reco.SaveHome`,
+and the portal `SduiLayout`/`saveSduiLayoutHome`/page changes. No migration.
+
+**Date:** 2026-10-16
+
+---
+
 ## W35 — Home SDUI cutover: feed drives every data-backed rail (Home slice 1)
 
 **Status:** 🟢 Shipped (app) + 🟢 Shipped (server, additive).
