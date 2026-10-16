@@ -107,8 +107,15 @@ export const useCartStore = create<CartState>()((set, get) => ({
 
   hydrate: async () => {
     if (!gateway.remoteEnabled) return;
+    const wasHydrated = get().hydrated;
     const remote = await gateway.getCart();
-    if (!remote.items.length) return; // keep the local/seed cart when the server cart is empty
+    // First remote hydrate with an empty server cart must clear the local `seedCartItems`, so the
+    // shopper never sees or checks out fixture lines the server doesn't have. Later empty responses
+    // (e.g. a transient blip) leave the current cart alone.
+    if (!remote.items.length) {
+      if (!wasHydrated) set({ cart: [], hydrated: true });
+      return;
+    }
     const products = await gateway.getProductsByIds(remote.items.map((i) => i.productId));
     const items: CartItem[] = remote.items.map((ci) => {
       const p = products.find((pp) => pp.id === ci.productId);

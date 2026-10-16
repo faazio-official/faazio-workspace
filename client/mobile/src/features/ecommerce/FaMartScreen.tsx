@@ -11,6 +11,8 @@ import type { RootStackParamList } from '@/navigation/types';
 import { gateway } from '@/services/api/GatewayClient';
 import { isDiscounted } from '@/services/categoryVendors';
 import { applyActiveDiscounts, useActiveDiscounts } from '@/services/pricing';
+import { trackProductView } from '@/services/productViews';
+import { useViewableTracking } from '@/hooks/useViewableTracking';
 import MartProductCard from '@/features/ecommerce/cards/MartProductCard';
 
 import {
@@ -130,6 +132,12 @@ export function FaMartScreen({
     };
   }, [normalizedSearch, searchQuery, vendor]);
 
+  // Passive `view` impressions for search results that actually scroll into view (deduped per
+  // session by `trackProductView`). PDP opens still emit their own `view`.
+  const { onViewableItemsChanged, viewabilityConfig } = useViewableTracking<Product>((p) =>
+    trackProductView(p.id),
+  );
+
   // "Discounted Products" rail: every vendor product, with any server-owned festival discount
   // overlaid, filtered to what is actually on offer (authored MRP or an active opt-in). Fetching
   // discounts for the full pool means an approved opt-in shows even when the product has no MRP
@@ -169,6 +177,10 @@ export function FaMartScreen({
     [onProductClick],
   );
 
+  // Passive impressions for the two Mart feed rails (deduped per session by trackProductView).
+  const handleDealView = useCallback((deal: MartDeal) => trackProductView(deal.id), []);
+  const handleEssentialView = useCallback((item: MartEssential) => trackProductView(item.id), []);
+
   const feedSectionsData: { id: string; component: React.ReactNode }[] = [
     { id: 'hero', component: <MartHeroCarousel banners={feed?.heroBanners ?? []} /> },
     // Paid Mart showcase (SPONSORED_SHOWCASE) — same closed-loop pipeline as the Home rail; collapses
@@ -195,8 +207,8 @@ export function FaMartScreen({
         />
       ),
     },
-    { id: 'deals', component: <DealsOfDayRail deals={feed?.deals ?? []} onDealPress={handleDealPress} /> },
-    { id: 'essentials', component: <DailyEssentialsRail items={feed?.dailyEssentials ?? []} onItemPress={handleEssentialPress} /> },
+    { id: 'deals', component: <DealsOfDayRail deals={feed?.deals ?? []} onDealPress={handleDealPress} onItemView={handleDealView} /> },
+    { id: 'essentials', component: <DailyEssentialsRail items={feed?.dailyEssentials ?? []} onItemPress={handleEssentialPress} onItemView={handleEssentialView} /> },
   ];
 
   const handleBackToFeed = useCallback(() => {
@@ -265,6 +277,8 @@ export function FaMartScreen({
           columnWrapperStyle={styles.productRow}
           showsVerticalScrollIndicator={false}
           renderItem={renderProductItem}
+          onViewableItemsChanged={onViewableItemsChanged}
+          viewabilityConfig={viewabilityConfig}
           ListEmptyComponent={
             <View style={styles.emptyWrap}>
               <AppText style={styles.emptyText}>No products found for "{searchQuery}"</AppText>

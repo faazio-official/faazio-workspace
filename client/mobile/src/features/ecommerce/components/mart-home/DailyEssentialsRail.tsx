@@ -2,6 +2,7 @@ import React, { memo, useCallback } from 'react';
 import { View, StyleSheet } from 'react-native';
 import { FlashList } from '@shopify/flash-list';
 import { hs, vs } from '@/utils/responsive';
+import { useViewableTracking } from '@/hooks/useViewableTracking';
 import type { MartEssential } from '../../mocks/martHomeFeed';
 import MartSectionHeader from './MartSectionHeader';
 import MartDealCard from './MartDealCard';
@@ -12,13 +13,20 @@ interface DailyEssentialsRailProps {
   items: MartEssential[];
   onItemPress?: (item: MartEssential) => void;
   onViewAll?: () => void;
+  /** Passive impression callback, fired once per card that scrolls into view (caller dedupes). */
+  onItemView?: (item: MartEssential) => void;
 }
 
 const DailyEssentialsRail = memo(function DailyEssentialsRail({
   items,
   onItemPress,
   onViewAll,
+  onItemView,
 }: DailyEssentialsRailProps) {
+  const { onViewableItemsChanged, viewabilityConfig } = useViewableTracking<MartEssential>((item) =>
+    onItemView?.(item),
+  );
+
   const renderItem = useCallback(
     ({ item }: { item: MartEssential }) => (
       <MartDealCard
@@ -45,6 +53,8 @@ const DailyEssentialsRail = memo(function DailyEssentialsRail({
         horizontal
         showsHorizontalScrollIndicator={false}
         contentContainerStyle={styles.content}
+        onViewableItemsChanged={onViewableItemsChanged}
+        viewabilityConfig={viewabilityConfig}
         bounces={false}
       />
     </View>

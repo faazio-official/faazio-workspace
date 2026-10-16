@@ -5,6 +5,31 @@ dependencies exist. Do not build the backend/seller flows until told to.
 
 ---
 
+## W39 — Mart impression events + cart seed gate (production-readiness)
+
+**Status:** 🟢 Shipped (app only). No server change.
+
+Two production-testing gaps from the Mart slice:
+
+- **Passive Mart `view` impressions.** `services/productViews.trackProductView` reports a `view`
+  behavior event at most once per product per session (`user_events` has no dedupe), reset on logout.
+  Wired through `hooks/useViewableTracking` to the Mart **search-result grid** and both feed rails
+  (`DealsOfDayRail`/`DailyEssentialsRail`, now optional `onItemView`). PDP opens still emit their own
+  `view`; `cart_add` + ad impression/click were already live. **Deferred:** vendor-drill-in grid
+  impressions (it renders inside a `ScrollView`, not a viewable list).
+- **Cart seed gate.** `cartStore.hydrate()` now clears the local `seedCartItems` on the **first**
+  remote hydrate when the server cart is empty, so a shopper never sees/checks out fixture lines the
+  server doesn't have. Later empty responses leave the current cart alone.
+
+**Still deferred (Mart):** Supabase Storage media path for hero/product images (Unsplash stays as
+fallback), and `DealsLanding` **campaign** mode (Home-owned `@data`).
+
+**Docs:** `docs/architecture/mobile-app.md`.
+
+**Date:** 2026-10-16
+
+---
+
 ## W38 — Mart hero + Daily Essentials server-controlled via SDUI (de-mock slice, M2–M4)
 
 **Status:** 🟢 Shipped (server + Mongo + app + web). Docs-only otherwise.

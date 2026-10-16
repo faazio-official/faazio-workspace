@@ -2,6 +2,7 @@ import React, { memo, useCallback } from 'react';
 import { View, StyleSheet } from 'react-native';
 import { FlashList } from '@shopify/flash-list';
 import { hs, vs } from '@/utils/responsive';
+import { useViewableTracking } from '@/hooks/useViewableTracking';
 import type { MartDeal } from '../../mocks/martHomeFeed';
 import MartSectionHeader from './MartSectionHeader';
 import MartDealCard from './MartDealCard';
@@ -12,13 +13,20 @@ interface DealsOfDayRailProps {
   deals: MartDeal[];
   onDealPress?: (deal: MartDeal) => void;
   onViewAll?: () => void;
+  /** Passive impression callback, fired once per card that scrolls into view (caller dedupes). */
+  onItemView?: (deal: MartDeal) => void;
 }
 
 const DealsOfDayRail = memo(function DealsOfDayRail({
   deals,
   onDealPress,
   onViewAll,
+  onItemView,
 }: DealsOfDayRailProps) {
+  const { onViewableItemsChanged, viewabilityConfig } = useViewableTracking<MartDeal>((deal) =>
+    onItemView?.(deal),
+  );
+
   const renderItem = useCallback(
     ({ item }: { item: MartDeal }) => (
       <MartDealCard
@@ -45,6 +53,8 @@ const DealsOfDayRail = memo(function DealsOfDayRail({
         horizontal
         showsHorizontalScrollIndicator={false}
         contentContainerStyle={styles.content}
+        onViewableItemsChanged={onViewableItemsChanged}
+        viewabilityConfig={viewabilityConfig}
         bounces={false}
       />
     </View>
