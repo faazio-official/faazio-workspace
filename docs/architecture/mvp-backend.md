@@ -221,6 +221,12 @@ contract stable so the swap is invisible to the app):
     (`services/pricing.ts`) and the Home daily-essentials rail joins the catalog (`getProductsByIds`).
     Owner: `db-schema.md` §12.4/§12.9.
 
+18. ✅ **Server quench + Rx privacy (`0023`, W34):** four additive thin reads in existing contexts —
+    `GET /venues/{id}` (directory), `GET /seller/prescriptions/{id}` (pharma), `GET /orders/tracking/{id}`
+    (checkout), admin `POST /notifications/drain` (`contracts.Drainer`) — plus quote `price<=mrp` checks
+    and idempotent repeated `READY` in pharma. `0023` adds the seller-queue index + quote CHECK
+    constraints (`NOT VALID`). Owner: `db-schema.md` §12.12. Additive only.
+
 ---
 
 ## 8. Companion docs

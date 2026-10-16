@@ -1296,3 +1296,29 @@ change — the public projections are non-PII business data, computed by the gat
 a fresh deploy. Rows are `scope='GLOBAL'`, `sector`/`state_code` null (visible to every app),
 `valid_till='2027-12-31'`, `active=true`. The seed generator is the single writer
 (`server/supabase/seed/generate.mjs`) and `docker-compose.yml` mounts `0021` so local stacks match.
+
+### 12.14 Pharma Rx privacy + seller queue index (migration `0023`)
+
+Additive hardening for the seller Rx deep-link and quote integrity. No new table; the customer name is
+never duplicated (the seller projection joins `checkout.users.name`), so no `customer_name` column is
+added. Idempotent and re-runnable:
+
+```sql
+-- Seller queue / deep-link lookup: one seller's prescriptions by status, newest first.
+CREATE INDEX IF NOT EXISTS prescriptions_vendor_status_idx
+  ON pharma.prescriptions (vendor_id, status, created_at DESC);
+
+-- Quote integrity mirrored at the DB edge (NOT VALID: pre-existing rows untouched, enforced on write).
+ALTER TABLE pharma.quote_items
+  ADD CONSTRAINT quote_items_price_le_mrp CHECK (mrp_paisa = 0 OR price_paisa <= mrp_paisa) NOT VALID;
+ALTER TABLE pharma.quote_items
+  ADD CONSTRAINT quote_items_discount_le_price CHECK (discount_paisa <= price_paisa) NOT VALID;
+```
+
+Reads/writes: `GET /seller/prescriptions/{id}` (single Rx, same name-only-until-READY projection as the
+list; cross-seller id → 404), `GET /venues/{id}` (single venue, PII-redacted for anon, cached
+`directory:venue:{id}` 24 h), `GET /orders/tracking/{id}` (owner-scoped lightweight order status), admin
+`POST /notifications/drain` (one-shot outbox drain; 503 without a push provider). The gateway handler
+also rejects `price > mrp` (when an MRP is authored) and makes a repeated `READY` a no-op (no duplicate
+`status_history` row, no duplicate `RX_READY` notification). No RLS change — `pharma.prescriptions`
+keeps its owner read-only policy, and every seller/admin write is gateway `service_role`.

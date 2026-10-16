@@ -41,6 +41,15 @@ type Order struct {
 	Pickups        json.RawMessage `json:"pickups,omitempty"`
 }
 
+// OrderTracking is the lightweight owner-scoped status projection (polling/monitoring): no line
+// items, addresses or payments. Status is already mapped to the mobile vocabulary.
+type OrderTracking struct {
+	ID         string `json:"id"`
+	Status     string `json:"status"`
+	StatusDate string `json:"statusDate,omitempty"`
+	PlacedAt   string `json:"placedAt"`
+}
+
 // Payment is one checkout.payments row, JSON shaped for PaymentRow (amount in rupees).
 type Payment struct {
 	ID            string `json:"id"`
@@ -744,6 +753,35 @@ func (r *Repo) OrderDetail(ctx context.Context, orderID, userID string) (Order, 
 		return Order{}, false, nil
 	}
 	return r.OrderByID(ctx, orderID)
+}
+
+// OrderTrackingForUser returns the lightweight status projection for one of the caller's own orders
+// (never cross-user). Used by the app's order-tracking poll so it does not refetch full orders.
+func (r *Repo) OrderTrackingForUser(ctx context.Context, orderID, userID string) (OrderTracking, bool, error) {
+	if r.pool == nil {
+		return OrderTracking{}, false, fmt.Errorf("checkout: database not configured")
+	}
+	var (
+		t          OrderTracking
+		placedAt   time.Time
+		statusDate *time.Time
+	)
+	err := r.pool.QueryRow(ctx, `
+		select order_id, status::text, status_date, placed_at
+		  from checkout.orders where order_id = $1 and user_id = $2`, orderID, userID).
+		Scan(&t.ID, &t.Status, &statusDate, &placedAt)
+	if err != nil {
+		if err == pgx.ErrNoRows {
+			return OrderTracking{}, false, nil
+		}
+		return OrderTracking{}, false, err
+	}
+	t.PlacedAt = placedAt.UTC().Format(time.RFC3339)
+	if statusDate != nil {
+		t.StatusDate = statusDate.UTC().Format(time.RFC3339)
+	}
+	t.Status = mobileStatus(t.Status)
+	return t, true, nil
 }
 
 func shortAddrID() string {

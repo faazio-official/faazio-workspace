@@ -35,6 +35,7 @@ func (h *Handler) Register(r chi.Router) {
 	r.Get("/stores", h.list)
 	r.Get("/store/{id}", h.get)
 	r.Get("/venues", h.venues)
+	r.Get("/venues/{id}", h.venue)
 	r.Get("/pickup-points", h.pickupPoints)
 	r.Get("/venues/{id}/menu", h.menu)
 	r.Group(func(g chi.Router) {
@@ -193,6 +194,35 @@ func (h *Handler) venues(w http.ResponseWriter, r *http.Request) {
 	}
 	h.cache.SetJSON(r.Context(), cache.Venues(key), venues, cache.TTLStore)
 	httpx.JSON(w, http.StatusOK, venues)
+}
+
+// venue serves one dining venue. Anonymous callers get the PII-redacted projection (cached 24 h);
+// authenticated reads bypass the cache so address/phone are never persisted in Valkey.
+func (h *Handler) venue(w http.ResponseWriter, r *http.Request) {
+	id := chi.URLParam(r, "id")
+	authed := auth.UserID(r.Context()) != ""
+	if !authed {
+		var cached contracts.Venue
+		if h.cache.GetJSON(r.Context(), cache.Venue(id), &cached) {
+			httpx.JSON(w, http.StatusOK, cached)
+			return
+		}
+	}
+	v, ok, err := h.repo.VenueByID(r.Context(), id)
+	if err != nil {
+		httpx.Fail(w, http.StatusInternalServerError, "directory_unavailable", "directory unavailable")
+		return
+	}
+	if !ok {
+		httpx.Fail(w, http.StatusNotFound, "not_found", "venue not found")
+		return
+	}
+	if !authed {
+		v.Address = ""
+		v.Phone = ""
+		h.cache.SetJSON(r.Context(), cache.Venue(id), v, cache.TTLStore)
+	}
+	httpx.JSON(w, http.StatusOK, v)
 }
 
 func (h *Handler) sellerStores(w http.ResponseWriter, r *http.Request) {

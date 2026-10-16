@@ -35,6 +35,7 @@ func (h *Handler) Register(r chi.Router) {
 		g.Get("/orders", h.getOrders)
 		g.Post("/orders", h.placeOrder)
 		g.Post("/checkout/validate-coupon", h.validateCoupon)
+		g.Get("/orders/tracking/{orderID}", h.trackOrder)
 		g.Get("/orders/{orderID}", h.getOrder)
 		g.Post("/orders/{orderID}/payments", h.payOrder)
 		g.Get("/payments", h.getPayments)
@@ -90,6 +91,21 @@ func (h *Handler) getOrder(w http.ResponseWriter, r *http.Request) {
 	}
 	order.Status = mobileStatus(order.Status)
 	httpx.JSON(w, http.StatusOK, order)
+}
+
+// trackOrder returns a lightweight status projection for one of the caller's own orders — the
+// monitoring poll surface (no line items / addresses / payments). 404 for another user's order.
+func (h *Handler) trackOrder(w http.ResponseWriter, r *http.Request) {
+	t, ok, err := h.repo.OrderTrackingForUser(r.Context(), chi.URLParam(r, "orderID"), auth.UserID(r.Context()))
+	if err != nil {
+		httpx.Fail(w, http.StatusInternalServerError, "orders_unavailable", "orders unavailable")
+		return
+	}
+	if !ok {
+		httpx.Fail(w, http.StatusNotFound, "not_found", "order not found")
+		return
+	}
+	httpx.JSON(w, http.StatusOK, t)
 }
 
 func (h *Handler) getAddresses(w http.ResponseWriter, r *http.Request) {

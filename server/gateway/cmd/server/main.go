@@ -54,22 +54,23 @@ func main() {
 		log.Print("AUTH_DISABLED=true — partner roles come from X-Dev-* headers. Never run this in production.")
 	}
 
-	handler := server.NewRouter(server.Deps{
-		Config: cfg,
-		Pool:   pool,
-		Cache:  valkey,
-		Mongo:  mongoDB,
-	})
-
-	// Notification outbox drain worker (provider-agnostic webhook). Only runs when configured, so
-	// PENDING rows are never marked SENT without a real delivery attempt.
+	// Notification outbox drain worker (provider-agnostic webhook). The worker is always constructed so
+	// the admin manual trigger (POST /notifications/drain) works; the background loop only runs when a
+	// provider is configured, so PENDING rows are never marked SENT without a real delivery attempt.
 	workerCtx, stopWorkers := context.WithCancel(context.Background())
 	defer stopWorkers()
+	notifyWorker := notifications.NewWorker(notifications.New(pool, valkey), notifications.NewWebhookSender(cfg.PushWebhookURL), nil)
 	if cfg.PushWebhookURL != "" && pool != nil {
-		notifyRepo := notifications.New(pool, valkey)
-		worker := notifications.NewWorker(notifyRepo, notifications.NewWebhookSender(cfg.PushWebhookURL), nil)
-		go worker.Run(workerCtx)
+		go notifyWorker.Run(workerCtx)
 	}
+
+	handler := server.NewRouter(server.Deps{
+		Config:  cfg,
+		Pool:    pool,
+		Cache:   valkey,
+		Mongo:   mongoDB,
+		Drainer: notifyWorker,
+	})
 
 	srv := &http.Server{
 		Addr:              cfg.Addr,

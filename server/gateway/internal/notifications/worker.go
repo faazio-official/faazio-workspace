@@ -17,6 +17,9 @@ import (
 // DefaultDrainInterval is the polling SLA: a PENDING row is delivered within ~30s of enqueue.
 const DefaultDrainInterval = 30 * time.Second
 
+// ErrNoSender is returned by DrainOnce when the worker has no provider configured.
+var ErrNoSender = errors.New("notifications: no push sender configured")
+
 // Sender delivers one push message to a device token. Implementations must be safe for concurrent
 // use. It must never log the token (device credential).
 type Sender interface {
@@ -42,6 +45,15 @@ func NewWorker(repo *Repo, sender Sender, logger *slog.Logger) *Worker {
 
 // Enabled reports whether the worker has both a repo and a sender to run.
 func (w *Worker) Enabled() bool { return w != nil && w.repo != nil && w.sender != nil }
+
+// DrainOnce runs a single synchronous drain batch — the manual MVP trigger for deployments without a
+// background worker. Returns ErrNoSender when no provider is configured (the app still polls the inbox).
+func (w *Worker) DrainOnce(ctx context.Context) error {
+	if !w.Enabled() {
+		return ErrNoSender
+	}
+	return w.drainOnce(ctx)
+}
 
 // Run blocks until ctx is cancelled, draining each tick. Safe to call in a goroutine.
 func (w *Worker) Run(ctx context.Context) {

@@ -52,6 +52,7 @@ func (h *Handler) Register(r chi.Router) {
 	r.Group(func(g chi.Router) {
 		g.Use(auth.RequireRole(auth.RoleSeller, auth.RoleStateAdmin, auth.RoleSuperAdmin))
 		g.Get("/seller/prescriptions", h.vendorList)
+		g.Get("/seller/prescriptions/{id}", h.vendorGet)
 		g.Post("/seller/prescriptions/{id}/quotes", h.upsertQuote)
 		g.Put("/prescriptions/{id}/status", h.setStatus)
 	})
@@ -216,6 +217,25 @@ func (h *Handler) vendorList(w http.ResponseWriter, r *http.Request) {
 	httpx.JSON(w, http.StatusOK, items)
 }
 
+// vendorGet returns one prescription in the same PII-redacted seller projection as the list — the
+// customer name only; phone/address stay blank until READY/FULFILLED. Scope is the caller's seller_id
+// (admin sees all). Used by the portal deep-link view.
+func (h *Handler) vendorGet(w http.ResponseWriter, r *http.Request) {
+	id := chi.URLParam(r, "id")
+	role := auth.Role(r.Context())
+	admin := role == auth.RoleStateAdmin || role == auth.RoleSuperAdmin
+	p, ok, err := h.repo.VendorPrescriptionByID(r.Context(), id, auth.SellerID(r.Context()), admin)
+	if err != nil {
+		httpx.Fail(w, http.StatusInternalServerError, "prescriptions_unavailable", "prescriptions unavailable")
+		return
+	}
+	if !ok {
+		httpx.Fail(w, http.StatusNotFound, "not_found", "prescription not found")
+		return
+	}
+	httpx.JSON(w, http.StatusOK, p)
+}
+
 // upsertQuote saves the seller's priced lines and advances the Rx to QUOTED. Only the seller who
 // owns the routed store (or an admin) may quote.
 func (h *Handler) upsertQuote(w http.ResponseWriter, r *http.Request) {
@@ -245,7 +265,8 @@ func (h *Handler) upsertQuote(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		if it.Qty < 1 || it.Qty > 99 || it.MRP < 0 || it.Price < 0 || it.Discount < 0 ||
-			it.MRP > maxRupees || it.Price > maxRupees || it.Discount > it.Price {
+			it.MRP > maxRupees || it.Price > maxRupees || it.Discount > it.Price ||
+			(it.MRP > 0 && it.Price > it.MRP) {
 			httpx.Fail(w, http.StatusBadRequest, "bad_request", "invalid quote item values")
 			return
 		}
@@ -286,6 +307,14 @@ func (h *Handler) setStatus(w http.ResponseWriter, r *http.Request) {
 	}
 	role := auth.Role(r.Context())
 	admin := role == auth.RoleStateAdmin || role == auth.RoleSuperAdmin
+	// Idempotency: a repeated READY (or a READY on an already-FULFILLED Rx) must not fire a second
+	// customer notification. The repo no-ops the duplicate history row; we suppress the notify here.
+	notify := status == "READY"
+	if notify {
+		if prev, ok, err := h.repo.ScopedStatus(r.Context(), id, auth.SellerID(r.Context()), admin); err == nil && ok && (prev == "READY" || prev == "FULFILLED") {
+			notify = false
+		}
+	}
 	p, ok, err := h.repo.SetStatus(r.Context(), id, auth.SellerID(r.Context()), status, actorID(r), role, admin)
 	switch {
 	case errors.Is(err, ErrEmptyQuote):
@@ -301,7 +330,7 @@ func (h *Handler) setStatus(w http.ResponseWriter, r *http.Request) {
 	}
 	h.cache.Del(r.Context(), cache.Prescriptions(p.UserID))
 	h.log(r, "RX_"+status, id)
-	if status == "READY" {
+	if notify {
 		h.notifyReady(r, p)
 	}
 	httpx.JSON(w, http.StatusOK, p)

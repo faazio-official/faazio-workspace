@@ -91,6 +91,7 @@ Examples: `faazio:v1:stock:fm-f1`, `faazio:v1:search:q:hoodie`, `faazio:v1:sdui:
 | Booking availability (public, seat-count-free `{bookable,fee,timing}`) | 30 s | **never** | booking-config write / accept / reject / vacate / cancel (seller config row itself is never cached) |
 | Recommendations (per userHash) | 3600 s (1 h) | — | `user_events` flush |
 | Store directory / reviews | 86400 s (24 h) | — | edit event |
+| Single dining venue (anon `GET /venues/{id}`, PII-redacted) | 86400 s (24 h) | — | venue edit / store live toggle (authed reads bypass the cache) |
 | Promo campaigns / coupons (partner) | 300 s | **never** | campaign/coupon write |
 | Public coupons (anon `GET /coupons?app=&state=`) | 600 s | — | coupon write (TTL-bounded) |
 | Active festival discounts (anon `GET /promo/active-discounts?ids=`, per product) | 300 s | — | opt-in approve/reject or campaign status change (invalidated per product; `none` sentinel cached) |

@@ -48,3 +48,10 @@ func TestWorkerDisabledWithoutSender(t *testing.T) {
 		t.Fatal("a worker without repo+sender must be disabled")
 	}
 }
+
+func TestDrainOnceWithoutSender(t *testing.T) {
+	w := NewWorker(nil, nil, nil)
+	if err := w.DrainOnce(context.Background()); err != ErrNoSender {
+		t.Fatalf("DrainOnce without a sender must return ErrNoSender, got %v", err)
+	}
+}

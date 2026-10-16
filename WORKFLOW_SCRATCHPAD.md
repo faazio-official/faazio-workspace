@@ -41,6 +41,13 @@
 > `storeMenus` derives from `foodProducts` by `storeId`, `menuForVenueName` resolves dining→delivery,
 > and the generator seeds `directory.menus` for the 12 `store-f1…f12` kitchens (**88 dishes / 30
 > venues**, was 61/18). Seed regenerate only; no migration.
+> **W34 delta (server quench, `0023`):** four additive thin reads in existing contexts —
+> `GET /venues/{id}` (directory, anon PII-redacted, `directory:venue:{id}` 24 h),
+> `GET /seller/prescriptions/{id}` (pharma, name-only-until-READY; cross-seller 404),
+> `GET /orders/tracking/{id}` (checkout, owner-scoped lightweight status) and admin
+> `POST /notifications/drain` (`contracts.Drainer`, 503 sans provider). Pharma quote gets
+> `price<=mrp` + idempotent `READY`; `0023` adds the seller-queue index + `NOT VALID` quote CHECKs.
+> Mobile `.env.example` added. Additive only.
 
 ## 0. dtype freeze (the lean contract everything obeys)
 

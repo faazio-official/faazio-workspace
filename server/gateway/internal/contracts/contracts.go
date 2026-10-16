@@ -352,6 +352,12 @@ type Notifier interface {
 	Enqueue(ctx context.Context, userID, kind, title, body string, data map[string]any) error
 }
 
+// Drainer runs one synchronous notification-outbox drain (implemented by notifications.Worker). The
+// admin endpoint uses it as a manual MVP trigger when no background worker is deployed.
+type Drainer interface {
+	DrainOnce(ctx context.Context) error
+}
+
 // HomeSection is a compiled Home section (SduiSection + joined products).
 type HomeSection struct {
 	SduiSection

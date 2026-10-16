@@ -15,6 +15,7 @@ import (
 	"github.com/faazio/server/gateway/internal/cartstock"
 	"github.com/faazio/server/gateway/internal/catalog"
 	"github.com/faazio/server/gateway/internal/checkout"
+	"github.com/faazio/server/gateway/internal/contracts"
 	"github.com/faazio/server/gateway/internal/directory"
 	"github.com/faazio/server/gateway/internal/favourites"
 	"github.com/faazio/server/gateway/internal/notifications"
@@ -44,6 +45,9 @@ type Deps struct {
 	Pool   *db.Pool
 	Cache  *cache.Cache
 	Mongo  *gomongo.Database
+	// Drainer runs one synchronous notification-outbox drain for the manual admin trigger. Optional
+	// (nil disables POST /notifications/drain).
+	Drainer contracts.Drainer
 }
 
 // NewRouter builds the HTTP router with all contexts mounted.
@@ -116,7 +120,7 @@ func NewRouter(d Deps) http.Handler {
 	favourites.NewHandler(favouritesRepo, d.Cache).Register(r)
 	rewards.NewHandler(rewardsRepo, d.Cache, adminsRepo).Register(r)
 	pharma.NewHandler(pharmaRepo, pharmaStorage, d.Cache, adminsRepo, notificationsRepo).Register(r)
-	notifications.NewHandler(notificationsRepo, d.Cache).Register(r)
+	notifications.NewHandler(notificationsRepo, d.Cache, d.Drainer).Register(r)
 	blood.NewHandler(bloodRepo, d.Cache, adminsRepo).Register(r)
 	bookings.NewHandler(bookingsRepo, bookingsService, d.Cache, adminsRepo).Register(r)
 	checkout.NewHandler(checkoutRepo, checkoutService, d.Cache, adminsRepo, notificationsRepo, promoRepo).Register(r)

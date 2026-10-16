@@ -180,15 +180,7 @@ func (r *Repo) VendorPrescriptions(ctx context.Context, sellerID, status string)
 	if r.pool == nil {
 		return nil, fmt.Errorf("pharma: database not configured")
 	}
-	rows, err := r.pool.Query(ctx, `
-		select p.id, coalesce(u.name, 'Faazio Customer'), p.status::text,
-		       coalesce(p.fulfillment::text,''), p.pages, coalesce(p.note,''), p.image_paths,
-		       p.quoted_total_paisa / 100, p.revealed_at, coalesce(p.revealed_by,''), p.created_at, p.updated_at,
-		       case when p.status in ('READY','FULFILLED') then coalesce(u.phone,'') else '' end,
-		       case when p.status in ('READY','FULFILLED') then coalesce(a.address,'') else '' end
-		  from pharma.prescriptions p
-		  left join checkout.users u on u.user_id = p.user_id
-		  left join checkout.addresses a on a.address_id = nullif(p.address_id,'')
+	rows, err := r.pool.Query(ctx, vendorPrescriptionSelect+`
 		 where ($1 = '' or exists (
 		         select 1 from directory.stores s
 		          where s.seller_id = $1 and s.id = p.vendor_id))
@@ -198,6 +190,79 @@ func (r *Repo) VendorPrescriptions(ctx context.Context, sellerID, status string)
 		return nil, err
 	}
 	defer rows.Close()
+	out, err := scanVendorPrescriptions(rows)
+	if err != nil {
+		return nil, err
+	}
+	return r.attachVendorQuoteAndHistory(ctx, out)
+}
+
+// VendorPrescriptionByID returns one prescription routed to a seller's stores (admin: any), as the
+// same PII-redacted projection as the list. ok=false for an unknown id or a row outside the seller's
+// scope — another seller's Rx is never exposed. Used by the portal deep-link view.
+func (r *Repo) VendorPrescriptionByID(ctx context.Context, id, sellerID string, admin bool) (VendorPrescription, bool, error) {
+	if r.pool == nil {
+		return VendorPrescription{}, false, fmt.Errorf("pharma: database not configured")
+	}
+	rows, err := r.pool.Query(ctx, vendorPrescriptionSelect+`
+		 where p.id = $2
+		   and ($3 or exists (
+		         select 1 from directory.stores s
+		          where s.seller_id = $1 and s.id = p.vendor_id))`, sellerID, id, admin)
+	if err != nil {
+		return VendorPrescription{}, false, err
+	}
+	defer rows.Close()
+	items, err := scanVendorPrescriptions(rows)
+	if err != nil {
+		return VendorPrescription{}, false, err
+	}
+	if len(items) == 0 {
+		return VendorPrescription{}, false, nil
+	}
+	withQuote, err := r.attachVendorQuoteAndHistory(ctx, items)
+	if err != nil {
+		return VendorPrescription{}, false, err
+	}
+	return withQuote[0], true, nil
+}
+
+// vendorPrescriptionSelect is the shared PII-redacted seller projection. It selects the customer
+// name only (never user_id); phone/address are blanked by the CASE until READY/FULFILLED.
+const vendorPrescriptionSelect = `
+		select p.id, coalesce(u.name, 'Faazio Customer'), p.status::text,
+		       coalesce(p.fulfillment::text,''), p.pages, coalesce(p.note,''), p.image_paths,
+		       p.quoted_total_paisa / 100, p.revealed_at, coalesce(p.revealed_by,''), p.created_at, p.updated_at,
+		       case when p.status in ('READY','FULFILLED') then coalesce(u.phone,'') else '' end,
+		       case when p.status in ('READY','FULFILLED') then coalesce(a.address,'') else '' end
+		  from pharma.prescriptions p
+		  left join checkout.users u on u.user_id = p.user_id
+		  left join checkout.addresses a on a.address_id = nullif(p.address_id,'')`
+
+func (r *Repo) attachVendorQuoteAndHistory(ctx context.Context, out []VendorPrescription) ([]VendorPrescription, error) {
+	if len(out) == 0 {
+		return out, nil
+	}
+	quotes, err := r.quotesForIDs(ctx, vendorIDs(out))
+	if err != nil {
+		return nil, err
+	}
+	hist, err := r.historyForIDs(ctx, vendorIDs(out))
+	if err != nil {
+		return nil, err
+	}
+	for i := range out {
+		if q, ok := quotes[out[i].ID]; ok {
+			out[i].Quote = q
+		}
+		if h, ok := hist[out[i].ID]; ok {
+			out[i].History = h
+		}
+	}
+	return out, nil
+}
+
+func scanVendorPrescriptions(rows pgx.Rows) ([]VendorPrescription, error) {
 	out := []VendorPrescription{}
 	for rows.Next() {
 		var (
@@ -219,26 +284,7 @@ func (r *Repo) VendorPrescriptions(ctx context.Context, sellerID, status string)
 		v.Quote = []QuoteItem{}
 		out = append(out, v)
 	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	quotes, err := r.quotesForIDs(ctx, vendorIDs(out))
-	if err != nil {
-		return nil, err
-	}
-	hist, err := r.historyForIDs(ctx, vendorIDs(out))
-	if err != nil {
-		return nil, err
-	}
-	for i := range out {
-		if q, ok := quotes[out[i].ID]; ok {
-			out[i].Quote = q
-		}
-		if h, ok := hist[out[i].ID]; ok {
-			out[i].History = h
-		}
-	}
-	return out, nil
+	return out, rows.Err()
 }
 
 // UpsertQuote replaces the seller's quote lines, recomputes the total and advances the status to
@@ -322,6 +368,13 @@ func (r *Repo) SetStatus(ctx context.Context, id, sellerID, status, actorID, act
 		return Prescription{}, false, err
 	}
 
+	// Idempotent no-op: a repeated transition writes no duplicate status_history row and triggers no
+	// duplicate notification (the deferred rollback discards the empty tx).
+	if fromStatus == status {
+		p, ok, err := r.byID(ctx, id)
+		return p, ok, err
+	}
+
 	if status == "READY" {
 		var n int64
 		if err := tx.QueryRow(ctx, `select count(*) from pharma.quote_items where prescription_id = $1`, id).Scan(&n); err != nil {
@@ -348,6 +401,29 @@ func (r *Repo) SetStatus(ctx context.Context, id, sellerID, status, actorID, act
 	}
 	p, ok, err := r.byID(ctx, id)
 	return p, ok, err
+}
+
+// ScopedStatus returns a prescription's current status within a seller's scope (admin: any).
+// ok=false when the row is absent or outside the seller's stores — used for a pre-flight idempotency
+// check so a repeated READY never fires a duplicate customer notification.
+func (r *Repo) ScopedStatus(ctx context.Context, id, sellerID string, admin bool) (string, bool, error) {
+	if r.pool == nil {
+		return "", false, fmt.Errorf("pharma: database not configured")
+	}
+	var status string
+	err := r.pool.QueryRow(ctx, `
+		select p.status::text from pharma.prescriptions p
+		 where p.id = $1
+		   and ($3 or exists (
+		         select 1 from directory.stores s
+		          where s.seller_id = $2 and s.id = p.vendor_id))`, id, sellerID, admin).Scan(&status)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return "", false, nil
+		}
+		return "", false, err
+	}
+	return status, true, nil
 }
 
 // ImagePathsFor authorises the caller and returns the prescription's Storage object keys.

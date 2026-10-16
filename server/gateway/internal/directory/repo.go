@@ -204,6 +204,49 @@ func (r *Repo) Venues(ctx context.Context, app string) ([]contracts.Venue, error
 	return out, rows.Err()
 }
 
+// venueSelect is the full single-venue projection (authed reads). Public callers get the list
+// projection instead so PII is never fetched for an anon cache entry.
+const venueSelect = `
+select id, app::text, name, rating, cover_image, categories, address, phone, hours
+from directory.dining_venues`
+
+// VenueByID returns one dining venue (full projection). Public callers must redact before caching.
+func (r *Repo) VenueByID(ctx context.Context, id string) (contracts.Venue, bool, error) {
+	if r.pool == nil {
+		return contracts.Venue{}, false, fmt.Errorf("directory: database not configured")
+	}
+	rows, err := r.pool.Query(ctx, venueSelect+` where id = $1`, id)
+	if err != nil {
+		return contracts.Venue{}, false, err
+	}
+	defer rows.Close()
+	out := []contracts.Venue{}
+	for rows.Next() {
+		var (
+			v       contracts.Venue
+			rating  *float64
+			address *string
+			phone   *string
+			hours   *string
+		)
+		if err := rows.Scan(&v.ID, &v.App, &v.Name, &rating, &v.CoverImage, &v.Categories, &address, &phone, &hours); err != nil {
+			return contracts.Venue{}, false, err
+		}
+		v.Rating = rating
+		v.Address = derefStr(address)
+		v.Phone = derefStr(phone)
+		v.Hours = derefStr(hours)
+		out = append(out, v)
+	}
+	if err := rows.Err(); err != nil {
+		return contracts.Venue{}, false, err
+	}
+	if len(out) == 0 {
+		return contracts.Venue{}, false, nil
+	}
+	return out[0], true, nil
+}
+
 func scanStores(rows pgx.Rows) ([]contracts.Store, error) {
 	out := []contracts.Store{}
 	for rows.Next() {

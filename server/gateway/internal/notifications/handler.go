@@ -1,9 +1,11 @@
 package notifications
 
 import (
+	"errors"
 	"net/http"
 	"strings"
 
+	"github.com/faazio/server/gateway/internal/contracts"
 	"github.com/faazio/server/gateway/internal/platform/auth"
 	"github.com/faazio/server/gateway/internal/platform/cache"
 	"github.com/faazio/server/gateway/internal/platform/httpx"
@@ -12,13 +14,14 @@ import (
 
 // Handler serves the auth-scoped notification inbox + push-token registry, and the admin outbox view.
 type Handler struct {
-	repo  *Repo
-	cache *cache.Cache
+	repo    *Repo
+	cache   *cache.Cache
+	drainer contracts.Drainer
 }
 
-// NewHandler builds the notifications handler.
-func NewHandler(repo *Repo, c *cache.Cache) *Handler {
-	return &Handler{repo: repo, cache: c}
+// NewHandler builds the notifications handler. drainer may be nil (manual drain disabled).
+func NewHandler(repo *Repo, c *cache.Cache, drainer contracts.Drainer) *Handler {
+	return &Handler{repo: repo, cache: c, drainer: drainer}
 }
 
 // Register mounts notification endpoints.
@@ -31,6 +34,8 @@ func (h *Handler) Register(r chi.Router) {
 	r.Group(func(g chi.Router) {
 		g.Use(auth.RequireRole(auth.RoleStateAdmin, auth.RoleSuperAdmin))
 		g.Get("/admin/notifications", h.outbox)
+		// Manual MVP drain trigger: runs one synchronous outbox batch (503 when no push provider).
+		g.Post("/notifications/drain", h.drain)
 	})
 }
 
@@ -79,4 +84,22 @@ func (h *Handler) outbox(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	httpx.JSON(w, http.StatusOK, items)
+}
+
+// drain runs one synchronous outbox batch. 503 when no push provider is configured (the app still
+// polls GET /notifications); admin-only, never exposes tokens.
+func (h *Handler) drain(w http.ResponseWriter, r *http.Request) {
+	if h.drainer == nil {
+		httpx.Fail(w, http.StatusServiceUnavailable, "push_unconfigured", "push delivery not configured")
+		return
+	}
+	if err := h.drainer.DrainOnce(r.Context()); err != nil {
+		if errors.Is(err, ErrNoSender) {
+			httpx.Fail(w, http.StatusServiceUnavailable, "push_unconfigured", "push delivery not configured")
+			return
+		}
+		httpx.Fail(w, http.StatusInternalServerError, "drain_failed", "could not drain outbox")
+		return
+	}
+	httpx.JSON(w, http.StatusOK, map[string]any{"ok": true})
 }

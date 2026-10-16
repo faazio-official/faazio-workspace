@@ -107,4 +107,29 @@ func TestVendorPrescriptionQuoteAndReveal(t *testing.T) {
 	if _, ok, err := repo.ByIDForUser(ctx, rx.ID, "user-2"); err != nil || ok {
 		t.Fatalf("cross-user detail must be hidden: ok=%v err=%v", ok, err)
 	}
+
+	// The single-Rx seller read (portal deep-link) matches the list projection and is seller-scoped.
+	one, ok, err := repo.VendorPrescriptionByID(ctx, rx.ID, sellerID, false)
+	if err != nil || !ok || one.ID != rx.ID || one.CustomerName == "" {
+		t.Fatalf("VendorPrescriptionByID: ok=%v err=%v name=%q", ok, err, one.CustomerName)
+	}
+	if rawOne, _ := json.Marshal(one); strings.Contains(string(rawOne), "userId") || strings.Contains(string(rawOne), `"user-1"`) {
+		t.Fatalf("single-Rx projection leaked identity: %s", rawOne)
+	}
+	if _, ok, _ := repo.VendorPrescriptionByID(ctx, rx.ID, "sel-other", false); ok {
+		t.Fatal("cross-seller single-Rx read must be denied")
+	}
+	if _, ok, _ := repo.ScopedStatus(ctx, rx.ID, "sel-other", false); ok {
+		t.Fatal("cross-seller ScopedStatus must be denied")
+	}
+	if st, ok, err := repo.ScopedStatus(ctx, rx.ID, sellerID, false); err != nil || !ok || st != "READY" {
+		t.Fatalf("ScopedStatus: ok=%v err=%v status=%q", ok, err, st)
+	}
+
+	// A repeated READY is idempotent: same status, no extra history row (no duplicate notify source).
+	beforeHistory := len(ready.History)
+	again, ok, err := repo.SetStatus(ctx, rx.ID, sellerID, "READY", sellerID, "SELLER", false)
+	if err != nil || !ok || again.Status != "READY" || len(again.History) != beforeHistory {
+		t.Fatalf("idempotent READY: ok=%v err=%v status=%q history=%d(want %d)", ok, err, again.Status, len(again.History), beforeHistory)
+	}
 }

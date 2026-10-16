@@ -105,6 +105,39 @@ func TestPublicVenuesHidesPII(t *testing.T) {
 	}
 }
 
+func TestSingleVenueHidesPII(t *testing.T) {
+	pool := testenv.Pool(t)
+	var id string
+	if err := pool.QueryRow(context.Background(), `select id from directory.dining_venues limit 1`).Scan(&id); err != nil {
+		t.Skipf("no seeded dining venues: %v", err)
+	}
+	rec := httptest.NewRecorder()
+	testRouter(t, pool, false).ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/venues/"+id, nil))
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d", rec.Code)
+	}
+	body := rec.Body.String()
+	if strings.Contains(body, `"phone"`) || strings.Contains(body, `"address"`) {
+		t.Fatalf("public single venue leaked PII: %s", body)
+	}
+	var v contracts.Venue
+	if err := json.Unmarshal(rec.Body.Bytes(), &v); err != nil {
+		t.Fatalf("decode venue: %v", err)
+	}
+	if v.ID != id {
+		t.Fatalf("venue id = %q, want %q", v.ID, id)
+	}
+}
+
+func TestSingleVenueNotFound(t *testing.T) {
+	pool := testenv.Pool(t)
+	rec := httptest.NewRecorder()
+	testRouter(t, pool, false).ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/venues/does-not-exist", nil))
+	if rec.Code != http.StatusNotFound {
+		t.Fatalf("status = %d, want 404", rec.Code)
+	}
+}
+
 func TestMenuIncludesDisplayFields(t *testing.T) {
 	pool := testenv.Pool(t)
 	var venueID string

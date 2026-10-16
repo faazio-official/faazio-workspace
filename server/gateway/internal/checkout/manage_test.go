@@ -61,3 +61,27 @@ func TestSellerOrderLifecycle(t *testing.T) {
 		t.Fatalf("owner transition: ok=%v err=%v status=%q date=%q", ok, err, o.Status, o.StatusDate)
 	}
 }
+
+func TestOrderTrackingOwnerScoped(t *testing.T) {
+	pool := testenv.Pool(t)
+	repo := New(pool)
+	ctx := context.Background()
+
+	orderID := "ORD-" + manageID("")
+	if _, err := pool.Exec(ctx, `
+		insert into checkout.orders (order_id, order_number, user_id, placed_at, status, total_paisa, vendor_store_ids)
+		values ($1,'#T','user-1', now(), 'NEW', 1000, '{}')`, orderID); err != nil {
+		t.Fatalf("seed order: %v", err)
+	}
+	t.Cleanup(func() { _, _ = pool.Exec(ctx, `delete from checkout.orders where order_id=$1`, orderID) })
+
+	// Owner read maps the portal lifecycle back to the mobile vocabulary (NEW -> Processing).
+	track, ok, err := repo.OrderTrackingForUser(ctx, orderID, "user-1")
+	if err != nil || !ok || track.ID != orderID || track.Status != "Processing" || track.PlacedAt == "" {
+		t.Fatalf("tracking: ok=%v err=%v id=%q status=%q placedAt=%q", ok, err, track.ID, track.Status, track.PlacedAt)
+	}
+	// Cross-user read is denied (no leak of another user's order).
+	if _, ok, err := repo.OrderTrackingForUser(ctx, orderID, "user-2"); err != nil || ok {
+		t.Fatalf("cross-user tracking must be denied: ok=%v err=%v", ok, err)
+	}
+}
