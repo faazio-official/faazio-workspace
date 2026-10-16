@@ -3,7 +3,7 @@
 // When a real backend arrives, only the internals of this module change.
 import { usePortalStore, AUTH_DIRECTORY, type PortalState } from "@/lib/api/store";
 import { authConfigured, authMocked, remoteConfigured } from "@/lib/config";
-import { remote, toCamel, writeBehind, writeAwaited } from "@/lib/api/http";
+import { remote, toCamel, writeAwaited } from "@/lib/api/http";
 import { toast } from "sonner";
 import { getSession, signInWithPassword, signOutRemote } from "@/lib/supabase/auth";
 import { sellerSeries, stateSeries, globalSeries, productSeries } from "@/data/analytics/series";
@@ -63,6 +63,14 @@ function pushWrite(
       err instanceof Error && err.message ? err.message : "The server rejected the change.";
     toast.error(`${label} failed`, { description });
   });
+}
+
+/** Restore a product row to its pre-mutation snapshot after a rejected gateway write. */
+function restoreProduct(prev: ProductRecord | undefined): void {
+  if (!prev) return;
+  state().set((s) => ({
+    products: s.products.map((p) => (p.productId === prev.productId ? prev : p)),
+  }));
 }
 
 function audit(input: {
@@ -203,10 +211,14 @@ export function upsertPrice(productId: string, pricePaisa: number, mrpPaisa: num
   const before = getProduct(productId);
   updateProduct(productId, { pricePaisa, mrpPaisa });
   // The gateway speaks whole rupees and writes price to catalog.products + inventory.stock in lockstep.
-  writeBehind("put", `/seller/products/${encodeURIComponent(productId)}`, {
-    price: toRupees(pricePaisa),
-    mrp: toRupees(mrpPaisa),
-  });
+  // Awaited with rollback: a rejected price write must not leave a stale optimistic price on screen.
+  pushWrite(
+    "Price update",
+    "put",
+    `/seller/products/${encodeURIComponent(productId)}`,
+    { price: toRupees(pricePaisa), mrp: toRupees(mrpPaisa) },
+    () => restoreProduct(before),
+  );
   audit({
     action: "PRICE_UPDATE",
     entity: "catalog.products",
@@ -231,7 +243,13 @@ export function deleteProduct(productId: string, reason: string): void {
 export function setProductStatus(productId: string, status: ProductStatus, reason?: string): void {
   const before = getProduct(productId);
   updateProduct(productId, { status });
-  writeBehind("put", `/seller/products/${encodeURIComponent(productId)}/status`, { status });
+  pushWrite(
+    `Product ${status}`,
+    "put",
+    `/seller/products/${encodeURIComponent(productId)}/status`,
+    { status },
+    () => restoreProduct(before),
+  );
   audit({
     action: `PRODUCT_${status}`,
     entity: "catalog.products",
@@ -257,13 +275,25 @@ export function listStock(sellerId?: string) {
 }
 
 export function updateStock(productId: string, quantity: number, etaMinutes: number): void {
+  const before = state().stock.find((r) => r.productId === productId);
   state().set((s) => ({
     stock: s.stock.map((row) =>
       row.productId === productId ? { ...row, quantity, etaMinutes, updatedAt: nowIso() } : row,
     ),
   }));
   // inventory.stock in_stock_qty is the gateway-owned field; etaMinutes stays portal-local for now.
-  writeBehind("put", `/seller/products/${encodeURIComponent(productId)}`, { inStockQty: quantity });
+  pushWrite(
+    "Stock update",
+    "put",
+    `/seller/products/${encodeURIComponent(productId)}`,
+    { inStockQty: quantity },
+    () => {
+      if (!before) return;
+      state().set((s) => ({
+        stock: s.stock.map((row) => (row.productId === productId ? before : row)),
+      }));
+    },
+  );
   audit({ action: "STOCK_UPDATE", entity: "inventory.stock", entityId: productId, after: { quantity, etaMinutes } });
 }
 
@@ -287,7 +317,12 @@ export function advanceOrder(orderId: string, status: OrderStatus): void {
   state().set((s) => ({
     orders: s.orders.map((o) => (o.orderId === orderId ? { ...o, status } : o)),
   }));
-  writeBehind("put", `/orders/${encodeURIComponent(orderId)}/status`, { status });
+  pushWrite("Order status", "put", `/orders/${encodeURIComponent(orderId)}/status`, { status }, () => {
+    if (!before) return;
+    state().set((s) => ({
+      orders: s.orders.map((o) => (o.orderId === orderId ? before : o)),
+    }));
+  });
   audit({
     action: "ORDER_STATUS",
     entity: "checkout.orders",
@@ -326,7 +361,12 @@ export function setSellerStatus(sellerId: string, status: SellerStatus, reason?:
       seller.sellerId === sellerId ? { ...seller, status } : seller,
     ),
   }));
-  writeBehind("patch", `/sellers/${encodeURIComponent(sellerId)}/status`, { status, reason });
+  pushWrite("Seller status", "patch", `/sellers/${encodeURIComponent(sellerId)}/status`, { status, reason }, () => {
+    if (!before) return;
+    state().set((s) => ({
+      sellers: s.sellers.map((seller) => (seller.sellerId === sellerId ? before : seller)),
+    }));
+  });
   audit({
     action: `SELLER_${status}`,
     entity: "sellers.sellers",
@@ -347,11 +387,17 @@ export function listStores(filter: { sellerId?: string | undefined; stateCode?: 
 }
 
 export function updateStore(storeId: string, patch: Partial<import("@/data/types").StoreRecord>): void {
+  const before = state().stores.find((st) => st.storeId === storeId);
   state().set((s) => ({
     stores: s.stores.map((st) => (st.storeId === storeId ? { ...st, ...patch } : st)),
   }));
   if (patch.isLive !== undefined) {
-    writeBehind("put", `/seller/stores/${encodeURIComponent(storeId)}/live`, { live: patch.isLive });
+    pushWrite("Store availability", "put", `/seller/stores/${encodeURIComponent(storeId)}/live`, { live: patch.isLive }, () => {
+      if (!before) return;
+      state().set((s) => ({
+        stores: s.stores.map((st) => (st.storeId === storeId ? before : st)),
+      }));
+    });
   }
   audit({ action: "STORE_UPDATE", entity: "directory.stores", entityId: storeId, after: patch });
 }
@@ -390,7 +436,19 @@ export function setSectorCap(sector: Sector, maxDiscountPercent: number, stateCo
           },
         ],
   }));
-  writeBehind("put", "/promo/sector-caps", { sector, maxDiscountPercent, stateCode });
+  pushWrite("Sector cap", "put", "/promo/sector-caps", { sector, maxDiscountPercent, stateCode }, () => {
+    if (existing) {
+      state().set((s) => ({
+        sectorCaps: s.sectorCaps.map((c) => (c.capId === existing.capId ? existing : c)),
+      }));
+    } else {
+      state().set((s) => ({
+        sectorCaps: s.sectorCaps.filter(
+          (c) => !(c.sector === sector && c.stateCode === stateCode),
+        ),
+      }));
+    }
+  });
   audit({
     action: "SECTOR_CAP_UPDATE",
     entity: "promo.festival_sector_caps",
@@ -425,15 +483,21 @@ export function createFestivalCampaign(dto: CampaignDto): FestivalCampaign {
     ...dto,
   };
   state().set((s) => ({ campaigns: [record, ...s.campaigns] }));
-  writeBehind("post", "/promo/campaigns", {
-    name: dto.name,
-    scope: dto.scope,
-    stateCode: dto.stateCode ?? "",
-    startsAt: dto.startsAt,
-    endsAt: dto.endsAt,
-    bannerUrl: dto.bannerUrl,
-    status: dto.status,
-  });
+  pushWrite(
+    "Campaign create",
+    "post",
+    "/promo/campaigns",
+    {
+      name: dto.name,
+      scope: dto.scope,
+      stateCode: dto.stateCode ?? "",
+      startsAt: dto.startsAt,
+      endsAt: dto.endsAt,
+      bannerUrl: dto.bannerUrl,
+      status: dto.status,
+    },
+    () => state().set((s) => ({ campaigns: s.campaigns.filter((c) => c.campaignId !== record.campaignId) })),
+  );
   audit({
     action: "CAMPAIGN_CREATE",
     entity: "promo.festival_campaigns",
@@ -444,11 +508,17 @@ export function createFestivalCampaign(dto: CampaignDto): FestivalCampaign {
 }
 
 export function updateCampaign(campaignId: string, patch: Partial<FestivalCampaign>): void {
+  const before = state().campaigns.find((c) => c.campaignId === campaignId);
   state().set((s) => ({
     campaigns: s.campaigns.map((c) => (c.campaignId === campaignId ? { ...c, ...patch } : c)),
   }));
   if (patch.status !== undefined) {
-    writeBehind("put", `/promo/campaigns/${encodeURIComponent(campaignId)}`, { status: patch.status });
+    pushWrite("Campaign status", "put", `/promo/campaigns/${encodeURIComponent(campaignId)}`, { status: patch.status }, () => {
+      if (!before) return;
+      state().set((s) => ({
+        campaigns: s.campaigns.map((c) => (c.campaignId === campaignId ? before : c)),
+      }));
+    });
   }
   audit({
     action: "CAMPAIGN_UPDATE",
@@ -624,7 +694,9 @@ export function createStateAdmin(dto: Omit<StateAdmin, "adminId" | "createdAt" |
     ...dto,
   };
   state().set((s) => ({ stateAdmins: [record, ...s.stateAdmins] }));
-  writeBehind("post", "/state-admins", { name: dto.name, email: dto.email, phone: dto.phone, stateCode: dto.stateCode });
+  pushWrite("State admin create", "post", "/state-admins", { name: dto.name, email: dto.email, phone: dto.phone, stateCode: dto.stateCode }, () =>
+    state().set((s) => ({ stateAdmins: s.stateAdmins.filter((a) => a.adminId !== record.adminId) })),
+  );
   audit({ action: "STATE_ADMIN_CREATE", entity: "admins.state_admins", entityId: record.adminId, after: record });
   return record;
 }
@@ -635,7 +707,12 @@ export function updateStateAdmin(adminId: string, patch: Partial<StateAdmin>): v
     stateAdmins: s.stateAdmins.map((a) => (a.adminId === adminId ? { ...a, ...patch } : a)),
   }));
   if (patch.active !== undefined) {
-    writeBehind("put", `/state-admins/${encodeURIComponent(adminId)}`, { active: patch.active });
+    pushWrite("State admin", "put", `/state-admins/${encodeURIComponent(adminId)}`, { active: patch.active }, () => {
+      if (!before) return;
+      state().set((s) => ({
+        stateAdmins: s.stateAdmins.map((a) => (a.adminId === adminId ? before : a)),
+      }));
+    });
   }
   audit({
     action: "STATE_ADMIN_UPDATE",
@@ -649,7 +726,10 @@ export function updateStateAdmin(adminId: string, patch: Partial<StateAdmin>): v
 export function deleteStateAdmin(adminId: string): void {
   const before = state().stateAdmins.find((a) => a.adminId === adminId);
   state().set((s) => ({ stateAdmins: s.stateAdmins.filter((a) => a.adminId !== adminId) }));
-  writeBehind("delete", `/state-admins/${encodeURIComponent(adminId)}`);
+  pushWrite("State admin delete", "delete", `/state-admins/${encodeURIComponent(adminId)}`, undefined, () => {
+    if (!before) return;
+    state().set((s) => ({ stateAdmins: [before, ...s.stateAdmins] }));
+  });
   audit({ action: "STATE_ADMIN_DELETE", entity: "admins.state_admins", entityId: adminId, before });
 }
 
@@ -731,7 +811,12 @@ export function setPrescriptionStatus(prescriptionId: string, status: Prescripti
       p.prescriptionId === prescriptionId ? { ...p, status, updatedAt: nowIso() } : p,
     ),
   }));
-  writeBehind("put", `/prescriptions/${encodeURIComponent(prescriptionId)}/status`, { status });
+  pushWrite(`Rx ${status}`, "put", `/prescriptions/${encodeURIComponent(prescriptionId)}/status`, { status }, () => {
+    if (!before) return;
+    state().set((s) => ({
+      prescriptions: s.prescriptions.map((p) => (p.prescriptionId === prescriptionId ? before : p)),
+    }));
+  });
   audit({
     action: `RX_${status}`,
     entity: "pharma.prescriptions",
@@ -742,7 +827,7 @@ export function setPrescriptionStatus(prescriptionId: string, status: Prescripti
 }
 
 /**
- * Replaces the seller's priced lines and advances the Rx to QUOTED (optimistic + write-behind).
+ * Replaces the seller's priced lines and advances the Rx to QUOTED (optimistic + awaited write).
  * The server recomputes the total and appends status history; a READY/FULFILLED/CANCELLED Rx keeps
  * its status (only the lines change).
  */
@@ -763,15 +848,26 @@ export function savePrescriptionQuote(prescriptionId: string, items: QuoteItemRe
         : p,
     ),
   }));
-  writeBehind("post", `/seller/prescriptions/${encodeURIComponent(prescriptionId)}/quotes`, {
-    items: items.map((it) => ({
-      name: it.name,
-      qty: it.qty,
-      mrp: toRupees(it.mrpPaisa),
-      price: toRupees(it.pricePaisa),
-      discount: toRupees(it.discountPaisa),
-    })),
-  });
+  pushWrite(
+    "Save quote",
+    "post",
+    `/seller/prescriptions/${encodeURIComponent(prescriptionId)}/quotes`,
+    {
+      items: items.map((it) => ({
+        name: it.name,
+        qty: it.qty,
+        mrp: toRupees(it.mrpPaisa),
+        price: toRupees(it.pricePaisa),
+        discount: toRupees(it.discountPaisa),
+      })),
+    },
+    () => {
+      if (!before) return;
+      state().set((s) => ({
+        prescriptions: s.prescriptions.map((p) => (p.prescriptionId === prescriptionId ? before : p)),
+      }));
+    },
+  );
   audit({
     action: "RX_QUOTED",
     entity: "pharma.prescriptions",
@@ -797,7 +893,12 @@ export function setPrescriptionReady(prescriptionId: string): boolean {
         : p,
     ),
   }));
-  writeBehind("put", `/prescriptions/${encodeURIComponent(prescriptionId)}/status`, { status: "READY" });
+  pushWrite("Rx ready", "put", `/prescriptions/${encodeURIComponent(prescriptionId)}/status`, { status: "READY" }, () => {
+    if (!rx) return;
+    state().set((s) => ({
+      prescriptions: s.prescriptions.map((p) => (p.prescriptionId === prescriptionId ? rx : p)),
+    }));
+  });
   audit({
     action: "RX_READY",
     entity: "pharma.prescriptions",
@@ -844,7 +945,12 @@ export function setBookingStatus(bookingId: string, status: BookingStatus): void
   state().set((s) => ({
     bookings: s.bookings.map((b) => (b.bookingId === bookingId ? { ...b, status } : b)),
   }));
-  writeBehind("put", `/bookings/${encodeURIComponent(bookingId)}/status`, { status });
+  pushWrite("Booking status", "put", `/bookings/${encodeURIComponent(bookingId)}/status`, { status }, () => {
+    if (!before) return;
+    state().set((s) => ({
+      bookings: s.bookings.map((b) => (b.bookingId === bookingId ? before : b)),
+    }));
+  });
   audit({
     action: `BOOKING_${status.toUpperCase()}`,
     entity: "bookings.tables",
@@ -869,7 +975,12 @@ function decideBooking(bookingId: string, status: BookingStatus, action: "accept
   state().set((s) => ({
     bookings: s.bookings.map((b) => (b.bookingId === bookingId ? { ...b, status } : b)),
   }));
-  writeBehind("put", `/bookings/${encodeURIComponent(bookingId)}/status`, { status: action });
+  pushWrite(`Booking ${action}`, "put", `/bookings/${encodeURIComponent(bookingId)}/status`, { status: action }, () => {
+    if (!before) return;
+    state().set((s) => ({
+      bookings: s.bookings.map((b) => (b.bookingId === bookingId ? before : b)),
+    }));
+  });
   audit({
     action: `BOOKING_${action.toUpperCase()}`,
     entity: "bookings.tables",
@@ -885,7 +996,12 @@ export function vacateBooking(bookingId: string): void {
   state().set((s) => ({
     bookings: s.bookings.map((b) => (b.bookingId === bookingId ? { ...b, status: "completed" } : b)),
   }));
-  writeBehind("post", `/bookings/${encodeURIComponent(bookingId)}/vacate`, {});
+  pushWrite("Booking vacate", "post", `/bookings/${encodeURIComponent(bookingId)}/vacate`, {}, () => {
+    if (!before) return;
+    state().set((s) => ({
+      bookings: s.bookings.map((b) => (b.bookingId === bookingId ? before : b)),
+    }));
+  });
   audit({
     action: "BOOKING_VACATE",
     entity: "bookings.tables",
@@ -912,10 +1028,16 @@ export function getBookingConfig(vendorId: string): BookingConfigRecord {
 
 /** Save the seller-private booking config (seats / timings / tracking / pause). */
 export function saveBookingConfig(cfg: BookingConfigRecord): void {
+  const before = state().bookingConfigs.find((c) => c.vendorId === cfg.vendorId);
   state().set((s) => ({
     bookingConfigs: [...s.bookingConfigs.filter((c) => c.vendorId !== cfg.vendorId), cfg],
   }));
-  writeBehind("put", "/seller/booking-config", cfg);
+  pushWrite("Booking config", "put", "/seller/booking-config", cfg, () => {
+    if (!before) return;
+    state().set((s) => ({
+      bookingConfigs: [...s.bookingConfigs.filter((c) => c.vendorId !== cfg.vendorId), before],
+    }));
+  });
   audit({
     action: "BOOKING_CONFIG_UPDATE",
     entity: "bookings.venue_configs",
@@ -969,7 +1091,10 @@ export function listBloodRequests(
 export function removeBloodRequest(requestId: string): void {
   const before = state().bloodRequests.find((r) => r.requestId === requestId);
   state().set((s) => ({ bloodRequests: s.bloodRequests.filter((r) => r.requestId !== requestId) }));
-  writeBehind("delete", `/blood-requests/${encodeURIComponent(requestId)}`);
+  pushWrite("Blood request remove", "delete", `/blood-requests/${encodeURIComponent(requestId)}`, undefined, () => {
+    if (!before) return;
+    state().set((s) => ({ bloodRequests: [before, ...s.bloodRequests] }));
+  });
   audit({
     action: "BLOOD_REQUEST_REMOVE",
     entity: "blood.requests",
@@ -1056,14 +1181,26 @@ export function upsertMenu(dto: MenuDto): void {
       ? s.menus.map((m) => (m.venueId === dto.venueId && m.dishId === dto.dishId ? { ...m, ...record } : m))
       : [record, ...s.menus],
   }));
-  writeBehind("put", `/seller/menus/${encodeURIComponent(dto.venueId)}/${encodeURIComponent(dto.dishId)}`, {
-    name: dto.name,
-    price: toRupees(dto.pricePaisa),
-    isVeg: dto.isVeg,
-    cuisine: dto.cuisine ?? "",
-    rating: dto.rating,
-    image: dto.image ?? "",
-  });
+  pushWrite(
+    existing ? "Menu update" : "Menu create",
+    "put",
+    `/seller/menus/${encodeURIComponent(dto.venueId)}/${encodeURIComponent(dto.dishId)}`,
+    {
+      name: dto.name,
+      price: toRupees(dto.pricePaisa),
+      isVeg: dto.isVeg,
+      cuisine: dto.cuisine ?? "",
+      rating: dto.rating,
+      image: dto.image ?? "",
+    },
+    () => {
+      state().set((s) => ({
+        menus: existing
+          ? s.menus.map((m) => (m.venueId === dto.venueId && m.dishId === dto.dishId ? existing : m))
+          : s.menus.filter((m) => !(m.venueId === dto.venueId && m.dishId === dto.dishId)),
+      }));
+    },
+  );
   audit({
     action: existing ? "MENU_UPDATE" : "MENU_CREATE",
     entity: "directory.menus",
@@ -1074,19 +1211,28 @@ export function upsertMenu(dto: MenuDto): void {
 }
 
 export function setMenuStatus(venueId: string, dishId: string, status: ProductStatus): void {
+  const before = state().menus.find((m) => m.venueId === venueId && m.dishId === dishId);
   state().set((s) => ({
     menus: s.menus.map((m) =>
       m.venueId === venueId && m.dishId === dishId ? { ...m, status } : m,
     ),
   }));
-  writeBehind("put", `/seller/menus/${encodeURIComponent(venueId)}/${encodeURIComponent(dishId)}/status`, { status });
+  pushWrite(`Menu ${status}`, "put", `/seller/menus/${encodeURIComponent(venueId)}/${encodeURIComponent(dishId)}/status`, { status }, () => {
+    if (!before) return;
+    state().set((s) => ({
+      menus: s.menus.map((m) => (m.venueId === venueId && m.dishId === dishId ? before : m)),
+    }));
+  });
   audit({ action: `MENU_${status}`, entity: "directory.menus", entityId: `${venueId}:${dishId}`, after: { status } });
 }
 
 export function deleteMenu(venueId: string, dishId: string): void {
   const before = state().menus.find((m) => m.venueId === venueId && m.dishId === dishId);
   state().set((s) => ({ menus: s.menus.filter((m) => !(m.venueId === venueId && m.dishId === dishId)) }));
-  writeBehind("delete", `/seller/menus/${encodeURIComponent(venueId)}/${encodeURIComponent(dishId)}`);
+  pushWrite("Menu delete", "delete", `/seller/menus/${encodeURIComponent(venueId)}/${encodeURIComponent(dishId)}`, undefined, () => {
+    if (!before) return;
+    state().set((s) => ({ menus: [before, ...s.menus] }));
+  });
   audit({ action: "MENU_DELETE", entity: "directory.menus", entityId: `${venueId}:${dishId}`, before });
 }
 
@@ -1111,7 +1257,12 @@ export function setTicketStatus(ticketId: string, status: TicketStatus): void {
   state().set((s) => ({
     tickets: s.tickets.map((t) => (t.ticketId === ticketId ? { ...t, status } : t)),
   }));
-  writeBehind("put", `/support/tickets/${encodeURIComponent(ticketId)}`, { status });
+  pushWrite(`Ticket ${status}`, "put", `/support/tickets/${encodeURIComponent(ticketId)}`, { status }, () => {
+    if (!before) return;
+    state().set((s) => ({
+      tickets: s.tickets.map((t) => (t.ticketId === ticketId ? before : t)),
+    }));
+  });
   audit({
     action: `TICKET_${status}`,
     entity: "support.tickets",
@@ -1135,12 +1286,18 @@ export function updateRewardRates(patch: Partial<RewardsRates>): void {
   const before = state().rewardRates;
   const next: RewardsRates = { ...before, ...patch, updatedAt: nowIso() };
   state().set(() => ({ rewardRates: next }));
-  writeBehind("put", "/rewards/rates", {
-    coinEarnRate: next.coinEarnRate,
-    coinRedeemRate: next.coinRedeemRate,
-    streakTargetDays: next.streakTargetDays,
-    discountCardPercent: next.discountCardPercent,
-    cardValidityDays: next.cardValidityDays,
-  });
+  pushWrite(
+    "Rewards rates",
+    "put",
+    "/rewards/rates",
+    {
+      coinEarnRate: next.coinEarnRate,
+      coinRedeemRate: next.coinRedeemRate,
+      streakTargetDays: next.streakTargetDays,
+      discountCardPercent: next.discountCardPercent,
+      cardValidityDays: next.cardValidityDays,
+    },
+    () => state().set(() => ({ rewardRates: before })),
+  );
   audit({ action: "REWARDS_RATES_UPDATE", entity: "rewards.rates", entityId: "default", before, after: next });
 }

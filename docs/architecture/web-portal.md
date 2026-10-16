@@ -75,8 +75,11 @@ The portal reads records from `src/data/**` through `src/lib/api/*`
 `src/data/**` directly. This is the same seam as the mobile `GatewayClient`.
 
 Mutations write optimistically to the store first, then push the change to the
-gateway through `writeBehind()` (`src/lib/api/http.ts`) when configured; a failed
-call keeps the optimistic state (seed fallback) and the next hydrate reconciles.
+gateway through `pushWrite()` (`src/lib/api/index.ts` → `writeAwaited` in `src/lib/api/http.ts`)
+when configured. Every money/status/Rx/menu/booking/rewards write is **awaited with rollback**:
+on a rejected write the pre-mutation snapshot is restored and a toast surfaces the error, so a
+change that did not persist can never linger on screen. (`writeBehind` remains the offline no-op
+used when `NEXT_PUBLIC_GATEWAY_URL` is unset; seed mode reconciles on the next hydrate.)
 Write bodies send **whole rupee** integers (the mapper divides paisa by 100).
 
 A production build with `NEXT_PUBLIC_GATEWAY_URL` unset renders a fixed
@@ -107,10 +110,10 @@ env-gated and degrade to local seed mode when unset:
   slices (sellers, promo, ads, settlement, admins, prescriptions, bookings, blood,
   SDUI, reviews, and — partner completion — customers, menus, support tickets,
   rewards rates/ledger) and writes them into the store. Prescription rows carry
-  the quote lines, `quotedTotal`, reveal fields and status history; the seller
-  projection is name-only until `READY`/`FULFILLED`. Booking rows carry `seats`,
-  `fee` (rupees) and `paymentStatus`, and the queue issues accept/reject/vacate
-  decisions through `writeBehind` (`PUT /bookings/{id}/status`, `POST /bookings/{id}/vacate`).
+the quote lines, `quotedTotal`, reveal fields and status history; the seller
+projection is name-only until `READY`/`FULFILLED`. Booking rows carry `seats`,
+`fee` (rupees) and `paymentStatus`, and the queue issues accept/reject/vacate
+decisions through awaited writes with rollback (`PUT /bookings/{id}/status`, `POST /bookings/{id}/vacate`).
   The `seller/bookings/settings` form is prefilled from `GET /seller/booking-config?vendorId=…`
   (`refreshBookingConfig`, best-effort; seed mode keeps the local default).
   In **development** an empty remote slice keeps the seeded rows (demo fallback); in
