@@ -23,6 +23,8 @@ interface AdBannerCarouselProps {
   onSlidePress?: (slide: AdSlide) => void;
   /** Overlay the shared "AD" disclosure pill (for genuinely paid placements). */
   showAdLabel?: boolean;
+  /** Stable React key per slide. Defaults to `slide.title` (callers with duplicate titles pass one). */
+  slideKey?: (slide: AdSlide, index: number) => string;
   style?: StyleProp<ViewStyle>;
 }
 
@@ -37,6 +39,7 @@ const AdBannerCarousel = memo(function AdBannerCarousel({
   slides,
   onSlidePress,
   showAdLabel = false,
+  slideKey,
   style,
 }: AdBannerCarouselProps) {
   const [index, setIndex] = useState(0);
@@ -75,9 +78,9 @@ const AdBannerCarousel = memo(function AdBannerCarousel({
             onMomentumScrollEnd={onMomentumScrollEnd}
             style={styles.scroll}
           >
-            {slides.map((slide) => (
+            {slides.map((slide, i) => (
               <TouchableOpacity
-                key={slide.title}
+                key={slideKey ? slideKey(slide, i) : slide.title}
                 style={[styles.slide, { width }]}
                 activeOpacity={0.9}
                 onPress={() => onSlidePress?.(slide)}
@@ -115,7 +118,7 @@ const AdBannerCarousel = memo(function AdBannerCarousel({
         {width > 0 && slides.length > 1 && (
           <View style={styles.dots}>
             {slides.map((slide, i) => (
-              <View key={slide.title} style={[styles.dot, i === index && styles.dotActive]} />
+              <View key={slideKey ? slideKey(slide, i) : slide.title} style={[styles.dot, i === index && styles.dotActive]} />
             ))}
           </View>
         )}

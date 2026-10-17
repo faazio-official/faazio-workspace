@@ -11,16 +11,12 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { hs, ms, vs } from '@/utils/responsive';
 import { SPACE } from '@/theme/spacing';
 import AppText from '@/components/AppText';
-import AdBannerCarousel from '@/components/shared/AdBannerCarousel';
+import CampaignHero from '@/components/shared/CampaignHero';
 import { MASTER_CATEGORIES } from '@data/categories/masterCategories';
 import type { CategoryTab } from '@data/categories/masterCategories';
-import type { Product, AdSlide } from '@data/types';
-import {
-  getVendorsWithProducts,
-  getAdsForQuery,
-  type VendorApp,
-  type VendorAdSlide,
-} from '@/services/categoryVendors';
+import type { Product } from '@data/types';
+import { openHeroTarget } from '@/services/adsTarget';
+import { getVendorsWithProducts, type VendorApp } from '@/services/categoryVendors';
 import CategoryTitleRail from './CategoryTitleRail';
 import StoreProductSection from './StoreProductSection';
 
@@ -40,8 +36,8 @@ interface CategoryDrillInPanelProps {
  * Category drill-in page panel. Resolves the tapped main category (`tabId`) from
  * `MASTER_CATEGORIES[app]` and shows every sub-category title as one flat,
  * scrollable pill rail (first auto-selected). For the selected title it renders a
- * store-grouped body: a single 16:9 carousel of the title's top store ads under
- * the rail, then one section per matching store — a store-name heading followed
+ * store-grouped body: the paid CATEGORY_TOP hero carousel (ad-server fill; collapses
+ * when unfilled) under the rail, then one section per matching store — a heading followed
  * by a continuous vertical list of one-per-row product cards. An inline searchbar
  * (this page only) filters the store list by name/locality.
  */
@@ -80,11 +76,8 @@ export function CategoryDrillInPanel({
     bodyRef.current?.scrollTo({ y: 0, animated: false });
   }, []);
 
-  /** Top of the body: ads for the selected title's top-ranked stores. */
-  const topAds = useMemo(
-    () => (activeItem ? getAdsForQuery(app, activeItem.searchQuery) : []),
-    [app, activeItem],
-  );
+  /** Public `AppBrand` for the paid CATEGORY_TOP hero (drill-in app is Mart/Pharma). */
+  const heroApp: 'MART' | 'PHARMA' = app === 'FA_MART' ? 'MART' : 'PHARMA';
 
   /** Store-grouped body for the selected title, filtered by the inline search. */
   const vendors = useMemo(() => {
@@ -100,12 +93,14 @@ export function CategoryDrillInPanel({
     return list;
   }, [app, activeItem, searchQuery]);
 
-  const handleTopAdPress = useCallback(
-    (slide: AdSlide) => {
-      const storeId = (slide as VendorAdSlide).storeId;
-      if (storeId && activeItem) onVendorPress(storeId, activeItem.searchQuery);
+  const handleHeroPress = useCallback(
+    (ad: Parameters<typeof openHeroTarget>[0]) => {
+      void openHeroTarget(ad, {
+        onProduct: (product) => onProductPress(product as Product),
+        onStore: (store) => onVendorPress(store.id, activeItem?.searchQuery ?? ''),
+      });
     },
-    [activeItem, onVendorPress],
+    [activeItem, onVendorPress, onProductPress],
   );
 
   if (!activeTab) {
@@ -173,14 +168,13 @@ export function CategoryDrillInPanel({
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
       >
-        {topAds.length > 0 && activeItem && (
-          <AdBannerCarousel
-            slides={topAds}
-            showAdLabel
-            onSlidePress={handleTopAdPress}
-            style={styles.topAd}
-          />
-        )}
+        <CampaignHero
+          placement="CATEGORY_TOP"
+          app={heroApp}
+          category={tabId}
+          onPress={handleHeroPress}
+          style={styles.topAd}
+        />
 
         {vendors.length === 0 ? (
           <View style={styles.emptyWrap}>

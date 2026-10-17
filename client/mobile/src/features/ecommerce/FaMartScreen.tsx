@@ -8,7 +8,8 @@ import AppText from '@/components/AppText';
 import { useCartStore } from '@/state/store';
 import type { Product, StoreProfile } from '@data/types';
 import type { RootStackParamList } from '@/navigation/types';
-import { gateway } from '@/services/api/GatewayClient';
+import { gateway, type HeroAd } from '@/services/api/GatewayClient';
+import { openHeroTarget } from '@/services/adsTarget';
 import { isDiscounted } from '@/services/categoryVendors';
 import { applyActiveDiscounts, useActiveDiscounts } from '@/services/pricing';
 import { trackProductView } from '@/services/productViews';
@@ -28,6 +29,7 @@ import DealsOfDayRail from './components/mart-home/DealsOfDayRail';
 import DailyEssentialsRail from './components/mart-home/DailyEssentialsRail';
 import LocalVendorRail from './components/mart-home/LocalVendorRail';
 import SponsoredRail from '@/components/shared/SponsoredRail';
+import CampaignHero from '@/components/shared/CampaignHero';
 import { VendorProfileView } from './components/vendor';
 
 const SCREEN_W = Dimensions.get('window').width;
@@ -178,12 +180,33 @@ export function FaMartScreen({
     [onProductClick],
   );
 
+  // Paid MART_HERO tap-through — the store/product deep-link target is resolved server-side.
+  const handleHeroPress = useCallback(
+    (ad: HeroAd) => {
+      void openHeroTarget(ad, {
+        onProduct: (product) => onProductClick?.(product),
+        onStore: (store) => onVendorPress?.(store),
+      });
+    },
+    [onProductClick, onVendorPress],
+  );
+
   // Passive impressions for the two Mart feed rails (deduped per session by trackProductView).
   const handleDealView = useCallback((deal: MartDeal) => trackProductView(deal.id), []);
   const handleEssentialView = useCallback((item: MartEssential) => trackProductView(item.id), []);
 
   const feedSectionsData: { id: string; component: React.ReactNode }[] = [
-    { id: 'hero', component: <MartHeroCarousel banners={feed?.heroBanners ?? []} /> },
+    {
+      id: 'hero',
+      component: (
+        <CampaignHero
+          placement="MART_HERO"
+          app="MART"
+          fallback={<MartHeroCarousel banners={feed?.heroBanners ?? []} />}
+          onPress={handleHeroPress}
+        />
+      ),
+    },
     // Paid Mart showcase (SPONSORED_SHOWCASE) — same closed-loop pipeline as the Home rail; collapses
     // to nothing when there is no LIVE fill.
     {

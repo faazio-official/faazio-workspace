@@ -223,6 +223,27 @@ export interface LiveAd {
 }
 
 /**
+ * One anon-visible LIVE hero campaign (`GET /ads/hero?placement=&app=&category=&storeId=`). Display
+ * fields only: the poster `imageUrl` plus the deep-link target (`targetType`/`targetId`/`targetApp`).
+ * `placementId` keys impressions/clicks (same event pipeline as the rail `slotId`).
+ */
+export interface HeroAd {
+  placementId: string;
+  campaignId: string;
+  sellerId: string;
+  placement: string;
+  targetType: 'PRODUCT' | 'DISH' | 'STORE' | 'VENUE';
+  targetId: string;
+  targetApp: AppBrand;
+  category?: string;
+  storeId?: string;
+  title: string;
+  subtitle?: string;
+  imageUrl?: string;
+  cta?: string;
+}
+
+/**
  * One anon-visible active festival discount (`GET /promo/active-discounts`). It is the shopper
  * price authority's read side: the app keeps base catalog prices pure and overlays this. The
  * discount is already approved + LIVE + sector-capped server-side; the client only derives the
@@ -799,6 +820,29 @@ export class GatewayClient {
       if (p) out.push({ ...p, slotId: a.slotId });
     }
     return out;
+  }
+
+  /**
+   * LIVE hero campaigns for a placement context (`GET /ads/hero`). Paid placements are **never**
+   * fabricated offline: the fallback is an empty list, so a hero collapses rather than faking a
+   * sponsored disclosure (same contract as `getLiveAds`).
+   */
+  async getHeroAds(
+    placement?: string,
+    ctx: { app?: string; category?: string; storeId?: string } = {},
+  ): Promise<HeroAd[]> {
+    return this.withFallback(
+      () =>
+        this.http<HeroAd[]>(
+          `/ads/hero${queryString({
+            placement,
+            app: ctx.app,
+            category: ctx.category,
+            storeId: ctx.storeId,
+          })}`,
+        ),
+      () => delay([] as HeroAd[]),
+    );
   }
 
   /**

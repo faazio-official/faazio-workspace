@@ -5,6 +5,41 @@ dependencies exist. Do not build the backend/seller flows until told to.
 
 ---
 
+## W41 — Seller-run paid hero campaigns (Mart / category / store)
+
+**Status:** 🟢 Shipped (server + web portal + app + docs). Migration `0027_ads_campaigns.sql`.
+
+The seller Ads console is now end-to-end: a seller composes a hero campaign (`image_url` creative +
+server-resolved `PRODUCT`/`DISH`/`STORE`/`VENUE` deep-link target) in the web portal, a super-admin
+approves/activates it, and the app shows it as a labelled 16:9 hero.
+
+- **Server:** `ads.campaigns` (one row per campaign × placement; PK `placement_id`, grouped by
+  `campaign_id`), new `ad_placement` values `MART_HERO`/`PHARMA_HERO`/`FOOD_HERO`/`CATEGORY_TOP`/
+  `STORE_TOP`/`HOME_HERO`, enums `ad_creative_type`/`ad_target_type`. Endpoints: `GET /ads/hero`,
+  `POST/GET /ads/campaigns`, `PUT /ads/campaigns/{id}/status`. `RecordEvent`/`AttributeOrder` now bump
+  both `ads.sponsored_slots` and `ads.campaigns` in one CTE. Valkey `faazio:v1:ads:hero:{placement}:
+  {app}:{category}:{store}` 300 s (+ `DelPrefix` purge on status change). Demo seed `DEMO_HEROES`.
+- **Web:** seller `app/seller/ads` wizard (5 steps) + KPI/campaign list, super-admin hero moderation
+  (`app/admin/super/ads`), `useHeroCampaigns`/`useHeroAds`, `heroCampaigns` store slice.
+- **App:** `GatewayClient.getHeroAds` + `HeroAd`, shared `components/shared/CampaignHero` (thin over
+  `AdBannerCarousel`, `slideKey` prop added) + `hooks/useCampaignHero` + `services/adsTarget.ts`
+  resolver. Wired at `MART_HERO` (`FaMartScreen`, SDUI `martHero` house fallback), `CATEGORY_TOP`
+  (`CategoryDrillInPanel`, scoped by `category`), `STORE_TOP` (`VendorDetailScreen` +
+  `MedicalShopDetailsScreen`, scoped by `storeId`). Removed the fake store-derived `SPONSORED` ad
+  slides (`getAdsForQuery`/`VendorAdSlide` in `services/categoryVendors.ts`). Paid ads never fabricate
+  offline (empty fill → fallback/`null`); impressions/clicks reuse `POST /ads/events`.
+
+**Still deferred:** Food/Pharma/Home hero placements (`FOOD_HERO`/`PHARMA_HERO`/`HOME_HERO`) have
+schema + endpoint support but no app host yet; `VENUE` targets resolve to the vendor page (no
+restaurant-menu anchor). App auth remains the mocked login (no Supabase phone OTP).
+
+**Docs:** `mobile-app.md`, `data/DATA_CONTROL.md`, `PAGE_CATALOG.md`, `caching-cloudflare-valkey.md` §5a,
+`db-schema.md §12.17`, `monolith-breakdown.md §1`, `mvp-backend.md`, `web-portal.md`.
+
+**Date:** 2026-10-17
+
+---
+
 ## W40 — Mart residual de-mock + checkout festival-discount settlement
 
 **Status:** 🟢 Shipped (app + server + docs). No migration.

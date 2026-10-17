@@ -16,7 +16,9 @@ import AppText from '@/components/AppText';
 import { hs, ms, vs } from '@/utils/responsive';
 import { SPACE } from '@/theme/spacing';
 import { getStoreById, type StoreRecord } from '@data/directory/stores';
-import { gateway } from '@/services/api/GatewayClient';
+import { gateway, type HeroAd } from '@/services/api/GatewayClient';
+import { openHeroTarget } from '@/services/adsTarget';
+import CampaignHero from '@/components/shared/CampaignHero';
 import type { Product } from '@data/types';
 import { getVendorProducts, matchesQuery } from '@/services/categoryVendors';
 import { applyActiveDiscounts, useActiveDiscounts } from '@/services/pricing';
@@ -93,6 +95,21 @@ export function VendorDetailScreen({ navigation, route }: Props) {
   const handleProductPress = useCallback(
     (product: Product) => navigation.navigate('ProductDetail', { product }),
     [navigation],
+  );
+
+  /** Paid STORE_TOP tap-through. A STORE target equal to this store is a no-op (already here). */
+  const handleHeroPress = useCallback(
+    (ad: HeroAd) => {
+      void openHeroTarget(ad, {
+        onProduct: (product) => navigation.navigate('ProductDetail', { product: product as Product }),
+        onStore: (target) => {
+          if (target.id === storeId) return;
+          if (target.app === 'PHARMA') navigation.navigate('MedicalShopDetails', { storeId: target.id });
+          else navigation.navigate('VendorDetails', { storeId: target.id, app: 'FA_MART' });
+        },
+      });
+    },
+    [navigation, storeId],
   );
 
   const renderItem = useCallback(
@@ -182,6 +199,14 @@ export function VendorDetailScreen({ navigation, route }: Props) {
                 </View>
               </View>
             </View>
+
+            <CampaignHero
+              placement="STORE_TOP"
+              app={app === 'FA_MART' ? 'MART' : 'PHARMA'}
+              storeId={storeId}
+              onPress={handleHeroPress}
+              style={styles.storeHero}
+            />
 
             <View style={styles.resultsHeader}>
               <AppText style={styles.resultsCount}>
@@ -318,6 +343,10 @@ const styles = StyleSheet.create({
     fontSize: ms(8.5),
     fontWeight: '700',
     color: '#1162D3',
+  },
+  storeHero: {
+    marginTop: SPACE.ITEM,
+    marginHorizontal: hs(16),
   },
   resultsHeader: {
     paddingHorizontal: hs(16),

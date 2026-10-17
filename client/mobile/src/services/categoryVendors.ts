@@ -1,7 +1,7 @@
 import { martProducts } from '@data/mart/products';
 import { pharmaProducts } from '@data/pharma/products';
 import { getStoreById } from '@data/directory/stores';
-import type { AppBrand, AdSlide, Product, StoreProfile } from '@data/types';
+import type { Product, StoreProfile } from '@data/types';
 import type { SubAppId } from '@/state/uiStore';
 
 /** Sub-apps that have a product-to-vendor mapping (Mart & Pharma only). */
@@ -20,13 +20,7 @@ export interface VendorProducts {
   products: Product[];
 }
 
-/** A store-derived ad slide that keeps its source `storeId` for tap-through. */
-export type VendorAdSlide = AdSlide & { storeId: string };
 
-/** Maps a drill-in `VendorApp` to its public `AppBrand`. */
-function brandFor(app: VendorApp): AppBrand {
-  return app === 'FA_MART' ? 'MART' : 'PHARMA';
-}
 
 /** The product pool backing a sub-app's catalog. */
 const APP_PRODUCTS: Record<VendorApp, Product[]> = {
@@ -115,30 +109,6 @@ export function getVendorsWithProducts(
  */
 export function getVendorProducts(storeId: string, app: VendorApp): Product[] {
   return APP_PRODUCTS[app].filter((p) => p.storeId === storeId);
-}
-
-/** Builds one store-derived ad slide (cover image + offer) for a store row. */
-function adSlideFor(store: StoreProfile, app: VendorApp): VendorAdSlide {
-  return {
-    title: store.name,
-    tagline: store.offerTag ?? store.desc,
-    badge: 'SPONSORED',
-    imageUrl: store.coverImage,
-    targetApp: brandFor(app),
-    storeId: store.id,
-  };
-}
-
-/**
- * Contextual ad slides for the category drill-in titles rail: the top-ranked
- * vendors for the selected title become the carousel slides. Derived from the
- * same ranked vendors the page already resolves, so no separate ad fixtures are
- * needed (cover images are 2:1 and crop cleanly to the 16:9 banner).
- */
-export function getAdsForQuery(app: VendorApp, searchQuery: string, limit = 4): VendorAdSlide[] {
-  return getVendorsForApp(app, searchQuery)
-    .slice(0, limit)
-    .map(({ store }) => adSlideFor(store, app));
 }
 
 /**

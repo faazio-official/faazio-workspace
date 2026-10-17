@@ -326,6 +326,14 @@ the `GROCERY` member was dropped from `AppBrand` / `CartCategory` / `SubAppId` /
 > `POST /ads/events`; the last tapped slot attributes the next order (`orders_attributed`). See
 > `docs/architecture/caching-cloudflare-valkey.md` §5a for the surface map. Seed carries one demo
 > LIVE slot per placement.
+>
+> **Paid hero campaigns (W41):** `ads.campaigns` (one row per campaign+placement) feeds the shared
+> `components/shared/CampaignHero` via `GatewayClient.getHeroAds` (`GET /ads/hero`) at `MART_HERO`
+> (Mart home), `CATEGORY_TOP` (category drill-in) and `STORE_TOP` (Mart vendor + Pharma medical shop).
+> Like the rail it has **no** `@data` fixture — no LIVE fill collapses to the host fallback / `null`.
+> The creative is a resolved `image_url` (mirrors the SDUI banner leaf); the deep-link target is
+> resolved server-side (`services/adsTarget.ts`). Same `POST /ads/events` impression/click pipeline.
+> The removed store-derived `SPONSORED` ad slides (`getAdsForQuery`) were the only fake ad source.
 
 ### `@data/rewards` — owner: `features/rewards`
 

@@ -12,6 +12,9 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import AppText from '@/components/AppText';
 import { VendorReviewsSection } from '@/components/shared';
+import CampaignHero from '@/components/shared/CampaignHero';
+import { openHeroTarget } from '@/services/adsTarget';
+import type { HeroAd } from '@/services/api/GatewayClient';
 import { hs, ms, vs } from '@/utils/responsive';
 import { SPACE } from '@/theme/spacing';
 import type { Product, StoreProfile } from '@data/types';
@@ -109,6 +112,21 @@ export function MedicalShopDetailsScreen({ navigation, route }: Props) {
     [handleProductPress],
   );
 
+  /** Paid STORE_TOP tap-through. A STORE target equal to this store is a no-op (already here). */
+  const handleHeroPress = useCallback(
+    (ad: HeroAd) => {
+      void openHeroTarget(ad, {
+        onProduct: (product) => navigation.navigate('ProductDetail', { product: product as Product }),
+        onStore: (target) => {
+          if (target.id === route.params.storeId) return;
+          if (target.app === 'PHARMA') navigation.navigate('MedicalShopDetails', { storeId: target.id });
+          else navigation.navigate('VendorDetails', { storeId: target.id, app: 'FA_MART' });
+        },
+      });
+    },
+    [navigation, route.params.storeId],
+  );
+
   if (!store) {
     return (
       <View style={[styles.container, styles.center]}>
@@ -158,6 +176,13 @@ export function MedicalShopDetailsScreen({ navigation, route }: Props) {
         ListHeaderComponent={
           <>
             <StoreInfo store={store} />
+            <CampaignHero
+              placement="STORE_TOP"
+              app="PHARMA"
+              storeId={store.id}
+              onPress={handleHeroPress}
+              style={styles.storeHero}
+            />
             <VendorReviewsSection
               vendorId={store.id}
               accentColor={PHARMA_TEAL}
@@ -229,6 +254,7 @@ const styles = StyleSheet.create({
   contactCard: { marginTop: SPACE.SECTION, padding: hs(12), gap: SPACE.ITEM, borderRadius: ms(12), backgroundColor: '#F8FAFC', borderWidth: 1, borderColor: '#EEF2F6' },
   contactRow: { flexDirection: 'row', alignItems: 'flex-start', gap: hs(9) },
   contactText: { flex: 1, fontSize: ms(10), lineHeight: vs(15), fontWeight: '600', color: '#475569' },
+  storeHero: { marginTop: SPACE.SECTION, marginHorizontal: hs(16) },
   reviewsSection: { paddingHorizontal: hs(16), paddingTop: SPACE.SECTION },
   productsHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: hs(16), paddingTop: SPACE.SECTION, paddingBottom: SPACE.BLOCK },
   productsTitle: { fontSize: ms(14), fontWeight: '900', color: PHARMA_INK },
