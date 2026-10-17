@@ -132,8 +132,9 @@ export function FaMartScreen({
     };
   }, [normalizedSearch, searchQuery, vendor]);
 
-  // Passive `view` impressions for search results that actually scroll into view (deduped per
-  // session by `trackProductView`). PDP opens still emit their own `view`.
+  // Passive `view` impressions for the search-result grid and the vendor drill-in "All Products"
+  // grid that actually scroll into view (deduped per session by `trackProductView`). PDP opens
+  // still emit their own `view`.
   const { onViewableItemsChanged, viewabilityConfig } = useViewableTracking<Product>((p) =>
     trackProductView(p.id),
   );
@@ -261,6 +262,8 @@ export function FaMartScreen({
         onCartPress={() => navigation.navigate('Cart', {})}
         onViewAllDiscounts={onViewAllDiscounts ? () => onViewAllDiscounts(vendor) : undefined}
         onRateVendor={handleRateVendor}
+        onViewableItemsChanged={onViewableItemsChanged}
+        viewabilityConfig={viewabilityConfig}
       />
     );
   }

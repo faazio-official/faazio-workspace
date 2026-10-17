@@ -1,10 +1,14 @@
-import React, { useMemo, useState } from 'react';
+import React, { useCallback, useMemo, useState } from 'react';
 import {
   View,
   StyleSheet,
   ScrollView,
+  FlatList,
   TouchableOpacity,
   Dimensions,
+  type ListRenderItemInfo,
+  type ViewToken,
+  type ViewabilityConfig,
 } from 'react-native';
 import { ArrowLeft, MapPin, ShieldCheck, ShoppingCart } from 'lucide-react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -39,6 +43,9 @@ interface VendorProfileViewProps {
   onViewAllDiscounts?: () => void;
   /** Opens the vendor rating form (verified buyers only). */
   onRateVendor?: (vendor: StoreProfile) => void;
+  /** Viewability wiring for the "All Products" grid (passive `view` impressions). */
+  onViewableItemsChanged?: (info: { viewableItems: ViewToken[]; changed: ViewToken[] }) => void;
+  viewabilityConfig?: ViewabilityConfig;
 }
 
 const ALL = 'All';
@@ -55,6 +62,8 @@ export function VendorProfileView({
   onCartPress,
   onViewAllDiscounts,
   onRateVendor,
+  onViewableItemsChanged,
+  viewabilityConfig,
 }: VendorProfileViewProps) {
   const insets = useSafeAreaInsets();
   const [activeCategory, setActiveCategory] = useState<string>(ALL);
@@ -82,6 +91,22 @@ export function VendorProfileView({
 
   const qtyOf = (id: string) => cartItems.find((c) => c.id === id)?.quantity ?? 0;
 
+  const renderGridItem = ({ item: p }: ListRenderItemInfo<Product>) => {
+    const qty = qtyOf(p.id);
+    return (
+      <MartProductCard
+        product={p}
+        width={CARD_W}
+        quantity={qty}
+        isAdded={qty > 0}
+        onPress={() => onProductClick?.(p)}
+        onAdd={() => onAddToCart(p)}
+        onIncrement={() => onUpdateQuantity(p.id, 1)}
+        onDecrement={() => onUpdateQuantity(p.id, -1)}
+      />
+    );
+  };
+
   return (
     <View style={styles.container}>
       <View style={[styles.topBar, { paddingTop: insets.top + vs(4) }]}>
@@ -98,7 +123,16 @@ export function VendorProfileView({
         </TouchableOpacity>
       </View>
 
-      <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+      <FlatList
+        data={filteredProducts}
+        keyExtractor={(item) => item.id}
+        numColumns={2}
+        columnWrapperStyle={styles.productRow}
+        contentContainerStyle={styles.scrollContent}
+        showsVerticalScrollIndicator={false}
+        onViewableItemsChanged={onViewableItemsChanged}
+        viewabilityConfig={viewabilityConfig}
+        ListHeaderComponent={
         <View style={styles.board}>
           <View style={styles.storeInfoRow}>
             <View style={styles.logoContainer}>
@@ -182,33 +216,18 @@ export function VendorProfileView({
             <AppText style={styles.seeAllText}>{filteredProducts.length} items</AppText>
           </View>
 
-          <VendorCategoryChips categories={categories} active={activeCategory} onSelect={setActiveCategory} />
-
-          <View style={styles.productGrid}>
-            {filteredProducts.map((p) => {
-              const qty = qtyOf(p.id);
-              return (
-                <MartProductCard
-                  key={p.id}
-                  product={p}
-                  width={CARD_W}
-                  quantity={qty}
-                  isAdded={qty > 0}
-                  onPress={() => onProductClick?.(p)}
-                  onAdd={() => onAddToCart(p)}
-                  onIncrement={() => onUpdateQuantity(p.id, 1)}
-                  onDecrement={() => onUpdateQuantity(p.id, -1)}
-                />
-              );
-            })}
-            {filteredProducts.length === 0 ? (
-              <View style={styles.emptyWrap}>
-                <AppText style={styles.emptyText}>No products in this category.</AppText>
-              </View>
-            ) : null}
+          <View style={styles.chipsWrap}>
+            <VendorCategoryChips categories={categories} active={activeCategory} onSelect={setActiveCategory} />
           </View>
         </View>
-      </ScrollView>
+        }
+        renderItem={renderGridItem}
+        ListEmptyComponent={
+          <View style={styles.emptyWrap}>
+            <AppText style={styles.emptyText}>No products in this category.</AppText>
+          </View>
+        }
+      />
     </View>
   );
 }
@@ -254,11 +273,12 @@ const styles = StyleSheet.create({
     fontWeight: '900',
     color: '#fff',
   },
-  scroll: {
-    flex: 1,
-  },
   scrollContent: {
     paddingBottom: SPACE.SECTION,
+  },
+  productRow: {
+    paddingHorizontal: hs(16),
+    justifyContent: 'space-between',
   },
   board: {
     backgroundColor: '#fff',
@@ -378,13 +398,8 @@ const styles = StyleSheet.create({
     paddingRight: hs(8),
     paddingBottom: vs(4),
   },
-  productGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    justifyContent: 'space-between',
-    paddingHorizontal: hs(16),
-    paddingTop: vs(16),
-    width: '100%',
+  chipsWrap: {
+    marginBottom: vs(16),
   },
   emptyWrap: {
     paddingVertical: SPACE.LIST_BOTTOM,
