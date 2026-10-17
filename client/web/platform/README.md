@@ -15,6 +15,14 @@ is kept for visual diffing; this is the shipping app.
 - Zustand (persisted to `localStorage` under `faazio.portal.v1`)
 - TanStack Query provider, Recharts (client-only), Zod, react-hook-form, sonner
 
+## Branding
+
+The Faazio knot glyph lives in `src/components/brand/FaazioMark.tsx`
+(`FaazioMark` + the gradient `BrandTile`) and is used by both console shells and
+the login screen. The favicon/PWA icon set in `public/` is generated from that
+same glyph (contours from `client/mobile/src/assets/logo.svg`) and wired through
+`app/layout.tsx` `metadata.icons` + `metadata.manifest`.
+
 ## Data
 
 All app data is mock data seeded from `src/data/**` into the Zustand store and

@@ -194,8 +194,15 @@ Readiness config that ships with the app:
   runtime (matches `client/web/landingpage`).
 - **`public/robots.txt`** — `Disallow: /`; the console is private and every route
   also carries `metadata.robots: { index: false, follow: false }`.
-- **`public/favicon.*`** + `app/layout.tsx` `metadata.icons` — the Faazio mark
-  (same assets as the landing page), plus `viewport.themeColor` (`#1162D3`).
+- **Brand assets** — `src/components/brand/FaazioMark.tsx` exports `FaazioMark`
+  (the Faazio knot glyph, contours copied from the mobile brand asset
+  `client/mobile/src/assets/logo.svg`) and `BrandTile` (the glyph on the
+  brand-gradient tile), used by `SellerShell`, `AdminShell` and the login
+  screen. `public/` carries the generated icon set — `favicon.svg`,
+  `favicon.ico`, `favicon-16x16`/`favicon-32x32`, `apple-touch-icon.png`,
+  `android-chrome-192x192`/`android-chrome-512x512` — wired via
+  `app/layout.tsx` `metadata.icons` + `metadata.manifest`
+  (`/site.webmanifest`), plus `viewport.themeColor` (`#1162D3`).
 
 No secrets are baked into the build: `NEXT_PUBLIC_*` values are read at build
 time, so a demo deployment that leaves them unset renders in seed mode and

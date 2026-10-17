@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { stateName } from "@/data/states";
+import { BrandTile } from "@/components/brand/FaazioMark";
 
 
 function LoginPage() {
@@ -38,9 +39,7 @@ function LoginPage() {
     <div className="flex min-h-screen items-center justify-center bg-background px-4 py-10">
       <div className="w-full max-w-md">
         <div className="mb-5 flex items-center gap-2">
-          <div className="flex size-8 items-center justify-center rounded-md bg-primary text-[14px] font-bold text-primary-foreground">
-            F
-          </div>
+          <BrandTile className="size-8 rounded-md" />
           <div>
             <p className="text-[15px] font-semibold">Faazio Partner Portal</p>
             <p className="text-[12px] text-muted-foreground">Seller and admin sign-in</p>

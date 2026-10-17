@@ -19,6 +19,7 @@ import { groupTone, TONE_SOFT, TONE_TEXT, TONE_VAR } from "@/lib/ui/tones";
 import { useSession } from "@/lib/hooks/useSession";
 import { signOut } from "@/lib/api";
 import { RoleGate } from "@/components/layout/RoleGate";
+import { BrandTile } from "@/components/brand/FaazioMark";
 
 export function SellerShell({ children }: { children: ReactNode }) {
   const [collapsed, setCollapsed] = useState(false);
@@ -38,9 +39,7 @@ export function SellerShell({ children }: { children: ReactNode }) {
           )}
         >
           <div className="flex h-14 items-center gap-2 border-b border-border px-3">
-            <div className="flex size-7 items-center justify-center gradient-brand rounded-md text-[13px] font-bold text-primary-foreground">
-              F
-            </div>
+            <BrandTile className="size-7 rounded-md" />
             {!collapsed ? (
               <div className="min-w-0">
                 <p className="truncate text-[13px] font-semibold">Faazio Seller</p>

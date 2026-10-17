@@ -27,6 +27,7 @@ import { useSession } from "@/lib/hooks/useSession";
 import { signOut } from "@/lib/api";
 import { stateName } from "@/data/states";
 import { RoleGate } from "@/components/layout/RoleGate";
+import { BrandTile } from "@/components/brand/FaazioMark";
 import { ROLE_LABEL } from "@/lib/auth/permissions";
 
 export function AdminShell({
@@ -66,9 +67,7 @@ export function AdminShell({
           )}
         >
           <div className="flex h-14 items-center gap-2 border-b border-ink-border px-3">
-            <div className="flex size-7 items-center justify-center gradient-brand rounded-md text-[13px] font-bold text-primary-foreground">
-              F
-            </div>
+            <BrandTile className="size-7 rounded-md" />
             {!collapsed ? (
               <div className="min-w-0">
                 <p className="truncate text-[13px] font-semibold">Faazio Admin</p>
