@@ -139,6 +139,25 @@ func (r *Repo) Resolve(ctx context.Context, ids []string) ([]contracts.MediaAsse
 	return scanAssets(rows)
 }
 
+// StaleDrafts returns DRAFT assets created before the cutoff (orphaned uploads never confirmed),
+// oldest first. The GC sweeper removes their R2 object + registry row (served by media_assets_status_idx).
+func (r *Repo) StaleDrafts(ctx context.Context, before time.Time, limit int) ([]contracts.MediaAsset, error) {
+	if r.pool == nil {
+		return nil, fmt.Errorf("media: database not configured")
+	}
+	if limit <= 0 {
+		return []contracts.MediaAsset{}, nil
+	}
+	rows, err := r.pool.Query(ctx,
+		assetSelect+` where status = 'DRAFT' and created_at < $1 order by created_at asc limit $2`,
+		before, limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	return scanAssets(rows)
+}
+
 // SetStatus transitions an asset's moderation status, scoped to the creator unless admin.
 func (r *Repo) SetStatus(ctx context.Context, id, status, actorID string, admin bool) (contracts.MediaAsset, bool, error) {
 	if r.pool == nil {

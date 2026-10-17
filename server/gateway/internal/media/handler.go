@@ -4,6 +4,7 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"strings"
@@ -40,18 +41,20 @@ var allowedOwnerTypes = map[string]bool{
 // Handler serves the media registry endpoints. The gateway is the only minter/signer; clients never
 // hold R2 credentials and never construct object keys.
 type Handler struct {
-	repo   *Repo
-	signer *r2.Signer
-	cache  *cache.Cache
-	audit  contracts.AuditWriter
+	repo    *Repo
+	signer  *r2.Signer
+	cache   *cache.Cache
+	audit   contracts.AuditWriter
+	sweeper contracts.Sweeper
 }
 
-// NewHandler builds the media handler. signer may be nil (media disabled → 503 on writes).
-func NewHandler(repo *Repo, signer *r2.Signer, c *cache.Cache, audit contracts.AuditWriter) *Handler {
-	return &Handler{repo: repo, signer: signer, cache: c, audit: audit}
+// NewHandler builds the media handler. signer may be nil (media disabled → 503 on writes); sweeper may
+// be nil (the admin GC trigger returns 503).
+func NewHandler(repo *Repo, signer *r2.Signer, c *cache.Cache, audit contracts.AuditWriter, sweeper contracts.Sweeper) *Handler {
+	return &Handler{repo: repo, signer: signer, cache: c, audit: audit, sweeper: sweeper}
 }
 
-// Register mounts the media routes. Resolve is public; upload/confirm/private need auth; moderation is admin.
+// Register mounts the media routes. Resolve is public; upload/confirm/private need auth; moderation + GC are admin.
 func (h *Handler) Register(r chi.Router) {
 	r.Get("/media/resolve", h.resolve)
 	r.Group(func(g chi.Router) {
@@ -64,6 +67,8 @@ func (h *Handler) Register(r chi.Router) {
 		g.Use(auth.RequireRole(auth.RoleStateAdmin, auth.RoleSuperAdmin))
 		g.Put("/media/{id}/status", h.setStatus)
 		g.Delete("/media/{id}", h.remove)
+		// Manual MVP GC trigger: reclaims one batch of orphaned DRAFT assets (503 when GC unconfigured).
+		g.Post("/media/gc", h.gc)
 	})
 }
 
@@ -287,6 +292,25 @@ func (h *Handler) remove(w http.ResponseWriter, r *http.Request) {
 	}
 	h.cache.Del(r.Context(), cache.MediaAsset(id))
 	httpx.JSON(w, http.StatusOK, map[string]any{"deleted": true})
+}
+
+// gc runs one synchronous media GC pass (admin manual trigger). 503 when GC is not configured
+// (no R2 credentials / no sweeper); otherwise reports how many orphaned DRAFT assets were reclaimed.
+func (h *Handler) gc(w http.ResponseWriter, r *http.Request) {
+	if h.sweeper == nil {
+		httpx.Fail(w, http.StatusServiceUnavailable, "gc_unconfigured", "media gc not configured")
+		return
+	}
+	n, err := h.sweeper.SweepOnce(r.Context())
+	if err != nil {
+		if errors.Is(err, ErrGCUnavailable) {
+			httpx.Fail(w, http.StatusServiceUnavailable, "gc_unconfigured", "media gc not configured")
+			return
+		}
+		httpx.Fail(w, http.StatusInternalServerError, "gc_failed", "could not run media gc")
+		return
+	}
+	httpx.JSON(w, http.StatusOK, map[string]any{"deleted": n})
 }
 
 // respondAsset writes an asset, decorating PUBLIC assets with their CDN URL.

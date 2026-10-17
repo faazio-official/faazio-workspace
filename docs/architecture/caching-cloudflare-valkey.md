@@ -201,6 +201,14 @@ LIVE fill collapses the rail to `null` (never an empty shelf).
 > (`PUT /seller/stores/{id}/cover`) purges `directory:store:{id}`; a product image edit purges
 > `catalog:product:{id}` + `catalog:store-products:{storeId}` (same path as a price edit).
 >
+> **Media GC + CDN purge (Phase 8, `0026`):** a **purge worker** `LISTEN`s on the `media_updated`
+> `pg_notify` (emitted by `0025` on insert/update and by `0026` on delete) and invalidates the affected
+> `faazio:v1:media:asset:{id}` + purges the exact CDN URL (`img.faazio.in/{key}`) via the Cloudflare
+> `purge_cache` API (`CF_ZONE_ID` + `CF_API_TOKEN`; ≤30 files/request; best-effort, disabled without
+> creds). This lets an immutable-key object still be invalidated on moderation/removal. A **GC sweeper**
+> runs every 6 h (and on admin `POST /media/gc`) deleting orphaned DRAFT assets past the 24 h draft TTL
+> (R2 object + row) — DRAFT assets are never cached, so no purge is needed for them.
+>
 > **Pharma quote + notify (W24, `0018`):** a quote save (`POST /seller/prescriptions/{id}/quotes`) or a
 > `READY` status change invalidates the owning user's `pharma:prescriptions:{userId}`. The notification
 > inbox key `faazio:v1:notifications:inbox:{userId}` (30 s) is invalidated when the outbox enqueues

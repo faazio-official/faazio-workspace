@@ -15,7 +15,7 @@ The full microservices target — Rust/Tantivy search, CockroachDB, DynamoDB, pe
 ## Repo map
 ```
 faazio-workspace/
-├── (root)          Repo root — docs + project docs only (AGENTS.md, ARCHITECTURE.md, LICENSE, PAGE_CATALOG.md, README.md).
+├── (root)          Repo root — docs + project docs only (AGENTS.md, ARCHITECTURE.md, LICENSE, PAGE_CATALOG.md, PENDING_WORK.md, README.md).
 ├── client/mobile/  React Native (Expo) SuperApp — ALL active work lives here.
 ├── client/web/     Partner Portal — Next.js App Router console (`portal/`, shipping) + the Vite/TanStack reference (`vite-reference/`, read-only diff baseline) + the marketing landing page (`landingpage/`, TanStack Start + Nitro, deployed on Vercel — see its README.md). See docs/architecture/web-portal.md.
 ├── server/         MVP Go Chi modular monolith `gateway/` + Supabase migrations/seed (active) + future full microservices (see docs/architecture/mvp-backend.md, monolith-breakdown.md).

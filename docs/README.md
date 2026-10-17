@@ -9,6 +9,7 @@ Operational and architectural documentation for the **Faazio SuperApp**.
 3. **`DEVELOPER_ONBOARDING.md`** — get a device booting in ~15 minutes.
 4. `data/DATA_CONTROL.md` — data ownership & status matrix (authoritative).
 5. `PAGE_CATALOG.md` (root) — every screen/path in the app.
+6. `PENDING_WORK.md` (root) — repo-level backlog (server/DB/web/data); app-only backlog lives in `client/mobile/PENDING_WORK.md`.
 
 ## Map
 

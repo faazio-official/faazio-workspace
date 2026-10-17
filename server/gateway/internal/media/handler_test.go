@@ -1,6 +1,7 @@
 package media
 
 import (
+	"context"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -55,7 +56,7 @@ func TestParseIDs(t *testing.T) {
 }
 
 func TestUploadURLDisabledSigner(t *testing.T) {
-	h := NewHandler(New(nil), nil, nil, nil)
+	h := NewHandler(New(nil), nil, nil, nil, nil)
 	req := httptest.NewRequest(http.MethodPost, "/media/upload-url", strings.NewReader(`{}`))
 	rec := httptest.NewRecorder()
 	h.uploadURL(rec, req)
@@ -65,7 +66,7 @@ func TestUploadURLDisabledSigner(t *testing.T) {
 }
 
 func TestUploadURLRejectsBadMime(t *testing.T) {
-	h := NewHandler(New(nil), enabledSigner(), nil, nil)
+	h := NewHandler(New(nil), enabledSigner(), nil, nil, nil)
 	req := httptest.NewRequest(http.MethodPost, "/media/upload-url",
 		strings.NewReader(`{"kind":"PUBLIC","mime":"application/pdf","bytes":10}`))
 	rec := httptest.NewRecorder()
@@ -76,7 +77,7 @@ func TestUploadURLRejectsBadMime(t *testing.T) {
 }
 
 func TestUploadURLRejectsOversize(t *testing.T) {
-	h := NewHandler(New(nil), enabledSigner(), nil, nil)
+	h := NewHandler(New(nil), enabledSigner(), nil, nil, nil)
 	req := httptest.NewRequest(http.MethodPost, "/media/upload-url",
 		strings.NewReader(`{"kind":"PUBLIC","mime":"image/jpeg","bytes":10485760}`))
 	rec := httptest.NewRecorder()
@@ -87,7 +88,7 @@ func TestUploadURLRejectsOversize(t *testing.T) {
 }
 
 func TestConfirmRejectsBadOwnerType(t *testing.T) {
-	h := NewHandler(New(nil), nil, nil, nil)
+	h := NewHandler(New(nil), nil, nil, nil, nil)
 	req := httptest.NewRequest(http.MethodPost, "/media/confirm",
 		strings.NewReader(`{"assetId":"img_x","ownerType":"NOPE"}`))
 	rec := httptest.NewRecorder()
@@ -103,4 +104,41 @@ func enabledSigner() *r2.Signer {
 		PublicBucket: "faazio-public", PrivateBucket: "faazio-private",
 		CDNBase: "https://img.faazio.in",
 	})
+}
+
+type fakeSweeper struct {
+	n   int
+	err error
+}
+
+func (f fakeSweeper) SweepOnce(context.Context) (int, error) { return f.n, f.err }
+
+func TestGCUnconfiguredWithoutSweeper(t *testing.T) {
+	h := NewHandler(New(nil), nil, nil, nil, nil)
+	rec := httptest.NewRecorder()
+	h.gc(rec, httptest.NewRequest(http.MethodPost, "/media/gc", nil))
+	if rec.Code != http.StatusServiceUnavailable {
+		t.Fatalf("gc status = %d, want 503", rec.Code)
+	}
+}
+
+func TestGCRunsSweep(t *testing.T) {
+	h := NewHandler(New(nil), nil, nil, nil, fakeSweeper{n: 3})
+	rec := httptest.NewRecorder()
+	h.gc(rec, httptest.NewRequest(http.MethodPost, "/media/gc", nil))
+	if rec.Code != http.StatusOK {
+		t.Fatalf("gc status = %d, want 200", rec.Code)
+	}
+	if !strings.Contains(rec.Body.String(), `"deleted":3`) {
+		t.Fatalf("gc body = %s", rec.Body.String())
+	}
+}
+
+func TestGCMapsUnavailableTo503(t *testing.T) {
+	h := NewHandler(New(nil), nil, nil, nil, fakeSweeper{err: ErrGCUnavailable})
+	rec := httptest.NewRecorder()
+	h.gc(rec, httptest.NewRequest(http.MethodPost, "/media/gc", nil))
+	if rec.Code != http.StatusServiceUnavailable {
+		t.Fatalf("gc status = %d, want 503", rec.Code)
+	}
 }

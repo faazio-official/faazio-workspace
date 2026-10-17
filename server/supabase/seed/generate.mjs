@@ -10,46 +10,20 @@
  *
  * Money in @data is rupees; the DB contract is INT8 paisa (₹1 = 100) — multiplied here.
  */
-import { spawnSync } from 'node:child_process';
-import { createRequire } from 'node:module';
-import { mkdirSync, rmSync, writeFileSync } from 'node:fs';
-import { dirname, join, resolve } from 'node:path';
+import { mkdirSync, writeFileSync } from 'node:fs';
+import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { buildData, cleanData } from './lib/databuild.mjs';
+import { assetsInsertSql, assetRowsFromManifest, entryFor, loadManifest } from './lib/mediaplan.mjs';
 
 const here = dirname(fileURLToPath(import.meta.url));
-const repoRoot = resolve(here, '../../..');
-const tsc = join(repoRoot, 'client/mobile/node_modules/.bin/tsc');
-const buildDir = join(here, '.build');
 
-const require = createRequire(import.meta.url);
+// ---------------------------------------------------------------- compile @data (shared lib)
+const d = buildData();
 
-// ---------------------------------------------------------------- compile @data
-rmSync(buildDir, { recursive: true, force: true });
-mkdirSync(buildDir, { recursive: true });
-const res = spawnSync(
-  tsc,
-  [
-    join(repoRoot, 'data/index.ts'),
-    '--outDir', buildDir,
-    '--module', 'commonjs',
-    '--target', 'es2020',
-    '--moduleResolution', 'node10',
-    '--ignoreDeprecations', '6.0',
-    '--esModuleInterop',
-    '--skipLibCheck',
-    '--noEmitOnError', 'false',
-  ],
-  { stdio: 'inherit' },
-);
-// tsc exits non-zero on the known `__DEV__` ambient-error, but still emits. Verify output.
-globalThis.__DEV__ = false;
-let d;
-try {
-  d = require(join(buildDir, 'index.js'));
-} catch (err) {
-  console.error('tsc produced no usable output', res.status, err);
-  process.exit(1);
-}
+// Phase 7 media manifest (written by backfill_r2.mjs). Absent → no media.assets rows and every
+// image_key stays null, so the unsplash URLs remain the offline/legacy fallback.
+const manifest = loadManifest(join(here, 'media_manifest.json'));
 
 // ---------------------------------------------------------------- helpers
 const q = (v) => (v === null || v === undefined ? 'null' : `'${String(v).replace(/'/g, "''")}'`);
@@ -127,15 +101,29 @@ sql.push('-- Do not edit by hand; re-run the generator after any @data fixture c
 sql.push('begin;');
 sql.push('');
 
+// ---------------------------------------------------------------- media registry
+// Phase 7: the backfill (media_manifest.json) owns the R2 key/hash; the seed links those assets to
+// their owners below. No manifest → media.assets is empty and `image_key` stays null.
+if (manifest) {
+  const assetRows = assetRowsFromManifest(manifest);
+  if (assetRows.length) {
+    sql.push('-- media.assets (from media_manifest.json — Phase 7 R2 backfill)');
+    sql.push(assetsInsertSql(assetRows));
+  }
+}
+
 // ---------------------------------------------------------------- directory
 sql.push(inserts(
   'directory.stores',
-  ['id', 'app', 'name', 'categories', 'rating', 'reviews_count', 'delivery_time', 'distance', 'cover_image', 'emoji', 'desc_text', 'offer_tag', 'is_veg', 'address', 'phone', 'hours'],
-  d.storeDirectory.map((s) => [
-    q(s.id), APP(s.app), q(s.name), arr(s.categories), n(s.rating), n(s.reviewsCount ?? 0),
-    q(s.deliveryTime), q(s.distance), q(s.coverImage), q(s.emoji), q(s.desc), q(s.offerTag),
-    b(s.isVeg), q(s.address), q(s.phone), q(s.hours),
-  ]),
+  ['id', 'app', 'name', 'categories', 'rating', 'reviews_count', 'delivery_time', 'distance', 'cover_image', 'cover_image_key', 'cover_image_asset_id', 'emoji', 'desc_text', 'offer_tag', 'is_veg', 'address', 'phone', 'hours'],
+  d.storeDirectory.map((s) => {
+    const cover = entryFor(manifest, s.coverImage);
+    return [
+      q(s.id), APP(s.app), q(s.name), arr(s.categories), n(s.rating), n(s.reviewsCount ?? 0),
+      q(s.deliveryTime), q(s.distance), q(s.coverImage), q(cover?.key), q(cover?.id), q(s.emoji),
+      q(s.desc), q(s.offerTag), b(s.isVeg), q(s.address), q(s.phone), q(s.hours),
+    ];
+  }),
 ));
 
 const storeIds = new Set(d.storeDirectory.map((s) => s.id));
@@ -157,16 +145,17 @@ for (const [name, dishes] of Object.entries(venueMenus)) {
   const venue = d.findDiningVenueByName(name);
   const venueId = venue ? venue.id : slug(name);
   for (const dish of dishes) {
+    const img = entryFor(manifest, dish.image);
     menuRows.push([
       q(venueId), q(dish.id), q(dish.dishName), paisa(dish.price), paisa(dish.mrp), b(dish.isVeg),
-      q(dish.cuisine), n(dish.rating), q(dish.image),
+      q(dish.cuisine), n(dish.rating), q(dish.image), q(img?.key), q(img?.id),
       q(dish.description ?? ''), q(dish.emoji ?? ''), q(dish.deliveryTime ?? ''),
     ]);
   }
 }
 sql.push(inserts(
   'directory.menus',
-  ['venue_id', 'dish_id', 'name', 'price_paisa', 'mrp_paisa', 'is_veg', 'cuisine', 'rating', 'image', 'description', 'emoji', 'delivery_time'],
+  ['venue_id', 'dish_id', 'name', 'price_paisa', 'mrp_paisa', 'is_veg', 'cuisine', 'rating', 'image', 'image_key', 'image_asset_id', 'description', 'emoji', 'delivery_time'],
   menuRows,
 ));
 
@@ -187,14 +176,15 @@ sql.push(inserts(
 // ---------------------------------------------------------------- catalog + inventory
 sql.push(inserts(
   'catalog.products',
-  ['id', 'app', 'category', 'name', 'search_tokens', 'price_paisa', 'mrp_paisa', 'rating', 'reviews_count', 'emoji', 'image_url', 'desc_text', 'badge', 'shop', 'unit', 'attributes', 'store_id', 'is_prescription', 'is_veg', 'status'],
+  ['id', 'app', 'category', 'name', 'search_tokens', 'price_paisa', 'mrp_paisa', 'rating', 'reviews_count', 'emoji', 'image_url', 'image_key', 'image_asset_id', 'desc_text', 'badge', 'shop', 'unit', 'attributes', 'store_id', 'is_prescription', 'is_veg', 'status'],
   d.catalogIndex.map((e) => {
     const meta = productMeta.get(e.id);
     const storeId = meta?.storeId && storeIds.has(meta.storeId) ? meta.storeId : null;
+    const img = entryFor(manifest, e.image);
     return [
       q(e.id), APP(e.app), q(e.category), q(e.name), arr(e.searchTokens),
       paisa(e.price), paisa(e.originalPrice), n(e.rating), n(e.reviewsCount ?? 0),
-      q(e.emoji), q(e.image), q(e.desc), q(e.badge), q(e.shop), q(e.unit), jsonb(e.attributes),
+      q(e.emoji), q(e.image), q(img?.key), q(img?.id), q(e.desc), q(e.badge), q(e.shop), q(e.unit), jsonb(e.attributes),
       q(storeId), b(isPrescription(e)), b(meta?.isVeg), `'ACTIVE'::product_status`,
     ];
   }),
@@ -417,6 +407,42 @@ sql.push(inserts(
 sql.push('commit;');
 sql.push('');
 
+// ---------------------------------------------------------------- Mart SDUI sections (W38)
+// The two Mart rails live only in the Mongo SDUI home doc — their banner copy/images are the client
+// `martHomeFeed` fixture, not `@data` — so the seed generator owns them. They are spliced into the
+// Home sections to match the published order: `martHero` above `adBanner`, `martEssentials` right
+// after `dealsOfDay`. App `HomeView` skips unknown ids (default → null); Mart reads them via
+// `martService.fetchMartFeed`. Previously hand-edited into sdui_layouts.json, which `generate.mjs`
+// could not reproduce (seed ↔ committed drift).
+const MART_SDUI = {
+  hero: {
+    id: 'martHero', title: 'Mart Highlights', subtitle: null, accent: '#F25C3D',
+    productIds: [], storeIds: [], chips: [],
+    banners: [
+      { id: 'hb-1', title: 'Big Savings Everyday', subtitle: 'UP TO 50% OFF', accent: '#FFF8D6', imageUrl: 'https://images.unsplash.com/photo-1542838132-92c53300491e?fm=jpg&fit=crop&q=80&w=400&h=400' },
+      { id: 'hb-2', title: 'Fresh Groceries Doorstep', subtitle: 'FREE DELIVERY', accent: '#E8F5E9', imageUrl: 'https://images.unsplash.com/photo-1579113800032-c38bd1625818?fm=jpg&fit=crop&q=80&w=400&h=400' },
+      { id: 'hb-3', title: 'Electronics Mega Sale', subtitle: 'FLAT 40% OFF', accent: '#FFF3E0', imageUrl: 'https://images.unsplash.com/photo-1498050108023-c5249f4df085?fm=jpg&fit=crop&q=80&w=400&h=400' },
+    ],
+  },
+  essentials: {
+    id: 'martEssentials', title: 'Daily Essentials', subtitle: null, accent: '#0F766E',
+    productIds: ['gr-p3', 'gr-p4', 'gr-p5', 'gr-p6', 'gr-p7'], storeIds: [], chips: [],
+  },
+};
+
+function buildSduiSections() {
+  const out = [];
+  for (const s of d.homeSdui) {
+    if (s.id === 'adBanner') out.push(MART_SDUI.hero);
+    out.push({
+      id: s.id, title: s.title, subtitle: s.subtitle ?? null, accent: s.accent,
+      productIds: s.productIds, storeIds: s.storeIds ?? [], chips: s.chips ?? [],
+    });
+    if (s.id === 'dealsOfDay') out.push(MART_SDUI.essentials);
+  }
+  return out;
+}
+
 // ---------------------------------------------------------------- lean-contract checks
 // Fail loudly if a fixture ever violates the dtype freeze (WORKFLOW_SCRATCHPAD.md §0):
 // money is integer paisa, ratings are 0–5 at 1 decimal, search tokens must fit the 64-char
@@ -471,6 +497,10 @@ function assertLeanContract() {
     if (!catalogIds.has(a.productId)) violations.push(`sponsored slot ${a.slotId}: product ${a.productId} not in catalogIndex`);
     if (!sellerIds.has(a.sellerId)) violations.push(`sponsored slot ${a.slotId}: seller ${a.sellerId} not seeded`);
   }
+  // Mart SDUI essentials must reference real catalog rows — the app resolves them via getProductsByIds.
+  for (const id of MART_SDUI.essentials.productIds) {
+    if (!catalogIds.has(id)) violations.push(`martEssentials product ${id} not in catalogIndex`);
+  }
 
   if (violations.length) {
     console.error(`seed lean-contract violations (${violations.length}):\n - ${violations.join('\n - ')}`);
@@ -488,15 +518,7 @@ const sduiDoc = {
   locale: 'en',
   // Deterministic publish stamp: version drives the gateway ETag, this is informational only.
   updatedAt: '2026-01-01T00:00:00.000Z',
-  sections: d.homeSdui.map((s) => ({
-    id: s.id,
-    title: s.title,
-    subtitle: s.subtitle ?? null,
-    accent: s.accent,
-    productIds: s.productIds,
-    storeIds: s.storeIds ?? [],
-    chips: s.chips ?? [],
-  })),
+  sections: buildSduiSections(),
 };
 const mongoDir = join(here, 'mongo');
 mkdirSync(mongoDir, { recursive: true });
@@ -562,5 +584,6 @@ writeFileSync(join(mongoDir, 'seed.js'), [
   '',
 ].join('\n'));
 
-rmSync(buildDir, { recursive: true, force: true });
-console.log(`seed written: ${d.catalogIndex.length} products, ${d.storeDirectory.length} stores, ${orders.length} orders, ${d.vendorReviewsTable.length} vendor reviews, ${(d.seedFavorites ?? []).length} favourites, ${menuRows.length} menu dishes, ${(d.BLOOD_DONORS ?? []).length} blood donors, ${(d.BLOOD_REQUESTS ?? []).length} blood requests`);
+cleanData();
+const mediaCount = manifest ? assetRowsFromManifest(manifest).length : 0;
+console.log(`seed written: ${d.catalogIndex.length} products, ${d.storeDirectory.length} stores, ${orders.length} orders, ${d.vendorReviewsTable.length} vendor reviews, ${(d.seedFavorites ?? []).length} favourites, ${menuRows.length} menu dishes, ${(d.BLOOD_DONORS ?? []).length} blood donors, ${(d.BLOOD_REQUESTS ?? []).length} blood requests, ${mediaCount} media assets${manifest ? '' : ' (no media_manifest.json yet)'}`);

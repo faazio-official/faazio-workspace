@@ -13,11 +13,14 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/faazio/server/gateway/internal/media"
 	"github.com/faazio/server/gateway/internal/notifications"
 	"github.com/faazio/server/gateway/internal/platform/cache"
+	"github.com/faazio/server/gateway/internal/platform/cloudflare"
 	"github.com/faazio/server/gateway/internal/platform/config"
 	"github.com/faazio/server/gateway/internal/platform/db"
 	"github.com/faazio/server/gateway/internal/platform/mongo"
+	"github.com/faazio/server/gateway/internal/platform/r2"
 	"github.com/faazio/server/gateway/internal/server"
 )
 
@@ -64,12 +67,40 @@ func main() {
 		go notifyWorker.Run(workerCtx)
 	}
 
+	// Media plane: one R2 signer shared by the registry, the GC sweeper and the CDN purge worker.
+	// The signer/purger are nil when their credentials are unset, so each worker is disabled rather than
+	// making broken calls. GC reclaims orphaned DRAFT uploads; the purge worker LISTENs on media_updated
+	// and purges CDN URLs (URL purge only when CF_ZONE_ID/CF_API_TOKEN are set).
+	r2Signer := r2.New(r2.Config{
+		AccountID:     cfg.R2AccountID,
+		AccessKeyID:   cfg.R2AccessKeyID,
+		SecretKey:     cfg.R2SecretKey,
+		PublicBucket:  cfg.R2PublicBucket,
+		PrivateBucket: cfg.R2PrivateBucket,
+		CDNBase:       cfg.R2CDNBase,
+	})
+	mediaGC := media.NewSweeper(media.New(pool), r2Signer, nil)
+	if mediaGC.Enabled() && pool != nil {
+		go mediaGC.Run(workerCtx)
+	}
+	mediaPurge := media.NewPurgeWorker(pool, r2Signer, cloudflare.New(cloudflare.Config{
+		ZoneID: cfg.CFZoneID, APIToken: cfg.CFAPIToken,
+	}), valkey, nil)
+	if mediaPurge.Enabled() {
+		go mediaPurge.Run(workerCtx)
+	}
+	if mediaGC.Enabled() || mediaPurge.Enabled() {
+		log.Print("media workers started (gc + cdn purge)")
+	}
+
 	handler := server.NewRouter(server.Deps{
 		Config:  cfg,
 		Pool:    pool,
 		Cache:   valkey,
 		Mongo:   mongoDB,
 		Drainer: notifyWorker,
+		Signer:  r2Signer,
+		Sweeper: mediaGC,
 	})
 
 	srv := &http.Server{

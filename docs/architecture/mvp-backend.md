@@ -31,7 +31,9 @@
 `img.faazio.in` with an immutable 1-year edge TTL. The gateway (`internal/media` + `internal/platform/r2`)
 is the only minter/signer; clients receive short-lived presigned PUT/GET URLs and never hold R2
 credentials. Public URLs stay stable so `expo-image`/`<img>` call sites don't change. Supabase Storage
-remains only as the Rx fallback when R2 is unset — no second public origin. See `db-schema.md` §12.16.
+remains only as the Rx fallback when R2 is unset — no second public origin. A GC sweeper reclaims
+orphaned DRAFT uploads and a CDN purge worker invalidates an image on moderation/delete (`0026`). See
+`db-schema.md` §12.16.
 
 ---
 

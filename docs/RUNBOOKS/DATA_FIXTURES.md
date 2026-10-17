@@ -82,3 +82,46 @@ duplicate a vendor id/name elsewhere — add it to `directory/stores.ts` (Mart/P
 `MyOrder.storeId` / `OrderRow.vendorStoreIds`. Public vendor reviews live in
 `data/reviews/vendorReviews.ts` (full name only — never add id/phone/order id/avatar). The
 production schema is `docs/architecture/db-schema.md` §7.7.
+
+---
+
+## 🖼 R2 image backfill (Phase 7)
+
+`@data` product/store/menu images are hotlinked unsplash URLs. Phase 7 moves the bytes into
+**Cloudflare R2** and records one `media.assets` identity row each (`docs/architecture/db-schema.md`
+§12.16), so the app reads content-addressed CDN URLs instead of third-party hotlinks.
+
+Tooling (`server/supabase/seed/`):
+
+- `lib/databuild.mjs` — shared `@data` compile (used by both scripts; one compilation path).
+- `lib/r2.mjs` — dependency-free Node SigV4 presigner (mirrors the Go signer; verified against the AWS
+  documentation vector).
+- `lib/mediaplan.mjs` — collects image refs, derives keys/ids, and emits the `media.assets` + owner-link
+  SQL. `lib/constants.mjs` holds the key prefix + MIME allowlist.
+- `backfill_r2.mjs` — the one-shot downloader/uploader + manifest/SQL writer.
+- `generate.mjs` — reads `media_manifest.json` (when present) to emit `media.assets` + `image_key`.
+
+### 1. Prereqs (Cloudflare ops)
+Create the R2 buckets `faazio-public` / `faazio-private`, attach `img.faazio.in` to the public bucket
+(Cache Rule `max-age=31536000, immutable`), allow `PUT` CORS from the gateway/portal origins, and
+provision an API token. Set `R2_ACCOUNT_ID` / `R2_ACCESS_KEY_ID` / `R2_SECRET_ACCESS_KEY` (optionally
+`R2_PUBLIC_BUCKET` / `R2_CDN_BASE`).
+
+### 2. Backfill + regenerate
+```bash
+# download 288 distinct images, hash, PUT to faazio-public; write manifest + link SQL
+R2_ACCOUNT_ID=… R2_ACCESS_KEY_ID=… R2_SECRET_ACCESS_KEY=… \
+  node server/supabase/seed/backfill_r2.mjs
+
+# apply the owner links to an already-seeded DB, then regenerate the committed seed
+# (psql "$DATABASE_URL" -f server/supabase/seed/backfill_media.sql)
+node server/supabase/seed/generate.mjs
+```
+
+Flags: `--dry-run` (fetch + hash + manifest, **no** R2 PUT), `--manifest-only` (re-emit SQL from the
+existing manifest, no network), `--limit N`, `--concurrency N` (default 8).
+
+`media_manifest.json` is **committed** (the deterministic bridge: keys/hashes → R2 objects);
+`backfill_media.sql` is a generated artifact and is git-ignored. Re-running is safe — assets dedupe on
+`r2_key` and the URL→key mapping is stable for the same bytes. Until the manifest exists, `generate.mjs`
+emits null `image_key`s and the unsplash URL stays the offline/legacy fallback.

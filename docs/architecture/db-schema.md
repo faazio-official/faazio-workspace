@@ -1410,8 +1410,9 @@ Endpoints (`internal/media`): `POST /media/upload-url` (auth; validate `image/{j
 mint DRAFT + deterministic key, return 300 s presigned PUT), `POST /media/confirm` (auth; DRAFT→ACTIVE +
 owner link + cache purge), `GET /media/resolve?ids=` (anon batch of ACTIVE PUBLIC → CDN URLs, Valkey
 24 h), `GET /media/private/{id}` (creator/admin; 300 s presigned GET), `PUT /media/{id}/status` +
-`DELETE /media/{id}` (admin moderation/GC). Key minting: with a hash → `media/{hash:2}/{hash}.{ext}`
-(content-addressed, cache-forever); without → `media/{yyyy}/{mm}/{img_id}.{ext}`.
+`DELETE /media/{id}` (admin moderation/GC), `POST /media/gc` (admin; one synchronous GC pass — 503 when
+R2 unset). Key minting: with a hash → `media/{hash:2}/{hash}.{ext}` (content-addressed, cache-forever);
+without → `media/{yyyy}/{mm}/{img_id}.{ext}`.
 
 Config: `R2_ACCOUNT_ID` / `R2_ACCESS_KEY_ID` / `R2_SECRET_ACCESS_KEY` / `R2_PUBLIC_BUCKET` /
 `R2_PRIVATE_BUCKET` / `R2_CDN_BASE` (`img.faazio.in`). Owning contexts link a confirmed asset via
@@ -1422,5 +1423,29 @@ Config: `R2_ACCOUNT_ID` / `R2_ACCESS_KEY_ID` / `R2_SECRET_ACCESS_KEY` / `R2_PUBL
 `nullif(image_key,'')` and decorate to `${R2_CDN_BASE}/{key}`, so `image`/`coverImage`/menu `image`
 are always displayable (legacy text URL is the fallback). Rx images prefer the R2 private bucket,
 falling back to Supabase Storage when R2 is unset (`internal/pharma/storage.go`). Cache:
-`media:asset:{id}` 24 h (caching doc §5/§8). Backfill of the 458 `@data` unsplash hits to R2 keys is a
-follow-up (`generate.mjs`/backfill script); until then legacy URLs remain the fallback.
+`media:asset:{id}` 24 h (caching doc §5/§8).
+
+**Seed / backfill (Phase 7).** `server/supabase/seed/lib/{databuild,r2,mediaplan,constants}.mjs` share
+one @data compile (`databuild`), the Node SigV4 presigner (`r2`, mirrors `internal/platform/r2`), the
+content-addressed key/id derivation + SQL emitters (`mediaplan`), and the key prefix/MIME allowlist
+(`constants`). `backfill_r2.mjs` downloads the **288 distinct** product/store/menu image URLs (541
+references), sha256s them → `media/{hash:2}/{hash}.jpg` + `img_<16hex>`, PUTs to `faazio-public` via a
+presigned URL, and writes `media_manifest.json` + `backfill_media.sql` (idempotent `media.assets`
+insert + owner links). `generate.mjs` then reads `media_manifest.json` (when present) to emit the
+`media.assets` rows + `image_key`/`*_asset_id` columns in `0001_seed.sql` — absent manifest, every key
+stays null and the legacy unsplash URL remains the fallback. Runbook:
+`docs/RUNBOOKS/DATA_FIXTURES.md` → "R2 image backfill".
+
+**GC + purge (Phase 8, migration `0026`).** Two workers (built in `cmd/server`, both disabled when
+R2/Cloudflare are unset):
+
+- **GC sweeper** (`internal/media/sweeper.go`) — reclaims orphaned uploads: every DRAFT older than the
+  24 h draft TTL gets its R2 object deleted (`r2.DeleteObject`, presigned DELETE) then its row dropped.
+  Runs every 6 h; the admin `POST /media/gc` runs one synchronous pass (`contracts.Sweeper`). Scans via
+  the `0025` `media_assets_status_idx (status, created_at desc)`.
+- **CDN purge worker** (`internal/media/purger.go`) — `LISTEN media_updated` on a dedicated connection
+  and purges the affected CDN URL. `0025` emits on insert/update; `0026` adds a DELETE trigger
+  (`media.notify_asset_delete`) carrying the OLD `r2_key` so a removed/reclaimed asset stops serving
+  from the edge. The purge is a Cloudflare `purge_cache` call (`internal/platform/cloudflare`), enabled
+  by `CF_ZONE_ID` + `CF_API_TOKEN` (≤30 files/request; best-effort — a disabled purger just lets the
+  Cache Rule expire). This is why content-addressed keys can still be invalidated on moderation/delete.

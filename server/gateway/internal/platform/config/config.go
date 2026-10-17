@@ -27,6 +27,10 @@ type Config struct {
 	R2PublicBucket  string
 	R2PrivateBucket string
 	R2CDNBase       string
+	// Cloudflare purge (media GC/moderation). When ZoneID or APIToken is unset, CDN purge is disabled
+	// (content expires via its Cache Rule instead) — never a broken call.
+	CFZoneID   string
+	CFAPIToken string
 	// Razorpay (bookings): secrets are env-only and never committed. When KeyID/KeySecret are empty
 	// the bookings context stays in mock mode (orders are simulated; no network calls).
 	RazorpayKeyID         string
@@ -62,6 +66,8 @@ func Load() Config {
 		R2PublicBucket:        env("R2_PUBLIC_BUCKET", "faazio-public"),
 		R2PrivateBucket:       env("R2_PRIVATE_BUCKET", "faazio-private"),
 		R2CDNBase:             env("R2_CDN_BASE", "https://img.faazio.in"),
+		CFZoneID:              env("CF_ZONE_ID", ""),
+		CFAPIToken:            env("CF_API_TOKEN", ""),
 		RazorpayKeyID:         env("RAZORPAY_KEY_ID", ""),
 		RazorpayKeySecret:     env("RAZORPAY_KEY_SECRET", ""),
 		RazorpayWebhookSecret: env("RAZORPAY_WEBHOOK_SECRET", ""),

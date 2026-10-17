@@ -78,10 +78,23 @@ CI runs the full suite with Postgres + Valkey service containers
 | `GET /sdui/home?locale=` | — | sdui |
 | `POST /media/upload-url` · `POST /media/confirm` · `GET /media/private/{id}` | ✔ | media |
 | `GET /media/resolve?ids=` | — | media |
-| `PUT /media/{id}/status` · `DELETE /media/{id}` | admin | media |
+| `PUT /media/{id}/status` · `DELETE /media/{id}` · `POST /media/gc` | admin | media |
 
 Auth: `Authorization: Bearer <supabase-jwt>` (HS256). Local dev: `AUTH_DISABLED=true`
 and `X-Dev-User` / `DEV_USER_ID`.
+
+## Media workers
+
+Two background workers run alongside the HTTP server (built in `cmd/server`), both disabled when
+R2/Cloudflare credentials are unset:
+
+- **GC sweeper** (`internal/media/sweeper.go`) — reclaims orphaned `DRAFT` assets past the 24 h draft
+  TTL: deletes the R2 object then the registry row. Runs every 6 h; the admin `POST /media/gc` runs one
+  synchronous pass (503 when unconfigured).
+- **CDN purge worker** (`internal/media/purger.go`) — `LISTEN media_updated` (a `pg_notify` from
+  `media.assets` on insert/update/delete) and purges the asset's CDN URL so an immutable-key cache can
+  still be invalidated on moderation/removal. Purge is a Cloudflare `purge_cache` call, enabled by
+  `CF_ZONE_ID` + `CF_API_TOKEN`.
 
 ## Boundaries
 

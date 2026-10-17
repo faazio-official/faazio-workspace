@@ -100,3 +100,27 @@ func TestURIEncode(t *testing.T) {
 		t.Fatalf("uriEncode keepSlash = %q", got)
 	}
 }
+
+func TestPresignDeleteShape(t *testing.T) {
+	s := testSigner()
+	got, err := s.PresignDelete(context.Background(), "faazio-public", "media/ab/abcd.jpg", time.Minute)
+	if err != nil {
+		t.Fatalf("PresignDelete: %v", err)
+	}
+	for _, want := range []string{
+		"https://acct123.r2.cloudflarestorage.com/faazio-public/media/ab/abcd.jpg?",
+		"X-Amz-Credential=AKIAEXAMPLE%2F20260102%2Fauto%2Fs3%2Faws4_request",
+		"&X-Amz-Signature=",
+	} {
+		if !strings.Contains(got, want) {
+			t.Fatalf("presigned DELETE missing %q:\n%s", want, got)
+		}
+	}
+}
+
+func TestDeleteObjectDisabledSigner(t *testing.T) {
+	var nilSigner *Signer
+	if err := nilSigner.DeleteObject(context.Background(), "b", "k"); !errors.Is(err, ErrDisabled) {
+		t.Fatalf("nil DeleteObject err = %v, want ErrDisabled", err)
+	}
+}

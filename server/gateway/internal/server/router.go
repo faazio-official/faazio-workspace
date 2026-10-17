@@ -50,6 +50,11 @@ type Deps struct {
 	// Drainer runs one synchronous notification-outbox drain for the manual admin trigger. Optional
 	// (nil disables POST /notifications/drain).
 	Drainer contracts.Drainer
+	// Signer is the shared R2 presigner (nil when credentials are unset → media disabled). Built in
+	// main so the media workers and every context share one signing path.
+	Signer *r2.Signer
+	// Sweeper runs one media GC pass for the manual admin trigger. Optional (nil disables POST /media/gc).
+	Sweeper contracts.Sweeper
 }
 
 // NewRouter builds the HTTP router with all contexts mounted.
@@ -75,16 +80,9 @@ func NewRouter(d Deps) http.Handler {
 	rewardsRepo := rewards.New(d.Pool)
 	recoRepo := reco.New(d.Mongo)
 	pharmaRepo := pharma.New(d.Pool)
-	// R2 signer: nil when credentials are unset (media disabled). One signing path shared by the media
-	// registry, pharma Rx and (later) seller KYC.
-	r2Signer := r2.New(r2.Config{
-		AccountID:     d.Config.R2AccountID,
-		AccessKeyID:   d.Config.R2AccessKeyID,
-		SecretKey:     d.Config.R2SecretKey,
-		PublicBucket:  d.Config.R2PublicBucket,
-		PrivateBucket: d.Config.R2PrivateBucket,
-		CDNBase:       d.Config.R2CDNBase,
-	})
+	// R2 signer is built in main (shared with the media GC/purge workers); nil when credentials are
+	// unset (media disabled). One signing path for the media registry, pharma Rx and seller KYC.
+	r2Signer := d.Signer
 	// Rx images prefer the R2 private bucket; fall back to Supabase Storage when R2 is off.
 	pharmaStorage := pharma.NewR2Storage(r2Signer)
 	if pharmaStorage == nil {
@@ -150,7 +148,7 @@ func NewRouter(d Deps) http.Handler {
 	ads.NewHandler(adsRepo, d.Cache, adminsRepo).Register(r)
 	settlement.NewHandler(settlementRepo, d.Cache, adminsRepo).Register(r)
 	support.NewHandler(supportRepo, adminsRepo).Register(r)
-	media.NewHandler(mediaRepo, r2Signer, d.Cache, adminsRepo).Register(r)
+	media.NewHandler(mediaRepo, r2Signer, d.Cache, adminsRepo, d.Sweeper).Register(r)
 
 	return r
 }

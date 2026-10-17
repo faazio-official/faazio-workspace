@@ -407,6 +407,13 @@ type Drainer interface {
 	DrainOnce(ctx context.Context) error
 }
 
+// Sweeper runs one media GC pass — deletes orphaned DRAFT assets (R2 object + registry row) past the
+// draft TTL (implemented by media.Sweeper). The admin endpoint uses it as a manual MVP trigger when no
+// background worker is deployed; it returns the number of assets reclaimed.
+type Sweeper interface {
+	SweepOnce(ctx context.Context) (int, error)
+}
+
 // HomeSection is a compiled Home section (SduiSection + joined products/stores).
 type HomeSection struct {
 	SduiSection

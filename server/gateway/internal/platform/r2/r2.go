@@ -17,6 +17,8 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"errors"
+	"fmt"
+	"net/http"
 	"sort"
 	"strconv"
 	"strings"
@@ -25,6 +27,10 @@ import (
 
 // ErrDisabled is returned when R2 credentials are not configured.
 var ErrDisabled = errors.New("r2 not configured")
+
+// httpClient is the shared client for server-initiated object operations (GC deletes). Bytes never
+// proxy through the gateway in normal upload/read flows — only a server-side delete is initiated here.
+var httpClient = &http.Client{Timeout: 15 * time.Second}
 
 // Config holds R2 credentials + bucket/domain settings.
 type Config struct {
@@ -119,6 +125,37 @@ func (s *Signer) PresignPut(_ context.Context, bucket, key string, expires time.
 // PresignGet returns a short-lived presigned GET URL (private buckets only; public objects use PublicURL).
 func (s *Signer) PresignGet(_ context.Context, bucket, key string, expires time.Duration) (string, error) {
 	return s.presign("GET", bucket, key, expires)
+}
+
+// PresignDelete returns a short-lived presigned DELETE URL (GC of orphaned objects).
+func (s *Signer) PresignDelete(_ context.Context, bucket, key string, expires time.Duration) (string, error) {
+	return s.presign("DELETE", bucket, key, expires)
+}
+
+// DeleteObject removes an object from R2 by issuing a presigned DELETE. It is the one server-initiated
+// object write (the media GC sweeper); a nil signer returns ErrDisabled. A 404 is treated as success
+// (idempotent — the object is already gone).
+func (s *Signer) DeleteObject(ctx context.Context, bucket, key string) error {
+	url, err := s.PresignDelete(ctx, bucket, key, time.Minute)
+	if err != nil {
+		return err
+	}
+	req, err := http.NewRequestWithContext(ctx, http.MethodDelete, url, nil)
+	if err != nil {
+		return err
+	}
+	res, err := httpClient.Do(req)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = res.Body.Close() }()
+	if res.StatusCode == http.StatusNotFound {
+		return nil
+	}
+	if res.StatusCode < 200 || res.StatusCode >= 300 {
+		return fmt.Errorf("r2: delete object returned %d", res.StatusCode)
+	}
+	return nil
 }
 
 // Expiry caps a requested TTL to (0, 300s] and applies the 300s default — presigned URLs are always

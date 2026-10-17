@@ -1,0 +1,158 @@
+#!/usr/bin/env node
+/**
+ * Phase 7 — one-shot R2 backfill of the unsplash seed images.
+ *
+ * For every distinct product/store/menu image in the compiled `@data/*` graph this script:
+ *   1. downloads the image (forcing JPEG content negotiation),
+ *   2. sha256-hashes the bytes → deterministic `media/{hash:2}/{hash}.jpg` key + `img_<16hex>` id
+ *      (identical to the gateway's `internal/media` minting),
+ *   3. PUTs the bytes to the public R2 bucket via a presigned URL (Node SigV4, no AWS SDK),
+ *   4. records the mapping in `seed/media_manifest.json` and writes `seed/backfill_media.sql`
+ *      (idempotent `media.assets` insert + owner `image_key`/`*_asset_id` links for an existing DB).
+ *
+ * After running, re-run `generate.mjs` so the committed `0001_seed.sql` also emits the
+ * `media.assets` rows + `image_key` links (a fresh deploy then seeds R2-backed images).
+ *
+ * Requires `R2_ACCOUNT_ID` / `R2_ACCESS_KEY_ID` / `R2_SECRET_ACCESS_KEY` (and optionally
+ * `R2_PUBLIC_BUCKET` / `R2_CDN_BASE`). Authority: docs/RUNBOOKS/DATA_FIXTURES.md "R2 image backfill",
+ * docs/architecture/db-schema.md §12.16.
+ *
+ *   node server/supabase/seed/backfill_r2.mjs [--dry-run] [--manifest-only] [--limit N] [--concurrency N]
+ */
+import { writeFileSync } from 'node:fs';
+import { join } from 'node:path';
+import { buildData, cleanData, seedDir } from './lib/databuild.mjs';
+import { DEFAULT_KIND, DEFAULT_STATUS, MIME_TO_EXT, SEED_ACTOR } from './lib/constants.mjs';
+import {
+  assetRowsFromManifest, assetsInsertSql, collectImageRefs, fetchUrl, idForHash, keyForHash,
+  loadManifest, MANIFEST_VERSION, manifestKey, ownerLinkSql, parseDims, saveManifest,
+} from './lib/mediaplan.mjs';
+import { presignPut, r2ConfigFromEnv, publicUrl, sha256Hex } from './lib/r2.mjs';
+
+const args = parseArgs(process.argv.slice(2));
+const manifestPath = join(seedDir, 'media_manifest.json');
+const sqlPath = join(seedDir, 'backfill_media.sql');
+
+const cfg = r2ConfigFromEnv();
+if (!args.dryRun && !args.manifestOnly && !cfg) {
+  console.error('R2 credentials missing — set R2_ACCOUNT_ID / R2_ACCESS_KEY_ID / R2_SECRET_ACCESS_KEY');
+  process.exit(1);
+}
+const bucket = cfg?.publicBucket ?? 'faazio-public';
+
+const d = buildData();
+const refs = collectImageRefs(d);
+cleanData();
+
+// First ref wins the asset's owner (assets are content-shared, so the owner is representative).
+const ownerByUrl = new Map();
+for (const ref of refs) if (!ownerByUrl.has(ref.url)) ownerByUrl.set(ref.url, ref);
+
+const urls = [...new Set(refs.map((r) => r.url))].slice(0, args.limit ?? Infinity);
+console.log(`backfill: ${urls.length} distinct images (${refs.length} references), bucket=${bucket}${args.dryRun ? ' [dry-run]' : ''}`);
+
+const prior = loadManifest(manifestPath);
+const entries = { ...(prior?.entries ?? {}) };
+const byHash = new Map(Object.entries(entries).map(([u, e]) => [e.hash, u]));
+
+if (!args.manifestOnly) {
+  let done = 0, skipped = 0, failed = 0;
+  await pool(urls, args.concurrency, async (url) => {
+    const known = entries[manifestKey(url)];
+    if (known) { skipped++; return; }
+    try {
+      const res = await fetch(fetchUrl(url));
+      if (!res.ok) throw new Error(`GET ${res.status}`);
+      const buf = Buffer.from(await res.arrayBuffer());
+      const hash = sha256Hex(buf);
+      const { width, height } = parseDims(url);
+      const mime = normaliseMime(res.headers.get('content-type'));
+      const ext = MIME_TO_EXT[mime] ?? 'jpg';
+      const key = keyForHash(hash, ext);
+      const id = idForHash(hash);
+      const owner = ownerByUrl.get(url) ?? {};
+
+      // Same bytes seen already → reuse the asset, just map this url to it.
+      if (!byHash.has(hash)) {
+        if (!args.dryRun) {
+          const uploadUrl = presignPut(cfg, bucket, key, 300);
+          const put = await fetch(uploadUrl, { method: 'PUT', headers: { 'content-type': mime }, body: buf });
+          if (!put.ok) throw new Error(`PUT ${put.status} ${await put.text().catch(() => '')}`.trim());
+        }
+        byHash.set(hash, url);
+      }
+      entries[manifestKey(url)] = {
+        id, key, hash, mime, bytes: buf.length, width, height, bucket,
+        kind: DEFAULT_KIND, status: DEFAULT_STATUS, createdBy: SEED_ACTOR,
+        ownerType: owner.ownerType ?? '', ownerId: owner.ownerId ?? '',
+      };
+      done++;
+      if (done % 25 === 0) console.log(`  … ${done} uploaded`);
+    } catch (err) {
+      failed++;
+      console.error(`  ! ${url}: ${err.message}`);
+    }
+  });
+  console.log(`backfill: uploaded ${done}, cached ${skipped}, failed ${failed}`);
+}
+
+const manifest = {
+  version: MANIFEST_VERSION,
+  generatedAt: new Date().toISOString(),
+  bucket,
+  cdnBase: cfg?.cdnBase ?? '',
+  source: 'server/supabase/seed/backfill_r2.mjs',
+  entries,
+};
+saveManifest(manifestPath, manifest);
+
+const assetRows = assetRowsFromManifest(manifest);
+const sql = [
+  '-- Faazio media backfill — generated by server/supabase/seed/backfill_r2.mjs. Do not edit by hand.',
+  `-- ${assetRows.length} media.assets rows; links product/store/menu image_key/…_asset_id.`,
+  `-- CDN base: ${manifest.cdnBase || '(unset)'}  ·  bucket: ${bucket}  ·  ${manifest.generatedAt}`,
+  'begin;',
+  '',
+  assetsInsertSql(assetRows),
+  '-- owner links (existing rows)',
+  ownerLinkSql(refs, manifest),
+  '',
+  'commit;',
+  '',
+].join('\n');
+writeFileSync(sqlPath, sql);
+
+const sample = assetRows[0] ? `  e.g. ${assetRows[0].key} → ${publicUrl(cfg ?? { cdnBase: manifest.cdnBase }, assetRows[0].key)}` : '';
+console.log(`wrote ${manifestPath} (${Object.keys(entries).length} urls, ${assetRows.length} assets)`);
+console.log(`wrote ${sqlPath}\n${sample}`);
+
+// ---------------------------------------------------------------- helpers
+
+function parseArgs(argv) {
+  const out = { dryRun: false, manifestOnly: false, limit: null, concurrency: 8 };
+  for (let i = 0; i < argv.length; i++) {
+    const a = argv[i];
+    if (a === '--dry-run') out.dryRun = true;
+    else if (a === '--manifest-only') out.manifestOnly = true;
+    else if (a === '--limit') out.limit = Number(argv[++i]);
+    else if (a === '--concurrency') out.concurrency = Math.max(1, Number(argv[++i]) || 1);
+  }
+  return out;
+}
+
+/** Run `fn` over `items` with a bounded concurrency pool. */
+async function pool(items, size, fn) {
+  let next = 0;
+  const workers = Array.from({ length: Math.min(size, items.length) }, async () => {
+    while (next < items.length) {
+      const i = next++;
+      await fn(items[i]);
+    }
+  });
+  await Promise.all(workers);
+}
+
+function normaliseMime(ct) {
+  const m = String(ct ?? '').split(';')[0].trim().toLowerCase();
+  return MIME_TO_EXT[m] ? m : 'image/jpeg';
+}
