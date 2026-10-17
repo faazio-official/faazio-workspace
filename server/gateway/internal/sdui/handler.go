@@ -23,9 +23,10 @@ func NewHandler(service *Service, audit contracts.AuditWriter) *Handler {
 	return &Handler{service: service, audit: audit}
 }
 
-// Register mounts the public Home feed and the super-admin layout editor onto the shared router.
+// Register mounts the public Home feed, the Mart-only projection, and the super-admin layout editor.
 func (h *Handler) Register(r chi.Router) {
 	r.Get("/sdui/home", h.home)
+	r.Get("/sdui/mart", h.mart)
 	r.Group(func(g chi.Router) {
 		g.Use(auth.RequireRole(auth.RoleSuperAdmin))
 		g.Get("/admin/sdui/home", h.adminGetHome)
@@ -40,8 +41,25 @@ func (h *Handler) home(w http.ResponseWriter, r *http.Request) {
 		httpx.Fail(w, http.StatusServiceUnavailable, "sdui_unavailable", "home feed unavailable")
 		return
 	}
-	// The layout version is the ETag source: a publish bump turns repeat polls into 304s.
-	etag := fmt.Sprintf(`"home-v%d"`, version)
+	h.writeFeed(w, r, "home", sections, version)
+}
+
+// mart serves only the Mart rails (martHero/martDeals/martEssentials), so the Mart screen gets a
+// small payload and its own ETag instead of downloading the whole Home feed.
+func (h *Handler) mart(w http.ResponseWriter, r *http.Request) {
+	locale := r.URL.Query().Get("locale")
+	sections, version, err := h.service.Mart(r.Context(), locale)
+	if err != nil {
+		httpx.Fail(w, http.StatusServiceUnavailable, "sdui_unavailable", "mart feed unavailable")
+		return
+	}
+	h.writeFeed(w, r, "mart", sections, version)
+}
+
+// writeFeed emits the compiled feed with its version-derived ETag and answers If-None-Match with a
+// 304. A publish bump turns repeat polls into 304s.
+func (h *Handler) writeFeed(w http.ResponseWriter, r *http.Request, tag string, sections []contracts.HomeSection, version int64) {
+	etag := fmt.Sprintf(`"%s-v%d"`, tag, version)
 	w.Header().Set("ETag", etag)
 	if ifNoneMatch(r.Header.Get("If-None-Match"), etag) {
 		w.WriteHeader(http.StatusNotModified)

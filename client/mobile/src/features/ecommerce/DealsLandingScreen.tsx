@@ -24,18 +24,22 @@ const SCREEN_W = Dimensions.get('window').width;
 const GRID_CARD_W = (SCREEN_W - hs(32) - CARD_GAP) / 2;
 
 /**
- * Deals landing page — one page, two entry modes:
+ * Deals landing page — one page, four entry modes:
  * - `campaign`: a brand campaign's full product grid (from the Home "Deals of the
  *   day" carousel "View all").
  * - `discounts`: a vendor's discounted products (from the Mart vendor profile
  *   "View All").
+ * - `martDeals` / `martEssentials`: a Mart rail's full product list (from the rail
+ *   "View All"), catalog-resolved from the passed `productIds`.
  */
 export function DealsLandingScreen({ navigation, route }: Props) {
-  const { mode, campaignId, storeId } = route.params;
+  const { mode, campaignId, storeId, productIds, title: routeTitle } = route.params;
   const insets = useSafeAreaInsets();
   const cartItems = useCartStore((s) => s.cart);
   const addToCart = useCartStore((s) => s.addToCart);
   const updateQuantity = useCartStore((s) => s.updateQuantity);
+
+  const isListMode = mode === 'martDeals' || mode === 'martEssentials';
 
   const campaign = useMemo(
     () => (mode === 'campaign' ? adCampaigns.find((c) => c.id === campaignId) : undefined),
@@ -51,8 +55,9 @@ export function DealsLandingScreen({ navigation, route }: Props) {
   );
 
   // `discounts` mode reads the vendor's ACTIVE catalog rows from the server (the same
-// `GET /stores/{id}/products` the vendor drill-in uses); the `@data` local pool is the offline
-// fallback inside `GatewayClient`. `campaign` mode stays on the Home-owned `@data` campaigns.
+  // `GET /stores/{id}/products` the vendor drill-in uses); `martDeals`/`martEssentials` resolve the
+  // explicit id list through the batch catalog read. The `@data` local pool is the offline fallback
+  // inside `GatewayClient`. `campaign` mode stays on the Home-owned `@data` campaigns.
   const [storeProducts, setStoreProducts] = useState<Product[]>([]);
   useEffect(() => {
     if (mode !== 'discounts' || !store) {
@@ -71,12 +76,31 @@ export function DealsLandingScreen({ navigation, route }: Props) {
     };
   }, [mode, store]);
 
+  const [listProducts, setListProducts] = useState<Product[]>([]);
+  useEffect(() => {
+    if (!isListMode || !productIds?.length) {
+      setListProducts([]);
+      return;
+    }
+    let active = true;
+    gateway
+      .getProductsByIds(productIds)
+      .then((rows) => {
+        if (active) setListProducts(rows as unknown as Product[]);
+      })
+      .catch(() => undefined);
+    return () => {
+      active = false;
+    };
+  }, [isListMode, productIds]);
+
   const baseProducts = useMemo<Product[]>(() => {
     if (mode === 'campaign') return campaign ? getCampaignProducts(campaign) : [];
+    if (isListMode) return listProducts;
     // The full vendor pool (not just fixture-discounted rows) so an approved festival opt-in on a
     // product without an authored MRP still surfaces once the server discount is overlaid.
     return storeProducts;
-  }, [mode, campaign, storeProducts]);
+  }, [mode, campaign, isListMode, listProducts, storeProducts]);
 
   // Overlay server-owned festival discounts (no-op in mock mode / when none apply), then keep only
   // what is actually on offer in `discounts` mode (authored MRP or an active opt-in).
@@ -129,7 +153,33 @@ export function DealsLandingScreen({ navigation, route }: Props) {
     );
   }
 
-  const title = mode === 'campaign' ? (campaignStore?.name ?? '') : (store?.name ?? '');
+  const title =
+    mode === 'campaign'
+      ? (campaignStore?.name ?? '')
+      : mode === 'discounts'
+        ? (store?.name ?? '')
+        : (routeTitle ?? (mode === 'martDeals' ? 'Deals of the Day' : 'Daily Essentials'));
+
+  // Paid sector rail (SECTOR_RAIL) — same ad-server fill/labelling as the Home rail.
+  const sectorRail = (
+    <SponsoredRail
+      placement="SECTOR_RAIL"
+      onProductClick={handleProductPress}
+      addToCart={addToCart}
+      renderCard={(product, h) => (
+        <MartProductCard
+          key={product.id}
+          product={product as unknown as Product}
+          width={GRID_CARD_W}
+          variant="rail"
+          showAdLabel
+          isAdded={h.isAdded}
+          onPress={h.onPress}
+          onAdd={h.onAdd}
+        />
+      )}
+    />
+  );
 
   return (
     <View style={styles.container}>
@@ -168,25 +218,10 @@ export function DealsLandingScreen({ navigation, route }: Props) {
                 <AppText style={styles.heroBrand}>{store?.name}</AppText>
                 <AppText style={styles.heroSub}>Discounted Products</AppText>
               </View>
-              {/* Paid sector rail (SECTOR_RAIL) — same ad-server fill/labelling as the Home rail. */}
-              <SponsoredRail
-                placement="SECTOR_RAIL"
-                onProductClick={handleProductPress}
-                addToCart={addToCart}
-                renderCard={(product, h) => (
-                  <MartProductCard
-                    key={product.id}
-                    product={product as unknown as Product}
-                    width={GRID_CARD_W}
-                    variant="rail"
-                    showAdLabel
-                    isAdded={h.isAdded}
-                    onPress={h.onPress}
-                    onAdd={h.onAdd}
-                  />
-                )}
-              />
+              {sectorRail}
             </View>
+          ) : isListMode ? (
+            sectorRail
           ) : null
         }
         ListEmptyComponent={

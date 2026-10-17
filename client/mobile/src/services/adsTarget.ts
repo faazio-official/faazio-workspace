@@ -53,3 +53,26 @@ export async function openHeroTarget(ad: HeroAd, handlers: HeroTargetHandlers): 
     // best-effort — never block the tap on a failed resolve
   }
 }
+
+/**
+ * Resolve an organic (unpaid) product tap to its canonical catalog row before opening the PDP.
+ * The server row is authoritative, so a renamed/redacted product never leaves the shopper on a
+ * stale copy; offline (or an unresolvable id) falls back to the caller's local projection. Used by
+ * the Mart deal/essential rails so their tap-through matches the paid hero's resolver.
+ */
+export async function openCatalogTarget(
+  productId: string,
+  handlers: { onProduct: (product: unknown) => void },
+  fallback: () => unknown,
+): Promise<void> {
+  try {
+    const res = await gateway.getProduct(productId);
+    if (res?.product) {
+      handlers.onProduct(res.product);
+      return;
+    }
+  } catch {
+    // fall through to the local projection
+  }
+  handlers.onProduct(fallback());
+}

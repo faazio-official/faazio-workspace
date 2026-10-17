@@ -14,7 +14,7 @@ import type { StoreProfile } from '@data/types';
 export interface MartFeed {
   deals: MartDeal[];
   dailyEssentials: MartEssential[];
-  /** Editorial house hero (`martHero.banners` from `GET /sdui/home`); paid MART_HERO renders first. */
+  /** Editorial house hero (`martHero.banners` from `GET /sdui/mart`); paid MART_HERO renders first. */
   heroBanners: SduiBanner[];
   localVendors: StoreProfile[];
 }
@@ -34,6 +34,29 @@ function overlayDeal(deal: MartDeal, product?: ProductView): MartDeal {
     originalPrice: product.originalPrice ?? deal.originalPrice,
     rating: product.rating ?? deal.rating,
     imageUrl: product.image || deal.imageUrl,
+  };
+}
+
+/** Project one catalog row onto a Mart deal card when no authored `md-*` copy exists (a portal
+ *  re-merchandise of an arbitrary product). Mirrors `essentialFromProduct`; money is the server's.
+ */
+function dealFromProduct(p: ProductView): MartDeal {
+  const original = p.originalPrice && p.originalPrice > p.price ? p.originalPrice : p.price;
+  const brand = p.shop ?? (typeof p.attributes?.brand === 'string' ? p.attributes.brand : '');
+  const size = p.unit ?? (typeof p.attributes?.packSize === 'string' ? p.attributes.packSize : '');
+  const discountTag =
+    p.badge ?? (original > p.price ? `${Math.round((1 - p.price / original) * 100)}% OFF` : '');
+  return {
+    id: p.id,
+    brand,
+    name: p.name,
+    size,
+    price: p.price,
+    originalPrice: original,
+    discountTag,
+    rating: p.rating,
+    imageUrl: p.image,
+    emoji: p.emoji,
   };
 }
 
@@ -98,35 +121,42 @@ export function priceEssentials(
 }
 
 /**
- * Mart home feed. Vendors are **server-backed** (`directory.stores`, app=MART) and the `md-*`
- * deals resolve through the catalog (`catalog.products` via `getProductsByIds`). The daily-essentials
- * rail is **server-controlled** through the Mongo SDUI home doc (`martEssentials.productIds`) via
- * `GET /sdui/home`, so merchandising is portal-editable without a release. The Mart hero is paid
- * first (`MART_HERO` from `GET /ads/hero`); `martHero.banners` is the editorial **house fallback**
- * rendered only when there is no LIVE fill (`CampaignHero fallback`). Never fabricated — empty when
- * the SDUI doc has no banners. Every leg degrades to the local fixture independently (partial render)
- * so one failing route never blanks the feed; the whole body is guarded so the caller never sees a
+ * Mart home feed. Vendors are **server-backed** (`directory.stores`, app=MART). The `martDeals` and
+ * `martEssentials` rails are **server-controlled** through the Mongo SDUI home doc
+ * (`martDeals.productIds` / `martEssentials.productIds`) via `GET /sdui/mart`, so merchandising is
+ * portal-editable without a release (the `md-*`/`gr-*` fixtures are offline first-paint fallbacks
+ * only). The Mart hero is paid first (`MART_HERO` from `GET /ads/hero`); `martHero.banners` is the
+ * editorial **house fallback** rendered only when there is no LIVE fill (`CampaignHero fallback`).
+ * Never fabricated — absent section → fixture, present-but-empty section → empty (a portal typo is
+ * visible, not masked). Every leg degrades to the local fixture independently (partial render) so
+ * one failing route never blanks the feed; the whole body is guarded so the caller never sees a
  * rejected promise (fixes skeleton-forever).
  */
 export async function fetchMartFeed(): Promise<MartFeed> {
   try {
-    const [feed, localVendors, dealProducts] = await Promise.all([
-      gateway.getHomeFeed().catch(() => []),
-      gateway.getStores('MART').catch(() => [] as StoreProfile[]),
-      gateway.getProductsByIds(MART_DEALS.map((d) => d.id)).catch(() => [] as ProductView[]),
+    // `getMartFeed`/`getStores` never reject (withFallback → fixture), so no per-leg catch is needed.
+    const [feed, localVendors] = await Promise.all([
+      gateway.getMartFeed(),
+      gateway.getStores('MART'),
     ]);
 
+    const dealsSection = martSection(feed, 'martDeals');
     const essentials = martSection(feed, 'martEssentials');
     const hero = martSection(feed, 'martHero');
 
-    const dailyEssentials =
-      essentials?.products?.length
-        ? essentials.products.map(essentialFromProduct)
-        : MART_DAILY_ESSENTIALS;
+    const authoredById = new Map(MART_DEALS.map((d) => [d.id, d]));
+    // Section present → trust its joined products (authored copy overlaid when the row is known);
+    // section absent (offline / older doc) → the local fixture.
+    const deals = dealsSection
+      ? dealsSection.products.map((p) => overlayDeal(authoredById.get(p.id) ?? dealFromProduct(p), p))
+      : MART_DEALS;
 
-    const byId = new Map(dealProducts.map((p) => [p.id, p]));
+    const dailyEssentials = essentials
+      ? essentials.products.map(essentialFromProduct)
+      : MART_DAILY_ESSENTIALS;
+
     return {
-      deals: MART_DEALS.map((d) => overlayDeal(d, byId.get(d.id))),
+      deals,
       dailyEssentials,
       heroBanners: hero?.banners ?? [],
       localVendors,

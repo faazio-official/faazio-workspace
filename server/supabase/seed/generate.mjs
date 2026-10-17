@@ -86,7 +86,11 @@ const SPONSORED_SLOTS = [
   { slotId: 'ad-demo-home-1', sellerId: 'sel-3', productId: 'fm-m1', placement: 'HOME_TOP' },
   { slotId: 'ad-demo-home-2', sellerId: 'sel-3', productId: 'fm-m2', placement: 'HOME_TOP' },
   { slotId: 'ad-demo-home-3', sellerId: 'sel-3', productId: 'fm-gad10', placement: 'HOME_TOP' },
+  // Three LIVE SPONSORED_SHOWCASE rows so the Mart paid shelf demonstrates a real multi-card fill
+  // instead of collapsing to null (a single row looked like a bug in QA).
   { slotId: 'ad-demo-showcase-1', sellerId: 'sel-3', productId: 'fm-b1', placement: 'SPONSORED_SHOWCASE' },
+  { slotId: 'ad-demo-showcase-2', sellerId: 'sel-3', productId: 'fm-b2', placement: 'SPONSORED_SHOWCASE' },
+  { slotId: 'ad-demo-showcase-3', sellerId: 'sel-3', productId: 'fm-gad10', placement: 'SPONSORED_SHOWCASE' },
   { slotId: 'ad-demo-sector-1', sellerId: 'sel-3', productId: 'fm-s1', placement: 'SECTOR_RAIL' },
 ];
 
@@ -447,40 +451,17 @@ sql.push(inserts(
 sql.push('commit;');
 sql.push('');
 
-// ---------------------------------------------------------------- Mart SDUI sections (W38)
-// The two Mart rails live only in the Mongo SDUI home doc — their banner copy/images are the client
-// `martHomeFeed` fixture, not `@data` — so the seed generator owns them. They are spliced into the
-// Home sections to match the published order: `martHero` above `adBanner`, `martEssentials` right
-// after `dealsOfDay`. App `HomeView` skips unknown ids (default → null); Mart reads them via
-// `martService.fetchMartFeed`. Previously hand-edited into sdui_layouts.json, which `generate.mjs`
-// could not reproduce (seed ↔ committed drift).
-const MART_SDUI = {
-  hero: {
-    id: 'martHero', title: 'Mart Highlights', subtitle: null, accent: '#F25C3D',
-    productIds: [], storeIds: [], chips: [],
-    banners: [
-      { id: 'hb-1', title: 'Big Savings Everyday', subtitle: 'UP TO 50% OFF', accent: '#FFF8D6', imageUrl: 'https://images.unsplash.com/photo-1542838132-92c53300491e?fm=jpg&fit=crop&q=80&w=400&h=400' },
-      { id: 'hb-2', title: 'Fresh Groceries Doorstep', subtitle: 'FREE DELIVERY', accent: '#E8F5E9', imageUrl: 'https://images.unsplash.com/photo-1579113800032-c38bd1625818?fm=jpg&fit=crop&q=80&w=400&h=400' },
-      { id: 'hb-3', title: 'Electronics Mega Sale', subtitle: 'FLAT 40% OFF', accent: '#FFF3E0', imageUrl: 'https://images.unsplash.com/photo-1498050108023-c5249f4df085?fm=jpg&fit=crop&q=80&w=400&h=400' },
-    ],
-  },
-  essentials: {
-    id: 'martEssentials', title: 'Daily Essentials', subtitle: null, accent: '#0F766E',
-    productIds: ['gr-p3', 'gr-p4', 'gr-p5', 'gr-p6', 'gr-p7'], storeIds: [], chips: [],
-  },
-};
-
+// ---------------------------------------------------------------- SDUI sections
+// The ID-only Home doc is `@data/home/sdui.ts` verbatim (single source). It now owns the Mart
+// sections too (`martHero` house banners + `martDeals`/`martEssentials` id lists), so the Mart feed
+// has one merchandising owner and the mock/remote shapes match exactly. `HomeView` skips unknown ids
+// (`default → null`); `martService.fetchMartFeed` is the only reader of the Mart sections.
 function buildSduiSections() {
-  const out = [];
-  for (const s of d.homeSdui) {
-    if (s.id === 'adBanner') out.push(MART_SDUI.hero);
-    out.push({
-      id: s.id, title: s.title, subtitle: s.subtitle ?? null, accent: s.accent,
-      productIds: s.productIds, storeIds: s.storeIds ?? [], chips: s.chips ?? [],
-    });
-    if (s.id === 'dealsOfDay') out.push(MART_SDUI.essentials);
-  }
-  return out;
+  return d.homeSdui.map((s) => ({
+    id: s.id, title: s.title, subtitle: s.subtitle ?? null, accent: s.accent,
+    productIds: s.productIds, storeIds: s.storeIds ?? [], chips: s.chips ?? [],
+    ...(s.banners && s.banners.length ? { banners: s.banners } : {}),
+  }));
 }
 
 // ---------------------------------------------------------------- lean-contract checks
@@ -551,15 +532,24 @@ function assertLeanContract() {
     if (h.placement === 'CATEGORY_TOP' && !h.category) violations.push(`hero ${h.placementId}: CATEGORY_TOP needs a category`);
     if (h.placement === 'STORE_TOP' && !h.storeId) violations.push(`hero ${h.placementId}: STORE_TOP needs a storeId`);
   }
-  // Mart SDUI essentials must reference real catalog rows — the app resolves them via getProductsByIds.
-  for (const id of MART_SDUI.essentials.productIds) {
-    if (!catalogIds.has(id)) violations.push(`martEssentials product ${id} not in catalogIndex`);
+  // Mart SDUI rails (`martDeals`/`martEssentials`) must reference real catalog rows — the app
+  // resolves them via getProductsByIds; a typo'd portal publish would silently fall back to the
+  // fixture instead of surfacing the error.
+  for (const section of d.homeSdui) {
+    if (section.id !== 'martDeals' && section.id !== 'martEssentials') continue;
+    for (const id of section.productIds) {
+      if (!catalogIds.has(id)) violations.push(`${section.id} product ${id} not in catalogIndex`);
+    }
   }
   // Mart SDUI house banners must satisfy the `internal/sdui` publish bounds (≤8 banners, image URL
   // ≤512) or a seeded/published doc would be rejected at PUT time and the house hero silently vanish.
-  if (MART_SDUI.hero.banners.length > 8) violations.push('martHero banners exceed the 8-banner bound');
-  for (const b of MART_SDUI.hero.banners) {
-    if (b.imageUrl && b.imageUrl.length > 512) violations.push(`martHero banner ${b.id}: imageUrl >512 chars`);
+  for (const section of d.homeSdui) {
+    if (section.id !== 'martHero') continue;
+    const banners = section.banners ?? [];
+    if (banners.length > 8) violations.push('martHero banners exceed the 8-banner bound');
+    for (const b of banners) {
+      if (b.imageUrl && b.imageUrl.length > 512) violations.push(`martHero banner ${b.id}: imageUrl >512 chars`);
+    }
   }
 
   if (violations.length) {

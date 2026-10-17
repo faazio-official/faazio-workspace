@@ -73,10 +73,29 @@ function chipProductIds(chipId: string): string[] {
 }
 
 export const homeSdui: SduiSection[] = [
+  // Mart-only sections live in the same Home doc so the Mart feed has one merchandising owner
+  // (super-admin SDUI editor) and the mock/remote shapes match exactly. `HomeView` skips unknown
+  // ids (`default → null`); `martService.fetchMartFeed` is the only reader. The `md-*`/`gr-*` ids
+  // are raw here (not `resolveProductIds`) so the seed generator can fail loudly on a typo.
+  {
+    id: 'martHero',
+    title: 'Mart Highlights',
+    accent: '#F25C3D',
+    productIds: [],
+    banners: [
+      { id: 'hb-1', title: 'Big Savings Everyday', subtitle: 'UP TO 50% OFF', accent: '#FFF8D6', imageUrl: 'https://images.unsplash.com/photo-1542838132-92c53300491e?fm=jpg&fit=crop&q=80&w=400&h=400' },
+      { id: 'hb-2', title: 'Fresh Groceries Doorstep', subtitle: 'FREE DELIVERY', accent: '#E8F5E9', imageUrl: 'https://images.unsplash.com/photo-1579113800032-c38bd1625818?fm=jpg&fit=crop&q=80&w=400&h=400' },
+      { id: 'hb-3', title: 'Electronics Mega Sale', subtitle: 'FLAT 40% OFF', accent: '#FFF3E0', imageUrl: 'https://images.unsplash.com/photo-1498050108023-c5249f4df085?fm=jpg&fit=crop&q=80&w=400&h=400' },
+    ],
+  },
   { id: 'adBanner', title: 'Offers', accent: '#111827', productIds: [] },
   { id: 'diningSpecials', title: "Today's Special", accent: '#1E5D44', productIds: [], storeIds: resolveStoreIds('FOOD') },
   { id: 'hotBrandDeals', title: 'Deals of the day', accent: '#1162D3', productIds: resolveProductIds(['hbd-1', 'hbd-2', 'hbd-3', 'hbd-4', 'hbd-5']) },
   { id: 'dealsOfDay', title: 'Daily Essentials', accent: '#F25C3D', productIds: resolveProductIds(['md-1', 'md-2', 'md-3', 'md-4', 'md-5', 'md-6']) },
+  // Mart "Deals of the Day" and "Daily Essentials" rails — portal-editable id lists (were split:
+  // Deals lived in code, Essentials in SDUI). Money is joined at compile time by the gateway.
+  { id: 'martDeals', title: 'Deals of the Day', accent: '#F25C3D', productIds: ['md-1', 'md-2', 'md-3', 'md-4', 'md-5', 'md-6'] },
+  { id: 'martEssentials', title: 'Daily Essentials', accent: '#0F766E', productIds: ['gr-p3', 'gr-p4', 'gr-p5', 'gr-p6', 'gr-p7'] },
   // Paid placement: the doc owns the slot order, the ad-server (`GET /ads/live`) owns the fill.
   // No productIds are baked in — the app resolves LIVE ads at render time (they expire).
   { id: 'sponsoredRail', title: 'Sponsored picks', accent: '#B45309', productIds: [] },

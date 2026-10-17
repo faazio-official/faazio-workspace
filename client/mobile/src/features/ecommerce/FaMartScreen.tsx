@@ -9,7 +9,7 @@ import { useCartStore } from '@/state/store';
 import type { Product, StoreProfile } from '@data/types';
 import type { RootStackParamList } from '@/navigation/types';
 import { gateway, type HeroAd } from '@/services/api/GatewayClient';
-import { openHeroTarget } from '@/services/adsTarget';
+import { openCatalogTarget, openHeroTarget } from '@/services/adsTarget';
 import { isDiscounted } from '@/services/categoryVendors';
 import { applyActiveDiscounts, useActiveDiscounts } from '@/services/pricing';
 import { trackProductView } from '@/services/productViews';
@@ -146,24 +146,31 @@ export function FaMartScreen({
   // overlaid, filtered to what is actually on offer (authored MRP or an active opt-in). Fetching
   // discounts for the full pool means an approved opt-in shows even when the product has no MRP
   // fixture. In mock mode `useActiveDiscounts` returns {} so only the authored MRP set shows.
-  const vendorDiscounts = useActiveDiscounts(vendorProducts.map((p) => p.id));
-  const discountedProducts = useMemo(
-    () => applyActiveDiscounts(vendorProducts, vendorDiscounts).filter(isDiscounted),
-    [vendorProducts, vendorDiscounts],
+  //
+  // The same price authority covers the whole feed: one batch `GET /promo/active-discounts` for the
+  // Deals rail, Daily Essentials and the vendor pool (and the paid shelf via the `discounts` prop) —
+  // one cache key, no post-paint price flicker, identical shopper price on every surface.
+  const discountIds = useMemo(
+    () => [
+      ...(feed?.deals ?? []).map((d) => d.id),
+      ...(feed?.dailyEssentials ?? []).map((i) => i.id),
+      ...vendorProducts.map((p) => p.id),
+    ],
+    [feed?.deals, feed?.dailyEssentials, vendorProducts],
   );
+  const discounts = useActiveDiscounts(discountIds);
 
-  // Same price authority across the feed: overlay any approved festival discount on the Deals and
-  // Daily-Essentials rails (the paid shelf + vendor drill-in already do this). Mock/offline → `{}`
-  // so base prices stand and no discount is invented.
-  const dealDiscounts = useActiveDiscounts((feed?.deals ?? []).map((d) => d.id));
-  const essentialDiscounts = useActiveDiscounts((feed?.dailyEssentials ?? []).map((i) => i.id));
+  const discountedProducts = useMemo(
+    () => applyActiveDiscounts(vendorProducts, discounts).filter(isDiscounted),
+    [vendorProducts, discounts],
+  );
   const pricedDeals = useMemo(
-    () => priceDeals(feed?.deals ?? [], dealDiscounts),
-    [feed?.deals, dealDiscounts],
+    () => priceDeals(feed?.deals ?? [], discounts),
+    [feed?.deals, discounts],
   );
   const pricedEssentials = useMemo(
-    () => priceEssentials(feed?.dailyEssentials ?? [], essentialDiscounts),
-    [feed?.dailyEssentials, essentialDiscounts],
+    () => priceEssentials(feed?.dailyEssentials ?? [], discounts),
+    [feed?.dailyEssentials, discounts],
   );
 
   const filteredVendorProducts = useMemo(
@@ -183,14 +190,19 @@ export function FaMartScreen({
 
   const handleDealPress = useCallback(
     (deal: MartDeal) => {
-      onProductClick?.(dealToProduct(deal));
+      // Canonical catalog row first (same resolver as the paid hero); local projection offline.
+      void openCatalogTarget(deal.id, { onProduct: (p) => onProductClick?.(p) }, () =>
+        dealToProduct(deal),
+      );
     },
     [onProductClick],
   );
 
   const handleEssentialPress = useCallback(
     (item: MartEssential) => {
-      onProductClick?.(essentialToProduct(item));
+      void openCatalogTarget(item.id, { onProduct: (p) => onProductClick?.(p) }, () =>
+        essentialToProduct(item),
+      );
     },
     [onProductClick],
   );
@@ -209,6 +221,23 @@ export function FaMartScreen({
   // Passive impressions for the two Mart feed rails (deduped per session by trackProductView).
   const handleDealView = useCallback((deal: MartDeal) => trackProductView(deal.id), []);
   const handleEssentialView = useCallback((item: MartEssential) => trackProductView(item.id), []);
+
+  // Rail "View All" → the Deals landing grid (server list mode, no Home-owned fixture).
+  const handleViewAllDeals = useCallback(() => {
+    navigation.navigate('DealsLanding', {
+      mode: 'martDeals',
+      productIds: pricedDeals.map((d) => d.id),
+      title: 'Deals of the Day',
+    });
+  }, [navigation, pricedDeals]);
+
+  const handleViewAllEssentials = useCallback(() => {
+    navigation.navigate('DealsLanding', {
+      mode: 'martEssentials',
+      productIds: pricedEssentials.map((i) => i.id),
+      title: 'Daily Essentials',
+    });
+  }, [navigation, pricedEssentials]);
 
   const feedSectionsData: { id: string; component: React.ReactNode }[] = [
     {
@@ -233,6 +262,7 @@ export function FaMartScreen({
           placement="SPONSORED_SHOWCASE"
           onProductClick={onProductClick}
           addToCart={addToCart}
+          discounts={discounts}
           renderCard={(product, h) => (
             <MartProductCard
               key={product.id}
@@ -248,8 +278,8 @@ export function FaMartScreen({
         />
       ),
     },
-    { id: 'deals', component: <DealsOfDayRail deals={pricedDeals} onDealPress={handleDealPress} onItemView={handleDealView} /> },
-    { id: 'essentials', component: <DailyEssentialsRail items={pricedEssentials} onItemPress={handleEssentialPress} onItemView={handleEssentialView} /> },
+    { id: 'deals', component: <DealsOfDayRail deals={pricedDeals} onDealPress={handleDealPress} onViewAll={handleViewAllDeals} onItemView={handleDealView} /> },
+    { id: 'essentials', component: <DailyEssentialsRail items={pricedEssentials} onItemPress={handleEssentialPress} onViewAll={handleViewAllEssentials} onItemView={handleEssentialView} /> },
   ];
 
   const handleBackToFeed = useCallback(() => {

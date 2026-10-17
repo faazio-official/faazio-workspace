@@ -1303,6 +1303,8 @@ insert into ads.sponsored_slots (slot_id, seller_id, product_id, placement, stat
   ('ad-demo-home-2', 'sel-3', 'fm-m2', 'HOME_TOP'::ad_placement, 'LIVE'::ad_status, 0, 0, 0),
   ('ad-demo-home-3', 'sel-3', 'fm-gad10', 'HOME_TOP'::ad_placement, 'LIVE'::ad_status, 0, 0, 0),
   ('ad-demo-showcase-1', 'sel-3', 'fm-b1', 'SPONSORED_SHOWCASE'::ad_placement, 'LIVE'::ad_status, 0, 0, 0),
+  ('ad-demo-showcase-2', 'sel-3', 'fm-b2', 'SPONSORED_SHOWCASE'::ad_placement, 'LIVE'::ad_status, 0, 0, 0),
+  ('ad-demo-showcase-3', 'sel-3', 'fm-gad10', 'SPONSORED_SHOWCASE'::ad_placement, 'LIVE'::ad_status, 0, 0, 0),
   ('ad-demo-sector-1', 'sel-3', 'fm-s1', 'SECTOR_RAIL'::ad_placement, 'LIVE'::ad_status, 0, 0, 0);
 
 insert into ads.campaigns (placement_id, campaign_id, seller_id, placement, target_type, target_id, target_app, category, store_id, title, subtitle, image_url, cta, state_code, starts_at, ends_at, status) values

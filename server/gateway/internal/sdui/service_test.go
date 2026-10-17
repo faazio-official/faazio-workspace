@@ -108,6 +108,51 @@ func TestHomeCompilesSectionsWithProducts(t *testing.T) {
 	}
 }
 
+func TestMartCompilesOnlyMartSections(t *testing.T) {
+	ctx := context.Background()
+	c, err := cache.Connect(ctx, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	svc := NewService(
+		&fakeLayouts{sections: []contracts.SduiSection{
+			{ID: "martHero", Title: "Highlights"},
+			{ID: "adBanner", Title: "Offers"},
+			{ID: "martDeals", Title: "Deals", ProductIDs: []string{"md-1"}},
+			{ID: "mostRatedDining", Title: "Dining", StoreIDs: []string{"store-f1"}},
+			{ID: "martEssentials", Title: "Essentials", ProductIDs: []string{"gr-p3"}},
+		}},
+		&fakeLayouts{},
+		fakeProducts{byID: map[string]contracts.Product{
+			"md-1":  {ID: "md-1", Name: "Milk", Price: 60},
+			"gr-p3": {ID: "gr-p3", Name: "Fresh Milk", Price: 75},
+		}},
+		fakeStores{byID: map[string]contracts.Store{"store-f1": {ID: "store-f1"}}},
+		c,
+	)
+
+	sections, _, err := svc.Mart(ctx, "en")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(sections) != 3 {
+		t.Fatalf("sections = %d, want 3 (only Mart rails)", len(sections))
+	}
+	byID := map[string]contracts.HomeSection{}
+	for _, s := range sections {
+		byID[s.ID] = s
+	}
+	if _, ok := byID["adBanner"]; ok {
+		t.Fatalf("adBanner leaked into the Mart feed")
+	}
+	if len(byID["martDeals"].Products) != 1 || byID["martDeals"].Products[0].ID != "md-1" {
+		t.Fatalf("martDeals products = %+v", byID["martDeals"].Products)
+	}
+	if len(byID["martEssentials"].Products) != 1 || byID["martEssentials"].Products[0].ID != "gr-p3" {
+		t.Fatalf("martEssentials products = %+v", byID["martEssentials"].Products)
+	}
+}
+
 func TestSaveHomeBumpsVersionAndForwardsSections(t *testing.T) {
 	ctx := context.Background()
 	c, err := cache.Connect(ctx, "")

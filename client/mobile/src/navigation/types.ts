@@ -91,14 +91,20 @@ export type RootStackParamList = {
   /** Mock "Sell with us" partner onboarding — required details (no backend yet). */
   SellWithUs: undefined;
   /**
-   * Deals landing page — one page, two entry modes:
+   * Deals landing page — one page, four entry modes:
    * - `campaign`: a brand campaign's products (from the Home "Deals of the day" carousel).
    * - `discounts`: a vendor's discounted products (from the Mart vendor profile "View All").
+   * - `martDeals` / `martEssentials`: a Mart rail's full product list (from the rail "View All"),
+   *   supplied as `productIds` resolved through the catalog (no Home-owned fixture).
    */
   DealsLanding: {
-    mode: 'campaign' | 'discounts';
+    mode: 'campaign' | 'discounts' | 'martDeals' | 'martEssentials';
     campaignId?: string;
     storeId?: string;
+    /** Explicit catalog id list for the `martDeals` / `martEssentials` modes. */
+    productIds?: string[];
+    /** Optional display title for a product-list mode (defaults to the rail label). */
+    title?: string;
     app?: 'FA_MART' | 'PHARMA';
   };
   /** Full-bleed prescription capture flow (camera can't live in the sub-app wrapper). */

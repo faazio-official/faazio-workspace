@@ -2,11 +2,13 @@ package sdui
 
 import (
 	"context"
+	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
 
+	"github.com/faazio/server/gateway/internal/contracts"
 	"github.com/faazio/server/gateway/internal/platform/auth"
 	"github.com/faazio/server/gateway/internal/platform/cache"
 	"github.com/go-chi/chi/v5"
@@ -59,6 +61,30 @@ func TestAdminPutHomeValidatesSections(t *testing.T) {
 				t.Fatalf("valid publish did not reach the writer: %+v", layouts.saved)
 			}
 		})
+	}
+}
+
+func TestMartServesOnlyMartSections(t *testing.T) {
+	layouts := &fakeLayouts{version: 2, sections: []contracts.SduiSection{
+		{ID: "martHero", Title: "Highlights"},
+		{ID: "adBanner", Title: "Offers"},
+		{ID: "martDeals", Title: "Deals", ProductIDs: []string{"md-1"}},
+	}}
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/sdui/mart", nil)
+	newAdminRouter(t, layouts).ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200 (body %s)", rec.Code, rec.Body.String())
+	}
+	if got := rec.Header().Get("ETag"); got != `"mart-v2"` {
+		t.Fatalf("etag = %q, want \"mart-v2\"", got)
+	}
+	var out []contracts.SduiSection
+	if err := json.Unmarshal(rec.Body.Bytes(), &out); err != nil {
+		t.Fatal(err)
+	}
+	if len(out) != 2 || out[0].ID != "martHero" || out[1].ID != "martDeals" {
+		t.Fatalf("sections = %+v, want [martHero martDeals]", out)
 	}
 }
 

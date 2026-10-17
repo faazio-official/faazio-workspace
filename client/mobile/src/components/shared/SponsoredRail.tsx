@@ -1,9 +1,9 @@
-import React, { memo, useCallback, useEffect, useState, type ReactNode } from 'react';
+import React, { memo, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { View, ScrollView, StyleSheet, TouchableOpacity } from 'react-native';
 import { Info } from 'lucide-react-native';
 import { hs, vs, ms } from '@/utils/responsive';
 import { SPACE } from '@/theme/spacing';
-import { gateway, type SponsoredProduct } from '@/services/api/GatewayClient';
+import { gateway, type ActiveDiscount, type SponsoredProduct } from '@/services/api/GatewayClient';
 import { setLastClickedSlotId } from '@/services/adsAttribution';
 import { applyActiveDiscounts, useActiveDiscounts } from '@/services/pricing';
 import SlideUpSheet from '@/components/shared/SlideUpSheet';
@@ -25,6 +25,12 @@ interface SponsoredRailProps {
   renderCard: (product: SponsoredProduct, handlers: SponsoredCardHandlers) => ReactNode;
   onProductClick?: (product: any) => void;
   addToCart?: (id: string, name: string, price: number, emoji: string) => void;
+  /**
+   * Optional shopper-discount map owned by the host. When provided, the rail shares the screen's
+   * single `useActiveDiscounts` batch (one `GET /promo/active-discounts`) instead of firing its own,
+   * so the shopper sees the same price with no post-paint flicker.
+   */
+  discounts?: Record<string, ActiveDiscount>;
 }
 
 /**
@@ -41,13 +47,17 @@ function SponsoredRail({
   renderCard,
   onProductClick,
   addToCart,
+  discounts,
 }: SponsoredRailProps) {
   const [products, setProducts] = useState<SponsoredProduct[]>([]);
   const [addedId, setAddedId] = useState<string | null>(null);
   const [infoOpen, setInfoOpen] = useState(false);
   // The shopper pays the same price everywhere: overlay any live festival discount on the paid shelf.
-  const discounts = useActiveDiscounts(products.map((p) => p.id));
-  const priced = applyActiveDiscounts(products, discounts);
+  // When the host already owns the batch (`discounts` prop) the rail skips its own fetch (empty id
+  // set = no request); otherwise it self-serves — the standalone Home/Deals-landing usage.
+  const ownDiscounts = useActiveDiscounts(discounts ? [] : products.map((p) => p.id));
+  const priceMap = discounts ?? ownDiscounts;
+  const priced = useMemo(() => applyActiveDiscounts(products, priceMap), [products, priceMap]);
 
   useEffect(() => {
     let active = true;
@@ -62,9 +72,15 @@ function SponsoredRail({
     };
   }, [placement]);
 
-  // Closed-loop ads: report one impression per rendered slot (server de-dupes per user). Best-effort.
+  // Closed-loop ads: report one impression per rendered slot, guarded locally so a re-render never
+  // re-POSTs (the server additionally de-dupes per user + slot). Best-effort.
+  const reported = useRef<Set<string>>(new Set());
   useEffect(() => {
-    for (const p of products) void gateway.recordAdEvent(p.slotId, 'impression');
+    for (const p of products) {
+      if (!p.slotId || reported.current.has(p.slotId)) continue;
+      reported.current.add(p.slotId);
+      void gateway.recordAdEvent(p.slotId, 'impression');
+    }
   }, [products]);
 
   const handleAdd = useCallback(

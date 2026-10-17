@@ -5,6 +5,40 @@ dependencies exist. Do not build the backend/seller flows until told to.
 
 ---
 
+## W44 — Mart merchandising unification: Deals on SDUI, `/sdui/mart`, one price batch, View All
+
+**Status:** 🟢 Shipped (server + app + seed + docs). No migration.
+
+Closes the P0 merchandising split and Mart/Home coupling on the Mart page:
+
+- **Deals → SDUI.** `martDeals.productIds` now lives in the same Mongo SDUI doc as `martEssentials`
+  (single owner, portal-editable, no release). `@data/home/sdui.ts` owns all three Mart sections, so
+  the mock/remote shapes match; `@data/mart/deals` + `mocks/martHomeFeed.ts` are offline fallbacks.
+  The seed generator maps `@data/home/sdui.ts` verbatim (no more `MART_SDUI` splice) and validates the
+  Mart id lists + banner bounds.
+- **`GET /sdui/mart`.** New public read (`internal/sdui`, cache `faazio:v1:gateway:sdui:{locale}:/mart`
+  300 s, purged with `/home` on publish) serving only `martHero`/`martDeals`/`martEssentials`. The app
+  reads it via `GatewayClient.getMartFeed`; `fetchMartFeed` no longer downloads the whole Home feed.
+- **One price batch.** `FaMartScreen` issues a single `useActiveDiscounts` for Deals + Essentials +
+  the vendor pool and passes the map to `SponsoredRail` (new optional `discounts` prop; self-serves
+  only when absent). `SponsoredRail` also gained a local impression guard.
+- **View All + canonical taps.** Both Mart rails wire `onViewAll` → `DealsLanding` catalog-resolved
+  `martDeals`/`martEssentials` modes; deal/essential taps resolve the canonical row via the new
+  `openCatalogTarget` (local projection offline).
+- **Seed fill.** Three LIVE `SPONSORED_SHOWCASE` rows (was one) so the Mart paid shelf demonstrates a
+  real multi-card fill.
+
+**Still deferred:** Mart `DealsLanding` **campaign** mode stays Home-owned `@data` (only reachable
+from Home, not Mart).
+
+**Rollback:** revert the `martService`/`FaMartScreen`/`DealsLandingScreen`/`SponsoredRail`/`GatewayClient`
+hunks and the `sdui`/`seed` changes; drop the `martDeals` section.
+
+**Docs:** `mobile-app.md`, `data-layer-sdui.md`, `monolith-breakdown.md`, `caching-cloudflare-valkey.md`,
+`server-gateway-plan.md`.
+
+**Date:** 2026-10-17
+
 ## W43 — Mart ads/offers: house hero fallback, resilient feed, price parity, deep-link resolve
 
 **Status:** 🟢 Shipped (app + docs). No migration / endpoint / cache-key change.

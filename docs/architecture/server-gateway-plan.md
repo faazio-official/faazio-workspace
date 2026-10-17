@@ -41,7 +41,8 @@ shape); contexts talk through them, never through sibling imports. It serves rea
 against **Supabase (Postgres) + MongoDB Atlas M0 + Aiven Valkey**, with Cloudflare in front; cache
 keys/TTLs unchanged.
 
-- **Endpoints:** reads `GET /health`, `/search?q=`, `/sdui/home`, `/product/:id`, `/product/:id/reviews`,
+- **Endpoints:** reads `GET /health`, `/search?q=`, `/sdui/home`, `/sdui/mart` (Mart-only sections),
+  `/product/:id`, `/product/:id/reviews`,
   `/vendors/:id/reviews` (+ `/summary`), `/stores`, `/store/:id`, `/venues`, `/venues/:id/menu`,
   `/stock/:id`, `/orders`, `/profile`, `/profile/details`, `/profile/addresses` (GET/PUT/DELETE),
   `/membership`, `/order-status`, `/account-nav`, `/bookings`, `/venues/:id/booking-availability`,

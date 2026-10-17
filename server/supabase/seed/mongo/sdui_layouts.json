@@ -99,6 +99,22 @@
       "chips": []
     },
     {
+      "id": "martDeals",
+      "title": "Deals of the Day",
+      "subtitle": null,
+      "accent": "#F25C3D",
+      "productIds": [
+        "md-1",
+        "md-2",
+        "md-3",
+        "md-4",
+        "md-5",
+        "md-6"
+      ],
+      "storeIds": [],
+      "chips": []
+    },
+    {
       "id": "martEssentials",
       "title": "Daily Essentials",
       "subtitle": null,

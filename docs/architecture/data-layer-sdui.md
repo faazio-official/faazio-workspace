@@ -128,18 +128,20 @@ publishes edits via `PUT /admin/sdui/home` (super-admin, `internal/sdui` → `re
 `$inc version` + compiled-feed cache purge). The app's `GET /sdui/home` then recompiles on its next
 poll — no app release.
 
-**Mart merchandising via the same doc.** The Mart feed's hero carousel and *Daily Essentials* rail
-are server-controlled by two sections in the same `sdui_layouts/home` doc — `martHero` (an array of
-editorial `banners` with image + copy) and `martEssentials` (real `catalog` product ids). Because
-the Home renderer ignores unknown section ids, one doc drives both feeds.
-`martService.fetchMartFeed` reads them through `gateway.getHomeFeed()` and falls back to the
-`mocks/martHomeFeed.ts` fixture offline. `banners` is the only non-ID leaf in the doc — it carries
-display copy + an image URL, **never money** (prices are always joined from `catalog.products`), so
-the ID-only rule holds and no per-rail SQL table is needed. Note (W41/W43): the Mart hero carousel is
-**paid inventory first** — `CampaignHero` renders the ad-server `MART_HERO` campaigns and only when
-there is no LIVE fill falls back to the SDUI `martHero.banners` house hero (`MartHouseHero`, no AD
-pill, no ad events, non-interactive) and then to nothing (both empty → no slot), never a fabricated
-ad (see `caching-cloudflare-valkey.md` §5a).
+**Mart merchandising via the same doc.** The Mart feed is server-controlled by three sections in the
+same `sdui_layouts/home` doc, served on their own endpoint `GET /sdui/mart` (so the Mart screen never
+downloads or couples to the full Home payload/ETag): `martHero` (an array of editorial `banners` with
+image + copy), `martDeals` and `martEssentials` (real `catalog` product ids). Because the Home renderer
+ignores unknown section ids, one doc drives both feeds. `martService.fetchMartFeed` reads them through
+`gateway.getMartFeed()` and falls back to the `mocks/martHomeFeed.ts` fixture offline. A section
+present-but-empty renders empty (a portal typo is visible, not masked); only an absent section falls
+back to the fixture. `banners` is the only non-ID leaf in the doc — it carries display copy + an image
+URL, **never money** (prices are always joined from `catalog.products`), so the ID-only rule holds and
+no per-rail SQL table is needed. Note (W41/W43): the Mart hero carousel is **paid inventory first** —
+`CampaignHero` renders the ad-server `MART_HERO` campaigns and only when there is no LIVE fill falls
+back to the SDUI `martHero.banners` house hero (`MartHouseHero`, no AD pill, no ad events,
+non-interactive) and then to nothing (both empty → no slot), never a fabricated ad (see
+`caching-cloudflare-valkey.md` §5a).
 
 The **production** counterparts of every normalized table above (per-service DB schema, datatypes,
 sample rows) are specified in `docs/architecture/db-schema.md` — traceability is 1:1 (mock table ↔

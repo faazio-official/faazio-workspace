@@ -36,29 +36,67 @@ func (s *Service) Layout(ctx context.Context) ([]contracts.SduiSection, int64, e
 	return s.layouts.Home(ctx)
 }
 
-// SaveHome persists a new Home layout (admin publish) and purges the compiled-feed cache so the
-// next GET /sdui/home recompiles with the new sections and a bumped ETag.
+// SaveHome persists a new Home layout (admin publish) and purges the compiled-feed caches so the
+// next GET /sdui/home (and /sdui/mart) recompiles with the new sections and a bumped ETag.
 func (s *Service) SaveHome(ctx context.Context, sections []contracts.SduiSection) (int64, error) {
 	version, err := s.writer.SaveHome(ctx, sections)
 	if err != nil {
 		return 0, err
 	}
-	s.cache.Del(ctx, cache.SduiHome("en"))
+	s.cache.Del(ctx, cache.SduiHome("en"), cache.SduiMart("en"))
 	return version, nil
+}
+
+// martSectionIDs is the Mart feed's section allowlist: the three Mart rails live in the same Home
+// layout doc but are served on their own endpoint (`GET /sdui/mart`) so the Mart screen never
+// downloads or couples to the full Home feed (independent payload + ETag).
+var martSectionIDs = map[string]struct{}{
+	"martHero":       {},
+	"martDeals":      {},
+	"martEssentials": {},
 }
 
 // Home returns the compiled Home feed (ID-only sections + joined products) and the layout version.
 func (s *Service) Home(ctx context.Context, locale string) ([]contracts.HomeSection, int64, error) {
+	return s.compile(ctx, locale, cache.SduiHome(localeOrDefault(locale)), nil)
+}
+
+// Mart returns only the compiled Mart sections (martHero/martDeals/martEssentials) joined to the
+// catalog, and the layout version. Cached separately from the Home feed.
+func (s *Service) Mart(ctx context.Context, locale string) ([]contracts.HomeSection, int64, error) {
+	return s.compile(ctx, locale, cache.SduiMart(localeOrDefault(locale)), martSectionIDs)
+}
+
+func localeOrDefault(locale string) string {
+	if locale == "" {
+		return "en"
+	}
+	return locale
+}
+
+// compile joins one layout's sections to the catalog/directory and caches the result. `only`, when
+// non-nil, keeps just the allow-listed section ids (the Mart projection); the layout version and
+// ETag semantics are shared with the full Home feed.
+func (s *Service) compile(ctx context.Context, locale, cacheKey string, only map[string]struct{}) ([]contracts.HomeSection, int64, error) {
 	if locale == "" {
 		locale = "en"
 	}
 	var cached cachedHome
-	if s.cache.GetJSON(ctx, cache.SduiHome(locale), &cached) {
+	if s.cache.GetJSON(ctx, cacheKey, &cached) {
 		return cached.Sections, cached.Version, nil
 	}
 	sections, version, err := s.layouts.Home(ctx)
 	if err != nil {
 		return nil, 0, err
+	}
+	if only != nil {
+		kept := make([]contracts.SduiSection, 0, len(only))
+		for _, section := range sections {
+			if _, ok := only[section.ID]; ok {
+				kept = append(kept, section)
+			}
+		}
+		sections = kept
 	}
 
 	// One batch join across every section's product ids (was one round-trip per section).
@@ -88,7 +126,7 @@ func (s *Service) Home(ctx context.Context, locale string) ([]contracts.HomeSect
 		}
 		out = append(out, contracts.HomeSection{SduiSection: section, Products: products, Stores: stores})
 	}
-	s.cache.SetJSON(ctx, cache.SduiHome(locale), cachedHome{Version: version, Sections: out}, cache.TTLSdui)
+	s.cache.SetJSON(ctx, cacheKey, cachedHome{Version: version, Sections: out}, cache.TTLSdui)
 	return out, version, nil
 }
 
