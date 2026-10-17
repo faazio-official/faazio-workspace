@@ -54,6 +54,7 @@ func Reco(userIDHash, context string) string {
 func Idempotency(ref string) string  { return fmt.Sprintf("faazio:v1:checkout:idem:%s", ref) }
 func PromoCampaign(id string) string { return fmt.Sprintf("faazio:v1:promo:campaign:%s", id) }
 func AdSlot(id string) string        { return fmt.Sprintf("faazio:v1:ads:slot:%s", id) }
+func MediaAsset(id string) string    { return fmt.Sprintf("faazio:v1:media:asset:%s", id) }
 
 // PromoPublicCoupons caches the anon-visible active-coupon projection for (app, state) — non-PII
 // business data (caching doc §5). AdsLive caches the anon-visible LIVE ad projection per placement.
@@ -139,6 +140,10 @@ const (
 	// TTLPromoActive bounds the anon-visible active festival discount projection per product
 	// (LIVE campaign + APPROVED opt-in, sector-capped); invalidated on opt-in/campaign change.
 	TTLPromoActive = 300 * time.Second
+
+	// TTLMediaAsset bounds one media.assets registry row (public identity + CDN URL). Long, because
+	// keys are immutable; purged on confirm/status/delete (caching-cloudflare-valkey.md §5).
+	TTLMediaAsset = 24 * time.Hour
 )
 
 // Cache is a JSON read-through cache. A nil *Client (disabled) is safe to call.

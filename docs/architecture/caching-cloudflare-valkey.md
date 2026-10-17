@@ -31,6 +31,10 @@
     (serve stale while revalidating; serve stale up to 24 h on origin error).
   - Search results: `public, max-age=600, stale-while-revalidate=60`.
   - Product detail: `public, max-age=86400, immutable` (24 h) with purge on edit.
+- **Media images (`img.faazio.in/*`, R2 public bucket):** object Cache Rule `public, max-age=31536000,
+  immutable`. Keys are content-addressed (sha256), so the bytes at a URL never change; versioning is a
+  new key. Cloudflare does compression/Polish at the edge (zero origin CPU); purge is by exact R2 key on
+  `confirm`/status change/delete (`caching doc §5`, migration `0025`).
 - **Edge Cache TTL rules:** match on path/content-type; keep the negotiated format (JPEG `fm=jpg`,
   gzip/zstd) so Cloudflare does the compression — **no origin CPU cost**.
 - **Never cache** responses with `Set-Cookie` or auth-scoped content (carts, orders, payments, PII).
@@ -93,6 +97,7 @@ Examples: `faazio:v1:stock:fm-f1`, `faazio:v1:search:q:hoodie`, `faazio:v1:sdui:
 | Store directory / reviews | 86400 s (24 h) | — | edit event |
 | Store products (anon `GET /stores/{id}/products`, ACTIVE first page) | 300 s | — | product edit / status change (purges `catalog:store-products:{storeId}`; later pages are not cached) |
 | Single dining venue (anon `GET /venues/{id}`, PII-redacted) | 86400 s (24 h) | — | venue edit / store live toggle (authed reads bypass the cache) |
+| Media asset (public `GET /media/resolve?ids=`, per asset identity) | 86400 s (24 h) | `public, max-age=31536000, immutable` (R2 object via `img.faazio.in` Cache Rule) | confirm / status change / delete (purges `faazio:v1:media:asset:{id}` + the exact CDN key) |
 | Promo campaigns / coupons (partner) | 300 s | **never** | campaign/coupon write |
 | Public coupons (anon `GET /coupons?app=&state=`) | 600 s | — | coupon write (TTL-bounded) |
 | Active festival discounts (anon `GET /promo/active-discounts?ids=`, per product) | 300 s | — | opt-in approve/reject or campaign status change (invalidated per product; `none` sentinel cached) |
@@ -186,6 +191,13 @@ LIVE fill collapses the rail to `null` (never an empty shelf).
 > under `faazio:v1:catalog:store-products:{storeId}` (300 s); a price/MRP/stock edit
 > (`PUT /seller/products/{id}`) or a status change (`PUT /seller/products/{id}/status`) purges that key
 > alongside `catalog:product:{id}` / `stock:{id}`.
+>
+> **Media registry (`0025`):** public image identity is cached per asset under
+> `faazio:v1:media:asset:{id}` (24 h) and read in batch by `GET /media/resolve?ids=`. `confirm`
+> (DRAFT→ACTIVE), an admin status change, or a delete purges that key; the R2 object is served from the
+> edge under an immutable 1-year TTL and is purged by exact key. PRIVATE assets (Rx/KYC) never carry a
+> public URL and are **never** cached — they resolve only through a 300 s presigned GET
+> (`GET /media/private/{id}`, creator/admin-scoped).
 >
 > **Pharma quote + notify (W24, `0018`):** a quote save (`POST /seller/prescriptions/{id}/quotes`) or a
 > `READY` status change invalidates the owning user's `pharma:prescriptions:{userId}`. The notification

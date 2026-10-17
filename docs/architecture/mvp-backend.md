@@ -24,11 +24,14 @@
 | `user_events` / `recommendations` / `segments` / `product_stats` / `sdui_layouts` | Keep MongoDB Atlas M0 (ID-only, `userIdHash`, TTL 90d) | Same (no change) | Flexible doc shape + TTL; don't force into Postgres |
 | Cache + edge | Keep **Aiven Valkey + Cloudflare** exactly per `caching-cloudflare-valkey.md` | Same | Supabase is origin, not cache; keys/TTLs unchanged (`faazio:v1:{service}:{entity}:{id}`, stock 30–60s, search 600s, product 24h, idempotency `NX EX 300`) |
 | Gateway | Go Chi modular monolith (`server/gateway`): all 6 contexts, `/health`, `/search?q=`, `/sdui/home`, `/product/:id`, `/vendors/:id/reviews`, `/stores`, `/venues`, `/orders`, `/profile`, cart/order/rating/event writes → Supabase + Mongo + Valkey, Cloudflare in front | Full gateway + 5 gRPC microservices via `contracts/` | Monolith proves the `@mock` → `@server` seam; extracted per `monolith-breakdown.md`; `GatewayClient` signatures don't change |
-| Auth | Supabase Auth phone OTP + RLS (replaces mocked `authStore.login()`) | Same, hardened | Server sessions + per-user orders/carts/rating scoping now |
+| Auth | Mocked app login (the phone→OTP Login screen calls `authStore.login()`; **no** Supabase phone OTP for the MVP) + partner JWT claim roles | Same, hardened | Server sessions + per-user orders/carts/rating scoping now |
 
-**Product images (recommendation):** serve from **Supabase Storage** (same project) with Cloudflare
-caching in front; image URLs stay stable so `expo-image` call sites don't change. No separate CDN
-bucket for the MVP.
+**Product / media images (implemented, `0025`):** bytes live in **Cloudflare R2** (`faazio-public` +
+`faazio-private`), identity in the SQL `media.assets` registry, served under the custom domain
+`img.faazio.in` with an immutable 1-year edge TTL. The gateway (`internal/media` + `internal/platform/r2`)
+is the only minter/signer; clients receive short-lived presigned PUT/GET URLs and never hold R2
+credentials. Public URLs stay stable so `expo-image`/`<img>` call sites don't change. Supabase Storage
+remains only as the Rx fallback when R2 is unset — no second public origin. See `db-schema.md` §12.16.
 
 ---
 
@@ -36,15 +39,17 @@ bucket for the MVP.
 
 - **Schemas:** `catalog`, `directory`, `reviews`, `checkout`, `accounts`, `inventory`, `favourites`,
   `rewards`, `pharma`, `blood`, `bookings`, `util`. The partner control plane (`0015`) adds `sellers`,
-  `promo`, `ads`, `payments`, `admins`, `support` (see `db-schema.md` §12.9) and `0018` adds
-  `notifications` (outbox + push tokens; `db-schema.md` §12.12) — all additive, so existing
-  tables/rows are untouched.
+  `promo`, `ads`, `payments`, `admins`, `support` (see `db-schema.md` §12.9), `0018` adds
+  `notifications` (outbox + push tokens; `db-schema.md` §12.12), and `0025` adds `media` (R2 image
+  registry; `db-schema.md` §12.16) — all additive, so existing tables/rows are untouched.
 - **Extensions:** `pg_trgm`, `unaccent`, `pg_cron` (`pgcrypto` ships enabled).
 - **Datatypes:** unchanged from `db-schema.md` §2 — stable string slug public keys, INT8 paisa money,
   `TIMESTAMPTZ`, native ENUMs. The Cockroach DDL there is near-verbatim Postgres.
 - **Search view:** `catalog.products_search` (`tsvector` over `name` + `search_tokens` + `category`,
   GIN index, `pg_trgm` for fuzzy/autocomplete), refreshed on `catalog.updated`.
-- **Auth:** Supabase Auth phone OTP; `auth.uid()` is the user key for RLS.
+- **Auth:** mocked app login for the MVP — the phone→OTP Login UI calls `authStore.login()` (no
+  Supabase phone OTP). The gateway verifies partner JWTs (custom `app_role`/`seller_id`/`state_code`
+  claims) and scopes every auth-scoped query by the resolved `user_id`; RLS is defence-in-depth.
 
 ### RLS policy classes (least privilege)
 
@@ -109,11 +114,12 @@ Every endpoint above now has a `GatewayClient` method (`getVendorReviews`, `rate
 `setBloodInterest`/`createDonorMatch`/`getDonorMatches`, `getBookings`/`createBooking`/`cancelBooking`/
 `attachBookingPayment`/`getBookingAvailability`,
 `getRecommendations`) with the `@data/*` fallback, so the per-module `@mock` →
-`@server` migration can begin once Supabase phone OTP replaces `authStore.login()`.
+`@server` migration proceeds on the existing **mocked login** (`authStore.login()`); the MVP keeps
+auth mocked and does **not** add Supabase phone OTP.
 
 No gRPC yet; `contracts/` holds Go interfaces that mirror the future `.proto` shape. Method
 signatures above keep the `@mock` → `@server` swap call-site-compatible (`GatewayClient` adds a
-`baseUrl`/flag and keeps the `@data/*` fallback). Phased onboarding skips phone OTP for local dev:
+`baseUrl`/flag and keeps the `@data/*` fallback). Local dev runs:
 `AUTH_DISABLED=true` uses `DEV_USER_ID` / `X-Dev-User`, and role probing accepts `X-Dev-Role` /
 `X-Dev-Seller` / `X-Dev-State` (all three are on the CORS allow-list so the local portal can exercise
 role-gated routes; they are ignored whenever auth is enabled).

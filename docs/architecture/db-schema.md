@@ -1362,3 +1362,59 @@ Reads: `GET /stores/{id}/products` (anonymous, keyset-paginated by `(rating DESC
 300 s (caching doc §5) and purged on `PRODUCT_EDIT` / status change. No new table — the Mart hero
 banners and Daily Essentials rail are SDUI-owned (`sdui_layouts/home` sections `martHero`/`martEssentials`,
 §8.1 / `docs/architecture/data-layer-sdui.md`); `mf-*` ghost ids were retired for real `gr-*` catalog ids.
+
+### 12.16 Media registry — R2 bytes, SQL identity (migration `0025`)
+
+Enterprise rule: **bytes in object storage, identity in SQL**. Every image write pipeline before `0025`
+was broken or bypassed the gateway — the portal uploaded to Supabase Storage and the gateway never
+linked the key (orphaned upload), store/menu images were free-text URLs, and seed rows hotlinked
+unsplash. `0025` adds one identity row per image (`media` schema) whose bytes live in **Cloudflare R2**;
+the gateway (`internal/media` + `internal/platform/r2`) is the only minter/signer, and binary never
+proxies through it (clients PUT/GET directly with presigned URLs).
+
+```sql
+CREATE SCHEMA media;
+CREATE TYPE asset_kind   AS ENUM ('PUBLIC', 'PRIVATE');
+CREATE TYPE asset_status AS ENUM ('DRAFT', 'ACTIVE', 'REJECTED');
+
+CREATE TABLE media.assets (
+  id         text PRIMARY KEY,          -- 'img_*' minted by the gateway
+  owner_type text NOT NULL DEFAULT '',   -- PRODUCT|STORE|MENU|BRAND|BANNER|AVATAR|PRESCRIPTION|KYC|''
+  owner_id   text NOT NULL DEFAULT '',
+  kind       asset_kind NOT NULL,        -- PUBLIC → faazio-public; PRIVATE → faazio-private
+  bucket     text NOT NULL,
+  r2_key     text NOT NULL,              -- immutable content-addressed key
+  mime       text NOT NULL DEFAULT '',
+  bytes      int8 NOT NULL DEFAULT 0,
+  width      int4, height int4,
+  hash       text,                       -- sha256 hex; NULL when the client cannot compute it
+  status     asset_status NOT NULL DEFAULT 'DRAFT',
+  created_by text NOT NULL DEFAULT '',   -- app user / seller slug
+  created_at timestamptz NOT NULL DEFAULT now(),
+  updated_at timestamptz NOT NULL DEFAULT now()
+);
+```
+
+Indexes: `UNIQUE(r2_key)` + `UNIQUE(hash)` (sha256 de-dup), `(owner_type, owner_id)`,
+`(status, created_at DESC)`. A `pg_notify('media_updated', {id,status,r2_key,kind})` trigger (plus the
+`0014` `util.touch_updated_at`) drives cache/CDN purge on confirm/status/delete.
+
+Owner link columns (nullable → backfill; `image_url`/`cover_image`/`image` stay as the offline/legacy
+fallback): `catalog.products.image_key`+`image_asset_id`, `directory.stores.cover_image_key`+
+`cover_image_asset_id`, `directory.menus.image_key`+`image_asset_id`.
+
+RLS (Supabase only): anon/authenticated may `SELECT` **ACTIVE PUBLIC** rows and a creator may read
+their own row (incl. PRIVATE); **writes are service_role only** (no insert/update policy).
+
+Endpoints (`internal/media`): `POST /media/upload-url` (auth; validate `image/{jpeg,png,webp}` ≤ 8 MiB,
+mint DRAFT + deterministic key, return 300 s presigned PUT), `POST /media/confirm` (auth; DRAFT→ACTIVE +
+owner link + cache purge), `GET /media/resolve?ids=` (anon batch of ACTIVE PUBLIC → CDN URLs, Valkey
+24 h), `GET /media/private/{id}` (creator/admin; 300 s presigned GET), `PUT /media/{id}/status` +
+`DELETE /media/{id}` (admin moderation/GC). Key minting: with a hash → `media/{hash:2}/{hash}.{ext}`
+(content-addressed, cache-forever); without → `media/{yyyy}/{mm}/{img_id}.{ext}`.
+
+Config: `R2_ACCOUNT_ID` / `R2_ACCESS_KEY_ID` / `R2_SECRET_ACCESS_KEY` / `R2_PUBLIC_BUCKET` /
+`R2_PRIVATE_BUCKET` / `R2_CDN_BASE` (`img.faazio.in`). Rx images prefer the R2 private bucket, falling
+back to Supabase Storage when R2 is unset (`internal/pharma/storage.go`). Cache: `media:asset:{id}` 24 h
+(caching doc §5/§8). Backfill of the 458 `@data` unsplash hits to R2 keys is a follow-up
+(`generate.mjs`/backfill script); until then legacy URLs remain the fallback.

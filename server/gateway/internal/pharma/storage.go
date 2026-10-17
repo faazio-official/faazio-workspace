@@ -8,20 +8,28 @@ import (
 	"net/http"
 	"strings"
 	"time"
+
+	"github.com/faazio/server/gateway/internal/platform/r2"
 )
 
 // ErrStorageDisabled is returned when Supabase Storage credentials are not configured.
 var ErrStorageDisabled = errors.New("storage not configured")
 
-// Storage mints Supabase Storage signed URLs (service_role). It never logs keys or object contents.
+// Storage mints signed URLs for prescription images. It prefers the shared R2 private bucket (one
+// binary backend, one signing path) and falls back to Supabase Storage when R2 is unconfigured. It
+// never logs keys or object contents.
 type Storage struct {
 	baseURL string
 	key     string
 	bucket  string
 	client  *http.Client
+
+	// r2 signs the private bucket directly (AWS SigV4). Nil when R2 is disabled.
+	r2       *r2.Signer
+	r2Bucket string
 }
 
-// NewStorage returns a Storage client, or nil when the URL/key are unset (storage disabled).
+// NewStorage returns a Supabase Storage client, or nil when the URL/key are unset (storage disabled).
 func NewStorage(baseURL, serviceKey, bucket string) *Storage {
 	if strings.TrimSpace(baseURL) == "" || strings.TrimSpace(serviceKey) == "" {
 		return nil
@@ -37,10 +45,22 @@ func NewStorage(baseURL, serviceKey, bucket string) *Storage {
 	}
 }
 
+// NewR2Storage returns an R2-backed Storage, or nil when the signer is disabled. The private bucket is
+// where Rx images live; they are never edge-cached and only reachable via short-lived presigned GETs.
+func NewR2Storage(signer *r2.Signer) *Storage {
+	if !signer.Enabled() {
+		return nil
+	}
+	return &Storage{r2: signer, r2Bucket: signer.PrivateBucket()}
+}
+
 // SignUpload asks Storage for a signed upload URL for objectPath (private bucket).
 func (s *Storage) SignUpload(ctx context.Context, objectPath string) (string, error) {
 	if s == nil {
 		return "", ErrStorageDisabled
+	}
+	if s.r2.Enabled() {
+		return s.r2.PresignPut(ctx, s.r2Bucket, objectPath, 300*time.Second)
 	}
 	endpoint := fmt.Sprintf("%s/storage/v1/object/upload/sign/%s/%s", s.baseURL, s.bucket, objectPath)
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, endpoint, nil)
@@ -76,6 +96,13 @@ func (s *Storage) SignUpload(ctx context.Context, objectPath string) (string, er
 func (s *Storage) SignDownload(ctx context.Context, objectPath string, expiresIn int) (string, error) {
 	if s == nil {
 		return "", ErrStorageDisabled
+	}
+	if s.r2.Enabled() {
+		secs := expiresIn
+		if secs <= 0 || secs > 3600 {
+			secs = 300
+		}
+		return s.r2.PresignGet(ctx, s.r2Bucket, objectPath, time.Duration(secs)*time.Second)
 	}
 	if expiresIn <= 0 || expiresIn > 3600 {
 		expiresIn = 300

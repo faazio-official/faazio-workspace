@@ -1,6 +1,6 @@
 # Faazio Gateway — Go Chi modular monolith (MVP)
 
-One binary hosting all six bounded contexts. Authority:
+One binary hosting every bounded context. Authority:
 [`docs/architecture/mvp-backend.md`](../../docs/architecture/mvp-backend.md) +
 [`docs/architecture/monolith-breakdown.md`](../../docs/architecture/monolith-breakdown.md).
 
@@ -11,7 +11,7 @@ gateway/
 ├── cmd/server/main.go            # entrypoint: connect platform → router → serve
 ├── internal/
 │   ├── contracts/                # cross-context interfaces + JSON DTOs (future .proto)
-│   ├── platform/{config,db,cache,mongo,auth,httpx}   # no domain knowledge
+│   ├── platform/{config,db,cache,mongo,auth,httpx,r2}   # no domain knowledge
 │   ├── search/         # GET /search
 │   ├── catalog/        # GET /product/{id}, POST /products/batch
 │   ├── directory/      # GET /stores, GET /store/{id}
@@ -20,6 +20,7 @@ gateway/
 │   ├── reviews/        # product + vendor reviews, vendor rating (auth)
 │   ├── reco/           # POST /events (Mongo, ID-only)
 │   ├── sdui/           # GET /sdui/home
+│   ├── media/          # R2 image registry: upload-url/confirm/resolve/private
 │   └── server/         # composition root (only package importing all contexts)
 └── tools/importlint/   # boundary enforcement (go run ./tools/importlint)
 ```
@@ -75,6 +76,9 @@ CI runs the full suite with Postgres + Valkey service containers
 | `GET /product/{id}/reviews` · `GET /vendors/{id}/reviews` · `/summary` · `PUT /vendors/{id}/rating` | partly ✔ | reviews |
 | `POST /events` | ✔ | reco |
 | `GET /sdui/home?locale=` | — | sdui |
+| `POST /media/upload-url` · `POST /media/confirm` · `GET /media/private/{id}` | ✔ | media |
+| `GET /media/resolve?ids=` | — | media |
+| `PUT /media/{id}/status` · `DELETE /media/{id}` | admin | media |
 
 Auth: `Authorization: Bearer <supabase-jwt>` (HS256). Local dev: `AUTH_DISABLED=true`
 and `X-Dev-User` / `DEV_USER_ID`.

@@ -18,6 +18,7 @@ import (
 	"github.com/faazio/server/gateway/internal/contracts"
 	"github.com/faazio/server/gateway/internal/directory"
 	"github.com/faazio/server/gateway/internal/favourites"
+	"github.com/faazio/server/gateway/internal/media"
 	"github.com/faazio/server/gateway/internal/notifications"
 	"github.com/faazio/server/gateway/internal/pharma"
 	"github.com/faazio/server/gateway/internal/platform/auth"
@@ -25,6 +26,7 @@ import (
 	"github.com/faazio/server/gateway/internal/platform/config"
 	"github.com/faazio/server/gateway/internal/platform/db"
 	"github.com/faazio/server/gateway/internal/platform/httpx"
+	"github.com/faazio/server/gateway/internal/platform/r2"
 	"github.com/faazio/server/gateway/internal/promo"
 	"github.com/faazio/server/gateway/internal/reco"
 	"github.com/faazio/server/gateway/internal/reviews"
@@ -73,7 +75,22 @@ func NewRouter(d Deps) http.Handler {
 	rewardsRepo := rewards.New(d.Pool)
 	recoRepo := reco.New(d.Mongo)
 	pharmaRepo := pharma.New(d.Pool)
-	pharmaStorage := pharma.NewStorage(d.Config.SupabaseURL, d.Config.SupabaseServiceKey, d.Config.PrescriptionBucket)
+	// R2 signer: nil when credentials are unset (media disabled). One signing path shared by the media
+	// registry, pharma Rx and (later) seller KYC.
+	r2Signer := r2.New(r2.Config{
+		AccountID:     d.Config.R2AccountID,
+		AccessKeyID:   d.Config.R2AccessKeyID,
+		SecretKey:     d.Config.R2SecretKey,
+		PublicBucket:  d.Config.R2PublicBucket,
+		PrivateBucket: d.Config.R2PrivateBucket,
+		CDNBase:       d.Config.R2CDNBase,
+	})
+	// Rx images prefer the R2 private bucket; fall back to Supabase Storage when R2 is off.
+	pharmaStorage := pharma.NewR2Storage(r2Signer)
+	if pharmaStorage == nil {
+		pharmaStorage = pharma.NewStorage(d.Config.SupabaseURL, d.Config.SupabaseServiceKey, d.Config.PrescriptionBucket)
+	}
+	mediaRepo := media.New(d.Pool)
 	notificationsRepo := notifications.New(d.Pool, d.Cache)
 	bloodRepo := blood.New(d.Pool)
 	bookingsRepo := bookings.New(d.Pool, d.Config.BookingFeePaisa)
@@ -133,6 +150,7 @@ func NewRouter(d Deps) http.Handler {
 	ads.NewHandler(adsRepo, d.Cache, adminsRepo).Register(r)
 	settlement.NewHandler(settlementRepo, d.Cache, adminsRepo).Register(r)
 	support.NewHandler(supportRepo, adminsRepo).Register(r)
+	media.NewHandler(mediaRepo, r2Signer, d.Cache, adminsRepo).Register(r)
 
 	return r
 }

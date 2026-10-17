@@ -274,6 +274,27 @@ type SduiBanner struct {
 	ImageURL string `json:"imageUrl,omitempty"`
 }
 
+// MediaAsset is a media.assets registry row: the single SQL identity for an image whose bytes live in
+// Cloudflare R2. `Key` is the immutable object key; `URL` is the resolved CDN URL (PUBLIC assets only).
+// PRIVATE assets (Rx/KYC) never carry a public URL — callers request a short-lived presigned GET.
+type MediaAsset struct {
+	ID        string `json:"id"`
+	OwnerType string `json:"ownerType,omitempty"`
+	OwnerID   string `json:"ownerId,omitempty"`
+	Kind      string `json:"kind"`
+	Bucket    string `json:"bucket,omitempty"`
+	Key       string `json:"key,omitempty"`
+	URL       string `json:"url,omitempty"`
+	Mime      string `json:"mime,omitempty"`
+	Bytes     int64  `json:"bytes,omitempty"`
+	Width     *int   `json:"width,omitempty"`
+	Height    *int   `json:"height,omitempty"`
+	Hash      string `json:"hash,omitempty"`
+	Status    string `json:"status"`
+	CreatedBy string `json:"createdBy,omitempty"`
+	CreatedAt string `json:"createdAt,omitempty"`
+}
+
 // ProductReader reads catalog products (implemented by internal/catalog).
 type ProductReader interface {
 	ByID(ctx context.Context, id string) (Product, bool, error)

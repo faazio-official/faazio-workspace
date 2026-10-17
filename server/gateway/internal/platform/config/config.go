@@ -19,6 +19,14 @@ type Config struct {
 	SupabaseURL        string
 	SupabaseServiceKey string
 	PrescriptionBucket string
+	// Cloudflare R2 (media bytes). When AccountID/AccessKeyID/SecretKey are unset the media context is
+	// disabled (write endpoints return 503) and public URLs resolve empty — never an unsigned URL.
+	R2AccountID     string
+	R2AccessKeyID   string
+	R2SecretKey     string
+	R2PublicBucket  string
+	R2PrivateBucket string
+	R2CDNBase       string
 	// Razorpay (bookings): secrets are env-only and never committed. When KeyID/KeySecret are empty
 	// the bookings context stays in mock mode (orders are simulated; no network calls).
 	RazorpayKeyID         string
@@ -48,6 +56,12 @@ func Load() Config {
 		SupabaseURL:           env("SUPABASE_URL", ""),
 		SupabaseServiceKey:    env("SUPABASE_SERVICE_KEY", ""),
 		PrescriptionBucket:    env("PRESCRIPTION_BUCKET", "prescriptions"),
+		R2AccountID:           env("R2_ACCOUNT_ID", ""),
+		R2AccessKeyID:         env("R2_ACCESS_KEY_ID", ""),
+		R2SecretKey:           env("R2_SECRET_ACCESS_KEY", ""),
+		R2PublicBucket:        env("R2_PUBLIC_BUCKET", "faazio-public"),
+		R2PrivateBucket:       env("R2_PRIVATE_BUCKET", "faazio-private"),
+		R2CDNBase:             env("R2_CDN_BASE", "https://img.faazio.in"),
 		RazorpayKeyID:         env("RAZORPAY_KEY_ID", ""),
 		RazorpayKeySecret:     env("RAZORPAY_KEY_SECRET", ""),
 		RazorpayWebhookSecret: env("RAZORPAY_WEBHOOK_SECRET", ""),
