@@ -5,6 +5,7 @@ import {
   ScrollView,
   TouchableOpacity,
   TextInput,
+  ActivityIndicator,
 } from 'react-native';
 import { ChevronLeft, Search, X } from 'lucide-react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -16,7 +17,8 @@ import { MASTER_CATEGORIES } from '@data/categories/masterCategories';
 import type { CategoryTab } from '@data/categories/masterCategories';
 import type { Product } from '@data/types';
 import { openHeroTarget } from '@/services/adsTarget';
-import { getVendorsWithProducts, type VendorApp } from '@/services/categoryVendors';
+import { useCategoryVendors } from '@/features/catalog/hooks/useCategoryVendors';
+import type { VendorApp } from '@/services/categoryVendors';
 import CategoryTitleRail from './CategoryTitleRail';
 import StoreProductSection from './StoreProductSection';
 
@@ -79,19 +81,22 @@ export function CategoryDrillInPanel({
   /** Public `AppBrand` for the paid CATEGORY_TOP hero (drill-in app is Mart/Pharma). */
   const heroApp: 'MART' | 'PHARMA' = app === 'FA_MART' ? 'MART' : 'PHARMA';
 
-  /** Store-grouped body for the selected title, filtered by the inline search. */
+  // Store-grouped body for the selected title: server products (FTS), grouped by store and joined
+  // to the directory, with approved festival discounts overlaid — the local pool is the offline
+  // fallback. Then filtered by the inline vendor search.
+  const { vendors: categoryVendors, loading } = useCategoryVendors(
+    app,
+    activeItem?.searchQuery ?? '',
+  );
+
   const vendors = useMemo(() => {
-    if (!activeItem) return [];
-    let list = getVendorsWithProducts(app, activeItem.searchQuery);
     const q = searchQuery.trim().toLowerCase();
-    if (q) {
-      list = list.filter(({ store }) => {
-        const haystack = `${store.name} ${store.address ?? ''} ${store.distance}`.toLowerCase();
-        return haystack.includes(q);
-      });
-    }
-    return list;
-  }, [app, activeItem, searchQuery]);
+    if (!q) return categoryVendors;
+    return categoryVendors.filter(({ store }) => {
+      const haystack = `${store.name} ${store.address ?? ''} ${store.distance}`.toLowerCase();
+      return haystack.includes(q);
+    });
+  }, [categoryVendors, searchQuery]);
 
   const handleHeroPress = useCallback(
     (ad: Parameters<typeof openHeroTarget>[0]) => {
@@ -176,7 +181,11 @@ export function CategoryDrillInPanel({
           style={styles.topAd}
         />
 
-        {vendors.length === 0 ? (
+        {loading && vendors.length === 0 ? (
+          <View style={styles.emptyWrap}>
+            <ActivityIndicator color={accent} />
+          </View>
+        ) : vendors.length === 0 ? (
           <View style={styles.emptyWrap}>
             <AppText style={styles.emptyText}>No vendors yet</AppText>
           </View>

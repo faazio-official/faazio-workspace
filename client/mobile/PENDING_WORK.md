@@ -5,6 +5,53 @@ dependencies exist. Do not build the backend/seller flows until told to.
 
 ---
 
+## W48 — Mart production-readiness pass: one vendor pool, server drill-in, no fabricated PDP
+
+**Status:** 🟢 Shipped (app + docs). No server / DB / cache change.
+
+Closes the W47-listed Mart P0/P1 correctness gaps without new screens or endpoints:
+
+- **One vendor-inventory owner (`P0-2`).** New `features/catalog/hooks/useVendorProducts` (server
+  `GET /stores/{id}/products` + festival overlay + offline fallback) replaces the separate effects in
+  `FaMartScreen` (in-wrapper drill-in) and `VendorDetailScreen` (pushed page). The pushed page no
+  longer reads the local `getVendorProducts` fixture pool in remote mode, so the two vendor surfaces
+  and the deals landing render identical rows/prices.
+- **Server-backed category drill-in (`P0-1`).** New `features/catalog/hooks/useCategoryVendors`
+  groups `GET /search?q=&app=` by `storeId`, joins `GET /stores?app=`, and overlays the festival
+  discount. New seller `ACTIVE` rows now appear and prices match checkout; the local
+  token-containment grouping stays the offline / multi-word safety net (never regresses to empty).
+- **No fabricated PDP price (`P0-5`).** `CommonProductDetailView` no longer falls back to the demo
+  `FALLBACK_PRODUCT` (which showed an invented ₹204/₹999 row); a missing product renders an honest
+  empty state. "More from store" already reads `getStoreProducts` with only an offline local filter.
+- **Feed robustness (`P1-6/8/10`).** `useMartFeed` exposes `refresh` (pull-to-refresh / retry); the
+  offline feed body falls back to the `martStores` fixture so the "Local Vendors" footer never blanks;
+  `DealsLanding` shows a loading / error state instead of a silent "No deals right now".
+
+**Still deferred (deliberately safe options):**
+
+- **Paid-ad measurement is auth-gated.** `POST /ads/events` is behind `auth.Require`, but app auth is
+  the **mocked** login (placeholder, non-JWT token), so impression/click events never reach the
+  ad-server and portal KPIs undercount to zero. The shopper flow is unaffected (local last-click
+  attribution still works). Follow-up: a real session, or an anon event path with rate-limiting —
+  intentionally **not** opened unauthenticated. Documented in `mobile-app.md`.
+- **`DealsLanding` `campaign` mode stays Home-owned `@data`** (no `GET /ads/campaigns/{id}` read;
+  reachable only from Home). Unchanged from W38/W40/W44/W47.
+- **Vendor ratings remain device-local** — the server `PUT /vendors/{id}/rating` + reads exist but the
+  screen migration waits on a real session (auth mocked).
+- **Pharma SDUI parity** — no `GET /sdui/pharma`; Pharma rails stay feature-mock (stores are
+  server-backed).
+
+**Rollback:** revert the two new hooks + the `FaMartScreen`/`VendorDetailScreen`/`CategoryDrillInPanel`/
+`CommonProductDetailView`/`DealsLandingScreen`/`useMartFeed`/`martService` hunks. No migration.
+
+**Docs:** `docs/architecture/mobile-app.md`, `data/DATA_CONTROL.md`, `PAGE_CATALOG.md`;
+`monolith-breakdown.md` / `caching-cloudflare-valkey.md` need no change — no server/cache surface
+moved (reuse of existing `GET /search`, `GET /stores`, `GET /stores/{id}/products`).
+
+**Date:** 2026-10-17
+
+---
+
 ## W47 — Page registry + Mart paid/organic contract (docs-first)
 
 **Status:** 🟢 Shipped (docs + one app refactor). No server / DB / cache change.

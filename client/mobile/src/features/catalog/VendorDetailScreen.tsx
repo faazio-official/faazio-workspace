@@ -20,8 +20,8 @@ import { gateway, type HeroAd } from '@/services/api/GatewayClient';
 import { openHeroTarget } from '@/services/adsTarget';
 import CampaignHero from '@/components/shared/CampaignHero';
 import type { Product } from '@data/types';
-import { getVendorProducts, matchesQuery } from '@/services/categoryVendors';
-import { applyActiveDiscounts, useActiveDiscounts } from '@/services/pricing';
+import { matchesQuery } from '@/services/categoryVendors';
+import { useVendorProducts } from '@/features/catalog/hooks/useVendorProducts';
 import type { RootStackParamList } from '@/navigation/types';
 import SearchMartProductCard from '@/features/ecommerce/components/SearchMartProductCard';
 import SearchPharmaProductCard from '@/features/pharma/components/SearchPharmaProductCard';
@@ -76,14 +76,9 @@ export function VendorDetailScreen({ navigation, route }: Props) {
     };
   }, [storeId]);
 
-  const products = useMemo(() => getVendorProducts(storeId, app), [storeId, app]);
-
-  // Overlay approved festival discounts on the vendor's pool (no-op offline / when none apply).
-  const discounts = useActiveDiscounts(products.map((p) => p.id));
-  const pricedProducts = useMemo(
-    () => applyActiveDiscounts(products, discounts),
-    [products, discounts],
-  );
+  // Vendor inventory: one shared hook (server `GET /stores/{id}/products` + approved festival
+  // discounts), so this page, the in-wrapper drill-in and the deals landing can never diverge.
+  const { products: pricedProducts } = useVendorProducts(storeId);
 
   const filtered = useMemo(() => {
     if (!query.trim()) return pricedProducts;

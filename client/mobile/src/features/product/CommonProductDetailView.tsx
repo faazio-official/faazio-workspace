@@ -47,21 +47,6 @@ interface ProductDetailViewProps {
   onOpenProduct?: (product: Product) => void;
 }
 
-const FALLBACK_PRODUCT: Product = {
-  id: 'demo-1',
-  name: 'Wireless Noise Cancelling Earbuds',
-  price: 204,
-  originalPrice: 999,
-  rating: 4.2,
-  emoji: '🎧',
-  image: 'https://images.unsplash.com/photo-1590658268037-6bf12165a8df?fm=jpg&fit=crop&q=80&w=600&h=600',
-  desc: 'Premium sound with active noise cancellation, 30-hour battery life, and a sleek ergonomic fit. IPX5 water resistance for worry-free workouts.',
-  app: 'MART',
-  category: 'Electronics',
-  attributes: { brand: 'SoundPro' },
-  unit: '1 Pack',
-};
-
 function discountPercent(price: number, original?: number): number {
   if (!original || original <= price) return 0;
   return Math.round(((original - price) / original) * 100);
@@ -81,36 +66,36 @@ export default function CommonProductDetailView({
   onViewRestaurant,
   onOpenProduct,
 }: ProductDetailViewProps) {
-  const product = propProduct ?? FALLBACK_PRODUCT;
-  const safePrice = Number(product.price) || 0;
-  const safeOriginal = Number(product.originalPrice) || 0;
-  const safeRating = Number(product.rating) || 4.5;
-  const safeEmoji = product.emoji ?? '🛍️';
-  const safeDesc = product.desc ?? 'Premium quality product';
+  const product = propProduct;
+  const safePrice = Number(product?.price) || 0;
+  const safeOriginal = Number(product?.originalPrice) || 0;
+  const safeRating = Number(product?.rating) || 4.5;
+  const safeEmoji = product?.emoji ?? '🛍️';
+  const safeDesc = product?.desc ?? 'Premium quality product';
   const discount = discountPercent(safePrice, safeOriginal);
 
   const brand =
-    (product.attributes?.brand as string | undefined) ||
-    product.shop ||
+    (product?.attributes?.brand as string | undefined) ||
+    product?.shop ||
     'Faazio';
 
   const variants = useMemo<string[]>(() => {
-    const attrVar = product.attributes?.variants;
+    const attrVar = product?.attributes?.variants;
     if (Array.isArray(attrVar) && attrVar.length > 0) {
       return attrVar.map(String);
     }
-    if (product.unit) return [product.unit];
+    if (product?.unit) return [product.unit];
     return ['500g', '1kg'];
-  }, [product.unit, product.attributes]);
+  }, [product?.unit, product?.attributes]);
 
   const [selectedVariant, setSelectedVariant] = useState(variants[0]);
 
-  const isFavorite = favorites.includes(product.id);
-  const cartItem = cartItems.find((i) => i.id === product.id);
+  const isFavorite = product ? favorites.includes(product.id) : false;
+  const cartItem = product ? cartItems.find((i) => i.id === product.id) : undefined;
   const cartQty = cartItem?.quantity ?? 0;
 
   const handleToggleFavorite = () => {
-    if (toggleFavorite) toggleFavorite(product.id);
+    if (toggleFavorite && product) toggleFavorite(product.id);
   };
 
   const confirmAdd = (p: Product) => {
@@ -118,27 +103,27 @@ export default function CommonProductDetailView({
   };
 
   const handleAddToCart = () => {
-    confirmAdd(product);
+    if (product) confirmAdd(product);
   };
 
   const handleIncrement = () => {
-    updateCartQuantity(product.id, 1);
+    if (product) updateCartQuantity(product.id, 1);
   };
 
   const handleDecrement = () => {
-    updateCartQuantity(product.id, -1);
+    if (product) updateCartQuantity(product.id, -1);
   };
 
   const store = useMemo<StoreProfile | undefined>(() => {
-    if (product.app !== 'MART' || !product.storeId) return undefined;
+    if (product?.app !== 'MART' || !product.storeId) return undefined;
     return martStores.find((s) => s.id === product.storeId);
-  }, [product.app, product.storeId]);
+  }, [product?.app, product?.storeId]);
 
   // "More from store": server-backed (`catalog.products` by store_id + ACTIVE) with the local
   // `@data` pool kept as the offline fallback, so the rail never regresses when the gateway is off.
   const [serverRelated, setServerRelated] = useState<Product[]>([]);
   useEffect(() => {
-    if (product.app !== 'MART' || !product.storeId) {
+    if (product?.app !== 'MART' || !product.storeId) {
       setServerRelated([]);
       return;
     }
@@ -152,13 +137,14 @@ export default function CommonProductDetailView({
     return () => {
       active = false;
     };
-  }, [product.app, product.storeId, product.id]);
+  }, [product?.app, product?.storeId, product?.id]);
 
   const relatedProducts = useMemo(() => {
+    if (!product) return [];
     if (serverRelated.length > 0) return serverRelated;
     if (!store) return [];
     return martProducts.filter((p) => p.storeId === store.id && p.id !== product.id);
-  }, [store, serverRelated, product.id]);
+  }, [store, serverRelated, product]);
 
   // Overlay approved festival discounts on the "More from store" rail (no-op offline / none apply).
   const relatedDiscounts = useActiveDiscounts(relatedProducts.map((p) => p.id));
@@ -168,16 +154,36 @@ export default function CommonProductDetailView({
   );
 
   const foodStore = useMemo<StoreProfile | undefined>(() => {
-    if (product.app !== 'FOOD' || !product.shop) return undefined;
+    if (product?.app !== 'FOOD' || !product.shop) return undefined;
     return foodStores.find((s) => s.app === 'FOOD' && s.name === product.shop);
-  }, [product.app, product.shop]);
+  }, [product?.app, product?.shop]);
 
   const relatedDishes = useMemo<Product[]>(() => {
-    if (product.app !== 'FOOD' || !product.shop) return [];
+    if (product?.app !== 'FOOD' || !product.shop) return [];
     return TODAYS_SPECIALS.filter(
       (d) => d.restaurant === product.shop && d.id !== product.id,
     ).map(dishToProduct);
-  }, [product.app, product.shop, product.id]);
+  }, [product?.app, product?.shop, product?.id]);
+
+  // No product to render: an honest empty state beats a fabricated demo row (which could show an
+  // invented price). Placed after every hook so the hook order stays stable across renders.
+  if (!product) {
+    return (
+      <SafeAreaView edges={['top']} style={styles.root}>
+        <View style={styles.header}>
+          <TouchableOpacity onPress={onClose} style={styles.headerBtn} activeOpacity={0.7}>
+            <ArrowLeft size={ms(22)} color="#0f172a" strokeWidth={2.2} />
+          </TouchableOpacity>
+        </View>
+        <View style={styles.unavailable}>
+          <AppText style={styles.unavailableTitle}>Product unavailable</AppText>
+          <AppText style={styles.unavailableSub}>
+            This item can’t be shown right now. Please try again from the store.
+          </AppText>
+        </View>
+      </SafeAreaView>
+    );
+  }
 
   const cardWidth = (SCREEN_W - hs(32) - hs(12)) / 2;
 
@@ -526,6 +532,24 @@ const styles = StyleSheet.create({
     borderRadius: ms(20),
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  unavailable: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: hs(32),
+    gap: vs(8),
+  },
+  unavailableTitle: {
+    fontSize: ms(16),
+    fontWeight: '800',
+    color: '#0f172a',
+  },
+  unavailableSub: {
+    fontSize: ms(12),
+    fontWeight: '500',
+    color: '#94a3b8',
+    textAlign: 'center',
   },
   scroll: {
     flex: 1,

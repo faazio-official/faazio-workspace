@@ -8,6 +8,7 @@ import {
 } from '../mocks/martHomeFeed';
 import { gateway, type ActiveDiscount, type ProductView } from '@/services/api/GatewayClient';
 import { applyActiveDiscount } from '@/services/pricing';
+import { martStores } from '@data/mart/stores';
 import type { SduiBanner } from '@data/home/sdui';
 import type { StoreProfile } from '@data/types';
 
@@ -166,7 +167,9 @@ export async function fetchMartFeed(): Promise<MartFeed> {
       deals: MART_DEALS,
       dailyEssentials: MART_DAILY_ESSENTIALS,
       heroBanners: [],
-      localVendors: [],
+      // Offline first-paint: the local Mart directory keeps the "Local Vendors" footer renderable
+      // instead of blanking to an empty "No vendors found" state.
+      localVendors: martStores,
     };
   }
 }

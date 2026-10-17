@@ -158,6 +158,11 @@
 | M03 | **Mart — Categories (SubAppWrapper tab)** | `src/components/SubAppWrapper.tsx` | 336–357 | 2-column category grid |
 | M04 | **Mart — Offers (SubAppWrapper tab)** | `src/components/SubAppWrapper.tsx` | 359–380 | Promo code list |
 
+> **Historical (Vite web app) — not the live RN app.** `src/components/FaMartPage.tsx` was the Vite
+> prototype and no longer exists. The live Mart home is **RN16 `features/ecommerce/FaMartScreen.tsx`**;
+> the in-wrapper vendor drill-in is `VendorProfileView` and the pushed single-store page is
+> `VendorDetailScreen` (see §2). M03/M04 are the live `SubAppWrapper` tabs.
+
 #### Mart Home (M01) sub-sections:
 
 | # | Sub-Section | Lines | Description |

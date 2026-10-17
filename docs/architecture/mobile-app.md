@@ -73,7 +73,18 @@ of a hardcoded claim.
 The Mart feed **search mode** (header searchbar query) now calls `GatewayClient.searchProducts(q, 'MART')`
 — the server FTS index (`GET /search`) — with the local filter as the offline fallback, so results are
 no longer limited to the local `@data` fixture pool. A `search` behavior event is emitted for the top
-result (mirrors `SearchScreen`).
+result (mirrors `SearchScreen`). This in-wrapper filter is a **distinct, lightweight path** from the
+pushed `Search` route (`search/configs/martSearchConfig`, `subApp: 'FA_MART'`): both hit the same server
+FTS, but only the pushed route carries facets + sort. QA should exercise both.
+
+The **category drill-in** (`CategoryDrillInPanel`, route `CategoryDrillIn`) groups its store body from
+the server: products come from `GET /search?q=&app=` grouped by `storeId` and joined to
+`GET /stores?app=`, with the local token-containment grouping (`getVendorsWithProducts`) as the
+offline authority / multi-word safety net, and approved festival discounts overlaid on the whole pool.
+New seller `ACTIVE` rows therefore appear in the drill-in and its price matches checkout. The single
+store inventory used by the in-wrapper vendor drill-in (`VendorProfileView`) and the pushed vendor page
+(`VendorDetailScreen`) is shared through **`features/catalog/hooks/useVendorProducts`** (server
+`GET /stores/{id}/products` + festival overlay), so the two surfaces can never diverge.
 
 The Mart feed **hero** is a **paid `MART_HERO` placement** (`CampaignHero`; see the paid-hero
 campaigns note below) — the old organic `MartHeroCarousel` and its `MART_HERO_BANNERS` fixture are
@@ -89,14 +100,24 @@ redacted product never opens a stale copy. The `mocks/martHomeFeed.ts` fixtures 
 `@data/mart/deals`) are the offline first-paint fallback only; a present-but-empty SDUI section renders
 empty (a portal typo stays visible). `fetchMartFeed` degrades each leg independently (`Promise.all` +
 body guard) so a failing `GET /stores` or SDUI poll renders the remaining rails instead of a
-never-ending skeleton. One batched `useActiveDiscounts` covers the Deals rail, Daily Essentials, the
-vendor pool **and** the paid shelf (`SponsoredRail` accepts a `discounts` prop) — one
-`GET /promo/active-discounts`, no post-paint flicker, identical shopper price everywhere. The
-`DealsLanding` **`discounts`**-mode grid also reads the vendor pool from the server
-(`getStoreProducts`), matching the vendor drill-in; `campaign` mode stays on the Home-owned `@data`
-campaigns (only reachable from Home, not Mart). The feed's paid/organic section order + placement is
-codified in `features/ecommerce/services/martFeedSections.ts` (`MART_FEED_SECTIONS`, consumed by
+never-ending skeleton. One batched `useActiveDiscounts` covers the Deals rail + Daily Essentials and is
+shared with the paid shelf (`SponsoredRail` accepts a `discounts` prop); the vendor drill-in pool
+overlays its own batch inside `useVendorProducts` (only while a vendor is open), so the shopper price is
+identical on every surface with no duplicate request while the feed is on screen — a discount is never
+synthesized. `useMartFeed` exposes a `refresh` (pull-to-refresh / retry); the offline body falls back to
+the `martStores` fixture so the "Local Vendors" footer never blanks. The `DealsLanding` **`discounts`**-mode
+grid also reads the vendor pool from the server (`getStoreProducts`), matching the vendor drill-in and
+showing a loading/error state instead of a silent empty grid; `campaign` mode stays on the Home-owned
+`@data` campaigns (only reachable from Home, not Mart). The feed's paid/organic section order + placement
+is codified in `features/ecommerce/services/martFeedSections.ts` (`MART_FEED_SECTIONS`, consumed by
 `FaMartScreen`); the full RN route registry is `PAGE_CATALOG.md` §2.
+
+**Paid-ad measurement is auth-gated (known gap).** `POST /ads/events` sits behind `auth.Require`, but
+the app's login is **mocked** (a placeholder token that is not a signed JWT), so impression/click events
+never reach the ad-server in that configuration: the shopper flow is unaffected (last-click attribution
+still records locally via `services/adsAttribution`), but back-office ad KPIs undercount to zero. Wiring
+a real session, or an anon event path with rate-limiting, is the follow-up; it is deliberately not opened
+unauthenticated here.
 
 Pharma's home feed ends with a pharma-local **"Local Medicals Near You"** rail backed by
 `@data/pharma/stores`. Each stacked card shows distance, rating, delivery time, offer and a
@@ -972,11 +993,15 @@ The "lightweight, fast, secure" mandate (AGENTS.md) is enforced at build and del
 - **Duplicated mock data** in a few screens (`PharmaScreen`, `FoodScreen` booking dishes,
   `ProductDetailView`) — canonical copies exist under `@data/` marked `@unused`; de-dup is
   a tracked priority (see `data/DATA_CONTROL.md` "Known Gaps").
-- **Two vendor surfaces share a data read but not a hook** — the Mart in-wrapper drill-in
-  (`VendorProfileView`, wired by `FaMartScreen`) and the pushed `VendorDetails` screen
-  (`VendorDetailScreen`) both fetch `GET /stores/{id}/products` and overlay the same discount map,
-  but via separate `useEffect` blocks. Prices/AD labelling are already identical; a shared inventory
-  hook is a tracked refactor (`PENDING_WORK.md` W47), not a correctness gap.
+- **Shared vendor inventory hook (W48, resolved)** — the Mart in-wrapper drill-in (`VendorProfileView`,
+  wired by `FaMartScreen`) and the pushed `VendorDetails` screen (`VendorDetailScreen`) now share
+  `features/catalog/hooks/useVendorProducts` (server `GET /stores/{id}/products` + festival overlay +
+  offline fallback), so the two surfaces cannot diverge. The category drill-in groups the same server
+  catalog via `useCategoryVendors`.
+- **Vendor ratings are device-local (known gap)** — `RateVendorScreen` writes through
+  `services/vendorRatings` (device store); the server `PUT /vendors/{id}/rating` + reads exist but the
+  screen migration waits on a real session (auth is mocked). A displayed vendor rating can therefore
+  diverge from the server summary until then.
 - **Pharma home rails are intentionally feature-mock** — stores are server-backed
   (`getStores('PHARMA')`), but the editorial rails use presentation-only `pm-*`/`pe-*` ids (not
   catalog rows) and there is no `GET /sdui/pharma`. This is a deliberate MVP choice, not an

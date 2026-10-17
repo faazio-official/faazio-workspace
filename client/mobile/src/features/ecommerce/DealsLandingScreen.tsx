@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { View, StyleSheet, FlatList, TouchableOpacity, Dimensions, type ListRenderItemInfo } from 'react-native';
+import { View, StyleSheet, FlatList, TouchableOpacity, Dimensions, ActivityIndicator, type ListRenderItemInfo } from 'react-native';
 import { ArrowLeft } from 'lucide-react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
@@ -59,36 +59,65 @@ export function DealsLandingScreen({ navigation, route }: Props) {
   // explicit id list through the batch catalog read. The `@data` local pool is the offline fallback
   // inside `GatewayClient`. `campaign` mode stays on the Home-owned `@data` campaigns.
   const [storeProducts, setStoreProducts] = useState<Product[]>([]);
+  const [listProducts, setListProducts] = useState<Product[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [failed, setFailed] = useState(false);
+
   useEffect(() => {
     if (mode !== 'discounts' || !store) {
       setStoreProducts([]);
+      setLoading(false);
+      setFailed(false);
       return;
     }
     let active = true;
+    setLoading(true);
+    setFailed(false);
     gateway
       .getStoreProducts(store.id)
       .then((rows) => {
         if (active) setStoreProducts(rows as unknown as Product[]);
       })
-      .catch(() => undefined);
+      .catch(() => {
+        if (active) {
+          setStoreProducts([]);
+          setFailed(true);
+        }
+      })
+      .finally(() => {
+        if (active) setLoading(false);
+      });
     return () => {
       active = false;
     };
   }, [mode, store]);
 
-  const [listProducts, setListProducts] = useState<Product[]>([]);
   useEffect(() => {
     if (!isListMode || !productIds?.length) {
       setListProducts([]);
+      if (!isListMode) {
+        setLoading(false);
+        setFailed(false);
+      }
       return;
     }
     let active = true;
+    setLoading(true);
+    setFailed(false);
     gateway
       .getProductsByIds(productIds)
       .then((rows) => {
         if (active) setListProducts(rows as unknown as Product[]);
       })
-      .catch(() => undefined);
+      .catch(() => {
+        if (active) {
+          setListProducts([]);
+          setFailed(true);
+        }
+      })
+      .finally(() => {
+        if (active) setLoading(false);
+      });
     return () => {
       active = false;
     };
@@ -225,10 +254,21 @@ export function DealsLandingScreen({ navigation, route }: Props) {
           ) : null
         }
         ListEmptyComponent={
-          <View style={styles.emptyWrap}>
-            <AppText style={styles.emptyTitle}>No deals right now</AppText>
-            <AppText style={styles.emptySub}>Check back soon for new offers.</AppText>
-          </View>
+          loading ? (
+            <View style={styles.emptyWrap}>
+              <ActivityIndicator color="#1162D3" />
+            </View>
+          ) : failed ? (
+            <View style={styles.emptyWrap}>
+              <AppText style={styles.emptyTitle}>Couldn’t load deals</AppText>
+              <AppText style={styles.emptySub}>Please check your connection and try again.</AppText>
+            </View>
+          ) : (
+            <View style={styles.emptyWrap}>
+              <AppText style={styles.emptyTitle}>No deals right now</AppText>
+              <AppText style={styles.emptySub}>Check back soon for new offers.</AppText>
+            </View>
+          )
         }
       />
     </View>

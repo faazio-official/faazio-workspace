@@ -10,10 +10,10 @@ import type { Product, StoreProfile } from '@data/types';
 import type { RootStackParamList } from '@/navigation/types';
 import { gateway, type HeroAd } from '@/services/api/GatewayClient';
 import { openCatalogTarget, openHeroTarget } from '@/services/adsTarget';
-import { isDiscounted } from '@/services/categoryVendors';
-import { applyActiveDiscounts, useActiveDiscounts } from '@/services/pricing';
+import { useActiveDiscounts } from '@/services/pricing';
 import { trackProductView } from '@/services/productViews';
 import { useViewableTracking } from '@/hooks/useViewableTracking';
+import { useVendorProducts } from '@/features/catalog/hooks/useVendorProducts';
 import MartProductCard from '@/features/ecommerce/cards/MartProductCard';
 
 import {
@@ -65,7 +65,7 @@ export function FaMartScreen({
   onVendorPress,
   onViewAllDiscounts,
 }: FaMartScreenProps) {
-  const feed = useMartFeed();
+  const { feed, refreshing, refresh } = useMartFeed();
   const cartItems = useCartStore((s) => s.cart);
   const addToCart = useCartStore((s) => s.addToCart);
   const updateQuantity = useCartStore((s) => s.updateQuantity);
@@ -91,25 +91,13 @@ export function FaMartScreen({
     };
   }, [vendor]);
 
-  // Vendor drill-in inventory: server-backed (catalog.products by store_id + ACTIVE), refetched
-  // whenever the open vendor changes. Empty in feed mode.
-  const [vendorProducts, setVendorProducts] = useState<Product[]>([]);
-  useEffect(() => {
-    if (!vendor) {
-      setVendorProducts([]);
-      return;
-    }
-    let active = true;
-    gateway
-      .getStoreProducts(vendor.id)
-      .then((rows) => {
-        if (active) setVendorProducts(rows);
-      })
-      .catch(() => undefined);
-    return () => {
-      active = false;
-    };
-  }, [vendor]);
+  // Vendor drill-in inventory: one shared hook (server `GET /stores/{id}/products` + approved
+  // festival discounts), so the in-wrapper drill-in, the pushed vendor-details page and the deals
+  // landing can never render divergent rows or prices. Empty in feed mode.
+  const {
+    products: vendorProducts,
+    discounted: discountedProducts,
+  } = useVendorProducts(vendor?.id);
 
   // Feed search mode: full catalog search (FTS on the server, local mirror offline), so results
   // are no longer limited to the local fixture pool. Empty when no query.
@@ -143,28 +131,19 @@ export function FaMartScreen({
     trackProductView(p.id),
   );
 
-  // "Discounted Products" rail: every vendor product, with any server-owned festival discount
-  // overlaid, filtered to what is actually on offer (authored MRP or an active opt-in). Fetching
-  // discounts for the full pool means an approved opt-in shows even when the product has no MRP
-  // fixture. In mock mode `useActiveDiscounts` returns {} so only the authored MRP set shows.
-  //
-  // The same price authority covers the whole feed: one batch `GET /promo/active-discounts` for the
-  // Deals rail, Daily Essentials and the vendor pool (and the paid shelf via the `discounts` prop) —
-  // one cache key, no post-paint price flicker, identical shopper price on every surface.
+  // The feed's single batch covers the Deals rail + Daily Essentials (and is shared with the paid
+  // shelf via `SponsoredRail discounts`). The vendor drill-in pool self-serves inside
+  // `useVendorProducts` (only when a vendor is open), so the shopper price is identical everywhere
+  // without a duplicate request while the feed is on screen.
   const discountIds = useMemo(
     () => [
       ...(feed?.deals ?? []).map((d) => d.id),
       ...(feed?.dailyEssentials ?? []).map((i) => i.id),
-      ...vendorProducts.map((p) => p.id),
     ],
-    [feed?.deals, feed?.dailyEssentials, vendorProducts],
+    [feed?.deals, feed?.dailyEssentials],
   );
   const discounts = useActiveDiscounts(discountIds);
 
-  const discountedProducts = useMemo(
-    () => applyActiveDiscounts(vendorProducts, discounts).filter(isDiscounted),
-    [vendorProducts, discounts],
-  );
   const pricedDeals = useMemo(
     () => priceDeals(feed?.deals ?? [], discounts),
     [feed?.deals, discounts],
@@ -373,6 +352,8 @@ export function FaMartScreen({
       renderItem={({ item }) => <>{item.component}</>}
       showsVerticalScrollIndicator={false}
       contentContainerStyle={styles.feedContent}
+      refreshing={refreshing}
+      onRefresh={refresh}
       ListFooterComponent={
         <LocalVendorRail vendors={feed.localVendors} onVendorPress={handleVendorPress} />
       }

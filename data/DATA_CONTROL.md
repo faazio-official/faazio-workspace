@@ -130,6 +130,17 @@ wiring order in `docs/architecture/data-layer-sdui.md`.
 > `priceEssentials`) so the shopper pays the same price as the paid shelf / vendor drill-in; mock or
 > offline → `{}` → base price, never a synthesized discount.
 
+> **`@mock` pool vs server-controlled rails (clarified).** `martProducts`/`martStores` are the
+> **offline/mock mirror** of the server catalog + directory (`catalog.products` / `directory.stores`):
+> the Mart feed vendors, the vendor drill-in and the category drill-in read the server
+> (`getStores('MART')`, `GET /stores/{id}/products`, `GET /search`) and use these fixtures only as the
+> offline fallback (via `useVendorProducts`/`useCategoryVendors`). The **hero** (`MART_HERO` paid +
+> `martHero.banners` house fallback), **Deals** (`martDeals.productIds`) and **Daily Essentials**
+> (`martEssentials.productIds`) sections are **server-controlled** through the Mongo SDUI doc
+> (`GET /sdui/mart`) and `ads.campaigns`; the `MART_DEALS`/`MART_DAILY_ESSENTIALS` fixtures are
+> first-paint fallbacks only. `campaign` mode (`@data/home/campaigns.ts`) stays Home-owned `@data` —
+> it has no server read and is reachable only from Home, not Mart.
+
 ### `@data/grocery` — **removed (merged into `mart`)**
 
 The standalone `grocery` domain and its `@data/grocery/*` exports were deleted. Grocery
