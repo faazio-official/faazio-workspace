@@ -24,7 +24,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { formatINR, parseRupeesToPaisa } from "@/lib/format";
 import { validatePrice } from "@/lib/pricing/rules";
-import { deleteProduct, updateProduct } from "@/lib/api";
+import { deleteProduct, saveProductImage, updateProduct } from "@/lib/api";
 import { useProduct } from "@/lib/api/hooks";
 import { StatusPill } from "@/components/patterns/Pills";
 import { ImageUploader } from "@/components/patterns/ImageUploader";
@@ -158,6 +158,7 @@ function EditProduct() {
                 imageUrl: images[0] ?? "",
                 galleryUrls: images.slice(1),
               });
+              saveProductImage(product.productId, images[0]);
               toast.success("Listing updated");
             }}
           >

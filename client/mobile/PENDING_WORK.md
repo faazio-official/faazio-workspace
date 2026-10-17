@@ -59,9 +59,12 @@ the existing Mongo `sdui_layouts/home` doc.
 - **Web (`admin/super/sdui`).** Sections with `banners` render an inline title/subtitle/image-url
   editor; publishing flows through the existing `saveSduiLayoutHome` → `PUT /admin/sdui/home`.
 
-**Still deferred:** Mart media path (Supabase Storage object-keys + `ImageUploader`; Unsplash stays
-as fallback) and card-impression `view` events (PDP already emits `view`; only `search` + `cart_add`
-+ ad events fire for Mart surfaces). Its `DealsLanding` **campaign** mode is Home-owned.
+**Still deferred:** the R2 media backfill (Unsplash seed URLs stay as the offline fallback until
+`generate.mjs`/backfill emits `r2:` keys; `0025` is the durable home) and card-impression `view` events
+(PDP already emits `view`; only `search` + `cart_add` + ad events fire for Mart surfaces). Its
+`DealsLanding` **campaign** mode is Home-owned. Mobile needs no media plumbing: the gateway now
+resolves `image_key` → CDN URL on every catalog/directory/SDUI read, and Rx images stay behind the
+unchanged signed-URL endpoint (backend repointed to R2).
 
 **Docs:** `docs/architecture/db-schema.md §8.1`, `data-layer-sdui.md`, `mobile-app.md`,
 `web-portal.md`, `data/DATA_CONTROL.md`.

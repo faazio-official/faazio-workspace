@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"math"
+	"strings"
 	"time"
 
 	"github.com/faazio/server/gateway/internal/contracts"
@@ -17,21 +18,30 @@ import (
 // Repo reads directory.stores.
 type Repo struct {
 	pool *db.Pool
+	// cdnBase is the media CDN origin; when set, store cover_image_key / menu image_key resolve to CDN
+	// URLs on read (falling back to the legacy cover_image / image text column).
+	cdnBase string
 }
 
-// New returns a directory repo.
-func New(pool *db.Pool) *Repo { return &Repo{pool: pool} }
+// New returns a directory repo. cdnBase is optional (media CDN origin) and keeps existing call sites valid.
+func New(pool *db.Pool, cdnBase ...string) *Repo {
+	r := &Repo{pool: pool}
+	if len(cdnBase) > 0 {
+		r.cdnBase = strings.TrimRight(cdnBase[0], "/")
+	}
+	return r
+}
 
 const storeSelect = `
 select id, app::text, name, categories, rating, reviews_count, delivery_time, distance,
-       cover_image, emoji, desc_text, offer_tag, is_veg, address, phone, hours
+       cover_image, cover_image_key, emoji, desc_text, offer_tag, is_veg, address, phone, hours
 from directory.stores`
 
 // storeListSelect is the public list projection: it never fetches the PII columns (address/phone),
 // so they cannot reach the gateway, the wire, or the edge cache. Product detail keeps storeSelect.
 const storeListSelect = `
 select id, app::text, name, categories, rating, reviews_count, delivery_time, distance,
-       cover_image, emoji, desc_text, offer_tag, is_veg, null::text as address, null::text as phone, hours
+       cover_image, cover_image_key, emoji, desc_text, offer_tag, is_veg, null::text as address, null::text as phone, hours
 from directory.stores`
 
 // ByApp returns stores for one app (empty app = all).
@@ -44,7 +54,7 @@ func (r *Repo) ByApp(ctx context.Context, app string) ([]contracts.Store, error)
 		return nil, err
 	}
 	defer rows.Close()
-	return scanStores(rows)
+	return scanStores(rows, r.cdnBase)
 }
 
 // ByAppPage returns stores ordered by (rating desc, id asc) using keyset pagination.
@@ -64,7 +74,7 @@ func (r *Repo) ByAppPage(ctx context.Context, app string, limit int, cursorRatin
 		return nil, err
 	}
 	defer rows.Close()
-	return scanStores(rows)
+	return scanStores(rows, r.cdnBase)
 }
 
 // ByID returns one store.
@@ -77,7 +87,7 @@ func (r *Repo) ByID(ctx context.Context, id string) (contracts.Store, bool, erro
 		return contracts.Store{}, false, err
 	}
 	defer rows.Close()
-	stores, err := scanStores(rows)
+	stores, err := scanStores(rows, r.cdnBase)
 	if err != nil {
 		return contracts.Store{}, false, err
 	}
@@ -101,7 +111,7 @@ func (r *Repo) ByIDs(ctx context.Context, ids []string) ([]contracts.Store, erro
 		return nil, err
 	}
 	defer rows.Close()
-	stores, err := scanStores(rows)
+	stores, err := scanStores(rows, r.cdnBase)
 	if err != nil {
 		return nil, err
 	}
@@ -154,7 +164,7 @@ func (r *Repo) Menu(ctx context.Context, venueID string) ([]contracts.MenuDish, 
 		return nil, fmt.Errorf("directory: database not configured")
 	}
 	rows, err := r.pool.Query(ctx, `
-		select dish_id, name, price_paisa, mrp_paisa, is_veg, cuisine, rating, image, description, emoji, delivery_time
+		select dish_id, name, price_paisa, mrp_paisa, is_veg, cuisine, rating, image, image_key, description, emoji, delivery_time
 		  from directory.menus where venue_id = $1
 		 order by rating desc nulls last, name asc`, venueID)
 	if err != nil {
@@ -172,9 +182,13 @@ func (r *Repo) Menu(ctx context.Context, venueID string) ([]contracts.MenuDish, 
 			desc     *string
 			emoji    *string
 			delivery *string
+			imageKey *string
 		)
-		if err := rows.Scan(&d.ID, &d.Name, &d.Price, &mrp, &isVeg, &cuisine, &rating, &d.Image, &desc, &emoji, &delivery); err != nil {
+		if err := rows.Scan(&d.ID, &d.Name, &d.Price, &mrp, &isVeg, &cuisine, &rating, &d.Image, &imageKey, &desc, &emoji, &delivery); err != nil {
 			return nil, err
+		}
+		if imageKey != nil && *imageKey != "" && r.cdnBase != "" {
+			d.Image = r.cdnBase + "/" + *imageKey
 		}
 		d.Price = d.Price / 100
 		if mrp != nil {
@@ -278,7 +292,7 @@ func (r *Repo) VenueByID(ctx context.Context, id string) (contracts.Venue, bool,
 	return out[0], true, nil
 }
 
-func scanStores(rows pgx.Rows) ([]contracts.Store, error) {
+func scanStores(rows pgx.Rows, cdnBase string) ([]contracts.Store, error) {
 	out := []contracts.Store{}
 	for rows.Next() {
 		var (
@@ -289,13 +303,17 @@ func scanStores(rows pgx.Rows) ([]contracts.Store, error) {
 			address  *string
 			phone    *string
 			hours    *string
+			coverKey *string
 		)
 		if err := rows.Scan(
 			&s.ID, &s.App, &s.Name, &s.Categories, &s.Rating, &reviews,
-			&s.DeliveryTime, &s.Distance, &s.CoverImage, &s.Emoji, &s.Desc,
+			&s.DeliveryTime, &s.Distance, &s.CoverImage, &coverKey, &s.Emoji, &s.Desc,
 			&offerTag, &isVeg, &address, &phone, &hours,
 		); err != nil {
 			return nil, err
+		}
+		if coverKey != nil && *coverKey != "" && cdnBase != "" {
+			s.CoverImage = cdnBase + "/" + *coverKey
 		}
 		s.ReviewsCount = reviews
 		s.OfferTag = derefStr(offerTag)
@@ -384,22 +402,52 @@ func (r *Repo) SetStoreLive(ctx context.Context, id, sellerID string, live, admi
 	return s, true, nil
 }
 
+// SetStoreCover links a confirmed media asset as the store cover, scoped to the caller's seller_id
+// unless admin. key/assetID may be empty to clear the cover.
+func (r *Repo) SetStoreCover(ctx context.Context, id, sellerID, key, assetID string, admin bool) (SellerStore, bool, error) {
+	if r.pool == nil {
+		return SellerStore{}, false, fmt.Errorf("directory: database not configured")
+	}
+	var (
+		s         SellerStore
+		updatedAt time.Time
+	)
+	err := r.pool.QueryRow(ctx, `
+		update directory.stores
+		   set cover_image_key = $2, cover_image_asset_id = $3, updated_at = now()
+		 where id = $1 and ($4 or seller_id = $5)
+		 returning id, name, app::text, coalesce(seller_id,''), coalesce(state_code,''), is_live, rating, updated_at`,
+		id, nullIfEmpty(key), nullIfEmpty(assetID), admin, sellerID).
+		Scan(&s.ID, &s.Name, &s.App, &s.SellerID, &s.StateCode, &s.IsLive, &s.Rating, &updatedAt)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return SellerStore{}, false, nil
+		}
+		return SellerStore{}, false, err
+	}
+	s.Rating = math.Round(s.Rating*10) / 10
+	s.UpdatedAt = updatedAt.UTC().Format(time.RFC3339)
+	return s, true, nil
+}
+
 // SellerMenu is the portal-facing menu-management projection (includes seller scope + status).
 type SellerMenu struct {
-	VenueID  string   `json:"venueId"`
-	DishID   string   `json:"dishId"`
-	Name     string   `json:"name"`
-	Price    int64    `json:"price"` // rupees
-	IsVeg    *bool    `json:"isVeg,omitempty"`
-	Cuisine  string   `json:"cuisine,omitempty"`
-	Rating   *float64 `json:"rating,omitempty"`
-	Image    string   `json:"image,omitempty"`
-	SellerID string   `json:"sellerId,omitempty"`
-	Status   string   `json:"status"`
+	VenueID      string   `json:"venueId"`
+	DishID       string   `json:"dishId"`
+	Name         string   `json:"name"`
+	Price        int64    `json:"price"` // rupees
+	IsVeg        *bool    `json:"isVeg,omitempty"`
+	Cuisine      string   `json:"cuisine,omitempty"`
+	Rating       *float64 `json:"rating,omitempty"`
+	Image        string   `json:"image,omitempty"`
+	ImageAssetID string   `json:"imageAssetId,omitempty"`
+	ImageKey     string   `json:"-"`
+	SellerID     string   `json:"sellerId,omitempty"`
+	Status       string   `json:"status"`
 }
 
 const sellerMenuSelect = `
-select venue_id, dish_id, name, price_paisa, is_veg, cuisine, rating, image,
+select venue_id, dish_id, name, price_paisa, is_veg, cuisine, rating, image, image_key,
        coalesce(seller_id,''), status::text
 from directory.menus`
 
@@ -420,13 +468,20 @@ func (r *Repo) SellerMenus(ctx context.Context, sellerID, venueID string) ([]Sel
 	out := []SellerMenu{}
 	for rows.Next() {
 		var (
-			m       SellerMenu
-			isVeg   *bool
-			cuisine *string
-			rating  *float64
+			m        SellerMenu
+			isVeg    *bool
+			cuisine  *string
+			rating   *float64
+			imageKey *string
 		)
-		if err := rows.Scan(&m.VenueID, &m.DishID, &m.Name, &m.Price, &isVeg, &cuisine, &rating, &m.Image, &m.SellerID, &m.Status); err != nil {
+		if err := rows.Scan(&m.VenueID, &m.DishID, &m.Name, &m.Price, &isVeg, &cuisine, &rating, &m.Image, &imageKey, &m.SellerID, &m.Status); err != nil {
 			return nil, err
+		}
+		if imageKey != nil {
+			m.ImageKey = *imageKey
+			if *imageKey != "" && r.cdnBase != "" {
+				m.Image = r.cdnBase + "/" + *imageKey
+			}
 		}
 		m.Price = m.Price / 100
 		m.IsVeg = isVeg
@@ -446,27 +501,33 @@ func (r *Repo) UpsertMenu(ctx context.Context, m SellerMenu, sellerID string, ad
 		return SellerMenu{}, false, fmt.Errorf("directory: database not configured")
 	}
 	var (
-		out     SellerMenu
-		isVeg   *bool
-		cuisine *string
-		rating  *float64
+		out      SellerMenu
+		isVeg    *bool
+		cuisine  *string
+		rating   *float64
+		imageKey *string
 	)
 	err := r.pool.QueryRow(ctx, `
-		insert into directory.menus (venue_id, dish_id, name, price_paisa, is_veg, cuisine, rating, image, seller_id, status)
-		values ($1,$2,$3,$4,$5,$6,$7,$8,$9,'DRAFT')
+		insert into directory.menus (venue_id, dish_id, name, price_paisa, is_veg, cuisine, rating, image, image_key, image_asset_id, seller_id, status)
+		values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,'DRAFT')
 		on conflict (venue_id, dish_id) do update
 		   set name = excluded.name, price_paisa = excluded.price_paisa, is_veg = excluded.is_veg,
-		       cuisine = excluded.cuisine, rating = excluded.rating, image = excluded.image
-		 where $10 or directory.menus.seller_id = $9
-		returning venue_id, dish_id, name, price_paisa, is_veg, cuisine, rating, image,
+		       cuisine = excluded.cuisine, rating = excluded.rating, image = excluded.image,
+		       image_key = excluded.image_key, image_asset_id = excluded.image_asset_id
+		 where $12 or directory.menus.seller_id = $11
+		returning venue_id, dish_id, name, price_paisa, is_veg, cuisine, rating, image, image_key,
 		          coalesce(seller_id,''), status::text`,
-		m.VenueID, m.DishID, m.Name, m.Price*100, m.IsVeg, nullIfEmpty(m.Cuisine), m.Rating, m.Image, sellerID, admin).
-		Scan(&out.VenueID, &out.DishID, &out.Name, &out.Price, &isVeg, &cuisine, &rating, &out.Image, &out.SellerID, &out.Status)
+		m.VenueID, m.DishID, m.Name, m.Price*100, m.IsVeg, nullIfEmpty(m.Cuisine), m.Rating, m.Image,
+		nullIfEmpty(m.ImageKey), nullIfEmpty(m.ImageAssetID), sellerID, admin).
+		Scan(&out.VenueID, &out.DishID, &out.Name, &out.Price, &isVeg, &cuisine, &rating, &out.Image, &imageKey, &out.SellerID, &out.Status)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return SellerMenu{}, false, nil
 		}
 		return SellerMenu{}, false, err
+	}
+	if imageKey != nil {
+		out.ImageKey = *imageKey
 	}
 	out.Price = out.Price / 100
 	out.IsVeg = isVeg

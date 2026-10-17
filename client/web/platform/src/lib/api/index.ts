@@ -207,6 +207,22 @@ export function updateProduct(productId: string, patch: Partial<ProductRecord>):
   audit({ action: "PRODUCT_UPDATE", entity: "catalog.products", entityId: productId, before, after: patch });
 }
 
+/**
+ * Persists a product's primary image link to the gateway media registry. `image` is the stored value:
+ * an `r2:<key>` reference links the uploaded asset, and an empty value clears it. Legacy https/data
+ * URLs are ignored (the gateway never trusts a raw URL). No-op in seed mode.
+ */
+export function saveProductImage(productId: string, image: string | undefined): void {
+  const value = (image ?? "").trim();
+  const body = value.startsWith("r2:")
+    ? { imageKey: value.slice(3) }
+    : value === ""
+      ? { imageAssetId: "" }
+      : null;
+  if (!body) return;
+  pushWrite("Product image", "put", `/seller/products/${encodeURIComponent(productId)}`, body, () => {});
+}
+
 export function upsertPrice(productId: string, pricePaisa: number, mrpPaisa: number): void {
   const before = getProduct(productId);
   updateProduct(productId, { pricePaisa, mrpPaisa });
@@ -1208,6 +1224,7 @@ export function upsertMenu(dto: MenuDto): void {
       cuisine: dto.cuisine ?? "",
       rating: dto.rating,
       image: dto.image ?? "",
+      ...(dto.image?.startsWith("r2:") ? { imageKey: dto.image.slice(3) } : {}),
     },
     () => {
       state().set((s) => ({

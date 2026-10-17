@@ -103,6 +103,26 @@ func (r *Repo) ByID(ctx context.Context, id string) (contracts.MediaAsset, bool,
 	return assets[0], true, nil
 }
 
+// ByKey returns one asset by its immutable r2_key (used to link an upload the client only knows by key).
+func (r *Repo) ByKey(ctx context.Context, key string) (contracts.MediaAsset, bool, error) {
+	if r.pool == nil {
+		return contracts.MediaAsset{}, false, fmt.Errorf("media: database not configured")
+	}
+	rows, err := r.pool.Query(ctx, assetSelect+` where r2_key = $1`, key)
+	if err != nil {
+		return contracts.MediaAsset{}, false, err
+	}
+	defer rows.Close()
+	assets, err := scanAssets(rows)
+	if err != nil {
+		return contracts.MediaAsset{}, false, err
+	}
+	if len(assets) == 0 {
+		return contracts.MediaAsset{}, false, nil
+	}
+	return assets[0], true, nil
+}
+
 // Resolve returns ACTIVE assets for the given ids (public batch read), preserving no particular order.
 func (r *Repo) Resolve(ctx context.Context, ids []string) ([]contracts.MediaAsset, error) {
 	if r.pool == nil {

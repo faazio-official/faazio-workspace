@@ -197,7 +197,9 @@ LIVE fill collapses the rail to `null` (never an empty shelf).
 > (DRAFT→ACTIVE), an admin status change, or a delete purges that key; the R2 object is served from the
 > edge under an immutable 1-year TTL and is purged by exact key. PRIVATE assets (Rx/KYC) never carry a
 > public URL and are **never** cached — they resolve only through a 300 s presigned GET
-> (`GET /media/private/{id}`, creator/admin-scoped).
+> (`GET /media/private/{id}`, creator/admin-scoped). A store cover change
+> (`PUT /seller/stores/{id}/cover`) purges `directory:store:{id}`; a product image edit purges
+> `catalog:product:{id}` + `catalog:store-products:{storeId}` (same path as a price edit).
 >
 > **Pharma quote + notify (W24, `0018`):** a quote save (`POST /seller/prescriptions/{id}/quotes`) or a
 > `READY` status change invalidates the owning user's `pharma:prescriptions:{userId}`. The notification

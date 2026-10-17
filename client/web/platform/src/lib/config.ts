@@ -3,6 +3,8 @@ const env = {
   gatewayUrl: process.env["NEXT_PUBLIC_GATEWAY_URL"]?.replace(/\/+$/, "") ?? "",
   supabaseUrl: process.env["NEXT_PUBLIC_SUPABASE_URL"]?.replace(/\/+$/, "") ?? "",
   supabaseAnonKey: process.env["NEXT_PUBLIC_SUPABASE_ANON_KEY"] ?? "",
+  /** Cloudflare R2 media CDN origin (custom domain in front of the public bucket), e.g. https://img.faazio.in. */
+  mediaCdnBase: process.env["NEXT_PUBLIC_MEDIA_CDN_BASE"]?.replace(/\/+$/, "") ?? "",
   /** Auth mode. Mocked unless explicitly opted into Supabase (`NEXT_PUBLIC_AUTH_MODE=supabase`). */
   authMode: process.env["NEXT_PUBLIC_AUTH_MODE"] === "supabase" ? "supabase" : "mock",
   /**
@@ -28,6 +30,8 @@ export const config = {
   /** Supabase project URL. Empty = local seed mode. */
   supabaseUrl: env.supabaseUrl,
   supabaseAnonKey: env.supabaseAnonKey,
+  /** Cloudflare R2 media CDN origin (maps stored `r2:<key>` values to displayable URLs). */
+  mediaCdnBase: env.mediaCdnBase,
   /** "mock" (default) signs in against the built-in demo directory; "supabase" uses GoTrue. */
   authMode: env.authMode,
   /** Dev-only `X-Dev-*` identity override for an AUTH_DISABLED gateway (empty in production). */

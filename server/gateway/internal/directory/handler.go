@@ -23,11 +23,13 @@ type Handler struct {
 	repo  *Repo
 	cache *cache.Cache
 	audit contracts.AuditWriter
+	media contracts.MediaReader
 }
 
-// NewHandler builds the directory handler.
-func NewHandler(repo *Repo, c *cache.Cache, audit contracts.AuditWriter) *Handler {
-	return &Handler{repo: repo, cache: c, audit: audit}
+// NewHandler builds the directory handler. media (optional) resolves a linked image asset id to its
+// registry row so store/menu edits can store the object key without importing the media context.
+func NewHandler(repo *Repo, c *cache.Cache, audit contracts.AuditWriter, media contracts.MediaReader) *Handler {
+	return &Handler{repo: repo, cache: c, audit: audit, media: media}
 }
 
 // Register mounts directory endpoints onto the shared router.
@@ -42,6 +44,7 @@ func (h *Handler) Register(r chi.Router) {
 		g.Use(auth.RequireRole(auth.RoleSeller, auth.RoleStateAdmin, auth.RoleSuperAdmin))
 		g.Get("/seller/stores", h.sellerStores)
 		g.Put("/seller/stores/{id}/live", h.setStoreLive)
+		g.Put("/seller/stores/{id}/cover", h.setStoreCover)
 		g.Get("/seller/menus", h.sellerMenus)
 		g.Post("/seller/menus", h.upsertMenu)
 		g.Put("/seller/menus/{venueId}/{dishId}", h.upsertMenu)
@@ -264,6 +267,83 @@ func (h *Handler) setStoreLive(w http.ResponseWriter, r *http.Request) {
 	httpx.JSON(w, http.StatusOK, store)
 }
 
+// setStoreCover links a confirmed PUBLIC media asset (by id or object key) as the store cover, or
+// clears it when neither is supplied, scoped to the owning seller unless admin.
+func (h *Handler) setStoreCover(w http.ResponseWriter, r *http.Request) {
+	id := chi.URLParam(r, "id")
+	var body struct {
+		ImageAssetID *string `json:"imageAssetId"`
+		ImageKey     *string `json:"imageKey"`
+	}
+	if err := httpx.Decode(r, &body); err != nil {
+		httpx.Fail(w, http.StatusBadRequest, "bad_request", "invalid body")
+		return
+	}
+	admin := roleAdmin(r)
+	assetID, imageKey := "", ""
+	if body.ImageAssetID != nil {
+		assetID = strings.TrimSpace(*body.ImageAssetID)
+	}
+	if body.ImageKey != nil {
+		imageKey = strings.TrimSpace(*body.ImageKey)
+	}
+	key, linkedID, ok := h.resolveImageLink(w, r, assetID, imageKey, admin)
+	if !ok {
+		return
+	}
+	store, found, err := h.repo.SetStoreCover(r.Context(), id, auth.SellerID(r.Context()), key, linkedID, admin)
+	if err != nil {
+		httpx.Fail(w, http.StatusInternalServerError, "directory_unavailable", "directory unavailable")
+		return
+	}
+	if !found {
+		httpx.Fail(w, http.StatusNotFound, "not_found", "store not found")
+		return
+	}
+	h.cache.Del(r.Context(), cache.Store(id))
+	h.log(r, "directory.stores", "STORE_COVER", id)
+	httpx.JSON(w, http.StatusOK, store)
+}
+
+// resolveImageLink turns an (assetId, imageKey) pair into (key, assetID). Both empty → no change
+// ("" key/id). Otherwise the asset must exist by id (preferred) or key, be an ACTIVE PUBLIC asset and
+// be created by the caller (or the caller is an admin). On failure it writes the HTTP error and
+// returns ok=false.
+func (h *Handler) resolveImageLink(w http.ResponseWriter, r *http.Request, assetID, imageKey string, admin bool) (string, string, bool) {
+	assetID = strings.TrimSpace(assetID)
+	imageKey = strings.TrimPrefix(strings.TrimSpace(imageKey), "r2:")
+	if assetID == "" && imageKey == "" {
+		return "", "", true
+	}
+	if h.media == nil {
+		httpx.Fail(w, http.StatusServiceUnavailable, "media_unavailable", "media registry not configured")
+		return "", "", false
+	}
+	var (
+		asset contracts.MediaAsset
+		found bool
+		err   error
+	)
+	if assetID != "" {
+		asset, found, err = h.media.ByID(r.Context(), assetID)
+	} else {
+		asset, found, err = h.media.ByKey(r.Context(), imageKey)
+	}
+	if err != nil {
+		httpx.Fail(w, http.StatusInternalServerError, "media_unavailable", "media unavailable")
+		return "", "", false
+	}
+	actor := auth.UserID(r.Context())
+	if actor == "" {
+		actor = auth.SellerID(r.Context())
+	}
+	if !found || asset.Kind != "PUBLIC" || asset.Status != "ACTIVE" || (!admin && asset.CreatedBy != actor) {
+		httpx.Fail(w, http.StatusBadRequest, "bad_request", "invalid or unowned image asset")
+		return "", "", false
+	}
+	return asset.Key, asset.ID, true
+}
+
 func boolToken(b bool) string {
 	if b {
 		return "ON"
@@ -289,14 +369,16 @@ func (h *Handler) sellerMenus(w http.ResponseWriter, r *http.Request) {
 }
 
 type menuRequest struct {
-	VenueID string   `json:"venueId"`
-	DishID  string   `json:"dishId"`
-	Name    string   `json:"name"`
-	Price   int64    `json:"price"`
-	IsVeg   *bool    `json:"isVeg"`
-	Cuisine string   `json:"cuisine"`
-	Rating  *float64 `json:"rating"`
-	Image   string   `json:"image"`
+	VenueID      string   `json:"venueId"`
+	DishID       string   `json:"dishId"`
+	Name         string   `json:"name"`
+	Price        int64    `json:"price"`
+	IsVeg        *bool    `json:"isVeg"`
+	Cuisine      string   `json:"cuisine"`
+	Rating       *float64 `json:"rating"`
+	Image        string   `json:"image"`
+	ImageAssetID string   `json:"imageAssetId"`
+	ImageKey     string   `json:"imageKey"`
 }
 
 func (h *Handler) upsertMenu(w http.ResponseWriter, r *http.Request) {
@@ -324,9 +406,18 @@ func (h *Handler) upsertMenu(w http.ResponseWriter, r *http.Request) {
 		httpx.Fail(w, http.StatusForbidden, "forbidden", "no seller scope on this account")
 		return
 	}
+	imageKey, imageAssetID := "", ""
+	if strings.TrimSpace(req.ImageAssetID) != "" || strings.TrimSpace(req.ImageKey) != "" {
+		var ok bool
+		imageKey, imageAssetID, ok = h.resolveImageLink(w, r, req.ImageAssetID, req.ImageKey, admin)
+		if !ok {
+			return
+		}
+	}
 	m, ok, err := h.repo.UpsertMenu(r.Context(), SellerMenu{
 		VenueID: req.VenueID, DishID: req.DishID, Name: req.Name, Price: req.Price,
 		IsVeg: req.IsVeg, Cuisine: req.Cuisine, Rating: req.Rating, Image: req.Image,
+		ImageKey: imageKey, ImageAssetID: imageAssetID,
 	}, sellerID, admin)
 	if err != nil {
 		httpx.Fail(w, http.StatusInternalServerError, "directory_unavailable", "directory unavailable")

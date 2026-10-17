@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"math"
+	"strings"
 	"time"
 
 	"github.com/faazio/server/gateway/internal/contracts"
@@ -18,15 +19,24 @@ import (
 // Repo reads catalog.products joined with inventory.stock.
 type Repo struct {
 	pool *db.Pool
+	// cdnBase is the media CDN origin (e.g. https://img.faazio.in). When set, a product's image_key is
+	// resolved to its CDN URL on read; empty means media is disabled and image_url is the source.
+	cdnBase string
 }
 
-// New returns a catalog repo.
-func New(pool *db.Pool) *Repo { return &Repo{pool: pool} }
+// New returns a catalog repo. cdnBase is optional (media CDN origin) and keeps existing call sites valid.
+func New(pool *db.Pool, cdnBase ...string) *Repo {
+	r := &Repo{pool: pool}
+	if len(cdnBase) > 0 {
+		r.cdnBase = strings.TrimRight(cdnBase[0], "/")
+	}
+	return r
+}
 
 const productSelect = `
 select p.id, p.app::text, p.category, p.name, p.search_tokens,
        p.price_paisa, p.mrp_paisa, p.rating, p.reviews_count,
-       p.emoji, p.image_url, p.desc_text, p.badge, p.shop, p.unit, p.attributes,
+       p.emoji, p.image_url, p.image_key, p.desc_text, p.badge, p.shop, p.unit, p.attributes,
        s.available, s.in_stock_qty, s.price_paisa, s.mrp_paisa, s.eta, s.is_prescription
 from catalog.products p
 left join inventory.stock s on s.product_id = p.id`
@@ -38,7 +48,7 @@ left join inventory.stock s on s.product_id = p.id`
 const productListSelect = `
 select p.id, p.app::text, p.category, p.name, p.search_tokens,
        p.price_paisa, p.mrp_paisa, p.rating, p.reviews_count,
-       p.emoji, p.image_url, ''::text as desc_text, p.badge, null::text as shop, p.unit, null::jsonb as attributes,
+       p.emoji, p.image_url, p.image_key, ''::text as desc_text, p.badge, null::text as shop, p.unit, null::jsonb as attributes,
        s.available, s.in_stock_qty, s.price_paisa, s.mrp_paisa, s.eta, s.is_prescription
 from catalog.products p
 left join inventory.stock s on s.product_id = p.id`
@@ -53,7 +63,7 @@ func (r *Repo) ByID(ctx context.Context, id string) (contracts.Product, bool, er
 		return contracts.Product{}, false, err
 	}
 	defer rows.Close()
-	products, err := scanProducts(rows)
+	products, err := scanProducts(rows, r.cdnBase)
 	if err != nil {
 		return contracts.Product{}, false, err
 	}
@@ -76,7 +86,7 @@ func (r *Repo) ByIDs(ctx context.Context, ids []string) ([]contracts.Product, er
 		return nil, err
 	}
 	defer rows.Close()
-	products, err := scanProducts(rows)
+	products, err := scanProducts(rows, r.cdnBase)
 	if err != nil {
 		return nil, err
 	}
@@ -111,7 +121,7 @@ func (r *Repo) ByStorePage(ctx context.Context, storeID string, limit int, curso
 		return nil, err
 	}
 	defer rows.Close()
-	return scanProducts(rows)
+	return scanProducts(rows, r.cdnBase)
 }
 
 // Search runs the Postgres FTS query (tsvector + pg_trgm), optionally app-scoped.
@@ -148,10 +158,10 @@ func (r *Repo) SearchScoped(ctx context.Context, q, app string, limit int) ([]co
 		return nil, err
 	}
 	defer rows.Close()
-	return scanProducts(rows)
+	return scanProducts(rows, r.cdnBase)
 }
 
-func scanProducts(rows pgx.Rows) ([]contracts.Product, error) {
+func scanProducts(rows pgx.Rows, cdnBase string) ([]contracts.Product, error) {
 	out := []contracts.Product{}
 	for rows.Next() {
 		var (
@@ -161,6 +171,7 @@ func scanProducts(rows pgx.Rows) ([]contracts.Product, error) {
 			reviewsCount                     *int64
 			attrsRaw                         []byte
 			badge, shop, unit                *string
+			imageKey                         *string
 			sAvail                           *bool
 			sQty, sMRP                       *int64
 			sETA                             *string
@@ -169,10 +180,14 @@ func scanProducts(rows pgx.Rows) ([]contracts.Product, error) {
 		if err := rows.Scan(
 			&p.ID, &p.App, &p.Category, &p.Name, &p.SearchTokens,
 			&pricePaisa, &mrpPaisa, &rating, &reviewsCount,
-			&p.Emoji, &p.Image, &p.Desc, &badge, &shop, &unit, &attrsRaw,
+			&p.Emoji, &p.Image, &imageKey, &p.Desc, &badge, &shop, &unit, &attrsRaw,
 			&sAvail, &sQty, &stockPrice, &sMRP, &sETA, &sRx,
 		); err != nil {
 			return nil, err
+		}
+		// A media-registry key wins over the legacy image_url once R2 owns the image.
+		if imageKey != nil && *imageKey != "" && cdnBase != "" {
+			p.Image = cdnBase + "/" + *imageKey
 		}
 		// rating is stored as real (float4); round to the 1-decimal domain precision so the JSON
 		// number is exact (e.g. 4.9, not 4.900000095367432).
@@ -296,12 +311,15 @@ func (r *Repo) SetProductStatus(ctx context.Context, id, sellerID, status string
 	return p, true, nil
 }
 
-// ProductEdit is the seller price/stock edit payload (money in whole rupees; nil = leave unchanged).
+// ProductEdit is the seller price/stock/image edit payload (money in whole rupees; nil = leave
+// unchanged). ImageKey/ImageAssetID link a confirmed media asset; a pointer to "" clears the image.
 type ProductEdit struct {
-	Price      *int64
-	MRP        *int64
-	InStockQty *int64
-	Available  *bool
+	Price        *int64
+	MRP          *int64
+	InStockQty   *int64
+	Available    *bool
+	ImageKey     *string
+	ImageAssetID *string
 }
 
 // UpdateProduct edits price/MRP/stock for a seller's product (admin: any). Price is written to both
@@ -334,6 +352,15 @@ func (r *Repo) UpdateProduct(ctx context.Context, id, sellerID string, admin boo
 			       mrp_paisa   = coalesce($3, mrp_paisa)
 			 where id = $1`, id,
 			mul100(e.Price), mul100(e.MRP)); err != nil {
+			return SellerProduct{}, false, err
+		}
+	}
+	if e.ImageKey != nil || e.ImageAssetID != nil {
+		if _, err := tx.Exec(ctx, `
+			update catalog.products
+			   set image_key      = coalesce($2, image_key),
+			       image_asset_id = coalesce($3, image_asset_id)
+			 where id = $1`, id, e.ImageKey, e.ImageAssetID); err != nil {
 			return SellerProduct{}, false, err
 		}
 	}

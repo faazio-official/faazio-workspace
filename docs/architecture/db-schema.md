@@ -1414,7 +1414,13 @@ owner link + cache purge), `GET /media/resolve?ids=` (anon batch of ACTIVE PUBLI
 (content-addressed, cache-forever); without → `media/{yyyy}/{mm}/{img_id}.{ext}`.
 
 Config: `R2_ACCOUNT_ID` / `R2_ACCESS_KEY_ID` / `R2_SECRET_ACCESS_KEY` / `R2_PUBLIC_BUCKET` /
-`R2_PRIVATE_BUCKET` / `R2_CDN_BASE` (`img.faazio.in`). Rx images prefer the R2 private bucket, falling
-back to Supabase Storage when R2 is unset (`internal/pharma/storage.go`). Cache: `media:asset:{id}` 24 h
-(caching doc §5/§8). Backfill of the 458 `@data` unsplash hits to R2 keys is a follow-up
-(`generate.mjs`/backfill script); until then legacy URLs remain the fallback.
+`R2_PRIVATE_BUCKET` / `R2_CDN_BASE` (`img.faazio.in`). Owning contexts link a confirmed asset via
+`imageKey` or `imageAssetId` — `PUT /seller/products/{id}` (catalog), `POST`/`PUT /seller/menus/…`
+(directory), `PUT /seller/stores/{id}/cover` (directory) — resolving ownership through the
+`contracts.MediaReader` interface (never a sibling import). Read selects (`productSelect`/
+`productListSelect`, `storeSelect`/`storeListSelect`, `SellerMenus`, `Menu`) coalesce
+`nullif(image_key,'')` and decorate to `${R2_CDN_BASE}/{key}`, so `image`/`coverImage`/menu `image`
+are always displayable (legacy text URL is the fallback). Rx images prefer the R2 private bucket,
+falling back to Supabase Storage when R2 is unset (`internal/pharma/storage.go`). Cache:
+`media:asset:{id}` 24 h (caching doc §5/§8). Backfill of the 458 `@data` unsplash hits to R2 keys is a
+follow-up (`generate.mjs`/backfill script); until then legacy URLs remain the fallback.

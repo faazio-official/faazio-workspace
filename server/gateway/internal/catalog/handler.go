@@ -23,11 +23,13 @@ type Handler struct {
 	repo  *Repo
 	cache *cache.Cache
 	audit contracts.AuditWriter
+	media contracts.MediaReader
 }
 
-// NewHandler builds the catalog HTTP handler.
-func NewHandler(repo *Repo, c *cache.Cache, audit contracts.AuditWriter) *Handler {
-	return &Handler{repo: repo, cache: c, audit: audit}
+// NewHandler builds the catalog HTTP handler. media (optional) resolves a linked image asset id to its
+// registry row so the seller edit can store the object key without importing the media context.
+func NewHandler(repo *Repo, c *cache.Cache, audit contracts.AuditWriter, media contracts.MediaReader) *Handler {
+	return &Handler{repo: repo, cache: c, audit: audit, media: media}
 }
 
 // Register mounts the catalog endpoints onto the shared router.
@@ -43,14 +45,18 @@ func (h *Handler) Register(r chi.Router) {
 	})
 }
 
-// updateProduct edits price/MRP/stock (seller-scoped). Body: {price?, mrp?, inStockQty?, available?}.
+// updateProduct edits price/MRP/stock/image (seller-scoped). Body: {price?, mrp?, inStockQty?,
+// available?, imageAssetId?, imageKey?}. A confirmed PUBLIC media asset (by id or object key) is
+// resolved to its canonical key here and linked into catalog.products.
 func (h *Handler) updateProduct(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "id")
 	var body struct {
-		Price      *int64 `json:"price"`
-		MRP        *int64 `json:"mrp"`
-		InStockQty *int64 `json:"inStockQty"`
-		Available  *bool  `json:"available"`
+		Price        *int64  `json:"price"`
+		MRP          *int64  `json:"mrp"`
+		InStockQty   *int64  `json:"inStockQty"`
+		Available    *bool   `json:"available"`
+		ImageAssetID *string `json:"imageAssetId"`
+		ImageKey     *string `json:"imageKey"`
 	}
 	if err := httpx.Decode(r, &body); err != nil {
 		httpx.Fail(w, http.StatusBadRequest, "bad_request", "invalid body")
@@ -70,20 +76,74 @@ func (h *Handler) updateProduct(w http.ResponseWriter, r *http.Request) {
 	}
 	role := auth.Role(r.Context())
 	admin := role == auth.RoleStateAdmin || role == auth.RoleSuperAdmin
-	p, ok, err := h.repo.UpdateProduct(r.Context(), id, auth.SellerID(r.Context()), admin, ProductEdit{
+	imageKey, imageAssetID, ok := h.resolveImageLink(w, r, body.ImageAssetID, body.ImageKey, admin)
+	if !ok {
+		return // resolveImageLink already wrote the error
+	}
+	p, found, err := h.repo.UpdateProduct(r.Context(), id, auth.SellerID(r.Context()), admin, ProductEdit{
 		Price: body.Price, MRP: body.MRP, InStockQty: body.InStockQty, Available: body.Available,
+		ImageKey: imageKey, ImageAssetID: imageAssetID,
 	})
 	if err != nil {
 		httpx.Fail(w, http.StatusInternalServerError, "catalog_unavailable", "catalog unavailable")
 		return
 	}
-	if !ok {
+	if !found {
 		httpx.Fail(w, http.StatusNotFound, "not_found", "product not found")
 		return
 	}
 	h.cache.Del(r.Context(), cache.Product(id), cache.Stock(id), cache.StoreProducts(p.StoreID))
 	h.log(r, "PRODUCT_EDIT", id, map[string]any{"price": p.Price})
 	httpx.JSON(w, http.StatusOK, p)
+}
+
+// resolveImageLink turns optional imageAssetId/imageKey body fields into (key, assetID) pointers for
+// the repo. Both absent → image unchanged; present but empty → clear; otherwise the asset must exist by
+// id (preferred) or key, be an ACTIVE PUBLIC asset, and be created by the caller (or the caller is an
+// admin). On failure it writes the HTTP error and returns ok=false.
+func (h *Handler) resolveImageLink(w http.ResponseWriter, r *http.Request, assetID, imageKey *string, admin bool) (*string, *string, bool) {
+	if assetID == nil && imageKey == nil {
+		return nil, nil, true
+	}
+	rawID, rawKey := "", ""
+	if assetID != nil {
+		rawID = strings.TrimSpace(*assetID)
+	}
+	if imageKey != nil {
+		rawKey = strings.TrimPrefix(strings.TrimSpace(*imageKey), "r2:")
+	}
+	if rawID == "" && rawKey == "" {
+		empty := ""
+		return &empty, &empty, true
+	}
+	if h.media == nil {
+		httpx.Fail(w, http.StatusServiceUnavailable, "media_unavailable", "media registry not configured")
+		return nil, nil, false
+	}
+	var (
+		asset contracts.MediaAsset
+		found bool
+		err   error
+	)
+	if rawID != "" {
+		asset, found, err = h.media.ByID(r.Context(), rawID)
+	} else {
+		asset, found, err = h.media.ByKey(r.Context(), rawKey)
+	}
+	if err != nil {
+		httpx.Fail(w, http.StatusInternalServerError, "media_unavailable", "media unavailable")
+		return nil, nil, false
+	}
+	actor := auth.UserID(r.Context())
+	if actor == "" {
+		actor = auth.SellerID(r.Context())
+	}
+	if !found || asset.Kind != "PUBLIC" || asset.Status != "ACTIVE" || (!admin && asset.CreatedBy != actor) {
+		httpx.Fail(w, http.StatusBadRequest, "bad_request", "invalid or unowned image asset")
+		return nil, nil, false
+	}
+	key, id := asset.Key, asset.ID
+	return &key, &id, true
 }
 
 func (h *Handler) getProduct(w http.ResponseWriter, r *http.Request) {

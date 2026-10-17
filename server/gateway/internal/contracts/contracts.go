@@ -295,6 +295,14 @@ type MediaAsset struct {
 	CreatedAt string `json:"createdAt,omitempty"`
 }
 
+// MediaReader resolves a media asset id (or its object key) to its registry row (implemented by
+// internal/media). Owning contexts (catalog/directory) use it to link an uploaded asset into their
+// `*_key`/`*_asset_id` columns without importing the media package (boundary rule §2).
+type MediaReader interface {
+	ByID(ctx context.Context, id string) (MediaAsset, bool, error)
+	ByKey(ctx context.Context, key string) (MediaAsset, bool, error)
+}
+
 // ProductReader reads catalog products (implemented by internal/catalog).
 type ProductReader interface {
 	ByID(ctx context.Context, id string) (Product, bool, error)

@@ -66,8 +66,8 @@ func NewRouter(d Deps) http.Handler {
 		r.Use(requestLogger())
 	}
 
-	catalogRepo := catalog.New(d.Pool)
-	directoryRepo := directory.New(d.Pool)
+	catalogRepo := catalog.New(d.Pool, d.Config.R2CDNBase)
+	directoryRepo := directory.New(d.Pool, d.Config.R2CDNBase)
 	cartRepo := cartstock.New(d.Pool)
 	favouritesRepo := favourites.New(d.Pool)
 	checkoutRepo := checkout.NewWithCache(d.Pool, d.Cache)
@@ -130,9 +130,9 @@ func NewRouter(d Deps) http.Handler {
 	sduiService := sdui.NewService(recoRepo, recoRepo, catalogRepo, directoryRepo, d.Cache)
 	recoService := reco.NewService(recoRepo, catalogRepo, d.Cache)
 
-	catalog.NewHandler(catalogRepo, d.Cache, adminsRepo).Register(r)
+	catalog.NewHandler(catalogRepo, d.Cache, adminsRepo, mediaRepo).Register(r)
 	search.NewHandler(catalogRepo, d.Cache).Register(r)
-	directory.NewHandler(directoryRepo, d.Cache, adminsRepo).Register(r)
+	directory.NewHandler(directoryRepo, d.Cache, adminsRepo, mediaRepo).Register(r)
 	cartstock.NewHandler(cartRepo, d.Cache).Register(r)
 	favourites.NewHandler(favouritesRepo, d.Cache).Register(r)
 	rewards.NewHandler(rewardsRepo, d.Cache, adminsRepo).Register(r)
