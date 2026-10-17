@@ -15,6 +15,7 @@ import type {
   CouponRecord,
   CustomerRecord,
   FestivalCampaign,
+  HeroCampaign,
   LedgerEntry,
   MenuItemRecord,
   PayoutRecord,
@@ -152,7 +153,7 @@ export async function hydrateFromGateway(): Promise<boolean> {
   const cur = usePortalStore.getState();
   const role = cur.session?.role;
 
-  const [sellers, campaigns, coupons, caps, optins, slots, admins, logs, ledger, payouts, rx, bookings, blood, sdui, customers, menus, tickets, rates, rewardLedger] =
+  const [sellers, campaigns, coupons, caps, optins, slots, heroCampaigns, admins, logs, ledger, payouts, rx, bookings, blood, sdui, customers, menus, tickets, rates, rewardLedger] =
     await Promise.all([
       safe(() => remote.get<RawSeller[]>("/sellers").then(toCamel)),
       safe(() => remote.get<FestivalCampaign[]>("/promo/campaigns").then(toCamel)),
@@ -160,6 +161,7 @@ export async function hydrateFromGateway(): Promise<boolean> {
       safe(() => remote.get<Raw[]>("/promo/sector-caps").then(toCamel)),
       safe(() => remote.get<SellerOptin[]>("/promo/optins").then(toCamel)),
       safe(() => remote.get<AdSlot[]>("/ads/slots").then(toCamel)),
+      safe(() => remote.get<HeroCampaign[]>("/ads/campaigns").then(toCamel)),
       safe(() => remote.get<StateAdmin[]>("/state-admins").then(toCamel)),
       safe(() => remote.get<AuditLog[]>("/audit-logs").then(toCamel)),
       safe(() => remote.get<RawLedgerEntry[]>("/settlements").then(toCamel)),
@@ -242,6 +244,10 @@ export async function hydrateFromGateway(): Promise<boolean> {
   }
   if (hasSlice(slots)) {
     patch["adSlots"] = slots;
+    touched = true;
+  }
+  if (hasSlice(heroCampaigns)) {
+    patch["heroCampaigns"] = heroCampaigns;
     touched = true;
   }
   if (hasSlice(admins)) {

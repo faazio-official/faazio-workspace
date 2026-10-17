@@ -1,20 +1,9 @@
 "use client";
-import { useState } from "react";
-import { toast } from "sonner";
 import { PageHeader } from "@/components/patterns/PageHeader";
 import { SectionCard } from "@/components/patterns/SectionCard";
 import { KpiStrip } from "@/components/patterns/KpiCard";
 import { DataShell, EmptyState } from "@/components/patterns/DataState";
 import { StatusPill } from "@/components/patterns/Pills";
-import { Button } from "@/components/ui/button";
-import { Label } from "@/components/ui/label";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import {
   Table,
   TableBody,
@@ -24,32 +13,28 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { formatNumber, formatPercent } from "@/lib/format";
-import { requestAdSlot } from "@/lib/api";
-import { useAdSlots, useMockLoading, useProducts } from "@/lib/api/hooks";
+import { useAdSlots, useHeroCampaigns, useMockLoading } from "@/lib/api/hooks";
 import { useSession } from "@/lib/hooks/useSession";
-import type { AdSlot } from "@/data/types";
+import { HERO_PLACEMENT_META } from "@/data/ads/placements";
+import { CampaignWizard } from "./components/CampaignWizard";
 
-
-const PLACEMENTS: AdSlot["placement"][] = ["HOME_TOP", "SPONSORED_SHOWCASE", "SECTOR_RAIL"];
 
 function SellerAds() {
   const session = useSession();
   const sellerId = session?.sellerId ?? "sel-1";
   const loading = useMockLoading();
   const slots = useAdSlots({ sellerId });
-  const products = useProducts({ sellerId });
-  const [placement, setPlacement] = useState<AdSlot["placement"]>("HOME_TOP");
-  const [productId, setProductId] = useState(products[0]?.productId ?? "");
+  const campaigns = useHeroCampaigns({ sellerId });
 
-  const impressions = slots.reduce((t, s) => t + s.impressions, 0);
-  const clicks = slots.reduce((t, s) => t + s.clicks, 0);
-  const attributed = slots.reduce((t, s) => t + s.ordersAttributed, 0);
+  const impressions = slots.reduce((t, s) => t + s.impressions, 0) + campaigns.reduce((t, c) => t + c.impressions, 0);
+  const clicks = slots.reduce((t, s) => t + s.clicks, 0) + campaigns.reduce((t, c) => t + c.clicks, 0);
+  const attributed = slots.reduce((t, s) => t + s.ordersAttributed, 0) + campaigns.reduce((t, c) => t + c.ordersAttributed, 0);
 
   return (
     <div className="space-y-4">
       <PageHeader
         title="Ads"
-        description="Sponsored slots go live only after an admin approves them."
+        description="Hero and rail placements go live only after an admin approves them."
       />
 
       <DataShell loading={loading}>
@@ -66,63 +51,67 @@ function SellerAds() {
         />
       </DataShell>
 
-      <SectionCard title="Request a placement">
-        <div className="grid gap-4 md:grid-cols-3">
-          <div className="space-y-1.5">
-            <Label>Placement</Label>
-            <Select value={placement} onValueChange={(v) => setPlacement(v as AdSlot["placement"])}>
-              <SelectTrigger>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {PLACEMENTS.map((p) => (
-                  <SelectItem key={p} value={p}>
-                    {p.replace(/_/g, " ")}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-          <div className="space-y-1.5">
-            <Label>Product</Label>
-            <Select value={productId} onValueChange={setProductId}>
-              <SelectTrigger>
-                <SelectValue placeholder="Pick a product" />
-              </SelectTrigger>
-              <SelectContent>
-                {products.map((p) => (
-                  <SelectItem key={p.productId} value={p.productId}>
-                    {p.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-          <div className="flex items-end">
-            <Button
-              size="sm"
-              disabled={!productId}
-              onClick={() => {
-                requestAdSlot({
-                  sellerId,
-                  productId,
-                  placement,
-                  ...(session?.stateCode ? { stateCode: session.stateCode } : {}),
-                });
-                toast.success("Slot requested — pending admin approval");
-              }}
-            >
-              Request slot
-            </Button>
-          </div>
-        </div>
+      <CampaignWizard sellerId={sellerId} stateCode={session?.stateCode} />
+
+      <SectionCard title="My campaigns" bodyClassName="p-0">
+        <DataShell
+          loading={loading}
+          isEmpty={campaigns.length === 0}
+          empty={<EmptyState title="No hero campaigns yet" description="Request a campaign above to promote an item on a hero or banner." />}
+        >
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Placement</TableHead>
+                <TableHead>Creative</TableHead>
+                <TableHead>Target</TableHead>
+                <TableHead className="text-right">Impressions</TableHead>
+                <TableHead className="text-right">Clicks</TableHead>
+                <TableHead className="text-right">CTR</TableHead>
+                <TableHead className="text-right">Orders</TableHead>
+                <TableHead>Status</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {campaigns.map((c) => (
+                <TableRow key={c.placementId} className="h-14">
+                  <TableCell className="text-[13px] font-medium">
+                    {HERO_PLACEMENT_META[c.placement]?.label ?? c.placement.replace(/_/g, " ")}
+                  </TableCell>
+                  <TableCell>
+                    <div className="flex items-center gap-2">
+                      {c.imageUrl ? (
+                        <img src={c.imageUrl} alt="" className="h-8 w-14 rounded object-cover" />
+                      ) : (
+                        <span className="h-8 w-14 rounded bg-muted" />
+                      )}
+                      <span className="text-[12px] font-medium">{c.title}</span>
+                    </div>
+                  </TableCell>
+                  <TableCell className="num text-[12px] text-muted-foreground">
+                    {c.targetType} · {c.targetId}
+                  </TableCell>
+                  <TableCell className="num text-right">{formatNumber(c.impressions)}</TableCell>
+                  <TableCell className="num text-right">{formatNumber(c.clicks)}</TableCell>
+                  <TableCell className="num text-right">
+                    {c.impressions ? formatPercent((c.clicks / c.impressions) * 100, 2) : "—"}
+                  </TableCell>
+                  <TableCell className="num text-right">{c.ordersAttributed}</TableCell>
+                  <TableCell>
+                    <StatusPill status={c.status} />
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </DataShell>
       </SectionCard>
 
-      <SectionCard title="My placements" bodyClassName="p-0">
+      <SectionCard title="Product rails" bodyClassName="p-0">
         <DataShell
           loading={loading}
           isEmpty={slots.length === 0}
-          empty={<EmptyState title="No placements yet" description="Request a slot above to promote a product." />}
+          empty={<EmptyState title="No rail placements yet" description="Rail placements are requested from the placement picker." />}
         >
           <Table>
             <TableHeader>

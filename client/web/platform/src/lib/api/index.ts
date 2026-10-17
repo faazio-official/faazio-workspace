@@ -8,6 +8,8 @@ import { toast } from "sonner";
 import { getSession, signInWithPassword, signOutRemote } from "@/lib/supabase/auth";
 import { sellerSeries, stateSeries, globalSeries, productSeries } from "@/data/analytics/series";
 import type {
+  AdStatus,
+  AdTargetType,
   AuthUser,
   BookingConfigRecord,
   BookingStatus,
@@ -15,6 +17,8 @@ import type {
   CouponRecord,
   CustomerRecord,
   FestivalCampaign,
+  HeroCampaign,
+  HeroPlacement,
   MenuItemRecord,
   OrderStatus,
   PrescriptionStatus,
@@ -693,6 +697,148 @@ export function setAdStatus(slotId: string, status: import("@/data/types").AdSta
     state().set(() => ({ adSlots: before })),
   );
   audit({ action: `AD_${status}`, entity: "ads.sponsored_slots", entityId: slotId, after: { status } });
+}
+
+/* --------------------------- hero campaigns (0027) ----------------------- */
+
+/** Anon-visible LIVE hero projection (`GET /ads/hero`) — display fields only. */
+export interface HeroAd {
+  placementId: string;
+  campaignId: string;
+  sellerId: string;
+  placement: HeroPlacement;
+  targetType: AdTargetType;
+  targetId: string;
+  targetApp: Sector;
+  category?: string | undefined;
+  storeId?: string | undefined;
+  title: string;
+  subtitle?: string | undefined;
+  imageUrl?: string | undefined;
+  cta?: string | undefined;
+}
+
+/** Public LIVE heroes for a placement context (empty context dims = any). Never fabricated offline. */
+export async function getHeroAds(
+  placement?: string | undefined,
+  ctx: { app?: string | undefined; category?: string | undefined; storeId?: string | undefined } = {},
+): Promise<HeroAd[]> {
+  if (!remoteConfigured()) return [];
+  const qs = new URLSearchParams();
+  if (placement) qs.set("placement", placement);
+  if (ctx.app) qs.set("app", ctx.app);
+  if (ctx.category) qs.set("category", ctx.category);
+  if (ctx.storeId) qs.set("storeId", ctx.storeId);
+  const q = qs.toString();
+  try {
+    return toCamel(await remote.get<HeroAd[]>(`/ads/hero${q ? `?${q}` : ""}`));
+  } catch {
+    return [];
+  }
+}
+
+/** Seller/admin-safe campaign rows from the local store (hydrated from `GET /ads/campaigns`). */
+export function listHeroCampaigns(
+  filter: { sellerId?: string | undefined; stateCode?: string | undefined } = {},
+): HeroCampaign[] {
+  return state().heroCampaigns.filter((c) => {
+    if (filter.sellerId && c.sellerId !== filter.sellerId) return false;
+    if (filter.stateCode && c.stateCode !== filter.stateCode) return false;
+    return true;
+  });
+}
+
+export interface HeroCampaignInput {
+  sellerId: string;
+  placements: HeroPlacement[];
+  targetType: AdTargetType;
+  targetId: string;
+  targetApp: Sector;
+  category?: string | undefined;
+  storeId?: string | undefined;
+  title: string;
+  subtitle?: string | undefined;
+  imageUrl?: string | undefined;
+  cta?: string | undefined;
+  stateCode?: string | undefined;
+  startsAt?: string | undefined;
+  endsAt?: string | undefined;
+}
+
+/**
+ * Requests a hero campaign: one optimistic `REQUESTED` row per selected placement (mirrors the
+ * server's one-row-per-placement insert), then a single awaited `POST /ads/campaigns` with rollback.
+ */
+export function requestHeroCampaign(dto: HeroCampaignInput): void {
+  const before = state().heroCampaigns;
+  const campaignId = `cmp-${Date.now()}`;
+  const requestedAt = nowIso();
+  const created: HeroCampaign[] = dto.placements.map((placement, i) => ({
+    placementId: `ad-cmp-${Date.now()}-${i}`,
+    campaignId,
+    sellerId: dto.sellerId,
+    creativeType: "HERO",
+    placement,
+    targetType: dto.targetType,
+    targetId: dto.targetId,
+    targetApp: dto.targetApp,
+    category: dto.category,
+    storeId: dto.storeId,
+    title: dto.title,
+    subtitle: dto.subtitle,
+    imageUrl: dto.imageUrl,
+    cta: dto.cta,
+    stateCode: dto.stateCode,
+    status: "REQUESTED",
+    impressions: 0,
+    clicks: 0,
+    ordersAttributed: 0,
+    startsAt: dto.startsAt ?? requestedAt,
+    endsAt: dto.endsAt ?? "",
+    requestedAt,
+  }));
+  state().set((s) => ({ heroCampaigns: [...created, ...s.heroCampaigns] }));
+  pushWrite(
+    "Hero campaign request",
+    "post",
+    "/ads/campaigns",
+    {
+      sellerId: dto.sellerId,
+      placements: dto.placements,
+      targetType: dto.targetType,
+      targetId: dto.targetId,
+      targetApp: dto.targetApp,
+      category: dto.category,
+      storeId: dto.storeId,
+      title: dto.title,
+      subtitle: dto.subtitle,
+      imageUrl: dto.imageUrl,
+      cta: dto.cta,
+      stateCode: dto.stateCode,
+      startsAt: dto.startsAt,
+      endsAt: dto.endsAt,
+    },
+    () => state().set(() => ({ heroCampaigns: before })),
+  );
+  audit({ action: "AD_CAMPAIGN_REQUEST", entity: "ads.campaigns", entityId: campaignId, after: created });
+}
+
+/** Moderates one hero placement (admin): optimistic status flip + awaited PUT with rollback. */
+export function setHeroCampaignStatus(placementId: string, status: AdStatus): void {
+  const before = state().heroCampaigns;
+  state().set((s) => ({
+    heroCampaigns: s.heroCampaigns.map((c) =>
+      c.placementId === placementId ? { ...c, status } : c,
+    ),
+  }));
+  pushWrite(
+    "Hero campaign update",
+    "put",
+    `/ads/campaigns/${encodeURIComponent(placementId)}/status`,
+    { status },
+    () => state().set(() => ({ heroCampaigns: before })),
+  );
+  audit({ action: `AD_CAMPAIGN_${status}`, entity: "ads.campaigns", entityId: placementId, after: { status } });
 }
 
 /* ------------------------------ state admins ----------------------------- */

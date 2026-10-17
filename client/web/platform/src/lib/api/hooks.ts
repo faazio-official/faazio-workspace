@@ -126,6 +126,33 @@ export function useAdSlots(filter: { sellerId?: string | undefined; stateCode?: 
   return useMemo(() => api.listAdSlots(filter), [adSlots, key]);
 }
 
+export function useHeroCampaigns(
+  filter: { sellerId?: string | undefined; stateCode?: string | undefined } = {},
+) {
+  const heroCampaigns = usePortalStore((s) => s.heroCampaigns);
+  const key = JSON.stringify(filter);
+  return useMemo(() => api.listHeroCampaigns(filter), [heroCampaigns, key]);
+}
+
+/** Live hero fill for a placement context (wizard preview). Fetched on demand; never fabricated. */
+export function useHeroAds(
+  placement?: string | undefined,
+  ctx: { app?: string | undefined; category?: string | undefined; storeId?: string | undefined } = {},
+): api.HeroAd[] {
+  const [ads, setAds] = useState<api.HeroAd[]>([]);
+  const { app, category, storeId } = ctx;
+  useEffect(() => {
+    let active = true;
+    void api.getHeroAds(placement, { app, category, storeId }).then((rows) => {
+      if (active) setAds(rows);
+    });
+    return () => {
+      active = false;
+    };
+  }, [placement, app, category, storeId]);
+  return ads;
+}
+
 export function useStateAdmins(stateCode?: string) {
   const admins = usePortalStore((s) => s.stateAdmins);
   return useMemo(() => api.listStateAdmins(stateCode), [admins, stateCode]);

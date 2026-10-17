@@ -216,6 +216,48 @@ export interface AdSlot {
   requestedAt: string;
 }
 
+/** ads.campaigns (0027) — the hero creative placements a seller can buy (poster + deep-link). */
+export type HeroPlacement =
+  | "HOME_HERO"
+  | "MART_HERO"
+  | "PHARMA_HERO"
+  | "FOOD_HERO"
+  | "CATEGORY_TOP"
+  | "STORE_TOP";
+
+/** ads.campaigns.target_type — what a hero click opens (an item the seller owns). */
+export type AdTargetType = "PRODUCT" | "DISH" | "STORE" | "VENUE";
+
+/**
+ * ads.campaigns (0027) — one row per (campaign, placement). The seller owns the target + creative;
+ * admins moderate each placement independently. `imageUrl` is a bounded, already-resolved URL
+ * (mirrors the SDUI banner leaf) rendered by the app as-is.
+ */
+export interface HeroCampaign {
+  placementId: string;
+  campaignId: string;
+  sellerId: string;
+  creativeType: "RAIL" | "HERO";
+  placement: HeroPlacement;
+  targetType: AdTargetType;
+  targetId: string;
+  targetApp: Sector;
+  category?: string | undefined;
+  storeId?: string | undefined;
+  title: string;
+  subtitle?: string | undefined;
+  imageUrl?: string | undefined;
+  cta?: string | undefined;
+  stateCode?: string | undefined;
+  status: AdStatus;
+  impressions: number;
+  clicks: number;
+  ordersAttributed: number;
+  startsAt: string;
+  endsAt: string;
+  requestedAt: string;
+}
+
 /** admins.state_admins */
 export interface StateAdmin {
   adminId: string;
