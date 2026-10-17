@@ -5,6 +5,41 @@ dependencies exist. Do not build the backend/seller flows until told to.
 
 ---
 
+## W40 — Mart residual de-mock + checkout festival-discount settlement
+
+**Status:** 🟢 Shipped (app + server + docs). No migration.
+
+Closing the last `@mock`/trust gaps from the Mart slice after W37–W39:
+
+- **PDP "More from store"** (`features/product/CommonProductDetailView.tsx`): the related-products
+  grid now reads `GatewayClient.getStoreProducts(storeId)` (`GET /stores/{id}/products`,
+  `catalog.products` by `store_id` + `ACTIVE`) and keeps the local `martProducts` filter only as the
+  offline fallback — the last local Mart product pool on the PDP.
+- **`VendorHighlights`** now takes the vendor and derives its badges (`deliveryTime`, `rating`)
+  instead of the hardcoded `HIGHLIGHTS` const, so it can't advertise a delivery/rating the server
+  didn't send.
+- **Ad-label fix:** the organic "Discounted Products" rail no longer passes `showAdLabel` (it is
+  merchandising, not paid placement — only sponsored surfaces carry the 'AD' pill).
+- **Checkout money trust:** `internal/checkout` now applies approved festival discounts at
+  settlement via a new `contracts.DiscountReader` (implemented by `internal/promo.Repo`, aliasing
+  `ActiveDiscount` to the shared contracts type). Previously the app overlaid `promo.active-discounts`
+  on the price but `CreateOrder` charged the base `catalog.products.price_paisa`, so a shopper could
+  be charged more than displayed. `discountedUnitPaisa` ignores an out-of-range percent; a promo read
+  failure aborts the order rather than silently overcharging. Unit test `TestDiscountedUnitPaisa`.
+- **Web:** the seller listing editor (`seller/products/[id]/edit`) now persists price/MRP through
+  `upsertPrice` (`PUT /seller/products/{id}`) — previously only the primary image reached the
+  gateway and money edits stayed local.
+
+**Still deferred:** Mart media path (product photos are seller-owned; R2 backfill blocked on creds),
+`DealsLanding` **campaign** mode stays Home-owned `@data`, and the portal catalog/store seed divergence
+(`hydrateFromGateway` still omits products/stores).
+
+**Docs:** `docs/architecture/mobile-app.md`, `monolith-breakdown.md §1`, `web-portal.md`.
+
+**Date:** 2026-10-17
+
+---
+
 ## W39 — Mart impression events + cart seed gate (production-readiness)
 
 **Status:** 🟢 Shipped (app only). No server change.

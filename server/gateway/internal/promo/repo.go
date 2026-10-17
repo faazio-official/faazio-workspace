@@ -78,14 +78,11 @@ type PublicCoupon struct {
 	ValidTill    string `json:"validTill"`
 }
 
-// ActiveDiscount is the shopper-visible projection of a LIVE festival opt-in for one product:
-// the approved discount capped by the sector cap in effect. It carries no seller/internal ids, so
-// it is safe to serve anonymously and cache per product.
-type ActiveDiscount struct {
-	ProductID       string `json:"productId"`
-	CampaignID      string `json:"campaignId"`
-	DiscountPercent int    `json:"discountPercent"`
-}
+// ActiveDiscount is the shopper-visible projection of a LIVE festival opt-in for one product: the
+// approved discount capped by the sector cap in effect. It carries no seller/internal ids, so it is
+// safe to serve anonymously and cache per product. Aliased to the shared contracts type so
+// promo.Repo.ActiveDiscounts admits contracts.DiscountReader (checkout re-prices at settlement).
+type ActiveDiscount = contracts.ActiveDiscount
 
 // Repo reads/writes the promo schema.
 type Repo struct {

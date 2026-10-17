@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
   StyleSheet,
   View,
@@ -22,6 +22,7 @@ import { SPACE } from '@/theme/spacing';
 import AppText from '@/components/AppText';
 import ProductCardBase from '@/components/shared/ProductCardBase';
 import { applyActiveDiscounts, useActiveDiscounts } from '@/services/pricing';
+import { gateway } from '@/services/api/GatewayClient';
 import { martStores } from '@data/mart/stores';
 import { martProducts } from '@data/mart/products';
 import { foodStores } from '@data/food/stores';
@@ -133,13 +134,31 @@ export default function CommonProductDetailView({
     return martStores.find((s) => s.id === product.storeId);
   }, [product.app, product.storeId]);
 
-  const relatedProducts = useMemo(
-    () =>
-      store
-        ? martProducts.filter((p) => p.storeId === store.id && p.id !== product.id)
-        : [],
-    [store, product.id],
-  );
+  // "More from store": server-backed (`catalog.products` by store_id + ACTIVE) with the local
+  // `@data` pool kept as the offline fallback, so the rail never regresses when the gateway is off.
+  const [serverRelated, setServerRelated] = useState<Product[]>([]);
+  useEffect(() => {
+    if (product.app !== 'MART' || !product.storeId) {
+      setServerRelated([]);
+      return;
+    }
+    let active = true;
+    gateway
+      .getStoreProducts(product.storeId)
+      .then((rows) => {
+        if (active) setServerRelated(rows.filter((p) => p.id !== product.id));
+      })
+      .catch(() => undefined);
+    return () => {
+      active = false;
+    };
+  }, [product.app, product.storeId, product.id]);
+
+  const relatedProducts = useMemo(() => {
+    if (serverRelated.length > 0) return serverRelated;
+    if (!store) return [];
+    return martProducts.filter((p) => p.storeId === store.id && p.id !== product.id);
+  }, [store, serverRelated, product.id]);
 
   // Overlay approved festival discounts on the "More from store" rail (no-op offline / none apply).
   const relatedDiscounts = useActiveDiscounts(relatedProducts.map((p) => p.id));

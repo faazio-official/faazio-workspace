@@ -80,7 +80,10 @@ when configured. Every money/status/Rx/menu/booking/rewards write is **awaited w
 on a rejected write the pre-mutation snapshot is restored and a toast surfaces the error, so a
 change that did not persist can never linger on screen. (`writeBehind` remains the offline no-op
 used when `NEXT_PUBLIC_GATEWAY_URL` is unset; seed mode reconciles on the next hydrate.)
-Write bodies send **whole rupee** integers (the mapper divides paisa by 100).
+Write bodies send **whole rupee** integers (the mapper divides paisa by 100). The seller listing
+editor (`seller/products/[id]/edit`) persists name/description/photos through `updateProduct` but
+routes **price/MRP through `upsertPrice`** (`PUT /seller/products/{id}`) so money edits reach
+`catalog.products` + `inventory.stock` instead of staying local-only.
 
 A production build with `NEXT_PUBLIC_GATEWAY_URL` unset renders a fixed
 `SEED MODE — not connected to gateway` badge (`SeedModeBanner`), so seed data can

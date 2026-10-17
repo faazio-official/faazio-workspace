@@ -24,7 +24,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { formatINR, parseRupeesToPaisa } from "@/lib/format";
 import { validatePrice } from "@/lib/pricing/rules";
-import { deleteProduct, saveProductImage, updateProduct } from "@/lib/api";
+import { deleteProduct, saveProductImage, updateProduct, upsertPrice } from "@/lib/api";
 import { useProduct } from "@/lib/api/hooks";
 import { StatusPill } from "@/components/patterns/Pills";
 import { ImageUploader } from "@/components/patterns/ImageUploader";
@@ -152,12 +152,13 @@ function EditProduct() {
               updateProduct(product.productId, {
                 name: name.trim(),
                 description: description.trim(),
-                mrpPaisa,
-                pricePaisa,
                 isPrescription,
                 imageUrl: images[0] ?? "",
                 galleryUrls: images.slice(1),
               });
+              // Money edits must reach the gateway (`PUT /seller/products/{id}`), which writes
+              // catalog.products + inventory.stock in lockstep. `updateProduct` above is local-only.
+              upsertPrice(product.productId, pricePaisa, mrpPaisa);
               saveProductImage(product.productId, images[0]);
               toast.success("Listing updated");
             }}

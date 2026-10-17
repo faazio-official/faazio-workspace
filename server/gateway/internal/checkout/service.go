@@ -57,18 +57,28 @@ type PlaceOrderRequest struct {
 
 // Service orchestrates order placement with the idempotency lock + stock decrement.
 type Service struct {
-	repo    *Repo
-	stock   contracts.StockWriter
-	rewards contracts.RewardsWriter
-	coupons contracts.CouponValidator
-	ads     contracts.AdAttributor
-	cache   *cache.Cache
+	repo      *Repo
+	stock     contracts.StockWriter
+	rewards   contracts.RewardsWriter
+	coupons   contracts.CouponValidator
+	discounts contracts.DiscountReader
+	ads       contracts.AdAttributor
+	cache     *cache.Cache
 }
 
-// NewService builds the checkout service. rewards/coupons/ads may be nil (rewards disabled / unit
-// contexts / ads not wired).
-func NewService(repo *Repo, stock contracts.StockWriter, cache *cache.Cache, rewards contracts.RewardsWriter, coupons contracts.CouponValidator, ads contracts.AdAttributor) *Service {
-	return &Service{repo: repo, stock: stock, cache: cache, rewards: rewards, coupons: coupons, ads: ads}
+// NewService builds the checkout service. rewards/coupons/discounts/ads may be nil (rewards
+// disabled / unit contexts / promo or ads not wired).
+func NewService(repo *Repo, stock contracts.StockWriter, cache *cache.Cache, rewards contracts.RewardsWriter, coupons contracts.CouponValidator, discounts contracts.DiscountReader, ads contracts.AdAttributor) *Service {
+	return &Service{repo: repo, stock: stock, cache: cache, rewards: rewards, coupons: coupons, discounts: discounts, ads: ads}
+}
+
+// discountedUnitPaisa applies an active festival discount (percent off) to a catalog price. A
+// discount outside (0,100) is ignored, so a malformed value can never raise the price.
+func discountedUnitPaisa(pricePaisa int64, discountPercent int) int64 {
+	if discountPercent <= 0 || discountPercent >= 100 {
+		return pricePaisa
+	}
+	return pricePaisa * int64(100-discountPercent) / 100
 }
 
 // CreateOrder places an order: idempotency lock → price → stock decrement → insert.
@@ -113,6 +123,19 @@ func (s *Service) CreateOrder(ctx context.Context, userID string, req PlaceOrder
 		return Order{}, err
 	}
 
+	// Festival discounts are part of the price the shopper sees, so the server must honor them at
+	// settlement too. A failure here aborts the order rather than silently charging the base price.
+	discountByID := map[string]int{}
+	if s.discounts != nil {
+		active, err := s.discounts.ActiveDiscounts(ctx, ids)
+		if err != nil {
+			return Order{}, err
+		}
+		for _, a := range active {
+			discountByID[a.ProductID] = a.DiscountPercent
+		}
+	}
+
 	lines := make([]OrderLineItem, 0, len(req.Items))
 	vendorSet := map[string]struct{}{}
 	orderApp := ""
@@ -129,7 +152,7 @@ func (s *Service) CreateOrder(ctx context.Context, userID string, req PlaceOrder
 		if orderApp == "" && snap.App != "" {
 			orderApp = snap.App
 		}
-		unit := snap.PricePaisa / 100
+		unit := discountedUnitPaisa(snap.PricePaisa, discountByID[it.ProductID]) / 100
 		lines = append(lines, OrderLineItem{
 			LineID:    fmt.Sprintf("%s-l%d", newOrderID(), i+1),
 			ProductID: it.ProductID,

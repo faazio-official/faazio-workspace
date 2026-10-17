@@ -47,7 +47,7 @@ keys/TTLs unchanged.
   `/membership`, `/order-status`, `/account-nav`, `/bookings`, `/venues/:id/booking-availability`,
   `/coupons?app=` (anon), `/promo/active-discounts?ids=` (anon), `/ads/live?slot=` (anon),
   `/admin/user-trail?userId=` (admin, ID-only), `/admin/sdui/home` (super-admin, raw ID-only layout);
-  writes `POST/PUT/DELETE /cart…`, `POST /orders` (coupon settlement + ad attribution),
+  writes `POST/PUT/DELETE /cart…`, `POST /orders` (festival-discount + coupon settlement + ad attribution),
   `POST /checkout/validate-coupon`, `POST /ads/events`, `PUT /vendors/:id/rating`, `POST /events`,
   `PUT /admin/sdui/home` (super-admin, publishes the Home layout: version bump + cache purge),
   `POST /bookings` (seat hold + Razorpay order), `DELETE /bookings/:id`,

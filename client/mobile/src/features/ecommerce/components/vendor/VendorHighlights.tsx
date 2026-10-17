@@ -1,8 +1,9 @@
-import React, { memo } from 'react';
+import React, { memo, useMemo } from 'react';
 import { View, StyleSheet } from 'react-native';
 import { ShieldCheck, Truck, Star } from 'lucide-react-native';
 import AppText from '@/components/AppText';
 import { hs, ms, vs } from '@/utils/responsive';
+import type { StoreProfile } from '@data/types';
 import { VENDOR_YELLOW, TEXT_DARK, TEXT_LIGHT, BG_GRAY } from './theme';
 
 interface Highlight {
@@ -11,16 +12,42 @@ interface Highlight {
   sub: string;
 }
 
-const HIGHLIGHTS: Highlight[] = [
-  { icon: <ShieldCheck color={VENDOR_YELLOW} size={ms(20)} strokeWidth={2.4} />, title: 'Verified Vendor', sub: 'Background verified' },
-  { icon: <Truck color={VENDOR_YELLOW} size={ms(20)} strokeWidth={2.4} />, title: 'Fast Delivery', sub: '30-45 mins delivery' },
-  { icon: <Star color={VENDOR_YELLOW} size={ms(20)} strokeWidth={2.4} />, title: 'Top Rated', sub: '4.6 ★ Rating' },
-];
+interface VendorHighlightsProps {
+  vendor: Pick<StoreProfile, 'rating' | 'deliveryTime'>;
+}
 
-const VendorHighlights = memo(function VendorHighlights() {
+/**
+ * Trust rail on the vendor header. Every badge derives from the store row (`rating` + `deliveryTime`)
+ * instead of a hardcoded claim, so it never advertises a delivery time or rating the server did not
+ * send. The "Verified Vendor" badge is a platform-level assertion (all listed vendors are onboarded).
+ */
+const VendorHighlights = memo(function VendorHighlights({ vendor }: VendorHighlightsProps) {
+  const highlights = useMemo<Highlight[]>(() => {
+    const items: Highlight[] = [
+      {
+        icon: <ShieldCheck color={VENDOR_YELLOW} size={ms(20)} strokeWidth={2.4} />,
+        title: 'Verified Vendor',
+        sub: 'Background verified',
+      },
+      {
+        icon: <Truck color={VENDOR_YELLOW} size={ms(20)} strokeWidth={2.4} />,
+        title: 'Fast Delivery',
+        sub: vendor.deliveryTime ? `${vendor.deliveryTime} delivery` : 'On-time delivery',
+      },
+    ];
+    if (vendor.rating > 0) {
+      items.push({
+        icon: <Star color={VENDOR_YELLOW} size={ms(20)} strokeWidth={2.4} />,
+        title: vendor.rating >= 4.5 ? 'Top Rated' : 'Rated',
+        sub: `${vendor.rating} ★ Rating`,
+      });
+    }
+    return items;
+  }, [vendor.deliveryTime, vendor.rating]);
+
   return (
     <View style={styles.container}>
-      {HIGHLIGHTS.map((h, i) => (
+      {highlights.map((h, i) => (
         <React.Fragment key={h.title}>
           {i > 0 ? <View style={styles.divider} /> : null}
           <View style={styles.item}>

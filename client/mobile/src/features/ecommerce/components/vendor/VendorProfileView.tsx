@@ -166,7 +166,7 @@ export function VendorProfileView({
             </View>
           </View>
 
-          <VendorHighlights />
+          <VendorHighlights vendor={vendor} />
 
           <VendorReviewsSection
             vendorId={vendor.id}
@@ -199,7 +199,6 @@ export function VendorProfileView({
                   variant="rail"
                   width={CARD_W_RAIL}
                   showDescription
-                  showAdLabel
                   quantity={qty}
                   isAdded={qty > 0}
                   onPress={() => onProductClick?.(p)}

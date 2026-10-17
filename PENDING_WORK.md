@@ -68,6 +68,10 @@ node server/supabase/seed/generate.mjs               # 0001_seed.sql now emits m
   needs the SDK adapter + a real publishable key. No screen change. (See mobile backlog W22.)
 - **Editorial `@data` rails.** Hero banners / brand campaigns / Pharma rails remain fixture-owned
   until they get a server surface (SDUI doc or new table). (See mobile backlog "Home rails".)
+- **Checkout festival-discount settlement — fixed.** `internal/checkout` now re-prices through
+  `contracts.DiscountReader` (`internal/promo.Repo.ActiveDiscounts`), so the charged amount matches
+  the festival price the app overlays (`promo.active-discounts`). Coupons settle through
+  `contracts.CouponValidator` as before.
 - **Seed ↔ Mongo SDUI drift — fixed.** `generate.mjs` now owns the W38 `martHero` + `martEssentials`
   Mongo SDUI sections (`MART_SDUI` splice: hero above `adBanner`, essentials after `dealsOfDay`), so
   re-running the generator reproduces the committed `seed/mongo/sdui_layouts.json` byte-for-byte.

@@ -370,6 +370,21 @@ type CouponValidator interface {
 	ValidateCoupon(ctx context.Context, code, app, stateCode string, subtotalPaisa int64) (CouponValidation, error)
 }
 
+// ActiveDiscount is the best live festival discount for one product — a percent off the catalog
+// price, derived from a LIVE campaign + APPROVED opt-in capped by sector policy (db-schema §7).
+type ActiveDiscount struct {
+	ProductID       string `json:"productId"`
+	CampaignID      string `json:"campaignId"`
+	DiscountPercent int    `json:"discountPercent"`
+}
+
+// DiscountReader returns the active festival discount per requested product (implemented by
+// internal/promo). Checkout calls it to re-price authoritatively, so a shopper is charged the same
+// festival price the app overlays — the client never dictates the discounted amount.
+type DiscountReader interface {
+	ActiveDiscounts(ctx context.Context, productIDs []string) ([]ActiveDiscount, error)
+}
+
 // AdAttributor records a closed-loop ad conversion (implemented by internal/ads). Checkout calls it
 // best-effort after an order commits, crediting the last-clicked sponsored slot.
 type AdAttributor interface {
