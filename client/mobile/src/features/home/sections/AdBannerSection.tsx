@@ -1,25 +1,29 @@
-import React, { memo } from 'react';
+import React, { memo, useCallback } from 'react';
 import { StyleSheet } from 'react-native';
 import { hs, vs } from '@/utils/responsive';
 import { SPACE } from '@/theme/spacing';
-import { topAdSlides } from '@data/home/rails';
-import { AdBannerCarousel } from '@/components/shared';
-import { subAppIdFor } from './common';
+import CampaignHero from '@/components/shared/CampaignHero';
+import { openHeroTarget } from '@/services/adsTarget';
+import type { HeroAd } from '@/services/api/GatewayClient';
 import type { SectionProps } from './common';
 
 /**
- * Home hub top ad banner. Thin wrapper over the shared `AdBannerCarousel`:
- * supplies the hub's slides, the AppBrand → SubAppId press mapping and the
- * hub's margins (the carousel itself is margin-free so Food can reuse it).
+ * Home hub top hero — a paid, labelled `HOME_HERO` placement (every hero is a paid ad; the old
+ * static `topAdSlides` fixture is retired). Collapses to nothing when there is no LIVE fill and
+ * resolves the deep-link target server-side (product → PDP, store → vendor/medical shop).
  */
-function AdBannerSection({ onLaunchSubApp }: SectionProps) {
-  return (
-    <AdBannerCarousel
-      slides={topAdSlides}
-      style={styles.carousel}
-      onSlidePress={(slide) => slide.targetApp && onLaunchSubApp(subAppIdFor(slide.targetApp))}
-    />
+function AdBannerSection({ onProductClick, onStoreClick }: SectionProps) {
+  const handleHeroPress = useCallback(
+    (ad: HeroAd) => {
+      void openHeroTarget(ad, {
+        onProduct: (product) => onProductClick?.(product),
+        onStore: (store) => onStoreClick?.(store),
+      });
+    },
+    [onProductClick, onStoreClick],
   );
+
+  return <CampaignHero placement="HOME_HERO" onPress={handleHeroPress} style={styles.carousel} />;
 }
 
 export default memo(AdBannerSection);

@@ -23,6 +23,9 @@ import type { PharmaPopularMedicine, PharmaQuickReorderItem } from './mocks/phar
 import { quickReorderToProduct } from './mocks/pharmaHomeFeed';
 
 import PharmaHeroBanner from './components/pharma-home/PharmaHeroBanner';
+import CampaignHero from '@/components/shared/CampaignHero';
+import { openHeroTarget } from '@/services/adsTarget';
+import type { HeroAd } from '@/services/api/GatewayClient';
 import QuickReorderRail from './components/pharma-home/QuickReorderRail';
 import TopOffersRail from './components/pharma-home/TopOffersRail';
 import PopularMedicinesRail from './components/pharma-home/PopularMedicinesRail';
@@ -160,6 +163,18 @@ export function PharmaScreen({
     navigation.navigate('MedicalShopDetails', { storeId: store.id });
   };
 
+  /** Paid PHARMA_HERO tap-through — product → PDP, store → medical shop. */
+  const handlePharmaHeroPress = (ad: HeroAd) => {
+    void openHeroTarget(ad, {
+      onProduct: (product) => {
+        if (onProductClick) onProductClick(product);
+        else navigation.navigate('ProductDetail', { product });
+      },
+      onStore: (store) => navigation.navigate('MedicalShopDetails', { storeId: store.id }),
+      onVenue: (store) => navigation.navigate('MedicalShopDetails', { storeId: store.id }),
+    });
+  };
+
   const searchView = (
     <View style={styles.searchContainer}>
       <View style={styles.searchHeaderRow}>
@@ -200,6 +215,7 @@ export function PharmaScreen({
   const feedView = feed ? (
     <View style={styles.feedWrap}>
       <ScrollView showsVerticalScrollIndicator={false} bounces={false}>
+        <CampaignHero placement="PHARMA_HERO" app="PHARMA" onPress={handlePharmaHeroPress} />
         <PharmaHeroBanner
           onOrderNow={() => { setSelectedCategoryId('vitamin'); setCurrentView('CATEGORY_PRODUCTS'); }}
         />

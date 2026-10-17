@@ -24,8 +24,10 @@ import {
 import { hs, vs, ms } from '@/utils/responsive';
 import { SPACE } from '@/theme/spacing';
 import AppText from '@/components/AppText';
-import { AdBannerCarousel, AdLabelBadge, VendorReviewsSection } from '@/components/shared';
-import { topAdSlides } from '@data/home/rails';
+import { AdLabelBadge, VendorReviewsSection } from '@/components/shared';
+import CampaignHero from '@/components/shared/CampaignHero';
+import { openHeroTarget } from '@/services/adsTarget';
+import type { HeroAd } from '@/services/api/GatewayClient';
 import RemoteImage from '../components/RemoteImage';
 import FoodStatusBarStrip from '../components/FoodStatusBarStrip';
 import MenuItemRow from '../components/MenuItemRow';
@@ -156,6 +158,21 @@ export function RestaurantProfileScreen({ navigation, route }: Props) {
     [addToCart, restaurant.id],
   );
 
+  /** Paid STORE_TOP tap-through on this restaurant page: product/dish → PDP; other venues no-op. */
+  const handleHeroPress = useCallback(
+    (ad: HeroAd) => {
+      void openHeroTarget(ad, {
+        onProduct: (product) =>
+          navigation
+            .getParent<NativeStackNavigationProp<RootStackParamList>>()
+            ?.navigate('ProductDetail', { product }),
+        onStore: () => {},
+        onVenue: () => {},
+      });
+    },
+    [navigation],
+  );
+
   const dishQuantity = useCallback(
     (id: string) => restaurantItems.find((i) => i.id === id)?.quantity ?? 0,
     [restaurantItems],
@@ -170,9 +187,14 @@ export function RestaurantProfileScreen({ navigation, route }: Props) {
         scrollEventThrottle={16}
         keyboardShouldPersistTaps="handled"
       >
-        {/* AD BANNER HERO — light gray band, tap is a no-op inside Food */}
+        {/* AD BANNER HERO — paid STORE_TOP placement (collapses when no LIVE fill) */}
         <View style={[styles.heroContainer, { paddingTop: insets.top + vs(52) }]}>
-          <AdBannerCarousel slides={topAdSlides} />
+          <CampaignHero
+            placement="STORE_TOP"
+            app="FOOD"
+            storeId={restaurant.id}
+            onPress={handleHeroPress}
+          />
         </View>
 
         {/* OVERLAPPING WHITE BOARD */}

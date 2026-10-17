@@ -13,8 +13,9 @@ import { useMenus, useProducts, useStores } from "@/lib/api/hooks";
 import {
   CATEGORY_OPTIONS,
   HERO_PLACEMENT_META,
-  PLACEMENTS_BY_APP,
+  PLACEMENT_REACH_NOTE,
   TARGET_TABS,
+  eligiblePlacementsFor,
   type TargetTabKey,
 } from "@/data/ads/placements";
 import type { AdTargetType, HeroPlacement, Sector } from "@/data/types";
@@ -37,16 +38,19 @@ function isoDaysFromNow(days: number): string {
 }
 
 /**
- * Five-step seller hero-campaign wizard: what to promote → creative → where → when → review.
- * Placement choices are inferred from the target's sub-app (`PLACEMENTS_BY_APP`), so a Mart product
- * can never be requested on a Food/Pharma surface. The request is optimistic + awaited (rollback on
- * a rejected gateway write); admins moderate each placement.
+ * Five-step self-serve wizard: what to promote → where → creative → when → review. Placement choices
+ * are inferred from the target's sub-app + type (`eligiblePlacementsFor`), so a Mart product can never
+ * land on a Food/Pharma surface. Publish is instant + machine-checked (no admin approval); the
+ * optimistic LIVE row rolls back if the gateway rejects the write.
  */
 export function CampaignWizard({ sellerId, stateCode }: { sellerId: string; stateCode?: string | undefined }) {
   const [step, setStep] = useState(0);
   const [tab, setTab] = useState<TargetTabKey>("PRODUCT");
   const [query, setQuery] = useState("");
   const [target, setTarget] = useState<SelectedTarget | null>(null);
+
+  const [placements, setPlacements] = useState<HeroPlacement[]>([]);
+  const [category, setCategory] = useState("");
 
   const [title, setTitle] = useState("");
   const [subtitle, setSubtitle] = useState("");
@@ -55,8 +59,6 @@ export function CampaignWizard({ sellerId, stateCode }: { sellerId: string; stat
   const [uploading, setUploading] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
 
-  const [placements, setPlacements] = useState<HeroPlacement[]>([]);
-  const [category, setCategory] = useState("");
   const [startsAt, setStartsAt] = useState(isoDaysFromNow(0));
   const [endsAt, setEndsAt] = useState(isoDaysFromNow(30));
   const [submitting, setSubmitting] = useState(false);
@@ -100,8 +102,7 @@ export function CampaignWizard({ sellerId, stateCode }: { sellerId: string; stat
       }));
   }, [tab, products, dishes, stores, q]);
 
-  const allowed = target ? PLACEMENTS_BY_APP[target.app] : [];
-  const heroReady = allowed.length > 0;
+  const allowed = target ? eligiblePlacementsFor(target.app, target.type) : [];
   const needsCategory = placements.includes("CATEGORY_TOP");
   const needsStore = placements.includes("STORE_TOP");
 
@@ -135,15 +136,12 @@ export function CampaignWizard({ sellerId, stateCode }: { sellerId: string; stat
 
   const canNext =
     (step === 0 && !!target) ||
-    (step === 1 &&
+    (step === 1 && placements.length > 0 && (!needsCategory || category !== "") && (!needsStore || !!target?.storeId)) ||
+    (step === 2 &&
       title.trim().length > 0 &&
       title.trim().length <= 40 &&
       subtitle.trim().length <= 60 &&
       imageUrl.trim().length > 0) ||
-    (step === 2 &&
-      placements.length > 0 &&
-      (!needsCategory || category !== "") &&
-      (!needsStore || !!target?.storeId)) ||
     step === 3;
 
   function submit() {
@@ -165,7 +163,7 @@ export function CampaignWizard({ sellerId, stateCode }: { sellerId: string; stat
       startsAt: new Date(`${startsAt}T00:00:00Z`).toISOString(),
       endsAt: new Date(`${endsAt}T23:59:59Z`).toISOString(),
     });
-    toast.success("Campaign requested — pending admin approval");
+    toast.success("Ad is live now — it was machine-checked, not admin-approved.");
     setSubmitting(false);
     setStep(0);
     setTarget(null);
@@ -176,10 +174,13 @@ export function CampaignWizard({ sellerId, stateCode }: { sellerId: string; stat
     setCategory("");
   }
 
-  const steps = ["What", "Creative", "Where", "When", "Review"];
+  const steps = ["What", "Where", "Creative", "When", "Review"];
 
   return (
-    <SectionCard title="New hero campaign" description="Promote one of your own items on a 16:9 hero or a contextual banner.">
+    <SectionCard
+      title="New hero campaign"
+      description="Promote one of your own items — goes live instantly, machine-checked (owner, placement fit, poster, length, caps)."
+    >
       {/* Step rail */}
       <ol className="mb-5 flex flex-wrap gap-2">
         {steps.map((label, i) => (
@@ -254,15 +255,58 @@ export function CampaignWizard({ sellerId, stateCode }: { sellerId: string; stat
               })
             )}
           </div>
-          {target && !heroReady && (
-            <p className="rounded-md bg-warning/15 px-3 py-2 text-[12px] text-warning ring-1 ring-warning/30">
-              Hero campaigns are live for Mart products in this wave. {target.app} hero surfaces are coming next — pick a Mart item.
+        </div>
+      )}
+
+      {step === 1 && (
+        <div className="space-y-4">
+          <div className="grid gap-2 sm:grid-cols-2">
+            {allowed.map((p) => {
+              const meta = HERO_PLACEMENT_META[p];
+              const on = placements.includes(p);
+              return (
+                <label
+                  key={p}
+                  className={`flex cursor-pointer items-start gap-3 rounded-lg border px-3 py-2.5 transition-colors ${
+                    on ? "border-primary bg-primary/5" : "border-border hover:border-primary/40"
+                  }`}
+                >
+                  <input type="checkbox" className="mt-1 size-4 accent-[var(--primary)]" checked={on} onChange={() => togglePlacement(p)} />
+                  <span>
+                    <span className="block text-[13px] font-semibold">{meta.label}</span>
+                    <span className="block text-[11px] text-muted-foreground">{meta.hint}</span>
+                    <span className="block text-[11px] text-primary/80">{PLACEMENT_REACH_NOTE[p]}</span>
+                  </span>
+                </label>
+              );
+            })}
+          </div>
+          {needsCategory && (
+            <div className="space-y-1.5">
+              <Label>Category page</Label>
+              <select
+                className="h-9 w-full rounded-md border border-input bg-transparent px-3 text-[13px]"
+                value={category}
+                onChange={(e) => setCategory(e.target.value)}
+              >
+                <option value="">Pick a category…</option>
+                {CATEGORY_OPTIONS[target?.app ?? "MART"].map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
+          {needsStore && (
+            <p className="rounded-md bg-secondary px-3 py-2 text-[12px] text-muted-foreground">
+              Store header shows on <span className="font-medium text-foreground">{target?.storeId ?? "—"}</span> (the store your item belongs to).
             </p>
           )}
         </div>
       )}
 
-      {step === 1 && (
+      {step === 2 && (
         <div className="grid gap-5 md:grid-cols-[1fr_320px]">
           <div className="space-y-4">
             <div className="space-y-1.5">
@@ -286,6 +330,7 @@ export function CampaignWizard({ sellerId, stateCode }: { sellerId: string; stat
               </div>
               <Input value={imageUrl} onChange={(e) => setImageUrl(e.target.value)} placeholder="https://…/hero.jpg" />
               <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={(e) => { void pickPoster(e.target.files?.[0]); e.target.value = ""; }} />
+              <p className="text-[11px] text-muted-foreground">External image links are rejected — upload to Faazio so the poster is served from our CDN.</p>
             </div>
             <div className="space-y-1.5">
               <Label>Call to action</Label>
@@ -326,53 +371,6 @@ export function CampaignWizard({ sellerId, stateCode }: { sellerId: string; stat
         </div>
       )}
 
-      {step === 2 && (
-        <div className="space-y-4">
-          <div className="grid gap-2 sm:grid-cols-2">
-            {allowed.map((p) => {
-              const meta = HERO_PLACEMENT_META[p];
-              const on = placements.includes(p);
-              return (
-                <label
-                  key={p}
-                  className={`flex cursor-pointer items-start gap-3 rounded-lg border px-3 py-2.5 transition-colors ${
-                    on ? "border-primary bg-primary/5" : "border-border hover:border-primary/40"
-                  }`}
-                >
-                  <input type="checkbox" className="mt-1 size-4 accent-[var(--primary)]" checked={on} onChange={() => togglePlacement(p)} />
-                  <span>
-                    <span className="block text-[13px] font-semibold">{meta.label}</span>
-                    <span className="block text-[11px] text-muted-foreground">{meta.hint}</span>
-                  </span>
-                </label>
-              );
-            })}
-          </div>
-          {needsCategory && (
-            <div className="space-y-1.5">
-              <Label>Category page</Label>
-              <select
-                className="h-9 w-full rounded-md border border-input bg-transparent px-3 text-[13px]"
-                value={category}
-                onChange={(e) => setCategory(e.target.value)}
-              >
-                <option value="">Pick a category…</option>
-                {CATEGORY_OPTIONS[target?.app ?? "MART"].map((c) => (
-                  <option key={c.id} value={c.id}>
-                    {c.label}
-                  </option>
-                ))}
-              </select>
-            </div>
-          )}
-          {needsStore && (
-            <p className="rounded-md bg-secondary px-3 py-2 text-[12px] text-muted-foreground">
-              Store header shows on <span className="font-medium text-foreground">{target?.storeId ?? "—"}</span> (the store your item belongs to).
-            </p>
-          )}
-        </div>
-      )}
-
       {step === 3 && (
         <div className="grid gap-4 sm:grid-cols-2">
           <div className="space-y-1.5">
@@ -380,11 +378,11 @@ export function CampaignWizard({ sellerId, stateCode }: { sellerId: string; stat
             <Input type="date" value={startsAt} onChange={(e) => setStartsAt(e.target.value)} />
           </div>
           <div className="space-y-1.5">
-            <Label>Ends (default +30 days)</Label>
+            <Label>Ends (default +30 days, max 90)</Label>
             <Input type="date" value={endsAt} onChange={(e) => setEndsAt(e.target.value)} />
           </div>
           <p className="sm:col-span-2 rounded-md bg-secondary px-3 py-2 text-[12px] text-muted-foreground">
-            MVP campaigns are approval-gated (no bidding). Position within a placement is by relevance and recency; impressions and clicks roll up on your dashboard.
+            Your ad goes live the moment you publish. Position within a placement is by relevance and recency; impressions and clicks roll up on your dashboard.
           </p>
         </div>
       )}
@@ -411,11 +409,11 @@ export function CampaignWizard({ sellerId, stateCode }: { sellerId: string; stat
             {needsCategory ? <Row label="Category" value={category} /> : null}
             {needsStore ? <Row label="Store" value={target.storeId ?? "—"} /> : null}
             <Row label="Window" value={`${startsAt} → ${endsAt}`} />
-            <Row label="Status" value="" pill="REQUESTED" />
+            <Row label="Status" value="" pill="LIVE" />
           </dl>
           <Button disabled={submitting} onClick={submit}>
             {submitting ? <Loader2 className="size-4 animate-spin" /> : null}
-            Request campaign
+            Publish now
           </Button>
         </div>
       )}

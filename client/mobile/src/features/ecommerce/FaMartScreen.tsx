@@ -24,7 +24,6 @@ import type { MartDeal, MartEssential } from './mocks/martHomeFeed';
 import { useMartFeed } from './hooks/useMartFeed';
 import MartHomeSkeleton from './components/skeletons/MartHomeSkeleton';
 
-import MartHeroCarousel from './components/mart-home/MartHeroCarousel';
 import DealsOfDayRail from './components/mart-home/DealsOfDayRail';
 import DailyEssentialsRail from './components/mart-home/DailyEssentialsRail';
 import LocalVendorRail from './components/mart-home/LocalVendorRail';
@@ -202,7 +201,6 @@ export function FaMartScreen({
         <CampaignHero
           placement="MART_HERO"
           app="MART"
-          fallback={<MartHeroCarousel banners={feed?.heroBanners ?? []} />}
           onPress={handleHeroPress}
         />
       ),

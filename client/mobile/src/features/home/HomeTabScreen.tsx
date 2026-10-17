@@ -14,6 +14,7 @@ import type { CompositeScreenProps } from '@react-navigation/native';
 import type { BottomTabScreenProps } from '@react-navigation/bottom-tabs';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { FaazioLogo } from '@/components/FaazioLogo';
+import type { StoreProfile } from '@data/types';
 import ExploreSectorsSection from '@/features/home/sections/ExploreSectorsSection';
 import HomeView from '@/features/home/HomeView';
 import AppText from '@/components/AppText';
@@ -56,6 +57,15 @@ export function HomeTabScreen({ navigation }: Props) {
   );
   const handleProductClick = useCallback(
     (product: any) => navigation.navigate('ProductDetail', { product }),
+    [navigation],
+  );
+
+  /** Paid HOME_HERO store target → the vendor page, or the medical-shop page for Pharma. */
+  const handleStoreClick = useCallback(
+    (store: StoreProfile) => {
+      if (store.app === 'PHARMA') navigation.navigate('MedicalShopDetails', { storeId: store.id });
+      else navigation.navigate('VendorDetails', { storeId: store.id, app: 'FA_MART' });
+    },
     [navigation],
   );
 
@@ -171,6 +181,7 @@ export function HomeTabScreen({ navigation }: Props) {
           onLaunchSubApp={handleLaunchSubApp}
           addToCart={addToCart}
           onProductClick={handleProductClick}
+          onStoreClick={handleStoreClick}
           onOpenDeals={handleOpenDeals}
           scrollY={scrollY}
           clamp={clamp}

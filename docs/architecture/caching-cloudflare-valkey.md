@@ -103,8 +103,10 @@ Examples: `faazio:v1:stock:fm-f1`, `faazio:v1:search:q:hoodie`, `faazio:v1:sdui:
 | Active festival discounts (anon `GET /promo/active-discounts?ids=`, per product) | 300 s | — | opt-in approve/reject or campaign status change (invalidated per product; `none` sentinel cached) |
 | Ad slots (partner) | 300 s | **never** | ad status/stat write |
 | Live ads (anon `GET /ads/live?slot=`) | 600 s | — | ad status write (invalidated on `LIVE`) |
-| Live hero campaigns (anon `GET /ads/hero?placement=&app=&category=&storeId=`, `faazio:v1:ads:hero:{placement}:{app}:{category}:{store}`) | 300 s | — | campaign status write (whole `faazio:v1:ads:hero:` namespace purged by prefix) |
+| Live hero campaigns (anon `GET /ads/hero?placement=&app=&category=&storeId=`, `faazio:v1:ads:hero:{placement}:{app}:{category}:{store}`) | 300 s | — | publish or takedown/restore write (whole `faazio:v1:ads:hero:` namespace purged by prefix) |
 | Ad impression de-dupe lock (`faazio:v1:ads:seen:{userId}:{slotId}`, `POST /ads/events`) | 300 s (`NX EX`) | **never** | auto-expire (one impression per user per slot) |
+| Ad abuse-report de-dupe lock (`faazio:v1:ads:report:{userId}:{placementId}`, `POST /ads/campaigns/{id}/report`) | 86400 s (`NX EX`) | **never** | auto-expire (one report per user per placement) |
+| Self-serve publish rate counter (`faazio:v1:ads:publish:{sellerId}:{yyyymmdd}`, `POST /ads/campaigns`) | 86400 s (`INCR`+`EXPIRE`) | **never** | auto-expire (≤10 publishes/seller/UTC day; fail-open when Valkey is off) |
 | Settlement cycles (per seller) | 600 s | **never** | settlement/payout write |
 | Idempotency locks (checkout) | 300 s | — | auto-expire |
 | Auth subject → app user_id | 3600 s (1 h) | — | delete on profile merge (mapping is otherwise immutable) |
@@ -121,16 +123,20 @@ last-click attribution at checkout) serves every paid shelf. The shared
 | `SPONSORED_SHOWCASE` | Mart home feed (below the hero) | `ecommerce/FaMartScreen` |
 | `SECTOR_RAIL` | Vendor "Discounted Products" landing | `ecommerce/DealsLandingScreen` (`discounts` mode) |
 
-Hero campaigns (`0027`) are the second, separately-labelled pipeline (`GET /ads/hero` → catalog/store
-target resolver → `POST /ads/events` impression/click → last-click attribution at checkout). The shared
-`components/shared/CampaignHero` renders them (thin wrapper over `AdBannerCarousel`, AD pill always on):
+Hero campaigns (`0027`, self-serve since `0028`) are the second, separately-labelled pipeline
+(`GET /ads/hero` → catalog/store target resolver → `POST /ads/events` impression/click → last-click
+attribution at checkout). Publish is instant (`LIVE`) after machine checks; a human admin only takes a
+bad ad down (`REJECTED`) or restores it. The shared `components/shared/CampaignHero` renders them (thin
+wrapper over `AdBannerCarousel`, AD pill always on, `accessibilityLabel="Sponsored"`):
 
 | Hero placement | Surface | Mobile entry |
 |---|---|---|
 | `MART_HERO` | Mart home feed hero (above Sponsored picks) | `ecommerce/FaMartScreen` (`CampaignHero`) |
 | `CATEGORY_TOP` | Category drill-in top banner (scoped by `category` = `MASTER_CATEGORIES` tab id) | `catalog/components/CategoryDrillInPanel` |
-| `STORE_TOP` | Store / medical-shop header banner (scoped by `storeId`) | `catalog/VendorDetailScreen`, `pharma/MedicalShopDetailsScreen` |
-| `HOME_HERO` / `PHARMA_HERO` / `FOOD_HERO` | Home / Pharma / restaurant hero (same pipeline) | reserved for the follow-up hero wave |
+| `STORE_TOP` | Store / medical-shop / restaurant header banner (scoped by `storeId`) | `catalog/VendorDetailScreen`, `pharma/MedicalShopDetailsScreen`, `food/screens/RestaurantProfileScreen` |
+| `HOME_HERO` | Main Home hub top hero (retired the static `topAdSlides` fixture) | `home/sections/AdBannerSection` |
+| `FOOD_HERO` | Food feed hero band | `food/screens/FoodHomeScreen` |
+| `PHARMA_HERO` | Pharma home top band | `pharma/PharmaScreen` |
 
 Seed (`0001_seed.sql`) carries one LIVE demo slot per rail placement (`ad-demo-home-*`,
 `ad-demo-showcase-1`, `ad-demo-sector-1`) and one LIVE demo hero per new hero placement

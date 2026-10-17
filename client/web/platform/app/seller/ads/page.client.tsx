@@ -34,7 +34,7 @@ function SellerAds() {
     <div className="space-y-4">
       <PageHeader
         title="Ads"
-        description="Hero and rail placements go live only after an admin approves them."
+        description="Ads go live instantly — machine-checked, not admin-approved. Abuse is removed only after a report."
       />
 
       <DataShell loading={loading}>
@@ -57,7 +57,7 @@ function SellerAds() {
         <DataShell
           loading={loading}
           isEmpty={campaigns.length === 0}
-          empty={<EmptyState title="No hero campaigns yet" description="Request a campaign above to promote an item on a hero or banner." />}
+          empty={<EmptyState title="No hero campaigns yet" description="Publish a campaign above — it goes live immediately on the placements you pick." />}
         >
           <Table>
             <TableHeader>

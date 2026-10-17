@@ -59,6 +59,11 @@
 | H12 | FA Mart Curated Finds | 1138–1188 | "Discover" CTA cards |
 | H13 | Restaurant Specials | 1190–1255 | "Order Now" CTA cards |
 
+> **RN app note (W42):** the Home top ad (H2, Vite reference above) is now the paid **`HOME_HERO`**
+> placement (`CampaignHero` in `features/home/sections/AdBannerSection.tsx`); the static `topAdSlides`
+> fixture and the organic Mart `MartHeroCarousel` are retired — every hero is a paid ad that collapses
+> to `null` when unfilled.
+
 #### Categories Tab (D3) sub-sections:
 
 | # | Sub-Section | Lines | Description |

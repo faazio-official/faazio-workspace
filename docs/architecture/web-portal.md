@@ -107,20 +107,24 @@ mirror the gateway `contracts` doc so a published layout round-trips without rem
 
 ### Seller hero campaigns (`seller/ads`, `admin/super/ads`)
 
-The seller **Ads** page owns the hero creative surface (`ads.campaigns`, `0027`): a five-step
-`CampaignWizard` (what → creative → where → when → review) replaces the old two-dropdown rail form.
-Step 1 picks a target scoped to the seller (Products / Dishes / My Stores, read from the hydrated
-`useProducts`/`useMenus`/`useStores` slices — the full catalog is never hydrated for this). The
-target's sub-app drives the allowed placements (`src/data/ads/placements.ts` `PLACEMENTS_BY_APP`), so
-a Mart item can only be requested on `MART_HERO`/`CATEGORY_TOP`/`STORE_TOP` in this wave; `CATEGORY_TOP`
-adds a category picker (`MASTER_CATEGORIES` tab ids) and `STORE_TOP` auto-scopes to the target's store.
-Step 2 edits title (≤40), subtitle (≤60), a 16:9 poster (hosted URL or upload, stored as the **resolved
-public URL** — same rule as the SDUI banner leaf) and a CTA, with a phone-frame preview. Step 4 posts
-`requestHeroCampaign` → `POST /ads/campaigns` (`pushWrite`, optimistic one-row-per-placement with
-rollback). "My campaigns" and the rail "Product rails" tables read `useHeroCampaigns`/`useAdSlots` with
-rolled-up KPIs. `admin/super/ads` gains a **Hero campaigns** moderation table (poster thumbnail, target,
-placement, window) whose Approve/Reject call `setHeroCampaignStatus` → `PUT /ads/campaigns/{id}/status`.
-`sync.ts` hydrates the `heroCampaigns` slice from `GET /ads/campaigns` (auth-scoped).
+The seller **Ads** page owns the **self-serve** hero creative surface (`ads.campaigns`, `0027`/`0028`):
+a five-step `CampaignWizard` (**what → where → creative → when → review**) replaces the old
+approval-gated flow. Step 1 picks a target scoped to the seller (Products / Dishes / My Stores, read
+from the hydrated `useProducts`/`useMenus`/`useStores` slices — the full catalog is never hydrated for
+this). The target's sub-app + type drive the allowed placements
+(`src/data/ads/placements.ts` `eligiblePlacementsFor` over `PLACEMENTS_BY_APP`), so a Mart item can
+only be bought on Mart surfaces + the cross-app `HOME_HERO` (Food/Pharma get their own hosts); each
+option shows a `PLACEMENT_REACH_NOTE`, `CATEGORY_TOP` adds a category picker (`MASTER_CATEGORIES` tab
+ids) and `STORE_TOP` auto-scopes to the target's store. Step 3 edits title (≤40), subtitle (≤60), a 16:9
+poster (hosted URL or upload, stored as the **resolved public URL** — same rule as the SDUI banner
+leaf; the gateway rejects external hosts) and a CTA, with a phone-frame preview. Step 5 posts
+`requestHeroCampaign` → `POST /ads/campaigns` (`pushWrite`, optimistic **`LIVE`** one-row-per-placement
+with rollback — no admin approval; the server machine-checks ownership/placement/creative/cap).
+"My campaigns" and the rail "Product rails" tables read `useHeroCampaigns`/`useAdSlots` with rolled-up
+KPIs. `admin/super/ads` is now a **live monitor** (no approval queue): KPIs Live / Reported / CTR, and
+per row either **Takedown** (`setHeroCampaignStatus` → `PUT /ads/campaigns/{id}/status` with a reason)
+or **Restore**. `sync.ts` hydrates the `heroCampaigns` slice from `GET /ads/campaigns` (auth-scoped);
+`reportHeroAd` posts a user abuse report.
 
 ### Pharma quote → READY reveal (`seller/prescriptions`)
 

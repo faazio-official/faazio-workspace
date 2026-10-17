@@ -1,4 +1,4 @@
-import React, { memo, useEffect, useMemo, type ReactNode } from 'react';
+import React, { memo, useEffect, useMemo, useRef, type ReactNode } from 'react';
 import type { StyleProp, ViewStyle } from 'react-native';
 import type { AdSlide } from '@data/types';
 import { gateway, type HeroAd } from '@/services/api/GatewayClient';
@@ -54,9 +54,15 @@ const CampaignHero = memo(function CampaignHero({
     [ads],
   );
 
-  // One impression per rendered creative (server de-dupes per user + slot). Best-effort.
+  // One impression per rendered creative, guarded locally so a re-render never re-POSTs (the server
+  // additionally de-dupes per user + slot). Best-effort.
+  const reported = useRef<Set<string>>(new Set());
   useEffect(() => {
-    for (const ad of ads) void gateway.recordAdEvent(ad.placementId, 'impression');
+    for (const ad of ads) {
+      if (!ad.placementId || reported.current.has(ad.placementId)) continue;
+      reported.current.add(ad.placementId);
+      void gateway.recordAdEvent(ad.placementId, 'impression');
+    }
   }, [ads]);
 
   if (slides.length === 0) return <>{fallback}</>;
@@ -65,6 +71,7 @@ const CampaignHero = memo(function CampaignHero({
     <AdBannerCarousel
       slides={slides}
       showAdLabel
+      accessibilityLabel="Sponsored"
       slideKey={(slide) => (slide as HeroSlide).ad.placementId}
       style={style}
       onSlidePress={(slide) => {

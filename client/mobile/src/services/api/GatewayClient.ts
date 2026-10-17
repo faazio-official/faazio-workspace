@@ -862,6 +862,22 @@ export class GatewayClient {
   }
 
   /**
+   * Report an abusive hero ad (`POST /ads/campaigns/{id}/report`). Best-effort and de-duped per
+   * (user, placement) server-side; a failure is swallowed so the tap never blocks. A human admin
+   * performs the takedown — this only raises the flag.
+   */
+  async reportHeroAd(placementId: string): Promise<void> {
+    if (!placementId) return;
+    await this.withFallback(
+      () =>
+        this.http<{ ok: boolean }>(`/ads/campaigns/${encodeURIComponent(placementId)}/report`, {
+          method: 'POST',
+        }).then(() => undefined),
+      () => delay(undefined),
+    );
+  }
+
+  /**
    * Server-authoritative coupon ruling for a cart (`POST /checkout/validate-coupon`, auth-scoped).
    * Strict — a coupon discount is money and is never fabricated from a local fixture.
    */

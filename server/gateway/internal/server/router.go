@@ -145,7 +145,7 @@ func NewRouter(d Deps) http.Handler {
 	admins.NewHandler(adminsRepo).Register(r)
 	sellers.NewHandler(sellersRepo, d.Cache, adminsRepo).Register(r)
 	promo.NewHandler(promoRepo, d.Cache, adminsRepo).Register(r)
-	ads.NewHandler(adsRepo, d.Cache, adminsRepo).Register(r)
+	ads.NewHandler(adsRepo, d.Cache, adminsRepo, d.Config.R2CDNBase).Register(r)
 	settlement.NewHandler(settlementRepo, d.Cache, adminsRepo).Register(r)
 	support.NewHandler(supportRepo, adminsRepo).Register(r)
 	media.NewHandler(mediaRepo, r2Signer, d.Cache, adminsRepo, d.Sweeper).Register(r)

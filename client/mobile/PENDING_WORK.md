@@ -5,6 +5,41 @@ dependencies exist. Do not build the backend/seller flows until told to.
 
 ---
 
+## W42 — Self-serve hero ads: no admin approval, all six hero hosts
+
+**Status:** 🟢 Shipped (server + web portal + app + docs). Migration `0028_ads_selfserve.sql`.
+
+The admin approval queue is gone. A verified seller publishing their **own** item on a fitting
+placement goes `LIVE` in seconds; a computer does the checks an admin used to (ownership, placement↔app
+fit, R2-CDN-only poster, length bounds, ≤90-day window, ≤3 LIVE per (seller, placement), ≤10
+publishes/seller/day), and a human admin only takes abuse down after a report.
+
+- **Server:** `ads.campaigns.status` defaults `LIVE`; new `reports`/`takedown_reason` columns + a
+  `campaigns_window_max` (≤90d) guard and cap/read indexes. `POST /ads/campaigns` is now
+  `publishCampaign` (resolves ownership against `catalog.products`/`directory.menus`/`directory.stores`/
+  `directory.dining_venues`, ignores the client `targetApp`, derives it, enforces cap + rate). Admin
+  `PUT /ads/campaigns/{id}/status` is takedown (`REJECTED`+reason)/restore (`LIVE`) only. New
+  authenticated `POST /ads/campaigns/{id}/report` (deduped per user, no PII). Valkey adds
+  `faazio:v1:ads:report:*` (24 h) and `faazio:v1:ads:publish:*` (daily counter) + `Cache.Incr`.
+- **Web:** wizard reordered to **what → where → creative → when → review**, "Publish now" (optimistic
+  `LIVE` `requestHeroCampaign`), `eligiblePlacementsFor`/`PLACEMENT_REACH_NOTE`, Food/Pharma placements
+  enabled; `admin/super/ads` becomes a **live monitor** (Live/Reported/CTR; Takedown/Restore, no
+  Approve); `reportHeroAd`.
+- **App:** every hero is now paid — `HOME_HERO` replaces the static Home `topAdSlides`,
+  `FOOD_HERO`/`PHARMA_HERO` hosts added, `STORE_TOP` covers `RestaurantProfileScreen`, and the organic
+  `MartHeroCarousel`+`MART_HERO_BANNERS` are retired. `CampaignHero` adds a one-impression guard +
+  `accessibilityLabel="Sponsored"`; `GatewayClient.reportHeroAd`. Paid ads still never fabricate offline
+  (empty fill → `null`); impressions/clicks reuse `POST /ads/events`.
+
+**Still deferred:** seller-side Pause/Resume (needs a seller-scoped window mutation — deliberately not
+shipped half-baked); `VENUE` in-app deep-link resolves to the vendor page (no restaurant-menu anchor for
+a dish without a catalog row); App auth remains the mocked login (no Supabase phone OTP).
+
+**Docs:** `mobile-app.md`, `data/DATA_CONTROL.md`, `PAGE_CATALOG.md`, `caching-cloudflare-valkey.md` §5a,
+`db-schema.md §12.17`, `monolith-breakdown.md §1`, `mvp-backend.md`, `web-portal.md`.
+
+**Date:** 2026-10-17
+
 ## W41 — Seller-run paid hero campaigns (Mart / category / store)
 
 **Status:** 🟢 Shipped (server + web portal + app + docs). Migration `0027_ads_campaigns.sql`.
@@ -29,8 +64,8 @@ approves/activates it, and the app shows it as a labelled 16:9 hero.
   slides (`getAdsForQuery`/`VendorAdSlide` in `services/categoryVendors.ts`). Paid ads never fabricate
   offline (empty fill → fallback/`null`); impressions/clicks reuse `POST /ads/events`.
 
-**Still deferred:** Food/Pharma/Home hero placements (`FOOD_HERO`/`PHARMA_HERO`/`HOME_HERO`) have
-schema + endpoint support but no app host yet; `VENUE` targets resolve to the vendor page (no
+**Still deferred:** (superseded by W42 — `FOOD_HERO`/`PHARMA_HERO`/`HOME_HERO` hosts and the
+self-serve/no-admin workflow shipped there) `VENUE` targets resolve to the vendor page (no
 restaurant-menu anchor). App auth remains the mocked login (no Supabase phone OTP).
 
 **Docs:** `mobile-app.md`, `data/DATA_CONTROL.md`, `PAGE_CATALOG.md`, `caching-cloudflare-valkey.md` §5a,

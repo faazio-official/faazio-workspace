@@ -13,17 +13,19 @@ import (
 	"github.com/go-chi/chi/v5"
 )
 
-// Handler serves the ads context. Sellers request/read their own slots in their state; state/super
-// admins moderate. Every mutation is audited.
+// Handler serves the ads context. Sellers publish/read their own campaigns in their state; state/super
+// admins keep a takedown-only safety net. Every mutation is audited.
 type Handler struct {
-	repo  *Repo
-	cache *cache.Cache
-	audit contracts.AuditWriter
+	repo    *Repo
+	cache   *cache.Cache
+	audit   contracts.AuditWriter
+	cdnBase string
 }
 
-// NewHandler builds the ads handler.
-func NewHandler(repo *Repo, c *cache.Cache, audit contracts.AuditWriter) *Handler {
-	return &Handler{repo: repo, cache: c, audit: audit}
+// NewHandler builds the ads handler. cdnBase is the R2 CDN host the hero poster allow-list enforces
+// (empty disables the host check — local dev only; production always sets one).
+func NewHandler(repo *Repo, c *cache.Cache, audit contracts.AuditWriter, cdnBase string) *Handler {
+	return &Handler{repo: repo, cache: c, audit: audit, cdnBase: cdnBase}
 }
 
 // Register mounts the ads routes.
@@ -31,10 +33,11 @@ func (h *Handler) Register(r chi.Router) {
 	// Public: the anon-visible LIVE ad projection the app rails/heroes read (no auth, cached).
 	r.Get("/ads/live", h.live)
 	r.Get("/ads/hero", h.hero)
-	// Auth: closed-loop performance events (impression/click) from the app rail/hero.
+	// Auth: closed-loop performance events (impression/click) + user abuse reports from the app.
 	r.Group(func(g chi.Router) {
 		g.Use(auth.Require)
 		g.Post("/ads/events", h.recordEvent)
+		g.Post("/ads/campaigns/{id}/report", h.reportCampaign)
 	})
 	r.Group(func(g chi.Router) {
 		g.Use(auth.RequireRole(auth.RoleSeller, auth.RoleStateAdmin, auth.RoleSuperAdmin))
@@ -42,11 +45,13 @@ func (h *Handler) Register(r chi.Router) {
 		g.Get("/ads/slots/{id}", h.get)
 		g.Post("/ads/slots", h.request)
 		g.Get("/ads/campaigns", h.listCampaigns)
-		g.Post("/ads/campaigns", h.requestCampaign)
+		// Self-serve publish: machine-checked, inserts LIVE (no admin approval).
+		g.Post("/ads/campaigns", h.publishCampaign)
 	})
 	r.Group(func(g chi.Router) {
 		g.Use(auth.RequireRole(auth.RoleStateAdmin, auth.RoleSuperAdmin))
 		g.Put("/ads/slots/{id}", h.setStatus)
+		// Hero moderation is takedown (REJECTED) / restore (LIVE) only.
 		g.Put("/ads/campaigns/{id}/status", h.setCampaignStatus)
 	})
 }

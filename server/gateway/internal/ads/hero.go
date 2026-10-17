@@ -8,6 +8,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/jackc/pgx/v5"
@@ -48,6 +49,8 @@ type Campaign struct {
 	CTA              string `json:"cta,omitempty"`
 	StateCode        string `json:"stateCode,omitempty"`
 	Status           string `json:"status"`
+	Reports          int64  `json:"reports"`
+	TakedownReason   string `json:"takedownReason,omitempty"`
 	Impressions      int64  `json:"impressions"`
 	Clicks           int64  `json:"clicks"`
 	OrdersAttributed int64  `json:"ordersAttributed"`
@@ -56,15 +59,26 @@ type Campaign struct {
 	RequestedAt      string `json:"requestedAt"`
 }
 
+// ResolvedTarget is the server-authoritative owner + app of a hero's deep-link target, read from the
+// owning table (catalog.products / directory.menus / directory.stores / directory.dining_venues).
+// The gateway never trusts a client-supplied target_app or ownership claim.
+type ResolvedTarget struct {
+	SellerID string
+	App      string
+	StoreID  string
+}
+
 // maxHeroFill caps how many heroes a placement returns (relevance-first, then most recent).
 const maxHeroFill = 8
 
-const campaignSelect = `
-	select placement_id, campaign_id, seller_id, creative_type::text, placement::text,
+// campaignCols is the shared control-plane projection (mirrors Campaign's scan order).
+const campaignCols = `placement_id, campaign_id, seller_id, creative_type::text, placement::text,
 	       target_type::text, target_id, target_app::text, coalesce(category,''), coalesce(store_id,''),
 	       title, subtitle, image_url, cta, coalesce(state_code,''), status::text,
-	       impressions, clicks, orders_attributed, starts_at, ends_at, requested_at
-	  from ads.campaigns`
+	       reports, coalesce(takedown_reason,''), impressions, clicks, orders_attributed,
+	       starts_at, ends_at, requested_at`
+
+const campaignSelect = `select ` + campaignCols + ` from ads.campaigns`
 
 // Heroes lists LIVE, in-window campaigns matching a context, newest-first, capped. Empty context
 // dimensions are "any".
@@ -138,7 +152,9 @@ func (r *Repo) CampaignByID(ctx context.Context, id string) (Campaign, bool, err
 	return c, true, nil
 }
 
-// CreateCampaigns inserts one REQUESTED row per placement sharing a campaign_id.
+// CreateCampaigns inserts one LIVE row per placement sharing a campaign_id. Self-serve: the handler
+// has already machine-checked ownership, placement fit, creative bounds and the per-seller cap, so a
+// verified seller publishes straight to LIVE (no admin approval queue). REQUESTED is never minted.
 func (r *Repo) CreateCampaigns(ctx context.Context, c Campaign, placements []string) ([]Campaign, error) {
 	if r.pool == nil {
 		return nil, fmt.Errorf("ads: database not configured")
@@ -150,12 +166,9 @@ func (r *Repo) CreateCampaigns(ctx context.Context, c Campaign, placements []str
 		row, err := r.scanCampaign(r.pool.QueryRow(ctx, `
 			insert into ads.campaigns (placement_id, campaign_id, seller_id, placement, target_type,
 			                           target_id, target_app, category, store_id, title, subtitle, image_url,
-			                           cta, state_code, starts_at, ends_at)
-			values ($1,$2,$3,$4::ad_placement,$5::ad_target_type,$6,$7::app_brand,$8,$9,$10,$11,$12,$13,$14,$15,$16)
-			returning placement_id, campaign_id, seller_id, creative_type::text, placement::text,
-			          target_type::text, target_id, target_app::text, coalesce(category,''), coalesce(store_id,''),
-			          title, subtitle, image_url, cta, coalesce(state_code,''), status::text,
-			          impressions, clicks, orders_attributed, starts_at, ends_at, requested_at`,
+			                           cta, state_code, starts_at, ends_at, status)
+			values ($1,$2,$3,$4::ad_placement,$5::ad_target_type,$6,$7::app_brand,$8,$9,$10,$11,$12,$13,$14,$15,$16,'LIVE')
+			returning `+campaignCols,
 			placementID, campaignID, c.SellerID, placement, c.TargetType, c.TargetID, c.TargetApp,
 			nullIfEmpty(c.Category), nullIfEmpty(c.StoreID), c.Title, c.Subtitle, c.ImageURL, c.CTA,
 			nullIfEmpty(c.StateCode), c.StartsAt, c.EndsAt))
@@ -167,18 +180,110 @@ func (r *Repo) CreateCampaigns(ctx context.Context, c Campaign, placements []str
 	return out, nil
 }
 
-// SetCampaignStatus moderates one placement row (REQUESTED/APPROVED/REJECTED/LIVE).
-func (r *Repo) SetCampaignStatus(ctx context.Context, id, status string) (Campaign, bool, error) {
+// CountLiveBySellerPlacement counts a seller's currently LIVE rows on one placement (cap guard).
+func (r *Repo) CountLiveBySellerPlacement(ctx context.Context, sellerID, placement string) (int, error) {
+	if r.pool == nil {
+		return 0, fmt.Errorf("ads: database not configured")
+	}
+	var n int
+	err := r.pool.QueryRow(ctx, `
+		select count(*) from ads.campaigns
+		 where seller_id = $1 and placement = $2::ad_placement and status = 'LIVE'`, sellerID, placement).Scan(&n)
+	return n, err
+}
+
+// ResolveOwnedTarget resolves a target id to its owning seller + app from the authoritative table.
+// DISH ids are not globally unique (directory.menus is keyed by (venue_id, dish_id)), so an optional
+// storeID disambiguates and the caller's own row is preferred. ok=false means "no such target".
+func (r *Repo) ResolveOwnedTarget(ctx context.Context, sellerID, targetType, targetID, storeID string) (ResolvedTarget, bool, error) {
+	if r.pool == nil {
+		return ResolvedTarget{}, false, fmt.Errorf("ads: database not configured")
+	}
+	var (
+		row pgx.Row
+		t   ResolvedTarget
+	)
+	switch targetType {
+	case "PRODUCT":
+		row = r.pool.QueryRow(ctx, `
+			select coalesce(seller_id,''), app::text, coalesce(store_id,'')
+			  from catalog.products where id = $1`, targetID)
+	case "DISH":
+		row = r.pool.QueryRow(ctx, `
+			select coalesce(seller_id,''), 'FOOD', venue_id
+			  from directory.menus
+			 where dish_id = $1 and ($2 = '' or venue_id = $2)
+			 order by (coalesce(seller_id,'') = $3) desc, venue_id
+			 limit 1`, targetID, storeID, sellerID)
+	case "STORE":
+		row = r.pool.QueryRow(ctx, `
+			select coalesce(seller_id,''), app::text, id
+			  from directory.stores where id = $1`, targetID)
+	case "VENUE":
+		row = r.pool.QueryRow(ctx, `
+			select coalesce(seller_id,''), 'FOOD', id
+			  from directory.dining_venues where id = $1`, targetID)
+	default:
+		return ResolvedTarget{}, false, nil
+	}
+	if err := row.Scan(&t.SellerID, &t.App, &t.StoreID); err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return ResolvedTarget{}, false, nil
+		}
+		return ResolvedTarget{}, false, err
+	}
+	return t, true, nil
+}
+
+// Takedown sets one row REJECTED with an admin reason (the abuse brake; never deletes).
+func (r *Repo) Takedown(ctx context.Context, id, reason string) (Campaign, bool, error) {
 	if r.pool == nil {
 		return Campaign{}, false, fmt.Errorf("ads: database not configured")
 	}
 	updated, err := r.scanCampaign(r.pool.QueryRow(ctx, `
-		update ads.campaigns set status = $2::ad_status
+		update ads.campaigns set status = 'REJECTED', takedown_reason = $2
 		 where placement_id = $1
-		 returning placement_id, campaign_id, seller_id, creative_type::text, placement::text,
-		           target_type::text, target_id, target_app::text, coalesce(category,''), coalesce(store_id,''),
-		           title, subtitle, image_url, cta, coalesce(state_code,''), status::text,
-		           impressions, clicks, orders_attributed, starts_at, ends_at, requested_at`, id, status))
+		 returning `+campaignCols, id, nullIfEmpty(strings.TrimSpace(reason))))
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return Campaign{}, false, nil
+		}
+		return Campaign{}, false, err
+	}
+	return updated, true, nil
+}
+
+// ReportCampaign increments one row's user-report counter and returns the new total. Anon-safe: no
+// user id is stored (de-dupe lives in Valkey keyed by a hashed identity), so no PII lands here.
+func (r *Repo) ReportCampaign(ctx context.Context, id string) (int64, bool, error) {
+	if r.pool == nil {
+		return 0, false, fmt.Errorf("ads: database not configured")
+	}
+	var reports int64
+	err := r.pool.QueryRow(ctx, `
+		update ads.campaigns set reports = reports + 1
+		 where placement_id = $1 returning reports`, id).Scan(&reports)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return 0, false, nil
+		}
+		return 0, false, err
+	}
+	return reports, true, nil
+}
+
+// SetCampaignStatus flips one row's status (admin: takedown RESTORE → LIVE, takedown → REJECTED).
+func (r *Repo) SetCampaignStatus(ctx context.Context, id, status string) (Campaign, bool, error) {
+	if r.pool == nil {
+		return Campaign{}, false, fmt.Errorf("ads: database not configured")
+	}
+	// Restoring clears the prior takedown note.
+	updated, err := r.scanCampaign(r.pool.QueryRow(ctx, `
+		update ads.campaigns
+		   set status = $2::ad_status,
+		       takedown_reason = case when $2::text = 'LIVE' then null else takedown_reason end
+		 where placement_id = $1
+		 returning `+campaignCols, id, status))
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return Campaign{}, false, nil
@@ -196,8 +301,8 @@ func (r *Repo) scanCampaign(row interface{ Scan(...any) error }) (Campaign, erro
 	)
 	if err := row.Scan(&c.PlacementID, &c.CampaignID, &c.SellerID, &c.CreativeType, &c.Placement,
 		&c.TargetType, &c.TargetID, &c.TargetApp, &c.Category, &c.StoreID, &c.Title, &c.Subtitle,
-		&c.ImageURL, &c.CTA, &c.StateCode, &c.Status, &c.Impressions, &c.Clicks, &c.OrdersAttributed,
-		&startsAt, &endsAt, &requestedAt); err != nil {
+		&c.ImageURL, &c.CTA, &c.StateCode, &c.Status, &c.Reports, &c.TakedownReason,
+		&c.Impressions, &c.Clicks, &c.OrdersAttributed, &startsAt, &endsAt, &requestedAt); err != nil {
 		return Campaign{}, err
 	}
 	c.StartsAt = startsAt.UTC().Format(time.RFC3339)

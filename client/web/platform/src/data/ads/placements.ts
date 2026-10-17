@@ -1,6 +1,6 @@
 // Hero placement taxonomy + sub-app inference for the seller campaign wizard (0027).
 // Placement scope mirrors the server: CATEGORY_TOP needs a category, STORE_TOP needs a store.
-import type { HeroPlacement, Sector } from "@/data/types";
+import type { AdTargetType, HeroPlacement, Sector } from "@/data/types";
 
 export interface PlacementMeta {
   label: string;
@@ -42,14 +42,35 @@ export const HERO_PLACEMENT_META: Record<HeroPlacement, PlacementMeta> = {
 };
 
 /**
- * Placements shipped for each sector in this wave. Heroes currently render on the Mart surfaces
- * (`MART_HERO`/`CATEGORY_TOP`/`STORE_TOP`); Food/Pharma hero hosts are the follow-up wave, so the
- * wizard keeps their lists empty rather than selling exposure the app cannot render yet.
+ * Placements shipped for each sector. Every hero host now renders in the app (Mart/Food/Pharma +
+ * the shared home hub), so a seller can buy any placement that fits their item's sub-app. `HOME_HERO`
+ * is the cross-app hub and is offered as an opt-in on top of the item's own sub-app surfaces.
  */
 export const PLACEMENTS_BY_APP: Record<Sector, HeroPlacement[]> = {
-  MART: ["MART_HERO", "CATEGORY_TOP", "STORE_TOP"],
-  FOOD: [],
-  PHARMA: [],
+  MART: ["MART_HERO", "CATEGORY_TOP", "STORE_TOP", "HOME_HERO"],
+  FOOD: ["FOOD_HERO", "STORE_TOP", "HOME_HERO"],
+  PHARMA: ["PHARMA_HERO", "CATEGORY_TOP", "STORE_TOP", "HOME_HERO"],
+};
+
+/**
+ * Extra placement eligibility beyond the sub-app list: a DISH/VENUE targets a restaurant header,
+ * a PRODUCT/STORE targets a store header. Returns the subset the server will accept for the target.
+ */
+export function eligiblePlacementsFor(app: Sector, targetType: AdTargetType): HeroPlacement[] {
+  return PLACEMENTS_BY_APP[app].filter((p) => {
+    if (p === "STORE_TOP") return targetType !== "PRODUCT" || app !== "FOOD";
+    return true;
+  });
+}
+
+/** Short "who sees this" note shown next to each placement in the wizard (no invented reach numbers). */
+export const PLACEMENT_REACH_NOTE: Record<HeroPlacement, string> = {
+  MART_HERO: "Everyone opening Mart.",
+  CATEGORY_TOP: "Shoppers browsing the category you pick.",
+  STORE_TOP: "Shoppers already on your store / restaurant page.",
+  HOME_HERO: "Everyone on the main Home hub (highest reach).",
+  PHARMA_HERO: "Everyone opening Pharma.",
+  FOOD_HERO: "Everyone opening the Food feed.",
 };
 
 /** Category drill-in tabs (`MASTER_CATEGORIES` id) a CATEGORY_TOP hero can target. */

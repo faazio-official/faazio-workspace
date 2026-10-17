@@ -23,6 +23,8 @@ interface AdBannerCarouselProps {
   onSlidePress?: (slide: AdSlide) => void;
   /** Overlay the shared "AD" disclosure pill (for genuinely paid placements). */
   showAdLabel?: boolean;
+  /** Screen-reader label for each slide (e.g. "Sponsored" on paid placements). */
+  accessibilityLabel?: string;
   /** Stable React key per slide. Defaults to `slide.title` (callers with duplicate titles pass one). */
   slideKey?: (slide: AdSlide, index: number) => string;
   style?: StyleProp<ViewStyle>;
@@ -39,6 +41,7 @@ const AdBannerCarousel = memo(function AdBannerCarousel({
   slides,
   onSlidePress,
   showAdLabel = false,
+  accessibilityLabel,
   slideKey,
   style,
 }: AdBannerCarouselProps) {
@@ -83,6 +86,8 @@ const AdBannerCarousel = memo(function AdBannerCarousel({
                 key={slideKey ? slideKey(slide, i) : slide.title}
                 style={[styles.slide, { width }]}
                 activeOpacity={0.9}
+                accessibilityRole={accessibilityLabel ? 'button' : undefined}
+                accessibilityLabel={accessibilityLabel}
                 onPress={() => onSlidePress?.(slide)}
               >
                 <ExpoImage

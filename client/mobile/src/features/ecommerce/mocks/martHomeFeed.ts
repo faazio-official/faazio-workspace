@@ -1,24 +1,16 @@
 /**
- * @fallback Feature-local Mart home rail content. Hero banners and the daily-essentials cards are
- * now **server-controlled** through the Mongo SDUI home doc (`martHero.banners` /
- * `martEssentials.productIds`) and read by `martService.fetchMartFeed` via `GET /sdui/home`; this
- * fixture is the offline first-paint fallback only (see data/DATA_CONTROL.md,
- * docs/architecture/data-layer-sdui.md). `MART_DEALS` / `dealToProduct` are re-exported from
- * `@data/mart/deals`; the `md-*` deals are seeded catalog rows resolved through the server
- * (`getProductsByIds`), again falling back here offline.
+ * @fallback Feature-local Mart home rail content. The daily-essentials cards are **server-controlled**
+ * through the Mongo SDUI home doc (`martEssentials.productIds`) and read by `martService.fetchMartFeed`
+ * via `GET /sdui/home`; this fixture is the offline first-paint fallback only (see
+ * data/DATA_CONTROL.md, docs/architecture/data-layer-sdui.md). `MART_DEALS` / `dealToProduct` are
+ * re-exported from `@data/mart/deals`; the `md-*` deals are seeded catalog rows resolved through the
+ * server (`getProductsByIds`), again falling back here offline. The Mart hero is a paid placement
+ * (`MART_HERO`), so no organic hero-banner fixture lives here.
  */
 const squareImg = (id: string, w = 560) =>
   `https://images.unsplash.com/${id}?fm=jpg&fit=crop&q=80&w=${w}&h=${w}`;
 
 import type { Product } from '@data/types';
-
-export interface MartHeroBanner {
-  id: string;
-  title: string;
-  subtitle: string;
-  bgHex: string;
-  imageUrl: string;
-}
 
 export interface MartEssential {
   id: string;
@@ -33,30 +25,6 @@ export interface MartEssential {
   imageUrl: string;
   emoji: string;
 }
-
-export const MART_HERO_BANNERS: MartHeroBanner[] = [
-  {
-    id: 'hb-1',
-    title: 'Big Savings Everyday',
-    subtitle: 'UP TO 50% OFF',
-    bgHex: '#FFF8D6',
-    imageUrl: squareImg('photo-1542838132-92c53300491e', 400),
-  },
-  {
-    id: 'hb-2',
-    title: 'Fresh Groceries Doorstep',
-    subtitle: 'FREE DELIVERY',
-    bgHex: '#E8F5E9',
-    imageUrl: squareImg('photo-1579113800032-c38bd1625818', 400),
-  },
-  {
-    id: 'hb-3',
-    title: 'Electronics Mega Sale',
-    subtitle: 'FLAT 40% OFF',
-    bgHex: '#FFF3E0',
-    imageUrl: squareImg('photo-1498050108023-c5249f4df085', 400),
-  },
-];
 
 export const MART_DAILY_ESSENTIALS: MartEssential[] = [
   { id: 'gr-p3', brand: 'Faazio Fresh', name: 'Fresh Farm Whole Milk', size: '1 L', price: 75, originalPrice: 95, discountTag: '21% OFF', rating: 4.9, imageUrl: squareImg('photo-1550583724-b2692b85b150', 300), emoji: '🥛' },

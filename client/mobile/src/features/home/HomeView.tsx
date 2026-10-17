@@ -5,7 +5,7 @@ import Animated, { useAnimatedScrollHandler, useSharedValue } from 'react-native
 import type { SharedValue } from 'react-native-reanimated';
 import { homeSections } from '@data/home/sections';
 import type { HomeSectionKind } from '@data/home/sections';
-import type { Product } from '@data/types';
+import type { Product, StoreProfile } from '@data/types';
 import type { StoreRecord } from '@data/directory/stores';
 import type { SubAppId } from '@/state/uiStore';
 import { useHomeFeed } from './hooks/useHomeFeed';
@@ -37,6 +37,7 @@ interface HomeViewProps {
   onLaunchSubApp: (subAppId: SubAppId) => void;
   addToCart: (id: string, name: string, price: number, emoji: string) => void;
   onProductClick?: (product: any) => void;
+  onStoreClick?: (store: StoreProfile) => void;
   onOpenDeals?: (params: { mode: 'campaign' | 'discounts'; campaignId?: string; storeId?: string }) => void;
   scrollY: SharedValue<number>;
   clamp: SharedValue<number>;
@@ -51,6 +52,7 @@ export default function HomeView({
   onLaunchSubApp,
   addToCart,
   onProductClick,
+  onStoreClick,
   onOpenDeals,
   scrollY,
   clamp,
@@ -59,8 +61,8 @@ export default function HomeView({
   contentPaddingTop,
 }: HomeViewProps) {
   const sectionProps = useMemo(
-    () => ({ onLaunchSubApp, addToCart, onProductClick, onOpenDeals }),
-    [onLaunchSubApp, addToCart, onProductClick, onOpenDeals],
+    () => ({ onLaunchSubApp, addToCart, onProductClick, onStoreClick, onOpenDeals }),
+    [onLaunchSubApp, addToCart, onProductClick, onStoreClick, onOpenDeals],
   );
 
   // Server-driven SDUI registry: section order (and the rail product rows) come from

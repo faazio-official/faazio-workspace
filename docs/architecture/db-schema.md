@@ -1451,12 +1451,17 @@ R2/Cloudflare are unset):
   by `CF_ZONE_ID` + `CF_API_TOKEN` (≤30 files/request; best-effort — a disabled purger just lets the
   Cache Rule expire). This is why content-addressed keys can still be invalidated on moderation/delete.
 
-### 12.17 Seller hero campaigns — poster creative + deep-link target (migration `0027`)
+### 12.17 Seller hero campaigns — self-serve poster creative + deep-link target (migrations `0027`–`0028`)
 
 `ads.sponsored_slots` (`0015`) can only promote a product on a rail: no poster, no deep-link target, no
 placement/schedule. `0027` adds the second creative surface — a seller-owned **hero campaign** — without
-touching the rail table. One row = one (campaign, placement), so a single request on several placements
-is moderated/measured independently (`campaign_id` groups them).
+touching the rail table. One row = one (campaign, placement), so a single publish on several placements
+is measured independently (`campaign_id` groups them).
+
+`0028` moves this surface **self-serve**: a verified seller publishing their OWN item on a fitting
+placement goes straight to `LIVE` (no admin approval queue — the gateway machine-checks ownership,
+placement fit, creative bounds, per-seller cap and daily rate). `REJECTED` now means *taken down for
+abuse* (admin only); `REQUESTED`/`APPROVED` are deprecated (kept for old rows, never minted again).
 
 ```sql
 -- new ad_placement values (additive): HOME_HERO, MART_HERO, PHARMA_HERO, FOOD_HERO, CATEGORY_TOP, STORE_TOP
@@ -1465,7 +1470,7 @@ CREATE TYPE ad_target_type   AS ENUM ('PRODUCT', 'DISH', 'STORE', 'VENUE');
 
 CREATE TABLE ads.campaigns (
   placement_id      text PRIMARY KEY,              -- 'ad-cmp-*' minted by the gateway
-  campaign_id       text NOT NULL,                 -- groups the placements of one seller request
+  campaign_id       text NOT NULL,                 -- groups the placements of one seller publish
   seller_id         text NOT NULL REFERENCES sellers.sellers(seller_id) ON DELETE CASCADE,
   creative_type     ad_creative_type NOT NULL DEFAULT 'HERO',
   placement         ad_placement NOT NULL,         -- MART_HERO | CATEGORY_TOP | STORE_TOP | …
@@ -1480,15 +1485,21 @@ CREATE TABLE ads.campaigns (
   cta               text NOT NULL DEFAULT '' CHECK (char_length(cta) <= 24),
   state_code        char(2),
   starts_at/ends_at timestamptz CHECK (ends_at > starts_at),
-  status            ad_status NOT NULL DEFAULT 'REQUESTED',
+  status            ad_status NOT NULL DEFAULT 'LIVE',  -- 0028: instant publish
+  reports           int4 NOT NULL DEFAULT 0,            -- 0028: user "Report ad" taps (no PII)
+  takedown_reason   text CHECK (takedown_reason IS NULL OR char_length(takedown_reason) <= 280),
   impressions/clicks INT4, orders_attributed INT8,
-  requested_at/updated_at timestamptz
+  requested_at/updated_at timestamptz,
+  CHECK (ends_at <= starts_at + interval '90 days')     -- 0028: campaign_window_max (NOT VALID)
 );
 ```
 
-Indexes: `(placement, status, ends_at)`, `(seller_id)`, `(campaign_id)`. The creative is a bounded,
-already-resolved public URL mirroring the SDUI banner leaf (`SduiBanner.image_url`) — the portal uploads
-to R2 and stores the resolved CDN URL, so the app renders it as-is (no `image_key` round-trip). The
-target must be an item the seller owns (handler-enforced), so a hero can never deep-link another
-seller's product. RLS: a seller reads their own rows; admins read by scope (mirrors `0015`). Endpoints:
-caching doc §5 and `monolith-breakdown.md` §1 (`ads` row).
+Indexes: `(placement, status, ends_at)`, `(seller_id)`, `(campaign_id)` (all `0027`); `0028` adds the
+cap lookup `(seller_id, placement) WHERE status='LIVE'` and the anon read
+`(status, placement, target_app, category, store_id, ends_at, requested_at DESC)`. The creative is a
+bounded, already-resolved public URL mirroring the SDUI banner leaf (`SduiBanner.image_url`) — the
+portal uploads to R2 and stores the resolved CDN URL, so the app renders it as-is (no `image_key`
+round-trip). The target must be an item the seller owns (handler-enforced against
+`catalog.products`/`directory.menus`/`directory.stores`/`directory.dining_venues`), so a hero can never
+deep-link another seller's product. RLS: a seller reads their own rows; admins read by scope (mirrors
+`0015`). Endpoints: caching doc §5, `mvp-backend.md` §3 and `monolith-breakdown.md` §1 (`ads` row).

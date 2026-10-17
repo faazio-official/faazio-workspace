@@ -766,8 +766,10 @@ export interface HeroCampaignInput {
 }
 
 /**
- * Requests a hero campaign: one optimistic `REQUESTED` row per selected placement (mirrors the
- * server's one-row-per-placement insert), then a single awaited `POST /ads/campaigns` with rollback.
+ * Publishes a hero campaign: one optimistic `LIVE` row per selected placement (mirrors the server's
+ * one-row-per-placement insert), then a single awaited `POST /ads/campaigns` with rollback. There is
+ * no admin approval — the gateway machine-checks ownership/placement/creative/cap and the ad is live
+ * in seconds. A rejected publish rolls the optimistic rows back.
  */
 export function requestHeroCampaign(dto: HeroCampaignInput): void {
   const before = state().heroCampaigns;
@@ -789,7 +791,8 @@ export function requestHeroCampaign(dto: HeroCampaignInput): void {
     imageUrl: dto.imageUrl,
     cta: dto.cta,
     stateCode: dto.stateCode,
-    status: "REQUESTED",
+    status: "LIVE",
+    reports: 0,
     impressions: 0,
     clicks: 0,
     ordersAttributed: 0,
@@ -799,7 +802,7 @@ export function requestHeroCampaign(dto: HeroCampaignInput): void {
   }));
   state().set((s) => ({ heroCampaigns: [...created, ...s.heroCampaigns] }));
   pushWrite(
-    "Hero campaign request",
+    "Hero campaign publish",
     "post",
     "/ads/campaigns",
     {
@@ -820,25 +823,45 @@ export function requestHeroCampaign(dto: HeroCampaignInput): void {
     },
     () => state().set(() => ({ heroCampaigns: before })),
   );
-  audit({ action: "AD_CAMPAIGN_REQUEST", entity: "ads.campaigns", entityId: campaignId, after: created });
+  audit({ action: "AD_CAMPAIGN_PUBLISH", entity: "ads.campaigns", entityId: campaignId, after: created });
 }
 
-/** Moderates one hero placement (admin): optimistic status flip + awaited PUT with rollback. */
-export function setHeroCampaignStatus(placementId: string, status: AdStatus): void {
+/** Reports an abusive hero ad (`POST /ads/campaigns/{id}/report`): optimistic + awaited with rollback. */
+export function reportHeroAd(placementId: string): void {
   const before = state().heroCampaigns;
   state().set((s) => ({
     heroCampaigns: s.heroCampaigns.map((c) =>
-      c.placementId === placementId ? { ...c, status } : c,
+      c.placementId === placementId ? { ...c, reports: (c.reports ?? 0) + 1 } : c,
+    ),
+  }));
+  pushWrite(
+    "Hero campaign report",
+    "post",
+    `/ads/campaigns/${encodeURIComponent(placementId)}/report`,
+    {},
+    () => state().set(() => ({ heroCampaigns: before })),
+  );
+  audit({ action: "AD_CAMPAIGN_REPORT", entity: "ads.campaigns", entityId: placementId, after: { reports: 1 } });
+}
+
+/** Moderates one hero placement (admin): takedown (REJECTED + reason) or restore (LIVE). */
+export function setHeroCampaignStatus(placementId: string, status: AdStatus, reason?: string): void {
+  const before = state().heroCampaigns;
+  state().set((s) => ({
+    heroCampaigns: s.heroCampaigns.map((c) =>
+      c.placementId === placementId
+        ? { ...c, status, takedownReason: status === "REJECTED" ? (reason ?? "") : undefined }
+        : c,
     ),
   }));
   pushWrite(
     "Hero campaign update",
     "put",
     `/ads/campaigns/${encodeURIComponent(placementId)}/status`,
-    { status },
+    { status, reason },
     () => state().set(() => ({ heroCampaigns: before })),
   );
-  audit({ action: `AD_CAMPAIGN_${status}`, entity: "ads.campaigns", entityId: placementId, after: { status } });
+  audit({ action: `AD_CAMPAIGN_${status}`, entity: "ads.campaigns", entityId: placementId, after: { status, reason } });
 }
 
 /* ------------------------------ state admins ----------------------------- */

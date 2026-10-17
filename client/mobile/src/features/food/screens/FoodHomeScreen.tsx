@@ -27,6 +27,9 @@ import DietEmptyNote from '../components/DietEmptyNote';
 import FoodBottomNav, { type FoodTab } from '../components/FoodBottomNav';
 import LoadingSkeleton from '../components/LoadingSkeleton';
 import FoodStatusBarStrip from '../components/FoodStatusBarStrip';
+import CampaignHero from '@/components/shared/CampaignHero';
+import { openHeroTarget } from '@/services/adsTarget';
+import type { StoreProfile } from '@data/types';
 
 type Props = NativeStackScreenProps<FoodStackParamList, 'FoodHome'>;
 
@@ -61,6 +64,16 @@ export function FoodHomeScreen({ navigation }: Props) {
         ?.navigate('ProductDetail', { product: dishToProduct(dish) });
     },
     [navigation],
+  );
+
+  /** Resolve a paid FOOD_HERO venue target to a known restaurant; unknown ids are a safe no-op. */
+  const openVenue = useCallback(
+    (venueId: string) => {
+      if (!feed) return;
+      const restaurant = feed.topRated.find((r) => r.id === venueId) ?? feed.dining.find((r) => r.id === venueId);
+      if (restaurant) openRestaurant(restaurant);
+    },
+    [feed, openRestaurant],
   );
 
   const openSearch = useCallback(
@@ -104,6 +117,23 @@ export function FoodHomeScreen({ navigation }: Props) {
     return (
       <>
         <Animated.View entering={FadeIn.duration(260)}>
+          <CampaignHero
+            placement="FOOD_HERO"
+            app="FOOD"
+            style={styles.heroWrap}
+            onPress={(ad) =>
+              void openHeroTarget(ad, {
+                onProduct: (product) =>
+                  navigation
+                    .getParent<NativeStackNavigationProp<RootStackParamList>>()
+                    ?.navigate('ProductDetail', { product }),
+                onStore: (store: StoreProfile) => openVenue(store.id),
+                onVenue: (store: StoreProfile) => openVenue(store.id),
+              })
+            }
+          />
+        </Animated.View>
+        <Animated.View entering={FadeIn.duration(260)}>
           <DiningHeader onBack={goBack} />
         </Animated.View>
         <Animated.View entering={FadeInDown.duration(320)}>
@@ -144,7 +174,7 @@ export function FoodHomeScreen({ navigation }: Props) {
         </Animated.View>
       </>
     );
-  }, [feed, dietFilter, openRestaurant, openDishProduct, openSearch, openMindSearch, goBack]);
+  }, [feed, dietFilter, openRestaurant, openDishProduct, openSearch, openMindSearch, goBack, openVenue, navigation]);
 
   if (!feed) {
     return (
@@ -177,6 +207,10 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: foodTheme.background,
+  },
+  heroWrap: {
+    paddingHorizontal: hs(16),
+    marginTop: SPACE.BLOCK,
   },
   sectionHeaderWrap: {
     paddingHorizontal: hs(16),

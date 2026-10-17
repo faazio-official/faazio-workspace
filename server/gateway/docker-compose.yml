@@ -40,6 +40,11 @@ services:
       - ../supabase/migrations/0021_public_promos.sql:/docker-entrypoint-initdb.d/0021_public_promos.sql:ro
       - ../supabase/migrations/0022_menu_mrp.sql:/docker-entrypoint-initdb.d/0022_menu_mrp.sql:ro
       - ../supabase/migrations/0023_rx_privacy.sql:/docker-entrypoint-initdb.d/0023_rx_privacy.sql:ro
+      - ../supabase/migrations/0024_mart_vendor_list.sql:/docker-entrypoint-initdb.d/0024_mart_vendor_list.sql:ro
+      - ../supabase/migrations/0025_media_assets.sql:/docker-entrypoint-initdb.d/0025_media_assets.sql:ro
+      - ../supabase/migrations/0026_media_gc.sql:/docker-entrypoint-initdb.d/0026_media_gc.sql:ro
+      - ../supabase/migrations/0027_ads_campaigns.sql:/docker-entrypoint-initdb.d/0027_ads_campaigns.sql:ro
+      - ../supabase/migrations/0028_ads_selfserve.sql:/docker-entrypoint-initdb.d/0028_ads_selfserve.sql:ro
       - ../supabase/seed/0001_seed.sql:/docker-entrypoint-initdb.d/0099_seed.sql:ro
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U postgres -d faazio"]

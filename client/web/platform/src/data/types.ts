@@ -24,6 +24,8 @@ export type OrderStatus =
   | "RETURNED";
 export type CampaignStatus = "DRAFT" | "SCHEDULED" | "LIVE" | "ENDED";
 export type CampaignScope = "GLOBAL" | "STATE";
+/** Ad lifecycle. Self-serve hero campaigns publish straight to `LIVE`; `REJECTED` = taken down for
+ * abuse (admin only). `REQUESTED`/`APPROVED` are deprecated (kept for old rows, never created). */
 export type AdStatus = "REQUESTED" | "APPROVED" | "REJECTED" | "LIVE";
 
 /** auth.accounts */
@@ -250,6 +252,9 @@ export interface HeroCampaign {
   cta?: string | undefined;
   stateCode?: string | undefined;
   status: AdStatus;
+  /** User "Report ad" taps; surfaced in the admin live monitor (no reporter PII). */
+  reports?: number | undefined;
+  takedownReason?: string | undefined;
   impressions: number;
   clicks: number;
   ordersAttributed: number;

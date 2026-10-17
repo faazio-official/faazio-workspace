@@ -1,17 +1,13 @@
 import {
-  MART_HERO_BANNERS,
   MART_DEALS,
   MART_DAILY_ESSENTIALS,
-  type MartHeroBanner,
   type MartDeal,
   type MartEssential,
 } from '../mocks/martHomeFeed';
 import { gateway, type ProductView } from '@/services/api/GatewayClient';
-import type { SduiBanner } from '@data/home/sdui';
 import type { StoreProfile } from '@data/types';
 
 export interface MartFeed {
-  heroBanners: MartHeroBanner[];
   deals: MartDeal[];
   dailyEssentials: MartEssential[];
   localVendors: StoreProfile[];
@@ -35,19 +31,7 @@ function overlayDeal(deal: MartDeal, product?: ProductView): MartDeal {
   };
 }
 
-/** Project one SDUI hero banner onto the carousel's card shape (accent → bgHex). */
-function heroBannerFrom(banner: SduiBanner, index: number): MartHeroBanner {
-  return {
-    id: banner.id || `hb-${index + 1}`,
-    title: banner.title,
-    subtitle: banner.subtitle ?? '',
-    bgHex: banner.accent ?? '#FFF8D6',
-    imageUrl: banner.imageUrl ?? '',
-  };
-}
-
-/**
- * Project one catalog row onto the daily-essentials card. Presentation fields (brand/size) come
+/** Project one catalog row onto the daily-essentials card. Presentation fields (brand/size) come
  * from the entry's own `shop`/`unit`/attributes; a discount tag is derived from MRP when the
  * catalog has no authored badge. Money is always the server's.
  */
@@ -78,11 +62,11 @@ function martSection<T extends { id: unknown }>(feed: T[], id: string): T | unde
 
 /**
  * Mart home feed. Vendors are **server-backed** (`directory.stores`, app=MART) and the `md-*`
- * deals resolve through the catalog (`catalog.products` via `getProductsByIds`). The hero banners
- * and daily-essentials rail are now **server-controlled** through the Mongo SDUI home doc
- * (`martHero.banners` / `martEssentials.productIds`) via `GET /sdui/home`, so merchandising is
- * portal-editable without a release. Every leg falls back to the local fixture offline, so the feed
- * never regresses. `mocks/martHomeFeed.ts` is retained as the offline first-paint fallback only.
+ * deals resolve through the catalog (`catalog.products` via `getProductsByIds`). The daily-essentials
+ * rail is **server-controlled** through the Mongo SDUI home doc (`martEssentials.productIds`) via
+ * `GET /sdui/home`, so merchandising is portal-editable without a release. The Mart hero is now a
+ * paid placement (`MART_HERO` from `GET /ads/hero`), so no organic hero banners are read here. Every
+ * leg falls back to the local fixture offline, so the feed never regresses.
  */
 export async function fetchMartFeed(): Promise<MartFeed> {
   const [feed, localVendors, dealProducts] = await Promise.all([
@@ -91,12 +75,8 @@ export async function fetchMartFeed(): Promise<MartFeed> {
     gateway.getProductsByIds(MART_DEALS.map((d) => d.id)).catch(() => [] as ProductView[]),
   ]);
 
-  const hero = martSection(feed, 'martHero');
   const essentials = martSection(feed, 'martEssentials');
 
-  const heroBanners = hero?.banners?.length
-    ? hero.banners.map(heroBannerFrom)
-    : MART_HERO_BANNERS;
   const dailyEssentials =
     essentials?.products?.length
       ? essentials.products.map(essentialFromProduct)
@@ -104,7 +84,6 @@ export async function fetchMartFeed(): Promise<MartFeed> {
 
   const byId = new Map(dealProducts.map((p) => [p.id, p]));
   return {
-    heroBanners,
     deals: MART_DEALS.map((d) => overlayDeal(d, byId.get(d.id))),
     dailyEssentials,
     localVendors,

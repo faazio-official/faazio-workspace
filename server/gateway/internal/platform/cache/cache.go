@@ -79,6 +79,18 @@ func AdsSeen(userID, slotID string) string {
 	return fmt.Sprintf("faazio:v1:ads:seen:%s:%s", userID, slotID)
 }
 
+// AdsReport de-dupes a user "Report ad" per (user, placement) within TTLAdReport so one user cannot
+// inflate a campaign's report counter (set NX). No PII: the user id is a stable slug, never an email.
+func AdsReport(userID, placementID string) string {
+	return fmt.Sprintf("faazio:v1:ads:report:%s:%s", userID, placementID)
+}
+
+// AdsPublishRate is the per-seller self-serve publish counter key for a UTC day (rate limit). The
+// counter is created with TTLAdsPublishRate on first INCR (see Cache.Incr).
+func AdsPublishRate(sellerID, day string) string {
+	return fmt.Sprintf("faazio:v1:ads:publish:%s:%s", sellerID, day)
+}
+
 // PromoActiveDiscount caches one product's active festival discount (LIVE campaign + APPROVED
 // opt-in, sector-capped). A cached `none` sentinel means "checked, no active discount" so a
 // catalog batch never re-queries absent products. Invalidated on opt-in/campaign status change
@@ -150,6 +162,13 @@ const (
 	// TTLAdSeen de-dupes a sponsored impression per (user, slot) — longer than any realistic
 	// re-render storm, short enough to count a genuine re-view on a later session.
 	TTLAdSeen = 300 * time.Second
+
+	// TTLAdReport de-dupes a user "Report ad" per (user, placement) so one user cannot inflate a
+	// campaign's report counter.
+	TTLAdReport = 24 * time.Hour
+
+	// TTLAdsPublishRate bounds the per-seller self-serve publish rate counter (publishes/UTC day).
+	TTLAdsPublishRate = 24 * time.Hour
 
 	// TTLPromoActive bounds the anon-visible active festival discount projection per product
 	// (LIVE campaign + APPROVED opt-in, sector-capped); invalidated on opt-in/campaign change.
@@ -272,4 +291,21 @@ func (c *Cache) AcquireLock(ctx context.Context, key string, ttl time.Duration) 
 // ReleaseLock removes an idempotency lock.
 func (c *Cache) ReleaseLock(ctx context.Context, key string) {
 	c.Del(ctx, key)
+}
+
+// Incr increments a counter key and returns the new value. The TTL is applied only when the counter
+// is first created (so a rolling window expires). If cache is disabled it returns 0, which callers
+// treat as "unlimited" — the same documented single-node limitation as AcquireLock.
+func (c *Cache) Incr(ctx context.Context, key string, ttl time.Duration) (int64, error) {
+	if !c.Enabled() {
+		return 0, nil
+	}
+	n, err := c.rdb.Incr(ctx, key).Result()
+	if err != nil {
+		return 0, err
+	}
+	if n == 1 && ttl > 0 {
+		_ = c.rdb.Expire(ctx, key, ttl).Err()
+	}
+	return n, nil
 }

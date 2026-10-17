@@ -3,13 +3,15 @@ import { View, TouchableOpacity, StyleSheet } from 'react-native';
 import { hs, vs, ms } from '@/utils/responsive';
 import { SPACE } from '@/theme/spacing';
 import type { SubAppId } from '@/state/uiStore';
-import type { AppBrand, Product } from '@data/types';
+import type { AppBrand, Product, StoreProfile } from '@data/types';
 import { applyActiveDiscounts, useActiveDiscounts } from '@/services/pricing';
 import AppText from '@/components/AppText';
 
 export interface SectionProps {
   onLaunchSubApp: (subAppId: SubAppId) => void;
   onProductClick?: (product: any) => void;
+  /** Resolve a paid hero's store target to the right vendor / medical-shop page. */
+  onStoreClick?: (store: StoreProfile) => void;
   addToCart?: (id: string, name: string, price: number, emoji: string) => void;
   /** Open the Deals landing page for a campaign or vendor discounts. */
   onOpenDeals?: (params: { mode: 'campaign' | 'discounts'; campaignId?: string; storeId?: string }) => void;
