@@ -5,6 +5,43 @@ dependencies exist. Do not build the backend/seller flows until told to.
 
 ---
 
+## W47 — Page registry + Mart paid/organic contract (docs-first)
+
+**Status:** 🟢 Shipped (docs + one app refactor). No server / DB / cache change.
+
+Closes the "unknown pages" gap: `PAGE_CATALOG.md` §2 is now the authoritative RN page registry
+(one row per route in `navigation/types.ts` + `MainTabs` + `FoodStack` + `SubAppWrapper` tabs,
+tagged **MAIN / MART / FOOD / PHARMA** with file + entry point; §1/§3 flagged historical). The
+Mart feed's paid/organic section order is now codified in
+`features/ecommerce/services/martFeedSections.ts` (`MART_FEED_SECTIONS`, consumed by
+`FaMartScreen`) — a paid section without a placement trips a dev guard.
+
+Verified (no code change needed):
+
+- **CATEGORY_TOP / STORE_TOP hosts exist** on every MART/PHARMA category/store surface —
+  `CategoryDrillInPanel` (CATEGORY_TOP); `VendorDetailScreen`, `MedicalShopDetailsScreen` and the
+  Food `RestaurantProfileScreen` (STORE_TOP). Seller wizard offers match rendered hosts.
+- **W43/W44 guards intact** — `SponsoredRail` returns `null` on empty fill + local impression
+  dedupe; `CampaignHero` renders its fallback only when there is no LIVE fill; one price batch on
+  the Mart page. Do not regress.
+
+**Still deferred (deliberately not changed — safer options):**
+
+- **`DealsLanding` `campaign` mode stays Home-owned `@data`.** It is reachable only from the Home
+  "Deals of the day" carousel; there is no `GET /ads/campaigns/{id}` campaigns read and the `camp-*`
+  rows are not seeded in the gateway, so migrating would break the Home section and retiring would
+  remove a live Home surface. Tracked since W38/W40/W44.
+- **Vendor-surface inventory hook** — `VendorProfileView` and `VendorDetailScreen` fetch
+  `GET /stores/{id}/products` in separate effects. Share one hook to guarantee single-owner parity.
+- **Pharma SDUI parity** — `GET /sdui/pharma` does not exist; Pharma home rails stay feature-mock
+  (stores already server-backed). Add only if Pharma merchandising gets a portal owner.
+
+**Docs:** `PAGE_CATALOG.md`, `docs/architecture/mobile-app.md`, `docs/architecture/web-portal.md`.
+
+**Date:** 2026-10-17
+
+---
+
 ## W46 — Food "Today's Special" on SDUI (Food-only section)
 
 **Status:** 🟢 Shipped (app + server + data + seed + docs). No migration.

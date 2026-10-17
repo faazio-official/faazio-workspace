@@ -94,7 +94,9 @@ vendor pool **and** the paid shelf (`SponsoredRail` accepts a `discounts` prop) 
 `GET /promo/active-discounts`, no post-paint flicker, identical shopper price everywhere. The
 `DealsLanding` **`discounts`**-mode grid also reads the vendor pool from the server
 (`getStoreProducts`), matching the vendor drill-in; `campaign` mode stays on the Home-owned `@data`
-campaigns (only reachable from Home, not Mart).
+campaigns (only reachable from Home, not Mart). The feed's paid/organic section order + placement is
+codified in `features/ecommerce/services/martFeedSections.ts` (`MART_FEED_SECTIONS`, consumed by
+`FaMartScreen`); the full RN route registry is `PAGE_CATALOG.md` §2.
 
 Pharma's home feed ends with a pharma-local **"Local Medicals Near You"** rail backed by
 `@data/pharma/stores`. Each stacked card shows distance, rating, delivery time, offer and a
@@ -537,10 +539,17 @@ AppNavigator (root native stack)
 │   ├── Home · Favourites · You   (+ central Cart pill)
 ├── SubApp (generic sub-app wrapper; optional `initialVendorStoreId` opens the Mart vendor drill-in)
 │   (Mart tabs: Home · Search · You · Cart — "You" pushes the account page)
+│   (Mart in-wrapper drill-in = `VendorProfileView`: All Products + unlabelled "Discounted Products"
+│    rail + "View All" → DealsLanding{discounts}; distinct from the pushed `VendorDetails` screen —
+│    both read GET /stores/{id}/products)
+│   (Pharma tabs: Home · Search · Cart · History · Donor)
 ├── FoodApp (FoodStack — FoodHome dining-first → Search → RestaurantProfile → RestaurantMenu / RestaurantOffers; 2-tab bottom nav Home/Search + You/Cart)
 ├── ProductDetail · Search · Cart (`{ restaurantId?, restaurantName? }`) · PaymentOptions
 ├── CategoryDrillIn (category drill-in page from the Home/Mart rail) ── VendorDetails (single-store search)
-├── DealsLanding (deals page — `campaign` mode from the Home "Deals of the day" carousel, `discounts` mode from the Mart vendor profile "View All")
+├── DealsLanding (deals page — four modes: `campaign` from the Home "Deals of the day" carousel
+│   (Home-owned `@data`), `discounts` from the Mart vendor profile "View All" (server pool),
+│   `martDeals`/`martEssentials` from the Mart rail "View All" (catalog-resolved `productIds`); the
+│   last three carry the paid `SECTOR_RAIL` header shelf)
 ├── You · UserDetails · SavedAddresses · MyOrders · MyBookings (seat reservations) · Favourites · OrderDetails · FaazioRewards · SellWithUs
 ├── RateVendor (verified-buyer rating form; every vendor surface + order screens link here)
 ├── BloodDonor (Pharma blood-donor wizard/dashboard)
@@ -963,6 +972,15 @@ The "lightweight, fast, secure" mandate (AGENTS.md) is enforced at build and del
 - **Duplicated mock data** in a few screens (`PharmaScreen`, `FoodScreen` booking dishes,
   `ProductDetailView`) — canonical copies exist under `@data/` marked `@unused`; de-dup is
   a tracked priority (see `data/DATA_CONTROL.md` "Known Gaps").
+- **Two vendor surfaces share a data read but not a hook** — the Mart in-wrapper drill-in
+  (`VendorProfileView`, wired by `FaMartScreen`) and the pushed `VendorDetails` screen
+  (`VendorDetailScreen`) both fetch `GET /stores/{id}/products` and overlay the same discount map,
+  but via separate `useEffect` blocks. Prices/AD labelling are already identical; a shared inventory
+  hook is a tracked refactor (`PENDING_WORK.md` W47), not a correctness gap.
+- **Pharma home rails are intentionally feature-mock** — stores are server-backed
+  (`getStores('PHARMA')`), but the editorial rails use presentation-only `pm-*`/`pe-*` ids (not
+  catalog rows) and there is no `GET /sdui/pharma`. This is a deliberate MVP choice, not an
+  unimplemented Mart/Food symmetry (`pharmaService.ts`, `PENDING_WORK.md`).
 - `ts:check` currently requires `--ignoreDeprecations 6.0` due to a pre-existing `baseUrl`
   deprecation in `tsconfig.json` (unrelated to feature work).
 

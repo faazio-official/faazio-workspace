@@ -24,14 +24,67 @@ Recharts, Zod, react-hook-form, sonner, lucide-react.
 
 ## Routing contract
 
-URLs extend the Vite reference (all 3 consoles; the MVP added 5 partner pages —
-`seller/prescriptions`, `seller/bookings`, `admin/state/blood`,
-`admin/state/bookings`, `admin/super/sdui`). Partner completion (`0017`) added
-`seller/menus`, `admin/state/customers`, `admin/state/support`, `admin/super/rewards`
-and `admin/super/users`. Seat bookings (`0020`) added `seller/bookings/settings`
-(opt-in / total seats / timings / occupancy tracking / pause) and reworked
-`seller/bookings` into a pending-first accept/reject/vacate queue. Every
-route is an interactive dashboard, so each route is split:
+Every console page lives under `client/web/platform/app/**` (one `page.tsx` per route). The full
+map is grouped below; `(sector)` marks pages that only make sense for one sub-app. URLs extend the
+Vite reference (all 3 consoles).
+
+**Root + auth**
+
+| Route | Page |
+| --- | --- |
+| `/` | root redirect/landing → `app/page.tsx` |
+| `/login` | mock directory sign-in (GoTrue only when `NEXT_PUBLIC_AUTH_MODE=supabase`) |
+
+**Seller console — own data (`app/seller/**`)** — ads, catalog, pricing, promotions, stores,
+menus, orders, bookings, prescriptions, returns, reviews, payments, analytics, support, settings,
+onboarding. This is where paid hero campaigns (`seller/ads` wizard) and organic offers are authored.
+
+| Route | Page | Sector |
+| --- | --- | --- |
+| `seller` | dashboard | all |
+| `seller/ads` | hero CampaignWizard (what→where→creative→when→review) + campaign list/KPIs | all |
+| `seller/products` | catalog list | all |
+| `seller/products/new` | create listing | all |
+| `seller/products/[id]/edit` | listing editor (name/desc/photos + `upsertPrice`) | all |
+| `seller/inventory` | stock | all |
+| `seller/pricing` | price/MRP | all |
+| `seller/promotions` | festival opt-ins + live price | all |
+| `seller/stores` | store profile | all |
+| `seller/menus` | dish menus | FOOD |
+| `seller/orders` · `seller/orders/[id]` | order queue + detail | all |
+| `seller/bookings` · `seller/bookings/settings` | seat accept/reject/vacate + config | FOOD |
+| `seller/prescriptions` | Rx quote → READY reveal | PHARMA |
+| `seller/returns` · `seller/reviews` · `seller/payments` | after-sales | all |
+| `seller/analytics` · `seller/support` · `seller/settings` · `seller/onboarding` | console | all |
+
+**State admin console (`app/admin/state/**`)** — state-scoped oversight.
+
+| Route | Page |
+| --- | --- |
+| `admin/state` | dashboard |
+| `admin/state/products` · `admin/state/products/queue` | catalog + review queue |
+| `admin/state/sellers` · `admin/state/sellers/[id]` | seller directory + detail |
+| `admin/state/orders` · `admin/state/bookings` | order/booking oversight |
+| `admin/state/blood` | blood requests (PHARMA) |
+| `admin/state/customers` | customer list + activity trail |
+| `admin/state/coupons` · `admin/state/festival` | promo |
+| `admin/state/pricing-audit` | price integrity |
+| `admin/state/analytics` · `admin/state/content` · `admin/state/support` · `admin/state/audit` | console |
+
+**Super admin console (`app/admin/super/**`)** — global control plane.
+
+| Route | Page |
+| --- | --- |
+| `admin/super` | dashboard |
+| `admin/super/ads` | live ad monitor (Live/Reported/CTR; Takedown/Restore) |
+| `admin/super/sdui` | Home/Mart/Food SDUI layout editor (sections, productIds, hero banners) |
+| `admin/super/festival` · `admin/super/coupons` | promo authority |
+| `admin/super/products` · `admin/super/sellers` | catalog/seller authority |
+| `admin/super/sectors` · `admin/super/coverage` | taxonomy + coverage |
+| `admin/super/rewards` · `admin/super/users` · `admin/super/state-admins` · `admin/super/states` | platform |
+| `admin/super/analytics` · `admin/super/audit` · `admin/super/settings` | console |
+
+Every route is an interactive dashboard, so each route is split:
 
 - `app/**/page.tsx` — **server** component. Exports `metadata` (from
   `pageMetadata()` in `src/lib/seo.ts`) and renders the client sibling.

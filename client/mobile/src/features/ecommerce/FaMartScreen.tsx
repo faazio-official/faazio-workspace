@@ -23,6 +23,7 @@ import {
 import type { MartDeal, MartEssential } from './mocks/martHomeFeed';
 import { useMartFeed } from './hooks/useMartFeed';
 import { priceDeals, priceEssentials } from './services/martService';
+import { MART_FEED_SECTION_IDS } from './services/martFeedSections';
 import MartHomeSkeleton from './components/skeletons/MartHomeSkeleton';
 
 import DealsOfDayRail from './components/mart-home/DealsOfDayRail';
@@ -239,48 +240,46 @@ export function FaMartScreen({
     });
   }, [navigation, pricedEssentials]);
 
-  const feedSectionsData: { id: string; component: React.ReactNode }[] = [
-    {
-      id: 'hero',
-      component: (
-        <CampaignHero
-          placement="MART_HERO"
-          app="MART"
-          onPress={handleHeroPress}
-          fallback={
-            feed?.heroBanners?.length ? <MartHouseHero banners={feed.heroBanners} /> : null
-          }
-        />
-      ),
-    },
+  // Section nodes keyed by the registry id; the paid/organic order comes from MART_FEED_SECTIONS
+  // (martFeedSections.ts) so the contract has one source. The footer ("vendors") is rendered below.
+  const sectionNodes: Record<string, React.ReactNode> = {
+    hero: (
+      <CampaignHero
+        placement="MART_HERO"
+        app="MART"
+        onPress={handleHeroPress}
+        fallback={
+          feed?.heroBanners?.length ? <MartHouseHero banners={feed.heroBanners} /> : null
+        }
+      />
+    ),
     // Paid Mart showcase (SPONSORED_SHOWCASE) — same closed-loop pipeline as the Home rail; collapses
     // to nothing when there is no LIVE fill.
-    {
-      id: 'sponsoredShowcase',
-      component: (
-        <SponsoredRail
-          placement="SPONSORED_SHOWCASE"
-          onProductClick={onProductClick}
-          addToCart={addToCart}
-          discounts={discounts}
-          renderCard={(product, h) => (
-            <MartProductCard
-              key={product.id}
-              product={product as unknown as Product}
-              width={CARD_W}
-              variant="rail"
-              showAdLabel
-              isAdded={h.isAdded}
-              onPress={h.onPress}
-              onAdd={h.onAdd}
-            />
-          )}
-        />
-      ),
-    },
-    { id: 'deals', component: <DealsOfDayRail deals={pricedDeals} onDealPress={handleDealPress} onViewAll={handleViewAllDeals} onItemView={handleDealView} /> },
-    { id: 'essentials', component: <DailyEssentialsRail items={pricedEssentials} onItemPress={handleEssentialPress} onViewAll={handleViewAllEssentials} onItemView={handleEssentialView} /> },
-  ];
+    sponsoredShowcase: (
+      <SponsoredRail
+        placement="SPONSORED_SHOWCASE"
+        onProductClick={onProductClick}
+        addToCart={addToCart}
+        discounts={discounts}
+        renderCard={(product, h) => (
+          <MartProductCard
+            key={product.id}
+            product={product as unknown as Product}
+            width={CARD_W}
+            variant="rail"
+            showAdLabel
+            isAdded={h.isAdded}
+            onPress={h.onPress}
+            onAdd={h.onAdd}
+          />
+        )}
+      />
+    ),
+    deals: <DealsOfDayRail deals={pricedDeals} onDealPress={handleDealPress} onViewAll={handleViewAllDeals} onItemView={handleDealView} />,
+    essentials: <DailyEssentialsRail items={pricedEssentials} onItemPress={handleEssentialPress} onViewAll={handleViewAllEssentials} onItemView={handleEssentialView} />,
+  };
+
+  const feedSectionsData = MART_FEED_SECTION_IDS.map((id) => ({ id, component: sectionNodes[id] }));
 
   const handleBackToFeed = useCallback(() => {
     onVendorPress?.(null);

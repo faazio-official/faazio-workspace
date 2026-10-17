@@ -234,130 +234,143 @@
 
 ## Section 2: React Native App — All User-Facing Pages
 
-> **Spacing pass (2026-09-28):** every active RN screen below received a vertical-spacing
-> tightening pass — per-screen spacing numbers were replaced by the canonical `SPACE`
-> tokens in `client/mobile/src/theme/spacing.ts` (`SECTION`/`BLOCK`/`ITEM`/`LIST_BOTTOM`).
-> See `client/mobile/PENDING_WORK.md` (top entry) and `docs/architecture/mobile-app.md`
-> → "Vertical rhythm". No route, screen, or behavior changed.
+> **This is the authoritative RN page registry.** Every route in
+> `client/mobile/src/navigation/types.ts` (plus `MainTabs`, `FoodStack` and the `SubAppWrapper`
+> tabs) is listed once, tagged by sub-app scope, with its file and entry point — so no sub-page
+> (vendor, category, restaurant, blood, Rx, bookings, rewards) can drift to "unknown". The legacy
+> subsections that used to live here (`Types Defined But NOT Wired`, `Orphan Files`) were stale —
+> every one of those routes is wired now — and are superseded by this registry. Section 1 (Vite)
+> and Section 3 (Vite↔RN mapping) are historical audit records and should be read as such.
 
-### 2.1 Active Navigation (AppNavigator.tsx)
+Scope tags:
 
-| # | Screen | File | Lines | Status | Notes |
-|---|--------|------|-------|--------|-------|
-| RN1 | **OnboardingScreen** | `src/features/onboarding/OnboardingScreen.tsx` | 331 | ✅ Active | 5 slides, single component (final slide: blood-donation variant) |
-| RN2 | **LoginScreen** | `src/features/auth/LoginScreen.tsx` | 546 | ✅ Active | Combines phone + OTP + loading |
-| RN3 | **LocationScreen** | `src/features/auth/LocationScreen.tsx` | 245 | ✅ Active | 3 steps: request/manual/loader via state |
-| RN4 | **MainDashboardScreen** | `src/features/home/MainDashboardScreen.tsx` | 382 | ✅ Active | Renders hub tabs + SubAppWrapper |
+| Tag | Meaning |
+| --- | --- |
+| **MAIN** | Hub / auth / shared checkout-account-search surface. Reached from Home or pushed on the root stack (boundary rule: cross-sub-app access only via Home). |
+| **MART** | Sub-app `FA_MART` — `FaMartScreen` + header rail + Home/Search/You/Cart. Renders inside `SubAppWrapper`. |
+| **FOOD** | Sub-app `FOOD` — `FoodStack`, bypasses `SubAppWrapper` (self-contained 2-tab Home/Search + You/Cart). |
+| **PHARMA** | Sub-app `PHARMA` — renders inside `SubAppWrapper`, tabs Home/Search/Cart/History/Donor. |
 
-### 2.2 Dashboard Hub Tabs (rendered inside MainDashboardScreen)
+### 2.1 Onboarding & auth (MAIN)
 
-| # | Screen | File | Lines | Status | Notes |
-|---|--------|------|-------|--------|-------|
-| RN5 | **HomeView** | `src/components/HomeView.tsx` | - | ✅ Active | Hub Home tab |
-| RN6 | **CategoriesView** | `src/components/CategoriesView.tsx` | - | ✅ Active | Hub Explore tab |
-| RN7 | **FavouritesView** | `src/components/FavouritesView.tsx` | - | ✅ Active | Hub Saved tab |
-| RN8 | **AccountView** | `src/components/AccountView.tsx` | - | ✅ Active | Hub Profile tab |
-| RN9 | **CartView** | `src/features/cart/CartView.tsx` (BAG→PAYMENT→RECEIPT) | - | ✅ Active | Hub/Sub-app Bag tab; **Delivery / Self Pickup toggle** on the BAG step (a "How do you want your order?" card) — nothing selected by default, so **Proceed to Pay stays disabled** until a mode is chosen. Delivery shows the **live GPS address** (via `useLiveAddress`; saved-address fallback noted in UI). Self Pickup needs no address UI. **The ADDRESS step was removed**; Proceed to Pay goes straight to PAYMENT for both modes. Payment via `features/cart/payment/PaymentOptionsScreen`; wrapper `CartScreen.tsx`. BAG supports **per-item + per-category tick selection** (only ticked items are paid for; unticked stay in the cart; shared `Checkbox`), full-bleed category cards, 64px thumbnails. Self-pickup orders show **all vendor pickup addresses** on the receipt + Order Details |
+| # | Route | Screen | File | Entry |
+| --- | --- | --- | --- | --- |
+| RN1 | `Onboarding` | **OnboardingScreen** | `src/features/onboarding/OnboardingScreen.tsx` | Initial route when unauthenticated |
+| RN2 | `Login` | **LoginScreen** | `src/features/auth/LoginScreen.tsx` | From Onboarding |
+| RN3 | `LanguageSelection` | **LanguageSelectionScreen** | `src/features/onboarding/LanguageSelectionScreen.tsx` | After OTP (`replace`) |
+| RN4 | `Location` | **LocationScreen** | `src/features/auth/LocationScreen.tsx` | After language |
 
-### 2.3 Sub-App Wrapper & Sub-Apps (rendered inside SubAppWrapper)
+Auth is the **mocked login** (`authStore.login()`, 3 SecureStore writes). No Supabase phone OTP.
 
-| # | Screen | File | Lines | Status | Notes |
-|---|--------|------|-------|--------|-------|
-| RN10 | **SubAppWrapper** | `src/components/SubAppWrapper.tsx` | 799 | ✅ Active | Shell + unified sub-app header + tabs; scoped error boundary on the `SubApp` route |
+### 2.2 Hub tabs (`MainTabs.tsx` — MAIN)
 
-#### Sub-App: Food (rendered by SubAppWrapper)
+| # | Tab | Screen | File | Notes |
+| --- | --- | --- | --- | --- |
+| RN5 | Home | **HomeTabScreen** → `HomeView` sections | `src/features/home/HomeTabScreen.tsx` | Collapsing header + `HomeView` SDUI sections |
+| RN6 | Favourites | **FavouritesTabScreen** | `src/features/favourites/FavouritesTabScreen.tsx` | Per-sector grid |
+| RN7 | You | **AccountScreen** → `AccountView` | `src/features/profile/AccountScreen.tsx` | Account nav groups + rewards card |
+| — | central Cart pill | pushes root `Cart` | `src/navigation/MainTabs.tsx` | `navigation.getParent().navigate('Cart', {})` |
 
-| # | Screen | File | Lines | Status | Notes |
-|---|--------|------|-------|--------|-------|
-| RN11 | **FoodScreen — Order Mode Home** | `src/features/food/FoodScreen.tsx` | 553 | ✅ Active | Search, promos, top of week |
-| RN12 | **FoodScreen — Booking Mode Home** | `src/features/food/FoodScreen.tsx` | - | ✅ Active | Categories, dish cards |
-| RN13 | **Food — "Menu" tab** | `src/components/SubAppWrapper.tsx` (inline) | 228–237 | ⚠️ Placeholder | "Gourmet Menus" empty state |
-| RN14 | **Food — "Search" tab** | `src/features/food/FoodScreen.tsx` | - | ✅ Active | Reuses FoodScreen with search focus |
-| RN15 | **Food — "My Bookings" tab** | `src/components/SubAppWrapper.tsx` (inline) | 239–253 | ⚠️ Placeholder | Empty state only |
-| RN16 | **Food Veg / Non-Veg diet filter** | `src/state/foodFilterStore.ts` + `DietToggle` | - | ✅ Active | Zomato-style All/Veg/Non-Veg toggle in the Food home + Search headers; one store drives all Food screens + food search (ANDs with search chips); venues by `dietType`, dishes by `isVeg`; unclassifiable dishes hidden while active |
+### 2.3 Shared root-stack routes (MAIN)
 
-#### Sub-App: FA Mart (rendered by SubAppWrapper)
+| # | Route | Screen | File | Notes |
+| --- | --- | --- | --- | --- |
+| RN8 | `ProductDetail` | **ProductDetailScreen** | `src/features/product/ProductDetailScreen.tsx` | View = `CommonProductDetailView.tsx`. MART w/ `storeId` → store section + "View Vendor" → `SubApp{initialVendorStoreId}`; FOOD → "View Restaurant" deep-links into `FoodApp → RestaurantProfile` |
+| RN9 | `Search` | **SearchRouteScreen** | `src/features/search/SearchRouteScreen.tsx` | `{ subApp: 'HOME'\|SubAppId; initialQuery?; initialMode? }`. Food keeps its own nested Search |
+| RN10 | `Cart` | **CartScreen** → `CartView` | `src/features/cart/CartScreen.tsx` | `{ restaurantId?, restaurantName? }`; BAG→PAYMENT→RECEIPT. BAG carries the Delivery/Self-Pickup toggle |
+| RN11 | `PaymentOptions` | **PaymentOptionsScreen** | `src/features/cart/payment/PaymentOptionsScreen.tsx` | Standalone picker + CartView PAYMENT step |
+| RN12 | `CategoryDrillIn` | **CategoryDrillInScreen** | `src/features/catalog/CategoryDrillInScreen.tsx` | `{ tabId; title; app: 'FA_MART'\|'PHARMA' }`. Paid `CATEGORY_TOP` hero under the pill rail; store-grouped `CategoryDrillInPanel` body |
+| RN13 | `VendorDetails` | **VendorDetailScreen** | `src/features/catalog/VendorDetailScreen.tsx` | `{ storeId; app: 'FA_MART'\|'PHARMA'; initialQuery? }`. Single-store search page; paid `STORE_TOP` hero under the profile. **Distinct from the in-wrapper Mart drill-in** (`VendorProfileView`, §2.5) — both read `GET /stores/{id}/products` |
+| RN14 | `MedicalShopDetails` | **MedicalShopDetailsScreen** | `src/features/pharma/MedicalShopDetailsScreen.tsx` | Pharma store profile + live `storeId` inventory + `UploadPrescriptionFAB`; paid `STORE_TOP` hero |
+| RN15 | `DealsLanding` | **DealsLandingScreen** | `src/features/ecommerce/DealsLandingScreen.tsx` | Four modes: `campaign` (Home "Deals of the day" → `@data/home/campaigns`, Home-owned), `discounts` (Mart vendor "View All", server pool), `martDeals`/`martEssentials` (Mart rail "View All", catalog-resolved `productIds`). Paid `SECTOR_RAIL` header shelf |
+| RN16 | `PrescriptionFlow` | **PrescriptionFlowScreen** | `src/features/pharma/prescription/PrescriptionFlowScreen.tsx` | `{ presetVendorId? }`. CAPTURE→NOTE→VENDORS→CONFIRMED; `presetVendorId` skips vendor selection |
+| RN17 | `You` | **YouScreen** → `AccountView` | `src/features/profile/YouScreen.tsx` | Pushed from any app; back returns |
+| RN18 | `UserDetails` | **UserDetailsScreen** | `src/features/profile/UserDetailsScreen.tsx` | Personal info / preferences / security |
+| RN19 | `SavedAddresses` | **SavedAddressesScreen** | `src/features/profile/SavedAddressesScreen.tsx` | Add/edit/delete via `PUT/DELETE /profile/addresses` |
+| RN20 | `MyOrders` | **MyOrdersScreen** | `src/features/profile/MyOrdersScreen.tsx` | `{ initialTab?; highlightOrderId? }`; `ordersStore` merged over `@data`; prescription cards |
+| RN21 | `OrderDetails` | **OrderDetailsScreen** | `src/features/profile/OrderDetailsScreen.tsx` | `{ orderId }`; resolves `ordersStore` → `@data`; pickup card + rate card |
+| RN22 | `Favourites` | **FavouritesScreen** → `FavouritesPageView` | `src/features/favourites/FavouritesScreen.tsx` | Search-results-style; `useFavoriteStore` |
+| RN23 | `MyBookings` | **MyBookingsScreen** | `src/features/dinner-booking/MyBookingsScreen.tsx` | Seat reservations (Food/account) |
+| RN24 | `RateVendor` | **RateVendorScreen** | `src/features/profile/RateVendorScreen.tsx` | `{ vendorId; vendorName? }`; verified buyers only, gate re-checked |
+| RN25 | `FaazioRewards` | **FaazioRewardsScreen** | `src/features/rewards/FaazioRewardsScreen.tsx` | Device-local coins + streak |
+| RN26 | `SellWithUs` | **SellWithUsScreen** | `src/features/profile/SellWithUsScreen.tsx` | Partner onboarding → `POST /sellers` |
 
-| # | Screen | File | Lines | Status | Notes |
-|---|--------|------|-------|--------|-------|
-| RN16 | **FaMartScreen — Home** | `src/features/ecommerce/FaMartScreen.tsx` | 497 | ✅ Active | Banner, sub-categories, product grid |
-| RN17 | **Mart — "Categories" tab** | `src/components/SubAppWrapper.tsx` (inline) | 185–212 | ✅ Active | Inline category grid |
+### 2.4 Sub-app shell (`SubAppWrapper` — MART + PHARMA)
 
-#### Sub-App: Grocery — REMOVED (merged into Mart)
+| # | Screen | File | Notes |
+| --- | --- | --- | --- |
+| RN27 | **SubAppScreen** | `src/features/sub-app/SubAppScreen.tsx` | Route `SubApp`; hosts `SubAppWrapper` |
+| RN28 | **SubAppWrapper** | `src/components/SubAppWrapper.tsx` | Unified header + tab bar + scoped error boundary. Presets: `FA_MART` (Home/Search/You/Cart), `PHARMA` (Home/Search/Cart/History/Donor). FOOD is not rendered here |
+| RN29 | Mart inline category grid | `src/components/SubAppWrapper.tsx` | Mart tab body (header category rail) |
+| RN30 | Pharma inline Search / History | `src/components/SubAppWrapper.tsx` | Pharma search grid + recent-order History tab |
+| RN31 | Blood Donor tab | `src/features/pharma/blood-donor/BloodDonorScreen.tsx` | Pharma "Donor" tab / root `BloodDonor` route |
 
-The Grocery sub-app was removed and merged into Mart. `GroceryScreen.tsx` is deleted; grocery
-products/stores now surface under Mart. The rows below are historical.
+### 2.5 Sub-app: MART (`FaMartScreen.tsx`)
 
-| # | Screen | File | Lines | Status | Notes |
-|---|--------|------|-------|--------|-------|
-| RN18 | ~~**GroceryScreen — Home**~~ | `src/features/ecommerce/GroceryScreen.tsx` (deleted) | — | 🗑️ Removed | Merged into Mart |
-| RN19 | ~~**Grocery — "Aisles" tab**~~ | `src/components/SubAppWrapper.tsx` (inline) | — | 🗑️ Removed | Grocery config preset removed |
+`FaMartScreen` has three modes: **feed**, **search** (`gateway.searchProducts(q,'MART')`, 2-col grid),
+and **in-place vendor drill-in** (`VendorProfileView` when `vendor != null`).
 
-#### Sub-App: Pharma (rendered by SubAppWrapper)
+Feed order and paid/organic classification:
 
-| # | Screen | File | Lines | Status | Notes |
-|---|--------|------|-------|--------|-------|
-| RN20 | **PharmaScreen — Home** | `src/features/pharma/PharmaScreen.tsx` | 354 | ✅ Active | Categories, products |
-| RN21 | **Pharma — "For You" tab** | `src/components/SubAppWrapper.tsx` (inline) | 303–312 | ⚠️ Placeholder | Empty state |
-| RN22 | **Pharma — "History" tab** | `src/components/SubAppWrapper.tsx` (inline) | 314–324 | ⚠️ Placeholder | Empty state |
+| # | Section | Component | Kind | Placement / fallback |
+| --- | --- | --- | --- | --- |
+| M1 | Hero carousel (top) | `CampaignHero` (`components/shared`) | **PAID** | `MART_HERO`; fallback = `martHero.banners` via `MartHouseHero` (non-interactive, no AD pill/events) |
+| M2 | Sponsored picks shelf | `SponsoredRail` (`components/shared`, `MartProductCard variant="rail" showAdLabel`) | **PAID** | `SPONSORED_SHOWCASE`; empty/offline/error → `null` |
+| M3 | Deals of the Day rail | `DealsOfDayRail` | Organic offer | SDUI `martDeals.productIds`; money server-joined |
+| M4 | Daily Essentials rail | `DailyEssentialsRail` | Organic offer | SDUI `martEssentials.productIds` |
+| M5 | Local Vendors Near You (footer) | `LocalVendorRail` | Organic directory | `gateway.getStores('MART')` |
 
-#### Sub-App Shared (rendered by SubAppWrapper)
+Vendor drill-in (`VendorProfileView`, in-wrapper): All Products grid + **unlabelled** "Discounted
+Products" rail (`isDiscounted`), "View All" → `DealsLanding{mode:'discounts'}`. Organic — only paid
+surfaces carry the AD pill.
 
-| # | Screen | File | Lines | Status | Notes |
-|---|--------|------|-------|--------|-------|
-| RN23 | **Cart** (reuses CartView) | `src/components/CartView.tsx` | - | ✅ Active | Shared across all sub-apps |
-| RN24 | **Profile** (reuses AccountView) | `src/components/AccountView.tsx` | - | ✅ Active | Shared across all sub-apps |
+Rail "View All" → `DealsLanding{mode:'martDeals'|'martEssentials'}`; both grids resolve `productIds`
+through `getProductsByIds` (no Home-owned fixture) and carry a paid `SECTOR_RAIL` header shelf.
 
-### 2.4 Navigation Types Defined But NOT Wired
+The feed's paid/organic order is codified in
+`src/features/ecommerce/services/martFeedSections.ts` (`MART_FEED_SECTIONS`, consumed by
+`FaMartScreen`); see `docs/architecture/mobile-app.md` for the resilience/price-batch invariants.
 
-The following routes are typed in `RootStackParamList` but have NO `<Stack.Screen>` entry:
+### 2.6 Sub-app: FOOD (`FoodStack.tsx` — bypasses `SubAppWrapper`)
 
-| Route | Type | Status |
-|-------|------|--------|
-| `ProductDetail` | `{ productId: string }` | ❌ Not rendered |
-| `BookingConfirmation` | `{ bookingId: string }` | ❌ Not rendered |
-| `PrescriptionUpload` | `undefined` | ❌ Not rendered |
-| `Cart` | `undefined` | ❌ Not rendered |
-| `Checkout` | `undefined` | ❌ Not rendered |
+| # | Route | Screen | File |
+| --- | --- | --- | --- |
+| F1 | `FoodHome` | **FoodHomeScreen** | `src/features/food/screens/FoodHomeScreen.tsx` |
+| F2 | `Search` | **FoodSearchScreen** | `src/features/food/screens/FoodSearchScreen.tsx` |
+| F3 | `RestaurantProfile` | **RestaurantProfileScreen** | `src/features/food/screens/RestaurantProfileScreen.tsx` |
+| F4 | `RestaurantOffers` | **RestaurantOffersScreen** | `src/features/food/screens/RestaurantOffersScreen.tsx` |
+| F5 | `RestaurantMenu` | **RestaurantMenuScreen** | `src/features/food/screens/RestaurantMenuScreen.tsx` |
 
-### 2.5 Orphan Files (Exist But NOT Referenced Anywhere)
+`FoodHome` = `FOOD_HERO` (paid, SDUI `foodHero` house fallback) + Top Rated + Today's Special +
+"What's on your mind?" + Snacks & Beverages order rails + Restaurants For Dining grid. Food cart is
+restaurant-scoped (one common cart, isolated by ownership) + `MyBookings` + Food `RateVendor`.
 
-| File | Lines | Description | Why Orphan |
-|------|-------|-------------|------------|
-| `src/features/home/HomeScreen.tsx` | 411 | Standalone service hub landing (different from HomeView) | Not imported by any navigator or parent |
-| `src/features/profile/ProfileScreen.tsx` | 231 | Standalone profile page with different UI from AccountView | Not imported by any navigator or parent |
-| `src/features/ecommerce/EcommerceScreen.tsx` | 442 | Standalone e-commerce page | Not imported by SubAppWrapper or any parent (SubAppWrapper imports FaMartScreen, FoodScreen, PharmaScreen — NOT EcommerceScreen; GroceryScreen was deleted as Grocery merged into Mart) |
-| `src/components/ProductDetailView.tsx` | - | Full product detail modal component | Rendered nowhere (MainDashboardScreen calls `navigation.navigate('ProductDetail')` but route not registered) |
+### 2.7 Sub-app: PHARMA
 
-### 2.6 Root-Stack Screens (current RN navigator — reconciled)
+`PharmaScreen` home = `PHARMA_HERO` (paid) + `PharmaHeroBanner` + QuickReorder + TopOffers +
+PopularMedicines + HealthEssentials + FeaturedBrands + HealthCorner + LocalMedicals +
+`UploadPrescriptionFAB`. Search / category-products / in-screen product detail are local states.
+Pharma `RateVendor` shares the root route.
 
-Screens pushed on the root stack via `client/mobile/src/navigation/AppNavigator.tsx`. Paths are
-relative to `client/mobile/`. These were previously undocumented / stale in this catalog.
+| # | Route / surface | Screen | File |
+| --- | --- | --- | --- |
+| P1 | `MedicalShopDetails` | **MedicalShopDetailsScreen** | `src/features/pharma/MedicalShopDetailsScreen.tsx` |
+| P2 | `PrescriptionFlow` | **PrescriptionFlowScreen** | `src/features/pharma/prescription/PrescriptionFlowScreen.tsx` |
+| P3 | `BloodDonor` | **BloodDonorScreen** | `src/features/pharma/blood-donor/BloodDonorScreen.tsx` |
+| P4 | `BloodDonorDetails` | **DonorDetailsScreen** | `src/features/pharma/blood-donor/DonorDetailsScreen.tsx` |
+| P5 | `BloodRequestDescription` | **BloodRequestDescriptionScreen** | `src/features/pharma/blood-donor/BloodRequestDescriptionScreen.tsx` |
+| P6 | History tab | inline in `SubAppWrapper` | recent orders |
 
-| Route | Screen | File | Notes |
-|-------|--------|------|-------|
-| `Cart` | **CartScreen** | `src/features/cart/CartScreen.tsx` | Pushed from any app; wraps shared `CartView` (BAG→PAYMENT→RECEIPT). Payment step = `features/cart/payment/PaymentOptionsScreen`. **Delivery / Self Pickup toggle** on the **BAG** step — nothing selected by default, so **Proceed to Pay is disabled** until a mode is chosen. Delivery shows the **live GPS address** (`useLiveAddress`; saved-address fallback noted in UI). Self Pickup needs no address UI. **The ADDRESS step was removed**; both modes go straight to Payment. Self-pickup orders record **all vendor pickup addresses** (via `getPickupPointsForItems`) and show them on the receipt + Order Details. The BAG "To Pay" banner is static (no "View Detailed Bill" link/sheet). |
-| `You` | **YouScreen** | `src/features/profile/YouScreen.tsx` | Account page (wraps `AccountView`); pushed from any app, back returns. |
-| `MyOrders` | **MyOrdersScreen** | `src/features/profile/MyOrdersScreen.tsx` | Sub-app rail (All/Mart/Food/Pharma — Grocery merged into Mart) + status filter sheet + minimal order cards (date + status pill, one-line item) with Delivery/Self-Pickup chip; "View Details" → `OrderDetails`. Merges `ordersStore.orders` (newest first) above `@data` fixtures (rail counts recompute); prescription placed orders render a distinct 📄 "Prescription order" card ("N pages • {vendor}", Delivery/Self-Pickup chip, Processing pill); `highlightOrderId` param auto-selects that order's sub-app and rings its card. |
-| `OrderDetails` | **OrderDetailsScreen** | `src/features/profile/OrderDetailsScreen.tsx` | Per-order page resolved by `orderId` — `ordersStore.getOrderById` first (in-session placed orders), falling back to `@data` (`getMyOrderById`) for fixtures; this fixed the placed-order "not found" gap. Status/item/order-meta sections + a **"Pickup From" card per vendor** (name, address, hours, contact) for `PICKUP` orders (normalized from `pickups ?? pickup ? [pickup] : []`) + **"Rate your purchase"** card (verified buyers only; gate re-checked) + **View Product** → `ProductDetail` (via `getProductById`; hidden if lookup fails). |
-| `RateVendor` | **RateVendorScreen** | `src/features/profile/RateVendorScreen.tsx` | Vendor rating form (root route, not a sheet) — stars + optional ≤280-char comment, submit/update. Eligibility re-checked on open via `services/vendorRatings.canRateVendor` (derived from a non-cancelled order resolving to the vendor); one live rating per `(user, vendor)`, latest wins. Reached from My Orders, Order Details, the Mart vendor profile, the Pharma shop, and the Food restaurant profile. Public display full name only; nothing rating-related logged. |
-| `UserDetails` | **UserDetailsScreen** | `src/features/profile/UserDetailsScreen.tsx` | "Your Details" — personal info, preferences, security. |
-| `SavedAddresses` | **SavedAddressesScreen** | `src/features/profile/SavedAddressesScreen.tsx` | Manage/select/add delivery locations. |
-| `CategoryDrillIn` | **CategoryDrillInScreen** | `src/features/catalog/CategoryDrillInScreen.tsx` | Category drill-in page (from the Home/Mart header rail): every sub-category title as a flat pill rail (first auto-selected, active filled Faazio-blue) + a store-grouped body (`CategoryDrillInPanel`, `CategoryTitleRail`, `StoreProductSection`, `ProductRowCard`) — the paid `CATEGORY_TOP` hero carousel under the rail (ad-server fill; collapses when unfilled), then a store-name heading → vertical one-per-row product cards per store; inline searchbar filters the store list; switching chips resets the scroll to top. Vendors via `src/services/categoryVendors.ts`; hero via `components/shared/CampaignHero`. |
-| `VendorDetails` | **VendorDetailScreen** | `src/features/catalog/VendorDetailScreen.tsx` | Single-store search page: back arrow + inline searchbar (auto-focused, sub-category query pre-applied) + one-per-row products via `SearchMartProductCard` / `SearchPharmaProductCard` with the per-card vendor header hidden (`showStoreHeader={false}`) since the page is single-vendor. A paid `STORE_TOP` hero carousel (ad-server fill via `components/shared/CampaignHero`; collapses when unfilled) sits under the profile. |
-| `MedicalShopDetails` | **MedicalShopDetailsScreen** | `src/features/pharma/MedicalShopDetailsScreen.tsx` | Pharma-local medical profile with cover, rating, distance/delivery, offer, address/phone/hours, and live-filtered `storeId` inventory via `SearchPharmaProductCard`. The floating `UploadPrescriptionFAB` presets the pharmacy in `PrescriptionFlow`; a paid `STORE_TOP` hero carousel (ad-server fill; collapses when unfilled) sits under the profile; visible bottom navbars also use the shared Faazio-blue Home shortcut. |
-| `DealsLanding` | **DealsLandingScreen** | `src/features/ecommerce/DealsLandingScreen.tsx` | Deals page, two modes: `campaign` (vendor-name hero + computed "Up to X% off" discount label + 2-col product grid, from the Home "Deals of the day" auto-playing carousel "View all") and `discounts` (a vendor's discounted products, from the Mart vendor profile "View All"). Full cart wiring via `useCartStore`; empty/unknown-id fallbacks. |
-| `PrescriptionFlow` | **PrescriptionFlowScreen** | `src/features/pharma/prescription/PrescriptionFlowScreen.tsx` | Full-bleed pharma prescription flow: normal entry is `CAPTURE → NOTE → VENDORS → CONFIRMED`; `presetVendorId` entry from `MedicalShopDetails` is `CAPTURE → NOTE → fulfilment sheet → CONFIRMED`, skipping pharmacy selection. Capture = `PrescriptionCameraStep`; Note = `PrescriptionNoteStep`; Vendors = `PharmaVendorList`/`PharmaVendorCard`; fulfilment = `PharmaFulfilmentSheet`; confirmed = `PrescriptionOrderConfirmedView`. Writes to `ordersStore` and bypasses cart. |
-| `Search` | **SearchRouteScreen** | `src/features/search/SearchRouteScreen.tsx` | First-class cross-sub-app search (Food keeps its own nested Search). Product sub-apps (Mart/Pharma/Home Hub) show Flipkart-style type-ahead suggestions while typing; results render one-per-row via `SearchProductRowCard` with a one-line vendor header above each row. |
-| `ProductDetail` | **ProductDetailScreen** | `src/features/product/ProductDetailScreen.tsx` | Shared product detail; view component = `CommonProductDetailView.tsx`. For MART products with a `storeId`, a store section renders below "Product Details" (store card + "More from {store}" related grid + **View Vendor** → `SubApp` with `initialVendorStoreId`). For FOOD products, the restaurant store section is tappable + has a **View Restaurant** button (`onViewRestaurant`) that deep-links into nested `FoodApp → RestaurantProfile` via `getDiningRestaurantForProduct` (`features/food/utils/restaurantForProduct.ts`). |
-| `PaymentOptions` | **PaymentOptionsScreen** | `src/features/cart/payment/PaymentOptionsScreen.tsx` | Standalone payment picker (also used as CartView PAYMENT step). |
-| `FoodApp` | **FoodStack** | `src/navigation/FoodStack.tsx` | Nested food stack (dining-first): FoodHome → Search → `RestaurantProfile` → `RestaurantMenu` / `RestaurantOffers`. Search is **dishes-only** (toggle-less, edge-to-edge `SearchDishCard`); `RestaurantProfile`'s "Recommended & Offers" rail shows only the current restaurant's own dishes, with each deal-card image carrying the shared **'AD' pill** (`AdLabelBadge`) bottom-right; `RestaurantOffers` (reached via "View All") is the same restaurant-only set as a searchable, edge-to-edge result list. Restaurant menu + offers + search + FOOD product-detail first-adds are **direct** (the old `FoodAddModeSheet` fulfilment gate was removed — the mode is chosen later on the cart BAG step as an order-level Delivery / Self Pickup toggle). FoodHome is a single scroll surface = Dining content (Top Rated carousel, Today's Special) + the "What's on your mind?" and "Snacks & Beverages" order rails + the "Restaurants For Dining" grid; 2-tab bottom nav (Home / Search) + You/Cart. Food's "Today's Special Near You" rail uses the shared product card (`SpecialDishCard` → `FoodProductCard`) with the Home rail's exact `hs(116)` square-image, name-only styling. `RestaurantProfile` shows a restaurant-scoped white **View Cart** pill (icon + count + arrow, no amount) and a menu **− qty +** stepper; its cart page is isolated to that restaurant (Clear + per-row trash), while the common cart is unchanged. |
+Pharma's home rails are **intentionally feature-mock** for MVP
+(`src/features/pharma/services/pharmaService.ts`): stores are server-backed (`getStores('PHARMA')`),
+but the editorial rails use presentation-only `pm-*`/`pe-*` ids that are not catalog rows. There is
+no `GET /sdui/pharma` — see `docs/architecture/mobile-app.md` and `PENDING_WORK.md`.
 
-> **Stale-entries note:** RN5–RN8 above still reference Vite-style `src/components/*` paths
-> (`HomeView`, `CategoriesView`, `FavouritesView`, `AccountView`). The current RN hub tabs live
-> under `src/features/` (`HomeTabScreen`, `FavouritesTabScreen`, `AccountScreen` — the legacy
-> `CategoriesTabScreen` was removed) and the Cart lives under `features/cart/`. These rows are
-> preserved for the Vite↔RN mapping in Section 3 but should be read as the **Vite** component names.
+### 2.8 Web portal pages
+
+The seller/state/super consoles are categorised in
+`docs/architecture/web-portal.md` → "Routing contract" (full `app/**` list grouped by console +
+sector). They are where paid ads, organic offers, SDUI layouts and all seller data are authored.
 
 ---
 
