@@ -55,13 +55,15 @@ const CampaignHero = memo(function CampaignHero({
   );
 
   // One impression per rendered creative, guarded locally so a re-render never re-POSTs (the server
-  // additionally de-dupes per user + slot). Best-effort.
+  // additionally de-dupes per user + slot). A creative is only marked reported once the ad-server
+  // confirms it, so a failed send (offline / no identity) can retry on remount.
   const reported = useRef<Set<string>>(new Set());
   useEffect(() => {
     for (const ad of ads) {
       if (!ad.placementId || reported.current.has(ad.placementId)) continue;
-      reported.current.add(ad.placementId);
-      void gateway.recordAdEvent(ad.placementId, 'impression');
+      void gateway.recordAdEvent(ad.placementId, 'impression').then((sent) => {
+        if (sent) reported.current.add(ad.placementId);
+      });
     }
   }, [ads]);
 

@@ -112,12 +112,16 @@ showing a loading/error state instead of a silent empty grid; `campaign` mode st
 is codified in `features/ecommerce/services/martFeedSections.ts` (`MART_FEED_SECTIONS`, consumed by
 `FaMartScreen`); the full RN route registry is `PAGE_CATALOG.md` §2.
 
-**Paid-ad measurement is auth-gated (known gap).** `POST /ads/events` sits behind `auth.Require`, but
-the app's login is **mocked** (a placeholder token that is not a signed JWT), so impression/click events
-never reach the ad-server in that configuration: the shopper flow is unaffected (last-click attribution
-still records locally via `services/adsAttribution`), but back-office ad KPIs undercount to zero. Wiring
-a real session, or an anon event path with rate-limiting, is the follow-up; it is deliberately not opened
-unauthenticated here.
+**Paid-ad measurement is auth-gated.** `POST /ads/events` sits behind `auth.Require`, but the app's
+login is **mocked** (a placeholder token that is not a signed JWT), so impression/click events reach
+the ad-server only when the gateway runs `AUTH_DISABLED=true` (local dev / MVP staging, resolved as
+`user-1`). Under a production `AUTH_DISABLED=false` gateway they stay inert: the shopper flow is
+unaffected (last-click attribution still records locally via `services/adsAttribution`), but
+back-office ad KPIs undercount to zero. W49 made this honest + observable — `recordAdEvent` returns
+`boolean` (confirmed-only, no fabricated fallback) and logs a dev warning with the HTTP + auth status;
+app auth intentionally stays mocked (no Supabase phone OTP), so this is a documented deferral, not a
+hidden failure. Wiring a real session, or an anon event path with rate-limiting, is the deliberate
+follow-up; it is not opened unauthenticated here.
 
 Pharma's home feed ends with a pharma-local **"Local Medicals Near You"** rail backed by
 `@data/pharma/stores`. Each stacked card shows distance, rating, delivery time, offer and a
@@ -500,10 +504,11 @@ still separate files; consolidating them is tracked in `client/mobile/PENDING_WO
 - `productViews.ts` — `trackProductView(id)`: emits a `view` behavior event **at most once per product per session** (`user_events` has no dedupe), reset on logout; consumed by `hooks/useViewableTracking` on the Mart search grid, the vendor drill-in "All Products" grid, and the feed rails.
 - `vendorRatings.ts` — single owner of the vendor rating gate: `canRateVendor(vendorId)`
   (derived from fixture orders via `hasPurchasedFromVendor` + in-session `ordersStore.orders`
-  + durable `ordersStore.serverOrders`), `getUserVendorRating`, `submitVendorRating` (re-checks
-  eligibility; one live rating per `(user, vendor)`), `getVendorReviews` / `getVendorReviewSummary`
-  (seeded `@data` reviews merged with the user's own — the offline fallback for the remote
-  `useVendorReviews`). Reused by all five entry points.
+  + durable `ordersStore.serverOrders`), `getUserVendorRating`, `submitVendorRating` (async;
+  re-checks eligibility, always writes the device store, then mirrors to the server and resolves
+  `{ ok, status }` — `synced`/`offline`/`signed-out`/`not-verified`/`invalid`; W49), `getVendorReviews`
+  / `getVendorReviewSummary` (seeded `@data` reviews merged with the user's own — the offline
+  fallback for the remote `useVendorReviews`). Reused by all five entry points.
 - `orderHistory.ts` — projects a durable `checkout.orders` row (`OrderRow`) onto the app's
   `PlacedOrder` view model (status map: `NEW`/`PACKED`→`Processing`, `RETURNED`→`Cancelled`,
   vendor name resolved from the store snapshot). Used by the `ordersStore` hydration.
@@ -998,10 +1003,12 @@ The "lightweight, fast, secure" mandate (AGENTS.md) is enforced at build and del
   `features/catalog/hooks/useVendorProducts` (server `GET /stores/{id}/products` + festival overlay +
   offline fallback), so the two surfaces cannot diverge. The category drill-in groups the same server
   catalog via `useCategoryVendors`.
-- **Vendor ratings are device-local (known gap)** — `RateVendorScreen` writes through
-  `services/vendorRatings` (device store); the server `PUT /vendors/{id}/rating` + reads exist but the
-  screen migration waits on a real session (auth is mocked). A displayed vendor rating can therefore
-  diverge from the server summary until then.
+- **Vendor ratings are device-local on display** — `RateVendorScreen` writes through
+  `services/vendorRatings` (device store) and mirrors to the server `PUT /vendors/{id}/rating`, whose
+  outcome is now surfaced (`synced`/`offline`/`signed-out`/`not-verified`) with an inline error and a
+  "Saving…" state instead of a silent best-effort (W49). Under a production `AUTH_DISABLED=false`
+  gateway the mirror is inert (mocked token), so a displayed rating can diverge from the server
+  summary until a real session exists — a documented deferral, not a hidden failure.
 - **Pharma home rails are intentionally feature-mock** — stores are server-backed
   (`getStores('PHARMA')`), but the editorial rails use presentation-only `pm-*`/`pe-*` ids (not
   catalog rows) and there is no `GET /sdui/pharma`. This is a deliberate MVP choice, not an

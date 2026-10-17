@@ -291,6 +291,23 @@ build (Reanimated is far slower in debug); use a **CI release** build.
 - Mongo `home feed unavailable` → `mongodb` not seeded. Run `server/supabase/seed/mongo/seed.js`
   (compose mounts it into `/docker-entrypoint-initdb.d`).
 
+## 🔧 401 on `/ads/events` or `/vendors/{id}/rating` (paid-ad KPIs / durable rating inert)
+
+These two writes sit behind `auth.Require`. With the app's **mocked login** they only succeed when the
+gateway runs `AUTH_DISABLED=true` (resolved as `user-1`); on an `AUTH_DISABLED=false` gateway the
+placeholder bearer fails HS256 verification → `401` → the writes are inert. This is **expected** by
+product decision (auth stays mocked; no Supabase phone OTP), not a client bug. Diagnose:
+
+- **Dev build console:** `recordAdEvent` logs `[ads] impression not recorded (401, auth=mock)`; a
+  `auth=dev-bypass` result means the dev header is in play. `GatewayClient.authStatus()` returns
+  `dev-bypass` / `mock` / `enterprise` / `none`.
+- **Local dev fix:** run the gateway with `AUTH_DISABLED=true` (`DEV_USER_ID=user-1`) and set
+  `EXPO_PUBLIC_DEV_USER=user-1` in `client/mobile/.env.local` (dev builds only). A production/release
+  build never sends `X-Dev-User`, so do not expect the KPIs there.
+- **Shopper impact:** none — local last-click attribution (`services/adsAttribution`) and the
+  device-local vendor rating still work; the rating screen surfaces `signed-out`/`not-verified`
+  inline instead of claiming a server write. See `client/mobile/PENDING_WORK.md` W49.
+
 ## 🔧 Scroll jank / slow first load
 
 **Rule: judge performance on a release build, not dev.** Dev mode (Metro, debug build) exaggerates

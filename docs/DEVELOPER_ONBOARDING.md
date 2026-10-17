@@ -98,7 +98,9 @@ Local dev is auth-open (`AUTH_DISABLED=true`, user `user-1`; the gateway logs a 
 point the app at it, set `EXPO_PUBLIC_GATEWAY_URL=http://<host>:8080` and
 `EXPO_PUBLIC_USE_GATEWAY=true`; `GatewayClient` falls back to `@data/*` on any error. Add
 `EXPO_PUBLIC_STRICT=true` to disable the fallback for money/Rx/address writes (a failed write then
-fails loudly instead of faking a local success). Regenerate the DB seed after editing `@data/*`:
+fails loudly instead of faking a local success). Optionally set `EXPO_PUBLIC_DEV_USER=user-1` to send
+the dev-only `X-Dev-User` header explicitly (dev builds only; never attached in a release APK, and
+ignored by an `AUTH_DISABLED=false` gateway). Regenerate the DB seed after editing `@data/*`:
 `node server/supabase/seed/generate.mjs`. Details: `server/gateway/README.md`.
 
 ### 4b. Ship a release APK

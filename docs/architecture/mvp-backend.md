@@ -51,7 +51,9 @@ orphaned DRAFT uploads and a CDN purge worker invalidates an image on moderation
   GIN index, `pg_trgm` for fuzzy/autocomplete), refreshed on `catalog.updated`.
 - **Auth:** mocked app login for the MVP — the phone→OTP Login UI calls `authStore.login()` (no
   Supabase phone OTP). The gateway verifies partner JWTs (custom `app_role`/`seller_id`/`state_code`
-  claims) and scopes every auth-scoped query by the resolved `user_id`; RLS is defence-in-depth.
+  claims) and scopes every auth-scoped query by the resolved `user_id`; RLS is defence-in-depth. In
+  dev the app sends `X-Dev-User` (`EXPO_PUBLIC_DEV_USER`, dev builds only) so it resolves
+  deterministically on an `AUTH_DISABLED=true` gateway; production builds never send it.
 
 ### RLS policy classes (least privilege)
 
@@ -129,7 +131,14 @@ signatures above keep the `@mock` → `@server` swap call-site-compatible (`Gate
 `baseUrl`/flag and keeps the `@data/*` fallback). Local dev runs:
 `AUTH_DISABLED=true` uses `DEV_USER_ID` / `X-Dev-User`, and role probing accepts `X-Dev-Role` /
 `X-Dev-Seller` / `X-Dev-State` (all three are on the CORS allow-list so the local portal can exercise
-role-gated routes; they are ignored whenever auth is enabled).
+role-gated routes; they are ignored whenever auth is enabled). The app mirrors the portal's dev guard:
+`GatewayClient` attaches `X-Dev-User` only in dev builds when `EXPO_PUBLIC_DEV_USER` is set.
+
+Under a production `AUTH_DISABLED=false` gateway the mocked placeholder session cannot satisfy the
+two app writes behind `auth.Require` — `POST /ads/events` (closed-loop ad KPIs) and
+`PUT /vendors/{id}/rating` (server-durable rating). W49 makes both client paths honest + observable
+(`recordAdEvent` returns a confirmed-only boolean; `submitVendorRating` resolves an outcome and the
+screen surfaces a non-durable result) rather than opening them unauthenticated.
 
 ---
 

@@ -102,7 +102,7 @@ resolving to the same vendor. `hasPurchasedFromVendor(userId, vendorId)` is the 
 rating-eligibility gate (non-cancelled order; server later tightens to `DELIVERED`; stays true
 once earned). `reviews/vendorReviews.ts` holds seeded public reviews (full name only); the
 signed-in user's live rating is device-local (`state/vendorRatingStore.ts`), merged in by
-`services/vendorRatings.ts`.
+`services/vendorRatings.ts` (which mirrors to the server and now surfaces the outcome — W49).
 
 ### Normalized microservice tables (new surface)
 
@@ -233,7 +233,9 @@ The gateway also exposes `GET /ads/live` (LIVE slots); the shared **`components/
 `SPONSORED_SHOWCASE` and `SECTOR_RAIL`. Paid placements have **no** fixture fallback — an empty/offline
 result collapses the rail (never a fabricated sponsored shelf), and every card carries the AD
 disclosure. Impressions/clicks post to `POST /ads/events` (`GatewayClient.recordAdEvent`, de-duped
-per user); the last tapped slot attributes the next order via `services/adsAttribution.ts`. Money/Rx/address writes honour `EXPO_PUBLIC_STRICT=true`, which disables the fixture fallback so
+per user) — W49 makes it return a **confirmed-only** boolean (no fabricated success) and the rails
+mark an impression reported only on `true`, so a failed send (`401` / offline) can retry on remount.
+The last tapped slot attributes the next order via `services/adsAttribution.ts`. Money/Rx/address writes honour `EXPO_PUBLIC_STRICT=true`, which disables the fixture fallback so
 a failed write can never masquerade as a local success. Under the same flag, **money-critical reads**
 (`getProduct`, `getStock`, `getProductsByIds`, `getMenu`, `getCoupons`, `validateCoupon`,
 `getOrderTracking`) also go strict — a price/stock/discount/Rx status is never fabricated from a

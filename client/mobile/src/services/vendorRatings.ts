@@ -6,7 +6,7 @@ import {
 } from '@data/index';
 import { useAuthStore } from '@/state/authStore';
 import { useOrdersStore } from '@/state/ordersStore';
-import { gateway } from '@/services/api/GatewayClient';
+import { gateway, type VendorRatingOutcome } from '@/services/api/GatewayClient';
 import {
   useVendorRatingStore,
   MAX_VENDOR_RATING_COMMENT,
@@ -67,18 +67,29 @@ export function getUserVendorRating(vendorId: string): UserVendorRating | undefi
   return useVendorRatingStore.getState().getRating(currentUserId(), vendorId);
 }
 
+/** Outcome of a submit: `invalid` = failed the local gate, otherwise the gateway outcome. */
+export type VendorRatingStatus = VendorRatingOutcome | 'invalid';
+
+export interface VendorRatingResult {
+  /** True when the rating is durably saved or safely device-local (offline / mock). */
+  ok: boolean;
+  status: VendorRatingStatus;
+}
+
 /**
- * Upsert the user's live rating (latest wins) after re-checking eligibility.
- * Returns false when the user is not a verified buyer or the rating is invalid.
+ * Upsert the user's live rating (latest wins) after re-checking eligibility. Always writes the
+ * device-local store first (offline-first, and the offline source of display), then mirrors to the
+ * durable server row. Resolves with an outcome so the screen can explain a non-durable result
+ * (`signed-out` / `not-verified`) instead of silently pretending success.
  */
-export function submitVendorRating(
+export async function submitVendorRating(
   vendorId: string,
   rating: number,
   comment?: string,
-): boolean {
-  if (!canRateVendor(vendorId)) return false;
+): Promise<VendorRatingResult> {
+  if (!canRateVendor(vendorId)) return { ok: false, status: 'invalid' };
   const value = Math.round(rating);
-  if (value < 1 || value > 5) return false;
+  if (value < 1 || value > 5) return { ok: false, status: 'invalid' };
 
   const orderIds = [
     ...getVendorOrderIds(MOCK_USER_ID, vendorId),
@@ -91,12 +102,15 @@ export function submitVendorRating(
     comment: comment?.trim().slice(0, MAX_VENDOR_RATING_COMMENT) || undefined,
     orderIds,
   });
-  // Mirror the rating to the durable source of truth (server re-checks the purchase gate);
-  // best-effort so offline/local rating still succeeds, no-op in mock mode.
-  void gateway
-    .rateVendor(vendorId, value, comment?.trim().slice(0, MAX_VENDOR_RATING_COMMENT))
-    .catch(() => {});
-  return true;
+
+  // Mirror the rating to the durable source of truth (server re-checks the purchase gate).
+  // `offline` keeps today's device-local success; `signed-out` / `not-verified` are surfaced.
+  const status = await gateway.rateVendor(
+    vendorId,
+    value,
+    comment?.trim().slice(0, MAX_VENDOR_RATING_COMMENT),
+  );
+  return { ok: status === 'synced' || status === 'offline', status };
 }
 
 /** Public review list for a vendor: the user's live rating first, then seeded rows. */

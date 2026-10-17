@@ -49,16 +49,31 @@ export function RateVendorScreen({ navigation, route }: Props) {
 
   const [rating, setRating] = useState(existing?.rating ?? 0);
   const [comment, setComment] = useState(existing?.comment ?? '');
+  const [error, setError] = useState('');
+  const [submitting, setSubmitting] = useState(false);
 
   const handleBack = useCallback(() => navigation.goBack(), [navigation]);
 
-  const handleSubmit = useCallback(() => {
-    if (rating < 1) return;
-    const ok = submitVendorRating(vendorId, rating, comment);
-    if (ok) navigation.goBack();
-  }, [rating, comment, vendorId, navigation]);
+  const handleSubmit = useCallback(async () => {
+    if (rating < 1 || submitting) return;
+    setSubmitting(true);
+    setError('');
+    const result = await submitVendorRating(vendorId, rating, comment);
+    setSubmitting(false);
+    if (result.ok) {
+      navigation.goBack();
+      return;
+    }
+    setError(
+      result.status === 'not-verified'
+        ? "We couldn't confirm a purchase from this store. Your rating is saved on this device."
+        : result.status === 'signed-out'
+          ? 'Your session has expired. Please sign in again to sync your rating.'
+          : 'Please choose a rating between 1 and 5.',
+    );
+  }, [rating, comment, vendorId, navigation, submitting]);
 
-  const submitDisabled = rating < 1;
+  const submitDisabled = rating < 1 || submitting;
 
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
@@ -122,6 +137,12 @@ export function RateVendorScreen({ navigation, route }: Props) {
                 {comment.length}/{MAX_VENDOR_RATING_COMMENT}
               </AppText>
             </View>
+
+            {error ? (
+              <View style={styles.errorCard}>
+                <AppText style={styles.errorText}>{error}</AppText>
+              </View>
+            ) : null}
           </>
         )}
       </ScrollView>
@@ -137,7 +158,7 @@ export function RateVendorScreen({ navigation, route }: Props) {
             accessibilityLabel={existing ? 'Update rating' : 'Submit rating'}
           >
             <AppText style={styles.submitText}>
-              {existing ? 'Update rating' : 'Submit rating'}
+              {submitting ? 'Saving…' : existing ? 'Update rating' : 'Submit rating'}
             </AppText>
           </TouchableOpacity>
         </View>
@@ -235,6 +256,19 @@ const styles = StyleSheet.create({
     color: '#9CA3AF',
     alignSelf: 'flex-end',
     marginTop: vs(4),
+  },
+  errorCard: {
+    backgroundColor: '#FEF2F2',
+    borderRadius: ms(10),
+    borderWidth: 1,
+    borderColor: '#FECACA',
+    padding: hs(12),
+  },
+  errorText: {
+    fontSize: ms(12.5),
+    fontWeight: '600',
+    color: '#B91C1C',
+    lineHeight: ms(18),
   },
   blockedCard: {
     backgroundColor: '#FFFFFF',

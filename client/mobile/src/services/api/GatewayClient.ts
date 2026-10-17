@@ -42,9 +42,39 @@ const REMOTE_ENABLED = GATEWAY_URL.length > 0 && ['1', 'true', 'yes'].includes(G
  */
 const STRICT_FLAG = ['1', 'true', 'yes'].includes((process.env.EXPO_PUBLIC_STRICT ?? '').toLowerCase());
 const REMOTE_STRICT = REMOTE_ENABLED && STRICT_FLAG;
+/**
+ * Dev-only identity override for an `AUTH_DISABLED=true` gateway (local/MVP staging). Sent as the
+ * `X-Dev-User` header **only in dev builds** so the mocked-login app no longer relies on the server's
+ * `DEV_USER_ID` fallback. Never attached in a release build; the gateway ignores it when auth is on.
+ */
+const DEV_USER = (process.env.EXPO_PUBLIC_DEV_USER ?? '').trim();
 
 function delay<T>(value: T, ms = LATENCY_MS): Promise<T> {
   return new Promise((resolve) => setTimeout(() => resolve(value), ms));
+}
+
+/** An HTTP failure carrying the server status so callers can branch on 401/403 without parsing text. */
+export class GatewayHttpError extends Error {
+  constructor(public readonly status: number) {
+    super(`gateway ${status}`);
+    this.name = 'GatewayHttpError';
+  }
+}
+
+/**
+ * How the client is currently authenticating. Diagnostic only — never used to gate a write.
+ *  - `dev-bypass` — dev-only `X-Dev-User` override against an `AUTH_DISABLED=true` gateway.
+ *  - `mock`       — the app's mocked-login placeholder token (not a signed JWT).
+ *  - `enterprise` — a JWT-shaped bearer (future GoTrue session).
+ *  - `none`       — no token/override configured.
+ */
+export type GatewayAuthStatus = 'dev-bypass' | 'mock' | 'enterprise' | 'none';
+
+/** A bearer is JWT-shaped when its header segment is base64 of `{"…` (three segments). Never trusts
+ *  the claims — this is a shape check only, so the mocked placeholder (`placeholder.<phone>.<ts>`) is
+ *  classified as `mock`, not `enterprise`. */
+function isJwtShaped(token: string): boolean {
+  return token.startsWith('eyJ') && token.split('.').length === 3;
 }
 
 /** Fixed per-seat booking platform fee shown in the UI (server authoritatively derives ₹50/seat). */
@@ -98,6 +128,15 @@ export interface VendorReviewSummary {
   /** Counts for 1..5 stars, index 0 = 1 star. */
   distribution: number[];
 }
+
+/**
+ * Result of `PUT /vendors/{id}/rating`.
+ *  - `synced`      — server persisted the row (durable / portal-visible).
+ *  - `offline`     — gateway unreachable or remote disabled; the device store owns the rating.
+ *  - `signed-out`  — server rejected the (placeholder) bearer with 401.
+ *  - `not-verified`— server purchase gate rejected with 403 (client thought eligible).
+ */
+export type VendorRatingOutcome = 'synced' | 'offline' | 'signed-out' | 'not-verified';
 
 /** Accepted `POST /events` vocabulary (server-enforced). */
 export type TrackableEvent = 'view' | 'cart_add' | 'order' | 'search';
@@ -459,7 +498,9 @@ export class GatewayClient {
     return REMOTE_ENABLED;
   }
 
-  private async authHeader(): Promise<Record<string, string>> {
+  /** How the client is authenticating right now (diagnostic; see `GatewayAuthStatus`). */
+  async authStatus(): Promise<GatewayAuthStatus> {
+    if (__DEV__ && DEV_USER) return 'dev-bypass';
     if (!this.tokenLoaded) {
       try {
         const session = await loadSession();
@@ -469,13 +510,32 @@ export class GatewayClient {
       }
       this.tokenLoaded = true;
     }
-    return this.accessToken ? { Authorization: `Bearer ${this.accessToken}` } : {};
+    if (!this.accessToken) return 'none';
+    return isJwtShaped(this.accessToken) ? 'enterprise' : 'mock';
+  }
+
+  private async authHeader(): Promise<Record<string, string>> {
+    const headers: Record<string, string> = {};
+    // Dev-only `X-Dev-User` override (mock-auth app against an AUTH_DISABLED gateway). Never in
+    // release builds; the gateway ignores it when JWT auth is enabled (AUTH_DISABLED=false).
+    if (__DEV__ && DEV_USER) headers['X-Dev-User'] = DEV_USER;
+    if (!this.tokenLoaded) {
+      try {
+        const session = await loadSession();
+        this.accessToken = session?.accessToken ?? null;
+      } catch {
+        this.accessToken = null;
+      }
+      this.tokenLoaded = true;
+    }
+    if (this.accessToken) headers.Authorization = `Bearer ${this.accessToken}`;
+    return headers;
   }
 
   private async http<T>(path: string, init?: RequestInit): Promise<T> {
     const headers: Record<string, string> = { 'Content-Type': 'application/json', ...(await this.authHeader()), ...(init?.headers as Record<string, string> | undefined) };
     const res = await fetch(`${GATEWAY_URL}${path}`, { ...init, headers });
-    if (!res.ok) throw new Error(`gateway ${res.status}`);
+    if (!res.ok) throw new GatewayHttpError(res.status);
     return (await res.json()) as T;
   }
 
@@ -846,19 +906,27 @@ export class GatewayClient {
   }
 
   /**
-   * Report a sponsored impression/click (`POST /ads/events`). Best-effort: the server de-dupes
-   * impressions per (user, slot), and any failure is swallowed so rendering never blocks.
+   * Report a sponsored impression/click (`POST /ads/events`). Returns `true` only when the
+   * ad-server confirmed the write. There is no local fallback — a paid placement's measurement is
+   * never fabricated — so callers must not treat `false` as delivered (a re-render may retry). The
+   * server de-dupes impressions per (user, slot); a failure is logged in dev with the auth status
+   * and never blocks rendering.
    */
-  async recordAdEvent(slotId: string, event: 'impression' | 'click'): Promise<void> {
-    if (!slotId) return;
-    await this.withFallback(
-      () =>
-        this.http<{ ok: boolean }>('/ads/events', {
-          method: 'POST',
-          body: JSON.stringify({ slotId, event }),
-        }).then(() => undefined),
-      () => delay(undefined),
-    );
+  async recordAdEvent(slotId: string, event: 'impression' | 'click'): Promise<boolean> {
+    if (!slotId || !REMOTE_ENABLED) return false;
+    try {
+      await this.http<{ ok: boolean }>('/ads/events', {
+        method: 'POST',
+        body: JSON.stringify({ slotId, event }),
+      });
+      return true;
+    } catch (err) {
+      if (__DEV__) {
+        const status = err instanceof GatewayHttpError ? err.status : 'network';
+        console.warn(`[ads] ${event} not recorded (${status}, auth=${await this.authStatus()})`);
+      }
+      return false;
+    }
   }
 
   /**
@@ -1340,19 +1408,26 @@ export class GatewayClient {
   }
 
   /**
-   * Upsert the signed-in user's live rating for a vendor. The server re-checks the
-   * derived purchase gate, so a false result means "not a verified buyer".
-   * Mock fallback is a no-op (offline ratings are owned by vendorRatingStore).
+   * Upsert the signed-in user's live rating for a vendor (`PUT /vendors/{id}/rating`). The server
+   * re-checks the derived purchase gate. Returns an outcome instead of a bare boolean so the caller
+   * can distinguish "durable" from "signed-out" / "not eligible" / "offline" (device-local still
+   * owns offline ratings — never fabricated here).
    */
-  async rateVendor(vendorId: string, rating: number, comment?: string): Promise<boolean> {
-    return this.withFallback(
-      () =>
-        this.http<{ ok: boolean }>(`/vendors/${encodeURIComponent(vendorId)}/rating`, {
-          method: 'PUT',
-          body: JSON.stringify({ rating, comment: comment ?? '' }),
-        }).then((r) => r.ok === true),
-      () => delay(false),
-    );
+  async rateVendor(vendorId: string, rating: number, comment?: string): Promise<VendorRatingOutcome> {
+    if (!REMOTE_ENABLED) return 'offline';
+    try {
+      const r = await this.http<{ ok: boolean }>(`/vendors/${encodeURIComponent(vendorId)}/rating`, {
+        method: 'PUT',
+        body: JSON.stringify({ rating, comment: comment ?? '' }),
+      });
+      return r.ok === true ? 'synced' : 'offline';
+    } catch (err) {
+      if (err instanceof GatewayHttpError) {
+        if (err.status === 403) return 'not-verified';
+        if (err.status === 401) return 'signed-out';
+      }
+      return 'offline';
+    }
   }
 
   /** The auth-scoped cart (never edge-cached). */

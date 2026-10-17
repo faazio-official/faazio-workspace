@@ -228,7 +228,11 @@ Extract the **first** context (search) as the reference. The others repeat the s
   DynamoDB, standalone Postgres — same datatypes, so the swap is invisible.
 - **Auth:** MVP = mocked app login (the phone→OTP Login UI calls `authStore.login()`; **no** Supabase
   phone OTP) + partner JWT claim roles; the gateway resolves `user_id` from the JWT and
-  scopes every auth-scoped query by it. Never trust a client-supplied user id.
+  scopes every auth-scoped query by it. Never trust a client-supplied user id. Local dev resolves the
+  app as `user-1` (`AUTH_DISABLED=true`); the app sends `X-Dev-User` only in dev builds
+  (`EXPO_PUBLIC_DEV_USER`). Consequently the two app writes behind `auth.Require` (`POST /ads/events`,
+  `PUT /vendors/{id}/rating`) are inert on a production `AUTH_DISABLED=false` gateway — W49 makes the
+  client honest about it (confirmed-only boolean / rating outcome) without opening an anon endpoint.
 - **Observability:** OTel hooks live in `internal/platform/otel`; exporters are env-gated (no-op when
   unset) so local dev adds no cost.
 

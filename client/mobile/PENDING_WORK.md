@@ -5,6 +5,51 @@ dependencies exist. Do not build the backend/seller flows until told to.
 
 ---
 
+## W49 — Honest handling for the two auth-gated writes (no anon endpoint, no Supabase OTP)
+
+**Status:** 🟢 Shipped (app + docs). No server / DB / cache change. App auth stays **mocked**
+(placeholder session) by product decision — this hardens the two previously silent workflows
+instead of opening an unauthenticated endpoint.
+
+- **Dev identity is explicit + dev-only.** `GatewayClient.authHeader()` sends `X-Dev-User` **only
+  when `__DEV__` and `EXPO_PUBLIC_DEV_USER` is set** (mirrors the portal's `X-Dev-*` guard), so the
+  mocked app exercises an `AUTH_DISABLED=true` gateway deterministically instead of relying on the
+  server's `DEV_USER_ID` fallback. Never attached in a release build; a `AUTH_DISABLED=false`
+  gateway ignores it. New `GatewayClient.authStatus()` (`dev-bypass` / `mock` / `enterprise` /
+  `none`) is diagnostic only.
+- **Paid-ad measurement is observable, never fabricated.** `GatewayClient.recordAdEvent` now
+  returns `boolean` (true only when the ad-server confirmed; no local mock fallback) and logs a
+  dev-only warning with the HTTP status + auth status on failure. `SponsoredRail` / `CampaignHero`
+  mark an impression reported **only on `true`**, so a failed send (offline / no identity) can retry
+  on remount while a success is never re-POSTed.
+- **Vendor rating is durable-or-honest.** `submitVendorRating` is now async and returns
+  `{ ok, status }` (`synced` / `offline` / `signed-out` / `not-verified` / `invalid`); the
+  device-local optimistic write is unchanged (offline still succeeds locally). `RateVendorScreen`
+  awaits it, shows a "Saving…" state, and surfaces an inline error on `signed-out` / `not-verified`
+  instead of silently pretending the server row was written.
+- **No new `VendorRatingOutcome` divergence:** `GatewayClient.rateVendor` returns the outcome union
+  rather than a bare `boolean`; `withFallback` no longer fabricates a `false` rating.
+
+**Residual, by decision (documented):** under a production `AUTH_DISABLED=false` gateway the mocked
+placeholder token cannot satisfy `auth.Require`, so `POST /ads/events` (portal ad KPIs) and
+`PUT /vendors/{id}/rating` (server-durable ratings) remain **auth-gated and inert** there — the
+shopper flow is unaffected (local last-click attribution + device-local rating display). Closing
+them fully needs a real session (Supabase phone-OTP) or an anon rate-limited event path; both are
+intentionally not taken. Local dev closes both via `AUTH_DISABLED=true` + `user-1`.
+
+**Rollback:** revert the `GatewayClient` (`authHeader` / `authStatus` / `recordAdEvent` /
+`rateVendor`), `SponsoredRail`, `CampaignHero`, `vendorRatings`, `RateVendorScreen` hunks and the
+`.env.example` line. No migration.
+
+**Docs:** `docs/architecture/mobile-app.md`, `docs/architecture/mvp-backend.md`,
+`docs/architecture/monolith-breakdown.md` §5, `data/DATA_CONTROL.md`,
+`docs/DEVELOPER_ONBOARDING.md`, `docs/RUNBOOKS/TROUBLESHOOTING.md`.
+`caching-cloudflare-valkey.md` needs no change — every cache key/TTL is reused.
+
+**Date:** 2026-10-17
+
+---
+
 ## W48 — Mart production-readiness pass: one vendor pool, server drill-in, no fabricated PDP
 
 **Status:** 🟢 Shipped (app + docs). No server / DB / cache change.
@@ -29,15 +74,16 @@ Closes the W47-listed Mart P0/P1 correctness gaps without new screens or endpoin
 
 **Still deferred (deliberately safe options):**
 
-- **Paid-ad measurement is auth-gated.** `POST /ads/events` is behind `auth.Require`, but app auth is
-  the **mocked** login (placeholder, non-JWT token), so impression/click events never reach the
-  ad-server and portal KPIs undercount to zero. The shopper flow is unaffected (local last-click
-  attribution still works). Follow-up: a real session, or an anon event path with rate-limiting —
-  intentionally **not** opened unauthenticated. Documented in `mobile-app.md`.
+- **Paid-ad measurement is auth-gated.** `POST /ads/events` is behind `auth.Require`; app auth is the
+  **mocked** login, so impression/click events only reach the ad-server when the gateway runs
+  `AUTH_DISABLED=true` (topic-1 dev identity) — under a production `AUTH_DISABLED=false` gateway
+  they stay inert and portal KPIs undercount to zero. W49 made the client-side path honest +
+  observable (boolean result, dev warning, no fabricated success) without opening an anon endpoint.
 - **`DealsLanding` `campaign` mode stays Home-owned `@data`** (no `GET /ads/campaigns/{id}` read;
   reachable only from Home). Unchanged from W38/W40/W44/W47.
-- **Vendor ratings remain device-local** — the server `PUT /vendors/{id}/rating` + reads exist but the
-  screen migration waits on a real session (auth mocked).
+- **Vendor ratings remain device-local on display** — the server `PUT /vendors/{id}/rating` is
+  mirrored and now reports its outcome (`synced`/`offline`/`signed-out`/`not-verified`) so the screen
+  is honest (W49); a fully server-durable row still waits on a real session (auth mocked).
 - **Pharma SDUI parity** — no `GET /sdui/pharma`; Pharma rails stay feature-mock (stores are
   server-backed).
 

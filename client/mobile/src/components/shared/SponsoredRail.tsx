@@ -73,13 +73,15 @@ function SponsoredRail({
   }, [placement]);
 
   // Closed-loop ads: report one impression per rendered slot, guarded locally so a re-render never
-  // re-POSTs (the server additionally de-dupes per user + slot). Best-effort.
+  // re-POSTs (the server additionally de-dupes per user + slot). A slot is only marked as reported
+  // once the ad-server confirms it, so a failed send (offline / no identity) can retry on remount.
   const reported = useRef<Set<string>>(new Set());
   useEffect(() => {
     for (const p of products) {
       if (!p.slotId || reported.current.has(p.slotId)) continue;
-      reported.current.add(p.slotId);
-      void gateway.recordAdEvent(p.slotId, 'impression');
+      void gateway.recordAdEvent(p.slotId, 'impression').then((sent) => {
+        if (sent) reported.current.add(p.slotId);
+      });
     }
   }, [products]);
 
