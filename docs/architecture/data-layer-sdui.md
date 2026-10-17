@@ -144,16 +144,18 @@ non-interactive) and then to nothing (both empty → no slot), never a fabricate
 `caching-cloudflare-valkey.md` §5a).
 
 **Food merchandising via the same doc.** Food has its own projection of the same doc, served on
-`GET /sdui/food` (allowlist `foodHero`/`diningSpecials`/`mostRatedDining`) with its own compiled
+`GET /sdui/food` (allowlist `foodHero`/`foodSpecials`/`mostRatedDining`) with its own compiled
 cache/ETag. `foodHero` is the Food house-hero fallback (`foodHero.banners`, same non-interactive
 editorial contract as `martHero`): `diningService.fetchDiningFeed` reads it through
 `gateway.getFoodFeed()` and feeds the `CampaignHero` fallback when there is no LIVE paid `FOOD_HERO`
-fill. Food also drops delisted venues from its Top Rated rail (server `directory.dining_venues` is
-the authority) so a `tr-*` row the server no longer lists never opens a stale profile. The visible
-Food offer is the admin-owned coupon (`GET /coupons?app=FOOD`), not the decorative store
-`offer_tag`. The `martHero`/`foodHero` `banners` leaf is the only non-ID leaf in the doc — display
-copy + an image URL, **never money** (prices are joined from `catalog.products` / authored as
-`directory.menus` MRP).
+fill. `foodSpecials.productIds` is the super-admin-editable order of the "Today's Special Near You"
+dish rail (ID-only, money joined from `catalog.products`), and `mostRatedDining.storeIds` orders the
+Top Rated rail — Food drops delisted venues (server `directory.dining_venues` is the authority) so
+a `tr-*` row the server no longer lists never opens a stale profile. The visible Food offer is the
+admin-owned coupon (`GET /coupons?app=FOOD`), not the decorative store `offer_tag`. The
+`martHero`/`foodHero` `banners` leaf is the only non-ID leaf in the doc — display copy + an image
+URL, **never money** (prices are joined from `catalog.products` / authored as `directory.menus`
+MRP).
 
 The **production** counterparts of every normalized table above (per-service DB schema, datatypes,
 sample rows) are specified in `docs/architecture/db-schema.md` — traceability is 1:1 (mock table ↔

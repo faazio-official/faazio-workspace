@@ -78,16 +78,33 @@ function orderByStoreIds(restaurants: DiningRestaurant[], ids: string[]): Dining
   return [...ordered, ...byId.values()];
 }
 
+/** Reorder `specials` so the SDUI dish-id list leads (ids with no matching dish are ignored); the
+ *  remaining dishes keep their curated fixture order. Empty list → untouched, so an uncurated or
+ *  offline doc never blanks the rail. */
+function orderByDishIds(specials: SpecialDish[], ids: string[]): SpecialDish[] {
+  if (ids.length === 0) return specials;
+  const byId = new Map(specials.map((d) => [d.id, d]));
+  const ordered: SpecialDish[] = [];
+  for (const id of ids) {
+    const d = byId.get(id);
+    if (d) {
+      ordered.push(d);
+      byId.delete(id);
+    }
+  }
+  return [...ordered, ...byId.values()];
+}
+
 /**
  * Dining-first home feed. The dining grid is driven by the durable
  * `directory.dining_venues` list (`GET /venues?app=FOOD`) through
  * `GatewayClient.getVenues`; a network/HTTP error falls back to the `@data`
  * identity table and an empty result keeps the feature fixtures so the grid is
  * never blank. The house hero banners come from the Food-only SDUI projection
- * (`GET /sdui/food` → `foodHero`), and the Top Rated carousel drops venues the
- * server no longer lists (so a delisted `tr-*` row never opens a stale profile).
- * The curated specials and mind/snack rails stay fixture-owned (Today's Special
- * order is not yet SDUI-driven).
+ * (`GET /sdui/food` → `foodHero`), the "Today's Special" rail order from `foodSpecials`,
+ * and the Top Rated carousel drops venues the server no longer lists (so a delisted
+ * `tr-*` row never opens a stale profile). The curated mind/snack rails stay
+ * fixture-owned.
  */
 export async function fetchDiningFeed(): Promise<DiningFeed> {
   // Independent legs — one failing route never blanks the whole feed (Mart W43 pattern).
@@ -101,11 +118,12 @@ export async function fetchDiningFeed(): Promise<DiningFeed> {
     venues.length > 0 ? TOP_RATED_RESTAURANTS.filter((r) => venueIds.has(r.id)) : TOP_RATED_RESTAURANTS;
 
   const hero = food.find((s) => (s.id as string) === 'foodHero');
+  const specials = food.find((s) => (s.id as string) === 'foodSpecials');
   const mostRated = food.find((s) => (s.id as string) === 'mostRatedDining');
 
   return {
     topRated: orderByStoreIds(liveTopRated, mostRated?.stores?.map((s) => s.id) ?? []),
-    specials: TODAYS_SPECIALS,
+    specials: orderByDishIds(TODAYS_SPECIALS, specials?.productIds ?? []),
     dining: venues.length > 0 ? mergeDining(DINING_RESTAURANTS, venues) : DINING_RESTAURANTS,
     topFoods: TOP_FOODS_TO_ORDER,
     heroBanners: hero?.banners ?? [],

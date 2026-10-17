@@ -40,6 +40,7 @@ export const SDUI_LAYOUTS: SduiLayout[] = [
       { id: "hotBrandDeals", title: "Deals of the day", accent: "#1162D3", productIds: ["hbd-1", "hbd-2", "hbd-3", "hbd-4", "hbd-5"] },
       { id: "dealsOfDay", title: "Daily Essentials", accent: "#F25C3D", productIds: ["md-1", "md-2", "md-3", "md-4", "md-5", "md-6"] },
       { id: "martEssentials", title: "Daily Essentials", accent: "#0F766E", productIds: ["gr-p3", "gr-p4", "gr-p5", "gr-p6", "gr-p7"] },
+      { id: "foodSpecials", title: "Today's Special", accent: "#1E5D44", productIds: ["sp-1", "sp-2", "sp-3", "sp-4", "sp-5", "sp-6", "sp-7", "sp-8", "sp-9", "sp-10", "sp-11", "sp-12", "sp-13", "sp-14", "sp-15", "sp-16"] },
       { id: "sponsoredRail", title: "Sponsored picks", accent: "#B45309", productIds: [] },
       { id: "mostRatedDining", title: "Most Rated Dining", accent: "#1E5D44", productIds: [], storeIds: FOOD_STORE_IDS },
       { id: "recentlyViewedMart", title: "Recently Viewed — Mart", accent: "#1162D3", productIds: ["rvm-1", "rvm-2", "rvm-3", "rvm-4"] },

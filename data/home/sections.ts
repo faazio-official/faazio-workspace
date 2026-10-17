@@ -15,6 +15,7 @@ export type HomeSectionKind =
   | 'martDeals'
   | 'martEssentials'
   | 'foodHero'
+  | 'foodSpecials'
   | 'sponsoredRail'
   | 'mostRatedDining'
   | 'recentlyViewedMart'

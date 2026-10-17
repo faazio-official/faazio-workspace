@@ -112,6 +112,19 @@ export const homeSdui: SduiSection[] = [
       { id: 'fb-3', title: 'Late Night Cravings', subtitle: 'FREE DELIVERY', accent: '#EDE9FE', imageUrl: 'https://images.unsplash.com/photo-1555396273-367ea4eb4db5?fm=jpg&fit=crop&q=80&w=800&h=450' },
     ],
   },
+  // Food-only dish rail: the super-admin SDUI editor owns "Today's Special Near You" order
+  // (ID-only, money joined). Served on `GET /sdui/food` and read by `diningService.fetchDiningFeed`;
+  // `HomeView` skips the id (`default → null`), so Home's own `diningSpecials` rail is unaffected.
+  // Raw `sp-*` ids so the seed generator fails loudly on a typo (all exist in `catalogIndex`).
+  {
+    id: 'foodSpecials',
+    title: "Today's Special",
+    accent: '#1E5D44',
+    productIds: [
+      'sp-1', 'sp-2', 'sp-3', 'sp-4', 'sp-5', 'sp-6', 'sp-7', 'sp-8',
+      'sp-9', 'sp-10', 'sp-11', 'sp-12', 'sp-13', 'sp-14', 'sp-15', 'sp-16',
+    ],
+  },
   // Paid placement: the doc owns the slot order, the ad-server (`GET /ads/live`) owns the fill.
   // No productIds are baked in — the app resolves LIVE ads at render time (they expire).
   { id: 'sponsoredRail', title: 'Sponsored picks', accent: '#B45309', productIds: [] },

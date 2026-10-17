@@ -655,6 +655,8 @@ The Home feed is stored as **ID-only** documents — every leaf references `cata
     { id: 'foodHero', title: 'Food Highlights', accent: '#1E5D44', productIds: [],
       banners: [{ id: 'fb-1', title: 'Dining Deals Near You', subtitle: 'UP TO 40% OFF',
                   accent: '#E8F5E9', imageUrl: 'https://…/fb1.jpg' }] },   // Food house hero fallback
+    { id: 'foodSpecials', title: "Today's Special", accent: '#1E5D44',
+      productIds: ['sp-1','sp-2','sp-3', …] },                              // Food specials order
     { id: 'adBanner', title: 'Offers', accent: '#111827', productIds: [], storeIds: [] },
     { id: 'hotBrandDeals', title: 'Deals of the day', accent: '#1162D3',
       productIds: ['hbd-1','hbd-2','hbd-3','hbd-4','hbd-5'] },
@@ -672,7 +674,7 @@ The Home feed is stored as **ID-only** documents — every leaf references `cata
 
 (provenance `data/home/sdui.ts` — section ids/titles/accents/productIds exact). The `martHero` /
 `martEssentials` sections are the Mart feed's merchandising surface and `foodHero` /
-`diningSpecials` / `mostRatedDining` are Food's (`GET /sdui/food`): the Home renderer ignores
+`foodSpecials` / `mostRatedDining` are Food's (`GET /sdui/food`): the Home renderer ignores
 unknown section ids, so a single doc drives the Home, Mart and Food feeds.
 
 | Field | BSON type | Why |

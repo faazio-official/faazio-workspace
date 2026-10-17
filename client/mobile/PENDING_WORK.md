@@ -5,6 +5,29 @@ dependencies exist. Do not build the backend/seller flows until told to.
 
 ---
 
+## W46 — Food "Today's Special" on SDUI (Food-only section)
+
+**Status:** 🟢 Shipped (app + server + data + seed + docs). No migration.
+
+Closes the W45 deferral: the "Today's Special Near You" rail is now super-admin-merchandisable.
+
+- New Food-only SDUI section `foodSpecials` (`data/home/sdui.ts`, raw `sp-*` ids) served by
+  `GET /sdui/food` — the allowlist is now `foodHero`/`foodSpecials`/`mostRatedDining` (the shared
+  Home `diningSpecials` store rail is no longer served to Food; `HomeView` skips the new id, so
+  Home's own rail is unchanged and there is no cross-surface impact).
+- `diningService.fetchDiningFeed` orders `TODAYS_SPECIALS` by `foodSpecials.productIds` (unknown ids
+  ignored, remaining dishes keep fixture order; empty/offline → untouched).
+- Seed validator now checks `foodSpecials` ids against `catalogIndex` (`sp-*` are real seeded
+  products); portal mock seed mirrors the section; docs updated.
+
+**Still deferred:** Food menu festival discounts remain MRP-only at display
+(`promo.festival_optins` targets `catalog.products`, not `directory.menus`; settlement already
+ignores menus — no migration).
+
+**Date:** 2026-10-17
+
+---
+
 ## W45 — Food sub-app ads/offers rebuild: truthful offers, coupon surface, hero parity, `/sdui/food`
 
 **Status:** 🟢 Shipped (app + server + data + seed + docs). No migration.

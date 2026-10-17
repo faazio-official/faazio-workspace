@@ -92,7 +92,7 @@ func TestFoodServesOnlyFoodSections(t *testing.T) {
 	layouts := &fakeLayouts{version: 5, sections: []contracts.SduiSection{
 		{ID: "foodHero", Title: "Highlights"},
 		{ID: "adBanner", Title: "Offers"},
-		{ID: "diningSpecials", Title: "Specials", StoreIDs: []string{"store-f1"}},
+		{ID: "foodSpecials", Title: "Specials", ProductIDs: []string{"sp-1"}},
 		{ID: "martDeals", Title: "Deals", ProductIDs: []string{"md-1"}},
 		{ID: "mostRatedDining", Title: "Dining", StoreIDs: []string{"store-f1"}},
 	}}
@@ -109,8 +109,8 @@ func TestFoodServesOnlyFoodSections(t *testing.T) {
 	if err := json.Unmarshal(rec.Body.Bytes(), &out); err != nil {
 		t.Fatal(err)
 	}
-	if len(out) != 3 || out[0].ID != "foodHero" || out[1].ID != "diningSpecials" || out[2].ID != "mostRatedDining" {
-		t.Fatalf("sections = %+v, want [foodHero diningSpecials mostRatedDining]", out)
+	if len(out) != 3 || out[0].ID != "foodHero" || out[1].ID != "foodSpecials" || out[2].ID != "mostRatedDining" {
+		t.Fatalf("sections = %+v, want [foodHero foodSpecials mostRatedDining]", out)
 	}
 }
 

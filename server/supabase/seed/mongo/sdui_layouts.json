@@ -162,6 +162,32 @@
       ]
     },
     {
+      "id": "foodSpecials",
+      "title": "Today's Special",
+      "subtitle": null,
+      "accent": "#1E5D44",
+      "productIds": [
+        "sp-1",
+        "sp-2",
+        "sp-3",
+        "sp-4",
+        "sp-5",
+        "sp-6",
+        "sp-7",
+        "sp-8",
+        "sp-9",
+        "sp-10",
+        "sp-11",
+        "sp-12",
+        "sp-13",
+        "sp-14",
+        "sp-15",
+        "sp-16"
+      ],
+      "storeIds": [],
+      "chips": []
+    },
+    {
       "id": "sponsoredRail",
       "title": "Sponsored picks",
       "subtitle": null,

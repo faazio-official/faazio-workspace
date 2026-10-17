@@ -57,7 +57,7 @@ func (h *Handler) mart(w http.ResponseWriter, r *http.Request) {
 	h.writeFeed(w, r, "mart", sections, version)
 }
 
-// food serves only the Food rails (foodHero/diningSpecials/mostRatedDining), so the Food screen gets
+// food serves only the Food rails (foodHero/foodSpecials/mostRatedDining), so the Food screen gets
 // a small payload and its own ETag instead of downloading the whole Home feed.
 func (h *Handler) food(w http.ResponseWriter, r *http.Request) {
 	locale := r.URL.Query().Get("locale")

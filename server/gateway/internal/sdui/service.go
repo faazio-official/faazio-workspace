@@ -57,12 +57,13 @@ var martSectionIDs = map[string]struct{}{
 	"martEssentials": {},
 }
 
-// foodSectionIDs is the Food feed's allowlist: the house hero banners plus the two dining store
-// rails, served on their own endpoint (`GET /sdui/food`) so Food gets independent curation and an
-// independent payload/ETag from Home and Mart.
+// foodSectionIDs is the Food feed's allowlist: the house hero banners, the curated "Today's
+// Special" dish order, and the best-rated dining store rail, served on their own endpoint
+// (`GET /sdui/food`) so Food gets independent curation and an independent payload/ETag from Home
+// and Mart.
 var foodSectionIDs = map[string]struct{}{
 	"foodHero":        {},
-	"diningSpecials":  {},
+	"foodSpecials":    {},
 	"mostRatedDining": {},
 }
 
@@ -77,7 +78,7 @@ func (s *Service) Mart(ctx context.Context, locale string) ([]contracts.HomeSect
 	return s.compile(ctx, locale, cache.SduiMart(localeOrDefault(locale)), martSectionIDs)
 }
 
-// Food returns only the compiled Food sections (foodHero/diningSpecials/mostRatedDining) joined to
+// Food returns only the compiled Food sections (foodHero/foodSpecials/mostRatedDining) joined to
 // the directory/catalog, and the layout version. Cached separately from the Home feed.
 func (s *Service) Food(ctx context.Context, locale string) ([]contracts.HomeSection, int64, error) {
 	return s.compile(ctx, locale, cache.SduiFood(localeOrDefault(locale)), foodSectionIDs)

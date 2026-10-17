@@ -164,11 +164,15 @@ func TestFoodCompilesOnlyFoodSections(t *testing.T) {
 			{ID: "foodHero", Title: "Highlights", Banners: []contracts.SduiBanner{{ID: "fb-1", Title: "Dining Deals"}}},
 			{ID: "adBanner", Title: "Offers"},
 			{ID: "martDeals", Title: "Deals", ProductIDs: []string{"md-1"}},
-			{ID: "diningSpecials", Title: "Specials", StoreIDs: []string{"store-f1"}},
+			{ID: "foodSpecials", Title: "Specials", ProductIDs: []string{"sp-1", "sp-2"}},
 			{ID: "mostRatedDining", Title: "Dining", StoreIDs: []string{"store-f1", "store-f2"}},
 		}},
 		&fakeLayouts{},
-		fakeProducts{byID: map[string]contracts.Product{"md-1": {ID: "md-1", Name: "Milk", Price: 60}}},
+		fakeProducts{byID: map[string]contracts.Product{
+			"md-1": {ID: "md-1", Name: "Milk", Price: 60},
+			"sp-1": {ID: "sp-1", Name: "Biryani", Price: 499},
+			"sp-2": {ID: "sp-2", Name: "Dum Biryani", Price: 320},
+		}},
 		fakeStores{byID: map[string]contracts.Store{
 			"store-f1": {ID: "store-f1"},
 			"store-f2": {ID: "store-f2"},
@@ -198,6 +202,9 @@ func TestFoodCompilesOnlyFoodSections(t *testing.T) {
 	}
 	if len(byID["mostRatedDining"].Stores) != 2 || byID["mostRatedDining"].Stores[0].ID != "store-f1" {
 		t.Fatalf("mostRatedDining stores = %+v", byID["mostRatedDining"].Stores)
+	}
+	if len(byID["foodSpecials"].Products) != 2 || byID["foodSpecials"].Products[0].ID != "sp-1" {
+		t.Fatalf("foodSpecials products = %+v", byID["foodSpecials"].Products)
 	}
 }
 

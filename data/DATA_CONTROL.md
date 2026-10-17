@@ -167,7 +167,9 @@ the `GROCERY` member was dropped from `AppBrand` / `CartCategory` / `SubAppId` /
 > carry **no** `AdLabelBadge`. The visible Food offer is the **authoritative live coupon**
 > (`GET /coupons?app=FOOD` via `useBestCoupon`, strict) — the store `offerTag` chip/banner is
 > decorative `@static-editorial` copy and only a fallback, with no price promise. The Food house hero
-> is the `foodHero.banners` SDUI leaf (the paid `FOOD_HERO` renders first). `TODAYS_SPECIALS` no
+> is the `foodHero.banners` SDUI leaf (the paid `FOOD_HERO` renders first) and the "Today's Special
+> Near You" order is the `foodSpecials.productIds` SDUI leaf (ID-only, money joined from
+> `catalog.products`; unknown ids fall back to fixture order). `TODAYS_SPECIALS` no
 > longer pads an unseeded venue (the old cuisine-match could leak other restaurants' dishes into a
 > profile) — an unseeded venue shows an honest empty menu.
 

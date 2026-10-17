@@ -548,11 +548,11 @@ function assertLeanContract() {
     if (h.placement === 'CATEGORY_TOP' && !h.category) violations.push(`hero ${h.placementId}: CATEGORY_TOP needs a category`);
     if (h.placement === 'STORE_TOP' && !h.storeId) violations.push(`hero ${h.placementId}: STORE_TOP needs a storeId`);
   }
-  // Mart SDUI rails (`martDeals`/`martEssentials`) must reference real catalog rows — the app
-  // resolves them via getProductsByIds; a typo'd portal publish would silently fall back to the
-  // fixture instead of surfacing the error.
+  // SDUI product rails (`martDeals`/`martEssentials`/`foodSpecials`) must reference real catalog
+  // rows — the app resolves them via getProductsByIds; a typo'd portal publish would silently fall
+  // back to the fixture instead of surfacing the error.
   for (const section of d.homeSdui) {
-    if (section.id !== 'martDeals' && section.id !== 'martEssentials') continue;
+    if (section.id !== 'martDeals' && section.id !== 'martEssentials' && section.id !== 'foodSpecials') continue;
     for (const id of section.productIds) {
       if (!catalogIds.has(id)) violations.push(`${section.id} product ${id} not in catalogIndex`);
     }
