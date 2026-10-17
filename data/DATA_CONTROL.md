@@ -121,7 +121,14 @@ wiring order in `docs/architecture/data-layer-sdui.md`.
 | `MartProduct.storeId` | `string` (**required**) | Vendor link for campaigns, vendor drill-in, product-detail store section, self-pickup. Every `martProducts` row must set **top-level** `storeId` — enforced by the type; `ts:check` fails otherwise | contract |
 | `martStores` | `StoreProfile[]` | `FaMartScreen` "Local Vendors Near You" rail + vendor drill-in (replaces the retired `MART_LOCAL_VENDORS` mock) | `@mock` |
 | `MART_DEALS` / `dealToProduct` | `MartDeal[]` / `(MartDeal) => Product` | `FaMartScreen` `DealsOfDayRail` + home `DealsOfDaySection` — both now resolve `md-*` through the catalog (`martService.fetchMartFeed` / `getProductsByIds`, overlaying server name/price/MRP/rating/image onto the editorial row); `dealToProduct` is the offline first-paint fallback. Rows seeded into `catalog.products`. `MartDeal` gained optional `rating?`/`priceNote?` for the minimal deal card | `@static-editorial` (ids + copy) → server-priced |
-| `MART_DAILY_ESSENTIALS` (`features/ecommerce/mocks/martHomeFeed.ts`) | `MartEssential[]` | `DailyEssentialsRail` — now **server-controlled** via the SDUI home doc (`martEssentials.productIds`, read by `martService.fetchMartFeed` → `getHomeFeed`); this fixture is the offline first-paint fallback only. The retired `mf-*` ghost ids were replaced with real `gr-*` catalog ids. The old `MART_HERO_BANNERS` fixture + `MartHeroCarousel` are **retired** (`W42`) — the Mart hero is a paid `MART_HERO` placement | `@fallback` → SDUI |
+| `MART_DAILY_ESSENTIALS` (`features/ecommerce/mocks/martHomeFeed.ts`) | `MartEssential[]` | `DailyEssentialsRail` — now **server-controlled** via the SDUI home doc (`martEssentials.productIds`, read by `martService.fetchMartFeed` → `getHomeFeed`); this fixture is the offline first-paint fallback only. The retired `mf-*` ghost ids were replaced with real `gr-*` catalog ids. The old `MART_HERO_BANNERS` fixture + `MartHeroCarousel` are **retired** (`W42`) — the Mart hero is a paid `MART_HERO` placement; when there is no LIVE fill it falls back to the SDUI `martHero.banners` house hero (`MartHouseHero`), and to nothing when empty | `@fallback` → SDUI |
+
+> **Mart feed resilience + price parity (W43).** `martService.fetchMartFeed` now degrades each leg
+> independently (per-leg `catch` + a body guard) so a failing `GET /stores`/`GET /sdui/home` renders
+> the remaining rails rather than a stuck skeleton. The Deals + Daily-Essentials rails overlay the
+> server-owned festival discount (`services/pricing` `useActiveDiscounts` → `priceDeals`/
+> `priceEssentials`) so the shopper pays the same price as the paid shelf / vendor drill-in; mock or
+> offline → `{}` → base price, never a synthesized discount.
 
 ### `@data/grocery` — **removed (merged into `mart`)**
 

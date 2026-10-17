@@ -6,9 +6,11 @@ export function useMartFeed() {
 
   useEffect(() => {
     let active = true;
-    fetchMartFeed().then((data) => {
-      if (active) setFeed(data);
-    });
+    fetchMartFeed()
+      .then((data) => {
+        if (active) setFeed(data);
+      })
+      .catch(() => undefined);
     return () => {
       active = false;
     };

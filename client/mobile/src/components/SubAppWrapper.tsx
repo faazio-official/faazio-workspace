@@ -35,6 +35,7 @@ import type { CategoryRailItem } from '@data/categories/railFeed';
 import { brandTokens } from '@/theme/brandTokens';
 import type { AppBrand, StoreProfile } from '@data/types';
 import { martStores } from '@data/mart/stores';
+import { gateway } from '@/services/api/GatewayClient';
 import { useBloodDonorStore } from '@/state/bloodDonorStore';
 
 type SubAppKey = 'FA_MART' | 'FOOD' | 'PHARMA';
@@ -124,14 +125,31 @@ export default function SubAppWrapper({
 }: SubAppWrapperProps) {
   const [activeTab, setActiveTab] = useState<string>('Home');
   const [searchQuery, setSearchQuery] = useState('');
-  const [martVendor, setMartVendor] = useState<StoreProfile | null>(() =>
-    subAppId === 'FA_MART' && initialVendorStoreId && Array.isArray(martStores)
-      ? martStores.find((s) => s.id === initialVendorStoreId) ?? null
-      : null,
-  );
+  const [martVendor, setMartVendor] = useState<StoreProfile | null>(null);
   const searchInputRef = useRef<TextInput | null>(null);
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const insets = useSafeAreaInsets();
+
+  // Deep-link vendor resolution: the drill-in is seeded from the server directory (`GET /store/:id`,
+  // the same id-space the rail + ad targets speak), falling back to the local `@data` fixture when
+  // the route fails or the row is absent. A renamed/redacted server row still opens.
+  useEffect(() => {
+    if (subAppId !== 'FA_MART' || !initialVendorStoreId) return;
+    let active = true;
+    gateway
+      .getStore(initialVendorStoreId)
+      .then((store) => {
+        if (!active) return;
+        setMartVendor(store ?? martStores.find((s) => s.id === initialVendorStoreId) ?? null);
+      })
+      .catch(() => {
+        const fallback = martStores.find((s) => s.id === initialVendorStoreId) ?? null;
+        if (active) setMartVendor(fallback);
+      });
+    return () => {
+      active = false;
+    };
+  }, [subAppId, initialVendorStoreId]);
 
   useEffect(() => {
     setSearchQuery('');

@@ -135,10 +135,11 @@ the Home renderer ignores unknown section ids, one doc drives both feeds.
 `martService.fetchMartFeed` reads them through `gateway.getHomeFeed()` and falls back to the
 `mocks/martHomeFeed.ts` fixture offline. `banners` is the only non-ID leaf in the doc — it carries
 display copy + an image URL, **never money** (prices are always joined from `catalog.products`), so
-the ID-only rule holds and no per-rail SQL table is needed. Note (W41): the Mart hero carousel is now
-**paid inventory first** — the app renders the ad-server `MART_HERO` campaigns and shows these SDUI
-`martHero.banners` only as the house fallback when no LIVE paid fill exists (see
-`caching-cloudflare-valkey.md` §5a).
+the ID-only rule holds and no per-rail SQL table is needed. Note (W41/W43): the Mart hero carousel is
+**paid inventory first** — `CampaignHero` renders the ad-server `MART_HERO` campaigns and only when
+there is no LIVE fill falls back to the SDUI `martHero.banners` house hero (`MartHouseHero`, no AD
+pill, no ad events, non-interactive) and then to nothing (both empty → no slot), never a fabricated
+ad (see `caching-cloudflare-valkey.md` §5a).
 
 The **production** counterparts of every normalized table above (per-service DB schema, datatypes,
 sample rows) are specified in `docs/architecture/db-schema.md` — traceability is 1:1 (mock table ↔

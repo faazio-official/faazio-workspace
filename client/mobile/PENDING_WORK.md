@@ -5,6 +5,32 @@ dependencies exist. Do not build the backend/seller flows until told to.
 
 ---
 
+## W43 — Mart ads/offers: house hero fallback, resilient feed, price parity, deep-link resolve
+
+**Status:** 🟢 Shipped (app + docs). No migration / endpoint / cache-key change.
+
+Four Mart feed correctness fixes:
+
+- **I-1 hero.** `CampaignHero` (`MART_HERO`) now takes the SDUI `martHero.banners` as its house
+  fallback via the new presentational `MartHouseHero` (shared `AdBannerCarousel`, **no AD pill, no
+  impression/click POST, non-interactive**); `martService.fetchMartFeed` reads `martHero` through
+  `getHomeFeed()`. Paid → house → nothing; never fabricated.
+- **I-2 resilience.** `fetchMartFeed` degrades each leg independently (per-leg `catch` + a body guard
+  returning fixtures) and `useMartFeed` catches; a failing `GET /stores`/`GET /sdui/home` no longer
+  blanks the whole feed into a stuck skeleton.
+- **I-3 price parity.** Deals + Daily-Essentials rails overlay the approved festival discount
+  (`priceDeals`/`priceEssentials` + `useActiveDiscounts`), matching the paid shelf + vendor drill-in.
+- **I-4 deep-link.** `SubAppWrapper` resolves the initial vendor via `getStore(id)` (same id-space as
+  the rail + ad targets) with the local `@data` fixture fallback, so a renamed/redacted server row
+  still opens.
+
+**Rollback:** revert `MartHouseHero` + the `martService`/`FaMartScreen`/`SubAppWrapper` hunks
+(drop the `fallback` prop; restore the sync `martStores.find` seed).
+
+**Docs:** `mobile-app.md`, `data/DATA_CONTROL.md`, `data-layer-sdui.md`.
+
+**Date:** 2026-10-17
+
 ## W42 — Self-serve hero ads: no admin approval, all six hero hosts
 
 **Status:** 🟢 Shipped (server + web portal + app + docs). Migration `0028_ads_selfserve.sql`.

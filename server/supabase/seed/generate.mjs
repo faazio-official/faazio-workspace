@@ -555,6 +555,12 @@ function assertLeanContract() {
   for (const id of MART_SDUI.essentials.productIds) {
     if (!catalogIds.has(id)) violations.push(`martEssentials product ${id} not in catalogIndex`);
   }
+  // Mart SDUI house banners must satisfy the `internal/sdui` publish bounds (≤8 banners, image URL
+  // ≤512) or a seeded/published doc would be rejected at PUT time and the house hero silently vanish.
+  if (MART_SDUI.hero.banners.length > 8) violations.push('martHero banners exceed the 8-banner bound');
+  for (const b of MART_SDUI.hero.banners) {
+    if (b.imageUrl && b.imageUrl.length > 512) violations.push(`martHero banner ${b.id}: imageUrl >512 chars`);
+  }
 
   if (violations.length) {
     console.error(`seed lean-contract violations (${violations.length}):\n - ${violations.join('\n - ')}`);

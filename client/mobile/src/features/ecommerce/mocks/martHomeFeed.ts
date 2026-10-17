@@ -5,7 +5,8 @@
  * data/DATA_CONTROL.md, docs/architecture/data-layer-sdui.md). `MART_DEALS` / `dealToProduct` are
  * re-exported from `@data/mart/deals`; the `md-*` deals are seeded catalog rows resolved through the
  * server (`getProductsByIds`), again falling back here offline. The Mart hero is a paid placement
- * (`MART_HERO`), so no organic hero-banner fixture lives here.
+ * (`MART_HERO`); its house fallback comes from the remote SDUI `martHero.banners` (rendered only when
+ * there is no LIVE fill). Offline → no hero, no local hero fixture.
  */
 const squareImg = (id: string, w = 560) =>
   `https://images.unsplash.com/${id}?fm=jpg&fit=crop&q=80&w=${w}&h=${w}`;

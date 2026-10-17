@@ -1,15 +1,21 @@
 import {
   MART_DEALS,
   MART_DAILY_ESSENTIALS,
+  dealToProduct,
+  essentialToProduct,
   type MartDeal,
   type MartEssential,
 } from '../mocks/martHomeFeed';
-import { gateway, type ProductView } from '@/services/api/GatewayClient';
+import { gateway, type ActiveDiscount, type ProductView } from '@/services/api/GatewayClient';
+import { applyActiveDiscount } from '@/services/pricing';
+import type { SduiBanner } from '@data/home/sdui';
 import type { StoreProfile } from '@data/types';
 
 export interface MartFeed {
   deals: MartDeal[];
   dailyEssentials: MartEssential[];
+  /** Editorial house hero (`martHero.banners` from `GET /sdui/home`); paid MART_HERO renders first. */
+  heroBanners: SduiBanner[];
   localVendors: StoreProfile[];
 }
 
@@ -61,31 +67,76 @@ function martSection<T extends { id: unknown }>(feed: T[], id: string): T | unde
 }
 
 /**
+ * Overlay the server-owned festival discount onto the Deals rail so the shopper pays the same price
+ * here as on the paid shelf / vendor drill-in. Presentation copy is kept; only money moves, and only
+ * when the server discount actually lowers it (`{}` → untouched — no synthesized discount).
+ */
+export function priceDeals(deals: MartDeal[], map: Record<string, ActiveDiscount>): MartDeal[] {
+  return deals.map((deal) => {
+    const priced = applyActiveDiscount(dealToProduct(deal), map[deal.id]);
+    return {
+      ...deal,
+      price: priced.price,
+      originalPrice: priced.originalPrice ?? deal.originalPrice,
+    };
+  });
+}
+
+/** Same price authority for the Daily-Essentials rail (see `priceDeals`). */
+export function priceEssentials(
+  items: MartEssential[],
+  map: Record<string, ActiveDiscount>,
+): MartEssential[] {
+  return items.map((item) => {
+    const priced = applyActiveDiscount(essentialToProduct(item), map[item.id]);
+    return {
+      ...item,
+      price: priced.price,
+      originalPrice: priced.originalPrice ?? item.originalPrice,
+    };
+  });
+}
+
+/**
  * Mart home feed. Vendors are **server-backed** (`directory.stores`, app=MART) and the `md-*`
  * deals resolve through the catalog (`catalog.products` via `getProductsByIds`). The daily-essentials
  * rail is **server-controlled** through the Mongo SDUI home doc (`martEssentials.productIds`) via
- * `GET /sdui/home`, so merchandising is portal-editable without a release. The Mart hero is now a
- * paid placement (`MART_HERO` from `GET /ads/hero`), so no organic hero banners are read here. Every
- * leg falls back to the local fixture offline, so the feed never regresses.
+ * `GET /sdui/home`, so merchandising is portal-editable without a release. The Mart hero is paid
+ * first (`MART_HERO` from `GET /ads/hero`); `martHero.banners` is the editorial **house fallback**
+ * rendered only when there is no LIVE fill (`CampaignHero fallback`). Never fabricated — empty when
+ * the SDUI doc has no banners. Every leg degrades to the local fixture independently (partial render)
+ * so one failing route never blanks the feed; the whole body is guarded so the caller never sees a
+ * rejected promise (fixes skeleton-forever).
  */
 export async function fetchMartFeed(): Promise<MartFeed> {
-  const [feed, localVendors, dealProducts] = await Promise.all([
-    gateway.getHomeFeed().catch(() => []),
-    gateway.getStores('MART'),
-    gateway.getProductsByIds(MART_DEALS.map((d) => d.id)).catch(() => [] as ProductView[]),
-  ]);
+  try {
+    const [feed, localVendors, dealProducts] = await Promise.all([
+      gateway.getHomeFeed().catch(() => []),
+      gateway.getStores('MART').catch(() => [] as StoreProfile[]),
+      gateway.getProductsByIds(MART_DEALS.map((d) => d.id)).catch(() => [] as ProductView[]),
+    ]);
 
-  const essentials = martSection(feed, 'martEssentials');
+    const essentials = martSection(feed, 'martEssentials');
+    const hero = martSection(feed, 'martHero');
 
-  const dailyEssentials =
-    essentials?.products?.length
-      ? essentials.products.map(essentialFromProduct)
-      : MART_DAILY_ESSENTIALS;
+    const dailyEssentials =
+      essentials?.products?.length
+        ? essentials.products.map(essentialFromProduct)
+        : MART_DAILY_ESSENTIALS;
 
-  const byId = new Map(dealProducts.map((p) => [p.id, p]));
-  return {
-    deals: MART_DEALS.map((d) => overlayDeal(d, byId.get(d.id))),
-    dailyEssentials,
-    localVendors,
-  };
+    const byId = new Map(dealProducts.map((p) => [p.id, p]));
+    return {
+      deals: MART_DEALS.map((d) => overlayDeal(d, byId.get(d.id))),
+      dailyEssentials,
+      heroBanners: hero?.banners ?? [],
+      localVendors,
+    };
+  } catch {
+    return {
+      deals: MART_DEALS,
+      dailyEssentials: MART_DAILY_ESSENTIALS,
+      heroBanners: [],
+      localVendors: [],
+    };
+  }
 }

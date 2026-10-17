@@ -22,11 +22,13 @@ import {
 } from './mocks/martHomeFeed';
 import type { MartDeal, MartEssential } from './mocks/martHomeFeed';
 import { useMartFeed } from './hooks/useMartFeed';
+import { priceDeals, priceEssentials } from './services/martService';
 import MartHomeSkeleton from './components/skeletons/MartHomeSkeleton';
 
 import DealsOfDayRail from './components/mart-home/DealsOfDayRail';
 import DailyEssentialsRail from './components/mart-home/DailyEssentialsRail';
 import LocalVendorRail from './components/mart-home/LocalVendorRail';
+import MartHouseHero from './components/mart-home/MartHouseHero';
 import SponsoredRail from '@/components/shared/SponsoredRail';
 import CampaignHero from '@/components/shared/CampaignHero';
 import { VendorProfileView } from './components/vendor';
@@ -150,6 +152,20 @@ export function FaMartScreen({
     [vendorProducts, vendorDiscounts],
   );
 
+  // Same price authority across the feed: overlay any approved festival discount on the Deals and
+  // Daily-Essentials rails (the paid shelf + vendor drill-in already do this). Mock/offline → `{}`
+  // so base prices stand and no discount is invented.
+  const dealDiscounts = useActiveDiscounts((feed?.deals ?? []).map((d) => d.id));
+  const essentialDiscounts = useActiveDiscounts((feed?.dailyEssentials ?? []).map((i) => i.id));
+  const pricedDeals = useMemo(
+    () => priceDeals(feed?.deals ?? [], dealDiscounts),
+    [feed?.deals, dealDiscounts],
+  );
+  const pricedEssentials = useMemo(
+    () => priceEssentials(feed?.dailyEssentials ?? [], essentialDiscounts),
+    [feed?.dailyEssentials, essentialDiscounts],
+  );
+
   const filteredVendorProducts = useMemo(
     () =>
       normalizedSearch
@@ -202,6 +218,9 @@ export function FaMartScreen({
           placement="MART_HERO"
           app="MART"
           onPress={handleHeroPress}
+          fallback={
+            feed?.heroBanners?.length ? <MartHouseHero banners={feed.heroBanners} /> : null
+          }
         />
       ),
     },
@@ -229,8 +248,8 @@ export function FaMartScreen({
         />
       ),
     },
-    { id: 'deals', component: <DealsOfDayRail deals={feed?.deals ?? []} onDealPress={handleDealPress} onItemView={handleDealView} /> },
-    { id: 'essentials', component: <DailyEssentialsRail items={feed?.dailyEssentials ?? []} onItemPress={handleEssentialPress} onItemView={handleEssentialView} /> },
+    { id: 'deals', component: <DealsOfDayRail deals={pricedDeals} onDealPress={handleDealPress} onItemView={handleDealView} /> },
+    { id: 'essentials', component: <DailyEssentialsRail items={pricedEssentials} onItemPress={handleEssentialPress} onItemView={handleEssentialView} /> },
   ];
 
   const handleBackToFeed = useCallback(() => {
