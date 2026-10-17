@@ -26,8 +26,10 @@ function toSpecialDish(dish: MenuDish, restaurantName: string): SpecialDish {
  * (`GET /venues/{id}/menu`) through `GatewayClient.getMenu`, which already falls
  * back to the `@data/food/menus.ts` fixture on a network/HTTP error. The screen
  * still seeds from the fixture first so the list never flashes empty, then swaps
- * in the durable dishes once they arrive. An empty remote menu (a venue the
- * seller has not populated) keeps the seed so the profile is never blank.
+ * in the durable dishes once they arrive — the server list is trusted as the
+ * venue's own (no name re-filter, so a rename can't drop rows). An empty remote
+ * menu (a venue the seller has not populated) keeps the seed so the profile is
+ * never blank.
  */
 export function useRestaurantMenu(restaurant: DiningRestaurant): SpecialDish[] {
   const [menu, setMenu] = useState<SpecialDish[]>(() => getMenuForRestaurant(restaurant));

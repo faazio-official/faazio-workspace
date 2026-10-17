@@ -1,4 +1,5 @@
 import { gateway, type Venue } from '@/services/api/GatewayClient';
+import type { SduiBanner, SduiSection } from '@data/home/sdui';
 import { TOP_RATED_RESTAURANTS, DINING_RESTAURANTS } from '../mocks/restaurants';
 import { TODAYS_SPECIALS } from '../mocks/specials';
 import { TOP_FOODS_TO_ORDER } from '../mocks/homeFeed';
@@ -10,7 +11,15 @@ export interface DiningFeed {
   specials: SpecialDish[];
   dining: DiningRestaurant[];
   topFoods: FoodType[];
+  /** Editorial house hero (`foodHero.banners` from `GET /sdui/food`); paid FOOD_HERO renders first. */
+  heroBanners: SduiBanner[];
 }
+
+/** One compiled Food SDUI section (ID-only leaf + joined rows). */
+type FoodFeedSection = SduiSection & {
+  products: unknown[];
+  stores?: { id: string }[];
+};
 
 /**
  * Build a `DiningRestaurant` for a venue the fixture does not cover. The durable
@@ -53,21 +62,52 @@ function mergeDining(fixture: DiningRestaurant[], venues: Venue[]): DiningRestau
   return [...kept, ...extras];
 }
 
+/** Reorder `restaurants` so the SDUI store-id list leads (ids with no matching row are ignored);
+ *  the remaining rows keep their curated fixture order. Empty list → untouched. */
+function orderByStoreIds(restaurants: DiningRestaurant[], ids: string[]): DiningRestaurant[] {
+  if (ids.length === 0) return restaurants;
+  const byId = new Map(restaurants.map((r) => [r.id, r]));
+  const ordered: DiningRestaurant[] = [];
+  for (const id of ids) {
+    const r = byId.get(id);
+    if (r) {
+      ordered.push(r);
+      byId.delete(id);
+    }
+  }
+  return [...ordered, ...byId.values()];
+}
+
 /**
  * Dining-first home feed. The dining grid is driven by the durable
  * `directory.dining_venues` list (`GET /venues?app=FOOD`) through
  * `GatewayClient.getVenues`; a network/HTTP error falls back to the `@data`
  * identity table and an empty result keeps the feature fixtures so the grid is
- * never blank. The curated hero carousel, specials and mind/snack rails stay
- * fixture-owned until their own contract deltas land.
+ * never blank. The house hero banners come from the Food-only SDUI projection
+ * (`GET /sdui/food` → `foodHero`), and the Top Rated carousel drops venues the
+ * server no longer lists (so a delisted `tr-*` row never opens a stale profile).
+ * The curated specials and mind/snack rails stay fixture-owned (Today's Special
+ * order is not yet SDUI-driven).
  */
 export async function fetchDiningFeed(): Promise<DiningFeed> {
-  const venues = await gateway.getVenues('FOOD').catch(() => [] as Venue[]);
-  const dining = venues.length > 0 ? mergeDining(DINING_RESTAURANTS, venues) : DINING_RESTAURANTS;
+  // Independent legs — one failing route never blanks the whole feed (Mart W43 pattern).
+  const [venues, food] = await Promise.all([
+    gateway.getVenues('FOOD').catch(() => [] as Venue[]),
+    gateway.getFoodFeed().catch(() => [] as FoodFeedSection[]),
+  ]);
+
+  const venueIds = new Set(venues.map((v) => v.id));
+  const liveTopRated =
+    venues.length > 0 ? TOP_RATED_RESTAURANTS.filter((r) => venueIds.has(r.id)) : TOP_RATED_RESTAURANTS;
+
+  const hero = food.find((s) => (s.id as string) === 'foodHero');
+  const mostRated = food.find((s) => (s.id as string) === 'mostRatedDining');
+
   return {
-    topRated: TOP_RATED_RESTAURANTS,
+    topRated: orderByStoreIds(liveTopRated, mostRated?.stores?.map((s) => s.id) ?? []),
     specials: TODAYS_SPECIALS,
-    dining,
+    dining: venues.length > 0 ? mergeDining(DINING_RESTAURANTS, venues) : DINING_RESTAURANTS,
     topFoods: TOP_FOODS_TO_ORDER,
+    heroBanners: hero?.banners ?? [],
   };
 }

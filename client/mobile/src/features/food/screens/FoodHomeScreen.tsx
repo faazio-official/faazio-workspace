@@ -29,6 +29,8 @@ import LoadingSkeleton from '../components/LoadingSkeleton';
 import FoodStatusBarStrip from '../components/FoodStatusBarStrip';
 import CampaignHero from '@/components/shared/CampaignHero';
 import { openHeroTarget } from '@/services/adsTarget';
+import { gateway } from '@/services/api/GatewayClient';
+import FoodHouseHero from '../components/FoodHouseHero';
 import type { StoreProfile } from '@data/types';
 
 type Props = NativeStackScreenProps<FoodStackParamList, 'FoodHome'>;
@@ -66,12 +68,37 @@ export function FoodHomeScreen({ navigation }: Props) {
     [navigation],
   );
 
-  /** Resolve a paid FOOD_HERO venue target to a known restaurant; unknown ids are a safe no-op. */
+  /** Resolve a paid FOOD_HERO venue target to a known restaurant; otherwise resolve the store/venue
+   *  directly (delivery kitchens store-f* never appear in the dining feed) so a paid tap is never a
+   *  silent no-op. Unknown ids stay a safe no-op. */
   const openVenue = useCallback(
-    (venueId: string) => {
-      if (!feed) return;
-      const restaurant = feed.topRated.find((r) => r.id === venueId) ?? feed.dining.find((r) => r.id === venueId);
-      if (restaurant) openRestaurant(restaurant);
+    async (venueId: string) => {
+      const known =
+        feed?.topRated.find((r) => r.id === venueId) ?? feed?.dining.find((r) => r.id === venueId);
+      if (known) {
+        openRestaurant(known);
+        return;
+      }
+      const store = await gateway.getStore(venueId).catch(() => undefined);
+      if (!store) return;
+      openRestaurant({
+        id: store.id,
+        name: store.name,
+        image: store.coverImage,
+        rating: store.rating ?? 0,
+        ratingCount: store.reviewsCount ?? 0,
+        distance: parseFloat(store.distance) || 0,
+        deliveryTime: store.deliveryTime ?? '',
+        priceForTwo: 0,
+        cuisine: store.categories.join(' • '),
+        cuisines: store.categories,
+        neighborhood: store.address ?? '',
+        address: store.address ?? '',
+        latitude: 0,
+        longitude: 0,
+        isFavourite: false,
+        dietType: 'both',
+      });
     },
     [feed, openRestaurant],
   );
@@ -121,14 +148,15 @@ export function FoodHomeScreen({ navigation }: Props) {
             placement="FOOD_HERO"
             app="FOOD"
             style={styles.heroWrap}
+            fallback={feed.heroBanners.length ? <FoodHouseHero banners={feed.heroBanners} /> : null}
             onPress={(ad) =>
               void openHeroTarget(ad, {
                 onProduct: (product) =>
                   navigation
                     .getParent<NativeStackNavigationProp<RootStackParamList>>()
                     ?.navigate('ProductDetail', { product }),
-                onStore: (store: StoreProfile) => openVenue(store.id),
-                onVenue: (store: StoreProfile) => openVenue(store.id),
+                onStore: (store: StoreProfile) => void openVenue(store.id),
+                onVenue: (store: StoreProfile) => void openVenue(store.id),
               })
             }
           />

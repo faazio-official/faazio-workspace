@@ -80,6 +80,7 @@ Examples: `faazio:v1:stock:fm-f1`, `faazio:v1:search:q:hoodie`, `faazio:v1:sdui:
 |---|---|---|---|
 | SDUI home tree | 300 s | `public, max-age=300, swr=60` | `layout.updated` / version bump |
 | SDUI Mart projection (`/sdui/mart`) | 300 s | `public, max-age=300, swr=60` | `layout.updated` / version bump (purged with home) |
+| SDUI Food projection (`/sdui/food`) | 300 s | `public, max-age=300, swr=60` | `layout.updated` / version bump (purged with home) |
 | Search top-query results | 600 s | `public, max-age=600` | `catalog.updated` |
 | Product detail | 86400 s (24 h) | `public, max-age=86400, immutable` | `catalog.updated` |
 | Stock (per product) | 30–60 s | — | stock decrement / reservation commit |

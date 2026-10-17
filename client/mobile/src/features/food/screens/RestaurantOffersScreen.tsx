@@ -9,6 +9,7 @@ import { foodTheme } from '../constants/theme';
 import type { FoodStackParamList, RootStackParamList } from '@/navigation/types';
 import type { SpecialDish } from '../mocks/types';
 import { dishToProduct } from '../mocks/specials';
+import { getOfferDishes } from '../utils/menu';
 import AppText from '@/components/AppText';
 import FoodDetailTopBar from '../components/FoodDetailTopBar';
 import SearchDishCard from '../components/SearchDishCard';
@@ -24,15 +25,22 @@ export function RestaurantOffersScreen({ navigation, route }: Props) {
   const { restaurant, offers } = route.params;
   const [searchQuery, setSearchQuery] = useState('');
 
+  // Organic dishes are never offers — the page is MRP-struck only (the profile rail already
+  // filters, this keeps the page honest if opened with a stale param payload).
+  const offerDishes = useMemo(
+    () => getOfferDishes(offers as SpecialDish[]),
+    [offers],
+  );
+
   const filteredOffers = useMemo(() => {
     const q = searchQuery.trim().toLowerCase();
-    if (!q) return offers;
-    return offers.filter(
+    if (!q) return offerDishes;
+    return offerDishes.filter(
       (d) =>
         d.dishName.toLowerCase().includes(q) ||
         (d.description ?? '').toLowerCase().includes(q),
     );
-  }, [offers, searchQuery]);
+  }, [offerDishes, searchQuery]);
 
   const openDish = useCallback(
     (dish: SpecialDish) => {
@@ -58,9 +66,9 @@ export function RestaurantOffersScreen({ navigation, route }: Props) {
         />
       </View>
 
-      {offers.length === 0 ? (
+      {offerDishes.length === 0 ? (
         <View style={styles.emptyWrap}>
-          <AppText style={styles.emptyText}>No current offers from {restaurant.name}</AppText>
+          <AppText style={styles.emptyText}>No discounted dishes right now</AppText>
         </View>
       ) : (
         <FlatList

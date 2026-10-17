@@ -25,6 +25,7 @@ func TestKeyBuildersFreeze(t *testing.T) {
 		{Notifications("user-1"), "faazio:v1:notifications:inbox:user-1"},
 		{SduiHome("en"), "faazio:v1:gateway:sdui:en:/home"},
 		{SduiMart("en"), "faazio:v1:gateway:sdui:en:/mart"},
+		{SduiFood("en"), "faazio:v1:gateway:sdui:en:/food"},
 		{Idempotency("ORD-1"), "faazio:v1:checkout:idem:ORD-1"},
 		{PromoCampaign("cmp-1"), "faazio:v1:promo:campaign:cmp-1"},
 		{PromoActiveDiscount("md-1"), "faazio:v1:promo:active:md-1"},

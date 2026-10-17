@@ -96,6 +96,22 @@ export const homeSdui: SduiSection[] = [
   // Deals lived in code, Essentials in SDUI). Money is joined at compile time by the gateway.
   { id: 'martDeals', title: 'Deals of the Day', accent: '#F25C3D', productIds: ['md-1', 'md-2', 'md-3', 'md-4', 'md-5', 'md-6'] },
   { id: 'martEssentials', title: 'Daily Essentials', accent: '#0F766E', productIds: ['gr-p3', 'gr-p4', 'gr-p5', 'gr-p6', 'gr-p7'] },
+  // Food-only section, same pattern as the Mart rails: lives in the Home doc so Food has one
+  // merchandising owner (super-admin SDUI editor) and the mock/remote shapes match. Only
+  // `diningService.fetchDiningFeed` reads it (via `GET /sdui/food`); `HomeView` skips the
+  // unknown id. Banners are editorial (never money) and render as the organic fallback when the
+  // paid `FOOD_HERO` placement has no LIVE fill. Raw ids so the seed generator can fail loudly.
+  {
+    id: 'foodHero',
+    title: 'Food Highlights',
+    accent: '#1E5D44',
+    productIds: [],
+    banners: [
+      { id: 'fb-1', title: 'Dining Deals Near You', subtitle: 'UP TO 40% OFF', accent: '#E8F5E9', imageUrl: 'https://images.unsplash.com/photo-1504674900247-0877df9cc836?fm=jpg&fit=crop&q=80&w=800&h=450' },
+      { id: 'fb-2', title: 'Biryani Festival', subtitle: 'FLAT ₹150 OFF', accent: '#FFF3E0', imageUrl: 'https://images.unsplash.com/photo-1563379091339-03b21ab4a4f8?fm=jpg&fit=crop&q=80&w=800&h=450' },
+      { id: 'fb-3', title: 'Late Night Cravings', subtitle: 'FREE DELIVERY', accent: '#EDE9FE', imageUrl: 'https://images.unsplash.com/photo-1555396273-367ea4eb4db5?fm=jpg&fit=crop&q=80&w=800&h=450' },
+    ],
+  },
   // Paid placement: the doc owns the slot order, the ad-server (`GET /ads/live`) owns the fill.
   // No productIds are baked in — the app resolves LIVE ads at render time (they expire).
   { id: 'sponsoredRail', title: 'Sponsored picks', accent: '#B45309', productIds: [] },

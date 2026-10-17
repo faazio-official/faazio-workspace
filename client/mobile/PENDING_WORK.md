@@ -5,6 +5,54 @@ dependencies exist. Do not build the backend/seller flows until told to.
 
 ---
 
+## W45 — Food sub-app ads/offers rebuild: truthful offers, coupon surface, hero parity, `/sdui/food`
+
+**Status:** 🟢 Shipped (app + server + data + seed + docs). No migration.
+
+Six Food correctness fixes, all reusing existing authorities (`ads.campaigns` + `promo.*` +
+`directory.*`); no new ad/discount table:
+
+- **O-1 offer truth.** "Recommended & Offers" now lists only `mrp > price` dishes
+  (`getOfferDishes` in `features/food/utils/menu.ts`, shared by the profile rail and the
+  `RestaurantOffersScreen` "View All" page) and the rail hides when nothing is on offer. The false
+  `AdLabelBadge` on organic dishes (previously on every own dish) is removed.
+- **O-2 coupon surface.** The profile offer slot shows the **authoritative live coupon**
+  (`useBestCoupon('FOOD')` → `GET /coupons?app=FOOD`, strict) as `CODE · value/min-order`; tapping
+  opens the cart coupon sheet. The store `offerTag` is a decorative fallback only.
+- **O-3 hero fallback + collapse.** `FOOD_HERO` gained the SDUI `foodHero.banners` house fallback
+  (`FoodHouseHero`, non-interactive, no AD pill/events, mirrors `MartHouseHero`); the profile's
+  `STORE_TOP` band now drops entirely (grey slab + overlap removed) when there is no LIVE fill.
+- **O-4 no dead taps.** `FoodHomeScreen.openVenue` resolves an unknown venue via `gateway.getStore`
+  (Mart W43 pattern) so a `FOOD_HERO` tap on a delivery kitchen (`store-f*`, never in the dining
+  grid) opens its profile instead of no-op. `STORE_TOP` venue taps stay no-op (the placement is
+  seller-scoped to the current store; product/dish taps still go to PDP).
+- **O-5 `GET /sdui/food`.** New public read (`internal/sdui`, cache
+  `faazio:v1:gateway:sdui:{locale}:/food` 300 s, purged with `/home`/`/mart` on publish) serving only
+  `foodHero`/`diningSpecials`/`mostRatedDining`; `GatewayClient.getFoodFeed` reads it. The feed drives
+  the house hero and drops delisted venues from Top Rated (server `directory.dining_venues` is the
+  authority). Two LIVE `FOOD_HERO` demo creatives + `foodHero` banners were seeded so the placement is
+  locally testable.
+- **O-6 menu hygiene.** `getMenuForRestaurant`/`menuForVenueName` no longer pads an unseeded venue
+  with the shared `TODAYS_SPECIALS` cuisine-match (which could surface another restaurant's dishes);
+  unseeded venues show an honest empty menu. `useRestaurantMenu` trusts the server list as the venue's
+  own (no name re-filter), so a rename can't drop rows; an empty remote menu still keeps the fixture
+  seed so the profile is never blank.
+
+**Still deferred:** Today's Special order is not yet SDUI-driven; Food menu festival discounts are
+MRP-only at display (`promo.festival_optins` targets `catalog.products`, not `directory.menus`;
+settlement already ignores menus — no migration). Editing `diningSpecials`/`mostRatedDining` in the
+shared Home doc also affects Home's rails.
+
+**Rollback:** revert the `features/food` + `GatewayClient.getFoodFeed` + `data/home/sdui.ts`/`sections.ts`
++ `internal/sdui`/`cache` hunks; re-run `node server/supabase/seed/generate.mjs`.
+
+**Docs:** `mobile-app.md`, `data-layer-sdui.md`, `monolith-breakdown.md`, `caching-cloudflare-valkey.md`,
+`server-gateway-plan.md`, `data/DATA_CONTROL.md`.
+
+**Date:** 2026-10-17
+
+---
+
 ## W44 — Mart merchandising unification: Deals on SDUI, `/sdui/mart`, one price batch, View All
 
 **Status:** 🟢 Shipped (server + app + seed + docs). No migration.

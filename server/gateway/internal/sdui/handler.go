@@ -27,6 +27,7 @@ func NewHandler(service *Service, audit contracts.AuditWriter) *Handler {
 func (h *Handler) Register(r chi.Router) {
 	r.Get("/sdui/home", h.home)
 	r.Get("/sdui/mart", h.mart)
+	r.Get("/sdui/food", h.food)
 	r.Group(func(g chi.Router) {
 		g.Use(auth.RequireRole(auth.RoleSuperAdmin))
 		g.Get("/admin/sdui/home", h.adminGetHome)
@@ -54,6 +55,18 @@ func (h *Handler) mart(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	h.writeFeed(w, r, "mart", sections, version)
+}
+
+// food serves only the Food rails (foodHero/diningSpecials/mostRatedDining), so the Food screen gets
+// a small payload and its own ETag instead of downloading the whole Home feed.
+func (h *Handler) food(w http.ResponseWriter, r *http.Request) {
+	locale := r.URL.Query().Get("locale")
+	sections, version, err := h.service.Food(r.Context(), locale)
+	if err != nil {
+		httpx.Fail(w, http.StatusServiceUnavailable, "sdui_unavailable", "food feed unavailable")
+		return
+	}
+	h.writeFeed(w, r, "food", sections, version)
 }
 
 // writeFeed emits the compiled feed with its version-derived ETag and answers If-None-Match with a

@@ -42,6 +42,7 @@ against **Supabase (Postgres) + MongoDB Atlas M0 + Aiven Valkey**, with Cloudfla
 keys/TTLs unchanged.
 
 - **Endpoints:** reads `GET /health`, `/search?q=`, `/sdui/home`, `/sdui/mart` (Mart-only sections),
+  `/sdui/food` (Food-only sections),
   `/product/:id`, `/product/:id/reviews`,
   `/vendors/:id/reviews` (+ `/summary`), `/stores`, `/store/:id`, `/venues`, `/venues/:id/menu`,
   `/stock/:id`, `/orders`, `/profile`, `/profile/details`, `/profile/addresses` (GET/PUT/DELETE),

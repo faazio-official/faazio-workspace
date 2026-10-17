@@ -1,27 +1,19 @@
 import type { SpecialDish } from '@data/types';
-import { TODAYS_SPECIALS } from '@data/food/specials';
 import { menuForVenueName } from '@data/food/menus';
 import type { DiningRestaurant } from '../mocks/types';
 
-/** Build the venue's menu from its own dishes first — the authored dining menu or the
- *  derived delivery-store menu (`menuForVenueName`) — falling back to matching the
- *  shared specials catalog by cuisine and padding with the remaining dishes so an
- *  unseeded venue still has a full menu. */
+/** The venue's own menu — the per-venue dining menu or the derived delivery-kitchen menu. Empty
+ *  when the venue is unseeded: we show an honest empty menu rather than padding the shared specials
+ *  with other restaurants' dishes (which would leak cross-venue content). */
 export function getMenuForRestaurant(restaurant: DiningRestaurant): SpecialDish[] {
-  const own = menuForVenueName(restaurant.name);
-  if (own.length > 0) return own;
-  const cuisines = restaurant.cuisines.map((c) => c.toLowerCase());
-  const matched = TODAYS_SPECIALS.filter((d) =>
-    cuisines.some((c) => (d.cuisine ?? '').toLowerCase().includes(c) || c.includes((d.cuisine ?? '').toLowerCase())),
-  );
-  const rest = TODAYS_SPECIALS.filter((d) => !matched.includes(d));
-  return [...matched, ...rest];
+  return menuForVenueName(restaurant.name);
 }
 
-/** All dishes in the restaurant's menu that belong to the current restaurant —
- *  the only content the "Recommended & Offers" rail / page should show. */
-export function getOwnDishes(menu: SpecialDish[], restaurantName: string): SpecialDish[] {
-  return menu.filter((d) => d.restaurant === restaurantName);
+/** The venue's dishes that are actually on offer: an authored MRP above the selling price.
+ *  This is the only content the "Recommended & Offers" rail / page may list — organic
+ *  (undiscounted) dishes never sit under an offers title or an AD disclosure. */
+export function getOfferDishes(dishes: SpecialDish[]): SpecialDish[] {
+  return dishes.filter((d) => d.mrp !== undefined && d.mrp > d.price);
 }
 
 /** Distinct dish cuisines on a menu in first-seen order — the source of truth

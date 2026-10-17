@@ -652,6 +652,9 @@ The Home feed is stored as **ID-only** documents — every leaf references `cata
     { id: 'martHero', title: 'Mart Highlights', accent: '#F25C3D', productIds: [],
       banners: [{ id: 'hb-1', title: 'Big Savings Everyday', subtitle: 'UP TO 50% OFF',
                   accent: '#FFF8D6', imageUrl: 'https://…/hb1.jpg' }] },   // Mart hero carousel
+    { id: 'foodHero', title: 'Food Highlights', accent: '#1E5D44', productIds: [],
+      banners: [{ id: 'fb-1', title: 'Dining Deals Near You', subtitle: 'UP TO 40% OFF',
+                  accent: '#E8F5E9', imageUrl: 'https://…/fb1.jpg' }] },   // Food house hero fallback
     { id: 'adBanner', title: 'Offers', accent: '#111827', productIds: [], storeIds: [] },
     { id: 'hotBrandDeals', title: 'Deals of the day', accent: '#1162D3',
       productIds: ['hbd-1','hbd-2','hbd-3','hbd-4','hbd-5'] },
@@ -667,9 +670,10 @@ The Home feed is stored as **ID-only** documents — every leaf references `cata
 }
 ```
 
-(provenance `data/home/sdui.ts:63-78` — section ids/titles/accents/productIds exact). The `martHero`
-/ `martEssentials` sections are the Mart feed's merchandising surface: the Home renderer ignores
-unknown section ids, so a single doc drives both the Home and Mart feeds.
+(provenance `data/home/sdui.ts` — section ids/titles/accents/productIds exact). The `martHero` /
+`martEssentials` sections are the Mart feed's merchandising surface and `foodHero` /
+`diningSpecials` / `mostRatedDining` are Food's (`GET /sdui/food`): the Home renderer ignores
+unknown section ids, so a single doc drives the Home, Mart and Food feeds.
 
 | Field | BSON type | Why |
 |---|---|---|
@@ -896,6 +900,13 @@ ALTER TABLE directory.menus ADD COLUMN mrp_paisa INT8
   CHECK (mrp_paisa IS NULL OR mrp_paisa >= price_paisa);
 CREATE INDEX menus_venue_idx ON directory.menus (venue_id);
 ```
+
+> **Menus are MRP-only for discounts (W45, no migration).** A dish's display discount is the authored
+> `mrp_paisa > price_paisa` strike-through; menu dishes do **not** participate in
+> `promo.festival_optins` (which references `catalog.products.product_id`) and the checkout
+> `DiscountReader` settlement ignores menus. So the Food menu price shown is the price charged — no
+> display-vs-settlement gap. Making menu dishes festival-eligible would be a deliberate contract delta
+> (a nullable `menu_dish_id` opt-in + an `ActiveDiscounts` union), not done here.
 
 `dining_venues` was an identity stub (`id,name`), so every restaurant profile was hollow in the DB.
 Menus are seeded from `restaurantMenus` (61 dishes / 18 dining venues) **and** `storeMenus`

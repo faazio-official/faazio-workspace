@@ -98,8 +98,8 @@ ID-only layout from `GET /admin/sdui/home` (super-admin only) and publishes edit
 cache and audits `SDUI_PUBLISH`, so the mobile `GET /sdui/home` recompiles on its next poll with no
 app release. The page edits section titles and `productIds` (id-only refs to `catalog.products`);
 `storeIds`/`chips` are shown read-only. Sections that carry editorial hero `banners` (the Mart
-`martHero` rail) render an inline banner editor (title/subtitle/image per banner) — images are
-display copy only, never money. Each banner image accepts a hosted URL or a direct upload, stored as
+`martHero` and Food `foodHero` rails) render an inline banner editor (title/subtitle/image per
+banner) — images are display copy only, never money. Each banner image accepts a hosted URL or a direct upload, stored as
 the **resolved public Storage URL** (`uploadProductImage` → `resolveImage`) because the mobile app
 renders the doc value directly; in seed mode (no Supabase Storage) the data-URL fallback is rejected
 so the bounded ID-only doc never bloats. The portal's `SduiSection`/`SduiBanner`/`SduiLayout` types

@@ -1224,6 +1224,30 @@ export class GatewayClient {
     return delay(sections);
   }
 
+  /**
+   * Resolve only the Food SDUI sections (`foodHero`/`diningSpecials`/`mostRatedDining`) with joined
+   * data (`GET /sdui/food`). The Food feed stays decoupled from the full Home payload/ETag; the
+   * offline mock filters the same Home doc so remote and mock shapes match.
+   */
+  async getFoodFeed(): Promise<(SduiSection & { products: ProductView[]; stores?: StoreRecord[] })[]> {
+    return this.withFallback(
+      () => this.http<(SduiSection & { products: ProductView[]; stores?: StoreRecord[] })[]>('/sdui/food'),
+      () => this.getFoodFeedMock(),
+    );
+  }
+
+  private async getFoodFeedMock(): Promise<(SduiSection & { products: ProductView[]; stores?: StoreRecord[] })[]> {
+    const foodIds = new Set(['foodHero', 'diningSpecials', 'mostRatedDining']);
+    const sections = homeSdui
+      .filter((section) => foodIds.has(section.id))
+      .map((section) => ({
+        ...section,
+        products: this.joinStock(getCatalogEntriesByIds(section.productIds)),
+        stores: (section.storeIds ?? []).map((id) => getStoreById(id)).filter((s): s is StoreRecord => !!s),
+      }));
+    return delay(sections);
+  }
+
   private async getHomeFeedMock(): Promise<(SduiSection & { products: ProductView[]; stores?: StoreRecord[] })[]> {
     const sections = homeSdui.map((section) => ({
       ...section,

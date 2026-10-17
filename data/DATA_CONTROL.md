@@ -82,7 +82,7 @@ surface for these tables). These tables **pull from the legacy sources via impor
 | `inventory/stock.ts` | Go + DynamoDB (key-value stock) | net new — one row per catalog product id | `@mock` |
 | `checkout/orders.ts` | Go + CockroachDB (relational) | account/orders, cart/addresses, account/addresses, cart/coupons | `@mock` |
 | `accounts/profile.ts` | Go + PostgreSQL (profile) | account/profile, orderStatus, accountNav, details | `@mock` |
-| `home/sdui.ts` | Python + MongoDB (doc tree) | home/sections, rails, filterFeed structure — **IDs only** | `@aspirational` |
+| `home/sdui.ts` | Python + MongoDB (doc tree) | home/sections, rails, filterFeed structure — **IDs only** (plus the `martHero`/`foodHero` editorial `banners` leaves) | `@aspirational` |
 
 > **`@schema` reference:** each normalized table above maps **1:1** to a production table specified in
 > `docs/architecture/db-schema.md` (tables, datatypes, sample rows, cache keys). Keep the two in sync
@@ -160,6 +160,16 @@ the `GROCERY` member was dropped from `AppBrand` / `CartCategory` / `SubAppId` /
 | `storeMenus` | `Record<string, SpecialDish[]>` | delivery-kitchen menus keyed by `foodStores[].name`, derived from `foodProducts` via `storeId` (single source — no hand-copied literals); consumed by `getMenuForRestaurant` / `GatewayClient.getMenu` fallback and seeded into `directory.menus` (88 dishes / 30 venues). Removes the old per-venue `TODAYS_SPECIALS` cuisine-match for the 12 `store-f*` kitchens | `@mock` → `@server` |
 | `allRestaurantMenuDishes` | `SpecialDish[]` | catalog index (search) — flat pool of all per-restaurant menu dishes | `@mock` |
 | `menuForVenueName` | `(name: string) => SpecialDish[]` | `getMenuForRestaurant` + `GatewayClient.getMenu` — dining menu first, then delivery menu (the single resolver for both) | `@mock` |
+
+> **Food offers/ads disclosure rule (W45).** Organic food is **never** paid and never an "offer":
+> only `mrp > price` dishes (`getOfferDishes` in `features/food/utils/menu.ts`, shared by
+> `RestaurantProfileScreen` + `RestaurantOffersScreen`) appear under "Recommended & Offers", and they
+> carry **no** `AdLabelBadge`. The visible Food offer is the **authoritative live coupon**
+> (`GET /coupons?app=FOOD` via `useBestCoupon`, strict) — the store `offerTag` chip/banner is
+> decorative `@static-editorial` copy and only a fallback, with no price promise. The Food house hero
+> is the `foodHero.banners` SDUI leaf (the paid `FOOD_HERO` renders first). `TODAYS_SPECIALS` no
+> longer pads an unseeded venue (the old cuisine-match could leak other restaurants' dishes into a
+> profile) — an unseeded venue shows an honest empty menu.
 
 > **Dinner/table bookings (migration `0011`/`0020`):** `state/bookingStore` (`BookingRecord`) was
 > memory-only; it now has a durable home in `bookings.tables`, served by `internal/bookings`
@@ -334,13 +344,17 @@ the `GROCERY` member was dropped from `AppBrand` / `CartCategory` / `SubAppId` /
 > `docs/architecture/caching-cloudflare-valkey.md` §5a for the surface map. Seed carries one demo
 > LIVE slot per placement.
 >
-> **Paid hero campaigns (W41):** `ads.campaigns` (one row per campaign+placement) feeds the shared
-> `components/shared/CampaignHero` via `GatewayClient.getHeroAds` (`GET /ads/hero`) at `MART_HERO`
-> (Mart home), `CATEGORY_TOP` (category drill-in) and `STORE_TOP` (Mart vendor + Pharma medical shop).
+> **Paid hero campaigns (W41/W42/W45):** `ads.campaigns` (one row per campaign+placement) feeds the
+> shared `components/shared/CampaignHero` via `GatewayClient.getHeroAds` (`GET /ads/hero`) at
+> `MART_HERO` (Mart home), `FOOD_HERO` (Food home), `PHARMA_HERO` (Pharma home), `CATEGORY_TOP`
+> (category drill-in) and `STORE_TOP` (Mart vendor + Pharma medical shop + Food restaurant profile).
 > Like the rail it has **no** `@data` fixture — no LIVE fill collapses to the host fallback / `null`.
-> The creative is a resolved `image_url` (mirrors the SDUI banner leaf); the deep-link target is
-> resolved server-side (`services/adsTarget.ts`). Same `POST /ads/events` impression/click pipeline.
-> The removed store-derived `SPONSORED` ad slides (`getAdsForQuery`) were the only fake ad source.
+> The Food/Mart house fallback is the `foodHero`/`martHero` SDUI `banners` leaf. The creative is a
+> resolved `image_url` (mirrors the SDUI banner leaf); the deep-link target is resolved server-side
+> (`services/adsTarget.ts`). Same `POST /ads/events` impression/click pipeline. The removed
+> store-derived `SPONSORED` ad slides (`getAdsForQuery`) were the only fake ad source. The seed now
+> carries demo LIVE rows for `MART_HERO`/`CATEGORY_TOP`/`STORE_TOP` **and two `FOOD_HERO` creatives**
+> so the placement is locally testable.
 
 ### `@data/rewards` — owner: `features/rewards`
 
@@ -399,5 +413,6 @@ the `GROCERY` member was dropped from `AppBrand` / `CartCategory` / `SubAppId` /
 5. **~~Per-restaurant menus are seeded only for the 18 dining restaurants.~~ Resolved (W33).**
    The 12 food-delivery `foodStores` now have their own menus: `data/food/menus.ts` derives
    `storeMenus` from `foodProducts` by `storeId`, and the seed emits `directory.menus` rows for
-   every `store-f*` kitchen (88 dishes / 30 venues). `TODAYS_SPECIALS` cuisine-match is now only
-   the fallback for a venue with no menu at all.
+   every `store-f*` kitchen (88 dishes / 30 venues). `TODAYS_SPECIALS` no longer pads an unseeded
+   venue — the old cuisine-match fallback (which could surface another restaurant's dishes) was
+   removed (W45); an unseeded venue now shows an honest empty menu.

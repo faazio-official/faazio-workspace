@@ -24,9 +24,10 @@ import {
 import { hs, vs, ms } from '@/utils/responsive';
 import { SPACE } from '@/theme/spacing';
 import AppText from '@/components/AppText';
-import { AdLabelBadge, VendorReviewsSection } from '@/components/shared';
+import { VendorReviewsSection } from '@/components/shared';
 import CampaignHero from '@/components/shared/CampaignHero';
 import { openHeroTarget } from '@/services/adsTarget';
+import { useCampaignHero } from '@/hooks/useCampaignHero';
 import type { HeroAd } from '@/services/api/GatewayClient';
 import RemoteImage from '../components/RemoteImage';
 import FoodStatusBarStrip from '../components/FoodStatusBarStrip';
@@ -37,8 +38,9 @@ import { foodTheme } from '../constants/theme';
 import type { FoodStackParamList, RootStackParamList } from '@/navigation/types';
 import type { DiningRestaurant } from '../mocks/types';
 import type { SpecialDish } from '@data/types';
-import { getOwnDishes, getMenuCategories } from '../utils/menu';
+import { getOfferDishes, getMenuCategories } from '../utils/menu';
 import { useRestaurantMenu } from '../hooks/useRestaurantMenu';
+import { useBestCoupon } from '../hooks/useBestCoupon';
 import { useCartStore } from '@/state/cartStore';
 import { useFoodFilterStore, type DietFilter } from '@/state/foodFilterStore';
 import { dishMatches } from '../utils/dietFilter';
@@ -65,6 +67,16 @@ export function RestaurantProfileScreen({ navigation, route }: Props) {
 
   const [bookingVisible, setBookingVisible] = useState(false);
   const [availability, setAvailability] = useState<BookingAvailabilityDto | null>(null);
+
+  // Paid STORE_TOP band owns its own fill; with none we drop the grey hero slab entirely rather
+  // than leaving a dead band (CampaignHero itself collapses to `null`). The extra read is the same
+  // anon, server-cached (`faazio:v1:ads:hero:…`) projection the hero renders from — no double POST.
+  const { ads: storeTopAds } = useCampaignHero('STORE_TOP', { app: 'FOOD', storeId: restaurant.id });
+  const hasHero = storeTopAds.length > 0;
+
+  // Authoritative Food coupon for the offer slot (server-owned, strict). Falls back to the
+  // decorative `offerTag` when there is no live coupon.
+  const bestCoupon = useBestCoupon('FOOD');
 
   useEffect(() => {
     let alive = true;
@@ -112,10 +124,9 @@ export function RestaurantProfileScreen({ navigation, route }: Props) {
     () => dishes.filter((d) => dishMatches(dietFilter, d)),
     [dishes, dietFilter],
   );
-  const restaurantDishes = useMemo(
-    () => getOwnDishes(menu, restaurant.name),
-    [menu, restaurant],
-  );
+  // `menu` is already the venue's own dishes (see useRestaurantMenu); only MRP-struck dishes are
+  // offers — organic food is never paid and never earns the offers title.
+  const offerDishes = useMemo(() => getOfferDishes(menu), [menu]);
 
   const categories = useMemo(
     () => ['Bestsellers', ...getMenuCategories(menu)],
@@ -187,18 +198,22 @@ export function RestaurantProfileScreen({ navigation, route }: Props) {
         scrollEventThrottle={16}
         keyboardShouldPersistTaps="handled"
       >
-        {/* AD BANNER HERO — paid STORE_TOP placement (collapses when no LIVE fill) */}
-        <View style={[styles.heroContainer, { paddingTop: insets.top + vs(52) }]}>
-          <CampaignHero
-            placement="STORE_TOP"
-            app="FOOD"
-            storeId={restaurant.id}
-            onPress={handleHeroPress}
-          />
-        </View>
+        {/* AD BANNER HERO — paid STORE_TOP placement (whole band drops when no LIVE fill) */}
+        {hasHero ? (
+          <View style={[styles.heroContainer, { paddingTop: insets.top + vs(52) }]}>
+            <CampaignHero
+              placement="STORE_TOP"
+              app="FOOD"
+              storeId={restaurant.id}
+              onPress={handleHeroPress}
+            />
+          </View>
+        ) : (
+          <View style={{ height: insets.top + vs(52) }} />
+        )}
 
         {/* OVERLAPPING WHITE BOARD */}
-        <View style={styles.mainBoard}>
+        <View style={[styles.mainBoard, !hasHero && styles.mainBoardFlat]}>
           {/* STORE INFO CARD */}
           <View style={styles.storeInfoRow}>
             <View style={styles.logoContainer}>
@@ -287,7 +302,21 @@ export function RestaurantProfileScreen({ navigation, route }: Props) {
             <AppText style={styles.myBookingsText}>My bookings</AppText>
           </TouchableOpacity>
 
-          {restaurant.offerTag ? (
+          {bestCoupon ? (
+            <TouchableOpacity
+              style={styles.offerBanner}
+              onPress={openCart}
+              activeOpacity={0.8}
+              accessibilityRole="button"
+              accessibilityLabel={`Apply coupon ${bestCoupon.code} in cart`}
+            >
+              <AppText style={styles.offerBannerText}>
+                {bestCoupon.code} ·{' '}
+                {bestCoupon.freeDelivery ? 'Free delivery' : `${bestCoupon.valuePercent}% OFF`}
+                {bestCoupon.minOrder > 0 ? ` · min ₹${bestCoupon.minOrder}` : ''}
+              </AppText>
+            </TouchableOpacity>
+          ) : restaurant.offerTag ? (
             <View style={styles.offerBanner}>
               <AppText style={styles.offerBannerText}>{restaurant.offerTag}</AppText>
             </View>
@@ -300,13 +329,13 @@ export function RestaurantProfileScreen({ navigation, route }: Props) {
             style={styles.reviewsSection}
           />
 
-          {/* RECOMMENDED & OFFERS — hidden when the active diet filter emptied it */}
-          {restaurantDishes.length > 0 && (
+          {/* RECOMMENDED & OFFERS — discounted dishes only; hidden when there's nothing on offer */}
+          {offerDishes.length > 0 && (
             <>
               <View style={styles.sectionHeader}>
                 <AppText style={styles.sectionTitle}>Recommended & Offers</AppText>
                 <TouchableOpacity
-                  onPress={() => navigation.navigate('RestaurantOffers', { restaurant, offers: restaurantDishes })}
+                  onPress={() => navigation.navigate('RestaurantOffers', { restaurant, offers: offerDishes })}
                   accessibilityRole="button"
                 >
                   <AppText style={styles.seeAllText}>View All {'>'}</AppText>
@@ -318,13 +347,10 @@ export function RestaurantProfileScreen({ navigation, route }: Props) {
                 horizontal
                 showsHorizontalScrollIndicator={false}
               >
-                {restaurantDishes.map((item) => (
+                {offerDishes.map((item) => (
                   <View key={item.id} style={styles.discountCard}>
                     <View style={styles.discountImageWrap}>
                       <RemoteImage uri={item.image} variant="dish" style={styles.discountImage} />
-                      <View style={styles.adLabelWrap}>
-                        <AdLabelBadge />
-                      </View>
                     </View>
                     <AppText numberOfLines={3} style={styles.productName}>
                       {item.dishName}
@@ -465,6 +491,11 @@ const styles = StyleSheet.create({
     marginTop: -vs(24),
     paddingTop: SPACE.SECTION,
   },
+  mainBoardFlat: {
+    borderTopLeftRadius: 0,
+    borderTopRightRadius: 0,
+    marginTop: 0,
+  },
   storeInfoRow: {
     flexDirection: 'row',
     paddingHorizontal: hs(16),
@@ -582,7 +613,6 @@ const styles = StyleSheet.create({
   discountCard: { width: 140, marginRight: 16 },
   discountImageWrap: { position: 'relative', marginBottom: 8 },
   discountImage: { width: '100%', aspectRatio: 1, borderRadius: 16 },
-  adLabelWrap: { position: 'absolute', bottom: vs(4), right: hs(4) },
   productName: {
     fontSize: ms(13),
     color: foodTheme.textPrimary,

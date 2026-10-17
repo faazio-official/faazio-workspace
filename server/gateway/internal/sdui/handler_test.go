@@ -88,6 +88,32 @@ func TestMartServesOnlyMartSections(t *testing.T) {
 	}
 }
 
+func TestFoodServesOnlyFoodSections(t *testing.T) {
+	layouts := &fakeLayouts{version: 5, sections: []contracts.SduiSection{
+		{ID: "foodHero", Title: "Highlights"},
+		{ID: "adBanner", Title: "Offers"},
+		{ID: "diningSpecials", Title: "Specials", StoreIDs: []string{"store-f1"}},
+		{ID: "martDeals", Title: "Deals", ProductIDs: []string{"md-1"}},
+		{ID: "mostRatedDining", Title: "Dining", StoreIDs: []string{"store-f1"}},
+	}}
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/sdui/food", nil)
+	newAdminRouter(t, layouts).ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200 (body %s)", rec.Code, rec.Body.String())
+	}
+	if got := rec.Header().Get("ETag"); got != `"food-v5"` {
+		t.Fatalf("etag = %q, want \"food-v5\"", got)
+	}
+	var out []contracts.SduiSection
+	if err := json.Unmarshal(rec.Body.Bytes(), &out); err != nil {
+		t.Fatal(err)
+	}
+	if len(out) != 3 || out[0].ID != "foodHero" || out[1].ID != "diningSpecials" || out[2].ID != "mostRatedDining" {
+		t.Fatalf("sections = %+v, want [foodHero diningSpecials mostRatedDining]", out)
+	}
+}
+
 func TestAdminPutHomeRequiresSuperAdmin(t *testing.T) {
 	rec := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodPut, "/admin/sdui/home", strings.NewReader(`{"sections":[{"id":"deals","title":"D","accent":"#111","productIds":["md-1"]}]}`))

@@ -119,6 +119,22 @@ const DEMO_HEROES = [
     cta: 'View Store', state: 'KA',
     imageUrl: 'https://images.unsplash.com/photo-1579113800032-c38bd1625818?fm=jpg&fit=crop&q=80&w=800&h=450',
   },
+  // Food sub-app hero (FOOD_HERO) — two LIVE poster creatives targeting real FOOD stores so the
+  // placement is locally testable (was unseeded). The house fallback is `foodHero.banners`.
+  {
+    placementId: 'ad-cmp-demo-foodhero-1', campaignId: 'cmp-demo-foodhero', sellerId: 'sel-3',
+    placement: 'FOOD_HERO', targetType: 'STORE', targetId: 'store-f1', targetApp: 'FOOD',
+    category: null, storeId: null, title: 'Biryani Festival', subtitle: 'FLAT ₹150 OFF',
+    cta: 'Order Now', state: 'KA',
+    imageUrl: 'https://images.unsplash.com/photo-1563379091339-03b21ab4a4f8?fm=jpg&fit=crop&q=80&w=800&h=450',
+  },
+  {
+    placementId: 'ad-cmp-demo-foodhero-2', campaignId: 'cmp-demo-foodhero', sellerId: 'sel-3',
+    placement: 'FOOD_HERO', targetType: 'STORE', targetId: 'store-f8', targetApp: 'FOOD',
+    category: null, storeId: null, title: 'Royal Mughlai Feast', subtitle: 'FESTIVE40 — 40% OFF',
+    cta: 'Order Now', state: 'KA',
+    imageUrl: 'https://images.unsplash.com/photo-1585032226651-759b368d7246?fm=jpg&fit=crop&q=80&w=800&h=450',
+  },
 ];
 
 // Seed donor directory users into checkout.users so blood.donors FKs hold (they are demo accounts).
@@ -541,14 +557,15 @@ function assertLeanContract() {
       if (!catalogIds.has(id)) violations.push(`${section.id} product ${id} not in catalogIndex`);
     }
   }
-  // Mart SDUI house banners must satisfy the `internal/sdui` publish bounds (≤8 banners, image URL
-  // ≤512) or a seeded/published doc would be rejected at PUT time and the house hero silently vanish.
+  // Hero house banners (Mart + Food) must satisfy the `internal/sdui` publish bounds (≤8 banners,
+  // image URL ≤512) or a seeded/published doc would be rejected at PUT time and the house hero
+  // silently vanish.
   for (const section of d.homeSdui) {
-    if (section.id !== 'martHero') continue;
+    if (section.id !== 'martHero' && section.id !== 'foodHero') continue;
     const banners = section.banners ?? [];
-    if (banners.length > 8) violations.push('martHero banners exceed the 8-banner bound');
+    if (banners.length > 8) violations.push(`${section.id} banners exceed the 8-banner bound`);
     for (const b of banners) {
-      if (b.imageUrl && b.imageUrl.length > 512) violations.push(`martHero banner ${b.id}: imageUrl >512 chars`);
+      if (b.imageUrl && b.imageUrl.length > 512) violations.push(`${section.id} banner ${b.id}: imageUrl >512 chars`);
     }
   }
 

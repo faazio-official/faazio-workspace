@@ -130,6 +130,38 @@
       "chips": []
     },
     {
+      "id": "foodHero",
+      "title": "Food Highlights",
+      "subtitle": null,
+      "accent": "#1E5D44",
+      "productIds": [],
+      "storeIds": [],
+      "chips": [],
+      "banners": [
+        {
+          "id": "fb-1",
+          "title": "Dining Deals Near You",
+          "subtitle": "UP TO 40% OFF",
+          "accent": "#E8F5E9",
+          "imageUrl": "https://images.unsplash.com/photo-1504674900247-0877df9cc836?fm=jpg&fit=crop&q=80&w=800&h=450"
+        },
+        {
+          "id": "fb-2",
+          "title": "Biryani Festival",
+          "subtitle": "FLAT ₹150 OFF",
+          "accent": "#FFF3E0",
+          "imageUrl": "https://images.unsplash.com/photo-1563379091339-03b21ab4a4f8?fm=jpg&fit=crop&q=80&w=800&h=450"
+        },
+        {
+          "id": "fb-3",
+          "title": "Late Night Cravings",
+          "subtitle": "FREE DELIVERY",
+          "accent": "#EDE9FE",
+          "imageUrl": "https://images.unsplash.com/photo-1555396273-367ea4eb4db5?fm=jpg&fit=crop&q=80&w=800&h=450"
+        }
+      ]
+    },
+    {
       "id": "sponsoredRail",
       "title": "Sponsored picks",
       "subtitle": null,

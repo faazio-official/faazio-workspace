@@ -37,13 +37,14 @@ func (s *Service) Layout(ctx context.Context) ([]contracts.SduiSection, int64, e
 }
 
 // SaveHome persists a new Home layout (admin publish) and purges the compiled-feed caches so the
-// next GET /sdui/home (and /sdui/mart) recompiles with the new sections and a bumped ETag.
+// next GET /sdui/home (and /sdui/mart / /sdui/food) recompiles with the new sections and a bumped
+// ETag.
 func (s *Service) SaveHome(ctx context.Context, sections []contracts.SduiSection) (int64, error) {
 	version, err := s.writer.SaveHome(ctx, sections)
 	if err != nil {
 		return 0, err
 	}
-	s.cache.Del(ctx, cache.SduiHome("en"), cache.SduiMart("en"))
+	s.cache.Del(ctx, cache.SduiHome("en"), cache.SduiMart("en"), cache.SduiFood("en"))
 	return version, nil
 }
 
@@ -56,6 +57,15 @@ var martSectionIDs = map[string]struct{}{
 	"martEssentials": {},
 }
 
+// foodSectionIDs is the Food feed's allowlist: the house hero banners plus the two dining store
+// rails, served on their own endpoint (`GET /sdui/food`) so Food gets independent curation and an
+// independent payload/ETag from Home and Mart.
+var foodSectionIDs = map[string]struct{}{
+	"foodHero":        {},
+	"diningSpecials":  {},
+	"mostRatedDining": {},
+}
+
 // Home returns the compiled Home feed (ID-only sections + joined products) and the layout version.
 func (s *Service) Home(ctx context.Context, locale string) ([]contracts.HomeSection, int64, error) {
 	return s.compile(ctx, locale, cache.SduiHome(localeOrDefault(locale)), nil)
@@ -65,6 +75,12 @@ func (s *Service) Home(ctx context.Context, locale string) ([]contracts.HomeSect
 // catalog, and the layout version. Cached separately from the Home feed.
 func (s *Service) Mart(ctx context.Context, locale string) ([]contracts.HomeSection, int64, error) {
 	return s.compile(ctx, locale, cache.SduiMart(localeOrDefault(locale)), martSectionIDs)
+}
+
+// Food returns only the compiled Food sections (foodHero/diningSpecials/mostRatedDining) joined to
+// the directory/catalog, and the layout version. Cached separately from the Home feed.
+func (s *Service) Food(ctx context.Context, locale string) ([]contracts.HomeSection, int64, error) {
+	return s.compile(ctx, locale, cache.SduiFood(localeOrDefault(locale)), foodSectionIDs)
 }
 
 func localeOrDefault(locale string) string {
