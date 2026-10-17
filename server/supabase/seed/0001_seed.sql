@@ -1305,4 +1305,9 @@ insert into ads.sponsored_slots (slot_id, seller_id, product_id, placement, stat
   ('ad-demo-showcase-1', 'sel-3', 'fm-b1', 'SPONSORED_SHOWCASE'::ad_placement, 'LIVE'::ad_status, 0, 0, 0),
   ('ad-demo-sector-1', 'sel-3', 'fm-s1', 'SECTOR_RAIL'::ad_placement, 'LIVE'::ad_status, 0, 0, 0);
 
+insert into ads.campaigns (placement_id, campaign_id, seller_id, placement, target_type, target_id, target_app, category, store_id, title, subtitle, image_url, cta, state_code, starts_at, ends_at, status) values
+  ('ad-cmp-demo-mart-1', 'cmp-demo-mart', 'sel-3', 'MART_HERO'::ad_placement, 'PRODUCT'::ad_target_type, 'fm-m1', 'MART'::app_brand, null, null, 'Big Savings Everyday', 'UP TO 50% OFF', 'https://images.unsplash.com/photo-1542838132-92c53300491e?fm=jpg&fit=crop&q=80&w=800&h=450', 'Shop Now', 'KA', (now() - interval '1 day'), (now() + interval '60 days'), 'LIVE'::ad_status),
+  ('ad-cmp-demo-cat-1', 'cmp-demo-cat', 'sel-3', 'CATEGORY_TOP'::ad_placement, 'PRODUCT'::ad_target_type, 'fm-gad10', 'MART'::app_brand, 'cat_smart_gadgets', null, 'Gadget Fest', 'FLAT 40% OFF', 'https://images.unsplash.com/photo-1498050108023-c5249f4df085?fm=jpg&fit=crop&q=80&w=800&h=450', 'Shop Now', 'KA', (now() - interval '1 day'), (now() + interval '60 days'), 'LIVE'::ad_status),
+  ('ad-cmp-demo-store-1', 'cmp-demo-store', 'sel-3', 'STORE_TOP'::ad_placement, 'STORE'::ad_target_type, 'store-m1', 'MART'::app_brand, null, 'store-m1', 'Fresh Groceries Doorstep', 'FREE DELIVERY', 'https://images.unsplash.com/photo-1579113800032-c38bd1625818?fm=jpg&fit=crop&q=80&w=800&h=450', 'View Store', 'KA', (now() - interval '1 day'), (now() + interval '60 days'), 'LIVE'::ad_status);
+
 commit;

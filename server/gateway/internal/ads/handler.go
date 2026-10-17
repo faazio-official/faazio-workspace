@@ -28,9 +28,10 @@ func NewHandler(repo *Repo, c *cache.Cache, audit contracts.AuditWriter) *Handle
 
 // Register mounts the ads routes.
 func (h *Handler) Register(r chi.Router) {
-	// Public: the anon-visible LIVE ad projection the app rails read (no auth, cached).
+	// Public: the anon-visible LIVE ad projection the app rails/heroes read (no auth, cached).
 	r.Get("/ads/live", h.live)
-	// Auth: closed-loop performance events (impression/click) from the app rail.
+	r.Get("/ads/hero", h.hero)
+	// Auth: closed-loop performance events (impression/click) from the app rail/hero.
 	r.Group(func(g chi.Router) {
 		g.Use(auth.Require)
 		g.Post("/ads/events", h.recordEvent)
@@ -40,10 +41,13 @@ func (h *Handler) Register(r chi.Router) {
 		g.Get("/ads/slots", h.list)
 		g.Get("/ads/slots/{id}", h.get)
 		g.Post("/ads/slots", h.request)
+		g.Get("/ads/campaigns", h.listCampaigns)
+		g.Post("/ads/campaigns", h.requestCampaign)
 	})
 	r.Group(func(g chi.Router) {
 		g.Use(auth.RequireRole(auth.RoleStateAdmin, auth.RoleSuperAdmin))
 		g.Put("/ads/slots/{id}", h.setStatus)
+		g.Put("/ads/campaigns/{id}/status", h.setCampaignStatus)
 	})
 }
 
@@ -216,6 +220,10 @@ func (h *Handler) setStatus(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) log(r *http.Request, action, entityID string, before, after any) {
+	h.logEntity(r, action, "ads.sponsored_slots", entityID, before, after)
+}
+
+func (h *Handler) logEntity(r *http.Request, action, entity, entityID string, before, after any) {
 	if h.audit == nil {
 		return
 	}
@@ -232,7 +240,7 @@ func (h *Handler) log(r *http.Request, action, entityID string, before, after an
 	}
 	_ = h.audit.Audit(r.Context(), contracts.AuditEntry{
 		ActorID: actorID, ActorRole: role, Action: action,
-		Entity: "ads.sponsored_slots", EntityID: entityID,
+		Entity: entity, EntityID: entityID,
 		Before: marshal(before), After: marshal(after),
 	})
 }

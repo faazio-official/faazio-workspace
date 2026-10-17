@@ -161,7 +161,13 @@ func (r *Repo) RecordEvent(ctx context.Context, slotID, event string) error {
 	default:
 		return fmt.Errorf("ads: unknown event %q", event)
 	}
-	_, err := r.pool.Exec(ctx, `update ads.sponsored_slots set `+col+` = `+col+` + 1 where slot_id = $1`, slotID)
+	// One round-trip touches whichever surface owns the id: rail slots (`ads.sponsored_slots`) or
+	// hero campaigns (`ads.campaigns`). Ids never collide (`ad-*` vs `ad-cmp-*`), so the other
+	// branch updates zero rows.
+	_, err := r.pool.Exec(ctx, `
+		with s as (update ads.sponsored_slots set `+col+` = `+col+` + 1 where slot_id = $1),
+		     c as (update ads.campaigns set `+col+` = `+col+` + 1 where placement_id = $1)
+		select 1`, slotID)
 	return err
 }
 
@@ -174,7 +180,10 @@ func (r *Repo) AttributeOrder(ctx context.Context, slotID string) error {
 	if slotID == "" {
 		return nil
 	}
-	_, err := r.pool.Exec(ctx, `update ads.sponsored_slots set orders_attributed = orders_attributed + 1 where slot_id = $1`, slotID)
+	_, err := r.pool.Exec(ctx, `
+		with s as (update ads.sponsored_slots set orders_attributed = orders_attributed + 1 where slot_id = $1),
+		     c as (update ads.campaigns set orders_attributed = orders_attributed + 1 where placement_id = $1)
+		select 1`, slotID)
 	return err
 }
 

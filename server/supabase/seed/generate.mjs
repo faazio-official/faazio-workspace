@@ -90,6 +90,33 @@ const SPONSORED_SLOTS = [
   { slotId: 'ad-demo-sector-1', sellerId: 'sel-3', productId: 'fm-s1', placement: 'SECTOR_RAIL' },
 ];
 
+// Seller hero campaigns (0027): one LIVE poster creative per new placement so Mart hero, the category
+// drill-in top banner and a store header are never empty on a fresh deploy. Targets are real catalog
+// rows / stores (asserted below) and `category` is a real `MASTER_CATEGORIES` tab id (cat_smart_gadgets).
+const DEMO_HEROES = [
+  {
+    placementId: 'ad-cmp-demo-mart-1', campaignId: 'cmp-demo-mart', sellerId: 'sel-3',
+    placement: 'MART_HERO', targetType: 'PRODUCT', targetId: 'fm-m1', targetApp: 'MART',
+    category: null, storeId: null, title: 'Big Savings Everyday', subtitle: 'UP TO 50% OFF',
+    cta: 'Shop Now', state: 'KA',
+    imageUrl: 'https://images.unsplash.com/photo-1542838132-92c53300491e?fm=jpg&fit=crop&q=80&w=800&h=450',
+  },
+  {
+    placementId: 'ad-cmp-demo-cat-1', campaignId: 'cmp-demo-cat', sellerId: 'sel-3',
+    placement: 'CATEGORY_TOP', targetType: 'PRODUCT', targetId: 'fm-gad10', targetApp: 'MART',
+    category: 'cat_smart_gadgets', storeId: null, title: 'Gadget Fest', subtitle: 'FLAT 40% OFF',
+    cta: 'Shop Now', state: 'KA',
+    imageUrl: 'https://images.unsplash.com/photo-1498050108023-c5249f4df085?fm=jpg&fit=crop&q=80&w=800&h=450',
+  },
+  {
+    placementId: 'ad-cmp-demo-store-1', campaignId: 'cmp-demo-store', sellerId: 'sel-3',
+    placement: 'STORE_TOP', targetType: 'STORE', targetId: 'store-m1', targetApp: 'MART',
+    category: null, storeId: 'store-m1', title: 'Fresh Groceries Doorstep', subtitle: 'FREE DELIVERY',
+    cta: 'View Store', state: 'KA',
+    imageUrl: 'https://images.unsplash.com/photo-1579113800032-c38bd1625818?fm=jpg&fit=crop&q=80&w=800&h=450',
+  },
+];
+
 // Seed donor directory users into checkout.users so blood.donors FKs hold (they are demo accounts).
 const donorUsers = (d.BLOOD_DONORS ?? []).map((donor) => [
   q(donor.userId), q(donor.name), q(`${String(donor.name).toLowerCase().replace(/[^a-z0-9]+/g, '.')}@example.com`), q(''), 'null',
@@ -404,6 +431,19 @@ sql.push(inserts(
     q(a.slotId), q(a.sellerId), q(a.productId), `'${a.placement}'::ad_placement`, `'LIVE'::ad_status`, n(0), n(0), n(0),
   ]),
 ));
+// Hero campaigns (0027) — LIVE, in a wide open window so the anon `GET /ads/hero` projection serves
+// them on a fresh deploy (mirrors the sponsored-slot demo rows).
+sql.push(inserts(
+  'ads.campaigns',
+  ['placement_id', 'campaign_id', 'seller_id', 'placement', 'target_type', 'target_id', 'target_app',
+    'category', 'store_id', 'title', 'subtitle', 'image_url', 'cta', 'state_code', 'starts_at', 'ends_at', 'status'],
+  DEMO_HEROES.map((h) => [
+    q(h.placementId), q(h.campaignId), q(h.sellerId), `'${h.placement}'::ad_placement`,
+    `'${h.targetType}'::ad_target_type`, q(h.targetId), APP(h.targetApp), q(h.category), q(h.storeId),
+    q(h.title), q(h.subtitle), q(h.imageUrl), q(h.cta), q(h.state),
+    `(now() - interval '1 day')`, `(now() + interval '60 days')`, `'LIVE'::ad_status`,
+  ]),
+));
 sql.push('commit;');
 sql.push('');
 
@@ -496,6 +536,20 @@ function assertLeanContract() {
   for (const a of SPONSORED_SLOTS) {
     if (!catalogIds.has(a.productId)) violations.push(`sponsored slot ${a.slotId}: product ${a.productId} not in catalogIndex`);
     if (!sellerIds.has(a.sellerId)) violations.push(`sponsored slot ${a.slotId}: seller ${a.sellerId} not seeded`);
+  }
+  // Hero campaigns must point at real rows (the FK/read join would otherwise drop or dangle): a
+  // catalog product, a seeded store/venue, a known app, and the contextual scope each placement needs.
+  const storeIds = new Set(d.storeDirectory.map((s) => s.id));
+  const venueIds = new Set((d.diningVenues ?? []).map((v) => v.id));
+  for (const h of DEMO_HEROES) {
+    if (!sellerIds.has(h.sellerId)) violations.push(`hero ${h.placementId}: seller ${h.sellerId} not seeded`);
+    if (!['MART', 'FOOD', 'PHARMA'].includes(h.targetApp)) violations.push(`hero ${h.placementId}: bad target app ${h.targetApp}`);
+    if (h.targetType === 'PRODUCT' && !catalogIds.has(h.targetId)) violations.push(`hero ${h.placementId}: product ${h.targetId} not in catalogIndex`);
+    if ((h.targetType === 'STORE' || h.targetType === 'VENUE') && !storeIds.has(h.targetId) && !venueIds.has(h.targetId)) {
+      violations.push(`hero ${h.placementId}: target ${h.targetId} not a seeded store/venue`);
+    }
+    if (h.placement === 'CATEGORY_TOP' && !h.category) violations.push(`hero ${h.placementId}: CATEGORY_TOP needs a category`);
+    if (h.placement === 'STORE_TOP' && !h.storeId) violations.push(`hero ${h.placementId}: STORE_TOP needs a storeId`);
   }
   // Mart SDUI essentials must reference real catalog rows — the app resolves them via getProductsByIds.
   for (const id of MART_SDUI.essentials.productIds) {

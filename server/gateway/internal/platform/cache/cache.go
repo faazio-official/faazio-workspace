@@ -30,7 +30,7 @@ func Prescriptions(userID string) string {
 func Notifications(userID string) string {
 	return fmt.Sprintf("faazio:v1:notifications:inbox:%s", userID)
 }
-func Stock(id string) string          { return fmt.Sprintf("faazio:v1:stock:%s", id) }
+func Stock(id string) string { return fmt.Sprintf("faazio:v1:stock:%s", id) }
 func StoreProducts(storeID string) string {
 	return fmt.Sprintf("faazio:v1:catalog:store-products:%s", storeID)
 }
@@ -62,6 +62,16 @@ func PromoPublicCoupons(app, state string) string {
 	return fmt.Sprintf("faazio:v1:promo:coupons:public:%s:%s", app, state)
 }
 func AdsLive(placement string) string { return fmt.Sprintf("faazio:v1:ads:live:%s", placement) }
+
+// AdsHero caches the anon-visible LIVE hero projection for a (placement, app, category, store) context.
+// Empty dimensions are sentinels meaning "any" (matches the query). The whole namespace is purged
+// write-around via AdsHeroPrefix on any moderation/status change.
+func AdsHero(placement, app, category, store string) string {
+	return fmt.Sprintf("faazio:v1:ads:hero:%s:%s:%s:%s", placement, app, category, store)
+}
+
+// AdsHeroPrefix is the purge prefix for every cached hero context (see Cache.DelPrefix).
+func AdsHeroPrefix() string { return "faazio:v1:ads:hero:" }
 
 // AdsSeen de-dupes an impression for (user, slot) within TTLAdSeen so a card re-render never
 // inflates the count (set NX). Clicks are always counted, so this key is impressions-only.
@@ -132,6 +142,10 @@ const (
 
 	// TTLPublicPromo bounds the anon-visible active-coupon projection (caching doc §5).
 	TTLPublicPromo = 600 * time.Second
+
+	// TTLAdsHero bounds the anon-visible LIVE hero projection per context (placement/app/category/
+	// store); purged on moderation/status change (caching doc §5).
+	TTLAdsHero = 300 * time.Second
 
 	// TTLAdSeen de-dupes a sponsored impression per (user, slot) — longer than any realistic
 	// re-render storm, short enough to count a genuine re-view on a later session.
@@ -211,6 +225,28 @@ func (c *Cache) Del(ctx context.Context, keys ...string) {
 		return
 	}
 	_ = c.rdb.Del(ctx, keys...).Err()
+}
+
+// DelPrefix invalidates every key under a namespace using SCAN (never KEYS). Bounded by a small
+// keyspace (hero contexts); used write-around on moderation changes.
+func (c *Cache) DelPrefix(ctx context.Context, prefix string) {
+	if !c.Enabled() || prefix == "" {
+		return
+	}
+	var cursor uint64
+	for {
+		keys, next, err := c.rdb.Scan(ctx, cursor, prefix+"*", 100).Result()
+		if err != nil {
+			return
+		}
+		if len(keys) > 0 {
+			_ = c.rdb.Del(ctx, keys...).Err()
+		}
+		cursor = next
+		if cursor == 0 {
+			return
+		}
+	}
 }
 
 // ErrLockHeld is returned when an idempotency lock is already held.

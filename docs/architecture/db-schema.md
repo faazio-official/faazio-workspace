@@ -1127,6 +1127,7 @@ CREATE TABLE promo.coupons            (coupon_id PK, code UNIQUE, title, scope, 
 
 CREATE TABLE ads.sponsored_slots (slot_id PK, seller_id FK, product_id, placement ad_placement,
   state_code, status ad_status, impressions/clicks INT4, orders_attributed INT8, requested_at);
+-- 0027 adds the hero creative surface (poster + deep-link target + schedule): see §12.17.
 
 CREATE TABLE payments.settlement_ledger (entry_id PK, seller_id FK, cycle TEXT /* YYYY-MM */,
   order_value_paisa INT8, commission_paisa INT8, tcs_paisa INT8, net_paisa INT8);  -- service_role only
@@ -1449,3 +1450,45 @@ R2/Cloudflare are unset):
   from the edge. The purge is a Cloudflare `purge_cache` call (`internal/platform/cloudflare`), enabled
   by `CF_ZONE_ID` + `CF_API_TOKEN` (≤30 files/request; best-effort — a disabled purger just lets the
   Cache Rule expire). This is why content-addressed keys can still be invalidated on moderation/delete.
+
+### 12.17 Seller hero campaigns — poster creative + deep-link target (migration `0027`)
+
+`ads.sponsored_slots` (`0015`) can only promote a product on a rail: no poster, no deep-link target, no
+placement/schedule. `0027` adds the second creative surface — a seller-owned **hero campaign** — without
+touching the rail table. One row = one (campaign, placement), so a single request on several placements
+is moderated/measured independently (`campaign_id` groups them).
+
+```sql
+-- new ad_placement values (additive): HOME_HERO, MART_HERO, PHARMA_HERO, FOOD_HERO, CATEGORY_TOP, STORE_TOP
+CREATE TYPE ad_creative_type AS ENUM ('RAIL', 'HERO');
+CREATE TYPE ad_target_type   AS ENUM ('PRODUCT', 'DISH', 'STORE', 'VENUE');
+
+CREATE TABLE ads.campaigns (
+  placement_id      text PRIMARY KEY,              -- 'ad-cmp-*' minted by the gateway
+  campaign_id       text NOT NULL,                 -- groups the placements of one seller request
+  seller_id         text NOT NULL REFERENCES sellers.sellers(seller_id) ON DELETE CASCADE,
+  creative_type     ad_creative_type NOT NULL DEFAULT 'HERO',
+  placement         ad_placement NOT NULL,         -- MART_HERO | CATEGORY_TOP | STORE_TOP | …
+  target_type       ad_target_type NOT NULL,
+  target_id         text NOT NULL CHECK (char_length(target_id) BETWEEN 1 AND 64),
+  target_app        app_brand NOT NULL,
+  category          text CHECK (category IS NULL OR char_length(category) <= 64), -- CATEGORY_TOP scope
+  store_id          text CHECK (store_id IS NULL OR char_length(store_id) <= 64), -- STORE_TOP scope
+  title             text NOT NULL CHECK (char_length(title) BETWEEN 1 AND 40),
+  subtitle          text NOT NULL DEFAULT '' CHECK (char_length(subtitle) <= 60),
+  image_url         text NOT NULL DEFAULT '' CHECK (char_length(image_url) <= 512), -- resolved URL (SDUI-banner rule)
+  cta               text NOT NULL DEFAULT '' CHECK (char_length(cta) <= 24),
+  state_code        char(2),
+  starts_at/ends_at timestamptz CHECK (ends_at > starts_at),
+  status            ad_status NOT NULL DEFAULT 'REQUESTED',
+  impressions/clicks INT4, orders_attributed INT8,
+  requested_at/updated_at timestamptz
+);
+```
+
+Indexes: `(placement, status, ends_at)`, `(seller_id)`, `(campaign_id)`. The creative is a bounded,
+already-resolved public URL mirroring the SDUI banner leaf (`SduiBanner.image_url`) — the portal uploads
+to R2 and stores the resolved CDN URL, so the app renders it as-is (no `image_key` round-trip). The
+target must be an item the seller owns (handler-enforced), so a hero can never deep-link another
+seller's product. RLS: a seller reads their own rows; admins read by scope (mirrors `0015`). Endpoints:
+caching doc §5 and `monolith-breakdown.md` §1 (`ads` row).

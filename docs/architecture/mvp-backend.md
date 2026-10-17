@@ -105,7 +105,11 @@ All read-through: Valkey → Supabase/Mongo → populate. Cloudflare caches publ
 | `POST /webhooks/razorpay` | bookings | HMAC-signature-verified Razorpay events → idempotent ledger update (`payment.authorized/captured/failed`, `refund.*`) |
 | `GET/POST /orders` | checkout | `POST` uses `SET NX EX 300` idempotency + `SELECT … FOR UPDATE SKIP LOCKED` stock decrement; re-validates any `couponCode` via `contracts.CouponValidator` **before** the decrement and settles `paid = subtotal − couponDiscount − coins`, then attributes the last-clicked ad slot best-effort |
 | `POST /checkout/validate-coupon` | checkout | authenticated coupon preview (`{code, app, state, subtotal}` → `{valid, reason, discount, …}`); delegates to `contracts.CouponValidator` (pure `DecideCoupon`), same rules as settlement |
-| `POST /ads/events` | ads | authenticated impression/click (`RecordEvent`); impressions de-duped per user via `faazio:v1:ads:seen:{userId}:{slotId}` 300 s; `orders_attributed` bumped server-side at checkout |
+| `POST /ads/events` | ads | authenticated impression/click (`RecordEvent`); impressions de-duped per user via `faazio:v1:ads:seen:{userId}:{slotId}` 300 s; `orders_attributed` bumped server-side at checkout (one round-trip covers the rail slot or the hero campaign row) |
+| `GET /ads/hero` | ads | public anon LIVE hero projection for a `placement`/`app`/`category`/`storeId` context (cached 300 s, purged by prefix on moderation); empty context dims = any, newest-first, ≤8 |
+| `POST /ads/campaigns` | ads | seller/state/super: request a hero campaign (target + creative + ≥1 placement + schedule); inserts one `REQUESTED` row per placement sharing a `campaign_id`; `CATEGORY_TOP` needs `category`, `STORE_TOP` needs `storeId` |
+| `GET /ads/campaigns` | ads | seller/state/super: campaign rows scoped by `sellerId`/`state` (seller/admin consoles) |
+| `PUT /ads/campaigns/{id}/status` | ads | state/super admin moderation (`APPROVED`/`REJECTED`/`LIVE`); purges the hero cache namespace |
 | `PUT /vendors/{id}/rating` | reviews | derived eligibility gate (`hasPurchasedFromVendor`); never a stored flag |
 | `POST /events` | reco | ID-only `userIdHash`, 90-day Mongo TTL; event allowlist + `productId ≤ 64` chars |
 | `GET /recommendations` | reco | per-user `recommendations` doc (else top `product_stats`), joined to catalog; `faazio:v1:reco:{userIdHash}:home` 1 h |

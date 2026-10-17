@@ -103,6 +103,7 @@ Examples: `faazio:v1:stock:fm-f1`, `faazio:v1:search:q:hoodie`, `faazio:v1:sdui:
 | Active festival discounts (anon `GET /promo/active-discounts?ids=`, per product) | 300 s | — | opt-in approve/reject or campaign status change (invalidated per product; `none` sentinel cached) |
 | Ad slots (partner) | 300 s | **never** | ad status/stat write |
 | Live ads (anon `GET /ads/live?slot=`) | 600 s | — | ad status write (invalidated on `LIVE`) |
+| Live hero campaigns (anon `GET /ads/hero?placement=&app=&category=&storeId=`, `faazio:v1:ads:hero:{placement}:{app}:{category}:{store}`) | 300 s | — | campaign status write (whole `faazio:v1:ads:hero:` namespace purged by prefix) |
 | Ad impression de-dupe lock (`faazio:v1:ads:seen:{userId}:{slotId}`, `POST /ads/events`) | 300 s (`NX EX`) | **never** | auto-expire (one impression per user per slot) |
 | Settlement cycles (per seller) | 600 s | **never** | settlement/payout write |
 | Idempotency locks (checkout) | 300 s | — | auto-expire |
@@ -120,9 +121,21 @@ last-click attribution at checkout) serves every paid shelf. The shared
 | `SPONSORED_SHOWCASE` | Mart home feed (below the hero) | `ecommerce/FaMartScreen` |
 | `SECTOR_RAIL` | Vendor "Discounted Products" landing | `ecommerce/DealsLandingScreen` (`discounts` mode) |
 
-Seed (`0001_seed.sql`) carries one LIVE demo slot per placement (`ad-demo-home-*`,
-`ad-demo-showcase-1`, `ad-demo-sector-1`) so a fresh deploy exercises all three; a placement with no
-LIVE fill collapses the rail to `null` (never an empty shelf).
+Hero campaigns (`0027`) are the second, separately-labelled pipeline (`GET /ads/hero` → catalog/store
+target resolver → `POST /ads/events` impression/click → last-click attribution at checkout). The shared
+`components/shared/CampaignHero` renders them (thin wrapper over `AdBannerCarousel`, AD pill always on):
+
+| Hero placement | Surface | Mobile entry |
+|---|---|---|
+| `MART_HERO` | Mart home feed hero (above Sponsored picks) | `ecommerce/FaMartScreen` (`CampaignHero`) |
+| `CATEGORY_TOP` | Category drill-in top banner (scoped by `category` = `MASTER_CATEGORIES` tab id) | `catalog/components/CategoryDrillInPanel` |
+| `STORE_TOP` | Store / medical-shop header banner (scoped by `storeId`) | `catalog/VendorDetailScreen`, `pharma/MedicalShopDetailsScreen` |
+| `HOME_HERO` / `PHARMA_HERO` / `FOOD_HERO` | Home / Pharma / restaurant hero (same pipeline) | reserved for the follow-up hero wave |
+
+Seed (`0001_seed.sql`) carries one LIVE demo slot per rail placement (`ad-demo-home-*`,
+`ad-demo-showcase-1`, `ad-demo-sector-1`) and one LIVE demo hero per new hero placement
+(`ad-cmp-demo-mart-1`, `ad-cmp-demo-cat-1`, `ad-cmp-demo-store-1`) so a fresh deploy exercises both
+pipelines; a placement with no LIVE fill collapses the surface to `null` (never a fabricated ad).
 
 ---
 
