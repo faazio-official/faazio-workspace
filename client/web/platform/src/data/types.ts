@@ -483,6 +483,8 @@ export interface MenuItemRecord {
   dishId: string;
   name: string;
   pricePaisa: number;
+  /** List price (MRP) in paisa for the strike-through. Absent = no offer; never below pricePaisa. */
+  mrpPaisa?: number | undefined;
   isVeg?: boolean | undefined;
   cuisine?: string | undefined;
   rating?: number | undefined;

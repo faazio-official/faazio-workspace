@@ -34,13 +34,15 @@ export interface RestaurantMenuState {
 
 /**
  * The restaurant's menu, remote-first from `directory.menus`
- * (`GET /venues/{id}/menu`) through `GatewayClient.getMenu`, which already falls
- * back to the `@data/food/menus.ts` fixture on a network/HTTP error. The screen
- * still seeds from the fixture first so the list never flashes empty, then swaps
- * in the durable dishes once they arrive — the server list is trusted as the
- * venue's own (no name re-filter, so a rename can't drop rows). An empty remote
- * menu (a venue the seller has not populated) keeps the seed so the profile is
- * never blank.
+ * (`GET /venues/{id}/menu`) through the server-only `GatewayClient.fetchMenu`. The screen seeds
+ * from the `@data/food/menus.ts` fixture first so a known venue paints instantly with no spinner,
+ * then swaps in the durable dishes once the server replies — the server list is trusted as the
+ * venue's own (no name re-filter, so a rename can't drop rows).
+ *
+ * The remote result is **authoritative**: a live `[]` (the seller has no public/ACTIVE dishes)
+ * clears the seed and shows the honest empty menu, so a delisted venue never lingers as stale
+ * fixture rows. Only a real failure (offline / HTTP error) keeps the seed, so the profile is
+ * never blank offline.
  *
  * Festival discounts are deliberately NOT overlaid here: `promo.festival_optins` keys on
  * `catalog.products.product_id` and checkout never settles a discount for a `directory.menus` row, so a
@@ -59,13 +61,14 @@ export function useRestaurantMenu(restaurant: DiningRestaurant): RestaurantMenuS
     // keeps its first-paint rows and never shows the spinner.
     setLoading(seed.length === 0);
     gateway
-      .getMenu(restaurant.id)
+      .fetchMenu(restaurant.id)
       .then((dishes) => {
-        if (!active || dishes.length === 0) return;
+        if (!active) return;
+        // Authoritative: an empty live list is the venue's real menu (seller emptied it).
         setMenu(dishes.map((d) => toSpecialDish(d, restaurant.name)));
       })
       .catch(() => {
-        // getMenu already falls back to the @data fixture internally.
+        // Offline / HTTP error: keep the fixture seed so the profile is never blank.
       })
       .finally(() => {
         if (active) setLoading(false);

@@ -38,13 +38,14 @@ interface FormState {
   dishId: string;
   name: string;
   price: string;
+  mrp: string;
   isVeg: boolean;
   cuisine: string;
   image: string;
 }
 
 function emptyForm(): FormState {
-  return { venueId: "", dishId: "", name: "", price: "", isVeg: true, cuisine: "", image: "" };
+  return { venueId: "", dishId: "", name: "", price: "", mrp: "", isVeg: true, cuisine: "", image: "" };
 }
 
 function toForm(m: MenuItemRecord): FormState {
@@ -53,6 +54,7 @@ function toForm(m: MenuItemRecord): FormState {
     dishId: m.dishId,
     name: m.name,
     price: String(m.pricePaisa / 100),
+    mrp: m.mrpPaisa != null ? String(m.mrpPaisa / 100) : "",
     isVeg: m.isVeg ?? true,
     cuisine: m.cuisine ?? "",
     image: m.image ?? "",
@@ -93,11 +95,19 @@ function SellerMenus() {
       toast.error("Venue, dish id, name and a non-negative price are required");
       return;
     }
+    // MRP is optional; when set it is the list price (strike) and must be ≥ the selling price.
+    const mrpRaw = form.mrp.trim();
+    const mrpPaisa = mrpRaw === "" ? undefined : parseRupeesToPaisa(mrpRaw);
+    if (mrpPaisa != null && mrpPaisa < pricePaisa) {
+      toast.error("MRP must be greater than or equal to the selling price");
+      return;
+    }
     const dto: MenuDto = {
       venueId: form.venueId.trim(),
       dishId: form.dishId.trim(),
       name: form.name.trim(),
       pricePaisa,
+      ...(mrpPaisa != null ? { mrpPaisa } : {}),
       isVeg: form.isVeg,
       cuisine: form.cuisine.trim(),
       image: form.image.trim(),
@@ -175,7 +185,12 @@ function SellerMenus() {
                   </TableCell>
                   <TableCell className="num text-muted-foreground">{m.venueId}</TableCell>
                   <TableCell className="text-muted-foreground">{m.cuisine ?? "—"}</TableCell>
-                  <TableCell className="num text-right font-medium">{formatINR(m.pricePaisa)}</TableCell>
+                  <TableCell className="num text-right">
+                    {m.mrpPaisa != null && m.mrpPaisa > m.pricePaisa ? (
+                      <span className="mr-1 text-muted-foreground line-through">{formatINR(m.mrpPaisa)}</span>
+                    ) : null}
+                    <span className="font-medium">{formatINR(m.pricePaisa)}</span>
+                  </TableCell>
                   <TableCell>
                     <StatusPill status={m.status} />
                   </TableCell>
@@ -269,6 +284,16 @@ function SellerMenus() {
                 className="num"
                 value={form.price}
                 onChange={(e) => setForm({ ...form, price: e.target.value })}
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="mrp">MRP (₹, optional)</Label>
+              <Input
+                id="mrp"
+                className="num"
+                value={form.mrp}
+                placeholder="Leave blank for no offer"
+                onChange={(e) => setForm({ ...form, mrp: e.target.value })}
               />
             </div>
             <div className="space-y-1.5">

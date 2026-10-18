@@ -31,7 +31,7 @@ Every domain file below carries its tag as a top-of-file banner comment.
 | Domain | Owner (feature) | Entry files | Status |
 |---|---|---|---|
 | `mart` | `features/ecommerce` | `products.ts`, `stores.ts` | `@mock` |
-| `food` | `features/food` | `products.ts`, `stores.ts`, `bookingDishes.ts`, `menus.ts`, `specials.ts`, `diningVenues.ts` | mixed `@mock` / `@server` — `menus.ts` + `diningVenues.ts` seed `directory.menus`/`directory.dining_venues` and fall back locally (`getList` → `GatewayClient.getMenu`/`fetchVenues`); `features/food/mocks/*` (`restaurants`, `homeFeed`, `specials`) are the client-side first-paint for the dining grid + mind/snack rails (see `@data/food` below) |
+| `food` | `features/food` | `products.ts`, `stores.ts`, `menus.ts`, `specials.ts`, `diningVenues.ts` | mixed `@mock` / `@server` — `menus.ts` + `diningVenues.ts` seed `directory.menus`/`directory.dining_venues` and fall back locally (`getList` → `GatewayClient.fetchMenu`/`fetchVenues`); `features/food/mocks/*` (`restaurants`, `homeFeed`, `specials`) are the client-side first-paint for the dining grid + mind/snack rails (see `@data/food` below) |
 | `pharma` | `features/pharma` | `products.ts`, `stores.ts` | `@mock` (+ `@unused` by mobile) |
 | `explore` | `features/catalog` (Categories/Favourites) | `stacks.ts` | `@mock` |
 | `categories` | `features/catalog` | `searchDatabase.ts` | `@mock` |
@@ -168,8 +168,7 @@ the `GROCERY` member was dropped from `AppBrand` / `CartCategory` / `SubAppId` /
 | `foodProducts` | `FoodProduct[]` | `FoodMenuView`; `data/home/filterFeed` (internal). Each carries optional `isVeg?` for the diet filter | `@mock` |
 | `topOfWeekDishes` | `TopOfWeekDish[]` | `FoodScreen` (top-of-week rail). Each carries optional `isVeg?` | `@mock` |
 | `foodStores` | `StoreProfile[]` | `FoodScreen`; home `DiningSpecialsSection`, `MostRatedDiningSection` | `@mock` |
-| `BOOKING_DISHES_DB` | `BookingDish[]` | **`@unused`** — `FoodScreen` defines its own inline copy | `@mock` + `@unused` |
-| `restaurantMenus` | `Record<string, SpecialDish[]>` | `RestaurantProfileScreen.getMenuForRestaurant` (per-restaurant menus keyed by dining-restaurant name, so every dining room's "Recommended & Offers" rail + menu is populated); seeded into `directory.menus` (migrations `0013`/`0019`/`0022`). Dishes may carry an authored `SpecialDish.mrp`; only `mrp > price` shows a strike-through (never synthesized) | `@mock` → `@server` |
+| `restaurantMenus` | `Record<string, SpecialDish[]>` | `RestaurantProfileScreen.getMenuForRestaurant` (per-restaurant menus keyed by dining-restaurant name, so every dining room's "Recommended & Offers" rail + menu is populated); seeded into `directory.menus` (migrations `0013`/`0019`/`0022`, `status` from `0017`). Dishes may carry an authored `SpecialDish.mrp`; only `mrp > price` shows a strike-through (never synthesized) | `@mock` → `@server` |
 | `storeMenus` | `Record<string, SpecialDish[]>` | delivery-kitchen menus keyed by `foodStores[].name`, derived from `foodProducts` via `storeId` (single source — no hand-copied literals); consumed by `getMenuForRestaurant` / `GatewayClient.getMenu` fallback and seeded into `directory.menus` (88 dishes / 30 venues). Removes the old per-venue `TODAYS_SPECIALS` cuisine-match for the 12 `store-f*` kitchens | `@mock` → `@server` |
 | `allRestaurantMenuDishes` | `SpecialDish[]` | catalog index (search) — flat pool of all per-restaurant menu dishes | `@mock` |
 | `menuForVenueName` | `(name: string) => SpecialDish[]` | `getMenuForRestaurant` + `GatewayClient.getMenu` — dining menu first, then delivery menu (the single resolver for both) | `@mock` |

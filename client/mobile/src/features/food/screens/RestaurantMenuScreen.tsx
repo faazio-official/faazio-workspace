@@ -12,7 +12,6 @@ import MenuCategoryRail from '../components/MenuCategoryRail';
 import ViewCartPill from '../components/ViewCartPill';
 import { foodTheme } from '../constants/theme';
 import type { FoodStackParamList, RootStackParamList } from '@/navigation/types';
-import type { DiningRestaurant } from '../mocks/types';
 import type { SpecialDish } from '@data/types';
 import { getMenuCategories } from '../utils/menu';
 import { useRestaurantMenu } from '../hooks/useRestaurantMenu';
@@ -29,8 +28,7 @@ type Props = NativeStackScreenProps<FoodStackParamList, 'RestaurantMenu'>;
  * the profile, so the View Cart count stays in sync between both screens.
  */
 export function RestaurantMenuScreen({ navigation, route }: Props) {
-  const { restaurant } = route.params;
-  const diningRestaurant = restaurant as DiningRestaurant;
+  const { restaurant: diningRestaurant } = route.params;
 
   const [activeCategory, setActiveCategory] = useState('Bestsellers');
   const [searchQuery, setSearchQuery] = useState('');

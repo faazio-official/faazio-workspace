@@ -14,7 +14,7 @@ type Props = NativeStackScreenProps<RootStackParamList, 'Cart'>;
  * Renders the shared CartView (BAG -> ADDRESS -> PAYMENT -> RECEIPT wizard).
  */
 export function CartScreen({ navigation, route }: Props) {
-  const { restaurantId, restaurantName } = route.params ?? {};
+  const { restaurantId, restaurantName, couponCode } = route.params ?? {};
   const allItems = useCartStore((s) => s.cart);
   const storeUpdateQuantity = useCartStore((s) => s.updateQuantity);
   const replaceCart = useCartStore((s) => s.replaceCart);
@@ -75,6 +75,7 @@ export function CartScreen({ navigation, route }: Props) {
         onGoToHub={handleGoToHub}
         onTrackOrder={handleTrackOrder}
         restaurantName={restaurantName}
+        initialCouponCode={couponCode}
         onClearItems={restaurantId ? handleClearScoped : undefined}
         onDeleteItem={restaurantId ? removeFromCart : undefined}
       />

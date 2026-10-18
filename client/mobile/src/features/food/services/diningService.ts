@@ -142,8 +142,24 @@ export async function fetchDiningFeed(): Promise<DiningFeed> {
   const specials = food.find((s) => (s.id as string) === 'foodSpecials');
   const mostRated = food.find((s) => (s.id as string) === 'mostRatedDining');
 
+  // `mostRatedDining` is an ID-only contract: the client reads the raw `storeIds` (the server's
+  // store join cannot resolve dining `tr-*` ids). A typo or a wrong id-space (`store-f*`) silently
+  // no-ops there, so surface it in dev rather than letting the curation vanish.
+  const curatedIds = mostRated?.storeIds ?? mostRated?.stores?.map((s) => s.id) ?? [];
+  if (__DEV__ && curatedIds.length > 0) {
+    const known = new Set([
+      ...TOP_RATED_RESTAURANTS.map((r) => r.id),
+      ...DINING_RESTAURANTS.map((r) => r.id),
+      ...venueIds,
+    ]);
+    const unresolved = curatedIds.filter((id) => !known.has(id));
+    if (unresolved.length > 0) {
+      console.warn('[food] mostRatedDining storeIds unresolved (curation no-op):', unresolved);
+    }
+  }
+
   return {
-    topRated: orderByStoreIds(liveTopRated, mostRated?.storeIds ?? mostRated?.stores?.map((s) => s.id) ?? []),
+    topRated: orderByStoreIds(liveTopRated, curatedIds),
     specials: orderByDishIds(TODAYS_SPECIALS, specials?.productIds ?? []),
     dining: diningAuthoritative ? mergeDining(DINING_RESTAURANTS, venues) : DINING_RESTAURANTS,
     topFoods: TOP_FOODS_TO_ORDER,

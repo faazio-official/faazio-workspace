@@ -196,13 +196,13 @@ for (const [name, dishes] of Object.entries(venueMenus)) {
     menuRows.push([
       q(venueId), q(dish.id), q(dish.dishName), paisa(dish.price), paisa(dish.mrp), b(dish.isVeg),
       q(dish.cuisine), n(dish.rating), q(dish.image), q(img?.key), q(img?.id),
-      q(dish.description ?? ''), q(dish.emoji ?? ''), q(dish.deliveryTime ?? ''),
+      q(dish.description ?? ''), q(dish.emoji ?? ''), q(dish.deliveryTime ?? ''), `'ACTIVE'::product_status`,
     ]);
   }
 }
 sql.push(inserts(
   'directory.menus',
-  ['venue_id', 'dish_id', 'name', 'price_paisa', 'mrp_paisa', 'is_veg', 'cuisine', 'rating', 'image', 'image_key', 'image_asset_id', 'description', 'emoji', 'delivery_time'],
+  ['venue_id', 'dish_id', 'name', 'price_paisa', 'mrp_paisa', 'is_veg', 'cuisine', 'rating', 'image', 'image_key', 'image_asset_id', 'description', 'emoji', 'delivery_time', 'status'],
   menuRows,
 ));
 

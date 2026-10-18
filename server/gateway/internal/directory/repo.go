@@ -165,7 +165,7 @@ func (r *Repo) Menu(ctx context.Context, venueID string) ([]contracts.MenuDish, 
 	}
 	rows, err := r.pool.Query(ctx, `
 		select dish_id, name, price_paisa, mrp_paisa, is_veg, cuisine, rating, image, image_key, description, emoji, delivery_time
-		  from directory.menus where venue_id = $1
+		  from directory.menus where venue_id = $1 and status = 'ACTIVE'::product_status
 		 order by rating desc nulls last, name asc`, venueID)
 	if err != nil {
 		return nil, err
@@ -191,10 +191,7 @@ func (r *Repo) Menu(ctx context.Context, venueID string) ([]contracts.MenuDish, 
 			d.Image = r.cdnBase + "/" + *imageKey
 		}
 		d.Price = d.Price / 100
-		if mrp != nil {
-			mrpRupees := *mrp / 100
-			d.OriginalPrice = &mrpRupees
-		}
+		d.OriginalPrice = rupeesPtr(mrp)
 		d.IsVeg = isVeg
 		d.Rating = rating
 		d.Description = derefStr(desc)
@@ -436,6 +433,7 @@ type SellerMenu struct {
 	DishID       string   `json:"dishId"`
 	Name         string   `json:"name"`
 	Price        int64    `json:"price"` // rupees
+	MRP          *int64   `json:"mrp,omitempty"` // rupees; list price (strike), never below price
 	IsVeg        *bool    `json:"isVeg,omitempty"`
 	Cuisine      string   `json:"cuisine,omitempty"`
 	Rating       *float64 `json:"rating,omitempty"`
@@ -447,7 +445,7 @@ type SellerMenu struct {
 }
 
 const sellerMenuSelect = `
-select venue_id, dish_id, name, price_paisa, is_veg, cuisine, rating, image, image_key,
+select venue_id, dish_id, name, price_paisa, mrp_paisa, is_veg, cuisine, rating, image, image_key,
        coalesce(seller_id,''), status::text
 from directory.menus`
 
@@ -469,12 +467,13 @@ func (r *Repo) SellerMenus(ctx context.Context, sellerID, venueID string) ([]Sel
 	for rows.Next() {
 		var (
 			m        SellerMenu
+			mrp      *int64
 			isVeg    *bool
 			cuisine  *string
 			rating   *float64
 			imageKey *string
 		)
-		if err := rows.Scan(&m.VenueID, &m.DishID, &m.Name, &m.Price, &isVeg, &cuisine, &rating, &m.Image, &imageKey, &m.SellerID, &m.Status); err != nil {
+		if err := rows.Scan(&m.VenueID, &m.DishID, &m.Name, &m.Price, &mrp, &isVeg, &cuisine, &rating, &m.Image, &imageKey, &m.SellerID, &m.Status); err != nil {
 			return nil, err
 		}
 		if imageKey != nil {
@@ -484,6 +483,7 @@ func (r *Repo) SellerMenus(ctx context.Context, sellerID, venueID string) ([]Sel
 			}
 		}
 		m.Price = m.Price / 100
+		m.MRP = rupeesPtr(mrp)
 		m.IsVeg = isVeg
 		m.Rating = rating
 		if cuisine != nil {
@@ -502,24 +502,25 @@ func (r *Repo) UpsertMenu(ctx context.Context, m SellerMenu, sellerID string, ad
 	}
 	var (
 		out      SellerMenu
+		mrp      *int64
 		isVeg    *bool
 		cuisine  *string
 		rating   *float64
 		imageKey *string
 	)
 	err := r.pool.QueryRow(ctx, `
-		insert into directory.menus (venue_id, dish_id, name, price_paisa, is_veg, cuisine, rating, image, image_key, image_asset_id, seller_id, status)
-		values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,'DRAFT')
+		insert into directory.menus (venue_id, dish_id, name, price_paisa, mrp_paisa, is_veg, cuisine, rating, image, image_key, image_asset_id, seller_id, status)
+		values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,'DRAFT')
 		on conflict (venue_id, dish_id) do update
-		   set name = excluded.name, price_paisa = excluded.price_paisa, is_veg = excluded.is_veg,
-		       cuisine = excluded.cuisine, rating = excluded.rating, image = excluded.image,
-		       image_key = excluded.image_key, image_asset_id = excluded.image_asset_id
-		 where $12 or directory.menus.seller_id = $11
-		returning venue_id, dish_id, name, price_paisa, is_veg, cuisine, rating, image, image_key,
+		   set name = excluded.name, price_paisa = excluded.price_paisa, mrp_paisa = excluded.mrp_paisa,
+		       is_veg = excluded.is_veg, cuisine = excluded.cuisine, rating = excluded.rating,
+		       image = excluded.image, image_key = excluded.image_key, image_asset_id = excluded.image_asset_id
+		 where $13 or directory.menus.seller_id = $12
+		returning venue_id, dish_id, name, price_paisa, mrp_paisa, is_veg, cuisine, rating, image, image_key,
 		          coalesce(seller_id,''), status::text`,
-		m.VenueID, m.DishID, m.Name, m.Price*100, m.IsVeg, nullIfEmpty(m.Cuisine), m.Rating, m.Image,
+		m.VenueID, m.DishID, m.Name, m.Price*100, paisaPtr(m.MRP), m.IsVeg, nullIfEmpty(m.Cuisine), m.Rating, m.Image,
 		nullIfEmpty(m.ImageKey), nullIfEmpty(m.ImageAssetID), sellerID, admin).
-		Scan(&out.VenueID, &out.DishID, &out.Name, &out.Price, &isVeg, &cuisine, &rating, &out.Image, &imageKey, &out.SellerID, &out.Status)
+		Scan(&out.VenueID, &out.DishID, &out.Name, &out.Price, &mrp, &isVeg, &cuisine, &rating, &out.Image, &imageKey, &out.SellerID, &out.Status)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return SellerMenu{}, false, nil
@@ -530,6 +531,7 @@ func (r *Repo) UpsertMenu(ctx context.Context, m SellerMenu, sellerID string, ad
 		out.ImageKey = *imageKey
 	}
 	out.Price = out.Price / 100
+	out.MRP = rupeesPtr(mrp)
 	out.IsVeg = isVeg
 	out.Rating = rating
 	if cuisine != nil {
@@ -545,6 +547,7 @@ func (r *Repo) SetMenuStatus(ctx context.Context, venueID, dishID, sellerID, sta
 	}
 	var (
 		m       SellerMenu
+		mrp     *int64
 		isVeg   *bool
 		cuisine *string
 		rating  *float64
@@ -552,10 +555,10 @@ func (r *Repo) SetMenuStatus(ctx context.Context, venueID, dishID, sellerID, sta
 	err := r.pool.QueryRow(ctx, `
 		update directory.menus set status = $4::product_status
 		 where venue_id = $1 and dish_id = $2 and ($5 or seller_id = $3)
-		 returning venue_id, dish_id, name, price_paisa, is_veg, cuisine, rating, image,
+		 returning venue_id, dish_id, name, price_paisa, mrp_paisa, is_veg, cuisine, rating, image,
 		           coalesce(seller_id,''), status::text`,
 		venueID, dishID, sellerID, status, admin).
-		Scan(&m.VenueID, &m.DishID, &m.Name, &m.Price, &isVeg, &cuisine, &rating, &m.Image, &m.SellerID, &m.Status)
+		Scan(&m.VenueID, &m.DishID, &m.Name, &m.Price, &mrp, &isVeg, &cuisine, &rating, &m.Image, &m.SellerID, &m.Status)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return SellerMenu{}, false, nil
@@ -563,6 +566,7 @@ func (r *Repo) SetMenuStatus(ctx context.Context, venueID, dishID, sellerID, sta
 		return SellerMenu{}, false, err
 	}
 	m.Price = m.Price / 100
+	m.MRP = rupeesPtr(mrp)
 	m.IsVeg = isVeg
 	m.Rating = rating
 	if cuisine != nil {
@@ -591,4 +595,23 @@ func nullIfEmpty(v string) any {
 		return nil
 	}
 	return v
+}
+
+// paisaPtr converts an optional rupees value (portal/text contract) to INT8 paisa for the DB.
+// nil in → nil out, so an absent MRP stays NULL (no strike) rather than a zero-price.
+func paisaPtr(rupees *int64) *int64 {
+	if rupees == nil {
+		return nil
+	}
+	v := *rupees * 100
+	return &v
+}
+
+// rupeesPtr converts an optional INT8 paisa column back to whole rupees for the JSON projection.
+func rupeesPtr(paisa *int64) *int64 {
+	if paisa == nil {
+		return nil
+	}
+	v := *paisa / 100
+	return &v
 }

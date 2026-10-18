@@ -3,7 +3,7 @@
 import type { MenuItemRecord } from "@/data/types";
 
 export const MENUS: MenuItemRecord[] = [
-  { venueId: "store-f1", dishId: "rm-f1-1", name: "Hyderabadi Chicken Biryani", pricePaisa: 34900, isVeg: false, cuisine: "Hyderabadi", rating: 4.7, image: "https://images.unsplash.com/photo-1563379091339-03b21ab4a4f8?fm=jpg&q=80&w=400", sellerId: "sel-2", status: "ACTIVE" },
+  { venueId: "store-f1", dishId: "rm-f1-1", name: "Hyderabadi Chicken Biryani", pricePaisa: 34900, mrpPaisa: 39900, isVeg: false, cuisine: "Hyderabadi", rating: 4.7, image: "https://images.unsplash.com/photo-1563379091339-03b21ab4a4f8?fm=jpg&q=80&w=400", sellerId: "sel-2", status: "ACTIVE" },
   { venueId: "store-f1", dishId: "rm-f1-2", name: "Veg Dum Biryani", pricePaisa: 27900, isVeg: true, cuisine: "Hyderabadi", rating: 4.5, image: "https://images.unsplash.com/photo-1642821373181-696a86d70e0e?fm=jpg&q=80&w=400", sellerId: "sel-2", status: "ACTIVE" },
   { venueId: "store-f2", dishId: "rm-f2-1", name: "Margherita Pizza", pricePaisa: 29900, isVeg: true, cuisine: "Italian", rating: 4.6, image: "https://images.unsplash.com/photo-1574071318508-1cdbab80d002?fm=jpg&q=80&w=400", sellerId: "sel-2", status: "PENDING_REVIEW" },
   { venueId: "store-f2", dishId: "rm-f2-2", name: "Pepperoni Pizza", pricePaisa: 39900, isVeg: false, cuisine: "Italian", rating: 4.8, image: "https://images.unsplash.com/photo-1628840042765-356cda07504e?fm=jpg&q=80&w=400", sellerId: "sel-2", status: "DRAFT" },

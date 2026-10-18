@@ -186,7 +186,7 @@ export function FoodHomeScreen({ navigation }: Props) {
           )}
         </Animated.View>
         <Animated.View entering={FadeInDown.duration(380)}>
-          <FoodSectionHeader title="What's on your mind?" onSeeAll={openSearch} />
+          <FoodSectionHeader title="What's on your mind?" />
           {mind.length > 0 ? (
             <MindGridRail items={mind} onPress={openMindSearch} />
           ) : (
@@ -194,7 +194,7 @@ export function FoodHomeScreen({ navigation }: Props) {
           )}
         </Animated.View>
         <Animated.View entering={FadeInDown.duration(400)}>
-          <FoodSectionHeader title="Snacks & Beverages" onSeeAll={openSearch} />
+          <FoodSectionHeader title="Snacks & Beverages" />
           {snacks.length > 0 ? (
             <SnacksRail snacks={snacks} />
           ) : (

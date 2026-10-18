@@ -7,7 +7,7 @@ import { hs, vs, ms } from '@/utils/responsive';
 import { SPACE } from '@/theme/spacing';
 import { foodTheme } from '../constants/theme';
 import type { FoodStackParamList, RootStackParamList } from '@/navigation/types';
-import type { DiningRestaurant, SpecialDish } from '../mocks/types';
+import type { SpecialDish } from '../mocks/types';
 import { dishToProduct } from '../mocks/specials';
 import { getOfferDishes } from '../utils/menu';
 import { useRestaurantMenu } from '../hooks/useRestaurantMenu';
@@ -30,8 +30,8 @@ type Props = NativeStackScreenProps<FoodStackParamList, 'RestaurantOffers'>;
 export function RestaurantOffersScreen({ navigation, route }: Props) {
   const { restaurant, offers } = route.params;
   const [searchQuery, setSearchQuery] = useState('');
-  const { menu, loading } = useRestaurantMenu(restaurant as DiningRestaurant);
-  const seedOffers = (offers as SpecialDish[]) ?? [];
+  const { menu, loading } = useRestaurantMenu(restaurant);
+  const seedOffers = offers ?? [];
 
   // Live menu wins as soon as it has rows (a known venue seeds instantly from its fixture, then
   // swaps to the server list). Only a server-only venue still in flight borrows the param seed.

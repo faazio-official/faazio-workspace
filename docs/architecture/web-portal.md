@@ -53,7 +53,7 @@ The campaign wizard's **what→where** placements map 1:1 to the paid mobile sur
 | `seller/pricing` | price/MRP | all |
 | `seller/promotions` | festival opt-ins + live price | all |
 | `seller/stores` | store profile | all |
-| `seller/menus` | dish menus | FOOD |
+| `seller/menus` | dish menus (+ authoritative MRP strike) | FOOD |
 | `seller/orders` · `seller/orders/[id]` | order queue + detail | all |
 | `seller/bookings` · `seller/bookings/settings` | seat accept/reject/vacate + config | FOOD |
 | `seller/prescriptions` | Rx quote → READY reveal | PHARMA |
@@ -139,7 +139,11 @@ used when `NEXT_PUBLIC_GATEWAY_URL` is unset; seed mode reconciles on the next h
 Write bodies send **whole rupee** integers (the mapper divides paisa by 100). The seller listing
 editor (`seller/products/[id]/edit`) persists name/description/photos through `updateProduct` but
 routes **price/MRP through `upsertPrice`** (`PUT /seller/products/{id}`) so money edits reach
-`catalog.products` + `inventory.stock` instead of staying local-only.
+`catalog.products` + `inventory.stock` instead of staying local-only. The Food menu editor
+(`seller/menus`) likewise writes an optional **MRP** (list price, rupees) alongside the selling price
+through `upsertMenu` → `POST`/`PUT /seller/menus/{venueId}/{dishId}`; the gateway rejects `mrp < price`
+(400) so the authored strike is always `mrp_paisa > price_paisa` and the mobile "Recommended & Offers"
+rail can trust it. A menu with no MRP shows no strike (honest, never synthesized).
 
 A production build with `NEXT_PUBLIC_GATEWAY_URL` unset renders a fixed
 `SEED MODE — not connected to gateway` badge (`SeedModeBanner`), so seed data can

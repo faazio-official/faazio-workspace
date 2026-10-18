@@ -1086,28 +1086,45 @@ export class GatewayClient {
     );
   }
 
-  /** A venue's dishes (durable directory.menus). Strict — menu prices are money-critical. */
+  /**
+   * A venue's dishes (durable `directory.menus`). Mock-mode wrapper (fixture fallback) for callers
+   * that want the never-blank seam; the restaurant menu screen uses the server-only `fetchMenu` so
+   * it can tell an authoritative empty (seller emptied the venue) from offline.
+   */
   async getMenu(venueId: string): Promise<MenuDish[]> {
-    return this.withStrict(
+    return this.withFallback(
       () => this.http<MenuDish[]>(`/venues/${encodeURIComponent(venueId)}/menu`),
-      () => {
-        const venue = getStoreById(venueId) ?? diningVenues.find((v) => v.id === venueId);
-        const dishes = venue ? menuForVenueName(venue.name) : [];
-        return delay(
-          dishes.map((d) => ({
-            id: d.id,
-            name: d.dishName,
-            price: d.price,
-            mrp: d.mrp,
-            isVeg: d.isVeg,
-            cuisine: d.cuisine,
-            rating: d.rating,
-            image: d.image,
-            description: d.description,
-            deliveryTime: d.deliveryTime,
-          })),
-        );
-      },
+      () => this.localMenu(venueId),
+    );
+  }
+
+  /**
+   * Server-only venue menu (no fixture fallback) so the caller can distinguish an authoritative
+   * empty (the seller delisted every dish) from offline. Throws `GatewayOfflineError` when remote is
+   * disabled and rethrows any HTTP error; `useRestaurantMenu` owns the fixture fallback and only
+   * keeps the seed on a real failure, never on a legitimate `[]`.
+   */
+  async fetchMenu(venueId: string): Promise<MenuDish[]> {
+    if (!REMOTE_ENABLED) throw new GatewayOfflineError();
+    return this.http<MenuDish[]>(`/venues/${encodeURIComponent(venueId)}/menu`);
+  }
+
+  private async localMenu(venueId: string): Promise<MenuDish[]> {
+    const venue = getStoreById(venueId) ?? diningVenues.find((v) => v.id === venueId);
+    const dishes = venue ? menuForVenueName(venue.name) : [];
+    return delay(
+      dishes.map((d) => ({
+        id: d.id,
+        name: d.dishName,
+        price: d.price,
+        mrp: d.mrp,
+        isVeg: d.isVeg,
+        cuisine: d.cuisine,
+        rating: d.rating,
+        image: d.image,
+        description: d.description,
+        deliveryTime: d.deliveryTime,
+      })),
     );
   }
 

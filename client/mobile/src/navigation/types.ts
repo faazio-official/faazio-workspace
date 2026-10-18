@@ -1,7 +1,7 @@
 import type { NavigatorScreenParams } from '@react-navigation/native';
 import type { SubAppId } from '@/state/uiStore';
 import type { DietFilter } from '@/state/foodFilterStore';
-import type { DiningRestaurant } from '@/features/food/mocks/types';
+import type { DiningRestaurant, SpecialDish } from '@/features/food/mocks/types';
 import type { MyOrdersStatusFilter } from '@data/types';
 
 export type MainTabParamList = {
@@ -51,7 +51,7 @@ export type RootStackParamList = {
    * scope never leaks between entries. (The object stays `| undefined`; a
    * required-param object trips React Navigation's composite navigate typing.)
    */
-  Cart: { restaurantId?: string; restaurantName?: string } | undefined;
+  Cart: { restaurantId?: string; restaurantName?: string; couponCode?: string } | undefined;
   /** "You" — account page, pushed from any app (back returns). */
   You: undefined;
   /** Pixel-perfect payment method picker (preferred card, UPI, cards, more). */
@@ -120,9 +120,9 @@ export type FoodStackParamList = {
   FoodHome: undefined;
   Search: { initialQuery?: string; initialMode?: string } | undefined;
   /** Full restaurant profile drill-in (hero, menu, floating cart footer). */
-  RestaurantProfile: { restaurant: any };
+  RestaurantProfile: { restaurant: DiningRestaurant };
   /** "View All" — every discounted dish for a restaurant, search-result-style list. */
-  RestaurantOffers: { restaurant: any; offers: any[] };
+  RestaurantOffers: { restaurant: DiningRestaurant; offers: SpecialDish[] };
   /** Full restaurant menu page — every dish + its own search bar. */
   RestaurantMenu: { restaurant: DiningRestaurant; dietFilter: DietFilter };
 };

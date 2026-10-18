@@ -8,7 +8,6 @@ import { martProducts } from '../mart/products';
 import { MART_DEALS, dealToProduct } from '../mart/deals';
 import { foodProducts } from '../food/products';
 import { TODAYS_SPECIALS, dishToProduct } from '../food/specials';
-import { BOOKING_DISHES_DB, type BookingDish } from '../food/bookingDishes';
 import { pharmaProducts, PHARMA_CATEGORIES } from '../pharma/products';
 import { mensPicks, womensPicks, childrensPicks, hairSkinPicks } from '../home/demographics';
 import { instantFeed } from '../home/instantFeed';
@@ -105,37 +104,11 @@ function fromExploreItem(item: ExploreItem, stack: ExploreStack): CatalogEntry {
   };
 }
 
-function fromBookingDish(dish: BookingDish): CatalogEntry {
-  const price = Number(dish.price.replace(/[^0-9.]/g, ''));
-  const desc = `${dish.tags} · ${dish.restaurant}`;
-  const category = 'Dining Reservations';
-  return {
-    id: dish.id,
-    app: 'FOOD',
-    category,
-    name: dish.name,
-    searchTokens: tokenize(dish.name, desc, category, dish.restaurant, dish.category),
-    price,
-    rating: Number(dish.rating),
-    emoji: dish.emoji,
-    image: dish.image,
-    desc,
-    shop: dish.restaurant,
-    attributes: {
-      kind: 'booking',
-      tab: dish.tab,
-      dishCategory: dish.category,
-      isSpecial: dish.isSpecial ? 'true' : 'false',
-    },
-  };
-}
-
 const allEntries: CatalogEntry[] = [
   ...martProducts.map(fromProduct),
   ...MART_DEALS.map(dealToProduct).map(fromProduct),
   ...foodProducts.map(fromProduct),
   ...TODAYS_SPECIALS.map(dishToProduct).map(fromProduct),
-  ...BOOKING_DISHES_DB.map(fromBookingDish),
   ...pharmaProducts.map(fromProduct),
   ...mensPicks.map(fromProduct),
   ...womensPicks.map(fromProduct),

@@ -14,7 +14,6 @@ export { MART_DEALS, dealToProduct } from './mart/deals';
 
 export { foodProducts, topOfWeekDishes } from './food/products';
 export { foodStores } from './food/stores';
-export { BOOKING_DISHES_DB } from './food/bookingDishes';
 export { TODAYS_SPECIALS, dishToProduct } from './food/specials';
 export {
   restaurantMenus,

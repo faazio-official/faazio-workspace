@@ -924,6 +924,13 @@ CREATE INDEX menus_venue_idx ON directory.menus (venue_id);
 > `DiscountReader` settlement ignores menus. So the Food menu price shown is the price charged — no
 > display-vs-settlement gap. Making menu dishes festival-eligible would be a deliberate contract delta
 > (a nullable `menu_dish_id` opt-in + an `ActiveDiscounts` union), not done here.
+>
+> **MRP is authored by the seller (W58).** `0017` adds `seller_id` + `status` (product_status) to
+> `directory.menus`; the public `GET /venues/{id}/menu` serves **`status = 'ACTIVE'`** rows only, so a
+> delisted/never-approved dish no longer leaks to shoppers and a seller emptying a venue clears its
+> menu. The portal `seller/menus` form writes `mrp` (rupees) through
+> `POST`/`PUT /seller/menus/{venueId}/{dishId}`, guarded server-side by `mrp >= price` (mirrors the
+> `menus_mrp_gte_price` check). Seed rows are emitted `ACTIVE`.
 
 `dining_venues` was an identity stub (`id,name`), so every restaurant profile was hollow in the DB.
 Menus are seeded from `restaurantMenus` (61 dishes / 18 dining venues) **and** `storeMenus`

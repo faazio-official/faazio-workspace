@@ -108,6 +108,8 @@ interface CartViewProps {
   onTrackOrder?: (orderId: string) => void;
   /** Restaurant-isolated cart mode (from a restaurant page). */
   restaurantName?: string;
+  /** Coupon code handed off from an offer banner — auto-applied (validated) once loaded. */
+  initialCouponCode?: string;
   /** Scoped-only: clear this restaurant's lines. */
   onClearItems?: () => void;
   /** Scoped-only: remove a single line. */
@@ -125,6 +127,7 @@ export default function CartView({
   onGoToHub,
   onTrackOrder,
   restaurantName,
+  initialCouponCode,
   onClearItems,
   onDeleteItem,
 }: CartViewProps) {
@@ -301,6 +304,19 @@ export default function CartView({
     setAppliedCouponCode(null);
     setCouponError(null);
   };
+
+  // Banner → cart hand-off: the restaurant offer banner passes its coupon code so the displayed
+  // promise is honoured (and validated) instead of the shopper re-typing it. Apply once the coupon
+  // list contains the code (server list loads async); an invalid/min-order code surfaces the same
+  // inline error a manual entry would. Runs once.
+  const prefilledCouponRef = useRef(false);
+  useEffect(() => {
+    if (prefilledCouponRef.current || !initialCouponCode) return;
+    const code = initialCouponCode.toUpperCase().trim();
+    if (!couponList.some((c) => c.code === code)) return; // wait for the server/fixture list
+    prefilledCouponRef.current = true;
+    applyCouponCode(code);
+  }, [initialCouponCode, couponList, applyCouponCode]);
 
   const applyStreakCard = () => {
     if (!discountCard) return;

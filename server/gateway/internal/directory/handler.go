@@ -373,6 +373,7 @@ type menuRequest struct {
 	DishID       string   `json:"dishId"`
 	Name         string   `json:"name"`
 	Price        int64    `json:"price"`
+	MRP          *int64   `json:"mrp"`
 	IsVeg        *bool    `json:"isVeg"`
 	Cuisine      string   `json:"cuisine"`
 	Rating       *float64 `json:"rating"`
@@ -400,6 +401,13 @@ func (h *Handler) upsertMenu(w http.ResponseWriter, r *http.Request) {
 		httpx.Fail(w, http.StatusBadRequest, "bad_request", "venueId, dishId, name and a non-negative price are required")
 		return
 	}
+	// MRP is the list price (strike). It may equal, but never fall below, the selling price — the
+	// discount predicate is `mrp > price` and the DB check `menus_mrp_gte_price` (migration 0022)
+	// guards the same invariant. A negative list price is nonsense.
+	if req.MRP != nil && (*req.MRP < req.Price || *req.MRP < 0) {
+		httpx.Fail(w, http.StatusBadRequest, "bad_request", "mrp must be present, non-negative and not below the selling price")
+		return
+	}
 	admin := roleAdmin(r)
 	sellerID := auth.SellerID(r.Context())
 	if !admin && sellerID == "" {
@@ -415,7 +423,7 @@ func (h *Handler) upsertMenu(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	m, ok, err := h.repo.UpsertMenu(r.Context(), SellerMenu{
-		VenueID: req.VenueID, DishID: req.DishID, Name: req.Name, Price: req.Price,
+		VenueID: req.VenueID, DishID: req.DishID, Name: req.Name, Price: req.Price, MRP: req.MRP,
 		IsVeg: req.IsVeg, Cuisine: req.Cuisine, Rating: req.Rating, Image: req.Image,
 		ImageKey: imageKey, ImageAssetID: imageAssetID,
 	}, sellerID, admin)

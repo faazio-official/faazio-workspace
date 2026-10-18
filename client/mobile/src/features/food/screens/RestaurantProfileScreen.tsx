@@ -15,7 +15,6 @@ import { useSharedValue } from 'react-native-reanimated';
 import {
   ArrowLeft,
   Search,
-  Share2,
   MapPin,
   Star,
   ShieldCheck,
@@ -37,7 +36,6 @@ import MenuCategoryRail from '../components/MenuCategoryRail';
 import ViewCartPill from '../components/ViewCartPill';
 import { foodTheme } from '../constants/theme';
 import type { FoodStackParamList, RootStackParamList } from '@/navigation/types';
-import type { DiningRestaurant } from '../mocks/types';
 import type { SpecialDish } from '@data/types';
 import { getOfferDishes, getMenuCategories } from '../utils/menu';
 import { useRestaurantMenu } from '../hooks/useRestaurantMenu';
@@ -55,7 +53,7 @@ const GREEN = '#16A34A';
 const RED = '#DC2626';
 
 export function RestaurantProfileScreen({ navigation, route }: Props) {
-  const restaurant = route.params?.restaurant as DiningRestaurant;
+  const restaurant = route.params.restaurant;
   const insets = useSafeAreaInsets();
   const [activeCategory, setActiveCategory] = useState('Bestsellers');
 
@@ -152,6 +150,17 @@ export function RestaurantProfileScreen({ navigation, route }: Props) {
       .getParent<NativeStackNavigationProp<RootStackParamList>>()
       ?.navigate('Cart', { restaurantId: restaurant.id, restaurantName: restaurant.name });
   }, [navigation, restaurant.id, restaurant.name]);
+
+  /** Offer-banner tap: open the scoped cart with the live coupon pre-loaded (validated there). */
+  const applyCouponInCart = useCallback(() => {
+    navigation
+      .getParent<NativeStackNavigationProp<RootStackParamList>>()
+      ?.navigate('Cart', {
+        restaurantId: restaurant.id,
+        restaurantName: restaurant.name,
+        couponCode: bestCoupon?.code,
+      });
+  }, [navigation, restaurant.id, restaurant.name, bestCoupon?.code]);
 
   const openMenuSearch = useCallback(() => {
     navigation.navigate('RestaurantMenu', { restaurant, dietFilter });
@@ -306,7 +315,7 @@ export function RestaurantProfileScreen({ navigation, route }: Props) {
           {bestCoupon ? (
             <TouchableOpacity
               style={styles.offerBanner}
-              onPress={openCart}
+              onPress={applyCouponInCart}
               activeOpacity={0.8}
               accessibilityRole="button"
               accessibilityLabel={`Apply coupon ${bestCoupon.code} in cart`}
@@ -447,9 +456,6 @@ export function RestaurantProfileScreen({ navigation, route }: Props) {
             accessibilityLabel="Search menu"
           >
             <Search color="#fff" size={ms(20)} />
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.headerIconBg} accessibilityRole="button">
-            <Share2 color="#fff" size={ms(20)} />
           </TouchableOpacity>
         </View>
       </View>

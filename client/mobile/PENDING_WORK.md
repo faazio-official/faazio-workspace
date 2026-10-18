@@ -5,6 +5,62 @@ dependencies exist. Do not build the backend/seller flows until told to.
 
 ---
 
+## W58 — Food menu authority + Offers authoring (P0/P1)
+
+**Status:** 🟢 Shipped (app + web + server + db + docs). App auth stays **mocked** (no Supabase phone
+OTP). Closes the remaining Food gaps from the sub-app audit: the seller could not author the MRP
+strike the "Recommended & Offers" rail requires (P0-3), a delisted/emptied menu never cleared (P1-6),
+the offer banner's coupon was never applied (P1-4), loose Food route params (P1-8/P1-10), and dead
+UI/catalog pollution (P1-9).
+
+- **P0-3 seller authors the menu MRP (the Offers rail's source of truth).** `directory.menus.mrp_paisa`
+  (`0022`) was read-only: no portal field and `POST`/`PUT /seller/menus/{venueId}/{dishId}` had no MRP,
+  so a seller-created dish never struck and the Offers rail stayed honestly empty regardless of intent.
+  Added the MRP to the seller menu form (`client/web/platform/app/seller/menus`), `MenuDto`/
+  `MenuItemRecord.mrpPaisa`, the `pushWrite` body, and the server (`menuRequest.mrp` → `SellerMenu.MRP`
+  → `repo.UpsertMenu`/`SellerMenus`/`SetMenuStatus`). The gateway rejects `mrp < price` (400) so the
+  authored strike is always `mrp_paisa > price_paisa`; a menu with no MRP shows no strike (never
+  synthesized).
+- **P1-6 menu is authoritative (seller empties a venue → it clears).** New server-only
+  `GatewayClient.fetchMenu(venueId)` (throws `GatewayOfflineError`, mirrors `fetchVenues`); the
+  public `GET /venues/{id}/menu` now serves **`status = 'ACTIVE'`** rows only, so a delisted/DRAFT dish
+  no longer leaks to shoppers. `useRestaurantMenu` uses `fetchMenu`: a live `[]` clears the fixture
+  seed and shows the honest empty menu; only a real failure keeps the seed (never blank offline). The
+  seed generator emits menu rows `ACTIVE` (mirrors `catalog.products`).
+- **P1-4 offer banner applies its coupon.** The profile offer banner now passes the live coupon code
+  to the scoped cart (`Cart` route param `couponCode` → `CartView.initialCouponCode`), which
+  auto-applies once the coupon list contains it, re-validating server-side and surfacing the real
+  `invalid_coupon`/`min_order` error — the banner no longer promises a code the shopper must re-enter.
+- **P1-8/P1-10 typed Food routes.** `FoodStackParamList` `RestaurantProfile` is now
+  `{ restaurant: DiningRestaurant }` and `RestaurantOffers` `{ restaurant: DiningRestaurant; offers:
+  SpecialDish[] }` (were `any`), so a field rename breaks at typecheck instead of silently. Casts
+  removed in the three screens.
+- **P1-9 dead code.** Removed the dead `Share2` toolbar button (no `onPress`) and the no-op See-All on
+  the "What's on your mind?" / "Snacks & Beverages" headers (they opened an empty search). Removed the
+  unorderable `BOOKING_DISHES_DB` (`bd-*`, no `storeId`, price parsed from a `₹` string) from
+  `catalogIndex` + the `@data` export, deleting the fixture — it only added "Dining Reservations" rows
+  no store could fulfil to the FOOD FTS pool (also dropped from the seed).
+
+**Intentionally unchanged / accepted:** paid-ad measurement (`POST /ads/events`) and the auth-gated
+bookings/rating writes stay inert under a production `AUTH_DISABLED=false` gateway with mocked login
+(W49 decision — real session or anon rate-limit is out of scope). `mostRatedDining` remains an
+ID-only contract (a dev `console.warn` now flags an unresolved curated id instead of a silent no-op).
+The fixture-first mind/snack rails, thin server-only dining cards, and the `sp-*` base-price PDP stay
+as previously documented.
+
+**Rollback:** revert `internal/directory/{handler,repo}.go` + `manage_test.go`, the seed
+generator + regenerated `0001_seed.sql`, `client/web/platform` (menus page/types/api/sync), the mobile
+`GatewayClient.fetchMenu` + `useRestaurantMenu`, `RestaurantProfileScreen`/`FoodHomeScreen`/
+`RestaurantOffersScreen`/`RestaurantMenuScreen`/`navigation/types`, `CartScreen`/`CartView`, and the
+`data/catalog/products.ts` + `data/index.ts` + `bookingDishes.ts` removal; behaviour resumes (no data
+loss — `mrp_paisa`/`status` remain populated). No new migration, route, or cache key.
+
+**Docs:** `docs/architecture/{mobile-app,web-portal,db-schema,monolith-breakdown}.md`,
+`data/DATA_CONTROL.md`. `caching-cloudflare-valkey.md` unchanged — the `directory:menu:{venueId}`
+key/TTL and its edit invalidation are reused. **Date:** 2026-10-18
+
+---
+
 ## W57 — Pharma price parity + residual workflow closure (P0/P1)
 
 **Status:** 🟢 Shipped (app + data + docs). No server/DB/cache/route change; app auth stays

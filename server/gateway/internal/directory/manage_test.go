@@ -15,6 +15,8 @@ func manageID(prefix string) string {
 	return prefix + hex.EncodeToString(b)
 }
 
+func i64(v int64) *int64 { return &v }
+
 func TestStoreLiveModeration(t *testing.T) {
 	pool := testenv.Pool(t)
 	repo := New(pool)
@@ -89,7 +91,7 @@ func TestMenuLifecycle(t *testing.T) {
 	t.Cleanup(func() { _, _ = pool.Exec(ctx, `delete from directory.menus where venue_id=$1`, venueID) })
 
 	m, ok, err := repo.UpsertMenu(ctx, SellerMenu{
-		VenueID: venueID, DishID: dishID, Name: "Paneer Tikka", Price: 240,
+		VenueID: venueID, DishID: dishID, Name: "Paneer Tikka", Price: 240, MRP: i64(300),
 	}, sellerID, false)
 	if err != nil || !ok {
 		t.Fatalf("UpsertMenu insert: ok=%v err=%v", ok, err)
@@ -97,12 +99,20 @@ func TestMenuLifecycle(t *testing.T) {
 	if m.Price != 240 || m.Status != "DRAFT" || m.SellerID != sellerID {
 		t.Fatalf("unexpected inserted menu: %+v", m)
 	}
+	// The authored MRP rides the write path (the strike the Food offers rail renders).
+	if m.MRP == nil || *m.MRP != 300 {
+		t.Fatalf("MRP not persisted on insert: %+v", m)
+	}
+	// A DRAFT row is not yet public: the menu read serves ACTIVE rows only.
+	if dishes, err := repo.Menu(ctx, venueID); err != nil || len(dishes) != 0 {
+		t.Fatalf("DRAFT dish leaked into the public menu: err=%v dishes=%+v", err, dishes)
+	}
 
 	// Cross-seller update denied, owner update allowed.
 	if _, ok, err := repo.UpsertMenu(ctx, SellerMenu{VenueID: venueID, DishID: dishID, Name: "Hijack", Price: 1}, "sel-other", false); err != nil || ok {
 		t.Fatalf("cross-seller menu update must be denied: ok=%v err=%v", ok, err)
 	}
-	if m, ok, err := repo.UpsertMenu(ctx, SellerMenu{VenueID: venueID, DishID: dishID, Name: "Paneer Tikka Deluxe", Price: 260}, sellerID, false); err != nil || !ok || m.Price != 260 {
+	if m, ok, err := repo.UpsertMenu(ctx, SellerMenu{VenueID: venueID, DishID: dishID, Name: "Paneer Tikka Deluxe", Price: 260, MRP: i64(320)}, sellerID, false); err != nil || !ok || m.Price != 260 || m.MRP == nil || *m.MRP != 320 {
 		t.Fatalf("owner menu update: ok=%v err=%v m=%+v", ok, err, m)
 	}
 
@@ -114,10 +124,21 @@ func TestMenuLifecycle(t *testing.T) {
 		t.Fatalf("owner status write: ok=%v err=%v m=%+v", ok, err, m)
 	}
 
-	// Public menu read reflects the rupees conversion.
+	// Public menu read reflects the rupees conversion and now serves the ACTIVE row.
 	dishes, err := repo.Menu(ctx, venueID)
 	if err != nil || len(dishes) != 1 || dishes[0].Price != 260 {
 		t.Fatalf("Menu read: err=%v dishes=%+v", err, dishes)
+	}
+	if dishes[0].OriginalPrice == nil || *dishes[0].OriginalPrice != 320 {
+		t.Fatalf("menu read dropped MRP: %+v", dishes[0])
+	}
+
+	// Delisting removes it from the public menu (the seller pull takes effect).
+	if _, ok, err := repo.SetMenuStatus(ctx, venueID, dishID, sellerID, "DELISTED", false); err != nil || !ok {
+		t.Fatalf("delist: ok=%v err=%v", ok, err)
+	}
+	if dishes, err := repo.Menu(ctx, venueID); err != nil || len(dishes) != 0 {
+		t.Fatalf("DELISTED dish still public: err=%v dishes=%+v", err, dishes)
 	}
 
 	if ok, err := repo.DeleteMenu(ctx, venueID, dishID, "sel-other", false); err != nil || ok {

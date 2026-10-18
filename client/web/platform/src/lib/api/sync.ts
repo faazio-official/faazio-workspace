@@ -397,6 +397,7 @@ export async function hydrateFromGateway(): Promise<boolean> {
         dishId: str(m["dishId"]),
         name: str(m["name"]),
         pricePaisa: toPaisa(num(m["price"])),
+        mrpPaisa: m["mrp"] == null ? undefined : toPaisa(num(m["mrp"])),
         isVeg: typeof m["isVeg"] === "boolean" ? m["isVeg"] : undefined,
         cuisine: m["cuisine"] ? str(m["cuisine"]) : undefined,
         rating: m["rating"] == null ? undefined : num(m["rating"]),

@@ -1363,6 +1363,8 @@ export interface MenuDto {
   dishId: string;
   name: string;
   pricePaisa: number;
+  /** List price (MRP) for the strike-through; must be ≥ pricePaisa. Omit for no offer. */
+  mrpPaisa?: number | undefined;
   isVeg?: boolean | undefined;
   cuisine?: string | undefined;
   rating?: number | undefined;
@@ -1389,6 +1391,7 @@ export function upsertMenu(dto: MenuDto): void {
     {
       name: dto.name,
       price: toRupees(dto.pricePaisa),
+      ...(dto.mrpPaisa != null ? { mrp: toRupees(dto.mrpPaisa) } : {}),
       isVeg: dto.isVeg,
       cuisine: dto.cuisine ?? "",
       rating: dto.rating,
