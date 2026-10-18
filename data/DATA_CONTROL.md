@@ -138,8 +138,10 @@ wiring order in `docs/architecture/data-layer-sdui.md`.
 > `martHero.banners` house fallback), **Deals** (`martDeals.productIds`) and **Daily Essentials**
 > (`martEssentials.productIds`) sections are **server-controlled** through the Mongo SDUI doc
 > (`GET /sdui/mart`) and `ads.campaigns`; the `MART_DEALS`/`MART_DAILY_ESSENTIALS` fixtures are
-> first-paint fallbacks only. `campaign` mode (`@data/home/campaigns.ts`) stays Home-owned `@data` —
-> it has no server read and is reachable only from Home, not Mart.
+> first-paint fallbacks only. `campaign` mode (`@data/home/campaigns.ts`) is now **server-owned
+> too (W50)**: the `hotBrandDeals.campaigns[]` SDUI leaf compiles into the anon
+> `GET /home/campaigns(/{id})` projection (`GatewayClient.getHomeCampaigns`/`getHomeCampaign`),
+> with the `@data` fixture as the offline fallback.
 
 ### `@data/grocery` — **removed (merged into `mart`)**
 

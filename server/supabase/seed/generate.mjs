@@ -477,6 +477,7 @@ function buildSduiSections() {
     id: s.id, title: s.title, subtitle: s.subtitle ?? null, accent: s.accent,
     productIds: s.productIds, storeIds: s.storeIds ?? [], chips: s.chips ?? [],
     ...(s.banners && s.banners.length ? { banners: s.banners } : {}),
+    ...(s.campaigns && s.campaigns.length ? { campaigns: s.campaigns } : {}),
   }));
 }
 
@@ -548,20 +549,32 @@ function assertLeanContract() {
     if (h.placement === 'CATEGORY_TOP' && !h.category) violations.push(`hero ${h.placementId}: CATEGORY_TOP needs a category`);
     if (h.placement === 'STORE_TOP' && !h.storeId) violations.push(`hero ${h.placementId}: STORE_TOP needs a storeId`);
   }
-  // SDUI product rails (`martDeals`/`martEssentials`/`foodSpecials`) must reference real catalog
-  // rows — the app resolves them via getProductsByIds; a typo'd portal publish would silently fall
-  // back to the fixture instead of surfacing the error.
+  // SDUI product rails (`martDeals`/`martEssentials`/`foodSpecials`/`pharmaPopular`/`pharmaEssentials`)
+  // must reference real catalog rows — the app resolves them via getProductsByIds; a typo'd portal
+  // publish would silently fall back to the fixture instead of surfacing the error.
+  const sduiProductRailIds = new Set(['martDeals', 'martEssentials', 'foodSpecials', 'pharmaPopular', 'pharmaEssentials']);
   for (const section of d.homeSdui) {
-    if (section.id !== 'martDeals' && section.id !== 'martEssentials' && section.id !== 'foodSpecials') continue;
+    if (!sduiProductRailIds.has(section.id)) continue;
     for (const id of section.productIds) {
       if (!catalogIds.has(id)) violations.push(`${section.id} product ${id} not in catalogIndex`);
     }
   }
-  // Hero house banners (Mart + Food) must satisfy the `internal/sdui` publish bounds (≤8 banners,
-  // image URL ≤512) or a seeded/published doc would be rejected at PUT time and the house hero
-  // silently vanish.
+  // Editorial campaigns (Home "Deals of the day" / `GET /home/campaigns`) must point at a seeded
+  // store + real catalog products, or the gateway join would drop them and the drill-in would dangle.
   for (const section of d.homeSdui) {
-    if (section.id !== 'martHero' && section.id !== 'foodHero') continue;
+    for (const campaign of section.campaigns ?? []) {
+      if (!storeIds.has(campaign.storeId)) violations.push(`campaign ${campaign.id}: store ${campaign.storeId} not seeded`);
+      if (campaign.carousel !== 1 && campaign.carousel !== 2) violations.push(`campaign ${campaign.id}: carousel ${campaign.carousel} must be 1 or 2`);
+      for (const id of campaign.productIds) {
+        if (!catalogIds.has(id)) violations.push(`campaign ${campaign.id}: product ${id} not in catalogIndex`);
+      }
+    }
+  }
+  // Hero house banners (Mart + Food + Pharma) must satisfy the `internal/sdui` publish bounds
+  // (≤8 banners, image URL ≤512) or a seeded/published doc would be rejected at PUT time and the
+  // house hero silently vanish.
+  for (const section of d.homeSdui) {
+    if (section.id !== 'martHero' && section.id !== 'foodHero' && section.id !== 'pharmaHero') continue;
     const banners = section.banners ?? [];
     if (banners.length > 8) violations.push(`${section.id} banners exceed the 8-banner bound`);
     for (const b of banners) {

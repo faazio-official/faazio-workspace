@@ -1,4 +1,4 @@
-import React, { memo, useEffect, useRef, useState } from 'react';
+import React, { memo, useEffect, useMemo, useRef, useState } from 'react';
 import {
   View,
   ScrollView,
@@ -9,7 +9,7 @@ import {
 import { hs, vs, ms } from '@/utils/responsive';
 import { SPACE } from '@/theme/spacing';
 import type { AdCampaign, Product } from '@data/types';
-import { carouselOneCampaigns, carouselTwoCampaigns } from '@data/home/campaigns';
+import { adCampaigns } from '@data/home/campaigns';
 import BrandCampaignCard from '@/features/home/cards/BrandCampaignCard';
 import type { SectionProps } from './common';
 import AppText from '@/components/AppText';
@@ -90,24 +90,34 @@ const CampaignCarousel = memo(function CampaignCarousel({
  * paging carousels of vendor campaign cards on the purple `#EDE9FE` container. Each
  * card's "View all" opens the `DealsLanding` page in campaign mode.
  */
-function BrandCampaignsSection({ onProductClick, onOpenDeals }: SectionProps) {
+function BrandCampaignsSection({ onProductClick, onOpenDeals, campaigns }: SectionProps) {
   const handleViewAll = (campaign: AdCampaign) =>
     onOpenDeals?.({ mode: 'campaign', campaignId: campaign.id });
+
+  // Server-owned campaign definitions (portal-published on the SDUI `hotBrandDeals` section) win;
+  // the `@data` fixture is the offline / pre-load fallback so the carousels never blank.
+  const { carouselOne, carouselTwo } = useMemo(() => {
+    const source = campaigns && campaigns.length > 0 ? campaigns : adCampaigns;
+    return {
+      carouselOne: source.filter((c) => c.carousel === 1),
+      carouselTwo: source.filter((c) => c.carousel === 2),
+    };
+  }, [campaigns]);
 
   return (
     <View style={styles.container}>
       <AppText style={styles.containerTitle}>Deals of the day</AppText>
-      {carouselOneCampaigns.length > 0 ? (
+      {carouselOne.length > 0 ? (
         <CampaignCarousel
-          campaigns={carouselOneCampaigns}
+          campaigns={carouselOne}
           onViewAll={handleViewAll}
           onProductClick={onProductClick}
         />
       ) : null}
-      {carouselTwoCampaigns.length > 0 ? (
+      {carouselTwo.length > 0 ? (
         <View style={styles.secondCarousel}>
           <CampaignCarousel
-            campaigns={carouselTwoCampaigns}
+            campaigns={carouselTwo}
             onViewAll={handleViewAll}
             onProductClick={onProductClick}
           />

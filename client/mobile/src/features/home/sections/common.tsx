@@ -4,6 +4,7 @@ import { hs, vs, ms } from '@/utils/responsive';
 import { SPACE } from '@/theme/spacing';
 import type { SubAppId } from '@/state/uiStore';
 import type { AppBrand, Product, StoreProfile } from '@data/types';
+import type { SduiCampaign } from '@data/home/sdui';
 import { applyActiveDiscounts, useActiveDiscounts } from '@/services/pricing';
 import AppText from '@/components/AppText';
 
@@ -15,6 +16,8 @@ export interface SectionProps {
   addToCart?: (id: string, name: string, price: number, emoji: string) => void;
   /** Open the Deals landing page for a campaign or vendor discounts. */
   onOpenDeals?: (params: { mode: 'campaign' | 'discounts'; campaignId?: string; storeId?: string }) => void;
+  /** Server-owned campaign definitions for this section (Home "Deals of the day"); fixture fallback. */
+  campaigns?: SduiCampaign[];
 }
 
 // Maps the data-layer AppBrand to the navigable SubAppId.

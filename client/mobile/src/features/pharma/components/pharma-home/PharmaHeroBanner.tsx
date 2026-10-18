@@ -4,14 +4,18 @@ import { LinearGradient } from 'expo-linear-gradient';
 import AppText from '@/components/AppText';
 import { hs, ms, vs } from '@/utils/responsive';
 import { PHARMA_HERO_IMAGE, PHARMA_PALE, PHARMA_TEAL, PHARMA_TEAL_DARK } from '../../mocks/pharmaHomeFeed';
+import type { SduiBanner } from '@data/home/sdui';
 import PharmaImage from './PharmaImage';
 
 interface PharmaHeroBannerProps {
   onOrderNow?: () => void;
+  /** Portal-owned organic hero (`pharmaHero.banners[0]`); falls back to the built-in card when absent. */
+  banner?: SduiBanner;
 }
 
 const PharmaHeroBanner = memo(function PharmaHeroBanner({
   onOrderNow,
+  banner,
 }: PharmaHeroBannerProps) {
   return (
     <View style={styles.wrap}>
@@ -21,11 +25,17 @@ const PharmaHeroBanner = memo(function PharmaHeroBanner({
             <AppText style={styles.pillText}>STAY HEALTHY</AppText>
           </View>
           <View style={styles.titleBlock}>
-            <AppText style={styles.titleDark}>Your Health,</AppText>
-            <AppText style={styles.titleTeal}>Our Priority</AppText>
+            {banner ? (
+              <AppText style={styles.titleDark} numberOfLines={2}>{banner.title}</AppText>
+            ) : (
+              <>
+                <AppText style={styles.titleDark}>Your Health,</AppText>
+                <AppText style={styles.titleTeal}>Our Priority</AppText>
+              </>
+            )}
           </View>
           <AppText style={styles.subtext} numberOfLines={1}>
-            Get 25% OFF on your first order
+            {banner?.subtitle ?? 'Get 25% OFF on your first order'}
           </AppText>
           <View style={styles.coupon}>
             <AppText style={styles.couponText}>Use code: HEALTH25</AppText>
@@ -40,7 +50,7 @@ const PharmaHeroBanner = memo(function PharmaHeroBanner({
             <AppText style={styles.ctaText}>Order Now →</AppText>
           </TouchableOpacity>
         </View>
-        <PharmaImage uri={PHARMA_HERO_IMAGE} style={styles.image} contentFit="cover" />
+        <PharmaImage uri={banner?.imageUrl ?? PHARMA_HERO_IMAGE} style={styles.image} contentFit="cover" />
         <View style={styles.badge}>
           <AppText style={styles.badgeText}>
             UP TO{'\n'}50% OFF

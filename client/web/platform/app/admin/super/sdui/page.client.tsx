@@ -19,7 +19,7 @@ import { formatDateTime } from "@/lib/format";
 import { useMockLoading, useSduiLayouts } from "@/lib/api/hooks";
 import { saveSduiLayoutHome } from "@/lib/api";
 import { resolveImage, uploadProductImage } from "@/lib/media/productImages";
-import type { SduiBanner, SduiSection } from "@/data/types";
+import type { SduiBanner, SduiCampaign, SduiSection } from "@/data/types";
 
 /** Comma/newline separated id list -> trimmed, non-empty ids. */
 function parseIds(value: string): string[] {
@@ -72,6 +72,22 @@ function SuperSdui() {
       rows.map((s) =>
         s.id === sectionId
           ? { ...s, banners: (s.banners ?? []).map((b) => (b.id === bannerId ? { ...b, ...next } : b)) }
+          : s,
+      ),
+    );
+    setDirty(true);
+  };
+
+  const patchCampaign = (sectionId: string, campaignId: string, next: Partial<SduiCampaign>) => {
+    setDraft((rows) =>
+      rows.map((s) =>
+        s.id === sectionId
+          ? {
+              ...s,
+              campaigns: (s.campaigns ?? []).map((c) =>
+                c.id === campaignId ? { ...c, ...next } : c,
+              ),
+            }
           : s,
       ),
     );
@@ -150,6 +166,7 @@ function SuperSdui() {
                       {s.storeIds?.length ? <div>{s.storeIds.length} stores</div> : null}
                       {s.chips?.length ? <div>{s.chips.length} chips</div> : null}
                       {s.banners?.length ? <div>{s.banners.length} banners</div> : null}
+                      {s.campaigns?.length ? <div>{s.campaigns.length} campaigns</div> : null}
                     </TableCell>
                   </TableRow>
                   {s.banners?.length ? (
@@ -200,6 +217,54 @@ function SuperSdui() {
                                   />
                                 </label>
                               </div>
+                            </div>
+                          ))}
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  ) : null}
+                  {s.campaigns?.length ? (
+                    <TableRow>
+                      <TableCell colSpan={4} className="bg-muted/30">
+                        <div className="space-y-2">
+                          <p className="text-xs font-medium text-muted-foreground">
+                            {s.id} campaigns (vendor store + catalog product ids; title/price are joined
+                            from the directory/catalog on <span className="num">GET /home/campaigns</span>)
+                          </p>
+                          {s.campaigns.map((c) => (
+                            <div
+                              key={c.id}
+                              className="grid grid-cols-1 gap-2 rounded border border-border p-2 md:grid-cols-4"
+                            >
+                              <div className="num self-center text-xs text-muted-foreground">{c.id}</div>
+                              <Input
+                                value={c.storeId}
+                                onChange={(e) => patchCampaign(s.id, c.id, { storeId: e.target.value })}
+                                aria-label={`${c.id} store id`}
+                                placeholder="store-m1"
+                              />
+                              <Input
+                                type="number"
+                                min={1}
+                                max={2}
+                                value={c.carousel}
+                                onChange={(e) =>
+                                  patchCampaign(s.id, c.id, {
+                                    carousel: Number(e.target.value) === 2 ? 2 : 1,
+                                  })
+                                }
+                                aria-label={`${c.id} carousel`}
+                                placeholder="Carousel 1|2"
+                              />
+                              <Textarea
+                                value={c.productIds.join(", ")}
+                                rows={2}
+                                onChange={(e) =>
+                                  patchCampaign(s.id, c.id, { productIds: parseIds(e.target.value) })
+                                }
+                                aria-label={`${c.id} product ids`}
+                                placeholder="fm-m1, fm-m2, …"
+                              />
                             </div>
                           ))}
                         </div>

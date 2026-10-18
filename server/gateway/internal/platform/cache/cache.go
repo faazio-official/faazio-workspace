@@ -58,6 +58,24 @@ func SduiMart(locale string) string { return fmt.Sprintf("faazio:v1:gateway:sdui
 // so the Food screen never downloads or couples to the full Home feed. Same TTL as the Home feed;
 // purged on layout publish (write-around).
 func SduiFood(locale string) string { return fmt.Sprintf("faazio:v1:gateway:sdui:%s:/food", locale) }
+
+// SduiPharma caches the compiled Pharma-only SDUI projection (pharmaHero/pharmaPopular/
+// pharmaEssentials) so the Pharma screen never downloads or couples to the full Home feed. Same TTL
+// as the other feeds; purged on layout publish (write-around).
+func SduiPharma(locale string) string {
+	return fmt.Sprintf("faazio:v1:gateway:sdui:%s:/pharma", locale)
+}
+
+// HomeCampaigns caches the compiled anon editorial-campaign list (Home "Deals of the day" drill-in).
+// HomeCampaign caches one campaign by id. Both are purged write-around on layout publish via
+// HomeCampaignsPrefix (the list is also the single-campaign source).
+func HomeCampaigns(locale string) string {
+	return fmt.Sprintf("faazio:v1:home:campaigns:%s", locale)
+}
+func HomeCampaign(locale, id string) string {
+	return fmt.Sprintf("faazio:v1:home:campaigns:%s:%s", locale, id)
+}
+func HomeCampaignsPrefix() string { return "faazio:v1:home:campaigns:" }
 func Reco(userIDHash, context string) string {
 	return fmt.Sprintf("faazio:v1:reco:%s:%s", userIDHash, context)
 }
@@ -126,6 +144,10 @@ const (
 	TTLOrders  = 60 * time.Second
 	TTLSdui    = 300 * time.Second
 	TTLAuth    = 3600 * time.Second
+
+	// TTLHomeCampaign bounds the anon editorial-campaign projection (Home "Deals of the day"
+	// drill-in). Slower-moving merchandising than the SDUI feed, so 600s; purged on layout publish.
+	TTLHomeCampaign = 600 * time.Second
 
 	// TTLStoreProducts bounds the anon-visible first page of a store's ACTIVE product list
 	// (vendor drill-in). Purged on product edit/status change (caching doc §4).

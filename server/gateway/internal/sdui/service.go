@@ -44,7 +44,8 @@ func (s *Service) SaveHome(ctx context.Context, sections []contracts.SduiSection
 	if err != nil {
 		return 0, err
 	}
-	s.cache.Del(ctx, cache.SduiHome("en"), cache.SduiMart("en"), cache.SduiFood("en"))
+	s.cache.Del(ctx, cache.SduiHome("en"), cache.SduiMart("en"), cache.SduiFood("en"), cache.SduiPharma("en"))
+	s.cache.DelPrefix(ctx, cache.HomeCampaignsPrefix())
 	return version, nil
 }
 
@@ -67,6 +68,16 @@ var foodSectionIDs = map[string]struct{}{
 	"mostRatedDining": {},
 }
 
+// pharmaSectionIDs is the Pharma feed's allowlist: the house hero banners, the curated OTC
+// "Popular Medicines" order, and the "Health Essentials" product rail, served on their own endpoint
+// (`GET /sdui/pharma`) so Pharma gets independent curation and an independent payload/ETag from Home.
+// Rx-gated categories are never referenced here.
+var pharmaSectionIDs = map[string]struct{}{
+	"pharmaHero":       {},
+	"pharmaPopular":    {},
+	"pharmaEssentials": {},
+}
+
 // Home returns the compiled Home feed (ID-only sections + joined products) and the layout version.
 func (s *Service) Home(ctx context.Context, locale string) ([]contracts.HomeSection, int64, error) {
 	return s.compile(ctx, locale, cache.SduiHome(localeOrDefault(locale)), nil)
@@ -82,6 +93,139 @@ func (s *Service) Mart(ctx context.Context, locale string) ([]contracts.HomeSect
 // the directory/catalog, and the layout version. Cached separately from the Home feed.
 func (s *Service) Food(ctx context.Context, locale string) ([]contracts.HomeSection, int64, error) {
 	return s.compile(ctx, locale, cache.SduiFood(localeOrDefault(locale)), foodSectionIDs)
+}
+
+// Pharma returns only the compiled Pharma sections (pharmaHero/pharmaPopular/pharmaEssentials)
+// joined to the catalog, and the layout version. Cached separately from the Home feed.
+func (s *Service) Pharma(ctx context.Context, locale string) ([]contracts.HomeSection, int64, error) {
+	return s.compile(ctx, locale, cache.SduiPharma(localeOrDefault(locale)), pharmaSectionIDs)
+}
+
+// cachedCampaigns is the internal Valkey value for the anon editorial-campaign projection.
+type cachedCampaigns struct {
+	Version   int64                    `json:"version"`
+	Campaigns []contracts.CampaignView `json:"campaigns"`
+}
+
+type cachedCampaign struct {
+	Version  int64                  `json:"version"`
+	Campaign contracts.CampaignView `json:"campaign"`
+}
+
+// Campaigns returns the compiled editorial campaigns (every section's ID-only campaign definitions
+// joined to their store + products), plus the layout version. Anon merchandising read, cached apart
+// from the SDUI feeds and purged write-around on publish.
+func (s *Service) Campaigns(ctx context.Context, locale string) ([]contracts.CampaignView, int64, error) {
+	locale = localeOrDefault(locale)
+	key := cache.HomeCampaigns(locale)
+	var cached cachedCampaigns
+	if s.cache.GetJSON(ctx, key, &cached) {
+		return cached.Campaigns, cached.Version, nil
+	}
+	sections, version, err := s.layouts.Home(ctx)
+	if err != nil {
+		return nil, 0, err
+	}
+	views, err := s.compileCampaigns(ctx, sections)
+	if err != nil {
+		return nil, 0, err
+	}
+	s.cache.SetJSON(ctx, key, cachedCampaigns{Version: version, Campaigns: views}, cache.TTLHomeCampaign)
+	return views, version, nil
+}
+
+// Campaign returns one compiled editorial campaign by id (found=false when unknown) plus the layout
+// version. Reads the per-id cache first, else derives from the (cached) list.
+func (s *Service) Campaign(ctx context.Context, locale, id string) (contracts.CampaignView, int64, bool, error) {
+	locale = localeOrDefault(locale)
+	key := cache.HomeCampaign(locale, id)
+	var cached cachedCampaign
+	if s.cache.GetJSON(ctx, key, &cached) {
+		return cached.Campaign, cached.Version, true, nil
+	}
+	views, version, err := s.Campaigns(ctx, locale)
+	if err != nil {
+		return contracts.CampaignView{}, 0, false, err
+	}
+	for _, v := range views {
+		if v.ID == id {
+			s.cache.SetJSON(ctx, key, cachedCampaign{Version: version, Campaign: v}, cache.TTLHomeCampaign)
+			return v, version, true, nil
+		}
+	}
+	return contracts.CampaignView{}, version, false, nil
+}
+
+// compileCampaigns joins every section's campaign definitions to their store + products in one batch
+// (de-duplicated across sections), preserving section then campaign then product order.
+func (s *Service) compileCampaigns(ctx context.Context, sections []contracts.SduiSection) ([]contracts.CampaignView, error) {
+	type def struct {
+		campaign contracts.SduiCampaign
+	}
+	var defs []def
+	productSeen := map[string]struct{}{}
+	productIDs := make([]string, 0)
+	storeSeen := map[string]struct{}{}
+	storeIDs := make([]string, 0)
+	for _, section := range sections {
+		for _, c := range section.Campaigns {
+			defs = append(defs, def{campaign: c})
+			for _, id := range c.ProductIDs {
+				if _, ok := productSeen[id]; ok {
+					continue
+				}
+				productSeen[id] = struct{}{}
+				productIDs = append(productIDs, id)
+			}
+			if c.StoreID != "" {
+				if _, ok := storeSeen[c.StoreID]; !ok {
+					storeSeen[c.StoreID] = struct{}{}
+					storeIDs = append(storeIDs, c.StoreID)
+				}
+			}
+		}
+	}
+	productsByID := map[string]contracts.Product{}
+	if len(productIDs) > 0 {
+		products, err := s.products.ByIDs(ctx, productIDs)
+		if err != nil {
+			return nil, err
+		}
+		for _, p := range products {
+			productsByID[p.ID] = p
+		}
+	}
+	storesByID := map[string]contracts.Store{}
+	if len(storeIDs) > 0 {
+		stores, err := s.stores.ByIDs(ctx, storeIDs)
+		if err != nil {
+			return nil, err
+		}
+		for _, st := range stores {
+			storesByID[st.ID] = st
+		}
+	}
+	out := make([]contracts.CampaignView, 0, len(defs))
+	for _, d := range defs {
+		products := make([]contracts.Product, 0, len(d.campaign.ProductIDs))
+		for _, id := range d.campaign.ProductIDs {
+			if p, ok := productsByID[id]; ok {
+				products = append(products, p)
+			}
+		}
+		view := contracts.CampaignView{
+			ID:       d.campaign.ID,
+			Carousel: d.campaign.Carousel,
+			StoreID:  d.campaign.StoreID,
+			Products: products,
+		}
+		if st, ok := storesByID[d.campaign.StoreID]; ok {
+			store := st
+			view.Store = &store
+		}
+		out = append(out, view)
+	}
+	return out, nil
 }
 
 func localeOrDefault(locale string) string {

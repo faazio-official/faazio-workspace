@@ -7,7 +7,7 @@ import { hs, ms, vs } from '@/utils/responsive';
 import { SPACE } from '@/theme/spacing';
 import AppText from '@/components/AppText';
 import type { Product } from '@data/types';
-import { gateway } from '@/services/api/GatewayClient';
+import { gateway, type HomeCampaignDetail } from '@/services/api/GatewayClient';
 import { adCampaigns, getCampaignProducts, getCampaignStore } from '@data/home/campaigns';
 import { getStoreById } from '@data/directory/stores';
 import { isDiscounted } from '@/services/categoryVendors';
@@ -45,9 +45,38 @@ export function DealsLandingScreen({ navigation, route }: Props) {
     () => (mode === 'campaign' ? adCampaigns.find((c) => c.id === campaignId) : undefined),
     [mode, campaignId],
   );
+  // Server-backed campaign drill-in (`GET /home/campaigns/{id}`, portal-published on the SDUI
+  // `hotBrandDeals` section). `getHomeCampaign` falls back to the `@data` fixture offline, so this
+  // resolves even without the gateway; the local `campaign` above is the last-resort fallback.
+  const [campaignView, setCampaignView] = useState<HomeCampaignDetail | null>(null);
+  const [campaignLoading, setCampaignLoading] = useState(false);
+  useEffect(() => {
+    if (mode !== 'campaign' || !campaignId) {
+      setCampaignView(null);
+      setCampaignLoading(false);
+      return;
+    }
+    let active = true;
+    setCampaignLoading(true);
+    gateway
+      .getHomeCampaign(campaignId)
+      .then((view) => {
+        if (active) setCampaignView(view ?? null);
+      })
+      .catch(() => {
+        if (active) setCampaignView(null);
+      })
+      .finally(() => {
+        if (active) setCampaignLoading(false);
+      });
+    return () => {
+      active = false;
+    };
+  }, [mode, campaignId]);
+
   const campaignStore = useMemo(
-    () => (campaign ? getCampaignStore(campaign) : undefined),
-    [campaign],
+    () => campaignView?.store ?? (campaign ? getCampaignStore(campaign) : undefined),
+    [campaignView, campaign],
   );
   const store = useMemo(
     () => (mode === 'discounts' ? getStoreById(storeId ?? '') : undefined),
@@ -124,12 +153,15 @@ export function DealsLandingScreen({ navigation, route }: Props) {
   }, [isListMode, productIds]);
 
   const baseProducts = useMemo<Product[]>(() => {
-    if (mode === 'campaign') return campaign ? getCampaignProducts(campaign) : [];
+    if (mode === 'campaign') {
+      if (campaignView?.products?.length) return campaignView.products as unknown as Product[];
+      return campaign ? getCampaignProducts(campaign) : [];
+    }
     if (isListMode) return listProducts;
     // The full vendor pool (not just fixture-discounted rows) so an approved festival opt-in on a
     // product without an authored MRP still surfaces once the server discount is overlaid.
     return storeProducts;
-  }, [mode, campaign, isListMode, listProducts, storeProducts]);
+  }, [mode, campaignView, campaign, isListMode, listProducts, storeProducts]);
 
   // Overlay server-owned festival discounts (no-op in mock mode / when none apply), then keep only
   // what is actually on offer in `discounts` mode (authored MRP or an active opt-in).
@@ -167,7 +199,9 @@ export function DealsLandingScreen({ navigation, route }: Props) {
     [cartItems, handleProductPress, addToCart, updateQuantity],
   );
 
-  const notFound = (mode === 'campaign' && !campaign) || (mode === 'discounts' && !store);
+  const notFound =
+    (mode === 'campaign' && !campaign && !campaignView && !campaignLoading) ||
+    (mode === 'discounts' && !store);
 
   if (notFound) {
     return (
@@ -254,7 +288,7 @@ export function DealsLandingScreen({ navigation, route }: Props) {
           ) : null
         }
         ListEmptyComponent={
-          loading ? (
+          loading || campaignLoading ? (
             <View style={styles.emptyWrap}>
               <ActivityIndicator color="#1162D3" />
             </View>

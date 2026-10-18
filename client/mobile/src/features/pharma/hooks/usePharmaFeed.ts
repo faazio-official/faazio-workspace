@@ -6,9 +6,13 @@ export function usePharmaFeed() {
 
   useEffect(() => {
     let active = true;
-    fetchPharmaFeed().then((data) => {
-      if (active) setFeed(data);
-    });
+    fetchPharmaFeed()
+      .then((data) => {
+        if (active) setFeed(data);
+      })
+      .catch(() => {
+        if (active) setFeed(null);
+      });
     return () => {
       active = false;
     };

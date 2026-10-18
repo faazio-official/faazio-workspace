@@ -657,9 +657,18 @@ The Home feed is stored as **ID-only** documents — every leaf references `cata
                   accent: '#E8F5E9', imageUrl: 'https://…/fb1.jpg' }] },   // Food house hero fallback
     { id: 'foodSpecials', title: "Today's Special", accent: '#1E5D44',
       productIds: ['sp-1','sp-2','sp-3', …] },                              // Food specials order
+    { id: 'pharmaHero', title: 'Pharma Highlights', accent: '#0E7490', productIds: [],
+      banners: [{ id: 'phb-1', title: 'Health Essentials', subtitle: 'UP TO 30% OFF',
+                  accent: '#E0F2FE', imageUrl: 'https://…/phb1.jpg' }] },     // Pharma house hero fallback
+    { id: 'pharmaPopular', title: 'Popular Medicines', accent: '#0E7490',
+      productIds: ['ph-t1','ph-c1','ph-s1','ph-otc3','ph-om1'] },            // Pharma OTC rail (Rx excluded)
+    { id: 'pharmaEssentials', title: 'Health Essentials', accent: '#0E7490',
+      productIds: ['ph-cal3','ph-dig4','ph-per2','ph-per3','ph-ayur2'] },    // Pharma essentials rail
     { id: 'adBanner', title: 'Offers', accent: '#111827', productIds: [], storeIds: [] },
     { id: 'hotBrandDeals', title: 'Deals of the day', accent: '#1162D3',
-      productIds: ['hbd-1','hbd-2','hbd-3','hbd-4','hbd-5'] },
+      productIds: ['hbd-1','hbd-2','hbd-3','hbd-4','hbd-5'],
+      campaigns: [{ id: 'camp-darling-mobiles', storeId: 'store-m1',
+                    productIds: ['fm-m1','fm-m2'], carousel: 1 }] },         // editorial vendor campaigns
     { id: 'dealsOfDay', title: 'Daily Essentials', accent: '#F25C3D',
       productIds: ['md-1','md-2','md-3','md-4','md-5','md-6'] },
     { id: 'martEssentials', title: 'Daily Essentials', accent: '#0F766E',
@@ -673,9 +682,12 @@ The Home feed is stored as **ID-only** documents — every leaf references `cata
 ```
 
 (provenance `data/home/sdui.ts` — section ids/titles/accents/productIds exact). The `martHero` /
-`martEssentials` sections are the Mart feed's merchandising surface and `foodHero` /
-`foodSpecials` / `mostRatedDining` are Food's (`GET /sdui/food`): the Home renderer ignores
-unknown section ids, so a single doc drives the Home, Mart and Food feeds.
+`martEssentials` sections are the Mart feed's merchandising surface, `foodHero` /
+`foodSpecials` / `mostRatedDining` are Food's (`GET /sdui/food`), and `pharmaHero` /
+`pharmaPopular` / `pharmaEssentials` are Pharma's (`GET /sdui/pharma`): the Home renderer ignores
+unknown section ids, so a single doc drives the Home, Mart, Food and Pharma feeds. The
+`hotBrandDeals.campaigns[]` defs compile into the anon `GET /home/campaigns(/{id})` projection;
+they are ID-only (store + product refs) and never carry money.
 
 | Field | BSON type | Why |
 |---|---|---|
@@ -686,6 +698,7 @@ unknown section ids, so a single doc drives the Home, Mart and Food feeds.
 | `sections[].storeIds` | array<string> | refs to directory.stores |
 | `sections[].chips` | array<doc> | filter chips (ID-only) |
 | `sections[].banners` | array<doc> | editorial hero banners (`{id,title,subtitle,accent,imageUrl}`) — the only non-ID leaf; **never money** (prices are always joined from `catalog.products`) |
+| `sections[].campaigns` | array<doc> | editorial vendor campaigns (`{id,storeId,productIds,carousel}`) — ID-only store + product refs, compiled into the anon `GET /home/campaigns(/{id})` projection; **never money** |
 | `updatedAt` | Date (int64 millis) | freshness |
 
 The gateway emits `ETag: "home-v{version}"` on `GET /sdui/home`; a matching `If-None-Match` returns
@@ -694,10 +707,12 @@ The gateway emits `ETag: "home-v{version}"` on `GET /sdui/home`; a matching `If-
 **Write path (super-admin):** the portal's *App content (SDUI)* page edits this doc through
 `GET`/`PUT /admin/sdui/home` (`internal/sdui` → `contracts.LayoutWriter` →
 `reco.Repo.SaveHome`). `SaveHome` upserts with an atomic `$inc version` (+ `updatedAt`) so the
-version is monotonic, and the handler purges `faazio:v1:gateway:sdui:en:/home` after the write —
+version is monotonic, and the handler purges `faazio:v1:gateway:sdui:en:/home`, `…:/mart`, `…:/food`,
+`…:/pharma` and the `faazio:v1:home:campaigns:` namespace after the write —
 the app picks up the new content on its next poll with no release. The write is audited
 (`SDUI_PUBLISH`). Payload bounds (≤40 sections, ≤100 id refs/section, ids ≤64 chars, ≤20 chips,
-≤8 banners/section with `imageUrl` ≤512 chars) mirror the ID-only contract; the raw user id is
+≤8 banners/section with `imageUrl` ≤512 chars, ≤20 campaigns/section with `carousel` ∈ {1,2})
+mirror the ID-only contract; the raw user id is
 never involved.
 
 ### 8.2 `user_events` (TTL)

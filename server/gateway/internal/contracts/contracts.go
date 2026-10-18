@@ -245,14 +245,36 @@ type VendorReview struct {
 
 // SduiSection is one ID-only Home section (Mongo sdui_layouts).
 type SduiSection struct {
-	ID         string       `json:"id"`
-	Title      string       `json:"title"`
-	Subtitle   string       `json:"subtitle,omitempty"`
-	Accent     string       `json:"accent"`
-	ProductIDs []string     `json:"productIds"`
-	StoreIDs   []string     `json:"storeIds,omitempty"`
-	Chips      []SduiChip   `json:"chips,omitempty"`
-	Banners    []SduiBanner `json:"banners,omitempty"`
+	ID         string         `json:"id"`
+	Title      string         `json:"title"`
+	Subtitle   string         `json:"subtitle,omitempty"`
+	Accent     string         `json:"accent"`
+	ProductIDs []string       `json:"productIds"`
+	StoreIDs   []string       `json:"storeIds,omitempty"`
+	Chips      []SduiChip     `json:"chips,omitempty"`
+	Banners    []SduiBanner   `json:"banners,omitempty"`
+	Campaigns  []SduiCampaign `json:"campaigns,omitempty"`
+}
+
+// SduiCampaign is one editorial vendor campaign carried by a Home section (ID-only refs to a
+// directory store + its catalog products). The gateway compiles it (joins store + products) into the
+// anon `GET /home/campaigns(/{id})` projection — never a money-bearing row in the doc itself.
+type SduiCampaign struct {
+	ID         string   `json:"id"`
+	StoreID    string   `json:"storeId"`
+	ProductIDs []string `json:"productIds"`
+	Carousel   int      `json:"carousel"`
+}
+
+// CampaignView is a compiled editorial campaign: the ID-only definition joined to its store and
+// products. Display-only (no counters) — the anon merchandising read for the Home "Deals of the day"
+// drill-in, distinct from the seller-scoped ads.campaigns hero control plane.
+type CampaignView struct {
+	ID       string    `json:"id"`
+	Carousel int       `json:"carousel"`
+	StoreID  string    `json:"storeId"`
+	Store    *Store    `json:"store,omitempty"`
+	Products []Product `json:"products"`
 }
 
 // SduiChip is a filter-feed chip (ID-only product refs).

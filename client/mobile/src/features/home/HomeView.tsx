@@ -5,6 +5,7 @@ import Animated, { useAnimatedScrollHandler, useSharedValue } from 'react-native
 import type { SharedValue } from 'react-native-reanimated';
 import { homeSections } from '@data/home/sections';
 import type { HomeSectionKind } from '@data/home/sections';
+import type { SduiCampaign } from '@data/home/sdui';
 import type { Product, StoreProfile } from '@data/types';
 import type { StoreRecord } from '@data/directory/stores';
 import type { SubAppId } from '@/state/uiStore';
@@ -78,6 +79,7 @@ export default function HomeView({
     products?: Product[];
     stores?: StoreRecord[];
     chipProducts?: Record<string, string[]>;
+    campaigns?: SduiCampaign[];
   }
 
   const rows = useMemo<HomeRow[]>(() => {
@@ -86,6 +88,7 @@ export default function HomeView({
         id: s.id,
         products: s.products as unknown as Product[],
         stores: s.stores,
+        campaigns: s.campaigns,
         chipProducts: s.chips?.length
           ? Object.fromEntries(s.chips.map((c) => [c.id, c.productIds]))
           : undefined,
@@ -114,12 +117,12 @@ export default function HomeView({
   });
 
   const renderSection = useCallback(
-    ({ id, products, stores, chipProducts }: HomeRow): React.ReactElement | null => {
+    ({ id, products, stores, chipProducts, campaigns }: HomeRow): React.ReactElement | null => {
       const rail = (fallback: Product[]) => (products && products.length > 0 ? products : fallback);
       switch (id) {
         case 'adBanner': return <AdBannerSection {...sectionProps} />;
         case 'diningSpecials': return <DiningSpecialsSection {...sectionProps} products={products} />;
-        case 'hotBrandDeals': return <BrandCampaignsSection {...sectionProps} />;
+        case 'hotBrandDeals': return <BrandCampaignsSection {...sectionProps} campaigns={campaigns} />;
         case 'dealsOfDay': return <DealsOfDaySection {...sectionProps} />;
         case 'sponsoredRail': return <SponsoredRailSection {...sectionProps} />;
         case 'mostRatedDining': return <MostRatedDiningSection {...sectionProps} stores={stores} />;

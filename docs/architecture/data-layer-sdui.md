@@ -71,6 +71,12 @@ whose `storeId` matches the campaign vendor) — following the same SDUI "ID-onl
 `home/sdui.ts` and `data/catalog/products.ts`. `MartProduct.storeId` is a **required top-level**
 field (drives campaign resolution, vendor drill-in, the product-detail store section, and
 self-pickup); a dev-only guard in `campaigns.ts` warns if any campaign resolves <2 products.
+**(W50)** the campaign defs now round-trip through the SDUI doc: `data/home/sdui.ts` maps
+`adCampaigns` onto the `hotBrandDeals.campaigns[]` leaf, the gateway compiles them into the anon
+`GET /home/campaigns(/{id})` projection (`GatewayClient.getHomeCampaigns`/`getHomeCampaign`, 600 s
+cache), `BrandCampaignsSection` renders the feed-supplied defs (fixture fallback) and the
+`DealsLanding` `campaign` drill-in reads the server-joined store + products (fixture fallback).
+`data/home/campaigns.ts` stays the offline fixture / pre-load fallback.
 
 **Per-venue menus** (`data/food/menus.ts`): exports `restaurantMenus`
 (`Record<string, SpecialDish[]>` keyed by the 18 dining-restaurant names, ~5 dishes each),
@@ -157,6 +163,16 @@ admin-owned coupon (`GET /coupons?app=FOOD`), not the decorative store `offer_ta
 URL, **never money** (prices are joined from `catalog.products` / authored as `directory.menus`
 MRP).
 
+**Pharma merchandising + editorial campaigns via the same doc (W50).** Pharma has its own projection
+served on `GET /sdui/pharma` (allowlist `pharmaHero`/`pharmaPopular`/`pharmaEssentials`, own compiled
+cache/ETag). `pharmaHero.banners` is the organic house-hero (`PharmaHeroBanner` fallback, paid
+`PHARMA_HERO` wins), and `pharmaPopular`/`pharmaEssentials` are the OTC product rails
+(`pharmaService.fetchPharmaFeed` maps the joined products into the Pharma card shapes; fixture
+fallback). Rx-gated products are deliberately excluded → none are referenced. The same doc's
+`hotBrandDeals.campaigns[]` leaf (ID-only `{id,storeId,productIds,carousel}`) is the
+super-admin-owned editorial-campaign source compiled into the anon `GET /home/campaigns(/{id})`
+projection — distinct from the seller-scoped `ads.campaigns` hero control plane.
+
 The **production** counterparts of every normalized table above (per-service DB schema, datatypes,
 sample rows) are specified in `docs/architecture/db-schema.md` — traceability is 1:1 (mock table ↔
 production table).
@@ -217,16 +233,17 @@ are required. Every `@mock` entry is now a gateway handler contract.
 every Home section whose doc carries the data: the gateway joins each section's `productIds` **and**
 `storeIds` (`HomeSection.stores`, via the previously unused `contracts.StoreReader`), and the app
 threads `products`/`stores`/`chips[].productIds` into the rails, keeping each `@data/home/*` fixture
-as the offline first-paint. Only the paid `HOME_HERO` banner and the vendor-campaign carousels stay
-fixture-owned (no server surface yet).
+as the offline first-paint. Only the paid `HOME_HERO` banner stayed fixture-owned until W42; **(W50)**
+the vendor-campaign carousels are now server-owned too (`hotBrandDeals.campaigns[]` →
+`BrandCampaignsSection` from `getHomeFeed`, `DealsLanding` `campaign` via `getHomeCampaign`).
 
 **Public promo reads + editorial rails (W29).** `cart/coupons.ts` is now `@mock → @server`:
 `GatewayClient.getCoupons(app?)` reads the anon `GET /coupons` projection (fixture fallback), and the
 cart coupon sheet hydrates from it. The fixture seeds `promo.coupons` (the table `GET /coupons`
-reads); the legacy `checkout.coupons` is unseeded and unused by any repo. The brand-campaign / hero /
-deal rails (`home/campaigns.ts`, `MART_DEALS`, `TOP_RATED_*`) are tagged **`@static-editorial`** —
-they are presentation fixtures with no backing table, and their correct long-term home is the SDUI
-layout doc, not a coupon/ads table.
+reads); the legacy `checkout.coupons` is unseeded and unused by any repo. The brand-campaign rails
+(`home/campaigns.ts`) are tagged **`@static-editorial`** and, as of W50, their long-term home is live:
+the defs are mirrored onto the SDUI `hotBrandDeals.campaigns[]` leaf (the fixture stays the offline
+fallback); `MART_DEALS` / `TOP_RATED_*` remain presentation fixtures with no backing table.
 The gateway also exposes `GET /ads/live` (LIVE slots); the shared **`components/shared/SponsoredRail`**
 (Home `SponsoredRailSection`, Mart `FaMartScreen`, vendor `DealsLandingScreen`) consumes it via
 `GatewayClient.getLiveAds` (+ `getSponsoredProducts`, the catalog join) for `HOME_TOP`,

@@ -11,6 +11,7 @@ import { homeSections, type HomeSectionKind } from './sections';
 import { catalogIndex } from '../catalog/products';
 import { storeDirectory } from '../directory/stores';
 import { filterChips } from './filterFeed';
+import { adCampaigns } from './campaigns';
 
 /** One editorial hero banner (image + copy) carried by a section. Never money — prices are joined. */
 export interface SduiBanner {
@@ -36,6 +37,21 @@ export interface SduiSection {
   chips?: { id: string; label: string; accent: string; productIds: string[] }[];
   /** Optional editorial hero banners (Mart hero rail). */
   banners?: SduiBanner[];
+  /** Optional editorial vendor campaigns (Home "Deals of the day" drill-in). */
+  campaigns?: SduiCampaign[];
+}
+
+/**
+ * One editorial vendor campaign carried by the Home "Deals of the day" section: a
+ * real vendor (`storeId`) + that vendor's catalog products, referenced by id only
+ * (prices/images are joined at compile time). Served by the gateway's
+ * `GET /home/campaigns(/{id})` anon projection; the section just carries the defs.
+ */
+export interface SduiCampaign {
+  id: string;
+  storeId: string;
+  productIds: string[];
+  carousel: 1 | 2;
 }
 
 /** Resolve catalog ids for a set of product ids that exist in the index. */
@@ -90,7 +106,20 @@ export const homeSdui: SduiSection[] = [
   },
   { id: 'adBanner', title: 'Offers', accent: '#111827', productIds: [] },
   { id: 'diningSpecials', title: "Today's Special", accent: '#1E5D44', productIds: [], storeIds: resolveStoreIds('FOOD') },
-  { id: 'hotBrandDeals', title: 'Deals of the day', accent: '#1162D3', productIds: resolveProductIds(['hbd-1', 'hbd-2', 'hbd-3', 'hbd-4', 'hbd-5']) },
+  {
+    id: 'hotBrandDeals',
+    title: 'Deals of the day',
+    accent: '#1162D3',
+    // The section is a portal-owned container for the vendor campaigns the app renders in the two
+    // Home carousels; its own productIds are unused by `BrandCampaignsSection` (kept for shape parity).
+    productIds: resolveProductIds(['hbd-1', 'hbd-2', 'hbd-3', 'hbd-4', 'hbd-5']),
+    campaigns: adCampaigns.map((c) => ({
+      id: c.id,
+      storeId: c.storeId,
+      productIds: c.productIds,
+      carousel: c.carousel,
+    })),
+  },
   { id: 'dealsOfDay', title: 'Daily Essentials', accent: '#F25C3D', productIds: resolveProductIds(['md-1', 'md-2', 'md-3', 'md-4', 'md-5', 'md-6']) },
   // Mart "Deals of the Day" and "Daily Essentials" rails — portal-editable id lists (were split:
   // Deals lived in code, Essentials in SDUI). Money is joined at compile time by the gateway.
@@ -125,6 +154,26 @@ export const homeSdui: SduiSection[] = [
       'sp-9', 'sp-10', 'sp-11', 'sp-12', 'sp-13', 'sp-14', 'sp-15', 'sp-16',
     ],
   },
+  // Pharma-only sections. Same pattern as Mart/Food: they live in the Home doc so Pharma has one
+  // merchandising owner (super-admin SDUI editor) and the mock/remote shapes match. Served on the
+  // dedicated `GET /sdui/pharma`; `HomeView` skips the unknown ids. Rx-gated categories
+  // (hypertension/asthma/fever) are deliberately excluded from these public rails. Raw `ph-*` ids
+  // so the seed generator fails loudly on a typo (all exist in `catalogIndex`).
+  {
+    id: 'pharmaHero',
+    title: 'Pharma Highlights',
+    accent: '#0E7490',
+    productIds: [],
+    banners: [
+      { id: 'phb-1', title: 'Health Essentials', subtitle: 'UP TO 30% OFF', accent: '#E0F2FE', imageUrl: 'https://images.unsplash.com/photo-1584017911766-d451b3d0e843?fm=jpg&fit=crop&q=80&w=800&h=450' },
+      { id: 'phb-2', title: 'Free Delivery', subtitle: 'ON ORDERS ABOVE ₹499', accent: '#E8F5E9', imageUrl: 'https://images.unsplash.com/photo-1607619056574-7b8d304f2c38?fm=jpg&fit=crop&q=80&w=800&h=450' },
+      { id: 'phb-3', title: 'Upload Prescription', subtitle: 'FASTEST FULFILMENT', accent: '#F3E8FF', imageUrl: 'https://images.unsplash.com/photo-1584308666744-24d5c474f2ae?fm=jpg&fit=crop&q=80&w=800&h=450' },
+    ],
+  },
+  // Popular Medicines rail — portal-editable order of OTC products (money joined at compile time).
+  { id: 'pharmaPopular', title: 'Popular Medicines', accent: '#0E7490', productIds: ['ph-t1', 'ph-c1', 'ph-s1', 'ph-otc3', 'ph-om1'] },
+  // Health Essentials rail — portal-editable order of OTC/device products (Rx excluded).
+  { id: 'pharmaEssentials', title: 'Health Essentials', accent: '#0E7490', productIds: ['ph-cal3', 'ph-dig4', 'ph-per2', 'ph-per3', 'ph-ayur2'] },
   // Paid placement: the doc owns the slot order, the ad-server (`GET /ads/live`) owns the fill.
   // No productIds are baked in — the app resolves LIVE ads at render time (they expire).
   { id: 'sponsoredRail', title: 'Sponsored picks', accent: '#B45309', productIds: [] },

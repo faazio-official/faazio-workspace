@@ -23,11 +23,17 @@ func NewHandler(service *Service, audit contracts.AuditWriter) *Handler {
 	return &Handler{service: service, audit: audit}
 }
 
-// Register mounts the public Home feed, the Mart-only projection, and the super-admin layout editor.
+// Register mounts the public Home/Mart/Food/Pharma feeds, the anon editorial-campaign projection,
+// and the super-admin layout editor.
 func (h *Handler) Register(r chi.Router) {
 	r.Get("/sdui/home", h.home)
 	r.Get("/sdui/mart", h.mart)
 	r.Get("/sdui/food", h.food)
+	r.Get("/sdui/pharma", h.pharma)
+	// Anon editorial-campaign projection (Home "Deals of the day" drill-in), distinct from the
+	// seller-scoped `GET /ads/campaigns` hero control plane.
+	r.Get("/home/campaigns", h.campaigns)
+	r.Get("/home/campaigns/{id}", h.campaign)
 	r.Group(func(g chi.Router) {
 		g.Use(auth.RequireRole(auth.RoleSuperAdmin))
 		g.Get("/admin/sdui/home", h.adminGetHome)
@@ -72,13 +78,57 @@ func (h *Handler) food(w http.ResponseWriter, r *http.Request) {
 // writeFeed emits the compiled feed with its version-derived ETag and answers If-None-Match with a
 // 304. A publish bump turns repeat polls into 304s.
 func (h *Handler) writeFeed(w http.ResponseWriter, r *http.Request, tag string, sections []contracts.HomeSection, version int64) {
+	h.writeJSON(w, r, tag, sections, version)
+}
+
+// writeJSON emits any payload with its version-derived ETag, answering If-None-Match with a 304.
+func (h *Handler) writeJSON(w http.ResponseWriter, r *http.Request, tag string, payload any, version int64) {
 	etag := fmt.Sprintf(`"%s-v%d"`, tag, version)
 	w.Header().Set("ETag", etag)
 	if ifNoneMatch(r.Header.Get("If-None-Match"), etag) {
 		w.WriteHeader(http.StatusNotModified)
 		return
 	}
-	httpx.JSON(w, http.StatusOK, sections)
+	httpx.JSON(w, http.StatusOK, payload)
+}
+
+// pharma serves only the Pharma rails (pharmaHero/pharmaPopular/pharmaEssentials), so the Pharma
+// screen gets a small payload and its own ETag instead of downloading the whole Home feed.
+func (h *Handler) pharma(w http.ResponseWriter, r *http.Request) {
+	locale := r.URL.Query().Get("locale")
+	sections, version, err := h.service.Pharma(r.Context(), locale)
+	if err != nil {
+		httpx.Fail(w, http.StatusServiceUnavailable, "sdui_unavailable", "pharma feed unavailable")
+		return
+	}
+	h.writeFeed(w, r, "pharma", sections, version)
+}
+
+// campaigns serves the compiled anon editorial-campaign list (display-only projection).
+func (h *Handler) campaigns(w http.ResponseWriter, r *http.Request) {
+	locale := r.URL.Query().Get("locale")
+	list, version, err := h.service.Campaigns(r.Context(), locale)
+	if err != nil {
+		httpx.Fail(w, http.StatusServiceUnavailable, "sdui_unavailable", "campaigns unavailable")
+		return
+	}
+	h.writeJSON(w, r, "home-campaigns", list, version)
+}
+
+// campaign serves one compiled editorial campaign by id (404 when unknown).
+func (h *Handler) campaign(w http.ResponseWriter, r *http.Request) {
+	id := chi.URLParam(r, "id")
+	locale := r.URL.Query().Get("locale")
+	campaign, version, found, err := h.service.Campaign(r.Context(), locale, id)
+	if err != nil {
+		httpx.Fail(w, http.StatusServiceUnavailable, "sdui_unavailable", "campaign unavailable")
+		return
+	}
+	if !found {
+		httpx.Fail(w, http.StatusNotFound, "not_found", "campaign not found")
+		return
+	}
+	h.writeJSON(w, r, "home-campaign", campaign, version)
 }
 
 // layoutResponse is the admin editor projection: the raw ID-only sections plus the layout version.
@@ -149,6 +199,7 @@ const (
 	maxRefLen       = 64
 	maxChips        = 20
 	maxBanners      = 8
+	maxCampaigns    = 20
 	maxImageURLLen  = 512
 )
 
@@ -178,6 +229,20 @@ func validSections(sections []contracts.SduiSection) bool {
 		for _, b := range s.Banners {
 			if b.ID == "" || len(b.ID) > maxSectionIDLen || len(b.Title) > maxTitleLen ||
 				len(b.Subtitle) > maxSubtitleLen || len(b.Accent) > maxAccentLen || len(b.ImageURL) > maxImageURLLen {
+				return false
+			}
+		}
+		if len(s.Campaigns) > maxCampaigns {
+			return false
+		}
+		for _, c := range s.Campaigns {
+			if c.ID == "" || len(c.ID) > maxSectionIDLen || c.StoreID == "" || len(c.StoreID) > maxRefLen {
+				return false
+			}
+			if c.Carousel != 1 && c.Carousel != 2 {
+				return false
+			}
+			if !validRefs(c.ProductIDs) {
 				return false
 			}
 		}

@@ -33,14 +33,15 @@ type layoutDoc struct {
 }
 
 type sectionDoc struct {
-	ID         string      `bson:"id"`
-	Title      string      `bson:"title"`
-	Subtitle   string      `bson:"subtitle"`
-	Accent     string      `bson:"accent"`
-	ProductIDs []string    `bson:"productIds"`
-	StoreIDs   []string    `bson:"storeIds"`
-	Chips      []chipDoc   `bson:"chips"`
-	Banners    []bannerDoc `bson:"banners"`
+	ID         string        `bson:"id"`
+	Title      string        `bson:"title"`
+	Subtitle   string        `bson:"subtitle"`
+	Accent     string        `bson:"accent"`
+	ProductIDs []string      `bson:"productIds"`
+	StoreIDs   []string      `bson:"storeIds"`
+	Chips      []chipDoc     `bson:"chips"`
+	Banners    []bannerDoc   `bson:"banners"`
+	Campaigns  []campaignDoc `bson:"campaigns"`
 }
 
 type chipDoc struct {
@@ -48,6 +49,15 @@ type chipDoc struct {
 	Label      string   `bson:"label"`
 	Accent     string   `bson:"accent"`
 	ProductIDs []string `bson:"productIds"`
+}
+
+// campaignDoc is one editorial vendor campaign (ID-only: a directory store id + catalog product ids).
+// Never money — the store and prices are always joined at compile time.
+type campaignDoc struct {
+	ID         string   `bson:"id"`
+	StoreID    string   `bson:"storeId"`
+	ProductIDs []string `bson:"productIds"`
+	Carousel   int      `bson:"carousel"`
 }
 
 // bannerDoc is one editorial hero banner (image URL + copy) — the only non-ID leaf in the
@@ -90,6 +100,11 @@ func (r *Repo) Home(ctx context.Context) ([]contracts.SduiSection, int64, error)
 				ID: b.ID, Title: b.Title, Subtitle: b.Subtitle, Accent: b.Accent, ImageURL: b.ImageURL,
 			})
 		}
+		for _, c := range s.Campaigns {
+			sec.Campaigns = append(sec.Campaigns, contracts.SduiCampaign{
+				ID: c.ID, StoreID: c.StoreID, ProductIDs: emptyIfNil(c.ProductIDs), Carousel: c.Carousel,
+			})
+		}
 		out = append(out, sec)
 	}
 	return out, doc.Version, nil
@@ -116,6 +131,11 @@ func (r *Repo) SaveHome(ctx context.Context, sections []contracts.SduiSection) (
 		for _, b := range s.Banners {
 			sec.Banners = append(sec.Banners, bannerDoc{
 				ID: b.ID, Title: b.Title, Subtitle: b.Subtitle, Accent: b.Accent, ImageURL: b.ImageURL,
+			})
+		}
+		for _, c := range s.Campaigns {
+			sec.Campaigns = append(sec.Campaigns, campaignDoc{
+				ID: c.ID, StoreID: c.StoreID, ProductIDs: emptyIfNil(c.ProductIDs), Carousel: c.Carousel,
 			})
 		}
 		docs = append(docs, sec)

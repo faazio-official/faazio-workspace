@@ -446,6 +446,16 @@ export interface SduiSection {
   storeIds?: string[] | undefined;
   chips?: SduiChip[] | undefined;
   banners?: SduiBanner[] | undefined;
+  campaigns?: SduiCampaign[] | undefined;
+}
+
+/** One editorial vendor campaign (ID-only: a directory store + its catalog products). Mirrors
+ * contracts.SduiCampaign; compiled by the gateway into `GET /home/campaigns(/{id})`. */
+export interface SduiCampaign {
+  id: string;
+  storeId: string;
+  productIds: string[];
+  carousel: 1 | 2;
 }
 
 export interface SduiLayout {

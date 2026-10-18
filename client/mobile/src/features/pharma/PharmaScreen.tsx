@@ -217,6 +217,7 @@ export function PharmaScreen({
       <ScrollView showsVerticalScrollIndicator={false} bounces={false}>
         <CampaignHero placement="PHARMA_HERO" app="PHARMA" onPress={handlePharmaHeroPress} />
         <PharmaHeroBanner
+          banner={feed.heroBanners[0]}
           onOrderNow={() => { setSelectedCategoryId('vitamin'); setCurrentView('CATEGORY_PRODUCTS'); }}
         />
         <QuickReorderRail

@@ -80,7 +80,88 @@
         "hbd-5"
       ],
       "storeIds": [],
-      "chips": []
+      "chips": [],
+      "campaigns": [
+        {
+          "id": "camp-darling-mobiles",
+          "storeId": "store-m1",
+          "productIds": [
+            "fm-m1",
+            "fm-m2"
+          ],
+          "carousel": 1
+        },
+        {
+          "id": "camp-smarthome",
+          "storeId": "store-m7",
+          "productIds": [
+            "fm-ha1",
+            "fm-ha3",
+            "fm-ha2"
+          ],
+          "carousel": 1
+        },
+        {
+          "id": "camp-volt-electronics",
+          "storeId": "store-m12",
+          "productIds": [
+            "fm-e4",
+            "fm-e5",
+            "fm-e6"
+          ],
+          "carousel": 2
+        },
+        {
+          "id": "camp-peak-sports",
+          "storeId": "store-m11",
+          "productIds": [
+            "fm-s2",
+            "fm-s3",
+            "fm-s4"
+          ],
+          "carousel": 2
+        },
+        {
+          "id": "camp-thread-labs",
+          "storeId": "store-m3",
+          "productIds": [
+            "fm-f1",
+            "fm-f2",
+            "fm-f3"
+          ],
+          "carousel": 1
+        },
+        {
+          "id": "camp-vibe-apparel",
+          "storeId": "store-m4",
+          "productIds": [
+            "fm-v1",
+            "fm-v2",
+            "fm-v4"
+          ],
+          "carousel": 1
+        },
+        {
+          "id": "camp-scholars-bookland",
+          "storeId": "store-m6",
+          "productIds": [
+            "fm-bk1",
+            "fm-bk2",
+            "fm-bk3"
+          ],
+          "carousel": 2
+        },
+        {
+          "id": "camp-wood-steel",
+          "storeId": "store-m8",
+          "productIds": [
+            "fm-fur1",
+            "fm-fur3",
+            "fm-fur4"
+          ],
+          "carousel": 2
+        }
+      ]
     },
     {
       "id": "dealsOfDay",
@@ -183,6 +264,68 @@
         "sp-14",
         "sp-15",
         "sp-16"
+      ],
+      "storeIds": [],
+      "chips": []
+    },
+    {
+      "id": "pharmaHero",
+      "title": "Pharma Highlights",
+      "subtitle": null,
+      "accent": "#0E7490",
+      "productIds": [],
+      "storeIds": [],
+      "chips": [],
+      "banners": [
+        {
+          "id": "phb-1",
+          "title": "Health Essentials",
+          "subtitle": "UP TO 30% OFF",
+          "accent": "#E0F2FE",
+          "imageUrl": "https://images.unsplash.com/photo-1584017911766-d451b3d0e843?fm=jpg&fit=crop&q=80&w=800&h=450"
+        },
+        {
+          "id": "phb-2",
+          "title": "Free Delivery",
+          "subtitle": "ON ORDERS ABOVE ₹499",
+          "accent": "#E8F5E9",
+          "imageUrl": "https://images.unsplash.com/photo-1607619056574-7b8d304f2c38?fm=jpg&fit=crop&q=80&w=800&h=450"
+        },
+        {
+          "id": "phb-3",
+          "title": "Upload Prescription",
+          "subtitle": "FASTEST FULFILMENT",
+          "accent": "#F3E8FF",
+          "imageUrl": "https://images.unsplash.com/photo-1584308666744-24d5c474f2ae?fm=jpg&fit=crop&q=80&w=800&h=450"
+        }
+      ]
+    },
+    {
+      "id": "pharmaPopular",
+      "title": "Popular Medicines",
+      "subtitle": null,
+      "accent": "#0E7490",
+      "productIds": [
+        "ph-t1",
+        "ph-c1",
+        "ph-s1",
+        "ph-otc3",
+        "ph-om1"
+      ],
+      "storeIds": [],
+      "chips": []
+    },
+    {
+      "id": "pharmaEssentials",
+      "title": "Health Essentials",
+      "subtitle": null,
+      "accent": "#0E7490",
+      "productIds": [
+        "ph-cal3",
+        "ph-dig4",
+        "ph-per2",
+        "ph-per3",
+        "ph-ayur2"
       ],
       "storeIds": [],
       "chips": []

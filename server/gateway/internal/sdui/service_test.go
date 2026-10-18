@@ -71,9 +71,9 @@ func TestHomeCompilesSectionsWithProducts(t *testing.T) {
 			{ID: "deals", Title: "Deals", ProductIDs: []string{"md-1", "md-2"}},
 			{ID: "empty", Title: "Empty", ProductIDs: []string{}},
 			{ID: "mostRatedDining", Title: "Dining", StoreIDs: []string{"store-f1", "store-f2"}},
-		{ID: "martHero", Title: "Highlights", Banners: []contracts.SduiBanner{
-			{ID: "hb-1", Title: "Big Savings", Subtitle: "UP TO 50% OFF", ImageURL: "https://img.example/hb1.jpg"},
-		}},
+			{ID: "martHero", Title: "Highlights", Banners: []contracts.SduiBanner{
+				{ID: "hb-1", Title: "Big Savings", Subtitle: "UP TO 50% OFF", ImageURL: "https://img.example/hb1.jpg"},
+			}},
 		}},
 		&fakeLayouts{},
 		fakeProducts{byID: map[string]contracts.Product{
@@ -227,5 +227,119 @@ func TestSaveHomeBumpsVersionAndForwardsSections(t *testing.T) {
 	}
 	if len(w.saved) != 1 || w.saved[0].ID != "deals" {
 		t.Fatalf("saved = %+v", w.saved)
+	}
+}
+
+func TestPharmaCompilesOnlyPharmaSections(t *testing.T) {
+	ctx := context.Background()
+	c, err := cache.Connect(ctx, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	svc := NewService(
+		&fakeLayouts{sections: []contracts.SduiSection{
+			{ID: "pharmaHero", Title: "Highlights", Banners: []contracts.SduiBanner{{ID: "phb-1", Title: "Health Essentials"}}},
+			{ID: "adBanner", Title: "Offers"},
+			{ID: "martDeals", Title: "Deals", ProductIDs: []string{"md-1"}},
+			{ID: "pharmaPopular", Title: "Popular Medicines", ProductIDs: []string{"ph-t1", "ph-c1"}},
+			{ID: "pharmaEssentials", Title: "Health Essentials", ProductIDs: []string{"ph-om1"}},
+		}},
+		&fakeLayouts{},
+		fakeProducts{byID: map[string]contracts.Product{
+			"md-1":   {ID: "md-1", Name: "Milk", Price: 60},
+			"ph-t1":  {ID: "ph-t1", Name: "Turmeric Gummies", Price: 810},
+			"ph-c1":  {ID: "ph-c1", Name: "Tulsi Syrup", Price: 145},
+			"ph-om1": {ID: "ph-om1", Name: "Omega-3", Price: 649},
+		}},
+		fakeStores{},
+		c,
+	)
+
+	sections, _, err := svc.Pharma(ctx, "en")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(sections) != 3 {
+		t.Fatalf("sections = %d, want 3 (only Pharma rails)", len(sections))
+	}
+	byID := map[string]contracts.HomeSection{}
+	for _, s := range sections {
+		byID[s.ID] = s
+	}
+	if _, ok := byID["adBanner"]; ok {
+		t.Fatalf("adBanner leaked into the Pharma feed")
+	}
+	if _, ok := byID["martDeals"]; ok {
+		t.Fatalf("martDeals leaked into the Pharma feed")
+	}
+	if len(byID["pharmaHero"].Banners) != 1 || byID["pharmaHero"].Banners[0].ID != "phb-1" {
+		t.Fatalf("pharmaHero banners = %+v", byID["pharmaHero"].Banners)
+	}
+	if len(byID["pharmaPopular"].Products) != 2 || byID["pharmaPopular"].Products[0].ID != "ph-t1" {
+		t.Fatalf("pharmaPopular products = %+v", byID["pharmaPopular"].Products)
+	}
+	if len(byID["pharmaEssentials"].Products) != 1 || byID["pharmaEssentials"].Products[0].ID != "ph-om1" {
+		t.Fatalf("pharmaEssentials products = %+v", byID["pharmaEssentials"].Products)
+	}
+}
+
+func TestCampaignsCompileJoinsStoreAndProducts(t *testing.T) {
+	ctx := context.Background()
+	c, err := cache.Connect(ctx, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	svc := NewService(
+		&fakeLayouts{sections: []contracts.SduiSection{
+			{ID: "adBanner", Title: "Offers"},
+			{ID: "hotBrandDeals", Title: "Deals of the day", Campaigns: []contracts.SduiCampaign{
+				{ID: "camp-a", StoreID: "store-m1", ProductIDs: []string{"fm-m1", "fm-m2"}, Carousel: 1},
+				{ID: "camp-b", StoreID: "store-m9", ProductIDs: []string{"fm-x1"}, Carousel: 2},
+			}},
+		}},
+		&fakeLayouts{},
+		fakeProducts{byID: map[string]contracts.Product{
+			"fm-m1": {ID: "fm-m1", Name: "Phone Pro", Price: 89999},
+			"fm-m2": {ID: "fm-m2", Name: "Flip 5G", Price: 69999},
+			"fm-x1": {ID: "fm-x1", Name: "Missing Store Product", Price: 100},
+		}},
+		fakeStores{byID: map[string]contracts.Store{
+			"store-m1": {ID: "store-m1", Name: "Darling Mobiles"},
+		}},
+		c,
+	)
+
+	campaigns, _, err := svc.Campaigns(ctx, "en")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(campaigns) != 2 {
+		t.Fatalf("campaigns = %d, want 2", len(campaigns))
+	}
+	a := campaigns[0]
+	if a.ID != "camp-a" || a.Carousel != 1 || a.Store == nil || a.Store.ID != "store-m1" {
+		t.Fatalf("camp-a = %+v", a)
+	}
+	if len(a.Products) != 2 || a.Products[0].ID != "fm-m1" {
+		t.Fatalf("camp-a products = %+v", a.Products)
+	}
+	// Unknown store -> store omitted (products still join), never a fabricated store.
+	b := campaigns[1]
+	if b.Store != nil {
+		t.Fatalf("camp-b store = %+v, want nil", b.Store)
+	}
+	if len(b.Products) != 1 || b.Products[0].ID != "fm-x1" {
+		t.Fatalf("camp-b products = %+v", b.Products)
+	}
+
+	one, _, found, err := svc.Campaign(ctx, "en", "camp-b")
+	if err != nil || !found {
+		t.Fatalf("Campaign(camp-b) found=%v err=%v", found, err)
+	}
+	if one.ID != "camp-b" || one.Carousel != 2 {
+		t.Fatalf("one = %+v", one)
+	}
+	if _, _, found, _ := svc.Campaign(ctx, "en", "nope"); found {
+		t.Fatalf("unknown campaign should not be found")
 	}
 }

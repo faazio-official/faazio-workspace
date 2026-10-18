@@ -5,6 +5,46 @@ dependencies exist. Do not build the backend/seller flows until told to.
 
 ---
 
+## W50 — Campaign + Pharma merchandising de-mock (the two deferred anon reads)
+
+**Status:** 🟢 Shipped (server + data + seed + web + app + docs). Resolves the W47/W48 deferrals.
+App auth stays **mocked** (no Supabase phone OTP) — these are anon merchandising reads, independent
+of the auth-gated writes.
+
+**1. Editorial campaigns (Home "Deals of the day").** The ID-only campaign defs
+(`{id,storeId,productIds,carousel}`) now live on the SDUI `hotBrandDeals.campaigns[]` leaf
+(`data/home/sdui.ts` ← `adCampaigns`). The gateway compiles them into the anon
+`GET /home/campaigns` + `GET /home/campaigns/{id}` (`internal/sdui`, `contracts.CampaignView`,
+store + products joined via `ProductReader`/`StoreReader`), cached
+`faazio:v1:home:campaigns:{locale}` (+ `:{id}`) 600 s and purged by prefix on publish — distinct
+from the seller-scoped `GET /ads/campaigns` hero control plane (no id-space conflation, no leak of
+seller rows to anon shoppers). `GatewayClient.getHomeCampaigns`/`getHomeCampaign` (fixture
+fallback), `HomeView` threads the defs into `BrandCampaignsSection`, and `DealsLanding` `campaign`
+mode reads the server-joined store + products (fixture fallback). Super-admin SDUI editor edits the
+campaign leaf.
+
+**2. Pharma SDUI parity.** Pharma gained its own `GET /sdui/pharma` projection (allowlist
+`pharmaHero`/`pharmaPopular`/`pharmaEssentials`, own compiled cache/ETag, purged with the other
+feeds). `pharmaHero.banners` is the organic house-hero (paid `PHARMA_HERO` wins); the
+`pharmaPopular`/`pharmaEssentials` rails are real, **non-Rx** `ph-*` catalog rows (asserted by the
+seed generator) joined to the catalog. `GatewayClient.getPharmaFeed` + `fetchPharmaFeed` map them
+into the Pharma card shapes (fixture fallback). No portal page change — the same super-admin SDUI
+doc owner edits the Pharma sections.
+
+**Seed/validator:** `generate.mjs` carries the campaign + Pharma sections into `sdui_layouts` and
+asserts campaign `storeId`/products and Pharma rail ids exist in `catalogIndex`.
+
+**Rollback:** revert the `internal/{contracts,sdui,reco,platform/cache}`, `data/home/{sdui,sections}.ts`,
+seed, `GatewayClient`, `BrandCampaignsSection`/`HomeView`/`DealsLanding`, `pharmaService`/
+`usePharmaFeed`/`PharmaHeroBanner`/`PharmaScreen`, and web `sdui/page.client.tsx` hunks; the
+`@data`/feature fixtures resume. No migration.
+
+**Docs:** `mobile-app.md`, `data-layer-sdui.md`, `db-schema.md`, `monolith-breakdown.md` §1,
+`caching-cloudflare-valkey.md` §5, `server-gateway-plan.md`, `data/DATA_CONTROL.md`. Seed: assert
+`ph-t1` etc. are non-Rx. **Date:** 2026-10-18
+
+---
+
 ## W49 — Honest handling for the two auth-gated writes (no anon endpoint, no Supabase OTP)
 
 **Status:** 🟢 Shipped (app + docs). No server / DB / cache change. App auth stays **mocked**
@@ -80,12 +120,13 @@ Closes the W47-listed Mart P0/P1 correctness gaps without new screens or endpoin
   they stay inert and portal KPIs undercount to zero. W49 made the client-side path honest +
   observable (boolean result, dev warning, no fabricated success) without opening an anon endpoint.
 - **`DealsLanding` `campaign` mode stays Home-owned `@data`** (no `GET /ads/campaigns/{id}` read;
-  reachable only from Home). Unchanged from W38/W40/W44/W47.
+  reachable only from Home). Unchanged from W38/W40/W44/W47. **(Resolved in W50** — now the anon
+  `GET /home/campaigns(/{id})` projection.)
 - **Vendor ratings remain device-local on display** — the server `PUT /vendors/{id}/rating` is
   mirrored and now reports its outcome (`synced`/`offline`/`signed-out`/`not-verified`) so the screen
   is honest (W49); a fully server-durable row still waits on a real session (auth mocked).
 - **Pharma SDUI parity** — no `GET /sdui/pharma`; Pharma rails stay feature-mock (stores are
-  server-backed).
+  server-backed). **(Resolved in W50** — `GET /sdui/pharma` shipped.)
 
 **Rollback:** revert the two new hooks + the `FaMartScreen`/`VendorDetailScreen`/`CategoryDrillInPanel`/
 `CommonProductDetailView`/`DealsLandingScreen`/`useMartFeed`/`martService` hunks. No migration.
@@ -123,11 +164,13 @@ Verified (no code change needed):
 - **`DealsLanding` `campaign` mode stays Home-owned `@data`.** It is reachable only from the Home
   "Deals of the day" carousel; there is no `GET /ads/campaigns/{id}` campaigns read and the `camp-*`
   rows are not seeded in the gateway, so migrating would break the Home section and retiring would
-  remove a live Home surface. Tracked since W38/W40/W44.
+  remove a live Home surface. Tracked since W38/W40/W44. **(Resolved in W50** via the anon
+  `GET /home/campaigns(/{id})` projection + seeded `fm-*` refs.)
 - **Vendor-surface inventory hook** — `VendorProfileView` and `VendorDetailScreen` fetch
   `GET /stores/{id}/products` in separate effects. Share one hook to guarantee single-owner parity.
 - **Pharma SDUI parity** — `GET /sdui/pharma` does not exist; Pharma home rails stay feature-mock
-  (stores already server-backed). Add only if Pharma merchandising gets a portal owner.
+  (stores already server-backed). Add only if Pharma merchandising gets a portal owner. **(Resolved
+  in W50** — the same super-admin SDUI doc owns the Pharma sections.)
 
 **Docs:** `PAGE_CATALOG.md`, `docs/architecture/mobile-app.md`, `docs/architecture/web-portal.md`.
 

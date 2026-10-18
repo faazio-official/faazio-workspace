@@ -287,7 +287,7 @@ Auth is the **mocked login** (`authStore.login()`, 3 SecureStore writes). No Sup
 | RN12 | `CategoryDrillIn` | **CategoryDrillInScreen** | `src/features/catalog/CategoryDrillInScreen.tsx` | `{ tabId; title; app: 'FA_MART'\|'PHARMA' }`. Paid `CATEGORY_TOP` hero under the pill rail; store-grouped `CategoryDrillInPanel` body |
 | RN13 | `VendorDetails` | **VendorDetailScreen** | `src/features/catalog/VendorDetailScreen.tsx` | `{ storeId; app: 'FA_MART'\|'PHARMA'; initialQuery? }`. Single-store search page; paid `STORE_TOP` hero under the profile. **Distinct from the in-wrapper Mart drill-in** (`VendorProfileView`, §2.5) — both read `GET /stores/{id}/products` |
 | RN14 | `MedicalShopDetails` | **MedicalShopDetailsScreen** | `src/features/pharma/MedicalShopDetailsScreen.tsx` | Pharma store profile + live `storeId` inventory + `UploadPrescriptionFAB`; paid `STORE_TOP` hero |
-| RN15 | `DealsLanding` | **DealsLandingScreen** | `src/features/ecommerce/DealsLandingScreen.tsx` | Four modes: `campaign` (Home "Deals of the day" → `@data/home/campaigns`, Home-owned), `discounts` (Mart vendor "View All", server pool), `martDeals`/`martEssentials` (Mart rail "View All", catalog-resolved `productIds`). Paid `SECTOR_RAIL` header shelf |
+| RN15 | `DealsLanding` | **DealsLandingScreen** | `src/features/ecommerce/DealsLandingScreen.tsx` | Four modes: `campaign` (Home "Deals of the day" → anon `GET /home/campaigns/{id}`, fixture fallback), `discounts` (Mart vendor "View All", server pool), `martDeals`/`martEssentials` (Mart rail "View All", catalog-resolved `productIds`). Paid `SECTOR_RAIL` header shelf |
 | RN16 | `PrescriptionFlow` | **PrescriptionFlowScreen** | `src/features/pharma/prescription/PrescriptionFlowScreen.tsx` | `{ presetVendorId? }`. CAPTURE→NOTE→VENDORS→CONFIRMED; `presetVendorId` skips vendor selection |
 | RN17 | `You` | **YouScreen** → `AccountView` | `src/features/profile/YouScreen.tsx` | Pushed from any app; back returns |
 | RN18 | `UserDetails` | **UserDetailsScreen** | `src/features/profile/UserDetailsScreen.tsx` | Personal info / preferences / security |
@@ -366,10 +366,12 @@ Pharma `RateVendor` shares the root route.
 | P5 | `BloodRequestDescription` | **BloodRequestDescriptionScreen** | `src/features/pharma/blood-donor/BloodRequestDescriptionScreen.tsx` |
 | P6 | History tab | inline in `SubAppWrapper` | recent orders |
 
-Pharma's home rails are **intentionally feature-mock** for MVP
-(`src/features/pharma/services/pharmaService.ts`): stores are server-backed (`getStores('PHARMA')`),
-but the editorial rails use presentation-only `pm-*`/`pe-*` ids that are not catalog rows. There is
-no `GET /sdui/pharma` — see `docs/architecture/mobile-app.md` and `PENDING_WORK.md`.
+Pharma's home rails are **server-backed (W50)** (`src/features/pharma/services/pharmaService.ts`):
+stores use `getStores('PHARMA')` and the "Popular Medicines"/"Health Essentials" rails + house hero
+read the Pharma-only `GET /sdui/pharma` projection (allowlist `pharmaHero`/`pharmaPopular`/
+`pharmaEssentials`, joined to the catalog), with the `@data`/feature fixtures as the offline
+fallback. The section ids reference real, non-Rx `ph-*` catalog rows — see
+`docs/architecture/mobile-app.md` and `PENDING_WORK.md` W50.
 
 ### 2.8 Web portal pages
 

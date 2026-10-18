@@ -71,8 +71,11 @@ node server/supabase/seed/generate.mjs               # 0001_seed.sql now emits m
   gains an upload surface (e.g. seller-on-mobile, Rx capture).
 - **Razorpay native checkout.** Mock adapter seam (`client/mobile/src/services/payments/checkout.ts`);
   needs the SDK adapter + a real publishable key. No screen change. (See mobile backlog W22.)
-- **Editorial `@data` rails.** Hero banners / brand campaigns / Pharma rails remain fixture-owned
-  until they get a server surface (SDUI doc or new table). (See mobile backlog "Home rails".)
+- **Editorial `@data` rails.** Hero banners / brand campaigns / Pharma rails are now server-owned
+  through the SDUI doc (W42 heroes; W50 campaigns on `hotBrandDeals.campaigns[]` → anon
+  `GET /home/campaigns(/{id})`, and Pharma `pharmaHero`/`pharmaPopular`/`pharmaEssentials` →
+  `GET /sdui/pharma`); the `@data`/feature fixtures remain offline fallbacks. (See mobile
+  backlog W50.)
 - **Checkout festival-discount settlement — fixed.** `internal/checkout` now re-prices through
   `contracts.DiscountReader` (`internal/promo.Repo.ActiveDiscounts`), so the charged amount matches
   the festival price the app overlays (`promo.active-discounts`). Coupons settle through

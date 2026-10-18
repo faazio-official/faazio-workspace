@@ -25,6 +25,7 @@ import { getOrdersByUser, MOCK_USER_ID, type OrderRow } from '@data/checkout/ord
 import { profileTable, membershipTable, orderStatusTable, navTable, detailsTable, type ProfileRow, type MembershipRow, type OrderStatusRow, type NavRowGroup, type DetailsTable } from '@data/accounts/profile';
 import { getReviewsByVendorId, type VendorReviewRow } from '@data/reviews/vendorReviews';
 import { homeSdui, type SduiSection } from '@data/home/sdui';
+import { adCampaigns } from '@data/home/campaigns';
 import { seedFavorites } from '@data/home/seeds';
 import { savedAddresses } from '@data/account/addresses';
 import { loadSession } from '../secureSession';
@@ -97,6 +98,18 @@ function queryString(params?: Record<string, string | undefined>): string {
 /** A catalog entry joined with its live stock row. */
 export interface ProductView extends CatalogEntry {
   stock: StockRow | undefined;
+}
+
+/**
+ * A compiled editorial campaign (`GET /home/campaigns(/{id})`): the ID-only definition joined to its
+ * vendor store + catalog products. Display-only — the Home "Deals of the day" drill-in read.
+ */
+export interface HomeCampaignDetail {
+  id: string;
+  carousel: 1 | 2;
+  storeId: string;
+  store?: StoreRecord;
+  products: ProductView[];
 }
 
 /** One auth-scoped cart line (inventory.carts). */
@@ -1323,6 +1336,61 @@ export class GatewayClient {
       stores: (section.storeIds ?? []).map((id) => getStoreById(id)).filter((s): s is StoreRecord => !!s),
     }));
     return delay(sections);
+  }
+
+  /**
+   * Resolve only the Pharma SDUI sections (`pharmaHero`/`pharmaPopular`/`pharmaEssentials`) with
+   * joined data (`GET /sdui/pharma`). Pharma stays decoupled from the full Home payload/ETag; the
+   * offline mock filters the same Home doc so remote and mock shapes match. Rx-gated products are
+   * never referenced by these sections.
+   */
+  async getPharmaFeed(): Promise<(SduiSection & { products: ProductView[]; stores?: StoreRecord[] })[]> {
+    return this.withFallback(
+      () => this.http<(SduiSection & { products: ProductView[]; stores?: StoreRecord[] })[]>('/sdui/pharma'),
+      () => this.getPharmaFeedMock(),
+    );
+  }
+
+  private async getPharmaFeedMock(): Promise<(SduiSection & { products: ProductView[]; stores?: StoreRecord[] })[]> {
+    const pharmaIds = new Set(['pharmaHero', 'pharmaPopular', 'pharmaEssentials']);
+    const sections = homeSdui
+      .filter((section) => pharmaIds.has(section.id))
+      .map((section) => ({
+        ...section,
+        products: this.joinStock(getCatalogEntriesByIds(section.productIds)),
+        stores: (section.storeIds ?? []).map((id) => getStoreById(id)).filter((s): s is StoreRecord => !!s),
+      }));
+    return delay(sections);
+  }
+
+  /**
+   * The compiled editorial-campaign list (Home "Deals of the day"), server-joined to store + products.
+   * Falls back to the `@data/home/campaigns` fixture offline.
+   */
+  async getHomeCampaigns(): Promise<HomeCampaignDetail[]> {
+    return this.withFallback(
+      () => this.http<HomeCampaignDetail[]>('/home/campaigns'),
+      () => this.getHomeCampaignsMock(),
+    );
+  }
+
+  /** One compiled editorial campaign by id (undefined when unknown). Fixture-backed offline. */
+  async getHomeCampaign(id: string): Promise<HomeCampaignDetail | undefined> {
+    return this.withFallback(
+      () => this.http<HomeCampaignDetail>(`/home/campaigns/${encodeURIComponent(id)}`),
+      async () => (await this.getHomeCampaignsMock()).find((c) => c.id === id),
+    );
+  }
+
+  private async getHomeCampaignsMock(): Promise<HomeCampaignDetail[]> {
+    const views: HomeCampaignDetail[] = adCampaigns.map((c) => ({
+      id: c.id,
+      carousel: c.carousel,
+      storeId: c.storeId,
+      store: getStoreById(c.storeId),
+      products: this.joinStock(getCatalogEntriesByIds(c.productIds)),
+    }));
+    return delay(views);
   }
 
   /**
