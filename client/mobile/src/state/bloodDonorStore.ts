@@ -15,6 +15,7 @@ import type {
   BloodGroup,
   DonationTypeId,
   DonorMatchRequest,
+  DonorMatchStatus,
   DonorProfile,
 } from '@data/index';
 
@@ -44,13 +45,15 @@ export interface BloodWriteResult {
  */
 interface PendingDonorOp {
   id: string;
-  kind: 'register' | 'interest' | 'match';
-  /** Request id (interest) or local match id (match). */
+  kind: 'register' | 'interest' | 'match' | 'match-status' | 'request';
+  /** Request id (interest), local match id (match), match id (match-status), or op id (request). */
   targetId?: string;
   interestKind?: 'interested' | 'accepted';
   donorUserId?: string;
   bloodGroup?: string;
   city?: string;
+  /** Recipient response for a `match-status` op. */
+  status?: 'accepted' | 'declined';
   createdAt: string;
   attempts: number;
 }
@@ -86,6 +89,8 @@ interface PersistedBlob {
   interestedRequestIds?: string[];
   acceptedRequestIds?: string[];
   donorMatchRequests?: LocalDonorMatchRequest[];
+  /** Incoming targeted requests (recipient = this account), hydrated from the server. */
+  incomingMatchRequests?: LocalDonorMatchRequest[];
   pendingOps?: PendingDonorOp[];
 }
 
@@ -132,7 +137,12 @@ function registrationFromServer(p: BloodDonorProfile): LocalBloodDonorRegistrati
   };
 }
 
-/** Server match rows are surfaced as `pending` only — this UI has no accepted/declined state. */
+/** Coerce a server `match_status` string onto the UI union (defaults to pending). */
+function toMatchStatus(value: string): DonorMatchStatus {
+  return value === 'accepted' || value === 'declined' || value === 'completed' ? value : 'pending';
+}
+
+/** Map a durable server match row onto the local mirror, preserving its real lifecycle status. */
 function toDonorMatchRequest(r: DonorMatchRecord): LocalDonorMatchRequest {
   return {
     id: r.id,
@@ -144,7 +154,7 @@ function toDonorMatchRequest(r: DonorMatchRecord): LocalDonorMatchRequest {
     bloodGroup: r.bloodGroup as BloodGroup,
     city: r.city,
     requestedAt: r.createdAt,
-    status: 'pending',
+    status: toMatchStatus(r.status),
     pendingSync: false,
   };
 }
@@ -179,8 +189,10 @@ interface BloodDonorState {
   interestedRequestIds: string[];
   /** Request ids the donor accepted via the confirm dialog (not toggleable). */
   acceptedRequestIds: string[];
-  /** Targeted donor requests, owned by the requester and selected donor. */
+  /** Outgoing targeted donor requests (this account is the requester). */
   donorMatchRequests: LocalDonorMatchRequest[];
+  /** Incoming targeted donor requests (this account is the recipient donor), server-hydrated. */
+  incomingMatchRequests: LocalDonorMatchRequest[];
   /** Local-first writes awaiting a durable server ack (retried on hydration + foreground). */
   pendingOps: PendingDonorOp[];
   /** Status of the most recent write, for immediate UI feedback. */
@@ -196,6 +208,12 @@ interface BloodDonorState {
   acceptRequest: (requestId: string) => Promise<BloodWriteResult>;
   /** Sends one targeted request to the selected matching donor. */
   requestDonor: (donor: DonorProfile, city: string) => Promise<BloodWriteResult & { requestId?: string }>;
+  /** Recipient accepts/declines one incoming targeted request. */
+  respondToMatch: (matchId: string, status: 'accepted' | 'declined') => Promise<BloodWriteResult>;
+  /** Posts a public request to the hospital/donor board (board reloads from the server). */
+  postBloodRequest: (city: string, bloodGroup: BloodGroup) => Promise<BloodWriteResult>;
+  /** Re-reads the recipient's incoming requests from the server (called when the dashboard mounts). */
+  refreshIncoming: () => Promise<void>;
   reset: () => void;
 }
 
@@ -208,6 +226,7 @@ function snapshot(): PersistedBlob {
     interestedRequestIds: s.interestedRequestIds,
     acceptedRequestIds: s.acceptedRequestIds,
     donorMatchRequests: s.donorMatchRequests,
+    incomingMatchRequests: s.incomingMatchRequests,
     pendingOps: s.pendingOps,
   };
 }
@@ -231,6 +250,9 @@ function applyOutcome(op: PendingDonorOp, outcome: BloodWriteOutcome): BloodWrit
       donorMatchRequests: op.kind === 'match'
         ? s.donorMatchRequests.map((m) => (m.id === op.targetId ? { ...m, pendingSync: false } : m))
         : s.donorMatchRequests,
+      incomingMatchRequests: op.kind === 'match-status'
+        ? s.incomingMatchRequests.map((m) => (m.id === op.targetId ? { ...m, pendingSync: false } : m))
+        : s.incomingMatchRequests,
     }));
     persistAll();
     return { ok: true, status: 'synced' };
@@ -269,6 +291,7 @@ export const useBloodDonorStore = create<BloodDonorState>()((set, get) => ({
   interestedRequestIds: [],
   acceptedRequestIds: [],
   donorMatchRequests: [],
+  incomingMatchRequests: [],
   pendingOps: [],
   lastWriteStatus: null,
   hydrated: false,
@@ -391,6 +414,47 @@ export const useBloodDonorStore = create<BloodDonorState>()((set, get) => ({
     const outcome = await gateway.createDonorMatch(donor.userId, donor.bloodGroup, normalizedCity);
     return { ...applyOutcome(op, outcome), requestId: request.id };
   },
+  respondToMatch: async (matchId, status) => {
+    const current = get().incomingMatchRequests.find((m) => m.id === matchId);
+    if (!current || current.status !== 'pending') return { ok: false, status: 'synced' };
+    set((s) => ({
+      incomingMatchRequests: s.incomingMatchRequests.map((m) =>
+        m.id === matchId ? { ...m, status, pendingSync: gateway.remoteEnabled } : m,
+      ),
+    }));
+    if (!gateway.remoteEnabled) {
+      persistAll();
+      return { ok: true, status: 'offline' };
+    }
+    const op: PendingDonorOp = {
+      id: opId(), kind: 'match-status', targetId: matchId, status, createdAt: nowIso(), attempts: 0,
+    };
+    set((s) => ({ pendingOps: enqueueOp(s.pendingOps, op), lastWriteStatus: 'queued' }));
+    persistAll();
+    const outcome = await gateway.setDonorMatchStatus(matchId, status);
+    return applyOutcome(op, outcome);
+  },
+  postBloodRequest: async (city, bloodGroup) => {
+    const normalizedCity = city.trim();
+    // No durable board home in mock mode — never pretend a public post landed.
+    if (!gateway.remoteEnabled) return { ok: false, status: 'offline' };
+    const id = opId();
+    const op: PendingDonorOp = {
+      id, kind: 'request', targetId: id, bloodGroup, city: normalizedCity, createdAt: nowIso(), attempts: 0,
+    };
+    set((s) => ({ pendingOps: enqueueOp(s.pendingOps, op), lastWriteStatus: 'queued' }));
+    persistAll();
+    const outcome = await gateway.createBloodRequest({ bloodGroup, city: normalizedCity });
+    return applyOutcome(op, outcome);
+  },
+  refreshIncoming: async () => {
+    if (!gateway.remoteEnabled) return;
+    try {
+      reconcileIncoming(await gateway.getIncomingDonorMatches());
+    } catch {
+      // Offline — keep the cached incoming list.
+    }
+  },
   reset: () => {
     set({
       draft: EMPTY_DRAFT,
@@ -398,6 +462,7 @@ export const useBloodDonorStore = create<BloodDonorState>()((set, get) => ({
       interestedRequestIds: [],
       acceptedRequestIds: [],
       donorMatchRequests: [],
+      incomingMatchRequests: [],
       pendingOps: [],
       lastWriteStatus: null,
     });
@@ -437,8 +502,12 @@ async function flushPendingOps(): Promise<void> {
         });
       } else if (op.kind === 'interest') {
         outcome = await gateway.setBloodInterest(op.targetId ?? '', op.interestKind ?? 'interested');
-      } else {
+      } else if (op.kind === 'match') {
         outcome = await gateway.createDonorMatch(op.donorUserId ?? '', op.bloodGroup ?? '', op.city ?? '');
+      } else if (op.kind === 'match-status') {
+        outcome = await gateway.setDonorMatchStatus(op.targetId ?? '', op.status ?? 'accepted');
+      } else {
+        outcome = await gateway.createBloodRequest({ bloodGroup: op.bloodGroup ?? 'O+', city: op.city ?? '' });
       }
       applyOutcome(op, outcome);
     } catch {
@@ -461,11 +530,21 @@ function reconcileRegistration(profile: BloodDonorProfile | null): void {
 
 /** Merge the caller's server match rows over the local mirrors (server wins, local-only preserved). */
 function reconcileMatches(matches: DonorMatchRecord[]): void {
-  const pending = matches.filter((m) => m.status === 'pending').map(toDonorMatchRequest);
-  if (pending.length === 0) return;
+  const remote = matches.map(toDonorMatchRequest);
+  if (remote.length === 0) return;
   useBloodDonorStore.setState((s) => ({
-    donorMatchRequests: mergeMatches(s.donorMatchRequests, pending),
+    donorMatchRequests: mergeMatches(s.donorMatchRequests, remote),
   }));
+}
+
+/**
+ * Replace the incoming (recipient) list with the authoritative server rows. Skipped while a response
+ * is queued so an in-flight accept/decline is not reverted to `pending` by a stale server read.
+ */
+function reconcileIncoming(matches: DonorMatchRecord[]): void {
+  const s = useBloodDonorStore.getState();
+  if (s.pendingOps.some((o) => o.kind === 'match-status')) return;
+  useBloodDonorStore.setState({ incomingMatchRequests: matches.map(toDonorMatchRequest) });
 }
 
 /**
@@ -476,12 +555,14 @@ function reconcileMatches(matches: DonorMatchRecord[]): void {
 async function hydrateFromServer(): Promise<void> {
   await flushPendingOps();
   try {
-    const [profile, matches] = await Promise.all([
+    const [profile, matches, incoming] = await Promise.all([
       gateway.getDonorProfile(),
       gateway.getDonorMatches(),
+      gateway.getIncomingDonorMatches(),
     ]);
     reconcileRegistration(profile);
     reconcileMatches(matches);
+    reconcileIncoming(incoming);
   } catch {
     // Offline / mock — the local AsyncStorage cache remains the source of truth.
   }
@@ -509,6 +590,7 @@ AsyncStorage.getItem(STORAGE_KEY)
       interestedRequestIds: parsed.interestedRequestIds ?? [],
       acceptedRequestIds: parsed.acceptedRequestIds ?? [],
       donorMatchRequests: parsed.donorMatchRequests ?? [],
+      incomingMatchRequests: parsed.incomingMatchRequests ?? [],
       pendingOps: parsed.pendingOps ?? [],
     });
   })

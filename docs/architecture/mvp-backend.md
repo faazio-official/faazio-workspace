@@ -100,7 +100,7 @@ All read-through: Valkey → Supabase/Mongo → populate. Cloudflare caches publ
 | `GET /notifications`, `POST /notifications/register`, `GET /admin/notifications` | notifications | auth inbox + Expo push-token upsert; admin outbox view (`notifications.outbox`, enqueued by pharma/checkout via `contracts.Notifier`) |
 | `GET/PUT /donors/me`, `GET /donors` | blood | donor profile + consented directory (`blood.donor_directory` view); auth-scoped |
 | `GET/POST /blood-requests`, `PUT /blood-requests/{id}/interest` | blood | request board (public read, `contact`/`address` redacted for anon); interest/accept idempotent |
-| `POST/GET /donor-match-requests` | blood | targeted donor request (own rows) |
+| `POST/GET /donor-match-requests`, `GET /donor-match-requests/incoming`, `PUT /donor-match-requests/{id}/status` | blood | targeted donor request; outgoing (`requester_user_id = caller`) and **recipient-scoped incoming** (`donor_user_id = caller`, `0029`) reads; recipient-only pending→`accepted`/`declined` transition, enqueues a PII-free `MATCH_ACCEPTED`/`MATCH_DECLINED` notification to the requester (contact stays redacted) |
 | `GET/POST /bookings`, `DELETE /bookings/{id}`, `POST /bookings/{id}/payment` | bookings | seat reservations (hold at request); ₹50/seat fee derived server-side, occupancy checked under a `FOR UPDATE` config lock, idempotent per `Idempotency-Key`; payment attaches the Razorpay authorized payment id |
 | `GET /venues/{id}/booking-availability` | bookings | public, seat-count-free `{bookable, feePerSeat, timingLabel, openNow}` (never totals/remaining) |
 | `GET/PUT /seller/booking-config`, `GET /seller/bookings`, `PUT /bookings/{id}/status`, `POST /bookings/{id}/vacate` | bookings | seller-private config (seats/timings/tracking/pause); accept captures / reject refunds; vacate frees occupancy; owner-scoped. `GET /seller/bookings` echoes the caller's `sellerId` on each row (bookings have no seller column; ownership is via the venue) |
@@ -120,7 +120,8 @@ All read-through: Valkey → Supabase/Mongo → populate. Cloudflare caches publ
 Every endpoint above now has a `GatewayClient` method (`getVendorReviews`, `rateVendor`,
 `getCart`/`addToCart`/`updateCartItem`/`removeCartItem`, `placeOrder`, `trackEvent`,
 `getDonorProfile`/`saveDonorProfile`/`getBloodDonors`/`getBloodRequests`/`createBloodRequest`/
-`setBloodInterest`/`createDonorMatch`/`getDonorMatches`, `getBookings`/`createBooking`/`cancelBooking`/
+`setBloodInterest`/`createDonorMatch`/`getDonorMatches`/`getIncomingDonorMatches`/`setDonorMatchStatus`,
+`getBookings`/`createBooking`/`cancelBooking`/
 `attachBookingPayment`/`getBookingAvailability`,
 `getRecommendations`) with the `@data/*` fallback, so the per-module `@mock` →
 `@server` migration proceeds on the existing **mocked login** (`authStore.login()`); the MVP keeps

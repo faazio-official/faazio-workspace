@@ -472,7 +472,7 @@ export interface BloodRequestRecord {
   expiresAt?: string;
 }
 
-/** A blood.match_requests row. */
+/** A blood.match_requests row (status pending|accepted|declined|completed). */
 export interface DonorMatchRecord {
   id: string;
   requesterUserId: string;
@@ -481,6 +481,8 @@ export interface DonorMatchRecord {
   city: string;
   status: string;
   createdAt: string;
+  /** Set when the recipient (donor) accepts/declines. */
+  respondedAt?: string;
 }
 
 /** A bookings.tables row (seat reservation). `fee` is whole rupees, `amountPaisa` for Razorpay. */
@@ -1212,19 +1214,19 @@ export class GatewayClient {
     return this.http<BloodRequestRecord[]>(`/blood-requests${queryString(filters)}`);
   }
 
-  /** Post a blood request. */
-  async createBloodRequest(input: Partial<BloodRequestRecord> & { bloodGroup: string }): Promise<BloodRequestRecord> {
-    return this.withFallback(
-      () => this.http<BloodRequestRecord>('/blood-requests', { method: 'POST', body: JSON.stringify(input) }),
-      () =>
-        delay({
-          id: `br-local-${Date.now()}`,
-          hospital: '', city: '', state: '', unitsRequired: 1,
-          patientContext: '', neededWithin: '', verified: false, urgency: 'normal',
-          postedAt: new Date().toISOString(), postedHoursAgo: 0,
-          ...input,
-        } as BloodRequestRecord),
-    );
+  /**
+   * Post a blood request (`POST /blood-requests`). Outcome-returning like the other blood writes —
+   * a failed post is `offline`/`signed-out`, never a fabricated local row (the board reloads from
+   * the server so a non-durable post cannot masquerade as a live one).
+   */
+  async createBloodRequest(input: Partial<BloodRequestRecord> & { bloodGroup: string }): Promise<BloodWriteOutcome> {
+    if (!REMOTE_ENABLED) return 'offline';
+    try {
+      await this.http<BloodRequestRecord>('/blood-requests', { method: 'POST', body: JSON.stringify(input) });
+      return 'synced';
+    } catch (err) {
+      return this.bloodWriteOutcome(err);
+    }
   }
 
   /** Mark interest / acceptance on a blood request (idempotent). Outcome-returning write. */
@@ -1255,6 +1257,31 @@ export class GatewayClient {
       () => this.http<DonorMatchRecord[]>('/donor-match-requests'),
       () => delay([] as DonorMatchRecord[]),
     );
+  }
+
+  /**
+   * The caller's incoming donor-match requests (rows addressed to them as the recipient donor).
+   * Recipient-scoped server read, so targeted asks arrive on any device — not only the requester's.
+   */
+  async getIncomingDonorMatches(): Promise<DonorMatchRecord[]> {
+    return this.withFallback(
+      () => this.http<DonorMatchRecord[]>('/donor-match-requests/incoming'),
+      () => delay([] as DonorMatchRecord[]),
+    );
+  }
+
+  /** Recipient accepts/declines one incoming request. Outcome-returning write (server is authoritative). */
+  async setDonorMatchStatus(id: string, status: 'accepted' | 'declined'): Promise<BloodWriteOutcome> {
+    if (!REMOTE_ENABLED) return 'offline';
+    try {
+      await this.http<DonorMatchRecord>(`/donor-match-requests/${encodeURIComponent(id)}/status`, {
+        method: 'PUT',
+        body: JSON.stringify({ status }),
+      });
+      return 'synced';
+    } catch (err) {
+      return this.bloodWriteOutcome(err);
+    }
   }
 
   /** Public booking availability for a venue (bookable / ₹ per seat / timing only). */

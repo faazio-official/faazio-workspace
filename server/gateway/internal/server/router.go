@@ -136,7 +136,7 @@ func NewRouter(d Deps) http.Handler {
 	rewards.NewHandler(rewardsRepo, d.Cache, adminsRepo).Register(r)
 	pharma.NewHandler(pharmaRepo, pharmaStorage, d.Cache, adminsRepo, notificationsRepo).Register(r)
 	notifications.NewHandler(notificationsRepo, d.Cache, d.Drainer).Register(r)
-	blood.NewHandler(bloodRepo, d.Cache, adminsRepo).Register(r)
+	blood.NewHandler(bloodRepo, d.Cache, adminsRepo, notificationsRepo).Register(r)
 	bookings.NewHandler(bookingsRepo, bookingsService, d.Cache, adminsRepo).Register(r)
 	checkout.NewHandler(checkoutRepo, checkoutService, d.Cache, adminsRepo, notificationsRepo, promoRepo).Register(r)
 	reviews.NewHandler(reviewsRepo, reviewsService, d.Cache, adminsRepo).Register(r)

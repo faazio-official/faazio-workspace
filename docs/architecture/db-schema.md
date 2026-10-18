@@ -992,7 +992,8 @@ CREATE TABLE blood.requests (
 );
 CREATE TABLE blood.interests (request_id, donor_user_id, kind, PRIMARY KEY (request_id, donor_user_id, kind));
 CREATE TYPE match_status AS ENUM ('pending','accepted','declined','completed');
-CREATE TABLE blood.match_requests (id, requester_user_id, donor_user_id, blood_group, city, status, created_at);
+CREATE TABLE blood.match_requests (id, requester_user_id, donor_user_id, blood_group, city, status, created_at,
+  responded_at TIMESTAMPTZ);   -- migration 0029: set when the recipient accepts/declines
 ```
 
 Donor data is health PII and matching needs a queryable registry — it cannot stay in `AsyncStorage`.
@@ -1003,6 +1004,16 @@ Donor directory + request board cached 60 s (`faazio:v1:blood:requests:{bloodGro
 **Decision (0019):** the donor dashboard stays on the redacted `blood.requests` projection and computes
 distance client-side rather than adding display columns (`image_url`/`distance_km`/`demographics`) —
 no PII widening. `purposeDescription`/`demographics` remain out of the public board by design.
+
+**Match lifecycle (0029):** a targeted match was insert-only (`pending`). Migration `0029` adds
+`responded_at` and splits the `match_requests` RLS policy from one `own_rows` (which restricted every
+write to the requester) into `match_select` (either party), `match_insert` (requester only) and
+`match_respond` (recipient only) — so a donor can accept/decline their own incoming request without
+being able to mutate the requester. The gateway reads the recipient set via
+`GET /donor-match-requests/incoming` (`donor_user_id = caller`) and writes the transition via
+`PUT /donor-match-requests/{id}/status` (`accepted`|`declined`, recipient-scoped, pending-only); an
+accepted/declined transition enqueues a PII-free `MATCH_ACCEPTED`/`MATCH_DECLINED` notification to the
+requester. Contact disclosure on acceptance is **not** part of this — sharing stays reveal-gated future work.
 
 ### 12.7 `bookings.tables` + `bookings.food_orders` — source `state/bookingStore.ts` (migration `0011`)
 

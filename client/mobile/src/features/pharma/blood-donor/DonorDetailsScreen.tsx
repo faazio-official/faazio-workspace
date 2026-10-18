@@ -46,15 +46,17 @@ export function DonorDetailsScreen({ navigation, route }: Props) {
     );
   }
 
-  const alreadyRequested = targetedRequests.some(
+  const existingMatch = targetedRequests.find(
     (request) =>
       request.requesterUserId === userId &&
       request.donorId === donor.id &&
       request.bloodGroup === route.params.bloodGroup &&
-      request.city.toLowerCase() === route.params.requestCity.trim().toLowerCase() &&
-      request.status === 'pending',
+      request.city.toLowerCase() === route.params.requestCity.trim().toLowerCase(),
   );
-  const requestComplete = sent || alreadyRequested;
+  const accepted = existingMatch?.status === 'accepted';
+  const pending = existingMatch?.status === 'pending';
+  const declined = existingMatch?.status === 'declined';
+  const requestComplete = sent || pending || accepted;
 
   const handleRequest = async () => {
     if (requestComplete) return;
@@ -63,11 +65,15 @@ export function DonorDetailsScreen({ navigation, route }: Props) {
     setWriteStatus(result.status);
   };
 
-  const requestLabel = requestComplete
-    ? writeStatus === 'synced' || writeStatus === null
-      ? 'Request Sent · Done'
-      : 'Request Saved — will retry'
-    : 'Request This Donor';
+  const requestLabel = accepted
+    ? 'Donor Accepted · Done'
+    : requestComplete
+      ? writeStatus === 'synced' || writeStatus === null
+        ? 'Request Sent · Done'
+        : 'Request Saved — will retry'
+      : declined
+        ? 'Request This Donor Again'
+        : 'Request This Donor';
 
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
@@ -95,7 +101,7 @@ export function DonorDetailsScreen({ navigation, route }: Props) {
 
         <View style={styles.privacyCard}>
           <ShieldCheck size={ms(18)} color="#059669" strokeWidth={2.2} />
-          <AppText style={styles.privacyText}>Your request will be sent only to this donor. Contact details are shared after a future donor response.</AppText>
+          <AppText style={styles.privacyText}>Your request is sent only to this donor. Contact details stay private — sharing after an accepted response is coming soon.</AppText>
         </View>
       </ScrollView>
 

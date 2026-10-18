@@ -185,6 +185,9 @@ export const BLOOD_REQUEST_DETAIL_COPY = {
   confirmNote: 'Your details will be shared with the hospital only after you confirm.',
 };
 
+/** Lifecycle of a targeted donor match (mirrors the server `match_status` enum). */
+export type DonorMatchStatus = 'pending' | 'accepted' | 'declined' | 'completed';
+
 /** A targeted request from one app user to one matching donor. */
 export interface DonorMatchRequest {
   id: string;
@@ -196,7 +199,7 @@ export interface DonorMatchRequest {
   bloodGroup: BloodGroup;
   city: string;
   requestedAt: string;
-  status: 'pending';
+  status: DonorMatchStatus;
 }
 
 /** Copy for the two-stage donor search flow. */

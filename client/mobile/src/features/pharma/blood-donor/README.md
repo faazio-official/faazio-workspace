@@ -20,12 +20,20 @@ existing hospital donation-request feed.
 - `DonorDetailsScreen` shows safe donor information and sends a request to exactly the
   selected donor. Duplicate pending requests for the same requester/donor/search are
   ignored.
-- The selected donor sees the request in the dashboard's `Requests for You` section.
-  Incoming requests are filtered by the authenticated user's stable `user.id`; they are
-  not added to the common hospital-request feed.
-- The hospital-request feed remains seeded by `BLOOD_REQUESTS` and keeps its filters,
-  search, details page, Interested action, Accept & Proceed action, share, phone, map,
-  and nearby-request behavior.
+- The selected donor sees the request in the dashboard's `Requests for You` section. The
+  incoming set is **recipient-scoped on the server** (`GET /donor-match-requests/incoming`,
+  `blood.match_requests.donor_user_id = caller`), so it arrives on the recipient's own device,
+  not only the requester's. Incoming requests are **not** added to the common hospital-request feed.
+- The recipient accepts or declines a pending incoming request from
+  `IncomingDonorRequestCard` (`respondToMatch` → `PUT /donor-match-requests/{id}/status`,
+  recipient-only, pending-only, outcome-returning). The server enqueues a PII-free
+  `MATCH_ACCEPTED`/`MATCH_DECLINED` notification to the requester; the requester's outgoing row
+  shows the live status. **Contact is not disclosed on acceptance** (reveal-gated future).
+- `AskBloodSheet` also offers **Post to the public board**: it writes city + blood group to
+  `POST /blood-requests` (outcome-returning, never a fabricated local row) and reloads the board.
+- The hospital-request feed remains server-backed with the `BLOOD_REQUESTS` fixture as the labelled
+  offline fallback, and keeps its filters (chips + the funnel `FilterSheet`), search, details page,
+  Interested action, Accept & Proceed action, share, phone, map, and nearby-request behavior.
 
 ## Key files
 
@@ -42,14 +50,17 @@ existing hospital donation-request feed.
 ## State and privacy
 
 `DonorMatchRequest` stores requester ID/name, selected donor ID/name, blood group, city,
-request timestamp, and pending status. The store persists targeted requests in the
-existing `faazio/bloodDonor/v1` AsyncStorage blob during the mock phase. Requests are
-owned by both requester and recipient IDs, and the dashboard only renders requests whose
-`donorUserId` matches the active account.
+request timestamp, and a lifecycle `status` (`pending` | `accepted` | `declined` | `completed`
+— mirrors the server `match_status`). `bloodDonorStore` keeps the outgoing list
+(`donorMatchRequests`) and the server-hydrated incoming list (`incomingMatchRequests`), and mirrors
+responses to `PUT /donor-match-requests/{id}/status` as an outcome-returning write; the
+`faazio/bloodDonor/v1` AsyncStorage blob is the optimistic cache (`register`/`interest`/`match`/
+`match-status`/`request` outbox ops flush on hydration + foreground). A queued response is never
+reverted by a stale server read.
 
-Donor contact details are not exposed in search results or donor details. Health data is
-never logged. The current local persistence is a mock-stage tradeoff and must move to
-server-side encrypted storage when the backend is wired.
+Donor contact details are not exposed in search results, donor details, or on acceptance. Health
+data is never logged. The gateway/`blood.*` schema is the durable home (RLS own-rows; the
+`blood.donor_directory` view is the display-safe public projection).
 
 ## Data and backend seam
 
@@ -58,6 +69,8 @@ server-side encrypted storage when the backend is wired.
 `getDonorById(donorId)`, so a future Go Chi donor-registry query can replace the fixture
 without changing the UI contract.
 
-The future backend must own donor search, authorization, targeted request creation,
-request status transitions, secure contact disclosure, and notification delivery. The
-current implementation does not provide cross-device delivery or accept/decline actions.
+The Go Chi gateway owns donor search, authorization, targeted request creation, incoming
+(recipient-scoped) reads, and status transitions; it enqueues a PII-free notification to the
+requester. Still future: secure contact disclosure after an
+accepted response (reveal gate), a notification inbox screen + push delivery, and real
+geo distance (device coords + an earthdistance/lat-lng index).

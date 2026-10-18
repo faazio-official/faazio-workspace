@@ -1,6 +1,6 @@
 import React, { memo, useEffect, useState } from 'react';
 import { View, ScrollView, TouchableOpacity, StyleSheet, KeyboardAvoidingView, Platform } from 'react-native';
-import { ArrowLeft, Droplet, LoaderCircle, X } from 'lucide-react-native';
+import { ArrowLeft, CheckCircle2, Droplet, LoaderCircle, UploadCloud, X } from 'lucide-react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
@@ -16,21 +16,37 @@ import { OptionChipGrid } from './OptionChipGrid';
 import { MatchingDonorCard } from './MatchingDonorCard';
 import { findMatchingDonors } from '../services/donorDirectory';
 import { useAuthStore } from '@/state/authStore';
+import { useBloodDonorStore, type BloodWriteStatus } from '@/state/bloodDonorStore';
 import { BLOOD_RED, BLOOD_RED_DARK, BLOOD_TEXT, BLOOD_TEXT_MUTED, BLOOD_BORDER, BLOOD_RADII } from '../tokens';
 
-interface AskBloodSheetProps { visible: boolean; onClose: () => void }
-type AskMode = 'search' | 'results';
+interface AskBloodSheetProps {
+  visible: boolean;
+  onClose: () => void;
+  /** Called after a successful public-board post so the dashboard can reload the feed. */
+  onPosted?: () => void;
+}
+type AskMode = 'search' | 'results' | 'posted';
 
-/** Two-stage targeted donor discovery, rendered in the shared bottom sheet. */
-const AskBloodSheet = memo(function AskBloodSheet({ visible, onClose }: AskBloodSheetProps) {
+const POSTED_COPY: Record<BloodWriteStatus, { title: string; body: string }> = {
+  synced: { title: 'Posted to the board', body: 'Your request is live for donors to see.' },
+  queued: { title: 'Saved — will post shortly', body: "We'll post it automatically when you're back online." },
+  offline: { title: "Couldn't post to the board", body: 'Check your connection and try again.' },
+  'signed-out': { title: 'Sign in to post', body: 'Sign in to publish a request to the public board.' },
+};
+
+/** Two-stage targeted donor discovery, plus a public-board post, in the shared bottom sheet. */
+const AskBloodSheet = memo(function AskBloodSheet({ visible, onClose, onPosted }: AskBloodSheetProps) {
   const insets = useSafeAreaInsets();
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const requesterUserId = useAuthStore((s) => s.user?.id);
+  const postBloodRequest = useBloodDonorStore((s) => s.postBloodRequest);
   const [mode, setMode] = useState<AskMode>('search');
   const [bloodGroup, setBloodGroup] = useState<BloodGroup | null>(null);
   const [city, setCity] = useState('');
   const [donors, setDonors] = useState<DonorProfile[]>([]);
   const [searching, setSearching] = useState(false);
+  const [posting, setPosting] = useState(false);
+  const [postStatus, setPostStatus] = useState<BloodWriteStatus | null>(null);
 
   useEffect(() => {
     if (!visible) return;
@@ -39,6 +55,8 @@ const AskBloodSheet = memo(function AskBloodSheet({ visible, onClose }: AskBlood
     setCity('');
     setDonors([]);
     setSearching(false);
+    setPosting(false);
+    setPostStatus(null);
   }, [visible]);
 
   const canContinue = bloodGroup !== null && city.trim().length >= 3;
@@ -61,7 +79,17 @@ const AskBloodSheet = memo(function AskBloodSheet({ visible, onClose }: AskBlood
     });
   };
 
-  const handleClose = () => { if (!searching) onClose(); };
+  const handlePost = async () => {
+    if (!canContinue || !bloodGroup || posting) return;
+    setPosting(true);
+    const result = await postBloodRequest(city.trim(), bloodGroup);
+    setPosting(false);
+    setPostStatus(result.status);
+    setMode('posted');
+    if (result.ok) onPosted?.();
+  };
+
+  const handleClose = () => { if (!searching && !posting) onClose(); };
 
   return (
     <SlideUpSheet visible={visible} onRequestClose={handleClose}>
@@ -78,9 +106,11 @@ const AskBloodSheet = memo(function AskBloodSheet({ visible, onClose }: AskBlood
           </TouchableOpacity>
         </View>
 
-        <AppText style={styles.subtitle}>
-          {mode === 'search' ? ASK_BLOOD_COPY.searchSubtitle : ASK_BLOOD_COPY.resultsSubtitle}
-        </AppText>
+        {mode !== 'posted' ? (
+          <AppText style={styles.subtitle}>
+            {mode === 'search' ? ASK_BLOOD_COPY.searchSubtitle : ASK_BLOOD_COPY.resultsSubtitle}
+          </AppText>
+        ) : null}
 
         {mode === 'search' ? (
           <ScrollView style={styles.scroll} contentContainerStyle={styles.searchContent} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
@@ -95,7 +125,7 @@ const AskBloodSheet = memo(function AskBloodSheet({ visible, onClose }: AskBlood
               <OptionChipGrid<BloodGroup> options={BLOOD_GROUPS} selected={bloodGroup} onSelect={setBloodGroup} />
             </View>
           </ScrollView>
-        ) : (
+        ) : mode === 'results' ? (
           <ScrollView style={styles.scroll} contentContainerStyle={styles.resultsContent} showsVerticalScrollIndicator={false}>
             <View style={styles.criteriaRow}>
               <AppText style={styles.criteriaText}>{city.trim()}</AppText>
@@ -105,17 +135,48 @@ const AskBloodSheet = memo(function AskBloodSheet({ visible, onClose }: AskBlood
             {searching ? (
               <View style={styles.loadingState}><LoaderCircle size={ms(28)} color={BLOOD_RED} strokeWidth={2.2} /><AppText style={styles.emptyTitle}>Finding matching donors…</AppText></View>
             ) : donors.length === 0 ? (
-              <View style={styles.emptyState}><Droplet size={ms(32)} color={BLOOD_RED} strokeWidth={2} /><AppText style={styles.emptyTitle}>No matching donors found</AppText><AppText style={styles.emptyText}>Try another city or blood group to find available donors.</AppText></View>
+              <View style={styles.emptyState}><Droplet size={ms(32)} color={BLOOD_RED} strokeWidth={2} /><AppText style={styles.emptyTitle}>No matching donors found</AppText><AppText style={styles.emptyText}>Try another city or blood group — or post a public request to the board below.</AppText></View>
             ) : (
               <View style={styles.resultsList}>{donors.map((donor) => <MatchingDonorCard key={donor.id} donor={donor} onPress={handleSelectDonor} />)}</View>
             )}
           </ScrollView>
+        ) : (
+          <View style={styles.postedState}>
+            <View style={[styles.postedIcon, postStatus === 'synced' && styles.postedIconOk]}>
+              {postStatus === 'synced'
+                ? <CheckCircle2 size={ms(30)} color="#059669" strokeWidth={2.4} />
+                : <UploadCloud size={ms(30)} color={BLOOD_RED} strokeWidth={2.2} />}
+            </View>
+            <AppText style={styles.postedTitle}>{POSTED_COPY[postStatus ?? 'offline'].title}</AppText>
+            <AppText style={styles.postedBody}>{POSTED_COPY[postStatus ?? 'offline'].body}</AppText>
+          </View>
         )}
 
         {mode === 'search' ? (
           <View style={[styles.footer, { paddingBottom: Math.max(insets.bottom, vs(8)) }]}>
             <TouchableOpacity onPress={handleContinue} disabled={!canContinue || searching} style={[styles.continueBtn, (!canContinue || searching) && styles.disabledBtn]} activeOpacity={0.85} accessibilityRole="button" accessibilityState={{ disabled: !canContinue || searching }}>
               <AppText style={styles.continueText}>{searching ? 'Finding Donors…' : ASK_BLOOD_COPY.continueLabel}</AppText>
+            </TouchableOpacity>
+            <TouchableOpacity onPress={handlePost} disabled={!canContinue || posting} style={[styles.postBtn, (!canContinue || posting) && styles.disabledBtn]} activeOpacity={0.85} accessibilityRole="button" accessibilityState={{ disabled: !canContinue || posting }}>
+              <UploadCloud size={ms(15)} color={canContinue && !posting ? BLOOD_RED_DARK : '#94A3B8'} strokeWidth={2.2} />
+              <AppText style={[styles.postText, (!canContinue || posting) && styles.postTextDisabled]}>{posting ? 'Posting…' : 'Post to the public board'}</AppText>
+            </TouchableOpacity>
+          </View>
+        ) : null}
+
+        {mode === 'results' ? (
+          <View style={[styles.footer, { paddingBottom: Math.max(insets.bottom, vs(8)) }]}>
+            <TouchableOpacity onPress={handlePost} disabled={posting} style={[styles.postBtn, posting && styles.disabledBtn]} activeOpacity={0.85} accessibilityRole="button" accessibilityState={{ disabled: posting }}>
+              <UploadCloud size={ms(15)} color={posting ? '#94A3B8' : BLOOD_RED_DARK} strokeWidth={2.2} />
+              <AppText style={[styles.postText, posting && styles.postTextDisabled]}>{posting ? 'Posting…' : 'Post to the public board instead'}</AppText>
+            </TouchableOpacity>
+          </View>
+        ) : null}
+
+        {mode === 'posted' ? (
+          <View style={[styles.footer, { paddingBottom: Math.max(insets.bottom, vs(8)) }]}>
+            <TouchableOpacity onPress={handleClose} style={styles.continueBtn} activeOpacity={0.85} accessibilityRole="button">
+              <AppText style={styles.continueText}>Done</AppText>
             </TouchableOpacity>
           </View>
         ) : null}
@@ -140,10 +201,13 @@ const styles = StyleSheet.create({
   req: { color: BLOOD_RED },
   field: { borderWidth: 1, borderColor: BLOOD_BORDER, borderRadius: BLOOD_RADII.chip, backgroundColor: '#ffffff' },
   input: { minHeight: ms(48), paddingHorizontal: hs(14), color: BLOOD_TEXT, fontSize: ms(13) },
-  footer: { width: '100%', paddingTop: SPACE.BLOCK },
+  footer: { width: '100%', paddingTop: SPACE.BLOCK, gap: SPACE.BLOCK },
   continueBtn: { minHeight: ms(48), borderRadius: BLOOD_RADII.pill, backgroundColor: BLOOD_RED, alignItems: 'center', justifyContent: 'center' },
   disabledBtn: { backgroundColor: '#CBD5E1' },
   continueText: { color: '#ffffff', fontSize: ms(14), fontWeight: '900' },
+  postBtn: { minHeight: ms(44), flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: hs(7), borderRadius: BLOOD_RADII.pill, borderWidth: 1, borderColor: BLOOD_BORDER, backgroundColor: '#ffffff' },
+  postText: { color: BLOOD_RED_DARK, fontSize: ms(12.5), fontWeight: '800' },
+  postTextDisabled: { color: '#94A3B8' },
   criteriaRow: { flexDirection: 'row', alignItems: 'center', alignSelf: 'flex-start', gap: hs(8), backgroundColor: '#FEF2F2', borderRadius: BLOOD_RADII.pill, paddingHorizontal: hs(12), paddingVertical: vs(7) },
   criteriaText: { color: BLOOD_RED_DARK, fontSize: ms(12), fontWeight: '800' },
   criteriaDivider: { color: BLOOD_RED, fontSize: ms(14), fontWeight: '900' },
@@ -152,4 +216,9 @@ const styles = StyleSheet.create({
   emptyState: { alignItems: 'center', gap: SPACE.BLOCK, paddingVertical: vs(30), paddingHorizontal: hs(20) },
   emptyTitle: { color: BLOOD_TEXT, fontSize: ms(14), fontWeight: '900', textAlign: 'center' },
   emptyText: { color: BLOOD_TEXT_MUTED, fontSize: ms(12), lineHeight: vs(17), textAlign: 'center' },
+  postedState: { width: '100%', alignItems: 'center', gap: SPACE.BLOCK, paddingVertical: vs(28), paddingHorizontal: hs(12) },
+  postedIcon: { width: ms(64), height: ms(64), borderRadius: ms(32), alignItems: 'center', justifyContent: 'center', backgroundColor: '#FEF2F2' },
+  postedIconOk: { backgroundColor: '#ECFDF5' },
+  postedTitle: { color: BLOOD_TEXT, fontSize: ms(16), fontWeight: '900', textAlign: 'center' },
+  postedBody: { color: BLOOD_TEXT_MUTED, fontSize: ms(12), lineHeight: vs(17), textAlign: 'center' },
 });

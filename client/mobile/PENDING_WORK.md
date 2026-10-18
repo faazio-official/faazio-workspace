@@ -2259,6 +2259,21 @@ plus a registered-donor dashboard.
   to that donor's `donorUserId`. Requests are persisted in the existing blood-donor blob
   and render only in the selected donor's dashboard under **Requests for You**; they are not
   inserted into the common hospital request feed or broadcast to all donors.
+- **Cross-device incoming + accept/decline shipped (W54)**: the recipient's dashboard reads the
+  server's incoming set (`getIncomingDonorMatches` → `GET /donor-match-requests/incoming`), so a
+  targeted ask arrives on the recipient's own device. `IncomingDonorRequestCard` accepts/declines
+  while `pending` (`respondToMatch` → `PUT /donor-match-requests/{id}/status`, recipient-only,
+  outcome-returning, queued `match-status` outbox op when non-durable); the server enqueues a
+  PII-free `MATCH_ACCEPTED`/`MATCH_DECLINED` notification to the requester, and the
+  requester's outgoing row shows the real status (`BloodDonorDetails` → "Donor Accepted" / re-request
+  after decline). Contact is **not** disclosed on acceptance (reveal-gated future).
+- **Post to the public board shipped (W54)**: `AskBloodSheet` posts city + blood group to
+  `POST /blood-requests` via the outcome-returning `createBloodRequest` and reloads the board; it
+  never fabricates a local row (offline/mock → honest "couldn't post").
+- **Honest bell + funnel shipped (W54)**: the bell is a non-interactive indicator (live server
+  notification count + pending incoming — no seed, no dead tap); the funnel opens a `FilterSheet`
+  (blood group / urgency / city) over the existing filters. "Nearby" now states it is city-match,
+  not GPS.
 
 **Future / honest gaps:**
 - **Interested/Accepted are local-only** (persisted AsyncStorage) — the actual
@@ -2266,17 +2281,18 @@ plus a registered-donor dashboard.
   Accept's confirmation dialog states the sharing contract; delivery is not built.
 - **Distance (`distanceKm`) is mock seed data** — no real geo between donor and hospital
   yet; the nearby sort is a real sort over the seeded values.
-- **Bell press is a no-op** (TODO in `DonorDashboard`) — no notification screen or push
-  infra; the badge count remains the `BLOOD_DONOR_UNREAD_ALERTS` seed plus the current
-  donor's incoming targeted-request count. Cross-device delivery is not built.
-- **Funnel icon is visual-only** — a filter sheet is not designed yet; ditto presence only.
+- **Notification inbox screen is not built** — the bell is an honest non-interactive indicator
+  (live `GET /notifications` count + pending incoming; no `BLOOD_DONOR_UNREAD_ALERTS` seed). A tap
+  target / inbox screen and push delivery (`notifications.outbox` drain + `PUSH_WEBHOOK_URL`) remain
+  ops + a future UI pass.
 - **"Nearby" is city-matching, not geo**: request `city` vs the donor's registered
-  `preferredLocation` (case-insensitive contains). Real geo swaps the matcher, not the UI.
+  `preferredLocation` (case-insensitive contains); the chip now says so. Real geo (device coords +
+  an earthdistance/lat-lng index on `blood.donors`/`blood.requests`) swaps the matcher, not the UI.
 - **Request feed is a static seed** (`BLOOD_REQUESTS`, 5 fixtures) — the Go Chi backend
   owns the real feed; `BloodRequest` shape documented as the interim contract.
-- **Targeted donor requests are device-local** during the mock stage. The recipient filter
-  is user-specific, but cross-device delivery and donor response/status transitions require
-  the Go Chi backend.
+- **Contact disclosure after acceptance is not built** — an accepted match updates status but
+  contact details stay redacted (no reveal gate yet). Follow the Rx `revealed_at/by` pattern
+  (`0023_rx_privacy.sql`) once the status flow settles.
 - **AD label is not on `RestaurantOffersScreen`** ("View All") — scope-limited to the
   restaurant profile rail; add the same `AdLabelBadge` there as a one-line follow-up if
   wanted.

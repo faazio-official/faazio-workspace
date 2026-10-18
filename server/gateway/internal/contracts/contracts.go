@@ -48,7 +48,8 @@ type BloodRequest struct {
 	ExpiresAt      string `json:"expiresAt,omitempty"`
 }
 
-// DonorMatch is a blood.match_requests row.
+// DonorMatch is a blood.match_requests row. Status is pending|accepted|declined|completed;
+// RespondedAt is set when the recipient (donor) accepts/declines.
 type DonorMatch struct {
 	ID              string `json:"id"`
 	RequesterUserID string `json:"requesterUserId"`
@@ -57,6 +58,7 @@ type DonorMatch struct {
 	City            string `json:"city"`
 	Status          string `json:"status"`
 	CreatedAt       string `json:"createdAt"`
+	RespondedAt     string `json:"respondedAt,omitempty"`
 }
 
 // ------------------------------------------------------------------ bookings DTOs (bookings schema)

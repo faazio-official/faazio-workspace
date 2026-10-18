@@ -15,14 +15,15 @@ import (
 // Handler serves blood-donor endpoints. Health PII: the directory is auth-scoped; the requests board
 // is public but contact/address are redacted for anon (same pattern as directory.stores).
 type Handler struct {
-	repo  *Repo
-	cache *cache.Cache
-	audit contracts.AuditWriter
+	repo     *Repo
+	cache    *cache.Cache
+	audit    contracts.AuditWriter
+	notifier contracts.Notifier
 }
 
-// NewHandler builds the blood handler.
-func NewHandler(repo *Repo, c *cache.Cache, audit contracts.AuditWriter) *Handler {
-	return &Handler{repo: repo, cache: c, audit: audit}
+// NewHandler builds the blood handler. notifier may be nil (notification enqueue is best-effort).
+func NewHandler(repo *Repo, c *cache.Cache, audit contracts.AuditWriter, notifier contracts.Notifier) *Handler {
+	return &Handler{repo: repo, cache: c, audit: audit, notifier: notifier}
 }
 
 // Register mounts blood endpoints. The requests board is public; everything else is auth-scoped.
@@ -37,6 +38,8 @@ func (h *Handler) Register(r chi.Router) {
 		g.Put("/blood-requests/{id}/interest", h.interest)
 		g.Post("/donor-match-requests", h.createMatch)
 		g.Get("/donor-match-requests", h.listMatches)
+		g.Get("/donor-match-requests/incoming", h.listIncomingMatches)
+		g.Put("/donor-match-requests/{id}/status", h.respondMatch)
 	})
 	r.Group(func(g chi.Router) {
 		g.Use(auth.RequireRole(auth.RoleStateAdmin, auth.RoleSuperAdmin))
@@ -188,6 +191,54 @@ func (h *Handler) listMatches(w http.ResponseWriter, r *http.Request) {
 		matches = []contracts.DonorMatch{}
 	}
 	httpx.JSON(w, http.StatusOK, matches)
+}
+
+// listIncomingMatches lists the caller's incoming match requests (recipient = caller), so a donor
+// sees targeted asks on any device rather than only the device that created the row.
+func (h *Handler) listIncomingMatches(w http.ResponseWriter, r *http.Request) {
+	matches, err := h.repo.MatchesByDonor(r.Context(), auth.UserID(r.Context()))
+	if err != nil {
+		httpx.Fail(w, http.StatusInternalServerError, "matches_unavailable", "matches unavailable")
+		return
+	}
+	if matches == nil {
+		matches = []contracts.DonorMatch{}
+	}
+	httpx.JSON(w, http.StatusOK, matches)
+}
+
+// respondMatch lets the recipient (donor) accept or decline one incoming request. Only the row's
+// donor may respond, only while pending; acceptance notifies the requester (no contact is disclosed
+// here — contact sharing remains a future reveal-gated step).
+func (h *Handler) respondMatch(w http.ResponseWriter, r *http.Request) {
+	var body struct {
+		Status string `json:"status"`
+	}
+	if err := httpx.Decode(r, &body); err != nil || (body.Status != "accepted" && body.Status != "declined") {
+		httpx.Fail(w, http.StatusBadRequest, "bad_request", "status must be accepted|declined")
+		return
+	}
+	m, ok, err := h.repo.SetMatchStatus(r.Context(), chi.URLParam(r, "id"), auth.UserID(r.Context()), body.Status)
+	if err != nil {
+		httpx.Fail(w, http.StatusInternalServerError, "match_failed", "could not update request")
+		return
+	}
+	if !ok {
+		httpx.Fail(w, http.StatusNotFound, "not_found", "request not found or already answered")
+		return
+	}
+	// Best-effort: notify the requester their ask was answered. PII-free payload (no donor name/contact).
+	if h.notifier != nil {
+		kind := "MATCH_DECLINED"
+		title := "A donor couldn't donate this time"
+		if m.Status == "accepted" {
+			kind = "MATCH_ACCEPTED"
+			title = "A donor accepted your request"
+		}
+		_ = h.notifier.Enqueue(r.Context(), m.RequesterUserID, kind, title,
+			"Open the app to see the update.", map[string]any{"matchId": m.ID, "status": m.Status})
+	}
+	httpx.JSON(w, http.StatusOK, m)
 }
 
 func queryFilter(r *http.Request) (group, city string) {

@@ -229,9 +229,23 @@ func (r *Repo) MatchesByRequester(ctx context.Context, userID string) ([]contrac
 	if r.pool == nil {
 		return nil, fmt.Errorf("blood: database not configured")
 	}
+	return r.matchesWhere(ctx, `requester_user_id = $1`, userID)
+}
+
+// MatchesByDonor lists the caller's incoming donor-match requests (rows addressed to them as the
+// recipient donor). This is the recipient-scoped surface a second device sees; the requester id is
+// included so the card can name the requester without a second round-trip.
+func (r *Repo) MatchesByDonor(ctx context.Context, userID string) ([]contracts.DonorMatch, error) {
+	if r.pool == nil {
+		return nil, fmt.Errorf("blood: database not configured")
+	}
+	return r.matchesWhere(ctx, `donor_user_id = $1`, userID)
+}
+
+func (r *Repo) matchesWhere(ctx context.Context, where string, userID string) ([]contracts.DonorMatch, error) {
 	rows, err := r.pool.Query(ctx, `
-		select id, requester_user_id, donor_user_id, blood_group, city, status::text, created_at
-		  from blood.match_requests where requester_user_id = $1 order by created_at desc`, userID)
+		select id, requester_user_id, donor_user_id, blood_group, city, status::text, created_at, responded_at
+		  from blood.match_requests where `+where+` order by created_at desc`, userID)
 	if err != nil {
 		return nil, err
 	}
@@ -239,16 +253,51 @@ func (r *Repo) MatchesByRequester(ctx context.Context, userID string) ([]contrac
 	out := []contracts.DonorMatch{}
 	for rows.Next() {
 		var (
-			m         contracts.DonorMatch
-			createdAt time.Time
+			m           contracts.DonorMatch
+			createdAt   time.Time
+			respondedAt *time.Time
 		)
-		if err := rows.Scan(&m.ID, &m.RequesterUserID, &m.DonorUserID, &m.BloodGroup, &m.City, &m.Status, &createdAt); err != nil {
+		if err := rows.Scan(&m.ID, &m.RequesterUserID, &m.DonorUserID, &m.BloodGroup, &m.City, &m.Status, &createdAt, &respondedAt); err != nil {
 			return nil, err
 		}
 		m.CreatedAt = createdAt.UTC().Format(time.RFC3339)
+		if respondedAt != nil {
+			m.RespondedAt = respondedAt.UTC().Format(time.RFC3339)
+		}
 		out = append(out, m)
 	}
 	return out, rows.Err()
+}
+
+// SetMatchStatus lets the recipient (donor) accept or decline their own pending match. It is scoped
+// to `donor_user_id = donorUserID AND status = 'pending'`, so a non-recipient or a double-response is
+// a no-op returning ok=false. Returns the updated row (with the requester id for the notification).
+func (r *Repo) SetMatchStatus(ctx context.Context, id, donorUserID, status string) (contracts.DonorMatch, bool, error) {
+	if r.pool == nil {
+		return contracts.DonorMatch{}, false, fmt.Errorf("blood: database not configured")
+	}
+	var (
+		m           contracts.DonorMatch
+		createdAt   time.Time
+		respondedAt *time.Time
+	)
+	err := r.pool.QueryRow(ctx, `
+		update blood.match_requests set status = $3::match_status, responded_at = now()
+		 where id = $1 and donor_user_id = $2 and status = 'pending'
+		returning id, requester_user_id, donor_user_id, blood_group, city, status::text, created_at, responded_at`,
+		id, donorUserID, status).
+		Scan(&m.ID, &m.RequesterUserID, &m.DonorUserID, &m.BloodGroup, &m.City, &m.Status, &createdAt, &respondedAt)
+	if err != nil {
+		if err == pgx.ErrNoRows {
+			return contracts.DonorMatch{}, false, nil
+		}
+		return contracts.DonorMatch{}, false, err
+	}
+	m.CreatedAt = createdAt.UTC().Format(time.RFC3339)
+	if respondedAt != nil {
+		m.RespondedAt = respondedAt.UTC().Format(time.RFC3339)
+	}
+	return m, true, nil
 }
 
 func shortID() string {

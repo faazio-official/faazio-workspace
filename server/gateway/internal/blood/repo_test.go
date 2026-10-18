@@ -66,4 +66,21 @@ func TestDonorDirectoryRequestsAndMatches(t *testing.T) {
 	if err != nil || len(matches) != 1 {
 		t.Fatalf("MatchesByRequester = %+v err %v", matches, err)
 	}
+	incoming, err := repo.MatchesByDonor(ctx, uid)
+	if err != nil || len(incoming) != 1 {
+		t.Fatalf("MatchesByDonor = %+v err %v", incoming, err)
+	}
+
+	// Recipient responds; the row leaves pending and a second response is a no-op.
+	updated, ok, err := repo.SetMatchStatus(ctx, m.ID, uid, "accepted")
+	if err != nil || !ok || updated.Status != "accepted" || updated.RespondedAt == "" {
+		t.Fatalf("SetMatchStatus = %+v ok=%v err=%v", updated, ok, err)
+	}
+	if _, ok, err := repo.SetMatchStatus(ctx, m.ID, uid, "declined"); err != nil || ok {
+		t.Fatalf("second SetMatchStatus must report ok=false: ok=%v err=%v", ok, err)
+	}
+	// A non-recipient cannot respond.
+	if _, ok, err := repo.SetMatchStatus(ctx, m.ID, "someone-else", "declined"); err != nil || ok {
+		t.Fatalf("non-recipient SetMatchStatus must report ok=false: ok=%v err=%v", ok, err)
+	}
 }

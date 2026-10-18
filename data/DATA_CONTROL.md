@@ -216,9 +216,9 @@ the `GROCERY` member was dropped from `AppBrand` / `CartCategory` / `SubAppId` /
 | `CONSENT_LABEL` | `string` | Review step (consent checkbox copy) | `@mock` |
 | `PRIVACY_NOTE` | `string` | Review step (footer privacy note) | `@mock` |
 | `BLOOD_REQUESTS` | `BloodRequest[]` | Donor dashboard + request-details page (feed + detail fields) — feed hydrated via `GatewayClient.fetchBloodRequests()` (`useBloodRequests` returns `{ requests, source }`; fixture-enriched display extras, `live`/`empty-authoritative`/`offline-fallback`/`cache-stale` provenance; server `contact`/`address` never backfilled with fixture PII) | `@server` (fixture fallback) |
-| `BLOOD_DONOR_UNREAD_ALERTS` | `number` | Donor dashboard (bell badge seed) | `@mock` |
+| `BLOOD_DONOR_UNREAD_ALERTS` | `number` | **Unused** — the donor dashboard bell now derives an honest badge from live server notifications + pending incoming requests (no seed) | `@mock` (retired consumer) |
 | `BLOOD_REQUEST_DETAIL_COPY` | `{ bannerTitle; bannerSubtitle; confirmNote }` | Request-details page (banner + privacy note copy) | `@mock` |
-| `DonorMatchRequest` | `interface` | Targeted Ask Blood request persisted by `bloodDonorStore` and shown to its recipient | `@mock` |
+| `DonorMatchRequest` | `interface` (+ `DonorMatchStatus`) | Targeted Ask Blood request persisted by `bloodDonorStore` and shown to its recipient; `status: 'pending' \| 'accepted' \| 'declined' \| 'completed'` mirrors the server `match_status` | `@server` (server-hydrated incoming + outgoing) |
 | `ASK_BLOOD_COPY` | `{ fabLabel; sheetTitle; searchSubtitle; resultsSubtitle; continueLabel }` | Ask Blood search/results copy | `@mock` |
 | `BLOOD_DONORS` / `DonorProfile` | `DonorProfile[]` / type | Offline fallback for `services/donorDirectory.ts` (Ask Blood matching + donor detail) — remote-first `GET /donors` (consented, auth-scoped) is the live source | `@server` (fixture fallback) |
 
@@ -247,8 +247,13 @@ the `GROCERY` member was dropped from `AppBrand` / `CartCategory` / `SubAppId` /
 > **Targeted Ask Blood contract:** the user searches by city + blood group, selects one
 > `DonorProfile`, and creates one `DonorMatchRequest` containing both requester and
 > recipient user IDs. `POST/GET /donor-match-requests` persists it server-side; the local blob is
-> an optimistic cache. Backend authorization, status changes, contact disclosure, and
-> notifications remain Go Chi work.
+> an optimistic cache. The recipient reads their incoming set from
+> `GET /donor-match-requests/incoming` (server-hydrated into `bloodDonorStore.incomingMatchRequests`)
+> and accepts/declines via `PUT /donor-match-requests/{id}/status` — recipient-only, pending-only,
+> outcome-returning, and enqueuing a PII-free `MATCH_ACCEPTED`/`MATCH_DECLINED` notification
+> to the requester. The requester's outgoing row carries the real status. Contact disclosure on
+> acceptance remains reveal-gated Go Chi work; the public board post is `POST /blood-requests` via the
+> outcome-returning `createBloodRequest` (AskBloodSheet "Post to the public board").
 
 ### `@data/explore` — owner: `features/catalog`
 

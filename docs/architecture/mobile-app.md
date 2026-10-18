@@ -290,6 +290,24 @@ hydration and on app foreground, and `hydrateFromServer` reconciles the server r
 mirrors (server wins by id, local-only preserved) — a silent failure can no longer look like
 success. Mock mode (remote disabled) keeps the device mirror as the final home (no pointless queue).
 
+**(W54)** the targeted-match loop is now closed and recipient-scoped on the server. `DonorDashboard`
+renders **Requests for You** from the server's incoming list (`GatewayClient.getIncomingDonorMatches`
+→ `GET /donor-match-requests/incoming`, `blood.match_requests.donor_user_id = caller`), so a targeted
+ask arrives on the recipient's device instead of only the device that created it. `IncomingDonorRequestCard`
+gains **Accept**/**Decline** actions while a request is `pending` and shows the live status pill
+otherwise; `bloodDonorStore.respondToMatch` writes `PUT /donor-match-requests/{id}/status`
+(recipient-only, pending-only) as an outcome-returning call, optimistically updates the local mirror,
+and queues a `match-status` outbox op when non-durable (reconciled on foreground; a queued response is
+never reverted by a stale server read). The server enqueues a PII-free `MATCH_ACCEPTED`/`MATCH_DECLINED`
+notification to the requester; the requester's outgoing row
+(`getDonorMatches`) carries the real status, so `BloodDonorDetails` shows "Donor Accepted" / allows a
+re-request after a decline. Contact is still not disclosed on acceptance (reveal-gated sharing remains
+future). `AskBloodSheet` gains a **Post to the public board** action (search + results stages) that
+writes `POST /blood-requests` via the outcome-returning `createBloodRequest` and reloads the board;
+it never fabricates a local row. The dashboard bell is now a non-interactive, **honest** indicator
+(live server notification count + pending incoming — no seed, no dead tap) and the funnel opens a
+`FilterSheet` (blood group / urgency / city) over the existing board filters.
+
 The dashboard hospital-request feed is **server-backed** (`hooks/useBloodRequests` →
 `GatewayClient.fetchBloodRequests()` → `blood.requests`, a no-fallback read that throws
 `GatewayOfflineError` instead of fabricating rows). Server rows are mapped onto the app's
@@ -523,7 +541,7 @@ still separate files; consolidating them is tracked in `client/mobile/PENDING_WO
 | `bookingStore` | Dinner bookings (optimistic local cache only; the durable path is `GatewayClient.getBookings`/`createBooking`/`cancelBooking`) |
 | `foodBookingStore` | Food bookings |
 | `pharmaStore` | Prescriptions |
-| `bloodDonorStore` | Blood Donor wizard draft + committed registration + targeted donor requests (`donorMatchRequests`) + the offline write outbox (`pendingOps`; flushed on hydration/foreground, server-wins reconcile) |
+| `bloodDonorStore` | Blood Donor wizard draft + committed registration + outgoing targeted requests (`donorMatchRequests`) + server-hydrated incoming requests (`incomingMatchRequests`; recipient-scoped, `respondToMatch` accept/decline) + the offline write outbox (`pendingOps`; register/interest/match/match-status/request; flushed on hydration/foreground, server-wins reconcile) |
 | `searchStore` | Search state/history |
 | `languageStore` | Selected language |
 | `uiStore` | Sub-app id (`FA_MART`/`FOOD`/`PHARMA`), tab name |

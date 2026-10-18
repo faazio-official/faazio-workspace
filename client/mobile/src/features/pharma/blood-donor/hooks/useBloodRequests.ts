@@ -75,7 +75,7 @@ let cacheSource: ReadSource = 'offline-fallback';
  *
  * The fixture is the initial value so the board never blanks, but it is always labelled.
  */
-export function useBloodRequests(): BloodRequestsFeed {
+export function useBloodRequests(reloadKey = 0): BloodRequestsFeed {
   const [feed, setFeed] = useState<BloodRequestsFeed>({ requests: cache, source: cacheSource });
 
   useEffect(() => {
@@ -97,7 +97,7 @@ export function useBloodRequests(): BloodRequestsFeed {
     return () => {
       active = false;
     };
-  }, []);
+  }, [reloadKey]);
 
   return feed;
 }

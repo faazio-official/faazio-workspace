@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { StyleSheet, View, TouchableOpacity, ScrollView } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Bell, HeartPulse, Droplet, Search, Funnel, CloudOff } from 'lucide-react-native';
@@ -9,7 +9,8 @@ import AppText from '@/components/AppText';
 import AppTextInput from '@/components/AppTextInput';
 import { hs, vs, ms } from '@/utils/responsive';
 import { SPACE } from '@/theme/spacing';
-import { BLOOD_DONOR_UNREAD_ALERTS, ASK_BLOOD_COPY } from '@data/index';
+import { ASK_BLOOD_COPY } from '@data/index';
+import { gateway } from '@/services/api/GatewayClient';
 import { useAuthStore } from '@/state/authStore';
 import { useBloodDonorStore } from '@/state/bloodDonorStore';
 import { useBloodRequests } from './hooks/useBloodRequests';
@@ -17,6 +18,7 @@ import type { RootStackParamList } from '@/navigation/types';
 import { BloodRequestCard } from './components/BloodRequestCard';
 import { IncomingDonorRequestCard } from './components/IncomingDonorRequestCard';
 import AskBloodSheet from './components/AskBloodSheet';
+import FilterSheet, { EMPTY_BLOOD_FILTERS, type BloodBoardFilters } from './components/FilterSheet';
 import {
   BLOOD_RED,
   BLOOD_RED_DARK,
@@ -54,32 +56,70 @@ export function DonorDashboard() {
   const insets = useSafeAreaInsets();
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const registration = useBloodDonorStore((s) => s.registration);
-  const donorMatchRequests = useBloodDonorStore((s) => s.donorMatchRequests);
+  const incomingMatchRequests = useBloodDonorStore((s) => s.incomingMatchRequests);
+  const respondToMatch = useBloodDonorStore((s) => s.respondToMatch);
+  const refreshIncoming = useBloodDonorStore((s) => s.refreshIncoming);
   const userName = useAuthStore((s) => s.user?.name);
-  const userId = useAuthStore((s) => s.user?.id);
 
   const [filter, setFilter] = useState<FilterId>('all');
   const [query, setQuery] = useState('');
   const [askOpen, setAskOpen] = useState(false);
-  const { requests, source } = useBloodRequests();
+  const [filterOpen, setFilterOpen] = useState(false);
+  const [filters, setFilters] = useState<BloodBoardFilters>(EMPTY_BLOOD_FILTERS);
+  const [boardReload, setBoardReload] = useState(0);
+  const [respondingId, setRespondingId] = useState<string | null>(null);
+  const [notifCount, setNotifCount] = useState(0);
+  const { requests, source } = useBloodRequests(boardReload);
   const pendingOps = useBloodDonorStore((s) => s.pendingOps);
   const lastWriteStatus = useBloodDonorStore((s) => s.lastWriteStatus);
   const offlineFeed = source === 'offline-fallback' || source === 'cache-stale';
   const emptyAuthoritative = source === 'empty-authoritative';
 
-  const incomingRequests = useMemo(
-    () => donorMatchRequests.filter((request) => request.donorUserId === userId),
-    [donorMatchRequests, userId],
-  );
-  const unreadCount = BLOOD_DONOR_UNREAD_ALERTS + incomingRequests.length;
+  // Pull any incoming targeted asks that arrived while the app was open (cross-device delivery).
+  useEffect(() => {
+    void refreshIncoming();
+  }, [refreshIncoming]);
+
+  // Honest inbox count: server notifications only (mock/anon → 0), never a fabricated seed.
+  useEffect(() => {
+    let active = true;
+    gateway
+      .getNotifications()
+      .then((items) => {
+        if (active) setNotifCount(items.length);
+      })
+      .catch(() => {
+        if (active) setNotifCount(0);
+      });
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  const incomingRequests = incomingMatchRequests;
+  const pendingIncoming = incomingRequests.filter((request) => request.status === 'pending').length;
+  const unreadCount = notifCount + pendingIncoming;
+  const filtersActive = filters.bloodGroup !== null || filters.urgency !== 'all' || filters.city.trim() !== '';
+
+  const handleRespond = async (id: string, status: 'accepted' | 'declined') => {
+    setRespondingId(id);
+    await respondToMatch(id, status);
+    setRespondingId(null);
+  };
 
   const filteredRequests = useMemo(() => {
     const q = query.trim().toLowerCase();
+    const group = filters.bloodGroup;
+    const cityFilter = filters.city.trim().toLowerCase();
     const matches = requests.filter((r) => {
+      if (group && r.bloodGroup !== group) return false;
+      if (filters.urgency !== 'all' && r.urgency !== filters.urgency) return false;
+      if (cityFilter && !r.city.toLowerCase().includes(cityFilter)) return false;
       if (filter === 'nearby') {
-        // Honest "nearby" for the mock stage: the request's city vs the donor's
-        // own registered preferred location (case-insensitive contains). Real
-        // geo swaps this matcher, not the UI.
+        // Honest "nearby" for the MVP: the request's city vs the donor's own
+        // registered preferred location (case-insensitive contains). This is a
+        // city-string match, not GPS — real geo (coords + earthdistance index)
+        // swaps this matcher, not the UI.
         const donorLocation = (registration?.profile.preferredLocation ?? '').toLowerCase();
         if (!donorLocation || !r.city.toLowerCase().includes(donorLocation.split(',')[0].trim())) {
           if (!donorLocation.includes(r.city.toLowerCase())) return false;
@@ -94,7 +134,7 @@ export function DonorDashboard() {
     });
 
     return matches;
-  }, [filter, query, registration, requests]);
+  }, [filter, filters, query, registration, requests]);
 
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
@@ -109,19 +149,23 @@ export function DonorDashboard() {
             <AppText style={styles.greeting}>Hi, {firstName(userName)}</AppText>
             <AppText style={styles.greetingSub}>Ready to save lives?</AppText>
           </View>
-          <TouchableOpacity
-            // TODO(bell): no notification screen/push infra yet — the badge is
-            // the seed count plus local incoming targeted requests.
+          {/* No inbox screen yet, so this is a non-interactive status indicator (no dead tap). The
+              badge counts live server notifications + pending incoming requests, never a seed. */}
+          <View
             style={styles.bellBtn}
-            activeOpacity={0.8}
-            accessibilityRole="button"
-            accessibilityLabel={`Notifications, ${unreadCount} unread`}
+            accessibilityLabel={
+              unreadCount > 0
+                ? `Notifications, ${unreadCount} unread. Inbox opens in a future update.`
+                : 'Notifications. Inbox opens in a future update.'
+            }
           >
             <Bell size={ms(20)} color={BLOOD_TEXT} strokeWidth={2.2} />
-            <View style={styles.bellBadge}>
-              <AppText style={styles.bellBadgeText}>{unreadCount}</AppText>
-            </View>
-          </TouchableOpacity>
+            {unreadCount > 0 ? (
+              <View style={styles.bellBadge}>
+                <AppText style={styles.bellBadgeText}>{unreadCount}</AppText>
+              </View>
+            ) : null}
+          </View>
         </View>
 
         {pendingOps.length > 0 ? (
@@ -163,7 +207,12 @@ export function DonorDashboard() {
             </View>
             <View style={styles.incomingList}>
               {incomingRequests.map((request) => (
-                <IncomingDonorRequestCard key={request.id} request={request} />
+                <IncomingDonorRequestCard
+                  key={request.id}
+                  request={request}
+                  onRespond={(status) => handleRespond(request.id, status)}
+                  busy={respondingId === request.id}
+                />
               ))}
             </View>
           </View>
@@ -202,15 +251,19 @@ export function DonorDashboard() {
             />
           </View>
           <TouchableOpacity
-            // TODO(funnel): visual-only until a filter sheet is designed.
-            style={styles.funnelBtn}
+            onPress={() => setFilterOpen(true)}
+            style={[styles.funnelBtn, filtersActive && styles.funnelBtnActive]}
             activeOpacity={0.8}
             accessibilityRole="button"
-            accessibilityLabel="Filter requests"
+            accessibilityLabel={filtersActive ? 'Filter requests, filters active' : 'Filter requests'}
           >
-            <Funnel size={ms(18)} color={BLOOD_TEXT} strokeWidth={2.2} />
+            <Funnel size={ms(18)} color={filtersActive ? '#ffffff' : BLOOD_TEXT} strokeWidth={2.2} />
           </TouchableOpacity>
         </View>
+
+        {filter === 'nearby' ? (
+          <AppText style={styles.nearbyNote}>Matched by city, not GPS — real distance is coming soon.</AppText>
+        ) : null}
 
         {offlineFeed ? (
           <View style={styles.offlineChip}>
@@ -262,7 +315,18 @@ export function DonorDashboard() {
         <AppText style={styles.fabText}>{ASK_BLOOD_COPY.fabLabel}</AppText>
       </TouchableOpacity>
 
-      <AskBloodSheet visible={askOpen} onClose={() => setAskOpen(false)} />
+      <AskBloodSheet
+        visible={askOpen}
+        onClose={() => setAskOpen(false)}
+        onPosted={() => setBoardReload((n) => n + 1)}
+      />
+
+      <FilterSheet
+        visible={filterOpen}
+        onClose={() => setFilterOpen(false)}
+        value={filters}
+        onApply={setFilters}
+      />
     </View>
   );
 }
@@ -458,6 +522,16 @@ const styles = StyleSheet.create({
     backgroundColor: '#ffffff',
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  funnelBtnActive: {
+    backgroundColor: BLOOD_RED,
+    borderColor: BLOOD_RED,
+  },
+  nearbyNote: {
+    fontSize: ms(10.5),
+    fontWeight: '600',
+    color: BLOOD_TEXT_MUTED,
+    marginTop: -vs(6),
   },
   list: {
     gap: SPACE.ITEM,
