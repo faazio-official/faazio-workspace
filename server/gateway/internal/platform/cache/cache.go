@@ -54,7 +54,7 @@ func SduiHome(locale string) string { return fmt.Sprintf("faazio:v1:gateway:sdui
 // on layout publish (write-around).
 func SduiMart(locale string) string { return fmt.Sprintf("faazio:v1:gateway:sdui:%s:/mart", locale) }
 
-// SduiFood caches the compiled Food-only SDUI projection (foodHero/diningSpecials/mostRatedDining)
+// SduiFood caches the compiled Food-only SDUI projection (foodHero/foodSpecials/mostRatedDining)
 // so the Food screen never downloads or couples to the full Home feed. Same TTL as the Home feed;
 // purged on layout publish (write-around).
 func SduiFood(locale string) string { return fmt.Sprintf("faazio:v1:gateway:sdui:%s:/food", locale) }

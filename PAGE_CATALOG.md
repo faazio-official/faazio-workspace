@@ -367,11 +367,16 @@ Feed order and paid/organic classification:
 | Fd3 | Today's Special rail | `FeaturedDishCarousel` | Organic offer | SDUI `foodSpecials.productIds`; `TODAYS_SPECIALS` fallback (fixture) |
 | Fd4 | What's on your mind? | `MindGridRail` | Organic category | Fixture-owned (not server-driven) |
 | Fd5 | Snacks & Beverages rail | `SnacksRail` | Organic offer | Fixture-owned (not server-driven) |
-| Fd6 | Restaurants For Dining grid | `RestaurantGrid` | Organic directory | `gateway.getVenues('FOOD')` merged with the `@data` venue fixture |
+| Fd6 | Restaurants For Dining grid | `RestaurantGrid` | Organic directory | `gateway.fetchVenues('FOOD')` (server-only) merged with the `@data` venue fixture; authoritative empty → honest empty state (never stale fixture) |
 | Fd7 | Restaurant-profile hero | `CampaignHero` (`components/shared`) | **PAID** | `STORE_TOP` scoped to the venue's `storeId`; whole band drops when no LIVE fill |
+| Fd8 | Restaurant-profile offer slot | inline banner | Organic offer | live coupon `useBestCoupon('FOOD')` → tap opens cart; decorative `offerTag` fallback |
+| Fd9 | Booking card → `BookingSheet` (**overlay, not a route**) | `BookingSheet` (`features/dinner-booking`) | Organic (server availability) | renders only when `availability.bookable`; seat stepper, server-derived ₹/seat; strict hold |
 
 Rail "View All" → shared `RestaurantOffers` / `DealsLanding`; profile dish rows are the shared
-`MenuItemRow`. Restaurant-isolated cart + shared Food routes live in
+`MenuItemRow`. The profile diet toggle is a **screen-local override** seeded once from
+`foodFilterStore` and never written back (`dietFilter.ts` semantics). `FoodStack` "bypasses
+`SubAppWrapper`" and escapes to **root** routes for PDP (`ProductDetail`), scoped `Cart`,
+`RateVendor` and `MyBookings`. Restaurant-isolated cart + shared Food routes live in
 `docs/architecture/mobile-app.md` (§ Food) and are linked from `FoodStack.tsx`.
 
 ### 2.7 Sub-app: PHARMA

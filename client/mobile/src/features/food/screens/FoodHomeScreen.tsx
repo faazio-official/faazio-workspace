@@ -7,6 +7,7 @@ import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { hs } from '@/utils/responsive';
 import { SPACE } from '@/theme/spacing';
 import { foodTheme } from '../constants/theme';
+import AppText from '@/components/AppText';
 import { useDiningFeed } from '../hooks/useDiningFeed';
 import type { FoodStackParamList, RootStackParamList } from '@/navigation/types';
 import type { DiningRestaurant, SpecialDish } from '../mocks/types';
@@ -166,7 +167,7 @@ export function FoodHomeScreen({ navigation }: Props) {
         </Animated.View>
         <Animated.View entering={FadeInDown.duration(320)}>
           <View style={styles.sectionHeaderWrap}>
-            <SectionHeader title="Top Rated Restaurants" onSeeAll={() => undefined} />
+            <SectionHeader title="Top Rated Restaurants" />
           </View>
           {topRated.length > 0 ? (
             <TopRestaurantCarousel restaurants={topRated} onPress={openRestaurant} />
@@ -176,7 +177,7 @@ export function FoodHomeScreen({ navigation }: Props) {
         </Animated.View>
         <Animated.View entering={FadeInDown.duration(360)}>
           <View style={styles.sectionHeaderWrap}>
-            <SectionHeader title="Today's Special Near You" onSeeAll={() => undefined} />
+            <SectionHeader title="Today's Special Near You" />
           </View>
           {specials.length > 0 ? (
             <FeaturedDishCarousel dishes={specials} onPress={openDishProduct} />
@@ -215,11 +216,25 @@ export function FoodHomeScreen({ navigation }: Props) {
 
   const dining = feed.dining.filter((r) => venueMatches(dietFilter, r));
 
+  // Honest empty state: the server authoritatively lists no venues (all delisted / state-filtered)
+  // and no diet filter is hiding anything — don't fall back to stale fixture restaurants.
+  // A diet-emptied grid keeps the filter note.
+  const gridEmpty =
+    dining.length > 0 ? undefined : feed.diningAuthoritative && feed.dining.length === 0 ? (
+      <View style={styles.emptyState}>
+        <AppText style={styles.emptyTitle}>No restaurants available right now</AppText>
+        <AppText style={styles.emptySub}>Please check back soon.</AppText>
+      </View>
+    ) : (
+      <DietEmptyNote />
+    );
+
   return (
     <View style={styles.container}>
       <RestaurantGrid
         restaurants={dining}
         header={renderTopSections()}
+        empty={gridEmpty}
         onPress={openRestaurant}
         onScroll={onScroll}
       />
@@ -243,5 +258,22 @@ const styles = StyleSheet.create({
   sectionHeaderWrap: {
     paddingHorizontal: hs(16),
     marginTop: SPACE.SECTION,
+  },
+  emptyState: {
+    paddingHorizontal: hs(24),
+    paddingVertical: 48,
+    alignItems: 'center',
+  },
+  emptyTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: foodTheme.textPrimary,
+    textAlign: 'center',
+  },
+  emptySub: {
+    fontSize: 13,
+    color: foodTheme.textSecondary,
+    textAlign: 'center',
+    marginTop: 6,
   },
 });

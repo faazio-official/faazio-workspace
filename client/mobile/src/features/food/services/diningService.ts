@@ -13,6 +13,13 @@ export interface DiningFeed {
   topFoods: FoodType[];
   /** Editorial house hero (`foodHero.banners` from `GET /sdui/food`); paid FOOD_HERO renders first. */
   heroBanners: SduiBanner[];
+  /**
+   * True when the venue list is the authoritative server result (even when empty), false when it
+   * is the offline fixture. When true, the screen must NOT fall back to fixture venues on an
+   * empty list — an all-delisted/state-filtered catalog should show an honest empty state, not
+   * stale restaurants that open dead profiles.
+   */
+  diningAuthoritative: boolean;
 }
 
 /** One compiled Food SDUI section (ID-only leaf + joined rows). */
@@ -99,25 +106,37 @@ function orderByDishIds(specials: SpecialDish[], ids: string[]): SpecialDish[] {
 
 /**
  * Dining-first home feed. The dining grid is driven by the durable
- * `directory.dining_venues` list (`GET /venues?app=FOOD`) through
- * `GatewayClient.getVenues`; a network/HTTP error falls back to the `@data`
- * identity table and an empty result keeps the feature fixtures so the grid is
- * never blank. The house hero banners come from the Food-only SDUI projection
- * (`GET /sdui/food` → `foodHero`), the "Today's Special" rail order from `foodSpecials`,
- * and the Top Rated carousel drops venues the server no longer lists (so a delisted
- * `tr-*` row never opens a stale profile). The curated mind/snack rails stay
- * fixture-owned.
+ * `directory.dining_venues` list (`GET /venues?app=FOOD`) through the server-only
+ * `GatewayClient.fetchVenues`; only a network/HTTP error falls back to the `@data`
+ * identity table and the feature fixtures — an authoritative empty result is
+ * respected (the screen shows an honest empty state, so delisted venues never
+ * linger as stale profiles). The house hero banners come from the Food-only SDUI
+ * projection (`GET /sdui/food` → `foodHero`), the "Today's Special" rail order from
+ * `foodSpecials`, and the Top Rated carousel drops venues the server no longer
+ * lists. The curated mind/snack rails stay fixture-owned.
  */
 export async function fetchDiningFeed(): Promise<DiningFeed> {
   // Independent legs — one failing route never blanks the whole feed (Mart W43 pattern).
-  const [venues, food] = await Promise.all([
-    gateway.getVenues('FOOD').catch(() => [] as Venue[]),
-    gateway.getFoodFeed().catch(() => [] as FoodFeedSection[]),
-  ]);
+  const foodLeg = gateway.getFoodFeed().catch(() => [] as FoodFeedSection[]);
+
+  let venues: Venue[] = [];
+  let diningAuthoritative = false;
+  try {
+    venues = await gateway.fetchVenues('FOOD');
+    diningAuthoritative = true;
+  } catch {
+    // Offline / HTTP error: keep the fixture grid so the feed is never blank.
+    venues = [];
+  }
+
+  const food = await foodLeg;
 
   const venueIds = new Set(venues.map((v) => v.id));
-  const liveTopRated =
-    venues.length > 0 ? TOP_RATED_RESTAURANTS.filter((r) => venueIds.has(r.id)) : TOP_RATED_RESTAURANTS;
+  // Authoritative empty → drop fixture venues that the server no longer lists (empty carousel).
+  // Offline (fixture fallback) → keep the curated fixture carousel untouched.
+  const liveTopRated = diningAuthoritative
+    ? TOP_RATED_RESTAURANTS.filter((r) => venueIds.has(r.id))
+    : TOP_RATED_RESTAURANTS;
 
   const hero = food.find((s) => (s.id as string) === 'foodHero');
   const specials = food.find((s) => (s.id as string) === 'foodSpecials');
@@ -126,8 +145,9 @@ export async function fetchDiningFeed(): Promise<DiningFeed> {
   return {
     topRated: orderByStoreIds(liveTopRated, mostRated?.storeIds ?? mostRated?.stores?.map((s) => s.id) ?? []),
     specials: orderByDishIds(TODAYS_SPECIALS, specials?.productIds ?? []),
-    dining: venues.length > 0 ? mergeDining(DINING_RESTAURANTS, venues) : DINING_RESTAURANTS,
+    dining: diningAuthoritative ? mergeDining(DINING_RESTAURANTS, venues) : DINING_RESTAURANTS,
     topFoods: TOP_FOODS_TO_ORDER,
     heroBanners: hero?.banners ?? [],
+    diningAuthoritative,
   };
 }

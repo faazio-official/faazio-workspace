@@ -125,7 +125,9 @@ const HeroCard = memo(function HeroCard({
         onPress={handlePress}
         style={styles.card}
         accessibilityRole="button"
-        accessibilityLabel={`${restaurant.name}, rated ${restaurant.rating}, ${restaurant.distance} km away`}
+        accessibilityLabel={`${restaurant.name}${
+          restaurant.rating > 0 ? `, rated ${restaurant.rating}` : ', new'
+        }${restaurant.distance > 0 ? `, ${restaurant.distance} km away` : ''}`}
       >
         <Animated.View style={[StyleSheet.absoluteFill, parallaxStyle]}>
           <ExpoImage
@@ -152,14 +154,24 @@ const HeroCard = memo(function HeroCard({
             {restaurant.cuisine}
           </AppText>
           <View style={styles.metaRow}>
-            <RatingBadge rating={restaurant.rating} />
-            <AppText style={styles.priceForTwo}>
-              ₹{restaurant.priceForTwo.toLocaleString('en-IN')} for two
-            </AppText>
+            {restaurant.rating > 0 ? (
+              <RatingBadge rating={restaurant.rating} />
+            ) : (
+              <View style={styles.newBadge}>
+                <AppText style={styles.newBadgeText}>New</AppText>
+              </View>
+            )}
+            {restaurant.priceForTwo > 0 ? (
+              <AppText style={styles.priceForTwo}>
+                ₹{restaurant.priceForTwo.toLocaleString('en-IN')} for two
+              </AppText>
+            ) : null}
           </View>
-          <View style={styles.distanceRow}>
-            <DistanceBadge distance={restaurant.distance} light />
-          </View>
+          {restaurant.distance > 0 ? (
+            <View style={styles.distanceRow}>
+              <DistanceBadge distance={restaurant.distance} light />
+            </View>
+          ) : null}
         </View>
       </TouchableOpacity>
     </Animated.View>
@@ -237,6 +249,17 @@ const styles = StyleSheet.create({
     fontSize: ms(14),
     fontWeight: '500',
     color: foodTheme.white,
+  },
+  newBadge: {
+    borderRadius: ms(5),
+    paddingHorizontal: hs(7),
+    paddingVertical: vs(2),
+    backgroundColor: 'rgba(255,255,255,0.92)',
+  },
+  newBadgeText: {
+    fontSize: ms(11),
+    fontWeight: '800',
+    color: foodTheme.primary,
   },
   distanceRow: {
     flexDirection: 'row',

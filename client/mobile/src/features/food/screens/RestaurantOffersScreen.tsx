@@ -7,9 +7,10 @@ import { hs, vs, ms } from '@/utils/responsive';
 import { SPACE } from '@/theme/spacing';
 import { foodTheme } from '../constants/theme';
 import type { FoodStackParamList, RootStackParamList } from '@/navigation/types';
-import type { SpecialDish } from '../mocks/types';
+import type { DiningRestaurant, SpecialDish } from '../mocks/types';
 import { dishToProduct } from '../mocks/specials';
 import { getOfferDishes } from '../utils/menu';
+import { useRestaurantMenu } from '../hooks/useRestaurantMenu';
 import AppText from '@/components/AppText';
 import FoodDetailTopBar from '../components/FoodDetailTopBar';
 import SearchDishCard from '../components/SearchDishCard';
@@ -20,17 +21,25 @@ type Props = NativeStackScreenProps<FoodStackParamList, 'RestaurantOffers'>;
  * "View All" offers page — a food-search-result-style list of a restaurant's
  * own discounted dishes. Reuses the SearchDishCard row (square thumb + ADD/stepper)
  * and keeps the strikethrough old price so it reads as an offers listing.
+ *
+ * The menu is re-fetched live via `useRestaurantMenu` (keys off the venue id) rather than trusting
+ * the nav param alone, so a price/MRP change or an expiry between opening the profile and this page
+ * can't leave a stale strike. The param `offers` is only an instant seed while the remote menu is
+ * in flight for a server-only venue.
  */
 export function RestaurantOffersScreen({ navigation, route }: Props) {
   const { restaurant, offers } = route.params;
   const [searchQuery, setSearchQuery] = useState('');
+  const { menu, loading } = useRestaurantMenu(restaurant as DiningRestaurant);
+  const seedOffers = (offers as SpecialDish[]) ?? [];
+
+  // Live menu wins as soon as it has rows (a known venue seeds instantly from its fixture, then
+  // swaps to the server list). Only a server-only venue still in flight borrows the param seed.
+  const source = menu.length > 0 ? menu : loading ? seedOffers : menu;
 
   // Organic dishes are never offers — the page is MRP-struck only (the profile rail already
   // filters, this keeps the page honest if opened with a stale param payload).
-  const offerDishes = useMemo(
-    () => getOfferDishes(offers as SpecialDish[]),
-    [offers],
-  );
+  const offerDishes = useMemo(() => getOfferDishes(source), [source]);
 
   const filteredOffers = useMemo(() => {
     const q = searchQuery.trim().toLowerCase();

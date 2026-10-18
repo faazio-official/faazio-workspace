@@ -1,7 +1,6 @@
 import { useEffect, useState } from 'react';
 import type { SpecialDish } from '@data/types';
 import { gateway, type MenuDish } from '@/services/api/GatewayClient';
-import { effectivePrice, fetchActiveDiscounts } from '@/services/pricing';
 import type { DiningRestaurant } from '../mocks/types';
 import { getMenuForRestaurant } from '../utils/menu';
 
@@ -20,19 +19,6 @@ function toSpecialDish(dish: MenuDish, restaurantName: string): SpecialDish {
     rating: dish.rating,
     deliveryTime: dish.deliveryTime,
   };
-}
-
-/**
- * Overlay one approved festival discount on a menu dish (server-capped, remote-only). Untouched
- * when there is no discount or it does not lower the price, so a full-price dish renders exactly as
- * before — the authored MRP is preserved as the strike when present, else the base price becomes it.
- */
-function applyDishDiscount(dish: SpecialDish, discountPercent: number): SpecialDish {
-  if (discountPercent <= 0) return dish;
-  const price = effectivePrice(dish.price, discountPercent);
-  if (price >= dish.price) return dish;
-  const mrp = dish.mrp !== undefined && dish.mrp > dish.price ? dish.mrp : dish.price;
-  return { ...dish, price, mrp };
 }
 
 export interface RestaurantMenuState {
@@ -54,8 +40,12 @@ export interface RestaurantMenuState {
  * in the durable dishes once they arrive — the server list is trusted as the
  * venue's own (no name re-filter, so a rename can't drop rows). An empty remote
  * menu (a venue the seller has not populated) keeps the seed so the profile is
- * never blank. Approved festival discounts are overlaid on the remote rows in the
- * same pass (the server is the discount authority; mock/offline leaves them off).
+ * never blank.
+ *
+ * Festival discounts are deliberately NOT overlaid here: `promo.festival_optins` keys on
+ * `catalog.products.product_id` and checkout never settles a discount for a `directory.menus` row, so a
+ * menu-dish discount would be display-only (a price the cart can't honour). Discounted menu
+ * dishes instead carry their own authored `mrp_paisa > price_paisa` strike (migration 0022).
  */
 export function useRestaurantMenu(restaurant: DiningRestaurant): RestaurantMenuState {
   const [menu, setMenu] = useState<SpecialDish[]>(() => getMenuForRestaurant(restaurant));
@@ -70,12 +60,9 @@ export function useRestaurantMenu(restaurant: DiningRestaurant): RestaurantMenuS
     setLoading(seed.length === 0);
     gateway
       .getMenu(restaurant.id)
-      .then(async (dishes) => {
+      .then((dishes) => {
         if (!active || dishes.length === 0) return;
-        const mapped = dishes.map((d) => toSpecialDish(d, restaurant.name));
-        const discounts = await fetchActiveDiscounts(mapped.map((d) => d.id));
-        if (!active) return;
-        setMenu(mapped.map((d) => applyDishDiscount(d, discounts[d.id]?.discountPercent ?? 0)));
+        setMenu(dishes.map((d) => toSpecialDish(d, restaurant.name)));
       })
       .catch(() => {
         // getMenu already falls back to the @data fixture internally.

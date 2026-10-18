@@ -5,6 +5,63 @@ dependencies exist. Do not build the backend/seller flows until told to.
 
 ---
 
+## W56 — Food sub-app production-readiness pass (P0/P1 gaps + doc truth-up)
+
+**Status:** 🟢 Shipped (app + server comment + docs). No new screens/routes/tables/migrations/keys;
+app auth stays **mocked** (no Supabase phone OTP). Closes the money/UX gaps from the FOOD audit.
+The audit's suspected "seed has no Food SDUI sections" (P0-4) was **false** — the checked-in
+`server/supabase/seed/mongo/sdui_layouts.json` already carries `foodHero`/`foodSpecials`/
+`mostRatedDining`, matching the `internal/sdui` allowlist, so no seed change was needed.
+
+- **P0-2 no dead festival request on menus.** `useRestaurantMenu` no longer calls
+  `fetchActiveDiscounts` for `directory.menus` rows (per-open `GET /promo/active-discounts`) nor
+  overlays a festival discount — `promo.festival_optins` keys on `catalog.products.product_id` and
+  checkout ignores menus, so the overlay was always `{}` (or, worse, a display price the cart could
+  not settle). The authored `mrp_paisa > price_paisa` strike (`0022`) remains the only menu discount.
+- **P0-3 / P1-7 booking holds are strict.** `GatewayClient.createBooking`/`attachBookingPayment`
+  now use `withStrict` and their offline mock throws: no fabricated `BKG-LOCAL-*` hold, no Razorpay
+  sheet on a fee that was never held. `getBookingAvailability`'s offline fallback returns
+  `bookable:false` (was `bookable:true` @ ₹50 09:00–21:00), so a venue whose availability can't be
+  read simply hides the Book card.
+- **P1-1 authoritative-empty venues.** New server-only `GatewayClient.fetchVenues` (throws
+  `GatewayOfflineError`, mirrors `fetchStores`/`fetchBloodDonors`). `diningService.fetchDiningFeed`
+  gains `diningAuthoritative`: a real failure keeps the `@data` fixture (never blank), but a live
+  `200 []` drops the fixture grid + Top Rated rail and the screen shows an honest
+  "No restaurants available right now" state — delisted venues no longer linger as stale profiles.
+- **P1-2 hollow server-only cards.** Dining cards + the Top Rated hero now suppress `0.0 km` /
+  `₹0 for two` / blank address and show a **"New"** chip instead of `0.0` when a venue's public row
+  has no rating yet.
+- **P1-4 removed dead See-All affordances.** The "Top Rated Restaurants" and "Today's Special Near
+  You" headers no longer render a See-All that went nowhere (no restaurant-list Search exists).
+- **P1-6 offers page refetch.** `RestaurantOffersScreen` now re-reads the venue menu through
+  `useRestaurantMenu(restaurant)` (keyed by venue id) and only uses the nav `offers` param as an
+  instant seed, so a price/MRP/expiry change between the profile and the "View All" page can't leave
+  a stale strike.
+- **P2-1 comment truth.** `cache.go` `SduiFood` comment corrected (`diningSpecials` →
+  `foodSpecials`) to match the `internal/sdui` allowlist.
+
+**Still deferred / documented-only:** P0-1 paid-event measurement (`POST /ads/events` is behind
+`auth.Require`; with mocked login it only lands on an `AUTH_DISABLED` gateway) — needs a product
+decision (anon rate-limited path vs honest dev-only stub), not a screen. P1-3 `mostRatedDining` join
+is a **deliberate ID-only contract** (client reads raw `storeIds`); P1-5 unclassifiable server-only
+dishes stay hidden under an active Veg/Non-Veg filter (conservative — never mislabels); P1-8/P1-9
+portal VENUE targeting/menu media are enhancements (the DISH → `STORE_TOP` path already resolves a
+venue server-side via `ResolveOwnedTarget(..., "VENUE", ...)`); P1-10 rating write is inert in prod
+until a real session or anon rate-limit decision; P1-11 mind-tile search already merges the remote
+pool over the `TODAYS_SPECIALS` fallback in the shared `SearchScreen`.
+
+**Rollback:** revert `features/food/hooks/useRestaurantMenu.ts`,
+`features/food/services/diningService.ts`, `features/food/screens/{FoodHomeScreen,RestaurantOffersScreen}.tsx`,
+`features/food/components/{RestaurantGrid,RestaurantCard,TopRestaurantCarousel}.tsx`,
+`services/api/GatewayClient.ts` (`fetchVenues` + booking strict + availability fallback) and the
+`cache.go` comment; fixtures/behaviour resume. No data loss.
+
+**Docs:** `docs/architecture/mobile-app.md`, `data/DATA_CONTROL.md`, `docs/architecture/monolith-breakdown.md`
+§1, `docs/architecture/caching-cloudflare-valkey.md` §5, `docs/architecture/db-schema.md` §menus.
+**Date:** 2026-10-18
+
+---
+
 ## W55 — Donor-directory provenance (P1) + un-interest propagation
 
 **Status:** 🟢 Shipped (app + server + docs). No new screens/routes/tables/keys; app auth stays
@@ -343,7 +400,7 @@ Six Food correctness fixes, all reusing existing authorities (`ads.campaigns` + 
   seller-scoped to the current store; product/dish taps still go to PDP).
 - **O-5 `GET /sdui/food`.** New public read (`internal/sdui`, cache
   `faazio:v1:gateway:sdui:{locale}:/food` 300 s, purged with `/home`/`/mart` on publish) serving only
-  `foodHero`/`diningSpecials`/`mostRatedDining`; `GatewayClient.getFoodFeed` reads it. The feed drives
+  `foodHero`/`foodSpecials`/`mostRatedDining`; `GatewayClient.getFoodFeed` reads it. The feed drives
   the house hero and drops delisted venues from Top Rated (server `directory.dining_venues` is the
   authority). Two LIVE `FOOD_HERO` demo creatives + `foodHero` banners were seeded so the placement is
   locally testable.
@@ -353,10 +410,10 @@ Six Food correctness fixes, all reusing existing authorities (`ads.campaigns` + 
   own (no name re-filter), so a rename can't drop rows; an empty remote menu still keeps the fixture
   seed so the profile is never blank.
 
-**Still deferred:** Today's Special order is not yet SDUI-driven; Food menu festival discounts are
-MRP-only at display (`promo.festival_optins` targets `catalog.products`, not `directory.menus`;
-settlement already ignores menus — no migration). Editing `diningSpecials`/`mostRatedDining` in the
-shared Home doc also affects Home's rails.
+**Still deferred:** Food menu festival discounts are MRP-only at display
+(`promo.festival_optins` targets `catalog.products`, not `directory.menus`; settlement already
+ignores menus — no migration; the per-open overlay call was removed in **W56**). Editing
+`foodSpecials`/`mostRatedDining` in the shared Home doc also affects Home's rails.
 
 **Rollback:** revert the `features/food` + `GatewayClient.getFoodFeed` + `data/home/sdui.ts`/`sections.ts`
 + `internal/sdui`/`cache` hunks; re-run `node server/supabase/seed/generate.mjs`.

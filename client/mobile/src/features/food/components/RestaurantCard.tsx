@@ -42,7 +42,9 @@ const RestaurantCard = memo(function RestaurantCard({ restaurant, onPress }: Res
         onPress={() => onPress?.(restaurant)}
         style={styles.card}
         accessibilityRole="button"
-        accessibilityLabel={`${restaurant.name}, ${restaurant.cuisine}, rated ${restaurant.rating}, ${restaurant.distance} km away`}
+        accessibilityLabel={`${restaurant.name}, ${restaurant.cuisine}${
+          restaurant.rating > 0 ? `, rated ${restaurant.rating}` : ''
+        }${restaurant.distance > 0 ? `, ${restaurant.distance} km away` : ''}`}
       >
         <View style={styles.imageWrap}>
           <RemoteImage uri={restaurant.image} variant="restaurant" style={styles.image} />
@@ -60,7 +62,13 @@ const RestaurantCard = memo(function RestaurantCard({ restaurant, onPress }: Res
           </AppText>
 
           <View style={styles.metricsRow}>
-            <RatingBadge rating={restaurant.rating} size="sm" />
+            {restaurant.rating > 0 ? (
+              <RatingBadge rating={restaurant.rating} size="sm" />
+            ) : (
+              <View style={styles.newBadge}>
+                <AppText style={styles.newBadgeText}>New</AppText>
+              </View>
+            )}
             {restaurant.distance > 0 ? (
               <>
                 <View style={styles.dot} />
@@ -138,6 +146,17 @@ const styles = StyleSheet.create({
     fontSize: ms(11),
     fontWeight: '600',
     color: foodTheme.textSecondary,
+  },
+  newBadge: {
+    borderRadius: ms(5),
+    paddingHorizontal: hs(6),
+    paddingVertical: vs(1),
+    backgroundColor: foodTheme.primarySoft,
+  },
+  newBadgeText: {
+    fontSize: ms(11),
+    fontWeight: '700',
+    color: foodTheme.primary,
   },
   dot: {
     width: ms(3),

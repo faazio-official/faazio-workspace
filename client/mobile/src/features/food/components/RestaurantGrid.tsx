@@ -26,6 +26,8 @@ interface RestaurantGridProps {
   searchQuery?: string;
   autoScrollToGrid?: boolean;
   header?: ReactNode;
+  /** Rendered after the grid header when the list is empty (e.g. an authoritative empty state). */
+  empty?: ReactNode;
   onPress?: (restaurant: DiningRestaurant) => void;
   onScroll?: (event: NativeSyntheticEvent<NativeScrollEvent>) => void;
 }
@@ -40,6 +42,7 @@ const RestaurantGrid = memo(function RestaurantGrid({
   searchQuery = '',
   autoScrollToGrid = false,
   header,
+  empty,
   onPress,
   onScroll,
 }: RestaurantGridProps) {
@@ -147,6 +150,7 @@ const RestaurantGrid = memo(function RestaurantGrid({
         renderItem={renderItem}
         showsVerticalScrollIndicator={false}
         ListHeaderComponent={listHeader}
+        ListEmptyComponent={empty ? <>{empty}</> : undefined}
         contentContainerStyle={{ paddingBottom: vs(104) - vs(8) }}
         keyboardShouldPersistTaps="handled"
         onScroll={onScroll}

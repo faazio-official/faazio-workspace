@@ -171,7 +171,9 @@ this). The target's sub-app + type drive the allowed placements
 (`src/data/ads/placements.ts` `eligiblePlacementsFor` over `PLACEMENTS_BY_APP`), so a Mart item can
 only be bought on Mart surfaces + the cross-app `HOME_HERO` (Food/Pharma get their own hosts); each
 option shows a `PLACEMENT_REACH_NOTE`, `CATEGORY_TOP` adds a category picker (`MASTER_CATEGORIES` tab
-ids) and `STORE_TOP` auto-scopes to the target's store. Step 3 edits title (≤40), subtitle (≤60), a 16:9
+ids) and `STORE_TOP` auto-scopes to the target's store (for a FOOD **Dish** target the gateway
+resolves the dish's `venueId` as a dining venue via `ResolveOwnedTarget(..., "VENUE", …)`, so a
+restaurant header is reachable from the Dish tab — there is no separate VENUE target tab). Step 3 edits title (≤40), subtitle (≤60), a 16:9
 poster (hosted URL or upload, stored as the **resolved public URL** — same rule as the SDUI banner
 leaf; the gateway rejects external hosts) and a CTA, with a phone-frame preview. Step 5 posts
 `requestHeroCampaign` → `POST /ads/campaigns` (`pushWrite`, optimistic **`LIVE`** one-row-per-placement

@@ -31,7 +31,7 @@ Every domain file below carries its tag as a top-of-file banner comment.
 | Domain | Owner (feature) | Entry files | Status |
 |---|---|---|---|
 | `mart` | `features/ecommerce` | `products.ts`, `stores.ts` | `@mock` |
-| `food` | `features/food` | `products.ts`, `stores.ts`, `bookingDishes.ts` | `@mock` |
+| `food` | `features/food` | `products.ts`, `stores.ts`, `bookingDishes.ts`, `menus.ts`, `specials.ts`, `diningVenues.ts` | mixed `@mock` / `@server` — `menus.ts` + `diningVenues.ts` seed `directory.menus`/`directory.dining_venues` and fall back locally (`getList` → `GatewayClient.getMenu`/`fetchVenues`); `features/food/mocks/*` (`restaurants`, `homeFeed`, `specials`) are the client-side first-paint for the dining grid + mind/snack rails (see `@data/food` below) |
 | `pharma` | `features/pharma` | `products.ts`, `stores.ts` | `@mock` (+ `@unused` by mobile) |
 | `explore` | `features/catalog` (Categories/Favourites) | `stacks.ts` | `@mock` |
 | `categories` | `features/catalog` | `searchDatabase.ts` | `@mock` |
@@ -185,6 +185,14 @@ the `GROCERY` member was dropped from `AppBrand` / `CartCategory` / `SubAppId` /
 > `catalog.products`; unknown ids fall back to fixture order). `TODAYS_SPECIALS` no
 > longer pads an unseeded venue (the old cuisine-match could leak other restaurants' dishes into a
 > profile) — an unseeded venue shows an honest empty menu.
+
+> **Menu discount + booking truth (W56).** A `directory.menus` dish is **not** festival-eligible:
+> `promo.festival_optins` is `catalog.products`-scoped and checkout ignores menus, so
+> `useRestaurantMenu` no longer calls `GET /promo/active-discounts` on menu ids — the authored
+> `mrp_paisa` strike is the only menu discount. Booking writes are strict (`createBooking`/
+> `attachBookingPayment` throw offline; `getBookingAvailability`'s offline fallback is
+> `bookable:false`), and the dining grid drops to an honest empty state on a server-authoritative
+> empty venue list (`GatewayClient.fetchVenues`) instead of showing stale fixture venues.
 
 > **Dinner/table bookings (migration `0011`/`0020`):** `state/bookingStore` (`BookingRecord`) was
 > memory-only; it now has a durable home in `bookings.tables`, served by `internal/bookings`

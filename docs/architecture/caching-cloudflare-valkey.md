@@ -90,7 +90,7 @@ Examples: `faazio:v1:stock:fm-f1`, `faazio:v1:search:q:hoodie`, `faazio:v1:sdui:
 | Favourites (per user, auth-scoped) | 60 s | **never** | favourite add/remove |
 | Pickup points (public) | 86400 s (24 h) | — | pickup_point edit |
 | Rewards (per user, auth-scoped) | 60 s | **never** | order earn / redeem |
-| Venue menus (public) | 86400 s (24 h) | — | menu edit |
+| Venue menus (public, `directory:menu:{venueId}`, `cache.TTLStore`) | 86400 s (24 h) | — | menu edit |
 | Dining venues list (public) | 86400 s (24 h) | — | venue edit |
 | Prescriptions (per user, auth-scoped) | 60 s | **never** | Rx create / quote / READY (PII/health data) |
 | Notifications inbox (per user, auth-scoped) | 30 s | **never** | `RX_READY` / order-status enqueue |

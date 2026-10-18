@@ -767,17 +767,22 @@ pure-non-veg venues drop in Veg mode; `both` venues stay in both. Unclassifiable
 `features/food/utils/dietFilter.ts` (`venueMatches` / `dishMatches`).
 
 The dining grid ("Restaurants For Dining") is driven by the durable
-`directory.dining_venues` list — `diningService.fetchDiningFeed` calls
-`GatewayClient.getVenues('FOOD')` and merges the result with the feature fixture by id
+`directory.dining_venues` list — `diningService.fetchDiningFeed` calls the server-only
+`GatewayClient.fetchVenues('FOOD')` and merges the result with the feature fixture by id
 (known venues keep their rich distance/price-for-two copy; server-only venues get neutral
-defaults). A network/HTTP error degrades to the `@data` venue identity table and an empty
-result keeps the fixture, so the grid never renders blank. The Top Rated rail
+defaults). Because `fetchVenues` throws instead of silently falling back, the feed distinguishes a
+real failure (network/HTTP → `@data` venue identity table + fixture, grid never blank) from an
+**authoritative empty** list (server returns `[]`): on an authoritative empty the grid, the Top Rated
+rail and the fixture venues are all dropped and the screen renders an honest
+"No restaurants available right now" empty state — so an all-delisted / state-filtered catalog never
+lingers as stale, openable profiles. The Top Rated rail
 (`TOP_RATED_RESTAURANTS`) also drops venues the server no longer lists (so a delisted `tr-*`
 row never opens a stale profile) and honours `mostRatedDining.storeIds` ordering — those ids are
 `directory.dining_venues` ids (`tr-*`), read raw from the section (the server's store join cannot
 resolve them), so a stale/delivery-kitchen id would make the curation a silent no-op. Server-only
-venues carry neutral presentation defaults (`distance`/`priceForTwo` 0); the dining cards hide the
-`0.0 km` metric and blank address rather than printing a fake figure. The house hero banners come from the Food-only SDUI projection
+venues carry neutral presentation defaults (`distance`/`priceForTwo`/`rating` 0); the dining cards and
+the Top Rated hero drop the `0.0 km` metric, the `₹0 for two` copy and the blank address, and show a
+**"New"** chip in place of the rating badge rather than printing a fake figure. The house hero banners come from the Food-only SDUI projection
 (`GET /sdui/food` → `foodHero.banners`, via `GatewayClient.getFoodFeed`) and the "Today's Special"
 rail order from `foodSpecials.productIds` (unknown ids ignored, the rest keep fixture order); the
 mind / snack rails stay fixture-owned.
@@ -840,10 +845,12 @@ exists.
   (derived from `foodProducts` by `storeId`) for the 12 `store-f*` kitchens; an unseeded venue shows
   an **honest empty menu** — the old `TODAYS_SPECIALS` cuisine-match padding (which could leak other
   restaurants' dishes into a profile) was removed. A network/HTTP error falls back to the fixture
-  inside `getMenu`; an empty remote menu keeps the seed so the profile is never blank. Approved
-  festival discounts (`GET /promo/active-discounts`, server-capped) are overlaid on the remote rows
-  in the same pass, so a menu dish shows the same shopper price as PDP; mock/offline keeps base
-  prices and never invents a discount. `getMenuCategories` operates on the resolved list unchanged.
+  inside `getMenu`; an empty remote menu keeps the seed so the profile is never blank. Festival
+  discounts are **deliberately not** overlaid on menu rows: `promo.festival_optins` keys on
+  `catalog.products.product_id` and the checkout `DiscountReader` ignores `directory.menus`, so a
+  menu-dish discount would be display-only (a price the cart can't settle). A discounted menu dish
+  instead carries the seller's authored `mrp_paisa > price_paisa` strike (migration `0022`); the old
+  per-open `GET /promo/active-discounts` call was removed. `getMenuCategories` operates on the resolved list unchanged.
   The hook returns `{ menu, loading }`; `loading` is set **only when the fixture seed is empty** (a
   server-only venue), so the profile/menu show an inline spinner instead of flashing the honest
   "no dishes" empty state before the server replies — a seeded venue keeps its first paint and never

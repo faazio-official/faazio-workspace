@@ -721,6 +721,17 @@ export class GatewayClient {
     );
   }
 
+  /**
+   * Server-only venue list (no fixture fallback) so the caller can distinguish an authoritative
+   * empty result (all delisted / state-filtered) from offline. Throws `GatewayOfflineError` when
+   * remote is disabled and rethrows any HTTP error; the Food feed owns the fixture fallback and
+   * only drops to it on a real failure, never on a legitimate `[]`.
+   */
+  async fetchVenues(app?: string): Promise<Venue[]> {
+    if (!REMOTE_ENABLED) throw new GatewayOfflineError();
+    return this.http<Venue[]>(`/venues${app ? `?app=${app}` : ''}`);
+  }
+
   /** Live stock for a product. Strict — availability/price must not be faked offline. */
   /** One dining venue by id (single read). Mirrors the @data identity table offline. */
   async getVenue(id: string): Promise<Venue | undefined> {
@@ -1318,17 +1329,20 @@ export class GatewayClient {
     }
   }
 
-  /** Public booking availability for a venue (bookable / ₹ per seat / timing only). */
+  /**
+   * Public booking availability for a venue (bookable / ₹ per seat / timing only). The offline
+   * fallback is `bookable: false` — a venue whose server availability can't be read must never
+   * present a Book flow (a fabricated seat hold is a money action), it just hides the card.
+   */
   async getBookingAvailability(venueId: string): Promise<BookingAvailabilityDto> {
     return this.withFallback(
       () => this.http<BookingAvailabilityDto>(`/venues/${encodeURIComponent(venueId)}/booking-availability`),
       () =>
         delay({
           vendorId: venueId,
-          bookable: true,
+          bookable: false,
           feePerSeat: BOOKING_FEE_PER_SEAT,
-          timingLabel: '09:00 – 21:00',
-          openNow: true,
+          openNow: false,
         } as BookingAvailabilityDto),
     );
   }
@@ -1344,6 +1358,8 @@ export class GatewayClient {
   /**
    * Create a seat reservation hold. The server derives the ₹50/seat fee (the client never sets an
    * amount) and returns a Razorpay order for checkout. `idempotencyKey` makes a retry a no-op.
+   * Strict: a booking is a money hold, so an offline/failed write throws instead of fabricating a
+   * local `BKG-LOCAL-*` row that would then open a Razorpay sheet on a fee that was never held.
    */
   async createBooking(input: {
     vendorId: string;
@@ -1354,46 +1370,28 @@ export class GatewayClient {
     idempotencyKey?: string;
   }): Promise<BookingRecordDto> {
     const body = JSON.stringify({ ...input, idempotencyKey: input.idempotencyKey ?? bookingIdempotencyKey() });
-    return this.withFallback(
+    return this.withStrict(
       () => this.http<BookingRecordDto>('/bookings', { method: 'POST', body }),
-      () =>
-        delay({
-          id: `BKG-LOCAL-${Date.now()}`,
-          userId: MOCK_USER_ID,
-          vendorId: input.vendorId,
-          restaurantName: input.restaurantName ?? '',
-          date: input.date,
-          seats: input.seats,
-          fee: input.seats * BOOKING_FEE_PER_SEAT,
-          status: 'pending',
-          paymentStatus: 'CREATED',
-          createdAt: new Date().toISOString(),
-        }),
+      () => {
+        throw new GatewayOfflineError();
+      },
     );
   }
 
-  /** Attach the Razorpay payment id returned by the client checkout (marks it authorized server-side). */
+  /**
+   * Attach the Razorpay payment id returned by the client checkout (marks it authorized server-side).
+   * Strict for the same reason as `createBooking` — never mark a local row AUTHORIZED.
+   */
   async attachBookingPayment(id: string, razorpayPaymentId: string): Promise<BookingRecordDto> {
-    return this.withFallback(
+    return this.withStrict(
       () =>
         this.http<BookingRecordDto>(`/bookings/${encodeURIComponent(id)}/payment`, {
           method: 'POST',
           body: JSON.stringify({ razorpayPaymentId }),
         }),
-      () =>
-        delay({
-          id,
-          userId: MOCK_USER_ID,
-          vendorId: '',
-          restaurantName: '',
-          date: '',
-          seats: 0,
-          fee: 0,
-          status: 'pending',
-          paymentStatus: 'AUTHORIZED',
-          razorpayPaymentId,
-          createdAt: new Date().toISOString(),
-        }),
+      () => {
+        throw new GatewayOfflineError();
+      },
     );
   }
 
