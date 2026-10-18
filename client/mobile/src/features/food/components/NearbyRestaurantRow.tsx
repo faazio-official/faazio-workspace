@@ -43,8 +43,12 @@ const NearbyRestaurantRow = memo(function NearbyRestaurantRow({
 
         <View style={styles.metricsRow}>
           <RatingBadge rating={restaurant.rating} size="sm" />
-          <MapPin size={ms(11)} color={foodTheme.textMuted} strokeWidth={2.4} />
-          <AppText style={styles.metricText}>{restaurant.distance.toFixed(1)} km</AppText>
+          {restaurant.distance > 0 ? (
+            <>
+              <MapPin size={ms(11)} color={foodTheme.textMuted} strokeWidth={2.4} />
+              <AppText style={styles.metricText}>{restaurant.distance.toFixed(1)} km</AppText>
+            </>
+          ) : null}
         </View>
       </View>
     </TouchableOpacity>

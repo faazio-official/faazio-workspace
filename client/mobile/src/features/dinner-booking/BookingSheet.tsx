@@ -55,6 +55,9 @@ export default function BookingSheet({ visible, venue, onClose }: BookingSheetPr
   }, [visible, venueId]);
 
   const feePerSeat = availability?.feePerSeat ?? FEE_FALLBACK;
+  // The server derives the real fee; when availability hasn't loaded we show the known platform
+  // fallback and label it so the figure is never mistaken for a live quote.
+  const usingFallbackFee = availability?.feePerSeat === undefined;
 
   const submit = useCallback(async () => {
     if (!venue || submitting) return;
@@ -150,7 +153,7 @@ export default function BookingSheet({ visible, venue, onClose }: BookingSheetPr
           </View>
           <View style={styles.metaRow}>
             <Users color={foodTheme.textSecondary} size={ms(15)} />
-            <AppText style={styles.metaText}>₹{feePerSeat}/seat platform fee • pay only if accepted</AppText>
+            <AppText style={styles.metaText}>₹{feePerSeat}/seat platform fee{usingFallbackFee ? ' (indicative)' : ''} • pay only if accepted</AppText>
           </View>
 
           <View style={styles.stepperRow}>

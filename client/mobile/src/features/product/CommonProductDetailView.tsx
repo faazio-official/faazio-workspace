@@ -34,7 +34,7 @@ interface ProductDetailViewProps {
   onClose: () => void;
   onSearch?: () => void;
   onCart?: () => void;
-  addToCart: (id: string, name: string, price: number, emoji: string) => void;
+  addToCart: (id: string, name: string, price: number, emoji: string, restaurantId?: string) => void;
   cartItems: { id: string; name: string; price: number; quantity: number; emoji: string }[];
   updateCartQuantity: (id: string, delta: number) => void;
   favorites?: string[];
@@ -45,6 +45,12 @@ interface ProductDetailViewProps {
   onViewRestaurant?: () => void;
   /** Optional callback to open another product's detail page (FOOD related dishes). */
   onOpenProduct?: (product: Product) => void;
+  /**
+   * Owning restaurant when this FOOD product belongs to one. Threaded into the
+   * cart line so a PDP add lands in the restaurant's isolated slice (visible to
+   * the restaurant cart pill/filter) instead of the common cart.
+   */
+  restaurantId?: string;
 }
 
 function discountPercent(price: number, original?: number): number {
@@ -65,6 +71,7 @@ export default function CommonProductDetailView({
   onViewVendor,
   onViewRestaurant,
   onOpenProduct,
+  restaurantId,
 }: ProductDetailViewProps) {
   const product = propProduct;
   const safePrice = Number(product?.price) || 0;
@@ -99,7 +106,7 @@ export default function CommonProductDetailView({
   };
 
   const confirmAdd = (p: Product) => {
-    addToCart(p.id, p.name, Number(p.price) || 0, p.emoji ?? '🍽️');
+    addToCart(p.id, p.name, Number(p.price) || 0, p.emoji ?? '🍽️', restaurantId);
   };
 
   const handleAddToCart = () => {

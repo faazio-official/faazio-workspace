@@ -2,10 +2,46 @@ import React from 'react';
 import { Soup, Zap, Leaf, Star } from 'lucide-react-native';
 import type { SpecialDish } from '@/features/food/mocks/types';
 import { TODAYS_SPECIALS } from '@/features/food/mocks/specials';
+import { getProductById } from '@data/catalog/products';
+import { gateway, type ProductView } from '@/services/api/GatewayClient';
+import { withActiveDiscounts } from '@/services/pricing';
 import type { DietFilter } from '@/state/foodFilterStore';
 import { dishMatches } from '@/features/food/utils/dietFilter';
 import SearchDishCard from '@/features/food/components/SearchDishCard';
 import type { SearchScreenConfig } from '../types';
+
+/**
+ * Map a server FTS result (catalog row, app=FOOD) onto the Food search card shape. The catalog
+ * projection drops `isVeg`, so it is recovered from the local `@data` fixture by id when known —
+ * a truly server-only row keeps `undefined`, which the diet predicate treats as unclassified
+ * (hidden only under an active Veg/Non-Veg filter, never mislabelled). Prices stay server-authoritative.
+ */
+function viewToDish(p: ProductView): SpecialDish {
+  const local = getProductById(p.id);
+  const dietary = p.attributes?.dietary;
+  const isVeg =
+    local?.isVeg !== undefined
+      ? local.isVeg
+      : dietary === 'Vegetarian'
+        ? true
+        : dietary === 'Non-Veg'
+          ? false
+          : undefined;
+  const restaurant =
+    (p.shop as string | undefined) ?? (p.attributes?.brand as string | undefined) ?? 'Faazio';
+  return {
+    id: p.id,
+    dishName: p.name,
+    restaurant,
+    price: p.price,
+    mrp: p.originalPrice !== undefined && p.originalPrice > p.price ? p.originalPrice : undefined,
+    image: p.image,
+    isVeg: isVeg as boolean,
+    description: p.desc,
+    cuisine: p.category,
+    rating: p.rating,
+  };
+}
 
 interface FoodSearchOptions {
   onDishPress?: (dish: SpecialDish) => void;
@@ -30,7 +66,9 @@ function makeDishPredicate(dietFilter: DietFilter) {
   return (d: SpecialDish, query: string, activeFilterIds: string[]) => {
     const q = query.trim().toLowerCase();
     if (q && !searchableDishText(d).includes(q)) return false;
-    if (activeFilterIds.includes('fast') && minutesOf(d.deliveryTime ?? '') > 30) return false;
+    // Only exclude a known slow delivery; server rows carry no prep time, so an unknown
+    // time must pass rather than silently drop every remote result from the Fast chip.
+    if (activeFilterIds.includes('fast') && d.deliveryTime && minutesOf(d.deliveryTime) > 30) return false;
     if (activeFilterIds.includes('veg') && !d.isVeg) return false;
     if (activeFilterIds.includes('rated') && (d.rating ?? 0) < 4.0) return false;
     if (!dishMatches(dietFilter, d)) return false;
@@ -73,6 +111,10 @@ export function createFoodSearchConfig({
         renderCard: (item) => (
           <SearchDishCard dish={item as SpecialDish} onPress={onDishPress} />
         ),
+        // Server FTS result pool (catalog, app=FOOD) with any approved festival discount overlaid;
+        // the local `@data` specials pool is the offline/error fallback (Mart/Pharma pattern).
+        fetch: async (q) =>
+          (await withActiveDiscounts(await gateway.searchProducts(q, 'FOOD'))).map(viewToDish),
         sorters: {
           relevance: () => 0,
           rating: (a, b) => (b.rating ?? 0) - (a.rating ?? 0),

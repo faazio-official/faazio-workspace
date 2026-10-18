@@ -718,8 +718,11 @@ The dining grid ("Restaurants For Dining") is driven by the durable
 defaults). A network/HTTP error degrades to the `@data` venue identity table and an empty
 result keeps the fixture, so the grid never renders blank. The Top Rated rail
 (`TOP_RATED_RESTAURANTS`) also drops venues the server no longer lists (so a delisted `tr-*`
-row never opens a stale profile) and honours `mostRatedDining.storeIds` ordering when those ids
-resolve to known venues. The house hero banners come from the Food-only SDUI projection
+row never opens a stale profile) and honours `mostRatedDining.storeIds` ordering — those ids are
+`directory.dining_venues` ids (`tr-*`), read raw from the section (the server's store join cannot
+resolve them), so a stale/delivery-kitchen id would make the curation a silent no-op. Server-only
+venues carry neutral presentation defaults (`distance`/`priceForTwo` 0); the dining cards hide the
+`0.0 km` metric and blank address rather than printing a fake figure. The house hero banners come from the Food-only SDUI projection
 (`GET /sdui/food` → `foodHero.banners`, via `GatewayClient.getFoodFeed`) and the "Today's Special"
 rail order from `foodSpecials.productIds` (unknown ids ignored, the rest keep fixture order); the
 mind / snack rails stay fixture-owned.
@@ -770,7 +773,9 @@ exists.
 
 - Both render identical dish rows via the shared `features/food/components/MenuItemRow` (thumb,
   name/description/price, outlined **Add** → **− qty +** stepper) and the same restaurant-scoped
-  white `ViewCartPill`. Both read the menu through `features/food/hooks/useRestaurantMenu`, which is
+  white `ViewCartPill`. `MenuItemRow` shows the authored **MRP strike** (`₹price ~~₹mrp~~`) when the
+  dish's `mrp > price`, matching the offers page/search card — the same `directory.menus.mrp_paisa`
+  the seller authors. Both read the menu through `features/food/hooks/useRestaurantMenu`, which is
   **remote-first**: it seeds from the `@data/food/menus.ts` fixture (via
   `features/food/utils/menu.ts` `getMenuForRestaurant` → `menuForVenueName`, extracted from the
   profile so the two can't drift), then swaps in the durable `directory.menus` dishes from
@@ -780,8 +785,10 @@ exists.
   (derived from `foodProducts` by `storeId`) for the 12 `store-f*` kitchens; an unseeded venue shows
   an **honest empty menu** — the old `TODAYS_SPECIALS` cuisine-match padding (which could leak other
   restaurants' dishes into a profile) was removed. A network/HTTP error falls back to the fixture
-  inside `getMenu`; an empty remote menu keeps the seed so the profile is never blank.
-  `getMenuCategories` operates on the resolved list unchanged.
+  inside `getMenu`; an empty remote menu keeps the seed so the profile is never blank. Approved
+  festival discounts (`GET /promo/active-discounts`, server-capped) are overlaid on the remote rows
+  in the same pass, so a menu dish shows the same shopper price as PDP; mock/offline keeps base
+  prices and never invents a discount. `getMenuCategories` operates on the resolved list unchanged.
 - Both category rails are the shared `features/food/components/MenuCategoryRail` (pill chips,
   `hs/vs/ms` metrics, gap-based content container). **Layout contract:** the rail is a **fixed,
   non-flexing** sibling — `flexGrow: 0` / `flexShrink: 0`. RN injects `flexGrow: 1, flexShrink: 1`
@@ -811,7 +818,10 @@ no popup. The old `FoodAddModeSheet` (Dining / Food order → Delivery / Self pi
 fulfilment is no longer captured per item (`CartItem.fulfilment` and the `CartFulfilment` type were
 removed). Instead the **order-level** Delivery / Self Pickup choice is made on the cart BAG step.
 This applies everywhere: the dishes-only search results, the restaurant offers page, the restaurant
-profile menu "Add", and the FOOD product-detail footer + related-dish grid adds. Qty steppers (+/−)
+profile menu "Add", and the FOOD product-detail footer + related-dish grid adds. A FOOD PDP add
+(footer or related-dish card) is **tagged to the product's restaurant** (`getDiningRestaurantForProduct`
+→ `restaurantId`), so it lands in the restaurant-isolated slice and is counted by the restaurant cart
+pill; Mart/Pharma PDP adds stay untagged. Qty steppers (+/−)
 stay direct everywhere. Food home promo/Top-of-Week add buttons were already direct (unchanged).
 
 The **RestaurantProfile "Recommended & Offers" rail** (`features/food/screens/RestaurantProfileScreen.tsx`)
@@ -823,10 +833,11 @@ unlabelled, so the rail and page can't disagree.
 ## Restaurant-isolated cart (one cart, scoped by ownership)
 
 There is still **one `cartStore`**; a `CartItem.restaurantId` (optional) tags lines added from a
-restaurant page (the profile menu and its offers page, via `SearchDishCard.restaurantId`). Lines
-added elsewhere — food search, product detail, Mart/Pharma, seeds — stay **untagged** and belong
-to the common cart only. Re-adding an untagged dish from a restaurant page **adopts** it (backfills
-`restaurantId`).
+restaurant page (the profile menu and its offers page, via `SearchDishCard.restaurantId`) **and from
+a FOOD product-detail page** (the PDP resolves the owning restaurant and threads its id into
+`addToCart`). Lines added elsewhere — food search, Mart/Pharma product detail, seeds — stay
+**untagged** and belong to the common cart only. Re-adding an untagged dish from a restaurant page
+**adopts** it (backfills `restaurantId`).
 
 - **RestaurantProfile / RestaurantMenu** show only their own lines: the white **View Cart** pill (no
   orange card, no ₹ amount — just icon + "View Cart" + item count + arrow) and the menu **− qty +**

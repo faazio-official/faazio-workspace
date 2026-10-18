@@ -423,8 +423,9 @@ the `GROCERY` member was dropped from `AppBrand` / `CartCategory` / `SubAppId` /
    favourites, cart durability, checkout `placeOrder`, Pharma Rx capture/upload/create + quote/READY
    polling, orders history, vendor-review reads, `search` analytics, **profile reads**
    (`userProfile`/`accountDetails`/`savedAddresses`), **Mart home deals** and **Food venue menus**
-   (dining + delivery, W33). Remaining slices (blood feed, dining, booking create) are blocked on
-   server-contract deltas — see `WORKFLOW_SCRATCHPAD.md` §9.
+   (dining + delivery, W33), plus **Food dining** (`getVenues`), **Food search** and **Food bookings**
+   (`getBookingAvailability`/`createBooking`/`attachBookingPayment`/`cancelBooking`/`getBookings`).
+   Remaining slice: the blood feed — see `WORKFLOW_SCRATCHPAD.md` §9.
 5. **~~Per-restaurant menus are seeded only for the 18 dining restaurants.~~ Resolved (W33).**
    The 12 food-delivery `foodStores` now have their own menus: `data/food/menus.ts` derives
    `storeMenus` from `foodProducts` by `storeId`, and the seed emits `directory.menus` rows for

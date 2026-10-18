@@ -66,6 +66,13 @@ function resolveStoreIds(app: AppBrand): string[] {
   return storeDirectory.filter((s) => s.app === (storeApps[app] ?? 'MART')).map((s) => s.id);
 }
 
+/**
+ * Order of the Food "Top Rated Restaurants" carousel — `directory.dining_venues` ids (tr-*), not the
+ * delivery-kitchen `store-f*` ids. The Food feed (`diningService`) reorders its curated Top Rated
+ * rows by this list, so a stale/delivery id would make the curation a silent no-op.
+ */
+const MOST_RATED_DINING_VENUE_IDS = ['tr-1', 'tr-2', 'tr-3', 'tr-4', 'tr-5', 'tr-6'];
+
 const FILTER_FEED: SduiSection['chips'] = filterChips.map((chip) => ({
   id: chip.id,
   label: chip.label,
@@ -177,7 +184,7 @@ export const homeSdui: SduiSection[] = [
   // Paid placement: the doc owns the slot order, the ad-server (`GET /ads/live`) owns the fill.
   // No productIds are baked in — the app resolves LIVE ads at render time (they expire).
   { id: 'sponsoredRail', title: 'Sponsored picks', accent: '#B45309', productIds: [] },
-  { id: 'mostRatedDining', title: 'Most Rated Dining', accent: '#1E5D44', productIds: [], storeIds: resolveStoreIds('FOOD') },
+  { id: 'mostRatedDining', title: 'Most Rated Dining', accent: '#1E5D44', productIds: [], storeIds: MOST_RATED_DINING_VENUE_IDS },
   { id: 'recentlyViewedMart', title: 'Recently Viewed — Mart', accent: '#1162D3', productIds: resolveProductIds(['rvm-1', 'rvm-2', 'rvm-3', 'rvm-4']) },
   { id: 'recentlyViewedFood', title: 'Recently Viewed — Food', accent: '#1E5D44', productIds: resolveProductIds(['rvf-1', 'rvf-2', 'rvf-3']) },
   { id: 'recentlyViewedPharma', title: 'Recently Viewed — Pharma', accent: '#065F46', productIds: resolveProductIds(['rvp-1', 'rvp-2', 'rvp-3']) },

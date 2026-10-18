@@ -102,6 +102,7 @@ export function ProductDetailScreen({ navigation, route }: Props) {
       onViewVendor={handleViewVendor}
       onViewRestaurant={handleViewRestaurant}
       onOpenProduct={handleOpenProduct}
+      restaurantId={restaurant?.id}
     />
   );
 }

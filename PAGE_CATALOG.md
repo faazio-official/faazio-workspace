@@ -350,6 +350,22 @@ The feed's paid/organic order is codified in
 "What's on your mind?" + Snacks & Beverages order rails + Restaurants For Dining grid. Food cart is
 restaurant-scoped (one common cart, isolated by ownership) + `MyBookings` + Food `RateVendor`.
 
+Feed order and paid/organic classification:
+
+| # | Section | Component | Kind | Placement / fallback |
+| --- | --- | --- | --- | --- |
+| Fd1 | Hero carousel (top) | `CampaignHero` (`components/shared`) | **PAID** | `FOOD_HERO` (venue/product target); fallback = `foodHero.banners` via `FoodHouseHero` (non-interactive) |
+| Fd2 | Top Rated carousel | `TopRestaurantCarousel` | Organic directory | `TOP_RATED_RESTAURANTS` ordered by SDUI `mostRatedDining.storeIds` (dining `tr-*` ids) |
+| Fd3 | Today's Special rail | `FeaturedDishCarousel` | Organic offer | SDUI `foodSpecials.productIds`; `TODAYS_SPECIALS` fallback (fixture) |
+| Fd4 | What's on your mind? | `MindGridRail` | Organic category | Fixture-owned (not server-driven) |
+| Fd5 | Snacks & Beverages rail | `SnacksRail` | Organic offer | Fixture-owned (not server-driven) |
+| Fd6 | Restaurants For Dining grid | `RestaurantGrid` | Organic directory | `gateway.getVenues('FOOD')` merged with the `@data` venue fixture |
+| Fd7 | Restaurant-profile hero | `CampaignHero` (`components/shared`) | **PAID** | `STORE_TOP` scoped to the venue's `storeId`; whole band drops when no LIVE fill |
+
+Rail "View All" → shared `RestaurantOffers` / `DealsLanding`; profile dish rows are the shared
+`MenuItemRow`. Restaurant-isolated cart + shared Food routes live in
+`docs/architecture/mobile-app.md` (§ Food) and are linked from `FoodStack.tsx`.
+
 ### 2.7 Sub-app: PHARMA
 
 `PharmaScreen` home = `PHARMA_HERO` (paid) + `PharmaHeroBanner` + QuickReorder + TopOffers +

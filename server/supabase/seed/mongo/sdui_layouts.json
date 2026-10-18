@@ -346,18 +346,12 @@
       "accent": "#1E5D44",
       "productIds": [],
       "storeIds": [
-        "store-f1",
-        "store-f2",
-        "store-f3",
-        "store-f4",
-        "store-f5",
-        "store-f6",
-        "store-f7",
-        "store-f8",
-        "store-f9",
-        "store-f10",
-        "store-f11",
-        "store-f12"
+        "tr-1",
+        "tr-2",
+        "tr-3",
+        "tr-4",
+        "tr-5",
+        "tr-6"
       ],
       "chips": []
     },

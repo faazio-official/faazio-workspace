@@ -61,16 +61,22 @@ const RestaurantCard = memo(function RestaurantCard({ restaurant, onPress }: Res
 
           <View style={styles.metricsRow}>
             <RatingBadge rating={restaurant.rating} size="sm" />
-            <View style={styles.dot} />
-            <AppText style={styles.metricText}>{restaurant.distance.toFixed(1)} km</AppText>
+            {restaurant.distance > 0 ? (
+              <>
+                <View style={styles.dot} />
+                <AppText style={styles.metricText}>{restaurant.distance.toFixed(1)} km</AppText>
+              </>
+            ) : null}
           </View>
 
-          <View style={styles.locationRow}>
-            <MapPin size={ms(10)} color={foodTheme.textMuted} strokeWidth={2.4} />
-            <AppText style={styles.address} numberOfLines={1} ellipsizeMode="tail">
-              {restaurant.address}
-            </AppText>
-          </View>
+          {restaurant.address ? (
+            <View style={styles.locationRow}>
+              <MapPin size={ms(10)} color={foodTheme.textMuted} strokeWidth={2.4} />
+              <AppText style={styles.address} numberOfLines={1} ellipsizeMode="tail">
+                {restaurant.address}
+              </AppText>
+            </View>
+          ) : null}
         </View>
       </TouchableOpacity>
     </Animated.View>

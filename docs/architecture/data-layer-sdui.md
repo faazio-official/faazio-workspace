@@ -83,8 +83,9 @@ cache), `BrandCampaignsSection` renders the feed-supplied defs (fixture fallback
 `storeMenus` (keyed by the 12 delivery-store names, derived from `foodProducts` via `storeId`)
 and the flat pool `allRestaurantMenuDishes`. `menuForVenueName(name)`
 resolves dining first then delivery; the shared `features/food/utils/menu.ts`
-`getMenuForRestaurant()` reads it first, falling back to the `TODAYS_SPECIALS` cuisine-match +
-padding logic only for an unseeded venue, so every dining room **and delivery kitchen** has its
+`getMenuForRestaurant()` reads it first; an unseeded venue shows an **honest empty menu** (the old
+`TODAYS_SPECIALS` cuisine-match + padding fallback, which could leak other restaurants' dishes,
+was removed in W45), so every dining room **and delivery kitchen** has its
 own menu (`RestaurantProfileScreen` + `RestaurantMenuScreen` consume it). Both pools are seeded
 into `directory.menus` (88 dishes / 30 venues), so `GatewayClient.getMenu` serves the durable
 rows remote-first with the fixture as the offline fallback.

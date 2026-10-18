@@ -62,8 +62,10 @@ function mergeDining(fixture: DiningRestaurant[], venues: Venue[]): DiningRestau
   return [...kept, ...extras];
 }
 
-/** Reorder `restaurants` so the SDUI store-id list leads (ids with no matching row are ignored);
- *  the remaining rows keep their curated fixture order. Empty list → untouched. */
+/** Reorder `restaurants` so the SDUI store-id list leads (dining-venue `tr-*` ids; ids with no
+ *  matching row are ignored); the remaining rows keep their curated fixture order. Empty list →
+ *  untouched. Reads the raw `storeIds` (dining venues the server's store join cannot resolve), not
+ *  the joined `stores` array, so the curation is not a silent no-op. */
 function orderByStoreIds(restaurants: DiningRestaurant[], ids: string[]): DiningRestaurant[] {
   if (ids.length === 0) return restaurants;
   const byId = new Map(restaurants.map((r) => [r.id, r]));
@@ -122,7 +124,7 @@ export async function fetchDiningFeed(): Promise<DiningFeed> {
   const mostRated = food.find((s) => (s.id as string) === 'mostRatedDining');
 
   return {
-    topRated: orderByStoreIds(liveTopRated, mostRated?.stores?.map((s) => s.id) ?? []),
+    topRated: orderByStoreIds(liveTopRated, mostRated?.storeIds ?? mostRated?.stores?.map((s) => s.id) ?? []),
     specials: orderByDishIds(TODAYS_SPECIALS, specials?.productIds ?? []),
     dining: venues.length > 0 ? mergeDining(DINING_RESTAURANTS, venues) : DINING_RESTAURANTS,
     topFoods: TOP_FOODS_TO_ORDER,

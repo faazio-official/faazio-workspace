@@ -38,6 +38,9 @@ Vite reference (all 3 consoles).
 **Seller console — own data (`app/seller/**`)** — ads, catalog, pricing, promotions, stores,
 menus, orders, bookings, prescriptions, returns, reviews, payments, analytics, support, settings,
 onboarding. This is where paid hero campaigns (`seller/ads` wizard) and organic offers are authored.
+The campaign wizard's **what→where** placements map 1:1 to the paid mobile surfaces documented in
+`PAGE_CATALOG.md` §2.5/§2.6: `MART_HERO`/`FOOD_HERO` (house hero carousels) and `STORE_TOP`
+(restaurant profile band), so a seller target resolves to the same slot the shopper sees.
 
 | Route | Page | Sector |
 | --- | --- | --- |

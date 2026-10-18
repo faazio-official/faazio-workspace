@@ -37,7 +37,12 @@ const MenuItemRow = memo(function MenuItemRow({
         <AppText numberOfLines={2} style={styles.listDesc}>
           {dish.description}
         </AppText>
-        <AppText style={styles.listPrice}>₹{dish.price}</AppText>
+        <View style={styles.listPriceRow}>
+          <AppText style={styles.listPrice}>₹{dish.price}</AppText>
+          {dish.mrp !== undefined && dish.mrp > dish.price ? (
+            <AppText style={styles.listMrp}>₹{dish.mrp}</AppText>
+          ) : null}
+        </View>
       </View>
       <View style={styles.listImageWrapper}>
         <RemoteImage uri={dish.image} variant="dish" style={styles.listImage} />
@@ -93,7 +98,14 @@ const styles = StyleSheet.create({
   listDetails: { flex: 1, paddingRight: 16 },
   listTitle: { fontSize: ms(16), fontWeight: 'bold', color: foodTheme.textPrimary, marginBottom: 4 },
   listDesc: { fontSize: ms(13), color: foodTheme.textSecondary, lineHeight: 18, marginBottom: 8 },
+  listPriceRow: { flexDirection: 'row', alignItems: 'baseline', gap: hs(6) },
   listPrice: { fontSize: ms(15), fontWeight: 'bold', color: foodTheme.textPrimary },
+  listMrp: {
+    fontSize: ms(12),
+    fontWeight: '600',
+    color: '#999999',
+    textDecorationLine: 'line-through',
+  },
   listImageWrapper: { alignItems: 'center' },
   listImage: { width: 110, height: 110, borderRadius: 16, backgroundColor: '#F3F4F6' },
   addBtnOutline: {
