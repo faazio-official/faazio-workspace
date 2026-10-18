@@ -35,6 +35,17 @@ function applyDishDiscount(dish: SpecialDish, discountPercent: number): SpecialD
   return { ...dish, price, mrp };
 }
 
+export interface RestaurantMenuState {
+  /** The venue's dishes — fixture seed first, then the durable remote list once it lands. */
+  menu: SpecialDish[];
+  /**
+   * True while the remote menu is in flight **and** the fixture seed was empty. A seeded venue
+   * paints instantly with no spinner; a server-only venue (no `@data` menu) shows a loading
+   * state instead of flashing its honest "no dishes" empty state before the server replies.
+   */
+  loading: boolean;
+}
+
 /**
  * The restaurant's menu, remote-first from `directory.menus`
  * (`GET /venues/{id}/menu`) through `GatewayClient.getMenu`, which already falls
@@ -46,12 +57,17 @@ function applyDishDiscount(dish: SpecialDish, discountPercent: number): SpecialD
  * never blank. Approved festival discounts are overlaid on the remote rows in the
  * same pass (the server is the discount authority; mock/offline leaves them off).
  */
-export function useRestaurantMenu(restaurant: DiningRestaurant): SpecialDish[] {
+export function useRestaurantMenu(restaurant: DiningRestaurant): RestaurantMenuState {
   const [menu, setMenu] = useState<SpecialDish[]>(() => getMenuForRestaurant(restaurant));
+  const [loading, setLoading] = useState(false);
 
   useEffect(() => {
     let active = true;
-    setMenu(getMenuForRestaurant(restaurant));
+    const seed = getMenuForRestaurant(restaurant);
+    setMenu(seed);
+    // Only a server-only venue (empty seed) risks a false "no dishes" flash — a seeded venue
+    // keeps its first-paint rows and never shows the spinner.
+    setLoading(seed.length === 0);
     gateway
       .getMenu(restaurant.id)
       .then(async (dishes) => {
@@ -63,11 +79,14 @@ export function useRestaurantMenu(restaurant: DiningRestaurant): SpecialDish[] {
       })
       .catch(() => {
         // getMenu already falls back to the @data fixture internally.
+      })
+      .finally(() => {
+        if (active) setLoading(false);
       });
     return () => {
       active = false;
     };
   }, [restaurant.id, restaurant.name]);
 
-  return menu;
+  return { menu, loading };
 }

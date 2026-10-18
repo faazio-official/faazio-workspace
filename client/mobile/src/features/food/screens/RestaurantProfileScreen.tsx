@@ -4,6 +4,7 @@ import {
   StyleSheet,
   ScrollView,
   TouchableOpacity,
+  ActivityIndicator,
   type NativeSyntheticEvent,
   type NativeScrollEvent,
 } from 'react-native';
@@ -118,7 +119,7 @@ export function RestaurantProfileScreen({ navigation, route }: Props) {
     [scrollY],
   );
 
-  const dishes = useRestaurantMenu(restaurant);
+  const { menu: dishes, loading: menuLoading } = useRestaurantMenu(restaurant);
 
   const menu = useMemo(
     () => dishes.filter((d) => dishMatches(dietFilter, d)),
@@ -404,13 +405,21 @@ export function RestaurantProfileScreen({ navigation, route }: Props) {
               />
             ))}
             {filteredMenu.length === 0 && (
-              <AppText style={styles.emptyText}>
-                {dietFilter === 'veg'
-                  ? 'No veg dishes in this menu.'
-                  : dietFilter === 'nonveg'
-                    ? 'No non-veg dishes in this menu.'
-                    : 'No dishes available.'}
-              </AppText>
+              menuLoading ? (
+                <ActivityIndicator
+                  color={foodTheme.primary}
+                  style={styles.menuLoading}
+                  accessibilityLabel="Loading menu"
+                />
+              ) : (
+                <AppText style={styles.emptyText}>
+                  {dietFilter === 'veg'
+                    ? 'No veg dishes in this menu.'
+                    : dietFilter === 'nonveg'
+                      ? 'No non-veg dishes in this menu.'
+                      : 'No dishes available.'}
+                </AppText>
+              )
             )}
           </View>
 
@@ -658,5 +667,6 @@ const styles = StyleSheet.create({
   categoryRail: { marginBottom: 12 },
   productList: { paddingHorizontal: hs(16) },
   emptyText: { color: foodTheme.textSecondary, textAlign: 'center', marginVertical: 24 },
+  menuLoading: { marginVertical: 24 },
   footerPad: { height: vs(100) },
 });

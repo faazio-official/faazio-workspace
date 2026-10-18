@@ -789,6 +789,10 @@ exists.
   festival discounts (`GET /promo/active-discounts`, server-capped) are overlaid on the remote rows
   in the same pass, so a menu dish shows the same shopper price as PDP; mock/offline keeps base
   prices and never invents a discount. `getMenuCategories` operates on the resolved list unchanged.
+  The hook returns `{ menu, loading }`; `loading` is set **only when the fixture seed is empty** (a
+  server-only venue), so the profile/menu show an inline spinner instead of flashing the honest
+  "no dishes" empty state before the server replies — a seeded venue keeps its first paint and never
+  shows the spinner.
 - Both category rails are the shared `features/food/components/MenuCategoryRail` (pill chips,
   `hs/vs/ms` metrics, gap-based content container). **Layout contract:** the rail is a **fixed,
   non-flexing** sibling — `flexGrow: 0` / `flexShrink: 0`. RN injects `flexGrow: 1, flexShrink: 1`

@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { View, StyleSheet, ScrollView, TouchableOpacity, TextInput } from 'react-native';
+import { View, StyleSheet, ScrollView, TouchableOpacity, TextInput, ActivityIndicator } from 'react-native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { Search, X } from 'lucide-react-native';
@@ -58,7 +58,7 @@ export function RestaurantMenuScreen({ navigation, route }: Props) {
     [restaurantItems],
   );
 
-  const dishes = useRestaurantMenu(diningRestaurant);
+  const { menu: dishes, loading: menuLoading } = useRestaurantMenu(diningRestaurant);
 
   const menu = useMemo(
     () => dishes.filter((d) => dishMatches(dietFilter, d)),
@@ -176,15 +176,23 @@ export function RestaurantMenuScreen({ navigation, route }: Props) {
             );
           })}
           {filteredMenu.length === 0 && (
-            <AppText style={styles.emptyText}>
-              {searchQuery.trim()
-                ? 'No dishes match your search.'
-                : dietFilter === 'veg'
-                  ? 'No veg dishes in this menu.'
-                  : dietFilter === 'nonveg'
-                    ? 'No non-veg dishes in this menu.'
-                    : 'No dishes available.'}
-            </AppText>
+            menuLoading ? (
+              <ActivityIndicator
+                color={foodTheme.primary}
+                style={styles.menuLoading}
+                accessibilityLabel="Loading menu"
+              />
+            ) : (
+              <AppText style={styles.emptyText}>
+                {searchQuery.trim()
+                  ? 'No dishes match your search.'
+                  : dietFilter === 'veg'
+                    ? 'No veg dishes in this menu.'
+                    : dietFilter === 'nonveg'
+                      ? 'No non-veg dishes in this menu.'
+                      : 'No dishes available.'}
+              </AppText>
+            )
           )}
         </View>
       </ScrollView>
@@ -230,4 +238,5 @@ const styles = StyleSheet.create({
   listContent: { paddingBottom: vs(100) },
   productList: { paddingHorizontal: hs(16), paddingTop: vs(12) },
   emptyText: { color: foodTheme.textSecondary, textAlign: 'center', marginVertical: 24 },
+  menuLoading: { marginVertical: 24 },
 });
