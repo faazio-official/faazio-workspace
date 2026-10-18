@@ -21,7 +21,7 @@ function donationTypeLabel(type: 'hospital' | 'blood-bank' | 'both'): string {
 
 export function DonorDetailsScreen({ navigation, route }: Props) {
   const insets = useSafeAreaInsets();
-  const donor = getDonorById(route.params.donorId);
+  const donor = getDonorById(route.params.donorId, route.params.source);
   const userId = useAuthStore((s) => s.user?.id) ?? 'anonymous-user';
   const targetedRequests = useBloodDonorStore((s) => s.donorMatchRequests);
   const requestDonor = useBloodDonorStore((s) => s.requestDonor);

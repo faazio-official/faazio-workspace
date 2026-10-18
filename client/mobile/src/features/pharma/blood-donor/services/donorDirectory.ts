@@ -1,12 +1,17 @@
 import { BLOOD_DONORS } from '@data/index';
 import type { BloodGroup, DonorProfile, DonationTypeId, YesNo } from '@data/index';
-import { gateway, type BloodDonorProfile } from '@/services/api/GatewayClient';
+import {
+  gateway,
+  type BloodDonorProfile,
+  type ReadSource,
+} from '@/services/api/GatewayClient';
 
 /**
- * Repository seam for donor discovery. Remote-first: the consented, auth-scoped server directory
- * (`GET /donors` → `blood.donor_directory`, `consent AND available` only) is the source of truth,
- * with the `@data` fixtures as the offline/mock fallback so the sheet never blanks during the
- * fixture→server migration.
+ * Repository seam for donor discovery. Remote-first, with provenance: the consented, auth-scoped
+ * server directory (`GET /donors` → `blood.donor_directory`, `consent AND available` only) is the
+ * source of truth via the no-fallback `GatewayClient.fetchBloodDonors`, so the caller can tell a
+ * live result (including an honest `200 []`) from the offline fixture — a health-PII gate must
+ * never present fixture donors as if they were consented live rows.
  */
 
 const DEFAULT_DONATION_TYPE: DonationTypeId = 'both';
@@ -49,35 +54,48 @@ function localMatches(
     .sort((a, b) => a.name.localeCompare(b.name));
 }
 
+/** The matching donors plus their provenance so the sheet can label an offline/empty view honestly. */
+export interface DonorDirectoryResult {
+  donors: DonorProfile[];
+  source: ReadSource;
+}
+
 /**
- * Find consented, available donors for a city + blood group. Reads the server directory first (the
- * health-PII gate) and falls back to the local fixtures only when the server yields nothing (offline
- * / mock auth). Results are cached so `getDonorById` can resolve a donor selected from the sheet.
+ * Find consented, available donors for a city + blood group. Reads the server directory through the
+ * no-fallback `fetchBloodDonors` so the caller gets provenance:
+ *  - live rows       → `source: 'live'`, cached so `getDonorById` can resolve a selected donor.
+ *  - server `200 []` → `source: 'empty-authoritative'` (no consented donors — never masked by fixtures).
+ *  - fetch failure   → the `@data` fixture filtered to the query + `source: 'offline-fallback'`.
  */
 export async function findMatchingDonors(
   city: string,
   bloodGroup: BloodGroup,
   requesterUserId?: string,
-): Promise<DonorProfile[]> {
+): Promise<DonorDirectoryResult> {
   try {
-    const remote = await gateway.getBloodDonors({ bloodGroup, city: city.trim() });
-    if (remote.length > 0) {
-      const mapped = remote
-        .map(fromServer)
-        .filter((donor) => donor.available && donor.userId !== requesterUserId)
-        .sort((a, b) => a.name.localeCompare(b.name));
-      if (mapped.length > 0) {
-        for (const donor of mapped) resolved.set(donor.id, donor);
-        return mapped;
-      }
+    const remote = await gateway.fetchBloodDonors({ bloodGroup, city: city.trim() });
+    const mapped = remote
+      .map(fromServer)
+      .filter((donor) => donor.available && donor.userId !== requesterUserId)
+      .sort((a, b) => a.name.localeCompare(b.name));
+    if (mapped.length > 0) {
+      for (const donor of mapped) resolved.set(donor.id, donor);
+      return { donors: mapped, source: 'live' };
     }
+    return { donors: [], source: 'empty-authoritative' };
   } catch {
-    // getBloodDonors already falls back internally; any residual error uses the local fixtures.
+    // Offline / mock — the fixture filtered to this query, always labelled as a fallback.
+    return { donors: localMatches(city, bloodGroup, requesterUserId), source: 'offline-fallback' };
   }
-  return localMatches(city, bloodGroup, requesterUserId);
 }
 
-/** Resolve a donor by id — server-resolved rows first, then the local fixture directory. */
-export function getDonorById(donorId: string): DonorProfile | undefined {
+/**
+ * Resolve a donor by id. When the search that opened the detail route was live (or an honest empty),
+ * only a server-resolved row counts — an unknown id is an honest "no longer available" screen, never
+ * a fixture lookalike. For an offline fallback (or an unlabelled deep link) the fixture directory is
+ * also consulted.
+ */
+export function getDonorById(donorId: string, source?: ReadSource): DonorProfile | undefined {
+  if (source === 'live' || source === 'empty-authoritative') return resolved.get(donorId);
   return resolved.get(donorId) ?? BLOOD_DONORS.find((donor) => donor.id === donorId);
 }

@@ -5,6 +5,44 @@ dependencies exist. Do not build the backend/seller flows until told to.
 
 ---
 
+## W55 — Donor-directory provenance (P1) + un-interest propagation
+
+**Status:** 🟢 Shipped (app + server + docs). No new screens/routes/tables/keys; app auth stays
+**mocked** (no Supabase phone OTP). Closes the last Pharma read without provenance (W53b deferred it).
+
+- **Donor-directory reads carry provenance (P1 privacy).** New no-fallback
+  `GatewayClient.fetchBloodDonors`/`fetchDonorProfile` (throwing `GatewayOfflineError`) mirror
+  `fetchBloodRequests`. `findMatchingDonors` now returns `{ donors, source }`
+  (`live`/`empty-authoritative`/`offline-fallback`): a live `200 []` is an honest "no consented
+  donors right now" rather than being masked by `BLOOD_DONORS`, and an offline fetch shows the
+  fixture filtered to the query behind a "Showing saved donors — offline" chip in `AskBloodSheet`
+  — never blank, never a fixture donor presented as consented live.
+- **Redaction-safe detail resolution.** The search `source` rides the `BloodDonorDetails` route so
+  `getDonorById(id, source)` resolves only from server rows for a live/empty search (an unknown id =
+  the existing honest "no longer available" screen); the fixture is consulted only for an offline
+  fallback. `bloodDonorStore.hydrateFromServer` reads `fetchDonorProfile` (a live `null` = not
+  registered, distinct from offline).
+- **Un-interest propagates.** `bloodDonorStore.toggleInterested` removal now calls
+  `clearBloodInterest` (`DELETE /blood-requests/{id}/interest`, idempotent) and queues an
+  `interest-remove` outbox op when non-durable, flushed on hydration + foreground — no longer
+  device-local only. No schema change: `blood.interests` PK `(request_id, donor_user_id, kind)`
+  keys the mark, so un-interest is a plain `DELETE`. No cache change: the public `blood.requests`
+  projection carries no interest data.
+
+**Intentionally unchanged:** the `BLOOD_DONORS` fixture remains the never-blank offline fallback
+(now always labelled). `getBloodDonors`/`getDonorProfile` stay as mock-mode wrappers.
+
+**Rollback:** revert `services/api/GatewayClient.ts` (2 fetch* + `clearBloodInterest`),
+`services/donorDirectory.ts`, `components/AskBloodSheet.tsx`, `DonorDetailsScreen.tsx` +
+`navigation/types.ts`, `state/bloodDonorStore.ts`, and the server `internal/blood` handler/repo
+hunks + the compose `0029` mount; fixtures resume. No data loss.
+
+**Docs:** `data/DATA_CONTROL.md`, `docs/architecture/mobile-app.md`, `monolith-breakdown.md` §1,
+`mvp-backend.md`, `db-schema.md` §12.6. `caching-cloudflare-valkey.md` unchanged — no key/TTL
+change (interest is not cached). **Date:** 2026-10-18
+
+---
+
 ## W53 — Pharma production-readiness pass (P0/P1 gaps + doc truth-up)
 
 **Status:** 🟢 Shipped (app + docs). No new screens; app auth stays **mocked** (no Supabase OTP).
@@ -74,8 +112,9 @@ applied to blood.
 - **Not `withStrict`.** Blood writes deliberately stay out of `withStrict` (money/Rx fail loudly);
   an offline registration must not be blocked — outcome + retry is the correct contract.
 
-**Intentionally unchanged:** `donorDirectory`/`getDonorProfile`/`getBloodDonors` reads keep their
-internal fixture fallback (not in this pass). `reset()`/logout clears the outbox.
+**Intentionally unchanged (now closed by W55):** `donorDirectory`/`getDonorProfile`/`getBloodDonors`
+reads kept their internal fixture fallback in this pass; W55 gives donor discovery the same
+`{ donors, source }` provenance as the board. `reset()`/logout clears the outbox.
 
 **Rollback:** revert `state/bloodDonorStore.ts` + the `services/api/GatewayClient.ts` blood-read/write
 hunks + the blood UI read/source hunks; the blob drops `pendingOps` and best-effort writes resume.

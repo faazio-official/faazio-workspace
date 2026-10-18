@@ -81,6 +81,12 @@ export type RootStackParamList = {
     donorId: string;
     requestCity: string;
     bloodGroup: import('@data/index').BloodGroup;
+    /**
+     * Provenance of the search that opened this route. `live`/`empty-authoritative` restricts
+     * resolution to server rows (unknown id = honest missing), so a fixture donor is never shown as
+     * if consented live; `offline-fallback` also allows the fixture directory.
+     */
+    source?: import('@/services/api/GatewayClient').ReadSource;
   };
   /** Blood request detail placeholder (pushed from the donor dashboard). */
   BloodRequestDescription: { requestId: string };

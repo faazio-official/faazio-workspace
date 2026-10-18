@@ -1001,6 +1001,10 @@ The public surface is the `blood.donor_directory` security-definer view (consent
 columns only); own rows are RLS-scoped. The request board is public but `contact`/`address` are
 stripped for anon. `blood.expire_requests()` is scheduled (pg_cron, daily) to prune expired requests.
 Donor directory + request board cached 60 s (`faazio:v1:blood:requests:{bloodGroup};{city}`).
+**Un-interest (no schema change):** the `blood.interests` primary key `(request_id, donor_user_id, kind)`
+already keys a single mark, so an un-tap is a plain `DELETE` (`DELETE /blood-requests/{id}/interest`,
+idempotent) — no new table, column, or index. It touches no cache: the public `blood.requests`
+projection carries no interest data.
 **Decision (0019):** the donor dashboard stays on the redacted `blood.requests` projection and computes
 distance client-side rather than adding display columns (`image_url`/`distance_km`/`demographics`) —
 no PII widening. `purposeDescription`/`demographics` remain out of the public board by design.

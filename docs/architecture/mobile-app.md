@@ -326,6 +326,19 @@ dashboard has loaded. The same `{ … , source }` provenance is exposed by `useP
 (`fetchStores('PHARMA')`) and `pharmaService.fetchPharmaFeed` (`fetchPharmaSections`), which show a
 "sample pharmacies — offline" chip when the live rails are unavailable.
 
+Targeted donor discovery (`services/donorDirectory.ts`) is equally provenance-aware: `findMatchingDonors`
+reads `GET /donors` through the no-fallback `GatewayClient.fetchBloodDonors` and returns
+`{ donors, source }`. A live `200 []` is an honest `empty-authoritative` ("no consented donors right
+now" — the fixture is **not** substituted, since a health-PII directory must never show fixture donors
+as if consented), while a fetch failure returns the `@data` fixture filtered to the query with
+`offline-fallback`, shown behind a "Showing saved donors — offline" chip in `AskBloodSheet`. The
+selected donor's `source` rides the `BloodDonorDetails` route so `getDonorById(id, source)` resolves
+only from server rows for a live/empty search (an unknown id = the honest "no longer available"
+screen), and from the fixture only for an offline/fallback search. Un-tapping "Interested" now
+propagates: `bloodDonorStore.toggleInterested` calls `clearBloodInterest` (`DELETE
+/blood-requests/{id}/interest`) and queues an `interest-remove` outbox op when offline — no longer
+device-local only.
+
 `search` hosts the shared `SearchScreen` shell (`features/search/SearchScreen.tsx`) plus
 per-sub-app configs (`configs/*`). Product search (Mart / Pharma / Home Hub)
 renders **one dense row per result** via the shared `SearchProductRowCard`

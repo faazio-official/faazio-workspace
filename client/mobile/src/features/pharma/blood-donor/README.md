@@ -54,9 +54,9 @@ request timestamp, and a lifecycle `status` (`pending` | `accepted` | `declined`
 — mirrors the server `match_status`). `bloodDonorStore` keeps the outgoing list
 (`donorMatchRequests`) and the server-hydrated incoming list (`incomingMatchRequests`), and mirrors
 responses to `PUT /donor-match-requests/{id}/status` as an outcome-returning write; the
-`faazio/bloodDonor/v1` AsyncStorage blob is the optimistic cache (`register`/`interest`/`match`/
-`match-status`/`request` outbox ops flush on hydration + foreground). A queued response is never
-reverted by a stale server read.
+`faazio/bloodDonor/v1` AsyncStorage blob is the optimistic cache (`register`/`interest`/
+`interest-remove`/`match`/`match-status`/`request` outbox ops flush on hydration + foreground). A
+queued response is never reverted by a stale server read.
 
 Donor contact details are not exposed in search results, donor details, or on acceptance. Health
 data is never logged. The gateway/`blood.*` schema is the durable home (RLS own-rows; the
@@ -65,9 +65,15 @@ data is never logged. The gateway/`blood.*` schema is the durable home (RLS own-
 ## Data and backend seam
 
 `data/pharma/bloodDonors.ts` contains the typed mock `DonorProfile` registry.
-`services/donorDirectory.ts` exposes `findMatchingDonors(city, bloodGroup)` and
-`getDonorById(donorId)`, so a future Go Chi donor-registry query can replace the fixture
-without changing the UI contract.
+`services/donorDirectory.ts` exposes `findMatchingDonors(city, bloodGroup)` →
+`{ donors, source }` and `getDonorById(donorId, source)`. It reads the server directory through the
+no-fallback `GatewayClient.fetchBloodDonors` (`GET /donors`), so the caller can tell a live
+(possibly-empty) consented directory from the offline fixture: a `200 []` is an honest
+`empty-authoritative`, a failure is `offline-fallback` (fixture, labelled). The `source` rides the
+`BloodDonorDetails` route so a donor opened from a live search resolves only from server rows and a
+fixture donor is never shown as consented live. Un-tapping interest calls
+`GatewayClient.clearBloodInterest` (`DELETE /blood-requests/{id}/interest`), queued as an
+`interest-remove` outbox op when offline.
 
 The Go Chi gateway owns donor search, authorization, targeted request creation, incoming
 (recipient-scoped) reads, and status transitions; it enqueues a PII-free notification to the

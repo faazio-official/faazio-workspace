@@ -57,6 +57,17 @@ func TestDonorDirectoryRequestsAndMatches(t *testing.T) {
 	if err := repo.SetInterest(ctx, req.ID, uid, "interested"); err != nil {
 		t.Fatalf("SetInterest repeat: %v", err)
 	}
+	// Un-interest removes the mark; a repeat delete (missing row) is a no-op, and re-marking works.
+	if err := repo.DeleteInterest(ctx, req.ID, uid, "interested"); err != nil {
+		t.Fatalf("DeleteInterest: %v", err)
+	}
+	if err := repo.DeleteInterest(ctx, req.ID, uid, "interested"); err != nil {
+		t.Fatalf("DeleteInterest repeat: %v", err)
+	}
+	if err := repo.SetInterest(ctx, req.ID, uid, "interested"); err != nil {
+		t.Fatalf("SetInterest after delete: %v", err)
+	}
+	t.Cleanup(func() { pool.Exec(ctx, `delete from blood.interests where request_id = $1`, req.ID) })
 
 	m, err := repo.CreateMatch(ctx, contracts.DonorMatch{RequesterUserID: uid, DonorUserID: uid, BloodGroup: "O+", City: "Chennai"})
 	if err != nil || m.Status != "pending" {

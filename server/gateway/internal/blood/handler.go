@@ -36,6 +36,7 @@ func (h *Handler) Register(r chi.Router) {
 		g.Get("/donors", h.directory)
 		g.Post("/blood-requests", h.createRequest)
 		g.Put("/blood-requests/{id}/interest", h.interest)
+		g.Delete("/blood-requests/{id}/interest", h.uninterest)
 		g.Post("/donor-match-requests", h.createMatch)
 		g.Get("/donor-match-requests", h.listMatches)
 		g.Get("/donor-match-requests/incoming", h.listIncomingMatches)
@@ -153,6 +154,23 @@ func (h *Handler) interest(w http.ResponseWriter, r *http.Request) {
 	}
 	if err := h.repo.SetInterest(r.Context(), chi.URLParam(r, "id"), auth.UserID(r.Context()), body.Kind); err != nil {
 		httpx.Fail(w, http.StatusInternalServerError, "interest_failed", "could not record interest")
+		return
+	}
+	httpx.JSON(w, http.StatusOK, map[string]any{"ok": true})
+}
+
+// uninterest removes an "interested"/"accepted" mark (idempotent). No board cache is touched: the
+// public `blood.requests` projection carries no interest data, so un-interesting cannot stale it.
+func (h *Handler) uninterest(w http.ResponseWriter, r *http.Request) {
+	var body struct {
+		Kind string `json:"kind"`
+	}
+	if err := httpx.Decode(r, &body); err != nil || (body.Kind != "interested" && body.Kind != "accepted") {
+		httpx.Fail(w, http.StatusBadRequest, "bad_request", "kind must be interested|accepted")
+		return
+	}
+	if err := h.repo.DeleteInterest(r.Context(), chi.URLParam(r, "id"), auth.UserID(r.Context()), body.Kind); err != nil {
+		httpx.Fail(w, http.StatusInternalServerError, "interest_failed", "could not remove interest")
 		return
 	}
 	httpx.JSON(w, http.StatusOK, map[string]any{"ok": true})

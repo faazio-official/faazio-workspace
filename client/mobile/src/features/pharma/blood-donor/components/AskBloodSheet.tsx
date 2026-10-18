@@ -1,6 +1,6 @@
 import React, { memo, useEffect, useState } from 'react';
 import { View, ScrollView, TouchableOpacity, StyleSheet, KeyboardAvoidingView, Platform } from 'react-native';
-import { ArrowLeft, CheckCircle2, Droplet, LoaderCircle, UploadCloud, X } from 'lucide-react-native';
+import { ArrowLeft, CheckCircle2, CloudOff, Droplet, LoaderCircle, UploadCloud, X } from 'lucide-react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
@@ -15,6 +15,7 @@ import SlideUpSheet from '@/components/shared/SlideUpSheet';
 import { OptionChipGrid } from './OptionChipGrid';
 import { MatchingDonorCard } from './MatchingDonorCard';
 import { findMatchingDonors } from '../services/donorDirectory';
+import type { ReadSource } from '@/services/api/GatewayClient';
 import { useAuthStore } from '@/state/authStore';
 import { useBloodDonorStore, type BloodWriteStatus } from '@/state/bloodDonorStore';
 import { BLOOD_RED, BLOOD_RED_DARK, BLOOD_TEXT, BLOOD_TEXT_MUTED, BLOOD_BORDER, BLOOD_RADII } from '../tokens';
@@ -44,6 +45,7 @@ const AskBloodSheet = memo(function AskBloodSheet({ visible, onClose, onPosted }
   const [bloodGroup, setBloodGroup] = useState<BloodGroup | null>(null);
   const [city, setCity] = useState('');
   const [donors, setDonors] = useState<DonorProfile[]>([]);
+  const [source, setSource] = useState<ReadSource>('live');
   const [searching, setSearching] = useState(false);
   const [posting, setPosting] = useState(false);
   const [postStatus, setPostStatus] = useState<BloodWriteStatus | null>(null);
@@ -54,6 +56,7 @@ const AskBloodSheet = memo(function AskBloodSheet({ visible, onClose, onPosted }
     setBloodGroup(null);
     setCity('');
     setDonors([]);
+    setSource('live');
     setSearching(false);
     setPosting(false);
     setPostStatus(null);
@@ -64,8 +67,9 @@ const AskBloodSheet = memo(function AskBloodSheet({ visible, onClose, onPosted }
   const handleContinue = async () => {
     if (!canContinue || !bloodGroup) return;
     setSearching(true);
-    const matches = await findMatchingDonors(city, bloodGroup, requesterUserId);
+    const { donors: matches, source: matchSource } = await findMatchingDonors(city, bloodGroup, requesterUserId);
     setDonors(matches);
+    setSource(matchSource);
     setSearching(false);
     setMode('results');
   };
@@ -76,6 +80,7 @@ const AskBloodSheet = memo(function AskBloodSheet({ visible, onClose, onPosted }
       donorId: donor.id,
       requestCity: city.trim(),
       bloodGroup: donor.bloodGroup,
+      source,
     });
   };
 
@@ -90,6 +95,9 @@ const AskBloodSheet = memo(function AskBloodSheet({ visible, onClose, onPosted }
   };
 
   const handleClose = () => { if (!searching && !posting) onClose(); };
+
+  const offlineSource = source === 'offline-fallback' || source === 'cache-stale';
+  const emptyAuthoritative = source === 'empty-authoritative';
 
   return (
     <SlideUpSheet visible={visible} onRequestClose={handleClose}>
@@ -132,10 +140,16 @@ const AskBloodSheet = memo(function AskBloodSheet({ visible, onClose, onPosted }
               <AppText style={styles.criteriaDivider}>·</AppText>
               <AppText style={styles.criteriaText}>{bloodGroup}</AppText>
             </View>
+            {offlineSource && !searching ? (
+              <View style={styles.offlineChip}>
+                <CloudOff size={ms(13)} color={BLOOD_TEXT_MUTED} strokeWidth={2.2} />
+                <AppText style={styles.offlineChipText}>Showing saved donors — offline</AppText>
+              </View>
+            ) : null}
             {searching ? (
               <View style={styles.loadingState}><LoaderCircle size={ms(28)} color={BLOOD_RED} strokeWidth={2.2} /><AppText style={styles.emptyTitle}>Finding matching donors…</AppText></View>
             ) : donors.length === 0 ? (
-              <View style={styles.emptyState}><Droplet size={ms(32)} color={BLOOD_RED} strokeWidth={2} /><AppText style={styles.emptyTitle}>No matching donors found</AppText><AppText style={styles.emptyText}>Try another city or blood group — or post a public request to the board below.</AppText></View>
+              <View style={styles.emptyState}><Droplet size={ms(32)} color={BLOOD_RED} strokeWidth={2} /><AppText style={styles.emptyTitle}>{emptyAuthoritative ? 'No consented donors right now' : 'No matching donors found'}</AppText><AppText style={styles.emptyText}>{emptyAuthoritative ? 'No one matching this blood group has shared consent in this city. Post a public request to the board below.' : 'Try another city or blood group — or post a public request to the board below.'}</AppText></View>
             ) : (
               <View style={styles.resultsList}>{donors.map((donor) => <MatchingDonorCard key={donor.id} donor={donor} onPress={handleSelectDonor} />)}</View>
             )}
@@ -211,6 +225,8 @@ const styles = StyleSheet.create({
   criteriaRow: { flexDirection: 'row', alignItems: 'center', alignSelf: 'flex-start', gap: hs(8), backgroundColor: '#FEF2F2', borderRadius: BLOOD_RADII.pill, paddingHorizontal: hs(12), paddingVertical: vs(7) },
   criteriaText: { color: BLOOD_RED_DARK, fontSize: ms(12), fontWeight: '800' },
   criteriaDivider: { color: BLOOD_RED, fontSize: ms(14), fontWeight: '900' },
+  offlineChip: { flexDirection: 'row', alignItems: 'center', gap: hs(6), alignSelf: 'flex-start', marginTop: SPACE.BLOCK, backgroundColor: '#F1F5F9', borderRadius: BLOOD_RADII.pill, paddingHorizontal: hs(10), paddingVertical: vs(5) },
+  offlineChipText: { fontSize: ms(10.5), fontWeight: '700', color: BLOOD_TEXT_MUTED },
   resultsList: { gap: SPACE.ITEM, paddingTop: SPACE.BLOCK },
   loadingState: { alignItems: 'center', gap: SPACE.BLOCK, paddingVertical: vs(36) },
   emptyState: { alignItems: 'center', gap: SPACE.BLOCK, paddingVertical: vs(30), paddingHorizontal: hs(20) },

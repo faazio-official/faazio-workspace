@@ -205,6 +205,18 @@ func (r *Repo) SetInterest(ctx context.Context, requestID, donorUserID, kind str
 	return err
 }
 
+// DeleteInterest removes an "interested"/"accepted" mark (un-interest). Idempotent: deleting a
+// non-existent row is a no-op so a repeat un-tap never errors.
+func (r *Repo) DeleteInterest(ctx context.Context, requestID, donorUserID, kind string) error {
+	if r.pool == nil {
+		return fmt.Errorf("blood: database not configured")
+	}
+	_, err := r.pool.Exec(ctx, `
+		delete from blood.interests where request_id = $1 and donor_user_id = $2 and kind = $3`,
+		requestID, donorUserID, kind)
+	return err
+}
+
 // CreateMatch records a donor-match request from the caller to a donor.
 func (r *Repo) CreateMatch(ctx context.Context, m contracts.DonorMatch) (contracts.DonorMatch, error) {
 	if r.pool == nil {

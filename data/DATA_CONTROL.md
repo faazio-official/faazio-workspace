@@ -220,7 +220,7 @@ the `GROCERY` member was dropped from `AppBrand` / `CartCategory` / `SubAppId` /
 | `BLOOD_REQUEST_DETAIL_COPY` | `{ bannerTitle; bannerSubtitle; confirmNote }` | Request-details page (banner + privacy note copy) | `@mock` |
 | `DonorMatchRequest` | `interface` (+ `DonorMatchStatus`) | Targeted Ask Blood request persisted by `bloodDonorStore` and shown to its recipient; `status: 'pending' \| 'accepted' \| 'declined' \| 'completed'` mirrors the server `match_status` | `@server` (server-hydrated incoming + outgoing) |
 | `ASK_BLOOD_COPY` | `{ fabLabel; sheetTitle; searchSubtitle; resultsSubtitle; continueLabel }` | Ask Blood search/results copy | `@mock` |
-| `BLOOD_DONORS` / `DonorProfile` | `DonorProfile[]` / type | Offline fallback for `services/donorDirectory.ts` (Ask Blood matching + donor detail) — remote-first `GET /donors` (consented, auth-scoped) is the live source | `@server` (fixture fallback) |
+| `BLOOD_DONORS` / `DonorProfile` | `DonorProfile[]` / type | Offline fallback for `services/donorDirectory.ts` (Ask Blood matching + donor detail) — remote-first `GET /donors` (consented, auth-scoped) via no-fallback `fetchBloodDonors` is the live source; `findMatchingDonors` returns `{ donors, source }` (`live`/`empty-authoritative`/`offline-fallback`) so a `200 []` is never masked by the fixture and a fixture donor is never shown as consented live | `@server` (fixture fallback) |
 
 > **Blood Donor contract:** `BloodDonorDraft` / `BloodDonorRegistration` are the typed shape
 > the Go Chi backend persists (donor registry). As of migration `0010`, the server is the
@@ -243,7 +243,15 @@ the `GROCERY` member was dropped from `AppBrand` / `CartCategory` / `SubAppId` /
 > redacted/absent server contact/address is rendered blank — never backfilled with a fixture
 > lookalike. `BLOOD_DONORS` is the
 > donor-directory **offline fallback**; `GET /donors` (auth-scoped, `consent AND available` only via
-> `blood.donor_directory`) is the live source read by `services/donorDirectory.ts`.
+> `blood.donor_directory`) is the live source read by `services/donorDirectory.ts` through the
+> no-fallback `GatewayClient.fetchBloodDonors`. `findMatchingDonors` returns `{ donors, source }`
+> (`live`/`empty-authoritative`/`offline-fallback`): a live `200 []` renders an honest "no consented
+> donors" empty (never backfilled with fixtures), and an offline search shows the fixture filtered to
+> the query behind a "Showing saved donors — offline" chip. The detail route carries that `source`,
+> so a donor opened from a live search resolves only from server rows (an unknown id = honest missing);
+> only an offline/fallback search may resolve from the fixture. Un-tapping interest propagates to the
+> server (`DELETE /blood-requests/{id}/interest` via `clearBloodInterest`, retryable through the
+> `interest-remove` outbox op) instead of staying device-local.
 > **Targeted Ask Blood contract:** the user searches by city + blood group, selects one
 > `DonorProfile`, and creates one `DonorMatchRequest` containing both requester and
 > recipient user IDs. `POST/GET /donor-match-requests` persists it server-side; the local blob is

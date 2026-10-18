@@ -1165,12 +1165,22 @@ export class GatewayClient {
     );
   }
 
-  /** The caller's own donor profile, or null if not registered. */
+  /** The caller's own donor profile, or null if not registered (mock-mode wrapper only). */
   async getDonorProfile(): Promise<BloodDonorProfile | null> {
     return this.withFallback(
       () => this.http<BloodDonorProfile | null>('/donors/me'),
       () => delay(null),
     );
+  }
+
+  /**
+   * Server-only donor profile (no fixture fallback) so a caller can tell "not registered" (a live
+   * `null`) from offline. Throws `GatewayOfflineError` when remote is disabled; the store owns the
+   * fallback (keep the local device mirror).
+   */
+  async fetchDonorProfile(): Promise<BloodDonorProfile | null> {
+    if (!REMOTE_ENABLED) throw new GatewayOfflineError();
+    return this.http<BloodDonorProfile | null>('/donors/me');
   }
 
   /**
@@ -1188,12 +1198,22 @@ export class GatewayClient {
     }
   }
 
-  /** The consented donor directory, filtered by blood group / city when provided. */
+  /** The consented donor directory, filtered by blood group / city when provided (mock-mode wrapper). */
   async getBloodDonors(filters?: { bloodGroup?: string; city?: string }): Promise<BloodDonorProfile[]> {
     return this.withFallback(
       () => this.http<BloodDonorProfile[]>(`/donors${queryString(filters)}`),
       () => delay([] as BloodDonorProfile[]),
     );
+  }
+
+  /**
+   * Server-only consented donor directory (no fixture fallback) so the caller can distinguish a live,
+   * possibly-empty directory from the offline fixture — a health-PII gate must never show fixture
+   * donors as if they were consented live rows. Throws `GatewayOfflineError` when remote is disabled.
+   */
+  async fetchBloodDonors(filters?: { bloodGroup?: string; city?: string }): Promise<BloodDonorProfile[]> {
+    if (!REMOTE_ENABLED) throw new GatewayOfflineError();
+    return this.http<BloodDonorProfile[]>(`/donors${queryString(filters)}`);
   }
 
   /** The public blood-request board (contact/address hidden for anon callers). */
@@ -1234,6 +1254,20 @@ export class GatewayClient {
     if (!REMOTE_ENABLED) return 'offline';
     try {
       await this.http<{ ok: boolean }>(`/blood-requests/${encodeURIComponent(requestId)}/interest`, { method: 'PUT', body: JSON.stringify({ kind }) });
+      return 'synced';
+    } catch (err) {
+      return this.bloodWriteOutcome(err);
+    }
+  }
+
+  /**
+   * Remove an interest / acceptance mark on a blood request (`DELETE …/interest`, idempotent) so an
+   * un-tap propagates to the server instead of staying device-local. Outcome-returning write.
+   */
+  async clearBloodInterest(requestId: string, kind: 'interested' | 'accepted' = 'interested'): Promise<BloodWriteOutcome> {
+    if (!REMOTE_ENABLED) return 'offline';
+    try {
+      await this.http<{ ok: boolean }>(`/blood-requests/${encodeURIComponent(requestId)}/interest`, { method: 'DELETE', body: JSON.stringify({ kind }) });
       return 'synced';
     } catch (err) {
       return this.bloodWriteOutcome(err);

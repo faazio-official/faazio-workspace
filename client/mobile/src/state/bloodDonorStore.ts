@@ -45,7 +45,7 @@ export interface BloodWriteResult {
  */
 interface PendingDonorOp {
   id: string;
-  kind: 'register' | 'interest' | 'match' | 'match-status' | 'request';
+  kind: 'register' | 'interest' | 'interest-remove' | 'match' | 'match-status' | 'request';
   /** Request id (interest), local match id (match), match id (match-status), or op id (request). */
   targetId?: string;
   interestKind?: 'interested' | 'accepted';
@@ -339,21 +339,19 @@ export const useBloodDonorStore = create<BloodDonorState>()((set, get) => ({
       ? [...interestedRequestIds, requestId]
       : interestedRequestIds.filter((id) => id !== requestId);
     set({ interestedRequestIds: next });
-    // Removing interest is device-local only (no server un-interest call).
-    if (!isAdding) {
-      persistAll();
-      return { ok: true, status: 'synced' };
-    }
+    // Mock mode keeps the device mirror as final (no server to un-sync against).
     if (!gateway.remoteEnabled) {
       persistAll();
       return { ok: true, status: 'offline' };
     }
     const op: PendingDonorOp = {
-      id: opId(), kind: 'interest', targetId: requestId, interestKind: 'interested', createdAt: nowIso(), attempts: 0,
+      id: opId(), kind: isAdding ? 'interest' : 'interest-remove', targetId: requestId, interestKind: 'interested', createdAt: nowIso(), attempts: 0,
     };
     set((s) => ({ pendingOps: enqueueOp(s.pendingOps, op), lastWriteStatus: 'queued' }));
     persistAll();
-    const outcome = await gateway.setBloodInterest(requestId, 'interested');
+    const outcome = isAdding
+      ? await gateway.setBloodInterest(requestId, 'interested')
+      : await gateway.clearBloodInterest(requestId, 'interested');
     return applyOutcome(op, outcome);
   },
   acceptRequest: async (requestId) => {
@@ -502,6 +500,8 @@ async function flushPendingOps(): Promise<void> {
         });
       } else if (op.kind === 'interest') {
         outcome = await gateway.setBloodInterest(op.targetId ?? '', op.interestKind ?? 'interested');
+      } else if (op.kind === 'interest-remove') {
+        outcome = await gateway.clearBloodInterest(op.targetId ?? '', op.interestKind ?? 'interested');
       } else if (op.kind === 'match') {
         outcome = await gateway.createDonorMatch(op.donorUserId ?? '', op.bloodGroup ?? '', op.city ?? '');
       } else if (op.kind === 'match-status') {
@@ -556,7 +556,9 @@ async function hydrateFromServer(): Promise<void> {
   await flushPendingOps();
   try {
     const [profile, matches, incoming] = await Promise.all([
-      gateway.getDonorProfile(),
+      // No-fallback read so a 200 `null` (not registered) is told apart from offline; a failed
+      // profile leg must not sink the match reconciliation, so it degrades to null (a no-op).
+      gateway.fetchDonorProfile().catch(() => null),
       gateway.getDonorMatches(),
       gateway.getIncomingDonorMatches(),
     ]);
