@@ -208,7 +208,7 @@ the `GROCERY` member was dropped from `AppBrand` / `CartCategory` / `SubAppId` /
 | `pharmaProducts` | `PharmaProduct[]` | `services/categoryVendors` (category drill-in / vendor details, via `storeId`); **`@unused`** by `PharmaScreen` (keeps an inline `PHARMA_PRODUCTS_DB`) | `@mock` |
 | `pharmaStores` | `StoreProfile[]` | Pharma home **Local Medicals Near You** rail + `MedicalShopDetails` profile/inventory entry + prescription vendor list, preset flow, and self-pickup resolver (6 outlets `store-p1…p6`, each pickup-capable) | `@mock` |
 | `PHARMA_RECENT_ORDERS` / `PharmaRecentOrder` | `PharmaRecentOrder[]` / type | `PharmaScreen` History tab (recently ordered cards; de-dups the former inline `RECENT_ORDERS`) | `@mock` |
-| `PHARMA_PRODUCTS_DB` | `PharmaDBItem[]` | `PharmaScreen` inline `CATEGORY_PRODUCTS` grid (real `ph-*` ids, server-priceable at checkout) | `@mock` |
+| `PHARMA_PRODUCTS_DB` | `PharmaDBItem[]` | `PharmaScreen` inline `CATEGORY_PRODUCTS` grid (real `ph-*` ids, server-priceable at checkout; the inline grid overlays `useActiveDiscounts` so its price matches settlement) | `@mock` |
 | `PHARMA_CATEGORIES` | `PharmaCategory[]` | `data/catalog/products.ts` pharma facet categories (server search) | `@mock` |
 | `BLOOD_GROUPS` | `BloodGroup[]` | Blood Donor wizard (blood-group chip grid) | `@mock` |
 | `BLOOD_DONOR_STEPS` | `BloodDonorStep[]` | Blood Donor wizard (stepper + step nav) | `@mock` |
@@ -224,11 +224,15 @@ the `GROCERY` member was dropped from `AppBrand` / `CartCategory` / `SubAppId` /
 | `CONSENT_LABEL` | `string` | Review step (consent checkbox copy) | `@mock` |
 | `PRIVACY_NOTE` | `string` | Review step (footer privacy note) | `@mock` |
 | `BLOOD_REQUESTS` | `BloodRequest[]` | Donor dashboard + request-details page (feed + detail fields) — feed hydrated via `GatewayClient.fetchBloodRequests()` (`useBloodRequests` returns `{ requests, source }`; fixture-enriched display extras, `live`/`empty-authoritative`/`offline-fallback`/`cache-stale` provenance; server `contact`/`address` never backfilled with fixture PII) | `@server` (fixture fallback) |
-| `BLOOD_DONOR_UNREAD_ALERTS` | `number` | **Unused** — the donor dashboard bell now derives an honest badge from live server notifications + pending incoming requests (no seed) | `@mock` (retired consumer) |
 | `BLOOD_REQUEST_DETAIL_COPY` | `{ bannerTitle; bannerSubtitle; confirmNote }` | Request-details page (banner + privacy note copy) | `@mock` |
 | `DonorMatchRequest` | `interface` (+ `DonorMatchStatus`) | Targeted Ask Blood request persisted by `bloodDonorStore` and shown to its recipient; `status: 'pending' \| 'accepted' \| 'declined' \| 'completed'` mirrors the server `match_status` | `@server` (server-hydrated incoming + outgoing) |
 | `ASK_BLOOD_COPY` | `{ fabLabel; sheetTitle; searchSubtitle; resultsSubtitle; continueLabel }` | Ask Blood search/results copy | `@mock` |
 | `BLOOD_DONORS` / `DonorProfile` | `DonorProfile[]` / type | Offline fallback for `services/donorDirectory.ts` (Ask Blood matching + donor detail) — remote-first `GET /donors` (consented, auth-scoped) via no-fallback `fetchBloodDonors` is the live source; `findMatchingDonors` returns `{ donors, source }` (`live`/`empty-authoritative`/`offline-fallback`) so a `200 []` is never masked by the fixture and a fixture donor is never shown as consented live | `@server` (fixture fallback) |
+
+> **Category→outlet duplication:** `PHARMA_PRODUCTS_DB` (the authored rows) and the `STORE_BY_CATEGORY`
+> map in `data/pharma/products.ts` are the two authorities for a medicine's stocking outlet —
+> `pharmaProducts` derives each row's `storeId` from the map, so changing a category's outlet is a
+> one-place edit; do not hardcode a store onto an authored `PHARMA_PRODUCTS_DB` row.
 
 > **Blood Donor contract:** `BloodDonorDraft` / `BloodDonorRegistration` are the typed shape
 > the Go Chi backend persists (donor registry). As of migration `0010`, the server is the

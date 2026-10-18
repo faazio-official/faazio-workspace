@@ -56,7 +56,6 @@ export type {
 
 export {
   BLOOD_REQUESTS,
-  BLOOD_DONOR_UNREAD_ALERTS,
   BLOOD_REQUEST_DETAIL_COPY,
   ASK_BLOOD_COPY,
 } from './pharma/bloodRequests';

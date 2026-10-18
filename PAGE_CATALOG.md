@@ -386,21 +386,50 @@ PopularMedicines + HealthEssentials + FeaturedBrands + HealthCorner + LocalMedic
 `UploadPrescriptionFAB`. Search / category-products / in-screen product detail are local states.
 Pharma `RateVendor` shares the root route.
 
+**Feed section order + kind** (mirrors the render order in `PharmaScreen.feedView`; only the top item
+carries a paid placement — Pharma has no `SponsoredRail`/`SECTOR_RAIL`/`SPONSORED_SHOWCASE`):
+
+| # | Section | Kind | Placement / source | GatewayClient |
+| --- | --- | --- | --- | --- |
+| PH1 | `CampaignHero` | **PAID** | `PHARMA_HERO` + `app='PHARMA'` | `getHeroAds('PHARMA_HERO',{app:'PHARMA'})` + `recordAdEvent` |
+| PH2 | `PharmaHeroBanner` | ORGANIC (SDUI house) | `pharmaHero.banners` | `fetchPharmaSections` → `GET /sdui/pharma` |
+| PH3 | Quick Reorder | ORGANIC (catalog) | real `ph-*` ids | `getProductsByIds` (+ discounts) |
+| PH4 | Top Offers | ORGANIC (coupons) | live `GET /coupons?app=PHARMA` codes | `getCoupons('PHARMA')` |
+| PH5 | Popular Medicines | ORGANIC (SDUI + discount overlay) | `pharmaPopular` | `fetchPharmaSections` + `getActiveDiscounts` |
+| PH6 | Health Essentials | ORGANIC (SDUI) | `pharmaEssentials` | `fetchPharmaSections` |
+| PH7 | Featured Brands | STATIC-EDITORIAL (`pfb-*`, no server owner) | fixture | — |
+| PH8 | Health Corner | STATIC-EDITORIAL (`phc-*`, no server owner) | fixture | — |
+| PH9 | Local Medicals | ORGANIC DIRECTORY | `directory.stores` app=PHARMA | `fetchStores('PHARMA')` |
+| PH10 | `UploadPrescriptionFAB` | surface | — | — |
+
+**In-wrapper states** (local to `PharmaScreen`, no route): header search results (`searchProducts`
++ `withActiveDiscounts`), `CATEGORY_PRODUCTS` grid, in-screen `PRODUCT_DETAIL` (both overlay
+`useActiveDiscounts` for price parity with checkout settlement), History tab (`PHARMA_RECENT_ORDERS`),
+Donor tab (embedded `DonorDashboard`). View-all chevrons are hidden because Pharma has no rail
+landing page.
+
 | # | Route / surface | Screen | File |
 | --- | --- | --- | --- |
-| P1 | `MedicalShopDetails` | **MedicalShopDetailsScreen** | `src/features/pharma/MedicalShopDetailsScreen.tsx` |
-| P2 | `PrescriptionFlow` | **PrescriptionFlowScreen** | `src/features/pharma/prescription/PrescriptionFlowScreen.tsx` |
-| P3 | `BloodDonor` | **BloodDonorScreen** | `src/features/pharma/blood-donor/BloodDonorScreen.tsx` |
-| P4 | `BloodDonorDetails` | **DonorDetailsScreen** | `src/features/pharma/blood-donor/DonorDetailsScreen.tsx` |
-| P5 | `BloodRequestDescription` | **BloodRequestDescriptionScreen** | `src/features/pharma/blood-donor/BloodRequestDescriptionScreen.tsx` |
-| P6 | History tab | inline in `SubAppWrapper` | recent orders |
+| P1 | `MedicalShopDetails` (`{ storeId }`) | **MedicalShopDetailsScreen** — `STORE_TOP` paid host + `useVendorProducts` inventory | `src/features/pharma/MedicalShopDetailsScreen.tsx` |
+| P2 | `PrescriptionFlow` (`{ presetVendorId? }`) | **PrescriptionFlowScreen** — CAPTURE→NOTE→VENDORS→CONFIRMED | `src/features/pharma/prescription/PrescriptionFlowScreen.tsx` |
+| P3 | `BloodDonor` | **BloodDonorScreen** — 5-step wizard / embedded dashboard | `src/features/pharma/blood-donor/BloodDonorScreen.tsx` |
+| P4 | `BloodDonorDetails` (`{ donorId; requestCity; bloodGroup; source? }`) | **DonorDetailsScreen** | `src/features/pharma/blood-donor/DonorDetailsScreen.tsx` |
+| P5 | `BloodRequestDescription` (`{ requestId }`) | **BloodRequestDescriptionScreen** | `src/features/pharma/blood-donor/BloodRequestDescriptionScreen.tsx` |
+| P6 | History tab | inline in `PharmaScreen` | recently ordered |
+| P7 | in-wrapper Search tab → `Search { subApp:'PHARMA' }` | **SearchRouteScreen** | `src/features/search/SearchRouteScreen.tsx` |
+| P8 | in-wrapper Cart tab → `Cart` | **CartScreen** | `src/features/cart/CartScreen.tsx` |
+| P9 | product tap → `ProductDetail` | **ProductDetailScreen** | `src/features/product/ProductDetailScreen.tsx` |
+| P10 | `RateVendor` (`{ vendorId; vendorName? }`) | **RateVendorScreen** | `src/features/profile/RateVendorScreen.tsx` |
+| P11 | `MyOrders` / `OrderDetails` (prescription kind) | **MyOrdersScreen** / **OrderDetailsScreen** | `src/features/profile/` |
 
 Pharma's home rails are **server-backed (W50)** (`src/features/pharma/services/pharmaService.ts`):
 stores use `getStores('PHARMA')` and the "Popular Medicines"/"Health Essentials" rails + house hero
 read the Pharma-only `GET /sdui/pharma` projection (allowlist `pharmaHero`/`pharmaPopular`/
 `pharmaEssentials`, joined to the catalog), with the `@data`/feature fixtures as the offline
 fallback. The section ids reference real, non-Rx `ph-*` catalog rows — see
-`docs/architecture/mobile-app.md` and `PENDING_WORK.md` W50.
+`docs/architecture/mobile-app.md` and `PENDING_WORK.md` W50. The paid hosts on shared routes are
+`CATEGORY_TOP` (`CategoryDrillInPanel`, app=`PHARMA`) and `STORE_TOP` (`VendorDetailScreen` +
+`MedicalShopDetailsScreen`).
 
 ### 2.8 Web portal pages
 

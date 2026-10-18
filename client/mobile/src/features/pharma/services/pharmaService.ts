@@ -49,8 +49,16 @@ function toPopularMedicine(p: ProductView, discountPercent = 0): PharmaPopularMe
   };
 }
 
-function toQuickReorder(p: ProductView): PharmaQuickReorderItem {
-  return { id: p.id, name: p.name, stripDetails: p.unit ?? p.desc ?? '', price: p.price };
+function toQuickReorder(p: ProductView, discountPercent = 0): PharmaQuickReorderItem {
+  const price = effectivePrice(p.price, discountPercent);
+  const mrp = listPrice(p);
+  return {
+    id: p.id,
+    name: p.name,
+    stripDetails: p.unit ?? p.desc ?? '',
+    price,
+    ...(price < mrp ? { mrp } : {}),
+  };
 }
 
 function toHealthEssential(p: ProductView): PharmaHealthEssential {
@@ -58,19 +66,18 @@ function toHealthEssential(p: ProductView): PharmaHealthEssential {
 }
 
 /**
- * The set of coupon codes the server actually honours for Pharma, or `null` when it cannot be
- * ruled on (mock/offline or an empty/failed read). `null` means "show the editorial offers as-is";
- * a non-null set means an advertised code must exist server-side or it is dropped — the rail never
- * advertises a discount the shopper cannot claim at checkout.
+ * The set of coupon codes the server actually honours for Pharma, or `null` in mock mode (where the
+ * checkout is local, so the editorial offers can safely stand as a demo). In remote mode this is
+ * ALWAYS a Set — on a failed/empty read it is an empty Set, so the rail hides rather than advertising
+ * a fixture code (`MED20`/`FREEDEL`/…) that `contracts.CouponValidator` would reject at checkout.
  */
 async function livePharmaOfferCodes(): Promise<Set<string> | null> {
   if (!gateway.remoteEnabled) return null;
   try {
     const coupons = await gateway.getCoupons('PHARMA');
-    if (coupons.length === 0) return null;
     return new Set(coupons.map((c) => c.code));
   } catch {
-    return null;
+    return new Set();
   }
 }
 
@@ -103,15 +110,20 @@ export async function fetchPharmaFeed(): Promise<PharmaFeed> {
 
   const popularProducts = popular?.products?.length ? popular.products : null;
 
+  // One discount batch covering both product rails so every shown price matches the price
+  // `internal/checkout` settles (`contracts.DiscountReader`).
   const [quickReorderResolved, discounts, liveCodes] = await Promise.all([
     gateway.getProductsByIds(PHARMA_QUICK_REORDER_IDS).catch(() => [] as ProductView[]),
-    fetchActiveDiscounts(popularProducts?.map((p) => p.id) ?? []),
+    fetchActiveDiscounts([
+      ...(popularProducts?.map((p) => p.id) ?? []),
+      ...PHARMA_QUICK_REORDER_IDS,
+    ]),
     livePharmaOfferCodes(),
   ]);
 
   return {
     quickReorder: quickReorderResolved.length
-      ? quickReorderResolved.map(toQuickReorder)
+      ? quickReorderResolved.map((p) => toQuickReorder(p, discounts[p.id]?.discountPercent ?? 0))
       : PHARMA_QUICK_REORDER,
     topOffers: liveCodes
       ? PHARMA_TOP_OFFERS.filter((offer) => liveCodes.has(offer.code))

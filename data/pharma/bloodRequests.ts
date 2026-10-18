@@ -175,9 +175,6 @@ export const BLOOD_REQUESTS: BloodRequest[] = [
   },
 ];
 
-/** Unread donor-alert count seed (bell badge) until push infra exists. */
-export const BLOOD_DONOR_UNREAD_ALERTS = 3;
-
 /** Copy for the request-details page (save banner + confirm note). */
 export const BLOOD_REQUEST_DETAIL_COPY = {
   bannerTitle: 'Your donation can save a life.',

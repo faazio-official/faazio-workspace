@@ -32,7 +32,12 @@ const QuickReorderCard = memo(function QuickReorderCard({
         {item.stripDetails}
       </AppText>
       <View style={styles.bottomRow}>
-        <AppText style={styles.price}>₹{item.price}</AppText>
+        <View style={styles.priceWrap}>
+          <AppText style={styles.price}>₹{item.price}</AppText>
+          {item.mrp && item.mrp > item.price ? (
+            <AppText style={styles.mrp}>₹{item.mrp}</AppText>
+          ) : null}
+        </View>
         <TouchableOpacity
           onPress={onAdd}
           style={styles.addBtn}
@@ -80,6 +85,18 @@ const styles = StyleSheet.create({
     fontSize: ms(14),
     fontWeight: '900',
     color: PHARMA_INK,
+  },
+  priceWrap: {
+    flexDirection: 'row',
+    alignItems: 'baseline',
+    gap: hs(4),
+    flexShrink: 1,
+  },
+  mrp: {
+    fontSize: ms(10),
+    fontWeight: '600',
+    color: PHARMA_GREY,
+    textDecorationLine: 'line-through',
   },
   addBtn: {
     width: ms(24),

@@ -1136,28 +1136,33 @@ export class GatewayClient {
     }
   }
 
-  /** Create a durable prescription (images are Storage object keys, never bytes/URLs). */
+  /**
+   * Create a durable prescription (images are Storage object keys, never bytes/URLs).
+   *
+   * The server is the sole owner of the authoritative Rx id + quote/reveal lifecycle, so in remote
+   * mode a failed create **propagates** (the caller shows a real error and keeps the draft) rather
+   * than silently fabricating an `RX-LOCAL-*` row that looks durable but is not. Mock mode (no
+   * gateway configured) still returns the local placeholder so the flow works offline in dev.
+   */
   async createPrescription(input: PrescriptionInput): Promise<PrescriptionRecord> {
-    return this.withStrict(
-      () =>
-        this.http<PrescriptionRecord>('/prescriptions', {
-          method: 'POST',
-          body: JSON.stringify(input),
-        }),
-      () =>
-        delay({
-          id: `RX-LOCAL-${Date.now()}`,
-          userId: MOCK_USER_ID,
-          vendorId: input.vendorId,
-          fulfillment: input.fulfillment,
-          pages: input.pages ?? 1,
-          note: input.note,
-          imagePaths: input.imagePaths ?? [],
-          status: 'RECEIVED',
-          createdAt: new Date().toISOString(),
-          updatedAt: new Date().toISOString(),
-        }),
-    );
+    if (REMOTE_ENABLED) {
+      return this.http<PrescriptionRecord>('/prescriptions', {
+        method: 'POST',
+        body: JSON.stringify(input),
+      });
+    }
+    return delay({
+      id: `RX-LOCAL-${Date.now()}`,
+      userId: MOCK_USER_ID,
+      vendorId: input.vendorId,
+      fulfillment: input.fulfillment,
+      pages: input.pages ?? 1,
+      note: input.note,
+      imagePaths: input.imagePaths ?? [],
+      status: 'RECEIVED',
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    });
   }
 
   /** The signed-in user's durable prescriptions. */

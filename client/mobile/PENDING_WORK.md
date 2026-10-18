@@ -5,6 +5,50 @@ dependencies exist. Do not build the backend/seller flows until told to.
 
 ---
 
+## W57 — Pharma price parity + residual workflow closure (P0/P1)
+
+**Status:** 🟢 Shipped (app + data + docs). No server/DB/cache/route change; app auth stays
+**mocked** (no Supabase phone OTP). Closes the last P0/P1 items from the PHARMA sub-app audit that
+W53–W55 left open.
+
+- **Price parity (P0-4).** The inline `CATEGORY_PRODUCTS` grid + in-screen `PRODUCT_DETAIL` now
+  overlay `useActiveDiscounts` (one batch per category) on the authored `PHARMA_PRODUCTS_DB` rows,
+  and Quick Reorder overlays the same server discount batch in `pharmaService`. Every Pharma surface
+  now shows the same shopper price `internal/checkout` settles via `contracts.DiscountReader` —
+  previously the category grid/PDP/Quick Reorder showed base `catalog.products.price_paisa`.
+- **Top Offers (P0-2).** `livePharmaOfferCodes()` returns a Set (possibly empty) whenever the
+  gateway is enabled, so a failed/empty `GET /coupons?app=PHARMA` hides the rail instead of
+  advertising fixture codes (`MED20`/`FREEDEL`/…) `contracts.CouponValidator` would reject. Mock mode
+  (`REMOTE_ENABLED=false`) keeps the editorial offers as a demo.
+- **Popular fallback (P0-3).** `PHARMA_POPULAR_MEDICINES` ids repointed `ppm-*` → real `ph-*` rows
+  (`ph-f1`/`ph-t3`/`ph-f2`/`ph-t4`/`ph-as1`/`ph-s1`) so an offline add-to-cart is priceable; online
+  still reads the `pharmaPopular` SDUI section.
+- **Rx durability (P0-5).** `GatewayClient.createPrescription` is now remote-loud: in remote mode a
+  failed `POST /prescriptions` propagates (the flow keeps the draft + shows an error) instead of
+  fabricating a durable-looking `RX-LOCAL-*` record. Mock mode keeps the local placeholder for dev.
+- **Medical shop deep-link (P1-4).** `MedicalShopDetailsScreen` resolves a single store via
+  `gateway.getStore(id)` when the directory list misses it (Mart W43 pattern), with a loading state
+  so a valid deep-link no longer flashes "not found".
+- **Rx vendor error (P1-7).** A `404`/`422` on create maps to a "Pharmacy unavailable — pick another"
+  alert instead of the generic "try again".
+- **Dead-end View-all (P1-2).** The Pharma feed rails' "View all" chevrons are hidden: Pharma has no
+  rail landing page and the labels (`Quick Reorder`, `Featured Brands`, …) never match the search
+  FTS, so the affordance was a dead-end. Re-add with a Pharma `DealsLanding` when one exists.
+- **Dead export (P1-6).** `BLOOD_DONOR_UNREAD_ALERTS` (unused since the honest bell in W54) removed.
+
+**Intentionally unchanged / accepted:** the inner category search stays a local filter within the
+authored category rows (P1-3 — a scoped browse, not the global FTS). Server-redacted blood fields
+render omitted, not "N/A" (P1-5, PII-safe). The two editorial rails stay fixture-owned (`@static-editorial`).
+
+**Rollback:** revert the `PharmaScreen`/`pharmaService`/`pharmaHomeFeed`/`QuickReorderCard`/
+`MedicalShopDetailsScreen`/`PrescriptionFlowScreen` hunks + `GatewayClient.createPrescription` +
+the `BLOOD_DONOR_UNREAD_ALERTS` removal; fixtures/behaviour resume. No migration.
+
+**Docs:** `PAGE_CATALOG.md` §2.7 (paid/organic registry), `docs/architecture/web-portal.md`
+(seller/ads `CATEGORY_TOP`), `data/DATA_CONTROL.md`. **Date:** 2026-10-18
+
+---
+
 ## W56 — Food sub-app production-readiness pass (P0/P1 gaps + doc truth-up)
 
 **Status:** 🟢 Shipped (app + server comment + docs). No new screens/routes/tables/migrations/keys;

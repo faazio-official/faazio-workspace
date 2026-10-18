@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { StyleSheet, View, ScrollView, Image, TouchableOpacity } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
@@ -26,7 +26,7 @@ import PharmaHeroBanner from './components/pharma-home/PharmaHeroBanner';
 import CampaignHero from '@/components/shared/CampaignHero';
 import { openHeroTarget } from '@/services/adsTarget';
 import { gateway, type HeroAd } from '@/services/api/GatewayClient';
-import { withActiveDiscounts } from '@/services/pricing';
+import { effectivePrice, useActiveDiscounts, withActiveDiscounts } from '@/services/pricing';
 import QuickReorderRail from './components/pharma-home/QuickReorderRail';
 import TopOffersRail from './components/pharma-home/TopOffersRail';
 import PopularMedicinesRail from './components/pharma-home/PopularMedicinesRail';
@@ -76,6 +76,27 @@ export function PharmaScreen({
   const feed = usePharmaFeed();
   const { stores, source: storesSource } = usePharmaStores();
 
+  // Approved festival discounts for the active category (server authority: `GET /promo/active-discounts`).
+  // The inline category grid + in-screen PDP use the authored `PHARMA_PRODUCTS_DB` rows, so the
+  // shopper price must be overlaid here too — otherwise the shown price would diverge from the price
+  // `internal/checkout` settles through `contracts.DiscountReader`.
+  const categoryProductIds = useMemo(
+    () => PHARMA_PRODUCTS_DB.filter(p => p.category === selectedCategoryId).map(p => p.id),
+    [selectedCategoryId],
+  );
+  const categoryDiscounts = useActiveDiscounts(categoryProductIds);
+  const discountFor = (id: string) => categoryDiscounts[id]?.discountPercent ?? 0;
+  const displayPrice = (p: { id: string; price: number }) => effectivePrice(p.price, discountFor(p.id));
+  const displayBadge = (id: string, authored: string | null) => {
+    const percent = discountFor(id);
+    return percent > 0 ? `${percent}% OFF` : authored ?? undefined;
+  };
+  const displayOriginal = (p: PharmaDBItem) => {
+    const eff = displayPrice(p);
+    if (p.originalPrice && p.originalPrice > eff) return p.originalPrice;
+    return eff < p.price ? p.price : undefined;
+  };
+
   const toggleLocalFavorite = (id: string) => {
     setLocalFavorites(prev =>
       prev.includes(id) ? prev.filter(fid => fid !== id) : [...prev, id]
@@ -89,6 +110,7 @@ export function PharmaScreen({
   };
 
   const handleAddMultipleToCart = (product: PharmaDBItem, qty: number) => {
+    const unit = effectivePrice(product.price, discountFor(product.id));
     if (setCartItems) {
       setCartItems((prev: any) => {
         const existing = prev.find((item: any) => item.id === product.id);
@@ -97,11 +119,11 @@ export function PharmaScreen({
             item.id === product.id ? { ...item, quantity: item.quantity + qty } : item
           );
         }
-        return [...prev, { id: product.id, name: product.name, price: product.price, quantity: qty, emoji: product.emoji }];
+        return [...prev, { id: product.id, name: product.name, price: unit, quantity: qty, emoji: product.emoji }];
       });
     } else if (addToCart) {
       for (let i = 0; i < qty; i++) {
-        addToCart(product.id, product.name, product.price, product.emoji);
+        addToCart(product.id, product.name, unit, product.emoji);
       }
     }
   };
@@ -139,6 +161,7 @@ export function PharmaScreen({
   }, [homeSearchNormalized, searchQuery]);
 
   const searchedProducts = homeSearchNormalized ? searchResults : [];
+
   const filteredCategoryProducts = PHARMA_PRODUCTS_DB.filter(p =>
     p.category === selectedCategoryId &&
     (categorySearchQuery === '' || p.name.toLowerCase().includes(categorySearchQuery.toLowerCase()))
@@ -246,29 +269,25 @@ export function PharmaScreen({
           items={feed.quickReorder}
           onPress={handleQuickReorderPress}
           onAdd={handleFeedAdd}
-          onViewAll={() => onSearchPress?.('Quick Reorder')}
         />
         {feed.topOffers.length > 0 ? (
-          <TopOffersRail offers={feed.topOffers} onViewAll={() => onSearchPress?.('Top Offers')} />
+          <TopOffersRail offers={feed.topOffers} />
         ) : null}
         <PopularMedicinesRail
           items={feed.popularMedicines}
           addedIds={feedAddedIds}
           onPress={handlePopularPress}
           onAdd={handleFeedAdd}
-          onViewAll={() => onSearchPress?.('Popular Medicines')}
         />
         <HealthEssentialsRail
           items={feed.healthEssentials}
           onPress={handleHealthEssentialPress}
-          onViewAll={() => onSearchPress?.('Health Essentials')}
         />
         <FeaturedBrandsRail
           brands={feed.featuredBrands}
           onPress={handleFeaturedBrandPress}
-          onViewAll={() => onSearchPress?.('Featured Brands')}
         />
-        <HealthCornerRail items={feed.healthCorner} onViewAll={() => onSearchPress?.('Health Corner')} />
+        <HealthCornerRail items={feed.healthCorner} />
         {storesSource !== 'live' ? (
           <View style={styles.offlineChip}>
             <CloudOff size={ms(13)} color="#64748b" strokeWidth={2.2} />
@@ -318,11 +337,11 @@ export function PharmaScreen({
           {filteredCategoryProducts.map(product => (
             <PharmaProductCard
               key={product.id}
-              product={{ id: product.id, name: product.name, price: product.price, emoji: product.emoji, image: product.image, desc: product.desc, rating: product.rating, app: 'PHARMA', category: product.category, badge: product.discountBadge ?? undefined }}
-              originalPrice={product.originalPrice ?? undefined}
+              product={{ id: product.id, name: product.name, price: displayPrice(product), emoji: product.emoji, image: product.image, desc: product.desc, rating: product.rating, app: 'PHARMA', category: product.category, badge: displayBadge(product.id, product.discountBadge) }}
+              originalPrice={displayOriginal(product)}
               isAdded={addedAnimationId === product.id}
               onPress={() => { setSelectedProduct(product); setCurrentView('PRODUCT_DETAIL'); }}
-              onAdd={() => handleAddWithFeedback(product.id, product.name, product.price, product.emoji)}
+              onAdd={() => handleAddWithFeedback(product.id, product.name, displayPrice(product), product.emoji)}
             />
           ))}
         </View>
@@ -398,7 +417,7 @@ export function PharmaScreen({
         <View style={styles.totalBar}>
           <View>
             <AppText style={styles.totalLabel}>TOTAL AMOUNT</AppText>
-            <AppText style={styles.totalAmount}>₹{selectedProduct.price * quantity}</AppText>
+            <AppText style={styles.totalAmount}>₹{displayPrice(selectedProduct) * quantity}</AppText>
           </View>
           <TouchableOpacity
             style={[styles.addToCartBtn, addedAnimationId === selectedProduct.id && styles.addToCartBtnAdded]}

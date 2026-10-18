@@ -45,7 +45,7 @@ The campaign wizard's **what→where** placements map 1:1 to the paid mobile sur
 | Route | Page | Sector |
 | --- | --- | --- |
 | `seller` | dashboard | all |
-| `seller/ads` | hero CampaignWizard (what→where→creative→when→review) + campaign list/KPIs — includes the `PHARMA_HERO` (Pharma home) and `STORE_TOP` (Pharma medical shop) placements | all |
+| `seller/ads` | hero CampaignWizard (what→where→creative→when→review) + campaign list/KPIs — includes the `PHARMA_HERO` (Pharma home), `CATEGORY_TOP` (Pharma/mart category drill-in) and `STORE_TOP` (Pharma medical shop / mart vendor) placements | all |
 | `seller/products` | catalog list | all |
 | `seller/products/new` | create listing | all |
 | `seller/products/[id]/edit` | listing editor (name/desc/photos + `upsertPrice`) | all |

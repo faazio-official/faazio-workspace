@@ -6,7 +6,7 @@ import type { RootStackParamList } from '@/navigation/types';
 import type { StoreProfile } from '@data/types';
 import type { FulfillmentMode } from '@data/types';
 import { useOrdersStore } from '@/state/ordersStore';
-import { gateway } from '@/services/api/GatewayClient';
+import { gateway, GatewayHttpError } from '@/services/api/GatewayClient';
 import { usePharmaStores } from '../hooks/usePharmaStores';
 import PrescriptionCameraStep from './PrescriptionCameraStep';
 import PrescriptionNoteStep from './PrescriptionNoteStep';
@@ -138,7 +138,16 @@ export function PrescriptionFlowScreen({ navigation, route }: Props) {
           setPlacedOrderId(rx.id);
           setConfirmedFulfillment(fulfillment);
           setStep('CONFIRMED');
-        } catch {
+        } catch (err) {
+          // A rejected/unknown pharmacy is a fixable choice, not a transient failure — send the user
+          // back to the vendor step with a specific message instead of a generic "try again".
+          if (err instanceof GatewayHttpError && (err.status === 404 || err.status === 422)) {
+            Alert.alert(
+              'Pharmacy unavailable',
+              'This pharmacy can no longer receive prescriptions. Please pick another.',
+            );
+            return;
+          }
           // Strict/remote failure (or a bad payload): keep the user on the current step and explain.
           Alert.alert(
             'Something went wrong',

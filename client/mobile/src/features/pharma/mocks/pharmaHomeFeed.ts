@@ -16,6 +16,8 @@ export interface PharmaQuickReorderItem {
   name: string;
   stripDetails: string;
   price: number;
+  /** List price (MRP) when an approved server discount lowered `price`; absent otherwise. */
+  mrp?: number;
 }
 
 import type { Product } from '@data/types';
@@ -101,13 +103,18 @@ export const PHARMA_TOP_OFFERS: PharmaTopOffer[] = [
   { id: 'pto-4', title: '25% OFF', subtitle: 'On your first order', code: 'HEALTH25', iconName: 'percent' },
 ];
 
+/**
+ * Popular Medicines is an offline display fallback only. The ids are REAL `ph-*` catalog rows
+ * (never synthetic `ppm-*`) so an offline add-to-cart/checkout can still resolve and price them —
+ * `pharmaService` re-resolves names/prices from the `pharmaPopular` SDUI section when online.
+ */
 export const PHARMA_POPULAR_MEDICINES: PharmaPopularMedicine[] = [
-  { id: 'ppm-1', name: 'Paracetamol 500mg', details: 'Strip of 10 Tablets', rating: 4.9, price: 45, imageUrl: squareImg('photo-1584308666744-24d5c474f2ae', 400) },
-  { id: 'ppm-2', name: 'Vitamin D3 2000 IU', details: 'Bottle of 60 Capsules', rating: 4.7, price: 450, imageUrl: squareImg('photo-1584017911766-d451b3d0e843', 400) },
-  { id: 'ppm-3', name: 'Ibuprofen 400mg', details: 'Strip of 15 Tablets', rating: 4.8, price: 85, imageUrl: squareImg('photo-1550572017-edd951b55104', 400) },
-  { id: 'ppm-4', name: 'Multivitamin Daily', details: 'Bottle of 90 Tablets', rating: 4.9, price: 680, imageUrl: squareImg('photo-1620916566398-39f1143ab7be', 400) },
-  { id: 'ppm-5', name: 'Salbutamol Inhaler', details: '200 Doses', rating: 4.8, price: 350, imageUrl: squareImg('photo-1631549916768-4119b2e5f926', 400) },
-  { id: 'ppm-6', name: 'Whey Protein Isolate', details: '500g Tub', rating: 4.9, price: 1299, imageUrl: squareImg('photo-1593095948071-474c5cc2c1cf', 400) },
+  { id: 'ph-f1', name: 'Paracetamol 500mg', details: 'Strip of 10 Tablets', rating: 4.9, price: 45, imageUrl: squareImg('photo-1584308666744-24d5c474f2ae', 400) },
+  { id: 'ph-t3', name: 'Vitamin D3 2000 IU', details: 'Bottle of 60 Capsules', rating: 4.7, price: 450, imageUrl: squareImg('photo-1584017911766-d451b3d0e843', 400) },
+  { id: 'ph-f2', name: 'Ibuprofen 400mg', details: 'Strip of 15 Tablets', rating: 4.8, price: 85, imageUrl: squareImg('photo-1550572017-edd951b55104', 400) },
+  { id: 'ph-t4', name: 'Multivitamin Daily', details: 'Bottle of 90 Tablets', rating: 4.9, price: 680, imageUrl: squareImg('photo-1620916566398-39f1143ab7be', 400) },
+  { id: 'ph-as1', name: 'Salbutamol Inhaler', details: '200 Doses', rating: 4.8, price: 350, imageUrl: squareImg('photo-1631549916768-4119b2e5f926', 400) },
+  { id: 'ph-s1', name: 'Whey Protein Isolate', details: '500g Tub', rating: 4.9, price: 1299, imageUrl: squareImg('photo-1593095948071-474c5cc2c1cf', 400) },
 ];
 
 export const PHARMA_HEALTH_ESSENTIALS: PharmaHealthEssential[] = [

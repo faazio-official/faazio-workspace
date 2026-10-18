@@ -1,5 +1,6 @@
-import React, { memo, useCallback, useMemo, useRef, useState } from 'react';
+import React, { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
+  ActivityIndicator,
   FlatList,
   StyleSheet,
   TextInput,
@@ -14,7 +15,7 @@ import AppText from '@/components/AppText';
 import { VendorReviewsSection } from '@/components/shared';
 import CampaignHero from '@/components/shared/CampaignHero';
 import { openHeroTarget } from '@/services/adsTarget';
-import type { HeroAd } from '@/services/api/GatewayClient';
+import { gateway, type HeroAd } from '@/services/api/GatewayClient';
 import { hs, ms, vs } from '@/utils/responsive';
 import { SPACE } from '@/theme/spacing';
 import type { Product, StoreProfile } from '@data/types';
@@ -89,10 +90,31 @@ export function MedicalShopDetailsScreen({ navigation, route }: Props) {
   const inputRef = useRef<TextInput | null>(null);
   const [query, setQuery] = useState('');
   const { stores } = usePharmaStores();
-  const store = useMemo(
+  const localStore = useMemo(
     () => stores.find((candidate) => candidate.id === route.params.storeId),
     [stores, route.params.storeId],
   );
+  // Deep-link fallback (Mart W43 pattern): the directory list is paginated / may not carry a
+  // recently-added or renamed pharmacy, so resolve the single store row directly before giving up.
+  const [fetchedStore, setFetchedStore] = useState<StoreProfile | undefined>(undefined);
+  const [lookupDone, setLookupDone] = useState(false);
+  useEffect(() => {
+    if (localStore) return;
+    let active = true;
+    gateway
+      .getStore(route.params.storeId)
+      .then((row) => {
+        if (active && row) setFetchedStore(row as unknown as StoreProfile);
+      })
+      .catch(() => undefined)
+      .finally(() => {
+        if (active) setLookupDone(true);
+      });
+    return () => {
+      active = false;
+    };
+  }, [localStore, route.params.storeId]);
+  const store = localStore ?? fetchedStore;
   // Canonical store inventory: server `GET /stores/{id}/products` with approved festival discounts
   // overlaid (same hook the Mart vendor drill-in uses) — the local `@data` pool is the offline fallback.
   const { products } = useVendorProducts(route.params.storeId);
@@ -128,6 +150,13 @@ export function MedicalShopDetailsScreen({ navigation, route }: Props) {
   );
 
   if (!store) {
+    if (!lookupDone) {
+      return (
+        <View style={[styles.container, styles.center]}>
+          <ActivityIndicator color={PHARMA_TEAL} />
+        </View>
+      );
+    }
     return (
       <View style={[styles.container, styles.center]}>
         <AppText style={styles.emptyTitle}>Medical not found</AppText>
