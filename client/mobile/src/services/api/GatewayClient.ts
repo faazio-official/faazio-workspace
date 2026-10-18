@@ -63,6 +63,17 @@ export class GatewayHttpError extends Error {
 }
 
 /**
+ * Thrown by the `fetch*` read variants (no fixture fallback) when the gateway is disabled or
+ * unreachable. Callers use it to fall back themselves while keeping provenance (`ReadSource`).
+ */
+export class GatewayOfflineError extends Error {
+  constructor() {
+    super('gateway offline');
+    this.name = 'GatewayOfflineError';
+  }
+}
+
+/**
  * How the client is currently authenticating. Diagnostic only — never used to gate a write.
  *  - `dev-bypass` — dev-only `X-Dev-User` override against an `AUTH_DISABLED=true` gateway.
  *  - `mock`       — the app's mocked-login placeholder token (not a signed JWT).
@@ -150,6 +161,25 @@ export interface VendorReviewSummary {
  *  - `not-verified`— server purchase gate rejected with 403 (client thought eligible).
  */
 export type VendorRatingOutcome = 'synced' | 'offline' | 'signed-out' | 'not-verified';
+
+/**
+ * Result of a blood-donor WRITE (`PUT /donors/me`, `PUT /blood-requests/{id}/interest`,
+ * `POST /donor-match-requests`). Mirrors `VendorRatingOutcome` minus the purchase gate. The store
+ * turns this into a device-local status (`queued` when an offline write is in the retry outbox) so a
+ * screen can explain a non-durable write instead of pretending success. Nothing health-related is
+ * ever fabricated here — a failed write returns `offline`/`signed-out`, never a synthetic row.
+ */
+export type BloodWriteOutcome = 'synced' | 'offline' | 'signed-out';
+
+/**
+ * Provenance of a read so a screen can distinguish a live server response (including an honest
+ * empty) from a device/fixture fallback.
+ *  - `live`                — the server returned rows.
+ *  - `empty-authoritative` — the server returned 200 with no rows (an honest empty, not an error).
+ *  - `offline-fallback`    — remote disabled/unreachable; the `@data` fixture is shown.
+ *  - `cache-stale`         — a previous live result is shown because a refresh failed.
+ */
+export type ReadSource = 'live' | 'empty-authoritative' | 'offline-fallback' | 'cache-stale';
 
 /** Accepted `POST /events` vocabulary (server-enforced). */
 export type TrackableEvent = 'view' | 'cart_add' | 'order' | 'search';
@@ -576,6 +606,12 @@ export class GatewayClient {
     return REMOTE_STRICT;
   }
 
+  /** Classify a blood-write failure: a 401 means the caller must sign in; anything else is offline. */
+  private bloodWriteOutcome(err: unknown): BloodWriteOutcome {
+    if (err instanceof GatewayHttpError && err.status === 401) return 'signed-out';
+    return 'offline';
+  }
+
   private joinStock(entries: CatalogEntry[]): ProductView[] {
     return entries.map((entry) => ({ ...entry, stock: getStockByProductId(entry.id) }));
   }
@@ -630,6 +666,15 @@ export class GatewayClient {
       () => this.http<StoreRecord[]>(`/stores${app ? `?app=${app}` : ''}`),
       () => delay(app ? getStoresByApp(app as 'MART' | 'FOOD') : storeDirectory),
     );
+  }
+
+  /**
+   * Server-only store directory (no fixture fallback) so a caller can tell a live, possibly-empty
+   * list from the offline fixture. Throws `GatewayOfflineError` when remote is disabled.
+   */
+  async fetchStores(app?: AppBrand): Promise<StoreRecord[]> {
+    if (!REMOTE_ENABLED) throw new GatewayOfflineError();
+    return this.http<StoreRecord[]>(`/stores${app ? `?app=${app}` : ''}`);
   }
 
   async getStore(id: string): Promise<StoreRecord | undefined> {
@@ -1126,12 +1171,19 @@ export class GatewayClient {
     );
   }
 
-  /** Upsert the caller's donor profile (consent gates the public directory). */
-  async saveDonorProfile(profile: Partial<BloodDonorProfile> & { bloodGroup: string; name: string; city: string }): Promise<BloodDonorProfile> {
-    return this.withFallback(
-      () => this.http<BloodDonorProfile>('/donors/me', { method: 'PUT', body: JSON.stringify(profile) }),
-      () => delay({ userId: MOCK_USER_ID, willingToTravel: false, available: true, consent: true, ...profile } as BloodDonorProfile),
-    );
+  /**
+   * Upsert the caller's donor profile (`PUT /donors/me`). Returns an outcome instead of a bare row
+   * so the store can keep the local optimistic commit and tag it for retry when offline / signed out
+   * — a health write is never fabricated with a synthetic profile.
+   */
+  async saveDonorProfile(profile: Partial<BloodDonorProfile> & { bloodGroup: string; name: string; city: string }): Promise<BloodWriteOutcome> {
+    if (!REMOTE_ENABLED) return 'offline';
+    try {
+      await this.http<BloodDonorProfile>('/donors/me', { method: 'PUT', body: JSON.stringify(profile) });
+      return 'synced';
+    } catch (err) {
+      return this.bloodWriteOutcome(err);
+    }
   }
 
   /** The consented donor directory, filtered by blood group / city when provided. */
@@ -1150,6 +1202,16 @@ export class GatewayClient {
     );
   }
 
+  /**
+   * Server-only blood-request board (no fixture fallback) so the caller can distinguish a live,
+   * possibly-empty board from the offline fixture. Throws `GatewayOfflineError` when remote is
+   * disabled; the hook owns the fallback + provenance.
+   */
+  async fetchBloodRequests(filters?: { bloodGroup?: string; city?: string }): Promise<BloodRequestRecord[]> {
+    if (!REMOTE_ENABLED) throw new GatewayOfflineError();
+    return this.http<BloodRequestRecord[]>(`/blood-requests${queryString(filters)}`);
+  }
+
   /** Post a blood request. */
   async createBloodRequest(input: Partial<BloodRequestRecord> & { bloodGroup: string }): Promise<BloodRequestRecord> {
     return this.withFallback(
@@ -1165,20 +1227,26 @@ export class GatewayClient {
     );
   }
 
-  /** Mark interest / acceptance on a blood request (idempotent). */
-  async setBloodInterest(requestId: string, kind: 'interested' | 'accepted'): Promise<void> {
-    await this.withFallback(
-      () => this.http<{ ok: boolean }>(`/blood-requests/${encodeURIComponent(requestId)}/interest`, { method: 'PUT', body: JSON.stringify({ kind }) }).then(() => undefined),
-      () => delay(undefined),
-    );
+  /** Mark interest / acceptance on a blood request (idempotent). Outcome-returning write. */
+  async setBloodInterest(requestId: string, kind: 'interested' | 'accepted'): Promise<BloodWriteOutcome> {
+    if (!REMOTE_ENABLED) return 'offline';
+    try {
+      await this.http<{ ok: boolean }>(`/blood-requests/${encodeURIComponent(requestId)}/interest`, { method: 'PUT', body: JSON.stringify({ kind }) });
+      return 'synced';
+    } catch (err) {
+      return this.bloodWriteOutcome(err);
+    }
   }
 
-  /** Send a targeted request to one matching donor. */
-  async createDonorMatch(donorUserId: string, bloodGroup: string, city: string): Promise<DonorMatchRecord> {
-    return this.withFallback(
-      () => this.http<DonorMatchRecord>('/donor-match-requests', { method: 'POST', body: JSON.stringify({ donorUserId, bloodGroup, city }) }),
-      () => delay({ id: `dmr-local-${Date.now()}`, requesterUserId: MOCK_USER_ID, donorUserId, bloodGroup, city, status: 'pending', createdAt: new Date().toISOString() }),
-    );
+  /** Send a targeted request to one matching donor. Outcome-returning write. */
+  async createDonorMatch(donorUserId: string, bloodGroup: string, city: string): Promise<BloodWriteOutcome> {
+    if (!REMOTE_ENABLED) return 'offline';
+    try {
+      await this.http<DonorMatchRecord>('/donor-match-requests', { method: 'POST', body: JSON.stringify({ donorUserId, bloodGroup, city }) });
+      return 'synced';
+    } catch (err) {
+      return this.bloodWriteOutcome(err);
+    }
   }
 
   /** The caller's outgoing donor-match requests. */
@@ -1352,6 +1420,15 @@ export class GatewayClient {
       () => this.http<(SduiSection & { products: ProductView[]; stores?: StoreRecord[] })[]>('/sdui/pharma'),
       () => this.getPharmaFeedMock(),
     );
+  }
+
+  /**
+   * Server-only Pharma SDUI sections (no fixture fallback) so `pharmaService` can report whether the
+   * feed is live. Throws `GatewayOfflineError` when remote is disabled.
+   */
+  async fetchPharmaSections(): Promise<(SduiSection & { products: ProductView[]; stores?: StoreRecord[] })[]> {
+    if (!REMOTE_ENABLED) throw new GatewayOfflineError();
+    return this.http<(SduiSection & { products: ProductView[]; stores?: StoreRecord[] })[]>('/sdui/pharma');
   }
 
   private async getPharmaFeedMock(): Promise<(SduiSection & { products: ProductView[]; stores?: StoreRecord[] })[]> {

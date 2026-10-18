@@ -8,7 +8,7 @@ import { hs, vs, ms } from '@/utils/responsive';
 import { SPACE } from '@/theme/spacing';
 import type { RootStackParamList } from '@/navigation/types';
 import { useAuthStore } from '@/state/authStore';
-import { useBloodDonorStore } from '@/state/bloodDonorStore';
+import { useBloodDonorStore, type BloodWriteStatus } from '@/state/bloodDonorStore';
 import { getDonorById } from './services/donorDirectory';
 import { BLOOD_RED, BLOOD_RED_SOFT, BLOOD_TEXT, BLOOD_TEXT_MUTED, BLOOD_BORDER, BLOOD_RADII } from './tokens';
 
@@ -26,6 +26,7 @@ export function DonorDetailsScreen({ navigation, route }: Props) {
   const targetedRequests = useBloodDonorStore((s) => s.donorMatchRequests);
   const requestDonor = useBloodDonorStore((s) => s.requestDonor);
   const [sent, setSent] = useState(false);
+  const [writeStatus, setWriteStatus] = useState<BloodWriteStatus | null>(null);
 
   if (!donor) {
     return (
@@ -55,10 +56,18 @@ export function DonorDetailsScreen({ navigation, route }: Props) {
   );
   const requestComplete = sent || alreadyRequested;
 
-  const handleRequest = () => {
+  const handleRequest = async () => {
     if (requestComplete) return;
-    setSent(requestDonor(donor, route.params.requestCity));
+    const result = await requestDonor(donor, route.params.requestCity);
+    setSent(result.ok);
+    setWriteStatus(result.status);
   };
+
+  const requestLabel = requestComplete
+    ? writeStatus === 'synced' || writeStatus === null
+      ? 'Request Sent · Done'
+      : 'Request Saved — will retry'
+    : 'Request This Donor';
 
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
@@ -93,7 +102,7 @@ export function DonorDetailsScreen({ navigation, route }: Props) {
       <View style={[styles.footer, { paddingBottom: vs(14) }]}>
         <TouchableOpacity onPress={requestComplete ? () => navigation.goBack() : handleRequest} style={[styles.requestButton, requestComplete && styles.requestButtonComplete]} activeOpacity={0.85} accessibilityRole="button">
           {requestComplete ? <CheckCircle2 size={ms(18)} color="#ffffff" strokeWidth={2.4} /> : <Droplet size={ms(18)} color="#ffffff" fill="#ffffff" strokeWidth={2.2} />}
-          <AppText style={styles.requestButtonText}>{requestComplete ? 'Request Sent · Done' : 'Request This Donor'}</AppText>
+          <AppText style={styles.requestButtonText}>{requestLabel}</AppText>
         </TouchableOpacity>
       </View>
     </View>

@@ -31,7 +31,7 @@ const PharmaVendorList = memo(function PharmaVendorList({
   const [query, setQuery] = useState('');
   const [sheetVisible, setSheetVisible] = useState(false);
   const [activeVendor, setActiveVendor] = useState<StoreProfile | null>(selected);
-  const stores = usePharmaStores();
+  const { stores } = usePharmaStores();
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();

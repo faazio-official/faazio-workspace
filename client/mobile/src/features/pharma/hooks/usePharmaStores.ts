@@ -1,33 +1,42 @@
 import { useEffect, useState } from 'react';
 import type { StoreProfile } from '@data/types';
 import { pharmaStores } from '@data/pharma/stores';
-import { gateway } from '@/services/api/GatewayClient';
+import { gateway, type ReadSource } from '@/services/api/GatewayClient';
+
+/** The pharmacy outlets plus provenance so the rails can label a fixture/offline view. */
+export interface PharmaStoresFeed {
+  stores: StoreProfile[];
+  source: ReadSource;
+}
 
 /**
  * The pharmacy outlets for the Pharma home rails and the vendor picker.
  *
- * Remote-first: reads `directory.stores` (app=PHARMA) through
- * `GatewayClient.getStores`, which already falls back to the `@data` fixtures on
- * a network/HTTP error. When the gateway returns no rows we keep the seed so the
- * rails never render empty during the fixture→server migration.
+ * Remote-first through the no-fallback `GatewayClient.fetchStores('PHARMA')` (`directory.stores`):
+ *  - live rows       → `source: 'live'`
+ *  - server `200 []` → `empty-authoritative` (keeps the `@data` fixture visible so the rails never
+ *    blank, but flagged as an authoritative empty)
+ *  - fetch failure   → the `@data` fixture + `offline-fallback`
  */
-export function usePharmaStores(): StoreProfile[] {
-  const [stores, setStores] = useState<StoreProfile[]>(pharmaStores);
+export function usePharmaStores(): PharmaStoresFeed {
+  const [feed, setFeed] = useState<PharmaStoresFeed>({ stores: pharmaStores, source: 'offline-fallback' });
 
   useEffect(() => {
     let active = true;
     gateway
-      .getStores('PHARMA')
+      .fetchStores('PHARMA')
       .then((remote) => {
-        if (active && remote.length > 0) setStores(remote);
+        if (!active) return;
+        if (remote.length > 0) setFeed({ stores: remote, source: 'live' });
+        else setFeed({ stores: pharmaStores, source: 'empty-authoritative' });
       })
       .catch(() => {
-        // getStores already falls back to the @data fixtures internally.
+        if (active) setFeed({ stores: pharmaStores, source: 'offline-fallback' });
       });
     return () => {
       active = false;
     };
   }, []);
 
-  return stores;
+  return feed;
 }

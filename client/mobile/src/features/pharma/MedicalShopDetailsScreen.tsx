@@ -88,7 +88,7 @@ export function MedicalShopDetailsScreen({ navigation, route }: Props) {
   const insets = useSafeAreaInsets();
   const inputRef = useRef<TextInput | null>(null);
   const [query, setQuery] = useState('');
-  const stores = usePharmaStores();
+  const { stores } = usePharmaStores();
   const store = useMemo(
     () => stores.find((candidate) => candidate.id === route.params.storeId),
     [stores, route.params.storeId],

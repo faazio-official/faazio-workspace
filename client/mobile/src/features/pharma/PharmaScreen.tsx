@@ -4,7 +4,7 @@ import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import {
   Heart, CheckCircle, Search, ChevronLeft,
-  Star, Minus, Plus, ClipboardList,
+  Star, Minus, Plus, ClipboardList, CloudOff,
 } from 'lucide-react-native';
 import Svg, { Defs, LinearGradient, Stop, Rect } from 'react-native-svg';
 import { hs, vs, ms, SCREEN_W } from '@/utils/responsive';
@@ -74,7 +74,7 @@ export function PharmaScreen({
 
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const feed = usePharmaFeed();
-  const stores = usePharmaStores();
+  const { stores, source: storesSource } = usePharmaStores();
 
   const toggleLocalFavorite = (id: string) => {
     setLocalFavorites(prev =>
@@ -269,6 +269,16 @@ export function PharmaScreen({
           onViewAll={() => onSearchPress?.('Featured Brands')}
         />
         <HealthCornerRail items={feed.healthCorner} onViewAll={() => onSearchPress?.('Health Corner')} />
+        {storesSource !== 'live' ? (
+          <View style={styles.offlineChip}>
+            <CloudOff size={ms(13)} color="#64748b" strokeWidth={2.2} />
+            <AppText style={styles.offlineChipText}>
+              {storesSource === 'empty-authoritative'
+                ? 'No pharmacies listed yet — showing sample outlets'
+                : 'Showing sample pharmacies — offline'}
+            </AppText>
+          </View>
+        ) : null}
         <LocalMedicalsRail stores={stores} onMedicalPress={handleMedicalPress} />
       </ScrollView>
       <UploadPrescriptionFAB onPress={() => navigation.navigate('PrescriptionFlow')} />
@@ -472,6 +482,23 @@ const styles = StyleSheet.create({
   feedWrap: {
     flex: 1,
     backgroundColor: '#FFFFFF',
+  },
+  offlineChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: hs(6),
+    alignSelf: 'flex-start',
+    marginHorizontal: hs(16),
+    marginBottom: vs(8),
+    backgroundColor: '#F1F5F9',
+    borderRadius: ms(999),
+    paddingHorizontal: hs(10),
+    paddingVertical: vs(5),
+  },
+  offlineChipText: {
+    fontSize: ms(10.5),
+    fontWeight: '700',
+    color: '#64748b',
   },
   searchContainer: {
     flex: 1,

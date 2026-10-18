@@ -72,7 +72,7 @@ export function BloodDonorScreen({ navigation }: Props) {
   const handleNext = () => {
     if (!canProceed) return;
     if (isLast) {
-      register();
+      void register();
       setStepIndex(0);
     } else {
       setStepIndex((i) => i + 1);

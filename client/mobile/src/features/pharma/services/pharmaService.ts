@@ -1,6 +1,6 @@
-import { gateway, type ProductView } from '@/services/api/GatewayClient';
+import { gateway, type ProductView, type ReadSource } from '@/services/api/GatewayClient';
 import { effectivePrice, fetchActiveDiscounts } from '@/services/pricing';
-import type { SduiBanner } from '@data/home/sdui';
+import type { SduiBanner, SduiSection } from '@data/home/sdui';
 import {
   PHARMA_QUICK_REORDER,
   PHARMA_QUICK_REORDER_IDS,
@@ -26,6 +26,8 @@ export interface PharmaFeed {
   healthCorner: PharmaHealthCornerArticle[];
   /** Organic house-hero banners (`pharmaHero.banners` from `GET /sdui/pharma`); paid PHARMA_HERO wins. */
   heroBanners: SduiBanner[];
+  /** Provenance of the server-backed rails so a screen can label a fixture/offline view. */
+  source: ReadSource;
 }
 
 /** The list price to strike through beside an effective price (authored MRP, else base). */
@@ -84,7 +86,16 @@ async function livePharmaOfferCodes(): Promise<Set<string> | null> {
  * pharma rails.
  */
 export async function fetchPharmaFeed(): Promise<PharmaFeed> {
-  const sections = await gateway.getPharmaFeed();
+  let sections: (SduiSection & { products: ProductView[] })[];
+  let source: ReadSource;
+  try {
+    sections = await gateway.fetchPharmaSections();
+    source = sections.length > 0 ? 'live' : 'empty-authoritative';
+  } catch {
+    // Offline / remote disabled — the `@data` + feature fixtures stand, but flagged as a fallback.
+    sections = await gateway.getPharmaFeed();
+    source = 'offline-fallback';
+  }
   const section = (id: string) => sections.find((s) => (s.id as string) === id);
   const popular = section('pharmaPopular');
   const essentials = section('pharmaEssentials');
@@ -114,5 +125,6 @@ export async function fetchPharmaFeed(): Promise<PharmaFeed> {
     featuredBrands: PHARMA_FEATURED_BRANDS,
     healthCorner: PHARMA_HEALTH_CORNER,
     heroBanners: hero?.banners ?? [],
+    source,
   };
 }

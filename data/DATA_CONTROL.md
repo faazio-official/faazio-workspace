@@ -215,7 +215,7 @@ the `GROCERY` member was dropped from `AppBrand` / `CartCategory` / `SubAppId` /
 | `NOTIFICATIONS_BANNER` | `{ message }` | Notifications step (info-banner copy) | `@mock` |
 | `CONSENT_LABEL` | `string` | Review step (consent checkbox copy) | `@mock` |
 | `PRIVACY_NOTE` | `string` | Review step (footer privacy note) | `@mock` |
-| `BLOOD_REQUESTS` | `BloodRequest[]` | Donor dashboard + request-details page (feed + detail fields) — feed hydrated via `GatewayClient.getBloodRequests()` (`useBloodRequests`; fixture-enriched display extras, fixture fallback; server `contact`/`address` never backfilled with fixture PII) | `@server` (fixture fallback) |
+| `BLOOD_REQUESTS` | `BloodRequest[]` | Donor dashboard + request-details page (feed + detail fields) — feed hydrated via `GatewayClient.fetchBloodRequests()` (`useBloodRequests` returns `{ requests, source }`; fixture-enriched display extras, `live`/`empty-authoritative`/`offline-fallback`/`cache-stale` provenance; server `contact`/`address` never backfilled with fixture PII) | `@server` (fixture fallback) |
 | `BLOOD_DONOR_UNREAD_ALERTS` | `number` | Donor dashboard (bell badge seed) | `@mock` |
 | `BLOOD_REQUEST_DETAIL_COPY` | `{ bannerTitle; bannerSubtitle; confirmNote }` | Request-details page (banner + privacy note copy) | `@mock` |
 | `DonorMatchRequest` | `interface` | Targeted Ask Blood request persisted by `bloodDonorStore` and shown to its recipient | `@mock` |
@@ -228,12 +228,20 @@ the `GROCERY` member was dropped from `AppBrand` / `CartCategory` / `SubAppId` /
 > security-definer view (consented, display-safe columns only), `blood.requests` (public board;
 > `contact`/`address` redacted for anon), `blood.interests`, and `blood.match_requests`.
 > `bloodDonorStore` keeps AsyncStorage (`faazio/bloodDonor/v1`) as an optimistic cache and mirrors
-> writes to `PUT /donors/me` + `setBloodInterest`/`createDonorMatch` best-effort. Health data
-> stays out of plain logs. `BLOOD_REQUESTS` is now the fixture **fallback** for the dashboard feed:
-> `hooks/useBloodRequests` reads `GET /blood-requests` (`blood.requests`) remote-first and merges
-> fixture-only display extras (`imageUrl`/`purposeDescription`/patient demographics/`distanceKm`) by
-> id; the detail page renders redacted rows gracefully, and a redacted/absent server contact/address
-> is rendered blank — never backfilled with a fixture lookalike. `BLOOD_DONORS` is the
+> writes to `PUT /donors/me` + `setBloodInterest`/`createDonorMatch` as **outcome-returning** calls
+> (`synced`/`offline`/`signed-out`). It tags the optimistic row `pendingSync` and queues a
+> `PendingDonorOp` in the same blob when a write is non-durable; the outbox is flushed on hydration
+> + app foreground and `hydrateFromServer` reconciles the server rows over the local mirrors (server
+> wins by id, local-only preserved). Mock mode (remote disabled) keeps the device mirror as final —
+> no fabricated server success. Health data stays out of plain logs. `BLOOD_REQUESTS` is now the
+> fixture **fallback** for the dashboard feed: `hooks/useBloodRequests` reads `GET /blood-requests`
+> (`blood.requests`) through the no-fallback `GatewayClient.fetchBloodRequests` remote-first and
+> merges fixture-only display extras (`imageUrl`/`purposeDescription`/patient demographics/
+> `distanceKm`) by id; the hook returns `{ requests, source }` (`live` | `empty-authoritative` |
+> `offline-fallback` | `cache-stale`) so a `200 []` shows an honest empty card while an error shows
+> the fixture/cache labelled "offline". The detail page renders redacted rows gracefully, and a
+> redacted/absent server contact/address is rendered blank — never backfilled with a fixture
+> lookalike. `BLOOD_DONORS` is the
 > donor-directory **offline fallback**; `GET /donors` (auth-scoped, `consent AND available` only via
 > `blood.donor_directory`) is the live source read by `services/donorDirectory.ts`.
 > **Targeted Ask Blood contract:** the user searches by city + blood group, selects one

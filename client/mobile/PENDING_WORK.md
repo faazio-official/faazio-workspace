@@ -48,6 +48,43 @@ feed never blanks mid-migration.
 
 ---
 
+## W53b — Blood write authority (P0-2b/P0-3b) + read transparency (P1-1b)
+
+**Status:** 🟢 Shipped (app + docs). No new screens/routes/tables/keys; app auth stays **mocked**
+(no Supabase phone OTP). Follow-up to W53 (which left blood writes best-effort `void …catch` and
+reads unable to tell a live empty from a fixture). The `submitVendorRating` outcome pattern is
+applied to blood.
+
+- **Write authority (P0-2b/P0-3b).** `GatewayClient.saveDonorProfile`/`setBloodInterest`/
+  `createDonorMatch` now return `BloodWriteOutcome` (`synced`/`offline`/`signed-out`) instead of a
+  fabricated mock row; `bloodDonorStore.register`/`toggleInterested`/`acceptRequest`/`requestDonor`
+  are async and return `{ ok, status }` (`synced`/`offline`/`queued`/`signed-out`). The store keeps
+  the optimistic AsyncStorage commit, tags the row `pendingSync`, and queues a `PendingDonorOp` in
+  the same `faazio/bloodDonor/v1` blob when non-durable; the outbox flushes on hydration + app
+  foreground and `hydrateFromServer` reconciles server-wins-by-id (local-only preserved, synced
+  mirrors de-duped). Mock mode keeps the device mirror as final (no pointless queue). UI:
+  `DonorDashboard` shows "Not yet synced — we'll retry" / "Signed out" banner; `DonorDetailsScreen`
+  button reads "Request Saved — will retry"; `BloodRequestDescriptionScreen` shows an inline sync note.
+- **Read transparency (P1-1b).** New no-fallback `GatewayClient.fetchBloodRequests`/`fetchStores`/
+  `fetchPharmaSections` (+ `GatewayOfflineError`, `ReadSource`) let `useBloodRequests` and
+  `usePharmaStores` return `{ data, source }` (`live`/`empty-authoritative`/`offline-fallback`/
+  `cache-stale`) and `pharmaService.fetchPharmaFeed` carry `source`. A live `200 []` renders an
+  honest empty (dashboard) instead of the fixture; an error keeps the fixture/cache with a
+  "Showing saved — offline" chip. The fixture stays the never-blank guarantee, now always labelled.
+- **Not `withStrict`.** Blood writes deliberately stay out of `withStrict` (money/Rx fail loudly);
+  an offline registration must not be blocked — outcome + retry is the correct contract.
+
+**Intentionally unchanged:** `donorDirectory`/`getDonorProfile`/`getBloodDonors` reads keep their
+internal fixture fallback (not in this pass). `reset()`/logout clears the outbox.
+
+**Rollback:** revert `state/bloodDonorStore.ts` + the `services/api/GatewayClient.ts` blood-read/write
+hunks + the blood UI read/source hunks; the blob drops `pendingOps` and best-effort writes resume.
+
+**Docs:** `data/DATA_CONTROL.md` (blood contract), `docs/architecture/mobile-app.md` (blood section +
+stores table), `docs/architecture/monolith-breakdown.md` §1 (blood/directory/sdui rows). **Date:** 2026-10-18
+
+---
+
 ## W50 — Campaign + Pharma merchandising de-mock (the two deferred anon reads)
 
 **Status:** 🟢 Shipped (server + data + seed + web + app + docs). Resolves the W47/W48 deferrals.

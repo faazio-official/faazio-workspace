@@ -30,7 +30,7 @@ const MAX_PHOTOS = 10;
 export function PrescriptionFlowScreen({ navigation, route }: Props) {
   const insets = useSafeAreaInsets();
   const presetVendorId = route.params?.presetVendorId;
-  const stores = usePharmaStores();
+  const { stores } = usePharmaStores();
   const presetVendor = useMemo(
     () => presetVendorId ? stores.find((store) => store.id === presetVendorId) ?? null : null,
     [presetVendorId, stores],

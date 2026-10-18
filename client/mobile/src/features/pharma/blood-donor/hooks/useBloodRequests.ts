@@ -5,7 +5,7 @@ import {
   type BloodRequest,
   type BloodRequestUrgency,
 } from '@data/index';
-import { gateway, type BloodRequestRecord } from '@/services/api/GatewayClient';
+import { gateway, type BloodRequestRecord, type ReadSource } from '@/services/api/GatewayClient';
 
 /** Index the fixture once so a server row can borrow its display-only extras. */
 const FIXTURE_BY_ID = new Map(BLOOD_REQUESTS.map((r) => [r.id, r]));
@@ -52,40 +52,52 @@ function toBloodRequest(rec: BloodRequestRecord): BloodRequest {
   };
 }
 
+/** The board plus its provenance so the screen can label a stale/offline view honestly. */
+export interface BloodRequestsFeed {
+  requests: BloodRequest[];
+  source: ReadSource;
+}
+
 /**
  * Module cache of the last resolved feed. The dashboard resolves it first, so the
  * detail screen mounted on the next tick renders instantly instead of re-flashing.
  */
 let cache: BloodRequest[] = BLOOD_REQUESTS;
+let cacheSource: ReadSource = 'offline-fallback';
 
 /**
- * The public blood-request board, remote-first from `blood.requests`
- * (`GET /blood-requests`) through `GatewayClient.getBloodRequests`, which falls
- * back to the `@data` fixtures on a network/HTTP error. The fixture is the initial
- * value so the board never renders empty, then swaps in the durable rows (an empty
- * remote result keeps the seed). Server rows are enriched with fixture display
- * extras by id; see `toBloodRequest`.
+ * The public blood-request board. Reads `blood.requests` (`GET /blood-requests`) through the
+ * no-fallback `GatewayClient.fetchBloodRequests`, so the hook can tell a live response from the
+ * offline fixture:
+ *  - live rows        → `source: 'live'`
+ *  - server `200 []`  → `source: 'empty-authoritative'` (an honest empty board, not an error)
+ *  - fetch failure    → the `@data` fixture (or a previously-live cache) + `offline-fallback`/`cache-stale`
+ *
+ * The fixture is the initial value so the board never blanks, but it is always labelled.
  */
-export function useBloodRequests(): BloodRequest[] {
-  const [requests, setRequests] = useState<BloodRequest[]>(cache);
+export function useBloodRequests(): BloodRequestsFeed {
+  const [feed, setFeed] = useState<BloodRequestsFeed>({ requests: cache, source: cacheSource });
 
   useEffect(() => {
     let active = true;
     gateway
-      .getBloodRequests()
+      .fetchBloodRequests()
       .then((rows) => {
-        if (active && rows.length > 0) {
-          cache = rows.map(toBloodRequest);
-          setRequests(cache);
-        }
+        if (!active) return;
+        const mapped = rows.map(toBloodRequest);
+        cache = mapped;
+        cacheSource = rows.length > 0 ? 'live' : 'empty-authoritative';
+        setFeed({ requests: mapped, source: cacheSource });
       })
       .catch(() => {
-        // getBloodRequests already falls back to the @data fixtures internally.
+        if (!active) return;
+        const stale = cacheSource === 'live' || cacheSource === 'empty-authoritative';
+        setFeed({ requests: cache, source: cache.length > 0 && stale ? 'cache-stale' : 'offline-fallback' });
       });
     return () => {
       active = false;
     };
   }, []);
 
-  return requests;
+  return feed;
 }

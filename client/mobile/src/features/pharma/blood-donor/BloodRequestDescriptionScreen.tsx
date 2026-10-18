@@ -25,6 +25,7 @@ import {
   Clock,
   MapPin,
   ShieldCheck,
+  CloudOff,
 } from 'lucide-react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
@@ -59,12 +60,16 @@ function neededWithinValue(neededWithin: string): string {
 
 export function BloodRequestDescriptionScreen({ navigation, route }: Props) {
   const insets = useSafeAreaInsets();
-  const requests = useBloodRequests();
+  const { requests, source } = useBloodRequests();
   const request = requests.find((r) => r.id === route.params.requestId) ?? null;
   const interestedRequestIds = useBloodDonorStore((s) => s.interestedRequestIds);
   const acceptedRequestIds = useBloodDonorStore((s) => s.acceptedRequestIds);
   const toggleInterested = useBloodDonorStore((s) => s.toggleInterested);
   const acceptRequest = useBloodDonorStore((s) => s.acceptRequest);
+  const interestPending = useBloodDonorStore((s) =>
+    s.pendingOps.some((o) => o.kind === 'interest' && o.targetId === route.params.requestId),
+  );
+  const offlineFeed = source === 'offline-fallback' || source === 'cache-stale';
 
   const isInterested = request ? interestedRequestIds.includes(request.id) : false;
   const isAccepted = request ? acceptedRequestIds.includes(request.id) : false;
@@ -207,6 +212,12 @@ export function BloodRequestDescriptionScreen({ navigation, route }: Props) {
         bounces={false}
       >
         {/* Hospital card */}
+        {offlineFeed ? (
+          <View style={styles.offlineChip}>
+            <CloudOff size={ms(13)} color={BLOOD_TEXT_MUTED} strokeWidth={2.2} />
+            <AppText style={styles.offlineChipText}>Showing saved details — offline</AppText>
+          </View>
+        ) : null}
         <View style={styles.hospitalCard}>
           {request.imageUrl ? (
             <ExpoImage
@@ -368,6 +379,13 @@ export function BloodRequestDescriptionScreen({ navigation, route }: Props) {
             </AppText>
           </TouchableOpacity>
         </View>
+
+        {interestPending ? (
+          <View style={styles.syncNote}>
+            <CloudOff size={ms(12)} color={BLOOD_RED_DARK} strokeWidth={2.2} />
+            <AppText style={styles.syncNoteText}>Not yet synced — will retry</AppText>
+          </View>
+        ) : null}
 
         {/* Privacy note */}
         <View style={styles.privacyNote}>
@@ -752,5 +770,31 @@ const styles = StyleSheet.create({
   },
   nearbyList: {
     gap: SPACE.ITEM,
+  },
+  offlineChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: hs(6),
+    alignSelf: 'flex-start',
+    backgroundColor: '#F1F5F9',
+    borderRadius: BLOOD_RADII.pill,
+    paddingHorizontal: hs(10),
+    paddingVertical: vs(5),
+  },
+  offlineChipText: {
+    fontSize: ms(10.5),
+    fontWeight: '700',
+    color: BLOOD_TEXT_MUTED,
+  },
+  syncNote: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: hs(6),
+    alignSelf: 'center',
+  },
+  syncNoteText: {
+    fontSize: ms(10.5),
+    fontWeight: '700',
+    color: BLOOD_RED_DARK,
   },
 });

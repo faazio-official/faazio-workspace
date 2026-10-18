@@ -1,7 +1,7 @@
 import React, { useMemo, useState } from 'react';
 import { StyleSheet, View, TouchableOpacity, ScrollView } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
-import { Bell, HeartPulse, Droplet, Search, Funnel } from 'lucide-react-native';
+import { Bell, HeartPulse, Droplet, Search, Funnel, CloudOff } from 'lucide-react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
@@ -61,7 +61,11 @@ export function DonorDashboard() {
   const [filter, setFilter] = useState<FilterId>('all');
   const [query, setQuery] = useState('');
   const [askOpen, setAskOpen] = useState(false);
-  const requests = useBloodRequests();
+  const { requests, source } = useBloodRequests();
+  const pendingOps = useBloodDonorStore((s) => s.pendingOps);
+  const lastWriteStatus = useBloodDonorStore((s) => s.lastWriteStatus);
+  const offlineFeed = source === 'offline-fallback' || source === 'cache-stale';
+  const emptyAuthoritative = source === 'empty-authoritative';
 
   const incomingRequests = useMemo(
     () => donorMatchRequests.filter((request) => request.donorUserId === userId),
@@ -119,6 +123,17 @@ export function DonorDashboard() {
             </View>
           </TouchableOpacity>
         </View>
+
+        {pendingOps.length > 0 ? (
+          <View style={styles.syncBanner}>
+            <CloudOff size={ms(14)} color={BLOOD_RED_DARK} strokeWidth={2.2} />
+            <AppText style={styles.syncBannerText}>
+              {lastWriteStatus === 'signed-out'
+                ? "Signed out — sign in to sync your donor changes."
+                : "Not yet synced — we'll retry automatically."}
+            </AppText>
+          </View>
+        ) : null}
 
         <LinearGradient
           colors={[BLOOD_RED, BLOOD_RED_DARK]}
@@ -197,12 +212,25 @@ export function DonorDashboard() {
           </TouchableOpacity>
         </View>
 
+        {offlineFeed ? (
+          <View style={styles.offlineChip}>
+            <CloudOff size={ms(13)} color={BLOOD_TEXT_MUTED} strokeWidth={2.2} />
+            <AppText style={styles.offlineChipText}>Showing saved requests — offline</AppText>
+          </View>
+        ) : null}
+
         {filteredRequests.length === 0 ? (
           <View style={styles.emptyCard}>
             <Droplet size={ms(26)} color={BLOOD_RED_SOFT} fill={BLOOD_RED_SOFT} strokeWidth={2} />
-            <AppText style={styles.emptyTitle}>No donation requests match your filters.</AppText>
+            <AppText style={styles.emptyTitle}>
+              {emptyAuthoritative && !query.trim() && filter === 'all'
+                ? 'No donation requests right now.'
+                : 'No donation requests match your filters.'}
+            </AppText>
             <AppText style={styles.emptySub}>
-              Try clearing the search or switching to all donation requests.
+              {emptyAuthoritative && !query.trim() && filter === 'all'
+                ? 'Check back soon — new requests will appear here.'
+                : 'Try clearing the search or switching to all donation requests.'}
             </AppText>
           </View>
         ) : (
@@ -464,6 +492,39 @@ const styles = StyleSheet.create({
     paddingHorizontal: hs(24),
     paddingVertical: vs(36),
     gap: SPACE.BLOCK,
+  },
+  syncBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: hs(8),
+    backgroundColor: BLOOD_RED_TINT,
+    borderRadius: BLOOD_RADII.chip,
+    borderWidth: 1,
+    borderColor: BLOOD_BORDER,
+    paddingHorizontal: hs(12),
+    paddingVertical: vs(9),
+  },
+  syncBannerText: {
+    flex: 1,
+    fontSize: ms(11.5),
+    fontWeight: '700',
+    color: BLOOD_RED_DARK,
+    lineHeight: vs(16),
+  },
+  offlineChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: hs(6),
+    alignSelf: 'flex-start',
+    backgroundColor: '#F1F5F9',
+    borderRadius: BLOOD_RADII.pill,
+    paddingHorizontal: hs(10),
+    paddingVertical: vs(5),
+  },
+  offlineChipText: {
+    fontSize: ms(10.5),
+    fontWeight: '700',
+    color: BLOOD_TEXT_MUTED,
   },
   emptyTitle: {
     fontSize: ms(13),

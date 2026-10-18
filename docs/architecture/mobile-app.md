@@ -281,22 +281,32 @@ falls back to the `@data` fixtures only offline/mock — health PII is never ser
 consent gate. Selecting a donor opens `BloodDonorDetails`,
 where the user can send one targeted `DonorMatchRequest` (durable via `POST /donor-match-requests`).
 **(W53)** the wizard registration (`PUT /donors/me`), the "interested"/"accepted" toggles
-(`PUT /blood-requests/{id}/interest`) and the targeted match are also written to the server
-(best-effort; AsyncStorage stays the UX cache), and `bloodDonorStore` hydrates a committed
-registration + outgoing matches from the server after a reinstall. Local state remains the offline
-fallback until the UX is fully server-authoritative.
+(`PUT /blood-requests/{id}/interest`) and the targeted match are written to the server as
+**outcome-returning** calls (`saveDonorProfile`/`setBloodInterest`/`createDonorMatch` →
+`synced`/`offline`/`signed-out`, mirroring `submitVendorRating`), not `void …catch`. The store
+commits optimistically to AsyncStorage, tags the row `pendingSync`, and queues a `PendingDonorOp`
+in the same `faazio/bloodDonor/v1` blob when the write is non-durable; the outbox is flushed on
+hydration and on app foreground, and `hydrateFromServer` reconciles the server rows over the local
+mirrors (server wins by id, local-only preserved) — a silent failure can no longer look like
+success. Mock mode (remote disabled) keeps the device mirror as the final home (no pointless queue).
 
 The dashboard hospital-request feed is **server-backed** (`hooks/useBloodRequests` →
-`GatewayClient.getBloodRequests()` → `blood.requests`). Server rows are mapped onto the app's
+`GatewayClient.fetchBloodRequests()` → `blood.requests`, a no-fallback read that throws
+`GatewayOfflineError` instead of fabricating rows). Server rows are mapped onto the app's
 `BloodRequest` card/detail shape; display-only extras the server does not carry
 (`imageUrl`, `purposeDescription`, patient age/gender, `distanceKm`) are borrowed from the
 `@data/pharma/bloodRequests.ts` fixture when the id matches and otherwise rendered as graceful
 "not provided" (the detail screen conditionally hides the photo, age/gender, contact and location
 rows). `contact`/`address` come from the server (present for an authenticated caller, redacted for
 anon) — no PII is widened in the projection, and **(W53)** a redacted/absent server value is
-rendered blank, never backfilled with a fixture lookalike. A module-level cache of the resolved feed
-means the detail screen (which resolves by `requestId`) renders instantly after the dashboard has
-loaded.
+rendered blank, never backfilled with a fixture lookalike. **(W53)** the hook returns
+`{ requests, source }` (`live` | `empty-authoritative` | `offline-fallback` | `cache-stale`): a live
+`200 []` renders an honest empty card, while a fetch failure shows the fixture/cache with a
+"Showing saved requests — offline" chip — never blank, never lie. A module-level cache of the
+resolved feed means the detail screen (which resolves by `requestId`) renders instantly after the
+dashboard has loaded. The same `{ … , source }` provenance is exposed by `usePharmaStores`
+(`fetchStores('PHARMA')`) and `pharmaService.fetchPharmaFeed` (`fetchPharmaSections`), which show a
+"sample pharmacies — offline" chip when the live rails are unavailable.
 
 `search` hosts the shared `SearchScreen` shell (`features/search/SearchScreen.tsx`) plus
 per-sub-app configs (`configs/*`). Product search (Mart / Pharma / Home Hub)
@@ -513,7 +523,7 @@ still separate files; consolidating them is tracked in `client/mobile/PENDING_WO
 | `bookingStore` | Dinner bookings (optimistic local cache only; the durable path is `GatewayClient.getBookings`/`createBooking`/`cancelBooking`) |
 | `foodBookingStore` | Food bookings |
 | `pharmaStore` | Prescriptions |
-| `bloodDonorStore` | Blood Donor wizard draft + committed registration + targeted donor requests (`donorMatchRequests`) |
+| `bloodDonorStore` | Blood Donor wizard draft + committed registration + targeted donor requests (`donorMatchRequests`) + the offline write outbox (`pendingOps`; flushed on hydration/foreground, server-wins reconcile) |
 | `searchStore` | Search state/history |
 | `languageStore` | Selected language |
 | `uiStore` | Sub-app id (`FA_MART`/`FOOD`/`PHARMA`), tab name |
