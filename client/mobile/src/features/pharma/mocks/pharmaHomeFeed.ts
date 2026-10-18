@@ -53,6 +53,8 @@ export interface PharmaPopularMedicine {
   details: string;
   rating: number;
   price: number;
+  /** List price (MRP) when an approved server discount lowered `price`; absent otherwise. */
+  mrp?: number;
   imageUrl: string;
 }
 
@@ -75,13 +77,22 @@ export interface PharmaHealthCornerArticle {
   imageUrl: string;
 }
 
+/**
+ * Quick Reorder is the shopper's repeat-buy shelf. The ids are REAL `ph-*` catalog rows (not
+ * synthetic `pqr-*`) so a tap resolves a canonical PDP and an add-to-cart id the server can price
+ * at checkout — the offline fallback carries the same ids as the server-resolved version. This is a
+ * fixture display fallback; `pharmaService` re-resolves names/prices from the catalog when online.
+ */
 export const PHARMA_QUICK_REORDER: PharmaQuickReorderItem[] = [
-  { id: 'pqr-1', name: 'Paracetamol 650', stripDetails: 'Strip of 15 Tablets', price: 45 },
-  { id: 'pqr-2', name: 'Vitamin D3', stripDetails: 'Bottle of 60 Capsules', price: 450 },
-  { id: 'pqr-3', name: 'Cetirizine 10mg', stripDetails: 'Strip of 10 Tablets', price: 38 },
-  { id: 'pqr-4', name: 'ORS Sachets', stripDetails: 'Pack of 20 Sachets', price: 75 },
-  { id: 'pqr-5', name: 'Antiseptic Cream', stripDetails: 'Tube of 30g', price: 120 },
+  { id: 'ph-f1', name: 'Paracetamol 500mg', stripDetails: 'Strip of 10 Tablets', price: 45 },
+  { id: 'ph-t3', name: 'Vitamin D3 2000 IU', stripDetails: 'Bottle of 60 Capsules', price: 450 },
+  { id: 'ph-all1', name: 'Cetirizine Antihistamine', stripDetails: 'Strip of 10 Tablets', price: 55 },
+  { id: 'ph-d1', name: 'Oral Rehydration Salt', stripDetails: 'Pack of 20 Sachets', price: 75 },
+  { id: 'ph-a1', name: 'Antiseptic Cream', stripDetails: 'Tube of 30g', price: 120 },
 ];
+
+/** The real catalog ids behind the Quick Reorder shelf (for the server batch resolve). */
+export const PHARMA_QUICK_REORDER_IDS: string[] = PHARMA_QUICK_REORDER.map((i) => i.id);
 
 export const PHARMA_TOP_OFFERS: PharmaTopOffer[] = [
   { id: 'pto-1', title: 'FLAT 20% OFF', subtitle: 'On medicines above ₹299', code: 'MED20', iconName: 'percent' },

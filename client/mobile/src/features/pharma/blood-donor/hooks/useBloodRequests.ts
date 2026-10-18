@@ -43,8 +43,10 @@ function toBloodRequest(rec: BloodRequestRecord): BloodRequest {
     purposeDescription: fx?.purposeDescription ?? '',
     patientAge: fx?.patientAge ?? 0,
     patientGender: fx?.patientGender ?? '',
-    hospitalContact: rec.contact ?? fx?.hospitalContact ?? '',
-    hospitalAddress: rec.address ?? fx?.hospitalAddress ?? `${rec.city}, ${rec.state}`,
+    // Contact/address are server-owned PII: an anon caller gets them redacted (absent) and must
+    // never be shown a fixture lookalike. Only the donation-safe display extras come from the fixture.
+    hospitalContact: rec.contact ?? '',
+    hospitalAddress: rec.address ?? `${rec.city}, ${rec.state}`,
     remarks: rec.remarks ?? fx?.remarks ?? '',
     distanceKm: fx?.distanceKm ?? 0,
   };

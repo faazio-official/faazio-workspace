@@ -650,7 +650,10 @@ export class GatewayClient {
         this.http<ProductView[]>(
           `/stores/${encodeURIComponent(storeId)}/products${cursor ? `?cursor=${encodeURIComponent(cursor)}` : ''}`,
         ),
-      () => delay(this.joinStock(getCatalogEntriesByStore(storeId, 'MART'))),
+      // Store-scoped (not app-scoped): store ids are unique across Mart & Pharma, and the real
+      // `GET /stores/{id}/products` is app-agnostic. Keeps the Pharma medical-shop inventory working
+      // offline as well as Mart.
+      () => delay(this.joinStock(getCatalogEntriesByStore(storeId))),
     );
   }
 

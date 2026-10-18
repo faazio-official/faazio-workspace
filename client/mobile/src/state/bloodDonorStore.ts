@@ -1,8 +1,16 @@
 import { create } from 'zustand';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useAuthStore } from '@/state/authStore';
-import { gateway } from '@/services/api/GatewayClient';
-import type { BloodDonorDraft, BloodDonorRegistration, DonorMatchRequest, DonorProfile } from '@data/index';
+import { gateway, type BloodDonorProfile, type DonorMatchRecord } from '@/services/api/GatewayClient';
+import type {
+  AgeRangeId,
+  BloodDonorDraft,
+  BloodDonorRegistration,
+  BloodGroup,
+  DonationTypeId,
+  DonorMatchRequest,
+  DonorProfile,
+} from '@data/index';
 
 const STORAGE_KEY = 'faazio/bloodDonor/v1';
 
@@ -47,6 +55,50 @@ const persist = (
     // Best-effort device-local state; failures are silent and never logged (PII rule).
   });
 };
+
+/** Rebuild a committed registration from the durable server profile (fresh install / cleared cache). */
+function registrationFromServer(p: BloodDonorProfile): BloodDonorRegistration {
+  const draft: BloodDonorDraft = {
+    ...EMPTY_DRAFT,
+    bloodGroup: p.bloodGroup as BloodGroup,
+    ageRange: (p.ageRange as AgeRangeId) ?? null,
+    weightKg: p.weightKg ?? null,
+    preferredLocation: p.city || null,
+    donationType: (p.donationType as DonationTypeId) ?? null,
+    willingToTravel: p.willingToTravel ? 'yes' : 'no',
+    consentGiven: p.consent,
+    notificationPrefs: { ...EMPTY_DRAFT.notificationPrefs, ...(p.notif ?? {}) },
+  };
+  return {
+    id: p.userId,
+    registeredAt: new Date().toISOString(),
+    profile: draft,
+    accountPhone: useAuthStore.getState().user?.phone ?? null,
+  };
+}
+
+/** Server match rows are surfaced as `pending` only — this UI has no accepted/declined state. */
+function toDonorMatchRequest(r: DonorMatchRecord): DonorMatchRequest {
+  return {
+    id: r.id,
+    requesterUserId: r.requesterUserId,
+    requesterName: '',
+    donorId: r.donorUserId,
+    donorUserId: r.donorUserId,
+    donorName: '',
+    bloodGroup: r.bloodGroup as BloodGroup,
+    city: r.city,
+    requestedAt: r.createdAt,
+    status: 'pending',
+  };
+}
+
+/** Merge server matches over local ones by id (server wins), preserving local-only entries. */
+function mergeMatches(local: DonorMatchRequest[], remote: DonorMatchRequest[]): DonorMatchRequest[] {
+  const byId = new Map(local.map((m) => [m.id, m]));
+  for (const m of remote) byId.set(m.id, m);
+  return [...byId.values()];
+}
 
 interface BloodDonorState {
   /** Per-step answers captured mid-wizard (survives restarts via AsyncStorage). */
@@ -170,6 +222,31 @@ export const useBloodDonorStore = create<BloodDonorState>()((set, get) => ({
   },
 }));
 
+/**
+ * Read-back hydration from the durable server registry (best-effort). In mock mode the gateway
+ * returns null/[] so this is a no-op and the AsyncStorage cache stands; with a real session it
+ * restores a registration after reinstall and surfaces the caller's outgoing match requests.
+ */
+async function hydrateFromServer(): Promise<void> {
+  try {
+    const [profile, matches] = await Promise.all([
+      gateway.getDonorProfile(),
+      gateway.getDonorMatches(),
+    ]);
+    if (profile && !useBloodDonorStore.getState().registration) {
+      useBloodDonorStore.setState({ registration: registrationFromServer(profile) });
+    }
+    const pending = matches.filter((m) => m.status === 'pending').map(toDonorMatchRequest);
+    if (pending.length > 0) {
+      useBloodDonorStore.setState((s) => ({
+        donorMatchRequests: mergeMatches(s.donorMatchRequests, pending),
+      }));
+    }
+  } catch {
+    // Offline / mock — the local AsyncStorage cache remains the source of truth.
+  }
+}
+
 // Hydrate at store creation (fire-and-forget, searchStore-style). The stored draft
 // merges over EMPTY_DRAFT so older persisted drafts pick up newly added fields
 // with sane defaults instead of crashing on missing keys.
@@ -197,4 +274,5 @@ AsyncStorage.getItem(STORAGE_KEY)
   .catch(() => {})
   .finally(() => {
     useBloodDonorStore.setState({ hydrated: true });
+    void hydrateFromServer();
   });

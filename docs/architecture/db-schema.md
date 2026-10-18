@@ -937,6 +937,10 @@ The dining-venue **list** is served by `GET /venues?app=` (PII-free projection o
 
 ### 12.5 `pharma.prescriptions` — source `features/pharma/prescription` (migration `0009`)
 
+> **Enum note (verified 2026-10-18):** `0018` extends this enum with `QUOTED` and `READY`
+> (`ALTER TYPE … ADD VALUE IF NOT EXISTS`), matching the gateway's `allowedRxStatus`. The partner
+> quote → READY reveal workflow writes those states successfully — no enum drift. See §12.12.
+
 ```sql
 CREATE TYPE prescription_status AS ENUM ('RECEIVED','PROCESSING','FULFILLED','CANCELLED');
 

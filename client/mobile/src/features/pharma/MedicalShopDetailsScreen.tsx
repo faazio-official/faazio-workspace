@@ -18,7 +18,8 @@ import type { HeroAd } from '@/services/api/GatewayClient';
 import { hs, ms, vs } from '@/utils/responsive';
 import { SPACE } from '@/theme/spacing';
 import type { Product, StoreProfile } from '@data/types';
-import { getVendorProducts, matchesQuery } from '@/services/categoryVendors';
+import { matchesQuery } from '@/services/categoryVendors';
+import { useVendorProducts } from '@/features/catalog/hooks/useVendorProducts';
 import { usePharmaStores } from './hooks/usePharmaStores';
 import type { RootStackParamList } from '@/navigation/types';
 import SearchPharmaProductCard from './components/SearchPharmaProductCard';
@@ -92,10 +93,9 @@ export function MedicalShopDetailsScreen({ navigation, route }: Props) {
     () => stores.find((candidate) => candidate.id === route.params.storeId),
     [stores, route.params.storeId],
   );
-  const products = useMemo(
-    () => getVendorProducts(route.params.storeId, 'PHARMA'),
-    [route.params.storeId],
-  );
+  // Canonical store inventory: server `GET /stores/{id}/products` with approved festival discounts
+  // overlaid (same hook the Mart vendor drill-in uses) — the local `@data` pool is the offline fallback.
+  const { products } = useVendorProducts(route.params.storeId);
   const filtered = useMemo(
     () => query.trim() ? products.filter((product) => matchesQuery(product, query)) : products,
     [products, query],

@@ -39,7 +39,12 @@ const PopularMedicineCard = memo(function PopularMedicineCard({
           <AppText style={styles.rating}>{item.rating}</AppText>
         </View>
         <View style={styles.footerRow}>
-          <AppText style={styles.price}>₹{item.price}</AppText>
+          <View style={styles.priceWrap}>
+            <AppText style={styles.price}>₹{item.price}</AppText>
+            {item.mrp && item.mrp > item.price ? (
+              <AppText style={styles.mrp}>₹{item.mrp}</AppText>
+            ) : null}
+          </View>
           <TouchableOpacity
             onPress={onAdd}
             style={[styles.addBtn, added && styles.addBtnAdded]}
@@ -110,10 +115,22 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     marginTop: vs(8),
   },
+  priceWrap: {
+    flexDirection: 'row',
+    alignItems: 'baseline',
+    gap: hs(4),
+    flexShrink: 1,
+  },
   price: {
     fontSize: ms(14),
     fontWeight: '900',
     color: PHARMA_INK,
+  },
+  mrp: {
+    fontSize: ms(10),
+    fontWeight: '600',
+    color: PHARMA_GREY,
+    textDecorationLine: 'line-through',
   },
   addBtn: {
     width: ms(26),

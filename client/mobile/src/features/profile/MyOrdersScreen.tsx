@@ -335,7 +335,8 @@ export function MyOrdersScreen({ navigation, route }: Props) {
             {visibleOrders.map((vo) => {
               const highlighted = !!highlightOrderId && viewOrderRefId(vo) === highlightOrderId;
 
-              // Prescription placed order — distinct card (📄 thumb, no detail page).
+              // Prescription placed order — distinct card; opens OrderDetails for the durable Rx
+              // status + seller quote (same route as item orders).
               if (vo.kind === 'placed' && vo.order.kind === 'prescription') {
                 const po = vo.order as PlacedOrder;
                 return (
@@ -343,6 +344,7 @@ export function MyOrdersScreen({ navigation, route }: Props) {
                     key={po.id}
                     style={[styles.orderCard, highlighted && styles.orderCardHighlighted]}
                     activeOpacity={0.9}
+                    onPress={() => handleOpenOrder(po.orderId)}
                     accessibilityRole="button"
                     accessibilityLabel={`Open prescription order ${po.orderId}`}
                   >

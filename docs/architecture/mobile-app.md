@@ -131,8 +131,16 @@ product rails and the house `PharmaHeroBanner` are now server-backed: `fetchPhar
 Pharma-only `GET /sdui/pharma` projection (`GatewayClient.getPharmaFeed`, allowlisted
 `pharmaHero`/`pharmaPopular`/`pharmaEssentials`, own compiled cache/ETag), joined to the catalog;
 the paid `PHARMA_HERO` slot wins over `pharmaHero.banners` and the `@data`/feature fixtures remain
-the offline fallback. Rx-gated products are never referenced. `MedicalShopDetails` keeps the pharmacy boundary local while
-using `getVendorProducts`/`matchesQuery` and `SearchPharmaProductCard` for its live product list.
+the offline fallback. Rx-gated products are never referenced. **(W53)** the feed overlays approved
+festival discounts on the Popular Medicines rail (`services/pricing`, same pipeline as Mart), the
+**Quick Reorder** shelf now carries real `ph-*` catalog ids (server-resolved via `getProductsByIds`)
+so a tap opens a canonical PDP and an add-to-cart id checkout can price, and **Top Offers** are
+filtered to live `GET /coupons?app=PHARMA` codes when online (never advertises a code checkout
+can't settle). The header search bar is server-backed (`searchProducts`, `withActiveDiscounts`),
+matching Mart and the first-class Search tab. The dead `DealsLanding` `app:'PHARMA'` param was
+removed — Pharma rails' "View all" opens the first-class Search route, not the Mart deals landing. `MedicalShopDetails` keeps the pharmacy boundary local
+while using `useVendorProducts` (`GET /stores/{id}/products`, festival-overlaid) and
+`SearchPharmaProductCard` for its live product list.
 Its shop info block includes the cover, contact details, hours and pickup address, and its
 `UploadPrescriptionFAB` opens `PrescriptionFlow` with the pharmacy preselected.
 
@@ -267,11 +275,16 @@ Pharma wrapper with the navbar kept and the gradient header hidden), entered via
 `Droplet` tab in the Pharma navbar. Both the wizard and dashboard host a floating
 **"Ask Blood"** action (`AskBloodSheet` on the shared `SlideUpSheet`) that collects only
 city and blood group, then resolves matching donors through the async
-`services/donorDirectory.ts` repository seam. Selecting a donor opens `BloodDonorDetails`,
-where the user can send one targeted `DonorMatchRequest`; the request is persisted in the
-same blob and rendered only for the selected donor by `donorUserId`. It is never inserted
-into the common hospital feed or broadcast to all donors. The donor registry and targeted
-request delivery remain mock/local until Go Chi owns them.
+`services/donorDirectory.ts` repository seam. **(W53)** the seam is **remote-first**: it reads the
+consented, auth-scoped `GET /donors` (`blood.donor_directory`, `consent AND available` only) and
+falls back to the `@data` fixtures only offline/mock — health PII is never served outside the
+consent gate. Selecting a donor opens `BloodDonorDetails`,
+where the user can send one targeted `DonorMatchRequest` (durable via `POST /donor-match-requests`).
+**(W53)** the wizard registration (`PUT /donors/me`), the "interested"/"accepted" toggles
+(`PUT /blood-requests/{id}/interest`) and the targeted match are also written to the server
+(best-effort; AsyncStorage stays the UX cache), and `bloodDonorStore` hydrates a committed
+registration + outgoing matches from the server after a reinstall. Local state remains the offline
+fallback until the UX is fully server-authoritative.
 
 The dashboard hospital-request feed is **server-backed** (`hooks/useBloodRequests` →
 `GatewayClient.getBloodRequests()` → `blood.requests`). Server rows are mapped onto the app's
@@ -280,9 +293,10 @@ The dashboard hospital-request feed is **server-backed** (`hooks/useBloodRequest
 `@data/pharma/bloodRequests.ts` fixture when the id matches and otherwise rendered as graceful
 "not provided" (the detail screen conditionally hides the photo, age/gender, contact and location
 rows). `contact`/`address` come from the server (present for an authenticated caller, redacted for
-anon) — no PII is widened in the projection. A module-level cache of the resolved feed means the
-detail screen (which resolves by `requestId`) renders instantly after the dashboard has loaded.
-The wizard/registration and targeted donor-match stores stay local (unchanged).
+anon) — no PII is widened in the projection, and **(W53)** a redacted/absent server value is
+rendered blank, never backfilled with a fixture lookalike. A module-level cache of the resolved feed
+means the detail screen (which resolves by `requestId`) renders instantly after the dashboard has
+loaded.
 
 `search` hosts the shared `SearchScreen` shell (`features/search/SearchScreen.tsx`) plus
 per-sub-app configs (`configs/*`). Product search (Mart / Pharma / Home Hub)

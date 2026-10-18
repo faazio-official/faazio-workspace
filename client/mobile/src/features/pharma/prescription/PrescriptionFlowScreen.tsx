@@ -1,5 +1,5 @@
 import React, { useCallback, useMemo, useState } from 'react';
-import { View, StyleSheet } from 'react-native';
+import { View, StyleSheet, Alert } from 'react-native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { RootStackParamList } from '@/navigation/types';
@@ -45,6 +45,7 @@ export function PrescriptionFlowScreen({ navigation, route }: Props) {
   const [placedOrderId, setPlacedOrderId] = useState<string | null>(null);
   const [confirmedFulfillment, setConfirmedFulfillment] = useState<FulfillmentMode>('DELIVERY');
   const [sheetVisible, setSheetVisible] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
 
   const recordOrder = useOrdersStore((s) => s.recordOrder);
 
@@ -85,50 +86,70 @@ export function PrescriptionFlowScreen({ navigation, route }: Props) {
   const handleConfirm = useCallback(
     (fulfillment: FulfillmentMode) => {
       const vendor = draft.vendor;
-      if (!vendor) return;
+      if (!vendor || submitting) return;
       const pages = draft.photos.length;
       const note = draft.note.trim() ? draft.note : undefined;
+      setSubmitting(true);
       void (async () => {
-        // Resolve the delivery address from the SERVER-owned list (auth-scoped) so the
-        // prescription's address_id FK never points at a phantom @data fixture id. Falls back
-        // to the fixture list only when the gateway is offline (mock mode).
-        const addresses = await gateway.getAddresses();
-        const addressId =
-          addresses.find((a) => a.isDefault === true)?.id ?? addresses[0]?.id;
-        // 1. Upload each photo to the private bucket via a signed URL; keep the object KEYS
-        //    (never URLs, never logged). Failures drop that photo but never block the Rx.
-        const keys = (
-          await Promise.all(draft.photos.map((uri) => gateway.uploadPrescriptionImage(uri)))
-        ).filter((k): k is string => Boolean(k));
-        // 2. Create the durable Rx — the SERVER owns the authoritative id (and the quote/reveal
-        //    lifecycle). The local order is keyed by that id so MyOrders can poll it.
-        const rx = await gateway.createPrescription({
-          vendorId: vendor.id,
-          fulfillment,
-          pages,
-          note,
-          imagePaths: keys,
-          ...(fulfillment === 'DELIVERY' && addressId ? { addressId } : {}),
-        });
-        recordOrder({
-          orderId: rx.id,
-          kind: 'prescription',
-          fulfillment,
-          vendorName: vendor.name,
-          storeIds: [vendor.id],
-          pickup: fulfillment === 'PICKUP' && vendor.address
-            ? { name: vendor.name, address: vendor.address }
-            : undefined,
-          pages,
-          note,
-          total: 0,
-        });
-        setPlacedOrderId(rx.id);
-        setConfirmedFulfillment(fulfillment);
-        setStep('CONFIRMED');
+        try {
+          // Resolve the delivery address from the SERVER-owned list (auth-scoped) so the
+          // prescription's address_id FK never points at a phantom @data fixture id. Falls back
+          // to the fixture list only when the gateway is offline (mock mode).
+          const addresses = await gateway.getAddresses();
+          const addressId =
+            addresses.find((a) => a.isDefault === true)?.id ?? addresses[0]?.id;
+          // 1. Upload each photo to the private bucket via a signed URL; keep the object KEYS
+          //    (never URLs, never logged). Failures drop that photo but never block the Rx.
+          const keys = (
+            await Promise.all(draft.photos.map((uri) => gateway.uploadPrescriptionImage(uri)))
+          ).filter((k): k is string => Boolean(k));
+          // A durable Rx must carry its scans: on a real server session an all-upload failure is a
+          // hard stop, not a silent zero-image Rx. (Mock mode intentionally allows empty images.)
+          if (gateway.remoteEnabled && draft.photos.length > 0 && keys.length === 0) {
+            Alert.alert(
+              'Upload failed',
+              "We couldn't upload your prescription images. Check your connection and try again.",
+            );
+            return;
+          }
+          // 2. Create the durable Rx — the SERVER owns the authoritative id (and the quote/reveal
+          //    lifecycle). The local order is keyed by that id so MyOrders can poll it.
+          const rx = await gateway.createPrescription({
+            vendorId: vendor.id,
+            fulfillment,
+            pages,
+            note,
+            imagePaths: keys,
+            ...(fulfillment === 'DELIVERY' && addressId ? { addressId } : {}),
+          });
+          recordOrder({
+            orderId: rx.id,
+            kind: 'prescription',
+            fulfillment,
+            vendorName: vendor.name,
+            storeIds: [vendor.id],
+            pickup: fulfillment === 'PICKUP' && vendor.address
+              ? { name: vendor.name, address: vendor.address }
+              : undefined,
+            pages,
+            note,
+            total: 0,
+          });
+          setPlacedOrderId(rx.id);
+          setConfirmedFulfillment(fulfillment);
+          setStep('CONFIRMED');
+        } catch {
+          // Strict/remote failure (or a bad payload): keep the user on the current step and explain.
+          Alert.alert(
+            'Something went wrong',
+            "We couldn't submit your prescription. Please try again.",
+          );
+        } finally {
+          setSubmitting(false);
+        }
       })();
     },
-    [draft, recordOrder],
+    [draft, recordOrder, submitting],
   );
 
   const handleDone = useCallback(() => navigation.goBack(), [navigation]);

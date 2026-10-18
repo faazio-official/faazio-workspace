@@ -200,8 +200,8 @@ the `GROCERY` member was dropped from `AppBrand` / `CartCategory` / `SubAppId` /
 | `pharmaProducts` | `PharmaProduct[]` | `services/categoryVendors` (category drill-in / vendor details, via `storeId`); **`@unused`** by `PharmaScreen` (keeps an inline `PHARMA_PRODUCTS_DB`) | `@mock` |
 | `pharmaStores` | `StoreProfile[]` | Pharma home **Local Medicals Near You** rail + `MedicalShopDetails` profile/inventory entry + prescription vendor list, preset flow, and self-pickup resolver (6 outlets `store-p1…p6`, each pickup-capable) | `@mock` |
 | `PHARMA_RECENT_ORDERS` / `PharmaRecentOrder` | `PharmaRecentOrder[]` / type | `PharmaScreen` History tab (recently ordered cards; de-dups the former inline `RECENT_ORDERS`) | `@mock` |
-| `PHARMA_PRODUCTS_DB` | `PharmaDBItem[]` | **`@unused`** | `@mock` + `@unused` |
-| `PHARMA_CATEGORIES` | `PharmaCategory[]` | **`@unused`** | `@mock` + `@unused` |
+| `PHARMA_PRODUCTS_DB` | `PharmaDBItem[]` | `PharmaScreen` inline `CATEGORY_PRODUCTS` grid (real `ph-*` ids, server-priceable at checkout) | `@mock` |
+| `PHARMA_CATEGORIES` | `PharmaCategory[]` | `data/catalog/products.ts` pharma facet categories (server search) | `@mock` |
 | `BLOOD_GROUPS` | `BloodGroup[]` | Blood Donor wizard (blood-group chip grid) | `@mock` |
 | `BLOOD_DONOR_STEPS` | `BloodDonorStep[]` | Blood Donor wizard (stepper + step nav) | `@mock` |
 | `BLOOD_DONOR_BANNER` | `{ title; subtitle }` | Blood Donor wizard (info banner, step 1 only) | `@mock` |
@@ -215,12 +215,12 @@ the `GROCERY` member was dropped from `AppBrand` / `CartCategory` / `SubAppId` /
 | `NOTIFICATIONS_BANNER` | `{ message }` | Notifications step (info-banner copy) | `@mock` |
 | `CONSENT_LABEL` | `string` | Review step (consent checkbox copy) | `@mock` |
 | `PRIVACY_NOTE` | `string` | Review step (footer privacy note) | `@mock` |
-| `BLOOD_REQUESTS` | `BloodRequest[]` | Donor dashboard + request-details page (feed + detail fields) — dashboard feed hydrated via `GatewayClient.getBloodRequests()` (`useBloodRequests`; fixture-enriched display extras, fixture fallback) | `@mock` → `@server` |
+| `BLOOD_REQUESTS` | `BloodRequest[]` | Donor dashboard + request-details page (feed + detail fields) — feed hydrated via `GatewayClient.getBloodRequests()` (`useBloodRequests`; fixture-enriched display extras, fixture fallback; server `contact`/`address` never backfilled with fixture PII) | `@server` (fixture fallback) |
 | `BLOOD_DONOR_UNREAD_ALERTS` | `number` | Donor dashboard (bell badge seed) | `@mock` |
 | `BLOOD_REQUEST_DETAIL_COPY` | `{ bannerTitle; bannerSubtitle; confirmNote }` | Request-details page (banner + privacy note copy) | `@mock` |
 | `DonorMatchRequest` | `interface` | Targeted Ask Blood request persisted by `bloodDonorStore` and shown to its recipient | `@mock` |
 | `ASK_BLOOD_COPY` | `{ fabLabel; sheetTitle; searchSubtitle; resultsSubtitle; continueLabel }` | Ask Blood search/results copy | `@mock` |
-| `BLOOD_DONORS` / `DonorProfile` | `DonorProfile[]` / type | Mock donor-directory repository for city + blood-group matching | `@mock` |
+| `BLOOD_DONORS` / `DonorProfile` | `DonorProfile[]` / type | Offline fallback for `services/donorDirectory.ts` (Ask Blood matching + donor detail) — remote-first `GET /donors` (consented, auth-scoped) is the live source | `@server` (fixture fallback) |
 
 > **Blood Donor contract:** `BloodDonorDraft` / `BloodDonorRegistration` are the typed shape
 > the Go Chi backend persists (donor registry). As of migration `0010`, the server is the
@@ -232,8 +232,10 @@ the `GROCERY` member was dropped from `AppBrand` / `CartCategory` / `SubAppId` /
 > stays out of plain logs. `BLOOD_REQUESTS` is now the fixture **fallback** for the dashboard feed:
 > `hooks/useBloodRequests` reads `GET /blood-requests` (`blood.requests`) remote-first and merges
 > fixture-only display extras (`imageUrl`/`purposeDescription`/patient demographics/`distanceKm`) by
-> id; the detail page renders redacted rows gracefully. `BLOOD_DONORS` is the
-> donor-directory seed; `GET /donors` (auth-scoped) replaces it.
+> id; the detail page renders redacted rows gracefully, and a redacted/absent server contact/address
+> is rendered blank — never backfilled with a fixture lookalike. `BLOOD_DONORS` is the
+> donor-directory **offline fallback**; `GET /donors` (auth-scoped, `consent AND available` only via
+> `blood.donor_directory`) is the live source read by `services/donorDirectory.ts`.
 > **Targeted Ask Blood contract:** the user searches by city + blood group, selects one
 > `DonorProfile`, and creates one `DonorMatchRequest` containing both requester and
 > recipient user IDs. `POST/GET /donor-match-requests` persists it server-side; the local blob is
@@ -424,8 +426,12 @@ the `GROCERY` member was dropped from `AppBrand` / `CartCategory` / `SubAppId` /
    polling, orders history, vendor-review reads, `search` analytics, **profile reads**
    (`userProfile`/`accountDetails`/`savedAddresses`), **Mart home deals** and **Food venue menus**
    (dining + delivery, W33), plus **Food dining** (`getVenues`), **Food search** and **Food bookings**
-   (`getBookingAvailability`/`createBooking`/`attachBookingPayment`/`cancelBooking`/`getBookings`).
-   Remaining slice: the blood feed — see `WORKFLOW_SCRATCHPAD.md` §9.
+   (`getBookingAvailability`/`createBooking`/`attachBookingPayment`/`cancelBooking`/`getBookings`),
+   plus **blood reads** (dashboard feed W27; **donor discovery W53** via `GET /donors`) and
+   **Pharma merchandising W53** (`getPharmaFeed` + discount overlay + coupon-validated Top Offers +
+   real-id Quick Reorder). The blood **writes** (register/interest/targeted match) mirror server-side
+   best-effort (W53) with AsyncStorage as the UX cache; a fully server-authoritative write path
+   (auth session) remains open — see `WORKFLOW_SCRATCHPAD.md` §9.
 5. **~~Per-restaurant menus are seeded only for the 18 dining restaurants.~~ Resolved (W33).**
    The 12 food-delivery `foodStores` now have their own menus: `data/food/menus.ts` derives
    `storeMenus` from `foodProducts` by `storeId`, and the seed emits `directory.menus` rows for

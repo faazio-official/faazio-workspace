@@ -5,6 +5,49 @@ dependencies exist. Do not build the backend/seller flows until told to.
 
 ---
 
+## W53 — Pharma production-readiness pass (P0/P1 gaps + doc truth-up)
+
+**Status:** 🟢 Shipped (app + docs). No new screens; app auth stays **mocked** (no Supabase OTP).
+No server/DB/cache change — closes the P0/P1 gaps from the PHARMA sub-app audit.
+
+- **P0-1 donor discovery is remote-first.** `services/donorDirectory.ts` reads `GET /donors`
+  (auth-scoped, `blood.donor_directory` exposes `consent AND available` rows only) with the
+  `@data/pharma` `BLOOD_DONORS` fixture as offline fallback — Ask Blood matches consented donors
+  instead of always the seed.
+- **P0-2/P0-3 blood writes are durable + hydration is consent-gated.** `bloodDonorStore` mirrors
+  registration to `PUT /donors/me`, interest to `setBloodInterest`, targeted asks to
+  `createDonorMatch` (best-effort; AsyncStorage remains the optimistic UX cache); the dashboard
+  feed hydrates from `GET /blood-requests` and never backfills a redacted/absent server
+  `contact`/`address` with a fixture lookalike (P1-7 redaction-safe blanks).
+- **P0-4 dead Pharma surface removed.** `DealsLanding`'s `app:'PHARMA'` param (no routes used it)
+  was dropped; Pharma rails' "View all" opens the first-class Search route.
+- **P0-5 Rx enum drift — verified non-issue.** `0018` adds `QUOTED`/`READY` to
+  `prescription_status`; the gateway's `allowedRxStatus` matches. Documented in `db-schema.md` §12.5.
+- **P0-6 Rx capture hardened.** `PrescriptionFlowScreen` strict-mode + try/catch around
+  create/upload (no silent fixture success).
+- **P1-3 med-shop inventory is server-backed.** `MedicalShopDetailsScreen` uses
+  `useVendorProducts` (`getStoreProducts`, now app-agnostic via `getCatalogEntriesByStore`).
+- **P1-4/P1-7** as noted above; orders/tracking label the PHARMA sector on `OrderDetails`.
+
+**P1 merchandising (this pass):** `pharmaService` resolves Quick Reorder through
+`getProductsByIds` (real `ph-*` ids — checkout rejects `pqr-*` fixtures), overlays
+`getActiveDiscounts` on the Popular rail (shared `services/pricing`), and filters Top Offers to
+live `getCoupons('PHARMA')` codes when online (never advertises a code checkout can't settle).
+`PopularMedicineCard` gained MRP strikethrough; the header search bar is server-backed
+(`searchProducts` + `withActiveDiscounts`).
+
+**Intentionally unchanged:** `pharmaService`/`usePharmaStores` keep the fixture fallback so the
+feed never blanks mid-migration.
+
+**Rollback:** revert the `features/pharma/**`, `services/donorDirectory.ts`, `state/bloodDonorStore.ts`,
+`hooks/useBloodRequests.ts`, `services/api/GatewayClient.ts` (`getStoreProducts`), and
+`navigation/{types,SubAppWrapper}.tsx` hunks; fixtures resume. No migration.
+
+**Docs:** `docs/architecture/mobile-app.md`, `monolith-breakdown.md` §1, `db-schema.md` §12.5,
+`web-portal.md`, `PAGE_CATALOG.md`, `data/DATA_CONTROL.md`. **Date:** 2026-10-18
+
+---
+
 ## W50 — Campaign + Pharma merchandising de-mock (the two deferred anon reads)
 
 **Status:** 🟢 Shipped (server + data + seed + web + app + docs). Resolves the W47/W48 deferrals.

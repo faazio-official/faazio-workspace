@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { StyleSheet, View, ScrollView, Image, TouchableOpacity } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
@@ -12,8 +12,8 @@ import { SPACE } from '@/theme/spacing';
 import PharmaProductCard from '@/features/pharma/cards/PharmaProductCard';
 import AppTextInput from '@/components/AppTextInput';
 import AppText from '@/components/AppText';
-import { PHARMA_PRODUCTS_DB, pharmaProducts } from '@data/pharma/products';
-import type { StoreProfile } from '@data/types';
+import { PHARMA_PRODUCTS_DB } from '@data/pharma/products';
+import type { Product, StoreProfile } from '@data/types';
 import type { PharmaDBItem } from '@data/pharma/products';
 import { PHARMA_RECENT_ORDERS } from '@data/pharma/recentOrders';
 import type { PharmaRecentOrder } from '@data/pharma/recentOrders';
@@ -25,7 +25,8 @@ import { quickReorderToProduct } from './mocks/pharmaHomeFeed';
 import PharmaHeroBanner from './components/pharma-home/PharmaHeroBanner';
 import CampaignHero from '@/components/shared/CampaignHero';
 import { openHeroTarget } from '@/services/adsTarget';
-import type { HeroAd } from '@/services/api/GatewayClient';
+import { gateway, type HeroAd } from '@/services/api/GatewayClient';
+import { withActiveDiscounts } from '@/services/pricing';
 import QuickReorderRail from './components/pharma-home/QuickReorderRail';
 import TopOffersRail from './components/pharma-home/TopOffersRail';
 import PopularMedicinesRail from './components/pharma-home/PopularMedicinesRail';
@@ -114,9 +115,30 @@ export function PharmaScreen({
   };
 
   const homeSearchNormalized = searchQuery.trim().toLowerCase();
-  const searchedProducts = pharmaProducts.filter(p =>
-    p.name.toLowerCase().includes(homeSearchNormalized)
-  );
+
+  // Header search is server-backed (FTS on the gateway, local catalog mirror offline) with approved
+  // festival discounts overlaid — the same pipeline as Mart and the first-class Search route, so the
+  // header never shows a fixture-only result set divergent from the Search tab.
+  const [searchResults, setSearchResults] = useState<Product[]>([]);
+  useEffect(() => {
+    if (!homeSearchNormalized) {
+      setSearchResults([]);
+      return;
+    }
+    let active = true;
+    gateway
+      .searchProducts(searchQuery.trim(), 'PHARMA')
+      .then((rows) => withActiveDiscounts(rows))
+      .then((rows) => {
+        if (active) setSearchResults(rows);
+      })
+      .catch(() => undefined);
+    return () => {
+      active = false;
+    };
+  }, [homeSearchNormalized, searchQuery]);
+
+  const searchedProducts = homeSearchNormalized ? searchResults : [];
   const filteredCategoryProducts = PHARMA_PRODUCTS_DB.filter(p =>
     p.category === selectedCategoryId &&
     (categorySearchQuery === '' || p.name.toLowerCase().includes(categorySearchQuery.toLowerCase()))
@@ -226,7 +248,9 @@ export function PharmaScreen({
           onAdd={handleFeedAdd}
           onViewAll={() => onSearchPress?.('Quick Reorder')}
         />
-        <TopOffersRail offers={feed.topOffers} onViewAll={() => onSearchPress?.('Top Offers')} />
+        {feed.topOffers.length > 0 ? (
+          <TopOffersRail offers={feed.topOffers} onViewAll={() => onSearchPress?.('Top Offers')} />
+        ) : null}
         <PopularMedicinesRail
           items={feed.popularMedicines}
           addedIds={feedAddedIds}

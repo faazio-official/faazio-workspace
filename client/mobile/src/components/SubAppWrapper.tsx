@@ -281,7 +281,6 @@ export default function SubAppWrapper({
                 navigation.navigate('DealsLanding', {
                   mode: 'discounts',
                   storeId: vendor.id,
-                  app: 'FA_MART',
                 })
               }
             />

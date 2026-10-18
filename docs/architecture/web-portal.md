@@ -45,7 +45,7 @@ The campaign wizard's **what→where** placements map 1:1 to the paid mobile sur
 | Route | Page | Sector |
 | --- | --- | --- |
 | `seller` | dashboard | all |
-| `seller/ads` | hero CampaignWizard (what→where→creative→when→review) + campaign list/KPIs | all |
+| `seller/ads` | hero CampaignWizard (what→where→creative→when→review) + campaign list/KPIs — includes the `PHARMA_HERO` (Pharma home) and `STORE_TOP` (Pharma medical shop) placements | all |
 | `seller/products` | catalog list | all |
 | `seller/products/new` | create listing | all |
 | `seller/products/[id]/edit` | listing editor (name/desc/photos + `upsertPrice`) | all |
@@ -68,7 +68,7 @@ The campaign wizard's **what→where** placements map 1:1 to the paid mobile sur
 | `admin/state/products` · `admin/state/products/queue` | catalog + review queue |
 | `admin/state/sellers` · `admin/state/sellers/[id]` | seller directory + detail |
 | `admin/state/orders` · `admin/state/bookings` | order/booking oversight |
-| `admin/state/blood` | blood requests (PHARMA) |
+| `admin/state/blood` | blood requests board (PHARMA) — server `blood.requests` with `contact`/`address` redacted for anon; moderation (`DELETE /blood-requests/{id}`) |
 | `admin/state/customers` | customer list + activity trail |
 | `admin/state/coupons` · `admin/state/festival` | promo |
 | `admin/state/pricing-audit` | price integrity |
@@ -80,7 +80,7 @@ The campaign wizard's **what→where** placements map 1:1 to the paid mobile sur
 | --- | --- |
 | `admin/super` | dashboard |
 | `admin/super/ads` | live ad monitor (Live/Reported/CTR; Takedown/Restore) |
-| `admin/super/sdui` | Home/Mart/Food SDUI layout editor (sections, productIds, hero banners) |
+| `admin/super/sdui` | Home/Mart/Food/Pharma SDUI layout editor (sections, productIds, hero banners incl. `pharmaHero`/`pharmaPopular`/`pharmaEssentials`) |
 | `admin/super/festival` · `admin/super/coupons` | promo authority |
 | `admin/super/products` · `admin/super/sellers` | catalog/seller authority |
 | `admin/super/sectors` · `admin/super/coverage` | taxonomy + coverage |

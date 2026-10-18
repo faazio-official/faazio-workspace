@@ -104,7 +104,7 @@ export function OrderDetailsScreen({ navigation, route }: Props) {
           minute: '2-digit',
         }),
         fulfillment: placedOrder.fulfillment,
-        app: 'FOOD',
+        app: placedOrder.kind === 'prescription' ? 'PHARMA' : 'FOOD',
         emoji: first?.emoji ?? '🛍️',
         productName: placedOrder.vendorName,
         variant: first?.name ?? 'Order',

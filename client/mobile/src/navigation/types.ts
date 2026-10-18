@@ -105,7 +105,6 @@ export type RootStackParamList = {
     productIds?: string[];
     /** Optional display title for a product-list mode (defaults to the rail label). */
     title?: string;
-    app?: 'FA_MART' | 'PHARMA';
   };
   /** Full-bleed prescription capture flow (camera can't live in the sub-app wrapper). */
   PrescriptionFlow: { presetVendorId?: string } | undefined;

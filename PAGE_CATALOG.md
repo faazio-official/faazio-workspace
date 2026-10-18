@@ -194,14 +194,22 @@
 
 ### 1.7 Sub-App: Pharma
 
-| # | Screen | File | Lines | Description |
-|---|--------|------|-------|-------------|
-| P01 | **Pharma — Home Tab** | `src/components/PharmaPage.tsx` | 535–1004 | Full pharma home |
-| P02 | **Pharma — All Categories Grid** | `src/components/PharmaPage.tsx` | 735–777 | 8 categories |
-| P03 | **Pharma — Category Products** | `src/components/PharmaPage.tsx` | 779–857 | Product grid per category |
-| P04 | **Pharma — Product Detail (inline)** | `src/components/PharmaPage.tsx` | 859–1001 | Full product detail within page |
-| P05 | **Pharma — "For You" Tab** | `src/components/PharmaPage.tsx` | 1006–1095 | Curated recommendations |
-| P06 | **Pharma — "History" Tab** | `src/components/PharmaPage.tsx` | 1097–1181 | Active orders + consultations |
+> **Superseded registry (2026-10-18).** The Vite-era `src/components/PharmaPage.tsx` is **deleted**
+> and Section 1 is a historical audit record — the authoritative Pharma hosts are the RN files below
+> (also listed in Section 2). Read this table as the Vite→RN mapping, not a live path list.
+
+| # | Screen | RN host (authoritative) | Vite-era description |
+|---|--------|-------------------------|----------------------|
+| P01 | **Pharma — Home Tab** | `client/mobile/src/features/pharma/PharmaScreen.tsx` (in-wrapper, `SubAppWrapper`) | Full pharma home (CampaignHero PHARMA_HERO + house hero + rails) |
+| P02 | **Pharma — Category entry** | `PharmaScreen.tsx` (`onSearchPress` → Search route) / `CategoryDrillInScreen.tsx` (app=`PHARMA`) | Category tap → server search / drill-in |
+| P03 | **Pharma — Category Products (inline)** | `PharmaScreen.tsx` inline `CATEGORY_PRODUCTS` (`PHARMA_PRODUCTS_DB`, real `ph-*` ids) | Legacy per-category grid (kept inline) |
+| P04 | **Pharma — Product Detail** | `client/mobile/src/features/product/ProductDetailScreen.tsx` (canonical `ProductDetail`) | Shared PDP (inline legacy view remains) |
+| P05 | **Pharma — Donor tab** | `client/mobile/src/features/pharma/blood-donor/BloodDonorScreen.tsx` + `DonorDashboard.tsx` | Replaced the old "For You" tab |
+| P06 | **Pharma — History tab** | `PharmaScreen.tsx` (`activeTab='History'`, `PHARMA_RECENT_ORDERS`) | Active orders + consultations |
+
+Additional Pharma routes (not in the Vite audit): `MedicalShopDetailsScreen.tsx`,
+`prescription/PrescriptionFlowScreen.tsx`, `blood-donor/DonorDetailsScreen.tsx`,
+`blood-donor/BloodRequestDescriptionScreen.tsx` — see Section 2.
 
 #### Pharma Home Tab (P01) sub-sections:
 
@@ -436,11 +444,11 @@ sector). They are where paid ads, organic offers, SDUI layouts and all seller da
 | **Mart — Store Profile** (M02) | RN FaMartScreen has no store profile | High |
 | **Mart — "Offers" tab** (M04) | RN SubAppWrapper has no Offers tab | Low |
 | **Grocery — "Fresh Club" tab** (G03) | Grocery sub-app removed (merged into Mart); Fresh Club no longer applicable | Removed |
-| **Pharma — "For You" tab** (P05) | RN has only empty-state placeholder | Medium |
-| **Pharma — "History" tab** (P06) | RN has only empty-state placeholder | Medium |
-| **Pharma — All Categories Grid** (P02) | RN has no full category grid view | Low |
-| **Pharma — Category Products** (P03) | RN has no per-category product view | Low |
-| **Pharma — Product Detail (inline)** (P04) | RN has no inline product detail in Pharma | Medium |
+| **Pharma — "For You" tab** (P05) | Replaced by the **Donor** tab (registration wizard + dashboard) | Shipped |
+| **Pharma — "History" tab** (P06) | Shipped — `PharmaScreen.tsx` `activeTab='History'` | Shipped |
+| **Pharma — All Categories Grid** (P02) | Category taps route to server search / `CategoryDrillIn` (app=`PHARMA`) | Shipped |
+| **Pharma — Category Products** (P03) | Shipped inline (`PharmaScreen.tsx` `CATEGORY_PRODUCTS`, real `ph-*` ids) | Shipped |
+| **Pharma — Product Detail (inline)** (P04) | Shipped inline + shared `ProductDetail` route | Shipped |
 | **Cart — Step 2: Address** (CA2) | RN CartView missing address step | High |
 | **Cart — Step 3: Payment** (CA3) | RN CartView missing payment step | High |
 | **Cart — Step 4: Receipt** (CA4) | RN CartView missing receipt/confirmation step | High |
@@ -462,10 +470,10 @@ These tabs render with empty-state messages:
 
 | Tab | File | Message Displayed |
 |-----|------|-------------------|
-| Food → Menu | `SubAppWrapper.tsx:228–237` | "Gourmet Menus — Vetted menus of local restaurant partners..." |
-| Food → My Bookings | `SubAppWrapper.tsx:239–253` | "No Reservations Yet" |
-| Pharma → For You | `SubAppWrapper.tsx:303–312` | "Health Matrix Recommendations..." |
-| Pharma → History | `SubAppWrapper.tsx:314–324` | "Prescription logs — No clinical review histories..." |
+| Food → Menu | `SubAppWrapper.tsx` | Gourmet menus load from the server (`getMenu`); no placeholder. |
+| Food → My Bookings | `MyBookingsScreen` | Real bookings list (empty state only when none). |
+| Pharma → History | `PharmaScreen.tsx` (`activeTab='History'`) | Recently ordered list (`PHARMA_RECENT_ORDERS`). |
+| Pharma → Donor | `BloodDonorScreen` / `DonorDashboard` | Replaced the old "For You" placeholder. |
 
 ---
 
