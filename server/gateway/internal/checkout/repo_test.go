@@ -58,6 +58,32 @@ func TestDeleteAddress(t *testing.T) {
 	}
 }
 
+func TestProvisionUserIDLinksOnFirstLogin(t *testing.T) {
+	pool := testenv.Pool(t)
+	repo := New(pool)
+	ctx := context.Background()
+
+	authUID := "11111111-2222-3333-4444-555555555555"
+	t.Cleanup(func() { _, _ = pool.Exec(ctx, `delete from checkout.users where auth_uid = $1`, authUID) })
+
+	first, err := repo.ProvisionUserID(ctx, authUID, "+919000000001", "otp@t")
+	if err != nil || first == "" {
+		t.Fatalf("provision: id=%q err=%v", first, err)
+	}
+	second, err := repo.ProvisionUserID(ctx, authUID, "", "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if second != first {
+		t.Fatalf("second provision changed the slug: %q != %q", second, first)
+	}
+	// Read-only resolution must now find the linked row.
+	resolved, err := repo.ResolveUserID(ctx, authUID)
+	if err != nil || resolved != first {
+		t.Fatalf("resolve: id=%q err=%v", resolved, err)
+	}
+}
+
 func TestOrderByIdempotencyKeyMiss(t *testing.T) {
 	pool := testenv.Pool(t)
 	repo := New(pool)

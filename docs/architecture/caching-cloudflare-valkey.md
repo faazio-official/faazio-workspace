@@ -31,10 +31,13 @@
     (serve stale while revalidating; serve stale up to 24 h on origin error).
   - Search results: `public, max-age=600, stale-while-revalidate=60`.
   - Product detail: `public, max-age=86400, immutable` (24 h) with purge on edit.
-- **Media images (`img.faazio.in/*`, R2 public bucket):** object Cache Rule `public, max-age=31536000,
-  immutable`. Keys are content-addressed (sha256), so the bytes at a URL never change; versioning is a
-  new key. Cloudflare does compression/Polish at the edge (zero origin CPU); purge is by exact R2 key on
-  `confirm`/status change/delete (`caching doc §5`, migration `0025`).
+- **Media images (R2 public bucket):** with a custom domain (`img.faazio.in`), the object Cache Rule is
+  `public, max-age=31536000, immutable` — keys are content-addressed (sha256), so the bytes at a URL never
+  change; versioning is a new key. Without a custom domain, public objects use the gateway's stable
+  `/assets/{key}` path, which 302-redirects to a 300 s presigned GET (`Cache-Control: public, max-age=300`
+  on the redirect); cached JSON still holds a non-expiring URL. Cloudflare does compression/Polish at the
+  edge (zero origin CPU); purge is by exact R2 key on `confirm`/status change/delete (`caching doc §5`,
+  migration `0025`).
 - **Edge Cache TTL rules:** match on path/content-type; keep the negotiated format (JPEG `fm=jpg`,
   gzip/zstd) so Cloudflare does the compression — **no origin CPU cost**.
 - **Never cache** responses with `Set-Cookie` or auth-scoped content (carts, orders, payments, PII).
@@ -101,7 +104,7 @@ Examples: `faazio:v1:stock:fm-f1`, `faazio:v1:search:q:hoodie`, `faazio:v1:sdui:
 | Store directory / reviews | 86400 s (24 h) | — | edit event |
 | Store products (anon `GET /stores/{id}/products`, ACTIVE first page) | 300 s | — | product edit / status change (purges `catalog:store-products:{storeId}`; later pages are not cached) |
 | Single dining venue (anon `GET /venues/{id}`, PII-redacted) | 86400 s (24 h) | — | venue edit / store live toggle (authed reads bypass the cache) |
-| Media asset (public `GET /media/resolve?ids=`, per asset identity) | 86400 s (24 h) | `public, max-age=31536000, immutable` (R2 object via `img.faazio.in` Cache Rule) | confirm / status change / delete (purges `faazio:v1:media:asset:{id}` + the exact CDN key) |
+| Media asset (public `GET /media/resolve?ids=`, per asset identity) | 86400 s (24 h) | `public, max-age=31536000, immutable` via `img.faazio.in`; no CDN → stable `/assets/{key}` 302 with `max-age=300` | confirm / status change / delete (purges `faazio:v1:media:asset:{id}` + the exact CDN key) |
 | Promo campaigns / coupons (partner) | 300 s | **never** | campaign/coupon write |
 | Public coupons (anon `GET /coupons?app=&state=`) | 600 s | — | coupon write (TTL-bounded) |
 | Active festival discounts (anon `GET /promo/active-discounts?ids=`, per product) | 300 s | — | opt-in approve/reject or campaign status change (invalidated per product; `none` sentinel cached) |
@@ -193,7 +196,8 @@ pipelines; a placement with no LIVE fill collapses the surface to `null` (never 
 - **Auth subject cache:** the checkout resolver read-through caches `auth_uid → user_id` under
   `faazio:v1:auth:uid:{sha256}` for 1 h, removing one DB round-trip from every authenticated request.
   The key hashes the subject; the mapping is immutable, so only a profile merge (not yet implemented)
-  would delete it.
+  would delete it. A first phone-OTP login (`ProvisionUserID` upsert, `0030`) writes the mapping and
+  populates the same key — no new cache namespace/TTL.
 
 ---
 
@@ -226,9 +230,11 @@ pipelines; a placement with no LIVE fill collapses the surface to `null` (never 
 >
 > **Media GC + CDN purge (Phase 8, `0026`):** a **purge worker** `LISTEN`s on the `media_updated`
 > `pg_notify` (emitted by `0025` on insert/update and by `0026` on delete) and invalidates the affected
-> `faazio:v1:media:asset:{id}` + purges the exact CDN URL (`img.faazio.in/{key}`) via the Cloudflare
-> `purge_cache` API (`CF_ZONE_ID` + `CF_API_TOKEN`; ≤30 files/request; best-effort, disabled without
-> creds). This lets an immutable-key object still be invalidated on moderation/removal. A **GC sweeper**
+> `faazio:v1:media:asset:{id}` + purges the exact CDN URL (`img.faazio.in/{key}`, when a CDN domain is
+> configured) via the Cloudflare `purge_cache` API (`CF_ZONE_ID` + `CF_API_TOKEN`; ≤30 files/request;
+> best-effort, disabled without creds). Without a CDN domain the `/assets/{key}` redirect simply
+> re-presigns on the next request, so no purge is needed. This lets an immutable-key object still be
+> invalidated on moderation/removal. A **GC sweeper**
 > runs every 6 h (and on admin `POST /media/gc`) deleting orphaned DRAFT assets past the 24 h draft TTL
 > (R2 object + row) — DRAFT assets are never cached, so no purge is needed for them.
 >

@@ -81,6 +81,8 @@ const gatewayUrl = env('GATEWAY_URL').replace(/\/+$/, '');
 const useGateway = flag('USE_GATEWAY');
 const strict = flag('STRICT');
 const devUser = env('DEV_USER').trim();
+const supabaseUrl = env('SUPABASE_URL').replace(/\/+$/, '');
+const supabaseAnonKey = env('SUPABASE_ANON_KEY').trim();
 const isRelease = flag('CONFIGURE_RELEASE');
 const requirePins = flag('REQUIRE_CERT_PINS');
 const transport = isRelease ? 'embedded' : 'metro';
@@ -106,6 +108,17 @@ if (gatewayUrl) {
   }
 }
 
+if (supabaseUrl) {
+  try {
+    const parsed = new URL(supabaseUrl);
+    if (isRelease && parsed.protocol !== 'https:') {
+      fail('Release builds require an https SUPABASE_URL.');
+    }
+  } catch {
+    fail(`SUPABASE_URL is not a valid URL: ${supabaseUrl}`);
+  }
+}
+
 for (const pin of pins) {
   // Android pin values are base64 of the certificate's SubjectPublicKeyInfo.
   if (!/^[A-Za-z0-9+/=]{40,}$/.test(pin)) {
@@ -119,6 +132,16 @@ if (isRelease && useGateway && pins.length === 0) {
     '(comma-separated base64 SHA-256 SPKI pins) before shipping.';
   if (requirePins) fail(message);
   warn(message);
+}
+
+if (isRelease && useGateway && (!supabaseUrl || !supabaseAnonKey)) {
+  fail(
+    'Release build has USE_GATEWAY=true but no SUPABASE_URL/SUPABASE_ANON_KEY. ' +
+      'Real phone-OTP sessions are required — refusing to embed a mock-login build.',
+  );
+}
+if (!supabaseUrl || !supabaseAnonKey) {
+  warn('SUPABASE_URL/SUPABASE_ANON_KEY unset: phone OTP is disabled (dev-only mock login).');
 }
 
 function fail(message) {
@@ -144,6 +167,8 @@ export const GATEWAY_URL = ${JSON.stringify(gatewayUrl)};
 export const USE_GATEWAY = ${useGateway};
 export const STRICT = ${strict};
 export const DEV_USER = ${JSON.stringify(devUser)};
+export const SUPABASE_URL = ${JSON.stringify(supabaseUrl)};
+export const SUPABASE_ANON_KEY = ${JSON.stringify(supabaseAnonKey)};
 export const CERT_PINS: readonly string[] = ${JSON.stringify(pins)};
 export const IS_RELEASE_CONFIG = ${isRelease};
 `,

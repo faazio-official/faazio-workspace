@@ -5,6 +5,7 @@ package checkout
 import (
 	"context"
 	crand "crypto/rand"
+	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
@@ -118,17 +119,16 @@ func NewWithCache(pool *db.Pool, c *cache.Cache) *Repo { return &Repo{pool: pool
 // ResolveUserID maps a Supabase auth subject to the app user slug (auth.UserResolver). The mapping
 // is immutable for a given subject, so it is read-through cached for 1 h — removing a query from
 // every authenticated request. Invalidation (profile merge) deletes cache.AuthUser(subject).
+//
+// Read-only: a subject with no checkout.users row resolves to "" (the caller is then treated as
+// unauthenticated by auth.Require). New phone-OTP users are provisioned by ProvisionUserID, which
+// auth.Middleware prefers when the resolver implements it.
 func (r *Repo) ResolveUserID(ctx context.Context, authUID string) (string, error) {
 	if r.pool == nil {
 		return "", fmt.Errorf("checkout: database not configured")
 	}
-	cacheKey := ""
-	if r.cache != nil && r.cache.Enabled() {
-		cacheKey = cache.AuthUser(authUID)
-		var cached string
-		if r.cache.GetJSON(ctx, cacheKey, &cached) && cached != "" {
-			return cached, nil
-		}
+	if cached, ok := r.cachedUserID(ctx, authUID); ok {
+		return cached, nil
 	}
 	var userID string
 	err := r.pool.QueryRow(ctx, `select user_id from checkout.users where auth_uid = $1`, authUID).Scan(&userID)
@@ -138,10 +138,60 @@ func (r *Repo) ResolveUserID(ctx context.Context, authUID string) (string, error
 		}
 		return "", err
 	}
-	if cacheKey != "" && userID != "" {
-		r.cache.SetJSON(ctx, cacheKey, userID, cache.TTLAuth)
-	}
+	r.cacheUserID(ctx, authUID, userID)
 	return userID, nil
+}
+
+// ProvisionUserID implements auth.UserProvisioner: it resolves the auth subject, inserting a
+// checkout.users row on first login so a GoTrue phone-OTP user works without a portal/manual row.
+// The user slug is deterministic from the subject (`u-<sha256 prefix>`), so a concurrent first
+// login converges on one row via `on conflict (auth_uid)`. Phone/email are optional (empty when the
+// token omits them) and only forward-filled — never overwritten with blank values.
+func (r *Repo) ProvisionUserID(ctx context.Context, authUID, phone, email string) (string, error) {
+	if authUID == "" {
+		return "", nil
+	}
+	if r.pool == nil {
+		return "", fmt.Errorf("checkout: database not configured")
+	}
+	if cached, ok := r.cachedUserID(ctx, authUID); ok {
+		return cached, nil
+	}
+	sum := sha256.Sum256([]byte(authUID))
+	userID := "u-" + hex.EncodeToString(sum[:8])
+	var resolved string
+	err := r.pool.QueryRow(ctx, `
+		insert into checkout.users (user_id, auth_uid, name, email, phone, last_login_at)
+		values ($1, $2, 'Faazio User', $3, $4, now())
+		on conflict (auth_uid) do update
+		   set email = coalesce(nullif(excluded.email, ''), checkout.users.email),
+		       phone = coalesce(nullif(excluded.phone, ''), checkout.users.phone),
+		       last_login_at = now()
+		returning user_id`, userID, authUID, email, phone).Scan(&resolved)
+	if err != nil {
+		return "", err
+	}
+	r.cacheUserID(ctx, authUID, resolved)
+	return resolved, nil
+}
+
+// cachedUserID returns the read-through cached auth_uid → user_id mapping when present.
+func (r *Repo) cachedUserID(ctx context.Context, authUID string) (string, bool) {
+	if r.cache == nil || !r.cache.Enabled() {
+		return "", false
+	}
+	var cached string
+	if r.cache.GetJSON(ctx, cache.AuthUser(authUID), &cached) && cached != "" {
+		return cached, true
+	}
+	return "", false
+}
+
+func (r *Repo) cacheUserID(ctx context.Context, authUID, userID string) {
+	if userID == "" || r.cache == nil || !r.cache.Enabled() {
+		return
+	}
+	r.cache.SetJSON(ctx, cache.AuthUser(authUID), userID, cache.TTLAuth)
 }
 
 // OwnsAddress reports whether addressID belongs to userID (server-side ownership check).

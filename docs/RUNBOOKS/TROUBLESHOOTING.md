@@ -274,14 +274,18 @@ build (Reanimated is far slower in debug); use a **CI release** build.
 
 ## 🔧 401 on `/ads/events` or `/vendors/{id}/rating` (paid-ad KPIs / durable rating inert)
 
-These two writes sit behind `auth.Require`. With the app's **mocked login** they only succeed when the
-gateway runs `AUTH_DISABLED=true` (resolved as `user-1`); on an `AUTH_DISABLED=false` gateway the
-placeholder bearer fails HS256 verification → `401` → the writes are inert. This is **expected** by
-product decision (auth stays mocked; no Supabase phone OTP), not a client bug. Diagnose:
+These two writes sit behind `auth.Require`. A configured app signs in with real Supabase phone OTP
+(`supabaseAuth.ts`), so the GoTrue bearer verifies on an `AUTH_DISABLED=false` gateway. A `401`
+means the session is missing/expired or Supabase is unconfigured. Diagnose:
 
-- **Dev build console:** `recordAdEvent` logs `[ads] impression not recorded (401, auth=mock)`; a
+- **Configured build:** check `SUPABASE_URL`/`SUPABASE_ANON_KEY` were generated (`npm run configure`
+  regenerates `src/lib/config.ts`). A dead refresh token clears the session and returns to Login
+  (`GatewayClient.recoverSession`).
+- **Dev build console:** `recordAdEvent` logs `[ads] impression not recorded (401, auth=…)`; a
   `auth=dev-bypass` result means the dev header is in play. `GatewayClient.authStatus()` returns
-  `dev-bypass` / `mock` / `enterprise` / `none`.
+  `dev-bypass` / `enterprise` / `none`.
+- **Dev without Supabase:** the app still falls back to a placeholder session (dev builds only); run
+  the gateway with `AUTH_DISABLED=true`.
 - **Local dev fix:** run the gateway with `AUTH_DISABLED=true` (`DEV_USER_ID=user-1`) and set
   `DEV_USER=user-1` in `client/mobile/.env.local` (dev builds only; re-run `npm run configure`/Metro). A production/release
   build never sends `X-Dev-User`, so do not expect the KPIs there.

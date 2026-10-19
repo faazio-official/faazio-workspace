@@ -39,6 +39,27 @@ The release keystore + signing properties are stored as GitHub repository secret
 | `KEY_ALIAS` | value from `keystore.properties` |
 | `ALIAS_PASS` | value from `keystore.properties` |
 | `STORE_FILE` | (optional) keystore file name, default `faazio-release.keystore` |
+| `GATEWAY_URL` | deployed gateway origin, `https://…` (release refuses `http://`) |
+| `USE_GATEWAY` | `true` to embed the live gateway |
+| `CERT_PINS` | comma-separated base64 SHA-256 SPKI pins for the gateway host |
+| `SUPABASE_URL` | GoTrue project URL (`https://<ref>.supabase.co`) |
+| `SUPABASE_ANON_KEY` | GoTrue anon key (public by design) |
+
+`configure.js` **fails the release** when `USE_GATEWAY=true` and any of `CERT_PINS`,
+`SUPABASE_URL`, `SUPABASE_ANON_KEY` is missing — a release must never embed a mock-login or
+unpinned build.
+
+### Certificate-pin rotation
+
+Render issues its TLS cert via Let's Encrypt (≈90-day lifetime). Keep **two** pins live during a
+rotation so an in-flight app never fails closed:
+1. Add the new pin alongside the current one in `CERT_PINS` (and in the CI secret) — 2-pin overlap.
+2. Ship a release with both pins; wait for adoption.
+3. ≥30 days before the current cert expires, cut over to the new pin only (search the old expiry and
+   schedule the removal).
+
+If Render's cert changes before a pinned release is updated, clients fail closed (intended) — the
+network-security-config is what blocks a MITM even with a valid CA.
 
 ## 🚀 Release a new APK (GitHub Actions + gh CLI)
 
@@ -129,7 +150,8 @@ machine (systemd-oomd OOM-kills Gradle). Use `gh workflow run "Release APK"` (se
 `docs/RUNBOOKS/CI_PIPELINE.md`). The CI workflow runs the equivalent of:
 
 ```bash
-npm run configure                       # with release env (CONFIGURE_RELEASE=1, CERT_PINS=...)
+npm run configure                       # release env: CONFIGURE_RELEASE=1, GATEWAY_URL, USE_GATEWAY,
+                                        # CERT_PINS, SUPABASE_URL, SUPABASE_ANON_KEY
 bash scripts/restore-keystore.sh
 cd android && ./gradlew assembleRelease --no-daemon \
   -PreactNativeArchitectures=arm64-v8a,armeabi-v7a \
@@ -181,7 +203,7 @@ unindexed. See `docs/architecture/web-portal.md` → "Deployment (Vercel)".
 
 - [ ] `npm run ts:check` and `npm run check:boundaries` pass.
 - [ ] Version bumped in `package.json` **and** `android/app/build.gradle` `versionCode` (+1 every release).
-- [ ] `CERT_PINS` set when `USE_GATEWAY=true` (release configure fails without pins).
+- [ ] `CERT_PINS`, `SUPABASE_URL`, `SUPABASE_ANON_KEY` set when `USE_GATEWAY=true` (release configure fails without them).
 - [ ] GitHub secrets set: `KEYSTORE_BASE64`, `KEYSTORE_PASS`, `KEY_ALIAS`, `ALIAS_PASS` (keystore backed up).
 - [ ] Release APK signed with the **release cert** (`CN=Faazio`), not the debug cert.
 - [ ] `gh workflow run release-apk.yml` succeeded and the signed APK is on the GitHub Release.

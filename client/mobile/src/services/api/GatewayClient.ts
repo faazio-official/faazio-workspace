@@ -29,7 +29,13 @@ import { homeSdui, type SduiSection } from '@data/home/sdui';
 import { adCampaigns } from '@data/home/campaigns';
 import { seedFavorites } from '@data/home/seeds';
 import { savedAddresses } from '@data/account/addresses';
-import { loadSession } from '../secureSession';
+import {
+  clearSession,
+  getAccessToken,
+  getRefreshToken,
+  updateSessionTokens,
+} from '../secureSession';
+import { refreshSession } from '../supabaseAuth';
 import { DEV_USER, GATEWAY_URL, STRICT, USE_GATEWAY } from '../../lib/config';
 
 /** Simulated network latency (ms) for mock mode. Drop to 0 to run pure in-memory. */
@@ -74,18 +80,10 @@ export class GatewayOfflineError extends Error {
 /**
  * How the client is currently authenticating. Diagnostic only — never used to gate a write.
  *  - `dev-bypass` — dev-only `X-Dev-User` override against an `AUTH_DISABLED=true` gateway.
- *  - `mock`       — the app's mocked-login placeholder token (not a signed JWT).
- *  - `enterprise` — a JWT-shaped bearer (future GoTrue session).
+ *  - `enterprise` — a Keychain-stored GoTrue bearer (verified server-side).
  *  - `none`       — no token/override configured.
  */
-export type GatewayAuthStatus = 'dev-bypass' | 'mock' | 'enterprise' | 'none';
-
-/** A bearer is JWT-shaped when its header segment is base64 of `{"…` (three segments). Never trusts
- *  the claims — this is a shape check only, so the mocked placeholder (`placeholder.<phone>.<ts>`) is
- *  classified as `mock`, not `enterprise`. */
-function isJwtShaped(token: string): boolean {
-  return token.startsWith('eyJ') && token.split('.').length === 3;
-}
+export type GatewayAuthStatus = 'dev-bypass' | 'enterprise' | 'none';
 
 /** Fixed per-seat booking platform fee shown in the UI (server authoritatively derives ₹50/seat). */
 const BOOKING_FEE_PER_SEAT = 50;
@@ -531,10 +529,10 @@ function toSavedAddress(a: AddressRecord): SavedAddress {
 }
 
 export class GatewayClient {
-  private accessToken: string | null = null;
-  private tokenLoaded = false;
   /** In-memory favourites shelf for mock mode (mirrors the durable favourites.items table). */
   private mockFavourites: string[] = [...seedFavorites];
+  /** Single-flight 401 recovery so parallel rejected requests share one refresh round-trip. */
+  private refreshInFlight: Promise<boolean> | null = null;
 
   /** True when the client will attempt real HTTP before falling back to fixtures. */
   get remoteEnabled(): boolean {
@@ -544,17 +542,8 @@ export class GatewayClient {
   /** How the client is authenticating right now (diagnostic; see `GatewayAuthStatus`). */
   async authStatus(): Promise<GatewayAuthStatus> {
     if (__DEV__ && DEV_USER) return 'dev-bypass';
-    if (!this.tokenLoaded) {
-      try {
-        const session = await loadSession();
-        this.accessToken = session?.accessToken ?? null;
-      } catch {
-        this.accessToken = null;
-      }
-      this.tokenLoaded = true;
-    }
-    if (!this.accessToken) return 'none';
-    return isJwtShaped(this.accessToken) ? 'enterprise' : 'mock';
+    const token = await getAccessToken();
+    return token ? 'enterprise' : 'none';
   }
 
   private async authHeader(): Promise<Record<string, string>> {
@@ -562,22 +551,46 @@ export class GatewayClient {
     // Dev-only `X-Dev-User` override (mock-auth app against an AUTH_DISABLED gateway). Never in
     // release builds; the gateway ignores it when JWT auth is enabled (AUTH_DISABLED=false).
     if (__DEV__ && DEV_USER) headers['X-Dev-User'] = DEV_USER;
-    if (!this.tokenLoaded) {
-      try {
-        const session = await loadSession();
-        this.accessToken = session?.accessToken ?? null;
-      } catch {
-        this.accessToken = null;
-      }
-      this.tokenLoaded = true;
-    }
-    if (this.accessToken) headers.Authorization = `Bearer ${this.accessToken}`;
+    const token = await getAccessToken();
+    if (token) headers.Authorization = `Bearer ${token}`;
     return headers;
   }
 
+  /**
+   * Silent 401 recovery: rotate the GoTrue access token once, persist the pair to the Keychain and
+   * retry. A dead refresh token clears the local session so the app falls back to Login instead of
+   * flapping every write to the mock. Returns false when recovery is impossible.
+   */
+  private async recoverSession(): Promise<boolean> {
+    if (this.refreshInFlight) return this.refreshInFlight;
+    this.refreshInFlight = (async () => {
+      try {
+        const refreshToken = await getRefreshToken();
+        const session = await refreshSession(refreshToken ?? '');
+        if (!session) {
+          await clearSession();
+          return false;
+        }
+        await updateSessionTokens(session.accessToken, session.refreshToken);
+        return true;
+      } catch {
+        return false;
+      } finally {
+        this.refreshInFlight = null;
+      }
+    })();
+    return this.refreshInFlight;
+  }
+
   private async http<T>(path: string, init?: RequestInit): Promise<T> {
-    const headers: Record<string, string> = { 'Content-Type': 'application/json', ...(await this.authHeader()), ...(init?.headers as Record<string, string> | undefined) };
-    const res = await fetch(`${GATEWAY_URL}${path}`, { ...init, headers });
+    const send = async (): Promise<Response> => {
+      const headers: Record<string, string> = { 'Content-Type': 'application/json', ...(await this.authHeader()), ...(init?.headers as Record<string, string> | undefined) };
+      return fetch(`${GATEWAY_URL}${path}`, { ...init, headers });
+    };
+    let res = await send();
+    if (res.status === 401 && (await this.recoverSession())) {
+      res = await send();
+    }
     if (!res.ok) throw new GatewayHttpError(res.status);
     return (await res.json()) as T;
   }
@@ -846,9 +859,10 @@ export class GatewayClient {
     );
   }
 
-  /** Remove one of the caller's saved addresses (DELETE /profile/addresses/{id}). */
+  /** Remove one of the caller's saved addresses (DELETE /profile/addresses/{id}). Strict: a deleted
+   *  address must not silently reappear from the local fixture. */
   async deleteAddress(id: string): Promise<void> {
-    await this.withFallback(
+    await this.withStrict(
       () =>
         this.http<{ ok: boolean }>(`/profile/addresses/${encodeURIComponent(id)}`, { method: 'DELETE' }).then(
           () => undefined,
@@ -866,7 +880,7 @@ export class GatewayClient {
   }
 
   async addFavourite(productId: string): Promise<string[]> {
-    return this.withFallback(
+    return this.withStrict(
       () => this.http<{ items: string[] }>(`/favourites/${encodeURIComponent(productId)}`, { method: 'PUT' }).then((r) => r.items ?? []),
       () =>
         delay(
@@ -878,7 +892,7 @@ export class GatewayClient {
   }
 
   async removeFavourite(productId: string): Promise<string[]> {
-    return this.withFallback(
+    return this.withStrict(
       () => this.http<{ items: string[] }>(`/favourites/${encodeURIComponent(productId)}`, { method: 'DELETE' }).then((r) => r.items ?? []),
       () => delay((this.mockFavourites = this.mockFavourites.filter((id) => id !== productId))),
     );
@@ -1415,9 +1429,10 @@ export class GatewayClient {
     );
   }
 
-  /** Cancel a table reservation (own rows only; server refunds the held fee). */
+  /** Cancel a table reservation (own rows only; server refunds the held fee). Strict: never report a
+   *  cancelled booking that the server still holds (and still owes a refund on). */
   async cancelBooking(id: string): Promise<void> {
-    await this.withFallback(
+    await this.withStrict(
       () => this.http<{ ok: boolean }>(`/bookings/${encodeURIComponent(id)}`, { method: 'DELETE' }).then(() => undefined),
       () => delay(undefined),
     );
@@ -1666,21 +1681,21 @@ export class GatewayClient {
   }
 
   async addToCart(productId: string, qty = 1): Promise<Cart> {
-    return this.withFallback(
+    return this.withStrict(
       () => this.http<Cart>('/cart/items', { method: 'POST', body: JSON.stringify({ productId, qty }) }),
       () => delay({ items: [] as CartItem[] }),
     );
   }
 
   async updateCartItem(productId: string, qty: number): Promise<Cart> {
-    return this.withFallback(
+    return this.withStrict(
       () => this.http<Cart>('/cart/items', { method: 'PUT', body: JSON.stringify({ productId, qty }) }),
       () => delay({ items: [] as CartItem[] }),
     );
   }
 
   async removeCartItem(productId: string): Promise<Cart> {
-    return this.withFallback(
+    return this.withStrict(
       () => this.http<Cart>(`/cart/items/${encodeURIComponent(productId)}`, { method: 'DELETE' }),
       () => delay({ items: [] as CartItem[] }),
     );

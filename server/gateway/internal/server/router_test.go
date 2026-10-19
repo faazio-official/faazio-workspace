@@ -7,11 +7,13 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 
 	"github.com/faazio/server/gateway/internal/platform/cache"
 	"github.com/faazio/server/gateway/internal/platform/config"
+	"github.com/faazio/server/gateway/internal/platform/r2"
 	"github.com/faazio/server/gateway/internal/platform/testenv"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
@@ -66,6 +68,117 @@ func pickStockedProduct(t *testing.T, pool *pgxpool.Pool, minQty int64) (product
 func TestRouterRegistersWithDeps(t *testing.T) {
 	if NewRouter(Deps{Config: config.Config{AuthDisabled: true}}) == nil {
 		t.Fatal("nil router")
+	}
+}
+
+// TestAssetsRedirectWithoutOrigin covers the no-CDN public-media route with media disabled/nil signer:
+// the stable /assets/{key} path must 404 rather than mint an unsigned URL.
+func TestAssetsRedirectWithoutOrigin(t *testing.T) {
+	h := NewRouter(Deps{Config: config.Config{AuthDisabled: true}})
+	rec := do(t, h, http.MethodGet, "/assets/media/ab/x.jpg", nil)
+	if rec.Code != http.StatusNotFound {
+		t.Fatalf("status = %d, want 404", rec.Code)
+	}
+}
+
+// TestAssetsRedirectPresigns covers the no-CDN public-media route with a signer: /assets/{key} must 302
+// to a short-lived presigned GET on the public bucket so cached JSON can hold a stable URL.
+func TestAssetsRedirectPresigns(t *testing.T) {
+	signer := r2.New(r2.Config{
+		AccountID: "acct123", AccessKeyID: "AKIAEXAMPLE", SecretKey: "secret",
+		PublicBase: "https://gateway.faazio.com",
+	})
+	h := NewRouter(Deps{Config: config.Config{AuthDisabled: true}, Signer: signer})
+	rec := do(t, h, http.MethodGet, "/assets/media/ab/x.jpg", nil)
+	if rec.Code != http.StatusFound {
+		t.Fatalf("status = %d, want 302", rec.Code)
+	}
+	loc := rec.Header().Get("Location")
+	if !strings.HasPrefix(loc, "https://acct123.r2.cloudflarestorage.com/faazio-public/media/ab/x.jpg?") {
+		t.Fatalf("Location = %q", loc)
+	}
+	if !strings.Contains(loc, "X-Amz-Signature=") {
+		t.Fatalf("Location not presigned: %q", loc)
+	}
+}
+
+// TestCORSWildcardReflectsOrigin covers the temporary `ALLOWED_ORIGINS=*` posture: any Origin is
+// reflected (not "*") so bearer/credentialed calls behave and Vary stays correct.
+func TestCORSWildcardReflectsOrigin(t *testing.T) {
+	h := NewRouter(Deps{Config: config.Config{AuthDisabled: true, AllowedOrigins: []string{"*"}}})
+	req := httptest.NewRequest(http.MethodGet, "/health", nil)
+	req.Header.Set("Origin", "https://anything.example")
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, req)
+	if got := rec.Header().Get("Access-Control-Allow-Origin"); got != "https://anything.example" {
+		t.Fatalf("Allow-Origin = %q", got)
+	}
+	if got := rec.Header().Get("Vary"); got != "Origin" {
+		t.Fatalf("Vary = %q", got)
+	}
+}
+
+// TestCORSWildcardIgnoredInProd covers the enterprise posture: `ALLOWED_ORIGINS=*` no longer
+// reflects an arbitrary origin when auth is enabled (AUTH_DISABLED=false).
+func TestCORSWildcardIgnoredInProd(t *testing.T) {
+	h := NewRouter(Deps{Config: config.Config{AuthDisabled: false, AllowedOrigins: []string{"*"}}})
+	req := httptest.NewRequest(http.MethodGet, "/health", nil)
+	req.Header.Set("Origin", "https://evil.example")
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, req)
+	if got := rec.Header().Get("Access-Control-Allow-Origin"); got != "" {
+		t.Fatalf("Allow-Origin = %q, want empty in prod", got)
+	}
+}
+
+// TestCORSDevHeadersNotAdvertisedInProd guards that a prod preflight never invites the X-Dev-* headers.
+func TestCORSDevHeadersNotAdvertisedInProd(t *testing.T) {
+	h := NewRouter(Deps{Config: config.Config{AuthDisabled: false, AllowedOrigins: []string{"https://portal.example"}}})
+	req := httptest.NewRequest(http.MethodOptions, "/health", nil)
+	req.Header.Set("Origin", "https://portal.example")
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, req)
+	if got := rec.Header().Get("Access-Control-Allow-Headers"); strings.Contains(got, "X-Dev-") {
+		t.Fatalf("Allow-Headers = %q, want no dev headers", got)
+	}
+}
+
+// TestHealthReportsDependencies covers the deeper /health probe shape used by Render's health-check.
+func TestHealthReportsDependencies(t *testing.T) {
+	h, _, _ := newTestServer(t)
+	rec := do(t, h, http.MethodGet, "/health", nil)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d body=%s", rec.Code, rec.Body.String())
+	}
+	var got struct {
+		Status       string                    `json:"status"`
+		Dependencies map[string]map[string]any `json:"dependencies"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &got); err != nil {
+		t.Fatal(err)
+	}
+	if got.Status != "ok" {
+		t.Fatalf("status = %q", got.Status)
+	}
+	db, ok := got.Dependencies["db"]
+	if !ok || db["ok"] != true {
+		t.Fatalf("db dependency = %v", got.Dependencies["db"])
+	}
+	if _, ok := db["ms"]; !ok {
+		t.Fatalf("db dependency missing latency: %v", db)
+	}
+}
+
+// TestCORSRejectsUnlistedOrigin guards the allow-list path: an origin not configured gets no CORS
+// headers (the pre-change behavior must keep working).
+func TestCORSRejectsUnlistedOrigin(t *testing.T) {
+	h := NewRouter(Deps{Config: config.Config{AuthDisabled: true, AllowedOrigins: []string{"https://portal.example"}}})
+	req := httptest.NewRequest(http.MethodGet, "/health", nil)
+	req.Header.Set("Origin", "https://evil.example")
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, req)
+	if got := rec.Header().Get("Access-Control-Allow-Origin"); got != "" {
+		t.Fatalf("Allow-Origin = %q, want empty", got)
 	}
 }
 

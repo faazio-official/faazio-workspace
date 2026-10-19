@@ -54,6 +54,51 @@ func TestPublicURL(t *testing.T) {
 	if got := s.PublicURL(""); got != "" {
 		t.Fatalf("empty key PublicURL = %q, want empty", got)
 	}
+	if got := s.MediaBase(); got != "https://img.faazio.in" {
+		t.Fatalf("MediaBase = %q", got)
+	}
+	if got := s.PublicOrigin(); got != "https://img.faazio.in" {
+		t.Fatalf("PublicOrigin = %q", got)
+	}
+}
+
+// TestPublicURLGatewayBase covers the no-CDN path: with only PublicBase set, public objects resolve to
+// the gateway's own /assets route (presigned redirect) instead of a custom domain.
+func TestPublicURLGatewayBase(t *testing.T) {
+	s := New(Config{
+		AccountID:   "acct123",
+		AccessKeyID: "AKIAEXAMPLE",
+		SecretKey:   "secret",
+		PublicBase:  "https://gateway.faazio.com/",
+	})
+	if got := s.PublicURL("media/ab/abcd.jpg"); got != "https://gateway.faazio.com/assets/media/ab/abcd.jpg" {
+		t.Fatalf("PublicURL = %q", got)
+	}
+	if got := s.MediaBase(); got != "https://gateway.faazio.com/assets" {
+		t.Fatalf("MediaBase = %q", got)
+	}
+	if got := s.PublicOrigin(); got != "https://gateway.faazio.com" {
+		t.Fatalf("PublicOrigin = %q", got)
+	}
+}
+
+// TestPublicURLDisabledWithoutOrigin covers media-enabled credentials with no public origin configured:
+// keys still sign, but public URLs are empty (callers fall back to the legacy image_url / fixtures).
+func TestPublicURLDisabledWithoutOrigin(t *testing.T) {
+	s := New(Config{AccountID: "acct123", AccessKeyID: "AKIAEXAMPLE", SecretKey: "secret"})
+	if got := s.PublicURL("media/ab/abcd.jpg"); got != "" {
+		t.Fatalf("PublicURL = %q, want empty", got)
+	}
+	if got := s.MediaBase(); got != "" {
+		t.Fatalf("MediaBase = %q, want empty", got)
+	}
+	if got := s.PublicOrigin(); got != "" {
+		t.Fatalf("PublicOrigin = %q, want empty", got)
+	}
+	var nilSigner *Signer
+	if nilSigner.MediaBase() != "" || nilSigner.PublicOrigin() != "" {
+		t.Fatal("nil signer must return empty media base/origin")
+	}
 }
 
 func TestPresignPutShapeAndDeterminism(t *testing.T) {

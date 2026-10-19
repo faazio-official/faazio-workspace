@@ -43,6 +43,13 @@ type UserResolver interface {
 	ResolveUserID(ctx context.Context, authUID string) (string, error)
 }
 
+// UserProvisioner is the optional stronger contract: resolve-or-create. Phone-OTP users have no
+// pre-existing checkout.users row, so the checkout resolver implements this to link the subject on
+// first authenticated call (and record the phone/email from the verified token).
+type UserProvisioner interface {
+	ProvisionUserID(ctx context.Context, authUID, phone, email string) (string, error)
+}
+
 // Config is the auth middleware configuration.
 type Config struct {
 	Disabled  bool
@@ -67,7 +74,13 @@ func Middleware(cfg Config) func(http.Handler) http.Handler {
 				id.StateCode = strings.ToUpper(strings.TrimSpace(r.Header.Get("X-Dev-State")))
 			} else if claims, err := claimsFromRequest(r, cfg.JWTSecret); err == nil {
 				if cfg.Resolver != nil {
-					if resolved, rerr := cfg.Resolver.ResolveUserID(r.Context(), claims.Sub); rerr == nil {
+					// Prefer resolve-or-create so a first phone-OTP login links auth.users.id →
+					// checkout.users without a portal/manual row; fall back to read-only resolution.
+					if p, ok := cfg.Resolver.(UserProvisioner); ok {
+						if resolved, rerr := p.ProvisionUserID(r.Context(), claims.Sub, claims.Phone, claims.Email); rerr == nil {
+							id.UserID = resolved
+						}
+					} else if resolved, rerr := cfg.Resolver.ResolveUserID(r.Context(), claims.Sub); rerr == nil {
 						id.UserID = resolved
 					}
 				}
@@ -185,6 +198,8 @@ var errNoToken = errors.New("no token")
 type jwtClaims struct {
 	Sub         string `json:"sub"`
 	Exp         int64  `json:"exp"`
+	Phone       string `json:"phone"`
+	Email       string `json:"email"`
 	AppRole     string `json:"app_role"`
 	SellerID    string `json:"seller_id"`
 	StateCode   string `json:"state_code"`

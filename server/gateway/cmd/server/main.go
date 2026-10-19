@@ -78,6 +78,7 @@ func main() {
 		PublicBucket:  cfg.R2PublicBucket,
 		PrivateBucket: cfg.R2PrivateBucket,
 		CDNBase:       cfg.R2CDNBase,
+		PublicBase:    cfg.PublicBaseURL,
 	})
 	mediaGC := media.NewSweeper(media.New(pool), r2Signer, nil)
 	if mediaGC.Enabled() && pool != nil {

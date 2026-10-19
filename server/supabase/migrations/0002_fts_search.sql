@@ -5,9 +5,12 @@
 -- maintained by the write, unlike a materialized view.
 
 -- unaccent() is STABLE (dictionary-dependent); wrap it IMMUTABLE so it can be used in a
--- generated column. This is the standard Postgres/Supabase pattern.
+-- generated column. This is the standard Postgres/Supabase pattern. The search_path pins both
+-- the Supabase `extensions` schema and `public` so the extension resolves on Supabase (installed
+-- in `extensions`) and on a bare local Postgres (installed in `public`).
 create or replace function catalog.immutable_unaccent(txt text)
-returns text language sql immutable parallel safe as $$
+returns text language sql immutable parallel safe
+set search_path = extensions, public, pg_temp as $$
   select unaccent('unaccent', coalesce(txt, ''))
 $$;
 

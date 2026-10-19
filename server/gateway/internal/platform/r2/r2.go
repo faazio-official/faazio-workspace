@@ -39,8 +39,13 @@ type Config struct {
 	SecretKey     string
 	PublicBucket  string
 	PrivateBucket string
-	// CDNBase is the custom domain in front of the public bucket, e.g. https://img.faazio.in.
+	// CDNBase is the custom domain in front of the public bucket, e.g. https://img.faazio.in. Optional:
+	// when empty, public objects are served through PublicBase + /assets/{key}.
 	CDNBase string
+	// PublicBase is the gateway's own public origin (e.g. https://gateway.faazio.com). When CDNBase is
+	// unset but this is set, public object URLs are built as PublicBase/assets/{key} and the gateway
+	// 302-redirects them to a short-lived presigned GET.
+	PublicBase string
 }
 
 // Signer presigns R2 requests. Use New; a nil *Signer is a safe no-op that reports ErrDisabled.
@@ -51,6 +56,7 @@ type Signer struct {
 	publicBucket  string
 	privateBucket string
 	cdnBase       string
+	publicBase    string
 	now           func() time.Time
 }
 
@@ -75,6 +81,7 @@ func New(cfg Config) *Signer {
 		publicBucket:  cfg.PublicBucket,
 		privateBucket: cfg.PrivateBucket,
 		cdnBase:       strings.TrimRight(strings.TrimSpace(cfg.CDNBase), "/"),
+		publicBase:    strings.TrimRight(strings.TrimSpace(cfg.PublicBase), "/"),
 		now:           time.Now,
 	}
 }
@@ -106,14 +113,49 @@ func (s *Signer) BucketFor(private bool) string {
 	return s.PublicBucket()
 }
 
-// PublicURL builds the immutable CDN URL for a public object key. Returns "" when no CDN base or key.
-// Keys are content-addressed, so the URL may be cached forever (caching-cloudflare-valkey.md §5).
+// PublicURL builds the browser-usable URL for a public object key. Returns "" when no public origin is
+// configured or key is empty. With a CDN custom domain the URL is immutable and edge-cacheable; without
+// one it is the gateway's stable /assets/{key} path, which 302-redirects to a short-lived presigned GET.
 func (s *Signer) PublicURL(key string) string {
 	key = strings.TrimLeft(strings.TrimSpace(key), "/")
-	if s == nil || s.cdnBase == "" || key == "" {
+	if s == nil || key == "" {
 		return ""
 	}
-	return s.cdnBase + "/" + uriEncode(key, false)
+	switch {
+	case s.cdnBase != "":
+		return s.cdnBase + "/" + uriEncode(key, false)
+	case s.publicBase != "":
+		return s.publicBase + "/assets/" + uriEncode(key, false)
+	default:
+		return ""
+	}
+}
+
+// MediaBase returns the prefix that readers append "/"+key to for public object URLs: the CDN custom
+// domain when configured, else the gateway's own /assets route, else "" (public media unresolvable).
+func (s *Signer) MediaBase() string {
+	if s == nil {
+		return ""
+	}
+	if s.cdnBase != "" {
+		return s.cdnBase
+	}
+	if s.publicBase != "" {
+		return s.publicBase + "/assets"
+	}
+	return ""
+}
+
+// PublicOrigin returns the origin used by the ads poster host allow-list: the CDN custom domain when
+// configured, else the gateway's public base, else "" (any https host accepted — media disabled).
+func (s *Signer) PublicOrigin() string {
+	if s == nil {
+		return ""
+	}
+	if s.cdnBase != "" {
+		return s.cdnBase
+	}
+	return s.publicBase
 }
 
 // PresignPut returns a short-lived presigned PUT URL for bucket/key. The client uploads the bytes
@@ -122,7 +164,8 @@ func (s *Signer) PresignPut(_ context.Context, bucket, key string, expires time.
 	return s.presign("PUT", bucket, key, expires)
 }
 
-// PresignGet returns a short-lived presigned GET URL (private buckets only; public objects use PublicURL).
+// PresignGet returns a short-lived presigned GET URL. Used for private objects (Rx/KYC) and, when no
+// CDN custom domain is configured, for public objects served through the gateway's /assets redirect.
 func (s *Signer) PresignGet(_ context.Context, bucket, key string, expires time.Duration) (string, error) {
 	return s.presign("GET", bucket, key, expires)
 }

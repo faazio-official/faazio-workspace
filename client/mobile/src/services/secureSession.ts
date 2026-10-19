@@ -5,6 +5,10 @@
  *
  * The whole session is stored as one generic-password payload under a single
  * service so a read/write is atomic and there are no partial sessions.
+ *
+ * A module-level cache mirrors the last read/written payload so GatewayClient can
+ * read `getAccessToken()` on every request without a Keychain round-trip. It is
+ * updated on save/clear and dropped when a stored payload fails its shape check.
  */
 import * as Keychain from 'react-native-keychain';
 
@@ -29,34 +33,76 @@ const OPTIONS: Keychain.SetOptions = {
   accessible: Keychain.ACCESSIBLE.WHEN_UNLOCKED,
 };
 
+/** Last known session; `undefined` = never read, `null` = known signed-out. */
+let cache: StoredSession | null | undefined;
+
+function valid(session: unknown): session is StoredSession {
+  if (!session || typeof session !== 'object') return false;
+  const s = session as StoredSession;
+  return !!s.user && typeof s.user.id === 'string';
+}
+
 export async function saveSession(session: StoredSession): Promise<void> {
   await Keychain.setGenericPassword(ACCOUNT, JSON.stringify(session), OPTIONS);
+  cache = session;
 }
 
 export async function loadSession(): Promise<StoredSession | null> {
   const credentials = await Keychain.getGenericPassword({ service: SERVICE });
-  if (!credentials || !credentials.password) return null;
+  if (!credentials || !credentials.password) {
+    cache = null;
+    return null;
+  }
 
   try {
     const session = JSON.parse(credentials.password) as StoredSession;
-    if (
-      !session ||
-      typeof session !== 'object' ||
-      !session.user ||
-      typeof session.user.id !== 'string'
-    ) {
+    if (!valid(session)) {
+      cache = null;
       return null;
     }
-    return {
+    const normalized: StoredSession = {
       accessToken: session.accessToken ?? null,
       refreshToken: session.refreshToken ?? null,
       user: session.user,
     };
+    cache = normalized;
+    return normalized;
   } catch {
+    cache = null;
     return null;
   }
 }
 
+/**
+ * Cached access token for per-request auth. Reads the Keychain once, then serves
+ * from memory; updated automatically by saveSession/updateSessionTokens/clearSession.
+ */
+export async function getAccessToken(): Promise<string | null> {
+  if (cache === undefined) await loadSession();
+  return cache?.accessToken ?? null;
+}
+
+export async function getRefreshToken(): Promise<string | null> {
+  if (cache === undefined) await loadSession();
+  return cache?.refreshToken ?? null;
+}
+
+/**
+ * Persist a rotated token pair (silent refresh) without touching the profile. Pass
+ * `expiresAt` as Unix seconds when GoTrue returned one, so callers can pre-empt expiry.
+ */
+export async function updateSessionTokens(
+  accessToken: string,
+  refreshToken: string,
+): Promise<StoredSession | null> {
+  if (cache === undefined) await loadSession();
+  if (!cache) return null;
+  const next: StoredSession = { ...cache, accessToken, refreshToken };
+  await saveSession(next);
+  return next;
+}
+
 export async function clearSession(): Promise<void> {
+  cache = null;
   await Keychain.resetGenericPassword({ service: SERVICE });
 }

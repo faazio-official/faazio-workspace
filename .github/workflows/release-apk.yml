@@ -14,6 +14,8 @@ name: Release APK
 #   STORE_FILE       keystore file name (optional, default faazio-release.keystore)
 #   CERT_PINS        comma-separated base64 SHA-256 SPKI pins (required when
 #                    GATEWAY_URL + USE_GATEWAY=true; release fails without them)
+#   SUPABASE_URL, SUPABASE_ANON_KEY  phone-OTP GoTrue project (required when
+#                    USE_GATEWAY=true; release refuses to embed a mock-login build)
 on:
   workflow_dispatch:
     inputs:
@@ -123,6 +125,8 @@ jobs:
           USE_GATEWAY: ${{ secrets.USE_GATEWAY }}
           STRICT: "true"
           CERT_PINS: ${{ secrets.CERT_PINS }}
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
 
       - name: Build release APK
         run: |
