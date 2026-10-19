@@ -4,7 +4,10 @@
 # Measures a release build so dev-mode (Metro) noise doesn't hide regressions.
 #
 # Usage:
-#   npx expo run:android --variant release        # first, on a device/emulator
+#   gh workflow run "Release APK"                 # build the signed release in CI (never locally)
+#   gh run watch
+#   gh release download <tag> --pattern "*.apk" --clobber
+#   adb install -r app-release.apk                # install on the device/emulator first
 #   bash scripts/perf-baseline.sh                 # then run this
 #
 # Outputs (record these before/after any perf change):
