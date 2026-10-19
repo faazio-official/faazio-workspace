@@ -1,0 +1,36 @@
+# Render Blueprint for the Faazio MVP gateway (Go Chi modular monolith).
+# Docs: docs/architecture/mvp-backend.md, server/README.md.
+#
+# Deploy: connect this repo in Render → "New" → "Blueprint" (Render reads this file at the repo root).
+# Set every environment variable in the Render dashboard (Environment tab) — nothing env-related
+# is committed here. The gateway reads Render's injected PORT automatically, and falls back to
+# RENDER_EXTERNAL_URL for PUBLIC_BASE_URL, so only the config/secrets below need adding:
+#   DATABASE_URL, VALKEY_URL, MONGO_URI, SUPABASE_JWT_SECRET, SUPABASE_SERVICE_KEY,
+#   R2_ACCESS_KEY_ID, R2_SECRET_ACCESS_KEY,
+#   MONGO_DATABASE=faazio, PRESCRIPTION_BUCKET=prescriptions,
+#   SUPABASE_URL=https://mivisyjvvizyyidjdjmh.supabase.co,
+#   R2_ACCOUNT_ID=28cbf78411f854a8a41a5b737e698004, R2_PUBLIC_BUCKET=faazio-public,
+#   R2_PRIVATE_BUCKET=faazio-private, BOOKING_FEE_PAISA=5000, AUTH_DISABLED=false,
+#   ALLOWED_ORIGINS=https://app.faazio.com, OTEL_ENABLED=true
+#
+# Prod hardening (dashboard/Cloudflare, not expressible here):
+#   - Cloudflare: CNAME → onrender.com (DNS-only first to issue the cert, then Proxied + SSL Full);
+#     delete any AAAA record so clients never reach Render directly.
+#   - Render → Inbound Rules: allow only Cloudflare's published IP ranges (origin lock) so the WAF
+#     and DDoS protection cannot be bypassed by hitting *.onrender.com.
+#   - Pin rotation: 2-pin overlap, rotate ≥30 days before expiry (docs/RUNBOOKS/RELEASE.md).
+services:
+  - type: web
+    name: faazio-gateway
+    runtime: docker
+    rootDir: server/gateway
+    dockerfilePath: ./Dockerfile
+    region: singapore
+    # standard (not starter): starter spins down on idle and runs a single instance — neither is
+    # acceptable for real-money writes. Keep min 2 for a rolling deploy with no cold-start gap.
+    plan: standard
+    scaling:
+      minInstances: 2
+      maxInstances: 4
+    healthCheckPath: /health
+    autoDeploy: true

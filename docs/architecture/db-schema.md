@@ -68,7 +68,7 @@ Full MVP matrix, RLS classes, and endpoints: `docs/architecture/mvp-backend.md`.
 
 ## 1. Service ⇄ Database ⇄ Language master matrix
 
-| # | Service | Language | Database | DB role | Cloud Run spec | Talks to |
+| # | Service | Language | Database | DB role | Deploy spec | Talks to |
 |---|---|---|---|---|---|---|
 | 1 | Gateway | Go Chi | — (stateless) + Valkey/CDN cache | no durable DB | 0.25 vCPU / 256 MB | app ↔ all services |
 | 2 | Search & Catalog | Rust (Axum + Tantivy) | Tantivy (embedded) + CockroachDB `catalog` master | index + sync source | 0.5 vCPU / 512 MB | gateway, checkout |
@@ -356,23 +356,27 @@ CREATE TYPE order_status   AS ENUM ('Processing','Shipped','Delivered','Cancelle
 CREATE TABLE checkout.users (
   user_id          TEXT PRIMARY KEY,        -- 'user-1'
   user_uid         UUID NOT NULL DEFAULT gen_random_uuid(),
+  auth_uid         UUID UNIQUE,             -- Supabase auth.uid() (0030 link)
   name             TEXT NOT NULL,
   email            TEXT NOT NULL,
   phone            TEXT NOT NULL,           -- PII
   default_address_id TEXT REFERENCES checkout.addresses(address_id),
-  created_at       TIMESTAMPTZ NOT NULL DEFAULT now()
+  created_at       TIMESTAMPTZ NOT NULL DEFAULT now(),
+  last_login_at    TIMESTAMPTZ              -- set by the first authenticated OTP call (0030)
 );
 ```
 
 | Column | Type | Bytes | Why | Index |
 |---|---|---|---|---|
-| `user_id` | TEXT PK | 6 | stable slug | PK |
+| `user_id` | TEXT PK | 6 | stable slug (OTP users get `u-<sha256 prefix>`) | PK |
 | `user_uid` | UUID | 16 | join key | btree |
+| `auth_uid` | UUID | 16 | Supabase auth subject → app user; upserted on first authenticated call | unique |
 | `name` | TEXT | ~12 | display | — |
 | `email` | TEXT | ~24 | contact (**PII**) | unique btree |
 | `phone` | TEXT | ~14 | contact (**PII**) | unique btree |
 | `default_address_id` | TEXT | 6 | FK | btree |
 | `created_at` | TIMESTAMPTZ | 8 | audit | — |
+| `last_login_at` | TIMESTAMPTZ | 8 | ops visibility of real sessions | — |
 
 **Sample row:** `user-1` · Rohit Sharma · rohit.sharma@gmail.com · +91 98765 43210 · addr_1
 (provenance `data/checkout/orders.ts:20-22`).
@@ -1463,20 +1467,24 @@ their own row (incl. PRIVATE); **writes are service_role only** (no insert/updat
 
 Endpoints (`internal/media`): `POST /media/upload-url` (auth; validate `image/{jpeg,png,webp}` ≤ 8 MiB,
 mint DRAFT + deterministic key, return 300 s presigned PUT), `POST /media/confirm` (auth; DRAFT→ACTIVE +
-owner link + cache purge), `GET /media/resolve?ids=` (anon batch of ACTIVE PUBLIC → CDN URLs, Valkey
-24 h), `GET /media/private/{id}` (creator/admin; 300 s presigned GET), `PUT /media/{id}/status` +
+owner link + cache purge), `GET /media/resolve?ids=` (anon batch of ACTIVE PUBLIC → public URLs, Valkey
+24 h), public `GET /assets/*` (stable no-CDN path → 302 presigned GET on the public bucket; unused when
+`R2_CDN_BASE` is set), `GET /media/private/{id}` (creator/admin; 300 s presigned GET), `PUT /media/{id}/status` +
 `DELETE /media/{id}` (admin moderation/GC), `POST /media/gc` (admin; one synchronous GC pass — 503 when
 R2 unset). Key minting: with a hash → `media/{hash:2}/{hash}.{ext}` (content-addressed, cache-forever);
 without → `media/{yyyy}/{mm}/{img_id}.{ext}`.
 
 Config: `R2_ACCOUNT_ID` / `R2_ACCESS_KEY_ID` / `R2_SECRET_ACCESS_KEY` / `R2_PUBLIC_BUCKET` /
-`R2_PRIVATE_BUCKET` / `R2_CDN_BASE` (`img.faazio.in`). Owning contexts link a confirmed asset via
-`imageKey` or `imageAssetId` — `PUT /seller/products/{id}` (catalog), `POST`/`PUT /seller/menus/…`
+`R2_PRIVATE_BUCKET` / `R2_CDN_BASE` (optional custom domain, e.g. `img.faazio.in`) / `PUBLIC_BASE_URL`
+(the gateway's own origin, used for `/assets/{key}` when no CDN domain). Owning contexts link a confirmed
+asset via `imageKey` or `imageAssetId` — `PUT /seller/products/{id}` (catalog), `POST`/`PUT /seller/menus/…`
 (directory), `PUT /seller/stores/{id}/cover` (directory) — resolving ownership through the
 `contracts.MediaReader` interface (never a sibling import). Read selects (`productSelect`/
 `productListSelect`, `storeSelect`/`storeListSelect`, `SellerMenus`, `Menu`) coalesce
-`nullif(image_key,'')` and decorate to `${R2_CDN_BASE}/{key}`, so `image`/`coverImage`/menu `image`
-are always displayable (legacy text URL is the fallback). Rx images prefer the R2 private bucket,
+`nullif(image_key,'')` and decorate to the configured media base (`${R2_CDN_BASE}/{key}`, or
+`${PUBLIC_BASE_URL}/assets/{key}` when no CDN), so `image`/`coverImage`/menu `image` are always
+displayable (legacy text URL is the fallback; with neither base set the key is ignored and the legacy
+URL is used). Rx images prefer the R2 private bucket,
 falling back to Supabase Storage when R2 is unset (`internal/pharma/storage.go`). Cache:
 `media:asset:{id}` 24 h (caching doc §5/§8).
 

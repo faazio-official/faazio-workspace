@@ -80,8 +80,9 @@ CI runs the full suite with Postgres + Valkey service containers
 | `GET /media/resolve?ids=` | — | media |
 | `PUT /media/{id}/status` · `DELETE /media/{id}` · `POST /media/gc` | admin | media |
 
-Auth: `Authorization: Bearer <supabase-jwt>` (HS256). Local dev: `AUTH_DISABLED=true`
-and `X-Dev-User` / `DEV_USER_ID`.
+Auth: `Authorization: Bearer <supabase-jwt>` (HS256) from **real Supabase phone OTP**; the first
+authenticated call upserts `checkout.users.auth_uid` (`ProvisionUserID`, `0030`). Local dev:
+`AUTH_DISABLED=true` and `X-Dev-User` / `DEV_USER_ID`.
 
 ## Media workers
 

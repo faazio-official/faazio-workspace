@@ -102,7 +102,9 @@ and `USE_GATEWAY=true`; `scripts/configure.js` generates `src/lib/config.ts` bef
 `GatewayClient` falls back to `@data/*` on any error. Add `STRICT=true` to disable the fallback for
 money/Rx/address writes (a failed write then fails loudly instead of faking a local success).
 Optionally set `DEV_USER=user-1` to send the dev-only `X-Dev-User` header explicitly (dev builds
-only; never attached in a release APK, and ignored by an `AUTH_DISABLED=false` gateway). Regenerate
+only; never attached in a release APK, and ignored by an `AUTH_DISABLED=false` gateway). For real
+phone-OTP sign-in against an `AUTH_DISABLED=false` gateway, set `SUPABASE_URL` +
+`SUPABASE_ANON_KEY` (release builds require them). Regenerate
 the DB seed after editing `@data/*`:
 `node server/supabase/seed/generate.mjs`. Details: `server/gateway/README.md`.
 

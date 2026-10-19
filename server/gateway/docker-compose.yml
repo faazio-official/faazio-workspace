@@ -46,6 +46,7 @@ services:
       - ../supabase/migrations/0027_ads_campaigns.sql:/docker-entrypoint-initdb.d/0027_ads_campaigns.sql:ro
       - ../supabase/migrations/0028_ads_selfserve.sql:/docker-entrypoint-initdb.d/0028_ads_selfserve.sql:ro
       - ../supabase/migrations/0029_blood_match_status.sql:/docker-entrypoint-initdb.d/0029_blood_match_status.sql:ro
+      - ../supabase/migrations/0030_auth_link.sql:/docker-entrypoint-initdb.d/0030_auth_link.sql:ro
       - ../supabase/seed/0001_seed.sql:/docker-entrypoint-initdb.d/0099_seed.sql:ro
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U postgres -d faazio"]

@@ -24,6 +24,12 @@ import phoneAuthBackgroundImg from '@/assets/phone_auth_background.webp';
 import AppTextInput from '@/components/AppTextInput';
 import AppText from '@/components/AppText';
 import { useAuthStore } from '@/state/authStore';
+import {
+  displayName,
+  sendOtp,
+  supabaseAuthConfigured,
+  verifyOtp,
+} from '@/services/supabaseAuth';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'Login'>;
 
@@ -117,6 +123,7 @@ export function LoginScreen({ navigation }: Props) {
   const [otpError, setOtpError] = useState('');
   const [isPhoneFocused, setIsPhoneFocused] = useState(false);
   const [isVerifying, setIsVerifying] = useState(false);
+  const [isSending, setIsSending] = useState(false);
   const [keyboardVisible, setKeyboardVisible] = useState(false);
 
   const phoneInputRef = useRef<TextInput>(null);
@@ -232,24 +239,36 @@ export function LoginScreen({ navigation }: Props) {
     Keyboard.dismiss();
     otpInputRef.current?.blur();
 
-    // PLACEHOLDER tokens — real JWTs will come from the Go backend once live.
-    // Swapping these in requires no auth pipeline changes.
-    const placeholderToken = `placeholder.${phone}.${Date.now()}`;
     try {
-      await login({
-        user: {
-          id: `user_${phone}`,
-          name: 'Faazio User',
-          email: '',
-          phone,
-        },
-        accessToken: placeholderToken,
-        refreshToken: `${placeholderToken}.refresh`,
-      });
+      if (supabaseAuthConfigured()) {
+        // Real GoTrue phone-OTP session: the returned JWT is the same bearer the gateway verifies.
+        const session = await verifyOtp(phone, otpCode);
+        await login({
+          user: {
+            id: session.user.id,
+            name: displayName(session.user),
+            email: session.user.email ?? '',
+            phone,
+          },
+          accessToken: session.accessToken,
+          refreshToken: session.refreshToken,
+        });
+      } else if (__DEV__) {
+        // Dev-only fallback when Supabase Auth is unconfigured (local AUTH_DISABLED gateway).
+        // Release builds never reach here — configure.js refuses to embed a mock-login build.
+        const placeholderToken = `placeholder.${phone}.${Date.now()}`;
+        await login({
+          user: { id: `user_${phone}`, name: 'Faazio User', email: '', phone },
+          accessToken: placeholderToken,
+          refreshToken: `${placeholderToken}.refresh`,
+        });
+      } else {
+        throw new Error('auth-unconfigured');
+      }
     } catch {
       submitRef.current = false;
       setIsVerifying(false);
-      setOtpError('Could not start your session. Please try again.');
+      setOtpError('That code was not valid. Please try again.');
       return;
     }
 
@@ -269,6 +288,31 @@ export function LoginScreen({ navigation }: Props) {
     }
   }, [otpState, otpCode, submitOtp]);
 
+  /** Send the SMS OTP, then advance to the code screen. Dev-only when Supabase is unconfigured. */
+  const requestOtp = useCallback(
+    async (digits: string) => {
+      if (isSending) return;
+      Keyboard.dismiss();
+      setOtpError('');
+      setOtpCode('');
+      submitRef.current = false;
+      setIsVerifying(false);
+      if (supabaseAuthConfigured()) {
+        setIsSending(true);
+        try {
+          await sendOtp(digits);
+        } catch {
+          setIsSending(false);
+          Alert.alert('Could not send OTP', 'Please check your number and try again.');
+          return;
+        }
+        setIsSending(false);
+      }
+      setOtpState(true);
+    },
+    [isSending],
+  );
+
   const handlePhoneChange = (val: string) => {
     const numericVal = val.replace(/\D/g, '').slice(0, 10);
     setPhone(numericVal);
@@ -279,9 +323,7 @@ export function LoginScreen({ navigation }: Props) {
     if (numericVal.length === 10 && !otpState) {
       phoneAdvanceRef.current = setTimeout(() => {
         phoneAdvanceRef.current = null;
-        Keyboard.dismiss();
-        setOtpState(true);
-        setOtpError('');
+        void requestOtp(numericVal);
       }, 150);
     }
   };
@@ -325,10 +367,15 @@ export function LoginScreen({ navigation }: Props) {
   const handleResend = () => {
     setOtpCode('');
     setOtpError('');
-    Alert.alert(
-      'Resend',
-      'A new demo OTP verification code has been sent to (+91) ' + phone
-    );
+    submitRef.current = false;
+    setIsVerifying(false);
+    if (supabaseAuthConfigured()) {
+      void sendOtp(phone).catch(() =>
+        Alert.alert('Could not send OTP', 'Please try again in a moment.'),
+      );
+    } else {
+      Alert.alert('Resend', 'A new demo OTP code has been sent to (+91) ' + phone);
+    }
   };
 
   return (

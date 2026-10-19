@@ -1,0 +1,7 @@
+# Never ship local secrets or dev-only files into the build context.
+.env
+.env.*
+*.log
+.git
+.gitignore
+docker-compose.yml

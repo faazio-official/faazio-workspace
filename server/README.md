@@ -36,7 +36,7 @@ server/
 ├── supabase/
 │   ├── migrations/              # 0001 schemas, 0002 FTS, 0003 TTL/RLS
 │   └── seed/                    # generate.mjs + @data/* twins (IDs unchanged)
-└── deployments/                 # Cloud Run manifest, env template
+└── (deploy)                     # repo-root render.yaml (Render Blueprint) + gateway/Dockerfile
 ```
 
 - **Endpoints:** reads `GET /health`, `/search?q=`, `/sdui/home`, `/product/:id`,
@@ -46,11 +46,29 @@ server/
   `POST /events` — origins and the `@data/*` / `GatewayClient` mapping in
   `docs/architecture/mvp-backend.md` §3; context mapping in `monolith-breakdown.md` §1.
 - **Run locally:** `cd server/gateway && docker compose up --build` → `curl localhost:8080/health`.
+- **Deploy:** **Render** (Docker web service) via the repo-root `render.yaml` Blueprint — Root
+  Directory `server/gateway`, health check `/health`, all env vars set in the dashboard. The service
+  reads Render's injected `PORT` and falls back to `RENDER_EXTERNAL_URL` for `PUBLIC_BASE_URL`
+  (public `/assets/{key}` media links), so neither needs to be set by hand. Blueprint: `standard`
+  plan, `minInstances: 2` (no idle spin-down / rolling deploys), Cloudflare proxied + Full SSL with
+  Render inbound rules locked to Cloudflare IP ranges (see `render.yaml` comments).
 - **Verify:** `go build/vet/test ./...` + `go run ./tools/importlint`.
 - **Origins:** Supabase (Postgres) for catalog/directory/reviews/checkout/accounts/inventory;
   MongoDB Atlas for `sdui_layouts` + events; Aiven Valkey read-through; Cloudflare in front.
-- **Auth:** Supabase Auth phone OTP (HS256 JWT) + RLS; `AUTH_DISABLED=true` for local dev (logs a
-  loud warning). The app keeps a mocked login by product decision; portal JWT is fail-closed.
+- **Public media:** R2 public objects resolve via `R2_CDN_BASE` (custom domain, immutable) or, when
+  unset, `PUBLIC_BASE_URL` + `GET /assets/{key}` (302 → 300 s presigned GET — no custom domain or
+  `r2.dev` needed). Private Rx/KYC objects always use presigned GETs.
+- **CORS:** `ALLOWED_ORIGINS` is an explicit comma-separated allow-list (default deny). A literal
+  `*` reflects any Origin **only when `AUTH_DISABLED=true`** (local dev); in production it is
+  ignored. The dev-only `X-Dev-*` request headers are only advertised in dev.
+- **Auth:** real Supabase Auth phone OTP (HS256 JWT) + RLS; the app sends the GoTrue bearer and
+  `checkout.Repo.ProvisionUserID` links `auth.uid → checkout.users.user_id` on first call
+  (`0030`). `AUTH_DISABLED=true` is local-dev only (logs a loud warning); release builds cannot
+  embed a mock-login session. Portal JWTs are fail-closed.
+- **Rate/body limits:** global `Throttle(100)` + 1 MiB body, plus `Throttle(10)` on
+  `/ads/events`, `/vendors/{id}/rating`, `/bookings*`, `/media/*` and a 256 KiB cap on `/media/*`.
+- **Health:** `GET /health` probes Postgres (required → 503), Valkey and Mongo (optional →
+  `degraded`) with per-dependency latency, for Render's health-check/uptime alerts.
 - **Notifications:** the durable outbox drains to a provider-agnostic push webhook when
   `PUSH_WEBHOOK_URL` is set (`PENDING`→`SENT`/`FAILED`, 30 s polling; unset = in-app inbox only).
 - **Build order / status:** `docs/architecture/mvp-backend.md` §7.
@@ -100,7 +118,7 @@ Four focused services, each choosing the best language/database for its job:
   auto-suggestions instantly without draining server memory.
 - **Stack:** Axum (Tokio async runtime, tower middleware for load-balancing / rate-limiting /
   timeouts), Tantivy compiled directly into the binary, Tonic for gRPC.
-- **Target spec (Google Cloud Run):** 0.5 vCPU / 512 MB RAM.
+- **Target spec (Render):** 0.5 vCPU / 512 MB RAM.
 
 ### 🛒 2. Shopping Cart & Local Inventory Service
 - **Language:** Go
@@ -112,7 +130,7 @@ Four focused services, each choosing the best language/database for its job:
 - **Stack:** go-chi/chi/v5 (radix-tree router → near-zero URL-matching cost),
   google.golang.org/grpc for internal calls, go-playground/validator/v10 for request
   validation.
-- **Target spec (Google Cloud Run):** 0.5 vCPU / 256 MB RAM.
+- **Target spec (Render):** 0.5 vCPU / 256 MB RAM.
 
 ### 💳 3. Checkout & Order Processing Service
 - **Language:** Go (preferred) or Rust
@@ -122,7 +140,7 @@ Four focused services, each choosing the best language/database for its job:
   coupons, tax calculations, payment-gateway webhooks). CockroachDB guarantees financial
   consistency across servers so an order is never lost.
 - **Stack:** go-chi/chi/v5, go-playground/validator/v10.
-- **Target spec (Google Cloud Run):** 0.25 vCPU / 256 MB RAM.
+- **Target spec (Render):** 0.25 vCPU / 256 MB RAM.
 
 ### 🧠 4. Personalization, Recommendation & Analytics Engine
 - **Language:** Python
@@ -131,7 +149,7 @@ Four focused services, each choosing the best language/database for its job:
   search, but it is the king of Data Science / ML — analyzing what users browse and
   predicting what to show next.
 - **Stack:** FastAPI (Starlette + Pydantic, native async, auto Swagger docs).
-- **Target spec (Google Cloud Run):** 1 vCPU / 1 GB RAM.
+- **Target spec (Render):** 1 vCPU / 1 GB RAM.
 
 ### ⭐ 5. Reviews & Ratings Service
 - **Language:** Go
@@ -151,7 +169,7 @@ Four focused services, each choosing the best language/database for its job:
   - `GET  /vendors/{vendorId}/rating` — the signed-in user's own rating for this vendor
   - `PUT  /vendors/{vendorId}/rating` — upsert the user's rating (server re-checks eligibility)
 - **Stack:** go-chi/chi/v5, go-playground/validator/v10.
-- **Target spec (Google Cloud Run):** 0.25 vCPU / 256 MB RAM.
+- **Target spec (Render):** 0.25 vCPU / 256 MB RAM.
 
 ---
 
@@ -179,7 +197,7 @@ server/
 │   ├── reviews/                 # Go — chi, PostgreSQL (vendor ratings + eligibility)
 │   └── recommendations/         # Python — FastAPI, MongoDB
 ├── contracts/                   # shared proto / OpenAPI contracts between services
-└── deployments/                 # Cloud Run / Docker manifests, env templates (no secrets)
+└── (deploy)                     # repo-root render.yaml Blueprints + per-service Dockerfiles
 ```
 
 **Conventions for the folder tree:**
@@ -194,7 +212,7 @@ server/
 
 ## 4. Cost & sizing summary
 
-| Service | Language | Cloud Run spec | Database | Initial monthly cost |
+| Service | Language | Render spec | Database | Initial monthly cost |
 |---|---|---|---|---|
 | Search | Rust | 0.5 vCPU / 512 MB | Meilisearch / Tantivy (embedded) | ~$0 (scales down to 0) |
 | Cart & Stock | Go | 0.5 vCPU / 256 MB | Firestore (Datastore mode) | ~$0 (50k daily free reads) |
@@ -207,23 +225,23 @@ server/
 ## 5. Supporting infrastructure (future)
 
 ### 🌐 Load Balancer & API Gateway
-- **Use:** Google Cloud HTTP(S) Load Balancing + Cloud Run native routing.
-- **Why:** Cloud Run's built-in managed load balancer auto-manages SSL certificates and
-  distributes incoming traffic to containers globally — no server to configure.
+- **Use:** Render's managed load balancing + automatic TLS on custom domains.
+- **Why:** Render terminates TLS and distributes traffic to the container with no
+  load balancer to configure.
 - **Where:** single entry point for mobile + web, routing to the gateway.
 
 ### 🚀 CDN & WAF
-- **Use:** Cloudflare (Free / Pro tier) in front of the GCP infrastructure.
+- **Use:** Cloudflare (Free / Pro tier) in front of the Render services.
 - **Why:** free-tier world-class DDoS protection (WAF) plus free product-image caching,
-  which drastically lowers GCP bandwidth bills.
+  which drastically lowers Render bandwidth bills.
 - **Security tie-in (AGENTS.md):** Cloudflare sits in front; the backend firewall accepts
   traffic only from Cloudflare's official IP ranges.
 
-### 🧠 Event Streaming & Message Queues
-- **Use:** Google Cloud Pub/Sub (or Upstash Kafka, serverless).
+### 🧠 Background Jobs & Queues
+- **Use:** Render Background Workers + Cron Jobs (or an external queue such as Upstash Kafka).
 - **Why:** when an order is placed, stock updates, emails, and AI recommendations run in
-  the background — never blocking the user. Serverless = pay per message, $0 at idle.
-- **Where:** checkout service emits events → cart/stock, notifications, recommendations.
+  the background — never blocking the user. Workers scale to zero when idle.
+- **Where:** checkout service emits jobs → cart/stock, notifications, recommendations.
 
 ### ⚡ Distributed Caching
 - **Use:** Aiven Valkey (serverless). *Decision note: replaces the earlier "Upstash Redis" plan —
@@ -240,8 +258,9 @@ server/
 - **Where:** all services emit OTel traces/metrics → Grafana dashboards.
 
 ### Deployment
-- All infrastructure config (Cloud Run manifests, env templates, no secrets) lives under
-  `deployments/` in the folder tree above.
+- The MVP gateway deploys to **Render** via the repo-root `render.yaml` Blueprint (Docker,
+  no secrets committed — set them in the dashboard). Future per-service Dockerfiles live
+  beside their service folders.
 
 ---
 

@@ -238,6 +238,15 @@ func Connect(ctx context.Context, url string) (*Cache, error) {
 // Enabled reports whether a Valkey client is attached.
 func (c *Cache) Enabled() bool { return c != nil && c.rdb != nil }
 
+// Ping is the /health dependency probe. Returns nil for a disabled cache (not a failure — the
+// gateway is designed to run without Valkey; it just skips read-through).
+func (c *Cache) Ping(ctx context.Context) error {
+	if c == nil || c.rdb == nil {
+		return nil
+	}
+	return c.rdb.Ping(ctx).Err()
+}
+
 // Close releases the client.
 func (c *Cache) Close() error {
 	if c == nil || c.rdb == nil {

@@ -24,7 +24,7 @@
 | `user_events` / `recommendations` / `segments` / `product_stats` / `sdui_layouts` | Keep MongoDB Atlas M0 (ID-only, `userIdHash`, TTL 90d) | Same (no change) | Flexible doc shape + TTL; don't force into Postgres |
 | Cache + edge | Keep **Aiven Valkey + Cloudflare** exactly per `caching-cloudflare-valkey.md` | Same | Supabase is origin, not cache; keys/TTLs unchanged (`faazio:v1:{service}:{entity}:{id}`, stock 30–60s, search 600s, product 24h, idempotency `NX EX 300`) |
 | Gateway | Go Chi modular monolith (`server/gateway`): all 6 contexts, `/health`, `/search?q=`, `/sdui/home`, `/product/:id`, `/vendors/:id/reviews`, `/stores`, `/venues`, `/orders`, `/profile`, cart/order/rating/event writes → Supabase + Mongo + Valkey, Cloudflare in front | Full gateway + 5 gRPC microservices via `contracts/` | Monolith proves the `@mock` → `@server` seam; extracted per `monolith-breakdown.md`; `GatewayClient` signatures don't change |
-| Auth | Mocked app login (the phone→OTP Login screen calls `authStore.login()`; **no** Supabase phone OTP for the MVP) + partner JWT claim roles | Same, hardened | Server sessions + per-user orders/carts/rating scoping now |
+| Auth | **Real Supabase phone OTP** (GoTrue REST, no SDK) → JWT verified by `platform/auth`; first login upserts `checkout.users.auth_uid` | Same, hardened | Server sessions + per-user orders/carts/rating scoping now |
 
 **Product / media images (implemented, `0025`):** bytes live in **Cloudflare R2** (`faazio-public` +
 `faazio-private`), identity in the SQL `media.assets` registry. The gateway (`internal/media` +
@@ -53,11 +53,18 @@ set. See `db-schema.md` §12.16.
   `TIMESTAMPTZ`, native ENUMs. The Cockroach DDL there is near-verbatim Postgres.
 - **Search view:** `catalog.products_search` (`tsvector` over `name` + `search_tokens` + `category`,
   GIN index, `pg_trgm` for fuzzy/autocomplete), refreshed on `catalog.updated`.
-- **Auth:** mocked app login for the MVP — the phone→OTP Login UI calls `authStore.login()` (no
-  Supabase phone OTP). The gateway verifies partner JWTs (custom `app_role`/`seller_id`/`state_code`
-  claims) and scopes every auth-scoped query by the resolved `user_id`; RLS is defence-in-depth. In
-  dev the app sends `X-Dev-User` (`DEV_USER`, dev builds only) so it resolves
-  deterministically on an `AUTH_DISABLED=true` gateway; production builds never send it.
+- **Auth:** real Supabase phone OTP. `services/supabaseAuth.ts` calls GoTrue REST directly
+  (`/auth/v1/otp`, `/auth/v1/verify`, `/auth/v1/token?grant_type=refresh_token`) — no SDK, +~40 LOC,
+  zero bundle cost. `LoginScreen` sends the OTP on phone entry and exchanges the code for a real
+  session; the access token is stored in the Keychain (single owner: `secureSession.ts`) and sent as
+  the bearer every `GatewayClient` call. The gateway verifies the HS256 JWT and resolves
+  `auth.uid → checkout.users.user_id`; on first call the checkout resolver **upserts** the link
+  (`ProvisionUserID`, deterministic `u-<sha256 prefix>`, `auth_uid` unique) so a new OTP user works
+  without a manual row. `GatewayClient` rotates an expired token once on 401 (`recoverSession`), then
+  clears the session and returns to Login. In dev the app may still send `X-Dev-User` (`DEV_USER`,
+  dev builds only) against an `AUTH_DISABLED=true` gateway; production builds never send it and
+  never embed a mock-login token (`configure.js` fails a release without `SUPABASE_URL` +
+  `SUPABASE_ANON_KEY`).
 
 ### RLS policy classes (least privilege)
 
@@ -129,8 +136,8 @@ Every endpoint above now has a `GatewayClient` method (`getVendorReviews`, `rate
 `getBookings`/`createBooking`/`cancelBooking`/
 `attachBookingPayment`/`getBookingAvailability`,
 `getRecommendations`) with the `@data/*` fallback, so the per-module `@mock` →
-`@server` migration proceeds on the existing **mocked login** (`authStore.login()`); the MVP keeps
-auth mocked and does **not** add Supabase phone OTP.
+`@server` migration proceeds on the existing **real phone-OTP login** (`supabaseAuth` →
+`authStore.login()`).
 
 No gRPC yet; `contracts/` holds Go interfaces that mirror the future `.proto` shape. Method
 signatures above keep the `@mock` → `@server` swap call-site-compatible (`GatewayClient` adds a
@@ -140,11 +147,11 @@ signatures above keep the `@mock` → `@server` swap call-site-compatible (`Gate
 role-gated routes; they are ignored whenever auth is enabled). The app mirrors the portal's dev guard:
 `GatewayClient` attaches `X-Dev-User` only in dev builds when `DEV_USER` is set.
 
-Under a production `AUTH_DISABLED=false` gateway the mocked placeholder session cannot satisfy the
-two app writes behind `auth.Require` — `POST /ads/events` (closed-loop ad KPIs) and
-`PUT /vendors/{id}/rating` (server-durable rating). W49 makes both client paths honest + observable
-(`recordAdEvent` returns a confirmed-only boolean; `submitVendorRating` resolves an outcome and the
-screen surfaces a non-durable result) rather than opening them unauthenticated.
+Under a production `AUTH_DISABLED=false` gateway a real OTP session now satisfies every
+`auth.Require` write; `POST /ads/events` (closed-loop ad KPIs) and `PUT /vendors/{id}/rating`
+(server-durable rating) remain auth-gated (no anon endpoint). W49 keeps both client paths honest +
+observable (`recordAdEvent` returns a confirmed-only boolean; `submitVendorRating` resolves an
+outcome and the screen surfaces a non-durable result) rather than opening them unauthenticated.
 
 ---
 
@@ -241,7 +248,7 @@ contract stable so the swap is invisible to the app):
     (additive) so the Food restaurant screens can leave the `@data` fixture; `GET /venues?app=` venue
     list (`internal/directory.Venues`, PII-free, cached 24 h) + `GatewayClient.getVenues`; inbox badge
     count via `getNotifications`. Blood board deliberately stays redacted (no PII widening). Owner:
-    `db-schema.md` §12.4/§12.6. Auth stays mocked by product decision.
+    `db-schema.md` §12.4/§12.6. (Auth is no longer mocked — superseded by §1 and entry 19.)
 17. ✅ **Shopper price + menu MRP (`0022`, W31):** `directory.menus.mrp_paisa` (additive, `mrp >= price`)
     so a Food discount is authored, never synthesized; anon `GET /promo/active-discounts?ids=` in
     `internal/promo` (LIVE campaign + APPROVED opt-in, clamp by the effective `sector_caps` row,
@@ -254,6 +261,14 @@ contract stable so the swap is invisible to the app):
     (checkout), admin `POST /notifications/drain` (`contracts.Drainer`) — plus quote `price<=mrp` checks
     and idempotent repeated `READY` in pharma. `0023` adds the seller-queue index + quote CHECK
     constraints (`NOT VALID`). Owner: `db-schema.md` §12.12. Additive only.
+
+19. ✅ **Real auth link + single-server hardening (`0030`, W23):** `checkout.users.last_login_at`
+    (additive) + `checkout.Repo.ProvisionUserID` upsert on first authenticated call (`auth.UserProvisioner`),
+    so GoTrue phone-OTP users are linked without a manual row. Mobile: `services/supabaseAuth.ts`
+    (GoTrue REST OTP), Keychain-backed session with silent 401 refresh, and strict money/Rx/address/
+    cart/favourite/booking writes. Gateway: CORS default-deny (wildcard only in dev), per-route
+    throttle (10) + 256 KiB media body cap, and a dependency-probing `/health` (db/cache/mongo).
+    Owner: `db-schema.md` §7.1, `caching-cloudflare-valkey.md` §5, `mobile-app.md` Services.
 
 ---
 

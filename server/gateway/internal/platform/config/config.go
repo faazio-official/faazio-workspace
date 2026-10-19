@@ -26,7 +26,13 @@ type Config struct {
 	R2SecretKey     string
 	R2PublicBucket  string
 	R2PrivateBucket string
-	R2CDNBase       string
+	// R2CDNBase is the public CDN custom domain in front of the public bucket (e.g. https://img.faazio.in).
+	// Optional: when unset, public objects are served through the gateway's own /assets/{key} route,
+	// which 302-redirects to a short-lived presigned GET (no custom domain / r2.dev needed).
+	R2CDNBase string
+	// PublicBaseURL is the gateway's own public origin (e.g. https://gateway.faazio.com) used to build
+	// those stable /assets/{key} URLs when R2CDNBase is unset. Empty = public objects resolve to "".
+	PublicBaseURL string
 	// Cloudflare purge (media GC/moderation). When ZoneID or APIToken is unset, CDN purge is disabled
 	// (content expires via its Cache Rule instead) — never a broken call.
 	CFZoneID   string
@@ -51,7 +57,7 @@ type Config struct {
 // Load reads config from the environment with safe local-dev defaults.
 func Load() Config {
 	return Config{
-		Addr:                  env("GATEWAY_ADDR", ":8080"),
+		Addr:                  env("GATEWAY_ADDR", ":"+env("PORT", "8080")),
 		DatabaseURL:           env("DATABASE_URL", ""),
 		ValkeyURL:             env("VALKEY_URL", ""),
 		MongoURI:              env("MONGO_URI", ""),
@@ -65,7 +71,8 @@ func Load() Config {
 		R2SecretKey:           env("R2_SECRET_ACCESS_KEY", ""),
 		R2PublicBucket:        env("R2_PUBLIC_BUCKET", "faazio-public"),
 		R2PrivateBucket:       env("R2_PRIVATE_BUCKET", "faazio-private"),
-		R2CDNBase:             env("R2_CDN_BASE", "https://img.faazio.in"),
+		R2CDNBase:             env("R2_CDN_BASE", ""),
+		PublicBaseURL:         envFirst("PUBLIC_BASE_URL", "RENDER_EXTERNAL_URL"),
 		CFZoneID:              env("CF_ZONE_ID", ""),
 		CFAPIToken:            env("CF_API_TOKEN", ""),
 		RazorpayKeyID:         env("RAZORPAY_KEY_ID", ""),
@@ -85,6 +92,17 @@ func env(key, fallback string) string {
 		return v
 	}
 	return fallback
+}
+
+// envFirst returns the first non-empty value among keys. Used where a platform injects its own
+// public origin (e.g. Render's RENDER_EXTERNAL_URL) as a fallback for an explicit override.
+func envFirst(keys ...string) string {
+	for _, key := range keys {
+		if v, ok := os.LookupEnv(key); ok && strings.TrimSpace(v) != "" {
+			return v
+		}
+	}
+	return ""
 }
 
 func envBool(key string, fallback bool) bool {

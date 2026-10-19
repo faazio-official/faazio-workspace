@@ -5,9 +5,33 @@ dependencies exist. Do not build the backend/seller flows until told to.
 
 ---
 
+## W23 — Real phone-OTP auth + secured single-server flip (P0)
+
+**Status:** 🟢 Shipped (app + gateway + docs). Replaces the placeholder session with a real Supabase
+GoTrue phone-OTP session, so every `auth.Require` write (`/cart`, `/orders`, `/favourites`,
+`PUT /vendors/{id}/rating`, `POST /ads/events`) works against an `AUTH_DISABLED=false` gateway.
+
+- **Auth:** `services/supabaseAuth.ts` (GoTrue REST, no SDK) + `LoginScreen` send/verify/resend;
+  `secureSession.ts` remains the single Keychain owner (with an in-memory mirror) and
+  `GatewayClient` sends the real bearer, refreshing once on 401 and clearing a dead session.
+- **Server link:** `auth.UserProvisioner` → `checkout.Repo.ProvisionUserID` upserts
+  `checkout.users.auth_uid` on first authenticated call (`0030` adds `last_login_at`), so no manual
+  portal row is needed. `auth_uid → user_id` stays read-through cached for 1 h.
+- **Honesty:** with `STRICT=true`, cart/favourite/address/booking/Rx/order writes fail loudly instead
+  of echoing a local fixture. `configure.js` refuses a release that embeds a mock-login build.
+- **Ops (not code):** set GitHub secrets `SUPABASE_URL`, `SUPABASE_ANON_KEY`; Render env
+  `AUTH_DISABLED=false`, `ALLOWED_ORIGINS`; Cloudflare proxied + Full SSL + Render inbound origin lock;
+  rotate cert pins with a 2-pin overlap ≥30 days before expiry (see `docs/RUNBOOKS/RELEASE.md`).
+- **Docs:** `mvp-backend.md` §1, `db-schema.md` §7.1, `mobile-app.md` Services/Login,
+  `caching-cloudflare-valkey.md` §5.
+
+**Date:** 2026-10-19
+
+---
+
 ## W59 — Pharma residual honesty + routing closure (P0/P1)
 
-**Status:** 🟢 Shipped (app + docs). App auth stays **mocked** (no Supabase phone OTP). Closes the
+**Status:** 🟢 Shipped (app + docs). Auth is now real Supabase phone OTP (see W23). Closes the
 remaining Pharma gaps from the sub-app audit; several plan items were **already fixed by W57** (the
 discount overlay + live Top Offers codes) and one (**P0-3** portal wizard) was a **false alarm** — see
 below.
@@ -379,9 +403,9 @@ seed, `GatewayClient`, `BrandCampaignsSection`/`HomeView`/`DealsLanding`, `pharm
 
 ## W49 — Honest handling for the two auth-gated writes (no anon endpoint, no Supabase OTP)
 
-**Status:** 🟢 Shipped (app + docs). No server / DB / cache change. App auth stays **mocked**
-(placeholder session) by product decision — this hardens the two previously silent workflows
-instead of opening an unauthenticated endpoint.
+**Status:** 🟢 Shipped (app + docs). No server / DB / cache change at the time. **Superseded by
+W23:** app auth is now real Supabase phone OTP, so both auth-gated writes are reachable in prod;
+the honest client handling below still applies.
 
 - **Dev identity is explicit + dev-only.** `GatewayClient.authHeader()` sends `X-Dev-User` **only
   when `__DEV__` and `DEV_USER` is set** (mirrors the portal's `X-Dev-*` guard), so the
@@ -402,12 +426,10 @@ instead of opening an unauthenticated endpoint.
 - **No new `VendorRatingOutcome` divergence:** `GatewayClient.rateVendor` returns the outcome union
   rather than a bare `boolean`; `withFallback` no longer fabricates a `false` rating.
 
-**Residual, by decision (documented):** under a production `AUTH_DISABLED=false` gateway the mocked
-placeholder token cannot satisfy `auth.Require`, so `POST /ads/events` (portal ad KPIs) and
-`PUT /vendors/{id}/rating` (server-durable ratings) remain **auth-gated and inert** there — the
-shopper flow is unaffected (local last-click attribution + device-local rating display). Closing
-them fully needs a real session (Supabase phone-OTP) or an anon rate-limited event path; both are
-intentionally not taken. Local dev closes both via `AUTH_DISABLED=true` + `user-1`.
+**Resolved by W23:** the real GoTrue session satisfies `auth.Require`, so `POST /ads/events`
+(portal ad KPIs) and `PUT /vendors/{id}/rating` (server-durable ratings) are now reachable in prod.
+No anon event endpoint was opened (KPI-poisoning surface avoided). Local dev can still use
+`AUTH_DISABLED=true` + `user-1`.
 
 **Rollback:** revert the `GatewayClient` (`authHeader` / `authStatus` / `recordAdEvent` /
 `rateVendor`), `SponsoredRail`, `CampaignHero`, `vendorRatings`, `RateVendorScreen` hunks and the
