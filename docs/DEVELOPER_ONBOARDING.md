@@ -5,7 +5,7 @@ Get the Faazio mobile app building and running on a device, end to end.
 ## 1. System Requirements
 
 - **Node.js** 20+ (LTS recommended) with `npm`
-- **JDK** 17+ (Expo SDK 57 / RN 0.86 builds need a recent JDK; 21 works)
+- **JDK** 17+ (RN 0.86 / AGP 8.12 builds need a recent JDK; 21 works)
 - **Android SDK** + `platform-tools` (`adb`) with `ANDROID_HOME` set
 - **Git**
 
@@ -20,13 +20,14 @@ cd faazio-workspace/client/mobile
 npm install
 ```
 
-`npm install` runs `postinstall` → `patch-package`, which **must** succeed (it applies the
-`@shopify/react-native-skia` patch). If you change deps, re-run `npm install` so patches re-apply.
+`npm install` runs `postinstall` → `patch-package` + `node scripts/configure.js`, which **must**
+succeed (it applies the `react-native-reanimated` patch and generates `src/lib/config.ts`). If you
+change deps, re-run `npm install` so patches re-apply.
 
 ## 3. Run on a device / emulator
 
-> **Builds are CI-only on this project.** Do **not** run `npm run android` / `expo run:android` /
-> `./gradlew` — the host's `systemd-oomd` SIGKILLs Gradle under memory pressure (see
+> **Builds are CI-only on this project.** Do **not** run `npm run android` / `react-native
+> run-android` / `./gradlew` — the host's `systemd-oomd` SIGKILLs Gradle under memory pressure (see
 > `docs/RUNBOOKS/TROUBLESHOOTING.md` → "Gradle / native build failures"). Let GitHub Actions build
 > the APK, then install the artifact:
 
@@ -36,10 +37,11 @@ gh workflow run android-debug.yml             # debug APK built on GitHub's runn
 gh run watch
 gh run download <run-id> -n faazio-debug-apk  # -> app-debug.apk
 adb install -r app-debug.apk
-adb reverse tcp:8081 tcp:8081                 # then: npx expo start   (Metro, local)
+adb reverse tcp:8081 tcp:8081                 # then: npm run start   (Metro, local)
 ```
 
-- Metro (`npx expo start`) runs **locally** — it is the JS bundler, not Gradle.
+- Metro (`npm run start`) runs **locally** — it is the JS bundler, not Gradle. JS-only changes
+  hot-reload; native changes require a new CI APK.
 - The debug APK connects to Metro over `adb reverse` (no rebuild needed for JS changes).
 - Full-screen, non-scrollable layout per AGENTS.md rule 8.
 
@@ -95,12 +97,13 @@ go test ./...
 > manually: `mongosh "$MONGO_URI/faazio" --file server/supabase/seed/mongo/seed.js`.
 
 Local dev is auth-open (`AUTH_DISABLED=true`, user `user-1`; the gateway logs a loud warning). To
-point the app at it, set `EXPO_PUBLIC_GATEWAY_URL=http://<host>:8080` and
-`EXPO_PUBLIC_USE_GATEWAY=true`; `GatewayClient` falls back to `@data/*` on any error. Add
-`EXPO_PUBLIC_STRICT=true` to disable the fallback for money/Rx/address writes (a failed write then
-fails loudly instead of faking a local success). Optionally set `EXPO_PUBLIC_DEV_USER=user-1` to send
-the dev-only `X-Dev-User` header explicitly (dev builds only; never attached in a release APK, and
-ignored by an `AUTH_DISABLED=false` gateway). Regenerate the DB seed after editing `@data/*`:
+point the app at it, copy `.env.example` → `.env.local` and set `GATEWAY_URL=http://<host>:8080`
+and `USE_GATEWAY=true`; `scripts/configure.js` generates `src/lib/config.ts` before Metro starts and
+`GatewayClient` falls back to `@data/*` on any error. Add `STRICT=true` to disable the fallback for
+money/Rx/address writes (a failed write then fails loudly instead of faking a local success).
+Optionally set `DEV_USER=user-1` to send the dev-only `X-Dev-User` header explicitly (dev builds
+only; never attached in a release APK, and ignored by an `AUTH_DISABLED=false` gateway). Regenerate
+the DB seed after editing `@data/*`:
 `node server/supabase/seed/generate.mjs`. Details: `server/gateway/README.md`.
 
 ### 4b. Ship a release APK

@@ -11,7 +11,7 @@ Phone-based authentication and address/location capture for the first-run flow.
 - `LocationScreen.tsx`: 3-step location capture (request permission / manual entry / map loader).
 
 ## 🛠️ Implementation Standards
-- **Secured tokens**: sessions are persisted via `expo-secure-store` (`services/secureSession.ts`);
+- **Secured tokens**: sessions are persisted via `react-native-keychain` (`services/secureSession.ts`);
   prescriptions and payments are never logged.
 - **No dead ends**: every failure surfaces via the shake + "Verification Failed" toast, and the
   Verify CTA is always available.

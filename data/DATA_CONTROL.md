@@ -102,8 +102,8 @@ Public display is **full name only** — no id, phone, order id, or avatar — a
 rating-related is logged. Production schema: `docs/architecture/db-schema.md` §7.7.
 
 **Gateway:** `client/mobile/src/services/api/GatewayClient.ts` joins the tables above and is the
-single data surface for the app. It is **wired** — set `EXPO_PUBLIC_GATEWAY_URL` +
-`EXPO_PUBLIC_USE_GATEWAY=true` to hit the MVP monolith (`server/gateway`); otherwise it reads the
+single data surface for the app. It is **wired** — set `GATEWAY_URL` +
+`USE_GATEWAY=true` (then `npm run configure`) to hit the MVP monolith (`server/gateway`); otherwise it reads the
 `@data/*` fixtures, and every remote call falls back to fixtures on error. Screens migrate
 incrementally with no call-site change. Authored by the MVP backend
 (`docs/architecture/mvp-backend.md`); context mapping in `docs/architecture/monolith-breakdown.md`;

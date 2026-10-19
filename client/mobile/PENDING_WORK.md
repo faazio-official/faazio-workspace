@@ -384,7 +384,7 @@ seed, `GatewayClient`, `BrandCampaignsSection`/`HomeView`/`DealsLanding`, `pharm
 instead of opening an unauthenticated endpoint.
 
 - **Dev identity is explicit + dev-only.** `GatewayClient.authHeader()` sends `X-Dev-User` **only
-  when `__DEV__` and `EXPO_PUBLIC_DEV_USER` is set** (mirrors the portal's `X-Dev-*` guard), so the
+  when `__DEV__` and `DEV_USER` is set** (mirrors the portal's `X-Dev-*` guard), so the
   mocked app exercises an `AUTH_DISABLED=true` gateway deterministically instead of relying on the
   server's `DEV_USER_ID` fallback. Never attached in a release build; a `AUTH_DISABLED=false`
   gateway ignores it. New `GatewayClient.authStatus()` (`dev-bypass` / `mock` / `enterprise` /
@@ -928,7 +928,7 @@ Home section whose doc carries the data, with each fixture kept as the offline f
   `getProduct`, `getStock`, `getProductsByIds`, `getMenu`, `getCoupons`, `validateCoupon`,
   `getOrderTracking`. New client methods `getVenue(id)` and `getOrderTracking(orderId)` expose the
   new endpoints. `MyOrdersScreen` polls `GET /notifications` every 60 s while mounted (MVP monitoring
-  without FCM). Offline behaviour is unchanged when `EXPO_PUBLIC_USE_GATEWAY`/`STRICT` are unset.
+  without FCM). Offline behaviour is unchanged when `USE_GATEWAY`/`STRICT` are unset/non-true.
 - **Web portal:** every money/status/Rx/menu/booking/rewards mutation is now an awaited write with
   store-snapshot rollback + error toast (`pushWrite` → `writeAwaited`), replacing the silent
   `writeBehind` fallback.
@@ -1083,7 +1083,7 @@ HomeView case + the `sponsoredRail` registry entries; seed revert = drop the two
 - **Rx address fix.** `PrescriptionFlow` now resolves the delivery `addressId` from
   `GatewayClient.getAddresses()` (server-owned) instead of the `@data/cart/addresses` fixture, so a
   `DELIVERY` Rx never stores a phantom fixture FK.
-- **Strict writes.** `EXPO_PUBLIC_STRICT=true` disables the fixture fallback for `placeOrder`,
+- **Strict writes.** `STRICT=true` disables the fixture fallback for `placeOrder`,
   `createPrescription`, `payForOrder` and `saveAddress` — a failed remote write fails loudly instead
   of fabricating a local success (`GatewayClient.strictWritesEnabled`).
 - **Coupon read.** `GatewayClient.getCoupons` + cart coupon sheet hydration (see Home rails entry).
@@ -1308,7 +1308,7 @@ vendor — replacing the text/underline rail, per-store ads and horizontal produ
   distance kept, **no chevron circle**), followed by a plain vertical list (`gap: hs(10)`,
   `paddingHorizontal: hs(16)`) of the new `ProductRowCard`s.
 - **New `ProductRowCard.tsx`** (feature-local, catalog): white bordered card (`borderColor
-  #EFEFEF`, `borderRadius ms(12)`, `padding hs(10)`), 96px square `expo-image` on the left, and a
+  #EFEFEF`, `borderRadius ms(12)`, `padding hs(10)`), 96px square `AppImage` on the left, and a
   body with name / one-line desc / price + strike-through + green % off, plus the add / quantity
   stepper on the right — cart wired via `useCartProductActions`, row tap → `ProductDetail`.
 - **Dead code**: `getVendorAds` removed from `services/categoryVendors.ts` (no remaining callers);
@@ -1460,7 +1460,7 @@ profile's hero; the Food home header drops its address block.
 
 **Changes:**
 - **`components/shared/AdBannerCarousel.tsx`** (new, exported from `components/shared/index.ts`):
-  the Home top-ad banner extracted byte-for-byte — 156-high rounded card (`expo-image` bg + overlay +
+  the Home top-ad banner extracted byte-for-byte — 156-high rounded card (`AppImage` bg + overlay +
   badge + title/tagline), 4.5s auto-advance, paging dots, momentum resync, timer cleanup, re-anchor
   on `width`, plus a `< 2 slides` timer/dots guard. Presentation-only: `slides: AdSlide[]`,
   optional `onSlidePress`, optional `style` (no built-in margins) — so it is boundary-safe
@@ -1664,22 +1664,20 @@ prop bypassed it. Only `FoodBottomNav` was correct (it already used
 
 ---
 
-## OTA / differential update delivery (expo-updates)
+## OTA / differential update delivery
 
 **Status:** 🔴 Backlog — not chosen or implemented.
 
 **Gap:** The app ships as a single Metro bundle with no over-the-air JS update channel. There is
-no `expo-updates`, EAS Update, CodePush, or Play Feature Delivery wiring in `package.json` /
-`app.json`. `React.lazy` routes only defer module *evaluation* — they neither reduce download size
-nor deliver features on demand (see "Home feed scroll & startup performance").
+no OTA provider (Expo Updates, CodePush) or Play Feature Delivery wiring in `package.json`.
+`React.lazy` routes only defer module *evaluation* — they neither reduce download size nor deliver
+features on demand (see "Home feed scroll & startup performance").
 
 **Options considered:**
-- **`expo-updates` / EAS Update (recommended pragmatic path)** — Expo-native OTA JS-bundle updates;
-  no store resubmit for JS-only changes. Whole-bundle (not per-feature); needs a hosted update
-  server/channel config.
-- **Play Feature Delivery / dynamic feature modules** — per-feature native delivery, but effectively
-  incompatible with the current `expo prebuild` single-module Android project without significant
-  config-plugin work.
+- **CodePush or Expo Updates (pragmatic path)** — OTA JS-bundle updates; no store resubmit for
+  JS-only changes. Whole-bundle (not per-feature); needs hosted channel/config setup.
+- **Play Feature Delivery / dynamic feature modules** — per-feature native delivery, but requires
+  splitting the single Android module (significant Gradle work).
 - **Flipkart-style per-feature OTA** — custom infrastructure (their plugin system); out of scope.
 
 **Decision:** not adopted yet. If adopted, add the OTA-promote step to `docs/RUNBOOKS/RELEASE.md`
@@ -1738,18 +1736,19 @@ show them on the order-success receipt and on Order Details.
   radio list, contact row, "Deliver to" row, and the whole **ADDRESS step** are removed.
   Delivery shows the live address (or a "using saved address" fallback). Proceed to Pay is
   disabled until a mode is chosen; both modes go to PAYMENT.
-- **Live location** — new `src/hooks/useLiveAddress.ts` (expo-location: consent →
-  `getCurrentPositionAsync` → `reverseGeocodeAsync`; no PII logged). Delivery capture is
-  stored on the order (`PlacedOrder.location`); `app.json` location-permission text updated
-  (needs a native rebuild).
+- **Live location** — new `src/hooks/useLiveAddress.ts` (`@react-native-community/geolocation`:
+  consent → `getCurrentPosition` → native `FaazioGeocoder` reverse geocode; no PII logged). Delivery
+  capture is stored on the order (`PlacedOrder.location`); the Android/iOS location permission text
+  was updated (needs a native rebuild).
 - **Vendor pickup addresses** — `ordersStore` gained `PlacedOrder.pickups` (one point per
   vendor, derived from `getPickupPointsForItems`). The RECEIPT and **Order Details**
   (`OrderDetailsScreen.tsx`) render one "Pickup From" card per vendor. Order Details now
   resolves via `ordersStore.getOrderById` first, falling back to `@data getMyOrderById` —
   fixing the placed-order "not found" gap.
 
-**Native:** `app.json` `expo-location` permission message + iOS `NSLocationWhenInUseUsageDescription`
-updated to cover checkout auto-fill. Requires a CI debug build (`gh workflow run android-debug.yml`).
+**Native:** Android `ACCESS_FINE_LOCATION`/`ACCESS_COARSE_LOCATION` + iOS
+`NSLocationWhenInUseUsageDescription` cover checkout auto-fill. Requires a CI debug build
+(`gh workflow run android-debug.yml`).
 
 **Future / honest gaps:**
 - The live location is captured on the order but nothing uploads it yet (future Go backend).
@@ -1761,7 +1760,7 @@ updated to cover checkout auto-fill. Requires a CI debug build (`gh workflow run
 ## Pharma prescription flow + unified receipt tracking & My Orders merge
 
 **Feature:** New full-bleed **PrescriptionFlow** (route `PrescriptionFlow`, `features/pharma/prescription/`):
-`PrescriptionCameraStep` (full-screen `expo-camera` `CameraView` with a consent dialog before mount,
+`PrescriptionCameraStep` (full-screen `react-native-vision-camera` `Camera` with a consent dialog before mount,
 flash, thumbnail strip with per-photo delete, "n/10" counter, `Confirm(n)` at ≥1, 10-page hard cap)
 → `PrescriptionNoteStep` (optional pharmacist note) → `PharmaVendorList`/`PharmaVendorCard`
 (search filters name/categories/desc/offerTag; "Order" pill CTA; pharma-local — cannot import
@@ -1785,7 +1784,7 @@ param auto-selects that order's sub-app and rings its card.
 **Data:** `data/pharma/stores.ts` expanded 1 → 6 pickup-capable outlets (`store-p1…p6`); new
 `src/state/ordersStore.ts` (`PlacedOrder` with `kind: 'items' | 'prescription'`).
 
-**Native:** `expo-camera` installed + registered in `app.json` (camera permission message). Requires
+**Native:** `react-native-vision-camera` installed; Android `CAMERA` permission + iOS `NSCameraUsageDescription`. Requires
 a CI debug build (`gh workflow run android-debug.yml`).
 
 **Future / honest gaps:**
@@ -2118,8 +2117,8 @@ incrementally.
 
 **Feature:** `src/services/api/GatewayClient.ts` is wired to the MVP **Go Chi modular monolith**
 (`server/gateway`, `docs/architecture/mvp-backend.md` + `docs/architecture/monolith-breakdown.md`)
-over Supabase (Postgres) + MongoDB + Aiven Valkey. Set `EXPO_PUBLIC_GATEWAY_URL` +
-`EXPO_PUBLIC_USE_GATEWAY=true` to go remote; otherwise it reads `@data/*` and every remote call
+over Supabase (Postgres) + MongoDB + Aiven Valkey. Set `GATEWAY_URL` +
+`USE_GATEWAY=true` (in `.env.local`, then `npm run configure`) to go remote; otherwise it reads `@data/*` and every remote call
 **falls back to fixtures on error**, so screen migration can't regress. Cache keys/TTLs follow
 `docs/architecture/caching-cloudflare-valkey.md` (unchanged). Caveat: local dev is auth-open
 (`AUTH_DISABLED=true`); phone-OTP → gateway JWT still to be exercised end-to-end on device.
@@ -2154,7 +2153,7 @@ SDUI section registry, the cart/checkout path, the Pharma Rx capture/upload/crea
 history, vendor-review reads and the `search` analytics event are migrated to the gateway; the
 remaining modules still read `@data/*` directly.
 
-**Feature:** Flipping `EXPO_PUBLIC_USE_GATEWAY=true` only helps modules that call `GatewayClient`.
+**Feature:** Flipping `USE_GATEWAY=true` only helps modules that call `GatewayClient`.
 This item routes each module through it, one at a time, keeping the built-in fixture fallback.
 
 - [x] **mart feed** — `features/ecommerce/services/martService.ts` hydrates `localVendors` from
@@ -2219,7 +2218,7 @@ This item routes each module through it, one at a time, keeping the built-in fix
 **Feature:** Speed/size hardening of the release pipeline in `.github/workflows/release-apk.yml`:
 - **Gradle cache:** `gradle/actions/setup-gradle` caches `~/.gradle` (Maven deps, wrapper dists,
   transform outputs) **and** the Gradle build cache across runs — no more ~1–2 GB re-download +
-  re-transform on every (cold, `prebuild --clean`) run.
+  re-transform on every cold run.
 - **CI-only Gradle tuning:** a "Tune Gradle for CI runner" step writes `~/.gradle/gradle.properties`
   (`-Xmx6144m`, `workers.max=4`, `parallel=true`, `caching=true`). `GRADLE_USER_HOME` takes
   precedence over the generated `android/gradle.properties`, so it lifts the laptop memory caps only
@@ -2234,8 +2233,8 @@ This item routes each module through it, one at a time, keeping the built-in fix
 
 **Font note:** audited `fontWeight` usage — `'800'` (110×) and `'900'` (159×) are both heavily used,
 so **no Roboto weight trimming** is possible; `fonts.ts` already loads exactly the used weights.
-GIF/WebP Fresco decoders were left enabled (`expo.gif.enabled`/`expo.webp.enabled`) because
-`expo-image` (Glide) is the primary renderer but the safe-disable audit wasn't completed.
+Fresco GIF/WebP decoders remain enabled because the shared `AppImage` wrapper (RN `Image`) is the
+renderer and the safe-disable audit wasn't completed.
 
 **Future / honest gaps:**
 - **Measure before/after on a real run** (`gh workflow run release-apk.yml`): record step timings,
@@ -2247,8 +2246,8 @@ GIF/WebP Fresco decoders were left enabled (`expo.gif.enabled`/`expo.webp.enable
   enrollment is a one-time manual step before adopting it.
 - **`proguard-android-optimize.txt`** (more aggressive shrinking) not adopted yet — staying on the
   default `proguard-android.txt` first until the device smoke test passes.
-- Consider `expo.gif.enabled=false`/`expo.webp.enabled=false` once every image is confirmed to
-  render through `expo-image` (~0.1–0.3 MB).
+- Consider disabling unused Fresco decoders once every image path is confirmed to use
+  `AppImage` (~0.1–0.3 MB).
 - Larger/self-hosted runner or ccache for C++ remain optional if caching + tuning aren't enough.
 
 **Date:** 2026-09-12
@@ -2376,7 +2375,7 @@ the status bar, rail pinned) — see the on-device checklist below.
   re-render because of scrolling.
 - **Edge-triggered batch load + prefetch:** `FilterFeedSection` loads the next 8-item batch via a
   UI-thread `useDerivedValue` + `runOnJS` at the **60%** visible threshold (was 80%) and
-  prefetches the next batch's image URLs via `expo-image` `Image.prefetch(..., 'memory-disk')` so
+  prefetches the next batch's image URLs via `Image.prefetch(...)` (through `AppImage`) so
   cards decode ahead of the fold, never mid-fling. A `lastLoadH` SharedValue guards against
   re-firing until the grid grows. Card handlers (`onPress`/`onAdd`) are stable `useCallback`s;
   `UniversalFeedCard`/`ProductCardBase` + the 3 brand skins accept `(product) => void` handlers
@@ -2396,9 +2395,9 @@ the status bar, rail pinned) — see the on-device checklist below.
   scrolling never triggers a per-frame layout pass (kills the lag + "violent up/down jumping").
   The top-of-list **overscroll teleport** (`if (y <= 0) clamp = 0`) was removed so the header
   re-opens interpolated, not slammed open.
-- **Images:** shared `ProductCardBase` + `AdBannerSection` now render network images with
-  `expo-image` (`contentFit="cover"`, `cachePolicy="memory-disk"`, `transition`, neutral loading
-  bg) instead of plain RN `Image` — matches the existing `HeaderCategoryRail` convention.
+- **Images:** shared `ProductCardBase` + `AdBannerSection` render network images through
+  `AppImage` (`resizeMode="cover"`, native HTTP cache, neutral loading bg) instead of a raw
+  per-component `Image` — matches the existing `HeaderCategoryRail` convention.
 - **Repository seam:** `src/services/homeFeed.ts` exposes `getHomeSections()` /
   `getFilterFeedPage(chip, page)` / `getFilterChips()` as promise-based, paginated reads from
   `@data/*` — the contract the future Go Chi gateway will fulfil (one-file backend swap). Not
@@ -2410,7 +2409,7 @@ the status bar, rail pinned) — see the on-device checklist below.
 
 **Future / honest gaps:**
 - **Release-build verification is REQUIRED** — dev mode exaggerates jank and TTI. Measure before
-  vs after on `npx expo run:android --variant release`: (1) fling the home feed through the
+  vs after on a CI **release** build (`gh workflow run "Release APK"`): (1) fling the home feed through the
   collapse zone + to bottom — no Discover-grid hitch, no mid-fling stalls, header collapse 1:1
   with the finger; (2) cold start → interactive Home; first section paints without a long blank;
   (3) re-verify the layout fixes (search bar below status bar, no content under header);
@@ -2457,7 +2456,7 @@ plus a registered-donor dashboard.
   questions), driven by `AGE_RANGES` / `YES_NO_OPTIONS` / `HEALTH_YESNO_QUESTIONS` /
   `WEIGHT_LIMITS`. Validation via `stepValidation.ts`. Yes/No radios start unselected —
   health claims are never pre-seeded.
-- Step 3 `AvailabilityStep` (location field with real GPS via `expo-location`, willing-to-
+- Step 3 `AvailabilityStep` (location field with real GPS via `@react-native-community/geolocation`, willing-to-
   travel Yes/No, donation type radios — the radio row wraps so all three options stay
   visible), driven by `DONATION_TYPES` / `LOCATION_MIN_LENGTH`. The multi-date calendar
   ("Availability") and "Preferred Time Slot" select were removed per design; the step now
@@ -2556,7 +2555,7 @@ plus a registered-donor dashboard.
 - **Server contract (documented, not built):** future donor registry upserts are keyed by
   `registration.accountPhone` → idempotent, one donor row per account. `accountPhone` is
   `null` when the account has no phone on file (no fabrication).
-- Notification **delivery** is not built: no `expo-notifications`, no push infra, no
+- Notification **delivery** is not built: no push-notification library, no push infra, no
   backend. Targeted Ask Blood matching currently uses the mock donor repository and local
   persistence; matching, push, authorization, and request status will live in the Go Chi
   backend (`server/`) once wired.
@@ -2736,9 +2735,9 @@ shows the wide `logo.png` centered on Faazio blue for a minimum of 5 s (no spinn
 `faazio-debug.apk` / `faazio-release.apk` were removed from the repo root (already `*.apk`-ignored).
 
 **Shipped (2026-09-12):** Release builds now run in **GitHub Actions** via `.github/workflows/release-apk.yml`
-(triggered with `gh workflow run`). The workflow runs `expo prebuild --clean`, restores the release
-keystore from GitHub secrets (`scripts/restore-keystore.sh`), injects the `release` signingConfig
-(`scripts/configure-release-signing.sh`), builds with `./gradlew assembleRelease`, and publishes the
+(triggered with `gh workflow run`). The workflow restores the release keystore from GitHub secrets
+(`scripts/restore-keystore.sh`), generates release config, builds the committed `android/` project
+with `./gradlew assembleRelease`, and publishes the
 signed APK to a GitHub Release (`gh release upload --clobber` replaces any previous APK). This
 replaces the previous "release signs with the debug keystore" gap. Removed the stale
 `patches/@shopify+react-native-skia+2.2.12.patch` (skia is no longer a dependency), which was
@@ -2751,8 +2750,8 @@ via `oomctl dump`: the whole `user@1000.service` slice (~9.6G: Chrome + VS Code 
 Gradle) crosses systemd-oomd's 50%/20s memory-pressure threshold, which SIGKILLs the process
 group (kernel `oom_kill` counter never moved). Mitigations applied locally (gitignored
 `android/`): `gradle.properties` memory caps (`-Xmx2048m`, `workers.max=2`, `parallel=false`)
-+ `local.properties` `sdk.dir`. These are wiped by `expo prebuild --clean` — re-apply, and
-see TROUBLESHOOTING.md "Gradle / native build failures" for the full diagnosis. **Working
++ `local.properties` `sdk.dir` (both now committed/gitignored as appropriate). See
+TROUBLESHOOTING.md "Gradle / native build failures" for the full diagnosis. **Working
 policy: build via CI (`gh workflow run "Release APK"`); local builds only on a freed machine.**
 
 **Future / honest gaps:**
@@ -2766,11 +2765,9 @@ testing); the release APK is signed with the **release** keystore (`CN=Faazio`),
 from the debug keystore (`CN=Android Debug`), so Android refuses the update. The fix is on the
 installer side — **uninstall the old Faazio first, then install the release APK** (see
 TROUBLESHOOTING.md → "Release signing"). Hardening shipped alongside:
-- New config plugin `plugins/with-release-signing.js` (registered in `app.json`) deterministically
-  wires the `release` buildType to the release keystore after every `expo prebuild --clean`, so
-  signing survives regeneration without relying solely on the shell script (removes the
-  "release falls back to the debug keystore" foot-gun).
-- `scripts/configure-release-signing.sh` re-documented to the same effect.
+- `android/app/build.gradle` now wires the `release` buildType to the release keystore directly and
+  fails fast when `keystore.properties` is missing (removes the "release falls back to the debug
+  keystore" foot-gun). The CI keystore restore script is the only signing step.
 - Version bumped to `1.0.1` / `android.versionCode 2` so the rebuilt APK is a clean install.
 - Docs: TROUBLESHOOTING.md "Release signing" + RELEASE.md document the debug-vs-release cert
   conflict and the `apksigner verify` cert check.

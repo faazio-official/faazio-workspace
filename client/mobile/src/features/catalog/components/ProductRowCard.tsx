@@ -1,6 +1,6 @@
 import React, { memo } from 'react';
 import { View, TouchableOpacity, StyleSheet } from 'react-native';
-import { Image as ExpoImage } from 'expo-image';
+import { AppImage } from '@/components/shared/AppImage';
 import { Plus, Minus, Check } from 'lucide-react-native';
 import AppText from '@/components/AppText';
 import { hs, vs, ms } from '@/utils/responsive';
@@ -47,7 +47,7 @@ const ProductRowCard = memo(function ProductRowCard({
       accessibilityLabel={`${product.name}, ₹${product.price}`}
     >
       <View style={styles.imageWrap}>
-        <ExpoImage
+        <AppImage
           source={{ uri: product.image }}
           contentFit="cover"
           cachePolicy="memory-disk"

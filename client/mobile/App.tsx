@@ -1,7 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { ErrorUtils, View, StyleSheet } from 'react-native';
-import { StatusBar } from 'expo-status-bar';
-import * as SplashScreen from 'expo-splash-screen';
+import { StatusBar, View, StyleSheet } from 'react-native';
 import { DefaultTheme, NavigationContainer } from '@react-navigation/native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { AppNavigator } from './src/navigation/AppNavigator';
@@ -12,12 +10,9 @@ import { useLanguageStore } from './src/state/languageStore';
 import { useAppFonts, resolveFontFamily } from './src/theme/fonts';
 import { useBottomInset } from './src/utils/responsive';
 
-// If a native module (SecureStore/AsyncStorage/fonts) hangs, the splash would
-// otherwise stay up forever and trigger an ANR. Force-dismiss past this budget.
-// Budget keeps the branded splash up for the 5s minimum plus headroom.
-const SPLASH_TIMEOUT_MS = 10000;
-
-// Branded splash stays visible for at least this long on cold start.
+// Branded splash stays visible for at least this long on cold start. The native
+// launch theme (Android splash theme / iOS LaunchScreen) hands off to this JS
+// splash, which is the single owner of the branded cold-start experience.
 const SPLASH_MIN_DISPLAY_MS = 5000;
 
 /**
@@ -25,9 +20,16 @@ const SPLASH_MIN_DISPLAY_MS = 5000;
  * silently swallowed in release builds (babel strips all console.* there).
  * Kept as a module-scope install so it runs before any screen mounts.
  */
+interface GlobalErrorUtils {
+  setGlobalHandler?: (
+    handler: (error: Error, isFatal?: boolean) => void,
+  ) => void;
+}
+
 function installGlobalErrorHandlers() {
-  if (ErrorUtils && typeof ErrorUtils.setGlobalHandler === 'function') {
-    ErrorUtils.setGlobalHandler((error: Error, isFatal?: boolean) => {
+  const errorUtils = (globalThis as { ErrorUtils?: GlobalErrorUtils }).ErrorUtils;
+  if (errorUtils && typeof errorUtils.setGlobalHandler === 'function') {
+    errorUtils.setGlobalHandler((error: Error, isFatal?: boolean) => {
       if (__DEV__) {
         console.warn('[Faazio:global-error]', isFatal, error);
       }
@@ -86,8 +88,6 @@ const navigationTheme = {
   },
 };
 
-SplashScreen.preventAutoHideAsync().catch(() => {});
-
 /**
  * Single owner of the bottom safe-area reservation. The window is edge-to-edge
  * (transparent Android nav bar), so content would otherwise slip under the
@@ -105,7 +105,7 @@ function AppLayout({ children }: { children: React.ReactNode }) {
 }
 
 export default function App() {
-  const [fontsLoaded, fontError] = useAppFonts();
+  const [fontsLoaded] = useAppFonts();
   const [ready, setReady] = useState(false);
   const [minSplashDone, setMinSplashDone] = useState(false);
   const mountedAt = useRef(Date.now());
@@ -135,34 +135,18 @@ export default function App() {
     };
   }, [hydrateAuth, hydrateLanguage]);
 
-  // Failsafe: never leave the native splash up if startup stalls.
-  useEffect(() => {
-    const forceHide = setTimeout(() => {
-      SplashScreen.hideAsync().catch(() => {});
-    }, SPLASH_TIMEOUT_MS);
-    return () => clearTimeout(forceHide);
-  }, []);
-
   useEffect(() => {
     if (fontsLoaded && ready) {
       const remaining = SPLASH_MIN_DISPLAY_MS - (Date.now() - mountedAt.current);
       if (remaining <= 0) {
         setMinSplashDone(true);
-        SplashScreen.hideAsync().catch(() => {});
         return;
       }
       // Keep the branded splash up for the minimum display window.
-      const timer = setTimeout(() => {
-        setMinSplashDone(true);
-        SplashScreen.hideAsync().catch(() => {});
-      }, remaining);
+      const timer = setTimeout(() => setMinSplashDone(true), remaining);
       return () => clearTimeout(timer);
     }
   }, [fontsLoaded, ready]);
-
-  if (!fontsLoaded && !fontError) {
-    return <SplashFallback variant="royal" />;
-  }
 
   if (!ready || !minSplashDone) {
     return <SplashFallback variant="royal" />;
@@ -171,7 +155,7 @@ export default function App() {
   return (
     <SafeAreaProvider>
       <AppLayout>
-        <StatusBar style="dark" />
+        <StatusBar barStyle="dark-content" />
         <NavigationContainer ref={navigationRef} theme={navigationTheme}>
           <AppNavigator />
         </NavigationContainer>

@@ -10,7 +10,7 @@ import {
 } from 'react-native';
 import { ArrowLeft, MapPin, Search, X } from 'lucide-react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Image as ExpoImage } from 'expo-image';
+import { AppImage } from '@/components/shared/AppImage';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import AppText from '@/components/AppText';
 import { hs, ms, vs } from '@/utils/responsive';
@@ -167,10 +167,10 @@ export function VendorDetailScreen({ navigation, route }: Props) {
           <View>
             {/* Compact profile block. */}
             <View style={styles.board}>
-              <ExpoImage source={{ uri: store.coverImage }} style={styles.cover} contentFit="cover" cachePolicy="memory-disk" />
+              <AppImage source={{ uri: store.coverImage }} style={styles.cover} contentFit="cover" cachePolicy="memory-disk" />
               <View style={styles.storeInfoRow}>
                 <View style={styles.logoContainer}>
-                  <ExpoImage source={{ uri: store.coverImage }} style={styles.logo} contentFit="cover" cachePolicy="memory-disk" />
+                  <AppImage source={{ uri: store.coverImage }} style={styles.logo} contentFit="cover" cachePolicy="memory-disk" />
                   <View style={styles.ratingBadge}>
                     <AppText style={styles.ratingText}>{store.rating}</AppText>
                   </View>

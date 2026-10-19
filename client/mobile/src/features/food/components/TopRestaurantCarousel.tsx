@@ -1,8 +1,8 @@
 import React, { memo, useCallback, useState } from 'react';
 import { View, StyleSheet, TouchableOpacity, type NativeSyntheticEvent, type NativeScrollEvent } from 'react-native';
 import { FlashList } from '@shopify/flash-list';
-import { Image as ExpoImage } from 'expo-image';
-import { LinearGradient } from 'expo-linear-gradient';
+import { AppImage } from '@/components/shared/AppImage';
+import { AppGradient } from '@/components/shared/AppGradient';
 import Animated, {
   useSharedValue,
   useAnimatedStyle,
@@ -130,7 +130,7 @@ const HeroCard = memo(function HeroCard({
         }${restaurant.distance > 0 ? `, ${restaurant.distance} km away` : ''}`}
       >
         <Animated.View style={[StyleSheet.absoluteFill, parallaxStyle]}>
-          <ExpoImage
+          <AppImage
             source={{ uri: restaurant.image }}
             style={styles.image}
             contentFit="cover"
@@ -138,7 +138,7 @@ const HeroCard = memo(function HeroCard({
             transition={220}
           />
         </Animated.View>
-        <LinearGradient
+        <AppGradient
           colors={['rgba(0,0,0,0)', 'rgba(0,0,0,0.45)', 'rgba(0,0,0,0.82)']}
           locations={[0, 0.55, 1]}
           style={StyleSheet.absoluteFill}

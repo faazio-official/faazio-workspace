@@ -1,47 +1,16 @@
 import { Platform, StyleSheet } from 'react-native';
 import type { StyleProp, TextStyle } from 'react-native';
-import { useFonts } from 'expo-font';
-import {
-  Roboto_400Regular,
-  Roboto_500Medium,
-  Roboto_600SemiBold,
-  Roboto_700Bold,
-  Roboto_800ExtraBold,
-  Roboto_900Black,
-} from '@expo-google-fonts/roboto';
 
-// Only the Roboto weights actually used by the app (grep of `fontWeight` usage).
-// Loading fewer assets trims startup font-loading work. iOS resolves to 'System',
-// so no Roboto assets are loaded there at all.
-export const FONT_ASSETS = {
-  Roboto_400Regular,
-  Roboto_500Medium,
-  Roboto_600SemiBold,
-  Roboto_700Bold,
-  Roboto_800ExtraBold,
-  Roboto_900Black,
-} as const;
+// Roboto is the Android system font family; iOS resolves to 'System'. Using the
+// platform fonts removes the expo-font native module and the startup font-load
+// gate entirely (no async asset load, no splash extension for fonts). The
+// per-weight faces (400/500/700/800/900) are requested via `fontWeight`, which
+// modern Android resolves against the system Roboto family.
+const ANDROID_FONT_FAMILY = 'sans-serif';
 
-const ANDROID_FONT_BY_WEIGHT: Record<string, string> = {
-  '400': 'Roboto_400Regular',
-  '500': 'Roboto_500Medium',
-  '600': 'Roboto_600SemiBold',
-  '700': 'Roboto_700Bold',
-  '800': 'Roboto_800ExtraBold',
-  '900': 'Roboto_900Black',
-};
-
-function normalizeWeight(weight?: TextStyle['fontWeight']): string {
-  if (!weight) return '400';
-  if (weight === 'normal') return '400';
-  if (weight === 'bold') return '700';
-  if (typeof weight === 'number') return String(weight);
-  return weight;
-}
-
-export function resolveFontFamily(weight?: TextStyle['fontWeight']): string {
+export function resolveFontFamily(_weight?: TextStyle['fontWeight']): string {
   if (Platform.OS === 'ios') return 'System';
-  return ANDROID_FONT_BY_WEIGHT[normalizeWeight(weight)] ?? 'Roboto_400Regular';
+  return ANDROID_FONT_FAMILY;
 }
 
 export function resolveTextStyle(style: StyleProp<TextStyle>): StyleProp<TextStyle> {
@@ -50,17 +19,13 @@ export function resolveTextStyle(style: StyleProp<TextStyle>): StyleProp<TextSty
   if (typeof flat.fontFamily === 'string') {
     return style;
   }
-  if (Platform.OS === 'ios') {
-    return [{ fontFamily: 'System' }, style];
-  }
-  const resolved: TextStyle = { ...flat };
-  resolved.fontFamily = resolveFontFamily(flat.fontWeight);
-  delete resolved.fontWeight;
-  return resolved;
+  return [{ fontFamily: resolveFontFamily(flat.fontWeight) }, style];
 }
 
-// Loads the app fonts, gated to Android. On iOS everything resolves to 'System',
-// so no Roboto assets are requested (instant resolve, no startup waste).
+/**
+ * Fonts are provided by the platform, so there is nothing to await. Kept as a
+ * hook so `App.tsx` does not need to know that the loading gate is gone.
+ */
 export function useAppFonts(): [boolean, Error | null] {
-  return useFonts(Platform.OS === 'ios' ? {} : FONT_ASSETS);
+  return [true, null];
 }

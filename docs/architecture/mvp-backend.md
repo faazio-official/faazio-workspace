@@ -27,13 +27,17 @@
 | Auth | Mocked app login (the phone→OTP Login screen calls `authStore.login()`; **no** Supabase phone OTP for the MVP) + partner JWT claim roles | Same, hardened | Server sessions + per-user orders/carts/rating scoping now |
 
 **Product / media images (implemented, `0025`):** bytes live in **Cloudflare R2** (`faazio-public` +
-`faazio-private`), identity in the SQL `media.assets` registry, served under the custom domain
-`img.faazio.in` with an immutable 1-year edge TTL. The gateway (`internal/media` + `internal/platform/r2`)
-is the only minter/signer; clients receive short-lived presigned PUT/GET URLs and never hold R2
-credentials. Public URLs stay stable so `expo-image`/`<img>` call sites don't change. Supabase Storage
-remains only as the Rx fallback when R2 is unset — no second public origin. A GC sweeper reclaims
-orphaned DRAFT uploads and a CDN purge worker invalidates an image on moderation/delete (`0026`). See
-`db-schema.md` §12.16.
+`faazio-private`), identity in the SQL `media.assets` registry. The gateway (`internal/media` +
+`internal/platform/r2`) is the only minter/signer; clients receive short-lived presigned PUT/GET URLs and
+never hold R2 credentials. The public origin is optional: set `R2_CDN_BASE` to a custom domain
+(`img.faazio.in`, immutable 1-year edge TTL) **or** leave it unset and set `PUBLIC_BASE_URL` — then
+public objects resolve to the gateway's stable `/assets/{key}` path, which 302-redirects to a short-lived
+presigned GET (no custom domain, no `r2.dev` needed; the URL stays stable so cached JSON and
+`AppImage`/`<img>` call sites don't change). With neither set, `PublicURL` returns empty and readers
+fall back to the legacy `image_url` column / `@data` fixtures. Supabase Storage remains only as the Rx
+fallback when R2 is unset — no second public origin. A GC sweeper reclaims orphaned DRAFT uploads and a
+CDN purge worker invalidates an image on moderation/delete (`0026`) when `CF_ZONE_ID`/`CF_API_TOKEN` are
+set. See `db-schema.md` §12.16.
 
 ---
 
@@ -52,7 +56,7 @@ orphaned DRAFT uploads and a CDN purge worker invalidates an image on moderation
 - **Auth:** mocked app login for the MVP — the phone→OTP Login UI calls `authStore.login()` (no
   Supabase phone OTP). The gateway verifies partner JWTs (custom `app_role`/`seller_id`/`state_code`
   claims) and scopes every auth-scoped query by the resolved `user_id`; RLS is defence-in-depth. In
-  dev the app sends `X-Dev-User` (`EXPO_PUBLIC_DEV_USER`, dev builds only) so it resolves
+  dev the app sends `X-Dev-User` (`DEV_USER`, dev builds only) so it resolves
   deterministically on an `AUTH_DISABLED=true` gateway; production builds never send it.
 
 ### RLS policy classes (least privilege)
@@ -134,7 +138,7 @@ signatures above keep the `@mock` → `@server` swap call-site-compatible (`Gate
 `AUTH_DISABLED=true` uses `DEV_USER_ID` / `X-Dev-User`, and role probing accepts `X-Dev-Role` /
 `X-Dev-Seller` / `X-Dev-State` (all three are on the CORS allow-list so the local portal can exercise
 role-gated routes; they are ignored whenever auth is enabled). The app mirrors the portal's dev guard:
-`GatewayClient` attaches `X-Dev-User` only in dev builds when `EXPO_PUBLIC_DEV_USER` is set.
+`GatewayClient` attaches `X-Dev-User` only in dev builds when `DEV_USER` is set.
 
 Under a production `AUTH_DISABLED=false` gateway the mocked placeholder session cannot satisfy the
 two app writes behind `auth.Require` — `POST /ads/events` (closed-loop ad KPIs) and
@@ -163,7 +167,7 @@ MVP origin swap. No key/TTL change.
   reads; `directory.stores.rating` is untouched (it is the catalog rating used for the `/stores` sort).
 - **Single Supabase project** = single failure domain + RLS misconfig risk; mitigate with per-schema
   ownership notes, never committing secrets, Valkey ACL, Cloudflare-only firewall (existing posture).
-- **Cost:** Supabase free-tier + Atlas M0 + Aiven free → ~$60/mo; Cloud Run scale-to-zero keeps cost
+- **Cost:** Supabase free-tier + Atlas M0 + Aiven free → ~$60/mo; Render scale-to-zero keeps cost
   ~$0 at idle (same as existing cost notes).
 
 ---
@@ -192,8 +196,8 @@ contract stable so the swap is invisible to the app):
    `0001_seed.sql` + `mongo/seed.js` (IDs identical for cache stability).
 5. ✅ `server/gateway/` (Go Chi) — all 6 contexts in one binary; `GET /health` + the §3 endpoints;
    Supabase + Mongo + Valkey read-through; `contracts/` interfaces; `tools/importlint` boundary gate.
-6. ✅ `client/mobile/src/services/api/GatewayClient.ts` — `EXPO_PUBLIC_GATEWAY_URL` +
-   `EXPO_PUBLIC_USE_GATEWAY` (+ `EXPO_PUBLIC_STRICT` to fail money/Rx/address writes loudly);
+6. ✅ `client/mobile/src/services/api/GatewayClient.ts` — `GATEWAY_URL` +
+   `USE_GATEWAY` (+ `STRICT` to fail money/Rx/address writes loudly);
    wired in `data-layer-sdui.md` order; `@data/*` fallback per method.
 7. ✅ Verify: `go build/vet/test ./...` + `go run ./tools/importlint`; `npm run ts:check`,
    `check:boundaries`, `check:drillin`.

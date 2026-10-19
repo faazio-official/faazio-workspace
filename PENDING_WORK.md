@@ -65,7 +65,7 @@ node server/supabase/seed/generate.mjs               # 0001_seed.sql now emits m
   `PUT /vendors/{id}/rating` (server-durable rating) — are inert on a production
   `AUTH_DISABLED=false` gateway; the client is now honest/observable about it (confirmed-only ad
   boolean, rating `synced`/`offline`/`signed-out`/`not-verified`) and local dev closes both via
-  `AUTH_DISABLED=true` + `EXPO_PUBLIC_DEV_USER`.
+  `AUTH_DISABLED=true` + `DEV_USER`.
 - **Mobile media plumbing.** Intentionally none — the gateway resolves `image_key → CDN URL` on every
   catalog/directory/SDUI read, so no `GatewayClient` media methods are needed. Revisit only if the app
   gains an upload surface (e.g. seller-on-mobile, Rx capture).

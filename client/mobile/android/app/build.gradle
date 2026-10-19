@@ -1,0 +1,109 @@
+apply plugin: "com.android.application"
+apply plugin: "org.jetbrains.kotlin.android"
+apply plugin: "com.facebook.react"
+
+/**
+ * Release signing is wired directly to keystore/keystore.properties (gitignored,
+ * restored in CI by scripts/restore-keystore.sh). Never hardcode secrets here.
+ */
+def keystorePropertiesFile = rootProject.file("../keystore/keystore.properties")
+def keystoreProperties = new Properties()
+def hasReleaseKeystore = keystorePropertiesFile.exists()
+if (hasReleaseKeystore) {
+    keystorePropertiesFile.withInputStream { stream -> keystoreProperties.load(stream) }
+}
+
+def isReleaseTask = gradle.startParameter.taskNames.any { it.toLowerCase().contains("release") }
+if (isReleaseTask && !hasReleaseKeystore) {
+    throw new GradleException(
+        "[signing] keystore/keystore.properties not found. Run scripts/restore-keystore.sh " +
+        "(or create it locally) before building a release APK."
+    )
+}
+
+/**
+ * This is the configuration block to customize your React Native Android app.
+ */
+react {
+    /* Autolinking */
+    autolinkLibrariesWithApp()
+}
+
+def enableMinifyInReleaseBuilds = (findProperty('android.enableMinifyInReleaseBuilds') ?: 'true').toBoolean()
+def enableShrinkResources = (findProperty('android.enableShrinkResourcesInReleaseBuilds') ?: 'true').toBoolean()
+
+android {
+    ndkVersion rootProject.ext.ndkVersion
+    buildToolsVersion rootProject.ext.buildToolsVersion
+    compileSdk rootProject.ext.compileSdkVersion
+
+    namespace 'com.faazio.customer'
+    defaultConfig {
+        applicationId 'com.faazio.customer'
+        minSdkVersion rootProject.ext.minSdkVersion
+        targetSdkVersion rootProject.ext.targetSdkVersion
+        versionCode 3
+        versionName "1.0.4"
+
+        buildConfigField "String", "REACT_NATIVE_RELEASE_LEVEL", "\"${findProperty('reactNativeReleaseLevel') ?: 'stable'}\""
+    }
+
+    signingConfigs {
+        debug {
+            storeFile file('debug.keystore')
+            storePassword 'android'
+            keyAlias 'androiddebugkey'
+            keyPassword 'android'
+        }
+        if (hasReleaseKeystore) {
+            release {
+                // STORE_FILE is relative to android/app/ (e.g. ../../keystore/faazio-release.keystore).
+                storeFile file(keystoreProperties['STORE_FILE'] ?: '../../keystore/faazio-release.keystore')
+                storePassword keystoreProperties['KEYSTORE_PASS']
+                keyAlias keystoreProperties['KEY_ALIAS']
+                keyPassword keystoreProperties['ALIAS_PASS']
+            }
+        }
+    }
+
+    buildTypes {
+        debug {
+            signingConfig signingConfigs.debug
+        }
+        release {
+            if (hasReleaseKeystore) {
+                signingConfig signingConfigs.release
+            }
+            shrinkResources enableShrinkResources
+            minifyEnabled enableMinifyInReleaseBuilds
+            proguardFiles getDefaultProguardFile("proguard-android.txt"), "proguard-rules.pro"
+        }
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+
+    kotlinOptions {
+        jvmTarget = "17"
+    }
+
+    packagingOptions {
+        jniLibs {
+            useLegacyPackaging false
+        }
+    }
+
+    androidResources {
+        ignoreAssetsPattern '!.svn:!.git:!.ds_store:!*.scc:!CVS:!thumbs.db:!picasa.ini:!*~'
+    }
+}
+
+dependencies {
+    implementation("com.facebook.react:react-android")
+    // Native launch theme (windowSplashScreen*) without expo-splash-screen.
+    implementation("androidx.core:core-splashscreen:1.0.1")
+
+    implementation("com.facebook.react:hermes-android")
+}

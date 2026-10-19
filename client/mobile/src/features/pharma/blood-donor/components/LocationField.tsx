@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { StyleSheet, View, TouchableOpacity, Alert, ActivityIndicator } from 'react-native';
 import { MapPin, LocateFixed } from 'lucide-react-native';
-import * as Location from 'expo-location';
+import { getCurrentAddress } from '@/services/location';
 import AppText from '@/components/AppText';
 import AppTextInput from '@/components/AppTextInput';
 import { hs, vs, ms } from '@/utils/responsive';
@@ -24,59 +24,36 @@ function formatPlace(city?: string | null, district?: string | null, region?: st
 export function LocationField({ label, required = false, value, onChange }: LocationFieldProps) {
   const [locating, setLocating] = useState(false);
 
-  const handleLocate = async () => {
+  const handleLocate = () => {
     if (locating) return;
 
-    try {
-      const { status: existing } = await Location.getForegroundPermissionsAsync();
-      if (existing !== 'granted') {
-        Alert.alert(
-          'Location access',
-          'Faazio needs your location to suggest your city for blood donation. You can also type your city or pincode below.',
-          [
-            { text: 'Not now', style: 'cancel' },
-            {
-              text: 'Allow',
-              onPress: async () => {
-                const { status } = await Location.requestForegroundPermissionsAsync();
-                if (status !== 'granted') {
-                  Alert.alert('Location unavailable', 'Type your city or pincode instead.');
-                  return;
-                }
-                await locateAndFill();
-              },
-            },
-          ],
-        );
-        return;
-      }
-      await locateAndFill();
-    } catch {
-      Alert.alert('Location unavailable', 'Could not access your location. Type your city or pincode instead.');
-    }
+    Alert.alert(
+      'Location access',
+      'Faazio needs your location to suggest your city for blood donation. You can also type your city or pincode below.',
+      [
+        { text: 'Not now', style: 'cancel' },
+        { text: 'Allow', onPress: () => void locateAndFill() },
+      ],
+    );
   };
 
   const locateAndFill = async () => {
     setLocating(true);
     try {
-      const pos = await Location.getCurrentPositionAsync({
-        accuracy: Location.Accuracy.Balanced,
-      });
-      const geocode = await Location.reverseGeocodeAsync({
-        latitude: pos.coords.latitude,
-        longitude: pos.coords.longitude,
-      });
-      const place = geocode[0];
-      if (!place) {
-        Alert.alert('Location unavailable', 'Could not determine your city. Type it instead.');
+      const resolved = await getCurrentAddress();
+      if (!resolved) {
+        Alert.alert('Location unavailable', 'Type your city or pincode instead.');
         return;
       }
-      const formatted = formatPlace(place.city, place.district, place.region, place.postalCode);
-      if (formatted) {
-        onChange(formatted);
-      } else {
-        Alert.alert('Location unavailable', 'Could not determine your city. Type it instead.');
-      }
+
+      const { coordinates, place } = resolved;
+      const formatted = place
+        ? formatPlace(place.city, place.district, place.region, place.postalCode)
+        : '';
+      onChange(
+        formatted ||
+          `${coordinates.latitude.toFixed(4)}, ${coordinates.longitude.toFixed(4)}`,
+      );
     } catch {
       Alert.alert('Location unavailable', 'Could not access your location. Type your city or pincode instead.');
     } finally {

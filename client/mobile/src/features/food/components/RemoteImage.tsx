@@ -1,5 +1,6 @@
 import React, { memo, useState } from 'react';
-import { Image as ExpoImage, type ImageProps } from 'expo-image';
+import type { ImageProps } from 'react-native';
+import { AppImage } from '@/components/shared/AppImage';
 import { FALLBACK_DISH_IMAGE, FALLBACK_RESTAURANT_IMAGE } from '../constants/assets';
 
 type RemoteImageProps = Omit<ImageProps, 'source'> & {
@@ -8,14 +9,14 @@ type RemoteImageProps = Omit<ImageProps, 'source'> & {
 };
 
 /**
- * High-performance cached image (expo-image) with a graceful network fallback
- * so a stale mock URL never renders a broken card.
+ * High-performance cached image with a graceful network fallback so a stale
+ * mock URL never renders a broken card.
  */
 const RemoteImage = memo(function RemoteImage({ uri, variant = 'dish', style, ...rest }: RemoteImageProps) {
   const [failed, setFailed] = useState(false);
 
   return (
-    <ExpoImage
+    <AppImage
       source={{ uri: failed ? (variant === 'restaurant' ? FALLBACK_RESTAURANT_IMAGE : FALLBACK_DISH_IMAGE) : uri }}
       style={style}
       contentFit="cover"
