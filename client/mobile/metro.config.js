@@ -5,7 +5,7 @@ const defaultConfig = getDefaultConfig(__dirname);
 
 /**
  * Bare-RN Metro config. Keeps the @data SDUI alias, the NTFS serialization fix,
- * the SVG transformer and the Gradle-artifact blocklist from the Expo setup.
+ * the SVG transformer and the Gradle-artifact blocklist.
  */
 const config = {
   watchFolders: [path.resolve(__dirname, '../../data')],

@@ -2,14 +2,13 @@
 /**
  * configure.js — the single JS <-> native configuration contract.
  *
- * Bare React Native has no `EXPO_PUBLIC_*` inlining, so build-time values are
- * generated into `src/lib/config.ts` (bundled by Metro in debug, embedded by
- * Gradle/Xcode in release). Release builds additionally rewrite the Android
- * network-security-config with the configured certificate pins.
+ * Build-time values are generated into `src/lib/config.ts` (bundled by Metro in
+ * debug, embedded by Gradle/Xcode in release). Release builds additionally
+ * rewrite the Android network-security-config with the configured certificate
+ * pins.
  *
  * Inputs are read from the process environment, then `.env.local`, then `.env`
- * (process env wins). The legacy `EXPO_PUBLIC_*` names are accepted as aliases
- * so existing local `.env` files keep working during the migration.
+ * (process env wins).
  *
  * Usage:
  *   node scripts/configure.js                  # debug / Metro
@@ -68,21 +67,20 @@ const fileEnv = {
   ...readEnvFile(path.join(ROOT, '.env.local')),
 };
 
-function env(name, alias) {
+function env(name) {
   const value = process.env[name];
   if (value !== undefined && value !== '') return value;
-  if (alias && fileEnv[alias] !== undefined) return fileEnv[alias];
   return fileEnv[name] ?? '';
 }
 
-function flag(name, alias) {
-  return ['1', 'true', 'yes'].includes(String(env(name, alias)).toLowerCase());
+function flag(name) {
+  return ['1', 'true', 'yes'].includes(String(env(name)).toLowerCase());
 }
 
-const gatewayUrl = env('GATEWAY_URL', 'EXPO_PUBLIC_GATEWAY_URL').replace(/\/+$/, '');
-const useGateway = flag('USE_GATEWAY', 'EXPO_PUBLIC_USE_GATEWAY');
-const strict = flag('STRICT', 'EXPO_PUBLIC_STRICT');
-const devUser = env('DEV_USER', 'EXPO_PUBLIC_DEV_USER').trim();
+const gatewayUrl = env('GATEWAY_URL').replace(/\/+$/, '');
+const useGateway = flag('USE_GATEWAY');
+const strict = flag('STRICT');
+const devUser = env('DEV_USER').trim();
 const isRelease = flag('CONFIGURE_RELEASE');
 const requirePins = flag('REQUIRE_CERT_PINS');
 const transport = isRelease ? 'embedded' : 'metro';

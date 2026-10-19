@@ -8,7 +8,7 @@
 
 | Layer | Choice |
 |---|---|
-| Framework | Expo **SDK 57** |
+| Framework | Bare React Native (committed `android/` + `ios/`) |
 | React Native | **0.86.3** (New Architecture, Hermes) |
 | React | **19.2.3** |
 | State | **Zustand** (`src/state/`) |

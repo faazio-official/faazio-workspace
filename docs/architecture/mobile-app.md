@@ -1091,9 +1091,9 @@ The "lightweight, fast, secure" mandate (AGENTS.md) is enforced at build and del
   (`400`–`900`) load, gated to Android. **Honest caveat:** Metro still ships **one bundle**, so
   `React.lazy` defers module *evaluation*, not download size (`PENDING_WORK.md`).
 - **OTA / differential delivery — not implemented.** There is no OTA provider wiring
-  (CodePush/Expo Updates) in `package.json`; `React.lazy` is startup deferral, not per-feature
-  delivery. Adding JS-bundle OTA later means integrating a provider such as CodePush or Expo
-  Updates (whole-bundle, no store resubmit for JS-only changes); true Flipkart-style per-feature
+  (CodePush or self-hosted) in `package.json`; `React.lazy` is startup deferral, not per-feature
+  delivery. Adding JS-bundle OTA later means integrating a provider such as CodePush
+  (whole-bundle, no store resubmit for JS-only changes); true Flipkart-style per-feature
   delivery is custom infrastructure and **out of scope**. Decision tracked in `PENDING_WORK.md`.
 - **Server-driven content reduces how often native layouts must ship** — data/content changes are
   server-side once the gateway exists (`server-gateway-plan.md`), the lever that keeps an RN

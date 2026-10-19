@@ -29,7 +29,7 @@ interface FilterFeedSectionProps extends SectionProps {
 
 // Filter-chip carousel + batched 2-column feed. Auto-loads the next batch when
 // the user has scrolled through ~60% of the currently visible grid, and
-// prefetches the next batch's images (expo-image) so they decode ahead of the
+// prefetches the next batch's images (AppImage) so they decode ahead of the
 // fold. The grid is a plain flexWrap View (NOT a nested FlatList) because the
 // whole home feed is already one outer FlatList — nesting a second vertical
 // list would hit RN's "VirtualizedLists should never be nested" warning.
@@ -84,7 +84,7 @@ function FilterFeedSection({
 
   // Prefetches the image URLs of the next unloaded batch so they decode while
   // the user is still reading the current one — never mid-fling. Non-blocking;
-  // fire-and-forget into expo-image's memory-disk cache.
+  // fire-and-forget into the native memory-disk image cache.
   const prefetchNextBatch = useCallback(() => {
     const next = pool.slice(visibleCount, visibleCount + BATCH_SIZE);
     if (next.length > 0) {

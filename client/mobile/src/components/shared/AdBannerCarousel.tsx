@@ -31,7 +31,7 @@ interface AdBannerCarouselProps {
 }
 
 /**
- * Auto-playing paged ad-banner carousel (16:9 full-width rounded card, expo-image bg +
+ * Auto-playing paged ad-banner carousel (16:9 full-width rounded card, image bg +
  * overlay + badge + title/tagline). Presentation-only: the caller owns spacing
  * via `style` and optional tap handling via `onSlidePress` (no handler → tap is
  * a no-op). Extracted from the Home hub's `AdBannerSection` so Food can reuse it

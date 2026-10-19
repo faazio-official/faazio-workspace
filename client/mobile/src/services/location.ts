@@ -1,5 +1,5 @@
 /**
- * Location access without Expo. Position comes from
+ * Location access. Position comes from
  * `@react-native-community/geolocation`; reverse geocoding is served by the
  * thin native `FaazioGeocoder` module (Android `Geocoder`, iOS `CLGeocoder`),
  * so coordinates never leave the device. Consent is requested by the caller

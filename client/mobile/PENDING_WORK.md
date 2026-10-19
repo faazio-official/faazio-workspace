@@ -1669,12 +1669,12 @@ prop bypassed it. Only `FoodBottomNav` was correct (it already used
 **Status:** 🔴 Backlog — not chosen or implemented.
 
 **Gap:** The app ships as a single Metro bundle with no over-the-air JS update channel. There is
-no OTA provider (Expo Updates, CodePush) or Play Feature Delivery wiring in `package.json`.
+no OTA provider (CodePush or self-hosted) or Play Feature Delivery wiring in `package.json`.
 `React.lazy` routes only defer module *evaluation* — they neither reduce download size nor deliver
 features on demand (see "Home feed scroll & startup performance").
 
 **Options considered:**
-- **CodePush or Expo Updates (pragmatic path)** — OTA JS-bundle updates; no store resubmit for
+- **CodePush or a self-hosted OTA provider (pragmatic path)** — OTA JS-bundle updates; no store resubmit for
   JS-only changes. Whole-bundle (not per-feature); needs hosted channel/config setup.
 - **Play Feature Delivery / dynamic feature modules** — per-feature native delivery, but requires
   splitting the single Android module (significant Gradle work).

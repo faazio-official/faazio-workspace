@@ -1,7 +1,7 @@
 # Google Play Store Release Manual
 
 This document covers compiling, signing, and uploading the **Faazio** Android app to Google Play.
-The project is a **bare React Native 0.86.3** app: `android/` is committed and there is no Expo
+The project is a **bare React Native 0.86.3** app: `android/` is committed and there is no
 prebuild/EAS step.
 
 ---
