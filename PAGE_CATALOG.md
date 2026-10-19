@@ -205,7 +205,7 @@
 | P03 | **Pharma — Category Products (inline)** | `PharmaScreen.tsx` inline `CATEGORY_PRODUCTS` (`PHARMA_PRODUCTS_DB`, real `ph-*` ids) | Legacy per-category grid (kept inline) |
 | P04 | **Pharma — Product Detail** | `client/mobile/src/features/product/ProductDetailScreen.tsx` (canonical `ProductDetail`) | Shared PDP (inline legacy view remains) |
 | P05 | **Pharma — Donor tab** | `client/mobile/src/features/pharma/blood-donor/BloodDonorScreen.tsx` + `DonorDashboard.tsx` | Replaced the old "For You" tab |
-| P06 | **Pharma — History tab** | `PharmaScreen.tsx` (`activeTab='History'`, `PHARMA_RECENT_ORDERS`) | Active orders + consultations |
+| P06 | **Pharma — History tab** | `PharmaScreen.tsx` (`activeTab='History'`) — real placed orders merged from `useOrdersStore` (newest first), `PHARMA_RECENT_ORDERS` fixture only as the mock-mode first paint; honest empty state in remote | Active orders + consultations |
 
 Additional Pharma routes (not in the Vite audit): `MedicalShopDetailsScreen.tsx`,
 `prescription/PrescriptionFlowScreen.tsx`, `blood-donor/DonorDetailsScreen.tsx`,
@@ -393,6 +393,11 @@ carries a paid placement — Pharma has no `SponsoredRail`/`SECTOR_RAIL`/`SPONSO
 | --- | --- | --- | --- | --- |
 | PH1 | `CampaignHero` | **PAID** | `PHARMA_HERO` + `app='PHARMA'` | `getHeroAds('PHARMA_HERO',{app:'PHARMA'})` + `recordAdEvent` |
 | PH2 | `PharmaHeroBanner` | ORGANIC (SDUI house) | `pharmaHero.banners` | `fetchPharmaSections` → `GET /sdui/pharma` |
+
+> **PH2 honesty:** the hero's coupon pill renders **only** when `feed.heroCouponCode` resolves — the
+> **first Top Offer's** code (the editorial fixture in mock, the top server-honoured `GET /coupons?app=PHARMA`
+> code when online), else `null`; the old hardcoded "UP TO 50% OFF" badge was removed so the banner
+> never advertises a code the rail below doesn't show or checkout can't settle.
 | PH3 | Quick Reorder | ORGANIC (catalog) | real `ph-*` ids | `getProductsByIds` (+ discounts) |
 | PH4 | Top Offers | ORGANIC (coupons) | live `GET /coupons?app=PHARMA` codes | `getCoupons('PHARMA')` |
 | PH5 | Popular Medicines | ORGANIC (SDUI + discount overlay) | `pharmaPopular` | `fetchPharmaSections` + `getActiveDiscounts` |
@@ -404,9 +409,11 @@ carries a paid placement — Pharma has no `SponsoredRail`/`SECTOR_RAIL`/`SPONSO
 
 **In-wrapper states** (local to `PharmaScreen`, no route): header search results (`searchProducts`
 + `withActiveDiscounts`), `CATEGORY_PRODUCTS` grid, in-screen `PRODUCT_DETAIL` (both overlay
-`useActiveDiscounts` for price parity with checkout settlement), History tab (`PHARMA_RECENT_ORDERS`),
-Donor tab (embedded `DonorDashboard`). View-all chevrons are hidden because Pharma has no rail
-landing page.
+`useActiveDiscounts` for price parity with checkout settlement), History tab (real `useOrdersStore`
+orders, `PHARMA_RECENT_ORDERS` fallback in mock only), Donor tab (embedded `DonorDashboard`).
+View-all chevrons are hidden because Pharma has no rail landing page. PH7 Featured Brands and PH8
+Health Corner are intentionally **STATIC-EDITORIAL** fixtures — the portal SDUI editor cannot author
+new sections, so promoting them to server-owned layouts is deferred (see PENDING_WORK).
 
 | # | Route / surface | Screen | File |
 | --- | --- | --- | --- |
@@ -414,7 +421,7 @@ landing page.
 | P2 | `PrescriptionFlow` (`{ presetVendorId? }`) | **PrescriptionFlowScreen** — CAPTURE→NOTE→VENDORS→CONFIRMED | `src/features/pharma/prescription/PrescriptionFlowScreen.tsx` |
 | P3 | `BloodDonor` | **BloodDonorScreen** — 5-step wizard / embedded dashboard | `src/features/pharma/blood-donor/BloodDonorScreen.tsx` |
 | P4 | `BloodDonorDetails` (`{ donorId; requestCity; bloodGroup; source? }`) | **DonorDetailsScreen** | `src/features/pharma/blood-donor/DonorDetailsScreen.tsx` |
-| P5 | `BloodRequestDescription` (`{ requestId }`) | **BloodRequestDescriptionScreen** | `src/features/pharma/blood-donor/BloodRequestDescriptionScreen.tsx` |
+| P5 | `BloodRequestDescription` (`{ requestId; source? }`) | **BloodRequestDescriptionScreen** — a cold deep link (no `source`) waits for the live board before deciding the request is missing, so a fixture id never renders as a server row | `src/features/pharma/blood-donor/BloodRequestDescriptionScreen.tsx` |
 | P6 | History tab | inline in `PharmaScreen` | recently ordered |
 | P7 | in-wrapper Search tab → `Search { subApp:'PHARMA' }` | **SearchRouteScreen** | `src/features/search/SearchRouteScreen.tsx` |
 | P8 | in-wrapper Cart tab → `Cart` | **CartScreen** | `src/features/cart/CartScreen.tsx` |

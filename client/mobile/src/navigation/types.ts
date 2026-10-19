@@ -88,8 +88,15 @@ export type RootStackParamList = {
      */
     source?: import('@/services/api/GatewayClient').ReadSource;
   };
-  /** Blood request detail placeholder (pushed from the donor dashboard). */
-  BloodRequestDescription: { requestId: string };
+  /**
+   * Blood request detail (pushed from the donor dashboard). `source` carries the provenance of the
+   * board the tap came from so a cold deep link waits for the live board and never renders a fixture
+   * row as if it were server-authoritative.
+   */
+  BloodRequestDescription: {
+    requestId: string;
+    source?: import('@/services/api/GatewayClient').ReadSource;
+  };
   /** Pharma store profile with products and prescription entry point. */
   MedicalShopDetails: { storeId: string };
   /** FaazioRewards — coins, order streak, and the streak discount card. */

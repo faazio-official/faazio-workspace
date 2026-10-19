@@ -32,7 +32,7 @@ Every domain file below carries its tag as a top-of-file banner comment.
 |---|---|---|---|
 | `mart` | `features/ecommerce` | `products.ts`, `stores.ts` | `@mock` |
 | `food` | `features/food` | `products.ts`, `stores.ts`, `menus.ts`, `specials.ts`, `diningVenues.ts` | mixed `@mock` / `@server` — `menus.ts` + `diningVenues.ts` seed `directory.menus`/`directory.dining_venues` and fall back locally (`getList` → `GatewayClient.fetchMenu`/`fetchVenues`); `features/food/mocks/*` (`restaurants`, `homeFeed`, `specials`) are the client-side first-paint for the dining grid + mind/snack rails (see `@data/food` below) |
-| `pharma` | `features/pharma` | `products.ts`, `stores.ts` | `@mock` (+ `@unused` by mobile) |
+| `pharma` | `features/pharma` | `products.ts`, `stores.ts`, `bloodRequests.ts`, `recentOrders.ts` | mixed `@mock` / `@server` — pharma home feed (SDUI sections, coupons, hero) + History read `GatewayClient`; fixtures seed mock-mode first paint / remote fallback |
 | `explore` | `features/catalog` (Categories/Favourites) | `stacks.ts` | `@mock` |
 | `categories` | `features/catalog` | `searchDatabase.ts` | `@mock` |
 | `productMeta` | `features/product` (ProductDetail) | `reviews.ts` | `@mock` (+ `@unused` by mobile) |
@@ -222,7 +222,7 @@ the `GROCERY` member was dropped from `AppBrand` / `CartCategory` / `SubAppId` /
 | `NOTIFICATIONS_BANNER` | `{ message }` | Notifications step (info-banner copy) | `@mock` |
 | `CONSENT_LABEL` | `string` | Review step (consent checkbox copy) | `@mock` |
 | `PRIVACY_NOTE` | `string` | Review step (footer privacy note) | `@mock` |
-| `BLOOD_REQUESTS` | `BloodRequest[]` | Donor dashboard + request-details page (feed + detail fields) — feed hydrated via `GatewayClient.fetchBloodRequests()` (`useBloodRequests` returns `{ requests, source }`; fixture-enriched display extras, `live`/`empty-authoritative`/`offline-fallback`/`cache-stale` provenance; server `contact`/`address` never backfilled with fixture PII) | `@server` (fixture fallback) |
+| `BLOOD_REQUESTS` | `BloodRequest[]` | Donor dashboard + request-details page (feed + detail fields) — feed hydrated via `GatewayClient.fetchBloodRequests()` (`useBloodRequests` returns `{ requests, source, settled }`; fixture-enriched display extras, `live`/`empty-authoritative`/`offline-fallback`/`cache-stale` provenance; server `contact`/`address` never backfilled with fixture PII; `settled` lets a cold deep link wait for the live board before judging a request missing) | `@server` (fixture fallback) |
 | `BLOOD_REQUEST_DETAIL_COPY` | `{ bannerTitle; bannerSubtitle; confirmNote }` | Request-details page (banner + privacy note copy) | `@mock` |
 | `DonorMatchRequest` | `interface` (+ `DonorMatchStatus`) | Targeted Ask Blood request persisted by `bloodDonorStore` and shown to its recipient; `status: 'pending' \| 'accepted' \| 'declined' \| 'completed'` mirrors the server `match_status` | `@server` (server-hydrated incoming + outgoing) |
 | `ASK_BLOOD_COPY` | `{ fabLabel; sheetTitle; searchSubtitle; resultsSubtitle; continueLabel }` | Ask Blood search/results copy | `@mock` |

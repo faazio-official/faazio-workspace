@@ -173,7 +173,10 @@ approval-gated flow. Step 1 picks a target scoped to the seller (Products / Dish
 from the hydrated `useProducts`/`useMenus`/`useStores` slices — the full catalog is never hydrated for
 this). The target's sub-app + type drive the allowed placements
 (`src/data/ads/placements.ts` `eligiblePlacementsFor` over `PLACEMENTS_BY_APP`), so a Mart item can
-only be bought on Mart surfaces + the cross-app `HOME_HERO` (Food/Pharma get their own hosts); each
+only be bought on Mart surfaces + the cross-app `HOME_HERO` (Food/Pharma get their own hosts). A Pharma
+seller targets their `sector='PHARMA'` products/stores the same way — the app is read **per selected
+row**, not per tab, so no separate "Pharma" tab is needed and `PHARMA_HERO`/`CATEGORY_TOP`/`STORE_TOP`
+appear for them; each
 option shows a `PLACEMENT_REACH_NOTE`, `CATEGORY_TOP` adds a category picker (`MASTER_CATEGORIES` tab
 ids) and `STORE_TOP` auto-scopes to the target's store (for a FOOD **Dish** target the gateway
 resolves the dish's `venueId` as a dining venue via `ResolveOwnedTarget(..., "VENUE", …)`, so a

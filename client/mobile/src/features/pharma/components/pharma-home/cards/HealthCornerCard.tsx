@@ -10,6 +10,7 @@ import PharmaImage from '../PharmaImage';
 interface HealthCornerCardProps {
   item: PharmaHealthCornerArticle;
   width: number;
+  /** When absent the card is static editorial (no "Read More" affordance, no dead tap). */
   onPress?: () => void;
 }
 
@@ -18,8 +19,8 @@ const HealthCornerCard = memo(function HealthCornerCard({
   width,
   onPress,
 }: HealthCornerCardProps) {
-  return (
-    <TouchableOpacity style={[styles.card, { width }]} onPress={onPress} activeOpacity={0.9}>
+  const body = (
+    <>
       <PharmaImage uri={item.imageUrl} style={styles.thumb} contentFit="cover" />
       <View style={styles.body}>
         <AppText style={styles.title} numberOfLines={2}>
@@ -28,11 +29,22 @@ const HealthCornerCard = memo(function HealthCornerCard({
         <AppText style={styles.subtitle} numberOfLines={2}>
           {item.subtitle}
         </AppText>
-        <View style={styles.readRow}>
-          <AppText style={styles.readText}>Read More</AppText>
-          <ChevronRight size={ms(12)} color={PHARMA_TEAL} strokeWidth={2.6} />
-        </View>
+        {onPress ? (
+          <View style={styles.readRow}>
+            <AppText style={styles.readText}>Read More</AppText>
+            <ChevronRight size={ms(12)} color={PHARMA_TEAL} strokeWidth={2.6} />
+          </View>
+        ) : null}
       </View>
+    </>
+  );
+
+  if (!onPress) {
+    return <View style={[styles.card, { width }]}>{body}</View>;
+  }
+  return (
+    <TouchableOpacity style={[styles.card, { width }]} onPress={onPress} activeOpacity={0.9}>
+      {body}
     </TouchableOpacity>
   );
 });

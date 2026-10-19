@@ -5,6 +5,62 @@ dependencies exist. Do not build the backend/seller flows until told to.
 
 ---
 
+## W59 — Pharma residual honesty + routing closure (P0/P1)
+
+**Status:** 🟢 Shipped (app + docs). App auth stays **mocked** (no Supabase phone OTP). Closes the
+remaining Pharma gaps from the sub-app audit; several plan items were **already fixed by W57** (the
+discount overlay + live Top Offers codes) and one (**P0-3** portal wizard) was a **false alarm** — see
+below.
+
+- **P0-1 hero coupon honesty.** `PharmaHeroBanner` never advertised a code it couldn't stand behind:
+  `PharmaFeed` now exposes `heroCouponCode` — the **first Top Offer's** code (the editorial fixture in
+  mock, the top server-honoured `GET /coupons?app=PHARMA` code when online, else `null`) — the coupon
+  pill is render-gated on it, and the hardcoded "UP TO 50% OFF" badge + its styles were deleted. Hero
+  and Top Offers now share one source, so they can never disagree.
+- **P1-1 History is real.** The History tab merges actual `useOrdersStore` orders (newest-first,
+  PHARMA-scoped) ahead of the `PHARMA_RECENT_ORDERS` fixture; the fixture is the mock-mode first paint
+  only and a remote-empty result shows an honest empty state. Tapping an order opens `MyOrders`
+  (`highlightOrderId`).
+- **P1-3 Health Corner dead tap.** The card renders as a static `View` (no `TouchableOpacity`, no
+  "Read More") when it carries no `onPress`.
+- **P1-7 PDP store section + View Vendor.** `CommonProductDetailView` resolves PHARMA stores
+  (`pharmaStores`), pulls PHARMA related products (`serverRelated` runs for MART|PHARMA, fixture
+  fallback `pharmaProducts`), renders the store's real `address`/`hours` (was a hardcoded Chennai
+  string) and tags its "More from store" grid `appBrand='PHARMA'`. `ProductDetailScreen.handleViewVendor`
+  opens `MedicalShopDetails` for a PHARMA product (Mart keeps the `SubApp` vendor drill-in). Price was
+  already canonical from W57.
+- **P0-4 (latent) CategoryDrillIn routing.** `CategoryDrillInScreen.handleVendorPress` maps
+  `app='PHARMA'` → `MedicalShopDetails` (defensive; no live caller passes PHARMA today — both hardcode
+  `FA_MART`).
+- **P1-9/P1-5 blood deep-link provenance + distance honesty.** `BloodRequestDescription` gained an
+  optional `source` param and `useBloodRequests` now returns `settled`; a **cold deep link** (no
+  `source`) holds a spinner until the board settles before showing "no longer available", so a fixture
+  id is never rendered as a server row. `NearbyRequestCard` omits the distance instead of printing
+  "0 km away" for live rows that carry no geo.
+
+**False alarm / intentionally unchanged:** **P0-3** (portal campaign wizard) — steps 2–3 are generic
+`Products`/`Stores` and the target's app is derived **per row** (`p.sector`/`s.sector`); a PHARMA
+seller (`sel-4` + `store-p1` + `ph-1/ph-2`) already gets `PHARMA_HERO`/`CATEGORY_TOP`/`STORE_TOP`
+via `eligiblePlacementsFor(row.sector, type)`, and the server derives `targetApp` from the owning row
+— **no code change needed**. **P1-4** (Promote Featured Brands / Health Corner to SDUI) is **skipped**:
+the portal SDUI editor cannot author new sections, so PH7/PH8 stay intentional `STATIC-EDITORIAL`
+fixtures (documented). **P1-8** best-effort ratings were already honest — documented, not changed.
+
+**Rollback:** revert `features/pharma/services/pharmaService.ts`,
+`components/pharma-home/PharmaHeroBanner.tsx`, `PharmaScreen.tsx`,
+`components/pharma-home/cards/HealthCornerCard.tsx`,
+`features/catalog/CategoryDrillInScreen.tsx`, `features/product/{CommonProductDetailView,ProductDetailScreen}.tsx`,
+`features/pharma/blood-donor/{DonorDashboard,BloodRequestDescriptionScreen}.tsx` +
+`components/NearbyRequestCard.tsx` + `hooks/useBloodRequests.ts`, and `navigation/types.ts`. No
+migration, endpoint, cache key, or `GatewayClient` method added.
+
+**Docs:** `docs/architecture/mobile-app.md`, `PAGE_CATALOG.md`, `data/DATA_CONTROL.md`.
+`monolith-breakdown.md`/`server-gateway-plan.md`/`caching-cloudflare-valkey.md` unchanged — **no
+server function, handler, package, table, cache key, endpoint, or `GatewayClient` method changed**.
+**Date:** 2026-10-19
+
+---
+
 ## W58 — Food menu authority + Offers authoring (P0/P1)
 
 **Status:** 🟢 Shipped (app + web + server + db + docs). App auth stays **mocked** (no Supabase phone

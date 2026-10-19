@@ -143,6 +143,23 @@ while using `useVendorProducts` (`GET /stores/{id}/products`, festival-overlaid)
 `SearchPharmaProductCard` for its live product list.
 Its shop info block includes the cover, contact details, hours and pickup address, and its
 `UploadPrescriptionFAB` opens `PrescriptionFlow` with the pharmacy preselected.
+**(W59)** Pharma residual honesty + routing closure: the `PharmaHeroBanner` coupon pill now renders
+**only** when `feed.heroCouponCode` resolves — the **first Top Offer's** code (`PharmaFeed.heroCouponCode`;
+the editorial fixture in mock, the top server-honoured `GET /coupons?app=PHARMA` code when online, else
+`null`) — and the fabricated "UP TO 50% OFF" badge was deleted, so the hero never advertises a code
+checkout can't settle; the **History** tab reads real
+`useOrdersStore` orders (newest-first, `PHARMA_RECENT_ORDERS` is the mock-mode first paint only, with
+an honest empty state when remote returns none) and tapping an order opens `MyOrders`
+(`highlightOrderId`); the **Health Corner** card is now a static `View` (no dead "Read More" tap) when
+it has no handler; PH7 Featured Brands / PH8 Health Corner stay intentional **static-editorial** (the
+portal SDUI editor cannot author new sections — promotion deferred). Routing: `CategoryDrillInScreen`
+sends `app='PHARMA'` vendors to `MedicalShopDetails` (defensive single `STORE_TOP` host), and the
+shared PDP resolves PHARMA stores (`pharmaStores`), pulls PHARMA related products, renders the store's
+real address/hours, tags its "More from store" grid `appBrand='PHARMA'`, and **View Vendor** → `MedicalShopDetails`.
+Blood donor: `BloodRequestDescription` gained an optional `source` provenance param and `useBloodRequests`
+now returns `settled` — a **cold deep link** waits for the live board before judging a `requestId`
+missing (a fixture id is never rendered as a server row), and `NearbyRequestCard` no longer prints
+"0 km away" for live rows that carry no geo (distance is omitted when unknown).
 
 **Home "Deals of the day" vendor-campaign zone** (`features/home/sections/BrandCampaignsSection.tsx`,
 section id `hotBrandDeals`): the renamed section (was "Hot Brand Deals") renders **two stacked,
@@ -647,7 +664,8 @@ AppNavigator (root native stack)
 ├── RateVendor (verified-buyer rating form; every vendor surface + order screens link here)
 ├── BloodDonor (Pharma blood-donor wizard/dashboard)
 ├── BloodDonorDetails (selected matching donor profile + targeted request)
-├── BloodRequestDescription (donor request details + nearby requests)
+├── BloodRequestDescription (`{ requestId; source? }` — donor request details + nearby requests;
+│    a cold deep link with no `source` waits for the live board before showing "no longer available")
 ├── MedicalShopDetails (pharma store profile + live store inventory)
 ├── PrescriptionFlow (full-bleed pharma prescription capture → note → vendor → confirmed;
 │   optional `presetVendorId` skips the vendor step and opens fulfilment for that pharmacy)

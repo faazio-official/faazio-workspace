@@ -56,6 +56,12 @@ function toBloodRequest(rec: BloodRequestRecord): BloodRequest {
 export interface BloodRequestsFeed {
   requests: BloodRequest[];
   source: ReadSource;
+  /**
+   * True once a fetch attempt has resolved (success or failure). A cold deep-link detail screen
+   * waits for this before deciding a request is missing, so a fixture id is never shown as if it
+   * were a live server row.
+   */
+  settled: boolean;
 }
 
 /**
@@ -64,6 +70,7 @@ export interface BloodRequestsFeed {
  */
 let cache: BloodRequest[] = BLOOD_REQUESTS;
 let cacheSource: ReadSource = 'offline-fallback';
+let cacheSettled = false;
 
 /**
  * The public blood-request board. Reads `blood.requests` (`GET /blood-requests`) through the
@@ -76,7 +83,11 @@ let cacheSource: ReadSource = 'offline-fallback';
  * The fixture is the initial value so the board never blanks, but it is always labelled.
  */
 export function useBloodRequests(reloadKey = 0): BloodRequestsFeed {
-  const [feed, setFeed] = useState<BloodRequestsFeed>({ requests: cache, source: cacheSource });
+  const [feed, setFeed] = useState<BloodRequestsFeed>({
+    requests: cache,
+    source: cacheSource,
+    settled: cacheSettled,
+  });
 
   useEffect(() => {
     let active = true;
@@ -87,12 +98,18 @@ export function useBloodRequests(reloadKey = 0): BloodRequestsFeed {
         const mapped = rows.map(toBloodRequest);
         cache = mapped;
         cacheSource = rows.length > 0 ? 'live' : 'empty-authoritative';
-        setFeed({ requests: mapped, source: cacheSource });
+        cacheSettled = true;
+        setFeed({ requests: mapped, source: cacheSource, settled: true });
       })
       .catch(() => {
         if (!active) return;
         const stale = cacheSource === 'live' || cacheSource === 'empty-authoritative';
-        setFeed({ requests: cache, source: cache.length > 0 && stale ? 'cache-stale' : 'offline-fallback' });
+        cacheSettled = true;
+        setFeed({
+          requests: cache,
+          source: cache.length > 0 && stale ? 'cache-stale' : 'offline-fallback',
+          settled: true,
+        });
       });
     return () => {
       active = false;

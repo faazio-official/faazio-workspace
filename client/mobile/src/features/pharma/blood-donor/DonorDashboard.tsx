@@ -294,7 +294,7 @@ export function DonorDashboard() {
                   key={request.id}
                   request={request}
                   onPress={() =>
-                    navigation.navigate('BloodRequestDescription', { requestId: request.id })
+                    navigation.navigate('BloodRequestDescription', { requestId: request.id, source })
                   }
                 />
               );

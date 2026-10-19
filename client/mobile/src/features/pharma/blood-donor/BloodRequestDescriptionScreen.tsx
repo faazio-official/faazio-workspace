@@ -1,5 +1,6 @@
 import React, { useMemo } from 'react';
 import {
+  ActivityIndicator,
   StyleSheet,
   View,
   TouchableOpacity,
@@ -33,6 +34,7 @@ import AppText from '@/components/AppText';
 import { hs, vs, ms } from '@/utils/responsive';
 import { SPACE } from '@/theme/spacing';
 import { BLOOD_REQUEST_DETAIL_COPY } from '@data/index';
+import { gateway } from '@/services/api/GatewayClient';
 import { useBloodDonorStore } from '@/state/bloodDonorStore';
 import type { RootStackParamList } from '@/navigation/types';
 import { BloodRequestInfoGrid } from './components/BloodRequestInfoGrid';
@@ -60,8 +62,13 @@ function neededWithinValue(neededWithin: string): string {
 
 export function BloodRequestDescriptionScreen({ navigation, route }: Props) {
   const insets = useSafeAreaInsets();
-  const { requests, source } = useBloodRequests();
-  const request = requests.find((r) => r.id === route.params.requestId) ?? null;
+  const { requests, source, settled } = useBloodRequests();
+  // A cold deep link (no in-app provenance) waits for the live board before deciding the request is
+  // missing, so a fixture id is never rendered as if it were a server-authoritative row.
+  const awaitLiveBoard = gateway.remoteEnabled && !settled && !route.params.source;
+  const request = awaitLiveBoard
+    ? null
+    : requests.find((r) => r.id === route.params.requestId) ?? null;
   const interestedRequestIds = useBloodDonorStore((s) => s.interestedRequestIds);
   const acceptedRequestIds = useBloodDonorStore((s) => s.acceptedRequestIds);
   const toggleInterested = useBloodDonorStore((s) => s.toggleInterested);
@@ -81,6 +88,15 @@ export function BloodRequestDescriptionScreen({ navigation, route }: Props) {
         .sort((a, b) => a.distanceKm - b.distanceKm),
     [requests, route.params.requestId],
   );
+
+  /** Cold deep link: hold until the live board settles before judging the id. */
+  if (awaitLiveBoard) {
+    return (
+      <View style={[styles.container, { paddingTop: insets.top, justifyContent: 'center', alignItems: 'center' }]}>
+        <ActivityIndicator color={BLOOD_RED} />
+      </View>
+    );
+  }
 
   /** Honest empty state — a bad/stale id never crashes the page. */
   if (!request) {
@@ -410,7 +426,7 @@ export function BloodRequestDescriptionScreen({ navigation, route }: Props) {
                 key={other.id}
                 request={other}
                 onPress={(r) =>
-                  navigation.push('BloodRequestDescription', { requestId: r.id })
+                  navigation.push('BloodRequestDescription', { requestId: r.id, source })
                 }
               />
             ))}

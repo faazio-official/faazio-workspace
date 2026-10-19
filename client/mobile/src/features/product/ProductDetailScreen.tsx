@@ -67,9 +67,16 @@ export function ProductDetailScreen({ navigation, route }: Props) {
   );
   const handleCart = useCallback(() => navigation.navigate('Cart', {}), [navigation]);
   const handleViewVendor = useCallback(
-    (storeId: string) =>
-      navigation.navigate('SubApp', { subAppId: 'FA_MART', initialVendorStoreId: storeId }),
-    [navigation],
+    (storeId: string) => {
+      // A Pharma store opens its canonical pharmacy profile (STORE_TOP + reviews + Rx FAB); Mart
+      // stores open the Mart sub-app pinned to that vendor.
+      if (product?.app === 'PHARMA') {
+        navigation.navigate('MedicalShopDetails', { storeId });
+        return;
+      }
+      navigation.navigate('SubApp', { subAppId: 'FA_MART', initialVendorStoreId: storeId });
+    },
+    [navigation, product?.app],
   );
   const handleOpenProduct = useCallback(
     (p: Product) => navigation.push('ProductDetail', { product: p }),

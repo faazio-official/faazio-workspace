@@ -21,6 +21,13 @@ export function CategoryDrillInScreen({ navigation, route }: Props) {
 
   const handleVendorPress = useCallback(
     (storeId: string, initialQuery: string) => {
+      // Pharma stores have one canonical profile (STORE_TOP + reviews + Rx FAB). Routing a Pharma
+      // tap through the generic Mart vendor page would split the paid STORE_TOP funnel and drop the
+      // prescription CTA, so Pharma drill-in resolves to `MedicalShopDetails`.
+      if (app === 'PHARMA') {
+        navigation.navigate('MedicalShopDetails', { storeId });
+        return;
+      }
       navigation.navigate('VendorDetails', { storeId, app, initialQuery });
     },
     [navigation, app],

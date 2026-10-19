@@ -25,6 +25,8 @@ import { applyActiveDiscounts, useActiveDiscounts } from '@/services/pricing';
 import { gateway } from '@/services/api/GatewayClient';
 import { martStores } from '@data/mart/stores';
 import { martProducts } from '@data/mart/products';
+import { pharmaStores } from '@data/pharma/stores';
+import { pharmaProducts } from '@data/pharma/products';
 import { foodStores } from '@data/food/stores';
 import { TODAYS_SPECIALS, dishToProduct } from '@data/food/specials';
 import type { Product, StoreProfile } from '@data/types';
@@ -121,16 +123,21 @@ export default function CommonProductDetailView({
     if (product) updateCartQuantity(product.id, -1);
   };
 
+  // Store resolution is per sub-app: a Mart product resolves its `martStores` row, a Pharma product
+  // its `pharmaStores` row (the same directory that backs `GET /stores/{id}`), so the store block and
+  // "More from store" work on the Pharma PDP exactly like Mart instead of silently vanishing.
   const store = useMemo<StoreProfile | undefined>(() => {
-    if (product?.app !== 'MART' || !product.storeId) return undefined;
-    return martStores.find((s) => s.id === product.storeId);
+    if (!product?.storeId) return undefined;
+    if (product.app === 'MART') return martStores.find((s) => s.id === product.storeId);
+    if (product.app === 'PHARMA') return pharmaStores.find((s) => s.id === product.storeId);
+    return undefined;
   }, [product?.app, product?.storeId]);
 
   // "More from store": server-backed (`catalog.products` by store_id + ACTIVE) with the local
   // `@data` pool kept as the offline fallback, so the rail never regresses when the gateway is off.
   const [serverRelated, setServerRelated] = useState<Product[]>([]);
   useEffect(() => {
-    if (product?.app !== 'MART' || !product.storeId) {
+    if ((product?.app !== 'MART' && product?.app !== 'PHARMA') || !product.storeId) {
       setServerRelated([]);
       return;
     }
@@ -150,7 +157,8 @@ export default function CommonProductDetailView({
     if (!product) return [];
     if (serverRelated.length > 0) return serverRelated;
     if (!store) return [];
-    return martProducts.filter((p) => p.storeId === store.id && p.id !== product.id);
+    const pool = product.app === 'PHARMA' ? pharmaProducts : martProducts;
+    return pool.filter((p) => p.storeId === store.id && p.id !== product.id);
   }, [store, serverRelated, product]);
 
   // Overlay approved festival discounts on the "More from store" rail (no-op offline / none apply).
@@ -211,15 +219,16 @@ export default function CommonProductDetailView({
             </View>
             <View style={styles.storeLocationRow}>
               <MapPin size={ms(14)} color="#94a3b8" />
-              <AppText style={styles.storeLocationText}>
-                Anna Nagar, Chennai · {store.distance} away
+              <AppText style={styles.storeLocationText} numberOfLines={1}>
+                {store.address ? `${store.address.split(',').slice(0, 2).join(',')} · ` : ''}
+                {store.distance} away
               </AppText>
             </View>
             <View style={styles.storeTimeRow}>
               <View style={styles.storeOpenBadge}>
                 <AppText style={styles.storeOpenText}>Open now</AppText>
               </View>
-              <AppText style={styles.storeCloseText}> · Closes at 10:00 PM</AppText>
+              {store.hours ? <AppText style={styles.storeCloseText}> · {store.hours}</AppText> : null}
             </View>
           </View>
         </View>
@@ -234,7 +243,7 @@ export default function CommonProductDetailView({
                   <ProductCardBase
                     key={p.id}
                     product={p}
-                    appBrand="MART"
+                    appBrand={product.app === 'PHARMA' ? 'PHARMA' : 'MART'}
                     variant="grid2"
                     width={cardWidth}
                     showDescription

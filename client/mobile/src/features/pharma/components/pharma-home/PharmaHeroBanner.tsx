@@ -3,7 +3,7 @@ import { View, TouchableOpacity, StyleSheet } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import AppText from '@/components/AppText';
 import { hs, ms, vs } from '@/utils/responsive';
-import { PHARMA_HERO_IMAGE, PHARMA_PALE, PHARMA_TEAL, PHARMA_TEAL_DARK } from '../../mocks/pharmaHomeFeed';
+import { PHARMA_HERO_IMAGE, PHARMA_TEAL, PHARMA_TEAL_DARK } from '../../mocks/pharmaHomeFeed';
 import type { SduiBanner } from '@data/home/sdui';
 import PharmaImage from './PharmaImage';
 
@@ -11,11 +11,18 @@ interface PharmaHeroBannerProps {
   onOrderNow?: () => void;
   /** Portal-owned organic hero (`pharmaHero.banners[0]`); falls back to the built-in card when absent. */
   banner?: SduiBanner;
+  /**
+   * A coupon code the server actually honours on Pharma checkout, or `null`/absent to advertise none.
+   * The pill is render-gated so the hero can never show a code `POST /checkout/validate-coupon`
+   * would reject (money claim).
+   */
+  couponCode?: string | null;
 }
 
 const PharmaHeroBanner = memo(function PharmaHeroBanner({
   onOrderNow,
   banner,
+  couponCode,
 }: PharmaHeroBannerProps) {
   return (
     <View style={styles.wrap}>
@@ -35,11 +42,13 @@ const PharmaHeroBanner = memo(function PharmaHeroBanner({
             )}
           </View>
           <AppText style={styles.subtext} numberOfLines={1}>
-            {banner?.subtitle ?? 'Get 25% OFF on your first order'}
+            {banner?.subtitle ?? 'Genuine medicines, delivered fast'}
           </AppText>
-          <View style={styles.coupon}>
-            <AppText style={styles.couponText}>Use code: HEALTH25</AppText>
-          </View>
+          {couponCode ? (
+            <View style={styles.coupon}>
+              <AppText style={styles.couponText}>Use code: {couponCode}</AppText>
+            </View>
+          ) : null}
           <TouchableOpacity
             style={styles.cta}
             onPress={onOrderNow}
@@ -51,11 +60,6 @@ const PharmaHeroBanner = memo(function PharmaHeroBanner({
           </TouchableOpacity>
         </View>
         <PharmaImage uri={banner?.imageUrl ?? PHARMA_HERO_IMAGE} style={styles.image} contentFit="cover" />
-        <View style={styles.badge}>
-          <AppText style={styles.badgeText}>
-            UP TO{'\n'}50% OFF
-          </AppText>
-        </View>
       </LinearGradient>
       <View style={styles.dotsRow}>
         <View style={styles.dotActive} />
@@ -152,27 +156,6 @@ const styles = StyleSheet.create({
     right: 0,
     bottom: 0,
     width: '42%',
-  },
-  badge: {
-    position: 'absolute',
-    top: vs(10),
-    right: hs(10),
-    width: ms(60),
-    height: ms(60),
-    borderRadius: ms(30),
-    backgroundColor: PHARMA_PALE,
-    borderWidth: 1,
-    borderColor: '#A9D6CF',
-    alignItems: 'center',
-    justifyContent: 'center',
-    zIndex: 2,
-  },
-  badgeText: {
-    fontSize: ms(8.5),
-    fontWeight: '900',
-    color: PHARMA_TEAL_DARK,
-    textAlign: 'center',
-    lineHeight: ms(10),
   },
   dotsRow: {
     flexDirection: 'row',

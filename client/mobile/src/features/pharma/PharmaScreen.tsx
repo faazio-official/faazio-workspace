@@ -39,6 +39,22 @@ import { usePharmaFeed } from './hooks/usePharmaFeed';
 import { usePharmaStores } from './hooks/usePharmaStores';
 import PharmaHomeSkeleton from './components/skeletons/PharmaHomeSkeleton';
 import { DonorDashboard } from './blood-donor/DonorDashboard';
+import { useOrdersStore, type PlacedOrder } from '@/state/ordersStore';
+
+const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+
+/** "12 Aug 2026" without Hermes' optional Intl (locale-independent, bounded). */
+function formatPlacedDate(iso: string): string {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return '';
+  return `${String(d.getDate()).padStart(2, '0')} ${MONTHS[d.getMonth()]} ${d.getFullYear()}`;
+}
+
+/** A real checkout/Rx order relevant to Pharma (contains a ph-* line, or a prescription order). */
+function isPharmaOrder(o: PlacedOrder): boolean {
+  if (o.kind === 'prescription') return true;
+  return (o.items ?? []).some((i) => i.id.startsWith('ph-'));
+}
 
 interface PharmaScreenProps {
   addToCart?: (id: string, name: string, price: number, emoji: string) => void;
@@ -75,6 +91,20 @@ export function PharmaScreen({
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const feed = usePharmaFeed();
   const { stores, source: storesSource } = usePharmaStores();
+
+  // History tab: real orders (in-session + durable `GET /orders`) filtered to Pharma, newest first.
+  // The `@data` fixture is only a mock-mode stand-in so an offline demo never blanks.
+  const sessionOrders = useOrdersStore((s) => s.orders);
+  const serverOrders = useOrdersStore((s) => s.serverOrders);
+  const historyOrders = useMemo(() => {
+    const byId = new Map<string, PlacedOrder>();
+    for (const o of sessionOrders) byId.set(o.orderId, o);
+    for (const o of serverOrders) byId.set(o.orderId, o); // durable history wins on a shared id
+    return [...byId.values()]
+      .filter(isPharmaOrder)
+      .sort((a, b) => Date.parse(b.placedAt) - Date.parse(a.placedAt));
+  }, [sessionOrders, serverOrders]);
+  const showFixtureHistory = historyOrders.length === 0 && !gateway.remoteEnabled;
 
   // Approved festival discounts for the active category (server authority: `GET /promo/active-discounts`).
   // The inline category grid + in-screen PDP use the authored `PHARMA_PRODUCTS_DB` rows, so the
@@ -263,6 +293,7 @@ export function PharmaScreen({
         <CampaignHero placement="PHARMA_HERO" app="PHARMA" onPress={handlePharmaHeroPress} />
         <PharmaHeroBanner
           banner={feed.heroBanners[0]}
+          couponCode={feed.heroCouponCode}
           onOrderNow={() => { setSelectedCategoryId('vitamin'); setCurrentView('CATEGORY_PRODUCTS'); }}
         />
         <QuickReorderRail
@@ -447,38 +478,92 @@ export function PharmaScreen({
         <AppText style={styles.historySubtitle}>Your latest medicine orders</AppText>
       </View>
 
-      {PHARMA_RECENT_ORDERS.map((order) => (
-        <View key={order.id} style={styles.historyCard}>
-          <View style={styles.historyRow}>
-            <View style={styles.historyOrderIcon}>
-              <AppText style={styles.historyOrderEmoji}>{order.emoji}</AppText>
-            </View>
-            <View style={styles.historyOrderDetails}>
-              <AppText style={styles.historyOrderName} numberOfLines={1}>
-                {order.name}
-              </AppText>
-              <AppText style={styles.historyMetaText}>
-                {order.qty} · {order.orderId} · {order.date}
-              </AppText>
-            </View>
-            <View style={styles.historyOrderRight}>
-              <AppText style={styles.historyOrderAmount}>₹{order.amount}</AppText>
-              <View
-                style={[
-                  styles.historyStatusPill,
-                  order.status === 'Delivered' ? styles.historyStatusDelivered : styles.historyStatusShipped,
-                ]}
-              >
-                <AppText style={styles.historyStatusText}>{order.status}</AppText>
+      {historyOrders.map((order) => {
+        const rx = order.kind === 'prescription';
+        const firstLine = order.items?.find((i) => i.id.startsWith('ph-')) ?? order.items?.[0];
+        const emoji = rx ? '📄' : firstLine?.emoji ?? '💊';
+        const name = rx ? 'Prescription order' : firstLine?.name ?? order.vendorName;
+        const qty = rx
+          ? `${order.pages ?? 0} page${order.pages === 1 ? '' : 's'}`
+          : `${firstLine?.quantity ?? 1}×`;
+        return (
+          <TouchableOpacity
+            key={order.orderId}
+            style={styles.historyCard}
+            activeOpacity={0.85}
+            onPress={() => navigation.navigate('MyOrders', { highlightOrderId: order.orderId })}
+          >
+            <View style={styles.historyRow}>
+              <View style={styles.historyOrderIcon}>
+                <AppText style={styles.historyOrderEmoji}>{emoji}</AppText>
+              </View>
+              <View style={styles.historyOrderDetails}>
+                <AppText style={styles.historyOrderName} numberOfLines={1}>
+                  {name}
+                </AppText>
+                <AppText style={styles.historyMetaText}>
+                  {qty} · {order.orderId} · {formatPlacedDate(order.placedAt)}
+                </AppText>
+              </View>
+              <View style={styles.historyOrderRight}>
+                <AppText style={styles.historyOrderAmount}>₹{order.total}</AppText>
+                <View
+                  style={[
+                    styles.historyStatusPill,
+                    order.status === 'Delivered' ? styles.historyStatusDelivered : styles.historyStatusShipped,
+                  ]}
+                >
+                  <AppText style={styles.historyStatusText}>{order.status}</AppText>
+                </View>
               </View>
             </View>
-          </View>
+          </TouchableOpacity>
+        );
+      })}
+
+      {showFixtureHistory
+        ? PHARMA_RECENT_ORDERS.map((order) => (
+            <View key={order.id} style={styles.historyCard}>
+              <View style={styles.historyRow}>
+                <View style={styles.historyOrderIcon}>
+                  <AppText style={styles.historyOrderEmoji}>{order.emoji}</AppText>
+                </View>
+                <View style={styles.historyOrderDetails}>
+                  <AppText style={styles.historyOrderName} numberOfLines={1}>
+                    {order.name}
+                  </AppText>
+                  <AppText style={styles.historyMetaText}>
+                    {order.qty} · {order.orderId} · {order.date}
+                  </AppText>
+                </View>
+                <View style={styles.historyOrderRight}>
+                  <AppText style={styles.historyOrderAmount}>₹{order.amount}</AppText>
+                  <View
+                    style={[
+                      styles.historyStatusPill,
+                      order.status === 'Delivered' ? styles.historyStatusDelivered : styles.historyStatusShipped,
+                    ]}
+                  >
+                    <AppText style={styles.historyStatusText}>{order.status}</AppText>
+                  </View>
+                </View>
+              </View>
+            </View>
+          ))
+        : null}
+
+      {!showFixtureHistory && historyOrders.length === 0 ? (
+        <View style={styles.emptyStateCard}>
+          <AppText style={styles.emptyStateEmoji}>🧾</AppText>
+          <AppText style={styles.emptyStateTitle}>No pharmacy orders yet</AppText>
         </View>
-      ))}
+      ) : null}
 
       <View style={styles.historyDirectiveBox}>
         <AppText style={styles.historyDirectiveText}>
-          Reorder medicines you use regularly for faster checkout next time.
+          {!showFixtureHistory && historyOrders.length === 0
+            ? 'Your medicine and prescription orders will appear here once you place one.'
+            : 'Reorder medicines you use regularly for faster checkout next time.'}
         </AppText>
       </View>
 

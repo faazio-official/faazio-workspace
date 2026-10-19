@@ -43,8 +43,9 @@ export function NearbyRequestCard({ request, onPress }: NearbyRequestCardProps) 
           </View>
         </View>
         <AppText style={styles.meta}>
-          {request.distanceKm} km away · {request.unitsRequired} Unit
-          {request.unitsRequired > 1 ? 's' : ''} Required
+          {/* Live server rows carry no geo, so a 0 is "unknown", never "0 km away". */}
+          {request.distanceKm > 0 ? `${request.distanceKm} km away · ` : ''}
+          {request.unitsRequired} Unit{request.unitsRequired > 1 ? 's' : ''} Required
         </AppText>
       </View>
 

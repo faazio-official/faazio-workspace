@@ -26,6 +26,13 @@ export interface PharmaFeed {
   healthCorner: PharmaHealthCornerArticle[];
   /** Organic house-hero banners (`pharmaHero.banners` from `GET /sdui/pharma`); paid PHARMA_HERO wins. */
   heroBanners: SduiBanner[];
+  /**
+   * The coupon code the house hero may advertise, or `null` to show none. Remote mode only ever
+   * returns a code the server honours (`GET /coupons?app=PHARMA`), so the hero can never advertise a
+   * code `POST /checkout/validate-coupon` would reject; mock mode keeps the editorial fixture for the
+   * local demo checkout.
+   */
+  heroCouponCode: string | null;
   /** Provenance of the server-backed rails so a screen can label a fixture/offline view. */
   source: ReadSource;
 }
@@ -121,13 +128,16 @@ export async function fetchPharmaFeed(): Promise<PharmaFeed> {
     livePharmaOfferCodes(),
   ]);
 
+  // Remote: only the server-honoured codes. Mock: the editorial fixture (local demo checkout).
+  const topOffers = liveCodes
+    ? PHARMA_TOP_OFFERS.filter((offer) => liveCodes.has(offer.code))
+    : PHARMA_TOP_OFFERS;
+
   return {
     quickReorder: quickReorderResolved.length
       ? quickReorderResolved.map((p) => toQuickReorder(p, discounts[p.id]?.discountPercent ?? 0))
       : PHARMA_QUICK_REORDER,
-    topOffers: liveCodes
-      ? PHARMA_TOP_OFFERS.filter((offer) => liveCodes.has(offer.code))
-      : PHARMA_TOP_OFFERS,
+    topOffers,
     popularMedicines: popularProducts
       ? popularProducts.map((p) => toPopularMedicine(p, discounts[p.id]?.discountPercent ?? 0))
       : PHARMA_POPULAR_MEDICINES,
@@ -137,6 +147,10 @@ export async function fetchPharmaFeed(): Promise<PharmaFeed> {
     featuredBrands: PHARMA_FEATURED_BRANDS,
     healthCorner: PHARMA_HEALTH_CORNER,
     heroBanners: hero?.banners ?? [],
+    // The hero advertises exactly the first Top Offer code (server-honoured in remote, the editorial
+    // fixture in mock) — so the banner can never claim a code the rail below doesn't show, and never
+    // one checkout would reject.
+    heroCouponCode: topOffers[0]?.code ?? null,
     source,
   };
 }
