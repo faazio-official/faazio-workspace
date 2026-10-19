@@ -7,10 +7,9 @@ name: Android Debug APK
 #   gh run watch
 #   gh run download <run-id> -n faazio-debug-apk
 #   adb install -r app-debug.apk
-#   adb reverse tcp:8081 tcp:8081   # then run `npx expo start` locally
+#   adb reverse tcp:8081 tcp:8081   # then run `npm run start` in client/mobile
 #
-# Debug builds are NOT signed with the release key and do NOT hot-reload on
-# their own — Metro serves the JS over adb reverse.
+# The committed android/ project is the source of truth — no prebuild step.
 on:
   workflow_dispatch:
     inputs:
@@ -67,8 +66,11 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Generate Android project (prebuild)
-        run: npx expo prebuild --clean --platform android
+      - name: Generate JS/native config
+        run: npm run configure
+
+      - name: Typecheck
+        run: npm run ts:check
 
       - name: Build debug APK
         run: |

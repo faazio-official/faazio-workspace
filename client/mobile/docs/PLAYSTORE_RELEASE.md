@@ -1,148 +1,107 @@
 # Google Play Store Release Manual
 
-This document provides step-by-step instructions to compile, bundle, sign, and upload your **Faazio** Android application to the Google Play Store Console using **Expo Application Services (EAS)**.
+This document covers compiling, signing, and uploading the **Faazio** Android app to Google Play.
+The project is a **bare React Native 0.86.3** app: `android/` is committed and there is no Expo
+prebuild/EAS step.
 
 ---
 
-## 📋 Prerequisites
-1. **Google Play Developer Account:** Requires a one-time registration fee ($25).
-2. **EAS CLI Installed:** Execute `npm install -g eas-cli` globally on your workstation.
-3. **Expo Account:** Register at [expo.dev](https://expo.dev) to manage remote cloud builds.
+## Prerequisites
+
+1. **Google Play Developer Account** (one-time registration fee).
+2. **Release keystore** — stored only as GitHub secrets; see `docs/RUNBOOKS/RELEASE.md`.
+3. **CI-only builds** — never run Gradle locally on this host (systemd-oomd OOM-kills it).
 
 ---
 
-## 🛠️ Step 1: Configure Android Settings in `app.json`
+## Step 1: Android configuration
 
-Verify that the Android metadata is fully configured in the `app.json` root.
+Android metadata lives in the committed native project, not `app.json` (deleted):
 
-```json
-"android": {
-  "package": "com.faazio.customer",
-  "versionCode": 1,
-  "adaptiveIcon": {
-    "foregroundImage": "./assets/adaptive-icon.png",
-    "backgroundColor": "#FFFFFF"
-  },
-  "permissions": [
-    "CAMERA",
-    "READ_EXTERNAL_STORAGE",
-    "WRITE_EXTERNAL_STORAGE"
-  ]
-}
-```
-> **CRITICAL:** The package name (`com.faazio.customer`) must be globally unique across all Android apps.
+| Setting | File |
+|---|---|
+| `applicationId` / `namespace` | `android/app/build.gradle` (`com.faazio.customer`) |
+| `versionCode` / `versionName` | `android/app/build.gradle` (keep `package.json` version in sync) |
+| Permissions | `android/app/src/main/AndroidManifest.xml` |
+| Icons / splash | `android/app/src/main/res/` |
+| Cleartext / cert pins | `android/app/src/main/res/xml/network_security_config.xml` |
+| Min/target/compile SDK | `android/build.gradle` (`24/36/36`) |
+
+> **CRITICAL:** `com.faazio.customer` must remain globally unique and unchanged — changing it creates
+> a new Play listing and breaks updates.
 
 ---
 
-## 📦 Step 2: Initialize EAS Project Configs
+## Step 2: Signing
 
-1. Log into your Expo account:
-   ```bash
-   eas login
-   ```
-2. Initialize EAS configuration in your project root:
-   ```bash
-   eas project:init
-   ```
-3. Generate the standard `eas.json` configuration file:
-   ```bash
-   eas build:configure
-   ```
+The release build reads `keystore/keystore.properties` (gitignored):
 
-Verify your generated `eas.json` looks like this for production releases:
-
-```json
-{
-  "cli": {
-    "version": ">= 9.0.0"
-  },
-  "build": {
-    "development": {
-      "developmentClient": true,
-      "distribution": "internal"
-    },
-    "preview": {
-      "distribution": "internal"
-    },
-    "production": {
-      "android": {
-        "buildType": "app-bundle"
-      }
-    }
-  },
-  "submit": {
-    "production": {}
-  }
-}
+```properties
+STORE_FILE=../../keystore/faazio-release.keystore
+STORE_PASSWORD=...
+KEY_ALIAS=...
+KEY_PASSWORD=...
 ```
 
----
+- **CI:** `.github/workflows/release-apk.yml` restores the keystore from `KEYSTORE_BASE64` +
+  password secrets via `scripts/restore-keystore.sh`.
+- **Manual:** run the same script with those env vars present.
+- A release build fails fast if the keystore/properties are missing — it never falls back to the
+  debug key.
+- **Back up the keystore.** Losing it means you can never update the app on Play.
 
-## 🔑 Step 3: Generating the Upload Key (Keystore)
-
-Android requires all released packages to be digitally signed with a cryptographic certificate (Keystore). 
-
-- **Option A (Recommended): Let EAS Handle Keystore Generation**
-  When you trigger your first production build via EAS, Expo will ask you:
-  *`Would you like us to generate an Android Keystore for you?`*
-  Type **`Y`** (Yes). EAS will securely generate and store the Keystore inside the cloud dashboard. You can download this credential anytime via the Expo Dev console.
-
-- **Option B (Manual Keystore Generation):**
-  If you need to sign locally, run this command in your shell:
-  ```bash
-  keytool -genkey -v -keystore superapp-release.keystore -alias superapp-alias -keyalg RSA -keysize 2048 -validity 10000
-  ```
-  *Make sure to back up your Keystore securely. If you lose your signing key, you will never be able to update your app in Google Play!*
+Signature schemes: release APKs are v2/v3-signed, correct for `minSdk 24`. v1 is not required.
 
 ---
 
-## 🚀 Step 4: Run the Production Cloud Build
+## Step 3: Build the release artifact in CI
 
-To trigger a production Google Play App Bundle (`.aab`) build, run:
+The current release workflow publishes a signed **APK** (GitHub Release):
 
 ```bash
-eas build --platform android --profile production
+cd client/mobile
+gh workflow run release-apk.yml -f version=1.1.0 -f tag=v1.1.0
+gh run watch
+gh run view --log-failed          # on failure
 ```
 
-This commands executes the following:
-1. Compiles all JavaScript, TypeScript, and assets into a single static bundle.
-2. Boots up a secure cloud container on Expo servers.
-3. Generates the Native Android source project.
-4. Inject credentials/keystores and signs the bundle.
-5. Emits a downloadable, optimized `.aab` file.
+Play requires an **AAB**. The workflow does not publish one yet; add a `bundleRelease` step/job
+(the Gradle command is identical to `assembleRelease`):
 
----
-
-## 📤 Step 5: Submitting to Google Play Store
-
-Once the build finishes successfully:
-
-### Method A: Automated CLI Submission
-You can submit directly using EAS Submit CLI:
 ```bash
-eas submit --platform android
+cd android
+./gradlew bundleRelease --no-daemon \
+  -PreactNativeArchitectures="arm64-v8a,armeabi-v7a" \
+  -Pandroid.enableMinifyInReleaseBuilds=true \
+  -Pandroid.enableShrinkResourcesInReleaseBuilds=true
+# -> app/build/outputs/bundle/release/app-release.aab
 ```
-*Note: For first-time submissions, you must manually upload the initial bundle via the Google Play Console UI to establish the package registry.*
 
-### Method B: Manual Web Console Upload
-1. Open the [Google Play Console](https://play.google.com/console/).
-2. Create a new app or select your existing project.
-3. Go to **Testing** -> **Closed testing** or **Production** -> **Create new release**.
-4. Drag and drop the downloaded `.aab` bundle file into the upload area.
-5. Supply the required metadata (Store description, Screenshots, App Icons, Privacy Policy URL).
-6. Fill in the **Content Rating** and **Data Safety** questionnaires.
-7. Click **Save** and **Rollout** to begin Google's app review process!
+> Do **not** run this locally. Add it to the GitHub Actions workflow (or a separate CI job) and
+> download the artifact from the run.
 
 ---
 
-## 💡 Play Store Checklist & Troubleshooting
-- **API Target level:** Always ensure your app is built using the latest target SDK (handled automatically by Expo SDK 57).
-- **Data Safety:** Inform users in the console questionnaire about the use of Camera permissions (Pharma prescription) and SecureStore tokens.
-- **64-bit Compliance:** Android requires compiled bundles to contain native binaries for both 32-bit and 64-bit architectures (EAS cloud compiler processes this natively).
+## Step 4: Upload to Play Console
+
+1. Open [Google Play Console](https://play.google.com/console/) and select Faazio.
+2. Go to **Testing → Closed testing** (or **Production**) → **Create new release**.
+3. Upload `app-release.aab`.
+4. Fill in store listing, screenshots, content rating, and **Data Safety**.
+5. Start rollout and submit for review.
 
 ---
+
+## Checklist
+
+- [ ] `versionCode` bumped (+1) and `versionName` matches `package.json`.
+- [ ] `npm run ts:check` and `npm run check:boundaries` pass.
+- [ ] Release built in CI with the release keystore and `CERT_PINS` configured.
+- [ ] R8 smoke test passed on a device: Home → Cart → Checkout → Pharma.
+- [ ] Data Safety discloses camera, location, media, and Keychain/Keystore token storage.
+- [ ] AAB produced in CI (add the `bundleRelease` job if not present).
 
 ## See also
 
-- Root release guide (local Gradle signing via `keystore/keystore.properties` + store
-  checklist): `docs/RUNBOOKS/RELEASE.md`.
+- `docs/RUNBOOKS/RELEASE.md` — signing, CI release flow, R8, smoke tests.
+- `docs/RUNBOOKS/CI_PIPELINE.md` — workflow triggers and artifacts.

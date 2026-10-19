@@ -16,9 +16,10 @@
 
 ```bash
 cd client/mobile
-npm install        # postinstall runs patch-package — must succeed
+npm install        # postinstall runs patch-package + configure.js — must succeed
 adb devices        # confirm a device
-npm run android    # expo run:android → build + install + launch
+npm run start      # Metro (keep running)
+# native builds are CI-only: gh workflow run android-debug.yml, then adb install
 ```
 
 ## Verify every change
@@ -31,8 +32,8 @@ npm run check:boundaries  # dependency-cruiser
 ## Key scripts (`client/mobile/package.json`)
 
 - `npm run start` — Metro dev server
-- `npm run android` / `npm run ios` — build + run on platform
-- `npm run web` — Expo web (`--port 3000`)
+- `npm run android` / `npm run ios` — build + run locally (do **not** run Android here: CI-only)
+- `npm run configure` — regenerate `src/lib/config.ts` from env
 - `npm run ts:check` — TypeScript typecheck
 - `npm run check:boundaries` — dependency-cruiser import rules
 

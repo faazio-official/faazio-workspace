@@ -15,35 +15,25 @@ adb devices            # must show "<id>  device"
 
 ## 🔧 Metro / port 8081
 
-- **"Port 8081 is being used by another process"** → a previous `expo start` is running.
-  `expo run:android` reuses it, or kill it:
+- **"Port 8081 is being used by another process"** → a previous Metro is running.
+  The debug app reuses it, or kill it:
   ```bash
-  pkill -f "expo start"        # or kill the pid on :8081
+  pkill -f "react-native start"   # or kill the pid on :8081
   ```
 - **Stale bundle / weird UI** → clear Metro cache:
   ```bash
-  npx expo start --clear
+  npm run start -- --reset-cache
   ```
-- **`expo start` crashes with `ERROR ... installing React Native DevTools ... Invalid argument (22)`**
-  (a fatal zygote/dotslash crash that kills Metro before it binds :8081) → this is the known
-  standalone-fusebox-shell bug (see react-native#54906). It is fixed project-wide by a
-  `patch-package` patch that disables the standalone shell:
-  `patches/expo++@expo+cli+57.0.22.patch`. Re-apply after a clean install:
-  ```bash
-  cd client/mobile
-  npm run postinstall    # applies patches/expo++@expo+cli+57.0.22.patch
-  ```
-- **`expo start` hangs forever at "Starting Metro Bundler" (no QR, :8081 never binds)** → the
+- **`npm run start` hangs forever at "Starting Metro Bundler" (no QR, :8081 never binds)** → the
   workspace is on an **NTFS3 mount** (`/dev/nvme0n1p5 ntfs3 /media/faizal-basha/Codespace`).
   The kernel ntfs3 driver deadlocks when several threads `readdir` the same tree concurrently,
   which is exactly what Metro's file-map crawl does with multiple workers. Fixed in
   `metro.config.js` with two knobs:
-  - `config.maxWorkers = 1` — serializes the crawl (see `metro:instantiate ... workers: 1`
-    in `.expo/dev/logs/start.log`).
+  - `config.maxWorkers = 1` — serializes the crawl.
   - `resolver.blockList` skips Gradle artifacts (`node_modules/*/android/build/`) that are
     never imported but hold ~26k files.
   Cold first build on NTFS is slow (~2 min); subsequent cached builds are fast. If a crawl was
-  interrupted, re-run with `npx expo start --clear`.
+  interrupted, re-run with `npm run start -- --reset-cache`.
   Long-term: hosting the repo on a native Linux filesystem (ext4) avoids the whole class of
   ntfs3 watcher/crawl issues.
 
@@ -75,7 +65,7 @@ rendered on the error card** (plus the first stack frame in a dev build) — tha
   `scope="SubApp"` boundary in `SubAppScreen` contains a Mart/Pharma-only failure so Home/Food keep
   working. Both offer **"Go to Home"** (resets navigation via `navigationRef`).
 - For a **full stack immediately**, install a **debug build from CI** (`gh workflow run
-  android-debug.yml`, then `adb install` + `npx expo start`) — dev does **not** strip `console.*`,
+  android-debug.yml`, then `adb install` + `npm run start`) — dev does **not** strip `console.*`,
   so the RedBox and `adb logcat -s ReactNativeJS` both show it. Do **not** build locally.
 - Likely causes: an unknown `subAppId` (handler: "Unsupported sub-app" state, no crash), a bad
   `initialVendorStoreId` (guarded), or a release-only native/keep-rule gap (message mentions
@@ -89,7 +79,7 @@ rendered on the error card** (plus the first stack frame in a dev build) — tha
 - The launcher icon is baked into the APK at build time — it only changes on **reinstall**.
 - If the icon is unchanged after `adb install`, the installed APK predates the icon assets, or the
   OS didn't see a version change. **Bump `versionCode`/`versionName`** in
-  `android/app/build.gradle` (+ `app.json` `version`), rebuild, and reinstall.
+  `android/app/build.gradle` (+ `package.json` `version`), rebuild, and reinstall.
 - Icon source files: `src/assets/icon.png` (1024 launcher), `adaptive-icon.png` (1024 foreground,
   artwork in the 66% safe zone), `logo.png` (wide splash wordmark). Regenerate all three from the
   1254×1254 source artwork via `python3 scripts/regenerate-icons.py` (keep them distinct — they
@@ -102,8 +92,8 @@ rendered on the error card** (plus the first stack frame in a dev build) — tha
 > signed release) and read errors with `gh run view --log-failed`. The diagnosis below is kept for
 > reference / when forcing a build on a freed machine.
 
-- **Native module changed (e.g. `expo-location` added/updated)** → a dev client built
-  before the change will crash with a missing module error. Rebuild the dev client **in CI**
+- **Native module changed (e.g. `react-native-vision-camera` added/updated)** → an APK built
+  before the change will crash with a missing module error. Rebuild the app **in CI**
   (never locally):
   ```bash
   gh workflow run android-debug.yml
@@ -111,38 +101,29 @@ rendered on the error card** (plus the first stack frame in a dev build) — tha
   gh run download <run-id> -n faazio-debug-apk
   adb install -r app-debug.apk
   ```
-  > Changing the `expo-location` permission string (or `NSLocationWhenInUseUsageDescription` /
-  > the `app.json` plugin message — e.g. to cover checkout live-address auto-fill) **also
+  > Changing a permission string (`AndroidManifest.xml` or `Info.plist`
+  > `NSLocationWhenInUseUsageDescription` — e.g. checkout live-address auto-fill) **also
   > requires a native rebuild** (CI debug build, as above) so the new prompt text is baked into the client.
 - **`compileDebugKotlin FAILED` — `Unresolved reference 'ReactNativeHostWrapper'`**
-  → the generated `android/` project is **stale** vs the installed Expo SDK. Regenerate:
+  → an Expo-generated `android/` project (or Expo leftovers) is present. This repo is bare RN:
+  `settings.gradle` must use `@react-native/gradle-plugin`, `MainApplication.kt` must use
+  `DefaultReactHost`, and there must be no `expo-*` Gradle plugins or `expo.modules` entries.
+  If `android/` was overwritten by `expo prebuild`, restore it from git (`git checkout --
+  android/`) — never regenerate it.
+- **Native project corrupted / wrong package after a bad generator run** → restore the committed
+  shell from git rather than patching it by hand:
   ```bash
-  cd client/mobile
-  npx expo prebuild --clean
+  git checkout -- android/ ios/
   ```
-  > This wipes the gitignored `android/` folder and rewrites it for the current SDK. Everything
-  > below is **local-only and must be re-applied after `prebuild --clean`**: (1) release signing
-  > (`scripts/configure-release-signing.sh` — CI does this automatically), (2) the memory caps in
-  > `gradle.properties` (`-Xmx2048m`, `workers.max=2`, `parallel=false`), (3)
-  > `android/local.properties` (`sdk.dir`), (4) the Gradle wrapper version — Expo may generate a
-  > newer Gradle (e.g. 9.3.1) that fails with `The settings are not yet available for build`;
-  > pin back to 8.14.3 in `gradle/wrapper/gradle-wrapper.properties`.
-- **Interrupted `expo prebuild` leaves `android/` broken with template defaults** → if prebuild
-  is killed mid-run (e.g. a shell timeout), the regenerated `android/` may keep Expo template
-  values instead of `app.json`: `com.helloworld` package, `versionCode 1`/`"1.0"`, Gradle 9.3.1
-  wrapper. Symptoms: `The settings are not yet available for build`, or an APK with the wrong
-  package. Fix: verify `app/build.gradle` (`namespace`/`applicationId` = `com.faazio.customer`,
-  `versionCode`/`versionName` from `app.json`), `app/src/main/java/com/faazio/*` `package`
-  lines, and the wrapper version — or re-run prebuild to completion in a detached shell:
-  `setsid npx expo prebuild --clean --platform android > /tmp/prebuild.log 2>&1 &`
-- **NDK / CMake issues** → the project needs a recent NDK (Expo SDK 57 pins NDK 27.1).
+  Then verify `namespace`/`applicationId` = `com.faazio.customer`, `versionCode`/`versionName` in
+  `android/app/build.gradle`, and that `ios/Faazio/AppDelegate.swift` sets moduleName `main`.
+- **NDK / CMake issues** → the project pins NDK `27.1.12297006` (see `android/build.gradle`).
   Install via Android Studio SDK Manager; confirm `ANDROID_HOME` points at the SDK.
 - **Out of memory (OOM) on a memory-pressured laptop** → **lower** concurrent Gradle memory,
   do **not** raise it. The machine is out of RAM, so a bigger heap makes it worse. `android/`
   `gradle.properties` already caps this: `org.gradle.jvmargs=-Xmx2048m -XX:MaxMetaspaceSize=512m`,
   `org.gradle.workers.max=2`, `org.gradle.parallel=false`. Free RAM first (close Chrome/VS Code
-  windows, or `sudo swapoff -a && sudo swapon -a` to flush exhausted swap). These `android/` edits
-  are wiped by `expo prebuild --clean` — re-apply after regenerating.
+  windows, or `sudo swapoff -a && sudo swapon -a` to flush exhausted swap).
   > **CI is tuned separately.** The release workflow writes `~/.gradle/gradle.properties`
   > (`-Xmx6144m`, `workers.max=4`, `parallel=true`) which **overrides** these laptop caps on the
   > GitHub runner only — the repo's `gradle.properties` intentionally stays laptop-capped.
@@ -206,7 +187,7 @@ re-applied automatically on `npm install` via the `postinstall: patch-package` s
   is picked up: `gh workflow run android-debug.yml` → download artifact → `adb install -r`.
 - **Quick verification** that Metro serves the patched code:
   ```bash
-  curl -s "http://localhost:8081/node_modules/expo/AppEntry.bundle?platform=android&dev=true&minify=false&app=com.faazio.customer&lazy=true" | grep -c "Object.isFrozen(updaterContainer)"   # expect >= 1
+  curl -s "http://localhost:8081/index.bundle?platform=android&dev=true&minify=false" | grep -c "Object.isFrozen(updaterContainer)"   # expect >= 1
   ```
 
 ## 🔧 Header overlaps status bar / first content under the header
@@ -302,7 +283,7 @@ product decision (auth stays mocked; no Supabase phone OTP), not a client bug. D
   `auth=dev-bypass` result means the dev header is in play. `GatewayClient.authStatus()` returns
   `dev-bypass` / `mock` / `enterprise` / `none`.
 - **Local dev fix:** run the gateway with `AUTH_DISABLED=true` (`DEV_USER_ID=user-1`) and set
-  `EXPO_PUBLIC_DEV_USER=user-1` in `client/mobile/.env.local` (dev builds only). A production/release
+  `DEV_USER=user-1` in `client/mobile/.env.local` (dev builds only; re-run `npm run configure`/Metro). A production/release
   build never sends `X-Dev-User`, so do not expect the KPIs there.
 - **Shopper impact:** none — local last-click attribution (`services/adsAttribution`) and the
   device-local vendor rating still work; the rating screen surfaces `signed-out`/`not-verified`
@@ -325,15 +306,15 @@ Conventions that keep the Home feed smooth (see `docs/architecture/mobile-app.md
   to **FlashList v2** (`@shopify/flash-list`, recycling + scroll anchoring on by default) is a
   tracked follow-up in `PENDING_WORK.md`. Don't regress the existing tuning
   (`initialNumToRender`/`windowSize`/`maxToRenderPerBatch`) without a measured reason.
-- **Network images use `expo-image`** (`contentFit="cover"`, `cachePolicy="memory-disk"`,
-  `transition`) via the shared `ProductCardBase` — never plain RN `Image` on the feed (no cache
-  control, raw pop-in, re-decode during scroll).
+- **Network images use the shared `AppImage`** (RN `Image` with `resizeMode="cover"`, disk/HTTP
+  cache) via `ProductCardBase` — never a raw per-component `Image` on the feed (raw pop-in,
+  re-decode during scroll).
 - **Non-initial routes are lazy-loaded** (`React.lazy` in `AppNavigator`/`MainTabs`) and fonts are
   trimmed + Android-gated (`useAppFonts`). If startup regresses, keep `Onboarding`/`Login`/
   `MainTabs`/`Home` eager and confirm no screen statically imported the removed font weights.
 - **Discover-grid batch load** is edge-triggered on the UI thread (`useDerivedValue` + `runOnJS`)
   at ~60% of the visible grid, deferred with `requestAnimationFrame` so the 8-card mount doesn't
-  land mid-fling, and the next batch's images are prefetched (`Image.prefetch`, `expo-image`). The
+  land mid-fling, and the next batch's images are prefetched (`Image.prefetch` via `AppImage`). The
   header collapse is **1:1** with the finger (`DAMPING = 1.0` in `HomeView`) — don't reintroduce
   damping (it caused the "content outruns the finger" surge).
 - **Header collapse is transform-only** (see the header-overlap section above) — never animate the
@@ -373,8 +354,7 @@ runtime, not build time.
   adb install -r app-release.apk
   ```
   Walk the core flows: **Home → Cart → Checkout → Pharma**. If something crashes that worked
-  before minification, add a keep rule to the generated `android/app/proguard-rules.pro` (re-applied
-  after `expo prebuild --clean` by editing it again, or via a keep-rule snippet in the RN template).
+  before minification, add a keep rule to the committed `android/app/proguard-rules.pro` and rebuild.
 - **Retracing a minified crash** — release stack traces have obfuscated class/method names. Retrace
   with the run's `mapping.txt` (private Actions artifact `faazio-mapping-<run_id>` — never publish
   it, it defeats obfuscation):
@@ -393,13 +373,11 @@ runtime, not build time.
 
 - **Release APK installs as debug-signed / needs `adb install` only** → the `release` build type is
   not signed with the release keystore. In CI this should not happen (the workflow runs
-  `scripts/restore-keystore.sh` + `scripts/configure-release-signing.sh` before
-  `./gradlew assembleRelease`). For a manual build, run those two scripts (see RELEASE.md).
+  `scripts/restore-keystore.sh` before `./gradlew assembleRelease`). For a manual build, run
+  that script first (see RELEASE.md).
 - **"Store file not found"** → `keystore/keystore.properties` (`STORE_FILE`) points to a missing
   file. Confirm the keystore exists and the path is correct (relative to project root). In CI,
   ensure `KEYSTORE_BASE64` secret is set.
-- **SigningConfig release missing after `expo prebuild --clean`** → `prebuild` regenerates `android/`
-  and drops manual `build.gradle` edits — run `scripts/configure-release-signing.sh` again (see RELEASE.md).
 - **CI build fails on `restore-keystore.sh`** → the `KEYSTORE_BASE64`/`KEYSTORE_PASS`/`KEY_ALIAS`/
   `ALIAS_PASS` secrets are missing or wrong; verify with `gh secret list`.
 - **"App not installed as package appears to be invalid" (with a Done button, app name in the

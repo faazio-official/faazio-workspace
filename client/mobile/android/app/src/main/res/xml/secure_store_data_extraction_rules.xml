@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Android 12+ cloud/device-transfer exclusions for session material. -->
+<data-extraction-rules>
+  <cloud-backup>
+    <exclude domain="sharedpref" path="RN_KEYCHAIN" />
+    <exclude domain="file" path="datastore/RN_KEYCHAIN.preferences_pb" />
+  </cloud-backup>
+  <device-transfer>
+    <exclude domain="sharedpref" path="RN_KEYCHAIN" />
+    <exclude domain="file" path="datastore/RN_KEYCHAIN.preferences_pb" />
+  </device-transfer>
+</data-extraction-rules>

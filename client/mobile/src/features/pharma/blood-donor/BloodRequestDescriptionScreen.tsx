@@ -9,7 +9,7 @@ import {
   Linking,
   Alert,
 } from 'react-native';
-import { Image as ExpoImage } from 'expo-image';
+import { AppImage } from '@/components/shared/AppImage';
 import {
   ChevronLeft,
   Share2,
@@ -236,7 +236,7 @@ export function BloodRequestDescriptionScreen({ navigation, route }: Props) {
         ) : null}
         <View style={styles.hospitalCard}>
           {request.imageUrl ? (
-            <ExpoImage
+            <AppImage
               source={{ uri: request.imageUrl }}
               style={styles.hospitalPhoto}
               contentFit="cover"

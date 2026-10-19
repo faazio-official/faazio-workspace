@@ -1,6 +1,6 @@
 import React, { memo, useState } from 'react';
-import { Image as ExpoImage } from 'expo-image';
-import type { ImageStyle } from 'expo-image';
+import type { ImageStyle } from 'react-native';
+import { AppImage } from '@/components/shared/AppImage';
 
 interface PharmaImageProps {
   uri: string;
@@ -21,7 +21,7 @@ const PharmaImage = memo(function PharmaImage({
   const [failed, setFailed] = useState(false);
 
   return (
-    <ExpoImage
+    <AppImage
       source={{ uri: failed ? fallback : uri }}
       style={style}
       contentFit={contentFit}

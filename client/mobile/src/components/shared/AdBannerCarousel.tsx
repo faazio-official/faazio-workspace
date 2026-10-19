@@ -9,7 +9,7 @@ import {
   type StyleProp,
   type ViewStyle,
 } from 'react-native';
-import { Image as ExpoImage } from 'expo-image';
+import { AppImage } from './AppImage';
 import { Tag, ArrowRight } from 'lucide-react-native';
 import { hs, vs, ms } from '@/utils/responsive';
 import type { AdSlide } from '@data/types';
@@ -90,7 +90,7 @@ const AdBannerCarousel = memo(function AdBannerCarousel({
                 accessibilityLabel={accessibilityLabel}
                 onPress={() => onSlidePress?.(slide)}
               >
-                <ExpoImage
+                <AppImage
                   source={{ uri: slide.imageUrl }}
                   style={styles.bg}
                   contentFit="cover"

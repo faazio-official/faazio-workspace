@@ -373,7 +373,7 @@ export default function CartView({
             : {}),
           ...(coinsRedeemed > 0 ? { coinsRedeemed } : {}),
         }),
-        new Promise((resolve) => setTimeout(resolve, 1200)),
+        new Promise((resolve) => setTimeout(() => resolve(undefined), 1200)),
       ]);
       const orderId = placed?.id ?? `FZ-${Math.floor(100000 + Math.random() * 900000)}`;
 

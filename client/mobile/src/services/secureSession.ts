@@ -1,4 +1,12 @@
-import * as SecureStore from 'expo-secure-store';
+/**
+ * Session token + profile storage backed by the platform Keychain/Keystore
+ * (`react-native-keychain`). Values are encrypted at rest; the encryption key
+ * lives in the Keystore and is never included in Android backups.
+ *
+ * The whole session is stored as one generic-password payload under a single
+ * service so a read/write is atomic and there are no partial sessions.
+ */
+import * as Keychain from 'react-native-keychain';
 
 export interface StoredUser {
   id: string;
@@ -13,48 +21,42 @@ export interface StoredSession {
   user: StoredUser;
 }
 
-const ACCESS_TOKEN_KEY = 'faazio.session.accessToken';
-const REFRESH_TOKEN_KEY = 'faazio.session.refreshToken';
-const PROFILE_KEY = 'faazio.session.profile';
+const SERVICE = 'com.faazio.session';
+const ACCOUNT = 'session';
 
-const OPTIONS: SecureStore.SecureStoreOptions = {
-  keychainAccessible: SecureStore.WHEN_UNLOCKED,
+const OPTIONS: Keychain.SetOptions = {
+  service: SERVICE,
+  accessible: Keychain.ACCESSIBLE.WHEN_UNLOCKED,
 };
 
 export async function saveSession(session: StoredSession): Promise<void> {
-  if (session.accessToken) {
-    await SecureStore.setItemAsync(ACCESS_TOKEN_KEY, session.accessToken, OPTIONS);
-  }
-  if (session.refreshToken) {
-    await SecureStore.setItemAsync(REFRESH_TOKEN_KEY, session.refreshToken, OPTIONS);
-  }
-  await SecureStore.setItemAsync(PROFILE_KEY, JSON.stringify(session.user), OPTIONS);
+  await Keychain.setGenericPassword(ACCOUNT, JSON.stringify(session), OPTIONS);
 }
 
 export async function loadSession(): Promise<StoredSession | null> {
-  const [accessToken, refreshToken, profileRaw] = await Promise.all([
-    SecureStore.getItemAsync(ACCESS_TOKEN_KEY, OPTIONS),
-    SecureStore.getItemAsync(REFRESH_TOKEN_KEY, OPTIONS),
-    SecureStore.getItemAsync(PROFILE_KEY, OPTIONS),
-  ]);
-
-  if (!profileRaw) return null;
+  const credentials = await Keychain.getGenericPassword({ service: SERVICE });
+  if (!credentials || !credentials.password) return null;
 
   try {
-    const user = JSON.parse(profileRaw) as StoredUser;
-    if (!user || typeof user !== 'object' || typeof user.id !== 'string') {
+    const session = JSON.parse(credentials.password) as StoredSession;
+    if (
+      !session ||
+      typeof session !== 'object' ||
+      !session.user ||
+      typeof session.user.id !== 'string'
+    ) {
       return null;
     }
-    return { accessToken, refreshToken, user };
+    return {
+      accessToken: session.accessToken ?? null,
+      refreshToken: session.refreshToken ?? null,
+      user: session.user,
+    };
   } catch {
     return null;
   }
 }
 
 export async function clearSession(): Promise<void> {
-  await Promise.all([
-    SecureStore.deleteItemAsync(ACCESS_TOKEN_KEY, OPTIONS),
-    SecureStore.deleteItemAsync(REFRESH_TOKEN_KEY, OPTIONS),
-    SecureStore.deleteItemAsync(PROFILE_KEY, OPTIONS),
-  ]);
+  await Keychain.resetGenericPassword({ service: SERVICE });
 }

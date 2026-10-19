@@ -1,6 +1,6 @@
 import React, { memo, useCallback, useEffect, useState } from 'react';
 import { View, StyleSheet, LayoutChangeEvent } from 'react-native';
-import { Image as ExpoImage } from 'expo-image';
+import { AppImage } from '@/components/shared/AppImage';
 import { hs, ms } from '@/utils/responsive';
 import { SPACE } from '@/theme/spacing';
 import { useDerivedValue, useSharedValue, runOnJS, type SharedValue } from 'react-native-reanimated';
@@ -88,7 +88,7 @@ function FilterFeedSection({
   const prefetchNextBatch = useCallback(() => {
     const next = pool.slice(visibleCount, visibleCount + BATCH_SIZE);
     if (next.length > 0) {
-      ExpoImage.prefetch(next.map((p) => p.image), 'memory-disk');
+      AppImage.prefetch(next.map((p) => p.image));
     }
   }, [pool, visibleCount]);
 

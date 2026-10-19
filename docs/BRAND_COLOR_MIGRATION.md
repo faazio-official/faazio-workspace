@@ -87,10 +87,11 @@ cd client/mobile && grep -rniE "#7C3AED|#6D28D9|#8B5CF6|#C4B5FD|#EDE9FE|#F5F3FF|
 ## Follow-up (2026-09-10): Splash background → `#0000FF`
 
 The cold-start splash background was changed from Faazio Blue `#1162D3` to pure royal blue
-`#0000FF` (matching the native splash already set in `app.json`):
+`#0000FF` (matching the native splash configuration):
 
 - `client/mobile/src/components/SplashFallback.tsx` — `royal` variant background
   `#1162D3`→`#0000FF` (+ docstring).
 
-Native splash config in `app.json` (`splash.backgroundColor`, the `expo-splash-screen` plugin,
-and the Android adaptive-icon background) was already `#0000FF`, so no change was needed there.
+Native splash config lives in `client/mobile/android/app/src/main/res/values/colors.xml`
+(`splashscreen_background`) and `styles.xml` (the splash theme), so no JS config change was needed.
+The iOS launch-screen storyboard carries its own background color.

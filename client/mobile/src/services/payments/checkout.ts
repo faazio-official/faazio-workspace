@@ -52,7 +52,7 @@ const mockCheckout: PaymentCheckout = {
         'Razorpay checkout unavailable: install react-native-razorpay and register an adapter via setPaymentCheckout().',
       );
     }
-    await new Promise((resolve) => setTimeout(resolve, MOCK_LATENCY_MS));
+    await new Promise((resolve) => setTimeout(() => resolve(undefined), MOCK_LATENCY_MS));
     return {
       razorpayPaymentId: `pay_mock_${Math.random().toString(36).slice(2, 12)}`,
       razorpayOrderId: req.orderId,

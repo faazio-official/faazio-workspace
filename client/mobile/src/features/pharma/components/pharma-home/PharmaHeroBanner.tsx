@@ -1,6 +1,6 @@
 import React, { memo } from 'react';
 import { View, TouchableOpacity, StyleSheet } from 'react-native';
-import { LinearGradient } from 'expo-linear-gradient';
+import { AppGradient } from '@/components/shared/AppGradient';
 import AppText from '@/components/AppText';
 import { hs, ms, vs } from '@/utils/responsive';
 import { PHARMA_HERO_IMAGE, PHARMA_TEAL, PHARMA_TEAL_DARK } from '../../mocks/pharmaHomeFeed';
@@ -26,7 +26,7 @@ const PharmaHeroBanner = memo(function PharmaHeroBanner({
 }: PharmaHeroBannerProps) {
   return (
     <View style={styles.wrap}>
-      <LinearGradient colors={['#F0FDF8', '#E0F2F1']} style={styles.card}>
+      <AppGradient colors={['#F0FDF8', '#E0F2F1']} style={styles.card}>
         <View style={styles.left}>
           <View style={styles.pill}>
             <AppText style={styles.pillText}>STAY HEALTHY</AppText>
@@ -60,7 +60,7 @@ const PharmaHeroBanner = memo(function PharmaHeroBanner({
           </TouchableOpacity>
         </View>
         <PharmaImage uri={banner?.imageUrl ?? PHARMA_HERO_IMAGE} style={styles.image} contentFit="cover" />
-      </LinearGradient>
+      </AppGradient>
       <View style={styles.dotsRow}>
         <View style={styles.dotActive} />
         <View style={styles.dotInactive} />

@@ -2,11 +2,14 @@
 # vim
 *.swp
 
-# Generated native projects (created by `expo prebuild`)
-/android/
-/ios/
+# Generated JS/config (scripts/configure.js) — never commit.
+/src/lib/config.ts
+/src/lib/activeTransport.ts
+/src/lib/config.js
+/src/lib/activeTransport.js
 
-# Build outputs / installable APKs
+# Committed bare-RN native projects are the source of truth (no prebuild).
+# Only build outputs / installable APKs / local secrets are ignored.
 *.apk
 *.aab
 /build/
@@ -14,4 +17,10 @@
 # Release signing secrets
 /keystore/
 *.keystore
+!android/app/debug.keystore
 keystore.properties
+
+# Environment (see .env.example)
+.env
+.env.local
+.env.*.local

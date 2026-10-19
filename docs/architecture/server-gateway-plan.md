@@ -66,7 +66,7 @@ The sections below are the **Future Prod** target.
 
 ## Service matrix
 
-| Service | Language | DB | Cloud Run spec | Why |
+| Service | Language | DB | Deploy spec | Why |
 |---|---|---|---|---|
 | Search & Catalog | Rust | Tantivy/Meilisearch | 0.5 vCPU / 512 MB | sub-ms, no GC pauses |
 | Cart & Stock | Go | DynamoDB/Firestore | 0.5 vCPU / 256 MB | high concurrency, flat perf |
@@ -111,15 +111,16 @@ server/
 │   ├── reviews/             # Go — chi, PostgreSQL (vendor ratings + eligibility)
 │   └── recommendations/     # Python — FastAPI, MongoDB
 ├── contracts/               # shared proto / OpenAPI contracts
-└── deployments/             # Cloud Run / Docker manifests, env templates (no secrets)
+└── (deploy)                 # repo-root render.yaml Blueprints + per-service Dockerfiles
 ```
 
 ## Supporting infrastructure (future)
 
-- **LB + API gateway:** Google Cloud HTTP(S) Load Balancing + Cloud Run native routing.
+- **LB + API gateway:** Render managed load balancing + automatic TLS on custom domains.
 - **CDN & WAF:** Cloudflare in front (DDoS protection + image caching); backend firewall
   accepts traffic only from Cloudflare's IP ranges (AGENTS.md security posture).
-- **Events:** Google Cloud Pub/Sub (or serverless Kafka) for order → stock/email/recommend.
+- **Events:** Render Background Workers + Cron Jobs (or an external queue such as Upstash Kafka)
+  for order → stock/email/recommend.
 - **Cache:** Aiven Valkey (read-through for search/banners). *Decision note: replaces the earlier
   "Upstash Redis" plan — see `docs/architecture/caching-cloudflare-valkey.md`. DB schemas: see
   `docs/architecture/db-schema.md`.*
@@ -143,10 +144,10 @@ lightweight-superapp playbook on two of three axes:
 - **Aggressive code shrinking — handled client-side.** R8 minify + resource shrinking, 2-ABI
   trimming and Hermes keep the shipped JS/native payload small; see `docs/RUNBOOKS/RELEASE.md`
   and `docs/architecture/mobile-app.md` ("Size & delivery strategy").
-- **Differential / per-feature OTA — not covered (out of scope for now).** There is no
-  `expo-updates` / EAS Update / CodePush wiring; `React.lazy` routes defer module *evaluation* on
-  a single Metro bundle, not per-feature download. `expo-updates` (OTA JS channel) is the
-  pragmatic RN option; Flipkart-style per-feature delivery is custom infrastructure. Tracked in
+- **Differential / per-feature OTA — not covered (out of scope for now).** There is no OTA
+  provider (Expo Updates/CodePush) wiring; `React.lazy` routes defer module *evaluation* on a
+  single Metro bundle, not per-feature download. A JS-bundle OTA channel is the pragmatic option;
+  Flipkart-style per-feature delivery is custom infrastructure. Tracked in
   `client/mobile/PENDING_WORK.md`.
 
 ## Fail-safe contract

@@ -6,7 +6,7 @@ import {
   ScrollView,
   Image,
 } from 'react-native';
-import { CameraView, useCameraPermissions, type CameraCapturedPicture } from 'expo-camera';
+import { Camera, useCameraDevice, useCameraPermission } from 'react-native-vision-camera';
 import { ChevronLeft, Zap, ZapOff, Camera as CameraIcon, Trash2 } from 'lucide-react-native';
 import AppText from '@/components/AppText';
 import { hs, ms, vs } from '@/utils/responsive';
@@ -24,25 +24,27 @@ const PrescriptionCameraStep = memo(function PrescriptionCameraStep({
   onNext,
   maxPhotos,
 }: PrescriptionCameraStepProps) {
-  const [permission, requestPermission] = useCameraPermissions();
+  const { hasPermission, requestPermission } = useCameraPermission();
+  const device = useCameraDevice('back');
   const [flash, setFlash] = useState<'off' | 'on'>('off');
   const [photos, setPhotos] = useState<string[]>([]);
-  const cameraRef = useRef<CameraView>(null);
+  const cameraRef = useRef<Camera>(null);
 
   const handleConsentGrant = useCallback(async () => {
-    if (permission?.granted) return;
+    if (hasPermission) return;
     await requestPermission();
-  }, [permission, requestPermission]);
+  }, [hasPermission, requestPermission]);
 
   const takePhoto = useCallback(async () => {
     if (photos.length >= maxPhotos || !cameraRef.current) return;
-    const pic: CameraCapturedPicture | undefined = await cameraRef.current.takePictureAsync({
-      quality: 0.6,
+    const photo = await cameraRef.current.takePhoto({
+      flash,
+      enableAutoRedEyeReduction: true,
     });
-    if (pic?.uri) {
-      setPhotos((prev) => [...prev, pic.uri]);
+    if (photo?.path) {
+      setPhotos((prev) => [...prev, `file://${photo.path}`]);
     }
-  }, [photos.length, maxPhotos]);
+  }, [photos.length, maxPhotos, flash]);
 
   const removePhoto = useCallback((index: number) => {
     setPhotos((prev) => prev.filter((_, i) => i !== index));
@@ -50,7 +52,7 @@ const PrescriptionCameraStep = memo(function PrescriptionCameraStep({
 
   return (
     <View style={styles.root}>
-      {!permission?.granted ? (
+      {!hasPermission ? (
         <View style={styles.consentWrap}>
           <View style={styles.consentCard}>
             <View style={styles.consentIcon}>
@@ -79,13 +81,19 @@ const PrescriptionCameraStep = memo(function PrescriptionCameraStep({
         </View>
       ) : (
         <View style={styles.cameraWrap}>
-          <CameraView
-            ref={cameraRef}
-            style={StyleSheet.absoluteFill}
-            facing="back"
-            flash={flash}
-            mode="picture"
-          />
+          {device ? (
+            <Camera
+              ref={cameraRef}
+              style={StyleSheet.absoluteFill}
+              device={device}
+              isActive
+              photo
+            />
+          ) : (
+            <View style={styles.noCamera}>
+              <AppText style={styles.noCameraText}>No back camera available</AppText>
+            </View>
+          )}
 
           {/* Top bar */}
           <View style={styles.topBar}>
@@ -253,6 +261,16 @@ const styles = StyleSheet.create({
   cameraWrap: {
     flex: 1,
     position: 'relative',
+  },
+  noCamera: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  noCameraText: {
+    fontSize: ms(14),
+    fontWeight: '700',
+    color: '#FFFFFF',
   },
   topBar: {
     position: 'absolute',

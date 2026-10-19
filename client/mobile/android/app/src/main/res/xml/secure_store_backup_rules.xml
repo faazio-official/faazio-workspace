@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Never back up Keychain/Keystore-backed session material. -->
+<full-backup-content>
+  <exclude domain="sharedpref" path="RN_KEYCHAIN" />
+  <exclude domain="file" path="datastore/RN_KEYCHAIN.preferences_pb" />
+</full-backup-content>

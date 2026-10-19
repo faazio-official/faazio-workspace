@@ -1,11 +1,11 @@
 # Architecture.md — Faazio SuperApp
 
-> **Concern:** high-level technical architecture for the two real runtimes — the **React Native (Expo) mobile app** (`client/mobile/`) and the **Go Chi backend** (`server/`, MVP thin gateway + Future Prod microservices). Modular, layered, and trackable so every concern has one owner and nothing is silently re-invented (or duplicated) because it "was modular."
+> **Concern:** high-level technical architecture for the two real runtimes — the **bare React Native mobile app** (`client/mobile/`) and the **Go Chi backend** (`server/`, MVP thin gateway + Future Prod microservices). Modular, layered, and trackable so every concern has one owner and nothing is silently re-invented (or duplicated) because it "was modular."
 
 ## Runtime boundaries (what is live vs frozen vs planned)
 | Surface | Stack | Status |
 |---|---|---|
-| `client/mobile/` | React Native (Expo SDK 54) + TypeScript + Zustand | **LIVE.** All active work. |
+| `client/mobile/` | Bare React Native 0.86.3 + TypeScript + Zustand | **LIVE.** All active work. |
 | `data/` | Typed entity arrays (SDUI source of truth) | **LIVE (enterprise-controlled).** Read-only for the app; consumed via `@data/*`. |
 | `server/` | Go Chi backend — MVP modular monolith over Supabase + MongoDB + Valkey | **MVP ACTIVE (built).** Future Prod = full microservices. See `docs/architecture/mvp-backend.md`, `monolith-breakdown.md`. |
 | `data/DATA_CONTROL.md` | Ownership + mock/seed/static inventory | **LIVE.** Authoritative ownership map. |
@@ -24,7 +24,7 @@ state (src/state/ — Zustand stores, selectors)
    ↓
 presentation primitives (src/components/shared/, src/theme/)
    ↓
-`@data/*` (root data/)  ·  `expo`/`react-native` APIs
+`@data/*` (root data/)  ·  bare `react-native` APIs
 ```
 - A module may only import **down** the stack, never sideways into another module's internals.
 - Cross-module data access is **Home-only**, enforced by `dependency-cruiser` (`npm run check:boundaries`).
@@ -55,10 +55,10 @@ presentation primitives (src/components/shared/, src/theme/)
 
 ### Remote media (image) policy
 - Data URLs come from `@data/*` / feature mocks (enterprise-controlled) — do not rewrite sources in the app.
-- Use `expo-image` (Glide/Fresco) with explicit dimensions + local bundled fallback + `onError`; prefer JPEG (`fm=jpg`) so the negotiated format always decodes in Expo Go.
+- Use the shared `components/shared/AppImage` (React Native `Image`, Fresco/NSURLCache) with explicit dimensions + local bundled fallback + `onError`; prefer JPEG (`fm=jpg`) so the negotiated format always decodes.
 
 ### Security
-- Tokens via `expo-secure-store`; never log secrets/PII; prescriptions & payment details never in plain logs; document native permissions in `app.json` and gate with consent.
+- Tokens via `react-native-keychain` (Android Keystore / iOS Keychain); never log secrets/PII; prescriptions & payment details never in plain logs; document native permissions in `android/app/src/main/AndroidManifest.xml` + `ios/Faazio/Info.plist` and gate with consent.
 
 ---
 

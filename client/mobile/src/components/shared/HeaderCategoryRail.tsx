@@ -1,6 +1,6 @@
 import React, { memo, useCallback } from 'react';
 import { View, TouchableOpacity, ScrollView, StyleSheet, NativeSyntheticEvent, NativeScrollEvent } from 'react-native';
-import { Image as ExpoImage } from 'expo-image';
+import { AppImage } from './AppImage';
 import AppText from '@/components/AppText';
 import { hs, ms, vs } from '@/utils/responsive';
 import { usePagedRail } from '@/hooks/usePagedRail';
@@ -55,7 +55,7 @@ const HeaderCategoryRail = memo(function HeaderCategoryRail({
           accessibilityRole="button"
           accessibilityLabel={`Browse ${item.name}`}
         >
-          <ExpoImage
+          <AppImage
             source={{ uri: item.icon }}
             style={styles.chipIcon}
             contentFit="contain"

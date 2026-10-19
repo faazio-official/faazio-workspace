@@ -4,7 +4,7 @@
 Build **lightweight, fast, secure**. Every change must justify its size:
 - **Lightweight** — small bundle, lean components, no dead code or unused deps.
 - **Fast** — efficient rendering, lazy/native where sensible, minimal re-renders.
-- **Secure** — never log or commit secrets/PII; tokens via `expo-secure-store`; prescriptions & payments never in plain logs.
+- **Secure** — never log or commit secrets/PII; tokens via `react-native-keychain`; prescriptions & payments never in plain logs.
 
 ## Phase: MVP (now)
 **Status: MVP.** The backend is a **thin Go Chi gateway** over **Supabase (Postgres) + MongoDB Atlas M0 + Aiven Valkey**, with Cloudflare in front. This replaces the mocked `@mock` data per module (`@mock` → `@server`).
@@ -16,7 +16,7 @@ The full microservices target — Rust/Tantivy search, CockroachDB, DynamoDB, pe
 ```
 faazio-workspace/
 ├── (root)          Repo root — docs + project docs only (AGENTS.md, ARCHITECTURE.md, LICENSE, PAGE_CATALOG.md, PENDING_WORK.md, README.md).
-├── client/mobile/  React Native (Expo) SuperApp — ALL active work lives here.
+├── client/mobile/  Bare React Native SuperApp (committed android/ + ios/) — ALL active work lives here.
 ├── client/web/     Partner Portal — Next.js App Router console (`portal/`, shipping) + the Vite/TanStack reference (`vite-reference/`, read-only diff baseline) + the marketing landing page (`landingpage/`, TanStack Start + Nitro, deployed on Vercel — see its README.md). See docs/architecture/web-portal.md.
 ├── server/         MVP Go Chi modular monolith `gateway/` + Supabase migrations/seed (active) + future full microservices (see docs/architecture/mvp-backend.md, monolith-breakdown.md).
 ├── data/           SDUI source of truth (enterprise-controlled), consumed via @data/*.
@@ -47,7 +47,7 @@ Reading order for a new contributor: `AGENTS.md` → `ARCHITECTURE.md` →
 3. **State** — shared state ONLY in Zustand stores under `src/state/`. Keep components presentational; read via selectors. No duplicate shared state.
 4. **Modularity** — small components under `src/components/`; screen helpers under their `src/features/<module>/`; shared widgets under `src/components/shared/`. Reuse before duplicating (avoid parallel mock copies).
 5. **Navigation** — all routes typed in `src/navigation/AppNavigator.tsx`; screens use `NativeStackScreenProps`.
-6. **Native permissions** — document in `app.json` (`ios.infoPlist`/`android.permissions`) and gate with consent dialogs before hardware.
+6. **Native permissions** — document in `android/app/src/main/AndroidManifest.xml` + `ios/Faazio/Info.plist` and gate with consent dialogs before hardware.
 7. **Brand** — always use the Faazio logo (`<FaazioLogo />`), never raw text placeholders.
 8. **Layout** — full-viewport, non-scrollable (`h-[100dvh]`), no faux device borders/notches.
 9. **Boundaries** — cross-sub-app access only via Home. Enforced by `check:boundaries`.
@@ -81,7 +81,7 @@ npm run check:boundaries  # dependency-cruiser
 ```
 
 ## Builds are CI-only — never run Gradle locally
-**Never run `npm run android` / `expo run:android` / `./gradlew` on this machine.** Local Gradle
+**Never run `npm run android` / `react-native run-android` / `./gradlew` on this machine.** Local Gradle
 builds get SIGKILLed by `systemd-oomd` at the 50% memory-pressure threshold (see
 `docs/RUNBOOKS/TROUBLESHOOTING.md` → "Gradle / native build failures") and waste the user's RAM.
 Instead let GitHub Actions build and surface any build errors:
@@ -107,11 +107,23 @@ Install a CI artifact on the device (never build it locally):
 ```bash
 gh run download <run-id> -n faazio-debug-apk
 adb install -r app-debug.apk
-adb reverse tcp:8081 tcp:8081        # then `npx expo start` locally for Metro
+adb reverse tcp:8081 tcp:8081        # then `npm run start` locally for Metro
 ```
 
 Full details: `docs/RUNBOOKS/CI_PIPELINE.md`. Local `npm run start` (Metro) is fine — it is the
-bundler, **not** Gradle.
+bundler, **not** Gradle. The committed `android/`/`ios/` shells are the source of truth; never run
+`expo prebuild` (Expo is gone) and never commit generated `src/lib/config.ts`.
+
+## Native + config contract
+- **Bare RN 0.86.3, no Expo.** JS entry is `index.js`; Metro/config are `@react-native/*`.
+- **`scripts/configure.js` is the single JS↔native config owner.** It reads `GATEWAY_URL`,
+  `USE_GATEWAY`, `STRICT`, `DEV_USER`, `CERT_PINS` from the environment/.env and generates
+  `src/lib/config.ts` + `src/lib/activeTransport.ts` (gitignored). `prestart`/`preandroid` and CI
+  run it; release builds also write the Android certificate-pin network config. See
+  `docs/RUNBOOKS/RELEASE.md`.
+- **Debug vs release:** debug shells load JS from Metro (`adb reverse tcp:8081`) with cleartext
+  allowed only to the loopback/emulator host; release shells embed the bundle and deny cleartext.
+  JS-only changes need Metro + Fast Refresh; native changes require a CI rebuild.
 
 ## Modules
 Shipped (`client/mobile/src/features/`): `onboarding`, `auth`, `home`, `ecommerce`

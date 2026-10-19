@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Default: deny cleartext. `scripts/configure.js` rewrites this file for
+     release builds with the configured certificate pins. -->
+<network-security-config>
+  <base-config cleartextTrafficPermitted="false" />
+</network-security-config>

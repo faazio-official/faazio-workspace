@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { StyleSheet, View, TouchableOpacity, ScrollView } from 'react-native';
-import { LinearGradient } from 'expo-linear-gradient';
+import { AppGradient } from '@/components/shared/AppGradient';
 import { Bell, HeartPulse, Droplet, Search, Funnel, CloudOff } from 'lucide-react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
@@ -179,7 +179,7 @@ export function DonorDashboard() {
           </View>
         ) : null}
 
-        <LinearGradient
+        <AppGradient
           colors={[BLOOD_RED, BLOOD_RED_DARK]}
           start={{ x: 0, y: 0 }}
           end={{ x: 1, y: 1 }}
@@ -197,7 +197,7 @@ export function DonorDashboard() {
               <Droplet size={ms(12)} color="#ffffff" fill="#ffffff" strokeWidth={2} />
             </View>
           </View>
-        </LinearGradient>
+        </AppGradient>
 
         {incomingRequests.length > 0 ? (
           <View style={styles.incomingSection}>

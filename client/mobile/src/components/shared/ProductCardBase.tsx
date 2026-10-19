@@ -1,6 +1,6 @@
 import React, { memo } from 'react';
 import { View, TouchableOpacity, StyleSheet } from 'react-native';
-import { Image as ExpoImage } from 'expo-image';
+import { AppImage } from './AppImage';
 import { Star, Plus, Minus, Check } from 'lucide-react-native';
 import { hs, vs, ms } from '@/utils/responsive';
 import { brandTokens } from '@/theme/brandTokens';
@@ -67,7 +67,7 @@ const ProductCardBase = memo(function ProductCardBase({
   return (
     <TouchableOpacity style={cardStyle} onPress={() => onPress?.(product)} activeOpacity={0.9}>
       <View style={styles.imageWrap}>
-        <ExpoImage
+        <AppImage
           source={{ uri: product.image }}
           contentFit="cover"
           cachePolicy="memory-disk"
