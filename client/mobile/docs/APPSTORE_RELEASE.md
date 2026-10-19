@@ -2,7 +2,7 @@
 
 This document covers compiling, signing, and uploading the **Faazio** iOS app to App Store Connect.
 The project is a **bare React Native 0.86.3** app: `ios/` is committed, CocoaPods is the dependency
-manager, and there is no Expo prebuild/EAS step.
+manager, and there is no prebuild/EAS step.
 
 ---
 

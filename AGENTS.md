@@ -112,10 +112,10 @@ adb reverse tcp:8081 tcp:8081        # then `npm run start` locally for Metro
 
 Full details: `docs/RUNBOOKS/CI_PIPELINE.md`. Local `npm run start` (Metro) is fine — it is the
 bundler, **not** Gradle. The committed `android/`/`ios/` shells are the source of truth; never run
-`expo prebuild` (Expo is gone) and never commit generated `src/lib/config.ts`.
+a native prebuild/generator and never commit generated `src/lib/config.ts`.
 
 ## Native + config contract
-- **Bare RN 0.86.3, no Expo.** JS entry is `index.js`; Metro/config are `@react-native/*`.
+- **Bare RN 0.86.3.** JS entry is `index.js`; Metro/config are `@react-native/*`.
 - **`scripts/configure.js` is the single JS↔native config owner.** It reads `GATEWAY_URL`,
   `USE_GATEWAY`, `STRICT`, `DEV_USER`, `CERT_PINS` from the environment/.env and generates
   `src/lib/config.ts` + `src/lib/activeTransport.ts` (gitignored). `prestart`/`preandroid` and CI

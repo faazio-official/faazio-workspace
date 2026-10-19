@@ -12,7 +12,7 @@ export type AppImageContentFit = 'cover' | 'contain' | 'fill' | 'none' | 'scale-
 export interface AppImageProps extends Omit<ImageProps, 'style' | 'source' | 'resizeMode'> {
   source: ImageSourcePropType | string;
   style?: StyleProp<ImageStyle>;
-  /** expo-image-compatible fit; mapped onto the native `resizeMode`. */
+  /** Content-fit value; mapped onto the native `resizeMode`. */
   contentFit?: AppImageContentFit;
   /** Fade-in duration in ms (0 disables the animation). */
   transition?: number;
@@ -40,8 +40,7 @@ function toResizeMode(
 }
 
 /**
- * The single image primitive for the app. Replaces the former `expo-image`
- * import in every surface so caching/fit policy has one owner.
+ * The single image primitive for the app, so caching/fit policy has one owner.
  */
 export function AppImage({
   source,

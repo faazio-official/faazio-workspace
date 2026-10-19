@@ -1,6 +1,6 @@
  # Faazio SuperApp
 
-React Native (Expo) superapp. All active work lives in `client/mobile/`.
+Bare React Native superapp. All active work lives in `client/mobile/`.
 
 ## Start
 

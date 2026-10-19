@@ -102,7 +102,7 @@ android {
 
 dependencies {
     implementation("com.facebook.react:react-android")
-    // Native launch theme (windowSplashScreen*) without expo-splash-screen.
+    // Native launch theme (windowSplashScreen*).
     implementation("androidx.core:core-splashscreen:1.0.1")
 
     implementation("com.facebook.react:hermes-android")

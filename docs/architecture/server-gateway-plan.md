@@ -145,7 +145,7 @@ lightweight-superapp playbook on two of three axes:
   trimming and Hermes keep the shipped JS/native payload small; see `docs/RUNBOOKS/RELEASE.md`
   and `docs/architecture/mobile-app.md` ("Size & delivery strategy").
 - **Differential / per-feature OTA — not covered (out of scope for now).** There is no OTA
-  provider (Expo Updates/CodePush) wiring; `React.lazy` routes defer module *evaluation* on a
+  provider (CodePush/self-hosted) wiring; `React.lazy` routes defer module *evaluation* on a
   single Metro bundle, not per-feature download. A JS-bundle OTA channel is the pragmatic option;
   Flipkart-style per-feature delivery is custom infrastructure. Tracked in
   `client/mobile/PENDING_WORK.md`.

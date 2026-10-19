@@ -2,7 +2,7 @@ import { Platform, StyleSheet } from 'react-native';
 import type { StyleProp, TextStyle } from 'react-native';
 
 // Roboto is the Android system font family; iOS resolves to 'System'. Using the
-// platform fonts removes the expo-font native module and the startup font-load
+// platform fonts removes the custom font native module and the startup font-load
 // gate entirely (no async asset load, no splash extension for fonts). The
 // per-weight faces (400/500/700/800/900) are requested via `fontWeight`, which
 // modern Android resolves against the system Roboto family.

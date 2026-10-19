@@ -19,8 +19,7 @@ export interface AppGradientProps {
 
 /**
  * Linear-gradient surface rendered with `react-native-svg` (already a
- * dependency), replacing `expo-linear-gradient` with no new native module.
- * Children render above the gradient.
+ * dependency) with no new native module. Children render above the gradient.
  */
 export function AppGradient({
   colors,

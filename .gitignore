@@ -6,6 +6,5 @@ dist/
 *.log
 .env*
 !.env.example
-.expo/
 *.apk
 *.aab

@@ -105,10 +105,10 @@ rendered on the error card** (plus the first stack frame in a dev build) — tha
   > `NSLocationWhenInUseUsageDescription` — e.g. checkout live-address auto-fill) **also
   > requires a native rebuild** (CI debug build, as above) so the new prompt text is baked into the client.
 - **`compileDebugKotlin FAILED` — `Unresolved reference 'ReactNativeHostWrapper'`**
-  → an Expo-generated `android/` project (or Expo leftovers) is present. This repo is bare RN:
+  → a generated `android/` project (or leftover generated files) is present. This repo is bare RN:
   `settings.gradle` must use `@react-native/gradle-plugin`, `MainApplication.kt` must use
-  `DefaultReactHost`, and there must be no `expo-*` Gradle plugins or `expo.modules` entries.
-  If `android/` was overwritten by `expo prebuild`, restore it from git (`git checkout --
+  `DefaultReactHost`, and there must be no third-party Gradle plugins or autolinked module entries.
+  If `android/` was overwritten by a prebuild/generator, restore it from git (`git checkout --
   android/`) — never regenerate it.
 - **Native project corrupted / wrong package after a bad generator run** → restore the committed
   shell from git rather than patching it by hand:

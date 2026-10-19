@@ -15,7 +15,7 @@
 #   STORE_FILE       keystore file name (default: faazio-release.keystore)
 #
 # Usage:  scripts/restore-keystore.sh
-# Run from:  client/mobile/  (the Expo project root)
+# Run from:  client/mobile/  (the mobile project root)
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"

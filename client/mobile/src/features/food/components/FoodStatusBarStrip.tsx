@@ -11,7 +11,7 @@ interface FoodStatusBarStripProps {
 
 /**
  * Opaque light-orange strip rendered over the top status-bar inset. Android
- * edge-to-edge (Expo 54) exposes no native status-bar background API, so we
+ * edge-to-edge mode exposes no native status-bar background API, so we
  * paint our own bar: transparent at the top, fading to an opaque primaryLight
  * once the screen is scrolled. Icons remain dark (set globally in App.tsx).
  */
