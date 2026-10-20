@@ -37,17 +37,28 @@ function url(path: string, query?: RequestOptions["query"]): string {
   return u.pathname + u.search;
 }
 
-async function request<T>(path: string, options: RequestOptions = {}): Promise<T> {
-  if (!remoteConfigured()) {
-    throw new ApiError(0, "offline", "Gateway is not configured");
-  }
+async function attempt(path: string, options: RequestOptions): Promise<Response> {
   const headers: Record<string, string> = { Accept: "application/json" };
   if (options.body !== undefined) headers["Content-Type"] = "application/json";
 
   const init: RequestInit = { method: options.method ?? "GET", headers };
   if (options.body !== undefined) init.body = JSON.stringify(options.body);
 
-  const res = await fetch(url(path, options.query), init);
+  return fetch(url(path, options.query), init);
+}
+
+async function request<T>(path: string, options: RequestOptions = {}): Promise<T> {
+  if (!remoteConfigured()) {
+    throw new ApiError(0, "offline", "Gateway is not configured");
+  }
+  let res = await attempt(path, options);
+  if (res.status === 503) {
+    // One delayed retry: a gateway cold-start / deploy blip must read as transient, never a
+    // signed-out. The same-origin proxy keeps the HttpOnly refresh cookie, so a second attempt is
+    // cheap and idempotent for the route handlers that may rotate on the first failure.
+    await new Promise((resolve) => setTimeout(resolve, 1000));
+    res = await attempt(path, options);
+  }
 
   if (options.allow404 && res.status === 404) return null as T;
   if (!res.ok) {

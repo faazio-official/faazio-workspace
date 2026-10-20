@@ -74,8 +74,18 @@ async function proxy(req: NextRequest, ctx: { params: Promise<{ path: string[] }
     if (upstream.status === 401) {
       const refreshed = await refreshTokens(refreshCookie(req), id);
       if (!refreshed.ok || !refreshed.data) {
-        log("invalid_refresh", 401);
-        const expired = failJSON(401, "invalid_refresh", "Session expired.", id);
+        if (!refreshed.terminal) {
+          // Transient (gateway blip / timeout): keep the long-lived refresh cookie and surface a
+          // retryable 503 so the client can retry instead of being logged out.
+          log(refreshed.code ?? "gateway_unavailable", 503);
+          return withRequestID(
+            failJSON(503, "gateway_unavailable", "Gateway is unavailable.", id),
+            id,
+          );
+        }
+        const code = refreshed.code ?? "invalid_refresh";
+        log(code, 401);
+        const expired = failJSON(401, code, "Session expired.", id);
         clearAuthCookies(expired);
         return withRequestID(expired, id);
       }

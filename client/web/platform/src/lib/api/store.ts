@@ -59,8 +59,12 @@ import type {
   TicketRecord,
 } from "@/data/types";
 
+/** Tracks the restore lifecycle so gates can distinguish "reconnecting" from "signed out". */
+export type SessionStatus = "unknown" | "signed-in" | "reconnecting" | "signed-out";
+
 export interface PortalState {
   session: AuthUser | null;
+  sessionStatus: SessionStatus;
   sellers: SellerRecord[];
   kyc: KycDocument[];
   bankAccounts: BankAccount[];
@@ -94,6 +98,7 @@ export interface PortalState {
 
 const seed = {
   session: null as AuthUser | null,
+  sessionStatus: "unknown" as SessionStatus,
   sellers: SELLERS,
   kyc: KYC_DOCUMENTS,
   bankAccounts: BANK_ACCOUNTS,
@@ -142,7 +147,7 @@ export const usePortalStore = create<PortalState>()(
           : window.localStorage,
       ),
       partialize: (state) => {
-        const { set: _set, ...rest } = state;
+        const { set: _set, sessionStatus: _status, ...rest } = state;
         // The portal session is never persisted: it is refreshed from the HttpOnly cookie on load.
         return { ...rest, session: null };
       },

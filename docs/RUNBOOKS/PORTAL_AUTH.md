@@ -32,6 +32,24 @@ curl -sS -X POST "$GATEWAY/auth/portal/login" \
   -d '{"email":"x@y.zz","password":"nope"}' | jq '{error,code}'
 ```
 
+### 0.1 A gateway blip never logs you out (P0 — transient vs terminal refresh)
+
+The portal keeps the long-lived `faazio_prt` refresh cookie through any transient failure so one
+Cloudflare 5xx / Render cold-start / timeout cannot kill a still-valid session:
+
+- **Transient** — network error, 5 s timeout, `502/503/504` (or any non-`401/400`): the nextjs
+  routes (`me`, `refresh`, `gateway/[...path]`) **keep the cookies** and return `503`; the client
+  retries once (1 s) for data calls and up to 3× with backoff (1/3/8 s) on session restore,
+  showing a "Reconnecting…" gate instead of the login screen.
+- **Terminal** — only gateway `401 invalid_refresh` / `400`: the refresh truly died, so the route
+  clears both cookies and the user re-signs-in at `/login`.
+
+Refresh classification lives in `src/lib/portal/server.ts` (`refreshTokens()` →
+`RefreshResult.terminal`); the client mapping is `restorePortalSession()` in
+`src/lib/portal/auth.ts`. A `503` in the Vercel logs with `code=gateway_unavailable` and no
+`invalid_refresh` means the session is intact — do not investigate it as a logout (see §0 A/B/C
+for the *pre-submit* status probe).
+
 ## 1. What must exist before the first login
 
 1. Migrations `server/supabase/migrations/0032_portal_users.sql` +
