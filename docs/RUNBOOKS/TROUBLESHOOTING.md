@@ -104,6 +104,11 @@ rendered on the error card** (plus the first stack frame in a dev build) — tha
   > Changing a permission string (`AndroidManifest.xml` or `Info.plist`
   > `NSLocationWhenInUseUsageDescription` — e.g. checkout live-address auto-fill) **also
   > requires a native rebuild** (CI debug build, as above) so the new prompt text is baked into the client.
+- **`compileDebugKotlin FAILED` — `Module was compiled with an incompatible version of Kotlin`
+  (`firebase-auth-*.jar`, metadata 2.4.0, expected 2.1.0)** → the Android Kotlin version is older
+  than the Firebase/Kotlin metadata used by `@react-native-firebase/auth`. Keep
+  `kotlinVersion = "2.4.0"` (and the explicit `kotlin-gradle-plugin:$kotlinVersion` classpath) in
+  `android/build.gradle`; do not downgrade Firebase to work around it.
 - **`compileDebugKotlin FAILED` — `Unresolved reference 'ReactNativeHostWrapper'`**
   → a generated `android/` project (or leftover generated files) is present. This repo is bare RN:
   `settings.gradle` must use `@react-native/gradle-plugin`, `MainApplication.kt` must use
