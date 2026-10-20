@@ -34,12 +34,21 @@ HttpOnly cookies, never `localStorage`. See `docs/architecture/web-portal.md`.
 
 ## Development
 
+Copy `.env.example` → `.env.local` and set `NEXT_PUBLIC_GATEWAY_URL` (e.g.
+`http://localhost:8080`). `NEXT_PUBLIC_*` is inlined at build time, so changing
+it needs a rebuild; `scripts/check-env.mjs` (`predev`/`prebuild`) warns in dev
+and fails the build when it is unset.
+
 ```sh
 npm install
 npm run dev        # http://localhost:3000
 npm run ts:check   # tsc --noEmit
 npm run build      # next build
 ```
+
+If sign-in returns `503`, `GET /api/auth/portal/status` returns a one-call
+verdict (portal env / gateway reachability / gateway auth) — see
+`docs/RUNBOOKS/PORTAL_AUTH.md` §0.
 
 ## Routing contract
 

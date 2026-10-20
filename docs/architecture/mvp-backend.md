@@ -66,7 +66,12 @@ set. See `db-schema.md` §12.16.
   then clears the session and returns to Login. `FIREBASE_PROJECT_ID` enables Firebase verification;
   the legacy GoTrue `SUPABASE_JWT_SECRET` HS256 path remains only for older partner tokens during
   the migration and is tried after Firebase fails. Portal tokens use a separate
-  `auth.PortalVerifier` + `PORTAL_JWT_SECRET` and never fall through to either verifier. In dev the app may still send `X-Dev-User` (`DEV_USER`, dev builds only) against
+  `auth.PortalVerifier` + `PORTAL_JWT_SECRET` and never fall through to either verifier. `render.yaml`
+  declares `PORTAL_JWT_SECRET`, `PORTAL_PEPPER`, `DATABASE_URL`/`VALKEY_URL`/`MONGO_URI` with
+  `sync: false` (values set in the Render dashboard, never git); an empty `PORTAL_JWT_SECRET` makes
+  login return `503 portal_auth_unavailable` by design, and on boot the gateway logs
+  `portal_auth=enabled|disabled` plus `portal_tables=ok|partial|missing` (a fail-loud hint to apply
+  migrations `0032` + `0033`) without ever printing the secret. In dev the app may still send `X-Dev-User` (`DEV_USER`, dev builds only) against
   an `AUTH_DISABLED=true` gateway; production builds never send it and never embed a mock-login
   build (`configure.js` fails a release when `USE_GATEWAY=true` and the native Firebase config is
   missing). Setup + the outstanding anti-abuse step: `docs/RUNBOOKS/FIREBASE_AUTH.md`.

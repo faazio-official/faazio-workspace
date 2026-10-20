@@ -17,6 +17,60 @@ interface PortalResponse {
   user?: PortalUser | null;
   error?: string;
   message?: string;
+  code?: string;
+  requestId?: string;
+}
+
+export class PortalError extends Error {
+  readonly code: string;
+  readonly status: number;
+  readonly requestId: string;
+
+  constructor(message: string, code: string, status: number, requestId = "") {
+    super(message);
+    this.name = "PortalError";
+    this.code = code;
+    this.status = status;
+    this.requestId = requestId;
+  }
+}
+
+/** User-facing copy for the three distinct 503 origins (build config / gateway / gateway secret). */
+export function portalErrorMessage(err: unknown): string {
+  if (!(err instanceof PortalError)) {
+    return err instanceof Error ? err.message : "Could not sign in.";
+  }
+  const ref = err.requestId ? ` (ref: ${err.requestId})` : "";
+  switch (err.code) {
+    case "not_configured":
+      return `This portal build has no gateway URL — rebuild/redeploy with NEXT_PUBLIC_GATEWAY_URL.${ref}`;
+    case "gateway_unavailable":
+      return `The gateway is unreachable — check the gateway status and retry.${ref}`;
+    case "portal_auth_unavailable":
+      return `Gateway auth is not configured (PORTAL_JWT_SECRET missing on Render).${ref}`;
+    case "portal_unavailable":
+      return `The gateway could not read the portal credential tables — apply migrations 0032 + 0033.${ref}`;
+    default:
+      return `${err.message}${ref}`;
+  }
+}
+
+export interface PortalStatus {
+  portalEnabled: boolean;
+  gatewayBaseHost: string;
+  gatewayReachable: boolean;
+  gatewayAuth: "ok" | "portal_auth_unavailable" | "unreachable";
+}
+
+/** Best-effort pre-submit diagnostic (no credentials, no rate-limit consumption). */
+export async function fetchPortalStatus(): Promise<PortalStatus | null> {
+  try {
+    const res = await fetch("/api/auth/portal/status", { cache: "no-store" });
+    if (!res.ok) return null;
+    return (await res.json()) as PortalStatus;
+  } catch {
+    return null;
+  }
 }
 
 function toAuthUser(user: PortalUser): AuthUser {
@@ -49,7 +103,12 @@ async function call(path: string, method: "GET" | "POST" | "PUT", body?: unknown
     // non-JSON edge (gateway down) — fall through to the generic message
   }
   if (!res.ok) {
-    throw new Error(data.error || data.message || `Request failed (${res.status})`);
+    throw new PortalError(
+      data.error || data.message || `Request failed (${res.status})`,
+      data.code || "request_failed",
+      res.status,
+      data.requestId || res.headers.get("x-request-id") || "",
+    );
   }
   return data;
 }

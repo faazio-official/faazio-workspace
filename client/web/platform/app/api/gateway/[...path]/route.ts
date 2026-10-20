@@ -3,11 +3,16 @@ import {
   accessCookie,
   callGateway,
   clearAuthCookies,
+  failJSON,
   gatewayBase,
+  ipHash8,
+  logRoute,
   portalEnabled,
   refreshCookie,
   refreshTokens,
+  requestID,
   setAuthCookies,
+  withRequestID,
 } from "@/lib/portal/server";
 
 export const runtime = "nodejs";
@@ -21,15 +26,31 @@ const METHODS = new Set(["GET", "POST", "PUT", "PATCH", "DELETE"]);
  * retried once after rotating the refresh token.
  */
 async function proxy(req: NextRequest, ctx: { params: Promise<{ path: string[] }> }) {
+  const id = requestID(req);
+  const started = Date.now();
+  const ip = ipHash8(req);
+  const log = (code: string, upstreamStatus: number) =>
+    logRoute({
+      id,
+      path: "/api/gateway",
+      upstreamStatus,
+      code,
+      latencyMs: Date.now() - started,
+      ipHash8: ip,
+    });
+
   if (!portalEnabled() || !gatewayBase()) {
-    return NextResponse.json({ error: "Gateway not configured", code: "offline" }, { status: 503 });
+    log("offline", 0);
+    return withRequestID(failJSON(503, "offline", "Gateway not configured", id), id);
   }
   if (!METHODS.has(req.method)) {
-    return NextResponse.json({ error: "Method not allowed", code: "method_not_allowed" }, { status: 405 });
+    log("method_not_allowed", 0);
+    return withRequestID(failJSON(405, "method_not_allowed", "Method not allowed", id), id);
   }
   const { path } = await ctx.params;
   if (!path.length || path.some((segment) => !segment || segment === ".." || segment.includes("/"))) {
-    return NextResponse.json({ error: "Not found", code: "not_found" }, { status: 404 });
+    log("not_found", 0);
+    return withRequestID(failJSON(404, "not_found", "Not found", id), id);
   }
   const target = `/${path.map(encodeURIComponent).join("/")}${req.nextUrl.search}`;
   const body = req.method === "GET" ? undefined : await req.arrayBuffer();
@@ -39,7 +60,7 @@ async function proxy(req: NextRequest, ctx: { params: Promise<{ path: string[] }
   let rotated: { accessToken: string; refreshToken: string } | null = null;
 
   const call = (token: string) => {
-    const headers: Record<string, string> = { Accept: "application/json" };
+    const headers: Record<string, string> = { Accept: "application/json", "X-Request-Id": id };
     if (token) headers["Authorization"] = `Bearer ${token}`;
     if (contentType) headers["Content-Type"] = contentType;
     const init: RequestInit = { method: req.method, headers };
@@ -51,14 +72,12 @@ async function proxy(req: NextRequest, ctx: { params: Promise<{ path: string[] }
   try {
     upstream = await call(access);
     if (upstream.status === 401) {
-      const refreshed = await refreshTokens(refreshCookie(req));
+      const refreshed = await refreshTokens(refreshCookie(req), id);
       if (!refreshed.ok || !refreshed.data) {
-        const expired = NextResponse.json(
-          { error: "Session expired.", code: "invalid_refresh" },
-          { status: 401 },
-        );
+        log("invalid_refresh", 401);
+        const expired = failJSON(401, "invalid_refresh", "Session expired.", id);
         clearAuthCookies(expired);
-        return expired;
+        return withRequestID(expired, id);
       }
       access = refreshed.data.accessToken;
       rotated = {
@@ -68,11 +87,13 @@ async function proxy(req: NextRequest, ctx: { params: Promise<{ path: string[] }
       upstream = await call(access);
     }
   } catch {
-    return NextResponse.json(
-      { error: "Gateway is unavailable.", code: "gateway_unavailable" },
-      { status: 503 },
+    log("gateway_unavailable", 0);
+    return withRequestID(
+      failJSON(503, "gateway_unavailable", "Gateway is unavailable.", id),
+      id,
     );
   }
+  log(upstream.ok ? "ok" : "upstream_error", upstream.status);
 
   const headers: Record<string, string> = {
     "Content-Type": upstream.headers.get("content-type") ?? "application/json",
@@ -83,7 +104,7 @@ async function proxy(req: NextRequest, ctx: { params: Promise<{ path: string[] }
 
   const out = new NextResponse(upstream.body, { status: upstream.status, headers });
   if (rotated) setAuthCookies(out, rotated.accessToken, rotated.refreshToken);
-  return out;
+  return withRequestID(out, id);
 }
 
 export const GET = proxy;

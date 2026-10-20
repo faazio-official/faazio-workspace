@@ -1,9 +1,69 @@
 package portal
 
 import (
+	"encoding/json"
+	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 )
+
+// portalError decodes the httpx error envelope.
+func portalError(t *testing.T, rec *httptest.ResponseRecorder) (string, string) {
+	t.Helper()
+	var body struct {
+		Error string `json:"error"`
+		Code  string `json:"code"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &body); err != nil {
+		t.Fatalf("decode error envelope: %v (body=%s)", err, rec.Body.String())
+	}
+	return body.Code, body.Error
+}
+
+func loginPost(body string) *http.Request {
+	r := httptest.NewRequest(http.MethodPost, "/auth/portal/login", strings.NewReader(body))
+	r.Header.Set("Content-Type", "application/json")
+	return r
+}
+
+func TestLoginEmptySecretReturns503(t *testing.T) {
+	h := NewHandler(New(nil), nil, nil, "", "")
+	rec := httptest.NewRecorder()
+	h.login(rec, loginPost(`{"email":"ops@faazio.in","password":"whatever12345"}`))
+	if rec.Code != http.StatusServiceUnavailable {
+		t.Fatalf("status = %d, want 503", rec.Code)
+	}
+	if code, _ := portalError(t, rec); code != "portal_auth_unavailable" {
+		t.Fatalf("code = %q, want portal_auth_unavailable", code)
+	}
+}
+
+func TestRefreshEmptySecretReturns503(t *testing.T) {
+	h := NewHandler(New(nil), nil, nil, "", "")
+	rec := httptest.NewRecorder()
+	h.refresh(rec, loginPost(`{"refreshToken":"faazio_pr_x"}`))
+	if rec.Code != http.StatusServiceUnavailable {
+		t.Fatalf("status = %d, want 503", rec.Code)
+	}
+	if code, _ := portalError(t, rec); code != "portal_auth_unavailable" {
+		t.Fatalf("code = %q, want portal_auth_unavailable", code)
+	}
+}
+
+// Regression for the post-503 path: with a configured secret but a missing DB/schema (0033 absent),
+// login must return 500 portal_unavailable, never panic or 503.
+func TestLoginSchemaFailureReturns500(t *testing.T) {
+	h := NewHandler(New(nil), nil, nil, "configured-secret", "")
+	rec := httptest.NewRecorder()
+	h.login(rec, loginPost(`{"email":"ops@faazio.in","password":"whatever12345"}`))
+	if rec.Code != http.StatusInternalServerError {
+		t.Fatalf("status = %d, want 500", rec.Code)
+	}
+	if code, _ := portalError(t, rec); code != "portal_unavailable" {
+		t.Fatalf("code = %q, want portal_unavailable", code)
+	}
+}
 
 func TestClientIPUsesProxyHeaders(t *testing.T) {
 	r := httptest.NewRequest("POST", "/auth/portal/login", nil)

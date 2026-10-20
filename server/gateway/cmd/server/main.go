@@ -21,6 +21,7 @@ import (
 	"github.com/faazio/server/gateway/internal/platform/db"
 	"github.com/faazio/server/gateway/internal/platform/mongo"
 	"github.com/faazio/server/gateway/internal/platform/r2"
+	"github.com/faazio/server/gateway/internal/portal"
 	"github.com/faazio/server/gateway/internal/server"
 )
 
@@ -56,6 +57,7 @@ func main() {
 	if cfg.AuthDisabled {
 		log.Print("AUTH_DISABLED=true — partner roles come from X-Dev-* headers. Never run this in production.")
 	}
+	logPortalStartup(ctx, cfg, pool)
 
 	// Notification outbox drain worker (provider-agnostic webhook). The worker is always constructed so
 	// the admin manual trigger (POST /notifications/drain) works; the background loop only runs when a
@@ -130,4 +132,26 @@ func main() {
 		log.Printf("shutdown: %v", err)
 	}
 	log.Print("gateway stopped")
+}
+
+// logPortalStartup emits the two facts that explain a portal 503 in the Render logs: whether the
+// signing secret is set and whether the credential tables (0032 + 0033) are applied. Never logs the
+// secret/pepper or the database URL.
+func logPortalStartup(ctx context.Context, cfg config.Config, pool *db.Pool) {
+	if cfg.PortalJWTSecret == "" {
+		log.Print("portal_auth=disabled reason=jwt_secret_empty (set PORTAL_JWT_SECRET; docs/RUNBOOKS/PORTAL_AUTH.md)")
+	} else {
+		log.Print("portal_auth=enabled")
+	}
+	status := portal.CheckSchema(ctx, pool)
+	switch {
+	case pool == nil:
+		log.Print("portal_tables=unknown reason=database_unconfigured")
+	case !status.Tables:
+		log.Print("portal_tables=missing hint=apply migrations 0032 + 0033")
+	case !status.Scoped:
+		log.Print("portal_tables=partial hint=apply migration 0033")
+	default:
+		log.Print("portal_tables=ok")
+	}
 }

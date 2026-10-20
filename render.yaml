@@ -45,3 +45,21 @@ services:
       # Money/Rx writes must never run against an auth-disabled gateway in production.
       - key: AUTH_DISABLED
         value: "false"
+      # Required secrets/origins: declared here so a Blueprint deploy is self-documenting and Render
+      # flags a missing value, but kept out of git (sync:false = set the value in the dashboard only).
+      # Without PORTAL_JWT_SECRET portal login returns 503 portal_auth_unavailable; without the
+      # credential tables applied (0032 + 0033) it returns 500 portal_unavailable.
+      - key: PORTAL_JWT_SECRET
+        sync: false
+      - key: PORTAL_PEPPER
+        sync: false
+      - key: DATABASE_URL
+        sync: false
+      - key: VALKEY_URL
+        sync: false
+      - key: MONGO_URI
+        sync: false
+      # Exact portal origin (no wildcard). The browser only talks to the portal; keep this in sync
+      # with the Vercel deployment origin.
+      - key: ALLOWED_ORIGINS
+        value: https://app.faazio.com

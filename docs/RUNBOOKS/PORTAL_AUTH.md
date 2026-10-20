@@ -8,23 +8,53 @@
 > Self-signup, email password-reset and mobile auth are **out of scope**. Never commit a password,
 > hash, email list or secret — the SQL below is run in the Supabase SQL editor, not in a migration.
 
+## 0. Triage a failed sign-in (A/B/C)
+
+A `503` is config, not logic — three different origins collapse into one status. The portal now
+preserves the `code` and renders distinct copy; `GET /api/auth/portal/status` returns the combined
+verdict in one browser call, and every route echoes an `X-Request-Id` that is propagated to the
+gateway so one Vercel log line correlates with the Render request log.
+
+| Cause | UI copy | Body `code` | Origin | Fix |
+|---|---|---|---|---|
+| **A** | "This portal build has no gateway URL" | `not_configured` | `NEXT_PUBLIC_GATEWAY_URL` empty at `next build` | set the Vercel env var, then **redeploy** (build-time inlined) |
+| **B** | "the gateway is unreachable" | `gateway_unavailable` | gateway down / wrong origin / TLS / cold start | check `GET $GATEWAY/health`, origin, Cloudflare TLS Full (strict) |
+| **C** | "Gateway auth is not configured" | `portal_auth_unavailable` | `PORTAL_JWT_SECRET=""` on Render | set it (§1, item 2), roll the deploy |
+| **D** | "could not read the portal credential tables" | `portal_unavailable` (500) | migration `0033` (or `0032`) not applied | apply the migration, then redeploy |
+
+```bash
+# One browser-able verdict (unauthenticated, rate-limited; hostname only, no secrets):
+curl -sS https://<portal-origin>/api/auth/portal/status | jq
+
+# Gateway proof the auth stack is up (bad credentials ⇒ 401, never 503):
+curl -sS -X POST "$GATEWAY/auth/portal/login" \
+  -H 'Content-Type: application/json' \
+  -d '{"email":"x@y.zz","password":"nope"}' | jq '{error,code}'
+```
+
 ## 1. What must exist before the first login
 
 1. Migrations `server/supabase/migrations/0032_portal_users.sql` +
    `0033_portal_roles.sql` applied (credential/session store; role + scope). Deploy order:
-   **migrations first**, then the gateway, then the portal.
-2. Gateway env (Render dashboard — never in the repo):
+   **migrations first**, then the gateway, then the portal. In local compose both are mounted
+   automatically; for a **pre-existing** compose volume run `docker compose down -v` (dev only) or
+   apply `0033` by hand (`psql -f`) — without it the scoped-role path 500s.
+2. Gateway env (Render dashboard — never in the repo; `render.yaml` declares them with `sync:false`):
    - `PORTAL_JWT_SECRET` — `openssl rand -base64 48` (≥256-bit HS256 signing key).
    - `PORTAL_PEPPER` — `openssl rand -base64 32` (server-side HMAC pepper; **changing it invalidates
      every existing password hash**).
    - `AUTH_DISABLED=false`, `ALLOWED_ORIGINS=https://<portal-origin>` (exact, no `*`).
+   - Local dev: `PORTAL_JWT_SECRET=$(openssl rand -base64 48) PORTAL_PEPPER=$(openssl rand -base64 32) docker compose up --build`.
 3. Portal env (Vercel): `NEXT_PUBLIC_GATEWAY_URL=https://<gateway-origin>` only. There is no auth-mode
-   switch — the portal is always gateway-native.
-4. Cloudflare WAF: rate-limit `POST /auth/portal/*` and `/admin/portal-users*` to ~20/min/IP,
-   bot-fight on, TLS Full (strict), origin lock still in place (see `RELEASE.md` / `render.yaml`).
+   switch — the portal is always gateway-native. `NEXT_PUBLIC_*` is inlined at build time: changing it
+   requires a redeploy (local values belong in gitignored `.env.local`).
+4. Cloudflare WAF: rate-limit `POST /auth/portal/*`, `/admin/portal-users*` and
+   `/api/auth/portal/status` to ~20/min/IP, bot-fight on, TLS Full (strict), origin lock still in
+   place (see `RELEASE.md` / `render.yaml`).
 
 If `PORTAL_JWT_SECRET` is empty the gateway returns `503 portal_auth_unavailable` for login; it never
-falls back to the legacy Supabase secret.
+falls back to the legacy Supabase secret. On boot the gateway logs `portal_auth=enabled|disabled`
+plus `portal_tables=ok|partial|missing` so cause **C** is visible in the Render logs in seconds.
 
 ## 2. Provision the superadmin accounts (one-time)
 
