@@ -356,7 +356,7 @@ CREATE TYPE order_status   AS ENUM ('Processing','Shipped','Delivered','Cancelle
 CREATE TABLE checkout.users (
   user_id          TEXT PRIMARY KEY,        -- 'user-1'
   user_uid         UUID NOT NULL DEFAULT gen_random_uuid(),
-  auth_uid         UUID UNIQUE,             -- Supabase auth.uid() (0030 link)
+  auth_uid         TEXT UNIQUE,             -- verified auth subject: Firebase UID (0031); legacy Supabase auth.uid()
   name             TEXT NOT NULL,
   email            TEXT NOT NULL,
   phone            TEXT NOT NULL,           -- PII
@@ -370,7 +370,7 @@ CREATE TABLE checkout.users (
 |---|---|---|---|---|
 | `user_id` | TEXT PK | 6 | stable slug (OTP users get `u-<sha256 prefix>`) | PK |
 | `user_uid` | UUID | 16 | join key | btree |
-| `auth_uid` | UUID | 16 | Supabase auth subject → app user; upserted on first authenticated call | unique |
+| `auth_uid` | TEXT | 28 | verified auth subject (Firebase UID) → app user; upserted on first authenticated call (`0031` widens the original UUID column) | unique |
 | `name` | TEXT | ~12 | display | — |
 | `email` | TEXT | ~24 | contact (**PII**) | unique btree |
 | `phone` | TEXT | ~14 | contact (**PII**) | unique btree |

@@ -28,6 +28,7 @@ Operational and architectural documentation for the **Faazio SuperApp**.
 | [RUNBOOKS/RELEASE.md](./RUNBOOKS/RELEASE.md) | Build, sign, and ship Android + iOS | Release / DevOps |
 | [RUNBOOKS/CI_PIPELINE.md](./RUNBOOKS/CI_PIPELINE.md) | GitHub Actions build + release flow (gh CLI, secrets, dev-vs-CI) | Release / DevOps |
 | [RUNBOOKS/DATA_FIXTURES.md](./RUNBOOKS/DATA_FIXTURES.md) | Authoring rules for `@data/*` fixtures | Engineers |
+| [RUNBOOKS/FIREBASE_AUTH.md](./RUNBOOKS/FIREBASE_AUTH.md) | Firebase Phone OTP setup, gateway verification, Part 6 anti-abuse backlog | Engineers / release |
 | [RUNBOOKS/TROUBLESHOOTING.md](./RUNBOOKS/TROUBLESHOOTING.md) | adb / Metro / Gradle / boundary failure fixes | Engineers |
 
 ## Conventions

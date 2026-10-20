@@ -60,6 +60,10 @@
     <string>This app requires photo library access to upload medical prescriptions and profile photos.</string>
     <key>RCTMetroPort</key>
     <string>$(RCT_METRO_PORT)</string>
+    <key>UIBackgroundModes</key>
+    <array>
+      <string>remote-notification</string>
+    </array>
     <key>UILaunchStoryboardName</key>
     <string>SplashScreen</string>
     <key>UIRequiredDeviceCapabilities</key>

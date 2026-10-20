@@ -26,10 +26,10 @@ import AppText from '@/components/AppText';
 import { useAuthStore } from '@/state/authStore';
 import {
   displayName,
+  firebaseAuthConfigured,
   sendOtp,
-  supabaseAuthConfigured,
   verifyOtp,
-} from '@/services/supabaseAuth';
+} from '@/services/firebaseAuth';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'Login'>;
 
@@ -240,27 +240,25 @@ export function LoginScreen({ navigation }: Props) {
     otpInputRef.current?.blur();
 
     try {
-      if (supabaseAuthConfigured()) {
-        // Real GoTrue phone-OTP session: the returned JWT is the same bearer the gateway verifies.
+      if (firebaseAuthConfigured()) {
+        // Real Firebase phone-OTP session: the ID token is the same bearer the gateway verifies.
         const session = await verifyOtp(phone, otpCode);
         await login({
           user: {
-            id: session.user.id,
+            id: session.user.uid,
             name: displayName(session.user),
             email: session.user.email ?? '',
             phone,
           },
           accessToken: session.accessToken,
-          refreshToken: session.refreshToken,
         });
       } else if (__DEV__) {
-        // Dev-only fallback when Supabase Auth is unconfigured (local AUTH_DISABLED gateway).
+        // Dev-only fallback when Firebase Auth is unconfigured (local AUTH_DISABLED gateway).
         // Release builds never reach here — configure.js refuses to embed a mock-login build.
         const placeholderToken = `placeholder.${phone}.${Date.now()}`;
         await login({
           user: { id: `user_${phone}`, name: 'Faazio User', email: '', phone },
           accessToken: placeholderToken,
-          refreshToken: `${placeholderToken}.refresh`,
         });
       } else {
         throw new Error('auth-unconfigured');
@@ -288,7 +286,7 @@ export function LoginScreen({ navigation }: Props) {
     }
   }, [otpState, otpCode, submitOtp]);
 
-  /** Send the SMS OTP, then advance to the code screen. Dev-only when Supabase is unconfigured. */
+  /** Send the SMS OTP, then advance to the code screen. Dev-only when Firebase is unconfigured. */
   const requestOtp = useCallback(
     async (digits: string) => {
       if (isSending) return;
@@ -297,7 +295,7 @@ export function LoginScreen({ navigation }: Props) {
       setOtpCode('');
       submitRef.current = false;
       setIsVerifying(false);
-      if (supabaseAuthConfigured()) {
+      if (firebaseAuthConfigured()) {
         setIsSending(true);
         try {
           await sendOtp(digits);
@@ -369,7 +367,7 @@ export function LoginScreen({ navigation }: Props) {
     setOtpError('');
     submitRef.current = false;
     setIsVerifying(false);
-    if (supabaseAuthConfigured()) {
+    if (firebaseAuthConfigured()) {
       void sendOtp(phone).catch(() =>
         Alert.alert('Could not send OTP', 'Please try again in a moment.'),
       );

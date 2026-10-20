@@ -68,6 +68,13 @@ jobs:
 
       - name: Generate JS/native config
         run: npm run configure
+        env:
+          # Debug APKs talk to the Render production gateway by default (override with a
+          # repository variable/secret). Firebase phone auth needs the committed native config.
+          GATEWAY_URL: ${{ vars.GATEWAY_URL || 'https://faazio-workspace.onrender.com' }}
+          USE_GATEWAY: "true"
+          STRICT: "true"
+          USE_FIREBASE_AUTH: "true"
 
       - name: Typecheck
         run: npm run ts:check

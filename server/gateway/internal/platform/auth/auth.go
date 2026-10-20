@@ -1,6 +1,7 @@
-// Package auth verifies Supabase JWTs and resolves the app user id + role claims. Platform
-// code carries no domain knowledge: the auth_uid → app user_id mapping is injected as a
-// UserResolver by the checkout context.
+// Package auth verifies caller tokens (Firebase ID tokens for the mobile app; legacy Supabase
+// HS256 for the partner portal) and resolves the app user id + role claims. Platform code carries
+// no domain knowledge: the auth_uid → app user_id mapping is injected as a UserResolver by the
+// checkout context.
 //
 // Partner roles (portal) travel as custom JWT claims — `app_role`, `seller_id`, `state_code` —
 // either top-level or under `app_metadata`. In local dev (AUTH_DISABLED) they come from the
@@ -38,7 +39,7 @@ type Identity struct {
 	StateCode string
 }
 
-// UserResolver maps a Supabase auth subject (auth.uid) to an app user slug.
+// UserResolver maps a verified auth subject (Firebase UID / legacy auth.uid) to an app user slug.
 type UserResolver interface {
 	ResolveUserID(ctx context.Context, authUID string) (string, error)
 }
@@ -54,7 +55,10 @@ type UserProvisioner interface {
 type Config struct {
 	Disabled  bool
 	DevUserID string
+	// JWTSecret verifies legacy Supabase/GoTrue HS256 tokens (portal partners). Mobile phone
+	// OTP uses Firebase and is verified by Firebase when set.
 	JWTSecret []byte
+	Firebase  *FirebaseVerifier
 	Resolver  UserResolver
 }
 
@@ -72,7 +76,7 @@ func Middleware(cfg Config) func(http.Handler) http.Handler {
 				id.Role = strings.ToUpper(strings.TrimSpace(r.Header.Get("X-Dev-Role")))
 				id.SellerID = strings.TrimSpace(r.Header.Get("X-Dev-Seller"))
 				id.StateCode = strings.ToUpper(strings.TrimSpace(r.Header.Get("X-Dev-State")))
-			} else if claims, err := claimsFromRequest(r, cfg.JWTSecret); err == nil {
+			} else if claims, err := verifyToken(r, cfg); err == nil {
 				if cfg.Resolver != nil {
 					// Prefer resolve-or-create so a first phone-OTP login links auth.users.id →
 					// checkout.users without a portal/manual row; fall back to read-only resolution.
@@ -194,7 +198,7 @@ func CanActForSeller(ctx context.Context, sellerID, stateCode string) bool {
 
 var errNoToken = errors.New("no token")
 
-// jwtClaims is the subset of a Supabase JWT we read.
+// jwtClaims is the subset of a verified JWT we read.
 type jwtClaims struct {
 	Sub         string `json:"sub"`
 	Exp         int64  `json:"exp"`
@@ -239,15 +243,52 @@ func (c jwtClaims) stateCode() string {
 	return strings.ToUpper(c.AppMetadata.StateCode)
 }
 
+// verifyToken accepts a Firebase ID token when configured, then falls back to the legacy
+// Supabase/GoTrue HS256 verifier so the partner portal keeps working during the migration.
+// A token must still pass one full signature+claim check; the fallback is not a bypass.
+func verifyToken(r *http.Request, cfg Config) (jwtClaims, error) {
+	if cfg.Firebase != nil {
+		claims, err := cfg.Firebase.Verify(r.Context(), tokenFromRequest(r))
+		if err == nil {
+			return claims, nil
+		}
+		if len(cfg.JWTSecret) == 0 {
+			return jwtClaims{}, err
+		}
+	}
+	return claimsFromRequest(r, cfg.JWTSecret)
+}
+
+// tokenFromRequest returns the raw bearer token (empty when absent); Firebase verification
+// reports the malformed/missing-token error itself.
+func tokenFromRequest(r *http.Request) string {
+	header := r.Header.Get("Authorization")
+	if !strings.HasPrefix(header, "Bearer ") {
+		return ""
+	}
+	return strings.TrimSpace(strings.TrimPrefix(header, "Bearer "))
+}
+
+func bearerToken(r *http.Request) (string, error) {
+	header := r.Header.Get("Authorization")
+	if !strings.HasPrefix(header, "Bearer ") {
+		return "", errNoToken
+	}
+	token := strings.TrimSpace(strings.TrimPrefix(header, "Bearer "))
+	if token == "" {
+		return "", errNoToken
+	}
+	return token, nil
+}
+
 func claimsFromRequest(r *http.Request, secret []byte) (jwtClaims, error) {
 	if len(secret) == 0 {
 		return jwtClaims{}, errors.New("auth secret not configured")
 	}
-	header := r.Header.Get("Authorization")
-	if !strings.HasPrefix(header, "Bearer ") {
-		return jwtClaims{}, errNoToken
+	token, err := bearerToken(r)
+	if err != nil {
+		return jwtClaims{}, err
 	}
-	token := strings.TrimSpace(strings.TrimPrefix(header, "Bearer "))
 	parts := strings.Split(token, ".")
 	if len(parts) != 3 {
 		return jwtClaims{}, errors.New("malformed token")

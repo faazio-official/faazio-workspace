@@ -21,7 +21,6 @@ export interface StoredUser {
 
 export interface StoredSession {
   accessToken: string | null;
-  refreshToken: string | null;
   user: StoredUser;
 }
 
@@ -62,7 +61,6 @@ export async function loadSession(): Promise<StoredSession | null> {
     }
     const normalized: StoredSession = {
       accessToken: session.accessToken ?? null,
-      refreshToken: session.refreshToken ?? null,
       user: session.user,
     };
     cache = normalized;
@@ -82,22 +80,14 @@ export async function getAccessToken(): Promise<string | null> {
   return cache?.accessToken ?? null;
 }
 
-export async function getRefreshToken(): Promise<string | null> {
-  if (cache === undefined) await loadSession();
-  return cache?.refreshToken ?? null;
-}
-
 /**
- * Persist a rotated token pair (silent refresh) without touching the profile. Pass
- * `expiresAt` as Unix seconds when GoTrue returned one, so callers can pre-empt expiry.
+ * Persist a refreshed access token without touching the profile. Firebase rotates ID tokens
+ * natively, so there is no refresh token to store.
  */
-export async function updateSessionTokens(
-  accessToken: string,
-  refreshToken: string,
-): Promise<StoredSession | null> {
+export async function updateSessionTokens(accessToken: string): Promise<StoredSession | null> {
   if (cache === undefined) await loadSession();
   if (!cache) return null;
-  const next: StoredSession = { ...cache, accessToken, refreshToken };
+  const next: StoredSession = { ...cache, accessToken };
   await saveSession(next);
   return next;
 }

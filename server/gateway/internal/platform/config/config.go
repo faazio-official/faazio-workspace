@@ -16,6 +16,7 @@ type Config struct {
 	MongoURI           string
 	MongoDatabase      string
 	SupabaseJWTSecret  string
+	FirebaseProjectID  string
 	SupabaseURL        string
 	SupabaseServiceKey string
 	PrescriptionBucket string
@@ -63,6 +64,7 @@ func Load() Config {
 		MongoURI:              env("MONGO_URI", ""),
 		MongoDatabase:         env("MONGO_DATABASE", "faazio"),
 		SupabaseJWTSecret:     env("SUPABASE_JWT_SECRET", ""),
+		FirebaseProjectID:     env("FIREBASE_PROJECT_ID", ""),
 		SupabaseURL:           env("SUPABASE_URL", ""),
 		SupabaseServiceKey:    env("SUPABASE_SERVICE_KEY", ""),
 		PrescriptionBucket:    env("PRESCRIPTION_BUCKET", "prescriptions"),
