@@ -40,8 +40,9 @@ func NewMinter(secret string) *Minter {
 // Enabled reports whether a signing secret is configured.
 func (m *Minter) Enabled() bool { return m != nil && len(m.secret) > 0 }
 
-// MintAccess returns a signed HS256 access JWT and its jti/expiry.
-func (m *Minter) MintAccess(userID, role string, mustChange bool) (token, jti string, expiresAt time.Time, err error) {
+// MintAccess returns a signed HS256 access JWT and its jti/expiry. A seller login carries
+// seller_id; a state-admin login carries state_code (the verifier rejects a missing scope).
+func (m *Minter) MintAccess(userID, role, sellerID, stateCode string, mustChange bool) (token, jti string, expiresAt time.Time, err error) {
 	if !m.Enabled() {
 		return "", "", time.Time{}, errors.New("portal: jwt secret not configured")
 	}
@@ -57,6 +58,8 @@ func (m *Minter) MintAccess(userID, role string, mustChange bool) (token, jti st
 		"aud":         TokenAudience,
 		"sub":         userID,
 		"app_role":    role,
+		"seller_id":   sellerID,
+		"state_code":  stateCode,
 		"jti":         jti,
 		"must_change": mustChange,
 		"iat":         now.Unix(),
@@ -101,5 +104,5 @@ func randomHex(n int) (string, error) {
 	return hex.EncodeToString(b), nil
 }
 
-// RoleSuperAdmin is the only role the portal credential store issues today.
+// Portal roles issued by the credential store: SUPER_ADMIN, STATE_ADMIN, SELLER.
 const RoleSuperAdmin = auth.RoleSuperAdmin

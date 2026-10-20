@@ -24,7 +24,7 @@
 | `user_events` / `recommendations` / `segments` / `product_stats` / `sdui_layouts` | Keep MongoDB Atlas M0 (ID-only, `userIdHash`, TTL 90d) | Same (no change) | Flexible doc shape + TTL; don't force into Postgres |
 | Cache + edge | Keep **Aiven Valkey + Cloudflare** exactly per `caching-cloudflare-valkey.md` | Same | Supabase is origin, not cache; keys/TTLs unchanged (`faazio:v1:{service}:{entity}:{id}`, stock 30–60s, search 600s, product 24h, idempotency `NX EX 300`) |
 | Gateway | Go Chi modular monolith (`server/gateway`): all 6 contexts, `/health`, `/search?q=`, `/sdui/home`, `/product/:id`, `/vendors/:id/reviews`, `/stores`, `/venues`, `/orders`, `/profile`, cart/order/rating/event writes → Supabase + Mongo + Valkey, Cloudflare in front | Full gateway + 5 gRPC microservices via `contracts/` | Monolith proves the `@mock` → `@server` seam; extracted per `monolith-breakdown.md`; `GatewayClient` signatures don't change |
-| Auth | **Firebase phone OTP** (`@react-native-firebase/auth` native SDK) → Firebase ID token (RS256) verified by `platform/auth` against Google's certificate set; first login upserts `checkout.users.auth_uid`. **Portal superadmins** use gateway-native Argon2id credentials + a short-lived HS256 access JWT (`iss=faazio-portal`) and rotating opaque refresh sessions (`admins.portal_*`, migration `0032`) | OIDC/IdP-agnostic verification; the same `auth_uid` link | Server sessions + per-user orders/carts/rating scoping now; portal token is verified locally and skip the checkout resolver |
+| Auth | **Firebase phone OTP** (`@react-native-firebase/auth` native SDK) → Firebase ID token (RS256) verified by `platform/auth` against Google's certificate set; first login upserts `checkout.users.auth_uid`. **Portal users** (`SUPER_ADMIN`, `STATE_ADMIN`, `SELLER`) use gateway-native Argon2id credentials + a short-lived HS256 access JWT (`iss=faazio-portal`) with seller/state scope and rotating opaque refresh sessions (`admins.portal_*`, migrations `0032` + `0033`) | OIDC/IdP-agnostic verification; the same `auth_uid` link | Server sessions + per-user orders/carts/rating scoping now; portal token is verified locally and skip the checkout resolver |
 
 **Product / media images (implemented, `0025`):** bytes live in **Cloudflare R2** (`faazio-public` +
 `faazio-private`), identity in the SQL `media.assets` registry. The gateway (`internal/media` +
@@ -64,8 +64,9 @@ set. See `db-schema.md` §12.16.
   without a manual row. Migration `0031` widens `auth_uid` from `UUID` to `TEXT` (Firebase UIDs are
   strings); apply it in Supabase before deploying the Firebase verifier. `GatewayClient` forces one native ID-token refresh on 401 (`recoverSession`),
   then clears the session and returns to Login. `FIREBASE_PROJECT_ID` enables Firebase verification;
-  the legacy `SUPABASE_JWT_SECRET` HS256 path remains for the partner portal and is only tried after
-  Firebase fails. In dev the app may still send `X-Dev-User` (`DEV_USER`, dev builds only) against
+  the legacy GoTrue `SUPABASE_JWT_SECRET` HS256 path remains only for older partner tokens during
+  the migration and is tried after Firebase fails. Portal tokens use a separate
+  `auth.PortalVerifier` + `PORTAL_JWT_SECRET` and never fall through to either verifier. In dev the app may still send `X-Dev-User` (`DEV_USER`, dev builds only) against
   an `AUTH_DISABLED=true` gateway; production builds never send it and never embed a mock-login
   build (`configure.js` fails a release when `USE_GATEWAY=true` and the native Firebase config is
   missing). Setup + the outstanding anti-abuse step: `docs/RUNBOOKS/FIREBASE_AUTH.md`.
@@ -100,7 +101,7 @@ All read-through: Valkey → Supabase/Mongo → populate. Cloudflare caches publ
 | `GET /vendors/:id/reviews` | Supabase `reviews.vendor_reviews` (public columns only) | `data/reviews/vendorReviews.ts` | `getReviews` |
 | `GET /stores`, `GET /store/:id`, `GET /venues?app=` | Supabase `directory.stores` / `directory.dining_venues` | `data/directory/stores.ts`, `data/food/diningVenues.ts` | `getStores` / `getStore` / `getVenues` |
 | `GET /orders`, `GET /profile` | Supabase `checkout` / `accounts` (auth-scoped) | `data/checkout/orders.ts`, `data/accounts/profile.ts` | `getOrders` / `getProfile` |
-| `POST /auth/portal/{login,refresh,logout}`, `GET /auth/portal/me`, `PUT /auth/portal/password` | Supabase `admins.portal_users` + `admins.portal_sessions` (`0032`); Valkey throttles/denylist | — (portal only) | `portalRequest` (portal auth mode) |
+| `POST /auth/portal/{login,refresh,logout}`, `GET /auth/portal/me`, `PUT /auth/portal/password`; `GET|POST /admin/portal-users`, `PUT /admin/portal-users/{id}`, `PUT /admin/portal-users/{id}/password` | Supabase `admins.portal_users` + `admins.portal_sessions` (`0032` + `0033`); Valkey throttles/denylist | — (portal only) | `portalRequest` (portal auth) |
 
 **Write endpoints (MVP, win chosen over the original read-only list):**
 

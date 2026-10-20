@@ -19,7 +19,7 @@ const (
 	PortalAudience = "portal"
 )
 
-// PortalVerifier validates the gateway-native SUPER_ADMIN access JWT (HS256) minted by
+// PortalVerifier validates the gateway-native portal access JWT (HS256) minted by
 // internal/portal. It pins iss/aud/exp/app_role and checks the logout jti denylist.
 type PortalVerifier struct {
 	secret []byte
@@ -80,7 +80,22 @@ func (v *PortalVerifier) Verify(ctx context.Context, token string) (jwtClaims, e
 	if claims.Sub == "" || claims.Jti == "" {
 		return jwtClaims{}, errors.New("portal token missing subject/jti")
 	}
-	if !strings.EqualFold(claims.AppRole, RoleSuperAdmin) {
+	role := strings.ToUpper(strings.TrimSpace(claims.AppRole))
+	claims.AppRole = role
+	switch role {
+	case RoleSuperAdmin:
+		// Seeded operational accounts; no scope.
+	case RoleSeller:
+		claims.SellerID = strings.TrimSpace(claims.SellerID)
+		if claims.SellerID == "" {
+			return jwtClaims{}, errors.New("portal seller token missing seller_id")
+		}
+	case RoleStateAdmin:
+		claims.StateCode = strings.ToUpper(strings.TrimSpace(claims.StateCode))
+		if len(claims.StateCode) != 2 {
+			return jwtClaims{}, errors.New("portal state-admin token missing state_code")
+		}
+	default:
 		return jwtClaims{}, errors.New("portal token role not allowed")
 	}
 	if v.cache != nil && v.cache.Exists(ctx, cache.PortalDeny(claims.Jti)) {

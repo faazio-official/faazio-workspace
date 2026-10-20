@@ -23,11 +23,14 @@ the login screen. The favicon/PWA icon set in `public/` is generated from that
 same glyph (contours from `client/mobile/src/assets/logo.svg`) and wired through
 `app/layout.tsx` `metadata.icons` + `metadata.manifest`.
 
-## Data
+## Data + auth
 
-All app data is mock data seeded from `src/data/**` into the Zustand store and
-persisted to `localStorage`. Pages read through `src/lib/api/*`; there is no
-backend and no server-side data fetching.
+The Zustand store seeds from `src/data/**` for local development and hydrates
+from the Go gateway when `NEXT_PUBLIC_GATEWAY_URL` is set (`src/lib/api/sync.ts`).
+Pages read through `src/lib/api/*`; browser data calls go through the same-origin
+`/api/gateway/*` proxy. Portal auth is the only auth mode: credentials are
+issued by a superadmin (`/admin/super/credentials`) and the session lives in
+HttpOnly cookies, never `localStorage`. See `docs/architecture/web-portal.md`.
 
 ## Development
 

@@ -1,11 +1,10 @@
 "use client";
 // GatewayClient pattern: the only door between pages and data.
 // When a real backend arrives, only the internals of this module change.
-import { usePortalStore, AUTH_DIRECTORY, type PortalState } from "@/lib/api/store";
-import { authConfigured, authMocked, authPortal, remoteConfigured } from "@/lib/config";
+import { usePortalStore, type PortalState } from "@/lib/api/store";
+import { remoteConfigured } from "@/lib/config";
 import { remote, toCamel, writeAwaited } from "@/lib/api/http";
 import { toast } from "sonner";
-import { getSession, signInWithPassword, signOutRemote } from "@/lib/supabase/auth";
 import { loginPortal, logoutPortal, restorePortalSession } from "@/lib/portal/auth";
 import { sellerSeries, stateSeries, globalSeries, productSeries } from "@/data/analytics/series";
 import type {
@@ -22,6 +21,7 @@ import type {
   HeroPlacement,
   MenuItemRecord,
   OrderStatus,
+  PortalCredential,
   PrescriptionStatus,
   ProductRecord,
   QuoteItemRecord,
@@ -106,61 +106,58 @@ function audit(input: {
 
 /* ---------------------------------- auth --------------------------------- */
 
-/**
- * Signs in. Auth is **mocked by default** (`authMocked()`) against the built-in
- * demo directory, even when Supabase credentials are present; set
- * `NEXT_PUBLIC_AUTH_MODE=supabase` for GoTrue or `NEXT_PUBLIC_AUTH_MODE=portal`
- * for the gateway-native superadmin session.
- */
+/** Signs in against the gateway-native portal credentials (any role). */
 export async function signIn(email: string, password: string): Promise<AuthUser> {
-  if (authPortal()) {
-    const user = await loginPortal(email, password);
-    state().set(() => ({ session: user }));
-    return user;
-  }
-  if (!authMocked() && authConfigured()) {
-    const session = await signInWithPassword(email, password);
-    state().set(() => ({ session: session.user }));
-    return session.user;
-  }
-  const user = AUTH_DIRECTORY.find(
-    (u) => u.email.toLowerCase() === email.trim().toLowerCase() && u.password === password,
-  );
-  if (!user) throw new Error("That email and password pair is not in the demo directory.");
+  const user = await loginPortal(email, password);
   state().set(() => ({ session: user }));
   return user;
 }
 
-/**
- * Restores the persisted session into the store. Mock auth (the default) uses the
- * store's own `localStorage`-persisted session; Supabase mode restores its JWT.
- */
+/** Restores the HttpOnly-cookie session (null when signed out/expired). */
 export async function restoreSession(): Promise<AuthUser | null> {
-  if (authPortal()) {
-    const user = await restorePortalSession();
-    state().set(() => ({ session: user }));
-    return user;
-  }
-  if (authMocked() || !authConfigured()) return state().session;
-  const session = await getSession();
-  if (!session) return null;
-  state().set(() => ({ session: session.user }));
-  return session.user;
+  const user = await restorePortalSession();
+  state().set(() => ({ session: user }));
+  return user;
 }
 
 export async function signOut(): Promise<void> {
-  if (authPortal()) await logoutPortal();
-  else if (!authMocked() && authConfigured()) await signOutRemote();
+  await logoutPortal();
   state().set(() => ({ session: null }));
 }
 
-export const DEMO_ACCOUNTS = AUTH_DIRECTORY.map((u) => ({
-  email: u.email,
-  password: u.password,
-  role: u.role,
-  name: u.name,
-  stateCode: u.stateCode,
-}));
+/* ----------------------------- portal credentials ----------------------------- */
+
+export interface CreatePortalCredentialInput {
+  email: string;
+  name: string;
+  role: "SELLER" | "STATE_ADMIN";
+  sellerId?: string | undefined;
+  stateCode?: string | undefined;
+  password: string;
+}
+
+/** Superadmin-only: every issued portal login. */
+export async function listPortalCredentials(): Promise<PortalCredential[]> {
+  const res = await remote.get<{ users?: PortalCredential[] }>("/admin/portal-users");
+  return res.users ?? [];
+}
+
+/** Superadmin-only: issue a scoped seller or state-admin login (temporary password). */
+export async function createPortalCredential(
+  input: CreatePortalCredentialInput,
+): Promise<PortalCredential> {
+  return remote.post<PortalCredential>("/admin/portal-users", input);
+}
+
+/** Superadmin-only: enable/disable a credential (disabling revokes its refresh sessions). */
+export async function setPortalCredentialActive(id: string, active: boolean): Promise<void> {
+  await remote.put(`/admin/portal-users/${encodeURIComponent(id)}`, { active });
+}
+
+/** Superadmin-only: set a new temporary password (forces a change on next sign-in). */
+export async function resetPortalCredentialPassword(id: string, newPassword: string): Promise<void> {
+  await remote.put(`/admin/portal-users/${encodeURIComponent(id)}/password`, { newPassword });
+}
 
 /* -------------------------------- products ------------------------------- */
 

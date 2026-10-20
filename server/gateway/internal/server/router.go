@@ -107,12 +107,12 @@ func NewRouter(d Deps) http.Handler {
 	adsRepo := ads.New(d.Pool)
 	settlementRepo := settlement.New(d.Pool)
 	supportRepo := support.New(d.Pool)
-	// Gateway-native portal superadmin credentials (0032). Audited through the admins context.
+	// Gateway-native portal credentials (0032 + 0033) and credential management. Audited through the admins context.
 	portalRepo := portal.New(d.Pool)
 
-	// Auth: Firebase ID tokens for the mobile app (phone OTP); legacy Supabase/GoTrue HS256
-	// remains for the partner portal when FIREBASE_PROJECT_ID is unset. checkout resolves the
-	// auth subject → app user slug.
+	// Auth: Firebase ID tokens for the mobile app (phone OTP); portal HS256 tokens are verified
+	// separately. The legacy Supabase/GoTrue path remains for older partner tokens during the
+	// migration. checkout resolves the auth subject → app user slug.
 	authConfig := auth.Config{
 		Disabled:  d.Config.AuthDisabled,
 		DevUserID: d.Config.DevUserID,
@@ -278,6 +278,8 @@ func isSensitiveRequest(r *http.Request) bool {
 	case strings.HasPrefix(path, "/media/"):
 		return true
 	case strings.HasPrefix(path, "/auth/portal/"):
+		return true
+	case strings.HasPrefix(path, "/admin/portal-users"):
 		return true
 	default:
 		return false

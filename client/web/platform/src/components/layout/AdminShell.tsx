@@ -25,7 +25,6 @@ import { cn } from "@/lib/utils";
 import { groupTone, TONE_VAR } from "@/lib/ui/tones";
 import { useSession } from "@/lib/hooks/useSession";
 import { signOut } from "@/lib/api";
-import { authPortal } from "@/lib/config";
 import { stateName } from "@/data/states";
 import { RoleGate } from "@/components/layout/RoleGate";
 import { BrandTile } from "@/components/brand/FaazioMark";
@@ -48,8 +47,8 @@ export function AdminShell({
   const groups = useMemo(() => Array.from(new Set(nav.map((i) => i.group))), [nav]);
 
   useEffect(() => {
-    if (authPortal() && session?.mustChange && pathname !== "/admin/super/security") {
-      router.replace("/admin/super/security");
+    if (session?.mustChange && pathname !== "/security") {
+      router.replace("/security");
     }
   }, [pathname, router, session?.mustChange]);
 

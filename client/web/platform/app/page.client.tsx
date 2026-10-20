@@ -1,10 +1,8 @@
 "use client";
 import Link from "next/link";
-import { ArrowRight, BarChart3, PartyPopper, ShieldCheck, Store } from "lucide-react";
-import { DEMO_ACCOUNTS } from "@/lib/api";
+import { ArrowRight, PartyPopper, ShieldCheck, Store } from "lucide-react";
 import { ROLE_LABEL } from "@/lib/auth/permissions";
 import { Button } from "@/components/ui/button";
-import { stateName } from "@/data/states";
 
 
 const ROLE_CARDS = [
@@ -50,8 +48,8 @@ function Landing() {
           The console behind the Faazio SuperApp — MART, FOOD and PHARMA supply in one place.
         </h1>
         <p className="mt-2 max-w-2xl text-[14px] text-muted-foreground">
-          Nothing reaches a shopper unless a seller listed it here and an admin cleared it. Pick a
-          role to explore the mock workspace.
+          Nothing reaches a shopper unless a seller listed it here and an admin cleared it. Sign in
+          with the credentials your Faazio contact issued.
         </p>
 
         <div className="mt-7 grid gap-3 md:grid-cols-3">
@@ -67,24 +65,6 @@ function Landing() {
           ))}
         </div>
 
-        <section className="surface mt-8 p-5">
-          <div className="flex items-center gap-2">
-            <BarChart3 className="size-4 text-primary" />
-            <h2 className="text-[14px] font-semibold">Demo accounts (mock auth, no real data)</h2>
-          </div>
-          <div className="mt-3 grid gap-2 md:grid-cols-3">
-            {DEMO_ACCOUNTS.map((account) => (
-              <div key={account.email} className="rounded-lg border border-border p-3">
-                <p className="text-[12px] font-semibold">{ROLE_LABEL[account.role]}</p>
-                <p className="num mt-1 text-[12px] text-muted-foreground">{account.email}</p>
-                <p className="num text-[12px] text-muted-foreground">{account.password}</p>
-                <p className="mt-1 text-[11px] text-muted-foreground">
-                  Scope: {account.stateCode ? stateName(account.stateCode) : "All states"}
-                </p>
-              </div>
-            ))}
-          </div>
-        </section>
       </main>
     </div>
   );

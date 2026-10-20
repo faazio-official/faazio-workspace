@@ -1,5 +1,6 @@
 "use client";
 import { useState } from "react";
+import Link from "next/link";
 import { toast } from "sonner";
 import { AlertTriangle } from "lucide-react";
 import { PageHeader } from "@/components/patterns/PageHeader";
@@ -70,6 +71,14 @@ function StateAdminAccounts() {
         title="State admins"
         description="A state may have several admins; each admin is locked to exactly one state."
       />
+
+      <p className="text-[12px] text-muted-foreground">
+        Roster records do not grant portal access. Issue a sign-in on{" "}
+        <Link href="/admin/super/credentials" className="font-semibold text-interactive">
+          Portal credentials
+        </Link>
+        .
+      </p>
 
       {uncovered.length > 0 ? (
         <div className="flex flex-wrap items-center gap-2 rounded-xl border border-warning/40 bg-warning/10 px-4 py-3 text-[13px]">

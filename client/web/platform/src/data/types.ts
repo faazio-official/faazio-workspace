@@ -34,7 +34,6 @@ export interface AuthUser {
   role: Role;
   name: string;
   email: string;
-  password: string; // mock only; never persisted by the store
   /** Portal mode: the gateway requires a password change before normal use. */
   mustChange?: boolean | undefined;
   stateCode?: string | undefined; // state_code
@@ -275,6 +274,20 @@ export interface StateAdmin {
   active: boolean;
   createdAt: string;
   lastActiveAt: string;
+}
+
+/** admins.portal_users — a portal login issued by a superadmin (never carries the hash). */
+export interface PortalCredential {
+  id: string;
+  email: string;
+  name: string;
+  role: Role;
+  sellerId?: string | undefined;
+  stateCode?: string | undefined;
+  active: boolean;
+  mustChange: boolean;
+  lastLoginAt?: string | undefined;
+  createdAt?: string | undefined;
 }
 
 /** admins.audit_logs */

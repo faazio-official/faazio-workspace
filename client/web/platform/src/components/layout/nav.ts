@@ -14,6 +14,7 @@ import {
   Grid2x2,
   LayoutGrid,
   LayoutTemplate,
+  KeyRound,
   LifeBuoy,
   Megaphone,
   MessageSquare,
@@ -80,6 +81,7 @@ export const STATE_ADMIN_NAV: NavItem[] = [
 export const SUPER_ADMIN_NAV: NavItem[] = [
   { label: "Command center", to: "/admin/super", icon: Gauge, group: "Overview" },
   { label: "State admins", to: "/admin/super/state-admins", icon: UserCog, group: "Governance" },
+  { label: "Credentials", to: "/admin/super/credentials", icon: KeyRound, group: "Governance" },
   { label: "Users", to: "/admin/super/users", icon: Users, group: "Governance" },
   { label: "States", to: "/admin/super/states", icon: Grid2x2, group: "Governance" },
   { label: "Security", to: "/admin/super/security", icon: ShieldCheck, group: "Governance" },

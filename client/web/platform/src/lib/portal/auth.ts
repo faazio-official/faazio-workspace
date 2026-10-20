@@ -9,6 +9,8 @@ interface PortalUser {
   name: string;
   role: Role;
   mustChange: boolean;
+  sellerId?: string;
+  stateCode?: string;
 }
 
 interface PortalResponse {
@@ -23,8 +25,9 @@ function toAuthUser(user: PortalUser): AuthUser {
     role: user.role,
     name: user.name || user.email,
     email: user.email,
-    password: "",
     mustChange: user.mustChange,
+    sellerId: user.sellerId,
+    stateCode: user.stateCode,
   };
 }
 

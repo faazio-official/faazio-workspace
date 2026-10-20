@@ -181,7 +181,7 @@ wire. Mobile `GatewayClient.ts` + `@data/*` already speak integer rupees — unc
 | D10 | ISO strings no TZ enforcement | TIMESTAMPTZ | TZ-aware ISO type |
 | D11 | flat `customerName`/`sellerId` | joins + JSONB pickup | DB-shape map |
 | D12 | seeded analytics ints | Mongo user_events/product_stats | real pipeline (Phase 5) |
-| D13 | plaintext `demo1234` + localStorage | Supabase Auth JWT + RLS | **decision: portal auth stays mocked** (demo directory, `NEXT_PUBLIC_AUTH_MODE=supabase` opt-in); GoTrue seam kept dormant |
+| D13 | plaintext `demo1234` + localStorage | gateway-native portal credentials (Argon2id + rotating refresh + HttpOnly cookies) | **decision: portal auth is the only mode**; demo directory/GoTrue removed; superadmin issues seller/state logins |
 | D14 | client-computed settlement | payments.settlement_ledger | server-only write |
 | D15 | camelCase everywhere | snake_case DB | single mapper |
 | D16 | no customer-user projection | checkout.users (PII) + orders | **0017** `checkout.users_admin` view (redacted: no phone/address/email) |
@@ -210,11 +210,10 @@ wire. Mobile `GatewayClient.ts` + `@data/*` already speak integer rupees — unc
 - [x] `src/lib/pricing/rules.ts` paisa-int math only (`isIntPaisa` guard)
 - [x] `src/lib/media/productImages.ts` Storage-key flow (`resolveImage` + `uploadProductImage`)
 - [x] `src/lib/api/{http,sync}.ts` fetch seam + rupee↔paisa mapper + bearer auth
-- [x] `src/lib/supabase/auth.ts` Supabase Auth (GoTrue REST, no SDK) + role claims — **dormant by
-      default**: portal auth is **mocked** (demo directory) even when Supabase creds are present;
-      `NEXT_PUBLIC_AUTH_MODE=supabase` opts back into GoTrue
+- [x] portal auth (`src/lib/portal/auth.ts`) via same-origin `/api/auth/portal/*`; HttpOnly cookies,
+      superadmin/seller/state roles, no demo directory or GoTrue client
 - [x] 5 thin pages (prescriptions, bookings, blood, state bookings, sdui) + seed records/hooks/nav
-- [x] env-gated (`NEXT_PUBLIC_GATEWAY_URL`/`AUTH_MODE`/`SUPABASE_*`); `.env.example`; degrades to seed mode
+- [x] env-gated (`NEXT_PUBLIC_GATEWAY_URL`/`NEXT_PUBLIC_MEDIA_CDN_BASE`); `.env.example`
 - [x] `.gitignore` `coverage/`→`/coverage/` (un-hid `app/admin/super/coverage`)
 
 ## 9. Gateway delta checklist
@@ -299,7 +298,7 @@ endpoint all agree. Fallback stays in place until the slice is green end-to-end.
 | S3 Rewards | `getRewards` | `/admin/super/rewards` | `rewards.rates` (read policy for admin) | `GET /rewards/ledger`, `GET/PUT /rewards/rates` |
 | S4 Support | create ticket/return | `/admin/state/support` | `support.tickets.state_code` | `GET /tickets?state=`, `PUT /tickets/{id}/status` |
 | S5 Write-through | — | all portal mutators | existing rows | `remote.post/put/delete` + audit + cache purge |
-| S6 Auth/media | `authStore` JWT | Supabase GoTrue session | RLS claims | `RequireRole`; Storage object keys |
+| S6 Auth/media | `authStore` JWT | portal HttpOnly session | RLS claims | `RequireRole`; R2 object keys |
 | S7 Pharma quote (W24) | Rx upload → quote view (poll) | `/seller/prescriptions` quote editor + READY reveal | `pharma.quote_items`/`status_history`, `notifications.outbox` | `POST quotes`, `PUT READY`, `GET images`, `GET /notifications` |
 
 Status: **S1–S5 closed** (web control + DB + gateway all shipped; every portal mutator

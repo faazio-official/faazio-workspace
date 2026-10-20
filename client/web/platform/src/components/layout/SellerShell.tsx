@@ -1,5 +1,5 @@
 "use client";
-import { useState, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { Bell, ChevronLeft, LogOut, PanelLeft, Search } from "lucide-react";
@@ -28,6 +28,12 @@ export function SellerShell({ children }: { children: ReactNode }) {
   const pathname = usePathname();
 
   const groups = Array.from(new Set(SELLER_NAV.map((i) => i.group)));
+
+  useEffect(() => {
+    if (session?.mustChange && pathname !== "/security") {
+      router.replace("/security");
+    }
+  }, [pathname, router, session?.mustChange]);
 
   return (
     <RoleGate allow={["SELLER"]}>

@@ -4,7 +4,6 @@
 import { create } from "zustand";
 import { persist, createJSONStorage } from "zustand/middleware";
 import { config } from "@/lib/config";
-import { AUTH_USERS } from "@/data/auth/users";
 import { SELLERS, KYC_DOCUMENTS, BANK_ACCOUNTS } from "@/data/sellers/sellers";
 import { STORES } from "@/data/stores/stores";
 import { PRODUCTS } from "@/data/catalog/products";
@@ -144,15 +143,9 @@ export const usePortalStore = create<PortalState>()(
       ),
       partialize: (state) => {
         const { set: _set, ...rest } = state;
-        // Never persist a password (mock directory) or any bearer token. In portal mode the session
-        // projection is refreshed from the HttpOnly cookie on load.
-        return {
-          ...rest,
-          session: rest.session ? { ...rest.session, password: "" } : null,
-        };
+        // The portal session is never persisted: it is refreshed from the HttpOnly cookie on load.
+        return { ...rest, session: null };
       },
     },
   ),
 );
-
-export const AUTH_DIRECTORY = AUTH_USERS;

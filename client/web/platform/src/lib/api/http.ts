@@ -1,8 +1,7 @@
 "use client";
-// The single network seam to the Go Chi gateway. When `NEXT_PUBLIC_GATEWAY_URL`
-// is unset the portal runs in local seed mode and every caller falls back.
-import { authPortal, config, remoteConfigured } from "@/lib/config";
-import { accessToken } from "@/lib/supabase/auth";
+// The single network seam to the Go Chi gateway. Requests go to the same-origin
+// /api/gateway proxy, which attaches the HttpOnly portal bearer server-side.
+import { remoteConfigured } from "@/lib/config";
 
 export class ApiError extends Error {
   constructor(
@@ -25,21 +24,14 @@ interface RequestOptions {
 }
 
 function url(path: string, query?: RequestOptions["query"]): string {
-  // Portal mode: the browser talks to the same-origin proxy, which injects the HttpOnly bearer
-  // token server-side so the token is never readable by JavaScript.
-  if (authPortal()) {
-    const origin = typeof window === "undefined" ? "http://localhost" : window.location.origin;
-    const u = new URL(`/api/gateway${path}`, origin);
-    for (const [k, v] of Object.entries(query ?? {})) {
-      if (v !== undefined && v !== "") u.searchParams.set(k, String(v));
-    }
-    return u.pathname + u.search;
-  }
-  const u = new URL(`${config.gatewayUrl}${path}`);
+  // The browser talks to the same-origin proxy, which injects the HttpOnly bearer token
+  // server-side so the token is never readable by JavaScript.
+  const origin = typeof window === "undefined" ? "http://localhost" : window.location.origin;
+  const u = new URL(`/api/gateway${path}`, origin);
   for (const [k, v] of Object.entries(query ?? {})) {
     if (v !== undefined && v !== "") u.searchParams.set(k, String(v));
   }
-  return u.toString();
+  return u.pathname + u.search;
 }
 
 async function request<T>(path: string, options: RequestOptions = {}): Promise<T> {
@@ -47,15 +39,7 @@ async function request<T>(path: string, options: RequestOptions = {}): Promise<T
     throw new ApiError(0, "offline", "Gateway is not configured");
   }
   const headers: Record<string, string> = { Accept: "application/json" };
-  const token = authPortal() ? null : accessToken();
-  if (token) headers["Authorization"] = `Bearer ${token}`;
   if (options.body !== undefined) headers["Content-Type"] = "application/json";
-  // Dev-only role override (mock-auth portal against an AUTH_DISABLED gateway). Never in prod.
-  if (process.env.NODE_ENV !== "production") {
-    if (config.devRole) headers["X-Dev-Role"] = config.devRole;
-    if (config.devSeller) headers["X-Dev-Seller"] = config.devSeller;
-    if (config.devState) headers["X-Dev-State"] = config.devState;
-  }
 
   const init: RequestInit = { method: options.method ?? "GET", headers };
   if (options.body !== undefined) init.body = JSON.stringify(options.body);
@@ -67,9 +51,10 @@ async function request<T>(path: string, options: RequestOptions = {}): Promise<T
     let code = "request_failed";
     let message = `Request failed (${res.status})`;
     try {
-      const body = (await res.json()) as { error?: string; message?: string };
-      if (body.error) code = body.error;
-      if (body.message) message = body.message;
+      const body = (await res.json()) as { error?: string; code?: string; message?: string };
+      if (body.code) code = body.code;
+      if (body.error) message = body.error;
+      else if (body.message) message = body.message;
     } catch {
       // non-JSON error body
     }
