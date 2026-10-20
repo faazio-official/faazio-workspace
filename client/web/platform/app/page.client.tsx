@@ -3,6 +3,8 @@ import Link from "next/link";
 import { ArrowRight, PartyPopper, ShieldCheck, Store } from "lucide-react";
 import { ROLE_LABEL } from "@/lib/auth/permissions";
 import { Button } from "@/components/ui/button";
+import { BrandTile } from "@/components/brand/FaazioMark";
+import { FaazioWordmark } from "@/components/brand/FaazioWordmark";
 
 
 const ROLE_CARDS = [
@@ -31,10 +33,8 @@ function Landing() {
     <div className="min-h-screen bg-background">
       <header className="border-b border-border bg-card">
         <div className="mx-auto flex h-14 max-w-[1200px] items-center gap-2 px-4">
-          <div className="flex size-7 items-center justify-center rounded-md bg-primary text-[13px] font-bold text-primary-foreground">
-            F
-          </div>
-          <span className="text-[14px] font-semibold">Faazio Partner Portal</span>
+          <BrandTile className="size-7 rounded-md" />
+          <FaazioWordmark className="brand-wordmark text-primary" />
           <Button asChild size="sm" className="ml-auto">
             <Link href="/login">
               Sign in <ArrowRight className="size-4" />

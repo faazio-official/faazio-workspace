@@ -20,6 +20,7 @@ import { useSession } from "@/lib/hooks/useSession";
 import { signOut } from "@/lib/api";
 import { RoleGate } from "@/components/layout/RoleGate";
 import { BrandTile } from "@/components/brand/FaazioMark";
+import { FaazioWordmark } from "@/components/brand/FaazioWordmark";
 
 export function SellerShell({ children }: { children: ReactNode }) {
   const [collapsed, setCollapsed] = useState(false);
@@ -48,7 +49,7 @@ export function SellerShell({ children }: { children: ReactNode }) {
             <BrandTile className="size-7 rounded-md" />
             {!collapsed ? (
               <div className="min-w-0">
-                <p className="truncate text-[13px] font-semibold">Faazio Seller</p>
+                <FaazioWordmark className="brand-wordmark text-primary" />
                 <p className="truncate text-[11px] text-muted-foreground">
                   {session?.name ?? "Partner"}
                 </p>

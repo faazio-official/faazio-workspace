@@ -365,12 +365,24 @@ Readiness config that ships with the app:
 - **Brand assets** — `src/components/brand/FaazioMark.tsx` exports `FaazioMark`
   (the Faazio knot glyph, contours copied from the mobile brand asset
   `client/mobile/src/assets/logo.svg`) and `BrandTile` (the glyph on the
-  brand-gradient tile), used by `SellerShell`, `AdminShell` and the login
-  screen. `public/` carries the generated icon set — `favicon.svg`,
-  `favicon.ico`, `favicon-16x16`/`favicon-32x32`, `apple-touch-icon.png`,
-  `android-chrome-192x192`/`android-chrome-512x512` — wired via
-  `app/layout.tsx` `metadata.icons` + `metadata.manifest`
-  (`/site.webmanifest`), plus `viewport.themeColor` (`#1162D3`).
+  brand-gradient tile). `src/components/brand/FaazioWordmark.tsx` exports
+  `FaazioWordmark` (the vector letterforms, copied verbatim from the landing
+  page `client/web/landingpage/src/components/faazio-logo.tsx`) for the
+  header/sidebar/login lockups. The placeholders they replaced:
+  `app/page.client.tsx` (the raw `F` tile), `SellerShell`, `AdminShell` and the
+  login screen all compose `BrandTile` + `FaazioWordmark` (wordmark only in the
+  expanded sidebar; the collapsed rail stays icon-only). `public/` carries the
+  generated icon set — `favicon.svg` (kept vector, untouched),
+  `favicon.ico` (multi-size 16/32/48 ICO), `favicon-16x16`/`favicon-32x32`,
+  `apple-touch-icon.png` (opaque white), `android-chrome-192x192`
+  (`any`) / `android-chrome-512x512` (full-bleed, maskable-safe) — wired via
+  `app/layout.tsx` `metadata.icons` (cache-busting `?v=3`, mirroring the
+  landing page's `?v=2`) + `metadata.manifest` (`/site.webmanifest`), plus
+  `viewport.themeColor` (`#1162D3`). The raster set is regenerated from the
+  canonical mobile knot PNG (`client/mobile/src/assets/faazio-logo.png`) by
+  `scripts/generate-brand-icons.py` (dev-only, python3 + Pillow); and
+  `src/styles.css` provides the `.brand-wordmark` sizing token (18px for 14px
+  chrome).
 
 No secrets are baked into the build: `NEXT_PUBLIC_*` values are read at build
 time, so a demo deployment that leaves them unset renders in seed mode and
