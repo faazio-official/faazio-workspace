@@ -144,7 +144,12 @@ export const usePortalStore = create<PortalState>()(
       ),
       partialize: (state) => {
         const { set: _set, ...rest } = state;
-        return rest;
+        // Never persist a password (mock directory) or any bearer token. In portal mode the session
+        // projection is refreshed from the HttpOnly cookie on load.
+        return {
+          ...rest,
+          session: rest.session ? { ...rest.session, password: "" } : null,
+        };
       },
     },
   ),

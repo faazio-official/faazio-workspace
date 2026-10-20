@@ -34,7 +34,7 @@ docs/
 ├── DEVELOPER_ONBOARDING.md         # numbered getting-started guide
 ├── BRAND_COLOR_MIGRATION.md        # royal-purple → Faazio-blue change log + revert
 ├── architecture/                   # deep-dives (mvp-backend, monolith-breakdown, mobile-app, web-portal, data-layer-sdui, server-gateway-plan, db-schema, caching-cloudflare-valkey)
-└── RUNBOOKS/                       # operational guides (RELEASE, CI_PIPELINE, DATA_FIXTURES, FIREBASE_AUTH, TROUBLESHOOTING)
+└── RUNBOOKS/                       # operational guides (RELEASE, CI_PIPELINE, DATA_FIXTURES, FIREBASE_AUTH, PORTAL_AUTH, TROUBLESHOOTING)
 ```
 
 Reading order for a new contributor: `AGENTS.md` → `ARCHITECTURE.md` →

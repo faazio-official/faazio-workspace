@@ -200,6 +200,12 @@ mode). `vercel.json` ships the security headers, `engines.node` pins the build
 runtime, and `public/robots.txt` + `metadata.robots` keep the console
 unindexed. See `docs/architecture/web-portal.md` → "Deployment (Vercel)".
 
+For live superadmin sign-in set `NEXT_PUBLIC_AUTH_MODE=portal` and
+`NEXT_PUBLIC_GATEWAY_URL`; the gateway needs `PORTAL_JWT_SECRET`,
+`PORTAL_PEPPER`, migration `0032` applied, and the two accounts provisioned
+first. Full provisioning/rotation/rollback steps:
+`docs/RUNBOOKS/PORTAL_AUTH.md`.
+
 ## ✅ Release checklist
 
 - [ ] `npm run ts:check` and `npm run check:boundaries` pass.
@@ -208,6 +214,7 @@ unindexed. See `docs/architecture/web-portal.md` → "Deployment (Vercel)".
 - [ ] GitHub secrets set: `KEYSTORE_BASE64`, `KEYSTORE_PASS`, `KEY_ALIAS`, `ALIAS_PASS` (keystore backed up).
 - [ ] Release APK signed with the **release cert** (`CN=Faazio`), not the debug cert.
 - [ ] `gh workflow run release-apk.yml` succeeded and the signed APK is on the GitHub Release.
+- [ ] Portal (if deploying): `0032` applied, `PORTAL_JWT_SECRET`/`PORTAL_PEPPER` set, superadmin hashes provisioned (`PORTAL_AUTH.md`).
 - [ ] Release signed and smoke-tested on a device (R8 gate: Home → Cart → Checkout → Pharma).
 - [ ] Store metadata / data-safety updated.
 

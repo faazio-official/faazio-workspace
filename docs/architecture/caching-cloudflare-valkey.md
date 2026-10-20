@@ -68,7 +68,7 @@ faazio:v{N}:{service}:{entity}:{id}
 - `v{N}` = **version prefix** → bump the number to instantly invalidate a whole class of keys without
   scanning.
 - `{service}` = `gateway` · `search` · `cart` · `stock` · `checkout` · `reco` · `directory` · `reviews`
-  · `accounts`.
+  · `accounts` · `auth`.
 - `{entity}` = `sdui` · `q` (query) · `product` · `store` · `venues` · `stock` · `orders` · `reco` · `segment`.
 - `{id}` = the stable slug / userIdHash / locale / path.
 
@@ -117,6 +117,9 @@ Examples: `faazio:v1:stock:fm-f1`, `faazio:v1:search:q:hoodie`, `faazio:v1:sdui:
 | Settlement cycles (per seller) | 600 s | **never** | settlement/payout write |
 | Idempotency locks (checkout) | 300 s | — | auto-expire |
 | Auth subject → app user_id | 3600 s (1 h) | — | delete on profile merge (mapping is otherwise immutable) |
+| Portal login counter per IP (`faazio:v1:auth:login:ip:{sha8}`, `POST /auth/portal/login`) | 60 s (`INCR`+`EXPIRE`) | **never** | auto-expire (10/min; shared across Render instances; fail-open when Valkey is off) |
+| Portal login counter per email (`faazio:v1:auth:login:email:{sha8}`) | 60 s (`INCR`+`EXPIRE`) | **never** | auto-expire (5/min; hashed key, no email PII in Valkey) |
+| Portal access-token denylist (`faazio:v1:auth:deny:{jti}`, logout / password change) | 900 s (15 min) | **never** | auto-expire at access-token expiry (no case-sensitivity: a missing Valkey leaves the token valid until `exp`, documented) |
 
 ### 5a. Ad placement → surface map
 

@@ -47,6 +47,7 @@ search extraction is a pure index-replica swap.
 | reviews → Go+Postgres | `internal/reviews` | `reviews` (+ `reviews.vendor_summary` counter/trigger) | `faazio:v1:reviews:vendor:{id}` 24 h · `faazio:v1:reviews:product:{id}` 24 h | `getReviews` (product), `getVendorReviews`, `rateVendor` | standalone Postgres |
 | sellers → Go+Postgres | `internal/sellers` | `sellers` (+ `sellers.sellers`, `kyc_documents`, `bank_accounts`; `directory.stores`/`catalog.products` `seller_id`) | **none** — seller records carry PII (caching doc §8) | `submitSellerApplication` (`POST /sellers`, any authenticated applicant); reads/moderation are portal-only | Go + Postgres |
 | admins → Go | `internal/admins` | `admins` (+ `state_admins`, `audit_logs`); reads `checkout.users_admin` | none (append-only audit); customer list auth-scoped, never cached | portal-only (`GET /customers`, customer monitoring) | CockroachDB |
+| portal auth → Go | `internal/portal` | `admins` (+ `portal_users` credentials, `portal_sessions` rotating refresh families — `0032`); audit rows via `contracts.AuditWriter` | `faazio:v1:auth:login:ip:{sha8}` 60 s · `faazio:v1:auth:login:email:{sha8}` 60 s · `faazio:v1:auth:deny:{jti}` ≤15 m; refresh sessions are Postgres rows (30 d), never cached | portal-only: `POST /auth/portal/login`, `POST /auth/portal/refresh`, `POST /auth/portal/logout`, `GET /auth/portal/me`, `PUT /auth/portal/password`; mints the `iss=faazio-portal`/`aud=portal` SUPER_ADMIN access JWT verified by `internal/platform/auth` | Go + Postgres |
 | promo → Go+Postgres | `internal/promo` | `promo` (+ `festival_campaigns`, `seller_optins`, `coupons` incl. `title`/`min_order_paisa`/`free_delivery`, `sector_caps`) | `faazio:v1:promo:campaign:{id}` 300 s · `faazio:v1:promo:coupons:public:{app}:{state}` 600 s · `faazio:v1:promo:active:{productId}` 300 s (LIVE+APPROVED, sector-capped; invalidated on opt-in/campaign change) | portal control + public `GET /coupons?app=&state=` (anon, active/unexpired projection) + `GET /promo/active-discounts?ids=` (anon shopper-price projection the app overlays on base prices); implements `contracts.CouponValidator` (`ValidateCoupon`, pure `DecideCoupon`) and `contracts.DiscountReader` (`ActiveDiscounts`) so checkout settles coupons + live festival discounts server-side. **(W53)** the Pharma home Popular Medicines rail now consumes `GET /promo/active-discounts` (same overlay as Mart) and Top Offers are filtered to live `GET /coupons?app=PHARMA` codes — no app surface advertises a coupon checkout cannot settle | Go + Postgres |
 | ads → Go+Postgres | `internal/ads` | `ads` (+ `sponsored_slots`, `campaigns` — self-serve hero creative, `0027`/`0028`) | `faazio:v1:ads:slot:{id}` 300 s · `faazio:v1:ads:live:{placement}` 600 s · `faazio:v1:ads:hero:{placement}:{app}:{category}:{store}` 300 s (both invalidated on status change; hero namespace purged by prefix on publish/takedown) · `faazio:v1:ads:seen:{userId}:{slotId}` 300 s (impression dedupe) · `faazio:v1:ads:report:{userId}:{placementId}` 24 h (report dedupe) · `faazio:v1:ads:publish:{sellerId}:{day}` 24 h (rate counter) | portal control + public `GET /ads/live?slot=` and `GET /ads/hero?placement=&app=&category=&storeId=` (anon, LIVE projections); authenticated `POST /ads/events` records impression/click (`RecordEvent` — one round-trip updates the rail slot or hero row). Hero campaigns are **self-serve** (`0028`): `POST /ads/campaigns` machine-checks ownership (resolved against `catalog.products`/`directory.menus`/`directory.stores`/`directory.dining_venues`), placement↔app fit, R2-CDN-only poster, bounds, ≤90-day window, ≤3 LIVE per (seller, placement) + ≤10 publishes/seller/day, then inserts `LIVE`; `GET /ads/campaigns?sellerId=` (scoped); authenticated `POST /ads/campaigns/{id}/report` (user abuse report, deduped, no PII); admin `PUT /ads/campaigns/{id}/status` is **takedown/restore only** (`REJECTED`+reason / `LIVE`). `contracts.AdAttributor` `AttributeOrder` bumps `orders_attributed` best-effort at checkout (both surfaces); `GatewayClient.getLiveAds`/`getSponsoredProducts`/`getHeroAds`/`recordAdEvent`/`reportHeroAd` feed the shared sponsored rail (HOME_TOP/SPONSORED_SHOWCASE/SECTOR_RAIL) and the labelled hero surfaces (MART_HERO/CATEGORY_TOP/STORE_TOP/HOME_HERO/FOOD_HERO/PHARMA_HERO) | Go + Postgres |
 | settlement → Go+Cockroach | `internal/settlement` | `payments` (+ `settlement_ledger`, `payouts`) | `faazio:v1:settlement:{sellerId}:{cycle}` 600 s (invalidated on payout create) | portal-only | CockroachDB |
@@ -56,8 +57,10 @@ search extraction is a pure index-replica swap.
 | shared | `internal/platform/{db,cache,auth,config,otel,r2,cloudflare,testenv}`, `internal/contracts` | — | — | — | gRPC via `contracts/` |
 
 Auth verifier ownership: `internal/platform/auth` owns token verification only — Firebase RS256
-(`FirebaseVerifier`, Google public certs, no firebase-admin dependency) plus the legacy Supabase HS256
-fallback, then the checkout `UserProvisioner` maps the verified subject to `checkout.users`.
+(`FirebaseVerifier`, Google public certs, no firebase-admin dependency), then gateway-native portal
+HS256 (`PortalVerifier`, `iss=faazio-portal`/`aud=portal`, jti denylist), then the legacy Supabase HS256
+fallback. A portal subject is already the `admins.portal_users.user_id` (the resolver is skipped);
+every other subject goes through the checkout `UserProvisioner` → `checkout.users`.
 
 Mongo `user_events` stores **ID-only** `{ userIdHash, productId, event, at }` with a 90-day TTL; the
 raw user id is never stored (hash only). **Nothing rating-related is ever logged.**
@@ -224,9 +227,9 @@ Extract the **first** context (search) as the reference. The others repeat the s
 | Time | `TIMESTAMPTZ`; JSON ISO-8601 | fixed width; no epoch/ISO mixing |
 | Enums | `app_brand`, `order_status`, `fulfillment_mode` (Postgres ENUM) | validated, 1–4 B |
 | Partner enums (`0015`) | `seller_status`, `product_status`, `kyc_doc_type`, `campaign_status`, `campaign_scope`, `optin_status`, `ad_placement`, `ad_status`, `payout_status`, `ticket_status`, `return_status`; `order_status` gains `NEW`/`PACKED`/`RETURNED` (Option A, mobile `Processing` ⇄ `NEW`/`PACKED`) | one lifecycle both apps read; validated at the DB |
-| Partner roles | JWT claims `app_role` (`SELLER`/`STATE_ADMIN`/`SUPER_ADMIN`) + `seller_id`/`state_code`; `auth.RequireRole` | role checks in Go (`service_role` bypasses RLS); never trust a request-body actor |
+| Partner roles | JWT claims `app_role` (`SELLER`/`STATE_ADMIN`/`SUPER_ADMIN`) + `seller_id`/`state_code`; `auth.RequireRole`. Portal tokens additionally pin `iss=faazio-portal`, `aud=portal`, `exp`, `jti`, `must_change` (confined to `/auth/portal/*` until rotated) | role checks in Go (`service_role` bypasses RLS); never trust a request-body actor; a portal token can never verify with the legacy Supabase secret |
 | `GatewayClient` | method names + signatures in `client/mobile/src/services/api/GatewayClient.ts` | screens swap `@mock` → `@server` without call-site edits |
-| Cache | `faazio:v1:{service}:{entity}:{id}` + TTL matrix (`caching-cloudflare-valkey.md` §4–§5). Includes `faazio:v1:auth:uid:{sha256}` (3600 s), `faazio:v1:pharma:prescriptions:{userId}` (60 s), `faazio:v1:notifications:inbox:{userId}` (30 s) | Cloudflare purge + Valkey invalidation map |
+| Cache | `faazio:v1:{service}:{entity}:{id}` + TTL matrix (`caching-cloudflare-valkey.md` §4–§5). Includes `faazio:v1:auth:uid:{sha256}` (3600 s), portal `faazio:v1:auth:login:{ip,email}:{sha8}` (60 s) + `faazio:v1:auth:deny:{jti}` (≤15 m), `faazio:v1:pharma:prescriptions:{userId}` (60 s), `faazio:v1:notifications:inbox:{userId}` (30 s) | Cloudflare purge + Valkey invalidation map |
 | Cache `v{N}` | bump to invalidate a key class | no scan needed |
 | Idempotency | `SET faazio:v1:checkout:idem:{orderRef} 1 NX EX 300` | prevents double-place |
 
@@ -239,8 +242,10 @@ Extract the **first** context (search) as the reference. The others repeat the s
   DynamoDB, standalone Postgres — same datatypes, so the swap is invisible.
 - **Auth:** real **Firebase phone OTP** (the Login UI exchanges the SMS code via `firebaseAuth.ts`;
   the gateway verifies the RS256 Firebase ID token with Google's x509 certificate set) + partner JWT
-  claim roles (Firebase custom claims, or legacy Supabase HS256 for the portal); the gateway resolves
-  `user_id` from the verified subject, upserting the `auth_uid` link on first call (`ProvisionUserID`).
+  claim roles (Firebase custom claims, gateway-native portal HS256 for the two superadmins, or legacy
+  Supabase HS256); the gateway resolves `user_id` from the verified subject, upserting the `auth_uid`
+  link on first call (`ProvisionUserID`) — portal tokens skip that resolver because their subject is
+  already a `portal_users` id.
   Never trust a client-supplied user id. Local dev
   can still resolve the app as `user-1` (`AUTH_DISABLED=true`); the app sends `X-Dev-User` only in dev builds
   (`DEV_USER`). Consequently the two app writes behind `auth.Require` (`POST /ads/events`,

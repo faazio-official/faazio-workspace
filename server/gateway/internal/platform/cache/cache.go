@@ -134,6 +134,20 @@ func AuthUser(authUID string) string {
 	return "faazio:v1:auth:uid:" + hex.EncodeToString(sum[:])
 }
 
+// Portal login throttles are keyed by a short hash of the IP / email so no raw identifier (and no
+// email PII) is stored in Valkey. The cache is shared by every Render instance, so the counters
+// hold across the rolling deploy (DB lockout is the durable fallback).
+func PortalLoginIP(ipHash string) string {
+	return "faazio:v1:auth:login:ip:" + ipHash
+}
+func PortalLoginEmail(emailHash string) string {
+	return "faazio:v1:auth:login:email:" + emailHash
+}
+
+// PortalDeny is the access-token jti denylist (logout/password change). The TTL is the token's
+// remaining lifetime, so the key never outlives the token it blocks.
+func PortalDeny(jti string) string { return "faazio:v1:auth:deny:" + jti }
+
 // TTL helpers.
 const (
 	TTLSearch  = 600 * time.Second
@@ -209,6 +223,12 @@ const (
 	// TTLMediaAsset bounds one media.assets registry row (public identity + CDN URL). Long, because
 	// keys are immutable; purged on confirm/status/delete (caching-cloudflare-valkey.md §5).
 	TTLMediaAsset = 24 * time.Hour
+
+	// Portal auth. Login counters are a rolling 60 s window; the access-token denylist only needs to
+	// outlive the 15-minute access token; refresh sessions live in Postgres for 30 days.
+	TTLPortalLoginWindow = 60 * time.Second
+	TTLPortalDeny        = 15 * time.Minute
+	TTLPortalRefresh     = 30 * 24 * time.Hour
 )
 
 // Cache is a JSON read-through cache. A nil *Client (disabled) is safe to call.
@@ -307,6 +327,24 @@ func (c *Cache) DelPrefix(ctx context.Context, prefix string) {
 			return
 		}
 	}
+}
+
+// Set stores a small value under key with ttl. Used for the portal access-token denylist.
+func (c *Cache) Set(ctx context.Context, key, value string, ttl time.Duration) {
+	if !c.Enabled() || key == "" {
+		return
+	}
+	_ = c.rdb.Set(ctx, key, value, ttl).Err()
+}
+
+// Exists reports whether key is present. A disabled cache always reports false (the documented
+// degradation: a logout cannot revoke an already-issued access token without Valkey).
+func (c *Cache) Exists(ctx context.Context, key string) bool {
+	if !c.Enabled() || key == "" {
+		return false
+	}
+	n, err := c.rdb.Exists(ctx, key).Result()
+	return err == nil && n > 0
 }
 
 // ErrLockHeld is returned when an idempotency lock is already held.

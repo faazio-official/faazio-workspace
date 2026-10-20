@@ -5,8 +5,11 @@ renders from a Zustand store that is seeded from `client/web/platform/src/data/*
 `NEXT_PUBLIC_GATEWAY_URL` is set, hydrated from the Go Chi gateway
 (`client/web/platform/src/lib/api/sync.ts`). **Auth is mocked by default** — the portal signs
 in against the built-in demo directory even when Supabase credentials are present;
-set `NEXT_PUBLIC_AUTH_MODE=supabase` to opt into GoTrue. The session persists in
-`localStorage` under `faazio.portal.v1`. See "Data + auth" below.
+set `NEXT_PUBLIC_AUTH_MODE=supabase` to opt into GoTrue, or
+`NEXT_PUBLIC_AUTH_MODE=portal` for the gateway-native superadmin session (HttpOnly
+cookies, no token in `localStorage`). The user projection persists in
+`localStorage` under `faazio.portal.v1`; passwords are never persisted. See
+"Data + auth" and "Portal superadmin auth" below.
 
 ## Locations
 
@@ -33,7 +36,8 @@ Vite reference (all 3 consoles).
 | Route | Page |
 | --- | --- |
 | `/` | root redirect/landing → `app/page.tsx` |
-| `/login` | mock directory sign-in (GoTrue only when `NEXT_PUBLIC_AUTH_MODE=supabase`) |
+| `/login` | mock directory sign-in (GoTrue when `NEXT_PUBLIC_AUTH_MODE=supabase`; gateway-native superadmin when `portal`) |
+| `/admin/super/security` | portal-mode password rotation (forces a change when `mustChange`) |
 
 **Seller console — own data (`app/seller/**`)** — ads, catalog, pricing, promotions, stores,
 menus, orders, bookings, prescriptions, returns, reviews, payments, analytics, support, settings,
@@ -228,11 +232,14 @@ decisions through awaited writes with rollback (`PUT /bookings/{id}/status`, `PO
   The `admin/state/customers` page adds an on-demand **activity trail** panel per selected customer
   (`useUserTrail` → admin-only `GET /admin/user-trail?userId=`, ID-only `user_events`).
 - **Auth (mocked by default)** — `src/lib/api/index.ts` `signIn` authenticates against
-  the built-in demo directory (`src/data/auth/users.ts`) and never calls Supabase unless
-  `NEXT_PUBLIC_AUTH_MODE=supabase`. `src/lib/supabase/auth.ts` is the dormant GoTrue REST
-  seam (no `supabase-js` dependency): password sign-in, refresh, role-claim decode
-  (`app_role`/`seller_id`/`state_code`, top-level or `app_metadata`). When Supabase mode is
-  on, its bearer token is attached to every gateway call. In mock mode the calls carry no token
+  the built-in demo directory (`src/data/auth/users.ts`) unless
+  `NEXT_PUBLIC_AUTH_MODE=supabase` (GoTrue) or `portal` (gateway-native superadmin).
+  `src/lib/supabase/auth.ts` is the GoTrue REST seam (no `supabase-js` dependency): password
+  sign-in, refresh, role-claim decode (`app_role`/`seller_id`/`state_code`, top-level or
+  `app_metadata`). In portal mode `src/lib/portal/auth.ts` talks only to same-origin
+  `/api/auth/portal/*` route handlers; the tokens live in HttpOnly cookies and every data call
+  goes through `/api/gateway/*` so no bearer token is readable by JavaScript (see the next
+  section). In Supabase mode the bearer token is attached directly to every gateway call. In mock mode the calls carry no token
   and rely on the gateway's `AUTH_DISABLED=true` dev setting plus the **dev-only** `NEXT_PUBLIC_DEV_ROLE`
   / `NEXT_PUBLIC_DEV_SELLER` / `NEXT_PUBLIC_DEV_STATE` values (mapped to the gateway's `X-Dev-Role` /
   `X-Dev-Seller` / `X-Dev-State` headers; sent only when `NODE_ENV !== "production"`). Without a
@@ -248,14 +255,60 @@ Bootstrap (`app/providers.tsx`) restores the session then hydrates. Copy
 `client/web/platform/.env.example` to `.env.local`:
 
 ```bash
-NEXT_PUBLIC_GATEWAY_URL=        # e.g. http://localhost:8080
-NEXT_PUBLIC_AUTH_MODE=mock      # "mock" (default) | "supabase" (GoTrue)
+NEXT_PUBLIC_GATEWAY_URL=        # e.g. http://localhost:8080 (portal mode: server-side upstream)
+NEXT_PUBLIC_AUTH_MODE=mock      # "mock" (default) | "supabase" (GoTrue) | "portal" (superadmin)
 NEXT_PUBLIC_SUPABASE_URL=       # Storage always; Auth only when AUTH_MODE=supabase
 NEXT_PUBLIC_SUPABASE_ANON_KEY=
 NEXT_PUBLIC_DEV_ROLE=           # dev-only X-Dev-Role override (e.g. SUPER_ADMIN); ignored in prod builds
 NEXT_PUBLIC_DEV_SELLER=         # dev-only X-Dev-Seller (seller scope)
 NEXT_PUBLIC_DEV_STATE=          # dev-only X-Dev-State (state scope)
 ```
+
+## Portal superadmin auth (gateway-native)
+
+`NEXT_PUBLIC_AUTH_MODE=portal` replaces the mocked `demo1234` superadmin path with a real
+gateway-minted session. There is **no new IdP**: the gateway already owns
+`RequireRole(SUPER_ADMIN)` and `admins.audit_logs`, so it also stores the two superadmin
+credentials (`admins.portal_users`, migration `0032`) and mints the tokens.
+
+```
+browser                        Next.js route handlers                 Go gateway
+  |  POST /api/auth/portal/login   |                                      |
+  |------------------------------->|  POST /auth/portal/login             |
+  |                                |------------------------------------->| Argon2id verify + lockout
+  |                                |<-------------------------------------| access JWT (15 m) + refresh (30 d)
+  |  Set-Cookie faazio_pat/prt     |  (HttpOnly, Secure, SameSite=Lax)    |
+  |<-------------------------------|                                      |
+  |  GET /api/gateway/<path>       |  Authorization: Bearer <cookie>      |
+  |------------------------------->|------------------------------------->| RequireRole(SUPER_ADMIN)
+  |                                |  401 -> rotate refresh once, retry   |
+```
+
+- **Endpoints** (all gateway-native, see `docs/architecture/monolith-breakdown.md` §1):
+  `POST /auth/portal/login`, `POST /auth/portal/refresh`, `POST /auth/portal/logout`,
+  `GET /auth/portal/me`, `PUT /auth/portal/password`.
+- **Cookie proxy** — `app/api/auth/portal/{login,refresh,me,logout,password}/route.ts` set the
+  `faazio_pat` (access, 15 min) and `faazio_prt` (refresh, 30 d) HttpOnly/SameSite=Lax cookies;
+  `app/api/gateway/[...path]/route.ts` injects the bearer server-side and rotates the refresh
+  token on a 401. This is the XSS win: an injected script cannot read the token.
+- **First-login confinement** — the access token carries `must_change`. Until the password is
+  rotated, the gateway refuses every path outside `/auth/portal/*` (`403 password_change_required`)
+  and the shell redirects to `/admin/super/security`, so the shared initial password cannot reach
+  the control plane.
+- **Refresh rotation** — opaque `faazio_pr_*` tokens are stored only as SHA-256 hashes
+  (`admins.portal_sessions`), single-use per rotation; replaying a used token revokes the whole
+  family. `POST /auth/portal/logout` also denylists the access `jti` in Valkey until it expires.
+- **Password policy** — Argon2id (t=3, m=64 MiB, p=1) with a 16-byte salt and the
+  `PORTAL_PEPPER` HMAC; at most 4 derivations run concurrently per instance so a public
+  login spray cannot exhaust container memory. The two seeded accounts start with the shared password and
+  `must_change=true`; the portal forces `/admin/super/security`, which rotates the password and
+  revokes every existing session.
+- **Throttling** — per-IP (10/min) + per-email (5/min) Valkey counters (hashed keys) plus a
+  durable 5-failure → 15-minute `locked_until`; failures return a generic
+  `invalid_credentials` (no user enumeration). Cloudflare adds an edge WAF rule on
+  `POST /auth/portal/*` (see the portal-auth runbook).
+- **Secrets** — `PORTAL_JWT_SECRET` and `PORTAL_PEPPER` are Render env vars (never committed);
+  provisioning/rotation/unlock steps live in `docs/RUNBOOKS/PORTAL_AUTH.md`.
 
 ## Verify
 
@@ -297,3 +350,10 @@ No secrets are baked into the build: `NEXT_PUBLIC_*` values are read at build
 time, so a demo deployment that leaves them unset renders in seed mode and
 shows the `SEED MODE — not connected to gateway` badge. Set them in the Vercel
 project's Environment Variables for a live deployment.
+
+For portal auth set `NEXT_PUBLIC_AUTH_MODE=portal` and `NEXT_PUBLIC_GATEWAY_URL`
+to the gateway origin. Those route handlers run on Vercel's Node runtime and call
+the gateway server-side, so the gateway's `ALLOWED_ORIGINS` can stay exact (the
+browser only ever talks to the portal origin). The gateway still needs
+`PORTAL_JWT_SECRET` + `PORTAL_PEPPER` and migration `0032` applied before the
+first login (deploy order in `docs/RUNBOOKS/PORTAL_AUTH.md`).

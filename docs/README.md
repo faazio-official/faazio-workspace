@@ -29,6 +29,7 @@ Operational and architectural documentation for the **Faazio SuperApp**.
 | [RUNBOOKS/CI_PIPELINE.md](./RUNBOOKS/CI_PIPELINE.md) | GitHub Actions build + release flow (gh CLI, secrets, dev-vs-CI) | Release / DevOps |
 | [RUNBOOKS/DATA_FIXTURES.md](./RUNBOOKS/DATA_FIXTURES.md) | Authoring rules for `@data/*` fixtures | Engineers |
 | [RUNBOOKS/FIREBASE_AUTH.md](./RUNBOOKS/FIREBASE_AUTH.md) | Firebase Phone OTP setup, gateway verification, Part 6 anti-abuse backlog | Engineers / release |
+| [RUNBOOKS/PORTAL_AUTH.md](./RUNBOOKS/PORTAL_AUTH.md) | Gateway-native portal superadmin provisioning, rotation, unlock, incident revoke | Ops / security |
 | [RUNBOOKS/TROUBLESHOOTING.md](./RUNBOOKS/TROUBLESHOOTING.md) | adb / Metro / Gradle / boundary failure fixes | Engineers |
 
 ## Conventions

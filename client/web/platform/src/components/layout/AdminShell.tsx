@@ -25,6 +25,7 @@ import { cn } from "@/lib/utils";
 import { groupTone, TONE_VAR } from "@/lib/ui/tones";
 import { useSession } from "@/lib/hooks/useSession";
 import { signOut } from "@/lib/api";
+import { authPortal } from "@/lib/config";
 import { stateName } from "@/data/states";
 import { RoleGate } from "@/components/layout/RoleGate";
 import { BrandTile } from "@/components/brand/FaazioMark";
@@ -45,6 +46,12 @@ export function AdminShell({
 
   const nav = scope === "STATE" ? STATE_ADMIN_NAV : SUPER_ADMIN_NAV;
   const groups = useMemo(() => Array.from(new Set(nav.map((i) => i.group))), [nav]);
+
+  useEffect(() => {
+    if (authPortal() && session?.mustChange && pathname !== "/admin/super/security") {
+      router.replace("/admin/super/security");
+    }
+  }, [pathname, router, session?.mustChange]);
 
   useEffect(() => {
     function onKey(event: KeyboardEvent) {
@@ -179,8 +186,7 @@ export function AdminShell({
                   <DropdownMenuSeparator />
                   <DropdownMenuItem
                     onClick={() => {
-                      void signOut();
-                      router.push("/login");
+                      void signOut().finally(() => router.push("/login"));
                     }}
                   >
                     <LogOut className="size-4" /> Sign out

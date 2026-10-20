@@ -7,6 +7,8 @@
 # RENDER_EXTERNAL_URL for PUBLIC_BASE_URL, so only the config/secrets below need adding:
 #   DATABASE_URL, VALKEY_URL, MONGO_URI, FIREBASE_PROJECT_ID, SUPABASE_SERVICE_KEY,
 #   SUPABASE_JWT_SECRET (legacy portal tokens), SUPABASE_URL,
+#   PORTAL_JWT_SECRET (openssl rand -base64 48), PORTAL_PEPPER (openssl rand -base64 32) — gateway-native
+#   superadmin auth (migration 0032); provisioning: docs/RUNBOOKS/PORTAL_AUTH.md,
 #   R2_ACCESS_KEY_ID, R2_SECRET_ACCESS_KEY,
 #   MONGO_DATABASE=faazio, PRESCRIPTION_BUCKET=prescriptions,
 #   SUPABASE_URL=https://mivisyjvvizyyidjdjmh.supabase.co,

@@ -5,8 +5,16 @@ const env = {
   supabaseAnonKey: process.env["NEXT_PUBLIC_SUPABASE_ANON_KEY"] ?? "",
   /** Cloudflare R2 media CDN origin (custom domain in front of the public bucket), e.g. https://img.faazio.in. */
   mediaCdnBase: process.env["NEXT_PUBLIC_MEDIA_CDN_BASE"]?.replace(/\/+$/, "") ?? "",
-  /** Auth mode. Mocked unless explicitly opted into Supabase (`NEXT_PUBLIC_AUTH_MODE=supabase`). */
-  authMode: process.env["NEXT_PUBLIC_AUTH_MODE"] === "supabase" ? "supabase" : "mock",
+  /**
+   * Auth mode. `mock` (default) uses the built-in demo directory; `supabase` uses GoTrue;
+   * `portal` uses the gateway-native SUPER_ADMIN email+password session (HttpOnly cookies).
+   */
+  authMode:
+    process.env["NEXT_PUBLIC_AUTH_MODE"] === "portal"
+      ? "portal"
+      : process.env["NEXT_PUBLIC_AUTH_MODE"] === "supabase"
+        ? "supabase"
+        : "mock",
   /**
    * Dev-only identity override for an `AUTH_DISABLED=true` gateway (local/MVP staging). Mapped to
    * the `X-Dev-*` headers; never sent in production builds. Empty in any real deployment.
@@ -32,7 +40,10 @@ export const config = {
   supabaseAnonKey: env.supabaseAnonKey,
   /** Cloudflare R2 media CDN origin (maps stored `r2:<key>` values to displayable URLs). */
   mediaCdnBase: env.mediaCdnBase,
-  /** "mock" (default) signs in against the built-in demo directory; "supabase" uses GoTrue. */
+  /**
+   * "mock" (default) signs in against the built-in demo directory; "supabase" uses GoTrue;
+   * "portal" uses the gateway-native superadmin session.
+   */
   authMode: env.authMode,
   /** Dev-only `X-Dev-*` identity override for an AUTH_DISABLED gateway (empty in production). */
   devRole: env.devRole,
@@ -58,4 +69,9 @@ export function authConfigured(): boolean {
  */
 export function authMocked(): boolean {
   return config.authMode === "mock";
+}
+
+/** True when the portal uses gateway-native HttpOnly-cookie superadmin auth. */
+export function authPortal(): boolean {
+  return config.authMode === "portal";
 }
