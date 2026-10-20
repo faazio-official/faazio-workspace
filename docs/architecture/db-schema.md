@@ -1216,6 +1216,11 @@ real enforcer. Adds `order_status` values `NEW`/`PACKED`/`RETURNED` (Option A) s
 share one lifecycle; `directory.stores.rating` is narrowed to REAL (0005 narrowed only products).
 Idempotent and re-runnable.
 
+`admins.state_admins.state_code` (and every other `state_code char(2)` column) has **no FK/CHECK yet** —
+the gateway is authoritative: `internal/admins/states.go` allowlists the 36 ISO 3166-2:IN state/UT codes
+(no aliases — CT/OR/TG/UT/DH, never CG/OD/TS/UK/DN) and `POST /state-admins` rejects anything else with
+400 `unknown_state`. Planned `ops.states` seed (`0035`) will become the FK target.
+
 ### 12.10 Store live flag (migration `0016`)
 
 `0015` added seller scoping to `directory.stores` and its comment assumed a live flag already existed on
