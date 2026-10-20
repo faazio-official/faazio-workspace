@@ -1,7 +1,7 @@
 "use client";
 // The single network seam to the Go Chi gateway. When `NEXT_PUBLIC_GATEWAY_URL`
 // is unset the portal runs in local seed mode and every caller falls back.
-import { config, remoteConfigured } from "@/lib/config";
+import { authPortal, config, remoteConfigured } from "@/lib/config";
 import { accessToken } from "@/lib/supabase/auth";
 
 export class ApiError extends Error {
@@ -25,6 +25,16 @@ interface RequestOptions {
 }
 
 function url(path: string, query?: RequestOptions["query"]): string {
+  // Portal mode: the browser talks to the same-origin proxy, which injects the HttpOnly bearer
+  // token server-side so the token is never readable by JavaScript.
+  if (authPortal()) {
+    const origin = typeof window === "undefined" ? "http://localhost" : window.location.origin;
+    const u = new URL(`/api/gateway${path}`, origin);
+    for (const [k, v] of Object.entries(query ?? {})) {
+      if (v !== undefined && v !== "") u.searchParams.set(k, String(v));
+    }
+    return u.pathname + u.search;
+  }
   const u = new URL(`${config.gatewayUrl}${path}`);
   for (const [k, v] of Object.entries(query ?? {})) {
     if (v !== undefined && v !== "") u.searchParams.set(k, String(v));
@@ -37,7 +47,7 @@ async function request<T>(path: string, options: RequestOptions = {}): Promise<T
     throw new ApiError(0, "offline", "Gateway is not configured");
   }
   const headers: Record<string, string> = { Accept: "application/json" };
-  const token = accessToken();
+  const token = authPortal() ? null : accessToken();
   if (token) headers["Authorization"] = `Bearer ${token}`;
   if (options.body !== undefined) headers["Content-Type"] = "application/json";
   // Dev-only role override (mock-auth portal against an AUTH_DISABLED gateway). Never in prod.

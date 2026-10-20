@@ -1565,3 +1565,52 @@ round-trip). The target must be an item the seller owns (handler-enforced agains
 `catalog.products`/`directory.menus`/`directory.stores`/`directory.dining_venues`), so a hero can never
 deep-link another seller's product. RLS: a seller reads their own rows; admins read by scope (mirrors
 `0015`). Endpoints: caching doc §5, `mvp-backend.md` §3 and `monolith-breakdown.md` §1 (`ads` row).
+
+### 12.18 Portal superadmin auth — gateway-native credentials + rotating refresh (migration `0032`)
+
+The Partner Portal superadmin sign-in was a mocked in-repo directory (`demo1234`). `0032` adds the
+durable credential + session store for a **gateway-minted** session: no GoTrue/Firebase-Web dependency,
+because the gateway already owns `RequireRole(SUPER_ADMIN)` and the audit trail. Only superadmins are in
+scope (seller/state-admin password login is future work).
+
+```sql
+CREATE TABLE admins.portal_users (
+  user_id             text PRIMARY KEY,            -- stable slug, e.g. 'pu-super-1'
+  email               text NOT NULL,               -- PII; unique on lower(email)
+  display_name        text NOT NULL DEFAULT '',
+  password_hash       text NOT NULL,               -- Argon2id PHC (pepper applied upstream)
+  role                text NOT NULL DEFAULT 'SUPER_ADMIN' CHECK (role IN ('SUPER_ADMIN')),
+  active              boolean NOT NULL DEFAULT true,
+  must_change         boolean NOT NULL DEFAULT true,   -- forces initial-password rotation
+  failed_attempts     int4 NOT NULL DEFAULT 0,
+  locked_until        timestamptz,                 -- durable 5-failure → 15 min lockout
+  last_login_at       timestamptz,
+  password_changed_at timestamptz NOT NULL DEFAULT now(),
+  created_at/updated_at timestamptz NOT NULL DEFAULT now()
+);
+CREATE UNIQUE INDEX portal_users_email_lower_uniq ON admins.portal_users (lower(email));
+
+CREATE TABLE admins.portal_sessions (
+  token_hash  text PRIMARY KEY,                    -- sha256(raw refresh token), hex
+  session_id  text NOT NULL,                       -- refresh family id (many rows per family)
+  user_id     text NOT NULL REFERENCES admins.portal_users(user_id) ON DELETE CASCADE,
+  expires_at  timestamptz NOT NULL,
+  used_at     timestamptz,                         -- single-use rotation marker
+  revoked_at  timestamptz,
+  ip_hash     text NOT NULL DEFAULT '',            -- sha256(client ip) prefix; no raw IP
+  created_at  timestamptz NOT NULL DEFAULT now()
+);
+```
+
+Indexes: `(lower(email))` unique, `(active)`, `portal_sessions(session_id)`, `portal_sessions(user_id)`,
+`portal_sessions(expires_at)`.
+RLS is enabled and `anon`/`authenticated` are revoked: the gateway (service_role) is the only writer and
+direct Supabase clients never see credential/session rows. **No seed INSERT ships** — the two accounts
+are provisioned manually with `tools/hash-password` (runbook `PORTAL_AUTH.md`).
+
+Session lifecycle: access = HS256 JWT (`iss=faazio-portal`, `aud=portal`, `app_role=SUPER_ADMIN`,
+`must_change`, 15 min, `jti`); refresh = opaque `faazio_pr_*` (32 random bytes, SHA-256 at rest, 30-day sliding). Each
+refresh consumes the row (`used_at`) and inserts the next; replaying a used token revokes the family.
+Logout denylists the access `jti` in Valkey (≤15 min) and revokes the family; password change rotates
+the hash, clears `must_change`, revokes every session and denylists the current token. Cache keys/TTLs:
+caching doc §5, endpoints + ownership: `monolith-breakdown.md` §1 (`portal auth` row).

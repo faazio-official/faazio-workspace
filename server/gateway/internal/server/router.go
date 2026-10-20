@@ -29,6 +29,7 @@ import (
 	"github.com/faazio/server/gateway/internal/platform/db"
 	"github.com/faazio/server/gateway/internal/platform/httpx"
 	"github.com/faazio/server/gateway/internal/platform/r2"
+	"github.com/faazio/server/gateway/internal/portal"
 	"github.com/faazio/server/gateway/internal/promo"
 	"github.com/faazio/server/gateway/internal/reco"
 	"github.com/faazio/server/gateway/internal/reviews"
@@ -106,6 +107,8 @@ func NewRouter(d Deps) http.Handler {
 	adsRepo := ads.New(d.Pool)
 	settlementRepo := settlement.New(d.Pool)
 	supportRepo := support.New(d.Pool)
+	// Gateway-native portal superadmin credentials (0032). Audited through the admins context.
+	portalRepo := portal.New(d.Pool)
 
 	// Auth: Firebase ID tokens for the mobile app (phone OTP); legacy Supabase/GoTrue HS256
 	// remains for the partner portal when FIREBASE_PROJECT_ID is unset. checkout resolves the
@@ -118,6 +121,9 @@ func NewRouter(d Deps) http.Handler {
 	}
 	if d.Config.FirebaseProjectID != "" {
 		authConfig.Firebase = auth.NewFirebaseVerifier(d.Config.FirebaseProjectID)
+	}
+	if d.Config.PortalJWTSecret != "" {
+		authConfig.Portal = auth.NewPortalVerifier([]byte(d.Config.PortalJWTSecret), d.Cache)
 	}
 	r.Use(auth.Middleware(authConfig))
 
@@ -145,6 +151,7 @@ func NewRouter(d Deps) http.Handler {
 	reco.NewHandler(recoRepo, recoService).Register(r)
 	sdui.NewHandler(sduiService, adminsRepo).Register(r)
 	admins.NewHandler(adminsRepo).Register(r)
+	portal.NewHandler(portalRepo, d.Cache, adminsRepo, d.Config.PortalJWTSecret, d.Config.PortalPepper).Register(r)
 	sellers.NewHandler(sellersRepo, d.Cache, adminsRepo).Register(r)
 	promo.NewHandler(promoRepo, d.Cache, adminsRepo).Register(r)
 	ads.NewHandler(adsRepo, d.Cache, adminsRepo, d.Signer.PublicOrigin()).Register(r)
@@ -269,6 +276,8 @@ func isSensitiveRequest(r *http.Request) bool {
 	case strings.HasPrefix(path, "/bookings"):
 		return true
 	case strings.HasPrefix(path, "/media/"):
+		return true
+	case strings.HasPrefix(path, "/auth/portal/"):
 		return true
 	default:
 		return false

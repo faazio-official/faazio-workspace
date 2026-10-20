@@ -2,10 +2,11 @@
 // GatewayClient pattern: the only door between pages and data.
 // When a real backend arrives, only the internals of this module change.
 import { usePortalStore, AUTH_DIRECTORY, type PortalState } from "@/lib/api/store";
-import { authConfigured, authMocked, remoteConfigured } from "@/lib/config";
+import { authConfigured, authMocked, authPortal, remoteConfigured } from "@/lib/config";
 import { remote, toCamel, writeAwaited } from "@/lib/api/http";
 import { toast } from "sonner";
 import { getSession, signInWithPassword, signOutRemote } from "@/lib/supabase/auth";
+import { loginPortal, logoutPortal, restorePortalSession } from "@/lib/portal/auth";
 import { sellerSeries, stateSeries, globalSeries, productSeries } from "@/data/analytics/series";
 import type {
   AdStatus,
@@ -108,9 +109,15 @@ function audit(input: {
 /**
  * Signs in. Auth is **mocked by default** (`authMocked()`) against the built-in
  * demo directory, even when Supabase credentials are present; set
- * `NEXT_PUBLIC_AUTH_MODE=supabase` to use GoTrue instead.
+ * `NEXT_PUBLIC_AUTH_MODE=supabase` for GoTrue or `NEXT_PUBLIC_AUTH_MODE=portal`
+ * for the gateway-native superadmin session.
  */
 export async function signIn(email: string, password: string): Promise<AuthUser> {
+  if (authPortal()) {
+    const user = await loginPortal(email, password);
+    state().set(() => ({ session: user }));
+    return user;
+  }
   if (!authMocked() && authConfigured()) {
     const session = await signInWithPassword(email, password);
     state().set(() => ({ session: session.user }));
@@ -129,6 +136,11 @@ export async function signIn(email: string, password: string): Promise<AuthUser>
  * store's own `localStorage`-persisted session; Supabase mode restores its JWT.
  */
 export async function restoreSession(): Promise<AuthUser | null> {
+  if (authPortal()) {
+    const user = await restorePortalSession();
+    state().set(() => ({ session: user }));
+    return user;
+  }
   if (authMocked() || !authConfigured()) return state().session;
   const session = await getSession();
   if (!session) return null;
@@ -137,7 +149,8 @@ export async function restoreSession(): Promise<AuthUser | null> {
 }
 
 export async function signOut(): Promise<void> {
-  if (!authMocked() && authConfigured()) await signOutRemote();
+  if (authPortal()) await logoutPortal();
+  else if (!authMocked() && authConfigured()) await signOutRemote();
   state().set(() => ({ session: null }));
 }
 

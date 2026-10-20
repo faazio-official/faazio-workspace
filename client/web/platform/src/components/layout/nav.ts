@@ -82,6 +82,7 @@ export const SUPER_ADMIN_NAV: NavItem[] = [
   { label: "State admins", to: "/admin/super/state-admins", icon: UserCog, group: "Governance" },
   { label: "Users", to: "/admin/super/users", icon: Users, group: "Governance" },
   { label: "States", to: "/admin/super/states", icon: Grid2x2, group: "Governance" },
+  { label: "Security", to: "/admin/super/security", icon: ShieldCheck, group: "Governance" },
   { label: "Sellers", to: "/admin/super/sellers", icon: Users, group: "Supply" },
   { label: "Products", to: "/admin/super/products", icon: Package, group: "Supply" },
   { label: "Sectors", to: "/admin/super/sectors", icon: Tags, group: "Supply" },

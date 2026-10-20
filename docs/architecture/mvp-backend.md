@@ -24,7 +24,7 @@
 | `user_events` / `recommendations` / `segments` / `product_stats` / `sdui_layouts` | Keep MongoDB Atlas M0 (ID-only, `userIdHash`, TTL 90d) | Same (no change) | Flexible doc shape + TTL; don't force into Postgres |
 | Cache + edge | Keep **Aiven Valkey + Cloudflare** exactly per `caching-cloudflare-valkey.md` | Same | Supabase is origin, not cache; keys/TTLs unchanged (`faazio:v1:{service}:{entity}:{id}`, stock 30–60s, search 600s, product 24h, idempotency `NX EX 300`) |
 | Gateway | Go Chi modular monolith (`server/gateway`): all 6 contexts, `/health`, `/search?q=`, `/sdui/home`, `/product/:id`, `/vendors/:id/reviews`, `/stores`, `/venues`, `/orders`, `/profile`, cart/order/rating/event writes → Supabase + Mongo + Valkey, Cloudflare in front | Full gateway + 5 gRPC microservices via `contracts/` | Monolith proves the `@mock` → `@server` seam; extracted per `monolith-breakdown.md`; `GatewayClient` signatures don't change |
-| Auth | **Firebase phone OTP** (`@react-native-firebase/auth` native SDK) → Firebase ID token (RS256) verified by `platform/auth` against Google's certificate set; first login upserts `checkout.users.auth_uid` | OIDC/IdP-agnostic verification; the same `auth_uid` link | Server sessions + per-user orders/carts/rating scoping now |
+| Auth | **Firebase phone OTP** (`@react-native-firebase/auth` native SDK) → Firebase ID token (RS256) verified by `platform/auth` against Google's certificate set; first login upserts `checkout.users.auth_uid`. **Portal superadmins** use gateway-native Argon2id credentials + a short-lived HS256 access JWT (`iss=faazio-portal`) and rotating opaque refresh sessions (`admins.portal_*`, migration `0032`) | OIDC/IdP-agnostic verification; the same `auth_uid` link | Server sessions + per-user orders/carts/rating scoping now; portal token is verified locally and skip the checkout resolver |
 
 **Product / media images (implemented, `0025`):** bytes live in **Cloudflare R2** (`faazio-public` +
 `faazio-private`), identity in the SQL `media.assets` registry. The gateway (`internal/media` +
@@ -100,6 +100,7 @@ All read-through: Valkey → Supabase/Mongo → populate. Cloudflare caches publ
 | `GET /vendors/:id/reviews` | Supabase `reviews.vendor_reviews` (public columns only) | `data/reviews/vendorReviews.ts` | `getReviews` |
 | `GET /stores`, `GET /store/:id`, `GET /venues?app=` | Supabase `directory.stores` / `directory.dining_venues` | `data/directory/stores.ts`, `data/food/diningVenues.ts` | `getStores` / `getStore` / `getVenues` |
 | `GET /orders`, `GET /profile` | Supabase `checkout` / `accounts` (auth-scoped) | `data/checkout/orders.ts`, `data/accounts/profile.ts` | `getOrders` / `getProfile` |
+| `POST /auth/portal/{login,refresh,logout}`, `GET /auth/portal/me`, `PUT /auth/portal/password` | Supabase `admins.portal_users` + `admins.portal_sessions` (`0032`); Valkey throttles/denylist | — (portal only) | `portalRequest` (portal auth mode) |
 
 **Write endpoints (MVP, win chosen over the original read-only list):**
 

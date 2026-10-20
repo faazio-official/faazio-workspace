@@ -37,6 +37,14 @@ type Identity struct {
 	Role      string
 	SellerID  string
 	StateCode string
+	// Jti is the access-token id (portal tokens only) — used for logout denylisting.
+	Jti string
+	// Portal marks a gateway-native portal session (sub is a admins.portal_users id, not an app
+	// user id), so the middleware never tries to resolve it against checkout.users.
+	Portal bool
+	// MustChange is set when a portal user still has the initial password; every route except
+	// /auth/portal/* is refused until they rotate it.
+	MustChange bool
 }
 
 // UserResolver maps a verified auth subject (Firebase UID / legacy auth.uid) to an app user slug.
@@ -59,11 +67,15 @@ type Config struct {
 	// OTP uses Firebase and is verified by Firebase when set.
 	JWTSecret []byte
 	Firebase  *FirebaseVerifier
-	Resolver  UserResolver
+	// Portal verifies gateway-native SUPER_ADMIN portal tokens (HS256, iss/aud pinned). Distinct
+	// from JWTSecret so a portal token can never pass the legacy GoTrue verifier.
+	Portal   *PortalVerifier
+	Resolver UserResolver
 }
 
 // Middleware returns a chi-compatible middleware that attaches the caller identity to the
-// request context. It never rejects here; use Require / RequireRole on protected routes.
+// request context. The one exception is a portal session that still has the initial password:
+// it is confined to /auth/portal/* so a shared default can never reach the control plane.
 func Middleware(cfg Config) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -77,7 +89,11 @@ func Middleware(cfg Config) func(http.Handler) http.Handler {
 				id.SellerID = strings.TrimSpace(r.Header.Get("X-Dev-Seller"))
 				id.StateCode = strings.ToUpper(strings.TrimSpace(r.Header.Get("X-Dev-State")))
 			} else if claims, err := verifyToken(r, cfg); err == nil {
-				if cfg.Resolver != nil {
+				if claims.Portal {
+					// A portal subject is already the portal user id (never an app user id).
+					id.UserID = claims.Sub
+					id.Portal = true
+				} else if cfg.Resolver != nil {
 					// Prefer resolve-or-create so a first phone-OTP login links auth.users.id →
 					// checkout.users without a portal/manual row; fall back to read-only resolution.
 					if p, ok := cfg.Resolver.(UserProvisioner); ok {
@@ -91,6 +107,14 @@ func Middleware(cfg Config) func(http.Handler) http.Handler {
 				id.Role = claims.appRole()
 				id.SellerID = claims.sellerID()
 				id.StateCode = claims.stateCode()
+				id.Jti = claims.Jti
+				id.MustChange = claims.MustChange
+			}
+			if id.Portal && id.MustChange && !strings.HasPrefix(r.URL.Path, "/auth/portal/") {
+				w.Header().Set("Content-Type", "application/json; charset=utf-8")
+				w.WriteHeader(http.StatusForbidden)
+				_, _ = w.Write([]byte(`{"error":"password change required","code":"password_change_required"}`))
+				return
 			}
 			if id.UserID != "" || id.Role != "" || id.SellerID != "" {
 				ctx := context.WithValue(r.Context(), identityKey{}, id)
@@ -171,6 +195,22 @@ func StateCode(ctx context.Context) string {
 	return ""
 }
 
+// Jti returns the access-token id (portal sessions only), or "".
+func Jti(ctx context.Context) string {
+	if id, ok := ctx.Value(identityKey{}).(Identity); ok {
+		return id.Jti
+	}
+	return ""
+}
+
+// IsPortal reports whether the caller authenticated with a gateway-native portal token.
+func IsPortal(ctx context.Context) bool {
+	if id, ok := ctx.Value(identityKey{}).(Identity); ok {
+		return id.Portal
+	}
+	return false
+}
+
 // IsAdmin reports whether the caller is a state or super admin.
 func IsAdmin(ctx context.Context) bool {
 	switch Role(ctx) {
@@ -202,6 +242,9 @@ var errNoToken = errors.New("no token")
 type jwtClaims struct {
 	Sub         string `json:"sub"`
 	Exp         int64  `json:"exp"`
+	Iss         string `json:"iss"`
+	Aud         string `json:"aud"`
+	Jti         string `json:"jti"`
 	Phone       string `json:"phone"`
 	Email       string `json:"email"`
 	AppRole     string `json:"app_role"`
@@ -213,6 +256,10 @@ type jwtClaims struct {
 		SellerID  string `json:"seller_id"`
 		StateCode string `json:"state_code"`
 	} `json:"app_metadata"`
+	// MustChange confines a first-login portal session to the password-change routes.
+	MustChange bool `json:"must_change"`
+	// Portal marks a gateway-native portal token (never serialized from the wire).
+	Portal bool `json:"-"`
 }
 
 func (c jwtClaims) appRole() string {
@@ -249,6 +296,15 @@ func (c jwtClaims) stateCode() string {
 func verifyToken(r *http.Request, cfg Config) (jwtClaims, error) {
 	if cfg.Firebase != nil {
 		claims, err := cfg.Firebase.Verify(r.Context(), tokenFromRequest(r))
+		if err == nil {
+			return claims, nil
+		}
+		if len(cfg.JWTSecret) == 0 && cfg.Portal == nil {
+			return jwtClaims{}, err
+		}
+	}
+	if cfg.Portal != nil {
+		claims, err := cfg.Portal.Verify(r.Context(), tokenFromRequest(r))
 		if err == nil {
 			return claims, nil
 		}

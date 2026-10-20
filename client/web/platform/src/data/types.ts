@@ -34,7 +34,9 @@ export interface AuthUser {
   role: Role;
   name: string;
   email: string;
-  password: string; // mock only
+  password: string; // mock only; never persisted by the store
+  /** Portal mode: the gateway requires a password change before normal use. */
+  mustChange?: boolean | undefined;
   stateCode?: string | undefined; // state_code
   sellerId?: string | undefined; // seller_id
 }

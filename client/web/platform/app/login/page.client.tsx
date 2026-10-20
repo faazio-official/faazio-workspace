@@ -4,7 +4,7 @@ import { useState } from "react";
 import { toast } from "sonner";
 import { DEMO_ACCOUNTS, signIn } from "@/lib/api";
 import { hydrateFromGateway } from "@/lib/api/sync";
-import { authMocked } from "@/lib/config";
+import { authMocked, authPortal } from "@/lib/config";
 import { homeFor, ROLE_LABEL } from "@/lib/auth/permissions";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -25,6 +25,11 @@ function LoginPage() {
     setError(null);
     try {
       const user = await signIn(nextEmail, nextPassword);
+      if (user.mustChange) {
+        toast.success("Signed in — change your initial password to continue.");
+        router.push("/admin/super/security");
+        return;
+      }
       await hydrateFromGateway();
       toast.success(`Signed in as ${ROLE_LABEL[user.role]}`);
       router.push(homeFor(user.role));
@@ -42,7 +47,9 @@ function LoginPage() {
           <BrandTile className="size-8 rounded-md" />
           <div>
             <p className="text-[15px] font-semibold">Faazio Partner Portal</p>
-            <p className="text-[12px] text-muted-foreground">Seller and admin sign-in</p>
+            <p className="text-[12px] text-muted-foreground">
+              {authPortal() ? "Superadmin sign-in" : "Seller and admin sign-in"}
+            </p>
           </div>
         </div>
 
@@ -61,7 +68,7 @@ function LoginPage() {
               autoComplete="username"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              placeholder="seller@faazio.dev"
+              placeholder={authPortal() ? "you@faazio.com" : "seller@faazio.dev"}
             />
           </div>
           <div className="space-y-1.5">
@@ -72,7 +79,7 @@ function LoginPage() {
               autoComplete="current-password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              placeholder="demo1234"
+              placeholder={authPortal() ? "Your password" : "demo1234"}
             />
           </div>
           {error ? <p className="text-[12px] text-destructive">{error}</p> : null}
@@ -80,6 +87,13 @@ function LoginPage() {
             {busy ? "Signing in…" : "Sign in"}
           </Button>
         </form>
+
+        {authPortal() && (
+          <p className="mt-4 text-[12px] text-muted-foreground">
+            Superadmin only. Seller and state-admin password sign-in is not available in this
+            deployment.
+          </p>
+        )}
 
         {authMocked() && (
           <div className="mt-4">

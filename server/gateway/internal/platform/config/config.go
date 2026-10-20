@@ -10,12 +10,19 @@ import (
 
 // Config holds environment-derived settings.
 type Config struct {
-	Addr               string
-	DatabaseURL        string
-	ValkeyURL          string
-	MongoURI           string
-	MongoDatabase      string
-	SupabaseJWTSecret  string
+	Addr              string
+	DatabaseURL       string
+	ValkeyURL         string
+	MongoURI          string
+	MongoDatabase     string
+	SupabaseJWTSecret string
+	// PortalJWTSecret signs/verifies the gateway-native SUPER_ADMIN portal session (HS256). Kept
+	// distinct from SupabaseJWTSecret so a portal token can never be minted/verified by the legacy
+	// GoTrue path (blast-radius isolation). Empty disables portal login.
+	PortalJWTSecret string
+	// PortalPepper is the server-side HMAC pepper applied before Argon2id. Empty is allowed for
+	// local dev; production must set it (see docs/RUNBOOKS/PORTAL_AUTH.md).
+	PortalPepper       string
 	FirebaseProjectID  string
 	SupabaseURL        string
 	SupabaseServiceKey string
@@ -64,6 +71,8 @@ func Load() Config {
 		MongoURI:              env("MONGO_URI", ""),
 		MongoDatabase:         env("MONGO_DATABASE", "faazio"),
 		SupabaseJWTSecret:     env("SUPABASE_JWT_SECRET", ""),
+		PortalJWTSecret:       env("PORTAL_JWT_SECRET", ""),
+		PortalPepper:          env("PORTAL_PEPPER", ""),
 		FirebaseProjectID:     env("FIREBASE_PROJECT_ID", ""),
 		SupabaseURL:           env("SUPABASE_URL", ""),
 		SupabaseServiceKey:    env("SUPABASE_SERVICE_KEY", ""),
