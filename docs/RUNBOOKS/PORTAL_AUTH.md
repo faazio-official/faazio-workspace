@@ -53,11 +53,15 @@ for the *pre-submit* status probe).
 ## 1. What must exist before the first login
 
 1. Migrations `server/supabase/migrations/0032_portal_users.sql` +
-   `0033_portal_roles.sql` + `0034_portal_superadmin_no_force.sql` applied (credential/session store;
-   role + scope; superadmin confinement repair). Deploy order:
+   `0033_portal_roles.sql` + `0034_portal_superadmin_no_force.sql` +
+   `0038_portal_session_lifetime.sql` applied (credential/session store; role + scope; superadmin
+   confinement repair; GCP-style lifetimes — sliding idle / absolute cap / reuse grace). Deploy order:
    **migrations first**, then the gateway, then the portal. In local compose both are mounted
    automatically; for a **pre-existing** compose volume run `docker compose down -v` (dev only) or
-   apply `0033` by hand (`psql -f`) — without it the scoped-role path 500s.
+   apply `0033` by hand (`psql -f`) — without it the scoped-role path 500s. `0038` is fully
+   additive: legacy session rows are backfilled to `created_at + 180 d`, so nobody is logged out at
+   deploy and pre-`0038` tokens behave exactly as before (a replayed used token still revokes the
+   family, because `rotated_to_hash` is null).
 2. Gateway env (Render dashboard — never in the repo; `render.yaml` declares them with `sync:false`):
    - `PORTAL_JWT_SECRET` — `openssl rand -base64 48` (≥256-bit HS256 signing key).
    - `PORTAL_PEPPER` — `openssl rand -base64 32` (server-side HMAC pepper; **changing it invalidates
@@ -194,7 +198,36 @@ update admins.portal_users
 Valkey counters (`faazio:v1:auth:login:{ip,email}:*`) are a rolling 60-second window and need no
 manual action.
 
-## 6. Incident: revoke all sessions for a user
+## 6. Session lifetimes (GCP-style, migration `0038`)
+
+Refresh families behave like `accounts.google.com` sessions — active operators stay signed in
+forever, but a leaked/abandoned family still dies. Policy lives in
+`server/gateway/internal/portal/tokens.go`; per-row state lives on `admins.portal_sessions`.
+
+| Lifetime | Value | Gate | Effect when hit |
+|---|---|---|---|
+| Access | 15 min | JWT `exp` | proxy mounts a silent refresh, never a login wall |
+| Idle (sliding) | 30 d | `expires_at` | reset on every rotation; lapsed → `401 session_expired_idle`, **this device only** |
+| Absolute (hard cap) | 180 d | `absolute_expires_at` | set at login, **never** extended; hit → `401 session_expired_absolute`, family revoked |
+| Reuse grace | 30 s | `reuse_grace_until` | replay *inside* → idempotent sibling (`PORTAL_REFRESH_GRACE`, `X-Refresh-Reused`); replay *after* → `401 invalid_refresh_reuse`, family revoked |
+
+Rotation consumes the presented row atomically (`used_at`, `reuse_grace_until=now+30s`,
+`rotated_to_hash=<child>` in one `UPDATE ... WHERE used_at IS NULL ...`) and inserts the child under
+the same family + `absolute_expires_at`. The 30 s grace is what makes two tabs / a concurrent
+gateway-proxy refresh **not** look like theft (the old `used_at → RevokeFamily` nuked both tabs —
+that was the original F1 bug). Grace and family-revoke behaviour is unit-tested in
+`internal/portal/refresh_test.go`.
+
+Operationally relevant:
+
+- A `PORTAL_REFRESH_GRACE` audit event is **expected** under concurrent refresh (two tabs, a retry
+  racing a proxy rotation) — it is not an incident. A `PORTAL_REFRESH_REUSE` after the grace window,
+  or a `session_expired_absolute` at exactly ~180 d from login, is the signal to look closer.
+- The sweeper (P4.1 backlog) deletes `portal_sessions` where `revoked_at < now() - 7d OR
+  absolute_expires_at < now() - 7d`, so `absolute_expires_at` sportingly serves as the GC index
+  (`portal_sessions_absolute_idx`).
+
+## 7. Incident: revoke all sessions for a user
 
 ```sql
 update admins.portal_sessions
@@ -210,9 +243,10 @@ valkey-cli --scan --pattern 'faazio:v1:auth:deny:*'
 ```
 
 If a refresh token was suspected stolen, the replay path already revokes the whole family; the SQL
-above is the manual equivalent.
+above is the manual equivalent. Note `PORTAL_REFRESH_GRACE` (a replay inside the 30 s reuse window)
+is a normal two-tab race, **not** a theft signal — see §6.
 
-## 7. Rotate `PORTAL_JWT_SECRET` / `PORTAL_PEPPER`
+## 8. Rotate `PORTAL_JWT_SECRET` / `PORTAL_PEPPER`
 
 - `PORTAL_JWT_SECRET`: set the new value on Render and roll the deploy. Every access token minted with
   the old secret stops verifying immediately; refresh tokens still work (they are opaque) and mint
@@ -221,20 +255,24 @@ above is the manual equivalent.
   generated hash (§2 for superadmins, password reset for the rest) in the same maintenance window.
   Existing hashes cannot be verified with a new pepper.
 
-## 8. Rollback
+## 9. Rollback
 
 - Portal only: redeploy the previous portal build; portal auth is the only mode, so there is no mock
   fallback to switch back to.
 - Gateway only: an older binary ignores `/auth/portal/*` and `/admin/portal-users`; the tables can stay.
+  `0038` is additive — reverting the binary leaves the new columns unused and the pre-grace behaviour
+  (used token → family revoke) intact.
 - Full abandon: `update admins.portal_users set active = false;` (keep the audit history). Only drop
   the tables if you are permanently removing the feature.
 
-## 9. Audit + observability
+## 10. Audit + observability
 
 Every outcome writes one `admins.audit_logs` row (actor = the signed-in superadmin for credential
 changes, the affected user for their own login/password events; entity `admins.portal_users`,
 entity id = user id, `after = {result, ipHash}` — never a password or token):
 
 `PORTAL_LOGIN_SUCCESS`, `PORTAL_LOGIN_FAIL`, `PORTAL_LOGIN_LOCKED`, `PORTAL_REFRESH`,
-`PORTAL_REFRESH_REUSE`, `PORTAL_LOGOUT`, `PORTAL_PASSWORD_CHANGE`, `PORTAL_USER_CREATE`,
+`PORTAL_REFRESH_GRACE` (replay inside the reuse window — expected under concurrent refresh),
+`PORTAL_REFRESH_EXPIRED` (idle or absolute-cap hit), `PORTAL_REFRESH_REUSE` (replay after grace —
+theft signal), `PORTAL_LOGOUT`, `PORTAL_PASSWORD_CHANGE`, `PORTAL_USER_CREATE`,
 `PORTAL_USER_UPDATE`, `PORTAL_USER_PASSWORD_RESET`.

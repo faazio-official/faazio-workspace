@@ -76,7 +76,7 @@ export async function GET(req: NextRequest) {
     const code = refreshed.code ?? "invalid_refresh";
     if (!refreshed.terminal) {
       // Transient (gateway blip / timeout / 5xx): the refresh cookie is still valid. Keep it and
-      // tell the client to retry — one Cloudflare hiccup must not delete a 30-day session.
+      // tell the client to retry — one Cloudflare hiccup must not delete a 30-day-idle session.
       log(code, 503);
       return withRequestID(
         NextResponse.json({ user: null, code, terminal: false }, { status: 503 }),

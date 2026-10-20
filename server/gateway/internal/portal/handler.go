@@ -192,13 +192,53 @@ func (h *Handler) login(w http.ResponseWriter, r *http.Request) {
 		httpx.Fail(w, http.StatusInternalServerError, "portal_unavailable", "sign-in unavailable")
 		return
 	}
-	out, err := h.issue(r, user, sessionsNew)
+	raw, hash, err := NewRefresh()
+	if err != nil {
+		httpx.Fail(w, http.StatusInternalServerError, "portal_unavailable", "sign-in unavailable")
+		return
+	}
+	now := time.Now()
+	out, err := h.issue(r, user, sessionsNew, raw, hash, now.Add(RefreshIdleTTL), now.Add(RefreshAbsoluteTTL), shortHash(clientIP(r)), shortHash(r.UserAgent()))
 	if err != nil {
 		httpx.Fail(w, http.StatusInternalServerError, "portal_unavailable", "sign-in unavailable")
 		return
 	}
 	h.record(r, "PORTAL_LOGIN_SUCCESS", user.UserID, user.Role, ipHash, "success")
 	httpx.JSON(w, http.StatusOK, out)
+}
+
+// refreshVerdict classifies a presented refresh row before the handler performs any mutation.
+// Order matches the GCP model: a revoked row is just dead (no extra family nuke), a hard-cap expiry
+// kills the family, a replayed token inside the reuse-grace window is an idempotent rotation, an
+// idle expiry revokes only this device's row, and everything else rotates normally.
+type refreshVerdict int
+
+const (
+	verdictOK       refreshVerdict = iota // rotate normally, slide the idle window
+	verdictGrace                          // used, inside reuse-grace → idempotent sibling rotation
+	verdictTheft                          // used outside grace → clear sign of replay → revoke family
+	verdictAbsolute                       // hard 180-day cap reached → revoke family, force re-login
+	verdictIdle                           // 30-day idle lapsed → revoke this device only
+	verdictRevoked                        // already revoked → terminal, no side-effects
+)
+
+func refreshVerdictOf(s Session, now time.Time) refreshVerdict {
+	if s.RevokedAt != nil {
+		return verdictRevoked
+	}
+	if !s.AbsoluteExpiresAt.IsZero() && s.AbsoluteExpiresAt.Before(now) {
+		return verdictAbsolute
+	}
+	if s.UsedAt != nil {
+		if s.ReuseGraceUntil != nil && s.ReuseGraceUntil.After(now) && s.RotatedToHash != "" {
+			return verdictGrace
+		}
+		return verdictTheft
+	}
+	if s.ExpiresAt.Before(now) {
+		return verdictIdle
+	}
+	return verdictOK
 }
 
 func (h *Handler) refresh(w http.ResponseWriter, r *http.Request) {
@@ -216,59 +256,111 @@ func (h *Handler) refresh(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	ipHash := shortHash(clientIP(r))
+	uaHash := shortHash(r.UserAgent())
 	hash := HashRefresh(req.RefreshToken)
-	session, found, err := h.repo.SessionByTokenHash(r.Context(), hash)
-	if err != nil {
-		httpx.Fail(w, http.StatusInternalServerError, "portal_unavailable", "refresh unavailable")
-		return
-	}
-	if !found || session.RevokedAt != nil {
-		httpx.Fail(w, http.StatusUnauthorized, "invalid_refresh", "refresh token is not valid")
-		return
-	}
-	if session.UsedAt != nil {
-		// A replayed refresh token is the canonical theft signal: kill the whole family.
-		_ = h.repo.RevokeFamily(r.Context(), session.SessionID)
-		h.record(r, "PORTAL_REFRESH_REUSE", session.UserID, "", shortHash(clientIP(r)), "reuse_detected")
-		httpx.Fail(w, http.StatusUnauthorized, "invalid_refresh", "refresh token is not valid")
-		return
-	}
-	if session.ExpiresAt.Before(time.Now()) {
-		_ = h.repo.RevokeFamily(r.Context(), session.SessionID)
-		httpx.Fail(w, http.StatusUnauthorized, "invalid_refresh", "refresh token is not valid")
-		return
-	}
-	consumed, err := h.repo.MarkSessionUsed(r.Context(), hash)
-	if err != nil || !consumed {
-		_ = h.repo.RevokeFamily(r.Context(), session.SessionID)
-		httpx.Fail(w, http.StatusUnauthorized, "invalid_refresh", "refresh token is not valid")
-		return
-	}
 
-	user, found, err := h.repo.ByID(r.Context(), session.UserID)
-	if err != nil || !found || !user.Active {
-		_ = h.repo.RevokeFamily(r.Context(), session.SessionID)
-		httpx.Fail(w, http.StatusUnauthorized, "invalid_refresh", "refresh token is not valid")
+	// The re-read loop absorbs a rotation race: the loser re-classifies the winner's write (now
+	// used-but-within-grace) and gets an idempotent sibling rotation instead of a family nuke.
+	for attempt := 0; attempt < 3; attempt++ {
+		session, found, err := h.repo.SessionByTokenHash(r.Context(), hash)
+		if err != nil {
+			httpx.Fail(w, http.StatusInternalServerError, "portal_unavailable", "refresh unavailable")
+			return
+		}
+		if !found || session.RevokedAt != nil {
+			httpx.Fail(w, http.StatusUnauthorized, "invalid_refresh", "refresh token is not valid")
+			return
+		}
+		switch refreshVerdictOf(session, time.Now()) {
+		case verdictRevoked:
+			httpx.Fail(w, http.StatusUnauthorized, "invalid_refresh", "refresh token is not valid")
+			return
+		case verdictAbsolute:
+			// Hard 180-day cap reached: the family dies here — even an active user must re-login.
+			_ = h.repo.RevokeFamily(r.Context(), session.SessionID)
+			h.record(r, "PORTAL_REFRESH_EXPIRED", session.UserID, "", ipHash, "absolute_expired")
+			httpx.Fail(w, http.StatusUnauthorized, "session_expired_absolute", "session has expired, sign in again")
+			return
+		case verdictIdle:
+			// 30-day idle lapsed on THIS device only; the rest of the family stays signed in.
+			h.record(r, "PORTAL_REFRESH_EXPIRED", session.UserID, "", ipHash, "idle_expired")
+			_ = h.repo.RevokeSession(r.Context(), hash)
+			httpx.Fail(w, http.StatusUnauthorized, "session_expired_idle", "session has expired, sign in again")
+			return
+		case verdictTheft:
+			// A replayed token outside the grace window is the canonical theft signal: kill the family.
+			_ = h.repo.RevokeFamily(r.Context(), session.SessionID)
+			h.record(r, "PORTAL_REFRESH_REUSE", session.UserID, "", ipHash, "reuse_detected")
+			httpx.Fail(w, http.StatusUnauthorized, "invalid_refresh_reuse", "refresh token is not valid")
+			return
+		}
+
+		grace := session.UsedAt != nil
+		raw, childHash, err := NewRefresh()
+		if err != nil {
+			httpx.Fail(w, http.StatusInternalServerError, "portal_unavailable", "refresh unavailable")
+			return
+		}
+		if grace {
+			repointed, err := h.repo.GracePoint(r.Context(), hash, childHash, ipHash, uaHash)
+			if err != nil {
+				httpx.Fail(w, http.StatusInternalServerError, "portal_unavailable", "refresh unavailable")
+				return
+			}
+			if !repointed {
+				// Grace lapsed between the read and the write — now it is a true replay.
+				_ = h.repo.RevokeFamily(r.Context(), session.SessionID)
+				h.record(r, "PORTAL_REFRESH_REUSE", session.UserID, "", ipHash, "reuse_detected")
+				httpx.Fail(w, http.StatusUnauthorized, "invalid_refresh_reuse", "refresh token is not valid")
+				return
+			}
+		} else if consumed, err := h.repo.ConsumeSession(r.Context(), hash, childHash, time.Now().Add(ReuseGrace), ipHash, uaHash); err != nil {
+			httpx.Fail(w, http.StatusInternalServerError, "portal_unavailable", "refresh unavailable")
+			return
+		} else if !consumed {
+			// Lost the rotation race to a concurrent request: re-read and re-classify.
+			continue
+		}
+
+		user, found, err := h.repo.ByID(r.Context(), session.UserID)
+		if err != nil {
+			httpx.Fail(w, http.StatusInternalServerError, "portal_unavailable", "refresh unavailable")
+			return
+		}
+		if !found || !user.Active {
+			_ = h.repo.RevokeFamily(r.Context(), session.SessionID)
+			httpx.Fail(w, http.StatusUnauthorized, "invalid_refresh", "refresh token is not valid")
+			return
+		}
+		out, err := h.issue(r, user, session.SessionID, raw, childHash, time.Now().Add(RefreshIdleTTL), session.AbsoluteExpiresAt, ipHash, uaHash)
+		if err != nil {
+			httpx.Fail(w, http.StatusInternalServerError, "portal_unavailable", "refresh unavailable")
+			return
+		}
+		if grace {
+			// The race loser gets its own sibling token — audited distinctly so reuse-grace traffic
+			// is observable without waking an incident engine.
+			h.record(r, "PORTAL_REFRESH_GRACE", user.UserID, user.Role, ipHash, "success")
+			w.Header().Set("X-Refresh-Reused", "true")
+		} else {
+			h.record(r, "PORTAL_REFRESH", user.UserID, user.Role, ipHash, "success")
+		}
+		httpx.JSON(w, http.StatusOK, out)
 		return
 	}
-	out, err := h.issue(r, user, session.SessionID)
-	if err != nil {
-		httpx.Fail(w, http.StatusInternalServerError, "portal_unavailable", "refresh unavailable")
-		return
-	}
-	h.record(r, "PORTAL_REFRESH", user.UserID, user.Role, shortHash(clientIP(r)), "success")
-	httpx.JSON(w, http.StatusOK, out)
+	// The re-read loop should never exhaust; if it does, the row was flapping — treat as terminal.
+	httpx.Fail(w, http.StatusUnauthorized, "invalid_refresh", "refresh token is not valid")
 }
 
 // sessionsNew is the sentinel family id: issue() mints a fresh family on login.
 const sessionsNew = ""
 
-func (h *Handler) issue(r *http.Request, user PortalUser, familyID string) (tokenDTO, error) {
+// issue writes one rotation row and builds the token pair. refreshExpires slides the idle window;
+// absoluteExpires is the family's hard cap — set to now+RefreshAbsoluteTTL on login and preserved
+// on every rotation so the cap never grows. ipHash/uaHash are one-way fingerprints, never raw PII.
+func (h *Handler) issue(r *http.Request, user PortalUser, familyID, refreshRaw, refreshHash string, refreshExpires, absoluteExpires time.Time, ipHash, uaHash string) (tokenDTO, error) {
 	access, _, _, err := h.minter.MintAccess(user.UserID, user.Role, user.SellerID, user.StateCode, user.MustChange)
-	if err != nil {
-		return tokenDTO{}, err
-	}
-	raw, hash, err := NewRefresh()
 	if err != nil {
 		return tokenDTO{}, err
 	}
@@ -277,13 +369,12 @@ func (h *Handler) issue(r *http.Request, user PortalUser, familyID string) (toke
 			return tokenDTO{}, err
 		}
 	}
-	expires := time.Now().Add(RefreshTTL)
-	if err := h.repo.CreateSession(r.Context(), familyID, user.UserID, hash, expires, shortHash(clientIP(r))); err != nil {
+	if err := h.repo.CreateSession(r.Context(), familyID, user.UserID, refreshHash, refreshExpires, absoluteExpires, ipHash, uaHash); err != nil {
 		return tokenDTO{}, err
 	}
 	return tokenDTO{
 		AccessToken:  access,
-		RefreshToken: raw,
+		RefreshToken: refreshRaw,
 		TokenType:    "Bearer",
 		ExpiresIn:    int64(AccessTTL.Seconds()),
 		User:         toUserDTO(user),

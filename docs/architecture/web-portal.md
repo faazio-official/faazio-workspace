@@ -270,7 +270,7 @@ auth route returning `503 not_configured`.
 
 The portal is the only auth mode. There is **no new IdP**: the gateway already owns
 `RequireRole` and `admins.audit_logs`, so it also stores the credentials
-(`admins.portal_users`, migrations `0032` + `0033` + `0034`) and mints the tokens. Three roles are
+(`admins.portal_users`, migrations `0032` + `0033` + `0034` + `0038`) and mints the tokens. Three roles are
 issued: `SUPER_ADMIN` (seeded operationally, global), `STATE_ADMIN` (a 2-letter
 `state_code`), and `SELLER` (a `seller_id`). The superadmin issues the scoped logins from
 `/admin/super/credentials`; the token claims (`app_role`, `seller_id`, `state_code`) are
@@ -306,15 +306,31 @@ browser                        Next.js route handlers                 Go gateway
   warning** — amber pre-submit hint + `201 warnings[]` after create; shared lines are allowed by
   policy, so it never blocks.
 - **Cookie proxy** — `app/api/auth/portal/{login,refresh,me,logout,password}/route.ts` set the
-  `faazio_pat` (access, 15 min) and `faazio_prt` (refresh, 30 d) HttpOnly/SameSite=Lax cookies;
+  `faazio_pat` (access, 15 min) and `faazio_prt` (refresh, 30 d idle) HttpOnly/SameSite=Lax cookies;
   `app/api/gateway/[...path]/route.ts` injects the bearer server-side and rotates the refresh
   token on a 401. This is the XSS win: an injected script cannot read the token.
+- **Session lifetimes (GCP model, `0038`)** — refresh families behave like `accounts.google.com`
+  sessions: a 15-minute access token, a **30-day sliding idle** (`refresh`/`me` rotate on every
+  request that touches the gateway), a **hard 180-day absolute cap** set once at login and never
+  extended (an abandoned family dies even when a thief keeps refreshing it), and a **30-second
+  reuse grace** that makes a concurrent two-tab / gateway-proxy rotation idempotent instead of a
+  "theft". `rotated_to_hash` links each rotation to its child, so a replayed token inside the grace
+  window gets a fresh sibling pair (`PORTAL_REFRESH_GRACE`, response header `X-Refresh-Reused`),
+  never a family nuke. True replay *outside* the window still revokes the family
+  (`invalid_refresh_reuse`). Policy lives in `server/gateway/internal/portal/tokens.go`:
+
+  | Lifetime | Value | Notes |
+  |---|---|---|
+  | Access | 15 min | HS256 JWT, `jti` denylisted on logout |
+  | Idle (sliding) | 30 d | reset on every rotation |
+  | Absolute (hard cap) | 180 d | fixed at login, never extended |
+  | Reuse grace | 30 s | tunable 10–60 s; replay inside = idempotent, after = theft |
 - **Transient vs terminal refresh** — `refreshTokens()` (in `src/lib/portal/server.ts`) classifies
   every refresh failure: only gateway `401`/`400` are `terminal` (the refresh really died → the
   route clears the cookies); network errors, timeouts (5 s AbortSignal), `5xx` and malformed
   bodies are `transient`. All three restore routes (`me`, `refresh`, `gateway/[...path]`)
   **keep the cookies on transient** and return `503`; they only `clearAuthCookies` on terminal.
-  So one Cloudflare blip or gateway cold-start can never delete a still-valid 30-day session.
+  So one Cloudflare blip or gateway cold-start can never delete a still-valid session.
 - **Client restore semantics** — `restorePortalSession()` returns `ok | transient | signed_out`.
   On a transient the client (a) does not clobber a live session, (b) shows a "Reconnecting…" gate
   (`RoleGate`, driven by the store's `sessionStatus`) instead of the login prompt, and (c) retries
@@ -328,8 +344,12 @@ browser                        Next.js route handlers                 Go gateway
   A `STATE_ADMIN` login minted by the unified creator always has `must_change=true` (locked —
   the temporary password is single-use by design).
 - **Refresh rotation** — opaque `faazio_pr_*` tokens are stored only as SHA-256 hashes
-  (`admins.portal_sessions`), single-use per rotation; replaying a used token revokes the whole
-  family. `POST /auth/portal/logout` also denylists the access `jti` in Valkey until it expires.
+  (`admins.portal_sessions`) with `ua_hash`/`ip_hash` one-way fingerprints, single-use-per-family
+  with the reuse grace above. A rotation consumes the presented row (atomic `WHERE used_at IS
+  NULL AND revoked_at IS NULL AND expires_at > now() AND absolute_expires_at > now()`) and inserts
+  a child pinned to the same family + absolute cap; the idle timeout revokes **only that row**, so
+  one lapsed device never logs the others out. `POST /auth/portal/logout` also denylists the access
+  `jti` in Valkey until it expires.
 - **Password policy** — Argon2id (t=3, m=64 MiB, p=1) with a 16-byte salt and the
   `PORTAL_PEPPER` HMAC; at most 4 derivations run concurrently per instance so a public
   login spray cannot exhaust container memory. Newly-issued scoped credentials start with
@@ -412,5 +432,5 @@ Set `NEXT_PUBLIC_GATEWAY_URL` to the gateway origin. Those route handlers run on
 Vercel's Node runtime and call the gateway server-side, so the gateway's
 `ALLOWED_ORIGINS` can stay exact (the browser only ever talks to the portal
 origin). The gateway still needs `PORTAL_JWT_SECRET` + `PORTAL_PEPPER` and
-migrations `0032` + `0033` + `0034` applied before the first login (deploy order in
+migrations `0032` + `0033` + `0034` + `0038` applied before the first login (deploy order in
 `docs/RUNBOOKS/PORTAL_AUTH.md`).

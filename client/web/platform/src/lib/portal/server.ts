@@ -134,7 +134,7 @@ export interface RefreshResult {
   code: string | undefined;
 }
 
-/** A gateway cold-start / Cloudflare blip must never delete a valid 30-day session, so a refresh
+/** A gateway cold-start / Cloudflare blip must never delete a valid 30-day-idle session, so a refresh
  *  call that cannot be answered is transient — never terminal. */
 const REFRESH_TIMEOUT_MS = 5000;
 

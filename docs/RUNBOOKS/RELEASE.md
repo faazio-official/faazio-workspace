@@ -202,7 +202,7 @@ unindexed. See `docs/architecture/web-portal.md` → "Deployment (Vercel)".
 
 Only `NEXT_PUBLIC_GATEWAY_URL` (and optionally `NEXT_PUBLIC_MEDIA_CDN_BASE`) is
 required — portal auth is the only auth mode. The gateway needs
-`PORTAL_JWT_SECRET`, `PORTAL_PEPPER`, migrations `0032` + `0033` + `0034` applied, and at
+`PORTAL_JWT_SECRET`, `PORTAL_PEPPER`, migrations `0032` + `0033` + `0034` + `0038` applied, and at
 least one superadmin provisioned. Full provisioning/rotation/rollback steps:
 `docs/RUNBOOKS/PORTAL_AUTH.md`.
 
