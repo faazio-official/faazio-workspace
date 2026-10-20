@@ -21,7 +21,7 @@ import type { Role } from "@/data/types";
 
 export const Route = createFileRoute("/admin/state/audit")({
   head: () =>
-    pageMeta("State audit log", "Every admin and seller-affecting action recorded with before and after values."),
+    pageMeta("State audit log", "Rolling 7-day record of every admin and seller-affecting action, kept read-only and purged nightly."),
   component: StateAudit,
 });
 
@@ -38,7 +38,7 @@ function StateAudit() {
 
   return (
     <div className="space-y-4">
-      <PageHeader title="Audit log" description="Read-only. Entries cannot be edited or deleted." />
+      <PageHeader title="Audit log" description="Read-only, retained 7 days. Entries older than 7 days are purged nightly at midnight IST and cannot be recovered." />
 
       <SectionCard bodyClassName="p-0">
         <div className="flex flex-wrap items-center gap-2 border-b border-border p-3">

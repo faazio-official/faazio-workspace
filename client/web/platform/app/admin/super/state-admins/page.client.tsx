@@ -599,7 +599,7 @@ function StateAdminAccounts() {
                               <AlertDialogDescription>
                                 This removes their access to {admin.stateCode} permanently
                                 {hasLogin ? " and revokes their portal login" : ""}. Their past actions
-                                stay in the audit log.
+                                stay in the audit log for 7 days.
                               </AlertDialogDescription>
                             </AlertDialogHeader>
                             <AlertDialogFooter>

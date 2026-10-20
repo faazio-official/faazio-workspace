@@ -4,6 +4,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"strings"
 
@@ -18,11 +19,15 @@ import (
 type Handler struct {
 	repo        *Repo
 	provisioner *Provisioner
+	// purger runs one retention pass on the SUPER_ADMIN manual trigger (nil disables POST
+	// /audit-logs/purge; the nightly 00:00 IST pass is the gateway worker in main.go).
+	purger contracts.AuditPurger
 }
 
 // NewHandler builds the admins handler. provisioner owns roster+login writes (unified creator).
-func NewHandler(repo *Repo, provisioner *Provisioner) *Handler {
-	return &Handler{repo: repo, provisioner: provisioner}
+// purger may be nil to disable the manual purge trigger.
+func NewHandler(repo *Repo, provisioner *Provisioner, purger contracts.AuditPurger) *Handler {
+	return &Handler{repo: repo, provisioner: provisioner, purger: purger}
 }
 
 // Register mounts the admins routes.
@@ -33,6 +38,12 @@ func (h *Handler) Register(r chi.Router) {
 		g.Get("/audit-logs", h.listLogs)
 		g.Get("/customers", h.listCustomers)
 	})
+	// Retention: SUPER_ADMIN-only manual purge (the nightly pass is the gateway worker, not this
+	// route) — never a state-admin or seller surface.
+	r.Group(func(g chi.Router) {
+		g.Use(auth.RequireRole(auth.RoleSuperAdmin))
+		g.Post("/audit-logs/purge", h.purgeAuditLogs)
+	})
 	// State-admin directory: super admin only.
 	r.Group(func(g chi.Router) {
 		g.Use(auth.RequireRole(auth.RoleSuperAdmin))
@@ -40,6 +51,29 @@ func (h *Handler) Register(r chi.Router) {
 		g.Post("/state-admins", h.createAdmin)
 		g.Put("/state-admins/{id}", h.setAdminActive)
 		g.Delete("/state-admins/{id}", h.deleteAdmin)
+	})
+}
+
+// purgeAuditLogs runs one retention pass on demand (SUPER_ADMIN manual trigger). 503 when a purger
+// is not configured; the pass itself records a surviving AUDIT_PURGE row with the caller's
+// identity, so the purge is never invisible.
+func (h *Handler) purgeAuditLogs(w http.ResponseWriter, r *http.Request) {
+	if h.purger == nil {
+		httpx.Fail(w, http.StatusServiceUnavailable, "purge_unconfigured", "audit-log purge not configured")
+		return
+	}
+	n, err := h.purger.PurgeOnce(r.Context(), auth.UserID(r.Context()), auth.Role(r.Context()))
+	if err != nil {
+		if errors.Is(err, ErrPurgeUnavailable) {
+			httpx.Fail(w, http.StatusServiceUnavailable, "purge_unconfigured", "audit-log purge not configured")
+			return
+		}
+		httpx.Fail(w, http.StatusInternalServerError, "purge_failed", "could not purge audit log")
+		return
+	}
+	httpx.JSON(w, http.StatusOK, map[string]any{
+		"deleted":   n,
+		"retention": "7d",
 	})
 }
 

@@ -213,6 +213,10 @@ pipelines; a placement with no LIVE fill collapses the surface to `null` (never 
 - **State-admin roster + credential writes (`0036`)** — roster rows carry email/phone PII and portal
   users carry credentials; the unified `POST /state-admins` never reads/writes a cache key (same rule
   as seller PII). The roster is a portal-only read with no cache.
+- **Audit logs (`admins.audit_logs`, `0015`/`0037`)** — still **never cached** (no `faazio:v1:audit:*`
+  key exists). The 7-day retention purge is an **origin DELETE** (gateway worker calling
+  `admins.purge_audit_logs()` at 00:00 IST), not a cache TTL — authorities:
+  `db-schema.md` §12.9/§12.20, `monolith-breakdown.md` §1.
 - **Anything auth-scoped or PII-bearing** (addresses, phone, prescriptions, blood-donor health data).
 
 > Partner management writes purge the affected public keys: a product status change invalidates

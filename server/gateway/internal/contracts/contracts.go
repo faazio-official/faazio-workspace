@@ -453,6 +453,13 @@ type Sweeper interface {
 	SweepOnce(ctx context.Context) (int, error)
 }
 
+// AuditPurger runs one audit-log retention pass (implemented by internal/admins.Purger). The
+// SUPER_ADMIN endpoint uses it as a manual trigger; main.go schedules the daily 00:00 IST pass via
+// Purger.Run. It returns the number of rows purged. 0037 owns the batched DELETE.
+type AuditPurger interface {
+	PurgeOnce(ctx context.Context, actorID, actorRole string) (int, error)
+}
+
 // HomeSection is a compiled Home section (SduiSection + joined products/stores).
 type HomeSection struct {
 	SduiSection

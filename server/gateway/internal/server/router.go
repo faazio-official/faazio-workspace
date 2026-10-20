@@ -58,6 +58,9 @@ type Deps struct {
 	Signer *r2.Signer
 	// Sweeper runs one media GC pass for the manual admin trigger. Optional (nil disables POST /media/gc).
 	Sweeper contracts.Sweeper
+	// AuditPurger runs one audit-log retention pass for the SUPER_ADMIN manual trigger (nil disables
+	// POST /audit-logs/purge; the nightly 00:00 IST pass is the gateway worker in main.go).
+	AuditPurger contracts.AuditPurger
 }
 
 // NewRouter builds the HTTP router with all contexts mounted.
@@ -150,7 +153,7 @@ func NewRouter(d Deps) http.Handler {
 	reviews.NewHandler(reviewsRepo, reviewsService, d.Cache, adminsRepo).Register(r)
 	reco.NewHandler(recoRepo, recoService).Register(r)
 	sdui.NewHandler(sduiService, adminsRepo).Register(r)
-	admins.NewHandler(adminsRepo, admins.NewProvisioner(d.Pool, portal.NewHasher(d.Config.PortalPepper))).Register(r)
+	admins.NewHandler(adminsRepo, admins.NewProvisioner(d.Pool, portal.NewHasher(d.Config.PortalPepper)), d.AuditPurger).Register(r)
 	portal.NewHandler(portalRepo, d.Cache, adminsRepo, d.Config.PortalJWTSecret, d.Config.PortalPepper).Register(r)
 	sellers.NewHandler(sellersRepo, d.Cache, adminsRepo).Register(r)
 	promo.NewHandler(promoRepo, d.Cache, adminsRepo).Register(r)

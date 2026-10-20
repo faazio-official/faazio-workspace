@@ -105,6 +105,19 @@ func (r *Repo) ListLogs(ctx context.Context, actorRole, entity string, limit int
 	return out, rows.Err()
 }
 
+// PurgeBefore deletes every audit row older than before via the retention function (0037), which
+// batches the delete (chunks of 2000 by ctid) so even a first-run mass purge never takes one long
+// lock. Returns the number of rows removed. The caller supplies the cutoff (now − retention) so it
+// stays testable with a fixed clock.
+func (r *Repo) PurgeBefore(ctx context.Context, before time.Time) (int, error) {
+	if r.pool == nil {
+		return 0, fmt.Errorf("admins: database not configured")
+	}
+	var n int
+	err := r.pool.QueryRow(ctx, `select admins.purge_audit_logs(now() - $1)`, before).Scan(&n)
+	return n, err
+}
+
 // ListStateAdmins returns state admins, optionally scoped to one state.
 func (r *Repo) ListStateAdmins(ctx context.Context, stateCode string) ([]StateAdmin, error) {
 	if r.pool == nil {

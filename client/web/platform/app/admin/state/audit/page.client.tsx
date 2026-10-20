@@ -31,7 +31,7 @@ function StateAudit() {
 
   return (
     <div className="space-y-4">
-      <PageHeader title="Audit log" description="Read-only. Entries cannot be edited or deleted." />
+      <PageHeader title="Audit log" description="Read-only, retained 7 days. Entries older than 7 days are purged nightly at midnight IST and cannot be recovered." />
 
       <SectionCard bodyClassName="p-0">
         <div className="flex flex-wrap items-center gap-2 border-b border-border p-3">

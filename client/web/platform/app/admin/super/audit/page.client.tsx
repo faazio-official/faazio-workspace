@@ -37,7 +37,7 @@ function SuperAudit() {
     <div className="space-y-4">
       <PageHeader
         title="Audit log"
-        description="Nothing here can be edited or deleted, including your own actions."
+        description="Read-only, retained 7 days. Entries older than 7 days are purged nightly at midnight IST and cannot be recovered."
       />
 
       <SectionCard bodyClassName="p-0">

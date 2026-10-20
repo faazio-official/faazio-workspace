@@ -22,7 +22,7 @@ import type { Role } from "@/data/types";
 
 export const Route = createFileRoute("/admin/super/audit")({
   head: () =>
-    pageMeta("Global audit log", "Immutable record of every action, filterable by actor, role and entity."),
+    pageMeta("Global audit log", "Rolling 7-day record of every action, filterable by actor, role and entity; older entries are purged nightly."),
   component: SuperAudit,
 });
 
@@ -44,7 +44,7 @@ function SuperAudit() {
     <div className="space-y-4">
       <PageHeader
         title="Audit log"
-        description="Nothing here can be edited or deleted, including your own actions."
+        description="Read-only, retained 7 days. Entries older than 7 days are purged nightly at midnight IST and cannot be recovered."
       />
 
       <SectionCard bodyClassName="p-0">

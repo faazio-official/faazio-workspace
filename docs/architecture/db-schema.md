@@ -1197,6 +1197,8 @@ CREATE TABLE admins.state_admins (admin_id PK, name, email/phone /*PII*/, state_
   -- 0036: UNIQUE on lower(email) and on digit-only phone — duplicates impossible.
 CREATE TABLE admins.audit_logs (log_id PK, actor_id, actor_role TEXT CHECK seller/state/super,
   action, entity, entity_id, before/after JSONB CHECK ≤8192, created_at);
+  -- 0037: rolling 7-day retention — admins.purge_audit_logs() + a gateway worker
+  -- (00:00 IST nightly) remove rows older than 7 days for all roles (§12.20).
 
 CREATE TABLE support.tickets (ticket_id PK, user_id FK NULL, seller_id FK NULL, subject, body ≤2000,
   status ticket_status, created_at/updated_at);
@@ -1686,3 +1688,40 @@ New confirms:
   (backend `NormalisePhone`: strip non-digits, drop one leading `91`/`0`, require exactly 10); legacy
   rows keep their format and are matched by the digits expression. Duplicate phones across roster rows
   are expected and allowed.
+
+### 12.20 Audit-log retention — rolling 7-day window (migration `0037`)
+
+**Authority:** `monolith-breakdown.md` §1 (`admins` row), `caching-cloudflare-valkey.md` §8, `web-portal.md`
+(audit-log copy note), `mvp-backend.md` §12 (entry 20), `RUNBOOKS/TROUBLESHOOTING.md`.
+
+`0015` shipped `admins.audit_logs` as **append-only by convention** — no RLS UPDATE/DELETE policy, so
+the portal promise "nothing here can be edited or deleted" held forever. This retention migration
+converts the trail into a **rolling 7-day window** (`DELETE > 7d`, **all roles** — SELLER,
+STATE_ADMIN, SUPER_ADMIN; no archive): rows older than 7 days are deleted, so a mass un-OOP-able
+forensics/log table is instead bounded. The portal stays read-only (no new RLS policy; no DELETE grant).
+
+```sql
+CREATE OR REPLACE FUNCTION admins.purge_audit_logs(max_age INTERVAL DEFAULT INTERVAL '7 days')
+RETURNS INTEGER LANGUAGE plpgsql SECURITY DEFINER SET search_path = pg_catalog AS $$
+-- batched: delete in 2000-row ctid chunks so a first-run mass purge never takes one long lock
+-- (media GC batch philosophy); returns the total deleted.
+$$;
+```
+
+**Scheduler (superadmin decision, 2026-10): the gateway worker on Render, NOT pg_cron.** `main.go`
+constructs `admins.NewPurger(...)` and runs `Purger.Run(ctx)`, which fires at **00:00 IST** every day
+(IST = UTC+5:30, no DST — a fixed `time.FixedZone`; the `nextMidnightIST` math is unit-tested). The
+migration deliberately does **not** `cron.schedule` so two schedulers can never double-fire; the
+optional `18 30 * * *` (00:00 IST) pg_cron equivalent is documented in the migration header for a team
+that wants an out-of-band scheduler. A missed midnight (Render free-tier sleep, deploys) just means the
+next day's pass purges a slightly wider window in the same batched delete. Every pass records a
+surviving `AUDIT_PURGE` row (`action='AUDIT_PURGE'`, `after={deleted, cutoff}`) so purges are visible
+in-trail; the row is written after the cutoff and therefore survives the very purge it reports.
+
+**Manual trigger:** SUPER_ADMIN-only `POST /audit-logs/purge` (gateway) runs one pass on demand with
+the caller's JWT identity in the `AUDIT_PURGE` row — parity with `POST /media/gc` for staging/test.
+
+**First-run mass delete warning:** if the table holds months of pre-0037 history, the first 00:00 IST
+pass deletes it all (batched). Check before deploying:
+`SELECT count(*) FROM admins.audit_logs WHERE created_at < now() - interval '7 days';`
+Purged rows are unrecoverable — there is **no archive** (superadmin decision, 2026-10).

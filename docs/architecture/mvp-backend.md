@@ -287,6 +287,15 @@ contract stable so the swap is invisible to the app):
     cart/favourite/booking writes. Gateway: CORS default-deny (wildcard only in dev), per-route
     throttle (10) + 256 KiB media body cap, and a dependency-probing `/health` (db/cache/mongo).
     Owner: `db-schema.md` §7.1, `caching-cloudflare-valkey.md` §5, `mobile-app.md` Services.
+20. ✅ **Audit-log retention (`0037`):** `admins.audit_logs` becomes a **rolling 7-day window** for all
+    roles — `admins.purge_audit_logs(max_age DEFAULT '7 days')` is a SECURITY DEFINER batched delete
+    (2000-row ctid chunks), scheduled by a **gateway worker** (`internal/admins/purger.go`, 00:00 IST
+    daily, `nextMidnightIST` unit-tested — deliberately **not** pg_cron so only one scheduler fires) +
+    a SUPER_ADMIN-only manual `POST /audit-logs/purge` (parity with `POST /media/gc`). No new RLS
+    delete policy, so the portal stays read-only; every pass records a surviving `AUDIT_PURGE` row.
+    No archive — first-run mass delete of pre-existing >7d rows is irreversible (check
+    `SELECT count(*) WHERE created_at < now() - interval '7 days'` before deploy).
+    Owner: `db-schema.md` §12.9/§12.20, `web-portal.md` (copy), `caching-cloudflare-valkey.md` §8.
 
 ---
 

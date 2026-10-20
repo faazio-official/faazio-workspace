@@ -238,7 +238,7 @@ function StateAdminAccounts() {
                             <AlertDialogTitle>Delete {admin.name}?</AlertDialogTitle>
                             <AlertDialogDescription>
                               This removes their access to {admin.stateCode} permanently. Their past
-                              actions stay in the audit log.
+                              actions stay in the audit log for 7 days.
                             </AlertDialogDescription>
                           </AlertDialogHeader>
                           <AlertDialogFooter>
