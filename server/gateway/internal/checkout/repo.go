@@ -116,7 +116,7 @@ func New(pool *db.Pool) *Repo { return &Repo{pool: pool} }
 // NewWithCache returns a checkout repo that also caches the auth_uid → user_id mapping.
 func NewWithCache(pool *db.Pool, c *cache.Cache) *Repo { return &Repo{pool: pool, cache: c} }
 
-// ResolveUserID maps a Supabase auth subject to the app user slug (auth.UserResolver). The mapping
+// ResolveUserID maps a verified auth subject (Firebase UID) to the app user slug (auth.UserResolver). The mapping
 // is immutable for a given subject, so it is read-through cached for 1 h — removing a query from
 // every authenticated request. Invalidation (profile merge) deletes cache.AuthUser(subject).
 //
@@ -143,7 +143,7 @@ func (r *Repo) ResolveUserID(ctx context.Context, authUID string) (string, error
 }
 
 // ProvisionUserID implements auth.UserProvisioner: it resolves the auth subject, inserting a
-// checkout.users row on first login so a GoTrue phone-OTP user works without a portal/manual row.
+// checkout.users row on first login so a Firebase phone-OTP user works without a portal/manual row.
 // The user slug is deterministic from the subject (`u-<sha256 prefix>`), so a concurrent first
 // login converges on one row via `on conflict (auth_uid)`. Phone/email are optional (empty when the
 // token omits them) and only forward-filled — never overwritten with blank values.

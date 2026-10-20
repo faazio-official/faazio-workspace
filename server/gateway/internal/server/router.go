@@ -107,13 +107,19 @@ func NewRouter(d Deps) http.Handler {
 	settlementRepo := settlement.New(d.Pool)
 	supportRepo := support.New(d.Pool)
 
-	// Auth: checkout resolves the auth subject → app user slug.
-	r.Use(auth.Middleware(auth.Config{
+	// Auth: Firebase ID tokens for the mobile app (phone OTP); legacy Supabase/GoTrue HS256
+	// remains for the partner portal when FIREBASE_PROJECT_ID is unset. checkout resolves the
+	// auth subject → app user slug.
+	authConfig := auth.Config{
 		Disabled:  d.Config.AuthDisabled,
 		DevUserID: d.Config.DevUserID,
 		JWTSecret: []byte(d.Config.SupabaseJWTSecret),
 		Resolver:  checkoutRepo,
-	}))
+	}
+	if d.Config.FirebaseProjectID != "" {
+		authConfig.Firebase = auth.NewFirebaseVerifier(d.Config.FirebaseProjectID)
+	}
+	r.Use(auth.Middleware(authConfig))
 
 	r.Get("/health", healthHandler(d))
 

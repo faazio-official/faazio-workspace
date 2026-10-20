@@ -5,7 +5,8 @@
 # Set every environment variable in the Render dashboard (Environment tab) — nothing env-related
 # is committed here. The gateway reads Render's injected PORT automatically, and falls back to
 # RENDER_EXTERNAL_URL for PUBLIC_BASE_URL, so only the config/secrets below need adding:
-#   DATABASE_URL, VALKEY_URL, MONGO_URI, SUPABASE_JWT_SECRET, SUPABASE_SERVICE_KEY,
+#   DATABASE_URL, VALKEY_URL, MONGO_URI, FIREBASE_PROJECT_ID, SUPABASE_SERVICE_KEY,
+#   SUPABASE_JWT_SECRET (legacy portal tokens), SUPABASE_URL,
 #   R2_ACCESS_KEY_ID, R2_SECRET_ACCESS_KEY,
 #   MONGO_DATABASE=faazio, PRESCRIPTION_BUCKET=prescriptions,
 #   SUPABASE_URL=https://mivisyjvvizyyidjdjmh.supabase.co,
@@ -34,3 +35,11 @@ services:
       maxInstances: 4
     healthCheckPath: /health
     autoDeploy: true
+    envVars:
+      # Firebase phone-OTP ID tokens (mobile). Public project identifier, not a secret:
+      # the gateway verifies RS256 signatures against Google's published certificate set.
+      - key: FIREBASE_PROJECT_ID
+        value: project-65696e12-8def-460e-b29
+      # Money/Rx writes must never run against an auth-disabled gateway in production.
+      - key: AUTH_DISABLED
+        value: "false"

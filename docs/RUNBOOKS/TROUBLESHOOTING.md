@@ -274,17 +274,18 @@ build (Reanimated is far slower in debug); use a **CI release** build.
 
 ## 🔧 401 on `/ads/events` or `/vendors/{id}/rating` (paid-ad KPIs / durable rating inert)
 
-These two writes sit behind `auth.Require`. A configured app signs in with real Supabase phone OTP
-(`supabaseAuth.ts`), so the GoTrue bearer verifies on an `AUTH_DISABLED=false` gateway. A `401`
-means the session is missing/expired or Supabase is unconfigured. Diagnose:
+These two writes sit behind `auth.Require`. A configured app signs in with real Firebase phone OTP
+(`firebaseAuth.ts`), so the Firebase ID token verifies on an `AUTH_DISABLED=false` gateway. A `401`
+means the session is missing/expired or Firebase is unconfigured/misconfigured. Diagnose:
 
-- **Configured build:** check `SUPABASE_URL`/`SUPABASE_ANON_KEY` were generated (`npm run configure`
-  regenerates `src/lib/config.ts`). A dead refresh token clears the session and returns to Login
-  (`GatewayClient.recoverSession`).
+- **Configured build:** `google-services.json` / `GoogleService-Info.plist` must be present and the
+  release `FIREBASE_PROJECT_ID` must match the token's project. A forced refresh with no native user
+  clears the session and returns to Login (`GatewayClient.recoverSession`). Token failures are
+  rarely `401` at the source: check `iss`/`aud` first (see `docs/RUNBOOKS/FIREBASE_AUTH.md`).
 - **Dev build console:** `recordAdEvent` logs `[ads] impression not recorded (401, auth=…)`; a
   `auth=dev-bypass` result means the dev header is in play. `GatewayClient.authStatus()` returns
   `dev-bypass` / `enterprise` / `none`.
-- **Dev without Supabase:** the app still falls back to a placeholder session (dev builds only); run
+- **Dev without Firebase:** the app still falls back to a placeholder session (dev builds only); run
   the gateway with `AUTH_DISABLED=true`.
 - **Local dev fix:** run the gateway with `AUTH_DISABLED=true` (`DEV_USER_ID=user-1`) and set
   `DEV_USER=user-1` in `client/mobile/.env.local` (dev builds only; re-run `npm run configure`/Metro). A production/release

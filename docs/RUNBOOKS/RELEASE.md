@@ -39,15 +39,16 @@ The release keystore + signing properties are stored as GitHub repository secret
 | `KEY_ALIAS` | value from `keystore.properties` |
 | `ALIAS_PASS` | value from `keystore.properties` |
 | `STORE_FILE` | (optional) keystore file name, default `faazio-release.keystore` |
-| `GATEWAY_URL` | deployed gateway origin, `https://…` (release refuses `http://`) |
-| `USE_GATEWAY` | `true` to embed the live gateway |
+| `GATEWAY_URL` | deployed gateway origin, `https://…` (release refuses `http://`); defaults to `https://faazio-workspace.onrender.com` |
+| `USE_GATEWAY` | `true` to embed the live gateway (defaults to `true` in the workflow) |
 | `CERT_PINS` | comma-separated base64 SHA-256 SPKI pins for the gateway host |
-| `SUPABASE_URL` | GoTrue project URL (`https://<ref>.supabase.co`) |
-| `SUPABASE_ANON_KEY` | GoTrue anon key (public by design) |
+| `USE_FIREBASE_AUTH` | `true` (default) — phone OTP via the committed native Firebase config |
 
-`configure.js` **fails the release** when `USE_GATEWAY=true` and any of `CERT_PINS`,
-`SUPABASE_URL`, `SUPABASE_ANON_KEY` is missing — a release must never embed a mock-login or
-unpinned build.
+`configure.js` **fails the release** when `USE_GATEWAY=true` and `CERT_PINS` is missing, or when
+`USE_FIREBASE_AUTH=false`, or when `android/app/google-services.json` /
+`ios/Faazio/GoogleService-Info.plist` is absent — a release must never embed a mock-login or
+unpinned build. The Firebase files are **public client config** (not secrets) and are committed so
+CI can build; see `docs/RUNBOOKS/FIREBASE_AUTH.md`.
 
 ### Certificate-pin rotation
 
@@ -151,7 +152,7 @@ machine (systemd-oomd OOM-kills Gradle). Use `gh workflow run "Release APK"` (se
 
 ```bash
 npm run configure                       # release env: CONFIGURE_RELEASE=1, GATEWAY_URL, USE_GATEWAY,
-                                        # CERT_PINS, SUPABASE_URL, SUPABASE_ANON_KEY
+                                        # CERT_PINS, USE_FIREBASE_AUTH
 bash scripts/restore-keystore.sh
 cd android && ./gradlew assembleRelease --no-daemon \
   -PreactNativeArchitectures=arm64-v8a,armeabi-v7a \
@@ -203,7 +204,7 @@ unindexed. See `docs/architecture/web-portal.md` → "Deployment (Vercel)".
 
 - [ ] `npm run ts:check` and `npm run check:boundaries` pass.
 - [ ] Version bumped in `package.json` **and** `android/app/build.gradle` `versionCode` (+1 every release).
-- [ ] `CERT_PINS`, `SUPABASE_URL`, `SUPABASE_ANON_KEY` set when `USE_GATEWAY=true` (release configure fails without them).
+- [ ] `CERT_PINS` set and Firebase native config committed when `USE_GATEWAY=true` (release configure fails without them).
 - [ ] GitHub secrets set: `KEYSTORE_BASE64`, `KEYSTORE_PASS`, `KEY_ALIAS`, `ALIAS_PASS` (keystore backed up).
 - [ ] Release APK signed with the **release cert** (`CN=Faazio`), not the debug cert.
 - [ ] `gh workflow run release-apk.yml` succeeded and the signed APK is on the GitHub Release.

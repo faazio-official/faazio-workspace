@@ -102,9 +102,12 @@ and `USE_GATEWAY=true`; `scripts/configure.js` generates `src/lib/config.ts` bef
 `GatewayClient` falls back to `@data/*` on any error. Add `STRICT=true` to disable the fallback for
 money/Rx/address writes (a failed write then fails loudly instead of faking a local success).
 Optionally set `DEV_USER=user-1` to send the dev-only `X-Dev-User` header explicitly (dev builds
-only; never attached in a release APK, and ignored by an `AUTH_DISABLED=false` gateway). For real
-phone-OTP sign-in against an `AUTH_DISABLED=false` gateway, set `SUPABASE_URL` +
-`SUPABASE_ANON_KEY` (release builds require them). Regenerate
+only; never attached in a release APK, and ignored by an `AUTH_DISABLED=false` gateway). Real
+phone-OTP sign-in uses the native Firebase SDK: the public client config is committed in
+`android/app/google-services.json` and `ios/Faazio/GoogleService-Info.plist`, and release builds
+require both. Set `USE_FIREBASE_AUTH=false` only for a local mock-login run. Setup and the
+outstanding anti-abuse step (Play Integrity/APNs) are in
+[RUNBOOKS/FIREBASE_AUTH.md](./RUNBOOKS/FIREBASE_AUTH.md). Regenerate
 the DB seed after editing `@data/*`:
 `node server/supabase/seed/generate.mjs`. Details: `server/gateway/README.md`.
 

@@ -81,11 +81,19 @@ const gatewayUrl = env('GATEWAY_URL').replace(/\/+$/, '');
 const useGateway = flag('USE_GATEWAY');
 const strict = flag('STRICT');
 const devUser = env('DEV_USER').trim();
-const supabaseUrl = env('SUPABASE_URL').replace(/\/+$/, '');
-const supabaseAnonKey = env('SUPABASE_ANON_KEY').trim();
+const firebaseSetting = env('USE_FIREBASE_AUTH').trim().toLowerCase();
+const useFirebaseAuth = firebaseSetting === '' || ['1', 'true', 'yes'].includes(firebaseSetting);
 const isRelease = flag('CONFIGURE_RELEASE');
 const requirePins = flag('REQUIRE_CERT_PINS');
 const transport = isRelease ? 'embedded' : 'metro';
+
+const GOOGLE_SERVICES_JSON = path.join(ROOT, 'android', 'app', 'google-services.json');
+const GOOGLE_SERVICE_INFO_PLIST = path.join(
+  ROOT,
+  'ios',
+  'Faazio',
+  'GoogleService-Info.plist',
+);
 
 const pins = String(env('CERT_PINS'))
   .split(',')
@@ -108,17 +116,6 @@ if (gatewayUrl) {
   }
 }
 
-if (supabaseUrl) {
-  try {
-    const parsed = new URL(supabaseUrl);
-    if (isRelease && parsed.protocol !== 'https:') {
-      fail('Release builds require an https SUPABASE_URL.');
-    }
-  } catch {
-    fail(`SUPABASE_URL is not a valid URL: ${supabaseUrl}`);
-  }
-}
-
 for (const pin of pins) {
   // Android pin values are base64 of the certificate's SubjectPublicKeyInfo.
   if (!/^[A-Za-z0-9+/=]{40,}$/.test(pin)) {
@@ -134,14 +131,24 @@ if (isRelease && useGateway && pins.length === 0) {
   warn(message);
 }
 
-if (isRelease && useGateway && (!supabaseUrl || !supabaseAnonKey)) {
+if (isRelease && useGateway && !useFirebaseAuth) {
   fail(
-    'Release build has USE_GATEWAY=true but no SUPABASE_URL/SUPABASE_ANON_KEY. ' +
+    'Release build has USE_GATEWAY=true but USE_FIREBASE_AUTH=false. ' +
       'Real phone-OTP sessions are required — refusing to embed a mock-login build.',
   );
 }
-if (!supabaseUrl || !supabaseAnonKey) {
-  warn('SUPABASE_URL/SUPABASE_ANON_KEY unset: phone OTP is disabled (dev-only mock login).');
+if (useFirebaseAuth) {
+  for (const file of [GOOGLE_SERVICES_JSON, GOOGLE_SERVICE_INFO_PLIST]) {
+    if (!fs.existsSync(file)) {
+      const message =
+        `Missing Firebase native config: ${path.relative(ROOT, file)}. ` +
+        'Phone OTP cannot initialize without it.';
+      if (isRelease && useGateway) fail(message);
+      warn(message);
+    }
+  }
+} else {
+  warn('USE_FIREBASE_AUTH=false: phone OTP is disabled (dev-only mock login).');
 }
 
 function fail(message) {
@@ -167,8 +174,7 @@ export const GATEWAY_URL = ${JSON.stringify(gatewayUrl)};
 export const USE_GATEWAY = ${useGateway};
 export const STRICT = ${strict};
 export const DEV_USER = ${JSON.stringify(devUser)};
-export const SUPABASE_URL = ${JSON.stringify(supabaseUrl)};
-export const SUPABASE_ANON_KEY = ${JSON.stringify(supabaseAnonKey)};
+export const FIREBASE_AUTH_ENABLED = ${useFirebaseAuth};
 export const CERT_PINS: readonly string[] = ${JSON.stringify(pins)};
 export const IS_RELEASE_CONFIG = ${isRelease};
 `,
@@ -216,5 +222,5 @@ if (isRelease && fs.existsSync(path.dirname(NSC_FILE))) {
 
 console.log(
   `[configure] transport=${transport} gateway=${gatewayUrl || '(mock)'} ` +
-    `useGateway=${useGateway} strict=${strict} pins=${pins.length}`,
+    `useGateway=${useGateway} strict=${strict} firebaseAuth=${useFirebaseAuth} pins=${pins.length}`,
 );

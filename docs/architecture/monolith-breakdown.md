@@ -55,6 +55,10 @@ search extraction is a pure index-replica swap.
 | recommendations → Python+Mongo | `internal/reco`, `internal/sdui` | MongoDB `sdui_layouts`, `user_events`, `recommendations`, `product_stats`; `sdui` composes `catalog` + `directory` (`HomeSection` joins each section's `productIds` **and** `storeIds` via `contracts.ProductReader`/`contracts.StoreReader` — `directory.Repo.ByIDs`, PII-free projection; the anon campaign projection joins each `SduiSection.campaigns[]` def to its store + products) | `faazio:v1:reco:{userIdHash}:{context}` 1 h · `faazio:v1:gateway:sdui:{locale}:/home` 300 s, `...:/mart` 300 s, `...:/food` 300 s and `...:/pharma` 300 s (same compile + store join; all purged on publish) · `faazio:v1:home:campaigns:{locale}` 600 s (+ `:{id}`, purged by prefix on publish) | `getHomeFeed` (`GET /sdui/home`), `getMartFeed` (`GET /sdui/mart`, only `martHero`/`martDeals`/`martEssentials`), `getFoodFeed` (`GET /sdui/food`, only `foodHero`/`foodSpecials`/`mostRatedDining`), `getPharmaFeed` (`GET /sdui/pharma`, only `pharmaHero`/`pharmaPopular`/`pharmaEssentials`; no-fallback `fetchPharmaSections` for read provenance) and `getHomeCampaigns`/`getHomeCampaign` (`GET /home/campaigns(/{id})`, anon compiled editorial campaigns joined to store + products), `trackEvent` (app) + `getRecommendations`; portal monitoring `GET /admin/user-trail?userId=&limit=` (admin-only, ID-only `user_events` read); super-admin Home-layout editor `GET`/`PUT /admin/sdui/home` (raw ID-only sections, `contracts.LayoutWriter` → `reco.Repo.SaveHome` `$inc version` + purges all compiled-feed caches + the campaign namespace; audited `SDUI_PUBLISH`) | Python FastAPI |
 | shared | `internal/platform/{db,cache,auth,config,otel,r2,cloudflare,testenv}`, `internal/contracts` | — | — | — | gRPC via `contracts/` |
 
+Auth verifier ownership: `internal/platform/auth` owns token verification only — Firebase RS256
+(`FirebaseVerifier`, Google public certs, no firebase-admin dependency) plus the legacy Supabase HS256
+fallback, then the checkout `UserProvisioner` maps the verified subject to `checkout.users`.
+
 Mongo `user_events` stores **ID-only** `{ userIdHash, productId, event, at }` with a 90-day TTL; the
 raw user id is never stored (hash only). **Nothing rating-related is ever logged.**
 
@@ -233,9 +237,11 @@ Extract the **first** context (search) as the reference. The others repeat the s
 - **DB split:** MVP = one Supabase project (schemas `catalog`/`directory`/`reviews`/`checkout`/
   `accounts`/`inventory`) + MongoDB Atlas M0 + Aiven Valkey. Future Prod = CockroachDB, Tantivy,
   DynamoDB, standalone Postgres — same datatypes, so the swap is invisible.
-- **Auth:** real Supabase phone OTP (the Login UI exchanges the SMS code via `supabaseAuth.ts`) +
-  partner JWT claim roles; the gateway verifies the JWT and resolves `user_id` from it, upserting the
-  `auth_uid` link on first call (`ProvisionUserID`). Never trust a client-supplied user id. Local dev
+- **Auth:** real **Firebase phone OTP** (the Login UI exchanges the SMS code via `firebaseAuth.ts`;
+  the gateway verifies the RS256 Firebase ID token with Google's x509 certificate set) + partner JWT
+  claim roles (Firebase custom claims, or legacy Supabase HS256 for the portal); the gateway resolves
+  `user_id` from the verified subject, upserting the `auth_uid` link on first call (`ProvisionUserID`).
+  Never trust a client-supplied user id. Local dev
   can still resolve the app as `user-1` (`AUTH_DISABLED=true`); the app sends `X-Dev-User` only in dev builds
   (`DEV_USER`). Consequently the two app writes behind `auth.Require` (`POST /ads/events`,
   `PUT /vendors/{id}/rating`) are inert on a production `AUTH_DISABLED=false` gateway — W49 makes the

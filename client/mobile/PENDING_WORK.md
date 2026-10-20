@@ -5,21 +5,51 @@ dependencies exist. Do not build the backend/seller flows until told to.
 
 ---
 
+## W60 — Firebase phone OTP replaces Supabase GoTrue (P0)
+
+**Status:** 🟢 Shipped (mobile + gateway + Render config). W23's Supabase GoTrue flow is replaced
+end to end; the mobile app no longer talks to Supabase Auth.
+
+- **Mobile auth:** `services/firebaseAuth.ts` uses the native `@react-native-firebase/auth` SDK
+  (`sendOtp` → `signInWithPhoneNumber`, `verifyOtp` → `confirm`, `refreshIdToken` →
+  `getIdToken(true)`, `signOutRemote`). `LoginScreen` UI is unchanged; `authStore` + `secureSession`
+  still own the Keychain session and `GatewayClient` forces one ID-token refresh on 401.
+- **Native config (public, committed):** `android/app/google-services.json` +
+  `ios/Faazio/GoogleService-Info.plist`; Android applies the `com.google.gms.google-services`
+  plugin (`4.5.0`). iOS has `UIBackgroundModes → remote-notification`; APNs/Play Integrity
+  anti-abuse is **not** configured yet (Part 6 blocked: Firebase project not linked to GCP) — see
+  `docs/RUNBOOKS/FIREBASE_AUTH.md`.
+- **Gateway:** `platform/auth.FirebaseVerifier` verifies RS256 Firebase ID tokens with Google's
+  x509 cert set (no firebase-admin dependency); `iss`/`aud`/`exp`/`sub` checked. `FIREBASE_PROJECT_ID`
+  enables it; the legacy Supabase HS256 verifier remains as a portal fallback. `ProvisionUserID`
+  still links the verified subject to `checkout.users.auth_uid` on first call; migration `0031`
+  widens that column from `UUID` to `TEXT` because Firebase UIDs are not UUIDs (apply it in
+  Supabase before deploying the new gateway).
+- **Prod:** `render.yaml` pins `FIREBASE_PROJECT_ID` + `AUTH_DISABLED=false`; the mobile `.env`
+  points at `https://faazio-workspace.onrender.com`; the debug/release workflows default
+  `GATEWAY_URL` to the same Render origin. Release still requires `CERT_PINS`.
+- **Ops remaining (not code):** Part 6 — enable Play Integrity (Android) + APNs key (iOS) and App
+  Check enforcement once the Firebase project is linked to Google Cloud; register the release
+  keystore SHA-1/SHA-256 in Firebase for SMS auto-retrieval.
+
+**Date:** 2026-10-20
+
 ## W23 — Real phone-OTP auth + secured single-server flip (P0)
 
-**Status:** 🟢 Shipped (app + gateway + docs). Replaces the placeholder session with a real Supabase
-GoTrue phone-OTP session, so every `auth.Require` write (`/cart`, `/orders`, `/favourites`,
+**Status:** ⚪ Superseded by W60 (was 🟢 Shipped). This entry replaced the placeholder session with
+a real Supabase GoTrue phone-OTP session, so every `auth.Require` write (`/cart`, `/orders`, `/favourites`,
 `PUT /vendors/{id}/rating`, `POST /ads/events`) works against an `AUTH_DISABLED=false` gateway.
 
-- **Auth:** `services/supabaseAuth.ts` (GoTrue REST, no SDK) + `LoginScreen` send/verify/resend;
+- **Auth (historical):** `services/supabaseAuth.ts` (GoTrue REST, no SDK, deleted in W60) + `LoginScreen` send/verify/resend;
   `secureSession.ts` remains the single Keychain owner (with an in-memory mirror) and
   `GatewayClient` sends the real bearer, refreshing once on 401 and clearing a dead session.
 - **Server link:** `auth.UserProvisioner` → `checkout.Repo.ProvisionUserID` upserts
   `checkout.users.auth_uid` on first authenticated call (`0030` adds `last_login_at`), so no manual
-  portal row is needed. `auth_uid → user_id` stays read-through cached for 1 h.
+  portal row is needed. `auth_uid → user_id` stays read-through cached for 1 h. W60 swaps the
+  verifier to Firebase and widens `auth_uid` to `TEXT` (`0031`).
 - **Honesty:** with `STRICT=true`, cart/favourite/address/booking/Rx/order writes fail loudly instead
   of echoing a local fixture. `configure.js` refuses a release that embeds a mock-login build.
-- **Ops (not code):** set GitHub secrets `SUPABASE_URL`, `SUPABASE_ANON_KEY`; Render env
+- **Ops (not code):** Firebase native config is committed (superseded by W60); Render env
   `AUTH_DISABLED=false`, `ALLOWED_ORIGINS`; Cloudflare proxied + Full SSL + Render inbound origin lock;
   rotate cert pins with a 2-pin overlap ≥30 days before expiry (see `docs/RUNBOOKS/RELEASE.md`).
 - **Docs:** `mvp-backend.md` §1, `db-schema.md` §7.1, `mobile-app.md` Services/Login,
@@ -143,8 +173,8 @@ key/TTL and its edit invalidation are reused. **Date:** 2026-10-18
 
 ## W57 — Pharma price parity + residual workflow closure (P0/P1)
 
-**Status:** 🟢 Shipped (app + data + docs). No server/DB/cache/route change; app auth stays
-**mocked** (no Supabase phone OTP). Closes the last P0/P1 items from the PHARMA sub-app audit that
+**Status:** 🟢 Shipped (app + data + docs). No server/DB/cache/route change; app auth was then
+**mocked** (now Firebase phone OTP — W60). Closes the last P0/P1 items from the PHARMA sub-app audit that
 W53–W55 left open.
 
 - **Price parity (P0-4).** The inline `CATEGORY_PRODUCTS` grid + in-screen `PRODUCT_DETAIL` now
@@ -188,7 +218,7 @@ the `BLOOD_DONOR_UNREAD_ALERTS` removal; fixtures/behaviour resume. No migration
 ## W56 — Food sub-app production-readiness pass (P0/P1 gaps + doc truth-up)
 
 **Status:** 🟢 Shipped (app + server comment + docs). No new screens/routes/tables/migrations/keys;
-app auth stays **mocked** (no Supabase phone OTP). Closes the money/UX gaps from the FOOD audit.
+app auth was then **mocked** (now Firebase phone OTP — W60). Closes the money/UX gaps from the FOOD audit.
 The audit's suspected "seed has no Food SDUI sections" (P0-4) was **false** — the checked-in
 `server/supabase/seed/mongo/sdui_layouts.json` already carries `foodHero`/`foodSpecials`/
 `mostRatedDining`, matching the `internal/sdui` allowlist, so no seed change was needed.
@@ -244,8 +274,8 @@ pool over the `TODAYS_SPECIALS` fallback in the shared `SearchScreen`.
 
 ## W55 — Donor-directory provenance (P1) + un-interest propagation
 
-**Status:** 🟢 Shipped (app + server + docs). No new screens/routes/tables/keys; app auth stays
-**mocked** (no Supabase phone OTP). Closes the last Pharma read without provenance (W53b deferred it).
+**Status:** 🟢 Shipped (app + server + docs). No new screens/routes/tables/keys; app auth was then
+**mocked** (now Firebase phone OTP — W60). Closes the last Pharma read without provenance (W53b deferred it).
 
 - **Donor-directory reads carry provenance (P1 privacy).** New no-fallback
   `GatewayClient.fetchBloodDonors`/`fetchDonorProfile` (throwing `GatewayOfflineError`) mirror

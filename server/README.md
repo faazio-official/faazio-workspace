@@ -61,10 +61,11 @@ server/
 - **CORS:** `ALLOWED_ORIGINS` is an explicit comma-separated allow-list (default deny). A literal
   `*` reflects any Origin **only when `AUTH_DISABLED=true`** (local dev); in production it is
   ignored. The dev-only `X-Dev-*` request headers are only advertised in dev.
-- **Auth:** real Supabase Auth phone OTP (HS256 JWT) + RLS; the app sends the GoTrue bearer and
-  `checkout.Repo.ProvisionUserID` links `auth.uid → checkout.users.user_id` on first call
-  (`0030`). `AUTH_DISABLED=true` is local-dev only (logs a loud warning); release builds cannot
-  embed a mock-login session. Portal JWTs are fail-closed.
+- **Auth:** real **Firebase phone OTP** for the mobile app; `FIREBASE_PROJECT_ID` enables
+  `platform/auth.FirebaseVerifier` (RS256 against Google's x509 cert set, `iss`/`aud`/`exp`/`sub`).
+  `checkout.Repo.ProvisionUserID` links the verified subject → `checkout.users.user_id` on first
+  call (`0030`). The legacy Supabase HS256 verifier remains as a portal fallback. `AUTH_DISABLED=true`
+  is local-dev only (logs a loud warning); release builds cannot embed a mock-login session.
 - **Rate/body limits:** global `Throttle(100)` + 1 MiB body, plus `Throttle(10)` on
   `/ads/events`, `/vendors/{id}/rating`, `/bookings*`, `/media/*` and a 256 KiB cap on `/media/*`.
 - **Health:** `GET /health` probes Postgres (required → 503), Valkey and Mongo (optional →

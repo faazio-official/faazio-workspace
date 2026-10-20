@@ -34,7 +34,7 @@ docs/
 ├── DEVELOPER_ONBOARDING.md         # numbered getting-started guide
 ├── BRAND_COLOR_MIGRATION.md        # royal-purple → Faazio-blue change log + revert
 ├── architecture/                   # deep-dives (mvp-backend, monolith-breakdown, mobile-app, web-portal, data-layer-sdui, server-gateway-plan, db-schema, caching-cloudflare-valkey)
-└── RUNBOOKS/                       # operational guides (RELEASE, CI_PIPELINE, DATA_FIXTURES, TROUBLESHOOTING)
+└── RUNBOOKS/                       # operational guides (RELEASE, CI_PIPELINE, DATA_FIXTURES, FIREBASE_AUTH, TROUBLESHOOTING)
 ```
 
 Reading order for a new contributor: `AGENTS.md` → `ARCHITECTURE.md` →
@@ -117,10 +117,12 @@ a native prebuild/generator and never commit generated `src/lib/config.ts`.
 ## Native + config contract
 - **Bare RN 0.86.3.** JS entry is `index.js`; Metro/config are `@react-native/*`.
 - **`scripts/configure.js` is the single JS↔native config owner.** It reads `GATEWAY_URL`,
-  `USE_GATEWAY`, `STRICT`, `DEV_USER`, `CERT_PINS` from the environment/.env and generates
-  `src/lib/config.ts` + `src/lib/activeTransport.ts` (gitignored). `prestart`/`preandroid` and CI
-  run it; release builds also write the Android certificate-pin network config. See
-  `docs/RUNBOOKS/RELEASE.md`.
+  `USE_GATEWAY`, `STRICT`, `DEV_USER`, `USE_FIREBASE_AUTH`, `CERT_PINS` from the environment/.env
+  and generates `src/lib/config.ts` + `src/lib/activeTransport.ts` (gitignored). `prestart`/`preandroid`
+  and CI run it; release builds also write the Android certificate-pin network config. Phone OTP is
+  Firebase (`@react-native-firebase/auth`) with committed public config
+  (`android/app/google-services.json`, `ios/Faazio/GoogleService-Info.plist`); see
+  `docs/RUNBOOKS/FIREBASE_AUTH.md` and `docs/RUNBOOKS/RELEASE.md`.
 - **Debug vs release:** debug shells load JS from Metro (`adb reverse tcp:8081`) with cleartext
   allowed only to the loopback/emulator host; release shells embed the bundle and deny cleartext.
   JS-only changes need Metro + Fast Refresh; native changes require a CI rebuild.

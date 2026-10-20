@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "29787592730",
+    "project_id": "project-65696e12-8def-460e-b29",
+    "storage_bucket": "project-65696e12-8def-460e-b29.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:29787592730:android:3373ec06e90a41cc2259a3",
+        "android_client_info": {
+          "package_name": "com.faazio.customer"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBV9BCBbCRkp7D7sRAhpgcWp-6MtVOpJQE"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

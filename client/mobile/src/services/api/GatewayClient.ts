@@ -32,10 +32,9 @@ import { savedAddresses } from '@data/account/addresses';
 import {
   clearSession,
   getAccessToken,
-  getRefreshToken,
   updateSessionTokens,
 } from '../secureSession';
-import { refreshSession } from '../supabaseAuth';
+import { refreshIdToken } from '../firebaseAuth';
 import { DEV_USER, GATEWAY_URL, STRICT, USE_GATEWAY } from '../../lib/config';
 
 /** Simulated network latency (ms) for mock mode. Drop to 0 to run pure in-memory. */
@@ -80,7 +79,7 @@ export class GatewayOfflineError extends Error {
 /**
  * How the client is currently authenticating. Diagnostic only — never used to gate a write.
  *  - `dev-bypass` — dev-only `X-Dev-User` override against an `AUTH_DISABLED=true` gateway.
- *  - `enterprise` — a Keychain-stored GoTrue bearer (verified server-side).
+ *  - `enterprise` — a Keychain-stored Firebase ID token (verified server-side).
  *  - `none`       — no token/override configured.
  */
 export type GatewayAuthStatus = 'dev-bypass' | 'enterprise' | 'none';
@@ -557,21 +556,20 @@ export class GatewayClient {
   }
 
   /**
-   * Silent 401 recovery: rotate the GoTrue access token once, persist the pair to the Keychain and
-   * retry. A dead refresh token clears the local session so the app falls back to Login instead of
+   * Silent 401 recovery: force a Firebase ID-token refresh once, persist it to the Keychain and
+   * retry. A missing native user clears the local session so the app falls back to Login instead of
    * flapping every write to the mock. Returns false when recovery is impossible.
    */
   private async recoverSession(): Promise<boolean> {
     if (this.refreshInFlight) return this.refreshInFlight;
     this.refreshInFlight = (async () => {
       try {
-        const refreshToken = await getRefreshToken();
-        const session = await refreshSession(refreshToken ?? '');
+        const session = await refreshIdToken();
         if (!session) {
           await clearSession();
           return false;
         }
-        await updateSessionTokens(session.accessToken, session.refreshToken);
+        await updateSessionTokens(session.accessToken);
         return true;
       } catch {
         return false;

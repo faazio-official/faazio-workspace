@@ -24,7 +24,7 @@
 | `user_events` / `recommendations` / `segments` / `product_stats` / `sdui_layouts` | Keep MongoDB Atlas M0 (ID-only, `userIdHash`, TTL 90d) | Same (no change) | Flexible doc shape + TTL; don't force into Postgres |
 | Cache + edge | Keep **Aiven Valkey + Cloudflare** exactly per `caching-cloudflare-valkey.md` | Same | Supabase is origin, not cache; keys/TTLs unchanged (`faazio:v1:{service}:{entity}:{id}`, stock 30–60s, search 600s, product 24h, idempotency `NX EX 300`) |
 | Gateway | Go Chi modular monolith (`server/gateway`): all 6 contexts, `/health`, `/search?q=`, `/sdui/home`, `/product/:id`, `/vendors/:id/reviews`, `/stores`, `/venues`, `/orders`, `/profile`, cart/order/rating/event writes → Supabase + Mongo + Valkey, Cloudflare in front | Full gateway + 5 gRPC microservices via `contracts/` | Monolith proves the `@mock` → `@server` seam; extracted per `monolith-breakdown.md`; `GatewayClient` signatures don't change |
-| Auth | **Real Supabase phone OTP** (GoTrue REST, no SDK) → JWT verified by `platform/auth`; first login upserts `checkout.users.auth_uid` | Same, hardened | Server sessions + per-user orders/carts/rating scoping now |
+| Auth | **Firebase phone OTP** (`@react-native-firebase/auth` native SDK) → Firebase ID token (RS256) verified by `platform/auth` against Google's certificate set; first login upserts `checkout.users.auth_uid` | OIDC/IdP-agnostic verification; the same `auth_uid` link | Server sessions + per-user orders/carts/rating scoping now |
 
 **Product / media images (implemented, `0025`):** bytes live in **Cloudflare R2** (`faazio-public` +
 `faazio-private`), identity in the SQL `media.assets` registry. The gateway (`internal/media` +
@@ -53,18 +53,22 @@ set. See `db-schema.md` §12.16.
   `TIMESTAMPTZ`, native ENUMs. The Cockroach DDL there is near-verbatim Postgres.
 - **Search view:** `catalog.products_search` (`tsvector` over `name` + `search_tokens` + `category`,
   GIN index, `pg_trgm` for fuzzy/autocomplete), refreshed on `catalog.updated`.
-- **Auth:** real Supabase phone OTP. `services/supabaseAuth.ts` calls GoTrue REST directly
-  (`/auth/v1/otp`, `/auth/v1/verify`, `/auth/v1/token?grant_type=refresh_token`) — no SDK, +~40 LOC,
-  zero bundle cost. `LoginScreen` sends the OTP on phone entry and exchanges the code for a real
-  session; the access token is stored in the Keychain (single owner: `secureSession.ts`) and sent as
-  the bearer every `GatewayClient` call. The gateway verifies the HS256 JWT and resolves
-  `auth.uid → checkout.users.user_id`; on first call the checkout resolver **upserts** the link
+- **Auth:** real **Firebase phone OTP** (`services/firebaseAuth.ts`, native
+  `@react-native-firebase/auth`; public client config in `android/app/google-services.json` and
+  `ios/Faazio/GoogleService-Info.plist`). `LoginScreen` sends the OTP on phone entry and exchanges
+  the code for a Firebase **ID token (RS256 JWT)**; the token is stored in the Keychain (single owner:
+  `secureSession.ts`) and sent as the bearer every `GatewayClient` call. The gateway verifies it with
+  `platform/auth.FirebaseVerifier` (Google x509 certificate set + `iss`/`aud`/`exp`/`sub`), then
+  resolves `sub → checkout.users.user_id`; on first call the checkout resolver **upserts** the link
   (`ProvisionUserID`, deterministic `u-<sha256 prefix>`, `auth_uid` unique) so a new OTP user works
-  without a manual row. `GatewayClient` rotates an expired token once on 401 (`recoverSession`), then
-  clears the session and returns to Login. In dev the app may still send `X-Dev-User` (`DEV_USER`,
-  dev builds only) against an `AUTH_DISABLED=true` gateway; production builds never send it and
-  never embed a mock-login token (`configure.js` fails a release without `SUPABASE_URL` +
-  `SUPABASE_ANON_KEY`).
+  without a manual row. Migration `0031` widens `auth_uid` from `UUID` to `TEXT` (Firebase UIDs are
+  strings); apply it in Supabase before deploying the Firebase verifier. `GatewayClient` forces one native ID-token refresh on 401 (`recoverSession`),
+  then clears the session and returns to Login. `FIREBASE_PROJECT_ID` enables Firebase verification;
+  the legacy `SUPABASE_JWT_SECRET` HS256 path remains for the partner portal and is only tried after
+  Firebase fails. In dev the app may still send `X-Dev-User` (`DEV_USER`, dev builds only) against
+  an `AUTH_DISABLED=true` gateway; production builds never send it and never embed a mock-login
+  build (`configure.js` fails a release when `USE_GATEWAY=true` and the native Firebase config is
+  missing). Setup + the outstanding anti-abuse step: `docs/RUNBOOKS/FIREBASE_AUTH.md`.
 
 ### RLS policy classes (least privilege)
 
@@ -76,6 +80,9 @@ set. See `db-schema.md` §12.16.
 | **service-role only** | writes / stock mutations / admin | `inventory.stock` decrements, `checkout` writes, moderation, `payments.settlement_ledger`/`payouts` |
 
 - PII columns (`phone`/`email`/address/`user_id` linkage) are never exposed by anon/auth read policies.
+- **Mobile auth is Firebase**, so `auth.uid()` policies apply to the legacy portal/Supabase path. The
+  Go gateway connects as the database owner and enforces ownership in SQL predicates (never trusts a
+  client-supplied user id); `0031` widens `checkout.users.auth_uid` to `TEXT` for Firebase UIDs.
 - Never commit secrets; service-role key is server-side only.
 
 ---
@@ -136,7 +143,7 @@ Every endpoint above now has a `GatewayClient` method (`getVendorReviews`, `rate
 `getBookings`/`createBooking`/`cancelBooking`/
 `attachBookingPayment`/`getBookingAvailability`,
 `getRecommendations`) with the `@data/*` fallback, so the per-module `@mock` →
-`@server` migration proceeds on the existing **real phone-OTP login** (`supabaseAuth` →
+`@server` migration proceeds on the existing **real phone-OTP login** (`firebaseAuth` →
 `authStore.login()`).
 
 No gRPC yet; `contracts/` holds Go interfaces that mirror the future `.proto` shape. Method
@@ -264,8 +271,8 @@ contract stable so the swap is invisible to the app):
 
 19. ✅ **Real auth link + single-server hardening (`0030`, W23):** `checkout.users.last_login_at`
     (additive) + `checkout.Repo.ProvisionUserID` upsert on first authenticated call (`auth.UserProvisioner`),
-    so GoTrue phone-OTP users are linked without a manual row. Mobile: `services/supabaseAuth.ts`
-    (GoTrue REST OTP), Keychain-backed session with silent 401 refresh, and strict money/Rx/address/
+    so phone-OTP users are linked without a manual row. Mobile: `services/firebaseAuth.ts`
+    (native Firebase phone auth), Keychain-backed session with silent 401 refresh, and strict money/Rx/address/
     cart/favourite/booking writes. Gateway: CORS default-deny (wildcard only in dev), per-route
     throttle (10) + 256 KiB media body cap, and a dependency-probing `/health` (db/cache/mongo).
     Owner: `db-schema.md` §7.1, `caching-cloudflare-valkey.md` §5, `mobile-app.md` Services.

@@ -224,9 +224,10 @@ hook (server list + `reviews.vendor_summary` aggregate).
 in-process during `POST /orders`), `getMenu` (durable `directory.menus`), `createPrescription` /
 `getPrescriptions` (durable Rx; images in Supabase Storage), and `trackEvent` (ID-only; mock fallback
 is a silent no-op — the `search` event is anchored to the top result id since it has no product id
-of its own). These unblock the `@mock` → `@server` per-module migration. Auth is real Supabase phone
-OTP when `SUPABASE_URL`/`SUPABASE_ANON_KEY` are configured (`services/supabaseAuth.ts`); the gateway
-still runs `AUTH_DISABLED=true` for local dev without Supabase.
+of its own). These unblock the `@mock` → `@server` per-module migration. Auth is real Firebase phone
+OTP through the native SDK (`services/firebaseAuth.ts`) when the committed
+`google-services.json` / `GoogleService-Info.plist` are present; the gateway verifies the Firebase ID
+token and still runs `AUTH_DISABLED=true` for local dev without Firebase.
 
 Screens still read `@data/*` directly and migrate onto `gateway` incrementally — no call-site changes
 are required. Every `@mock` entry is now a gateway handler contract.
