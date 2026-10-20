@@ -5,7 +5,13 @@ import { usePortalStore, type PortalState } from "@/lib/api/store";
 import { remoteConfigured } from "@/lib/config";
 import { ApiError, remote, toCamel, writeAwaited } from "@/lib/api/http";
 import { toast } from "sonner";
-import { loginPortal, logoutPortal, restorePortalSession } from "@/lib/portal/auth";
+import {
+  armProactiveRefresh,
+  cancelProactiveRefresh,
+  loginPortal,
+  logoutPortal,
+  restorePortalSession,
+} from "@/lib/portal/auth";
 import { sellerSeries, stateSeries, globalSeries, productSeries } from "@/data/analytics/series";
 import type {
   AdStatus,
@@ -106,10 +112,19 @@ function audit(input: {
 
 /* ---------------------------------- auth --------------------------------- */
 
-/** Signs in against the gateway-native portal credentials (any role). */
-export async function signIn(email: string, password: string): Promise<AuthUser> {
-  const user = await loginPortal(email, password);
+/**
+ * Signs in against the gateway-native portal credentials (any role). `remember` mirrors the
+ * GCP-style "Stay signed in" checkbox (default on). On success the proactive keep-alive timer
+ * arms at ~80% of the access token's life so the { 401 → silent refresh } path is rare.
+ */
+export async function signIn(
+  email: string,
+  password: string,
+  remember = true,
+): Promise<AuthUser> {
+  const { user, expiresIn } = await loginPortal(email, password, remember);
   state().set(() => ({ session: user, sessionStatus: "signed-in" }));
+  armProactiveRefresh(Math.round(expiresIn * 1000 * 0.8));
   return user;
 }
 
@@ -127,6 +142,7 @@ export async function restoreSession(): Promise<SessionRestore> {
   const outcome = await restorePortalSession();
   if (outcome.status === "ok") {
     state().set(() => ({ session: outcome.user, sessionStatus: "signed-in" }));
+    armProactiveRefresh(Math.round(outcome.expiresIn * 1000 * 0.8));
     return { status: "signed-in", user: outcome.user };
   }
   if (outcome.status === "transient") {
@@ -135,11 +151,13 @@ export async function restoreSession(): Promise<SessionRestore> {
     return { status: "reconnecting", user: state().session };
   }
   state().set(() => ({ session: null, sessionStatus: "signed-out" }));
+  cancelProactiveRefresh();
   return { status: "signed-out", user: null };
 }
 
 export async function signOut(): Promise<void> {
   await logoutPortal();
+  cancelProactiveRefresh();
   state().set(() => ({ session: null, sessionStatus: "signed-out" }));
 }
 

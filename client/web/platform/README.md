@@ -44,6 +44,14 @@ Pages read through `src/lib/api/*`; browser data calls go through the same-origi
 issued by a superadmin (`/admin/super/credentials`) and the session lives in
 HttpOnly cookies, never `localStorage`. See `docs/architecture/web-portal.md`.
 
+Sessions are kept alive GCP-style: refresh rotation is single-flight
+(`refreshTokensSingleflight`), the client pre-rotates ~80% into the access
+token's life and on tab focus, and `middleware.ts` guards `/seller/*` +
+`/admin/*` (cookie-presence check → `/login?next=…`; a forced password rotation
+carries the deep link through `sessionStorage["faazio.next"]`). The login form's
+"Stay signed in" checkbox maps to the non-secret `faazio_remember` cookie — off
+means the refresh cookie is browser-session-only (shared PC).
+
 ## Development
 
 Copy `.env.example` → `.env.local` and set `NEXT_PUBLIC_GATEWAY_URL` (e.g.

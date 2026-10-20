@@ -1,12 +1,13 @@
 "use client";
 import { useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import { toast } from "sonner";
 import { signIn } from "@/lib/api";
 import { hydrateFromGateway } from "@/lib/api/sync";
 import { fetchPortalStatus, portalErrorMessage, type PortalStatus } from "@/lib/portal/auth";
 import { homeFor, ROLE_LABEL } from "@/lib/auth/permissions";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { BrandTile } from "@/components/brand/FaazioMark";
@@ -25,10 +26,27 @@ function diagnosticCopy(status: PortalStatus): string | null {
   return null;
 }
 
+const NEXT_KEY = "faazio.next";
+
+/** Only allow an internal absolute path (guards /login?next= against open redirects). */
+function safeNext(raw: string | null): string {
+  if (!raw) return "";
+  return raw.startsWith("/") && !raw.startsWith("//") ? raw : "";
+}
+
+/** The deep link a seller/admin attempted before being bounced to /login (query param, else a
+ *  stashed hint from a forced password-rotation round-trip). Never a token — only a path. */
+function initialNext(): string {
+  if (typeof window === "undefined") return "";
+  return safeNext(new URLSearchParams(window.location.search).get("next")) ||
+    safeNext(window.sessionStorage.getItem(NEXT_KEY));
+}
+
 function LoginPage() {
   const router = useRouter();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [remember, setRemember] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [diagnostic, setDiagnostic] = useState<string | null>(null);
@@ -47,15 +65,23 @@ function LoginPage() {
     setBusy(true);
     setError(null);
     try {
-      const user = await signIn(nextEmail, nextPassword);
+      const user = await signIn(nextEmail, nextPassword, remember);
+      const next = initialNext();
       if (user.mustChange && user.role !== "SUPER_ADMIN") {
+        // Temporary password: rotate at /security first, then finish the deep link on re-sign-in.
+        if (typeof window !== "undefined") {
+          window.sessionStorage.setItem(NEXT_KEY, next || homeFor(user.role));
+        }
         toast.success("Signed in — change your temporary password to continue.");
         router.push("/security");
         return;
       }
+      if (typeof window !== "undefined") {
+        window.sessionStorage.removeItem(NEXT_KEY);
+      }
       await hydrateFromGateway();
       toast.success(`Signed in as ${ROLE_LABEL[user.role]}`);
-      router.push(homeFor(user.role));
+      router.push(next || homeFor(user.role));
     } catch (err) {
       setError(portalErrorMessage(err));
     } finally {
@@ -103,6 +129,16 @@ function LoginPage() {
               placeholder="Your password"
             />
           </div>
+          <div className="flex items-center gap-2.5">
+            <Checkbox
+              id="remember"
+              checked={remember}
+              onCheckedChange={(value) => setRemember(value !== false && value !== "indeterminate")}
+            />
+            <Label htmlFor="remember" className="cursor-pointer text-[13px] font-normal text-muted-foreground">
+              Stay signed in on this device
+            </Label>
+          </div>
           {diagnostic ? (
             <p className="rounded-md border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-[12px] text-amber-700 dark:text-amber-300">
               {diagnostic}
@@ -123,4 +159,10 @@ function LoginPage() {
   );
 }
 
-export default LoginPage;
+export default function LoginPageWrapper() {
+  return (
+    <Suspense fallback={null}>
+      <LoginPage />
+    </Suspense>
+  );
+}

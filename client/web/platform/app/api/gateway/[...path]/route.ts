@@ -9,7 +9,8 @@ import {
   logRoute,
   portalEnabled,
   refreshCookie,
-  refreshTokens,
+  refreshTokensSingleflight,
+  rememberPersisted,
   requestID,
   setAuthCookies,
   withRequestID,
@@ -72,7 +73,7 @@ async function proxy(req: NextRequest, ctx: { params: Promise<{ path: string[] }
   try {
     upstream = await call(access);
     if (upstream.status === 401) {
-      const refreshed = await refreshTokens(refreshCookie(req), id);
+      const refreshed = await refreshTokensSingleflight(refreshCookie(req), id);
       if (!refreshed.ok || !refreshed.data) {
         if (!refreshed.terminal) {
           // Transient (gateway blip / timeout): keep the long-lived refresh cookie and surface a
@@ -113,7 +114,7 @@ async function proxy(req: NextRequest, ctx: { params: Promise<{ path: string[] }
   if (nextCursor) headers["X-Next-Cursor"] = nextCursor;
 
   const out = new NextResponse(upstream.body, { status: upstream.status, headers });
-  if (rotated) setAuthCookies(out, rotated.accessToken, rotated.refreshToken);
+  if (rotated) setAuthCookies(out, rotated.accessToken, rotated.refreshToken, rememberPersisted(req));
   return withRequestID(out, id);
 }
 

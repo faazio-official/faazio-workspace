@@ -9,6 +9,7 @@ import {
   readJSON,
   requestID,
   setAuthCookies,
+  setRememberCookie,
   withRequestID,
   type PortalTokenPayload,
 } from "@/lib/portal/server";
@@ -43,9 +44,9 @@ export async function POST(req: NextRequest) {
       0,
     );
   }
-  let body: { email?: unknown; password?: unknown };
+  let body: { email?: unknown; password?: unknown; remember?: unknown };
   try {
-    body = (await req.json()) as { email?: unknown; password?: unknown };
+    body = (await req.json()) as { email?: unknown; password?: unknown; remember?: unknown };
   } catch {
     return done(failJSON(400, "bad_request", "Invalid request body.", id), "bad_request", 400);
   }
@@ -58,6 +59,8 @@ export async function POST(req: NextRequest) {
       400,
     );
   }
+  // GCP-style "Stay signed in" (default on): unchecked → the refresh cookie is browser-session-only.
+  const remember = body.remember !== false && body.remember !== "false";
 
   let res: Response;
   try {
@@ -94,7 +97,12 @@ export async function POST(req: NextRequest) {
       res.status,
     );
   }
-  const out = NextResponse.json({ user: token.user, requestId: id });
-  setAuthCookies(out, token.accessToken, token.refreshToken);
+  const out = NextResponse.json({
+    user: token.user,
+    expiresIn: token.expiresIn,
+    requestId: id,
+  });
+  setAuthCookies(out, token.accessToken, token.refreshToken, remember);
+  setRememberCookie(out, remember);
   return done(out, "ok", res.status);
 }

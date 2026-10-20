@@ -308,7 +308,10 @@ browser                        Next.js route handlers                 Go gateway
 - **Cookie proxy** — `app/api/auth/portal/{login,refresh,me,logout,password}/route.ts` set the
   `faazio_pat` (access, 15 min) and `faazio_prt` (refresh, 30 d idle) HttpOnly/SameSite=Lax cookies;
   `app/api/gateway/[...path]/route.ts` injects the bearer server-side and rotates the refresh
-  token on a 401. This is the XSS win: an injected script cannot read the token.
+  token on a 401. This is the XSS win: an injected script cannot read the token. A third,
+  non-secret `faazio_remember` cookie records the login form's "Stay signed in" checkbox: absent or
+  `1` → persistent 30-day refresh cookie; `0` → the refresh cookie is browser-session-only (shared
+  PCs), and every rotation route (`me`/`refresh`/`gateway/[...path]`) preserves that choice.
 - **Session lifetimes (GCP model, `0038`)** — refresh families behave like `accounts.google.com`
   sessions: a 15-minute access token, a **30-day sliding idle** (`refresh`/`me` rotate on every
   request that touches the gateway), a **hard 180-day absolute cap** set once at login and never
@@ -335,7 +338,25 @@ browser                        Next.js route handlers                 Go gateway
   On a transient the client (a) does not clobber a live session, (b) shows a "Reconnecting…" gate
   (`RoleGate`, driven by the store's `sessionStatus`) instead of the login prompt, and (c) retries
   with backoff (`providers.tsx`: 1 s / 3 s / 8 s). `src/lib/api/http.ts` also retries a single
-  `503` request once after 1 s before throwing. `session` is still never persisted.
+  `503` request once after 1 s (throttled "Reconnecting…" toast) before throwing. `session` is
+  still never persisted.
+- **Single-flight rotation (P3.1)** — `refreshTokensSingleflight()` in `src/lib/portal/server.ts`
+  coalesces every concurrent 401-triggered refresh onto ONE upstream `/auth/portal/refresh`, keyed
+  by a 16-hex sha256 of the refresh cookie with a 10 s TTL (in-process map — no Valkey key, so the
+  cache doc is untouched). Combined with the server's 30 s reuse grace this makes two tabs / a wide
+  cold-start spawn genuinely idempotent.
+- **Proactive keep-alive (P3.2)** — the client never waits for a 401: after login/me it arms a
+  timer at ~80% of the access token's life (`armProactiveRefresh`, client-side single-flight),
+  restores on tab `visibilitychange`/`focus` throttled to once a minute (`armVisibilityRefresh`),
+  and re-arms after every rotation (transient failures retry at 30 s). The `expiresIn` floor is
+  echoed by the `login`/`refresh`/`me` routes; nothing is persisted — the timer is in-memory only.
+- **Auth guard + deep links (P3.3)** — `middleware.ts` (edge) redirects `/seller/*` and `/admin/*`
+  with no `faazio_prt` (or future `__Host-faazio_prt`) cookie to `/login?next=<path>`. The login
+  page validates `next` (internal path only, no open redirect), "Stay signed in" maps to
+  `faazio_remember`/`remember`, and a forced password rotation stashes `next` in `sessionStorage`
+  (`faazio.next`) so the deep link survives the `/security` round-trip. On a genuinely dead session
+  (`invalid_refresh`, `session_expired_*`, `invalid_refresh_reuse` from `/api/gateway`) `http.ts`
+  redirects once to `/login?next=…` — authorization 401s (wrong role) never do.
 - **First-login confinement** — the access token carries `must_change`. Until the password is
   rotated, the gateway refuses every path outside `/auth/portal/*` (`403 password_change_required`)
   and the shell redirects to `/security`, so a temporary password cannot reach the control plane.

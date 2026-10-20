@@ -8,6 +8,7 @@ import { Toaster } from "@/components/ui/sonner";
 import { SeedModeBanner } from "@/components/patterns/SeedModeBanner";
 import { restoreSession } from "@/lib/api";
 import { hydrateFromGateway } from "@/lib/api/sync";
+import { armVisibilityRefresh } from "@/lib/portal/auth";
 import { usePortalStore } from "@/lib/api/store";
 
 // Transient gateway failures (cold start / Cloudflare blip) never log the user out: the refresh
@@ -17,8 +18,9 @@ const TRANSIENT_BACKOFF_MS = [1000, 3000, 8000];
 export function Providers({ children }: { children: ReactNode }) {
   const [queryClient] = useState(() => new QueryClient());
 
-  // Restore a persisted Supabase session, then hydrate the store from the
-  // gateway. Both are no-ops in local seed mode (env unset).
+  // Restore a persisted session from the HttpOnly refresh cookie, then hydrate the store from the
+  // gateway. On success the proactive keep-alive timer is armed (restoreSession) so the session
+  // never has to wait for a 401. Both are no-ops in local seed mode (env unset).
   useEffect(() => {
     let cancelled = false;
     void (async () => {
@@ -41,8 +43,15 @@ export function Providers({ children }: { children: ReactNode }) {
         await new Promise((resolve) => setTimeout(resolve, TRANSIENT_BACKOFF_MS[attempt]));
       }
     })();
+    const detachVisibility = armVisibilityRefresh(() => {
+      // Returning to the tab restores a still-valid session silently (the keep-alive re-arms)
+      void restoreSession().then((result) => {
+        if (result.status === "signed-in" && !cancelled) void hydrateFromGateway();
+      });
+    });
     return () => {
       cancelled = true;
+      detachVisibility();
     };
   }, []);
 
