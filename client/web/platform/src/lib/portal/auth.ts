@@ -120,13 +120,27 @@ export async function loginPortal(email: string, password: string): Promise<Auth
   return toAuthUser(data.user);
 }
 
-/** Restores a session from the HttpOnly refresh cookie (null when signed out). */
-export async function restorePortalSession(): Promise<AuthUser | null> {
+/**
+ * One restore verdict. `transient` means the refresh cookie is still valid but the gateway was
+ * briefly unreachable (network / 5xx / timeout) — retry, do NOT treat the user as signed out.
+ */
+export type RestoreOutcome =
+  | { status: "ok"; user: AuthUser }
+  | { status: "transient" }
+  | { status: "signed_out" };
+
+/** Restores a session from the HttpOnly refresh cookie. A gateway blip reports `transient`, never
+ *  "signed out" — only the server clearing the cookie (a genuinely dead refresh) yields signed_out. */
+export async function restorePortalSession(): Promise<RestoreOutcome> {
   try {
     const data = await call("/api/auth/portal/me", "GET");
-    return data.user ? toAuthUser(data.user) : null;
-  } catch {
-    return null;
+    if (data.user) return { status: "ok", user: toAuthUser(data.user) };
+    return { status: "signed_out" };
+  } catch (err) {
+    if (err instanceof PortalError && (err.status === 0 || err.status >= 500)) {
+      return { status: "transient" };
+    }
+    return { status: "signed_out" };
   }
 }
 

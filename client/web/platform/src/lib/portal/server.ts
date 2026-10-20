@@ -124,13 +124,32 @@ export function failJSON(
 export interface RefreshResult {
   ok: boolean;
   data: PortalTokenPayload | null;
+  /**
+   * true only when the refresh is genuinely dead (gateway 401 invalid_refresh / 400) — callers must
+   * clear the cookies. false on network / timeout / 5xx / malformed: the long-lived refresh cookie
+   * is still valid, so callers must keep it and treat the failure as transient.
+   */
+  terminal: boolean;
+  /** gateway error code when present (e.g. invalid_refresh, session_expired_idle). */
+  code: string | undefined;
 }
 
-/** Rotates the opaque refresh token through the gateway. */
+/** A gateway cold-start / Cloudflare blip must never delete a valid 30-day session, so a refresh
+ *  call that cannot be answered is transient — never terminal. */
+const REFRESH_TIMEOUT_MS = 5000;
+
+/** Rotates the opaque refresh token through the gateway, classifying failures (see RefreshResult). */
 export async function refreshTokens(refreshToken: string, reqId = ""): Promise<RefreshResult> {
-  if (!refreshToken) return { ok: false, data: null };
+  if (!refreshToken) {
+    // No cookie = nothing to keep: report terminal so routes clear (a no-op) and the client lands
+    // on the sign-in gate instead of a "Reconnecting…" retry loop for a brand-new visitor.
+    return { ok: false, data: null, terminal: true, code: "no_refresh_token" };
+  }
+  let res: Response;
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), REFRESH_TIMEOUT_MS);
   try {
-    const res = await callGateway("/auth/portal/refresh", {
+    res = await callGateway("/auth/portal/refresh", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -138,12 +157,24 @@ export async function refreshTokens(refreshToken: string, reqId = ""): Promise<R
         ...(reqId ? { "X-Request-Id": reqId } : {}),
       },
       body: JSON.stringify({ refreshToken }),
+      signal: controller.signal,
     });
-    if (!res.ok) return { ok: false, data: null };
-    const data = (await res.json()) as PortalTokenPayload;
-    if (!data.accessToken || !data.refreshToken) return { ok: false, data: null };
-    return { ok: true, data };
   } catch {
-    return { ok: false, data: null };
+    return { ok: false, data: null, terminal: false, code: "gateway_unavailable" };
+  } finally {
+    clearTimeout(timer);
   }
+  const data = await readJSON(res);
+  if (res.ok) {
+    const token = data as unknown as PortalTokenPayload;
+    if (!token.accessToken || !token.refreshToken) {
+      return { ok: false, data: null, terminal: false, code: "bad_gateway_response" };
+    }
+    return { ok: true, data: token, terminal: false, code: undefined };
+  }
+  const code = typeof data["code"] === "string" ? data["code"] : undefined;
+  if (res.status === 401 || res.status === 400) {
+    return { ok: false, data: null, terminal: true, code };
+  }
+  return { ok: false, data: null, terminal: false, code };
 }

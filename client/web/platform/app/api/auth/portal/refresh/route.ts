@@ -16,8 +16,15 @@ export async function POST(req: NextRequest) {
   }
   const result = await refreshTokens(refreshCookie(req));
   if (!result.ok || !result.data) {
+    if (!result.terminal) {
+      // Transient (gateway blip / timeout): the refresh cookie is still valid — keep it.
+      return NextResponse.json(
+        { error: "Gateway is unavailable.", code: result.code ?? "gateway_unavailable", terminal: false },
+        { status: 503 },
+      );
+    }
     const out = NextResponse.json(
-      { error: "Session expired.", code: "invalid_refresh" },
+      { error: "Session expired.", code: result.code ?? "invalid_refresh", terminal: true },
       { status: 401 },
     );
     clearAuthCookies(out);

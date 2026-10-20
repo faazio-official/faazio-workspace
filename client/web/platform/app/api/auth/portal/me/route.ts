@@ -55,8 +55,12 @@ export async function GET(req: NextRequest) {
       }
       if (res.status !== 401) {
         log("upstream_error", res.status);
+        const upstream = await readJSON(res);
+        const code =
+          typeof upstream["code"] === "string" ? upstream["code"] : "upstream_error";
+        // Non-auth upstream errors are transient: keep the cookies, never force logout.
         return withRequestID(
-          NextResponse.json({ user: null }, { status: res.status }),
+          NextResponse.json({ user: null, code, terminal: false }, { status: res.status }),
           id,
         );
       }
@@ -69,8 +73,18 @@ export async function GET(req: NextRequest) {
   // Access token missing/expired: restore from the HttpOnly refresh cookie.
   const refreshed = await refreshTokens(refreshCookie(req), id);
   if (!refreshed.ok || !refreshed.data) {
-    log("invalid_refresh", 0);
-    const out = NextResponse.json({ user: null });
+    const code = refreshed.code ?? "invalid_refresh";
+    if (!refreshed.terminal) {
+      // Transient (gateway blip / timeout / 5xx): the refresh cookie is still valid. Keep it and
+      // tell the client to retry — one Cloudflare hiccup must not delete a 30-day session.
+      log(code, 503);
+      return withRequestID(
+        NextResponse.json({ user: null, code, terminal: false }, { status: 503 }),
+        id,
+      );
+    }
+    log(code, 0);
+    const out = NextResponse.json({ user: null, code, terminal: true });
     clearAuthCookies(out);
     return withRequestID(out, id);
   }

@@ -109,20 +109,38 @@ function audit(input: {
 /** Signs in against the gateway-native portal credentials (any role). */
 export async function signIn(email: string, password: string): Promise<AuthUser> {
   const user = await loginPortal(email, password);
-  state().set(() => ({ session: user }));
+  state().set(() => ({ session: user, sessionStatus: "signed-in" }));
   return user;
 }
 
-/** Restores the HttpOnly-cookie session (null when signed out/expired). */
-export async function restoreSession(): Promise<AuthUser | null> {
-  const user = await restorePortalSession();
-  state().set(() => ({ session: user }));
-  return user;
+export interface SessionRestore {
+  status: "signed-in" | "signed-out" | "reconnecting";
+  user: AuthUser | null;
+}
+
+/**
+ * Restores the HttpOnly-cookie session. A gateway blip reports `reconnecting`, never `signed-out`:
+ * the cookie is still valid, so the caller should retry instead of treating the user as logged out.
+ * `signed-out` only follows a truly dead refresh (the server cleared the cookie).
+ */
+export async function restoreSession(): Promise<SessionRestore> {
+  const outcome = await restorePortalSession();
+  if (outcome.status === "ok") {
+    state().set(() => ({ session: outcome.user, sessionStatus: "signed-in" }));
+    return { status: "signed-in", user: outcome.user };
+  }
+  if (outcome.status === "transient") {
+    // Never clobber a live session during a gateway blip.
+    state().set((s) => ({ session: s.session, sessionStatus: "reconnecting" }));
+    return { status: "reconnecting", user: state().session };
+  }
+  state().set(() => ({ session: null, sessionStatus: "signed-out" }));
+  return { status: "signed-out", user: null };
 }
 
 export async function signOut(): Promise<void> {
   await logoutPortal();
-  state().set(() => ({ session: null }));
+  state().set(() => ({ session: null, sessionStatus: "signed-out" }));
 }
 
 /* ----------------------------- portal credentials ----------------------------- */

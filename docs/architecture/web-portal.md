@@ -309,6 +309,17 @@ browser                        Next.js route handlers                 Go gateway
   `faazio_pat` (access, 15 min) and `faazio_prt` (refresh, 30 d) HttpOnly/SameSite=Lax cookies;
   `app/api/gateway/[...path]/route.ts` injects the bearer server-side and rotates the refresh
   token on a 401. This is the XSS win: an injected script cannot read the token.
+- **Transient vs terminal refresh** — `refreshTokens()` (in `src/lib/portal/server.ts`) classifies
+  every refresh failure: only gateway `401`/`400` are `terminal` (the refresh really died → the
+  route clears the cookies); network errors, timeouts (5 s AbortSignal), `5xx` and malformed
+  bodies are `transient`. All three restore routes (`me`, `refresh`, `gateway/[...path]`)
+  **keep the cookies on transient** and return `503`; they only `clearAuthCookies` on terminal.
+  So one Cloudflare blip or gateway cold-start can never delete a still-valid 30-day session.
+- **Client restore semantics** — `restorePortalSession()` returns `ok | transient | signed_out`.
+  On a transient the client (a) does not clobber a live session, (b) shows a "Reconnecting…" gate
+  (`RoleGate`, driven by the store's `sessionStatus`) instead of the login prompt, and (c) retries
+  with backoff (`providers.tsx`: 1 s / 3 s / 8 s). `src/lib/api/http.ts` also retries a single
+  `503` request once after 1 s before throwing. `session` is still never persisted.
 - **First-login confinement** — the access token carries `must_change`. Until the password is
   rotated, the gateway refuses every path outside `/auth/portal/*` (`403 password_change_required`)
   and the shell redirects to `/security`, so a temporary password cannot reach the control plane.
