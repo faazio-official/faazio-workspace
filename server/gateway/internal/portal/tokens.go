@@ -21,8 +21,15 @@ const (
 	TokenAudience = auth.PortalAudience
 	// AccessTTL is deliberately short: a stolen bearer token is useful for minutes, not hours.
 	AccessTTL = 15 * time.Minute
-	// RefreshTTL is the sliding lifetime of an opaque refresh session.
-	RefreshTTL    = 30 * 24 * time.Hour
+	// RefreshIdleTTL is the sliding idle window of an opaque refresh family: every rotation resets
+	// it, so an active operator never signs out (GCP "returning user stays").
+	RefreshIdleTTL = 30 * 24 * time.Hour
+	// RefreshAbsoluteTTL is the hard cap of a refresh family. It is set once at login and never
+	// extended on rotation, so an abandoned/stolen family dies even if it keeps getting reused.
+	RefreshAbsoluteTTL = 180 * 24 * time.Hour
+	// ReuseGrace is how long a just-rotated token stays idempotent: a concurrent refresh racing on
+	// the same token within this window is a grace-accept, not theft. Tunable 10-60s.
+	ReuseGrace    = 30 * time.Second
 	refreshPrefix = "faazio_pr_"
 )
 

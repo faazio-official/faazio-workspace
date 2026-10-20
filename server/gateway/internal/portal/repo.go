@@ -32,14 +32,19 @@ type PortalUser struct {
 	CreatedAt         time.Time
 }
 
-// Session is one admins.portal_sessions row.
+// Session is one admins.portal_sessions row (0038 lifetime columns included).
 type Session struct {
-	SessionID string
-	UserID    string
-	TokenHash string
-	ExpiresAt time.Time
-	UsedAt    *time.Time
-	RevokedAt *time.Time
+	SessionID         string
+	UserID            string
+	TokenHash         string
+	ExpiresAt         time.Time // sliding idle expiry (last rotation + RefreshIdleTTL)
+	UsedAt            *time.Time
+	RevokedAt         *time.Time
+	AbsoluteExpiresAt time.Time // hard family cap, set at login, never extended (0038)
+	LastSeenAt        *time.Time
+	ReuseGraceUntil   *time.Time // replay within this window is idempotent, not theft (0038)
+	UAHash            string
+	RotatedToHash     string // hash of the child token this row rotated to (0038)
 }
 
 // Repo reads/writes the admins portal credential + session tables. All SQL is parameterized.
@@ -268,14 +273,18 @@ func nullable(v string) any {
 	return v
 }
 
-// CreateSession inserts one rotation row.
-func (r *Repo) CreateSession(ctx context.Context, sessionID, userID, tokenHash string, expiresAt time.Time, ipHash string) error {
+// CreateSession inserts one rotation row. absoluteExpires is the family's hard cap (set at login,
+// preserved on rotation); uaHash is a one-way browser fingerprint (never the raw UA); last_seen_at
+// is stamped at creation so a never-refreshed session still reports its last activity.
+func (r *Repo) CreateSession(ctx context.Context, sessionID, userID, tokenHash string, expiresAt, absoluteExpiresAt time.Time, ipHash, uaHash string) error {
 	if err := r.ready(); err != nil {
 		return err
 	}
 	_, err := r.pool.Exec(ctx, `
-		insert into admins.portal_sessions (session_id, user_id, token_hash, expires_at, ip_hash)
-		values ($1,$2,$3,$4,$5)`, sessionID, userID, tokenHash, expiresAt, ipHash)
+		insert into admins.portal_sessions
+		  (session_id, user_id, token_hash, expires_at, absolute_expires_at, ip_hash, ua_hash, last_seen_at)
+		values ($1,$2,$3,$4,$5,$6,$7, now())`,
+		sessionID, userID, tokenHash, expiresAt, absoluteExpiresAt, ipHash, uaHash)
 	return err
 }
 
@@ -285,34 +294,83 @@ func (r *Repo) SessionByTokenHash(ctx context.Context, hash string) (Session, bo
 		return Session{}, false, err
 	}
 	var s Session
+	var rotated *string
 	err := r.pool.QueryRow(ctx, `
-		select session_id, user_id, token_hash, expires_at, used_at, revoked_at
+		select session_id, user_id, token_hash, expires_at, used_at, revoked_at,
+		       absolute_expires_at, last_seen_at, reuse_grace_until, ua_hash, rotated_to_hash
 		  from admins.portal_sessions
 		 where token_hash = $1`, hash).
-		Scan(&s.SessionID, &s.UserID, &s.TokenHash, &s.ExpiresAt, &s.UsedAt, &s.RevokedAt)
+		Scan(&s.SessionID, &s.UserID, &s.TokenHash, &s.ExpiresAt, &s.UsedAt, &s.RevokedAt,
+			&s.AbsoluteExpiresAt, &s.LastSeenAt, &s.ReuseGraceUntil, &s.UAHash, &rotated)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return Session{}, false, nil
 		}
 		return Session{}, false, err
 	}
+	if rotated != nil {
+		s.RotatedToHash = *rotated
+	}
 	return s, true, nil
 }
 
-// MarkSessionUsed atomically consumes a refresh token. false means it was already used/revoked —
-// the caller treats that as theft and revokes the whole family.
-func (r *Repo) MarkSessionUsed(ctx context.Context, hash string) (bool, error) {
+// ConsumeSession atomically rotates a refresh token: marks the presented row used, opens its reuse
+// grace window and points it at the child token in one UPDATE — no other rotation can interleave.
+// false means the token was already used/revoked (or the family already lapsed idle/absolute) —
+// the caller re-reads the row and applies the corresponding verdict.
+func (r *Repo) ConsumeSession(ctx context.Context, hash, rotatedToHash string, graceUntil time.Time, ipHash, uaHash string) (bool, error) {
 	if err := r.ready(); err != nil {
 		return false, err
 	}
 	tag, err := r.pool.Exec(ctx, `
 		update admins.portal_sessions
-		   set used_at = now()
-		 where token_hash = $1 and used_at is null and revoked_at is null`, hash)
+		   set used_at = now(),
+		       reuse_grace_until = $2,
+		       rotated_to_hash = $3,
+		       last_seen_at = now(),
+		       ip_hash = $4,
+		       ua_hash = $5
+		 where token_hash = $1
+		   and used_at is null and revoked_at is null
+		   and expires_at > now() and absolute_expires_at > now()`, hash, graceUntil, rotatedToHash, ipHash, uaHash)
 	if err != nil {
 		return false, err
 	}
 	return tag.RowsAffected() == 1, nil
+}
+
+// GracePoint re-points an already-used (but still within grace) token at a newly minted child. It
+// is guarded by reuse_grace_until > now() so a grace window that lapsed between verdict and write
+// cannot be resurrected. false → treat as theft.
+func (r *Repo) GracePoint(ctx context.Context, hash, rotatedToHash, ipHash, uaHash string) (bool, error) {
+	if err := r.ready(); err != nil {
+		return false, err
+	}
+	tag, err := r.pool.Exec(ctx, `
+		update admins.portal_sessions
+		   set rotated_to_hash = $2,
+		       last_seen_at = now(),
+		       ip_hash = $3,
+		       ua_hash = $4
+		 where token_hash = $1
+		   and used_at is not null and revoked_at is null
+		   and reuse_grace_until > now()`, hash, rotatedToHash, ipHash, uaHash)
+	if err != nil {
+		return false, err
+	}
+	return tag.RowsAffected() == 1, nil
+}
+
+// RevokeSession revokes a single rotation row — used for an idle-timeout (the family survives, so
+// a seller's other devices stay signed in).
+func (r *Repo) RevokeSession(ctx context.Context, hash string) error {
+	if err := r.ready(); err != nil {
+		return err
+	}
+	_, err := r.pool.Exec(ctx, `
+		update admins.portal_sessions set revoked_at = now()
+		 where token_hash = $1 and revoked_at is null`, hash)
+	return err
 }
 
 // RevokeFamily revokes every rotation row in one refresh family.

@@ -1574,7 +1574,7 @@ round-trip). The target must be an item the seller owns (handler-enforced agains
 deep-link another seller's product. RLS: a seller reads their own rows; admins read by scope (mirrors
 `0015`). Endpoints: caching doc §5, `mvp-backend.md` §3 and `monolith-breakdown.md` §1 (`ads` row).
 
-### 12.18 Portal auth — gateway-native credentials + rotating refresh (migrations `0032` + `0033` + `0034`)
+### 12.18 Portal auth — gateway-native credentials + rotating refresh (migrations `0032` + `0033` + `0034` + `0038`)
 
 The Partner Portal sign-in is gateway-native: `0032` adds the durable credential + session store,
 `0033` widens the issued roles to `SELLER` and `STATE_ADMIN` with a scope, and `0034` clears the
@@ -1607,20 +1607,26 @@ CREATE TABLE admins.portal_users (
 CREATE UNIQUE INDEX portal_users_email_lower_uniq ON admins.portal_users (lower(email));
 
 CREATE TABLE admins.portal_sessions (
-  token_hash  text PRIMARY KEY,                    -- sha256(raw refresh token), hex
-  session_id  text NOT NULL,                       -- refresh family id (many rows per family)
-  user_id     text NOT NULL REFERENCES admins.portal_users(user_id) ON DELETE CASCADE,
-  expires_at  timestamptz NOT NULL,
-  used_at     timestamptz,                         -- single-use rotation marker
-  revoked_at  timestamptz,
-  ip_hash     text NOT NULL DEFAULT '',            -- sha256(client ip) prefix; no raw IP
-  created_at  timestamptz NOT NULL DEFAULT now()
+  token_hash            text PRIMARY KEY,          -- sha256(raw refresh token), hex
+  session_id            text NOT NULL,             -- refresh family id (many rows per family)
+  user_id               text NOT NULL REFERENCES admins.portal_users(user_id) ON DELETE CASCADE,
+  expires_at            timestamptz NOT NULL,      -- sliding idle expiry (last rotation + 30 d)
+  used_at               timestamptz,               -- set once on rotation; a replay inside grace is idempotent
+  revoked_at            timestamptz,
+  ip_hash               text NOT NULL DEFAULT '',  -- sha256(client ip) prefix; no raw IP
+  absolute_expires_at   timestamptz NOT NULL DEFAULT (now() + interval '180 days'), -- 0038 hard cap (never extended)
+  last_seen_at          timestamptz,               -- 0038 latest rotation/activity
+  reuse_grace_until     timestamptz,               -- 0038 replay window (30 s): inside = grace, after = theft
+  ua_hash               text NOT NULL DEFAULT '',  -- 0038 sha256(User-Agent) prefix; no raw UA
+  rotated_to_hash       text,                      -- 0038 child token this row rotated to (grace-chain)
+  created_at            timestamptz NOT NULL DEFAULT now()
 );
 ```
 
 Indexes: `(lower(email))` unique, `(active)`, `(seller_id) WHERE seller_id IS NOT NULL`,
 `(state_code) WHERE state_code IS NOT NULL`, `portal_sessions(session_id)`, `portal_sessions(user_id)`,
-`portal_sessions(expires_at)`.
+`portal_sessions(expires_at)`, `portal_sessions(absolute_expires_at)` (0038), `portal_sessions(rotated_to_hash)
+WHERE rotated_to_hash IS NOT NULL` (0038).
 RLS is enabled and `anon`/`authenticated` are revoked: the gateway (service_role) is the only writer and
 direct Supabase clients never see credential/session rows. **No seed INSERT ships** — the two accounts
 are provisioned manually with `tools/hash-password` (runbook `PORTAL_AUTH.md`); seller and state-admin
@@ -1630,11 +1636,18 @@ password-reset per `PUT /admin/portal-users/{id}` and `PUT /admin/portal-users/{
 rotation (the request may set `forceChange:false`), while `SUPER_ADMIN` is never forced — its password
 is active immediately, and `0034_portal_superadmin_no_force.sql` repairs any seeded superadmin row.
 
-Session lifecycle: access = HS256 JWT (`iss=faazio-portal`, `aud=portal`, `app_role`, optional
-`seller_id`/`state_code`, `must_change`, 15 min, `jti`); refresh = opaque `faazio_pr_*` (32 random bytes, SHA-256 at rest, 30-day sliding). The verifier requires `seller_id` for a
-seller token and a 2-letter `state_code` for a state-admin token, and rejects any other role. Each
-refresh consumes the row (`used_at`) and inserts the next; replaying a used token revokes the family.
-Logout denylists the access `jti` in Valkey (≤15 min) and revokes the family; password change rotates
+Session lifecycle (`0038` adds the GCP-style lifetimes): access = HS256 JWT (`iss=faazio-portal`, `aud=portal`,
+`app_role`, optional `seller_id`/`state_code`, `must_change`, 15 min, `jti`); refresh = opaque `faazio_pr_*`
+(32 random bytes, SHA-256 at rest, **30-day sliding idle**, **180-day absolute cap** set at login and never
+extended, **30-second reuse grace**). The verifier requires `seller_id` for a seller token and a 2-letter
+`state_code` for a state-admin token, and rejects any other role. Each rotation consumes the presented row
+atomically (`used_at`, `reuse_grace_until=now()+30s`, `rotated_to_hash=<child>` in one `UPDATE ... WHERE
+used_at IS NULL AND revoked_at IS NULL AND expires_at > now() AND absolute_expires_at > now()`) and inserts a
+child under the same family + absolute cap. A replay *inside* the grace window is an idempotent rotation
+(`PORTAL_REFRESH_GRACE`, `X-Refresh-Reused`), a replay *after* it revokes the family (`invalid_refresh_reuse`),
+an absolute-cap hit revokes the family (`session_expired_absolute`), and an idle lapse revokes **only that
+row** (`session_expired_idle`) so one lapsed device never logs the others out. Logout denylists the access
+`jti` in Valkey (≤15 min) and revokes the family; password change rotates
 the hash, clears `must_change`, revokes every session and denylists the current token. An admin reset
 sets `must_change` to the effective `forceChange` (default false for `SUPER_ADMIN`, true otherwise),
 also clearing the lockout and revoking every session. Cache keys/TTLs:
