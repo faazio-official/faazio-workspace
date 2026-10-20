@@ -8,7 +8,11 @@ import (
 
 	"github.com/faazio/server/gateway/internal/platform/db"
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 )
+
+// ErrEmailTaken is returned when the (case-insensitive) email is already in use.
+var ErrEmailTaken = errors.New("portal: email already in use")
 
 // PortalUser is one admins.portal_users row (never carries the raw password).
 type PortalUser struct {
@@ -23,6 +27,9 @@ type PortalUser struct {
 	LockedUntil       *time.Time
 	LastLoginAt       *time.Time
 	PasswordChangedAt time.Time
+	SellerID          string
+	StateCode         string
+	CreatedAt         time.Time
 }
 
 // Session is one admins.portal_sessions row.
@@ -51,7 +58,8 @@ func (r *Repo) ready() error {
 }
 
 const userColumns = `user_id, email, display_name, password_hash, role, active, must_change,
-	failed_attempts, locked_until, last_login_at, password_changed_at`
+	failed_attempts, locked_until, last_login_at, password_changed_at,
+	coalesce(seller_id, ''), coalesce(state_code, ''), created_at`
 
 // ByEmailLower looks an account up case-insensitively. ok=false when absent.
 func (r *Repo) ByEmailLower(ctx context.Context, email string) (PortalUser, bool, error) {
@@ -90,10 +98,36 @@ func (r *Repo) ByID(ctx context.Context, userID string) (PortalUser, bool, error
 	return u, true, nil
 }
 
+// List returns every portal credential (never the password hash), newest first.
+func (r *Repo) List(ctx context.Context) ([]PortalUser, error) {
+	if err := r.ready(); err != nil {
+		return nil, err
+	}
+	rows, err := r.pool.Query(ctx, `
+		select `+userColumns+`
+		  from admins.portal_users
+		 order by created_at desc
+		 limit 200`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := []PortalUser{}
+	for rows.Next() {
+		u, err := scanUser(rows)
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, u)
+	}
+	return out, rows.Err()
+}
+
 func scanUser(row pgx.Row) (PortalUser, error) {
 	var u PortalUser
 	err := row.Scan(&u.UserID, &u.Email, &u.DisplayName, &u.PasswordHash, &u.Role, &u.Active,
-		&u.MustChange, &u.FailedAttempts, &u.LockedUntil, &u.LastLoginAt, &u.PasswordChangedAt)
+		&u.MustChange, &u.FailedAttempts, &u.LockedUntil, &u.LastLoginAt, &u.PasswordChangedAt,
+		&u.SellerID, &u.StateCode, &u.CreatedAt)
 	return u, err
 }
 
@@ -142,6 +176,84 @@ func (r *Repo) SetPasswordHash(ctx context.Context, userID, hash string) error {
 		   set password_hash = $2, must_change = false, password_changed_at = now(), updated_at = now()
 		 where user_id = $1`, userID, hash)
 	return err
+}
+
+// ResetPassword stores a temporary hash, forces a change and clears any lockout.
+func (r *Repo) ResetPassword(ctx context.Context, userID, hash string) error {
+	if err := r.ready(); err != nil {
+		return err
+	}
+	_, err := r.pool.Exec(ctx, `
+		update admins.portal_users
+		   set password_hash = $2,
+		       must_change = true,
+		       failed_attempts = 0,
+		       locked_until = null,
+		       password_changed_at = now(),
+		       updated_at = now()
+		 where user_id = $1`, userID, hash)
+	return err
+}
+
+// CreateUser inserts one scoped credential. It never accepts a SUPER_ADMIN row from this path;
+// that role is seeded operationally (docs/RUNBOOKS/PORTAL_AUTH.md).
+func (r *Repo) CreateUser(ctx context.Context, u PortalUser) (PortalUser, error) {
+	if err := r.ready(); err != nil {
+		return PortalUser{}, err
+	}
+	_, err := r.pool.Exec(ctx, `
+		insert into admins.portal_users
+		  (user_id, email, display_name, password_hash, role, active, must_change, seller_id, state_code)
+		values ($1,$2,$3,$4,$5,true,true,$6,$7)`,
+		u.UserID, u.Email, u.DisplayName, u.PasswordHash, u.Role, nullable(u.SellerID), nullable(u.StateCode))
+	if err != nil {
+		var pgErr *pgconn.PgError
+		if errors.As(err, &pgErr) && pgErr.Code == "23505" {
+			return PortalUser{}, ErrEmailTaken
+		}
+		return PortalUser{}, err
+	}
+	created, ok, err := r.ByID(ctx, u.UserID)
+	if err != nil {
+		return PortalUser{}, err
+	}
+	if !ok {
+		return PortalUser{}, fmt.Errorf("portal: created user missing")
+	}
+	return created, nil
+}
+
+// SetUserActive flips the active flag. ok=false when the row is absent.
+func (r *Repo) SetUserActive(ctx context.Context, userID string, active bool) (bool, error) {
+	if err := r.ready(); err != nil {
+		return false, err
+	}
+	tag, err := r.pool.Exec(ctx, `
+		update admins.portal_users
+		   set active = $2, updated_at = now()
+		 where user_id = $1`, userID, active)
+	if err != nil {
+		return false, err
+	}
+	return tag.RowsAffected() == 1, nil
+}
+
+// SellerExists reports whether the seller id is real (the credential FK would reject it anyway,
+// but a 400 is clearer than a 500).
+func (r *Repo) SellerExists(ctx context.Context, sellerID string) (bool, error) {
+	if err := r.ready(); err != nil {
+		return false, err
+	}
+	var ok bool
+	err := r.pool.QueryRow(ctx, `select exists(select 1 from sellers.sellers where seller_id = $1)`, sellerID).Scan(&ok)
+	return ok, err
+}
+
+func nullable(v string) any {
+	if v == "" {
+		return nil
+	}
+	return v
 }
 
 // CreateSession inserts one rotation row.

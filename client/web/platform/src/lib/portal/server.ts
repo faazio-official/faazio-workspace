@@ -24,11 +24,6 @@ export interface PortalTokenPayload {
   user: PortalUserPayload;
 }
 
-/** True when this deployment is configured for the gateway-native portal session. */
-export function portalEnabled(): boolean {
-  return process.env["NEXT_PUBLIC_AUTH_MODE"] === "portal";
-}
-
 /** Gateway origin without a trailing slash. */
 export function gatewayBase(): string {
   return process.env["NEXT_PUBLIC_GATEWAY_URL"]?.replace(/\/+$/, "") ?? "";
@@ -70,6 +65,11 @@ export function accessCookie(req: NextRequest): string {
 
 export function refreshCookie(req: NextRequest): string {
   return req.cookies.get(REFRESH_COOKIE)?.value ?? "";
+}
+
+/** True when the gateway origin is configured (portal auth is the only auth mode). */
+export function portalEnabled(): boolean {
+  return gatewayBase().length > 0;
 }
 
 export async function callGateway(path: string, init: RequestInit = {}): Promise<Response> {

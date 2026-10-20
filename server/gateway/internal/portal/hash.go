@@ -1,4 +1,4 @@
-// Package portal owns the gateway-native Partner Portal sign-in: the SUPER_ADMIN credential store
+// Package portal owns the gateway-native Partner Portal sign-in: the credential store
 // (admins.portal_users), rotating refresh sessions, short-lived access tokens, lockout and the
 // /auth/portal routes. Future service: Go + Postgres (monolith-breakdown.md §1) — same shape as the
 // admins context.

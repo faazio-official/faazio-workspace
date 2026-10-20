@@ -1,32 +1,32 @@
-# Portal Superadmin Auth — provisioning, rotation, unlock, revoke
+# Portal Auth — provisioning, credentials, rotation, unlock, revoke
 
-> Gateway-native email+password sign-in for the **two SUPER_ADMIN** Partner Portal accounts.
-> Authority: `docs/architecture/web-portal.md` → "Portal superadmin auth",
+> Gateway-native email+password sign-in for the Partner Portal. Three roles are issued:
+> `SUPER_ADMIN` (seeded operationally), `STATE_ADMIN` (scoped to a 2-letter state) and
+> `SELLER` (scoped to a seller). Authority: `docs/architecture/web-portal.md` → "Portal auth",
 > `db-schema.md` §12.18, `monolith-breakdown.md` §1 (`portal auth` row).
 >
-> Seller/state-admin password login, self-signup, email password-reset and mobile auth are
-> **out of scope**. Never commit a password, hash, email list or secret — the SQL below is run in the
-> Supabase SQL editor, not in a migration.
+> Self-signup, email password-reset and mobile auth are **out of scope**. Never commit a password,
+> hash, email list or secret — the SQL below is run in the Supabase SQL editor, not in a migration.
 
 ## 1. What must exist before the first login
 
-1. Migration `server/supabase/migrations/0032_portal_users.sql` applied (creates
-   `admins.portal_users` + `admins.portal_sessions`). Deploy order: **migration first**, then the
-   gateway, then the portal.
+1. Migrations `server/supabase/migrations/0032_portal_users.sql` +
+   `0033_portal_roles.sql` applied (credential/session store; role + scope). Deploy order:
+   **migrations first**, then the gateway, then the portal.
 2. Gateway env (Render dashboard — never in the repo):
    - `PORTAL_JWT_SECRET` — `openssl rand -base64 48` (≥256-bit HS256 signing key).
    - `PORTAL_PEPPER` — `openssl rand -base64 32` (server-side HMAC pepper; **changing it invalidates
      every existing password hash**).
    - `AUTH_DISABLED=false`, `ALLOWED_ORIGINS=https://<portal-origin>` (exact, no `*`).
-3. Portal env (Vercel): `NEXT_PUBLIC_AUTH_MODE=portal`,
-   `NEXT_PUBLIC_GATEWAY_URL=https://<gateway-origin>`.
-4. Cloudflare WAF: rate-limit `POST /auth/portal/*` to ~20/min/IP, bot-fight on, TLS Full (strict),
-   origin lock still in place (see `RELEASE.md` / `render.yaml` hardening notes).
+3. Portal env (Vercel): `NEXT_PUBLIC_GATEWAY_URL=https://<gateway-origin>` only. There is no auth-mode
+   switch — the portal is always gateway-native.
+4. Cloudflare WAF: rate-limit `POST /auth/portal/*` and `/admin/portal-users*` to ~20/min/IP,
+   bot-fight on, TLS Full (strict), origin lock still in place (see `RELEASE.md` / `render.yaml`).
 
 If `PORTAL_JWT_SECRET` is empty the gateway returns `503 portal_auth_unavailable` for login; it never
 falls back to the legacy Supabase secret.
 
-## 2. Provision the two accounts (one-time)
+## 2. Provision the superadmin accounts (one-time)
 
 Generate each hash locally with the **same** `PORTAL_PEPPER` the gateway uses. The password is read
 from stdin; the tool prints only the PHC hash.
@@ -50,6 +50,9 @@ on conflict (user_id) do update
   set email = excluded.email,
       display_name = excluded.display_name,
       password_hash = excluded.password_hash,
+      role = 'SUPER_ADMIN',
+      seller_id = null,
+      state_code = null,
       active = true,
       must_change = true,
       failed_attempts = 0,
@@ -58,8 +61,7 @@ on conflict (user_id) do update
 ```
 
 `must_change=true` is mandatory for the initial shared password: the portal redirects the first
-sign-in to `/admin/super/security`, which rotates the password, clears `must_change` and revokes every
-session.
+sign-in to `/security`, which rotates the password, clears `must_change` and revokes every session.
 
 Verify:
 
@@ -69,13 +71,30 @@ curl -sS -X POST "$GATEWAY/auth/portal/login" \
   -d '{"email":"<email-1>","password":"<initial-password>"}' | jq '{tokenType,expiresIn,user}'
 curl -sS "$GATEWAY/auth/portal/me" -H "Authorization: Bearer <accessToken>" | jq
 # SUPER_ADMIN-only proof:
-curl -sS "$GATEWAY/admin/sdui/home" -H "Authorization: Bearer <accessToken>" | jq '.layoutId'
+curl -sS "$GATEWAY/admin/portal-users" -H "Authorization: Bearer <accessToken>" | jq '.users | length'
 ```
 
-## 3. Rotate a password (operator-initiated)
+## 3. Issue seller / state-admin logins
+
+A signed-in superadmin uses **Portal credentials** (`/admin/super/credentials`) to create a login:
+
+- role `SELLER` → requires a real `seller_id` (the gateway checks `sellers.sellers`);
+- role `STATE_ADMIN` → requires a 2-letter `state_code` (`^[A-Z]{2}$`);
+- email, display name and a temporary password (≥12 chars, not a common value);
+- the row starts `active=true`, `must_change=true`, and the token carries the scope.
+
+The holder signs in at `/login`, is forced to `/security` to rotate the password, then lands in
+`/seller` or `/admin/state`. Deactivate/reactivate from the same page; resetting a password revokes
+every existing refresh session and forces another change.
+
+Equivalent API (superadmin bearer only): `GET|POST /admin/portal-users`,
+`PUT /admin/portal-users/{id}` (`{active}`), `PUT /admin/portal-users/{id}/password`
+(`{newPassword}`). Do not create `SUPER_ADMIN` rows from this surface; use §2.
+
+## 4. Rotate a superadmin password (operator-initiated)
 
 Use this when a superadmin loses access or a scheduled rotation is due. The user can also rotate from
-`/admin/super/security`.
+`/security`.
 
 1. Generate a new hash with the tool (§2) using the current `PORTAL_PEPPER`.
 2. Update the row and force a change on next login:
@@ -97,7 +116,7 @@ update admins.portal_sessions
 
 3. Communicate the temporary password out-of-band (never email/commit/log it).
 
-## 4. Unlock a locked account
+## 5. Unlock a locked account
 
 Five consecutive failures set `locked_until = now() + 15 minutes` (durable in Postgres). The lock
 expires on its own; to unlock immediately:
@@ -105,53 +124,53 @@ expires on its own; to unlock immediately:
 ```sql
 update admins.portal_users
    set failed_attempts = 0, locked_until = null, updated_at = now()
- where user_id = 'pu-super-1';
+ where user_id = '<user-id>';
 ```
 
 Valkey counters (`faazio:v1:auth:login:{ip,email}:*`) are a rolling 60-second window and need no
 manual action.
 
-## 5. Incident: revoke all sessions for a user
+## 6. Incident: revoke all sessions for a user
 
 ```sql
 update admins.portal_sessions
    set revoked_at = now()
- where user_id = 'pu-super-1' and revoked_at is null;
+ where user_id = '<user-id>' and revoked_at is null;
 ```
 
-Access tokens are stateless and live at most 15 minutes. To kill them immediately, delete their
-denylist namespace in Valkey (the next verify then passes — only do this if you are also rotating the
-password **and** the access TTL has elapsed; otherwise add the specific jti keys via your Valkey
-client):
+Access tokens are stateless and live at most 15 minutes. To kill them immediately, add their `jti`
+keys to the denylist via your Valkey client (never `KEYS` in production):
 
 ```bash
-# List/inspect (never KEYS in production):
 valkey-cli --scan --pattern 'faazio:v1:auth:deny:*'
 ```
 
 If a refresh token was suspected stolen, the replay path already revokes the whole family; the SQL
 above is the manual equivalent.
 
-## 6. Rotate `PORTAL_JWT_SECRET` / `PORTAL_PEPPER`
+## 7. Rotate `PORTAL_JWT_SECRET` / `PORTAL_PEPPER`
 
 - `PORTAL_JWT_SECRET`: set the new value on Render and roll the deploy. Every access token minted with
   the old secret stops verifying immediately; refresh tokens still work (they are opaque) and mint
   new access tokens. Users may see one silent refresh.
 - `PORTAL_PEPPER`: **breaking**. Set the new pepper, then re-provision every account with a freshly
-  generated hash (§2) in the same maintenance window. Existing hashes cannot be verified with a new
-  pepper.
+  generated hash (§2 for superadmins, password reset for the rest) in the same maintenance window.
+  Existing hashes cannot be verified with a new pepper.
 
-## 7. Rollback
+## 8. Rollback
 
-- Portal only: set `NEXT_PUBLIC_AUTH_MODE=mock` on Vercel (demo directory returns) and redeploy.
-- Gateway only: an older binary ignores `/auth/portal/*`; the tables can stay.
+- Portal only: redeploy the previous portal build; portal auth is the only mode, so there is no mock
+  fallback to switch back to.
+- Gateway only: an older binary ignores `/auth/portal/*` and `/admin/portal-users`; the tables can stay.
 - Full abandon: `update admins.portal_users set active = false;` (keep the audit history). Only drop
   the tables if you are permanently removing the feature.
 
-## 8. Audit + observability
+## 9. Audit + observability
 
-Every outcome writes one `admins.audit_logs` row (actor `SUPER_ADMIN`, entity
-`admins.portal_users`, entity id = user id, `after = {result, ipHash}` — never a password or token):
+Every outcome writes one `admins.audit_logs` row (actor = the signed-in superadmin for credential
+changes, the affected user for their own login/password events; entity `admins.portal_users`,
+entity id = user id, `after = {result, ipHash}` — never a password or token):
 
 `PORTAL_LOGIN_SUCCESS`, `PORTAL_LOGIN_FAIL`, `PORTAL_LOGIN_LOCKED`, `PORTAL_REFRESH`,
-`PORTAL_REFRESH_REUSE`, `PORTAL_LOGOUT`, `PORTAL_PASSWORD_CHANGE`.
+`PORTAL_REFRESH_REUSE`, `PORTAL_LOGOUT`, `PORTAL_PASSWORD_CHANGE`, `PORTAL_USER_CREATE`,
+`PORTAL_USER_UPDATE`, `PORTAL_USER_PASSWORD_RESET`.

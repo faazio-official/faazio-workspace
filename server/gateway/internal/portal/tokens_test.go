@@ -11,7 +11,7 @@ import (
 
 func TestMintAccessVerifies(t *testing.T) {
 	m := NewMinter("portal-secret")
-	token, jti, exp, err := m.MintAccess("pu-super-1", auth.RoleSuperAdmin, false)
+	token, jti, exp, err := m.MintAccess("pu-super-1", auth.RoleSuperAdmin, "", "", false)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -36,10 +36,47 @@ func TestMintAccessVerifies(t *testing.T) {
 	}
 }
 
+func TestScopedAccessTokens(t *testing.T) {
+	m := NewMinter("portal-secret")
+	v := auth.NewPortalVerifier([]byte("portal-secret"), nil)
+
+	seller, _, _, err := m.MintAccess("pu-seller-1", auth.RoleSeller, "slr-1", "", false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	claims, err := v.Verify(context.Background(), seller)
+	if err != nil {
+		t.Fatalf("seller verify: %v", err)
+	}
+	if claims.AppRole != auth.RoleSeller || claims.SellerID != "slr-1" {
+		t.Fatalf("unexpected seller claims: %+v", claims)
+	}
+
+	state, _, _, err := m.MintAccess("pu-state-1", auth.RoleStateAdmin, "", "ka", false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	claims, err = v.Verify(context.Background(), state)
+	if err != nil {
+		t.Fatalf("state verify: %v", err)
+	}
+	if claims.StateCode != "KA" {
+		t.Fatalf("state code not normalized: %+v", claims)
+	}
+
+	noScope, _, _, err := m.MintAccess("pu-seller-2", auth.RoleSeller, "", "", false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := v.Verify(context.Background(), noScope); err == nil {
+		t.Fatal("seller token without seller_id verified")
+	}
+}
+
 func TestExpiredAccessRejected(t *testing.T) {
 	m := NewMinter("portal-secret")
 	m.now = func() time.Time { return time.Now().Add(-2 * AccessTTL) }
-	token, _, _, err := m.MintAccess("pu-super-1", auth.RoleSuperAdmin, true)
+	token, _, _, err := m.MintAccess("pu-super-1", auth.RoleSuperAdmin, "", "", true)
 	if err != nil {
 		t.Fatal(err)
 	}

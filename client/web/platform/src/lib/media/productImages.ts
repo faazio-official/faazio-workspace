@@ -2,10 +2,9 @@
 // that map to bundled photos for the demo. Uploads go through the gateway media
 // registry to Cloudflare R2 (`POST /media/upload-url` → presigned PUT →
 // `POST /media/confirm`); the stored value is an `r2:<key>` reference resolved
-// here to the CDN origin. When the gateway is unset, uploads fall back to
-// Supabase Storage (legacy) or a compressed data URL so the demo keeps working.
-import { authConfigured, config, remoteConfigured } from "@/lib/config";
-import { accessToken } from "@/lib/supabase/auth";
+// here to the CDN origin. When the gateway is unset, uploads fall back to a
+// compressed data URL so local development keeps working.
+import { config, remoteConfigured } from "@/lib/config";
 import { remote } from "@/lib/api/http";
 import fmM1 from "@/assets/products/fm-m1.jpg";
 import mdM1 from "@/assets/products/md-1.jpg";
@@ -36,9 +35,6 @@ const SEEDED: Record<string, string> = {
   "ph-2": toUrl(ph2),
 };
 
-/** Supabase Storage bucket that holds seller product photos (legacy fallback). */
-export const PRODUCT_BUCKET = "product-images";
-
 /** Prefix for a Cloudflare R2 object reference stored in a product's image fields. */
 export const R2_PREFIX = "r2:";
 
@@ -49,10 +45,9 @@ export interface ProductImageSource {
 }
 
 /**
- * Resolves a stored value to a displayable URL. Handles remote URLs, data URLs,
- * `r2:<key>` R2 references, and Storage object keys (everything without a
- * scheme). Seeded `mock://` placeholders resolve to null so the bundled fallback
- * wins.
+ * Resolves a stored value to a displayable URL. Handles remote URLs, data URLs
+ * and `r2:<key>` R2 references. Seeded `mock://` placeholders (and any legacy
+ * storage key without a scheme) resolve to null so the bundled fallback wins.
  */
 export function resolveImage(value: string | undefined): string | null {
   if (!value) return null;
@@ -63,8 +58,7 @@ export function resolveImage(value: string | undefined): string | null {
     const key = value.slice(R2_PREFIX.length).replace(/^\/+/, "");
     return config.mediaCdnBase ? `${config.mediaCdnBase}/${key}` : null;
   }
-  // Storage object key -> public object URL.
-  return `${config.supabaseUrl}/storage/v1/object/public/${PRODUCT_BUCKET}/${value.replace(/^\/+/, "")}`;
+  return null;
 }
 
 /** Primary image for a product card, table row or detail header. */
@@ -87,8 +81,7 @@ export const MAX_UPLOAD_BYTES = 8 * 1024 * 1024;
 /**
  * Uploads a picked photo. With the gateway configured the compressed JPEG goes
  * to Cloudflare R2 via the media registry and the stored value is `r2:<key>`;
- * without it we fall back to Supabase Storage (object key) or, when nothing is
- * configured, a compressed data URL (local seed mode).
+ * without it, a compressed data URL keeps local development working.
  */
 export async function uploadProductImage(file: File, ownerType = "PRODUCT"): Promise<string> {
   const dataUrl = await fileToProductImage(file);
@@ -110,33 +103,11 @@ export async function uploadProductImage(file: File, ownerType = "PRODUCT"): Pro
       await remote.post("/media/confirm", { assetId: signed.assetId, ownerType });
       return `${R2_PREFIX}${signed.key}`;
     } catch {
-      // fall through to the legacy storage / data-URL path
+      // fall through to the data-URL path
     }
   }
 
-  if (!authConfigured()) return dataUrl;
-  const token = accessToken();
-  if (!token) return dataUrl;
-  try {
-    const blob = await (await fetch(dataUrl)).blob();
-    const path = `seller/${Date.now()}-${Math.random().toString(36).slice(2, 10)}.jpg`;
-    const res = await fetch(
-      `${config.supabaseUrl}/storage/v1/object/${PRODUCT_BUCKET}/${path}`,
-      {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${token}`,
-          apikey: config.supabaseAnonKey,
-          "Content-Type": "image/jpeg",
-          "x-upsert": "false",
-        },
-        body: blob,
-      },
-    );
-    return res.ok ? path : dataUrl;
-  } catch {
-    return dataUrl;
-  }
+  return dataUrl;
 }
 
 /** SHA-256 (hex) of a blob — content-addressed dedup for the R2 registry. "" when unavailable. */

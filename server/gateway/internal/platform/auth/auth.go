@@ -67,7 +67,7 @@ type Config struct {
 	// OTP uses Firebase and is verified by Firebase when set.
 	JWTSecret []byte
 	Firebase  *FirebaseVerifier
-	// Portal verifies gateway-native SUPER_ADMIN portal tokens (HS256, iss/aud pinned). Distinct
+	// Portal verifies gateway-native portal tokens (HS256, iss/aud pinned; role + scope checked). Distinct
 	// from JWTSecret so a portal token can never pass the legacy GoTrue verifier.
 	Portal   *PortalVerifier
 	Resolver UserResolver

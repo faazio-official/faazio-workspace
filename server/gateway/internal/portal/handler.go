@@ -27,7 +27,7 @@ const (
 	emailLoginLimit   = 5
 )
 
-// Handler serves the gateway-native SUPER_ADMIN portal auth endpoints.
+// Handler serves the gateway-native portal auth + credential endpoints.
 type Handler struct {
 	repo   *Repo
 	cache  *cache.Cache
@@ -43,7 +43,8 @@ func NewHandler(repo *Repo, c *cache.Cache, audit contracts.AuditWriter, jwtSecr
 }
 
 // Register mounts /auth/portal/*. Login/refresh/logout are unauthenticated by design (they mint or
-// consume a refresh token); me/password require a portal SUPER_ADMIN access token.
+// consume a refresh token); me/password accept any portal role, and credential management is
+// SUPER_ADMIN-only.
 func (h *Handler) Register(r chi.Router) {
 	r.Group(func(g chi.Router) {
 		g.Use(httpx.MaxBytes(maxBodyBytes))
@@ -53,9 +54,17 @@ func (h *Handler) Register(r chi.Router) {
 	})
 	r.Group(func(g chi.Router) {
 		g.Use(httpx.MaxBytes(maxBodyBytes))
-		g.Use(auth.RequireRole(auth.RoleSuperAdmin))
+		g.Use(auth.Require)
 		g.Get("/auth/portal/me", h.me)
 		g.Put("/auth/portal/password", h.changePassword)
+	})
+	r.Group(func(g chi.Router) {
+		g.Use(httpx.MaxBytes(maxBodyBytes))
+		g.Use(auth.RequireRole(auth.RoleSuperAdmin))
+		g.Get("/admin/portal-users", h.listCredentials)
+		g.Post("/admin/portal-users", h.createCredential)
+		g.Put("/admin/portal-users/{id}", h.setCredentialActive)
+		g.Put("/admin/portal-users/{id}/password", h.resetCredentialPassword)
 	})
 }
 
@@ -78,11 +87,16 @@ type changePasswordRequest struct {
 }
 
 type userDTO struct {
-	ID         string `json:"id"`
-	Email      string `json:"email"`
-	Name       string `json:"name"`
-	Role       string `json:"role"`
-	MustChange bool   `json:"mustChange"`
+	ID          string `json:"id"`
+	Email       string `json:"email"`
+	Name        string `json:"name"`
+	Role        string `json:"role"`
+	MustChange  bool   `json:"mustChange"`
+	Active      bool   `json:"active"`
+	SellerID    string `json:"sellerId,omitempty"`
+	StateCode   string `json:"stateCode,omitempty"`
+	LastLoginAt string `json:"lastLoginAt,omitempty"`
+	CreatedAt   string `json:"createdAt,omitempty"`
 }
 
 type tokenDTO struct {
@@ -94,7 +108,19 @@ type tokenDTO struct {
 }
 
 func toUserDTO(u PortalUser) userDTO {
-	return userDTO{ID: u.UserID, Email: u.Email, Name: u.DisplayName, Role: u.Role, MustChange: u.MustChange}
+	lastLogin := ""
+	if u.LastLoginAt != nil {
+		lastLogin = u.LastLoginAt.UTC().Format(time.RFC3339)
+	}
+	created := ""
+	if !u.CreatedAt.IsZero() {
+		created = u.CreatedAt.UTC().Format(time.RFC3339)
+	}
+	return userDTO{
+		ID: u.UserID, Email: u.Email, Name: u.DisplayName, Role: u.Role,
+		MustChange: u.MustChange, Active: u.Active, SellerID: u.SellerID, StateCode: u.StateCode,
+		LastLoginAt: lastLogin, CreatedAt: created,
+	}
 }
 
 func (h *Handler) login(w http.ResponseWriter, r *http.Request) {
@@ -120,7 +146,7 @@ func (h *Handler) login(w http.ResponseWriter, r *http.Request) {
 	ipHash := shortHash(clientIP(r))
 	emailHash := shortHash(req.Email)
 	if !h.allowLogin(r, ipHash, emailHash) {
-		h.record(r, "PORTAL_LOGIN_LOCKED", "", ipHash, "rate_limited")
+		h.record(r, "PORTAL_LOGIN_LOCKED", "", "", ipHash, "rate_limited")
 		httpx.Fail(w, http.StatusTooManyRequests, "rate_limited", "too many attempts, try again shortly")
 		return
 	}
@@ -134,13 +160,13 @@ func (h *Handler) login(w http.ResponseWriter, r *http.Request) {
 		// Same Argon2id cost as a real verification: a missing email must not be distinguishable
 		// from a wrong password by timing.
 		h.hasher.VerifyDummy(req.Password)
-		h.record(r, "PORTAL_LOGIN_FAIL", "", ipHash, "invalid_credentials")
+		h.record(r, "PORTAL_LOGIN_FAIL", "", "", ipHash, "invalid_credentials")
 		httpx.Fail(w, http.StatusUnauthorized, "invalid_credentials", "invalid email or password")
 		return
 	}
 	if !user.Active {
 		h.hasher.VerifyDummy(req.Password)
-		h.record(r, "PORTAL_LOGIN_FAIL", user.UserID, ipHash, "inactive")
+		h.record(r, "PORTAL_LOGIN_FAIL", user.UserID, user.Role, ipHash, "inactive")
 		httpx.Fail(w, http.StatusUnauthorized, "invalid_credentials", "invalid email or password")
 		return
 	}
@@ -148,15 +174,15 @@ func (h *Handler) login(w http.ResponseWriter, r *http.Request) {
 		// Same generic response as a wrong password: a 423 here would let an attacker confirm that
 		// an email exists (enumeration) by locking it and observing the status change.
 		h.hasher.VerifyDummy(req.Password)
-		h.record(r, "PORTAL_LOGIN_LOCKED", user.UserID, ipHash, "account_locked")
+		h.record(r, "PORTAL_LOGIN_LOCKED", user.UserID, user.Role, ipHash, "account_locked")
 		httpx.Fail(w, http.StatusUnauthorized, "invalid_credentials", "invalid email or password")
 		return
 	}
 	if !h.hasher.Verify(req.Password, user.PasswordHash) {
 		_, locked, ferr := h.repo.RecordLoginFailure(r.Context(), user.UserID)
-		h.record(r, "PORTAL_LOGIN_FAIL", user.UserID, ipHash, "invalid_credentials")
+		h.record(r, "PORTAL_LOGIN_FAIL", user.UserID, user.Role, ipHash, "invalid_credentials")
 		if ferr == nil && locked != nil && locked.After(time.Now()) {
-			h.record(r, "PORTAL_LOGIN_LOCKED", user.UserID, ipHash, "account_locked")
+			h.record(r, "PORTAL_LOGIN_LOCKED", user.UserID, user.Role, ipHash, "account_locked")
 		}
 		httpx.Fail(w, http.StatusUnauthorized, "invalid_credentials", "invalid email or password")
 		return
@@ -171,7 +197,7 @@ func (h *Handler) login(w http.ResponseWriter, r *http.Request) {
 		httpx.Fail(w, http.StatusInternalServerError, "portal_unavailable", "sign-in unavailable")
 		return
 	}
-	h.record(r, "PORTAL_LOGIN_SUCCESS", user.UserID, ipHash, "success")
+	h.record(r, "PORTAL_LOGIN_SUCCESS", user.UserID, user.Role, ipHash, "success")
 	httpx.JSON(w, http.StatusOK, out)
 }
 
@@ -203,7 +229,7 @@ func (h *Handler) refresh(w http.ResponseWriter, r *http.Request) {
 	if session.UsedAt != nil {
 		// A replayed refresh token is the canonical theft signal: kill the whole family.
 		_ = h.repo.RevokeFamily(r.Context(), session.SessionID)
-		h.record(r, "PORTAL_REFRESH_REUSE", session.UserID, shortHash(clientIP(r)), "reuse_detected")
+		h.record(r, "PORTAL_REFRESH_REUSE", session.UserID, "", shortHash(clientIP(r)), "reuse_detected")
 		httpx.Fail(w, http.StatusUnauthorized, "invalid_refresh", "refresh token is not valid")
 		return
 	}
@@ -230,7 +256,7 @@ func (h *Handler) refresh(w http.ResponseWriter, r *http.Request) {
 		httpx.Fail(w, http.StatusInternalServerError, "portal_unavailable", "refresh unavailable")
 		return
 	}
-	h.record(r, "PORTAL_REFRESH", user.UserID, shortHash(clientIP(r)), "success")
+	h.record(r, "PORTAL_REFRESH", user.UserID, user.Role, shortHash(clientIP(r)), "success")
 	httpx.JSON(w, http.StatusOK, out)
 }
 
@@ -238,7 +264,7 @@ func (h *Handler) refresh(w http.ResponseWriter, r *http.Request) {
 const sessionsNew = ""
 
 func (h *Handler) issue(r *http.Request, user PortalUser, familyID string) (tokenDTO, error) {
-	access, _, _, err := h.minter.MintAccess(user.UserID, user.Role, user.MustChange)
+	access, _, _, err := h.minter.MintAccess(user.UserID, user.Role, user.SellerID, user.StateCode, user.MustChange)
 	if err != nil {
 		return tokenDTO{}, err
 	}
@@ -287,8 +313,233 @@ func (h *Handler) logout(w http.ResponseWriter, r *http.Request) {
 			actor = auth.UserID(r.Context())
 		}
 	}
-	h.record(r, "PORTAL_LOGOUT", actor, ipHash, "success")
+	h.record(r, "PORTAL_LOGOUT", actor, auth.Role(r.Context()), ipHash, "success")
 	httpx.JSON(w, http.StatusOK, map[string]bool{"ok": true})
+}
+
+func (h *Handler) listCredentials(w http.ResponseWriter, r *http.Request) {
+	if !auth.IsPortal(r.Context()) {
+		httpx.Fail(w, http.StatusUnauthorized, "unauthorized", "portal session required")
+		return
+	}
+	users, err := h.repo.List(r.Context())
+	if err != nil {
+		httpx.Fail(w, http.StatusInternalServerError, "portal_unavailable", "credentials unavailable")
+		return
+	}
+	out := make([]userDTO, 0, len(users))
+	for _, u := range users {
+		out = append(out, toUserDTO(u))
+	}
+	httpx.JSON(w, http.StatusOK, map[string]any{"users": out})
+}
+
+type createCredentialRequest struct {
+	Email     string `json:"email"`
+	Name      string `json:"name"`
+	Role      string `json:"role"`
+	SellerID  string `json:"sellerId"`
+	StateCode string `json:"stateCode"`
+	Password  string `json:"password"`
+}
+
+func (h *Handler) createCredential(w http.ResponseWriter, r *http.Request) {
+	if !auth.IsPortal(r.Context()) {
+		httpx.Fail(w, http.StatusUnauthorized, "unauthorized", "portal session required")
+		return
+	}
+	if !isJSON(r) {
+		httpx.Fail(w, http.StatusUnsupportedMediaType, "unsupported_media_type", "Content-Type must be application/json")
+		return
+	}
+	var req createCredentialRequest
+	if err := httpx.Decode(r, &req); err != nil {
+		httpx.Fail(w, http.StatusBadRequest, "bad_request", "invalid request body")
+		return
+	}
+	req.Email = strings.ToLower(strings.TrimSpace(req.Email))
+	req.Name = strings.TrimSpace(req.Name)
+	if !validEmail(req.Email) {
+		httpx.Fail(w, http.StatusBadRequest, "bad_request", "a valid email is required")
+		return
+	}
+	if req.Name == "" || len(req.Name) > 120 {
+		httpx.Fail(w, http.StatusBadRequest, "bad_request", "a name is required")
+		return
+	}
+	role, sellerID, stateCode, err := normalizeScope(req.Role, req.SellerID, req.StateCode)
+	if err != nil {
+		httpx.Fail(w, http.StatusBadRequest, "bad_request", err.Error())
+		return
+	}
+	if len(req.Password) < minNewPasswordLen || len(req.Password) > maxPasswordLen || weakPassword(req.Password, "") {
+		httpx.Fail(w, http.StatusBadRequest, "weak_password", "temporary password must be at least 12 characters and not a common value")
+		return
+	}
+	if sellerID != "" {
+		ok, err := h.repo.SellerExists(r.Context(), sellerID)
+		if err != nil {
+			httpx.Fail(w, http.StatusInternalServerError, "portal_unavailable", "credentials unavailable")
+			return
+		}
+		if !ok {
+			httpx.Fail(w, http.StatusBadRequest, "unknown_seller", "seller does not exist")
+			return
+		}
+	}
+	hash, err := h.hasher.Hash(req.Password)
+	if err != nil {
+		httpx.Fail(w, http.StatusInternalServerError, "password_hash_failed", "could not create credential")
+		return
+	}
+	id, err := randomHex(12)
+	if err != nil {
+		httpx.Fail(w, http.StatusInternalServerError, "password_hash_failed", "could not create credential")
+		return
+	}
+	user, err := h.repo.CreateUser(r.Context(), PortalUser{
+		UserID: "pu-" + id, Email: req.Email, DisplayName: req.Name, PasswordHash: hash,
+		Role: role, Active: true, MustChange: true, SellerID: sellerID, StateCode: stateCode,
+	})
+	if err != nil {
+		if errors.Is(err, ErrEmailTaken) {
+			httpx.Fail(w, http.StatusConflict, "email_taken", "that email already has a login")
+			return
+		}
+		httpx.Fail(w, http.StatusInternalServerError, "portal_unavailable", "could not create credential")
+		return
+	}
+	h.record(r, "PORTAL_USER_CREATE", auth.UserID(r.Context()), auth.Role(r.Context()), shortHash(clientIP(r)), "success")
+	httpx.JSON(w, http.StatusCreated, toUserDTO(user))
+}
+
+type setCredentialActiveRequest struct {
+	Active *bool `json:"active"`
+}
+
+func (h *Handler) setCredentialActive(w http.ResponseWriter, r *http.Request) {
+	if !auth.IsPortal(r.Context()) {
+		httpx.Fail(w, http.StatusUnauthorized, "unauthorized", "portal session required")
+		return
+	}
+	if !isJSON(r) {
+		httpx.Fail(w, http.StatusUnsupportedMediaType, "unsupported_media_type", "Content-Type must be application/json")
+		return
+	}
+	var req setCredentialActiveRequest
+	if err := httpx.Decode(r, &req); err != nil || req.Active == nil {
+		httpx.Fail(w, http.StatusBadRequest, "bad_request", "active is required")
+		return
+	}
+	user, found, err := h.repo.ByID(r.Context(), chi.URLParam(r, "id"))
+	if err != nil {
+		httpx.Fail(w, http.StatusInternalServerError, "portal_unavailable", "credentials unavailable")
+		return
+	}
+	if !found {
+		httpx.Fail(w, http.StatusNotFound, "not_found", "credential not found")
+		return
+	}
+	if user.Role == auth.RoleSuperAdmin {
+		httpx.Fail(w, http.StatusForbidden, "forbidden", "superadmin credentials are managed operationally")
+		return
+	}
+	ok, err := h.repo.SetUserActive(r.Context(), user.UserID, *req.Active)
+	if err != nil {
+		httpx.Fail(w, http.StatusInternalServerError, "portal_unavailable", "could not update credential")
+		return
+	}
+	if !ok {
+		httpx.Fail(w, http.StatusNotFound, "not_found", "credential not found")
+		return
+	}
+	if !*req.Active {
+		_ = h.repo.RevokeUserSessions(r.Context(), user.UserID)
+	}
+	h.record(r, "PORTAL_USER_UPDATE", auth.UserID(r.Context()), auth.Role(r.Context()), shortHash(clientIP(r)), "success")
+	httpx.JSON(w, http.StatusOK, map[string]bool{"ok": true})
+}
+
+type resetCredentialPasswordRequest struct {
+	NewPassword string `json:"newPassword"`
+}
+
+func (h *Handler) resetCredentialPassword(w http.ResponseWriter, r *http.Request) {
+	if !auth.IsPortal(r.Context()) {
+		httpx.Fail(w, http.StatusUnauthorized, "unauthorized", "portal session required")
+		return
+	}
+	if !isJSON(r) {
+		httpx.Fail(w, http.StatusUnsupportedMediaType, "unsupported_media_type", "Content-Type must be application/json")
+		return
+	}
+	var req resetCredentialPasswordRequest
+	if err := httpx.Decode(r, &req); err != nil {
+		httpx.Fail(w, http.StatusBadRequest, "bad_request", "invalid request body")
+		return
+	}
+	if len(req.NewPassword) < minNewPasswordLen || len(req.NewPassword) > maxPasswordLen || weakPassword(req.NewPassword, "") {
+		httpx.Fail(w, http.StatusBadRequest, "weak_password", "temporary password must be at least 12 characters and not a common value")
+		return
+	}
+	user, found, err := h.repo.ByID(r.Context(), chi.URLParam(r, "id"))
+	if err != nil {
+		httpx.Fail(w, http.StatusInternalServerError, "portal_unavailable", "credentials unavailable")
+		return
+	}
+	if !found {
+		httpx.Fail(w, http.StatusNotFound, "not_found", "credential not found")
+		return
+	}
+	if user.Role == auth.RoleSuperAdmin {
+		httpx.Fail(w, http.StatusForbidden, "forbidden", "superadmin credentials are managed operationally")
+		return
+	}
+	hash, err := h.hasher.Hash(req.NewPassword)
+	if err != nil {
+		httpx.Fail(w, http.StatusInternalServerError, "password_hash_failed", "could not reset password")
+		return
+	}
+	if err := h.repo.ResetPassword(r.Context(), user.UserID, hash); err != nil {
+		httpx.Fail(w, http.StatusInternalServerError, "portal_unavailable", "could not reset password")
+		return
+	}
+	_ = h.repo.RevokeUserSessions(r.Context(), user.UserID)
+	h.record(r, "PORTAL_USER_PASSWORD_RESET", auth.UserID(r.Context()), auth.Role(r.Context()), shortHash(clientIP(r)), "success")
+	httpx.JSON(w, http.StatusOK, map[string]bool{"ok": true})
+}
+
+// normalizeScope validates the role/scope pairing accepted by the credential-management surface.
+// SUPER_ADMIN is intentionally absent: those rows are seeded by tools/hash-password + SQL.
+func normalizeScope(role, sellerID, stateCode string) (string, string, string, error) {
+	role = strings.ToUpper(strings.TrimSpace(role))
+	sellerID = strings.TrimSpace(sellerID)
+	stateCode = strings.ToUpper(strings.TrimSpace(stateCode))
+	switch role {
+	case auth.RoleSeller:
+		if sellerID == "" || stateCode != "" || len(sellerID) > 80 {
+			return "", "", "", errors.New("seller logins require sellerId and no stateCode")
+		}
+	case auth.RoleStateAdmin:
+		if sellerID != "" || !validStateCode(stateCode) {
+			return "", "", "", errors.New("state-admin logins require a 2-letter stateCode and no sellerId")
+		}
+	default:
+		return "", "", "", errors.New("role must be SELLER or STATE_ADMIN")
+	}
+	return role, sellerID, stateCode, nil
+}
+
+func validStateCode(v string) bool {
+	if len(v) != 2 {
+		return false
+	}
+	for _, c := range v {
+		if c < 'A' || c > 'Z' {
+			return false
+		}
+	}
+	return true
 }
 
 func (h *Handler) me(w http.ResponseWriter, r *http.Request) {
@@ -349,7 +600,7 @@ func (h *Handler) changePassword(w http.ResponseWriter, r *http.Request) {
 	if jti := auth.Jti(r.Context()); jti != "" {
 		h.cache.Set(r.Context(), cache.PortalDeny(jti), "1", cache.TTLPortalDeny)
 	}
-	h.record(r, "PORTAL_PASSWORD_CHANGE", user.UserID, shortHash(clientIP(r)), "success")
+	h.record(r, "PORTAL_PASSWORD_CHANGE", user.UserID, user.Role, shortHash(clientIP(r)), "success")
 	httpx.JSON(w, http.StatusOK, map[string]bool{"ok": true})
 }
 
@@ -366,14 +617,19 @@ func (h *Handler) allowLogin(r *http.Request, ipHash, emailHash string) bool {
 	return true
 }
 
-func (h *Handler) record(r *http.Request, action, actorID, ipHash, result string) {
+func (h *Handler) record(r *http.Request, action, actorID, actorRole, ipHash, result string) {
 	if h.audit == nil {
 		return
+	}
+	if actorRole == "" {
+		// Unknown-email attempts still belong to the portal surface, whose audit enum has no
+		// "unknown" value. Known users always pass their real role.
+		actorRole = auth.RoleSuperAdmin
 	}
 	after, _ := json.Marshal(map[string]string{"result": result, "ipHash": ipHash})
 	_ = h.audit.Audit(r.Context(), contracts.AuditEntry{
 		ActorID:   actorID,
-		ActorRole: auth.RoleSuperAdmin,
+		ActorRole: actorRole,
 		Action:    action,
 		Entity:    "admins.portal_users",
 		EntityID:  actorID,

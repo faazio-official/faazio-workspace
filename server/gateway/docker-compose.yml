@@ -102,8 +102,8 @@ services:
       AUTH_DISABLED: "true"
       DEV_USER_ID: "user-1"
       ALLOWED_ORIGINS: "http://localhost:3000"
-      # Portal superadmin auth (POST /auth/portal/*). Empty = 503 portal_auth_unavailable;
-      # seed portal_users with tools/hash-password. See docs/RUNBOOKS/PORTAL_AUTH.md.
+      # Portal auth (POST /auth/portal/*, /admin/portal-users). Empty = 503 portal_auth_unavailable;
+      # seed a superadmin with tools/hash-password. See docs/RUNBOOKS/PORTAL_AUTH.md.
       PORTAL_JWT_SECRET: "${PORTAL_JWT_SECRET:-}"
       PORTAL_PEPPER: "${PORTAL_PEPPER:-}"
     ports:
