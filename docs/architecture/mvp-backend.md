@@ -106,7 +106,7 @@ All read-through: Valkey → Supabase/Mongo → populate. Cloudflare caches publ
 | `GET /vendors/:id/reviews` | Supabase `reviews.vendor_reviews` (public columns only) | `data/reviews/vendorReviews.ts` | `getReviews` |
 | `GET /stores`, `GET /store/:id`, `GET /venues?app=` | Supabase `directory.stores` / `directory.dining_venues` | `data/directory/stores.ts`, `data/food/diningVenues.ts` | `getStores` / `getStore` / `getVenues` |
 | `GET /orders`, `GET /profile` | Supabase `checkout` / `accounts` (auth-scoped) | `data/checkout/orders.ts`, `data/accounts/profile.ts` | `getOrders` / `getProfile` |
-| `POST /auth/portal/{login,refresh,logout}`, `GET /auth/portal/me`, `PUT /auth/portal/password`; `GET|POST /admin/portal-users`, `PUT /admin/portal-users/{id}`, `PUT /admin/portal-users/{id}/password` | Supabase `admins.portal_users` + `admins.portal_sessions` (`0032` + `0033` + `0034`); Valkey throttles/denylist | — (portal only) | `portalRequest` (portal auth) |
+| `POST /auth/portal/{login,refresh,logout}`, `GET /auth/portal/me`, `PUT /auth/portal/password`; `GET|POST /admin/portal-users`, `PUT /admin/portal-users/{id}`, `PUT /admin/portal-users/{id}/password` | Supabase `admins.portal_users` + `admins.portal_sessions` (`0032` + `0033` + `0034`); Valkey throttles/denylist | — (portal only) | `portalRequest` (portal auth). A `STATE_ADMIN` login may alternatively be minted atomically with its roster via `POST /state-admins` (`issueLogin:true` — see the admins row below, `0036`) |
 
 **Write endpoints (MVP, win chosen over the original read-only list):**
 
@@ -139,7 +139,10 @@ All read-through: Valkey → Supabase/Mongo → populate. Cloudflare caches publ
 | `PUT /ads/campaigns/{id}/status` | ads | state/super admin **takedown/restore only** (`REJECTED` + optional `reason` / `LIVE`); purges the hero cache namespace |
 | `POST /ads/campaigns/{id}/report` | ads | authenticated user abuse report; de-duped per user via `faazio:v1:ads:report:{userId}:{placementId}` 24 h, increments `reports` and audits (`AD_CAMPAIGN_REPORT`) — no reporter identity stored |
 | `PUT /vendors/{id}/rating` | reviews | derived eligibility gate (`hasPurchasedFromVendor`); never a stored flag |
-| `GET/POST /state-admins`, `PUT/DELETE /state-admins/{id}` | admins | superadmin-only state-admin directory. `POST` validates `stateCode` against the 36-code ISO 3166-2:IN allowlist (`internal/admins/states.go`) — unknown codes, incl. aliases CG/OD/TS/UK, return 400 `unknown_state` |
+| `GET/POST /state-admins`, `PUT/DELETE /state-admins/{id}` | admins | superadmin-only state-admin directory. `POST` validates `stateCode` against the 36-code ISO 3166-2:IN allowlist (`internal/admins/states.go`) — unknown codes, incl. aliases CG/OD/TS/UK, return 400 `unknown_state`. **Unified creator (`0036`):** `issueLogin:true` mints the roster **and** a `STATE_ADMIN` portal login in one tx (returns `{admin, credential, warnings?}`; `must_change` is locked `true`); `issueLogin:false` pre-provisions a roster-only row. Phone is normalized to 10 digits. Email is the hard one-person-one-role key — collision-gated before insert (portal-users email across any role, roster email) with the `state_admins_email_lower_uniq` / `portal_users_email_lower_uniq` indexes as the race-proof frontier. **Phone is a soft warning** — a phone already owned by a seller (`sellers.sellers`) or another roster row never blocks, it returns `201 warnings[]` (shared/SME lines are allowed). 409 codes: `email_used_by_super_admin` / `email_used_by_seller` /
+`email_has_state_login` / `email_has_state_roster` (portal logins carry no
+phone column, so a phone can only ever be a warning, never a 409). `PUT/DELETE` also
+deactivate/delete the linked portal login by `lower(email)` so a dead roster never leaves a live login |
 | `POST /events` | reco | ID-only `userIdHash`, 90-day Mongo TTL; event allowlist + `productId ≤ 64` chars |
 | `GET /recommendations` | reco | per-user `recommendations` doc (else top `product_stats`), joined to catalog; `faazio:v1:reco:{userIdHash}:home` 1 h |
 

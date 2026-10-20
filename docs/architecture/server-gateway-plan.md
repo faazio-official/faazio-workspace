@@ -56,6 +56,11 @@ keys/TTLs unchanged.
   `POST /bookings` (seat hold + Razorpay order), `DELETE /bookings/:id`,
   `POST /bookings/:id/payment`, seller `GET/PUT /seller/booking-config`, `GET /seller/bookings`,
   `PUT /bookings/:id/status` (accept/reject), `POST /bookings/:id/vacate`, `POST /webhooks/razorpay`.
+- **Portal identity writes (`internal/admins` + `internal/portal`):** `POST /state-admins` is the
+  unified state-admin creator — `issueLogin` optionally mints the `STATE_ADMIN` portal credential in
+  the same tx. Duplicate **email** across `portal_users`, the roster and `sellers.sellers` is
+  hard-blocked (`409`); duplicate **phone** is a soft `201 warnings[]` notice (shared lines are
+  allowed by policy). See `0036` + `db-schema.md` §12.19.
 - **Packages:** `internal/{search,catalog,directory,cartstock,checkout,reviews,reco,sdui,bookings}` +
   `internal/{contracts,platform/*,server}`. Ownership table: `monolith-breakdown.md` §1.
 - **Boundaries:** `go run ./tools/importlint` fails on sibling-context imports.

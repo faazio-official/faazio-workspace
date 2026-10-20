@@ -90,7 +90,7 @@ The campaign wizard's **what→where** placements map 1:1 to the paid mobile sur
 | `admin/super/products` · `admin/super/sellers` | catalog/seller authority |
 | `admin/super/sectors` · `admin/super/coverage` | taxonomy + coverage |
 | `admin/super/rewards` · `admin/super/users` · `admin/super/states` | platform |
-| `admin/super/state-admins` | state-admin directory — all 36 ISO 3166-2:IN states/UTs; coverage summary (X / 36) + progress bar + grouped uncovered chips |
+| `admin/super/state-admins` | state-admin directory — all 36 ISO 3166-2:IN states/UTs; coverage summary (X / 36) + progress bar + grouped uncovered chips. **Unified creation:** one form creates the roster + (optionally, `issueLogin` default ON) the portal login + temporary password atomically; duplicate email blocked on/off-server, duplicate phone soft-warned |
 | `admin/super/credentials` | issue/disable seller and state-admin portal logins (role + seller/state scope) |
 | `admin/super/security` | superadmin password rotation (same component as `/security`) |
 | `admin/super/analytics` · `admin/super/audit` · `admin/super/settings` | console |
@@ -288,6 +288,15 @@ browser                        Next.js route handlers                 Go gateway
   `PUT /admin/portal-users/{id}/password`. Creating/resetting a scoped credential defaults to
   `must_change=true` (`forceChange:false` opts out) and revokes that user's refresh sessions; a
   superadmin is reset with the password active immediately (`must_change=false`).
+- **Unified state-admin creation (`/admin/super/state-admins`, `0036`)** — `POST /state-admins` is the
+  single form: `issueLogin:true` (default) mints the roster **and** the `STATE_ADMIN` portal login
+  (temporary password, `must_change` locked `true`) in one atomic server call and returns both; the
+  page shows the copyable temporary password once. `issueLogin:false` pre-provisions a roster-only row
+  (No login badge + one-click issue). Duplicate **email** (portal-email/roster-email, case-normalized)
+  is hard-blocked with role-specific `409` codes and the client mirrors the check pre-submit (red
+  inline error, form kept). Duplicate **phone** (seller/roster, digit-normalized) is a **soft
+  warning** — amber pre-submit hint + `201 warnings[]` after create; shared lines are allowed by
+  policy, so it never blocks.
 - **Cookie proxy** — `app/api/auth/portal/{login,refresh,me,logout,password}/route.ts` set the
   `faazio_pat` (access, 15 min) and `faazio_prt` (refresh, 30 d) HttpOnly/SameSite=Lax cookies;
   `app/api/gateway/[...path]/route.ts` injects the bearer server-side and rotates the refresh
@@ -297,6 +306,8 @@ browser                        Next.js route handlers                 Go gateway
   and the shell redirects to `/security`, so a temporary password cannot reach the control plane.
   `SUPER_ADMIN` is exempt (the claim is never set for it): a superadmin password is always active,
   and any active superadmin can reset any role's password from `/admin/super/credentials`.
+  A `STATE_ADMIN` login minted by the unified creator always has `must_change=true` (locked —
+  the temporary password is single-use by design).
 - **Refresh rotation** — opaque `faazio_pr_*` tokens are stored only as SHA-256 hashes
   (`admins.portal_sessions`), single-use per rotation; replaying a used token revokes the whole
   family. `POST /auth/portal/logout` also denylists the access `jti` in Valkey until it expires.

@@ -117,8 +117,16 @@ A signed-in superadmin uses **Portal credentials** (`/admin/super/credentials`) 
 - email, display name and a temporary password (≥12 chars, not a common value);
 - the row starts `active=true`, `must_change=true`, and the token carries the scope.
 
+For **state admins** the entry point is **State admins** (`/admin/super/state-admins`): one form
+creates the roster row **and** the login atomically (`issueLogin` default ON, `POST /state-admins`,
+`0036`). `must_change` is locked `true`, so the temporary password is single-use. A duplicate
+**email** (portal/roster — case-insensitive) is hard-blocked with a role-specific `409`; a duplicate
+**phone** (seller/roster — digit-normalized) is a **soft warning** (`201 warnings[]`, amber UI) —
+shared/SME lines are allowed, never blocked. The page shows the copyable temporary password once.
+`issueLogin:false` pre-provisions a roster-only row (No login badge, one-click issue later).
+
 The holder signs in at `/login`, is forced to `/security` to rotate the password, then lands in
-`/seller` or `/admin/state`. Deactivate/reactivate from the same page; resetting a password revokes
+`seller` or `/admin/state`. Deactivate/reactivate from the same page; resetting a password revokes
 every existing refresh session and forces another change.
 
 Equivalent API (superadmin bearer only): `GET|POST /admin/portal-users`,

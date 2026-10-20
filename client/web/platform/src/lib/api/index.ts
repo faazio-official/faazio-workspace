@@ -3,7 +3,7 @@
 // When a real backend arrives, only the internals of this module change.
 import { usePortalStore, type PortalState } from "@/lib/api/store";
 import { remoteConfigured } from "@/lib/config";
-import { remote, toCamel, writeAwaited } from "@/lib/api/http";
+import { ApiError, remote, toCamel, writeAwaited } from "@/lib/api/http";
 import { toast } from "sonner";
 import { loginPortal, logoutPortal, restorePortalSession } from "@/lib/portal/auth";
 import { sellerSeries, stateSeries, globalSeries, productSeries } from "@/data/analytics/series";
@@ -890,20 +890,128 @@ export function listStateAdmins(stateCode?: string) {
   return state().stateAdmins.filter((a) => !stateCode || a.stateCode === stateCode);
 }
 
-export function createStateAdmin(dto: Omit<StateAdmin, "adminId" | "createdAt" | "lastActiveAt" | "active">): StateAdmin {
-  const record: StateAdmin = {
-    adminId: `adm-${Date.now()}`,
-    active: true,
-    createdAt: nowIso(),
-    lastActiveAt: nowIso(),
-    ...dto,
-  };
-  state().set((s) => ({ stateAdmins: [record, ...s.stateAdmins] }));
-  pushWrite("State admin create", "post", "/state-admins", { name: dto.name, email: dto.email, phone: dto.phone, stateCode: dto.stateCode }, () =>
-    state().set((s) => ({ stateAdmins: s.stateAdmins.filter((a) => a.adminId !== record.adminId) })),
-  );
-  audit({ action: "STATE_ADMIN_CREATE", entity: "admins.state_admins", entityId: record.adminId, after: record });
-  return record;
+/**
+ * Reduces a phone to its bare 10 Indian digits (strips +91/91/0 prefixes and every separator), or ""
+ * when the result is not exactly 10 digits. Shared by the state-admin form and the credentials page.
+ */
+export function normalizePhoneDigits(raw: string): string {
+  const digits = raw.replace(/\D/g, "");
+  switch (true) {
+    case digits.startsWith("091") && digits.length === 13:
+      return digits.slice(3);
+    case digits.startsWith("91") && digits.length === 12:
+      return digits.slice(2);
+    case digits.startsWith("0") && digits.length === 11:
+      return digits.slice(1);
+    default:
+      return digits.length === 10 ? digits : "";
+  }
+}
+
+export interface CreateStateAdminInput {
+  name: string;
+  email: string;
+  phone: string;
+  stateCode: string;
+  issueLogin: boolean;
+  password?: string | undefined;
+}
+
+export interface StateAdminCreateResult {
+  admin: StateAdmin;
+  credential?: PortalCredential | undefined;
+  /** Non-blocking soft notices from the server: a shared phone that already belongs to a seller/roster row. */
+  warnings?: string[] | undefined;
+}
+
+/**
+ * Unified state-admin creator (superadmin-only). One server call writes the roster and — when
+ * `issueLogin` — the STATE_ADMIN portal login atomically; a duplicate email rejects with a
+ * specific 409 `code` so the form can be kept (never an optimistic flash-then-rollback). A
+ * duplicate PHONE is allowed and reported back as `warnings` (soft, policy decision).
+ */
+export async function createStateAdminWithLogin(
+  input: CreateStateAdminInput,
+): Promise<StateAdminCreateResult> {
+  const res = await remote.post<{
+    admin: StateAdmin;
+    credential?: PortalCredential;
+    warnings?: string[];
+  }>("/state-admins", {
+    name: input.name,
+    email: input.email,
+    phone: input.phone,
+    stateCode: input.stateCode,
+    issueLogin: input.issueLogin,
+    ...(input.issueLogin ? { password: input.password } : {}),
+  });
+  state().set((s) => ({
+    stateAdmins: [res.admin, ...s.stateAdmins.filter((a) => a.adminId !== res.admin.adminId)],
+  }));
+  audit({ action: "STATE_ADMIN_CREATE", entity: "admins.state_admins", entityId: res.admin.adminId, after: res.admin });
+  if (res.credential) {
+    audit({ action: "PORTAL_USER_CREATE", entity: "admins.portal_users", entityId: res.credential.id, after: res.credential });
+  }
+  return { admin: res.admin, credential: res.credential, warnings: res.warnings };
+}
+
+export interface IdentityHint {
+  field: "email" | "phone";
+  /** kind "error" hard-blocks (email — one person, one role); kind "warning" is a soft phone notice. */
+  kind: "error" | "warning";
+  message: string;
+}
+
+/** Pre-submit identity lint (fast, non-authoritative; the server is the source of truth). */
+export function stateAdminDuplicateHint(
+  email: string,
+  phone: string,
+  creds: PortalCredential[],
+  sellers: readonly { sellerId: string; contactPhone: string }[],
+  admins: StateAdmin[],
+): IdentityHint | null {
+  const lower = email.trim().toLowerCase();
+  const digits = normalizePhoneDigits(phone);
+  const login = creds.find((c) => c.email.toLowerCase() === lower);
+  if (login) {
+    if (login.role === "SUPER_ADMIN") return { field: "email", kind: "error", message: "This email already belongs to an active SUPER_ADMIN login." };
+    if (login.role === "SELLER") return { field: "email", kind: "error", message: `This email already belongs to seller ${login.sellerId ?? ""}.` };
+    return { field: "email", kind: "error", message: `This email already has a STATE_ADMIN login for ${login.stateCode ?? ""}.` };
+  }
+  const seller = digits ? sellers.find((s) => normalizePhoneDigits(s.contactPhone) === digits) : undefined;
+  if (seller) return { field: "phone", kind: "warning", message: `This phone also belongs to seller ${seller.sellerId}. You can still create — shared phone.` };
+  const rosterEmail = admins.find((a) => a.email.toLowerCase() === lower);
+  if (rosterEmail) return { field: "email", kind: "error", message: `This email already has a STATE_ADMIN roster for ${rosterEmail.stateCode}.` };
+  if (digits) {
+    const rosterPhone = admins.find((a) => normalizePhoneDigits(a.phone) === digits);
+    if (rosterPhone) return { field: "phone", kind: "warning", message: `This phone also belongs to the STATE_ADMIN roster for ${rosterPhone.stateCode}. You can still create — shared phone.` };
+  }
+  return null;
+}
+
+/** Maps a 409/400 `code` from POST /state-admins to a field + friendly block message. */
+export function stateAdminConflictMessage(err: unknown): { field: "email" | "phone" | null; message: string } {
+  const code = err instanceof ApiError ? err.code : undefined;
+  const id = err instanceof ApiError ? err.conflictingId : undefined;
+  switch (code) {
+    case "email_used_by_super_admin":
+      return { field: "email", message: "This email already belongs to an active SUPER_ADMIN login. Deactivate it before registering a state admin." };
+    case "email_used_by_seller":
+      return { field: "email", message: `This email already belongs to seller ${id ?? "?"}. One person, one role — deactivate the seller login first.` };
+    case "email_has_state_login":
+      return { field: "email", message: "This email already has a STATE_ADMIN login. Deactivate or delete it first." };
+    case "email_has_state_roster":
+      return { field: "email", message: "This email already has a STATE_ADMIN roster. Delete it first to move the person." };
+    case "weak_password":
+      return { field: null, message: "Password must be at least 12 characters and not a common value." };
+    case "invalid_phone":
+      return { field: "phone", message: "Enter a valid 10-digit Indian mobile number." };
+    case "unknown_state":
+    case "bad_request":
+      return { field: null, message: err instanceof Error ? err.message : "Invalid request." };
+    default:
+      return { field: null, message: err instanceof Error ? err.message : "The request was blocked." };
+  }
 }
 
 export function updateStateAdmin(adminId: string, patch: Partial<StateAdmin>): void {
