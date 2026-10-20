@@ -50,6 +50,13 @@ Refresh classification lives in `src/lib/portal/server.ts` (`refreshTokens()` �
 `invalid_refresh` means the session is intact — do not investigate it as a logout (see §0 A/B/C
 for the *pre-submit* status probe).
 
+Sessions are now kept alive proactively (P3): rotation is single-flight
+(`refreshTokensSingleflight`, so N concurrent 401s share one `/auth/portal/refresh`), the client
+pre-rotates ~80% into the access token's life and on tab focus, and `middleware.ts` guards
+`/seller/*` + `/admin/*` (edge cookie-presence check → `/login?next=…`; real validity is verified
+by `me`/the proxy, never by the edge). The login form's "Stay signed in" checkbox maps to the
+non-secret `faazio_remember` cookie (`0` = refresh cookie is browser-session-only, shared PC).
+
 ## 1. What must exist before the first login
 
 1. Migrations `server/supabase/migrations/0032_portal_users.sql` +

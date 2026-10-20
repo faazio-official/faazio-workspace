@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import {
+  ACCESS_MAX_AGE,
   accessCookie,
   callGateway,
   clearAuthCookies,
@@ -8,9 +9,10 @@ import {
   logRoute,
   portalEnabled,
   readJSON,
+  rememberPersisted,
   requestID,
   refreshCookie,
-  refreshTokens,
+  refreshTokensSingleflight,
   setAuthCookies,
   withRequestID,
 } from "@/lib/portal/server";
@@ -49,7 +51,12 @@ export async function GET(req: NextRequest) {
       if (res.ok) {
         log("ok", res.status);
         return withRequestID(
-          NextResponse.json({ user: await readJSON(res), requestId: id }),
+          NextResponse.json({
+            user: await readJSON(res),
+            // The client only needs a floor for its keep-alive timer; the access token is 15 min.
+            expiresIn: ACCESS_MAX_AGE,
+            requestId: id,
+          }),
           id,
         );
       }
@@ -70,8 +77,9 @@ export async function GET(req: NextRequest) {
     }
   }
 
-  // Access token missing/expired: restore from the HttpOnly refresh cookie.
-  const refreshed = await refreshTokens(refreshCookie(req), id);
+  // Access token missing/expired: restore from the HttpOnly refresh cookie. Concurrent cold-start
+  // restores with the same cookie share ONE gateway rotation (single-flight).
+  const refreshed = await refreshTokensSingleflight(refreshCookie(req), id);
   if (!refreshed.ok || !refreshed.data) {
     const code = refreshed.code ?? "invalid_refresh";
     if (!refreshed.terminal) {
@@ -89,7 +97,12 @@ export async function GET(req: NextRequest) {
     return withRequestID(out, id);
   }
   log("refreshed", 200);
-  const out = NextResponse.json({ user: refreshed.data.user, requestId: id });
-  setAuthCookies(out, refreshed.data.accessToken, refreshed.data.refreshToken);
+  const out = NextResponse.json({
+    user: refreshed.data.user,
+    expiresIn: refreshed.data.expiresIn ?? ACCESS_MAX_AGE,
+    requestId: id,
+  });
+  // Preserve the "Stay signed in" choice across a silent rotation (remember = session-only cookie).
+  setAuthCookies(out, refreshed.data.accessToken, refreshed.data.refreshToken, rememberPersisted(req));
   return withRequestID(out, id);
 }

@@ -19,6 +19,7 @@ interface PortalResponse {
   message?: string;
   code?: string;
   requestId?: string;
+  expiresIn?: number;
 }
 
 export class PortalError extends Error {
@@ -113,11 +114,27 @@ async function call(path: string, method: "GET" | "POST" | "PUT", body?: unknown
   return data;
 }
 
-/** Signs in against the gateway; throws a user-facing Error on failure. */
-export async function loginPortal(email: string, password: string): Promise<AuthUser> {
-  const data = await call("/api/auth/portal/login", "POST", { email, password });
+/** Gateway access floor when a route forgets to echo expiresIn (access token is 15 min). */
+const ACCESS_FLOOR_SECONDS = 15 * 60;
+
+/** Signed-in verdict + how long the current access token lives (for the keep-alive timer). */
+export interface AuthSessionData {
+  user: AuthUser;
+  expiresIn: number;
+}
+
+/**
+ * Signs in against the gateway; throws a user-facing Error on failure. `remember` mirrors the
+ * GCP-style "Stay signed in" checkbox — unchecked means a browser-session-only refresh cookie.
+ */
+export async function loginPortal(
+  email: string,
+  password: string,
+  remember = true,
+): Promise<AuthSessionData> {
+  const data = await call("/api/auth/portal/login", "POST", { email, password, remember });
   if (!data.user) throw new Error("Sign-in failed.");
-  return toAuthUser(data.user);
+  return { user: toAuthUser(data.user), expiresIn: data.expiresIn ?? ACCESS_FLOOR_SECONDS };
 }
 
 /**
@@ -125,7 +142,7 @@ export async function loginPortal(email: string, password: string): Promise<Auth
  * briefly unreachable (network / 5xx / timeout) — retry, do NOT treat the user as signed out.
  */
 export type RestoreOutcome =
-  | { status: "ok"; user: AuthUser }
+  | { status: "ok"; user: AuthUser; expiresIn: number }
   | { status: "transient" }
   | { status: "signed_out" };
 
@@ -134,7 +151,13 @@ export type RestoreOutcome =
 export async function restorePortalSession(): Promise<RestoreOutcome> {
   try {
     const data = await call("/api/auth/portal/me", "GET");
-    if (data.user) return { status: "ok", user: toAuthUser(data.user) };
+    if (data.user) {
+      return {
+        status: "ok",
+        user: toAuthUser(data.user),
+        expiresIn: data.expiresIn ?? ACCESS_FLOOR_SECONDS,
+      };
+    }
     return { status: "signed_out" };
   } catch (err) {
     if (err instanceof PortalError && (err.status === 0 || err.status >= 500)) {
@@ -142,6 +165,82 @@ export async function restorePortalSession(): Promise<RestoreOutcome> {
     }
     return { status: "signed_out" };
   }
+}
+
+/* --------------------------- proactive keep-alive (P3.2) --------------------------- */
+// GCP never waits for a 401: refresh at ~80% of access life, on tab focus/visibility, and
+// single-flight — so a returning operator gets a silent restore instead of a login wall.
+
+const PROACTIVE_REFRESH_RATIO = 0.8;
+const TRANSIENT_RETRY_MS = 30_000;
+const VISIBILITY_MIN_INTERVAL_MS = 60_000;
+
+let refreshTimer: ReturnType<typeof setTimeout> | null = null;
+let pendingProactive: Promise<ProactiveRefreshResult> | null = null;
+
+export type ProactiveRefreshResult =
+  | { status: "ok"; user: AuthUser; expiresIn: number }
+  | { status: "transient" }
+  | { status: "signed_out" };
+
+/** Single-flight silent rotation through /api/auth/portal/refresh (cookies stay HttpOnly). */
+async function proactiveRefresh(): Promise<ProactiveRefreshResult> {
+  if (pendingProactive) return pendingProactive;
+  pendingProactive = (async () => {
+    try {
+      const data = await call("/api/auth/portal/refresh", "POST", {});
+      if (data.user) {
+        const expiresIn = data.expiresIn ?? ACCESS_FLOOR_SECONDS;
+        armProactiveRefresh(Math.round(expiresIn * 1000 * PROACTIVE_REFRESH_RATIO));
+        return { status: "ok", user: toAuthUser(data.user), expiresIn };
+      }
+      return { status: "signed_out" };
+    } catch (err) {
+      if (err instanceof PortalError && (err.status === 0 || err.status >= 500)) {
+        // Transient: the refresh cookie is still valid — retry sooner than the 80% mark.
+        armProactiveRefresh(TRANSIENT_RETRY_MS);
+        return { status: "transient" };
+      }
+      return { status: "signed_out" };
+    } finally {
+      pendingProactive = null;
+    }
+  })();
+  return pendingProactive;
+}
+
+/** Schedules (or re-schedules) the next silent refresh. In-memory only — never persisted. */
+export function armProactiveRefresh(delayMs: number): void {
+  if (refreshTimer) clearTimeout(refreshTimer);
+  refreshTimer = setTimeout(() => {
+    refreshTimer = null;
+    void proactiveRefresh();
+  }, delayMs);
+}
+
+export function cancelProactiveRefresh(): void {
+  if (refreshTimer) clearTimeout(refreshTimer);
+  refreshTimer = null;
+  pendingProactive = null;
+}
+
+/** Restores a session when the tab regains focus/visibility (throttled to once a minute). Returns
+ *  a cleanup function for unmount. Attentive: an active idle >60 s then refocus re-arms refesh. */
+export function armVisibilityRefresh(restore: () => void): () => void {
+  let lastRestore = 0;
+  const onActive = () => {
+    if (typeof document !== "undefined" && document.visibilityState !== "visible") return;
+    const now = Date.now();
+    if (now - lastRestore < VISIBILITY_MIN_INTERVAL_MS) return;
+    lastRestore = now;
+    restore();
+  };
+  if (typeof document !== "undefined") document.addEventListener("visibilitychange", onActive);
+  if (typeof window !== "undefined") window.addEventListener("focus", onActive);
+  return () => {
+    if (typeof document !== "undefined") document.removeEventListener("visibilitychange", onActive);
+    if (typeof window !== "undefined") window.removeEventListener("focus", onActive);
+  };
 }
 
 export async function logoutPortal(): Promise<void> {

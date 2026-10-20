@@ -9,6 +9,13 @@ export const ACCESS_COOKIE = "faazio_pat";
 export const REFRESH_COOKIE = "faazio_prt";
 export const ACCESS_MAX_AGE = 15 * 60;
 export const REFRESH_MAX_AGE = 30 * 24 * 60 * 60;
+/**
+ * Marks the GCP-style "don't stay signed in on this shared computer" decision. Absent / "1" →
+ * persistent 30-day refresh cookie; "0" → the refresh cookie is browser-session-only (still 30-day
+ * idle server-side, but forgotten when the tab/window closes). Kept separate from the tokens so the
+ * HttpOnly invariant never weakens for a preference.
+ */
+export const REMEMBER_COOKIE = "faazio_remember";
 
 export interface PortalUserPayload {
   id: string;
@@ -31,19 +38,21 @@ export function gatewayBase(): string {
   return process.env["NEXT_PUBLIC_GATEWAY_URL"]?.replace(/\/+$/, "") ?? "";
 }
 
-function cookieOptions(maxAge: number): {
+function cookieOptions(maxAge: number, persist: boolean): {
   httpOnly: true;
   secure: boolean;
   sameSite: "lax";
   path: string;
-  maxAge: number;
+  maxAge?: number;
 } {
   return {
     httpOnly: true,
     secure: process.env.NODE_ENV === "production",
     sameSite: "lax",
     path: "/",
-    maxAge,
+    // A non-persistent cookie has no Max-Age/Expires, so the browser drops it on close (the
+    // GCP "stay signed in" checkbox off). The access cookie is always short-lived anyway.
+    ...(persist ? { maxAge } : {}),
   };
 }
 
@@ -51,14 +60,31 @@ export function setAuthCookies(
   res: NextResponse,
   accessToken?: string | undefined,
   refreshToken?: string | undefined,
+  persist = true,
 ): void {
-  if (accessToken) res.cookies.set(ACCESS_COOKIE, accessToken, cookieOptions(ACCESS_MAX_AGE));
-  if (refreshToken) res.cookies.set(REFRESH_COOKIE, refreshToken, cookieOptions(REFRESH_MAX_AGE));
+  if (accessToken) res.cookies.set(ACCESS_COOKIE, accessToken, cookieOptions(ACCESS_MAX_AGE, true));
+  if (refreshToken) res.cookies.set(REFRESH_COOKIE, refreshToken, cookieOptions(REFRESH_MAX_AGE, persist));
 }
 
 export function clearAuthCookies(res: NextResponse): void {
-  res.cookies.set(ACCESS_COOKIE, "", cookieOptions(0));
-  res.cookies.set(REFRESH_COOKIE, "", cookieOptions(0));
+  res.cookies.set(ACCESS_COOKIE, "", cookieOptions(0, true));
+  res.cookies.set(REFRESH_COOKIE, "", cookieOptions(0, true));
+  res.cookies.set(REMEMBER_COOKIE, "", cookieOptions(0, true));
+}
+
+/** True unless the user explicitly un-checked "Stay signed in" (cookie value is "0"). */
+export function rememberPersisted(req: NextRequest): boolean {
+  return req.cookies.get(REMEMBER_COOKIE)?.value !== "0";
+}
+
+export function setRememberCookie(res: NextResponse, remember: boolean): void {
+  // The flag is only read server-side (rememberPersisted), so HttpOnly is fine — it is a
+  // preference, never a secret.
+  if (remember) {
+    res.cookies.set(REMEMBER_COOKIE, "", cookieOptions(0, true));
+  } else {
+    res.cookies.set(REMEMBER_COOKIE, "0", cookieOptions(REFRESH_MAX_AGE, true));
+  }
 }
 
 export function accessCookie(req: NextRequest): string {
@@ -177,4 +203,33 @@ export async function refreshTokens(refreshToken: string, reqId = ""): Promise<R
     return { ok: false, data: null, terminal: true, code };
   }
   return { ok: false, data: null, terminal: false, code };
+}
+
+/**
+ * Server-side single-flight rotation (P3.1): N concurrent request handlers that hit a 401 with the
+ * same refresh cookie coalesce onto ONE upstream /auth/portal/refresh. This removes the rotation
+ * race from the Next layer entirely — and even with the gateway's 30 s reuse-grace (0038), fewer
+ * rotations means fewer rows and less DB/Valkey churn. Keyed by a 16-hex sha256 of the token (never
+ * the raw token); the winner's in-flight promise is shared and the entry is dropped on settle.
+ */
+const singleFlight = new Map<string, Promise<RefreshResult>>();
+const SINGLE_FLIGHT_TTL_MS = 10_000;
+
+export function refreshTokensSingleflight(refreshToken: string, reqId = ""): Promise<RefreshResult> {
+  if (!refreshToken) return refreshTokens("", reqId);
+  const key = createHash("sha256").update(refreshToken).digest("hex").slice(0, 16);
+  const inflight = singleFlight.get(key);
+  if (inflight) return inflight;
+  const promise = refreshTokens(refreshToken, reqId);
+  singleFlight.set(key, promise);
+  const ttl = setTimeout(() => {
+    // Fallback sweep: drop the entry even if settle was missed. refreshTokens already aborts at 5 s,
+    // so this only fires on an edge the AbortSignal cannot see.
+    if (singleFlight.get(key) === promise) singleFlight.delete(key);
+  }, SINGLE_FLIGHT_TTL_MS);
+  void promise.finally(() => {
+    clearTimeout(ttl);
+    if (singleFlight.get(key) === promise) singleFlight.delete(key);
+  });
+  return promise;
 }

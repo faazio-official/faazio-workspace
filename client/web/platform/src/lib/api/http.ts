@@ -1,6 +1,7 @@
 "use client";
 // The single network seam to the Go Chi gateway. Requests go to the same-origin
 // /api/gateway proxy, which attaches the HttpOnly portal bearer server-side.
+import { toast } from "sonner";
 import { remoteConfigured } from "@/lib/config";
 
 export class ApiError extends Error {
@@ -24,6 +25,39 @@ interface RequestOptions {
   query?: Record<string, string | number | boolean | undefined>;
   /** When true, a 404 resolves to null instead of throwing. */
   allow404?: boolean;
+}
+
+/**
+ * Codes that mean the refresh family is *actually* dead (the proxy already cleared the cookies).
+ * A 401 with any other code is an authorization denial (wrong role / denied path) — the session
+ * is alive and must NOT bounce the user to /login.
+ */
+const DEAD_SESSION_CODES = new Set([
+  "no_refresh_token",
+  "invalid_refresh",
+  "invalid_refresh_reuse",
+  "session_expired_absolute",
+  "session_expired_idle",
+]);
+
+let bounced = false;
+let lastReconnectingToast = 0;
+
+function bounceToLogin(): void {
+  // One shot per page load: land the user on /login while preserving the deep link they attempted.
+  if (bounced || typeof window === "undefined") return;
+  bounced = true;
+  const next = window.location.pathname + window.location.search;
+  window.location.assign(`/login?next=${encodeURIComponent(next)}`);
+}
+
+function reconnectingToast(): void {
+  const now = Date.now();
+  if (now - lastReconnectingToast < 30_000) return;
+  lastReconnectingToast = now;
+  toast.error("Reconnecting…", {
+    description: "The gateway was briefly unreachable — your session is intact and will retry.",
+  });
 }
 
 function url(path: string, query?: RequestOptions["query"]): string {
@@ -58,6 +92,7 @@ async function request<T>(path: string, options: RequestOptions = {}): Promise<T
     // cheap and idempotent for the route handlers that may rotate on the first failure.
     await new Promise((resolve) => setTimeout(resolve, 1000));
     res = await attempt(path, options);
+    if (res.status === 503) reconnectingToast();
   }
 
   if (options.allow404 && res.status === 404) return null as T;
@@ -81,6 +116,10 @@ async function request<T>(path: string, options: RequestOptions = {}): Promise<T
       conflictingId = body.conflictingId;
     } catch {
       // non-JSON error body
+    }
+    if (res.status === 401 && DEAD_SESSION_CODES.has(code)) {
+      // The server cleared the HttpOnly cookies; a live UI would lie. Go sign in again.
+      bounceToLogin();
     }
     throw new ApiError(res.status, code, message, conflictingRole, conflictingId);
   }
