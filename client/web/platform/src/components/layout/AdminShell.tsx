@@ -28,6 +28,7 @@ import { signOut } from "@/lib/api";
 import { stateName } from "@/data/states";
 import { RoleGate } from "@/components/layout/RoleGate";
 import { BrandTile } from "@/components/brand/FaazioMark";
+import { FaazioWordmark } from "@/components/brand/FaazioWordmark";
 import { ROLE_LABEL } from "@/lib/auth/permissions";
 
 export function AdminShell({
@@ -80,7 +81,7 @@ export function AdminShell({
             <BrandTile className="size-7 rounded-md" />
             {!collapsed ? (
               <div className="min-w-0">
-                <p className="truncate text-[13px] font-semibold">Faazio Admin</p>
+                <FaazioWordmark className="brand-wordmark text-ink-foreground" />
                 <p className="truncate text-[11px] text-ink-muted">
                   {scope === "STATE" ? "State console" : "Global console"}
                 </p>

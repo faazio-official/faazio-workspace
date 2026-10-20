@@ -187,6 +187,13 @@
   background-image: var(--gradient-brand);
 }
 
+/* Wordmark scale for 14px (h-14) header/sidebar chrome. Mirrors the landing
+   page's .wordmark-logo{height:31px} scaled down for console density. */
+@utility brand-wordmark {
+  height: 18px;
+  width: auto;
+}
+
 /* Tinted card header wash; pair with a tone-* text/border colour. */
 @utility wash {
   background-image: linear-gradient(
