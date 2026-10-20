@@ -1,4 +1,5 @@
 "use client";
+import { useState } from "react";
 import Link from "next/link";
 import { AlertTriangle } from "lucide-react";
 import { PageHeader } from "@/components/patterns/PageHeader";
@@ -6,6 +7,7 @@ import { SectionCard } from "@/components/patterns/SectionCard";
 import { KpiStrip } from "@/components/patterns/KpiCard";
 import { GmvTrend, StatusDonut } from "@/components/patterns/Charts";
 import { DataShell } from "@/components/patterns/DataState";
+import { FilterChip } from "@/components/patterns/FilterChip";
 import { StatusPill } from "@/components/patterns/Pills";
 import { formatINR, formatNumber } from "@/lib/format";
 import { periodDelta, sparkline, sumGmv, sumOrders } from "@/lib/analytics/derive";
@@ -27,10 +29,14 @@ function SuperDashboard() {
   const orders = useOrders();
   const campaigns = useCampaigns();
   const admins = useStateAdmins();
+  const [showUncoveredOnly, setShowUncoveredOnly] = useState(false);
 
   const uncovered = STATES.filter(
     (s) => admins.filter((a) => a.stateCode === s.stateCode && a.active).length === 0,
   );
+  const visibleStates = showUncoveredOnly
+    ? STATES.filter((s) => uncovered.some((u) => u.stateCode === s.stateCode))
+    : STATES;
   const sectorMix = Object.entries(
     orders.reduce<Record<string, number>>((acc, o) => {
       acc[o.sector] = (acc[o.sector] ?? 0) + o.amountPaisa;
@@ -59,6 +65,7 @@ function SuperDashboard() {
             },
             { label: "Sellers", value: formatNumber(sellers.length) },
             { label: "States live", value: formatNumber(STATES.length) },
+            { label: "Uncovered states", value: formatNumber(uncovered.length) },
             { label: "State admins", value: formatNumber(admins.filter((a) => a.active).length) },
           ]}
         />
@@ -75,9 +82,26 @@ function SuperDashboard() {
         </SectionCard>
       </div>
 
-      <SectionCard title="State matrix" description="GMV, sellers and admin coverage per state">
+      <SectionCard
+        title="State matrix"
+        description="GMV, sellers and admin coverage per state"
+        actions={
+          <div className="flex gap-1">
+            <FilterChip
+              label="All"
+              active={!showUncoveredOnly}
+              onClick={() => setShowUncoveredOnly(false)}
+            />
+            <FilterChip
+              label="Uncovered only"
+              active={showUncoveredOnly}
+              onClick={() => setShowUncoveredOnly(true)}
+            />
+          </div>
+        }
+      >
         <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-          {STATES.map((info) => {
+          {visibleStates.map((info) => {
             const stateSeries = stateMetrics(info.stateCode, 30);
             const stateSellers = sellers.filter((s) => s.stateCode === info.stateCode);
             const roster = admins.filter((a) => a.stateCode === info.stateCode && a.active);
@@ -135,7 +159,7 @@ function SuperDashboard() {
 
         <SectionCard title="System alerts">
           <ul className="space-y-2">
-            {uncovered.map((info) => (
+            {uncovered.slice(0, 6).map((info) => (
               <li key={info.stateCode}>
                 <Link
                   href="/admin/super/state-admins"
@@ -146,6 +170,19 @@ function SuperDashboard() {
                 </Link>
               </li>
             ))}
+            {uncovered.length > 6 ? (
+              <li>
+                <Link
+                  href="/admin/super/state-admins"
+                  className="flex items-center gap-2 rounded-lg border border-border px-3 py-2 text-[13px] text-muted-foreground"
+                >
+                  <span className="num">
+                    {uncovered.length - 6} more uncovered state{uncovered.length - 6 === 1 ? "" : "s"}
+                  </span>
+                  — review the roster
+                </Link>
+              </li>
+            ) : null}
             {sellers.filter((s) => s.status === "PENDING_REVIEW").length > 0 ? (
               <li>
                 <Link

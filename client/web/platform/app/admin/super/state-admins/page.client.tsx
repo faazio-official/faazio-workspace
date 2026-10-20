@@ -13,7 +13,10 @@ import { Label } from "@/components/ui/label";
 import {
   Select,
   SelectContent,
+  SelectGroup,
   SelectItem,
+  SelectLabel,
+  SelectSeparator,
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
@@ -46,11 +49,49 @@ import {
 import { formatDate, formatDateTime } from "@/lib/format";
 import { createStateAdmin, deleteStateAdmin, listAuditLogs, updateStateAdmin } from "@/lib/api";
 import { useMockLoading, useStateAdmins } from "@/lib/api/hooks";
-import { STATES } from "@/data/states";
+import { STATES, stateKind } from "@/data/states";
 import type { StateAdmin } from "@/data/types";
 
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+/** State picker grouped into States / Union territories so all 36 fit without hunting. */
+function StateSelect({
+  value,
+  onValueChange,
+}: {
+  value: string;
+  onValueChange: (value: string) => void;
+}) {
+  const states = STATES.filter((s) => stateKind(s.stateCode) === "STATE");
+  const uts = STATES.filter((s) => stateKind(s.stateCode) === "UT");
+  return (
+    <Select value={value} onValueChange={onValueChange}>
+      <SelectTrigger>
+        <SelectValue />
+      </SelectTrigger>
+      <SelectContent>
+        <SelectGroup>
+          <SelectLabel>States</SelectLabel>
+          {states.map((s) => (
+            <SelectItem key={s.stateCode} value={s.stateCode}>
+              {s.stateCode} · {s.name}
+            </SelectItem>
+          ))}
+        </SelectGroup>
+        <SelectSeparator />
+        <SelectGroup>
+          <SelectLabel>Union territories</SelectLabel>
+          {uts.map((s) => (
+            <SelectItem key={s.stateCode} value={s.stateCode}>
+              {s.stateCode} · {s.name}
+            </SelectItem>
+          ))}
+        </SelectGroup>
+      </SelectContent>
+    </Select>
+  );
+}
 
 function StateAdminAccounts() {
   const loading = useMockLoading();
@@ -58,11 +99,24 @@ function StateAdminAccounts() {
   const [form, setForm] = useState({ name: "", email: "", phone: "", stateCode: "MH" });
   const [editing, setEditing] = useState<StateAdmin | null>(null);
   const [draft, setDraft] = useState({ name: "", email: "", phone: "", stateCode: "MH" });
+  const [query, setQuery] = useState("");
 
   const valid =
     form.name.trim().length > 2 && EMAIL_RE.test(form.email) && form.phone.trim().length >= 10;
   const uncovered = STATES.filter(
     (s) => admins.filter((a) => a.stateCode === s.stateCode && a.active).length === 0,
+  );
+  const activeCount = admins.filter((a) => a.active).length;
+  const covered = STATES.length - uncovered.length;
+  const coveragePct = Math.round((covered / STATES.length) * 100);
+
+  const q = query.trim().toLowerCase();
+  const filtered = admins.filter(
+    (a) =>
+      !q ||
+      a.name.toLowerCase().includes(q) ||
+      a.email.toLowerCase().includes(q) ||
+      a.stateCode.toLowerCase().includes(q),
   );
 
   return (
@@ -80,18 +134,48 @@ function StateAdminAccounts() {
         .
       </p>
 
+      <div className="space-y-2 rounded-xl border border-border bg-card px-4 py-3">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <p className="text-[13px] font-semibold">
+            <span className="num">{covered}</span> / {STATES.length} states covered
+          </p>
+          <p className="num text-[12px] text-muted-foreground">
+            {activeCount} active admin{activeCount === 1 ? "" : "s"}
+          </p>
+        </div>
+        <div className="h-1.5 w-full overflow-hidden rounded-full bg-muted">
+          <div
+            className="h-full rounded-full bg-primary transition-all"
+            style={{ width: `${coveragePct}%` }}
+          />
+        </div>
+      </div>
+
       {uncovered.length > 0 ? (
         <div className="flex flex-wrap items-center gap-2 rounded-xl border border-warning/40 bg-warning/10 px-4 py-3 text-[13px]">
-          <AlertTriangle className="size-4 text-warning" />
-          No active admin for{" "}
-          <span className="num font-semibold">
-            {uncovered.map((s) => s.stateCode).join(", ")}
-          </span>
-          — those states have no one to review KYC or run campaigns.
+          <AlertTriangle className="size-4 shrink-0 text-warning" />
+          <span className="text-muted-foreground">No active admin for</span>
+          {uncovered.map((s) => (
+            <button
+              key={s.stateCode}
+              type="button"
+              title={`Create an admin for ${s.name}`}
+              onClick={() => {
+                setEditing(null);
+                setForm((f) => ({ ...f, stateCode: s.stateCode }));
+                document.getElementById("create-admin")?.scrollIntoView({ behavior: "smooth" });
+              }}
+              className="num rounded-full border border-warning/40 bg-warning/10 px-2 py-0.5 text-[11px] font-semibold text-warning transition-colors hover:bg-warning/20"
+            >
+              {s.stateCode}
+            </button>
+          ))}
+          <span className="text-muted-foreground">— those states have no one to review KYC or run campaigns.</span>
         </div>
       ) : null}
 
-      <SectionCard title="Create an admin account">
+      <div id="create-admin">
+        <SectionCard title="Create an admin account">
         <div className="grid gap-4 md:grid-cols-4">
           <div className="space-y-1.5">
             <Label htmlFor="adm-name">Name</Label>
@@ -124,21 +208,10 @@ function StateAdminAccounts() {
           </div>
           <div className="space-y-1.5">
             <Label>State</Label>
-            <Select
+            <StateSelect
               value={form.stateCode}
               onValueChange={(value) => setForm({ ...form, stateCode: value })}
-            >
-              <SelectTrigger>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {STATES.map((s) => (
-                  <SelectItem key={s.stateCode} value={s.stateCode}>
-                    {s.stateCode} · {s.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            />
           </div>
         </div>
         <div className="mt-4 flex justify-end">
@@ -160,12 +233,35 @@ function StateAdminAccounts() {
           </Button>
         </div>
       </SectionCard>
+      </div>
 
-      <SectionCard title="Admin roster" bodyClassName="p-0">
+      <SectionCard
+        title="Admin roster"
+        description={query ? `${filtered.length} of ${admins.length} admins` : undefined}
+        bodyClassName="p-0"
+        actions={
+          <Input
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder="Search by name, email or code…"
+            className="h-8 w-56 text-[12px]"
+            aria-label="Search admin roster"
+          />
+        }
+      >
         <DataShell
           loading={loading}
-          isEmpty={admins.length === 0}
-          empty={<EmptyState title="No admins yet" description="Create the first state admin above." />}
+          isEmpty={filtered.length === 0}
+          empty={
+            <EmptyState
+              title={query ? "No matching admins" : "No admins yet"}
+              description={
+                query
+                  ? "Try a different name, email or state code."
+                  : "Create the first state admin above."
+              }
+            />
+          }
         >
           <Table>
             <TableHeader>
@@ -181,7 +277,7 @@ function StateAdminAccounts() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {admins.map((admin) => (
+              {filtered.map((admin) => (
                 <TableRow key={admin.adminId} className="h-12">
                   <TableCell className="num text-[13px] font-semibold">{admin.stateCode}</TableCell>
                   <TableCell className="text-[13px] font-medium">{admin.name}</TableCell>
@@ -292,21 +388,10 @@ function StateAdminAccounts() {
               </div>
               <div className="space-y-1.5">
                 <Label>State</Label>
-                <Select
+                <StateSelect
                   value={draft.stateCode}
                   onValueChange={(value) => setDraft({ ...draft, stateCode: value })}
-                >
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {STATES.map((s) => (
-                      <SelectItem key={s.stateCode} value={s.stateCode}>
-                        {s.stateCode} · {s.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                />
               </div>
               <Button
                 size="sm"

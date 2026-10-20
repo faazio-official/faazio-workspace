@@ -4,9 +4,19 @@ import { PageHeader } from "@/components/patterns/PageHeader";
 import { SectionCard } from "@/components/patterns/SectionCard";
 import { KpiStrip } from "@/components/patterns/KpiCard";
 import { GmvTrend } from "@/components/patterns/Charts";
-import { FilterChip } from "@/components/patterns/FilterChip";
 import { StatusPill } from "@/components/patterns/Pills";
 import { EmptyState } from "@/components/patterns/DataState";
+import { Input } from "@/components/ui/input";
+import {
+  Select,
+  SelectContent,
+  SelectGroup,
+  SelectItem,
+  SelectLabel,
+  SelectSeparator,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import {
   Table,
   TableBody,
@@ -19,15 +29,23 @@ import { formatDate, formatINR, formatNumber } from "@/lib/format";
 import { periodDelta, sparkline, sumGmv, sumOrders } from "@/lib/analytics/derive";
 import { stateMetrics } from "@/lib/api";
 import { useCampaigns, useSellers, useStateAdmins } from "@/lib/api/hooks";
-import { STATES, stateName } from "@/data/states";
+import { STATES, stateKind, stateName } from "@/data/states";
 
 
 function SuperStates() {
   const [stateCode, setStateCode] = useState(STATES[0]?.stateCode ?? "MH");
+  const [query, setQuery] = useState("");
   const series = stateMetrics(stateCode, 30);
   const sellers = useSellers({ stateCode });
   const admins = useStateAdmins(stateCode);
   const campaigns = useCampaigns({ stateCode });
+
+  const q = query.trim().toLowerCase();
+  const visibleStates = STATES.filter(
+    (s) => !q || s.stateCode.toLowerCase().includes(q) || s.name.toLowerCase().includes(q),
+  );
+  const visibleStatesGroup = visibleStates.filter((s) => stateKind(s.stateCode) === "STATE");
+  const visibleUtsGroup = visibleStates.filter((s) => stateKind(s.stateCode) === "UT");
 
   return (
     <div className="space-y-4">
@@ -35,15 +53,44 @@ function SuperStates() {
         title="States"
         description="Pick a state to see its supply, demand and governance in one place."
         actions={
-          <div className="flex flex-wrap gap-1">
-            {STATES.map((info) => (
-              <FilterChip
-                key={info.stateCode}
-                label={info.stateCode}
-                active={stateCode === info.stateCode}
-                onClick={() => setStateCode(info.stateCode)}
-              />
-            ))}
+          <div className="flex flex-wrap items-center gap-2">
+            <Input
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder="Search states…"
+              className="h-8 w-44 text-[12px]"
+              aria-label="Search states"
+            />
+            <Select value={stateCode} onValueChange={setStateCode}>
+              <SelectTrigger className="w-60">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {visibleStatesGroup.length > 0 ? (
+                  <SelectGroup>
+                    <SelectLabel>States</SelectLabel>
+                    {visibleStatesGroup.map((info) => (
+                      <SelectItem key={info.stateCode} value={info.stateCode}>
+                        {info.stateCode} · {info.name}
+                      </SelectItem>
+                    ))}
+                  </SelectGroup>
+                ) : null}
+                {visibleUtsGroup.length > 0 ? (
+                  <>
+                    <SelectSeparator />
+                    <SelectGroup>
+                      <SelectLabel>Union territories</SelectLabel>
+                      {visibleUtsGroup.map((info) => (
+                        <SelectItem key={info.stateCode} value={info.stateCode}>
+                          {info.stateCode} · {info.name}
+                        </SelectItem>
+                      ))}
+                    </SelectGroup>
+                  </>
+                ) : null}
+              </SelectContent>
+            </Select>
           </div>
         }
       />

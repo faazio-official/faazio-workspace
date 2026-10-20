@@ -85,9 +85,13 @@ func (h *Handler) createAdmin(w http.ResponseWriter, r *http.Request) {
 	}
 	req.Name = strings.TrimSpace(req.Name)
 	req.Email = strings.TrimSpace(req.Email)
-	req.StateCode = strings.ToUpper(strings.TrimSpace(req.StateCode))
+	req.StateCode = NormaliseStateCode(req.StateCode)
 	if req.Name == "" || req.Email == "" || len(req.StateCode) != 2 {
 		httpx.Fail(w, http.StatusBadRequest, "bad_request", "name, email and a 2-letter state are required")
+		return
+	}
+	if !IsValidState(req.StateCode) {
+		httpx.Fail(w, http.StatusBadRequest, "unknown_state", "unknown state code")
 		return
 	}
 	admin, err := h.repo.CreateStateAdmin(r.Context(), StateAdmin{

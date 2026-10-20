@@ -89,7 +89,8 @@ The campaign wizard's **what→where** placements map 1:1 to the paid mobile sur
 | `admin/super/festival` · `admin/super/coupons` | promo authority |
 | `admin/super/products` · `admin/super/sellers` | catalog/seller authority |
 | `admin/super/sectors` · `admin/super/coverage` | taxonomy + coverage |
-| `admin/super/rewards` · `admin/super/users` · `admin/super/state-admins` · `admin/super/states` | platform |
+| `admin/super/rewards` · `admin/super/users` · `admin/super/states` | platform |
+| `admin/super/state-admins` | state-admin directory — all 36 ISO 3166-2:IN states/UTs; coverage summary (X / 36) + progress bar + grouped uncovered chips |
 | `admin/super/credentials` | issue/disable seller and state-admin portal logins (role + seller/state scope) |
 | `admin/super/security` | superadmin password rotation (same component as `/security`) |
 | `admin/super/analytics` · `admin/super/audit` · `admin/super/settings` | console |

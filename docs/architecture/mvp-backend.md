@@ -139,6 +139,7 @@ All read-through: Valkey → Supabase/Mongo → populate. Cloudflare caches publ
 | `PUT /ads/campaigns/{id}/status` | ads | state/super admin **takedown/restore only** (`REJECTED` + optional `reason` / `LIVE`); purges the hero cache namespace |
 | `POST /ads/campaigns/{id}/report` | ads | authenticated user abuse report; de-duped per user via `faazio:v1:ads:report:{userId}:{placementId}` 24 h, increments `reports` and audits (`AD_CAMPAIGN_REPORT`) — no reporter identity stored |
 | `PUT /vendors/{id}/rating` | reviews | derived eligibility gate (`hasPurchasedFromVendor`); never a stored flag |
+| `GET/POST /state-admins`, `PUT/DELETE /state-admins/{id}` | admins | superadmin-only state-admin directory. `POST` validates `stateCode` against the 36-code ISO 3166-2:IN allowlist (`internal/admins/states.go`) — unknown codes, incl. aliases CG/OD/TS/UK, return 400 `unknown_state` |
 | `POST /events` | reco | ID-only `userIdHash`, 90-day Mongo TTL; event allowlist + `productId ≤ 64` chars |
 | `GET /recommendations` | reco | per-user `recommendations` doc (else top `product_stats`), joined to catalog; `faazio:v1:reco:{userIdHash}:home` 1 h |
 
