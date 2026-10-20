@@ -50,7 +50,7 @@ export function AccountSecurity() {
         description="Change your portal password. Changing it signs out every other device."
       />
 
-      {session?.mustChange ? (
+      {session?.mustChange && session.role !== "SUPER_ADMIN" ? (
         <div className="rounded-lg border border-amber-500/40 bg-amber-500/10 px-4 py-3 text-[13px]">
           You are still using a temporary password. Change it now to continue.
         </div>
@@ -78,7 +78,7 @@ export function AccountSecurity() {
               onChange={(e) => setNewPassword(e.target.value)}
             />
             <p className="text-[12px] text-muted-foreground">
-              At least 12 characters. A temporary password cannot be reused.
+              At least 12 characters. Choose a strong, different password.
             </p>
           </div>
           <div className="space-y-1.5">

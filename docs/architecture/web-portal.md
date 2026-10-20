@@ -36,9 +36,9 @@ Vite reference (all 3 consoles).
 | --- | --- |
 | `/` | root redirect/landing → `app/page.tsx` |
 | `/login` | gateway-native portal sign-in (any role) |
-| `/security` | password rotation for any portal role (forced when `mustChange`) |
+| `/security` | password rotation for any portal role (forced when `mustChange`, i.e. scoped roles only) |
 | `/admin/super/security` | superadmin shortcut to the same password rotation |
-| `/admin/super/credentials` | superadmin issues/disables seller and state-admin logins |
+| `/admin/super/credentials` | superadmin issues/disables every login and resets any role's password |
 
 **Seller console — own data (`app/seller/**`)** — ads, catalog, pricing, promotions, stores,
 menus, orders, bookings, prescriptions, returns, reviews, payments, analytics, support, settings,
@@ -261,7 +261,7 @@ auth route returning `503 not_configured`.
 
 The portal is the only auth mode. There is **no new IdP**: the gateway already owns
 `RequireRole` and `admins.audit_logs`, so it also stores the credentials
-(`admins.portal_users`, migrations `0032` + `0033`) and mints the tokens. Three roles are
+(`admins.portal_users`, migrations `0032` + `0033` + `0034`) and mints the tokens. Three roles are
 issued: `SUPER_ADMIN` (seeded operationally, global), `STATE_ADMIN` (a 2-letter
 `state_code`), and `SELLER` (a `seller_id`). The superadmin issues the scoped logins from
 `/admin/super/credentials`; the token claims (`app_role`, `seller_id`, `state_code`) are
@@ -284,8 +284,9 @@ browser                        Next.js route handlers                 Go gateway
   `POST /auth/portal/{login,refresh,logout}`, `GET /auth/portal/me`, `PUT /auth/portal/password`
   (any role), plus the superadmin credential surface
   `GET|POST /admin/portal-users`, `PUT /admin/portal-users/{id}`,
-  `PUT /admin/portal-users/{id}/password`. Creating/resetting a credential forces
-  `must_change=true` and revokes that user's refresh sessions.
+  `PUT /admin/portal-users/{id}/password`. Creating/resetting a scoped credential defaults to
+  `must_change=true` (`forceChange:false` opts out) and revokes that user's refresh sessions; a
+  superadmin is reset with the password active immediately (`must_change=false`).
 - **Cookie proxy** — `app/api/auth/portal/{login,refresh,me,logout,password}/route.ts` set the
   `faazio_pat` (access, 15 min) and `faazio_prt` (refresh, 30 d) HttpOnly/SameSite=Lax cookies;
   `app/api/gateway/[...path]/route.ts` injects the bearer server-side and rotates the refresh
@@ -293,14 +294,17 @@ browser                        Next.js route handlers                 Go gateway
 - **First-login confinement** — the access token carries `must_change`. Until the password is
   rotated, the gateway refuses every path outside `/auth/portal/*` (`403 password_change_required`)
   and the shell redirects to `/security`, so a temporary password cannot reach the control plane.
+  `SUPER_ADMIN` is exempt (the claim is never set for it): a superadmin password is always active,
+  and any active superadmin can reset any role's password from `/admin/super/credentials`.
 - **Refresh rotation** — opaque `faazio_pr_*` tokens are stored only as SHA-256 hashes
   (`admins.portal_sessions`), single-use per rotation; replaying a used token revokes the whole
   family. `POST /auth/portal/logout` also denylists the access `jti` in Valkey until it expires.
 - **Password policy** — Argon2id (t=3, m=64 MiB, p=1) with a 16-byte salt and the
   `PORTAL_PEPPER` HMAC; at most 4 derivations run concurrently per instance so a public
-  login spray cannot exhaust container memory. Seeded superadmins and newly-issued credentials
-  start with `must_change=true`; the portal forces `/security`, which rotates the password and
-  revokes every existing session.
+  login spray cannot exhaust container memory. Newly-issued scoped credentials start with
+  `must_change=true`; the portal forces `/security`, which rotates the password and revokes every
+  existing session. Seeded superadmins start with `must_change=false` (never confined) and may
+  rotate voluntarily from `/security`.
 - **Throttling** — per-IP (10/min) + per-email (5/min) Valkey counters (hashed keys) plus a
   durable 5-failure → 15-minute `locked_until`; failures return a generic
   `invalid_credentials` (no user enumeration). Cloudflare adds an edge WAF rule on
@@ -365,5 +369,5 @@ Set `NEXT_PUBLIC_GATEWAY_URL` to the gateway origin. Those route handlers run on
 Vercel's Node runtime and call the gateway server-side, so the gateway's
 `ALLOWED_ORIGINS` can stay exact (the browser only ever talks to the portal
 origin). The gateway still needs `PORTAL_JWT_SECRET` + `PORTAL_PEPPER` and
-migrations `0032` + `0033` applied before the first login (deploy order in
+migrations `0032` + `0033` + `0034` applied before the first login (deploy order in
 `docs/RUNBOOKS/PORTAL_AUTH.md`).

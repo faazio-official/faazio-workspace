@@ -35,7 +35,8 @@ curl -sS -X POST "$GATEWAY/auth/portal/login" \
 ## 1. What must exist before the first login
 
 1. Migrations `server/supabase/migrations/0032_portal_users.sql` +
-   `0033_portal_roles.sql` applied (credential/session store; role + scope). Deploy order:
+   `0033_portal_roles.sql` + `0034_portal_superadmin_no_force.sql` applied (credential/session store;
+   role + scope; superadmin confinement repair). Deploy order:
    **migrations first**, then the gateway, then the portal. In local compose both are mounted
    automatically; for a **pre-existing** compose volume run `docker compose down -v` (dev only) or
    apply `0033` by hand (`psql -f`) — without it the scoped-role path 500s.
@@ -74,8 +75,8 @@ out-of-band emails (do not save this snippet anywhere in the repo):
 insert into admins.portal_users
   (user_id, email, display_name, password_hash, role, active, must_change)
 values
-  ('pu-super-1', '<email-1>', 'Faazio Control', '<phc-hash-1>', 'SUPER_ADMIN', true, true),
-  ('pu-super-2', '<email-2>', 'Faazio Ops',     '<phc-hash-2>', 'SUPER_ADMIN', true, true)
+  ('pu-super-1', '<email-1>', 'Faazio Control', '<phc-hash-1>', 'SUPER_ADMIN', true, false),
+  ('pu-super-2', '<email-2>', 'Faazio Ops',     '<phc-hash-2>', 'SUPER_ADMIN', true, false)
 on conflict (user_id) do update
   set email = excluded.email,
       display_name = excluded.display_name,
@@ -84,14 +85,17 @@ on conflict (user_id) do update
       seller_id = null,
       state_code = null,
       active = true,
-      must_change = true,
+      must_change = false,
       failed_attempts = 0,
       locked_until = null,
       updated_at = now();
 ```
 
-`must_change=true` is mandatory for the initial shared password: the portal redirects the first
-sign-in to `/security`, which rotates the password, clears `must_change` and revokes every session.
+`must_change=false` for `SUPER_ADMIN`: superadmins are never confined, so the seeded password stays
+valid until they voluntarily rotate it at `/security`. Forced rotation (`must_change=true`) is
+reserved for scoped `SELLER` / `STATE_ADMIN` credentials, where the confinement stops a leaked
+temporary password from reaching the control plane. Existing superadmin rows are repaired by
+migration `0034_portal_superadmin_no_force.sql`.
 
 Verify:
 
@@ -119,7 +123,11 @@ every existing refresh session and forces another change.
 
 Equivalent API (superadmin bearer only): `GET|POST /admin/portal-users`,
 `PUT /admin/portal-users/{id}` (`{active}`), `PUT /admin/portal-users/{id}/password`
-(`{newPassword}`). Do not create `SUPER_ADMIN` rows from this surface; use §2.
+(`{newPassword, forceChange?}`). A reset defaults to `forceChange=true` for `SELLER` / `STATE_ADMIN`
+and `false` for `SUPER_ADMIN`; the optional `forceChange` overrides either way. Any active superadmin
+may reset any role, including another superadmin — no OTP/mail, effect is immediate (sessions are
+revoked). Deactivating a superadmin is refused (`last_super_admin`) when it would leave zero active
+superadmins. Do not create `SUPER_ADMIN` rows from this surface; use §2.
 
 ## 4. Rotate a superadmin password (operator-initiated)
 
@@ -127,12 +135,12 @@ Use this when a superadmin loses access or a scheduled rotation is due. The user
 `/security`.
 
 1. Generate a new hash with the tool (§2) using the current `PORTAL_PEPPER`.
-2. Update the row and force a change on next login:
+2. Update the row (superadmins are not confined, so `must_change=false`):
 
 ```sql
 update admins.portal_users
    set password_hash = '<new-phc-hash>',
-       must_change = true,
+       must_change = false,
        failed_attempts = 0,
        locked_until = null,
        password_changed_at = now(),

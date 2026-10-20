@@ -30,10 +30,10 @@ export function SellerShell({ children }: { children: ReactNode }) {
   const groups = Array.from(new Set(SELLER_NAV.map((i) => i.group)));
 
   useEffect(() => {
-    if (session?.mustChange && pathname !== "/security") {
+    if (session?.mustChange && session.role !== "SUPER_ADMIN" && pathname !== "/security") {
       router.replace("/security");
     }
-  }, [pathname, router, session?.mustChange]);
+  }, [pathname, router, session?.mustChange, session?.role]);
 
   return (
     <RoleGate allow={["SELLER"]}>

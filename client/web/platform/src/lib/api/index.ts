@@ -134,6 +134,7 @@ export interface CreatePortalCredentialInput {
   sellerId?: string | undefined;
   stateCode?: string | undefined;
   password: string;
+  forceChange?: boolean | undefined;
 }
 
 /** Superadmin-only: every issued portal login. */
@@ -154,9 +155,18 @@ export async function setPortalCredentialActive(id: string, active: boolean): Pr
   await remote.put(`/admin/portal-users/${encodeURIComponent(id)}`, { active });
 }
 
-/** Superadmin-only: set a new temporary password (forces a change on next sign-in). */
-export async function resetPortalCredentialPassword(id: string, newPassword: string): Promise<void> {
-  await remote.put(`/admin/portal-users/${encodeURIComponent(id)}/password`, { newPassword });
+/** Superadmin-only: set a new password. `forceChange` defaults to true for scoped roles, false for
+ * SUPER_ADMIN. Returns the effective flag so the caller can update the row's `mustChange` badge. */
+export async function resetPortalCredentialPassword(
+  id: string,
+  newPassword: string,
+  opts: { forceChange?: boolean } = {},
+): Promise<{ mustChange: boolean }> {
+  const res = await remote.put<{ ok?: boolean; mustChange?: boolean }>(
+    `/admin/portal-users/${encodeURIComponent(id)}/password`,
+    { newPassword, ...(opts.forceChange !== undefined ? { forceChange: opts.forceChange } : {}) },
+  );
+  return { mustChange: res.mustChange ?? true };
 }
 
 /* -------------------------------- products ------------------------------- */

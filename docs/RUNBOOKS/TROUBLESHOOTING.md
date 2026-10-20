@@ -292,7 +292,8 @@ Full triage table + commands: `docs/RUNBOOKS/PORTAL_AUTH.md` §0.
   deploy; the boot log line `portal_auth=disabled reason=jwt_secret_empty` confirms it.
 - **`portal_unavailable` (500, D)** → Postgres reachable but migrations `0032`/`0033` not applied
   (the boot log shows `portal_tables=missing|partial`). Apply them; for an existing compose volume
-  `docker compose down -v` (dev only) or `psql -f 0033_portal_roles.sql`.
+  `docker compose down -v` (dev only) or `psql -f 0033_portal_roles.sql`. `0034` is data-only
+  (clears the superadmin forced-rotation flag) and can be applied separately.
 - After C/D are fixed, a **valid** email still returns `401 invalid_credentials` until the account is
   provisioned (`PORTAL_AUTH.md` §2) — that is expected, not a failure.
 

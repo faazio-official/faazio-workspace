@@ -47,10 +47,14 @@ export function AdminShell({
   const groups = useMemo(() => Array.from(new Set(nav.map((i) => i.group))), [nav]);
 
   useEffect(() => {
-    if (session?.mustChange && pathname !== "/security") {
+    if (
+      session?.mustChange &&
+      session.role !== "SUPER_ADMIN" &&
+      pathname !== "/security"
+    ) {
       router.replace("/security");
     }
-  }, [pathname, router, session?.mustChange]);
+  }, [pathname, router, session?.mustChange, session?.role]);
 
   useEffect(() => {
     function onKey(event: KeyboardEvent) {

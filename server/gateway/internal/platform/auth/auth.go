@@ -43,7 +43,8 @@ type Identity struct {
 	// user id), so the middleware never tries to resolve it against checkout.users.
 	Portal bool
 	// MustChange is set when a portal user still has the initial password; every route except
-	// /auth/portal/* is refused until they rotate it.
+	// /auth/portal/* is refused until they rotate it. SUPER_ADMIN is never issued a forced
+	// rotation, so this is only ever set for SELLER/STATE_ADMIN.
 	MustChange bool
 }
 
@@ -76,6 +77,7 @@ type Config struct {
 // Middleware returns a chi-compatible middleware that attaches the caller identity to the
 // request context. The one exception is a portal session that still has the initial password:
 // it is confined to /auth/portal/* so a shared default can never reach the control plane.
+// SUPER_ADMIN is exempt: it is never issued a forced rotation (see portal.defaultForceChange).
 func Middleware(cfg Config) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -110,7 +112,7 @@ func Middleware(cfg Config) func(http.Handler) http.Handler {
 				id.Jti = claims.Jti
 				id.MustChange = claims.MustChange
 			}
-			if id.Portal && id.MustChange && !strings.HasPrefix(r.URL.Path, "/auth/portal/") {
+			if id.Portal && id.MustChange && id.Role != RoleSuperAdmin && !strings.HasPrefix(r.URL.Path, "/auth/portal/") {
 				w.Header().Set("Content-Type", "application/json; charset=utf-8")
 				w.WriteHeader(http.StatusForbidden)
 				_, _ = w.Write([]byte(`{"error":"password change required","code":"password_change_required"}`))

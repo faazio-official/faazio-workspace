@@ -110,32 +110,52 @@ func TestRequireUnauthenticated(t *testing.T) {
 
 func TestPortalMustChangeIsConfined(t *testing.T) {
 	secret := []byte("portal-secret")
-	token := signHS256(t, secret, map[string]any{
-		"sub":         "pu-super-1",
-		"iss":         PortalIssuer,
-		"aud":         PortalAudience,
-		"app_role":    RoleSuperAdmin,
-		"jti":         "jti-1",
-		"must_change": true,
-		"exp":         time.Now().Add(time.Hour).Unix(),
-	})
+	newToken := func(role string, extra map[string]any) string {
+		claims := map[string]any{
+			"sub":         "pu-1",
+			"iss":         PortalIssuer,
+			"aud":         PortalAudience,
+			"app_role":    role,
+			"jti":         "jti-1",
+			"must_change": true,
+			"exp":         time.Now().Add(time.Hour).Unix(),
+		}
+		for k, v := range extra {
+			claims[k] = v
+		}
+		return signHS256(t, secret, claims)
+	}
 	h := Middleware(Config{Portal: NewPortalVerifier(secret, nil)})(
 		http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(http.StatusOK) }),
 	)
 
-	blocked := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodGet, "/admin/state/sellers", nil)
-	req.Header.Set("Authorization", "Bearer "+token)
-	h.ServeHTTP(blocked, req)
-	if blocked.Code != http.StatusForbidden {
-		t.Fatalf("control-plane status = %d, want 403", blocked.Code)
-	}
+	t.Run("scoped role is confined", func(t *testing.T) {
+		token := newToken(RoleSeller, map[string]any{"seller_id": "slr-1"})
+		blocked := httptest.NewRecorder()
+		req := httptest.NewRequest(http.MethodGet, "/admin/state/sellers", nil)
+		req.Header.Set("Authorization", "Bearer "+token)
+		h.ServeHTTP(blocked, req)
+		if blocked.Code != http.StatusForbidden {
+			t.Fatalf("control-plane status = %d, want 403", blocked.Code)
+		}
 
-	allowed := httptest.NewRecorder()
-	req = httptest.NewRequest(http.MethodPut, "/auth/portal/password", nil)
-	req.Header.Set("Authorization", "Bearer "+token)
-	h.ServeHTTP(allowed, req)
-	if allowed.Code != http.StatusOK {
-		t.Fatalf("password route status = %d, want 200", allowed.Code)
-	}
+		allowed := httptest.NewRecorder()
+		req = httptest.NewRequest(http.MethodPut, "/auth/portal/password", nil)
+		req.Header.Set("Authorization", "Bearer "+token)
+		h.ServeHTTP(allowed, req)
+		if allowed.Code != http.StatusOK {
+			t.Fatalf("password route status = %d, want 200", allowed.Code)
+		}
+	})
+
+	t.Run("superadmin is exempt", func(t *testing.T) {
+		token := newToken(RoleSuperAdmin, nil)
+		rec := httptest.NewRecorder()
+		req := httptest.NewRequest(http.MethodGet, "/admin/state/sellers", nil)
+		req.Header.Set("Authorization", "Bearer "+token)
+		h.ServeHTTP(rec, req)
+		if rec.Code != http.StatusOK {
+			t.Fatalf("superadmin control-plane status = %d, want 200", rec.Code)
+		}
+	})
 }

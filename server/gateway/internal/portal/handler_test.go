@@ -85,6 +85,26 @@ func TestClientIPUsesProxyHeaders(t *testing.T) {
 	}
 }
 
+func TestDefaultForceChange(t *testing.T) {
+	yes, no := true, false
+	cases := []struct {
+		role     string
+		override *bool
+		want     bool
+	}{
+		{"SUPER_ADMIN", nil, false},
+		{"SELLER", nil, true},
+		{"STATE_ADMIN", nil, true},
+		{"SUPER_ADMIN", &yes, true},
+		{"SELLER", &no, false},
+	}
+	for _, c := range cases {
+		if got := defaultForceChange(c.role, c.override); got != c.want {
+			t.Errorf("defaultForceChange(%q, %v) = %v, want %v", c.role, c.override, got, c.want)
+		}
+	}
+}
+
 func TestNormalizeScope(t *testing.T) {
 	cases := []struct {
 		role, seller, state string
