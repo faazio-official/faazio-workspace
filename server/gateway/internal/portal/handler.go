@@ -335,12 +335,13 @@ func (h *Handler) listCredentials(w http.ResponseWriter, r *http.Request) {
 }
 
 type createCredentialRequest struct {
-	Email     string `json:"email"`
-	Name      string `json:"name"`
-	Role      string `json:"role"`
-	SellerID  string `json:"sellerId"`
-	StateCode string `json:"stateCode"`
-	Password  string `json:"password"`
+	Email       string `json:"email"`
+	Name        string `json:"name"`
+	Role        string `json:"role"`
+	SellerID    string `json:"sellerId"`
+	StateCode   string `json:"stateCode"`
+	Password    string `json:"password"`
+	ForceChange *bool  `json:"forceChange"`
 }
 
 func (h *Handler) createCredential(w http.ResponseWriter, r *http.Request) {
@@ -373,7 +374,7 @@ func (h *Handler) createCredential(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if len(req.Password) < minNewPasswordLen || len(req.Password) > maxPasswordLen || weakPassword(req.Password, "") {
-		httpx.Fail(w, http.StatusBadRequest, "weak_password", "temporary password must be at least 12 characters and not a common value")
+		httpx.Fail(w, http.StatusBadRequest, "weak_password", "password must be at least 12 characters and not a common value")
 		return
 	}
 	if sellerID != "" {
@@ -399,7 +400,7 @@ func (h *Handler) createCredential(w http.ResponseWriter, r *http.Request) {
 	}
 	user, err := h.repo.CreateUser(r.Context(), PortalUser{
 		UserID: "pu-" + id, Email: req.Email, DisplayName: req.Name, PasswordHash: hash,
-		Role: role, Active: true, MustChange: true, SellerID: sellerID, StateCode: stateCode,
+		Role: role, Active: true, MustChange: defaultForceChange(role, req.ForceChange), SellerID: sellerID, StateCode: stateCode,
 	})
 	if err != nil {
 		if errors.Is(err, ErrEmailTaken) {
@@ -440,9 +441,17 @@ func (h *Handler) setCredentialActive(w http.ResponseWriter, r *http.Request) {
 		httpx.Fail(w, http.StatusNotFound, "not_found", "credential not found")
 		return
 	}
-	if user.Role == auth.RoleSuperAdmin {
-		httpx.Fail(w, http.StatusForbidden, "forbidden", "superadmin credentials are managed operationally")
-		return
+	if user.Role == auth.RoleSuperAdmin && !*req.Active {
+		// Never let the console disable the final active superadmin — that is a full lockout.
+		count, err := h.repo.CountActiveSuperAdmins(r.Context())
+		if err != nil {
+			httpx.Fail(w, http.StatusInternalServerError, "portal_unavailable", "credentials unavailable")
+			return
+		}
+		if count <= 1 {
+			httpx.Fail(w, http.StatusBadRequest, "last_super_admin", "the last active superadmin cannot be deactivated")
+			return
+		}
 	}
 	ok, err := h.repo.SetUserActive(r.Context(), user.UserID, *req.Active)
 	if err != nil {
@@ -462,6 +471,7 @@ func (h *Handler) setCredentialActive(w http.ResponseWriter, r *http.Request) {
 
 type resetCredentialPasswordRequest struct {
 	NewPassword string `json:"newPassword"`
+	ForceChange *bool  `json:"forceChange"`
 }
 
 func (h *Handler) resetCredentialPassword(w http.ResponseWriter, r *http.Request) {
@@ -479,7 +489,7 @@ func (h *Handler) resetCredentialPassword(w http.ResponseWriter, r *http.Request
 		return
 	}
 	if len(req.NewPassword) < minNewPasswordLen || len(req.NewPassword) > maxPasswordLen || weakPassword(req.NewPassword, "") {
-		httpx.Fail(w, http.StatusBadRequest, "weak_password", "temporary password must be at least 12 characters and not a common value")
+		httpx.Fail(w, http.StatusBadRequest, "weak_password", "password must be at least 12 characters and not a common value")
 		return
 	}
 	user, found, err := h.repo.ByID(r.Context(), chi.URLParam(r, "id"))
@@ -491,22 +501,28 @@ func (h *Handler) resetCredentialPassword(w http.ResponseWriter, r *http.Request
 		httpx.Fail(w, http.StatusNotFound, "not_found", "credential not found")
 		return
 	}
-	if user.Role == auth.RoleSuperAdmin {
-		httpx.Fail(w, http.StatusForbidden, "forbidden", "superadmin credentials are managed operationally")
-		return
-	}
 	hash, err := h.hasher.Hash(req.NewPassword)
 	if err != nil {
 		httpx.Fail(w, http.StatusInternalServerError, "password_hash_failed", "could not reset password")
 		return
 	}
-	if err := h.repo.ResetPassword(r.Context(), user.UserID, hash); err != nil {
+	force := defaultForceChange(user.Role, req.ForceChange)
+	if err := h.repo.ResetPassword(r.Context(), user.UserID, hash, force); err != nil {
 		httpx.Fail(w, http.StatusInternalServerError, "portal_unavailable", "could not reset password")
 		return
 	}
 	_ = h.repo.RevokeUserSessions(r.Context(), user.UserID)
 	h.record(r, "PORTAL_USER_PASSWORD_RESET", auth.UserID(r.Context()), auth.Role(r.Context()), shortHash(clientIP(r)), "success")
-	httpx.JSON(w, http.StatusOK, map[string]bool{"ok": true})
+	httpx.JSON(w, http.StatusOK, map[string]any{"ok": true, "mustChange": force})
+}
+
+// defaultForceChange reports whether a credential must rotate its password on next sign-in:
+// SUPER_ADMIN is exempt, every other role defaults to forced rotation unless the caller opts out.
+func defaultForceChange(role string, override *bool) bool {
+	if override != nil {
+		return *override
+	}
+	return role != auth.RoleSuperAdmin
 }
 
 // normalizeScope validates the role/scope pairing accepted by the credential-management surface.

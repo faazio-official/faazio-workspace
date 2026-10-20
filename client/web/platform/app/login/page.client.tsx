@@ -47,7 +47,7 @@ function LoginPage() {
     setError(null);
     try {
       const user = await signIn(nextEmail, nextPassword);
-      if (user.mustChange) {
+      if (user.mustChange && user.role !== "SUPER_ADMIN") {
         toast.success("Signed in — change your temporary password to continue.");
         router.push("/security");
         return;

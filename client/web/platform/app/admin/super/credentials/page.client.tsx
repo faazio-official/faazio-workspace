@@ -7,6 +7,7 @@ import { SectionCard } from "@/components/patterns/SectionCard";
 import { DataShell, EmptyState } from "@/components/patterns/DataState";
 import { StatusPill } from "@/components/patterns/Pills";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -87,9 +88,11 @@ function CredentialsPage() {
     sellerId: "",
     stateCode: "MH",
     password: "",
+    forceChange: true,
   });
   const [resetting, setResetting] = useState<PortalCredential | null>(null);
   const [newPassword, setNewPassword] = useState("");
+  const [resetForceChange, setResetForceChange] = useState(true);
   const [busy, setBusy] = useState(false);
 
   const load = useCallback(async () => {
@@ -124,11 +127,24 @@ function CredentialsPage() {
         sellerId: form.role === "SELLER" ? form.sellerId : undefined,
         stateCode: form.role === "STATE_ADMIN" ? form.stateCode : undefined,
         password: form.password,
+        forceChange: form.forceChange,
       });
       setCreds((prev) => [created, ...prev]);
       setCreateOpen(false);
-      setForm({ email: "", name: "", role: "SELLER", sellerId: "", stateCode: "MH", password: "" });
-      toast.success("Credential created — share the temporary password once.");
+      setForm({
+        email: "",
+        name: "",
+        role: "SELLER",
+        sellerId: "",
+        stateCode: "MH",
+        password: "",
+        forceChange: true,
+      });
+      toast.success(
+        form.forceChange
+          ? "Credential created — share the temporary password once."
+          : "Credential created — the password is active now.",
+      );
     } catch (err) {
       toast.error("Could not create the credential", {
         description: err instanceof Error ? err.message : undefined,
@@ -154,13 +170,17 @@ function CredentialsPage() {
     if (!resetting) return;
     setBusy(true);
     try {
-      await resetPortalCredentialPassword(resetting.id, newPassword);
-      setCreds((prev) =>
-        prev.map((x) => (x.id === resetting.id ? { ...x, mustChange: true } : x)),
-      );
+      const { mustChange } = await resetPortalCredentialPassword(resetting.id, newPassword, {
+        forceChange: resetForceChange,
+      });
+      setCreds((prev) => prev.map((x) => (x.id === resetting.id ? { ...x, mustChange } : x)));
       setResetting(null);
       setNewPassword("");
-      toast.success("Temporary password set — share it once.");
+      toast.success(
+        mustChange
+          ? "Temporary password set — share it once."
+          : "Password updated — sessions were revoked.",
+      );
     } catch (err) {
       toast.error("Could not reset the password", {
         description: err instanceof Error ? err.message : undefined,
@@ -174,7 +194,7 @@ function CredentialsPage() {
     <div className="space-y-4">
       <PageHeader
         title="Portal credentials"
-        description="Issue and manage the seller and state-admin logins for the partner portal. Superadmins are seeded operationally."
+        description="Issue seller and state-admin logins, and reset the password for any role. New superadmins are seeded operationally."
         actions={
           <Button
             size="sm"
@@ -228,26 +248,23 @@ function CredentialsPage() {
                     {c.mustChange ? <StatusPill status="TEMP PASSWORD" /> : null}
                   </TableCell>
                   <TableCell className="text-right">
-                    {c.role === "SUPER_ADMIN" ? (
-                      <span className="text-[12px] text-muted-foreground">Operational</span>
-                    ) : (
-                      <div className="flex justify-end gap-2">
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          className="gap-1.5"
-                          onClick={() => {
-                            setResetting(c);
-                            setNewPassword(generatePassword());
-                          }}
-                        >
-                          <KeyRound className="size-3.5" /> Reset
-                        </Button>
-                        <Button size="sm" variant="outline" onClick={() => void toggleActive(c)}>
-                          {c.active ? "Deactivate" : "Reactivate"}
-                        </Button>
-                      </div>
-                    )}
+                    <div className="flex justify-end gap-2">
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="gap-1.5"
+                        onClick={() => {
+                          setResetting(c);
+                          setNewPassword(generatePassword());
+                          setResetForceChange(c.role !== "SUPER_ADMIN");
+                        }}
+                      >
+                        <KeyRound className="size-3.5" /> Reset
+                      </Button>
+                      <Button size="sm" variant="outline" onClick={() => void toggleActive(c)}>
+                        {c.active ? "Deactivate" : "Reactivate"}
+                      </Button>
+                    </div>
                   </TableCell>
                 </TableRow>
               ))}
@@ -376,6 +393,20 @@ function CredentialsPage() {
                 At least {MIN_PASSWORD} characters. Copy it now — it is not shown again.
               </p>
             </div>
+            <label className="flex items-start gap-2.5 text-[13px]">
+              <Checkbox
+                className="mt-0.5"
+                checked={form.forceChange}
+                onCheckedChange={(checked) => setForm({ ...form, forceChange: checked === true })}
+              />
+              <span>
+                Require a password change on first sign-in
+                <span className="block text-[11px] text-muted-foreground">
+                  Recommended for seller and state-admin logins. Uncheck to activate this password
+                  immediately.
+                </span>
+              </span>
+            </label>
             <div className="flex justify-end gap-2">
               <Button variant="outline" onClick={() => setCreateOpen(false)}>
                 Cancel
@@ -393,12 +424,18 @@ function CredentialsPage() {
           <AlertDialogHeader>
             <AlertDialogTitle>Reset password for {resetting?.name}?</AlertDialogTitle>
             <AlertDialogDescription>
-              Their current password and every active session stop working immediately. They must
-              change the temporary password on next sign-in.
+              Their current password and every active session stop working immediately.
+              {resetting?.role === "SUPER_ADMIN"
+                ? " The new password is active right away — the superadmin is not asked to change it."
+                : resetForceChange
+                  ? " They must change the temporary password on next sign-in."
+                  : " The new password is active right away — no forced change."}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <div className="space-y-1.5 py-2">
-            <Label htmlFor="reset-password">Temporary password</Label>
+            <Label htmlFor="reset-password">
+              {resetting?.role === "SUPER_ADMIN" ? "New password" : "Temporary password"}
+            </Label>
             <Input
               id="reset-password"
               className="num"
@@ -406,6 +443,21 @@ function CredentialsPage() {
               onChange={(e) => setNewPassword(e.target.value)}
             />
           </div>
+          {resetting?.role === "SUPER_ADMIN" ? null : (
+            <label className="flex items-start gap-2.5 pb-2 text-[13px]">
+              <Checkbox
+                className="mt-0.5"
+                checked={resetForceChange}
+                onCheckedChange={(checked) => setResetForceChange(checked === true)}
+              />
+              <span>
+                Require a password change on first sign-in
+                <span className="block text-[11px] text-muted-foreground">
+                  Uncheck to activate this password immediately.
+                </span>
+              </span>
+            </label>
+          )}
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
             <AlertDialogAction

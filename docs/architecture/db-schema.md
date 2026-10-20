@@ -1566,10 +1566,11 @@ round-trip). The target must be an item the seller owns (handler-enforced agains
 deep-link another seller's product. RLS: a seller reads their own rows; admins read by scope (mirrors
 `0015`). Endpoints: caching doc §5, `mvp-backend.md` §3 and `monolith-breakdown.md` §1 (`ads` row).
 
-### 12.18 Portal auth — gateway-native credentials + rotating refresh (migrations `0032` + `0033`)
+### 12.18 Portal auth — gateway-native credentials + rotating refresh (migrations `0032` + `0033` + `0034`)
 
-The Partner Portal sign-in is gateway-native: `0032` adds the durable credential + session store and
-`0033` widens the issued roles to `SELLER` and `STATE_ADMIN` with a scope. No GoTrue/Firebase-Web
+The Partner Portal sign-in is gateway-native: `0032` adds the durable credential + session store,
+`0033` widens the issued roles to `SELLER` and `STATE_ADMIN` with a scope, and `0034` clears the
+forced-rotation flag on seeded `SUPER_ADMIN` rows (superadmins are never confined). No GoTrue/Firebase-Web
 dependency, because the gateway already owns the role gate and the audit trail.
 
 ```sql
@@ -1583,7 +1584,7 @@ CREATE TABLE admins.portal_users (
   seller_id           text REFERENCES sellers.sellers(seller_id) ON DELETE CASCADE, -- 0033, SELLER only
   state_code          text CHECK (state_code IS NULL OR state_code ~ '^[A-Z]{2}$'),  -- 0033, STATE_ADMIN only
   active              boolean NOT NULL DEFAULT true,
-  must_change         boolean NOT NULL DEFAULT true,   -- forces initial-password rotation
+  must_change         boolean NOT NULL DEFAULT true,   -- forced rotation; not applied to SUPER_ADMIN (0034)
   failed_attempts     int4 NOT NULL DEFAULT 0,
   locked_until        timestamptz,                 -- durable 5-failure → 15 min lockout
   last_login_at       timestamptz,
@@ -1617,11 +1618,16 @@ direct Supabase clients never see credential/session rows. **No seed INSERT ship
 are provisioned manually with `tools/hash-password` (runbook `PORTAL_AUTH.md`); seller and state-admin
 logins are issued at runtime by `POST /admin/portal-users` (superadmin only) and can be disabled or
 password-reset per `PUT /admin/portal-users/{id}` and `PUT /admin/portal-users/{id}/password`.
+`must_change` confines only scoped roles: a new/reset `SELLER`/`STATE_ADMIN` defaults to a forced first
+rotation (the request may set `forceChange:false`), while `SUPER_ADMIN` is never forced — its password
+is active immediately, and `0034_portal_superadmin_no_force.sql` repairs any seeded superadmin row.
 
 Session lifecycle: access = HS256 JWT (`iss=faazio-portal`, `aud=portal`, `app_role`, optional
 `seller_id`/`state_code`, `must_change`, 15 min, `jti`); refresh = opaque `faazio_pr_*` (32 random bytes, SHA-256 at rest, 30-day sliding). The verifier requires `seller_id` for a
 seller token and a 2-letter `state_code` for a state-admin token, and rejects any other role. Each
 refresh consumes the row (`used_at`) and inserts the next; replaying a used token revokes the family.
 Logout denylists the access `jti` in Valkey (≤15 min) and revokes the family; password change rotates
-the hash, clears `must_change`, revokes every session and denylists the current token. Cache keys/TTLs:
+the hash, clears `must_change`, revokes every session and denylists the current token. An admin reset
+sets `must_change` to the effective `forceChange` (default false for `SUPER_ADMIN`, true otherwise),
+also clearing the lockout and revoking every session. Cache keys/TTLs:
 caching doc §5, endpoints + ownership: `monolith-breakdown.md` §1 (`portal auth` row).

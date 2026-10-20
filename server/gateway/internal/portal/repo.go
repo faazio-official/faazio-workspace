@@ -178,20 +178,20 @@ func (r *Repo) SetPasswordHash(ctx context.Context, userID, hash string) error {
 	return err
 }
 
-// ResetPassword stores a temporary hash, forces a change and clears any lockout.
-func (r *Repo) ResetPassword(ctx context.Context, userID, hash string) error {
+// ResetPassword stores a new hash, sets must_change to the requested value and clears any lockout.
+func (r *Repo) ResetPassword(ctx context.Context, userID, hash string, mustChange bool) error {
 	if err := r.ready(); err != nil {
 		return err
 	}
 	_, err := r.pool.Exec(ctx, `
 		update admins.portal_users
 		   set password_hash = $2,
-		       must_change = true,
+		       must_change = $3,
 		       failed_attempts = 0,
 		       locked_until = null,
 		       password_changed_at = now(),
 		       updated_at = now()
-		 where user_id = $1`, userID, hash)
+		 where user_id = $1`, userID, hash, mustChange)
 	return err
 }
 
@@ -204,8 +204,8 @@ func (r *Repo) CreateUser(ctx context.Context, u PortalUser) (PortalUser, error)
 	_, err := r.pool.Exec(ctx, `
 		insert into admins.portal_users
 		  (user_id, email, display_name, password_hash, role, active, must_change, seller_id, state_code)
-		values ($1,$2,$3,$4,$5,true,true,$6,$7)`,
-		u.UserID, u.Email, u.DisplayName, u.PasswordHash, u.Role, nullable(u.SellerID), nullable(u.StateCode))
+		values ($1,$2,$3,$4,$5,true,$6,$7,$8)`,
+		u.UserID, u.Email, u.DisplayName, u.PasswordHash, u.Role, u.MustChange, nullable(u.SellerID), nullable(u.StateCode))
 	if err != nil {
 		var pgErr *pgconn.PgError
 		if errors.As(err, &pgErr) && pgErr.Code == "23505" {
@@ -236,6 +236,18 @@ func (r *Repo) SetUserActive(ctx context.Context, userID string, active bool) (b
 		return false, err
 	}
 	return tag.RowsAffected() == 1, nil
+}
+
+// CountActiveSuperAdmins reports how many active SUPER_ADMIN rows exist (the last-superadmin guard).
+func (r *Repo) CountActiveSuperAdmins(ctx context.Context) (int, error) {
+	if err := r.ready(); err != nil {
+		return 0, err
+	}
+	var count int
+	err := r.pool.QueryRow(ctx, `
+		select count(*) from admins.portal_users
+		 where role = 'SUPER_ADMIN' and active`).Scan(&count)
+	return count, err
 }
 
 // SellerExists reports whether the seller id is real (the credential FK would reject it anyway,
