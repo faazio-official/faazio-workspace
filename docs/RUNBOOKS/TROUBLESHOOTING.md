@@ -277,6 +277,39 @@ build (Reanimated is far slower in debug); use a **CI release** build.
 - Mongo `home feed unavailable` → `mongodb` not seeded. Run `server/supabase/seed/mongo/seed.js`
   (compose mounts it into `/docker-entrypoint-initdb.d`).
 
+## 🔧 Audit-log retention / purge (`admins.audit_logs`, `0037`)
+
+Portal audit rows are a **rolling 7-day window** for all roles — the gateway worker on Render purges
+rows older than 7 days nightly at **00:00 IST** (see `db-schema.md` §12.20). There is **no archive**;
+purged rows are unrecoverable.
+
+- **Did tonight's pass run?** The cleanest proof is in-trail: every pass writes a surviving
+  `AUDIT_PURGE` row (`after` carries `deleted` + `cutoff`), visible on the audit page / via
+  `GET /audit-logs?entity=admins.audit_logs`. The gateway log line `audit purge pass complete` adds
+  the deleted count. If the gateway was sleeping (free tier) across midnight, the pass simply fires on
+  the next midnight and purges the now-wider window in the same batched delete.
+- **Run one now without waiting for midnight** (SUPER_ADMIN token):
+  ```bash
+  curl -X POST $GATEWAY/audit-logs/purge -H "Authorization: Bearer $TOKEN"   # {"deleted":N,"retention":"7d"}
+  ```
+  Or from psql under the postgres role (SECURITY DEFINER — no anon/authenticated DELETE needed):
+  ```bash
+  psql "$DATABASE_URL" -c "select admins.purge_audit_logs(interval '7 days');"
+  ```
+- **Estimate the damage before a first deploy** (the first 00:00 IST pass deletes all pre-existing
+  history older than 7 days in one batched run):
+  ```sql
+  select count(*), min(created_at), max(created_at)
+    from admins.audit_logs where created_at < now() - interval '7 days';
+  select actor_role, count(*) from admins.audit_logs
+    where created_at < now() - interval '7 days' group by 1;
+  ```
+- **Adjust the window / manually trigger-only mode:** the retention is the `AuditRetention`
+  (`= 7 \* 24h`) constant in `server/gateway/internal/admins/purger.go` and the `'7 days'` default in
+  `admins.purge_audit_logs()` — change both together, then redeploy. To disable background purging
+  entirely, remove the `go auditPurger.Run(workerCtx)` line in `cmd/server/main.go` (the manual
+  `POST /audit-logs/purge` trigger stays wired via `Deps.AuditPurger`).
+
 ## 🔧 Partner Portal returns 503 on sign-in
 
 A `503` on `/api/auth/portal/login` has three distinct origins (A/B/C) — the portal now preserves the

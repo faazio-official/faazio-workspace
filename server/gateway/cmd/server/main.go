@@ -13,6 +13,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/faazio/server/gateway/internal/admins"
 	"github.com/faazio/server/gateway/internal/media"
 	"github.com/faazio/server/gateway/internal/notifications"
 	"github.com/faazio/server/gateway/internal/platform/cache"
@@ -96,6 +97,15 @@ func main() {
 		log.Print("media workers started (gc + cdn purge)")
 	}
 
+	// Audit-log retention worker: nightly 00:00 IST purge of rows older than 7 days (0037).
+	// Deliberately NOT pg_cron — this gateway is the single scheduling authority (superadmin
+	// decision); the migration documents the optional pg_cron alternative for teams that want an
+	// out-of-band fire-and-forget scheduler. Requires Postgres; disabled otherwise.
+	auditPurger := admins.NewPurger(admins.New(pool), nil)
+	if pool != nil {
+		go auditPurger.Run(workerCtx)
+	}
+
 	handler := server.NewRouter(server.Deps{
 		Config:  cfg,
 		Pool:    pool,
@@ -104,6 +114,8 @@ func main() {
 		Drainer: notifyWorker,
 		Signer:  r2Signer,
 		Sweeper: mediaGC,
+		// Manual SUPER_ADMIN trigger parity with POST /media/gc (test/ops without waiting for midnight).
+		AuditPurger: auditPurger,
 	})
 
 	srv := &http.Server{

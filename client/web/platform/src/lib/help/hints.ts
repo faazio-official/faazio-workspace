@@ -210,7 +210,7 @@ export const SECTION_HINTS: Record<string, string> = {
   "All coupons": "Every coupon, live or expired, with the budget it has consumed.",
   "All open orders": "Orders not yet delivered or cancelled anywhere in scope.",
   "All placements": "Ad slots across sellers, with spend and delivery.",
-  "Audit log": "Actions written as they happen. Records cannot be edited or removed.",
+  "Audit log": "Actions written as they happen. Read-only, retained 7 days; older entries are purged nightly.",
   "Business profile": "The legal details Faazio checks against your documents.",
   "Cancellations and returns": "Money going back out and the reasons customers gave.",
   Catalog: "Listings in scope with photo, price and review status.",

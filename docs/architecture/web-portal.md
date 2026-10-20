@@ -95,6 +95,14 @@ The campaign wizard's **what→where** placements map 1:1 to the paid mobile sur
 | `admin/super/security` | superadmin password rotation (same component as `/security`) |
 | `admin/super/analytics` · `admin/super/audit` · `admin/super/settings` | console |
 
+> **Audit log retention (`0037`):** both audit pages (`admin/state/audit`, `admin/super/audit`) stay
+> **read-only** — no UI edit/delete and no RLS delete policy. Rows are now a rolling **7-day window**:
+> a gateway worker on Render purges `admins.audit_logs` older than 7 days nightly at **00:00 IST** (for
+> all roles — SELLER, STATE_ADMIN, SUPER_ADMIN), recording a surviving `AUDIT_PURGE` row. Copy reflects
+> this ("Read-only, retained 7 days…"); a SUPER_ADMIN-only `POST /audit-logs/purge` manual trigger
+> exists for staging/ops parity (same endpoint shape as `POST /media/gc`). No archive — purged rows are
+> unrecoverable.
+
 Every route is an interactive dashboard, so each route is split:
 
 - `app/**/page.tsx` — **server** component. Exports `metadata` (from
