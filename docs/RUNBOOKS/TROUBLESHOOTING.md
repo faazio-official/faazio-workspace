@@ -277,6 +277,25 @@ build (Reanimated is far slower in debug); use a **CI release** build.
 - Mongo `home feed unavailable` → `mongodb` not seeded. Run `server/supabase/seed/mongo/seed.js`
   (compose mounts it into `/docker-entrypoint-initdb.d`).
 
+## 🔧 Partner Portal returns 503 on sign-in
+
+A `503` on `/api/auth/portal/login` has three distinct origins (A/B/C) — the portal now preserves the
+body `code` and shows distinct copy, and `GET /api/auth/portal/status` returns a one-call verdict.
+Full triage table + commands: `docs/RUNBOOKS/PORTAL_AUTH.md` §0.
+
+- **`not_configured` (A)** → the deployed build has no `NEXT_PUBLIC_GATEWAY_URL`. It is inlined at
+  `next build`: set the Vercel env var and **redeploy**. Locally, copy `.env.example` → `.env.local`.
+  `scripts/check-env.mjs` (`predev`/`prebuild`) warns/fails on this.
+- **`gateway_unavailable` (B)** → `GET $GATEWAY/health` is down/unreachable (wrong origin, TLS,
+  cold start, origin lock). Check the origin and Cloudflare tunnel, then retry.
+- **`portal_auth_unavailable` (C)** → `PORTAL_JWT_SECRET` is empty on Render. Set it and roll the
+  deploy; the boot log line `portal_auth=disabled reason=jwt_secret_empty` confirms it.
+- **`portal_unavailable` (500, D)** → Postgres reachable but migrations `0032`/`0033` not applied
+  (the boot log shows `portal_tables=missing|partial`). Apply them; for an existing compose volume
+  `docker compose down -v` (dev only) or `psql -f 0033_portal_roles.sql`.
+- After C/D are fixed, a **valid** email still returns `401 invalid_credentials` until the account is
+  provisioned (`PORTAL_AUTH.md` §2) — that is expected, not a failure.
+
 ## 🔧 401 on `/ads/events` or `/vendors/{id}/rating` (paid-ad KPIs / durable rating inert)
 
 These two writes sit behind `auth.Require`. A configured app signs in with real Firebase phone OTP

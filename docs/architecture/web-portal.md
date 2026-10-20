@@ -244,12 +244,18 @@ decisions through awaited writes with rollback (`PUT /bookings/{id}/status`, `PO
   Without a configured gateway it falls back to a compressed data URL for local development.
 
 Bootstrap (`app/providers.tsx`) restores the session then hydrates. Copy
-`client/web/platform/.env.example` to `.env.local`:
+`client/web/platform/.env.example` to `.env.local` (gitignored — the real local value lives there;
+`.env.example` is the committed template and must never be edited with a real origin):
 
 ```bash
 NEXT_PUBLIC_GATEWAY_URL=        # e.g. http://localhost:8080 (server-side upstream)
 NEXT_PUBLIC_MEDIA_CDN_BASE=     # optional R2 CDN origin (defaults to the gateway's /assets path)
 ```
+
+`NEXT_PUBLIC_*` is inlined by `next build`, not read at request time: after changing it you must
+**rebuild/redeploy** the portal. `scripts/check-env.mjs` (wired to `predev`/`prebuild`) warns in dev
+and fails the build when `NEXT_PUBLIC_GATEWAY_URL` is unset, so a build can never ship with every
+auth route returning `503 not_configured`.
 
 ## Portal auth (gateway-native)
 
@@ -301,6 +307,18 @@ browser                        Next.js route handlers                 Go gateway
   `POST /auth/portal/*` (see the portal-auth runbook).
 - **Secrets** — `PORTAL_JWT_SECRET` and `PORTAL_PEPPER` are Render env vars (never committed);
   provisioning/rotation/unlock steps live in `docs/RUNBOOKS/PORTAL_AUTH.md`.
+- **Diagnostics** — `GET /api/auth/portal/status` is an unauthenticated, rate-limited probe that joins
+  the two dashboards: it reports `portalEnabled` (Vercel build-time `NEXT_PUBLIC_GATEWAY_URL`),
+  `gatewayBaseHost` (hostname only), `gatewayReachable` (`GET /health`) and `gatewayAuth`
+  (`ok` | `portal_auth_unavailable` | `unreachable`, from a zero-credential `POST /auth/portal/login`
+  dry-run). The login page calls it on mount and shows a pre-submit banner, so the three distinct
+  `503` origins are distinguishable without DevTools. Every route echoes an `X-Request-Id` (propagated
+  to the gateway as `X-Request-Id`), so one Vercel log line correlates with the Render request log.
+- **Error codes** — `src/lib/portal/auth.ts` preserves the gateway/route `code` on a `PortalError`.
+  The login page renders code-specific copy: `not_configured` (build has no gateway URL),
+  `gateway_unavailable` (gateway unreachable), `portal_auth_unavailable` (Render secret missing),
+  `portal_unavailable` (credential tables/migration missing); `invalid_credentials` stays generic
+  (no enumeration).
 
 ## Verify
 

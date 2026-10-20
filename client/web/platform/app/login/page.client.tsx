@@ -1,14 +1,28 @@
 "use client";
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { signIn } from "@/lib/api";
 import { hydrateFromGateway } from "@/lib/api/sync";
+import { fetchPortalStatus, portalErrorMessage, type PortalStatus } from "@/lib/portal/auth";
 import { homeFor, ROLE_LABEL } from "@/lib/auth/permissions";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { BrandTile } from "@/components/brand/FaazioMark";
+
+function diagnosticCopy(status: PortalStatus): string | null {
+  if (!status.portalEnabled) {
+    return "This portal build has no gateway URL — rebuild/redeploy with NEXT_PUBLIC_GATEWAY_URL.";
+  }
+  if (!status.gatewayReachable) {
+    return `Gateway unreachable (${status.gatewayBaseHost || "unknown host"}) — check the gateway and retry.`;
+  }
+  if (status.gatewayAuth === "portal_auth_unavailable") {
+    return "Gateway auth is not configured — set PORTAL_JWT_SECRET on Render, then retry.";
+  }
+  return null;
+}
 
 function LoginPage() {
   const router = useRouter();
@@ -16,6 +30,17 @@ function LoginPage() {
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [diagnostic, setDiagnostic] = useState<string | null>(null);
+
+  useEffect(() => {
+    let active = true;
+    void fetchPortalStatus().then((status) => {
+      if (active && status) setDiagnostic(diagnosticCopy(status));
+    });
+    return () => {
+      active = false;
+    };
+  }, []);
 
   async function submit(nextEmail: string, nextPassword: string) {
     setBusy(true);
@@ -31,7 +56,7 @@ function LoginPage() {
       toast.success(`Signed in as ${ROLE_LABEL[user.role]}`);
       router.push(homeFor(user.role));
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Could not sign in.");
+      setError(portalErrorMessage(err));
     } finally {
       setBusy(false);
     }
@@ -77,6 +102,11 @@ function LoginPage() {
               placeholder="Your password"
             />
           </div>
+          {diagnostic ? (
+            <p className="rounded-md border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-[12px] text-amber-700 dark:text-amber-300">
+              {diagnostic}
+            </p>
+          ) : null}
           {error ? <p className="text-[12px] text-destructive">{error}</p> : null}
           <Button type="submit" className="w-full" disabled={busy}>
             {busy ? "Signing in…" : "Sign in"}

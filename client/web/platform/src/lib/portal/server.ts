@@ -1,7 +1,9 @@
 // Server-only helpers for the gateway-native portal session. Tokens live in HttpOnly cookies set
 // by these route handlers — never in localStorage — and every gateway call is proxied same-origin so
 // the browser never holds a bearer token that XSS could read.
-import type { NextRequest, NextResponse } from "next/server";
+import { createHash, randomUUID } from "node:crypto";
+import { NextResponse } from "next/server";
+import type { NextRequest } from "next/server";
 
 export const ACCESS_COOKIE = "faazio_pat";
 export const REFRESH_COOKIE = "faazio_prt";
@@ -86,18 +88,55 @@ export async function readJSON(res: Response): Promise<Record<string, unknown>> 
   }
 }
 
+/** Request id for correlation: reuse the inbound id (or a fresh UUID) and echo it to the client. */
+export function requestID(req: NextRequest): string {
+  const inbound = req.headers.get("x-request-id")?.trim();
+  return inbound && inbound.length <= 128 ? inbound : randomUUID();
+}
+
+/** Short, non-reversible client-IP hash for logs (never the raw IP; AGENTS.md PII rule). */
+export function ipHash8(req: NextRequest): string {
+  const fwd = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? "";
+  const ip = req.headers.get("cf-connecting-ip")?.trim() || fwd || "unknown";
+  return createHash("sha256").update(ip).digest("hex").slice(0, 8);
+}
+
+/** One structured JSON log line per route call — no bodies, secrets or PII. */
+export function logRoute(fields: Record<string, string | number | boolean>): void {
+  console.log(JSON.stringify({ at: "portal-route", ...fields }));
+}
+
+export function withRequestID<T extends NextResponse>(res: T, id: string): T {
+  res.headers.set("X-Request-Id", id);
+  return res;
+}
+
+export function failJSON(
+  status: number,
+  code: string,
+  message: string,
+  id: string,
+): NextResponse {
+  const res = NextResponse.json({ error: message, code, requestId: id }, { status });
+  return withRequestID(res, id);
+}
+
 export interface RefreshResult {
   ok: boolean;
   data: PortalTokenPayload | null;
 }
 
 /** Rotates the opaque refresh token through the gateway. */
-export async function refreshTokens(refreshToken: string): Promise<RefreshResult> {
+export async function refreshTokens(refreshToken: string, reqId = ""): Promise<RefreshResult> {
   if (!refreshToken) return { ok: false, data: null };
   try {
     const res = await callGateway("/auth/portal/refresh", {
       method: "POST",
-      headers: { "Content-Type": "application/json", Accept: "application/json" },
+      headers: {
+        "Content-Type": "application/json",
+        Accept: "application/json",
+        ...(reqId ? { "X-Request-Id": reqId } : {}),
+      },
       body: JSON.stringify({ refreshToken }),
     });
     if (!res.ok) return { ok: false, data: null };

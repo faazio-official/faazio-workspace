@@ -121,6 +121,24 @@ gh workflow run release-apk.yml -f version=1.0.2 -f tag=v1.0.2
 gh run watch                 # wait; signed APK lands on the GitHub Release
 ```
 
+### 4c. Run & verify the Partner Portal (Next.js)
+
+The portal at `client/web/platform` is portal-auth only: it calls the gateway server-side from its
+route handlers. Copy `.env.example` → `.env.local` and set
+`NEXT_PUBLIC_GATEWAY_URL=http://localhost:8080` (the committed template must never carry a real
+origin). `NEXT_PUBLIC_*` is inlined at build time, so a change needs a rebuild.
+
+```bash
+cd client/web/platform
+npm run dev        # predev runs scripts/check-env.mjs and warns on missing/invalid env
+npm run ts:check && npm run lint
+npm run build      # prebuild fails the build if NEXT_PUBLIC_GATEWAY_URL is unset
+```
+
+If sign-in returns `503`, call `GET /api/auth/portal/status` (or follow
+`docs/RUNBOOKS/PORTAL_AUTH.md` §0) to tell a missing portal env (A), an unreachable gateway (B), a
+missing Render `PORTAL_JWT_SECRET` (C) or an unapplied migration (D) apart.
+
 ## 5. Project orientation
 
 | Resource | What it is |

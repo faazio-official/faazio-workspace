@@ -206,6 +206,11 @@ required — portal auth is the only auth mode. The gateway needs
 least one superadmin provisioned. Full provisioning/rotation/rollback steps:
 `docs/RUNBOOKS/PORTAL_AUTH.md`.
 
+`NEXT_PUBLIC_*` is inlined at build time: **changing it in the Vercel project requires a redeploy**
+(an old build keeps the previous origin). `npm run build` runs `scripts/check-env.mjs --strict` and
+fails the build when `NEXT_PUBLIC_GATEWAY_URL` is missing, so a deployment can never ship with every
+portal auth route returning `503 not_configured`.
+
 ## ✅ Release checklist
 
 - [ ] `npm run ts:check` and `npm run check:boundaries` pass.

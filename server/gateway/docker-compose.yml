@@ -49,6 +49,7 @@ services:
       - ../supabase/migrations/0030_auth_link.sql:/docker-entrypoint-initdb.d/0030_auth_link.sql:ro
       - ../supabase/migrations/0031_firebase_auth_uid.sql:/docker-entrypoint-initdb.d/0031_firebase_auth_uid.sql:ro
       - ../supabase/migrations/0032_portal_users.sql:/docker-entrypoint-initdb.d/0032_portal_users.sql:ro
+      - ../supabase/migrations/0033_portal_roles.sql:/docker-entrypoint-initdb.d/0033_portal_roles.sql:ro
       - ../supabase/seed/0001_seed.sql:/docker-entrypoint-initdb.d/0099_seed.sql:ro
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U postgres -d faazio"]
@@ -103,7 +104,9 @@ services:
       DEV_USER_ID: "user-1"
       ALLOWED_ORIGINS: "http://localhost:3000"
       # Portal auth (POST /auth/portal/*, /admin/portal-users). Empty = 503 portal_auth_unavailable;
-      # seed a superadmin with tools/hash-password. See docs/RUNBOOKS/PORTAL_AUTH.md.
+      # generate both before `up` to exercise real sign-in locally:
+      #   PORTAL_JWT_SECRET=$(openssl rand -base64 48) PORTAL_PEPPER=$(openssl rand -base64 32) docker compose up --build
+      # Seed a superadmin with tools/hash-password. See docs/RUNBOOKS/PORTAL_AUTH.md.
       PORTAL_JWT_SECRET: "${PORTAL_JWT_SECRET:-}"
       PORTAL_PEPPER: "${PORTAL_PEPPER:-}"
     ports:
