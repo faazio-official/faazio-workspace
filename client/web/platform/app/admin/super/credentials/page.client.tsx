@@ -1,5 +1,6 @@
 "use client";
 import { useCallback, useEffect, useState } from "react";
+import Link from "next/link";
 import { toast } from "sonner";
 import { Copy, KeyRound, Plus, RefreshCw } from "lucide-react";
 import { PageHeader } from "@/components/patterns/PageHeader";
@@ -43,12 +44,14 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { formatDateTime } from "@/lib/format";
+import { ApiError } from "@/lib/api/http";
 import { useSellers } from "@/lib/api/hooks";
 import {
   createPortalCredential,
   listPortalCredentials,
   resetPortalCredentialPassword,
   setPortalCredentialActive,
+  stateAdminConflictMessage,
   type CreatePortalCredentialInput,
 } from "@/lib/api";
 import { STATES } from "@/data/states";
@@ -111,6 +114,19 @@ function CredentialsPage() {
     void load();
   }, [load]);
 
+  // Deep link from the state-admins "Issue login" action: prefill the create sheet for that email.
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const params = new URLSearchParams(window.location.search);
+    const email = params.get("email");
+    const role = params.get("role");
+    if (!email || role !== "STATE_ADMIN") return;
+    setForm((f) => ({ ...f, email, role: "STATE_ADMIN", stateCode: "MH", password: generatePassword() }));
+    setCreateOpen(true);
+    const clean = window.location.pathname;
+    window.history.replaceState(null, "", clean);
+  }, []);
+
   const createValid =
     EMAIL_RE.test(form.email.trim()) &&
     form.name.trim().length >= 2 &&
@@ -146,8 +162,9 @@ function CredentialsPage() {
           : "Credential created — the password is active now.",
       );
     } catch (err) {
+      const conflict = stateAdminConflictMessage(err);
       toast.error("Could not create the credential", {
-        description: err instanceof Error ? err.message : undefined,
+        description: err instanceof ApiError ? conflict.message : err instanceof Error ? err.message : undefined,
       });
     } finally {
       setBusy(false);
@@ -320,24 +337,33 @@ function CredentialsPage() {
                 </Select>
               </div>
             ) : (
-              <div className="space-y-1.5">
-                <Label>State</Label>
-                <Select
-                  value={form.stateCode}
-                  onValueChange={(value) => setForm({ ...form, stateCode: value })}
-                >
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {STATES.map((s) => (
-                      <SelectItem key={s.stateCode} value={s.stateCode}>
-                        {s.stateCode} · {s.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
+              <>
+                <div className="space-y-1.5">
+                  <Label>State</Label>
+                  <Select
+                    value={form.stateCode}
+                    onValueChange={(value) => setForm({ ...form, stateCode: value })}
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {STATES.map((s) => (
+                        <SelectItem key={s.stateCode} value={s.stateCode}>
+                          {s.stateCode} · {s.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <p className="rounded-lg border border-border bg-muted/40 px-3 py-2 text-[11px] text-muted-foreground">
+                  Tip: creating a state admin on{" "}
+                  <Link href="/admin/super/state-admins" className="font-semibold text-interactive">
+                    State admins
+                  </Link>{" "}
+                  mints the roster row and login in one step, so they stay in sync.
+                </p>
+              </>
             )}
 
             <div className="space-y-1.5">

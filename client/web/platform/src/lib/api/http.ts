@@ -8,6 +8,9 @@ export class ApiError extends Error {
     public readonly status: number,
     public readonly code: string,
     message: string,
+    /** Present on 409 identity conflicts (e.g. the blocked SUPER_ADMIN/SELLER/STATE_ADMIN row). */
+    public readonly conflictingRole?: string | undefined,
+    public readonly conflictingId?: string | undefined,
   ) {
     super(message);
     this.name = "ApiError";
@@ -50,15 +53,25 @@ async function request<T>(path: string, options: RequestOptions = {}): Promise<T
   if (!res.ok) {
     let code = "request_failed";
     let message = `Request failed (${res.status})`;
+    let conflictingRole: string | undefined;
+    let conflictingId: string | undefined;
     try {
-      const body = (await res.json()) as { error?: string; code?: string; message?: string };
+      const body = (await res.json()) as {
+        error?: string;
+        code?: string;
+        message?: string;
+        conflictingRole?: string;
+        conflictingId?: string;
+      };
       if (body.code) code = body.code;
       if (body.error) message = body.error;
       else if (body.message) message = body.message;
+      conflictingRole = body.conflictingRole;
+      conflictingId = body.conflictingId;
     } catch {
       // non-JSON error body
     }
-    throw new ApiError(res.status, code, message);
+    throw new ApiError(res.status, code, message, conflictingRole, conflictingId);
   }
   if (res.status === 204) return undefined as T;
   return (await res.json()) as T;

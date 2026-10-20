@@ -1194,6 +1194,7 @@ CREATE TABLE payments.payouts (payout_id PK, seller_id FK, cycle, amount_paisa I
 
 CREATE TABLE admins.state_admins (admin_id PK, name, email/phone /*PII*/, state_code CHAR(2),
   active BOOL, created_at/last_active_at);
+  -- 0036: UNIQUE on lower(email) and on digit-only phone — duplicates impossible.
 CREATE TABLE admins.audit_logs (log_id PK, actor_id, actor_role TEXT CHECK seller/state/super,
   action, entity, entity_id, before/after JSONB CHECK ≤8192, created_at);
 
@@ -1636,3 +1637,52 @@ the hash, clears `must_change`, revokes every session and denylists the current 
 sets `must_change` to the effective `forceChange` (default false for `SUPER_ADMIN`, true otherwise),
 also clearing the lockout and revoking every session. Cache keys/TTLs:
 caching doc §5, endpoints + ownership: `monolith-breakdown.md` §1 (`portal auth` row).
+
+### 12.19 State-admin identity guard — duplicates become impossible (migration `0036`)
+
+**Authority:** `monolith-breakdown.md` §1 (`admins` row), `web-portal.md` (the `/admin/super/state-admins`
+unified creation), `PORTAL_AUTH.md` §3.
+
+Why: `0015` shipped `admins.state_admins` with **no** uniqueness constraint, so two roster rows could
+share `Admin@x.com` / `ADMIN@x.com`, and portal login + roster were two disconnected inserts
+(`POST /admin/portal-users` after `POST /state-admins`) that could diverge (orphan roster / orphan
+login). This migration makes duplicate emails durable-impossible and backs the `POST /state-admins`
+collision gate. **Identity policy (superadmin decision, 2026-10):** email is the ONE-PERSON-ONE-ROLE
+key and is hard-blocked everywhere; **phone is a SOFT warning** — a shared line can legitimately cover
+several people (team/SME phones), so a shared phone never blocks creation, only surfaces as a `201
+warnings[]` notice.
+
+```sql
+-- Roster email uniqueness (case-insensitive) — the missing guard. A->B API checks race; this is
+-- the for-sure rule: two rows can never share an email again.
+CREATE UNIQUE INDEX IF NOT EXISTS state_admins_email_lower_uniq
+  ON admins.state_admins (lower(email));
+
+-- Roster phone lookup — NOT unique (shared phones are allowed by policy). Digits-only equality so
+-- '+91 90000 00000' / '919000000000' / '09000000000' are the same person; the soft shared-phone
+-- warning uses this index to find pre-existing rows fast (incl. legacy formatted ones). The older
+-- draft's UNIQUE index is dropped (idempotent) so creation can never hard-block on phone.
+DROP INDEX IF EXISTS admins.state_admins_phone_digits_uniq;
+CREATE INDEX IF NOT EXISTS state_admins_phone_digits_idx
+  ON admins.state_admins (regexp_replace(phone, '\D', '', 'g'));
+
+-- Seller phone digit lookup (soft warning: a state-admin phone already owned by a seller).
+CREATE INDEX IF NOT EXISTS sellers_phone_digits_idx
+  ON sellers.sellers (regexp_replace(phone, '\D', '', 'g'))
+  WHERE phone IS NOT NULL AND phone <> '';
+```
+
+New confirms:
+- `admins.portal_users` has `portal_users_email_lower_uniq` (`lower(email)`, `0032`) — the
+  **cross-role gate**: a `STATE_ADMIN`/`SELLER` email can never shadow a `SUPER_ADMIN` email.
+  `state_admins` roster rows do **not** FK to `portal_users` (a roster can be pre-provisioned
+  without a login); the link is the shared `lower(email)`, joined at write time by
+  `internal/admins` (Provisioner).
+- `sellers.sellers` has **no email column** (`0015` table def), so the only SELLER collision axis is
+  phone digits (`sellers_phone_digits_idx`) — and that is a warning, not a 409. A seller-belonging
+  email is caught via `portal_users` (a SELLER credential row uses the same email table), hence
+  `email_used_by_seller`.
+- Phone storage: `admins.state_admins.phone` is normalized to the bare 10 digits going forward
+  (backend `NormalisePhone`: strip non-digits, drop one leading `91`/`0`, require exactly 10); legacy
+  rows keep their format and are matched by the digits expression. Duplicate phones across roster rows
+  are expected and allowed.

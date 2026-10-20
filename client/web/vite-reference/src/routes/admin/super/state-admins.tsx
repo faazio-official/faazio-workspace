@@ -1,4 +1,9 @@
 // 'use client'
+// NOTE: this is the read-only diff baseline. The shipping portal (client/web/platform) diverged:
+// POST /state-admins there is the unified creator — it may mint the STATE_ADMIN portal login
+// (issueLogin) in the same atomic call, hard-blocks duplicate email/phone identities with 409 codes
+// and shows login badges on the roster. Keep this file as the pre-change reference; do not port the
+// old fire-and-forget createStateAdmin() pattern back into platform.
 import { useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import { toast } from "sonner";

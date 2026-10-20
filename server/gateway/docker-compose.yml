@@ -50,6 +50,8 @@ services:
       - ../supabase/migrations/0031_firebase_auth_uid.sql:/docker-entrypoint-initdb.d/0031_firebase_auth_uid.sql:ro
       - ../supabase/migrations/0032_portal_users.sql:/docker-entrypoint-initdb.d/0032_portal_users.sql:ro
       - ../supabase/migrations/0033_portal_roles.sql:/docker-entrypoint-initdb.d/0033_portal_roles.sql:ro
+      - ../supabase/migrations/0034_portal_superadmin_no_force.sql:/docker-entrypoint-initdb.d/0034_portal_superadmin_no_force.sql:ro
+      - ../supabase/migrations/0036_state_admin_identity_guard.sql:/docker-entrypoint-initdb.d/0036_state_admin_identity_guard.sql:ro
       - ../supabase/seed/0001_seed.sql:/docker-entrypoint-initdb.d/0099_seed.sql:ro
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U postgres -d faazio"]

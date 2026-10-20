@@ -12,8 +12,10 @@ import (
 
 // Error is the JSON error envelope.
 type Error struct {
-	Error string `json:"error"`
-	Code  string `json:"code"`
+	Error           string `json:"error"`
+	Code            string `json:"code"`
+	ConflictingRole string `json:"conflictingRole,omitempty"`
+	ConflictingID   string `json:"conflictingId,omitempty"`
 }
 
 // JSON writes v as JSON with the given status.
@@ -29,6 +31,14 @@ func JSON(w http.ResponseWriter, status int, v any) {
 // Fail writes a JSON error with a safe message.
 func Fail(w http.ResponseWriter, status int, code, message string) {
 	JSON(w, status, Error{Error: message, Code: code})
+}
+
+// FailConflict writes a 409 with a machine code and the offending identity (a role + id, never a
+// secret or a password hash). The frontend maps the code to a field-level message and keeps the form.
+func FailConflict(w http.ResponseWriter, code, message, conflictingRole, conflictingID string) {
+	JSON(w, http.StatusConflict, Error{
+		Error: message, Code: code, ConflictingRole: conflictingRole, ConflictingID: conflictingID,
+	})
 }
 
 // Decode reads a JSON request body into dst (bounded by the server's MaxBytesReader).
