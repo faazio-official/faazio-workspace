@@ -27,7 +27,8 @@ import { SELLER_SETUP_FIELDS } from '@data/index';
 import type { AppBrand } from '@data/types';
 import { gateway, type SellerApplication } from '@/services/api/GatewayClient';
 import { firebaseAuthConfigured, sendOtp, verifyOtp } from '@/services/firebaseAuth';
-import { getCurrentAddress } from '@/services/location';
+import { getCurrentAddress, type Coordinates } from '@/services/location';
+import SellerLocationPicker from './SellerLocationPicker';
 import { useAuthStore } from '@/state/authStore';
 import type { RootStackParamList } from '@/navigation/types';
 import DocumentCapture from './DocumentCapture';
@@ -106,6 +107,9 @@ export function SellerRegistrationScreen({ navigation }: Props) {
   const [locating, setLocating] = useState(false);
   const [locationLabel, setLocationLabel] = useState('');
   const [locationError, setLocationError] = useState('');
+  const [shopPin, setShopPin] = useState<Coordinates | null>(null);
+  const [shopAddress, setShopAddress] = useState('');
+  const [pinOpen, setPinOpen] = useState(false);
 
   const [otpCode, setOtpCode] = useState('');
   const [otpSent, setOtpSent] = useState(false);
@@ -257,6 +261,8 @@ export function SellerRegistrationScreen({ navigation }: Props) {
         contactPhone: form.contactPhone.trim(),
         contactEmail: form.contactEmail.trim(),
         stateCode: form.stateCode.trim().toUpperCase(),
+        latitude: shopPin?.latitude,
+        longitude: shopPin?.longitude,
         platformFeePct: Number(form.platformFee),
         bankName: form.bankName.trim(),
         bankAccountNumber: form.bankAccountNumber.replace(/\D/g, ''),
@@ -398,6 +404,24 @@ export function SellerRegistrationScreen({ navigation }: Props) {
                 value={form.businessAddress}
                 onChangeText={update('businessAddress')}
               />
+              <TouchableOpacity
+                style={styles.pinButton}
+                onPress={() => setPinOpen(true)}
+                activeOpacity={0.8}
+              >
+                <LocateFixed size={ms(16)} color="#1162D3" strokeWidth={2.2} />
+                <View style={{ flex: 1 }}>
+                  <AppText style={styles.pinButtonTitle}>
+                    {shopPin ? 'Shop pin selected' : 'Pin shop location on map'}
+                  </AppText>
+                  <AppText style={styles.pinButtonValue} numberOfLines={1}>
+                    {shopPin
+                      ? shopAddress ||
+                        `${shopPin.latitude.toFixed(5)}, ${shopPin.longitude.toFixed(5)}`
+                      : 'Helps customers find you and powers nearby ranking'}
+                  </AppText>
+                </View>
+              </TouchableOpacity>
               <TextInputField
                 label={setup('contactPhone')?.label ?? 'Contact phone'}
                 placeholder={setup('contactPhone')?.placeholder ?? '+91 00000 00000'}
@@ -637,6 +661,17 @@ export function SellerRegistrationScreen({ navigation }: Props) {
         )}
       </ScrollView>
 
+      <SellerLocationPicker
+        visible={pinOpen}
+        initial={shopPin}
+        onCancel={() => setPinOpen(false)}
+        onPick={({ coordinates, address }) => {
+          setShopPin(coordinates);
+          setShopAddress(address);
+          setPinOpen(false);
+        }}
+      />
+
       <DocumentCapture
         visible={capture !== null}
         title={capture === 'fssai' ? 'FSSAI certificate' : 'Bank passbook'}
@@ -836,6 +871,20 @@ const styles = StyleSheet.create({
     borderColor: '#BFDBFE',
     backgroundColor: '#EFF6FF',
   },
+  pinButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: hs(10),
+    paddingHorizontal: hs(12),
+    paddingVertical: vs(10),
+    borderRadius: ms(10),
+    borderWidth: 1,
+    borderColor: '#BFD7F7',
+    backgroundColor: '#F5F9FF',
+    marginTop: vs(10),
+  },
+  pinButtonTitle: { fontSize: ms(11), fontWeight: '800', color: '#0f172a' },
+  pinButtonValue: { fontSize: ms(10), color: '#64748B', marginTop: vs(1) },
   locationText: { fontSize: ms(11), fontWeight: '800', color: '#1162D3' },
   helperText: {
     fontSize: ms(10.5),

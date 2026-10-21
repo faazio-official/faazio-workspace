@@ -3,8 +3,9 @@
  * backend (server/) is wired. See data/DATA_CONTROL.md.
  */
 import type { StoreProfile } from '../types';
+import { withStoreGeo } from '../storeGeo';
 
-export const foodStores: StoreProfile[] = [
+const foodStoresBase: StoreProfile[] = [
   { id: 'store-f1', name: 'Paradise Biryani House', app: 'FOOD', categories: ['Biryani', 'North Indian', 'Tiffin', 'Dinner Specials'], rating: 4.9, reviewsCount: 4500, deliveryTime: '30 min', distance: '2.1 km', coverImage: 'https://images.unsplash.com/photo-1563379091339-03b21ab4a4f8?fm=jpg&fit=crop&q=80&w=600&h=300', emoji: '🍛', desc: 'World famous royal Awadhi mutton & chicken dum biryani', offerTag: 'FESTIVE50 - 50% OFF up to ₹150', isVeg: false, address: '9, Nizam Lane, Greenwood City - 609602', phone: '+91 92002 22201', hours: '11 AM – 11 PM' },
   { id: 'store-f2', name: 'Green Leaf Pure Veg Kitchen', app: 'FOOD', categories: ['Tiffin', 'North Indian', 'South Indian', 'Beverages'], rating: 4.8, reviewsCount: 3100, deliveryTime: '25 min', distance: '1.4 km', coverImage: 'https://images.unsplash.com/photo-1546833999-b9f581a1996d?fm=jpg&fit=crop&q=80&w=600&h=300', emoji: '🥗', desc: '100% Pure Vegetarian South & North Indian delicacies, Jain options available', offerTag: 'FLAT ₹100 OFF on ₹399+', isVeg: true, address: '16, Green Avenue, Greenwood City - 609602', phone: '+91 92002 22202', hours: '8 AM – 10 PM' },
   { id: 'store-f3', name: 'Hungry Minds Cafe', app: 'FOOD', categories: ['Chinese', 'Fast Food', 'Beverages', 'Dinner Specials'], rating: 4.7, reviewsCount: 1890, deliveryTime: '20 min', distance: '0.8 km', coverImage: 'https://images.unsplash.com/photo-1555396273-367ea4eb4db5?fm=jpg&fit=crop&q=80&w=600&h=300', emoji: '🍔', desc: 'Gourmet smash burgers, loaded fries, paneer tikka rolls & cold brews', offerTag: 'FREE Loaded Fries on ₹499+', isVeg: false, address: '3, Market Road, Greenwood City - 609602', phone: '+91 92002 22203', hours: '10 AM – 11:30 PM' },
@@ -18,3 +19,5 @@ export const foodStores: StoreProfile[] = [
   { id: 'store-f11', name: 'Catch of the Day Seafood', app: 'FOOD', categories: ['Seafood', 'Continental', 'Dinner Specials'], rating: 4.9, reviewsCount: 1180, deliveryTime: '42 min', distance: '4.4 km', coverImage: 'https://images.unsplash.com/photo-1553621042-f6e147245754?fm=jpg&fit=crop&q=80&w=600&h=300', emoji: '🦐', desc: 'Fresh catch grilled, fried and curried with coastal coastal-inspired sides', offerTag: 'FREE Prawn Starter on ₹999+', isVeg: false, address: 'Harbour Walk, Sea Face Road, Greenwood City - 609602', phone: '+91 92002 22211', hours: '11 AM – 11 PM' },
   { id: 'store-f12', name: 'Chaat Nook & Chai', app: 'FOOD', categories: ['Chaat', 'Street Food', 'Beverages', 'Snacks'], rating: 4.6, reviewsCount: 720, deliveryTime: '15 min', distance: '0.6 km', coverImage: 'https://images.unsplash.com/photo-1601050690597-df0568f70950?fm=jpg&fit=crop&q=80&w=600&h=300', emoji: '🧆', desc: 'Gol gappa, pav bhaji and cutting chai — a true street-food corner', offerTag: 'BUY 1 GET 1 on Chai', isVeg: true, address: '18, Bazaar Street, Greenwood City - 609602', phone: '+91 92002 22212', hours: '9 AM – 10 PM' },
 ];
+
+export const foodStores: StoreProfile[] = foodStoresBase.map(withStoreGeo);

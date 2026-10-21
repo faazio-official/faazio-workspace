@@ -157,6 +157,8 @@ type Product struct {
 	Unit          string         `json:"unit,omitempty"`
 	Attributes    map[string]any `json:"attributes,omitempty"`
 	Stock         *Stock         `json:"stock,omitempty"`
+	// DistanceKm is set only by GET /products/nearby (straight-line km from the caller).
+	DistanceKm *float64 `json:"distanceKm,omitempty"`
 }
 
 // Store is a directory.stores row, JSON shaped for StoreRecord.
@@ -177,6 +179,10 @@ type Store struct {
 	Address      string   `json:"address,omitempty"` // PII — auth-scoped only
 	Phone        string   `json:"phone,omitempty"`   // PII
 	Hours        string   `json:"hours,omitempty"`
+	// Public coordinates. DistanceKm is set only by GET /stores/nearby.
+	Latitude   *float64 `json:"latitude,omitempty"`
+	Longitude  *float64 `json:"longitude,omitempty"`
+	DistanceKm *float64 `json:"distanceKm,omitempty"`
 }
 
 // PickupPoint is a durable inventory.pickup_points row (a business location; no customer PII).
@@ -220,6 +226,9 @@ type Venue struct {
 	Address    string   `json:"address,omitempty"` // PII — auth-scoped only
 	Phone      string   `json:"phone,omitempty"`   // PII
 	Hours      string   `json:"hours,omitempty"`
+	Latitude   *float64 `json:"latitude,omitempty"`
+	Longitude  *float64 `json:"longitude,omitempty"`
+	DistanceKm *float64 `json:"distanceKm,omitempty"`
 }
 
 // Review is one product review row, JSON shaped for ReviewRow.

@@ -991,6 +991,30 @@ and wiped). When zero items are ticked the Proceed button is disabled. The 3 cat
 are now **full-bleed** (edge-to-edge, no side gutters/borders) with a larger 64px item
 thumbnail; the savings/coupon card keeps its 16px inset.
 
+## Live location — foreground-only nearby retrieval
+
+Every commerce surface sorts from one live origin. `src/state/locationStore.ts` owns the fix
+(`idle | loading | ready | denied`), persists only the last coordinate + permission flag under
+`faazio:location:last` (never the address), and exposes `selectOrigin`. `src/hooks/useLiveLocation.ts`
+is mounted once in `App.tsx`: it hydrates the cache, then polls a coarse fix every 10 s **only while
+`AppState` is `active`**, reverse-geocodes only after ~50 m of movement, and never shows the OS prompt
+on launch. Consent is explicit: `LocationScreen` "ALLOW LOCATION ACCESS" calls
+`requestAndRefreshLocation()` (high accuracy + address); manual search uses the Places API (New)
+autocomplete when `GOOGLE_PLACES_API_KEY` is configured, otherwise the existing static results.
+
+Consumers enrich rows locally with `src/utils/distance.ts` (Haversine + `formatDistanceKm`):
+Mart local vendors, Pharma outlets, Food top-rated/dining, category drill-in vendors, and search
+results (Relevance order, via `features/search/storeDistance.ts`) are nearest-first and re-sort as
+the poll lands without refetching. Explicit search sorts (price/popularity) stay authoritative. Server-backed nearby reads
+(`GatewayClient.getStoresNearby`/`getProductsNearby`) return `distanceKm` computed by the gateway
+(`GET /stores/nearby`, `GET /products/nearby`), cached in Valkey for 120 s.
+
+Seller onboarding adds a foreground `SellerLocationPicker` (native `react-native-maps` modal) and
+submits `latitude`/`longitude` with the application; the shop pin is stored on `sellers.sellers` and
+is public business data. Maps keys come from `GOOGLE_MAPS_API_KEY_ANDROID` (manifest resource generated
+by `scripts/configure.js`) and `GOOGLE_MAPS_API_KEY_IOS`; no key ⇒ the map renders blank, no crash.
+No background location permission or `UIBackgroundModes: location` is declared.
+
 ## Cart checkout — fulfilment + live-location delivery on the BAG step
 
 The order-level **Delivery ⇄ Self Pickup** toggle lives on the cart **BAG** step

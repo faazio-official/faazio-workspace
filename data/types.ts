@@ -30,6 +30,11 @@ export interface Product {
   storeId?: string;
   /** True = vegetarian dish, false = non-vegetarian, absent = unclassified. */
   isVeg?: boolean;
+  /**
+   * Straight-line distance from the shopper's live location, in kilometres.
+   * Only present on `GET /products/nearby` (server-computed); absent elsewhere.
+   */
+  distanceKm?: number;
 }
 
 export interface MartProduct extends Product {
@@ -68,6 +73,11 @@ export interface StoreProfile {
   phone?: string;
   /** Pickup hours for the store. */
   hours?: string;
+  /** Store location (public business data). */
+  latitude?: number;
+  longitude?: number;
+  /** Straight-line distance from the shopper's live location (nearby reads). */
+  distanceKm?: number;
 }
 
 /** Mart "Deals of the Day" product (owner: features/ecommerce). */

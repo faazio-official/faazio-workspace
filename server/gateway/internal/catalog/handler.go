@@ -2,6 +2,7 @@ package catalog
 
 import (
 	"encoding/json"
+	"math"
 	"net/http"
 	"strconv"
 	"strings"
@@ -35,6 +36,7 @@ func NewHandler(repo *Repo, c *cache.Cache, audit contracts.AuditWriter, media c
 // Register mounts the catalog endpoints onto the shared router.
 func (h *Handler) Register(r chi.Router) {
 	r.Get("/product/{id}", h.getProduct)
+	r.Get("/products/nearby", h.nearby)
 	r.Post("/products/batch", h.batch)
 	r.Get("/stores/{id}/products", h.storeProducts)
 	r.Group(func(g chi.Router) {
@@ -43,6 +45,52 @@ func (h *Handler) Register(r chi.Router) {
 		g.Put("/seller/products/{id}/status", h.setProductStatus)
 		g.Put("/seller/products/{id}", h.updateProduct)
 	})
+}
+
+// nearby serves ACTIVE products sold by live stores, nearest to the caller's foreground fix.
+func (h *Handler) nearby(w http.ResponseWriter, r *http.Request) {
+	lat, lng, ok := parseNearbyLatLng(r)
+	if !ok {
+		httpx.Fail(w, http.StatusBadRequest, "bad_request", "lat and lng are required")
+		return
+	}
+	app := strings.ToUpper(strings.TrimSpace(r.URL.Query().Get("app")))
+	radius := 25.0
+	if raw := strings.TrimSpace(r.URL.Query().Get("radius")); raw != "" {
+		if v, err := strconv.ParseFloat(raw, 64); err == nil && v > 0 && v <= 100 {
+			radius = v
+		}
+	}
+	limit := httpx.LimitParam(r, 40, 100)
+	latKey := strconv.FormatFloat(lat, 'f', 3, 64)
+	lngKey := strconv.FormatFloat(lng, 'f', 3, 64)
+	key := cache.NearbyProducts(latKey, lngKey, int(math.Ceil(radius)), app)
+	var cached []contracts.Product
+	if h.cache.GetJSON(r.Context(), key, &cached) {
+		httpx.JSON(w, http.StatusOK, cached)
+		return
+	}
+	products, err := h.repo.Nearby(r.Context(), app, lat, lng, radius, limit)
+	if err != nil {
+		httpx.Fail(w, http.StatusInternalServerError, "catalog_unavailable", "catalog unavailable")
+		return
+	}
+	if products == nil {
+		products = []contracts.Product{}
+	}
+	h.cache.SetJSON(r.Context(), key, products, cache.TTLNearby)
+	httpx.JSON(w, http.StatusOK, products)
+}
+
+func parseNearbyLatLng(r *http.Request) (float64, float64, bool) {
+	lat, err1 := strconv.ParseFloat(strings.TrimSpace(r.URL.Query().Get("lat")), 64)
+	lng, err2 := strconv.ParseFloat(strings.TrimSpace(r.URL.Query().Get("lng")), 64)
+	if err1 != nil || err2 != nil || math.IsNaN(lat) || math.IsNaN(lng) ||
+		math.IsInf(lat, 0) || math.IsInf(lng, 0) ||
+		lat < -90 || lat > 90 || lng < -180 || lng > 180 {
+		return 0, 0, false
+	}
+	return lat, lng, true
 }
 
 // updateProduct edits price/MRP/stock/image (seller-scoped). Body: {price?, mrp?, inStockQty?,

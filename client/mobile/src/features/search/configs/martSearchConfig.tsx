@@ -6,6 +6,7 @@ import { gateway } from '@/services/api/GatewayClient';
 import { withActiveDiscounts } from '@/services/pricing';
 import SearchMartProductCard from '@/features/ecommerce/components/SearchMartProductCard';
 import { buildProductSuggestions } from '../suggestions';
+import { storeDistanceKm } from '../storeDistance';
 import type { ActiveFacets, SearchScreenConfig } from '../types';
 
 const searchableText = (p: Product) => {
@@ -83,6 +84,8 @@ export function createMartSearchConfig({
           'price-high': (a, b) => (b as Product).price - (a as Product).price,
           newest: () => 0,
         },
+        distanceOf: (item, origin) =>
+          storeDistanceKm((item as Product).storeId, origin),
       },
     },
     keyFor: (item) => String((item as { id?: string })?.id),

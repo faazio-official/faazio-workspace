@@ -103,6 +103,8 @@ Examples: `faazio:v1:stock:fm-f1`, `faazio:v1:search:q:hoodie`, `faazio:v1:sdui:
 | Recommendations (per userHash) | 3600 s (1 h) | — | `user_events` flush |
 | Store directory / reviews | 86400 s (24 h) | — | edit event |
 | Store products (anon `GET /stores/{id}/products`, ACTIVE first page) | 300 s | — | product edit / status change (purges `catalog:store-products:{storeId}`; later pages are not cached) |
+| Nearby stores (`GET /stores/nearby`, anon public projection) | 120 s | key includes `lat`/`lng` rounded to 3 dp (~110 m), `radiusKm`, `app` | TTL only; pin/live changes surface within 2 min |
+| Nearby products (`GET /products/nearby`, anon ACTIVE rows) | 120 s | same key shape | TTL only |
 | Single dining venue (anon `GET /venues/{id}`, PII-redacted) | 86400 s (24 h) | — | venue edit / store live toggle (authed reads bypass the cache) |
 | Media asset (public `GET /media/resolve?ids=`, per asset identity) | 86400 s (24 h) | `public, max-age=31536000, immutable` via `img.faazio.in`; no CDN → stable `/assets/{key}` 302 with `max-age=300` | confirm / status change / delete (purges `faazio:v1:media:asset:{id}` + the exact CDN key) |
 | Promo campaigns / coupons (partner) | 300 s | **never** | campaign/coupon write |

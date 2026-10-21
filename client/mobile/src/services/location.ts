@@ -8,8 +8,10 @@
 import { NativeModules, PermissionsAndroid, Platform } from 'react-native';
 import Geolocation from '@react-native-community/geolocation';
 
+// Permission is requested explicitly (never implicitly by a background/silent
+// refresh), so a poll can never surface an OS dialog the user did not trigger.
 Geolocation.setRNConfiguration({
-  skipPermissionRequests: false,
+  skipPermissionRequests: true,
   authorizationLevel: 'whenInUse',
 });
 
@@ -61,8 +63,22 @@ export async function requestLocationPermission(): Promise<boolean> {
   });
 }
 
+export interface PositionOptions {
+  highAccuracy?: boolean;
+  /** Accept a cached fix up to this age (ms). Coarse foreground polls use 10s. */
+  maximumAge?: number;
+  timeout?: number;
+}
+
 /** One-shot fix. Triggers the OS permission prompt when not yet granted. */
-export function getCurrentPosition(): Promise<Coordinates> {
+export function getCurrentPosition(
+  options: PositionOptions = {},
+): Promise<Coordinates> {
+  const {
+    highAccuracy = false,
+    maximumAge = 60000,
+    timeout = 15000,
+  } = options;
   return new Promise((resolve, reject) => {
     Geolocation.getCurrentPosition(
       (position) =>
@@ -71,8 +87,22 @@ export function getCurrentPosition(): Promise<Coordinates> {
           longitude: position.coords.longitude,
         }),
       (error) => reject(error),
-      { enableHighAccuracy: false, timeout: 15000, maximumAge: 60000 },
+      { enableHighAccuracy: highAccuracy, timeout, maximumAge },
     );
+  });
+}
+
+/** Accurate fix for an explicit "use my location" action (splash/onboarding/pin picker). */
+export function getHighAccuracyPosition(): Promise<Coordinates> {
+  return getCurrentPosition({ highAccuracy: true, maximumAge: 0, timeout: 15000 });
+}
+
+/** Cheap foreground poll: network-assisted, tolerates a 10s-old cached fix. */
+export function getCoarsePosition(): Promise<Coordinates> {
+  return getCurrentPosition({
+    highAccuracy: false,
+    maximumAge: 10000,
+    timeout: 10000,
   });
 }
 
@@ -100,4 +130,17 @@ export async function getCurrentAddress(): Promise<{
   const coordinates = await getCurrentPosition();
   const place = await reverseGeocode(coordinates.latitude, coordinates.longitude);
   return { coordinates, place };
+}
+
+/** Great-circle distance in metres (local helper; no dependency on the UI utils). */
+export function distanceMeters(a: Coordinates, b: Coordinates): number {
+  const toRad = (v: number) => (v * Math.PI) / 180;
+  const dLat = toRad(b.latitude - a.latitude);
+  const dLng = toRad(b.longitude - a.longitude);
+  const h =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos(toRad(a.latitude)) *
+      Math.cos(toRad(b.latitude)) *
+      Math.sin(dLng / 2) ** 2;
+  return 2 * 6371008.8 * Math.asin(Math.min(1, Math.sqrt(h)));
 }

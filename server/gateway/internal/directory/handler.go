@@ -2,6 +2,7 @@ package directory
 
 import (
 	"encoding/json"
+	"math"
 	"net/http"
 	"strconv"
 	"strings"
@@ -35,6 +36,7 @@ func NewHandler(repo *Repo, c *cache.Cache, audit contracts.AuditWriter, media c
 // Register mounts directory endpoints onto the shared router.
 func (h *Handler) Register(r chi.Router) {
 	r.Get("/stores", h.list)
+	r.Get("/stores/nearby", h.nearby)
 	r.Get("/store/{id}", h.get)
 	r.Get("/venues", h.venues)
 	r.Get("/venues/{id}", h.venue)
@@ -83,6 +85,55 @@ func (h *Handler) list(w http.ResponseWriter, r *http.Request) {
 		stores = []contracts.Store{}
 	}
 	httpx.JSON(w, http.StatusOK, stores)
+}
+
+// nearby serves live stores ordered by straight-line distance from the caller's foreground fix.
+// Public business data only (PII-free projection). Coordinates are validated, rounded to 3
+// decimals for the cache key, and never logged.
+func (h *Handler) nearby(w http.ResponseWriter, r *http.Request) {
+	lat, lng, ok := parseLatLng(r)
+	if !ok {
+		httpx.Fail(w, http.StatusBadRequest, "bad_request", "lat and lng are required")
+		return
+	}
+	app := strings.ToUpper(strings.TrimSpace(r.URL.Query().Get("app")))
+	radius := 25.0
+	if raw := strings.TrimSpace(r.URL.Query().Get("radius")); raw != "" {
+		if v, err := strconv.ParseFloat(raw, 64); err == nil && v > 0 && v <= 100 {
+			radius = v
+		}
+	}
+	limit := httpx.LimitParam(r, defaultStoreLimit, maxStoreLimit)
+	latKey := strconv.FormatFloat(lat, 'f', 3, 64)
+	lngKey := strconv.FormatFloat(lng, 'f', 3, 64)
+	key := cache.NearbyStores(latKey, lngKey, int(math.Ceil(radius)), app)
+	var cached []contracts.Store
+	if h.cache.GetJSON(r.Context(), key, &cached) {
+		httpx.JSON(w, http.StatusOK, cached)
+		return
+	}
+	stores, err := h.repo.Nearby(r.Context(), app, lat, lng, radius, limit)
+	if err != nil {
+		httpx.Fail(w, http.StatusInternalServerError, "directory_unavailable", "directory unavailable")
+		return
+	}
+	if stores == nil {
+		stores = []contracts.Store{}
+	}
+	h.cache.SetJSON(r.Context(), key, stores, cache.TTLNearby)
+	httpx.JSON(w, http.StatusOK, stores)
+}
+
+// parseLatLng reads and validates the public lat/lng query pair (India-sized sanity bounds).
+func parseLatLng(r *http.Request) (float64, float64, bool) {
+	lat, err1 := strconv.ParseFloat(strings.TrimSpace(r.URL.Query().Get("lat")), 64)
+	lng, err2 := strconv.ParseFloat(strings.TrimSpace(r.URL.Query().Get("lng")), 64)
+	if err1 != nil || err2 != nil || math.IsNaN(lat) || math.IsNaN(lng) ||
+		math.IsInf(lat, 0) || math.IsInf(lng, 0) ||
+		lat < -90 || lat > 90 || lng < -180 || lng > 180 {
+		return 0, 0, false
+	}
+	return lat, lng, true
 }
 
 func (h *Handler) get(w http.ResponseWriter, r *http.Request) {

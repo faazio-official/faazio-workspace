@@ -34,14 +34,16 @@ func New(pool *db.Pool, cdnBase ...string) *Repo {
 
 const storeSelect = `
 select id, app::text, name, categories, rating, reviews_count, delivery_time, distance,
-       cover_image, cover_image_key, emoji, desc_text, offer_tag, is_veg, address, phone, hours
+       cover_image, cover_image_key, emoji, desc_text, offer_tag, is_veg, address, phone, hours,
+       latitude, longitude, null::float8 as distance_km
 from directory.stores`
 
 // storeListSelect is the public list projection: it never fetches the PII columns (address/phone),
 // so they cannot reach the gateway, the wire, or the edge cache. Product detail keeps storeSelect.
 const storeListSelect = `
 select id, app::text, name, categories, rating, reviews_count, delivery_time, distance,
-       cover_image, cover_image_key, emoji, desc_text, offer_tag, is_veg, null::text as address, null::text as phone, hours
+       cover_image, cover_image_key, emoji, desc_text, offer_tag, is_veg, null::text as address, null::text as phone, hours,
+       latitude, longitude, null::float8 as distance_km
 from directory.stores`
 
 // ByApp returns stores for one app (empty app = all).
@@ -95,6 +97,49 @@ func (r *Repo) ByID(ctx context.Context, id string) (contracts.Store, bool, erro
 		return contracts.Store{}, false, nil
 	}
 	return stores[0], true, nil
+}
+
+// Nearby returns live stores within radiusKm of (lat, lng), nearest first. The bounding box
+// prunes with the geo index; the Haversine expression orders the survivors. Public projection only.
+func (r *Repo) Nearby(ctx context.Context, app string, lat, lng, radiusKm float64, limit int) ([]contracts.Store, error) {
+	if r.pool == nil {
+		return nil, fmt.Errorf("directory: database not configured")
+	}
+	if limit <= 0 || limit > 200 {
+		limit = 100
+	}
+	if radiusKm <= 0 || radiusKm > 100 {
+		radiusKm = 25
+	}
+	latDelta := radiusKm / 111.32
+	cosLat := math.Cos(lat * math.Pi / 180)
+	if cosLat < 0.01 {
+		cosLat = 0.01
+	}
+	lngDelta := radiusKm / (111.32 * cosLat)
+	rows, err := r.pool.Query(ctx, `
+		select id, app::text, name, categories, rating, reviews_count, delivery_time, distance,
+		       cover_image, cover_image_key, emoji, desc_text, offer_tag, is_veg,
+		       null::text as address, null::text as phone, hours,
+		       latitude, longitude,
+		       (6371.0088 * acos(least(1, greatest(-1,
+		           sin(radians($1)) * sin(radians(latitude)) +
+		           cos(radians($1)) * cos(radians(latitude)) * cos(radians(longitude) - radians($2))
+		       )))) as distance_km
+		from directory.stores
+		where is_live
+		  and latitude is not null and longitude is not null
+		  and latitude between $3 and $4
+		  and longitude between $5 and $6
+		  and ($7 = '' or app::text = $7)
+		order by distance_km asc, rating desc, id asc
+		limit $8`,
+		lat, lng, lat-latDelta, lat+latDelta, lng-lngDelta, lng+lngDelta, app, limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	return scanStores(rows, r.cdnBase)
 }
 
 // ByIDs returns stores for the given ids using the PII-free list projection (public reads only),
@@ -301,11 +346,14 @@ func scanStores(rows pgx.Rows, cdnBase string) ([]contracts.Store, error) {
 			phone    *string
 			hours    *string
 			coverKey *string
+			lat, lng *float64
+			distance *float64
 		)
 		if err := rows.Scan(
 			&s.ID, &s.App, &s.Name, &s.Categories, &s.Rating, &reviews,
 			&s.DeliveryTime, &s.Distance, &s.CoverImage, &coverKey, &s.Emoji, &s.Desc,
 			&offerTag, &isVeg, &address, &phone, &hours,
+			&lat, &lng, &distance,
 		); err != nil {
 			return nil, err
 		}
@@ -318,6 +366,9 @@ func scanStores(rows pgx.Rows, cdnBase string) ([]contracts.Store, error) {
 		s.Address = derefStr(address)
 		s.Phone = derefStr(phone)
 		s.Hours = derefStr(hours)
+		s.Latitude = lat
+		s.Longitude = lng
+		s.DistanceKm = distance
 		out = append(out, s)
 	}
 	return out, rows.Err()
@@ -432,7 +483,7 @@ type SellerMenu struct {
 	VenueID      string   `json:"venueId"`
 	DishID       string   `json:"dishId"`
 	Name         string   `json:"name"`
-	Price        int64    `json:"price"` // rupees
+	Price        int64    `json:"price"`         // rupees
 	MRP          *int64   `json:"mrp,omitempty"` // rupees; list price (strike), never below price
 	IsVeg        *bool    `json:"isVeg,omitempty"`
 	Cuisine      string   `json:"cuisine,omitempty"`

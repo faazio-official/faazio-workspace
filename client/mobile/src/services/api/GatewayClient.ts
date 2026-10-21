@@ -36,6 +36,8 @@ import {
 } from '../secureSession';
 import { refreshIdToken } from '../firebaseAuth';
 import { DEV_USER, GATEWAY_URL, STRICT, USE_GATEWAY } from '../../lib/config';
+import { sortByDistance, withLiveDistance } from '@/utils/distance';
+import type { Coordinates } from '../location';
 
 /** Simulated network latency (ms) for mock mode. Drop to 0 to run pure in-memory. */
 const LATENCY_MS = 40;
@@ -104,6 +106,8 @@ function queryString(params?: Record<string, string | undefined>): string {
 /** A catalog entry joined with its live stock row. */
 export interface ProductView extends CatalogEntry {
   stock: StockRow | undefined;
+  /** Set by GET /products/nearby (km from the caller's live fix). */
+  distanceKm?: number;
 }
 
 /**
@@ -270,6 +274,10 @@ export interface Venue {
   rating?: number;
   coverImage: string;
   categories: string[];
+  /** Public venue coordinates (nearby ordering). */
+  latitude?: number;
+  longitude?: number;
+  distanceKm?: number;
   /** PII — only present on an authenticated read. */
   address?: string;
   /** PII — only present on an authenticated read. */
@@ -403,6 +411,9 @@ export interface SellerApplicationInput {
   contactEmail: string;
   /** 2-letter state code (sellers.sellers.state_code). */
   stateCode: string;
+  /** Optional shop pin captured on the map; both values travel together. */
+  latitude?: number;
+  longitude?: number;
   /** Server-owned split percentage; admin may edit before approval. */
   platformFeePct: number;
   /** Full account number is sent transiently and never stored (masked tail only). */
@@ -433,6 +444,8 @@ export interface SellerApplication {
   contactPhone?: string;
   contactEmail?: string;
   stateCode: string;
+  latitude?: number;
+  longitude?: number;
   status: string;
   rating: number;
   platformFeePct: number;
@@ -758,6 +771,84 @@ export class GatewayClient {
       () => this.http<StoreRecord[]>(`/stores${app ? `?app=${app}` : ''}`),
       () => delay(app ? getStoresByApp(app as 'MART' | 'FOOD') : storeDirectory),
     );
+  }
+
+  /**
+   * Live stores within `radiusKm` of the caller, nearest first. Public business data;
+   * coordinates are rounded server-side only for the cache key and never logged here.
+   */
+  async getStoresNearby(
+    origin: Coordinates,
+    options: { app?: AppBrand; radiusKm?: number; limit?: number } = {},
+  ): Promise<StoreRecord[]> {
+    return this.withFallback(
+      () => this.fetchStoresNearby(origin, options),
+      () =>
+        delay(
+          sortByDistance(
+            (options.app ? getStoresByApp(options.app) : storeDirectory).map((store) =>
+              withLiveDistance(store, origin),
+            ),
+          ).slice(0, options.limit ?? 100) as StoreRecord[],
+        ),
+    );
+  }
+
+  /** Server-only nearby stores (no fixture fallback); throws `GatewayOfflineError` when offline. */
+  async fetchStoresNearby(
+    origin: Coordinates,
+    options: { app?: AppBrand; radiusKm?: number; limit?: number } = {},
+  ): Promise<StoreRecord[]> {
+    if (!REMOTE_ENABLED) throw new GatewayOfflineError();
+    const params = new URLSearchParams({
+      lat: String(origin.latitude),
+      lng: String(origin.longitude),
+      radius: String(options.radiusKm ?? 25),
+      limit: String(options.limit ?? 100),
+    });
+    if (options.app) params.set('app', options.app);
+    return this.http<StoreRecord[]>(`/stores/nearby?${params.toString()}`);
+  }
+
+  /** ACTIVE products sold by live stores near the caller, nearest store first. */
+  async getProductsNearby(
+    origin: Coordinates,
+    options: { app?: AppBrand; radiusKm?: number; limit?: number } = {},
+  ): Promise<ProductView[]> {
+    return this.withFallback(
+      () => this.fetchProductsNearby(origin, options),
+      () => {
+        const scoped = options.app
+          ? catalogIndex.filter((entry) => entry.app === options.app)
+          : catalogIndex;
+        const stores = new Map(storeDirectory.map((store) => [store.id, store]));
+        const products: ProductView[] = scoped.map((entry) => {
+          const store = entry.storeId ? stores.get(entry.storeId) : undefined;
+          const km =
+            store && typeof store.latitude === 'number' && typeof store.longitude === 'number'
+              ? withLiveDistance(store, origin).distanceKm
+              : undefined;
+          return { ...entry, stock: getStockByProductId(entry.id), distanceKm: km };
+        });
+        return delay(sortByDistance(products).slice(0, options.limit ?? 40));
+      },
+    );
+  }
+
+  /** Server-only nearby products (no fixture fallback). */
+  async fetchProductsNearby(
+    origin: Coordinates,
+    options: { app?: AppBrand; radiusKm?: number; limit?: number } = {},
+  ): Promise<ProductView[]> {
+    if (!REMOTE_ENABLED) throw new GatewayOfflineError();
+    const params = new URLSearchParams({
+      lat: String(origin.latitude),
+      lng: String(origin.longitude),
+      radius: String(options.radiusKm ?? 25),
+      limit: String(options.limit ?? 40),
+    });
+    if (options.app) params.set('app', options.app);
+    return this.http<ProductView[]>(`/products/nearby?${params.toString()}`);
   }
 
   /**
@@ -1677,6 +1768,8 @@ export class GatewayClient {
           contactPhone: input.contactPhone,
           contactEmail: input.contactEmail,
           stateCode: input.stateCode.toUpperCase(),
+          latitude: input.latitude,
+          longitude: input.longitude,
           status: 'PENDING_REVIEW',
           rating: 0,
           platformFeePct: input.platformFeePct,

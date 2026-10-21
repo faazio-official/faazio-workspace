@@ -102,16 +102,18 @@ func (h *Handler) get(w http.ResponseWriter, r *http.Request) {
 }
 
 type createSellerRequest struct {
-	BusinessName    string `json:"businessName"`
-	OwnerName       string `json:"ownerName"`
-	Category        string `json:"category"`
-	GSTIN           string `json:"gstin"`
-	PAN             string `json:"pan"`
-	BusinessAddress string `json:"businessAddress"`
-	ContactPhone    string `json:"contactPhone"`
-	ContactEmail    string `json:"contactEmail"`
-	StateCode       string `json:"stateCode"`
-	PlatformFeePct  *int   `json:"platformFeePct"`
+	BusinessName    string   `json:"businessName"`
+	OwnerName       string   `json:"ownerName"`
+	Category        string   `json:"category"`
+	GSTIN           string   `json:"gstin"`
+	PAN             string   `json:"pan"`
+	BusinessAddress string   `json:"businessAddress"`
+	ContactPhone    string   `json:"contactPhone"`
+	ContactEmail    string   `json:"contactEmail"`
+	StateCode       string   `json:"stateCode"`
+	Latitude        *float64 `json:"latitude"`
+	Longitude       *float64 `json:"longitude"`
+	PlatformFeePct  *int     `json:"platformFeePct"`
 	// Bank details. The full account number is accepted transiently for Razorpay Route and is
 	// masked before it ever reaches Postgres.
 	BankName          string `json:"bankName"`
@@ -147,6 +149,10 @@ func (h *Handler) create(w http.ResponseWriter, r *http.Request) {
 	}
 	if !validCategory(req.Category) || len(req.StateCode) != 2 {
 		httpx.Fail(w, http.StatusBadRequest, "bad_request", "category or state is invalid")
+		return
+	}
+	if !validLatLng(req.Latitude, req.Longitude) {
+		httpx.Fail(w, http.StatusBadRequest, "bad_request", "shop location is invalid")
 		return
 	}
 	if req.PlatformFeePct == nil || !validPlatformFee(req.Category, *req.PlatformFeePct) {
@@ -202,7 +208,7 @@ func (h *Handler) create(w http.ResponseWriter, r *http.Request) {
 		ContactPhone: req.ContactPhone, ContactEmail: req.ContactEmail, StateCode: req.StateCode,
 		PlatformFeePct: *req.PlatformFeePct, FSSAINumber: strings.TrimSpace(req.FSSAINumber),
 		FSSAICertKey: strings.TrimSpace(req.FSSAIFileKey), FSSAICertAssetID: strings.TrimSpace(req.FSSAIAssetID),
-		OTPVerified: true,
+		Latitude: req.Latitude, Longitude: req.Longitude, OTPVerified: true,
 	}, bank, docs)
 	if err != nil {
 		httpx.Fail(w, http.StatusInternalServerError, "seller_create_failed", "could not create seller")
@@ -395,25 +401,27 @@ func (h *Handler) reject(w http.ResponseWriter, r *http.Request) {
 }
 
 type editSellerRequest struct {
-	BusinessName      string `json:"businessName"`
-	OwnerName         string `json:"ownerName"`
-	Category          string `json:"category"`
-	GSTIN             string `json:"gstin"`
-	PAN               string `json:"pan"`
-	BusinessAddress   string `json:"businessAddress"`
-	ContactPhone      string `json:"contactPhone"`
-	ContactEmail      string `json:"contactEmail"`
-	StateCode         string `json:"stateCode"`
-	PlatformFeePct    int    `json:"platformFeePct"`
-	FSSAINumber       string `json:"fssaiNumber"`
-	FSSAIFileKey      string `json:"fssaiFileKey"`
-	FSSAIAssetID      string `json:"fssaiAssetId"`
-	PassbookFileKey   string `json:"passbookFileKey"`
-	PassbookAssetID   string `json:"passbookAssetId"`
-	BankName          string `json:"bankName"`
-	BankAccountNumber string `json:"bankAccountNumber"`
-	BankIFSC          string `json:"bankIfsc"`
-	BankBeneficiary   string `json:"bankBeneficiary"`
+	BusinessName      string   `json:"businessName"`
+	OwnerName         string   `json:"ownerName"`
+	Category          string   `json:"category"`
+	GSTIN             string   `json:"gstin"`
+	PAN               string   `json:"pan"`
+	BusinessAddress   string   `json:"businessAddress"`
+	ContactPhone      string   `json:"contactPhone"`
+	ContactEmail      string   `json:"contactEmail"`
+	StateCode         string   `json:"stateCode"`
+	Latitude          *float64 `json:"latitude"`
+	Longitude         *float64 `json:"longitude"`
+	PlatformFeePct    int      `json:"platformFeePct"`
+	FSSAINumber       string   `json:"fssaiNumber"`
+	FSSAIFileKey      string   `json:"fssaiFileKey"`
+	FSSAIAssetID      string   `json:"fssaiAssetId"`
+	PassbookFileKey   string   `json:"passbookFileKey"`
+	PassbookAssetID   string   `json:"passbookAssetId"`
+	BankName          string   `json:"bankName"`
+	BankAccountNumber string   `json:"bankAccountNumber"`
+	BankIFSC          string   `json:"bankIfsc"`
+	BankBeneficiary   string   `json:"bankBeneficiary"`
 }
 
 func (h *Handler) edit(w http.ResponseWriter, r *http.Request) {
@@ -433,6 +441,10 @@ func (h *Handler) edit(w http.ResponseWriter, r *http.Request) {
 	req.PAN = strings.ToUpper(strings.TrimSpace(req.PAN))
 	if !validCategory(req.Category) || len(req.StateCode) != 2 || !validPlatformFee(req.Category, req.PlatformFeePct) {
 		httpx.Fail(w, http.StatusBadRequest, "bad_request", "category, state or platform fee is invalid")
+		return
+	}
+	if !validLatLng(req.Latitude, req.Longitude) {
+		httpx.Fail(w, http.StatusBadRequest, "bad_request", "shop location is invalid")
 		return
 	}
 	var bank *BankAccount
@@ -476,6 +488,7 @@ func (h *Handler) edit(w http.ResponseWriter, r *http.Request) {
 		StateCode: req.StateCode, PlatformFeePct: req.PlatformFeePct,
 		FSSAINumber: strings.TrimSpace(req.FSSAINumber), FSSAICertKey: strings.TrimSpace(req.FSSAIFileKey),
 		FSSAICertAssetID: strings.TrimSpace(req.FSSAIAssetID),
+		Latitude:         req.Latitude, Longitude: req.Longitude,
 	}, bank, docs, h.actor(r))
 	if err != nil {
 		if errors.Is(err, ErrNotEditable) {
@@ -689,6 +702,17 @@ func marshal(v any) json.RawMessage {
 		return nil
 	}
 	return b
+}
+
+// validLatLng accepts absent coordinates or a complete in-range pair.
+func validLatLng(lat, lng *float64) bool {
+	if lat == nil && lng == nil {
+		return true
+	}
+	if lat == nil || lng == nil {
+		return false
+	}
+	return *lat >= -90 && *lat <= 90 && *lng >= -180 && *lng <= 180
 }
 
 func validCategory(c string) bool { return c == "MART" || c == "FOOD" || c == "PHARMA" }

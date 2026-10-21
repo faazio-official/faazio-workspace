@@ -47,6 +47,16 @@ func Bookings(userID string) string   { return fmt.Sprintf("faazio:v1:bookings:t
 func BookingAvail(vendorID string) string {
 	return fmt.Sprintf("faazio:v1:bookings:avail:%s", vendorID)
 }
+
+// NearbyStores/NearbyProducts cache one geo read. Coordinates are rounded to 3 decimals (~110 m)
+// by the handler so a still user keeps a warm key while walking; radius in km, app may be empty.
+func NearbyStores(lat, lng string, radius int, app string) string {
+	return fmt.Sprintf("faazio:v1:geo:nearby:stores:%s:%s:%d:%s", lat, lng, radius, app)
+}
+func NearbyProducts(lat, lng string, radius int, app string) string {
+	return fmt.Sprintf("faazio:v1:geo:nearby:products:%s:%s:%d:%s", lat, lng, radius, app)
+}
+
 func SduiHome(locale string) string { return fmt.Sprintf("faazio:v1:gateway:sdui:%s:/home", locale) }
 
 // SduiMart caches the compiled Mart-only SDUI projection (martHero/martDeals/martEssentials) so the
@@ -150,7 +160,9 @@ func PortalDeny(jti string) string { return "faazio:v1:auth:deny:" + jti }
 
 // TTL helpers.
 const (
-	TTLSearch  = 600 * time.Second
+	TTLSearch = 600 * time.Second
+	// TTLNearby bounds public geo reads; short enough to pick up store/pin changes quickly.
+	TTLNearby  = 120 * time.Second
 	TTLProduct = 24 * time.Hour
 	TTLStore   = 24 * time.Hour
 	TTLStock   = 45 * time.Second

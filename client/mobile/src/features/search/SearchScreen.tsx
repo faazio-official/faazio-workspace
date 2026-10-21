@@ -13,6 +13,7 @@ import RecentSearches from './RecentSearches';
 import SearchSuggestions from './SearchSuggestions';
 import { useFacets } from './useFacets';
 import { gateway } from '@/services/api/GatewayClient';
+import { useLiveOrigin } from '@/hooks/useLiveLocation';
 import type { ActiveFacets, SearchScreenConfig } from './types';
 
 const PAGE_SIZE = 10;
@@ -58,6 +59,7 @@ const SearchScreen = memo(function SearchScreen({
   const [isLoadingMore, setIsLoadingMore] = useState(false);
 
   const addRecentSearch = useSearchStore((s) => s.addRecentSearch);
+  const liveOrigin = useLiveOrigin();
   const fallbackInputRef = useRef<TextInput | null>(null);
   const headerInputRef = inputRef ?? fallbackInputRef;
 
@@ -107,8 +109,28 @@ const SearchScreen = memo(function SearchScreen({
       mode.predicate(item, effectiveQuery, activeFilterIds, activeFacets),
     );
     const sorter = mode.sorters[activeSortId];
-    return sorter ? [...filtered].sort(sorter) : filtered;
-  }, [mode, preSearch, effectiveQuery, activeFilterIds, activeFacets, activeSortId, dataPool]);
+    const sorted = sorter ? [...filtered].sort(sorter) : filtered;
+    // Relevance is nearby-first once a live fix exists; explicit sorts stay authoritative.
+    if (!liveOrigin || activeSortId !== 'relevance' || !mode.distanceOf) return sorted;
+    const distanceOf = mode.distanceOf;
+    return [...sorted].sort((a, b) => {
+      const da = distanceOf(a, liveOrigin);
+      const db = distanceOf(b, liveOrigin);
+      if (da === undefined && db === undefined) return 0;
+      if (da === undefined) return 1;
+      if (db === undefined) return -1;
+      return da - db;
+    });
+  }, [
+    mode,
+    preSearch,
+    effectiveQuery,
+    activeFilterIds,
+    activeFacets,
+    activeSortId,
+    dataPool,
+    liveOrigin,
+  ]);
 
   useEffect(() => {
     setVisibleCount(PAGE_SIZE);

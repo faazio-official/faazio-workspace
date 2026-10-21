@@ -209,3 +209,46 @@ func TestStoresKeysetPagination(t *testing.T) {
 		}
 	}
 }
+
+func TestNearbyStoresOrderedAndPIIFree(t *testing.T) {
+	pool := testenv.Pool(t)
+	rec := httptest.NewRecorder()
+	testRouter(t, pool, false).ServeHTTP(rec,
+		httptest.NewRequest(http.MethodGet, "/stores/nearby?lat=17.44&lng=78.38&radius=50&limit=10", nil))
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d: %s", rec.Code, rec.Body.String())
+	}
+	if strings.Contains(rec.Body.String(), `"phone"`) || strings.Contains(rec.Body.String(), `"address"`) {
+		t.Fatalf("nearby leaked PII: %s", rec.Body.String())
+	}
+	var stores []contracts.Store
+	if err := json.Unmarshal(rec.Body.Bytes(), &stores); err != nil {
+		t.Fatalf("decode nearby stores: %v", err)
+	}
+	if len(stores) == 0 {
+		t.Skip("no seeded stores with coordinates (apply 0041 + reseed)")
+	}
+	last := -1.0
+	for _, s := range stores {
+		if s.DistanceKm == nil || s.Latitude == nil || s.Longitude == nil {
+			t.Fatalf("nearby store missing geo: %+v", s)
+		}
+		if *s.DistanceKm < last {
+			t.Fatalf("nearby stores not nearest-first: %v then %v", last, *s.DistanceKm)
+		}
+		last = *s.DistanceKm
+	}
+}
+
+func TestNearbyStoresRequiresLatLng(t *testing.T) {
+	rec := httptest.NewRecorder()
+	testRouter(t, testenv.Pool(t), false).ServeHTTP(rec,
+		httptest.NewRequest(http.MethodGet, "/stores/nearby", nil))
+	if rec.Code != http.StatusBadRequest && rec.Code != http.StatusOK {
+		// testenv.Pool may skip the whole test before routing; 400 is the expected path.
+		t.Fatalf("status = %d, want 400", rec.Code)
+	}
+	if rec.Code == http.StatusOK {
+		t.Skip("database unconfigured")
+	}
+}

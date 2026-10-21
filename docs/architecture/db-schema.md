@@ -504,8 +504,13 @@ CREATE TABLE directory.stores (
   is_veg        BOOLEAN,
   address       TEXT,                 -- PII (physical)
   phone         TEXT,                 -- PII
-  hours         TEXT
+  hours         TEXT,
+  latitude      FLOAT8,               -- 0041 public store pin
+  longitude     FLOAT8
 );
+-- 0041: partial geo indexes for the bounding-box prefilter.
+CREATE INDEX stores_geo_idx ON directory.stores (latitude, longitude)
+  WHERE latitude IS NOT NULL AND longitude IS NOT NULL;
 ```
 
 **Sample rows** (`data/mart/stores.ts:8,18`):
@@ -522,6 +527,8 @@ CREATE TABLE directory.stores (
 redact. The **list** endpoint (`GET /stores`) reads a PII-free projection (`storeListSelect`, address
 and phone never selected) and paginates by `(app, rating DESC, id ASC)` via
 `stores_app_rating_id_idx`; only detail (`GET /store/:id`) reads the full row.
+`GET /stores/nearby` reads the same PII-free projection, prefilters with `stores_geo_idx` and orders
+by Haversine distance (server-computed `distanceKm`).
 
 ### 7.6 `reviews.reviews` / `reviews.specs` / `reviews.highlights` — source `data/reviews/reviews.ts`
 
@@ -905,6 +912,8 @@ cannot be forged); the client stays optimistic and reconciles on `GET /rewards`
 ALTER TABLE directory.dining_venues
   ADD COLUMN app app_brand NOT NULL DEFAULT 'FOOD', rating REAL, cover_image TEXT NOT NULL DEFAULT '',
   ADD COLUMN address TEXT, phone TEXT, hours TEXT, categories TEXT[] NOT NULL DEFAULT '{}';
+-- 0041: public venue pin for nearby ordering (partial geo index mirrors stores_geo_idx).
+ALTER TABLE directory.dining_venues ADD COLUMN latitude FLOAT8, ADD COLUMN longitude FLOAT8;
 
 CREATE TABLE directory.menus (
   venue_id TEXT NOT NULL, dish_id TEXT NOT NULL, name TEXT NOT NULL,
@@ -1775,6 +1784,9 @@ CREATE TABLE sellers.seller_request_history ( -- changed fields on a rejected re
 
 ALTER TABLE payments.payouts
   ADD COLUMN razorpay_transfer_id TEXT, ADD COLUMN release_after TIMESTAMPTZ, ADD COLUMN released_at TIMESTAMPTZ;
+
+-- 0041: optional shop pin captured by the seller map picker (public business location).
+ALTER TABLE sellers.sellers ADD COLUMN latitude FLOAT8, ADD COLUMN longitude FLOAT8;
 ```
 
 **Rules**
