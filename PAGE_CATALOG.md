@@ -306,7 +306,9 @@ Auth is the **mocked login** (`authStore.login()`, 3 SecureStore writes). No Sup
 | RN23 | `MyBookings` | **MyBookingsScreen** | `src/features/dinner-booking/MyBookingsScreen.tsx` | Seat reservations (Food/account) |
 | RN24 | `RateVendor` | **RateVendorScreen** | `src/features/profile/RateVendorScreen.tsx` | `{ vendorId; vendorName? }`; verified buyers only, gate re-checked |
 | RN25 | `FaazioRewards` | **FaazioRewardsScreen** | `src/features/rewards/FaazioRewardsScreen.tsx` | Device-local coins + streak |
-| RN26 | `SellWithUs` | **SellWithUsScreen** | `src/features/profile/SellWithUsScreen.tsx` | Partner onboarding → `POST /sellers` |
+| RN26 | `SellWithUs` | **SellerRegistrationScreen** | `src/features/seller-onboarding/SellerRegistrationScreen.tsx` | Partner onboarding → `POST /sellers` |
+| RN32 | `SellerRequests` | **SellerRequestsScreen** | `src/features/seller-onboarding/SellerRequestsScreen.tsx` | Admin application queue (role-gated); routes off the Account "Seller applications" card |
+| RN33 | `SellerRequestDetail` | **SellerRequestDetailScreen** | `src/features/seller-onboarding/SellerRequestDetailScreen.tsx` | `{ sellerId }`; KYC doc view via presigned GET, platform-fee editor, verify/activate, reject |
 
 ### 2.4 Sub-app shell (`SubAppWrapper` — MART + PHARMA)
 

@@ -58,11 +58,15 @@ keys/TTLs unchanged.
   `PUT /bookings/:id/status` (accept/reject), `POST /bookings/:id/vacate`, `POST /webhooks/razorpay`.
 - **Seller onboarding + split payments (`internal/sellers` + `internal/settlement` + `internal/platform/razorpayroute`):**
   `POST /sellers` now carries the platform fee, payout bank details (full account number is forwarded
-  to Razorpay and never stored), private R2 passbook/FSSAI keys and `otpVerified`. Admin review:
+  to Razorpay and never stored), private R2 passbook/FSSAI keys and `otpVerified`. The OTP is the
+  digital signature: the handler rejects `otpVerified` unless the bearer Firebase ID token's
+  `phone_number` claim matches `contactPhone` (`auth.OTPSigned`, `401 otp_unverified`; dev-mode
+  `X-Dev-*` identities are the only exception). Admin review:
   `PATCH /sellers/:id/platform-fee`, `POST /sellers/:id/verify-doc/:docType`,
   `POST /sellers/:id/verify-kyc` (creates the Route linked account + activates),
   `POST /sellers/:id/reject`, and seller `POST /sellers/:id/edit` (rejected rows only; field history).
-  `GET /sellers/:id` returns the seller + masked bank account + KYC docs + verification log.
+  `GET /sellers/:id` returns the seller + masked bank account + KYC docs + verification log; admin KYC
+  images render via the existing `GET /media/private/{id}` presigned-GET (creator or admin only).
   Settlement adds SUPER_ADMIN `POST /payouts/holds` (Route transfer with `on_hold` for the 14-day
   window + ledger row), `POST /payouts/:id/release` and `POST /payouts/:id/reverse` (refund/return
   clawback); a gateway worker releases due holds every 15 minutes when Route credentials are

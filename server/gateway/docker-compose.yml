@@ -54,6 +54,8 @@ services:
       - ../supabase/migrations/0036_state_admin_identity_guard.sql:/docker-entrypoint-initdb.d/0036_state_admin_identity_guard.sql:ro
       - ../supabase/migrations/0037_audit_log_retention.sql:/docker-entrypoint-initdb.d/0037_audit_log_retention.sql:ro
       - ../supabase/migrations/0038_portal_session_lifetime.sql:/docker-entrypoint-initdb.d/0038_portal_session_lifetime.sql:ro
+      - ../supabase/migrations/0039_seller_onboarding_extended.sql:/docker-entrypoint-initdb.d/0039_seller_onboarding_extended.sql:ro
+      - ../supabase/migrations/0040_route_webhook_reversal.sql:/docker-entrypoint-initdb.d/0040_route_webhook_reversal.sql:ro
       - ../supabase/seed/0001_seed.sql:/docker-entrypoint-initdb.d/0099_seed.sql:ro
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U postgres -d faazio"]

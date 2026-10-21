@@ -28,6 +28,7 @@ import { userProfile, accountNavGroups } from '@data/index';
 import type { AccountNavGroup, AccountNavRow } from '@data/types';
 import { useRewardsStore } from '@/state/rewardsStore';
 import { STREAK_TARGET_DAYS } from '@data/rewards/rewards';
+import { isPartnerAdmin, useAuthStore } from '@/state/authStore';
 
 const NAV_ICONS: Record<string, React.ComponentType<any>> = {
   idcard: IdCard,
@@ -51,6 +52,7 @@ export interface AccountViewProps {
   onOpenFavourites?: () => void;
   onOpenRewards?: () => void;
   onOpenSellWithUs?: () => void;
+  onOpenSellerRequests?: () => void;
   onLogout: () => void;
 }
 
@@ -68,11 +70,13 @@ export function AccountView({
   onOpenFavourites,
   onOpenRewards,
   onOpenSellWithUs,
+  onOpenSellerRequests,
   onLogout,
 }: AccountViewProps) {
   const insets = useSafeAreaInsets();
   const coinBalance = useRewardsStore((s) => s.coinBalance);
   const streakCount = useRewardsStore((s) => s.streakCount);
+  const authUser = useAuthStore((s) => s.user);
 
   const handleRowPress = useCallback(
     (row: AccountNavRow) => {
@@ -212,7 +216,25 @@ export function AccountView({
           </View>
         ))}
 
-        {/* 7. Logout */}
+        {/* 7. Partner admin console (role-gated, not data-driven — gate mirrors seller-review routes). */}
+        {isPartnerAdmin(authUser) && onOpenSellerRequests ? (
+          <TouchableOpacity style={styles.adminCard} activeOpacity={0.7} onPress={onOpenSellerRequests}>
+            <View style={styles.adminIcon}>
+              <Store size={ms(18)} color="#1162D3" strokeWidth={2.2} />
+            </View>
+            <View style={styles.adminText}>
+              <AppText style={styles.adminTitle}>Seller applications</AppText>
+              <AppText style={styles.adminSubtitle}>
+                {authUser?.role === 'SUPER_ADMIN'
+                  ? 'Review every seller in the platform'
+                  : 'Review sellers in your state'}
+              </AppText>
+            </View>
+            <ChevronRight size={ms(18)} color={BRAND_BLUE} strokeWidth={2.2} />
+          </TouchableOpacity>
+        ) : null}
+
+        {/* 8. Logout */}
         <TouchableOpacity style={styles.logoutBtn} activeOpacity={0.8} onPress={onLogout}>
           <LogOut size={ms(18)} color="#ffffff" strokeWidth={2.2} />
           <AppText style={styles.logoutText}>Log Out</AppText>
@@ -404,6 +426,28 @@ const styles = StyleSheet.create({
     color: '#94a3b8',
     marginTop: vs(2),
   },
+  adminCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: hs(10),
+    backgroundColor: '#FFFFFF',
+    borderRadius: ms(16),
+    padding: hs(14),
+    marginBottom: SPACE.SECTION,
+    borderWidth: 1,
+    borderColor: '#DBEAFE',
+  },
+  adminIcon: {
+    width: ms(40),
+    height: ms(40),
+    borderRadius: ms(12),
+    backgroundColor: '#DBEAFE',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  adminText: { flex: 1 },
+  adminTitle: { fontSize: ms(14), fontWeight: '800', color: '#0f172a' },
+  adminSubtitle: { fontSize: ms(11.5), fontWeight: '500', color: '#94a3b8', marginTop: vs(2) },
   logoutBtn: {
     flexDirection: 'row',
     alignItems: 'center',

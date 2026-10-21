@@ -561,7 +561,7 @@ still separate files; consolidating them is tracked in `client/mobile/PENDING_WO
 
 | Store | Purpose |
 |---|---|
-| `authStore` | Session, login payload, auth state |
+| `authStore` | Session, login payload, auth state. `AuthUser` carries the decoded partner role/state claims (`role`, `stateCode`) read from the Firebase ID token (`lib/tokenClaims.ts`) so admin UI can gate client-side — the gateway re-verifies the token on every call |
 | `cartStore` | Cart items, quantity, totals; `addToCart(id, name, price, emoji, restaurantId?)` — the optional 5th arg tags a line to a restaurant (adopts an untagged line on re-add); `clearRestaurantCart(id)` removes only that restaurant's lines. Fulfilment is chosen order-level on the cart, not per item. The local cart is the optimistic UI model; every mutation mirrors best-effort to the durable `inventory.carts` row (`gateway.addToCart`/`updateCartItem`/`removeCartItem`) and `hydrate()` pulls + rejoins catalog details at startup (remote mode only); the first empty remote hydrate clears the local `seedCartItems` |
 | `favoriteStore` | Favourites (ids) |
 | `bookingStore` | Dinner bookings (optimistic local cache only; the durable path is `GatewayClient.getBookings`/`createBooking`/`cancelBooking`) |
@@ -662,6 +662,7 @@ AppNavigator (root native stack)
 │   `martDeals`/`martEssentials` from the Mart rail "View All" (catalog-resolved `productIds`); the
 │   last three carry the paid `SECTOR_RAIL` header shelf)
 ├── You · UserDetails · SavedAddresses · MyOrders · MyBookings (seat reservations) · Favourites · OrderDetails · FaazioRewards · SellWithUs
+│   └── SellerRequests (admin application queue, role-gated) ── SellerRequestDetail (`{ sellerId }`; KYC verify/activate/reject)
 ├── RateVendor (verified-buyer rating form; every vendor surface + order screens link here)
 ├── BloodDonor (Pharma blood-donor wizard/dashboard)
 ├── BloodDonorDetails (selected matching donor profile + targeted request)
@@ -751,15 +752,26 @@ PUT → `/media/confirm`), and only the object key + asset id reach the applicat
 blocked until both documents and the OTP digital signature are complete; the OTP runs on a
 disposable secondary Firebase app (`services/firebaseAuth.ts`) so the shopper's primary session is
 never swapped. `GatewayClient.submitSellerApplication` (`POST /sellers`, audited) creates the
-`PENDING_REVIEW` seller, bank account and KYC rows in one transaction. The success state shows the
-`sellerId`, status and platform fee. In mock mode the client returns a local `PENDING_REVIEW` row so
-the flow completes offline.
+`PENDING_REVIEW` seller, bank account and KYC rows in one transaction. The server treats the OTP as
+a **digital signature**: it requires a Firebase ID token whose `phone_number` claim matches the
+application's `contactPhone` (`auth.OTPSigned`, dev-mode X-Dev-* headers are the only exception) —
+a client-asserted `otpVerified: true` alone is rejected with `401 otp_unverified`. The success state
+shows the `sellerId`, status and platform fee. In mock mode the client returns a local
+`PENDING_REVIEW` row so the flow completes offline.
 
-Admin review is **web-portal only** (`admin/state/sellers[/[id]]`, also reachable by SUPER_ADMIN):
-the detail page shows the full registration, private-bucket document links, platform fee editor,
-per-document verify actions (PAN/GSTIN/FSSAI/passbook), rejection with reason, and **Verify KYC**
-which attaches the Razorpay Route linked account and activates the seller. Rejected sellers may
-edit and resubmit; changed fields are recorded until approval clears the trail.
+Admin review ships on **both surfaces** — the web portal (`admin/state/sellers[/[id]]`,
+SUPER_ADMIN reaches every state) and, new, the mobile app:
+- `SellerRequestsScreen` (route `SellerRequests`) — the application queue scoped by the server to the
+  state admin's state (SUPER_ADMIN sees all states), with All/Pending/Rejected tabs. Reachable from
+  the Account page through a role-gated "Seller applications" card (`AccountView`, shown only for
+  `STATE_ADMIN`/`SUPER_ADMIN`).
+- `SellerRequestDetailScreen` (route `SellerRequestDetail`, `{ sellerId }`) — full registration +
+  masked payout account, a platform-fee editor, per-document verify actions (PASSBOOK / FSSAI / PAN /
+  GSTIN), **Verify KYC** (attaches the Razorpay Route linked account and activates the seller) and
+  reject-with-reason. KYC images are rendered live through `GatewayClient.getPrivateMediaUrl`
+  (`GET /media/private/{assetId}` — a short-lived presigned GET that only the creator or an admin
+  may mint). Rejected sellers may edit and resubmit; changed fields are recorded until approval
+  clears the trail.
 
 ## FaazioRewards (coins + streak)
 

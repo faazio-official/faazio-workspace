@@ -1696,6 +1696,16 @@ export class GatewayClient {
   }
 
   /**
+   * Short-lived presigned GET for a PRIVATE media asset. Only the asset's creator or an admin may
+   * fetch it (the gateway re-checks); used by the admin review screens to view KYC documents.
+   */
+  async getPrivateMediaUrl(assetId: string): Promise<{ url: string; expiresIn: number }> {
+    return this.http<{ url: string; expiresIn: number }>(
+      `/media/private/${encodeURIComponent(assetId)}`,
+    );
+  }
+
+  /**
    * Seller request queue for STATE_ADMIN (their state) / SUPER_ADMIN (all states). The server
    * scopes the caller; the optional state/status filters are applied on top.
    */

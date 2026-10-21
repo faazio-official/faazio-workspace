@@ -49,6 +49,8 @@ const BloodDonorDetailsScreen = lazyNamed(() => import('@/features/pharma/blood-
 const BloodRequestDescriptionScreen = lazyNamed(() => import('@/features/pharma/blood-donor/BloodRequestDescriptionScreen'), 'BloodRequestDescriptionScreen');
 const FaazioRewardsScreen = lazyNamed(() => import('@/features/rewards/FaazioRewardsScreen'), 'FaazioRewardsScreen');
 const SellWithUsScreen = lazyNamed(() => import('@/features/seller-onboarding/SellerRegistrationScreen'), 'SellerRegistrationScreen');
+const SellerRequestsScreen = lazyNamed(() => import('@/features/seller-onboarding/SellerRequestsScreen'), 'SellerRequestsScreen');
+const SellerRequestDetailScreen = lazyNamed(() => import('@/features/seller-onboarding/SellerRequestDetailScreen'), 'SellerRequestDetailScreen');
 const FavouritesScreen = lazyNamed(() => import('@/features/favourites/FavouritesScreen'), 'FavouritesScreen');
 const DealsLandingScreen = lazyNamed(() => import('@/features/ecommerce/DealsLandingScreen'), 'DealsLandingScreen');
 const PrescriptionFlowScreen = lazyNamed(() => import('@/features/pharma/prescription/PrescriptionFlowScreen'), 'PrescriptionFlowScreen');
@@ -175,6 +177,16 @@ export function AppNavigator() {
             name="SellWithUs"
             component={SellWithUsScreen}
             options={{ animation: 'fade', animationDuration: 180 }}
+          />
+          <Stack.Screen
+            name="SellerRequests"
+            component={SellerRequestsScreen}
+            options={{ animation: 'slide_from_right', animationDuration: 220 }}
+          />
+          <Stack.Screen
+            name="SellerRequestDetail"
+            component={SellerRequestDetailScreen}
+            options={{ animation: 'slide_from_right', animationDuration: 220 }}
           />
           <Stack.Screen
             name="Favourites"

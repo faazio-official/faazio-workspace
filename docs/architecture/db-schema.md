@@ -1786,7 +1786,9 @@ ALTER TABLE payments.payouts
 - KYC bytes live in the private R2 bucket; `kyc_documents` stores the object key + `asset_id`, never a
   URL/bytes. `/media/private/{id}` mints a 300 s GET for the creator or an admin.
 - `otp_verified` is the digital-signature gate (set only after a client OTP round-trip); submission is
-  rejected when false. The OTP runs on a disposable Firebase app so the shopper session is untouched.
+  rejected when false and, in a production deployment, the bearer Firebase ID token's `phone_number`
+  claim must match `contact_phone` (`auth.OTPSigned`, `401 otp_unverified`) — the flag is never trusted
+  on its own. The OTP runs on a disposable Firebase app so the shopper session is untouched.
 - Rejection appends to `rejection_history`; `seller_request_history` records each changed field on
   resubmission. Both are deleted when an admin sets `ACTIVE` (clean state after approval).
 - RLS: seller reads their own rows; state admin their state; super admin all. Writes stay

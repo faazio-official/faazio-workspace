@@ -24,6 +24,7 @@ import phoneAuthBackgroundImg from '@/assets/phone_auth_background.webp';
 import AppTextInput from '@/components/AppTextInput';
 import AppText from '@/components/AppText';
 import { useAuthStore } from '@/state/authStore';
+import { decodeIdToken } from '@/lib/tokenClaims';
 import {
   displayName,
   firebaseAuthConfigured,
@@ -243,12 +244,15 @@ export function LoginScreen({ navigation }: Props) {
       if (firebaseAuthConfigured()) {
         // Real Firebase phone-OTP session: the ID token is the same bearer the gateway verifies.
         const session = await verifyOtp(phone, otpCode);
+        const claims = decodeIdToken(session.accessToken);
         await login({
           user: {
             id: session.user.uid,
             name: displayName(session.user),
             email: session.user.email ?? '',
             phone,
+            role: claims.role,
+            stateCode: claims.stateCode,
           },
           accessToken: session.accessToken,
         });

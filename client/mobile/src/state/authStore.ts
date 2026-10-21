@@ -13,6 +13,14 @@ export interface AuthUser {
   name: string;
   email: string;
   phone?: string;
+  /** Partner role claim (SELLER | STATE_ADMIN | SUPER_ADMIN), decoded from the ID token. */
+  role?: string;
+  /** Partner state scope claim (2-letter code). */
+  stateCode?: string;
+}
+
+export function isPartnerAdmin(user: AuthUser | null): boolean {
+  return user?.role === 'STATE_ADMIN' || user?.role === 'SUPER_ADMIN';
 }
 
 export interface LoginPayload {
