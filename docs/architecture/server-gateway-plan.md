@@ -64,8 +64,10 @@ keys/TTLs unchanged.
   `POST /sellers/:id/reject`, and seller `POST /sellers/:id/edit` (rejected rows only; field history).
   `GET /sellers/:id` returns the seller + masked bank account + KYC docs + verification log.
   Settlement adds SUPER_ADMIN `POST /payouts/holds` (Route transfer with `on_hold` for the 14-day
-  window + ledger row) and `POST /payouts/:id/release`; a gateway worker releases due holds every
-  15 minutes when Route credentials are configured. `RAZORPAY_ROUTE_KEY_ID`/`_SECRET`/`_WEBHOOK_SECRET`
+  window + ledger row), `POST /payouts/:id/release` and `POST /payouts/:id/reverse` (refund/return
+  clawback); a gateway worker releases due holds every 15 minutes when Route credentials are
+  configured. The public `POST /webhooks/razorpay/route` reconciles `transfer.released` /
+  `transfer.failed` / `transfer.reversed` by HMAC. `RAZORPAY_ROUTE_KEY_ID`/`_SECRET`/`_WEBHOOK_SECRET`
   fall back to the main Razorpay pair.
 - **Portal identity writes (`internal/admins` + `internal/portal`):** `POST /state-admins` is the
   unified state-admin creator — `issueLogin` optionally mints the `STATE_ADMIN` portal credential in

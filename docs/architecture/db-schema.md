@@ -1794,3 +1794,32 @@ ALTER TABLE payments.payouts
 - Route transfers are stored with `on_hold` + `release_after = now() + 14 days`; the settlement
   worker releases due holds every 15 minutes when `RAZORPAY_ROUTE_*` (or the fallback
   `RAZORPAY_*`) credentials are configured, and marks the payout `PAID`.
+
+### 12.22 Razorpay Route reconciliation + reversal (migration `0040`)
+
+**Authority:** `server-gateway-plan.md`, `monolith-breakdown.md` §1 (settlement row),
+`RUNBOOKS/RELEASE.md`, `RUNBOOKS/TROUBLESHOOTING.md`.
+
+`0040` is additive and introduces only new terminal payout states.
+
+```sql
+ALTER TYPE payout_status ADD VALUE IF NOT EXISTS 'FAILED';
+ALTER TYPE payout_status ADD VALUE IF NOT EXISTS 'REVERSED';
+ALTER TABLE payments.payouts ADD COLUMN reversed_at TIMESTAMPTZ;
+CREATE UNIQUE INDEX payouts_transfer_uniq
+  ON payments.payouts (razorpay_transfer_id) WHERE razorpay_transfer_id IS NOT NULL;
+```
+
+**Rules**
+- `payments.payouts.status` lifecycle: `SCHEDULED`/`ON_HOLD` → `PAID` (release) · `FAILED`
+  (`transfer.failed`) · `REVERSED` (refund/return). `released_at` / `reversed_at` stamp the terminal
+  transition; `ON_HOLD` rows are the only ones the releaser sweeps.
+- `POST /webhooks/razorpay/route` is public but every body must carry a valid
+  `X-Razorpay-Signature` over the raw bytes using `RAZORPAY_ROUTE_WEBHOOK_SECRET` (fallback
+  `RAZORPAY_WEBHOOK_SECRET`). It maps `transfer.released` → `PAID`, `transfer.failed` → `FAILED`,
+  `transfer.reversed` → `REVERSED`; unknown events are acknowledged without touching money state.
+  Replays are idempotent (no row moves when the status already matches).
+- `POST /payouts/{id}/reverse` (SUPER_ADMIN) calls Razorpay `POST /transfers/{id}/reverse` first and
+  only then marks the local row `REVERSED`; a Razorpay rejection leaves the row untouched (502).
+- The webhook path keys on `razorpay_transfer_id`, now unique per payout. No payload, bank detail or
+  secret is stored or logged.

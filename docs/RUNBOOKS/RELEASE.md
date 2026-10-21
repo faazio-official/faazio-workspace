@@ -213,12 +213,15 @@ portal auth route returning `503 not_configured`.
 
 ### Razorpay Route (seller splits)
 
-Migrations `0039` (seller onboarding + Route columns) must be applied before deploying this gateway.
-`RAZORPAY_ROUTE_KEY_ID` / `RAZORPAY_ROUTE_KEY_SECRET` / `RAZORPAY_ROUTE_WEBHOOK_SECRET` are optional:
-they fall back to the existing `RAZORPAY_KEY_ID` / `RAZORPAY_KEY_SECRET` / `RAZORPAY_WEBHOOK_SECRET`.
-With no keys the Route client stays in mock mode (linked accounts/transfers are synthetic and the
-hold releaser is disabled), so a staging deploy never marks a payout PAID without a real transfer.
-The private KYC bucket is `R2_PRIVATE_BUCKET`; KYC images are never public.
+Migrations `0039` (seller onboarding + Route columns) and `0040` (webhook/reversal payout states)
+must be applied before deploying this gateway. `RAZORPAY_ROUTE_KEY_ID` / `RAZORPAY_ROUTE_KEY_SECRET` /
+`RAZORPAY_ROUTE_WEBHOOK_SECRET` are optional: they fall back to the existing `RAZORPAY_KEY_ID` /
+`RAZORPAY_KEY_SECRET` / `RAZORPAY_WEBHOOK_SECRET`. With no keys the Route client stays in mock mode
+(linked accounts/transfers are synthetic, the hold releaser is disabled and the webhook rejects every
+signature), so a staging deploy never marks a payout PAID without a real transfer. Register the Route
+webhook in the Razorpay dashboard at `https://<gateway>/webhooks/razorpay/route` for
+`transfer.released`, `transfer.failed` and `transfer.reversed`. The private KYC bucket is
+`R2_PRIVATE_BUCKET`; KYC images are never public.
 
 ## ✅ Release checklist
 
@@ -229,7 +232,7 @@ The private KYC bucket is `R2_PRIVATE_BUCKET`; KYC images are never public.
 - [ ] Release APK signed with the **release cert** (`CN=Faazio`), not the debug cert.
 - [ ] `gh workflow run release-apk.yml` succeeded and the signed APK is on the GitHub Release.
 - [ ] Portal (if deploying): `0032` + `0033` applied, `PORTAL_JWT_SECRET`/`PORTAL_PEPPER` set, a superadmin hash provisioned (`PORTAL_AUTH.md`).
-- [ ] Seller splits: `0039` applied; Route keys set (or the `RAZORPAY_*` fallback used); `R2_PRIVATE_BUCKET` set.
+- [ ] Seller splits: `0039` + `0040` applied; Route keys + webhook endpoint/secret set (or the `RAZORPAY_*` fallback used); `R2_PRIVATE_BUCKET` set.
 - [ ] Release signed and smoke-tested on a device (R8 gate: Home → Cart → Checkout → Pharma).
 - [ ] Store metadata / data-safety updated.
 

@@ -2,6 +2,7 @@ package settlement
 
 import (
 	"encoding/json"
+	"io"
 	"math"
 	"net/http"
 	"strings"
@@ -47,7 +48,10 @@ func (h *Handler) Register(r chi.Router) {
 		// Razorpay Route split: hold the seller slice for the buyer-protection window, then release.
 		g.Post("/payouts/holds", h.createHold)
 		g.Post("/payouts/{id}/release", h.release)
+		g.Post("/payouts/{id}/reverse", h.reverse)
 	})
+	// Public Route webhook: authenticated by HMAC only (no session), never trusts an unsigned body.
+	r.Post("/webhooks/razorpay/route", h.routeWebhook)
 }
 
 func (h *Handler) ledger(w http.ResponseWriter, r *http.Request) {
@@ -253,6 +257,103 @@ func (h *Handler) release(w http.ResponseWriter, r *http.Request) {
 	h.log(r, "PAYOUT_RELEASE", released.PayoutID, map[string]string{"status": p.Status},
 		map[string]string{"status": released.Status})
 	httpx.JSON(w, http.StatusOK, released)
+}
+
+// reverse claws the seller slice back for a refund / return. Ops override: Razorpay remains the
+// authority and a rejection is surfaced as 502 (the local row is only updated after the API call).
+func (h *Handler) reverse(w http.ResponseWriter, r *http.Request) {
+	p, ok, err := h.repo.PayoutByID(r.Context(), chi.URLParam(r, "id"))
+	if err != nil {
+		httpx.Fail(w, http.StatusInternalServerError, "payouts_unavailable", "payouts unavailable")
+		return
+	}
+	if !ok {
+		httpx.Fail(w, http.StatusNotFound, "not_found", "payout not found")
+		return
+	}
+	if p.Status != "ON_HOLD" && p.Status != "SCHEDULED" && p.Status != "PAID" {
+		httpx.Fail(w, http.StatusConflict, "not_reversible", "only a held or settled payout can be reversed")
+		return
+	}
+	if p.RazorpayTransferID == "" {
+		httpx.Fail(w, http.StatusConflict, "no_transfer", "payout has no Razorpay transfer")
+		return
+	}
+	if err := h.route.ReverseTransfer(r.Context(), p.RazorpayTransferID); err != nil {
+		httpx.Fail(w, http.StatusBadGateway, "razorpay_unavailable", "could not reverse the Route transfer")
+		return
+	}
+	reversed, ok, err := h.repo.ReversePayout(r.Context(), p.PayoutID)
+	if err != nil || !ok {
+		httpx.Fail(w, http.StatusInternalServerError, "payout_update_failed", "could not reverse payout")
+		return
+	}
+	h.cache.Del(r.Context(), cache.Settlement(reversed.SellerID, reversed.Cycle))
+	h.log(r, "PAYOUT_REVERSE", reversed.PayoutID, map[string]string{"status": p.Status},
+		map[string]string{"status": reversed.Status})
+	httpx.JSON(w, http.StatusOK, reversed)
+}
+
+type routeWebhook struct {
+	Event   string `json:"event"`
+	Payload struct {
+		Transfer struct {
+			Entity struct {
+				ID     string `json:"id"`
+				Status string `json:"status"`
+			} `json:"entity"`
+		} `json:"transfer"`
+	} `json:"payload"`
+}
+
+// routeEvent maps a Route webhook to (event, transferId). Unknown shapes return empty strings and
+// are acknowledged without touching money state.
+func routeEvent(body []byte) (event, transferID string) {
+	var evt routeWebhook
+	if err := json.Unmarshal(body, &evt); err != nil {
+		return "", ""
+	}
+	return strings.TrimSpace(evt.Event), strings.TrimSpace(evt.Payload.Transfer.Entity.ID)
+}
+
+// routeWebhook reconciles Route transfer lifecycle events. It never trusts the body without a valid
+// HMAC, never logs the payload, and returns 200 for events it does not own so Razorpay stops retrying.
+func (h *Handler) routeWebhook(w http.ResponseWriter, r *http.Request) {
+	body, err := io.ReadAll(io.LimitReader(r.Body, httpx.DefaultMaxBodyBytes))
+	if err != nil {
+		httpx.Fail(w, http.StatusBadRequest, "bad_request", "invalid body")
+		return
+	}
+	if !h.route.VerifyWebhook(body, r.Header.Get("X-Razorpay-Signature")) {
+		httpx.Fail(w, http.StatusBadRequest, "invalid_signature", "signature verification failed")
+		return
+	}
+	event, transferID := routeEvent(body)
+	if transferID == "" {
+		httpx.JSON(w, http.StatusOK, map[string]any{"ok": true})
+		return
+	}
+	var p Payout
+	var moved bool
+	switch event {
+	case "transfer.released":
+		p, moved, err = h.repo.MarkReleasedByTransfer(r.Context(), transferID)
+	case "transfer.failed":
+		p, moved, err = h.repo.MarkFailedByTransfer(r.Context(), transferID)
+	case "transfer.reversed":
+		p, moved, err = h.repo.MarkReversedByTransfer(r.Context(), transferID)
+	default:
+		httpx.JSON(w, http.StatusOK, map[string]any{"ok": true})
+		return
+	}
+	if err != nil {
+		httpx.Fail(w, http.StatusInternalServerError, "webhook_failed", "could not process webhook")
+		return
+	}
+	if moved {
+		h.cache.Del(r.Context(), cache.Settlement(p.SellerID, p.Cycle))
+	}
+	httpx.JSON(w, http.StatusOK, map[string]any{"ok": true})
 }
 
 func (h *Handler) log(r *http.Request, action, entityID string, before, after any) {

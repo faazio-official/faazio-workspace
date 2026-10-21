@@ -46,11 +46,14 @@ end to end; the mobile app no longer talks to Supabase Auth.
 - Portal state/super seller detail: full registration, fee editor, per-document verification,
   reject with history, Verify KYC → Route linked account + ACTIVE.
 - Settlement `POST /payouts/holds` holds the seller share for 14 days; the gateway releaser releases
-  due holds every 15 minutes (Route credentials required).
+  due holds every 15 minutes (Route credentials required). `POST /payouts/{id}/reverse` claws a
+  refund/return back, and `POST /webhooks/razorpay/route` reconciles `transfer.released/failed/reversed`
+  (`0040`).
 
-**Remaining (ops):** configure `RAZORPAY_ROUTE_*` in Render, apply `0039`, and set the webhook
-endpoint/secret in the Razorpay dashboard. A refund/return UI for reversing a held transfer is not
-wired yet (the gateway has `ReverseTransfer`, no route calls it).
+**Remaining (ops):** configure `RAZORPAY_ROUTE_*` in Render, apply `0039` + `0040`, and set the Route
+webhook endpoint (`/webhooks/razorpay/route`) + secret in the Razorpay dashboard. Cart-order payments
+are still recorded locally (no Razorpay capture), so the automatic post-capture split trigger is not
+wired yet; holds are created via the super-admin endpoint.
 
 **Date:** 2026-10-21
 
