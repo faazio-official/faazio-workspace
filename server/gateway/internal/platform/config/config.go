@@ -50,6 +50,11 @@ type Config struct {
 	RazorpayKeyID         string
 	RazorpayKeySecret     string
 	RazorpayWebhookSecret string
+	// Razorpay Route (seller split payments). Falls back to the main Razorpay key pair when the
+	// dedicated Route envs are unset, so one merchant account works out of the box.
+	RazorpayRouteKeyID         string
+	RazorpayRouteKeySecret     string
+	RazorpayRouteWebhookSecret string
 	// BookingFeePaisa is the fixed per-seat platform fee (₹50). A deploy constant — a restaurant can
 	// never set its own fee (client-supplied amounts are ignored; the gateway derives it).
 	BookingFeePaisa int64
@@ -89,12 +94,16 @@ func Load() Config {
 		RazorpayKeyID:         env("RAZORPAY_KEY_ID", ""),
 		RazorpayKeySecret:     env("RAZORPAY_KEY_SECRET", ""),
 		RazorpayWebhookSecret: env("RAZORPAY_WEBHOOK_SECRET", ""),
-		BookingFeePaisa:       envInt64("BOOKING_FEE_PAISA", 5000),
-		AuthDisabled:          envBool("AUTH_DISABLED", false),
-		DevUserID:             env("DEV_USER_ID", "user-1"),
-		PushWebhookURL:        env("PUSH_WEBHOOK_URL", ""),
-		AllowedOrigins:        splitCSV(env("ALLOWED_ORIGINS", "")),
-		OTelEnabled:           envBool("OTEL_ENABLED", false),
+		// Route defaults to the main key pair; a separate Route webhook secret is optional.
+		RazorpayRouteKeyID:         envFirst("RAZORPAY_ROUTE_KEY_ID", "RAZORPAY_KEY_ID"),
+		RazorpayRouteKeySecret:     envFirst("RAZORPAY_ROUTE_KEY_SECRET", "RAZORPAY_KEY_SECRET"),
+		RazorpayRouteWebhookSecret: envFirst("RAZORPAY_ROUTE_WEBHOOK_SECRET", "RAZORPAY_WEBHOOK_SECRET"),
+		BookingFeePaisa:            envInt64("BOOKING_FEE_PAISA", 5000),
+		AuthDisabled:               envBool("AUTH_DISABLED", false),
+		DevUserID:                  env("DEV_USER_ID", "user-1"),
+		PushWebhookURL:             env("PUSH_WEBHOOK_URL", ""),
+		AllowedOrigins:             splitCSV(env("ALLOWED_ORIGINS", "")),
+		OTelEnabled:                envBool("OTEL_ENABLED", false),
 	}
 }
 

@@ -9,7 +9,7 @@
  * The Firebase refresh token never leaves the native SDK, and nothing here logs tokens,
  * phone numbers or OTP codes.
  */
-import { getApps } from '@react-native-firebase/app';
+import { deleteApp, getApp, getApps, initializeApp } from '@react-native-firebase/app';
 import {
   getAuth,
   signInWithPhoneNumber,
@@ -35,6 +35,29 @@ export interface FirebaseSession {
 
 /** Pending native phone verification for the current send→verify round-trip. */
 let pending: { phone: string; confirmation: ConfirmationResult } | null = null;
+
+/**
+ * Seller onboarding treats the OTP as a digital signature while the shopper is already signed in.
+ * Verifying on the primary Firebase app would swap the session to the phone-auth UID, so the
+ * signature uses a disposable secondary app instead and leaves the shopper session untouched.
+ */
+const OTP_APP_NAME = 'faazio-seller-otp';
+
+async function otpAuth() {
+  const existing = getApps().find((app) => app.name === OTP_APP_NAME);
+  const app = existing ?? (await initializeApp(getApp().options, OTP_APP_NAME));
+  return getAuth(app);
+}
+
+async function disposeOtpApp(): Promise<void> {
+  const app = getApps().find((candidate) => candidate.name === OTP_APP_NAME);
+  if (!app) return;
+  try {
+    await deleteApp(app);
+  } catch {
+    // best-effort: a leftover secondary app is harmless and reused on the next attempt
+  }
+}
 
 /** Native Firebase is configured when the app instance exists (google-services.json / plist). */
 export function firebaseAuthConfigured(): boolean {
@@ -75,8 +98,13 @@ export async function sendOtp(phoneDigits: string): Promise<void> {
     throw new Error('Firebase Auth is not configured.');
   }
   const phone = toE164(phoneDigits);
-  const confirmation = await signInWithPhoneNumber(getAuth(), phone);
-  pending = { phone, confirmation };
+  try {
+    const confirmation = await signInWithPhoneNumber(await otpAuth(), phone);
+    pending = { phone, confirmation };
+  } catch (err) {
+    await disposeOtpApp();
+    throw err;
+  }
 }
 
 /** Verify the SMS code and return the Firebase ID token session. */
@@ -91,7 +119,13 @@ export async function verifyOtp(phoneDigits: string, code: string): Promise<Fire
   const credential = await pending.confirmation.confirm(code);
   pending = null;
   const token = await credential.user.getIdTokenResult();
-  return toSession(credential.user, token.token, Math.floor(new Date(token.expirationTime).getTime() / 1000));
+  const session = toSession(
+    credential.user,
+    token.token,
+    Math.floor(new Date(token.expirationTime).getTime() / 1000),
+  );
+  await disposeOtpApp();
+  return session;
 }
 
 /**

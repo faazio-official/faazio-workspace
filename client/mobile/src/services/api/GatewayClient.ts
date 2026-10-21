@@ -400,8 +400,25 @@ export interface SellerApplicationInput {
   pan: string;
   businessAddress: string;
   contactPhone: string;
+  contactEmail: string;
   /** 2-letter state code (sellers.sellers.state_code). */
   stateCode: string;
+  /** Server-owned split percentage; admin may edit before approval. */
+  platformFeePct: number;
+  /** Full account number is sent transiently and never stored (masked tail only). */
+  bankName: string;
+  bankAccountNumber: string;
+  bankIfsc: string;
+  bankBeneficiary: string;
+  /** Private R2 object key + media asset id for the bank passbook page. */
+  passbookFileKey: string;
+  passbookAssetId?: string;
+  /** FOOD sellers only. */
+  fssaiNumber?: string;
+  fssaiFileKey?: string;
+  fssaiAssetId?: string;
+  /** Digital-signature gate: true only after a successful Firebase OTP round-trip. */
+  otpVerified: boolean;
 }
 
 /** A sellers.sellers row (server creates it PENDING_REVIEW; contactPhone is PII). */
@@ -414,10 +431,74 @@ export interface SellerApplication {
   pan: string;
   businessAddress: string;
   contactPhone?: string;
+  contactEmail?: string;
   stateCode: string;
   status: string;
   rating: number;
+  platformFeePct: number;
+  razorpayLinkedAccountId?: string;
+  fssaiNumber?: string;
+  fssaiCertKey?: string;
+  fssaiCertAssetId?: string;
+  otpVerified: boolean;
+  otpVerifiedAt?: string;
+  rejectionReason?: string;
+  rejectionHistory?: unknown;
   createdAt: string;
+}
+
+/** One sellers.kyc_documents row (private R2 key + media asset id, never a URL). */
+export interface SellerKycDocument {
+  kycId: string;
+  sellerId: string;
+  docType: 'GSTIN' | 'PAN' | 'BANK_PROOF' | 'SHOP_LICENSE' | 'PASSBOOK' | 'FSSAI' | string;
+  fileKey: string;
+  assetId?: string;
+  verified: boolean;
+  uploadedAt: string;
+}
+
+/** One sellers.bank_accounts row (masked tail only). */
+export interface SellerBankAccount {
+  bankAccountId: string;
+  sellerId: string;
+  bankName: string;
+  accountNumberMasked: string;
+  ifsc: string;
+  beneficiaryName: string;
+}
+
+/** One manual PAN/GSTIN/FSSAI verification decision. */
+export interface SellerVerificationLog {
+  logId: string;
+  sellerId: string;
+  docType: string;
+  verifiedBy: string;
+  verifiedAt: string;
+  notes?: string;
+}
+
+/** Admin review projection: seller + payout account + KYC documents + verification log. */
+export interface SellerDetail extends SellerApplication {
+  bankAccount?: SellerBankAccount;
+  kycDocuments: SellerKycDocument[];
+  verificationLog: SellerVerificationLog[];
+}
+
+/** A presigned R2 upload ticket minted by POST /media/upload-url. */
+export interface MediaUploadTicket {
+  assetId: string;
+  key: string;
+  bucket: string;
+  uploadUrl: string;
+  expiresIn: number;
+  publicUrl?: string;
+}
+
+/** A seller document uploaded to the private R2 bucket. */
+export interface UploadedSellerDocument {
+  key: string;
+  assetId: string;
 }
 
 /** Body for POST /prescriptions. */
@@ -1594,12 +1675,136 @@ export class GatewayClient {
           pan: input.pan,
           businessAddress: input.businessAddress,
           contactPhone: input.contactPhone,
+          contactEmail: input.contactEmail,
           stateCode: input.stateCode.toUpperCase(),
           status: 'PENDING_REVIEW',
           rating: 0,
+          platformFeePct: input.platformFeePct,
+          fssaiNumber: input.fssaiNumber,
+          fssaiCertKey: input.fssaiFileKey,
+          fssaiCertAssetId: input.fssaiAssetId,
+          otpVerified: input.otpVerified,
+          otpVerifiedAt: new Date().toISOString(),
           createdAt: new Date().toISOString(),
         }),
     );
+  }
+
+  /** One seller with payout account, KYC documents and manual verification log. */
+  async getSellerDetail(sellerId: string): Promise<SellerDetail> {
+    return this.http<SellerDetail>(`/sellers/${encodeURIComponent(sellerId)}`);
+  }
+
+  /**
+   * Seller request queue for STATE_ADMIN (their state) / SUPER_ADMIN (all states). The server
+   * scopes the caller; the optional state/status filters are applied on top.
+   */
+  async listSellerRequests(state?: string, status?: string): Promise<SellerApplication[]> {
+    const params = new URLSearchParams();
+    if (state) params.set('state', state.toUpperCase());
+    if (status) params.set('status', status.toUpperCase());
+    const qs = params.toString();
+    return this.http<SellerApplication[]>(`/sellers${qs ? `?${qs}` : ''}`);
+  }
+
+  /** Mint a short-lived R2 upload ticket (the gateway is the only signer). */
+  async getMediaUploadUrl(input: {
+    kind: 'PUBLIC' | 'PRIVATE';
+    ownerType: string;
+    ownerId: string;
+    mime: string;
+    bytes: number;
+    hash?: string;
+  }): Promise<MediaUploadTicket> {
+    return this.http<MediaUploadTicket>('/media/upload-url', {
+      method: 'POST',
+      body: JSON.stringify(input),
+    });
+  }
+
+  /** Confirm a DRAFT media asset, linking it to its owner. */
+  async confirmMedia(assetId: string, ownerType: string, ownerId: string): Promise<void> {
+    await this.http('/media/confirm', {
+      method: 'POST',
+      body: JSON.stringify({ assetId, ownerType, ownerId }),
+    });
+  }
+
+  /**
+   * Upload a KYC image to the private R2 bucket: mint → PUT straight to R2 → confirm. Returns the
+   * object key + asset id the seller application stores (never a URL, never the image bytes).
+   */
+  async uploadSellerDocument(
+    uri: string,
+    ownerId: string,
+    mime: 'image/jpeg' | 'image/png' | 'image/webp' | 'image/avif' = 'image/jpeg',
+  ): Promise<UploadedSellerDocument> {
+    if (!REMOTE_ENABLED) {
+      const suffix = `${Date.now().toString(36)}`;
+      return { key: `mock/kyc/${ownerId}/${suffix}.jpg`, assetId: `mock-asset-${suffix}` };
+    }
+    const blob = await (await fetch(uri)).blob();
+    const ticket = await this.getMediaUploadUrl({
+      kind: 'PRIVATE',
+      ownerType: 'KYC',
+      ownerId,
+      mime,
+      bytes: blob.size,
+    });
+    const res = await fetch(ticket.uploadUrl, {
+      method: 'PUT',
+      headers: { 'Content-Type': mime },
+      body: blob,
+    });
+    if (!res.ok) throw new GatewayHttpError(res.status);
+    await this.confirmMedia(ticket.assetId, 'KYC', ownerId);
+    return { key: ticket.key, assetId: ticket.assetId };
+  }
+
+  /** Admin: edit the platform fee before approval (server re-validates the category floor). */
+  async updateSellerPlatformFee(sellerId: string, platformFeePct: number): Promise<SellerApplication> {
+    return this.http<SellerApplication>(`/sellers/${encodeURIComponent(sellerId)}/platform-fee`, {
+      method: 'PATCH',
+      body: JSON.stringify({ platformFeePct }),
+    });
+  }
+
+  /** Admin: create/attach the Razorpay Route linked account and activate the seller. */
+  async verifySellerKyc(sellerId: string): Promise<SellerDetail> {
+    return this.http<SellerDetail>(`/sellers/${encodeURIComponent(sellerId)}/verify-kyc`, {
+      method: 'POST',
+      body: JSON.stringify({}),
+    });
+  }
+
+  /** Admin: mark one manual document check (PAN, GSTIN, FSSAI, PASSBOOK). */
+  async verifySellerDoc(sellerId: string, docType: string, notes = ''): Promise<SellerDetail> {
+    return this.http<SellerDetail>(
+      `/sellers/${encodeURIComponent(sellerId)}/verify-doc/${encodeURIComponent(docType.toUpperCase())}`,
+      { method: 'POST', body: JSON.stringify({ notes }) },
+    );
+  }
+
+  /** Admin: reject with a reason (appended to rejection history). */
+  async rejectSeller(sellerId: string, reason: string): Promise<SellerApplication> {
+    return this.http<SellerApplication>(`/sellers/${encodeURIComponent(sellerId)}/reject`, {
+      method: 'POST',
+      body: JSON.stringify({ reason }),
+    });
+  }
+
+  /** Seller: resubmit a rejected application; the server records every changed field. */
+  async resubmitSellerApplication(
+    sellerId: string,
+    input: Omit<SellerApplicationInput, 'otpVerified' | 'passbookFileKey' | 'passbookAssetId'> & {
+      passbookFileKey?: string;
+      passbookAssetId?: string;
+    },
+  ): Promise<SellerApplication> {
+    return this.http<SellerApplication>(`/sellers/${encodeURIComponent(sellerId)}/edit`, {
+      method: 'POST',
+      body: JSON.stringify(input),
+    });
   }
 
   /** Public vendor reviews (server projection hides user_id / order_ids). */

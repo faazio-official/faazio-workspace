@@ -36,6 +36,8 @@ import type {
   RewardsRates,
   Role,
   Sector,
+  SellerDetail,
+  SellerRecord,
   SellerStatus,
   SduiSection,
   StateAdmin,
@@ -450,6 +452,109 @@ export function setSellerStatus(sellerId: string, status: SellerStatus, reason?:
     before: before && { status: before.status },
     after: { status, reason },
   });
+}
+
+/** Live review projection. Returns null in seed mode (the page falls back to local fixtures). */
+export async function fetchSellerDetail(sellerId: string): Promise<SellerDetail | null> {
+  if (!remoteConfigured()) return null;
+  const detail = await remote.get<SellerDetail>(`/sellers/${encodeURIComponent(sellerId)}`);
+  return toCamel(detail);
+}
+
+function patchSellerLocal(sellerId: string, patch: Partial<SellerRecord>): void {
+  state().set((s) => ({
+    sellers: s.sellers.map((seller) =>
+      seller.sellerId === sellerId ? { ...seller, ...patch } : seller,
+    ),
+  }));
+}
+
+/** Admin: edit the platform fee before approval (server re-checks the category floor). */
+export async function updateSellerPlatformFee(sellerId: string, platformFeePct: number): Promise<void> {
+  const before = getSeller(sellerId)?.platformFeePct;
+  patchSellerLocal(sellerId, { platformFeePct });
+  if (!remoteConfigured()) return;
+  try {
+    await remote.patch(`/sellers/${encodeURIComponent(sellerId)}/platform-fee`, { platformFeePct });
+    audit({
+      action: "SELLER_PLATFORM_FEE",
+      entity: "sellers.sellers",
+      entityId: sellerId,
+      before: { platformFeePct: before },
+      after: { platformFeePct },
+    });
+  } catch (err) {
+    patchSellerLocal(sellerId, { platformFeePct: before });
+    throw err;
+  }
+}
+
+/** Admin: mark one manual document check (PAN, GSTIN, FSSAI, PASSBOOK). */
+export async function verifySellerDocument(
+  sellerId: string,
+  docType: string,
+  notes = "",
+): Promise<SellerDetail | null> {
+  if (!remoteConfigured()) {
+    state().set((s) => ({
+      kyc: s.kyc.map((doc) =>
+        doc.sellerId === sellerId && doc.docType === docType ? { ...doc, verified: true } : doc,
+      ),
+    }));
+    return null;
+  }
+  const detail = await remote.post<SellerDetail>(
+    `/sellers/${encodeURIComponent(sellerId)}/verify-doc/${encodeURIComponent(docType.toUpperCase())}`,
+    { notes },
+  );
+  return toCamel(detail);
+}
+
+/** Admin: create/attach the Razorpay Route linked account, then activate the seller. */
+export async function verifySellerKyc(sellerId: string): Promise<SellerDetail | null> {
+  if (!remoteConfigured()) {
+    patchSellerLocal(sellerId, { status: "ACTIVE" });
+    return null;
+  }
+  const detail = toCamel(
+    await remote.post<SellerDetail>(`/sellers/${encodeURIComponent(sellerId)}/verify-kyc`, {}),
+  );
+  patchSellerLocal(sellerId, {
+    status: detail.status,
+    razorpayLinkedAccountId: detail.razorpayLinkedAccountId,
+  });
+  audit({
+    action: "SELLER_VERIFY_KYC",
+    entity: "sellers.sellers",
+    entityId: sellerId,
+    after: { status: detail.status, razorpayLinkedAccountId: detail.razorpayLinkedAccountId },
+  });
+  return detail;
+}
+
+/** Admin: reject with a reason (appended to the rejection history). */
+export async function rejectSellerApplication(sellerId: string, reason: string): Promise<void> {
+  patchSellerLocal(sellerId, { status: "REJECTED", rejectionReason: reason });
+  if (!remoteConfigured()) return;
+  try {
+    await remote.post(`/sellers/${encodeURIComponent(sellerId)}/reject`, { reason });
+    audit({
+      action: "SELLER_REJECTED",
+      entity: "sellers.sellers",
+      entityId: sellerId,
+      after: { status: "REJECTED", reason },
+    });
+  } catch (err) {
+    patchSellerLocal(sellerId, { status: "PENDING_REVIEW" });
+    throw err;
+  }
+}
+
+/** Short-lived presigned GET for a private KYC asset (creator or admin only). */
+export async function fetchPrivateDocumentUrl(assetId: string): Promise<string | null> {
+  if (!remoteConfigured()) return null;
+  const res = await remote.get<{ url: string }>(`/media/private/${encodeURIComponent(assetId)}`);
+  return res.url;
 }
 
 /* --------------------------------- stores -------------------------------- */

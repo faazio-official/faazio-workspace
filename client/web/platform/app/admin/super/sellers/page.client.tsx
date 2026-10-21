@@ -1,4 +1,5 @@
 "use client";
+import Link from "next/link";
 import { useState } from "react";
 import { toast } from "sonner";
 import { PageHeader } from "@/components/patterns/PageHeader";
@@ -71,6 +72,7 @@ function SuperSellers() {
                 <TableHead>Business</TableHead>
                 <TableHead>State</TableHead>
                 <TableHead>Sector</TableHead>
+                <TableHead className="text-right">Fee</TableHead>
                 <TableHead>Applied</TableHead>
                 <TableHead className="text-right">Rating</TableHead>
                 <TableHead>Status</TableHead>
@@ -80,11 +82,19 @@ function SuperSellers() {
             <TableBody>
               {rows.map((seller) => (
                 <TableRow key={seller.sellerId} className="h-12">
-                  <TableCell className="text-[13px] font-medium">{seller.businessName}</TableCell>
+                  <TableCell className="text-[13px] font-medium">
+                    <Link
+                      href={`/admin/state/sellers/${seller.sellerId}`}
+                      className="text-primary hover:underline"
+                    >
+                      {seller.businessName}
+                    </Link>
+                  </TableCell>
                   <TableCell className="num text-[13px] font-semibold">{seller.stateCode}</TableCell>
                   <TableCell>
                     <SectorPill sector={seller.category} />
                   </TableCell>
+                  <TableCell className="num text-right">{seller.platformFeePct ?? 10}%</TableCell>
                   <TableCell className="num text-[12px]">{formatDate(seller.createdAt)}</TableCell>
                   <TableCell className="num text-right">{seller.rating.toFixed(1)}</TableCell>
                   <TableCell>

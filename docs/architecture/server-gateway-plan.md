@@ -56,6 +56,17 @@ keys/TTLs unchanged.
   `POST /bookings` (seat hold + Razorpay order), `DELETE /bookings/:id`,
   `POST /bookings/:id/payment`, seller `GET/PUT /seller/booking-config`, `GET /seller/bookings`,
   `PUT /bookings/:id/status` (accept/reject), `POST /bookings/:id/vacate`, `POST /webhooks/razorpay`.
+- **Seller onboarding + split payments (`internal/sellers` + `internal/settlement` + `internal/platform/razorpayroute`):**
+  `POST /sellers` now carries the platform fee, payout bank details (full account number is forwarded
+  to Razorpay and never stored), private R2 passbook/FSSAI keys and `otpVerified`. Admin review:
+  `PATCH /sellers/:id/platform-fee`, `POST /sellers/:id/verify-doc/:docType`,
+  `POST /sellers/:id/verify-kyc` (creates the Route linked account + activates),
+  `POST /sellers/:id/reject`, and seller `POST /sellers/:id/edit` (rejected rows only; field history).
+  `GET /sellers/:id` returns the seller + masked bank account + KYC docs + verification log.
+  Settlement adds SUPER_ADMIN `POST /payouts/holds` (Route transfer with `on_hold` for the 14-day
+  window + ledger row) and `POST /payouts/:id/release`; a gateway worker releases due holds every
+  15 minutes when Route credentials are configured. `RAZORPAY_ROUTE_KEY_ID`/`_SECRET`/`_WEBHOOK_SECRET`
+  fall back to the main Razorpay pair.
 - **Portal identity writes (`internal/admins` + `internal/portal`):** `POST /state-admins` is the
   unified state-admin creator — `issueLogin` optionally mints the `STATE_ADMIN` portal credential in
   the same tx. Duplicate **email** across `portal_users`, the roster and `sellers.sellers` is

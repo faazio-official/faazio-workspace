@@ -29,6 +29,7 @@ import (
 	"github.com/faazio/server/gateway/internal/platform/db"
 	"github.com/faazio/server/gateway/internal/platform/httpx"
 	"github.com/faazio/server/gateway/internal/platform/r2"
+	"github.com/faazio/server/gateway/internal/platform/razorpayroute"
 	"github.com/faazio/server/gateway/internal/portal"
 	"github.com/faazio/server/gateway/internal/promo"
 	"github.com/faazio/server/gateway/internal/reco"
@@ -101,6 +102,9 @@ func NewRouter(d Deps) http.Handler {
 	bloodRepo := blood.New(d.Pool)
 	bookingsRepo := bookings.New(d.Pool, d.Config.BookingFeePaisa)
 	bookingsGateway := bookings.NewGateway(d.Config.RazorpayKeyID, d.Config.RazorpayKeySecret, d.Config.RazorpayWebhookSecret)
+	// Razorpay Route (seller split payments): linked accounts + held transfers. Shared by sellers
+	// (provision account on KYC) and settlement (hold/release the seller share).
+	routeGateway := razorpayroute.New(d.Config.RazorpayRouteKeyID, d.Config.RazorpayRouteKeySecret, d.Config.RazorpayRouteWebhookSecret)
 
 	// Partner control plane (0015). adminsRepo also implements contracts.AuditWriter so every
 	// partner mutation is recorded.
@@ -155,10 +159,10 @@ func NewRouter(d Deps) http.Handler {
 	sdui.NewHandler(sduiService, adminsRepo).Register(r)
 	admins.NewHandler(adminsRepo, admins.NewProvisioner(d.Pool, portal.NewHasher(d.Config.PortalPepper)), d.AuditPurger).Register(r)
 	portal.NewHandler(portalRepo, d.Cache, adminsRepo, d.Config.PortalJWTSecret, d.Config.PortalPepper).Register(r)
-	sellers.NewHandler(sellersRepo, d.Cache, adminsRepo).Register(r)
+	sellers.NewHandler(sellersRepo, d.Cache, adminsRepo, routeGateway).Register(r)
 	promo.NewHandler(promoRepo, d.Cache, adminsRepo).Register(r)
 	ads.NewHandler(adsRepo, d.Cache, adminsRepo, d.Signer.PublicOrigin()).Register(r)
-	settlement.NewHandler(settlementRepo, d.Cache, adminsRepo).Register(r)
+	settlement.NewHandler(settlementRepo, d.Cache, adminsRepo, routeGateway, sellersRepo).Register(r)
 	support.NewHandler(supportRepo, adminsRepo).Register(r)
 	media.NewHandler(mediaRepo, r2Signer, d.Cache, adminsRepo, d.Sweeper).Register(r)
 	// Public media without a CDN custom domain: a stable /assets/{key} URL that 302-redirects to a

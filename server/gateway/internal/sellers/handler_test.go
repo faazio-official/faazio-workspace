@@ -50,7 +50,12 @@ func TestSellerRoleGating(t *testing.T) {
 
 	// Onboarding (any authenticated caller) creates a PENDING_REVIEW seller.
 	create := do(t, h, http.MethodPost, "/sellers",
-		`{"businessName":"Gate Test","ownerName":"O","category":"FOOD","stateCode":"KA"}`, nil)
+		`{"businessName":"Gate Test","ownerName":"O","category":"FOOD","stateCode":"KA",`+
+			`"gstin":"29ABCDE1234F1Z5","pan":"ABCDE1234F","contactEmail":"o@example.com",`+
+			`"platformFeePct":10,"otpVerified":true,`+
+			`"bankName":"HDFC Bank","bankAccountNumber":"123456789012","bankIfsc":"HDFC0001234",`+
+			`"bankBeneficiary":"Gate Test","passbookFileKey":"kyc/gate/passbook.jpg",`+
+			`"fssaiNumber":"12345678901234","fssaiFileKey":"kyc/gate/fssai.jpg"}`, nil)
 	if create.Code != http.StatusCreated {
 		t.Fatalf("create status = %d body=%s", create.Code, create.Body.String())
 	}

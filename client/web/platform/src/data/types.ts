@@ -54,14 +54,26 @@ export interface SellerRecord {
   status: SellerStatus;
   rating: number;
   createdAt: string;
+  /** Private onboarding extensions (migration 0039). Optional on legacy seed rows. */
+  contactEmail?: string | undefined;
+  platformFeePct?: number | undefined;
+  razorpayLinkedAccountId?: string | undefined;
+  fssaiNumber?: string | undefined;
+  otpVerified?: boolean | undefined;
+  otpVerifiedAt?: string | undefined;
+  rejectionReason?: string | undefined;
+  rejectionHistory?: unknown;
 }
 
 /** sellers.kyc_documents */
 export interface KycDocument {
   kycId: string;
   sellerId: string;
-  docType: "GSTIN" | "PAN" | "BANK_PROOF" | "SHOP_LICENSE";
-  fileUrl: string;
+  docType: "GSTIN" | "PAN" | "BANK_PROOF" | "SHOP_LICENSE" | "PASSBOOK" | "FSSAI";
+  /** Fixture URL (seed mode). Live rows carry the private R2 key + media asset id instead. */
+  fileUrl?: string | undefined;
+  fileKey?: string | undefined;
+  assetId?: string | undefined;
   verified: boolean;
   uploadedAt: string;
 }
@@ -70,9 +82,27 @@ export interface KycDocument {
 export interface BankAccount {
   bankAccountId: string;
   sellerId: string;
+  bankName?: string | undefined;
   accountNumberMasked: string;
   ifsc: string;
   beneficiaryName: string;
+}
+
+/** One manual PAN/GSTIN/FSSAI/passbook verification decision (sellers.kyc_verification_log). */
+export interface SellerVerificationLog {
+  logId: string;
+  sellerId: string;
+  docType: string;
+  verifiedBy: string;
+  verifiedAt: string;
+  notes?: string | undefined;
+}
+
+/** Admin review projection: seller + payout account + KYC documents + verification log. */
+export interface SellerDetail extends SellerRecord {
+  bankAccount?: BankAccount | undefined;
+  kycDocuments: KycDocument[];
+  verificationLog: SellerVerificationLog[];
 }
 
 /** directory.stores */

@@ -71,7 +71,7 @@ The campaign wizard's **what→where** placements map 1:1 to the paid mobile sur
 | --- | --- |
 | `admin/state` | dashboard |
 | `admin/state/products` · `admin/state/products/queue` | catalog + review queue |
-| `admin/state/sellers` · `admin/state/sellers/[id]` | seller directory + detail |
+| `admin/state/sellers` · `admin/state/sellers/[id]` | seller directory + KYC review: full registration, masked payout account, private-bucket passbook/FSSAI links, platform-fee editor, per-document verify (PAN/GSTIN/FSSAI/passbook), reject with reason, **Verify KYC** (Razorpay Route linked account → ACTIVE). SUPER_ADMIN reaches the same detail page from `admin/super/sellers`. |
 | `admin/state/orders` · `admin/state/bookings` | order/booking oversight |
 | `admin/state/blood` | blood requests board (PHARMA) — server `blood.requests` with `contact`/`address` redacted for anon; moderation (`DELETE /blood-requests/{id}`) |
 | `admin/state/customers` | customer list + activity trail |
@@ -87,7 +87,7 @@ The campaign wizard's **what→where** placements map 1:1 to the paid mobile sur
 | `admin/super/ads` | live ad monitor (Live/Reported/CTR; Takedown/Restore) |
 | `admin/super/sdui` | Home/Mart/Food/Pharma SDUI layout editor (sections, productIds, hero banners incl. `pharmaHero`/`pharmaPopular`/`pharmaEssentials`) |
 | `admin/super/festival` · `admin/super/coupons` | promo authority |
-| `admin/super/products` · `admin/super/sellers` | catalog/seller authority |
+| `admin/super/products` · `admin/super/sellers` | catalog/seller authority — the seller list links into the shared KYC review detail and shows the platform fee |
 | `admin/super/sectors` · `admin/super/coverage` | taxonomy + coverage |
 | `admin/super/rewards` · `admin/super/users` · `admin/super/states` | platform |
 | `admin/super/state-admins` | state-admin directory — all 36 ISO 3166-2:IN states/UTs; coverage summary (X / 36) + progress bar + grouped uncovered chips. **Unified creation:** one form creates the roster + (optionally, `issueLogin` default ON) the portal login + temporary password atomically; duplicate email blocked on/off-server, duplicate phone soft-warned |

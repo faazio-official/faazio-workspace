@@ -34,6 +34,26 @@ end to end; the mobile app no longer talks to Supabase Auth.
 
 **Date:** 2026-10-20
 
+## W61 — Seller onboarding + Razorpay Route split (P0)
+
+**Status:** 🟢 Shipped (mobile + gateway + portal review).
+
+- Mobile `features/seller-onboarding/SellerRegistrationScreen` replaces the old onboarding form:
+  location-derived state, platform fee, payout account, private-bucket passbook (+ FSSAI for food)
+  and an OTP digital signature. `GatewayClient.uploadSellerDocument` + `submitSellerApplication`.
+- Gateway `0039` + `internal/sellers` extended create/review endpoints and
+  `internal/platform/razorpayroute` (linked accounts, held transfers, release/reverse, webhook HMAC).
+- Portal state/super seller detail: full registration, fee editor, per-document verification,
+  reject with history, Verify KYC → Route linked account + ACTIVE.
+- Settlement `POST /payouts/holds` holds the seller share for 14 days; the gateway releaser releases
+  due holds every 15 minutes (Route credentials required).
+
+**Remaining (ops):** configure `RAZORPAY_ROUTE_*` in Render, apply `0039`, and set the webhook
+endpoint/secret in the Razorpay dashboard. A refund/return UI for reversing a held transfer is not
+wired yet (the gateway has `ReverseTransfer`, no route calls it).
+
+**Date:** 2026-10-21
+
 ## W23 — Real phone-OTP auth + secured single-server flip (P0)
 
 **Status:** ⚪ Superseded by W60 (was 🟢 Shipped). This entry replaced the placeholder session with

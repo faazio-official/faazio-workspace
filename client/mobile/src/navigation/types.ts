@@ -101,7 +101,7 @@ export type RootStackParamList = {
   MedicalShopDetails: { storeId: string };
   /** FaazioRewards — coins, order streak, and the streak discount card. */
   FaazioRewards: undefined;
-  /** Mock "Sell with us" partner onboarding — required details (no backend yet). */
+  /** Seller onboarding wizard: business, payout, private-bucket KYC and OTP signature. */
   SellWithUs: undefined;
   /**
    * Deals landing page — one page, four entry modes:

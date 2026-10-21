@@ -59,6 +59,14 @@ interface RawSeller {
   status: string;
   rating: number;
   createdAt: string;
+  contactEmail?: string;
+  platformFeePct?: number;
+  razorpayLinkedAccountId?: string;
+  fssaiNumber?: string;
+  otpVerified?: boolean;
+  otpVerifiedAt?: string;
+  rejectionReason?: string;
+  rejectionHistory?: unknown;
 }
 
 interface RawLedgerEntry {

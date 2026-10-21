@@ -67,6 +67,7 @@ function StateSellers() {
                 <TableHead>Owner</TableHead>
                 <TableHead>Sector</TableHead>
                 <TableHead>GSTIN</TableHead>
+                <TableHead className="text-right">Fee</TableHead>
                 <TableHead className="text-right">Rating</TableHead>
                 <TableHead>Applied</TableHead>
                 <TableHead>Status</TableHead>
@@ -88,6 +89,7 @@ function StateSellers() {
                     <SectorPill sector={seller.category} />
                   </TableCell>
                   <TableCell className="num text-[12px]">{seller.gstin}</TableCell>
+                  <TableCell className="num text-right">{seller.platformFeePct ?? 10}%</TableCell>
                   <TableCell className="num text-right">{seller.rating.toFixed(1)}</TableCell>
                   <TableCell className="num text-[12px]">{formatDate(seller.createdAt)}</TableCell>
                   <TableCell>

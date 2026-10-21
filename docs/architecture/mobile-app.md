@@ -735,19 +735,31 @@ sheet) calls `GatewayClient.deleteAddress()` → `DELETE /profile/addresses/{id}
 unknown id is a 404 and still drops the row locally so the list stays consistent. Money/PII stay on
 the server — the screen only ever sends `{tag, name, phone, address, isDefault}`.
 
-## Sell with us (partner onboarding)
+## Sell with us (seller onboarding)
 
-`SellWithUsScreen` (route `SellWithUs`) is the partner-onboarding form reached from the
-Account `earn` group. It collects the minimum seller-account details (business name, owner,
-category `MART`/`FOOD`/`PHARMA`, GSTIN, PAN, business address, contact phone, 2-letter state
-code). **Every field is mandatory** — the screen blocks submission and names any empty
-fields, and the state code must be exactly two letters. Field labels/placeholders still
-sourced from the `@data/seller/sellerSetup.ts`
-fixture (`SELLER_SETUP_FIELDS`) — and submits a `PENDING_REVIEW` application via
-`GatewayClient.submitSellerApplication` (`POST /sellers`, audited server-side). On success the
-screen shows the returned `sellerId`; KYC documents and the payout bank account are collected
-after approval. In mock mode the client returns a local `PENDING_REVIEW` row so the flow still
-completes offline.
+`SellerRegistrationScreen` (`features/seller-onboarding/`, route `SellWithUs`) replaced the old
+minimal form and is reached from the Account `earn` group. One wizard collects business identity
+(name, owner, category `MART`/`FOOD`/`PHARMA`, GSTIN, PAN, address, contact phone/email), a
+location-derived 2-letter state (GPS → state code; manual entry is the fallback), platform fee %,
+payout account (bank name, account number, IFSC, beneficiary), a **mandatory bank passbook** photo
+and — for FOOD only — the FSSAI number + certificate. All fields are mandatory. Labels/placeholders
+still come from `SELLER_SETUP_FIELDS` (`@data/seller/sellerSetup.ts`).
+
+Documents are captured with `DocumentCapture` (Vision Camera, consent-gated), uploaded straight to
+the private R2 bucket through `GatewayClient.uploadSellerDocument` (`/media/upload-url` presigned
+PUT → `/media/confirm`), and only the object key + asset id reach the application. Submission is
+blocked until both documents and the OTP digital signature are complete; the OTP runs on a
+disposable secondary Firebase app (`services/firebaseAuth.ts`) so the shopper's primary session is
+never swapped. `GatewayClient.submitSellerApplication` (`POST /sellers`, audited) creates the
+`PENDING_REVIEW` seller, bank account and KYC rows in one transaction. The success state shows the
+`sellerId`, status and platform fee. In mock mode the client returns a local `PENDING_REVIEW` row so
+the flow completes offline.
+
+Admin review is **web-portal only** (`admin/state/sellers[/[id]]`, also reachable by SUPER_ADMIN):
+the detail page shows the full registration, private-bucket document links, platform fee editor,
+per-document verify actions (PAN/GSTIN/FSSAI/passbook), rejection with reason, and **Verify KYC**
+which attaches the Razorpay Route linked account and activates the seller. Rejected sellers may
+edit and resubmit; changed fields are recorded until approval clears the trail.
 
 ## FaazioRewards (coins + streak)
 
