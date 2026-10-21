@@ -17,8 +17,9 @@ sub-app wrappers (Pharma / Food) intentionally have no Account/Profile tab.
   search-results-style **Favourites** page opened from My Account — a static header pill,
   All/Mart/Food/Pharma segmented toggle, sort-only rail, and a list resolved from
   `useFavoriteStore` via the catalog index (hearts toggle favourites live).
-- `SellWithUsScreen.tsx`: "Sell with us" partner onboarding — collects the required
-  details (`SELLER_SETUP_FIELDS` from `@data/seller/sellerSetup.ts`) and submits them via
+- `SellWithUsScreen.tsx`: "Sell with us" partner onboarding — all details are mandatory
+  (`SELLER_SETUP_FIELDS` from `@data/seller/sellerSetup.ts`; submission is blocked until
+  every field is filled and the state code is two letters) and submits them via
   `GatewayClient.submitSellerApplication` (`POST /sellers` → `sellers.sellers`,
   created `PENDING_REVIEW`; fixture fallback confirms offline).
 - `MyOrdersScreen.tsx`: "My Orders" — a **sub-app chip rail** (All / Mart / Food /

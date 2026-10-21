@@ -396,10 +396,10 @@ export interface SellerApplicationInput {
   ownerName: string;
   /** app_brand enum (MART | FOOD | PHARMA). */
   category: AppBrand;
-  gstin?: string;
-  pan?: string;
-  businessAddress?: string;
-  contactPhone?: string;
+  gstin: string;
+  pan: string;
+  businessAddress: string;
+  contactPhone: string;
   /** 2-letter state code (sellers.sellers.state_code). */
   stateCode: string;
 }
@@ -1590,9 +1590,9 @@ export class GatewayClient {
           businessName: input.businessName,
           ownerName: input.ownerName,
           category: input.category,
-          gstin: input.gstin ?? '',
-          pan: input.pan ?? '',
-          businessAddress: input.businessAddress ?? '',
+          gstin: input.gstin,
+          pan: input.pan,
+          businessAddress: input.businessAddress,
           contactPhone: input.contactPhone,
           stateCode: input.stateCode.toUpperCase(),
           status: 'PENDING_REVIEW',
