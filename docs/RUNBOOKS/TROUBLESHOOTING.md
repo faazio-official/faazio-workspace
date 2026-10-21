@@ -482,6 +482,13 @@ runtime, not build time.
 - **Payout stays `ON_HOLD` past 14 days** — the releaser only runs when real Route credentials are
   configured. Check the gateway logs for `settlement hold releaser`, then release manually as
   SUPER_ADMIN: `POST /payouts/{id}/release` (the payout id is on the portal settlement page).
+- **`POST /webhooks/razorpay/route` returns `invalid_signature`** — the HMAC must use
+  `RAZORPAY_ROUTE_WEBHOOK_SECRET` (or the `RAZORPAY_WEBHOOK_SECRET` fallback) and the **raw** body.
+  A proxy that re-serializes JSON breaks the signature. In mock mode every signature is rejected by
+  design; configure the Route keys to reconcile live transfers.
+- **`POST /payouts/{id}/reverse` returns `razorpay_unavailable` (502)** — Razorpay refused the
+  reversal (already released/reversed, or the transfer was never created). The local payout is left
+  unchanged; reconcile from the Route dashboard, then retry or adjust manually.
 - **KYC image upload rejected (`unsupported image type` / `image too large`)** — the allowlist is
   JPEG/PNG/WebP/AVIF up to 8 MiB. Re-capture at lower resolution; do not convert to PDF. Confirm
   `R2_PRIVATE_BUCKET` is set or `/media/upload-url` returns 503.

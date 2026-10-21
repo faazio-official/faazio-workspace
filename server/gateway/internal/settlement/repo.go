@@ -38,6 +38,7 @@ type Payout struct {
 	RazorpayTransferID string `json:"razorpayTransferId,omitempty"`
 	ReleaseAfter       string `json:"releaseAfter,omitempty"`
 	ReleasedAt         string `json:"releasedAt,omitempty"`
+	ReversedAt         string `json:"reversedAt,omitempty"`
 }
 
 // Repo reads/writes the settlement tables.
@@ -84,7 +85,7 @@ func (r *Repo) Payouts(ctx context.Context, sellerID string) ([]Payout, error) {
 	}
 	rows, err := r.pool.Query(ctx, `
 		select payout_id, seller_id, cycle, amount_paisa, status::text, scheduled_for,
-		       coalesce(razorpay_transfer_id,''), release_after, released_at
+		       coalesce(razorpay_transfer_id,''), release_after, released_at, reversed_at
 		  from payments.payouts
 		 where ($1 = '' or seller_id = $1)
 		 order by scheduled_for desc`, sellerID)
@@ -113,7 +114,7 @@ func (r *Repo) CreatePayout(ctx context.Context, p Payout) (Payout, error) {
 		insert into payments.payouts (payout_id, seller_id, cycle, amount_paisa, status, scheduled_for)
 		values ($1,$2,$3,$4,'SCHEDULED',$5::timestamptz)
 		returning payout_id, seller_id, cycle, amount_paisa, status::text, scheduled_for,
-		          coalesce(razorpay_transfer_id,''), release_after, released_at`,
+		          coalesce(razorpay_transfer_id,''), release_after, released_at, reversed_at`,
 		p.PayoutID, p.SellerID, p.Cycle, p.Amount*100, p.ScheduledFor))
 	if err != nil {
 		return Payout{}, err
@@ -135,7 +136,7 @@ func (r *Repo) CreateHoldPayout(ctx context.Context, p Payout) (Payout, error) {
 		  (payout_id, seller_id, cycle, amount_paisa, status, scheduled_for, razorpay_transfer_id, release_after)
 		values ($1,$2,$3,$4,'ON_HOLD',$5::timestamptz,$6,$7::timestamptz)
 		returning payout_id, seller_id, cycle, amount_paisa, status::text, scheduled_for,
-		          coalesce(razorpay_transfer_id,''), release_after, released_at`,
+		          coalesce(razorpay_transfer_id,''), release_after, released_at, reversed_at`,
 		p.PayoutID, p.SellerID, p.Cycle, p.Amount*100, p.ScheduledFor,
 		nullIfEmpty(p.RazorpayTransferID), nullIfEmpty(p.ReleaseAfter)))
 }
@@ -150,7 +151,7 @@ func (r *Repo) DueHolds(ctx context.Context, now time.Time, limit int) ([]Payout
 	}
 	rows, err := r.pool.Query(ctx, `
 		select payout_id, seller_id, cycle, amount_paisa, status::text, scheduled_for,
-		       coalesce(razorpay_transfer_id,''), release_after, released_at
+		       coalesce(razorpay_transfer_id,''), release_after, released_at, reversed_at
 		  from payments.payouts
 		 where status='ON_HOLD' and release_after is not null and release_after <= $1
 		 order by release_after asc
@@ -177,7 +178,7 @@ func (r *Repo) PayoutByID(ctx context.Context, id string) (Payout, bool, error) 
 	}
 	p, err := scanPayout(r.pool.QueryRow(ctx, `
 		select payout_id, seller_id, cycle, amount_paisa, status::text, scheduled_for,
-		       coalesce(razorpay_transfer_id,''), release_after, released_at
+		       coalesce(razorpay_transfer_id,''), release_after, released_at, reversed_at
 		  from payments.payouts where payout_id=$1`, id))
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
@@ -197,7 +198,67 @@ func (r *Repo) ReleasePayout(ctx context.Context, id string) (Payout, bool, erro
 		update payments.payouts set status='PAID', released_at=now()
 		 where payout_id=$1 and status='ON_HOLD'
 		 returning payout_id, seller_id, cycle, amount_paisa, status::text, scheduled_for,
-		           coalesce(razorpay_transfer_id,''), release_after, released_at`, id))
+		           coalesce(razorpay_transfer_id,''), release_after, released_at, reversed_at`, id))
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return Payout{}, false, nil
+		}
+		return Payout{}, false, err
+	}
+	return p, true, nil
+}
+
+// ReversePayout marks a held or settled payout REVERSED (refund / return clawback).
+func (r *Repo) ReversePayout(ctx context.Context, id string) (Payout, bool, error) {
+	if r.pool == nil {
+		return Payout{}, false, fmt.Errorf("settlement: database not configured")
+	}
+	return r.scanUpdated(ctx, `
+		update payments.payouts set status='REVERSED', reversed_at=now()
+		 where payout_id=$1 and status in ('ON_HOLD','SCHEDULED','PAID')
+		 returning payout_id, seller_id, cycle, amount_paisa, status::text, scheduled_for,
+		           coalesce(razorpay_transfer_id,''), release_after, released_at, reversed_at`, id)
+}
+
+// MarkReleasedByTransfer reconciles a Razorpay `transfer.released` webhook (ON_HOLD → PAID).
+func (r *Repo) MarkReleasedByTransfer(ctx context.Context, transferID string) (Payout, bool, error) {
+	if r.pool == nil {
+		return Payout{}, false, fmt.Errorf("settlement: database not configured")
+	}
+	return r.scanUpdated(ctx, `
+		update payments.payouts set status='PAID', released_at=now()
+		 where razorpay_transfer_id=$1 and status='ON_HOLD'
+		 returning payout_id, seller_id, cycle, amount_paisa, status::text, scheduled_for,
+		           coalesce(razorpay_transfer_id,''), release_after, released_at, reversed_at`, transferID)
+}
+
+// MarkFailedByTransfer reconciles a Razorpay `transfer.failed` webhook.
+func (r *Repo) MarkFailedByTransfer(ctx context.Context, transferID string) (Payout, bool, error) {
+	if r.pool == nil {
+		return Payout{}, false, fmt.Errorf("settlement: database not configured")
+	}
+	return r.scanUpdated(ctx, `
+		update payments.payouts set status='FAILED'
+		 where razorpay_transfer_id=$1 and status in ('ON_HOLD','SCHEDULED')
+		 returning payout_id, seller_id, cycle, amount_paisa, status::text, scheduled_for,
+		           coalesce(razorpay_transfer_id,''), release_after, released_at, reversed_at`, transferID)
+}
+
+// MarkReversedByTransfer reconciles a Razorpay `transfer.reversed` webhook.
+func (r *Repo) MarkReversedByTransfer(ctx context.Context, transferID string) (Payout, bool, error) {
+	if r.pool == nil {
+		return Payout{}, false, fmt.Errorf("settlement: database not configured")
+	}
+	return r.scanUpdated(ctx, `
+		update payments.payouts set status='REVERSED', reversed_at=now()
+		 where razorpay_transfer_id=$1 and status in ('ON_HOLD','SCHEDULED','PAID')
+		 returning payout_id, seller_id, cycle, amount_paisa, status::text, scheduled_for,
+		           coalesce(razorpay_transfer_id,''), release_after, released_at, reversed_at`, transferID)
+}
+
+// scanUpdated runs a single-row update/returning and maps "no row" to ok=false.
+func (r *Repo) scanUpdated(ctx context.Context, sql string, id string) (Payout, bool, error) {
+	p, err := scanPayout(r.pool.QueryRow(ctx, sql, id))
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return Payout{}, false, nil
@@ -215,9 +276,10 @@ func scanPayout(row payoutScanner) (Payout, error) {
 		scheduled    time.Time
 		releaseAfter *time.Time
 		releasedAt   *time.Time
+		reversedAt   *time.Time
 	)
 	if err := row.Scan(&p.PayoutID, &p.SellerID, &p.Cycle, &p.Amount, &p.Status, &scheduled,
-		&p.RazorpayTransferID, &releaseAfter, &releasedAt); err != nil {
+		&p.RazorpayTransferID, &releaseAfter, &releasedAt, &reversedAt); err != nil {
 		return Payout{}, err
 	}
 	p.Amount /= 100
@@ -227,6 +289,9 @@ func scanPayout(row payoutScanner) (Payout, error) {
 	}
 	if releasedAt != nil {
 		p.ReleasedAt = releasedAt.UTC().Format(time.RFC3339)
+	}
+	if reversedAt != nil {
+		p.ReversedAt = reversedAt.UTC().Format(time.RFC3339)
 	}
 	return p, nil
 }
