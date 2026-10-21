@@ -297,6 +297,20 @@ contract stable so the swap is invisible to the app):
     `SELECT count(*) WHERE created_at < now() - interval '7 days'` before deploy).
     Owner: `db-schema.md` §12.9/§12.20, `web-portal.md` (copy), `caching-cloudflare-valkey.md` §8.
 
+21. ✅ **Seller onboarding + Razorpay Route split (`0039`):** `sellers.sellers` gains
+    `platform_fee_pct` (admin-editable, FOOD floor 5%), `razorpay_linked_account_id`,
+    `contact_email`, FSSAI fields, OTP-signature fields and rejection reason/history;
+    `bank_accounts.bank_name`, `kyc_documents.asset_id`, and new append-only
+    `sellers.kyc_verification_log` + `sellers.seller_request_history`. `payments.payouts` gains
+    `razorpay_transfer_id`/`release_after`/`released_at`. Mobile replaces the old `SellWithUsScreen`
+    with `SellerRegistrationScreen` (location state, private-bucket passbook/FSSAI, OTP signature);
+    the portal state/super seller detail performs fee edits, per-document verification, rejection and
+    **Verify KYC** (Route linked account + activation). `internal/platform/razorpayroute` is the
+    domain-free Route client (accounts, held transfers, release/reverse, webhook HMAC); a settlement
+    worker releases due holds after the 14-day window. Full account numbers are forwarded to Razorpay
+    in memory and never stored. Owner: `db-schema.md` §12.21, `mobile-app.md`, `web-portal.md`,
+    `server-gateway-plan.md`, `monolith-breakdown.md` §1.
+
 ---
 
 ## 8. Companion docs

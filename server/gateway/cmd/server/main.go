@@ -22,8 +22,10 @@ import (
 	"github.com/faazio/server/gateway/internal/platform/db"
 	"github.com/faazio/server/gateway/internal/platform/mongo"
 	"github.com/faazio/server/gateway/internal/platform/r2"
+	"github.com/faazio/server/gateway/internal/platform/razorpayroute"
 	"github.com/faazio/server/gateway/internal/portal"
 	"github.com/faazio/server/gateway/internal/server"
+	"github.com/faazio/server/gateway/internal/settlement"
 )
 
 func main() {
@@ -104,6 +106,14 @@ func main() {
 	auditPurger := admins.NewPurger(admins.New(pool), nil)
 	if pool != nil {
 		go auditPurger.Run(workerCtx)
+	}
+
+	// Razorpay Route hold releaser: once the 14-day buyer-protection window elapses, release the
+	// seller slice and mark the payout PAID. Disabled unless real Route credentials are configured.
+	routeGateway := razorpayroute.New(cfg.RazorpayRouteKeyID, cfg.RazorpayRouteKeySecret, cfg.RazorpayRouteWebhookSecret)
+	holdReleaser := settlement.NewReleaser(settlement.New(pool), routeGateway, nil)
+	if pool != nil && holdReleaser.Enabled() {
+		go holdReleaser.Run(workerCtx)
 	}
 
 	handler := server.NewRouter(server.Deps{

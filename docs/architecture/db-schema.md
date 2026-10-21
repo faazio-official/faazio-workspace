@@ -1738,3 +1738,59 @@ the caller's JWT identity in the `AUDIT_PURGE` row — parity with `POST /media/
 pass deletes it all (batched). Check before deploying:
 `SELECT count(*) FROM admins.audit_logs WHERE created_at < now() - interval '7 days';`
 Purged rows are unrecoverable — there is **no archive** (superadmin decision, 2026-10).
+
+### 12.21 Seller onboarding + Razorpay Route split (migration `0039`)
+
+**Authority:** `monolith-breakdown.md` §1 (`sellers` + `settlement` rows), `mobile-app.md`
+("Sell with us"), `server-gateway-plan.md`, `web-portal.md` (seller review), `RUNBOOKS/RELEASE.md`
+(Route env), `RUNBOOKS/TROUBLESHOOTING.md`.
+
+`0039` is additive. Existing sellers keep working: `platform_fee_pct` defaults to `10` and
+`otp_verified` defaults to `false` (legacy rows predate the OTP gate).
+
+```sql
+ALTER TABLE sellers.sellers
+  ADD COLUMN platform_fee_pct SMALLINT NOT NULL DEFAULT 10 CHECK (platform_fee_pct BETWEEN 1 AND 100),
+  ADD COLUMN razorpay_linked_account_id TEXT,
+  ADD COLUMN contact_email TEXT NOT NULL DEFAULT '',
+  ADD COLUMN fssai_number TEXT, ADD COLUMN fssai_cert_key TEXT, ADD COLUMN fssai_cert_asset_id TEXT,
+  ADD COLUMN otp_verified BOOLEAN NOT NULL DEFAULT false,
+  ADD COLUMN otp_verified_at TIMESTAMPTZ,
+  ADD COLUMN rejection_reason TEXT,
+  ADD COLUMN rejection_history JSONB NOT NULL DEFAULT '[]'::jsonb;
+ALTER TABLE sellers.bank_accounts ADD COLUMN bank_name TEXT NOT NULL DEFAULT '';
+ALTER TABLE sellers.kyc_documents ADD COLUMN asset_id TEXT;          -- media.assets id
+ALTER TYPE kyc_doc_type ADD VALUE IF NOT EXISTS 'PASSBOOK';
+ALTER TYPE kyc_doc_type ADD VALUE IF NOT EXISTS 'FSSAI';
+
+CREATE TABLE sellers.kyc_verification_log (   -- append-only manual PAN/GSTIN/FSSAI/passbook checks
+  log_id TEXT PRIMARY KEY, seller_id TEXT NOT NULL REFERENCES sellers.sellers ON DELETE CASCADE,
+  doc_type kyc_doc_type NOT NULL, verified_by TEXT NOT NULL, verified_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  notes TEXT NOT NULL DEFAULT '');
+
+CREATE TABLE sellers.seller_request_history ( -- changed fields on a rejected resubmission
+  history_id TEXT PRIMARY KEY, seller_id TEXT NOT NULL REFERENCES sellers.sellers ON DELETE CASCADE,
+  field_name TEXT NOT NULL, old_value TEXT NOT NULL DEFAULT '', new_value TEXT NOT NULL DEFAULT '',
+  changed_by TEXT NOT NULL, changed_at TIMESTAMPTZ NOT NULL DEFAULT now());
+
+ALTER TABLE payments.payouts
+  ADD COLUMN razorpay_transfer_id TEXT, ADD COLUMN release_after TIMESTAMPTZ, ADD COLUMN released_at TIMESTAMPTZ;
+```
+
+**Rules**
+- `platform_fee_pct` is server-validated (1–100; FOOD ≥ 5) on create, admin edit and resubmission.
+  Settlement reads it server-side; the client never supplies the fee at payment time.
+- **No full bank account number is stored.** The gateway forwards it to Razorpay Route in memory at
+  onboarding (and retries may create the account without bank details); Postgres keeps only
+  `account_number_masked` (last four) + IFSC + beneficiary + bank name.
+- KYC bytes live in the private R2 bucket; `kyc_documents` stores the object key + `asset_id`, never a
+  URL/bytes. `/media/private/{id}` mints a 300 s GET for the creator or an admin.
+- `otp_verified` is the digital-signature gate (set only after a client OTP round-trip); submission is
+  rejected when false. The OTP runs on a disposable Firebase app so the shopper session is untouched.
+- Rejection appends to `rejection_history`; `seller_request_history` records each changed field on
+  resubmission. Both are deleted when an admin sets `ACTIVE` (clean state after approval).
+- RLS: seller reads their own rows; state admin their state; super admin all. Writes stay
+  `service_role` only (the gateway).
+- Route transfers are stored with `on_hold` + `release_after = now() + 14 days`; the settlement
+  worker releases due holds every 15 minutes when `RAZORPAY_ROUTE_*` (or the fallback
+  `RAZORPAY_*`) credentials are configured, and marks the payout `PAID`.

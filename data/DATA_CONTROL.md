@@ -347,8 +347,8 @@ the `GROCERY` member was dropped from `AppBrand` / `CartCategory` / `SubAppId` /
 
 | Export | Type | Mobile consumers | Status |
 |---|---|---|---|
-| `SELLER_SETUP_FIELDS` | `SellerSetupField[]` — seller-onboarding field labels/placeholders (business name, owner, category, GSTIN, business address, bank account, IFSC, contact phone) | `SellWithUsScreen` (labels/placeholders for the onboarding form; submission goes to `POST /sellers` via `GatewayClient.submitSellerApplication`) | `@mock` |
-| `SellerSetupField` | type | `SellWithUsScreen` | `@mock` |
+| `SELLER_SETUP_FIELDS` | `SellerSetupField[]` — seller-onboarding field labels/placeholders (business identity, PAN/state, platform fee, bank name/account/IFSC/beneficiary, contact email, FSSAI) | `SellerRegistrationScreen` (`features/seller-onboarding/`; labels/placeholders for the onboarding wizard; submission goes to `POST /sellers` via `GatewayClient.submitSellerApplication`) | `@mock` |
+| `SellerSetupField` | type | `SellerRegistrationScreen` | `@mock` |
 
 > **Contract:** Read-only label/placeholder source for the seller-onboarding form. The list is
 > stable; FK/field changes to the server contract happen in `GatewayClient.submitSellerApplication`

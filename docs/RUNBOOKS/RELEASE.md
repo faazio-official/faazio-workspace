@@ -211,6 +211,15 @@ least one superadmin provisioned. Full provisioning/rotation/rollback steps:
 fails the build when `NEXT_PUBLIC_GATEWAY_URL` is missing, so a deployment can never ship with every
 portal auth route returning `503 not_configured`.
 
+### Razorpay Route (seller splits)
+
+Migrations `0039` (seller onboarding + Route columns) must be applied before deploying this gateway.
+`RAZORPAY_ROUTE_KEY_ID` / `RAZORPAY_ROUTE_KEY_SECRET` / `RAZORPAY_ROUTE_WEBHOOK_SECRET` are optional:
+they fall back to the existing `RAZORPAY_KEY_ID` / `RAZORPAY_KEY_SECRET` / `RAZORPAY_WEBHOOK_SECRET`.
+With no keys the Route client stays in mock mode (linked accounts/transfers are synthetic and the
+hold releaser is disabled), so a staging deploy never marks a payout PAID without a real transfer.
+The private KYC bucket is `R2_PRIVATE_BUCKET`; KYC images are never public.
+
 ## ✅ Release checklist
 
 - [ ] `npm run ts:check` and `npm run check:boundaries` pass.
@@ -220,6 +229,7 @@ portal auth route returning `503 not_configured`.
 - [ ] Release APK signed with the **release cert** (`CN=Faazio`), not the debug cert.
 - [ ] `gh workflow run release-apk.yml` succeeded and the signed APK is on the GitHub Release.
 - [ ] Portal (if deploying): `0032` + `0033` applied, `PORTAL_JWT_SECRET`/`PORTAL_PEPPER` set, a superadmin hash provisioned (`PORTAL_AUTH.md`).
+- [ ] Seller splits: `0039` applied; Route keys set (or the `RAZORPAY_*` fallback used); `R2_PRIVATE_BUCKET` set.
 - [ ] Release signed and smoke-tested on a device (R8 gate: Home → Cart → Checkout → Pharma).
 - [ ] Store metadata / data-safety updated.
 

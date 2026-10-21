@@ -30,6 +30,7 @@ var allowedMimes = map[string]string{
 	"image/jpeg": "jpg",
 	"image/png":  "png",
 	"image/webp": "webp",
+	"image/avif": "avif",
 }
 
 // allowedOwnerTypes mirrors the DB check constraint.
