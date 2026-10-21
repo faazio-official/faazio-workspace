@@ -2761,7 +2761,8 @@ with `GatewayClient` balance calls).
 **Feature:** `SellWithUsScreen` (route `SellWithUs`, from the Account `earn` group's
 `Sell with us` row) is a real onboarding form. It collects business name, owner, category
 (`MART`/`FOOD`/`PHARMA` chips), GSTIN, PAN, business address, contact phone and a 2-letter
-state code, then submits a `PENDING_REVIEW` application via
+state code. **All fields are mandatory** — submission is blocked until each is filled and the
+state code is exactly two letters. Then submits a `PENDING_REVIEW` application via
 `GatewayClient.submitSellerApplication` (`POST /sellers`, audited). On success it shows the
 returned `sellerId`; offline/mock mode returns a local `PENDING_REVIEW` row so the flow still
 completes. Field labels/placeholders still come from the stable

@@ -740,7 +740,9 @@ the server — the screen only ever sends `{tag, name, phone, address, isDefault
 `SellWithUsScreen` (route `SellWithUs`) is the partner-onboarding form reached from the
 Account `earn` group. It collects the minimum seller-account details (business name, owner,
 category `MART`/`FOOD`/`PHARMA`, GSTIN, PAN, business address, contact phone, 2-letter state
-code) — field labels/placeholders still sourced from the `@data/seller/sellerSetup.ts`
+code). **Every field is mandatory** — the screen blocks submission and names any empty
+fields, and the state code must be exactly two letters. Field labels/placeholders still
+sourced from the `@data/seller/sellerSetup.ts`
 fixture (`SELLER_SETUP_FIELDS`) — and submits a `PENDING_REVIEW` application via
 `GatewayClient.submitSellerApplication` (`POST /sellers`, audited server-side). On success the
 screen shows the returned `sellerId`; KYC documents and the payout bank account are collected

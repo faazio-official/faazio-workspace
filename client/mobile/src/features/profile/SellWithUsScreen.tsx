@@ -40,6 +40,17 @@ interface FormState {
   stateCode: string;
 }
 
+/** Every onboarding detail is mandatory before an application can be submitted. */
+const REQUIRED_FIELDS: { key: keyof FormState; label: string }[] = [
+  { key: 'businessName', label: 'business name' },
+  { key: 'ownerName', label: 'owner / contact name' },
+  { key: 'gstin', label: 'GSTIN' },
+  { key: 'pan', label: 'PAN' },
+  { key: 'businessAddress', label: 'business address' },
+  { key: 'contactPhone', label: 'contact phone' },
+  { key: 'stateCode', label: 'state code' },
+];
+
 /**
  * "Sell with us" partner onboarding. Collects the minimum seller-account details and submits a
  * PENDING_REVIEW application via `GatewayClient.submitSellerApplication` (sellers.sellers).
@@ -67,11 +78,12 @@ export function SellWithUsScreen({ navigation }: Props) {
     setForm((prev) => ({ ...prev, [key]: value }));
 
   const submit = async () => {
-    if (!form.businessName.trim() || !form.ownerName.trim()) {
-      setError('Business and owner name are required.');
+    const missing = REQUIRED_FIELDS.filter(({ key }) => !form[key].trim()).map(({ label }) => label);
+    if (missing.length > 0) {
+      setError(`Please fill in: ${missing.join(', ')}.`);
       return;
     }
-    if (form.stateCode.trim().length !== 2) {
+    if (!/^[A-Z]{2}$/.test(form.stateCode.trim().toUpperCase())) {
       setError('Enter a 2-letter state code (e.g. MH).');
       return;
     }
@@ -82,10 +94,10 @@ export function SellWithUsScreen({ navigation }: Props) {
         businessName: form.businessName.trim(),
         ownerName: form.ownerName.trim(),
         category,
-        gstin: form.gstin.trim() || undefined,
-        pan: form.pan.trim().toUpperCase() || undefined,
-        businessAddress: form.businessAddress.trim() || undefined,
-        contactPhone: form.contactPhone.trim() || undefined,
+        gstin: form.gstin.trim().toUpperCase(),
+        pan: form.pan.trim().toUpperCase(),
+        businessAddress: form.businessAddress.trim(),
+        contactPhone: form.contactPhone.trim(),
         stateCode: form.stateCode.trim().toUpperCase(),
       });
       setResult(res);
@@ -161,7 +173,7 @@ export function SellWithUsScreen({ navigation }: Props) {
             <View style={styles.sectionCard}>
               <AppText style={styles.sectionTitle}>Business details</AppText>
               <AppText style={styles.sectionNote}>
-                These details are required to open your seller account.
+                All fields are required to open your seller account.
               </AppText>
 
               <AppText style={styles.inputLabel}>Category</AppText>
