@@ -163,6 +163,8 @@ func logPortalStartup(ctx context.Context, cfg config.Config, pool *db.Pool) {
 		log.Print("portal_tables=missing hint=apply migrations 0032 + 0033")
 	case !status.Scoped:
 		log.Print("portal_tables=partial hint=apply migration 0033")
+	case !status.Lifetime:
+		log.Print("portal_tables=partial hint=apply migration 0038")
 	default:
 		log.Print("portal_tables=ok")
 	}

@@ -1,11 +1,14 @@
 package portal
 
 import (
+	"context"
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
+	"log"
 	"net"
 	"net/http"
 	"strings"
@@ -16,6 +19,7 @@ import (
 	"github.com/faazio/server/gateway/internal/platform/cache"
 	"github.com/faazio/server/gateway/internal/platform/httpx"
 	"github.com/go-chi/chi/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 )
 
 const (
@@ -123,6 +127,39 @@ func toUserDTO(u PortalUser) userDTO {
 	}
 }
 
+// failUnavailable returns the same generic 500 to the caller (no schema/enumeration leak) but logs
+// the machine-readable cause for operators. Postgres errors are reduced to SQLSTATE + object names;
+// the raw message/args are never logged, so values and connection details cannot reach Render logs.
+func failUnavailable(w http.ResponseWriter, op, msg string, err error) {
+	log.Printf("portal_error op=%s %s", op, safeErrorFields(err))
+	httpx.Fail(w, http.StatusInternalServerError, "portal_unavailable", msg)
+}
+
+func safeErrorFields(err error) string {
+	var pgErr *pgconn.PgError
+	if errors.As(err, &pgErr) {
+		fields := "sqlstate=" + pgErr.Code
+		if pgErr.TableName != "" {
+			fields += " table=" + pgErr.TableName
+		}
+		if pgErr.ColumnName != "" {
+			fields += " column=" + pgErr.ColumnName
+		}
+		if pgErr.ConstraintName != "" {
+			fields += " constraint=" + pgErr.ConstraintName
+		}
+		return fields
+	}
+	switch {
+	case errors.Is(err, context.DeadlineExceeded):
+		return "err=deadline_exceeded"
+	case errors.Is(err, context.Canceled):
+		return "err=canceled"
+	default:
+		return fmt.Sprintf("err_type=%T", err)
+	}
+}
+
 func (h *Handler) login(w http.ResponseWriter, r *http.Request) {
 	if !h.minter.Enabled() {
 		httpx.Fail(w, http.StatusServiceUnavailable, "portal_auth_unavailable", "portal auth is not configured")
@@ -153,7 +190,7 @@ func (h *Handler) login(w http.ResponseWriter, r *http.Request) {
 
 	user, found, err := h.repo.ByEmailLower(r.Context(), req.Email)
 	if err != nil {
-		httpx.Fail(w, http.StatusInternalServerError, "portal_unavailable", "sign-in unavailable")
+		failUnavailable(w, "login_lookup", "sign-in unavailable", err)
 		return
 	}
 	if !found {
@@ -189,18 +226,18 @@ func (h *Handler) login(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := h.repo.RecordLoginSuccess(r.Context(), user.UserID); err != nil {
-		httpx.Fail(w, http.StatusInternalServerError, "portal_unavailable", "sign-in unavailable")
+		failUnavailable(w, "login_record_success", "sign-in unavailable", err)
 		return
 	}
 	raw, hash, err := NewRefresh()
 	if err != nil {
-		httpx.Fail(w, http.StatusInternalServerError, "portal_unavailable", "sign-in unavailable")
+		failUnavailable(w, "login_refresh_mint", "sign-in unavailable", err)
 		return
 	}
 	now := time.Now()
 	out, err := h.issue(r, user, sessionsNew, raw, hash, now.Add(RefreshIdleTTL), now.Add(RefreshAbsoluteTTL), shortHash(clientIP(r)), shortHash(r.UserAgent()))
 	if err != nil {
-		httpx.Fail(w, http.StatusInternalServerError, "portal_unavailable", "sign-in unavailable")
+		failUnavailable(w, "login_session_create", "sign-in unavailable", err)
 		return
 	}
 	h.record(r, "PORTAL_LOGIN_SUCCESS", user.UserID, user.Role, ipHash, "success")
@@ -265,7 +302,7 @@ func (h *Handler) refresh(w http.ResponseWriter, r *http.Request) {
 	for attempt := 0; attempt < 3; attempt++ {
 		session, found, err := h.repo.SessionByTokenHash(r.Context(), hash)
 		if err != nil {
-			httpx.Fail(w, http.StatusInternalServerError, "portal_unavailable", "refresh unavailable")
+			failUnavailable(w, "refresh_lookup", "refresh unavailable", err)
 			return
 		}
 		if !found || session.RevokedAt != nil {
@@ -299,13 +336,13 @@ func (h *Handler) refresh(w http.ResponseWriter, r *http.Request) {
 		grace := session.UsedAt != nil
 		raw, childHash, err := NewRefresh()
 		if err != nil {
-			httpx.Fail(w, http.StatusInternalServerError, "portal_unavailable", "refresh unavailable")
+			failUnavailable(w, "refresh_mint", "refresh unavailable", err)
 			return
 		}
 		if grace {
 			repointed, err := h.repo.GracePoint(r.Context(), hash, childHash, ipHash, uaHash)
 			if err != nil {
-				httpx.Fail(w, http.StatusInternalServerError, "portal_unavailable", "refresh unavailable")
+				failUnavailable(w, "refresh_grace_point", "refresh unavailable", err)
 				return
 			}
 			if !repointed {
@@ -316,7 +353,7 @@ func (h *Handler) refresh(w http.ResponseWriter, r *http.Request) {
 				return
 			}
 		} else if consumed, err := h.repo.ConsumeSession(r.Context(), hash, childHash, time.Now().Add(ReuseGrace), ipHash, uaHash); err != nil {
-			httpx.Fail(w, http.StatusInternalServerError, "portal_unavailable", "refresh unavailable")
+			failUnavailable(w, "refresh_consume", "refresh unavailable", err)
 			return
 		} else if !consumed {
 			// Lost the rotation race to a concurrent request: re-read and re-classify.
@@ -325,7 +362,7 @@ func (h *Handler) refresh(w http.ResponseWriter, r *http.Request) {
 
 		user, found, err := h.repo.ByID(r.Context(), session.UserID)
 		if err != nil {
-			httpx.Fail(w, http.StatusInternalServerError, "portal_unavailable", "refresh unavailable")
+			failUnavailable(w, "refresh_user", "refresh unavailable", err)
 			return
 		}
 		if !found || !user.Active {
@@ -335,7 +372,7 @@ func (h *Handler) refresh(w http.ResponseWriter, r *http.Request) {
 		}
 		out, err := h.issue(r, user, session.SessionID, raw, childHash, time.Now().Add(RefreshIdleTTL), session.AbsoluteExpiresAt, ipHash, uaHash)
 		if err != nil {
-			httpx.Fail(w, http.StatusInternalServerError, "portal_unavailable", "refresh unavailable")
+			failUnavailable(w, "refresh_session_create", "refresh unavailable", err)
 			return
 		}
 		if grace {
@@ -415,7 +452,7 @@ func (h *Handler) listCredentials(w http.ResponseWriter, r *http.Request) {
 	}
 	users, err := h.repo.List(r.Context())
 	if err != nil {
-		httpx.Fail(w, http.StatusInternalServerError, "portal_unavailable", "credentials unavailable")
+		failUnavailable(w, "credentials_list", "credentials unavailable", err)
 		return
 	}
 	out := make([]userDTO, 0, len(users))
@@ -471,7 +508,7 @@ func (h *Handler) createCredential(w http.ResponseWriter, r *http.Request) {
 	if sellerID != "" {
 		ok, err := h.repo.SellerExists(r.Context(), sellerID)
 		if err != nil {
-			httpx.Fail(w, http.StatusInternalServerError, "portal_unavailable", "credentials unavailable")
+			failUnavailable(w, "credentials_seller_lookup", "credentials unavailable", err)
 			return
 		}
 		if !ok {
@@ -498,7 +535,7 @@ func (h *Handler) createCredential(w http.ResponseWriter, r *http.Request) {
 			httpx.Fail(w, http.StatusConflict, "email_taken", "that email already has a login")
 			return
 		}
-		httpx.Fail(w, http.StatusInternalServerError, "portal_unavailable", "could not create credential")
+		failUnavailable(w, "credentials_create", "could not create credential", err)
 		return
 	}
 	h.record(r, "PORTAL_USER_CREATE", auth.UserID(r.Context()), auth.Role(r.Context()), shortHash(clientIP(r)), "success")
@@ -525,7 +562,7 @@ func (h *Handler) setCredentialActive(w http.ResponseWriter, r *http.Request) {
 	}
 	user, found, err := h.repo.ByID(r.Context(), chi.URLParam(r, "id"))
 	if err != nil {
-		httpx.Fail(w, http.StatusInternalServerError, "portal_unavailable", "credentials unavailable")
+		failUnavailable(w, "credentials_update_lookup", "credentials unavailable", err)
 		return
 	}
 	if !found {
@@ -536,7 +573,7 @@ func (h *Handler) setCredentialActive(w http.ResponseWriter, r *http.Request) {
 		// Never let the console disable the final active superadmin — that is a full lockout.
 		count, err := h.repo.CountActiveSuperAdmins(r.Context())
 		if err != nil {
-			httpx.Fail(w, http.StatusInternalServerError, "portal_unavailable", "credentials unavailable")
+			failUnavailable(w, "credentials_superadmin_count", "credentials unavailable", err)
 			return
 		}
 		if count <= 1 {
@@ -546,7 +583,7 @@ func (h *Handler) setCredentialActive(w http.ResponseWriter, r *http.Request) {
 	}
 	ok, err := h.repo.SetUserActive(r.Context(), user.UserID, *req.Active)
 	if err != nil {
-		httpx.Fail(w, http.StatusInternalServerError, "portal_unavailable", "could not update credential")
+		failUnavailable(w, "credentials_update", "could not update credential", err)
 		return
 	}
 	if !ok {
@@ -585,7 +622,7 @@ func (h *Handler) resetCredentialPassword(w http.ResponseWriter, r *http.Request
 	}
 	user, found, err := h.repo.ByID(r.Context(), chi.URLParam(r, "id"))
 	if err != nil {
-		httpx.Fail(w, http.StatusInternalServerError, "portal_unavailable", "credentials unavailable")
+		failUnavailable(w, "credentials_reset_lookup", "credentials unavailable", err)
 		return
 	}
 	if !found {
@@ -599,7 +636,7 @@ func (h *Handler) resetCredentialPassword(w http.ResponseWriter, r *http.Request
 	}
 	force := defaultForceChange(user.Role, req.ForceChange)
 	if err := h.repo.ResetPassword(r.Context(), user.UserID, hash, force); err != nil {
-		httpx.Fail(w, http.StatusInternalServerError, "portal_unavailable", "could not reset password")
+		failUnavailable(w, "credentials_reset", "could not reset password", err)
 		return
 	}
 	_ = h.repo.RevokeUserSessions(r.Context(), user.UserID)
