@@ -37,7 +37,8 @@ const productSelect = `
 select p.id, p.app::text, p.category, p.name, p.search_tokens,
        p.price_paisa, p.mrp_paisa, p.rating, p.reviews_count,
        p.emoji, p.image_url, p.image_key, p.desc_text, p.badge, p.shop, p.unit, p.attributes,
-       s.available, s.in_stock_qty, s.price_paisa, s.mrp_paisa, s.eta, s.is_prescription
+       s.available, s.in_stock_qty, s.price_paisa, s.mrp_paisa, s.eta, s.is_prescription,
+       null::float8 as distance_km
 from catalog.products p
 left join inventory.stock s on s.product_id = p.id`
 
@@ -49,7 +50,8 @@ const productListSelect = `
 select p.id, p.app::text, p.category, p.name, p.search_tokens,
        p.price_paisa, p.mrp_paisa, p.rating, p.reviews_count,
        p.emoji, p.image_url, p.image_key, ''::text as desc_text, p.badge, null::text as shop, p.unit, null::jsonb as attributes,
-       s.available, s.in_stock_qty, s.price_paisa, s.mrp_paisa, s.eta, s.is_prescription
+       s.available, s.in_stock_qty, s.price_paisa, s.mrp_paisa, s.eta, s.is_prescription,
+       null::float8 as distance_km
 from catalog.products p
 left join inventory.stock s on s.product_id = p.id`
 
@@ -71,6 +73,53 @@ func (r *Repo) ByID(ctx context.Context, id string) (contracts.Product, bool, er
 		return contracts.Product{}, false, nil
 	}
 	return products[0], true, nil
+}
+
+// Nearby returns ACTIVE products sold by live stores within radiusKm of (lat, lng), nearest first.
+// The bounding box prunes with the store geo index; Haversine orders the survivors.
+func (r *Repo) Nearby(ctx context.Context, app string, lat, lng, radiusKm float64, limit int) ([]contracts.Product, error) {
+	if r.pool == nil {
+		return nil, fmt.Errorf("catalog: database not configured")
+	}
+	if limit <= 0 || limit > 100 {
+		limit = 40
+	}
+	if radiusKm <= 0 || radiusKm > 100 {
+		radiusKm = 25
+	}
+	latDelta := radiusKm / 111.32
+	cosLat := math.Cos(lat * math.Pi / 180)
+	if cosLat < 0.01 {
+		cosLat = 0.01
+	}
+	lngDelta := radiusKm / (111.32 * cosLat)
+	rows, err := r.pool.Query(ctx, `
+		select p.id, p.app::text, p.category, p.name, p.search_tokens,
+		       p.price_paisa, p.mrp_paisa, p.rating, p.reviews_count,
+		       p.emoji, p.image_url, p.image_key, ''::text as desc_text, p.badge,
+		       null::text as shop, p.unit, null::jsonb as attributes,
+		       s.available, s.in_stock_qty, s.price_paisa, s.mrp_paisa, s.eta, s.is_prescription,
+		       (6371.0088 * acos(least(1, greatest(-1,
+		           sin(radians($1)) * sin(radians(d.latitude)) +
+		           cos(radians($1)) * cos(radians(d.latitude)) * cos(radians(d.longitude) - radians($2))
+		       )))) as distance_km
+		from catalog.products p
+		left join inventory.stock s on s.product_id = p.id
+		join directory.stores d on d.id = p.store_id
+		where p.status = 'ACTIVE'
+		  and d.is_live
+		  and d.latitude is not null and d.longitude is not null
+		  and d.latitude between $3 and $4
+		  and d.longitude between $5 and $6
+		  and ($7 = '' or p.app::text = $7)
+		order by distance_km asc, p.rating desc, p.id asc
+		limit $8`,
+		lat, lng, lat-latDelta, lat+latDelta, lng-lngDelta, lng+lngDelta, app, limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	return scanProducts(rows, r.cdnBase)
 }
 
 // ByIDs returns products for the given ids (stable input order preserved by app).
@@ -176,12 +225,14 @@ func scanProducts(rows pgx.Rows, cdnBase string) ([]contracts.Product, error) {
 			sQty, sMRP                       *int64
 			sETA                             *string
 			sRx                              *bool
+			distance                         *float64
 		)
 		if err := rows.Scan(
 			&p.ID, &p.App, &p.Category, &p.Name, &p.SearchTokens,
 			&pricePaisa, &mrpPaisa, &rating, &reviewsCount,
 			&p.Emoji, &p.Image, &imageKey, &p.Desc, &badge, &shop, &unit, &attrsRaw,
 			&sAvail, &sQty, &stockPrice, &sMRP, &sETA, &sRx,
+			&distance,
 		); err != nil {
 			return nil, err
 		}
@@ -198,6 +249,7 @@ func scanProducts(rows pgx.Rows, cdnBase string) ([]contracts.Product, error) {
 		p.Badge = deref(badge)
 		p.Shop = deref(shop)
 		p.Unit = deref(unit)
+		p.DistanceKm = distance
 		if len(attrsRaw) > 0 {
 			_ = json.Unmarshal(attrsRaw, &p.Attributes)
 		}

@@ -42,6 +42,8 @@ The release keystore + signing properties are stored as GitHub repository secret
 | `GATEWAY_URL` | deployed gateway origin, `https://…` (release refuses `http://`); defaults to `https://faazio-workspace.onrender.com` |
 | `USE_GATEWAY` | `true` to embed the live gateway (defaults to `true` in the workflow) |
 | `CERT_PINS` | comma-separated base64 SHA-256 SPKI pins for the gateway host |
+| `GOOGLE_MAPS_API_KEY_ANDROID` | restricted Maps SDK key; `configure.js` writes the manifest string resource (empty ⇒ blank shop-pin map) |
+| `GOOGLE_PLACES_API_KEY` | restricted Places API (New) key for address autocomplete (empty ⇒ static suggestions) |
 | `USE_FIREBASE_AUTH` | `true` (default) — phone OTP via the committed native Firebase config |
 
 `configure.js` **fails the release** when `USE_GATEWAY=true` and `CERT_PINS` is missing, or when
@@ -152,7 +154,8 @@ machine (systemd-oomd OOM-kills Gradle). Use `gh workflow run "Release APK"` (se
 
 ```bash
 npm run configure                       # release env: CONFIGURE_RELEASE=1, GATEWAY_URL, USE_GATEWAY,
-                                        # CERT_PINS, USE_FIREBASE_AUTH
+                                        # CERT_PINS, USE_FIREBASE_AUTH, GOOGLE_MAPS_API_KEY_ANDROID,
+                                        # GOOGLE_PLACES_API_KEY
 bash scripts/restore-keystore.sh
 cd android && ./gradlew assembleRelease --no-daemon \
   -PreactNativeArchitectures=arm64-v8a,armeabi-v7a \

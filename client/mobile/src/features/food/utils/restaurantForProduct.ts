@@ -34,6 +34,9 @@ export function storeProfileToDiningRestaurant(store: {
   reviewsCount?: number;
   deliveryTime: string;
   distance: string;
+  distanceKm?: number;
+  latitude?: number;
+  longitude?: number;
   coverImage: string;
   offerTag?: string;
   address?: string;
@@ -45,7 +48,7 @@ export function storeProfileToDiningRestaurant(store: {
     image: store.coverImage,
     rating: store.rating,
     ratingCount: store.reviewsCount ?? 0,
-    distance: parseFloat(store.distance) || 0,
+    distance: store.distanceKm ?? (parseFloat(store.distance) || 0),
     deliveryTime: store.deliveryTime,
     priceForTwo: priceForTwoForStore(store.name),
     cuisine: store.categories.join(' • '),
@@ -53,8 +56,8 @@ export function storeProfileToDiningRestaurant(store: {
     neighborhood: 'Greenwood City',
     offerTag: store.offerTag,
     address: store.address ?? 'Greenwood City',
-    latitude: 0,
-    longitude: 0,
+    latitude: store.latitude ?? 0,
+    longitude: store.longitude ?? 0,
     isFavourite: false,
     dietType: store.isVeg === true ? 'veg' : store.isVeg === false ? 'nonveg' : 'both',
   };

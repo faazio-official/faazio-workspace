@@ -8,8 +8,9 @@
  * `store-p1` (the flagship outlet) until per-store availability is wired.
  */
 import type { StoreProfile } from '../types';
+import { withStoreGeo } from '../storeGeo';
 
-export const pharmaStores: StoreProfile[] = [
+const pharmaStoresBase: StoreProfile[] = [
   {
     id: 'store-p1',
     name: 'Faazio Health Pharmacy',
@@ -114,5 +115,8 @@ export const pharmaStores: StoreProfile[] = [
     hours: '9 AM – 10 PM',
   },
 ];
+
+export const pharmaStores: StoreProfile[] = pharmaStoresBase.map(withStoreGeo);
+
 
 export default pharmaStores;

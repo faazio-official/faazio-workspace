@@ -6,6 +6,7 @@
  * (src/services/api/GatewayClient) is verified. See data/DATA_CONTROL.md.
  */
 import type { AppBrand, StoreProfile } from '../types';
+import { withStoreGeo } from '../storeGeo';
 import { martStores } from '../mart/stores';
 import { foodStores } from '../food/stores';
 import { pharmaStores } from '../pharma/stores';
@@ -31,9 +32,15 @@ export interface StoreRecord {
   phone?: string;
   /** Pickup hours for the store. */
   hours?: string;
+  /** Store location (public business data). */
+  latitude?: number;
+  longitude?: number;
+  /** Straight-line distance from the shopper's live location (nearby reads). */
+  distanceKm?: number;
 }
 
 function fromStoreProfile(store: StoreProfile): StoreRecord {
+  const { latitude, longitude } = withStoreGeo(store);
   return {
     id: store.id,
     app: store.app,
@@ -51,6 +58,8 @@ function fromStoreProfile(store: StoreProfile): StoreRecord {
     address: store.address,
     phone: store.phone,
     hours: store.hours,
+    latitude,
+    longitude,
   };
 }
 

@@ -1,5 +1,7 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import type { StoreProfile } from '@data/types';
+import { sortByDistance, withLiveDistance } from '@/utils/distance';
+import { useLiveOrigin } from '@/hooks/useLiveLocation';
 import { pharmaStores } from '@data/pharma/stores';
 import { gateway, type ReadSource } from '@/services/api/GatewayClient';
 
@@ -20,6 +22,7 @@ export interface PharmaStoresFeed {
  */
 export function usePharmaStores(): PharmaStoresFeed {
   const [feed, setFeed] = useState<PharmaStoresFeed>({ stores: pharmaStores, source: 'offline-fallback' });
+  const origin = useLiveOrigin();
 
   useEffect(() => {
     let active = true;
@@ -38,5 +41,14 @@ export function usePharmaStores(): PharmaStoresFeed {
     };
   }, []);
 
-  return feed;
+  // Nearest pharmacy first, recomputed as the live fix moves (no re-fetch).
+  return useMemo(
+    () => ({
+      ...feed,
+      stores: sortByDistance(
+        feed.stores.map((store) => withLiveDistance(store, origin)),
+      ),
+    }),
+    [feed, origin],
+  );
 }

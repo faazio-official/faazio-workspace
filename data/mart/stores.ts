@@ -3,8 +3,9 @@
  * backend (server/) is wired. See data/DATA_CONTROL.md.
  */
 import type { StoreProfile } from '../types';
+import { withStoreGeo } from '../storeGeo';
 
-export const martStores: StoreProfile[] = [
+const martStoresBase: StoreProfile[] = [
   { id: 'store-m1', name: 'Darling Mobiles', app: 'MART', categories: ['Mobile & Electronics', 'Home Appliances'], rating: 4.9, reviewsCount: 1240, deliveryTime: '25 min', distance: '1.8 km', coverImage: 'https://images.unsplash.com/photo-1550009158-9ebf69173e03?fm=jpg&fit=crop&q=80&w=600&h=300', emoji: '📱', desc: 'Authorized dealer for Apple, Samsung, Sony & Premium Gadgets', offerTag: 'FLAT ₹2000 OFF on Card Payments', address: 'Shop 12, Greenwood Mall, MG Road, Greenwood City - 609602', phone: '+91 91001 11101', hours: '10 AM – 9 PM' },
   { id: 'store-m2', name: 'Mass Mobiles & Gadgets', app: 'MART', categories: ['Mobile & Electronics', 'Toys & Gifts'], rating: 4.8, reviewsCount: 890, deliveryTime: '30 min', distance: '2.4 km', coverImage: 'https://images.unsplash.com/photo-1588872657578-7efd1f1555ed?fm=jpg&fit=crop&q=80&w=600&h=300', emoji: '💻', desc: 'Smartphones, Laptops, Gaming Consoles & Accessories', offerTag: 'UP TO 50% OFF Accessories', address: '14, Tech Park Complex, Sector 4, Greenwood City - 609602', phone: '+91 91001 11102', hours: '10 AM – 9 PM' },
   { id: 'store-m3', name: 'Thread Labs Studio', app: 'MART', categories: ['Fashion', 'Sports'], rating: 4.9, reviewsCount: 2150, deliveryTime: '35 min', distance: '3.1 km', coverImage: 'https://images.unsplash.com/photo-1441986300917-64674bd600d8?fm=jpg&fit=crop&q=80&w=600&h=300', emoji: '👔', desc: 'Modern streetwear, oversized tees, hoodies & athletic gear', offerTag: 'BUY 2 GET 1 FREE', address: 'No. 8, Lakshmi Plaza, 2nd Cross, Greenwood City - 609602', phone: '+91 91001 11103', hours: '11 AM – 10 PM' },
@@ -21,3 +22,5 @@ export const martStores: StoreProfile[] = [
   { id: 'store-m12', name: 'Volt Electronics Hub', app: 'MART', categories: ['Electronics', 'Mobile & Electronics', 'Home Appliances'], rating: 4.7, reviewsCount: 890, deliveryTime: '32 min', distance: '3.4 km', coverImage: 'https://images.unsplash.com/photo-1498049794561-7780e7231661?fm=jpg&fit=crop&q=80&w=600&h=300', emoji: '🔌', desc: 'Speakers, smart devices, power banks and home entertainment systems', offerTag: '0% EMI + FLAT ₹1500 OFF', address: '2, Tech Street, Sector 7, Greenwood City - 609602', phone: '+91 91001 11112', hours: '10 AM – 9 PM' },
   { id: 'store-m13', name: 'Faazio Mart Freshmart Plus', app: 'MART', categories: ['Fresh Produce', 'Dairy & Eggs', 'Bakery', 'Beverages', 'Snacks', 'Home Appliances'], rating: 4.7, reviewsCount: 1340, deliveryTime: '25 min', distance: '2.7 km', coverImage: 'https://images.unsplash.com/photo-1543168256-418811576931?fm=jpg&fit=crop&q=80&w=600&h=300', emoji: '🛒', desc: 'A larger Faazio grocery + essentials outlet with daily household deals', offerTag: 'FLAT ₹75 OFF on ₹499+', isVeg: true, address: '44, Supermart Plaza, Ring Road, Greenwood City - 609602', phone: '+91 93003 33302', hours: '7 AM – 11 PM' },
 ];
+
+export const martStores: StoreProfile[] = martStoresBase.map(withStoreGeo);

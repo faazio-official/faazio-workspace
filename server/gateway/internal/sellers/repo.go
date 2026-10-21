@@ -37,6 +37,9 @@ type Seller struct {
 	StateCode       string  `json:"stateCode"`
 	Status          string  `json:"status"`
 	Rating          float64 `json:"rating"`
+	// Shop pin captured during onboarding (public business location, not customer PII).
+	Latitude  *float64 `json:"latitude,omitempty"`
+	Longitude *float64 `json:"longitude,omitempty"`
 	// PlatformFeePct is the commission the platform retains on every split (admin-editable before
 	// approval). FOOD sellers have a higher floor (5%).
 	PlatformFeePct          int             `json:"platformFeePct"`
@@ -121,7 +124,8 @@ const sellerColumns = `seller_id, business_name, owner_name, category::text, gst
 	coalesce(phone,''), coalesce(contact_email,''), state_code, status::text, rating,
 	platform_fee_pct, coalesce(razorpay_linked_account_id,''), coalesce(fssai_number,''),
 	coalesce(fssai_cert_key,''), coalesce(fssai_cert_asset_id,''),
-	otp_verified, otp_verified_at, coalesce(rejection_reason,''), rejection_history, created_at`
+	otp_verified, otp_verified_at, coalesce(rejection_reason,''), rejection_history, created_at,
+	latitude, longitude`
 
 const sellerSelect = `select ` + sellerColumns + ` from sellers.sellers`
 
@@ -238,13 +242,13 @@ func (r *Repo) CreateExtended(ctx context.Context, s Seller, bank *BankAccount, 
 		insert into sellers.sellers
 		  (seller_id, business_name, owner_name, category, gstin, pan, address, phone, contact_email,
 		   state_code, platform_fee_pct, razorpay_linked_account_id, fssai_number, fssai_cert_key,
-		   fssai_cert_asset_id, otp_verified, otp_verified_at)
-		values ($1,$2,$3,$4::app_brand,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17)
+		   fssai_cert_asset_id, otp_verified, otp_verified_at, latitude, longitude)
+		values ($1,$2,$3,$4::app_brand,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19)
 		returning `+sellerColumns,
 		s.SellerID, s.BusinessName, s.OwnerName, s.Category, s.GSTIN, s.PAN, s.BusinessAddress,
 		nullIfEmpty(s.ContactPhone), nullIfEmpty(s.ContactEmail), s.StateCode, s.PlatformFeePct,
 		nullIfEmpty(s.RazorpayLinkedAccountID), nullIfEmpty(s.FSSAINumber), nullIfEmpty(s.FSSAICertKey),
-		nullIfEmpty(s.FSSAICertAssetID), s.OTPVerified, otpAt))
+		nullIfEmpty(s.FSSAICertAssetID), s.OTPVerified, otpAt, s.Latitude, s.Longitude))
 	if err != nil {
 		return Seller{}, err
 	}
@@ -417,12 +421,14 @@ func (r *Repo) EditRequest(ctx context.Context, id string, next Seller, bank *Ba
 		  fssai_number=$12,
 		  fssai_cert_key=coalesce(nullif($13,''), fssai_cert_key),
 		  fssai_cert_asset_id=coalesce(nullif($14,''), fssai_cert_asset_id),
+		  latitude=coalesce($15, latitude), longitude=coalesce($16, longitude),
 		  status='PENDING_REVIEW', rejection_reason=null
 		 where seller_id=$1
 		 returning `+sellerColumns,
 		id, next.BusinessName, next.OwnerName, next.Category, next.GSTIN, next.PAN,
 		next.BusinessAddress, nullIfEmpty(next.ContactPhone), nullIfEmpty(next.ContactEmail), next.StateCode,
-		next.PlatformFeePct, nullIfEmpty(next.FSSAINumber), next.FSSAICertKey, next.FSSAICertAssetID))
+		next.PlatformFeePct, nullIfEmpty(next.FSSAINumber), next.FSSAICertKey, next.FSSAICertAssetID,
+		next.Latitude, next.Longitude))
 	if err != nil {
 		return Seller{}, nil, err
 	}
@@ -645,11 +651,13 @@ func scanSeller(row rowScanner) (Seller, error) {
 		otpAt     *time.Time
 		history   []byte
 		createdAt time.Time
+		lat, lng  *float64
 	)
 	if err := row.Scan(&s.SellerID, &s.BusinessName, &s.OwnerName, &s.Category, &s.GSTIN, &s.PAN,
 		&s.BusinessAddress, &s.ContactPhone, &s.ContactEmail, &s.StateCode, &s.Status, &s.Rating,
 		&s.PlatformFeePct, &s.RazorpayLinkedAccountID, &s.FSSAINumber, &s.FSSAICertKey,
-		&s.FSSAICertAssetID, &s.OTPVerified, &otpAt, &s.RejectionReason, &history, &createdAt); err != nil {
+		&s.FSSAICertAssetID, &s.OTPVerified, &otpAt, &s.RejectionReason, &history, &createdAt,
+		&lat, &lng); err != nil {
 		return Seller{}, err
 	}
 	if otpAt != nil {
@@ -661,6 +669,8 @@ func scanSeller(row rowScanner) (Seller, error) {
 		s.RejectionHistory = json.RawMessage("[]")
 	}
 	s.CreatedAt = createdAt.UTC().Format(time.RFC3339)
+	s.Latitude = lat
+	s.Longitude = lng
 	return s, nil
 }
 

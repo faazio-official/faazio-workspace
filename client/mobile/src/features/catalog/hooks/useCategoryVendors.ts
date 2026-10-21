@@ -2,6 +2,8 @@ import { useEffect, useMemo, useState } from 'react';
 import type { Product, StoreProfile } from '@data/types';
 import { getStoreById } from '@data/directory/stores';
 import { gateway } from '@/services/api/GatewayClient';
+import { withLiveDistance } from '@/utils/distance';
+import { useLiveOrigin } from '@/hooks/useLiveLocation';
 import { useActiveDiscounts, applyActiveDiscounts } from '@/services/pricing';
 import {
   getVendorsWithProducts,
@@ -32,6 +34,7 @@ export interface CategoryVendors {
 export function useCategoryVendors(app: VendorApp, query: string): CategoryVendors {
   const [vendors, setVendors] = useState<VendorProducts[] | null>(null);
   const [loading, setLoading] = useState(false);
+  const origin = useLiveOrigin();
 
   useEffect(() => {
     let active = true;
@@ -87,7 +90,20 @@ export function useCategoryVendors(app: VendorApp, query: string): CategoryVendo
     };
   }, [app, query]);
 
-  const resolved = vendors ?? [];
+  const resolved = useMemo(
+    () =>
+      (vendors ?? [])
+        .map((vendor) => ({
+          ...vendor,
+          store: withLiveDistance(vendor.store, origin) as StoreProfile,
+        }))
+        .sort((a, b) => {
+          const da = a.store.distanceKm ?? Number.POSITIVE_INFINITY;
+          const db = b.store.distanceKm ?? Number.POSITIVE_INFINITY;
+          return da - db;
+        }),
+    [vendors, origin],
+  );
 
   // Overlay server festival discounts on the whole resolved pool (no-op offline / none apply).
   const ids = useMemo(() => resolved.flatMap((v) => v.products.map((p) => p.id)), [resolved]);

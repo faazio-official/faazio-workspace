@@ -23,6 +23,14 @@ import Svg, {
 import locationAccessPageImg from '@/assets/location_access_page.webp';
 import AppTextInput from '@/components/AppTextInput';
 import AppText from '@/components/AppText';
+import {
+  placesAutocompleteEnabled,
+  resolvePlaceLocation,
+  usePlaceAutocomplete,
+  type PlaceSuggestion,
+} from '@/hooks/usePlaceAutocomplete';
+import { requestAndRefreshLocation, useLiveOrigin } from '@/hooks/useLiveLocation';
+import { useLocationStore } from '@/state/locationStore';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'Location'>;
 
@@ -193,6 +201,48 @@ export function LocationScreen({ navigation }: Props) {
   );
   const [searchQuery, setSearchQuery] = useState('');
   const [isSearchFocused, setIsSearchFocused] = useState(false);
+  const [permissionError, setPermissionError] = useState('');
+  const liveOrigin = useLiveOrigin();
+  const { suggestions, loading: suggestionsLoading } = usePlaceAutocomplete(
+    searchQuery,
+    liveOrigin,
+  );
+
+  const useMyLocation = async () => {
+    setPermissionError('');
+    const ok = await requestAndRefreshLocation();
+    if (!ok) {
+      setPermissionError(
+        'Location permission is required to show nearby stores. You can still enter an area manually.',
+      );
+      return;
+    }
+    const state = useLocationStore.getState();
+    setSelectedLocation(
+      state.address || `${state.latitude.toFixed(4)}, ${state.longitude.toFixed(4)}`,
+    );
+    setStep('loader');
+  };
+
+  const pickSuggestion = async (suggestion: PlaceSuggestion) => {
+    const resolved = await resolvePlaceLocation(suggestion.placeId);
+    if (!resolved) {
+      setSelectedLocation(
+        [suggestion.title, suggestion.subtitle].filter(Boolean).join(', '),
+      );
+      setStep('loader');
+      return;
+    }
+    useLocationStore.getState().setFix({
+      coordinates: resolved.coordinates,
+      address: resolved.address,
+    });
+    setSelectedLocation(
+      resolved.address ||
+        [suggestion.title, suggestion.subtitle].filter(Boolean).join(', '),
+    );
+    setStep('loader');
+  };
 
   // Animation refs
   const fadeAnim = useRef(new Animated.Value(0)).current;
@@ -337,13 +387,13 @@ export function LocationScreen({ navigation }: Props) {
                 styles.allowBtn,
                 { transform: [{ scale: pressed ? 0.95 : 1 }] },
               ]}
-              onPress={() => {
-                setSelectedLocation('Sunnambukkara Street, Karaikal');
-                setStep('loader');
-              }}
+              onPress={useMyLocation}
             >
               <AppText style={styles.allowBtnText}>ALLOW LOCATION ACCESS</AppText>
             </Pressable>
+            {permissionError ? (
+              <AppText style={styles.permissionError}>{permissionError}</AppText>
+            ) : null}
 
             <Pressable
               style={({ pressed }) => [
@@ -422,10 +472,7 @@ export function LocationScreen({ navigation }: Props) {
                   styles.currentLocationBtn,
                   pressed && { opacity: 0.7 },
                 ]}
-                onPress={() => {
-                  setSelectedLocation('Sunnambukkara Street, Karaikal');
-                  setStep('loader');
-                }}
+                onPress={useMyLocation}
               >
                 <View style={styles.currentLocationLeft}>
                   <View style={styles.currentLocationIconBg}>
@@ -446,8 +493,37 @@ export function LocationScreen({ navigation }: Props) {
             <View style={styles.separator} />
 
             <ScrollView style={styles.resultsList}>
-              <AppText style={styles.resultsHeader}>SEARCH RESULTS</AppText>
-              {searchResults.length > 0 ? (
+              <AppText style={styles.resultsHeader}>
+                {suggestionsLoading ? 'SEARCHING…' : 'SEARCH RESULTS'}
+              </AppText>
+              {placesAutocompleteEnabled && suggestions.length > 0 ? (
+                suggestions.map((item) => (
+                  <Pressable
+                    key={item.placeId}
+                    style={({ pressed }) => [
+                      styles.resultItem,
+                      { backgroundColor: pressed ? '#f1f5f9' : 'transparent' },
+                    ]}
+                    onPress={() => void pickSuggestion(item)}
+                  >
+                    <View style={styles.resultIconBg}>
+                      <NavigationIcon
+                        size={ms(13)}
+                        color="#94a3b8"
+                        style={{ transform: [{ rotate: '135deg' }] }}
+                      />
+                    </View>
+                    <View style={styles.resultTextContainer}>
+                      <AppText style={styles.resultTitle}>{item.title}</AppText>
+                      {item.subtitle ? (
+                        <AppText style={styles.resultSubtitle}>
+                          {item.subtitle}
+                        </AppText>
+                      ) : null}
+                    </View>
+                  </Pressable>
+                ))
+              ) : searchResults.length > 0 ? (
                 searchResults.map((item, idx) => (
                   <Pressable
                     key={idx}
@@ -457,7 +533,7 @@ export function LocationScreen({ navigation }: Props) {
                     ]}
                     onPress={() => {
                       setSelectedLocation(
-                        `${item.title}, ${item.subtitle.split(',')[0]}`
+                        `${item.title}, ${item.subtitle.split(',')[0]}`,
                       );
                       setStep('loader');
                     }}
@@ -477,7 +553,7 @@ export function LocationScreen({ navigation }: Props) {
                     </View>
                   </Pressable>
                 ))
-              ) : (
+              ) : suggestionsLoading ? null : (
                 <View style={styles.noResultsContainer}>
                   <AppText style={styles.noResultsText}>
                     No locations found matching your search
@@ -607,6 +683,14 @@ const styles = StyleSheet.create({
     marginTop: vs(18),
   },
   manualBtnText: { fontSize: ms(11), fontWeight: '900', color: '#1e293b' },
+  permissionError: {
+    marginTop: vs(8),
+    fontSize: ms(10),
+    lineHeight: ms(14),
+    color: '#b91c1c',
+    textAlign: 'center',
+    paddingHorizontal: hs(8),
+  },
   manualContainer: { flex: 1, backgroundColor: '#ffffff' },
   manualHeader: {
     flexDirection: 'row',

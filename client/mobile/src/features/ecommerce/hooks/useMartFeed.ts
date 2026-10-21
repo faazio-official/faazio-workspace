@@ -1,4 +1,6 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { sortByDistance, withLiveDistance } from '@/utils/distance';
+import { useLiveOrigin } from '@/hooks/useLiveLocation';
 import { fetchMartFeed, type MartFeed } from '../services/martService';
 
 export interface MartFeedState {
@@ -18,6 +20,7 @@ export function useMartFeed(): MartFeedState {
   const [feed, setFeed] = useState<MartFeed | null>(null);
   const [refreshing, setRefreshing] = useState(false);
   const mounted = useRef(true);
+  const origin = useLiveOrigin();
 
   useEffect(
     () => () => {
@@ -43,5 +46,16 @@ export function useMartFeed(): MartFeedState {
     });
   }, [load, refreshing]);
 
-  return { feed, refreshing, refresh };
+  // Nearest-first local vendors, recomputed as the live fix changes (no re-fetch).
+  const liveFeed = useMemo(() => {
+    if (!feed) return null;
+    return {
+      ...feed,
+      localVendors: sortByDistance(
+        feed.localVendors.map((store) => withLiveDistance(store, origin)),
+      ),
+    };
+  }, [feed, origin]);
+
+  return { feed: liveFeed, refreshing, refresh };
 }

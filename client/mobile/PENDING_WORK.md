@@ -5,6 +5,24 @@ dependencies exist. Do not build the backend/seller flows until told to.
 
 ---
 
+## W62 — Live-location nearby retrieval (P0)
+
+**Status:** 🟢 Shipped (mobile + gateway + migration `0041`).
+
+- **Origin:** `state/locationStore.ts` + `hooks/useLiveLocation.ts` (foreground-only 10 s coarse poll,
+  50 m reverse-geocode threshold, no launch prompt, no background permission). Location screen asks
+  for real consent and uses Places API (New) autocomplete when configured.
+- **UI:** Mart local vendors, Pharma outlets, Food top-rated/dining, category drill-in and search
+  Relevance results sort nearest-first and show live distance; seller onboarding has a native map pin
+  picker and submits `latitude`/`longitude`.
+- **Gateway:** `GET /stores/nearby` and `GET /products/nearby` (bounding box + Haversine, public
+  projections), cached 120 s under `faazio:v1:geo:nearby:*`; `directory.stores`/`directory.dining_venues`
+  gained coordinates and partial geo indexes; `sellers.sellers` gained the shop pin.
+- **Ops remaining:** provision restricted `GOOGLE_MAPS_API_KEY_ANDROID` + `GOOGLE_PLACES_API_KEY`
+  (and run `npm run configure`); add the iOS Pod (`cd ios && pod install`) during the first iOS build.
+
+**Date:** 2026-10-21
+
 ## W60 — Firebase phone OTP replaces Supabase GoTrue (P0)
 
 **Status:** 🟢 Shipped (mobile + gateway + Render config). W23's Supabase GoTrue flow is replaced

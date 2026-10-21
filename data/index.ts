@@ -167,3 +167,6 @@ export { homeSdui, sduiSectionOrder, getSduiSection } from './home/sdui';
 export type { SduiSection } from './home/sdui';
 
 export { seedCartItems, seedFavorites, seedLocation } from './home/seeds';
+
+export { approximateGeo, distanceKmFromLabel, withStoreGeo } from './storeGeo';
+export type { GeoPoint } from './storeGeo';

@@ -6,6 +6,7 @@ import { AppNavigator } from './src/navigation/AppNavigator';
 import { navigationRef } from './src/navigation/navigationRef';
 import { SplashFallback } from './src/components/SplashFallback';
 import { useAuthStore } from './src/state/authStore';
+import { useLiveLocation } from './src/hooks/useLiveLocation';
 import { useLanguageStore } from './src/state/languageStore';
 import { useAppFonts, resolveFontFamily } from './src/theme/fonts';
 import { useBottomInset } from './src/utils/responsive';
@@ -111,6 +112,8 @@ export default function App() {
   const mountedAt = useRef(Date.now());
   const hydrateAuth = useAuthStore((s) => s.hydrate);
   const hydrateLanguage = useLanguageStore((s) => s.hydrate);
+  // Hydrate the last fix and poll only while foregrounded (never prompts on launch).
+  useLiveLocation();
 
   useEffect(() => {
     let active = true;

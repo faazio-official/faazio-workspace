@@ -8,6 +8,7 @@ import { withActiveDiscounts } from '@/services/pricing';
 import SearchMartProductCard from '@/features/ecommerce/components/SearchMartProductCard';
 import SearchPharmaProductCard from '@/features/pharma/components/SearchPharmaProductCard';
 import { buildProductSuggestions } from '../suggestions';
+import { storeDistanceKm } from '../storeDistance';
 import type { ActiveFacets, SearchScreenConfig } from '../types';
 
 /**
@@ -106,6 +107,8 @@ export function createHomeSearchConfig({
           'price-low': (a, b) => (a as Product).price - (b as Product).price,
           'price-high': (a, b) => (b as Product).price - (a as Product).price,
         },
+        distanceOf: (item, origin) =>
+          storeDistanceKm((item as Product).storeId, origin),
       },
       mart: {
         key: 'mart',
@@ -120,6 +123,8 @@ export function createHomeSearchConfig({
           'price-low': (a, b) => (a as Product).price - (b as Product).price,
           'price-high': (a, b) => (b as Product).price - (a as Product).price,
         },
+        distanceOf: (item, origin) =>
+          storeDistanceKm((item as Product).storeId, origin),
       },
       pharma: {
         key: 'pharma',
@@ -133,6 +138,8 @@ export function createHomeSearchConfig({
           'price-low': (a, b) => (a as Product).price - (b as Product).price,
           'price-high': (a, b) => (b as Product).price - (a as Product).price,
         },
+        distanceOf: (item, origin) =>
+          storeDistanceKm((item as Product).storeId, origin),
       },
     },
     keyFor: (item) => String((item as { id?: string })?.id),

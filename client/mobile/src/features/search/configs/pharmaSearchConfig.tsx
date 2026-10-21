@@ -5,6 +5,7 @@ import type { Product } from '@data/types';
 import { gateway } from '@/services/api/GatewayClient';
 import SearchPharmaProductCard from '@/features/pharma/components/SearchPharmaProductCard';
 import { buildProductSuggestions } from '../suggestions';
+import { storeDistanceKm } from '../storeDistance';
 import type { ActiveFacets, SearchScreenConfig } from '../types';
 
 const searchableText = (p: Product) => {
@@ -76,6 +77,8 @@ export function createPharmaSearchConfig({
           'price-high': (a, b) => (b as Product).price - (a as Product).price,
           newest: () => 0,
         },
+        distanceOf: (item, origin) =>
+          storeDistanceKm((item as Product).storeId, origin),
       },
     },
     keyFor: (item) => String((item as { id?: string })?.id),

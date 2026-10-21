@@ -162,13 +162,13 @@ if (manifest) {
 // ---------------------------------------------------------------- directory
 sql.push(inserts(
   'directory.stores',
-  ['id', 'app', 'name', 'categories', 'rating', 'reviews_count', 'delivery_time', 'distance', 'cover_image', 'cover_image_key', 'cover_image_asset_id', 'emoji', 'desc_text', 'offer_tag', 'is_veg', 'address', 'phone', 'hours'],
+  ['id', 'app', 'name', 'categories', 'rating', 'reviews_count', 'delivery_time', 'distance', 'cover_image', 'cover_image_key', 'cover_image_asset_id', 'emoji', 'desc_text', 'offer_tag', 'is_veg', 'address', 'phone', 'hours', 'latitude', 'longitude'],
   d.storeDirectory.map((s) => {
     const cover = entryFor(manifest, s.coverImage);
     return [
       q(s.id), APP(s.app), q(s.name), arr(s.categories), n(s.rating), n(s.reviewsCount ?? 0),
       q(s.deliveryTime), q(s.distance), q(s.coverImage), q(cover?.key), q(cover?.id), q(s.emoji),
-      q(s.desc), q(s.offerTag), b(s.isVeg), q(s.address), q(s.phone), q(s.hours),
+      q(s.desc), q(s.offerTag), b(s.isVeg), q(s.address), q(s.phone), q(s.hours), n(s.latitude), n(s.longitude),
     ];
   }),
 ));
@@ -176,9 +176,9 @@ sql.push(inserts(
 const storeIds = new Set(d.storeDirectory.map((s) => s.id));
 sql.push(inserts(
   'directory.dining_venues',
-  ['id', 'name', 'app', 'rating', 'cover_image', 'address', 'phone', 'hours', 'categories'],
+  ['id', 'name', 'app', 'rating', 'cover_image', 'address', 'phone', 'hours', 'categories', 'latitude', 'longitude'],
   d.diningVenues.filter((v) => !storeIds.has(v.id)).map((v) => [
-    q(v.id), q(v.name), APP('FOOD'), 'null', q(''), 'null', 'null', 'null', `ARRAY[]::text[]`,
+    q(v.id), q(v.name), APP('FOOD'), 'null', q(''), 'null', 'null', 'null', `ARRAY[]::text[]`, n(v.latitude), n(v.longitude),
   ]),
 ));
 

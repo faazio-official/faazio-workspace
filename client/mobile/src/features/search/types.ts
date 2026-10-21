@@ -1,5 +1,6 @@
 import type { ComponentType, ReactElement } from 'react';
 import type { Product } from '@data/types';
+import type { LatLng } from '@/utils/distance';
 import type { SearchSuggestion } from './suggestions';
 
 /**
@@ -76,6 +77,13 @@ export interface SearchModeConfig<TItem> {
   ) => boolean;
   /** Map of sort-option id → comparator. Applied after predicate filtering. */
   sorters: Record<string, (a: TItem, b: TItem) => number>;
+  /**
+   * Optional distance projection (km) for the live "Relevance" order. When the
+   * shopper has a fix, results with a known distance sort nearest-first; results
+   * without one keep their relative relevance order at the end. Other explicit
+   * sorts (price, popularity, …) are never overridden.
+   */
+  distanceOf?: (item: TItem, origin: LatLng) => number | undefined;
   /** Empty-state content rendered when the filtered list is empty. */
   empty?: ReactElement;
   /**

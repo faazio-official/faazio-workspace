@@ -97,7 +97,10 @@ go test ./...
 > manually: `mongosh "$MONGO_URI/faazio" --file server/supabase/seed/mongo/seed.js`.
 
 Local dev is auth-open (`AUTH_DISABLED=true`, user `user-1`; the gateway logs a loud warning). To
-point the app at it, copy `.env.example` → `.env.local` and set `GATEWAY_URL=http://<host>:8080`
+point the app at it, copy `.env.example` → `.env.local` and set `GATEWAY_URL=http://<host>:8080`.
+For nearby ordering + the seller shop-pin map, also set `GOOGLE_MAPS_API_KEY_ANDROID` and
+`GOOGLE_PLACES_API_KEY` (restricted keys; empty is a supported degraded mode). Run
+`npm run configure` after changing them.
 and `USE_GATEWAY=true`; `scripts/configure.js` generates `src/lib/config.ts` before Metro starts and
 `GatewayClient` falls back to `@data/*` on any error. Add `STRICT=true` to disable the fallback for
 money/Rx/address writes (a failed write then fails loudly instead of faking a local success).

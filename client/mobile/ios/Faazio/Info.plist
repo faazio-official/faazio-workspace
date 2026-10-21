@@ -48,12 +48,8 @@
     <string>This app requires camera access to upload medical prescriptions and scan bar codes.</string>
     <key>NSFaceIDUsageDescription</key>
     <string>Allow $(PRODUCT_NAME) to access your Face ID biometric data.</string>
-    <key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
-    <string>Allow $(PRODUCT_NAME) to access your location</string>
-    <key>NSLocationAlwaysUsageDescription</key>
-    <string>Allow $(PRODUCT_NAME) to access your location</string>
     <key>NSLocationWhenInUseUsageDescription</key>
-    <string>Faazio uses your location to suggest your city for blood donation and to auto-fill your delivery address at checkout.</string>
+    <string>Faazio uses your location while the app is open to show nearby stores, estimate delivery distance, suggest your city for blood donation and auto-fill your delivery address.</string>
     <key>NSMotionUsageDescription</key>
     <string>Allow $(PRODUCT_NAME) to detect your current motion activity</string>
     <key>NSPhotoLibraryUsageDescription</key>
