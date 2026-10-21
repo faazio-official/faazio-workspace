@@ -323,10 +323,13 @@ Full triage table + commands: `docs/RUNBOOKS/PORTAL_AUTH.md` §0.
   cold start, origin lock). Check the origin and Cloudflare tunnel, then retry.
 - **`portal_auth_unavailable` (C)** → `PORTAL_JWT_SECRET` is empty on Render. Set it and roll the
   deploy; the boot log line `portal_auth=disabled reason=jwt_secret_empty` confirms it.
-- **`portal_unavailable` (500, D)** → Postgres reachable but migrations `0032`/`0033` not applied
-  (the boot log shows `portal_tables=missing|partial`). Apply them; for an existing compose volume
-  `docker compose down -v` (dev only) or `psql -f 0033_portal_roles.sql`. `0034` is data-only
-  (clears the superadmin forced-rotation flag) and can be applied separately.
+- **`portal_unavailable` (500, D)** → Postgres reachable but a portal migration is not applied.
+  Check the boot log (`portal_tables=missing|partial hint=apply migration …`) and the sanitized
+  request log (`portal_error op=login_session_create sqlstate=42703 column=absolute_expires_at`).
+  `0038` is the common one: a valid password reaches `CreateSession`, which writes the lifetime
+  columns and 500s when `0038` is missing. Apply the named migration; for an existing compose volume
+  `docker compose down -v` (dev only) or `psql -f 0038_portal_session_lifetime.sql`. `0034` is
+  data-only (clears the superadmin forced-rotation flag) and can be applied separately.
 - After C/D are fixed, a **valid** email still returns `401 invalid_credentials` until the account is
   provisioned (`PORTAL_AUTH.md` §2) — that is expected, not a failure.
 

@@ -21,18 +21,23 @@
 -- No mass logout: legacy rows are backfilled to created_at + 180 d, which is ≥ their existing 30 d
 -- sliding expiry, so nobody is force-logged-out at deploy.
 
--- Backdate the absolute cap first so the DEFAULT below never leaves a legacy row with a cap that
--- starts counting from the ALTER instead of its original creation.
+-- Add the columns nullable first: the backfill below must run before the NOT NULL + DEFAULT is set,
+-- otherwise a first apply fails ("column does not exist") and legacy rows would get a cap that
+-- starts counting from the ALTER instead of their original creation.
+alter table admins.portal_sessions
+  add column if not exists absolute_expires_at timestamptz,
+  add column if not exists last_seen_at       timestamptz,
+  add column if not exists reuse_grace_until  timestamptz,
+  add column if not exists ua_hash            text not null default '',
+  add column if not exists rotated_to_hash    text;
+
 update admins.portal_sessions
    set absolute_expires_at = created_at + interval '180 days'
  where absolute_expires_at is null;
 
 alter table admins.portal_sessions
-  add column if not exists absolute_expires_at timestamptz not null default (now() + interval '180 days'),
-  add column if not exists last_seen_at       timestamptz,
-  add column if not exists reuse_grace_until  timestamptz,
-  add column if not exists ua_hash            text not null default '',
-  add column if not exists rotated_to_hash    text;
+  alter column absolute_expires_at set default (now() + interval '180 days'),
+  alter column absolute_expires_at set not null;
 
 -- Absolute-cap scan is the sweeper's primary key (P4.1); the rotated_to partial index makes the
 -- grace-chain join (parent → child) a lookup, not a scan.

@@ -20,7 +20,7 @@ gateway so one Vercel log line correlates with the Render request log.
 | **A** | "This portal build has no gateway URL" | `not_configured` | `NEXT_PUBLIC_GATEWAY_URL` empty at `next build` | set the Vercel env var, then **redeploy** (build-time inlined) |
 | **B** | "the gateway is unreachable" | `gateway_unavailable` | gateway down / wrong origin / TLS / cold start | check `GET $GATEWAY/health`, origin, Cloudflare TLS Full (strict) |
 | **C** | "Gateway auth is not configured" | `portal_auth_unavailable` | `PORTAL_JWT_SECRET=""` on Render | set it (§1, item 2), roll the deploy |
-| **D** | "could not read the portal credential tables" | `portal_unavailable` (500) | migration `0033` (or `0032`) not applied | apply the migration, then redeploy |
+| **D** | "could not read the portal credential tables" | `portal_unavailable` (500) | portal migration not applied — most often `0038` (login writes `absolute_expires_at` / `ua_hash`), less often `0032`/`0033` | apply the missing migration; boot log shows `portal_tables=missing|partial hint=…`, request log shows `portal_error op=login_session_create sqlstate=42703 column=…` |
 
 ```bash
 # One browser-able verdict (unauthenticated, rate-limited; hostname only, no secrets):
@@ -84,7 +84,10 @@ non-secret `faazio_remember` cookie (`0` = refresh cookie is browser-session-onl
 
 If `PORTAL_JWT_SECRET` is empty the gateway returns `503 portal_auth_unavailable` for login; it never
 falls back to the legacy Supabase secret. On boot the gateway logs `portal_auth=enabled|disabled`
-plus `portal_tables=ok|partial|missing` so cause **C** is visible in the Render logs in seconds.
+plus `portal_tables=ok|partial|missing` so causes **C/D** are visible in the Render logs in seconds
+(`partial` names the next migration: `0033` for scoped roles, `0038` for session lifetimes). A
+failing portal query also logs one sanitized line — `portal_error op=<site> sqlstate=<code>`
+plus `table|column|constraint=<name>` — never query values, hosts or secrets.
 
 ## 2. Provision the superadmin accounts (one-time)
 
