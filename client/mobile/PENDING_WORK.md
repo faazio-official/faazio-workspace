@@ -41,6 +41,14 @@ end to end; the mobile app no longer talks to Supabase Auth.
 - Mobile `features/seller-onboarding/SellerRegistrationScreen` replaces the old onboarding form:
   location-derived state, platform fee, payout account, private-bucket passbook (+ FSSAI for food)
   and an OTP digital signature. `GatewayClient.uploadSellerDocument` + `submitSellerApplication`.
+- **Server-side OTP binding:** the gateway now rejects a client-asserted `otpVerified:true` unless the
+  bearer Firebase ID token's `phone_number` claim matches the application's `contactPhone`
+  (`auth.OTPSigned`, `401 otp_unverified`). The signed-phone (`+91…`) matches the shopper's primary
+  session, so `submitSellerApplication` still rides the normal bearer header.
+- **Mobile admin review** (new): `SellerRequestsScreen` + `SellerRequestDetailScreen`
+  (`src/features/seller-onboarding/`), role-gated by the decoded `app_role` claim on `authStore.user`
+  (`src/lib/tokenClaims.ts`). Entry is the Account "Seller applications" card. KYC images render via
+  `GatewayClient.getPrivateMediaUrl` (`GET /media/private/{assetId}` — creator/admin presigned GET).
 - Gateway `0039` + `internal/sellers` extended create/review endpoints and
   `internal/platform/razorpayroute` (linked accounts, held transfers, release/reverse, webhook HMAC).
 - Portal state/super seller detail: full registration, fee editor, per-document verification,
@@ -53,7 +61,10 @@ end to end; the mobile app no longer talks to Supabase Auth.
 **Remaining (ops):** configure `RAZORPAY_ROUTE_*` in Render, apply `0039` + `0040`, and set the Route
 webhook endpoint (`/webhooks/razorpay/route`) + secret in the Razorpay dashboard. Cart-order payments
 are still recorded locally (no Razorpay capture), so the automatic post-capture split trigger is not
-wired yet; holds are created via the super-admin endpoint.
+wired yet; holds are created via the super-admin endpoint. **AVIF is deliberately deferred:** KYC
+captures upload as JPEG (`uploadSellerDocument` default) — the media allowlist accepts `image/avif`
+but no lightweight RN encoder exists without a native/CGO dependency, so it stays allowlisted for
+future use.
 
 **Date:** 2026-10-21
 

@@ -63,3 +63,15 @@ services:
       # with the Vercel deployment origin.
       - key: ALLOWED_ORIGINS
         value: https://app.faazio.com
+      # Razorpay Route (seller settlement splits): linked accounts + held transfers + webhook HMAC.
+      # Optional — the gateway falls back to the main RAZORPAY_KEY_ID/RAZORPAY_KEY_SECRET and
+      # RAZORPAY_WEBHOOK_SECRET when these are unset (see internal/platform/config). With no Route
+      # keys the client stays in mock mode and no payout is ever marked PAID without a real transfer,
+      # so a deploy without them is safe but non-functional for settlement. Set the Route webhook to
+      # https://<gateway>/webhooks/razorpay/route with the secret in the Razorpay dashboard.
+      - key: RAZORPAY_ROUTE_KEY_ID
+        sync: false
+      - key: RAZORPAY_ROUTE_KEY_SECRET
+        sync: false
+      - key: RAZORPAY_ROUTE_WEBHOOK_SECRET
+        sync: false

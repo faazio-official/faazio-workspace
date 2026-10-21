@@ -15,7 +15,7 @@ func TestSellerLifecycle(t *testing.T) {
 	s, err := repo.Create(ctx, Seller{
 		BusinessName: "Test Traders", OwnerName: "A. Kaur", Category: "MART",
 		GSTIN: "29ABCDE1234F1Z5", PAN: "ABCDE1234F", BusinessAddress: "1 Test St",
-		ContactPhone: "+91 9000000000", StateCode: "KA",
+		ContactPhone: "+91 9000000000", ContactEmail: "test@example.com", StateCode: "KA",
 	})
 	if err != nil {
 		t.Fatalf("create: %v", err)

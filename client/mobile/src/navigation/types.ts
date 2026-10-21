@@ -103,6 +103,10 @@ export type RootStackParamList = {
   FaazioRewards: undefined;
   /** Seller onboarding wizard: business, payout, private-bucket KYC and OTP signature. */
   SellWithUs: undefined;
+  /** Admin application queue (STATE_ADMIN scoped / SUPER_ADMIN all). Role-gated in-screen. */
+  SellerRequests: undefined;
+  /** One seller application review with KYC verification + activation. Role-gated in-screen. */
+  SellerRequestDetail: { sellerId: string };
   /**
    * Deals landing page — one page, four entry modes:
    * - `campaign`: a brand campaign's products (from the Home "Deals of the day" carousel).

@@ -157,6 +157,10 @@ func (h *Handler) create(w http.ResponseWriter, r *http.Request) {
 		httpx.Fail(w, http.StatusBadRequest, "otp_required", "OTP verification is required before submission")
 		return
 	}
+	if !auth.OTPSigned(r.Context(), req.ContactPhone) {
+		httpx.Fail(w, http.StatusUnauthorized, "otp_unverified", "a Firebase ID token for this phone is required")
+		return
+	}
 	if req.GSTIN == "" || req.PAN == "" || !strings.Contains(req.ContactEmail, "@") {
 		httpx.Fail(w, http.StatusBadRequest, "bad_request", "gstin, pan and contact email are required")
 		return

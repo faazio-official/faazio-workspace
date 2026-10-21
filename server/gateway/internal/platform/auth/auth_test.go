@@ -97,6 +97,35 @@ func TestDevModeUsesHeaderThenDefault(t *testing.T) {
 	}
 }
 
+func TestOTPSigned(t *testing.T) {
+	with := func(id Identity) context.Context { return context.WithValue(context.Background(), identityKey{}, id) }
+
+	cases := []struct {
+		name  string
+		id    Identity
+		phone string
+		want  bool
+	}{
+		{"dev identity always signs", Identity{Dev: true}, "+91 98765 43210", true},
+		{"matching e.164 phone", Identity{Phone: "+919876543210"}, "9876543210", true},
+		{"matching with spaces", Identity{Phone: "+91 98765 43210"}, " 9 8 7 6 5 4 3 2 1 0 ", true},
+		{"mismatched phone", Identity{Phone: "+919999999999"}, "9876543210", false},
+		{"no verified phone", Identity{UserID: "u-1"}, "9876543210", false},
+		{"short phone never matches", Identity{Phone: "+91987"}, "9876543210", false},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := OTPSigned(with(tc.id), tc.phone); got != tc.want {
+				t.Fatalf("OTPSigned = %v, want %v", got, tc.want)
+			}
+		})
+	}
+
+	if OTPSigned(context.Background(), "9876543210") {
+		t.Fatal("no identity must never sign an OTP")
+	}
+}
+
 func TestRequireUnauthenticated(t *testing.T) {
 	h := Require(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)

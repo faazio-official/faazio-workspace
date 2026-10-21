@@ -45,6 +45,10 @@ export function YouScreen({ navigation }: Props) {
     navigation.navigate('SellWithUs');
   }, [navigation]);
 
+  const handleOpenSellerRequests = useCallback(() => {
+    navigation.navigate('SellerRequests');
+  }, [navigation]);
+
   return (
     <View style={styles.container}>
       <AccountView
@@ -55,6 +59,7 @@ export function YouScreen({ navigation }: Props) {
         onOpenFavourites={handleOpenFavourites}
         onOpenRewards={handleOpenRewards}
         onOpenSellWithUs={handleOpenSellWithUs}
+        onOpenSellerRequests={handleOpenSellerRequests}
         onLogout={handleLogout}
       />
     </View>

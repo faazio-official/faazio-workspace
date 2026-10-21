@@ -46,6 +46,13 @@ type Identity struct {
 	// /auth/portal/* is refused until they rotate it. SUPER_ADMIN is never issued a forced
 	// rotation, so this is only ever set for SELLER/STATE_ADMIN.
 	MustChange bool
+	// Phone is the verified `phone_number` claim of a Firebase ID token. Empty for portal/legacy
+	// tokens and for the dev X-Dev-* cheat headers — a caller with an empty Phone has no
+	// server-verified phone, so OTPSigned must reject them in production.
+	Phone string
+	// Dev marks an AUTH_DISABLED identity. Dev identities trust the client assertion (the whole
+	// identity comes from X-Dev-* headers); production never sets this flag.
+	Dev bool
 }
 
 // UserResolver maps a verified auth subject (Firebase UID / legacy auth.uid) to an app user slug.
@@ -90,6 +97,7 @@ func Middleware(cfg Config) func(http.Handler) http.Handler {
 				id.Role = strings.ToUpper(strings.TrimSpace(r.Header.Get("X-Dev-Role")))
 				id.SellerID = strings.TrimSpace(r.Header.Get("X-Dev-Seller"))
 				id.StateCode = strings.ToUpper(strings.TrimSpace(r.Header.Get("X-Dev-State")))
+				id.Dev = true
 			} else if claims, err := verifyToken(r, cfg); err == nil {
 				if claims.Portal {
 					// A portal subject is already the portal user id (never an app user id).
@@ -111,6 +119,7 @@ func Middleware(cfg Config) func(http.Handler) http.Handler {
 				id.StateCode = claims.stateCode()
 				id.Jti = claims.Jti
 				id.MustChange = claims.MustChange
+				id.Phone = claims.Phone
 			}
 			if id.Portal && id.MustChange && id.Role != RoleSuperAdmin && !strings.HasPrefix(r.URL.Path, "/auth/portal/") {
 				w.Header().Set("Content-Type", "application/json; charset=utf-8")
@@ -236,6 +245,45 @@ func CanActForSeller(ctx context.Context, sellerID, stateCode string) bool {
 	default:
 		return false
 	}
+}
+
+// OTPSigned reports whether the caller's identity carries a server-verified phone that matches the
+// given contact phone. The OTP is the "digital signature" on a seller application: trusting a
+// client-asserted `otpVerified` flag without binding it to a verified phone would let any caller
+// sign an application for an arbitrary contact phone. Dev mode (AUTH_DISABLED) always reports true
+// — the whole identity comes from the X-Dev-* cheat headers and is never production.
+func OTPSigned(ctx context.Context, contactPhone string) bool {
+	id, ok := ctx.Value(identityKey{}).(Identity)
+	if !ok {
+		return false
+	}
+	if id.Dev {
+		return true
+	}
+	if id.Phone == "" {
+		return false
+	}
+	return samePhone(id.Phone, contactPhone)
+}
+
+// samePhone compares two phone strings by their trailing 10 digits (robust to +91, spaces, dashes).
+func samePhone(a, b string) bool {
+	da, db := phoneDigits(a), phoneDigits(b)
+	if len(da) < 10 || len(db) < 10 {
+		return false
+	}
+	return da[len(da)-10:] == db[len(db)-10:]
+}
+
+// phoneDigits keeps only the digits of a phone string.
+func phoneDigits(v string) string {
+	var b strings.Builder
+	for _, r := range v {
+		if r >= '0' && r <= '9' {
+			b.WriteRune(r)
+		}
+	}
+	return b.String()
 }
 
 var errNoToken = errors.New("no token")
