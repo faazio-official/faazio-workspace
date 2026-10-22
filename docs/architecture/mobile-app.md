@@ -1080,7 +1080,9 @@ The order-level **Delivery ⇄ Self Pickup** toggle lives on the cart **BAG** st
   manual saved-address selection page. Proceed to Pay goes to **PAYMENT** in both modes;
   Payment's back button returns to BAG.
 - **Order placement:** for Delivery, the live fix (or fallback) is the delivery address and
-  the GPS coordinates are captured on the order (`PlacedOrder.location`). For Self Pickup,
+  the GPS coordinates are captured on the order (`PlacedOrder.location`) and sent as
+  `deliveryLocation`, so the gateway can auto-dispatch when the seller marks the order PACKED.
+  For Self Pickup,
   `getPickupPointsForItems` auto-derives **one pickup point per distinct vendor** and all of
   them are snapshotted as `PlacedOrder.pickups` (with `pickups[0]` also kept in `pickup` for
   the My Orders chip + prescription flow).

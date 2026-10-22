@@ -1,10 +1,12 @@
 package checkout
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"net/http"
 	"strings"
+	"time"
 
 	"github.com/faazio/server/gateway/internal/contracts"
 	"github.com/faazio/server/gateway/internal/platform/auth"
@@ -21,11 +23,14 @@ type Handler struct {
 	audit    contracts.AuditWriter
 	notifier contracts.Notifier
 	coupons  contracts.CouponValidator
+	stores   contracts.StoreReader
+	delivery contracts.DeliveryDispatcher
 }
 
-// NewHandler builds the checkout handler. notifier/coupons may be nil.
-func NewHandler(repo *Repo, service *Service, c *cache.Cache, audit contracts.AuditWriter, notifier contracts.Notifier, coupons contracts.CouponValidator) *Handler {
-	return &Handler{repo: repo, service: service, cache: c, audit: audit, notifier: notifier, coupons: coupons}
+// NewHandler builds the checkout handler. notifier/coupons/stores/delivery may be nil (dispatch and
+// notifications are then disabled, e.g. in unit contexts).
+func NewHandler(repo *Repo, service *Service, c *cache.Cache, audit contracts.AuditWriter, notifier contracts.Notifier, coupons contracts.CouponValidator, stores contracts.StoreReader, delivery contracts.DeliveryDispatcher) *Handler {
+	return &Handler{repo: repo, service: service, cache: c, audit: audit, notifier: notifier, coupons: coupons, stores: stores, delivery: delivery}
 }
 
 // Register mounts auth-scoped order + account endpoints.
@@ -405,7 +410,48 @@ func (h *Handler) setOrderStatus(w http.ResponseWriter, r *http.Request) {
 	order.Status = portalStatus(order.Status)
 	h.log(r, "ORDER_"+status, orderID)
 	h.notifyStatus(r, order, status)
+	if status == "PACKED" {
+		h.autoDispatch(r.Context(), orderID)
+	}
 	httpx.JSON(w, http.StatusOK, order)
+}
+
+// autoDispatch queues the ready order for rider assignment. Best-effort: the order is already
+// PACKED, and a failed/unavailable dispatch is left for an admin to assign manually. Runs in the
+// background so a slow Routes API call never delays the seller's status action.
+func (h *Handler) autoDispatch(ctx context.Context, orderID string) {
+	if h.stores == nil || h.delivery == nil {
+		return
+	}
+	base := context.WithoutCancel(ctx)
+	go func() {
+		ctx, cancel := context.WithTimeout(base, 20*time.Second)
+		defer cancel()
+		dc, ok, err := h.repo.DeliveryContextForOrder(ctx, orderID)
+		if err != nil || !ok || (dc.Fulfillment != "" && dc.Fulfillment != "DELIVERY") || len(dc.StoreIDs) != 1 ||
+			dc.Latitude == nil || dc.Longitude == nil {
+			return
+		}
+		store, ok, err := h.stores.ByID(ctx, dc.StoreIDs[0])
+		if err != nil || !ok || store.Latitude == nil || store.Longitude == nil ||
+			strings.TrimSpace(store.StateCode) == "" {
+			return
+		}
+		_, _ = h.delivery.DispatchOrder(ctx, contracts.DeliveryDispatchRequest{
+			CustomerOrderID: dc.OrderID,
+			StoreID:         store.ID,
+			StoreName:       store.Name,
+			StoreAddress:    store.Address,
+			StoreLatitude:   *store.Latitude,
+			StoreLongitude:  *store.Longitude,
+			StateCode:       store.StateCode,
+			CustomerName:    dc.CustomerName,
+			CustomerPhone:   dc.CustomerPhone,
+			CustomerAddress: dc.CustomerAddr,
+			DropLatitude:    *dc.Latitude,
+			DropLongitude:   *dc.Longitude,
+		})
+	}()
 }
 
 // notifyStatus enqueues a customer notification for customer-facing status changes. Best-effort:

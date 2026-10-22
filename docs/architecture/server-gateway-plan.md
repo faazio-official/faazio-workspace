@@ -51,7 +51,8 @@ keys/TTLs unchanged.
   `/membership`, `/order-status`, `/account-nav`, `/bookings`, `/venues/:id/booking-availability`,
   `/coupons?app=` (anon), `/promo/active-discounts?ids=` (anon), `/ads/live?slot=` (anon),
   `/admin/user-trail?userId=` (admin, ID-only), `/admin/sdui/home` (super-admin, raw ID-only layout);
-  writes `POST/PUT/DELETE /cart…`, `POST /orders` (festival-discount + coupon settlement + ad attribution),
+  writes `POST/PUT/DELETE /cart…`, `POST /orders` (festival-discount + coupon settlement + ad
+  attribution + optional live drop fix for auto-dispatch),
   `POST /checkout/validate-coupon`, `POST /ads/events`, `PUT /vendors/:id/rating`, `POST /events`,
   `PUT /admin/sdui/home` (super-admin, publishes the Home layout: version bump + cache purge),
   `POST /bookings` (seat hold + Razorpay order), `DELETE /bookings/:id`,
@@ -115,6 +116,11 @@ state-scoped: `GET /delivery/register/pending`, `GET /delivery/register/{id}`,
   `GOOGLE_ROUTES_API_KEY` unset (local/dev) it degrades to a Haversine/urban-speed estimate. Each
   assignment creates ordered `delivery_stops`, a 45 s accept lock and a durable order-ping in the
   shared notifications outbox (FCM/webhook drained by `internal/notifications`).
+- When a seller marks a delivery order `PACKED`, checkout calls the internal
+  `contracts.DeliveryDispatcher` (never HTTP) with the stored drop coordinates and the single
+  store's pickup. The call is idempotent per customer order and runs in the background, so a slow
+  Routes lookup or a rider shortage never blocks the status transition; no eligible rider leaves
+  the order for manual admin assignment.
 - `POST /delivery/{id}/reject` appends the declining rider to
   `delivery_orders.excluded_rider_ids`, then re-scores the remaining candidates and re-offers the
   same job (`dispatch_attempts` increments). The chain stops after
@@ -128,9 +134,9 @@ state-scoped: `GET /delivery/register/pending`, `GET /delivery/register/{id}`,
 - **Phase 5 payout splitting is not implemented.** `payout_amount_paisa` is display-only.
 
 **Known MVP limits:** cross-order route optimisation inserts stops per job rather than re-sequencing
-a multi-job rider; `POST /dispatch/assign` is not yet called automatically from the checkout
-order-ready transition; iOS/terminated-app background location and OEM battery whitelisting remain
-open. These are tracked in `client/mobile/PENDING_WORK.md`.
+a multi-job rider; multi-vendor orders (more than one store) are not auto-dispatched; iOS/
+terminated-app background location and OEM battery whitelisting remain open. These are tracked in
+`client/mobile/PENDING_WORK.md`.
 
 The sections below are the **Future Prod** target.
 

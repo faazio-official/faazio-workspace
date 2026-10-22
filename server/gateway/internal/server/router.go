@@ -119,6 +119,9 @@ func NewRouter(d Deps) http.Handler {
 	portalRepo := portal.New(d.Pool)
 	// Delivery partner (0042/0043): rider onboarding/KYC, availability, dispatch fallback and multi-stop execution.
 	deliveryRepo := delivery.New(d.Pool)
+	deliveryMatrix := delivery.NewRoutesMatrix(d.Config.GoogleRoutesAPIKey, d.Cache)
+	deliveryHandler := delivery.NewHandler(deliveryRepo, d.Cache, adminsRepo, notificationsRepo, deliveryMatrix, checkoutRepo,
+		d.Config.DeliveryMaxDispatchAttempts)
 
 	// Auth: Firebase ID tokens for the mobile app (phone OTP); portal HS256 tokens are verified
 	// separately. The legacy Supabase/GoTrue path remains for older partner tokens during the
@@ -156,7 +159,8 @@ func NewRouter(d Deps) http.Handler {
 	notifications.NewHandler(notificationsRepo, d.Cache, d.Drainer).Register(r)
 	blood.NewHandler(bloodRepo, d.Cache, adminsRepo, notificationsRepo).Register(r)
 	bookings.NewHandler(bookingsRepo, bookingsService, d.Cache, adminsRepo).Register(r)
-	checkout.NewHandler(checkoutRepo, checkoutService, d.Cache, adminsRepo, notificationsRepo, promoRepo).Register(r)
+	checkout.NewHandler(checkoutRepo, checkoutService, d.Cache, adminsRepo, notificationsRepo, promoRepo,
+		directoryRepo, deliveryHandler).Register(r)
 	reviews.NewHandler(reviewsRepo, reviewsService, d.Cache, adminsRepo).Register(r)
 	reco.NewHandler(recoRepo, recoService).Register(r)
 	sdui.NewHandler(sduiService, adminsRepo).Register(r)
@@ -167,9 +171,7 @@ func NewRouter(d Deps) http.Handler {
 	ads.NewHandler(adsRepo, d.Cache, adminsRepo, d.Signer.PublicOrigin()).Register(r)
 	settlement.NewHandler(settlementRepo, d.Cache, adminsRepo, routeGateway, sellersRepo).Register(r)
 	support.NewHandler(supportRepo, adminsRepo).Register(r)
-	deliveryMatrix := delivery.NewRoutesMatrix(d.Config.GoogleRoutesAPIKey, d.Cache)
-	delivery.NewHandler(deliveryRepo, d.Cache, adminsRepo, notificationsRepo, deliveryMatrix, checkoutRepo,
-		d.Config.DeliveryMaxDispatchAttempts).Register(r)
+	deliveryHandler.Register(r)
 	media.NewHandler(mediaRepo, r2Signer, d.Cache, adminsRepo, d.Sweeper).Register(r)
 	// Public media without a CDN custom domain: a stable /assets/{key} URL that 302-redirects to a
 	// short-lived presigned GET, so cached JSON can hold a non-expiring URL (R2_CDN_BASE unset).

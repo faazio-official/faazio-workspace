@@ -179,6 +179,8 @@ type Store struct {
 	Address      string   `json:"address,omitempty"` // PII — auth-scoped only
 	Phone        string   `json:"phone,omitempty"`   // PII
 	Hours        string   `json:"hours,omitempty"`
+	// StateCode scopes dispatch to riders in the store's state (2-letter code). Internal only.
+	StateCode string `json:"-"`
 	// Public coordinates. DistanceKm is set only by GET /stores/nearby.
 	Latitude   *float64 `json:"latitude,omitempty"`
 	Longitude  *float64 `json:"longitude,omitempty"`
@@ -494,4 +496,30 @@ type SellerProfileReader interface {
 // The delivery context uses it to refuse cross-user delivery ratings.
 type OrderOwnership interface {
 	OrderOwnedBy(ctx context.Context, orderID, userID string) (bool, error)
+}
+
+// DeliveryDispatchRequest is the internal order-ready → dispatch call. Checkout composes the
+// customer drop (PII, server-side only) and the store pickup, then delivery owns candidate
+// selection, assignment and the rider ping. Never logged.
+type DeliveryDispatchRequest struct {
+	CustomerOrderID   string
+	StoreID           string
+	StoreName         string
+	StoreAddress      string
+	StoreLatitude     float64
+	StoreLongitude    float64
+	StateCode         string
+	CustomerName      string
+	CustomerPhone     string
+	CustomerAddress   string
+	DropLatitude      float64
+	DropLongitude     float64
+	RequireOTP        bool
+	PayoutAmountPaisa int64
+}
+
+// DeliveryDispatcher assigns a ready order to the best rider. Implemented by delivery.Handler.
+// A nil error with assigned=false means no eligible rider; checkout must not fail the order.
+type DeliveryDispatcher interface {
+	DispatchOrder(ctx context.Context, req DeliveryDispatchRequest) (assigned bool, err error)
 }

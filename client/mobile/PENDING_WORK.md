@@ -50,9 +50,9 @@ dependencies exist. Do not build the backend/seller flows until told to.
   application can re-apply in full).
 - **Cross-order re-sequencing** — a rider carrying multiple jobs gets each job's stops appended, not
   a globally optimised sequence; add the insertion/reorder pass after acceptance.
-- **Checkout → dispatch auto-trigger** — `POST /dispatch/assign` is implemented and admin-gated but
-  the checkout order-ready transition does not call it yet; wire the trigger (or an outbox event) so
-  a ready order is dispatched without a manual call.
+- **Multi-store auto-dispatch** — the checkout order-ready trigger dispatches only when the order
+  has exactly one vendor store (the MVP case). Multi-vendor orders still need one job per store,
+  so they stay on the admin `POST /dispatch/assign` path until the fan-out is designed.
 - **Admin per-stop state tabs** — the portal board splits Applications vs Active riders with
   load/capacity; At Pickup / At Delivery / Busy categories are not projected from stop state yet.
 - **Partner Firebase entries (ops)** — register the partner Android app + iOS bundle id in the

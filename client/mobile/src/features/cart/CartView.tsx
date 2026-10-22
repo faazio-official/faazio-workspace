@@ -171,6 +171,8 @@ export default function CartView({
   const insets = useSafeAreaInsets();
 
   const liveAddress = useLiveAddress(fulfillment === 'DELIVERY');
+  // Only a resolved fix is persisted for auto-dispatch; idle/loading/denied keeps the 0,0 sentinel.
+  const hasLiveFix = liveAddress.status === 'ready' && liveAddress.lat !== 0 && liveAddress.lng !== 0;
   const fallbackAddress = defaultAddresses.find((a) => a.isDefault === true) ?? defaultAddresses[0];
   const deliveryAddress = liveAddress?.address
     ? { label: 'Current location', address: liveAddress.address }
@@ -358,6 +360,9 @@ export default function CartView({
           idempotencyKey: `cart-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
           ...(appliedCouponCode ? { couponCode: appliedCouponCode } : {}),
           ...(attributedSlotId ? { attribution: { slotId: attributedSlotId } } : {}),
+          ...(!isPickup && hasLiveFix
+            ? { deliveryLocation: { latitude: liveAddress.lat, longitude: liveAddress.lng } }
+            : {}),
           ...(primaryPickup
             ? { pickup: { name: primaryPickup.name, address: primaryPickup.address } }
             : {}),
@@ -395,9 +400,7 @@ export default function CartView({
           hours: p.hours,
           phone: p.phone,
         })),
-        location: liveAddress
-          ? { lat: liveAddress.lat, lng: liveAddress.lng }
-          : undefined,
+        location: hasLiveFix ? { lat: liveAddress.lat, lng: liveAddress.lng } : undefined,
         items: [...selectedItems].map((i) => ({
           id: i.id,
           name: i.name,
@@ -428,7 +431,7 @@ export default function CartView({
         fulfillment: mode,
         pickup: primaryPickup,
         pickups,
-        location: liveAddress ? { lat: liveAddress.lat, lng: liveAddress.lng } : undefined,
+        location: hasLiveFix ? { lat: liveAddress.lat, lng: liveAddress.lng } : undefined,
         coinsEarned,
         coinsRedeemed,
       };

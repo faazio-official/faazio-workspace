@@ -35,7 +35,7 @@ func New(pool *db.Pool, cdnBase ...string) *Repo {
 const storeSelect = `
 select id, app::text, name, categories, rating, reviews_count, delivery_time, distance,
        cover_image, cover_image_key, emoji, desc_text, offer_tag, is_veg, address, phone, hours,
-       latitude, longitude, null::float8 as distance_km
+       coalesce(state_code,''), latitude, longitude, null::float8 as distance_km
 from directory.stores`
 
 // storeListSelect is the public list projection: it never fetches the PII columns (address/phone),
@@ -43,7 +43,7 @@ from directory.stores`
 const storeListSelect = `
 select id, app::text, name, categories, rating, reviews_count, delivery_time, distance,
        cover_image, cover_image_key, emoji, desc_text, offer_tag, is_veg, null::text as address, null::text as phone, hours,
-       latitude, longitude, null::float8 as distance_km
+       coalesce(state_code,''), latitude, longitude, null::float8 as distance_km
 from directory.stores`
 
 // ByApp returns stores for one app (empty app = all).
@@ -352,7 +352,7 @@ func scanStores(rows pgx.Rows, cdnBase string) ([]contracts.Store, error) {
 		if err := rows.Scan(
 			&s.ID, &s.App, &s.Name, &s.Categories, &s.Rating, &reviews,
 			&s.DeliveryTime, &s.Distance, &s.CoverImage, &coverKey, &s.Emoji, &s.Desc,
-			&offerTag, &isVeg, &address, &phone, &hours,
+			&offerTag, &isVeg, &address, &phone, &hours, &s.StateCode,
 			&lat, &lng, &distance,
 		); err != nil {
 			return nil, err

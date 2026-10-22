@@ -459,6 +459,12 @@ CREATE TABLE checkout.order_items (
 );
 ```
 
+**Drop coordinates (0044):** `checkout.orders` also carries nullable
+`delivery_latitude` / `delivery_longitude` (float8, range-checked), filled from the app's live fix at
+placement for `DELIVERY` orders. They are internal (never returned in the order projection) and feed
+order-ready auto-dispatch; null means no fix and the order stays on the admin assignment path.
+Self-pickup orders leave them null.
+
 **Access patterns:** `getOrdersByUser(userId)`, My Orders list, order detail by `order_id`, status
 filter. **Keyset pagination index:** `(user_id, placed_at DESC)` for cursor-based order history.
 `POST /orders` is idempotent: a durable `checkout.idempotency_keys (user_id, key) → order_id` record
