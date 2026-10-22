@@ -61,17 +61,21 @@ search extraction is a pure index-replica swap.
 **Delivery partner (0042/0043, MVP built).** A separate partner experience ships from the same bare
 RN workspace with its own Metro entry (`index.delivery.js` → `src/DeliveryPartnerApp.tsx`), Android
 flavor and iOS configuration; neither product bundles the other's screens. The gateway owns KYC
-review, vehicle-capped capacity, availability, Valkey live coordinates, road-aware candidate scoring
-(Google Routes API, `GOOGLE_ROUTES_API_KEY`; straight-line fallback when unset), multi-stop jobs,
-forward-only stop transitions, bounded reject→reassign fallback (including the 45 s expiry worker),
-5-attempt customer-OTP handover and ratings. The checkout `PACKED`
+review, vehicle-capped capacity, availability, Valkey live coordinates, detour-aware candidate
+scoring (Google Routes API, `GOOGLE_ROUTES_API_KEY`; straight-line fallback when unset),
+insertion-based multi-stop re-sequencing (`ActiveStopsByRider`/`OptimizeStopSequence`/
+`ResequenceActiveStops`), forward-only stop transitions, bounded reject→reassign fallback
+(including the 45 s expiry worker), 5-attempt customer-OTP handover and ratings. The admin rider
+projection (`RiderCurrentStopStatuses`) powers Available / At Pickup / At Delivery / Busy tabs and
+the route endpoint returns an encoded polyline. The checkout `PACKED`
 transition calls the internal `contracts.DeliveryDispatcher` (single-store orders) with the stored
 drop fix; assignment is idempotent per customer order and best-effort. Order pings enqueue
 through the existing `contracts.Notifier` outbox, and the partner app registers its FCM token
 through the existing `notifications` context, so no second push stack is introduced. Android runs an
-ongoing location foreground service that wakes the heartbeat headless task while online. Phase 5
-(payout split) is explicitly not built; `payout_amount_paisa` is display-only. iOS background
-location and cross-order re-sequencing are tracked in `client/mobile/PENDING_WORK.md`.
+ongoing location foreground service that wakes the heartbeat headless task while online; iOS uses a
+background-enabled CoreLocation watch behind explicit consent. Phase 5 (payout split) is explicitly
+not built; `payout_amount_paisa` is display-only. Force-quit iOS behaviour remains an ops limit
+tracked in `client/mobile/PENDING_WORK.md`.
 
 Auth verifier ownership: `internal/platform/auth` owns token verification only — Firebase RS256
 (`FirebaseVerifier`, Google public certs, no firebase-admin dependency), then gateway-native portal

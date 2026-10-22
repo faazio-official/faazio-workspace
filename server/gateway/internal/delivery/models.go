@@ -119,8 +119,11 @@ type Rider struct {
 	Rating           float64 `json:"rating"`
 	CompletedOrders  int     `json:"completedOrders"`
 	LastHeartbeatAt  string  `json:"lastHeartbeatAt,omitempty"`
-	RejectionReason  string  `json:"rejectionReason,omitempty"`
-	CreatedAt        string  `json:"createdAt"`
+	// CurrentCategory is an admin projection derived from the rider's open stop state. It is never
+	// persisted; empty means no category was computed (rider endpoints).
+	CurrentCategory string `json:"currentCategory,omitempty"`
+	RejectionReason string `json:"rejectionReason,omitempty"`
+	CreatedAt       string `json:"createdAt"`
 }
 
 // Document is one delivery_documents row. FileKey is a private R2 object key, never a URL.
@@ -193,6 +196,9 @@ type Order struct {
 	CompletedAt           string          `json:"completedAt,omitempty"`
 	CreatedAt             string          `json:"createdAt"`
 	Stops                 []Stop          `json:"stops"`
+	// Polyline is the Google-encoded line through the ordered stop coordinates. The rider route
+	// endpoint computes it on read; it is not persisted.
+	Polyline string `json:"polyline,omitempty"`
 	// DispatchAttempts counts offers (initial + fallbacks); ExcludedRiderIDs keeps riders who
 	// already declined this job from being selected again. Internal-only (never in JSON).
 	DispatchAttempts int      `json:"-"`

@@ -695,13 +695,21 @@ DeliveryPartnerNavigator (native stack, no customer screens)
 ├── OtpVerify    — 6-digit code → authStore Keychain session
 ├── Register     — KYC application: profile, live Aadhaar/selfie/PAN + motor DL/RC/insurance capture,
 │                  vehicle-capped capacity, bank details (private R2 uploads → POST /delivery/register)
-├── Status       — applied / pending / verified / rejected / suspended state + reupload reason
+├── SubmissionSuccess — applied / pending / verified / rejected / suspended state + reupload reason
 ├── Dashboard    — Go Online toggle (PUT /delivery/availability), Valkey heartbeat every 120 s
-│                  (foreground + Android foreground service headless task), 45 s offer cards,
-│                  active multi-stop jobs
+│                  (foreground + Android foreground service headless task + iOS background watch),
+│                  45 s offer cards, active multi-stop jobs
+├── AcceptReject — deep-link/push offer: store/customer, payout, route context, 45 s countdown,
+│                  Accept / Reject (expiry = implicit reject) → Route
 └── Route        — server-ordered pickup/drop stops, Arrived/Picked Up/Delivered transitions,
                    customer-OTP handover
 ```
+
+**Push offer deep link.** `src/services/deliveryPush.ts` registers the FCM token, routes a foreground
+message or notification tap to `AcceptRejectScreen`, and `src/services/deliveryLinks.ts` also accepts
+`faazio-delivery://accept-reject?orderId=…` (`Linking` warm/cold start). The screen loads the offer
+from `GET /delivery/route/{id}` so a cold start needs only the order id; the server's `expiresAt`
+drives the countdown.
 
 **Native identity.** One committed RN shell, two products: the Android `customer`/`delivery`
 product flavors (`com.faazio.customer` / `com.faazio.deliverypartner`) and the iOS
@@ -710,16 +718,18 @@ The partner build needs its own Firebase Android app + iOS plist; `APP_VARIANT=d
 that config in `configure.js` (the iOS bundle phase hard-fails otherwise). CI builds them explicitly
 (`assembleCustomerDebug` / `assembleDeliveryDebug`); see `docs/RUNBOOKS/RELEASE.md`.
 
-**Android background tracking.** While online, `DeliveryTrackingService` runs with
+**Background tracking.** While online, Android runs `DeliveryTrackingService` with
 `foregroundServiceType="location"` and a persistent low-importance notification, waking
 `DeliveryHeartbeatTaskService` every 120 s. The headless JS task reads the Keychain session, takes
 one coarse fix and posts the same heartbeat as the foreground loop; the service stops when the
-rider goes offline/signs out. iOS still heartbeats only in the foreground.
+rider goes offline/signs out. On iOS, `DeliveryBackgroundLocation` keeps a background-enabled
+CoreLocation watch (`UIBackgroundModes: location`, explicit consent) and posts a throttled heartbeat
+only while `AppState` is not active; the foreground interval owns heartbeats while the app is open.
+iOS still ends the watch when the app is force-quit from the app switcher.
 
-**Known MVP limits** (tracked in `client/mobile/PENDING_WORK.md`): iOS/terminated-app background
-location (plus OEM battery whitelisting), FCM order pings need the gateway `PUSH_WEBHOOK_URL`
-bridge and a tap only opens the dashboard (no per-order deep link), and cross-order stop
-re-sequencing is not implemented. Reject now re-offers the job to the next candidate up to 5
+**Known MVP limits** (tracked in `client/mobile/PENDING_WORK.md`): force-quit iOS background
+location (plus OEM battery whitelisting), the `PUSH_WEBHOOK_URL` bridge is an ops step, and the
+insertion heuristic is not a full VRP. Reject re-offers the job to the next candidate up to 5
 attempts. Payout splits (Phase 5) are intentionally not built.
 
 ### Phone-auth flow (Login)
@@ -1059,7 +1069,9 @@ Seller onboarding adds a foreground `SellerLocationPicker` (native `react-native
 submits `latitude`/`longitude` with the application; the shop pin is stored on `sellers.sellers` and
 is public business data. Maps keys come from `GOOGLE_MAPS_API_KEY_ANDROID` (manifest resource generated
 by `scripts/configure.js`) and `GOOGLE_MAPS_API_KEY_IOS`; no key ⇒ the map renders blank, no crash.
-No background location permission or `UIBackgroundModes: location` is declared.
+The customer product itself never requests background location. The shared iOS plist declares
+`UIBackgroundModes: location` for the delivery entry (the partner app is the only caller of the
+background watch); Android keeps background location scoped to the delivery flavor manifest.
 
 ## Cart checkout — fulfilment + live-location delivery on the BAG step
 

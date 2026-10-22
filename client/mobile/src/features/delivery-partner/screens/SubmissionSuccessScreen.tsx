@@ -10,7 +10,7 @@ import { Card, DP, ErrorText, PrimaryButton, Screen, StatusPill } from '../compo
 import { hs, ms, vs } from '@/utils/responsive';
 import type { DeliveryPartnerStackParamList } from '../navigation';
 
-type Props = NativeStackScreenProps<DeliveryPartnerStackParamList, 'Status'>;
+type Props = NativeStackScreenProps<DeliveryPartnerStackParamList, 'SubmissionSuccess'>;
 
 const COPY: Record<string, string> = {
   APPLIED: 'Your application has been received. An admin will review it shortly.',
@@ -22,7 +22,7 @@ const COPY: Record<string, string> = {
   REJECTED: 'Your application was rejected. You can correct the details and re-apply.',
 };
 
-export function StatusScreen({ navigation }: Props) {
+export function SubmissionSuccessScreen({ navigation }: Props) {
   const rider = useDeliveryPartnerStore((s) => s.rider);
   const setRider = useDeliveryPartnerStore((s) => s.setRider);
   const reset = useDeliveryPartnerStore((s) => s.reset);

@@ -644,7 +644,43 @@ func (h *Handler) adminRiders(w http.ResponseWriter, r *http.Request) {
 		h.writeErr(w, err)
 		return
 	}
+	ids := make([]string, 0, len(riders))
+	for _, rider := range riders {
+		ids = append(ids, rider.RiderID)
+	}
+	openStops, err := h.repo.RiderCurrentStopStatuses(r.Context(), ids)
+	if err != nil {
+		h.writeErr(w, err)
+		return
+	}
+	for i := range riders {
+		riders[i].CurrentCategory = riderCategory(riders[i], openStops[riders[i].RiderID])
+	}
 	httpx.JSON(w, http.StatusOK, riders)
+}
+
+// riderCategory projects a rider's live state onto the admin board tabs. An open stop wins over the
+// availability toggle (the rider is physically executing a leg), and a full rider is Busy even when
+// they forgot to toggle off.
+func riderCategory(rider Rider, openStop string) string {
+	if rider.CurrentLoad >= rider.MaxCapacity && rider.MaxCapacity > 0 {
+		return "BUSY"
+	}
+	switch openStop {
+	case StopAtPickup:
+		return "AT_PICKUP"
+	case StopAtCustomer, StopPickedUp:
+		return "AT_DELIVERY"
+	case StopPending:
+		return "BUSY"
+	}
+	if rider.CurrentLoad > 0 {
+		return "BUSY"
+	}
+	if rider.IsAvailable {
+		return "AVAILABLE"
+	}
+	return "OFFLINE"
 }
 
 func (h *Handler) adminLocation(w http.ResponseWriter, r *http.Request) {
@@ -711,7 +747,22 @@ func (h *Handler) candidateRiders(ctx context.Context, stateCode string, exclude
 		if !h.cache.GetJSON(ctx, cache.DeliveryRiderLocation(rider.RiderID), &hb) {
 			continue
 		}
-		candidates = append(candidates, RiderLocation{Rider: rider, Lat: hb.Latitude, Lng: hb.Longitude})
+		loc := RiderLocation{Rider: rider, Lat: hb.Latitude, Lng: hb.Longitude}
+		candidates = append(candidates, loc)
+	}
+	// Only riders already carrying work need a route lookup; load == 0 cannot have open stops.
+	loaded := make([]string, 0, len(candidates))
+	for _, c := range candidates {
+		if c.Rider.CurrentLoad > 0 {
+			loaded = append(loaded, c.Rider.RiderID)
+		}
+	}
+	activeStops, err := h.repo.ActiveStopsByRider(ctx, loaded)
+	if err != nil {
+		return nil, err
+	}
+	for i := range candidates {
+		candidates[i].ActiveStops = activeStops[candidates[i].Rider.RiderID]
 	}
 	return candidates, nil
 }
@@ -792,7 +843,8 @@ func (h *Handler) dispatch(ctx context.Context, req dispatchRequest, stateCode s
 	if err != nil {
 		return Order{}, "", false, err
 	}
-	best := PickRider(candidates, *req.StoreLatitude, *req.StoreLongitude, h.matrix)
+	best := PickRiderWithStops(candidates, *req.StoreLatitude, *req.StoreLongitude,
+		*req.DropLatitude, *req.DropLongitude, h.matrix)
 	if best == nil {
 		return Order{}, "", false, nil
 	}
@@ -800,7 +852,6 @@ func (h *Handler) dispatch(ctx context.Context, req dispatchRequest, stateCode s
 	orderID := "dlv-" + shortID()
 	pickupID := "stop-" + shortID()
 	dropID := "stop-" + shortID()
-	route, _ := json.Marshal([]string{pickupID, dropID})
 	dropSeconds, dropMeters := h.matrix.Travel(*req.StoreLatitude, *req.StoreLongitude, *req.DropLatitude, *req.DropLongitude)
 	approachSeconds, approachMeters := h.matrix.Travel(best.Lat, best.Lng, *req.StoreLatitude, *req.StoreLongitude)
 	totalMeters := dropMeters + approachMeters
@@ -808,16 +859,45 @@ func (h *Handler) dispatch(ctx context.Context, req dispatchRequest, stateCode s
 	expires := time.Now().Add(45 * time.Second)
 	order := Order{
 		OrderID: orderID, CustomerOrderID: req.CustomerOrderID, StoreID: req.StoreID,
-		RiderID: best.Rider.RiderID, Status: OrderAssigned, RouteSequence: route,
+		RiderID: best.Rider.RiderID, Status: OrderAssigned,
 		TotalDistanceMeters: totalMeters, EstimatedDurationSecs: etaSeconds,
 		PayoutAmountPaisa: req.PayoutAmountPaisa, RequireOTP: req.RequireOTP,
 	}
-	stops := []Stop{
-		{StopID: pickupID, Sequence: 1, StopType: "PICKUP", Label: req.StoreLabel, Address: req.StoreAddress,
-			Latitude: req.StoreLatitude, Longitude: req.StoreLongitude},
-		{StopID: dropID, Sequence: 2, StopType: "DROP", Label: req.CustomerName, Address: req.CustomerAddress,
-			Latitude: req.DropLatitude, Longitude: req.DropLongitude, CustomerName: req.CustomerName,
-			CustomerPhone: req.CustomerPhone},
+	pickup := Stop{StopID: pickupID, Sequence: 1, StopType: "PICKUP", Label: req.StoreLabel, Address: req.StoreAddress,
+		Latitude: req.StoreLatitude, Longitude: req.StoreLongitude}
+	drop := Stop{StopID: dropID, Sequence: 2, StopType: "DROP", Label: req.CustomerName, Address: req.CustomerAddress,
+		Latitude: req.DropLatitude, Longitude: req.DropLongitude, CustomerName: req.CustomerName,
+		CustomerPhone: req.CustomerPhone}
+	stops := []Stop{pickup, drop}
+
+	// Insert the new job into the rider's existing route (pickup before drop, started stops pinned),
+	// then persist the sequence before creating the order. If the offer is rejected the existing
+	// stops keep their relative order and only the numbering has gaps; execution is unaffected.
+	if len(best.ActiveStops) > 0 {
+		combined, err := OptimizeStopSequence(best.ActiveStops, pickup, drop, h.matrix)
+		if err != nil {
+			return Order{}, "", false, err
+		}
+		existing := make([]Stop, 0, len(best.ActiveStops))
+		for _, s := range combined {
+			if s.StopID == pickupID {
+				pickup.Sequence = s.Sequence
+			} else if s.StopID == dropID {
+				drop.Sequence = s.Sequence
+			} else {
+				existing = append(existing, s)
+			}
+		}
+		stops = []Stop{pickup, drop}
+		if err := h.repo.ResequenceActiveStops(ctx, best.Rider.RiderID, existing, int64(len(combined)+1)); err != nil {
+			return Order{}, "", false, err
+		}
+		// Sequence values encode the rider's global route; each order's JSON lists only its own stops.
+		route, _ := json.Marshal([]string{pickupID, dropID})
+		order.RouteSequence = route
+	} else {
+		route, _ := json.Marshal([]string{pickupID, dropID})
+		order.RouteSequence = route
 	}
 	var otp string
 	var otpHash string
@@ -922,7 +1002,8 @@ func (h *Handler) retryReleasedOrder(ctx context.Context, order Order, stateCode
 	if err != nil {
 		return false, err
 	}
-	next := PickRider(candidates, *pickup.Latitude, *pickup.Longitude, h.matrix)
+	next := PickRiderWithStops(candidates, *pickup.Latitude, *pickup.Longitude,
+		*drop.Latitude, *drop.Longitude, h.matrix)
 	if next == nil {
 		return false, nil
 	}
@@ -1069,6 +1150,7 @@ func (h *Handler) getRoute(w http.ResponseWriter, r *http.Request) {
 		h.writeErr(w, err)
 		return
 	}
+	order.Polyline = EncodePolyline(order.Stops)
 	httpx.JSON(w, http.StatusOK, order)
 }
 

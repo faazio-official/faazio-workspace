@@ -3,7 +3,8 @@ import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { PhoneEntryScreen } from './screens/PhoneEntryScreen';
 import { OtpVerifyScreen } from './screens/OtpVerifyScreen';
 import { RegistrationFormScreen } from './screens/RegistrationFormScreen';
-import { StatusScreen } from './screens/StatusScreen';
+import { SubmissionSuccessScreen } from './screens/SubmissionSuccessScreen';
+import { AcceptRejectScreen } from './screens/AcceptRejectScreen';
 import { DashboardScreen } from './screens/DashboardScreen';
 import { RouteScreen } from './screens/RouteScreen';
 import type { DeliveryPartnerStackParamList } from './navigation';
@@ -17,7 +18,8 @@ export function DeliveryPartnerNavigator() {
       <Stack.Screen name="PhoneEntry" component={PhoneEntryScreen} />
       <Stack.Screen name="OtpVerify" component={OtpVerifyScreen} />
       <Stack.Screen name="Register" component={RegistrationFormScreen} />
-      <Stack.Screen name="Status" component={StatusScreen} />
+      <Stack.Screen name="SubmissionSuccess" component={SubmissionSuccessScreen} />
+      <Stack.Screen name="AcceptReject" component={AcceptRejectScreen} options={{ presentation: 'modal' }} />
       <Stack.Screen name="Dashboard" component={DashboardScreen} />
       <Stack.Screen name="Route" component={RouteScreen} options={{ animation: 'slide_from_right' }} />
     </Stack.Navigator>

@@ -26,8 +26,8 @@ function validPhone(raw: string): boolean {
 }
 
 /** Resolve an existing online session straight to its rider status (cold-start convenience). */
-function routeForStatus(status: string): 'Dashboard' | 'Status' {
-  return status === 'ACTIVE' ? 'Dashboard' : 'Status';
+function routeForStatus(status: string): 'Dashboard' | 'SubmissionSuccess' {
+  return status === 'ACTIVE' ? 'Dashboard' : 'SubmissionSuccess';
 }
 
 export function PhoneEntryScreen({ navigation }: Props) {

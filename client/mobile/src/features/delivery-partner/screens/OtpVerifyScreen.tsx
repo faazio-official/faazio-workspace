@@ -39,7 +39,7 @@ export function OtpVerifyScreen({ navigation, route }: Props) {
       try {
         const rider = await gateway.getDeliveryPartnerMe();
         setRider(rider);
-        navigation.replace(rider.status === 'ACTIVE' ? 'Dashboard' : 'Status');
+        navigation.replace(rider.status === 'ACTIVE' ? 'Dashboard' : 'SubmissionSuccess');
       } catch (err) {
         if (err instanceof GatewayHttpError && err.status === 404) {
           navigation.replace('Register');

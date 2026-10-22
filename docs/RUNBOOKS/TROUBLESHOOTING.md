@@ -108,8 +108,22 @@ rendered on the error card** (plus the first stack frame in a dev build) — tha
 - **No notification on Android 13+** → POST_NOTIFICATIONS was denied. The service can still run, but
   ask the rider to allow notifications; a missed heartbeat removes them from candidates after the
   300 s Valkey TTL.
-- **iOS rider stops receiving offers in the background** → expected MVP limit (foreground-only
-  heartbeat); do not file as a gateway bug. Tracked in `client/mobile/PENDING_WORK.md`.
+- **iOS rider stops receiving offers in the background** → confirm the rider allowed **Always**
+  location from the Go Online consent, `UIBackgroundModes` includes `location`, and the build is the
+  delivery configuration (`index.delivery.js`). The CoreLocation watch posts only when
+  `AppState !== active`; if the rider force-quit the app from the switcher the watch is gone by
+  design (reopen the app or use the foreground heartbeat). If no heartbeat reaches Valkey, check
+  `POST /delivery/heartbeat` in the device logs — a 401 means the Keychain session was cleared.
+- **Push tap opens the dashboard instead of the offer** → the notification data must include
+  `orderId` (the gateway sends it in `notifyRider`). Check `adb logcat`/Xcode for
+  `faazio-delivery://accept-reject?orderId=…`, verify the Android delivery manifest has the
+  scheme/host intent filter and iOS `CFBundleURLSchemes` includes `faazio-delivery`, and confirm the
+  rider is authenticated (an unauthenticated cold start keeps the offer queued until the dashboard
+  mounts). When testing without a push bridge use
+  `adb shell am start -a android.intent.action.VIEW -d "faazio-delivery://accept-reject?orderId=<id>"`.
+- **Offer screen says it is no longer available** → the 45 s window elapsed, another rider accepted,
+  or dispatch reassigned the job. This is expected; the screen never resurrects a non-`ASSIGNED`
+  order.
 
 ## 🔧 Gradle / native build failures
 

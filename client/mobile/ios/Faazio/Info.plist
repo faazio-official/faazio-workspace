@@ -28,6 +28,7 @@
         <key>CFBundleURLSchemes</key>
         <array>
           <string>com.faazio.customer</string>
+          <string>faazio-delivery</string>
         </array>
       </dict>
     </array>
@@ -48,6 +49,8 @@
     <string>This app requires camera access to upload medical prescriptions and scan bar codes.</string>
     <key>NSFaceIDUsageDescription</key>
     <string>Allow $(PRODUCT_NAME) to access your Face ID biometric data.</string>
+    <key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
+    <string>Delivery partners stay visible to dispatch while online. Faazio uses background location only after you allow it, and only to send a periodic rider heartbeat while you are online.</string>
     <key>NSLocationWhenInUseUsageDescription</key>
     <string>Faazio uses your location while the app is open to show nearby stores, estimate delivery distance, suggest your city for blood donation and auto-fill your delivery address.</string>
     <key>NSMotionUsageDescription</key>
@@ -58,6 +61,8 @@
     <string>$(RCT_METRO_PORT)</string>
     <key>UIBackgroundModes</key>
     <array>
+      <string>location</string>
+      <string>fetch</string>
       <string>remote-notification</string>
     </array>
     <key>UILaunchStoryboardName</key>

@@ -100,6 +100,10 @@ state-scoped: `GET /delivery/register/pending`, `GET /delivery/register/{id}`,
 `GET /admin/delivery-boys`, `GET /admin/delivery-boys/{id}/location`, `POST /dispatch/assign`
 (plus super-only `PUT /delivery/register/{id}/activate` and `PUT /delivery/boys/{id}/blacklist`).
 
+`POST /dispatch/assign` is mounted under the admin roles for manual/operator dispatch, but checkout
+also invokes the same dispatch path in-process through `contracts.DeliveryDispatcher` on `PACKED`.
+The HTTP route is not used service-to-service — the dual mount is intentional.
+
 **Rules**
 - Capacity is hard-capped at intake by vehicle: `BICYCLE=1`, `TWO_WHEELER=2`, `FOUR_WHEELER=5`.
   Motorised vehicles require DL/RC/insurance capture; all riders require Aadhaar/PAN/live selfie.
@@ -110,12 +114,21 @@ state-scoped: `GET /delivery/register/pending`, `GET /delivery/register/{id}`,
   `delivery:rider:{id}:location` with a 300 s TTL (the dispatch authority) and stamps the optional
   Postgres mirror. A stopped heartbeat removes the rider from candidates; the explicit availability
   toggle owns `is_available`.
-- Dispatch scores `ACTIVE`, available, under-capacity riders by **road duration to the store**
-  (Google Routes API `distanceMatrix/v2:computeRouteMatrix`, `TRAFFIC_AWARE`, cached per leg for
-  300 s under `delivery:route:{lat,lng}:{lat,lng}`), then capacity headroom and rating. With
-  `GOOGLE_ROUTES_API_KEY` unset (local/dev) it degrades to a Haversine/urban-speed estimate. Each
-  assignment creates ordered `delivery_stops`, a 45 s accept lock and a durable order-ping in the
-  shared notifications outbox (FCM/webhook drained by `internal/notifications`).
+- Dispatch scores `ACTIVE`, available, under-capacity riders by **road duration actually added to
+  their route** (Google Routes API `distanceMatrix/v2:computeRouteMatrix`, `TRAFFIC_AWARE`, cached
+  per leg for 300 s under `delivery:route:{lat,lng}:{lat,lng}`). For a rider with open accepted
+  stops it computes `legA = last drop → new store`, `legB = new store → new customer` and
+  `detour = legA + legB − last drop → new customer`, scoring `legA + detour`; a rider with no open
+  stops is scored by rider → store. Capacity headroom and rating break ties. With
+  `GOOGLE_ROUTES_API_KEY` unset (local/dev) it degrades to a Haversine/urban-speed estimate.
+- Assignment then runs an **insertion heuristic** (`OptimizeStopSequence`) over the rider's open
+  stops plus the new pickup/drop: existing relative order is preserved, pickup must precede its
+  drop, and stops already started (`AT_PICKUP`, `PICKED_UP`, `AT_CUSTOMER`) are pinned. The chosen
+  sequence is written to `delivery_stops.sequence` (renumbered globally across the rider's accepted
+  jobs) and each order's `route_sequence` JSON. Every assignment creates a 45 s accept lock and a
+  durable order-ping in the shared notifications outbox (FCM/webhook drained by
+  `internal/notifications`). `GET /delivery/route/{id}` returns the ordered stops plus a
+  Google-encoded `polyline`.
 - When a seller marks a delivery order `PACKED`, checkout calls the internal
   `contracts.DeliveryDispatcher` (never HTTP) with the stored drop coordinates and the single
   store's pickup. The call is idempotent per customer order and runs in the background, so a slow
@@ -141,12 +154,15 @@ state-scoped: `GET /delivery/register/pending`, `GET /delivery/register/{id}`,
   `/delivery/otp/verify` can mark that stop delivered. Attempts are bounded at 5 (`429 otp_locked`,
   migration `0045`); the hash/expiry are cleared on delivery so a code cannot be replayed.
 - Every mutation writes an `admins.audit_logs` row through `contracts.AuditWriter`.
+- `GET /admin/delivery-boys` projects `currentCategory` (`AVAILABLE`, `AT_PICKUP`, `AT_DELIVERY`,
+  `BUSY`, `OFFLINE`) from the rider's next open stop and load/capacity. `GET
+  /admin/delivery-boys/{id}/location` is a one-time Valkey read with the Postgres mirror fallback.
 - **Phase 5 payout splitting is not implemented.** `payout_amount_paisa` is display-only.
 
-**Known MVP limits:** cross-order route optimisation inserts stops per job rather than re-sequencing
-a multi-job rider; multi-vendor orders (more than one store) are not auto-dispatched; iOS/
-terminated-app background location and OEM battery whitelisting remain open. These are tracked in
-`client/mobile/PENDING_WORK.md`.
+**Known MVP limits:** the insertion heuristic is not a full VRP; multi-vendor orders (more than one
+store) are not auto-dispatched; iOS terminates a swiped-away app (background location survives
+backgrounding, not force-quit) and OEM battery whitelisting remains an ops step. These are tracked
+in `client/mobile/PENDING_WORK.md`.
 
 The sections below are the **Future Prod** target.
 
