@@ -102,8 +102,8 @@ func TestByStorePageActiveOnly(t *testing.T) {
 		_, _ = pool.Exec(ctx, `delete from catalog.products where id = any($1)`, []string{active1, active2, draft})
 	})
 
-	// limit+1 is fetched by the caller: ask for 1 → 2 rows back, DRAFT excluded.
-	page, err := repo.ByStorePage(ctx, storeID, 1, 0, "", false)
+	// Callers pass limit+1: asking for 2 returns both ACTIVE rows, DRAFT excluded.
+	page, err := repo.ByStorePage(ctx, storeID, 2, 0, "", false)
 	if err != nil {
 		t.Fatalf("ByStorePage: %v", err)
 	}
