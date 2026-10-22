@@ -221,23 +221,23 @@ begin
 
   create or replace function delivery.current_rider_id() returns text
     language sql stable
-  as $$
+  as $fn$
     select rider_id from delivery.delivery_boys where auth_uid = auth.uid()::text limit 1
-  $$;
+  $fn$;
 
   create or replace function delivery.is_super() returns boolean
     language sql stable
-  as $$
+  as $fn$
     select coalesce(
       current_setting('request.jwt.claims', true)::jsonb ->> 'app_role',
       current_setting('request.jwt.claims', true)::jsonb #>> '{app_metadata,app_role}',
       ''
     ) = 'SUPER_ADMIN'
-  $$;
+  $fn$;
 
   create or replace function delivery.is_state_admin_for(p_state text) returns boolean
     language sql stable
-  as $$
+  as $fn$
     select coalesce(
       current_setting('request.jwt.claims', true)::jsonb ->> 'app_role',
       current_setting('request.jwt.claims', true)::jsonb #>> '{app_metadata,app_role}',
@@ -248,7 +248,7 @@ begin
       current_setting('request.jwt.claims', true)::jsonb #>> '{app_metadata,state_code}',
       ''
     ) = upper(p_state)
-  $$;
+  $fn$;
 
   grant select on delivery.delivery_boys to authenticated;
   grant select on delivery.delivery_documents to authenticated;
