@@ -255,6 +255,17 @@ func CapacityForVehicle(vehicle string) (int, bool) {
 	return cap, ok
 }
 
+// validRiderStatus reports whether status is one of the delivery_partner_status enum values.
+func validRiderStatus(status string) bool {
+	switch status {
+	case StatusApplied, StatusPendingReview, StatusVerified, StatusActive,
+		StatusSuspended, StatusBlacklisted, StatusRejected:
+		return true
+	default:
+		return false
+	}
+}
+
 // NormalizePhone returns the E.164 form used as the rider identity (+91XXXXXXXXXX) and ok=false
 // when the input is not a valid 10-digit Indian mobile.
 func NormalizePhone(raw string) (string, bool) {

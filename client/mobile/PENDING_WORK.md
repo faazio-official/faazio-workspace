@@ -28,7 +28,10 @@ dependencies exist. Do not build the backend/seller flows until told to.
   who already declined. Stop transitions are forward-only server-side (`AT_PICKUP → PICKED_UP →
   AT_CUSTOMER → DELIVERED`); a failed pickup cancels the job and releases capacity, and completing a
   route never overrides the rider's explicit availability toggle. The handover OTP locks after 5
-  incorrect attempts. Live coordinates are Valkey-only (`delivery:rider:{id}:location`, TTL 300 s).
+  incorrect attempts. Live coordinates are Valkey-only (`delivery:rider:{id}:location`, TTL 300 s);
+  candidate selection no longer depends on the best-effort Postgres heartbeat mirror. Admin actions
+  are state-guarded and require reasons; failed stops require a reason and a route with any failed
+  drop does not increment `completed_orders`.
 - **Portal:** state/super "Delivery partners" queues with state scoping, KYC image previews,
   per-document verification, profile approve/reject, activation, active-rider list with
   load/capacity and on-demand location.
@@ -61,7 +64,9 @@ dependencies exist. Do not build the backend/seller flows until told to.
 - **Partner Firebase entries (ops)** — register the partner Android app + iOS bundle id in the
   Firebase project, add `android/app/src/delivery/google-services.json` and
   `ios/Faazio/GoogleService-Info-Delivery.plist`, and store the Android JSON as the
-  `GOOGLE_SERVICES_DELIVERY_JSON` CI secret. Without them a `delivery` build fails fast.
+  `GOOGLE_SERVICES_DELIVERY_JSON` CI secret. Without them a `delivery` build fails fast. CI now
+  passes `GOOGLE_MAPS_API_KEY_ANDROID`/`GOOGLE_PLACES_API_KEY` to `configure.js` after typecheck so
+  debug artifacts keep the live gateway config and the partner map renders.
 - **Legal/trust** — independent-contractor + police-assistance clause still needs adding to the
   Terms; suspension/blacklist endpoints and audit already exist (`PUT /delivery/boys/{id}/suspend|blacklist`).
 **Date:** 2026-10-22

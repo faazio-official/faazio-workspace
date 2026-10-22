@@ -47,6 +47,10 @@ The release keystore + signing properties are stored as GitHub repository secret
 | `USE_FIREBASE_AUTH` | `true` (default) — phone OTP via the committed native Firebase config |
 | `GOOGLE_SERVICES_DELIVERY_JSON` | the **partner** Android `google-services.json` (Firebase app registered for `com.faazio.deliverypartner`); required only for `app=delivery` builds |
 
+Both workflows pass `GOOGLE_MAPS_API_KEY_ANDROID` and `GOOGLE_PLACES_API_KEY` to `configure.js`
+after typecheck (debug accepts them as repository variables or secrets; release uses secrets), so a
+CI-built partner APK can render the map. An empty key is still a supported degraded mode.
+
 `configure.js` **fails the release** when `USE_GATEWAY=true` and `CERT_PINS` is missing, or when
 `USE_FIREBASE_AUTH=false`, or when `android/app/google-services.json` /
 `ios/Faazio/GoogleService-Info.plist` is absent — a release must never embed a mock-login or

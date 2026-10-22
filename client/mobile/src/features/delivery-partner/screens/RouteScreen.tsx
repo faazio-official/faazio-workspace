@@ -35,6 +35,8 @@ export function RouteScreen({ navigation, route }: Props) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [otp, setOtp] = useState('');
+  const [failureFor, setFailureFor] = useState<DeliveryStop | null>(null);
+  const [failureReason, setFailureReason] = useState('');
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -67,14 +69,22 @@ export function RouteScreen({ navigation, route }: Props) {
   );
 
   const advance = useCallback(
-    async (stop: DeliveryStop, status: DeliveryStopStatus) => {
+    async (stop: DeliveryStop, status: DeliveryStopStatus, reason = '') => {
       setBusy(true);
       setError(null);
       try {
-        const next = await gateway.updateDeliveryStop(stop.stopId, status);
+        const next = await gateway.updateDeliveryStop(stop.stopId, status, reason);
         setOrder(next);
+        if (status === 'FAILED') {
+          setFailureFor(null);
+          setFailureReason('');
+        }
         if (next.status === 'ROUTE_COMPLETE') {
           Alert.alert('Route complete', 'All drops are done. Your capacity is free for the next order.', [
+            { text: 'Back to dashboard', onPress: () => navigation.replace('Dashboard') },
+          ]);
+        } else if (next.status === 'CANCELLED') {
+          Alert.alert('Delivery cancelled', 'The pickup could not be completed. Your capacity is free again.', [
             { text: 'Back to dashboard', onPress: () => navigation.replace('Dashboard') },
           ]);
         }
@@ -87,19 +97,11 @@ export function RouteScreen({ navigation, route }: Props) {
     [navigation],
   );
 
-  const fail = useCallback(
-    (stop: DeliveryStop) => {
-      Alert.alert('Report a failed stop', 'Mark this stop as failed? Support will be notified.', [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Mark failed',
-          style: 'destructive',
-          onPress: () => void advance(stop, 'FAILED'),
-        },
-      ]);
-    },
-    [advance],
-  );
+  const startFailure = useCallback((stop: DeliveryStop) => {
+    setError(null);
+    setFailureReason('');
+    setFailureFor(stop);
+  }, []);
 
   const deliverWithOtp = useCallback(async () => {
     const stop = order?.stops.find((s) => s.stopType === 'DROP' && s.status === 'AT_CUSTOMER');
@@ -240,8 +242,32 @@ export function RouteScreen({ navigation, route }: Props) {
                 />
               ) : null}
 
-              {!done && stop.stopType === 'DROP' && stop.status !== 'AT_CUSTOMER' ? (
-                <TouchableOpacity onPress={() => fail(stop)} style={styles.failButton}>
+              {failureFor?.stopId === stop.stopId ? (
+                <View style={styles.failureBox}>
+                  <Field
+                    label="What went wrong?"
+                    value={failureReason}
+                    onChangeText={setFailureReason}
+                    placeholder="e.g. customer unreachable"
+                  />
+                  <PrimaryButton
+                    label="Submit failure"
+                    onPress={() => void advance(stop, 'FAILED', failureReason.trim())}
+                    loading={busy}
+                    disabled={failureReason.trim().length < 3}
+                  />
+                  <TouchableOpacity
+                    onPress={() => {
+                      setFailureFor(null);
+                      setFailureReason('');
+                    }}
+                    style={styles.failButton}
+                  >
+                    <AppText style={styles.cancelText}>Cancel</AppText>
+                  </TouchableOpacity>
+                </View>
+              ) : !done ? (
+                <TouchableOpacity onPress={() => startFailure(stop)} style={styles.failButton}>
                   <AppText style={styles.failButtonText}>Report a problem</AppText>
                 </TouchableOpacity>
               ) : null}
@@ -281,5 +307,7 @@ const styles = StyleSheet.create({
   failText: { fontSize: ms(12), color: DP.danger, marginTop: vs(4) },
   failButton: { alignItems: 'center', marginTop: vs(10) },
   failButtonText: { fontSize: ms(11), fontWeight: '800', color: DP.danger },
+  failureBox: { marginTop: vs(12), paddingTop: vs(10), borderTopWidth: 1, borderTopColor: DP.line },
+  cancelText: { fontSize: ms(11), fontWeight: '800', color: DP.muted },
   empty: { fontSize: ms(13), color: DP.muted },
 });

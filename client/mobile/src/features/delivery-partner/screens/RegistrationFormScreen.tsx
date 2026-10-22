@@ -5,6 +5,7 @@ import AppText from '@/components/AppText';
 import { Card, DP, ErrorText, Field, PrimaryButton, Screen } from '../components';
 import DocumentCapture from '@/features/seller-onboarding/DocumentCapture';
 import {
+  GatewayHttpError,
   gateway,
   type DeliveryApplicationInput,
   type DeliveryDocType,
@@ -98,14 +99,22 @@ export function RegistrationFormScreen({ navigation }: Props) {
   const validate = useCallback((): string | null => {
     if (fullName.trim().length < 3) return 'Enter your full name as on your ID.';
     if (stateCode.trim().length !== 2) return 'Enter the 2-letter state code (e.g. TS).';
+    if (hubZone.trim() === '') return 'Enter your hub zone.';
+    if (address.trim().length < 5) return 'Enter your delivery address.';
     if (city.trim() === '') return 'Enter your city.';
     if (!/^\d{6}$/.test(pincode.trim())) return 'Enter a 6-digit pincode.';
+    if (!/^[6-9]\d{9}$/.test(emergencyContact.trim())) {
+      return 'Enter a valid 10-digit emergency contact.';
+    }
     if (missingDocs > 0) return 'Capture every required document.';
     if (accountName.trim() === '') return 'Enter the bank account holder name.';
     if (accountNumber.replace(/\D/g, '').length < 9) return 'Enter a valid bank account number.';
     if (!/^[A-Za-z]{4}0[A-Za-z0-9]{6}$/.test(ifsc.trim())) return 'Enter a valid IFSC code.';
     return null;
-  }, [accountName, accountNumber, city, fullName, ifsc, missingDocs, pincode, stateCode]);
+  }, [
+    accountName, accountNumber, address, city, emergencyContact, fullName, hubZone, ifsc,
+    missingDocs, pincode, stateCode,
+  ]);
 
   const onSubmit = useCallback(async () => {
     const problem = validate();
@@ -142,7 +151,7 @@ export function RegistrationFormScreen({ navigation }: Props) {
       navigation.replace('Status');
     } catch (err) {
       setError(
-        err instanceof Error && err.message.includes('409')
+        err instanceof GatewayHttpError && err.status === 409
           ? 'This phone already has an active application. Contact support if this is unexpected.'
           : 'Application could not be submitted. Check your details and connection.',
       );

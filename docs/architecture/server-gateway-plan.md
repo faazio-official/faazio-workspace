@@ -130,7 +130,12 @@ state-scoped: `GET /delivery/register/pending`, `GET /delivery/register/{id}`,
 - Stop transitions are enforced server-side and forward-only: pickup `PENDING → AT_PICKUP →
   PICKED_UP`, drop `PENDING → AT_CUSTOMER → DELIVERED`, with `FAILED` allowed before a terminal
   state. A drop cannot advance until its pickup is `PICKED_UP`; a failed pickup cancels the job and
-  releases capacity. Completing a route never overrides the rider's explicit availability toggle.
+  releases capacity. `FAILED` requires a non-empty failure reason. Completing a route never overrides
+  the rider's explicit availability toggle; a route containing a failed drop releases capacity but
+  does not increment `completed_orders`.
+- Admin transitions are state-guarded: profile approval only applies to `PENDING_REVIEW`; rejecting
+  is limited to pre-activation states (`ACTIVE` riders are suspended/blacklisted instead);
+  suspend/blacklist requires a reason. Riders must be online to accept an offer.
 - A high-risk/prepaid order may set `require_otp`; the 4-digit code is generated server-side, stored
   as SHA-256(code + stop id), and never returned in the rider projection. Only
   `/delivery/otp/verify` can mark that stop delivered. Attempts are bounded at 5 (`429 otp_locked`,

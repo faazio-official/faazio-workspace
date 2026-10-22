@@ -123,6 +123,16 @@ export function DashboardScreen({ navigation }: Props) {
     return () => clearInterval(timer);
   }, [offers]);
 
+  // Push is best-effort; poll while online so a missed FCM ping cannot hide an offer.
+  useEffect(() => {
+    if (!online) return;
+    const timer = setInterval(() => {
+      if (AppState.currentState !== 'active') return;
+      void gateway.getActiveDeliveryOrders().then(setOrders).catch(() => undefined);
+    }, 20_000);
+    return () => clearInterval(timer);
+  }, [online]);
+
   useEffect(() => {
     let stop: (() => void) | undefined;
     let active = true;

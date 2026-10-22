@@ -102,7 +102,10 @@ var validDocTypes = map[string]bool{
 	"RC_FRONT": true, "RC_BACK": true, "INSURANCE_FRONT": true, "INSURANCE_BACK": true,
 }
 
-var ifscPattern = regexp.MustCompile(`^[A-Z]{4}0[A-Z0-9]{6}$`)
+var (
+	ifscPattern    = regexp.MustCompile(`^[A-Z]{4}0[A-Z0-9]{6}$`)
+	pincodePattern = regexp.MustCompile(`^[0-9]{6}$`)
+)
 
 func (h *Handler) register(w http.ResponseWriter, r *http.Request) {
 	var req ApplyRequest
@@ -143,6 +146,7 @@ func validateApplication(req *ApplyRequest) (string, bool) {
 	req.FullName = strings.TrimSpace(req.FullName)
 	req.StateCode = strings.ToUpper(strings.TrimSpace(req.StateCode))
 	req.HubZone = strings.TrimSpace(req.HubZone)
+	req.Address = strings.TrimSpace(req.Address)
 	req.City = strings.TrimSpace(req.City)
 	req.Pincode = strings.TrimSpace(req.Pincode)
 	req.VehicleType = strings.ToUpper(strings.TrimSpace(req.VehicleType))
@@ -152,6 +156,23 @@ func validateApplication(req *ApplyRequest) (string, bool) {
 	if len(req.StateCode) != 2 {
 		return "a 2-letter state code is required", false
 	}
+	if req.HubZone == "" {
+		return "a hub zone is required", false
+	}
+	if len(req.Address) < 5 {
+		return "a delivery address is required", false
+	}
+	if req.City == "" {
+		return "a city is required", false
+	}
+	if !pincodePattern.MatchString(req.Pincode) {
+		return "a 6-digit pincode is required", false
+	}
+	emergency, ok := NormalizePhone(req.EmergencyContact)
+	if !ok {
+		return "a valid 10-digit emergency contact is required", false
+	}
+	req.EmergencyContact = strings.TrimPrefix(emergency, "+91")
 	cap, ok := CapacityForVehicle(req.VehicleType)
 	if !ok {
 		return "vehicle type must be BICYCLE, TWO_WHEELER or FOUR_WHEELER", false
@@ -161,9 +182,6 @@ func validateApplication(req *ApplyRequest) (string, bool) {
 	}
 	if req.MaxCapacity < 1 || req.MaxCapacity > cap {
 		return fmt.Sprintf("%s capacity is capped at %d orders", req.VehicleType, cap), false
-	}
-	if len(req.Pincode) != 6 {
-		return "a 6-digit pincode is required", false
 	}
 	if req.Bank.AccountName = strings.TrimSpace(req.Bank.AccountName); req.Bank.AccountName == "" {
 		return "bank account name is required", false
@@ -176,19 +194,24 @@ func validateApplication(req *ApplyRequest) (string, bool) {
 	if !ifscPattern.MatchString(req.Bank.IFSC) {
 		return "a valid IFSC is required", false
 	}
+	req.Bank.ChequeKey = strings.TrimSpace(req.Bank.ChequeKey)
+	req.Bank.ChequeAssetID = strings.TrimSpace(req.Bank.ChequeAssetID)
 
 	seen := map[string]bool{}
-	for _, d := range req.Documents {
-		dt := strings.ToUpper(strings.TrimSpace(d.DocType))
-		if !validDocTypes[dt] {
+	for i := range req.Documents {
+		d := &req.Documents[i]
+		d.DocType = strings.ToUpper(strings.TrimSpace(d.DocType))
+		d.FileKey = strings.TrimSpace(d.FileKey)
+		d.AssetID = strings.TrimSpace(d.AssetID)
+		if !validDocTypes[d.DocType] {
 			return "unknown document type: " + d.DocType, false
 		}
-		if seen[dt] {
-			return "duplicate document: " + dt, false
+		if seen[d.DocType] {
+			return "duplicate document: " + d.DocType, false
 		}
-		seen[dt] = true
-		if strings.TrimSpace(d.FileKey) == "" {
-			return "a private file key is required for " + dt, false
+		seen[d.DocType] = true
+		if d.FileKey == "" {
+			return "a private file key is required for " + d.DocType, false
 		}
 	}
 	for _, required := range requiredDocsFor(req.VehicleType) {
@@ -232,6 +255,10 @@ func (h *Handler) listApplications(w http.ResponseWriter, r *http.Request) {
 		f.Status = ""
 	} else if f.Status == "" {
 		f.Status = StatusPendingReview
+	}
+	if f.Status != "" && !validRiderStatus(f.Status) {
+		httpx.Fail(w, http.StatusBadRequest, "invalid_status", "unknown rider status")
+		return
 	}
 	items, err := h.repo.List(r.Context(), f)
 	if err != nil {
@@ -322,6 +349,12 @@ func (h *Handler) rejectApplication(w http.ResponseWriter, r *http.Request) {
 		httpx.Fail(w, http.StatusNotFound, "not_found", "application not found")
 		return
 	}
+	switch d.Status {
+	case StatusApplied, StatusPendingReview, StatusVerified, StatusRejected:
+	default:
+		httpx.Fail(w, http.StatusConflict, "invalid_transition", "suspend or blacklist an active rider instead")
+		return
+	}
 	if err := h.repo.SetStatus(r.Context(), id, StatusRejected, req.Reason); err != nil {
 		h.writeErr(w, err)
 		return
@@ -346,6 +379,11 @@ func (h *Handler) requestReupload(w http.ResponseWriter, r *http.Request) {
 		httpx.Fail(w, http.StatusBadRequest, "invalid_doc_type", "unknown document type")
 		return
 	}
+	reason := strings.TrimSpace(req.Reason)
+	if reason == "" {
+		httpx.Fail(w, http.StatusBadRequest, "reason_required", "a re-upload reason is required")
+		return
+	}
 	id := chi.URLParam(r, "id")
 	d, ok, err := h.repo.Detail(r.Context(), id)
 	if err != nil {
@@ -356,12 +394,12 @@ func (h *Handler) requestReupload(w http.ResponseWriter, r *http.Request) {
 		httpx.Fail(w, http.StatusNotFound, "not_found", "application not found")
 		return
 	}
-	if err := h.repo.SetDocumentStatus(r.Context(), id, dt, DocReuploadRequested, req.Reason, auth.UserID(r.Context())); err != nil {
+	if err := h.repo.SetDocumentStatus(r.Context(), id, dt, DocReuploadRequested, reason, auth.UserID(r.Context())); err != nil {
 		h.writeErr(w, err)
 		return
 	}
 	h.auditEvent(r.Context(), "DELIVERY_BOY_REUPLOAD_REQUEST", id, nil, map[string]any{
-		"docType": dt, "reason": req.Reason,
+		"docType": dt, "reason": reason,
 	})
 	h.respondDetail(w, r, id)
 }
@@ -391,7 +429,15 @@ func (h *Handler) activateApplication(w http.ResponseWriter, r *http.Request) {
 
 func (h *Handler) suspend(w http.ResponseWriter, r *http.Request) {
 	var req reasonRequest
-	_ = httpx.Decode(r, &req)
+	if err := httpx.Decode(r, &req); err != nil {
+		httpx.Fail(w, http.StatusBadRequest, "invalid_body", "invalid suspend payload")
+		return
+	}
+	req.Reason = strings.TrimSpace(req.Reason)
+	if req.Reason == "" {
+		httpx.Fail(w, http.StatusBadRequest, "reason_required", "a suspension reason is required")
+		return
+	}
 	id := chi.URLParam(r, "id")
 	d, ok, err := h.repo.Detail(r.Context(), id)
 	if err != nil {
@@ -417,7 +463,15 @@ func (h *Handler) suspend(w http.ResponseWriter, r *http.Request) {
 
 func (h *Handler) blacklist(w http.ResponseWriter, r *http.Request) {
 	var req reasonRequest
-	_ = httpx.Decode(r, &req)
+	if err := httpx.Decode(r, &req); err != nil {
+		httpx.Fail(w, http.StatusBadRequest, "invalid_body", "invalid blacklist payload")
+		return
+	}
+	req.Reason = strings.TrimSpace(req.Reason)
+	if req.Reason == "" {
+		httpx.Fail(w, http.StatusBadRequest, "reason_required", "a blacklist reason is required")
+		return
+	}
 	id := chi.URLParam(r, "id")
 	d, ok, err := h.repo.Detail(r.Context(), id)
 	if err != nil {
@@ -580,6 +634,10 @@ func (h *Handler) adminRiders(w http.ResponseWriter, r *http.Request) {
 	}
 	if auth.Role(r.Context()) == auth.RoleStateAdmin {
 		f.StateCode = auth.StateCode(r.Context())
+	}
+	if f.Status != "" && !validRiderStatus(f.Status) {
+		httpx.Fail(w, http.StatusBadRequest, "invalid_status", "unknown rider status")
+		return
 	}
 	riders, err := h.repo.List(r.Context(), f)
 	if err != nil {
@@ -787,6 +845,10 @@ func (h *Handler) acceptOrder(w http.ResponseWriter, r *http.Request) {
 		h.writeErr(w, err)
 		return
 	}
+	if !rider.IsAvailable {
+		httpx.Fail(w, http.StatusConflict, "not_available", "go online before accepting an order")
+		return
+	}
 	order, err := h.repo.AcceptOrder(r.Context(), rider.RiderID, chi.URLParam(r, "orderId"))
 	if err != nil {
 		h.writeErr(w, err)
@@ -957,6 +1019,11 @@ func (h *Handler) updateStop(w http.ResponseWriter, r *http.Request) {
 	case StopAtPickup, StopPickedUp, StopAtCustomer, StopDelivered, StopFailed:
 	default:
 		httpx.Fail(w, http.StatusBadRequest, "invalid_status", "unknown stop status")
+		return
+	}
+	req.FailureReason = strings.TrimSpace(req.FailureReason)
+	if status == StopFailed && len(req.FailureReason) < 3 {
+		httpx.Fail(w, http.StatusBadRequest, "reason_required", "a failure reason is required")
 		return
 	}
 	rider, err := h.currentRider(r.Context())
