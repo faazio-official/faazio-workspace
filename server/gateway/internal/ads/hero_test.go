@@ -87,16 +87,29 @@ func TestCampaignHeroLifecycle(t *testing.T) {
 		_, _ = pool.Exec(ctx, `delete from ads.campaigns where campaign_id=$1`, created[0].CampaignID)
 	})
 
-	heroes, err := repo.Heroes(ctx, "MART_HERO", "MART", "", "")
-	if err != nil || len(heroes) != 1 {
-		t.Fatalf("Heroes: err=%v n=%d", err, len(heroes))
+	// The seeded DB may already hold LIVE heroes for this placement, so assert on this campaign.
+	served := func(heroes []HeroAd) *HeroAd {
+		for i := range heroes {
+			if heroes[i].CampaignID == created[0].CampaignID {
+				return &heroes[i]
+			}
+		}
+		return nil
 	}
-	if heroes[0].ImageURL != "https://img.test/hero.jpg" {
-		t.Fatalf("image url not preserved: %q", heroes[0].ImageURL)
+	heroes, err := repo.Heroes(ctx, "MART_HERO", "MART", "", "")
+	if err != nil {
+		t.Fatalf("Heroes: %v", err)
+	}
+	mine := served(heroes)
+	if mine == nil {
+		t.Fatalf("created campaign not served: %+v", heroes)
+	}
+	if mine.ImageURL != "https://img.test/hero.jpg" {
+		t.Fatalf("image url not preserved: %q", mine.ImageURL)
 	}
 	// Wrong app must not match.
-	if heroes, _ := repo.Heroes(ctx, "MART_HERO", "FOOD", "", ""); len(heroes) != 0 {
-		t.Fatalf("app filter leaked: n=%d", len(heroes))
+	if heroes, _ := repo.Heroes(ctx, "MART_HERO", "FOOD", "", ""); served(heroes) != nil {
+		t.Fatalf("app filter leaked: %+v", heroes)
 	}
 
 	if n, err := repo.CountLiveBySellerPlacement(ctx, sellerID, "MART_HERO"); err != nil || n != 1 {
@@ -108,8 +121,8 @@ func TestCampaignHeroLifecycle(t *testing.T) {
 	if err != nil || !ok || taken.Status != "REJECTED" || taken.TakedownReason != "misleading creative" {
 		t.Fatalf("Takedown: ok=%v err=%v %+v", ok, err, taken)
 	}
-	if heroes, _ := repo.Heroes(ctx, "MART_HERO", "MART", "", ""); len(heroes) != 0 {
-		t.Fatalf("taken-down hero still served: n=%d", len(heroes))
+	if heroes, _ := repo.Heroes(ctx, "MART_HERO", "MART", "", ""); served(heroes) != nil {
+		t.Fatalf("taken-down hero still served: %+v", heroes)
 	}
 	restored, ok, err := repo.SetCampaignStatus(ctx, created[0].PlacementID, "LIVE")
 	if err != nil || !ok || restored.Status != "LIVE" || restored.TakedownReason != "" {
