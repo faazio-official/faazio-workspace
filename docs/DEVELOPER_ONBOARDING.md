@@ -33,10 +33,10 @@ change deps, re-run `npm install` so patches re-apply.
 
 ```bash
 adb devices                                   # confirm a device shows up
-gh workflow run android-debug.yml             # debug APK built on GitHub's runners
+gh workflow run android-debug.yml -f app=customer   # or -f app=delivery
 gh run watch
-gh run download <run-id> -n faazio-debug-apk  # -> app-debug.apk
-adb install -r app-debug.apk
+gh run download <run-id> -n faazio-customer-debug-apk  # -> app-customer-debug.apk
+adb install -r app-customer-debug.apk
 adb reverse tcp:8081 tcp:8081                 # then: npm run start   (Metro, local)
 ```
 
@@ -120,7 +120,7 @@ Release builds run in **GitHub Actions**, not on your machine (see `docs/RUNBOOK
 
 ```bash
 cd client/mobile
-gh workflow run release-apk.yml -f version=1.0.2 -f tag=v1.0.2
+gh workflow run release-apk.yml -f app=customer -f version=1.0.2 -f tag=v1.0.2
 gh run watch                 # wait; signed APK lands on the GitHub Release
 ```
 

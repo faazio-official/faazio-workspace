@@ -40,13 +40,33 @@ android {
 
     namespace 'com.faazio.customer'
     defaultConfig {
-        applicationId 'com.faazio.customer'
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
         versionCode 3
         versionName "1.0.4"
 
         buildConfigField "String", "REACT_NATIVE_RELEASE_LEVEL", "\"${findProperty('reactNativeReleaseLevel') ?: 'stable'}\""
+    }
+
+    /**
+     * Two separate products from one committed native shell. `customer` is the SuperApp;
+     * `delivery` is the standalone Delivery Partner app (its own Play listing, applicationId and
+     * label). Build them explicitly — `assembleCustomerDebug` / `assembleDeliveryDebug` — so the
+     * partner flavor never drags its Firebase config into a customer build. The JS root follows
+     * `APP_VARIANT=delivery` (see scripts/configure.js).
+     */
+    flavorDimensions 'app'
+    productFlavors {
+        customer {
+            dimension 'app'
+            applicationId 'com.faazio.customer'
+            resValue 'string', 'app_name', 'Faazio'
+        }
+        delivery {
+            dimension 'app'
+            applicationId 'com.faazio.deliverypartner'
+            resValue 'string', 'app_name', 'Faazio Delivery'
+        }
     }
 
     signingConfigs {

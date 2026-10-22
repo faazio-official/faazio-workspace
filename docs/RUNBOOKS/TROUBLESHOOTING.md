@@ -107,10 +107,10 @@ rendered on the error card** (plus the first stack frame in a dev build) — tha
   before the change will crash with a missing module error. Rebuild the app **in CI**
   (never locally):
   ```bash
-  gh workflow run android-debug.yml
+  gh workflow run android-debug.yml -f app=customer   # or -f app=delivery
   gh run watch
-  gh run download <run-id> -n faazio-debug-apk
-  adb install -r app-debug.apk
+  gh run download <run-id> -n faazio-customer-debug-apk
+  adb install -r app-customer-debug.apk
   ```
   > Changing a permission string (`AndroidManifest.xml` or `Info.plist`
   > `NSLocationWhenInUseUsageDescription` — e.g. checkout live-address auto-fill) **also

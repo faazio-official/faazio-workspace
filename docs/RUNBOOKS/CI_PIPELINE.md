@@ -16,9 +16,11 @@ it wastes the user's RAM. Local `npm run start` (Metro) is fine — it is the JS
 Three workflows:
 
 - [`.github/workflows/release-apk.yml`](../../.github/workflows/release-apk.yml) — signed release
-  APK → GitHub Release.
+  APK → GitHub Release. `app: customer|delivery` picks the product; delivery releases land on a
+  `-delivery` tag and need `GOOGLE_SERVICES_DELIVERY_JSON`.
 - [`.github/workflows/android-debug.yml`](../../.github/workflows/android-debug.yml) — debug APK →
-  downloadable Actions artifact (for device testing with a local Metro).
+  downloadable Actions artifact (for device testing with a local Metro). Also takes
+  `app: customer|delivery`.
 - [`.github/workflows/server-gateway.yml`](../../.github/workflows/server-gateway.yml) — Go monolith
   `build` / `vet` / `test` / `importlint` with Postgres + Valkey service containers (integration
   tests run; they skip cleanly when the services are absent). Triggers on `server/**` changes.
@@ -34,7 +36,7 @@ you (gh CLI) ──► GitHub Actions
                     ├─ restore-keystore.sh           ← decode keystore from secrets  [release only]
                     ├─ npm run configure             ← JS config + release cert pins  [release only]
                     ├─ npm run ts:check
-                    ├─ ./gradlew assembleRelease|assembleDebug --no-daemon \
+                    ├─ ./gradlew assemble<Customer|Delivery><Release|Debug> --no-daemon \
                     │    -PreactNativeArchitectures=... \
                     │    [-Pandroid.enableMinifyInReleaseBuilds=true \
                     │     -Pandroid.enableShrinkResourcesInReleaseBuilds=true]   [release only]
@@ -92,17 +94,21 @@ Metro bundler (so ErrorBoundary messages / RedBox are visible, since dev does no
 `console.*`):
 
 ```bash
-gh workflow run android-debug.yml
+gh workflow run android-debug.yml -f app=customer   # or -f app=delivery
 gh run watch
 gh run view --log-failed                           # build errors, if any
-gh run download <run-id> -n faazio-debug-apk       # -> app-debug.apk
-adb install -r app-debug.apk
+gh run download <run-id> -n faazio-customer-debug-apk   # -> app-customer-debug.apk
+adb install -r app-customer-debug.apk
 adb reverse tcp:8081 tcp:8081                       # then `npm run start` locally
 ```
 
+The `delivery` product is a **separate app** (`com.faazio.deliverypartner`, "Faazio Delivery"); it
+needs the partner `google-services.json` in the `GOOGLE_SERVICES_DELIVERY_JSON` secret, and `APP_VARIANT=delivery`
+is set automatically by the workflow so `index.js` mounts the partner root.
+
 > A debug APK is signed with the CI runner's **debug** keystore — different from the release key.
-> If a release build is installed, `adb uninstall com.faazio.customer` before installing it (and
-> vice-versa).
+> If a release build is installed, `adb uninstall com.faazio.customer` (or `com.faazio.deliverypartner`)
+> before installing it.
 
 The signed APK lands on the GitHub Release at `<tag>` (e.g. `v1.0.2`). Because the publish step
 uses `gh release upload --clobber`, re-running the same tag **replaces** the old APK.
@@ -145,7 +151,7 @@ adb install -r app-release.apk
 | Need | Command |
 |---|---|
 | Instant preview / hot reload on code change | `npm run start` + installed debug APK (Metro) |
-| **Debug APK for device testing** (no local Gradle) | `gh workflow run android-debug.yml` → `gh run download` |
+| **Debug APK for device testing** (no local Gradle) | `gh workflow run android-debug.yml -f app=customer\|delivery` → `gh run download` |
 | **Ship / replace a release APK** | `gh workflow run "Release APK" …` |
 | Download the latest release APK | `gh release download … --pattern "*.apk"` |
 

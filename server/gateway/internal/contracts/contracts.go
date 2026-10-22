@@ -489,3 +489,9 @@ type SellerSettlementProfile struct {
 type SellerProfileReader interface {
 	SettlementProfile(ctx context.Context, sellerID string) (SellerSettlementProfile, error)
 }
+
+// OrderOwnership reports whether a checkout order belongs to a user (implemented by checkout.Repo).
+// The delivery context uses it to refuse cross-user delivery ratings.
+type OrderOwnership interface {
+	OrderOwnedBy(ctx context.Context, orderID, userID string) (bool, error)
+}

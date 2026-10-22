@@ -68,7 +68,7 @@ faazio:v{N}:{service}:{entity}:{id}
 - `v{N}` = **version prefix** → bump the number to instantly invalidate a whole class of keys without
   scanning.
 - `{service}` = `gateway` · `search` · `cart` · `stock` · `checkout` · `reco` · `directory` · `reviews`
-  · `accounts` · `auth`.
+  · `accounts` · `auth` · `delivery`.
 - `{entity}` = `sdui` · `q` (query) · `product` · `store` · `venues` · `stock` · `orders` · `reco` · `segment`.
 - `{id}` = the stable slug / userIdHash / locale / path.
 
@@ -97,6 +97,8 @@ Examples: `faazio:v1:stock:fm-f1`, `faazio:v1:search:q:hoodie`, `faazio:v1:sdui:
 | Dining venues list (public) | 86400 s (24 h) | — | venue edit |
 | Prescriptions (per user, auth-scoped) | 60 s | **never** | Rx create / quote / READY (PII/health data) |
 | Notifications inbox (per user, auth-scoped) | 30 s | **never** | `RX_READY` / order-status enqueue |
+| Delivery rider live coordinate (`delivery:rider:{id}:location`, `POST /delivery/heartbeat`) | 300 s | **never** | auto-expire; deleted on explicit offline / suspend / blacklist. The dispatch authority (Postgres `rider_heartbeats` is a mirror) |
+| Delivery Routes matrix leg (`delivery:route:{lat4,lng4}:{lat4,lng4}`, `POST /dispatch/assign`) | 300 s | **never** | auto-expire (caps Google Routes API spend; coordinates rounded to 4 dp) |
 | Blood requests board (public, redacted; auth callers bypass) | 60 s | **never** | request post / expiry sweep (contact/address stripped for anon) |
 | Bookings — tables + food orders (per user, auth-scoped) | 60 s | **never** | booking create / cancel |
 | Booking availability (public, seat-count-free `{bookable,fee,timing}`) | 30 s | **never** | booking-config write / accept / reject / vacate / cancel (seller config row itself is never cached) |

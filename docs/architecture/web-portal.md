@@ -75,6 +75,7 @@ The campaign wizard's **what→where** placements map 1:1 to the paid mobile sur
 | `admin/state/orders` · `admin/state/bookings` | order/booking oversight |
 | `admin/state/blood` | blood requests board (PHARMA) — server `blood.requests` with `contact`/`address` redacted for anon; moderation (`DELETE /blood-requests/{id}`) |
 | `admin/state/customers` | customer list + activity trail |
+| `admin/state/delivery-boys` | delivery-partner control plane (state-scoped): pending KYC queue, per-document verify/reject/re-upload request, profile approve → super-admin activation, active-rider list (load/capacity) with on-demand Valkey location, suspend |
 | `admin/state/coupons` · `admin/state/festival` | promo |
 | `admin/state/pricing-audit` | price integrity |
 | `admin/state/analytics` · `admin/state/content` · `admin/state/support` · `admin/state/audit` | console |
@@ -93,6 +94,7 @@ The campaign wizard's **what→where** placements map 1:1 to the paid mobile sur
 | `admin/super/state-admins` | state-admin directory — all 36 ISO 3166-2:IN states/UTs; coverage summary (X / 36) + progress bar + grouped uncovered chips. **Unified creation:** one form creates the roster + (optionally, `issueLogin` default ON) the portal login + temporary password atomically; duplicate email blocked on/off-server, duplicate phone soft-warned |
 | `admin/super/credentials` | issue/disable seller and state-admin portal logins (role + seller/state scope) |
 | `admin/super/security` | superadmin password rotation (same component as `/security`) |
+| `admin/super/delivery-boys` | all-India delivery-partner console — same review board, super-only activation and suspend/blacklist |
 | `admin/super/analytics` · `admin/super/audit` · `admin/super/settings` | console |
 
 > **Audit log retention (`0037`):** both audit pages (`admin/state/audit`, `admin/super/audit`) stay

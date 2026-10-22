@@ -85,6 +85,49 @@ keys/TTLs unchanged.
 - **Mapping** (`@data/*` twin + `GatewayClient` method) and RLS classes: `docs/architecture/mvp-backend.md` §1–§3.
 - **Build order / status:** `docs/architecture/mvp-backend.md` §7.
 
+
+### Delivery partner (`internal/delivery`, migration `0042`)
+
+The partner domain is a first-class context in the same gateway (future service: Go + Postgres).
+Rider endpoints authenticate with the Firebase phone ID token and resolve the rider by E.164 phone:
+`POST /delivery/register` (KYC application), `GET /delivery/me`, `PUT /delivery/availability`,
+`POST /delivery/heartbeat`, `GET /delivery/active`, `GET /delivery/route/{id}`,
+`POST /delivery/{id}/accept|reject`, `PUT /delivery/stop/{id}/status`, `POST /delivery/otp/verify`
+and `POST /delivery/{orderId}/rate`. Admin endpoints are `STATE_ADMIN`/`SUPER_ADMIN` gated and
+state-scoped: `GET /delivery/register/pending`, `GET /delivery/register/{id}`,
+`PUT /delivery/register/{id}/verify|reject|reupload-request`, `GET /delivery/online-riders`,
+`GET /admin/delivery-boys`, `GET /admin/delivery-boys/{id}/location`, `POST /dispatch/assign`
+(plus super-only `PUT /delivery/register/{id}/activate` and `PUT /delivery/boys/{id}/blacklist`).
+
+**Rules**
+- Capacity is hard-capped at intake by vehicle: `BICYCLE=1`, `TWO_WHEELER=2`, `FOUR_WHEELER=5`.
+  Motorised vehicles require DL/RC/insurance capture; all riders require Aadhaar/PAN/live selfie.
+- KYC images are private R2 keys only; the portal renders them through
+  `GET /media/private/{id}` presigned GETs. Documents are verified individually; profile approval
+  requires every document verified and the bank account not rejected; `ACTIVE` is super-admin only.
+- `POST /delivery/heartbeat` writes the live coordinate to Valkey
+  `delivery:rider:{id}:location` with a 300 s TTL (the dispatch authority) and stamps the optional
+  Postgres mirror. A stopped heartbeat removes the rider from candidates; the explicit availability
+  toggle owns `is_available`.
+- Dispatch scores `ACTIVE`, available, under-capacity riders by **road duration to the store**
+  (Google Routes API `distanceMatrix/v2:computeRouteMatrix`, `TRAFFIC_AWARE`, cached per leg for
+  300 s under `delivery:route:{lat,lng}:{lat,lng}`), then capacity headroom and rating. With
+  `GOOGLE_ROUTES_API_KEY` unset (local/dev) it degrades to a Haversine/urban-speed estimate. Each
+  assignment creates ordered `delivery_stops`, a 45 s accept lock and a durable order-ping in the
+  shared notifications outbox (FCM/webhook drained by `internal/notifications`).
+- Stop transitions are `AT_PICKUP → PICKED_UP → AT_CUSTOMER → DELIVERED` (or `FAILED`). A
+  high-risk/prepaid order may set `require_otp`; the 4-digit code is generated server-side, stored as
+  SHA-256(code + stop id), and never returned in the rider projection. Only `/delivery/otp/verify`
+  can mark that stop delivered.
+- Every mutation writes an `admins.audit_logs` row through `contracts.AuditWriter`.
+- **Phase 5 payout splitting is not implemented.** `payout_amount_paisa` is display-only.
+
+**Known MVP limits:** reject does not yet re-run the fallback chain (the order is terminally
+`REJECTED`); cross-order route optimisation inserts stops per job rather than re-sequencing a
+multi-job rider; `POST /dispatch/assign` is not yet called automatically from the checkout order-ready
+transition; background location (foreground service) is not wired, so heartbeats run while the app is
+foregrounded. These are tracked in `client/mobile/PENDING_WORK.md`.
+
 The sections below are the **Future Prod** target.
 
 ## Service matrix

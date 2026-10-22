@@ -1076,6 +1076,15 @@ export class GatewayClient {
     );
   }
 
+  /** Register this device's FCM token so the notifications outbox can reach the signed-in user. */
+  async registerPushToken(token: string, platform: 'android' | 'ios'): Promise<void> {
+    if (!REMOTE_ENABLED) return;
+    await this.http<{ ok: boolean }>('/notifications/register', {
+      method: 'POST',
+      body: JSON.stringify({ token, platform }),
+    });
+  }
+
   /** The caller's notification inbox (newest first); mock fallback is empty. */
   async getNotifications(): Promise<NotificationRecord[]> {
     return this.withFallback(
@@ -2055,6 +2064,151 @@ export class GatewayClient {
     );
   }
 
+  // ---------------------------------------------------------------- delivery partner
+
+  /** Submit the rider application (KYC documents are private R2 keys, never URLs/bytes). */
+  async registerDeliveryPartner(input: DeliveryApplicationInput): Promise<DeliveryPartnerRider> {
+    if (!REMOTE_ENABLED) throw new GatewayOfflineError();
+    return this.http<DeliveryPartnerRider>('/delivery/register', {
+      method: 'POST',
+      body: JSON.stringify(input),
+    });
+  }
+
+  /** The authenticated rider's record (any status) — used on partner-app cold start. */
+  async getDeliveryPartnerMe(): Promise<DeliveryPartnerRider> {
+    if (!REMOTE_ENABLED) throw new GatewayOfflineError();
+    return this.http<DeliveryPartnerRider>('/delivery/me');
+  }
+
+  /** Toggle Available / Offline. The server only lets ACTIVE riders go online. */
+  async setDeliveryAvailability(available: boolean): Promise<{ available: boolean }> {
+    if (!REMOTE_ENABLED) throw new GatewayOfflineError();
+    return this.http<{ available: boolean }>('/delivery/availability', {
+      method: 'PUT',
+      body: JSON.stringify({ available }),
+    });
+  }
+
+  /** Push the live coordinate (Valkey TTL 5 min; the Postgres mirror is best-effort). */
+  async sendDeliveryHeartbeat(latitude: number, longitude: number): Promise<void> {
+    if (!REMOTE_ENABLED) throw new GatewayOfflineError();
+    await this.http('/delivery/heartbeat', {
+      method: 'POST',
+      body: JSON.stringify({ latitude, longitude }),
+    });
+  }
+
+  /** Every in-flight job (ASSIGNED offer + ACCEPTED multi-stop route) for the rider. */
+  async getActiveDeliveryOrders(): Promise<DeliveryOrder[]> {
+    if (!REMOTE_ENABLED) throw new GatewayOfflineError();
+    return this.http<DeliveryOrder[]>('/delivery/active');
+  }
+
+  async getDeliveryRoute(deliveryId: string): Promise<DeliveryOrder> {
+    if (!REMOTE_ENABLED) throw new GatewayOfflineError();
+    return this.http<DeliveryOrder>(`/delivery/route/${encodeURIComponent(deliveryId)}`);
+  }
+
+  async acceptDeliveryOrder(orderId: string): Promise<DeliveryOrder> {
+    if (!REMOTE_ENABLED) throw new GatewayOfflineError();
+    return this.http<DeliveryOrder>(`/delivery/${encodeURIComponent(orderId)}/accept`, { method: 'POST' });
+  }
+
+  async rejectDeliveryOrder(orderId: string): Promise<{ reassigned: boolean }> {
+    if (!REMOTE_ENABLED) throw new GatewayOfflineError();
+    return this.http<{ reassigned: boolean }>(`/delivery/${encodeURIComponent(orderId)}/reject`, { method: 'POST' });
+  }
+
+  async updateDeliveryStop(
+    stopId: string,
+    status: DeliveryStopStatus,
+    failureReason = '',
+  ): Promise<DeliveryOrder> {
+    if (!REMOTE_ENABLED) throw new GatewayOfflineError();
+    return this.http<DeliveryOrder>(`/delivery/stop/${encodeURIComponent(stopId)}/status`, {
+      method: 'PUT',
+      body: JSON.stringify({ status, failureReason }),
+    });
+  }
+
+  async verifyDeliveryOtp(stopId: string, otp: string): Promise<DeliveryOrder> {
+    if (!REMOTE_ENABLED) throw new GatewayOfflineError();
+    return this.http<DeliveryOrder>('/delivery/otp/verify', {
+      method: 'POST',
+      body: JSON.stringify({ stopId, otp }),
+    });
+  }
+
+  // Admin review (portal role + state scoped server-side).
+
+  async listDeliveryApplications(
+    filter: { state?: string; status?: string } = {},
+  ): Promise<DeliveryPartnerRider[]> {
+    if (!REMOTE_ENABLED) throw new GatewayOfflineError();
+    const params = new URLSearchParams();
+    if (filter.state) params.set('state', filter.state.toUpperCase());
+    if (filter.status) params.set('status', filter.status.toUpperCase());
+    const qs = params.toString();
+    return this.http<DeliveryPartnerRider[]>(`/delivery/register/pending${qs ? `?${qs}` : ''}`);
+  }
+
+  async getDeliveryApplication(id: string): Promise<DeliveryPartnerDetail> {
+    if (!REMOTE_ENABLED) throw new GatewayOfflineError();
+    return this.http<DeliveryPartnerDetail>(`/delivery/register/${encodeURIComponent(id)}`);
+  }
+
+  async verifyDeliveryApplication(
+    id: string,
+    input: { docType?: string; approveProfile?: boolean },
+  ): Promise<DeliveryPartnerDetail> {
+    if (!REMOTE_ENABLED) throw new GatewayOfflineError();
+    return this.http<DeliveryPartnerDetail>(`/delivery/register/${encodeURIComponent(id)}/verify`, {
+      method: 'PUT',
+      body: JSON.stringify(input),
+    });
+  }
+
+  async rejectDeliveryApplication(id: string, reason: string): Promise<DeliveryPartnerDetail> {
+    if (!REMOTE_ENABLED) throw new GatewayOfflineError();
+    return this.http<DeliveryPartnerDetail>(`/delivery/register/${encodeURIComponent(id)}/reject`, {
+      method: 'PUT',
+      body: JSON.stringify({ reason }),
+    });
+  }
+
+  async requestDeliveryReupload(id: string, docType: string, reason: string): Promise<DeliveryPartnerDetail> {
+    if (!REMOTE_ENABLED) throw new GatewayOfflineError();
+    return this.http<DeliveryPartnerDetail>(
+      `/delivery/register/${encodeURIComponent(id)}/reupload-request`,
+      { method: 'PUT', body: JSON.stringify({ docType, reason }) },
+    );
+  }
+
+  async activateDeliveryPartner(id: string): Promise<DeliveryPartnerDetail> {
+    if (!REMOTE_ENABLED) throw new GatewayOfflineError();
+    return this.http<DeliveryPartnerDetail>(`/delivery/register/${encodeURIComponent(id)}/activate`, {
+      method: 'PUT',
+    });
+  }
+
+  async listDeliveryBoys(
+    filter: { state?: string; status?: string; available?: boolean } = {},
+  ): Promise<DeliveryPartnerRider[]> {
+    if (!REMOTE_ENABLED) throw new GatewayOfflineError();
+    const params = new URLSearchParams();
+    if (filter.state) params.set('state', filter.state.toUpperCase());
+    if (filter.status) params.set('status', filter.status.toUpperCase());
+    if (filter.available !== undefined) params.set('available', String(filter.available));
+    const qs = params.toString();
+    return this.http<DeliveryPartnerRider[]>(`/admin/delivery-boys${qs ? `?${qs}` : ''}`);
+  }
+
+  async getDeliveryBoyLocation(id: string): Promise<DeliveryBoyLocation> {
+    if (!REMOTE_ENABLED) throw new GatewayOfflineError();
+    return this.http<DeliveryBoyLocation>(`/admin/delivery-boys/${encodeURIComponent(id)}/location`);
+  }
+
   private placeOrderMock(input: PlaceOrderInput): OrderRow {
     const entries = getCatalogEntriesByIds(input.items.map((i) => i.productId));
     const lineItems = input.items.map((it, idx) => {
@@ -2095,3 +2249,148 @@ export class GatewayClient {
 
 /** App-wide singleton gateway client. */
 export const gateway = new GatewayClient();
+// ---------------------------------------------------------------- delivery partner types
+
+export type DeliveryVehicleType = 'BICYCLE' | 'TWO_WHEELER' | 'FOUR_WHEELER';
+export type DeliveryPartnerStatus =
+  | 'APPLIED'
+  | 'PENDING_REVIEW'
+  | 'VERIFIED'
+  | 'ACTIVE'
+  | 'SUSPENDED'
+  | 'BLACKLISTED'
+  | 'REJECTED';
+export type DeliveryDocType =
+  | 'AADHAAR'
+  | 'PAN'
+  | 'SELFIE'
+  | 'DL_FRONT'
+  | 'DL_BACK'
+  | 'RC_FRONT'
+  | 'RC_BACK'
+  | 'INSURANCE_FRONT'
+  | 'INSURANCE_BACK';
+export type DeliveryStopStatus =
+  | 'PENDING'
+  | 'AT_PICKUP'
+  | 'PICKED_UP'
+  | 'AT_CUSTOMER'
+  | 'DELIVERED'
+  | 'FAILED';
+
+export interface DeliveryPartnerRider {
+  riderId: string;
+  phone?: string;
+  fullName: string;
+  stateCode: string;
+  hubZone: string;
+  address?: string;
+  city: string;
+  pincode: string;
+  emergencyContact?: string;
+  vehicleType: DeliveryVehicleType;
+  maxCapacity: number;
+  status: DeliveryPartnerStatus;
+  isAvailable: boolean;
+  currentLoad: number;
+  rating: number;
+  completedOrders: number;
+  lastHeartbeatAt?: string;
+  rejectionReason?: string;
+  createdAt: string;
+}
+
+export interface DeliveryPartnerDocument {
+  docId: string;
+  riderId: string;
+  docType: DeliveryDocType;
+  fileKey: string;
+  assetId?: string;
+  status: 'PENDING' | 'VERIFIED' | 'REJECTED' | 'REUPLOAD_REQUESTED';
+  rejectionReason?: string;
+  uploadedAt: string;
+}
+
+export interface DeliveryBankAccount {
+  bankAccountId: string;
+  riderId: string;
+  accountName: string;
+  accountNumberMasked: string;
+  ifsc: string;
+  chequeKey?: string;
+  chequeAssetId?: string;
+  status: 'PENDING' | 'VERIFIED' | 'REJECTED';
+  rejectionReason?: string;
+  createdAt: string;
+}
+
+export interface DeliveryPartnerDetail extends DeliveryPartnerRider {
+  documents: DeliveryPartnerDocument[];
+  bankAccount?: DeliveryBankAccount;
+}
+
+export interface DeliveryStop {
+  stopId: string;
+  deliveryOrderId: string;
+  sequence: number;
+  stopType: 'PICKUP' | 'DROP';
+  status: DeliveryStopStatus;
+  label: string;
+  address: string;
+  latitude?: number;
+  longitude?: number;
+  customerName?: string;
+  customerPhone?: string;
+  requiresOtp: boolean;
+  failureReason?: string;
+  arrivedAt?: string;
+  completedAt?: string;
+}
+
+export interface DeliveryOrder {
+  orderId: string;
+  customerOrderId: string;
+  storeId: string;
+  riderId: string;
+  status: string;
+  routeSequence: string[] | unknown;
+  totalDistanceMeters: number;
+  estimatedDurationSeconds: number;
+  payoutAmountPaisa: number;
+  requireOtp: boolean;
+  assignedAt: string;
+  acceptedAt?: string;
+  expiresAt?: string;
+  completedAt?: string;
+  createdAt: string;
+  stops: DeliveryStop[];
+}
+
+export interface DeliveryApplicationInput {
+  fullName: string;
+  stateCode: string;
+  hubZone: string;
+  address: string;
+  city: string;
+  pincode: string;
+  emergencyContact: string;
+  vehicleType: DeliveryVehicleType;
+  maxCapacity: number;
+  phone?: string;
+  documents: { docType: DeliveryDocType; fileKey: string; assetId?: string }[];
+  bank: {
+    accountName: string;
+    accountNumber: string;
+    ifsc: string;
+    chequeKey?: string;
+    chequeAssetId?: string;
+  };
+}
+
+export interface DeliveryBoyLocation {
+  riderId: string;
+  latitude?: number;
+  longitude?: number;
+  updatedAt?: string;
+  source: 'valkey' | 'mirror' | 'none';
+}

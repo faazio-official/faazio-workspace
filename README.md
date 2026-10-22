@@ -7,7 +7,7 @@ Bare React Native superapp. All active work lives in `client/mobile/`.
 ```bash
 cd client/mobile
 npm install
-npm run android   # device/emulator
+gh workflow run android-debug.yml -f app=customer   # CI build; native Gradle is CI-only
 ```
 
 Verify: `npm run ts:check` and `npm run check:boundaries` (run from `client/mobile/`).

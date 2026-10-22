@@ -787,6 +787,24 @@ func (r *Repo) DeleteAddress(ctx context.Context, userID, addressID string) (boo
 	return tag.RowsAffected() > 0, nil
 }
 
+// OrderOwnedBy reports whether the order belongs to userID (contracts.OrderOwnership). It is a
+// single indexed lookup so sibling contexts (delivery ratings) can enforce ownership without
+// loading the full order.
+func (r *Repo) OrderOwnedBy(ctx context.Context, orderID, userID string) (bool, error) {
+	if r.pool == nil {
+		return false, fmt.Errorf("checkout: database not configured")
+	}
+	var owner string
+	err := r.pool.QueryRow(ctx, `select user_id from checkout.orders where order_id = $1`, orderID).Scan(&owner)
+	if err == pgx.ErrNoRows {
+		return false, nil
+	}
+	if err != nil {
+		return false, err
+	}
+	return owner == userID, nil
+}
+
 // OrderDetail returns one order with line items when it belongs to userID.
 func (r *Repo) OrderDetail(ctx context.Context, orderID, userID string) (Order, bool, error) {
 	if r.pool == nil {
