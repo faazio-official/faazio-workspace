@@ -139,8 +139,9 @@ func (r *Repo) List(ctx context.Context, f ListFilter) ([]Rider, error) {
 		where = append(where, "is_available = true")
 	}
 	if f.OnlyOnline {
-		where = append(where, "status = 'ACTIVE'", "is_available = true",
-			"last_heartbeat_at > now() - interval '5 minutes'", "current_load < max_capacity")
+		// Online authority is the Valkey coordinate key (TTL 300 s), checked by the caller after
+		// this query. The Postgres last_heartbeat_at column is only a best-effort mirror.
+		where = append(where, "status = 'ACTIVE'", "is_available = true", "current_load < max_capacity")
 	}
 	limit := f.Limit
 	if limit <= 0 || limit > 200 {
@@ -324,6 +325,17 @@ func (r *Repo) ApproveProfile(ctx context.Context, riderID, reviewer string) err
 		return err
 	}
 	defer func() { _ = tx.Rollback(ctx) }()
+	var current string
+	if err := tx.QueryRow(ctx, `select status::text from delivery.delivery_boys where rider_id=$1`, riderID).
+		Scan(&current); err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return ErrNotFound
+		}
+		return err
+	}
+	if current != StatusPendingReview {
+		return fmt.Errorf("%w: only a pending application can be approved", ErrConflict)
+	}
 	var unresolved int
 	if err := tx.QueryRow(ctx, `
 		select count(*) from delivery.delivery_documents
@@ -655,14 +667,24 @@ func (r *Repo) UpdateStop(ctx context.Context, riderID, stopID, status, failureR
 				 where order_id=$1`, orderID); err != nil {
 				return Order{}, err
 			}
+			var failed int
+			if err := tx.QueryRow(ctx, `
+				select count(*) from delivery.delivery_stops
+				 where delivery_order_id=$1 and stop_type='DROP' and status='FAILED'`, orderID).Scan(&failed); err != nil {
+				return Order{}, err
+			}
 			// Availability stays owned by the rider's explicit toggle, so completion only releases
-			// capacity. Setting is_available here would silently put an offline rider back online.
+			// capacity. A route with a failed drop is terminal but is not a completed delivery.
+			bumpCompleted := 0
+			if failed == 0 {
+				bumpCompleted = 1
+			}
 			if _, err := tx.Exec(ctx, `
 				update delivery.delivery_boys
 				   set current_load = greatest(0, current_load - 1),
-				       completed_orders = completed_orders + 1,
+				       completed_orders = completed_orders + $2,
 				       updated_at=now()
-				 where rider_id=$1`, riderID); err != nil {
+				 where rider_id=$1`, riderID, bumpCompleted); err != nil {
 				return Order{}, err
 			}
 		}

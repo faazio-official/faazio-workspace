@@ -75,10 +75,13 @@ func TestValidStopTransition(t *testing.T) {
 
 func TestValidateApplicationRequiresVehicleDocuments(t *testing.T) {
 	base := ApplyRequest{
-		FullName:  "Ravi Kumar",
-		StateCode: "ts",
-		City:      "Hyderabad",
-		Pincode:   "500081",
+		FullName:         "Ravi Kumar",
+		StateCode:        "ts",
+		HubZone:          "Madhapur",
+		Address:          "12-34, Hitec City Road",
+		City:             "Hyderabad",
+		Pincode:          "500081",
+		EmergencyContact: "9876500000",
 		Bank: BankInput{
 			AccountName:   "Ravi Kumar",
 			AccountNumber: "123456789012",
@@ -89,7 +92,7 @@ func TestValidateApplicationRequiresVehicleDocuments(t *testing.T) {
 	bike.VehicleType = VehicleBicycle
 	bike.MaxCapacity = 1
 	bike.Documents = []DocumentInput{
-		{DocType: "AADHAAR", FileKey: "kyc/a"},
+		{DocType: "aadhaar", FileKey: " kyc/a "},
 		{DocType: "PAN", FileKey: "kyc/p"},
 		{DocType: "SELFIE", FileKey: "kyc/s"},
 	}
@@ -98,6 +101,12 @@ func TestValidateApplicationRequiresVehicleDocuments(t *testing.T) {
 	}
 	if bike.StateCode != "TS" {
 		t.Fatalf("state code not normalized: %q", bike.StateCode)
+	}
+	if bike.Documents[0].DocType != "AADHAAR" || bike.Documents[0].FileKey != "kyc/a" {
+		t.Fatalf("document fields not normalized: %+v", bike.Documents[0])
+	}
+	if bike.EmergencyContact != "9876500000" {
+		t.Fatalf("emergency contact not normalized: %q", bike.EmergencyContact)
 	}
 
 	car := base
@@ -170,5 +179,58 @@ func TestParseDurationSeconds(t *testing.T) {
 	}
 	if got := parseDurationSeconds(""); got != 0 {
 		t.Fatalf("empty duration = %d", got)
+	}
+}
+
+func TestValidateApplicationRequiresContactAndLocation(t *testing.T) {
+	base := ApplyRequest{
+		FullName:         "Ravi Kumar",
+		StateCode:        "TS",
+		HubZone:          "Madhapur",
+		Address:          "12-34, Hitec City Road",
+		City:             "Hyderabad",
+		Pincode:          "500081",
+		EmergencyContact: "9876500000",
+		VehicleType:      VehicleBicycle,
+		MaxCapacity:      1,
+		Bank: BankInput{
+			AccountName: "Ravi Kumar", AccountNumber: "123456789012", IFSC: "HDFC0001234",
+		},
+		Documents: []DocumentInput{
+			{DocType: "AADHAAR", FileKey: "kyc/a"},
+			{DocType: "PAN", FileKey: "kyc/p"},
+			{DocType: "SELFIE", FileKey: "kyc/s"},
+		},
+	}
+	cases := []struct {
+		name string
+		edit func(*ApplyRequest)
+	}{
+		{"missing hub", func(r *ApplyRequest) { r.HubZone = " " }},
+		{"missing address", func(r *ApplyRequest) { r.Address = "" }},
+		{"missing city", func(r *ApplyRequest) { r.City = "" }},
+		{"non-digit pincode", func(r *ApplyRequest) { r.Pincode = "50008x" }},
+		{"invalid emergency", func(r *ApplyRequest) { r.EmergencyContact = "123" }},
+	}
+	for _, c := range cases {
+		req := base
+		c.edit(&req)
+		if _, ok := validateApplication(&req); ok {
+			t.Fatalf("%s must be rejected", c.name)
+		}
+	}
+}
+
+func TestValidRiderStatus(t *testing.T) {
+	for _, status := range []string{
+		StatusApplied, StatusPendingReview, StatusVerified, StatusActive,
+		StatusSuspended, StatusBlacklisted, StatusRejected,
+	} {
+		if !validRiderStatus(status) {
+			t.Fatalf("%s must be valid", status)
+		}
+	}
+	if validRiderStatus("DELETED") {
+		t.Fatal("unknown status must be invalid")
 	}
 }

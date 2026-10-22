@@ -35,8 +35,8 @@ you (gh CLI) ──► GitHub Actions
                     ├─ npm ci                        (postinstall: patch-package + configure.js)
                     ├─ Set version (manual override)      [release only]
                     ├─ restore-keystore.sh           ← decode keystore from secrets  [release only]
-                    ├─ npm run configure             ← JS config + release cert pins  [release only]
-                    ├─ npm run ts:check
+                    ├─ npm run ts:check              ← runs configure.js; must precede live config
+                    ├─ npm run configure             ← JS config + cert pins + Maps/Places keys
                     ├─ ./gradlew assemble<Customer|Delivery><Release|Debug> --no-daemon \
                     │    -PreactNativeArchitectures=... \
                     │    [-Pandroid.enableMinifyInReleaseBuilds=true \

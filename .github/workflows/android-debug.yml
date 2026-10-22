@@ -96,6 +96,13 @@ jobs:
           fi
           printf '%s' "$GOOGLE_SERVICES_DELIVERY_JSON" > android/app/src/delivery/google-services.json
 
+      - name: Typecheck
+        run: npm run ts:check
+        env:
+          # ts:check re-runs configure.js; keep the selected product variant from being reset.
+          # This runs before the live config step so it cannot overwrite the gateway/auth settings.
+          APP_VARIANT: ${{ github.event.inputs.app }}
+
       - name: Generate JS/native config
         run: npm run configure
         env:
@@ -106,12 +113,8 @@ jobs:
           STRICT: "true"
           USE_FIREBASE_AUTH: "true"
           APP_VARIANT: ${{ github.event.inputs.app }}
-
-      - name: Typecheck
-        run: npm run ts:check
-        env:
-          # ts:check re-runs configure.js; keep the selected product variant from being reset.
-          APP_VARIANT: ${{ github.event.inputs.app }}
+          GOOGLE_MAPS_API_KEY_ANDROID: ${{ vars.GOOGLE_MAPS_API_KEY_ANDROID || secrets.GOOGLE_MAPS_API_KEY_ANDROID }}
+          GOOGLE_PLACES_API_KEY: ${{ vars.GOOGLE_PLACES_API_KEY || secrets.GOOGLE_PLACES_API_KEY }}
 
       - name: Build debug APK
         run: |

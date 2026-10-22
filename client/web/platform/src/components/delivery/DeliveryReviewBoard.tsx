@@ -404,26 +404,30 @@ export function DeliveryReviewBoard({ scope }: { scope: Scope }) {
               />
 
               <div className="flex flex-wrap gap-2">
-                <Button
-                  disabled={busy}
-                  onClick={() =>
-                    void run("Profile approved", () => approveDeliveryProfile(detail.riderId))
-                  }
-                >
-                  Approve profile
-                </Button>
-                <Button
-                  variant="destructive"
-                  disabled={busy || reason.trim().length < 4}
-                  onClick={() =>
-                    void run("Application rejected", () =>
-                      rejectDeliveryApplication(detail.riderId, reason.trim()),
-                    )
-                  }
-                >
-                  Reject
-                </Button>
-                {scope === "SUPER" ? (
+                {detail.status === "PENDING_REVIEW" ? (
+                  <Button
+                    disabled={busy}
+                    onClick={() =>
+                      void run("Profile approved", () => approveDeliveryProfile(detail.riderId))
+                    }
+                  >
+                    Approve profile
+                  </Button>
+                ) : null}
+                {detail.status === "PENDING_REVIEW" || detail.status === "VERIFIED" ? (
+                  <Button
+                    variant="destructive"
+                    disabled={busy || reason.trim().length < 4}
+                    onClick={() =>
+                      void run("Application rejected", () =>
+                        rejectDeliveryApplication(detail.riderId, reason.trim()),
+                      )
+                    }
+                  >
+                    Reject
+                  </Button>
+                ) : null}
+                {scope === "SUPER" && detail.status === "VERIFIED" ? (
                   <Button
                     variant="outline"
                     disabled={busy}

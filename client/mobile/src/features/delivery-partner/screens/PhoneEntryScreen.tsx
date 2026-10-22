@@ -12,7 +12,7 @@ import AppText from '@/components/AppText';
 import { FaazioLogo } from '@/components/FaazioLogo';
 import { Card, DP, ErrorText, Field, PrimaryButton, Screen } from '../components';
 import { sendOtp } from '@/services/firebaseAuth';
-import { gateway } from '@/services/api/GatewayClient';
+import { GatewayHttpError, gateway } from '@/services/api/GatewayClient';
 import { useAuthStore } from '@/state/authStore';
 import { useDeliveryPartnerStore } from '@/state/deliveryPartnerStore';
 import { hs, ms, vs } from '@/utils/responsive';
@@ -46,8 +46,11 @@ export function PhoneEntryScreen({ navigation }: Props) {
       const rider = await gateway.getDeliveryPartnerMe();
       setRider(rider);
       navigation.replace(routeForStatus(rider.status));
-    } catch {
-      // No application yet (404) or offline — stay on phone entry.
+    } catch (err) {
+      if (err instanceof GatewayHttpError && err.status === 404) {
+        navigation.replace('Register');
+      }
+      // Offline or any other error — stay on phone entry and let the rider retry.
     } finally {
       setChecking(false);
     }
