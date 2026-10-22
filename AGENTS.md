@@ -87,8 +87,8 @@ builds get SIGKILLed by `systemd-oomd` at the 50% memory-pressure threshold (see
 Instead let GitHub Actions build and surface any build errors:
 
 ```bash
-gh workflow run android-debug.yml          # debug APK artifact (device testing)
-gh workflow run "Release APK"              # signed release APK -> GitHub Release
+gh workflow run android-debug.yml -f app=customer   # or -f app=delivery
+gh workflow run "Release APK" -f app=customer       # or -f app=delivery
 gh run watch                               # wait for the run to finish
 gh run view --log-failed                   # <-- pull build errors from CI
 ```
@@ -96,8 +96,9 @@ gh run view --log-failed                   # <-- pull build errors from CI
 The CI Gradle build command (do not reproduce locally; it lives in the workflow):
 ```bash
 cd android
-./gradlew assembleDebug --no-daemon -PreactNativeArchitectures="arm64-v8a"
-# release: ./gradlew assembleRelease --no-daemon \
+./gradlew assembleCustomerDebug --no-daemon -PreactNativeArchitectures="arm64-v8a"
+# delivery: ./gradlew assembleDeliveryDebug ...
+# release:  ./gradlew assembleCustomerRelease --no-daemon \
 #   -PreactNativeArchitectures="arm64-v8a,armeabi-v7a" \
 #   -Pandroid.enableMinifyInReleaseBuilds=true \
 #   -Pandroid.enableShrinkResourcesInReleaseBuilds=true
@@ -105,8 +106,8 @@ cd android
 
 Install a CI artifact on the device (never build it locally):
 ```bash
-gh run download <run-id> -n faazio-debug-apk
-adb install -r app-debug.apk
+gh run download <run-id> -n faazio-customer-debug-apk   # or faazio-delivery-debug-apk
+adb install -r app-customer-debug.apk                   # or app-delivery-debug.apk
 adb reverse tcp:8081 tcp:8081        # then `npm run start` locally for Metro
 ```
 
@@ -115,14 +116,22 @@ bundler, **not** Gradle. The committed `android/`/`ios/` shells are the source o
 a native prebuild/generator and never commit generated `src/lib/config.ts`.
 
 ## Native + config contract
-- **Bare RN 0.86.3.** JS entry is `index.js`; Metro/config are `@react-native/*`.
+- **Bare RN 0.86.3.** The customer app boots from `index.js`; the separately-shipped delivery
+  partner app boots from `index.delivery.js`. Metro/config are `@react-native/*`.
+- **Two products, one native shell.** Android flavors `customer` / `delivery`
+  (`com.faazio.customer` / `com.faazio.deliverypartner`) and iOS `Delivery-Debug` /
+  `Delivery-Release` configurations select the JS entry and native Firebase config. Never build
+  both flavors in one Gradle task.
 - **`scripts/configure.js` is the single JS↔native config owner.** It reads `GATEWAY_URL`,
-  `USE_GATEWAY`, `STRICT`, `DEV_USER`, `USE_FIREBASE_AUTH`, `CERT_PINS` from the environment/.env
-  and generates `src/lib/config.ts` + `src/lib/activeTransport.ts` (gitignored). `prestart`/`preandroid`
-  and CI run it; release builds also write the Android certificate-pin network config. Phone OTP is
-  Firebase (`@react-native-firebase/auth`) with committed public config
-  (`android/app/google-services.json`, `ios/Faazio/GoogleService-Info.plist`); see
-  `docs/RUNBOOKS/FIREBASE_AUTH.md` and `docs/RUNBOOKS/RELEASE.md`.
+  `USE_GATEWAY`, `STRICT`, `DEV_USER`, `USE_FIREBASE_AUTH`, `CERT_PINS`, `APP_VARIANT`,
+  `ENTRY_FILE` from the environment/.env and generates `src/lib/config.ts` +
+  `src/lib/activeTransport.ts` (gitignored). `prestart`/`preandroid` and CI run it; release builds
+  also write the Android certificate-pin network config. Phone OTP is Firebase
+  (`@react-native-firebase/auth`) with committed public customer config
+  (`android/app/google-services.json`, `ios/Faazio/GoogleService-Info.plist`); the delivery config
+  is supplied by CI (`GOOGLE_SERVICES_DELIVERY_JSON` → `android/app/src/delivery/google-services.json`,
+  `GoogleService-Info-Delivery.plist` for iOS). See `docs/RUNBOOKS/FIREBASE_AUTH.md` and
+  `docs/RUNBOOKS/RELEASE.md`.
 - **Debug vs release:** debug shells load JS from Metro (`adb reverse tcp:8081`) with cleartext
   allowed only to the loopback/emulator host; release shells embed the bundle and deny cleartext.
   JS-only changes need Metro + Fast Refresh; native changes require a CI rebuild.
@@ -130,7 +139,7 @@ a native prebuild/generator and never commit generated `src/lib/config.ts`.
 ## Modules
 Shipped (`client/mobile/src/features/`): `onboarding`, `auth`, `home`, `ecommerce`
 (mart — incl. former grocery catalog), `food`, `cart`, `profile`, `pharma`, `catalog`, `search`, `product`,
-`favourites`, `sub-app`. `dinner-booking` is a scaffold (README only).
+`favourites`, `sub-app`, `delivery-partner`. `dinner-booking` is a scaffold (README only).
 
 Remaining/backlog work is tracked in `client/mobile/PENDING_WORK.md` (e.g. wiring
 `GatewayClient`, server-backed flows, de-duplicating inline mock data). `GatewayClient` wiring is

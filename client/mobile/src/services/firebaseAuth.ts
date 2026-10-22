@@ -33,8 +33,10 @@ export interface FirebaseSession {
   user: FirebaseUser;
 }
 
+type OtpScope = 'primary' | 'seller';
+
 /** Pending native phone verification for the current send→verify round-trip. */
-let pending: { phone: string; confirmation: ConfirmationResult } | null = null;
+let pending: { phone: string; confirmation: ConfirmationResult; scope: OtpScope } | null = null;
 
 /**
  * Seller onboarding treats the OTP as a digital signature while the shopper is already signed in.
@@ -43,7 +45,8 @@ let pending: { phone: string; confirmation: ConfirmationResult } | null = null;
  */
 const OTP_APP_NAME = 'faazio-seller-otp';
 
-async function otpAuth() {
+async function otpAuth(scope: OtpScope) {
+  if (scope === 'primary') return getAuth();
   const existing = getApps().find((app) => app.name === OTP_APP_NAME);
   const app = existing ?? (await initializeApp(getApp().options, OTP_APP_NAME));
   return getAuth(app);
@@ -89,31 +92,30 @@ function toSession(user: User, accessToken: string, expiresAt: number): Firebase
   };
 }
 
-/**
- * Send (or resend) a 6-digit SMS OTP through the native Firebase SDK. Android may verify
- * automatically without the user typing; iOS falls back to reCAPTCHA without APNs.
- */
-export async function sendOtp(phoneDigits: string): Promise<void> {
+async function sendOtpForScope(phoneDigits: string, scope: OtpScope): Promise<void> {
   if (!firebaseAuthConfigured()) {
     throw new Error('Firebase Auth is not configured.');
   }
   const phone = toE164(phoneDigits);
   try {
-    const confirmation = await signInWithPhoneNumber(await otpAuth(), phone);
-    pending = { phone, confirmation };
+    const confirmation = await signInWithPhoneNumber(await otpAuth(scope), phone);
+    pending = { phone, confirmation, scope };
   } catch (err) {
-    await disposeOtpApp();
+    if (scope === 'seller') await disposeOtpApp();
     throw err;
   }
 }
 
-/** Verify the SMS code and return the Firebase ID token session. */
-export async function verifyOtp(phoneDigits: string, code: string): Promise<FirebaseSession> {
+async function verifyOtpForScope(
+  phoneDigits: string,
+  code: string,
+  scope: OtpScope,
+): Promise<FirebaseSession> {
   if (!firebaseAuthConfigured()) {
     throw new Error('Firebase Auth is not configured.');
   }
   const phone = toE164(phoneDigits);
-  if (!pending || pending.phone !== phone) {
+  if (!pending || pending.phone !== phone || pending.scope !== scope) {
     throw new Error('No OTP request is pending.');
   }
   const credential = await pending.confirmation.confirm(code);
@@ -124,8 +126,37 @@ export async function verifyOtp(phoneDigits: string, code: string): Promise<Fire
     token.token,
     Math.floor(new Date(token.expirationTime).getTime() / 1000),
   );
-  await disposeOtpApp();
+  if (scope === 'seller') await disposeOtpApp();
   return session;
+}
+
+/**
+ * Send (or resend) a 6-digit SMS OTP through the native Firebase SDK. Android may verify
+ * automatically without the user typing; iOS falls back to reCAPTCHA without APNs.
+ *
+ * This signs in the primary app so `refreshIdToken()` can keep the session alive; use the
+ * seller variants when the OTP is only a signature on an existing shopper session.
+ */
+export async function sendOtp(phoneDigits: string): Promise<void> {
+  await sendOtpForScope(phoneDigits, 'primary');
+}
+
+/** Verify the SMS code and return the Firebase ID token session. */
+export async function verifyOtp(phoneDigits: string, code: string): Promise<FirebaseSession> {
+  return verifyOtpForScope(phoneDigits, code, 'primary');
+}
+
+/** Send an OTP used as a seller-onboarding signature without touching the shopper session. */
+export async function sendSellerOtp(phoneDigits: string): Promise<void> {
+  await sendOtpForScope(phoneDigits, 'seller');
+}
+
+/** Verify a seller-signature OTP; the shopper's primary Firebase session is unchanged. */
+export async function verifySellerOtp(
+  phoneDigits: string,
+  code: string,
+): Promise<FirebaseSession> {
+  return verifyOtpForScope(phoneDigits, code, 'seller');
 }
 
 /**

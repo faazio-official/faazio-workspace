@@ -195,8 +195,9 @@ The partner app is a separate listing built from the same target with the `Deliv
 configuration (`com.faazio.deliverypartner`, display name "Faazio Delivery"). Before archiving it:
 1. Put the partner `GoogleService-Info-Delivery.plist` in `ios/Faazio/` (the build phase copies it
    over the bundled customer plist; a Delivery build fails without it).
-2. Run `APP_VARIANT=delivery npm run configure` so `src/lib/appVariant.ts` selects the partner root
-   (the bundle phase hard-fails otherwise).
+2. Run `APP_VARIANT=delivery npm run configure` (the bundle phase hard-fails otherwise). The
+   `Delivery-*` configurations bundle `index.delivery.js` (set as `ENTRY_FILE` by the build phase);
+   customer configurations use `index.js`.
 3. In Xcode, Edit Scheme → Archive → Build Configuration → `Delivery-Release`, then Archive.
 
 ```bash

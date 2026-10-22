@@ -16,8 +16,11 @@ class MainApplication : Application(), ReactApplication {
         PackageList(this).packages.apply {
           // Packages that cannot be autolinked yet can be added manually here.
           add(FaazioGeocoderPackage())
+          if (BuildConfig.FLAVOR == "delivery") add(DeliveryTrackingPackage())
         },
-      // Debug shells load JS from Metro; release shells use the embedded bundle.
+      // Debug shells load JS from Metro; release shells use the embedded bundle. The delivery
+      // flavor points Metro at its own entry so customer code is never requested/bundled.
+      jsMainModulePath = if (BuildConfig.FLAVOR == "delivery") "index.delivery" else "index",
       useDevSupport = BuildConfig.DEBUG,
     )
   }

@@ -117,7 +117,7 @@ func NewRouter(d Deps) http.Handler {
 	supportRepo := support.New(d.Pool)
 	// Gateway-native portal credentials (0032 + 0033) and credential management. Audited through the admins context.
 	portalRepo := portal.New(d.Pool)
-	// Delivery partner (0042): rider onboarding/KYC, availability, dispatch and multi-stop execution.
+	// Delivery partner (0042/0043): rider onboarding/KYC, availability, dispatch fallback and multi-stop execution.
 	deliveryRepo := delivery.New(d.Pool)
 
 	// Auth: Firebase ID tokens for the mobile app (phone OTP); portal HS256 tokens are verified
@@ -168,7 +168,8 @@ func NewRouter(d Deps) http.Handler {
 	settlement.NewHandler(settlementRepo, d.Cache, adminsRepo, routeGateway, sellersRepo).Register(r)
 	support.NewHandler(supportRepo, adminsRepo).Register(r)
 	deliveryMatrix := delivery.NewRoutesMatrix(d.Config.GoogleRoutesAPIKey, d.Cache)
-	delivery.NewHandler(deliveryRepo, d.Cache, adminsRepo, notificationsRepo, deliveryMatrix, checkoutRepo).Register(r)
+	delivery.NewHandler(deliveryRepo, d.Cache, adminsRepo, notificationsRepo, deliveryMatrix, checkoutRepo,
+		d.Config.DeliveryMaxDispatchAttempts).Register(r)
 	media.NewHandler(mediaRepo, r2Signer, d.Cache, adminsRepo, d.Sweeper).Register(r)
 	// Public media without a CDN custom domain: a stable /assets/{key} URL that 302-redirects to a
 	// short-lived presigned GET, so cached JSON can hold a non-expiring URL (R2_CDN_BASE unset).

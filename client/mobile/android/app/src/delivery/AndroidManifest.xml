@@ -1,0 +1,17 @@
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+  <!-- Delivery-partner-only background tracking. Customer builds never merge this manifest. -->
+  <uses-permission android:name="android.permission.FOREGROUND_SERVICE"/>
+  <uses-permission android:name="android.permission.FOREGROUND_SERVICE_LOCATION"/>
+  <uses-permission android:name="android.permission.WAKE_LOCK"/>
+
+  <application>
+    <service
+      android:name=".DeliveryTrackingService"
+      android:exported="false"
+      android:foregroundServiceType="location"
+      android:stopWithTask="false"/>
+    <service
+      android:name=".DeliveryHeartbeatTaskService"
+      android:exported="false"/>
+  </application>
+</manifest>

@@ -10,6 +10,7 @@ import {
 } from '@/services/api/GatewayClient';
 import { getCoarsePosition, requestLocationPermission } from '@/services/location';
 import { startDeliveryPush } from '@/services/deliveryPush';
+import { startDeliveryTracking, stopDeliveryTracking } from '@/services/deliveryTracking';
 import { useAuthStore } from '@/state/authStore';
 import { useDeliveryPartnerStore } from '@/state/deliveryPartnerStore';
 import { Card, DP, ErrorText, PrimaryButton, Screen, StatusPill } from '../components';
@@ -97,10 +98,15 @@ export function DashboardScreen({ navigation }: Props) {
   useEffect(() => {
     if (!online) {
       stopHeartbeat();
+      void stopDeliveryTracking();
       return;
     }
     startHeartbeat();
-    return stopHeartbeat;
+    void startDeliveryTracking();
+    return () => {
+      stopHeartbeat();
+      void stopDeliveryTracking();
+    };
   }, [online, startHeartbeat, stopHeartbeat]);
 
   useEffect(() => {
@@ -111,10 +117,11 @@ export function DashboardScreen({ navigation }: Props) {
   }, [online, sendHeartbeat]);
 
   useEffect(() => {
+    setNow(Date.now());
     if (offers.length === 0) return;
     const timer = setInterval(() => setNow(Date.now()), 1000);
     return () => clearInterval(timer);
-  }, [offers.length]);
+  }, [offers]);
 
   useEffect(() => {
     let stop: (() => void) | undefined;

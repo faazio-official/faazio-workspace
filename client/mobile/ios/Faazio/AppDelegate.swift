@@ -62,7 +62,11 @@ class ReactNativeDelegate: RCTDefaultReactNativeFactoryDelegate {
 
   override func bundleURL() -> URL? {
 #if DEBUG
-    return RCTBundleURLProvider.sharedSettings().jsBundleURL(forBundleRoot: "index")
+    // The partner app has its own entry; customer modules are never served/bundled for it.
+    let bundleRoot = Bundle.main.bundleIdentifier == "com.faazio.deliverypartner"
+      ? "index.delivery"
+      : "index"
+    return RCTBundleURLProvider.sharedSettings().jsBundleURL(forBundleRoot: bundleRoot)
 #else
     return Bundle.main.url(forResource: "main", withExtension: "jsbundle")
 #endif

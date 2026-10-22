@@ -684,7 +684,9 @@ export class GatewayClient {
       res = await send();
     }
     if (!res.ok) throw new GatewayHttpError(res.status);
-    return (await res.json()) as T;
+    if (res.status === 204 || res.status === 205) return undefined as T;
+    const body = await res.text();
+    return (body ? JSON.parse(body) : undefined) as T;
   }
 
   /** Try the remote call; on any failure, use the local mock (keeps screens working). */

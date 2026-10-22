@@ -18,6 +18,7 @@
     "check:boundaries": "node scripts/configure.js && depcruise src --config .dependency-cruiser.cjs",
     "check:drillin": "node scripts/check-drillin-coverage.mjs",
     "bundle:android": "node scripts/configure.js && react-native bundle --platform android --dev false --entry-file index.js --bundle-output /tmp/faazio-index.android.bundle --assets-dest /tmp/faazio-assets",
+    "bundle:delivery": "APP_VARIANT=delivery node scripts/configure.js && react-native bundle --platform android --dev false --entry-file index.delivery.js --bundle-output /tmp/faazio-delivery.android.bundle --assets-dest /tmp/faazio-delivery-assets",
     "postinstall": "patch-package && node scripts/configure.js"
   },
   "dependencies": {

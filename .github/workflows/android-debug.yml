@@ -122,6 +122,8 @@ jobs:
           esac
           ./gradlew "$TASK" --no-daemon \
             -PreactNativeArchitectures="${{ github.event.inputs.archs }}"
+        env:
+          ENTRY_FILE: ${{ github.event.inputs.app == 'delivery' && 'index.delivery.js' || 'index.js' }}
 
       - name: Upload debug APK artifact
         uses: actions/upload-artifact@v4

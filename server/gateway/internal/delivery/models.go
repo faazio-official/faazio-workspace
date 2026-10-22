@@ -167,6 +167,10 @@ type Order struct {
 	CompletedAt           string          `json:"completedAt,omitempty"`
 	CreatedAt             string          `json:"createdAt"`
 	Stops                 []Stop          `json:"stops"`
+	// DispatchAttempts counts offers (initial + fallbacks); ExcludedRiderIDs keeps riders who
+	// already declined this job from being selected again. Internal-only (never in JSON).
+	DispatchAttempts int      `json:"-"`
+	ExcludedRiderIDs []string `json:"-"`
 }
 
 // Heartbeat is the Valkey coordinate payload.

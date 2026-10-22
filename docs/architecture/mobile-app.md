@@ -680,13 +680,14 @@ AppNavigator (root native stack)
 Entry is `Onboarding` (or `MainTabs` when authenticated) — decided in `AppNavigator.tsx`
 from `useAuthStore.isAuthenticated`.
 
-## Delivery Partner app (`APP_VARIANT=delivery`)
+## Delivery Partner app (separate product)
 
-The partner experience is a **separate product root**, not a tab or a deep link in the customer
-SuperApp. `scripts/configure.js` writes `src/lib/appVariant.ts`; `index.js` mounts
-`src/DeliveryPartnerApp.tsx` (its own `NavigationContainer` + `DeliveryPartnerNavigator`) when the
-variant is `delivery` and the unchanged customer `App` otherwise. The customer navigator, tabs and
-sub-apps are never mounted in the partner build.
+The partner experience is a **separate product root and bundle**, not a tab or a deep link in the
+customer SuperApp. `index.js` is the customer entry; `index.delivery.js` mounts
+`src/DeliveryPartnerApp.tsx` (its own `NavigationContainer` + `DeliveryPartnerNavigator`) and
+registers the `FaazioDeliveryHeartbeat` headless task. `MainApplication`/`AppDelegate` select the
+partner root for the delivery flavor/configuration, and the Gradle/Xcode bundle steps use the
+delivery entry, so neither APK ships the other product's screens, stores or customer modules.
 
 ```
 DeliveryPartnerNavigator (native stack, no customer screens)
@@ -695,25 +696,31 @@ DeliveryPartnerNavigator (native stack, no customer screens)
 ├── Register     — KYC application: profile, live Aadhaar/selfie/PAN + motor DL/RC/insurance capture,
 │                  vehicle-capped capacity, bank details (private R2 uploads → POST /delivery/register)
 ├── Status       — applied / pending / verified / rejected / suspended state + reupload reason
-├── Dashboard    — Go Online toggle (PUT /delivery/availability), Valkey heartbeat every 120 s while
-│                  foregrounded, 45 s offer cards (accept/reject), active multi-stop jobs
+├── Dashboard    — Go Online toggle (PUT /delivery/availability), Valkey heartbeat every 120 s
+│                  (foreground + Android foreground service headless task), 45 s offer cards,
+│                  active multi-stop jobs
 └── Route        — server-ordered pickup/drop stops, Arrived/Picked Up/Delivered transitions,
-                   customer-OTP handover, post-delivery rating
+                   customer-OTP handover
 ```
 
 **Native identity.** One committed RN shell, two products: the Android `customer`/`delivery`
 product flavors (`com.faazio.customer` / `com.faazio.deliverypartner`) and the iOS
 `Debug`/`Release` plus `Delivery-Debug`/`Delivery-Release` configurations (same bundle split).
-The partner build needs its own Firebase Android app + iOS plist and must be configured with
-`APP_VARIANT=delivery` (the iOS bundle phase hard-fails otherwise). CI builds them explicitly
+The partner build needs its own Firebase Android app + iOS plist; `APP_VARIANT=delivery` selects
+that config in `configure.js` (the iOS bundle phase hard-fails otherwise). CI builds them explicitly
 (`assembleCustomerDebug` / `assembleDeliveryDebug`); see `docs/RUNBOOKS/RELEASE.md`.
 
-**Known MVP limits** (tracked in `client/mobile/PENDING_WORK.md`): background/terminated-app
-location (foreground service + background-fetch) is not wired, so heartbeats run only while the app
-is foregrounded; FCM order pings are registered and refresh offers on arrival, but delivery needs
-the gateway `PUSH_WEBHOOK_URL` bridge and a tap only opens the dashboard (no per-order deep link);
-reject does not re-run the dispatch fallback chain. Payout splits (Phase 5) are intentionally not
-built.
+**Android background tracking.** While online, `DeliveryTrackingService` runs with
+`foregroundServiceType="location"` and a persistent low-importance notification, waking
+`DeliveryHeartbeatTaskService` every 120 s. The headless JS task reads the Keychain session, takes
+one coarse fix and posts the same heartbeat as the foreground loop; the service stops when the
+rider goes offline/signs out. iOS still heartbeats only in the foreground.
+
+**Known MVP limits** (tracked in `client/mobile/PENDING_WORK.md`): iOS/terminated-app background
+location (plus OEM battery whitelisting), FCM order pings need the gateway `PUSH_WEBHOOK_URL`
+bridge and a tap only opens the dashboard (no per-order deep link), and cross-order stop
+re-sequencing is not implemented. Reject now re-offers the job to the next candidate up to 5
+attempts. Payout splits (Phase 5) are intentionally not built.
 
 ### Phone-auth flow (Login)
 

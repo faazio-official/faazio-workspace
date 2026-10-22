@@ -177,7 +177,7 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
-			shellScript = "case \"$CONFIGURATION\" in\n  Delivery-*)\n    if ! grep -q \"'delivery'\" \"$PROJECT_DIR/../src/lib/appVariant.ts\" 2>/dev/null; then\n      echo \"error: Delivery build requires APP_VARIANT=delivery (run: APP_VARIANT=delivery npm run configure).\" >&2\n      exit 1\n    fi\n    ;;\nesac\n\nset -e\n\nWITH_ENVIRONMENT=\"$PROJECT_DIR/../node_modules/react-native/scripts/xcode/with-environment.sh\"\nREACT_NATIVE_XCODE=\"$PROJECT_DIR/../node_modules/react-native/scripts/react-native-xcode.sh\"\n\n/bin/sh -c \"$WITH_ENVIRONMENT $REACT_NATIVE_XCODE\"\n";
+			shellScript = "case \"$CONFIGURATION\" in\n  Delivery-*)\n    if ! grep -q \"'delivery'\" \"$PROJECT_DIR/../src/lib/appVariant.ts\" 2>/dev/null; then\n      echo \"error: Delivery build requires APP_VARIANT=delivery (run: APP_VARIANT=delivery npm run configure).\" >&2\n      exit 1\n    fi\n    export ENTRY_FILE=\"index.delivery.js\"\n    ;;\n  *)\n    export ENTRY_FILE=\"index.js\"\n    ;;\nesac\n\nset -e\n\nWITH_ENVIRONMENT=\"$PROJECT_DIR/../node_modules/react-native/scripts/xcode/with-environment.sh\"\nREACT_NATIVE_XCODE=\"$PROJECT_DIR/../node_modules/react-native/scripts/react-native-xcode.sh\"\n\n/bin/sh -c \"$WITH_ENVIRONMENT $REACT_NATIVE_XCODE\"\n";
 		};
 		08A4A3CD28434E44B6B9DE2E /* [CP] Check Pods Manifest.lock */ = {
 			isa = PBXShellScriptBuildPhase;

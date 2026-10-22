@@ -9,19 +9,23 @@ dependencies exist. Do not build the backend/seller flows until told to.
 
 **Status:** 🟢 Shipped (mobile + gateway + Supabase + portal). Phase 5 payouts intentionally not built.
 
-- **Separate product, one native shell:** `APP_VARIANT=delivery` (generated `src/lib/appVariant.ts`)
-  makes `index.js` mount `src/DeliveryPartnerApp.tsx` — the customer navigator is never mounted.
-  Android flavors `customer`/`delivery` (`com.faazio.customer` / `com.faazio.deliverypartner`) and
-  iOS `Delivery-Debug`/`Delivery-Release` configurations give the partner its own listings/labels.
+- **Separate product, one native shell:** `index.js` (customer) and `index.delivery.js` (partner)
+  are distinct Metro entries; the delivery entry mounts `src/DeliveryPartnerApp.tsx`, so the
+  customer navigator is never mounted. Android flavors `customer`/`delivery` (`com.faazio.customer`
+  / `com.faazio.deliverypartner`) and iOS `Delivery-Debug`/`Delivery-Release` configurations give
+  the partner its own listings, labels and Firebase config; Gradle/Xcode bundle only the selected
+  entry, so neither product ships the other's screens/stores.
 - **Flow:** phone OTP → KYC application (live camera capture for Aadhaar/selfie and motorized
   DL/RC/insurance; private R2 keys only) → admin per-document verify/reject/re-upload → super-admin
-  activation → Go Online/Offline + 120 s foreground heartbeat → 45 s order offers → server-ordered
-  multi-stop route → pickup/drop statuses → hashed customer-OTP handover → optional rating.
-- **Gateway:** `internal/delivery` + migration `0042` (tables, enums, RLS, audit). Dispatch scores
-  ACTIVE/available/under-capacity riders by Google Routes road time (Valkey-cached legs, 300 s),
-  falls back to Haversine without `GOOGLE_ROUTES_API_KEY`; capacity is hard-capped by vehicle
-  (bicycle 1 / two-wheeler 2 / four-wheeler 5). Live coordinates are Valkey-only
-  (`delivery:rider:{id}:location`, TTL 300 s).
+  activation → Go Online/Offline + 120 s heartbeat (foreground loop and, on Android, an ongoing
+  foreground service that wakes the same headless task) → 45 s order offers → server-ordered
+  multi-stop route → pickup/drop statuses → hashed customer-OTP handover.
+- **Gateway:** `internal/delivery` + migrations `0042`/`0043` (tables, enums, RLS, audit). Dispatch
+  scores ACTIVE/available/under-capacity riders by Google Routes road time (Valkey-cached legs,
+  300 s), falls back to Haversine without `GOOGLE_ROUTES_API_KEY`; capacity is hard-capped by vehicle
+  (bicycle 1 / two-wheeler 2 / four-wheeler 5). A reject releases the job and re-offers it to the
+  next candidate up to 5 attempts, never re-offering a rider who already declined. Live coordinates
+  are Valkey-only (`delivery:rider:{id}:location`, TTL 300 s).
 - **Portal:** state/super "Delivery partners" queues with state scoping, KYC image previews,
   per-document verification, profile approve/reject, activation, active-rider list with
   load/capacity and on-demand location.
@@ -30,19 +34,20 @@ dependencies exist. Do not build the backend/seller flows until told to.
 - **Phase 5 payout engine** — order-level seller/platform/rider split, COD reconciliation, TDS and
   payout frequency. `delivery_orders.payout_amount_paisa` is display-only; do **not** create
   `delivery.payouts*` tables or payout screens until the product decision is approved.
-- **Background location** — heartbeats stop when the app is backgrounded/terminated. Add the Android
-  foreground service (`FOREGROUND_SERVICE_LOCATION` + notification) + `react-native-background-fetch`,
-  and iOS `UIBackgroundModes`/`NSLocationAlwaysAndWhenInUseUsageDescription`, behind an explicit
-  rider consent. Current Android manifest is deliberately foreground-only.
+- **Background location (iOS + app swiped away)** — Android now runs an ongoing
+  `FOREGROUND_SERVICE_LOCATION` service that wakes the `FaazioDeliveryHeartbeat` headless task every
+  120 s. iOS still heartbeats only while foregrounded (add `UIBackgroundModes` location +
+  `NSLocationAlwaysAndWhenInUseUsageDescription` behind explicit consent), and Android OEMs may kill
+  the service after a swipe-away or battery optimisation — riders need the battery-whitelisting step.
 - **FCM order pings (bridge + deep link)** — the partner app now requests notification permission,
   registers its FCM token through `POST /notifications/register` and refreshes offers on a foreground
   message / notification tap. End-to-end delivery still needs the gateway `PUSH_WEBHOOK_URL` bridge
   configured, and a tap opens the dashboard rather than deep-linking straight to the offer card.
+- **Customer rating UI** — `POST /delivery/{orderId}/rate` stores a 1–5 rating + comment, but no
+  customer screen prompts for it after delivery yet.
 - **Rider document re-upload** — an admin re-upload request is recorded/audited and support contacts
   the rider on the registered phone; there is no in-app per-document replacement flow yet (a rejected
   application can re-apply in full).
-- **Dispatch fallback on reject** — `POST /delivery/{id}/reject` terminally marks the job `REJECTED`
-  instead of re-running the candidate chain; add bounded retries + automatic reassign.
 - **Cross-order re-sequencing** — a rider carrying multiple jobs gets each job's stops appended, not
   a globally optimised sequence; add the insertion/reorder pass after acceptance.
 - **Checkout → dispatch auto-trigger** — `POST /dispatch/assign` is implemented and admin-gated but
@@ -56,10 +61,6 @@ dependencies exist. Do not build the backend/seller flows until told to.
   `GOOGLE_SERVICES_DELIVERY_JSON` CI secret. Without them a `delivery` build fails fast.
 - **Legal/trust** — independent-contractor + police-assistance clause still needs adding to the
   Terms; suspension/blacklist endpoints and audit already exist (`PUT /delivery/boys/{id}/suspend|blacklist`).
-- **Bundle split** — `index.js` statically imports both roots, so the partner APK still carries the
-  customer modules (unmounted, but dead weight). Move to per-flavor entry files (Metro
-  `entryFile`/Gradle variant) once the partner UI stabilises. Low risk, size-only.
-
 **Date:** 2026-10-22
 
 ## W62 — Live-location nearby retrieval (P0)
