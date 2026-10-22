@@ -1,6 +1,7 @@
 package delivery
 
 import (
+	"errors"
 	"testing"
 )
 
@@ -35,6 +36,40 @@ func TestCapacityForVehicle(t *testing.T) {
 	}
 	if _, ok := CapacityForVehicle("TRUCK"); ok {
 		t.Fatal("unknown vehicle must be rejected")
+	}
+}
+
+func TestValidStopTransition(t *testing.T) {
+	allowed := []struct{ stopType, from, to string }{
+		{"PICKUP", StopPending, StopAtPickup},
+		{"PICKUP", StopAtPickup, StopPickedUp},
+		{"PICKUP", StopPending, StopFailed},
+		{"PICKUP", StopAtPickup, StopFailed},
+		{"DROP", StopPending, StopAtCustomer},
+		{"DROP", StopAtCustomer, StopDelivered},
+		{"DROP", StopPending, StopFailed},
+		{"DROP", StopAtCustomer, StopFailed},
+		{"DROP", StopAtCustomer, StopAtCustomer},
+	}
+	for _, c := range allowed {
+		if err := validStopTransition(c.stopType, c.from, c.to); err != nil {
+			t.Fatalf("expected %s %s -> %s to be allowed: %v", c.stopType, c.from, c.to, err)
+		}
+	}
+	denied := []struct{ stopType, from, to string }{
+		{"PICKUP", StopPending, StopPickedUp},
+		{"PICKUP", StopPickedUp, StopAtPickup},
+		{"PICKUP", StopAtPickup, StopDelivered},
+		{"DROP", StopPending, StopDelivered},
+		{"DROP", StopPending, StopPickedUp},
+		{"DROP", StopAtCustomer, StopAtPickup},
+		{"DROP", StopDelivered, StopAtCustomer},
+		{"DROP", StopFailed, StopDelivered},
+	}
+	for _, c := range denied {
+		if err := validStopTransition(c.stopType, c.from, c.to); !errors.Is(err, ErrConflict) {
+			t.Fatalf("expected %s %s -> %s to conflict, got %v", c.stopType, c.from, c.to, err)
+		}
 	}
 }
 

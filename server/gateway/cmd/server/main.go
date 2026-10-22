@@ -126,6 +126,8 @@ func main() {
 		Sweeper: mediaGC,
 		// Manual SUPER_ADMIN trigger parity with POST /media/gc (test/ops without waiting for midnight).
 		AuditPurger: auditPurger,
+		// Delivery offer expiry: releases 45 s accept windows that no rider acted on.
+		WorkersCtx: workerCtx,
 	})
 
 	srv := &http.Server{

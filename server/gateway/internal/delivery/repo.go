@@ -562,16 +562,37 @@ func (r *Repo) UpdateStop(ctx context.Context, riderID, stopID, status, failureR
 		return Order{}, err
 	}
 	defer func() { _ = tx.Rollback(ctx) }()
-	var orderID string
+	var (
+		orderID  string
+		stopType string
+		current  string
+	)
 	if err := tx.QueryRow(ctx, `
-		select s.delivery_order_id
+		select s.delivery_order_id, s.stop_type::text, s.status::text
 		  from delivery.delivery_stops s
 		  join delivery.delivery_orders o on o.order_id = s.delivery_order_id
-		 where s.stop_id=$1 and o.rider_id=$2 and o.status='ACCEPTED'`, stopID, riderID).Scan(&orderID); err != nil {
+		 where s.stop_id=$1 and o.rider_id=$2 and o.status='ACCEPTED'`, stopID, riderID).
+		Scan(&orderID, &stopType, &current); err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return Order{}, ErrNotFound
 		}
 		return Order{}, err
+	}
+	if err := validStopTransition(stopType, current, status); err != nil {
+		return Order{}, err
+	}
+	if stopType == "DROP" {
+		var pickup string
+		if err := tx.QueryRow(ctx, `
+			select coalesce((
+			         select p.status::text from delivery.delivery_stops p
+			          where p.delivery_order_id=$1 and p.stop_type='PICKUP'
+			          order by p.sequence limit 1), '')`, orderID).Scan(&pickup); err != nil {
+			return Order{}, err
+		}
+		if pickup != StopPickedUp {
+			return Order{}, fmt.Errorf("%w: pick the order up before updating a drop", ErrConflict)
+		}
 	}
 	var arrived, completed any
 	if status == StopAtPickup || status == StopAtCustomer {
@@ -585,9 +606,39 @@ func (r *Repo) UpdateStop(ctx context.Context, riderID, stopID, status, failureR
 		   set status=$2::delivery_stop_status,
 		       failure_reason=$3,
 		       arrived_at=coalesce($4, arrived_at),
-		       completed_at=coalesce($5, completed_at)
+		       completed_at=coalesce($5, completed_at),
+		       customer_otp_hash=case when $2::delivery_stop_status='DELIVERED' then null else customer_otp_hash end,
+		       otp_expires_at=case when $2::delivery_stop_status='DELIVERED' then null else otp_expires_at end,
+		       otp_attempts=case when $2::delivery_stop_status='DELIVERED' then 0 else otp_attempts end
 		 where stop_id=$1`, stopID, status, nullString(failureReason), arrived, completed); err != nil {
 		return Order{}, err
+	}
+	if status == StopFailed && stopType == "PICKUP" {
+		// A failed pickup aborts the job: close the remaining stops, cancel the dispatch and free
+		// the rider's capacity without counting a completed delivery.
+		if _, err := tx.Exec(ctx, `
+			update delivery.delivery_stops
+			   set status='FAILED', completed_at=coalesce(completed_at, now())
+			 where delivery_order_id=$1 and stop_id<>$2
+			   and status not in ('DELIVERED','FAILED')`, orderID, stopID); err != nil {
+			return Order{}, err
+		}
+		if _, err := tx.Exec(ctx, `
+			update delivery.delivery_orders
+			   set status='CANCELLED', completed_at=now(), updated_at=now()
+			 where order_id=$1`, orderID); err != nil {
+			return Order{}, err
+		}
+		if _, err := tx.Exec(ctx, `
+			update delivery.delivery_boys
+			   set current_load = greatest(0, current_load - 1), updated_at=now()
+			 where rider_id=$1`, riderID); err != nil {
+			return Order{}, err
+		}
+		if err := tx.Commit(ctx); err != nil {
+			return Order{}, err
+		}
+		return r.Route(ctx, riderID, orderID)
 	}
 	if status == StopDelivered || status == StopFailed {
 		var open int
@@ -604,11 +655,12 @@ func (r *Repo) UpdateStop(ctx context.Context, riderID, stopID, status, failureR
 				 where order_id=$1`, orderID); err != nil {
 				return Order{}, err
 			}
+			// Availability stays owned by the rider's explicit toggle, so completion only releases
+			// capacity. Setting is_available here would silently put an offline rider back online.
 			if _, err := tx.Exec(ctx, `
 				update delivery.delivery_boys
 				   set current_load = greatest(0, current_load - 1),
 				       completed_orders = completed_orders + 1,
-				       is_available = true,
 				       updated_at=now()
 				 where rider_id=$1`, riderID); err != nil {
 				return Order{}, err
@@ -626,6 +678,35 @@ func (r *Repo) Route(ctx context.Context, riderID, orderID string) (Order, error
 	return r.orderByID(ctx, riderID, orderID)
 }
 
+// ExpiredAssignments returns ASSIGNED jobs whose accept window elapsed, oldest first. The expiry
+// worker releases each one and re-offers it through the same bounded fallback chain as a rejection.
+func (r *Repo) ExpiredAssignments(ctx context.Context, limit int) ([]string, error) {
+	if err := r.ready(); err != nil {
+		return nil, err
+	}
+	if limit <= 0 || limit > 200 {
+		limit = 25
+	}
+	rows, err := r.pool.Query(ctx, `
+		select order_id from delivery.delivery_orders
+		 where status='ASSIGNED' and expires_at is not null and expires_at <= now()
+		 order by expires_at
+		 limit $1`, limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	ids := make([]string, 0, limit)
+	for rows.Next() {
+		var id string
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		ids = append(ids, id)
+	}
+	return ids, rows.Err()
+}
+
 // HasCustomerOrder reports whether a customer order already has a delivery job. It makes the
 // checkout PACKED auto-dispatch idempotent (a repeated status update must not double-assign).
 func (r *Repo) HasCustomerOrder(ctx context.Context, customerOrderID string) (bool, error) {
@@ -634,7 +715,9 @@ func (r *Repo) HasCustomerOrder(ctx context.Context, customerOrderID string) (bo
 	}
 	var exists bool
 	err := r.pool.QueryRow(ctx,
-		`select exists (select 1 from delivery.delivery_orders where customer_order_id = $1)`,
+		`select exists (select 1 from delivery.delivery_orders
+		                 where customer_order_id = $1
+		                   and status not in ('REJECTED','CANCELLED'))`,
 		customerOrderID).Scan(&exists)
 	return exists, err
 }
@@ -755,6 +838,33 @@ func (r *Repo) OTPTarget(ctx context.Context, riderID, stopID string) (orderID, 
 		return "", "", nil, ErrNotFound
 	}
 	return orderID, hash, expires, err
+}
+
+// maxOTPAttempts bounds verification guesses; the code space is only 10,000.
+const maxOTPAttempts = 5
+
+// ConsumeOTPAttempt atomically increments the stop's attempt counter and reports whether this
+// attempt is still within the bound. It is accept-scoped to the rider, so another rider can never
+// burn a stop's attempts.
+func (r *Repo) ConsumeOTPAttempt(ctx context.Context, riderID, stopID string) (bool, error) {
+	if err := r.ready(); err != nil {
+		return false, err
+	}
+	var attempts int
+	err := r.pool.QueryRow(ctx, `
+		update delivery.delivery_stops s
+		   set otp_attempts = s.otp_attempts + 1
+		  from delivery.delivery_orders o
+		 where s.stop_id=$1 and o.order_id=s.delivery_order_id
+		   and o.rider_id=$2 and o.status='ACCEPTED'
+		returning s.otp_attempts`, stopID, riderID).Scan(&attempts)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return false, ErrNotFound
+	}
+	if err != nil {
+		return false, err
+	}
+	return attempts <= maxOTPAttempts, nil
 }
 
 // Rate inserts the post-delivery rating and refreshes the rider aggregate.

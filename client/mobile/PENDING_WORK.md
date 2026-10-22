@@ -23,9 +23,12 @@ dependencies exist. Do not build the backend/seller flows until told to.
 - **Gateway:** `internal/delivery` + migrations `0042`/`0043` (tables, enums, RLS, audit). Dispatch
   scores ACTIVE/available/under-capacity riders by Google Routes road time (Valkey-cached legs,
   300 s), falls back to Haversine without `GOOGLE_ROUTES_API_KEY`; capacity is hard-capped by vehicle
-  (bicycle 1 / two-wheeler 2 / four-wheeler 5). A reject releases the job and re-offers it to the
-  next candidate up to 5 attempts, never re-offering a rider who already declined. Live coordinates
-  are Valkey-only (`delivery:rider:{id}:location`, TTL 300 s).
+  (bicycle 1 / two-wheeler 2 / four-wheeler 5). A reject — or an offer whose 45 s window expires —
+  releases the job and re-offers it to the next candidate up to 5 attempts, never re-offering a rider
+  who already declined. Stop transitions are forward-only server-side (`AT_PICKUP → PICKED_UP →
+  AT_CUSTOMER → DELIVERED`); a failed pickup cancels the job and releases capacity, and completing a
+  route never overrides the rider's explicit availability toggle. The handover OTP locks after 5
+  incorrect attempts. Live coordinates are Valkey-only (`delivery:rider:{id}:location`, TTL 300 s).
 - **Portal:** state/super "Delivery partners" queues with state scoping, KYC image previews,
   per-document verification, profile approve/reject, activation, active-rider list with
   load/capacity and on-demand location.

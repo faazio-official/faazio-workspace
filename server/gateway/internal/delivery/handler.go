@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log/slog"
 	"math/big"
 	"net/http"
 	"regexp"
@@ -227,7 +228,9 @@ func (h *Handler) listApplications(w http.ResponseWriter, r *http.Request) {
 	if auth.Role(r.Context()) == auth.RoleStateAdmin {
 		f.StateCode = auth.StateCode(r.Context())
 	}
-	if f.Status == "" {
+	if f.Status == "ALL" {
+		f.Status = ""
+	} else if f.Status == "" {
 		f.Status = StatusPendingReview
 	}
 	items, err := h.repo.List(r.Context(), f)
@@ -828,47 +831,114 @@ func (h *Handler) rejectOrder(w http.ResponseWriter, r *http.Request) {
 		"riderId": rider.RiderID, "attempt": order.DispatchAttempts,
 	})
 
-	reassigned := false
-	if order.DispatchAttempts < h.maxDispatchAttempts {
-		excluded := map[string]bool{rider.RiderID: true}
-		for _, riderID := range order.ExcludedRiderIDs {
-			excluded[riderID] = true
-		}
-		if pickup, drop, ok := dispatchLegs(order); ok {
-			candidates, err := h.candidateRiders(r.Context(), rider.StateCode, excluded)
-			if err != nil {
-				h.writeErr(w, err)
-				return
-			}
-			next := PickRider(candidates, *pickup.Latitude, *pickup.Longitude, h.matrix)
-			if next != nil {
-				approachSeconds, approachMeters := h.matrix.Travel(
-					next.Lat, next.Lng, *pickup.Latitude, *pickup.Longitude,
-				)
-				dropSeconds, dropMeters := h.matrix.Travel(
-					*pickup.Latitude, *pickup.Longitude, *drop.Latitude, *drop.Longitude,
-				)
-				updated, err := h.repo.ReassignOrder(
-					r.Context(), order.OrderID, next.Rider.RiderID,
-					time.Now().Add(45*time.Second),
-					approachMeters+dropMeters, approachSeconds+dropSeconds,
-				)
-				if err != nil {
-					h.writeErr(w, err)
-					return
-				}
-				h.auditEvent(r.Context(), "DELIVERY_BOY_REASSIGN", updated.OrderID, nil, map[string]any{
-					"riderId": next.Rider.RiderID, "attempt": updated.DispatchAttempts,
-				})
-				h.notifyRider(r.Context(), next.Rider, updated)
-				reassigned = true
-			}
-		}
+	reassigned, err := h.retryReleasedOrder(r.Context(), order, rider.StateCode)
+	if err != nil {
+		h.writeErr(w, err)
+		return
 	}
 	httpx.JSON(w, http.StatusOK, map[string]any{
 		"reassigned": reassigned,
 		"exhausted":  !reassigned && order.DispatchAttempts >= h.maxDispatchAttempts,
 	})
+}
+
+// retryReleasedOrder re-scores the remaining candidates for a released job and re-offers it. It
+// leaves the order REJECTED when the attempt cap is reached or no eligible rider remains.
+func (h *Handler) retryReleasedOrder(ctx context.Context, order Order, stateCode string) (bool, error) {
+	if order.DispatchAttempts >= h.maxDispatchAttempts {
+		return false, nil
+	}
+	excluded := map[string]bool{}
+	for _, riderID := range order.ExcludedRiderIDs {
+		excluded[riderID] = true
+	}
+	pickup, drop, ok := dispatchLegs(order)
+	if !ok {
+		return false, nil
+	}
+	candidates, err := h.candidateRiders(ctx, stateCode, excluded)
+	if err != nil {
+		return false, err
+	}
+	next := PickRider(candidates, *pickup.Latitude, *pickup.Longitude, h.matrix)
+	if next == nil {
+		return false, nil
+	}
+	approachSeconds, approachMeters := h.matrix.Travel(
+		next.Lat, next.Lng, *pickup.Latitude, *pickup.Longitude,
+	)
+	dropSeconds, dropMeters := h.matrix.Travel(
+		*pickup.Latitude, *pickup.Longitude, *drop.Latitude, *drop.Longitude,
+	)
+	updated, err := h.repo.ReassignOrder(
+		ctx, order.OrderID, next.Rider.RiderID,
+		time.Now().Add(45*time.Second),
+		approachMeters+dropMeters, approachSeconds+dropSeconds,
+	)
+	if err != nil {
+		return false, err
+	}
+	h.auditEvent(ctx, "DELIVERY_BOY_REASSIGN", updated.OrderID, nil, map[string]any{
+		"riderId": next.Rider.RiderID, "attempt": updated.DispatchAttempts,
+	})
+	h.notifyRider(ctx, next.Rider, updated)
+	return true, nil
+}
+
+// ExpireOffers releases ASSIGNED jobs whose 45 s accept window elapsed and re-offers them to the
+// next candidate. It is safe to run on multiple gateway instances: the conditional reject makes
+// exactly one worker win a given order, and an accepted order is never touched.
+func (h *Handler) ExpireOffers(ctx context.Context) (int, error) {
+	ids, err := h.repo.ExpiredAssignments(ctx, 25)
+	if err != nil {
+		return 0, err
+	}
+	expired := 0
+	for _, id := range ids {
+		if err := ctx.Err(); err != nil {
+			return expired, err
+		}
+		order, err := h.repo.OrderByID(ctx, id)
+		if err != nil || order.Status != OrderAssigned {
+			continue
+		}
+		origin, err := h.repo.RiderByID(ctx, order.RiderID)
+		if err != nil {
+			continue
+		}
+		released, err := h.repo.RejectOrder(ctx, order.RiderID, id)
+		if err != nil {
+			continue
+		}
+		expired++
+		h.auditEvent(ctx, "DELIVERY_BOY_OFFER_EXPIRED", id, nil, map[string]any{
+			"riderId": order.RiderID, "attempt": released.DispatchAttempts,
+		})
+		if _, err := h.retryReleasedOrder(ctx, released, origin.StateCode); err != nil {
+			slog.Warn("delivery: expired offer reassign failed", "order", id, "err", err)
+		}
+	}
+	return expired, nil
+}
+
+// RunExpiry sweeps elapsed offers until ctx is cancelled. Started by the composition root when a
+// database is configured.
+func (h *Handler) RunExpiry(ctx context.Context) {
+	ticker := time.NewTicker(15 * time.Second)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			n, err := h.ExpireOffers(ctx)
+			if err != nil {
+				slog.Warn("delivery: offer expiry sweep failed", "err", err)
+			} else if n > 0 {
+				slog.Info("delivery: expired offers re-offered", "count", n)
+			}
+		}
+	}
 }
 
 type stopStatusRequest struct {
@@ -895,7 +965,12 @@ func (h *Handler) updateStop(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if status == StopDelivered {
-		if _, hash, _, err := h.repo.OTPTarget(r.Context(), rider.RiderID, chi.URLParam(r, "stopId")); err == nil && hash != "" {
+		_, hash, _, err := h.repo.OTPTarget(r.Context(), rider.RiderID, chi.URLParam(r, "stopId"))
+		if err != nil {
+			h.writeErr(w, err)
+			return
+		}
+		if hash != "" {
 			httpx.Fail(w, http.StatusConflict, "otp_required", "verify the customer OTP to complete this stop")
 			return
 		}
@@ -961,6 +1036,15 @@ func (h *Handler) verifyOTP(w http.ResponseWriter, r *http.Request) {
 	}
 	if expires == nil || time.Now().After(*expires) {
 		httpx.Fail(w, http.StatusConflict, "otp_expired", "the OTP has expired")
+		return
+	}
+	allowed, err := h.repo.ConsumeOTPAttempt(r.Context(), rider.RiderID, req.StopID)
+	if err != nil {
+		h.writeErr(w, err)
+		return
+	}
+	if !allowed {
+		httpx.Fail(w, http.StatusTooManyRequests, "otp_locked", "too many incorrect OTP attempts")
 		return
 	}
 	want := hashOTP(digitsOnly(req.OTP), req.StopID)

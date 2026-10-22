@@ -81,7 +81,7 @@ export function DeliveryReviewBoard({ scope }: { scope: Scope }) {
     setLoading(true);
     try {
       const [apps, active] = await Promise.all([
-        listDeliveryApplications({ status: status === "ALL" ? undefined : status }),
+        listDeliveryApplications({ status }),
         listDeliveryRiders({ status: "ACTIVE" }),
       ]);
       setApplications(apps);
