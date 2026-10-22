@@ -169,6 +169,8 @@ jobs:
             -PreactNativeArchitectures="$REACT_NATIVE_ARCHS" \
             -Pandroid.enableMinifyInReleaseBuilds=true \
             -Pandroid.enableShrinkResourcesInReleaseBuilds=true
+        env:
+          ENTRY_FILE: ${{ github.event.inputs.app == 'delivery' && 'index.delivery.js' || 'index.js' }}
 
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4

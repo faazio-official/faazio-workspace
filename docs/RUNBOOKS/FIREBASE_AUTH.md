@@ -7,27 +7,32 @@
 
 ## 1. Identifiers (must match exactly)
 
-| Platform | Identifier | Source |
-|---|---|---|
-| Android | `com.faazio.customer` | `client/mobile/android/app/build.gradle` (`applicationId`) |
-| iOS | `com.faazio.customer` | `ios/Faazio.xcodeproj` (`PRODUCT_BUNDLE_IDENTIFIER`) |
-| Firebase project | `project-65696e12-8def-460e-b29` | public client config + `FIREBASE_PROJECT_ID` |
+| Platform | Product | Identifier | Source |
+|---|---|---|---|
+| Android | Customer SuperApp | `com.faazio.customer` | `client/mobile/android/app/build.gradle` (`applicationId`) |
+| Android | Delivery Partner | `com.faazio.deliverypartner` | `client/mobile/android/app/build.gradle` (`delivery` flavor) |
+| iOS | Customer SuperApp | `com.faazio.customer` | `ios/Faazio.xcodeproj` (`PRODUCT_BUNDLE_IDENTIFIER`) |
+| iOS | Delivery Partner | `com.faazio.deliverypartner` | `ios/Faazio.xcodeproj` (`Delivery-*` configurations) |
+| Firebase project | both | `project-65696e12-8def-460e-b29` | public client config + `FIREBASE_PROJECT_ID` |
 
-The Firebase Android app + iOS app are registered against these IDs. One typo makes
+Each native app must be registered against its own ID. One typo makes
 `signInWithPhoneNumber` fail with an opaque invalid-credential error.
 
 ## 2. What is committed (public client config — not secrets)
 
 | File | Purpose |
 |---|---|
-| `client/mobile/android/app/google-services.json` | Android Firebase app registration + public API key |
-| `client/mobile/ios/Faazio/GoogleService-Info.plist` | iOS Firebase app registration (Xcode `Copy Bundle Resources`) |
+| `client/mobile/android/app/google-services.json` | Customer Android Firebase app registration + public API key |
+| `client/mobile/ios/Faazio/GoogleService-Info.plist` | Customer iOS Firebase app registration (Xcode `Copy Bundle Resources`) |
+| `client/mobile/android/app/src/delivery/google-services.json` | Delivery Android app config — **CI-only**, from `GOOGLE_SERVICES_DELIVERY_JSON` (gitignored) |
+| `client/mobile/ios/Faazio/GoogleService-Info-Delivery.plist` | Delivery iOS app config — **supplied by ops/CI**, not committed |
 | `client/mobile/android/build.gradle` | `com.google.gms:google-services:4.5.0` classpath |
 | `client/mobile/android/app/build.gradle` | applies `com.google.gms.google-services` |
 | `client/mobile/ios/Faazio/Info.plist` | `UIBackgroundModes → remote-notification` |
 
-These files are public by design (the API key is restricted per platform in Google Cloud). They are
-committed so CI can build without extra secrets. No service-account key is used by the mobile app.
+The customer files are public by design (the API key is restricted per platform in Google Cloud)
+and committed so CI can build without extra secrets. The delivery files contain the partner app's
+registration and are injected from CI secrets. No service-account key is used by the mobile app.
 
 ## 3. Flow
 
@@ -44,14 +49,19 @@ LoginScreen phone entry
                            └─ checkout.ProvisionUserID links auth_uid → checkout.users
 ```
 
-`refreshIdToken()` forces `getIdToken(true)`; `GatewayClient.recoverSession` uses it once on a 401.
-Nothing logs the token, phone number or OTP code.
+`sendOtp`/`verifyOtp` sign in the **primary** Firebase app so `refreshIdToken()` can rotate the
+session. Seller onboarding uses `sendSellerOtp`/`verifySellerOtp`, a disposable secondary app, because
+that OTP is only a signature and must not replace the shopper session. `refreshIdToken()` forces
+`getIdToken(true)`; `GatewayClient.recoverSession` uses it once on a 401. Nothing logs the token,
+phone number or OTP code.
 
 ## 4. Console setup (already done, except Part 6)
 
 - [x] Firebase project created; Google Analytics disabled.
 - [x] Android app registered with `com.faazio.customer` + debug SHA-1/SHA-256.
 - [x] iOS app registered with `com.faazio.customer`.
+- [ ] Delivery Android app registered with `com.faazio.deliverypartner` (config -> `GOOGLE_SERVICES_DELIVERY_JSON`).
+- [ ] Delivery iOS app registered with `com.faazio.deliverypartner` (config -> `GoogleService-Info-Delivery.plist`).
 - [x] Authentication → Sign-in method → **Phone** enabled.
 - [x] SMS region policy allow-list includes **+91 (India)**.
 - [x] Test numbers added (use them for Metro + CI); real SMS for device tests.

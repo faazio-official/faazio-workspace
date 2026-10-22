@@ -18,9 +18,9 @@ npm run start
 
 - `npm run start` runs Metro; the installed debug APK loads the bundle over `adb reverse`.
 - JS-only changes hot-reload. Native/dependency changes need a new CI APK.
-- Two products share this shell: `customer` (SuperApp) and `delivery` (standalone Delivery Partner,
-  `com.faazio.deliverypartner`). Partner builds need `APP_VARIANT=delivery` + the partner Firebase
-  config; see `docs/RUNBOOKS/RELEASE.md`.
+- Two products share this shell: `customer` (SuperApp, `index.js`) and `delivery` (standalone
+  Delivery Partner, `index.delivery.js`, `com.faazio.deliverypartner`). Partner builds need
+  `APP_VARIANT=delivery` + the partner Firebase config; see `docs/RUNBOOKS/RELEASE.md`.
 - Release builds: `gh workflow run "Release APK"` (see `docs/RUNBOOKS/RELEASE.md`).
 - Configuration (`GATEWAY_URL`, `USE_GATEWAY`, `STRICT`, `DEV_USER`, `CERT_PINS`) is generated into
   `src/lib/config.ts` by `scripts/configure.js`; copy `.env.example` → `.env.local`.

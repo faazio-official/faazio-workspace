@@ -26,7 +26,7 @@ import { SPACE } from '@/theme/spacing';
 import { SELLER_SETUP_FIELDS } from '@data/index';
 import type { AppBrand } from '@data/types';
 import { gateway, type SellerApplication } from '@/services/api/GatewayClient';
-import { firebaseAuthConfigured, sendOtp, verifyOtp } from '@/services/firebaseAuth';
+import { firebaseAuthConfigured, sendSellerOtp, verifySellerOtp } from '@/services/firebaseAuth';
 import { getCurrentAddress, type Coordinates } from '@/services/location';
 import SellerLocationPicker from './SellerLocationPicker';
 import { useAuthStore } from '@/state/authStore';
@@ -171,7 +171,7 @@ export function SellerRegistrationScreen({ navigation }: Props) {
     }
     setOtpBusy(true);
     try {
-      await sendOtp(phoneDigits);
+      await sendSellerOtp(phoneDigits);
       setOtpSent(true);
       setCountdown(60);
       setOtpVerified(false);
@@ -190,7 +190,7 @@ export function SellerRegistrationScreen({ navigation }: Props) {
     }
     setOtpBusy(true);
     try {
-      await verifyOtp(phoneDigits, otpCode.trim());
+      await verifySellerOtp(phoneDigits, otpCode.trim());
       // The OTP is the digital signature; the shopper's primary Firebase session is untouched.
       setOtpVerified(true);
       setCountdown(0);

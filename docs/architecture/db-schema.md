@@ -1838,7 +1838,7 @@ CREATE UNIQUE INDEX payouts_transfer_uniq
 - The webhook path keys on `razorpay_transfer_id`, now unique per payout. No payload, bank detail or
   secret is stored or logged.
 
-### 12.23 `delivery.*` — Delivery Partner onboarding, dispatch + multi-stop execution (migration `0042`)
+### 12.23 `delivery.*` — Delivery Partner onboarding, dispatch + multi-stop execution (migrations `0042`, `0043`)
 
 **Authority:** `server-gateway-plan.md` (Delivery partner), `monolith-breakdown.md` §1 (delivery
 row), `caching-cloudflare-valkey.md` (§4–§5 rider keys). Additive only; the customer/marketplace
@@ -1849,7 +1849,7 @@ tables are untouched.
 | `delivery.delivery_boys` | Rider profile + KYC review state. `rider_id` PK; `user_id` links the checkout identity that receives the order-ping notification; `phone` is E.164; `state_code` + `hub_zone` scope dispatch; `vehicle_type`; `max_capacity` is hard-capped by vehicle at intake (`BICYCLE=1`, `TWO_WHEELER=2`, `FOUR_WHEELER=5`); `status` (`APPLIED → PENDING_REVIEW → VERIFIED → ACTIVE`, plus `SUSPENDED`/`BLACKLISTED`/`REJECTED`); `is_available`, `current_load`, `rating`, `completed_orders`, `last_heartbeat_at` |
 | `delivery.delivery_documents` | One row per captured document (`AADHAAR`, `PAN`, `SELFIE`, `DL_FRONT/BACK`, `RC_FRONT/BACK`, `INSURANCE_FRONT/BACK`). Holds the private R2 `file_key` + optional `media.assets` id only — never a URL or bytes. `status` (`PENDING`/`VERIFIED`/`REJECTED`/`REUPLOAD_REQUESTED`), reviewer + reason |
 | `delivery.delivery_bank_accounts` | Pending-review payout account. Stores the masked tail only (same rule as `sellers.bank_accounts`); the full number is never persisted |
-| `delivery.delivery_orders` | Dispatch job (`ASSIGNED → ACCEPTED → ROUTE_COMPLETE`, or `REJECTED`/`CANCELLED`), store/customer-order ids, `route_sequence` JSONB, distance/ETA, `require_otp`, `expires_at` (45 s accept window) |
+| `delivery.delivery_orders` | Dispatch job (`ASSIGNED → ACCEPTED → ROUTE_COMPLETE`, or `REJECTED`/`CANCELLED`), store/customer-order ids, `route_sequence` JSONB, distance/ETA, `require_otp`, `expires_at` (45 s accept window). `0043` adds `dispatch_attempts` (max 5 offers) and `excluded_rider_ids` JSONB (riders who declined this job) for the fallback chain |
 | `delivery.delivery_stops` | Ordered `PICKUP`/`DROP` stops with `PENDING/AT_PICKUP/PICKED_UP/AT_CUSTOMER/DELIVERED/FAILED`. The handover OTP is stored **hashed** (`customer_otp_hash`, SHA-256 of code + stop id) with `otp_expires_at`; plaintext never reaches Postgres |
 | `delivery.rider_heartbeats` | Optional low-frequency Postgres mirror. The authoritative live coordinate is Valkey `delivery:rider:{id}:location` (TTL 300 s) |
 | `delivery.delivery_ratings` | Post-delivery 1–5 rating + comment, unique per order; the rider aggregate is recomputed in the same tx |
@@ -1862,7 +1862,7 @@ tables are untouched.
   `GET /media/private/{id}` presigned GETs.
 - Every rider mutation writes an audit row (`DELIVERY_BOY_APPLY`, `…_DOC_VERIFIED`, `…_VERIFY`,
   `…_REJECT`, `…_REUPLOAD_REQUEST`, `…_ACTIVATE`, `…_SUSPEND`, `…_BLACKLIST`, `…_ASSIGN`, `…_ACCEPT`,
-  `…_REJECT_ORDER`, `…_PICKUP`, `…_DELIVERED`).
+  `…_REJECT_ORDER`, `…_REASSIGN`, `…_PICKUP`, `…_DELIVERED`).
 
 **Phase 5 (payout engine) is out of scope.** `delivery_orders.payout_amount_paisa` is a display-only
 placeholder; no `delivery_payouts` table (order-level seller/platform/rider split, COD

@@ -161,14 +161,20 @@ if (isRelease && useGateway && !useFirebaseAuth) {
   );
 }
 if (useFirebaseAuth) {
-  for (const file of [GOOGLE_SERVICES_JSON, GOOGLE_SERVICE_INFO_PLIST]) {
-    if (!fs.existsSync(file)) {
-      const message =
-        `Missing Firebase native config: ${path.relative(ROOT, file)}. ` +
-        'Phone OTP cannot initialize without it.';
-      if (isRelease && useGateway) fail(message);
-      warn(message);
-    }
+  if (!fs.existsSync(GOOGLE_SERVICES_JSON)) {
+    const message =
+      `Missing Firebase native config: ${path.relative(ROOT, GOOGLE_SERVICES_JSON)}. ` +
+      'Phone OTP cannot initialize without it.';
+    if (isRelease && useGateway) fail(message);
+    warn(message);
+  }
+  // The iOS copy build phase hard-fails when the plist is missing, so an Android-only
+  // release job is not blocked by the partner's iOS plist (supplied by a separate CI step).
+  if (!fs.existsSync(GOOGLE_SERVICE_INFO_PLIST)) {
+    warn(
+      `Missing Firebase native config: ${path.relative(ROOT, GOOGLE_SERVICE_INFO_PLIST)}. ` +
+        'The iOS build will fail until it is supplied.',
+    );
   }
 } else {
   warn('USE_FIREBASE_AUTH=false: phone OTP is disabled (dev-only mock login).');

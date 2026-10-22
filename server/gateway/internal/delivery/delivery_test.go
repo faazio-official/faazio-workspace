@@ -114,6 +114,21 @@ func TestOTPAndMasking(t *testing.T) {
 	}
 }
 
+func TestDispatchLegsRequiresBothCoordinates(t *testing.T) {
+	lat, lng := 17.4, 78.4
+	order := Order{Stops: []Stop{
+		{StopType: "PICKUP", Latitude: &lat, Longitude: &lng},
+		{StopType: "DROP", Latitude: &lat, Longitude: &lng},
+	}}
+	if _, _, ok := dispatchLegs(order); !ok {
+		t.Fatal("pickup and drop coordinates must be dispatchable")
+	}
+	order.Stops[1].Latitude = nil
+	if _, _, ok := dispatchLegs(order); ok {
+		t.Fatal("a drop without coordinates must not be reassigned")
+	}
+}
+
 func TestParseDurationSeconds(t *testing.T) {
 	if got := parseDurationSeconds("123s"); got != 123 {
 		t.Fatalf("duration parse = %d", got)

@@ -23,11 +23,25 @@ if (isReleaseTask && !hasReleaseKeystore) {
 }
 
 /**
+ * One native shell, two JS entry points. The partner flavor bundles `index.delivery.js` only, so
+ * customer screens/stores never reach the delivery APK (and vice versa). The task name (CI builds
+ * `assembleDelivery*` explicitly) or `APP_VARIANT`/`ENTRY_FILE` selects the entry.
+ */
+def requestedEntry = System.getenv("ENTRY_FILE")
+if (!requestedEntry) {
+    def deliveryBuild =
+        System.getenv("APP_VARIANT") == "delivery" ||
+        gradle.startParameter.taskNames.any { it.toLowerCase().contains("delivery") }
+    requestedEntry = deliveryBuild ? "index.delivery.js" : "index.js"
+}
+
+/**
  * This is the configuration block to customize your React Native Android app.
  */
 react {
     /* Autolinking */
     autolinkLibrariesWithApp()
+    entryFile = file("../../${requestedEntry}")
 }
 
 def enableMinifyInReleaseBuilds = (findProperty('android.enableMinifyInReleaseBuilds') ?: 'true').toBoolean()

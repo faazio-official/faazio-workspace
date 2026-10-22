@@ -24,25 +24,32 @@ import (
 // Handler serves the delivery-partner API. Rider endpoints are gated by a verified phone identity
 // (Firebase ID token) and resolve the rider by phone; admin endpoints are role + state scoped.
 type Handler struct {
-	repo     *Repo
-	cache    *cache.Cache
-	audit    contracts.AuditWriter
-	notifier contracts.Notifier
-	matrix   RoadMatrix
-	orders   contracts.OrderOwnership
+	repo                *Repo
+	cache               *cache.Cache
+	audit               contracts.AuditWriter
+	notifier            contracts.Notifier
+	matrix              RoadMatrix
+	orders              contracts.OrderOwnership
+	maxDispatchAttempts int
 }
 
 // NewHandler builds the delivery handler. matrix may be nil (straight-line fallback); notifier may
 // be nil (the durable outbox is simply not written in non-Supabase dev environments); orders is the
 // checkout ownership checker used by the customer rating path.
-func NewHandler(repo *Repo, c *cache.Cache, audit contracts.AuditWriter, notifier contracts.Notifier, matrix RoadMatrix, orders contracts.OrderOwnership) *Handler {
+func NewHandler(repo *Repo, c *cache.Cache, audit contracts.AuditWriter, notifier contracts.Notifier, matrix RoadMatrix, orders contracts.OrderOwnership, maxDispatchAttempts int) *Handler {
 	if matrix == nil {
 		matrix = StraightLineMatrix{}
 	}
 	if c == nil {
 		c = &cache.Cache{}
 	}
-	return &Handler{repo: repo, cache: c, audit: audit, notifier: notifier, matrix: matrix, orders: orders}
+	if maxDispatchAttempts < 1 {
+		maxDispatchAttempts = 5
+	}
+	return &Handler{
+		repo: repo, cache: c, audit: audit, notifier: notifier, matrix: matrix, orders: orders,
+		maxDispatchAttempts: maxDispatchAttempts,
+	}
 }
 
 // Register mounts the delivery routes.
@@ -626,6 +633,28 @@ type dispatchRequest struct {
 	PayoutAmountPaisa int64    `json:"payoutAmountPaisa"`
 }
 
+// candidateRiders returns ACTIVE/online/under-capacity riders in the scope with a fresh Valkey
+// coordinate, excluding riders who have already declined this job.
+func (h *Handler) candidateRiders(ctx context.Context, stateCode string, excluded map[string]bool) ([]RiderLocation, error) {
+	f := ListFilter{OnlyOnline: true, Limit: 200, StateCode: stateCode}
+	riders, err := h.repo.List(ctx, f)
+	if err != nil {
+		return nil, err
+	}
+	candidates := make([]RiderLocation, 0, len(riders))
+	for _, rider := range riders {
+		if excluded[rider.RiderID] {
+			continue
+		}
+		var hb Heartbeat
+		if !h.cache.GetJSON(ctx, cache.DeliveryRiderLocation(rider.RiderID), &hb) {
+			continue
+		}
+		candidates = append(candidates, RiderLocation{Rider: rider, Lat: hb.Latitude, Lng: hb.Longitude})
+	}
+	return candidates, nil
+}
+
 func (h *Handler) assign(w http.ResponseWriter, r *http.Request) {
 	var req dispatchRequest
 	if err := httpx.Decode(r, &req); err != nil {
@@ -637,22 +666,14 @@ func (h *Handler) assign(w http.ResponseWriter, r *http.Request) {
 		httpx.Fail(w, http.StatusBadRequest, "invalid_dispatch", "order, store and coordinates are required")
 		return
 	}
-	f := ListFilter{OnlyOnline: true, Limit: 200}
+	stateCode := ""
 	if auth.Role(r.Context()) == auth.RoleStateAdmin {
-		f.StateCode = auth.StateCode(r.Context())
+		stateCode = auth.StateCode(r.Context())
 	}
-	riders, err := h.repo.List(r.Context(), f)
+	candidates, err := h.candidateRiders(r.Context(), stateCode, nil)
 	if err != nil {
 		h.writeErr(w, err)
 		return
-	}
-	candidates := make([]RiderLocation, 0, len(riders))
-	for _, rider := range riders {
-		var hb Heartbeat
-		if !h.cache.GetJSON(r.Context(), cache.DeliveryRiderLocation(rider.RiderID), &hb) {
-			continue
-		}
-		candidates = append(candidates, RiderLocation{Rider: rider, Lat: hb.Latitude, Lng: hb.Longitude})
 	}
 	best := PickRider(candidates, *req.StoreLatitude, *req.StoreLongitude, h.matrix)
 	if best == nil {
@@ -723,6 +744,25 @@ func (h *Handler) acceptOrder(w http.ResponseWriter, r *http.Request) {
 	httpx.JSON(w, http.StatusOK, order)
 }
 
+// dispatchLegs returns the pickup/drop coordinates of a released job.
+func dispatchLegs(order Order) (pickup, drop *Stop, ok bool) {
+	for i := range order.Stops {
+		s := &order.Stops[i]
+		if s.StopType == "PICKUP" && pickup == nil {
+			pickup = s
+		}
+		if s.StopType == "DROP" && drop == nil {
+			drop = s
+		}
+	}
+	if pickup == nil || drop == nil ||
+		pickup.Latitude == nil || pickup.Longitude == nil ||
+		drop.Latitude == nil || drop.Longitude == nil {
+		return nil, nil, false
+	}
+	return pickup, drop, true
+}
+
 func (h *Handler) rejectOrder(w http.ResponseWriter, r *http.Request) {
 	rider, err := h.currentRider(r.Context())
 	if err != nil {
@@ -730,12 +770,56 @@ func (h *Handler) rejectOrder(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	id := chi.URLParam(r, "orderId")
-	if err := h.repo.RejectOrder(r.Context(), rider.RiderID, id); err != nil {
+	order, err := h.repo.RejectOrder(r.Context(), rider.RiderID, id)
+	if err != nil {
 		h.writeErr(w, err)
 		return
 	}
-	h.auditEvent(r.Context(), "DELIVERY_BOY_REJECT_ORDER", id, nil, map[string]any{"riderId": rider.RiderID})
-	httpx.JSON(w, http.StatusOK, map[string]any{"reassigned": false})
+	h.auditEvent(r.Context(), "DELIVERY_BOY_REJECT_ORDER", id, nil, map[string]any{
+		"riderId": rider.RiderID, "attempt": order.DispatchAttempts,
+	})
+
+	reassigned := false
+	if order.DispatchAttempts < h.maxDispatchAttempts {
+		excluded := map[string]bool{rider.RiderID: true}
+		for _, riderID := range order.ExcludedRiderIDs {
+			excluded[riderID] = true
+		}
+		if pickup, drop, ok := dispatchLegs(order); ok {
+			candidates, err := h.candidateRiders(r.Context(), rider.StateCode, excluded)
+			if err != nil {
+				h.writeErr(w, err)
+				return
+			}
+			next := PickRider(candidates, *pickup.Latitude, *pickup.Longitude, h.matrix)
+			if next != nil {
+				approachSeconds, approachMeters := h.matrix.Travel(
+					next.Lat, next.Lng, *pickup.Latitude, *pickup.Longitude,
+				)
+				dropSeconds, dropMeters := h.matrix.Travel(
+					*pickup.Latitude, *pickup.Longitude, *drop.Latitude, *drop.Longitude,
+				)
+				updated, err := h.repo.ReassignOrder(
+					r.Context(), order.OrderID, next.Rider.RiderID,
+					time.Now().Add(45*time.Second),
+					approachMeters+dropMeters, approachSeconds+dropSeconds,
+				)
+				if err != nil {
+					h.writeErr(w, err)
+					return
+				}
+				h.auditEvent(r.Context(), "DELIVERY_BOY_REASSIGN", updated.OrderID, nil, map[string]any{
+					"riderId": next.Rider.RiderID, "attempt": updated.DispatchAttempts,
+				})
+				h.notifyRider(r.Context(), next.Rider, updated)
+				reassigned = true
+			}
+		}
+	}
+	httpx.JSON(w, http.StatusOK, map[string]any{
+		"reassigned": reassigned,
+		"exhausted":  !reassigned && order.DispatchAttempts >= h.maxDispatchAttempts,
+	})
 }
 
 type stopStatusRequest struct {

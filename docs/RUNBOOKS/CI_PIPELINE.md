@@ -107,8 +107,9 @@ adb reverse tcp:8081 tcp:8081                       # then `npm run start` local
 ```
 
 The `delivery` product is a **separate app** (`com.faazio.deliverypartner`, "Faazio Delivery"); it
-needs the partner `google-services.json` in the `GOOGLE_SERVICES_DELIVERY_JSON` secret, and `APP_VARIANT=delivery`
-is set automatically by the workflow so `index.js` mounts the partner root.
+needs the partner `google-services.json` in the `GOOGLE_SERVICES_DELIVERY_JSON` secret. The workflow
+sets `APP_VARIANT=delivery` and `ENTRY_FILE=index.delivery.js`, so Gradle bundles only the partner
+root (the customer build uses `index.js`).
 
 > A debug APK is signed with the CI runner's **debug** keystore — different from the release key.
 > If a release build is installed, `adb uninstall com.faazio.customer` (or `com.faazio.deliverypartner`)

@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/rand"
 	"encoding/hex"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"strings"
@@ -500,22 +501,55 @@ func (r *Repo) AcceptOrder(ctx context.Context, riderID, orderID string) (Order,
 	return r.Route(ctx, riderID, orderID)
 }
 
-// RejectOrder releases an ASSIGNED order (the dispatch fallback chain is owned by Phase 3).
-func (r *Repo) RejectOrder(ctx context.Context, riderID, orderID string) error {
+// RejectOrder releases an ASSIGNED order and returns the job with the declining rider appended to
+// the exclusion list. The handler owns the next-candidate decision (bounded fallback chain).
+func (r *Repo) RejectOrder(ctx context.Context, riderID, orderID string) (Order, error) {
 	if err := r.ready(); err != nil {
-		return err
+		return Order{}, err
 	}
 	ct, err := r.pool.Exec(ctx, `
 		update delivery.delivery_orders
-		   set status='REJECTED', updated_at=now()
-		 where order_id=$1 and rider_id=$2 and status='ASSIGNED'`, orderID, riderID)
+		   set status='REJECTED',
+		       excluded_rider_ids = case
+		         when excluded_rider_ids ? $3 then excluded_rider_ids
+		         else excluded_rider_ids || to_jsonb($3::text)
+		       end,
+		       updated_at=now()
+		 where order_id=$1 and rider_id=$2 and status='ASSIGNED'`, orderID, riderID, riderID)
 	if err != nil {
-		return err
+		return Order{}, err
 	}
 	if ct.RowsAffected() == 0 {
-		return fmt.Errorf("%w: order is not rejectable", ErrConflict)
+		return Order{}, fmt.Errorf("%w: order is not rejectable", ErrConflict)
 	}
-	return nil
+	return r.OrderByID(ctx, orderID)
+}
+
+// ReassignOrder moves a released job to the next rider, resetting the offer window while leaving
+// the pickup/drop stops (and their PII) intact. Attempts are incremented atomically.
+func (r *Repo) ReassignOrder(
+	ctx context.Context,
+	orderID, riderID string,
+	expiresAt time.Time,
+	totalMeters, etaSeconds int64,
+) (Order, error) {
+	if err := r.ready(); err != nil {
+		return Order{}, err
+	}
+	ct, err := r.pool.Exec(ctx, `
+		update delivery.delivery_orders
+		   set rider_id=$2, status='ASSIGNED', assigned_at=now(), accepted_at=null,
+		       completed_at=null, expires_at=$3, total_distance_meters=$4,
+		       estimated_duration_seconds=$5, dispatch_attempts=dispatch_attempts + 1,
+		       updated_at=now()
+		 where order_id=$1 and status='REJECTED'`, orderID, riderID, expiresAt, totalMeters, etaSeconds)
+	if err != nil {
+		return Order{}, err
+	}
+	if ct.RowsAffected() == 0 {
+		return Order{}, fmt.Errorf("%w: order is not reassignable", ErrConflict)
+	}
+	return r.OrderByID(ctx, orderID)
 }
 
 // UpdateStop applies a stop transition and completes the route when every drop is terminal.
@@ -589,26 +623,41 @@ func (r *Repo) UpdateStop(ctx context.Context, riderID, stopID, status, failureR
 
 // Route returns one order with its ordered stops, scoped to the rider.
 func (r *Repo) Route(ctx context.Context, riderID, orderID string) (Order, error) {
+	return r.orderByID(ctx, riderID, orderID)
+}
+
+// OrderByID returns one order (any rider) for the internal dispatch fallback chain.
+func (r *Repo) OrderByID(ctx context.Context, orderID string) (Order, error) {
+	return r.orderByID(ctx, "", orderID)
+}
+
+func (r *Repo) orderByID(ctx context.Context, riderID, orderID string) (Order, error) {
 	if err := r.ready(); err != nil {
 		return Order{}, err
 	}
 	var o Order
 	var accepted, expires, completed *time.Time
 	var assigned, created time.Time
+	var excluded []byte
 	err := r.pool.QueryRow(ctx, `
 		select order_id, customer_order_id, store_id, rider_id, status::text, route_sequence,
 		       total_distance_meters, estimated_duration_seconds, payout_amount_paisa, require_otp,
-		       assigned_at, accepted_at, expires_at, completed_at, created_at
+		       assigned_at, accepted_at, expires_at, completed_at, created_at,
+		       dispatch_attempts, excluded_rider_ids
 		  from delivery.delivery_orders
-		 where order_id=$1 and rider_id=$2`, orderID, riderID).
+		 where order_id=$1 and ($2 = '' or rider_id=$2)`, orderID, riderID).
 		Scan(&o.OrderID, &o.CustomerOrderID, &o.StoreID, &o.RiderID, &o.Status, &o.RouteSequence,
 			&o.TotalDistanceMeters, &o.EstimatedDurationSecs, &o.PayoutAmountPaisa, &o.RequireOTP,
-			&assigned, &accepted, &expires, &completed, &created)
+			&assigned, &accepted, &expires, &completed, &created,
+			&o.DispatchAttempts, &excluded)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return Order{}, ErrNotFound
 	}
 	if err != nil {
 		return Order{}, err
+	}
+	if len(excluded) > 0 {
+		_ = json.Unmarshal(excluded, &o.ExcludedRiderIDs)
 	}
 	o.AssignedAt = assigned.UTC().Format(time.RFC3339)
 	o.AcceptedAt = iso(accepted)

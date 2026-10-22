@@ -11,7 +11,7 @@
 #   portal auth (migrations 0032 + 0033); provisioning: docs/RUNBOOKS/PORTAL_AUTH.md,
 #   R2_ACCESS_KEY_ID, R2_SECRET_ACCESS_KEY,
 #   GOOGLE_ROUTES_API_KEY (server-side Routes API key for road-aware delivery dispatch; optional —
-#   unset means the straight-line fallback),
+#   unset means the straight-line fallback), DELIVERY_MAX_DISPATCH_ATTEMPTS (default 5),
 #   MONGO_DATABASE=faazio, PRESCRIPTION_BUCKET=prescriptions,
 #   SUPABASE_URL=https://mivisyjvvizyyidjdjmh.supabase.co,
 #   R2_ACCOUNT_ID=28cbf78411f854a8a41a5b737e698004, R2_PUBLIC_BUCKET=faazio-public,

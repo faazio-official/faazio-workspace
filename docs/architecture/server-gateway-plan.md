@@ -86,7 +86,7 @@ keys/TTLs unchanged.
 - **Build order / status:** `docs/architecture/mvp-backend.md` §7.
 
 
-### Delivery partner (`internal/delivery`, migration `0042`)
+### Delivery partner (`internal/delivery`, migrations `0042`, `0043`)
 
 The partner domain is a first-class context in the same gateway (future service: Go + Postgres).
 Rider endpoints authenticate with the Firebase phone ID token and resolve the rider by E.164 phone:
@@ -115,6 +115,11 @@ state-scoped: `GET /delivery/register/pending`, `GET /delivery/register/{id}`,
   `GOOGLE_ROUTES_API_KEY` unset (local/dev) it degrades to a Haversine/urban-speed estimate. Each
   assignment creates ordered `delivery_stops`, a 45 s accept lock and a durable order-ping in the
   shared notifications outbox (FCM/webhook drained by `internal/notifications`).
+- `POST /delivery/{id}/reject` appends the declining rider to
+  `delivery_orders.excluded_rider_ids`, then re-scores the remaining candidates and re-offers the
+  same job (`dispatch_attempts` increments). The chain stops after
+  `DELIVERY_MAX_DISPATCH_ATTEMPTS` (default 5) or when no eligible rider remains; a job is never
+  re-offered to a rider who already declined it.
 - Stop transitions are `AT_PICKUP → PICKED_UP → AT_CUSTOMER → DELIVERED` (or `FAILED`). A
   high-risk/prepaid order may set `require_otp`; the 4-digit code is generated server-side, stored as
   SHA-256(code + stop id), and never returned in the rider projection. Only `/delivery/otp/verify`
@@ -122,11 +127,10 @@ state-scoped: `GET /delivery/register/pending`, `GET /delivery/register/{id}`,
 - Every mutation writes an `admins.audit_logs` row through `contracts.AuditWriter`.
 - **Phase 5 payout splitting is not implemented.** `payout_amount_paisa` is display-only.
 
-**Known MVP limits:** reject does not yet re-run the fallback chain (the order is terminally
-`REJECTED`); cross-order route optimisation inserts stops per job rather than re-sequencing a
-multi-job rider; `POST /dispatch/assign` is not yet called automatically from the checkout order-ready
-transition; background location (foreground service) is not wired, so heartbeats run while the app is
-foregrounded. These are tracked in `client/mobile/PENDING_WORK.md`.
+**Known MVP limits:** cross-order route optimisation inserts stops per job rather than re-sequencing
+a multi-job rider; `POST /dispatch/assign` is not yet called automatically from the checkout
+order-ready transition; iOS/terminated-app background location and OEM battery whitelisting remain
+open. These are tracked in `client/mobile/PENDING_WORK.md`.
 
 The sections below are the **Future Prod** target.
 
