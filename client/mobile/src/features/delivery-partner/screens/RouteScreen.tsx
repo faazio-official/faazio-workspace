@@ -74,7 +74,7 @@ export function RouteScreen({ navigation, route }: Props) {
         const next = await gateway.updateDeliveryStop(stop.stopId, status);
         setOrder(next);
         if (next.status === 'ROUTE_COMPLETE') {
-          Alert.alert('Route complete', 'All drops are done. You are available for the next order.', [
+          Alert.alert('Route complete', 'All drops are done. Your capacity is free for the next order.', [
             { text: 'Back to dashboard', onPress: () => navigation.replace('Dashboard') },
           ]);
         }
@@ -115,7 +115,7 @@ export function RouteScreen({ navigation, route }: Props) {
       setOrder(next);
       setOtp('');
       if (next.status === 'ROUTE_COMPLETE') {
-        Alert.alert('Route complete', 'All drops are done. You are available for the next order.', [
+        Alert.alert('Route complete', 'All drops are done. Your capacity is free for the next order.', [
           { text: 'Back to dashboard', onPress: () => navigation.replace('Dashboard') },
         ]);
       }

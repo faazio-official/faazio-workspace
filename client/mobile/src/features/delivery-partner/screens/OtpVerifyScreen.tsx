@@ -4,7 +4,7 @@ import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import AppText from '@/components/AppText';
 import { Card, DP, ErrorText, Field, PrimaryButton, Screen } from '../components';
 import { sendOtp, verifyOtp } from '@/services/firebaseAuth';
-import { gateway } from '@/services/api/GatewayClient';
+import { gateway, GatewayHttpError } from '@/services/api/GatewayClient';
 import { useAuthStore } from '@/state/authStore';
 import { useDeliveryPartnerStore } from '@/state/deliveryPartnerStore';
 import { hs, ms, vs } from '@/utils/responsive';
@@ -40,9 +40,12 @@ export function OtpVerifyScreen({ navigation, route }: Props) {
         const rider = await gateway.getDeliveryPartnerMe();
         setRider(rider);
         navigation.replace(rider.status === 'ACTIVE' ? 'Dashboard' : 'Status');
-      } catch {
-        // 404 = no application for this verified phone yet.
-        navigation.replace('Register');
+      } catch (err) {
+        if (err instanceof GatewayHttpError && err.status === 404) {
+          navigation.replace('Register');
+        } else {
+          setError('Could not load your rider profile. Try again.');
+        }
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Incorrect OTP. Try again.');

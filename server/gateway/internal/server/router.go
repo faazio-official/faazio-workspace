@@ -63,6 +63,9 @@ type Deps struct {
 	// AuditPurger runs one audit-log retention pass for the SUPER_ADMIN manual trigger (nil disables
 	// POST /audit-logs/purge; the nightly 00:00 IST pass is the gateway worker in main.go).
 	AuditPurger contracts.AuditPurger
+	// WorkersCtx starts background workers owned by this router (delivery offer expiry). Main passes
+	// its cancellable worker context; tests and tooling leave it nil so no goroutines leak.
+	WorkersCtx context.Context
 }
 
 // NewRouter builds the HTTP router with all contexts mounted.
@@ -122,6 +125,9 @@ func NewRouter(d Deps) http.Handler {
 	deliveryMatrix := delivery.NewRoutesMatrix(d.Config.GoogleRoutesAPIKey, d.Cache)
 	deliveryHandler := delivery.NewHandler(deliveryRepo, d.Cache, adminsRepo, notificationsRepo, deliveryMatrix, checkoutRepo,
 		d.Config.DeliveryMaxDispatchAttempts)
+	if d.WorkersCtx != nil && d.Pool != nil {
+		go deliveryHandler.RunExpiry(d.WorkersCtx)
+	}
 
 	// Auth: Firebase ID tokens for the mobile app (phone OTP); portal HS256 tokens are verified
 	// separately. The legacy Supabase/GoTrue path remains for older partner tokens during the

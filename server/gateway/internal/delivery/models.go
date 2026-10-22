@@ -9,6 +9,7 @@ package delivery
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"strings"
 	"time"
 )
@@ -64,6 +65,31 @@ const (
 	StopDelivered  = "DELIVERED"
 	StopFailed     = "FAILED"
 )
+
+// validStopTransition enforces the forward-only route lifecycle documented in
+// server-gateway-plan.md: pickup PENDING→AT_PICKUP→PICKED_UP, drop PENDING→AT_CUSTOMER→DELIVERED,
+// with FAILED allowed before a stop reaches its terminal state. Repeating the current status is
+// idempotent.
+func validStopTransition(stopType, current, next string) error {
+	if current == next {
+		return nil
+	}
+	allowed := false
+	switch stopType {
+	case "PICKUP":
+		allowed = (current == StopPending && next == StopAtPickup) ||
+			(current == StopAtPickup && next == StopPickedUp) ||
+			((current == StopPending || current == StopAtPickup) && next == StopFailed)
+	case "DROP":
+		allowed = (current == StopPending && next == StopAtCustomer) ||
+			(current == StopAtCustomer && next == StopDelivered) ||
+			((current == StopPending || current == StopAtCustomer) && next == StopFailed)
+	}
+	if !allowed {
+		return fmt.Errorf("%w: invalid %s stop transition %s -> %s", ErrConflict, stopType, current, next)
+	}
+	return nil
+}
 
 // ErrNotFound is returned when a rider/order/stop does not exist.
 var ErrNotFound = errors.New("delivery: not found")

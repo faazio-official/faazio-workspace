@@ -125,11 +125,16 @@ state-scoped: `GET /delivery/register/pending`, `GET /delivery/register/{id}`,
   `delivery_orders.excluded_rider_ids`, then re-scores the remaining candidates and re-offers the
   same job (`dispatch_attempts` increments). The chain stops after
   `DELIVERY_MAX_DISPATCH_ATTEMPTS` (default 5) or when no eligible rider remains; a job is never
-  re-offered to a rider who already declined it.
-- Stop transitions are `AT_PICKUP → PICKED_UP → AT_CUSTOMER → DELIVERED` (or `FAILED`). A
-  high-risk/prepaid order may set `require_otp`; the 4-digit code is generated server-side, stored as
-  SHA-256(code + stop id), and never returned in the rider projection. Only `/delivery/otp/verify`
-  can mark that stop delivered.
+  re-offered to a rider who already declined it. The gateway expiry worker releases an `ASSIGNED`
+  offer whose 45 s window elapsed and runs the same fallback chain, excluding the unresponsive rider.
+- Stop transitions are enforced server-side and forward-only: pickup `PENDING → AT_PICKUP →
+  PICKED_UP`, drop `PENDING → AT_CUSTOMER → DELIVERED`, with `FAILED` allowed before a terminal
+  state. A drop cannot advance until its pickup is `PICKED_UP`; a failed pickup cancels the job and
+  releases capacity. Completing a route never overrides the rider's explicit availability toggle.
+- A high-risk/prepaid order may set `require_otp`; the 4-digit code is generated server-side, stored
+  as SHA-256(code + stop id), and never returned in the rider projection. Only
+  `/delivery/otp/verify` can mark that stop delivered. Attempts are bounded at 5 (`429 otp_locked`,
+  migration `0045`); the hash/expiry are cleared on delivery so a code cannot be replayed.
 - Every mutation writes an `admins.audit_logs` row through `contracts.AuditWriter`.
 - **Phase 5 payout splitting is not implemented.** `payout_amount_paisa` is display-only.
 
