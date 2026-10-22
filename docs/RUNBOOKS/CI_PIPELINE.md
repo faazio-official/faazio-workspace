@@ -28,6 +28,7 @@ Three workflows:
 ```
 you (gh CLI) ──► GitHub Actions
                     ├─ Checkout
+                    ├─ Free disk space                   ← drop unused runner toolchains/SDK images
                     ├─ Setup Node 24 + JDK 21
                     ├─ gradle/actions/setup-gradle      ← caches ~/.gradle + build cache
                     ├─ Tune Gradle for CI runner         ← ~/.gradle overrides laptop caps
@@ -56,6 +57,9 @@ you (gh CLI) ──► GitHub Actions
 - **2-ABI build + R8:** `reactNativeArchitectures=arm64-v8a,armeabi-v7a` and both minify/shrink
   flags are passed via `-P` (they read `android/app/build.gradle`'s `findProperty`). Minified
   builds emit `mapping.txt`, uploaded as a **private** artifact for crash retracing.
+- **Disk headroom:** the "Free disk space" step removes unused runner payloads (`.NET`, GHC,
+  Boost, Swift, emulator/system images) before Gradle starts. Without it the runner's root
+  filesystem can fill mid-build and the job dies with `No space left on device`.
 - **`concurrency: group: release-apk`** prevents two release builds from running at once.
 
 - **`android/` + `ios/` are committed** (bare RN) and are the source of truth. CI builds them
