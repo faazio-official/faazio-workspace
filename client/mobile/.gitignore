@@ -5,8 +5,10 @@
 # Generated JS/config (scripts/configure.js) — never commit.
 /src/lib/config.ts
 /src/lib/activeTransport.ts
+/src/lib/appVariant.ts
 /src/lib/config.js
 /src/lib/activeTransport.js
+/src/lib/appVariant.js
 
 # Committed bare-RN native projects are the source of truth (no prebuild).
 # Only build outputs / installable APKs / local secrets are ignored.

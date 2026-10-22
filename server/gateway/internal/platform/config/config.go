@@ -22,8 +22,13 @@ type Config struct {
 	PortalJWTSecret string
 	// PortalPepper is the server-side HMAC pepper applied before Argon2id. Empty is allowed for
 	// local dev; production must set it (see docs/RUNBOOKS/PORTAL_AUTH.md).
-	PortalPepper       string
-	FirebaseProjectID  string
+	PortalPepper      string
+	FirebaseProjectID string
+	// GoogleRoutesAPIKey backs the road-aware dispatch matrix (Routes API, server-side only).
+	// The mobile Maps SDK key is a separate, app-restricted client key. Empty = straight-line
+	// fallback for local/dev. Push delivery reuses the notifications outbox, so no service-account
+	// JSON lives in the gateway.
+	GoogleRoutesAPIKey string
 	SupabaseURL        string
 	SupabaseServiceKey string
 	PrescriptionBucket string
@@ -79,6 +84,7 @@ func Load() Config {
 		PortalJWTSecret:       env("PORTAL_JWT_SECRET", ""),
 		PortalPepper:          env("PORTAL_PEPPER", ""),
 		FirebaseProjectID:     env("FIREBASE_PROJECT_ID", ""),
+		GoogleRoutesAPIKey:    env("GOOGLE_ROUTES_API_KEY", ""),
 		SupabaseURL:           env("SUPABASE_URL", ""),
 		SupabaseServiceKey:    env("SUPABASE_SERVICE_KEY", ""),
 		PrescriptionBucket:    env("PRESCRIPTION_BUCKET", "prescriptions"),

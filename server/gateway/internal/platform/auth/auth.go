@@ -425,3 +425,19 @@ func claimsFromRequest(r *http.Request, secret []byte) (jwtClaims, error) {
 	}
 	return claims, nil
 }
+
+// Phone returns the verified `phone_number` claim (E.164), or "" for anonymous/legacy/dev callers.
+func Phone(ctx context.Context) string {
+	if id, ok := ctx.Value(identityKey{}).(Identity); ok {
+		return id.Phone
+	}
+	return ""
+}
+
+// Dev reports whether the identity came from AUTH_DISABLED X-Dev-* headers. Production is always false.
+func Dev(ctx context.Context) bool {
+	if id, ok := ctx.Value(identityKey{}).(Identity); ok {
+		return id.Dev
+	}
+	return false
+}

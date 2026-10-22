@@ -33,7 +33,7 @@ src/
 │   # fragile react-native-svg `<Image>` + base64 data-URI path; size is applied to
 │   # the visible glyph box (829×227) so both variants share one optical scale.
 │   └── shared/                 # 15 reusable primitives (ProductCardBase, StoreCardBase, Screen, AdBannerCarousel, …)
-├── features/                   # vertical feature modules (15)
+├── features/                   # vertical feature modules (16)
 ├── navigation/                 # AppNavigator, MainTabs, FoodStack, types
 ├── services/                   # GatewayClient, logout, secureSession, categoryVendors, homeFeed, pricing
 ├── state/                      # Zustand stores (12)
@@ -43,8 +43,11 @@ src/
 
 ### Features (`src/features/`)
 
-`auth` · `cart` · `catalog` · `dinner-booking` · `ecommerce` · `favourites` · `food` ·
-`home` · `onboarding` · `pharma` · `product` · `profile` · `rewards` · `search` · `sub-app`
+`auth` · `cart` · `catalog` · `delivery-partner` · `dinner-booking` · `ecommerce` · `favourites` ·
+`food` · `home` · `onboarding` · `pharma` · `product` · `profile` · `rewards` · `search` · `sub-app`
+
+`delivery-partner` is the **standalone Delivery Partner app** (not a customer route): see
+"Delivery Partner app" below.
 
 The former `grocery` sub-app was removed: grocery products/stores merged into Mart
 (`ecommerce`), the `GROCERY` `SubAppId` was dropped, and the `grocery-home/` components,
@@ -575,6 +578,7 @@ still separate files; consolidating them is tracked in `client/mobile/PENDING_WO
 | `rewardsStore` | FaazioCoins balance, order streak, discount card + activity ledger (persisted AsyncStorage `faazio/rewards/v1`, reset on logout) |
 | `ordersStore` | In-session placed orders (`PlacedOrder`: items or prescription kind) + a durable `serverOrders` slice hydrated from `gateway.getOrders()` at startup (remote mode); `recordOrder` / `hydrateServerOrders` / `getOrderById` (server history wins); `storeIds` vendor-identity snapshot captured at placement |
 | `vendorRatingStore` | The signed-in user's live vendor ratings (one per `(user, vendor)`, latest wins) + verified-purchase `orderIds`; persisted AsyncStorage `faazio/vendor-ratings/v1`, reset on logout |
+| `deliveryPartnerStore` | Partner-app only: verified application phone + the rider/detail projection from `GET /delivery/me`. The Firebase session itself stays in `authStore`/Keychain and is never duplicated here |
 
 ### Services (`src/services/`)
 
@@ -675,6 +679,41 @@ AppNavigator (root native stack)
 
 Entry is `Onboarding` (or `MainTabs` when authenticated) — decided in `AppNavigator.tsx`
 from `useAuthStore.isAuthenticated`.
+
+## Delivery Partner app (`APP_VARIANT=delivery`)
+
+The partner experience is a **separate product root**, not a tab or a deep link in the customer
+SuperApp. `scripts/configure.js` writes `src/lib/appVariant.ts`; `index.js` mounts
+`src/DeliveryPartnerApp.tsx` (its own `NavigationContainer` + `DeliveryPartnerNavigator`) when the
+variant is `delivery` and the unchanged customer `App` otherwise. The customer navigator, tabs and
+sub-apps are never mounted in the partner build.
+
+```
+DeliveryPartnerNavigator (native stack, no customer screens)
+├── PhoneEntry   — 10-digit entry → Firebase phone OTP; resumes an existing session via GET /delivery/me
+├── OtpVerify    — 6-digit code → authStore Keychain session
+├── Register     — KYC application: profile, live Aadhaar/selfie/PAN + motor DL/RC/insurance capture,
+│                  vehicle-capped capacity, bank details (private R2 uploads → POST /delivery/register)
+├── Status       — applied / pending / verified / rejected / suspended state + reupload reason
+├── Dashboard    — Go Online toggle (PUT /delivery/availability), Valkey heartbeat every 120 s while
+│                  foregrounded, 45 s offer cards (accept/reject), active multi-stop jobs
+└── Route        — server-ordered pickup/drop stops, Arrived/Picked Up/Delivered transitions,
+                   customer-OTP handover, post-delivery rating
+```
+
+**Native identity.** One committed RN shell, two products: the Android `customer`/`delivery`
+product flavors (`com.faazio.customer` / `com.faazio.deliverypartner`) and the iOS
+`Debug`/`Release` plus `Delivery-Debug`/`Delivery-Release` configurations (same bundle split).
+The partner build needs its own Firebase Android app + iOS plist and must be configured with
+`APP_VARIANT=delivery` (the iOS bundle phase hard-fails otherwise). CI builds them explicitly
+(`assembleCustomerDebug` / `assembleDeliveryDebug`); see `docs/RUNBOOKS/RELEASE.md`.
+
+**Known MVP limits** (tracked in `client/mobile/PENDING_WORK.md`): background/terminated-app
+location (foreground service + background-fetch) is not wired, so heartbeats run only while the app
+is foregrounded; FCM order pings are registered and refresh offers on arrival, but delivery needs
+the gateway `PUSH_WEBHOOK_URL` bridge and a tap only opens the dashboard (no per-order deep link);
+reject does not re-run the dispatch fallback chain. Payout splits (Phase 5) are intentionally not
+built.
 
 ### Phone-auth flow (Login)
 

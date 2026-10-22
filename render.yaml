@@ -10,6 +10,8 @@
 #   PORTAL_JWT_SECRET (openssl rand -base64 48), PORTAL_PEPPER (openssl rand -base64 32) — gateway-native
 #   portal auth (migrations 0032 + 0033); provisioning: docs/RUNBOOKS/PORTAL_AUTH.md,
 #   R2_ACCESS_KEY_ID, R2_SECRET_ACCESS_KEY,
+#   GOOGLE_ROUTES_API_KEY (server-side Routes API key for road-aware delivery dispatch; optional —
+#   unset means the straight-line fallback),
 #   MONGO_DATABASE=faazio, PRESCRIPTION_BUCKET=prescriptions,
 #   SUPABASE_URL=https://mivisyjvvizyyidjdjmh.supabase.co,
 #   R2_ACCOUNT_ID=28cbf78411f854a8a41a5b737e698004, R2_PUBLIC_BUCKET=faazio-public,
@@ -42,6 +44,10 @@ services:
       # the gateway verifies RS256 signatures against Google's published certificate set.
       - key: FIREBASE_PROJECT_ID
         value: project-65696e12-8def-460e-b29
+      # Routes API (delivery dispatch road time). Server-only key; restrict it to Routes API.
+      # Unset is safe: dispatch falls back to a Haversine/urban-speed estimate.
+      - key: GOOGLE_ROUTES_API_KEY
+        sync: false
       # Money/Rx writes must never run against an auth-disabled gateway in production.
       - key: AUTH_DISABLED
         value: "false"

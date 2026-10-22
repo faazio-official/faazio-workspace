@@ -139,6 +139,19 @@ func PromoActiveDiscount(productID string) string {
 func Settlement(sellerID, cycle string) string {
 	return fmt.Sprintf("faazio:v1:settlement:%s:%s", sellerID, cycle)
 }
+
+// DeliveryRiderLocation is the live rider coordinate (delivery:rider:{id}:location). It is the
+// authoritative dispatch source and expires after TTLDeliveryRiderLocation, so a stopped heartbeat
+// removes the rider from candidates. DeliveryRouteLeg caches one Routes API matrix leg for 5
+// minutes; coordinates are rounded to ~11 m so nearby retries share the cached call.
+func DeliveryRiderLocation(riderID string) string {
+	return fmt.Sprintf("delivery:rider:%s:location", riderID)
+}
+func DeliveryRiderLocationPrefix() string { return "delivery:rider:" }
+func DeliveryRouteLeg(fromLat, fromLng, toLat, toLng float64) string {
+	return fmt.Sprintf("delivery:route:%.4f,%.4f:%.4f,%.4f", fromLat, fromLng, toLat, toLng)
+}
+
 func AuthUser(authUID string) string {
 	sum := sha256.Sum256([]byte(authUID))
 	return "faazio:v1:auth:uid:" + hex.EncodeToString(sum[:])
@@ -238,6 +251,11 @@ const (
 
 	// Portal auth. Login counters are a rolling 60 s window; the access-token denylist only needs to
 	// outlive the 15-minute access token; refresh sessions live in Postgres for 30 days.
+	// Delivery: a rider heartbeat is authoritative for 5 minutes; the Routes matrix cache shares
+	// the same window to cap Google API spend.
+	TTLDeliveryRiderLocation = 300 * time.Second
+	TTLDeliveryRoute         = 300 * time.Second
+
 	TTLPortalLoginWindow = 60 * time.Second
 	TTLPortalDeny        = 15 * time.Minute
 	TTLPortalRefresh     = 30 * 24 * time.Hour

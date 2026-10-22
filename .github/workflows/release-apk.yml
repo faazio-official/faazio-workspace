@@ -18,6 +18,14 @@ name: Release APK
 on:
   workflow_dispatch:
     inputs:
+      app:
+        description: "Product to build"
+        required: true
+        type: choice
+        options:
+          - customer
+          - delivery
+        default: customer
       version:
         description: "Release version (e.g. 1.0.2) — overrides package.json"
         required: false
@@ -112,8 +120,22 @@ jobs:
           ALIAS_PASS: ${{ secrets.ALIAS_PASS }}
           STORE_FILE: ${{ secrets.STORE_FILE }}
 
+      - name: Delivery Firebase config
+        if: ${{ github.event.inputs.app == 'delivery' }}
+        env:
+          GOOGLE_SERVICES_DELIVERY_JSON: ${{ secrets.GOOGLE_SERVICES_DELIVERY_JSON }}
+        run: |
+          if [ -z "$GOOGLE_SERVICES_DELIVERY_JSON" ]; then
+            echo "::error::GOOGLE_SERVICES_DELIVERY_JSON is not set. Register com.faazio.deliverypartner in Firebase and store its google-services.json as the secret."
+            exit 1
+          fi
+          printf '%s' "$GOOGLE_SERVICES_DELIVERY_JSON" > android/app/src/delivery/google-services.json
+
       - name: Typecheck
         run: npm run ts:check
+        env:
+          # ts:check re-runs configure.js; keep the selected product variant from being reset.
+          APP_VARIANT: ${{ github.event.inputs.app }}
 
       - name: Generate JS/native config (release)
         run: npm run configure
@@ -125,13 +147,18 @@ jobs:
           STRICT: "true"
           USE_FIREBASE_AUTH: "true"
           CERT_PINS: ${{ secrets.CERT_PINS }}
+          APP_VARIANT: ${{ github.event.inputs.app }}
 
       - name: Build release APK
         run: |
           cd android
+          case "${{ github.event.inputs.app }}" in
+            delivery) TASK=assembleDeliveryRelease ;;
+            *) TASK=assembleCustomerRelease ;;
+          esac
           # R8 minify + resource shrinking ON → smaller dex + obfuscation.
           # ABI restricted to REACT_NATIVE_ARCHS → less native work + payload.
-          ./gradlew assembleRelease --no-daemon \
+          ./gradlew "$TASK" --no-daemon \
             -PreactNativeArchitectures="$REACT_NATIVE_ARCHS" \
             -Pandroid.enableMinifyInReleaseBuilds=true \
             -Pandroid.enableShrinkResourcesInReleaseBuilds=true
@@ -139,8 +166,8 @@ jobs:
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
         with:
-          name: faazio-${{ github.event.inputs.version || 'release' }}-apk
-          path: client/mobile/android/app/build/outputs/apk/release/*.apk
+          name: faazio-${{ github.event.inputs.app }}-${{ github.event.inputs.version || 'release' }}-apk
+          path: client/mobile/android/app/build/outputs/apk/${{ github.event.inputs.app }}/release/*.apk
           if-no-files-found: error
 
       # R8 mapping.txt is REQUIRED to retrace minified crash stack traces.
@@ -149,20 +176,27 @@ jobs:
       - name: Upload R8 mapping (private artifact)
         uses: actions/upload-artifact@v4
         with:
-          name: faazio-mapping-${{ github.run_id }}
-          path: client/mobile/android/app/build/outputs/mapping/release/mapping.txt
+          name: faazio-${{ github.event.inputs.app }}-mapping-${{ github.run_id }}
+          path: client/mobile/android/app/build/outputs/mapping/${{ github.event.inputs.app }}Release/mapping.txt
           if-no-files-found: ignore
 
       - name: Publish GitHub Release
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
+          APP="${{ github.event.inputs.app }}"
           VERSION="$(node -p "require('./package.json').version")"
-          TAG="v${VERSION}"
+          if [[ "$APP" == "delivery" ]]; then
+            APP_NAME="Faazio Delivery"
+            TAG="v${VERSION}-delivery"
+          else
+            APP_NAME="Faazio"
+            TAG="v${VERSION}"
+          fi
           if [[ -n "${{ github.event.inputs.tag }}" ]]; then
             TAG="${{ github.event.inputs.tag }}"
           fi
-          NOTES="Automated release APK build via GitHub Actions.\n\nVersion: ${VERSION}\n"
+          NOTES="Automated ${APP_NAME} APK build via GitHub Actions.\n\nVersion: ${VERSION}\n"
           PRERELEASE=""
           if [[ "${{ github.event.inputs.prerelease }}" == "true" ]]; then
             PRERELEASE="--prerelease"
@@ -170,14 +204,14 @@ jobs:
 
           # Create the release (idempotent; --clobber replaces existing APK).
           gh release create "$TAG" \
-            --title "Faazio ${VERSION}" \
+            --title "${APP_NAME} ${VERSION}" \
             --notes "$(printf "$NOTES")" \
             $PRERELEASE \
             || true
 
           # Attach (replace) the APK on the release.
           gh release upload "$TAG" \
-            android/app/build/outputs/apk/release/*.apk \
+            "android/app/build/outputs/apk/${APP}/release/"*.apk \
             --clobber
 
-          echo "::notice::Published Faazio ${VERSION} to release ${TAG}"
+          echo "::notice::Published ${APP_NAME} ${VERSION} to release ${TAG}"

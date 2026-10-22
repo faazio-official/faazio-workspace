@@ -45,6 +45,7 @@ The release keystore + signing properties are stored as GitHub repository secret
 | `GOOGLE_MAPS_API_KEY_ANDROID` | restricted Maps SDK key; `configure.js` writes the manifest string resource (empty ⇒ blank shop-pin map) |
 | `GOOGLE_PLACES_API_KEY` | restricted Places API (New) key for address autocomplete (empty ⇒ static suggestions) |
 | `USE_FIREBASE_AUTH` | `true` (default) — phone OTP via the committed native Firebase config |
+| `GOOGLE_SERVICES_DELIVERY_JSON` | the **partner** Android `google-services.json` (Firebase app registered for `com.faazio.deliverypartner`); required only for `app=delivery` builds |
 
 `configure.js` **fails the release** when `USE_GATEWAY=true` and `CERT_PINS` is missing, or when
 `USE_FIREBASE_AUTH=false`, or when `android/app/google-services.json` /
@@ -74,8 +75,8 @@ cd client/mobile
 # 1) Bump the version (or pass it to the workflow)
 #    edit package.json -> version, e.g. "1.1.0"
 
-# 2) Trigger the CI build + release
-gh workflow run release-apk.yml -f version=1.0.2 -f tag=v1.0.2
+# 2) Trigger the CI build + release (app=customer|delivery)
+gh workflow run release-apk.yml -f app=customer -f version=1.0.2 -f tag=v1.0.2
 
 # 3) Watch it finish
 gh run watch
@@ -137,14 +138,15 @@ adb install -r app-release.apk
 `systemd-oomd` kills Gradle under memory pressure. Build on GitHub's runners instead:
 
 ```bash
-gh workflow run android-debug.yml
+gh workflow run android-debug.yml -f app=customer   # or -f app=delivery
 gh run watch
-gh run download <run-id> -n faazio-debug-apk   # -> app-debug.apk
-adb install -r app-debug.apk
+gh run download <run-id> -n faazio-customer-debug-apk   # -> app-customer-debug.apk
+adb install -r app-customer-debug.apk
 adb reverse tcp:8081 tcp:8081                   # then `npm run start` locally for Metro
 ```
 
-See `docs/RUNBOOKS/CI_PIPELINE.md` → "Trigger a debug build".
+`app=delivery` builds the standalone partner app (`com.faazio.deliverypartner`); it requires the
+`GOOGLE_SERVICES_DELIVERY_JSON` secret. See `docs/RUNBOOKS/CI_PIPELINE.md` → "Trigger a debug build".
 
 ### No local release build (CI-only)
 
@@ -157,11 +159,16 @@ npm run configure                       # release env: CONFIGURE_RELEASE=1, GATE
                                         # CERT_PINS, USE_FIREBASE_AUTH, GOOGLE_MAPS_API_KEY_ANDROID,
                                         # GOOGLE_PLACES_API_KEY
 bash scripts/restore-keystore.sh
-cd android && ./gradlew assembleRelease --no-daemon \
+cd android && ./gradlew assembleCustomerRelease --no-daemon \
   -PreactNativeArchitectures=arm64-v8a,armeabi-v7a \
   -Pandroid.enableMinifyInReleaseBuilds=true \
   -Pandroid.enableShrinkResourcesInReleaseBuilds=true
 ```
+
+The Android project has two product flavors: `customer` (`com.faazio.customer`) and `delivery`
+(`com.faazio.deliverypartner`, label "Faazio Delivery"). Always name the flavor in the task —
+`assembleDebug` would try both and the partner flavor needs its own Firebase config. The same
+split exists on iOS as the `Delivery-Debug` / `Delivery-Release` build configurations.
 
 To verify a **downloaded** APK is signed with the release cert (not the debug cert):
 ```bash
@@ -183,6 +190,14 @@ apksigner verify --verbose --print-certs app-release.apk
 ## 🍎 App Store (iOS)
 
 Requires macOS + Xcode; run `cd client/mobile && npm install && cd ios && pod install` first.
+
+The partner app is a separate listing built from the same target with the `Delivery-Release`
+configuration (`com.faazio.deliverypartner`, display name "Faazio Delivery"). Before archiving it:
+1. Put the partner `GoogleService-Info-Delivery.plist` in `ios/Faazio/` (the build phase copies it
+   over the bundled customer plist; a Delivery build fails without it).
+2. Run `APP_VARIANT=delivery npm run configure` so `src/lib/appVariant.ts` selects the partner root
+   (the bundle phase hard-fails otherwise).
+3. In Xcode, Edit Scheme → Archive → Build Configuration → `Delivery-Release`, then Archive.
 
 ```bash
 cd client/mobile

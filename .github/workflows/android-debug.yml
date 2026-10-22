@@ -5,14 +5,26 @@ name: Android Debug APK
 # local Metro bundler:
 #   gh workflow run android-debug.yml
 #   gh run watch
-#   gh run download <run-id> -n faazio-debug-apk
-#   adb install -r app-debug.apk
+#   gh run download <run-id> -n faazio-customer-debug-apk
+#   adb install -r app-customer-debug.apk
 #   adb reverse tcp:8081 tcp:8081   # then run `npm run start` in client/mobile
+#
+# Two products share this native shell. Pick `app: delivery` for the standalone
+# Delivery Partner app (applicationId com.faazio.deliverypartner). That build needs the
+# `GOOGLE_SERVICES_DELIVERY_JSON` secret (the partner Android app from the Firebase console).
 #
 # The committed android/ project is the source of truth — no prebuild step.
 on:
   workflow_dispatch:
     inputs:
+      app:
+        description: "Product to build"
+        required: true
+        type: choice
+        options:
+          - customer
+          - delivery
+        default: customer
       archs:
         description: "ABIs to build (comma-separated)"
         required: false
@@ -66,6 +78,17 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Delivery Firebase config
+        if: ${{ github.event.inputs.app == 'delivery' }}
+        env:
+          GOOGLE_SERVICES_DELIVERY_JSON: ${{ secrets.GOOGLE_SERVICES_DELIVERY_JSON }}
+        run: |
+          if [ -z "$GOOGLE_SERVICES_DELIVERY_JSON" ]; then
+            echo "::error::GOOGLE_SERVICES_DELIVERY_JSON is not set. Register com.faazio.deliverypartner in Firebase and store its google-services.json as the secret."
+            exit 1
+          fi
+          printf '%s' "$GOOGLE_SERVICES_DELIVERY_JSON" > android/app/src/delivery/google-services.json
+
       - name: Generate JS/native config
         run: npm run configure
         env:
@@ -75,19 +98,27 @@ jobs:
           USE_GATEWAY: "true"
           STRICT: "true"
           USE_FIREBASE_AUTH: "true"
+          APP_VARIANT: ${{ github.event.inputs.app }}
 
       - name: Typecheck
         run: npm run ts:check
+        env:
+          # ts:check re-runs configure.js; keep the selected product variant from being reset.
+          APP_VARIANT: ${{ github.event.inputs.app }}
 
       - name: Build debug APK
         run: |
           cd android
-          ./gradlew assembleDebug --no-daemon \
+          case "${{ github.event.inputs.app }}" in
+            delivery) TASK=assembleDeliveryDebug ;;
+            *) TASK=assembleCustomerDebug ;;
+          esac
+          ./gradlew "$TASK" --no-daemon \
             -PreactNativeArchitectures="${{ github.event.inputs.archs }}"
 
       - name: Upload debug APK artifact
         uses: actions/upload-artifact@v4
         with:
-          name: faazio-debug-apk
-          path: client/mobile/android/app/build/outputs/apk/debug/*.apk
+          name: faazio-${{ github.event.inputs.app }}-debug-apk
+          path: client/mobile/android/app/build/outputs/apk/${{ github.event.inputs.app }}/debug/*.apk
           if-no-files-found: error

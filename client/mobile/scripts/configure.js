@@ -26,6 +26,7 @@ const ROOT = path.resolve(__dirname, '..');
 const LIB_DIR = path.join(ROOT, 'src', 'lib');
 const CONFIG_FILE = path.join(LIB_DIR, 'config.ts');
 const TRANSPORT_FILE = path.join(LIB_DIR, 'activeTransport.ts');
+const VARIANT_FILE = path.join(LIB_DIR, 'appVariant.ts');
 const NSC_FILE = path.join(
   ROOT,
   'android',
@@ -94,18 +95,27 @@ const devUser = env('DEV_USER').trim();
 const googleMapsAndroidKey = env('GOOGLE_MAPS_API_KEY_ANDROID').trim();
 const googleMapsIosKey = env('GOOGLE_MAPS_API_KEY_IOS').trim();
 const googlePlacesKey = env('GOOGLE_PLACES_API_KEY').trim();
+const appVariantRaw = env('APP_VARIANT').trim().toLowerCase();
+const appVariant = appVariantRaw === 'delivery' ? 'delivery' : 'customer';
 const firebaseSetting = env('USE_FIREBASE_AUTH').trim().toLowerCase();
 const useFirebaseAuth = firebaseSetting === '' || ['1', 'true', 'yes'].includes(firebaseSetting);
 const isRelease = flag('CONFIGURE_RELEASE');
 const requirePins = flag('REQUIRE_CERT_PINS');
 const transport = isRelease ? 'embedded' : 'metro';
 
-const GOOGLE_SERVICES_JSON = path.join(ROOT, 'android', 'app', 'google-services.json');
+// Each product has its own Firebase app entry (distinct package/bundle id). The partner build
+// must not silently reuse the customer config — Firebase rejects the mismatched package.
+const GOOGLE_SERVICES_JSON = path.join(
+  ROOT,
+  'android',
+  'app',
+  appVariant === 'delivery' ? 'src/delivery/google-services.json' : 'google-services.json',
+);
 const GOOGLE_SERVICE_INFO_PLIST = path.join(
   ROOT,
   'ios',
   'Faazio',
-  'GoogleService-Info.plist',
+  appVariant === 'delivery' ? 'GoogleService-Info-Delivery.plist' : 'GoogleService-Info.plist',
 );
 
 const pins = String(env('CERT_PINS'))
@@ -199,6 +209,14 @@ export const GOOGLE_PLACES_API_KEY = ${JSON.stringify(googlePlacesKey)};
 );
 
 write(
+  VARIANT_FILE,
+  `${header}
+/** 'delivery' selects the isolated Delivery Partner root; 'customer' is the SuperApp. */
+export const APP_VARIANT: 'customer' | 'delivery' = ${JSON.stringify(appVariant)};
+`,
+);
+
+write(
   TRANSPORT_FILE,
   `${header}
 export type Transport = 'metro' | 'embedded';
@@ -249,6 +267,6 @@ if (isRelease && fs.existsSync(path.dirname(NSC_FILE))) {
 }
 
 console.log(
-  `[configure] transport=${transport} gateway=${gatewayUrl || '(mock)'} ` +
+  `[configure] app=${appVariant} transport=${transport} gateway=${gatewayUrl || '(mock)'} ` +
     `useGateway=${useGateway} strict=${strict} firebaseAuth=${useFirebaseAuth} pins=${pins.length}`,
 );
