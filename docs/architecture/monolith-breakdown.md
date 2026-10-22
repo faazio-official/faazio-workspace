@@ -63,7 +63,9 @@ RN workspace with its own Metro entry (`index.delivery.js` → `src/DeliveryPart
 flavor and iOS configuration; neither product bundles the other's screens. The gateway owns KYC
 review, vehicle-capped capacity, availability, Valkey live coordinates, road-aware candidate scoring
 (Google Routes API, `GOOGLE_ROUTES_API_KEY`; straight-line fallback when unset), multi-stop jobs,
-bounded reject→reassign fallback, hashed customer-OTP handover and ratings. Order pings enqueue
+bounded reject→reassign fallback, hashed customer-OTP handover and ratings. The checkout `PACKED`
+transition calls the internal `contracts.DeliveryDispatcher` (single-store orders) with the stored
+drop fix; assignment is idempotent per customer order and best-effort. Order pings enqueue
 through the existing `contracts.Notifier` outbox, and the partner app registers its FCM token
 through the existing `notifications` context, so no second push stack is introduced. Android runs an
 ongoing location foreground service that wakes the heartbeat headless task while online. Phase 5

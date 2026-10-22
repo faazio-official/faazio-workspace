@@ -626,6 +626,19 @@ func (r *Repo) Route(ctx context.Context, riderID, orderID string) (Order, error
 	return r.orderByID(ctx, riderID, orderID)
 }
 
+// HasCustomerOrder reports whether a customer order already has a delivery job. It makes the
+// checkout PACKED auto-dispatch idempotent (a repeated status update must not double-assign).
+func (r *Repo) HasCustomerOrder(ctx context.Context, customerOrderID string) (bool, error) {
+	if err := r.ready(); err != nil {
+		return false, err
+	}
+	var exists bool
+	err := r.pool.QueryRow(ctx,
+		`select exists (select 1 from delivery.delivery_orders where customer_order_id = $1)`,
+		customerOrderID).Scan(&exists)
+	return exists, err
+}
+
 // OrderByID returns one order (any rider) for the internal dispatch fallback chain.
 func (r *Repo) OrderByID(ctx context.Context, orderID string) (Order, error) {
 	return r.orderByID(ctx, "", orderID)

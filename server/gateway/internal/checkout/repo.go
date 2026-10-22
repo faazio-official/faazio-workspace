@@ -40,6 +40,10 @@ type Order struct {
 	VendorStoreIDs []string        `json:"vendorStoreIds"`
 	Pickup         json.RawMessage `json:"pickup,omitempty"`
 	Pickups        json.RawMessage `json:"pickups,omitempty"`
+	// DeliveryLatitude/Longitude are the customer's live drop fix captured at placement. Internal
+	// only (never serialized to the app): auto-dispatch at PACKED and admin assignment use them.
+	DeliveryLatitude  *float64 `json:"-"`
+	DeliveryLongitude *float64 `json:"-"`
 }
 
 // OrderTracking is the lightweight owner-scoped status projection (polling/monitoring): no line
@@ -499,10 +503,11 @@ func (r *Repo) InsertOrder(ctx context.Context, o Order, lines []OrderLineItem, 
 	}
 	if _, err := tx.Exec(ctx, `
 		insert into checkout.orders
-		  (order_id, order_number, user_id, address_id, placed_at, status, fulfillment, total_paisa, vendor_store_ids, pickup, pickups)
-		values ($1,$2,$3,$4, now(), $5::order_status, $6::fulfillment_mode, $7, $8, $9::jsonb, $10::jsonb)`,
+		  (order_id, order_number, user_id, address_id, placed_at, status, fulfillment, total_paisa, vendor_store_ids, pickup, pickups,
+		   delivery_latitude, delivery_longitude)
+		values ($1,$2,$3,$4, now(), $5::order_status, $6::fulfillment_mode, $7, $8, $9::jsonb, $10::jsonb, $11, $12)`,
 		o.ID, o.OrderNumber, o.UserID, nullIfEmpty(o.AddressID), o.Status, fulfillment, totalPaisa(lines), o.VendorStoreIDs,
-		nullIfEmptyJSON(o.Pickup), nullIfEmptyJSON(o.Pickups)); err != nil {
+		nullIfEmptyJSON(o.Pickup), nullIfEmptyJSON(o.Pickups), o.DeliveryLatitude, o.DeliveryLongitude); err != nil {
 		return err
 	}
 	for _, li := range lines {
@@ -821,6 +826,50 @@ func (r *Repo) OrderDetail(ctx context.Context, orderID, userID string) (Order, 
 		return Order{}, false, nil
 	}
 	return r.OrderByID(ctx, orderID)
+}
+
+// DeliveryContext is the minimal order + customer drop projection auto-dispatch needs. It is
+// internal-only (PII never leaves the gateway; no JSON tags needed for a client response).
+type DeliveryContext struct {
+	OrderID       string
+	UserID        string
+	AddressID     string
+	Fulfillment   string
+	StoreIDs      []string
+	CustomerName  string
+	CustomerPhone string
+	CustomerAddr  string
+	Latitude      *float64
+	Longitude     *float64
+}
+
+// DeliveryContextForOrder reads the sender drop snapshot for one order (no ownership scope: the
+// caller is the order-status transition, already authorized). Missing rows return ok=false.
+func (r *Repo) DeliveryContextForOrder(ctx context.Context, orderID string) (DeliveryContext, bool, error) {
+	if r.pool == nil {
+		return DeliveryContext{}, false, fmt.Errorf("checkout: database not configured")
+	}
+	var dc DeliveryContext
+	var fulfillment *string
+	err := r.pool.QueryRow(ctx, `
+		select o.order_id, o.user_id, coalesce(o.address_id,''), o.fulfillment::text,
+		       o.vendor_store_ids, coalesce(a.name,''), coalesce(a.phone,''), coalesce(a.address,''),
+		       o.delivery_latitude, o.delivery_longitude
+		  from checkout.orders o
+		  left join checkout.addresses a on a.address_id = o.address_id
+		 where o.order_id = $1`, orderID).
+		Scan(&dc.OrderID, &dc.UserID, &dc.AddressID, &fulfillment, &dc.StoreIDs,
+			&dc.CustomerName, &dc.CustomerPhone, &dc.CustomerAddr, &dc.Latitude, &dc.Longitude)
+	if err == pgx.ErrNoRows {
+		return DeliveryContext{}, false, nil
+	}
+	if err != nil {
+		return DeliveryContext{}, false, err
+	}
+	if fulfillment != nil {
+		dc.Fulfillment = *fulfillment
+	}
+	return dc, true, nil
 }
 
 // OrderTrackingForUser returns the lightweight status projection for one of the caller's own orders

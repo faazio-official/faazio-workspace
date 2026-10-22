@@ -670,15 +670,70 @@ func (h *Handler) assign(w http.ResponseWriter, r *http.Request) {
 	if auth.Role(r.Context()) == auth.RoleStateAdmin {
 		stateCode = auth.StateCode(r.Context())
 	}
-	candidates, err := h.candidateRiders(r.Context(), stateCode, nil)
+	created, otp, assigned, err := h.dispatch(r.Context(), req, stateCode)
 	if err != nil {
 		h.writeErr(w, err)
 		return
 	}
-	best := PickRider(candidates, *req.StoreLatitude, *req.StoreLongitude, h.matrix)
-	if best == nil {
+	if !assigned {
 		httpx.Fail(w, http.StatusServiceUnavailable, "no_rider_available", "no rider is currently available")
 		return
+	}
+	resp := map[string]any{"order": created}
+	if otp != "" {
+		// Internal-only: the checkout context delivers this to the customer. Never logged.
+		resp["customerOtp"] = otp
+	}
+	httpx.JSON(w, http.StatusCreated, resp)
+}
+
+// DispatchOrder is the internal order-ready entry used by checkout. It is idempotent per customer
+// order (a repeated PACKED transition never double-assigns) and best-effort: assigned=false means
+// no eligible rider, never an error.
+func (h *Handler) DispatchOrder(ctx context.Context, req contracts.DeliveryDispatchRequest) (bool, error) {
+	if strings.TrimSpace(req.CustomerOrderID) == "" || strings.TrimSpace(req.StoreID) == "" {
+		return false, fmt.Errorf("%w: customer order and store are required", ErrConflict)
+	}
+	existing, err := h.repo.HasCustomerOrder(ctx, req.CustomerOrderID)
+	if err != nil {
+		return false, err
+	}
+	if existing {
+		return true, nil
+	}
+	storeLat, storeLng := req.StoreLatitude, req.StoreLongitude
+	dropLat, dropLng := req.DropLatitude, req.DropLongitude
+	_, _, assigned, err := h.dispatch(ctx, dispatchRequest{
+		CustomerOrderID:   req.CustomerOrderID,
+		StoreID:           req.StoreID,
+		StoreLabel:        req.StoreName,
+		StoreAddress:      req.StoreAddress,
+		StoreLatitude:     &storeLat,
+		StoreLongitude:    &storeLng,
+		CustomerName:      req.CustomerName,
+		CustomerPhone:     req.CustomerPhone,
+		CustomerAddress:   req.CustomerAddress,
+		DropLatitude:      &dropLat,
+		DropLongitude:     &dropLng,
+		RequireOTP:        req.RequireOTP,
+		PayoutAmountPaisa: req.PayoutAmountPaisa,
+	}, req.StateCode)
+	if err != nil {
+		return false, err
+	}
+	return assigned, nil
+}
+
+// dispatch picks the best candidate and creates the job + stops. It is shared by the admin assign
+// endpoint and checkout auto-dispatch; stateCode scopes candidate riders.
+func (h *Handler) dispatch(ctx context.Context, req dispatchRequest, stateCode string) (Order, string, bool, error) {
+	candidates, err := h.candidateRiders(ctx, stateCode, nil)
+	if err != nil {
+		return Order{}, "", false, err
+	}
+	best := PickRider(candidates, *req.StoreLatitude, *req.StoreLongitude, h.matrix)
+	if best == nil {
+		return Order{}, "", false, nil
 	}
 
 	orderID := "dlv-" + shortID()
@@ -712,21 +767,15 @@ func (h *Handler) assign(w http.ResponseWriter, r *http.Request) {
 		exp := time.Now().Add(10 * time.Minute)
 		otpExpires = &exp
 	}
-	created, err := h.repo.CreateOrder(r.Context(), order, stops, otpHash, otpExpires, expires)
+	created, err := h.repo.CreateOrder(ctx, order, stops, otpHash, otpExpires, expires)
 	if err != nil {
-		h.writeErr(w, err)
-		return
+		return Order{}, "", false, err
 	}
-	h.auditEvent(r.Context(), "DELIVERY_BOY_ASSIGN", created.OrderID, nil, map[string]any{
+	h.auditEvent(ctx, "DELIVERY_BOY_ASSIGN", created.OrderID, nil, map[string]any{
 		"riderId": best.Rider.RiderID, "customerOrderId": req.CustomerOrderID,
 	})
-	h.notifyRider(r.Context(), best.Rider, created)
-	resp := map[string]any{"order": created}
-	if otp != "" {
-		// Internal-only: the checkout context delivers this to the customer. Never logged.
-		resp["customerOtp"] = otp
-	}
-	httpx.JSON(w, http.StatusCreated, resp)
+	h.notifyRider(ctx, best.Rider, created)
+	return created, otp, true, nil
 }
 
 func (h *Handler) acceptOrder(w http.ResponseWriter, r *http.Request) {

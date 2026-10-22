@@ -199,6 +199,8 @@ export interface PlaceOrderInput {
   couponCode?: string;
   /** Buyer state for state-scoped coupon validation. */
   stateCode?: string;
+  /** Live drop fix at placement (delivery only) — persisted for order-ready auto-dispatch. */
+  deliveryLocation?: { latitude: number; longitude: number };
   /** Last-clicked sponsored slot for closed-loop ads attribution (best-effort). */
   attribution?: { slotId?: string };
 }

@@ -53,6 +53,12 @@ type PlaceOrderRequest struct {
 	Attribution struct {
 		SlotID string `json:"slotId,omitempty"`
 	} `json:"attribution,omitempty"`
+	// DeliveryLocation is the customer's live fix at placement (delivery fulfillment only). It is
+	// persisted for order-ready auto-dispatch; self-pickup orders leave it empty.
+	DeliveryLocation *struct {
+		Latitude  float64 `json:"latitude"`
+		Longitude float64 `json:"longitude"`
+	} `json:"deliveryLocation,omitempty"`
 }
 
 // Service orchestrates order placement with the idempotency lock + stock decrement.
@@ -71,6 +77,10 @@ type Service struct {
 func NewService(repo *Repo, stock contracts.StockWriter, cache *cache.Cache, rewards contracts.RewardsWriter, coupons contracts.CouponValidator, discounts contracts.DiscountReader, ads contracts.AdAttributor) *Service {
 	return &Service{repo: repo, stock: stock, cache: cache, rewards: rewards, coupons: coupons, discounts: discounts, ads: ads}
 }
+
+func validLatitude(v float64) bool { return v >= -90 && v <= 90 }
+
+func validLongitude(v float64) bool { return v >= -180 && v <= 180 }
 
 // discountedUnitPaisa applies an active festival discount (percent off) to a catalog price. A
 // discount outside (0,100) is ignored, so a malformed value can never raise the price.
@@ -215,6 +225,11 @@ func (s *Service) CreateOrder(ctx context.Context, userID string, req PlaceOrder
 		LineItems:      lines,
 		Pickup:         req.Pickup,
 		Pickups:        req.Pickups,
+	}
+	if req.Fulfillment == "DELIVERY" && req.DeliveryLocation != nil &&
+		validLatitude(req.DeliveryLocation.Latitude) && validLongitude(req.DeliveryLocation.Longitude) {
+		lat, lng := req.DeliveryLocation.Latitude, req.DeliveryLocation.Longitude
+		order.DeliveryLatitude, order.DeliveryLongitude = &lat, &lng
 	}
 
 	// Durable payment ledger: recorded in the same transaction as the order. The amount is derived
