@@ -2368,6 +2368,8 @@ export interface DeliveryOrder {
   completedAt?: string;
   createdAt: string;
   stops: DeliveryStop[];
+  /** Google-encoded line through the ordered stops (route endpoint only). */
+  polyline?: string;
 }
 
 export interface DeliveryApplicationInput {

@@ -17,9 +17,12 @@ import {
   onTokenRefresh,
   requestPermission,
 } from '@react-native-firebase/messaging';
+import type { RemoteMessage } from '@react-native-firebase/messaging';
 import { gateway } from './api/GatewayClient';
+import { openDeliveryOffer, startDeliveryOfferLinks } from './deliveryLinks';
 
 const platform: 'android' | 'ios' = Platform.OS === 'ios' ? 'ios' : 'android';
+let initialPushConsumed = false;
 
 async function syncToken(): Promise<void> {
   const token = await getToken(getMessaging());
@@ -34,12 +37,26 @@ function permissionGranted(status: number): boolean {
   );
 }
 
+/** Pull the order id out of an FCM data payload (values arrive as strings). */
+function offerFromMessage(message: RemoteMessage | null): string | null {
+  const data = message?.data as Record<string, unknown> | undefined;
+  const orderId = data?.orderId ?? data?.order_id;
+  return typeof orderId === 'string' && orderId ? orderId : null;
+}
+
+function handleMessage(message: RemoteMessage, onOffer: () => void) {
+  onOffer();
+  const orderId = offerFromMessage(message);
+  if (orderId) openDeliveryOffer({ orderId });
+}
+
 /**
  * Ask for notification permission, register the token and keep it fresh. `onOffer` runs when a
  * message arrives in the foreground or the rider taps an order notification. Returns a cleanup
  * that removes the listeners (the registered token stays valid for the user).
  */
 export async function startDeliveryPush(onOffer: () => void): Promise<() => void> {
+  const unsubLinks = startDeliveryOfferLinks();
   try {
     const messaging = getMessaging();
     if (permissionGranted(await requestPermission(messaging))) await syncToken();
@@ -47,22 +64,27 @@ export async function startDeliveryPush(onOffer: () => void): Promise<() => void
     const unsubToken = onTokenRefresh(messaging, (token) => {
       void gateway.registerPushToken(token, platform).catch(() => undefined);
     });
-    const unsubMessage = onMessage(messaging, () => onOffer());
-    const unsubOpen = onNotificationOpenedApp(messaging, () => onOffer());
+    const unsubMessage = onMessage(messaging, (message) => handleMessage(message, onOffer));
+    const unsubOpen = onNotificationOpenedApp(messaging, (message) => handleMessage(message, onOffer));
 
-    void getInitialNotification(messaging)
-      .then((initial) => {
-        if (initial) onOffer();
-      })
-      .catch(() => undefined);
+    // Cold-start notification survives Dashboard remounts; only route it once.
+    if (!initialPushConsumed) {
+      initialPushConsumed = true;
+      void getInitialNotification(messaging)
+        .then((initial) => {
+          if (initial) handleMessage(initial, onOffer);
+        })
+        .catch(() => undefined);
+    }
 
     return () => {
+      unsubLinks();
       unsubToken();
       unsubMessage();
       unsubOpen();
     };
   } catch {
-    // Permission denied or native Firebase not configured — polling still works.
-    return () => undefined;
+    // Permission denied or native Firebase not configured — links still work, polling still works.
+    return unsubLinks;
   }
 }

@@ -5,6 +5,15 @@
   <uses-permission android:name="android.permission.WAKE_LOCK"/>
 
   <application>
+    <!-- Warm/cold-start offer deep link from the system notification. -->
+    <activity android:name=".MainActivity">
+      <intent-filter>
+        <action android:name="android.intent.action.VIEW"/>
+        <category android:name="android.intent.category.DEFAULT"/>
+        <category android:name="android.intent.category.BROWSABLE"/>
+        <data android:scheme="faazio-delivery" android:host="accept-reject"/>
+      </intent-filter>
+    </activity>
     <service
       android:name=".DeliveryTrackingService"
       android:exported="false"

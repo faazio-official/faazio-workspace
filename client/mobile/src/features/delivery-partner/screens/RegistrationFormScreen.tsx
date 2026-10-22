@@ -148,7 +148,7 @@ export function RegistrationFormScreen({ navigation }: Props) {
     try {
       const rider = await gateway.registerDeliveryPartner(payload);
       setRider(rider);
-      navigation.replace('Status');
+      navigation.replace('SubmissionSuccess');
     } catch (err) {
       setError(
         err instanceof GatewayHttpError && err.status === 409

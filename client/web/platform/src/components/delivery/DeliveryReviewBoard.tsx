@@ -42,11 +42,33 @@ import {
   type DeliveryBoyLocation,
   type DeliveryDetail,
   type DeliveryRider,
+  type DeliveryRiderCategory,
   type DeliveryStatus,
 } from "@/lib/api/delivery";
 
 type Scope = "SUPER" | "STATE";
 type Tab = "APPLICATIONS" | "RIDERS";
+type RiderTab = "ALL" | DeliveryRiderCategory;
+
+const RIDER_TABS: { key: RiderTab; label: string }[] = [
+  { key: "ALL", label: "All riders" },
+  { key: "AVAILABLE", label: "Available" },
+  { key: "AT_PICKUP", label: "At pickup" },
+  { key: "AT_DELIVERY", label: "At delivery" },
+  { key: "BUSY", label: "Busy / at capacity" },
+  { key: "OFFLINE", label: "Offline" },
+];
+
+const CATEGORY_LABEL: Record<DeliveryRiderCategory, string> = {
+  AVAILABLE: "Available",
+  AT_PICKUP: "At pickup",
+  AT_DELIVERY: "At delivery",
+  BUSY: "Busy",
+  OFFLINE: "Offline",
+};
+
+const categoryOf = (rider: DeliveryRider): DeliveryRiderCategory =>
+  rider.currentCategory ?? (rider.isAvailable ? "AVAILABLE" : "OFFLINE");
 
 const APPLICATION_STATUSES: (DeliveryStatus | "ALL")[] = [
   "ALL",
@@ -61,6 +83,7 @@ const vehicleLabel = (v: string) => v.replace(/_/g, " ").toLowerCase();
 export function DeliveryReviewBoard({ scope }: { scope: Scope }) {
   const [tab, setTab] = useState<Tab>("APPLICATIONS");
   const [status, setStatus] = useState<DeliveryStatus | "ALL">("PENDING_REVIEW");
+  const [riderTab, setRiderTab] = useState<RiderTab>("ALL");
   const [query, setQuery] = useState("");
   const [applications, setApplications] = useState<DeliveryRider[]>([]);
   const [riders, setRiders] = useState<DeliveryRider[]>([]);
@@ -70,6 +93,7 @@ export function DeliveryReviewBoard({ scope }: { scope: Scope }) {
   const [reason, setReason] = useState("");
   const [busy, setBusy] = useState(false);
   const [location, setLocation] = useState<DeliveryBoyLocation | null>(null);
+  const [locationRider, setLocationRider] = useState<DeliveryRider | null>(null);
 
   const load = useCallback(async () => {
     if (!remoteConfigured()) {
@@ -100,7 +124,10 @@ export function DeliveryReviewBoard({ scope }: { scope: Scope }) {
   }, [load]);
 
   const rows = useMemo(() => {
-    const list = tab === "APPLICATIONS" ? applications : riders;
+    let list = tab === "APPLICATIONS" ? applications : riders;
+    if (tab === "RIDERS" && riderTab !== "ALL") {
+      list = list.filter((r) => categoryOf(r) === riderTab);
+    }
     if (!query.trim()) return list;
     const q = query.trim().toLowerCase();
     return list.filter(
@@ -109,12 +136,13 @@ export function DeliveryReviewBoard({ scope }: { scope: Scope }) {
         r.stateCode.toLowerCase() === q ||
         (r.phone ?? "").includes(q),
     );
-  }, [applications, query, riders, tab]);
+  }, [applications, query, riderTab, riders, tab]);
 
   const openDetail = useCallback(async (id: string) => {
     setBusy(true);
     setReason("");
     setLocation(null);
+    setLocationRider(null);
     try {
       setDetail(await getDeliveryApplication(id));
       setDetailOpen(true);
@@ -159,9 +187,11 @@ export function DeliveryReviewBoard({ scope }: { scope: Scope }) {
     }
   }, []);
 
-  const viewLocation = useCallback(async (id: string) => {
+  const viewLocation = useCallback(async (rider: DeliveryRider) => {
+    setLocationRider(rider);
+    setLocation(null);
     try {
-      const next = await getDeliveryRiderLocation(id);
+      const next = await getDeliveryRiderLocation(rider.riderId);
       setLocation(next);
       if (next.source === "none")
         toast.info("No recent location", { description: "The rider has not sent a heartbeat." });
@@ -211,7 +241,14 @@ export function DeliveryReviewBoard({ scope }: { scope: Scope }) {
                   onClick={() => setStatus(option)}
                 />
               ))
-            : null}
+            : RIDER_TABS.map((option) => (
+                <FilterChip
+                  key={option.key}
+                  label={option.label}
+                  active={riderTab === option.key}
+                  onClick={() => setRiderTab(option.key)}
+                />
+              ))}
         </div>
 
         <DataShell
@@ -237,6 +274,7 @@ export function DeliveryReviewBoard({ scope }: { scope: Scope }) {
                 <TableHead>Vehicle</TableHead>
                 <TableHead className="text-right">Capacity</TableHead>
                 {tab === "RIDERS" ? <TableHead className="text-right">Load</TableHead> : null}
+                {tab === "RIDERS" ? <TableHead>Current state</TableHead> : null}
                 <TableHead>Applied</TableHead>
                 <TableHead>Status</TableHead>
                 <TableHead className="text-right">Actions</TableHead>
@@ -263,7 +301,16 @@ export function DeliveryReviewBoard({ scope }: { scope: Scope }) {
                   </TableCell>
                   <TableCell className="num text-right">{rider.maxCapacity}</TableCell>
                   {tab === "RIDERS" ? (
-                    <TableCell className="num text-right">{rider.currentLoad}</TableCell>
+                    <TableCell className="num text-right">
+                      {rider.currentLoad}/{rider.maxCapacity}
+                    </TableCell>
+                  ) : null}
+                  {tab === "RIDERS" ? (
+                    <TableCell className="text-[12px]">
+                      <span className="rounded-full border border-border px-2 py-0.5 font-medium">
+                        {CATEGORY_LABEL[categoryOf(rider)]}
+                      </span>
+                    </TableCell>
                   ) : null}
                   <TableCell className="num text-[12px]">{formatDate(rider.createdAt)}</TableCell>
                   <TableCell>
@@ -279,12 +326,8 @@ export function DeliveryReviewBoard({ scope }: { scope: Scope }) {
                         Review
                       </Button>
                       {tab === "RIDERS" ? (
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() => void viewLocation(rider.riderId)}
-                        >
-                          Location
+                        <Button size="sm" variant="outline" onClick={() => void viewLocation(rider)}>
+                          View location
                         </Button>
                       ) : null}
                     </div>
@@ -464,16 +507,62 @@ export function DeliveryReviewBoard({ scope }: { scope: Scope }) {
                     Blacklist
                   </Button>
                 ) : null}
-                {location ? (
-                  <span className="text-[12px] text-muted-foreground">
-                    {location.source === "none"
-                      ? "No location"
-                      : `${location.latitude?.toFixed(5)}, ${location.longitude?.toFixed(5)} (${location.source})`}
-                  </span>
-                ) : null}
               </div>
             </div>
           ) : null}
+        </DialogContent>
+      </Dialog>
+
+      <Dialog
+        open={locationRider !== null}
+        onOpenChange={(open) => {
+          if (!open) {
+            setLocationRider(null);
+            setLocation(null);
+          }
+        }}
+      >
+        <DialogContent className="max-w-xl">
+          <DialogHeader>
+            <DialogTitle>{locationRider?.fullName || "Rider location"}</DialogTitle>
+            <DialogDescription>
+              One-time Valkey read — no polling or continuous streaming.
+            </DialogDescription>
+          </DialogHeader>
+          {location?.source === "none" || !location ? (
+            <p className="text-[13px] text-muted-foreground">
+              {location ? "No recent heartbeat for this rider." : "Reading the latest location…"}
+            </p>
+          ) : (
+            <div className="space-y-3">
+              <p className="num text-[12px] text-muted-foreground">
+                {location.latitude?.toFixed(5)}, {location.longitude?.toFixed(5)} ·{" "}
+                {location.updatedAt ? formatDate(location.updatedAt) : "unknown time"} ·{" "}
+                {location.source}
+              </p>
+              {typeof location.latitude === "number" && typeof location.longitude === "number" ? (
+                <iframe
+                  title="Rider location map"
+                  className="h-64 w-full rounded-lg border border-border"
+                  src={`https://www.openstreetmap.org/export/embed.html?bbox=${
+                    location.longitude - 0.01
+                  },${location.latitude - 0.01},${location.longitude + 0.01},${
+                    location.latitude + 0.01
+                  }&layer=mapnik&marker=${location.latitude},${location.longitude}`}
+                />
+              ) : null}
+              {typeof location.latitude === "number" && typeof location.longitude === "number" ? (
+                <a
+                  className="text-[12px] font-medium text-primary hover:underline"
+                  href={`https://www.openstreetmap.org/?mlat=${location.latitude}&mlon=${location.longitude}#map=16/${location.latitude}/${location.longitude}`}
+                  target="_blank"
+                  rel="noreferrer"
+                >
+                  Open larger map
+                </a>
+              ) : null}
+            </div>
+          )}
         </DialogContent>
       </Dialog>
     </div>

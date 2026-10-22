@@ -48,12 +48,21 @@ export interface DeliveryRider {
   status: DeliveryStatus;
   isAvailable: boolean;
   currentLoad: number;
+  /** Admin projection from the rider's next open stop (Available / At Pickup / At Delivery / Busy). */
+  currentCategory?: DeliveryRiderCategory;
   rating: number;
   completedOrders: number;
   lastHeartbeatAt?: string;
   rejectionReason?: string;
   createdAt: string;
 }
+
+export type DeliveryRiderCategory =
+  | "AVAILABLE"
+  | "AT_PICKUP"
+  | "AT_DELIVERY"
+  | "BUSY"
+  | "OFFLINE";
 
 export interface DeliveryDetail extends DeliveryRider {
   documents: DeliveryDocument[];

@@ -815,9 +815,10 @@ func (r *Repo) ActiveOrders(ctx context.Context, riderID string) ([]Order, error
 		return nil, err
 	}
 	rows, err := r.pool.Query(ctx, `
-		select order_id from delivery.delivery_orders
-		 where rider_id=$1 and status in ('ASSIGNED','ACCEPTED')
-		 order by created_at asc`, riderID)
+		select o.order_id from delivery.delivery_orders o
+		 where o.rider_id=$1 and o.status in ('ASSIGNED','ACCEPTED')
+		 order by coalesce((select min(s.sequence) from delivery.delivery_stops s
+		                     where s.delivery_order_id = o.order_id), 9999), o.created_at`, riderID)
 	if err != nil {
 		return nil, err
 	}
@@ -843,6 +844,186 @@ func (r *Repo) ActiveOrders(ctx context.Context, riderID string) ([]Order, error
 		out = append(out, order)
 	}
 	return out, nil
+}
+
+// ActiveStopsByRider returns each rider's still-open stops across accepted jobs, grouped by rider
+// and ordered by their current global sequence. Dispatch batches this for all loaded candidates so a
+// single assign does not issue a query per rider.
+func (r *Repo) ActiveStopsByRider(ctx context.Context, riderIDs []string) (map[string][]Stop, error) {
+	out := make(map[string][]Stop, len(riderIDs))
+	if len(riderIDs) == 0 {
+		return out, nil
+	}
+	if err := r.ready(); err != nil {
+		return nil, err
+	}
+	rows, err := r.pool.Query(ctx, `
+		select o.rider_id, s.stop_id, s.delivery_order_id, s.sequence, s.stop_type::text,
+		       s.status::text, s.label, s.address, s.latitude, s.longitude, s.customer_name,
+		       s.customer_phone, (s.customer_otp_hash is not null) as requires_otp,
+		       coalesce(s.failure_reason,''), s.arrived_at, s.completed_at
+		  from delivery.delivery_stops s
+		  join delivery.delivery_orders o on o.order_id = s.delivery_order_id
+		 where o.rider_id = any($1) and o.status='ACCEPTED'
+		   and s.status not in ('DELIVERED','FAILED')
+		 order by o.rider_id, s.sequence, o.created_at`, riderIDs)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var riderID string
+		var s Stop
+		var arrived, done *time.Time
+		if err := rows.Scan(&riderID, &s.StopID, &s.DeliveryOrderID, &s.Sequence, &s.StopType,
+			&s.Status, &s.Label, &s.Address, &s.Latitude, &s.Longitude, &s.CustomerName,
+			&s.CustomerPhone, &s.RequiresOTP, &s.FailureReason, &arrived, &done); err != nil {
+			return nil, err
+		}
+		s.ArrivedAt = iso(arrived)
+		s.CompletedAt = iso(done)
+		out[riderID] = append(out[riderID], s)
+	}
+	return out, rows.Err()
+}
+
+// ResequenceActiveStops applies the optimized global sequence to the rider's open accepted stops.
+// Sequence is renumbered across jobs (it is only unique per order), so dispatch inserts a new
+// pickup/drop without disturbing the relative order the rider is already executing. nextSequence is
+// where terminal stops resume (after the new pair), and each affected order's route_sequence JSON is
+// refreshed to its own stop ids in the new global order.
+func (r *Repo) ResequenceActiveStops(ctx context.Context, riderID string, ordered []Stop, nextSequence int64) error {
+	if len(ordered) == 0 {
+		return nil
+	}
+	if err := r.ready(); err != nil {
+		return err
+	}
+	tx, err := r.pool.Begin(ctx)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+	// Two-phase update avoids collisions with the unique (order_id, sequence) constraint while
+	// values are being swapped. +1000 cannot collide with a real route position (<=10 stops).
+	if _, err := tx.Exec(ctx, `
+		update delivery.delivery_stops s
+		   set sequence = s.sequence + 1000
+		  from delivery.delivery_orders o
+		 where o.order_id = s.delivery_order_id and o.rider_id=$1 and o.status='ACCEPTED'`,
+		riderID); err != nil {
+		return err
+	}
+	byOrder := make(map[string][]string)
+	orderIDs := make([]string, 0, 2)
+	for _, s := range ordered {
+		ct, err := tx.Exec(ctx, `
+			update delivery.delivery_stops s
+			   set sequence=$2
+			  from delivery.delivery_orders o
+			 where s.stop_id=$1 and o.order_id=s.delivery_order_id
+			   and o.rider_id=$3 and o.status='ACCEPTED'`,
+			s.StopID, s.Sequence, riderID)
+		if err != nil {
+			return err
+		}
+		if ct.RowsAffected() == 0 {
+			return ErrNotFound
+		}
+		if _, ok := byOrder[s.DeliveryOrderID]; !ok {
+			orderIDs = append(orderIDs, s.DeliveryOrderID)
+		}
+		byOrder[s.DeliveryOrderID] = append(byOrder[s.DeliveryOrderID], s.StopID)
+	}
+	// Terminal stops of accepted jobs were shifted too. Move them behind the open route so every
+	// sequence stays small and each order's route_sequence lists all of its stops, not only open ones.
+	rows, err := tx.Query(ctx, `
+		select s.stop_id, s.delivery_order_id
+		  from delivery.delivery_stops s
+		  join delivery.delivery_orders o on o.order_id = s.delivery_order_id
+		 where o.rider_id=$1 and o.status='ACCEPTED' and s.sequence > 1000
+		 order by o.created_at, s.sequence`, riderID)
+	if err != nil {
+		return err
+	}
+	type terminalStop struct{ stopID, orderID string }
+	terminal := []terminalStop{}
+	for rows.Next() {
+		var t terminalStop
+		if err := rows.Scan(&t.stopID, &t.orderID); err != nil {
+			rows.Close()
+			return err
+		}
+		terminal = append(terminal, t)
+	}
+	rows.Close()
+	if err := rows.Err(); err != nil {
+		return err
+	}
+	// Terminal positions start after every open stop, including the two new stops the caller is
+	// about to insert (nextSequence is len(combined)+1), so no per-order unique key can collide.
+	next := nextSequence
+	for _, t := range terminal {
+		if _, err := tx.Exec(ctx, `
+			update delivery.delivery_stops s
+			   set sequence=$2
+			  from delivery.delivery_orders o
+			 where s.stop_id=$1 and o.order_id=s.delivery_order_id
+			   and o.rider_id=$3 and o.status='ACCEPTED'`,
+			t.stopID, next, riderID); err != nil {
+			return err
+		}
+		next++
+		if _, ok := byOrder[t.orderID]; !ok {
+			orderIDs = append(orderIDs, t.orderID)
+		}
+		byOrder[t.orderID] = append(byOrder[t.orderID], t.stopID)
+	}
+	for _, orderID := range orderIDs {
+		raw, err := json.Marshal(byOrder[orderID])
+		if err != nil {
+			return err
+		}
+		if _, err := tx.Exec(ctx, `
+			update delivery.delivery_orders
+			   set route_sequence=$2, updated_at=now()
+			 where order_id=$1 and rider_id=$3`,
+			orderID, raw, riderID); err != nil {
+			return err
+		}
+	}
+	return tx.Commit(ctx)
+}
+
+// RiderCurrentStopStatuses returns each rider's next open stop status across accepted jobs. It is
+// the admin per-stop projection (Available / At Pickup / At Delivery / Busy).
+func (r *Repo) RiderCurrentStopStatuses(ctx context.Context, riderIDs []string) (map[string]string, error) {
+	out := make(map[string]string, len(riderIDs))
+	if len(riderIDs) == 0 {
+		return out, nil
+	}
+	if err := r.ready(); err != nil {
+		return out, err
+	}
+	rows, err := r.pool.Query(ctx, `
+		select distinct on (o.rider_id) o.rider_id, s.status::text
+		  from delivery.delivery_orders o
+		  join delivery.delivery_stops s on s.delivery_order_id = o.order_id
+		 where o.rider_id = any($1) and o.status='ACCEPTED'
+		   and s.status not in ('DELIVERED','FAILED')
+		 order by o.rider_id, s.sequence, o.created_at`, riderIDs)
+	if err != nil {
+		return out, err
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var riderID, status string
+		if err := rows.Scan(&riderID, &status); err != nil {
+			return out, err
+		}
+		out[riderID] = status
+	}
+	return out, rows.Err()
 }
 
 // OTPTarget returns the stop's hashed OTP + expiry for the rider's accept-scoped order.

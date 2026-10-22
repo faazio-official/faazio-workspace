@@ -3,6 +3,8 @@ import { StatusBar, StyleSheet, View } from 'react-native';
 import { DefaultTheme, NavigationContainer } from '@react-navigation/native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { DeliveryPartnerNavigator } from './features/delivery-partner/DeliveryPartnerNavigator';
+import { deliveryNavigationRef } from './features/delivery-partner/navigationRef';
+import { flushPendingDeliveryOffer } from './services/deliveryLinks';
 import { SplashFallback } from './components/SplashFallback';
 import { useAuthStore } from './state/authStore';
 import { useAppFonts, resolveFontFamily } from './theme/fonts';
@@ -52,7 +54,11 @@ export default function DeliveryPartnerApp() {
     <SafeAreaProvider>
       <Layout>
         <StatusBar barStyle="dark-content" />
-        <NavigationContainer theme={navigationTheme}>
+        <NavigationContainer
+          ref={deliveryNavigationRef}
+          theme={navigationTheme}
+          onReady={flushPendingDeliveryOffer}
+        >
           <DeliveryPartnerNavigator />
         </NavigationContainer>
       </Layout>

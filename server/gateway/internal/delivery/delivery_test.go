@@ -2,6 +2,8 @@ package delivery
 
 import (
 	"errors"
+	"fmt"
+	"math"
 	"testing"
 )
 
@@ -232,5 +234,105 @@ func TestValidRiderStatus(t *testing.T) {
 	}
 	if validRiderStatus("DELETED") {
 		t.Fatal("unknown status must be invalid")
+	}
+}
+
+// scriptedMatrix returns canned road seconds per leg and falls back to a linear distance so a
+// missing leg still has deterministic, finite cost.
+type scriptedMatrix struct {
+	legs map[string]int64
+}
+
+func (m scriptedMatrix) Travel(fromLat, fromLng, toLat, toLng float64) (int64, int64) {
+	key := fmt.Sprintf("%.2f,%.2f->%.2f,%.2f", fromLat, fromLng, toLat, toLng)
+	if v, ok := m.legs[key]; ok {
+		return v, v * 10
+	}
+	metres := math.Abs(toLat-fromLat)*111_000 + math.Abs(toLng-fromLng)*111_000
+	return int64(math.Round(metres / 7)), int64(math.Round(metres))
+}
+
+func point(lat, lng float64) *float64 { return &lat }
+
+func TestPickRiderWithStopsPricesDetour(t *testing.T) {
+	matrix := scriptedMatrix{legs: map[string]int64{
+		"1.00,1.00->0.00,0.00": 10,
+		"0.00,0.00->3.00,3.00": 10,
+		"1.00,1.00->3.00,3.00": 5,
+		"2.00,2.00->0.00,0.00": 20,
+	}}
+	candidates := []RiderLocation{
+		{Rider: Rider{RiderID: "busy-close", MaxCapacity: 2, CurrentLoad: 1},
+			ActiveStops: []Stop{{StopType: "DROP", Latitude: point(1, 1), Longitude: point(1, 1)}}},
+		{Rider: Rider{RiderID: "idle-farther", MaxCapacity: 2}, Lat: 2, Lng: 2},
+	}
+	best := PickRiderWithStops(candidates, 0, 0, 3, 3, matrix)
+	if best == nil || best.Rider.RiderID != "idle-farther" {
+		t.Fatalf("expected the rider with no detour to win, got %+v", best)
+	}
+}
+
+func TestOptimizeStopSequenceInsertsPickupBeforeDrop(t *testing.T) {
+	matrix := scriptedMatrix{}
+	existing := []Stop{
+		{StopID: "a", Sequence: 1, StopType: "PICKUP", Status: StopPending, Latitude: point(0, 0), Longitude: point(0, 0)},
+		{StopID: "b", Sequence: 2, StopType: "DROP", Status: StopPending, Latitude: point(10, 0), Longitude: point(10, 0)},
+	}
+	pickup := Stop{StopID: "p", StopType: "PICKUP", Status: StopPending, Latitude: point(4, 0), Longitude: point(4, 0)}
+	drop := Stop{StopID: "d", StopType: "DROP", Status: StopPending, Latitude: point(6, 0), Longitude: point(6, 0)}
+	got, err := OptimizeStopSequence(existing, pickup, drop, matrix)
+	if err != nil {
+		t.Fatalf("optimize failed: %v", err)
+	}
+	order := make([]string, len(got))
+	for i, s := range got {
+		order[i] = s.StopID
+		if s.Sequence != i+1 {
+			t.Fatalf("sequence not renumbered: %+v", got)
+		}
+	}
+	if fmt.Sprint(order) != "[a p d b]" {
+		t.Fatalf("expected pickup/drop inserted into the shortest leg, got %v", order)
+	}
+}
+
+func TestOptimizeStopSequenceKeepsStartedStopsPinned(t *testing.T) {
+	matrix := scriptedMatrix{}
+	existing := []Stop{
+		{StopID: "a", Sequence: 1, StopType: "PICKUP", Status: StopAtPickup, Latitude: point(0, 0), Longitude: point(0, 0)},
+		{StopID: "b", Sequence: 2, StopType: "DROP", Status: StopPending, Latitude: point(10, 0), Longitude: point(10, 0)},
+	}
+	// Both new stops would be cheaper before `a`, but the rider has already arrived there.
+	pickup := Stop{StopID: "p", StopType: "PICKUP", Status: StopPending, Latitude: point(-5, 0), Longitude: point(-5, 0)}
+	drop := Stop{StopID: "d", StopType: "DROP", Status: StopPending, Latitude: point(-4, 0), Longitude: point(-4, 0)}
+	got, err := OptimizeStopSequence(existing, pickup, drop, matrix)
+	if err != nil {
+		t.Fatalf("optimize failed: %v", err)
+	}
+	if got[0].StopID != "a" {
+		t.Fatalf("started stop must stay first, got %v", got[0].StopID)
+	}
+	p, d := -1, -1
+	for i, s := range got {
+		if s.StopID == "p" {
+			p = i
+		}
+		if s.StopID == "d" {
+			d = i
+		}
+	}
+	if p < 0 || d < 0 || p > d {
+		t.Fatalf("pickup must precede drop, got pickup=%d drop=%d", p, d)
+	}
+}
+
+func TestEncodePolyline(t *testing.T) {
+	stops := []Stop{
+		{Latitude: point(38.5, 0), Longitude: point(-120.2, 0)},
+		{Latitude: point(40.7, 0), Longitude: point(-120.95, 0)},
+		{Latitude: point(43.252, 0), Longitude: point(-126.453, 0)},
+	}
+	if got, want := EncodePolyline(stops), "_p~iF~ps|U_ulLnnqC_mqNvxq`@"; got != want {
+		t.Fatalf("polyline = %q, want %q", got, want)
 	}
 }

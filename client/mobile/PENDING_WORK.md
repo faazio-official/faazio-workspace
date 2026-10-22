@@ -33,34 +33,33 @@ dependencies exist. Do not build the backend/seller flows until told to.
   are state-guarded and require reasons; failed stops require a reason and a route with any failed
   drop does not increment `completed_orders`.
 - **Portal:** state/super "Delivery partners" queues with state scoping, KYC image previews,
-  per-document verification, profile approve/reject, activation, active-rider list with
-  load/capacity and on-demand location.
+  per-document verification, profile approve/reject, activation, active-rider tabs projected from
+  the next open stop (Available / At Pickup / At Delivery / Busy / Offline), load/capacity and a
+  one-time location map marker (no polling).
 
 **Still pending (not built):**
 - **Phase 5 payout engine** — order-level seller/platform/rider split, COD reconciliation, TDS and
   payout frequency. `delivery_orders.payout_amount_paisa` is display-only; do **not** create
   `delivery.payouts*` tables or payout screens until the product decision is approved.
-- **Background location (iOS + app swiped away)** — Android now runs an ongoing
-  `FOREGROUND_SERVICE_LOCATION` service that wakes the `FaazioDeliveryHeartbeat` headless task every
-  120 s. iOS still heartbeats only while foregrounded (add `UIBackgroundModes` location +
-  `NSLocationAlwaysAndWhenInUseUsageDescription` behind explicit consent), and Android OEMs may kill
-  the service after a swipe-away or battery optimisation — riders need the battery-whitelisting step.
-- **FCM order pings (bridge + deep link)** — the partner app now requests notification permission,
-  registers its FCM token through `POST /notifications/register` and refreshes offers on a foreground
-  message / notification tap. End-to-end delivery still needs the gateway `PUSH_WEBHOOK_URL` bridge
-  configured, and a tap opens the dashboard rather than deep-linking straight to the offer card.
+- **Push bridge ops (`PUSH_WEBHOOK_URL`)** — the app side is done (token registration, foreground
+  handler, notification tap and `faazio-delivery://accept-reject?orderId=…` all open
+  `AcceptRejectScreen`), but end-to-end delivery still needs the gateway's FCM/webhook bridge
+  configured in the deployed environment.
+- **iOS force-quit** — background location now survives backgrounding (`UIBackgroundModes: location`
+  + a CoreLocation watch behind explicit consent), but iOS stops the watch when the rider swipes the
+  app away. Android OEMs may also kill the foreground service under battery optimisation — riders
+  need the battery-whitelisting step.
 - **Customer rating UI** — `POST /delivery/{orderId}/rate` stores a 1–5 rating + comment, but no
   customer screen prompts for it after delivery yet.
 - **Rider document re-upload** — an admin re-upload request is recorded/audited and support contacts
   the rider on the registered phone; there is no in-app per-document replacement flow yet (a rejected
   application can re-apply in full).
-- **Cross-order re-sequencing** — a rider carrying multiple jobs gets each job's stops appended, not
-  a globally optimised sequence; add the insertion/reorder pass after acceptance.
+- **Full VRP** — cross-order insertion is now handled by the detour-scored dispatch + `OptimizeStopSequence`
+  heuristic (started stops pinned, pickup before drop). A globally optimal multi-vehicle solution
+  remains Future Prod; this is intentional per the lightweight mandate.
 - **Multi-store auto-dispatch** — the checkout order-ready trigger dispatches only when the order
   has exactly one vendor store (the MVP case). Multi-vendor orders still need one job per store,
   so they stay on the admin `POST /dispatch/assign` path until the fan-out is designed.
-- **Admin per-stop state tabs** — the portal board splits Applications vs Active riders with
-  load/capacity; At Pickup / At Delivery / Busy categories are not projected from stop state yet.
 - **Partner Firebase entries (ops)** — register the partner Android app + iOS bundle id in the
   Firebase project, add `android/app/src/delivery/google-services.json` and
   `ios/Faazio/GoogleService-Info-Delivery.plist`, and store the Android JSON as the

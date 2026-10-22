@@ -1,5 +1,14 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { AppState, RefreshControl, ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
+import {
+  Alert,
+  AppState,
+  Platform,
+  RefreshControl,
+  ScrollView,
+  StyleSheet,
+  TouchableOpacity,
+  View,
+} from 'react-native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import AppText from '@/components/AppText';
 import { FaazioLogo } from '@/components/FaazioLogo';
@@ -11,6 +20,10 @@ import {
 import { getCoarsePosition, requestLocationPermission } from '@/services/location';
 import { startDeliveryPush } from '@/services/deliveryPush';
 import { startDeliveryTracking, stopDeliveryTracking } from '@/services/deliveryTracking';
+import {
+  startIOSBackgroundLocation,
+  stopIOSBackgroundLocation,
+} from '@/services/deliveryBackgroundLocation';
 import { useAuthStore } from '@/state/authStore';
 import { useDeliveryPartnerStore } from '@/state/deliveryPartnerStore';
 import { Card, DP, ErrorText, PrimaryButton, Screen, StatusPill } from '../components';
@@ -34,6 +47,7 @@ export function DashboardScreen({ navigation }: Props) {
   const [error, setError] = useState<string | null>(null);
   const [online, setOnline] = useState(Boolean(rider?.isAvailable));
   const [now, setNow] = useState(Date.now());
+  const [iosBackgroundAllowed, setIosBackgroundAllowed] = useState(false);
   const heartbeat = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const offers = useMemo(
@@ -81,7 +95,7 @@ export function DashboardScreen({ navigation }: Props) {
       setOrders(nextOrders);
       if (me.status !== 'ACTIVE') {
         stopHeartbeat();
-        navigation.replace('Status');
+        navigation.replace('SubmissionSuccess');
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Could not load your dashboard.');
@@ -98,16 +112,21 @@ export function DashboardScreen({ navigation }: Props) {
   useEffect(() => {
     if (!online) {
       stopHeartbeat();
+      stopIOSBackgroundLocation();
       void stopDeliveryTracking();
       return;
     }
     startHeartbeat();
+    // Android owns background wakes natively; iOS uses the CoreLocation watch below.
+    // The JS interval intentionally bails when the app is not active so the two never duplicate.
     void startDeliveryTracking();
+    if (iosBackgroundAllowed) startIOSBackgroundLocation();
     return () => {
       stopHeartbeat();
+      stopIOSBackgroundLocation();
       void stopDeliveryTracking();
     };
-  }, [online, startHeartbeat, stopHeartbeat]);
+  }, [iosBackgroundAllowed, online, startHeartbeat, stopHeartbeat]);
 
   useEffect(() => {
     const sub = AppState.addEventListener('change', (state) => {
@@ -150,6 +169,21 @@ export function DashboardScreen({ navigation }: Props) {
     };
   }, [refresh]);
 
+  const confirmIOSBackground = useCallback((): Promise<boolean> => {
+    if (Platform.OS !== 'ios') return Promise.resolve(false);
+    return new Promise((resolve) => {
+      Alert.alert(
+        'Keep offers coming',
+        'Faazio needs background location while you are online so dispatch can still find you when the app is not open. You can choose “Allow While Using” to stay foreground-only.',
+        [
+          { text: 'Not now', style: 'cancel', onPress: () => resolve(false) },
+          { text: 'Continue', onPress: () => resolve(true) },
+        ],
+        { cancelable: true, onDismiss: () => resolve(false) },
+      );
+    });
+  }, []);
+
   const toggleOnline = useCallback(async () => {
     setBusy('availability');
     setError(null);
@@ -160,6 +194,14 @@ export function DashboardScreen({ navigation }: Props) {
         if (!granted) {
           throw new Error('Location permission is required to go online.');
         }
+        if (Platform.OS === 'ios') {
+          const allowBackground = await confirmIOSBackground();
+          setIosBackgroundAllowed(allowBackground);
+          if (allowBackground) startIOSBackgroundLocation();
+        }
+      } else {
+        setIosBackgroundAllowed(false);
+        stopIOSBackgroundLocation();
       }
       await gateway.setDeliveryAvailability(next);
       setOnline(next);
@@ -170,7 +212,7 @@ export function DashboardScreen({ navigation }: Props) {
     } finally {
       setBusy(null);
     }
-  }, [online, startHeartbeat, stopHeartbeat]);
+  }, [confirmIOSBackground, online, startHeartbeat, stopHeartbeat]);
 
   const accept = useCallback(
     async (orderId: string) => {
@@ -207,6 +249,7 @@ export function DashboardScreen({ navigation }: Props) {
 
   const onLogout = useCallback(async () => {
     stopHeartbeat();
+    stopIOSBackgroundLocation();
     if (online) await gateway.setDeliveryAvailability(false).catch(() => undefined);
     await logout();
     reset();
