@@ -173,18 +173,25 @@ func (p *Provisioner) Create(ctx context.Context, in CreateParams) (CreateResult
 	return res, nil
 }
 
+func scopeLabel(districtCode string) string {
+	if districtCode == "" {
+		return "a legacy state scope"
+	}
+	return districtCode
+}
+
 // checkCollisions returns the FIRST blocking identity (email only — one person, one role): a
 // portal_users email across any role → SUPER_ADMIN/SELLER/DISTRICT_ADMIN block; a roster email reuse →
 // block. Phone is NOT here: a shared phone is a soft warning (phoneWarnings), never a 409, because
 // a single phone can legitimately cover several people (team/SME lines). Runs inside the create tx
 // so a concurrent insert cannot race it; the 0036 unique indexes are the frontier backstop.
 func checkCollisions(ctx context.Context, tx pgx.Tx, in CreateParams) (*ConflictError, error) {
-	var id, role, sellerID, stateCode string
+	var id, role, sellerID, districtCode string
 	err := tx.QueryRow(ctx, `
 		select user_id, role, coalesce(seller_id,''), coalesce(district_code,'')
 		  from admins.portal_users
 		 where lower(email) = lower($1)
-		 limit 1`, in.Email).Scan(&id, &role, &sellerID, &stateCode)
+		 limit 1`, in.Email).Scan(&id, &role, &sellerID, &districtCode)
 	switch {
 	case err == nil:
 		switch role {
@@ -193,19 +200,19 @@ func checkCollisions(ctx context.Context, tx pgx.Tx, in CreateParams) (*Conflict
 		case "SELLER":
 			return &ConflictError{Code: "email_used_by_seller", Message: "this email already belongs to seller " + sellerID, ConflictingRole: role, ConflictingID: sellerID}, nil
 		default:
-			return &ConflictError{Code: "email_has_district_login", Message: "this email already has a DISTRICT_ADMIN login for " + stateCode, ConflictingRole: role, ConflictingID: id}, nil
+			return &ConflictError{Code: "email_has_district_login", Message: "this email already has a DISTRICT_ADMIN login for " + scopeLabel(districtCode), ConflictingRole: role, ConflictingID: id}, nil
 		}
 	case !errors.Is(err, pgx.ErrNoRows):
 		return nil, err
 	}
 
 	err = tx.QueryRow(ctx, `
-		select admin_id, district_code from admins.district_admins
+		select admin_id, coalesce(district_code,'') from admins.district_admins
 		 where lower(email) = lower($1)
-		 limit 1`, in.Email).Scan(&id, &stateCode)
+		 limit 1`, in.Email).Scan(&id, &districtCode)
 	switch {
 	case err == nil:
-		return &ConflictError{Code: "email_has_district_roster", Message: "this email already has a DISTRICT_ADMIN roster for " + stateCode, ConflictingRole: "DISTRICT_ADMIN", ConflictingID: id}, nil
+		return &ConflictError{Code: "email_has_district_roster", Message: "this email already has a DISTRICT_ADMIN roster for " + scopeLabel(districtCode), ConflictingRole: "DISTRICT_ADMIN", ConflictingID: id}, nil
 	case !errors.Is(err, pgx.ErrNoRows):
 		return nil, err
 	}
@@ -232,14 +239,14 @@ func phoneWarnings(ctx context.Context, tx pgx.Tx, in CreateParams) ([]string, e
 		return nil, err
 	}
 
-	var adminID, stateCode string
+	var adminID, districtCode string
 	err = tx.QueryRow(ctx, `
-		select admin_id, district_code from admins.district_admins
+		select admin_id, coalesce(district_code,'') from admins.district_admins
 		 where regexp_replace(phone, '\D', '', 'g') = $1
-		 limit 1`, in.PhoneDigits).Scan(&adminID, &stateCode)
+		 limit 1`, in.PhoneDigits).Scan(&adminID, &districtCode)
 	switch {
 	case err == nil:
-		out = append(out, "phone already belongs to the DISTRICT_ADMIN roster for "+stateCode)
+		out = append(out, "phone already belongs to the DISTRICT_ADMIN roster for "+scopeLabel(districtCode))
 	case !errors.Is(err, pgx.ErrNoRows):
 		return nil, err
 	}

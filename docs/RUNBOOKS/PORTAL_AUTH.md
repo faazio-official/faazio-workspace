@@ -1,7 +1,7 @@
 # Portal Auth — provisioning, credentials, rotation, unlock, revoke
 
 > Gateway-native email+password sign-in for the Partner Portal. Three roles are issued:
-> `SUPER_ADMIN` (seeded operationally), `STATE_ADMIN` (scoped to a 2-letter state) and
+> `SUPER_ADMIN` (seeded operationally), `DISTRICT_ADMIN` (scoped to a district + parent state) and
 > `SELLER` (scoped to a seller). Authority: `docs/architecture/web-portal.md` → "Portal auth",
 > `db-schema.md` §12.18, `monolith-breakdown.md` §1 (`portal auth` row).
 >
@@ -125,7 +125,7 @@ on conflict (user_id) do update
 
 `must_change=false` for `SUPER_ADMIN`: superadmins are never confined, so the seeded password stays
 valid until they voluntarily rotate it at `/security`. Forced rotation (`must_change=true`) is
-reserved for scoped `SELLER` / `STATE_ADMIN` credentials, where the confinement stops a leaked
+reserved for scoped `SELLER` / `DISTRICT_ADMIN` credentials, where the confinement stops a leaked
 temporary password from reaching the control plane. Existing superadmin rows are repaired by
 migration `0034_portal_superadmin_no_force.sql`.
 
@@ -140,30 +140,31 @@ curl -sS "$GATEWAY/auth/portal/me" -H "Authorization: Bearer <accessToken>" | jq
 curl -sS "$GATEWAY/admin/portal-users" -H "Authorization: Bearer <accessToken>" | jq '.users | length'
 ```
 
-## 3. Issue seller / state-admin logins
+## 3. Issue seller / district-admin logins
 
 A signed-in superadmin uses **Portal credentials** (`/admin/super/credentials`) to create a login:
 
 - role `SELLER` → requires a real `seller_id` (the gateway checks `sellers.sellers`);
-- role `STATE_ADMIN` → requires a 2-letter `state_code` (`^[A-Z]{2}$`);
+- role `DISTRICT_ADMIN` → requires a `district_code` from `admins.district_master` (or, for a
+  legacy non-TN/PY admin, a 2-letter `state_code`);
 - email, display name and a temporary password (≥12 chars, not a common value);
 - the row starts `active=true`, `must_change=true`, and the token carries the scope.
 
-For **state admins** the entry point is **State admins** (`/admin/super/state-admins`): one form
-creates the roster row **and** the login atomically (`issueLogin` default ON, `POST /state-admins`,
-`0036`). `must_change` is locked `true`, so the temporary password is single-use. A duplicate
+For **district admins** the entry point is **District admins** (`/admin/super/district-admins`): one
+form creates the roster row **and** the login atomically (`issueLogin` default ON,
+`POST /district-admins`, `0036`/`0048`; legacy `POST /state-admins` stays mounted for one release). `must_change` is locked `true`, so the temporary password is single-use. A duplicate
 **email** (portal/roster — case-insensitive) is hard-blocked with a role-specific `409`; a duplicate
 **phone** (seller/roster — digit-normalized) is a **soft warning** (`201 warnings[]`, amber UI) —
 shared/SME lines are allowed, never blocked. The page shows the copyable temporary password once.
 `issueLogin:false` pre-provisions a roster-only row (No login badge, one-click issue later).
 
 The holder signs in at `/login`, is forced to `/security` to rotate the password, then lands in
-`seller` or `/admin/state`. Deactivate/reactivate from the same page; resetting a password revokes
+`seller` or `/admin/district`. Deactivate/reactivate from the same page; resetting a password revokes
 every existing refresh session and forces another change.
 
 Equivalent API (superadmin bearer only): `GET|POST /admin/portal-users`,
 `PUT /admin/portal-users/{id}` (`{active}`), `PUT /admin/portal-users/{id}/password`
-(`{newPassword, forceChange?}`). A reset defaults to `forceChange=true` for `SELLER` / `STATE_ADMIN`
+(`{newPassword, forceChange?}`). A reset defaults to `forceChange=true` for `SELLER` / `DISTRICT_ADMIN`
 and `false` for `SUPER_ADMIN`; the optional `forceChange` overrides either way. Any active superadmin
 may reset any role, including another superadmin — no OTP/mail, effect is immediate (sessions are
 revoked). Deactivating a superadmin is refused (`last_super_admin`) when it would leave zero active

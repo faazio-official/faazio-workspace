@@ -477,6 +477,16 @@ func (h *Handler) edit(w http.ResponseWriter, r *http.Request) {
 		httpx.Fail(w, http.StatusBadRequest, "bad_request", "category, state or platform fee is invalid")
 		return
 	}
+	if req.DistrictCode != "" {
+		if !geo.IsValid(req.DistrictCode) {
+			httpx.Fail(w, http.StatusBadRequest, "unknown_district", "unknown district code")
+			return
+		}
+		if geo.StateForDistrict(req.DistrictCode) != req.StateCode {
+			httpx.Fail(w, http.StatusBadRequest, "bad_request", "district does not belong to the selected state")
+			return
+		}
+	}
 	if !validLatLng(req.Latitude, req.Longitude) {
 		httpx.Fail(w, http.StatusBadRequest, "bad_request", "shop location is invalid")
 		return
@@ -692,7 +702,15 @@ func (h *Handler) adminFeeRequest(w http.ResponseWriter, r *http.Request) (FeeCh
 		httpx.Fail(w, http.StatusNotFound, "not_found", "request not found")
 		return FeeChangeRequest{}, false
 	}
-	s, _, _ := h.repo.ByID(r.Context(), f.SellerID)
+	s, ok, err := h.repo.ByID(r.Context(), f.SellerID)
+	if err != nil {
+		httpx.Fail(w, http.StatusInternalServerError, "sellers_unavailable", "sellers unavailable")
+		return FeeChangeRequest{}, false
+	}
+	if !ok {
+		httpx.Fail(w, http.StatusNotFound, "not_found", "request not found")
+		return FeeChangeRequest{}, false
+	}
 	if !auth.CanActForSellerDistrict(r.Context(), f.SellerID, f.DistrictCode, s.StateCode) {
 		httpx.Fail(w, http.StatusNotFound, "not_found", "request not found")
 		return FeeChangeRequest{}, false

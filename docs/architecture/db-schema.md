@@ -1809,7 +1809,8 @@ ALTER TABLE sellers.sellers ADD COLUMN latitude FLOAT8, ADD COLUMN longitude FLO
   on its own. The OTP runs on a disposable Firebase app so the shopper session is untouched.
 - Rejection appends to `rejection_history`; `seller_request_history` records each changed field on
   resubmission. Both are deleted when an admin sets `ACTIVE` (clean state after approval).
-- RLS: seller reads their own rows; state admin their state; super admin all. Writes stay
+- RLS: seller reads their own rows; district admin their district (legacy rows without a district
+  and legacy state-scoped admins fall back to the parent state); super admin all. Writes stay
   `service_role` only (the gateway).
 - Route transfers are stored with `on_hold` + `release_after = now() + 14 days`; the settlement
   worker releases due holds every 15 minutes when `RAZORPAY_ROUTE_*` (or the fallback
@@ -1874,7 +1875,7 @@ tables are untouched.
 placeholder; no `delivery_payouts` table (order-level seller/platform/rider split, COD
 reconciliation, TDS, payout frequency) exists until the product decision is approved.
 
-### 12.24 District rollout + platform-fee change requests (migrations `0046`–`0049`)
+### 12.24 District rollout + platform-fee change requests (migrations `0046`–`0050`)
 
 **Authority:** `monolith-breakdown.md` §1 (`admins`, `sellers`, `portal auth`), `mobile-app.md`
 ("Sell with us", account console), `web-portal.md` (district console + fee review), `caching-cloudflare-valkey.md`
@@ -1894,7 +1895,6 @@ ALTER TABLE admins.state_admins RENAME TO district_admins;
 ALTER TABLE admins.district_admins ADD COLUMN district_code TEXT REFERENCES admins.district_master(district_code);
 -- scope CHECK: district_code IS NOT NULL OR state_code IS NOT NULL
 -- portal_users: role STATE_ADMIN -> DISTRICT_ADMIN, add district_code, scope CHECK mirrors above
--- sellers.is_state_admin_for keeps its name but accepts DISTRICT_ADMIN + district match
 -- audit_logs actor_role CHECK widened to include DISTRICT_ADMIN
 
 -- 0049: seller-initiated platform-fee change requests
@@ -1902,20 +1902,26 @@ CREATE TABLE sellers.seller_fee_change_requests (
   request_id TEXT PRIMARY KEY, seller_id TEXT NOT NULL REFERENCES sellers.sellers ON DELETE CASCADE,
   district_code TEXT, current_fee_pct SMALLINT NOT NULL, requested_fee_pct SMALLINT NOT NULL,
   status TEXT NOT NULL DEFAULT 'PENDING' CHECK (status IN ('PENDING','APPROVED','REJECTED','CANCELLED')),
-  admin_note TEXT NOT NULL DEFAULT '', requested_by TEXT NOT NULL,
+  admin_note TEXT NOT NULL DEFAULT '',
   requested_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   reviewed_by TEXT, reviewed_at TIMESTAMPTZ, review_reason TEXT NOT NULL DEFAULT '');
 CREATE UNIQUE INDEX seller_fee_change_requests_one_pending
   ON sellers.seller_fee_change_requests (seller_id) WHERE status = 'PENDING';
+
+-- 0050: district-precise RLS for seller data (the 0048 helper compared state only)
+CREATE FUNCTION sellers.is_admin_for(p_state char(2), p_district text) RETURNS boolean;
+-- SUPER_ADMIN all; STATE_ADMIN/DISTRICT_ADMIN same state + district claim match (empty row district
+-- or empty claim falls back to state). seller/kyc/bank/opt-in/fee-request policies repointed.
 ```
 
 **Rules**
 
 - **Wire role is `DISTRICT_ADMIN`.** `auth.RoleStateAdmin` remains a Go alias of
-  `RoleDistrictAdmin` only to keep legacy call sites compiling; no token or DB row is written as
-  `STATE_ADMIN` after `0048`. Existing non-TN/PY admins stay **state-scoped** (`district_code` NULL)
-  because coverage is TN/PY only; `auth.CanActForSellerDistrict` prefers the district claim and falls
-  back to the parent `state_code`.
+  `RoleDistrictAdmin` and the gateway canonicalises any legacy `STATE_ADMIN` claim/header to
+  `DISTRICT_ADMIN`; no token or DB row is written as `STATE_ADMIN` after `0048`. Existing non-TN/PY
+  admins stay **state-scoped** (`district_code` NULL) because coverage is TN/PY only;
+  `auth.CanActForSellerDistrict` prefers the district claim and falls back to the parent `state_code`
+  (and to state for sellers with no district).
 - `district_code` on sellers is **optional server-side** (legacy apps/tests submit only a state), but
   the mobile onboarding screen requires it for TN/PY and rejects a district that does not belong to
   the selected state (`400 bad_request`).
@@ -1923,5 +1929,8 @@ CREATE UNIQUE INDEX seller_fee_change_requests_one_pending
   sellers. A seller files a **request**; a district admin (own district) or super admin approves it.
   Only `APPROVED` mutates `sellers.sellers.platform_fee_pct`; one `PENDING` request per seller is
   enforced by the partial unique index, and the seller can read only their own history.
-- Cache keys/TTLs are unchanged (no district cache). RLS: district master is read-only to authenticated
-  roles; fee requests are read by the owning seller / scoped admins and written only through the gateway.
+- Cache keys/TTLs are unchanged (no district cache). RLS: district master is read-only to
+  authenticated roles; seller rows, KYC/bank documents, verification history, festival opt-ins and
+  fee requests are readable by the owning seller or an admin whose district matches (legacy rows with
+  no district fall back to the parent state). Campaigns/coupons/ads remain state-level reads. All
+  writes go through the gateway (`service_role`).
