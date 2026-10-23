@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
+	"strconv"
 	"strings"
 	"time"
 
@@ -43,6 +44,7 @@ func (h *Handler) Register(r chi.Router) {
 		g.Get("/orders", h.getOrders)
 		g.Post("/orders", h.placeOrder)
 		g.Post("/checkout/validate-coupon", h.validateCoupon)
+		g.Get("/checkout/delivery-fee", h.deliveryFee)
 		g.Get("/orders/tracking/{orderID}", h.trackOrder)
 		g.Get("/orders/{orderID}", h.getOrder)
 		g.Get("/orders/{orderID}/invoice", h.getInvoice)
@@ -286,6 +288,26 @@ func (h *Handler) validateCoupon(w http.ResponseWriter, r *http.Request) {
 		"discount":     v.DiscountPaisa / 100,
 		"freeDelivery": v.FreeDelivery,
 	})
+}
+
+// deliveryFee is the server-authoritative delivery-fee quote for a store → customer fix
+// (params: storeId + lat + lng). It distances directory.stores pins (Haversine) and applies the
+// tax.delivery_fee_settings rate card. Road distance is server-owned; the client mirrors this
+// estimate and the same math re-runs at settlement (CreateOrder).
+func (h *Handler) deliveryFee(w http.ResponseWriter, r *http.Request) {
+	storeID := strings.TrimSpace(r.URL.Query().Get("storeId"))
+	lat, errLat := strconv.ParseFloat(r.URL.Query().Get("lat"), 64)
+	lng, errLng := strconv.ParseFloat(r.URL.Query().Get("lng"), 64)
+	if storeID == "" || errLat != nil || errLng != nil || !validLatitude(lat) || !validLongitude(lng) {
+		httpx.Fail(w, http.StatusBadRequest, "bad_request", "storeId, lat and lng are required")
+		return
+	}
+	quote, err := h.service.DeliveryFeeForStore(r.Context(), storeID, lat, lng)
+	if err != nil {
+		httpx.Fail(w, http.StatusInternalServerError, "delivery_fee_unavailable", "delivery fee unavailable")
+		return
+	}
+	httpx.JSON(w, http.StatusOK, quote)
 }
 
 // payOrder records a payment for an order the caller owns. The amount is derived server-side from

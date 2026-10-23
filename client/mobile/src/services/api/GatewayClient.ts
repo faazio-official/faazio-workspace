@@ -2140,6 +2140,25 @@ export class GatewayClient {
     );
   }
 
+  /**
+   * Server-authoritative delivery-fee quote for a store → drop distance
+   * (GET /checkout/delivery-fee; the server owns the road-distance math from
+   * directory.stores + the tax.delivery_fee_settings rate card). Throws
+   * `GatewayOfflineError` when remote is disabled, so the caller's honest
+   * Haversine + client-formula estimate (utils.computeDeliveryFeePaisa) is the
+   * fallback seam — a quote is never fabricated from a fixture.
+   */
+  async fetchDeliveryFee(
+    storeId: string,
+    lat: number,
+    lng: number,
+  ): Promise<{ distanceKm: number; feePaisa: number }> {
+    if (!REMOTE_ENABLED) throw new GatewayOfflineError();
+    return this.http<{ distanceKm: number; feePaisa: number }>(
+      `/checkout/delivery-fee?storeId=${encodeURIComponent(storeId)}&lat=${lat}&lng=${lng}`,
+    );
+  }
+
   /** Durable self-pickup locations (public). Falls back to the store-backed resolver. */
   async getPickupPoints(storeIds?: string[]): Promise<PickupPoint[]> {
     return this.withFallback(

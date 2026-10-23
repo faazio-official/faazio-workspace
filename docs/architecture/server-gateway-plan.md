@@ -52,8 +52,9 @@ keys/TTLs unchanged.
   `/coupons?app=` (anon), `/promo/active-discounts?ids=` (anon), `/ads/live?slot=` (anon),
   `/admin/user-trail?userId=` (admin, ID-only), `/admin/sdui/home` (super-admin, raw ID-only layout);
   writes `POST/PUT/DELETE /cart…`, `POST /orders` (festival-discount + coupon settlement + ad
-  attribution + optional live drop fix for auto-dispatch),
-  `POST /checkout/validate-coupon`, `POST /ads/events`, `PUT /vendors/:id/rating`, `POST /events`,
+  attribution + optional live drop fix for auto-dispatch + dynamic delivery fee),
+  `POST /checkout/validate-coupon`, `GET /checkout/delivery-fee?storeId=&lat=&lng=` (auth-scoped,
+  server-authoritative road-distance delivery-fee quote), `POST /ads/events`, `PUT /vendors/:id/rating`, `POST /events`,
   `PUT /admin/sdui/home` (super-admin, publishes the Home layout: version bump + cache purge),
   `POST /bookings` (seat hold + Razorpay order), `DELETE /bookings/:id`,
   `POST /bookings/:id/payment`, seller `GET/PUT /seller/booking-config`, `GET /seller/bookings`,
@@ -90,13 +91,18 @@ keys/TTLs unchanged.
   `GET /seller/fee-change-requests` (district-scoped) with
   `PATCH /seller/fee-change-requests/{id}/approve|reject`. Only approval mutates
   `sellers.sellers.platform_fee_pct`; one `PENDING` row per seller (`0049`).
-- **Tax + invoicing (`internal/tax` + `internal/platform/taxmath`, `0051`):** every order is priced server-side from
-  `tax.tax_rates` + `tax.platform_settings` (GST-inclusive split, seller commission, platform GST,
-  TCS 1% / TDS 0.1% withheld). The immutable invoice is readable at
+- **Tax + invoicing (`internal/tax` + `internal/platform/taxmath`, `0051` + `0053`):** every order is priced server-side from
+  `tax.tax_rates` + `tax.platform_settings` (GST-inclusive split, TCS 1% / TDS 0.1% withheld).
+  **Platform commission is removed** — sellers keep their full GST-inclusive gross (product GST is a
+  pass-through; platform fee/GST are zero in `taxmath.Compute`). The **delivery fee is dynamic**:
+  PICKUP waives it; DELIVERY distances `directory.stores` pins to the customer's live drop fix
+  (Haversine) and applies the `tax.delivery_fee_settings` rate card (default 3 km / ₹35 / ₹9 per
+  extra km). `POST /orders` settles the same math (`CreateOrder`); `GET /checkout/delivery-fee` is
+  the client-facing quote. The immutable invoice is readable at
   `GET /orders/{orderId}/invoice` (owner-scoped; presigned R2 URL only when a PDF exists). Portal:
   `GET /tax/categories`, `GET|PUT /admin/tax/categories`, `DELETE /admin/tax/categories/{id}`,
   `GET|PUT /admin/tax/settings` (SUPER_ADMIN writes). Settlement ledger carries the same
-  TDS/product-GST/platform-GST figures.
+  TDS/product-GST/platform-GST figures (commission now zero).
 - **Rider payouts (`internal/delivery`, `0052`):** `GET /delivery/payouts` (rider history) and
   `GET /delivery/payouts/{orderId}` (upsert a PENDING distance+surge calculation); admin
   `GET|PUT /delivery/payout-settings` and super-admin `POST /delivery/payouts/{orderId}/settle`

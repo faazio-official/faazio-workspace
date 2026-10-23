@@ -216,7 +216,7 @@ func (s *Service) CreateOrder(ctx context.Context, userID string, req PlaceOrder
 	}
 	taxLines := make([]taxmath.Line, 0, len(priced))
 	for _, p := range priced {
-		feePct := 10 // conservative default when a product has no linked seller (legacy/imported rows)
+		feePct := 10 // ignored by Compute (commission removed); kept for structural compatibility
 		if prof, ok := profiles[p.sellerID]; ok && prof.PlatformFeePct > 0 {
 			feePct = prof.PlatformFeePct
 		}
@@ -224,6 +224,39 @@ func (s *Service) CreateOrder(ctx context.Context, userID string, req PlaceOrder
 			GrossPaisa: p.grossPaisa, GSTRatePct: p.ratePct, PlatformFeePct: feePct,
 		})
 	}
+
+	// Delivery fee is dynamic: PICKUP waives it; DELIVERY distances the order's pinned stores to
+	// the customer's live drop fix (Haversine) and applies the tax.delivery_fee_settings rate card
+	// (base + per-extra-km). The flat platform_settings fee is the fallback when there is no fix or
+	// no pinned store. The server is the money authority — the client quote is display-only.
+	deliverySettings, err := s.repo.DeliveryFeeSettings(ctx)
+	if err != nil {
+		return Order{}, err
+	}
+	orderDeliveryFeePaisa := platformRates.DeliveryFeePaisa
+	if req.Fulfillment == "PICKUP" {
+		orderDeliveryFeePaisa = 0
+	} else if req.DeliveryLocation != nil && validLatitude(req.DeliveryLocation.Latitude) && validLongitude(req.DeliveryLocation.Longitude) {
+		storeIDs := make([]string, 0, len(vendorSet))
+		for id := range vendorSet {
+			storeIDs = append(storeIDs, id)
+		}
+		coords, err := s.repo.StoreCoordinates(ctx, storeIDs)
+		if err != nil {
+			return Order{}, err
+		}
+		if len(coords) > 0 {
+			// Charge for the furthest store in a multi-store order (honest worst case).
+			var furthestKm float64
+			for _, c := range coords {
+				if d := haversineKm(req.DeliveryLocation.Latitude, req.DeliveryLocation.Longitude, c.Latitude, c.Longitude); d > furthestKm {
+					furthestKm = d
+				}
+			}
+			orderDeliveryFeePaisa = feeForDistanceKm(furthestKm, deliverySettings)
+		}
+	}
+	platformRates.DeliveryFeePaisa = orderDeliveryFeePaisa
 	breakdown := taxmath.Compute(taxLines, platformRates)
 
 	coins := req.CoinsRedeemed
@@ -349,6 +382,32 @@ func (s *Service) CreateOrder(ctx context.Context, userID string, req PlaceOrder
 		_ = s.ads.AttributeOrder(ctx, req.Attribution.SlotID)
 	}
 	return order, nil
+}
+
+// DeliveryFeeQuote is the server-authoritative delivery fee for one store → drop.
+type DeliveryFeeQuote struct {
+	DistanceKm float64 `json:"distanceKm"`
+	FeePaisa   int64   `json:"feePaisa"`
+}
+
+// DeliveryFeeForStore computes the delivery fee between one store's pinned location and the
+// customer's fix using the tax.delivery_fee_settings rate card. An unpinned store returns the base
+// fee (honest default; road distance is unknown).
+func (s *Service) DeliveryFeeForStore(ctx context.Context, storeID string, lat, lng float64) (DeliveryFeeQuote, error) {
+	coords, err := s.repo.StoreCoordinates(ctx, []string{storeID})
+	if err != nil {
+		return DeliveryFeeQuote{}, err
+	}
+	settings, err := s.repo.DeliveryFeeSettings(ctx)
+	if err != nil {
+		return DeliveryFeeQuote{}, err
+	}
+	c, ok := coords[storeID]
+	if !ok {
+		return DeliveryFeeQuote{DistanceKm: 0, FeePaisa: settings.BaseFeePaisa}, nil
+	}
+	distanceKm := haversineKm(lat, lng, c.Latitude, c.Longitude)
+	return DeliveryFeeQuote{DistanceKm: distanceKm, FeePaisa: feeForDistanceKm(distanceKm, settings)}, nil
 }
 
 // taxRateFor resolves a product's GST rate from tax.tax_rates, defaulting conservatively to 5%.

@@ -25,12 +25,6 @@ import { ImageUploader } from "@/components/patterns/ImageUploader";
 
 const STEPS = ["Category", "Details", "Pricing", "Inventory", "Review"];
 
-/** Fixed platform delivery fee, mirroring tax.platform_settings.delivery_fee_paisa. */
-const DELIVERY_FEE_PAISA = 5000;
-const PLATFORM_GST_PCT = 18;
-const TCS_PCT = 1;
-const TDS_PCT = 0.1;
-
 function NewProduct() {
   const router = useRouter();
   const session = useSession();
@@ -55,18 +49,6 @@ function NewProduct() {
   const pricePaisa = parseRupeesToPaisa(price);
   const selected = categories.find((c) => c.category === category);
   const taxRatePct = selected?.gstRatePct ?? 5;
-  const feePct = seller?.platformFeePct ?? 10;
-
-  // Seller-facing breakdown of what will be withheld from this listing's price. The gateway is the
-  // authority at settlement; this is a transparency preview using the same integer formulas.
-  const taxablePaisa =
-    taxRatePct > 0 ? Math.round((pricePaisa * 100) / (100 + taxRatePct)) : pricePaisa;
-  const productTaxPaisa = pricePaisa - taxablePaisa;
-  const commissionPaisa = Math.round((pricePaisa * feePct) / 100);
-  const platformGstPaisa = Math.round((commissionPaisa * PLATFORM_GST_PCT) / 100);
-  const tcsPaisa = Math.round((pricePaisa * TCS_PCT) / 100);
-  const tdsPaisa = Math.round((pricePaisa * TDS_PCT) / 100);
-  const sellerNetPaisa = pricePaisa - commissionPaisa - tcsPaisa - tdsPaisa;
 
   const stepValid = [
     Boolean(sector && category.trim()),
@@ -219,17 +201,6 @@ function NewProduct() {
                 {taxRatePct}%
               </div>
             </div>
-            {pricePaisa > 0 ? <DeductionsCard
-              pricePaisa={pricePaisa}
-              taxablePaisa={taxablePaisa}
-              productTaxPaisa={productTaxPaisa}
-              commissionPaisa={commissionPaisa}
-              platformGstPaisa={platformGstPaisa}
-              tcsPaisa={tcsPaisa}
-              tdsPaisa={tdsPaisa}
-              sellerNetPaisa={sellerNetPaisa}
-              feePct={feePct}
-            /> : null}
           </div>
         ) : null}
 
@@ -238,12 +209,6 @@ function NewProduct() {
             <div className="space-y-1.5">
               <Label htmlFor="qty">Stock quantity</Label>
               <Input id="qty" value={quantity} onChange={(e) => setQuantity(e.target.value)} inputMode="numeric" />
-            </div>
-            <div className="space-y-1.5">
-              <Label>Delivery</Label>
-              <div className="num rounded-md border border-border px-3 py-2 text-[13px]">
-                Platform-managed · {formatINR(DELIVERY_FEE_PAISA)} customer delivery fee
-              </div>
             </div>
           </div>
         ) : null}
@@ -270,21 +235,6 @@ function NewProduct() {
             <Row label="Prescription" value={isPrescription ? "Required" : "Not required"} />
             <Row label="Status on submit" value="PENDING_REVIEW" />
           </dl>
-          {pricePaisa > 0 ? (
-            <div className="mt-3">
-              <DeductionsCard
-                pricePaisa={pricePaisa}
-                taxablePaisa={taxablePaisa}
-                productTaxPaisa={productTaxPaisa}
-                commissionPaisa={commissionPaisa}
-                platformGstPaisa={platformGstPaisa}
-                tcsPaisa={tcsPaisa}
-                tdsPaisa={tdsPaisa}
-                sellerNetPaisa={sellerNetPaisa}
-                feePct={feePct}
-              />
-            </div>
-          ) : null}
           </>
         ) : null}
 
@@ -308,59 +258,6 @@ function NewProduct() {
           )}
         </div>
       </SectionCard>
-    </div>
-  );
-}
-
-interface DeductionsProps {
-  pricePaisa: number;
-  taxablePaisa: number;
-  productTaxPaisa: number;
-  commissionPaisa: number;
-  platformGstPaisa: number;
-  tcsPaisa: number;
-  tdsPaisa: number;
-  sellerNetPaisa: number;
-  feePct: number;
-}
-
-function DeductionsCard(props: DeductionsProps) {
-  const rows: Array<[string, string, string?]> = [
-    ["Taxable value", formatINR(props.taxablePaisa)],
-    ["Product GST (customer pays)", formatINR(props.productTaxPaisa)],
-    [`Platform fee (${props.feePct}%)`, `− ${formatINR(props.commissionPaisa)}`, "deducted"],
-    ["GST on platform fee (18%)", formatINR(props.platformGstPaisa), "platform liability"],
-    ["TCS (1%)", `− ${formatINR(props.tcsPaisa)}`, "deducted"],
-    ["TDS (0.1%)", `− ${formatINR(props.tdsPaisa)}`, "deducted"],
-  ];
-  return (
-    <div className="rounded-xl border border-border md:col-span-2">
-      <div className="border-b border-border px-3 py-2">
-        <p className="text-[12px] font-semibold uppercase tracking-wide text-muted-foreground">
-          What you keep
-        </p>
-      </div>
-      <dl className="divide-y divide-border">
-        {rows.map(([label, value, hint]) => (
-          <div key={label} className="flex items-center justify-between gap-3 px-3 py-2 text-[13px]">
-            <dt>
-              {label}
-              {hint ? (
-                <span className="ml-1 text-[11px] text-muted-foreground">({hint})</span>
-              ) : null}
-            </dt>
-            <dd className="num font-medium">{value}</dd>
-          </div>
-        ))}
-        <div className="flex items-center justify-between gap-3 px-3 py-2 text-[13px] font-semibold">
-          <dt>Net seller payout per unit</dt>
-          <dd className="num">{formatINR(props.sellerNetPaisa)}</dd>
-        </div>
-      </dl>
-      <p className="px-3 py-2 text-[11px] text-muted-foreground">
-        Product GST is included in your price and is remitted by you. TCS/TDS are withheld from your
-        payout; the platform files them against your GSTIN/PAN.
-      </p>
     </div>
   );
 }

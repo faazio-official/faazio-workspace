@@ -5,6 +5,35 @@ dependencies exist. Do not build the backend/seller flows until told to.
 
 ---
 
+## W65 — Cart/checkout rework + seller-fee removal + dynamic delivery fee (P0)
+
+**Status:** 🟢 Shipped (mobile + gateway + Supabase + web portal).
+
+- **Checkout wizard** is now **BAG → FULFILLMENT → PAYMENT → RECEIPT** (`CartView.tsx`): BAG shows
+  items + pricing with a full-width **Place order** button; FULFILLMENT shows a pale-blue "to pay"
+  `BreakdownCard`, a Delivery / Self Pickup segment and the address card / pickup-point list, with a
+  fixed **Proceed to pay** bar; PAYMENT renders the reworked payment screen.
+- **Payment rework** (`PaymentOptionsScreen.tsx`): pale-blue total card + exactly two breakdown rows
+  (ordered value + delivery fee; no tax row — GST is inside the prices); the Preferred-Payment card,
+  CVV pay bar and Net Banking / Wallet / COD options are gone. UPI rows are **detected** apps
+  (`src/services/upi.ts` probing `UPI_APP_PACKAGES` via `Linking.canOpenURL`; Android `<queries>` +
+  iOS `LSApplicationQueriesSchemes`), and a fixed floating **Pay ₹X** bar appears once a method is
+  chosen. **Add New Card** is real (`AddCardScreen.tsx` + `cardStorage.ts`): the form validates and
+  persists only a token + last4 + expiry + network in the Keychain under `FaazioCardToken`
+  (`AddCard` route, refreshed on focus); raw PAN/CVV never touch state or logs.
+- **Dynamic delivery fee** (replaces the flat ₹49/₹50): PICKUP waives it; DELIVERY quotes via
+  `GET /checkout/delivery-fee` (`gateway.fetchDeliveryFee`, store pin + live drop) with an honest
+  Haversine + `computeDeliveryFeePaisa` fallback (≤3 km → ₹35, then ₹9/extra km). Multi-store carts
+  quote every store and keep the furthest, matching settlement.
+- **Server:** `CreateOrder` charges PICKUP → 0 / DELIVERY → furthest pinned store ×
+  `tax.delivery_fee_settings` (`0053`); `taxmath.Compute` zeroes platform commission/GST — sellers
+  keep full gross, only statutory TCS/TDS are withheld (`SellerNet = Gross − TCS − TDS`).
+  `GET /checkout/delivery-fee?storeId=&lat=&lng=` is auth-scoped.
+- **Web portal:** the seller product page dropped the commission/TCS/TDS/delivery DeductionsCard and
+  the "Platform-managed" line; the pricing floor is commission-free (25% of MRP).
+- Docs: `mobile-app.md`, `server-gateway-plan.md`, `monolith-breakdown.md` §1, `db-schema.md` §12.25,
+  `data/DATA_CONTROL.md` (no data change — delivery fee is a server setting).
+
 ## W64 — District rollout + platform-fee change requests (P0)
 
 **Status:** 🟢 Shipped (DB + gateway + mobile + portal).

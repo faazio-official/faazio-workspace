@@ -29,11 +29,18 @@ import { coupons as fixtureCoupons } from '@data/cart/coupons';
 import { getPickupPointsForItems, getStoreIdsForItems } from '@data/cart/pickup-resolver';
 import { userProfile } from '@data/account/profile';
 import type { Coupon, FulfillmentMode, PickupPoint } from '@data/types';
+import { useNavigation } from '@react-navigation/native';
+import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import AppText from '@/components/AppText';
 import SlideUpSheet from '@/components/shared/SlideUpSheet';
 import PaymentOptionsScreen from '@/features/cart/payment/PaymentOptionsScreen';
-import { computeTotals } from './utils';
+import type { PlaceOrderPayload } from '@/features/cart/payment/PaymentOptionsScreen';
+import BreakdownCard from '@/features/cart/payment/components/BreakdownCard';
+import { computeTotals, computeDeliveryFeePaisa, DELIVERY_FEE_BASE_KM } from './utils';
 import type { CheckoutStep } from './utils';
+import { haversineKm } from '@/utils/distance';
+import { getStoreById } from '@data/directory/stores';
+import type { RootStackParamList } from '@/navigation/types';
 import { useRewardsStore } from '@/state/rewardsStore';
 import { useOrdersStore } from '@/state/ordersStore';
 import { gateway } from '@/services/api/GatewayClient';
@@ -177,14 +184,11 @@ export default function CartView({
   const deliveryAddress = liveAddress?.address
     ? { label: 'Current location', address: liveAddress.address }
     : { label: fallbackAddress?.label ?? 'Home', address: fallbackAddress?.address ?? '' };
-  const deliveryFallback = !liveAddress?.address;
 
-  const [paymentMethod, setPaymentMethod] = useState<'UPI' | 'CARD' | 'COD'>('UPI');
-  const [upiId, setUpiId] = useState('user@upi');
-  const [cardNumber, setCardNumber] = useState('');
-  const [cardExpiry, setCardExpiry] = useState('');
-  const [cardCvv, setCardCvv] = useState('');
+  const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const [paymentProcessing, setPaymentProcessing] = useState(false);
+  /** Server-authoritative delivery-fee quote (road distance); falls back to a Haversine estimate. */
+  const [deliveryFeeQuote, setDeliveryFeeQuote] = useState<{ distanceKm: number; feePaisa: number } | null>(null);
 
   const [placedOrderDetails, setPlacedOrderDetails] = useState<{
     orderId: string;
@@ -233,7 +237,13 @@ export default function CartView({
     () => cartItems.filter((i) => !deselectedIds.has(i.id)),
     [cartItems, deselectedIds],
   );
-  const { subtotal, deliveryFee, tax, finalTotal } = computeTotals(selectedItems, discountAmount, fulfillment ?? 'DELIVERY');
+  const storeIdsForQuote = useMemo(() => getStoreIdsForItems(selectedItems), [selectedItems]);
+  const { subtotal, deliveryFee, tax, finalTotal } = computeTotals(
+    selectedItems,
+    discountAmount,
+    fulfillment ?? 'DELIVERY',
+    deliveryFeeQuote?.feePaisa,
+  );
   const estimatedCoins = coinsEarnedFor(finalTotal);
   const originalTotal = selectedItems.reduce(
     (acc, curr) => acc + (curr.originalPrice ?? curr.price) * curr.quantity,
@@ -333,7 +343,66 @@ export default function CartView({
     [selectedItems],
   );
 
-  const handlePlaceOrder = (coinsRedeemed = 0) => {
+  // Server-authoritative delivery fee (road distance). Refetched on the FULFILLMENT step; kept once
+  // fetched so the PAYMENT step shows the same figure the server will charge. A multi-store cart
+  // quotes every pinned store and keeps the furthest one — settlement charges that same worst case.
+  // Falls back to a Haversine + client-formula estimate (honest) when the gateway is unreachable.
+  useEffect(() => {
+    if (fulfillment !== 'DELIVERY') {
+      setDeliveryFeeQuote(null);
+      return;
+    }
+    if (step !== 'FULFILLMENT') return;
+    if (!hasLiveFix || storeIdsForQuote.length === 0) {
+      setDeliveryFeeQuote(null);
+      return;
+    }
+    let cancelled = false;
+    const furthest = (quotes: { distanceKm: number; feePaisa: number }[]) =>
+      quotes.reduce<{ distanceKm: number; feePaisa: number } | null>(
+        (max, q) => (max && max.feePaisa >= q.feePaisa ? max : q),
+        null,
+      );
+    void (async () => {
+      try {
+        const quotes = await Promise.all(
+          storeIdsForQuote.map((storeId) =>
+            gateway.fetchDeliveryFee(storeId, liveAddress.lat, liveAddress.lng),
+          ),
+        );
+        const quote = furthest(quotes);
+        if (!cancelled && quote) setDeliveryFeeQuote(quote);
+      } catch {
+        // Honest estimate: the furthest pinned store's great-circle distance × the client formula.
+        const km = storeIdsForQuote.reduce((maxKm, storeId) => {
+          const store = getStoreById(storeId);
+          if (
+            !store ||
+            typeof store.latitude !== 'number' ||
+            typeof store.longitude !== 'number'
+          ) {
+            return maxKm;
+          }
+          return Math.max(
+            maxKm,
+            haversineKm(
+              { latitude: liveAddress.lat, longitude: liveAddress.lng },
+              { latitude: store.latitude, longitude: store.longitude },
+            ),
+          );
+        }, DELIVERY_FEE_BASE_KM);
+        if (!cancelled) {
+          setDeliveryFeeQuote({ distanceKm: km, feePaisa: computeDeliveryFeePaisa(km) });
+        }
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [step, fulfillment, hasLiveFix, storeIdsForQuote, liveAddress.lat, liveAddress.lng]);
+
+  const handlePlaceOrder = (payload?: PlaceOrderPayload) => {
+    const { method = 'UPI', upiLabel, cardLast4, coinsRedeemed = 0 } = payload ?? {};
     setPaymentProcessing(true);
     void (async () => {
       const redeemRupees = Math.floor(coinsRedeemed / COIN_REDEEM_RATE);
@@ -357,6 +426,7 @@ export default function CartView({
           items: selectedItems.map((i) => ({ productId: i.id, qty: i.quantity })),
           ...(addressId ? { addressId } : {}),
           fulfillment: mode,
+          paymentMethod: method,
           idempotencyKey: `cart-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
           ...(appliedCouponCode ? { couponCode: appliedCouponCode } : {}),
           ...(attributedSlotId ? { attribution: { slotId: attributedSlotId } } : {}),
@@ -426,7 +496,10 @@ export default function CartView({
         deliveryAddress: isPickup
           ? primaryPickup?.address ?? 'Pickup point'
           : deliveryAddress.address,
-        payment: paymentMethod === 'UPI' ? `UPI (${upiId})` : paymentMethod === 'CARD' ? `Credit Card (*${cardNumber.slice(-4) || '4242'})` : 'Cash on Delivery',
+        payment:
+          method === 'UPI'
+            ? `UPI (${upiLabel ?? 'UPI'})`
+            : `Card (*${cardLast4 ?? '4242'})`,
         eta: isPickup ? '15 Mins' : '12-15 Mins',
         fulfillment: mode,
         pickup: primaryPickup,
@@ -520,57 +593,6 @@ export default function CartView({
                     <AppText style={styles.appliedDiscountText}>{appliedDiscount.code}</AppText>
                     <AppText style={styles.removeCouponText}>  Remove</AppText>
                   </TouchableOpacity>
-                )}
-              </View>
-
-              {/* Fulfilment — choose delivery or self-pickup */}
-              <View style={styles.fulfilmentCard}>
-                <AppText style={styles.fulfilmentTitle}>How do you want your order?</AppText>
-                <View style={styles.fulfillmentToggle}>
-                  <TouchableOpacity
-                    onPress={() => setFulfillment('DELIVERY')}
-                    style={[styles.fulfillmentToggleOption, fulfillment === 'DELIVERY' && styles.fulfillmentToggleOptionActive]}
-                    activeOpacity={0.8}
-                    accessibilityRole="button"
-                    accessibilityState={{ selected: fulfillment === 'DELIVERY' }}
-                  >
-                    <Send size={ms(14)} color={fulfillment === 'DELIVERY' ? '#ffffff' : '#6B7280'} strokeWidth={2.2} />
-                    <AppText style={[styles.fulfillmentToggleText, fulfillment === 'DELIVERY' && styles.fulfillmentToggleTextActive]}>
-                      Delivery
-                    </AppText>
-                  </TouchableOpacity>
-                  <TouchableOpacity
-                    onPress={() => setFulfillment('PICKUP')}
-                    style={[styles.fulfillmentToggleOption, fulfillment === 'PICKUP' && styles.fulfillmentToggleOptionActive]}
-                    activeOpacity={0.8}
-                    accessibilityRole="button"
-                    accessibilityState={{ selected: fulfillment === 'PICKUP' }}
-                  >
-                    <Store size={ms(14)} color={fulfillment === 'PICKUP' ? '#ffffff' : '#6B7280'} strokeWidth={2.2} />
-                    <AppText style={[styles.fulfillmentToggleText, fulfillment === 'PICKUP' && styles.fulfillmentToggleTextActive]}>
-                      Self Pickup
-                    </AppText>
-                  </TouchableOpacity>
-                </View>
-
-                {fulfillment === 'DELIVERY' && (
-                  <View style={styles.liveAddressRow}>
-                    <View style={styles.liveAddressIcon}>
-                      <Send size={ms(14)} color="#F97316" strokeWidth={2.2} />
-                    </View>
-                    <View style={styles.liveAddressBody}>
-                      <AppText style={styles.addrLabel} numberOfLines={1}>
-                        {liveAddress?.status === 'loading' ? 'Locating your address…' : deliveryAddress.label}
-                      </AppText>
-                      <AppText style={styles.addrSub} numberOfLines={1}>
-                        {liveAddress?.status === 'loading'
-                          ? 'Getting your current location'
-                          : deliveryFallback
-                            ? `${deliveryAddress.address} (using saved address)`
-                            : deliveryAddress.address}
-                      </AppText>
-                    </View>
-                  </View>
                 )}
               </View>
 
@@ -683,17 +705,13 @@ export default function CartView({
             </View>
 
             <TouchableOpacity
-              style={[styles.proceedBtn, (selectedItems.length === 0 || !fulfillment) && styles.proceedBtnDisabled]}
-              onPress={() => setStep('PAYMENT')}
+              style={[styles.proceedBtn, selectedItems.length === 0 && styles.proceedBtnDisabled]}
+              onPress={() => setStep('FULFILLMENT')}
               activeOpacity={0.88}
-              disabled={selectedItems.length === 0 || !fulfillment}
+              disabled={selectedItems.length === 0}
             >
               <AppText style={styles.proceedText}>
-                {selectedItems.length === 0
-                  ? 'Select items to pay'
-                  : !fulfillment
-                    ? 'Choose pickup or delivery'
-                    : 'Proceed to Pay'}
+                {selectedItems.length === 0 ? 'Select items to pay' : 'Place order'}
               </AppText>
             </TouchableOpacity>
           </View>
@@ -771,6 +789,120 @@ export default function CartView({
     );
   }
 
+  if (step === 'FULFILLMENT') {
+    return (
+      <View style={styles.fulfillmentRoot}>
+        <View style={[styles.bagTopBar, { paddingTop: insets.top + vs(12) }]}>
+          <TouchableOpacity onPress={() => setStep('BAG')} style={styles.bagBackBtn} activeOpacity={0.7} hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}>
+            <ArrowLeft size={ms(20)} color="#1E2022" strokeWidth={2.4} />
+          </TouchableOpacity>
+          <AppText style={styles.bagTitle} numberOfLines={1}>
+            How do you want your order?
+          </AppText>
+          <View style={{ width: ms(40) }} />
+        </View>
+
+        <ScrollView
+          style={styles.fulfillmentScroll}
+          contentContainerStyle={styles.fulfillmentScrollContent}
+          showsVerticalScrollIndicator={false}
+        >
+          <BreakdownCard total={finalTotal} subtotal={subtotal} deliveryFee={deliveryFee} fulfillment={fulfillment ?? undefined} />
+
+          <View style={styles.fulfilmentCard}>
+            <AppText style={styles.fulfilmentTitle}>How do you want your order?</AppText>
+            <View style={styles.fulfillmentToggle}>
+              <TouchableOpacity
+                onPress={() => setFulfillment('DELIVERY')}
+                style={[styles.fulfillmentToggleOption, fulfillment === 'DELIVERY' && styles.fulfillmentToggleOptionActive]}
+                activeOpacity={0.8}
+                accessibilityRole="button"
+                accessibilityState={{ selected: fulfillment === 'DELIVERY' }}
+              >
+                <Send size={ms(14)} color={fulfillment === 'DELIVERY' ? '#ffffff' : '#6B7280'} strokeWidth={2.2} />
+                <AppText style={[styles.fulfillmentToggleText, fulfillment === 'DELIVERY' && styles.fulfillmentToggleTextActive]}>
+                  Delivery
+                </AppText>
+              </TouchableOpacity>
+              <TouchableOpacity
+                onPress={() => setFulfillment('PICKUP')}
+                style={[styles.fulfillmentToggleOption, fulfillment === 'PICKUP' && styles.fulfillmentToggleOptionActive]}
+                activeOpacity={0.8}
+                accessibilityRole="button"
+                accessibilityState={{ selected: fulfillment === 'PICKUP' }}
+              >
+                <Store size={ms(14)} color={fulfillment === 'PICKUP' ? '#ffffff' : '#6B7280'} strokeWidth={2.2} />
+                <AppText style={[styles.fulfillmentToggleText, fulfillment === 'PICKUP' && styles.fulfillmentToggleTextActive]}>
+                  Self Pickup
+                </AppText>
+              </TouchableOpacity>
+            </View>
+          </View>
+
+          <AppText style={styles.fulfillmentSectionLabel}>Choose pickup or delivery</AppText>
+
+          {fulfillment === 'DELIVERY' ? (
+            <View style={styles.fulfillmentAddressCard}>
+              <View style={styles.liveAddressIcon}>
+                <Send size={ms(14)} color="#F97316" strokeWidth={2.2} />
+              </View>
+              <View style={styles.liveAddressBody}>
+                <AppText style={styles.addrLabel} numberOfLines={1}>
+                  {liveAddress?.status === 'loading' ? 'Locating your address…' : deliveryAddress.label}
+                </AppText>
+                <AppText style={styles.addrSub} numberOfLines={1}>
+                  {liveAddress?.status === 'loading'
+                    ? 'Getting your current location'
+                    : deliveryAddress.address}
+                </AppText>
+              </View>
+              {liveAddress?.status !== 'loading' && (
+                <TouchableOpacity
+                  onPress={() => navigation.navigate('SavedAddresses')}
+                  style={styles.changeBtn}
+                  activeOpacity={0.7}
+                  accessibilityRole="button"
+                  accessibilityLabel="Change delivery address"
+                >
+                  <AppText style={styles.changeText}>Change</AppText>
+                </TouchableOpacity>
+              )}
+            </View>
+          ) : (
+            <View style={styles.fulfillmentPickupWrap}>
+              {pickupPointList.map((p) => (
+                <View key={p.id} style={styles.fulfillmentPickupCard}>
+                  <View style={styles.pickupCardHeader}>
+                    <Store size={ms(14)} color="#0F4C81" strokeWidth={2.2} />
+                    <AppText style={styles.pickupCardName} numberOfLines={1}>
+                      {p.name}
+                    </AppText>
+                  </View>
+                  <AppText style={styles.fulfillmentPickupText}>{p.address}</AppText>
+                  <AppText style={styles.fulfillmentPickupText}>Open {p.hours}</AppText>
+                  <AppText style={styles.fulfillmentPickupText}>Contact: {p.phone}</AppText>
+                </View>
+              ))}
+            </View>
+          )}
+        </ScrollView>
+
+        <View style={styles.fulfillmentBottomBar}>
+          <TouchableOpacity
+            style={[styles.proceedBtn, !fulfillment && styles.proceedBtnDisabled]}
+            onPress={() => setStep('PAYMENT')}
+            activeOpacity={0.88}
+            disabled={!fulfillment}
+          >
+            <AppText style={styles.proceedText}>
+              {fulfillment ? 'Proceed to pay' : 'Choose pickup or delivery'}
+            </AppText>
+          </TouchableOpacity>
+        </View>
+      </View>
+    );
+  }
+
   if (step === 'PAYMENT') {
     const itemCount = selectedItems.reduce((acc, curr) => acc + curr.quantity, 0);
     const primaryPickup = pickupPointList[0];
@@ -779,6 +911,8 @@ export default function CartView({
         <PaymentOptionsScreen
           itemCount={itemCount}
           total={finalTotal}
+          subtotal={subtotal}
+          deliveryFee={deliveryFee}
           deliveryAddress={{
             label: fulfillment === 'PICKUP' ? (primaryPickup?.name ?? 'Pickup point') : deliveryAddress.label,
             address: fulfillment === 'PICKUP' ? (primaryPickup?.address ?? '') : deliveryAddress.address,
@@ -786,7 +920,7 @@ export default function CartView({
           originLabel="Instamart"
           fulfillment={fulfillment ?? 'DELIVERY'}
           pickup={primaryPickup}
-          onBack={() => setStep('BAG')}
+          onBack={() => setStep('FULFILLMENT')}
           onPlaceOrder={handlePlaceOrder}
         />
       </View>
@@ -1200,15 +1334,6 @@ const styles = StyleSheet.create({
     textTransform: 'uppercase',
     marginBottom: vs(4),
   },
-  liveAddressRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: '#f1f5f9',
-    borderRadius: ms(16),
-    padding: hs(12),
-    marginTop: vs(10),
-  },
   liveAddressIcon: {
     width: ms(32),
     height: ms(32),
@@ -1220,6 +1345,83 @@ const styles = StyleSheet.create({
   },
   liveAddressBody: {
     flex: 1,
+  },
+  fulfillmentRoot: {
+    flex: 1,
+    backgroundColor: '#F3F4F6',
+  },
+  fulfillmentScroll: {
+    flex: 1,
+  },
+  fulfillmentScrollContent: {
+    paddingHorizontal: hs(16),
+    paddingTop: vs(6),
+    paddingBottom: SPACE.LIST_BOTTOM,
+  },
+  fulfillmentSectionLabel: {
+    fontSize: ms(11),
+    fontWeight: '900',
+    color: '#94a3b8',
+    textTransform: 'uppercase',
+    marginBottom: vs(8),
+  },
+  fulfillmentAddressCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#ffffff',
+    borderWidth: 1,
+    borderColor: '#f1f5f9',
+    borderRadius: ms(16),
+    padding: hs(14),
+    marginBottom: vs(12),
+  },
+  changeBtn: {
+    paddingHorizontal: hs(10),
+    paddingVertical: vs(6),
+    borderRadius: ms(8),
+    backgroundColor: '#E3F2FD',
+  },
+  changeText: {
+    fontSize: ms(11),
+    fontWeight: '800',
+    color: '#0F4C81',
+  },
+  fulfillmentPickupWrap: {
+    gap: vs(10),
+    marginBottom: vs(12),
+  },
+  fulfillmentPickupCard: {
+    backgroundColor: '#ffffff',
+    borderWidth: 1,
+    borderColor: '#f1f5f9',
+    borderRadius: ms(16),
+    padding: hs(14),
+  },
+  pickupCardHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: hs(8),
+    marginBottom: vs(6),
+  },
+  pickupCardName: {
+    flex: 1,
+    fontSize: ms(13),
+    fontWeight: '800',
+    color: '#0F4C81',
+  },
+  fulfillmentPickupText: {
+    fontSize: ms(11),
+    color: '#4B5563',
+    fontWeight: '600',
+    lineHeight: ms(17),
+    marginTop: vs(1),
+  },
+  fulfillmentBottomBar: {
+    paddingHorizontal: hs(16),
+    paddingVertical: vs(10),
+    backgroundColor: '#ffffff',
+    borderTopWidth: 1,
+    borderTopColor: '#f1f5f9',
   },
   vendorPickupCard: {
     borderWidth: 1,
