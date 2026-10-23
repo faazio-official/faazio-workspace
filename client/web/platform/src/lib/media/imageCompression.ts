@@ -2,6 +2,20 @@
 // product-image resolver so non-product flows do not pull the bundled product photos as assets.
 export const MAX_UPLOAD_BYTES = 8 * 1024 * 1024;
 
+// Mirror the gateway media allowlist (media/handler.go). Compression normally returns JPEG, but the
+// fallback below can return the original bytes, so never assume the output MIME.
+const UPLOAD_MIMES: Record<string, string> = {
+  "image/jpeg": "image/jpeg",
+  "image/png": "image/png",
+  "image/webp": "image/webp",
+  "image/avif": "image/avif",
+};
+
+/** The MIME to declare when uploading `blob`, or null when the gateway would reject it. */
+export function uploadMimeFor(blob: Blob): string | null {
+  return UPLOAD_MIMES[blob.type] ?? null;
+}
+
 /**
  * Reads a picked file and returns a compressed JPEG data URL, so uploads survive a
  * page reload without a storage backend. Runs in the browser only.

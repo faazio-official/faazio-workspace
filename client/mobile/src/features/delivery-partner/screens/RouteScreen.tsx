@@ -1,6 +1,7 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useMemo, useState } from 'react';
 import { Alert, ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
 import MapView, { Marker, Polyline } from 'react-native-maps';
+import { useFocusEffect } from '@react-navigation/native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import AppText from '@/components/AppText';
 import {
@@ -71,9 +72,11 @@ export function RouteScreen({ navigation }: Props) {
     }
   }, []);
 
-  useEffect(() => {
-    void load();
-  }, [load]);
+  useFocusEffect(
+    useCallback(() => {
+      void load();
+    }, [load]),
+  );
 
   const stops = useMemo(() => mergeRoute(orders), [orders]);
   const pickedUpOrders = useMemo(() => {
@@ -118,9 +121,14 @@ export function RouteScreen({ navigation }: Props) {
           [{ text: 'Back to dashboard', onPress: () => navigation.replace('Dashboard') }],
         );
       } else if (updated.status === 'ROUTE_COMPLETE') {
+        const failedDrop = updated.stops.some(
+          (s) => s.stopType === 'DROP' && s.status === 'FAILED',
+        );
         Alert.alert(
-          'Route complete',
-          'All drops are done. Your capacity is free for the next order.',
+          failedDrop ? 'Route finished' : 'Route complete',
+          failedDrop
+            ? 'The route finished with a failed drop. Your capacity is free for the next order.'
+            : 'All drops are done. Your capacity is free for the next order.',
           [{ text: 'Back to dashboard', onPress: () => navigation.replace('Dashboard') }],
         );
       }

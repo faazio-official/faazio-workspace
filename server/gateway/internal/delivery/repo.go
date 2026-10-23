@@ -358,10 +358,13 @@ func (r *Repo) AdminUploadDocumentReplacement(ctx context.Context, riderID, docT
 		return err
 	}
 	defer func() { _ = tx.Rollback(ctx) }()
+	// Lock the row so a concurrent verify cannot flip it to VERIFIED between the check and the
+	// update (a verified document is immutable).
 	var status string
 	err = tx.QueryRow(ctx, `
 		select status::text from delivery.delivery_documents
-		 where rider_id=$1 and doc_type=$2::delivery_doc_type`, riderID, docType).Scan(&status)
+		 where rider_id=$1 and doc_type=$2::delivery_doc_type
+		 for update`, riderID, docType).Scan(&status)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return ErrNotFound
 	}
@@ -371,13 +374,18 @@ func (r *Repo) AdminUploadDocumentReplacement(ctx context.Context, riderID, docT
 	if status == DocVerified {
 		return fmt.Errorf("%w: a verified document cannot be replaced", ErrConflict)
 	}
-	if _, err := tx.Exec(ctx, `
+	ct, err := tx.Exec(ctx, `
 		update delivery.delivery_documents
 		   set file_key=$3, asset_id=$4, status='PENDING'::delivery_doc_status,
 		       rejection_reason='', reviewed_by=$5, reviewed_at=now(), uploaded_at=now()
-		 where rider_id=$1 and doc_type=$2::delivery_doc_type`,
-		riderID, docType, strings.TrimSpace(fileKey), nullString(assetID), reviewer); err != nil {
+		 where rider_id=$1 and doc_type=$2::delivery_doc_type
+		   and status <> 'VERIFIED'::delivery_doc_status`,
+		riderID, docType, strings.TrimSpace(fileKey), nullString(assetID), reviewer)
+	if err != nil {
 		return err
+	}
+	if ct.RowsAffected() == 0 {
+		return fmt.Errorf("%w: a verified document cannot be replaced", ErrConflict)
 	}
 	return tx.Commit(ctx)
 }

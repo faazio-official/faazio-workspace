@@ -6,7 +6,7 @@
 // compressed data URL so local development keeps working.
 import { config, remoteConfigured } from "@/lib/config";
 import { remote } from "@/lib/api/http";
-import { fileToProductImage } from "./imageCompression";
+import { fileToProductImage, uploadMimeFor } from "./imageCompression";
 import fmM1 from "@/assets/products/fm-m1.jpg";
 import mdM1 from "@/assets/products/md-1.jpg";
 import fmF1 from "@/assets/products/fm-f1.jpg";
@@ -89,14 +89,16 @@ export async function uploadProductImage(file: File, ownerType = "PRODUCT"): Pro
   if (remoteConfigured()) {
     try {
       const blob = await (await fetch(dataUrl)).blob();
+      const mime = uploadMimeFor(blob);
+      if (!mime) throw new Error("unsupported image type");
       const hash = await sha256Hex(blob);
       const signed = await remote.post<{ assetId: string; key: string; uploadUrl: string }>(
         "/media/upload-url",
-        { kind: "PUBLIC", ownerType, mime: "image/jpeg", bytes: blob.size, hash },
+        { kind: "PUBLIC", ownerType, mime, bytes: blob.size, hash },
       );
       const put = await fetch(signed.uploadUrl, {
         method: "PUT",
-        headers: { "Content-Type": "image/jpeg" },
+        headers: { "Content-Type": mime },
         body: blob,
       });
       if (!put.ok) throw new Error(`upload failed (${put.status})`);

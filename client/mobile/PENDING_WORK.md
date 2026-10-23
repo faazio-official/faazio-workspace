@@ -16,7 +16,8 @@ dependencies exist. Do not build the backend/seller flows until told to.
   the partner its own listings, labels and Firebase config; Gradle/Xcode bundle only the selected
   entry, so neither product ships the other's screens/stores.
 - **Flow:** phone OTP → KYC application (live camera capture for Aadhaar/selfie and motorized
-  DL/RC/insurance; private R2 keys only) → admin per-document verify/reject/re-upload → super-admin
+  DL/RC/insurance; private R2 keys only) → admin per-document verify/reject and admin-side
+  replacement upload (the rider app has no re-upload screen) → super-admin
   activation → Go Online/Offline + 120 s heartbeat (foreground loop and, on Android, an ongoing
   foreground service that wakes the same headless task) → 45 s order offers → server-ordered
   multi-stop route → pickup/drop statuses → hashed customer-OTP handover.
@@ -25,9 +26,9 @@ dependencies exist. Do not build the backend/seller flows until told to.
   300 s), falls back to Haversine without `GOOGLE_ROUTES_API_KEY`; capacity is hard-capped by vehicle
   (bicycle 1 / two-wheeler 2 / four-wheeler 5). A reject — or an offer whose 45 s window expires —
   releases the job and re-offers it to the next candidate up to 5 attempts, never re-offering a rider
-  who already declined; re-offers are inserted into an already-loaded rider's route with the same
-  heuristic as the first offer. Riders holding an unaccepted offer are skipped so offers cannot stack
-  on one rider before `current_load` rises. Stop transitions are forward-only server-side (`AT_PICKUP → PICKED_UP →
+  who already declined; re-offers run the same global VRP as the first offer. Riders holding an
+  unaccepted offer are skipped so offers cannot stack on one rider before `current_load` rises.
+  Stop transitions are forward-only server-side (`AT_PICKUP → PICKED_UP →
   AT_CUSTOMER → DELIVERED`); a failed pickup cancels the job and releases capacity, and completing a
   route never overrides the rider's explicit availability toggle. The handover OTP locks after 5
   incorrect attempts. Live coordinates are Valkey-only (`delivery:rider:{id}:location`, TTL 300 s);

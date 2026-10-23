@@ -451,6 +451,40 @@ func TestOptimizeGlobalRouteTrivialAndOversize(t *testing.T) {
 	}
 }
 
+func TestOptimizeGlobalRouteHandlesCapacityLoad(t *testing.T) {
+	// Six orders (12 stops): above the five-order four-wheeler cap but still under the solver
+	// guard, exercising the largest route an MVP rider could accumulate. Every drop must follow
+	// its pickup and the sequence must be dense.
+	stops := make([]Stop, 0, 24)
+	for order := 0; order < 6; order++ {
+		id := fmt.Sprintf("O%d", order)
+		base := float64(order * 2)
+		stops = append(stops,
+			makeStop(id+"-pick", id, "PICKUP", StopPending, base, 0),
+			makeStop(id+"-drop", id, "DROP", StopPending, base+1, 0))
+	}
+	got, err := OptimizeGlobalRoute(stops, 0, 0, unitMatrix{})
+	if err != nil {
+		t.Fatalf("12-stop route failed: %v", err)
+	}
+	if len(got) != len(stops) {
+		t.Fatalf("route lost stops: got %d want %d", len(got), len(stops))
+	}
+	pos := make(map[string]int, len(got))
+	for i, s := range got {
+		if s.Sequence != i+1 {
+			t.Fatalf("sequence not dense: %+v", got)
+		}
+		pos[s.StopID] = i
+	}
+	for order := 0; order < 6; order++ {
+		id := fmt.Sprintf("O%d", order)
+		if pos[id+"-pick"] > pos[id+"-drop"] {
+			t.Fatalf("order %s drop before pickup: %v", id, routeIDs(got))
+		}
+	}
+}
+
 func TestEncodePolyline(t *testing.T) {
 	stops := []Stop{
 		{Latitude: point(38.5, 0), Longitude: point(-120.2, 0)},
