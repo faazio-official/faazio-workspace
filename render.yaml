@@ -18,6 +18,11 @@
 #   R2_PRIVATE_BUCKET=faazio-private, BOOKING_FEE_PAISA=5000, AUTH_DISABLED=false,
 #   ALLOWED_ORIGINS=https://app.faazio.com, OTEL_ENABLED=true
 #
+# Migrations: Render NEVER applies them — the distroless image ships only the /server binary (no
+# SQL, no psql), and the gateway just health-checks the schema. Apply server/supabase/migrations/*
+# from a dev terminal with server/gateway/.env (docs/RUNBOOKS/DATABASE_MIGRATIONS.md) BEFORE rolling
+# this deploy.
+#
 # Prod hardening (dashboard/Cloudflare, not expressible here):
 #   - Cloudflare: CNAME → onrender.com (DNS-only first to issue the cert, then Proxied + SSL Full);
 #     delete any AAAA record so clients never reach Render directly.

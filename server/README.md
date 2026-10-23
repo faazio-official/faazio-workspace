@@ -52,6 +52,11 @@ server/
   (public `/assets/{key}` media links), so neither needs to be set by hand. Blueprint: `standard`
   plan, `minInstances: 2` (no idle spin-down / rolling deploys), Cloudflare proxied + Full SSL with
   Render inbound rules locked to Cloudflare IP ranges (see `render.yaml` comments).
+- **Migrations:** **Render never applies them.** The runtime image is distroless (binary only — no
+  SQL, no `psql`), and the gateway only health-checks the schema and logs `hint=apply migration NN`
+  when tables are missing. Every migration under `server/supabase/migrations/` is applied manually
+  from a dev terminal using the creds in `server/gateway/.env`
+  (`docs/RUNBOOKS/DATABASE_MIGRATIONS.md`) — always **apply migrations before rolling the deploy**.
 - **Verify:** `go build/vet/test ./...` + `go run ./tools/importlint`.
 - **Origins:** Supabase (Postgres) for catalog/directory/reviews/checkout/accounts/inventory;
   MongoDB Atlas for `sdui_layouts` + events; Aiven Valkey read-through; Cloudflare in front.

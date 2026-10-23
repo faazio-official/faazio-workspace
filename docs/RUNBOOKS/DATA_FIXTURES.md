@@ -156,6 +156,11 @@ psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f server/supabase/seed/0001_seed.sql
 Migrations are Supabase-aware: they enable RLS and schedule `pg_cron` sweeps only when the `auth`
 schema / `pg_cron` extension is present, and skip both on a bare local Postgres.
 
+> **Render never applies migrations.** The loop above is the **fresh-DB** path; for an existing
+> production DB apply only the **pending** files from a dev terminal. Full workflow (creds from
+> `server/gateway/.env`, pending-only commands, alternative SQL-editor path):
+> `docs/RUNBOOKS/DATABASE_MIGRATIONS.md`.
+
 - **Mirroring a local dev DB → prod:** dump **data-only** from local (`pg_dump --data-only
   --no-owner --no-privileges`), `TRUNCATE` the prod app base tables, then restore. Use a **PG17**
   client (`postgres:17-alpine`) against the PG17 server. Exclude `reviews.vendor_summary` from the
