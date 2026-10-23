@@ -2,6 +2,8 @@
 // Delivery-partner control plane. All calls are role-gated server-side (STATE_ADMIN is scoped to
 // its own state; SUPER_ADMIN may act anywhere). No PII is cached client-side beyond the response.
 import { remote } from "./http";
+import { remoteConfigured } from "@/lib/config";
+import { fileToProductImage } from "@/lib/media/imageCompression";
 
 export type DeliveryStatus =
   "APPLIED" | "PENDING_REVIEW" | "VERIFIED" | "ACTIVE" | "SUSPENDED" | "BLACKLISTED" | "REJECTED";
@@ -105,14 +107,57 @@ export function rejectDeliveryApplication(id: string, reason: string) {
   });
 }
 
-export function requestDeliveryReupload(id: string, docType: string, reason: string) {
+/**
+ * Admin-side replacement for a rejected/re-upload-requested document. The caller uploads the file
+ * to the private R2 bucket first; the document returns to PENDING for normal review.
+ */
+export function replaceDeliveryDocument(
+  id: string,
+  docType: string,
+  fileKey: string,
+  assetId: string,
+  notes = "",
+) {
   return remote.put<DeliveryDetail>(
-    `/delivery/register/${encodeURIComponent(id)}/reupload-request`,
+    `/delivery/register/${encodeURIComponent(id)}/documents/${encodeURIComponent(docType)}/reupload`,
+    { fileKey, assetId, notes },
+  );
+}
+
+/** Compress + upload a replacement KYC photo to R2, then attach it to the rider document. */
+export async function uploadDeliveryDocumentReplacement(
+  id: string,
+  docType: string,
+  file: File,
+  notes = "",
+) {
+  if (!remoteConfigured()) {
+    throw new Error("Set GATEWAY_URL to upload a replacement document.");
+  }
+  const dataUrl = await fileToProductImage(file);
+  const blob = await (await fetch(dataUrl)).blob();
+  const signed = await remote.post<{ assetId: string; key: string; uploadUrl: string }>(
+    "/media/upload-url",
     {
-      docType,
-      reason,
+      kind: "PRIVATE",
+      ownerType: "KYC",
+      ownerId: id,
+      mime: "image/jpeg",
+      bytes: blob.size,
     },
   );
+  const put = await fetch(signed.uploadUrl, {
+    method: "PUT",
+    headers: { "Content-Type": "image/jpeg" },
+    body: blob,
+  });
+  if (!put.ok) throw new Error(`Replacement upload failed (${put.status}).`);
+  await remote.post("/media/confirm", {
+    assetId: signed.assetId,
+    ownerType: "KYC",
+    ownerId: id,
+  });
+  return replaceDeliveryDocument(id, docType, signed.key, signed.assetId, notes);
 }
 
 export function activateDeliveryPartner(id: string) {

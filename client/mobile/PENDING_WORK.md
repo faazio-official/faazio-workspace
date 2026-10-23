@@ -54,11 +54,8 @@ dependencies exist. Do not build the backend/seller flows until told to.
   the battery-whitelisting step.
 - **Customer rating UI** — `POST /delivery/{orderId}/rate` stores a 1–5 rating + comment, but no
   customer screen prompts for it after delivery yet.
-- **Rider document re-upload** — an admin re-upload request is recorded/audited and support contacts
-  the rider on the registered phone; there is no in-app per-document replacement flow yet (a rejected
-  application can re-apply in full).
-- **Full VRP** — cross-order insertion is now handled by the detour-scored dispatch + `OptimizeStopSequence`
-  heuristic (started stops pinned, pickup before drop). A globally optimal multi-vehicle solution
+- **Multi-vehicle VRP** — dispatch now runs a globally optimal single-rider Held-Karp VRP across all
+  accepted stops (started stops pinned, pickup before drop). Coordinating several riders/vehicles
   remains Future Prod; this is intentional per the lightweight mandate.
 - **Multi-store auto-dispatch** — the checkout order-ready trigger dispatches only when the order
   has exactly one vendor store (the MVP case). Multi-vendor orders still need one job per store,

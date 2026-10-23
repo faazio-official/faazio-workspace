@@ -28,13 +28,34 @@ function nextAction(stop: DeliveryStop): { label: string; status: DeliveryStopSt
   return { label: 'Arrived at customer', status: 'AT_CUSTOMER' };
 }
 
-export function RouteScreen({ navigation, route }: Props) {
-  const { orderId } = route.params;
-  const [order, setOrder] = useState<DeliveryOrder | null>(null);
+function canFail(stop: DeliveryStop, pickedUpOrders: Set<string>): boolean {
+  if (stop.stopType === 'PICKUP') {
+    return stop.status === 'PENDING' || stop.status === 'AT_PICKUP';
+  }
+  return (
+    (stop.status === 'PENDING' || stop.status === 'AT_CUSTOMER') &&
+    pickedUpOrders.has(stop.deliveryOrderId)
+  );
+}
+
+/** All open stops of every accepted job, ordered by the server's global route sequence. */
+function mergeRoute(orders: DeliveryOrder[]): DeliveryStop[] {
+  return orders
+    .filter((o) => o.status === 'ACCEPTED')
+    .flatMap((o) => o.stops)
+    .sort((a, b) =>
+      a.sequence !== b.sequence ? a.sequence - b.sequence : a.stopId.localeCompare(b.stopId),
+    );
+}
+
+const acceptedOnly = (orders: DeliveryOrder[]) => orders.filter((o) => o.status === 'ACCEPTED');
+
+export function RouteScreen({ navigation }: Props) {
+  const [orders, setOrders] = useState<DeliveryOrder[]>([]);
   const [loading, setLoading] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [otp, setOtp] = useState('');
+  const [otpByStop, setOtpByStop] = useState<Record<string, string>>({});
   const [failureFor, setFailureFor] = useState<DeliveryStop | null>(null);
   const [failureReason, setFailureReason] = useState('');
 
@@ -42,30 +63,69 @@ export function RouteScreen({ navigation, route }: Props) {
     setLoading(true);
     setError(null);
     try {
-      const orders = await gateway.getActiveDeliveryOrders();
-      const found = orders.find((o) => o.orderId === orderId);
-      if (found) setOrder(found);
-      else {
-        const single = await gateway.getDeliveryRoute(orderId);
-        setOrder(single);
-      }
+      setOrders(acceptedOnly(await gateway.getActiveDeliveryOrders()));
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Could not load the route.');
     } finally {
       setLoading(false);
     }
-  }, [orderId]);
+  }, []);
 
   useEffect(() => {
     void load();
   }, [load]);
 
+  const stops = useMemo(() => mergeRoute(orders), [orders]);
+  const pickedUpOrders = useMemo(() => {
+    const done = new Set<string>();
+    for (const stop of stops) {
+      if (stop.stopType === 'PICKUP' && stop.status === 'PICKED_UP') {
+        done.add(stop.deliveryOrderId);
+      }
+    }
+    return done;
+  }, [stops]);
   const points = useMemo(
     () =>
-      (order?.stops ?? [])
+      stops
         .filter((s) => typeof s.latitude === 'number' && typeof s.longitude === 'number')
         .map((s) => ({ latitude: s.latitude as number, longitude: s.longitude as number })),
-    [order],
+    [stops],
+  );
+  const payout = useMemo(
+    () => acceptedOnly(orders).reduce((sum, o) => sum + o.payoutAmountPaisa, 0),
+    [orders],
+  );
+  const distance = useMemo(
+    () => acceptedOnly(orders).reduce((sum, o) => sum + o.totalDistanceMeters, 0),
+    [orders],
+  );
+  const acceptedCount = useMemo(() => acceptedOnly(orders).length, [orders]);
+
+  const refresh = useCallback(async () => {
+    const fresh = acceptedOnly(await gateway.getActiveDeliveryOrders());
+    setOrders(fresh);
+    return fresh;
+  }, []);
+
+  const finishIfEmpty = useCallback(
+    (updated: DeliveryOrder, fresh: DeliveryOrder[]) => {
+      if (fresh.length > 0) return;
+      if (updated.status === 'CANCELLED') {
+        Alert.alert(
+          'Delivery cancelled',
+          'The pickup could not be completed. Your capacity is free again.',
+          [{ text: 'Back to dashboard', onPress: () => navigation.replace('Dashboard') }],
+        );
+      } else if (updated.status === 'ROUTE_COMPLETE') {
+        Alert.alert(
+          'Route complete',
+          'All drops are done. Your capacity is free for the next order.',
+          [{ text: 'Back to dashboard', onPress: () => navigation.replace('Dashboard') }],
+        );
+      }
+    },
+    [navigation],
   );
 
   const advance = useCallback(
@@ -73,28 +133,19 @@ export function RouteScreen({ navigation, route }: Props) {
       setBusy(true);
       setError(null);
       try {
-        const next = await gateway.updateDeliveryStop(stop.stopId, status, reason);
-        setOrder(next);
+        const updated = await gateway.updateDeliveryStop(stop.stopId, status, reason);
         if (status === 'FAILED') {
           setFailureFor(null);
           setFailureReason('');
         }
-        if (next.status === 'ROUTE_COMPLETE') {
-          Alert.alert('Route complete', 'All drops are done. Your capacity is free for the next order.', [
-            { text: 'Back to dashboard', onPress: () => navigation.replace('Dashboard') },
-          ]);
-        } else if (next.status === 'CANCELLED') {
-          Alert.alert('Delivery cancelled', 'The pickup could not be completed. Your capacity is free again.', [
-            { text: 'Back to dashboard', onPress: () => navigation.replace('Dashboard') },
-          ]);
-        }
+        finishIfEmpty(updated, await refresh());
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Could not update this stop.');
       } finally {
         setBusy(false);
       }
     },
-    [navigation],
+    [finishIfEmpty, refresh],
   );
 
   const startFailure = useCallback((stop: DeliveryStop) => {
@@ -103,36 +154,30 @@ export function RouteScreen({ navigation, route }: Props) {
     setFailureFor(stop);
   }, []);
 
-  const deliverWithOtp = useCallback(async () => {
-    const stop = order?.stops.find((s) => s.stopType === 'DROP' && s.status === 'AT_CUSTOMER');
-    if (!stop) return;
-    if (otp.replace(/\D/g, '').length !== 4) {
-      setError('Enter the 4-digit OTP given by the customer.');
-      return;
-    }
-    setBusy(true);
-    setError(null);
-    try {
-      const next = await gateway.verifyDeliveryOtp(stop.stopId, otp);
-      setOrder(next);
-      setOtp('');
-      if (next.status === 'ROUTE_COMPLETE') {
-        Alert.alert('Route complete', 'All drops are done. Your capacity is free for the next order.', [
-          { text: 'Back to dashboard', onPress: () => navigation.replace('Dashboard') },
-        ]);
-      }
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Incorrect OTP.');
-    } finally {
-      setBusy(false);
-    }
-  }, [navigation, order, otp]);
-
-  const deliverWithoutOtp = useCallback(
+  const deliverWithOtp = useCallback(
     async (stop: DeliveryStop) => {
-      await advance(stop, 'DELIVERED');
+      const code = otpByStop[stop.stopId] ?? '';
+      if (code.replace(/\D/g, '').length !== 4) {
+        setError('Enter the 4-digit OTP given by the customer.');
+        return;
+      }
+      setBusy(true);
+      setError(null);
+      try {
+        const updated = await gateway.verifyDeliveryOtp(stop.stopId, code);
+        setOtpByStop((prev) => {
+          const next = { ...prev };
+          delete next[stop.stopId];
+          return next;
+        });
+        finishIfEmpty(updated, await refresh());
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Incorrect OTP.');
+      } finally {
+        setBusy(false);
+      }
     },
-    [advance],
+    [finishIfEmpty, otpByStop, refresh],
   );
 
   return (
@@ -142,10 +187,10 @@ export function RouteScreen({ navigation, route }: Props) {
           <AppText style={styles.backText}>← Dashboard</AppText>
         </TouchableOpacity>
         <AppText style={styles.title}>Route</AppText>
-        {order ? (
+        {stops.length > 0 ? (
           <AppText style={styles.subtitle}>
-            {order.stops.length} stops · {Math.round(order.totalDistanceMeters / 1000)} km ·{' '}
-            {Math.round(order.estimatedDurationSeconds / 60)} min · {rupees(order.payoutAmountPaisa)}
+            {stops.length} stops · {acceptedCount} {acceptedCount === 1 ? 'order' : 'orders'} ·{' '}
+            {Math.round(distance / 1000)} km · {rupees(payout)}
           </AppText>
         ) : null}
 
@@ -162,7 +207,7 @@ export function RouteScreen({ navigation, route }: Props) {
               showsUserLocation
             >
               <Polyline coordinates={points} strokeColor={DP.brand} strokeWidth={4} />
-              {order?.stops.map((stop, index) =>
+              {stops.map((stop, index) =>
                 typeof stop.latitude === 'number' && typeof stop.longitude === 'number' ? (
                   <Marker
                     key={stop.stopId}
@@ -184,15 +229,19 @@ export function RouteScreen({ navigation, route }: Props) {
         ) : null}
 
         <ErrorText>{error}</ErrorText>
-        {!order && !loading ? (
+        {stops.length === 0 && !loading ? (
           <Card>
-            <AppText style={styles.empty}>This delivery is no longer active.</AppText>
+            <AppText style={styles.empty}>No active deliveries on this route.</AppText>
           </Card>
         ) : null}
 
-        {order?.stops.map((stop, index) => {
+        {stops.map((stop, index) => {
           const action = nextAction(stop);
           const done = stop.status === 'DELIVERED' || stop.status === 'FAILED';
+          const blockedDrop =
+            stop.stopType === 'DROP' &&
+            stop.status === 'PENDING' &&
+            !pickedUpOrders.has(stop.deliveryOrderId);
           const otpDrop =
             stop.stopType === 'DROP' && stop.status === 'AT_CUSTOMER' && stop.requiresOtp;
           return (
@@ -203,7 +252,8 @@ export function RouteScreen({ navigation, route }: Props) {
                 </View>
                 <View style={styles.flex}>
                   <AppText style={styles.stopType}>
-                    {stop.stopType === 'PICKUP' ? 'Pickup' : 'Drop'} · {stop.status.replace(/_/g, ' ')}
+                    {stop.stopType === 'PICKUP' ? 'Pickup' : 'Drop'} ·{' '}
+                    {stop.status.replace(/_/g, ' ')}
                   </AppText>
                   <AppText style={styles.stopLabel}>{stop.label || 'Stop'}</AppText>
                   <AppText style={styles.stopAddress}>{stop.address}</AppText>
@@ -220,15 +270,24 @@ export function RouteScreen({ navigation, route }: Props) {
                 <>
                   <Field
                     label="Customer OTP"
-                    value={otp}
-                    onChangeText={(v) => setOtp(v.replace(/\D/g, '').slice(0, 4))}
+                    value={otpByStop[stop.stopId] ?? ''}
+                    onChangeText={(v) =>
+                      setOtpByStop((prev) => ({
+                        ...prev,
+                        [stop.stopId]: v.replace(/\D/g, '').slice(0, 4),
+                      }))
+                    }
                     keyboardType="number-pad"
                     placeholder="4-digit code"
                     maxLength={4}
                   />
-                  <PrimaryButton label="Verify & deliver" onPress={() => void deliverWithOtp()} loading={busy} />
+                  <PrimaryButton
+                    label="Verify & deliver"
+                    onPress={() => void deliverWithOtp(stop)}
+                    loading={busy}
+                  />
                 </>
-              ) : action ? (
+              ) : action && !blockedDrop ? (
                 <PrimaryButton
                   label={action.label}
                   onPress={() => void advance(stop, action.status)}
@@ -237,7 +296,7 @@ export function RouteScreen({ navigation, route }: Props) {
               ) : stop.stopType === 'DROP' && stop.status === 'AT_CUSTOMER' ? (
                 <PrimaryButton
                   label="Mark delivered"
-                  onPress={() => void deliverWithoutOtp(stop)}
+                  onPress={() => void advance(stop, 'DELIVERED')}
                   loading={busy}
                 />
               ) : null}
@@ -266,7 +325,7 @@ export function RouteScreen({ navigation, route }: Props) {
                     <AppText style={styles.cancelText}>Cancel</AppText>
                   </TouchableOpacity>
                 </View>
-              ) : !done ? (
+              ) : !done && canFail(stop, pickedUpOrders) ? (
                 <TouchableOpacity onPress={() => startFailure(stop)} style={styles.failButton}>
                   <AppText style={styles.failButtonText}>Report a problem</AppText>
                 </TouchableOpacity>
@@ -275,7 +334,7 @@ export function RouteScreen({ navigation, route }: Props) {
           );
         })}
 
-        {order?.status === 'ROUTE_COMPLETE' ? (
+        {stops.length > 0 && stops.every((s) => s.status === 'DELIVERED' || s.status === 'FAILED') ? (
           <PrimaryButton label="Back to dashboard" onPress={() => navigation.replace('Dashboard')} />
         ) : null}
       </ScrollView>

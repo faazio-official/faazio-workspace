@@ -235,6 +235,168 @@ func lastActiveDrop(stops []Stop) (Stop, bool) {
 	return Stop{}, false
 }
 
+// maxGlobalRouteStops bounds the exact solver. The MVP capacity is five four-wheeler orders (ten
+// stops), so a Held-Karp state space of 2^n·n² stays tiny; the ceiling only protects future changes.
+const maxGlobalRouteStops = 15
+
+// OptimizeGlobalRoute returns a globally optimal visit order for all open stops using a Held-Karp
+// bitmask DP. Unlike OptimizeStopSequence it may interleave and reorder unstarted stops across the
+// rider's accepted orders. The route prefix up to and including the last started stop is pinned so an
+// in-progress leg is never redirected, and each order's pickup must precede its drop. The rider's
+// current location is the start point (or the last pinned stop when work is already under way).
+func OptimizeGlobalRoute(stops []Stop, startLat, startLng float64, matrix RoadMatrix) ([]Stop, error) {
+	if len(stops) == 0 {
+		return nil, nil
+	}
+	if matrix == nil {
+		matrix = StraightLineMatrix{}
+	}
+	fixed := 0
+	for i, s := range stops {
+		if s.Status != "" && s.Status != StopPending {
+			fixed = i + 1
+		}
+	}
+	free := make([]Stop, len(stops)-fixed)
+	copy(free, stops[fixed:])
+	if len(free) <= 1 {
+		out := append([]Stop(nil), stops...)
+		renumberStops(out)
+		return out, nil
+	}
+	if len(free) > maxGlobalRouteStops {
+		return nil, fmt.Errorf("delivery: %d open stops exceeds the global solver limit of %d",
+			len(free), maxGlobalRouteStops)
+	}
+
+	// The rider is already executing the pinned prefix, so optimization starts after its last stop.
+	fromLat, fromLng := startLat, startLng
+	if fixed > 0 {
+		if last := stops[fixed-1]; last.Latitude != nil && last.Longitude != nil {
+			fromLat, fromLng = *last.Latitude, *last.Longitude
+		}
+	}
+
+	legSeconds := func(fromLat, fromLng, toLat, toLng *float64) int64 {
+		if fromLat == nil || fromLng == nil || toLat == nil || toLng == nil {
+			return 0
+		}
+		seconds, _ := matrix.Travel(*fromLat, *fromLng, *toLat, *toLng)
+		return seconds
+	}
+
+	m := len(free)
+	startCost := make([]int64, m)
+	for i := range free {
+		startCost[i] = legSeconds(&fromLat, &fromLng, free[i].Latitude, free[i].Longitude)
+	}
+	cost := make([][]int64, m)
+	for i := range cost {
+		cost[i] = make([]int64, m)
+		for j := range cost[i] {
+			cost[i][j] = legSeconds(free[i].Latitude, free[i].Longitude, free[j].Latitude, free[j].Longitude)
+		}
+	}
+
+	// A drop may only be visited after its own pickup when both are still open (free).
+	pickupAt := make(map[string]int, m)
+	dropAt := make(map[string]int, m)
+	for i, s := range free {
+		if s.DeliveryOrderID == "" {
+			continue
+		}
+		switch s.StopType {
+		case "PICKUP":
+			if _, ok := pickupAt[s.DeliveryOrderID]; !ok {
+				pickupAt[s.DeliveryOrderID] = i
+			}
+		case "DROP":
+			if _, ok := dropAt[s.DeliveryOrderID]; !ok {
+				dropAt[s.DeliveryOrderID] = i
+			}
+		}
+	}
+	prereq := make([]uint32, m)
+	for orderID, d := range dropAt {
+		p, ok := pickupAt[orderID]
+		if ok && p != d {
+			prereq[d] |= 1 << p
+		}
+	}
+
+	const inf = int64(math.MaxInt64 / 4)
+	states := 1 << m
+	dp := make([]int64, states*m)
+	for i := range dp {
+		dp[i] = inf
+	}
+	parent := make([]uint16, states*m)
+	for i := 0; i < m; i++ {
+		if prereq[i] != 0 {
+			continue
+		}
+		dp[(1<<i)*m+i] = startCost[i]
+	}
+	for mask := 1; mask < states; mask++ {
+		for last := 0; last < m; last++ {
+			cur := dp[mask*m+last]
+			if cur == inf {
+				continue
+			}
+			for next := 0; next < m; next++ {
+				bit := 1 << next
+				if mask&bit != 0 {
+					continue
+				}
+				if prereq[next]&^uint32(mask) != 0 {
+					continue
+				}
+				nm := mask | bit
+				if cand := cur + cost[last][next]; cand < dp[nm*m+next] {
+					dp[nm*m+next] = cand
+					parent[nm*m+next] = uint16(last + 1)
+				}
+			}
+		}
+	}
+	bestCost := inf
+	bestLast := -1
+	finalMask := states - 1
+	for last := 0; last < m; last++ {
+		if c := dp[finalMask*m+last]; c < bestCost {
+			bestCost = c
+			bestLast = last
+		}
+	}
+	if bestLast < 0 {
+		return nil, fmt.Errorf("%w: no stop order satisfies the pickup-before-drop rules", ErrConflict)
+	}
+	rev := make([]int, 0, m)
+	mask := finalMask
+	for last := bestLast; ; {
+		rev = append(rev, last)
+		p := parent[mask*m+last]
+		mask &^= 1 << last
+		if p == 0 {
+			break
+		}
+		last = int(p - 1)
+	}
+	out := make([]Stop, 0, len(stops))
+	out = append(out, stops[:fixed]...)
+	for i := len(rev) - 1; i >= 0; i-- {
+		out = append(out, free[rev[i]])
+	}
+	renumberStops(out)
+	return out, nil
+}
+
+func renumberStops(stops []Stop) {
+	for i := range stops {
+		stops[i].Sequence = i + 1
+	}
+}
+
 // OptimizeStopSequence inserts a new pickup/drop pair into the rider's existing ordered route with
 // the smallest total road duration. Existing stops keep their relative order; the new pickup must
 // precede its drop; and nothing is inserted before a stop the rider has already started (its status

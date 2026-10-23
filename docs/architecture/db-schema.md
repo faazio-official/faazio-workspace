@@ -1856,7 +1856,7 @@ tables are untouched.
 | `delivery.delivery_documents` | One row per captured document (`AADHAAR`, `PAN`, `SELFIE`, `DL_FRONT/BACK`, `RC_FRONT/BACK`, `INSURANCE_FRONT/BACK`). Holds the private R2 `file_key` + optional `media.assets` id only — never a URL or bytes. `status` (`PENDING`/`VERIFIED`/`REJECTED`/`REUPLOAD_REQUESTED`), reviewer + reason |
 | `delivery.delivery_bank_accounts` | Pending-review payout account. Stores the masked tail only (same rule as `sellers.bank_accounts`); the full number is never persisted |
 | `delivery.delivery_orders` | Dispatch job (`ASSIGNED → ACCEPTED → ROUTE_COMPLETE`, or `REJECTED`/`CANCELLED`), store/customer-order ids, `route_sequence` JSONB, distance/ETA, `require_otp`, `expires_at` (45 s accept window). `0043` adds `dispatch_attempts` (max 5 offers) and `excluded_rider_ids` JSONB (riders who declined this job) for the fallback chain |
-| `delivery.delivery_stops` | Ordered `PICKUP`/`DROP` stops with `PENDING/AT_PICKUP/PICKED_UP/AT_CUSTOMER/DELIVERED/FAILED`. `sequence` is unique per order; when a second job is inserted the gateway renumbers the rider's open stops across all accepted jobs, so the lowest sequence is the next actionable stop. The handover OTP is stored **hashed** (`customer_otp_hash`, SHA-256 of code + stop id) with `otp_expires_at`; plaintext never reaches Postgres. `0045` adds `otp_attempts` (locked after 5 guesses; reset when delivered) |
+| `delivery.delivery_stops` | Ordered `PICKUP`/`DROP` stops with `PENDING/AT_PICKUP/PICKED_UP/AT_CUSTOMER/DELIVERED/FAILED`. `sequence` is unique per order; dispatch globally re-optimizes the rider's open stops across all accepted jobs (full VRP) and renumbers them, so the lowest sequence is the next actionable stop and each order's `route_sequence` lists its stop ids in that global order. The handover OTP is stored **hashed** (`customer_otp_hash`, SHA-256 of code + stop id) with `otp_expires_at`; plaintext never reaches Postgres. `0045` adds `otp_attempts` (locked after 5 guesses; reset when delivered) |
 | `delivery.rider_heartbeats` | Optional low-frequency Postgres mirror. The authoritative live coordinate is Valkey `delivery:rider:{id}:location` (TTL 300 s) |
 | `delivery.delivery_ratings` | Post-delivery 1–5 rating + comment, unique per order; the rider aggregate is recomputed in the same tx |
 
@@ -1867,7 +1867,7 @@ tables are untouched.
   or exposed to anon feeds. KYC images stay in the private R2 bucket and render through
   `GET /media/private/{id}` presigned GETs.
 - Every rider mutation writes an audit row (`DELIVERY_BOY_APPLY`, `…_DOC_VERIFIED`, `…_VERIFY`,
-  `…_REJECT`, `…_REUPLOAD_REQUEST`, `…_ACTIVATE`, `…_SUSPEND`, `…_BLACKLIST`, `…_ASSIGN`, `…_ACCEPT`,
+  `…_REJECT`, `…_DOC_REUPLOAD_ADMIN`, `…_ACTIVATE`, `…_SUSPEND`, `…_BLACKLIST`, `…_ASSIGN`, `…_ACCEPT`,
   `…_REJECT_ORDER`, `…_REASSIGN`, `…_PICKUP`, `…_DELIVERED`).
 
 **Phase 5 (payout engine) is out of scope.** `delivery_orders.payout_amount_paisa` is a display-only

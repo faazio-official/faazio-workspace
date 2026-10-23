@@ -96,7 +96,8 @@ Rider endpoints authenticate with the Firebase phone ID token and resolve the ri
 `POST /delivery/{id}/accept|reject`, `PUT /delivery/stop/{id}/status`, `POST /delivery/otp/verify`
 and `POST /delivery/{orderId}/rate`. Admin endpoints are `STATE_ADMIN`/`SUPER_ADMIN` gated and
 state-scoped: `GET /delivery/register/pending`, `GET /delivery/register/{id}`,
-`PUT /delivery/register/{id}/verify|reject|reupload-request`, `GET /delivery/online-riders`,
+`PUT /delivery/register/{id}/verify|reject`, `PUT /delivery/register/{id}/documents/{docType}/reupload`
+(admin uploads a replacement document), `GET /delivery/online-riders`,
 `GET /admin/delivery-boys`, `GET /admin/delivery-boys/{id}/location`, `POST /dispatch/assign`
 (plus super-only `PUT /delivery/register/{id}/activate` and `PUT /delivery/boys/{id}/blacklist`).
 
@@ -110,6 +111,11 @@ The HTTP route is not used service-to-service — the dual mount is intentional.
 - KYC images are private R2 keys only; the portal renders them through
   `GET /media/private/{id}` presigned GETs. Documents are verified individually; profile approval
   requires every document verified and the bank account not rejected; `ACTIVE` is super-admin only.
+  Re-upload is admin-side: when a document is `REJECTED`/`REUPLOAD_REQUESTED`, the admin collects a
+  clear photo offline, uploads it to the private bucket, and calls the replacement endpoint with
+  `{fileKey, assetId?, notes?}`. The row returns to `PENDING` with its rejection reason cleared (a
+  `VERIFIED` document cannot be replaced); the rider app has no re-upload screen. The legacy
+  `/reupload-request` endpoint returns `410`.
 - `POST /delivery/heartbeat` writes the live coordinate to Valkey
   `delivery:rider:{id}:location` with a 300 s TTL (the dispatch authority) and stamps the optional
   Postgres mirror. A stopped heartbeat removes the rider from candidates; the explicit availability
@@ -123,14 +129,18 @@ The HTTP route is not used service-to-service — the dual mount is intentional.
   an unaccepted `ASSIGNED` offer are skipped (`PendingOfferRiderIDs`): `current_load` only rises on
   accept, so without it one rider could accumulate offers while peers stay idle. With
   `GOOGLE_ROUTES_API_KEY` unset (local/dev) it degrades to a Haversine/urban-speed estimate.
-- Assignment then runs an **insertion heuristic** (`OptimizeStopSequence`) over the rider's open
-  stops plus the new pickup/drop: existing relative order is preserved, pickup must precede its
-  drop, and stops already started (`AT_PICKUP`, `PICKED_UP`, `AT_CUSTOMER`) are pinned. The chosen
-  sequence is written to `delivery_stops.sequence` (renumbered globally across the rider's accepted
-  jobs) and each order's `route_sequence` JSON. Every assignment creates a 45 s accept lock and a
-  durable order-ping in the shared notifications outbox (FCM/webhook drained by
-  `internal/notifications`). `GET /delivery/route/{id}` returns the ordered stops plus a
-  Google-encoded `polyline`.
+- Assignment then runs a **full VRP** (`OptimizeGlobalRoute`) over every open stop of all the
+  rider's accepted jobs plus the new pickup/drop. A Held-Karp bitmask DP (`O(2ⁿ·n²)`; ten open stops
+  at the five-order four-wheeler cap, with a >15-stop guard that falls back to the insertion
+  heuristic) minimizes
+  total road time. Unstarted stops may be interleaved and reordered across orders; the prefix up to
+  and including the last started stop (`AT_PICKUP`, `PICKED_UP`, `AT_CUSTOMER`) is pinned, and each
+  order's pickup must precede its drop. The chosen sequence is written to `delivery_stops.sequence`
+  (renumbered globally across the rider's accepted jobs) and each order's `route_sequence` JSON.
+  Every assignment creates a 45 s accept lock and a durable order-ping in the shared notifications
+  outbox (FCM/webhook drained by `internal/notifications`). `GET /delivery/route/{id}` returns the
+  ordered stops plus a Google-encoded `polyline`; the partner app merges `GET /delivery/active` into
+  one route ordered by the global sequence.
 - When a seller marks a delivery order `PACKED`, checkout calls the internal
   `contracts.DeliveryDispatcher` (never HTTP) with the stored drop coordinates and the single
   store's pickup. The call is idempotent per customer order and runs in the background, so a slow
@@ -140,8 +150,8 @@ The HTTP route is not used service-to-service — the dual mount is intentional.
   `delivery_orders.excluded_rider_ids`, then re-scores the remaining candidates and re-offers the
   same job (`dispatch_attempts` increments). The chain stops after
   `DELIVERY_MAX_DISPATCH_ATTEMPTS` (default 5) or when no eligible rider remains; a job is never
-  re-offered to a rider who already declined it. Re-offers run the same insertion heuristic
-  (`ResequenceAssignedRoute`) when the next rider already carries stops, so the fallback path cannot
+  re-offered to a rider who already declined it. Re-offers run the same global VRP and
+  `ResequenceAssignedRoute` when the next rider already carries stops, so the fallback path cannot
   append the job out of order. The gateway expiry worker releases an `ASSIGNED` offer whose 45 s
   window elapsed and runs the same fallback chain, excluding the unresponsive rider.
 - Stop transitions are enforced server-side and forward-only: pickup `PENDING → AT_PICKUP →
@@ -163,10 +173,9 @@ The HTTP route is not used service-to-service — the dual mount is intentional.
   /admin/delivery-boys/{id}/location` is a one-time Valkey read with the Postgres mirror fallback.
 - **Phase 5 payout splitting is not implemented.** `payout_amount_paisa` is display-only.
 
-**Known MVP limits:** the insertion heuristic is not a full VRP; multi-vendor orders (more than one
-store) are not auto-dispatched; iOS terminates a swiped-away app (background location survives
-backgrounding, not force-quit) and OEM battery whitelisting remains an ops step. These are tracked
-in `client/mobile/PENDING_WORK.md`.
+**Known MVP limits:** multi-vendor orders (more than one store) are not auto-dispatched; iOS
+terminates a swiped-away app (background location survives backgrounding, not force-quit) and OEM
+battery whitelisting remains an ops step. These are tracked in `client/mobile/PENDING_WORK.md`.
 
 The sections below are the **Future Prod** target.
 

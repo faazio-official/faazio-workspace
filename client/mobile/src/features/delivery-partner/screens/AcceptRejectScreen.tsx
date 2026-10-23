@@ -37,7 +37,7 @@ export function AcceptRejectScreen({ navigation, route }: Props) {
         gateway.getActiveDeliveryOrders().catch(() => []),
       ]);
       if (single.status === 'ACCEPTED') {
-        navigation.replace('Route', { orderId });
+        navigation.replace('Route');
         return;
       }
       if (single.status !== 'ASSIGNED') {
@@ -111,7 +111,7 @@ export function AcceptRejectScreen({ navigation, route }: Props) {
     try {
       await gateway.acceptDeliveryOrder(orderId);
       settled.current = true;
-      navigation.replace('Route', { orderId });
+      navigation.replace('Route');
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Could not accept this offer.');
       setBusy(null);

@@ -695,14 +695,15 @@ DeliveryPartnerNavigator (native stack, no customer screens)
 ├── OtpVerify    — 6-digit code → authStore Keychain session
 ├── Register     — KYC application: profile, live Aadhaar/selfie/PAN + motor DL/RC/insurance capture,
 │                  vehicle-capped capacity, bank details (private R2 uploads → POST /delivery/register)
-├── SubmissionSuccess — applied / pending / verified / rejected / suspended state + reupload reason
+├── SubmissionSuccess — applied / pending / verified / rejected / suspended state + rejection reason
 ├── Dashboard    — Go Online toggle (PUT /delivery/availability), Valkey heartbeat every 120 s
 │                  (foreground + Android foreground service headless task + iOS background watch),
 │                  45 s offer cards, active multi-stop jobs
 ├── AcceptReject — deep-link/push offer: store/customer, payout, route context, 45 s countdown,
 │                  Accept / Reject (expiry = implicit reject) → Route
-└── Route        — server-ordered pickup/drop stops, Arrived/Picked Up/Delivered transitions,
-                   customer-OTP handover
+└── Route        — one merged route across all ACCEPTED jobs: stops sorted by the server's global
+                   sequence, one polyline, Arrived/Picked Up/Delivered transitions, customer-OTP
+                   handover (document re-upload is admin-side; the app has no re-upload screen)
 ```
 
 **Push offer deep link.** `src/services/deliveryPush.ts` registers the FCM token, routes a foreground
@@ -732,9 +733,10 @@ re-prompting; sign-out clears it. iOS still ends the watch when the app is force
 switcher.
 
 **Known MVP limits** (tracked in `client/mobile/PENDING_WORK.md`): force-quit iOS background
-location (plus OEM battery whitelisting), the `PUSH_WEBHOOK_URL` bridge is an ops step, and the
-insertion heuristic is not a full VRP. Reject re-offers the job to the next candidate up to 5
-attempts. Payout splits (Phase 5) are intentionally not built.
+location (plus OEM battery whitelisting) and the `PUSH_WEBHOOK_URL` bridge is an ops step. Dispatch
+runs a global Held-Karp VRP across all accepted stops (insertion fallback above 15 open stops).
+Reject re-offers the job to the next candidate up to 5 attempts. Payout splits (Phase 5) are
+intentionally not built.
 
 ### Phone-auth flow (Login)
 
