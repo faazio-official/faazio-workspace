@@ -738,9 +738,19 @@ func (h *Handler) candidateRiders(ctx context.Context, stateCode string, exclude
 	if err != nil {
 		return nil, err
 	}
+	// A pending, unaccepted offer does not raise current_load. Skip those riders so one rider cannot
+	// accumulate offers while other eligible riders stay idle; the offer is re-scored once accepted.
+	riderIDs := make([]string, 0, len(riders))
+	for _, rider := range riders {
+		riderIDs = append(riderIDs, rider.RiderID)
+	}
+	pending, err := h.repo.PendingOfferRiderIDs(ctx, riderIDs)
+	if err != nil {
+		return nil, err
+	}
 	candidates := make([]RiderLocation, 0, len(riders))
 	for _, rider := range riders {
-		if excluded[rider.RiderID] {
+		if excluded[rider.RiderID] || pending[rider.RiderID] {
 			continue
 		}
 		var hb Heartbeat
@@ -1007,6 +1017,17 @@ func (h *Handler) retryReleasedOrder(ctx context.Context, order Order, stateCode
 	if next == nil {
 		return false, nil
 	}
+	// The fallback chain must use the same insertion heuristic as the first offer: the released
+	// job's pair is placed into the next rider's existing route, not appended blindly. The combined
+	// order is computed before the claim; it is persisted after ReassignOrder so the stop updates are
+	// scoped to the rider who now owns the job.
+	var combined []Stop
+	if len(next.ActiveStops) > 0 {
+		combined, err = OptimizeStopSequence(next.ActiveStops, *pickup, *drop, h.matrix)
+		if err != nil {
+			return false, err
+		}
+	}
 	approachSeconds, approachMeters := h.matrix.Travel(
 		next.Lat, next.Lng, *pickup.Latitude, *pickup.Longitude,
 	)
@@ -1020,6 +1041,15 @@ func (h *Handler) retryReleasedOrder(ctx context.Context, order Order, stateCode
 	)
 	if err != nil {
 		return false, err
+	}
+	if combined != nil {
+		if err := h.repo.ResequenceAssignedRoute(ctx, next.Rider.RiderID, updated.OrderID,
+			combined, int64(len(combined)+1)); err != nil {
+			// The offer is already claimed and still valid; a failed re-sequence only means the
+			// stops keep their previous order, so keep the offer and leave an audit trail.
+			h.auditEvent(ctx, "DELIVERY_BOY_REASSIGN_RESEQUENCE_FAILED", updated.OrderID, nil,
+				map[string]any{"riderId": next.Rider.RiderID})
+		}
 	}
 	h.auditEvent(ctx, "DELIVERY_BOY_REASSIGN", updated.OrderID, nil, map[string]any{
 		"riderId": next.Rider.RiderID, "attempt": updated.DispatchAttempts,

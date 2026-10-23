@@ -64,8 +64,10 @@ flavor and iOS configuration; neither product bundles the other's screens. The g
 review, vehicle-capped capacity, availability, Valkey live coordinates, detour-aware candidate
 scoring (Google Routes API, `GOOGLE_ROUTES_API_KEY`; straight-line fallback when unset),
 insertion-based multi-stop re-sequencing (`ActiveStopsByRider`/`OptimizeStopSequence`/
-`ResequenceActiveStops`), forward-only stop transitions, bounded reject→reassign fallback
-(including the 45 s expiry worker), 5-attempt customer-OTP handover and ratings. The admin rider
+`ResequenceActiveStops`/`ResequenceAssignedRoute`), pending-offer exclusion
+(`PendingOfferRiderIDs`), forward-only stop transitions, bounded reject→reassign fallback
+(including the 45 s expiry worker; re-offers re-sequence into a loaded rider's route), 5-attempt
+customer-OTP handover and ratings. The admin rider
 projection (`RiderCurrentStopStatuses`) powers Available / At Pickup / At Delivery / Busy tabs and
 the route endpoint returns an encoded polyline. The checkout `PACKED`
 transition calls the internal `contracts.DeliveryDispatcher` (single-store orders) with the stored

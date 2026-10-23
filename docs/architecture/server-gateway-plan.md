@@ -119,7 +119,9 @@ The HTTP route is not used service-to-service — the dual mount is intentional.
   per leg for 300 s under `delivery:route:{lat,lng}:{lat,lng}`). For a rider with open accepted
   stops it computes `legA = last drop → new store`, `legB = new store → new customer` and
   `detour = legA + legB − last drop → new customer`, scoring `legA + detour`; a rider with no open
-  stops is scored by rider → store. Capacity headroom and rating break ties. With
+  stops is scored by rider → store. Capacity headroom and rating break ties. Riders already holding
+  an unaccepted `ASSIGNED` offer are skipped (`PendingOfferRiderIDs`): `current_load` only rises on
+  accept, so without it one rider could accumulate offers while peers stay idle. With
   `GOOGLE_ROUTES_API_KEY` unset (local/dev) it degrades to a Haversine/urban-speed estimate.
 - Assignment then runs an **insertion heuristic** (`OptimizeStopSequence`) over the rider's open
   stops plus the new pickup/drop: existing relative order is preserved, pickup must precede its
@@ -138,8 +140,10 @@ The HTTP route is not used service-to-service — the dual mount is intentional.
   `delivery_orders.excluded_rider_ids`, then re-scores the remaining candidates and re-offers the
   same job (`dispatch_attempts` increments). The chain stops after
   `DELIVERY_MAX_DISPATCH_ATTEMPTS` (default 5) or when no eligible rider remains; a job is never
-  re-offered to a rider who already declined it. The gateway expiry worker releases an `ASSIGNED`
-  offer whose 45 s window elapsed and runs the same fallback chain, excluding the unresponsive rider.
+  re-offered to a rider who already declined it. Re-offers run the same insertion heuristic
+  (`ResequenceAssignedRoute`) when the next rider already carries stops, so the fallback path cannot
+  append the job out of order. The gateway expiry worker releases an `ASSIGNED` offer whose 45 s
+  window elapsed and runs the same fallback chain, excluding the unresponsive rider.
 - Stop transitions are enforced server-side and forward-only: pickup `PENDING → AT_PICKUP →
   PICKED_UP`, drop `PENDING → AT_CUSTOMER → DELIVERED`, with `FAILED` allowed before a terminal
   state. A drop cannot advance until its pickup is `PICKED_UP`; a failed pickup cancels the job and

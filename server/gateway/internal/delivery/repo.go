@@ -176,6 +176,34 @@ func (r *Repo) List(ctx context.Context, f ListFilter) ([]Rider, error) {
 	return out, rows.Err()
 }
 
+// PendingOfferRiderIDs reports which of the given riders already hold an unaccepted ASSIGNED offer.
+// current_load only increments on accept, so without this filter assign could stack multiple offers
+// on the same rider while leaving other eligible riders idle.
+func (r *Repo) PendingOfferRiderIDs(ctx context.Context, riderIDs []string) (map[string]bool, error) {
+	out := make(map[string]bool, len(riderIDs))
+	if len(riderIDs) == 0 {
+		return out, nil
+	}
+	if err := r.ready(); err != nil {
+		return out, err
+	}
+	rows, err := r.pool.Query(ctx, `
+		select distinct rider_id from delivery.delivery_orders
+		 where status='ASSIGNED' and rider_id = any($1)`, riderIDs)
+	if err != nil {
+		return out, err
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var riderID string
+		if err := rows.Scan(&riderID); err != nil {
+			return out, err
+		}
+		out[riderID] = true
+	}
+	return out, rows.Err()
+}
+
 func (r *Repo) riderByID(ctx context.Context, q interface {
 	QueryRow(context.Context, string, ...any) pgx.Row
 }, riderID string) (Rider, error) {
@@ -893,6 +921,21 @@ func (r *Repo) ActiveStopsByRider(ctx context.Context, riderIDs []string) (map[s
 // where terminal stops resume (after the new pair), and each affected order's route_sequence JSON is
 // refreshed to its own stop ids in the new global order.
 func (r *Repo) ResequenceActiveStops(ctx context.Context, riderID string, ordered []Stop, nextSequence int64) error {
+	return r.resequenceRoute(ctx, riderID, "", ordered, nextSequence)
+}
+
+// ResequenceAssignedRoute is ResequenceActiveStops plus one order that is being (re)offered to the
+// rider. Fallback reassignment can land a released job on a rider who is already carrying stops;
+// without including that order the new pair would ignore the existing route and the rider would get
+// a stale sequence.
+func (r *Repo) ResequenceAssignedRoute(ctx context.Context, riderID, orderID string, ordered []Stop, nextSequence int64) error {
+	if strings.TrimSpace(orderID) == "" {
+		return fmt.Errorf("%w: an order id is required", ErrConflict)
+	}
+	return r.resequenceRoute(ctx, riderID, orderID, ordered, nextSequence)
+}
+
+func (r *Repo) resequenceRoute(ctx context.Context, riderID, assignedOrderID string, ordered []Stop, nextSequence int64) error {
 	if len(ordered) == 0 {
 		return nil
 	}
@@ -904,26 +947,40 @@ func (r *Repo) ResequenceActiveStops(ctx context.Context, riderID string, ordere
 		return err
 	}
 	defer func() { _ = tx.Rollback(ctx) }()
+
+	// acceptedScope keeps the normal dispatch path scoped to ACCEPTED orders. The fallback path
+	// also includes the one order being re-offered, which is still REJECTED/ASSIGNED.
+	acceptedScope := "o.status='ACCEPTED'"
+	scoped := func(base []any) (string, []any) {
+		if assignedOrderID == "" {
+			return acceptedScope, base
+		}
+		return fmt.Sprintf("(o.status='ACCEPTED' or o.order_id=$%d)", len(base)+1),
+			append(base, assignedOrderID)
+	}
+
 	// Two-phase update avoids collisions with the unique (order_id, sequence) constraint while
 	// values are being swapped. +1000 cannot collide with a real route position (<=10 stops).
+	shiftScope, shiftArgs := scoped([]any{riderID})
 	if _, err := tx.Exec(ctx, `
 		update delivery.delivery_stops s
 		   set sequence = s.sequence + 1000
 		  from delivery.delivery_orders o
-		 where o.order_id = s.delivery_order_id and o.rider_id=$1 and o.status='ACCEPTED'`,
-		riderID); err != nil {
+		 where o.order_id = s.delivery_order_id and o.rider_id=$1 and `+shiftScope,
+		shiftArgs...); err != nil {
 		return err
 	}
 	byOrder := make(map[string][]string)
 	orderIDs := make([]string, 0, 2)
 	for _, s := range ordered {
+		stopScope, stopArgs := scoped([]any{s.StopID, s.Sequence, riderID})
 		ct, err := tx.Exec(ctx, `
 			update delivery.delivery_stops s
 			   set sequence=$2
 			  from delivery.delivery_orders o
 			 where s.stop_id=$1 and o.order_id=s.delivery_order_id
-			   and o.rider_id=$3 and o.status='ACCEPTED'`,
-			s.StopID, s.Sequence, riderID)
+			   and o.rider_id=$3 and `+stopScope,
+			stopArgs...)
 		if err != nil {
 			return err
 		}
@@ -937,12 +994,13 @@ func (r *Repo) ResequenceActiveStops(ctx context.Context, riderID string, ordere
 	}
 	// Terminal stops of accepted jobs were shifted too. Move them behind the open route so every
 	// sequence stays small and each order's route_sequence lists all of its stops, not only open ones.
+	termScope, termArgs := scoped([]any{riderID})
 	rows, err := tx.Query(ctx, `
 		select s.stop_id, s.delivery_order_id
 		  from delivery.delivery_stops s
 		  join delivery.delivery_orders o on o.order_id = s.delivery_order_id
-		 where o.rider_id=$1 and o.status='ACCEPTED' and s.sequence > 1000
-		 order by o.created_at, s.sequence`, riderID)
+		 where o.rider_id=$1 and `+termScope+` and s.sequence > 1000
+		 order by o.created_at, s.sequence`, termArgs...)
 	if err != nil {
 		return err
 	}
@@ -964,13 +1022,14 @@ func (r *Repo) ResequenceActiveStops(ctx context.Context, riderID string, ordere
 	// about to insert (nextSequence is len(combined)+1), so no per-order unique key can collide.
 	next := nextSequence
 	for _, t := range terminal {
+		updateScope, updateArgs := scoped([]any{t.stopID, next, riderID})
 		if _, err := tx.Exec(ctx, `
 			update delivery.delivery_stops s
 			   set sequence=$2
 			  from delivery.delivery_orders o
 			 where s.stop_id=$1 and o.order_id=s.delivery_order_id
-			   and o.rider_id=$3 and o.status='ACCEPTED'`,
-			t.stopID, next, riderID); err != nil {
+			   and o.rider_id=$3 and `+updateScope,
+			updateArgs...); err != nil {
 			return err
 		}
 		next++
