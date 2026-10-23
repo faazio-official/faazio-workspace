@@ -342,6 +342,46 @@ func (r *Repo) SetDocumentStatus(ctx context.Context, riderID, docType, status, 
 	return nil
 }
 
+// AdminUploadDocumentReplacement swaps in a new private object for one rider document. It is the
+// admin-side alternative to asking the rider to re-upload: the row returns to PENDING with its
+// rejection reason cleared so the normal per-document review resumes. A VERIFIED document is
+// immutable (reopen it with a rejection first if a mistake is found).
+func (r *Repo) AdminUploadDocumentReplacement(ctx context.Context, riderID, docType, fileKey, assetID, reviewer string) error {
+	if err := r.ready(); err != nil {
+		return err
+	}
+	if strings.TrimSpace(fileKey) == "" {
+		return fmt.Errorf("%w: a replacement file key is required", ErrConflict)
+	}
+	tx, err := r.pool.Begin(ctx)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+	var status string
+	err = tx.QueryRow(ctx, `
+		select status::text from delivery.delivery_documents
+		 where rider_id=$1 and doc_type=$2::delivery_doc_type`, riderID, docType).Scan(&status)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return ErrNotFound
+	}
+	if err != nil {
+		return err
+	}
+	if status == DocVerified {
+		return fmt.Errorf("%w: a verified document cannot be replaced", ErrConflict)
+	}
+	if _, err := tx.Exec(ctx, `
+		update delivery.delivery_documents
+		   set file_key=$3, asset_id=$4, status='PENDING'::delivery_doc_status,
+		       rejection_reason='', reviewed_by=$5, reviewed_at=now(), uploaded_at=now()
+		 where rider_id=$1 and doc_type=$2::delivery_doc_type`,
+		riderID, docType, strings.TrimSpace(fileKey), nullString(assetID), reviewer); err != nil {
+		return err
+	}
+	return tx.Commit(ctx)
+}
+
 // ApproveProfile moves a PENDING_REVIEW rider to VERIFIED once no document or the bank account is
 // still unresolved.
 func (r *Repo) ApproveProfile(ctx context.Context, riderID, reviewer string) error {

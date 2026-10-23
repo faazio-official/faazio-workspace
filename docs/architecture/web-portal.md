@@ -75,7 +75,7 @@ The campaign wizard's **what→where** placements map 1:1 to the paid mobile sur
 | `admin/state/orders` · `admin/state/bookings` | order/booking oversight |
 | `admin/state/blood` | blood requests board (PHARMA) — server `blood.requests` with `contact`/`address` redacted for anon; moderation (`DELETE /blood-requests/{id}`) |
 | `admin/state/customers` | customer list + activity trail |
-| `admin/state/delivery-boys` | delivery-partner control plane (state-scoped): pending KYC queue, per-document verify/reject/re-upload request, profile approve → super-admin activation, active-rider list (load/capacity) with on-demand Valkey location, suspend |
+| `admin/state/delivery-boys` | delivery-partner control plane (state-scoped): pending KYC queue, per-document verify and admin-side replacement upload (private R2 → `PUT /delivery/register/{id}/documents/{docType}/reupload`; the rider app has no re-upload screen), profile approve → super-admin activation, active-rider list (load/capacity) with on-demand Valkey location, suspend |
 | `admin/state/coupons` · `admin/state/festival` | promo |
 | `admin/state/pricing-audit` | price integrity |
 | `admin/state/analytics` · `admin/state/content` · `admin/state/support` · `admin/state/audit` | console |

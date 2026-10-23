@@ -1,5 +1,5 @@
 "use client";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ChangeEvent } from "react";
 import { toast } from "sonner";
 import { PageHeader } from "@/components/patterns/PageHeader";
 import { SectionCard } from "@/components/patterns/SectionCard";
@@ -36,7 +36,7 @@ import {
   listDeliveryApplications,
   listDeliveryRiders,
   rejectDeliveryApplication,
-  requestDeliveryReupload,
+  uploadDeliveryDocumentReplacement,
   suspendDeliveryPartner,
   verifyDeliveryDocument,
   type DeliveryBoyLocation,
@@ -94,6 +94,8 @@ export function DeliveryReviewBoard({ scope }: { scope: Scope }) {
   const [busy, setBusy] = useState(false);
   const [location, setLocation] = useState<DeliveryBoyLocation | null>(null);
   const [locationRider, setLocationRider] = useState<DeliveryRider | null>(null);
+  const [uploadDocType, setUploadDocType] = useState<string | null>(null);
+  const replacementInput = useRef<HTMLInputElement>(null);
 
   const load = useCallback(async () => {
     if (!remoteConfigured()) {
@@ -172,6 +174,29 @@ export function DeliveryReviewBoard({ scope }: { scope: Scope }) {
       }
     },
     [load],
+  );
+
+  const uploadReplacement = useCallback(
+    async (event: ChangeEvent<HTMLInputElement>) => {
+      const file = event.target.files?.[0];
+      event.target.value = "";
+      const docType = uploadDocType;
+      if (!file || !docType || !detail) return;
+      setBusy(true);
+      try {
+        setDetail(await uploadDeliveryDocumentReplacement(detail.riderId, docType, file));
+        toast.success("Replacement uploaded — pending review");
+        await load();
+      } catch (err) {
+        toast.error("Replacement upload failed", {
+          description: err instanceof Error ? err.message : "The gateway rejected the upload.",
+        });
+      } finally {
+        setBusy(false);
+        setUploadDocType(null);
+      }
+    },
+    [detail, load, uploadDocType],
   );
 
   const openDocument = useCallback(async (assetId?: string, fileKey?: string) => {
@@ -405,28 +430,30 @@ export function DeliveryReviewBoard({ scope }: { scope: Scope }) {
                             Verify
                           </Button>
                         ) : null}
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          disabled={busy}
-                          onClick={() => {
-                            const note = window.prompt(
-                              "Reason for re-upload (sent to the rider):",
-                              "Blurry or unreadable",
-                            );
-                            if (note) {
-                              void run(`${doc.docType} re-upload requested`, () =>
-                                requestDeliveryReupload(detail.riderId, doc.docType, note),
-                              );
-                            }
-                          }}
-                        >
-                          Re-upload
-                        </Button>
+                        {doc.status !== "VERIFIED" ? (
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            disabled={busy}
+                            onClick={() => {
+                              setUploadDocType(doc.docType);
+                              replacementInput.current?.click();
+                            }}
+                          >
+                            Upload replacement
+                          </Button>
+                        ) : null}
                       </div>
                     </li>
                   ))}
                 </ul>
+                <input
+                  ref={replacementInput}
+                  type="file"
+                  accept="image/jpeg,image/png,image/webp"
+                  className="hidden"
+                  onChange={(event) => void uploadReplacement(event)}
+                />
               </div>
 
               {detail.bankAccount ? (

@@ -5,5 +5,5 @@ export type DeliveryPartnerStackParamList = {
   SubmissionSuccess: undefined;
   AcceptReject: { orderId: string; expiresAt?: string };
   Dashboard: undefined;
-  Route: { orderId: string };
+  Route: undefined;
 };

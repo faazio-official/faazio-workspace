@@ -2181,14 +2181,6 @@ export class GatewayClient {
     });
   }
 
-  async requestDeliveryReupload(id: string, docType: string, reason: string): Promise<DeliveryPartnerDetail> {
-    if (!REMOTE_ENABLED) throw new GatewayOfflineError();
-    return this.http<DeliveryPartnerDetail>(
-      `/delivery/register/${encodeURIComponent(id)}/reupload-request`,
-      { method: 'PUT', body: JSON.stringify({ docType, reason }) },
-    );
-  }
-
   async activateDeliveryPartner(id: string): Promise<DeliveryPartnerDetail> {
     if (!REMOTE_ENABLED) throw new GatewayOfflineError();
     return this.http<DeliveryPartnerDetail>(`/delivery/register/${encodeURIComponent(id)}/activate`, {

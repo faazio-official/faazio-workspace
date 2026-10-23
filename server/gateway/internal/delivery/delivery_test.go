@@ -254,6 +254,15 @@ func (m scriptedMatrix) Travel(fromLat, fromLng, toLat, toLng float64) (int64, i
 
 func point(lat, lng float64) *float64 { return &lat }
 
+// unitMatrix prices a leg as the sum of absolute coordinate deltas (one "second" per unit), which
+// makes the route-optimality assertions below independent of the production Haversine fallback.
+type unitMatrix struct{}
+
+func (unitMatrix) Travel(fromLat, fromLng, toLat, toLng float64) (int64, int64) {
+	seconds := int64(math.Abs(toLat-fromLat) + math.Abs(toLng-fromLng))
+	return seconds, seconds
+}
+
 func TestPickRiderWithStopsPricesDetour(t *testing.T) {
 	matrix := scriptedMatrix{legs: map[string]int64{
 		"1.00,1.00->0.00,0.00": 10,
@@ -323,6 +332,122 @@ func TestOptimizeStopSequenceKeepsStartedStopsPinned(t *testing.T) {
 	}
 	if p < 0 || d < 0 || p > d {
 		t.Fatalf("pickup must precede drop, got pickup=%d drop=%d", p, d)
+	}
+}
+
+func makeStop(id, orderID, stopType, status string, lat, lng float64) Stop {
+	la, ln := lat, lng
+	return Stop{
+		StopID: id, DeliveryOrderID: orderID, StopType: stopType, Status: status,
+		Latitude: &la, Longitude: &ln,
+	}
+}
+
+func routeIDs(stops []Stop) []string {
+	out := make([]string, len(stops))
+	for i, s := range stops {
+		out[i] = s.StopID
+		if s.Sequence != i+1 {
+			panic("sequences must be renumbered")
+		}
+	}
+	return out
+}
+
+func TestOptimizeGlobalRouteReordersUnstartedAcrossOrders(t *testing.T) {
+	// The current sequence visits order A first, but order B is much closer to the rider.
+	existing := []Stop{
+		makeStop("a-pick", "A", "PICKUP", StopPending, 40, 0),
+		makeStop("a-drop", "A", "DROP", StopPending, 50, 0),
+		makeStop("b-pick", "B", "PICKUP", StopPending, 5, 0),
+		makeStop("b-drop", "B", "DROP", StopPending, 10, 0),
+	}
+	newPickup := makeStop("c-pick", "C", "PICKUP", StopPending, 20, 0)
+	newDrop := makeStop("c-drop", "C", "DROP", StopPending, 25, 0)
+	all := append(append(append([]Stop{}, existing...), newPickup), newDrop)
+
+	got, err := OptimizeGlobalRoute(all, 0, 0, unitMatrix{})
+	if err != nil {
+		t.Fatalf("global optimize failed: %v", err)
+	}
+	want := []string{"b-pick", "b-drop", "c-pick", "c-drop", "a-pick", "a-drop"}
+	if fmt.Sprint(routeIDs(got)) != fmt.Sprint(want) {
+		t.Fatalf("global route = %v, want %v", routeIDs(got), want)
+	}
+	cost := int64(0)
+	prevLat, prevLng := 0.0, 0.0
+	for _, s := range got {
+		leg, _ := unitMatrix{}.Travel(prevLat, prevLng, *s.Latitude, *s.Longitude)
+		cost += leg
+		prevLat, prevLng = *s.Latitude, *s.Longitude
+	}
+	if cost != 50 {
+		t.Fatalf("expected the minimum 50s route, got %ds", cost)
+	}
+}
+
+func TestOptimizeGlobalRouteKeepsStartedPrefixPinned(t *testing.T) {
+	existing := []Stop{
+		makeStop("a-pick", "A", "PICKUP", StopAtPickup, 5, 0),
+		makeStop("a-drop", "A", "DROP", StopPending, 20, 0),
+		makeStop("b-pick", "B", "PICKUP", StopPending, 10, 0),
+		makeStop("b-drop", "B", "DROP", StopPending, 30, 0),
+	}
+	newPickup := makeStop("c-pick", "C", "PICKUP", StopPending, 1, 0)
+	newDrop := makeStop("c-drop", "C", "DROP", StopPending, 2, 0)
+	all := append(append(append([]Stop{}, existing...), newPickup), newDrop)
+
+	got, err := OptimizeGlobalRoute(all, 0, 0, unitMatrix{})
+	if err != nil {
+		t.Fatalf("global optimize failed: %v", err)
+	}
+	if got[0].StopID != "a-pick" {
+		t.Fatalf("started stop must stay pinned first, got %v", routeIDs(got))
+	}
+	want := []string{"a-pick", "c-pick", "c-drop", "b-pick", "a-drop", "b-drop"}
+	if fmt.Sprint(routeIDs(got)) != fmt.Sprint(want) {
+		t.Fatalf("global route = %v, want %v", routeIDs(got), want)
+	}
+}
+
+func TestOptimizeGlobalRouteHonoursPickupBeforeDrop(t *testing.T) {
+	stops := []Stop{
+		makeStop("a-pick", "A", "PICKUP", StopPending, 30, 0),
+		makeStop("a-drop", "A", "DROP", StopPending, 5, 0),
+		makeStop("b-pick", "B", "PICKUP", StopPending, 10, 0),
+		makeStop("b-drop", "B", "DROP", StopPending, 20, 0),
+	}
+	got, err := OptimizeGlobalRoute(stops, 0, 0, unitMatrix{})
+	if err != nil {
+		t.Fatalf("global optimize failed: %v", err)
+	}
+	pos := map[string]int{}
+	for i, s := range got {
+		pos[s.StopID] = i
+	}
+	for _, orderID := range []string{"A", "B"} {
+		if pos[orderID+"-pick"] > pos[orderID+"-drop"] {
+			t.Fatalf("order %s drop visited before pickup: %v", orderID, routeIDs(got))
+		}
+	}
+}
+
+func TestOptimizeGlobalRouteTrivialAndOversize(t *testing.T) {
+	if got, err := OptimizeGlobalRoute(nil, 0, 0, nil); err != nil || got != nil {
+		t.Fatalf("empty route = (%v, %v)", got, err)
+	}
+	one := []Stop{makeStop("only", "A", "PICKUP", StopPending, 1, 1)}
+	got, err := OptimizeGlobalRoute(one, 0, 0, nil)
+	if err != nil || len(got) != 1 || got[0].Sequence != 1 {
+		t.Fatalf("single stop route = (%v, %v)", got, err)
+	}
+	many := make([]Stop, maxGlobalRouteStops+1)
+	for i := range many {
+		many[i] = makeStop(fmt.Sprintf("s%d", i), fmt.Sprintf("O%d", i), "PICKUP", StopPending,
+			float64(i+1), 0)
+	}
+	if _, err := OptimizeGlobalRoute(many, 0, 0, nil); err == nil {
+		t.Fatal("oversize route must request the insertion fallback")
 	}
 }
 

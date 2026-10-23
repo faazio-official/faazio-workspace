@@ -237,7 +237,7 @@ export function DashboardScreen({ navigation }: Props) {
       try {
         await gateway.acceptDeliveryOrder(orderId);
         await refresh();
-        navigation.navigate('Route', { orderId });
+        navigation.navigate('Route');
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Could not accept this order.');
       } finally {
@@ -378,7 +378,7 @@ export function DashboardScreen({ navigation }: Props) {
           active.map((order) => {
             const done = order.stops.filter((s) => s.status === 'DELIVERED' || s.status === 'FAILED').length;
             return (
-              <TouchableOpacity key={order.orderId} onPress={() => navigation.navigate('Route', { orderId: order.orderId })}>
+              <TouchableOpacity key={order.orderId} onPress={() => navigation.navigate('Route')}>
                 <Card style={styles.orderCard}>
                   <View style={styles.rowBetween}>
                     <AppText style={styles.orderTitle}>Order {order.orderId.slice(-6)}</AppText>

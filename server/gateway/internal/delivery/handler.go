@@ -80,6 +80,8 @@ func (h *Handler) Register(r chi.Router) {
 		g.Get("/delivery/register/{id}", h.getApplication)
 		g.Put("/delivery/register/{id}/verify", h.verifyApplication)
 		g.Put("/delivery/register/{id}/reject", h.rejectApplication)
+		g.Put("/delivery/register/{id}/documents/{docType}/reupload", h.adminUploadDocumentReplacement)
+		// Deprecated: rider-side re-upload is disabled; admins upload replacements instead.
 		g.Put("/delivery/register/{id}/reupload-request", h.requestReupload)
 		g.Get("/delivery/online-riders", h.onlineRiders)
 		g.Get("/admin/delivery-boys", h.adminRiders)
@@ -363,25 +365,28 @@ func (h *Handler) rejectApplication(w http.ResponseWriter, r *http.Request) {
 	h.respondDetail(w, r, id)
 }
 
-type reuploadRequest struct {
-	DocType string `json:"docType"`
-	Reason  string `json:"reason"`
+type documentReplacementRequest struct {
+	FileKey string `json:"fileKey"`
+	AssetID string `json:"assetId"`
+	Notes   string `json:"notes"`
 }
 
-func (h *Handler) requestReupload(w http.ResponseWriter, r *http.Request) {
-	var req reuploadRequest
+// adminUploadDocumentReplacement lets an admin upload the clear photo collected offline from the
+// rider. The document returns to PENDING (rejection reason cleared) for normal per-document review.
+func (h *Handler) adminUploadDocumentReplacement(w http.ResponseWriter, r *http.Request) {
+	var req documentReplacementRequest
 	if err := httpx.Decode(r, &req); err != nil {
-		httpx.Fail(w, http.StatusBadRequest, "invalid_body", "invalid reupload payload")
+		httpx.Fail(w, http.StatusBadRequest, "invalid_body", "invalid document replacement payload")
 		return
 	}
-	dt := strings.ToUpper(strings.TrimSpace(req.DocType))
+	dt := strings.ToUpper(strings.TrimSpace(chi.URLParam(r, "docType")))
 	if !validDocTypes[dt] {
 		httpx.Fail(w, http.StatusBadRequest, "invalid_doc_type", "unknown document type")
 		return
 	}
-	reason := strings.TrimSpace(req.Reason)
-	if reason == "" {
-		httpx.Fail(w, http.StatusBadRequest, "reason_required", "a re-upload reason is required")
+	fileKey := strings.TrimSpace(req.FileKey)
+	if fileKey == "" {
+		httpx.Fail(w, http.StatusBadRequest, "file_key_required", "the replacement file key is required")
 		return
 	}
 	id := chi.URLParam(r, "id")
@@ -394,14 +399,23 @@ func (h *Handler) requestReupload(w http.ResponseWriter, r *http.Request) {
 		httpx.Fail(w, http.StatusNotFound, "not_found", "application not found")
 		return
 	}
-	if err := h.repo.SetDocumentStatus(r.Context(), id, dt, DocReuploadRequested, reason, auth.UserID(r.Context())); err != nil {
+	assetID := strings.TrimSpace(req.AssetID)
+	if err := h.repo.AdminUploadDocumentReplacement(
+		r.Context(), id, dt, fileKey, assetID, auth.UserID(r.Context())); err != nil {
 		h.writeErr(w, err)
 		return
 	}
-	h.auditEvent(r.Context(), "DELIVERY_BOY_REUPLOAD_REQUEST", id, nil, map[string]any{
-		"docType": dt, "reason": reason,
+	h.auditEvent(r.Context(), "DELIVERY_BOY_DOC_REUPLOAD_ADMIN", id, nil, map[string]any{
+		"docType": dt, "assetId": assetID, "notes": strings.TrimSpace(req.Notes),
 	})
 	h.respondDetail(w, r, id)
+}
+
+// requestReupload is retired: riders no longer re-upload documents from the app. Admins collect a
+// clear photo offline and upload it through adminUploadDocumentReplacement.
+func (h *Handler) requestReupload(w http.ResponseWriter, _ *http.Request) {
+	httpx.Fail(w, http.StatusGone, "reupload_disabled",
+		"rider re-upload is disabled; an admin uploads the replacement document")
 }
 
 func (h *Handler) activateApplication(w http.ResponseWriter, r *http.Request) {
@@ -878,15 +892,27 @@ func (h *Handler) dispatch(ctx context.Context, req dispatchRequest, stateCode s
 	drop := Stop{StopID: dropID, Sequence: 2, StopType: "DROP", Label: req.CustomerName, Address: req.CustomerAddress,
 		Latitude: req.DropLatitude, Longitude: req.DropLongitude, CustomerName: req.CustomerName,
 		CustomerPhone: req.CustomerPhone}
+	// The solver groups stops by order to enforce pickup-before-drop; new rows need the id before they
+	// are inserted, while CreateOrder still binds them through its own order id.
+	pickup.DeliveryOrderID = orderID
+	drop.DeliveryOrderID = orderID
 	stops := []Stop{pickup, drop}
+	route, _ := json.Marshal([]string{pickupID, dropID})
+	order.RouteSequence = route
 
-	// Insert the new job into the rider's existing route (pickup before drop, started stops pinned),
-	// then persist the sequence before creating the order. If the offer is rejected the existing
-	// stops keep their relative order and only the numbering has gaps; execution is unaffected.
+	// Globally re-optimize the rider's whole open route (all accepted orders plus the new pair).
+	// Started stops stay pinned; unstarted stops may be reordered. Fall back to the insertion
+	// heuristic only if the exact solver cannot produce a valid sequence.
 	if len(best.ActiveStops) > 0 {
-		combined, err := OptimizeStopSequence(best.ActiveStops, pickup, drop, h.matrix)
+		all := make([]Stop, 0, len(best.ActiveStops)+2)
+		all = append(all, best.ActiveStops...)
+		all = append(all, pickup, drop)
+		combined, err := OptimizeGlobalRoute(all, best.Lat, best.Lng, h.matrix)
 		if err != nil {
-			return Order{}, "", false, err
+			combined, err = OptimizeStopSequence(best.ActiveStops, pickup, drop, h.matrix)
+			if err != nil {
+				return Order{}, "", false, err
+			}
 		}
 		existing := make([]Stop, 0, len(best.ActiveStops))
 		for _, s := range combined {
@@ -902,12 +928,6 @@ func (h *Handler) dispatch(ctx context.Context, req dispatchRequest, stateCode s
 		if err := h.repo.ResequenceActiveStops(ctx, best.Rider.RiderID, existing, int64(len(combined)+1)); err != nil {
 			return Order{}, "", false, err
 		}
-		// Sequence values encode the rider's global route; each order's JSON lists only its own stops.
-		route, _ := json.Marshal([]string{pickupID, dropID})
-		order.RouteSequence = route
-	} else {
-		route, _ := json.Marshal([]string{pickupID, dropID})
-		order.RouteSequence = route
 	}
 	var otp string
 	var otpHash string
@@ -1017,15 +1037,21 @@ func (h *Handler) retryReleasedOrder(ctx context.Context, order Order, stateCode
 	if next == nil {
 		return false, nil
 	}
-	// The fallback chain must use the same insertion heuristic as the first offer: the released
-	// job's pair is placed into the next rider's existing route, not appended blindly. The combined
-	// order is computed before the claim; it is persisted after ReassignOrder so the stop updates are
-	// scoped to the rider who now owns the job.
+	// The fallback chain uses the same global solver as the first offer: the released job's pair is
+	// merged into the next rider's complete open route, not appended blindly. The combined order is
+	// computed before the claim; it is persisted after ReassignOrder so the stop updates are scoped to
+	// the rider who now owns the job.
 	var combined []Stop
 	if len(next.ActiveStops) > 0 {
-		combined, err = OptimizeStopSequence(next.ActiveStops, *pickup, *drop, h.matrix)
+		all := make([]Stop, 0, len(next.ActiveStops)+2)
+		all = append(all, next.ActiveStops...)
+		all = append(all, *pickup, *drop)
+		combined, err = OptimizeGlobalRoute(all, next.Lat, next.Lng, h.matrix)
 		if err != nil {
-			return false, err
+			combined, err = OptimizeStopSequence(next.ActiveStops, *pickup, *drop, h.matrix)
+			if err != nil {
+				return false, err
+			}
 		}
 	}
 	approachSeconds, approachMeters := h.matrix.Travel(
