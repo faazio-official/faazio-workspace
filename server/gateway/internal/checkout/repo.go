@@ -602,7 +602,7 @@ type StoreCoordinate struct {
 }
 
 // StoreCoordinates returns pinned coordinates for the given store ids; stores without a pin are
-// simply absent from the map (the caller falls back to the flat settings fee for the order).
+// simply absent from the map (the caller falls back to the rate card's base fee for the order).
 func (r *Repo) StoreCoordinates(ctx context.Context, storeIDs []string) (map[string]StoreCoordinate, error) {
 	if r.pool == nil {
 		return nil, fmt.Errorf("checkout: database not configured")

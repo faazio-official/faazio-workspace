@@ -17,7 +17,6 @@ import { formatINR } from "@/lib/format";
 import { advanceOrder } from "@/lib/api";
 import { useMockLoading, useOrders } from "@/lib/api/hooks";
 import { useSession } from "@/lib/hooks/useSession";
-import { config } from "@/lib/config";
 
 
 const REASONS = ["Damaged in transit", "Wrong item", "Changed mind", "Late delivery"];
@@ -34,7 +33,7 @@ function SellerReturns() {
     <div className="space-y-4">
       <PageHeader
         title="Returns"
-        description="Approvals refund from your next settlement cycle, commission adjusted."
+        description="Approvals refund the full order value from your next settlement cycle."
       />
 
       <SectionCard bodyClassName="p-0">
@@ -62,9 +61,7 @@ function SellerReturns() {
             </TableHeader>
             <TableBody>
               {returns.map((order, index) => {
-                const refund = Math.round(
-                  order.amountPaisa * (1 - config.commissionPercent / 100),
-                );
+                const refund = order.amountPaisa;
                 return (
                   <TableRow key={order.orderId} className="h-12">
                     <TableCell className="num font-medium">{order.orderId}</TableCell>

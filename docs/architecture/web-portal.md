@@ -62,7 +62,7 @@ The campaign wizard's **what→where** placements map 1:1 to the paid mobile sur
 | `seller/orders` · `seller/orders/[id]` | order queue + detail | all |
 | `seller/bookings` · `seller/bookings/settings` | seat accept/reject/vacate + config | FOOD |
 | `seller/prescriptions` | Rx quote → READY reveal | PHARMA |
-| `seller/returns` · `seller/reviews` · `seller/payments` | after-sales — payments ledger carries TCS, TDS (0.1%), product GST and platform GST columns | all |
+| `seller/returns` · `seller/reviews` · `seller/payments` | after-sales — commission-free payments ledger (TCS, TDS 0.1%, product GST; sellers keep full gross) | all |
 | `seller/analytics` · `seller/support` · `seller/settings` · `seller/onboarding` | console | all |
 
 **District admin console (`app/admin/district/**`)** — district-scoped oversight (campaigns, coupons, ads and delivery read models remain state-level).

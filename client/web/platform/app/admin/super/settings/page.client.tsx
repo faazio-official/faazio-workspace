@@ -13,7 +13,6 @@ import { floorPaisa } from "@/lib/pricing/rules";
 
 function PlatformSettings() {
   const [form, setForm] = useState({
-    commissionPercent: String(config.commissionPercent),
     tcsPercent: String(config.tcsPercent),
     coinEarnRate: String(config.coinEarnRate),
     coinRedeemRate: String(config.coinRedeemRate),
@@ -29,17 +28,8 @@ function PlatformSettings() {
         description="These values drive settlement maths, price floors and SLA gates everywhere in the portal."
       />
 
-      <SectionCard title="Commission & tax">
+      <SectionCard title="Tax & statutory">
         <div className="grid gap-4 md:grid-cols-2">
-          <div className="space-y-1.5">
-            <Label htmlFor="commission">Commission %</Label>
-            <Input
-              id="commission"
-              className="num"
-              value={form.commissionPercent}
-              onChange={(e) => setForm({ ...form, commissionPercent: e.target.value })}
-            />
-          </div>
           <div className="space-y-1.5">
             <Label htmlFor="tcs">TCS %</Label>
             <Input
