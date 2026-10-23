@@ -89,7 +89,7 @@ function NewProduct() {
     <div className="space-y-4">
       <PageHeader
         title="List a new product"
-        description="Submitted listings go to your state admin's approval queue."
+        description="Submitted listings go to your district admin's approval queue."
       />
 
       <ol className="flex flex-wrap gap-2">

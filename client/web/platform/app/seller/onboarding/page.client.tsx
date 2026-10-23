@@ -62,7 +62,7 @@ function Onboarding() {
     <div className="space-y-4">
       <PageHeader
         title="Seller onboarding"
-        description="Submitted applications go to your state admin for KYC review."
+        description="Submitted applications go to your district admin for KYC review."
       />
 
       <ol className="flex flex-wrap gap-2">

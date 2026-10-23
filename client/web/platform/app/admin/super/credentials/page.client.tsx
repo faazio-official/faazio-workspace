@@ -54,7 +54,7 @@ import {
   stateAdminConflictMessage,
   type CreatePortalCredentialInput,
 } from "@/lib/api";
-import { STATES } from "@/data/states";
+import { DISTRICTS } from "@/data/districts";
 import type { PortalCredential, Role } from "@/data/types";
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -69,12 +69,12 @@ function generatePassword(): string {
 
 function scopeLabel(c: PortalCredential): string {
   if (c.role === "SELLER") return c.sellerId ?? "—";
-  if (c.role === "STATE_ADMIN") return c.stateCode ?? "—";
+  if (c.role === "DISTRICT_ADMIN") return c.districtCode ?? c.stateCode ?? "—";
   return "Global";
 }
 
 function roleLabel(role: Role): string {
-  return role === "SELLER" ? "Seller" : role === "STATE_ADMIN" ? "State admin" : "Super admin";
+  return role === "SELLER" ? "Seller" : role === "DISTRICT_ADMIN" ? "District admin" : "Super admin";
 }
 
 function CredentialsPage() {
@@ -89,7 +89,7 @@ function CredentialsPage() {
     name: "",
     role: "SELLER",
     sellerId: "",
-    stateCode: "MH",
+    districtCode: "TCH",
     password: "",
     forceChange: true,
   });
@@ -114,14 +114,14 @@ function CredentialsPage() {
     void load();
   }, [load]);
 
-  // Deep link from the state-admins "Issue login" action: prefill the create sheet for that email.
+  // Deep link from the district-admins "Issue login" action: prefill the create sheet for that email.
   useEffect(() => {
     if (typeof window === "undefined") return;
     const params = new URLSearchParams(window.location.search);
     const email = params.get("email");
     const role = params.get("role");
-    if (!email || role !== "STATE_ADMIN") return;
-    setForm((f) => ({ ...f, email, role: "STATE_ADMIN", stateCode: "MH", password: generatePassword() }));
+    if (!email || role !== "DISTRICT_ADMIN") return;
+    setForm((f) => ({ ...f, email, role: "DISTRICT_ADMIN", districtCode: "TCH", password: generatePassword() }));
     setCreateOpen(true);
     const clean = window.location.pathname;
     window.history.replaceState(null, "", clean);
@@ -131,7 +131,7 @@ function CredentialsPage() {
     EMAIL_RE.test(form.email.trim()) &&
     form.name.trim().length >= 2 &&
     form.password.length >= MIN_PASSWORD &&
-    (form.role === "SELLER" ? Boolean(form.sellerId) : Boolean(form.stateCode));
+    (form.role === "SELLER" ? Boolean(form.sellerId) : Boolean(form.districtCode));
 
   async function submitCreate() {
     setBusy(true);
@@ -141,7 +141,7 @@ function CredentialsPage() {
         name: form.name.trim(),
         role: form.role,
         sellerId: form.role === "SELLER" ? form.sellerId : undefined,
-        stateCode: form.role === "STATE_ADMIN" ? form.stateCode : undefined,
+        districtCode: form.role === "DISTRICT_ADMIN" ? form.districtCode : undefined,
         password: form.password,
         forceChange: form.forceChange,
       });
@@ -152,7 +152,7 @@ function CredentialsPage() {
         name: "",
         role: "SELLER",
         sellerId: "",
-        stateCode: "MH",
+        districtCode: "TCH",
         password: "",
         forceChange: true,
       });
@@ -304,7 +304,7 @@ function CredentialsPage() {
               <Select
                 value={form.role}
                 onValueChange={(value) =>
-                  setForm({ ...form, role: value as "SELLER" | "STATE_ADMIN" })
+                  setForm({ ...form, role: value as "SELLER" | "DISTRICT_ADMIN" })
                 }
               >
                 <SelectTrigger>
@@ -312,7 +312,7 @@ function CredentialsPage() {
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="SELLER">Seller</SelectItem>
-                  <SelectItem value="STATE_ADMIN">State admin</SelectItem>
+                  <SelectItem value="DISTRICT_ADMIN">District admin</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -339,27 +339,27 @@ function CredentialsPage() {
             ) : (
               <>
                 <div className="space-y-1.5">
-                  <Label>State</Label>
+                  <Label>District</Label>
                   <Select
-                    value={form.stateCode}
-                    onValueChange={(value) => setForm({ ...form, stateCode: value })}
+                    value={form.districtCode}
+                    onValueChange={(value) => setForm({ ...form, districtCode: value })}
                   >
                     <SelectTrigger>
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      {STATES.map((s) => (
-                        <SelectItem key={s.stateCode} value={s.stateCode}>
-                          {s.stateCode} · {s.name}
+                      {DISTRICTS.map((d) => (
+                        <SelectItem key={d.districtCode} value={d.districtCode}>
+                          {d.name} · {d.districtCode}
                         </SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
                 </div>
                 <p className="rounded-lg border border-border bg-muted/40 px-3 py-2 text-[11px] text-muted-foreground">
-                  Tip: creating a state admin on{" "}
-                  <Link href="/admin/super/state-admins" className="font-semibold text-interactive">
-                    State admins
+                  Tip: creating a district admin on{" "}
+                  <Link href="/admin/super/district-admins" className="font-semibold text-interactive">
+                    District admins
                   </Link>{" "}
                   mints the roster row and login in one step, so they stay in sync.
                 </p>

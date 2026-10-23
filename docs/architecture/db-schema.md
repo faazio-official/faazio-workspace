@@ -1236,7 +1236,7 @@ Idempotent and re-runnable.
 
 `admins.state_admins.state_code` (and every other `state_code char(2)` column) has **no FK/CHECK yet** —
 the gateway is authoritative: `internal/admins/states.go` allowlists the 36 ISO 3166-2:IN state/UT codes
-(no aliases — CT/OR/TG/UT/DH, never CG/OD/TS/UK/DN) and `POST /state-admins` rejects anything else with
+(no aliases — CT/OR/TG/UT/DH, never CG/OD/TS/UK/DN) and `POST /district-admins` also validates the district against `admins.district_master` (`0046`/`0048`); an unknown code is rejected with
 400 `unknown_state`. Planned `ops.states` seed (`0035`) will become the FK target.
 
 ### 12.10 Store live flag (migration `0016`)
@@ -1655,7 +1655,7 @@ Session lifecycle (`0038` adds the GCP-style lifetimes): access = HS256 JWT (`is
 `app_role`, optional `seller_id`/`state_code`, `must_change`, 15 min, `jti`); refresh = opaque `faazio_pr_*`
 (32 random bytes, SHA-256 at rest, **30-day sliding idle**, **180-day absolute cap** set at login and never
 extended, **30-second reuse grace**). The verifier requires `seller_id` for a seller token and a 2-letter
-`state_code` for a state-admin token, and rejects any other role. Each rotation consumes the presented row
+`district_code` (or legacy `state_code`) for a district-admin token, and rejects any other role. Each rotation consumes the presented row
 atomically (`used_at`, `reuse_grace_until=now()+30s`, `rotated_to_hash=<child>` in one `UPDATE ... WHERE
 used_at IS NULL AND revoked_at IS NULL AND expires_at > now() AND absolute_expires_at > now()`) and inserts a
 child under the same family + absolute cap. A replay *inside* the grace window is an idempotent rotation
@@ -1670,13 +1670,13 @@ caching doc §5, endpoints + ownership: `monolith-breakdown.md` §1 (`portal aut
 
 ### 12.19 State-admin identity guard — duplicates become impossible (migration `0036`)
 
-**Authority:** `monolith-breakdown.md` §1 (`admins` row), `web-portal.md` (the `/admin/super/state-admins`
+**Authority:** `monolith-breakdown.md` §1 (`admins` row), `web-portal.md` (the `/admin/super/district-admins`
 unified creation), `PORTAL_AUTH.md` §3.
 
 Why: `0015` shipped `admins.state_admins` with **no** uniqueness constraint, so two roster rows could
 share `Admin@x.com` / `ADMIN@x.com`, and portal login + roster were two disconnected inserts
-(`POST /admin/portal-users` after `POST /state-admins`) that could diverge (orphan roster / orphan
-login). This migration makes duplicate emails durable-impossible and backs the `POST /state-admins`
+(`POST /admin/portal-users` after `POST /district-admins`) that could diverge (orphan roster / orphan
+login). This migration makes duplicate emails durable-impossible and backs the `POST /district-admins`
 collision gate. **Identity policy (superadmin decision, 2026-10):** email is the ONE-PERSON-ONE-ROLE
 key and is hard-blocked everywhere; **phone is a SOFT warning** — a shared line can legitimately cover
 several people (team/SME phones), so a shared phone never blocks creation, only surfaces as a `201
@@ -1696,7 +1696,7 @@ DROP INDEX IF EXISTS admins.state_admins_phone_digits_uniq;
 CREATE INDEX IF NOT EXISTS state_admins_phone_digits_idx
   ON admins.state_admins (regexp_replace(phone, '\D', '', 'g'));
 
--- Seller phone digit lookup (soft warning: a state-admin phone already owned by a seller).
+-- Seller phone digit lookup (soft warning: a district-admin phone already owned by a seller).
 CREATE INDEX IF NOT EXISTS sellers_phone_digits_idx
   ON sellers.sellers (regexp_replace(phone, '\D', '', 'g'))
   WHERE phone IS NOT NULL AND phone <> '';
@@ -1862,7 +1862,7 @@ tables are untouched.
 
 **Security / RLS**
 - Writes are `service_role` only (the gateway). Authenticated riders may read their own rows; a
-  `STATE_ADMIN` may read rows in its `state_code`; `SUPER_ADMIN` reads all. Nothing is anon-readable.
+  `DISTRICT_ADMIN` may read rows in its `district_code` (legacy rows: parent `state_code`); `SUPER_ADMIN` reads all. Nothing is anon-readable.
 - PII (phone, address, emergency contact, customer phone) is auth-scoped and never cached in Valkey
   or exposed to anon feeds. KYC images stay in the private R2 bucket and render through
   `GET /media/private/{id}` presigned GETs.
@@ -1873,3 +1873,55 @@ tables are untouched.
 **Phase 5 (payout engine) is out of scope.** `delivery_orders.payout_amount_paisa` is a display-only
 placeholder; no `delivery_payouts` table (order-level seller/platform/rider split, COD
 reconciliation, TDS, payout frequency) exists until the product decision is approved.
+
+### 12.24 District rollout + platform-fee change requests (migrations `0046`–`0049`)
+
+**Authority:** `monolith-breakdown.md` §1 (`admins`, `sellers`, `portal auth`), `mobile-app.md`
+("Sell with us", account console), `web-portal.md` (district console + fee review), `caching-cloudflare-valkey.md`
+(no new cache keys). MVP coverage is **Tamil Nadu (38) + Puducherry (4)** districts.
+
+```sql
+-- 0046: district master (the FK target; seeded, read-only to app roles)
+CREATE TABLE admins.district_master (
+  district_code TEXT PRIMARY KEY, name TEXT NOT NULL, state_code CHAR(2) NOT NULL);
+
+-- 0047: seller district (nullable on legacy rows; validated against the master when present)
+ALTER TABLE sellers.sellers ADD COLUMN district_code TEXT REFERENCES admins.district_master(district_code);
+CREATE INDEX sellers_district_idx ON sellers.sellers (district_code);
+
+-- 0048: state admins -> district admins (rename + nullable backfill; legacy state scope retained)
+ALTER TABLE admins.state_admins RENAME TO district_admins;
+ALTER TABLE admins.district_admins ADD COLUMN district_code TEXT REFERENCES admins.district_master(district_code);
+-- scope CHECK: district_code IS NOT NULL OR state_code IS NOT NULL
+-- portal_users: role STATE_ADMIN -> DISTRICT_ADMIN, add district_code, scope CHECK mirrors above
+-- sellers.is_state_admin_for keeps its name but accepts DISTRICT_ADMIN + district match
+-- audit_logs actor_role CHECK widened to include DISTRICT_ADMIN
+
+-- 0049: seller-initiated platform-fee change requests
+CREATE TABLE sellers.seller_fee_change_requests (
+  request_id TEXT PRIMARY KEY, seller_id TEXT NOT NULL REFERENCES sellers.sellers ON DELETE CASCADE,
+  district_code TEXT, current_fee_pct SMALLINT NOT NULL, requested_fee_pct SMALLINT NOT NULL,
+  status TEXT NOT NULL DEFAULT 'PENDING' CHECK (status IN ('PENDING','APPROVED','REJECTED','CANCELLED')),
+  admin_note TEXT NOT NULL DEFAULT '', requested_by TEXT NOT NULL,
+  requested_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  reviewed_by TEXT, reviewed_at TIMESTAMPTZ, review_reason TEXT NOT NULL DEFAULT '');
+CREATE UNIQUE INDEX seller_fee_change_requests_one_pending
+  ON sellers.seller_fee_change_requests (seller_id) WHERE status = 'PENDING';
+```
+
+**Rules**
+
+- **Wire role is `DISTRICT_ADMIN`.** `auth.RoleStateAdmin` remains a Go alias of
+  `RoleDistrictAdmin` only to keep legacy call sites compiling; no token or DB row is written as
+  `STATE_ADMIN` after `0048`. Existing non-TN/PY admins stay **state-scoped** (`district_code` NULL)
+  because coverage is TN/PY only; `auth.CanActForSellerDistrict` prefers the district claim and falls
+  back to the parent `state_code`.
+- `district_code` on sellers is **optional server-side** (legacy apps/tests submit only a state), but
+  the mobile onboarding screen requires it for TN/PY and rejects a district that does not belong to
+  the selected state (`400 bad_request`).
+- The live `platform_fee_pct` is still immutable through `PATCH /sellers/{id}/platform-fee` for
+  sellers. A seller files a **request**; a district admin (own district) or super admin approves it.
+  Only `APPROVED` mutates `sellers.sellers.platform_fee_pct`; one `PENDING` request per seller is
+  enforced by the partial unique index, and the seller can read only their own history.
+- Cache keys/TTLs are unchanged (no district cache). RLS: district master is read-only to authenticated
+  roles; fee requests are read by the owning seller / scoped admins and written only through the gateway.

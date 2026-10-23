@@ -170,3 +170,6 @@ export { seedCartItems, seedFavorites, seedLocation } from './home/seeds';
 
 export { approximateGeo, distanceKmFromLabel, withStoreGeo } from './storeGeo';
 export type { GeoPoint } from './storeGeo';
+
+export { DISTRICTS, districtsForState, stateForDistrict, districtName } from './districts';
+export type { DistrictInfo } from './districts';

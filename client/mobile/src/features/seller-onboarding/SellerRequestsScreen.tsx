@@ -33,7 +33,7 @@ const STATUS_COLORS: Record<string, string> = {
 };
 
 /**
- * Seller application review queue for STATE_ADMIN (their state) / SUPER_ADMIN (all states). The
+ * Seller application review queue for DISTRICT_ADMIN (their district) / SUPER_ADMIN (all districts). The
  * server scopes the caller; the status tabs filter on the client. KYC documents always live in the
  * private R2 bucket and are only viewable on the detail screen through a presigned GET.
  */
@@ -70,7 +70,7 @@ export function SellerRequestsScreen({ navigation }: Props) {
         <View style={styles.gate} />
         <AppText style={styles.gateTitle}>Admins only</AppText>
         <AppText style={styles.gateBody}>
-          Seller review is available to state and super admins. Sign in with an admin account.
+          Seller review is available to district and super admins. Sign in with an admin account.
         </AppText>
       </View>
     );

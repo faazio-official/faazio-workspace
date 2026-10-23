@@ -10,6 +10,7 @@ interface PortalUser {
   role: Role;
   mustChange: boolean;
   sellerId?: string;
+  districtCode?: string;
   stateCode?: string;
 }
 
@@ -82,6 +83,7 @@ function toAuthUser(user: PortalUser): AuthUser {
     email: user.email,
     mustChange: user.mustChange,
     sellerId: user.sellerId,
+    districtCode: user.districtCode,
     stateCode: user.stateCode,
   };
 }

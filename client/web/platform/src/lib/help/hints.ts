@@ -95,51 +95,51 @@ export const ROUTE_HINTS: Record<string, RouteHint> = {
     how: "Attach the order or listing ID in the ticket — it gets answered far faster.",
   },
 
-  "/admin/state": {
+  "/admin/district": {
     what: "Command center for your state: supply, demand, escalations and anything waiting on you.",
     how: "Clear the queue counters at the top before moving to growth work.",
   },
-  "/admin/state/sellers": {
+  "/admin/district/sellers": {
     what: "Every seller registered in your state with KYC stage and health score.",
     how: "Open a seller to read documents and approve, hold or reject with a reason.",
   },
-  "/admin/state/sellers/:id": {
+  "/admin/district/sellers/:id": {
     what: "One seller's profile, documents, bank details, stores and moderation history.",
     how: "Check each document against the registered name before approving.",
   },
-  "/admin/state/products": {
+  "/admin/district/products": {
     what: "All listings in your state, whatever their status.",
     how: "Search by seller or category to audit a batch, then act from the row.",
   },
-  "/admin/state/products/queue": {
+  "/admin/district/products/queue": {
     what: "Listings waiting for a first review in your state.",
     how: "Approve or reject each one with a reason; both actions are written to the audit log.",
   },
-  "/admin/state/pricing-audit": {
+  "/admin/district/pricing-audit": {
     what: "Listings whose price breaks a rule or sits far from the state median.",
     how: "Work top to bottom — the reasons column tells you which rule tripped.",
   },
-  "/admin/state/festival": {
+  "/admin/district/festival": {
     what: "Festival campaigns running in your state and the sellers who opted in.",
     how: "Create a state campaign, then chase opt-ins from your strongest sellers.",
   },
-  "/admin/state/content": {
+  "/admin/district/content": {
     what: "The rails and picks shoppers see on the app home screen for your state.",
     how: "Curate a rail from the candidate list; only in-stock, approved listings qualify.",
   },
-  "/admin/state/coupons": {
+  "/admin/district/coupons": {
     what: "Coupons valid in your state, with usage and remaining budget.",
     how: "Issue one with a clear cap; watch redemption before widening it.",
   },
-  "/admin/state/orders": {
+  "/admin/district/orders": {
     what: "Live order flow in your state, including late orders and cancellations.",
     how: "Escalations sit at the top — those customers are already waiting.",
   },
-  "/admin/state/analytics": {
+  "/admin/district/analytics": {
     what: "State-level GMV, orders, category mix and city split.",
     how: "Compare cities to spot where supply, not demand, is the limit.",
   },
-  "/admin/state/audit": {
+  "/admin/district/audit": {
     what: "Every action taken in your state console, oldest kept, nothing editable.",
     how: "Filter by entity or free text when you need to explain a past decision.",
   },
@@ -148,11 +148,11 @@ export const ROUTE_HINTS: Record<string, RouteHint> = {
     what: "The global command center across all states, sectors and sellers.",
     how: "Scan state and sector health first; drill in where a number breaks the pattern.",
   },
-  "/admin/super/state-admins": {
+  "/admin/super/district-admins": {
     what: "Admin accounts and which state each one governs.",
     how: "Create an account per state; never share one login across states.",
   },
-  "/admin/super/states": {
+  "/admin/super/districts": {
     what: "Each state's launch status, supply depth and performance side by side.",
     how: "Use the matrix to decide where to open next and where to hold.",
   },
@@ -203,7 +203,7 @@ export function routeHint(pathname: string): RouteHint | undefined {
 }
 
 export const SECTION_HINTS: Record<string, string> = {
-  "Admin roster": "State admin accounts, newest first. One admin owns one state.",
+  "Admin roster": "District admin accounts, newest first. One admin owns one state.",
   Ads: "Sponsored placements and what they cost against the clicks they earn.",
   Alerts: "Anything already hurting sales or waiting on a decision. Empty is good.",
   "All campaigns": "Every festival campaign, whatever its state or stage.",
@@ -301,7 +301,7 @@ export const SECTION_HINTS: Record<string, string> = {
   "Shop analytics": "Your sales, orders and conversion over time.",
   "Shop health": "The score Faazio uses to rank you in the app.",
   "Sponsored slots": "Ad inventory available and how full it is.",
-  "State admins": "Who governs which state.",
+  "District admins": "Who governs which state.",
   "State analytics": "Performance for your state only.",
   "State matrix": "Every state side by side on the same measures.",
   States: "Launch status and depth per state.",
@@ -362,7 +362,7 @@ export const METRIC_HINTS: Record<string, string> = {
   Selected: "Rows you have ticked for a bulk action.",
   "Seller opt-ins": "Sellers who joined this campaign.",
   Sellers: "Seller accounts in this view.",
-  "State admins": "Admin accounts governing a state.",
+  "District admins": "Admin accounts governing a state.",
   "States live": "States open to shoppers today.",
   "Surfaces tracked": "App screens this console feeds.",
   TCS: "Tax collected at source, deducted before payout.",

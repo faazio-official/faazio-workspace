@@ -8,10 +8,14 @@
  */
 
 export interface TokenClaims {
-  /** Partner role claim (SELLER | STATE_ADMIN | SUPER_ADMIN), uppercased. */
+  /** Partner role claim (SELLER | DISTRICT_ADMIN | SUPER_ADMIN), uppercased. */
   role?: string;
-  /** Partner state scope claim, uppercased (2-letter code). */
+  /** Partner district scope claim, uppercased (3-letter code, e.g. TCH). */
+  districtCode?: string;
+  /** Legacy parent state scope claim, uppercased (2-letter code). */
   stateCode?: string;
+  /** Seller claim (SELLER logins only). */
+  sellerId?: string;
   /** Firebase verified `phone_number` (E.164). */
   phone?: string;
   /** Firebase subject (`user_id`). */
@@ -86,9 +90,13 @@ export function decodeIdToken(token: string | null | undefined): TokenClaims {
     const meta = (p.app_metadata ?? {}) as Record<string, unknown>;
     const role = asString(p.app_role) ?? asString(meta.app_role) ?? asString(meta.role);
     const state = asString(p.state_code) ?? asString(meta.state_code);
+    const district = asString(p.district_code) ?? asString(meta.district_code);
+    const seller = asString(p.seller_id) ?? asString(meta.seller_id);
     return {
       role: role?.toUpperCase(),
       stateCode: state?.toUpperCase(),
+      districtCode: district?.toUpperCase(),
+      sellerId: seller,
       phone: asString(p.phone_number),
       uid: asString(p.user_id) ?? asString(p.sub),
     };

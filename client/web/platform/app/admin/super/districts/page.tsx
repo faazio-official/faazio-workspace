@@ -1,0 +1,8 @@
+import { pageMetadata } from "@/lib/seo";
+import PageClient from "./page.client";
+
+export const metadata = pageMetadata("District drilldown", "Per-district sellers, GMV, live campaigns and the admin roster in one view.");
+
+export default function Page() {
+  return <PageClient />;
+}

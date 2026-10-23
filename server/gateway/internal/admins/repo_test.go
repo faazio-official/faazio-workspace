@@ -8,7 +8,7 @@ import (
 	"github.com/faazio/server/gateway/internal/platform/testenv"
 )
 
-func TestAuditAndStateAdmins(t *testing.T) {
+func TestAuditAndDistrictAdmins(t *testing.T) {
 	pool := testenv.Pool(t)
 	repo := New(pool)
 	ctx := context.Background()
@@ -29,20 +29,20 @@ func TestAuditAndStateAdmins(t *testing.T) {
 	}
 	t.Cleanup(func() { _, _ = pool.Exec(ctx, `delete from admins.audit_logs where entity_id = 'sel-test'`) })
 
-	a, err := repo.CreateStateAdmin(ctx, StateAdmin{Name: "State Op", Email: "op@example.com", Phone: "9000000000", StateCode: "KA"})
+	a, err := repo.CreateDistrictAdmin(ctx, DistrictAdmin{Name: "District Op", Email: "op@example.com", Phone: "9000000000", DistrictCode: "TCH", StateCode: "TN"})
 	if err != nil {
-		t.Fatalf("CreateStateAdmin: %v", err)
+		t.Fatalf("CreateDistrictAdmin: %v", err)
 	}
-	t.Cleanup(func() { _ = repo.DeleteStateAdmin(ctx, a.AdminID) })
+	t.Cleanup(func() { _ = repo.DeleteDistrictAdmin(ctx, a.AdminID) })
 	if a.AdminID == "" || !a.Active {
-		t.Fatalf("unexpected state admin: %+v", a)
+		t.Fatalf("unexpected district admin: %+v", a)
 	}
-	updated, ok, err := repo.SetStateAdminActive(ctx, a.AdminID, false)
+	updated, ok, err := repo.SetDistrictAdminActive(ctx, a.AdminID, false)
 	if err != nil || !ok || updated.Active {
-		t.Fatalf("SetStateAdminActive: ok=%v err=%v active=%v", ok, err, updated.Active)
+		t.Fatalf("SetDistrictAdminActive: ok=%v err=%v active=%v", ok, err, updated.Active)
 	}
-	if err := repo.DeleteStateAdmin(ctx, a.AdminID); err != nil {
-		t.Fatalf("DeleteStateAdmin: %v", err)
+	if err := repo.DeleteDistrictAdmin(ctx, a.AdminID); err != nil {
+		t.Fatalf("DeleteDistrictAdmin: %v", err)
 	}
 }
 

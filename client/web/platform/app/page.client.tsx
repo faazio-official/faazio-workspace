@@ -15,8 +15,8 @@ const ROLE_CARDS = [
     blurb: "List products, set pricing, run orders, opt into festival campaigns.",
   },
   {
-    role: "STATE_ADMIN" as const,
-    to: "/admin/state",
+    role: "DISTRICT_ADMIN" as const,
+    to: "/admin/district",
     icon: ShieldCheck,
     blurb: "Verify sellers, moderate listings, run state campaigns within global caps.",
   },
@@ -24,7 +24,7 @@ const ROLE_CARDS = [
     role: "SUPER_ADMIN" as const,
     to: "/admin/super",
     icon: PartyPopper,
-    blurb: "Set sector discount caps, manage state admins, watch the whole marketplace.",
+    blurb: "Set sector discount caps, manage district admins, watch the whole marketplace.",
   },
 ];
 

@@ -3,7 +3,7 @@ import { useEffect, useMemo, useState, type ReactNode } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { Bell, ChevronLeft, Command as CommandIcon, LogOut, PanelLeft } from "lucide-react";
-import { STATE_ADMIN_NAV, SUPER_ADMIN_NAV } from "@/components/layout/nav";
+import { DISTRICT_ADMIN_NAV, SUPER_ADMIN_NAV } from "@/components/layout/nav";
 import { Button } from "@/components/ui/button";
 import {
   CommandDialog,
@@ -25,7 +25,7 @@ import { cn } from "@/lib/utils";
 import { groupTone, TONE_VAR } from "@/lib/ui/tones";
 import { useSession } from "@/lib/hooks/useSession";
 import { signOut } from "@/lib/api";
-import { stateName } from "@/data/states";
+import { districtName, stateForDistrict } from "@/data/districts";
 import { RoleGate } from "@/components/layout/RoleGate";
 import { BrandTile } from "@/components/brand/FaazioMark";
 import { FaazioWordmark } from "@/components/brand/FaazioWordmark";
@@ -35,7 +35,7 @@ export function AdminShell({
   scope,
   children,
 }: {
-  scope: "STATE" | "SUPER";
+  scope: "DISTRICT" | "SUPER";
   children: ReactNode;
 }) {
   const [collapsed, setCollapsed] = useState(false);
@@ -44,7 +44,7 @@ export function AdminShell({
   const router = useRouter();
   const pathname = usePathname();
 
-  const nav = scope === "STATE" ? STATE_ADMIN_NAV : SUPER_ADMIN_NAV;
+  const nav = scope === "DISTRICT" ? DISTRICT_ADMIN_NAV : SUPER_ADMIN_NAV;
   const groups = useMemo(() => Array.from(new Set(nav.map((i) => i.group))), [nav]);
 
   useEffect(() => {
@@ -69,7 +69,7 @@ export function AdminShell({
   }, []);
 
   return (
-    <RoleGate allow={scope === "STATE" ? ["STATE_ADMIN", "SUPER_ADMIN"] : ["SUPER_ADMIN"]}>
+    <RoleGate allow={scope === "DISTRICT" ? ["DISTRICT_ADMIN", "SUPER_ADMIN"] : ["SUPER_ADMIN"]}>
       <div className="flex min-h-screen bg-background">
         <aside
           className={cn(
@@ -83,7 +83,7 @@ export function AdminShell({
               <div className="min-w-0">
                 <FaazioWordmark className="brand-wordmark text-ink-foreground" />
                 <p className="truncate text-[11px] text-ink-muted">
-                  {scope === "STATE" ? "State console" : "Global console"}
+                  {scope === "DISTRICT" ? "District console" : "Global console"}
                 </p>
               </div>
             ) : null}
@@ -157,8 +157,8 @@ export function AdminShell({
         <div className="flex min-w-0 flex-1 flex-col">
           <header className="sticky top-0 z-20 flex h-14 items-center gap-3 border-b border-border bg-card/95 px-4 backdrop-blur">
             <span className="inline-flex items-center gap-1.5 rounded-full bg-ink px-2.5 py-1 text-[11px] font-semibold text-ink-foreground">
-              {scope === "STATE"
-                ? `${session?.stateCode ?? "--"} · ${stateName(session?.stateCode)}`
+              {scope === "DISTRICT"
+                ? `${session?.districtCode ?? "--"} · ${districtName(session?.districtCode ?? "")}${session?.districtCode ? ` · ${stateForDistrict(session.districtCode)}` : ""}`
                 : "GLOBAL · All states"}
             </span>
             <Button

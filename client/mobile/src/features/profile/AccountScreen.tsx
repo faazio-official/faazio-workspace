@@ -54,6 +54,14 @@ export function AccountScreen({ navigation }: Props) {
     navigation.navigate('SellerRequests');
   }, [navigation]);
 
+  const handleOpenFeeChangeRequests = useCallback(() => {
+    navigation.navigate('FeeChangeRequests');
+  }, [navigation]);
+
+  const handleOpenPlatformFeeRequest = useCallback(() => {
+    navigation.navigate('SellerPlatformFeeRequest', {});
+  }, [navigation]);
+
   return (
     <View style={styles.container}>
       <AccountView
@@ -64,6 +72,8 @@ export function AccountScreen({ navigation }: Props) {
         onOpenRewards={handleOpenRewards}
         onOpenSellWithUs={handleOpenSellWithUs}
         onOpenSellerRequests={handleOpenSellerRequests}
+        onOpenFeeChangeRequests={handleOpenFeeChangeRequests}
+        onOpenPlatformFeeRequest={handleOpenPlatformFeeRequest}
         onLogout={handleLogout}
       />
     </View>

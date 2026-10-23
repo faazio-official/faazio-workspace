@@ -40,7 +40,8 @@ import type {
   SellerRecord,
   SellerStatus,
   SduiSection,
-  StateAdmin,
+  DistrictAdmin,
+  FeeChangeRequest,
   TicketRecord,
   TicketStatus,
 } from "@/data/types";
@@ -168,8 +169,9 @@ export async function signOut(): Promise<void> {
 export interface CreatePortalCredentialInput {
   email: string;
   name: string;
-  role: "SELLER" | "STATE_ADMIN";
+  role: "SELLER" | "DISTRICT_ADMIN";
   sellerId?: string | undefined;
+  districtCode?: string | undefined;
   stateCode?: string | undefined;
   password: string;
   forceChange?: boolean | undefined;
@@ -412,9 +414,10 @@ export function advanceOrder(orderId: string, status: OrderStatus): void {
 
 /* --------------------------------- sellers ------------------------------- */
 
-export function listSellers(filter: { stateCode?: string | undefined; status?: SellerStatus | "ALL" | undefined } = {}) {
+export function listSellers(filter: { stateCode?: string | undefined; districtCode?: string | undefined; status?: SellerStatus | "ALL" | undefined } = {}) {
   return state().sellers.filter((s) => {
     if (filter.stateCode && s.stateCode !== filter.stateCode) return false;
+    if (filter.districtCode && s.districtCode !== filter.districtCode) return false;
     if (filter.status && filter.status !== "ALL" && s.status !== filter.status) return false;
     return true;
   });
@@ -1025,10 +1028,10 @@ export function setHeroCampaignStatus(placementId: string, status: AdStatus, rea
   audit({ action: `AD_CAMPAIGN_${status}`, entity: "ads.campaigns", entityId: placementId, after: { status, reason } });
 }
 
-/* ------------------------------ state admins ----------------------------- */
+/* ------------------------------ district admins ----------------------------- */
 
-export function listStateAdmins(stateCode?: string) {
-  return state().stateAdmins.filter((a) => !stateCode || a.stateCode === stateCode);
+export function listDistrictAdmins(districtCode?: string) {
+  return state().districtAdmins.filter((a) => !districtCode || a.districtCode === districtCode);
 }
 
 /**
@@ -1049,17 +1052,17 @@ export function normalizePhoneDigits(raw: string): string {
   }
 }
 
-export interface CreateStateAdminInput {
+export interface CreateDistrictAdminInput {
   name: string;
   email: string;
   phone: string;
-  stateCode: string;
+  districtCode: string;
   issueLogin: boolean;
   password?: string | undefined;
 }
 
-export interface StateAdminCreateResult {
-  admin: StateAdmin;
+export interface DistrictAdminCreateResult {
+  admin: DistrictAdmin;
   credential?: PortalCredential | undefined;
   /** Non-blocking soft notices from the server: a shared phone that already belongs to a seller/roster row. */
   warnings?: string[] | undefined;
@@ -1067,29 +1070,29 @@ export interface StateAdminCreateResult {
 
 /**
  * Unified state-admin creator (superadmin-only). One server call writes the roster and — when
- * `issueLogin` — the STATE_ADMIN portal login atomically; a duplicate email rejects with a
+ * `issueLogin` — the DISTRICT_ADMIN portal login atomically; a duplicate email rejects with a
  * specific 409 `code` so the form can be kept (never an optimistic flash-then-rollback). A
  * duplicate PHONE is allowed and reported back as `warnings` (soft, policy decision).
  */
-export async function createStateAdminWithLogin(
-  input: CreateStateAdminInput,
-): Promise<StateAdminCreateResult> {
+export async function createDistrictAdminWithLogin(
+  input: CreateDistrictAdminInput,
+): Promise<DistrictAdminCreateResult> {
   const res = await remote.post<{
-    admin: StateAdmin;
+    admin: DistrictAdmin;
     credential?: PortalCredential;
     warnings?: string[];
-  }>("/state-admins", {
+  }>("/district-admins", {
     name: input.name,
     email: input.email,
     phone: input.phone,
-    stateCode: input.stateCode,
+    districtCode: input.districtCode,
     issueLogin: input.issueLogin,
     ...(input.issueLogin ? { password: input.password } : {}),
   });
   state().set((s) => ({
-    stateAdmins: [res.admin, ...s.stateAdmins.filter((a) => a.adminId !== res.admin.adminId)],
+    districtAdmins: [res.admin, ...s.districtAdmins.filter((a) => a.adminId !== res.admin.adminId)],
   }));
-  audit({ action: "STATE_ADMIN_CREATE", entity: "admins.state_admins", entityId: res.admin.adminId, after: res.admin });
+  audit({ action: "DISTRICT_ADMIN_CREATE", entity: "admins.district_admins", entityId: res.admin.adminId, after: res.admin });
   if (res.credential) {
     audit({ action: "PORTAL_USER_CREATE", entity: "admins.portal_users", entityId: res.credential.id, after: res.credential });
   }
@@ -1109,7 +1112,7 @@ export function stateAdminDuplicateHint(
   phone: string,
   creds: PortalCredential[],
   sellers: readonly { sellerId: string; contactPhone: string }[],
-  admins: StateAdmin[],
+  admins: DistrictAdmin[],
 ): IdentityHint | null {
   const lower = email.trim().toLowerCase();
   const digits = normalizePhoneDigits(phone);
@@ -1117,37 +1120,37 @@ export function stateAdminDuplicateHint(
   if (login) {
     if (login.role === "SUPER_ADMIN") return { field: "email", kind: "error", message: "This email already belongs to an active SUPER_ADMIN login." };
     if (login.role === "SELLER") return { field: "email", kind: "error", message: `This email already belongs to seller ${login.sellerId ?? ""}.` };
-    return { field: "email", kind: "error", message: `This email already has a STATE_ADMIN login for ${login.stateCode ?? ""}.` };
+    return { field: "email", kind: "error", message: `This email already has a DISTRICT_ADMIN login for ${login.districtCode ?? ""}.` };
   }
   const seller = digits ? sellers.find((s) => normalizePhoneDigits(s.contactPhone) === digits) : undefined;
   if (seller) return { field: "phone", kind: "warning", message: `This phone also belongs to seller ${seller.sellerId}. You can still create — shared phone.` };
   const rosterEmail = admins.find((a) => a.email.toLowerCase() === lower);
-  if (rosterEmail) return { field: "email", kind: "error", message: `This email already has a STATE_ADMIN roster for ${rosterEmail.stateCode}.` };
+  if (rosterEmail) return { field: "email", kind: "error", message: `This email already has a DISTRICT_ADMIN roster for ${rosterEmail.districtCode}.` };
   if (digits) {
     const rosterPhone = admins.find((a) => normalizePhoneDigits(a.phone) === digits);
-    if (rosterPhone) return { field: "phone", kind: "warning", message: `This phone also belongs to the STATE_ADMIN roster for ${rosterPhone.stateCode}. You can still create — shared phone.` };
+    if (rosterPhone) return { field: "phone", kind: "warning", message: `This phone also belongs to the DISTRICT_ADMIN roster for ${rosterPhone.districtCode}. You can still create — shared phone.` };
   }
   return null;
 }
 
-/** Maps a 409/400 `code` from POST /state-admins to a field + friendly block message. */
+/** Maps a 409/400 `code` from POST /district-admins to a field + friendly block message. */
 export function stateAdminConflictMessage(err: unknown): { field: "email" | "phone" | null; message: string } {
   const code = err instanceof ApiError ? err.code : undefined;
   const id = err instanceof ApiError ? err.conflictingId : undefined;
   switch (code) {
     case "email_used_by_super_admin":
-      return { field: "email", message: "This email already belongs to an active SUPER_ADMIN login. Deactivate it before registering a state admin." };
+      return { field: "email", message: "This email already belongs to an active SUPER_ADMIN login. Deactivate it before registering a district admin." };
     case "email_used_by_seller":
       return { field: "email", message: `This email already belongs to seller ${id ?? "?"}. One person, one role — deactivate the seller login first.` };
-    case "email_has_state_login":
-      return { field: "email", message: "This email already has a STATE_ADMIN login. Deactivate or delete it first." };
-    case "email_has_state_roster":
-      return { field: "email", message: "This email already has a STATE_ADMIN roster. Delete it first to move the person." };
+    case "email_has_district_login":
+      return { field: "email", message: "This email already has a DISTRICT_ADMIN login. Deactivate or delete it first." };
+    case "email_has_district_roster":
+      return { field: "email", message: "This email already has a DISTRICT_ADMIN roster. Delete it first to move the person." };
     case "weak_password":
       return { field: null, message: "Password must be at least 12 characters and not a common value." };
     case "invalid_phone":
       return { field: "phone", message: "Enter a valid 10-digit Indian mobile number." };
-    case "unknown_state":
+    case "unknown_district":
     case "bad_request":
       return { field: null, message: err instanceof Error ? err.message : "Invalid request." };
     default:
@@ -1155,36 +1158,58 @@ export function stateAdminConflictMessage(err: unknown): { field: "email" | "pho
   }
 }
 
-export function updateStateAdmin(adminId: string, patch: Partial<StateAdmin>): void {
-  const before = state().stateAdmins.find((a) => a.adminId === adminId);
+export function updateDistrictAdmin(adminId: string, patch: Partial<DistrictAdmin>): void {
+  const before = state().districtAdmins.find((a) => a.adminId === adminId);
   state().set((s) => ({
-    stateAdmins: s.stateAdmins.map((a) => (a.adminId === adminId ? { ...a, ...patch } : a)),
+    districtAdmins: s.districtAdmins.map((a) => (a.adminId === adminId ? { ...a, ...patch } : a)),
   }));
   if (patch.active !== undefined) {
-    pushWrite("State admin", "put", `/state-admins/${encodeURIComponent(adminId)}`, { active: patch.active }, () => {
+    pushWrite("District admin", "put", `/district-admins/${encodeURIComponent(adminId)}`, { active: patch.active }, () => {
       if (!before) return;
       state().set((s) => ({
-        stateAdmins: s.stateAdmins.map((a) => (a.adminId === adminId ? before : a)),
+        districtAdmins: s.districtAdmins.map((a) => (a.adminId === adminId ? before : a)),
       }));
     });
   }
   audit({
-    action: "STATE_ADMIN_UPDATE",
-    entity: "admins.state_admins",
+    action: "DISTRICT_ADMIN_UPDATE",
+    entity: "admins.district_admins",
     entityId: adminId,
     before,
     after: patch,
   });
 }
 
-export function deleteStateAdmin(adminId: string): void {
-  const before = state().stateAdmins.find((a) => a.adminId === adminId);
-  state().set((s) => ({ stateAdmins: s.stateAdmins.filter((a) => a.adminId !== adminId) }));
-  pushWrite("State admin delete", "delete", `/state-admins/${encodeURIComponent(adminId)}`, undefined, () => {
+export function deleteDistrictAdmin(adminId: string): void {
+  const before = state().districtAdmins.find((a) => a.adminId === adminId);
+  state().set((s) => ({ districtAdmins: s.districtAdmins.filter((a) => a.adminId !== adminId) }));
+  pushWrite("District admin delete", "delete", `/district-admins/${encodeURIComponent(adminId)}`, undefined, () => {
     if (!before) return;
-    state().set((s) => ({ stateAdmins: [before, ...s.stateAdmins] }));
+    state().set((s) => ({ districtAdmins: [before, ...s.districtAdmins] }));
   });
-  audit({ action: "STATE_ADMIN_DELETE", entity: "admins.state_admins", entityId: adminId, before });
+  audit({ action: "DISTRICT_ADMIN_DELETE", entity: "admins.district_admins", entityId: adminId, before });
+}
+
+/* --------------------- platform-fee change requests ---------------------- */
+
+/** Admin review queue. The gateway scopes district admins automatically. */
+export async function listFeeChangeRequests(
+  filter: { districtCode?: string | undefined; status?: string | undefined } = {},
+): Promise<FeeChangeRequest[]> {
+  const rows = await remote.get<FeeChangeRequest[]>("/seller/fee-change-requests", {
+    query: { district: filter.districtCode, status: filter.status },
+  });
+  return rows;
+}
+
+export async function approveFeeChangeRequest(requestId: string): Promise<void> {
+  await remote.patch(`/seller/fee-change-requests/${encodeURIComponent(requestId)}/approve`, {});
+  audit({ action: "FEE_CHANGE_APPROVE", entity: "sellers.seller_fee_change_requests", entityId: requestId });
+}
+
+export async function rejectFeeChangeRequest(requestId: string, reason: string): Promise<void> {
+  await remote.patch(`/seller/fee-change-requests/${encodeURIComponent(requestId)}/reject`, { reason });
+  audit({ action: "FEE_CHANGE_REJECT", entity: "sellers.seller_fee_change_requests", entityId: requestId, after: { reason } });
 }
 
 /* --------------------------------- reviews ------------------------------- */

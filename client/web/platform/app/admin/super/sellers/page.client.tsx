@@ -41,7 +41,7 @@ function SuperSellers() {
     <div className="space-y-4">
       <PageHeader
         title="Sellers"
-        description="You can override any state admin decision; the override is logged."
+        description="You can override any district admin decision; the override is logged."
       />
 
       <SectionCard bodyClassName="p-0">
@@ -84,7 +84,7 @@ function SuperSellers() {
                 <TableRow key={seller.sellerId} className="h-12">
                   <TableCell className="text-[13px] font-medium">
                     <Link
-                      href={`/admin/state/sellers/${seller.sellerId}`}
+                      href={`/admin/district/sellers/${seller.sellerId}`}
                       className="text-primary hover:underline"
                     >
                       {seller.businessName}

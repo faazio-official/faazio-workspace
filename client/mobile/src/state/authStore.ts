@@ -13,14 +13,26 @@ export interface AuthUser {
   name: string;
   email: string;
   phone?: string;
-  /** Partner role claim (SELLER | STATE_ADMIN | SUPER_ADMIN), decoded from the ID token. */
+  /** Partner role claim (SELLER | DISTRICT_ADMIN | SUPER_ADMIN), decoded from the ID token. */
   role?: string;
-  /** Partner state scope claim (2-letter code). */
+  /** Partner district scope claim (3-letter code, e.g. TCH). */
+  districtCode?: string;
+  /** Legacy parent state scope claim (2-letter code) — district admins also carry it. */
   stateCode?: string;
+  /** Seller claim for SELLER logins. */
+  sellerId?: string;
+}
+
+export function isDistrictAdmin(user: AuthUser | null): boolean {
+  return user?.role === 'DISTRICT_ADMIN';
+}
+
+export function isSuperAdmin(user: AuthUser | null): boolean {
+  return user?.role === 'SUPER_ADMIN';
 }
 
 export function isPartnerAdmin(user: AuthUser | null): boolean {
-  return user?.role === 'STATE_ADMIN' || user?.role === 'SUPER_ADMIN';
+  return isDistrictAdmin(user) || isSuperAdmin(user);
 }
 
 export interface LoginPayload {

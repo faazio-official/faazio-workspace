@@ -10,6 +10,7 @@ import (
 	"github.com/faazio/server/gateway/internal/contracts"
 	"github.com/faazio/server/gateway/internal/platform/auth"
 	"github.com/faazio/server/gateway/internal/platform/cache"
+	"github.com/faazio/server/gateway/internal/platform/geo"
 	"github.com/faazio/server/gateway/internal/platform/httpx"
 	"github.com/faazio/server/gateway/internal/platform/razorpayroute"
 	"github.com/go-chi/chi/v5"
@@ -51,7 +52,10 @@ func (h *Handler) Register(r chi.Router) {
 		g.Get("/sellers/{id}/bank-account", h.getBank)
 		g.Put("/sellers/{id}/bank-account", h.putBank)
 		g.Patch("/sellers/{id}/status", h.setStatus)
-		// Admin review actions (STATE_ADMIN in-state, SUPER_ADMIN anywhere; sellers are rejected).
+		// Seller-initiated platform-fee change (the fee itself is immutable once set at registration).
+		g.Post("/sellers/{id}/platform-fee-request", h.requestPlatformFeeChange)
+		g.Get("/sellers/{id}/platform-fee-requests", h.listSellerFeeChangeRequests)
+		// Admin review actions (DISTRICT_ADMIN in-district, SUPER_ADMIN anywhere; sellers are rejected).
 		g.Patch("/sellers/{id}/platform-fee", h.updatePlatformFee)
 		g.Post("/sellers/{id}/verify-kyc", h.verifyKYC)
 		g.Post("/sellers/{id}/verify-doc/{docType}", h.verifyDoc)
@@ -59,16 +63,26 @@ func (h *Handler) Register(r chi.Router) {
 		// Seller resubmission of a rejected application (history preserved until approval).
 		g.Post("/sellers/{id}/edit", h.edit)
 	})
+
+	// Platform-fee change review queue: district admin sees their district, super admin sees all.
+	r.Group(func(g chi.Router) {
+		g.Use(auth.RequireRole(auth.RoleDistrictAdmin, auth.RoleSuperAdmin))
+		g.Get("/seller/fee-change-requests", h.listFeeChangeRequests)
+		g.Patch("/seller/fee-change-requests/{id}/approve", h.approveFeeChangeRequest)
+		g.Patch("/seller/fee-change-requests/{id}/reject", h.rejectFeeChangeRequest)
+	})
 }
 
 func (h *Handler) list(w http.ResponseWriter, r *http.Request) {
 	f := ListFilter{
-		SellerID:  strings.TrimSpace(r.URL.Query().Get("sellerId")),
-		StateCode: strings.ToUpper(strings.TrimSpace(r.URL.Query().Get("state"))),
-		Status:    strings.ToUpper(strings.TrimSpace(r.URL.Query().Get("status"))),
-		Category:  strings.ToUpper(strings.TrimSpace(r.URL.Query().Get("category"))),
+		SellerID:     strings.TrimSpace(r.URL.Query().Get("sellerId")),
+		StateCode:    strings.ToUpper(strings.TrimSpace(r.URL.Query().Get("state"))),
+		DistrictCode: geo.Normalise(r.URL.Query().Get("district")),
+		Status:       strings.ToUpper(strings.TrimSpace(r.URL.Query().Get("status"))),
+		Category:     strings.ToUpper(strings.TrimSpace(r.URL.Query().Get("category"))),
 	}
-	// Role scoping: a seller sees only themself; a state admin only their state.
+	// Role scoping: a seller sees only themself; a district admin only their district (falling back
+	// to the parent state for legacy admins without a district claim).
 	switch auth.Role(r.Context()) {
 	case auth.RoleSeller:
 		f.SellerID = auth.SellerID(r.Context())
@@ -77,8 +91,14 @@ func (h *Handler) list(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		f.StateCode = ""
-	case auth.RoleStateAdmin:
-		f.StateCode = auth.StateCode(r.Context())
+		f.DistrictCode = ""
+	case auth.RoleDistrictAdmin:
+		if d := auth.DistrictCode(r.Context()); d != "" {
+			f.DistrictCode = d
+			f.StateCode = ""
+		} else {
+			f.StateCode = auth.StateCode(r.Context())
+		}
 	}
 	items, err := h.repo.List(r.Context(), f)
 	if err != nil {
@@ -94,7 +114,7 @@ func (h *Handler) get(w http.ResponseWriter, r *http.Request) {
 		httpx.Fail(w, http.StatusInternalServerError, "sellers_unavailable", "sellers unavailable")
 		return
 	}
-	if !ok || !auth.CanActForSeller(r.Context(), d.SellerID, d.StateCode) {
+	if !ok || !auth.CanActForSellerDistrict(r.Context(), d.SellerID, d.DistrictCode, d.StateCode) {
 		httpx.Fail(w, http.StatusNotFound, "not_found", "seller not found")
 		return
 	}
@@ -111,6 +131,7 @@ type createSellerRequest struct {
 	ContactPhone    string   `json:"contactPhone"`
 	ContactEmail    string   `json:"contactEmail"`
 	StateCode       string   `json:"stateCode"`
+	DistrictCode    string   `json:"districtCode"`
 	Latitude        *float64 `json:"latitude"`
 	Longitude       *float64 `json:"longitude"`
 	PlatformFeePct  *int     `json:"platformFeePct"`
@@ -139,6 +160,7 @@ func (h *Handler) create(w http.ResponseWriter, r *http.Request) {
 	}
 	req.Category = strings.ToUpper(strings.TrimSpace(req.Category))
 	req.StateCode = strings.ToUpper(strings.TrimSpace(req.StateCode))
+	req.DistrictCode = geo.Normalise(req.DistrictCode)
 	req.GSTIN = strings.ToUpper(strings.TrimSpace(req.GSTIN))
 	req.PAN = strings.ToUpper(strings.TrimSpace(req.PAN))
 	req.ContactEmail = strings.TrimSpace(req.ContactEmail)
@@ -150,6 +172,16 @@ func (h *Handler) create(w http.ResponseWriter, r *http.Request) {
 	if !validCategory(req.Category) || len(req.StateCode) != 2 {
 		httpx.Fail(w, http.StatusBadRequest, "bad_request", "category or state is invalid")
 		return
+	}
+	if req.DistrictCode != "" {
+		if !geo.IsValid(req.DistrictCode) {
+			httpx.Fail(w, http.StatusBadRequest, "unknown_district", "unknown district code")
+			return
+		}
+		if geo.StateForDistrict(req.DistrictCode) != req.StateCode {
+			httpx.Fail(w, http.StatusBadRequest, "bad_request", "district does not belong to the selected state")
+			return
+		}
 	}
 	if !validLatLng(req.Latitude, req.Longitude) {
 		httpx.Fail(w, http.StatusBadRequest, "bad_request", "shop location is invalid")
@@ -206,7 +238,7 @@ func (h *Handler) create(w http.ResponseWriter, r *http.Request) {
 		BusinessName: req.BusinessName, OwnerName: req.OwnerName, Category: req.Category,
 		GSTIN: req.GSTIN, PAN: req.PAN, BusinessAddress: req.BusinessAddress,
 		ContactPhone: req.ContactPhone, ContactEmail: req.ContactEmail, StateCode: req.StateCode,
-		PlatformFeePct: *req.PlatformFeePct, FSSAINumber: strings.TrimSpace(req.FSSAINumber),
+		DistrictCode: req.DistrictCode, PlatformFeePct: *req.PlatformFeePct, FSSAINumber: strings.TrimSpace(req.FSSAINumber),
 		FSSAICertKey: strings.TrimSpace(req.FSSAIFileKey), FSSAICertAssetID: strings.TrimSpace(req.FSSAIAssetID),
 		Latitude: req.Latitude, Longitude: req.Longitude, OTPVerified: true,
 	}, bank, docs)
@@ -235,7 +267,7 @@ func (h *Handler) setStatus(w http.ResponseWriter, r *http.Request) {
 		httpx.Fail(w, http.StatusInternalServerError, "sellers_unavailable", "sellers unavailable")
 		return
 	}
-	if !ok || !auth.CanActForSeller(r.Context(), before.SellerID, before.StateCode) {
+	if !ok || !auth.CanActForSellerDistrict(r.Context(), before.SellerID, before.DistrictCode, before.StateCode) {
 		httpx.Fail(w, http.StatusNotFound, "not_found", "seller not found")
 		return
 	}
@@ -410,6 +442,7 @@ type editSellerRequest struct {
 	ContactPhone      string   `json:"contactPhone"`
 	ContactEmail      string   `json:"contactEmail"`
 	StateCode         string   `json:"stateCode"`
+	DistrictCode      string   `json:"districtCode"`
 	Latitude          *float64 `json:"latitude"`
 	Longitude         *float64 `json:"longitude"`
 	PlatformFeePct    int      `json:"platformFeePct"`
@@ -437,6 +470,7 @@ func (h *Handler) edit(w http.ResponseWriter, r *http.Request) {
 	}
 	req.Category = strings.ToUpper(strings.TrimSpace(req.Category))
 	req.StateCode = strings.ToUpper(strings.TrimSpace(req.StateCode))
+	req.DistrictCode = geo.Normalise(req.DistrictCode)
 	req.GSTIN = strings.ToUpper(strings.TrimSpace(req.GSTIN))
 	req.PAN = strings.ToUpper(strings.TrimSpace(req.PAN))
 	if !validCategory(req.Category) || len(req.StateCode) != 2 || !validPlatformFee(req.Category, req.PlatformFeePct) {
@@ -485,7 +519,7 @@ func (h *Handler) edit(w http.ResponseWriter, r *http.Request) {
 		BusinessName: req.BusinessName, OwnerName: req.OwnerName, Category: req.Category,
 		GSTIN: req.GSTIN, PAN: req.PAN, BusinessAddress: req.BusinessAddress,
 		ContactPhone: req.ContactPhone, ContactEmail: strings.TrimSpace(req.ContactEmail),
-		StateCode: req.StateCode, PlatformFeePct: req.PlatformFeePct,
+		StateCode: req.StateCode, DistrictCode: req.DistrictCode, PlatformFeePct: req.PlatformFeePct,
 		FSSAINumber: strings.TrimSpace(req.FSSAINumber), FSSAICertKey: strings.TrimSpace(req.FSSAIFileKey),
 		FSSAICertAssetID: strings.TrimSpace(req.FSSAIAssetID),
 		Latitude:         req.Latitude, Longitude: req.Longitude,
@@ -502,6 +536,170 @@ func (h *Handler) edit(w http.ResponseWriter, r *http.Request) {
 	httpx.JSON(w, http.StatusOK, after)
 }
 
+type feeChangeRequestBody struct {
+	PlatformFeePct int `json:"platformFeePct"`
+}
+
+// requestPlatformFeeChange lets a seller ASK for a new platform fee. It never mutates the live
+// fee; that only happens when a district/super admin approves the request.
+func (h *Handler) requestPlatformFeeChange(w http.ResponseWriter, r *http.Request) {
+	if auth.Role(r.Context()) != auth.RoleSeller || auth.SellerID(r.Context()) != chi.URLParam(r, "id") {
+		httpx.Fail(w, http.StatusForbidden, "forbidden", "only the seller can request a fee change")
+		return
+	}
+	s, ok, err := h.repo.ByID(r.Context(), chi.URLParam(r, "id"))
+	if err != nil {
+		httpx.Fail(w, http.StatusInternalServerError, "sellers_unavailable", "sellers unavailable")
+		return
+	}
+	if !ok {
+		httpx.Fail(w, http.StatusNotFound, "not_found", "seller not found")
+		return
+	}
+	var req feeChangeRequestBody
+	if err := httpx.Decode(r, &req); err != nil {
+		httpx.Fail(w, http.StatusBadRequest, "bad_request", "invalid request body")
+		return
+	}
+	if !validPlatformFee(s.Category, req.PlatformFeePct) {
+		httpx.Fail(w, http.StatusBadRequest, "bad_request", "platform fee is outside the allowed range for this category")
+		return
+	}
+	if req.PlatformFeePct == s.PlatformFeePct {
+		httpx.Fail(w, http.StatusBadRequest, "bad_request", "requested fee is the current fee")
+		return
+	}
+	f, err := h.repo.CreateFeeChangeRequest(r.Context(), s.SellerID, s.DistrictCode, s.PlatformFeePct, req.PlatformFeePct)
+	if err != nil {
+		if errors.Is(err, ErrPendingRequest) {
+			httpx.Fail(w, http.StatusConflict, "request_pending", "a fee-change request is already pending")
+			return
+		}
+		httpx.Fail(w, http.StatusInternalServerError, "request_create_failed", "could not create the fee-change request")
+		return
+	}
+	h.log(r, "SELLER_PLATFORM_FEE_REQUEST", s.SellerID,
+		map[string]int{"platformFeePct": s.PlatformFeePct},
+		map[string]int{"requestedFeePct": req.PlatformFeePct})
+	httpx.JSON(w, http.StatusCreated, f)
+}
+
+// listSellerFeeChangeRequests returns the caller's own history (seller, or an admin with scope).
+func (h *Handler) listSellerFeeChangeRequests(w http.ResponseWriter, r *http.Request) {
+	id := chi.URLParam(r, "id")
+	s, ok, err := h.repo.ByID(r.Context(), id)
+	if err != nil {
+		httpx.Fail(w, http.StatusInternalServerError, "sellers_unavailable", "sellers unavailable")
+		return
+	}
+	if !ok || !auth.CanActForSellerDistrict(r.Context(), s.SellerID, s.DistrictCode, s.StateCode) {
+		httpx.Fail(w, http.StatusNotFound, "not_found", "seller not found")
+		return
+	}
+	items, err := h.repo.ListSellerFeeChangeRequests(r.Context(), s.SellerID)
+	if err != nil {
+		httpx.Fail(w, http.StatusInternalServerError, "requests_unavailable", "fee-change requests unavailable")
+		return
+	}
+	httpx.JSON(w, http.StatusOK, items)
+}
+
+// listFeeChangeRequests returns the review queue: a district admin sees their district, a super
+// admin sees everything (optionally filtered by ?district= / ?status=).
+func (h *Handler) listFeeChangeRequests(w http.ResponseWriter, r *http.Request) {
+	districtCode := geo.Normalise(r.URL.Query().Get("district"))
+	stateCode := ""
+	if auth.Role(r.Context()) == auth.RoleDistrictAdmin {
+		if d := auth.DistrictCode(r.Context()); d != "" {
+			districtCode = d
+		} else {
+			stateCode = auth.StateCode(r.Context())
+		}
+	}
+	status := strings.ToUpper(strings.TrimSpace(r.URL.Query().Get("status")))
+	items, err := h.repo.ListFeeChangeRequests(r.Context(), districtCode, stateCode, status)
+	if err != nil {
+		httpx.Fail(w, http.StatusInternalServerError, "requests_unavailable", "fee-change requests unavailable")
+		return
+	}
+	httpx.JSON(w, http.StatusOK, items)
+}
+
+type reviewFeeRequestBody struct {
+	Reason string `json:"reason"`
+	Note   string `json:"note"`
+}
+
+func (h *Handler) approveFeeChangeRequest(w http.ResponseWriter, r *http.Request) {
+	f, ok := h.adminFeeRequest(w, r)
+	if !ok {
+		return
+	}
+	var req reviewFeeRequestBody
+	_ = httpx.Decode(r, &req)
+	seller, approved, ok, err := h.repo.ApproveFeeChangeRequest(r.Context(), f.RequestID, h.actor(r), strings.TrimSpace(req.Note))
+	if err != nil {
+		httpx.Fail(w, http.StatusInternalServerError, "request_update_failed", "could not approve the request")
+		return
+	}
+	if !ok {
+		httpx.Fail(w, http.StatusConflict, "not_pending", "request is not pending")
+		return
+	}
+	h.log(r, "SELLER_PLATFORM_FEE_APPROVED", f.SellerID,
+		map[string]int{"platformFeePct": f.CurrentFeePct},
+		map[string]int{"platformFeePct": seller.PlatformFeePct})
+	httpx.JSON(w, http.StatusOK, map[string]any{"request": approved, "seller": seller})
+}
+
+func (h *Handler) rejectFeeChangeRequest(w http.ResponseWriter, r *http.Request) {
+	f, ok := h.adminFeeRequest(w, r)
+	if !ok {
+		return
+	}
+	var req reviewFeeRequestBody
+	if err := httpx.Decode(r, &req); err != nil {
+		httpx.Fail(w, http.StatusBadRequest, "bad_request", "invalid request body")
+		return
+	}
+	req.Reason = strings.TrimSpace(req.Reason)
+	if len(req.Reason) < 4 {
+		httpx.Fail(w, http.StatusBadRequest, "bad_request", "a rejection reason is required")
+		return
+	}
+	rejected, ok, err := h.repo.RejectFeeChangeRequest(r.Context(), f.RequestID, h.actor(r), req.Reason)
+	if err != nil {
+		httpx.Fail(w, http.StatusInternalServerError, "request_update_failed", "could not reject the request")
+		return
+	}
+	if !ok {
+		httpx.Fail(w, http.StatusConflict, "not_pending", "request is not pending")
+		return
+	}
+	h.log(r, "SELLER_PLATFORM_FEE_REJECTED", f.SellerID,
+		map[string]int{"requestedFeePct": f.RequestedFeePct}, map[string]string{"reason": req.Reason})
+	httpx.JSON(w, http.StatusOK, rejected)
+}
+
+// adminFeeRequest resolves a pending request and enforces the admin's district/state scope.
+func (h *Handler) adminFeeRequest(w http.ResponseWriter, r *http.Request) (FeeChangeRequest, bool) {
+	f, ok, err := h.repo.FeeChangeRequestByID(r.Context(), chi.URLParam(r, "id"))
+	if err != nil {
+		httpx.Fail(w, http.StatusInternalServerError, "requests_unavailable", "fee-change requests unavailable")
+		return FeeChangeRequest{}, false
+	}
+	if !ok {
+		httpx.Fail(w, http.StatusNotFound, "not_found", "request not found")
+		return FeeChangeRequest{}, false
+	}
+	s, _, _ := h.repo.ByID(r.Context(), f.SellerID)
+	if !auth.CanActForSellerDistrict(r.Context(), f.SellerID, f.DistrictCode, s.StateCode) {
+		httpx.Fail(w, http.StatusNotFound, "not_found", "request not found")
+		return FeeChangeRequest{}, false
+	}
+	return f, true
+}
+
 // adminSeller resolves the path seller and enforces admin role + state scope.
 func (h *Handler) adminSeller(w http.ResponseWriter, r *http.Request) (Seller, bool) {
 	if !auth.IsAdmin(r.Context()) {
@@ -513,7 +711,7 @@ func (h *Handler) adminSeller(w http.ResponseWriter, r *http.Request) (Seller, b
 		httpx.Fail(w, http.StatusInternalServerError, "sellers_unavailable", "sellers unavailable")
 		return Seller{}, false
 	}
-	if !ok || !auth.CanActForSeller(r.Context(), s.SellerID, s.StateCode) {
+	if !ok || !auth.CanActForSellerDistrict(r.Context(), s.SellerID, s.DistrictCode, s.StateCode) {
 		httpx.Fail(w, http.StatusNotFound, "not_found", "seller not found")
 		return Seller{}, false
 	}
@@ -551,7 +749,7 @@ func (h *Handler) listKYC(w http.ResponseWriter, r *http.Request) {
 		httpx.Fail(w, http.StatusInternalServerError, "sellers_unavailable", "sellers unavailable")
 		return
 	}
-	if !ok || !auth.CanActForSeller(r.Context(), s.SellerID, s.StateCode) {
+	if !ok || !auth.CanActForSellerDistrict(r.Context(), s.SellerID, s.DistrictCode, s.StateCode) {
 		httpx.Fail(w, http.StatusNotFound, "not_found", "seller not found")
 		return
 	}
@@ -575,7 +773,7 @@ func (h *Handler) addKYC(w http.ResponseWriter, r *http.Request) {
 		httpx.Fail(w, http.StatusInternalServerError, "sellers_unavailable", "sellers unavailable")
 		return
 	}
-	if !ok || !auth.CanActForSeller(r.Context(), s.SellerID, s.StateCode) {
+	if !ok || !auth.CanActForSellerDistrict(r.Context(), s.SellerID, s.DistrictCode, s.StateCode) {
 		httpx.Fail(w, http.StatusNotFound, "not_found", "seller not found")
 		return
 	}
@@ -606,7 +804,7 @@ func (h *Handler) getBank(w http.ResponseWriter, r *http.Request) {
 		httpx.Fail(w, http.StatusInternalServerError, "sellers_unavailable", "sellers unavailable")
 		return
 	}
-	if !ok || !auth.CanActForSeller(r.Context(), s.SellerID, s.StateCode) {
+	if !ok || !auth.CanActForSellerDistrict(r.Context(), s.SellerID, s.DistrictCode, s.StateCode) {
 		httpx.Fail(w, http.StatusNotFound, "not_found", "seller not found")
 		return
 	}
@@ -635,7 +833,7 @@ func (h *Handler) putBank(w http.ResponseWriter, r *http.Request) {
 		httpx.Fail(w, http.StatusInternalServerError, "sellers_unavailable", "sellers unavailable")
 		return
 	}
-	if !ok || !auth.CanActForSeller(r.Context(), s.SellerID, s.StateCode) {
+	if !ok || !auth.CanActForSellerDistrict(r.Context(), s.SellerID, s.DistrictCode, s.StateCode) {
 		httpx.Fail(w, http.StatusNotFound, "not_found", "seller not found")
 		return
 	}

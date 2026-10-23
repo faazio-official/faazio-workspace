@@ -29,7 +29,7 @@ import type {
   SellerRecord,
   SellerStatus,
   SduiLayout,
-  StateAdmin,
+  DistrictAdmin,
   TicketRecord,
 } from "@/data/types";
 
@@ -170,7 +170,7 @@ export async function hydrateFromGateway(): Promise<boolean> {
       safe(() => remote.get<SellerOptin[]>("/promo/optins").then(toCamel)),
       safe(() => remote.get<AdSlot[]>("/ads/slots").then(toCamel)),
       safe(() => remote.get<HeroCampaign[]>("/ads/campaigns").then(toCamel)),
-      safe(() => remote.get<StateAdmin[]>("/state-admins").then(toCamel)),
+      safe(() => remote.get<DistrictAdmin[]>("/district-admins").then(toCamel)),
       safe(() => remote.get<AuditLog[]>("/audit-logs").then(toCamel)),
       safe(() => remote.get<RawLedgerEntry[]>("/settlements").then(toCamel)),
       safe(() => remote.get<RawPayout[]>("/payouts").then(toCamel)),
@@ -259,7 +259,7 @@ export async function hydrateFromGateway(): Promise<boolean> {
     touched = true;
   }
   if (hasSlice(admins)) {
-    patch["stateAdmins"] = admins;
+    patch["districtAdmins"] = admins;
     touched = true;
   }
   if (hasSlice(logs)) {

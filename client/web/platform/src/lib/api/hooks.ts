@@ -85,7 +85,11 @@ export function useOrders(
 }
 
 export function useSellers(
-  filter: { stateCode?: string | undefined; status?: SellerStatus | "ALL" | undefined } = {},
+  filter: {
+    stateCode?: string | undefined;
+    districtCode?: string | undefined;
+    status?: SellerStatus | "ALL" | undefined;
+  } = {},
 ) {
   const sellers = usePortalStore((s) => s.sellers);
   const key = JSON.stringify(filter);
@@ -153,9 +157,9 @@ export function useHeroAds(
   return ads;
 }
 
-export function useStateAdmins(stateCode?: string) {
-  const admins = usePortalStore((s) => s.stateAdmins);
-  return useMemo(() => api.listStateAdmins(stateCode), [admins, stateCode]);
+export function useDistrictAdmins(districtCode?: string) {
+  const admins = usePortalStore((s) => s.districtAdmins);
+  return useMemo(() => api.listDistrictAdmins(districtCode), [admins, districtCode]);
 }
 
 export function useReviews(filter: { sellerId?: string | undefined; flaggedOnly?: boolean | undefined } = {}) {

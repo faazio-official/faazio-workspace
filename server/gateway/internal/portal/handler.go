@@ -17,6 +17,7 @@ import (
 	"github.com/faazio/server/gateway/internal/contracts"
 	"github.com/faazio/server/gateway/internal/platform/auth"
 	"github.com/faazio/server/gateway/internal/platform/cache"
+	"github.com/faazio/server/gateway/internal/platform/geo"
 	"github.com/faazio/server/gateway/internal/platform/httpx"
 	"github.com/go-chi/chi/v5"
 	"github.com/jackc/pgx/v5/pgconn"
@@ -91,16 +92,17 @@ type changePasswordRequest struct {
 }
 
 type userDTO struct {
-	ID          string `json:"id"`
-	Email       string `json:"email"`
-	Name        string `json:"name"`
-	Role        string `json:"role"`
-	MustChange  bool   `json:"mustChange"`
-	Active      bool   `json:"active"`
-	SellerID    string `json:"sellerId,omitempty"`
-	StateCode   string `json:"stateCode,omitempty"`
-	LastLoginAt string `json:"lastLoginAt,omitempty"`
-	CreatedAt   string `json:"createdAt,omitempty"`
+	ID           string `json:"id"`
+	Email        string `json:"email"`
+	Name         string `json:"name"`
+	Role         string `json:"role"`
+	MustChange   bool   `json:"mustChange"`
+	Active       bool   `json:"active"`
+	SellerID     string `json:"sellerId,omitempty"`
+	StateCode    string `json:"stateCode,omitempty"`
+	DistrictCode string `json:"districtCode,omitempty"`
+	LastLoginAt  string `json:"lastLoginAt,omitempty"`
+	CreatedAt    string `json:"createdAt,omitempty"`
 }
 
 type tokenDTO struct {
@@ -122,7 +124,8 @@ func toUserDTO(u PortalUser) userDTO {
 	}
 	return userDTO{
 		ID: u.UserID, Email: u.Email, Name: u.DisplayName, Role: u.Role,
-		MustChange: u.MustChange, Active: u.Active, SellerID: u.SellerID, StateCode: u.StateCode,
+		MustChange: u.MustChange, Active: u.Active, SellerID: u.SellerID,
+		StateCode: u.StateCode, DistrictCode: u.DistrictCode,
 		LastLoginAt: lastLogin, CreatedAt: created,
 	}
 }
@@ -397,7 +400,7 @@ const sessionsNew = ""
 // absoluteExpires is the family's hard cap — set to now+RefreshAbsoluteTTL on login and preserved
 // on every rotation so the cap never grows. ipHash/uaHash are one-way fingerprints, never raw PII.
 func (h *Handler) issue(r *http.Request, user PortalUser, familyID, refreshRaw, refreshHash string, refreshExpires, absoluteExpires time.Time, ipHash, uaHash string) (tokenDTO, error) {
-	access, _, _, err := h.minter.MintAccess(user.UserID, user.Role, user.SellerID, user.StateCode, user.MustChange)
+	access, _, _, err := h.minter.MintAccess(user.UserID, user.Role, user.SellerID, user.DistrictCode, user.StateCode, user.MustChange)
 	if err != nil {
 		return tokenDTO{}, err
 	}
@@ -463,13 +466,14 @@ func (h *Handler) listCredentials(w http.ResponseWriter, r *http.Request) {
 }
 
 type createCredentialRequest struct {
-	Email       string `json:"email"`
-	Name        string `json:"name"`
-	Role        string `json:"role"`
-	SellerID    string `json:"sellerId"`
-	StateCode   string `json:"stateCode"`
-	Password    string `json:"password"`
-	ForceChange *bool  `json:"forceChange"`
+	Email        string `json:"email"`
+	Name         string `json:"name"`
+	Role         string `json:"role"`
+	SellerID     string `json:"sellerId"`
+	StateCode    string `json:"stateCode"`
+	DistrictCode string `json:"districtCode"`
+	Password     string `json:"password"`
+	ForceChange  *bool  `json:"forceChange"`
 }
 
 func (h *Handler) createCredential(w http.ResponseWriter, r *http.Request) {
@@ -496,7 +500,7 @@ func (h *Handler) createCredential(w http.ResponseWriter, r *http.Request) {
 		httpx.Fail(w, http.StatusBadRequest, "bad_request", "a name is required")
 		return
 	}
-	role, sellerID, stateCode, err := normalizeScope(req.Role, req.SellerID, req.StateCode)
+	role, sellerID, districtCode, stateCode, err := normalizeScope(req.Role, req.SellerID, req.DistrictCode, req.StateCode)
 	if err != nil {
 		httpx.Fail(w, http.StatusBadRequest, "bad_request", err.Error())
 		return
@@ -528,7 +532,8 @@ func (h *Handler) createCredential(w http.ResponseWriter, r *http.Request) {
 	}
 	user, err := h.repo.CreateUser(r.Context(), PortalUser{
 		UserID: "pu-" + id, Email: req.Email, DisplayName: req.Name, PasswordHash: hash,
-		Role: role, Active: true, MustChange: defaultForceChange(role, req.ForceChange), SellerID: sellerID, StateCode: stateCode,
+		Role: role, Active: true, MustChange: defaultForceChange(role, req.ForceChange),
+		SellerID: sellerID, StateCode: stateCode, DistrictCode: districtCode,
 	})
 	if err != nil {
 		if errors.Is(err, ErrEmailTaken) {
@@ -655,23 +660,32 @@ func defaultForceChange(role string, override *bool) bool {
 
 // normalizeScope validates the role/scope pairing accepted by the credential-management surface.
 // SUPER_ADMIN is intentionally absent: those rows are seeded by tools/hash-password + SQL.
-func normalizeScope(role, sellerID, stateCode string) (string, string, string, error) {
+func normalizeScope(role, sellerID, districtCode, stateCode string) (string, string, string, string, error) {
 	role = strings.ToUpper(strings.TrimSpace(role))
 	sellerID = strings.TrimSpace(sellerID)
+	districtCode = geo.Normalise(districtCode)
 	stateCode = strings.ToUpper(strings.TrimSpace(stateCode))
 	switch role {
 	case auth.RoleSeller:
-		if sellerID == "" || stateCode != "" || len(sellerID) > 80 {
-			return "", "", "", errors.New("seller logins require sellerId and no stateCode")
+		if sellerID == "" || districtCode != "" || stateCode != "" || len(sellerID) > 80 {
+			return "", "", "", "", errors.New("seller logins require sellerId and no district/state scope")
 		}
-	case auth.RoleStateAdmin:
-		if sellerID != "" || !validStateCode(stateCode) {
-			return "", "", "", errors.New("state-admin logins require a 2-letter stateCode and no sellerId")
+	case auth.RoleDistrictAdmin:
+		if sellerID != "" {
+			return "", "", "", "", errors.New("district-admin logins take no sellerId")
+		}
+		if districtCode != "" {
+			if !geo.IsValid(districtCode) {
+				return "", "", "", "", errors.New("unknown districtCode")
+			}
+			stateCode = geo.StateForDistrict(districtCode)
+		} else if !validStateCode(stateCode) {
+			return "", "", "", "", errors.New("district-admin logins require a districtCode (or legacy 2-letter stateCode)")
 		}
 	default:
-		return "", "", "", errors.New("role must be SELLER or STATE_ADMIN")
+		return "", "", "", "", errors.New("role must be SELLER or DISTRICT_ADMIN")
 	}
-	return role, sellerID, stateCode, nil
+	return role, sellerID, districtCode, stateCode, nil
 }
 
 func validStateCode(v string) bool {

@@ -15,7 +15,7 @@ import { FESTIVAL_CAMPAIGNS, SELLER_OPTINS } from "@/data/promotions/festivalCam
 import { COUPONS } from "@/data/promotions/coupons";
 import { AD_SLOTS } from "@/data/ads/adSlots";
 import { HERO_CAMPAIGNS } from "@/data/ads/heroCampaigns";
-import { STATE_ADMINS } from "@/data/admins/stateAdmins";
+import { DISTRICT_ADMINS } from "@/data/admins/districtAdmins";
 import { AUDIT_LOGS } from "@/data/admins/auditLogs";
 import { REVIEWS } from "@/data/reviews/reviews";
 import { PRESCRIPTIONS } from "@/data/pharma/prescriptions";
@@ -53,7 +53,7 @@ import type {
   SectorCap,
   SellerOptin,
   SellerRecord,
-  StateAdmin,
+  DistrictAdmin,
   StockRecord,
   StoreRecord,
   TicketRecord,
@@ -80,7 +80,7 @@ export interface PortalState {
   coupons: CouponRecord[];
   adSlots: AdSlot[];
   heroCampaigns: HeroCampaign[];
-  stateAdmins: StateAdmin[];
+  districtAdmins: DistrictAdmin[];
   auditLogs: AuditLog[];
   reviews: ReviewRecord[];
   prescriptions: PrescriptionRecord[];
@@ -114,7 +114,7 @@ const seed = {
   coupons: COUPONS,
   adSlots: AD_SLOTS,
   heroCampaigns: HERO_CAMPAIGNS,
-  stateAdmins: STATE_ADMINS,
+  districtAdmins: DISTRICT_ADMINS,
   auditLogs: AUDIT_LOGS,
   reviews: REVIEWS,
   prescriptions: PRESCRIPTIONS,

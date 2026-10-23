@@ -29,6 +29,7 @@ type PortalUser struct {
 	PasswordChangedAt time.Time
 	SellerID          string
 	StateCode         string
+	DistrictCode      string
 	CreatedAt         time.Time
 }
 
@@ -64,7 +65,7 @@ func (r *Repo) ready() error {
 
 const userColumns = `user_id, email, display_name, password_hash, role, active, must_change,
 	failed_attempts, locked_until, last_login_at, password_changed_at,
-	coalesce(seller_id, ''), coalesce(state_code, ''), created_at`
+	coalesce(seller_id, ''), coalesce(state_code, ''), coalesce(district_code, ''), created_at`
 
 // ByEmailLower looks an account up case-insensitively. ok=false when absent.
 func (r *Repo) ByEmailLower(ctx context.Context, email string) (PortalUser, bool, error) {
@@ -132,7 +133,7 @@ func scanUser(row pgx.Row) (PortalUser, error) {
 	var u PortalUser
 	err := row.Scan(&u.UserID, &u.Email, &u.DisplayName, &u.PasswordHash, &u.Role, &u.Active,
 		&u.MustChange, &u.FailedAttempts, &u.LockedUntil, &u.LastLoginAt, &u.PasswordChangedAt,
-		&u.SellerID, &u.StateCode, &u.CreatedAt)
+		&u.SellerID, &u.StateCode, &u.DistrictCode, &u.CreatedAt)
 	return u, err
 }
 
@@ -208,9 +209,10 @@ func (r *Repo) CreateUser(ctx context.Context, u PortalUser) (PortalUser, error)
 	}
 	_, err := r.pool.Exec(ctx, `
 		insert into admins.portal_users
-		  (user_id, email, display_name, password_hash, role, active, must_change, seller_id, state_code)
-		values ($1,$2,$3,$4,$5,true,$6,$7,$8)`,
-		u.UserID, u.Email, u.DisplayName, u.PasswordHash, u.Role, u.MustChange, nullable(u.SellerID), nullable(u.StateCode))
+		  (user_id, email, display_name, password_hash, role, active, must_change, seller_id, state_code, district_code)
+		values ($1,$2,$3,$4,$5,true,$6,$7,$8,$9)`,
+		u.UserID, u.Email, u.DisplayName, u.PasswordHash, u.Role, u.MustChange,
+		nullable(u.SellerID), nullable(u.StateCode), nullable(u.DistrictCode))
 	if err != nil {
 		var pgErr *pgconn.PgError
 		if errors.As(err, &pgErr) && pgErr.Code == "23505" {

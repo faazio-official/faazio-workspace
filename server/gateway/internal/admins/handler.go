@@ -14,7 +14,7 @@ import (
 	"github.com/go-chi/chi/v5"
 )
 
-// Handler serves the audit trail and the state-admin directory. Both are role-gated; the caller's
+// Handler serves the audit trail and the district-admin directory. Both are role-gated; the caller's
 // role comes from the JWT claims, never a request body.
 type Handler struct {
 	repo        *Repo
@@ -44,13 +44,16 @@ func (h *Handler) Register(r chi.Router) {
 		g.Use(auth.RequireRole(auth.RoleSuperAdmin))
 		g.Post("/audit-logs/purge", h.purgeAuditLogs)
 	})
-	// State-admin directory: super admin only.
+	// District-admin directory: super admin only. The legacy /state-admins paths stay mounted for
+	// one release so an older portal build keeps working during the rename.
 	r.Group(func(g chi.Router) {
 		g.Use(auth.RequireRole(auth.RoleSuperAdmin))
-		g.Get("/state-admins", h.listAdmins)
-		g.Post("/state-admins", h.createAdmin)
-		g.Put("/state-admins/{id}", h.setAdminActive)
-		g.Delete("/state-admins/{id}", h.deleteAdmin)
+		for _, base := range []string{"/district-admins", "/state-admins"} {
+			g.Get(base, h.listAdmins)
+			g.Post(base, h.createAdmin)
+			g.Put(base+"/{id}", h.setAdminActive)
+			g.Delete(base+"/{id}", h.deleteAdmin)
+		}
 	})
 }
 
@@ -102,23 +105,26 @@ func (h *Handler) listCustomers(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) listAdmins(w http.ResponseWriter, r *http.Request) {
-	stateCode := strings.ToUpper(strings.TrimSpace(r.URL.Query().Get("state")))
-	items, err := h.repo.ListStateAdmins(r.Context(), stateCode)
+	districtCode := NormaliseDistrictCode(r.URL.Query().Get("district"))
+	items, err := h.repo.ListDistrictAdmins(r.Context(), districtCode)
 	if err != nil {
-		httpx.Fail(w, http.StatusInternalServerError, "state_admins_unavailable", "state admins unavailable")
+		httpx.Fail(w, http.StatusInternalServerError, "district_admins_unavailable", "district admins unavailable")
 		return
 	}
 	httpx.JSON(w, http.StatusOK, items)
 }
 
 type createAdminRequest struct {
-	Name       string `json:"name"`
-	Email      string `json:"email"`
-	Phone      string `json:"phone"`
-	StateCode  string `json:"stateCode"`
+	Name         string `json:"name"`
+	Email        string `json:"email"`
+	Phone        string `json:"phone"`
+	DistrictCode string `json:"districtCode"`
+	// StateCode is the legacy field accepted from an older portal; it is only used when no district
+	// is supplied (and keeps the row working as a state-scoped legacy admin).
+	StateCode  string `json:"stateCode,omitempty"`
 	IssueLogin *bool  `json:"issueLogin"`
 	Password   string `json:"password,omitempty"`
-	// ForceChange is accepted for forward-compat but ignored: a STATE_ADMIN login is ALWAYS forced to
+	// ForceChange is accepted for forward-compat but ignored: a DISTRICT_ADMIN login is ALWAYS forced to
 	// rotate its temporary password (must_change locked true) so the temp password is single-use.
 	ForceChange *bool `json:"forceChange,omitempty"`
 }
@@ -131,6 +137,7 @@ func (h *Handler) createAdmin(w http.ResponseWriter, r *http.Request) {
 	}
 	req.Name = strings.TrimSpace(req.Name)
 	req.Email = strings.ToLower(strings.TrimSpace(req.Email))
+	req.DistrictCode = NormaliseDistrictCode(req.DistrictCode)
 	req.StateCode = NormaliseStateCode(req.StateCode)
 	if req.Name == "" || len(req.Name) < 3 || len(req.Name) > 120 {
 		httpx.Fail(w, http.StatusBadRequest, "bad_request", "a name of at least 3 characters is required")
@@ -145,7 +152,13 @@ func (h *Handler) createAdmin(w http.ResponseWriter, r *http.Request) {
 		httpx.Fail(w, http.StatusBadRequest, "invalid_phone", "phone must be a 10-digit Indian mobile number")
 		return
 	}
-	if !IsValidState(req.StateCode) {
+	if req.DistrictCode != "" {
+		if !IsValidDistrict(req.DistrictCode) {
+			httpx.Fail(w, http.StatusBadRequest, "unknown_district", "unknown district code")
+			return
+		}
+		req.StateCode = StateForDistrict(req.DistrictCode)
+	} else if !IsValidState(req.StateCode) {
 		httpx.Fail(w, http.StatusBadRequest, "unknown_state", "unknown state code")
 		return
 	}
@@ -161,7 +174,8 @@ func (h *Handler) createAdmin(w http.ResponseWriter, r *http.Request) {
 	}
 
 	res, err := h.provisioner.Create(r.Context(), CreateParams{
-		Name: req.Name, Email: req.Email, PhoneDigits: phoneDigits, StateCode: req.StateCode,
+		Name: req.Name, Email: req.Email, PhoneDigits: phoneDigits,
+		DistrictCode: req.DistrictCode, StateCode: req.StateCode,
 		IssueLogin: issueLogin, Password: req.Password,
 	})
 	if err != nil {
@@ -170,13 +184,13 @@ func (h *Handler) createAdmin(w http.ResponseWriter, r *http.Request) {
 			before, _ := json.Marshal(map[string]string{"emailHash": shortHash(req.Email), "reason": conflict.Code})
 			_ = h.repo.Audit(r.Context(), contracts.AuditEntry{
 				ActorID: auth.UserID(r.Context()), ActorRole: auth.Role(r.Context()),
-				Action: "STATE_ADMIN_CREATE_BLOCKED", Entity: "admins.state_admins", EntityID: conflict.ConflictingID,
+				Action: "DISTRICT_ADMIN_CREATE_BLOCKED", Entity: "admins.district_admins", EntityID: conflict.ConflictingID,
 				Before: before,
 			})
 			httpx.FailConflict(w, conflict.Code, conflict.Message, conflict.ConflictingRole, conflict.ConflictingID)
 			return
 		}
-		httpx.Fail(w, http.StatusInternalServerError, "state_admin_create_failed", "could not create state admin")
+		httpx.Fail(w, http.StatusInternalServerError, "district_admin_create_failed", "could not create district admin")
 		return
 	}
 
@@ -197,7 +211,7 @@ func (h *Handler) auditCreate(r *http.Request, res CreateResult) {
 	afterAdmin, _ := json.Marshal(res.Admin)
 	if err := h.repo.Audit(r.Context(), contracts.AuditEntry{
 		ActorID: auth.UserID(r.Context()), ActorRole: auth.Role(r.Context()),
-		Action: "STATE_ADMIN_CREATE", Entity: "admins.state_admins", EntityID: res.Admin.AdminID, After: afterAdmin,
+		Action: "DISTRICT_ADMIN_CREATE", Entity: "admins.district_admins", EntityID: res.Admin.AdminID, After: afterAdmin,
 	}); err != nil {
 		return
 	}
@@ -223,17 +237,17 @@ func (h *Handler) setAdminActive(w http.ResponseWriter, r *http.Request) {
 	}
 	admin, ok, err := h.provisioner.SetActive(r.Context(), id, req.Active)
 	if err != nil {
-		httpx.Fail(w, http.StatusInternalServerError, "state_admin_update_failed", "could not update state admin")
+		httpx.Fail(w, http.StatusInternalServerError, "district_admin_update_failed", "could not update district admin")
 		return
 	}
 	if !ok {
-		httpx.Fail(w, http.StatusNotFound, "not_found", "state admin not found")
+		httpx.Fail(w, http.StatusNotFound, "not_found", "district admin not found")
 		return
 	}
 	after, _ := json.Marshal(admin)
 	_ = h.repo.Audit(r.Context(), contracts.AuditEntry{
 		ActorID: auth.UserID(r.Context()), ActorRole: auth.Role(r.Context()),
-		Action: "STATE_ADMIN_UPDATE", Entity: "admins.state_admins", EntityID: admin.AdminID, After: after,
+		Action: "DISTRICT_ADMIN_UPDATE", Entity: "admins.district_admins", EntityID: admin.AdminID, After: after,
 	})
 	httpx.JSON(w, http.StatusOK, admin)
 }
@@ -241,12 +255,12 @@ func (h *Handler) setAdminActive(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) deleteAdmin(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "id")
 	if err := h.provisioner.Delete(r.Context(), id); err != nil {
-		httpx.Fail(w, http.StatusInternalServerError, "state_admin_delete_failed", "could not delete state admin")
+		httpx.Fail(w, http.StatusInternalServerError, "district_admin_delete_failed", "could not delete district admin")
 		return
 	}
 	_ = h.repo.Audit(r.Context(), contracts.AuditEntry{
 		ActorID: auth.UserID(r.Context()), ActorRole: auth.Role(r.Context()),
-		Action: "STATE_ADMIN_DELETE", Entity: "admins.state_admins", EntityID: id,
+		Action: "DISTRICT_ADMIN_DELETE", Entity: "admins.district_admins", EntityID: id,
 	})
 	httpx.JSON(w, http.StatusOK, map[string]bool{"ok": true})
 }

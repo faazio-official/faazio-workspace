@@ -17,7 +17,7 @@ import {
   useMockLoading,
   useOrders,
   useSellers,
-  useStateAdmins,
+  useDistrictAdmins,
 } from "@/lib/api/hooks";
 import { STATES } from "@/data/states";
 
@@ -28,7 +28,7 @@ function SuperDashboard() {
   const sellers = useSellers();
   const orders = useOrders();
   const campaigns = useCampaigns();
-  const admins = useStateAdmins();
+  const admins = useDistrictAdmins();
   const [showUncoveredOnly, setShowUncoveredOnly] = useState(false);
 
   const uncovered = STATES.filter(
@@ -66,7 +66,7 @@ function SuperDashboard() {
             { label: "Sellers", value: formatNumber(sellers.length) },
             { label: "States live", value: formatNumber(STATES.length) },
             { label: "Uncovered states", value: formatNumber(uncovered.length) },
-            { label: "State admins", value: formatNumber(admins.filter((a) => a.active).length) },
+            { label: "District admins", value: formatNumber(admins.filter((a) => a.active).length) },
           ]}
         />
       </DataShell>
@@ -108,7 +108,7 @@ function SuperDashboard() {
             return (
               <Link
                 key={info.stateCode}
-                href="/admin/super/states"
+                href="/admin/super/districts"
                 className="lift rounded-xl border border-border p-3 transition-transform"
               >
                 <div className="flex items-center justify-between">
@@ -162,7 +162,7 @@ function SuperDashboard() {
             {uncovered.slice(0, 6).map((info) => (
               <li key={info.stateCode}>
                 <Link
-                  href="/admin/super/state-admins"
+                  href="/admin/super/district-admins"
                   className="flex items-center gap-2 rounded-lg border border-warning/40 bg-warning/10 px-3 py-2 text-[13px]"
                 >
                   <AlertTriangle className="size-4 text-warning" />
@@ -173,7 +173,7 @@ function SuperDashboard() {
             {uncovered.length > 6 ? (
               <li>
                 <Link
-                  href="/admin/super/state-admins"
+                  href="/admin/super/district-admins"
                   className="flex items-center gap-2 rounded-lg border border-border px-3 py-2 text-[13px] text-muted-foreground"
                 >
                   <span className="num">

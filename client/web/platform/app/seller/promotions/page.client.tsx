@@ -90,7 +90,7 @@ function SellerPromotions() {
             ))}
           </div>
           <p className="w-full text-[11px] text-muted-foreground">
-            Shoppers see the live price only after a state admin approves the opt-in; the sector cap
+            Shoppers see the live price only after a district admin approves the opt-in; the sector cap
             is enforced server-side.
           </p>
         </div>
@@ -106,7 +106,7 @@ function SellerPromotions() {
               description={
                 campaign
                   ? "List a product first, then join the festival campaign."
-                  : "Your state admin has not opened a festival window yet."
+                  : "Your district admin has not opened a festival window yet."
               }
             />
           }

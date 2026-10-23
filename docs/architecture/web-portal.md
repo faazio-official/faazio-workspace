@@ -1,11 +1,11 @@
 # Web Portal (Next.js) — architecture deep dive
 
-The Faazio Partner Portal is the seller / state-admin / super-admin console. It
+The Faazio Partner Portal is the seller / district-admin / super-admin console. It
 renders from a Zustand store that is seeded from `client/web/platform/src/data/**` and, when
 `NEXT_PUBLIC_GATEWAY_URL` is set, hydrated from the Go Chi gateway
 (`client/web/platform/src/lib/api/sync.ts`). **Portal auth is the only auth mode** — the
 portal signs in against gateway-native credentials (HttpOnly cookies, no token in
-`localStorage`). A superadmin issues seller and state-admin logins from
+`localStorage`). A superadmin issues seller and district-admin logins from
 `/admin/super/credentials`; both carry a scope (`seller_id` or `state_code`) that the
 gateway enforces on every request. The session projection is never persisted and is
 re-fetched from the cookie on load. See "Data + auth" and "Portal auth" below.
@@ -65,7 +65,7 @@ The campaign wizard's **what→where** placements map 1:1 to the paid mobile sur
 | `seller/returns` · `seller/reviews` · `seller/payments` | after-sales | all |
 | `seller/analytics` · `seller/support` · `seller/settings` · `seller/onboarding` | console | all |
 
-**State admin console (`app/admin/state/**`)** — state-scoped oversight.
+**District admin console (`app/admin/district/**`)** — state-scoped oversight.
 
 | Route | Page |
 | --- | --- |
@@ -90,9 +90,10 @@ The campaign wizard's **what→where** placements map 1:1 to the paid mobile sur
 | `admin/super/festival` · `admin/super/coupons` | promo authority |
 | `admin/super/products` · `admin/super/sellers` | catalog/seller authority — the seller list links into the shared KYC review detail and shows the platform fee |
 | `admin/super/sectors` · `admin/super/coverage` | taxonomy + coverage |
-| `admin/super/rewards` · `admin/super/users` · `admin/super/states` | platform |
-| `admin/super/state-admins` | state-admin directory — all 36 ISO 3166-2:IN states/UTs; coverage summary (X / 36) + progress bar + grouped uncovered chips. **Unified creation:** one form creates the roster + (optionally, `issueLogin` default ON) the portal login + temporary password atomically; duplicate email blocked on/off-server, duplicate phone soft-warned |
-| `admin/super/credentials` | issue/disable seller and state-admin portal logins (role + seller/state scope) |
+| `admin/super/rewards` · `admin/super/users` · `admin/super/districts` | platform |
+| `admin/{district,super}/fee-change-requests` | seller-initiated platform-fee change review — district admins see their district, super admins every district; approve applies the fee, reject requires a reason (server-enforced one pending request per seller) |
+| `admin/super/district-admins` | district-admin directory — all 42 TN/PY districts; coverage summary (X / 42) + progress bar + grouped uncovered chips. **Unified creation:** one form creates the roster + (optionally, `issueLogin` default ON) the portal login + temporary password atomically; duplicate email blocked on/off-server, duplicate phone soft-warned |
+| `admin/super/credentials` | issue/disable seller and district-admin portal logins (role + seller/district scope) |
 | `admin/super/security` | superadmin password rotation (same component as `/security`) |
 | `admin/super/delivery-boys` | all-India delivery-partner console — same review board, super-only activation and suspend/blacklist |
 | `admin/super/analytics` · `admin/super/audit` · `admin/super/settings` | console |
@@ -100,7 +101,7 @@ The campaign wizard's **what→where** placements map 1:1 to the paid mobile sur
 > **Audit log retention (`0037`):** both audit pages (`admin/state/audit`, `admin/super/audit`) stay
 > **read-only** — no UI edit/delete and no RLS delete policy. Rows are now a rolling **7-day window**:
 > a gateway worker on Render purges `admins.audit_logs` older than 7 days nightly at **00:00 IST** (for
-> all roles — SELLER, STATE_ADMIN, SUPER_ADMIN), recording a surviving `AUDIT_PURGE` row. Copy reflects
+> all roles — SELLER, DISTRICT_ADMIN, SUPER_ADMIN), recording a surviving `AUDIT_PURGE` row. Copy reflects
 > this ("Read-only, retained 7 days…"); a SUPER_ADMIN-only `POST /audit-logs/purge` manual trigger
 > exists for staging/ops parity (same endpoint shape as `POST /media/gc`). No archive — purged rows are
 > unrecoverable.
@@ -273,7 +274,7 @@ auth route returning `503 not_configured`.
 The portal is the only auth mode. There is **no new IdP**: the gateway already owns
 `RequireRole` and `admins.audit_logs`, so it also stores the credentials
 (`admins.portal_users`, migrations `0032` + `0033` + `0034` + `0038`) and mints the tokens. Three roles are
-issued: `SUPER_ADMIN` (seeded operationally, global), `STATE_ADMIN` (a 2-letter
+issued: `SUPER_ADMIN` (seeded operationally, global), `DISTRICT_ADMIN` (a 3-letter district
 `state_code`), and `SELLER` (a `seller_id`). The superadmin issues the scoped logins from
 `/admin/super/credentials`; the token claims (`app_role`, `seller_id`, `state_code`) are
 re-validated by `auth.PortalVerifier` on every request.
@@ -298,8 +299,8 @@ browser                        Next.js route handlers                 Go gateway
   `PUT /admin/portal-users/{id}/password`. Creating/resetting a scoped credential defaults to
   `must_change=true` (`forceChange:false` opts out) and revokes that user's refresh sessions; a
   superadmin is reset with the password active immediately (`must_change=false`).
-- **Unified state-admin creation (`/admin/super/state-admins`, `0036`)** — `POST /state-admins` is the
-  single form: `issueLogin:true` (default) mints the roster **and** the `STATE_ADMIN` portal login
+- **Unified district-admin creation (`/admin/super/district-admins`, `0036`)** — `POST /district-admins` is the
+  single form: `issueLogin:true` (default) mints the roster **and** the `DISTRICT_ADMIN` portal login
   (temporary password, `must_change` locked `true`) in one atomic server call and returns both; the
   page shows the copyable temporary password once. `issueLogin:false` pre-provisions a roster-only row
   (No login badge + one-click issue). Duplicate **email** (portal-email/roster-email, case-normalized)
@@ -364,7 +365,7 @@ browser                        Next.js route handlers                 Go gateway
   and the shell redirects to `/security`, so a temporary password cannot reach the control plane.
   `SUPER_ADMIN` is exempt (the claim is never set for it): a superadmin password is always active,
   and any active superadmin can reset any role's password from `/admin/super/credentials`.
-  A `STATE_ADMIN` login minted by the unified creator always has `must_change=true` (locked —
+  A `DISTRICT_ADMIN` login minted by the unified creator always has `must_change=true` (locked —
   the temporary password is single-use by design).
 - **Refresh rotation** — opaque `faazio_pr_*` tokens are stored only as SHA-256 hashes
   (`admins.portal_sessions`) with `ua_hash`/`ip_hash` one-way fingerprints, single-use-per-family

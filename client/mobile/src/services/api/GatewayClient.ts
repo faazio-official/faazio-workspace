@@ -413,6 +413,8 @@ export interface SellerApplicationInput {
   contactEmail: string;
   /** 2-letter state code (sellers.sellers.state_code). */
   stateCode: string;
+  /** 3-letter district code (sellers.sellers.district_code) — required by the district rollout. */
+  districtCode?: string;
   /** Optional shop pin captured on the map; both values travel together. */
   latitude?: number;
   longitude?: number;
@@ -446,6 +448,7 @@ export interface SellerApplication {
   contactPhone?: string;
   contactEmail?: string;
   stateCode: string;
+  districtCode?: string;
   latitude?: number;
   longitude?: number;
   status: string;
@@ -460,6 +463,22 @@ export interface SellerApplication {
   rejectionReason?: string;
   rejectionHistory?: unknown;
   createdAt: string;
+}
+
+/** One sellers.seller_fee_change_requests row (seller-initiated, admin-reviewed). */
+export interface FeeChangeRequest {
+  requestId: string;
+  sellerId: string;
+  businessName?: string;
+  districtCode?: string;
+  currentFeePct: number;
+  requestedFeePct: number;
+  status: 'PENDING' | 'APPROVED' | 'REJECTED' | 'CANCELLED' | string;
+  adminNote?: string;
+  requestedAt: string;
+  reviewedBy?: string;
+  reviewedAt?: string;
+  reviewReason?: string;
 }
 
 /** One sellers.kyc_documents row (private R2 key + media asset id, never a URL). */
@@ -1781,6 +1800,7 @@ export class GatewayClient {
           contactPhone: input.contactPhone,
           contactEmail: input.contactEmail,
           stateCode: input.stateCode.toUpperCase(),
+          districtCode: input.districtCode?.toUpperCase(),
           latitude: input.latitude,
           longitude: input.longitude,
           status: 'PENDING_REVIEW',
@@ -1812,12 +1832,13 @@ export class GatewayClient {
   }
 
   /**
-   * Seller request queue for STATE_ADMIN (their state) / SUPER_ADMIN (all states). The server
+   * Seller request queue for DISTRICT_ADMIN (their district) / SUPER_ADMIN (all districts). The server
    * scopes the caller; the optional state/status filters are applied on top.
    */
-  async listSellerRequests(state?: string, status?: string): Promise<SellerApplication[]> {
+  async listSellerRequests(state?: string, status?: string, district?: string): Promise<SellerApplication[]> {
     const params = new URLSearchParams();
     if (state) params.set('state', state.toUpperCase());
+    if (district) params.set('district', district.toUpperCase());
     if (status) params.set('status', status.toUpperCase());
     const qs = params.toString();
     return this.http<SellerApplication[]>(`/sellers${qs ? `?${qs}` : ''}`);
@@ -1883,6 +1904,50 @@ export class GatewayClient {
       method: 'PATCH',
       body: JSON.stringify({ platformFeePct }),
     });
+  }
+
+  /** Seller: ask for a new platform fee (a district/super admin must approve it). */
+  async requestSellerPlatformFeeChange(
+    sellerId: string,
+    platformFeePct: number,
+  ): Promise<FeeChangeRequest> {
+    return this.http<FeeChangeRequest>(
+      `/sellers/${encodeURIComponent(sellerId)}/platform-fee-request`,
+      { method: 'POST', body: JSON.stringify({ platformFeePct }) },
+    );
+  }
+
+  /** Seller: own platform-fee request history (pending/approved/rejected). */
+  async listSellerFeeChangeRequests(sellerId: string): Promise<FeeChangeRequest[]> {
+    return this.http<FeeChangeRequest[]>(
+      `/sellers/${encodeURIComponent(sellerId)}/platform-fee-requests`,
+    );
+  }
+
+  /**
+   * Admin: platform-fee review queue. The server scopes a district admin to their district and a
+   * super admin to all districts; optional filters narrow further.
+   */
+  async listFeeChangeRequests(district?: string, status?: string): Promise<FeeChangeRequest[]> {
+    const params = new URLSearchParams();
+    if (district) params.set('district', district.toUpperCase());
+    if (status) params.set('status', status.toUpperCase());
+    const qs = params.toString();
+    return this.http<FeeChangeRequest[]>(`/seller/fee-change-requests${qs ? `?${qs}` : ''}`);
+  }
+
+  async approveFeeChangeRequest(requestId: string, note = ''): Promise<{ request: FeeChangeRequest; seller: SellerApplication }> {
+    return this.http<{ request: FeeChangeRequest; seller: SellerApplication }>(
+      `/seller/fee-change-requests/${encodeURIComponent(requestId)}/approve`,
+      { method: 'PATCH', body: JSON.stringify({ note }) },
+    );
+  }
+
+  async rejectFeeChangeRequest(requestId: string, reason: string): Promise<FeeChangeRequest> {
+    return this.http<FeeChangeRequest>(
+      `/seller/fee-change-requests/${encodeURIComponent(requestId)}/reject`,
+      { method: 'PATCH', body: JSON.stringify({ reason }) },
+    );
   }
 
   /** Admin: create/attach the Razorpay Route linked account and activate the seller. */
@@ -2144,7 +2209,7 @@ export class GatewayClient {
     });
   }
 
-  // Admin review (portal role + state scoped server-side).
+  // Admin review (portal role + district scoped server-side).
 
   async listDeliveryApplications(
     filter: { state?: string; status?: string } = {},

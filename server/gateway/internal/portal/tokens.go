@@ -48,8 +48,9 @@ func NewMinter(secret string) *Minter {
 func (m *Minter) Enabled() bool { return m != nil && len(m.secret) > 0 }
 
 // MintAccess returns a signed HS256 access JWT and its jti/expiry. A seller login carries
-// seller_id; a state-admin login carries state_code (the verifier rejects a missing scope).
-func (m *Minter) MintAccess(userID, role, sellerID, stateCode string, mustChange bool) (token, jti string, expiresAt time.Time, err error) {
+// seller_id; a district-admin login carries district_code plus the parent state_code (legacy
+// state-scoped admins may carry only state_code). The verifier rejects a missing scope.
+func (m *Minter) MintAccess(userID, role, sellerID, districtCode, stateCode string, mustChange bool) (token, jti string, expiresAt time.Time, err error) {
 	if !m.Enabled() {
 		return "", "", time.Time{}, errors.New("portal: jwt secret not configured")
 	}
@@ -61,16 +62,17 @@ func (m *Minter) MintAccess(userID, role, sellerID, stateCode string, mustChange
 	exp := now.Add(AccessTTL)
 	header, _ := json.Marshal(map[string]string{"alg": "HS256", "typ": "JWT"})
 	claims, _ := json.Marshal(map[string]any{
-		"iss":         TokenIssuer,
-		"aud":         TokenAudience,
-		"sub":         userID,
-		"app_role":    role,
-		"seller_id":   sellerID,
-		"state_code":  stateCode,
-		"jti":         jti,
-		"must_change": mustChange,
-		"iat":         now.Unix(),
-		"exp":         exp.Unix(),
+		"iss":           TokenIssuer,
+		"aud":           TokenAudience,
+		"sub":           userID,
+		"app_role":      role,
+		"seller_id":     sellerID,
+		"district_code": districtCode,
+		"state_code":    stateCode,
+		"jti":           jti,
+		"must_change":   mustChange,
+		"iat":           now.Unix(),
+		"exp":           exp.Unix(),
 	})
 	signing := base64.RawURLEncoding.EncodeToString(header) + "." + base64.RawURLEncoding.EncodeToString(claims)
 	mac := hmac.New(sha256.New, m.secret)
@@ -111,5 +113,5 @@ func randomHex(n int) (string, error) {
 	return hex.EncodeToString(b), nil
 }
 
-// Portal roles issued by the credential store: SUPER_ADMIN, STATE_ADMIN, SELLER.
+// Portal roles issued by the credential store: SUPER_ADMIN, DISTRICT_ADMIN, SELLER.
 const RoleSuperAdmin = auth.RoleSuperAdmin

@@ -803,7 +803,9 @@ the server — the screen only ever sends `{tag, name, phone, address, isDefault
 `SellerRegistrationScreen` (`features/seller-onboarding/`, route `SellWithUs`) replaced the old
 minimal form and is reached from the Account `earn` group. One wizard collects business identity
 (name, owner, category `MART`/`FOOD`/`PHARMA`, GSTIN, PAN, address, contact phone/email), a
-location-derived 2-letter state (GPS → state code; manual entry is the fallback), platform fee %,
+location-derived 2-letter state (GPS → state code; manual entry is the fallback) plus a required
+**district** picker for TN/PY (`DISTRICTS` from `@data/districts`; the gateway rejects a district that
+does not belong to the state), platform fee %,
 payout account (bank name, account number, IFSC, beneficiary), a **mandatory bank passbook** photo
 and — for FOOD only — the FSSAI number + certificate. All fields are mandatory. Labels/placeholders
 still come from `SELLER_SETUP_FIELDS` (`@data/seller/sellerSetup.ts`).
@@ -821,12 +823,12 @@ a client-asserted `otpVerified: true` alone is rejected with `401 otp_unverified
 shows the `sellerId`, status and platform fee. In mock mode the client returns a local
 `PENDING_REVIEW` row so the flow completes offline.
 
-Admin review ships on **both surfaces** — the web portal (`admin/state/sellers[/[id]]`,
-SUPER_ADMIN reaches every state) and, new, the mobile app:
+Admin review ships on **both surfaces** — the web portal (`admin/district/sellers[/[id]]`,
+SUPER_ADMIN reaches every district) and the mobile app:
 - `SellerRequestsScreen` (route `SellerRequests`) — the application queue scoped by the server to the
-  state admin's state (SUPER_ADMIN sees all states), with All/Pending/Rejected tabs. Reachable from
-  the Account page through a role-gated "Seller applications" card (`AccountView`, shown only for
-  `STATE_ADMIN`/`SUPER_ADMIN`).
+  district admin's district (SUPER_ADMIN sees all districts), with All/Pending/Rejected tabs.
+  Reachable from the Account page through a role-gated "Seller applications" card (`AccountView`,
+  shown only for `DISTRICT_ADMIN`/`SUPER_ADMIN`).
 - `SellerRequestDetailScreen` (route `SellerRequestDetail`, `{ sellerId }`) — full registration +
   masked payout account, a platform-fee editor, per-document verify actions (PASSBOOK / FSSAI / PAN /
   GSTIN), **Verify KYC** (attaches the Razorpay Route linked account and activates the seller) and
@@ -834,6 +836,17 @@ SUPER_ADMIN reaches every state) and, new, the mobile app:
   (`GET /media/private/{assetId}` — a short-lived presigned GET that only the creator or an admin
   may mint). Rejected sellers may edit and resubmit; changed fields are recorded until approval
   clears the trail.
+- `FeeChangeRequestsScreen` (route `FeeChangeRequests`) — the platform-fee review queue, server-scoped
+  to the district admin's district / every district for SUPER_ADMIN, with Pending/Approved/Rejected/All
+  filters and approve / reject-with-reason actions. Reachable from the Account "Fee change requests"
+  card.
+
+Sellers never edit the live fee directly. `SellerPlatformFeeRequestScreen` (route
+`SellerPlatformFeeRequest`, opened from the Account "Request a fee change" card for `SELLER` sessions)
+loads the current fee via `GET /sellers/{id}`, shows request history
+(`GET /sellers/{id}/platform-fee-requests`) and files a `PENDING` request
+(`POST /sellers/{id}/platform-fee-request`). Only an admin approval mutates `platformFeePct`; one
+pending request per seller is enforced by the server.
 
 ## FaazioRewards (coins + streak)
 

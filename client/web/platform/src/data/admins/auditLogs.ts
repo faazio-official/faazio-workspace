@@ -5,7 +5,7 @@ export const AUDIT_LOGS: AuditLog[] = [
   {
     logId: "log-1",
     actorId: "acc-2",
-    actorRole: "STATE_ADMIN",
+    actorRole: "DISTRICT_ADMIN",
     action: "PRODUCT_DELIST",
     entity: "catalog.products",
     entityId: "fm-f1",
@@ -27,7 +27,7 @@ export const AUDIT_LOGS: AuditLog[] = [
   {
     logId: "log-3",
     actorId: "acc-2",
-    actorRole: "STATE_ADMIN",
+    actorRole: "DISTRICT_ADMIN",
     action: "SELLER_APPROVE",
     entity: "sellers.sellers",
     entityId: "sel-2",

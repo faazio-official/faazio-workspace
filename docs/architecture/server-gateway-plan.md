@@ -75,11 +75,21 @@ keys/TTLs unchanged.
   configured. The public `POST /webhooks/razorpay/route` reconciles `transfer.released` /
   `transfer.failed` / `transfer.reversed` by HMAC. `RAZORPAY_ROUTE_KEY_ID`/`_SECRET`/`_WEBHOOK_SECRET`
   fall back to the main Razorpay pair.
-- **Portal identity writes (`internal/admins` + `internal/portal`):** `POST /state-admins` is the
-  unified state-admin creator — `issueLogin` optionally mints the `STATE_ADMIN` portal credential in
-  the same tx. Duplicate **email** across `portal_users`, the roster and `sellers.sellers` is
-  hard-blocked (`409`); duplicate **phone** is a soft `201 warnings[]` notice (shared lines are
-  allowed by policy). See `0036` + `db-schema.md` §12.19.
+- **Portal identity writes (`internal/admins` + `internal/portal`):** `POST /district-admins` is the
+  unified district-admin creator — `issueLogin` optionally mints the `DISTRICT_ADMIN` portal
+  credential in the same tx (legacy `/state-admins` route alias retained). Duplicate **email** across
+  `portal_users`, the roster and `sellers.sellers` is hard-blocked (`409 email_has_district_login`
+  / `email_has_district_roster`); duplicate **phone** is a soft `201 warnings[]` notice (shared
+  lines are allowed by policy). See `0036`, `0048` + `db-schema.md` §12.19/§12.24.
+- **District scope (`internal/platform/geo`, migrations `0046`–`0049`):** the wire role is
+  `DISTRICT_ADMIN`; the 42 TN/PY district codes are validated against `admins.district_master` and
+  the Go master. Sellers carry an optional `district_code`; admin reads/writes use
+  `auth.CanActForSellerDistrict` (district claim first, legacy parent `state_code` fallback).
+- **Platform-fee change requests:** sellers file `POST /sellers/{id}/platform-fee-request` and read
+  `GET /sellers/{id}/platform-fee-requests`; the review queue is
+  `GET /seller/fee-change-requests` (district-scoped) with
+  `PATCH /seller/fee-change-requests/{id}/approve|reject`. Only approval mutates
+  `sellers.sellers.platform_fee_pct`; one `PENDING` row per seller (`0049`).
 - **Packages:** `internal/{search,catalog,directory,cartstock,checkout,reviews,reco,sdui,bookings}` +
   `internal/{contracts,platform/*,server}`. Ownership table: `monolith-breakdown.md` §1.
 - **Boundaries:** `go run ./tools/importlint` fails on sibling-context imports.
@@ -94,8 +104,8 @@ Rider endpoints authenticate with the Firebase phone ID token and resolve the ri
 `POST /delivery/register` (KYC application), `GET /delivery/me`, `PUT /delivery/availability`,
 `POST /delivery/heartbeat`, `GET /delivery/active`, `GET /delivery/route/{id}`,
 `POST /delivery/{id}/accept|reject`, `PUT /delivery/stop/{id}/status`, `POST /delivery/otp/verify`
-and `POST /delivery/{orderId}/rate`. Admin endpoints are `STATE_ADMIN`/`SUPER_ADMIN` gated and
-state-scoped: `GET /delivery/register/pending`, `GET /delivery/register/{id}`,
+and `POST /delivery/{orderId}/rate`. Admin endpoints are `DISTRICT_ADMIN`/`SUPER_ADMIN` gated and
+district-scoped: `GET /delivery/register/pending`, `GET /delivery/register/{id}`,
 `PUT /delivery/register/{id}/verify|reject`, `PUT /delivery/register/{id}/documents/{docType}/reupload`
 (admin uploads a replacement document), `GET /delivery/online-riders`,
 `GET /admin/delivery-boys`, `GET /admin/delivery-boys/{id}/location`, `POST /dispatch/assign`

@@ -51,6 +51,8 @@ const FaazioRewardsScreen = lazyNamed(() => import('@/features/rewards/FaazioRew
 const SellWithUsScreen = lazyNamed(() => import('@/features/seller-onboarding/SellerRegistrationScreen'), 'SellerRegistrationScreen');
 const SellerRequestsScreen = lazyNamed(() => import('@/features/seller-onboarding/SellerRequestsScreen'), 'SellerRequestsScreen');
 const SellerRequestDetailScreen = lazyNamed(() => import('@/features/seller-onboarding/SellerRequestDetailScreen'), 'SellerRequestDetailScreen');
+const SellerPlatformFeeRequestScreen = lazyNamed(() => import('@/features/seller-onboarding/SellerPlatformFeeRequestScreen'), 'SellerPlatformFeeRequestScreen');
+const FeeChangeRequestsScreen = lazyNamed(() => import('@/features/seller-onboarding/FeeChangeRequestsScreen'), 'FeeChangeRequestsScreen');
 const FavouritesScreen = lazyNamed(() => import('@/features/favourites/FavouritesScreen'), 'FavouritesScreen');
 const DealsLandingScreen = lazyNamed(() => import('@/features/ecommerce/DealsLandingScreen'), 'DealsLandingScreen');
 const PrescriptionFlowScreen = lazyNamed(() => import('@/features/pharma/prescription/PrescriptionFlowScreen'), 'PrescriptionFlowScreen');
@@ -177,6 +179,16 @@ export function AppNavigator() {
             name="SellWithUs"
             component={SellWithUsScreen}
             options={{ animation: 'fade', animationDuration: 180 }}
+          />
+          <Stack.Screen
+            name="SellerPlatformFeeRequest"
+            component={SellerPlatformFeeRequestScreen}
+            options={{ animation: 'slide_from_right', animationDuration: 220 }}
+          />
+          <Stack.Screen
+            name="FeeChangeRequests"
+            component={FeeChangeRequestsScreen}
+            options={{ animation: 'slide_from_right', animationDuration: 220 }}
           />
           <Stack.Screen
             name="SellerRequests"
