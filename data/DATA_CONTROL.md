@@ -350,6 +350,18 @@ the `GROCERY` member was dropped from `AppBrand` / `CartCategory` / `SubAppId` /
 | `SELLER_SETUP_FIELDS` | `SellerSetupField[]` — seller-onboarding field labels/placeholders (business identity, PAN/state, platform fee, bank name/account/IFSC/beneficiary, contact email, FSSAI) | `SellerRegistrationScreen` (`features/seller-onboarding/`; labels/placeholders for the onboarding wizard; submission goes to `POST /sellers` via `GatewayClient.submitSellerApplication`) | `@mock` |
 | `SellerSetupField` | type | `SellerRegistrationScreen` | `@mock` |
 
+### `@data/districts` — owner: `features/seller-onboarding`
+
+| Export | Type | Mobile consumers | Status |
+|---|---|---|---|
+| `DISTRICTS` | `DistrictInfo[]` — 42 TN/PY districts (`districtCode`, `name`, `stateCode`) | `SellerRegistrationScreen` (district picker for covered states) | `@mock` |
+| `districtsForState` / `stateForDistrict` / `districtName` | helpers | seller onboarding, future district-scoped lists | `@mock` |
+| `DistrictInfo` | type | mobile + web mirrors | `@mock` |
+
+> **Contract:** Mirrors `admins.district_master` (migration `0046`); the gateway
+> (`internal/platform/geo`) is authoritative. `DISTRICTS` must stay in sync with `geo.go` and the web
+> mirror `client/web/platform/src/data/districts.ts`.
+
 > **Contract:** Read-only label/placeholder source for the seller-onboarding form. The list is
 > stable; FK/field changes to the server contract happen in `GatewayClient.submitSellerApplication`
 > (`sellers.sellers`), not here.

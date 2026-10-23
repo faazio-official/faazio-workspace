@@ -20,6 +20,7 @@ import {
   Coins,
   Flame,
   Store,
+  Percent,
 } from 'lucide-react-native';
 import AppText from '@/components/AppText';
 import { hs, vs, ms } from '@/utils/responsive';
@@ -53,6 +54,8 @@ export interface AccountViewProps {
   onOpenRewards?: () => void;
   onOpenSellWithUs?: () => void;
   onOpenSellerRequests?: () => void;
+  onOpenFeeChangeRequests?: () => void;
+  onOpenPlatformFeeRequest?: () => void;
   onLogout: () => void;
 }
 
@@ -71,6 +74,8 @@ export function AccountView({
   onOpenRewards,
   onOpenSellWithUs,
   onOpenSellerRequests,
+  onOpenFeeChangeRequests,
+  onOpenPlatformFeeRequest,
   onLogout,
 }: AccountViewProps) {
   const insets = useSafeAreaInsets();
@@ -227,8 +232,46 @@ export function AccountView({
               <AppText style={styles.adminSubtitle}>
                 {authUser?.role === 'SUPER_ADMIN'
                   ? 'Review every seller in the platform'
-                  : 'Review sellers in your state'}
+                  : 'Review sellers in your district'}
               </AppText>
+            </View>
+            <ChevronRight size={ms(18)} color={BRAND_BLUE} strokeWidth={2.2} />
+          </TouchableOpacity>
+        ) : null}
+
+        {isPartnerAdmin(authUser) && onOpenFeeChangeRequests ? (
+          <TouchableOpacity
+            style={styles.adminCard}
+            activeOpacity={0.7}
+            onPress={onOpenFeeChangeRequests}
+          >
+            <View style={styles.adminIcon}>
+              <Percent size={ms(18)} color="#1162D3" strokeWidth={2.2} />
+            </View>
+            <View style={styles.adminText}>
+              <AppText style={styles.adminTitle}>Fee change requests</AppText>
+              <AppText style={styles.adminSubtitle}>
+                {authUser?.role === 'SUPER_ADMIN'
+                  ? 'Review platform-fee requests from every district'
+                  : 'Review platform-fee requests in your district'}
+              </AppText>
+            </View>
+            <ChevronRight size={ms(18)} color={BRAND_BLUE} strokeWidth={2.2} />
+          </TouchableOpacity>
+        ) : null}
+
+        {authUser?.role === 'SELLER' && authUser.sellerId && onOpenPlatformFeeRequest ? (
+          <TouchableOpacity
+            style={styles.adminCard}
+            activeOpacity={0.7}
+            onPress={onOpenPlatformFeeRequest}
+          >
+            <View style={styles.adminIcon}>
+              <Percent size={ms(18)} color="#1162D3" strokeWidth={2.2} />
+            </View>
+            <View style={styles.adminText}>
+              <AppText style={styles.adminTitle}>Request a fee change</AppText>
+              <AppText style={styles.adminSubtitle}>Ask an admin to update your platform fee</AppText>
             </View>
             <ChevronRight size={ms(18)} color={BRAND_BLUE} strokeWidth={2.2} />
           </TouchableOpacity>

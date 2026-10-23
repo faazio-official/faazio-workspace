@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/faazio/server/gateway/internal/platform/cache"
+	"github.com/faazio/server/gateway/internal/platform/geo"
 )
 
 // Portal token contract — a distinct issuer/audience from Firebase and legacy Supabase tokens.
@@ -90,10 +91,20 @@ func (v *PortalVerifier) Verify(ctx context.Context, token string) (jwtClaims, e
 		if claims.SellerID == "" {
 			return jwtClaims{}, errors.New("portal seller token missing seller_id")
 		}
-	case RoleStateAdmin:
+	case RoleDistrictAdmin:
+		claims.DistrictCode = geo.Normalise(claims.DistrictCode)
 		claims.StateCode = strings.ToUpper(strings.TrimSpace(claims.StateCode))
-		if len(claims.StateCode) != 2 {
-			return jwtClaims{}, errors.New("portal state-admin token missing state_code")
+		if claims.DistrictCode != "" {
+			if !geo.IsValid(claims.DistrictCode) {
+				return jwtClaims{}, errors.New("portal token has an unknown district_code")
+			}
+			if claims.StateCode == "" {
+				claims.StateCode = geo.StateForDistrict(claims.DistrictCode)
+			}
+		}
+		// Legacy state-scoped admins (created before the district rollout) carry only state_code.
+		if claims.DistrictCode == "" && len(claims.StateCode) != 2 {
+			return jwtClaims{}, errors.New("portal district-admin token missing district_code/state_code")
 		}
 	default:
 		return jwtClaims{}, errors.New("portal token role not allowed")

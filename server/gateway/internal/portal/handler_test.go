@@ -115,7 +115,7 @@ func TestDefaultForceChange(t *testing.T) {
 	}{
 		{"SUPER_ADMIN", nil, false},
 		{"SELLER", nil, true},
-		{"STATE_ADMIN", nil, true},
+		{"DISTRICT_ADMIN", nil, true},
 		{"SUPER_ADMIN", &yes, true},
 		{"SELLER", &no, false},
 	}
@@ -128,32 +128,36 @@ func TestDefaultForceChange(t *testing.T) {
 
 func TestNormalizeScope(t *testing.T) {
 	cases := []struct {
-		role, seller, state string
-		ok                  bool
+		role, seller, district, state string
+		ok                            bool
+		wantState                     string
 	}{
-		{"SELLER", "slr-1", "", true},
-		{"seller", "slr-1", "", true},
-		{"SELLER", "", "", false},
-		{"SELLER", "slr-1", "KA", false},
-		{"STATE_ADMIN", "", "ka", true},
-		{"STATE_ADMIN", "", "K", false},
-		{"STATE_ADMIN", "slr-1", "KA", false},
-		{"SUPER_ADMIN", "", "", false},
-		{"", "", "", false},
+		{"SELLER", "slr-1", "", "", true, ""},
+		{"seller", "slr-1", "", "", true, ""},
+		{"SELLER", "", "", "", false, ""},
+		{"SELLER", "slr-1", "", "TN", false, ""},
+		{"DISTRICT_ADMIN", "", "tch", "", true, "TN"},
+		{"DISTRICT_ADMIN", "", "TCH", "TN", true, "TN"},
+		{"DISTRICT_ADMIN", "", "", "TN", true, "TN"},
+		{"DISTRICT_ADMIN", "", "XX", "", false, ""},
+		{"DISTRICT_ADMIN", "slr-1", "TCH", "TN", false, ""},
+		{"SUPER_ADMIN", "", "", "", false, ""},
+		{"", "", "", "", false, ""},
 	}
 	for _, c := range cases {
-		role, seller, state, err := normalizeScope(c.role, c.seller, c.state)
+		role, seller, district, state, err := normalizeScope(c.role, c.seller, c.district, c.state)
 		if c.ok {
 			if err != nil {
 				t.Fatalf("%+v: unexpected error: %v", c, err)
 			}
-			if role != "SELLER" && role != "STATE_ADMIN" {
+			if role != "SELLER" && role != "DISTRICT_ADMIN" {
 				t.Fatalf("unexpected role %q", role)
 			}
-			if state != "" && state != "KA" {
-				t.Fatalf("state not normalized: %q", state)
+			if state != c.wantState {
+				t.Fatalf("state = %q, want %q", state, c.wantState)
 			}
 			_ = seller
+			_ = district
 		} else if err == nil {
 			t.Fatalf("%+v: expected error", c)
 		}

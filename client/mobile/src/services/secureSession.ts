@@ -17,10 +17,14 @@ export interface StoredUser {
   name: string;
   email: string;
   phone?: string;
-  /** Partner role claim (SELLER | STATE_ADMIN | SUPER_ADMIN), decoded from the ID token. */
+  /** Partner role claim (SELLER | DISTRICT_ADMIN | SUPER_ADMIN), decoded from the ID token. */
   role?: string;
-  /** Partner state scope claim (2-letter code). */
+  /** Partner district scope claim (3-letter code, e.g. TCH). */
+  districtCode?: string;
+  /** Legacy parent state scope claim (2-letter code). */
   stateCode?: string;
+  /** Seller claim for SELLER logins. */
+  sellerId?: string;
 }
 
 export interface StoredSession {

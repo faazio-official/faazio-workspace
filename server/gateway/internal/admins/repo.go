@@ -1,5 +1,5 @@
-// Package admins owns the partner audit trail (admins.audit_logs) and state-admin directory
-// (admins.state_admins). Future service: Go + CockroachDB (monolith-breakdown.md §1). Audit rows are
+// Package admins owns the partner audit trail (admins.audit_logs) and district-admin directory
+// (admins.district_admins). Future service: Go + CockroachDB (monolith-breakdown.md §1). Audit rows are
 // append-only by convention (no RLS update/delete policies); the gateway writes them for every
 // partner mutation via contracts.AuditWriter.
 package admins
@@ -31,13 +31,15 @@ type AuditLog struct {
 	CreatedAt string          `json:"createdAt"`
 }
 
-// StateAdmin is one admins.state_admins row.
-type StateAdmin struct {
+// DistrictAdmin is one admins.district_admins row. StateCode remains for legacy state-scoped
+// rows created before the district rollout; new rows always carry DistrictCode.
+type DistrictAdmin struct {
 	AdminID      string `json:"adminId"`
 	Name         string `json:"name"`
 	Email        string `json:"email"`
 	Phone        string `json:"phone"`
-	StateCode    string `json:"stateCode"`
+	DistrictCode string `json:"districtCode"`
+	StateCode    string `json:"stateCode,omitempty"`
 	Active       bool   `json:"active"`
 	CreatedAt    string `json:"createdAt"`
 	LastActiveAt string `json:"lastActiveAt"`
@@ -118,28 +120,28 @@ func (r *Repo) PurgeBefore(ctx context.Context, before time.Time) (int, error) {
 	return n, err
 }
 
-// ListStateAdmins returns state admins, optionally scoped to one state.
-func (r *Repo) ListStateAdmins(ctx context.Context, stateCode string) ([]StateAdmin, error) {
+// ListDistrictAdmins returns district admins, optionally scoped to one district.
+func (r *Repo) ListDistrictAdmins(ctx context.Context, districtCode string) ([]DistrictAdmin, error) {
 	if r.pool == nil {
 		return nil, fmt.Errorf("admins: database not configured")
 	}
 	rows, err := r.pool.Query(ctx, `
-		select admin_id, name, email, phone, state_code, active, created_at, last_active_at
-		  from admins.state_admins
-		 where ($1 = '' or state_code = $1)
-		 order by created_at desc`, stateCode)
+		select admin_id, name, email, phone, coalesce(district_code,''), coalesce(state_code,''), active, created_at, last_active_at
+		  from admins.district_admins
+		 where ($1 = '' or district_code = $1)
+		 order by created_at desc`, districtCode)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	out := []StateAdmin{}
+	out := []DistrictAdmin{}
 	for rows.Next() {
 		var (
-			a          StateAdmin
+			a          DistrictAdmin
 			createdAt  time.Time
 			lastActive time.Time
 		)
-		if err := rows.Scan(&a.AdminID, &a.Name, &a.Email, &a.Phone, &a.StateCode, &a.Active, &createdAt, &lastActive); err != nil {
+		if err := rows.Scan(&a.AdminID, &a.Name, &a.Email, &a.Phone, &a.DistrictCode, &a.StateCode, &a.Active, &createdAt, &lastActive); err != nil {
 			return nil, err
 		}
 		a.CreatedAt = createdAt.UTC().Format(time.RFC3339)
@@ -149,60 +151,60 @@ func (r *Repo) ListStateAdmins(ctx context.Context, stateCode string) ([]StateAd
 	return out, rows.Err()
 }
 
-// CreateStateAdmin inserts a state admin.
-func (r *Repo) CreateStateAdmin(ctx context.Context, a StateAdmin) (StateAdmin, error) {
+// CreateDistrictAdmin inserts a district admin.
+func (r *Repo) CreateDistrictAdmin(ctx context.Context, a DistrictAdmin) (DistrictAdmin, error) {
 	if r.pool == nil {
-		return StateAdmin{}, fmt.Errorf("admins: database not configured")
+		return DistrictAdmin{}, fmt.Errorf("admins: database not configured")
 	}
 	a.AdminID = "adm-" + shortID()
 	var createdAt, lastActive time.Time
 	err := r.pool.QueryRow(ctx, `
-		insert into admins.state_admins (admin_id, name, email, phone, state_code, active)
-		values ($1,$2,$3,$4,$5,true)
+		insert into admins.district_admins (admin_id, name, email, phone, district_code, state_code, active)
+		values ($1,$2,$3,$4,$5,$6,true)
 		returning active, created_at, last_active_at`,
-		a.AdminID, a.Name, a.Email, a.Phone, a.StateCode).
+		a.AdminID, a.Name, a.Email, a.Phone, nullIfEmpty(a.DistrictCode), nullIfEmpty(a.StateCode)).
 		Scan(&a.Active, &createdAt, &lastActive)
 	if err != nil {
-		return StateAdmin{}, err
+		return DistrictAdmin{}, err
 	}
 	a.CreatedAt = createdAt.UTC().Format(time.RFC3339)
 	a.LastActiveAt = lastActive.UTC().Format(time.RFC3339)
 	return a, nil
 }
 
-// SetStateAdminActive flips the active flag. Returns ErrNotFound when the row is absent.
-func (r *Repo) SetStateAdminActive(ctx context.Context, adminID string, active bool) (StateAdmin, bool, error) {
+// SetDistrictAdminActive flips the active flag. Returns ErrNotFound when the row is absent.
+func (r *Repo) SetDistrictAdminActive(ctx context.Context, adminID string, active bool) (DistrictAdmin, bool, error) {
 	if r.pool == nil {
-		return StateAdmin{}, false, fmt.Errorf("admins: database not configured")
+		return DistrictAdmin{}, false, fmt.Errorf("admins: database not configured")
 	}
 	var (
-		a          StateAdmin
+		a          DistrictAdmin
 		createdAt  time.Time
 		lastActive time.Time
 	)
 	err := r.pool.QueryRow(ctx, `
-		update admins.state_admins set active = $2
+		update admins.district_admins set active = $2
 		 where admin_id = $1
-		 returning admin_id, name, email, phone, state_code, active, created_at, last_active_at`,
+		 returning admin_id, name, email, phone, coalesce(district_code,''), coalesce(state_code,''), active, created_at, last_active_at`,
 		adminID, active).
-		Scan(&a.AdminID, &a.Name, &a.Email, &a.Phone, &a.StateCode, &a.Active, &createdAt, &lastActive)
+		Scan(&a.AdminID, &a.Name, &a.Email, &a.Phone, &a.DistrictCode, &a.StateCode, &a.Active, &createdAt, &lastActive)
 	if err != nil {
 		if isNoRows(err) {
-			return StateAdmin{}, false, nil
+			return DistrictAdmin{}, false, nil
 		}
-		return StateAdmin{}, false, err
+		return DistrictAdmin{}, false, err
 	}
 	a.CreatedAt = createdAt.UTC().Format(time.RFC3339)
 	a.LastActiveAt = lastActive.UTC().Format(time.RFC3339)
 	return a, true, nil
 }
 
-// DeleteStateAdmin removes a state admin.
-func (r *Repo) DeleteStateAdmin(ctx context.Context, adminID string) error {
+// DeleteDistrictAdmin removes a district admin.
+func (r *Repo) DeleteDistrictAdmin(ctx context.Context, adminID string) error {
 	if r.pool == nil {
 		return fmt.Errorf("admins: database not configured")
 	}
-	_, err := r.pool.Exec(ctx, `delete from admins.state_admins where admin_id = $1`, adminID)
+	_, err := r.pool.Exec(ctx, `delete from admins.district_admins where admin_id = $1`, adminID)
 	return err
 }
 
@@ -261,6 +263,13 @@ func shortID() string {
 	b := make([]byte, 5)
 	_, _ = rand.Read(b)
 	return hex.EncodeToString(b)
+}
+
+func nullIfEmpty(v string) any {
+	if v == "" {
+		return nil
+	}
+	return v
 }
 
 func nullJSON(v json.RawMessage) any {

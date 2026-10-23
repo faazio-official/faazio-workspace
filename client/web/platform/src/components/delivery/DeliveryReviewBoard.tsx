@@ -46,7 +46,7 @@ import {
   type DeliveryStatus,
 } from "@/lib/api/delivery";
 
-type Scope = "SUPER" | "STATE";
+type Scope = "SUPER" | "DISTRICT";
 type Tab = "APPLICATIONS" | "RIDERS";
 type RiderTab = "ALL" | DeliveryRiderCategory;
 
@@ -233,7 +233,7 @@ export function DeliveryReviewBoard({ scope }: { scope: Scope }) {
         title="Delivery partners"
         description={
           scope === "SUPER"
-            ? "All-India rider KYC, activation and live availability. State admins are scoped to their own state."
+            ? "All-India rider KYC, activation and live availability. District admins are scoped to their own district."
             : "Review rider KYC and monitor available partners in your state."
         }
       />

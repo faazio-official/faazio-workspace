@@ -18,6 +18,8 @@ import (
 	"net/http"
 	"strings"
 	"time"
+
+	"github.com/faazio/server/gateway/internal/platform/geo"
 )
 
 type ctxKey struct{}
@@ -25,18 +27,24 @@ type identityKey struct{}
 
 // Role constants (mirror the portal's Role union).
 const (
-	RoleSeller     = "SELLER"
-	RoleStateAdmin = "STATE_ADMIN"
+	RoleSeller = "SELLER"
+	// RoleDistrictAdmin is the scoped partner admin: one district (state_code is still minted as the
+	// coarse parent scope for legacy read models).
+	RoleDistrictAdmin = "DISTRICT_ADMIN"
+	// RoleStateAdmin is the deprecated spelling kept as an alias so existing call sites and tests
+	// keep compiling; the wire value is DISTRICT_ADMIN.
+	RoleStateAdmin = RoleDistrictAdmin
 	RoleSuperAdmin = "SUPER_ADMIN"
 )
 
 // Identity is the resolved caller: app user id (may be empty for admins with no checkout.users
 // row) plus the partner role claims.
 type Identity struct {
-	UserID    string
-	Role      string
-	SellerID  string
-	StateCode string
+	UserID       string
+	Role         string
+	SellerID     string
+	StateCode    string
+	DistrictCode string
 	// Jti is the access-token id (portal tokens only) — used for logout denylisting.
 	Jti string
 	// Portal marks a gateway-native portal session (sub is a admins.portal_users id, not an app
@@ -97,6 +105,7 @@ func Middleware(cfg Config) func(http.Handler) http.Handler {
 				id.Role = strings.ToUpper(strings.TrimSpace(r.Header.Get("X-Dev-Role")))
 				id.SellerID = strings.TrimSpace(r.Header.Get("X-Dev-Seller"))
 				id.StateCode = strings.ToUpper(strings.TrimSpace(r.Header.Get("X-Dev-State")))
+				id.DistrictCode = geo.Normalise(r.Header.Get("X-Dev-District"))
 				id.Dev = true
 			} else if claims, err := verifyToken(r, cfg); err == nil {
 				if claims.Portal {
@@ -117,6 +126,7 @@ func Middleware(cfg Config) func(http.Handler) http.Handler {
 				id.Role = claims.appRole()
 				id.SellerID = claims.sellerID()
 				id.StateCode = claims.stateCode()
+				id.DistrictCode = claims.districtCode()
 				id.Jti = claims.Jti
 				id.MustChange = claims.MustChange
 				id.Phone = claims.Phone
@@ -206,6 +216,14 @@ func StateCode(ctx context.Context) string {
 	return ""
 }
 
+// DistrictCode returns the caller's district_code claim, or "" for state-scoped legacy admins.
+func DistrictCode(ctx context.Context) string {
+	if id, ok := ctx.Value(identityKey{}).(Identity); ok {
+		return id.DistrictCode
+	}
+	return ""
+}
+
 // Jti returns the access-token id (portal sessions only), or "".
 func Jti(ctx context.Context) string {
 	if id, ok := ctx.Value(identityKey{}).(Identity); ok {
@@ -233,12 +251,31 @@ func IsAdmin(ctx context.Context) bool {
 }
 
 // CanActForSeller reports whether the caller may act on the given seller's data: the seller
-// themself, a super admin, or a state admin whose state matches.
+// themself, a super admin, or a district/state admin whose scope matches.
 func CanActForSeller(ctx context.Context, sellerID, stateCode string) bool {
 	switch Role(ctx) {
 	case RoleSuperAdmin:
 		return true
-	case RoleStateAdmin:
+	case RoleDistrictAdmin:
+		return StateCode(ctx) != "" && StateCode(ctx) == stateCode
+	case RoleSeller:
+		return SellerID(ctx) != "" && SellerID(ctx) == sellerID
+	default:
+		return false
+	}
+}
+
+// CanActForSellerDistrict is the district-precise predicate used by the sellers context. A district
+// admin with a district claim may only act on sellers in that district; a legacy state-scoped admin
+// (district claim empty) falls back to the state match. Super admins may act anywhere.
+func CanActForSellerDistrict(ctx context.Context, sellerID, districtCode, stateCode string) bool {
+	switch Role(ctx) {
+	case RoleSuperAdmin:
+		return true
+	case RoleDistrictAdmin:
+		if d := DistrictCode(ctx); d != "" {
+			return districtCode != "" && d == districtCode
+		}
 		return StateCode(ctx) != "" && StateCode(ctx) == stateCode
 	case RoleSeller:
 		return SellerID(ctx) != "" && SellerID(ctx) == sellerID
@@ -290,21 +327,23 @@ var errNoToken = errors.New("no token")
 
 // jwtClaims is the subset of a verified JWT we read.
 type jwtClaims struct {
-	Sub         string `json:"sub"`
-	Exp         int64  `json:"exp"`
-	Iss         string `json:"iss"`
-	Aud         string `json:"aud"`
-	Jti         string `json:"jti"`
-	Phone       string `json:"phone"`
-	Email       string `json:"email"`
-	AppRole     string `json:"app_role"`
-	SellerID    string `json:"seller_id"`
-	StateCode   string `json:"state_code"`
-	AppMetadata struct {
-		AppRole   string `json:"app_role"`
-		Role      string `json:"role"`
-		SellerID  string `json:"seller_id"`
-		StateCode string `json:"state_code"`
+	Sub          string `json:"sub"`
+	Exp          int64  `json:"exp"`
+	Iss          string `json:"iss"`
+	Aud          string `json:"aud"`
+	Jti          string `json:"jti"`
+	Phone        string `json:"phone"`
+	Email        string `json:"email"`
+	AppRole      string `json:"app_role"`
+	SellerID     string `json:"seller_id"`
+	StateCode    string `json:"state_code"`
+	DistrictCode string `json:"district_code"`
+	AppMetadata  struct {
+		AppRole      string `json:"app_role"`
+		Role         string `json:"role"`
+		SellerID     string `json:"seller_id"`
+		StateCode    string `json:"state_code"`
+		DistrictCode string `json:"district_code"`
 	} `json:"app_metadata"`
 	// MustChange confines a first-login portal session to the password-change routes.
 	MustChange bool `json:"must_change"`
@@ -338,6 +377,13 @@ func (c jwtClaims) stateCode() string {
 		return strings.ToUpper(c.StateCode)
 	}
 	return strings.ToUpper(c.AppMetadata.StateCode)
+}
+
+func (c jwtClaims) districtCode() string {
+	if c.DistrictCode != "" {
+		return geo.Normalise(c.DistrictCode)
+	}
+	return geo.Normalise(c.AppMetadata.DistrictCode)
 }
 
 // verifyToken accepts a Firebase ID token when configured, then falls back to the legacy

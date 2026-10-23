@@ -19,7 +19,7 @@ import { useAuditLogs, useMockLoading } from "@/lib/api/hooks";
 import type { Role } from "@/data/types";
 
 
-const ROLES: (Role | "ALL")[] = ["ALL", "SELLER", "STATE_ADMIN", "SUPER_ADMIN"];
+const ROLES: (Role | "ALL")[] = ["ALL", "SELLER", "DISTRICT_ADMIN", "SUPER_ADMIN"];
 
 function SuperAudit() {
   const loading = useMockLoading();

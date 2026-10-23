@@ -79,7 +79,7 @@ func TestProvisionCreateIssuesLoginAndRoster(t *testing.T) {
 	if res.Admin.Email != "mh.ops@faazio.in" || !res.Admin.Active {
 		t.Fatalf("roster wrong: %+v", res.Admin)
 	}
-	if res.Credential.Role != "STATE_ADMIN" || res.Credential.StateCode != "MH" || !res.Credential.MustChange || !res.Credential.Active {
+	if res.Credential.Role != "DISTRICT_ADMIN" || res.Credential.StateCode != "MH" || !res.Credential.MustChange || !res.Credential.Active {
 		t.Fatalf("credential not a forced-rotation MH state login: %+v", res.Credential)
 	}
 
@@ -88,7 +88,7 @@ func TestProvisionCreateIssuesLoginAndRoster(t *testing.T) {
 	if err != nil || !ok {
 		t.Fatalf("portal login lookup: ok=%v err=%v", ok, err)
 	}
-	if !user.Active || user.Role != "STATE_ADMIN" || user.StateCode != "MH" || !user.MustChange {
+	if !user.Active || user.Role != "DISTRICT_ADMIN" || user.StateCode != "MH" || !user.MustChange {
 		t.Fatalf("portal row unexpected: %+v", user)
 	}
 }
@@ -237,7 +237,7 @@ func TestProvisionSharedRosterPhoneWarnsSoft(t *testing.T) {
 	cleanupAdmin(t, ctx, p, res.Admin.AdminID)
 	found := false
 	for _, w := range res.Warnings {
-		if strings.Contains(w, "STATE_ADMIN roster") || strings.Contains(w, "state admin roster") {
+		if strings.Contains(w, "DISTRICT_ADMIN roster") || strings.Contains(w, "district admin roster") {
 			found = true
 		}
 	}
@@ -261,7 +261,7 @@ func TestProvisionRollbackLeavesNoOrphanRoster(t *testing.T) {
 		t.Fatal("expected hash failure")
 	}
 	var n int
-	if err := pool.QueryRow(ctx, `select count(*) from admins.state_admins where lower(email)=lower($1)`, in.Email).Scan(&n); err != nil {
+	if err := pool.QueryRow(ctx, `select count(*) from admins.district_admins where lower(email)=lower($1)`, in.Email).Scan(&n); err != nil {
 		t.Fatalf("count roster: %v", err)
 	}
 	if n != 0 {

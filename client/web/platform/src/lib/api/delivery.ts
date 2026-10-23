@@ -1,5 +1,5 @@
 "use client";
-// Delivery-partner control plane. All calls are role-gated server-side (STATE_ADMIN is scoped to
+// Delivery-partner control plane. All calls are role-gated server-side (DISTRICT_ADMIN is scoped to
 // its own state; SUPER_ADMIN may act anywhere). No PII is cached client-side beyond the response.
 import { remote } from "./http";
 import { remoteConfigured } from "@/lib/config";

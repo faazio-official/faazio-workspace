@@ -36,7 +36,7 @@ function statusLabel(s: string): string {
  * Full seller application review: registration fields, masked bank account, KYC documents (private
  * R2, viewed via a short-lived presigned GET), platform-fee editor, per-document verification,
  * reject-with-reason, and "Verify KYC" which creates the Razorpay tied account and activates the
- * seller. Client-side admin gate; the server re-verifies role + state scope on every call.
+ * seller. Client-side admin gate; the server re-verifies role + district scope on every call.
  */
 export function SellerRequestDetailScreen({ navigation, route }: Props) {
   const insets = useSafeAreaInsets();
@@ -137,7 +137,7 @@ export function SellerRequestDetailScreen({ navigation, route }: Props) {
       <View style={[styles.root, { paddingTop: insets.top }]}>
         <AppText style={styles.gateTitle}>Admins only</AppText>
         <AppText style={styles.gateBody}>
-          Seller review is available to state and super admins. Sign in with an admin account.
+          Seller review is available to district and super admins. Sign in with an admin account.
         </AppText>
       </View>
     );
@@ -183,7 +183,7 @@ export function SellerRequestDetailScreen({ navigation, route }: Props) {
             <View style={{ flex: 1 }}>
               <AppText style={styles.heroTitle}>{d.businessName}</AppText>
               <AppText style={styles.heroSub}>
-                {d.category} · {d.stateCode}
+                {d.category} · {d.districtCode || d.stateCode}
               </AppText>
             </View>
             <View style={[styles.statusPill, { backgroundColor: STATUS_COLORS[d.status] ?? '#94A3B8' }]}>

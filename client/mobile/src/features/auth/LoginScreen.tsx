@@ -253,6 +253,8 @@ export function LoginScreen({ navigation }: Props) {
             phone,
             role: claims.role,
             stateCode: claims.stateCode,
+            districtCode: claims.districtCode,
+            sellerId: claims.sellerId,
           },
           accessToken: session.accessToken,
         });

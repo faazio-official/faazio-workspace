@@ -24,6 +24,7 @@ import AppTextInput from '@/components/AppTextInput';
 import { hs, vs, ms } from '@/utils/responsive';
 import { SPACE } from '@/theme/spacing';
 import { SELLER_SETUP_FIELDS } from '@data/index';
+import { districtsForState } from '@data/districts';
 import type { AppBrand } from '@data/types';
 import { gateway, type SellerApplication } from '@/services/api/GatewayClient';
 import { firebaseAuthConfigured, sendSellerOtp, verifySellerOtp } from '@/services/firebaseAuth';
@@ -65,6 +66,7 @@ interface FormState {
   contactPhone: string;
   contactEmail: string;
   stateCode: string;
+  districtCode: string;
   platformFee: string;
   bankName: string;
   bankAccountNumber: string;
@@ -92,6 +94,7 @@ export function SellerRegistrationScreen({ navigation }: Props) {
     contactPhone: authPhone,
     contactEmail: user?.email ?? '',
     stateCode: '',
+    districtCode: '',
     platformFee: '10',
     bankName: '',
     bankAccountNumber: '',
@@ -218,7 +221,9 @@ export function SellerRegistrationScreen({ navigation }: Props) {
     ];
     const missing = required.filter(([k]) => !form[k].trim()).map(([, label]) => label);
     if (missing.length > 0) return `Please fill in: ${missing.join(', ')}.`;
-    if (!/^[A-Z]{2}$/.test(form.stateCode.trim().toUpperCase())) return 'Enter a 2-letter state code.';
+    const stateCode = form.stateCode.trim().toUpperCase();
+    if (!/^[A-Z]{2}$/.test(stateCode)) return 'Enter a 2-letter state code.';
+    if (districtsForState(stateCode).length > 0 && !form.districtCode) return 'Select your district.';
     if (!/^\S+@\S+\.\S+$/.test(form.contactEmail.trim())) return 'Enter a valid contact email.';
     if (form.bankAccountNumber.replace(/\D/g, '').length < 6) return 'Enter a valid bank account number.';
     if (form.bankIfsc.trim().length !== 11) return 'IFSC must be 11 characters.';
@@ -261,6 +266,7 @@ export function SellerRegistrationScreen({ navigation }: Props) {
         contactPhone: form.contactPhone.trim(),
         contactEmail: form.contactEmail.trim(),
         stateCode: form.stateCode.trim().toUpperCase(),
+        districtCode: form.districtCode || undefined,
         latitude: shopPin?.latitude,
         longitude: shopPin?.longitude,
         platformFeePct: Number(form.platformFee),
@@ -315,7 +321,7 @@ export function SellerRegistrationScreen({ navigation }: Props) {
           </View>
           <AppText style={styles.heroTitle}>Partner with Faazio</AppText>
           <AppText style={styles.heroSub}>
-            Complete your business, payout and KYC details. A state admin reviews every application
+            Complete your business, payout and KYC details. A district admin reviews every application
             before your store goes live.
           </AppText>
         </View>
@@ -447,7 +453,11 @@ export function SellerRegistrationScreen({ navigation }: Props) {
                     value={form.stateCode}
                     onChangeText={(v) => {
                       setLocationLabel('');
-                      update('stateCode')(v.toUpperCase());
+                      setForm((prev) => ({
+                        ...prev,
+                        stateCode: v.toUpperCase(),
+                        districtCode: '',
+                      }));
                     }}
                     autoCapitalize="characters"
                     maxLength={2}
@@ -470,6 +480,31 @@ export function SellerRegistrationScreen({ navigation }: Props) {
                   </AppText>
                 </TouchableOpacity>
               </View>
+              {districtsForState(form.stateCode).length > 0 ? (
+                <View style={styles.districtBlock}>
+                  <AppText style={styles.districtLabel}>District</AppText>
+                  <View style={styles.districtChips}>
+                    {districtsForState(form.stateCode).map((d) => {
+                      const active = form.districtCode === d.districtCode;
+                      return (
+                        <TouchableOpacity
+                          key={d.districtCode}
+                          style={[styles.districtChip, active && styles.districtChipActive]}
+                          onPress={() => update('districtCode')(d.districtCode)}
+                          accessibilityRole="button"
+                          accessibilityState={{ selected: active }}
+                        >
+                          <AppText
+                            style={[styles.districtChipText, active && styles.districtChipTextActive]}
+                          >
+                            {d.name}
+                          </AppText>
+                        </TouchableOpacity>
+                      );
+                    })}
+                  </View>
+                </View>
+              ) : null}
               {locationLabel ? (
                 <TouchableOpacity onPress={() => setLocationLabel('')} activeOpacity={0.7}>
                   <AppText style={styles.linkText}>Change state manually</AppText>
@@ -858,6 +893,20 @@ const styles = StyleSheet.create({
   chipActive: { borderColor: '#1162D3', backgroundColor: '#EFF6FF' },
   chipText: { fontSize: ms(13), fontWeight: '800', color: '#64748B' },
   chipTextActive: { color: '#1162D3' },
+  districtBlock: { marginTop: vs(10) },
+  districtLabel: { fontSize: ms(12), fontWeight: '800', color: '#334155', marginBottom: vs(8) },
+  districtChips: { flexDirection: 'row', flexWrap: 'wrap', gap: hs(8) },
+  districtChip: {
+    paddingHorizontal: hs(12),
+    paddingVertical: vs(7),
+    borderRadius: ms(16),
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+  },
+  districtChipActive: { backgroundColor: '#1162D3', borderColor: '#1162D3' },
+  districtChipText: { fontSize: ms(11.5), fontWeight: '700', color: '#64748B' },
+  districtChipTextActive: { color: '#FFFFFF' },
   stateRow: { flexDirection: 'row', alignItems: 'flex-end', gap: hs(8) },
   locationButton: {
     flexDirection: 'row',

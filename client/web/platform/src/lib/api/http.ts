@@ -9,7 +9,7 @@ export class ApiError extends Error {
     public readonly status: number,
     public readonly code: string,
     message: string,
-    /** Present on 409 identity conflicts (e.g. the blocked SUPER_ADMIN/SELLER/STATE_ADMIN row). */
+    /** Present on 409 identity conflicts (e.g. the blocked SUPER_ADMIN/SELLER/DISTRICT_ADMIN row). */
     public readonly conflictingRole?: string | undefined,
     public readonly conflictingId?: string | undefined,
   ) {

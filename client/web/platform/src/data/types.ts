@@ -2,7 +2,7 @@
 // money = integer paisa, ids = stable slugs, enums UPPERCASE, timestamps ISO.
 
 export type Sector = "MART" | "FOOD" | "PHARMA";
-export type Role = "SELLER" | "STATE_ADMIN" | "SUPER_ADMIN";
+export type Role = "SELLER" | "DISTRICT_ADMIN" | "SUPER_ADMIN";
 
 export type SellerStatus =
   | "PENDING_REVIEW"
@@ -36,6 +36,9 @@ export interface AuthUser {
   email: string;
   /** Portal mode: the gateway requires a password change before normal use. */
   mustChange?: boolean | undefined;
+  /** District scope for DISTRICT_ADMIN (3-letter code, e.g. TCH). */
+  districtCode?: string | undefined; // district_code
+  /** Legacy parent state scope (2-letter code); sellers still use it. */
   stateCode?: string | undefined; // state_code
   sellerId?: string | undefined; // seller_id
 }
@@ -51,6 +54,8 @@ export interface SellerRecord {
   businessAddress: string;
   contactPhone: string;
   stateCode: string;
+  /** 3-letter district code (TN/PY rollout). Optional on legacy rows. */
+  districtCode?: string | undefined;
   status: SellerStatus;
   rating: number;
   createdAt: string;
@@ -294,13 +299,16 @@ export interface HeroCampaign {
   requestedAt: string;
 }
 
-/** admins.state_admins */
-export interface StateAdmin {
+/** admins.district_admins */
+export interface DistrictAdmin {
   adminId: string;
   name: string;
   email: string;
   phone: string;
-  stateCode: string;
+  /** 3-letter district scope (authoritative). */
+  districtCode: string;
+  /** Legacy parent state (kept for older rows / sorting). */
+  stateCode?: string | undefined;
   active: boolean;
   createdAt: string;
   lastActiveAt: string;
@@ -313,11 +321,28 @@ export interface PortalCredential {
   name: string;
   role: Role;
   sellerId?: string | undefined;
+  districtCode?: string | undefined;
   stateCode?: string | undefined;
   active: boolean;
   mustChange: boolean;
   lastLoginAt?: string | undefined;
   createdAt?: string | undefined;
+}
+
+/** sellers.seller_fee_change_requests */
+export interface FeeChangeRequest {
+  requestId: string;
+  sellerId: string;
+  businessName?: string | undefined;
+  districtCode?: string | undefined;
+  currentFeePct: number;
+  requestedFeePct: number;
+  status: "PENDING" | "APPROVED" | "REJECTED" | "CANCELLED" | string;
+  adminNote?: string | undefined;
+  requestedAt: string;
+  reviewedBy?: string | undefined;
+  reviewedAt?: string | undefined;
+  reviewReason?: string | undefined;
 }
 
 /** admins.audit_logs */

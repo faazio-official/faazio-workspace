@@ -103,7 +103,15 @@ export type RootStackParamList = {
   FaazioRewards: undefined;
   /** Seller onboarding wizard: business, payout, private-bucket KYC and OTP signature. */
   SellWithUs: undefined;
-  /** Admin application queue (STATE_ADMIN scoped / SUPER_ADMIN all). Role-gated in-screen. */
+  /** Seller: file a platform-fee change request (admin approval required). */
+  SellerPlatformFeeRequest: {
+    sellerId?: string;
+    currentFeePct?: number;
+    category?: string;
+  };
+  /** Admin platform-fee review queue (DISTRICT_ADMIN scoped / SUPER_ADMIN all). Role-gated in-screen. */
+  FeeChangeRequests: undefined;
+  /** Admin application queue (DISTRICT_ADMIN scoped / SUPER_ADMIN all). Role-gated in-screen. */
   SellerRequests: undefined;
   /** One seller application review with KYC verification + activation. Role-gated in-screen. */
   SellerRequestDetail: { sellerId: string };

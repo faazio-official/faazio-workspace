@@ -10,12 +10,12 @@ export type Capability =
   | "festival.campaign.manage"
   | "festival.optin"
   | "sellers.verify"
-  | "stateAdmins.manage"
+  | "districtAdmins.manage"
   | "coupons.manage"
   | "ads.request"
   | "ads.approve"
   | "analytics.own"
-  | "analytics.state"
+  | "analytics.district"
   | "analytics.global"
   | "audit.read"
   | "settings.platform";
@@ -29,14 +29,14 @@ const MATRIX: Record<Role, Capability[]> = {
     "ads.request",
     "analytics.own",
   ],
-  STATE_ADMIN: [
+  DISTRICT_ADMIN: [
     "products.moderate",
     "pricing.audit",
     "festival.campaign.manage",
     "sellers.verify",
     "coupons.manage",
     "ads.approve",
-    "analytics.state",
+    "analytics.district",
     "audit.read",
   ],
   SUPER_ADMIN: [
@@ -45,10 +45,10 @@ const MATRIX: Record<Role, Capability[]> = {
     "festival.caps.manage",
     "festival.campaign.manage",
     "sellers.verify",
-    "stateAdmins.manage",
+    "districtAdmins.manage",
     "coupons.manage",
     "ads.approve",
-    "analytics.state",
+    "analytics.district",
     "analytics.global",
     "audit.read",
     "settings.platform",
@@ -62,12 +62,12 @@ export function can(role: Role | undefined, capability: Capability): boolean {
 
 export function homeFor(role: Role): string {
   if (role === "SELLER") return "/seller";
-  if (role === "STATE_ADMIN") return "/admin/state";
+  if (role === "DISTRICT_ADMIN") return "/admin/district";
   return "/admin/super";
 }
 
 export const ROLE_LABEL: Record<Role, string> = {
   SELLER: "Seller",
-  STATE_ADMIN: "State Admin",
+  DISTRICT_ADMIN: "District Admin",
   SUPER_ADMIN: "Super Admin",
 };

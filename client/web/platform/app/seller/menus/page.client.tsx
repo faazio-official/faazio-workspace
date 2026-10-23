@@ -122,7 +122,7 @@ function SellerMenus() {
     <div className="space-y-4">
       <PageHeader
         title="Menu"
-        description="Dishes are per venue. Submit a dish for review, then state admins make it live."
+        description="Dishes are per venue. Submit a dish for review, then district admins make it live."
         actions={
           <Button size="sm" onClick={openCreate}>
             Add dish
