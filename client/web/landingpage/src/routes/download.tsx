@@ -4,6 +4,7 @@ import { HiArrowUpRight as ArrowUpRight, HiDevicePhoneMobile as Smartphone } fro
 import { SiteFooter } from "@/components/site-footer";
 import { SiteHeader } from "@/components/site-header";
 import { Button } from "@/components/ui/button";
+import { SITE_URL } from "@/lib/site";
 import { seoHead, type JsonLdNode } from "@/lib/seo";
 
 const title = "Download the Faazio app — Groceries, Food & Pharmacy in one app";
@@ -18,7 +19,7 @@ const mobileAppNode: JsonLdNode = {
   applicationCategory: "ShoppingApplication",
   operatingSystem: "Android, iOS",
   offers: { "@type": "Offer", price: "0", priceCurrency: "INR" },
-  publisher: { "@id": "https://faazio.com/#org" },
+  publisher: { "@id": `${SITE_URL}/#org` },
 };
 
 export const Route = createFileRoute("/download")({

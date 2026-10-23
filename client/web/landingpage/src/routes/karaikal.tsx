@@ -15,6 +15,7 @@ import {
   BUSINESS_POSTAL_CODE,
   BUSINESS_REGION,
   BUSINESS_STREET_ADDRESS,
+  SITE_URL,
 } from "@/lib/site";
 import { seoHead, type JsonLdNode } from "@/lib/seo";
 
@@ -26,7 +27,7 @@ const keywords =
 
 const placeNode: JsonLdNode = {
   "@type": "Place",
-  "@id": `https://faazio.com/karaikal#karaikal`,
+  "@id": `${SITE_URL}/karaikal#karaikal`,
   name: BUSINESS_CITY,
   address: {
     "@type": "PostalAddress",
