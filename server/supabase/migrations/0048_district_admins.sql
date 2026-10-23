@@ -45,10 +45,6 @@ alter table admins.portal_users
   add column if not exists district_code text
     references admins.district_master (district_code) on delete restrict;
 
-update admins.portal_users
-   set role = 'DISTRICT_ADMIN'
- where role = 'STATE_ADMIN';
-
 create index if not exists portal_users_district_idx
   on admins.portal_users (district_code)
   where district_code is not null;
@@ -67,6 +63,13 @@ alter table admins.portal_users
       and seller_id is null
       and (district_code is not null or state_code is not null))
   );
+
+-- The replacement role/scope checks above must accept DISTRICT_ADMIN BEFORE any existing
+-- STATE_ADMIN row is renamed with the UPDATE below (0033's checks only allowed
+-- SUPER_ADMIN/STATE_ADMIN/SELLER).
+update admins.portal_users
+   set role = 'DISTRICT_ADMIN'
+ where role = 'STATE_ADMIN';
 
 alter table admins.portal_users drop constraint if exists portal_users_district_code_check;
 alter table admins.portal_users
