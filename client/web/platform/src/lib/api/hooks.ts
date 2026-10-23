@@ -112,6 +112,76 @@ export function useSectorCaps() {
   return usePortalStore((s) => s.sectorCaps);
 }
 
+/** One SUPER_ADMIN-managed category → GST rate row (`GET /tax/categories`). */
+export interface TaxCategory {
+  taxRateId: string;
+  sector: string;
+  category: string;
+  gstRatePct: number;
+  isActive: boolean;
+}
+
+/**
+ * Approved category master. Sellers may only list inside these categories; the GST rate shown comes
+ * from the same source the gateway uses at checkout. Falls back to the categories already present in
+ * the local catalog when the gateway is not configured (seed/demo mode).
+ */
+export function useTaxCategories(sector?: string) {
+  const products = usePortalStore((s) => s.products);
+  const [remoteItems, setRemoteItems] = useState<TaxCategory[]>([]);
+  useEffect(() => {
+    if (!remoteConfigured()) {
+      setRemoteItems([]);
+      return;
+    }
+    let cancelled = false;
+    remote
+      .get<Record<string, unknown>[]>("/tax/categories")
+      .then((rows) => {
+        if (cancelled) return;
+        setRemoteItems(
+          rows.map((r) => ({
+            taxRateId: String(r["taxRateId"] ?? ""),
+            sector: String(r["sector"] ?? ""),
+            category: String(r["category"] ?? ""),
+            gstRatePct: Number(r["gstRatePct"] ?? 5),
+            isActive: Boolean(r["isActive"] ?? true),
+          })),
+        );
+      })
+      .catch(() => {
+        if (!cancelled) setRemoteItems([]);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const fallback = useMemo(() => {
+    const seen = new Map<string, TaxCategory>();
+    for (const p of products) {
+      if (!p.category) continue;
+      const key = `${p.sector}|${p.category.toLowerCase()}`;
+      if (!seen.has(key)) {
+        seen.set(key, {
+          taxRateId: `local-${key}`,
+          sector: p.sector,
+          category: p.category,
+          gstRatePct: 5,
+          isActive: true,
+        });
+      }
+    }
+    return [...seen.values()].sort((a, b) => a.category.localeCompare(b.category));
+  }, [products]);
+
+  const source = remoteItems.length > 0 ? remoteItems : fallback;
+  return useMemo(
+    () => (sector ? source.filter((c) => c.sector === sector) : source),
+    [source, sector],
+  );
+}
+
 export function useOptins(filter: { sellerId?: string | undefined; campaignId?: string | undefined } = {}) {
   const optins = usePortalStore((s) => s.optins);
   const key = JSON.stringify(filter);

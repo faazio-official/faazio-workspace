@@ -7,6 +7,7 @@ import { SubmissionSuccessScreen } from './screens/SubmissionSuccessScreen';
 import { AcceptRejectScreen } from './screens/AcceptRejectScreen';
 import { DashboardScreen } from './screens/DashboardScreen';
 import { RouteScreen } from './screens/RouteScreen';
+import { PayoutScreen } from './screens/PayoutScreen';
 import type { DeliveryPartnerStackParamList } from './navigation';
 
 const Stack = createNativeStackNavigator<DeliveryPartnerStackParamList>();
@@ -22,6 +23,7 @@ export function DeliveryPartnerNavigator() {
       <Stack.Screen name="AcceptReject" component={AcceptRejectScreen} options={{ presentation: 'modal' }} />
       <Stack.Screen name="Dashboard" component={DashboardScreen} />
       <Stack.Screen name="Route" component={RouteScreen} options={{ animation: 'slide_from_right' }} />
+      <Stack.Screen name="Payouts" component={PayoutScreen} options={{ animation: 'slide_from_right' }} />
     </Stack.Navigator>
   );
 }

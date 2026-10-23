@@ -94,7 +94,7 @@ export function PrimaryButton({
 
 export function StatusPill({ status }: { status: string }) {
   const tone =
-    status === 'ACTIVE'
+    status === 'ACTIVE' || status === 'PAID'
       ? DP.success
       : status === 'REJECTED' || status === 'BLACKLISTED' || status === 'SUSPENDED'
         ? DP.danger

@@ -1,5 +1,5 @@
 "use client";
-import { useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
 import { PageHeader } from "@/components/patterns/PageHeader";
 import { SectionCard } from "@/components/patterns/SectionCard";
@@ -28,6 +28,8 @@ import { capFor } from "@/lib/pricing/rules";
 import { updateProduct } from "@/lib/api";
 import { useMockLoading, useProducts, useSectorCaps } from "@/lib/api/hooks";
 import type { Sector } from "@/data/types";
+import { remote } from "@/lib/api/http";
+import { remoteConfigured } from "@/lib/config";
 
 
 const SECTORS: Sector[] = ["MART", "FOOD", "PHARMA"];
@@ -172,6 +174,8 @@ function SuperSectors() {
         </SectionCard>
       </div>
 
+      <GstRateMaster />
+
       <SectionCard title="Category master" bodyClassName="p-0">
         <DataShell loading={loading}>
           <Table>
@@ -203,6 +207,197 @@ function SuperSectors() {
         </DataShell>
       </SectionCard>
     </div>
+  );
+}
+
+
+interface TaxCategoryRow {
+  taxRateId: string;
+  sector: string;
+  category: string;
+  gstRatePct: number;
+  isActive: boolean;
+}
+
+const GST_RATES = [0, 5, 12, 18, 28];
+
+/**
+ * SUPER_ADMIN-owned category → GST rate master. These rows drive the seller category picker and the
+ * gateway's checkout tax split, so a seller can never invent a category or pick a lower rate.
+ */
+function GstRateMaster() {
+  const [rows, setRows] = useState<TaxCategoryRow[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [sector, setSector] = useState<Sector>("MART");
+  const [category, setCategory] = useState("");
+  const [rate, setRate] = useState("5");
+  const [saving, setSaving] = useState(false);
+
+  const load = useCallback(() => {
+    if (!remoteConfigured()) return;
+    setLoading(true);
+    remote
+      .get<Record<string, unknown>[]>("/admin/tax/categories")
+      .then((data) =>
+        setRows(
+          data.map((r) => ({
+            taxRateId: String(r["taxRateId"] ?? ""),
+            sector: String(r["sector"] ?? ""),
+            category: String(r["category"] ?? ""),
+            gstRatePct: Number(r["gstRatePct"] ?? 5),
+            isActive: Boolean(r["isActive"] ?? true),
+          })),
+        ),
+      )
+      .catch(() => toast.error("Could not load the GST rate master"))
+      .finally(() => setLoading(false));
+  }, []);
+
+  useEffect(load, [load]);
+
+  const save = (body: { sector: string; category: string; gstRatePct: number }) => {
+    setSaving(true);
+    remote
+      .put("/admin/tax/categories", body)
+      .then(() => {
+        toast.success(`${body.category} set to GST ${body.gstRatePct}%`);
+        load();
+      })
+      .catch(() => toast.error("Could not save the category rate"))
+      .finally(() => setSaving(false));
+  };
+
+  const remove = (row: TaxCategoryRow) => {
+    remote
+      .delete(`/admin/tax/categories/${encodeURIComponent(row.taxRateId)}`)
+      .then(() => {
+        toast.success(`${row.category} removed`);
+        load();
+      })
+      .catch(() => toast.error("Could not delete the category"));
+  };
+
+  return (
+    <SectionCard
+      title="GST rate master"
+      description="Category, sector and GST rate — authoritative for seller listings and checkout."
+    >
+      <div className="grid gap-3 md:grid-cols-4">
+        <div className="space-y-1.5">
+          <Label>Sector</Label>
+          <Select value={sector} onValueChange={(v) => setSector(v as Sector)}>
+            <SelectTrigger>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {SECTORS.map((s) => (
+                <SelectItem key={s} value={s}>
+                  {s}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+        <div className="space-y-1.5">
+          <Label htmlFor="gst-category">Category</Label>
+          <Input
+            id="gst-category"
+            value={category}
+            onChange={(e) => setCategory(e.target.value)}
+            placeholder="Audio, Thali, Devices…"
+          />
+        </div>
+        <div className="space-y-1.5">
+          <Label>GST rate</Label>
+          <Select value={rate} onValueChange={setRate}>
+            <SelectTrigger>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {GST_RATES.map((r) => (
+                <SelectItem key={r} value={String(r)}>
+                  {r}%
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+        <div className="flex items-end">
+          <Button
+            size="sm"
+            className="w-full"
+            disabled={saving || category.trim().length < 2}
+            onClick={() => {
+              save({ sector, category: category.trim(), gstRatePct: Number(rate) });
+              setCategory("");
+            }}
+          >
+            Save category
+          </Button>
+        </div>
+      </div>
+
+      <div className="mt-4 overflow-x-auto">
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead>Category</TableHead>
+              <TableHead>Sector</TableHead>
+              <TableHead>GST rate</TableHead>
+              <TableHead className="text-right">Action</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {loading ? (
+              <TableRow>
+                <TableCell colSpan={4} className="text-[12px] text-muted-foreground">
+                  Loading…
+                </TableCell>
+              </TableRow>
+            ) : rows.length === 0 ? (
+              <TableRow>
+                <TableCell colSpan={4} className="text-[12px] text-muted-foreground">
+                  No categories yet. Add one above.
+                </TableCell>
+              </TableRow>
+            ) : (
+              rows.map((row) => (
+                <TableRow key={row.taxRateId} className="h-12">
+                  <TableCell className="text-[13px] font-medium">{row.category}</TableCell>
+                  <TableCell>
+                    <SectorPill sector={row.sector as Sector} />
+                  </TableCell>
+                  <TableCell>
+                    <Select
+                      value={String(row.gstRatePct)}
+                      onValueChange={(v) =>
+                        save({ sector: row.sector, category: row.category, gstRatePct: Number(v) })
+                      }
+                    >
+                      <SelectTrigger className="h-8 w-24">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {GST_RATES.map((r) => (
+                          <SelectItem key={r} value={String(r)}>
+                            {r}%
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </TableCell>
+                  <TableCell className="text-right">
+                    <Button size="sm" variant="outline" onClick={() => remove(row)}>
+                      Delete
+                    </Button>
+                  </TableCell>
+                </TableRow>
+              ))
+            )}
+          </TableBody>
+        </Table>
+      </div>
+    </SectionCard>
   );
 }
 

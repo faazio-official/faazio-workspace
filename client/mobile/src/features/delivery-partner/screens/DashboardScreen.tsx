@@ -318,6 +318,16 @@ export function DashboardScreen({ navigation }: Props) {
           </View>
         </Card>
 
+        <TouchableOpacity onPress={() => navigation.navigate('Payouts')} activeOpacity={0.85}>
+          <Card style={styles.earningsCard}>
+            <View style={styles.flex}>
+              <AppText style={styles.earningsTitle}>Earnings & payouts</AppText>
+              <AppText style={styles.earningsCopy}>Per-job distance, surge and settlement status.</AppText>
+            </View>
+            <AppText style={styles.earningsArrow}>→</AppText>
+          </Card>
+        </TouchableOpacity>
+
         <ErrorText>{error}</ErrorText>
 
         {offers.length > 0 ? (
@@ -425,6 +435,10 @@ const styles = StyleSheet.create({
   loadRow: { flexDirection: 'row', justifyContent: 'space-between', marginTop: vs(14), borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: DP.line, paddingTop: vs(10) },
   loadText: { fontSize: ms(11), fontWeight: '800', color: DP.muted },
   sectionTitle: { fontSize: ms(13), fontWeight: '900', color: DP.ink, textTransform: 'uppercase', letterSpacing: 0.8, marginTop: vs(8), marginBottom: vs(8) },
+  earningsCard: { marginBottom: vs(12), flexDirection: 'row', alignItems: 'center', gap: hs(10) },
+  earningsTitle: { fontSize: ms(14), fontWeight: '900', color: DP.ink },
+  earningsCopy: { fontSize: ms(11), color: DP.muted, marginTop: vs(2) },
+  earningsArrow: { fontSize: ms(18), fontWeight: '900', color: DP.brand },
   orderCard: { marginBottom: vs(10) },
   orderTitle: { fontSize: ms(14), fontWeight: '900', color: DP.ink, flex: 1 },
   orderMeta: { fontSize: ms(12), lineHeight: ms(18), color: DP.muted, marginTop: vs(4) },

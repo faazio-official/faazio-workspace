@@ -6,4 +6,5 @@ export type DeliveryPartnerStackParamList = {
   AcceptReject: { orderId: string; expiresAt?: string };
   Dashboard: undefined;
   Route: undefined;
+  Payouts: undefined;
 };

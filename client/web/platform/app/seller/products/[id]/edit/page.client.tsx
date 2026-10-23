@@ -23,7 +23,6 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { formatINR, parseRupeesToPaisa } from "@/lib/format";
-import { validatePrice } from "@/lib/pricing/rules";
 import { deleteProduct, saveProductImage, updateProduct, upsertPrice } from "@/lib/api";
 import { useProduct } from "@/lib/api/hooks";
 import { StatusPill } from "@/components/patterns/Pills";
@@ -37,7 +36,6 @@ function EditProduct() {
   const product = useProduct(id);
   const [name, setName] = useState(product?.name ?? "");
   const [description, setDescription] = useState(product?.description ?? "");
-  const [mrp, setMrp] = useState(product ? String(product.mrpPaisa / 100) : "");
   const [price, setPrice] = useState(product ? String(product.pricePaisa / 100) : "");
   const [isPrescription, setIsPrescription] = useState(product?.isPrescription ?? false);
   const [images, setImages] = useState<string[]>(product ? productGallery(product) : []);
@@ -58,9 +56,7 @@ function EditProduct() {
     );
   }
 
-  const mrpPaisa = parseRupeesToPaisa(mrp);
   const pricePaisa = parseRupeesToPaisa(price);
-  const check = validatePrice(mrpPaisa, pricePaisa);
 
   return (
     <div className="space-y-4">
@@ -98,12 +94,14 @@ function EditProduct() {
             />
           </div>
           <div className="space-y-1.5">
-            <Label htmlFor="mrp">MRP (₹)</Label>
-            <Input id="mrp" value={mrp} onChange={(e) => setMrp(e.target.value)} inputMode="decimal" />
+            <Label htmlFor="price">Selling price (₹, GST included)</Label>
+            <Input id="price" value={price} onChange={(e) => setPrice(e.target.value)} inputMode="decimal" />
           </div>
           <div className="space-y-1.5">
-            <Label htmlFor="price">Selling price (₹)</Label>
-            <Input id="price" value={price} onChange={(e) => setPrice(e.target.value)} inputMode="decimal" />
+            <Label>GST</Label>
+            <p className="rounded-md border border-border px-3 py-2 text-[13px] text-muted-foreground">
+              Rate is set by the platform category master.
+            </p>
           </div>
           <div className="flex items-center justify-between rounded-lg border border-border px-3 py-2 md:col-span-2">
             <Label htmlFor="rx">Prescription required</Label>
@@ -112,9 +110,11 @@ function EditProduct() {
         </div>
 
         <p className="num mt-3 text-[12px] text-muted-foreground">
-          New shelf price {formatINR(pricePaisa)} · discount {check.discountPercent}%
+          New shelf price {formatINR(pricePaisa)} · GST included
         </p>
-        {!check.ok ? <p className="mt-1 text-[12px] text-destructive">{check.message}</p> : null}
+        {pricePaisa <= 0 ? (
+          <p className="mt-1 text-[12px] text-destructive">Enter a price greater than zero.</p>
+        ) : null}
 
         <div className="mt-5 flex items-center justify-between border-t border-border pt-4">
           <AlertDialog>
@@ -147,7 +147,7 @@ function EditProduct() {
 
           <Button
             size="sm"
-            disabled={!check.ok || name.trim().length < 3}
+            disabled={pricePaisa <= 0 || name.trim().length < 3}
             onClick={() => {
               updateProduct(product.productId, {
                 name: name.trim(),
@@ -158,7 +158,7 @@ function EditProduct() {
               });
               // Money edits must reach the gateway (`PUT /seller/products/{id}`), which writes
               // catalog.products + inventory.stock in lockstep. `updateProduct` above is local-only.
-              upsertPrice(product.productId, pricePaisa, mrpPaisa);
+              upsertPrice(product.productId, pricePaisa, pricePaisa);
               saveProductImage(product.productId, images[0]);
               toast.success("Listing updated");
             }}

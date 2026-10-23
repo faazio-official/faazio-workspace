@@ -13,6 +13,7 @@ import (
 	"github.com/faazio/server/gateway/internal/platform/cache"
 	"github.com/faazio/server/gateway/internal/platform/httpx"
 	"github.com/faazio/server/gateway/internal/platform/razorpayroute"
+	"github.com/faazio/server/gateway/internal/platform/taxmath"
 	"github.com/go-chi/chi/v5"
 )
 
@@ -140,15 +141,20 @@ type holdRequest struct {
 	SellerID     string `json:"sellerId"`
 	Cycle        string `json:"cycle"`
 	PaymentID    string `json:"paymentId"`
-	GrossAmount  int64  `json:"grossAmount"`  // whole rupees captured from the customer
+	GrossAmount  int64  `json:"grossAmount"`  // whole rupees captured from the customer (GST-inclusive)
+	GSTRatePct   int    `json:"gstRatePct"`   // optional; defaults to 5%
 	ReleaseAfter string `json:"releaseAfter"` // optional RFC3339; default now + 14 days
 }
 
 type holdResponse struct {
-	Payout     Payout `json:"payout"`
-	Gross      int64  `json:"gross"`
-	Commission int64  `json:"commission"`
-	Net        int64  `json:"net"`
+	Payout      Payout `json:"payout"`
+	Gross       int64  `json:"gross"`
+	Commission  int64  `json:"commission"`
+	TCS         int64  `json:"tcs"`
+	TDS         int64  `json:"tds"`
+	ProductTax  int64  `json:"productTax"`
+	PlatformGST int64  `json:"platformGst"`
+	Net         int64  `json:"net"`
 }
 
 func (h *Handler) createHold(w http.ResponseWriter, r *http.Request) {
@@ -189,8 +195,22 @@ func (h *Handler) createHold(w http.ResponseWriter, r *http.Request) {
 		httpx.Fail(w, http.StatusConflict, "kyc_incomplete", "seller has no Razorpay linked account")
 		return
 	}
-	commission := int64(math.Round(float64(req.GrossAmount) * float64(profile.PlatformFeePct) / 100))
-	net := req.GrossAmount - commission
+	// Server-authoritative split: commission + TCS (1%) + TDS (0.1%) are withheld from the seller's
+	// GST-inclusive gross. GST on the commission and the product GST are reporting figures only — the
+	// product GST is already inside the gross and is remitted by the seller.
+	rate := req.GSTRatePct
+	if rate <= 0 {
+		rate = taxmath.DefaultProductGSTRate
+	}
+	b := taxmath.Compute([]taxmath.Line{{
+		GrossPaisa: req.GrossAmount * 100, GSTRatePct: rate, PlatformFeePct: profile.PlatformFeePct,
+	}}, taxmath.DefaultRates())
+	commission := int64(math.Round(float64(b.PlatformFeePaisa) / 100))
+	tcs := int64(math.Round(float64(b.TCSPaisa) / 100))
+	tds := int64(math.Round(float64(b.TDSPaisa) / 100))
+	productTax := int64(math.Round(float64(b.ProductTaxPaisa) / 100))
+	platformGST := int64(math.Round(float64(b.PlatformGSTPaisa) / 100))
+	net := req.GrossAmount - commission - tcs - tds
 	if net <= 0 {
 		httpx.Fail(w, http.StatusBadRequest, "bad_request", "platform fee leaves no seller share")
 		return
@@ -218,14 +238,18 @@ func (h *Handler) createHold(w http.ResponseWriter, r *http.Request) {
 	}
 	if _, err := h.repo.AddLedgerEntry(r.Context(), LedgerEntry{
 		SellerID: req.SellerID, Cycle: req.Cycle, OrderValue: req.GrossAmount,
-		Commission: commission, TCS: 0, NetPayout: net,
+		Commission: commission, TCS: tcs, TDS: tds, ProductTax: productTax,
+		PlatformGST: platformGST, NetPayout: net,
 	}); err != nil {
 		httpx.Fail(w, http.StatusInternalServerError, "ledger_create_failed", "could not record the settlement entry")
 		return
 	}
 	h.cache.Del(r.Context(), cache.Settlement(req.SellerID, req.Cycle))
 	h.log(r, "PAYOUT_HOLD", p.PayoutID, nil, map[string]any{"transferId": transferID, "net": net})
-	httpx.JSON(w, http.StatusCreated, holdResponse{Payout: p, Gross: req.GrossAmount, Commission: commission, Net: net})
+	httpx.JSON(w, http.StatusCreated, holdResponse{
+		Payout: p, Gross: req.GrossAmount, Commission: commission, TCS: tcs, TDS: tds,
+		ProductTax: productTax, PlatformGST: platformGST, Net: net,
+	})
 }
 
 func (h *Handler) release(w http.ResponseWriter, r *http.Request) {

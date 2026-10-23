@@ -77,6 +77,9 @@ interface RawLedgerEntry {
   orderValue: number;
   commission: number;
   tcs: number;
+  tds: number;
+  productTax: number;
+  platformGst: number;
   netPayout: number;
 }
 
@@ -287,6 +290,9 @@ export async function hydrateFromGateway(): Promise<boolean> {
         orderValuePaisa: toPaisa(l.orderValue),
         commissionPaisa: toPaisa(l.commission),
         tcsPaisa: toPaisa(l.tcs),
+        tdsPaisa: toPaisa(l.tds),
+        productTaxPaisa: toPaisa(l.productTax),
+        platformGstPaisa: toPaisa(l.platformGst),
         netPayoutPaisa: toPaisa(l.netPayout),
       }),
     );

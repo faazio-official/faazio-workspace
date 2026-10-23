@@ -7,10 +7,12 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/faazio/server/gateway/internal/contracts"
 	"github.com/faazio/server/gateway/internal/platform/cache"
+	"github.com/faazio/server/gateway/internal/platform/taxmath"
 )
 
 // coinsPerRupee is the redemption rate (100 coins = ₹1) — mirrors @data/rewards COIN_REDEEM_RATE.
@@ -146,8 +148,25 @@ func (s *Service) CreateOrder(ctx context.Context, userID string, req PlaceOrder
 		}
 	}
 
+	// Tax config is loaded once per order: the category rates and the singleton platform rate card.
+	platformRates, err := s.repo.PlatformRates(ctx)
+	if err != nil {
+		return Order{}, err
+	}
+	categoryRates, err := s.repo.TaxRates(ctx)
+	if err != nil {
+		return Order{}, err
+	}
+
 	lines := make([]OrderLineItem, 0, len(req.Items))
+	type pricedLine struct {
+		grossPaisa int64
+		ratePct    int
+		sellerID   string
+	}
+	priced := make([]pricedLine, 0, len(req.Items))
 	vendorSet := map[string]struct{}{}
+	sellerSet := map[string]struct{}{}
 	orderApp := ""
 	totalRupees := int64(0)
 	for i, it := range req.Items {
@@ -162,7 +181,10 @@ func (s *Service) CreateOrder(ctx context.Context, userID string, req PlaceOrder
 		if orderApp == "" && snap.App != "" {
 			orderApp = snap.App
 		}
-		unit := discountedUnitPaisa(snap.PricePaisa, discountByID[it.ProductID]) / 100
+		// Money is computed in paisa (the catalog truth); the line item wire shape stays rupees.
+		unitPaisa := discountedUnitPaisa(snap.PricePaisa, discountByID[it.ProductID])
+		grossPaisa := qty * unitPaisa
+		unit := unitPaisa / 100
 		lines = append(lines, OrderLineItem{
 			LineID:    fmt.Sprintf("%s-l%d", newOrderID(), i+1),
 			ProductID: it.ProductID,
@@ -171,10 +193,38 @@ func (s *Service) CreateOrder(ctx context.Context, userID string, req PlaceOrder
 			UnitPrice: unit,
 		})
 		totalRupees += qty * unit
+		priced = append(priced, pricedLine{
+			grossPaisa: grossPaisa,
+			ratePct:    taxRateFor(categoryRates, snap.App, snap.Category),
+			sellerID:   snap.SellerID,
+		})
+		if snap.SellerID != "" {
+			sellerSet[snap.SellerID] = struct{}{}
+		}
 		if snap.StoreID != nil && *snap.StoreID != "" {
 			vendorSet[*snap.StoreID] = struct{}{}
 		}
 	}
+
+	sellerIDs := make([]string, 0, len(sellerSet))
+	for id := range sellerSet {
+		sellerIDs = append(sellerIDs, id)
+	}
+	profiles, err := s.repo.SellerTaxProfiles(ctx, sellerIDs)
+	if err != nil {
+		return Order{}, err
+	}
+	taxLines := make([]taxmath.Line, 0, len(priced))
+	for _, p := range priced {
+		feePct := 10 // conservative default when a product has no linked seller (legacy/imported rows)
+		if prof, ok := profiles[p.sellerID]; ok && prof.PlatformFeePct > 0 {
+			feePct = prof.PlatformFeePct
+		}
+		taxLines = append(taxLines, taxmath.Line{
+			GrossPaisa: p.grossPaisa, GSTRatePct: p.ratePct, PlatformFeePct: feePct,
+		})
+	}
+	breakdown := taxmath.Compute(taxLines, platformRates)
 
 	coins := req.CoinsRedeemed
 	if coins < 0 {
@@ -183,7 +233,7 @@ func (s *Service) CreateOrder(ctx context.Context, userID string, req PlaceOrder
 	// Coupon settlement: the server re-validates any supplied code against the order's app + state
 	// and settles the discount itself (the client's applied discount is display-only). This runs
 	// before the stock decrement so an invalid coupon never reserves inventory.
-	couponDiscount := int64(0)
+	couponDiscountPaisa := int64(0)
 	if req.CouponCode != "" {
 		if s.coupons == nil {
 			return Order{}, ErrInvalidCoupon
@@ -195,7 +245,7 @@ func (s *Service) CreateOrder(ctx context.Context, userID string, req PlaceOrder
 		if !v.Valid {
 			return Order{}, fmt.Errorf("%w: %s", ErrInvalidCoupon, v.Reason)
 		}
-		couponDiscount = v.DiscountPaisa / 100
+		couponDiscountPaisa = v.DiscountPaisa
 	}
 
 	// Reserve inventory only after all pricing/validation has passed.
@@ -232,13 +282,36 @@ func (s *Service) CreateOrder(ctx context.Context, userID string, req PlaceOrder
 		order.DeliveryLatitude, order.DeliveryLongitude = &lat, &lng
 	}
 
-	// Durable payment ledger: recorded in the same transaction as the order. The amount is derived
-	// server-side from the priced lines minus the coupon discount and coins redeemed (client never
-	// dictates the amount).
-	paidRupees := totalRupees - couponDiscount - coins/coinsPerRupee
-	if paidRupees < 0 {
-		paidRupees = 0
+	// Tax + invoice snapshot. Coupons are platform-funded, so they reduce what the customer pays but
+	// never the seller's gross; coins are a payment tender, not a discount on the taxable value.
+	order.TaxableValuePaisa = breakdown.TaxableValuePaisa
+	order.ProductTaxPaisa = breakdown.ProductTaxPaisa
+	order.PlatformFeePaisa = breakdown.PlatformFeePaisa
+	order.PlatformGSTPaisa = breakdown.PlatformGSTPaisa
+	order.DeliveryFeePaisa = breakdown.DeliveryFeePaisa
+	order.TCSPaisa = breakdown.TCSPaisa
+	order.TDSPaisa = breakdown.TDSPaisa
+
+	sellerID, sellerName, sellerGSTIN := "", "", ""
+	if len(profiles) == 1 {
+		for _, p := range profiles {
+			sellerID, sellerName, sellerGSTIN = p.SellerID, p.BusinessName, p.GSTIN
+		}
+	} else if len(profiles) > 1 {
+		sellerName = "Faazio Marketplace (multi-seller order)"
 	}
+	invoice := taxmath.NewInvoice(order.ID, order.OrderNumber, userID, sellerID, sellerName, sellerGSTIN,
+		breakdown, couponDiscountPaisa)
+	order.InvoiceID = invoice.InvoiceID
+	order.TotalChargedPaisa = invoice.TotalPaisa
+
+	// Durable payment ledger: recorded in the same transaction as the order. The amount is derived
+	// server-side from the invoice total minus coins redeemed (client never dictates the amount).
+	paidPaisa := invoice.TotalPaisa - coins
+	if paidPaisa < 0 {
+		paidPaisa = 0
+	}
+	paidRupees := paidPaisa / 100
 	var payments []Payment
 	if req.PaymentMethod != "" || coins > 0 {
 		method := req.PaymentMethod
@@ -256,7 +329,7 @@ func (s *Service) CreateOrder(ctx context.Context, userID string, req PlaceOrder
 		})
 	}
 
-	if err := s.repo.InsertOrder(ctx, order, lines, req.IdempotencyKey, payments...); err != nil {
+	if err := s.repo.InsertOrder(ctx, order, lines, req.IdempotencyKey, []taxmath.Invoice{invoice}, payments...); err != nil {
 		return Order{}, err
 	}
 	s.cache.Del(ctx, cache.Orders(userID))
@@ -276,6 +349,14 @@ func (s *Service) CreateOrder(ctx context.Context, userID string, req PlaceOrder
 		_ = s.ads.AttributeOrder(ctx, req.Attribution.SlotID)
 	}
 	return order, nil
+}
+
+// taxRateFor resolves a product's GST rate from tax.tax_rates, defaulting conservatively to 5%.
+func taxRateFor(rates map[string]int, app, category string) int {
+	if rate, ok := rates[app+"|"+strings.ToLower(category)]; ok {
+		return rate
+	}
+	return taxmath.DefaultProductGSTRate
 }
 
 func newPaymentID() string {

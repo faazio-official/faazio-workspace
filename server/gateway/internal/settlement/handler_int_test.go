@@ -32,7 +32,7 @@ type routeStub struct {
 	reverses      int
 }
 
-func (s *routeStub) Enabled() bool                                 { return true }
+func (s *routeStub) Enabled() bool { return true }
 func (s *routeStub) CreateLinkedAccount(context.Context, razorpayroute.LinkedAccountInput) (string, error) {
 	return "acc_stub", nil
 }
@@ -154,7 +154,7 @@ func TestReleaseHoldHandler(t *testing.T) {
 
 	held, err := New(pool).CreateHoldPayout(context.Background(), Payout{
 		SellerID: sellerID, Cycle: "2026-04", Amount: 900,
-		ReleaseAfter: time.Now().UTC().Add(-time.Hour).Format(time.RFC3339),
+		ReleaseAfter:       time.Now().UTC().Add(-time.Hour).Format(time.RFC3339),
 		RazorpayTransferID: "trf_rel",
 	})
 	if err != nil {
@@ -198,7 +198,7 @@ func TestReverseHoldHandler(t *testing.T) {
 
 	held, err := New(pool).CreateHoldPayout(ctx, Payout{
 		SellerID: sellerID, Cycle: "2026-04", Amount: 900,
-		ReleaseAfter: time.Now().UTC().Add(-time.Hour).Format(time.RFC3339),
+		ReleaseAfter:       time.Now().UTC().Add(-time.Hour).Format(time.RFC3339),
 		RazorpayTransferID: "trf_rev",
 	})
 	if err != nil {
@@ -224,7 +224,7 @@ func TestReverseHoldHandler(t *testing.T) {
 	// A failing Route reverse surfaces as 502, not a silent flip.
 	held2, err := New(pool).CreateHoldPayout(ctx, Payout{
 		SellerID: sellerID, Cycle: "2026-04", Amount: 900,
-		ReleaseAfter: time.Now().UTC().Add(-time.Hour).Format(time.RFC3339),
+		ReleaseAfter:       time.Now().UTC().Add(-time.Hour).Format(time.RFC3339),
 		RazorpayTransferID: "trf_rev_fail",
 	})
 	if err != nil {

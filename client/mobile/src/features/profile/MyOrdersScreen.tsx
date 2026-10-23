@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
+  Linking,
   StyleSheet,
   View,
   ScrollView,
@@ -218,6 +219,23 @@ export function MyOrdersScreen({ navigation, route }: Props) {
   const handleOpenOrder = useCallback(
     (orderId: string) => navigation.navigate('OrderDetails', { orderId }),
     [navigation],
+  );
+
+  /** Open the presigned invoice when rendered; otherwise fall through to the invoice card. */
+  const handleDownloadInvoice = useCallback(
+    async (orderId: string) => {
+      try {
+        const invoice = await gateway.getOrderInvoice(orderId);
+        if (invoice.downloadUrl) {
+          await Linking.openURL(invoice.downloadUrl);
+          return;
+        }
+      } catch {
+        // The detail screen explains when an invoice is not available yet.
+      }
+      handleOpenOrder(orderId);
+    },
+    [handleOpenOrder],
   );
 
   const handleRateVendor = useCallback(
@@ -450,6 +468,17 @@ export function MyOrdersScreen({ navigation, route }: Props) {
                         variant="compact"
                         onPress={handleRateVendor}
                       />
+                      {po.status === 'Delivered' ? (
+                        <TouchableOpacity
+                          style={styles.invoiceBtn}
+                          activeOpacity={0.7}
+                          accessibilityRole="button"
+                          accessibilityLabel={`Download invoice for order ${po.orderId}`}
+                          onPress={() => void handleDownloadInvoice(po.orderId)}
+                        >
+                          <AppText style={styles.invoiceBtnText}>Invoice</AppText>
+                        </TouchableOpacity>
+                      ) : null}
                       <TouchableOpacity
                         style={styles.viewDetailsBtn}
                         activeOpacity={0.7}
@@ -826,6 +855,18 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: hs(8),
     marginTop: SPACE.ITEM,
+  },
+  invoiceBtn: {
+    paddingHorizontal: hs(10),
+    paddingVertical: vs(6),
+    borderRadius: ms(8),
+    borderWidth: 1,
+    borderColor: '#111827',
+  },
+  invoiceBtnText: {
+    fontSize: ms(12),
+    fontWeight: '700',
+    color: '#111827',
   },
   viewDetailsBtn: {
     paddingVertical: vs(6),

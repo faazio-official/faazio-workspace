@@ -1934,3 +1934,74 @@ CREATE FUNCTION sellers.is_admin_for(p_state char(2), p_district text) RETURNS b
   fee requests are readable by the owning seller or an admin whose district matches (legacy rows with
   no district fall back to the parent state). Campaigns/coupons/ads remain state-level reads. All
   writes go through the gateway (`service_role`).
+
+### 12.25 GST invoicing + seller tax + rider payouts (migrations `0051`–`0052`)
+
+**Authority:** `monolith-breakdown.md` §1 (`checkout`, `tax` + `taxmath`, `settlement`, `delivery`),
+`mobile-app.md` (tax-invoice card, partner Earnings), `web-portal.md` (GST master).
+No new cache keys; invoices are immutable origin rows and are never edge-cached.
+
+```sql
+-- 0051: tax rate card + platform invoice settings
+CREATE TABLE tax.tax_rates (            -- category GST master (seller picks on listing)
+  tax_rate_id TEXT PRIMARY KEY, sector app_brand NOT NULL, category TEXT NOT NULL,
+  gst_rate_pct SMALLINT NOT NULL DEFAULT 5 CHECK (gst_rate_pct IN (0,5,12,18,28)),
+  is_active BOOLEAN NOT NULL DEFAULT true, updated_by TEXT NOT NULL DEFAULT '',
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now(), UNIQUE (sector, category));
+CREATE TABLE tax.platform_settings (    -- singleton row id = 1
+  id SMALLINT PRIMARY KEY CHECK (id = 1),
+  platform_gst_pct SMALLINT NOT NULL DEFAULT 18,
+  tcs_pct NUMERIC(5,2) NOT NULL DEFAULT 1.00,
+  tds_pct NUMERIC(5,2) NOT NULL DEFAULT 0.10,
+  delivery_fee_paisa BIGINT NOT NULL DEFAULT 5000);
+CREATE TABLE tax.tax_invoices (
+  invoice_id TEXT PRIMARY KEY, invoice_number TEXT NOT NULL UNIQUE, order_id TEXT NOT NULL UNIQUE,
+  order_number TEXT NOT NULL DEFAULT '', customer_id TEXT NOT NULL,
+  seller_id TEXT, seller_name TEXT, seller_gstin TEXT, tax_rate_pct SMALLINT NOT NULL,
+  taxable_value_paisa BIGINT NOT NULL, product_tax_paisa BIGINT NOT NULL,
+  platform_fee_paisa BIGINT NOT NULL, platform_gst_paisa BIGINT NOT NULL,
+  delivery_fee_paisa BIGINT NOT NULL, tcs_paisa BIGINT NOT NULL, tds_paisa BIGINT NOT NULL,
+  coupon_discount_paisa BIGINT NOT NULL DEFAULT 0, total_paisa BIGINT NOT NULL,
+  seller_net_paisa BIGINT NOT NULL, pdf_key TEXT, generated_at TIMESTAMPTZ NOT NULL DEFAULT now());
+-- checkout.orders: invoice_id/taxable_value_paisa/product_tax_paisa/platform_fee_paisa/
+-- platform_gst_paisa/delivery_fee_paisa/tcs_paisa/tds_paisa/total_charged_paisa
+-- payments.settlement_ledger: tds_paisa, product_tax_paisa, platform_gst_paisa
+
+-- 0052: rider payout engine (supersedes the "Phase 5 out of scope" note in 0042)
+CREATE TABLE delivery.payout_settings ( -- singleton row id = 1
+  id SMALLINT PRIMARY KEY CHECK (id = 1),
+  base_rate_paisa BIGINT NOT NULL DEFAULT 3000, base_distance_km NUMERIC(5,2) NOT NULL DEFAULT 3.00,
+  per_extra_km_paisa BIGINT NOT NULL DEFAULT 700,
+  night_surge_paisa BIGINT NOT NULL DEFAULT 2000,
+  weather_surge_paisa BIGINT NOT NULL DEFAULT 2500,
+  festival_surge_paisa BIGINT NOT NULL DEFAULT 1500);
+CREATE TYPE delivery_payout_status AS ENUM ('PENDING','PAID');
+CREATE TABLE delivery.delivery_payouts (
+  payout_id TEXT PRIMARY KEY, order_id TEXT NOT NULL UNIQUE,
+  rider_id TEXT NOT NULL REFERENCES delivery.delivery_boys(rider_id),
+  distance_km NUMERIC(7,2) NOT NULL, base_rate_paisa BIGINT NOT NULL,
+  extra_km_charge_paisa BIGINT NOT NULL, surge_paisa BIGINT NOT NULL,
+  surge_reason TEXT NOT NULL DEFAULT '', total_paisa BIGINT NOT NULL,
+  status delivery_payout_status NOT NULL DEFAULT 'PENDING',
+  paid_at TIMESTAMPTZ, paid_by TEXT, razorpay_transfer_id TEXT,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(), updated_at TIMESTAMPTZ NOT NULL DEFAULT now());
+-- delivery.delivery_orders.payout_basis (distance/surge breakdown JSONB, ≤2048 bytes)
+```
+
+**Rules**
+
+- Catalog prices are **GST-inclusive**. `taxable = gross*100/(100+rate)`, product GST =
+  `gross − taxable`. The customer pays product gross + delivery fee − platform-funded coupon;
+  coins are a payment tender, not a discount.
+- `platform_fee_pct` (seller) is commission on gross. GST on that commission is the **platform's own**
+  liability (`platform_gst_paisa`) and is neither charged to the buyer nor deducted from the seller.
+- TCS (1%) and TDS (0.1%) are withheld from seller gross and recorded on the invoice and the
+  settlement ledger. Seller net = gross − commission − TCS − TDS. The previous hardcoded
+  `TCS: 0` in `settlement` is gone.
+- Invoice rows are immutable; `GET /orders/{id}/invoice` is owner-scoped and returns a presigned
+  R2 URL only when `pdf_key` is populated (PDF rendering is deferred; the app renders the JSON).
+- Rider payout = base (₹30 / 3 km) + ₹7/km beyond + night (23:00–03:00 IST), weather/festival surge.
+  `GET /delivery/payouts/{orderId}` upserts a PENDING row for the owning rider; its breakdown is
+  mirrored onto `delivery.delivery_orders.payout_basis` (audit JSONB) alongside the display
+  `payout_amount_paisa`; `POST /delivery/payouts/{orderId}/settle` is super-admin only.
+- RLS/grants follow the existing guarded Supabase pattern; all writes go through the gateway.

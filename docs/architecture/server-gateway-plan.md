@@ -90,6 +90,17 @@ keys/TTLs unchanged.
   `GET /seller/fee-change-requests` (district-scoped) with
   `PATCH /seller/fee-change-requests/{id}/approve|reject`. Only approval mutates
   `sellers.sellers.platform_fee_pct`; one `PENDING` row per seller (`0049`).
+- **Tax + invoicing (`internal/tax` + `internal/platform/taxmath`, `0051`):** every order is priced server-side from
+  `tax.tax_rates` + `tax.platform_settings` (GST-inclusive split, seller commission, platform GST,
+  TCS 1% / TDS 0.1% withheld). The immutable invoice is readable at
+  `GET /orders/{orderId}/invoice` (owner-scoped; presigned R2 URL only when a PDF exists). Portal:
+  `GET /tax/categories`, `GET|PUT /admin/tax/categories`, `DELETE /admin/tax/categories/{id}`,
+  `GET|PUT /admin/tax/settings` (SUPER_ADMIN writes). Settlement ledger carries the same
+  TDS/product-GST/platform-GST figures.
+- **Rider payouts (`internal/delivery`, `0052`):** `GET /delivery/payouts` (rider history) and
+  `GET /delivery/payouts/{orderId}` (upsert a PENDING distance+surge calculation); admin
+  `GET|PUT /delivery/payout-settings` and super-admin `POST /delivery/payouts/{orderId}/settle`
+  mark PAID.
 - **Packages:** `internal/{search,catalog,directory,cartstock,checkout,reviews,reco,sdui,bookings}` +
   `internal/{contracts,platform/*,server}`. Ownership table: `monolith-breakdown.md` §1.
 - **Boundaries:** `go run ./tools/importlint` fails on sibling-context imports.
@@ -97,7 +108,7 @@ keys/TTLs unchanged.
 - **Build order / status:** `docs/architecture/mvp-backend.md` §7.
 
 
-### Delivery partner (`internal/delivery`, migrations `0042`, `0043`)
+### Delivery partner (`internal/delivery`, migrations `0042`, `0043`, `0045`, `0052`)
 
 The partner domain is a first-class context in the same gateway (future service: Go + Postgres).
 Rider endpoints authenticate with the Firebase phone ID token and resolve the rider by E.164 phone:

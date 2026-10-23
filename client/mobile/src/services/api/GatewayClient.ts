@@ -350,6 +350,44 @@ export interface OrderTrackingView {
   placedAt: string;
 }
 
+/** Immutable tax invoice for one order (`GET /orders/{id}/invoice`). Amounts are paisa. */
+export interface OrderInvoice {
+  invoiceId: string;
+  invoiceNumber: string;
+  orderId: string;
+  orderNumber: string;
+  sellerName: string;
+  sellerGstin: string;
+  taxRatePct: number;
+  taxableValuePaisa: number;
+  productTaxPaisa: number;
+  platformFeePaisa: number;
+  platformGstPaisa: number;
+  deliveryFeePaisa: number;
+  tcsPaisa: number;
+  tdsPaisa: number;
+  couponDiscountPaisa: number;
+  totalPaisa: number;
+  sellerNetPaisa: number;
+  /** Short-lived presigned R2 URL when a rendered PDF exists. */
+  downloadUrl?: string;
+}
+
+/** Distance + surge rider payout (`GET /delivery/payouts/{orderId}`). */
+export interface RiderPayout {
+  payoutId?: string;
+  orderId: string;
+  riderId: string;
+  distanceKm: number;
+  baseRatePaisa: number;
+  extraKmChargePaisa: number;
+  surgePaisa: number;
+  surgeReason?: string;
+  totalPaisa: number;
+  status: string;
+  paidAt?: string;
+}
+
 /** One notifications.outbox row (user-facing copy only). */
 export interface NotificationRecord {
   id: string;
@@ -979,6 +1017,15 @@ export class GatewayClient {
       () => this.http<OrderTrackingView>(`/orders/tracking/${encodeURIComponent(orderId)}`),
       () => delay(undefined),
     );
+  }
+
+  /**
+   * The caller's immutable tax invoice. Strict: a missing invoice must surface as an error rather
+   * than fabricate tax figures offline.
+   */
+  async getOrderInvoice(orderId: string): Promise<OrderInvoice> {
+    if (!REMOTE_ENABLED) throw new GatewayOfflineError();
+    return this.http<OrderInvoice>(`/orders/${encodeURIComponent(orderId)}/invoice`);
   }
 
   async getProfile(userId = 'user-1'): Promise<ProfileRow | undefined> {
@@ -2177,6 +2224,27 @@ export class GatewayClient {
   async getDeliveryRoute(deliveryId: string): Promise<DeliveryOrder> {
     if (!REMOTE_ENABLED) throw new GatewayOfflineError();
     return this.http<DeliveryOrder>(`/delivery/route/${encodeURIComponent(deliveryId)}`);
+  }
+
+  /** Distance + surge breakdown for one of the rider's jobs (persisted as PENDING). */
+  async getDeliveryPayout(
+    orderId: string,
+    opts: { weather?: boolean; festival?: boolean } = {},
+  ): Promise<RiderPayout> {
+    if (!REMOTE_ENABLED) throw new GatewayOfflineError();
+    const params = new URLSearchParams();
+    if (opts.weather) params.set('weather', 'true');
+    if (opts.festival) params.set('festival', 'true');
+    const qs = params.toString();
+    return this.http<RiderPayout>(
+      `/delivery/payouts/${encodeURIComponent(orderId)}${qs ? `?${qs}` : ''}`,
+    );
+  }
+
+  /** The rider's recent payout rows (earnings history). */
+  async getDeliveryPayouts(limit = 30): Promise<RiderPayout[]> {
+    if (!REMOTE_ENABLED) throw new GatewayOfflineError();
+    return this.http<RiderPayout[]>(`/delivery/payouts?limit=${limit}`);
   }
 
   async acceptDeliveryOrder(orderId: string): Promise<DeliveryOrder> {

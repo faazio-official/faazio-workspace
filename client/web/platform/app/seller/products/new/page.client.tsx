@@ -17,25 +17,31 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { formatINR, parseRupeesToPaisa } from "@/lib/format";
-import { validatePrice } from "@/lib/pricing/rules";
 import { createProduct, updateStock } from "@/lib/api";
-import { useStores } from "@/lib/api/hooks";
+import { useSeller, useStores, useTaxCategories } from "@/lib/api/hooks";
 import { useSession } from "@/lib/hooks/useSession";
-import type { Sector } from "@/data/types";
 import { cn } from "@/lib/utils";
 import { ImageUploader } from "@/components/patterns/ImageUploader";
 
-
 const STEPS = ["Category", "Details", "Pricing", "Inventory", "Review"];
+
+/** Fixed platform delivery fee, mirroring tax.platform_settings.delivery_fee_paisa. */
+const DELIVERY_FEE_PAISA = 5000;
+const PLATFORM_GST_PCT = 18;
+const TCS_PCT = 1;
+const TDS_PCT = 0.1;
 
 function NewProduct() {
   const router = useRouter();
   const session = useSession();
   const sellerId = session?.sellerId ?? "sel-1";
+  const seller = useSeller(sellerId);
   const stores = useStores({ sellerId });
   const [step, setStep] = useState(0);
 
-  const [sector, setSector] = useState<Sector>("MART");
+  // Sector is assigned at onboarding / by a super admin — a seller can never switch it here.
+  const sector = seller?.category ?? "MART";
+  const categories = useTaxCategories(sector);
   const [category, setCategory] = useState("");
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
@@ -43,20 +49,30 @@ function NewProduct() {
   const [images, setImages] = useState<string[]>([]);
   const [isVeg, setIsVeg] = useState(true);
   const [isPrescription, setIsPrescription] = useState(false);
-  const [mrp, setMrp] = useState("");
   const [price, setPrice] = useState("");
   const [quantity, setQuantity] = useState("0");
-  const [eta, setEta] = useState("30");
 
-  const mrpPaisa = parseRupeesToPaisa(mrp);
   const pricePaisa = parseRupeesToPaisa(price);
-  const priceCheck = validatePrice(mrpPaisa, pricePaisa);
+  const selected = categories.find((c) => c.category === category);
+  const taxRatePct = selected?.gstRatePct ?? 5;
+  const feePct = seller?.platformFeePct ?? 10;
+
+  // Seller-facing breakdown of what will be withheld from this listing's price. The gateway is the
+  // authority at settlement; this is a transparency preview using the same integer formulas.
+  const taxablePaisa =
+    taxRatePct > 0 ? Math.round((pricePaisa * 100) / (100 + taxRatePct)) : pricePaisa;
+  const productTaxPaisa = pricePaisa - taxablePaisa;
+  const commissionPaisa = Math.round((pricePaisa * feePct) / 100);
+  const platformGstPaisa = Math.round((commissionPaisa * PLATFORM_GST_PCT) / 100);
+  const tcsPaisa = Math.round((pricePaisa * TCS_PCT) / 100);
+  const tdsPaisa = Math.round((pricePaisa * TDS_PCT) / 100);
+  const sellerNetPaisa = pricePaisa - commissionPaisa - tcsPaisa - tdsPaisa;
 
   const stepValid = [
     Boolean(sector && category.trim()),
     name.trim().length > 2 && description.trim().length > 5 && images.length > 0,
-    mrpPaisa > 0 && priceCheck.ok,
-    Number(quantity) >= 0 && Number(eta) > 0,
+    pricePaisa > 0,
+    Number(quantity) >= 0,
     true,
   ];
 
@@ -75,12 +91,14 @@ function NewProduct() {
       galleryUrls: images.slice(1),
       unit,
       pricePaisa,
-      mrpPaisa,
+      // MRP is no longer collected from sellers; the listing price is the single price.
+      mrpPaisa: pricePaisa,
       isVeg,
       isPrescription,
       status: "PENDING_REVIEW",
     });
-    updateStock(productId, Number(quantity), Number(eta));
+    // Delivery ETA is platform-owned (not a seller promise); default 30 minutes.
+    updateStock(productId, Number(quantity), 30);
     toast.success("Product submitted for review");
     router.push("/seller/products");
   }
@@ -115,25 +133,30 @@ function NewProduct() {
           <div className="grid gap-4 md:grid-cols-2">
             <div className="space-y-1.5">
               <Label>Sector</Label>
-              <Select value={sector} onValueChange={(v) => setSector(v as Sector)}>
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="MART">MART</SelectItem>
-                  <SelectItem value="FOOD">FOOD</SelectItem>
-                  <SelectItem value="PHARMA">PHARMA</SelectItem>
-                </SelectContent>
-              </Select>
+              <div className="rounded-md border border-border bg-muted/40 px-3 py-2 text-[13px] font-medium">
+                {sector}
+              </div>
+              <p className="text-[11px] text-muted-foreground">
+                Fixed by your registration. Contact an admin to change it.
+              </p>
             </div>
             <div className="space-y-1.5">
-              <Label htmlFor="category">Category</Label>
-              <Input
-                id="category"
-                value={category}
-                onChange={(e) => setCategory(e.target.value)}
-                placeholder="Audio, Grocery, Thali, Devices…"
-              />
+              <Label>Category</Label>
+              <Select value={category} onValueChange={setCategory}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Pick an approved category" />
+                </SelectTrigger>
+                <SelectContent>
+                  {categories.map((c) => (
+                    <SelectItem key={c.taxRateId} value={c.category}>
+                      {c.category} · GST {c.gstRatePct}%
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <p className="text-[11px] text-muted-foreground">
+                Categories and their GST rates are controlled by the platform.
+              </p>
             </div>
           </div>
         ) : null}
@@ -177,11 +200,7 @@ function NewProduct() {
         ) : null}
 
         {step === 2 ? (
-          <div className="grid gap-4 md:grid-cols-3">
-            <div className="space-y-1.5">
-              <Label htmlFor="mrp">MRP (₹)</Label>
-              <Input id="mrp" value={mrp} onChange={(e) => setMrp(e.target.value)} inputMode="decimal" />
-            </div>
+          <div className="grid gap-4 md:grid-cols-2">
             <div className="space-y-1.5">
               <Label htmlFor="price">Selling price (₹)</Label>
               <Input
@@ -190,16 +209,27 @@ function NewProduct() {
                 onChange={(e) => setPrice(e.target.value)}
                 inputMode="decimal"
               />
-            </div>
-            <div className="space-y-1.5">
-              <Label>Discount</Label>
-              <p className="num rounded-md border border-border px-3 py-2 text-[13px]">
-                {priceCheck.discountPercent}%
+              <p className="text-[11px] text-muted-foreground">
+                Enter the final price shoppers pay. GST is included, not added on top.
               </p>
             </div>
-            {!priceCheck.ok && (mrp || price) ? (
-              <p className="text-[12px] text-destructive md:col-span-3">{priceCheck.message}</p>
-            ) : null}
+            <div className="space-y-1.5">
+              <Label>GST rate</Label>
+              <div className="num rounded-md border border-border px-3 py-2 text-[13px]">
+                {taxRatePct}%
+              </div>
+            </div>
+            {pricePaisa > 0 ? <DeductionsCard
+              pricePaisa={pricePaisa}
+              taxablePaisa={taxablePaisa}
+              productTaxPaisa={productTaxPaisa}
+              commissionPaisa={commissionPaisa}
+              platformGstPaisa={platformGstPaisa}
+              tcsPaisa={tcsPaisa}
+              tdsPaisa={tdsPaisa}
+              sellerNetPaisa={sellerNetPaisa}
+              feePct={feePct}
+            /> : null}
           </div>
         ) : null}
 
@@ -210,8 +240,10 @@ function NewProduct() {
               <Input id="qty" value={quantity} onChange={(e) => setQuantity(e.target.value)} inputMode="numeric" />
             </div>
             <div className="space-y-1.5">
-              <Label htmlFor="eta">Delivery ETA (minutes)</Label>
-              <Input id="eta" value={eta} onChange={(e) => setEta(e.target.value)} inputMode="numeric" />
+              <Label>Delivery</Label>
+              <div className="num rounded-md border border-border px-3 py-2 text-[13px]">
+                Platform-managed · {formatINR(DELIVERY_FEE_PAISA)} customer delivery fee
+              </div>
             </div>
           </div>
         ) : null}
@@ -232,12 +264,27 @@ function NewProduct() {
             <Row label="Sector / category" value={`${sector} · ${category}`} />
             <Row label="Name" value={name} />
             <Row label="Unit" value={unit} />
-            <Row label="Price" value={`${formatINR(pricePaisa)} (MRP ${formatINR(mrpPaisa)})`} />
-            <Row label="Discount" value={`${priceCheck.discountPercent}%`} />
-            <Row label="Stock / ETA" value={`${quantity} units · ${eta} min`} />
+            <Row label="Price (GST incl.)" value={formatINR(pricePaisa)} />
+            <Row label="GST rate" value={`${taxRatePct}%`} />
+            <Row label="Stock" value={`${quantity} units`} />
             <Row label="Prescription" value={isPrescription ? "Required" : "Not required"} />
             <Row label="Status on submit" value="PENDING_REVIEW" />
           </dl>
+          {pricePaisa > 0 ? (
+            <div className="mt-3">
+              <DeductionsCard
+                pricePaisa={pricePaisa}
+                taxablePaisa={taxablePaisa}
+                productTaxPaisa={productTaxPaisa}
+                commissionPaisa={commissionPaisa}
+                platformGstPaisa={platformGstPaisa}
+                tcsPaisa={tcsPaisa}
+                tdsPaisa={tdsPaisa}
+                sellerNetPaisa={sellerNetPaisa}
+                feePct={feePct}
+              />
+            </div>
+          ) : null}
           </>
         ) : null}
 
@@ -255,12 +302,65 @@ function NewProduct() {
               Continue
             </Button>
           ) : (
-            <Button size="sm" onClick={submit}>
+            <Button size="sm" disabled={!stepValid[0] || pricePaisa <= 0} onClick={submit}>
               Submit for review
             </Button>
           )}
         </div>
       </SectionCard>
+    </div>
+  );
+}
+
+interface DeductionsProps {
+  pricePaisa: number;
+  taxablePaisa: number;
+  productTaxPaisa: number;
+  commissionPaisa: number;
+  platformGstPaisa: number;
+  tcsPaisa: number;
+  tdsPaisa: number;
+  sellerNetPaisa: number;
+  feePct: number;
+}
+
+function DeductionsCard(props: DeductionsProps) {
+  const rows: Array<[string, string, string?]> = [
+    ["Taxable value", formatINR(props.taxablePaisa)],
+    ["Product GST (customer pays)", formatINR(props.productTaxPaisa)],
+    [`Platform fee (${props.feePct}%)`, `− ${formatINR(props.commissionPaisa)}`, "deducted"],
+    ["GST on platform fee (18%)", formatINR(props.platformGstPaisa), "platform liability"],
+    ["TCS (1%)", `− ${formatINR(props.tcsPaisa)}`, "deducted"],
+    ["TDS (0.1%)", `− ${formatINR(props.tdsPaisa)}`, "deducted"],
+  ];
+  return (
+    <div className="rounded-xl border border-border md:col-span-2">
+      <div className="border-b border-border px-3 py-2">
+        <p className="text-[12px] font-semibold uppercase tracking-wide text-muted-foreground">
+          What you keep
+        </p>
+      </div>
+      <dl className="divide-y divide-border">
+        {rows.map(([label, value, hint]) => (
+          <div key={label} className="flex items-center justify-between gap-3 px-3 py-2 text-[13px]">
+            <dt>
+              {label}
+              {hint ? (
+                <span className="ml-1 text-[11px] text-muted-foreground">({hint})</span>
+              ) : null}
+            </dt>
+            <dd className="num font-medium">{value}</dd>
+          </div>
+        ))}
+        <div className="flex items-center justify-between gap-3 px-3 py-2 text-[13px] font-semibold">
+          <dt>Net seller payout per unit</dt>
+          <dd className="num">{formatINR(props.sellerNetPaisa)}</dd>
+        </div>
+      </dl>
+      <p className="px-3 py-2 text-[11px] text-muted-foreground">
+        Product GST is included in your price and is remitted by you. TCS/TDS are withheld from your
+        payout; the platform files them against your GSTIN/PAN.
+      </p>
     </div>
   );
 }

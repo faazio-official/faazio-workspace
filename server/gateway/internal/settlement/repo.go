@@ -18,13 +18,16 @@ import (
 
 // LedgerEntry is one payments.settlement_ledger row (amounts in whole rupees).
 type LedgerEntry struct {
-	EntryID    string `json:"entryId"`
-	SellerID   string `json:"sellerId"`
-	Cycle      string `json:"cycle"`
-	OrderValue int64  `json:"orderValue"`
-	Commission int64  `json:"commission"`
-	TCS        int64  `json:"tcs"`
-	NetPayout  int64  `json:"netPayout"`
+	EntryID     string `json:"entryId"`
+	SellerID    string `json:"sellerId"`
+	Cycle       string `json:"cycle"`
+	OrderValue  int64  `json:"orderValue"`
+	Commission  int64  `json:"commission"`
+	TCS         int64  `json:"tcs"`
+	TDS         int64  `json:"tds"`
+	ProductTax  int64  `json:"productTax"`
+	PlatformGST int64  `json:"platformGst"`
+	NetPayout   int64  `json:"netPayout"`
 }
 
 // Payout is one payments.payouts row (amount in whole rupees).
@@ -55,7 +58,8 @@ func (r *Repo) Ledger(ctx context.Context, sellerID, cycle string) ([]LedgerEntr
 		return nil, fmt.Errorf("settlement: database not configured")
 	}
 	rows, err := r.pool.Query(ctx, `
-		select entry_id, seller_id, cycle, order_value_paisa, commission_paisa, tcs_paisa, net_paisa
+		select entry_id, seller_id, cycle, order_value_paisa, commission_paisa, tcs_paisa,
+		       tds_paisa, product_tax_paisa, platform_gst_paisa, net_paisa
 		  from payments.settlement_ledger
 		 where ($1 = '' or seller_id = $1) and ($2 = '' or cycle = $2)
 		 order by cycle desc, created_at desc`, sellerID, cycle)
@@ -66,12 +70,16 @@ func (r *Repo) Ledger(ctx context.Context, sellerID, cycle string) ([]LedgerEntr
 	out := []LedgerEntry{}
 	for rows.Next() {
 		var e LedgerEntry
-		if err := rows.Scan(&e.EntryID, &e.SellerID, &e.Cycle, &e.OrderValue, &e.Commission, &e.TCS, &e.NetPayout); err != nil {
+		if err := rows.Scan(&e.EntryID, &e.SellerID, &e.Cycle, &e.OrderValue, &e.Commission, &e.TCS,
+			&e.TDS, &e.ProductTax, &e.PlatformGST, &e.NetPayout); err != nil {
 			return nil, err
 		}
 		e.OrderValue /= 100
 		e.Commission /= 100
 		e.TCS /= 100
+		e.TDS /= 100
+		e.ProductTax /= 100
+		e.PlatformGST /= 100
 		e.NetPayout /= 100
 		out = append(out, e)
 	}
@@ -311,9 +319,11 @@ func (r *Repo) AddLedgerEntry(ctx context.Context, e LedgerEntry) (LedgerEntry, 
 	e.EntryID = "set-" + shortID()
 	_, err := r.pool.Exec(ctx, `
 		insert into payments.settlement_ledger
-		  (entry_id, seller_id, cycle, order_value_paisa, commission_paisa, tcs_paisa, net_paisa)
-		values ($1,$2,$3,$4,$5,$6,$7)`,
-		e.EntryID, e.SellerID, e.Cycle, e.OrderValue*100, e.Commission*100, e.TCS*100, e.NetPayout*100)
+		  (entry_id, seller_id, cycle, order_value_paisa, commission_paisa, tcs_paisa,
+		   tds_paisa, product_tax_paisa, platform_gst_paisa, net_paisa)
+		values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)`,
+		e.EntryID, e.SellerID, e.Cycle, e.OrderValue*100, e.Commission*100, e.TCS*100,
+		e.TDS*100, e.ProductTax*100, e.PlatformGST*100, e.NetPayout*100)
 	if err != nil {
 		return LedgerEntry{}, err
 	}
