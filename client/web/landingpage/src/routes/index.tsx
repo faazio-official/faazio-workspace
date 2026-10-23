@@ -6,18 +6,15 @@ import {
   HiCheck as Check,
   HiHeart as HeartHandshake,
   HiMapPin as MapPin,
-  HiBars3 as Menu,
   HiBeaker as Pill,
   HiShieldCheck as ShieldCheck,
   HiShoppingBag as ShoppingBag,
   HiDevicePhoneMobile as Smartphone,
   HiBuildingStorefront as Store,
-  HiXMark as X,
 } from "react-icons/hi2";
 import { PiForkKnifeFill as UtensilsCrossed } from "react-icons/pi";
 import { motion, MotionConfig } from "motion/react";
 import { DownloadButton } from "@/components/download-button";
-import { FaazioLogo } from "@/components/faazio-logo";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -27,86 +24,25 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { FaazioCommunity } from "@/components/faazio-community";
-import { DEFAULT_OG_IMAGE, OG_IMAGE_HEIGHT, OG_IMAGE_WIDTH, SITE_NAME, SITE_URL } from "@/lib/site";
+import { SiteFooter } from "@/components/site-footer";
+import { SiteHeader } from "@/components/site-header";
+import { seoHead } from "@/lib/seo";
 import heroImage from "@/assets/faazio-daily.jpg";
 import martImage from "@/assets/mart.jpg";
 import foodImage from "@/assets/food.jpg";
 import pharmaImage from "@/assets/pharma.jpg";
 
-const canonicalUrl = `${SITE_URL}/`;
 const title = "Faazio — Grocery, Food & Pharmacy App in Karaikal | Daily SuperApp";
 const description =
   "Faazio is your daily superapp for groceries, local restaurant food, and pharmacy essentials from nearby medical stores. Starting in Karaikal — download the Faazio app.";
-const jsonLd = {
-  "@context": "https://schema.org",
-  "@graph": [
-    {
-      "@type": "Organization",
-      "@id": `${SITE_URL}/#org`,
-      name: SITE_NAME,
-      url: canonicalUrl,
-      logo: `${SITE_URL}/android-chrome-512x512.png`,
-      areaServed: { "@type": "City", name: "Karaikal" },
-    },
-    {
-      "@type": "WebSite",
-      "@id": `${SITE_URL}/#website`,
-      name: SITE_NAME,
-      alternateName: ["Faazio App", "Faazio SuperApp"],
-      url: canonicalUrl,
-      publisher: { "@id": `${SITE_URL}/#org` },
-      inLanguage: "en-IN",
-    },
-    {
-      "@type": "MobileApplication",
-      name: SITE_NAME,
-      operatingSystem: "Android, iOS",
-      applicationCategory: "ShoppingApplication",
-      description,
-      publisher: { "@id": `${SITE_URL}/#org` },
-    },
-  ],
-};
+const keywords =
+  "Faazio, Faazio app, Faazio Karaikal, grocery delivery Karaikal, food app Karaikal, pharmacy Karaikal, medicine app, daily superapp";
+
 export const Route = createFileRoute("/")({
   component: Index,
-  head: () => ({
-    meta: [
-      { title },
-      { name: "description", content: description },
-      {
-        name: "keywords",
-        content:
-          "Faazio, Faazio app, Faazio Karaikal, grocery delivery Karaikal, food app Karaikal, pharmacy Karaikal, medicine app, daily superapp",
-      },
-      { name: "robots", content: "index, follow, max-image-preview:large" },
-      { property: "og:title", content: title },
-      { property: "og:description", content: description },
-      { property: "og:type", content: "website" },
-      { property: "og:url", content: canonicalUrl },
-      { property: "og:locale", content: "en_IN" },
-      { property: "og:image", content: DEFAULT_OG_IMAGE },
-      { property: "og:image:width", content: String(OG_IMAGE_WIDTH) },
-      { property: "og:image:height", content: String(OG_IMAGE_HEIGHT) },
-      {
-        property: "og:image:alt",
-        content: "Groceries, a freshly prepared meal, and pharmacy essentials from Faazio",
-      },
-      { name: "twitter:card", content: "summary_large_image" },
-      { name: "twitter:title", content: title },
-      { name: "twitter:description", content: description },
-      { name: "twitter:image", content: DEFAULT_OG_IMAGE },
-    ],
-    links: [{ rel: "canonical", href: canonicalUrl }],
-    scripts: [{ type: "application/ld+json", children: JSON.stringify(jsonLd) }],
-  }),
+  head: () => seoHead({ path: "/", title, description, keywords }),
 });
 
-const navLinks = [
-  { label: "Explore Faazio", href: "#sectors" },
-  { label: "How it works", href: "#how-it-works" },
-  { label: "Our community", href: "#community" },
-  { label: "For partners", href: "#partners" },
-];
 const sectors = [
   {
     id: "mart",
@@ -174,66 +110,13 @@ const dialogCopy = {
 };
 
 function Index() {
-  const [menuOpen, setMenuOpen] = useState(false);
   const [action, setAction] = useState<Action | null>(null);
   const sector = sectors.find((item) => item.id === action);
   const copy =
     action === "download" || action === "donor" || action === "partner" ? dialogCopy[action] : null;
   return (
     <MotionConfig reducedMotion="user">
-      <a
-        href="#main"
-        className="sr-only focus:not-sr-only focus:absolute focus:z-50 focus:bg-background focus:p-4"
-      >
-        Skip to content
-      </a>
-      <header className="sticky top-0 z-40 border-b border-border bg-background">
-        <nav aria-label="Main navigation" className="page-width site-nav">
-          <a href="#" aria-label="Faazio home" className="wordmark">
-            <FaazioLogo className="wordmark-logo" />
-          </a>
-          <div className="nav-links">
-            {navLinks.map((link) => (
-              <a key={link.href} href={link.href}>
-                {link.label}
-              </a>
-            ))}
-          </div>
-          <div className="nav-actions">
-            <span className="nav-location">
-              <MapPin size={13} /> Starting in Karaikal
-            </span>
-            <DownloadButton compact onClick={() => setAction("download")} />
-            <Button
-              variant="ghost"
-              size="icon"
-              className="md:hidden"
-              aria-label={menuOpen ? "Close menu" : "Open menu"}
-              aria-expanded={menuOpen}
-              aria-controls="mobile-navigation"
-              onClick={() => setMenuOpen(!menuOpen)}
-            >
-              {menuOpen ? <X /> : <Menu />}
-            </Button>
-          </div>
-        </nav>
-        {menuOpen && (
-          <nav
-            id="mobile-navigation"
-            aria-label="Mobile navigation"
-            className="mobile-menu md:hidden"
-          >
-            {navLinks.map((link) => (
-              <a key={link.href} href={link.href} onClick={() => setMenuOpen(false)}>
-                {link.label}
-              </a>
-            ))}
-            <span className="text-xs text-muted-foreground">
-              Starting in Karaikal. Growing with you.
-            </span>
-          </nav>
-        )}
-      </header>
+      <SiteHeader />
       <main id="main">
         <motion.section
           className="hero"
@@ -372,46 +255,7 @@ function Index() {
         </section>
         <FaazioCommunity onAction={setAction} />
       </main>
-      <footer className="site-footer">
-        <div className="page-width">
-          <div className="footer-top">
-            <div className="footer-brand">
-              <a href="#" className="wordmark" aria-label="Faazio home">
-                <FaazioLogo className="wordmark-logo" />
-              </a>
-              <p>
-                Your daily superapp.
-                <br />
-                Made for your neighbourhood.
-              </p>
-            </div>
-            <div className="footer-links">
-              <div>
-                <h3>Your everyday</h3>
-                <a href="#mart">Faazio Mart</a>
-                <a href="#food">Faazio Food</a>
-                <a href="#pharma">Faazio Pharma</a>
-              </div>
-              <div>
-                <h3>Better together</h3>
-                <a href="#community">Blood donation</a>
-                <a href="#partners">Partner with us</a>
-                <a href="#how-it-works">How it works</a>
-              </div>
-              <div>
-                <h3>A little help</h3>
-                <a href="#faq">FAQs</a>
-                <a href="#download">Get the app</a>
-                <a href="#hero-title">Our beginning</a>
-              </div>
-            </div>
-          </div>
-          <div className="footer-bottom">
-            <span>© {new Date().getUTCFullYear()} Faazio. Made for daily India.</span>
-            <span>Starting in Karaikal · More neighbourhoods to come</span>
-          </div>
-        </div>
-      </footer>
+      <SiteFooter />
       <Dialog
         open={action !== null}
         onOpenChange={(open) => {

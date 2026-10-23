@@ -209,6 +209,36 @@
   width: min(1200px, calc(100% - 96px));
   margin-inline: auto;
 }
+.page-hero {
+  padding-block: 72px 24px;
+  position: relative;
+}
+.page-hero h1 {
+  font-size: 42px;
+  font-weight: 800;
+  line-height: 1.15;
+  max-width: 680px;
+}
+.page-lead {
+  font-size: 15px;
+  line-height: 1.85;
+  color: var(--muted-foreground);
+  max-width: 560px;
+  margin-top: 18px;
+}
+.content-block {
+  max-width: 720px;
+}
+.content-block h2 {
+  font-size: 26px;
+  margin-top: 42px;
+}
+.content-block p {
+  font-size: 14px;
+  line-height: 1.85;
+  color: var(--muted-foreground);
+  margin-top: 14px;
+}
 .site-nav {
   height: 86px;
   display: flex;
