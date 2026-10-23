@@ -24,18 +24,17 @@ begin
     create or replace function sellers.is_admin_for(p_state char(2), p_district text)
     returns boolean
     language sql stable as $body$
-      select case coalesce(auth.jwt() ->> 'app_role', '')
-        when 'SUPER_ADMIN' then true
-        when 'STATE_ADMIN', 'DISTRICT_ADMIN' then
-          coalesce(auth.jwt() ->> 'state_code', '') = p_state
-          and (
-            coalesce(auth.jwt() ->> 'district_code', '') = ''
-            or p_district is null
-            or p_district = ''
-            or auth.jwt() ->> 'district_code' = p_district
-          )
-        else false
-      end
+      select coalesce(auth.jwt() ->> 'app_role', '') = 'SUPER_ADMIN'
+         or (
+           coalesce(auth.jwt() ->> 'app_role', '') in ('STATE_ADMIN', 'DISTRICT_ADMIN')
+           and coalesce(auth.jwt() ->> 'state_code', '') = p_state
+           and (
+             coalesce(auth.jwt() ->> 'district_code', '') = ''
+             or p_district is null
+             or p_district = ''
+             or auth.jwt() ->> 'district_code' = p_district
+           )
+         )
     $body$
   $fn$;
 
