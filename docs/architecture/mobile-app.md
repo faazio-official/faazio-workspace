@@ -723,9 +723,13 @@ that config in `configure.js` (the iOS bundle phase hard-fails otherwise). CI bu
 `DeliveryHeartbeatTaskService` every 120 s. The headless JS task reads the Keychain session, takes
 one coarse fix and posts the same heartbeat as the foreground loop; the service stops when the
 rider goes offline/signs out. On iOS, `DeliveryBackgroundLocation` keeps a background-enabled
-CoreLocation watch (`UIBackgroundModes: location`, explicit consent) and posts a throttled heartbeat
-only while `AppState` is not active; the foreground interval owns heartbeats while the app is open.
-iOS still ends the watch when the app is force-quit from the app switcher.
+CoreLocation watch (`UIBackgroundModes: location`, explicit consent) and posts a heartbeat throttled
+to 120 s only while `AppState` is not active; the foreground interval owns heartbeats while the app
+is open. The watch uses coarse continuous updates (no distance filter) so a rider waiting at a store
+keeps refreshing the 300 s Valkey key instead of silently dropping out of dispatch. The in-app
+consent flag is persisted so a cold start while already online resumes the watch without
+re-prompting; sign-out clears it. iOS still ends the watch when the app is force-quit from the app
+switcher.
 
 **Known MVP limits** (tracked in `client/mobile/PENDING_WORK.md`): force-quit iOS background
 location (plus OEM battery whitelisting), the `PUSH_WEBHOOK_URL` bridge is an ops step, and the

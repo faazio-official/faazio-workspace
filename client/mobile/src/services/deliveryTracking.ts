@@ -1,8 +1,8 @@
 /**
  * Android foreground tracking bridge. The native service keeps an ongoing notification and wakes
  * the `FaazioDeliveryHeartbeat` headless task every 120 s, so a rider who is online remains in the
- * dispatch candidate pool while the UI is backgrounded. iOS has no equivalent here; its heartbeat
- * continues while the app is in the foreground (tracked in PENDING_WORK.md).
+ * dispatch candidate pool while the UI is backgrounded. iOS has no native service; its background
+ * watch lives in `deliveryBackgroundLocation.ts` (`UIBackgroundModes: location`).
  */
 import { NativeModules, PermissionsAndroid, Platform } from 'react-native';
 

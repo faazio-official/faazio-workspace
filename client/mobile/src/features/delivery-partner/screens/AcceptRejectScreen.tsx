@@ -18,8 +18,9 @@ const DEFAULT_WINDOW_SECONDS = 45;
  * chain keeps moving.
  */
 export function AcceptRejectScreen({ navigation, route }: Props) {
-  const { orderId } = route.params;
+  const { orderId, expiresAt } = route.params;
   const [order, setOrder] = useState<DeliveryOrder | null>(null);
+  const [deadline, setDeadline] = useState<number | null>(null);
   const [activeCount, setActiveCount] = useState(0);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState<'accept' | 'reject' | null>(null);
@@ -46,12 +47,23 @@ export function AcceptRejectScreen({ navigation, route }: Props) {
       }
       setOrder(single);
       setActiveCount(active.filter((o) => o.status === 'ACCEPTED').length);
+      // The server is authoritative; the link's timestamp covers a payload that omits it, and the
+      // local fallback keeps the 45 s window hard even if both are missing.
+      const serverDeadline = single.expiresAt ? new Date(single.expiresAt).getTime() : NaN;
+      const linkDeadline = expiresAt ? new Date(expiresAt).getTime() : NaN;
+      const next = Number.isFinite(serverDeadline)
+        ? serverDeadline
+        : Number.isFinite(linkDeadline)
+          ? linkDeadline
+          : Date.now() + DEFAULT_WINDOW_SECONDS * 1000;
+      setDeadline(next);
+      setNow(Date.now());
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Could not load this offer.');
     } finally {
       setLoading(false);
     }
-  }, [navigation, orderId]);
+  }, [expiresAt, navigation, orderId]);
 
   useEffect(() => {
     void load();
@@ -64,10 +76,10 @@ export function AcceptRejectScreen({ navigation, route }: Props) {
   }, [order]);
 
   const seconds = useMemo(() => {
-    if (!order?.expiresAt) return DEFAULT_WINDOW_SECONDS;
-    const remaining = Math.floor((new Date(order.expiresAt).getTime() - now) / 1000);
+    if (deadline === null) return DEFAULT_WINDOW_SECONDS;
+    const remaining = Math.floor((deadline - now) / 1000);
     return Math.max(0, Math.min(DEFAULT_WINDOW_SECONDS, remaining));
-  }, [now, order?.expiresAt]);
+  }, [deadline, now]);
 
   const rejectAndLeave = useCallback(
     async (expired: boolean) => {

@@ -25,7 +25,9 @@ dependencies exist. Do not build the backend/seller flows until told to.
   300 s), falls back to Haversine without `GOOGLE_ROUTES_API_KEY`; capacity is hard-capped by vehicle
   (bicycle 1 / two-wheeler 2 / four-wheeler 5). A reject — or an offer whose 45 s window expires —
   releases the job and re-offers it to the next candidate up to 5 attempts, never re-offering a rider
-  who already declined. Stop transitions are forward-only server-side (`AT_PICKUP → PICKED_UP →
+  who already declined; re-offers are inserted into an already-loaded rider's route with the same
+  heuristic as the first offer. Riders holding an unaccepted offer are skipped so offers cannot stack
+  on one rider before `current_load` rises. Stop transitions are forward-only server-side (`AT_PICKUP → PICKED_UP →
   AT_CUSTOMER → DELIVERED`); a failed pickup cancels the job and releases capacity, and completing a
   route never overrides the rider's explicit availability toggle. The handover OTP locks after 5
   incorrect attempts. Live coordinates are Valkey-only (`delivery:rider:{id}:location`, TTL 300 s);
@@ -46,9 +48,10 @@ dependencies exist. Do not build the backend/seller flows until told to.
   `AcceptRejectScreen`), but end-to-end delivery still needs the gateway's FCM/webhook bridge
   configured in the deployed environment.
 - **iOS force-quit** — background location now survives backgrounding (`UIBackgroundModes: location`
-  + a CoreLocation watch behind explicit consent), but iOS stops the watch when the rider swipes the
-  app away. Android OEMs may also kill the foreground service under battery optimisation — riders
-  need the battery-whitelisting step.
+  + a CoreLocation watch behind persisted explicit consent, resumed without re-prompting when an
+  already-online rider relaunches the app), but iOS stops the watch when the rider swipes the app
+  away. Android OEMs may also kill the foreground service under battery optimisation — riders need
+  the battery-whitelisting step.
 - **Customer rating UI** — `POST /delivery/{orderId}/rate` stores a 1–5 rating + comment, but no
   customer screen prompts for it after delivery yet.
 - **Rider document re-upload** — an admin re-upload request is recorded/audited and support contacts

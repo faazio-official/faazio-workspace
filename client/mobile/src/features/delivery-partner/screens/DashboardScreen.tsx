@@ -21,6 +21,8 @@ import { getCoarsePosition, requestLocationPermission } from '@/services/locatio
 import { startDeliveryPush } from '@/services/deliveryPush';
 import { startDeliveryTracking, stopDeliveryTracking } from '@/services/deliveryTracking';
 import {
+  loadIOSBackgroundConsent,
+  saveIOSBackgroundConsent,
   startIOSBackgroundLocation,
   stopIOSBackgroundLocation,
 } from '@/services/deliveryBackgroundLocation';
@@ -109,6 +111,18 @@ export function DashboardScreen({ navigation }: Props) {
     return stopHeartbeat;
   }, [refresh, stopHeartbeat]);
 
+  // Resume iOS background tracking for a rider who was already online when the app relaunched.
+  useEffect(() => {
+    if (Platform.OS !== 'ios') return;
+    let active = true;
+    void loadIOSBackgroundConsent().then((allowed) => {
+      if (active && allowed) setIosBackgroundAllowed(true);
+    });
+    return () => {
+      active = false;
+    };
+  }, []);
+
   useEffect(() => {
     if (!online) {
       stopHeartbeat();
@@ -120,7 +134,8 @@ export function DashboardScreen({ navigation }: Props) {
     // Android owns background wakes natively; iOS uses the CoreLocation watch below.
     // The JS interval intentionally bails when the app is not active so the two never duplicate.
     void startDeliveryTracking();
-    if (iosBackgroundAllowed) startIOSBackgroundLocation();
+    // Resume without prompting: the OS dialog is only raised by the explicit online toggle.
+    if (iosBackgroundAllowed) startIOSBackgroundLocation({ prompt: false });
     return () => {
       stopHeartbeat();
       stopIOSBackgroundLocation();
@@ -197,7 +212,8 @@ export function DashboardScreen({ navigation }: Props) {
         if (Platform.OS === 'ios') {
           const allowBackground = await confirmIOSBackground();
           setIosBackgroundAllowed(allowBackground);
-          if (allowBackground) startIOSBackgroundLocation();
+          await saveIOSBackgroundConsent(allowBackground);
+          if (allowBackground) startIOSBackgroundLocation({ prompt: true });
         }
       } else {
         setIosBackgroundAllowed(false);
@@ -250,6 +266,7 @@ export function DashboardScreen({ navigation }: Props) {
   const onLogout = useCallback(async () => {
     stopHeartbeat();
     stopIOSBackgroundLocation();
+    await saveIOSBackgroundConsent(false);
     if (online) await gateway.setDeliveryAvailability(false).catch(() => undefined);
     await logout();
     reset();
