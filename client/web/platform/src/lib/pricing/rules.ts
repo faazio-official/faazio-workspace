@@ -1,5 +1,4 @@
 import type { Sector, SectorCap } from "@/data/types";
-import { config } from "@/lib/config";
 
 export function discountPercent(mrpPaisa: number, sellingPricePaisa: number): number {
   if (mrpPaisa <= 0) return 0;
@@ -11,10 +10,9 @@ export function isIntPaisa(value: number): boolean {
   return Number.isInteger(value);
 }
 
-/** Commission-aware floor: seller cannot price below cost of doing business. */
+/** Minimum floor: a seller cannot price below 25% of MRP (commission no longer applies). */
 export function floorPaisa(mrpPaisa: number): number {
-  const commissionShare = (config.commissionPercent + config.tcsPercent) / 100;
-  return Math.round(mrpPaisa * 0.25 * (1 + commissionShare));
+  return Math.round(mrpPaisa * 0.25);
 }
 
 export interface PriceValidation {
@@ -38,7 +36,7 @@ export function validatePrice(mrpPaisa: number, sellingPricePaisa: number): Pric
   if (sellingPricePaisa < floor) {
     return {
       ok: false,
-      message: `Below the commission-aware floor for this MRP.`,
+      message: `Below the minimum floor for this MRP.`,
       discountPercent: pct,
     };
   }

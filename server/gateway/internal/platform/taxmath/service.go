@@ -3,13 +3,13 @@
 //
 // Model (single source of truth):
 //   - Catalog prices are GST-inclusive. For a line at rate r, taxable = gross * 100 / (100+r).
-//   - The platform commission is sellers.platform_fee_pct of the GST-inclusive gross. GST on that
-//     commission is the platform's own liability and is not added to the customer's price.
+//   - Platform commission is removed: sellers keep their full GST-inclusive gross. Only the
+//     statutory TCS (1%) and TDS (0.1%) are withheld from the seller. GST on the (now zero)
+//     commission is therefore zero too — there is no platform cut in any settlement.
 //   - TCS (1%) and TDS (0.1%) are withheld from the seller's gross, never charged to the customer.
-//   - The customer pays product gross + the fixed delivery fee, less platform-funded discounts.
-//
-// This intentionally corrects the earlier draft that both added the platform fee to the customer
-// total and deducted it from the seller (a double charge). Commission is a seller-side deduction.
+//   - The customer pays product gross + the delivery fee, less platform-funded discounts. Product
+//     GST is already inside the gross (pass-through), and the delivery fee is dynamic per order
+//     (tax.delivery_fee_settings; PICKUP waives it).
 package taxmath
 
 import (
@@ -48,8 +48,11 @@ func DefaultRates() Rates {
 
 // Line is one priced order line. GrossPaisa is GST-inclusive.
 type Line struct {
-	GrossPaisa     int64
-	GSTRatePct     int
+	GrossPaisa int64
+	GSTRatePct int
+	// PlatformFeePct is retained for structural compatibility (callers still pass it) but is
+	// deliberately IGNORED by Compute: platform commission is removed, so a fee here never changes
+	// the breakdown or the seller's payout.
 	PlatformFeePct int
 }
 
@@ -68,8 +71,8 @@ type Breakdown struct {
 	EffectiveGSTRate  int   `json:"taxRatePct"`
 }
 
-// Compute splits the order's GST-inclusive gross into taxable value, product GST, platform
-// commission/GST, TCS, TDS and the customer/seller totals.
+// Compute splits the order's GST-inclusive gross into taxable value, product GST, statutory TCS/TDS
+// and the customer/seller totals. Platform commission/GST are always zero — sellers keep the gross.
 func Compute(lines []Line, rates Rates) Breakdown {
 	if rates.PlatformGSTPct < 0 {
 		rates.PlatformGSTPct = 0
@@ -98,22 +101,15 @@ func Compute(lines []Line, rates Rates) Breakdown {
 		b.GrossProductPaisa += gross
 		b.TaxableValuePaisa += taxable
 		b.ProductTaxPaisa += gross - taxable
-
-		feePct := l.PlatformFeePct
-		if feePct < 0 {
-			feePct = 0
-		}
-		if feePct > 100 {
-			feePct = 100
-		}
-		b.PlatformFeePaisa += percentOf(gross, float64(feePct))
 	}
-	b.PlatformGSTPaisa = percentOf(b.PlatformFeePaisa, rates.PlatformGSTPct)
+	// Platform commission removed (seller keeps full gross): both the fee and its GST are zero.
+	b.PlatformFeePaisa = 0
+	b.PlatformGSTPaisa = 0
 	b.DeliveryFeePaisa = rates.DeliveryFeePaisa
 	b.TCSPaisa = percentOf(b.GrossProductPaisa, rates.TCSPct)
 	b.TDSPaisa = percentOf(b.GrossProductPaisa, rates.TDSPct)
 	b.TotalChargedPaisa = b.GrossProductPaisa + b.DeliveryFeePaisa
-	b.SellerNetPaisa = b.GrossProductPaisa - b.PlatformFeePaisa - b.TCSPaisa - b.TDSPaisa
+	b.SellerNetPaisa = b.GrossProductPaisa - b.TCSPaisa - b.TDSPaisa
 	if b.SellerNetPaisa < 0 {
 		b.SellerNetPaisa = 0
 	}

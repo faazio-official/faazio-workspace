@@ -572,6 +572,64 @@ func (r *Repo) PlatformRates(ctx context.Context) (taxmath.Rates, error) {
 	return taxmath.Rates{PlatformGSTPct: gst, TCSPct: tcs, TDSPct: tds, DeliveryFeePaisa: fee}, nil
 }
 
+// DeliveryFeeSettings reads the singleton dynamic delivery-fee rate card
+// (tax.delivery_fee_settings). Falls back to 3 km / ₹35 / ₹9-per-extra-km when the row is absent.
+func (r *Repo) DeliveryFeeSettings(ctx context.Context) (DeliveryFeeSettings, error) {
+	if r.pool == nil {
+		return DefaultDeliveryFeeSettings(), nil
+	}
+	var (
+		baseKm   float64
+		baseFee  int64
+		perExtra int64
+	)
+	err := r.pool.QueryRow(ctx, `
+		select base_distance_km::float8, base_fee_paisa, per_extra_km_paisa
+		  from tax.delivery_fee_settings where id = 1`).Scan(&baseKm, &baseFee, &perExtra)
+	if err != nil {
+		if err == pgx.ErrNoRows {
+			return DefaultDeliveryFeeSettings(), nil
+		}
+		return DefaultDeliveryFeeSettings(), err
+	}
+	return DeliveryFeeSettings{BaseDistanceKm: baseKm, BaseFeePaisa: baseFee, PerExtraKmPaisa: perExtra}, nil
+}
+
+// StoreCoordinate is a pinned directory.stores location used for delivery-fee math.
+type StoreCoordinate struct {
+	Latitude  float64
+	Longitude float64
+}
+
+// StoreCoordinates returns pinned coordinates for the given store ids; stores without a pin are
+// simply absent from the map (the caller falls back to the flat settings fee for the order).
+func (r *Repo) StoreCoordinates(ctx context.Context, storeIDs []string) (map[string]StoreCoordinate, error) {
+	if r.pool == nil {
+		return nil, fmt.Errorf("checkout: database not configured")
+	}
+	out := map[string]StoreCoordinate{}
+	if len(storeIDs) == 0 {
+		return out, nil
+	}
+	rows, err := r.pool.Query(ctx, `
+		select id, latitude, longitude
+		  from directory.stores
+		 where id = any($1) and latitude is not null and longitude is not null`, storeIDs)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var c StoreCoordinate
+		var id string
+		if err := rows.Scan(&id, &c.Latitude, &c.Longitude); err != nil {
+			return nil, err
+		}
+		out[id] = c
+	}
+	return out, rows.Err()
+}
+
 // SellerTaxProfiles returns commission/GST identity for the given sellers.
 func (r *Repo) SellerTaxProfiles(ctx context.Context, sellerIDs []string) (map[string]SellerTaxProfile, error) {
 	if r.pool == nil {

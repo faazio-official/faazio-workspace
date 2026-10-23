@@ -38,6 +38,15 @@
     <string>12.0</string>
     <key>LSRequiresIPhoneOS</key>
     <true/>
+    <key>LSApplicationQueriesSchemes</key>
+    <array>
+      <!-- UPI app detection at checkout (Linking.canOpenURL). -->
+      <string>gpay</string>
+      <string>phonepe</string>
+      <string>paytm</string>
+      <string>amazonpay</string>
+      <string>bhim</string>
+    </array>
     <key>NSAppTransportSecurity</key>
     <dict>
       <key>NSAllowsArbitraryLoads</key>

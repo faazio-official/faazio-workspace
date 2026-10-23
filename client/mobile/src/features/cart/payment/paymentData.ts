@@ -1,52 +1,62 @@
-import type { LucideIcon } from 'lucide-react-native';
-import { Landmark, Wallet, Banknote } from 'lucide-react-native';
-
+/** A card saved on this device (tokenized — never a raw PAN/CVV). */
 export interface SavedCard {
   id: string;
+  /** Opaque gateway token minted at keychain save; the only stored credential. */
+  token: string;
   network: string;
   last4: string;
   exp: string;
   default?: boolean;
 }
 
-export interface SavedUpi {
+/** One UPI app probed at runtime via deep-link visibility (package/scheme). */
+export interface UpiAppPackage {
   id: string;
   label: string;
-  handle: string;
-  emoji: string;
-}
-
-export interface MoreOption {
-  id: string;
-  label: string;
-  subtitle: string;
-  icon: LucideIcon;
+  androidPackage: string;
+  iosScheme: string;
 }
 
 /** Origin store label for the delivery timeline. */
 export const DELIVERY_ORIGIN = 'Instamart';
 
-/** Preferred card — selected by default (green check + CVV/Pay bar). */
-export const DEFAULT_CARD: SavedCard = {
-  id: 'axis',
-  network: 'Axis Bank Card',
-  last4: '4242',
-  exp: '12/26',
-  default: true,
-};
+/**
+ * Saved cards start empty — the only way a card enters this list is a successful,
+ * secure "Add New Card" (token stored in device Keychain under `FaazioCardToken`).
+ * Raw PAN/CVV never touch app state or logs.
+ */
+export const SAVED_CARDS: SavedCard[] = [];
 
-export const OTHER_CARDS: SavedCard[] = [
-  { id: 'hdfc', network: 'HDFC Bank Card', last4: '9031', exp: '09/25' },
-  { id: 'icici', network: 'ICICI Bank Card', last4: '7788', exp: '03/27' },
-];
-
-export const SAVED_UPIS: SavedUpi[] = [
-  { id: 'gpay', label: 'GPay', handle: 'user@okhdfcbank', emoji: '\u{1F4B1}' },
-  { id: 'phonepe', label: 'PhonePe', handle: 'user@ybl', emoji: '\u{1F4F1}' },
-];
-
-export const MORE_OPTIONS: MoreOption[] = [
-  { id: 'netbanking', label: 'Net Banking', subtitle: 'All banks supported', icon: Landmark },
-  { id: 'wallet', label: 'Wallets', subtitle: 'Amazon Pay, Paytm & more', icon: Wallet },
-  { id: 'cod', label: 'Cash on Delivery', subtitle: 'Pay at your doorstep', icon: Banknote },
+/** UPI apps detected at checkout via `Linking.canOpenURL(scheme)` per scheme. */
+export const UPI_APP_PACKAGES: UpiAppPackage[] = [
+  {
+    id: 'gpay',
+    label: 'Google Pay',
+    androidPackage: 'com.google.android.apps.nbu.paisa.user',
+    iosScheme: 'gpay://',
+  },
+  {
+    id: 'phonepe',
+    label: 'PhonePe',
+    androidPackage: 'com.phonepe.app',
+    iosScheme: 'phonepe://',
+  },
+  {
+    id: 'paytm',
+    label: 'Paytm',
+    androidPackage: 'net.one97.paytm',
+    iosScheme: 'paytm://',
+  },
+  {
+    id: 'amazon-pay',
+    label: 'Amazon Pay',
+    androidPackage: 'in.amazon.mShop.android.shopping',
+    iosScheme: 'amazonpay://',
+  },
+  {
+    id: 'bhim',
+    label: 'BHIM UPI',
+    androidPackage: 'in.org.npci.upiapp',
+    iosScheme: 'bhim://',
+  },
 ];

@@ -1935,7 +1935,7 @@ CREATE FUNCTION sellers.is_admin_for(p_state char(2), p_district text) RETURNS b
   no district fall back to the parent state). Campaigns/coupons/ads remain state-level reads. All
   writes go through the gateway (`service_role`).
 
-### 12.25 GST invoicing + seller tax + rider payouts (migrations `0051`–`0052`)
+### 12.25 GST invoicing + seller tax + dynamic delivery fee + rider payouts (migrations `0051`–`0053`)
 
 **Authority:** `monolith-breakdown.md` §1 (`checkout`, `tax` + `taxmath`, `settlement`, `delivery`),
 `mobile-app.md` (tax-invoice card, partner Earnings), `web-portal.md` (GST master).
@@ -1967,6 +1967,14 @@ CREATE TABLE tax.tax_invoices (
 -- platform_gst_paisa/delivery_fee_paisa/tcs_paisa/tds_paisa/total_charged_paisa
 -- payments.settlement_ledger: tds_paisa, product_tax_paisa, platform_gst_paisa
 
+-- 0053: dynamic (distance-based) customer delivery-fee rate card
+CREATE TABLE tax.delivery_fee_settings (-- singleton row id = 1; gateway reads, SUPER_ADMIN edits
+  id SMALLINT PRIMARY KEY CHECK (id = 1),
+  base_distance_km NUMERIC(6,2) NOT NULL DEFAULT 3.00,
+  base_fee_paisa BIGINT NOT NULL DEFAULT 3500,
+  per_extra_km_paisa BIGINT NOT NULL DEFAULT 900,
+  updated_by TEXT NOT NULL DEFAULT '', updated_at TIMESTAMPTZ NOT NULL DEFAULT now());
+
 -- 0052: rider payout engine (supersedes the "Phase 5 out of scope" note in 0042)
 CREATE TABLE delivery.payout_settings ( -- singleton row id = 1
   id SMALLINT PRIMARY KEY CHECK (id = 1),
@@ -1993,15 +2001,22 @@ CREATE TABLE delivery.delivery_payouts (
 - Catalog prices are **GST-inclusive**. `taxable = gross*100/(100+rate)`, product GST =
   `gross − taxable`. The customer pays product gross + delivery fee − platform-funded coupon;
   coins are a payment tender, not a discount.
-- `platform_fee_pct` (seller) is commission on gross. GST on that commission is the **platform's own**
-  liability (`platform_gst_paisa`) and is neither charged to the buyer nor deducted from the seller.
+- **Platform commission is removed.** `taxmath.Compute` yields
+  `platform_fee_paisa = 0` and `platform_gst_paisa = 0` regardless of `sellers.platform_fee_pct`;
+  sellers keep their full GST-inclusive gross. `seller_net_paisa = gross − TCS − TDS`.
 - TCS (1%) and TDS (0.1%) are withheld from seller gross and recorded on the invoice and the
-  settlement ledger. Seller net = gross − commission − TCS − TDS. The previous hardcoded
-  `TCS: 0` in `settlement` is gone.
+  settlement ledger. The previous hardcoded `TCS: 0` in `settlement` is gone.
+- **Customer delivery fee is dynamic** (replaces the flat ₹50/`delivery_fee_paisa` for new orders):
+  PICKUP waives it; DELIVERY charges `base_fee_paisa` up to `base_distance_km`, then
+  `base_fee_paisa + floor(distance_km − base_distance_km) × per_extra_km_paisa` (default 3 km / ₹35 /
+  ₹9-per-km). Distance is Haversine between `directory.stores` pins and the live drop fix — the
+  same estimate the client mirrors via `GET /checkout/delivery-fee`. `tax.platform_settings`
+  `delivery_fee_paisa` remains the flat fallback when there is no fix or no pinned store.
 - Invoice rows are immutable; `GET /orders/{id}/invoice` is owner-scoped and returns a presigned
   R2 URL only when `pdf_key` is populated (PDF rendering is deferred; the app renders the JSON).
 - Rider payout = base (₹30 / 3 km) + ₹7/km beyond + night (23:00–03:00 IST), weather/festival surge.
   `GET /delivery/payouts/{orderId}` upserts a PENDING row for the owning rider; its breakdown is
   mirrored onto `delivery.delivery_orders.payout_basis` (audit JSONB) alongside the display
   `payout_amount_paisa`; `POST /delivery/payouts/{orderId}/settle` is super-admin only.
-- RLS/grants follow the existing guarded Supabase pattern; all writes go through the gateway.
+- RLS/grants follow the existing guarded Supabase pattern; all writes go through the gateway
+  (`tax.delivery_fee_settings` is service_role-only — no client grants).

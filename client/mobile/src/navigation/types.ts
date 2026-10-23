@@ -56,6 +56,8 @@ export type RootStackParamList = {
   You: undefined;
   /** Pixel-perfect payment method picker (preferred card, UPI, cards, more). */
   PaymentOptions: undefined;
+  /** Secure "Add New Card" form (tokenized; PAN/CVV never stored or logged). */
+  AddCard: undefined;
   /** "My Profile" — personal info, preferences, security (pushed from Account). */
   UserDetails: undefined;
   /** "Saved Addresses" — manage, select, add delivery locations (pushed from Account). */

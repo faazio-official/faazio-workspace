@@ -20,6 +20,33 @@
       <category android:name="android.intent.category.BROWSABLE"/>
       <data android:scheme="https"/>
     </intent>
+    <!-- UPI app detection at checkout (Linking.canOpenURL — Android 11 package visibility).
+         Scheme intents + package visibility for GPay / PhonePe / Paytm / Amazon Pay / BHIM. -->
+    <intent>
+      <action android:name="android.intent.action.VIEW"/>
+      <data android:scheme="gpay"/>
+    </intent>
+    <intent>
+      <action android:name="android.intent.action.VIEW"/>
+      <data android:scheme="phonepe"/>
+    </intent>
+    <intent>
+      <action android:name="android.intent.action.VIEW"/>
+      <data android:scheme="paytm"/>
+    </intent>
+    <intent>
+      <action android:name="android.intent.action.VIEW"/>
+      <data android:scheme="amazonpay"/>
+    </intent>
+    <intent>
+      <action android:name="android.intent.action.VIEW"/>
+      <data android:scheme="bhim"/>
+    </intent>
+    <package android:name="com.google.android.apps.nbu.paisa.user"/>
+    <package android:name="com.phonepe.app"/>
+    <package android:name="net.one97.paytm"/>
+    <package android:name="in.amazon.mShop.android.shopping"/>
+    <package android:name="in.org.npci.upiapp"/>
   </queries>
 
   <application

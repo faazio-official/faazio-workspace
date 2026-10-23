@@ -627,8 +627,12 @@ still separate files; consolidating them is tracked in `client/mobile/PENDING_WO
 - **Order placement:** `CartView.handlePlaceOrder` calls `gateway.placeOrder({ items, addressId,
   fulfillment, idempotencyKey, pickup, pickups, coinsRedeemed })`; the **server is the money/stock
   authority** (prices, decrements stock, holds the idempotency lock) and returns the durable order
-  `id`, now used as the `ordersStore` key (fallback `FZ-*` only if the call fails). `paymentMethod`
-  is **not** sent — payment capture is deferred. On success the purchased lines are removed from the
+  `id`, now used as the `ordersStore` key (fallback `FZ-*` only if the call fails). The chosen
+  `paymentMethod` (`UPI | CARD`) is sent so the durable payment ledger reflects it; payment capture
+  itself stays deferred. The **delivery fee is dynamic**: `CartView` quotes it on the FULFILLMENT
+  step via `gateway.fetchDeliveryFee` (`GET /checkout/delivery-fee`, store pin + live drop), falling
+  back to a Haversine estimate when the gateway is unreachable — the server settles the same math.
+  On success the purchased lines are removed from the
   durable server cart; rewards (`recordOrder`) stay local-first. A 1.2s minimum delay preserves the
   processing spinner.
 - **Pharma Rx:** `PrescriptionFlowScreen.handleConfirm` uploads each captured photo to the private
@@ -659,7 +663,7 @@ AppNavigator (root native stack)
 │    both read GET /stores/{id}/products)
 │   (Pharma tabs: Home · Search · Cart · History · Donor)
 ├── FoodApp (FoodStack — FoodHome dining-first → Search → RestaurantProfile → RestaurantMenu / RestaurantOffers; 2-tab bottom nav Home/Search + You/Cart)
-├── ProductDetail · Search · Cart (`{ restaurantId?, restaurantName? }`) · PaymentOptions
+├── ProductDetail · Search · Cart (`{ restaurantId?, restaurantName? }`) · PaymentOptions · AddCard
 ├── CategoryDrillIn (category drill-in page from the Home/Mart rail) ── VendorDetails (single-store search)
 ├── DealsLanding (deals page — four modes: `campaign` from the Home "Deals of the day" carousel
 │   (Home-owned `@data`), `discounts` from the Mart vendor profile "View All" (server pool),
@@ -1013,7 +1017,8 @@ is a fallback only (no price promise) when no coupon exists.
 Every add of a dish in the Food sub-app is **direct** — `addToCart(id, name, price, emoji)` with
 no popup. The old `FoodAddModeSheet` (Dining / Food order → Delivery / Self pickup) was **deleted**;
 fulfilment is no longer captured per item (`CartItem.fulfilment` and the `CartFulfilment` type were
-removed). Instead the **order-level** Delivery / Self Pickup choice is made on the cart BAG step.
+removed). Instead the **order-level** Delivery / Self Pickup choice is made on a dedicated cart
+FULFILLMENT step (BAG → Place order → FULFILLMENT → Proceed to pay → PAYMENT).
 This applies everywhere: the dishes-only search results, the restaurant offers page, the restaurant
 profile menu "Add", and the FOOD product-detail footer + related-dish grid adds. A FOOD PDP add
 (footer or related-dish card) is **tagged to the product's restaurant** (`getDiningRestaurantForProduct`
@@ -1064,7 +1069,8 @@ Every downstream money number is driven by the **selected subset** only — `com
 (To Pay), savings/`originalTotal`, coins estimate, `pickupPointList`, and the payment-step
 item count. Placing an order (`handlePlaceOrder`) snapshots only the selected items onto
 the receipt, and **keeps unticked items in the cart** (only the selected items are paid for
-and wiped). When zero items are ticked the Proceed button is disabled. The 3 category cards
+and wiped). When zero items are ticked the Place order button is disabled — it advances to the
+FULFILLMENT step. The 3 category cards
 are now **full-bleed** (edge-to-edge, no side gutters/borders) with a larger 64px item
 thumbnail; the savings/coupon card keeps its 16px inset.
 
@@ -1094,24 +1100,27 @@ The customer product itself never requests background location. The shared iOS p
 `UIBackgroundModes: location` for the delivery entry (the partner app is the only caller of the
 background watch); Android keeps background location scoped to the delivery flavor manifest.
 
-## Cart checkout — fulfilment + live-location delivery on the BAG step
+## Cart checkout — BAG → FULFILLMENT → PAYMENT → RECEIPT
 
-The order-level **Delivery ⇄ Self Pickup** toggle lives on the cart **BAG** step
-(`features/cart/CartView.tsx`). `fulfillment` (`'DELIVERY' | 'PICKUP'`) is a single
-`CartView`-scoped state, starting as `null` — **nothing selected by default**, so the
-**Proceed to Pay** button stays disabled until a mode is chosen. It drives `computeTotals`
-(pickup waives the ₹49 fee), `PaymentOptionsScreen`, and the receipt timeline.
+The checkout wizard (`features/cart/CartView.tsx`) is now **BAG → FULFILLMENT → PAYMENT →
+RECEIPT** (`CheckoutStep`). The order-level **Delivery ⇄ Self Pickup** choice moved off BAG onto a
+dedicated **FULFILLMENT** step. `fulfillment` (`'DELIVERY' | 'PICKUP'`) is a single
+`CartView`-scoped state; it drives `computeTotals` (pickup waives the delivery fee),
+`PaymentOptionsScreen`, and the receipt timeline.
 
-- **BAG:** a "How do you want your order?" card renders the segmented toggle. In **Delivery**
-  mode a live-address row appears below it — resolved via the `useLiveAddress` hook
-  (`src/hooks/useLiveAddress.ts`, `@react-native-community/geolocation`: in-UI consent → `getCurrentPosition`
-  → native `FaazioGeocoder.reverseGeocode`; coordinates/address are never logged). If permission is denied or
-  no fix is available it falls back to the saved primary `defaultAddresses[0]` with a
-  "using saved address" note so ordering never dead-ends. In **Self Pickup** mode nothing
-  extra renders — vendors are derived at order placement (no picker UI).
-- **ADDRESS step removed entirely** (`'ADDRESS'` dropped from `CheckoutStep`); there is no
-  manual saved-address selection page. Proceed to Pay goes to **PAYMENT** in both modes;
-  Payment's back button returns to BAG.
+- **BAG:** item list + pricing + savings/coupon card, with a prominent full-width **Place order**
+  button (disabled with no ticked items). No fulfilment UI here.
+- **FULFILLMENT:** a "to pay:" pale-blue total card (`BreakdownCard`) at top, then
+  **"How do you want your order?"** — a Delivery / Self Pickup segment — then **"Choose pickup or
+  delivery"**: Delivery shows the default address card (live `useLiveAddress` fix or the saved
+  primary address, with a **Change** link into `SavedAddresses`); Self Pickup lists the
+  `getPickupPointsForItems` pickup points (per vendor, name/address/hours/contact). A fixed bottom
+  **Proceed to pay** button is disabled until a mode is chosen. The **delivery fee is dynamic**:
+  on entering Delivery with a live fix, `CartView` fetches a server quote
+  (`gateway.fetchDeliveryFee`, `GET /checkout/delivery-fee`) and falls back to a Haversine
+  estimate (`computeDeliveryFeePaisa`, `src/features/cart/utils.ts`: ≤3 km → ₹35, then ₹9 per extra
+  km) when the gateway is unreachable.
+- **PAYMENT:** the reworked `PaymentOptionsScreen` (below); its back button returns to FULFILLMENT.
 - **Order placement:** for Delivery, the live fix (or fallback) is the delivery address and
   the GPS coordinates are captured on the order (`PlacedOrder.location`) and sent as
   `deliveryLocation`, so the gateway can auto-dispatch when the seller marks the order PACKED.
@@ -1119,6 +1128,26 @@ The order-level **Delivery ⇄ Self Pickup** toggle lives on the cart **BAG** st
   `getPickupPointsForItems` auto-derives **one pickup point per distinct vendor** and all of
   them are snapshotted as `PlacedOrder.pickups` (with `pickups[0]` also kept in `pickup` for
   the My Orders chip + prescription flow).
+
+### Payment step (`PaymentOptionsScreen`, `features/cart/payment/`)
+
+- A pale-blue **BreakdownCard** sits at top: "to pay:" total plus exactly **two rows** — Ordered
+  value + Delivery fee (the delivery row is hidden for Self Pickup). There is **no tax row**: catalog
+  prices are GST-inclusive so the customer total is `subtotal + deliveryFee − discount`, matching the
+  server invoice. The old Preferred-Payment card, CVV pay bar, and Net Banking / Wallet / COD
+  options are removed.
+- **UPI:** `src/services/upi.ts` probes the `UPI_APP_PACKAGES` list (`paymentData.ts`: GPay, PhonePe,
+  Paytm, Amazon Pay, BHIM) via `Linking.canOpenURL` (Android `<queries>` + iOS
+  `LSApplicationQueriesSchemes`), rendering installed apps as `UpiAppRow` selectable rows. Selecting a
+  UPI app shows the fixed floating **BottomPayBar** ("Pay ₹X").
+- **Cards:** saved cards come from the device Keychain (`payment/cardStorage.ts`, service
+  `FaazioCardToken`) — only a token + last4 + expiry + network, never a PAN/CVV. **Add New Card**
+  opens the real `AddCardScreen` (`AddCard` route), where the 16-digit/MM-YY/CVV/name form is
+  validated, a token is minted and stored in the Keychain, and the card appears on return (a
+  `useFocusEffect` reload). Selecting a saved card also shows the pay bar.
+- `onPlaceOrder` fires with `{ method: 'UPI' | 'CARD', upiLabel?, cardLast4?, coinsRedeemed? }`;
+  `CartView.handlePlaceOrder` sends `paymentMethod` and renders the receipt payment line. The
+  `CoinsRedeemRow` (only when balance ≥ `COIN_REDEEM_MIN`) is unchanged.
 
 The **My Orders → Order Details** page resolves an order via `ordersStore.getOrderById` first
 (durable server history, then in-session placed orders), falling back to `@data getMyOrderById`

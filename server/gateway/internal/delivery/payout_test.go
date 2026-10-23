@@ -1,10 +1,19 @@
 package delivery
 
-import "testing"
+import (
+	"testing"
+	"time"
+)
+
+// noonPST is an explicit out-of-night-window time (14:00 UTC → 19:30 IST) so the surge tests are
+// deterministic and never pick up the ambient 23:00–03:00 IST night surge from `time.Now()`.
+func noonPST() time.Time {
+	return time.Date(2026, 1, 5, 14, 0, 0, 0, time.UTC)
+}
 
 func TestComputeRiderPayoutBaseAndExtraKm(t *testing.T) {
 	s := DefaultPayoutSettings() // ₹30 base for 3 km, ₹7/km after
-	p := ComputeRiderPayout("dlv-1", "rider-1", 7500, s, SurgeInput{})
+	p := ComputeRiderPayout("dlv-1", "rider-1", 7500, s, SurgeInput{At: noonPST()})
 	if p.DistanceKm != 7.5 {
 		t.Fatalf("distance = %v, want 7.5", p.DistanceKm)
 	}
@@ -18,7 +27,7 @@ func TestComputeRiderPayoutBaseAndExtraKm(t *testing.T) {
 
 func TestComputeRiderPayoutSurges(t *testing.T) {
 	s := DefaultPayoutSettings()
-	p := ComputeRiderPayout("dlv-2", "rider-1", 2000, s, SurgeInput{Weather: true, Festival: true})
+	p := ComputeRiderPayout("dlv-2", "rider-1", 2000, s, SurgeInput{At: noonPST(), Weather: true, Festival: true})
 	if p.ExtraKmChargePaisa != 0 {
 		t.Fatalf("inside base distance must not charge extra km: %d", p.ExtraKmChargePaisa)
 	}
