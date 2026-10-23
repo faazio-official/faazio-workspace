@@ -41,6 +41,7 @@ import (
 	"github.com/faazio/server/gateway/internal/sellers"
 	"github.com/faazio/server/gateway/internal/settlement"
 	"github.com/faazio/server/gateway/internal/support"
+	"github.com/faazio/server/gateway/internal/tax"
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
 	gomongo "go.mongodb.org/mongo-driver/mongo"
@@ -166,7 +167,7 @@ func NewRouter(d Deps) http.Handler {
 	blood.NewHandler(bloodRepo, d.Cache, adminsRepo, notificationsRepo).Register(r)
 	bookings.NewHandler(bookingsRepo, bookingsService, d.Cache, adminsRepo).Register(r)
 	checkout.NewHandler(checkoutRepo, checkoutService, d.Cache, adminsRepo, notificationsRepo, promoRepo,
-		directoryRepo, deliveryHandler).Register(r)
+		directoryRepo, deliveryHandler, d.Signer).Register(r)
 	reviews.NewHandler(reviewsRepo, reviewsService, d.Cache, adminsRepo).Register(r)
 	reco.NewHandler(recoRepo, recoService).Register(r)
 	sdui.NewHandler(sduiService, adminsRepo).Register(r)
@@ -176,6 +177,7 @@ func NewRouter(d Deps) http.Handler {
 	promo.NewHandler(promoRepo, d.Cache, adminsRepo).Register(r)
 	ads.NewHandler(adsRepo, d.Cache, adminsRepo, d.Signer.PublicOrigin()).Register(r)
 	settlement.NewHandler(settlementRepo, d.Cache, adminsRepo, routeGateway, sellersRepo).Register(r)
+	tax.NewHandler(tax.NewRepo(d.Pool)).Register(r)
 	support.NewHandler(supportRepo, adminsRepo).Register(r)
 	deliveryHandler.Register(r)
 	media.NewHandler(mediaRepo, r2Signer, d.Cache, adminsRepo, d.Sweeper).Register(r)

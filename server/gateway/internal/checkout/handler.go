@@ -12,6 +12,8 @@ import (
 	"github.com/faazio/server/gateway/internal/platform/auth"
 	"github.com/faazio/server/gateway/internal/platform/cache"
 	"github.com/faazio/server/gateway/internal/platform/httpx"
+	"github.com/faazio/server/gateway/internal/platform/r2"
+	"github.com/faazio/server/gateway/internal/platform/taxmath"
 	"github.com/go-chi/chi/v5"
 )
 
@@ -25,12 +27,13 @@ type Handler struct {
 	coupons  contracts.CouponValidator
 	stores   contracts.StoreReader
 	delivery contracts.DeliveryDispatcher
+	signer   *r2.Signer
 }
 
-// NewHandler builds the checkout handler. notifier/coupons/stores/delivery may be nil (dispatch and
-// notifications are then disabled, e.g. in unit contexts).
-func NewHandler(repo *Repo, service *Service, c *cache.Cache, audit contracts.AuditWriter, notifier contracts.Notifier, coupons contracts.CouponValidator, stores contracts.StoreReader, delivery contracts.DeliveryDispatcher) *Handler {
-	return &Handler{repo: repo, service: service, cache: c, audit: audit, notifier: notifier, coupons: coupons, stores: stores, delivery: delivery}
+// NewHandler builds the checkout handler. notifier/coupons/stores/delivery/signer may be nil
+// (dispatch, notifications and presigned invoice downloads are then disabled, e.g. in unit tests).
+func NewHandler(repo *Repo, service *Service, c *cache.Cache, audit contracts.AuditWriter, notifier contracts.Notifier, coupons contracts.CouponValidator, stores contracts.StoreReader, delivery contracts.DeliveryDispatcher, signer *r2.Signer) *Handler {
+	return &Handler{repo: repo, service: service, cache: c, audit: audit, notifier: notifier, coupons: coupons, stores: stores, delivery: delivery, signer: signer}
 }
 
 // Register mounts auth-scoped order + account endpoints.
@@ -42,6 +45,7 @@ func (h *Handler) Register(r chi.Router) {
 		g.Post("/checkout/validate-coupon", h.validateCoupon)
 		g.Get("/orders/tracking/{orderID}", h.trackOrder)
 		g.Get("/orders/{orderID}", h.getOrder)
+		g.Get("/orders/{orderID}/invoice", h.getInvoice)
 		g.Post("/orders/{orderID}/payments", h.payOrder)
 		g.Get("/payments", h.getPayments)
 		g.Get("/profile", h.getProfile)
@@ -95,7 +99,71 @@ func (h *Handler) getOrder(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	order.Status = mobileStatus(order.Status)
+	if order.InvoiceID != "" {
+		if inv, ok, err := h.repo.InvoiceForUser(r.Context(), orderID, auth.UserID(r.Context())); err == nil && ok {
+			order.InvoiceNumber = inv.InvoiceNumber
+			order.InvoiceURL = h.invoiceURL(r, inv)
+		}
+	}
 	httpx.JSON(w, http.StatusOK, order)
+}
+
+// invoiceView is the customer-facing tax invoice projection (cents/paisa, never raw DB columns).
+type invoiceView struct {
+	InvoiceID           string `json:"invoiceId"`
+	InvoiceNumber       string `json:"invoiceNumber"`
+	OrderID             string `json:"orderId"`
+	OrderNumber         string `json:"orderNumber"`
+	SellerName          string `json:"sellerName"`
+	SellerGSTIN         string `json:"sellerGstin"`
+	TaxRatePct          int    `json:"taxRatePct"`
+	TaxableValuePaisa   int64  `json:"taxableValuePaisa"`
+	ProductTaxPaisa     int64  `json:"productTaxPaisa"`
+	PlatformFeePaisa    int64  `json:"platformFeePaisa"`
+	PlatformGSTPaisa    int64  `json:"platformGstPaisa"`
+	DeliveryFeePaisa    int64  `json:"deliveryFeePaisa"`
+	TCSPaisa            int64  `json:"tcsPaisa"`
+	TDSPaisa            int64  `json:"tdsPaisa"`
+	CouponDiscountPaisa int64  `json:"couponDiscountPaisa"`
+	TotalPaisa          int64  `json:"totalPaisa"`
+	SellerNetPaisa      int64  `json:"sellerNetPaisa"`
+	DownloadURL         string `json:"downloadUrl,omitempty"`
+}
+
+// getInvoice returns the immutable invoice for one of the caller's own orders. The download URL is a
+// short-lived presigned R2 GET when a rendered PDF exists; otherwise the app renders the JSON natively.
+func (h *Handler) getInvoice(w http.ResponseWriter, r *http.Request) {
+	inv, ok, err := h.repo.InvoiceForUser(r.Context(), chi.URLParam(r, "orderID"), auth.UserID(r.Context()))
+	if err != nil {
+		httpx.Fail(w, http.StatusInternalServerError, "invoice_unavailable", "invoice unavailable")
+		return
+	}
+	if !ok {
+		httpx.Fail(w, http.StatusNotFound, "not_found", "invoice not found")
+		return
+	}
+	httpx.JSON(w, http.StatusOK, invoiceView{
+		InvoiceID: inv.InvoiceID, InvoiceNumber: inv.InvoiceNumber, OrderID: inv.OrderID,
+		OrderNumber: inv.OrderNumber, SellerName: inv.SellerName, SellerGSTIN: inv.SellerGSTIN,
+		TaxRatePct: inv.TaxRatePct, TaxableValuePaisa: inv.TaxableValuePaisa,
+		ProductTaxPaisa: inv.ProductTaxPaisa, PlatformFeePaisa: inv.PlatformFeePaisa,
+		PlatformGSTPaisa: inv.PlatformGSTPaisa, DeliveryFeePaisa: inv.DeliveryFeePaisa,
+		TCSPaisa: inv.TCSPaisa, TDSPaisa: inv.TDSPaisa,
+		CouponDiscountPaisa: inv.CouponDiscountPaisa, TotalPaisa: inv.TotalPaisa,
+		SellerNetPaisa: inv.SellerNetPaisa, DownloadURL: h.invoiceURL(r, inv),
+	})
+}
+
+// invoiceURL presigns the private invoice PDF when one has been stored.
+func (h *Handler) invoiceURL(r *http.Request, inv taxmath.Invoice) string {
+	if inv.PDFKey == "" || h.signer == nil || !h.signer.Enabled() {
+		return ""
+	}
+	url, err := h.signer.PresignGet(r.Context(), h.signer.PrivateBucket(), inv.PDFKey, 10*time.Minute)
+	if err != nil {
+		return ""
+	}
+	return url
 }
 
 // trackOrder returns a lightweight status projection for one of the caller's own orders — the

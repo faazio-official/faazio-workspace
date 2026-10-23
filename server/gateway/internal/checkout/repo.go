@@ -13,6 +13,7 @@ import (
 
 	"github.com/faazio/server/gateway/internal/platform/cache"
 	"github.com/faazio/server/gateway/internal/platform/db"
+	"github.com/faazio/server/gateway/internal/platform/taxmath"
 	"github.com/jackc/pgx/v5"
 )
 
@@ -44,6 +45,19 @@ type Order struct {
 	// only (never serialized to the app): auto-dispatch at PACKED and admin assignment use them.
 	DeliveryLatitude  *float64 `json:"-"`
 	DeliveryLongitude *float64 `json:"-"`
+
+	// Tax/invoice snapshot. Amounts are server-derived at placement and immutable afterwards.
+	InvoiceID         string `json:"invoiceId,omitempty"`
+	InvoiceNumber     string `json:"invoiceNumber,omitempty"`
+	InvoiceURL        string `json:"invoiceUrl,omitempty"`
+	TaxableValuePaisa int64  `json:"taxableValuePaisa,omitempty"`
+	ProductTaxPaisa   int64  `json:"productTaxPaisa,omitempty"`
+	PlatformFeePaisa  int64  `json:"platformFeePaisa,omitempty"`
+	PlatformGSTPaisa  int64  `json:"platformGstPaisa,omitempty"`
+	DeliveryFeePaisa  int64  `json:"deliveryFeePaisa,omitempty"`
+	TCSPaisa          int64  `json:"tcsPaisa,omitempty"`
+	TDSPaisa          int64  `json:"tdsPaisa,omitempty"`
+	TotalChargedPaisa int64  `json:"totalChargedPaisa,omitempty"`
 }
 
 // OrderTracking is the lightweight owner-scoped status projection (polling/monitoring): no line
@@ -249,7 +263,10 @@ func (r *Repo) OrdersByUser(ctx context.Context, userID string) ([]Order, error)
 
 const orderHeaderSelect = `
 select order_id, order_number, user_id, coalesce(address_id,''), placed_at, status::text,
-       status_date, coalesce(fulfillment::text,''), vendor_store_ids, pickup, pickups
+       status_date, coalesce(fulfillment::text,''), vendor_store_ids, pickup, pickups,
+       coalesce(invoice_id,''), coalesce(taxable_value_paisa,0), coalesce(product_tax_paisa,0),
+       coalesce(platform_fee_paisa,0), coalesce(platform_gst_paisa,0), coalesce(delivery_fee_paisa,0),
+       coalesce(tcs_paisa,0), coalesce(tds_paisa,0), coalesce(total_charged_paisa,0)
   from checkout.orders`
 
 func scanOrderHeaders(rows pgx.Rows) ([]Order, error) {
@@ -263,7 +280,10 @@ func scanOrderHeaders(rows pgx.Rows) ([]Order, error) {
 			pickups    []byte
 		)
 		if err := rows.Scan(&o.ID, &o.OrderNumber, &o.UserID, &o.AddressID, &placedAt, &o.Status,
-			&statusDate, &o.Fulfillment, &o.VendorStoreIDs, &pickup, &pickups); err != nil {
+			&statusDate, &o.Fulfillment, &o.VendorStoreIDs, &pickup, &pickups,
+			&o.InvoiceID, &o.TaxableValuePaisa, &o.ProductTaxPaisa, &o.PlatformFeePaisa,
+			&o.PlatformGSTPaisa, &o.DeliveryFeePaisa, &o.TCSPaisa, &o.TDSPaisa,
+			&o.TotalChargedPaisa); err != nil {
 			return nil, err
 		}
 		o.Pickup = json.RawMessage(pickup)
@@ -384,10 +404,16 @@ func (r *Repo) OrderByID(ctx context.Context, orderID string) (Order, bool, erro
 	)
 	err := r.pool.QueryRow(ctx, `
 		select order_id, order_number, user_id, coalesce(address_id,''), placed_at, status::text,
-		       status_date, coalesce(fulfillment::text,''), vendor_store_ids, pickup, pickups
+		       status_date, coalesce(fulfillment::text,''), vendor_store_ids, pickup, pickups,
+		       coalesce(invoice_id,''), coalesce(taxable_value_paisa,0), coalesce(product_tax_paisa,0),
+		       coalesce(platform_fee_paisa,0), coalesce(platform_gst_paisa,0), coalesce(delivery_fee_paisa,0),
+		       coalesce(tcs_paisa,0), coalesce(tds_paisa,0), coalesce(total_charged_paisa,0)
 		  from checkout.orders where order_id = $1`, orderID).
 		Scan(&o.ID, &o.OrderNumber, &o.UserID, &o.AddressID, &placedAt, &o.Status,
-			&statusDate, &o.Fulfillment, &o.VendorStoreIDs, &pickup, &pickups)
+			&statusDate, &o.Fulfillment, &o.VendorStoreIDs, &pickup, &pickups,
+			&o.InvoiceID, &o.TaxableValuePaisa, &o.ProductTaxPaisa, &o.PlatformFeePaisa,
+			&o.PlatformGSTPaisa, &o.DeliveryFeePaisa, &o.TCSPaisa, &o.TDSPaisa,
+			&o.TotalChargedPaisa)
 	if err != nil {
 		if err == pgx.ErrNoRows {
 			return Order{}, false, nil
@@ -456,7 +482,9 @@ type ProductSnapshot struct {
 	ID         string
 	Name       string
 	App        string
+	Category   string
 	PricePaisa int64
+	SellerID   string
 	StoreID    *string
 }
 
@@ -469,14 +497,19 @@ func (r *Repo) ProductSnapshots(ctx context.Context, ids []string) (map[string]P
 	if len(ids) == 0 {
 		return out, nil
 	}
-	rows, err := r.pool.Query(ctx, `select id, name, app::text, price_paisa, store_id from catalog.products where id = any($1)`, ids)
+	rows, err := r.pool.Query(ctx, `
+		select p.id, p.name, p.app::text, p.category, p.price_paisa,
+		       coalesce(p.seller_id, s.seller_id, ''), p.store_id
+		  from catalog.products p
+		  left join directory.stores s on s.id = p.store_id
+		 where p.id = any($1)`, ids)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
 	for rows.Next() {
 		var s ProductSnapshot
-		if err := rows.Scan(&s.ID, &s.Name, &s.App, &s.PricePaisa, &s.StoreID); err != nil {
+		if err := rows.Scan(&s.ID, &s.Name, &s.App, &s.Category, &s.PricePaisa, &s.SellerID, &s.StoreID); err != nil {
 			return nil, err
 		}
 		out[s.ID] = s
@@ -484,10 +517,138 @@ func (r *Repo) ProductSnapshots(ctx context.Context, ids []string) (map[string]P
 	return out, rows.Err()
 }
 
+// SellerTaxProfile is the seller identity + commission settings needed for tax and invoicing.
+type SellerTaxProfile struct {
+	SellerID       string
+	BusinessName   string
+	GSTIN          string
+	PlatformFeePct int
+}
+
+// TaxRates returns the active category GST rates keyed by "SECTOR|lower(category)".
+func (r *Repo) TaxRates(ctx context.Context) (map[string]int, error) {
+	if r.pool == nil {
+		return nil, fmt.Errorf("checkout: database not configured")
+	}
+	rows, err := r.pool.Query(ctx, `
+		select sector::text, lower(category), gst_rate_pct
+		  from tax.tax_rates where is_active`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := map[string]int{}
+	for rows.Next() {
+		var sector, category string
+		var rate int
+		if err := rows.Scan(&sector, &category, &rate); err != nil {
+			return nil, err
+		}
+		out[sector+"|"+category] = rate
+	}
+	return out, rows.Err()
+}
+
+// PlatformRates reads the singleton tax rate card (falls back to statutory defaults).
+func (r *Repo) PlatformRates(ctx context.Context) (taxmath.Rates, error) {
+	if r.pool == nil {
+		return taxmath.DefaultRates(), nil
+	}
+	var (
+		gst float64
+		tcs float64
+		tds float64
+		fee int64
+	)
+	err := r.pool.QueryRow(ctx, `
+		select platform_gst_pct::float8, tcs_pct::float8, tds_pct::float8, delivery_fee_paisa
+		  from tax.platform_settings where id = 1`).Scan(&gst, &tcs, &tds, &fee)
+	if err != nil {
+		if err == pgx.ErrNoRows {
+			return taxmath.DefaultRates(), nil
+		}
+		return taxmath.DefaultRates(), err
+	}
+	return taxmath.Rates{PlatformGSTPct: gst, TCSPct: tcs, TDSPct: tds, DeliveryFeePaisa: fee}, nil
+}
+
+// SellerTaxProfiles returns commission/GST identity for the given sellers.
+func (r *Repo) SellerTaxProfiles(ctx context.Context, sellerIDs []string) (map[string]SellerTaxProfile, error) {
+	if r.pool == nil {
+		return nil, fmt.Errorf("checkout: database not configured")
+	}
+	out := map[string]SellerTaxProfile{}
+	if len(sellerIDs) == 0 {
+		return out, nil
+	}
+	rows, err := r.pool.Query(ctx, `
+		select seller_id, business_name, coalesce(gstin,''), platform_fee_pct
+		  from sellers.sellers where seller_id = any($1)`, sellerIDs)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var p SellerTaxProfile
+		if err := rows.Scan(&p.SellerID, &p.BusinessName, &p.GSTIN, &p.PlatformFeePct); err != nil {
+			return nil, err
+		}
+		out[p.SellerID] = p
+	}
+	return out, rows.Err()
+}
+
+// InsertInvoice writes the immutable tax invoice for an order (idempotent on order_id).
+func (r *Repo) InsertInvoice(ctx context.Context, inv taxmath.Invoice) error {
+	if r.pool == nil {
+		return fmt.Errorf("checkout: database not configured")
+	}
+	_, err := r.pool.Exec(ctx, `
+		insert into tax.tax_invoices
+		  (invoice_id, invoice_number, order_id, order_number, customer_id, seller_id, seller_name,
+		   seller_gstin, tax_rate_pct, taxable_value_paisa, product_tax_paisa, platform_fee_paisa,
+		   platform_gst_paisa, delivery_fee_paisa, tcs_paisa, tds_paisa, coupon_discount_paisa,
+		   total_paisa, seller_net_paisa, pdf_key)
+		values ($1,$2,$3,$4,$5,nullif($6,''),$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,nullif($20,''))
+		on conflict (order_id) do nothing`,
+		inv.InvoiceID, inv.InvoiceNumber, inv.OrderID, inv.OrderNumber, inv.CustomerID,
+		inv.SellerID, inv.SellerName, inv.SellerGSTIN, inv.TaxRatePct, inv.TaxableValuePaisa,
+		inv.ProductTaxPaisa, inv.PlatformFeePaisa, inv.PlatformGSTPaisa, inv.DeliveryFeePaisa,
+		inv.TCSPaisa, inv.TDSPaisa, inv.CouponDiscountPaisa, inv.TotalPaisa, inv.SellerNetPaisa,
+		inv.PDFKey)
+	return err
+}
+
+// InvoiceForUser returns the invoice for one of the caller's own orders.
+func (r *Repo) InvoiceForUser(ctx context.Context, orderID, userID string) (taxmath.Invoice, bool, error) {
+	if r.pool == nil {
+		return taxmath.Invoice{}, false, fmt.Errorf("checkout: database not configured")
+	}
+	var inv taxmath.Invoice
+	err := r.pool.QueryRow(ctx, `
+		select invoice_id, invoice_number, order_id, order_number, customer_id, coalesce(seller_id,''),
+		       seller_name, seller_gstin, tax_rate_pct, taxable_value_paisa, product_tax_paisa,
+		       platform_fee_paisa, platform_gst_paisa, delivery_fee_paisa, tcs_paisa, tds_paisa,
+		       coupon_discount_paisa, total_paisa, seller_net_paisa, coalesce(pdf_key,'')
+		  from tax.tax_invoices where order_id = $1 and customer_id = $2`, orderID, userID).
+		Scan(&inv.InvoiceID, &inv.InvoiceNumber, &inv.OrderID, &inv.OrderNumber, &inv.CustomerID, &inv.SellerID,
+			&inv.SellerName, &inv.SellerGSTIN, &inv.TaxRatePct, &inv.TaxableValuePaisa,
+			&inv.ProductTaxPaisa, &inv.PlatformFeePaisa, &inv.PlatformGSTPaisa,
+			&inv.DeliveryFeePaisa, &inv.TCSPaisa, &inv.TDSPaisa, &inv.CouponDiscountPaisa,
+			&inv.TotalPaisa, &inv.SellerNetPaisa, &inv.PDFKey)
+	if err != nil {
+		if err == pgx.ErrNoRows {
+			return taxmath.Invoice{}, false, nil
+		}
+		return taxmath.Invoice{}, false, err
+	}
+	return inv, true, nil
+}
+
 // InsertOrder writes an order, its line items, an optional payment row, and (when idempotencyKey is
 // set) the replay record in one transaction, so a retry can never observe an order without its
 // idempotency key. The optional payment is passed as a variadic to keep existing callers source-stable.
-func (r *Repo) InsertOrder(ctx context.Context, o Order, lines []OrderLineItem, idempotencyKey string, payments ...Payment) error {
+func (r *Repo) InsertOrder(ctx context.Context, o Order, lines []OrderLineItem, idempotencyKey string, invoices []taxmath.Invoice, payments ...Payment) error {
 	if r.pool == nil {
 		return fmt.Errorf("checkout: database not configured")
 	}
@@ -504,10 +665,14 @@ func (r *Repo) InsertOrder(ctx context.Context, o Order, lines []OrderLineItem, 
 	if _, err := tx.Exec(ctx, `
 		insert into checkout.orders
 		  (order_id, order_number, user_id, address_id, placed_at, status, fulfillment, total_paisa, vendor_store_ids, pickup, pickups,
-		   delivery_latitude, delivery_longitude)
-		values ($1,$2,$3,$4, now(), $5::order_status, $6::fulfillment_mode, $7, $8, $9::jsonb, $10::jsonb, $11, $12)`,
+		   delivery_latitude, delivery_longitude, invoice_id, taxable_value_paisa, product_tax_paisa,
+		   platform_fee_paisa, platform_gst_paisa, delivery_fee_paisa, tcs_paisa, tds_paisa, total_charged_paisa)
+		values ($1,$2,$3,$4, now(), $5::order_status, $6::fulfillment_mode, $7, $8, $9::jsonb, $10::jsonb, $11, $12,
+		        nullif($13,''), $14, $15, $16, $17, $18, $19, $20, $21)`,
 		o.ID, o.OrderNumber, o.UserID, nullIfEmpty(o.AddressID), o.Status, fulfillment, totalPaisa(lines), o.VendorStoreIDs,
-		nullIfEmptyJSON(o.Pickup), nullIfEmptyJSON(o.Pickups), o.DeliveryLatitude, o.DeliveryLongitude); err != nil {
+		nullIfEmptyJSON(o.Pickup), nullIfEmptyJSON(o.Pickups), o.DeliveryLatitude, o.DeliveryLongitude,
+		o.InvoiceID, o.TaxableValuePaisa, o.ProductTaxPaisa, o.PlatformFeePaisa, o.PlatformGSTPaisa,
+		o.DeliveryFeePaisa, o.TCSPaisa, o.TDSPaisa, o.TotalChargedPaisa); err != nil {
 		return err
 	}
 	for _, li := range lines {
@@ -515,6 +680,23 @@ func (r *Repo) InsertOrder(ctx context.Context, o Order, lines []OrderLineItem, 
 			insert into checkout.order_items (line_id, order_id, product_id, name, variant, qty, unit_price_paisa)
 			values ($1,$2,$3,$4,$5,$6,$7)`,
 			li.LineID, o.ID, nullIfEmpty(li.ProductID), li.Name, nullIfEmpty(li.Variant), li.Qty, li.UnitPrice*100); err != nil {
+			return err
+		}
+	}
+	for _, inv := range invoices {
+		if _, err := tx.Exec(ctx, `
+			insert into tax.tax_invoices
+			  (invoice_id, invoice_number, order_id, order_number, customer_id, seller_id, seller_name,
+			   seller_gstin, tax_rate_pct, taxable_value_paisa, product_tax_paisa, platform_fee_paisa,
+			   platform_gst_paisa, delivery_fee_paisa, tcs_paisa, tds_paisa, coupon_discount_paisa,
+			   total_paisa, seller_net_paisa, pdf_key)
+			values ($1,$2,$3,$4,$5,nullif($6,''),$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,nullif($20,''))
+			on conflict (order_id) do nothing`,
+			inv.InvoiceID, inv.InvoiceNumber, inv.OrderID, inv.OrderNumber, inv.CustomerID,
+			inv.SellerID, inv.SellerName, inv.SellerGSTIN, inv.TaxRatePct, inv.TaxableValuePaisa,
+			inv.ProductTaxPaisa, inv.PlatformFeePaisa, inv.PlatformGSTPaisa, inv.DeliveryFeePaisa,
+			inv.TCSPaisa, inv.TDSPaisa, inv.CouponDiscountPaisa, inv.TotalPaisa, inv.SellerNetPaisa,
+			inv.PDFKey); err != nil {
 			return err
 		}
 	}
@@ -568,7 +750,8 @@ func (r *Repo) OrderTotalForUser(ctx context.Context, orderID, userID string) (i
 	}
 	var total int64
 	err := r.pool.QueryRow(ctx, `
-		select total_paisa from checkout.orders where order_id = $1 and user_id = $2`, orderID, userID).Scan(&total)
+		select coalesce(nullif(total_charged_paisa,0), total_paisa)
+		  from checkout.orders where order_id = $1 and user_id = $2`, orderID, userID).Scan(&total)
 	if err != nil {
 		if err == pgx.ErrNoRows {
 			return 0, false, nil

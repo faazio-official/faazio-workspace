@@ -182,6 +182,9 @@ export interface LedgerEntry {
   orderValuePaisa: number;
   commissionPaisa: number;
   tcsPaisa: number;
+  tdsPaisa: number;
+  productTaxPaisa: number;
+  platformGstPaisa: number;
   netPayoutPaisa: number;
 }
 

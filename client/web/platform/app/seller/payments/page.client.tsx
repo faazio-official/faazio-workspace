@@ -26,16 +26,18 @@ function SellerPayments() {
   const ledger = useLedger(sellerId);
   const payouts = usePayouts(sellerId);
 
-  const gross = ledger.reduce((t, l) => t + l.orderValuePaisa, 0);
+const gross = ledger.reduce((t, l) => t + l.orderValuePaisa, 0);
   const commission = ledger.reduce((t, l) => t + l.commissionPaisa, 0);
   const tcs = ledger.reduce((t, l) => t + l.tcsPaisa, 0);
+  const tds = ledger.reduce((t, l) => t + l.tdsPaisa, 0);
+  const productTax = ledger.reduce((t, l) => t + l.productTaxPaisa, 0);
   const net = ledger.reduce((t, l) => t + l.netPayoutPaisa, 0);
 
   return (
     <div className="space-y-4">
       <PageHeader
         title="Payments"
-        description={`Commission ${config.commissionPercent}% · TCS ${config.tcsPercent}% · weekly cycles`}
+        description={`Commission ${config.commissionPercent}% · TCS ${config.tcsPercent}% · TDS 0.1% · weekly cycles`}
         actions={
           <Button size="sm" variant="outline" onClick={() => window.print()}>
             Print statement
@@ -49,6 +51,8 @@ function SellerPayments() {
             { label: "Gross order value", value: formatINR(gross, { compact: true }) },
             { label: "Commission", value: formatINR(commission, { compact: true }) },
             { label: "TCS", value: formatINR(tcs, { compact: true }) },
+            { label: "TDS", value: formatINR(tds, { compact: true }) },
+            { label: "Product GST", value: formatINR(productTax, { compact: true }) },
             { label: "Net payout", value: formatINR(net, { compact: true }) },
           ]}
         />
@@ -58,7 +62,7 @@ function SellerPayments() {
         <DataShell
           loading={loading}
           isEmpty={ledger.length === 0}
-          empty={<EmptyState title="No settlements yet" description="Cycles appear after your first delivered order." />}
+          empty={<EmptyState title="No settlements yet" description="Cycles appear after your first held payout." />}
         >
           <Table>
             <TableHeader>
@@ -67,6 +71,8 @@ function SellerPayments() {
                 <TableHead className="text-right">Order value</TableHead>
                 <TableHead className="text-right">Commission</TableHead>
                 <TableHead className="text-right">TCS</TableHead>
+                <TableHead className="text-right">TDS</TableHead>
+                <TableHead className="text-right">Product GST</TableHead>
                 <TableHead className="text-right">Net payout</TableHead>
               </TableRow>
             </TableHeader>
@@ -80,6 +86,12 @@ function SellerPayments() {
                   </TableCell>
                   <TableCell className="num text-right text-muted-foreground">
                     −{formatINR(entry.tcsPaisa)}
+                  </TableCell>
+                  <TableCell className="num text-right text-muted-foreground">
+                    −{formatINR(entry.tdsPaisa)}
+                  </TableCell>
+                  <TableCell className="num text-right text-muted-foreground">
+                    {formatINR(entry.productTaxPaisa)}
                   </TableCell>
                   <TableCell className="num text-right font-semibold">
                     {formatINR(entry.netPayoutPaisa)}

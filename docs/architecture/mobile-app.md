@@ -698,12 +698,14 @@ DeliveryPartnerNavigator (native stack, no customer screens)
 ├── SubmissionSuccess — applied / pending / verified / rejected / suspended state + rejection reason
 ├── Dashboard    — Go Online toggle (PUT /delivery/availability), Valkey heartbeat every 120 s
 │                  (foreground + Android foreground service headless task + iOS background watch),
-│                  45 s offer cards, active multi-stop jobs
+│                  45 s offer cards, active multi-stop jobs, Earnings link
 ├── AcceptReject — deep-link/push offer: store/customer, payout, route context, 45 s countdown,
 │                  Accept / Reject (expiry = implicit reject) → Route
-└── Route        — one merged route across all ACCEPTED jobs: stops sorted by the server's global
-                   sequence, one polyline, Arrived/Picked Up/Delivered transitions, customer-OTP
-                   handover (document re-upload is admin-side; the app has no re-upload screen)
+├── Route        — one merged route across all ACCEPTED jobs: stops sorted by the server's global
+│                  sequence, one polyline, Arrived/Picked Up/Delivered transitions, customer-OTP
+│                  handover (document re-upload is admin-side; the app has no re-upload screen)
+└── Payouts      — earnings history from GET /delivery/payouts: pending/paid totals and each job's
+                   distance, base/extra-km, surge reason and settlement status
 ```
 
 **Push offer deep link.** `src/services/deliveryPush.ts` registers the FCM token, routes a foreground

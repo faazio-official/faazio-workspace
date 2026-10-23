@@ -1,5 +1,5 @@
-import React, { useCallback, useMemo } from 'react';
-import { StyleSheet, View, ScrollView, TouchableOpacity } from 'react-native';
+import React, { useCallback, useMemo, useState } from 'react';
+import { Linking, StyleSheet, View, ScrollView, TouchableOpacity } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ChevronLeft, ExternalLink, PackageOpen } from 'lucide-react-native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
@@ -11,7 +11,7 @@ import { getMyOrderById, getProductById, getVendorById, portalSectors, userProfi
 import { SECTOR_VISUALS } from '@/theme/sectorVisuals';
 import { useOrdersStore } from '@/state/ordersStore';
 import { useCanRateVendor } from '@/hooks/useVendorRating';
-import { gateway } from '@/services/api/GatewayClient';
+import { gateway, type OrderInvoice } from '@/services/api/GatewayClient';
 import { usePrescriptionDetail } from '@/features/pharma/prescription/usePrescriptionDetail';
 import type { MyOrder } from '@data/types';
 import type { RootStackParamList } from '@/navigation/types';
@@ -156,6 +156,28 @@ export function OrderDetailsScreen({ navigation, route }: Props) {
       navigation.navigate('RateVendor', { vendorId: vendor.id, vendorName: vendor.name }),
     [navigation],
   );
+
+  const [invoice, setInvoice] = useState<OrderInvoice | null>(null);
+  const [invoiceBusy, setInvoiceBusy] = useState(false);
+  const [invoiceError, setInvoiceError] = useState('');
+
+  const handleInvoice = useCallback(async () => {
+    if (!gateway.remoteEnabled) {
+      setInvoiceError('Invoice download needs an internet connection.');
+      return;
+    }
+    setInvoiceBusy(true);
+    setInvoiceError('');
+    try {
+      const next = await gateway.getOrderInvoice(route.params.orderId);
+      setInvoice(next);
+      if (next.downloadUrl) await Linking.openURL(next.downloadUrl);
+    } catch {
+      setInvoiceError('This invoice is not available yet.');
+    } finally {
+      setInvoiceBusy(false);
+    }
+  }, [route.params.orderId]);
 
   if (!order) {
     return (
@@ -336,6 +358,40 @@ export function OrderDetailsScreen({ navigation, route }: Props) {
           </View>
         ) : null}
 
+        {/* Tax invoice — immutable server record, downloadable once rendered to PDF */}
+        <View style={styles.card}>
+          <AppText style={styles.sectionTitle}>Tax invoice</AppText>
+          <AppText style={styles.invoiceHint}>
+            GST invoice issued by the seller. Download it for returns or expense claims.
+          </AppText>
+          <TouchableOpacity
+            onPress={() => void handleInvoice()}
+            disabled={invoiceBusy}
+            activeOpacity={0.85}
+            accessibilityRole="button"
+            style={styles.invoiceBtn}
+          >
+            <AppText style={styles.invoiceBtnText}>
+              {invoiceBusy ? 'Fetching invoice…' : invoice?.downloadUrl ? 'Download PDF invoice' : 'View invoice'}
+            </AppText>
+          </TouchableOpacity>
+          {invoiceError ? <AppText style={styles.invoiceError}>{invoiceError}</AppText> : null}
+          {invoice ? (
+            <View style={styles.invoiceBody}>
+              <InvoiceRow label="Invoice no." value={invoice.invoiceNumber} />
+              <InvoiceRow label="Seller" value={invoice.sellerName || 'Faazio marketplace'} />
+              {invoice.sellerGstin ? <InvoiceRow label="GSTIN" value={invoice.sellerGstin} /> : null}
+              <InvoiceRow label="Taxable value" value={inr(invoice.taxableValuePaisa)} />
+              <InvoiceRow label={`GST (${invoice.taxRatePct}%)`} value={inr(invoice.productTaxPaisa)} />
+              <InvoiceRow label="Delivery fee" value={inr(invoice.deliveryFeePaisa)} />
+              {invoice.couponDiscountPaisa > 0 ? (
+                <InvoiceRow label="Discount" value={`− ${inr(invoice.couponDiscountPaisa)}`} />
+              ) : null}
+              <InvoiceRow label="Total paid" value={inr(invoice.totalPaisa)} strong />
+            </View>
+          ) : null}
+        </View>
+
         {/* View Product */}
         {product ? (
           <TouchableOpacity
@@ -352,6 +408,17 @@ export function OrderDetailsScreen({ navigation, route }: Props) {
 
         <View style={styles.bottomSpacer} />
       </ScrollView>
+    </View>
+  );
+}
+
+const inr = (paisa: number) => `₹${(paisa / 100).toLocaleString('en-IN', { maximumFractionDigits: 2 })}`;
+
+function InvoiceRow({ label, value, strong }: { label: string; value: string; strong?: boolean }) {
+  return (
+    <View style={styles.invoiceRow}>
+      <AppText style={styles.invoiceRowLabel}>{label}</AppText>
+      <AppText style={[styles.invoiceRowValue, strong ? styles.invoiceRowStrong : null]}>{value}</AppText>
     </View>
   );
 }
@@ -567,6 +634,53 @@ const styles = StyleSheet.create({
     marginTop: vs(2),
   },
 
+  invoiceHint: {
+    fontSize: ms(12),
+    color: '#6B7280',
+    lineHeight: ms(17),
+    marginBottom: vs(8),
+  },
+  invoiceBtn: {
+    paddingVertical: vs(11),
+    borderRadius: ms(10),
+    backgroundColor: '#111827',
+    alignItems: 'center',
+  },
+  invoiceBtnText: {
+    fontSize: ms(13),
+    fontWeight: '700',
+    color: '#FFFFFF',
+  },
+  invoiceError: {
+    marginTop: vs(6),
+    fontSize: ms(12),
+    color: '#B91C1C',
+  },
+  invoiceBody: {
+    marginTop: vs(10),
+    borderTopWidth: 1,
+    borderTopColor: '#F3F4F6',
+    paddingTop: vs(8),
+  },
+  invoiceRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    gap: hs(10),
+    paddingVertical: vs(3),
+  },
+  invoiceRowLabel: {
+    fontSize: ms(12),
+    color: '#6B7280',
+    flex: 1,
+  },
+  invoiceRowValue: {
+    fontSize: ms(12),
+    color: '#111827',
+    fontWeight: '600',
+  },
+  invoiceRowStrong: {
+    fontWeight: '800',
+  },
   viewProductBtn: {
     flexDirection: 'row',
     alignItems: 'center',

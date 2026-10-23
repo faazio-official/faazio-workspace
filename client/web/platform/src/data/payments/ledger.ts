@@ -10,6 +10,9 @@ export const LEDGER: LedgerEntry[] = SELLERS.flatMap((seller) =>
     const orderValuePaisa = seededInt(`ledger:${seller.sellerId}:${cycle}`, 120000, 4800000);
     const commissionPaisa = Math.round(orderValuePaisa * 0.08);
     const tcsPaisa = Math.round(orderValuePaisa * 0.01);
+    const tdsPaisa = Math.round(orderValuePaisa * 0.001);
+    const productTaxPaisa = Math.round(orderValuePaisa * (5 / 105));
+    const platformGstPaisa = Math.round(commissionPaisa * 0.18);
     return {
       entryId: `led-${seller.sellerId}-${cycle}`,
       sellerId: seller.sellerId,
@@ -17,7 +20,10 @@ export const LEDGER: LedgerEntry[] = SELLERS.flatMap((seller) =>
       orderValuePaisa,
       commissionPaisa,
       tcsPaisa,
-      netPayoutPaisa: orderValuePaisa - commissionPaisa - tcsPaisa,
+      tdsPaisa,
+      productTaxPaisa,
+      platformGstPaisa,
+      netPayoutPaisa: orderValuePaisa - commissionPaisa - tcsPaisa - tdsPaisa,
     };
   }),
 );

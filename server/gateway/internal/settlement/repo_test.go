@@ -23,7 +23,8 @@ func TestSettlementAndPayouts(t *testing.T) {
 
 	// Rupees in -> paisa in the DB -> rupees out (round-trip, no float).
 	if _, err := repo.AddLedgerEntry(ctx, LedgerEntry{
-		SellerID: sellerID, Cycle: "2026-01", OrderValue: 1000, Commission: 80, TCS: 10, NetPayout: 910,
+		SellerID: sellerID, Cycle: "2026-01", OrderValue: 1000, Commission: 80, TCS: 10, TDS: 1,
+		ProductTax: 48, PlatformGST: 14, NetPayout: 909,
 	}); err != nil {
 		t.Fatalf("AddLedgerEntry: %v", err)
 	}
@@ -32,7 +33,8 @@ func TestSettlementAndPayouts(t *testing.T) {
 		t.Fatalf("Ledger: err=%v n=%d", err, len(entries))
 	}
 	e := entries[0]
-	if e.OrderValue != 1000 || e.Commission != 80 || e.TCS != 10 || e.NetPayout != 910 {
+	if e.OrderValue != 1000 || e.Commission != 80 || e.TCS != 10 || e.TDS != 1 ||
+		e.ProductTax != 48 || e.PlatformGST != 14 || e.NetPayout != 909 {
 		t.Fatalf("paisa/rupee round-trip drifted: %+v", e)
 	}
 

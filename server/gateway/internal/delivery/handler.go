@@ -68,6 +68,8 @@ func (h *Handler) Register(r chi.Router) {
 		g.Put("/delivery/stop/{stopId}/status", h.updateStop)
 		g.Get("/delivery/route/{deliveryId}", h.getRoute)
 		g.Post("/delivery/otp/verify", h.verifyOTP)
+		g.Get("/delivery/payouts", h.riderPayouts)
+		g.Get("/delivery/payouts/{orderId}", h.riderPayout)
 	})
 
 	// Customer post-delivery rating (any authenticated shopper).
@@ -87,7 +89,13 @@ func (h *Handler) Register(r chi.Router) {
 		g.Get("/admin/delivery-boys", h.adminRiders)
 		g.Get("/admin/delivery-boys/{id}/location", h.adminLocation)
 		g.Post("/dispatch/assign", h.assign)
+		g.Get("/delivery/payout-settings", h.payoutSettings)
 	})
+	// Money settlement is SUPER_ADMIN only.
+	r.With(auth.RequireRole(auth.RoleSuperAdmin)).
+		Post("/delivery/payouts/{orderId}/settle", h.settlePayout)
+	r.With(auth.RequireRole(auth.RoleSuperAdmin)).
+		Put("/delivery/payout-settings", h.updatePayoutSettings)
 	// Super-admin-only transitions.
 	r.With(auth.RequireRole(auth.RoleSuperAdmin)).Put("/delivery/register/{id}/activate", h.activateApplication)
 	r.With(auth.RequireRole(auth.RoleSuperAdmin)).Put("/delivery/boys/{id}/blacklist", h.blacklist)

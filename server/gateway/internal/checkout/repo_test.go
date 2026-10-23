@@ -111,7 +111,7 @@ func TestInsertOrderRecordsIdempotency(t *testing.T) {
 
 	order := Order{ID: orderID, OrderNumber: "#T", UserID: "user-1", Status: "Processing", VendorStoreIDs: []string{}}
 	lines := []OrderLineItem{{LineID: orderID + "-l1", ProductID: "fm-m1", Name: "x", Qty: 1, UnitPrice: 100}}
-	if err := repo.InsertOrder(ctx, order, lines, key); err != nil {
+	if err := repo.InsertOrder(ctx, order, lines, key, nil); err != nil {
 		t.Fatalf("InsertOrder: %v", err)
 	}
 

@@ -59,9 +59,11 @@ dependencies exist. Do not build the backend/seller flows until told to.
   one-time location map marker (no polling).
 
 **Still pending (not built):**
-- **Phase 5 payout engine** — order-level seller/platform/rider split, COD reconciliation, TDS and
-  payout frequency. `delivery_orders.payout_amount_paisa` is display-only; do **not** create
-  `delivery.payouts*` tables or payout screens until the product decision is approved.
+- **Payout reconciliation** — the order-level tax/rider split now exists (`tax.tax_invoices`,
+  `tax.platform_settings`, `delivery.payout_settings` + `delivery.delivery_payouts`, seller ledger
+  TDS/product-GST/platform-GST, partner **Earnings** screen). What remains is COD reconciliation,
+  bank-credit payout runs/frequency and invoice PDF rendering (`tax_invoices.pdf_key`); the API
+  serves the invoice JSON today and returns a presigned URL only when a PDF exists.
 - **Push bridge ops (`PUSH_WEBHOOK_URL`)** — the app side is done (token registration, foreground
   handler, notification tap and `faazio-delivery://accept-reject?orderId=…` all open
   `AcceptRejectScreen`), but end-to-end delivery still needs the gateway's FCM/webhook bridge

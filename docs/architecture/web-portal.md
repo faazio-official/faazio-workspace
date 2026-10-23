@@ -52,8 +52,8 @@ The campaign wizard's **what→where** placements map 1:1 to the paid mobile sur
 | `seller` | dashboard | all |
 | `seller/ads` | hero CampaignWizard (what→where→creative→when→review) + campaign list/KPIs — includes the `PHARMA_HERO` (Pharma home), `CATEGORY_TOP` (Pharma/mart category drill-in) and `STORE_TOP` (Pharma medical shop / mart vendor) placements | all |
 | `seller/products` | catalog list | all |
-| `seller/products/new` | create listing | all |
-| `seller/products/[id]/edit` | listing editor (name/desc/photos + `upsertPrice`) | all |
+| `seller/products/new` | create listing — sector fixed from registration, category from the **approved GST category master**, no MRP/ETA inputs, live seller "What you keep" deduction preview (platform fee, platform GST, TCS, TDS) | all |
+| `seller/products/[id]/edit` | listing editor (name/desc/photos + `upsertPrice`) — no MRP field, GST note | all |
 | `seller/inventory` | stock | all |
 | `seller/pricing` | price/MRP | all |
 | `seller/promotions` | festival opt-ins + live price | all |
@@ -62,7 +62,7 @@ The campaign wizard's **what→where** placements map 1:1 to the paid mobile sur
 | `seller/orders` · `seller/orders/[id]` | order queue + detail | all |
 | `seller/bookings` · `seller/bookings/settings` | seat accept/reject/vacate + config | FOOD |
 | `seller/prescriptions` | Rx quote → READY reveal | PHARMA |
-| `seller/returns` · `seller/reviews` · `seller/payments` | after-sales | all |
+| `seller/returns` · `seller/reviews` · `seller/payments` | after-sales — payments ledger carries TCS, TDS (0.1%), product GST and platform GST columns | all |
 | `seller/analytics` · `seller/support` · `seller/settings` · `seller/onboarding` | console | all |
 
 **District admin console (`app/admin/district/**`)** — district-scoped oversight (campaigns, coupons, ads and delivery read models remain state-level).
@@ -89,7 +89,7 @@ The campaign wizard's **what→where** placements map 1:1 to the paid mobile sur
 | `admin/super/sdui` | Home/Mart/Food/Pharma SDUI layout editor (sections, productIds, hero banners incl. `pharmaHero`/`pharmaPopular`/`pharmaEssentials`) |
 | `admin/super/festival` · `admin/super/coupons` | promo authority |
 | `admin/super/products` · `admin/super/sellers` | catalog/seller authority — the seller list links into the shared KYC review detail and shows the platform fee |
-| `admin/super/sectors` · `admin/super/coverage` | taxonomy + coverage |
+| `admin/super/sectors` · `admin/super/coverage` | taxonomy + coverage — **GST rate master** (sector + category + GST rate, `tax.tax_rates` via `GET/PUT /admin/tax/categories` + `DELETE /admin/tax/categories/{id}`): the approved category list that seller listings and the checkout tax split both consume |
 | `admin/super/rewards` · `admin/super/users` · `admin/super/districts` | platform — `districts` is the per-district drill-down (supply, campaigns, roster) |
 | `admin/{district,super}/fee-change-requests` | seller-initiated platform-fee change review — district admins see their district, super admins every district; approve applies the fee, reject requires a reason (server-enforced one pending request per seller) |
 | `admin/super/district-admins` | district-admin directory — all 42 TN/PY districts; coverage summary (X / 42) + progress bar + grouped uncovered chips. **Unified creation:** one form creates the roster + (optionally, `issueLogin` default ON) the portal login + temporary password atomically; duplicate email blocked on/off-server, duplicate phone soft-warned |
