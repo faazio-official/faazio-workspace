@@ -65,32 +65,32 @@ The campaign wizard's **what→where** placements map 1:1 to the paid mobile sur
 | `seller/returns` · `seller/reviews` · `seller/payments` | after-sales | all |
 | `seller/analytics` · `seller/support` · `seller/settings` · `seller/onboarding` | console | all |
 
-**District admin console (`app/admin/district/**`)** — state-scoped oversight.
+**District admin console (`app/admin/district/**`)** — district-scoped oversight (campaigns, coupons, ads and delivery read models remain state-level).
 
 | Route | Page |
 | --- | --- |
-| `admin/state` | dashboard |
-| `admin/state/products` · `admin/state/products/queue` | catalog + review queue |
-| `admin/state/sellers` · `admin/state/sellers/[id]` | seller directory + KYC review: full registration, masked payout account, private-bucket passbook/FSSAI links, platform-fee editor, per-document verify (PAN/GSTIN/FSSAI/passbook), reject with reason, **Verify KYC** (Razorpay Route linked account → ACTIVE). SUPER_ADMIN reaches the same detail page from `admin/super/sellers`. |
-| `admin/state/orders` · `admin/state/bookings` | order/booking oversight |
-| `admin/state/blood` | blood requests board (PHARMA) — server `blood.requests` with `contact`/`address` redacted for anon; moderation (`DELETE /blood-requests/{id}`) |
-| `admin/state/customers` | customer list + activity trail |
-| `admin/state/delivery-boys` | delivery-partner control plane (state-scoped): pending KYC queue, per-document verify and admin-side replacement upload (private R2 → `PUT /delivery/register/{id}/documents/{docType}/reupload`; the rider app has no re-upload screen), profile approve → super-admin activation, active-rider list (load/capacity) with on-demand Valkey location, suspend |
-| `admin/state/coupons` · `admin/state/festival` | promo |
-| `admin/state/pricing-audit` | price integrity |
-| `admin/state/analytics` · `admin/state/content` · `admin/state/support` · `admin/state/audit` | console |
+| `admin/district` | dashboard |
+| `admin/district/products` · `admin/district/products/queue` | catalog + review queue |
+| `admin/district/sellers` · `admin/district/sellers/[id]` | seller directory + KYC review: full registration, masked payout account, private-bucket passbook/FSSAI links, platform-fee editor, per-document verify (PAN/GSTIN/FSSAI/passbook), reject with reason, **Verify KYC** (Razorpay Route linked account → ACTIVE). SUPER_ADMIN reaches the same detail page from `admin/super/sellers`. |
+| `admin/district/orders` · `admin/district/bookings` | order/booking oversight |
+| `admin/district/blood` | blood requests board (PHARMA) — server `blood.requests` with `contact`/`address` redacted for anon; moderation (`DELETE /blood-requests/{id}`) |
+| `admin/district/customers` | customer list + activity trail |
+| `admin/district/delivery-boys` | delivery-partner control plane (state-scoped): pending KYC queue, per-document verify and admin-side replacement upload (private R2 → `PUT /delivery/register/{id}/documents/{docType}/reupload`; the rider app has no re-upload screen), profile approve → super-admin activation, active-rider list (load/capacity) with on-demand Valkey location, suspend |
+| `admin/district/coupons` · `admin/district/festival` | promo |
+| `admin/district/pricing-audit` | price integrity |
+| `admin/district/analytics` · `admin/district/content` · `admin/district/support` · `admin/district/audit` | console |
 
 **Super admin console (`app/admin/super/**`)** — global control plane.
 
 | Route | Page |
 | --- | --- |
-| `admin/super` | dashboard |
+| `admin/super` | global dashboard — KPI strip + **district matrix** (sellers and active-admin coverage for all 42 TN/PY districts, uncovered-only filter) |
 | `admin/super/ads` | live ad monitor (Live/Reported/CTR; Takedown/Restore) |
 | `admin/super/sdui` | Home/Mart/Food/Pharma SDUI layout editor (sections, productIds, hero banners incl. `pharmaHero`/`pharmaPopular`/`pharmaEssentials`) |
 | `admin/super/festival` · `admin/super/coupons` | promo authority |
 | `admin/super/products` · `admin/super/sellers` | catalog/seller authority — the seller list links into the shared KYC review detail and shows the platform fee |
 | `admin/super/sectors` · `admin/super/coverage` | taxonomy + coverage |
-| `admin/super/rewards` · `admin/super/users` · `admin/super/districts` | platform |
+| `admin/super/rewards` · `admin/super/users` · `admin/super/districts` | platform — `districts` is the per-district drill-down (supply, campaigns, roster) |
 | `admin/{district,super}/fee-change-requests` | seller-initiated platform-fee change review — district admins see their district, super admins every district; approve applies the fee, reject requires a reason (server-enforced one pending request per seller) |
 | `admin/super/district-admins` | district-admin directory — all 42 TN/PY districts; coverage summary (X / 42) + progress bar + grouped uncovered chips. **Unified creation:** one form creates the roster + (optionally, `issueLogin` default ON) the portal login + temporary password atomically; duplicate email blocked on/off-server, duplicate phone soft-warned |
 | `admin/super/credentials` | issue/disable seller and district-admin portal logins (role + seller/district scope) |
@@ -98,7 +98,7 @@ The campaign wizard's **what→where** placements map 1:1 to the paid mobile sur
 | `admin/super/delivery-boys` | all-India delivery-partner console — same review board, super-only activation and suspend/blacklist |
 | `admin/super/analytics` · `admin/super/audit` · `admin/super/settings` | console |
 
-> **Audit log retention (`0037`):** both audit pages (`admin/state/audit`, `admin/super/audit`) stay
+> **Audit log retention (`0037`):** both audit pages (`admin/district/audit`, `admin/super/audit`) stay
 > **read-only** — no UI edit/delete and no RLS delete policy. Rows are now a rolling **7-day window**:
 > a gateway worker on Render purges `admins.audit_logs` older than 7 days nightly at **00:00 IST** (for
 > all roles — SELLER, DISTRICT_ADMIN, SUPER_ADMIN), recording a surviving `AUDIT_PURGE` row. Copy reflects
@@ -244,7 +244,7 @@ decisions through awaited writes with rollback (`PUT /bookings/{id}/status`, `PO
   **production** (`NODE_ENV=production`) an empty but successfully-fetched slice clears the local
   slice, so sellers/admins never see phantom demo rows. The gateway speaks **whole
   rupees**; the portal stores **paisa**, so the mapper multiplies by 100.
-  The `admin/state/customers` page adds an on-demand **activity trail** panel per selected customer
+  The `admin/district/customers` page adds an on-demand **activity trail** panel per selected customer
   (`useUserTrail` → admin-only `GET /admin/user-trail?userId=`, ID-only `user_events`).
 - **Auth (portal-only)** — `src/lib/api/index.ts` `signIn` calls
   `src/lib/portal/auth.ts`, which talks only to same-origin `/api/auth/portal/*` route

@@ -33,6 +33,7 @@ function SuperSellers() {
   const rows = sellers.filter((s) =>
     query
       ? s.businessName.toLowerCase().includes(query.toLowerCase()) ||
+        s.districtCode?.toLowerCase() === query.toLowerCase() ||
         s.stateCode.toLowerCase() === query.toLowerCase()
       : true,
   );
@@ -49,7 +50,7 @@ function SuperSellers() {
           <Input
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            placeholder="Search name or state code"
+            placeholder="Search name, district or state"
             className="h-9 w-56"
           />
           {STATUSES.map((option) => (
@@ -70,7 +71,7 @@ function SuperSellers() {
             <TableHeader>
               <TableRow>
                 <TableHead>Business</TableHead>
-                <TableHead>State</TableHead>
+                <TableHead>District</TableHead>
                 <TableHead>Sector</TableHead>
                 <TableHead className="text-right">Fee</TableHead>
                 <TableHead>Applied</TableHead>
@@ -90,7 +91,9 @@ function SuperSellers() {
                       {seller.businessName}
                     </Link>
                   </TableCell>
-                  <TableCell className="num text-[13px] font-semibold">{seller.stateCode}</TableCell>
+                  <TableCell className="num text-[13px] font-semibold">
+                    {seller.districtCode ?? seller.stateCode}
+                  </TableCell>
                   <TableCell>
                     <SectorPill sector={seller.category} />
                   </TableCell>

@@ -171,7 +171,7 @@ function SellerReview() {
     <div className="space-y-4">
       <PageHeader
         title={seller.businessName}
-        description={`${seller.ownerName} · ${seller.stateCode} · applied ${formatDate(seller.createdAt)}`}
+        description={`${seller.ownerName} · ${seller.districtCode ?? seller.stateCode} · applied ${formatDate(seller.createdAt)}`}
         actions={
           <div className="flex items-center gap-2">
             <SectorPill sector={seller.category} />

@@ -56,6 +56,7 @@ interface RawSeller {
   businessAddress: string;
   contactPhone?: string;
   stateCode: string;
+  districtCode?: string;
   status: string;
   rating: number;
   createdAt: string;
@@ -170,7 +171,11 @@ export async function hydrateFromGateway(): Promise<boolean> {
       safe(() => remote.get<SellerOptin[]>("/promo/optins").then(toCamel)),
       safe(() => remote.get<AdSlot[]>("/ads/slots").then(toCamel)),
       safe(() => remote.get<HeroCampaign[]>("/ads/campaigns").then(toCamel)),
-      safe(() => remote.get<DistrictAdmin[]>("/district-admins").then(toCamel)),
+      safe(() =>
+        role === "SUPER_ADMIN"
+          ? remote.get<DistrictAdmin[]>("/district-admins").then(toCamel)
+          : Promise.resolve<DistrictAdmin[] | undefined>(undefined),
+      ),
       safe(() => remote.get<AuditLog[]>("/audit-logs").then(toCamel)),
       safe(() => remote.get<RawLedgerEntry[]>("/settlements").then(toCamel)),
       safe(() => remote.get<RawPayout[]>("/payouts").then(toCamel)),

@@ -81,7 +81,7 @@ func (v *PortalVerifier) Verify(ctx context.Context, token string) (jwtClaims, e
 	if claims.Sub == "" || claims.Jti == "" {
 		return jwtClaims{}, errors.New("portal token missing subject/jti")
 	}
-	role := strings.ToUpper(strings.TrimSpace(claims.AppRole))
+	role := canonicalRole(claims.AppRole)
 	claims.AppRole = role
 	switch role {
 	case RoleSuperAdmin:

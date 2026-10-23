@@ -167,7 +167,7 @@ function DistrictAdminAccounts() {
       !q ||
       a.name.toLowerCase().includes(q) ||
       a.email.toLowerCase().includes(q) ||
-      a.districtCode.toLowerCase().includes(q),
+      (a.districtCode || a.stateCode || "").toLowerCase().includes(q),
   );
 
   async function handleCreate() {
@@ -531,10 +531,13 @@ function DistrictAdminAccounts() {
                 const login = loginByEmail(admin.email);
                 return (
                   <TableRow key={admin.adminId} className="h-12">
-                    <TableCell className="num text-[13px] font-semibold">{admin.districtCode}
-                      <span className="ml-1 text-[11px] text-muted-foreground">
-                        {stateForDistrict(admin.districtCode)}
-                      </span>
+                    <TableCell className="num text-[13px] font-semibold">
+                      {admin.districtCode || admin.stateCode || "—"}
+                      {admin.districtCode ? (
+                        <span className="ml-1 text-[11px] text-muted-foreground">
+                          {stateForDistrict(admin.districtCode)}
+                        </span>
+                      ) : null}
                     </TableCell>
                     <TableCell className="text-[13px] font-medium">{admin.name}</TableCell>
                     <TableCell className="num text-[12px]">{admin.email}</TableCell>

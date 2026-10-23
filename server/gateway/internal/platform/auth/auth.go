@@ -3,9 +3,11 @@
 // no domain knowledge: the auth_uid → app user_id mapping is injected as a UserResolver by the
 // checkout context.
 //
-// Partner roles (portal) travel as custom JWT claims — `app_role`, `seller_id`, `state_code` —
-// either top-level or under `app_metadata`. In local dev (AUTH_DISABLED) they come from the
-// `X-Dev-Role` / `X-Dev-Seller` / `X-Dev-State` headers so integration tests can act as any role.
+// Partner roles (portal) travel as custom JWT claims — `app_role`, `seller_id`, `state_code`,
+// `district_code` — either top-level or under `app_metadata`. The retired `STATE_ADMIN` spelling is
+// canonicalised to `DISTRICT_ADMIN` on read. In local dev (AUTH_DISABLED) they come from the
+// `X-Dev-Role` / `X-Dev-Seller` / `X-Dev-State` / `X-Dev-District` headers so integration tests can
+// act as any role.
 package auth
 
 import (
@@ -36,6 +38,16 @@ const (
 	RoleStateAdmin = RoleDistrictAdmin
 	RoleSuperAdmin = "SUPER_ADMIN"
 )
+
+// canonicalRole maps the retired STATE_ADMIN wiring value onto its DISTRICT_ADMIN replacement so
+// legacy tokens, dev headers and old tests keep working after the rename.
+func canonicalRole(raw string) string {
+	role := strings.ToUpper(strings.TrimSpace(raw))
+	if role == "STATE_ADMIN" {
+		return RoleDistrictAdmin
+	}
+	return role
+}
 
 // Identity is the resolved caller: app user id (may be empty for admins with no checkout.users
 // row) plus the partner role claims.
@@ -102,7 +114,7 @@ func Middleware(cfg Config) func(http.Handler) http.Handler {
 				if id.UserID == "" {
 					id.UserID = cfg.DevUserID
 				}
-				id.Role = strings.ToUpper(strings.TrimSpace(r.Header.Get("X-Dev-Role")))
+				id.Role = canonicalRole(r.Header.Get("X-Dev-Role"))
 				id.SellerID = strings.TrimSpace(r.Header.Get("X-Dev-Seller"))
 				id.StateCode = strings.ToUpper(strings.TrimSpace(r.Header.Get("X-Dev-State")))
 				id.DistrictCode = geo.Normalise(r.Header.Get("X-Dev-District"))
@@ -273,8 +285,10 @@ func CanActForSellerDistrict(ctx context.Context, sellerID, districtCode, stateC
 	case RoleSuperAdmin:
 		return true
 	case RoleDistrictAdmin:
-		if d := DistrictCode(ctx); d != "" {
-			return districtCode != "" && d == districtCode
+		// A district claim is authoritative when the seller has a district; legacy sellers without
+		// one still fall back to the parent-state match (migration 0047 backfill is best-effort).
+		if d := DistrictCode(ctx); d != "" && districtCode != "" {
+			return d == districtCode
 		}
 		return StateCode(ctx) != "" && StateCode(ctx) == stateCode
 	case RoleSeller:
@@ -353,14 +367,15 @@ type jwtClaims struct {
 
 func (c jwtClaims) appRole() string {
 	if c.AppRole != "" {
-		return strings.ToUpper(c.AppRole)
+		return canonicalRole(c.AppRole)
 	}
 	if c.AppMetadata.AppRole != "" {
-		return strings.ToUpper(c.AppMetadata.AppRole)
+		return canonicalRole(c.AppMetadata.AppRole)
 	}
-	switch strings.ToUpper(c.AppMetadata.Role) {
-	case RoleSeller, RoleStateAdmin, RoleSuperAdmin:
-		return strings.ToUpper(c.AppMetadata.Role)
+	role := canonicalRole(c.AppMetadata.Role)
+	switch role {
+	case RoleSeller, RoleDistrictAdmin, RoleSuperAdmin:
+		return role
 	}
 	return ""
 }

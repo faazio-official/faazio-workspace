@@ -145,15 +145,15 @@ export const ROUTE_HINTS: Record<string, RouteHint> = {
   },
 
   "/admin/super": {
-    what: "The global command center across all states, sectors and sellers.",
-    how: "Scan state and sector health first; drill in where a number breaks the pattern.",
+    what: "The global command center across all districts, sectors and sellers.",
+    how: "Scan district and sector health first; drill in where a number breaks the pattern.",
   },
   "/admin/super/district-admins": {
-    what: "Admin accounts and which state each one governs.",
-    how: "Create an account per state; never share one login across states.",
+    what: "Admin accounts and which district each one governs.",
+    how: "Create an account per district; never share one login across districts.",
   },
   "/admin/super/districts": {
-    what: "Each state's launch status, supply depth and performance side by side.",
+    what: "Each district's launch status, supply depth and performance side by side.",
     how: "Use the matrix to decide where to open next and where to hold.",
   },
   "/admin/super/sellers": {
@@ -203,7 +203,7 @@ export function routeHint(pathname: string): RouteHint | undefined {
 }
 
 export const SECTION_HINTS: Record<string, string> = {
-  "Admin roster": "District admin accounts, newest first. One admin owns one state.",
+  "Admin roster": "District admin accounts, newest first. One admin owns one district.",
   Ads: "Sponsored placements and what they cost against the clicks they earn.",
   Alerts: "Anything already hurting sales or waiting on a decision. Empty is good.",
   "All campaigns": "Every festival campaign, whatever its state or stage.",
@@ -227,7 +227,7 @@ export const SECTION_HINTS: Record<string, string> = {
   "Coupons in your state": "Codes redeemable in your state only.",
   "Create a global campaign": "Runs in every live state. Set dates and discount ceiling.",
   "Create a state campaign": "Runs in your state only, on top of any national campaign.",
-  "Create an admin account": "Grants console access for one state. Choose the state carefully.",
+  "Create an admin account": "Grants console access for one district. Choose the district carefully.",
   Decision: "Approve, hold or reject with a reason the seller will read.",
   Escalations: "Orders a customer has already complained about.",
   FaazioCoins: "Loyalty balance earned and spent by shoppers.",
@@ -301,9 +301,9 @@ export const SECTION_HINTS: Record<string, string> = {
   "Shop analytics": "Your sales, orders and conversion over time.",
   "Shop health": "The score Faazio uses to rank you in the app.",
   "Sponsored slots": "Ad inventory available and how full it is.",
-  "District admins": "Who governs which state.",
+  "District admins": "Who governs which district.",
   "State analytics": "Performance for your state only.",
-  "State matrix": "Every state side by side on the same measures.",
+  "District matrix": "Every district side by side on the same measures.",
   States: "Launch status and depth per state.",
   Stores: "Your addresses, hours and delivery promise.",
   "Sub-users": "Staff logins scoped to your shop.",
@@ -362,8 +362,9 @@ export const METRIC_HINTS: Record<string, string> = {
   Selected: "Rows you have ticked for a bulk action.",
   "Seller opt-ins": "Sellers who joined this campaign.",
   Sellers: "Seller accounts in this view.",
-  "District admins": "Admin accounts governing a state.",
-  "States live": "States open to shoppers today.",
+  "District admins": "Admin accounts governing a district.",
+  "Districts live": "Districts open to shoppers today.",
+  "Uncovered districts": "Districts with no active admin account yet.",
   "Surfaces tracked": "App screens this console feeds.",
   TCS: "Tax collected at source, deducted before payout.",
   Views: "Times shoppers opened the listing.",

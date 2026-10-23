@@ -158,8 +158,12 @@ export function AdminShell({
           <header className="sticky top-0 z-20 flex h-14 items-center gap-3 border-b border-border bg-card/95 px-4 backdrop-blur">
             <span className="inline-flex items-center gap-1.5 rounded-full bg-ink px-2.5 py-1 text-[11px] font-semibold text-ink-foreground">
               {scope === "DISTRICT"
-                ? `${session?.districtCode ?? "--"} · ${districtName(session?.districtCode ?? "")}${session?.districtCode ? ` · ${stateForDistrict(session.districtCode)}` : ""}`
-                : "GLOBAL · All states"}
+                ? session?.districtCode
+                  ? `${session.districtCode} · ${districtName(session.districtCode)} · ${stateForDistrict(session.districtCode)}`
+                  : session?.stateCode
+                    ? `STATE · ${session.stateCode}`
+                    : "DISTRICT"
+                : "GLOBAL · All districts"}
             </span>
             <Button
               variant="outline"

@@ -31,17 +31,6 @@ func NormaliseStateCode(code string) string {
 	return strings.ToUpper(strings.TrimSpace(code))
 }
 
-// ValidDistricts is the MVP district allowlist (Tamil Nadu + Puducherry), mirroring
-// admins.district_master (0046) and internal/platform/geo. A district admin is scoped to exactly
-// one of these codes.
-var ValidDistricts = func() map[string]bool {
-	out := make(map[string]bool, len(geo.Districts))
-	for _, d := range geo.Districts {
-		out[d.Code] = true
-	}
-	return out
-}()
-
 // IsValidDistrict reports whether code is a known MVP district code (exact, uppercase).
 func IsValidDistrict(code string) bool { return geo.IsValid(code) }
 

@@ -188,3 +188,39 @@ func TestPortalMustChangeIsConfined(t *testing.T) {
 		}
 	})
 }
+
+func TestMiddlewareCanonicalisesLegacyDevRole(t *testing.T) {
+	var role string
+	h := Middleware(Config{Disabled: true})(http.HandlerFunc(func(_ http.ResponseWriter, r *http.Request) {
+		role = Role(r.Context())
+	}))
+	req := httptest.NewRequest(http.MethodGet, "/", nil)
+	req.Header.Set("X-Dev-Role", "STATE_ADMIN")
+	h.ServeHTTP(httptest.NewRecorder(), req)
+	if role != RoleDistrictAdmin {
+		t.Fatalf("role = %q, want %q", role, RoleDistrictAdmin)
+	}
+}
+
+func TestCanActForSellerDistrict(t *testing.T) {
+	ctx := context.WithValue(context.Background(), identityKey{}, Identity{
+		Role: RoleDistrictAdmin, StateCode: "TN", DistrictCode: "TCH",
+	})
+	cases := []struct {
+		name                string
+		district, stateCode string
+		want                bool
+	}{
+		{"same district", "TCH", "TN", true},
+		{"other district", "TCO", "TN", false},
+		{"legacy seller without district", "", "TN", true},
+		{"legacy seller in another state", "", "KA", false},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := CanActForSellerDistrict(ctx, "sel-1", tc.district, tc.stateCode); got != tc.want {
+				t.Fatalf("CanActForSellerDistrict = %v, want %v", got, tc.want)
+			}
+		})
+	}
+}

@@ -11,7 +11,7 @@ import { FilterChip } from "@/components/patterns/FilterChip";
 import { StatusPill } from "@/components/patterns/Pills";
 import { formatINR, formatNumber } from "@/lib/format";
 import { periodDelta, sparkline, sumGmv, sumOrders } from "@/lib/analytics/derive";
-import { globalMetrics, stateMetrics } from "@/lib/api";
+import { globalMetrics } from "@/lib/api";
 import {
   useCampaigns,
   useMockLoading,
@@ -19,7 +19,7 @@ import {
   useSellers,
   useDistrictAdmins,
 } from "@/lib/api/hooks";
-import { STATES } from "@/data/states";
+import { DISTRICTS, districtName } from "@/data/districts";
 
 
 function SuperDashboard() {
@@ -31,12 +31,10 @@ function SuperDashboard() {
   const admins = useDistrictAdmins();
   const [showUncoveredOnly, setShowUncoveredOnly] = useState(false);
 
-  const uncovered = STATES.filter(
-    (s) => admins.filter((a) => a.stateCode === s.stateCode && a.active).length === 0,
+  const uncovered = DISTRICTS.filter(
+    (d) => admins.filter((a) => a.districtCode === d.districtCode && a.active).length === 0,
   );
-  const visibleStates = showUncoveredOnly
-    ? STATES.filter((s) => uncovered.some((u) => u.stateCode === s.stateCode))
-    : STATES;
+  const visibleDistricts = showUncoveredOnly ? uncovered : DISTRICTS;
   const sectorMix = Object.entries(
     orders.reduce<Record<string, number>>((acc, o) => {
       acc[o.sector] = (acc[o.sector] ?? 0) + o.amountPaisa;
@@ -46,7 +44,7 @@ function SuperDashboard() {
 
   return (
     <div className="space-y-4">
-      <PageHeader title="Command center" description="Global scope — every state, seller and campaign." />
+      <PageHeader title="Command center" description="Global scope — every district, seller and campaign." />
 
       <DataShell loading={loading}>
         <KpiStrip
@@ -64,8 +62,8 @@ function SuperDashboard() {
               spark: sparkline(series, (p) => p.orders),
             },
             { label: "Sellers", value: formatNumber(sellers.length) },
-            { label: "States live", value: formatNumber(STATES.length) },
-            { label: "Uncovered states", value: formatNumber(uncovered.length) },
+            { label: "Districts live", value: formatNumber(DISTRICTS.length) },
+            { label: "Uncovered districts", value: formatNumber(uncovered.length) },
             { label: "District admins", value: formatNumber(admins.filter((a) => a.active).length) },
           ]}
         />
@@ -83,8 +81,8 @@ function SuperDashboard() {
       </div>
 
       <SectionCard
-        title="State matrix"
-        description="GMV, sellers and admin coverage per state"
+        title="District matrix"
+        description="Sellers and admin coverage per district"
         actions={
           <div className="flex gap-1">
             <FilterChip
@@ -101,27 +99,26 @@ function SuperDashboard() {
         }
       >
         <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-          {visibleStates.map((info) => {
-            const stateSeries = stateMetrics(info.stateCode, 30);
-            const stateSellers = sellers.filter((s) => s.stateCode === info.stateCode);
-            const roster = admins.filter((a) => a.stateCode === info.stateCode && a.active);
+          {visibleDistricts.map((info) => {
+            const districtSellers = sellers.filter((s) => s.districtCode === info.districtCode);
+            const roster = admins.filter((a) => a.districtCode === info.districtCode && a.active);
             return (
               <Link
-                key={info.stateCode}
+                key={info.districtCode}
                 href="/admin/super/districts"
                 className="lift rounded-xl border border-border p-3 transition-transform"
               >
                 <div className="flex items-center justify-between">
                   <p className="text-[13px] font-semibold">
-                    <span className="num">{info.stateCode}</span> · {info.name}
+                    <span className="num">{info.districtCode}</span> · {info.name}
                   </p>
                   <StatusPill status={roster.length === 0 ? "AT_RISK" : "HEALTHY"} />
                 </div>
                 <p className="num mt-2 text-[18px] font-semibold leading-none">
-                  {formatINR(sumGmv(stateSeries), { compact: true })}
+                  {formatNumber(districtSellers.length)}
                 </p>
                 <p className="num mt-1 text-[11px] text-muted-foreground">
-                  {stateSellers.length} sellers · {roster.length} admin{roster.length === 1 ? "" : "s"}
+                  sellers · {roster.length} admin{roster.length === 1 ? "" : "s"} · {info.stateCode}
                 </p>
               </Link>
             );
@@ -160,13 +157,13 @@ function SuperDashboard() {
         <SectionCard title="System alerts">
           <ul className="space-y-2">
             {uncovered.slice(0, 6).map((info) => (
-              <li key={info.stateCode}>
+              <li key={info.districtCode}>
                 <Link
                   href="/admin/super/district-admins"
                   className="flex items-center gap-2 rounded-lg border border-warning/40 bg-warning/10 px-3 py-2 text-[13px]"
                 >
                   <AlertTriangle className="size-4 text-warning" />
-                  0 active admins for <span className="num">{info.stateCode}</span> — {info.name}
+                  0 active admins for <span className="num">{info.districtCode}</span> — {districtName(info.districtCode)}
                 </Link>
               </li>
             ))}
@@ -177,7 +174,7 @@ function SuperDashboard() {
                   className="flex items-center gap-2 rounded-lg border border-border px-3 py-2 text-[13px] text-muted-foreground"
                 >
                   <span className="num">
-                    {uncovered.length - 6} more uncovered state{uncovered.length - 6 === 1 ? "" : "s"}
+                    {uncovered.length - 6} more uncovered district{uncovered.length - 6 === 1 ? "" : "s"}
                   </span>
                   — review the roster
                 </Link>
@@ -190,13 +187,13 @@ function SuperDashboard() {
                   className="flex items-center gap-2 rounded-lg border border-border px-3 py-2 text-[13px]"
                 >
                   {sellers.filter((s) => s.status === "PENDING_REVIEW").length} seller applications open
-                  across all states
+                  across all districts
                 </Link>
               </li>
             ) : null}
             {uncovered.length === 0 ? (
               <li className="rounded-lg border border-success/40 bg-success/10 px-3 py-2 text-[13px]">
-                Every state has at least one active admin.
+                Every district has at least one active admin.
               </li>
             ) : null}
           </ul>

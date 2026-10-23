@@ -153,7 +153,7 @@ export function SellerRequestsScreen({ navigation }: Props) {
                   {item.businessName}
                 </AppText>
                 <AppText style={styles.rowSubtitle}>
-                  {item.category} · {item.stateCode} · {item.platformFeePct}% fee
+                  {item.category} · {item.districtCode || item.stateCode} · {item.platformFeePct}% fee
                 </AppText>
               </View>
               <View style={styles.rowRight}>
