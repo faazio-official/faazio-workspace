@@ -450,7 +450,7 @@ export function DeliveryReviewBoard({ scope }: { scope: Scope }) {
                 <input
                   ref={replacementInput}
                   type="file"
-                  accept="image/jpeg,image/png,image/webp"
+                  accept="image/jpeg,image/png,image/webp,image/avif"
                   className="hidden"
                   onChange={(event) => void uploadReplacement(event)}
                 />

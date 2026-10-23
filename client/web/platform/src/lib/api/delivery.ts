@@ -3,7 +3,7 @@
 // its own state; SUPER_ADMIN may act anywhere). No PII is cached client-side beyond the response.
 import { remote } from "./http";
 import { remoteConfigured } from "@/lib/config";
-import { fileToProductImage } from "@/lib/media/imageCompression";
+import { fileToProductImage, uploadMimeFor } from "@/lib/media/imageCompression";
 
 export type DeliveryStatus =
   "APPLIED" | "PENDING_REVIEW" | "VERIFIED" | "ACTIVE" | "SUSPENDED" | "BLACKLISTED" | "REJECTED";
@@ -136,19 +136,25 @@ export async function uploadDeliveryDocumentReplacement(
   }
   const dataUrl = await fileToProductImage(file);
   const blob = await (await fetch(dataUrl)).blob();
+  // Compression normally returns JPEG, but the helper falls back to the original data URL when the
+  // browser cannot decode it. Keep the declared MIME aligned with the bytes we actually upload.
+  const mime = uploadMimeFor(blob);
+  if (!mime) {
+    throw new Error("Use a JPG, PNG, WebP or AVIF photo for the replacement document.");
+  }
   const signed = await remote.post<{ assetId: string; key: string; uploadUrl: string }>(
     "/media/upload-url",
     {
       kind: "PRIVATE",
       ownerType: "KYC",
       ownerId: id,
-      mime: "image/jpeg",
+      mime,
       bytes: blob.size,
     },
   );
   const put = await fetch(signed.uploadUrl, {
     method: "PUT",
-    headers: { "Content-Type": "image/jpeg" },
+    headers: { "Content-Type": mime },
     body: blob,
   });
   if (!put.ok) throw new Error(`Replacement upload failed (${put.status}).`);
