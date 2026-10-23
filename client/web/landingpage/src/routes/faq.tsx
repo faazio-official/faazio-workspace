@@ -9,6 +9,7 @@ import {
   AccordionTrigger,
 } from "@/components/ui/accordion";
 import { faqs } from "@/lib/faqs";
+import { SITE_URL } from "@/lib/site";
 import { seoHead, type JsonLdNode } from "@/lib/seo";
 
 const title = "Faazio FAQ — Download, ordering, coverage & pharmacy | Karaikal";
@@ -19,7 +20,7 @@ const keywords =
 
 const faqPageNode: JsonLdNode = {
   "@type": "FAQPage",
-  "@id": "https://faazio.com/faq#faq",
+  "@id": `${SITE_URL}/faq#faq`,
   mainEntity: faqs.map(([question, answer]) => ({
     "@type": "Question",
     name: question,
