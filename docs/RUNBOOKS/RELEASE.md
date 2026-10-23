@@ -246,6 +246,23 @@ webhook in the Razorpay dashboard at `https://<gateway>/webhooks/razorpay/route`
 `transfer.released`, `transfer.failed` and `transfer.reversed`. The private KYC bucket is
 `R2_PRIVATE_BUCKET`; KYC images are never public.
 
+## 🚀 Server (Gateway) — Render + database migrations
+
+The gateway deploys to **Render** (repo-root `render.yaml` Blueprint → `server/gateway/Dockerfile`,
+`/health`). **Render never applies migrations** — the runtime image is distroless with only the
+binary, and the gateway only logs `hint=apply migration NN` for a missing schema. Migrations land
+exclusively from a dev terminal:
+
+```bash
+cd server/gateway
+set -a && . ./.env && set +a                 # creds for the same Supabase pooler the gateway uses
+psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f ../supabase/migrations/0050_district_rls.sql   # each pending file
+```
+
+Run **each pending** migration (numeric order) → then roll the Render deploy. Release order is
+**DB first, gateway second**. Full command set + fresh-DB/seed flow:
+`docs/RUNBOOKS/DATABASE_MIGRATIONS.md`.
+
 ## ✅ Release checklist
 
 - [ ] `npm run ts:check` and `npm run check:boundaries` pass.
@@ -255,6 +272,7 @@ webhook in the Razorpay dashboard at `https://<gateway>/webhooks/razorpay/route`
 - [ ] Release APK signed with the **release cert** (`CN=Faazio`), not the debug cert.
 - [ ] `gh workflow run release-apk.yml` succeeded and the signed APK is on the GitHub Release.
 - [ ] Portal (if deploying): `0032` + `0033` applied, `PORTAL_JWT_SECRET`/`PORTAL_PEPPER` set, a superadmin hash provisioned (`PORTAL_AUTH.md`).
+- [ ] **Server/Render:** all `server/supabase/migrations/` files up to the latest are applied from a dev terminal (`DATABASE_MIGRATIONS.md` — Render never auto-applies); then the gateway deploy rolled.
 - [ ] Seller splits: `0039` + `0040` applied; Route keys + webhook endpoint/secret set (or the `RAZORPAY_*` fallback used); `R2_PRIVATE_BUCKET` set.
 - [ ] Release signed and smoke-tested on a device (R8 gate: Home → Cart → Checkout → Pharma).
 - [ ] Store metadata / data-safety updated.

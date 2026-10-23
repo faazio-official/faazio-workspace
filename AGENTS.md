@@ -34,7 +34,7 @@ docs/
 ├── DEVELOPER_ONBOARDING.md         # numbered getting-started guide
 ├── BRAND_COLOR_MIGRATION.md        # royal-purple → Faazio-blue change log + revert
 ├── architecture/                   # deep-dives (mvp-backend, monolith-breakdown, mobile-app, web-portal, data-layer-sdui, server-gateway-plan, db-schema, caching-cloudflare-valkey)
-└── RUNBOOKS/                       # operational guides (RELEASE, CI_PIPELINE, DATA_FIXTURES, FIREBASE_AUTH, PORTAL_AUTH, TROUBLESHOOTING)
+└── RUNBOOKS/                       # operational guides (RELEASE, CI_PIPELINE, DATA_FIXTURES, DATABASE_MIGRATIONS, FIREBASE_AUTH, PORTAL_AUTH, TROUBLESHOOTING)
 ```
 
 Reading order for a new contributor: `AGENTS.md` → `ARCHITECTURE.md` →
@@ -66,6 +66,8 @@ the same change — do not wait to be asked. Concretely, after implementing:
   `monolith-breakdown.md` §1 when a context's schema set changes).
 - **Cache key / TTL / purge changes** → update `docs/architecture/caching-cloudflare-valkey.md`.
 - **Build/deploy/signing changes** → update `docs/RUNBOOKS/RELEASE.md`.
+- **DB migrations on Supabase** → never auto-run on Render; update/point to
+  `docs/RUNBOOKS/DATABASE_MIGRATIONS.md` (apply from a dev terminal with `server/gateway/.env`).
 - **Build/run/verification changes** → update `docs/RUNBOOKS/TROUBLESHOOTING.md` and the relevant section of `docs/DEVELOPER_ONBOARDING.md`.
 - **Behavior removed** (e.g. deleted UI like an exit-confirm sheet) → remove the now-stale
   description from the deep-dive/runbook that mentioned it.

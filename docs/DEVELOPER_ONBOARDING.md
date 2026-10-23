@@ -83,6 +83,11 @@ and starts the gateway. `curl localhost:8080/health` should report `db:true cach
 > (then `node server/supabase/seed/generate.mjs`), reset and re-seed with
 > `docker compose down -v && docker compose up -d`. A stale volume makes integration tests fail
 > with `column … does not exist` even though `/health` looks green.
+>
+> Production (Supabase) is the opposite: **Render never applies migrations** — they are run by hand
+> from a dev terminal with `server/gateway/.env`
+> (`docs/RUNBOOKS/DATABASE_MIGRATIONS.md`). Local compose only auto-applies `0001`–`0040` + seed;
+> newer files (e.g. `0046`–`0050`) must be applied to a fresh volume by hand too.
 
 Integration tests (FTS, order lock/decrement, rating gate, PII redaction, pagination) **skip**
 unless pointed at the stack; run them fully with:
