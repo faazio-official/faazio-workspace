@@ -227,13 +227,14 @@ func (s *Service) CreateOrder(ctx context.Context, userID string, req PlaceOrder
 
 	// Delivery fee is dynamic: PICKUP waives it; DELIVERY distances the order's pinned stores to
 	// the customer's live drop fix (Haversine) and applies the tax.delivery_fee_settings rate card
-	// (base + per-extra-km). The flat platform_settings fee is the fallback when there is no fix or
-	// no pinned store. The server is the money authority — the client quote is display-only.
+	// (base + per-extra-km). With no live fix or no pinned store the card's base fee is charged —
+	// the same figure the client displays by default and the quote endpoint returns, so settlement
+	// never surprises the shopper. The server is the money authority; the client quote is display-only.
 	deliverySettings, err := s.repo.DeliveryFeeSettings(ctx)
 	if err != nil {
 		return Order{}, err
 	}
-	orderDeliveryFeePaisa := platformRates.DeliveryFeePaisa
+	orderDeliveryFeePaisa := deliverySettings.BaseFeePaisa
 	if req.Fulfillment == "PICKUP" {
 		orderDeliveryFeePaisa = 0
 	} else if req.DeliveryLocation != nil && validLatitude(req.DeliveryLocation.Latitude) && validLongitude(req.DeliveryLocation.Longitude) {

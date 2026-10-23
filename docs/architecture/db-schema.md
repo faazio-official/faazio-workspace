@@ -2010,8 +2010,9 @@ CREATE TABLE delivery.delivery_payouts (
   PICKUP waives it; DELIVERY charges `base_fee_paisa` up to `base_distance_km`, then
   `base_fee_paisa + floor(distance_km − base_distance_km) × per_extra_km_paisa` (default 3 km / ₹35 /
   ₹9-per-km). Distance is Haversine between `directory.stores` pins and the live drop fix — the
-  same estimate the client mirrors via `GET /checkout/delivery-fee`. `tax.platform_settings`
-  `delivery_fee_paisa` remains the flat fallback when there is no fix or no pinned store.
+  same estimate the client mirrors via `GET /checkout/delivery-fee`. With no live fix or no pinned
+  store the card's `base_fee_paisa` is charged — the client shows the same default — so settlement
+  never diverges from the displayed total (`tax.platform_settings.delivery_fee_paisa` is legacy).
 - Invoice rows are immutable; `GET /orders/{id}/invoice` is owner-scoped and returns a presigned
   R2 URL only when `pdf_key` is populated (PDF rendering is deferred; the app renders the JSON).
 - Rider payout = base (₹30 / 3 km) + ₹7/km beyond + night (23:00–03:00 IST), weather/festival surge.

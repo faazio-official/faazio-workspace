@@ -8,11 +8,12 @@ const CYCLES = ["2026-W34", "2026-W35", "2026-W36", "2026-W37"];
 export const LEDGER: LedgerEntry[] = SELLERS.flatMap((seller) =>
   CYCLES.map((cycle) => {
     const orderValuePaisa = seededInt(`ledger:${seller.sellerId}:${cycle}`, 120000, 4800000);
-    const commissionPaisa = Math.round(orderValuePaisa * 0.08);
+    // Platform commission is removed — sellers keep the full gross minus statutory TCS/TDS only.
+    const commissionPaisa = 0;
     const tcsPaisa = Math.round(orderValuePaisa * 0.01);
     const tdsPaisa = Math.round(orderValuePaisa * 0.001);
     const productTaxPaisa = Math.round(orderValuePaisa * (5 / 105));
-    const platformGstPaisa = Math.round(commissionPaisa * 0.18);
+    const platformGstPaisa = 0;
     return {
       entryId: `led-${seller.sellerId}-${cycle}`,
       sellerId: seller.sellerId,

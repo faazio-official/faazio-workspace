@@ -30,7 +30,13 @@ dependencies exist. Do not build the backend/seller flows until told to.
   keep full gross, only statutory TCS/TDS are withheld (`SellerNet = Gross − TCS − TDS`).
   `GET /checkout/delivery-fee?storeId=&lat=&lng=` is auth-scoped.
 - **Web portal:** the seller product page dropped the commission/TCS/TDS/delivery DeductionsCard and
-  the "Platform-managed" line; the pricing floor is commission-free (25% of MRP).
+  the "Platform-managed" line; the pricing floor is commission-free (25% of MRP). The Payments page
+  no longer shows a Commission KPI/column, Returns refund the full order value (no 8% dock), the
+  super-admin settings page dropped the Commission field, and the ledger fixture keeps commission/GST
+  at zero — mirroring the server `settlement` (commission = 0).
+- **Follow-up fixes (W65):** `CreateOrder` now falls back to the base card fee (`tax.delivery_fee_settings`)
+  instead of the legacy flat ₹50 when there is no live fix or pinned store, so the amount charged
+  always matches the client's displayed default and the `GET /checkout/delivery-fee` quote.
 - Docs: `mobile-app.md`, `server-gateway-plan.md`, `monolith-breakdown.md` §1, `db-schema.md` §12.25,
   `data/DATA_CONTROL.md` (no data change — delivery fee is a server setting).
 
