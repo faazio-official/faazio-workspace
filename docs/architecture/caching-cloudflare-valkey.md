@@ -99,7 +99,7 @@ Examples: `faazio:v1:stock:fm-f1`, `faazio:v1:search:q:hoodie`, `faazio:v1:sdui:
 | Notifications inbox (per user, auth-scoped) | 30 s | **never** | `RX_READY` / order-status enqueue |
 | Delivery rider live coordinate (`delivery:rider:{id}:location`, `POST /delivery/heartbeat`) | 300 s | **never** | auto-expire; deleted on explicit offline / suspend / blacklist. The dispatch authority (Postgres `rider_heartbeats` is a mirror) |
 | Delivery Routes matrix leg (`delivery:route:{lat4,lng4}:{lat4,lng4}`, `POST /dispatch/assign`) | 300 s | **never** | auto-expire (caps Google Routes API spend; coordinates rounded to 4 dp) |
-| Weather per drop cell (`faazio:v1:weather:zone:{cell}`, checkout quote) | 1800 s | **never** | auto-expire (wet **and** dry verdicts cached for 30 min, so one provider call serves a cell) |
+| Weather per drop cell (`faazio:v1:weather:zone:{cell}`, checkout quote) | 1800 s | **never** | auto-expire (wet **and** dry verdicts — including provider errors cached as dry — last 30 min, so one provider call serves a cell) |
 | Weather manual override (`faazio:v1:weather:override:{cell}`, super admin) | 1800 s | **never** | auto-expire; `PUT /admin/weather/override` sets wet **or** forced-dry and is checked before the provider |
 | Weather Union call budget (`faazio:v1:weather:calls:{FY}`) | until Apr 1 IST (`FY` = `2026-27`) | **never** | `INCR` per provider call; hard stop at 60,000/FY. A missing counter fails open (first call creates it); the Supabase daily trail still records every call |
 | Blood requests board (public, redacted; auth callers bypass) | 60 s | **never** | request post / expiry sweep (contact/address stripped for anon) |

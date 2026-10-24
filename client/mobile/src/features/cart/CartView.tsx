@@ -352,7 +352,7 @@ export default function CartView({
       setDeliveryFeeQuote(null);
       return;
     }
-    if (step !== 'FULFILLMENT') return;
+    if (step !== 'FULFILLMENT' && step !== 'PAYMENT') return;
     if (!hasLiveFix || storeIdsForQuote.length === 0) {
       setDeliveryFeeQuote(null);
       return;

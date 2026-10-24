@@ -2027,7 +2027,8 @@ CREATE TABLE delivery.delivery_payouts (
 ### 12.26 Server-authoritative delivery pricing: zones, weather + festival surge, payout parity (migration `0054`)
 
 **Authority:** `monolith-breakdown.md` §1 (`checkout`, `delivery`, `weather`, `festival`, `geo`,
-`pricing`), `caching-cloudflare-valkey.md` (weather keys/TTLs), `web-portal.md` (ops surge console).
+`pricing`), `caching-cloudflare-valkey.md` (weather keys/TTLs), `server-gateway-plan.md`
+(super-admin endpoints; the portal surge UI is a follow-up).
 
 ```sql
 -- 0054: ops weather budget trail + super-admin festival windows
@@ -2053,7 +2054,8 @@ ALTER TABLE checkout.orders
   ADD COLUMN delivery_billing_basis JSONB;   -- price breakdown snapshot, ≤4096 bytes
 
 -- align pre-0054 installs: customer extra km is ₹7 (same as the rider card)
-UPDATE tax.delivery_fee_settings SET per_extra_km_paisa = 700 WHERE id = 1;
+UPDATE tax.delivery_fee_settings SET per_extra_km_paisa = 700
+ WHERE id = 1 AND per_extra_km_paisa = 900;   -- never overwrite a super-admin edit
 ```
 
 **Rules**

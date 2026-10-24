@@ -75,16 +75,24 @@ func (c *Checker) IsRaining(ctx context.Context, cellID string) (bool, error) {
 
 	lat, lng := geo.GeoCellCenter(cellID)
 	raining, err := c.api.Raining(ctx, lat, lng)
+	// The provider call is counted even when it fails: the annual budget guards API spend, and an
+	// outage must not turn every checkout for a cell into another request.
+	c.recordCall(ctx, now, fy)
 	if err != nil {
+		// Cache a dry fallback for this window so a broken provider cannot be hammered per order.
+		c.cache.SetJSON(ctx, cache.WeatherZone(cellID), false, cache.TTLWeatherZone)
 		return false, err
 	}
 
 	c.cache.SetJSON(ctx, cache.WeatherZone(cellID), raining, cache.TTLWeatherZone)
+	return raining, nil
+}
+
+func (c *Checker) recordCall(ctx context.Context, now time.Time, fy string) {
 	_, _ = c.cache.Incr(ctx, cache.WeatherCalls(fy), time.Until(FinancialYearEnd(now)))
 	if c.usage != nil {
 		_ = c.usage.AddCall(ctx, now, fy)
 	}
-	return raining, nil
 }
 
 // SetOverride forces a zone's rain verdict for one 30-minute window (super-admin action).

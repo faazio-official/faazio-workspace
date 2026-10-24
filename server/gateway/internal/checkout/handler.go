@@ -334,11 +334,11 @@ func (h *Handler) payOrder(w http.ResponseWriter, r *http.Request) {
 	if coins < 0 {
 		coins = 0
 	}
-	totalRupees := totalPaisa / 100
-	amount := totalRupees - coins/coinsPerRupee
-	if amount < 0 {
-		amount = 0
+	paidPaisa := totalPaisa - coins
+	if paidPaisa < 0 {
+		paidPaisa = 0
 	}
+	amount := paidPaisa / coinsPerRupee
 	method := body.Method
 	if method == "" {
 		method = "COINS"
@@ -349,6 +349,7 @@ func (h *Handler) payOrder(w http.ResponseWriter, r *http.Request) {
 		UserID:        userID,
 		Method:        method,
 		Amount:        amount,
+		AmountPaisa:   paidPaisa,
 		CoinsRedeemed: coins,
 		Status:        "PAID",
 	}

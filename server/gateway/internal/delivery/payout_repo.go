@@ -111,16 +111,22 @@ func (r *Repo) StoredDeliveryBasis(ctx context.Context, customerOrderID string) 
 		return 0, 0, "", false, nil
 	}
 	var km float64
+	// delivery_billing_basis (not the columns' defaults) is the sentinel for a post-0054 order:
+	// legacy rows gain the columns with zero defaults, so only the JSON snapshot distinguishes them.
 	err = r.pool.QueryRow(ctx, `
 		select coalesce(delivery_distance_km,0)::float8,
-		       coalesce(delivery_surge_paisa,0), coalesce(delivery_surge_reason,'')
+		       coalesce(delivery_surge_paisa,0), coalesce(delivery_surge_reason,''),
+		       delivery_billing_basis is not null
 		  from checkout.orders where order_id = $1`, customerOrderID).
-		Scan(&km, &paisa, &reason)
+		Scan(&km, &paisa, &reason, &ok)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return 0, 0, "", false, nil
 	}
 	if err != nil {
 		return 0, 0, "", false, err
+	}
+	if !ok {
+		return 0, 0, "", false, nil
 	}
 	return int64(math.Round(km * 1000)), paisa, reason, true, nil
 }
