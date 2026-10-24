@@ -235,8 +235,10 @@ func (r *Repo) CreateManualOrder(ctx context.Context, o Order, stops []Stop, exp
 }
 
 // SetPayoutMode changes the order's payout mode before settlement. Switching to AUTOMATED clears
-// the manual fields; the caller passes the fresh calculated fare. A PENDING payout row mirrors it.
-func (r *Repo) SetPayoutMode(ctx context.Context, orderID, mode string, calculatedFare int64, manualDistance *float64, manualFare *int64, reason string) (Order, error) {
+// the manual fields; the caller passes the fresh calculated fare and distance. A PENDING payout row
+// mirrors it, including its distance, so a previously recorded manual distance is never shown as an
+// automated payout's distance.
+func (r *Repo) SetPayoutMode(ctx context.Context, orderID, mode string, calculatedFare int64, calculatedDistanceKm float64, manualDistance *float64, manualFare *int64, reason string) (Order, error) {
 	if err := r.ready(); err != nil {
 		return Order{}, err
 	}
@@ -263,10 +265,12 @@ func (r *Repo) SetPayoutMode(ctx context.Context, orderID, mode string, calculat
 	_, err = tx.Exec(ctx, `
 		update delivery.delivery_payouts
 		   set payout_mode=$2::delivery_payout_mode, calculated_fare_paisa=$3,
+		       distance_km=coalesce($4, $7),
 		       manual_distance_km=$4, manual_fare_paisa=$5, fare_override_reason=nullif($6,''),
 		       total_paisa=coalesce($5, $3, total_paisa), updated_at=now()
 		 where order_id=$1 and status='PENDING'`,
-		orderID, payoutModeOrDefault(mode), calculatedFare, manualDistance, manualFare, reason)
+		orderID, payoutModeOrDefault(mode), calculatedFare, manualDistance, manualFare, reason,
+		calculatedDistanceKm)
 	if err != nil {
 		return Order{}, err
 	}

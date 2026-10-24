@@ -178,8 +178,9 @@ func (r *Repo) List(ctx context.Context, f ListFilter) ([]Rider, error) {
 
 // PendingOfferRiderIDs reports which of the given riders already hold an unaccepted ASSIGNED offer.
 // current_load only increments on accept, so without this filter assign could stack multiple offers
-// on the same rider while leaving other eligible riders idle.
-func (r *Repo) PendingOfferRiderIDs(ctx context.Context, riderIDs []string) (map[string]bool, error) {
+// on the same rider while leaving other eligible riders idle. exceptOrderID keeps the order being
+// re-offered out of the check so a manual re-allocation to the same rider is still allowed.
+func (r *Repo) PendingOfferRiderIDs(ctx context.Context, riderIDs []string, exceptOrderID string) (map[string]bool, error) {
 	out := make(map[string]bool, len(riderIDs))
 	if len(riderIDs) == 0 {
 		return out, nil
@@ -189,7 +190,8 @@ func (r *Repo) PendingOfferRiderIDs(ctx context.Context, riderIDs []string) (map
 	}
 	rows, err := r.pool.Query(ctx, `
 		select distinct rider_id from delivery.delivery_orders
-		 where status='ASSIGNED' and rider_id = any($1)`, riderIDs)
+		 where status='ASSIGNED' and rider_id = any($1)
+		   and ($2 = '' or order_id <> $2)`, riderIDs, exceptOrderID)
 	if err != nil {
 		return out, err
 	}

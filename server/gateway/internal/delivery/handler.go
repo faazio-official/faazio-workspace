@@ -775,7 +775,7 @@ func (h *Handler) candidateRiders(ctx context.Context, stateCode string, exclude
 	for _, rider := range riders {
 		riderIDs = append(riderIDs, rider.RiderID)
 	}
-	pending, err := h.repo.PendingOfferRiderIDs(ctx, riderIDs)
+	pending, err := h.repo.PendingOfferRiderIDs(ctx, riderIDs, "")
 	if err != nil {
 		return nil, err
 	}

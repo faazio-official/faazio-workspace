@@ -145,9 +145,11 @@ district-scoped: `GET /delivery/register/pending`, `GET /delivery/register/{id}`
 district admins are forced to their claim, super admins may filter any district). Opening an order
 loads `GET /admin/delivery/orders/{orderId}` and nearest-first `GET
 /admin/delivery/orders/{orderId}/riders` (road distance from the store; riders are deliberately not
-district-restricted). `POST /admin/delivery/orders/{orderId}/allocate` requires a rider **and**
-`payoutMode` (`AUTOMATED`|`MANUAL`), creates the job for an un-dispatched PACKED order or re-offers
-an existing job with a fresh 45 s window. Before payment, `PUT …/payout-mode` can switch mode and
+district-restricted, and a rider already holding another unaccepted `ASSIGNED` offer is excluded so
+offers cannot stack above capacity). Date filters are IST calendar days. `POST
+/admin/delivery/orders/{orderId}/allocate` requires a rider **and** `payoutMode`
+(`AUTOMATED`|`MANUAL`), creates the job for an un-dispatched PACKED order or re-offers an existing
+job with a fresh 45 s window. Before payment, `PUT …/payout-mode` can switch mode and
 `POST …/manual-fare` records the admin-travelled distance + optional fare override for MANUAL orders.
 `GET /admin/delivery/payouts` is the settlement board (completed jobs with no payout row projected
 as PENDING). `POST /delivery/payouts/{orderId}/settle` marks PAID for the caller's district or, for

@@ -97,9 +97,21 @@ func (h *Handler) adminOrderRiders(w http.ResponseWriter, r *http.Request) {
 		h.writeErr(w, err)
 		return
 	}
+	// current_load only rises on accept, so a rider already holding another unaccepted offer must not
+	// appear as available here either (same rule as the auto-dispatch candidate picker).
+	riderIDs := make([]string, 0, len(riders))
+	for _, rider := range riders {
+		riderIDs = append(riderIDs, rider.RiderID)
+	}
+	pending, err := h.repo.PendingOfferRiderIDs(r.Context(), riderIDs, o.OrderID)
+	if err != nil {
+		h.writeErr(w, err)
+		return
+	}
 	out := make([]RiderCandidate, 0, len(riders))
 	for _, rider := range riders {
-		if excluded[rider.RiderID] || rider.MaxCapacity <= 0 || rider.CurrentLoad >= rider.MaxCapacity {
+		if excluded[rider.RiderID] || pending[rider.RiderID] ||
+			rider.MaxCapacity <= 0 || rider.CurrentLoad >= rider.MaxCapacity {
 			continue
 		}
 		var hb Heartbeat
@@ -176,6 +188,13 @@ func (h *Handler) allocateOrder(w http.ResponseWriter, r *http.Request) {
 	}
 	if rider.Status != StatusActive || !rider.IsAvailable || rider.CurrentLoad >= rider.MaxCapacity {
 		httpx.Fail(w, http.StatusConflict, "rider_unavailable", "rider is not available for a new order")
+		return
+	}
+	if pending, err := h.repo.PendingOfferRiderIDs(r.Context(), []string{rider.RiderID}, o.OrderID); err != nil {
+		h.writeErr(w, err)
+		return
+	} else if pending[rider.RiderID] {
+		httpx.Fail(w, http.StatusConflict, "rider_busy_offer", "rider already has an unaccepted order offer")
 		return
 	}
 	if o.OrderID != "" {
@@ -287,7 +306,8 @@ func (h *Handler) updatePayoutMode(w http.ResponseWriter, r *http.Request) {
 	if mode == PayoutManual {
 		manualKm, manualFare, reason = order.ManualDistanceKm, order.ManualFarePaisa, order.FareOverrideReason
 	}
-	updated, err := h.repo.SetPayoutMode(r.Context(), order.OrderID, mode, fare, manualKm, manualFare, reason)
+	updated, err := h.repo.SetPayoutMode(r.Context(), order.OrderID, mode, fare,
+		float64(fareMeters)/1000, manualKm, manualFare, reason)
 	if err != nil {
 		h.writeErr(w, err)
 		return
@@ -449,7 +469,10 @@ func parseDateParam(raw string, endOfDay bool) *time.Time {
 	if t, err := time.Parse(time.RFC3339, raw); err == nil {
 		return &t
 	}
-	t, err := time.Parse("2006-01-02", raw)
+	// Date-only filters are calendar days in IST (the business timezone), not UTC, so a "today"
+	// filter does not silently drop the first 5.5 hours of the operator's day.
+	ist := time.FixedZone("IST", 5*3600+1800)
+	t, err := time.ParseInLocation("2006-01-02", raw, ist)
 	if err != nil {
 		return nil
 	}
