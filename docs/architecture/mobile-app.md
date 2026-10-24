@@ -1121,6 +1121,8 @@ dedicated **FULFILLMENT** step. `fulfillment` (`'DELIVERY' | 'PICKUP'`) is a sin
   back to an honest base + distance estimate (`estimateDeliveryBreakdown`, `utils.ts`: ≤3 km → ₹35,
   then ₹7 per extra km) when the gateway is unreachable. The quote carries the server zone and any
   active night/rain/festival surge; `BreakdownCard` itemises those rows so the bill is explainable.
+  A FREE-Delivery coupon discounts the **live** quote (including a surge that arrives after the code
+  was applied), not a frozen fee, and the gateway settles the same zero delivery line.
 - **PAYMENT:** the reworked `PaymentOptionsScreen` (below); its back button returns to FULFILLMENT.
 - **Order placement:** for Delivery, the live fix (or fallback) is the delivery address and
   the GPS coordinates are captured on the order (`PlacedOrder.location`) and sent as

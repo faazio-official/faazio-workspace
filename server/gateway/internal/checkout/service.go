@@ -101,6 +101,15 @@ func discountedUnitPaisa(pricePaisa int64, discountPercent int) int64 {
 	return pricePaisa * int64(100-discountPercent) / 100
 }
 
+// customerDeliveryFeePaisa applies a free-delivery coupon to the customer's delivery line. A
+// negative fee is clamped to zero; the rider payout is unaffected (it reuses the stored basis).
+func customerDeliveryFeePaisa(feePaisa int64, freeDelivery bool) int64 {
+	if freeDelivery || feePaisa < 0 {
+		return 0
+	}
+	return feePaisa
+}
+
 // CreateOrder places an order: idempotency lock → price → stock decrement → insert.
 func (s *Service) CreateOrder(ctx context.Context, userID string, req PlaceOrderRequest) (Order, error) {
 	if len(req.Items) == 0 {
@@ -266,8 +275,6 @@ func (s *Service) CreateOrder(ctx context.Context, userID string, req PlaceOrder
 		deliveryPrice = s.priceDelivery(ctx, distanceKm, deliverySettings, time.Now(), cellID)
 	}
 	orderDeliveryFeePaisa := deliveryPrice.TotalPaisa
-	platformRates.DeliveryFeePaisa = orderDeliveryFeePaisa
-	breakdown := taxmath.Compute(taxLines, platformRates)
 
 	coins := req.CoinsRedeemed
 	if coins < 0 {
@@ -289,7 +296,14 @@ func (s *Service) CreateOrder(ctx context.Context, userID string, req PlaceOrder
 			return Order{}, fmt.Errorf("%w: %s", ErrInvalidCoupon, v.Reason)
 		}
 		couponDiscountPaisa = v.DiscountPaisa
+		// A free-delivery coupon is platform-funded: the customer's delivery line is zero while the
+		// rider is still paid from the stored distance/surge. Apply it before the invoice is built so
+		// the settled total matches what the client displayed.
+		orderDeliveryFeePaisa = customerDeliveryFeePaisa(orderDeliveryFeePaisa, v.FreeDelivery)
 	}
+
+	platformRates.DeliveryFeePaisa = orderDeliveryFeePaisa
+	breakdown := taxmath.Compute(taxLines, platformRates)
 
 	// Reserve inventory only after all pricing/validation has passed.
 	for _, it := range req.Items {

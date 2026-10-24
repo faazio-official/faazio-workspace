@@ -2072,9 +2072,12 @@ UPDATE tax.delivery_fee_settings SET per_extra_km_paisa = 700
   weather cache/override key; it is not a geofence (every coordinate resolves).
 - **Payout parity.** `checkout.orders` stores the charged `delivery_distance_km`,
   `delivery_surge_paisa`, `delivery_surge_reason` and the full `delivery_billing_basis`. Rider payout
-  reuses that stored distance + surge when present (legacy orders fall back to the delivery route
-  distance + clock-derived surge). Admin `?weather=1&festival=1` on the payout endpoint forces a
-  fresh derivation for testing.
+  reuses that stored distance + surge when present — including a stored 0 distance — (legacy orders
+  with no basis fall back to the delivery route distance + clock-derived surge). Admin
+  `?weather=1&festival=1` on the payout endpoint forces a fresh derivation for testing.
+- **Free-delivery coupons.** A `promo.coupons.free_delivery` coupon zeroes the customer's
+  `delivery_fee_paisa` at settlement (platform-funded). The rider payout still reuses the stored
+  distance/surge basis, so the pass-through is unaffected.
 - **Weather budget.** Hard cap 60,000 calls per Indian financial year (Apr 1 → Mar 31), enforced by
   the gateway before every provider call; one Supabase row per day preserves the audit trail.
 - **RLS/grants.** `ops.*` is service_role-only (no client grants); RLS enabled where Supabase roles

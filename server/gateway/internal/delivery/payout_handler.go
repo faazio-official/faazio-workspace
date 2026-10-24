@@ -133,13 +133,11 @@ func (h *Handler) calculatePayout(r *http.Request, orderID string) (RiderPayout,
 
 	var p RiderPayout
 	if hasBasis && !queryWeather && !queryFestival {
-		// Use the same server distance the customer was billed on, so the ₹5 base margin and the
-		// per-km pass-through hold exactly (road-distance differences never create a divergence).
-		distanceMeters := order.TotalDistanceMeters
-		if storedMeters > 0 {
-			distanceMeters = storedMeters
-		}
-		p = ComputeRiderPayoutWithSurge(order.OrderID, order.RiderID, distanceMeters,
+		// Use exactly the distance the customer was billed on, so the ₹5 base margin and the per-km
+		// pass-through hold (road-distance differences never create a divergence). A zero stored
+		// distance is meaningful (e.g. a delivery placed without a live fix, billed at base only),
+		// so never substitute the route distance for a stored basis.
+		p = ComputeRiderPayoutWithSurge(order.OrderID, order.RiderID, storedMeters,
 			settings, storedSurge, storedReason)
 	} else {
 		surge := SurgeInput{Weather: queryWeather, Festival: queryFestival, At: at}
