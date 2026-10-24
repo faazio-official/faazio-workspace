@@ -86,6 +86,18 @@ type Payment struct {
 	CoinsRedeemed int64  `json:"coinsRedeemed"`
 	Status        string `json:"status"`
 	CreatedAt     string `json:"createdAt"`
+	// AmountPaisa is the exact ledger amount (json-hidden). Fractional-km delivery fees mean the
+	// whole-rupee wire Amount can lose paise, so the DB write must use this when set.
+	AmountPaisa int64 `json:"-"`
+}
+
+// ledgerPaisa is the exact amount to persist: the paisa field when the caller set it, otherwise
+// the whole-rupee wire figure (migrations pre-dating fractional delivery fees).
+func (p Payment) ledgerPaisa() int64 {
+	if p.AmountPaisa > 0 {
+		return p.AmountPaisa
+	}
+	return p.Amount * 100
 }
 
 // Profile is accounts.profile.
@@ -784,7 +796,7 @@ func (r *Repo) InsertOrder(ctx context.Context, o Order, lines []OrderLineItem, 
 		if _, err := tx.Exec(ctx, `
 			insert into checkout.payments (id, order_id, user_id, method, amount_paisa, coins_redeemed, status)
 			values ($1,$2,$3,$4,$5,$6,$7)`,
-			p.ID, o.ID, o.UserID, p.Method, p.Amount*100, p.CoinsRedeemed, p.Status); err != nil {
+			p.ID, o.ID, o.UserID, p.Method, p.ledgerPaisa(), p.CoinsRedeemed, p.Status); err != nil {
 			return err
 		}
 	}
@@ -848,7 +860,7 @@ func (r *Repo) InsertPayment(ctx context.Context, p Payment) error {
 	_, err := r.pool.Exec(ctx, `
 		insert into checkout.payments (id, order_id, user_id, method, amount_paisa, coins_redeemed, status)
 		values ($1,$2,$3,$4,$5,$6,$7)`,
-		p.ID, p.OrderID, p.UserID, p.Method, p.Amount*100, p.CoinsRedeemed, p.Status)
+		p.ID, p.OrderID, p.UserID, p.Method, p.ledgerPaisa(), p.CoinsRedeemed, p.Status)
 	return err
 }
 

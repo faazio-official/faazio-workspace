@@ -377,6 +377,7 @@ func (s *Service) CreateOrder(ctx context.Context, userID string, req PlaceOrder
 			UserID:        userID,
 			Method:        method,
 			Amount:        paidRupees,
+			AmountPaisa:   paidPaisa,
 			CoinsRedeemed: coins,
 			Status:        "PAID",
 		})

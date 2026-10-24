@@ -3,6 +3,7 @@ package weather
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"testing"
 	"time"
 )
@@ -43,13 +44,14 @@ func (f *fakeCache) GetInt(_ context.Context, key string) (int64, bool) {
 
 type fakeAPI struct {
 	raining bool
+	err     error
 	calls   int
 }
 
 func (f *fakeAPI) Enabled() bool { return true }
 func (f *fakeAPI) Raining(context.Context, float64, float64) (bool, error) {
 	f.calls++
-	return f.raining, nil
+	return f.raining, f.err
 }
 
 type fakeUsage struct {
@@ -83,6 +85,33 @@ func TestCheckerCachesOneCallPerWindow(t *testing.T) {
 	}
 	if api.calls != 1 || usage.calls != 1 {
 		t.Fatalf("cached check api/usage = %d/%d, want 1/1", api.calls, usage.calls)
+	}
+}
+
+func TestCheckerCachesProviderErrorAsDry(t *testing.T) {
+	cache := newFakeCache()
+	api := &fakeAPI{err: errors.New("provider down")}
+	c := NewChecker(cache, api, nil, AnnualCallLimit)
+	c.now = func() time.Time { return time.Date(2026, 6, 1, 10, 0, 0, 0, IST) }
+
+	raining, err := c.IsRaining(context.Background(), "9:9")
+	if err == nil || raining {
+		t.Fatalf("first check = %v, %v; want false + error", raining, err)
+	}
+	if api.calls != 1 {
+		t.Fatalf("provider calls = %d, want 1", api.calls)
+	}
+	if got := cache.ints["faazio:v1:weather:calls:2026-27"]; got != 1 {
+		t.Fatalf("failed call must count against the budget, counter = %d", got)
+	}
+
+	// The failed window is cached dry, so the next quote cannot hammer the provider.
+	raining, err = c.IsRaining(context.Background(), "9:9")
+	if err != nil || raining {
+		t.Fatalf("cached check = %v, %v; want false, nil", raining, err)
+	}
+	if api.calls != 1 {
+		t.Fatalf("cached check must not call the provider again: calls=%d", api.calls)
 	}
 }
 

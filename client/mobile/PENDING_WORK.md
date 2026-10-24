@@ -26,6 +26,12 @@ dependencies exist. Do not build the backend/seller flows until told to.
   `ZOMATO_WEATHER_UNION_KEY` (optional; unset disables rain surge), `ZOMATO_WEATHER_UNION_BASE_URL`.
 - Docs: `db-schema.md` §12.26, `monolith-breakdown.md` §1, `caching-cloudflare-valkey.md`,
   `server-gateway-plan.md`, `mobile-app.md`.
+- **Follow-up fixes (W66):** payout legacy detection now keys off `delivery_billing_basis IS NOT
+  NULL` (the column defaults made every old order look like a new basis, silently dropping night
+  surge); provider errors are cached dry for the 30-min window and still count against the annual
+  budget (an outage can no longer hammer Weather Union per order); `0054` only re-seeds the old ₹9
+  rate, never a super-admin edit; fractional-km invoices persist exact paisa in the payment ledger;
+  the mobile quote survives the FULFILLMENT → PAYMENT step and the extra-distance row shows extra km.
 
 ## W65 — Cart/checkout rework + seller-fee removal + dynamic delivery fee (P0)
 

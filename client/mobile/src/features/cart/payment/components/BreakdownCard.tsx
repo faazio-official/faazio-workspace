@@ -41,6 +41,9 @@ export default function BreakdownCard({
   fulfillment,
 }: BreakdownCardProps) {
   const showDelivery = fulfillment !== 'PICKUP';
+  const extraKm = deliveryBreakdown
+    ? Math.max(0, deliveryBreakdown.distanceKm - (deliveryBreakdown.baseDistanceKm ?? 3))
+    : 0;
   return (
     <View style={styles.card}>
       <View style={styles.totalRow}>
@@ -66,7 +69,7 @@ export default function BreakdownCard({
               {deliveryBreakdown.extraKmPaisa > 0 && (
                 <View style={styles.row}>
                   <AppText style={styles.rowLabel}>
-                    Extra distance ({deliveryBreakdown.distanceKm.toFixed(1)} km)
+                    Extra distance ({extraKm.toFixed(1)} km)
                   </AppText>
                   <AppText style={styles.rowValue}>
                     {formatPaisa(deliveryBreakdown.extraKmPaisa)}

@@ -43,9 +43,9 @@ alter table checkout.orders
 
 -- ================================================================ rate card alignment
 -- The locked pricing text is ₹7/km to customer AND rider (1:1 pass-through). 0053 shipped ₹9/km;
--- align the singleton row for databases created before this migration. Fresh installs get the new
--- default from 0053.
-update tax.delivery_fee_settings set per_extra_km_paisa = 700 where id = 1;
+-- align only rows still on that old default so a re-run never overwrites a SUPER_ADMIN edit.
+update tax.delivery_fee_settings set per_extra_km_paisa = 700
+ where id = 1 and per_extra_km_paisa = 900;
 
 -- ================================================================ RLS + grants (Supabase only)
 do $$
