@@ -426,7 +426,11 @@ export function DeliveryPayoutBoard({ scope }: { scope: Scope }) {
                 <Button variant="outline" onClick={() => setSelected(null)} disabled={busy}>
                   Cancel
                 </Button>
-                <Button variant="outline" onClick={() => void submit(false)} disabled={busy}>
+                <Button
+                  variant="outline"
+                  onClick={() => void submit(false)}
+                  disabled={busy || (nextMode === selected.payoutMode && nextMode !== "MANUAL")}
+                >
                   Save details
                 </Button>
                 <Button onClick={() => void submit(true)} disabled={busy}>

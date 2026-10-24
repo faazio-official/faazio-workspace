@@ -1,5 +1,5 @@
 -- Faazio MVP — manual district allocation + dual (AUTOMATED / MANUAL) rider payouts.
--- Authority: docs/architecture/db-schema.md §12.26, docs/architecture/monolith-breakdown.md §1
+-- Authority: docs/architecture/db-schema.md §12.27, docs/architecture/monolith-breakdown.md §1
 -- (delivery context row), docs/architecture/server-gateway-plan.md (§delivery).
 --
 -- Additive only (never rewrites 0001–0054). Idempotent: safe to re-run.
