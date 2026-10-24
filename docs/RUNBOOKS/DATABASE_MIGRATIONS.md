@@ -55,6 +55,7 @@ psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f ../supabase/migrations/0051_tax_invoi
 psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f ../supabase/migrations/0052_delivery_payout.sql
 psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f ../supabase/migrations/0053_delivery_fee_settings.sql
 psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f ../supabase/migrations/0054_weather_festival.sql
+psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f ../supabase/migrations/0055_delivery_manual_payout.sql
 ```
 
 List the files (`ls ../supabase/migrations/ | tail`) and apply everything newer than the last one

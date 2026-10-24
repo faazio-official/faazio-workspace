@@ -65,7 +65,7 @@ The campaign wizard's **what→where** placements map 1:1 to the paid mobile sur
 | `seller/returns` · `seller/reviews` · `seller/payments` | after-sales — commission-free payments ledger (TCS, TDS 0.1%, product GST; sellers keep full gross) | all |
 | `seller/analytics` · `seller/support` · `seller/settings` · `seller/onboarding` | console | all |
 
-**District admin console (`app/admin/district/**`)** — district-scoped oversight (campaigns, coupons, ads and delivery read models remain state-level).
+**District admin console (`app/admin/district/**`)** — district-scoped oversight (campaigns, coupons and ads remain state-level; delivery allocation and payouts are district-scoped).
 
 | Route | Page |
 | --- | --- |
@@ -76,6 +76,8 @@ The campaign wizard's **what→where** placements map 1:1 to the paid mobile sur
 | `admin/district/blood` | blood requests board (PHARMA) — server `blood.requests` with `contact`/`address` redacted for anon; moderation (`DELETE /blood-requests/{id}`) |
 | `admin/district/customers` | customer list + activity trail |
 | `admin/district/delivery-boys` | delivery-partner control plane (state-scoped): pending KYC queue, per-document verify and admin-side replacement upload (private R2 → `PUT /delivery/register/{id}/documents/{docType}/reupload`; the rider app has no re-upload screen), profile approve → super-admin activation, active-rider list (load/capacity) with on-demand Valkey location, suspend |
+| `admin/district/delivery/manual-allocation` | district allocation board: PACKED orders with no job + unaccepted/rejected offers, rider picker sorted by road distance from the store, mandatory `AUTOMATED`/`MANUAL` payout mode (`GET /admin/delivery/orders`, `POST …/allocate`) |
+| `admin/district/delivery/payouts` | district payout board: completed jobs (PENDING projected), mode/manual distance/fare editing before payment, `Mark Paid` (`GET /admin/delivery/payouts`, `PUT …/payout-mode`, `POST …/manual-fare`, `POST /delivery/payouts/{orderId}/settle`) |
 | `admin/district/coupons` · `admin/district/festival` | promo |
 | `admin/district/pricing-audit` | price integrity |
 | `admin/district/analytics` · `admin/district/content` · `admin/district/support` · `admin/district/audit` | console |
@@ -96,6 +98,8 @@ The campaign wizard's **what→where** placements map 1:1 to the paid mobile sur
 | `admin/super/credentials` | issue/disable seller and district-admin portal logins (role + seller/district scope) |
 | `admin/super/security` | superadmin password rotation (same component as `/security`) |
 | `admin/super/delivery-boys` | all-India delivery-partner console — same review board, super-only activation and suspend/blacklist |
+| `admin/super/delivery/manual-allocation` | all-district allocation board — filter by district, rider picker by road distance, mandatory payout mode |
+| `admin/super/delivery/payouts` | all-district payout board — settle automated/manual payouts, `Mark Paid` records the payment only (no Razorpay transfer) |
 | `admin/super/analytics` · `admin/super/audit` · `admin/super/settings` | console |
 
 > **Audit log retention (`0037`):** both audit pages (`admin/district/audit`, `admin/super/audit`) stay
