@@ -56,6 +56,29 @@ const (
 	OrderCancelled     = "CANCELLED"
 )
 
+// Payout modes mirror delivery_payout_mode (0055). The mode is chosen by an admin at allocation
+// and may change until the payout is marked PAID.
+const (
+	PayoutAutomated = "AUTOMATED"
+	PayoutManual    = "MANUAL"
+)
+
+func payoutModeOrDefault(mode string) string {
+	if strings.EqualFold(strings.TrimSpace(mode), PayoutManual) {
+		return PayoutManual
+	}
+	return PayoutAutomated
+}
+
+func validPayoutMode(mode string) bool {
+	switch strings.ToUpper(strings.TrimSpace(mode)) {
+	case PayoutAutomated, PayoutManual:
+		return true
+	default:
+		return false
+	}
+}
+
 // Stop statuses mirror delivery_stop_status.
 const (
 	StopPending    = "PENDING"
@@ -189,6 +212,12 @@ type Order struct {
 	TotalDistanceMeters   int64           `json:"totalDistanceMeters"`
 	EstimatedDurationSecs int64           `json:"estimatedDurationSeconds"`
 	PayoutAmountPaisa     int64           `json:"payoutAmountPaisa"`
+	DistrictCode          string          `json:"districtCode,omitempty"`
+	PayoutMode            string          `json:"payoutMode"`
+	ManualDistanceKm      *float64        `json:"manualDistanceKm,omitempty"`
+	ManualFarePaisa       *int64          `json:"manualFarePaisa,omitempty"`
+	CalculatedFarePaisa   *int64          `json:"calculatedFarePaisa,omitempty"`
+	FareOverrideReason    string          `json:"fareOverrideReason,omitempty"`
 	RequireOTP            bool            `json:"requireOtp"`
 	AssignedAt            string          `json:"assignedAt"`
 	AcceptedAt            string          `json:"acceptedAt,omitempty"`
@@ -203,6 +232,74 @@ type Order struct {
 	// already declined this job from being selected again. Internal-only (never in JSON).
 	DispatchAttempts int      `json:"-"`
 	ExcludedRiderIDs []string `json:"-"`
+}
+
+// AdminOrder is the district-scoped allocation-board projection. OrderID is the delivery job id
+// when one exists; a PACKED order that was never auto-dispatched has an empty OrderID and is keyed
+// by CustomerOrderID. The handler accepts either id for detail/allocation routes.
+type AdminOrder struct {
+	OrderID             string   `json:"orderId"`
+	CustomerOrderID     string   `json:"customerOrderId"`
+	StoreID             string   `json:"storeId"`
+	StoreName           string   `json:"storeName"`
+	StoreAddress        string   `json:"storeAddress"`
+	StoreLatitude       *float64 `json:"storeLatitude,omitempty"`
+	StoreLongitude      *float64 `json:"storeLongitude,omitempty"`
+	DistrictCode        string   `json:"districtCode,omitempty"`
+	StateCode           string   `json:"stateCode,omitempty"`
+	RiderID             string   `json:"riderId,omitempty"`
+	RiderName           string   `json:"riderName,omitempty"`
+	RiderPhone          string   `json:"riderPhone,omitempty"`
+	Status              string   `json:"status"`
+	CustomerName        string   `json:"customerName,omitempty"`
+	CustomerPhone       string   `json:"customerPhone,omitempty"`
+	DropAddress         string   `json:"dropAddress,omitempty"`
+	DropLatitude        *float64 `json:"dropLatitude,omitempty"`
+	DropLongitude       *float64 `json:"dropLongitude,omitempty"`
+	OrderValuePaisa     int64    `json:"orderValuePaisa"`
+	DistanceMeters      int64    `json:"distanceMeters"`
+	PayoutMode          string   `json:"payoutMode"`
+	CalculatedFarePaisa *int64   `json:"calculatedFarePaisa,omitempty"`
+	ManualDistanceKm    *float64 `json:"manualDistanceKm,omitempty"`
+	ManualFarePaisa     *int64   `json:"manualFarePaisa,omitempty"`
+	FareOverrideReason  string   `json:"fareOverrideReason,omitempty"`
+	ReadyAt             string   `json:"readyAt,omitempty"`
+	AssignedAt          string   `json:"assignedAt,omitempty"`
+	ExpiresAt           string   `json:"expiresAt,omitempty"`
+	CompletedAt         string   `json:"completedAt,omitempty"`
+	CreatedAt           string   `json:"createdAt,omitempty"`
+	Stops               []Stop   `json:"stops,omitempty"`
+}
+
+// RiderCandidate is one rider in the manual-allocation picker, sorted by road distance from the
+// store. Riders are not district-restricted: any eligible rider may serve any order in scope.
+type RiderCandidate struct {
+	Rider
+	DistanceMeters int64 `json:"distanceMeters"`
+	Online         bool  `json:"online"`
+}
+
+// AdminPayout is one row on the settlement board. A completed order with no payout row yet is
+// projected as PENDING using the order's calculated/manual fare.
+type AdminPayout struct {
+	PayoutID            string   `json:"payoutId,omitempty"`
+	OrderID             string   `json:"orderId"`
+	CustomerOrderID     string   `json:"customerOrderId"`
+	RiderID             string   `json:"riderId"`
+	RiderName           string   `json:"riderName"`
+	DistrictCode        string   `json:"districtCode,omitempty"`
+	DistanceKm          float64  `json:"distanceKm"`
+	PayoutMode          string   `json:"payoutMode"`
+	CalculatedFarePaisa int64    `json:"calculatedFarePaisa"`
+	TotalPaisa          int64    `json:"totalPaisa"`
+	Status              string   `json:"status"`
+	ManualDistanceKm    *float64 `json:"manualDistanceKm,omitempty"`
+	ManualFarePaisa     *int64   `json:"manualFarePaisa,omitempty"`
+	FareOverrideReason  string   `json:"fareOverrideReason,omitempty"`
+	PaidAt              string   `json:"paidAt,omitempty"`
+	PaidBy              string   `json:"paidBy,omitempty"`
+	CompletedAt         string   `json:"completedAt,omitempty"`
+	CreatedAt           string   `json:"createdAt,omitempty"`
 }
 
 // Heartbeat is the Valkey coordinate payload.

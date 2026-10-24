@@ -1,6 +1,6 @@
 "use client";
 // Delivery-partner control plane. All calls are role-gated server-side (DISTRICT_ADMIN is scoped to
-// its own state; SUPER_ADMIN may act anywhere). No PII is cached client-side beyond the response.
+// its own district; SUPER_ADMIN may act anywhere). No PII is cached client-side beyond the response.
 import { remote } from "./http";
 import { remoteConfigured } from "@/lib/config";
 import { fileToProductImage, uploadMimeFor } from "@/lib/media/imageCompression";
@@ -192,4 +192,133 @@ export function blacklistDeliveryPartner(id: string, reason: string) {
   return remote.put<DeliveryDetail>(`/delivery/boys/${encodeURIComponent(id)}/blacklist`, {
     reason,
   });
+}
+
+/* ------------------------ manual allocation + dual payouts ------------------------ */
+
+export type DeliveryPayoutMode = "AUTOMATED" | "MANUAL";
+
+export interface AdminDeliveryOrder {
+  orderId: string;
+  customerOrderId: string;
+  storeId: string;
+  storeName: string;
+  storeAddress: string;
+  storeLatitude?: number;
+  storeLongitude?: number;
+  districtCode?: string;
+  stateCode?: string;
+  riderId?: string;
+  riderName?: string;
+  riderPhone?: string;
+  status: "UNASSIGNED" | "ASSIGNED" | "REJECTED" | string;
+  customerName?: string;
+  customerPhone?: string;
+  dropAddress?: string;
+  dropLatitude?: number;
+  dropLongitude?: number;
+  orderValuePaisa: number;
+  distanceMeters: number;
+  payoutMode: DeliveryPayoutMode;
+  calculatedFarePaisa?: number;
+  manualDistanceKm?: number;
+  manualFarePaisa?: number;
+  fareOverrideReason?: string;
+  readyAt?: string;
+  assignedAt?: string;
+  expiresAt?: string;
+  completedAt?: string;
+  createdAt?: string;
+}
+
+export interface DeliveryRiderCandidate extends DeliveryRider {
+  distanceMeters: number;
+  online: boolean;
+}
+
+export interface AdminDeliveryPayout {
+  payoutId?: string;
+  orderId: string;
+  customerOrderId: string;
+  riderId: string;
+  riderName: string;
+  districtCode?: string;
+  distanceKm: number;
+  payoutMode: DeliveryPayoutMode;
+  calculatedFarePaisa: number;
+  totalPaisa: number;
+  status: "PENDING" | "PAID" | string;
+  manualDistanceKm?: number;
+  manualFarePaisa?: number;
+  fareOverrideReason?: string;
+  paidAt?: string;
+  paidBy?: string;
+  completedAt?: string;
+  createdAt?: string;
+}
+
+export function listAdminDeliveryOrders(
+  filter: {
+    district?: string | undefined;
+    status?: string | undefined;
+    storeId?: string | undefined;
+    from?: string | undefined;
+    to?: string | undefined;
+  } = {},
+) {
+  return remote.get<AdminDeliveryOrder[]>("/admin/delivery/orders", { query: filter });
+}
+
+export function getAdminDeliveryOrder(id: string) {
+  return remote.get<AdminDeliveryOrder>(
+    `/admin/delivery/orders/${encodeURIComponent(id)}`,
+  );
+}
+
+export function listAdminOrderRiders(id: string, includeOffline = false) {
+  return remote.get<DeliveryRiderCandidate[]>(
+    `/admin/delivery/orders/${encodeURIComponent(id)}/riders`,
+    { query: { includeOffline } },
+  );
+}
+
+export function allocateDeliveryOrder(
+  id: string,
+  input: { riderId: string; payoutMode: DeliveryPayoutMode },
+) {
+  return remote.post<{ orderId: string }>(
+    `/admin/delivery/orders/${encodeURIComponent(id)}/allocate`,
+    input,
+  );
+}
+
+export function updateDeliveryPayoutMode(id: string, payoutMode: DeliveryPayoutMode) {
+  return remote.put(`/admin/delivery/orders/${encodeURIComponent(id)}/payout-mode`, {
+    payoutMode,
+  });
+}
+
+export function recordDeliveryManualFare(
+  id: string,
+  input: { distanceKm: number; farePaisa?: number | undefined; reason?: string | undefined },
+) {
+  return remote.post(`/admin/delivery/orders/${encodeURIComponent(id)}/manual-fare`, input);
+}
+
+export function listAdminDeliveryPayouts(
+  filter: {
+    district?: string | undefined;
+    mode?: string | undefined;
+    status?: string | undefined;
+    riderId?: string | undefined;
+    from?: string | undefined;
+    to?: string | undefined;
+  } = {},
+) {
+  return remote.get<AdminDeliveryPayout[]>("/admin/delivery/payouts", { query: filter });
+}
+
+/** Mark Paid. No Razorpay transfer is initiated; the admin settles the rider in person. */
+export function settleDeliveryPayout(orderId: string) {
+  return remote.post(`/delivery/payouts/${encodeURIComponent(orderId)}/settle`);
 }

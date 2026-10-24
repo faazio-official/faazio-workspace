@@ -202,6 +202,37 @@ func TestMiddlewareCanonicalisesLegacyDevRole(t *testing.T) {
 	}
 }
 
+func TestCanActForDistrict(t *testing.T) {
+	districtAdmin := context.WithValue(context.Background(), identityKey{}, Identity{
+		Role: RoleDistrictAdmin, StateCode: "TN", DistrictCode: "TCH",
+	})
+	legacyStateAdmin := context.WithValue(context.Background(), identityKey{}, Identity{
+		Role: RoleDistrictAdmin, StateCode: "TN",
+	})
+	superAdmin := context.WithValue(context.Background(), identityKey{}, Identity{Role: RoleSuperAdmin})
+
+	cases := []struct {
+		name                string
+		ctx                 context.Context
+		district, stateCode string
+		want                bool
+	}{
+		{"district match", districtAdmin, "TCH", "TN", true},
+		{"other district", districtAdmin, "TCO", "TN", false},
+		{"row without district is not claimable", districtAdmin, "", "TN", false},
+		{"legacy state admin falls back to state", legacyStateAdmin, "TCO", "TN", true},
+		{"legacy state admin other state", legacyStateAdmin, "TCO", "KA", false},
+		{"super admin anywhere", superAdmin, "TCO", "KA", true},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := CanActForDistrict(tc.ctx, tc.district, tc.stateCode); got != tc.want {
+				t.Fatalf("CanActForDistrict = %v, want %v", got, tc.want)
+			}
+		})
+	}
+}
+
 func TestCanActForSellerDistrict(t *testing.T) {
 	ctx := context.WithValue(context.Background(), identityKey{}, Identity{
 		Role: RoleDistrictAdmin, StateCode: "TN", DistrictCode: "TCH",

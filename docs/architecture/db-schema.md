@@ -1871,9 +1871,9 @@ tables are untouched.
   `…_REJECT`, `…_DOC_REUPLOAD_ADMIN`, `…_ACTIVATE`, `…_SUSPEND`, `…_BLACKLIST`, `…_ASSIGN`, `…_ACCEPT`,
   `…_REJECT_ORDER`, `…_REASSIGN`, `…_PICKUP`, `…_DELIVERED`).
 
-**Phase 5 (payout engine) is out of scope.** `delivery_orders.payout_amount_paisa` is a display-only
-placeholder; no `delivery_payouts` table (order-level seller/platform/rider split, COD
-reconciliation, TDS, payout frequency) exists until the product decision is approved.
+**Payout engine:** the rider payout ledger was added in `0052` and extended in `0055` (see `12.25`
+and `12.27`). `delivery_orders.payout_amount_paisa` stays a display projection; platform/seller
+splitting, COD reconciliation, TDS and payout frequency remain out of scope.
 
 ### 12.24 District rollout + platform-fee change requests (migrations `0046`–`0050`)
 
@@ -2020,7 +2020,9 @@ CREATE TABLE delivery.delivery_payouts (
 - Rider payout = base (₹30 / 3 km) + ₹7/km beyond + night (23:00–03:00 IST), weather/festival surge.
   `GET /delivery/payouts/{orderId}` upserts a PENDING row for the owning rider; its breakdown is
   mirrored onto `delivery.delivery_orders.payout_basis` (audit JSONB) alongside the display
-  `payout_amount_paisa`; `POST /delivery/payouts/{orderId}/settle` is super-admin only.
+  `payout_amount_paisa`; `POST /delivery/payouts/{orderId}/settle` is district-scoped for district
+  admins and global for super admins (recorded Mark Paid; no Razorpay transfer). `0055` adds the
+  manual allocation + dual payout columns described in `12.27`.
 - RLS/grants follow the existing guarded Supabase pattern; all writes go through the gateway
   (`tax.delivery_fee_settings` is service_role-only — no client grants).
 
@@ -2082,3 +2084,41 @@ UPDATE tax.delivery_fee_settings SET per_extra_km_paisa = 700
   the gateway before every provider call; one Supabase row per day preserves the audit trail.
 - **RLS/grants.** `ops.*` is service_role-only (no client grants); RLS enabled where Supabase roles
   exist. New order columns follow the existing `checkout.orders` owner-scoped reads.
+
+### 12.27 Manual district allocation + dual rider payout mode (migration `0055`)
+
+**Authority:** `server-gateway-plan.md` (Delivery partner), `monolith-breakdown.md` §1 (`delivery`),
+`web-portal.md` (manual allocation + payout boards). Additive; no cache keys change.
+
+```sql
+CREATE TYPE delivery_payout_mode AS ENUM ('AUTOMATED', 'MANUAL');
+
+ALTER TABLE delivery.delivery_orders
+  ADD COLUMN district_code TEXT REFERENCES admins.district_master(district_code),
+  ADD COLUMN payout_mode delivery_payout_mode NOT NULL DEFAULT 'AUTOMATED',
+  ADD COLUMN manual_distance_km NUMERIC(7,2) CHECK (manual_distance_km >= 0),
+  ADD COLUMN manual_fare_paisa BIGINT CHECK (manual_fare_paisa >= 0),
+  ADD COLUMN calculated_fare_paisa BIGINT CHECK (calculated_fare_paisa >= 0),
+  ADD COLUMN fare_override_reason TEXT;
+-- Same five columns mirrored on delivery.delivery_payouts as the settlement audit trail.
+-- district_code is backfilled from directory.stores.seller_id -> sellers.sellers.district_code;
+-- legacy stores without a district stay NULL and are visible to SUPER_ADMIN only.
+CREATE INDEX delivery_orders_district_status_idx
+  ON delivery.delivery_orders (district_code, status, created_at DESC);
+CREATE INDEX delivery_payouts_mode_status_idx
+  ON delivery.delivery_payouts (payout_mode, status, created_at DESC);
+```
+
+**Rules**
+
+- `payout_mode` is mandatory at allocation (the admin API rejects a missing/invalid value).
+  Auto-dispatched legacy rows default to `AUTOMATED`.
+- `AUTOMATED` settles the rate-card calculation (stored checkout distance + surge basis, legacy
+  fallback route/clock). `MANUAL` requires `manual_distance_km` + `manual_fare_paisa`; settlement
+  returns `409 manual_fare_required` until both are recorded. `calculated_fare_paisa` keeps the
+  rate-card preview for audit even when the manual fare overrides it.
+- The mode and manual fare may change while the payout is `PENDING`; once `PAID` both the payout row
+  and the order fields are immutable.
+- `Mark Paid` writes `status='PAID'`, `paid_at`, `paid_by` and an audit row. It is a recorded
+  settlement only — no Razorpay transfer or platform/seller split is created.
+- `district_code` is derived server-side from the store's seller; clients never supply it for scope.

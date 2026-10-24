@@ -55,3 +55,18 @@ func TestComputeRiderPayoutReusesStoredSurge(t *testing.T) {
 		t.Fatalf("total = %d, want %d", p.TotalPaisa, 3000+1540+4500)
 	}
 }
+
+func TestPayoutModeHelpers(t *testing.T) {
+	if got := payoutModeOrDefault(" manual "); got != PayoutManual {
+		t.Fatalf("payoutModeOrDefault(manual) = %q, want %q", got, PayoutManual)
+	}
+	if got := payoutModeOrDefault("something-else"); got != PayoutAutomated {
+		t.Fatalf("payoutModeOrDefault(invalid) = %q, want %q", got, PayoutAutomated)
+	}
+	if !validPayoutMode("automated") || !validPayoutMode("MANUAL") {
+		t.Fatal("valid payout modes must be accepted case-insensitively")
+	}
+	if validPayoutMode("") || validPayoutMode("CASH") {
+		t.Fatal("invalid payout modes must be rejected")
+	}
+}

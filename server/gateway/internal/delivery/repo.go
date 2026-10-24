@@ -518,10 +518,14 @@ func (r *Repo) CreateOrder(ctx context.Context, o Order, stops []Stop, otpHash s
 		insert into delivery.delivery_orders
 		  (order_id, customer_order_id, store_id, rider_id, status, route_sequence,
 		   total_distance_meters, estimated_duration_seconds, payout_amount_paisa, require_otp,
-		   assigned_at, expires_at)
-		values ($1,$2,$3,$4,'ASSIGNED',$5,$6,$7,$8,$9,now(),$10)`,
+		   district_code, payout_mode, calculated_fare_paisa, manual_distance_km, manual_fare_paisa,
+		   fare_override_reason, assigned_at, expires_at)
+		values ($1,$2,$3,$4,'ASSIGNED',$5,$6,$7,$8,$9,nullif($10,''),$11::delivery_payout_mode,
+		        $12,$13,$14,nullif($15,''),now(),$16)`,
 		o.OrderID, o.CustomerOrderID, o.StoreID, o.RiderID, o.RouteSequence,
-		o.TotalDistanceMeters, o.EstimatedDurationSecs, o.PayoutAmountPaisa, o.RequireOTP, assignExpires)
+		o.TotalDistanceMeters, o.EstimatedDurationSecs, o.PayoutAmountPaisa, o.RequireOTP,
+		o.DistrictCode, payoutModeOrDefault(o.PayoutMode), o.CalculatedFarePaisa,
+		o.ManualDistanceKm, o.ManualFarePaisa, o.FareOverrideReason, assignExpires)
 	if err != nil {
 		return Order{}, err
 	}
@@ -836,12 +840,16 @@ func (r *Repo) orderByID(ctx context.Context, riderID, orderID string) (Order, e
 	err := r.pool.QueryRow(ctx, `
 		select order_id, customer_order_id, store_id, rider_id, status::text, route_sequence,
 		       total_distance_meters, estimated_duration_seconds, payout_amount_paisa, require_otp,
+		       coalesce(district_code,''), payout_mode::text, manual_distance_km::float8,
+		       manual_fare_paisa, calculated_fare_paisa, coalesce(fare_override_reason,''),
 		       assigned_at, accepted_at, expires_at, completed_at, created_at,
 		       dispatch_attempts, excluded_rider_ids
 		  from delivery.delivery_orders
 		 where order_id=$1 and ($2 = '' or rider_id=$2)`, orderID, riderID).
 		Scan(&o.OrderID, &o.CustomerOrderID, &o.StoreID, &o.RiderID, &o.Status, &o.RouteSequence,
 			&o.TotalDistanceMeters, &o.EstimatedDurationSecs, &o.PayoutAmountPaisa, &o.RequireOTP,
+			&o.DistrictCode, &o.PayoutMode, &o.ManualDistanceKm, &o.ManualFarePaisa,
+			&o.CalculatedFarePaisa, &o.FareOverrideReason,
 			&assigned, &accepted, &expires, &completed, &created,
 			&o.DispatchAttempts, &excluded)
 	if errors.Is(err, pgx.ErrNoRows) {

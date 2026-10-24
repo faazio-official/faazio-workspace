@@ -126,7 +126,7 @@ keys/TTLs unchanged.
 - **Build order / status:** `docs/architecture/mvp-backend.md` §7.
 
 
-### Delivery partner (`internal/delivery`, migrations `0042`, `0043`, `0045`, `0052`)
+### Delivery partner (`internal/delivery`, migrations `0042`, `0043`, `0045`, `0052`, `0055`)
 
 The partner domain is a first-class context in the same gateway (future service: Go + Postgres).
 Rider endpoints authenticate with the Firebase phone ID token and resolve the rider by E.164 phone:
@@ -139,6 +139,20 @@ district-scoped: `GET /delivery/register/pending`, `GET /delivery/register/{id}`
 (admin uploads a replacement document), `GET /delivery/online-riders`,
 `GET /admin/delivery-boys`, `GET /admin/delivery-boys/{id}/location`, `POST /dispatch/assign`
 (plus super-only `PUT /delivery/register/{id}/activate` and `PUT /delivery/boys/{id}/blacklist`).
+
+**Manual district allocation + dual payout mode (`0055`).** The portal allocation board reads
+`GET /admin/delivery/orders` (PACKED orders with no delivery job, plus `ASSIGNED`/`REJECTED` offers;
+district admins are forced to their claim, super admins may filter any district). Opening an order
+loads `GET /admin/delivery/orders/{orderId}` and nearest-first `GET
+/admin/delivery/orders/{orderId}/riders` (road distance from the store; riders are deliberately not
+district-restricted). `POST /admin/delivery/orders/{orderId}/allocate` requires a rider **and**
+`payoutMode` (`AUTOMATED`|`MANUAL`), creates the job for an un-dispatched PACKED order or re-offers
+an existing job with a fresh 45 s window. Before payment, `PUT …/payout-mode` can switch mode and
+`POST …/manual-fare` records the admin-travelled distance + optional fare override for MANUAL orders.
+`GET /admin/delivery/payouts` is the settlement board (completed jobs with no payout row projected
+as PENDING). `POST /delivery/payouts/{orderId}/settle` marks PAID for the caller's district or, for
+super admins, anywhere; MANUAL orders return `409 manual_fare_required` until the fare is recorded.
+This is a recorded settlement only — no Razorpay transfer.
 
 `POST /dispatch/assign` is mounted under the admin roles for manual/operator dispatch, but checkout
 also invokes the same dispatch path in-process through `contracts.DeliveryDispatcher` on `PACKED`.
@@ -210,7 +224,9 @@ The HTTP route is not used service-to-service — the dual mount is intentional.
 - `GET /admin/delivery-boys` projects `currentCategory` (`AVAILABLE`, `AT_PICKUP`, `AT_DELIVERY`,
   `BUSY`, `OFFLINE`) from the rider's next open stop and load/capacity. `GET
   /admin/delivery-boys/{id}/location` is a one-time Valkey read with the Postgres mirror fallback.
-- **Phase 5 payout splitting is not implemented.** `payout_amount_paisa` is display-only.
+- **Payout splitting is not implemented.** `payout_amount_paisa` remains a display projection; the
+  manual/automated payout ledger records the rider settlement, but no Razorpay transfer or
+  platform/seller split is created.
 
 **Known MVP limits:** multi-vendor orders (more than one store) are not auto-dispatched; iOS
 terminates a swiped-away app (background location survives backgrounding, not force-quit) and OEM

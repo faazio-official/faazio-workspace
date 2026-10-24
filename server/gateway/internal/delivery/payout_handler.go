@@ -2,6 +2,8 @@ package delivery
 
 import (
 	"context"
+	"errors"
+	"math"
 	"net/http"
 	"strconv"
 	"strings"
@@ -48,19 +50,31 @@ func (h *Handler) riderPayouts(w http.ResponseWriter, r *http.Request) {
 	httpx.JSON(w, http.StatusOK, items)
 }
 
-// settlePayout marks a rider payout PAID. Super-admin only: the rider never settles their own money.
+// settlePayout records a manual "Mark Paid" for one completed delivery. District admins may only
+// settle orders in their own district; the rider never settles their own money.
 func (h *Handler) settlePayout(w http.ResponseWriter, r *http.Request) {
 	orderID := chi.URLParam(r, "orderId")
-	if _, ok, err := h.repo.PayoutByOrder(r.Context(), orderID); err != nil {
+	order, err := h.authorizedOrder(r, orderID)
+	if err != nil {
 		h.writeErr(w, err)
 		return
-	} else if !ok {
-		if _, err := h.calculatePayout(r, orderID); err != nil {
-			h.writeErr(w, err)
-			return
-		}
 	}
-	p, ok, err := h.repo.SettlePayout(r.Context(), orderID, auth.UserID(r.Context()))
+	// Refuse before calculating so an incomplete delivery never leaves a stray PENDING payout row.
+	if order.Status != OrderRouteComplete {
+		httpx.Fail(w, http.StatusConflict, "not_completed",
+			"only a completed delivery can be paid")
+		return
+	}
+	if _, err := h.calculatePayout(r, orderID); err != nil {
+		h.writeErr(w, err)
+		return
+	}
+	p, ok, err := h.repo.SettleOrderPayout(r.Context(), orderID, auth.UserID(r.Context()))
+	if errors.Is(err, ErrManualFareRequired) {
+		httpx.Fail(w, http.StatusConflict, "manual_fare_required",
+			"record the travelled distance and fare before marking this manual payout paid")
+		return
+	}
 	if err != nil {
 		h.writeErr(w, err)
 		return
@@ -69,7 +83,11 @@ func (h *Handler) settlePayout(w http.ResponseWriter, r *http.Request) {
 		httpx.Fail(w, http.StatusConflict, "not_pending", "payout is not pending")
 		return
 	}
-	h.auditEvent(r.Context(), "DELIVERY_PAYOUT_SETTLE", p.PayoutID, nil, p)
+	action := "DELIVERY_PAYOUT_SETTLE"
+	if order.PayoutMode == PayoutManual {
+		action = "DELIVERY_MANUAL_PAYOUT_PAID"
+	}
+	h.auditOrderEvent(r.Context(), action, orderID, nil, p)
 	httpx.JSON(w, http.StatusOK, p)
 }
 
@@ -131,6 +149,35 @@ func (h *Handler) calculatePayout(r *http.Request, orderID string) (RiderPayout,
 		return RiderPayout{}, err
 	}
 
+	// MANUAL orders are settled with the admin-recorded distance + fare. Until the admin records
+	// them, show the rate-card preview so the rider still sees an expected amount.
+	if order.PayoutMode == PayoutManual {
+		meters := order.TotalDistanceMeters
+		if hasBasis && !queryWeather && !queryFestival {
+			meters = storedMeters
+		}
+		preview := ComputeRiderPayoutWithSurge(order.OrderID, order.RiderID, meters,
+			settings, storedSurge, storedReason)
+		manualKm := order.ManualDistanceKm
+		if manualKm != nil {
+			preview = ComputeRiderPayoutWithSurge(order.OrderID, order.RiderID,
+				int64(math.Round(*manualKm*1000)), settings, storedSurge, storedReason)
+		}
+		total := preview.TotalPaisa
+		if order.ManualFarePaisa != nil {
+			total = *order.ManualFarePaisa
+		}
+		calculated := preview.TotalPaisa
+		return h.repo.UpsertPayout(r.Context(), RiderPayout{
+			OrderID: order.OrderID, RiderID: order.RiderID, DistanceKm: preview.DistanceKm,
+			BaseRatePaisa: preview.BaseRatePaisa, ExtraKmChargePaisa: preview.ExtraKmChargePaisa,
+			SurgePaisa: preview.SurgePaisa, SurgeReason: preview.SurgeReason,
+			TotalPaisa: total, PayoutMode: PayoutManual, ManualDistanceKm: manualKm,
+			ManualFarePaisa: order.ManualFarePaisa, CalculatedFarePaisa: &calculated,
+			FareOverrideReason: order.FareOverrideReason, Status: "PENDING",
+		})
+	}
+
 	var p RiderPayout
 	if hasBasis && !queryWeather && !queryFestival {
 		// Use exactly the distance the customer was billed on, so the ₹5 base margin and the per-km
@@ -142,6 +189,9 @@ func (h *Handler) calculatePayout(r *http.Request, orderID string) (RiderPayout,
 	} else {
 		surge := SurgeInput{Weather: queryWeather, Festival: queryFestival, At: at}
 		p = ComputeRiderPayout(order.OrderID, order.RiderID, order.TotalDistanceMeters, settings, surge)
+	}
+	if order.CalculatedFarePaisa != nil {
+		p.CalculatedFarePaisa = order.CalculatedFarePaisa
 	}
 	return h.repo.UpsertPayout(r.Context(), p)
 }

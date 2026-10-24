@@ -90,9 +90,18 @@ func (h *Handler) Register(r chi.Router) {
 		g.Get("/admin/delivery-boys/{id}/location", h.adminLocation)
 		g.Post("/dispatch/assign", h.assign)
 		g.Get("/delivery/payout-settings", h.payoutSettings)
+		// District-wise manual allocation + dual-mode payout settlement.
+		g.Get("/admin/delivery/orders", h.adminOrders)
+		g.Get("/admin/delivery/orders/{orderId}", h.adminOrder)
+		g.Get("/admin/delivery/orders/{orderId}/riders", h.adminOrderRiders)
+		g.Post("/admin/delivery/orders/{orderId}/allocate", h.allocateOrder)
+		g.Put("/admin/delivery/orders/{orderId}/payout-mode", h.updatePayoutMode)
+		g.Post("/admin/delivery/orders/{orderId}/manual-fare", h.recordManualFare)
+		g.Get("/admin/delivery/payouts", h.adminPayouts)
 	})
-	// Money settlement is SUPER_ADMIN only.
-	r.With(auth.RequireRole(auth.RoleSuperAdmin)).
+	// Money settlement: district admins are scoped to their own district; super admins may settle
+	// anywhere. This is a recorded "Mark Paid" action, never an automatic Razorpay transfer.
+	r.With(auth.RequireRole(auth.RoleStateAdmin, auth.RoleSuperAdmin)).
 		Post("/delivery/payouts/{orderId}/settle", h.settlePayout)
 	r.With(auth.RequireRole(auth.RoleSuperAdmin)).
 		Put("/delivery/payout-settings", h.updatePayoutSettings)
@@ -889,11 +898,13 @@ func (h *Handler) dispatch(ctx context.Context, req dispatchRequest, stateCode s
 	totalMeters := dropMeters + approachMeters
 	etaSeconds := dropSeconds + approachSeconds
 	expires := time.Now().Add(45 * time.Second)
+	district, _ := h.repo.StoreDistrict(ctx, req.StoreID)
 	order := Order{
 		OrderID: orderID, CustomerOrderID: req.CustomerOrderID, StoreID: req.StoreID,
 		RiderID: best.Rider.RiderID, Status: OrderAssigned,
 		TotalDistanceMeters: totalMeters, EstimatedDurationSecs: etaSeconds,
 		PayoutAmountPaisa: req.PayoutAmountPaisa, RequireOTP: req.RequireOTP,
+		DistrictCode: district,
 	}
 	pickup := Stop{StopID: pickupID, Sequence: 1, StopType: "PICKUP", Label: req.StoreLabel, Address: req.StoreAddress,
 		Latitude: req.StoreLatitude, Longitude: req.StoreLongitude}

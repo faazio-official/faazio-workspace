@@ -25,17 +25,22 @@ func DefaultPayoutSettings() PayoutSettings {
 
 // RiderPayout is one delivery.delivery_payouts row / calculation result (paisa on the wire).
 type RiderPayout struct {
-	PayoutID           string  `json:"payoutId,omitempty"`
-	OrderID            string  `json:"orderId"`
-	RiderID            string  `json:"riderId"`
-	DistanceKm         float64 `json:"distanceKm"`
-	BaseRatePaisa      int64   `json:"baseRatePaisa"`
-	ExtraKmChargePaisa int64   `json:"extraKmChargePaisa"`
-	SurgePaisa         int64   `json:"surgePaisa"`
-	SurgeReason        string  `json:"surgeReason,omitempty"`
-	TotalPaisa         int64   `json:"totalPaisa"`
-	Status             string  `json:"status"`
-	PaidAt             string  `json:"paidAt,omitempty"`
+	PayoutID            string   `json:"payoutId,omitempty"`
+	OrderID             string   `json:"orderId"`
+	RiderID             string   `json:"riderId"`
+	DistanceKm          float64  `json:"distanceKm"`
+	BaseRatePaisa       int64    `json:"baseRatePaisa"`
+	ExtraKmChargePaisa  int64    `json:"extraKmChargePaisa"`
+	SurgePaisa          int64    `json:"surgePaisa"`
+	SurgeReason         string   `json:"surgeReason,omitempty"`
+	TotalPaisa          int64    `json:"totalPaisa"`
+	PayoutMode          string   `json:"payoutMode"`
+	ManualDistanceKm    *float64 `json:"manualDistanceKm,omitempty"`
+	ManualFarePaisa     *int64   `json:"manualFarePaisa,omitempty"`
+	CalculatedFarePaisa *int64   `json:"calculatedFarePaisa,omitempty"`
+	FareOverrideReason  string   `json:"fareOverrideReason,omitempty"`
+	Status              string   `json:"status"`
+	PaidAt              string   `json:"paidAt,omitempty"`
 }
 
 // SurgeInput selects the optional, server-verified surge reasons.
@@ -103,6 +108,7 @@ func riderPayoutFrom(orderID, riderID string, distanceMeters int64, s PayoutSett
 		BaseRatePaisa: s.BaseRatePaisa, ExtraKmChargePaisa: extraCharge,
 		SurgePaisa: surgePaisa, SurgeReason: surgeReason,
 		TotalPaisa: s.BaseRatePaisa + extraCharge + surgePaisa,
+		PayoutMode: PayoutAutomated,
 		Status:     "PENDING",
 	}
 }

@@ -5,6 +5,23 @@ dependencies exist. Do not build the backend/seller flows until told to.
 
 ---
 
+## W67 — Manual district allocation + dual rider payout mode (P0)
+
+**Status:** 🟢 Shipped (DB `0055` + gateway + web portal). Mobile unchanged.
+
+- **Allocation board:** district admins see PACKED orders with no delivery job plus `ASSIGNED` /
+  `REJECTED` offers in their district; super admins can filter any district. Riders are listed
+  nearest-first by road distance from the store and are deliberately **not** district-restricted.
+- **Mandatory payout mode:** every allocation chooses `AUTOMATED` (rate card) or `MANUAL` (admin
+  travelled distance + fare). The mode can change until the payout is paid.
+- **Settlement:** `Mark Paid` records `paid_at`/`paid_by` in `delivery.delivery_payouts` and audits
+  the action; MANUAL orders return `409 manual_fare_required` until the fare is recorded. No
+  Razorpay transfer is initiated.
+- **Routes:** `/admin/{district,super}/delivery/manual-allocation` and
+  `/admin/{district,super}/delivery/payouts`.
+- Docs: `db-schema.md` §12.27, `monolith-breakdown.md` §1, `server-gateway-plan.md`,
+  `web-portal.md`.
+
 ## W66 — Server-authoritative distance + surge pricing, zone split, payout parity (P0)
 
 **Status:** 🟢 Shipped (DB `0054` + gateway + mobile).

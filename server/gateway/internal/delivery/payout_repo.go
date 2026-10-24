@@ -59,8 +59,10 @@ func (r *Repo) UpsertPayout(ctx context.Context, p RiderPayout) (RiderPayout, er
 	err = r.pool.QueryRow(ctx, `
 		insert into delivery.delivery_payouts
 		  (payout_id, rider_id, order_id, distance_km, base_rate_paisa, extra_km_charge_paisa,
-		   surge_paisa, surge_reason, total_paisa, status)
-		values ($1,$2,$3,$4,$5,$6,$7,$8,$9,'PENDING')
+		   surge_paisa, surge_reason, total_paisa, status, payout_mode,
+		   manual_distance_km, manual_fare_paisa, calculated_fare_paisa, fare_override_reason)
+		values ($1,$2,$3,$4,$5,$6,$7,$8,$9,'PENDING',$10::delivery_payout_mode,
+		        $11,$12,$13,nullif($14,''))
 		on conflict (order_id) do update
 		  set distance_km = excluded.distance_km,
 		      base_rate_paisa = excluded.base_rate_paisa,
@@ -68,15 +70,24 @@ func (r *Repo) UpsertPayout(ctx context.Context, p RiderPayout) (RiderPayout, er
 		      surge_paisa = excluded.surge_paisa,
 		      surge_reason = excluded.surge_reason,
 		      total_paisa = excluded.total_paisa,
+		      payout_mode = excluded.payout_mode,
+		      manual_distance_km = excluded.manual_distance_km,
+		      manual_fare_paisa = excluded.manual_fare_paisa,
+		      calculated_fare_paisa = excluded.calculated_fare_paisa,
+		      fare_override_reason = excluded.fare_override_reason,
 		      updated_at = now()
 		  where delivery_payouts.status = 'PENDING'
 		returning payout_id, order_id, rider_id, distance_km::float8, base_rate_paisa,
-		          extra_km_charge_paisa, surge_paisa, surge_reason, total_paisa, status::text, paid_at`,
+		          extra_km_charge_paisa, surge_paisa, surge_reason, total_paisa, status::text,
+		          paid_at, payout_mode::text, manual_distance_km::float8, manual_fare_paisa,
+		          calculated_fare_paisa, coalesce(fare_override_reason,'')`,
 		p.PayoutID, p.RiderID, p.OrderID, p.DistanceKm, p.BaseRatePaisa, p.ExtraKmChargePaisa,
-		p.SurgePaisa, p.SurgeReason, p.TotalPaisa).
+		p.SurgePaisa, p.SurgeReason, p.TotalPaisa, payoutModeOrDefault(p.PayoutMode),
+		p.ManualDistanceKm, p.ManualFarePaisa, p.CalculatedFarePaisa, p.FareOverrideReason).
 		Scan(&out.PayoutID, &out.OrderID, &out.RiderID, &out.DistanceKm, &out.BaseRatePaisa,
 			&out.ExtraKmChargePaisa, &out.SurgePaisa, &out.SurgeReason, &out.TotalPaisa,
-			&out.Status, &paidAt)
+			&out.Status, &paidAt, &out.PayoutMode, &out.ManualDistanceKm, &out.ManualFarePaisa,
+			&out.CalculatedFarePaisa, &out.FareOverrideReason)
 	if errors.Is(err, pgx.ErrNoRows) {
 		existing, ok, ferr := r.PayoutByOrder(ctx, p.OrderID)
 		if ferr != nil {
@@ -142,38 +153,14 @@ func (r *Repo) PayoutByOrder(ctx context.Context, orderID string) (RiderPayout, 
 	)
 	err := r.pool.QueryRow(ctx, `
 		select payout_id, order_id, rider_id, distance_km::float8, base_rate_paisa,
-		       extra_km_charge_paisa, surge_paisa, surge_reason, total_paisa, status::text, paid_at
+		       extra_km_charge_paisa, surge_paisa, surge_reason, total_paisa, status::text, paid_at,
+		       payout_mode::text, manual_distance_km::float8, manual_fare_paisa,
+		       calculated_fare_paisa, coalesce(fare_override_reason,'')
 		  from delivery.delivery_payouts where order_id=$1`, orderID).
 		Scan(&p.PayoutID, &p.OrderID, &p.RiderID, &p.DistanceKm, &p.BaseRatePaisa,
-			&p.ExtraKmChargePaisa, &p.SurgePaisa, &p.SurgeReason, &p.TotalPaisa, &p.Status, &paidAt)
-	if errors.Is(err, pgx.ErrNoRows) {
-		return RiderPayout{}, false, nil
-	}
-	if err != nil {
-		return RiderPayout{}, false, err
-	}
-	p.PaidAt = isoTime(paidAt)
-	return p, true, nil
-}
-
-// SettlePayout marks a PENDING payout PAID (super-admin action).
-func (r *Repo) SettlePayout(ctx context.Context, orderID, actorID string) (RiderPayout, bool, error) {
-	if err := r.ready(); err != nil {
-		return RiderPayout{}, false, err
-	}
-	var (
-		p      RiderPayout
-		paidAt *time.Time
-	)
-	err := r.pool.QueryRow(ctx, `
-		update delivery.delivery_payouts
-		   set status='PAID', paid_at=now(), paid_by=$2, updated_at=now()
-		 where order_id=$1 and status='PENDING'
-		 returning payout_id, order_id, rider_id, distance_km::float8, base_rate_paisa,
-		           extra_km_charge_paisa, surge_paisa, surge_reason, total_paisa, status::text, paid_at`,
-		orderID, actorID).
-		Scan(&p.PayoutID, &p.OrderID, &p.RiderID, &p.DistanceKm, &p.BaseRatePaisa,
-			&p.ExtraKmChargePaisa, &p.SurgePaisa, &p.SurgeReason, &p.TotalPaisa, &p.Status, &paidAt)
+			&p.ExtraKmChargePaisa, &p.SurgePaisa, &p.SurgeReason, &p.TotalPaisa, &p.Status, &paidAt,
+			&p.PayoutMode, &p.ManualDistanceKm, &p.ManualFarePaisa, &p.CalculatedFarePaisa,
+			&p.FareOverrideReason)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return RiderPayout{}, false, nil
 	}
@@ -194,7 +181,9 @@ func (r *Repo) PayoutsByRider(ctx context.Context, riderID string, limit int) ([
 	}
 	rows, err := r.pool.Query(ctx, `
 		select payout_id, order_id, rider_id, distance_km::float8, base_rate_paisa,
-		       extra_km_charge_paisa, surge_paisa, surge_reason, total_paisa, status::text, paid_at
+		       extra_km_charge_paisa, surge_paisa, surge_reason, total_paisa, status::text, paid_at,
+		       payout_mode::text, manual_distance_km::float8, manual_fare_paisa,
+		       calculated_fare_paisa, coalesce(fare_override_reason,'')
 		  from delivery.delivery_payouts where rider_id=$1
 		 order by created_at desc limit $2`, riderID, limit)
 	if err != nil {
@@ -208,7 +197,9 @@ func (r *Repo) PayoutsByRider(ctx context.Context, riderID string, limit int) ([
 			paidAt *time.Time
 		)
 		if err := rows.Scan(&p.PayoutID, &p.OrderID, &p.RiderID, &p.DistanceKm, &p.BaseRatePaisa,
-			&p.ExtraKmChargePaisa, &p.SurgePaisa, &p.SurgeReason, &p.TotalPaisa, &p.Status, &paidAt); err != nil {
+			&p.ExtraKmChargePaisa, &p.SurgePaisa, &p.SurgeReason, &p.TotalPaisa, &p.Status, &paidAt,
+			&p.PayoutMode, &p.ManualDistanceKm, &p.ManualFarePaisa, &p.CalculatedFarePaisa,
+			&p.FareOverrideReason); err != nil {
 			return nil, err
 		}
 		p.PaidAt = isoTime(paidAt)

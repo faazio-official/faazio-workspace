@@ -135,6 +135,14 @@ export const ROUTE_HINTS: Record<string, RouteHint> = {
     what: "Live order flow in your state, including late orders and cancellations.",
     how: "Escalations sit at the top — those customers are already waiting.",
   },
+  "/admin/district/delivery/manual-allocation": {
+    what: "Delivery-ready orders in your district with no rider, plus offers the rider has not accepted.",
+    how: "Open an order, pick a rider by road distance, then choose AUTOMATED or MANUAL payout before allocating.",
+  },
+  "/admin/district/delivery/payouts": {
+    what: "Rider payouts in your district, both system-calculated and manually entered.",
+    how: "Open a pending payout to record the travelled distance or fare, then Mark Paid after paying the rider.",
+  },
   "/admin/district/analytics": {
     what: "State-level GMV, orders, category mix and city split.",
     how: "Compare cities to spot where supply, not demand, is the limit.",
@@ -155,6 +163,14 @@ export const ROUTE_HINTS: Record<string, RouteHint> = {
   "/admin/super/districts": {
     what: "Each district's launch status, supply depth and performance side by side.",
     how: "Use the matrix to decide where to open next and where to hold.",
+  },
+  "/admin/super/delivery/manual-allocation": {
+    what: "Delivery-ready orders across every district with no rider, plus offers not yet accepted.",
+    how: "Filter by district, open an order, pick a rider by road distance, then choose the payout mode.",
+  },
+  "/admin/super/delivery/payouts": {
+    what: "Every rider payout, with district, mode, calculated fare and settlement state.",
+    how: "Open a pending payout to adjust the mode or manual fare, then Mark Paid after paying the rider.",
   },
   "/admin/super/sellers": {
     what: "Every seller on the platform, across states.",
@@ -257,6 +273,7 @@ export const SECTION_HINTS: Record<string, string> = {
   "Opt products in": "Adds listings to the campaign at the campaign price.",
   "Opted-in GMV by sector": "Campaign sales split by sector.",
   Orders: "Orders in scope, newest first.",
+  "Orders awaiting allocation": "PACKED orders with no active rider, plus offers the rider has not accepted yet.",
   "Orders by day": "Order count per day over the chosen window.",
   "Order status split": "Where open orders are stuck right now.",
   "Orders monitor": "Live order flow, including late and cancelled orders.",
@@ -296,6 +313,7 @@ export const SECTION_HINTS: Record<string, string> = {
   "Service levels": "Promised delivery and response times.",
   Settings: "Preferences for this account and shop.",
   "Settlement bank account": "Where payouts land. Changes are re-verified.",
+  "Settlement board": "Completed deliveries ready to settle, with their payout mode and amount.",
   "Settlement ledger": "Each payout, its deductions and its status.",
   "Setup checklist": "Everything still blocking your shop from selling.",
   "Shop analytics": "Your sales, orders and conversion over time.",
