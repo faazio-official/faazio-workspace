@@ -42,6 +42,15 @@ func Rewards(userID string) string    { return fmt.Sprintf("faazio:v1:rewards:vi
 func BloodRequests(key string) string { return fmt.Sprintf("faazio:v1:blood:requests:%s", key) }
 func Bookings(userID string) string   { return fmt.Sprintf("faazio:v1:bookings:tables:%s", userID) }
 
+// WeatherZone caches one zone's rain verdict for 30 minutes so a window costs at most one Weather
+// Union call. WeatherCalls is the financial-year API budget counter; WeatherOverride is the
+// super-admin manual rain flag (same 30-minute window).
+func WeatherZone(cellID string) string { return fmt.Sprintf("faazio:v1:weather:zone:%s", cellID) }
+func WeatherCalls(fy string) string    { return fmt.Sprintf("faazio:v1:weather:calls:%s", fy) }
+func WeatherOverride(cellID string) string {
+	return fmt.Sprintf("faazio:v1:weather:override:%s", cellID)
+}
+
 // BookingAvail caches the public, seat-count-free availability projection for a vendor. The
 // seller-private config row itself is never cached (PII/internal rules, caching doc §6).
 func BookingAvail(vendorID string) string {
@@ -256,6 +265,11 @@ const (
 	TTLDeliveryRiderLocation = 300 * time.Second
 	TTLDeliveryRoute         = 300 * time.Second
 
+	// Weather: one Weather Union call per zone per 30-minute window; the manual rain override
+	// shares the same window. The annual call counter's TTL is computed to the financial-year end.
+	TTLWeatherZone     = 30 * time.Minute
+	TTLWeatherOverride = 30 * time.Minute
+
 	TTLPortalLoginWindow = 60 * time.Second
 	TTLPortalDeny        = 15 * time.Minute
 	TTLPortalRefresh     = 30 * 24 * time.Hour
@@ -417,4 +431,17 @@ func (c *Cache) Incr(ctx context.Context, key string, ttl time.Duration) (int64,
 		_ = c.rdb.Expire(ctx, key, ttl).Err()
 	}
 	return n, nil
+}
+
+// GetInt reads an integer counter. The second result is false on a miss, a disabled cache or a
+// non-numeric value, so callers can distinguish "no budget used yet" from a real zero.
+func (c *Cache) GetInt(ctx context.Context, key string) (int64, bool) {
+	if !c.Enabled() || key == "" {
+		return 0, false
+	}
+	n, err := c.rdb.Get(ctx, key).Int64()
+	if err != nil {
+		return 0, false
+	}
+	return n, true
 }

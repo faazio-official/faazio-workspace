@@ -1,11 +1,13 @@
 package delivery
 
 import (
+	"context"
 	"net/http"
 	"strconv"
 	"strings"
 	"time"
 
+	"github.com/faazio/server/gateway/internal/contracts"
 	"github.com/faazio/server/gateway/internal/platform/auth"
 	"github.com/faazio/server/gateway/internal/platform/httpx"
 	"github.com/go-chi/chi/v5"
@@ -118,13 +120,44 @@ func (h *Handler) calculatePayout(r *http.Request, orderID string) (RiderPayout,
 			at = parsed
 		}
 	}
-	surge := SurgeInput{
-		Weather:  truthy(r.URL.Query().Get("weather")),
-		Festival: truthy(r.URL.Query().Get("festival")),
-		At:       at,
+	queryWeather := truthy(r.URL.Query().Get("weather"))
+	queryFestival := truthy(r.URL.Query().Get("festival"))
+
+	// Default to the customer-paid surges recorded on the checkout order, so the rider payout can
+	// never diverge from the bill. Query params stay as an explicit admin test override; legacy
+	// orders with no stored basis fall back to the old clock/payout-card derivation.
+	storedMeters, storedSurge, storedReason, hasBasis, err := h.repo.StoredDeliveryBasis(r.Context(), order.CustomerOrderID)
+	if err != nil {
+		return RiderPayout{}, err
 	}
-	p := ComputeRiderPayout(order.OrderID, order.RiderID, order.TotalDistanceMeters, settings, surge)
+
+	var p RiderPayout
+	if hasBasis && !queryWeather && !queryFestival {
+		// Use the same server distance the customer was billed on, so the ₹5 base margin and the
+		// per-km pass-through hold exactly (road-distance differences never create a divergence).
+		distanceMeters := order.TotalDistanceMeters
+		if storedMeters > 0 {
+			distanceMeters = storedMeters
+		}
+		p = ComputeRiderPayoutWithSurge(order.OrderID, order.RiderID, distanceMeters,
+			settings, storedSurge, storedReason)
+	} else {
+		surge := SurgeInput{Weather: queryWeather, Festival: queryFestival, At: at}
+		p = ComputeRiderPayout(order.OrderID, order.RiderID, order.TotalDistanceMeters, settings, surge)
+	}
 	return h.repo.UpsertPayout(r.Context(), p)
+}
+
+// SurgeSettings implements contracts.SurgeReader: checkout reads the rider card so the customer
+// bill and rider payout share one authoritative surge rate card.
+func (h *Handler) SurgeSettings(ctx context.Context) (contracts.SurgeRates, error) {
+	s, err := h.repo.PayoutSettings(ctx)
+	if err != nil {
+		return contracts.SurgeRates{}, err
+	}
+	return contracts.SurgeRates{
+		NightPaisa: s.NightSurgePaisa, WeatherPaisa: s.WeatherSurgePaisa, FestivalPaisa: s.FestivalSurgePaisa,
+	}, nil
 }
 
 func truthy(v string) bool {

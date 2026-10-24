@@ -36,8 +36,8 @@ import SlideUpSheet from '@/components/shared/SlideUpSheet';
 import PaymentOptionsScreen from '@/features/cart/payment/PaymentOptionsScreen';
 import type { PlaceOrderPayload } from '@/features/cart/payment/PaymentOptionsScreen';
 import BreakdownCard from '@/features/cart/payment/components/BreakdownCard';
-import { computeTotals, computeDeliveryFeePaisa, DELIVERY_FEE_BASE_KM } from './utils';
-import type { CheckoutStep } from './utils';
+import { computeTotals, estimateDeliveryBreakdown, DELIVERY_FEE_BASE_KM } from './utils';
+import type { CheckoutStep, DeliveryFeeBreakdown } from './utils';
 import { haversineKm } from '@/utils/distance';
 import { getStoreById } from '@data/directory/stores';
 import type { RootStackParamList } from '@/navigation/types';
@@ -188,7 +188,7 @@ export default function CartView({
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const [paymentProcessing, setPaymentProcessing] = useState(false);
   /** Server-authoritative delivery-fee quote (road distance); falls back to a Haversine estimate. */
-  const [deliveryFeeQuote, setDeliveryFeeQuote] = useState<{ distanceKm: number; feePaisa: number } | null>(null);
+  const [deliveryFeeQuote, setDeliveryFeeQuote] = useState<DeliveryFeeBreakdown | null>(null);
 
   const [placedOrderDetails, setPlacedOrderDetails] = useState<{
     orderId: string;
@@ -358,9 +358,9 @@ export default function CartView({
       return;
     }
     let cancelled = false;
-    const furthest = (quotes: { distanceKm: number; feePaisa: number }[]) =>
-      quotes.reduce<{ distanceKm: number; feePaisa: number } | null>(
-        (max, q) => (max && max.feePaisa >= q.feePaisa ? max : q),
+    const furthest = (quotes: DeliveryFeeBreakdown[]) =>
+      quotes.reduce<DeliveryFeeBreakdown | null>(
+        (max, q) => (max && max.totalPaisa >= q.totalPaisa ? max : q),
         null,
       );
     void (async () => {
@@ -392,7 +392,7 @@ export default function CartView({
           );
         }, DELIVERY_FEE_BASE_KM);
         if (!cancelled) {
-          setDeliveryFeeQuote({ distanceKm: km, feePaisa: computeDeliveryFeePaisa(km) });
+          setDeliveryFeeQuote(estimateDeliveryBreakdown(km));
         }
       }
     })();
@@ -807,7 +807,13 @@ export default function CartView({
           contentContainerStyle={styles.fulfillmentScrollContent}
           showsVerticalScrollIndicator={false}
         >
-          <BreakdownCard total={finalTotal} subtotal={subtotal} deliveryFee={deliveryFee} fulfillment={fulfillment ?? undefined} />
+          <BreakdownCard
+            total={finalTotal}
+            subtotal={subtotal}
+            deliveryFee={deliveryFee}
+            deliveryBreakdown={fulfillment === 'PICKUP' ? undefined : deliveryFeeQuote ?? undefined}
+            fulfillment={fulfillment ?? undefined}
+          />
 
           <View style={styles.fulfilmentCard}>
             <AppText style={styles.fulfilmentTitle}>How do you want your order?</AppText>
@@ -913,6 +919,7 @@ export default function CartView({
           total={finalTotal}
           subtotal={subtotal}
           deliveryFee={deliveryFee}
+          deliveryBreakdown={fulfillment === 'PICKUP' ? undefined : deliveryFeeQuote ?? undefined}
           deliveryAddress={{
             label: fulfillment === 'PICKUP' ? (primaryPickup?.name ?? 'Pickup point') : deliveryAddress.label,
             address: fulfillment === 'PICKUP' ? (primaryPickup?.address ?? '') : deliveryAddress.address,

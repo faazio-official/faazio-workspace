@@ -58,6 +58,13 @@ type Order struct {
 	TCSPaisa          int64  `json:"tcsPaisa,omitempty"`
 	TDSPaisa          int64  `json:"tdsPaisa,omitempty"`
 	TotalChargedPaisa int64  `json:"totalChargedPaisa,omitempty"`
+
+	// Server-computed delivery basis persisted at placement; payout reuses these surges 1:1.
+	DeliveryZoneID       string          `json:"deliveryZoneId,omitempty"`
+	DeliveryDistanceKm   float64         `json:"deliveryDistanceKm,omitempty"`
+	DeliverySurgePaisa   int64           `json:"deliverySurgePaisa,omitempty"`
+	DeliverySurgeReason  string          `json:"deliverySurgeReason,omitempty"`
+	DeliveryBillingBasis json.RawMessage `json:"deliveryBillingBasis,omitempty"`
 }
 
 // OrderTracking is the lightweight owner-scoped status projection (polling/monitoring): no line
@@ -266,7 +273,9 @@ select order_id, order_number, user_id, coalesce(address_id,''), placed_at, stat
        status_date, coalesce(fulfillment::text,''), vendor_store_ids, pickup, pickups,
        coalesce(invoice_id,''), coalesce(taxable_value_paisa,0), coalesce(product_tax_paisa,0),
        coalesce(platform_fee_paisa,0), coalesce(platform_gst_paisa,0), coalesce(delivery_fee_paisa,0),
-       coalesce(tcs_paisa,0), coalesce(tds_paisa,0), coalesce(total_charged_paisa,0)
+       coalesce(tcs_paisa,0), coalesce(tds_paisa,0), coalesce(total_charged_paisa,0),
+       coalesce(delivery_zone_id,''), coalesce(delivery_distance_km,0)::float8,
+       coalesce(delivery_surge_paisa,0), coalesce(delivery_surge_reason,''), delivery_billing_basis
   from checkout.orders`
 
 func scanOrderHeaders(rows pgx.Rows) ([]Order, error) {
@@ -278,16 +287,19 @@ func scanOrderHeaders(rows pgx.Rows) ([]Order, error) {
 			statusDate *time.Time
 			pickup     []byte
 			pickups    []byte
+			basis      []byte
 		)
 		if err := rows.Scan(&o.ID, &o.OrderNumber, &o.UserID, &o.AddressID, &placedAt, &o.Status,
 			&statusDate, &o.Fulfillment, &o.VendorStoreIDs, &pickup, &pickups,
 			&o.InvoiceID, &o.TaxableValuePaisa, &o.ProductTaxPaisa, &o.PlatformFeePaisa,
 			&o.PlatformGSTPaisa, &o.DeliveryFeePaisa, &o.TCSPaisa, &o.TDSPaisa,
-			&o.TotalChargedPaisa); err != nil {
+			&o.TotalChargedPaisa, &o.DeliveryZoneID, &o.DeliveryDistanceKm,
+			&o.DeliverySurgePaisa, &o.DeliverySurgeReason, &basis); err != nil {
 			return nil, err
 		}
 		o.Pickup = json.RawMessage(pickup)
 		o.Pickups = json.RawMessage(pickups)
+		o.DeliveryBillingBasis = json.RawMessage(basis)
 		o.PlacedAt = placedAt.UTC().Format(time.RFC3339)
 		if statusDate != nil {
 			o.StatusDate = statusDate.UTC().Format(time.RFC3339)
@@ -401,19 +413,23 @@ func (r *Repo) OrderByID(ctx context.Context, orderID string) (Order, bool, erro
 		statusDate *time.Time
 		pickup     []byte
 		pickups    []byte
+		basis      []byte
 	)
 	err := r.pool.QueryRow(ctx, `
 		select order_id, order_number, user_id, coalesce(address_id,''), placed_at, status::text,
 		       status_date, coalesce(fulfillment::text,''), vendor_store_ids, pickup, pickups,
 		       coalesce(invoice_id,''), coalesce(taxable_value_paisa,0), coalesce(product_tax_paisa,0),
 		       coalesce(platform_fee_paisa,0), coalesce(platform_gst_paisa,0), coalesce(delivery_fee_paisa,0),
-		       coalesce(tcs_paisa,0), coalesce(tds_paisa,0), coalesce(total_charged_paisa,0)
+		       coalesce(tcs_paisa,0), coalesce(tds_paisa,0), coalesce(total_charged_paisa,0),
+		       coalesce(delivery_zone_id,''), coalesce(delivery_distance_km,0)::float8,
+		       coalesce(delivery_surge_paisa,0), coalesce(delivery_surge_reason,''), delivery_billing_basis
 		  from checkout.orders where order_id = $1`, orderID).
 		Scan(&o.ID, &o.OrderNumber, &o.UserID, &o.AddressID, &placedAt, &o.Status,
 			&statusDate, &o.Fulfillment, &o.VendorStoreIDs, &pickup, &pickups,
 			&o.InvoiceID, &o.TaxableValuePaisa, &o.ProductTaxPaisa, &o.PlatformFeePaisa,
 			&o.PlatformGSTPaisa, &o.DeliveryFeePaisa, &o.TCSPaisa, &o.TDSPaisa,
-			&o.TotalChargedPaisa)
+			&o.TotalChargedPaisa, &o.DeliveryZoneID, &o.DeliveryDistanceKm,
+			&o.DeliverySurgePaisa, &o.DeliverySurgeReason, &basis)
 	if err != nil {
 		if err == pgx.ErrNoRows {
 			return Order{}, false, nil
@@ -422,6 +438,7 @@ func (r *Repo) OrderByID(ctx context.Context, orderID string) (Order, bool, erro
 	}
 	o.Pickup = json.RawMessage(pickup)
 	o.Pickups = json.RawMessage(pickups)
+	o.DeliveryBillingBasis = json.RawMessage(basis)
 	o.PlacedAt = placedAt.UTC().Format(time.RFC3339)
 	if statusDate != nil {
 		o.StatusDate = statusDate.UTC().Format(time.RFC3339)
@@ -573,7 +590,7 @@ func (r *Repo) PlatformRates(ctx context.Context) (taxmath.Rates, error) {
 }
 
 // DeliveryFeeSettings reads the singleton dynamic delivery-fee rate card
-// (tax.delivery_fee_settings). Falls back to 3 km / ₹35 / ₹9-per-extra-km when the row is absent.
+// (tax.delivery_fee_settings). Falls back to 3 km / ₹35 / ₹7-per-extra-km when the row is absent.
 func (r *Repo) DeliveryFeeSettings(ctx context.Context) (DeliveryFeeSettings, error) {
 	if r.pool == nil {
 		return DefaultDeliveryFeeSettings(), nil
@@ -724,13 +741,17 @@ func (r *Repo) InsertOrder(ctx context.Context, o Order, lines []OrderLineItem, 
 		insert into checkout.orders
 		  (order_id, order_number, user_id, address_id, placed_at, status, fulfillment, total_paisa, vendor_store_ids, pickup, pickups,
 		   delivery_latitude, delivery_longitude, invoice_id, taxable_value_paisa, product_tax_paisa,
-		   platform_fee_paisa, platform_gst_paisa, delivery_fee_paisa, tcs_paisa, tds_paisa, total_charged_paisa)
+		   platform_fee_paisa, platform_gst_paisa, delivery_fee_paisa, tcs_paisa, tds_paisa, total_charged_paisa,
+		   delivery_zone_id, delivery_distance_km, delivery_surge_paisa, delivery_surge_reason, delivery_billing_basis)
 		values ($1,$2,$3,$4, now(), $5::order_status, $6::fulfillment_mode, $7, $8, $9::jsonb, $10::jsonb, $11, $12,
-		        nullif($13,''), $14, $15, $16, $17, $18, $19, $20, $21)`,
+		        nullif($13,''), $14, $15, $16, $17, $18, $19, $20, $21,
+		        nullif($22,''), $23, $24, $25, $26::jsonb)`,
 		o.ID, o.OrderNumber, o.UserID, nullIfEmpty(o.AddressID), o.Status, fulfillment, totalPaisa(lines), o.VendorStoreIDs,
 		nullIfEmptyJSON(o.Pickup), nullIfEmptyJSON(o.Pickups), o.DeliveryLatitude, o.DeliveryLongitude,
 		o.InvoiceID, o.TaxableValuePaisa, o.ProductTaxPaisa, o.PlatformFeePaisa, o.PlatformGSTPaisa,
-		o.DeliveryFeePaisa, o.TCSPaisa, o.TDSPaisa, o.TotalChargedPaisa); err != nil {
+		o.DeliveryFeePaisa, o.TCSPaisa, o.TDSPaisa, o.TotalChargedPaisa,
+		o.DeliveryZoneID, o.DeliveryDistanceKm, o.DeliverySurgePaisa, o.DeliverySurgeReason,
+		nullIfEmptyJSON(o.DeliveryBillingBasis)); err != nil {
 		return err
 	}
 	for _, li := range lines {

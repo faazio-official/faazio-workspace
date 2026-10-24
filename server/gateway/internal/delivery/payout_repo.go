@@ -6,6 +6,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"errors"
+	"math"
 	"time"
 
 	"github.com/jackc/pgx/v5"
@@ -96,6 +97,32 @@ func (r *Repo) UpsertPayout(ctx context.Context, p RiderPayout) (RiderPayout, er
 		   set payout_amount_paisa=$2, payout_basis=$3
 		 where order_id=$1`, p.OrderID, out.TotalPaisa, basis)
 	return out, nil
+}
+
+// StoredDeliveryBasis returns the customer-paid distance + surge total/reason recorded on the
+// originating checkout order. ok=false for a legacy order with no stored basis. Cross-context read
+// by order id (the delivery job's customer_order_id), never a sibling repo import. Distance is
+// returned in integer metres (the same unit as delivery_orders.total_distance_meters).
+func (r *Repo) StoredDeliveryBasis(ctx context.Context, customerOrderID string) (distanceMeters int64, paisa int64, reason string, ok bool, err error) {
+	if err := r.ready(); err != nil {
+		return 0, 0, "", false, err
+	}
+	if customerOrderID == "" {
+		return 0, 0, "", false, nil
+	}
+	var km float64
+	err = r.pool.QueryRow(ctx, `
+		select coalesce(delivery_distance_km,0)::float8,
+		       coalesce(delivery_surge_paisa,0), coalesce(delivery_surge_reason,'')
+		  from checkout.orders where order_id = $1`, customerOrderID).
+		Scan(&km, &paisa, &reason)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return 0, 0, "", false, nil
+	}
+	if err != nil {
+		return 0, 0, "", false, err
+	}
+	return int64(math.Round(km * 1000)), paisa, reason, true, nil
 }
 
 // PayoutByOrder returns the stored payout for one delivery job.

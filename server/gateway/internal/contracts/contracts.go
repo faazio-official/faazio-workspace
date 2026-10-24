@@ -9,6 +9,7 @@ package contracts
 import (
 	"context"
 	"encoding/json"
+	"time"
 )
 
 // ------------------------------------------------------------------ blood-donor DTOs (blood schema)
@@ -522,4 +523,36 @@ type DeliveryDispatchRequest struct {
 // A nil error with assigned=false means no eligible rider; checkout must not fail the order.
 type DeliveryDispatcher interface {
 	DispatchOrder(ctx context.Context, req DeliveryDispatchRequest) (assigned bool, err error)
+}
+
+// SurgeRates is the server-owned surcharge card in paisa (delivery.payout_settings). Checkout reads
+// it through SurgeReader so the customer bill and rider payout use one authoritative card without
+// importing the delivery context.
+type SurgeRates struct {
+	NightPaisa    int64
+	WeatherPaisa  int64
+	FestivalPaisa int64
+}
+
+// SurgeReader exposes the surcharge card (implemented by delivery.Handler).
+type SurgeReader interface {
+	SurgeSettings(ctx context.Context) (SurgeRates, error)
+}
+
+// WeatherChecker resolves whether a zone is raining now (implemented by weather.Checker). A failure
+// must degrade to "not raining" at the caller — checkout is never blocked by weather.
+type WeatherChecker interface {
+	IsRaining(ctx context.Context, cellID string) (bool, error)
+}
+
+// Festival is the active super-admin festival window projection.
+type Festival struct {
+	ID         string
+	Name       string
+	SurgePaisa int64
+}
+
+// FestivalLookup resolves the active festival for a day (implemented by festival.Repo).
+type FestivalLookup interface {
+	ActiveFestival(ctx context.Context, day time.Time) (Festival, bool, error)
 }

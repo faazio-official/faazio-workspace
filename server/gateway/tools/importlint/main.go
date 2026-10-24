@@ -1,7 +1,8 @@
 // Command importlint enforces the monolith boundary rules from
 // docs/architecture/monolith-breakdown.md §2: a context package may import
-// internal/contracts, internal/platform/*, and its own package — never a sibling
-// context. internal/server (composition root) and cmd/ are exempt.
+// internal/contracts, internal/platform/*, the pure shared libs (internal/geo,
+// internal/pricing), and its own package — never a sibling context. internal/server
+// (composition root) and cmd/ are exempt.
 //
 // Usage (from server/gateway): go run ./tools/importlint
 package main
@@ -15,7 +16,11 @@ import (
 
 const modulePrefix = "github.com/faazio/server/gateway/internal/"
 
-var special = map[string]bool{"server": true, "platform": true, "contracts": true}
+// special packages are importable by any context: the composition root, shared platform,
+// contracts, and the pure shared libraries (geo/pricing have no I/O or context ownership).
+var special = map[string]bool{
+	"server": true, "platform": true, "contracts": true, "geo": true, "pricing": true,
+}
 
 func main() {
 	out, err := exec.Command("go", "list", "-f", "{{.ImportPath}}|{{join .Imports \" \"}}", "./...").Output()

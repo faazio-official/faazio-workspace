@@ -3,6 +3,7 @@ import { StyleSheet, View } from 'react-native';
 import { hs, vs, ms } from '@/utils/responsive';
 import AppText from '@/components/AppText';
 import type { FulfillmentMode } from '@data/types';
+import type { DeliveryFeeBreakdown } from '../../utils';
 
 interface BreakdownCardProps {
   /** Amount the user will pay (after any coin redemption). */
@@ -11,6 +12,8 @@ interface BreakdownCardProps {
   subtotal?: number;
   /** Customer-visible delivery fee. */
   deliveryFee?: number;
+  /** Server quote (distance + surges) so the bill is never a mystery number. */
+  deliveryBreakdown?: DeliveryFeeBreakdown;
   /** PICKUP hides the delivery-fee row (waived). */
   fulfillment?: FulfillmentMode;
 }
@@ -20,27 +23,90 @@ interface BreakdownCardProps {
  * exact 2-row customer breakdown (ordered value + delivery fee) and the total.
  * GST is inside the product prices, so there is deliberately no tax row.
  */
-export default function BreakdownCard({ total, subtotal, deliveryFee, fulfillment }: BreakdownCardProps) {
+/** Rupees with paise only when the amount is not whole (fractional km can bill 50.40). */
+function formatRupees(rupees: number): string {
+  const whole = Number.isInteger(rupees);
+  return `₹${rupees.toLocaleString('en-IN', {
+    minimumFractionDigits: whole ? 0 : 2,
+    maximumFractionDigits: 2,
+  })}`;
+}
+const formatPaisa = (paisa: number) => formatRupees(paisa / 100);
+
+export default function BreakdownCard({
+  total,
+  subtotal,
+  deliveryFee,
+  deliveryBreakdown,
+  fulfillment,
+}: BreakdownCardProps) {
   const showDelivery = fulfillment !== 'PICKUP';
   return (
     <View style={styles.card}>
       <View style={styles.totalRow}>
         <AppText style={styles.toPayLabel}>to pay:</AppText>
-        <AppText style={styles.totalValue}>₹{total.toLocaleString('en-IN')}</AppText>
+        <AppText style={styles.totalValue}>{formatRupees(total)}</AppText>
       </View>
       {(subtotal !== undefined || deliveryFee !== undefined) && (
         <View style={styles.rows}>
           <View style={styles.row}>
             <AppText style={styles.rowLabel}>Ordered value</AppText>
-            <AppText style={styles.rowValue}>₹{(subtotal ?? 0).toLocaleString('en-IN')}</AppText>
+            <AppText style={styles.rowValue}>{formatRupees(subtotal ?? 0)}</AppText>
           </View>
-          {showDelivery && (
-            <View style={styles.row}>
-              <AppText style={styles.rowLabel}>Delivery fee</AppText>
-              <AppText style={styles.rowValue}>
-                {deliveryFee ? `₹${deliveryFee.toLocaleString('en-IN')}` : 'Free'}
-              </AppText>
-            </View>
+          {showDelivery && deliveryBreakdown ? (
+            <>
+              <View style={styles.row}>
+                <AppText style={styles.rowLabel}>
+                  Delivery base ({deliveryBreakdown.baseDistanceKm ?? 3} km)
+                </AppText>
+                <AppText style={styles.rowValue}>
+                  {formatPaisa(deliveryBreakdown.baseFeePaisa)}
+                </AppText>
+              </View>
+              {deliveryBreakdown.extraKmPaisa > 0 && (
+                <View style={styles.row}>
+                  <AppText style={styles.rowLabel}>
+                    Extra distance ({deliveryBreakdown.distanceKm.toFixed(1)} km)
+                  </AppText>
+                  <AppText style={styles.rowValue}>
+                    {formatPaisa(deliveryBreakdown.extraKmPaisa)}
+                  </AppText>
+                </View>
+              )}
+              {deliveryBreakdown.nightSurgePaisa > 0 && (
+                <View style={styles.row}>
+                  <AppText style={styles.rowLabel}>Night surge</AppText>
+                  <AppText style={styles.rowValue}>
+                    {formatPaisa(deliveryBreakdown.nightSurgePaisa)}
+                  </AppText>
+                </View>
+              )}
+              {deliveryBreakdown.weatherSurgePaisa > 0 && (
+                <View style={styles.row}>
+                  <AppText style={styles.rowLabel}>Rain surge</AppText>
+                  <AppText style={styles.rowValue}>
+                    {formatPaisa(deliveryBreakdown.weatherSurgePaisa)}
+                  </AppText>
+                </View>
+              )}
+              {deliveryBreakdown.festivalSurgePaisa > 0 && (
+                <View style={styles.row}>
+                  <AppText style={styles.rowLabel}>Festival surge</AppText>
+                  <AppText style={styles.rowValue}>
+                    {formatPaisa(deliveryBreakdown.festivalSurgePaisa)}
+                  </AppText>
+                </View>
+              )}
+            </>
+          ) : (
+            showDelivery && (
+              <View style={styles.row}>
+                <AppText style={styles.rowLabel}>Delivery fee</AppText>
+                <AppText style={styles.rowValue}>
+                  {deliveryFee ? formatRupees(deliveryFee) : 'Free'}
+                </AppText>
+              </View>
+            )
           )}
         </View>
       )}

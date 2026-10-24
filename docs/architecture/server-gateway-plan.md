@@ -96,19 +96,29 @@ keys/TTLs unchanged.
   **Platform commission is removed** — sellers keep their full GST-inclusive gross (product GST is a
   pass-through; platform fee/GST are zero in `taxmath.Compute`). The **delivery fee is dynamic**:
   PICKUP waives it; DELIVERY distances `directory.stores` pins to the customer's live drop fix
-  (Haversine) and applies the `tax.delivery_fee_settings` rate card (default 3 km / ₹35 / ₹9 per
-  extra km). `POST /orders` settles the same math (`CreateOrder`); `GET /checkout/delivery-fee` is
-  the client-facing quote. The immutable invoice is readable at
+  (Haversine, fractional km rounded to paisa) and applies the `tax.delivery_fee_settings` rate card
+  (default 3 km / ₹35 / ₹7 per extra km) plus night/rain/festival surge (`internal/weather` +
+  `internal/festival`, drop hex cell). `POST /orders` settles the same math (`CreateOrder`) and stores
+  the distance/surge/basis on the order; `GET /checkout/delivery-fee` is the client-facing quote. The immutable invoice is readable at
   `GET /orders/{orderId}/invoice` (owner-scoped; presigned R2 URL only when a PDF exists). Portal:
   `GET /tax/categories`, `GET|PUT /admin/tax/categories`, `DELETE /admin/tax/categories/{id}`,
   `GET|PUT /admin/tax/settings` (SUPER_ADMIN writes). Settlement ledger carries the same
   TDS/product-GST/platform-GST figures (commission now zero).
-- **Rider payouts (`internal/delivery`, `0052`):** `GET /delivery/payouts` (rider history) and
-  `GET /delivery/payouts/{orderId}` (upsert a PENDING distance+surge calculation); admin
-  `GET|PUT /delivery/payout-settings` and super-admin `POST /delivery/payouts/{orderId}/settle`
-  mark PAID.
-- **Packages:** `internal/{search,catalog,directory,cartstock,checkout,reviews,reco,sdui,bookings}` +
-  `internal/{contracts,platform/*,server}`. Ownership table: `monolith-breakdown.md` §1.
+- **Rider payouts (`internal/delivery`, `0052` + `0054`):** `GET /delivery/payouts` (rider history)
+  and `GET /delivery/payouts/{orderId}` (upsert a PENDING calculation). The payout reuses the
+  customer-billed distance + surge stored on `checkout.orders` (`delivery_distance_km`,
+  `delivery_surge_paisa`, `delivery_surge_reason`), so base minus ₹5 and every extra/surge rupee are
+  a 1:1 pass-through; legacy orders fall back to the delivery route distance + clock-derived night.
+  `?weather=1&festival=1` forces an admin test derivation. Admin `GET|PUT /delivery/payout-settings`
+  and super-admin `POST /delivery/payouts/{orderId}/settle` mark PAID.
+- **Weather + festival surge (`internal/weather` + `internal/festival`, `0054`):** `GET
+  /checkout/delivery-fee` and `POST /orders` call `contracts.WeatherChecker` (Weather Union,
+  30-min per-hex cache, 60,000 calls/Indian FY) and `contracts.FestivalLookup` (active
+  `ops.festival_calendar` window). Super-admin `GET /admin/weather/usage`,
+  `PUT /admin/weather/override`, `GET|POST /admin/festival/calendar`,
+  `DELETE /admin/festival/calendar/{id}`. Provider key is optional: unset means no rain surge.
+- **Packages:** `internal/{search,catalog,directory,cartstock,checkout,reviews,reco,sdui,bookings,delivery,weather,festival,geo,pricing}`
+  + `internal/{contracts,platform/*,server}`. Ownership table: `monolith-breakdown.md` §1.
 - **Boundaries:** `go run ./tools/importlint` fails on sibling-context imports.
 - **Mapping** (`@data/*` twin + `GatewayClient` method) and RLS classes: `docs/architecture/mvp-backend.md` §1–§3.
 - **Build order / status:** `docs/architecture/mvp-backend.md` §7.
