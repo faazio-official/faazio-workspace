@@ -1117,9 +1117,10 @@ dedicated **FULFILLMENT** step. `fulfillment` (`'DELIVERY' | 'PICKUP'`) is a sin
   `getPickupPointsForItems` pickup points (per vendor, name/address/hours/contact). A fixed bottom
   **Proceed to pay** button is disabled until a mode is chosen. The **delivery fee is dynamic**:
   on entering Delivery with a live fix, `CartView` fetches a server quote
-  (`gateway.fetchDeliveryFee`, `GET /checkout/delivery-fee`) and falls back to a Haversine
-  estimate (`computeDeliveryFeePaisa`, `src/features/cart/utils.ts`: ≤3 km → ₹35, then ₹9 per extra
-  km) when the gateway is unreachable.
+  (`gateway.fetchDeliveryFee`, `GET /checkout/delivery-fee`, typed `DeliveryFeeBreakdown`) and falls
+  back to an honest base + distance estimate (`estimateDeliveryBreakdown`, `utils.ts`: ≤3 km → ₹35,
+  then ₹7 per extra km) when the gateway is unreachable. The quote carries the server zone and any
+  active night/rain/festival surge; `BreakdownCard` itemises those rows so the bill is explainable.
 - **PAYMENT:** the reworked `PaymentOptionsScreen` (below); its back button returns to FULFILLMENT.
 - **Order placement:** for Delivery, the live fix (or fallback) is the delivery address and
   the GPS coordinates are captured on the order (`PlacedOrder.location`) and sent as
@@ -1131,10 +1132,10 @@ dedicated **FULFILLMENT** step. `fulfillment` (`'DELIVERY' | 'PICKUP'`) is a sin
 
 ### Payment step (`PaymentOptionsScreen`, `features/cart/payment/`)
 
-- A pale-blue **BreakdownCard** sits at top: "to pay:" total plus exactly **two rows** — Ordered
-  value + Delivery fee (the delivery row is hidden for Self Pickup). There is **no tax row**: catalog
-  prices are GST-inclusive so the customer total is `subtotal + deliveryFee − discount`, matching the
-  server invoice. The old Preferred-Payment card, CVV pay bar, and Net Banking / Wallet / COD
+- A pale-blue **BreakdownCard** sits at top: "to pay:" total plus **Ordered value** and the server
+  delivery quote itemised into base (first 3 km), extra distance, and any active night / rain /
+  festival surge (hidden for Self Pickup). There is **no tax row**: catalog prices are GST-inclusive
+  so the customer total is `subtotal + deliveryFee − discount`, matching the server invoice. The old Preferred-Payment card, CVV pay bar, and Net Banking / Wallet / COD
   options are removed.
 - **UPI:** `src/services/upi.ts` probes the `UPI_APP_PACKAGES` list (`paymentData.ts`: GPay, PhonePe,
   Paytm, Amazon Pay, BHIM) via `Linking.canOpenURL` (Android `<queries>` + iOS

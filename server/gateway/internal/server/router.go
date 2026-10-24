@@ -21,6 +21,7 @@ import (
 	"github.com/faazio/server/gateway/internal/delivery"
 	"github.com/faazio/server/gateway/internal/directory"
 	"github.com/faazio/server/gateway/internal/favourites"
+	"github.com/faazio/server/gateway/internal/festival"
 	"github.com/faazio/server/gateway/internal/media"
 	"github.com/faazio/server/gateway/internal/notifications"
 	"github.com/faazio/server/gateway/internal/pharma"
@@ -42,6 +43,7 @@ import (
 	"github.com/faazio/server/gateway/internal/settlement"
 	"github.com/faazio/server/gateway/internal/support"
 	"github.com/faazio/server/gateway/internal/tax"
+	"github.com/faazio/server/gateway/internal/weather"
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
 	gomongo "go.mongodb.org/mongo-driver/mongo"
@@ -130,6 +132,14 @@ func NewRouter(d Deps) http.Handler {
 		go deliveryHandler.RunExpiry(d.WorkersCtx)
 	}
 
+	// Server-authoritative delivery pricing: weather budget/override (Weather Union) + festival
+	// calendar. Checkout reads the rider surge card via deliveryHandler (contracts.SurgeReader).
+	weatherRepo := weather.NewRepo(d.Pool)
+	weatherChecker := weather.NewChecker(d.Cache,
+		weather.NewClient(d.Config.ZomatoWeatherUnionBaseURL, d.Config.ZomatoWeatherUnionKey),
+		weatherRepo, weather.AnnualCallLimit)
+	festivalRepo := festival.NewRepo(d.Pool)
+
 	// Auth: Firebase ID tokens for the mobile app (phone OTP); portal HS256 tokens are verified
 	// separately. The legacy Supabase/GoTrue path remains for older partner tokens during the
 	// migration. checkout resolves the auth subject → app user slug.
@@ -150,7 +160,8 @@ func NewRouter(d Deps) http.Handler {
 	r.Get("/health", healthHandler(d))
 
 	// Contexts. Each owns its routes; cross-context calls use contracts interfaces.
-	checkoutService := checkout.NewService(checkoutRepo, cartRepo, d.Cache, rewardsRepo, promoRepo, promoRepo, adsRepo)
+	checkoutService := checkout.NewService(checkoutRepo, cartRepo, d.Cache, rewardsRepo, promoRepo, promoRepo, adsRepo,
+		deliveryHandler, weatherChecker, festivalRepo)
 	bookingsService := bookings.NewService(bookingsRepo, bookingsGateway, notificationsRepo, d.Cache)
 	reviewsService := reviews.NewService(reviewsRepo, checkoutRepo, d.Cache)
 	sduiService := sdui.NewService(recoRepo, recoRepo, catalogRepo, directoryRepo, d.Cache)
@@ -180,6 +191,8 @@ func NewRouter(d Deps) http.Handler {
 	tax.NewHandler(tax.NewRepo(d.Pool)).Register(r)
 	support.NewHandler(supportRepo, adminsRepo).Register(r)
 	deliveryHandler.Register(r)
+	weather.NewHandler(weatherChecker, adminsRepo).Register(r)
+	festival.NewHandler(festivalRepo, adminsRepo).Register(r)
 	media.NewHandler(mediaRepo, r2Signer, d.Cache, adminsRepo, d.Sweeper).Register(r)
 	// Public media without a CDN custom domain: a stable /assets/{key} URL that 302-redirects to a
 	// short-lived presigned GET, so cached JSON can hold a non-expiring URL (R2_CDN_BASE unset).

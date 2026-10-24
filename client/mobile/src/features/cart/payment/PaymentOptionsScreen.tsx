@@ -18,7 +18,7 @@ import CoinsRedeemRow from './components/CoinsRedeemRow';
 import BreakdownCard from './components/BreakdownCard';
 import UpiAppRow from './components/UpiAppRow';
 import BottomPayBar from './components/BottomPayBar';
-import { computeTotals } from '../utils';
+import { computeTotals, type DeliveryFeeBreakdown } from '../utils';
 import { BRAND } from './constants';
 import { SAVED_CARDS, type SavedCard } from './paymentData';
 import { detectUpiApps, type UpiApp } from '@/services/upi';
@@ -46,6 +46,8 @@ export interface PaymentOptionsScreenProps {
   subtotal?: number;
   /** Customer-visible delivery fee for the breakdown card (0 for pickup). */
   deliveryFee?: number;
+  /** Server quote breakdown (distance + active surges) for the bill rows. */
+  deliveryBreakdown?: DeliveryFeeBreakdown;
   /** Selected delivery address. Defaults to the primary saved address. */
   deliveryAddress?: { label: string; address: string };
   /** Origin store name for the delivery timeline. */
@@ -74,6 +76,7 @@ export default function PaymentOptionsScreen({
   total: totalProp,
   subtotal: subtotalProp,
   deliveryFee: deliveryFeeProp,
+  deliveryBreakdown,
   deliveryAddress,
   originLabel = 'Instamart',
   fulfillment = 'DELIVERY',
@@ -154,7 +157,13 @@ export default function PaymentOptionsScreen({
         contentContainerStyle={[styles.scrollContent, selected && styles.scrollContentWithPayBar]}
         showsVerticalScrollIndicator={false}
       >
-        <BreakdownCard total={payableTotal} subtotal={subtotal} deliveryFee={deliveryFee} fulfillment={fulfillment} />
+        <BreakdownCard
+          total={payableTotal}
+          subtotal={subtotal}
+          deliveryFee={deliveryFee}
+          deliveryBreakdown={deliveryBreakdown}
+          fulfillment={fulfillment}
+        />
 
         <DeliveryInfoCard
           origin={originLabel}

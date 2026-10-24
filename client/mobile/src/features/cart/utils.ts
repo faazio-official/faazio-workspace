@@ -41,20 +41,57 @@ export type CheckoutStep = 'BAG' | 'FULFILLMENT' | 'PAYMENT' | 'RECEIPT';
  */
 export const DELIVERY_FEE_BASE_KM = 3;
 export const DELIVERY_FEE_BASE_PAISA = 3500;
-export const DELIVERY_FEE_PER_EXTRA_KM_PAISA = 900;
+export const DELIVERY_FEE_PER_EXTRA_KM_PAISA = 700;
 
 /** Base delivery fee (whole rupees) when no distance is known yet. */
 export const DEFAULT_DELIVERY_FEE_PAISA = DELIVERY_FEE_BASE_PAISA;
 
 /**
+ * Server-authoritative delivery bill (GET /checkout/delivery-fee). The server resolves the drop
+ * zone and every active surge; the fallback estimate fills only base + extra distance.
+ */
+export interface DeliveryFeeBreakdown {
+  distanceKm: number;
+  zoneId?: string;
+  baseDistanceKm?: number;
+  baseFeePaisa: number;
+  extraKmPaisa: number;
+  nightSurgePaisa: number;
+  weatherSurgePaisa: number;
+  festivalSurgePaisa: number;
+  totalPaisa: number;
+  /** Legacy alias for totalPaisa. */
+  feePaisa: number;
+  surgeReasons?: string[];
+}
+
+/**
  * Server-authoritative formula (mirrors tax.delivery_fee_settings): ≤3 km → ₹35;
- * beyond that ₹9 per extra full km. Paisa whole-number math.
+ * beyond that ₹7 per extra km (fractional), same rate the rider is paid. Paisa math.
  */
 export function computeDeliveryFeePaisa(distanceKm: number): number {
   const base = Math.max(0, DELIVERY_FEE_BASE_KM);
-  const extraKm = Math.floor(Math.max(0, distanceKm || 0) - base);
+  const km = Math.round(Math.max(0, distanceKm || 0) * 100) / 100;
+  const extraKm = Math.max(0, km - base);
   if (extraKm <= 0) return DELIVERY_FEE_BASE_PAISA;
-  return DELIVERY_FEE_BASE_PAISA + extraKm * DELIVERY_FEE_PER_EXTRA_KM_PAISA;
+  return DELIVERY_FEE_BASE_PAISA + Math.round(extraKm * DELIVERY_FEE_PER_EXTRA_KM_PAISA);
+}
+
+/** Honest offline estimate: base + extra only (surges need the server's zone/weather/festival). */
+export function estimateDeliveryBreakdown(distanceKm: number): DeliveryFeeBreakdown {
+  const total = computeDeliveryFeePaisa(distanceKm);
+  return {
+    distanceKm,
+    baseDistanceKm: DELIVERY_FEE_BASE_KM,
+    baseFeePaisa: DELIVERY_FEE_BASE_PAISA,
+    extraKmPaisa: Math.max(0, total - DELIVERY_FEE_BASE_PAISA),
+    nightSurgePaisa: 0,
+    weatherSurgePaisa: 0,
+    festivalSurgePaisa: 0,
+    totalPaisa: total,
+    feePaisa: total,
+    surgeReasons: [],
+  };
 }
 
 /** Dynamic delivery fee in whole rupees for a straight-line distance. */

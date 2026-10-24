@@ -41,3 +41,17 @@ func TestComputeRiderPayoutSurges(t *testing.T) {
 		t.Fatalf("total = %d, want 7000", p.TotalPaisa)
 	}
 }
+
+func TestComputeRiderPayoutReusesStoredSurge(t *testing.T) {
+	s := DefaultPayoutSettings()
+	p := ComputeRiderPayoutWithSurge("dlv-3", "rider-1", 5200, s, 4500, "night,weather")
+	if p.DistanceKm != 5.2 || p.ExtraKmChargePaisa != 1540 {
+		t.Fatalf("distance/extra = %v/%d, want 5.2/1540", p.DistanceKm, p.ExtraKmChargePaisa)
+	}
+	if p.SurgePaisa != 4500 || p.SurgeReason != "night,weather" {
+		t.Fatalf("surge = %d/%q, want 4500/night,weather", p.SurgePaisa, p.SurgeReason)
+	}
+	if p.TotalPaisa != 3000+1540+4500 {
+		t.Fatalf("total = %d, want %d", p.TotalPaisa, 3000+1540+4500)
+	}
+}

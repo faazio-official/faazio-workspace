@@ -37,6 +37,7 @@ import {
 import { refreshIdToken } from '../firebaseAuth';
 import { DEV_USER, GATEWAY_URL, STRICT, USE_GATEWAY } from '../../lib/config';
 import { sortByDistance, withLiveDistance } from '@/utils/distance';
+import type { DeliveryFeeBreakdown } from '@/features/cart/utils';
 import type { Coordinates } from '../location';
 
 /** Simulated network latency (ms) for mock mode. Drop to 0 to run pure in-memory. */
@@ -2152,11 +2153,27 @@ export class GatewayClient {
     storeId: string,
     lat: number,
     lng: number,
-  ): Promise<{ distanceKm: number; feePaisa: number }> {
+  ): Promise<DeliveryFeeBreakdown> {
     if (!REMOTE_ENABLED) throw new GatewayOfflineError();
-    return this.http<{ distanceKm: number; feePaisa: number }>(
+    const raw = await this.http<Partial<DeliveryFeeBreakdown>>(
       `/checkout/delivery-fee?storeId=${encodeURIComponent(storeId)}&lat=${lat}&lng=${lng}`,
     );
+    // Tolerate a pre-surge gateway (only `distanceKm` + `feePaisa`) during a rolling deploy:
+    // treat the legacy total as the base row instead of rendering NaN.
+    const totalPaisa = raw.totalPaisa ?? raw.feePaisa ?? 0;
+    return {
+      distanceKm: raw.distanceKm ?? 0,
+      zoneId: raw.zoneId,
+      baseDistanceKm: raw.baseDistanceKm ?? 3,
+      baseFeePaisa: raw.baseFeePaisa ?? totalPaisa,
+      extraKmPaisa: raw.extraKmPaisa ?? 0,
+      nightSurgePaisa: raw.nightSurgePaisa ?? 0,
+      weatherSurgePaisa: raw.weatherSurgePaisa ?? 0,
+      festivalSurgePaisa: raw.festivalSurgePaisa ?? 0,
+      totalPaisa,
+      feePaisa: raw.feePaisa ?? totalPaisa,
+      surgeReasons: raw.surgeReasons ?? [],
+    };
   }
 
   /** Durable self-pickup locations (public). Falls back to the store-backed resolver. */

@@ -31,9 +31,13 @@ type Config struct {
 	GoogleRoutesAPIKey string
 	// DeliveryMaxDispatchAttempts caps the reject→reassign fallback chain (initial offer + retries).
 	DeliveryMaxDispatchAttempts int
-	SupabaseURL                 string
-	SupabaseServiceKey          string
-	PrescriptionBucket          string
+	// Weather Union (Zomato giveback) powers the rain surge. BaseURL is optional (official endpoint
+	// by default); an empty key disables the provider and checkout degrades to "not raining".
+	ZomatoWeatherUnionBaseURL string
+	ZomatoWeatherUnionKey     string
+	SupabaseURL               string
+	SupabaseServiceKey        string
+	PrescriptionBucket        string
 	// Cloudflare R2 (media bytes). When AccountID/AccessKeyID/SecretKey are unset the media context is
 	// disabled (write endpoints return 503) and public URLs resolve empty — never an unsigned URL.
 	R2AccountID     string
@@ -88,6 +92,8 @@ func Load() Config {
 		FirebaseProjectID:           env("FIREBASE_PROJECT_ID", ""),
 		GoogleRoutesAPIKey:          env("GOOGLE_ROUTES_API_KEY", ""),
 		DeliveryMaxDispatchAttempts: envInt("DELIVERY_MAX_DISPATCH_ATTEMPTS", 5),
+		ZomatoWeatherUnionBaseURL:   env("ZOMATO_WEATHER_UNION_BASE_URL", ""),
+		ZomatoWeatherUnionKey:       env("ZOMATO_WEATHER_UNION_KEY", ""),
 		SupabaseURL:                 env("SUPABASE_URL", ""),
 		SupabaseServiceKey:          env("SUPABASE_SERVICE_KEY", ""),
 		PrescriptionBucket:          env("PRESCRIPTION_BUCKET", "prescriptions"),

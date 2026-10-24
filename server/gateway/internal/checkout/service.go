@@ -11,8 +11,10 @@ import (
 	"time"
 
 	"github.com/faazio/server/gateway/internal/contracts"
+	"github.com/faazio/server/gateway/internal/geo"
 	"github.com/faazio/server/gateway/internal/platform/cache"
 	"github.com/faazio/server/gateway/internal/platform/taxmath"
+	"github.com/faazio/server/gateway/internal/pricing"
 )
 
 // coinsPerRupee is the redemption rate (100 coins = ₹1) — mirrors @data/rewards COIN_REDEEM_RATE.
@@ -71,13 +73,19 @@ type Service struct {
 	coupons   contracts.CouponValidator
 	discounts contracts.DiscountReader
 	ads       contracts.AdAttributor
+	surge     contracts.SurgeReader
+	weather   contracts.WeatherChecker
+	festivals contracts.FestivalLookup
 	cache     *cache.Cache
 }
 
-// NewService builds the checkout service. rewards/coupons/discounts/ads may be nil (rewards
-// disabled / unit contexts / promo or ads not wired).
-func NewService(repo *Repo, stock contracts.StockWriter, cache *cache.Cache, rewards contracts.RewardsWriter, coupons contracts.CouponValidator, discounts contracts.DiscountReader, ads contracts.AdAttributor) *Service {
-	return &Service{repo: repo, stock: stock, cache: cache, rewards: rewards, coupons: coupons, discounts: discounts, ads: ads}
+// NewService builds the checkout service. rewards/coupons/discounts/ads/surge/weather/festivals may
+// be nil (disabled / unit contexts); pricing then falls back to the base rate card with no surges.
+func NewService(repo *Repo, stock contracts.StockWriter, cache *cache.Cache, rewards contracts.RewardsWriter, coupons contracts.CouponValidator, discounts contracts.DiscountReader, ads contracts.AdAttributor, surge contracts.SurgeReader, weather contracts.WeatherChecker, festivals contracts.FestivalLookup) *Service {
+	return &Service{
+		repo: repo, stock: stock, cache: cache, rewards: rewards, coupons: coupons, discounts: discounts,
+		ads: ads, surge: surge, weather: weather, festivals: festivals,
+	}
 }
 
 func validLatitude(v float64) bool { return v >= -90 && v <= 90 }
@@ -226,37 +234,38 @@ func (s *Service) CreateOrder(ctx context.Context, userID string, req PlaceOrder
 	}
 
 	// Delivery fee is dynamic: PICKUP waives it; DELIVERY distances the order's pinned stores to
-	// the customer's live drop fix (Haversine) and applies the tax.delivery_fee_settings rate card
-	// (base + per-extra-km). With no live fix or no pinned store the card's base fee is charged —
-	// the same figure the client displays by default and the quote endpoint returns, so settlement
-	// never surprises the shopper. The server is the money authority; the client quote is display-only.
+	// the customer's live drop fix (Haversine), resolves the drop zone and applies the rate card
+	// plus the active night/weather/festival surges. The same breakdown is stored on the order so
+	// the rider payout reuses the customer-paid surges 1:1. With no live fix the base card applies.
 	deliverySettings, err := s.repo.DeliveryFeeSettings(ctx)
 	if err != nil {
 		return Order{}, err
 	}
-	orderDeliveryFeePaisa := deliverySettings.BaseFeePaisa
-	if req.Fulfillment == "PICKUP" {
-		orderDeliveryFeePaisa = 0
-	} else if req.DeliveryLocation != nil && validLatitude(req.DeliveryLocation.Latitude) && validLongitude(req.DeliveryLocation.Longitude) {
-		storeIDs := make([]string, 0, len(vendorSet))
-		for id := range vendorSet {
-			storeIDs = append(storeIDs, id)
-		}
-		coords, err := s.repo.StoreCoordinates(ctx, storeIDs)
-		if err != nil {
-			return Order{}, err
-		}
-		if len(coords) > 0 {
+	deliveryPrice := pricing.PriceBreakdown{}
+	if req.Fulfillment != "PICKUP" {
+		distanceKm := 0.0
+		cellID := ""
+		if req.DeliveryLocation != nil && validLatitude(req.DeliveryLocation.Latitude) && validLongitude(req.DeliveryLocation.Longitude) {
+			lat, lng := req.DeliveryLocation.Latitude, req.DeliveryLocation.Longitude
+			cellID = geo.GeoCell(lat, lng)
+			storeIDs := make([]string, 0, len(vendorSet))
+			for id := range vendorSet {
+				storeIDs = append(storeIDs, id)
+			}
+			coords, err := s.repo.StoreCoordinates(ctx, storeIDs)
+			if err != nil {
+				return Order{}, err
+			}
 			// Charge for the furthest store in a multi-store order (honest worst case).
-			var furthestKm float64
 			for _, c := range coords {
-				if d := haversineKm(req.DeliveryLocation.Latitude, req.DeliveryLocation.Longitude, c.Latitude, c.Longitude); d > furthestKm {
-					furthestKm = d
+				if d := haversineKm(lat, lng, c.Latitude, c.Longitude); d > distanceKm {
+					distanceKm = d
 				}
 			}
-			orderDeliveryFeePaisa = feeForDistanceKm(furthestKm, deliverySettings)
 		}
+		deliveryPrice = s.priceDelivery(ctx, distanceKm, deliverySettings, time.Now(), cellID)
 	}
+	orderDeliveryFeePaisa := deliveryPrice.TotalPaisa
 	platformRates.DeliveryFeePaisa = orderDeliveryFeePaisa
 	breakdown := taxmath.Compute(taxLines, platformRates)
 
@@ -314,6 +323,16 @@ func (s *Service) CreateOrder(ctx context.Context, userID string, req PlaceOrder
 		validLatitude(req.DeliveryLocation.Latitude) && validLongitude(req.DeliveryLocation.Longitude) {
 		lat, lng := req.DeliveryLocation.Latitude, req.DeliveryLocation.Longitude
 		order.DeliveryLatitude, order.DeliveryLongitude = &lat, &lng
+	}
+	// Persist the customer-paid basis; payout reuses it (never re-derives surges from query params).
+	order.DeliveryZoneID = deliveryPrice.ZoneID
+	order.DeliveryDistanceKm = deliveryPrice.DistanceKm
+	order.DeliverySurgePaisa = deliveryPrice.NightSurgePaisa + deliveryPrice.WeatherSurgePaisa + deliveryPrice.FestivalSurgePaisa
+	order.DeliverySurgeReason = strings.Join(deliveryPrice.SurgeReasons, ",")
+	if req.Fulfillment != "PICKUP" {
+		if basis, err := json.Marshal(deliveryPrice); err == nil {
+			order.DeliveryBillingBasis = basis
+		}
 	}
 
 	// Tax + invoice snapshot. Coupons are platform-funded, so they reduce what the customer pays but
@@ -385,15 +404,13 @@ func (s *Service) CreateOrder(ctx context.Context, userID string, req PlaceOrder
 	return order, nil
 }
 
-// DeliveryFeeQuote is the server-authoritative delivery fee for one store → drop.
-type DeliveryFeeQuote struct {
-	DistanceKm float64 `json:"distanceKm"`
-	FeePaisa   int64   `json:"feePaisa"`
-}
+// DeliveryFeeQuote is the server-authoritative delivery bill for one store → drop, including every
+// surge line. It is the same shape persisted on the order at settlement.
+type DeliveryFeeQuote = pricing.PriceBreakdown
 
-// DeliveryFeeForStore computes the delivery fee between one store's pinned location and the
-// customer's fix using the tax.delivery_fee_settings rate card. An unpinned store returns the base
-// fee (honest default; road distance is unknown).
+// DeliveryFeeForStore computes the full delivery bill between one store's pinned location and the
+// customer's fix: rate card + zone + active surges. An unpinned store returns the base card plus
+// any time-based surge (distance is unknown, so the honest default is the base fee).
 func (s *Service) DeliveryFeeForStore(ctx context.Context, storeID string, lat, lng float64) (DeliveryFeeQuote, error) {
 	coords, err := s.repo.StoreCoordinates(ctx, []string{storeID})
 	if err != nil {
@@ -403,12 +420,40 @@ func (s *Service) DeliveryFeeForStore(ctx context.Context, storeID string, lat, 
 	if err != nil {
 		return DeliveryFeeQuote{}, err
 	}
-	c, ok := coords[storeID]
-	if !ok {
-		return DeliveryFeeQuote{DistanceKm: 0, FeePaisa: settings.BaseFeePaisa}, nil
+	distanceKm := 0.0
+	if c, ok := coords[storeID]; ok {
+		distanceKm = haversineKm(lat, lng, c.Latitude, c.Longitude)
 	}
-	distanceKm := haversineKm(lat, lng, c.Latitude, c.Longitude)
-	return DeliveryFeeQuote{DistanceKm: distanceKm, FeePaisa: feeForDistanceKm(distanceKm, settings)}, nil
+	return s.priceDelivery(ctx, distanceKm, settings, time.Now(), geo.GeoCell(lat, lng)), nil
+}
+
+// priceDelivery resolves the active surge reasons and computes the customer bill. Surge lookup
+// failures degrade to no surcharge (checkout is never blocked); night is derived from the clock.
+func (s *Service) priceDelivery(ctx context.Context, distanceKm float64, settings DeliveryFeeSettings, at time.Time, cellID string) pricing.PriceBreakdown {
+	rates := pricing.SurgeRates{}
+	if s.surge != nil {
+		if r, err := s.surge.SurgeSettings(ctx); err == nil {
+			rates.NightPaisa, rates.WeatherPaisa, rates.FestivalPaisa = r.NightPaisa, r.WeatherPaisa, r.FestivalPaisa
+		}
+	}
+	// Weather only applies when the zone is actually raining (manual overrides honoured by the checker).
+	if s.weather == nil || cellID == "" {
+		rates.WeatherPaisa = 0
+	} else if raining, err := s.weather.IsRaining(ctx, cellID); err != nil || !raining {
+		rates.WeatherPaisa = 0
+	}
+	// Festival only applies inside an active super-admin window; that row's amount is authoritative.
+	if s.festivals == nil {
+		rates.FestivalPaisa = 0
+	} else if f, ok, err := s.festivals.ActiveFestival(ctx, at); err != nil || !ok {
+		rates.FestivalPaisa = 0
+	} else {
+		rates.FestivalPaisa = f.SurgePaisa
+	}
+	b := pricing.ComputeDeliveryPrice(distanceKm, settings.BaseDistanceKm, settings.BaseFeePaisa,
+		settings.PerExtraKmPaisa, rates, at)
+	b.ZoneID = cellID
+	return b
 }
 
 // taxRateFor resolves a product's GST rate from tax.tax_rates, defaulting conservatively to 5%.

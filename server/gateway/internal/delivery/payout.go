@@ -48,6 +48,37 @@ type SurgeInput struct {
 // ComputeRiderPayout derives a rider payout from the persisted route distance and the rate card.
 // The night window is 23:00–03:00 IST; weather/festival surges must be asserted by ops.
 func ComputeRiderPayout(orderID, riderID string, distanceMeters int64, s PayoutSettings, surge SurgeInput) RiderPayout {
+	surgePaisa := int64(0)
+	reasons := ""
+	at := surge.At
+	if at.IsZero() {
+		at = time.Now()
+	}
+	if h := at.UTC().Add(5*time.Hour + 30*time.Minute).Hour(); h >= 23 || h < 3 {
+		surgePaisa += max64(s.NightSurgePaisa, 0)
+		reasons = "night"
+	}
+	if surge.Weather {
+		surgePaisa += max64(s.WeatherSurgePaisa, 0)
+		reasons = joinReason(reasons, "weather")
+	}
+	if surge.Festival {
+		surgePaisa += max64(s.FestivalSurgePaisa, 0)
+		reasons = joinReason(reasons, "festival")
+	}
+	return riderPayoutFrom(orderID, riderID, distanceMeters, s, surgePaisa, reasons)
+}
+
+// ComputeRiderPayoutWithSurge reuses the customer-paid surge stored at placement. This is the
+// 1:1 pass-through path: the rider gets exactly what the customer was billed for surges.
+func ComputeRiderPayoutWithSurge(orderID, riderID string, distanceMeters int64, s PayoutSettings, surgePaisa int64, surgeReason string) RiderPayout {
+	if surgePaisa < 0 {
+		surgePaisa = 0
+	}
+	return riderPayoutFrom(orderID, riderID, distanceMeters, s, surgePaisa, surgeReason)
+}
+
+func riderPayoutFrom(orderID, riderID string, distanceMeters int64, s PayoutSettings, surgePaisa int64, surgeReason string) RiderPayout {
 	if s.BaseRatePaisa < 0 {
 		s.BaseRatePaisa = 0
 	}
@@ -67,29 +98,10 @@ func ComputeRiderPayout(orderID, riderID string, distanceMeters int64, s PayoutS
 	}
 	extraCharge := int64(math.Round(extraKm * float64(s.PerExtraKmPaisa)))
 
-	surgePaisa := int64(0)
-	reasons := ""
-	at := surge.At
-	if at.IsZero() {
-		at = time.Now()
-	}
-	ist := at.UTC().Add(5*time.Hour + 30*time.Minute)
-	if h := ist.Hour(); h >= 23 || h < 3 {
-		surgePaisa += s.NightSurgePaisa
-		reasons = "night"
-	}
-	if surge.Weather {
-		surgePaisa += s.WeatherSurgePaisa
-		reasons = joinReason(reasons, "weather")
-	}
-	if surge.Festival {
-		surgePaisa += s.FestivalSurgePaisa
-		reasons = joinReason(reasons, "festival")
-	}
 	return RiderPayout{
 		OrderID: orderID, RiderID: riderID, DistanceKm: km,
 		BaseRatePaisa: s.BaseRatePaisa, ExtraKmChargePaisa: extraCharge,
-		SurgePaisa: surgePaisa, SurgeReason: reasons,
+		SurgePaisa: surgePaisa, SurgeReason: surgeReason,
 		TotalPaisa: s.BaseRatePaisa + extraCharge + surgePaisa,
 		Status:     "PENDING",
 	}
@@ -100,4 +112,11 @@ func joinReason(current, next string) string {
 		return next
 	}
 	return current + "," + next
+}
+
+func max64(v, floor int64) int64 {
+	if v < floor {
+		return floor
+	}
+	return v
 }

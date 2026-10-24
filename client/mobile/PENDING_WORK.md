@@ -5,6 +5,28 @@ dependencies exist. Do not build the backend/seller flows until told to.
 
 ---
 
+## W66 — Server-authoritative distance + surge pricing, zone split, payout parity (P0)
+
+**Status:** 🟢 Shipped (DB `0054` + gateway + mobile).
+
+- **Zones:** deterministic ~2.5 km pointy-top hex drop cells (`internal/geo`) used as the weather
+  cache/override key; every coordinate resolves (no geofence dead-ends).
+- **Unified price:** `internal/pricing` is the single calculator. Customer ₹35 / 3 km + ₹7/km
+  (fractional, rounded to paisa); rider ₹30 / 3 km + ₹7/km so Faazio keeps exactly the ₹5 base and
+  ₹0 on extra km/surge.
+- **Surge:** night 23:00–03:00 IST (clock); rain only when Weather Union reports rain for the drop
+  cell (30-min cache, manual super-admin override, 60,000 calls/Indian-FY hard cap with a
+  `ops.weather_api_usage` daily trail); festival only inside an active `ops.festival_calendar` window
+  (the row's amount is authoritative). All three stack and are itemised on the mobile bill.
+- **Payout parity:** `checkout.orders` stores `delivery_distance_km`, `delivery_surge_paisa`,
+  `delivery_surge_reason`, `delivery_billing_basis`; rider payout reuses them 1:1 (legacy orders
+  fall back to route distance + clock). Admin `?weather=1&festival=1` forces a test derivation.
+- **Endpoints:** super-admin `GET /admin/weather/usage`, `PUT /admin/weather/override`,
+  `GET|POST /admin/festival/calendar`, `DELETE /admin/festival/calendar/{id}`. Env:
+  `ZOMATO_WEATHER_UNION_KEY` (optional; unset disables rain surge), `ZOMATO_WEATHER_UNION_BASE_URL`.
+- Docs: `db-schema.md` §12.26, `monolith-breakdown.md` §1, `caching-cloudflare-valkey.md`,
+  `server-gateway-plan.md`, `mobile-app.md`.
+
 ## W65 — Cart/checkout rework + seller-fee removal + dynamic delivery fee (P0)
 
 **Status:** 🟢 Shipped (mobile + gateway + Supabase + web portal).
@@ -13,8 +35,9 @@ dependencies exist. Do not build the backend/seller flows until told to.
   items + pricing with a full-width **Place order** button; FULFILLMENT shows a pale-blue "to pay"
   `BreakdownCard`, a Delivery / Self Pickup segment and the address card / pickup-point list, with a
   fixed **Proceed to pay** bar; PAYMENT renders the reworked payment screen.
-- **Payment rework** (`PaymentOptionsScreen.tsx`): pale-blue total card + exactly two breakdown rows
-  (ordered value + delivery fee; no tax row — GST is inside the prices); the Preferred-Payment card,
+- **Payment rework** (`PaymentOptionsScreen.tsx`): pale-blue total card + ordered value and an
+  itemised delivery quote (base / extra distance / active surge; no tax row — GST is inside the
+  prices); the Preferred-Payment card,
   CVV pay bar and Net Banking / Wallet / COD options are gone. UPI rows are **detected** apps
   (`src/services/upi.ts` probing `UPI_APP_PACKAGES` via `Linking.canOpenURL`; Android `<queries>` +
   iOS `LSApplicationQueriesSchemes`), and a fixed floating **Pay ₹X** bar appears once a method is
@@ -23,8 +46,8 @@ dependencies exist. Do not build the backend/seller flows until told to.
   (`AddCard` route, refreshed on focus); raw PAN/CVV never touch state or logs.
 - **Dynamic delivery fee** (replaces the flat ₹49/₹50): PICKUP waives it; DELIVERY quotes via
   `GET /checkout/delivery-fee` (`gateway.fetchDeliveryFee`, store pin + live drop) with an honest
-  Haversine + `computeDeliveryFeePaisa` fallback (≤3 km → ₹35, then ₹9/extra km). Multi-store carts
-  quote every store and keep the furthest, matching settlement.
+  Haversine + `estimateDeliveryBreakdown` fallback (≤3 km → ₹35, then ₹7/extra km as of W66).
+  Multi-store carts quote every store and keep the furthest, matching settlement.
 - **Server:** `CreateOrder` charges PICKUP → 0 / DELIVERY → furthest pinned store ×
   `tax.delivery_fee_settings` (`0053`); `taxmath.Compute` zeroes platform commission/GST — sellers
   keep full gross, only statutory TCS/TDS are withheld (`SellerNet = Gross − TCS − TDS`).

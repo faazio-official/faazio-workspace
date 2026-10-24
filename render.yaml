@@ -53,6 +53,13 @@ services:
       # Unset is safe: dispatch falls back to a Haversine/urban-speed estimate.
       - key: GOOGLE_ROUTES_API_KEY
         sync: false
+      # Weather Union (Zomato giveback) rain surge. Key is optional: unset means the provider is
+      # disabled and the fee simply has no rain surcharge. Base URL is optional too (official
+      # endpoint default).
+      - key: ZOMATO_WEATHER_UNION_BASE_URL
+        sync: false
+      - key: ZOMATO_WEATHER_UNION_KEY
+        sync: false
       # Money/Rx writes must never run against an auth-disabled gateway in production.
       - key: AUTH_DISABLED
         value: "false"

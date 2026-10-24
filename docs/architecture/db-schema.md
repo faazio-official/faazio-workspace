@@ -1972,7 +1972,7 @@ CREATE TABLE tax.delivery_fee_settings (-- singleton row id = 1; gateway reads, 
   id SMALLINT PRIMARY KEY CHECK (id = 1),
   base_distance_km NUMERIC(6,2) NOT NULL DEFAULT 3.00,
   base_fee_paisa BIGINT NOT NULL DEFAULT 3500,
-  per_extra_km_paisa BIGINT NOT NULL DEFAULT 900,
+  per_extra_km_paisa BIGINT NOT NULL DEFAULT 700,
   updated_by TEXT NOT NULL DEFAULT '', updated_at TIMESTAMPTZ NOT NULL DEFAULT now());
 
 -- 0052: rider payout engine (supersedes the "Phase 5 out of scope" note in 0042)
@@ -2008,11 +2008,13 @@ CREATE TABLE delivery.delivery_payouts (
   settlement ledger. The previous hardcoded `TCS: 0` in `settlement` is gone.
 - **Customer delivery fee is dynamic** (replaces the flat ₹50/`delivery_fee_paisa` for new orders):
   PICKUP waives it; DELIVERY charges `base_fee_paisa` up to `base_distance_km`, then
-  `base_fee_paisa + floor(distance_km − base_distance_km) × per_extra_km_paisa` (default 3 km / ₹35 /
-  ₹9-per-km). Distance is Haversine between `directory.stores` pins and the live drop fix — the
-  same estimate the client mirrors via `GET /checkout/delivery-fee`. With no live fix or no pinned
-  store the card's `base_fee_paisa` is charged — the client shows the same default — so settlement
-  never diverges from the displayed total (`tax.platform_settings.delivery_fee_paisa` is legacy).
+  `base_fee_paisa + (distance_km − base_distance_km) × per_extra_km_paisa` with fractional km rounded
+  to paisa (default 3 km / ₹35 / ₹7-per-km as of `0054`). Distance is Haversine between
+  `directory.stores` pins and the live drop fix — the same estimate the client mirrors via
+  `GET /checkout/delivery-fee`. With no live fix or no pinned store the card's `base_fee_paisa` is
+  charged — the client shows the same default — so settlement never diverges from the displayed
+  total (`tax.platform_settings.delivery_fee_paisa` is legacy). Rain/night/festival surge is added
+  per `12.26`.
 - Invoice rows are immutable; `GET /orders/{id}/invoice` is owner-scoped and returns a presigned
   R2 URL only when `pdf_key` is populated (PDF rendering is deferred; the app renders the JSON).
 - Rider payout = base (₹30 / 3 km) + ₹7/km beyond + night (23:00–03:00 IST), weather/festival surge.
@@ -2021,3 +2023,57 @@ CREATE TABLE delivery.delivery_payouts (
   `payout_amount_paisa`; `POST /delivery/payouts/{orderId}/settle` is super-admin only.
 - RLS/grants follow the existing guarded Supabase pattern; all writes go through the gateway
   (`tax.delivery_fee_settings` is service_role-only — no client grants).
+
+### 12.26 Server-authoritative delivery pricing: zones, weather + festival surge, payout parity (migration `0054`)
+
+**Authority:** `monolith-breakdown.md` §1 (`checkout`, `delivery`, `weather`, `festival`, `geo`,
+`pricing`), `caching-cloudflare-valkey.md` (weather keys/TTLs), `web-portal.md` (ops surge console).
+
+```sql
+-- 0054: ops weather budget trail + super-admin festival windows
+CREATE SCHEMA ops;
+CREATE TABLE ops.weather_api_usage (   -- one durable row per day (≤365/year); Valkey is the live counter
+  d DATE PRIMARY KEY, calls BIGINT NOT NULL DEFAULT 0 CHECK (calls >= 0),
+  fy TEXT NOT NULL, updated_at TIMESTAMPTZ NOT NULL DEFAULT now());
+CREATE TABLE ops.festival_calendar (   -- active row's surge_paisa is the customer + rider surcharge
+  id TEXT PRIMARY KEY, name TEXT NOT NULL, start_date DATE NOT NULL,
+  end_date DATE NOT NULL CHECK (end_date >= start_date),
+  surge_paisa BIGINT NOT NULL DEFAULT 0 CHECK (surge_paisa >= 0),
+  active BOOLEAN NOT NULL DEFAULT true, created_by TEXT NOT NULL DEFAULT '',
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now());
+CREATE INDEX festival_calendar_active_window_idx
+  ON ops.festival_calendar (active, start_date, end_date);
+
+-- checkout.orders: the customer-price basis, persisted once at placement
+ALTER TABLE checkout.orders
+  ADD COLUMN delivery_zone_id TEXT,
+  ADD COLUMN delivery_distance_km NUMERIC(7,2) CHECK (delivery_distance_km >= 0),
+  ADD COLUMN delivery_surge_paisa BIGINT NOT NULL DEFAULT 0 CHECK (delivery_surge_paisa >= 0),
+  ADD COLUMN delivery_surge_reason TEXT NOT NULL DEFAULT '',
+  ADD COLUMN delivery_billing_basis JSONB;   -- price breakdown snapshot, ≤4096 bytes
+
+-- align pre-0054 installs: customer extra km is ₹7 (same as the rider card)
+UPDATE tax.delivery_fee_settings SET per_extra_km_paisa = 700 WHERE id = 1;
+```
+
+**Rules**
+
+- **One distance, one rate.** The customer fee and rider payout both use the server distance
+  (store pin → drop fix, Haversine) with fractional km rounded to paisa. Customer base is ₹35 / 3 km,
+  rider base ₹30 / 3 km; extra km is ₹7/km to both, so Faazio keeps exactly the ₹5 base and ₹0 on
+  every extra km and surge rupee.
+- **Surge reasons.** Night is derived from the clock (23:00–03:00 IST) using the rider card's
+  `night_surge_paisa`. Rain applies only when the drop cell is actually raining per Weather Union
+  (manual override honoured). Festival applies only inside an active `ops.festival_calendar` row;
+  that row's `surge_paisa` is authoritative (not the old card default). Night + rain + festival stack.
+- **Zone.** The drop cell is a deterministic ~2.5 km pointy-top hex (`geo.GeoCell`) used as the
+  weather cache/override key; it is not a geofence (every coordinate resolves).
+- **Payout parity.** `checkout.orders` stores the charged `delivery_distance_km`,
+  `delivery_surge_paisa`, `delivery_surge_reason` and the full `delivery_billing_basis`. Rider payout
+  reuses that stored distance + surge when present (legacy orders fall back to the delivery route
+  distance + clock-derived surge). Admin `?weather=1&festival=1` on the payout endpoint forces a
+  fresh derivation for testing.
+- **Weather budget.** Hard cap 60,000 calls per Indian financial year (Apr 1 → Mar 31), enforced by
+  the gateway before every provider call; one Supabase row per day preserves the audit trail.
+- **RLS/grants.** `ops.*` is service_role-only (no client grants); RLS enabled where Supabase roles
+  exist. New order columns follow the existing `checkout.orders` owner-scoped reads.
