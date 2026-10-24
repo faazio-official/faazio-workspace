@@ -89,3 +89,15 @@ func TestPriceDeliveryFestivalOverridesCardAmount(t *testing.T) {
 		t.Fatalf("festival = %d, want the calendar row's 1500", b.FestivalSurgePaisa)
 	}
 }
+
+func TestCustomerDeliveryFeePaisaHonoursFreeDeliveryCoupon(t *testing.T) {
+	if got := customerDeliveryFeePaisa(9540, true); got != 0 {
+		t.Fatalf("free delivery fee = %d, want 0", got)
+	}
+	if got := customerDeliveryFeePaisa(9540, false); got != 9540 {
+		t.Fatalf("paid delivery fee = %d, want 9540", got)
+	}
+	if got := customerDeliveryFeePaisa(-1, false); got != 0 {
+		t.Fatalf("negative fee = %d, want 0", got)
+	}
+}

@@ -36,7 +36,7 @@ import SlideUpSheet from '@/components/shared/SlideUpSheet';
 import PaymentOptionsScreen from '@/features/cart/payment/PaymentOptionsScreen';
 import type { PlaceOrderPayload } from '@/features/cart/payment/PaymentOptionsScreen';
 import BreakdownCard from '@/features/cart/payment/components/BreakdownCard';
-import { computeTotals, estimateDeliveryBreakdown, DELIVERY_FEE_BASE_KM } from './utils';
+import { computeTotals, estimateDeliveryBreakdown, DELIVERY_FEE_BASE_KM, DEFAULT_DELIVERY_FEE_PAISA } from './utils';
 import type { CheckoutStep, DeliveryFeeBreakdown } from './utils';
 import { haversineKm } from '@/utils/distance';
 import { getStoreById } from '@data/directory/stores';
@@ -140,7 +140,12 @@ export default function CartView({
 }: CartViewProps) {
   const [step, setStep] = useState<CheckoutStep>('BAG');
   const [fulfillment, setFulfillment] = useState<FulfillmentMode | null>(null);
-  const [appliedDiscount, setAppliedDiscount] = useState<{ code: string; amount: number } | null>(null);
+  const [appliedDiscount, setAppliedDiscount] = useState<{
+    code: string;
+    amount: number;
+    /** A FREE-Delivery coupon's value is the live delivery fee, not a frozen amount. */
+    freeDelivery?: boolean;
+  } | null>(null);
   // The raw code (without the display suffix) the server re-validates + settles at placement.
   const [appliedCouponCode, setAppliedCouponCode] = useState<string | null>(null);
   const [couponError, setCouponError] = useState<string | null>(null);
@@ -232,7 +237,18 @@ export default function CartView({
     return () => loop.stop();
   }, [pulseAnim]);
 
-  const discountAmount = appliedDiscount ? appliedDiscount.amount : 0;
+  // FREE-Delivery coupons discount the *current* delivery fee (base + extra + any active surge), not
+  // the fee that happened to be showing when the code was applied; a quote arriving later must
+  // still be fully waived.
+  const deliveryFeePaisaForDiscount =
+    (fulfillment ?? 'DELIVERY') === 'PICKUP'
+      ? 0
+      : deliveryFeeQuote?.feePaisa ?? DEFAULT_DELIVERY_FEE_PAISA;
+  const discountAmount = appliedDiscount
+    ? appliedDiscount.freeDelivery
+      ? deliveryFeePaisaForDiscount / 100
+      : appliedDiscount.amount
+    : 0;
   const selectedItems = useMemo(
     () => cartItems.filter((i) => !deselectedIds.has(i.id)),
     [cartItems, deselectedIds],
@@ -301,7 +317,8 @@ export default function CartView({
           return;
         }
         if (v.freeDelivery) {
-          setAppliedDiscount({ code: `${normalized} (FREE Delivery)`, amount: deliveryFee });
+          // Value is resolved from the live quote in `discountAmount`; 0 here is a placeholder.
+          setAppliedDiscount({ code: `${normalized} (FREE Delivery)`, amount: 0, freeDelivery: true });
         } else {
           setAppliedDiscount({ code: `${normalized} (${v.valuePercent}% OFF)`, amount: v.discount });
         }

@@ -99,7 +99,9 @@ keys/TTLs unchanged.
   (Haversine, fractional km rounded to paisa) and applies the `tax.delivery_fee_settings` rate card
   (default 3 km / ₹35 / ₹7 per extra km) plus night/rain/festival surge (`internal/weather` +
   `internal/festival`, drop hex cell). `POST /orders` settles the same math (`CreateOrder`) and stores
-  the distance/surge/basis on the order; `GET /checkout/delivery-fee` is the client-facing quote. The immutable invoice is readable at
+  the distance/surge/basis on the order; `GET /checkout/delivery-fee` is the client-facing quote. A
+  `free_delivery` coupon zeroes the customer's delivery line (platform-funded) while the rider payout
+  still reuses the stored distance/surge. The immutable invoice is readable at
   `GET /orders/{orderId}/invoice` (owner-scoped; presigned R2 URL only when a PDF exists). Portal:
   `GET /tax/categories`, `GET|PUT /admin/tax/categories`, `DELETE /admin/tax/categories/{id}`,
   `GET|PUT /admin/tax/settings` (SUPER_ADMIN writes). Settlement ledger carries the same

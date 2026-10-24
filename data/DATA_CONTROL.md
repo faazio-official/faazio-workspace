@@ -321,11 +321,13 @@ the `GROCERY` member was dropped from `AppBrand` / `CartCategory` / `SubAppId` /
 > Order Details "Pickup From" card. Contact phone for pickup is the signed-in user's
 > `userProfile.phone` — no fabricated PII.
 >
-> **Dynamic delivery fee (W65) — no data change needed.** The delivery fee is a **server setting**,
-> not a `@data` value: `tax.delivery_fee_settings` (`0053`) holds the rate card (default 3 km / ₹35 /
-> ₹9 per extra km), the gateway owns the road-distance math (`GET /checkout/delivery-fee`,
-> `directory.stores` pins + Haversine), and `taxmath.Compute` settles the same figure at placement.
-> The client only mirrors the estimate (`computeDeliveryFeePaisa`) as an offline fallback; there is
+> **Dynamic delivery fee (W65/W66) — no data change needed.** The delivery fee is a **server
+> setting**, not a `@data` value: `tax.delivery_fee_settings` (`0053`) holds the rate card (default
+> 3 km / ₹35 / ₹7 per extra km as of `0054`), the gateway owns the road-distance math
+> (`GET /checkout/delivery-fee`, `directory.stores` pins + Haversine), and `taxmath.Compute` settles
+> the same figure at placement. Night/rain/festival surge and the FREE-Delivery coupon ruling are
+> also server-owned (`delivery.payout_settings`, `ops.festival_calendar`, `promo.coupons`); the client
+> only mirrors the delivery estimate (`computeDeliveryFeePaisa`) as an offline fallback. There is
 > nothing to version here.
 
 ### `@data/account` — owner: `features/profile`

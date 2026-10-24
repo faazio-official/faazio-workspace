@@ -32,6 +32,10 @@ dependencies exist. Do not build the backend/seller flows until told to.
   budget (an outage can no longer hammer Weather Union per order); `0054` only re-seeds the old ₹9
   rate, never a super-admin edit; fractional-km invoices persist exact paisa in the payment ledger;
   the mobile quote survives the FULFILLMENT → PAYMENT step and the extra-distance row shows extra km.
+  **Coupon parity:** a `free_delivery` coupon now actually zeroes the settled delivery line
+  (previously the UI waived it but the invoice still charged it), and the mobile discount tracks the
+  live quote instead of freezing the fee shown when the code was applied; a stored basis with a 0
+  distance is honoured for payout instead of substituting the route distance.
 
 ## W65 — Cart/checkout rework + seller-fee removal + dynamic delivery fee (P0)
 
