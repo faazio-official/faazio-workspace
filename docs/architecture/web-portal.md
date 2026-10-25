@@ -47,6 +47,13 @@ The campaign wizard's **what→where** placements map 1:1 to the paid mobile sur
 `PAGE_CATALOG.md` §2.5/§2.6: `MART_HERO`/`FOOD_HERO` (house hero carousels) and `STORE_TOP`
 (restaurant profile band), so a seller target resolves to the same slot the shopper sees.
 
+**Mobile shell.** The React Native seller app is a WebView over this console
+(`client/mobile/src/features/seller-partner/SellerWebViewScreen.tsx`). Below `lg` the seller shell
+shows a touch drawer instead of the hidden desktop sidebar; `viewport-fit=cover` is set in the root
+layout. The native layer injects its FCM token into `window.__faazioPushToken`; `SellerPushBridge`
+registers it through `/api/gateway/notifications/register` and removes it on sign-out. Portal
+sign-out is the only seller session authority (HttpOnly cookies).
+
 | Route | Page | Sector |
 | --- | --- | --- |
 | `seller` | dashboard | all |
@@ -59,7 +66,7 @@ The campaign wizard's **what→where** placements map 1:1 to the paid mobile sur
 | `seller/promotions` | festival opt-ins + live price | all |
 | `seller/stores` | store profile | all |
 | `seller/menus` | dish menus (+ authoritative MRP strike) | FOOD |
-| `seller/orders` · `seller/orders/[id]` | order queue + detail | all |
+| `seller/orders` · `seller/orders/[id]` | order queue + detail (hydrated `GET /seller/orders`; NEW cards use the explicit accept/reject endpoints) | all |
 | `seller/prescriptions` | Rx quote → READY reveal | PHARMA |
 | `seller/returns` · `seller/reviews` · `seller/payments` | after-sales — commission-free payments ledger (TCS, TDS 0.1%, product GST; sellers keep full gross) | all |
 | `seller/analytics` · `seller/support` · `seller/settings` · `seller/onboarding` | console | all |
@@ -235,13 +242,16 @@ env-gated and degrade to local seed mode when unset:
   query builder, error envelope, defensive snake→camel). `src/lib/api/sync.ts`
   implements `hydrateFromGateway()`: it best-effort fetches the gateway-owned
   slices (sellers, promo, ads, settlement, admins, prescriptions, blood,
-  SDUI, reviews, and — partner completion — customers, menus, support tickets,
+  SDUI, reviews, seller orders, and — partner completion — customers, menus, support tickets,
   rewards rates/ledger) and writes them into the store. Prescription rows carry
 the quote lines, `quotedTotal`, reveal fields and status history; the seller
 projection is name-only until `READY`/`FULFILLED`. Order rows carry the portal lifecycle
-(`NEW`→`PACKED`→`SHIPPED`→`DELIVERED`, plus `CANCELLED`/`RETURNED`/`REJECTED`); the seller board
-advances a card with an awaited, rollback-safe `PUT /orders/{id}/status`, while the React Native
-seller app uses the explicit `PUT /seller/orders/{id}/accept|reject` decisions.
+(`NEW`→`PACKED`→`SHIPPED`→`DELIVERED`, plus `CANCELLED`/`RETURNED`; gateway `REJECTED` maps to the
+portal's `CANCELLED` bucket). NEW cards call the explicit rollback-safe
+`PUT /seller/orders/{id}/accept` / `reject` decisions; later stages advance with
+`PUT /orders/{id}/status`. The seller orders slice is hydrated from `GET /seller/orders` (the
+customer name is intentionally not exposed — cards show the order id), so the board reflects real
+gateway rows.
   In **development** an empty remote slice keeps the seeded rows (demo fallback); in
   **production** (`NODE_ENV=production`) an empty but successfully-fetched slice clears the local
   slice, so sellers/admins never see phantom demo rows. The gateway speaks **whole

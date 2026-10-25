@@ -8,7 +8,7 @@ import { EmptyState } from "@/components/patterns/DataState";
 import { StatusPill } from "@/components/patterns/Pills";
 import { Button } from "@/components/ui/button";
 import { formatDateTime, formatINR } from "@/lib/format";
-import { advanceOrder } from "@/lib/api";
+import { acceptOrder, advanceOrder, rejectOrder } from "@/lib/api";
 import { useOrder } from "@/lib/api/hooks";
 import type { OrderStatus } from "@/data/types";
 
@@ -47,7 +47,34 @@ function OrderDetail() {
         actions={
           <>
             <StatusPill status={order.status} />
-            {next ? (
+            {order.status === "NEW" ? (
+              <>
+                <Button
+                  size="sm"
+                  onClick={() => {
+                    acceptOrder(order.orderId);
+                    toast.success("Order accepted");
+                  }}
+                >
+                  Accept
+                </Button>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => {
+                    const reason = window.prompt(
+                      "Rejection reason (the customer is refunded)",
+                      "Out of stock",
+                    );
+                    if (reason === null) return;
+                    rejectOrder(order.orderId, reason.trim() || "Out of stock");
+                    toast.success("Order rejected");
+                  }}
+                >
+                  Reject
+                </Button>
+              </>
+            ) : next ? (
               <Button
                 size="sm"
                 onClick={() => {

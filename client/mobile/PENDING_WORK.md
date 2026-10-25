@@ -9,6 +9,28 @@ dependencies exist. Do not build the backend/seller flows until told to.
 
 ---
 
+## W68 — Seller Partner WebView shell (P0)
+
+**Status:** 🟢 Shipped (mobile shell + portal mobile nav/orders + gateway seller push). Requires
+`WEB_PORTAL_URL` (release https) and the `GOOGLE_SERVICES_SELLER_JSON` CI secret.
+
+- Seller app is now `react-native-webview` (`14.0.1`) loading `${WEB_PORTAL_URL}/seller`; the four
+  native seller screens, `GatewayClient` seller calls and Keychain seller session were removed.
+- Native handles safe area, external links, hardware back, FCM token injection, foreground order
+  beep (`react-native-sound` + `orderBeep.wav`), notification-tap deep link, and the Android
+  `seller_orders` notification channel.
+- Portal: seller orders now hydrate from `GET /seller/orders`; the Kanban + detail page call the
+  seller accept/reject endpoints; a mobile drawer replaces the desktop-only sidebar below `lg`;
+  `SellerPushBridge` registers the native FCM token via `/api/gateway/notifications/register`.
+- Gateway: `POST /orders` enqueues a PII-free new-order notification for every active seller portal
+  user owning a store (`contracts.Notifier.EnqueueSeller`); `DELETE /notifications/register`
+  removes a device token on portal sign-out, and re-registering a token drops any previous owner.
+- **Follow-up:** the remaining seller console modules (products, inventory, stores, payments,
+  promotions) still render their existing seed/hydrated slices; completing that data cutover is
+  not part of the shell migration.
+
+---
+
 ## W67 — Manual district allocation + dual rider payout mode (P0)
 
 **Status:** 🟢 Shipped (DB `0055` + gateway + web portal). Mobile unchanged.

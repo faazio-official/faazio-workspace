@@ -253,8 +253,20 @@ func (h *Handler) placeOrder(w http.ResponseWriter, r *http.Request) {
 	case err != nil:
 		httpx.Fail(w, http.StatusInternalServerError, "order_failed", "could not place order")
 	default:
+		h.notifySellerNewOrder(r, order)
 		httpx.JSON(w, http.StatusCreated, order)
 	}
+}
+
+// notifySellerNewOrder pings every active seller login that owns a store in the order. Best-effort:
+// the order is already committed and the seller portal still shows it on open/poll.
+func (h *Handler) notifySellerNewOrder(r *http.Request, order Order) {
+	if h.notifier == nil || len(order.VendorStoreIDs) == 0 {
+		return
+	}
+	_ = h.notifier.EnqueueSeller(r.Context(), order.VendorStoreIDs, "SELLER_ORDER_NEW",
+		"New order", "Order "+order.OrderNumber+" is waiting for your decision.",
+		map[string]any{"orderId": order.ID, "kind": "SELLER_ORDER_NEW"})
 }
 
 // validateCoupon is the authoritative coupon preview: it rules a code valid/invalid for the given

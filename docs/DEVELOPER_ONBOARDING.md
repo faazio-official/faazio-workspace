@@ -103,7 +103,10 @@ go test ./...
 
 Local dev is auth-open (`AUTH_DISABLED=true`, user `user-1`; the gateway logs a loud warning). To
 point the app at it, copy `.env.example` → `.env.local` and set `GATEWAY_URL=http://<host>:8080`.
-For nearby ordering + the seller shop-pin map, also set `GOOGLE_MAPS_API_KEY_ANDROID` and
+For the seller product (a WebView over the Partner Portal) also set `WEB_PORTAL_URL`
+(e.g. `http://localhost:3000`); release seller builds refuse `http://` and require the
+`GOOGLE_SERVICES_SELLER_JSON` CI secret. For nearby ordering + the seller shop-pin map, also set
+`GOOGLE_MAPS_API_KEY_ANDROID` and
 `GOOGLE_PLACES_API_KEY` (restricted keys; empty is a supported degraded mode). Run
 `npm run configure` after changing them.
 and `USE_GATEWAY=true`; `scripts/configure.js` generates `src/lib/config.ts` before Metro starts and

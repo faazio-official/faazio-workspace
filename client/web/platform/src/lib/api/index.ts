@@ -157,6 +157,9 @@ export async function restoreSession(): Promise<SessionRestore> {
 }
 
 export async function signOut(): Promise<void> {
+  // Drop this device's push token first: otherwise the next seller login on the same phone
+  // would inherit the previous session's order notifications.
+  await remote.delete("/notifications/register").catch(() => undefined);
   await logoutPortal();
   cancelProactiveRefresh();
   state().set(() => ({ session: null, sessionStatus: "signed-out" }));
@@ -407,6 +410,54 @@ export function advanceOrder(orderId: string, status: OrderStatus): void {
     entityId: orderId,
     before: before && { status: before.status },
     after: { status },
+  });
+}
+
+/** Seller NEW → PACKED (dispatches). Optimistic with rollback, mirroring advanceOrder. */
+export function acceptOrder(orderId: string): void {
+  const before = getOrder(orderId);
+  state().set((s) => ({
+    orders: s.orders.map((o) => (o.orderId === orderId ? { ...o, status: "PACKED" } : o)),
+  }));
+  pushWrite("Accept order", "put", `/seller/orders/${encodeURIComponent(orderId)}/accept`, undefined, () => {
+    if (!before) return;
+    state().set((s) => ({
+      orders: s.orders.map((o) => (o.orderId === orderId ? before : o)),
+    }));
+  });
+  audit({
+    action: "ORDER_ACCEPTED",
+    entity: "checkout.orders",
+    entityId: orderId,
+    before: before && { status: before.status },
+    after: { status: "PACKED" },
+  });
+}
+
+/** Seller NEW → REJECTED + captured-payment refund. The portal vocabulary shows it as CANCELLED. */
+export function rejectOrder(orderId: string, reason: string): void {
+  const before = getOrder(orderId);
+  state().set((s) => ({
+    orders: s.orders.map((o) => (o.orderId === orderId ? { ...o, status: "CANCELLED" } : o)),
+  }));
+  pushWrite(
+    "Reject order",
+    "put",
+    `/seller/orders/${encodeURIComponent(orderId)}/reject`,
+    { reason },
+    () => {
+      if (!before) return;
+      state().set((s) => ({
+        orders: s.orders.map((o) => (o.orderId === orderId ? before : o)),
+      }));
+    },
+  );
+  audit({
+    action: "ORDER_REJECTED",
+    entity: "checkout.orders",
+    entityId: orderId,
+    before: before && { status: before.status },
+    after: { status: "CANCELLED" },
   });
 }
 

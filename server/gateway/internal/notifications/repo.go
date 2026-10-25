@@ -66,6 +66,41 @@ func (r *Repo) Enqueue(ctx context.Context, userID, kind, title, body string, da
 	return nil
 }
 
+// EnqueueSeller fans a PENDING row out to every active SELLER portal user owning one of the
+// stores. Store ids only — the outbox row never carries customer PII.
+func (r *Repo) EnqueueSeller(ctx context.Context, storeIDs []string, kind, title, body string, data map[string]any) error {
+	if r.pool == nil || len(storeIDs) == 0 {
+		return nil
+	}
+	rows, err := r.pool.Query(ctx, `
+		select distinct pu.user_id
+		  from admins.portal_users pu
+		  join directory.stores s on s.seller_id = pu.seller_id
+		 where s.id = any($1) and pu.active and pu.role = 'SELLER'`, storeIDs)
+	if err != nil {
+		return err
+	}
+	userIDs := []string{}
+	for rows.Next() {
+		var userID string
+		if err := rows.Scan(&userID); err != nil {
+			rows.Close()
+			return err
+		}
+		userIDs = append(userIDs, userID)
+	}
+	rows.Close()
+	if err := rows.Err(); err != nil {
+		return err
+	}
+	for _, userID := range userIDs {
+		if err := r.Enqueue(ctx, userID, kind, title, body, data); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 // Inbox returns a user's notifications, newest first.
 func (r *Repo) Inbox(ctx context.Context, userID string, limit int) ([]Notification, error) {
 	if r.pool == nil {
@@ -171,12 +206,27 @@ func (r *Repo) Register(ctx context.Context, userID, token, platform string) err
 	if platform == "ios" || platform == "android" || platform == "web" {
 		plat = platform
 	}
+	// A device can only belong to one portal login at a time: drop any previous owner of this
+	// token before the per-user upsert (shared phones must not receive the old seller's orders).
+	if _, err := r.pool.Exec(ctx,
+		`delete from notifications.push_tokens where token = $1 and user_id <> $2`, token, userID); err != nil {
+		return err
+	}
 	_, err := r.pool.Exec(ctx, `
 		insert into notifications.push_tokens (user_id, token, platform)
 		values ($1,$2,$3)
 		on conflict (user_id) do update
 		  set token = excluded.token, platform = excluded.platform, updated_at = now()`,
 		userID, token, plat)
+	return err
+}
+
+// Unregister removes the caller's device token (portal sign-out).
+func (r *Repo) Unregister(ctx context.Context, userID string) error {
+	if r.pool == nil {
+		return fmt.Errorf("notifications: database not configured")
+	}
+	_, err := r.pool.Exec(ctx, `delete from notifications.push_tokens where user_id = $1`, userID)
 	return err
 }
 
