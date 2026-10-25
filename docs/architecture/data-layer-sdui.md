@@ -286,10 +286,15 @@ essentials) resolves its `md-*` ids through the catalog (`getProductsByIds`).
 
 ## Honest limitations
 
-- All live data is **mock** — nothing is fetched from a backend yet.
+- Live reads and writes are **server-only** through `GatewayClient`; `@data/*` fixtures remain as
+  types, seed/editorial input and offline first paint — they are never substituted for a failed
+  remote call.
 - `schema.ts` `SDUINode` is `@aspirational` — not a live contract.
 - Several screens keep inline copies of `@data` fixtures (marked `@unused`) — de-dup is a
   tracked priority (see `DATA_CONTROL.md` "Known Gaps").
+- The MVP checkout records payments in `checkout.payments`; it does not yet capture a Razorpay
+  payment id, so a seller rejection marks the ledger `REFUNDED` but cannot call the Razorpay refund
+  API.
 
 ## Authoring new fixtures
 

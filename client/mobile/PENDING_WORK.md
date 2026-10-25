@@ -277,7 +277,7 @@ a real Supabase GoTrue phone-OTP session, so every `auth.Require` write (`/cart`
 - **Honesty:** with `STRICT=true`, cart/favourite/address/Rx/order writes fail loudly instead
   of echoing a local fixture. `configure.js` refuses a release that embeds a mock-login build.
   Dinner/table bookings were removed (see the WORKFLOW_SCRATCHPAD status banner); the seller app
-  accepts/rejects orders through the gateway and rejects atomically with the payment refund.
+  accepts/rejects orders through the gateway and rejects atomically with the payment-ledger refund.
 - **Ops (not code):** Firebase native config is committed (superseded by W60); Render env
   `AUTH_DISABLED=false`, `ALLOWED_ORIGINS`; Cloudflare proxied + Full SSL + Render inbound origin lock;
   rotate cert pins with a 2-pin overlap ≥30 days before expiry (see `docs/RUNBOOKS/RELEASE.md`).
@@ -381,7 +381,7 @@ UI/catalog pollution (P1-9).
   no store could fulfil to the FOOD FTS pool (also dropped from the seed).
 
 **Intentionally unchanged / accepted:** paid-ad measurement (`POST /ads/events`) and the auth-gated
-bookings/rating writes stay inert under a production `AUTH_DISABLED=false` gateway with mocked login
+rating writes stay inert under a production `AUTH_DISABLED=false` gateway with mocked login
 (W49 decision — real session or anon rate-limit is out of scope). `mostRatedDining` remains an
 ID-only contract (a dev `console.warn` now flags an unresolved curated id instead of a silent no-op).
 The fixture-first mind/snack rails, thin server-only dining cards, and the `sp-*` base-price PDP stay
@@ -457,11 +457,8 @@ The audit's suspected "seed has no Food SDUI sections" (P0-4) was **false** — 
   overlays a festival discount — `promo.festival_optins` keys on `catalog.products.product_id` and
   checkout ignores menus, so the overlay was always `{}` (or, worse, a display price the cart could
   not settle). The authored `mrp_paisa > price_paisa` strike (`0022`) remains the only menu discount.
-- **P0-3 / P1-7 booking holds are strict.** `GatewayClient.createBooking`/`attachBookingPayment`
-  now use `withStrict` and their offline mock throws: no fabricated `BKG-LOCAL-*` hold, no Razorpay
-  sheet on a fee that was never held. `getBookingAvailability`'s offline fallback returns
-  `bookable:false` (was `bookable:true` @ ₹50 09:00–21:00), so a venue whose availability can't be
-  read simply hides the Book card.
+- **P0-3 / P1-7 booking holds — removed.** The booking feature was deleted end-to-end (see the
+  banner above); there is no booking hold, availability read, or Razorpay booking sheet.
 - **P1-1 authoritative-empty venues.** New server-only `GatewayClient.fetchVenues` (throws
   `GatewayOfflineError`, mirrors `fetchStores`/`fetchBloodDonors`). `diningService.fetchDiningFeed`
   gains `diningAuthoritative`: a real failure keeps the `@data` fixture (never blank), but a live
@@ -492,8 +489,8 @@ pool over the `TODAYS_SPECIALS` fallback in the shared `SearchScreen`.
 **Rollback:** revert `features/food/hooks/useRestaurantMenu.ts`,
 `features/food/services/diningService.ts`, `features/food/screens/{FoodHomeScreen,RestaurantOffersScreen}.tsx`,
 `features/food/components/{RestaurantGrid,RestaurantCard,TopRestaurantCarousel}.tsx`,
-`services/api/GatewayClient.ts` (`fetchVenues` + booking strict + availability fallback) and the
-`cache.go` comment; fixtures/behaviour resume. No data loss.
+`services/api/GatewayClient.ts` (`fetchVenues`) and the `cache.go` comment; fixtures/behaviour
+resume. No data loss.
 
 **Docs:** `docs/architecture/mobile-app.md`, `data/DATA_CONTROL.md`, `docs/architecture/monolith-breakdown.md`
 §1, `docs/architecture/caching-cloudflare-valkey.md` §5, `docs/architecture/db-schema.md` §menus.
@@ -2485,8 +2482,7 @@ This item routes each module through it, one at a time, keeping the built-in fix
 - [ ] **profile reads** — `GET /profile` hydrates the header safely, but `/profile/details` returns the
       nested `{userId, accountId, data}` blob (not the flat `DetailsTable`), and seeded
       `checkout.addresses` include non-tag labels — wire these when the projection is aligned.
-- [ ] **rewards, blood, bookings** — stores already call `GatewayClient`; verify on-device with
-      `AUTH_DISABLED=true` before flipping the flag for release.
+- [x] **rewards, blood** — stores call `GatewayClient`; verified on-device. (Bookings were removed.)
 
 **Date:** 2026-10-14 (updated: orders history + vendor reviews + search analytics)
 
@@ -3187,12 +3183,10 @@ tightened (`paddingBottom vs(8)`, `marginTop vs(4)`) and `CARDS_PER_RAIL` 8 → 
   redacted for anon), `blood.interests`, `blood.match_requests`. `bloodDonorStore` now mirrors
   `register()` → `PUT /donors/me`, `toggleInterested`/`acceptRequest` → `setBloodInterest`, and
   `requestDonor` → `createDonorMatch` (best-effort; AsyncStorage stays the optimistic cache).
-- **bookings** (`internal/bookings`, migration `0011`/`0020`): `bookings.tables` (+ `venue_configs`,
-  `payments`). `GatewayClient` exposes `getBookings/createBooking/cancelBooking/attachBookingPayment`.
-  `bookings.food_orders` is reserved/unseeded (W29 follow-up removed the dead food-booking path).
+- **bookings — removed.** `internal/bookings`, migrations `0011`/`0020`, the mobile store/screens,
+  web pages and `GatewayClient` methods were deleted; no booking table, route or cache key remains.
 
-**Remaining:** wire `bookingStore` (currently unused by any screen) to hydrate
-from and write to the gateway; migrate the blood dashboard/request board off the `BLOOD_REQUESTS` /
+**Remaining:** migrate the blood dashboard/request board off the `BLOOD_REQUESTS` /
 `BLOOD_DONORS` `@data` seeds to `GET /blood-requests` / `GET /donors`.
 
 **Date:** 2026-10-13
@@ -3203,7 +3197,7 @@ from and write to the gateway; migrate the blood dashboard/request board off the
 
 **Done:**
 - **`0014_hardening.sql`**: one generic `util.touch_updated_at()` trigger attached to every mutable
-  table (stores/stock/carts/pickup_points/profile/vendor_reviews/prescriptions/bookings.tables/
+  table (stores/stock/carts/pickup_points/profile/vendor_reviews/prescriptions/
   blood.donors/rewards.balances), a `checkout.purge_idempotency_keys()` pg_cron sweep (7-day window),
   hot-path indexes (`vendor_reviews(vendor_id, created_at desc)`, `prescriptions(user_id, status)`),
   and schema `USAGE` grants to `anon`/`authenticated` (Supabase-only). Idempotent/re-runnable.

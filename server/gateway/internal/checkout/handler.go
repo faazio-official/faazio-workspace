@@ -439,20 +439,17 @@ func (h *Handler) getAccountNav(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) sellerOrders(w http.ResponseWriter, r *http.Request) {
-	sellerID := strings.TrimSpace(r.URL.Query().Get("sellerId"))
-	isSeller := auth.Role(r.Context()) == auth.RoleSeller
-	if isSeller {
-		sellerID = auth.SellerID(r.Context())
+	scope := sellerScope(r)
+	if auth.Role(r.Context()) == auth.RoleSeller && scope.SellerID == "" {
 		// A SELLER claim without a seller_id would otherwise match the admin "all sellers" path.
-		if sellerID == "" {
-			httpx.Fail(w, http.StatusForbidden, "forbidden", "seller scope missing")
-			return
-		}
+		httpx.Fail(w, http.StatusForbidden, "forbidden", "seller scope missing")
+		return
 	}
+	filterSellerID := strings.TrimSpace(r.URL.Query().Get("sellerId"))
 	status := strings.ToUpper(strings.TrimSpace(r.URL.Query().Get("status")))
 	if status == "NEW" {
 		// NEW is the portal projection of the legacy mobile Processing rows.
-		orders, err := h.repo.SellerOrders(r.Context(), sellerID, "")
+		orders, err := h.repo.SellerOrders(r.Context(), scope, "", filterSellerID)
 		if err != nil {
 			httpx.Fail(w, http.StatusInternalServerError, "orders_unavailable", "orders unavailable")
 			return
@@ -467,7 +464,7 @@ func (h *Handler) sellerOrders(w http.ResponseWriter, r *http.Request) {
 		httpx.JSON(w, http.StatusOK, filtered)
 		return
 	}
-	orders, err := h.repo.SellerOrders(r.Context(), sellerID, status)
+	orders, err := h.repo.SellerOrders(r.Context(), scope, canonicalOrderStatus(status), filterSellerID)
 	if err != nil {
 		httpx.Fail(w, http.StatusInternalServerError, "orders_unavailable", "orders unavailable")
 		return
@@ -481,16 +478,20 @@ func (h *Handler) sellerOrders(w http.ResponseWriter, r *http.Request) {
 	httpx.JSON(w, http.StatusOK, orders)
 }
 
-// sellerScope resolves the caller's seller scope. Admins may act across sellers (empty seller id).
-func sellerScope(r *http.Request) (sellerID string, admin bool) {
-	role := auth.Role(r.Context())
-	admin = role == auth.RoleStateAdmin || role == auth.RoleSuperAdmin
-	return auth.SellerID(r.Context()), admin
+// sellerScope resolves the caller's order-visibility scope. A SELLER is limited to their stores; a
+// DISTRICT_ADMIN to their district (legacy state-only admins fall back to the state); a SUPER_ADMIN
+// sees everything. An unscoped caller matches nothing.
+func sellerScope(r *http.Request) SellerScope {
+	return SellerScope{
+		SellerID:     auth.SellerID(r.Context()),
+		StateCode:    auth.StateCode(r.Context()),
+		DistrictCode: auth.DistrictCode(r.Context()),
+		SuperAdmin:   auth.Role(r.Context()) == auth.RoleSuperAdmin,
+	}
 }
 
 func (h *Handler) sellerOrderDetail(w http.ResponseWriter, r *http.Request) {
-	sellerID, admin := sellerScope(r)
-	order, ok, err := h.repo.SellerOrderByID(r.Context(), chi.URLParam(r, "orderID"), sellerID, admin)
+	order, ok, err := h.repo.SellerOrderByID(r.Context(), chi.URLParam(r, "orderID"), sellerScope(r))
 	if err != nil {
 		httpx.Fail(w, http.StatusInternalServerError, "orders_unavailable", "orders unavailable")
 		return
@@ -506,9 +507,9 @@ func (h *Handler) sellerOrderDetail(w http.ResponseWriter, r *http.Request) {
 // acceptSellerOrder is the seller's explicit NEW → PACKED decision. Only an unfulfilled NEW order
 // can be accepted; anything else is a conflict rather than a silent status overwrite.
 func (h *Handler) acceptSellerOrder(w http.ResponseWriter, r *http.Request) {
-	sellerID, admin := sellerScope(r)
+	scope := sellerScope(r)
 	orderID := chi.URLParam(r, "orderID")
-	order, ok, err := h.repo.SellerOrderByID(r.Context(), orderID, sellerID, admin)
+	order, ok, err := h.repo.SellerOrderByID(r.Context(), orderID, scope)
 	if err != nil {
 		httpx.Fail(w, http.StatusInternalServerError, "orders_unavailable", "orders unavailable")
 		return
@@ -521,7 +522,7 @@ func (h *Handler) acceptSellerOrder(w http.ResponseWriter, r *http.Request) {
 		httpx.Fail(w, http.StatusConflict, "order_not_pending", "order has already been decided")
 		return
 	}
-	changed, err := h.repo.TransitionSellerOrder(r.Context(), orderID, sellerID, order.Status, "PACKED", "", admin)
+	changed, err := h.repo.TransitionSellerOrder(r.Context(), orderID, scope, order.Status, "PACKED", "")
 	if err != nil {
 		httpx.Fail(w, http.StatusInternalServerError, "order_update_failed", "could not update order")
 		return
@@ -557,9 +558,9 @@ func (h *Handler) rejectSellerOrder(w http.ResponseWriter, r *http.Request) {
 		httpx.Fail(w, http.StatusBadRequest, "bad_request", "reason is too long")
 		return
 	}
-	sellerID, admin := sellerScope(r)
+	scope := sellerScope(r)
 	orderID := chi.URLParam(r, "orderID")
-	order, ok, err := h.repo.SellerOrderByID(r.Context(), orderID, sellerID, admin)
+	order, ok, err := h.repo.SellerOrderByID(r.Context(), orderID, scope)
 	if err != nil {
 		httpx.Fail(w, http.StatusInternalServerError, "orders_unavailable", "orders unavailable")
 		return
@@ -572,7 +573,7 @@ func (h *Handler) rejectSellerOrder(w http.ResponseWriter, r *http.Request) {
 		httpx.Fail(w, http.StatusConflict, "order_not_pending", "order has already been decided")
 		return
 	}
-	refunded, changed, err := h.repo.RejectSellerOrder(r.Context(), orderID, sellerID, order.Status, reason, admin)
+	refunded, changed, err := h.repo.RejectSellerOrder(r.Context(), orderID, scope, order.Status, reason)
 	if err != nil {
 		httpx.Fail(w, http.StatusInternalServerError, "order_update_failed", "could not reject order")
 		return
@@ -608,9 +609,7 @@ func (h *Handler) setOrderStatus(w http.ResponseWriter, r *http.Request) {
 		httpx.Fail(w, http.StatusBadRequest, "bad_request", "invalid order status")
 		return
 	}
-	role := auth.Role(r.Context())
-	admin := role == auth.RoleStateAdmin || role == auth.RoleSuperAdmin
-	order, ok, err := h.repo.SetOrderStatus(r.Context(), orderID, auth.SellerID(r.Context()), status, admin)
+	order, ok, err := h.repo.SetOrderStatus(r.Context(), orderID, sellerScope(r), canonicalOrderStatus(status))
 	if err != nil {
 		httpx.Fail(w, http.StatusInternalServerError, "order_update_failed", "could not update order")
 		return
@@ -693,10 +692,34 @@ func (h *Handler) notifyStatus(r *http.Request, order Order, status string) {
 
 // portalStatus maps the legacy mobile status onto the portal lifecycle (Processing -> NEW).
 func portalStatus(s string) string {
-	if s == "Processing" {
+	switch s {
+	case "Processing":
 		return "NEW"
+	case "Shipped":
+		return "SHIPPED"
+	case "Delivered":
+		return "DELIVERED"
+	case "Cancelled":
+		return "CANCELLED"
+	default:
+		return s
 	}
-	return s
+}
+
+// canonicalOrderStatus maps the portal's upper-case lifecycle onto the legacy TitleCase labels that
+// 0001 created for the terminal states. NEW/PACKED/RETURNED/REJECTED are already upper-case in the
+// enum; writing SHIPPED/DELIVERED/CANCELLED verbatim would fail the enum cast.
+func canonicalOrderStatus(s string) string {
+	switch s {
+	case "SHIPPED":
+		return "Shipped"
+	case "DELIVERED":
+		return "Delivered"
+	case "CANCELLED":
+		return "Cancelled"
+	default:
+		return s
+	}
 }
 
 // mobileStatus collapses the portal lifecycle back to the mobile vocabulary (NEW/PACKED -> Processing).

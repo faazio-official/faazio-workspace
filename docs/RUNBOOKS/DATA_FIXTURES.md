@@ -59,7 +59,7 @@ after any change to `data/categories/masterCategories.ts` or the mart/pharma pro
 
 ## Known duplication to avoid re-introducing
 
-A few screens (`FoodScreen` booking dishes, `ProductDetailView`) keep inline copies that already
+A few screens (`FoodScreen` dish rails, `ProductDetailView`) keep inline copies that already
 exist under `@data/` (marked `@unused`). **Do not add new inline copies** — put data in `@data/*`
 and consume it; de-dup of the existing copies is a tracked priority. (`PharmaScreen`'s former
 inline `RECENT_ORDERS` was already de-duplicated into `data/pharma/recentOrders.ts` — do not

@@ -2062,8 +2062,12 @@ CREATE INDEX IF NOT EXISTS orders_seller_status_date_idx
 
 `REJECTED` is the seller's NEW→terminal decision. The accept path reuses the existing lifecycle
 (NEW→PACKED) and triggers the normal auto-dispatch. Rejection records an optional reason (≤500
-chars), marks every captured `checkout.payments` row `REFUNDED`, and enqueues `ORDER_REJECTED` to the
-customer in **one transaction** (order status + payment ledger can never diverge); `refundedPaisa` is
-a response/detail projection (money state stays in `checkout.payments`).
+chars) and marks every captured `checkout.payments` row `REFUNDED` in the same transaction as the
+order status, so order state + payment ledger can never diverge; `refundedPaisa` is a
+response/detail projection (money state stays in `checkout.payments`) and `ORDER_REJECTED` is
+enqueued to the customer after the commit. The MVP checkout does not persist a Razorpay payment id,
+so this is a ledger refund; calling the Razorpay refund API is a future payment-capture task.
 The generic `PUT /orders/{id}/status` deliberately does **not** accept `REJECTED` so a refund cannot
-be skipped.
+be skipped. It accepts the portal's upper-case lifecycle; the gateway maps `SHIPPED`/`DELIVERED`/
+`CANCELLED` onto the legacy TitleCase enum labels created in `0001` before writing, and projects
+them back to upper-case on seller reads.
