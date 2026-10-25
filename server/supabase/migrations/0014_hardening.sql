@@ -28,7 +28,7 @@ begin
   foreach target in array array[
     'directory.stores', 'inventory.stock', 'inventory.carts', 'inventory.pickup_points',
     'accounts.profile', 'reviews.vendor_reviews', 'pharma.prescriptions',
-    'bookings.tables', 'blood.donors', 'rewards.balances'
+    'blood.donors', 'rewards.balances'
   ] loop
     execute format('drop trigger if exists touch_updated_at on %s', target);
     execute format(
@@ -83,7 +83,7 @@ begin
     raise notice 'auth schema absent — skipping schema grants (non-Supabase environment)';
     return;
   end if;
-  foreach s in array array['util', 'favourites', 'rewards', 'pharma', 'blood', 'bookings'] loop
+  foreach s in array array['util', 'favourites', 'rewards', 'pharma', 'blood'] loop
     execute format('grant usage on schema %I to anon, authenticated', s);
   end loop;
 end;

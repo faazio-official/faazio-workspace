@@ -11,9 +11,8 @@ export type HomeFeedSection = SduiSection & { products: ProductView[]; stores?: 
 
 /**
  * Server-driven Home SDUI doc. Returns the ordered sections the gateway compiles
- * (Mongo `sdui_layouts` joined to Postgres) once loaded, or `null` until then so the
- * caller can render the static `@data/home/sections` registry first. `GatewayClient`
- * falls back to the local doc offline, so the feed never regresses.
+ * (Mongo `sdui_layouts` joined to Postgres) once loaded, or `null` while loading/offline.
+ * No local fixture doc is substituted.
  */
 export function useHomeFeed(): HomeFeedSection[] | null {
   const [feed, setFeed] = useState<HomeFeedSection[] | null>(null);

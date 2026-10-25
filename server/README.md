@@ -72,7 +72,7 @@ server/
   call (`0030`). The legacy Supabase HS256 verifier remains as a portal fallback. `AUTH_DISABLED=true`
   is local-dev only (logs a loud warning); release builds cannot embed a mock-login session.
 - **Rate/body limits:** global `Throttle(100)` + 1 MiB body, plus `Throttle(10)` on
-  `/ads/events`, `/vendors/{id}/rating`, `/bookings*`, `/media/*` and a 256 KiB cap on `/media/*`.
+  `/ads/events`, `/vendors/{id}/rating`, `/media/*` and a 256 KiB cap on `/media/*`.
 - **Health:** `GET /health` probes Postgres (required → 503), Valkey and Mongo (optional →
   `degraded`) with per-dependency latency, for Render's health-check/uptime alerts.
 - **Notifications:** the durable outbox drains to a provider-agnostic push webhook when

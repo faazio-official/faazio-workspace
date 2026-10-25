@@ -38,6 +38,8 @@ export function isPartnerAdmin(user: AuthUser | null): boolean {
 export interface LoginPayload {
   user: AuthUser;
   accessToken?: string | null;
+  /** Portal refresh token (seller/admin web-credential login); absent for Firebase sessions. */
+  refreshToken?: string | null;
 }
 
 export interface AuthState {
@@ -60,6 +62,7 @@ export const useAuthStore = create<AuthState>()((set) => ({
   login: async (payload) => {
     const session: StoredSession = {
       accessToken: payload.accessToken ?? null,
+      refreshToken: payload.refreshToken ?? null,
       user: payload.user,
     };
     await saveSession(session);

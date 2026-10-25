@@ -25,6 +25,7 @@ on:
         options:
           - customer
           - delivery
+          - seller
         default: customer
       version:
         description: "Release version (e.g. 1.0.2) — overrides package.json"
@@ -138,6 +139,17 @@ jobs:
           fi
           printf '%s' "$GOOGLE_SERVICES_DELIVERY_JSON" > android/app/src/delivery/google-services.json
 
+      - name: Seller Firebase config
+        if: ${{ github.event.inputs.app == 'seller' }}
+        env:
+          GOOGLE_SERVICES_SELLER_JSON: ${{ secrets.GOOGLE_SERVICES_SELLER_JSON }}
+        run: |
+          if [ -z "$GOOGLE_SERVICES_SELLER_JSON" ]; then
+            echo "::error::GOOGLE_SERVICES_SELLER_JSON is not set. Register com.faazio.seller in Firebase and store its google-services.json as the secret."
+            exit 1
+          fi
+          printf '%s' "$GOOGLE_SERVICES_SELLER_JSON" > android/app/src/seller/google-services.json
+
       - name: Typecheck
         run: npm run ts:check
         env:
@@ -164,6 +176,7 @@ jobs:
           cd android
           case "${{ github.event.inputs.app }}" in
             delivery) TASK=assembleDeliveryRelease ;;
+            seller) TASK=assembleSellerRelease ;;
             *) TASK=assembleCustomerRelease ;;
           esac
           # R8 minify + resource shrinking ON → smaller dex + obfuscation.
@@ -173,7 +186,7 @@ jobs:
             -Pandroid.enableMinifyInReleaseBuilds=true \
             -Pandroid.enableShrinkResourcesInReleaseBuilds=true
         env:
-          ENTRY_FILE: ${{ github.event.inputs.app == 'delivery' && 'index.delivery.js' || 'index.js' }}
+          ENTRY_FILE: ${{ github.event.inputs.app == 'delivery' && 'index.delivery.js' || (github.event.inputs.app == 'seller' && 'index.seller.js' || 'index.js') }}
 
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
@@ -201,6 +214,9 @@ jobs:
           if [[ "$APP" == "delivery" ]]; then
             APP_NAME="Faazio Delivery"
             TAG="v${VERSION}-delivery"
+          elif [[ "$APP" == "seller" ]]; then
+            APP_NAME="Faazio Seller"
+            TAG="v${VERSION}-seller"
           else
             APP_NAME="Faazio"
             TAG="v${VERSION}"

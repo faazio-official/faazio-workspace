@@ -1045,87 +1045,12 @@ being able to mutate the requester. The gateway reads the recipient set via
 accepted/declined transition enqueues a PII-free `MATCH_ACCEPTED`/`MATCH_DECLINED` notification to the
 requester. Contact disclosure on acceptance is **not** part of this — sharing stays reveal-gated future work.
 
-### 12.7 `bookings.tables` + `bookings.food_orders` — source `state/bookingStore.ts` (migration `0011`)
+### 12.7 Dinner/table bookings — **removed**
 
-```sql
-CREATE SCHEMA bookings;
-CREATE TYPE booking_status AS ENUM ('pending','confirmed','cancelled');
-
-CREATE TABLE bookings.tables (
-  id TEXT PRIMARY KEY, user_id TEXT NOT NULL REFERENCES checkout.users(user_id) ON DELETE CASCADE,
-  vendor_id TEXT NOT NULL, restaurant_name TEXT NOT NULL DEFAULT '', booking_date DATE NOT NULL,
-  slot TEXT NOT NULL DEFAULT '', guests SMALLINT NOT NULL DEFAULT 1 CHECK (guests BETWEEN 1 AND 30),
-  status booking_status NOT NULL DEFAULT 'confirmed',
-  created_at TIMESTAMPTZ NOT NULL DEFAULT now(), updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
-);
--- one live booking per (vendor, date, slot); cancelled rows free the slot
-CREATE UNIQUE INDEX bookings_vendor_slot_live_idx
-  ON bookings.tables (vendor_id, booking_date, slot) WHERE status <> 'cancelled';
-
-CREATE TABLE bookings.food_orders (
-  order_id TEXT PRIMARY KEY, user_id TEXT NOT NULL REFERENCES checkout.users(user_id) ON DELETE CASCADE,
-  dish JSONB NOT NULL CHECK (octet_length(dish::text) <= 2048), guests SMALLINT NOT NULL DEFAULT 1,
-  booking_date DATE NOT NULL, slot TEXT NOT NULL DEFAULT '', added_ids TEXT[] NOT NULL DEFAULT '{}',
-  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
-);
-```
-
-Both booking stores were memory-only (lost on restart); they are unified here so they cannot diverge.
-The partial unique index is the double-book guard (a re-book of a cancelled slot succeeds → 23505 is
-surfaced as HTTP 409 `slot_taken`). RLS own-rows; lists auth-scoped, cached 60 s, never at the edge.
-
-> **`bookings.food_orders` reserved (W29 follow-up).** Food-order bookings have no MVP screen or
-> gateway route: `GatewayClient.createFoodBooking`/`getFoodBookings`, `state/foodBookingStore`, the
-> `/food-bookings` routes and the `contracts.FoodBooking` DTO were removed as dead code. The table
-> (and its RLS/index) stays as a schema-ahead seam for a future food-order flow and is **no longer
-> seeded**.
-
-**Decision (0020) — seat-based bookings + ₹50/seat platform fee.** The 0011 slot model (one live
-booking per vendor/date/slot) is the opposite of a restaurant opting into N-seat reservations, so it
-is replaced additively (never rewriting 0011):
-
-```sql
-ALTER TYPE booking_status ADD VALUE 'rejected';   -- seller declined (refund)
-ALTER TYPE booking_status ADD VALUE 'completed';  -- accepted party marked vacated (history kept)
-
--- Seller-private config (RLS on, no policy → service_role only). No FK on vendor_id: a vendor is a
--- store or a dining venue (directory.vendors union). dining_venues gains seller_id for ownership.
-CREATE TABLE bookings.venue_configs (
-  vendor_id TEXT PRIMARY KEY, seller_id TEXT NOT NULL,
-  booking_enabled BOOL NOT NULL DEFAULT false, total_seats INT NOT NULL DEFAULT 0 CHECK (0..500),
-  track_occupancy BOOL NOT NULL DEFAULT true,   -- false = "don't track filled seats"
-  open_time TIME NOT NULL DEFAULT '09:00', close_time TIME NOT NULL DEFAULT '21:00',
-  paused BOOL NOT NULL DEFAULT false);          -- rush kill-switch
-
-ALTER TABLE bookings.tables
-  ADD seats INT NOT NULL DEFAULT 1 CHECK (1..30), ADD fee_paisa INT8 NOT NULL DEFAULT 0,
-  ADD razorpay_order_id TEXT, ADD razorpay_payment_id TEXT, ADD idempotency_key TEXT;
-ALTER TABLE bookings.tables ALTER COLUMN status SET DEFAULT 'pending';  -- requests are holds
-CREATE UNIQUE INDEX tables_idempotency_idx ON bookings.tables (user_id, idempotency_key)
-  WHERE idempotency_key IS NOT NULL;
-DROP INDEX bookings.bookings_vendor_slot_live_idx;
-
--- Money audit trail independent of booking status (checkout.payments is order-only).
-CREATE TABLE bookings.payments (
-  id TEXT PRIMARY KEY, booking_id TEXT NOT NULL REFERENCES bookings.tables(id) ON DELETE CASCADE,
-  user_id TEXT NOT NULL, amount_paisa INT8 NOT NULL, razorpay_order_id TEXT, razorpay_payment_id TEXT,
-  status TEXT NOT NULL DEFAULT 'CREATED');      -- CREATED|AUTHORIZED|CAPTURED|VOIDED|REFUNDED|FAILED
-```
-
-Fee = `BookingFeePaisa` (5000, deploy constant) × seats, derived server-side under a `FOR UPDATE`
-lock on the config row (no slots, no tables — pure seats). Occupancy sums `confirmed` + live
-`pending` holds (15-min TTL); `track_occupancy = false` skips the sum entirely. `slot` is deprecated
-and no longer written/read.
-
-**Cross-store alignment.** Seat bookings stay **Postgres-only** — Mongo Atlas (`sdui_layouts`,
-`user_events`, `recommendations`, `product_stats`) holds no booking collection and needs no change;
-availability is a short-lived Valkey/edge cache keyed off `venue_configs`. The three schemas agree on:
-`seat`/`fee_paisa` (`INT8` paisa, wire = whole rupees), the `booking_status` enum
-(`pending|confirmed|rejected|completed|cancelled`), and the seller-private config shape
-(`venue_configs` ↔ the web `BookingConfigRecord` ↔ the gateway `contracts.BookingConfig`). The seed
-generator emits one demo bookable venue (`bookings.venue_configs` for `store-f1`, `sel-3`,
-`booking_enabled=true`, 40 seats) so the app banner and the seller settings default both resolve on a
-fresh database.
+The `bookings` schema (migrations `0011` + `0020`), `internal/bookings`, the mobile seat-reservation
+flow and the web booking pages were removed. There is no booking table, route, cache key or
+`GatewayClient` method in the MVP. Do not recreate the schema from older docs; the order lifecycle now
+owns seller accept/reject (see §12.28).
 
 ### 12.8 Hardening — triggers, purge sweep, hot-path indexes, schema grants (migration `0014`)
 
@@ -1135,7 +1060,7 @@ CREATE FUNCTION util.touch_updated_at() RETURNS trigger LANGUAGE plpgsql
   SET search_path = pg_catalog AS $$ begin new.updated_at := now(); return new; end; $$;
 -- attached (BEFORE UPDATE … FOR EACH ROW) to: directory.stores, inventory.stock, inventory.carts,
 -- inventory.pickup_points, accounts.profile, reviews.vendor_reviews, pharma.prescriptions,
--- bookings.tables, blood.donors, rewards.balances.
+-- blood.donors, rewards.balances.
 
 CREATE FUNCTION checkout.purge_idempotency_keys(max_age interval DEFAULT '7 days') RETURNS integer
   LANGUAGE plpgsql SECURITY DEFINER SET search_path = pg_catalog AS $$ … $$;
@@ -2122,3 +2047,23 @@ CREATE INDEX delivery_payouts_mode_status_idx
 - `Mark Paid` writes `status='PAID'`, `paid_at`, `paid_by` and an audit row. It is a recorded
   settlement only — no Razorpay transfer or platform/seller split is created.
 - `district_code` is derived server-side from the store's seller; clients never supply it for scope.
+
+### 12.28 Seller order decisions + rejection refund (migration `0056`)
+
+```sql
+ALTER TYPE order_status ADD VALUE IF NOT EXISTS 'REJECTED';
+
+ALTER TABLE checkout.orders ADD COLUMN IF NOT EXISTS rejection_reason TEXT
+  CHECK (rejection_reason IS NULL OR octet_length(rejection_reason) <= 500);
+
+CREATE INDEX IF NOT EXISTS orders_seller_status_date_idx
+  ON checkout.orders (status, status_date DESC);
+```
+
+`REJECTED` is the seller's NEW→terminal decision. The accept path reuses the existing lifecycle
+(NEW→PACKED) and triggers the normal auto-dispatch. Rejection records an optional reason (≤500
+chars), marks every captured `checkout.payments` row `REFUNDED`, and enqueues `ORDER_REJECTED` to the
+customer in **one transaction** (order status + payment ledger can never diverge); `refundedPaisa` is
+a response/detail projection (money state stays in `checkout.payments`).
+The generic `PUT /orders/{id}/status` deliberately does **not** accept `REJECTED` so a refund cannot
+be skipped.

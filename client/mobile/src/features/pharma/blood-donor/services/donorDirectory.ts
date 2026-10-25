@@ -1,4 +1,3 @@
-import { BLOOD_DONORS } from '@data/index';
 import type { BloodGroup, DonorProfile, DonationTypeId, YesNo } from '@data/index';
 import {
   gateway,
@@ -37,23 +36,6 @@ function fromServer(p: BloodDonorProfile): DonorProfile {
 /** Server-resolved donors from the last search, so the detail route (which only carries an id) resolves. */
 const resolved = new Map<string, DonorProfile>();
 
-function localMatches(
-  city: string,
-  bloodGroup: BloodGroup,
-  requesterUserId?: string,
-): DonorProfile[] {
-  const normalizedCity = city.trim().toLowerCase();
-  return BLOOD_DONORS
-    .filter(
-      (donor) =>
-        donor.available &&
-        donor.bloodGroup === bloodGroup &&
-        donor.userId !== requesterUserId &&
-        donor.city.toLowerCase() === normalizedCity,
-    )
-    .sort((a, b) => a.name.localeCompare(b.name));
-}
-
 /** The matching donors plus their provenance so the sheet can label an offline/empty view honestly. */
 export interface DonorDirectoryResult {
   donors: DonorProfile[];
@@ -65,7 +47,7 @@ export interface DonorDirectoryResult {
  * no-fallback `fetchBloodDonors` so the caller gets provenance:
  *  - live rows       → `source: 'live'`, cached so `getDonorById` can resolve a selected donor.
  *  - server `200 []` → `source: 'empty-authoritative'` (no consented donors — never masked by fixtures).
- *  - fetch failure   → the `@data` fixture filtered to the query + `source: 'offline-fallback'`.
+ *  - fetch failure   → an empty directory + `source: 'offline-fallback'` (never fixture donors).
  */
 export async function findMatchingDonors(
   city: string,
@@ -84,8 +66,8 @@ export async function findMatchingDonors(
     }
     return { donors: [], source: 'empty-authoritative' };
   } catch {
-    // Offline / mock — the fixture filtered to this query, always labelled as a fallback.
-    return { donors: localMatches(city, bloodGroup, requesterUserId), source: 'offline-fallback' };
+    // Offline / remote disabled — no fixture donors are ever presented as consented rows.
+    return { donors: [], source: 'offline-fallback' };
   }
 }
 
@@ -95,7 +77,6 @@ export async function findMatchingDonors(
  * a fixture lookalike. For an offline fallback (or an unlabelled deep link) the fixture directory is
  * also consulted.
  */
-export function getDonorById(donorId: string, source?: ReadSource): DonorProfile | undefined {
-  if (source === 'live' || source === 'empty-authoritative') return resolved.get(donorId);
-  return resolved.get(donorId) ?? BLOOD_DONORS.find((donor) => donor.id === donorId);
+export function getDonorById(donorId: string, _source?: ReadSource): DonorProfile | undefined {
+  return resolved.get(donorId);
 }

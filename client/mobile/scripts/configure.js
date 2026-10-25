@@ -89,16 +89,20 @@ function flag(name) {
 }
 
 const gatewayUrl = env('GATEWAY_URL').replace(/\/+$/, '');
-const useGateway = flag('USE_GATEWAY');
-const strict = flag('STRICT');
+// Server-only by default (MVP): an explicitly empty value still means "on"; set USE_GATEWAY=false
+// or STRICT=false to opt out for a special build. A missing GATEWAY_URL leaves the app offline.
+const useGateway = env('USE_GATEWAY') === '' ? true : flag('USE_GATEWAY');
+const strict = env('STRICT') === '' ? true : flag('STRICT');
 const devUser = env('DEV_USER').trim();
 const googleMapsAndroidKey = env('GOOGLE_MAPS_API_KEY_ANDROID').trim();
 const googleMapsIosKey = env('GOOGLE_MAPS_API_KEY_IOS').trim();
 const googlePlacesKey = env('GOOGLE_PLACES_API_KEY').trim();
 const appVariantRaw = env('APP_VARIANT').trim().toLowerCase();
-const appVariant = appVariantRaw === 'delivery' ? 'delivery' : 'customer';
+const appVariant =
+  appVariantRaw === 'delivery' || appVariantRaw === 'seller' ? appVariantRaw : 'customer';
 const firebaseSetting = env('USE_FIREBASE_AUTH').trim().toLowerCase();
-const useFirebaseAuth = firebaseSetting === '' || ['1', 'true', 'yes'].includes(firebaseSetting);
+const useFirebaseAuth =
+  appVariant === 'seller' ? false : firebaseSetting === '' || ['1', 'true', 'yes'].includes(firebaseSetting);
 const isRelease = flag('CONFIGURE_RELEASE');
 const requirePins = flag('REQUIRE_CERT_PINS');
 const transport = isRelease ? 'embedded' : 'metro';
@@ -154,7 +158,7 @@ if (isRelease && useGateway && pins.length === 0) {
   warn(message);
 }
 
-if (isRelease && useGateway && !useFirebaseAuth) {
+if (isRelease && useGateway && !useFirebaseAuth && appVariant !== 'seller') {
   fail(
     'Release build has USE_GATEWAY=true but USE_FIREBASE_AUTH=false. ' +
       'Real phone-OTP sessions are required — refusing to embed a mock-login build.',
@@ -217,8 +221,8 @@ export const GOOGLE_PLACES_API_KEY = ${JSON.stringify(googlePlacesKey)};
 write(
   VARIANT_FILE,
   `${header}
-/** 'delivery' selects the isolated Delivery Partner root; 'customer' is the SuperApp. */
-export const APP_VARIANT: 'customer' | 'delivery' = ${JSON.stringify(appVariant)};
+/** 'delivery' selects the Delivery Partner root; 'seller' the Seller Partner root; else the SuperApp. */
+export const APP_VARIANT: 'customer' | 'delivery' | 'seller' = ${JSON.stringify(appVariant)};
 `,
 );
 

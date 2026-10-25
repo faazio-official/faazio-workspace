@@ -103,8 +103,6 @@ Examples: `faazio:v1:stock:fm-f1`, `faazio:v1:search:q:hoodie`, `faazio:v1:sdui:
 | Weather manual override (`faazio:v1:weather:override:{cell}`, super admin) | 1800 s | **never** | auto-expire; `PUT /admin/weather/override` sets wet **or** forced-dry and is checked before the provider |
 | Weather Union call budget (`faazio:v1:weather:calls:{FY}`) | until Apr 1 IST (`FY` = `2026-27`) | **never** | `INCR` per provider call; hard stop at 60,000/FY. A missing counter fails open (first call creates it); the Supabase daily trail still records every call |
 | Blood requests board (public, redacted; auth callers bypass) | 60 s | **never** | request post / expiry sweep (contact/address stripped for anon) |
-| Bookings — tables + food orders (per user, auth-scoped) | 60 s | **never** | booking create / cancel |
-| Booking availability (public, seat-count-free `{bookable,fee,timing}`) | 30 s | **never** | booking-config write / accept / reject / vacate / cancel (seller config row itself is never cached) |
 | Recommendations (per userHash) | 3600 s (1 h) | — | `user_events` flush |
 | Store directory / reviews | 86400 s (24 h) | — | edit event |
 | Store products (anon `GET /stores/{id}/products`, ACTIVE first page) | 300 s | — | product edit / status change (purges `catalog:store-products:{storeId}`; later pages are not cached) |

@@ -106,8 +106,8 @@ export async function fetchPharmaFeed(): Promise<PharmaFeed> {
     sections = await gateway.fetchPharmaSections();
     source = sections.length > 0 ? 'live' : 'empty-authoritative';
   } catch {
-    // Offline / remote disabled — the `@data` + feature fixtures stand, but flagged as a fallback.
-    sections = await gateway.getPharmaFeed();
+    // Offline / remote disabled — no fixture rails; the screen renders its offline state.
+    sections = [];
     source = 'offline-fallback';
   }
   const section = (id: string) => sections.find((s) => (s.id as string) === id);

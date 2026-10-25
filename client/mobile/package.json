@@ -7,9 +7,11 @@
   "scripts": {
     "configure": "node scripts/configure.js",
     "configure:delivery": "APP_VARIANT=delivery node scripts/configure.js",
+    "configure:seller": "APP_VARIANT=seller node scripts/configure.js",
     "prestart": "node scripts/configure.js",
     "start": "react-native start",
     "start:delivery": "APP_VARIANT=delivery node scripts/configure.js && react-native start",
+    "start:seller": "APP_VARIANT=seller node scripts/configure.js && react-native start",
     "preandroid": "node scripts/configure.js",
     "android": "react-native run-android",
     "preios": "node scripts/configure.js",
@@ -19,6 +21,7 @@
     "check:drillin": "node scripts/check-drillin-coverage.mjs",
     "bundle:android": "node scripts/configure.js && react-native bundle --platform android --dev false --entry-file index.js --bundle-output /tmp/faazio-index.android.bundle --assets-dest /tmp/faazio-assets",
     "bundle:delivery": "APP_VARIANT=delivery node scripts/configure.js && react-native bundle --platform android --dev false --entry-file index.delivery.js --bundle-output /tmp/faazio-delivery.android.bundle --assets-dest /tmp/faazio-delivery-assets",
+    "bundle:seller": "APP_VARIANT=seller node scripts/configure.js && react-native bundle --platform android --dev false --entry-file index.seller.js --bundle-output /tmp/faazio-seller.android.bundle --assets-dest /tmp/faazio-seller-assets",
     "postinstall": "patch-package && node scripts/configure.js"
   },
   "dependencies": {

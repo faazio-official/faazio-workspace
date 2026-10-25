@@ -29,6 +29,8 @@ export interface StoredUser {
 
 export interface StoredSession {
   accessToken: string | null;
+  /** Gateway-native portal refresh token (seller/admin web credentials). Absent for Firebase sessions. */
+  refreshToken?: string | null;
   user: StoredUser;
 }
 
@@ -69,6 +71,7 @@ export async function loadSession(): Promise<StoredSession | null> {
     }
     const normalized: StoredSession = {
       accessToken: session.accessToken ?? null,
+      refreshToken: session.refreshToken ?? null,
       user: session.user,
     };
     cache = normalized;
@@ -92,12 +95,25 @@ export async function getAccessToken(): Promise<string | null> {
  * Persist a refreshed access token without touching the profile. Firebase rotates ID tokens
  * natively, so there is no refresh token to store.
  */
-export async function updateSessionTokens(accessToken: string): Promise<StoredSession | null> {
+export async function updateSessionTokens(
+  accessToken: string,
+  refreshToken?: string | null,
+): Promise<StoredSession | null> {
   if (cache === undefined) await loadSession();
   if (!cache) return null;
-  const next: StoredSession = { ...cache, accessToken };
+  const next: StoredSession = {
+    ...cache,
+    accessToken,
+    ...(refreshToken !== undefined ? { refreshToken } : {}),
+  };
   await saveSession(next);
   return next;
+}
+
+/** Gateway-native portal refresh token, if the session was created with web credentials. */
+export async function getRefreshToken(): Promise<string | null> {
+  if (cache === undefined) await loadSession();
+  return cache?.refreshToken ?? null;
 }
 
 export async function clearSession(): Promise<void> {

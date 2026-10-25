@@ -169,16 +169,6 @@ export interface Coupon {
   isFreeDelivery?: boolean;
 }
 
-export interface BookingRecord {
-  id: string;
-  restaurantId: string;
-  restaurantName: string;
-  date: string;
-  time: string;
-  guests: number;
-  status: 'pending' | 'confirmed' | 'cancelled';
-}
-
 export interface ExploreItem {
   id: string;
   name: string;
