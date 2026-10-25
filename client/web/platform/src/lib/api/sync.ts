@@ -8,7 +8,6 @@ import { usePortalStore } from "@/lib/api/store";
 import type {
   AdSlot,
   AuditLog,
-  BookingRecord,
   BloodRequestRecord,
   CampaignScope,
   CampaignStatus,
@@ -165,7 +164,7 @@ export async function hydrateFromGateway(): Promise<boolean> {
   const cur = usePortalStore.getState();
   const role = cur.session?.role;
 
-  const [sellers, campaigns, coupons, caps, optins, slots, heroCampaigns, admins, logs, ledger, payouts, rx, bookings, blood, sdui, customers, menus, tickets, rates, rewardLedger] =
+  const [sellers, campaigns, coupons, caps, optins, slots, heroCampaigns, admins, logs, ledger, payouts, rx, blood, sdui, customers, menus, tickets, rates, rewardLedger] =
     await Promise.all([
       safe(() => remote.get<RawSeller[]>("/sellers").then(toCamel)),
       safe(() => remote.get<FestivalCampaign[]>("/promo/campaigns").then(toCamel)),
@@ -186,9 +185,6 @@ export async function hydrateFromGateway(): Promise<boolean> {
         remote
           .get<Raw[]>(role === "SELLER" ? "/seller/prescriptions" : "/prescriptions")
           .then(toCamel),
-      ),
-      safe(() =>
-        remote.get<Raw[]>(role === "SELLER" ? "/seller/bookings" : "/bookings").then(toCamel),
       ),
       safe(() => remote.get<Raw[]>("/blood-requests").then(toCamel)),
       safe(() =>
@@ -340,30 +336,6 @@ export async function hydrateFromGateway(): Promise<boolean> {
       }),
     );
     patch["prescriptions"] = mergeById(mapped, cur.prescriptions, (x) => x.prescriptionId);
-    touched = true;
-  }
-  if (hasSlice(bookings)) {
-    const mapped = bookings.map(
-      (b): BookingRecord => ({
-        bookingId: str(b["bookingId"] ?? b["id"]),
-        userId: str(b["userId"]),
-        sellerId: str(b["sellerId"]),
-        storeId: str(b["storeId"] ?? b["vendorId"]),
-        venueName: str(b["venueName"] ?? b["restaurantName"]),
-        customerName: str(b["customerName"]),
-        city: str(b["city"]),
-        stateCode: str(b["stateCode"]),
-        bookingDate: str(b["bookingDate"] ?? b["date"]),
-        slot: str(b["slot"] ?? b["time"]),
-        guests: num(b["guests"], 1),
-        seats: num(b["seats"] ?? b["guests"], 1),
-        fee: num(b["fee"], 0),
-        paymentStatus: str(b["paymentStatus"]) || undefined,
-        status: str(b["status"], "pending") as BookingRecord["status"],
-        createdAt: str(b["createdAt"]),
-      }),
-    );
-    patch["bookings"] = mergeById(mapped, cur.bookings, (x) => x.bookingId);
     touched = true;
   }
   if (hasSlice(blood)) {

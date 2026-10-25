@@ -2,7 +2,6 @@ import { useEffect, useState } from 'react';
 import type { SpecialDish } from '@data/types';
 import { gateway, type MenuDish } from '@/services/api/GatewayClient';
 import type { DiningRestaurant } from '../mocks/types';
-import { getMenuForRestaurant } from '../utils/menu';
 
 /** Map one durable `directory.menus` dish onto the app's `SpecialDish` card shape. */
 function toSpecialDish(dish: MenuDish, restaurantName: string): SpecialDish {
@@ -22,27 +21,16 @@ function toSpecialDish(dish: MenuDish, restaurantName: string): SpecialDish {
 }
 
 export interface RestaurantMenuState {
-  /** The venue's dishes — fixture seed first, then the durable remote list once it lands. */
+  /** The venue's durable dishes as served by the gateway (`[]` until loaded / offline). */
   menu: SpecialDish[];
-  /**
-   * True while the remote menu is in flight **and** the fixture seed was empty. A seeded venue
-   * paints instantly with no spinner; a server-only venue (no `@data` menu) shows a loading
-   * state instead of flashing its honest "no dishes" empty state before the server replies.
-   */
+  /** True while the remote menu is in flight, so an honest empty state is not flashed first. */
   loading: boolean;
 }
 
 /**
- * The restaurant's menu, remote-first from `directory.menus`
- * (`GET /venues/{id}/menu`) through the server-only `GatewayClient.fetchMenu`. The screen seeds
- * from the `@data/food/menus.ts` fixture first so a known venue paints instantly with no spinner,
- * then swaps in the durable dishes once the server replies — the server list is trusted as the
- * venue's own (no name re-filter, so a rename can't drop rows).
- *
- * The remote result is **authoritative**: a live `[]` (the seller has no public/ACTIVE dishes)
- * clears the seed and shows the honest empty menu, so a delisted venue never lingers as stale
- * fixture rows. Only a real failure (offline / HTTP error) keeps the seed, so the profile is
- * never blank offline.
+ * The restaurant's menu, server-only from `directory.menus` (`GET /venues/{id}/menu`) through
+ * `GatewayClient.fetchMenu`. No `@data` fixture is substituted: a live `[]` is the venue's real
+ * menu, and a failed/offline read shows an honest empty menu instead of mock dishes.
  *
  * Festival discounts are deliberately NOT overlaid here: `promo.festival_optins` keys on
  * `catalog.products.product_id` and checkout never settles a discount for a `directory.menus` row, so a
@@ -50,16 +38,13 @@ export interface RestaurantMenuState {
  * dishes instead carry their own authored `mrp_paisa > price_paisa` strike (migration 0022).
  */
 export function useRestaurantMenu(restaurant: DiningRestaurant): RestaurantMenuState {
-  const [menu, setMenu] = useState<SpecialDish[]>(() => getMenuForRestaurant(restaurant));
-  const [loading, setLoading] = useState(false);
+  const [menu, setMenu] = useState<SpecialDish[]>([]);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     let active = true;
-    const seed = getMenuForRestaurant(restaurant);
-    setMenu(seed);
-    // Only a server-only venue (empty seed) risks a false "no dishes" flash — a seeded venue
-    // keeps its first-paint rows and never shows the spinner.
-    setLoading(seed.length === 0);
+    setMenu([]);
+    setLoading(true);
     gateway
       .fetchMenu(restaurant.id)
       .then((dishes) => {
@@ -68,7 +53,7 @@ export function useRestaurantMenu(restaurant: DiningRestaurant): RestaurantMenuS
         setMenu(dishes.map((d) => toSpecialDish(d, restaurant.name)));
       })
       .catch(() => {
-        // Offline / HTTP error: keep the fixture seed so the profile is never blank.
+        // Offline / HTTP error: show the honest empty menu, never fixture dishes.
       })
       .finally(() => {
         if (active) setLoading(false);

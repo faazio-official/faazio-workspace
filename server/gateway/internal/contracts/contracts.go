@@ -62,59 +62,6 @@ type DonorMatch struct {
 	RespondedAt     string `json:"respondedAt,omitempty"`
 }
 
-// ------------------------------------------------------------------ bookings DTOs (bookings schema)
-
-// Booking is a bookings.tables row (seat reservation). Fee is whole rupees on the wire (money
-// freeze §4); AmountPaisa is present only on the create response so the client can open Razorpay
-// checkout (Razorpay speaks paisa), and PaymentKeyID is the publishable key for that checkout.
-type Booking struct {
-	ID                string `json:"id"`
-	UserID            string `json:"userId"`
-	VendorID          string `json:"vendorId"`
-	RestaurantName    string `json:"restaurantName"`
-	Date              string `json:"date"`
-	Time              string `json:"time"`
-	Seats             int64  `json:"seats"`
-	Guests            int64  `json:"guests,omitempty"` // legacy alias, mirrors Seats
-	Fee               int64  `json:"fee"`              // rupees (server-derived: feePerSeat × seats)
-	Status            string `json:"status"`
-	PaymentStatus     string `json:"paymentStatus,omitempty"`
-	RazorpayOrderID   string `json:"razorpayOrderId,omitempty"`
-	RazorpayPaymentID string `json:"razorpayPaymentId,omitempty"`
-	AmountPaisa       int64  `json:"amountPaisa,omitempty"`  // paisa, create-response only
-	PaymentKeyID      string `json:"paymentKeyId,omitempty"` // publishable key, create-response only
-	Currency          string `json:"currency,omitempty"`     // create-response only
-	IdempotencyKey    string `json:"idempotencyKey,omitempty"`
-	// SellerID is set by the seller list endpoint (the caller's scope) so the portal can filter
-	// rows it already received scoped; it is never stored on bookings.tables.
-	SellerID  string `json:"sellerId,omitempty"`
-	CreatedAt string `json:"createdAt"`
-}
-
-// BookingConfig is the seller-private bookings.venue_configs row (never exposed to the app: seats,
-// timings and the pause switch are occupancy internals). The gateway writes seller_id itself.
-type BookingConfig struct {
-	VendorID       string `json:"vendorId"`
-	SellerID       string `json:"sellerId,omitempty"`
-	Enabled        bool   `json:"enabled"`
-	TotalSeats     int64  `json:"totalSeats"`
-	TrackOccupancy bool   `json:"trackOccupancy"`
-	OpenTime       string `json:"openTime"`
-	CloseTime      string `json:"closeTime"`
-	Paused         bool   `json:"paused"`
-	UpdatedAt      string `json:"updatedAt,omitempty"`
-}
-
-// BookingAvailability is the public, PII-free, seat-count-free projection of a vendor's config that
-// the app may render (bookable / fee / timing only — never totals or remaining seats).
-type BookingAvailability struct {
-	VendorID    string `json:"vendorId"`
-	Bookable    bool   `json:"bookable"`
-	FeePerSeat  int64  `json:"feePerSeat"` // rupees
-	TimingLabel string `json:"timingLabel,omitempty"`
-	OpenNow     bool   `json:"openNow"`
-}
-
 // Money freeze (monolith-breakdown.md §4): the DB stores INT8 paisa (₹1 = 100); every
 // JSON DTO here exposes whole rupees as an integer. The repo layer is the single
 // conversion boundary (paisa → rupees on read, rupees → paisa on write) — no floats.

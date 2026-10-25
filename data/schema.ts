@@ -6,7 +6,7 @@
  */
 import type { Product, StoreProfile, Review, AppBrand, SpecItem } from './types';
 
-export type CardVariant = 'rail' | 'grid2' | 'stack' | 'tile' | 'detail-row' | 'flash' | 'booking' | 'promo';
+export type CardVariant = 'rail' | 'grid2' | 'stack' | 'tile' | 'detail-row' | 'flash' | 'promo';
 
 export interface BannerProps {
   title: string;

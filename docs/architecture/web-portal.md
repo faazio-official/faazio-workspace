@@ -41,7 +41,7 @@ Vite reference (all 3 consoles).
 | `/admin/super/credentials` | superadmin issues/disables every login and resets any role's password |
 
 **Seller console — own data (`app/seller/**`)** — ads, catalog, pricing, promotions, stores,
-menus, orders, bookings, prescriptions, returns, reviews, payments, analytics, support, settings,
+menus, orders, prescriptions, returns, reviews, payments, analytics, support, settings,
 onboarding. This is where paid hero campaigns (`seller/ads` wizard) and organic offers are authored.
 The campaign wizard's **what→where** placements map 1:1 to the paid mobile surfaces documented in
 `PAGE_CATALOG.md` §2.5/§2.6: `MART_HERO`/`FOOD_HERO` (house hero carousels) and `STORE_TOP`
@@ -60,7 +60,6 @@ The campaign wizard's **what→where** placements map 1:1 to the paid mobile sur
 | `seller/stores` | store profile | all |
 | `seller/menus` | dish menus (+ authoritative MRP strike) | FOOD |
 | `seller/orders` · `seller/orders/[id]` | order queue + detail | all |
-| `seller/bookings` · `seller/bookings/settings` | seat accept/reject/vacate + config | FOOD |
 | `seller/prescriptions` | Rx quote → READY reveal | PHARMA |
 | `seller/returns` · `seller/reviews` · `seller/payments` | after-sales — commission-free payments ledger (TCS, TDS 0.1%, product GST; sellers keep full gross) | all |
 | `seller/analytics` · `seller/support` · `seller/settings` · `seller/onboarding` | console | all |
@@ -72,7 +71,7 @@ The campaign wizard's **what→where** placements map 1:1 to the paid mobile sur
 | `admin/district` | dashboard |
 | `admin/district/products` · `admin/district/products/queue` | catalog + review queue |
 | `admin/district/sellers` · `admin/district/sellers/[id]` | seller directory + KYC review: full registration, masked payout account, private-bucket passbook/FSSAI links, platform-fee editor, per-document verify (PAN/GSTIN/FSSAI/passbook), reject with reason, **Verify KYC** (Razorpay Route linked account → ACTIVE). SUPER_ADMIN reaches the same detail page from `admin/super/sellers`. |
-| `admin/district/orders` · `admin/district/bookings` | order/booking oversight |
+| `admin/district/orders` | order oversight |
 | `admin/district/blood` | blood requests board (PHARMA) — server `blood.requests` with `contact`/`address` redacted for anon; moderation (`DELETE /blood-requests/{id}`) |
 | `admin/district/customers` | customer list + activity trail |
 | `admin/district/delivery-boys` | delivery-partner control plane (state-scoped): pending KYC queue, per-document verify and admin-side replacement upload (private R2 → `PUT /delivery/register/{id}/documents/{docType}/reupload`; the rider app has no re-upload screen), profile approve → super-admin activation, active-rider list (load/capacity) with on-demand Valkey location, suspend |
@@ -155,7 +154,7 @@ The portal reads records from `src/data/**` through `src/lib/api/*`
 
 Mutations write optimistically to the store first, then push the change to the
 gateway through `pushWrite()` (`src/lib/api/index.ts` → `writeAwaited` in `src/lib/api/http.ts`)
-when configured. Every money/status/Rx/menu/booking/rewards write is **awaited with rollback**:
+when configured. Every money/status/Rx/menu/order/rewards write is **awaited with rollback**:
 on a rejected write the pre-mutation snapshot is restored and a toast surfaces the error, so a
 change that did not persist can never linger on screen. (`writeBehind` remains the offline no-op
 used when `NEXT_PUBLIC_GATEWAY_URL` is unset; seed mode reconciles on the next hydrate.)
@@ -235,15 +234,14 @@ env-gated and degrade to local seed mode when unset:
 - **Gateway reads** — `src/lib/api/http.ts` is the single fetch seam (bearer auth,
   query builder, error envelope, defensive snake→camel). `src/lib/api/sync.ts`
   implements `hydrateFromGateway()`: it best-effort fetches the gateway-owned
-  slices (sellers, promo, ads, settlement, admins, prescriptions, bookings, blood,
+  slices (sellers, promo, ads, settlement, admins, prescriptions, blood,
   SDUI, reviews, and — partner completion — customers, menus, support tickets,
   rewards rates/ledger) and writes them into the store. Prescription rows carry
 the quote lines, `quotedTotal`, reveal fields and status history; the seller
-projection is name-only until `READY`/`FULFILLED`. Booking rows carry `seats`,
-`fee` (rupees) and `paymentStatus`, and the queue issues accept/reject/vacate
-decisions through awaited writes with rollback (`PUT /bookings/{id}/status`, `POST /bookings/{id}/vacate`).
-  The `seller/bookings/settings` form is prefilled from `GET /seller/booking-config?vendorId=…`
-  (`refreshBookingConfig`, best-effort; seed mode keeps the local default).
+projection is name-only until `READY`/`FULFILLED`. Order rows carry the portal lifecycle
+(`NEW`→`PACKED`→`SHIPPED`→`DELIVERED`, plus `CANCELLED`/`RETURNED`/`REJECTED`); the seller board
+advances a card with an awaited, rollback-safe `PUT /orders/{id}/status`, while the React Native
+seller app uses the explicit `PUT /seller/orders/{id}/accept|reject` decisions.
   In **development** an empty remote slice keeps the seeded rows (demo fallback); in
   **production** (`NODE_ENV=production`) an empty but successfully-fetched slice clears the local
   slice, so sellers/admins never see phantom demo rows. The gateway speaks **whole

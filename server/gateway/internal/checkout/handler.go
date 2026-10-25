@@ -62,6 +62,9 @@ func (h *Handler) Register(r chi.Router) {
 	r.Group(func(g chi.Router) {
 		g.Use(auth.RequireRole(auth.RoleSeller, auth.RoleStateAdmin, auth.RoleSuperAdmin))
 		g.Get("/seller/orders", h.sellerOrders)
+		g.Get("/seller/orders/{orderID}", h.sellerOrderDetail)
+		g.Put("/seller/orders/{orderID}/accept", h.acceptSellerOrder)
+		g.Put("/seller/orders/{orderID}/reject", h.rejectSellerOrder)
 		g.Put("/orders/{orderID}/status", h.setOrderStatus)
 	})
 }
@@ -437,8 +440,14 @@ func (h *Handler) getAccountNav(w http.ResponseWriter, r *http.Request) {
 
 func (h *Handler) sellerOrders(w http.ResponseWriter, r *http.Request) {
 	sellerID := strings.TrimSpace(r.URL.Query().Get("sellerId"))
-	if auth.Role(r.Context()) == auth.RoleSeller {
+	isSeller := auth.Role(r.Context()) == auth.RoleSeller
+	if isSeller {
 		sellerID = auth.SellerID(r.Context())
+		// A SELLER claim without a seller_id would otherwise match the admin "all sellers" path.
+		if sellerID == "" {
+			httpx.Fail(w, http.StatusForbidden, "forbidden", "seller scope missing")
+			return
+		}
 	}
 	status := strings.ToUpper(strings.TrimSpace(r.URL.Query().Get("status")))
 	if status == "NEW" {
@@ -470,6 +479,119 @@ func (h *Handler) sellerOrders(w http.ResponseWriter, r *http.Request) {
 		orders[i].Status = portalStatus(orders[i].Status)
 	}
 	httpx.JSON(w, http.StatusOK, orders)
+}
+
+// sellerScope resolves the caller's seller scope. Admins may act across sellers (empty seller id).
+func sellerScope(r *http.Request) (sellerID string, admin bool) {
+	role := auth.Role(r.Context())
+	admin = role == auth.RoleStateAdmin || role == auth.RoleSuperAdmin
+	return auth.SellerID(r.Context()), admin
+}
+
+func (h *Handler) sellerOrderDetail(w http.ResponseWriter, r *http.Request) {
+	sellerID, admin := sellerScope(r)
+	order, ok, err := h.repo.SellerOrderByID(r.Context(), chi.URLParam(r, "orderID"), sellerID, admin)
+	if err != nil {
+		httpx.Fail(w, http.StatusInternalServerError, "orders_unavailable", "orders unavailable")
+		return
+	}
+	if !ok {
+		httpx.Fail(w, http.StatusNotFound, "not_found", "order not found")
+		return
+	}
+	order.Status = portalStatus(order.Status)
+	httpx.JSON(w, http.StatusOK, order)
+}
+
+// acceptSellerOrder is the seller's explicit NEW → PACKED decision. Only an unfulfilled NEW order
+// can be accepted; anything else is a conflict rather than a silent status overwrite.
+func (h *Handler) acceptSellerOrder(w http.ResponseWriter, r *http.Request) {
+	sellerID, admin := sellerScope(r)
+	orderID := chi.URLParam(r, "orderID")
+	order, ok, err := h.repo.SellerOrderByID(r.Context(), orderID, sellerID, admin)
+	if err != nil {
+		httpx.Fail(w, http.StatusInternalServerError, "orders_unavailable", "orders unavailable")
+		return
+	}
+	if !ok {
+		httpx.Fail(w, http.StatusNotFound, "not_found", "order not found")
+		return
+	}
+	if portalStatus(order.Status) != "NEW" {
+		httpx.Fail(w, http.StatusConflict, "order_not_pending", "order has already been decided")
+		return
+	}
+	changed, err := h.repo.TransitionSellerOrder(r.Context(), orderID, sellerID, order.Status, "PACKED", "", admin)
+	if err != nil {
+		httpx.Fail(w, http.StatusInternalServerError, "order_update_failed", "could not update order")
+		return
+	}
+	if !changed {
+		httpx.Fail(w, http.StatusConflict, "order_not_pending", "order has already been decided")
+		return
+	}
+	updated, ok, err := h.repo.OrderByID(r.Context(), orderID)
+	if err != nil || !ok {
+		httpx.Fail(w, http.StatusInternalServerError, "orders_unavailable", "orders unavailable")
+		return
+	}
+	h.cache.Del(r.Context(), cache.Orders(updated.UserID))
+	updated.Status = portalStatus(updated.Status)
+	h.log(r, "ORDER_PACKED", orderID)
+	h.notifyStatus(r, updated, "PACKED")
+	h.autoDispatch(r.Context(), orderID)
+	httpx.JSON(w, http.StatusOK, updated)
+}
+
+// rejectSellerOrder is the seller's NEW → REJECTED decision. The order transition and the payment
+// refund are one transaction, so a failure can never leave the order rejected without a refund (or
+// vice versa). Every captured payment row is marked REFUNDED and the customer is notified. A missing
+// payment row (cash on delivery) refunds nothing but still rejects cleanly.
+func (h *Handler) rejectSellerOrder(w http.ResponseWriter, r *http.Request) {
+	var body struct {
+		Reason string `json:"reason"`
+	}
+	_ = httpx.Decode(r, &body)
+	reason := strings.TrimSpace(body.Reason)
+	if len(reason) > 500 {
+		httpx.Fail(w, http.StatusBadRequest, "bad_request", "reason is too long")
+		return
+	}
+	sellerID, admin := sellerScope(r)
+	orderID := chi.URLParam(r, "orderID")
+	order, ok, err := h.repo.SellerOrderByID(r.Context(), orderID, sellerID, admin)
+	if err != nil {
+		httpx.Fail(w, http.StatusInternalServerError, "orders_unavailable", "orders unavailable")
+		return
+	}
+	if !ok {
+		httpx.Fail(w, http.StatusNotFound, "not_found", "order not found")
+		return
+	}
+	if portalStatus(order.Status) != "NEW" {
+		httpx.Fail(w, http.StatusConflict, "order_not_pending", "order has already been decided")
+		return
+	}
+	refunded, changed, err := h.repo.RejectSellerOrder(r.Context(), orderID, sellerID, order.Status, reason, admin)
+	if err != nil {
+		httpx.Fail(w, http.StatusInternalServerError, "order_update_failed", "could not reject order")
+		return
+	}
+	if !changed {
+		httpx.Fail(w, http.StatusConflict, "order_not_pending", "order has already been decided")
+		return
+	}
+	updated, ok, err := h.repo.OrderByID(r.Context(), orderID)
+	if err != nil || !ok {
+		httpx.Fail(w, http.StatusInternalServerError, "orders_unavailable", "orders unavailable")
+		return
+	}
+	updated.RefundedPaisa = refunded
+	h.cache.Del(r.Context(), cache.Orders(updated.UserID))
+	updated.Status = portalStatus(updated.Status)
+	h.log(r, "ORDER_REJECTED", orderID)
+	h.notifyStatus(r, updated, "REJECTED")
+	httpx.JSON(w, http.StatusOK, updated)
 }
 
 func (h *Handler) setOrderStatus(w http.ResponseWriter, r *http.Request) {
@@ -552,14 +674,21 @@ func (h *Handler) notifyStatus(r *http.Request, order Order, status string) {
 		return
 	}
 	switch status {
-	case "PACKED", "SHIPPED", "DELIVERED", "CANCELLED", "RETURNED":
+	case "PACKED", "SHIPPED", "DELIVERED", "CANCELLED", "RETURNED", "REJECTED":
 	default:
 		return
 	}
+	title := "Order " + order.ID + " updated"
+	body := "Your order is now " + strings.ToLower(status) + "."
+	if status == "REJECTED" {
+		title = "Order " + order.ID + " rejected"
+		body = "The seller could not fulfil your order."
+		if order.RefundedPaisa > 0 {
+			body += " A refund of ₹" + strconv.FormatInt(order.RefundedPaisa/100, 10) + " has been initiated."
+		}
+	}
 	_ = h.notifier.Enqueue(r.Context(), order.UserID, "ORDER_"+status,
-		"Order "+order.ID+" updated",
-		"Your order is now "+strings.ToLower(status)+".",
-		map[string]any{"orderId": order.ID, "status": status})
+		title, body, map[string]any{"orderId": order.ID, "status": status, "refundedPaisa": order.RefundedPaisa})
 }
 
 // portalStatus maps the legacy mobile status onto the portal lifecycle (Processing -> NEW).

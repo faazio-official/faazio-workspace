@@ -279,19 +279,6 @@ export function usePrescriptions(
   return useMemo(() => api.listPrescriptions(filter), [prescriptions, key]);
 }
 
-export function useBookings(
-  filter: { sellerId?: string | undefined; stateCode?: string | undefined; status?: import("@/data/types").BookingStatus | "ALL" | undefined } = {},
-) {
-  const bookings = usePortalStore((s) => s.bookings);
-  const key = JSON.stringify(filter);
-  return useMemo(() => api.listBookings(filter), [bookings, key]);
-}
-
-export function useBookingConfig(vendorId: string) {
-  const configs = usePortalStore((s) => s.bookingConfigs);
-  return useMemo(() => api.getBookingConfig(vendorId), [configs, vendorId]);
-}
-
 export function useBloodRequests(
   filter: { stateCode?: string | undefined; city?: string | undefined; bloodGroup?: string | undefined } = {},
 ) {

@@ -118,12 +118,14 @@ bundler, **not** Gradle. The committed `android/`/`ios/` shells are the source o
 a native prebuild/generator and never commit generated `src/lib/config.ts`.
 
 ## Native + config contract
-- **Bare RN 0.86.3.** The customer app boots from `index.js`; the separately-shipped delivery
-  partner app boots from `index.delivery.js`. Metro/config are `@react-native/*`.
-- **Two products, one native shell.** Android flavors `customer` / `delivery`
-  (`com.faazio.customer` / `com.faazio.deliverypartner`) and iOS `Delivery-Debug` /
-  `Delivery-Release` configurations select the JS entry and native Firebase config. Never build
-  both flavors in one Gradle task.
+- **Bare RN 0.86.3.** The customer app boots from `index.js`; the delivery partner app from
+  `index.delivery.js`; the seller partner app from `index.seller.js`. Metro/config are
+  `@react-native/*`.
+- **Three products, one native shell.** Android flavors `customer` / `delivery` / `seller`
+  (`com.faazio.customer` / `com.faazio.deliverypartner` / `com.faazio.seller`) and iOS
+  `Delivery-*` / `Seller-*` configurations select the JS entry and native Firebase config. Sellers
+  sign in to the seller app with the same email/password as the web portal (portal HS256 JWT). Never
+  build two flavors in one Gradle task.
 - **`scripts/configure.js` is the single JS↔native config owner.** It reads `GATEWAY_URL`,
   `USE_GATEWAY`, `STRICT`, `DEV_USER`, `USE_FIREBASE_AUTH`, `CERT_PINS`, `APP_VARIANT`,
   `ENTRY_FILE` from the environment/.env and generates `src/lib/config.ts` +
@@ -141,10 +143,11 @@ a native prebuild/generator and never commit generated `src/lib/config.ts`.
 ## Modules
 Shipped (`client/mobile/src/features/`): `onboarding`, `auth`, `home`, `ecommerce`
 (mart — incl. former grocery catalog), `food`, `cart`, `profile`, `pharma`, `catalog`, `search`, `product`,
-`favourites`, `sub-app`, `delivery-partner`. `dinner-booking` is a scaffold (README only).
+`favourites`, `rewards`, `sub-app`, `delivery-partner`, `seller-onboarding`, `seller-partner`.
+Dinner-booking was removed (mobile, portal and gateway).
 
-Remaining/backlog work is tracked in `client/mobile/PENDING_WORK.md` (e.g. wiring
-`GatewayClient`, server-backed flows, de-duplicating inline mock data). `GatewayClient` wiring is
+Remaining/backlog work is tracked in `client/mobile/PENDING_WORK.md` (e.g. server-backed flows and
+de-duplicating inline fixture data). `GatewayClient` wiring is
 **unblocked by the MVP thin gateway** (`docs/architecture/mvp-backend.md`); build new screens
 only when explicitly requested.
 

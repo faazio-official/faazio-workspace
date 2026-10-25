@@ -4,9 +4,6 @@ export type { AuthState, AuthUser, LoginPayload } from './authStore';
 export { useCartStore } from './cartStore';
 export type { CartItem } from './cartStore';
 
-export { useBookingStore } from './bookingStore';
-export type { Booking } from './bookingStore';
-
 export { usePharmaStore } from './pharmaStore';
 export type { Prescription } from './pharmaStore';
 

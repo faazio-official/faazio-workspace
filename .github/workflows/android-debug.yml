@@ -9,9 +9,11 @@ name: Android Debug APK
 #   adb install -r app-customer-debug.apk
 #   adb reverse tcp:8081 tcp:8081   # then run `npm run start` in client/mobile
 #
-# Two products share this native shell. Pick `app: delivery` for the standalone
-# Delivery Partner app (applicationId com.faazio.deliverypartner). That build needs the
-# `GOOGLE_SERVICES_DELIVERY_JSON` secret (the partner Android app from the Firebase console).
+# Three products share this native shell. Pick `app: delivery` for the Delivery Partner app
+# (com.faazio.deliverypartner) or `app: seller` for the Seller Partner app (com.faazio.seller).
+# Each partner build needs its own Firebase Android config secret
+# (`GOOGLE_SERVICES_DELIVERY_JSON` / `GOOGLE_SERVICES_SELLER_JSON`) so the google-services plugin
+# can generate variant resources; the seller app itself authenticates through the web portal.
 #
 # The committed android/ project is the source of truth — no prebuild step.
 on:
@@ -24,6 +26,7 @@ on:
         options:
           - customer
           - delivery
+          - seller
         default: customer
       archs:
         description: "ABIs to build (comma-separated)"
@@ -96,6 +99,17 @@ jobs:
           fi
           printf '%s' "$GOOGLE_SERVICES_DELIVERY_JSON" > android/app/src/delivery/google-services.json
 
+      - name: Seller Firebase config
+        if: ${{ github.event.inputs.app == 'seller' }}
+        env:
+          GOOGLE_SERVICES_SELLER_JSON: ${{ secrets.GOOGLE_SERVICES_SELLER_JSON }}
+        run: |
+          if [ -z "$GOOGLE_SERVICES_SELLER_JSON" ]; then
+            echo "::error::GOOGLE_SERVICES_SELLER_JSON is not set. Register com.faazio.seller in Firebase and store its google-services.json as the secret."
+            exit 1
+          fi
+          printf '%s' "$GOOGLE_SERVICES_SELLER_JSON" > android/app/src/seller/google-services.json
+
       - name: Typecheck
         run: npm run ts:check
         env:
@@ -121,12 +135,13 @@ jobs:
           cd android
           case "${{ github.event.inputs.app }}" in
             delivery) TASK=assembleDeliveryDebug ;;
+            seller) TASK=assembleSellerDebug ;;
             *) TASK=assembleCustomerDebug ;;
           esac
           ./gradlew "$TASK" --no-daemon \
             -PreactNativeArchitectures="${{ github.event.inputs.archs }}"
         env:
-          ENTRY_FILE: ${{ github.event.inputs.app == 'delivery' && 'index.delivery.js' || 'index.js' }}
+          ENTRY_FILE: ${{ github.event.inputs.app == 'delivery' && 'index.delivery.js' || (github.event.inputs.app == 'seller' && 'index.seller.js' || 'index.js') }}
 
       - name: Upload debug APK artifact
         uses: actions/upload-artifact@v4

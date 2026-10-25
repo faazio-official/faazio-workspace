@@ -44,7 +44,7 @@ set. See `db-schema.md` §12.16.
 ## 2. Supabase project (one project, many schemas)
 
 - **Schemas:** `catalog`, `directory`, `reviews`, `checkout`, `accounts`, `inventory`, `favourites`,
-  `rewards`, `pharma`, `blood`, `bookings`, `util`. The partner control plane (`0015`) adds `sellers`,
+  `rewards`, `pharma`, `blood`, `util`. The partner control plane (`0015`) adds `sellers`,
   `promo`, `ads`, `payments`, `admins`, `support` (see `db-schema.md` §12.9), `0018` adds
   `notifications` (outbox + push tokens; `db-schema.md` §12.12), and `0025` adds `media` (R2 image
   registry; `db-schema.md` §12.16) — all additive, so existing tables/rows are untouched.
@@ -126,11 +126,8 @@ All read-through: Valkey → Supabase/Mongo → populate. Cloudflare caches publ
 | `GET/PUT /donors/me`, `GET /donors` | blood | donor profile + consented directory (`blood.donor_directory` view); auth-scoped. The app reads both through no-fallback `fetchDonorProfile`/`fetchBloodDonors` so it can tell a live, possibly-empty directory from the offline fixture (health-PII provenance) |
 | `GET/POST /blood-requests`, `PUT/DELETE /blood-requests/{id}/interest` | blood | request board (public read, `contact`/`address` redacted for anon); interest/accept idempotent — `DELETE` removes the mark (un-interest), also idempotent; no board cache is touched (the public projection carries no interest data) |
 | `POST/GET /donor-match-requests`, `GET /donor-match-requests/incoming`, `PUT /donor-match-requests/{id}/status` | blood | targeted donor request; outgoing (`requester_user_id = caller`) and **recipient-scoped incoming** (`donor_user_id = caller`, `0029`) reads; recipient-only pending→`accepted`/`declined` transition, enqueues a PII-free `MATCH_ACCEPTED`/`MATCH_DECLINED` notification to the requester (contact stays redacted) |
-| `GET/POST /bookings`, `DELETE /bookings/{id}`, `POST /bookings/{id}/payment` | bookings | seat reservations (hold at request); ₹50/seat fee derived server-side, occupancy checked under a `FOR UPDATE` config lock, idempotent per `Idempotency-Key`; payment attaches the Razorpay authorized payment id |
-| `GET /venues/{id}/booking-availability` | bookings | public, seat-count-free `{bookable, feePerSeat, timingLabel, openNow}` (never totals/remaining) |
-| `GET/PUT /seller/booking-config`, `GET /seller/bookings`, `PUT /bookings/{id}/status`, `POST /bookings/{id}/vacate` | bookings | seller-private config (seats/timings/tracking/pause); accept captures / reject refunds; vacate frees occupancy; owner-scoped. `GET /seller/bookings` echoes the caller's `sellerId` on each row (bookings have no seller column; ownership is via the venue) |
-| `POST /webhooks/razorpay` | bookings | HMAC-signature-verified Razorpay events → idempotent ledger update (`payment.authorized/captured/failed`, `refund.*`) |
 | `GET/POST /orders` | checkout | `POST` uses `SET NX EX 300` idempotency + `SELECT … FOR UPDATE SKIP LOCKED` stock decrement; re-validates any `couponCode` via `contracts.CouponValidator` **before** the decrement and settles `paid = subtotal − couponDiscount − coins`, then attributes the last-clicked ad slot best-effort |
+| `GET /seller/orders`, `GET /seller/orders/{orderID}`, `PUT /seller/orders/{orderID}/accept`, `PUT /seller/orders/{orderID}/reject` | checkout | seller app/web order board scoped to the caller's stores. Accept is NEW→PACKED (and queues auto-dispatch); reject is NEW→REJECTED, marks captured `checkout.payments` rows `REFUNDED`, returns `refundedPaisa`, and notifies the customer (`ORDER_REJECTED`). `0056` adds the `REJECTED` status + `rejection_reason`. A non-NEW order returns 409 `order_not_pending` |
 | `POST /checkout/validate-coupon` | checkout | authenticated coupon preview (`{code, app, state, subtotal}` → `{valid, reason, discount, …}`); delegates to `contracts.CouponValidator` (pure `DecideCoupon`), same rules as settlement |
 | `POST /ads/events` | ads | authenticated impression/click (`RecordEvent`); impressions de-duped per user via `faazio:v1:ads:seen:{userId}:{slotId}` 300 s; `orders_attributed` bumped server-side at checkout (one round-trip covers the rail slot or the hero campaign row) |
 | `GET /ads/hero` | ads | public anon LIVE hero projection for a `placement`/`app`/`category`/`storeId` context (cached 300 s, purged by prefix on publish/takedown); empty context dims = any, newest-first, ≤8 |
@@ -149,11 +146,10 @@ Every endpoint above now has a `GatewayClient` method (`getVendorReviews`, `rate
 `getDonorProfile`/`fetchDonorProfile`/`saveDonorProfile`/`getBloodDonors`/`fetchBloodDonors`/
 `getBloodRequests`/`fetchBloodRequests`/`createBloodRequest`/`setBloodInterest`/`clearBloodInterest`/
 `createDonorMatch`/`getDonorMatches`/`getIncomingDonorMatches`/`setDonorMatchStatus`,
-`getBookings`/`createBooking`/`cancelBooking`/
-`attachBookingPayment`/`getBookingAvailability`,
-`getRecommendations`) with the `@data/*` fallback, so the per-module `@mock` →
-`@server` migration proceeds on the existing **real phone-OTP login** (`firebaseAuth` →
-`authStore.login()`).
+`getRecommendations`) with server-only reads/writes (no `@data/*` runtime fallback), so the per-module
+`@mock` → `@server` migration runs on the existing **real phone-OTP login** (`firebaseAuth` →
+`authStore.login()`). Sellers and admins sign in to the seller app with the same portal email/password
+through `POST /auth/portal/login` (HS256 portal JWT + opaque refresh token).
 
 No gRPC yet; `contracts/` holds Go interfaces that mirror the future `.proto` shape. Method
 signatures above keep the `@mock` → `@server` swap call-site-compatible (`GatewayClient` adds a
@@ -248,7 +244,7 @@ contract stable so the swap is invisible to the app):
 13. ✅ **Store live flag (`0016`):** `directory.stores.is_live BOOLEAN NOT NULL DEFAULT true` + a
     `(state_code, is_live)` index (0015's comment assumed the flag existed but it did not). Owner:
     `db-schema.md` §12.10. The gateway now exposes role-scoped partner management endpoints over
-    `catalog`/`directory`/`checkout`/`pharma`/`bookings`/`blood` (see `monolith-breakdown.md` §1).
+    `catalog`/`directory`/`checkout`/`pharma`/`blood` (see `monolith-breakdown.md` §1).
 14. ✅ **Partner completion (`0017`, v3):** `checkout.users_admin` redacted view (customer monitoring),
     `directory.menus.seller_id/status` (food-menu editing), admin-tunable `rewards.rates`, and
     `support.tickets.state_code` (state queue). Owner: `db-schema.md` §12.11. Closed the web↔mobile
@@ -282,7 +278,7 @@ contract stable so the swap is invisible to the app):
     (additive) + `checkout.Repo.ProvisionUserID` upsert on first authenticated call (`auth.UserProvisioner`),
     so phone-OTP users are linked without a manual row. Mobile: `services/firebaseAuth.ts`
     (native Firebase phone auth), Keychain-backed session with silent 401 refresh, and strict money/Rx/address/
-    cart/favourite/booking writes. Gateway: CORS default-deny (wildcard only in dev), per-route
+    cart/favourite/seller-order writes. Gateway: CORS default-deny (wildcard only in dev), per-route
     throttle (10) + 256 KiB media body cap, and a dependency-probing `/health` (db/cache/mongo).
     Owner: `db-schema.md` §7.1, `caching-cloudflare-valkey.md` §5, `mobile-app.md` Services.
 20. ✅ **Audit-log retention (`0037`):** `admins.audit_logs` becomes a **rolling 7-day window** for all

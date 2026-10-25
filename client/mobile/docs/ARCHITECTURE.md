@@ -21,13 +21,15 @@
 client/mobile/src/
 ├── App.tsx                 # root — providers + AppNavigator
 ├── components/             # global atomic UI (+ shared/ primitives)
-├── features/               # 14 vertical modules (auth, cart, catalog, ecommerce,
-│                           #   favourites, food, home, onboarding, pharma, product,
-│                           #   profile, search, sub-app; dinner-booking = scaffold)
+├── features/               # 18 vertical modules (auth, cart, catalog,
+│                           #   delivery-partner, ecommerce, favourites, food, home,
+│                           #   onboarding, pharma, product, profile, rewards, search,
+│                           #   seller-onboarding, seller-partner, sub-app)
 ├── navigation/             # AppNavigator, MainTabs, FoodStack, types
 ├── services/               # GatewayClient, logout, secureSession, categoryRail
-├── state/                  # Zustand stores (auth, cart, favorite, booking, foodBooking,
-│                           #   pharma, search, language, ui)
+├── state/                  # Zustand stores (auth, bloodDonor, cart, deliveryPartner,
+│                           #   favorite, foodFilter, language, location, orders, pharma,
+│                           #   rewards, search, ui, vendorRating)
 ├── theme/                  # brandTokens, fonts, sectorVisuals
 └── utils/                  # responsive (hs/vs/ms/wp/hp)
 ```

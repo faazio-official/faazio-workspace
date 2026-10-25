@@ -23,16 +23,20 @@ if (isReleaseTask && !hasReleaseKeystore) {
 }
 
 /**
- * One native shell, two JS entry points. The partner flavor bundles `index.delivery.js` only, so
- * customer screens/stores never reach the delivery APK (and vice versa). The task name (CI builds
- * `assembleDelivery*` explicitly) or `APP_VARIANT`/`ENTRY_FILE` selects the entry.
+ * One native shell, three JS entry points. `delivery` bundles `index.delivery.js`, `seller` bundles
+ * `index.seller.js`, and `customer` bundles `index.js`, so each product's screens/stores never reach
+ * another APK. The task name (CI builds `assembleDelivery*`/`assembleSeller*` explicitly) or
+ * `APP_VARIANT`/`ENTRY_FILE` selects the entry.
  */
 def requestedEntry = System.getenv("ENTRY_FILE")
 if (!requestedEntry) {
     def deliveryBuild =
         System.getenv("APP_VARIANT") == "delivery" ||
         gradle.startParameter.taskNames.any { it.toLowerCase().contains("delivery") }
-    requestedEntry = deliveryBuild ? "index.delivery.js" : "index.js"
+    def sellerBuild =
+        System.getenv("APP_VARIANT") == "seller" ||
+        gradle.startParameter.taskNames.any { it.toLowerCase().contains("seller") }
+    requestedEntry = deliveryBuild ? "index.delivery.js" : (sellerBuild ? "index.seller.js" : "index.js")
 }
 
 /**
@@ -80,6 +84,11 @@ android {
             dimension 'app'
             applicationId 'com.faazio.deliverypartner'
             resValue 'string', 'app_name', 'Faazio Delivery'
+        }
+        seller {
+            dimension 'app'
+            applicationId 'com.faazio.seller'
+            resValue 'string', 'app_name', 'Faazio Seller'
         }
     }
 

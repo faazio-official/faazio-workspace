@@ -13,7 +13,6 @@ import (
 	"github.com/faazio/server/gateway/internal/admins"
 	"github.com/faazio/server/gateway/internal/ads"
 	"github.com/faazio/server/gateway/internal/blood"
-	"github.com/faazio/server/gateway/internal/bookings"
 	"github.com/faazio/server/gateway/internal/cartstock"
 	"github.com/faazio/server/gateway/internal/catalog"
 	"github.com/faazio/server/gateway/internal/checkout"
@@ -107,8 +106,6 @@ func NewRouter(d Deps) http.Handler {
 	mediaRepo := media.New(d.Pool)
 	notificationsRepo := notifications.New(d.Pool, d.Cache)
 	bloodRepo := blood.New(d.Pool)
-	bookingsRepo := bookings.New(d.Pool, d.Config.BookingFeePaisa)
-	bookingsGateway := bookings.NewGateway(d.Config.RazorpayKeyID, d.Config.RazorpayKeySecret, d.Config.RazorpayWebhookSecret)
 	// Razorpay Route (seller split payments): linked accounts + held transfers. Shared by sellers
 	// (provision account on KYC) and settlement (hold/release the seller share).
 	routeGateway := razorpayroute.New(d.Config.RazorpayRouteKeyID, d.Config.RazorpayRouteKeySecret, d.Config.RazorpayRouteWebhookSecret)
@@ -162,7 +159,6 @@ func NewRouter(d Deps) http.Handler {
 	// Contexts. Each owns its routes; cross-context calls use contracts interfaces.
 	checkoutService := checkout.NewService(checkoutRepo, cartRepo, d.Cache, rewardsRepo, promoRepo, promoRepo, adsRepo,
 		deliveryHandler, weatherChecker, festivalRepo)
-	bookingsService := bookings.NewService(bookingsRepo, bookingsGateway, notificationsRepo, d.Cache)
 	reviewsService := reviews.NewService(reviewsRepo, checkoutRepo, d.Cache)
 	sduiService := sdui.NewService(recoRepo, recoRepo, catalogRepo, directoryRepo, d.Cache)
 	recoService := reco.NewService(recoRepo, catalogRepo, d.Cache)
@@ -176,7 +172,6 @@ func NewRouter(d Deps) http.Handler {
 	pharma.NewHandler(pharmaRepo, pharmaStorage, d.Cache, adminsRepo, notificationsRepo).Register(r)
 	notifications.NewHandler(notificationsRepo, d.Cache, d.Drainer).Register(r)
 	blood.NewHandler(bloodRepo, d.Cache, adminsRepo, notificationsRepo).Register(r)
-	bookings.NewHandler(bookingsRepo, bookingsService, d.Cache, adminsRepo).Register(r)
 	checkout.NewHandler(checkoutRepo, checkoutService, d.Cache, adminsRepo, notificationsRepo, promoRepo,
 		directoryRepo, deliveryHandler, d.Signer).Register(r)
 	reviews.NewHandler(reviewsRepo, reviewsService, d.Cache, adminsRepo).Register(r)
@@ -308,8 +303,6 @@ func isSensitiveRequest(r *http.Request) bool {
 	case r.Method == http.MethodPost && path == "/ads/events":
 		return true
 	case r.Method == http.MethodPut && strings.HasPrefix(path, "/vendors/") && strings.HasSuffix(path, "/rating"):
-		return true
-	case strings.HasPrefix(path, "/bookings"):
 		return true
 	case strings.HasPrefix(path, "/media/"):
 		return true

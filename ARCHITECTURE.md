@@ -35,8 +35,8 @@ presentation primitives (src/components/shared/, src/theme/)
 | onboarding / auth | first-run flow, login, OTP | `features/auth` |
 | home | aggregated feed; sanctioned cross-module consumer | `features/home/sections/*` |
 | ecommerce | mart rails + catalog (incl. former grocery) | `features/ecommerce/*-home/` |
-| food | restaurant/dish browsing, booking | `features/food/` |
-| dinner-booking | table reservations | `features/dinner-booking/` |
+| food | restaurant/dish browsing | `features/food/` |
+| seller-partner | seller login + order accept/reject | `features/seller-partner/` |
 | pharma | medical database, prescriptions | `features/pharma/` |
 | product | product detail | `features/product/` |
 | cart / favourites / search / catalog / profile | cross-cutting utilities | their own folders |

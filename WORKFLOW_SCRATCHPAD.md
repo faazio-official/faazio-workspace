@@ -1,5 +1,12 @@
 # WORKFLOW_SCRATCHPAD.md — Faazio End-to-End dtype-alignment
 
+> **Bookings removed (supersedes every booking/W28 entry below).** The dinner/table-booking feature
+> is deleted across mobile, the web portal, the gateway (`internal/bookings`) and the database
+> (migrations `0011`/`0020`). There is no booking table, route, cache key or client method; the
+> `BookingSheet`/`MyBookings`/`bookingStore` references in older entries are historical only.
+> **Seller orders:** the RN seller app accepts/rejects `NEW` orders via
+> `PUT /seller/orders/{id}/accept|reject`; a rejection and its payment refund commit in one tx.
+
 > **Status:** LIVE control surface (repo root). Supersedes ad-hoc notes.
 > Plan: "Faazio End-to-End Plan v3 — Mobile → Web → DB → Go Chi Gateway".
 > This file is the single live matrix; stop 6-doc drift. Update it as phases land.

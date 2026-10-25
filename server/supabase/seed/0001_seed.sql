@@ -1252,17 +1252,6 @@ insert into blood.interests (request_id, donor_user_id, kind) values
 insert into blood.match_requests (id, requester_user_id, donor_user_id, blood_group, city, status) values
   ('dmr-000001', 'user-1', 'user_9000000001', 'O+', 'Chennai', 'pending'::match_status);
 
-insert into bookings.tables (id, user_id, vendor_id, restaurant_name, booking_date, slot, guests, seats, fee_paisa, status) values
-  ('BKG-000001', 'user-1', 'store-f1', 'Paradise Biryani House', '2026-02-01', '', 2, 2, 10000, 'confirmed'::booking_status),
-  ('BKG-000002', 'user-1', 'store-f1', 'Paradise Biryani House', '2026-02-05', '', 4, 4, 20000, 'pending'::booking_status);
-
-insert into bookings.payments (id, booking_id, user_id, amount_paisa, razorpay_order_id, razorpay_payment_id, status) values
-  ('bpay-seed-1', 'BKG-000001', 'user-1', 10000, 'order_seed_1', 'pay_seed_1', 'CAPTURED'),
-  ('bpay-seed-2', 'BKG-000002', 'user-1', 20000, 'order_seed_2', 'pay_seed_2', 'AUTHORIZED');
-
-insert into bookings.venue_configs (vendor_id, seller_id, booking_enabled, total_seats, track_occupancy, open_time, close_time, paused) values
-  ('store-f1', 'sel-3', true, 40, true, '09:00', '21:00', false);
-
 insert into sellers.sellers (seller_id, business_name, owner_name, category, state_code, status) values
   ('sel-3', 'Faazio Mart Flagship', 'Faazio Retail', 'MART'::app_brand, 'KA', 'ACTIVE'::seller_status);
 

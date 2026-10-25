@@ -64,8 +64,6 @@ export type RootStackParamList = {
   SavedAddresses: undefined;
   /** "My Orders" — status tabs, sort/filter, and order cards (pushed from Account). */
   MyOrders: { initialTab?: MyOrdersStatusFilter; highlightOrderId?: string } | undefined;
-  /** "My bookings" — the caller's seat reservations (pushed from Food/account). */
-  MyBookings: undefined;
   /** Search-results-style Favourites page (pushed from Account). */
   Favourites: undefined;
   /** Per-order detail page, resolved by id from `@data` (pushed from My Orders). */

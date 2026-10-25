@@ -56,8 +56,8 @@ type Config struct {
 	// (content expires via its Cache Rule instead) — never a broken call.
 	CFZoneID   string
 	CFAPIToken string
-	// Razorpay (bookings): secrets are env-only and never committed. When KeyID/KeySecret are empty
-	// the bookings context stays in mock mode (orders are simulated; no network calls).
+	// Razorpay: secrets are env-only and never committed. Used for customer refunds when a
+	// captured payment id is available; empty keys mean the refund rail is unavailable.
 	RazorpayKeyID         string
 	RazorpayKeySecret     string
 	RazorpayWebhookSecret string
@@ -66,9 +66,6 @@ type Config struct {
 	RazorpayRouteKeyID         string
 	RazorpayRouteKeySecret     string
 	RazorpayRouteWebhookSecret string
-	// BookingFeePaisa is the fixed per-seat platform fee (₹50). A deploy constant — a restaurant can
-	// never set its own fee (client-supplied amounts are ignored; the gateway derives it).
-	BookingFeePaisa int64
 	AuthDisabled    bool
 	DevUserID       string
 	// PushWebhookURL enables the notification outbox drain worker. Empty = worker not started
@@ -113,7 +110,6 @@ func Load() Config {
 		RazorpayRouteKeyID:         envFirst("RAZORPAY_ROUTE_KEY_ID", "RAZORPAY_KEY_ID"),
 		RazorpayRouteKeySecret:     envFirst("RAZORPAY_ROUTE_KEY_SECRET", "RAZORPAY_KEY_SECRET"),
 		RazorpayRouteWebhookSecret: envFirst("RAZORPAY_ROUTE_WEBHOOK_SECRET", "RAZORPAY_WEBHOOK_SECRET"),
-		BookingFeePaisa:            envInt64("BOOKING_FEE_PAISA", 5000),
 		AuthDisabled:               envBool("AUTH_DISABLED", false),
 		DevUserID:                  env("DEV_USER_ID", "user-1"),
 		PushWebhookURL:             env("PUSH_WEBHOOK_URL", ""),

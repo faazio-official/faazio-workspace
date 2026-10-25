@@ -65,6 +65,12 @@ type Order struct {
 	DeliverySurgePaisa   int64           `json:"deliverySurgePaisa,omitempty"`
 	DeliverySurgeReason  string          `json:"deliverySurgeReason,omitempty"`
 	DeliveryBillingBasis json.RawMessage `json:"deliveryBillingBasis,omitempty"`
+
+	// RefundedPaisa is set on a seller rejection response so the app can show the customer refund
+	// amount. It is never stored on checkout.orders (the payment ledger owns money state).
+	RefundedPaisa int64 `json:"refundedPaisa,omitempty"`
+	// RejectionReason is the seller's NEW → REJECTED reason (bounded to 500 bytes server-side).
+	RejectionReason string `json:"rejectionReason,omitempty"`
 }
 
 // OrderTracking is the lightweight owner-scoped status projection (polling/monitoring): no line
@@ -287,7 +293,8 @@ select order_id, order_number, user_id, coalesce(address_id,''), placed_at, stat
        coalesce(platform_fee_paisa,0), coalesce(platform_gst_paisa,0), coalesce(delivery_fee_paisa,0),
        coalesce(tcs_paisa,0), coalesce(tds_paisa,0), coalesce(total_charged_paisa,0),
        coalesce(delivery_zone_id,''), coalesce(delivery_distance_km,0)::float8,
-       coalesce(delivery_surge_paisa,0), coalesce(delivery_surge_reason,''), delivery_billing_basis
+       coalesce(delivery_surge_paisa,0), coalesce(delivery_surge_reason,''), delivery_billing_basis,
+       coalesce(rejection_reason,'')
   from checkout.orders`
 
 func scanOrderHeaders(rows pgx.Rows) ([]Order, error) {
@@ -306,7 +313,7 @@ func scanOrderHeaders(rows pgx.Rows) ([]Order, error) {
 			&o.InvoiceID, &o.TaxableValuePaisa, &o.ProductTaxPaisa, &o.PlatformFeePaisa,
 			&o.PlatformGSTPaisa, &o.DeliveryFeePaisa, &o.TCSPaisa, &o.TDSPaisa,
 			&o.TotalChargedPaisa, &o.DeliveryZoneID, &o.DeliveryDistanceKm,
-			&o.DeliverySurgePaisa, &o.DeliverySurgeReason, &basis); err != nil {
+			&o.DeliverySurgePaisa, &o.DeliverySurgeReason, &basis, &o.RejectionReason); err != nil {
 			return nil, err
 		}
 		o.Pickup = json.RawMessage(pickup)
@@ -412,6 +419,112 @@ func (r *Repo) SetOrderStatus(ctx context.Context, orderID, sellerID, status str
 	o.Status = newStatus
 	o.StatusDate = statusDate.UTC().Format(time.RFC3339)
 	return o, true, nil
+}
+
+// SellerOrderByID returns one order with its line items when it touches the seller's stores (or
+// when the caller is an admin). It is the read gate for seller accept/reject/detail.
+func (r *Repo) SellerOrderByID(ctx context.Context, orderID, sellerID string, admin bool) (Order, bool, error) {
+	if r.pool == nil {
+		return Order{}, false, fmt.Errorf("checkout: database not configured")
+	}
+	rows, err := r.pool.Query(ctx, orderHeaderSelect+`
+		where order_id = $1
+		  and ($2 or exists (
+		        select 1 from directory.stores s
+		         where s.seller_id = $3 and s.id = any(vendor_store_ids)))`,
+		orderID, admin, sellerID)
+	if err != nil {
+		return Order{}, false, err
+	}
+	orders, err := scanOrderHeaders(rows)
+	rows.Close()
+	if err != nil {
+		return Order{}, false, err
+	}
+	if len(orders) == 0 {
+		return Order{}, false, nil
+	}
+	withItems, err := r.attachOrderItems(ctx, orders)
+	if err != nil {
+		return Order{}, false, err
+	}
+	if err := r.pool.QueryRow(ctx, `
+		select coalesce(sum(amount_paisa), 0)
+		  from checkout.payments
+		 where order_id = $1 and status = 'REFUNDED'`, orderID).Scan(&withItems[0].RefundedPaisa); err != nil {
+		return Order{}, false, err
+	}
+	return withItems[0], true, nil
+}
+
+// TransitionSellerOrder atomically moves an order from one status to another, scoped to the
+// seller's stores unless admin. It returns false when the row is missing, out of scope, or no
+// longer in the expected status (the caller maps that to a 409 conflict).
+func (r *Repo) TransitionSellerOrder(ctx context.Context, orderID, sellerID, from, to, reason string, admin bool) (bool, error) {
+	if r.pool == nil {
+		return false, fmt.Errorf("checkout: database not configured")
+	}
+	tag, err := r.pool.Exec(ctx, `
+		update checkout.orders o
+		   set status = $4::order_status,
+		       status_date = now(),
+		       rejection_reason = case when $4 = 'REJECTED' then nullif($5,'') else o.rejection_reason end
+		 where o.order_id = $1
+		   and o.status::text = $2
+		   and ($6 or exists (
+		         select 1 from directory.stores s
+		          where s.seller_id = $3 and s.id = any(o.vendor_store_ids)))`,
+		orderID, from, sellerID, to, reason, admin)
+	if err != nil {
+		return false, err
+	}
+	return tag.RowsAffected() > 0, nil
+}
+
+// RejectSellerOrder atomically moves a NEW order to REJECTED and marks every captured payment row
+// REFUNDED in one transaction, returning the refunded amount in paisa. A concurrent decision or an
+// out-of-scope caller returns changed=false and nothing is written. A missing payment row (cash on
+// delivery) is an honest zero, not an error. Money state never diverges from order state.
+func (r *Repo) RejectSellerOrder(ctx context.Context, orderID, sellerID, from, reason string, admin bool) (refunded int64, changed bool, err error) {
+	if r.pool == nil {
+		return 0, false, fmt.Errorf("checkout: database not configured")
+	}
+	tx, err := r.pool.Begin(ctx)
+	if err != nil {
+		return 0, false, err
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+
+	tag, err := tx.Exec(ctx, `
+		update checkout.orders o
+		   set status = 'REJECTED'::order_status,
+		       status_date = now(),
+		       rejection_reason = nullif($4,'')
+		 where o.order_id = $1
+		   and o.status::text = $2
+		   and ($5 or exists (
+		         select 1 from directory.stores s
+		          where s.seller_id = $3 and s.id = any(o.vendor_store_ids)))`,
+		orderID, from, sellerID, reason, admin)
+	if err != nil {
+		return 0, false, err
+	}
+	if tag.RowsAffected() == 0 {
+		return 0, false, nil
+	}
+	if err := tx.QueryRow(ctx, `
+		with updated as (
+		  update checkout.payments set status = 'REFUNDED'
+		   where order_id = $1 and status = 'PAID'
+		   returning amount_paisa
+		)
+		select coalesce(sum(amount_paisa), 0) from updated`, orderID).Scan(&refunded); err != nil {
+		return 0, false, err
+	}
+	if err := tx.Commit(ctx); err != nil {
+		return 0, false, err
+	}
+	return refunded, true, nil
 }
 
 // OrderByID returns one order with its line items.

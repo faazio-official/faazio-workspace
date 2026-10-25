@@ -19,7 +19,6 @@ import { DISTRICT_ADMINS } from "@/data/admins/districtAdmins";
 import { AUDIT_LOGS } from "@/data/admins/auditLogs";
 import { REVIEWS } from "@/data/reviews/reviews";
 import { PRESCRIPTIONS } from "@/data/pharma/prescriptions";
-import { BOOKINGS } from "@/data/bookings/bookings";
 import { BLOOD_REQUESTS } from "@/data/blood/bloodRequests";
 import { SDUI_LAYOUTS } from "@/data/sdui/layouts";
 import { CUSTOMERS } from "@/data/customers/customers";
@@ -33,8 +32,6 @@ import type {
   AuthUser,
   BankAccount,
   BloodRequestRecord,
-  BookingConfigRecord,
-  BookingRecord,
   CouponRecord,
   CustomerRecord,
   FestivalCampaign,
@@ -84,8 +81,6 @@ export interface PortalState {
   auditLogs: AuditLog[];
   reviews: ReviewRecord[];
   prescriptions: PrescriptionRecord[];
-  bookings: BookingRecord[];
-  bookingConfigs: BookingConfigRecord[];
   bloodRequests: BloodRequestRecord[];
   sduiLayouts: SduiLayout[];
   customers: CustomerRecord[];
@@ -118,8 +113,6 @@ const seed = {
   auditLogs: AUDIT_LOGS,
   reviews: REVIEWS,
   prescriptions: PRESCRIPTIONS,
-  bookings: BOOKINGS,
-  bookingConfigs: [],
   bloodRequests: BLOOD_REQUESTS,
   sduiLayouts: SDUI_LAYOUTS,
   customers: CUSTOMERS,

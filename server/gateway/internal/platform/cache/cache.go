@@ -40,7 +40,6 @@ func Orders(userID string) string     { return fmt.Sprintf("faazio:v1:checkout:o
 func Favourites(userID string) string { return fmt.Sprintf("faazio:v1:favourites:items:%s", userID) }
 func Rewards(userID string) string    { return fmt.Sprintf("faazio:v1:rewards:view:%s", userID) }
 func BloodRequests(key string) string { return fmt.Sprintf("faazio:v1:blood:requests:%s", key) }
-func Bookings(userID string) string   { return fmt.Sprintf("faazio:v1:bookings:tables:%s", userID) }
 
 // WeatherZone caches one zone's rain verdict for 30 minutes so a window costs at most one Weather
 // Union call. WeatherCalls is the financial-year API budget counter; WeatherOverride is the
@@ -49,12 +48,6 @@ func WeatherZone(cellID string) string { return fmt.Sprintf("faazio:v1:weather:z
 func WeatherCalls(fy string) string    { return fmt.Sprintf("faazio:v1:weather:calls:%s", fy) }
 func WeatherOverride(cellID string) string {
 	return fmt.Sprintf("faazio:v1:weather:override:%s", cellID)
-}
-
-// BookingAvail caches the public, seat-count-free availability projection for a vendor. The
-// seller-private config row itself is never cached (PII/internal rules, caching doc §6).
-func BookingAvail(vendorID string) string {
-	return fmt.Sprintf("faazio:v1:bookings:avail:%s", vendorID)
 }
 
 // NearbyStores/NearbyProducts cache one geo read. Coordinates are rounded to 3 decimals (~110 m)
@@ -215,13 +208,6 @@ const (
 
 	// TTLBloodRequests bounds the public (redacted) blood-requests board; auth callers bypass it.
 	TTLBloodRequests = 60 * time.Second
-
-	// TTLBookings bounds the auth-scoped booking lists (mutable; invalidated on write).
-	TTLBookings = 60 * time.Second
-
-	// TTLBookingAvail bounds the public vendor availability projection (bookable/fee/timing only;
-	// invalidated on config write and on every accept/reject so long holds free up promptly).
-	TTLBookingAvail = 30 * time.Second
 
 	// TTLReco bounds the per-userHash recommendation projection (caching doc §5).
 	TTLReco = 3600 * time.Second

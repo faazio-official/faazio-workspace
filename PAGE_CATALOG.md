@@ -122,7 +122,6 @@
 | F01 | **Food Order Mode** | `src/components/FoodPage.tsx` | 237–663 | Full order mode view |
 | F02 | **Store Profile / Restaurant Detail** | `src/components/FoodPage.tsx` | 399–511 | Cover image, menu grid, offers |
 | F03 | **Restaurant Directory** | `src/components/FoodPage.tsx` | 512–661 | Filter bar + store list |
-| F04 | **Food Booking Mode** | `src/components/FoodPage.tsx` | 664–1128 | Full booking mode view |
 | F05 | **Table Reservation Form** | `src/components/FoodPage.tsx` | 892–1125 | Full-screen: date, time, guests, confirm |
 | F06 | **Food Menu View** | `src/components/FoodMenuView.tsx` | full (211) | Search, category tabs, 2-column grid |
 | F07 | **My Bookings (SubAppWrapper tab)** | `src/components/SubAppWrapper.tsx` | 185–301 | Reservation list + empty state |
@@ -137,31 +136,6 @@
 | FO3 | Address Card | 260–285 | Emerald green delivery card |
 | FO4 | Promo Card | 287–325 | Chicken Teriyaki with Order Now |
 | FO5 | Top of Week Carousel | 327–395 | Weekly specials |
-
-#### Food Booking Mode (F04) sub-sections:
-
-| # | Sub-Section | Lines | Description |
-|---|-------------|-------|-------------|
-| FB1 | Header + Cart | 674–696 | Green gradient, avatar, greeting |
-| FB2 | Search Bar | 699–717 | |
-| FB3 | Category Tabs | 719–750 | Breakfast/Dinner/Lunch |
-| FB4 | Category Bubbles | 753–785 | Vegan/Pizza/Sushi/Hot Dog |
-| FB5 | Booking Dish Cards | 809–888 | "Book Table" CTA |
-| FB6 | Empty State | 830–836 | No active tables |
-
-### 1.5 Sub-App: FA Mart
-
-| # | Screen | File | Lines | Description |
-|---|--------|------|-------|-------------|
-| M01 | **Mart Home** | `src/components/FaMartPage.tsx` | 307–604 | Full mart landing page |
-| M02 | **Mart Store Profile** | `src/components/FaMartPage.tsx` | 135–296 | Cover, rating, offer, product catalog |
-| M03 | **Mart — Categories (SubAppWrapper tab)** | `src/components/SubAppWrapper.tsx` | 336–357 | 2-column category grid |
-| M04 | **Mart — Offers (SubAppWrapper tab)** | `src/components/SubAppWrapper.tsx` | 359–380 | Promo code list |
-
-> **Historical (Vite web app) — not the live RN app.** `src/components/FaMartPage.tsx` was the Vite
-> prototype and no longer exists. The live Mart home is **RN16 `features/ecommerce/FaMartScreen.tsx`**;
-> the in-wrapper vendor drill-in is `VendorProfileView` and the pushed single-store page is
-> `VendorDetailScreen` (see §2). M03/M04 are the live `SubAppWrapper` tabs.
 
 #### Mart Home (M01) sub-sections:
 
@@ -250,7 +224,7 @@ Additional Pharma routes (not in the Vite audit): `MedicalShopDetailsScreen.tsx`
 > **This is the authoritative RN page registry.** Every route in
 > `client/mobile/src/navigation/types.ts` (plus `MainTabs`, `FoodStack` and the `SubAppWrapper`
 > tabs) is listed once, tagged by sub-app scope, with its file and entry point — so no sub-page
-> (vendor, category, restaurant, blood, Rx, bookings, rewards) can drift to "unknown". The legacy
+> (vendor, category, restaurant, blood, Rx, rewards) can drift to "unknown". The legacy
 > subsections that used to live here (`Types Defined But NOT Wired`, `Orphan Files`) were stale —
 > every one of those routes is wired now — and are superseded by this registry. Section 1 (Vite)
 > and Section 3 (Vite↔RN mapping) are historical audit records and should be read as such.
@@ -303,7 +277,6 @@ Auth is the **mocked login** (`authStore.login()`, 3 SecureStore writes). No Sup
 | RN20 | `MyOrders` | **MyOrdersScreen** | `src/features/profile/MyOrdersScreen.tsx` | `{ initialTab?; highlightOrderId? }`; `ordersStore` merged over `@data`; prescription cards |
 | RN21 | `OrderDetails` | **OrderDetailsScreen** | `src/features/profile/OrderDetailsScreen.tsx` | `{ orderId }`; resolves `ordersStore` → `@data`; pickup card + rate card |
 | RN22 | `Favourites` | **FavouritesScreen** → `FavouritesPageView` | `src/features/favourites/FavouritesScreen.tsx` | Search-results-style; `useFavoriteStore` |
-| RN23 | `MyBookings` | **MyBookingsScreen** | `src/features/dinner-booking/MyBookingsScreen.tsx` | Seat reservations (Food/account) |
 | RN24 | `RateVendor` | **RateVendorScreen** | `src/features/profile/RateVendorScreen.tsx` | `{ vendorId; vendorName? }`; verified buyers only, gate re-checked |
 | RN25 | `FaazioRewards` | **FaazioRewardsScreen** | `src/features/rewards/FaazioRewardsScreen.tsx` | Device-local coins + streak |
 | RN26 | `SellWithUs` | **SellerRegistrationScreen** | `src/features/seller-onboarding/SellerRegistrationScreen.tsx` | Partner onboarding → `POST /sellers` |
@@ -358,7 +331,7 @@ The feed's paid/organic order is codified in
 
 `FoodHome` = `FOOD_HERO` (paid, SDUI `foodHero` house fallback) + Top Rated + Today's Special +
 "What's on your mind?" + Snacks & Beverages order rails + Restaurants For Dining grid. Food cart is
-restaurant-scoped (one common cart, isolated by ownership) + `MyBookings` + Food `RateVendor`.
+restaurant-scoped (one common cart, isolated by ownership) + Food `RateVendor`.
 
 Feed order and paid/organic classification:
 
@@ -372,13 +345,12 @@ Feed order and paid/organic classification:
 | Fd6 | Restaurants For Dining grid | `RestaurantGrid` | Organic directory | `gateway.fetchVenues('FOOD')` (server-only) merged with the `@data` venue fixture; authoritative empty → honest empty state (never stale fixture) |
 | Fd7 | Restaurant-profile hero | `CampaignHero` (`components/shared`) | **PAID** | `STORE_TOP` scoped to the venue's `storeId`; whole band drops when no LIVE fill |
 | Fd8 | Restaurant-profile offer slot | inline banner | Organic offer | live coupon `useBestCoupon('FOOD')` → tap opens cart; decorative `offerTag` fallback |
-| Fd9 | Booking card → `BookingSheet` (**overlay, not a route**) | `BookingSheet` (`features/dinner-booking`) | Organic (server availability) | renders only when `availability.bookable`; seat stepper, server-derived ₹/seat; strict hold |
 
 Rail "View All" → shared `RestaurantOffers` / `DealsLanding`; profile dish rows are the shared
 `MenuItemRow`. The profile diet toggle is a **screen-local override** seeded once from
 `foodFilterStore` and never written back (`dietFilter.ts` semantics). `FoodStack` "bypasses
 `SubAppWrapper`" and escapes to **root** routes for PDP (`ProductDetail`), scoped `Cart`,
-`RateVendor` and `MyBookings`. Restaurant-isolated cart + shared Food routes live in
+`RateVendor`. Restaurant-isolated cart + shared Food routes live in
 `docs/architecture/mobile-app.md` (§ Food) and are linked from `FoodStack.tsx`.
 
 ### 2.7 Sub-app: PHARMA
@@ -469,7 +441,6 @@ sector). They are where paid ads, organic offers, SDUI layouts and all seller da
 | D6: Account Tab | RN8: AccountView | ✅ Same component |
 | S0: Sub-App Shell | RN10: SubAppWrapper | ✅ Same component |
 | F01: Food Order Mode | RN11: FoodScreen | ✅ |
-| F04: Food Booking Mode | RN12: FoodScreen | ✅ |
 | M01: Mart Home | RN16: FaMartScreen | ✅ |
 | G01: Grocery Home | RN18: GroceryScreen | 🗑️ Removed — Grocery merged into Mart (surfaces under RN16 FaMartScreen) |
 | P01: Pharma Home | RN20: PharmaScreen | ✅ |
@@ -514,7 +485,6 @@ These tabs render with empty-state messages:
 | Tab | File | Message Displayed |
 |-----|------|-------------------|
 | Food → Menu | `SubAppWrapper.tsx` | Gourmet menus load from the server (`getMenu`); no placeholder. |
-| Food → My Bookings | `MyBookingsScreen` | Real bookings list (empty state only when none). |
 | Pharma → History | `PharmaScreen.tsx` (`activeTab='History'`) | Recently ordered list (`PHARMA_RECENT_ORDERS`). |
 | Pharma → Donor | `BloodDonorScreen` / `DonorDashboard` | Replaced the old "For You" placeholder. |
 
@@ -556,7 +526,7 @@ These tabs render with empty-state messages:
 | `src/features/ecommerce/EcommerceScreen.tsx` | Standalone e-commerce (orphan) | ❌ Unused |
 | `src/features/ecommerce/FaMartScreen.tsx` | Mart Home | ✅ Active |
 | `src/features/ecommerce/GroceryScreen.tsx` | ~~Grocery Home~~ — deleted (Grocery merged into Mart) | 🗑️ Removed |
-| `src/features/food/FoodScreen.tsx` | Food Order + Booking modes | ✅ Active |
+| `src/features/food/screens/FoodHomeScreen.tsx` | Food Home (order + dining) | ✅ Active |
 | `src/features/pharma/PharmaScreen.tsx` | Pharma Home | ✅ Active |
 | `src/components/HomeView.tsx` | Hub Home tab | ✅ Active |
 | `src/components/CategoriesView.tsx` | Hub Categories tab | ✅ Active |
@@ -802,7 +772,7 @@ These tabs render with empty-state messages:
 
 **Accepted deltas:** no backdrop blur (solid rgba); motion spring layout morphs → `Animated.spring` translate; animate-fade-in undefined even on web → skipped; web's pt-17 → `vs(64)`; edge-swipe exit → Android hardware-back (already wired); hover → `activeOpacity`.
 
-### Page 12 — Food Sub-App (FoodScreen.tsx + FoodMenuView.tsx + bookingStore.ts)
+### Page 12 — Food Sub-App (FoodScreen.tsx + FoodMenuView.tsx)
 
 | # | Task | Files | Status | Notes |
 |---|------|-------|--------|-------|
@@ -813,11 +783,10 @@ These tabs render with empty-state messages:
 | 5 | Restaurant directory: "Top Restaurants Near You" + count; Pure Veg / Under-30-mins toggles; 3-way sort segment; conditional rose Clear All; `foodStores` cards (cover+gradient, emoji, VEG badge, rating/delivery/distance/offer rows, chevron circle) | `FoodScreen.tsx` | ✅ Done | Data already mirrored |
 | 6 | Store drill-in: `selectedStore` state; back pill; hero cover + floating rating; 56px emoji tile; pulsing offer tag; 2-col menu grid w/ "{firstWord} Special" badge and + Add → ✓ Added | `FoodScreen.tsx` | ✅ Done | |
 | 7 | Booking mode fidelity: `#54B175` r28 full card header (avatar + dot, 🛒 `#FFA500` circle, back+search+⚙️ chip); tabs w/ "24" badge + animated underline; floating category bubbles card (Vegan/Pizza/Sushi/Hot Dog, active amber ring + ★ badge) overlapping header -24px; vertical Popular Food cards (176px image, heart circle, "Book Table" pill, tab+category filter w/ empty state) | `FoodScreen.tsx` | ✅ Done | |
-| 8 | Reservation modal: RN Modal full-screen; sticky header; Core Dish gradient card; date display (Today/Tomorrow style), 4 time-slot pills (18:00–21:00 w/ labels), guest pills 1/2/4/6/8 active `#54B175`; Iconic Dishes rail inside; sticky confirm + PROMO PASS chip → `addBooking` → `BKG-xxxxxx` → toast + 5s auto-dismiss | `FoodScreen.tsx` + `bookingStore.ts` | ✅ Done | In-memory store (no AsyncStorage dep) |
-| 9 | FoodMenuView port: header w/ pulsing bell dot, dark toast, sticky search + cat tabs w/ spring underline, 2-col `foodProducts` grid w/ floating Plus→Check badge, dashed empty state; SubAppWrapper Menu-tab placeholder replaced; My Bookings wired to `getBookings()` | `FoodMenuView.tsx` + `SubAppWrapper.tsx` | ✅ Done | |
+| 9 | FoodMenuView port: header w/ pulsing bell dot, dark toast, sticky search + cat tabs w/ spring underline, 2-col `foodProducts` grid w/ floating Plus→Check badge, dashed empty state; SubAppWrapper Menu-tab placeholder replaced | `FoodMenuView.tsx` + `SubAppWrapper.tsx` | ✅ Done | |
 | 10 | Gate: full `hs()`/`vs()`/`ms()` responsive sweep, container bg `#f8fafc`; `tsc --noEmit` | All files | ✅ Done | 0 errors |
 
-**Accepted deltas:** native date input → Today/Tomorrow preset display; no AsyncStorage → in-memory `bookingStore`; Vite dead code (dinnerRestaurants, unused handlers, Bell/Filter orphans, animate-fade-in) skipped; web motion layout-id → `Animated.spring` translate.
+**Accepted deltas:** Vite dead code (unused handlers, Bell/Filter orphans, animate-fade-in) skipped; web motion layout-id → `Animated.spring` translate.
 
 ### Page 13 — FA Mart Sub-App (FaMartScreen.tsx)
 

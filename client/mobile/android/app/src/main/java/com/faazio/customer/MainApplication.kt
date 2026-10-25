@@ -18,9 +18,13 @@ class MainApplication : Application(), ReactApplication {
           add(FaazioGeocoderPackage())
           if (BuildConfig.FLAVOR == "delivery") add(DeliveryTrackingPackage())
         },
-      // Debug shells load JS from Metro; release shells use the embedded bundle. The delivery
+      // Debug shells load JS from Metro; release shells use the embedded bundle. Each partner
       // flavor points Metro at its own entry so customer code is never requested/bundled.
-      jsMainModulePath = if (BuildConfig.FLAVOR == "delivery") "index.delivery" else "index",
+      jsMainModulePath = when (BuildConfig.FLAVOR) {
+        "delivery" -> "index.delivery"
+        "seller" -> "index.seller"
+        else -> "index"
+      },
       useDevSupport = BuildConfig.DEBUG,
     )
   }

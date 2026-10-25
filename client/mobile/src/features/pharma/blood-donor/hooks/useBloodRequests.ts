@@ -1,14 +1,10 @@
 import { useEffect, useState } from 'react';
-import {
-  BLOOD_REQUESTS,
-  type BloodGroup,
-  type BloodRequest,
-  type BloodRequestUrgency,
+import type {
+  BloodGroup,
+  BloodRequest,
+  BloodRequestUrgency,
 } from '@data/index';
 import { gateway, type BloodRequestRecord, type ReadSource } from '@/services/api/GatewayClient';
-
-/** Index the fixture once so a server row can borrow its display-only extras. */
-const FIXTURE_BY_ID = new Map(BLOOD_REQUESTS.map((r) => [r.id, r]));
 
 const URGENCIES: BloodRequestUrgency[] = ['urgent', 'high', 'normal'];
 
@@ -26,7 +22,6 @@ function toUrgency(value: string): BloodRequestUrgency {
  * server (present for an authed caller, redacted for anon).
  */
 function toBloodRequest(rec: BloodRequestRecord): BloodRequest {
-  const fx = FIXTURE_BY_ID.get(rec.id);
   return {
     id: rec.id,
     hospital: rec.hospital,
@@ -39,16 +34,16 @@ function toBloodRequest(rec: BloodRequestRecord): BloodRequest {
     neededWithin: rec.neededWithin,
     verified: rec.verified,
     urgency: toUrgency(rec.urgency),
-    imageUrl: fx?.imageUrl ?? '',
-    purposeDescription: fx?.purposeDescription ?? '',
-    patientAge: fx?.patientAge ?? 0,
-    patientGender: fx?.patientGender ?? '',
+    imageUrl: '',
+    purposeDescription: '',
+    patientAge: 0,
+    patientGender: '',
     // Contact/address are server-owned PII: an anon caller gets them redacted (absent) and must
     // never be shown a fixture lookalike. Only the donation-safe display extras come from the fixture.
     hospitalContact: rec.contact ?? '',
     hospitalAddress: rec.address ?? `${rec.city}, ${rec.state}`,
-    remarks: rec.remarks ?? fx?.remarks ?? '',
-    distanceKm: fx?.distanceKm ?? 0,
+    remarks: rec.remarks ?? '',
+    distanceKm: 0,
   };
 }
 
@@ -68,7 +63,7 @@ export interface BloodRequestsFeed {
  * Module cache of the last resolved feed. The dashboard resolves it first, so the
  * detail screen mounted on the next tick renders instantly instead of re-flashing.
  */
-let cache: BloodRequest[] = BLOOD_REQUESTS;
+let cache: BloodRequest[] = [];
 let cacheSource: ReadSource = 'offline-fallback';
 let cacheSettled = false;
 
@@ -78,9 +73,9 @@ let cacheSettled = false;
  * offline fixture:
  *  - live rows        → `source: 'live'`
  *  - server `200 []`  → `source: 'empty-authoritative'` (an honest empty board, not an error)
- *  - fetch failure    → the `@data` fixture (or a previously-live cache) + `offline-fallback`/`cache-stale`
+ *  - fetch failure    → a previously-live cache + `cache-stale`, or an empty board + `offline-fallback`
  *
- * The fixture is the initial value so the board never blanks, but it is always labelled.
+ * No fixture rows are ever shown; the initial board is an honest empty.
  */
 export function useBloodRequests(reloadKey = 0): BloodRequestsFeed {
   const [feed, setFeed] = useState<BloodRequestsFeed>({

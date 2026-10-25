@@ -5,9 +5,10 @@
 > for each entry in the shared `data/` layer. The React Native app (`client/mobile/`) is the only
 > current consumer — the root Vite web app (frozen reference) uses its own `src/data/` copies.
 
-> **MVP (active):** live `@mock` data migrates **per module** to Supabase (Postgres) + MongoDB
-> via `GatewayClient` (`@mock` → `@server`) — see `docs/architecture/mvp-backend.md`. `@data/*`
-> stays the live fallback in mock mode and on remote error until each consumer is migrated.
+> **MVP (active):** live data is served **server-only** by the Go gateway over Supabase
+> (Postgres) + MongoDB via `GatewayClient`. `@data/*` fixtures are retained for shared types,
+> static taxonomy and seed rows; they are **never substituted at runtime** on a remote error.
+> See `docs/architecture/mvp-backend.md` and `docs/architecture/data-layer-sdui.md`.
 
 ---
 
@@ -15,7 +16,7 @@
 
 | Tag | Meaning |
 |---|---|
-| `@mock` | Static seeded fixture for local development. Will be replaced by the Go Chi backend (`server/`). **Not production data.** |
+| `@mock` | Fixture retained for types/editorial seeds only. **Never served at runtime** — `GatewayClient` is server-only. |
 | `@seed` | Bootstrap seed hydrated into client state stores on first launch (cart / favourites / location). |
 | `@static` | Deliberately immutable in-code config (e.g. the Home section registry order). Expected to become server-driven later. |
 | `@static-editorial` | Editorial/marketing fixture with no backing table (brand campaign cards, Mart/Food/Pharma hero + deal rails). Presentation-owned; the correct long-term home is the SDUI layout doc, **not** a per-table migration. Not a wiring gap. |
@@ -30,21 +31,21 @@ Every domain file below carries its tag as a top-of-file banner comment.
 
 | Domain | Owner (feature) | Entry files | Status |
 |---|---|---|---|
-| `mart` | `features/ecommerce` | `products.ts`, `stores.ts` | `@mock` |
+| `mart` | `features/ecommerce` | `products.ts`, `stores.ts` | `@server` (fixtures are type/offline seeds) |
 | `food` | `features/food` | `products.ts`, `stores.ts`, `menus.ts`, `specials.ts`, `diningVenues.ts` | mixed `@mock` / `@server` — `menus.ts` + `diningVenues.ts` seed `directory.menus`/`directory.dining_venues` and fall back locally (`getList` → `GatewayClient.fetchMenu`/`fetchVenues`); `features/food/mocks/*` (`restaurants`, `homeFeed`, `specials`) are the client-side first-paint for the dining grid + mind/snack rails (see `@data/food` below) |
 | `pharma` | `features/pharma` | `products.ts`, `stores.ts`, `bloodRequests.ts`, `recentOrders.ts` | mixed `@mock` / `@server` — pharma home feed (SDUI sections, coupons, hero) + History read `GatewayClient`; fixtures seed mock-mode first paint / remote fallback |
-| `explore` | `features/catalog` (Categories/Favourites) | `stacks.ts` | `@mock` |
-| `categories` | `features/catalog` | `searchDatabase.ts` | `@mock` |
-| `productMeta` | `features/product` (ProductDetail) | `reviews.ts` | `@mock` (+ `@unused` by mobile) |
-| `cart` | `features/cart` | `addresses.ts`, `coupons.ts`, `pickup-resolver.ts` | `@mock` (`coupons.ts` hydrates from `GET /coupons` via `GatewayClient.getCoupons`, fixture fallback; the fixture seeds `promo.coupons`, not legacy `checkout.coupons`) |
-| `account` | `features/profile` | `orders.ts` | `@mock` |
-| `directory` / `reviews` (vendor) | `features/profile` (rating form/CTA) + every vendor surface | `directory/vendors.ts`, `food/diningVenues.ts`, `reviews/vendorReviews.ts` | `@mock` |
-| `home` | `features/home` | `sections.ts`, `rails.ts`, `campaigns.ts`, `demographics.ts`, `instantFeed.ts`, `nearbyOffers.ts`, `filterFeed.ts`, `seeds.ts` | mixed `@mock` / `@seed` / `@static` |
+| `explore` | `features/catalog` (Categories/Favourites) | `stacks.ts` | `@server` (fixtures are type seeds) |
+| `categories` | `features/catalog` | `searchDatabase.ts` | `@static` taxonomy |
+| `productMeta` | `features/product` (ProductDetail) | `reviews.ts` | `@server` (fixture `@unused`) |
+| `cart` | `features/cart` | `addresses.ts`, `coupons.ts`, `pickup-resolver.ts` | `@server` (`coupons.ts` hydrates from `GET /coupons`; fixture seeds `promo.coupons`, no runtime fallback) |
+| `account` | `features/profile` | `orders.ts` | `@server` |
+| `directory` / `reviews` (vendor) | `features/profile` (rating form/CTA) + every vendor surface | `directory/vendors.ts`, `food/diningVenues.ts`, `reviews/vendorReviews.ts` | `@server` (fixtures are type seeds) |
+| `home` | `features/home` | `sections.ts`, `rails.ts`, `campaigns.ts`, `demographics.ts`, `instantFeed.ts`, `nearbyOffers.ts`, `filterFeed.ts`, `seeds.ts` | `@server` + `@seed`/`@static` registry |
 
 **Seed inventory expansion:** the mart/food/pharma/explore/categories/orders/coupons fixtures
 were expanded so the new search-results-style Favourites page and richer catalogs look alive on
 first launch: mart +4 stores and ~20 products (Home Appliances, Furniture, Books, Toys & Gifts,
-Sports, Grocery); food +6 restaurants and ~14 dishes/specials (+2 booking dishes); pharma +10 OTC/
+Sports, Grocery); food +6 restaurants and ~14 dishes/specials ; pharma +10 OTC/
 devices/baby-care/Ayurveda products; explore +3 stacks; categories +4 mart buckets; orders +8
 (MART/FOOD/PHARMA × status × Delivery/Self-Pickup, every `productId` resolvable); coupons +2;
 `seedFavorites` extended to span FOOD/MART/PHARMA. Because the normalized tables import these
@@ -185,20 +186,10 @@ the `GROCERY` member was dropped from `AppBrand` / `CartCategory` / `SubAppId` /
 > longer pads an unseeded venue (the old cuisine-match could leak other restaurants' dishes into a
 > profile) — an unseeded venue shows an honest empty menu.
 
-> **Menu discount + booking truth (W56).** A `directory.menus` dish is **not** festival-eligible:
-> `promo.festival_optins` is `catalog.products`-scoped and checkout ignores menus, so
-> `useRestaurantMenu` no longer calls `GET /promo/active-discounts` on menu ids — the authored
-> `mrp_paisa` strike is the only menu discount. Booking writes are strict (`createBooking`/
-> `attachBookingPayment` throw offline; `getBookingAvailability`'s offline fallback is
-> `bookable:false`), and the dining grid drops to an honest empty state on a server-authoritative
-> empty venue list (`GatewayClient.fetchVenues`) instead of showing stale fixture venues.
-
-> **Dinner/table bookings (migration `0011`/`0020`):** `state/bookingStore` (`BookingRecord`) was
-> memory-only; it now has a durable home in `bookings.tables`, served by `internal/bookings`
-> (`GET/POST /bookings`, `DELETE /bookings/{id}`, `POST /bookings/{id}/payment`). The partial unique
-> index is the double-book guard. Food-order bookings (`state/foodBookingStore`, `bookings.food_orders`,
-> `GET/POST /food-bookings`) were removed as dead code (W29 follow-up) — the table is reserved and
-> unseeded (see `docs/architecture/db-schema.md` §12.7).
+> **Menu discount truth (W56).** A `directory.menus` dish is **not** festival-eligible:
+> `promo.festival_optins` is `catalog.products`-scoped and checkout ignores menus, so the authored
+> `mrp_paisa` strike is the only menu discount. The dining grid shows an honest empty state on a
+> server-authoritative empty venue list (`GatewayClient.fetchVenues`); no fixture venues are shown.
 
 ### `@data/pharma` — owner: `features/pharma`
 
@@ -460,7 +451,7 @@ the `GROCERY` member was dropped from `AppBrand` / `CartCategory` / `SubAppId` /
 ## Known Gaps (honest inventory)
 
 1. **Duplicated mock data in screens.** `PharmaScreen` (home feed arrays in `mocks/pharmaHomeFeed.ts`),
-   `FoodScreen` (booking dishes), `FaMartScreen` (mart home feed in `mocks/martHomeFeed.ts`), and
+   `FaMartScreen` (mart home feed in `mocks/martHomeFeed.ts`), and
    `ProductDetailView` each keep inline/feature copies of data. The `PharmaScreen` recent-orders
    copy has been de-duplicated into `data/pharma/recentOrders.ts`; the pharma/mart **home-feed**
    arrays remain feature-local (feature-specific UI types) and are a deliberate de-dup priority.
@@ -471,20 +462,10 @@ the `GROCERY` member was dropped from `AppBrand` / `CartCategory` / `SubAppId` /
    **Prune candidates** — keep exported, prune when a home section is ready for them.
 3. **`schema.ts` (`SDUINode`)** is `@aspirational` — defined but not produced by any data file yet.
    Data files emit typed entity arrays, not SDUI trees. Do not rely on it as a live contract.
-4. **Screens still read mock data.** The MVP monolith ships
-   (`docs/architecture/mvp-backend.md`) and `GatewayClient` is wired, but screens read `@data/*`
-   until migrated per module (`@mock` → `@server`); `GatewayClient` falls back to `@data/*` on error.
-   Migrated so far: Home SDUI feed, mart/catalog vendor drill-in, product search (3 configs),
-   favourites, cart durability, checkout `placeOrder`, Pharma Rx capture/upload/create + quote/READY
-   polling, orders history, vendor-review reads, `search` analytics, **profile reads**
-   (`userProfile`/`accountDetails`/`savedAddresses`), **Mart home deals** and **Food venue menus**
-   (dining + delivery, W33), plus **Food dining** (`getVenues`), **Food search** and **Food bookings**
-   (`getBookingAvailability`/`createBooking`/`attachBookingPayment`/`cancelBooking`/`getBookings`),
-   plus **blood reads** (dashboard feed W27; **donor discovery W53** via `GET /donors`) and
-   **Pharma merchandising W53** (`getPharmaFeed` + discount overlay + coupon-validated Top Offers +
-   real-id Quick Reorder). The blood **writes** (register/interest/targeted match) mirror server-side
-   best-effort (W53) with AsyncStorage as the UX cache; a fully server-authoritative write path
-   (auth session) remains open — see `WORKFLOW_SCRATCHPAD.md` §9.
+4. **Server-only reads.** `GatewayClient` never falls back to `@data/*`; a failed/disabled remote
+   call throws and the screen renders an honest offline/empty state. Every customer, seller and
+   admin read/write is gateway-backed. The blood **writes** still use the store's `pendingOps`
+   outbox as a UX retry queue (server-wins reconcile); no fixture rows are shown.
 5. **~~Per-restaurant menus are seeded only for the 18 dining restaurants.~~ Resolved (W33).**
    The 12 food-delivery `foodStores` now have their own menus: `data/food/menus.ts` derives
    `storeMenus` from `foodProducts` by `storeId`, and the seed emits `directory.menus` rows for

@@ -3,6 +3,10 @@
 Scoped, dated backlog entries for features intentionally deferred until their
 dependencies exist. Do not build the backend/seller flows until told to.
 
+> **Dinner/table bookings were removed** (mobile, web portal, gateway, migrations `0011`/`0020`).
+> Older W28/W29 booking entries below are historical and superseded; there is no booking screen,
+> store, route, cache key or client method. The seller app now accepts/rejects orders.
+
 ---
 
 ## W67 — Manual district allocation + dual rider payout mode (P0)
@@ -270,8 +274,10 @@ a real Supabase GoTrue phone-OTP session, so every `auth.Require` write (`/cart`
   `checkout.users.auth_uid` on first authenticated call (`0030` adds `last_login_at`), so no manual
   portal row is needed. `auth_uid → user_id` stays read-through cached for 1 h. W60 swaps the
   verifier to Firebase and widens `auth_uid` to `TEXT` (`0031`).
-- **Honesty:** with `STRICT=true`, cart/favourite/address/booking/Rx/order writes fail loudly instead
+- **Honesty:** with `STRICT=true`, cart/favourite/address/Rx/order writes fail loudly instead
   of echoing a local fixture. `configure.js` refuses a release that embeds a mock-login build.
+  Dinner/table bookings were removed (see the WORKFLOW_SCRATCHPAD status banner); the seller app
+  accepts/rejects orders through the gateway and rejects atomically with the payment refund.
 - **Ops (not code):** Firebase native config is committed (superseded by W60); Render env
   `AUTH_DISABLED=false`, `ALLOWED_ORIGINS`; Cloudflare proxied + Full SSL + Render inbound origin lock;
   rotate cert pins with a 2-pin overlap ≥30 days before expiry (see `docs/RUNBOOKS/RELEASE.md`).

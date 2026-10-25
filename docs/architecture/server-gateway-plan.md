@@ -48,7 +48,7 @@ keys/TTLs unchanged.
   `/vendors/:id/reviews` (+ `/summary`), `/stores`, `/stores/nearby?lat=&lng=&radius=&app=`,
   `/store/:id`, `/products/nearby?lat=&lng=&radius=&app=`, `/venues`, `/venues/:id/menu`,
   `/stock/:id`, `/orders`, `/profile`, `/profile/details`, `/profile/addresses` (GET/PUT/DELETE),
-  `/membership`, `/order-status`, `/account-nav`, `/bookings`, `/venues/:id/booking-availability`,
+  `/membership`, `/order-status`, `/account-nav`, `/seller/orders`, `/seller/orders/:id`,
   `/coupons?app=` (anon), `/promo/active-discounts?ids=` (anon), `/ads/live?slot=` (anon),
   `/admin/user-trail?userId=` (admin, ID-only), `/admin/sdui/home` (super-admin, raw ID-only layout);
   writes `POST/PUT/DELETE /cart…`, `POST /orders` (festival-discount + coupon settlement + ad
@@ -56,9 +56,8 @@ keys/TTLs unchanged.
   `POST /checkout/validate-coupon`, `GET /checkout/delivery-fee?storeId=&lat=&lng=` (auth-scoped,
   server-authoritative road-distance delivery-fee quote), `POST /ads/events`, `PUT /vendors/:id/rating`, `POST /events`,
   `PUT /admin/sdui/home` (super-admin, publishes the Home layout: version bump + cache purge),
-  `POST /bookings` (seat hold + Razorpay order), `DELETE /bookings/:id`,
-  `POST /bookings/:id/payment`, seller `GET/PUT /seller/booking-config`, `GET /seller/bookings`,
-  `PUT /bookings/:id/status` (accept/reject), `POST /bookings/:id/vacate`, `POST /webhooks/razorpay`.
+  seller order decisions `PUT /seller/orders/:id/accept` (NEW→PACKED) and
+  `PUT /seller/orders/:id/reject` (NEW→REJECTED, captured payment refunded, customer notified).
 - **Seller onboarding + split payments (`internal/sellers` + `internal/settlement` + `internal/platform/razorpayroute`):**
   `POST /sellers` now carries the platform fee, payout bank details (full account number is forwarded
   to Razorpay and never stored), private R2 passbook/FSSAI keys and `otpVerified`. The OTP is the
@@ -119,7 +118,7 @@ keys/TTLs unchanged.
   `ops.festival_calendar` window). Super-admin `GET /admin/weather/usage`,
   `PUT /admin/weather/override`, `GET|POST /admin/festival/calendar`,
   `DELETE /admin/festival/calendar/{id}`. Provider key is optional: unset means no rain surge.
-- **Packages:** `internal/{search,catalog,directory,cartstock,checkout,reviews,reco,sdui,bookings,delivery,weather,festival,geo,pricing}`
+- **Packages:** `internal/{search,catalog,directory,cartstock,checkout,reviews,reco,sdui,delivery,weather,festival,geo,pricing}`
   + `internal/{contracts,platform/*,server}`. Ownership table: `monolith-breakdown.md` §1.
 - **Boundaries:** `go run ./tools/importlint` fails on sibling-context imports.
 - **Mapping** (`@data/*` twin + `GatewayClient` method) and RLS classes: `docs/architecture/mvp-backend.md` §1–§3.
