@@ -76,9 +76,9 @@ const isPrescription = (e) => e.app === 'PHARMA' && PRESCRIPTION_CATEGORIES.has(
 // `sellers.sellers` has NO seeded row (there is no seller fixture in @data), yet
 // `ads.sponsored_slots.seller_id` FKs to it — so a fresh deploy served an empty `GET /ads/live`.
 // Seed one ACTIVE demo seller (the store-m1 owner), then the LIVE slots each placement reads
-// (HOME_TOP rail, SPONSORED_SHOWCASE Mart hero, SECTOR_RAIL category drill-in). It also satisfies
-// the pre-existing `sel-3` reference in `bookings.venue_configs`. Product ids must be catalog rows
-// (asserted by `assertLeanContract`), so the app's `getProductsByIds` join never drops a placement.
+// (HOME_TOP rail, SPONSORED_SHOWCASE Mart hero, SECTOR_RAIL category drill-in). Product ids must be
+// catalog rows (asserted by `assertLeanContract`), so the app's `getProductsByIds` join never drops
+// a placement.
 const DEMO_SELLERS = [
   { id: 'sel-3', businessName: 'Faazio Mart Flagship', ownerName: 'Faazio Retail', app: 'MART', state: 'KA' },
 ];
@@ -405,36 +405,6 @@ sql.push(inserts(
   'blood.match_requests',
   ['id', 'requester_user_id', 'donor_user_id', 'blood_group', 'city', 'status'],
   [[q('dmr-000001'), q('user-1'), q((d.BLOOD_DONORS ?? [])[0]?.userId ?? 'user-2'), q('O+'), q('Chennai'), `'pending'::match_status`]],
-));
-
-// ---------------------------------------------------------------- bookings (tables + food orders)
-const seedVenue = (d.diningVenues ?? [])[0];
-const seedVenueId = seedVenue ? seedVenue.id : slug('The Green Garden Bistro');
-const seedVenueName = seedVenue ? seedVenue.name : 'The Green Garden Bistro';
-// Seat bookings (0020): server-derived ₹50/seat platform fee; `slot` is deprecated ('').
-const BOOKING_FEE_PAISA = 5000;
-sql.push(inserts(
-  'bookings.tables',
-  ['id', 'user_id', 'vendor_id', 'restaurant_name', 'booking_date', 'slot', 'guests', 'seats', 'fee_paisa', 'status'],
-  [
-    [q('BKG-000001'), q('user-1'), q(seedVenueId), q(seedVenueName), q('2026-02-01'), q(''), n(2), n(2), n(2 * BOOKING_FEE_PAISA), `'confirmed'::booking_status`],
-    [q('BKG-000002'), q('user-1'), q(seedVenueId), q(seedVenueName), q('2026-02-05'), q(''), n(4), n(4), n(4 * BOOKING_FEE_PAISA), `'pending'::booking_status`],
-  ],
-));
-sql.push(inserts(
-  'bookings.payments',
-  ['id', 'booking_id', 'user_id', 'amount_paisa', 'razorpay_order_id', 'razorpay_payment_id', 'status'],
-  [
-    [q('bpay-seed-1'), q('BKG-000001'), q('user-1'), n(2 * BOOKING_FEE_PAISA), q('order_seed_1'), q('pay_seed_1'), q('CAPTURED')],
-    [q('bpay-seed-2'), q('BKG-000002'), q('user-1'), n(4 * BOOKING_FEE_PAISA), q('order_seed_2'), q('pay_seed_2'), q('AUTHORIZED')],
-  ],
-));
-// Demo bookable venue: one config row makes the seed venue show "Reserve seats • ₹50/seat" in the
-// app and appear as the default venue in the web seller settings page. Rollback = flip enabled off.
-sql.push(inserts(
-  'bookings.venue_configs',
-  ['vendor_id', 'seller_id', 'booking_enabled', 'total_seats', 'track_occupancy', 'open_time', 'close_time', 'paused'],
-  [[q(seedVenueId), q('sel-3'), b(true), n(40), b(true), q('09:00'), q('21:00'), b(false)]],
 ));
 
 // ---------------------------------------------------------------- demo seller + sponsored ads

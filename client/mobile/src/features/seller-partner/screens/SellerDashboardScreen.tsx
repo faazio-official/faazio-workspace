@@ -1,5 +1,6 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useState } from 'react';
 import { RefreshControl, ScrollView, StyleSheet, View } from 'react-native';
+import { useFocusEffect } from '@react-navigation/native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import AppText from '@/components/AppText';
 import { FaazioLogo } from '@/components/FaazioLogo';
@@ -41,9 +42,11 @@ export function SellerDashboardScreen({ navigation }: Props) {
     }
   }, [user]);
 
-  useEffect(() => {
-    void refresh();
-  }, [refresh]);
+  useFocusEffect(
+    useCallback(() => {
+      void refresh();
+    }, [refresh]),
+  );
 
   const pending = orders.filter((o) => o.status === 'NEW').length;
   const packed = orders.filter((o) => o.status === 'PACKED').length;

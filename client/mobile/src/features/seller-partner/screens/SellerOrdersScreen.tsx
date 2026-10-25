@@ -1,5 +1,6 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useState } from 'react';
 import { Alert, RefreshControl, ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
+import { useFocusEffect } from '@react-navigation/native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import AppText from '@/components/AppText';
 import { Card, ErrorText, PrimaryButton, Screen, SP, StatusPill } from '../components';
@@ -33,9 +34,11 @@ export function SellerOrdersScreen({ navigation, route }: Props) {
     }
   }, [status]);
 
-  useEffect(() => {
-    void refresh();
-  }, [refresh]);
+  useFocusEffect(
+    useCallback(() => {
+      void refresh();
+    }, [refresh]),
+  );
 
   const decide = useCallback(
     (order: SellerOrder, action: 'accept' | 'reject') => {

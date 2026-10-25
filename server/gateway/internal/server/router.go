@@ -282,7 +282,7 @@ func mediaBodyLimit() func(http.Handler) http.Handler {
 }
 
 // sensitiveThrottle applies a tighter concurrency cap (10) to abuse-prone writes on top of the
-// global Throttle(100): OTP/rating/booking/media bursts must not be able to consume the whole
+// global Throttle(100): OTP/rating/media bursts must not be able to consume the whole
 // server's concurrency. The limiter is built once so the semaphore is shared across requests.
 func sensitiveThrottle() func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {

@@ -73,6 +73,17 @@ type Order struct {
 	RejectionReason string `json:"rejectionReason,omitempty"`
 }
 
+// SellerScope is the caller's order-visibility scope. A seller sees orders touching their own
+// stores; a district admin sees sellers in their district (legacy district-less sellers fall back
+// to the parent state); a super admin sees every order. At least one of the fields must be set or
+// the SQL predicate matches nothing.
+type SellerScope struct {
+	SellerID     string
+	StateCode    string
+	DistrictCode string
+	SuperAdmin   bool
+}
+
 // OrderTracking is the lightweight owner-scoped status projection (polling/monitoring): no line
 // items, addresses or payments. Status is already mapped to the mobile vocabulary.
 type OrderTracking struct {
@@ -360,18 +371,37 @@ func (r *Repo) attachOrderItems(ctx context.Context, orders []Order) ([]Order, e
 	return orders, itemRows.Err()
 }
 
-// SellerOrders returns orders touching a seller's stores (via vendor_store_ids), newest first.
-// An empty sellerID returns all orders (admin scope); status filters the native enum when set.
-func (r *Repo) SellerOrders(ctx context.Context, sellerID, status string) ([]Order, error) {
+// sellerScopePredicate is the shared order-authorization predicate. Parameters:
+// $1 superAdmin, $2 sellerID, $3 districtCode, $4 stateCode. The district branch joins the seller
+// row so an admin can never broaden their view by passing a sellerId query parameter.
+const sellerScopePredicate = `(
+	$1
+	or ($2 <> '' and exists (
+	      select 1 from directory.stores s
+	       where s.seller_id = $2 and s.id = any(vendor_store_ids)))
+	or ($2 = '' and ($3 <> '' or $4 <> '') and exists (
+	      select 1 from directory.stores s
+	        join sellers.sellers sl on sl.seller_id = s.seller_id
+	       where s.id = any(vendor_store_ids)
+	         and (($3 <> '' and sl.district_code = $3)
+	              or ((sl.district_code is null or sl.district_code = '' or $3 = '')
+	                  and sl.state_code = $4))))
+)`
+
+// SellerOrders returns orders in the caller's scope, newest first. status filters the stored enum
+// label (legacy TitleCase or upper-case) when set; filterSellerID narrows an admin to one seller.
+func (r *Repo) SellerOrders(ctx context.Context, scope SellerScope, status, filterSellerID string) ([]Order, error) {
 	if r.pool == nil {
 		return nil, fmt.Errorf("checkout: database not configured")
 	}
 	rows, err := r.pool.Query(ctx, orderHeaderSelect+`
-		where ($1 = '' or exists (
-		        select 1 from directory.stores s
-		         where s.seller_id = $1 and s.id = any(vendor_store_ids)))
-		  and ($2 = '' or status::text = $2)
-		order by placed_at desc`, sellerID, status)
+		where `+sellerScopePredicate+`
+		  and ($5 = '' or status::text = $5)
+		  and ($6 = '' or exists (
+		        select 1 from directory.stores fs
+		         where fs.seller_id = $6 and fs.id = any(vendor_store_ids)))
+		order by placed_at desc`,
+		scope.SuperAdmin, scope.SellerID, scope.DistrictCode, scope.StateCode, status, filterSellerID)
 	if err != nil {
 		return nil, err
 	}
@@ -383,17 +413,14 @@ func (r *Repo) SellerOrders(ctx context.Context, sellerID, status string) ([]Ord
 	return r.attachOrderItems(ctx, orders)
 }
 
-// SetOrderStatus transitions an order, scoped to a seller's stores unless admin.
-func (r *Repo) SetOrderStatus(ctx context.Context, orderID, sellerID, status string, admin bool) (Order, bool, error) {
+// SetOrderStatus transitions an order inside the caller's scope.
+func (r *Repo) SetOrderStatus(ctx context.Context, orderID string, scope SellerScope, status string) (Order, bool, error) {
 	if r.pool == nil {
 		return Order{}, false, fmt.Errorf("checkout: database not configured")
 	}
 	rows, err := r.pool.Query(ctx, orderHeaderSelect+`
-		where order_id = $1
-		  and ($2 or exists (
-		        select 1 from directory.stores s
-		         where s.seller_id = $3 and s.id = any(vendor_store_ids)))`,
-		orderID, admin, sellerID)
+		where order_id = $5 and `+sellerScopePredicate,
+		scope.SuperAdmin, scope.SellerID, scope.DistrictCode, scope.StateCode, orderID)
 	if err != nil {
 		return Order{}, false, err
 	}
@@ -421,18 +448,15 @@ func (r *Repo) SetOrderStatus(ctx context.Context, orderID, sellerID, status str
 	return o, true, nil
 }
 
-// SellerOrderByID returns one order with its line items when it touches the seller's stores (or
-// when the caller is an admin). It is the read gate for seller accept/reject/detail.
-func (r *Repo) SellerOrderByID(ctx context.Context, orderID, sellerID string, admin bool) (Order, bool, error) {
+// SellerOrderByID returns one order with its line items when it is inside the caller's scope. It
+// is the read gate for seller accept/reject/detail.
+func (r *Repo) SellerOrderByID(ctx context.Context, orderID string, scope SellerScope) (Order, bool, error) {
 	if r.pool == nil {
 		return Order{}, false, fmt.Errorf("checkout: database not configured")
 	}
 	rows, err := r.pool.Query(ctx, orderHeaderSelect+`
-		where order_id = $1
-		  and ($2 or exists (
-		        select 1 from directory.stores s
-		         where s.seller_id = $3 and s.id = any(vendor_store_ids)))`,
-		orderID, admin, sellerID)
+		where order_id = $5 and `+sellerScopePredicate,
+		scope.SuperAdmin, scope.SellerID, scope.DistrictCode, scope.StateCode, orderID)
 	if err != nil {
 		return Order{}, false, err
 	}
@@ -457,24 +481,23 @@ func (r *Repo) SellerOrderByID(ctx context.Context, orderID, sellerID string, ad
 	return withItems[0], true, nil
 }
 
-// TransitionSellerOrder atomically moves an order from one status to another, scoped to the
-// seller's stores unless admin. It returns false when the row is missing, out of scope, or no
-// longer in the expected status (the caller maps that to a 409 conflict).
-func (r *Repo) TransitionSellerOrder(ctx context.Context, orderID, sellerID, from, to, reason string, admin bool) (bool, error) {
+// TransitionSellerOrder atomically moves an order from one status to another inside the caller's
+// scope. It returns false when the row is missing, out of scope, or no longer in the expected
+// status (the caller maps that to a 409 conflict).
+func (r *Repo) TransitionSellerOrder(ctx context.Context, orderID string, scope SellerScope, from, to, reason string) (bool, error) {
 	if r.pool == nil {
 		return false, fmt.Errorf("checkout: database not configured")
 	}
 	tag, err := r.pool.Exec(ctx, `
 		update checkout.orders o
-		   set status = $4::order_status,
+		   set status = $5::order_status,
 		       status_date = now(),
-		       rejection_reason = case when $4 = 'REJECTED' then nullif($5,'') else o.rejection_reason end
-		 where o.order_id = $1
-		   and o.status::text = $2
-		   and ($6 or exists (
-		         select 1 from directory.stores s
-		          where s.seller_id = $3 and s.id = any(o.vendor_store_ids)))`,
-		orderID, from, sellerID, to, reason, admin)
+		       rejection_reason = case when $5 = 'REJECTED' then nullif($6,'') else o.rejection_reason end
+		 where o.order_id = $7
+		   and o.status::text = $8
+		   and `+sellerScopePredicate,
+		scope.SuperAdmin, scope.SellerID, scope.DistrictCode, scope.StateCode,
+		to, reason, orderID, from)
 	if err != nil {
 		return false, err
 	}
@@ -485,7 +508,7 @@ func (r *Repo) TransitionSellerOrder(ctx context.Context, orderID, sellerID, fro
 // REFUNDED in one transaction, returning the refunded amount in paisa. A concurrent decision or an
 // out-of-scope caller returns changed=false and nothing is written. A missing payment row (cash on
 // delivery) is an honest zero, not an error. Money state never diverges from order state.
-func (r *Repo) RejectSellerOrder(ctx context.Context, orderID, sellerID, from, reason string, admin bool) (refunded int64, changed bool, err error) {
+func (r *Repo) RejectSellerOrder(ctx context.Context, orderID string, scope SellerScope, from, reason string) (refunded int64, changed bool, err error) {
 	if r.pool == nil {
 		return 0, false, fmt.Errorf("checkout: database not configured")
 	}
@@ -499,13 +522,12 @@ func (r *Repo) RejectSellerOrder(ctx context.Context, orderID, sellerID, from, r
 		update checkout.orders o
 		   set status = 'REJECTED'::order_status,
 		       status_date = now(),
-		       rejection_reason = nullif($4,'')
-		 where o.order_id = $1
-		   and o.status::text = $2
-		   and ($5 or exists (
-		         select 1 from directory.stores s
-		          where s.seller_id = $3 and s.id = any(o.vendor_store_ids)))`,
-		orderID, from, sellerID, reason, admin)
+		       rejection_reason = nullif($5,'')
+		 where o.order_id = $6
+		   and o.status::text = $7
+		   and `+sellerScopePredicate,
+		scope.SuperAdmin, scope.SellerID, scope.DistrictCode, scope.StateCode,
+		reason, orderID, from)
 	if err != nil {
 		return 0, false, err
 	}
@@ -1240,7 +1262,7 @@ func (r *Repo) DeliveryContextForOrder(ctx context.Context, orderID string) (Del
 	var fulfillment *string
 	err := r.pool.QueryRow(ctx, `
 		select o.order_id, o.user_id, coalesce(o.address_id,''), o.fulfillment::text,
-		       o.vendor_store_ids, coalesce(a.name,''), coalesce(a.phone,''), coalesce(a.address,''),
+		       vendor_store_ids, coalesce(a.name,''), coalesce(a.phone,''), coalesce(a.address,''),
 		       o.delivery_latitude, o.delivery_longitude
 		  from checkout.orders o
 		  left join checkout.addresses a on a.address_id = o.address_id
