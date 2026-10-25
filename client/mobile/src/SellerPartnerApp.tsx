@@ -1,10 +1,9 @@
-import React, { useEffect, useState } from 'react';
+import React from 'react';
 import { StatusBar, StyleSheet, View } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { DefaultTheme, NavigationContainer } from '@react-navigation/native';
 import { SellerPartnerNavigator } from './features/seller-partner/SellerPartnerNavigator';
 import { SplashFallback } from './components/SplashFallback';
-import { useAuthStore } from './state/authStore';
 import { useAppFonts, resolveFontFamily } from './theme/fonts';
 import { useBottomInset } from './utils/responsive';
 
@@ -27,24 +26,13 @@ function Layout({ children }: { children: React.ReactNode }) {
 
 /**
  * Dedicated Seller Partner root. Built as its own JS entry (`APP_VARIANT=seller`) so the customer
- * and delivery navigators are never mounted in the seller experience.
+ * and delivery navigators are never mounted in the seller experience. The web portal owns the
+ * seller session, so there is no native auth hydration gate here.
  */
 export default function SellerPartnerApp() {
   const [fontsLoaded] = useAppFonts();
-  const [ready, setReady] = useState(false);
-  const hydrateAuth = useAuthStore((s) => s.hydrate);
 
-  useEffect(() => {
-    let active = true;
-    void hydrateAuth().finally(() => {
-      if (active) setReady(true);
-    });
-    return () => {
-      active = false;
-    };
-  }, [hydrateAuth]);
-
-  if (!ready || !fontsLoaded) {
+  if (!fontsLoaded) {
     return <SplashFallback variant="royal" />;
   }
 

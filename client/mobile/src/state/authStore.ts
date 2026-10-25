@@ -42,6 +42,11 @@ export interface LoginPayload {
   refreshToken?: string | null;
 }
 
+/**
+ * Customer + delivery app session. The seller product does NOT use this store: its WebView shell
+ * loads the web partner portal, which owns the seller session in HttpOnly cookies. Never add a
+ * seller login path here (that would reintroduce a second, divergent session authority).
+ */
 export interface AuthState {
   isAuthenticated: boolean;
   user: AuthUser | null;

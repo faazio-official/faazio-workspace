@@ -148,6 +148,7 @@ jobs:
             echo "::error::GOOGLE_SERVICES_SELLER_JSON is not set. Register com.faazio.seller in Firebase and store its google-services.json as the secret."
             exit 1
           fi
+          mkdir -p android/app/src/seller
           printf '%s' "$GOOGLE_SERVICES_SELLER_JSON" > android/app/src/seller/google-services.json
 
       - name: Typecheck
@@ -163,6 +164,7 @@ jobs:
           CONFIGURE_RELEASE: "1"
           REQUIRE_CERT_PINS: "1"
           GATEWAY_URL: ${{ secrets.GATEWAY_URL || 'https://faazio-workspace.onrender.com' }}
+          WEB_PORTAL_URL: ${{ vars.WEB_PORTAL_URL || secrets.WEB_PORTAL_URL }}
           USE_GATEWAY: ${{ secrets.USE_GATEWAY || 'true' }}
           STRICT: "true"
           USE_FIREBASE_AUTH: "true"

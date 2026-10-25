@@ -736,23 +736,46 @@ intentionally not built.
 ## Seller Partner app (separate product)
 
 `index.seller.js` mounts `src/SellerPartnerApp.tsx` (its own `NavigationContainer` +
-`SellerPartnerNavigator`); the `seller` flavor/configuration selects it. Sellers sign in with the
-**same email/password as the web portal** (`POST /auth/portal/login`, HS256 portal JWT, roles
-`SELLER`/`DISTRICT_ADMIN`/`SUPER_ADMIN`); the app persists the access + opaque refresh token in the
-Keychain and rotates it through `POST /auth/portal/refresh` on 401. No Firebase phone OTP is used.
+`SellerPartnerNavigator`); the `seller` flavor/configuration selects it. The seller product is a
+**WebView shell over the web partner portal** (`client/web/platform`): one native route loads
+`${WEB_PORTAL_URL}/seller` and the portal owns every seller screen — dashboard, the orders Kanban
+(`/seller/orders`), order detail with accept/reject (`/seller/orders/[id]`), products, inventory,
+menus, stores, payments, promotions and settings.
 
 ```
 SellerPartnerNavigator (native stack, no customer/delivery screens)
-├── Login       — portal email + password → authStore (access + refresh token)
-├── Dashboard   — business/KYC status, NEW/PACKED/DELIVERED counts, sign out
-├── Orders      — filterable board (NEW/PACKED/SHIPPED/DELIVERED/REJECTED/CANCELLED)
-└── OrderDetail — line items, totals, accept (NEW → PACKED + dispatch) or reject
-                  (NEW → REJECTED + captured payment REFUNDED + customer notification)
+└── Portal — full-screen react-native-webview at WEB_PORTAL_URL/seller
 ```
 
+**Session (Option A).** The portal's `/login` page authenticates against the gateway
+(`POST /auth/portal/login`) and keeps the access/refresh pair in HttpOnly cookies. Native stores no
+seller token, calls no `GatewayClient` portal endpoint, and cannot read the cookies; the WebView
+cookie store persists the session across app restarts. Portal sign-out clears the cookies; the shell
+also clears the WebView cache when it navigates back to `/login`. Hardware back walks the WebView
+history, then exits.
+
+**Native responsibilities only:** safe-area/status-bar chrome, external links (anything outside the
+portal origin opens in the system browser), FCM token registration, foreground order beep, and
+notification-tap navigation (`window.location.assign('/seller/orders/{id}')`).
+`react-native-webview` is pinned to `14.0.1`; `react-native-sound` plays the bundled
+`src/assets/orderBeep.wav`. The portal registers the injected FCM token through its authenticated
+`/api/gateway` proxy (`POST /notifications/register`), so native never needs a portal bearer token.
+On the gateway, `POST /orders` fans the new-order notification out to every active seller portal
+user owning a store in the order (`contracts.Notifier.EnqueueSeller`); the outbox payload is
+PII-free (`orderId`, `kind`). The seller Android channel (`seller_orders`) uses the bundled beep;
+the seller-only manifest sets it as the FCM default channel.
+
+Mobile shell adaptations in the portal: a touch-friendly drawer navigation below `lg` (the desktop
+sidebar stays unchanged), `viewport-fit=cover`, and the seller orders page hydrates real gateway
+rows (accept/reject call the seller decision endpoints). Other seller console pages keep their
+existing seed/hydration behaviour — completing that data cutover is tracked in
+`client/mobile/PENDING_WORK.md`.
+
 Native config: the seller build needs its own Android Firebase app + `GoogleService-Info-Seller.plist`
-(CI secret `GOOGLE_SERVICES_SELLER_JSON`; `APP_VARIANT=seller` selects it in `configure.js`). The
-seller app itself authenticates through the gateway portal, not Firebase.
+(CI secret `GOOGLE_SERVICES_SELLER_JSON`; `APP_VARIANT=seller` selects `src/seller/google-services.json`
+and the Seller plist in `configure.js`). FCM is required for push; the seller app itself
+authenticates through the portal, not Firebase. `WEB_PORTAL_URL` is a build-time public config
+(release requires https); a seller build without it shows a configuration error inside the shell.
 
 ### Phone-auth flow (Login)
 

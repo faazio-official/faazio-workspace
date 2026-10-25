@@ -125,6 +125,20 @@ rendered on the error card** (plus the first stack frame in a dev build) — tha
   or dispatch reassigned the job. This is expected; the screen never resurrects a non-`ASSIGNED`
   order.
 
+## 🔧 Seller WebView shell
+
+- **"Portal not configured" inside the seller app** → `WEB_PORTAL_URL` was empty at build time.
+  Set it in `client/mobile/.env.local` / the CI repo variable and rebuild (release requires https).
+- **Blank white WebView** → the portal origin is unreachable or mixed content is blocked. Verify the
+  URL opens in the phone browser, check the release network-security config contains the portal host,
+  and remember the portal session is a cookie: clearing app data signs the seller out.
+- **New-order beep/push missing** → the seller build needs its own Firebase app
+  (`GOOGLE_SERVICES_SELLER_JSON`), notification permission granted, `PUSH_WEBHOOK_URL` configured on
+  the gateway, and the portal open at least once after login so `SellerPushBridge` can register the
+  FCM token. `DELETE /notifications/register` runs on portal sign-out.
+- **Seller drawer missing on a phone** → the console shows the drawer below the Tailwind `lg`
+  breakpoint; a tablet in landscape uses the desktop sidebar by design.
+
 ## 🔧 Gradle / native build failures
 
 > **Rule: do not run Gradle locally on this machine.** Build in GitHub Actions

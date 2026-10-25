@@ -17,6 +17,8 @@ import type {
   HeroCampaign,
   LedgerEntry,
   MenuItemRecord,
+  OrderRecord,
+  OrderStatus,
   PayoutRecord,
   PrescriptionHistoryEntry,
   PrescriptionRecord,
@@ -164,7 +166,7 @@ export async function hydrateFromGateway(): Promise<boolean> {
   const cur = usePortalStore.getState();
   const role = cur.session?.role;
 
-  const [sellers, campaigns, coupons, caps, optins, slots, heroCampaigns, admins, logs, ledger, payouts, rx, blood, sdui, customers, menus, tickets, rates, rewardLedger] =
+  const [sellers, campaigns, coupons, caps, optins, slots, heroCampaigns, admins, logs, ledger, payouts, rx, blood, sdui, customers, menus, tickets, rates, rewardLedger, orders] =
     await Promise.all([
       safe(() => remote.get<RawSeller[]>("/sellers").then(toCamel)),
       safe(() => remote.get<FestivalCampaign[]>("/promo/campaigns").then(toCamel)),
@@ -204,6 +206,7 @@ export async function hydrateFromGateway(): Promise<boolean> {
       safe(() =>
         role === "SELLER" ? Promise.resolve<Raw[]>([]) : remote.get<Raw[]>("/rewards/ledger").then(toCamel),
       ),
+      safe(() => remote.get<Raw[]>("/seller/orders").then(toCamel)),
     ]);
 
   const patch: Record<string, unknown> = {};
@@ -396,6 +399,62 @@ export async function hydrateFromGateway(): Promise<boolean> {
         sellerId: m["sellerId"] ? str(m["sellerId"]) : undefined,
         status: str(m["status"], "DRAFT") as MenuItemRecord["status"],
       }),
+    );
+    touched = true;
+  }
+  if (hasSlice(orders)) {
+    const sellerId = cur.session?.sellerId ?? "";
+    const seller = cur.sellers.find((row) => row.sellerId === sellerId);
+    const storeById = new Map(cur.stores.map((store) => [store.storeId, store]));
+    patch["orders"] = mergeById(
+      orders.map((raw): OrderRecord => {
+        const stores = Array.isArray(raw["vendorStoreIds"])
+          ? raw["vendorStoreIds"].map((id) => str(id)).filter(Boolean)
+          : [];
+        const storeId = stores[0] ?? "";
+        const store = storeById.get(storeId);
+        const placedAt = str(raw["placedAt"]);
+        const placed = Date.parse(placedAt);
+        const lineItems = Array.isArray(raw["lineItems"]) ? raw["lineItems"] : [];
+        const itemsCount = lineItems.reduce((sum, line) => sum + num((line as Raw)["qty"], 1), 0);
+        const lineTotalPaisa = lineItems.reduce(
+          (sum, line) => {
+            const item = line as Raw;
+            return sum + num(item["unitPrice"]) * 100 * num(item["qty"], 1);
+          },
+          0,
+        );
+        const status = str(raw["status"]).toUpperCase();
+        const mappedStatus: OrderStatus =
+          status === "REJECTED"
+            ? "CANCELLED"
+            : status === "NEW" ||
+                status === "PACKED" ||
+                status === "SHIPPED" ||
+                status === "DELIVERED" ||
+                status === "CANCELLED" ||
+                status === "RETURNED"
+              ? status
+              : "NEW";
+        return {
+          orderId: str(raw["id"]),
+          sellerId,
+          storeId,
+          customerName: "Customer",
+          city: store?.city ?? "",
+          stateCode: store?.stateCode ?? cur.session?.stateCode ?? seller?.stateCode ?? "",
+          sector: store?.sector ?? seller?.category ?? "MART",
+          itemsCount,
+          amountPaisa: num(raw["totalChargedPaisa"]) || lineTotalPaisa,
+          status: mappedStatus,
+          placedAt,
+          slaDueAt: Number.isFinite(placed)
+            ? new Date(placed + 4 * 60 * 60 * 1000).toISOString()
+            : placedAt,
+        };
+      }),
+      cur.orders,
+      (order) => order.orderId,
     );
     touched = true;
   }

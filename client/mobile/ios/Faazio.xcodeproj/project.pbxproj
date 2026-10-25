@@ -239,7 +239,7 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
-			shellScript = "# The partner app uses its own Firebase project entry (bundle id com.faazio.deliverypartner).\n# Keep the customer plist untouched for every other configuration.\ncase \"$CONFIGURATION\" in\n  Delivery-*)\n    SRC=\"$SRCROOT/Faazio/GoogleService-Info-Delivery.plist\"\n    if [ ! -f \"$SRC\" ]; then\n      echo \"error: Delivery build requires $SRC (the partner iOS app from the Firebase console).\" >&2\n      exit 1\n    fi\n    DEST=\"$TARGET_BUILD_DIR/$UNLOCALIZED_RESOURCES_FOLDER_PATH/GoogleService-Info.plist\"\n    cp \"$SRC\" \"$DEST\"\n    ;;\nesac\n";
+			shellScript = "# The partner app uses its own Firebase project entry (bundle id com.faazio.deliverypartner).\n# Keep the customer plist untouched for every other configuration.\ncase \"$CONFIGURATION\" in\n  Delivery-*)\n    SRC=\"$SRCROOT/Faazio/GoogleService-Info-Delivery.plist\"\n    if [ ! -f \"$SRC\" ]; then\n      echo \"error: Delivery build requires $SRC (the partner iOS app from the Firebase console).\" >&2\n      exit 1\n    fi\n    DEST=\"$TARGET_BUILD_DIR/$UNLOCALIZED_RESOURCES_FOLDER_PATH/GoogleService-Info.plist\"\n    cp \"$SRC\" \"$DEST\"\n    ;;\n  Seller-*)\n    SRC=\"$SRCROOT/Faazio/GoogleService-Info-Seller.plist\"\n    if [ ! -f \"$SRC\" ]; then\n      echo \"error: Seller build requires $SRC (the seller iOS app from the Firebase console).\" >&2\n      exit 1\n    fi\n    DEST=\"$TARGET_BUILD_DIR/$UNLOCALIZED_RESOURCES_FOLDER_PATH/GoogleService-Info.plist\"\n    cp \"$SRC\" \"$DEST\"\n    ;;\nesac\n";
 		};
 /* End PBXShellScriptBuildPhase section */
 

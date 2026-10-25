@@ -55,6 +55,12 @@ that OTP is only a signature and must not replace the shopper session. `refreshI
 `getIdToken(true)`; `GatewayClient.recoverSession` uses it once on a 401. Nothing logs the token,
 phone number or OTP code.
 
+The **seller partner app** does not use Firebase Auth (the portal owns its session). It only needs
+the native Firebase app for FCM: register `com.faazio.seller`, store its `google-services.json` as
+the `GOOGLE_SERVICES_SELLER_JSON` CI secret (iOS: `GoogleService-Info-Seller.plist`), and grant the
+notification permission. The FCM token is injected into the portal WebView, which registers it via
+`POST /api/gateway/notifications/register`.
+
 ## 4. Console setup (already done, except Part 6)
 
 - [x] Firebase project created; Google Analytics disabled.

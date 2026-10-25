@@ -1290,7 +1290,9 @@ address are surfaced by the query's `CASE` only in those states; the projection 
 /seller/prescriptions/{id}/quotes` replaces the quote lines, recomputes `quoted_total_paisa`, advances
 `RECEIVED/QUOTED → QUOTED` and appends history. `PUT /prescriptions/{id}/status READY` requires ≥1
 quote line, sets the reveal and enqueues `notifications.outbox` (`RX_READY`). The outbox carries no PII
-beyond `user_id`; `push_tokens.token` is a device credential and is never logged. New tables are
+beyond `user_id`; `push_tokens.token` is a device credential and is never logged. A device token
+belongs to one portal login at a time: registering it deletes any prior owner's row (shared phones),
+and `DELETE /notifications/register` removes it on sign-out. New tables are
 deny-all to `anon`/`authenticated` (gateway-only); `pharma.prescriptions`' own-rows RLS is untouched.
 `util.touch_updated_at()` is attached to `pharma.quote_items`. Idempotent and re-runnable.
 

@@ -1,21 +1,19 @@
 import React from 'react';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
-import { SellerLoginScreen } from './screens/SellerLoginScreen';
-import { SellerDashboardScreen } from './screens/SellerDashboardScreen';
-import { SellerOrdersScreen } from './screens/SellerOrdersScreen';
-import { SellerOrderDetailScreen } from './screens/SellerOrderDetailScreen';
+import { SellerWebViewScreen } from './screens/SellerWebViewScreen';
 import type { SellerStackParamList } from './navigation';
 
 const Stack = createNativeStackNavigator<SellerStackParamList>();
 
-/** Isolated seller stack — customer and delivery screens are never mounted here. */
+/**
+ * The seller product is a WebView shell over the web partner portal. The portal owns every seller
+ * screen and the session; the native stack exists only for safe-area/navigation chrome and future
+ * modal surfaces (no customer/delivery screens are ever mounted here).
+ */
 export function SellerPartnerNavigator() {
   return (
-    <Stack.Navigator screenOptions={{ headerShown: false, statusBarStyle: 'dark' }} initialRouteName="Login">
-      <Stack.Screen name="Login" component={SellerLoginScreen} />
-      <Stack.Screen name="Dashboard" component={SellerDashboardScreen} />
-      <Stack.Screen name="Orders" component={SellerOrdersScreen} options={{ animation: 'slide_from_right' }} />
-      <Stack.Screen name="OrderDetail" component={SellerOrderDetailScreen} options={{ animation: 'slide_from_right' }} />
+    <Stack.Navigator screenOptions={{ headerShown: false, statusBarStyle: 'dark' }}>
+      <Stack.Screen name="Portal" component={SellerWebViewScreen} />
     </Stack.Navigator>
   );
 }

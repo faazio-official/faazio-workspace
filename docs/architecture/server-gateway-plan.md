@@ -58,6 +58,11 @@ keys/TTLs unchanged.
   `PUT /admin/sdui/home` (super-admin, publishes the Home layout: version bump + cache purge),
   seller order decisions `PUT /seller/orders/:id/accept` (NEW→PACKED) and
   `PUT /seller/orders/:id/reject` (NEW→REJECTED, payment ledger marked REFUNDED, customer notified).
+  `POST /orders` also enqueues a PII-free seller new-order notification per active seller portal user
+  owning a store in the order (`contracts.Notifier.EnqueueSeller`). Notification devices register
+  with `POST /notifications/register` and unregister with `DELETE /notifications/register` (portal
+  sign-out); re-registering a token drops any previous owner so a shared phone cannot inherit the
+  old seller's order pushes.
 - **Seller onboarding + split payments (`internal/sellers` + `internal/settlement` + `internal/platform/razorpayroute`):**
   `POST /sellers` now carries the platform fee, payout bank details (full account number is forwarded
   to Razorpay and never stored), private R2 passbook/FSSAI keys and `otpVerified`. The OTP is the

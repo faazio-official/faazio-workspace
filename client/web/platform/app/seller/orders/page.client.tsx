@@ -7,7 +7,7 @@ import { DataShell, EmptyState } from "@/components/patterns/DataState";
 import { StatusPill } from "@/components/patterns/Pills";
 import { Button } from "@/components/ui/button";
 import { formatDateTime, formatINR } from "@/lib/format";
-import { advanceOrder } from "@/lib/api";
+import { acceptOrder, advanceOrder, rejectOrder } from "@/lib/api";
 import { useMockLoading, useOrders } from "@/lib/api/hooks";
 import { useSession } from "@/lib/hooks/useSession";
 import type { OrderStatus } from "@/data/types";
@@ -70,7 +70,34 @@ function SellerOrders() {
                       <p className="num mt-1 text-[11px] text-muted-foreground">
                         SLA {formatDateTime(order.slaDueAt)}
                       </p>
-                      {column.next ? (
+                      {column.status === "NEW" ? (
+                        <div className="mt-2 grid grid-cols-2 gap-2">
+                          <Button
+                            size="sm"
+                            onClick={() => {
+                              acceptOrder(order.orderId);
+                              toast.success(`${order.orderId} accepted`);
+                            }}
+                          >
+                            Accept
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => {
+                              const reason = window.prompt(
+                                "Rejection reason (the customer is refunded)",
+                                "Out of stock",
+                              );
+                              if (reason === null) return;
+                              rejectOrder(order.orderId, reason.trim() || "Out of stock");
+                              toast.success(`${order.orderId} rejected`);
+                            }}
+                          >
+                            Reject
+                          </Button>
+                        </div>
+                      ) : column.next ? (
                         <Button
                           size="sm"
                           variant="outline"

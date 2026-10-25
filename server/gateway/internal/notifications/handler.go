@@ -30,6 +30,7 @@ func (h *Handler) Register(r chi.Router) {
 		g.Use(auth.Require)
 		g.Get("/notifications", h.inbox)
 		g.Post("/notifications/register", h.register)
+		g.Delete("/notifications/register", h.unregister)
 	})
 	r.Group(func(g chi.Router) {
 		g.Use(auth.RequireRole(auth.RoleStateAdmin, auth.RoleSuperAdmin))
@@ -71,6 +72,14 @@ func (h *Handler) register(w http.ResponseWriter, r *http.Request) {
 	}
 	if err := h.repo.Register(r.Context(), auth.UserID(r.Context()), token, strings.ToLower(strings.TrimSpace(body.Platform))); err != nil {
 		httpx.Fail(w, http.StatusInternalServerError, "register_failed", "could not register device")
+		return
+	}
+	httpx.JSON(w, http.StatusOK, map[string]any{"ok": true})
+}
+
+func (h *Handler) unregister(w http.ResponseWriter, r *http.Request) {
+	if err := h.repo.Unregister(r.Context(), auth.UserID(r.Context())); err != nil {
+		httpx.Fail(w, http.StatusInternalServerError, "register_failed", "could not remove device")
 		return
 	}
 	httpx.JSON(w, http.StatusOK, map[string]any{"ok": true})

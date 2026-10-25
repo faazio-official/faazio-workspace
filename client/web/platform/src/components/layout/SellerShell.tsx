@@ -2,7 +2,7 @@
 import { useEffect, useState, type ReactNode } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { Bell, ChevronLeft, LogOut, PanelLeft, Search } from "lucide-react";
+import { Bell, ChevronLeft, LogOut, Menu, PanelLeft, Search, X } from "lucide-react";
 import { SELLER_NAV } from "@/components/layout/nav";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -21,9 +21,11 @@ import { signOut } from "@/lib/api";
 import { RoleGate } from "@/components/layout/RoleGate";
 import { BrandTile } from "@/components/brand/FaazioMark";
 import { FaazioWordmark } from "@/components/brand/FaazioWordmark";
+import { SellerPushBridge } from "@/components/layout/SellerPushBridge";
 
 export function SellerShell({ children }: { children: ReactNode }) {
   const [collapsed, setCollapsed] = useState(false);
+  const [mobileNav, setMobileNav] = useState(false);
   const session = useSession();
   const router = useRouter();
   const pathname = usePathname();
@@ -36,9 +38,68 @@ export function SellerShell({ children }: { children: ReactNode }) {
     }
   }, [pathname, router, session?.mustChange, session?.role]);
 
+  useEffect(() => {
+    setMobileNav(false);
+  }, [pathname]);
+
   return (
     <RoleGate allow={["SELLER"]}>
+      <SellerPushBridge />
       <div className="flex min-h-screen bg-background">
+        {/* Mobile WebView shell: the desktop sidebar is hidden below lg, so expose the same
+            navigation in a touch-friendly drawer. */}
+        {mobileNav ? (
+          <div className="fixed inset-0 z-40 lg:hidden">
+            <button
+              type="button"
+              aria-label="Close menu"
+              className="absolute inset-0 bg-black/30"
+              onClick={() => setMobileNav(false)}
+            />
+            <div className="absolute inset-y-0 left-0 flex w-72 max-w-[85%] flex-col bg-card shadow-xl">
+              <div className="flex h-14 items-center gap-2 border-b border-border px-3">
+                <BrandTile className="size-7 rounded-md" />
+                <FaazioWordmark className="brand-wordmark text-primary" />
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="ml-auto"
+                  aria-label="Close menu"
+                  onClick={() => setMobileNav(false)}
+                >
+                  <X className="size-4" />
+                </Button>
+              </div>
+              <nav className="flex-1 overflow-y-auto p-2">
+                {SELLER_NAV.map((item) => {
+                  const active =
+                    pathname === item.to ||
+                    (item.to !== "/seller" && pathname.startsWith(`${item.to}/`));
+                  return (
+                    <Link
+                      key={item.to}
+                      href={item.to}
+                      className={cn(
+                        "mb-0.5 flex items-center gap-2 rounded-md px-2 py-2 text-[13px] transition-colors",
+                        active
+                          ? cn("font-semibold shadow-sm", TONE_SOFT[groupTone(item.group)])
+                          : "text-muted-foreground hover:bg-secondary hover:text-foreground",
+                      )}
+                    >
+                      <item.icon
+                        className={cn(
+                          "size-4 shrink-0",
+                          active ? "" : TONE_TEXT[groupTone(item.group)],
+                        )}
+                      />
+                      <span className="truncate">{item.label}</span>
+                    </Link>
+                  );
+                })}
+              </nav>
+            </div>
+          </div>
+        ) : null}
         <aside
           className={cn(
             "sticky top-0 hidden h-screen shrink-0 border-r border-border bg-card lg:flex lg:flex-col",
@@ -119,6 +180,15 @@ export function SellerShell({ children }: { children: ReactNode }) {
 
         <div className="flex min-w-0 flex-1 flex-col">
           <header className="sticky top-0 z-20 flex h-14 items-center gap-3 border-b border-border bg-card/95 px-4 backdrop-blur">
+            <Button
+              variant="ghost"
+              size="icon"
+              className="lg:hidden"
+              aria-label="Open menu"
+              onClick={() => setMobileNav(true)}
+            >
+              <Menu className="size-4" />
+            </Button>
             <div className="relative w-full max-w-sm">
               <Search className="pointer-events-none absolute left-2.5 top-2.5 size-4 text-muted-foreground" />
               <Input placeholder="Search products, orders" className="h-9 pl-8 text-[13px]" />

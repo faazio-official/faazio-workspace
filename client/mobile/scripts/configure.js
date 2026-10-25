@@ -89,6 +89,9 @@ function flag(name) {
 }
 
 const gatewayUrl = env('GATEWAY_URL').replace(/\/+$/, '');
+// Web Partner Portal origin loaded by the seller WebView shell. The portal owns the session
+// (HttpOnly cookies), so this is the only seller-side endpoint the native shell talks to.
+const webPortalUrl = env('WEB_PORTAL_URL').replace(/\/+$/, '');
 // Server-only by default (MVP): an explicitly empty value still means "on"; set USE_GATEWAY=false
 // or STRICT=false to opt out for a special build. A missing GATEWAY_URL leaves the app offline.
 const useGateway = env('USE_GATEWAY') === '' ? true : flag('USE_GATEWAY');
@@ -113,13 +116,21 @@ const GOOGLE_SERVICES_JSON = path.join(
   ROOT,
   'android',
   'app',
-  appVariant === 'delivery' ? 'src/delivery/google-services.json' : 'google-services.json',
+  appVariant === 'delivery'
+    ? 'src/delivery/google-services.json'
+    : appVariant === 'seller'
+      ? 'src/seller/google-services.json'
+      : 'google-services.json',
 );
 const GOOGLE_SERVICE_INFO_PLIST = path.join(
   ROOT,
   'ios',
   'Faazio',
-  appVariant === 'delivery' ? 'GoogleService-Info-Delivery.plist' : 'GoogleService-Info.plist',
+  appVariant === 'delivery'
+    ? 'GoogleService-Info-Delivery.plist'
+    : appVariant === 'seller'
+      ? 'GoogleService-Info-Seller.plist'
+      : 'GoogleService-Info.plist',
 );
 
 const pins = String(env('CERT_PINS'))
@@ -143,6 +154,28 @@ if (gatewayUrl) {
   }
 }
 
+if (webPortalUrl) {
+  let parsed;
+  try {
+    parsed = new URL(webPortalUrl);
+  } catch {
+    fail(`WEB_PORTAL_URL is not a valid URL: ${webPortalUrl}`);
+  }
+  if (!['http:', 'https:'].includes(parsed.protocol)) {
+    fail('WEB_PORTAL_URL must be http(s).');
+  }
+  if (isRelease && parsed.protocol !== 'https:') {
+    fail('Release builds require an https WEB_PORTAL_URL (the seller WebView refuses cleartext).');
+  }
+}
+if (appVariant === 'seller' && !webPortalUrl) {
+  const message =
+    'Web Portal origin is not configured. Seller builds need WEB_PORTAL_URL ' +
+    '(e.g. https://<portal-origin>; http://localhost:3000 for local Metro + portal dev).';
+  if (isRelease) fail(message);
+  warn(message);
+}
+
 for (const pin of pins) {
   // Android pin values are base64 of the certificate's SubjectPublicKeyInfo.
   if (!/^[A-Za-z0-9+/=]{40,}$/.test(pin)) {
@@ -164,11 +197,13 @@ if (isRelease && useGateway && !useFirebaseAuth && appVariant !== 'seller') {
       'Real phone-OTP sessions are required — refusing to embed a mock-login build.',
   );
 }
-if (useFirebaseAuth) {
+// All three products need the native Firebase app for FCM; customer additionally needs it for OTP.
+const needsFirebaseConfig = useFirebaseAuth || appVariant === 'delivery' || appVariant === 'seller';
+if (needsFirebaseConfig) {
   if (!fs.existsSync(GOOGLE_SERVICES_JSON)) {
     const message =
       `Missing Firebase native config: ${path.relative(ROOT, GOOGLE_SERVICES_JSON)}. ` +
-      'Phone OTP cannot initialize without it.';
+      'Native Firebase (OTP / FCM) cannot initialize without it.';
     if (isRelease && useGateway) fail(message);
     warn(message);
   }
@@ -204,6 +239,11 @@ write(
   CONFIG_FILE,
   `${header}
 export const GATEWAY_URL = ${JSON.stringify(gatewayUrl)};
+/**
+ * Web Partner Portal origin for the seller WebView shell. Empty disables the seller app
+ * (native auth was removed — the portal owns the HttpOnly session).
+ */
+export const WEB_PORTAL_URL = ${JSON.stringify(webPortalUrl)};
 export const USE_GATEWAY = ${useGateway};
 export const STRICT = ${strict};
 export const DEV_USER = ${JSON.stringify(devUser)};
@@ -255,8 +295,8 @@ write(
  * `npm run start` / `npm run android`.
  */
 if (isRelease && fs.existsSync(path.dirname(NSC_FILE))) {
-  let host = '';
-  if (gatewayUrl) host = new URL(gatewayUrl).hostname;
+  const gatewayHost = gatewayUrl ? new URL(gatewayUrl).hostname : '';
+  const portalHost = webPortalUrl ? new URL(webPortalUrl).hostname : '';
 
   const pinSet =
     pins.length > 0
@@ -265,10 +305,18 @@ if (isRelease && fs.existsSync(path.dirname(NSC_FILE))) {
           .join('\n')}\n    </pin-set>\n`
       : '';
 
-  const domainConfig =
-    host && pins.length > 0
-      ? `  <domain-config cleartextTrafficPermitted="false">\n    <domain includeSubdomains="true">${host}</domain>\n${pinSet}  </domain-config>\n`
+  // The portal is a separate origin with its own (system-trusted) certificate — never reuse the
+  // gateway pins for it. Cleartext is denied site-wide by base-config; the entry makes the
+  // seller-WebView origin explicit for auditing.
+  const gatewayConfig =
+    gatewayHost && pins.length > 0
+      ? `  <domain-config cleartextTrafficPermitted="false">\n    <domain includeSubdomains="true">${gatewayHost}</domain>\n${pinSet}  </domain-config>\n`
       : '';
+  const portalConfig =
+    portalHost && portalHost !== gatewayHost
+      ? `  <domain-config cleartextTrafficPermitted="false">\n    <domain includeSubdomains="true">${portalHost}</domain>\n  </domain-config>\n`
+      : '';
+  const domainConfig = gatewayConfig + portalConfig;
 
   write(
     NSC_FILE,
@@ -278,5 +326,6 @@ if (isRelease && fs.existsSync(path.dirname(NSC_FILE))) {
 
 console.log(
   `[configure] app=${appVariant} transport=${transport} gateway=${gatewayUrl || '(mock)'} ` +
+    `portal=${webPortalUrl || '(unconfigured)'} ` +
     `useGateway=${useGateway} strict=${strict} firebaseAuth=${useFirebaseAuth} pins=${pins.length}`,
 );

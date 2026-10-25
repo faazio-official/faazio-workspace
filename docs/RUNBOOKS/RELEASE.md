@@ -40,12 +40,14 @@ The release keystore + signing properties are stored as GitHub repository secret
 | `ALIAS_PASS` | value from `keystore.properties` |
 | `STORE_FILE` | (optional) keystore file name, default `faazio-release.keystore` |
 | `GATEWAY_URL` | deployed gateway origin, `https://…` (release refuses `http://`); defaults to `https://faazio-workspace.onrender.com` |
+| `WEB_PORTAL_URL` | deployed web Partner Portal origin, `https://…` (required for `app=seller`; release refuses `http://`). Set as a repo variable/secret |
 | `USE_GATEWAY` | `true` to embed the live gateway (defaults to `true` in the workflow) |
 | `CERT_PINS` | comma-separated base64 SHA-256 SPKI pins for the gateway host |
 | `GOOGLE_MAPS_API_KEY_ANDROID` | restricted Maps SDK key; `configure.js` writes the manifest string resource (empty ⇒ blank shop-pin map) |
 | `GOOGLE_PLACES_API_KEY` | restricted Places API (New) key for address autocomplete (empty ⇒ static suggestions) |
 | `USE_FIREBASE_AUTH` | `true` (default) — phone OTP via the committed native Firebase config |
 | `GOOGLE_SERVICES_DELIVERY_JSON` | the **partner** Android `google-services.json` (Firebase app registered for `com.faazio.deliverypartner`); required only for `app=delivery` builds |
+| `GOOGLE_SERVICES_SELLER_JSON` | the **seller** Android `google-services.json` (Firebase app registered for `com.faazio.seller`); required for `app=seller` builds. The iOS `Seller-*` configuration copies `GoogleService-Info-Seller.plist`. |
 
 Both workflows pass `GOOGLE_MAPS_API_KEY_ANDROID` and `GOOGLE_PLACES_API_KEY` to `configure.js`
 after typecheck (debug accepts them as repository variables or secrets; release uses secrets), so a
