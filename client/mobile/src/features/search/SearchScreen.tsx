@@ -73,14 +73,21 @@ const SearchScreen = memo(function SearchScreen({
   const hasFacets = !!config.facetSchema && config.facetSchema.length > 0;
   const preSearch = submittedQuery.trim().length === 0;
 
-  // Server-backed results (progressive): when a mode supplies `fetch` and a query is
-  // committed, load the server result pool; the local predicate/facets still apply.
-  // `remoteData` is null until a response lands, so the local `mode.data` shows first.
+  // Server-backed results: when a mode supplies `fetch` and a query is committed, the server pool
+  // is the only source while online (authored `mode.data` is the offline/error fallback, never a
+  // first paint that could flash stale prices).
   const [remoteData, setRemoteData] = useState<any[] | null>(null);
+  const [remoteFailed, setRemoteFailed] = useState(false);
+  const [fetching, setFetching] = useState(false);
   useEffect(() => {
     setRemoteData(null);
-    if (preSearch || !mode?.fetch) return;
+    setRemoteFailed(false);
+    if (preSearch || !mode?.fetch) {
+      setFetching(false);
+      return;
+    }
     let active = true;
+    setFetching(true);
     mode
       .fetch(submittedQuery)
       .then((rows) => {
@@ -91,16 +98,22 @@ const SearchScreen = memo(function SearchScreen({
         const anchor = rows.find((r) => r?.id)?.id;
         if (anchor) void gateway.trackEvent(String(anchor), 'search').catch(() => {});
       })
-      .catch(() => {});
+      .catch(() => {
+        if (active) setRemoteFailed(true);
+      })
+      .finally(() => {
+        if (active) setFetching(false);
+      });
     return () => {
       active = false;
     };
   }, [mode, submittedQuery, preSearch]);
 
-  const dataPool = remoteData ?? mode?.data ?? [];
+  const dataPool =
+    remoteData ?? (gateway.remoteEnabled && !remoteFailed ? [] : mode?.data ?? []);
   // Server FTS already matched the query text; only re-apply the local substring
-  // predicate in local mode. Facets/chips still refine server results either way.
-  const effectiveQuery = remoteData ? '' : submittedQuery;
+  // predicate when the authored pool is the fallback. Facets/chips still refine server results.
+  const effectiveQuery = remoteData || !remoteFailed ? '' : submittedQuery;
 
   const allResults = useMemo(() => {
     if (!mode) return [];
@@ -291,7 +304,17 @@ const SearchScreen = memo(function SearchScreen({
           contentContainerStyle={styles.listContent}
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
-          ListEmptyComponent={empty}
+          ListEmptyComponent={
+            fetching ? (
+              <ActivityIndicator
+                size="small"
+                color={config.accentColor ?? '#2563EB'}
+                style={styles.listEmptySpinner}
+              />
+            ) : (
+              empty
+            )
+          }
           ListFooterComponent={
             isLoadingMore && visibleCount < allResults.length ? (
               <ActivityIndicator size="small" color={config.accentColor ?? '#2563EB'} style={styles.listFooter} />
@@ -370,6 +393,9 @@ const styles = StyleSheet.create({
   },
   listFooter: {
     paddingVertical: vs(16),
+  },
+  listEmptySpinner: {
+    marginTop: vs(32),
   },
   emptyCard: {
     flex: 1,

@@ -358,7 +358,7 @@ func corsMiddleware(origins []string, devMode bool) func(http.Handler) http.Hand
 	}
 	allowHeaders := "Authorization, Content-Type"
 	if devMode {
-		allowHeaders += ", X-Dev-User, X-Dev-Role, X-Dev-Seller, X-Dev-State"
+		allowHeaders += ", X-Dev-User, X-Dev-Role, X-Dev-Seller, X-Dev-State, X-Dev-District"
 	}
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

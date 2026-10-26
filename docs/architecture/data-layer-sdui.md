@@ -16,7 +16,7 @@ Every domain file carries a top-of-file banner tag:
 
 | Tag | Meaning |
 |---|---|
-| `@mock` | Fixture retained for types/editorial seeds only; **never served at runtime** (GatewayClient is server-only) |
+| `@mock` | Fixture retained for types/editorial seeds or an explicit offline/error shell; **never the online origin** (`GatewayClient` is server-only) |
 | `@seed` | Bootstrap seed hydrated into client stores on first launch (cart / favourites / location) |
 | `@static` | Immutable in-code config (e.g. Home section registry order) |
 | `@unused` | Exported but not imported by mobile today — prune or wire up |
@@ -235,7 +235,9 @@ OTP through the native SDK (`services/firebaseAuth.ts`) when the committed
 token and still runs `AUTH_DISABLED=true` for local dev without Firebase.
 
 Every read/write goes through `gateway`; `@data/*` remains for shared types, static taxonomy and
-seed rows. No runtime fallback path serves fixture rows as live data.
+seed rows. `GatewayClient` never substitutes fixtures. A few presentation surfaces keep an explicit
+offline/error shell (Pharma category grid, PDP store/related blocks, search fallback); it renders
+only when the server gave no answer and is never presented as live data (W69).
 
 **Home SDUI cutover (W35).** `getHomeFeed` (`GET /sdui/home`) is now the single source of truth for
 every Home section whose doc carries the data: the gateway joins each section's `productIds` **and**

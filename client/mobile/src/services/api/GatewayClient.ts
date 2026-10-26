@@ -679,7 +679,7 @@ export class GatewayClient {
   /** Single-flight 401 recovery so parallel rejected requests share one refresh round-trip. */
   private refreshInFlight: Promise<boolean> | null = null;
 
-  /** True when the client will attempt real HTTP before falling back to fixtures. */
+  /** True when the client can reach the gateway; reads/writes never fall back to fixtures. */
   get remoteEnabled(): boolean {
     return REMOTE_ENABLED;
   }

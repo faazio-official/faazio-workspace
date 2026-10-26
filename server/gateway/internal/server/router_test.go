@@ -131,6 +131,23 @@ func TestCORSWildcardIgnoredInProd(t *testing.T) {
 	}
 }
 
+// TestCORSDevHeadersAdvertisedInDev guards that every X-Dev-* header the middleware reads is also
+// allowed through a dev preflight (a missing one silently blocks browser dev calls before the
+// gateway can read the role/district override).
+func TestCORSDevHeadersAdvertisedInDev(t *testing.T) {
+	h := NewRouter(Deps{Config: config.Config{AuthDisabled: true, AllowedOrigins: []string{"http://localhost:3000"}}})
+	req := httptest.NewRequest(http.MethodOptions, "/health", nil)
+	req.Header.Set("Origin", "http://localhost:3000")
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, req)
+	got := rec.Header().Get("Access-Control-Allow-Headers")
+	for _, header := range []string{"X-Dev-User", "X-Dev-Role", "X-Dev-Seller", "X-Dev-State", "X-Dev-District"} {
+		if !strings.Contains(got, header) {
+			t.Fatalf("Allow-Headers = %q, want %s", got, header)
+		}
+	}
+}
+
 // TestCORSDevHeadersNotAdvertisedInProd guards that a prod preflight never invites the X-Dev-* headers.
 func TestCORSDevHeadersNotAdvertisedInProd(t *testing.T) {
 	h := NewRouter(Deps{Config: config.Config{AuthDisabled: false, AllowedOrigins: []string{"https://portal.example"}}})

@@ -129,47 +129,39 @@ export function priceEssentials(
  * only). The Mart hero is paid first (`MART_HERO` from `GET /ads/hero`); `martHero.banners` is the
  * editorial **house fallback** rendered only when there is no LIVE fill (`CampaignHero fallback`).
  * Never fabricated — absent section → fixture, present-but-empty section → empty (a portal typo is
- * visible, not masked). Every leg degrades to the local fixture independently (partial render) so
- * one failing route never blanks the feed; the whole body is guarded so the caller never sees a
- * rejected promise (fixes skeleton-forever).
+ * visible, not masked). Each leg (feed doc, vendor directory) degrades independently via
+ * `Promise.allSettled`, so one failing route never discards a successful response or blanks the
+ * feed; the caller never sees a rejected promise (fixes skeleton-forever).
  */
 export async function fetchMartFeed(): Promise<MartFeed> {
-  try {
-    // `getMartFeed`/`getStores` never reject (withFallback → fixture), so no per-leg catch is needed.
-    const [feed, localVendors] = await Promise.all([
-      gateway.getMartFeed(),
-      gateway.getStores('MART'),
-    ]);
+  const [feedResult, storesResult] = await Promise.allSettled([
+    gateway.getMartFeed(),
+    gateway.getStores('MART'),
+  ]);
+  const feed = feedResult.status === 'fulfilled' ? feedResult.value : [];
+  // Offline first-paint: the local Mart directory keeps the "Local Vendors" footer renderable
+  // instead of blanking to an empty "No vendors found" state.
+  const localVendors = storesResult.status === 'fulfilled' ? storesResult.value : martStores;
 
-    const dealsSection = martSection(feed, 'martDeals');
-    const essentials = martSection(feed, 'martEssentials');
-    const hero = martSection(feed, 'martHero');
+  const dealsSection = martSection(feed, 'martDeals');
+  const essentials = martSection(feed, 'martEssentials');
+  const hero = martSection(feed, 'martHero');
 
-    const authoredById = new Map(MART_DEALS.map((d) => [d.id, d]));
-    // Section present → trust its joined products (authored copy overlaid when the row is known);
-    // section absent (offline / older doc) → the local fixture.
-    const deals = dealsSection
-      ? dealsSection.products.map((p) => overlayDeal(authoredById.get(p.id) ?? dealFromProduct(p), p))
-      : MART_DEALS;
+  const authoredById = new Map(MART_DEALS.map((d) => [d.id, d]));
+  // Section present → trust its joined products (authored copy overlaid when the row is known);
+  // section absent (offline / older doc) → the local fixture.
+  const deals = dealsSection
+    ? dealsSection.products.map((p) => overlayDeal(authoredById.get(p.id) ?? dealFromProduct(p), p))
+    : MART_DEALS;
 
-    const dailyEssentials = essentials
-      ? essentials.products.map(essentialFromProduct)
-      : MART_DAILY_ESSENTIALS;
+  const dailyEssentials = essentials
+    ? essentials.products.map(essentialFromProduct)
+    : MART_DAILY_ESSENTIALS;
 
-    return {
-      deals,
-      dailyEssentials,
-      heroBanners: hero?.banners ?? [],
-      localVendors,
-    };
-  } catch {
-    return {
-      deals: MART_DEALS,
-      dailyEssentials: MART_DAILY_ESSENTIALS,
-      heroBanners: [],
-      // Offline first-paint: the local Mart directory keeps the "Local Vendors" footer renderable
-      // instead of blanking to an empty "No vendors found" state.
-      localVendors: martStores,
-    };
-  }
+  return {
+    deals,
+    dailyEssentials,
+    heroBanners: hero?.banners ?? [],
+    localVendors,
+  };
 }

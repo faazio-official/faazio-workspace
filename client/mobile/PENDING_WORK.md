@@ -9,13 +9,36 @@ dependencies exist. Do not build the backend/seller flows until told to.
 
 ---
 
+## W69 — Server-authority cleanup: Pharma grid, PDP store, search (P1)
+
+**Status:** 🟢 Shipped (mobile + gateway dev CORS).
+
+- Pharma category grid: the authored `PHARMA_PRODUCTS_DB` rows are now curation/copy only;
+  `POST /products/batch` overlays server price/rating/image/badge, delisted ids drop out, and a
+  spinner replaces the grid while the batch is in flight. Authored rows render only offline or
+  when the batch call fails.
+- PDP store block reads `GET /store/{id}` server-first (authored Mart/Pharma row is the
+  offline/error fallback); the server-joined "More from store" rail is unchanged.
+- `SearchScreen` online results are server-only (no fixture first paint); a spinner shows while
+  fetching and authored pools appear only offline or after an HTTP error.
+- `martService.fetchMartFeed` uses `Promise.allSettled` per leg, so a failed vendor directory no
+  longer discards a successful SDUI feed (and vice versa).
+- Dev CORS now advertises `X-Dev-District` (the middleware already read it; the browser preflight
+  blocked it).
+- Docs: `data/DATA_CONTROL.md` (`@mock` meaning + matrix), `docs/architecture/mobile-app.md`
+  limitations, `docs/architecture/mvp-backend.md` dev headers.
+
+---
+
 ## W68 — Seller Partner WebView shell (P0)
 
 **Status:** 🟢 Shipped (mobile shell + portal mobile nav/orders + gateway seller push). Requires
 `WEB_PORTAL_URL` (release https) and the `GOOGLE_SERVICES_SELLER_JSON` CI secret.
 
 - Seller app is now `react-native-webview` (`14.0.1`) loading `${WEB_PORTAL_URL}/seller`; the four
-  native seller screens, `GatewayClient` seller calls and Keychain seller session were removed.
+  native seller screens and the Keychain seller session were removed. `GatewayClient` still carries
+  the seller-onboarding/fee-request calls (customer-app "Sell with us"); its old portal-order
+  helpers (`portalLogin`/`getSellerOrders`/accept/reject) are now unused and are prune candidates.
 - Native handles safe area, external links, hardware back, FCM token injection, foreground order
   beep (`react-native-sound` + `orderBeep.wav`), notification-tap deep link, and the Android
   `seller_orders` notification channel.
