@@ -1,6 +1,6 @@
 # Faazio Caching — Cloudflare Edge + Aiven Valkey
 
-> **Status:** MVP code active / edge config planned. The Valkey read-through layer ships in
+> **Status:** Production code live / edge config planned. The Valkey read-through layer ships in
 > `server/gateway/internal/platform/cache` (search/product/store/reviews/orders/sdui keys + checkout
 > idempotency lock). The Cloudflare edge rules + `pg_cron`/Pub-Sub invalidation remain ops setup.
 > Referenced by every table in `docs/architecture/db-schema.md` for cache-key → TTL → invalidation
@@ -181,20 +181,20 @@ pipelines; a placement with no LIVE fill collapses the surface to `null` (never 
 - **Single-flight locks (checkout idempotency):** `SET faazio:v1:checkout:idem:{orderRef} 1 NX EX 300`
   prevents double-place of the same order; release on completion.
 
-### 7a. MVP implementation notes (built)
+### 7a. Production implementation notes (live)
 
 - **Stock read-through is live** (`GET /stock/:id` → `faazio:v1:stock:{id}`, TTL 45 s); every order
   decrement (`internal/checkout/service.go`) calls `Del(stock:{id})` after the `FOR UPDATE SKIP LOCKED`
   update, so the next read reflects the sale (write-around).
 - **Orders** are cached per user for 60 s and invalidated on `POST /orders` (`Del(orders:{userId})`).
   The recurrence/recommendation key `faazio:v1:reco:{userIdHash}` is **not** invalidated on order for
-  the MVP — a ≤1 h staleness window on recommendations is accepted (recompute on the Future Prod
+  production — a ≤1 h staleness window on recommendations is accepted (recompute on the scaling-stage
   Python service / `user_events` flush).
 - **SDUI layout publish (super-admin, implemented):** `PUT /admin/sdui/home` (`internal/sdui`)
   writes the ID-only sections to `sdui_layouts` with an atomic `$inc version` and calls
   `Del(faazio:v1:gateway:sdui:en:/home)`, so the next `GET /sdui/home` recompiles and the ETag
   changes (`home-v{version}` → the app's `If-None-Match` no longer 304s). A `pg_notify`/Pub/Sub
-  automation is Future Prod; the reply-level TTL (300 s) still bounds staleness if a purge is missed.
+  automation is scaling-stage; the reply-level TTL (300 s) still bounds staleness if a purge is missed.
 - **PII never enters the cache:** `GET /store/:id` caches only the redacted projection; authenticated
   reads bypass the cache (see §8).
 - **Slim values (no key/TTL change):** list/search reads cache the lean product projection
@@ -273,8 +273,8 @@ pipelines; a placement with no LIVE fill collapses the surface to `null` (never 
   a nil client is a safe no-op. **Cloudflare edge rules + event-triggered purge are not wired** —
   they are ops configuration, not code.
 - **TTLs are starting points** — tune from real traffic (hit ratio, origin load).
-- **MVP unchanged:** Aiven Valkey + Cloudflare are kept exactly as specified; only the **origin**
-  swaps from `@mock` fixtures to Supabase/Mongo (`docs/architecture/mvp-backend.md`) — **no key or TTL
+- **Production unchanged:** Aiven Valkey + Cloudflare are kept exactly as specified; only the **origin**
+  swapped from `@mock` fixtures to Supabase/Mongo (`docs/architecture/mvp-backend.md`) — **no key or TTL
   change**.
 - The **Upstash Redis** supersession is recorded here and in `server/README.md` /
   `server-gateway-plan.md`; the old mentions stay as history notes, not active config.

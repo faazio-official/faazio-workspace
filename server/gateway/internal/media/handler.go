@@ -68,7 +68,7 @@ func (h *Handler) Register(r chi.Router) {
 		g.Use(auth.RequireRole(auth.RoleStateAdmin, auth.RoleSuperAdmin))
 		g.Put("/media/{id}/status", h.setStatus)
 		g.Delete("/media/{id}", h.remove)
-		// Manual MVP GC trigger: reclaims one batch of orphaned DRAFT assets (503 when GC unconfigured).
+		// Manual GC trigger: reclaims one batch of orphaned DRAFT assets (503 when GC unconfigured).
 		g.Post("/media/gc", h.gc)
 	})
 }

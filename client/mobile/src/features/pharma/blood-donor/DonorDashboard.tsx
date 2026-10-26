@@ -116,7 +116,7 @@ export function DonorDashboard() {
       if (filters.urgency !== 'all' && r.urgency !== filters.urgency) return false;
       if (cityFilter && !r.city.toLowerCase().includes(cityFilter)) return false;
       if (filter === 'nearby') {
-        // Honest "nearby" for the MVP: the request's city vs the donor's own
+        // Honest "nearby" in production: the request's city vs the donor's own
         // registered preferred location (case-insensitive contains). This is a
         // city-string match, not GPS — real geo (coords + earthdistance index)
         // swaps this matcher, not the UI.

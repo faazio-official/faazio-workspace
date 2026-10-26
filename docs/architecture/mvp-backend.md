@@ -1,26 +1,25 @@
-# Faazio MVP Backend — Supabase + MongoDB + Aiven Valkey
+# Faazio Backend — Supabase + MongoDB + Aiven Valkey (production)
 
-> **Status:** MVP — ACTIVE (code). The MVP backend is a **Go Chi modular monolith**
+> **Status:** Production (live). The backend is a **Go Chi modular monolith**
 > (`server/gateway`) over **Supabase (Postgres) + MongoDB Atlas M0 + Aiven Valkey**, with
-> **Cloudflare** in front. It replaces the mocked `@mock` data per module (`@mock` → `@server`).
-> The full microservices target — Rust/Tantivy search, CockroachDB, DynamoDB, per-service Postgres —
-> is **Future Prod** and stays documented in `server/README.md`, `server-gateway-plan.md`, and
-> `db-schema.md`.
+> **Cloudflare** in front. It serves live data per module (`@mock` → `@server`).
+> The microservices scaling target — Rust/Tantivy search, CockroachDB, DynamoDB, per-service Postgres —
+> stays documented in `server/README.md`, `server-gateway-plan.md`, and `db-schema.md`.
 > **Code is live:** migrations + seed under `server/supabase/`, contexts + HTTP handlers under
-> `server/gateway/internal/`, and `GatewayClient` wired (remote with `@data/*` fallback). This doc is
-> the single authority for "which DB for what in the MVP"; the deep-dives keep the Future Prod spec.
-> Context → package → future-service mapping + extraction playbook:
+> `server/gateway/internal/`, and `GatewayClient` wired (server-only, no fixture fallback). This doc is
+> the single authority for "which DB for what in production"; the deep-dives keep the scaling-stage spec.
+> Context → package → scaling-service mapping + extraction playbook:
 > **`docs/architecture/monolith-breakdown.md`**.
 
 ---
 
-## 1. MVP decision matrix
+## 1. Production decision matrix
 
-| Concern | MVP (now) | Future Prod (kept in docs) | Why |
+| Concern | Production (live) | Scaling stage (documented target) | Why |
 |---|---|---|---|
-| `catalog.products` master + search index | Supabase `catalog` schema + Postgres FTS (`tsvector` + `pg_trgm` GIN + `unaccent`, `search_tokens` generated col) | Cockroach `catalog.products` + Tantivy embedded | One Supabase project covers 4 DBs for MVP; Tantivy only pays off at high-QPS / flash-sale scale |
+| `catalog.products` master + search index | Supabase `catalog` schema + Postgres FTS (`tsvector` + `pg_trgm` GIN + `unaccent`, `search_tokens` generated col) | Cockroach `catalog.products` + Tantivy embedded | One Supabase project covers 4 DBs for production; Tantivy only pays off at high-QPS / flash-sale scale |
 | `directory` / `accounts` / `checkout` / `reviews` | Supabase schemas `directory`, `accounts`, `checkout`, `reviews` in one project, RLS on | Cockroach (directory/accounts/checkout) + standalone Postgres (vendor_reviews) | The datatype policy (`db-schema.md` §2: INT8 paisa, slug IDs, TIMESTAMPTZ, ENUM) maps 1:1 to Postgres; split clusters later with zero contract change if slug IDs + `GatewayClient` shape stay stable |
-| `stock` / `carts` / `reservations` / `pickup_points` | Supabase `inventory` schema + `SELECT … FOR UPDATE SKIP LOCKED`, `pg_cron` TTL sweep | DynamoDB / Firestore KV | Postgres locking is fine for MVP contention; Dynamo only at 1000s concurrent decrements |
+| `stock` / `carts` / `reservations` / `pickup_points` | Supabase `inventory` schema + `SELECT … FOR UPDATE SKIP LOCKED`, `pg_cron` TTL sweep | DynamoDB / Firestore KV | Postgres locking is fine for production contention; Dynamo only at 1000s concurrent decrements |
 | `user_events` / `recommendations` / `segments` / `product_stats` / `sdui_layouts` | Keep MongoDB Atlas M0 (ID-only, `userIdHash`, TTL 90d) | Same (no change) | Flexible doc shape + TTL; don't force into Postgres |
 | Cache + edge | Keep **Aiven Valkey + Cloudflare** exactly per `caching-cloudflare-valkey.md` | Same | Supabase is origin, not cache; keys/TTLs unchanged (`faazio:v1:{service}:{entity}:{id}`, stock 30–60s, search 600s, product 24h, idempotency `NX EX 300`) |
 | Gateway | Go Chi modular monolith (`server/gateway`): all 6 contexts, `/health`, `/search?q=`, `/sdui/home`, `/product/:id`, `/vendors/:id/reviews`, `/stores`, `/venues`, `/orders`, `/profile`, cart/order/rating/event writes → Supabase + Mongo + Valkey, Cloudflare in front | Full gateway + 5 gRPC microservices via `contracts/` | Monolith proves the `@mock` → `@server` seam; extracted per `monolith-breakdown.md`; `GatewayClient` signatures don't change |
@@ -93,7 +92,7 @@ set. See `db-schema.md` §12.16.
 
 ---
 
-## 3. Gateway (MVP) — endpoints
+## 3. Gateway (production) — endpoints
 
 All read-through: Valkey → Supabase/Mongo → populate. Cloudflare caches public GETs.
 
@@ -108,7 +107,7 @@ All read-through: Valkey → Supabase/Mongo → populate. Cloudflare caches publ
 | `GET /orders`, `GET /profile` | Supabase `checkout` / `accounts` (auth-scoped) | `data/checkout/orders.ts`, `data/accounts/profile.ts` | `getOrders` / `getProfile` |
 | `POST /auth/portal/{login,refresh,logout}`, `GET /auth/portal/me`, `PUT /auth/portal/password`; `GET|POST /admin/portal-users`, `PUT /admin/portal-users/{id}`, `PUT /admin/portal-users/{id}/password` | Supabase `admins.portal_users` + `admins.portal_sessions` (`0032` + `0033` + `0034` + `0038` session lifetimes); Valkey throttles/denylist | — (portal only) | `portalRequest` (portal auth). A `DISTRICT_ADMIN` login may alternatively be minted atomically with its roster via `POST /district-admins` (`issueLogin:true` — see the admins row below, `0036`/`0048`) |
 
-**Write endpoints (MVP, win chosen over the original read-only list):**
+**Write endpoints (production, win chosen over the original read-only list):**
 
 | Method + path | Context | Notes |
 |---|---|---|
@@ -171,7 +170,7 @@ outcome and the screen surfaces a non-durable result) rather than opening them u
 
 Aiven Valkey + Cloudflare are **unchanged** — Supabase is the origin, not the cache. Key taxonomy,
 TTL matrix, and invalidation event map stay in `caching-cloudflare-valkey.md`; that doc records the
-MVP origin swap. No key/TTL change.
+production origin swap. No key/TTL change.
 
 ---
 
@@ -193,7 +192,7 @@ MVP origin swap. No key/TTL change.
 
 ## 6. Scale limits + promotion checklist
 
-Promote a concern to its Future Prod service when the limit below is hit (keep the slug IDs + gateway
+Promote a concern to its scaling-stage service when the limit below is hit (keep the slug IDs + gateway
 contract stable so the swap is invisible to the app):
 
 - **Tantivy / Rust search** — when FTS latency/ranking quality or search QPS becomes a bottleneck.
@@ -309,7 +308,7 @@ contract stable so the swap is invisible to the app):
 
 ## 8. Companion docs
 
-- `server-gateway-plan.md` — future full microservices gateway plan (kept).
-- `db-schema.md` — production table datatypes + sample rows (kept; MVP callouts per section).
+- `server-gateway-plan.md` — scaling-stage full microservices gateway plan (kept).
+- `db-schema.md` — production table datatypes + sample rows (kept; production callouts per section).
 - `caching-cloudflare-valkey.md` — cache layer (unchanged).
 - `data-layer-sdui.md` — `@data/*` layer + `GatewayClient` wiring order.

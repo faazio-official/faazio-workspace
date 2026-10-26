@@ -116,7 +116,7 @@ signed-in user's live rating is device-local (`state/vendorRatingStore.ts`), mer
 A parallel, microservice-shaped view of the same source data that **imports** from the
 legacy fixtures (never hand-copied), so the two surfaces can't drift:
 
-| Table | Simulates (Future Prod) | Consolidates | MVP origin |
+| Table | Simulates (scaling stage) | Consolidates | Production origin |
 |---|---|---|---|
 | `catalog/products.ts` | Rust + Tantivy search index | all product records, deduped by `id`; `getProductById` | Supabase `catalog` + Postgres FTS |
 | `directory/stores.ts` | Go + PostgreSQL | mart + food stores | Supabase `directory` |
@@ -179,21 +179,21 @@ The **production** counterparts of every normalized table above (per-service DB 
 sample rows) are specified in `docs/architecture/db-schema.md` — traceability is 1:1 (mock table ↔
 production table).
 
-## Data flow today vs future
+## Data flow: legacy vs production vs scaling stage
 
 ```
  TODAY (legacy)
  screen ──► @data/<domain>/* (typed arrays)          [@mock fixtures]
 
- MVP (Go Chi modular monolith — active)
+ PRODUCTION (Go Chi modular monolith — live)
  screen ──► GatewayClient (src/services/api/GatewayClient.ts)
                 │ HTTP/JSON
                 ▼
-         thin Go Chi gateway ──► Supabase (Postgres) + MongoDB + Valkey
+         Go Chi gateway ──► Supabase (Postgres) + MongoDB + Valkey
                 │                          ▲
                 └── Cloudflare edge ───────┘
 
- FUTURE PROD (server-driven)
+ SCALING STAGE (server-driven target)
  screen ──► GatewayClient (src/services/api/GatewayClient.ts)
                 │ joins the normalized tables above
                 ▼
@@ -292,7 +292,7 @@ essentials) resolves its `md-*` ids through the catalog (`getProductsByIds`).
 - `schema.ts` `SDUINode` is `@aspirational` — not a live contract.
 - Several screens keep inline copies of `@data` fixtures (marked `@unused`) — de-dup is a
   tracked priority (see `DATA_CONTROL.md` "Known Gaps").
-- The MVP checkout records payments in `checkout.payments`; it does not yet capture a Razorpay
+- The production checkout records payments in `checkout.payments`; it does not yet capture a Razorpay
   payment id, so a seller rejection marks the ledger `REFUNDED` but cannot call the Razorpay refund
   API.
 

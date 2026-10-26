@@ -1,13 +1,13 @@
 # Architecture.md — Faazio SuperApp
 
-> **Concern:** high-level technical architecture for the two real runtimes — the **bare React Native mobile app** (`client/mobile/`) and the **Go Chi backend** (`server/`, MVP thin gateway + Future Prod microservices). Modular, layered, and trackable so every concern has one owner and nothing is silently re-invented (or duplicated) because it "was modular."
+> **Concern:** high-level technical architecture for the two real runtimes — the **bare React Native mobile app** (`client/mobile/`) and the **Go Chi backend** (`server/`, production modular monolith + documented scaling microservices). Modular, layered, and trackable so every concern has one owner and nothing is silently re-invented (or duplicated) because it "was modular."
 
 ## Runtime boundaries (what is live vs frozen vs planned)
 | Surface | Stack | Status |
 |---|---|---|
 | `client/mobile/` | Bare React Native 0.86.3 + TypeScript + Zustand | **LIVE.** All active work. |
 | `data/` | Typed entity arrays (SDUI source of truth) | **LIVE (enterprise-controlled).** Read-only for the app; consumed via `@data/*`. |
-| `server/` | Go Chi backend — MVP modular monolith over Supabase + MongoDB + Valkey | **MVP ACTIVE (built).** Future Prod = full microservices. See `docs/architecture/mvp-backend.md`, `monolith-breakdown.md`. |
+| `server/` | Go Chi backend — production modular monolith over Supabase + MongoDB + Valkey | **Production (live, built).** Scaling stage = full microservices (documented; extract per `monolith-breakdown.md`). See `docs/architecture/mvp-backend.md`, `monolith-breakdown.md`. |
 | `data/DATA_CONTROL.md` | Ownership + mock/seed/static inventory | **LIVE.** Authoritative ownership map. |
 
 ---
@@ -64,7 +64,7 @@ presentation primitives (src/components/shared/, src/theme/)
 
 ## 2. Go Chi backend (`server/`)
 
-### 2a. MVP — modular monolith (active scope, built)
+### 2a. Production — modular monolith (live, built)
 ```
 [ mobile app ] --HTTPS/JSON--> [ Go Chi modular monolith  server/gateway ]
    GatewayClient                  6 contexts in one binary (contracts interfaces)
@@ -73,16 +73,17 @@ presentation primitives (src/components/shared/, src/theme/)
                                    ▲
                           Cloudflare (edge)
 ```
-- MVP = **one Go Chi modular monolith** (`server/gateway`) hosting all 6 bounded contexts as packages
-  behind `internal/contracts` interfaces, replacing mocked `@mock` sources per module
-  (`@mock` → `@server`). Cache keys/TTLs unchanged (Supabase is the origin, not the cache).
+- Production = **one Go Chi modular monolith** (`server/gateway`) hosting all 6 bounded contexts as
+  packages behind `internal/contracts` interfaces, serving live data per module (`@mock` → `@server`).
+  Cache keys/TTLs unchanged (Supabase is the origin, not the cache).
 - Authority: `docs/architecture/mvp-backend.md` (decision matrix, schemas, endpoints) +
-  `docs/architecture/monolith-breakdown.md` (context → package → future-service mapping).
-- `GatewayClient` (`client/mobile/src/services/api/GatewayClient.ts`) is **wired** (baseUrl + flag,
-  `@data/*` fallback) — see `docs/architecture/data-layer-sdui.md`.
+  `docs/architecture/monolith-breakdown.md` (context → package → scaling-service mapping).
+- `GatewayClient` (`client/mobile/src/services/api/GatewayClient.ts`) is **wired** (baseUrl + flag)
+  and **server-only** (no `@data/*` substitution on failure) — see
+  `docs/architecture/data-layer-sdui.md`.
 - Every `data/DATA_CONTROL.md` `@mock` entry is now a contract for a gateway handler.
 
-### 2b. Future Prod — full microservices (planned, not yet built)
+### 2b. Scaling stage — full microservices (documented target, not yet built)
 ```
 [ mobile app ] --HTTPS/JSON--> [ Go Chi router ]
                                    ↓
@@ -91,11 +92,13 @@ presentation primitives (src/components/shared/, src/theme/)
                         [ data/ (single source of truth) ]
 ```
 - Goal: serve the structured SDUI tree currently mocked in `data/`, replacing `@mock` sources when each module is wired (`@mock` → `@server`).
-- **Do not build full-microservice server code until requested.** The `server/` folder is the Future Prod target; MVP scope is §2a.
+- **Extract services only when a scale trigger hits** (packaging change, not rewrite) per
+  `monolith-breakdown.md`; the production monolith is §2a. Do not build full-microservice server code
+  until a trigger is hit and the work is requested.
 - **Gateway client:** `client/mobile/src/services/api/GatewayClient.ts` is the single data surface.
   It joins the normalized microservice-shaped tables under `data/` (see `data/DATA_CONTROL.md` →
-  "Normalized Microservice Tables") and is now wired to the MVP monolith (with `@data/*` fallback);
-  screens migrate onto it incrementally.
+  "Normalized Microservice Tables") and is wired to the production monolith, server-only; screens read
+  it directly (`@mock` → `@server` migration complete).
 - When built: every `data/DATA_CONTROL.md` `@mock` entry becomes a contract for a Chi handler; ownership matrix (feature ↔ data file) stays the source of truth.
 - **DB schemas** for the microservices are specified in `docs/architecture/db-schema.md`; the cache
   layer (Cloudflare edge + Aiven Valkey) is specified in `docs/architecture/caching-cloudflare-valkey.md`.

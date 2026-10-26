@@ -110,7 +110,7 @@ export function MyOrdersScreen({ navigation, route }: Props) {
           // Inbox is best-effort; the badge simply stays hidden on failure.
         });
     refresh();
-    // Poll while the screen is mounted (MVP monitoring without FCM): Rx READY / order-status
+    // Poll while the screen is mounted (production monitoring without FCM): Rx READY / order-status
     // notifications land in the in-app inbox and the badge updates within the poll window.
     const timer = setInterval(refresh, 60_000);
     return () => {

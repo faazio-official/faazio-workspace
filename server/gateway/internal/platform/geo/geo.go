@@ -1,4 +1,4 @@
-// Package geo is the gateway's authoritative district master for the MVP coverage area
+// Package geo is the gateway's authoritative district master for the production coverage area
 // (Tamil Nadu + Puducherry). It mirrors admins.district_master (migration 0046) and the portal /
 // mobile fixtures. Platform code only — every context may import it.
 package geo
@@ -91,7 +91,7 @@ func Name(code string) string {
 	return byCode[Normalise(code)].Name
 }
 
-// InCoverageState reports whether a state has district coverage in the MVP.
+// InCoverageState reports whether a state has district coverage in production.
 func InCoverageState(stateCode string) bool {
 	return states[Normalise(stateCode)]
 }

@@ -453,7 +453,7 @@ func TestOptimizeGlobalRouteTrivialAndOversize(t *testing.T) {
 
 func TestOptimizeGlobalRouteHandlesCapacityLoad(t *testing.T) {
 	// Six orders (12 stops): above the five-order four-wheeler cap but still under the solver
-	// guard, exercising the largest route an MVP rider could accumulate. Every drop must follow
+	// guard, exercising the largest route a production rider could accumulate. Every drop must follow
 	// its pickup and the sequence must be dense.
 	stops := make([]Stop, 0, 24)
 	for order := 0; order < 6; order++ {

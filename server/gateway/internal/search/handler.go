@@ -1,6 +1,6 @@
 // Package search serves the full-text search context. It reads through a
 // contracts.ProductReader (delegated to the catalog repo at composition time); the
-// Future Prod Rust/Tantivy extraction replaces only the injected reader.
+// Scaling-stage Rust/Tantivy extraction replaces only the injected reader.
 // Future service: Rust + Tantivy (monolith-breakdown §1).
 package search
 

@@ -1,4 +1,4 @@
-// Provenance: admins.district_master (migration 0046) — MVP coverage = Tamil Nadu (38) +
+// Provenance: admins.district_master (migration 0046) — production coverage = Tamil Nadu (38) +
 // Puducherry (4). Mirrors data/districts.ts; the gateway is the authority. Used by the district
 // admin and seller-district pickers (offline fallback only).
 export interface DistrictInfo {
@@ -52,7 +52,7 @@ export const DISTRICTS: DistrictInfo[] = [
   { districtCode: 'PY3', name: 'Yanam', stateCode: 'PY' },
 ];
 
-/** Districts of one state (empty when the state has no MVP coverage). */
+/** Districts of one state (empty when the state has no production coverage). */
 export function districtsForState(stateCode: string): DistrictInfo[] {
   const code = stateCode.trim().toUpperCase();
   return DISTRICTS.filter((d) => d.stateCode === code);

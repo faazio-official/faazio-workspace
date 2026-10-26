@@ -1,14 +1,14 @@
 # Faazio Monolith Breakdown — Modular Monolith → Microservices
 
-> **Status:** MVP — ACTIVE (code). This is the **single authority** for how the MVP
-> `server/gateway` modular monolith maps to the future per-service split. Every context
+> **Status:** Production (live). This is the **single authority** for how the production
+> `server/gateway` modular monolith maps to the scaling-stage per-service split. Every context
 > below is a package in **one Go binary** (`server/gateway`) with hard internal boundaries;
 > extraction to a real service is a packaging change, not a rewrite.
-> Companion / referenced from: `docs/architecture/mvp-backend.md` (MVP authority),
+> Companion / referenced from: `docs/architecture/mvp-backend.md` (production authority),
 > `docs/architecture/db-schema.md` (table authority), `docs/architecture/server-gateway-plan.md`
-> (future gateway), `docs/architecture/caching-cloudflare-valkey.md` (cache authority).
+> (scaling-stage gateway), `docs/architecture/caching-cloudflare-valkey.md` (cache authority).
 
-## 0. Why one monolith (not Go + Rust for MVP)
+## 0. Why one production monolith (not Go + Rust yet)
 
 Ship **one Go Chi modular monolith now**, extract Rust/Go services later. Evidence:
 
@@ -18,10 +18,10 @@ Ship **one Go Chi modular monolith now**, extract Rust/Go services later. Eviden
   boundaries" Go pattern).
 - **Prime Video** collapsed distributed microservices back into a modular monolith for cost/perf —
   keeping module boundaries so extraction stays possible (not a return to a ball of mud).
-- **Postgres FTS is good enough for the MVP**: `tsvector` + `pg_trgm` + `unaccent` handles
+- **Postgres FTS is good enough for production**: `tsvector` + `pg_trgm` + `unaccent` handles
   ~100k–1M rows / few-hundred rps. Tantivy only pays off at high-QPS flash-sale scale.
 - **A second Rust toolchain now costs 2 CI builds, 2 cold-starts, inter-service auth/gRPC + OTel
-  across stacks, for zero MVP gain** — violates `AGENTS.md` (lightweight / fast / secure; justify size).
+  across stacks, for zero production gain** — violates `AGENTS.md` (lightweight / fast / secure; justify size).
 
 The refactor risk ("build Go, refactor to Rust later") is neutralized by the **contract freeze in §4**:
 slug IDs, INT8 paisa, `TIMESTAMPTZ`, `GatewayClient` signatures, and cache keys/TTLs stay stable, so
@@ -32,7 +32,7 @@ search extraction is a pure index-replica swap.
 1:1 with `db-schema.md` §1–§8 and `data/DATA_CONTROL.md`. **This table is the ownership authority for
 `server/gateway/internal/*`.**
 
-| Context (future service) | MVP package | Schema(s) | Cache keys / TTL | `GatewayClient` method(s) | Future Prod |
+| Context (scaling-stage service) | Production package | Schema(s) | Cache keys / TTL | `GatewayClient` method(s) | Scaling-stage service |
 |---|---|---|---|---|---|
 | search → Rust/Tantivy | `internal/search` | `catalog` (read: `products_search`) | `faazio:v1:search:q:{query}` 600 s | `searchProducts` | Rust Axum + Tantivy |
 | catalog/directory → Go | `internal/catalog`, `internal/directory` | `catalog`, `directory` (+ `inventory.pickup_points`, `directory.dining_venues`, `directory.menus` incl. `seller_id`/`status`/`mrp_paisa`) | `faazio:v1:catalog:product:{id}` 24 h · `faazio:v1:catalog:store-products:{storeId}` 300 s (first ACTIVE page, purged on product edit/status) · `faazio:v1:geo:nearby:stores:{lat3}:{lng3}:{radiusKm}:{app}` 120 s · `faazio:v1:geo:nearby:products:{lat3}:{lng3}:{radiusKm}:{app}` 120 s · `faazio:v1:directory:store:{id}` 24 h · `faazio:v1:directory:pickup:{key}` 24 h · `faazio:v1:directory:menu:{venueId}` 24 h (`cache.TTLStore`, invalidated on menu edit) · `faazio:v1:directory:venues:{app}` 24 h · `faazio:v1:directory:venue:{id}` 24 h | `getProduct`, `getProductsByIds`, `getStoreProducts` (`GET /stores/{id}/products`), `getStores` (+ no-fallback `fetchStores`), `getStoresNearby`/`fetchStoresNearby` (`GET /stores/nearby`, bounding-box + Haversine, public PII-free projection), `getProductsNearby`/`fetchProductsNearby` (`GET /products/nearby`, ACTIVE rows of live stores), `getStore`, `getVenues` (+ no-fallback `fetchVenues` — the Food grid uses it to tell an authoritative empty list from offline), `getVenue` (`GET /venues/{id}`), `getPickupPoints`, `getMenu` (menu dishes carry an authored `mrp_paisa` strike; the public menu read serves **ACTIVE** rows only and `POST`/`PUT /seller/menus` accepts an `mrp` (rupees, `>= price`) so the seller authors the strike — **no** festival overlay — `promo.festival_optins` is `catalog.products`-scoped); portal menu CRUD (`/seller/menus`) + media link (`PUT /seller/products/{id}` `imageKey`/`imageAssetId`, `PUT /seller/stores/{id}/cover`, menu `imageKey`); reads resolve `image_key` → CDN | CockroachDB + Postgres |
@@ -61,7 +61,7 @@ search extraction is a pure index-replica swap.
 | shared | `internal/platform/{db,cache,auth,config,otel,r2,cloudflare,razorpayroute,testenv}`, `internal/contracts` | — | — | — | gRPC via `contracts/` |
 
 
-**Delivery partner (0042/0043, MVP built).** A separate partner experience ships from the same bare
+**Delivery partner (0042/0043, production built).** A separate partner experience ships from the same bare
 RN workspace with its own Metro entry (`index.delivery.js` → `src/DeliveryPartnerApp.tsx`), Android
 flavor and iOS configuration; neither product bundles the other's screens. The gateway owns KYC
 review, vehicle-capped capacity, availability, Valkey live coordinates, detour-aware candidate
@@ -263,23 +263,23 @@ Extract the **first** context (search) as the reference. The others repeat the s
 |---|---|---|
 | Public IDs | stable string slugs (`md-1`, `store-m3`, `user-1`, `ORD-001`) | CDN URLs, Valkey keys, `GatewayClient` args |
 | Money | DB: **INT8 paisa** (₹1 = 100). JSON: whole **integer rupees** (`price`/`mrp`, no paisa, no float). Repo layer is the only conversion boundary (paisa → rupees on read, ×100 on write) | no float drift; `@data/*`/`GatewayClient` already use integer rupees, so the client shape is unchanged; Tantivy/Cockroach parity. **Money is never narrowed** — `INT4` paisa caps at ₹21M |
-| Non-money column types | MVP `0005`: `rating` REAL, counts/qty `INT4`/`SMALLINT`, `slug_uid` and `products_name_trgm_idx` dropped | byte diet only — JSON DTOs/`GatewayClient` are type-agnostic, so the wire shape is unchanged |
+| Non-money column types | migration `0005`: `rating` REAL, counts/qty `INT4`/`SMALLINT`, `slug_uid` and `products_name_trgm_idx` dropped | byte diet only — JSON DTOs/`GatewayClient` are type-agnostic, so the wire shape is unchanged |
 | Time | `TIMESTAMPTZ`; JSON ISO-8601 | fixed width; no epoch/ISO mixing |
 | Enums | `app_brand`, `order_status`, `fulfillment_mode` (Postgres ENUM) | validated, 1–4 B |
 | Partner enums (`0015`) | `seller_status`, `product_status`, `kyc_doc_type`, `campaign_status`, `campaign_scope`, `optin_status`, `ad_placement`, `ad_status`, `payout_status`, `ticket_status`, `return_status`; `order_status` gains `NEW`/`PACKED`/`RETURNED` (Option A, mobile `Processing` ⇄ `NEW`/`PACKED`) | one lifecycle both apps read; validated at the DB |
 | Partner roles | JWT claims `app_role` (`SELLER`/`DISTRICT_ADMIN`/`SUPER_ADMIN`) + `seller_id`/`district_code`/`state_code`; `auth.RequireRole`. Portal tokens additionally pin `iss=faazio-portal`, `aud=portal`, `exp`, `jti`, `must_change` (confines scoped roles to `/auth/portal/*` until rotated; `SUPER_ADMIN` is exempt) | role checks in Go (`service_role` bypasses RLS); never trust a request-body actor; a portal token can never verify with the legacy Supabase secret |
-| District codes | MVP: **42 districts — Tamil Nadu (38) + Puducherry (4)**. Gateway authority `internal/platform/geo/geo.go` (also `Normalise`/`IsValid`/`StateForDistrict`); DB master `admins.district_master` (`0046`); frontend mirror `data/districts.ts` + `client/web/platform/src/data/districts.ts`. Legacy 2-letter ISO state scope remains for non-TN/PY admins | a district typo must not create an orphan roster row; district→state derivation keeps seller/campaign state scope coherent |
+| District codes | Production: **42 districts — Tamil Nadu (38) + Puducherry (4)**. Gateway authority `internal/platform/geo/geo.go` (also `Normalise`/`IsValid`/`StateForDistrict`); DB master `admins.district_master` (`0046`); frontend mirror `data/districts.ts` + `client/web/platform/src/data/districts.ts`. Legacy 2-letter ISO state scope remains for non-TN/PY admins | a district typo must not create an orphan roster row; district→state derivation keeps seller/campaign state scope coherent |
 | `GatewayClient` | method names + signatures in `client/mobile/src/services/api/GatewayClient.ts` | screens swap `@mock` → `@server` without call-site edits |
 | Cache | `faazio:v1:{service}:{entity}:{id}` + TTL matrix (`caching-cloudflare-valkey.md` §4–§5). Includes `faazio:v1:auth:uid:{sha256}` (3600 s), portal `faazio:v1:auth:login:{ip,email}:{sha8}` (60 s) + `faazio:v1:auth:deny:{jti}` (≤15 m), `faazio:v1:pharma:prescriptions:{userId}` (60 s), `faazio:v1:notifications:inbox:{userId}` (30 s) | Cloudflare purge + Valkey invalidation map |
 | Cache `v{N}` | bump to invalidate a key class | no scan needed |
 | Idempotency | `SET faazio:v1:checkout:idem:{orderRef} 1 NX EX 300` | prevents double-place |
 
-## 5. Where the MVP differs from Future Prod (kept documented)
+## 5. Where production differs from the scaling stage (kept documented)
 
-- **Transport:** MVP contexts are in-process Go interfaces; Future Prod is gRPC through `contracts/`.
-  The interface names/shapes mirror the intended proto messages.
-- **DB split:** MVP = one Supabase project (schemas `catalog`/`directory`/`reviews`/`checkout`/
-  `accounts`/`inventory`) + MongoDB Atlas M0 + Aiven Valkey. Future Prod = CockroachDB, Tantivy,
+- **Transport:** production contexts are in-process Go interfaces; the scaling stage is gRPC through
+  `contracts/`. The interface names/shapes mirror the intended proto messages.
+- **DB split:** production = one Supabase project (schemas `catalog`/`directory`/`reviews`/`checkout`/
+  `accounts`/`inventory`) + MongoDB Atlas M0 + Aiven Valkey. The scaling stage = CockroachDB, Tantivy,
   DynamoDB, standalone Postgres — same datatypes, so the swap is invisible.
 - **Auth:** real **Firebase phone OTP** (the Login UI exchanges the SMS code via `firebaseAuth.ts`;
   the gateway verifies the RS256 Firebase ID token with Google's x509 certificate set) + partner JWT
@@ -297,7 +297,7 @@ Extract the **first** context (search) as the reference. The others repeat the s
 
 ## 6. Honest limitations
 
-- The Future Prod services (Rust/Tantivy, CockroachDB, DynamoDB, Python) are **not built** — the
-  monolith is the only running backend. `contracts/` is Go interfaces, not `.proto` yet.
+- The scaling-stage services (Rust/Tantivy, CockroachDB, DynamoDB, Python) are **documented only, not
+  built** — the monolith is the only running backend. `contracts/` is Go interfaces, not `.proto` yet.
 - The extraction playbook is **documented, not rehearsed** — no shadow deployment exists.
 - Boundary enforcement is by `go vet` + import-lint; it is not a compiler-enforced module system.

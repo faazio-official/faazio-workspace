@@ -1,17 +1,18 @@
 # Server & Gateway Plan Deep-Dive
 
-> **Status:** MVP ACTIVE (built) / Future Prod (full) · **Scope:** `server/`.
-> MVP authority: `docs/architecture/mvp-backend.md`; refactor mapping:
-> `docs/architecture/monolith-breakdown.md`. The MVP is built — one Go Chi modular monolith
-> (`server/gateway`) hosting all 6 contexts. Do **not** build the full microservices until explicitly
-> requested. This doc condenses `server/README.md` and keeps the **Future Prod** target.
+> **Status:** Production (live, built) / Scaling stage (documented) · **Scope:** `server/`.
+> Production authority: `docs/architecture/mvp-backend.md`; refactor mapping:
+> `docs/architecture/monolith-breakdown.md`. Production runs one Go Chi modular monolith
+> (`server/gateway`) hosting all 6 contexts. Extract services only when a scale trigger hits
+> (packaging change, not rewrite). This doc condenses `server/README.md` and keeps the
+> **scaling-stage** target.
 
 ## Why this exists
 
-The app will eventually be served by a backend instead of local `@data/*` mocks. This doc
-captures the **target** microservices layout so scaffolding follows one plan and no concern
-is silently re-invented. `server/` today holds the **built MVP monolith** (`server/gateway`) +
-Supabase migrations/seed; the full microservices below remain the Future Prod target.
+The app is served by the production backend instead of local `@data/*` mocks. This doc
+captures the **scaling-stage target** microservices layout so extraction follows one plan and no concern
+is silently re-invented. `server/` today holds the **production monolith** (`server/gateway`) +
+Supabase migrations/seed; the full microservices below remain the scaling-stage target.
 
 ## Runtime surfaces
 
@@ -28,15 +29,15 @@ Supabase migrations/seed; the full microservices below remain the Future Prod ta
             └── gRPC ────────────▶ [ recommendations — Python : FastAPI + MongoDB ]
 ```
 
-- The **gateway** is the only public surface. It serves the structured SDUI tree currently
-  mocked in `data/`, replacing `@mock` sources as modules are wired (`@mock` → `@server`).
+- The **gateway** is the only public surface. It serves the structured SDUI tree and module data; the
+  `@mock` → `@server` migration is complete, with `@data/*` retained for types, seed and editorial input.
 - Internal service-to-service calls use **gRPC** (HTTP/2 + binary) for sub-2ms latency.
-- Every `data/DATA_CONTROL.md` `@mock` entry becomes a handler contract.
+- Every live `data/DATA_CONTROL.md` entry maps to a gateway handler; remaining fixtures are seed/editorial.
 
-## MVP modular monolith (active scope — built)
+## Production modular monolith (live, built)
 
-The MVP is a **single Go Chi modular monolith** (`server/gateway`) hosting all 6 bounded contexts as
-packages — no gRPC, no separate services. `contracts/` holds Go interfaces (the future `.proto`
+The production backend is a **single Go Chi modular monolith** (`server/gateway`) hosting all 6 bounded
+contexts as packages — no gRPC, no separate services. `contracts/` holds Go interfaces (the future `.proto`
 shape); contexts talk through them, never through sibling imports. It serves read + write endpoints
 against **Supabase (Postgres) + MongoDB Atlas M0 + Aiven Valkey**, with Cloudflare in front; cache
 keys/TTLs unchanged.
@@ -234,11 +235,11 @@ The HTTP route is not used service-to-service — the dual mount is intentional.
   manual/automated payout ledger records the rider settlement, but no Razorpay transfer or
   platform/seller split is created.
 
-**Known MVP limits:** multi-vendor orders (more than one store) are not auto-dispatched; iOS
+**Known production limits:** multi-vendor orders (more than one store) are not auto-dispatched; iOS
 terminates a swiped-away app (background location survives backgrounding, not force-quit) and OEM
 battery whitelisting remains an ops step. These are tracked in `client/mobile/PENDING_WORK.md`.
 
-The sections below are the **Future Prod** target.
+The sections below are the **scaling-stage** target.
 
 ## Service matrix
 
@@ -336,8 +337,8 @@ lightweight-superapp playbook on two of three axes:
 
 ## Honest limitations
 
-- **The MVP monolith is built; the Future Prod microservices are not.** `server/services/*` and
-  `contracts/` as `.proto` remain plan-only — see `docs/architecture/monolith-breakdown.md` for the
-  extraction playbook.
+- **The production monolith is built; the scaling-stage microservices are documented only.**
+  `server/services/*` and `contracts/` as `.proto` remain plan-only — see
+  `docs/architecture/monolith-breakdown.md` for the extraction playbook.
 - Cost estimates assume free tiers scale-to-zero; real cost depends on traffic.
-- `GatewayClient` is wired (remote + `@data/*` fallback); screens migrate onto it incrementally.
+- `GatewayClient` is wired and server-only; the screen migration is complete (see `data-layer-sdui.md`).

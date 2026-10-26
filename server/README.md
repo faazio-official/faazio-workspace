@@ -1,24 +1,25 @@
 # Faazio Server (Go Chi)
 
-> **Status: MVP ACTIVE (built) / Future Prod (planned).** The MVP is a **Go Chi modular monolith**
-> (`server/gateway`) hosting all 6 bounded contexts over Supabase (Postgres) + MongoDB Atlas M0 +
-> Aiven Valkey, with Cloudflare in front — single authorities: `docs/architecture/mvp-backend.md`
-> (MVP) and `docs/architecture/monolith-breakdown.md` (context → package → future-service mapping).
-> The full microservices plan below is **Future Prod** and stays documented so extraction follows one
-> target layout and no concern is silently re-invented. Do **not** build the full microservices until
-> explicitly requested — the monolith is extracted per the playbook, not rewritten.
+> **Status: Production (live, built) / Scaling stage (documented).** Production runs a **Go Chi
+> modular monolith** (`server/gateway`) hosting all 6 bounded contexts over Supabase (Postgres) +
+> MongoDB Atlas M0 + Aiven Valkey, with Cloudflare in front — single authorities:
+> `docs/architecture/mvp-backend.md` (production) and `docs/architecture/monolith-breakdown.md`
+> (context → package → scaling-service mapping). The full microservices plan below is the
+> **scaling stage** and stays documented so extraction follows one target layout and no concern is
+> silently re-invented. Extract services only when a scale trigger hits — a packaging change, not a
+> rewrite.
 
-This directory hosts the Faazio backend. MVP scope (modular monolith) is §0; the enterprise-grade
-microservices target is the **Future Prod** sections below — one target layout, each concern owning
+This directory hosts the Faazio backend. The production monolith is §0; the enterprise-grade
+microservices target is the **scaling-stage** sections below — one target layout, each concern owning
 exactly one home, boundaries enforced inside the monolith so extraction is a packaging change.
 
 ---
 
-## 0. MVP modular monolith (active scope — built)
+## 0. Production modular monolith (live, built)
 
-The MVP is a **single Go Chi modular monolith** (`server/gateway`) hosting all 6 bounded contexts
-while each `@mock` module is migrated (`@mock` → `@server`). No gRPC, no separate services yet;
-contexts talk through `internal/contracts` interfaces.
+The production backend is a **single Go Chi modular monolith** (`server/gateway`) hosting all 6
+bounded contexts. No gRPC, no separate services yet; contexts talk through `internal/contracts`
+interfaces.
 
 ```
 server/
@@ -81,7 +82,7 @@ server/
 
 ---
 
-## Future Prod (full microservices)
+## Scaling stage (full microservices)
 
 The enterprise-grade target: five focused services, gRPC through `contracts/`, each owning its own
 schema and deployable independently.
@@ -264,7 +265,7 @@ server/
 - **Where:** all services emit OTel traces/metrics → Grafana dashboards.
 
 ### Deployment
-- The MVP gateway deploys to **Render** via the repo-root `render.yaml` Blueprint (Docker,
+- The production gateway deploys to **Render** via the repo-root `render.yaml` Blueprint (Docker,
   no secrets committed — set them in the dashboard). Future per-service Dockerfiles live
   beside their service folders.
 

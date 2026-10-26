@@ -5,7 +5,7 @@ Cross-cutting, repo-level backlog (server · DB · web · data). Client-app-only
 
 Status legend: 🟢 shipped · 🔵 in progress · 🟡 open (needs a decision) · 🔴 blocked (needs ops/secrets).
 
-Authority docs: `docs/architecture/mvp-backend.md` (MVP), `monolith-breakdown.md` (ownership),
+Authority docs: `docs/architecture/mvp-backend.md` (production), `monolith-breakdown.md` (scaling ownership),
 `docs/RUNBOOKS/DATA_FIXTURES.md` (seed), `docs/RUNBOOKS/RELEASE.md` (deploy).
 
 ---

@@ -1,5 +1,5 @@
 // Package contracts declares the cross-context interfaces and JSON DTOs of the
-// monolith. These shapes mirror the intended Future Prod gRPC proto messages and the
+// monolith. These shapes mirror the intended scaling-stage gRPC proto messages and the
 // mobile @data/* mock twins, so extracting a context is an implementation swap.
 //
 // Boundary rule (docs/architecture/monolith-breakdown.md §2): contexts depend on these
@@ -403,13 +403,13 @@ type Notifier interface {
 }
 
 // Drainer runs one synchronous notification-outbox drain (implemented by notifications.Worker). The
-// admin endpoint uses it as a manual MVP trigger when no background worker is deployed.
+// admin endpoint uses it as a manual trigger when no background worker is deployed.
 type Drainer interface {
 	DrainOnce(ctx context.Context) error
 }
 
 // Sweeper runs one media GC pass — deletes orphaned DRAFT assets (R2 object + registry row) past the
-// draft TTL (implemented by media.Sweeper). The admin endpoint uses it as a manual MVP trigger when no
+// draft TTL (implemented by media.Sweeper). The admin endpoint uses it as a manual trigger when no
 // background worker is deployed; it returns the number of assets reclaimed.
 type Sweeper interface {
 	SweepOnce(ctx context.Context) (int, error)

@@ -52,7 +52,7 @@ const REMOTE_ENABLED = GATEWAY_URL.length > 0 && USE_GATEWAY;
  */
 const REMOTE_STRICT = REMOTE_ENABLED && STRICT;
 /**
- * Dev-only identity override for an `AUTH_DISABLED=true` gateway (local/MVP staging). Sent as the
+ * Dev-only identity override for an `AUTH_DISABLED=true` gateway (local/pre-prod staging). Sent as the
  * `X-Dev-User` header **only in dev builds** so the mocked-login app no longer relies on the server's
  * `DEV_USER_ID` fallback. Never attached in a release build; the gateway ignores it when auth is on.
  */

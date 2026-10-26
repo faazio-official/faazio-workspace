@@ -1,4 +1,4 @@
-# Faazio Gateway — Go Chi modular monolith (MVP)
+# Faazio Gateway — Go Chi modular monolith (production)
 
 One binary hosting every bounded context. Authority:
 [`docs/architecture/mvp-backend.md`](../../docs/architecture/mvp-backend.md) +

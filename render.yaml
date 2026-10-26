@@ -1,4 +1,4 @@
-# Render Blueprint for the Faazio MVP gateway (Go Chi modular monolith).
+# Render Blueprint for the Faazio production gateway (Go Chi modular monolith).
 # Docs: docs/architecture/mvp-backend.md, server/README.md.
 #
 # Deploy: connect this repo in Render → "New" → "Blueprint" (Render reads this file at the repo root).

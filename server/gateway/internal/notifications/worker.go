@@ -46,7 +46,7 @@ func NewWorker(repo *Repo, sender Sender, logger *slog.Logger) *Worker {
 // Enabled reports whether the worker has both a repo and a sender to run.
 func (w *Worker) Enabled() bool { return w != nil && w.repo != nil && w.sender != nil }
 
-// DrainOnce runs a single synchronous drain batch — the manual MVP trigger for deployments without a
+// DrainOnce runs a single synchronous drain batch — the manual trigger for deployments without a
 // background worker. Returns ErrNoSender when no provider is configured (the app still polls the inbox).
 func (w *Worker) DrainOnce(ctx context.Context) error {
 	if !w.Enabled() {

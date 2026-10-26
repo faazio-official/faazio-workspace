@@ -220,8 +220,9 @@ func hashUser(userID string) string {
 }
 
 // Recommendations returns the caller's ranked product ids: the precomputed `recommendations` doc for
-// the user's hash, else the global top-`product_stats`. Both collections are written by the Future
-// Prod batch job; on the empty MVP they resolve to no ids (the client falls back to fixtures).
+// the user's hash, else the global top-`product_stats`. Both collections are written by the
+// scaling-stage batch job; while empty they resolve to no ids and the client renders an honest empty
+// state (no fixture substitution).
 func (r *Repo) Recommendations(ctx context.Context, userID string) ([]string, error) {
 	if r.db == nil {
 		return nil, fmt.Errorf("reco: mongo not configured")

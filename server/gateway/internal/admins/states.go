@@ -31,7 +31,7 @@ func NormaliseStateCode(code string) string {
 	return strings.ToUpper(strings.TrimSpace(code))
 }
 
-// IsValidDistrict reports whether code is a known MVP district code (exact, uppercase).
+// IsValidDistrict reports whether code is a known production district code (exact, uppercase).
 func IsValidDistrict(code string) bool { return geo.IsValid(code) }
 
 // NormaliseDistrictCode upper-cases and trims a client-supplied district code.
