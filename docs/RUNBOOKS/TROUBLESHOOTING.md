@@ -389,7 +389,7 @@ Full triage table + commands: `docs/RUNBOOKS/PORTAL_AUTH.md` §0.
 - After C/D are fixed, a **valid** email still returns `401 invalid_credentials` until the account is
   provisioned (`PORTAL_AUTH.md` §2) — that is expected, not a failure.
 
-## 🔧 401 on `/ads/events` or `/vendors/{id}/rating` (paid-ad KPIs / durable rating inert)
+## 🔧 401 on `/ads/events` or `/vendors/{id}/rating` (paid-ad KPIs / durable rating rejected)
 
 These two writes sit behind `auth.Require`. A configured app signs in with real Firebase phone OTP
 (`firebaseAuth.ts`), so the Firebase ID token verifies on an `AUTH_DISABLED=false` gateway. A `401`

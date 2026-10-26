@@ -478,12 +478,12 @@ the `GROCERY` member was dropped from `AppBrand` / `CartCategory` / `SubAppId` /
    every `store-f*` kitchen (88 dishes / 30 venues). `TODAYS_SPECIALS` no longer pads an unseeded
    venue — the old cuisine-match fallback (which could surface another restaurant's dishes) was
    removed (W45); an unseeded venue now shows an honest empty menu.
-6. **Two `auth.Require` writes are app-inert under production auth (by decision).** With the mocked
-   login, `POST /ads/events` (paid-ad measurement → portal KPIs) and `PUT /vendors/{id}/rating`
-   (server-durable vendor rating) only reach the ad-server/reviews origin when the gateway runs
-   `AUTH_DISABLED=true` (local dev / pre-prod staging, `user-1`). W49 makes both client paths honest —
+6. **The two `auth.Require` writes use the real Firebase session.** A signed-in shopper carries a
+   verified Firebase ID token (W60), so `POST /ads/events` (paid-ad measurement → portal KPIs) and
+   `PUT /vendors/{id}/rating` (server-durable vendor rating) reach the ad-server/reviews origin on a
+   production `AUTH_DISABLED=false` gateway. W49 keeps both client paths honest —
    `recordAdEvent` returns a confirmed-only boolean, `submitVendorRating` resolves a
    `synced`/`offline`/`signed-out`/`not-verified` outcome — and the device-local rating display +
-   local last-click attribution keep the shopper flow complete. Closing the server side needs a real
-   session (no Supabase phone OTP by product decision) or an anon rate-limited event path; neither is
-   opened here. See `client/mobile/PENDING_WORK.md` W49.
+   local last-click attribution keep the shopper flow complete offline. Local dev can still use
+   `AUTH_DISABLED=true` (`user-1`). No anon write path is opened (avoids KPI/rating poisoning). See
+   `client/mobile/PENDING_WORK.md` W49/W60.

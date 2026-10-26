@@ -1323,10 +1323,10 @@ The "lightweight, fast, secure" mandate (AGENTS.md) is enforced at build and del
   catalog via `useCategoryVendors`.
 - **Vendor ratings are device-local on display** — `RateVendorScreen` writes through
   `services/vendorRatings` (device store) and mirrors to the server `PUT /vendors/{id}/rating`, whose
-  outcome is now surfaced (`synced`/`offline`/`signed-out`/`not-verified`) with an inline error and a
-  "Saving…" state instead of a silent best-effort (W49). Under a production `AUTH_DISABLED=false`
-  gateway the mirror is inert (mocked token), so a displayed rating can diverge from the server
-  summary until a real session exists — a documented deferral, not a hidden failure.
+  outcome is surfaced (`synced`/`offline`/`signed-out`/`not-verified`) with an inline error and a
+  "Saving…" state instead of a silent best-effort (W49). A signed-in shopper carries the real
+  Firebase ID token (W60), so the mirror is server-durable on a production `AUTH_DISABLED=false`
+  gateway; offline writes still display locally and report `offline`.
 - **Pharma home rails are server-backed (W50)** — stores are server-backed (`getStores('PHARMA')`)
   and the "Popular Medicines"/"Health Essentials" rails + house hero now read the Pharma-only
   `GET /sdui/pharma` projection (allowlist `pharmaHero`/`pharmaPopular`/`pharmaEssentials`, joined to

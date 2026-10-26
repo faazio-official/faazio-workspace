@@ -59,13 +59,13 @@ node server/supabase/seed/generate.mjs               # 0001_seed.sql now emits m
 
 ## OTHER — repo-level open items
 
-- **Auth.** App auth stays **mocked** (`authStore.login()`) by product decision; Supabase phone-OTP
-  cutover is not scheduled. Server still attaches a bearer when a session is present. Consequence
-  (W49): the two app writes behind `auth.Require` — `POST /ads/events` (paid-ad KPIs) and
-  `PUT /vendors/{id}/rating` (server-durable rating) — are inert on a production
-  `AUTH_DISABLED=false` gateway; the client is now honest/observable about it (confirmed-only ad
-  boolean, rating `synced`/`offline`/`signed-out`/`not-verified`) and local dev closes both via
-  `AUTH_DISABLED=true` + `DEV_USER`.
+- **Auth.** App auth is real **Firebase phone OTP** (`services/firebaseAuth.ts`, W60); the gateway
+  verifies the RS256 Firebase ID token. The Supabase phone-OTP/GoTrue cutover is not scheduled
+  (product decision: keep Firebase, not migrate to Supabase). The two app writes behind
+  `auth.Require` — `POST /ads/events` (paid-ad KPIs) and `PUT /vendors/{id}/rating`
+  (server-durable rating) — are reachable for a signed-in shopper; the client stays honest/
+  observable (confirmed-only ad boolean, rating `synced`/`offline`/`signed-out`/`not-verified`) and
+  local dev can still use `AUTH_DISABLED=true` + `DEV_USER`.
 - **Mobile media plumbing.** Intentionally none — the gateway resolves `image_key → CDN URL` on every
   catalog/directory/SDUI read, so no `GatewayClient` media methods are needed. Revisit only if the app
   gains an upload surface (e.g. seller-on-mobile, Rx capture).

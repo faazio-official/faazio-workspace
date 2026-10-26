@@ -15,7 +15,8 @@
 > support state/super queue (W20) — plus web write-through (W21), mobile `@mock`→`@server` (W22),
 > and auth/Storage/edge cutover (W23). Additive only; never rewrites `0001`–`0016`.
 > **W25 delta (0019 `app_gaps`):** app-gap contract deltas — menu display fields + `GET /venues`
-> venue list + inbox badge count; app auth stays mocked. Additive only.
+> venue list + inbox badge count; app auth uses real Firebase phone OTP (`services/firebaseAuth.ts`,
+> W60). Additive only.
 > **W26 delta:** food restaurant menus read `directory.menus` (`useRestaurantMenu`)
 > and the FoodHome restaurant grid reads `directory.dining_venues` (`restaurantFeedService` → `getVenues('FOOD')`),
 > both fixture-backed on error/empty. **(W26b)** `SavedAddressesScreen` add/edit/delete via
@@ -58,8 +59,8 @@
 > **De-mock Phase 2/3/4:** mobile money-critical reads are strict (product/stock/menu/coupons/coupon
 > validation/order tracking) + new `getVenue`/`getOrderTracking` clients + `MyOrders` 60 s inbox poll;
 > portal money/status/Rx/menu/booking/rewards writes are awaited with rollback (`pushWrite`) instead
-> of silent `writeBehind`. App auth stays mocked; cart/favourites/rewards/orders stores stay
-> device-local-first. FCM sender remains backlog.
+> of silent `writeBehind`. App auth uses real Firebase phone OTP (`services/firebaseAuth.ts`, W60);
+> cart/favourites/rewards/orders stores stay device-local-first. FCM sender remains backlog.
 
 ## 0. dtype freeze (the lean contract everything obeys)
 
@@ -168,7 +169,7 @@ wire. Mobile `GatewayClient.ts` + `@data/*` already speak integer rupees — unc
 | W20 | Support state/super ticket queue | 1/2/4 | **done** (0017 `tickets.state_code` + `/admin/state/support` + state filter in `internal/support`) |
 | W21 | Web write-through (mutations → gateway, keep seed fallback) | 3/4 | **done** (`http.ts` toSnake/₹↔paisa `writeBehind`, `index.ts` mutators call `remote.*`) |
 | W22 | Mobile `@mock`→`@server` per-module migration | 4 | **in progress** — mart feed, catalog vendor detail, favourites, product search + home SDUI registry done; **cart durability + checkout (`placeOrder`) + Pharma Rx capture/upload/create + customer Rx quote/READY polling view done**; **orders history + vendor-review reads + `search` analytics done**; **profile reads done** (`getDetails` blob-flatten + `getAddresses` + UserDetails/SavedAddresses hydration); **pharma store rails + vendor picker flipped to `getStores('PHARMA')` (W25) + notification badge count (W25)**; **(W26) food restaurant menus via `useRestaurantMenu` (`getMenu`, `MenuDish→SpecialDish`) + FoodHome restaurant grid via `restaurantFeedService`→`getVenues('FOOD')` + `SavedAddressesScreen` add/edit/delete (`saveAddress` PUT, `deleteAddress` DELETE)**; **(W27) blood donor dashboard feed via `useBloodRequests` (`getBloodRequests`, server-backed, fixture-enriched extras; detail renders redacted rows gracefully)**; **(W28) seat bookings — `BookingSheet` (create hold, ₹50/seat, mock Razorpay authorize seam → `attachBookingPayment`) + `MyBookingsScreen` (`getBookings`/`cancelBooking`) + `getBookingAvailability`; **(W33) mart home deals via `getProductsByIds` + food delivery-store menus (`storeMenus` → `directory.menus`, 88 dishes/30 venues)**; remaining: real Razorpay SDK adapter + food-order-booking screen** |
-| W23 | Auth cutover (Supabase JWT + RequireRole) + Storage object-key uploads + edge purge | 5 | **partial** — app auth intentionally stays **mocked** (`authStore.login()`), so the Supabase phone-OTP/JWT cutover is **dropped by product decision**; Storage object-key uploads shipped for Rx (`0018`) + portal product images; product/KYC buckets + Cloudflare edge rules remain |
+| W23 | Auth cutover (Supabase JWT + RequireRole) + Storage object-key uploads + edge purge | 5 | **partial** — the Supabase phone-OTP/JWT cutover is **dropped by product decision** (auth is real Firebase phone OTP via `services/firebaseAuth.ts`, W60); Storage object-key uploads shipped for Rx (`0018`) + portal product images; product/KYC buckets + Cloudflare edge rules remain |
 | W24 | Pharma quote → READY reveal → notify + durable notification outbox | 1/2/4 | **done** (`0018` + `internal/pharma` quote/reveal + `internal/notifications` + gap PUTs; owner `db-schema.md` §12.12) |
 | W25 | App-gap contract deltas (venues list + menu display fields + inbox badge) | 1/2/4 | **done** (`0019` adds `menus.description/emoji/delivery_time`; `GET /venues?app=` + `internal/directory.Venues`; `GatewayClient.getVenues`/`getNotifications`; pharma stores hook; My Orders badge from inbox count; blood board stays redacted — no PII widening) |
 
@@ -333,5 +334,5 @@ blob-flatten + `getAddresses` + `UserDetailsScreen`/`SavedAddressesScreen` hydra
 (`GatewayClient` + per-feature fallback) stays in place until each slice is green. **W24 follow-up
 shipped:** notifications inbox cache invalidation + seller Rx `status_history`/`revealed_by`, portal
 product price/stock write-through, and mobile analytics + vendor-rating writes (see §9). Remaining
-mobile reads (food, blood, restaurants) are tracked in §9. App auth intentionally stays **mocked**
-(`authStore.login()`); the Supabase phone-OTP cutover (W23) is dropped per product decision.
+mobile reads (food, blood, restaurants) are tracked in §9. App auth uses real Firebase phone OTP
+(`services/firebaseAuth.ts`, W60); the Supabase phone-OTP cutover (W23) is dropped per product decision.
