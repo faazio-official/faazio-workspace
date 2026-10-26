@@ -227,7 +227,7 @@ export function RestaurantProfileScreen({ navigation, route }: Props) {
                 </AppText>
               </View>
 
-              <View style={styles.timeRow}>
+              <View style={styles.statusRow}>
                 <View style={styles.openBadge}>
                   <AppText style={styles.openText}>Open now</AppText>
                 </View>
@@ -485,7 +485,7 @@ const styles = StyleSheet.create({
   storeSub: { fontSize: ms(13), color: foodTheme.textSecondary, marginTop: 4 },
   locationRow: { flexDirection: 'row', alignItems: 'center', marginTop: 8 },
   locationText: { fontSize: ms(12), color: foodTheme.textPrimary, marginLeft: 4 },
-  timeRow: { flexDirection: 'row', alignItems: 'center', marginTop: 6 },
+  statusRow: { flexDirection: 'row', alignItems: 'center', marginTop: 6 },
   openBadge: { backgroundColor: '#DCFCE7', paddingHorizontal: 8, paddingVertical: 2, borderRadius: 6 },
   openText: { color: GREEN, fontSize: ms(10), fontWeight: '700' },
   highlightsContainer: {

@@ -259,7 +259,7 @@ button. "View Vendor" pushes `SubApp` with `subAppId: 'FA_MART'` plus the option
 
 The shared **Product Detail** (`CommonProductDetailView`) also renders a FOOD vendor card for
 any FOOD product (below "Product Details") resolved by `product.shop` against `@data/food/stores`
-`foodStores` (name + verified badge, desc, open/distance/delivery row; name-only header when the
+`foodStores` (name + verified badge, desc, open/distance row; name-only header when the
 restaurant isn't in `foodStores`), plus a **"More from {restaurant}"** 2-column grid of the
 restaurant's other `TODAYS_SPECIALS` (via `dishToProduct`). Card tap pushes another `ProductDetail`
 (`onOpenProduct`); grid + footer adds for FOOD are **direct** (the fulfilment gate was
