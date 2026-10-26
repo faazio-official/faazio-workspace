@@ -19,7 +19,7 @@ import { catalogIndex, getCatalogEntryById, getCatalogEntriesByIds, getCatalogEn
 import { storeDirectory, getStoreById, getStoresByApp, type StoreRecord } from '@data/directory/stores';
 import { NEUTRAL_PICKUP } from '@data/cart/pickup-resolver';
 import { coupons as fixtureCoupons } from '@data/cart/coupons';
-import { diningVenues } from '@data/food/diningVenues';
+import { restaurantVenues } from '@data/food/diningVenues';
 import { getReviewsByProductId, type ReviewRow } from '@data/reviews/reviews';
 import { getStockByProductId, type StockRow } from '@data/inventory/stock';
 import { getOrdersByUser, MOCK_USER_ID, type OrderRow } from '@data/checkout/orders';
@@ -290,7 +290,7 @@ export interface MenuDish {
   emoji?: string;
 }
 
-/** One dining venue (directory.dining_venues) as served by `GET /venues`. */
+/** One restaurant venue (directory.dining_venues) as served by `GET /venues`. */
 export interface Venue {
   id: string;
   app: string;
@@ -1018,13 +1018,13 @@ export class GatewayClient {
     );
   }
 
-  /** Dining venues from `directory.dining_venues` (server-only; throws offline). */
+  /** Restaurant venues from `directory.dining_venues` (server-only; throws offline). */
   async getVenues(app?: string): Promise<Venue[]> {
     return this.withFallback(
       () => this.http<Venue[]>(`/venues${app ? `?app=${app}` : ''}`),
       () =>
         delay(
-          diningVenues.map((v) => ({
+          restaurantVenues.map((v) => ({
             id: v.id,
             app: 'FOOD',
             name: v.name,
@@ -1045,18 +1045,18 @@ export class GatewayClient {
     return this.http<Venue[]>(`/venues${app ? `?app=${app}` : ''}`);
   }
 
-  /** Live stock for a product. Strict — availability/price must not be faked offline. */
-  /** One dining venue by id (server-only single read; throws offline). */
+  /** One restaurant venue by id (server-only single read; throws offline). */
   async getVenue(id: string): Promise<Venue | undefined> {
     return this.withFallback(
       () => this.http<Venue>(`/venues/${encodeURIComponent(id)}`),
       () => {
-        const v = diningVenues.find((x) => x.id === id);
+        const v = restaurantVenues.find((x) => x.id === id);
         return delay(v ? { id: v.id, app: 'FOOD', name: v.name, coverImage: '', categories: [] } : undefined);
       },
     );
   }
 
+  /** Live stock for a product. Strict — availability/price must not be faked offline. */
   async getStock(productId: string): Promise<StockRow | undefined> {
     return this.withStrict(
       () => this.http<StockRow>(`/stock/${encodeURIComponent(productId)}`),

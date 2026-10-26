@@ -570,11 +570,11 @@ CREATE TABLE reviews.reviews (
 ### 7.7 `directory.vendors` / `reviews.vendor_reviews` — source `data/directory/vendors.ts`, `data/reviews/vendorReviews.ts`
 
 A **vendor** is a ratable place: a Mart/Pharma store (`directory.stores`) or a Food
-dining venue. `directory.vendors` is a derived identity view (ids + names only); the
+restaurant venue. `directory.vendors` is a derived identity view (ids + names only); the
 full food venue-data migration is a separate task.
 
 ```sql
--- Derived view: stores + dining venues, identity only.
+-- Derived view: stores + restaurant venues, identity only.
 CREATE VIEW directory.vendors AS
   SELECT id, app, name FROM directory.stores
   UNION ALL
@@ -671,7 +671,7 @@ The Home feed is stored as **ID-only** documents — every leaf references `cata
       banners: [{ id: 'hb-1', title: 'Big Savings Everyday', subtitle: 'UP TO 50% OFF',
                   accent: '#FFF8D6', imageUrl: 'https://…/hb1.jpg' }] },   // Mart hero carousel
     { id: 'foodHero', title: 'Food Highlights', accent: '#1E5D44', productIds: [],
-      banners: [{ id: 'fb-1', title: 'Dining Deals Near You', subtitle: 'UP TO 40% OFF',
+      banners: [{ id: 'fb-1', title: 'Restaurant Deals Near You', subtitle: 'UP TO 40% OFF',
                   accent: '#E8F5E9', imageUrl: 'https://…/fb1.jpg' }] },   // Food house hero fallback
     { id: 'foodSpecials', title: "Today's Special", accent: '#1E5D44',
       productIds: ['sp-1','sp-2','sp-3', …] },                              // Food specials order
@@ -951,14 +951,16 @@ CREATE INDEX menus_venue_idx ON directory.menus (venue_id);
 > `POST`/`PUT /seller/menus/{venueId}/{dishId}`, guarded server-side by `mrp >= price` (mirrors the
 > `menus_mrp_gte_price` check). Seed rows are emitted `ACTIVE`.
 
-`dining_venues` was an identity stub (`id,name`), so every restaurant profile was hollow in the DB.
-Menus are seeded from `restaurantMenus` (61 dishes / 18 dining venues) **and** `storeMenus`
+`directory.dining_venues` is restaurant identity only — it has no booking/reservation fields,
+time slots, or table counts; Food fulfillment is DELIVERY or PICKUP only. It began as an identity
+stub (`id,name`), so every restaurant profile was hollow in the DB.
+Menus are seeded from `restaurantMenus` (61 dishes / 18 restaurants) **and** `storeMenus`
 (27 dishes / 12 delivery kitchens `store-f1…f12`, derived from `foodProducts` by `storeId`) —
 88 dishes / 30 venues. **No FK on `venue_id`** (deliberate): a
 menu belongs to a *vendor* id that resolves to either `directory.stores` (food stores) or
 `directory.dining_venues` — the `directory.vendors` union. Public catalog data → anon read, cached
 `faazio:v1:directory:menu:{venueId}` 24 h; venue PII (address/phone) is redacted by the gateway.
-The dining-venue **list** is served by `GET /venues?app=` (PII-free projection of
+The restaurant-venue **list** is served by `GET /venues?app=` (PII-free projection of
 `directory.dining_venues`), cached `faazio:v1:directory:venues:{app}` 24 h.
 
 ### 12.5 `pharma.prescriptions` — source `features/pharma/prescription` (migration `0009`)

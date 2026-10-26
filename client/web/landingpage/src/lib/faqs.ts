@@ -12,8 +12,8 @@ export const faqs = [
     "Prescription upload is part of the planned Pharma experience. The app will show the requirements and availability for your location. Prescription medicines require a valid prescription.",
   ],
   [
-    "Can I book a table as well as order food?",
-    "Faazio Food brings food ordering and dining booking together. Participating restaurants and available booking times will be shown in the app.",
+    "Can I choose delivery or pickup?",
+    "Yes. Faazio Food lets you order from local restaurants and choose delivery to your saved address or self-pickup at checkout. Order details and tracking are available in the app.",
   ],
   [
     "How can I become a blood donor?",

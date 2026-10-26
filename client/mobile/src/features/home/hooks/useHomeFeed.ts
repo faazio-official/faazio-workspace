@@ -5,7 +5,7 @@ import type { StoreRecord } from '@data/directory/stores';
 
 /**
  * A Home feed section joined with its resolved rows (SDUI doc + catalog/store join).
- * `stores` is populated for dining rails (sections that carry `storeIds`).
+ * `stores` is populated for restaurant rails (sections that carry `storeIds`).
  */
 export type HomeFeedSection = SduiSection & { products: ProductView[]; stores?: StoreRecord[] };
 

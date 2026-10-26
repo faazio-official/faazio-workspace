@@ -17,7 +17,7 @@
 > **W25 delta (0019 `app_gaps`):** app-gap contract deltas — menu display fields + `GET /venues`
 > venue list + inbox badge count; app auth stays mocked. Additive only.
 > **W26 delta:** food restaurant menus read `directory.menus` (`useRestaurantMenu`)
-> and the FoodHome dining grid reads `directory.dining_venues` (`diningService` → `getVenues('FOOD')`),
+> and the FoodHome restaurant grid reads `directory.dining_venues` (`restaurantFeedService` → `getVenues('FOOD')`),
 > both fixture-backed on error/empty. **(W26b)** `SavedAddressesScreen` add/edit/delete via
 > `GatewayClient.saveAddress`/`deleteAddress` + new `DELETE /profile/addresses/{id}` (checkout).
 > **(W27)** mobile blood donor dashboard feed is server-backed (`useBloodRequests` →
@@ -45,7 +45,7 @@
 > **W33 delta (de-mock slice 1, no DDL):** Mart home deals resolve through the catalog
 > (`martService.fetchMartFeed` → `getProductsByIds`, server name/price/MRP/rating/image over the
 > `@static-editorial` row); Food **delivery-store menus** now exist — `data/food/menus.ts`
-> `storeMenus` derives from `foodProducts` by `storeId`, `menuForVenueName` resolves dining→delivery,
+> `storeMenus` derives from `foodProducts` by `storeId`, `menuForVenueName` resolves restaurant→delivery,
 > and the generator seeds `directory.menus` for the 12 `store-f1…f12` kitchens (**88 dishes / 30
 > venues**, was 61/18). Seed regenerate only; no migration.
 > **W34 delta (server quench, `0023`):** four additive thin reads in existing contexts —
@@ -167,7 +167,7 @@ wire. Mobile `GatewayClient.ts` + `@data/*` already speak integer rupees — unc
 | W19 | Rewards admin knobs (ledger view + admin-tunable rates) | 1/2/4 | **done** (0017 `rewards.rates` + `/admin/super/rewards` + `internal/rewards` rates/ledger read) |
 | W20 | Support state/super ticket queue | 1/2/4 | **done** (0017 `tickets.state_code` + `/admin/state/support` + state filter in `internal/support`) |
 | W21 | Web write-through (mutations → gateway, keep seed fallback) | 3/4 | **done** (`http.ts` toSnake/₹↔paisa `writeBehind`, `index.ts` mutators call `remote.*`) |
-| W22 | Mobile `@mock`→`@server` per-module migration | 4 | **in progress** — mart feed, catalog vendor detail, favourites, product search + home SDUI registry done; **cart durability + checkout (`placeOrder`) + Pharma Rx capture/upload/create + customer Rx quote/READY polling view done**; **orders history + vendor-review reads + `search` analytics done**; **profile reads done** (`getDetails` blob-flatten + `getAddresses` + UserDetails/SavedAddresses hydration); **pharma store rails + vendor picker flipped to `getStores('PHARMA')` (W25) + notification badge count (W25)**; **(W26) food restaurant menus via `useRestaurantMenu` (`getMenu`, `MenuDish→SpecialDish`) + FoodHome dining grid via `diningService`→`getVenues('FOOD')` + `SavedAddressesScreen` add/edit/delete (`saveAddress` PUT, `deleteAddress` DELETE)**; **(W27) blood donor dashboard feed via `useBloodRequests` (`getBloodRequests`, server-backed, fixture-enriched extras; detail renders redacted rows gracefully)**; **(W28) seat bookings — `BookingSheet` (create hold, ₹50/seat, mock Razorpay authorize seam → `attachBookingPayment`) + `MyBookingsScreen` (`getBookings`/`cancelBooking`) + `getBookingAvailability`; **(W33) mart home deals via `getProductsByIds` + food delivery-store menus (`storeMenus` → `directory.menus`, 88 dishes/30 venues)**; remaining: real Razorpay SDK adapter + food-order-booking screen** |
+| W22 | Mobile `@mock`→`@server` per-module migration | 4 | **in progress** — mart feed, catalog vendor detail, favourites, product search + home SDUI registry done; **cart durability + checkout (`placeOrder`) + Pharma Rx capture/upload/create + customer Rx quote/READY polling view done**; **orders history + vendor-review reads + `search` analytics done**; **profile reads done** (`getDetails` blob-flatten + `getAddresses` + UserDetails/SavedAddresses hydration); **pharma store rails + vendor picker flipped to `getStores('PHARMA')` (W25) + notification badge count (W25)**; **(W26) food restaurant menus via `useRestaurantMenu` (`getMenu`, `MenuDish→SpecialDish`) + FoodHome restaurant grid via `restaurantFeedService`→`getVenues('FOOD')` + `SavedAddressesScreen` add/edit/delete (`saveAddress` PUT, `deleteAddress` DELETE)**; **(W27) blood donor dashboard feed via `useBloodRequests` (`getBloodRequests`, server-backed, fixture-enriched extras; detail renders redacted rows gracefully)**; **(W28) seat bookings — `BookingSheet` (create hold, ₹50/seat, mock Razorpay authorize seam → `attachBookingPayment`) + `MyBookingsScreen` (`getBookings`/`cancelBooking`) + `getBookingAvailability`; **(W33) mart home deals via `getProductsByIds` + food delivery-store menus (`storeMenus` → `directory.menus`, 88 dishes/30 venues)**; remaining: real Razorpay SDK adapter + food-order-booking screen** |
 | W23 | Auth cutover (Supabase JWT + RequireRole) + Storage object-key uploads + edge purge | 5 | **partial** — app auth intentionally stays **mocked** (`authStore.login()`), so the Supabase phone-OTP/JWT cutover is **dropped by product decision**; Storage object-key uploads shipped for Rx (`0018`) + portal product images; product/KYC buckets + Cloudflare edge rules remain |
 | W24 | Pharma quote → READY reveal → notify + durable notification outbox | 1/2/4 | **done** (`0018` + `internal/pharma` quote/reveal + `internal/notifications` + gap PUTs; owner `db-schema.md` §12.12) |
 | W25 | App-gap contract deltas (venues list + menu display fields + inbox badge) | 1/2/4 | **done** (`0019` adds `menus.description/emoji/delivery_time`; `GET /venues?app=` + `internal/directory.Venues`; `GatewayClient.getVenues`/`getNotifications`; pharma stores hook; My Orders badge from inbox count; blood board stays redacted — no PII widening) |
@@ -322,15 +322,16 @@ status as it is quoted/readied. **W22 reads shipped:** My Orders hydrates `gatew
 durable `serverOrders` slice (server status wins; `NEW`/`PACKED`→`Processing`, `RETURNED`→`Cancelled`),
 vendor reviews read the server list + aggregate, and the `search` analytics event fires anchored to the
 top result. **(W26)** food restaurant menus read `directory.menus` (`useRestaurantMenu` → `getMenu`)
-and the FoodHome dining grid is driven by `directory.dining_venues` (`diningService` → `getVenues('FOOD')`,
+and the FoodHome restaurant grid is driven by `directory.dining_venues` (`restaurantFeedService` → `getVenues('FOOD')`,
 fixture-enriched); `SavedAddressesScreen` add/edit/delete is wired to the gateway (`saveAddress` PUT +
 new `deleteAddress` DELETE); **(W27)** the blood donor dashboard feed is server-backed
 (`useBloodRequests` → `getBloodRequests`, fixture-enriched display extras; detail renders redacted rows
-gracefully). Remaining mobile slice: table/food booking creation (no booking screen/route), plus the
-rewards/bookings on-device verification and the `AUTH_DISABLED=true` pass before flipping the flag. **Profile reads shipped** (`getDetails`
+gracefully). There is no table/food booking feature — it was removed end-to-end; Food supports only
+delivery or pickup. Remaining mobile slice: rewards on-device verification and the `AUTH_DISABLED=true`
+pass before flipping the flag. **Profile reads shipped** (`getDetails`
 blob-flatten + `getAddresses` + `UserDetailsScreen`/`SavedAddressesScreen` hydration). The seam
 (`GatewayClient` + per-feature fallback) stays in place until each slice is green. **W24 follow-up
 shipped:** notifications inbox cache invalidation + seller Rx `status_history`/`revealed_by`, portal
 product price/stock write-through, and mobile analytics + vendor-rating writes (see §9). Remaining
-mobile reads (food, blood, dining) are tracked in §9. App auth intentionally stays **mocked**
+mobile reads (food, blood, restaurants) are tracked in §9. App auth intentionally stays **mocked**
 (`authStore.login()`); the Supabase phone-OTP cutover (W23) is dropped per product decision.

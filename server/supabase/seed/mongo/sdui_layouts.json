@@ -221,7 +221,7 @@
       "banners": [
         {
           "id": "fb-1",
-          "title": "Dining Deals Near You",
+          "title": "Restaurant Deals Near You",
           "subtitle": "UP TO 40% OFF",
           "accent": "#E8F5E9",
           "imageUrl": "https://images.unsplash.com/photo-1504674900247-0877df9cc836?fm=jpg&fit=crop&q=80&w=800&h=450"
@@ -341,7 +341,7 @@
     },
     {
       "id": "mostRatedDining",
-      "title": "Most Rated Dining",
+      "title": "Most Rated Restaurants",
       "subtitle": null,
       "accent": "#1E5D44",
       "productIds": [],

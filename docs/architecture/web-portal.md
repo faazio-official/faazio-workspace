@@ -208,7 +208,7 @@ row**, not per tab, so no separate "Pharma" tab is needed and `PHARMA_HERO`/`CAT
 appear for them; each
 option shows a `PLACEMENT_REACH_NOTE`, `CATEGORY_TOP` adds a category picker (`MASTER_CATEGORIES` tab
 ids) and `STORE_TOP` auto-scopes to the target's store (for a FOOD **Dish** target the gateway
-resolves the dish's `venueId` as a dining venue via `ResolveOwnedTarget(..., "VENUE", …)`, so a
+resolves the dish's `venueId` as a restaurant venue via `ResolveOwnedTarget(..., "VENUE", …)`, so a
 restaurant header is reachable from the Dish tab — there is no separate VENUE target tab). Step 3 edits title (≤40), subtitle (≤60), a 16:9
 poster (hosted URL or upload, stored as the **resolved public URL** — same rule as the SDUI banner
 leaf; the gateway rejects external hosts) and a CTA, with a phone-frame preview. Step 5 posts

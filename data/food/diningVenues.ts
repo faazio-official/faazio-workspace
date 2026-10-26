@@ -2,7 +2,8 @@
  * @mock Restaurant-venue identity table (ids + names only). These are restaurant
  * identity rows — NOT booking or reservation entities. No table-booking fields
  * exist and none will be added; the Food sub-app supports only DELIVERY and
- * PICKUP fulfillment.
+ * PICKUP fulfillment. The file name mirrors the server table
+ * `directory.dining_venues`; exported types/helpers use restaurant naming.
  *
  * Mirrors the restaurants surfaced by `features/food/mocks/restaurants.ts` plus
  * the food `StoreProfile`s in `data/food/stores.ts`, so the data layer can
@@ -12,7 +13,7 @@
  */
 import { foodStores } from './stores';
 
-export interface DiningVenue {
+export interface RestaurantVenue {
   id: string;
   name: string;
   /** Venue location (public business data). */
@@ -24,7 +25,7 @@ export interface DiningVenue {
  * Restaurants that exist only in the feature food mocks (hero carousel +
  * restaurant grid). Ids/names mirror `features/food/mocks/restaurants.ts` exactly.
  */
-const MOCK_DINING_VENUES: DiningVenue[] = [
+const MOCK_RESTAURANT_VENUES: RestaurantVenue[] = [
   { id: 'tr-1', name: 'Skyline Bistro', latitude: 17.422, longitude: 78.442 },
   { id: 'tr-2', name: 'The Spice Room', latitude: 17.4319, longitude: 78.414 },
   { id: 'tr-3', name: 'Olive Cafe', latitude: 17.4435, longitude: 78.3772 },
@@ -46,22 +47,22 @@ const MOCK_DINING_VENUES: DiningVenue[] = [
 ];
 
 /** All restaurant venues, deduped by id (food stores first, then mock-only venues). */
-export const diningVenues: DiningVenue[] = [
+export const restaurantVenues: RestaurantVenue[] = [
   ...foodStores.map((store) => ({
     id: store.id,
     name: store.name,
     latitude: store.latitude,
     longitude: store.longitude,
   })),
-  ...MOCK_DINING_VENUES,
+  ...MOCK_RESTAURANT_VENUES,
 ];
 
-export function getDiningVenueById(id: string): DiningVenue | undefined {
-  return diningVenues.find((venue) => venue.id === id);
+export function getRestaurantVenueById(id: string): RestaurantVenue | undefined {
+  return restaurantVenues.find((venue) => venue.id === id);
 }
 
-export function findDiningVenueByName(name?: string): DiningVenue | undefined {
+export function findRestaurantVenueByName(name?: string): RestaurantVenue | undefined {
   if (!name) return undefined;
   const normalized = name.trim().toLowerCase();
-  return diningVenues.find((venue) => venue.name.trim().toLowerCase() === normalized);
+  return restaurantVenues.find((venue) => venue.name.trim().toLowerCase() === normalized);
 }

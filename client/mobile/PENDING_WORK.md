@@ -209,7 +209,7 @@ dependencies exist. Do not build the backend/seller flows until told to.
 - **Origin:** `state/locationStore.ts` + `hooks/useLiveLocation.ts` (foreground-only 10 s coarse poll,
   50 m reverse-geocode threshold, no launch prompt, no background permission). Location screen asks
   for real consent and uses Places API (New) autocomplete when configured.
-- **UI:** Mart local vendors, Pharma outlets, Food top-rated/dining, category drill-in and search
+- **UI:** Mart local vendors, Pharma outlets, Food top-rated/restaurants, category drill-in and search
   Relevance results sort nearest-first and show live distance; seller onboarding has a native map pin
   picker and submits `latitude`/`longitude`.
 - **Gateway:** `GET /stores/nearby` and `GET /products/nearby` (bounding box + Haversine, public
@@ -393,7 +393,7 @@ UI/catalog pollution (P1-9).
   auto-applies once the coupon list contains it, re-validating server-side and surfacing the real
   `invalid_coupon`/`min_order` error — the banner no longer promises a code the shopper must re-enter.
 - **P1-8/P1-10 typed Food routes.** `FoodStackParamList` `RestaurantProfile` is now
-  `{ restaurant: DiningRestaurant }` and `RestaurantOffers` `{ restaurant: DiningRestaurant; offers:
+  `{ restaurant: FoodRestaurant }` and `RestaurantOffers` `{ restaurant: FoodRestaurant; offers:
   SpecialDish[] }` (were `any`), so a field rename breaks at typecheck instead of silently. Casts
   removed in the three screens.
 - **P1-9 dead code.** Removed the dead `Share2` toolbar button (no `onPress`) and the no-op See-All on
@@ -406,7 +406,7 @@ UI/catalog pollution (P1-9).
 rating writes stay inert under a production `AUTH_DISABLED=false` gateway with mocked login
 (W49 decision — real session or anon rate-limit is out of scope). `mostRatedDining` remains an
 ID-only contract (a dev `console.warn` now flags an unresolved curated id instead of a silent no-op).
-The fixture-first mind/snack rails, thin server-only dining cards, and the `sp-*` base-price PDP stay
+The fixture-first mind/snack rails, thin server-only restaurant cards, and the `sp-*` base-price PDP stay
 as previously documented.
 
 **Rollback:** revert `internal/directory/{handler,repo}.go` + `manage_test.go`, the seed
@@ -482,11 +482,11 @@ The audit's suspected "seed has no Food SDUI sections" (P0-4) was **false** — 
 - **P0-3 / P1-7 booking holds — removed.** The booking feature was deleted end-to-end (see the
   banner above); there is no booking hold, availability read, or Razorpay booking sheet.
 - **P1-1 authoritative-empty venues.** New server-only `GatewayClient.fetchVenues` (throws
-  `GatewayOfflineError`, mirrors `fetchStores`/`fetchBloodDonors`). `diningService.fetchDiningFeed`
-  gains `diningAuthoritative`: a real failure keeps the `@data` fixture (never blank), but a live
+  `GatewayOfflineError`, mirrors `fetchStores`/`fetchBloodDonors`). `restaurantFeedService.fetchRestaurantFeed`
+  gains `venueAuthoritative`: a real failure keeps the `@data` fixture (never blank), but a live
   `200 []` drops the fixture grid + Top Rated rail and the screen shows an honest
   "No restaurants available right now" state — delisted venues no longer linger as stale profiles.
-- **P1-2 hollow server-only cards.** Dining cards + the Top Rated hero now suppress `0.0 km` /
+- **P1-2 hollow server-only cards.** Restaurant cards + the Top Rated hero now suppress `0.0 km` /
   `₹0 for two` / blank address and show a **"New"** chip instead of `0.0` when a venue's public row
   has no rating yet.
 - **P1-4 removed dead See-All affordances.** The "Top Rated Restaurants" and "Today's Special Near
@@ -509,7 +509,7 @@ until a real session or anon rate-limit decision; P1-11 mind-tile search already
 pool over the `TODAYS_SPECIALS` fallback in the shared `SearchScreen`.
 
 **Rollback:** revert `features/food/hooks/useRestaurantMenu.ts`,
-`features/food/services/diningService.ts`, `features/food/screens/{FoodHomeScreen,RestaurantOffersScreen}.tsx`,
+`features/food/services/restaurantFeedService.ts`, `features/food/screens/{FoodHomeScreen,RestaurantOffersScreen}.tsx`,
 `features/food/components/{RestaurantGrid,RestaurantCard,TopRestaurantCarousel}.tsx`,
 `services/api/GatewayClient.ts` (`fetchVenues`) and the `cache.go` comment; fixtures/behaviour
 resume. No data loss.
@@ -820,7 +820,7 @@ Closes the W45 deferral: the "Today's Special Near You" rail is now super-admin-
   `GET /sdui/food` — the allowlist is now `foodHero`/`foodSpecials`/`mostRatedDining` (the shared
   Home `diningSpecials` store rail is no longer served to Food; `HomeView` skips the new id, so
   Home's own rail is unchanged and there is no cross-surface impact).
-- `diningService.fetchDiningFeed` orders `TODAYS_SPECIALS` by `foodSpecials.productIds` (unknown ids
+- `restaurantFeedService.fetchRestaurantFeed` orders `TODAYS_SPECIALS` by `foodSpecials.productIds` (unknown ids
   ignored, remaining dishes keep fixture order; empty/offline → untouched).
 - Seed validator now checks `foodSpecials` ids against `catalogIndex` (`sp-*` are real seeded
   products); portal mock seed mirrors the section; docs updated.
@@ -851,7 +851,7 @@ Six Food correctness fixes, all reusing existing authorities (`ads.campaigns` + 
   (`FoodHouseHero`, non-interactive, no AD pill/events, mirrors `MartHouseHero`); the profile's
   `STORE_TOP` band now drops entirely (grey slab + overlap removed) when there is no LIVE fill.
 - **O-4 no dead taps.** `FoodHomeScreen.openVenue` resolves an unknown venue via `gateway.getStore`
-  (Mart W43 pattern) so a `FOOD_HERO` tap on a delivery kitchen (`store-f*`, never in the dining
+  (Mart W43 pattern) so a `FOOD_HERO` tap on a delivery kitchen (`store-f*`, never in the restaurant
   grid) opens its profile instead of no-op. `STORE_TOP` venue taps stay no-op (the placement is
   seller-scoped to the current store; product/dish taps still go to PDP).
 - **O-5 `GET /sdui/food`.** New public read (`internal/sdui`, cache
@@ -1197,8 +1197,8 @@ Home section whose doc carries the data, with each fixture kept as the offline f
 - **App.** `HomeView` threads the feed's `products`, `stores` and `chips[].productIds` into
   the sections, which accept them as props and fall back to their fixtures when absent:
   `NearbyOffersSection`, `Mens/Womens/ChildrensSection`, `HairSkinCareSection`
-  (`getHomeFeedMock` also joins `storeIds` for offline parity), `MostRatedDiningSection`
-  (server-joined `directory.stores`), `DiningSpecialsSection` and `FilterFeedSection`
+  (`getHomeFeedMock` also joins `storeIds` for offline parity), `MostRatedRestaurantsSection`
+  (server-joined `directory.stores`), `TodaysSpecialsSection` and `FilterFeedSection`
   (resolves the active chip's `productIds` through `getProductsByIds`).
 - **Still fixture-owned (unchanged, needs new server surfaces).** `adBanner` (paid
   `HOME_HERO` slot), `hotBrandDeals` (vendor-campaign carousels — no campaigns Home read),
@@ -1257,7 +1257,7 @@ Food delivery menus. Auth stays mocked (no Supabase phone OTP) by product decisi
   table and stay for offline/SDUI-doc migration.
 - **Food delivery-store menus (seed gap closed).** `data/food/menus.ts` now derives
   `storeMenus` (`Record<storeName, SpecialDish[]>`) from `foodProducts` via `storeId`, plus
-  `menuForVenueName(name)` (dining menu first, then delivery). `GatewayClient.getMenu` and
+  `menuForVenueName(name)` (restaurant menu first, then delivery). `GatewayClient.getMenu` and
   `features/food/utils/menu.ts` `getMenuForRestaurant` use the resolver, so the 12
   `store-f1…f12` kitchens no longer fall back to the shared `TODAYS_SPECIALS` cuisine-match.
   The seed generator emits `directory.menus` rows for both pools — **88 dishes / 30 venues**
@@ -1335,7 +1335,7 @@ on-device; a festival opt-in only reaches the app after an admin approves it.
   `ads.sponsored_slots` counters.
 
 **Still open (future):** `BrandCampaignCard` preview products are deliberately not festival-overlaid
-(a brand campaign promo is not a festival discount); `DiningSpecialsSection` renders `showPrice=false`
+(a brand campaign promo is not a festival discount); `TodaysSpecialsSection` renders `showPrice=false`
 so it is N/A; standalone `SDUIRenderer` ProductCard nodes are not overlaid.
 
 **Rollback:** revert `services/pricing.ts` + `getActiveDiscounts` + the rail overlays; server = drop
@@ -1396,7 +1396,7 @@ HomeView case + the `sponsoredRail` registry entries; seed revert = drop the two
 
 ---
 
-## W22 `@mock` → `@server` — food, dining, addresses, blood + seat bookings shipped
+## W22 `@mock` → `@server` — food, restaurants, addresses, blood + seat bookings shipped
 
 **Status:** 🟢 Shipped (profile reads, W25/W26/W27; seat bookings W28).
 
@@ -1410,8 +1410,8 @@ HomeView case + the `sponsoredRail` registry entries; seed revert = drop the two
 (`gateway.getNotifications()`).
 **(W26)** Food restaurant menus now read `directory.menus` via `useRestaurantMenu`
 (`GatewayClient.getMenu(venueId)`, `MenuDish → SpecialDish` mapper, fixture fallback) in
-`RestaurantProfileScreen` + `RestaurantMenuScreen`; the FoodHome dining grid is driven by
-`directory.dining_venues` via `diningService` → `getVenues('FOOD')` (fixture-enriched, neutral
+`RestaurantProfileScreen` + `RestaurantMenuScreen`; the FoodHome restaurant grid is driven by
+`directory.dining_venues` via `restaurantFeedService` → `getVenues('FOOD')` (fixture-enriched, neutral
 defaults for server-only venues); `SavedAddressesScreen` now has a full add/edit/delete
 `AddressEditor` wired to `GatewayClient.saveAddress` (`PUT`) / `deleteAddress` (`DELETE
 /profile/addresses/{id}`, new server route); the blood donor dashboard feed is now server-backed
@@ -1437,7 +1437,7 @@ phone-OTP/JWT cutover. `GatewayClient` still attaches a bearer when a session is
 **Status:** 🟡 By design — not a wiring gap.
 
 The DB-backed parts of every home are already migrated: Mart/Food/Pharma **vendors** (`getStores`),
-food **dining** (`getVenues('FOOD')`) and **menus** (`getMenu`), the Home **SDUI** doc, search,
+food **restaurants** (`getVenues('FOOD')`) and **menus** (`getMenu`), the Home **SDUI** doc, search,
 product detail, stock and reviews all read the gateway with `@data/*` fallback.
 
 What remains on `@data` is **editorial/marketing** content that has no table yet:
@@ -1531,7 +1531,7 @@ profile). The rating form is a root `RateVendor` route.
 - One live rating per `(user, vendor)`, latest wins; `orderIds[]` kept as
   verified-purchase provenance; revisiting shows "Update your rating".
 - Public display full name only (no id, phone, order id, avatar); nothing rating-related logged.
-- Food dining-venue identity table (`data/food/diningVenues.ts`) holds ids/names only —
+- Food restaurant-venue identity table (`data/food/diningVenues.ts`) holds ids/names only —
   full venue-data migration remains a separate task.
 
 **Deferred:** the `DELIVERED`-only tightening; moderation on the public review list. **Now built
@@ -1772,7 +1772,7 @@ profile's hero; the Food home header drops its address block.
   `#F3F4F6` band (`paddingTop: insets.top + 52`, `paddingHorizontal hs(16)`, `paddingBottom vs(52)`)
   holding `<AdBannerCarousel slides={topAdSlides} />` with no press handler (taps are a no-op inside
   Food). The pinned toolbar, `−40` white-board overlap, menu, offers rail and cart pill are unchanged.
-- **`DiningHeader.tsx`**: removed the address section (area + "Delivering to Home", `area` /
+- **`FoodHeader.tsx`**: removed the address section (area + "Delivering to Home", `area` /
   `onAreaPress` props, `MapPin`/`ChevronDown`/`ChevronRight`, location styles, second `dietRow`). The
   row is now back chevron · centered `DietToggle` (`flex-1`, `alignItems: 'center'`) · equal-width
   right spacer; the toggle stays uncontrolled and still writes the shared `foodFilterStore`.
@@ -1834,7 +1834,7 @@ at the app root instead of per screen/navbar.
 - **`features/food/utils/menu.ts`** (new): `getMenuForRestaurant` / `getOwnDishes` extracted from
   `RestaurantProfileScreen` so both screens share one menu builder.
 - **`navigation/types.ts` / `FoodStack.tsx`**: new `RestaurantMenu` route
-  (`{ restaurant: DiningRestaurant; dietFilter: DietFilter }`).
+  (`{ restaurant: FoodRestaurant; dietFilter: DietFilter }`).
 - **`RestaurantProfileScreen.tsx`**: dropped the live menu `TextInput`, the `onLayout`
   scroll-and-focus jump and the `MoreVertical` action; the in-menu box is now a **"Search in menu"**
   button and the toolbar Search icon both push `RestaurantMenu` (threading `dietFilter`).
@@ -1915,7 +1915,7 @@ toolbar and the toolbar's Search icon jumps to (and focuses) the in-menu search 
   emptied the list; the "Recommended & Offers" header + rail hide entirely when the active filter
   leaves no dishes (so "View All" can't navigate to an empty page).
 
-**Scope:** `foodFilterStore`, `FoodHomeScreen`, `DiningHeader`, and `FoodSearchScreen` unchanged.
+**Scope:** `foodFilterStore`, `FoodHomeScreen`, `FoodHeader`, and `FoodSearchScreen` unchanged.
 
 **Date:** 2026-09-27
 
@@ -2113,7 +2113,7 @@ looks populated (no empty outlets/buckets, no empty review sets).
   or falls back to the app's representative set (never empty); representative ids changed to
   FOOD→`sp-1`, MART→`fm-m1`, PHARMA→`ph-f1`.
 - **Per-restaurant menus (new `data/food/menus.ts`)** — `restaurantMenus: Record<string,
-  SpecialDish[]>` keyed by the 18 dining-restaurant names (~5 dishes each) + `allRestaurantMenuDishes`.
+  SpecialDish[]>` keyed by the 18 restaurant names (~5 dishes each) + `allRestaurantMenuDishes`.
   `RestaurantProfileScreen.getMenuForRestaurant()` reads `restaurantMenus[restaurant.name]` first,
   falling back to the old `TODAYS_SPECIALS` cuisine-match + padding logic. Exports registered in
   `data/index.ts`.
@@ -2167,8 +2167,8 @@ details; let the food product-detail page open the restaurant profile.
 - **Food product-detail** (`CommonProductDetailView.tsx`, `ProductDetailScreen.tsx`,
   `features/food/utils/restaurantForProduct.ts`): new `onViewRestaurant` prop makes the FOOD
   restaurant store row tappable + adds a **View Restaurant** button, deep-linking into nested
-  `FoodApp → RestaurantProfile`. `getDiningRestaurantForProduct` resolves by `storeId` →
-  `foodStores`, then `shop` → dining mocks, then `shop` → `foodStores`, else `undefined`.
+  `FoodApp → RestaurantProfile`. `getFoodRestaurantForProduct` resolves by `storeId` →
+  `foodStores`, then `shop` → restaurant mocks, then `shop` → `foodStores`, else `undefined`.
 
 **Data:** `@data/types` `PickupAddress` + `MyOrder.pickup`; `data/account/orders.ts`.
 
@@ -2304,15 +2304,15 @@ render edge-to-edge.
 
 ---
 
-## Food — dining-first home; Dining/FoodOrder tabs retired
+## Food — restaurant-first home; Dining/FoodOrder tabs retired
 
 **Status:** 🟢 Shipped.
 
-**Feature:** Consolidated the Food sub-app into a **dining-first home** on a single scroll
-surface. `FoodHomeScreen` now renders the former Dining content (DiningHeader with `DietToggle`,
+**Feature:** Consolidated the Food sub-app into a **restaurant-first home** on a single scroll
+surface. `FoodHomeScreen` now renders the former Dining content (FoodHeader with `DietToggle`,
 "Top Rated Restaurants" carousel, "Today's Special Near You" carousel) plus the two rescued
 Order rails ("What's on your mind?" `MindGridRail`, "Snacks & Beverages" `SnacksRail`) all as
-the `RestaurantGrid` list header, with the "Restaurants For Dining" grid as the body. The
+the `RestaurantGrid` list header, with the "Restaurants" grid as the body. The
  Food stack is now `FoodHome → Search → RestaurantProfile`, and the bottom nav is **2 tabs
  (Home / Search)** + You/Cart.
 **Removed (files deleted):**
@@ -2329,10 +2329,10 @@ the `RestaurantGrid` list header, with the "Restaurants For Dining" grid as the 
 **Behavior changes:**
 - Search result taps (`FoodSearchScreen`) now open `RestaurantProfile` (restaurants) or
   `ProductDetail` via `dishToProduct` (dishes) instead of the old `OrderDetail` feed.
-- `DiningFeed` slimmed to `{ topRated, specials, dining, topFoods }`; `restaurantToProduct` /
+- `RestaurantFeed` slimmed to `{ topRated, specials, restaurants, topFoods }`; `restaurantToProduct` /
   `nearbyToRestaurant` mappers removed.
 - `NearbyRestaurantRow` + `NearbyRestaurant` retained (still used by the Home hub's
-  "Most Rated Dining" rail).
+  "Most Rated Restaurants" rail).
 
 **Date:** 2026-09-14
 
@@ -2632,7 +2632,7 @@ the status bar, rail pinned) — see the on-device checklist below.
   replaced by a fake searchbar pill that navigates to its `Search` screen (same as the main home bar).
 - **Vendor rail search:** the Mart feed's "Local Vendors Near You" rail now renders `martStores`
   (`StoreProfile[]` from `@data/mart/stores`) instead of the retired `MART_LOCAL_VENDORS` mock,
-  with a **live in-place search bar** (dining `RestaurantGrid` pattern) filtering by
+  with a **live in-place search bar** (`RestaurantGrid` pattern) filtering by
   name/categories/desc/offerTag + an empty state. Tapping a store opens the vendor drill-in whose
   inventory derives from `martProducts` by `storeId` (replacing the hardcoded `lv-*` product map);
   `MartLocalVendor`/`MART_LOCAL_VENDORS` were removed.
@@ -3141,7 +3141,7 @@ the store name inline in the body. `showStoreHeader` (default `true`, forwarded 
 
 **Feature:** The Home `diningSpecials` section is titled **"Today's Special"** (renamed from "Today's
 Dining Special"; parity in `data/home/sdui.ts`) and renders **two stacked, independent horizontal
-rails** (`DiningSpecialsSection.tsx`) of **randomized cards** drawn from a combined **Food + Mart +
+rails** (`TodaysSpecialsSection.tsx`) of **randomized cards** drawn from a combined **Food + Mart +
 Pharma** pool (`TODAYS_SPECIALS` via `dishToProduct`, `recentlyViewedMart`, `hotBrandDeals`,
 `recentlyViewedPharma`). Each rail scrolls horizontally on its own (no shared scroll state); the mix
 is sampled once per mount so re-renders don't reshuffle. Cards use the shared `UniversalFeedCard`
@@ -3191,7 +3191,7 @@ opaque "Something went wrong" card, and release builds strip `console.*` so the 
 **Feature:** Food's **"Today's Special Near You"** card (`SpecialDishCard.tsx`) is rebuilt as a
 compact `hs(116)`-wide card — **square** (`aspectRatio: 1`) image on top, dish name / restaurant /
 price stacked below, no gradient overlay (the old 175×250 portrait card). On Home, the
-`diningSpecials` rails shrink from `hs(150)` → `hs(116)` (`DiningSpecialsSection.tsx`), rails
+`diningSpecials` rails shrink from `hs(150)` → `hs(116)` (`TodaysSpecialsSection.tsx`), rails
 tightened (`paddingBottom vs(8)`, `marginTop vs(4)`) and `CARDS_PER_RAIL` 8 → 10.
 
 **Date:** 2026-09-27
