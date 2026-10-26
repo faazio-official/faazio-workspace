@@ -9,12 +9,12 @@ import NearbyRestaurantRow from '@/features/food/components/NearbyRestaurantRow'
 import { SectionHeader, subAppIdFor } from './common';
 import type { SectionProps } from './common';
 
-interface MostRatedDiningSectionProps extends SectionProps {
+interface MostRatedRestaurantsSectionProps extends SectionProps {
   /** SDUI-joined stores (directory.stores); falls back to the food fixture offline. */
   stores?: StoreRecord[];
 }
 
-interface DiningStore {
+interface RestaurantStore {
   id: string;
   name: string;
   coverImage: string;
@@ -24,13 +24,13 @@ interface DiningStore {
   app: StoreProfile['app'];
 }
 
-function toRow(store: DiningStore) {
+function toRow(store: RestaurantStore) {
   const distance = parseFloat(store.distance) || 0;
   return {
     id: store.id,
     name: store.name,
     image: store.coverImage,
-    cuisine: store.categories[0] ?? 'Dining',
+    cuisine: store.categories[0] ?? 'Restaurant',
     rating: store.rating,
     distance,
     priceForTwo: 0,
@@ -39,12 +39,12 @@ function toRow(store: DiningStore) {
   };
 }
 
-function MostRatedDiningSection({ stores, onLaunchSubApp }: MostRatedDiningSectionProps) {
-  const source: DiningStore[] = stores && stores.length > 0 ? stores : foodStores;
+function MostRatedRestaurantsSection({ stores, onLaunchSubApp }: MostRatedRestaurantsSectionProps) {
+  const source: RestaurantStore[] = stores && stores.length > 0 ? stores : foodStores;
   const topRated = [...source].sort((a, b) => b.rating - a.rating).slice(0, 3);
   return (
     <>
-      <SectionHeader title="Most Rated Dining" />
+      <SectionHeader title="Most Rated Restaurants" />
       <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.scroll}>
         {topRated.map((store) => (
           <NearbyRestaurantRow
@@ -59,7 +59,7 @@ function MostRatedDiningSection({ stores, onLaunchSubApp }: MostRatedDiningSecti
   );
 }
 
-export default memo(MostRatedDiningSection);
+export default memo(MostRatedRestaurantsSection);
 
 const styles = StyleSheet.create({
   scroll: {

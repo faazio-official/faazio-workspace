@@ -154,7 +154,7 @@ non-interactive) and then to nothing (both empty → no slot), never a fabricate
 **Food merchandising via the same doc.** Food has its own projection of the same doc, served on
 `GET /sdui/food` (allowlist `foodHero`/`foodSpecials`/`mostRatedDining`) with its own compiled
 cache/ETag. `foodHero` is the Food house-hero fallback (`foodHero.banners`, same non-interactive
-editorial contract as `martHero`): `diningService.fetchDiningFeed` reads it through
+editorial contract as `martHero`): `restaurantFeedService.fetchRestaurantFeed` reads it through
 `gateway.getFoodFeed()` and feeds the `CampaignHero` fallback when there is no LIVE paid `FOOD_HERO`
 fill. `foodSpecials.productIds` is the super-admin-editable order of the "Today's Special Near You"
 dish rail (ID-only, money joined from `catalog.products`), and `mostRatedDining.storeIds` orders the
@@ -164,6 +164,10 @@ admin-owned coupon (`GET /coupons?app=FOOD`), not the decorative store `offer_ta
 `martHero`/`foodHero` `banners` leaf is the only non-ID leaf in the doc — display copy + an image
 URL, **never money** (prices are joined from `catalog.products` / authored as `directory.menus`
 MRP).
+
+`directory.dining_venues` is **restaurant identity only** — it backs food discovery and menu/venue
+lookup. There is no dining/table-booking feature: no reservation tables, time slots, table counts, or
+booking endpoints exist, and the Food flow is delivery or pickup only.
 
 **Pharma merchandising + editorial campaigns via the same doc (W50).** Pharma has its own projection
 served on `GET /sdui/pharma` (allowlist `pharmaHero`/`pharmaPopular`/`pharmaEssentials`, own compiled

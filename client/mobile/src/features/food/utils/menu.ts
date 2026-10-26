@@ -1,11 +1,11 @@
 import type { SpecialDish } from '@data/types';
 import { menuForVenueName } from '@data/food/menus';
-import type { DiningRestaurant } from '../mocks/types';
+import type { FoodRestaurant } from '../mocks/types';
 
-/** The venue's own menu — the per-venue dining menu or the derived delivery-kitchen menu. Empty
+/** The venue's own menu — the per-venue restaurant menu or the derived delivery-kitchen menu. Empty
  *  when the venue is unseeded: we show an honest empty menu rather than padding the shared specials
  *  with other restaurants' dishes (which would leak cross-venue content). */
-export function getMenuForRestaurant(restaurant: DiningRestaurant): SpecialDish[] {
+export function getMenuForRestaurant(restaurant: FoodRestaurant): SpecialDish[] {
   return menuForVenueName(restaurant.name);
 }
 

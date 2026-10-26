@@ -28,7 +28,7 @@ type Props = NativeStackScreenProps<FoodStackParamList, 'RestaurantMenu'>;
  * the profile, so the View Cart count stays in sync between both screens.
  */
 export function RestaurantMenuScreen({ navigation, route }: Props) {
-  const { restaurant: diningRestaurant } = route.params;
+  const { restaurant } = route.params;
 
   const [activeCategory, setActiveCategory] = useState('Bestsellers');
   const [searchQuery, setSearchQuery] = useState('');
@@ -48,15 +48,15 @@ export function RestaurantMenuScreen({ navigation, route }: Props) {
   }, []);
 
   const restaurantItems = useMemo(
-    () => cart.filter((i) => i.restaurantId === diningRestaurant.id),
-    [cart, diningRestaurant.id],
+    () => cart.filter((i) => i.restaurantId === restaurant.id),
+    [cart, restaurant.id],
   );
   const restaurantCartCount = useMemo(
     () => restaurantItems.reduce((acc, i) => acc + i.quantity, 0),
     [restaurantItems],
   );
 
-  const { menu: dishes, loading: menuLoading } = useRestaurantMenu(diningRestaurant);
+  const { menu: dishes, loading: menuLoading } = useRestaurantMenu(restaurant);
 
   const menu = useMemo(
     () => dishes.filter((d) => dishMatches(dietFilter, d)),
@@ -91,16 +91,16 @@ export function RestaurantMenuScreen({ navigation, route }: Props) {
     navigation
       .getParent<NativeStackNavigationProp<RootStackParamList>>()
       ?.navigate('Cart', {
-        restaurantId: diningRestaurant.id,
-        restaurantName: diningRestaurant.name,
+        restaurantId: restaurant.id,
+        restaurantName: restaurant.name,
       });
-  }, [navigation, diningRestaurant.id, diningRestaurant.name]);
+  }, [navigation, restaurant.id, restaurant.name]);
 
   const handleAdd = useCallback(
     (dish: SpecialDish) => {
-      addToCart(dish.id, dish.dishName, dish.price, '🍽️', diningRestaurant.id);
+      addToCart(dish.id, dish.dishName, dish.price, '🍽️', restaurant.id);
     },
-    [addToCart, diningRestaurant.id],
+    [addToCart, restaurant.id],
   );
 
   const dishQuantity = useCallback(
@@ -118,7 +118,7 @@ export function RestaurantMenuScreen({ navigation, route }: Props) {
 
       <View style={styles.titleBlock}>
         <AppText style={styles.restaurantName} numberOfLines={2}>
-          {diningRestaurant.name}
+          {restaurant.name}
         </AppText>
       </View>
 

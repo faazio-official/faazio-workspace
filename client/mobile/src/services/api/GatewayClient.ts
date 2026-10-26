@@ -288,7 +288,6 @@ export interface MenuDish {
   image?: string;
   description?: string;
   emoji?: string;
-  deliveryTime?: string;
 }
 
 /** One dining venue (directory.dining_venues) as served by `GET /venues`. */

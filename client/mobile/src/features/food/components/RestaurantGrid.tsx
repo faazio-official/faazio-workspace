@@ -7,28 +7,28 @@ import AppTextInput from '@/components/AppTextInput';
 import { hs, ms, vs } from '@/utils/responsive';
 import { SPACE } from '@/theme/spacing';
 import { foodTheme } from '../constants/theme';
-import type { DiningRestaurant } from '../mocks/types';
+import type { FoodRestaurant } from '../mocks/types';
 import SectionHeader from './SectionHeader';
 import RestaurantCard from './RestaurantCard';
 
-export type DiningSort = 'nearest' | 'rating' | 'price';
+export type RestaurantSort = 'nearest' | 'rating' | 'price';
 
-const SORT_LABELS: Record<DiningSort, string> = {
+const SORT_LABELS: Record<RestaurantSort, string> = {
   nearest: 'Nearest',
   rating: 'Top Rated',
   price: 'Price: Low to High',
 };
 
-const SORT_OPTIONS: DiningSort[] = ['nearest', 'rating', 'price'];
+const SORT_OPTIONS: RestaurantSort[] = ['nearest', 'rating', 'price'];
 
 interface RestaurantGridProps {
-  restaurants: DiningRestaurant[];
+  restaurants: FoodRestaurant[];
   searchQuery?: string;
   autoScrollToGrid?: boolean;
   header?: ReactNode;
   /** Rendered after the grid header when the list is empty (e.g. an authoritative empty state). */
   empty?: ReactNode;
-  onPress?: (restaurant: DiningRestaurant) => void;
+  onPress?: (restaurant: FoodRestaurant) => void;
   onScroll?: (event: NativeSyntheticEvent<NativeScrollEvent>) => void;
 }
 
@@ -46,11 +46,11 @@ const RestaurantGrid = memo(function RestaurantGrid({
   onPress,
   onScroll,
 }: RestaurantGridProps) {
-  const [sort, setSort] = useState<DiningSort>('nearest');
+  const [sort, setSort] = useState<RestaurantSort>('nearest');
   const [menuOpen, setMenuOpen] = useState(false);
   const [query, setQuery] = useState('');
   const [gridY, setGridY] = useState<number | null>(null);
-  const listRef = useRef<FlashListRef<DiningRestaurant>>(null);
+  const listRef = useRef<FlashListRef<FoodRestaurant>>(null);
 
   const filtered = useMemo(() => {
     const q = (query || searchQuery).trim().toLowerCase();
@@ -81,7 +81,7 @@ const RestaurantGrid = memo(function RestaurantGrid({
   }, [autoScrollToGrid, gridY]);
 
   const renderItem = useCallback(
-    ({ item }: { item: DiningRestaurant }) => <RestaurantCard restaurant={item} onPress={onPress} />,
+    ({ item }: { item: FoodRestaurant }) => <RestaurantCard restaurant={item} onPress={onPress} />,
     [onPress],
   );
 
@@ -89,7 +89,7 @@ const RestaurantGrid = memo(function RestaurantGrid({
     () => (
       <View onLayout={onGridLayout}>
         <View style={styles.gridHeaderRow}>
-          <SectionHeader title="Restaurants For Dining" />
+          <SectionHeader title="Restaurants" />
           <TouchableOpacity
             style={styles.sortChip}
             onPress={() => setMenuOpen(true)}
@@ -108,11 +108,11 @@ const RestaurantGrid = memo(function RestaurantGrid({
               style={styles.searchInput}
               value={query}
               onChangeText={setQuery}
-              placeholder="Search restaurants for dining"
+              placeholder="Search restaurants"
               placeholderTextColor={foodTheme.textMuted}
               autoCorrect={false}
               returnKeyType="search"
-              accessibilityLabel="Search restaurants for dining"
+              accessibilityLabel="Search restaurants"
             />
             {query.length > 0 ? (
               <TouchableOpacity
@@ -176,8 +176,8 @@ const SortMenu = memo(function SortMenu({
   onClose,
 }: {
   visible: boolean;
-  current: DiningSort;
-  onSelect: (sort: DiningSort) => void;
+  current: RestaurantSort;
+  onSelect: (sort: RestaurantSort) => void;
   onClose: () => void;
 }) {
   return (

@@ -8,15 +8,15 @@ import { hs } from '@/utils/responsive';
 import { SPACE } from '@/theme/spacing';
 import { foodTheme } from '../constants/theme';
 import AppText from '@/components/AppText';
-import { useDiningFeed } from '../hooks/useDiningFeed';
+import { useRestaurantFeed } from '../hooks/useRestaurantFeed';
 import type { FoodStackParamList, RootStackParamList } from '@/navigation/types';
-import type { DiningRestaurant, SpecialDish } from '../mocks/types';
+import type { FoodRestaurant, SpecialDish } from '../mocks/types';
 import type { FoodType } from '../mocks/homeFeed';
 import { SNACKS_BEVERAGES } from '../mocks/homeFeed';
 import { dishToProduct } from '../mocks/specials';
 import { useFoodFilterStore } from '@/state/foodFilterStore';
 import { venueMatches, dishMatches } from '../utils/dietFilter';
-import DiningHeader from '../components/DiningHeader';
+import FoodHeader from '../components/FoodHeader';
 import SectionHeader from '../components/SectionHeader';
 import TopRestaurantCarousel from '../components/TopRestaurantCarousel';
 import FeaturedDishCarousel from '../components/FeaturedDishCarousel';
@@ -37,13 +37,13 @@ import type { StoreProfile } from '@data/types';
 type Props = NativeStackScreenProps<FoodStackParamList, 'FoodHome'>;
 
 /**
- * Dining-first Food sub-app home. Single scroll surface: the pre-grid sections
- * (DiningHeader, Top Rated carousel, Today's Special, "What's on your mind?",
+ * Food-first sub-app home. Single scroll surface: the pre-grid sections
+ * (FoodHeader, Top Rated carousel, Today's Special, "What's on your mind?",
  * "Snacks & Beverages") render as the RestaurantGrid's list header, and the
- * "Restaurants For Dining" grid is the body — no nested vertical lists.
+ * "Restaurants" grid is the body — no nested vertical lists.
  */
 export function FoodHomeScreen({ navigation }: Props) {
-  const feed = useDiningFeed();
+  const feed = useRestaurantFeed();
   const [activeTab, setActiveTab] = useState<FoodTab>('Home');
   const scrollY = useSharedValue(0);
   const dietFilter = useFoodFilterStore((s) => s.dietFilter);
@@ -56,7 +56,7 @@ export function FoodHomeScreen({ navigation }: Props) {
   );
 
   const openRestaurant = useCallback(
-    (restaurant: DiningRestaurant) => navigation.navigate('RestaurantProfile', { restaurant }),
+    (restaurant: FoodRestaurant) => navigation.navigate('RestaurantProfile', { restaurant }),
     [navigation],
   );
 
@@ -70,12 +70,12 @@ export function FoodHomeScreen({ navigation }: Props) {
   );
 
   /** Resolve a paid FOOD_HERO venue target to a known restaurant; otherwise resolve the store/venue
-   *  directly (delivery kitchens store-f* never appear in the dining feed) so a paid tap is never a
-   *  silent no-op. Unknown ids stay a safe no-op. */
+   *  directly (delivery kitchens store-f* never appear in the restaurant feed) so a paid tap is never
+   *  a silent no-op. Unknown ids stay a safe no-op. */
   const openVenue = useCallback(
     async (venueId: string) => {
       const known =
-        feed?.topRated.find((r) => r.id === venueId) ?? feed?.dining.find((r) => r.id === venueId);
+        feed?.topRated.find((r) => r.id === venueId) ?? feed?.restaurants.find((r) => r.id === venueId);
       if (known) {
         openRestaurant(known);
         return;
@@ -89,7 +89,6 @@ export function FoodHomeScreen({ navigation }: Props) {
         rating: store.rating ?? 0,
         ratingCount: store.reviewsCount ?? 0,
         distance: store.distanceKm ?? (parseFloat(store.distance) || 0),
-        deliveryTime: store.deliveryTime ?? '',
         priceForTwo: 0,
         cuisine: store.categories.join(' • '),
         cuisines: store.categories,
@@ -163,7 +162,7 @@ export function FoodHomeScreen({ navigation }: Props) {
           />
         </Animated.View>
         <Animated.View entering={FadeIn.duration(260)}>
-          <DiningHeader onBack={goBack} />
+          <FoodHeader onBack={goBack} />
         </Animated.View>
         <Animated.View entering={FadeInDown.duration(320)}>
           <View style={styles.sectionHeaderWrap}>
@@ -214,13 +213,13 @@ export function FoodHomeScreen({ navigation }: Props) {
     );
   }
 
-  const dining = feed.dining.filter((r) => venueMatches(dietFilter, r));
+  const restaurants = feed.restaurants.filter((r) => venueMatches(dietFilter, r));
 
   // Honest empty state: the server authoritatively lists no venues (all delisted / state-filtered)
   // and no diet filter is hiding anything — don't fall back to stale fixture restaurants.
   // A diet-emptied grid keeps the filter note.
   const gridEmpty =
-    dining.length > 0 ? undefined : feed.diningAuthoritative && feed.dining.length === 0 ? (
+    restaurants.length > 0 ? undefined : feed.venueAuthoritative && feed.restaurants.length === 0 ? (
       <View style={styles.emptyState}>
         <AppText style={styles.emptyTitle}>No restaurants available right now</AppText>
         <AppText style={styles.emptySub}>Please check back soon.</AppText>
@@ -232,7 +231,7 @@ export function FoodHomeScreen({ navigation }: Props) {
   return (
     <View style={styles.container}>
       <RestaurantGrid
-        restaurants={dining}
+        restaurants={restaurants}
         header={renderTopSections()}
         empty={gridEmpty}
         onPress={openRestaurant}

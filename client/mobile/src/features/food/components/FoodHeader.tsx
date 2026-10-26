@@ -6,16 +6,16 @@ import { hs, ms, vs } from '@/utils/responsive';
 import { foodTheme } from '../constants/theme';
 import DietToggle from './DietToggle';
 
-interface DiningHeaderProps {
+interface FoodHeaderProps {
   onBack?: () => void;
 }
 
 /**
- * Dedicated Dining header — back chevron + centered diet toggle. Renders below
+ * Dedicated Food header — back chevron + centered diet toggle. Renders below
  * the status-bar inset. The toggle is uncontrolled, so it reads/writes the
  * shared `foodFilterStore` like the rest of the Food home.
  */
-const DiningHeader = memo(function DiningHeader({ onBack }: DiningHeaderProps) {
+const FoodHeader = memo(function FoodHeader({ onBack }: FoodHeaderProps) {
   const insets = useSafeAreaInsets();
 
   return (
@@ -41,7 +41,7 @@ const DiningHeader = memo(function DiningHeader({ onBack }: DiningHeaderProps) {
   );
 });
 
-export default DiningHeader;
+export default FoodHeader;
 
 const styles = StyleSheet.create({
   container: {

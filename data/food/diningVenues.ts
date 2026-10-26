@@ -1,10 +1,14 @@
 /**
- * @mock Dining-venue identity table (ids + names only). Mirrors the dining
- * restaurants surfaced by `features/food/mocks/restaurants.ts` plus the food
- * `StoreProfile`s in `data/food/stores.ts`, so the data layer can resolve a
- * food order's venue identity without importing feature code. Only identity is
- * held here — the full venue-data migration (rating, images, hours…) stays a
- * separate task. See data/DATA_CONTROL.md.
+ * @mock Restaurant-venue identity table (ids + names only). These are restaurant
+ * identity rows — NOT booking or reservation entities. No table-booking fields
+ * exist and none will be added; the Food sub-app supports only DELIVERY and
+ * PICKUP fulfillment.
+ *
+ * Mirrors the restaurants surfaced by `features/food/mocks/restaurants.ts` plus
+ * the food `StoreProfile`s in `data/food/stores.ts`, so the data layer can
+ * resolve a food order's venue identity without importing feature code. Only
+ * identity is held here — the full venue-data migration (rating, images,
+ * hours…) stays a separate task. See data/DATA_CONTROL.md.
  */
 import { foodStores } from './stores';
 
@@ -17,8 +21,8 @@ export interface DiningVenue {
 }
 
 /**
- * Venues that exist only in the feature dining mocks (hero carousel + dining
- * grid). Ids/names mirror `features/food/mocks/restaurants.ts` exactly.
+ * Restaurants that exist only in the feature food mocks (hero carousel +
+ * restaurant grid). Ids/names mirror `features/food/mocks/restaurants.ts` exactly.
  */
 const MOCK_DINING_VENUES: DiningVenue[] = [
   { id: 'tr-1', name: 'Skyline Bistro', latitude: 17.422, longitude: 78.442 },
@@ -41,7 +45,7 @@ const MOCK_DINING_VENUES: DiningVenue[] = [
   { id: 'dn-12', name: 'Biryani Basera', latitude: 17.4419, longitude: 78.3806 },
 ];
 
-/** All dining venues, deduped by id (food stores first, then mock-only venues). */
+/** All restaurant venues, deduped by id (food stores first, then mock-only venues). */
 export const diningVenues: DiningVenue[] = [
   ...foodStores.map((store) => ({
     id: store.id,
