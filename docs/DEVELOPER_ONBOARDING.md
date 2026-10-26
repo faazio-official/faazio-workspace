@@ -86,8 +86,8 @@ and starts the gateway. `curl localhost:8080/health` should report `db:true cach
 >
 > Production (Supabase) is the opposite: **Render never applies migrations** — they are run by hand
 > from a dev terminal with `server/gateway/.env`
-> (`docs/RUNBOOKS/DATABASE_MIGRATIONS.md`). Local compose only auto-applies `0001`–`0040` + seed;
-> newer files (e.g. `0046`–`0050`) must be applied to a fresh volume by hand too.
+> (`docs/RUNBOOKS/DATABASE_MIGRATIONS.md`). Local compose auto-applies every committed migration
+> (`0001`–`0056`) + seed on a fresh volume.
 
 Integration tests (FTS, order lock/decrement, rating gate, PII redaction, pagination) **skip**
 unless pointed at the stack; run them fully with:

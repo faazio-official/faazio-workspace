@@ -39,7 +39,12 @@ export function buildData() {
     ],
     { stdio: 'inherit' },
   );
-  // tsc exits non-zero on the known `__DEV__` ambient-error, but still emits. Verify output.
+  // A compilation error means the fixture graph may not match what tsc emitted — fail loudly
+  // instead of seeding a partially-stale snapshot.
+  if (res.status !== 0) {
+    console.error('@data compile failed (tsc exit %d)', res.status);
+    process.exit(1);
+  }
   globalThis.__DEV__ = false;
   const require = createRequire(import.meta.url);
   try {

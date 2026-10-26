@@ -133,6 +133,12 @@ func (h *Handler) get(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "id")
 	var cached Slot
 	if h.cache.GetJSON(r.Context(), cache.AdSlot(id), &cached) {
+		// The cache is shared across callers, so authorization is re-checked on every hit — a
+		// cached row must never bypass the owning-seller / district scope.
+		if !auth.CanActForSeller(r.Context(), cached.SellerID, cached.StateCode) {
+			httpx.Fail(w, http.StatusNotFound, "not_found", "ad slot not found")
+			return
+		}
 		httpx.JSON(w, http.StatusOK, cached)
 		return
 	}

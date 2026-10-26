@@ -234,15 +234,18 @@ func (r *Repo) SetCampaignStatus(ctx context.Context, id, status string) (Campai
 }
 
 // Optins lists opt-ins scoped by seller and/or campaign.
-func (r *Repo) Optins(ctx context.Context, sellerID, campaignID string) ([]Optin, error) {
+func (r *Repo) Optins(ctx context.Context, sellerID, campaignID, stateCode string) ([]Optin, error) {
 	if r.pool == nil {
 		return nil, fmt.Errorf("promo: database not configured")
 	}
 	rows, err := r.pool.Query(ctx, `
-		select optin_id, campaign_id, seller_id, product_id, discount, status::text
-		  from promo.festival_optins
-		 where ($1 = '' or seller_id = $1) and ($2 = '' or campaign_id = $2)
-		 order by created_at desc`, sellerID, campaignID)
+		select o.optin_id, o.campaign_id, o.seller_id, o.product_id, o.discount, o.status::text
+		  from promo.festival_optins o
+		  join promo.festival_campaigns c on c.campaign_id = o.campaign_id
+		 where ($1 = '' or o.seller_id = $1)
+		   and ($2 = '' or o.campaign_id = $2)
+		   and ($3 = '' or c.state_code = $3)
+		 order by o.created_at desc`, sellerID, campaignID, stateCode)
 	if err != nil {
 		return nil, err
 	}
@@ -276,6 +279,25 @@ func (r *Repo) UpsertOptin(ctx context.Context, o Optin) (Optin, error) {
 		return Optin{}, err
 	}
 	return o, nil
+}
+
+// OptinByID returns one opt-in (used to scope-check an admin decision before mutating it).
+func (r *Repo) OptinByID(ctx context.Context, id string) (Optin, bool, error) {
+	if r.pool == nil {
+		return Optin{}, false, fmt.Errorf("promo: database not configured")
+	}
+	var o Optin
+	err := r.pool.QueryRow(ctx, `
+		select optin_id, campaign_id, seller_id, product_id, discount, status::text
+		  from promo.festival_optins where optin_id = $1`, id).
+		Scan(&o.OptinID, &o.CampaignID, &o.SellerID, &o.ProductID, &o.DiscountPercent, &o.Status)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return Optin{}, false, nil
+		}
+		return Optin{}, false, err
+	}
+	return o, true, nil
 }
 
 // SetOptinStatus approves/rejects an opt-in.
@@ -549,6 +571,36 @@ func (r *Repo) CreateCoupon(ctx context.Context, c Coupon) (Coupon, error) {
 	c.MinOrder = minOrderPaisa / 100
 	c.ValidTill = validTill.UTC().Format(time.RFC3339)
 	return c, nil
+}
+
+// CouponByID returns one coupon (used to scope-check an admin toggle before mutating it).
+func (r *Repo) CouponByID(ctx context.Context, id string) (Coupon, bool, error) {
+	if r.pool == nil {
+		return Coupon{}, false, fmt.Errorf("promo: database not configured")
+	}
+	var (
+		c             Coupon
+		validTill     time.Time
+		maxDiscount   int64
+		minOrderPaisa int64
+	)
+	err := r.pool.QueryRow(ctx, `
+		select coupon_id, code, coalesce(title,''), scope::text, coalesce(state_code,''),
+		       coalesce(sector::text,''), value_percent, max_discount_paisa, min_order_paisa,
+		       free_delivery, valid_till, active
+		  from promo.coupons where coupon_id = $1`, id).
+		Scan(&c.CouponID, &c.Code, &c.Title, &c.Scope, &c.StateCode, &c.Sector, &c.ValuePercent,
+			&maxDiscount, &minOrderPaisa, &c.FreeDelivery, &validTill, &c.Active)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return Coupon{}, false, nil
+		}
+		return Coupon{}, false, err
+	}
+	c.MaxDiscount = maxDiscount / 100
+	c.MinOrder = minOrderPaisa / 100
+	c.ValidTill = validTill.UTC().Format(time.RFC3339)
+	return c, true, nil
 }
 
 // ToggleCoupon flips a coupon's active flag.
