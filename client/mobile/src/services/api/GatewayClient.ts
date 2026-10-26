@@ -36,6 +36,7 @@ import {
   updateSessionTokens,
 } from '../secureSession';
 import { refreshIdToken } from '../firebaseAuth';
+import { useAuthStore } from '@/state/authStore';
 import { DEV_USER, GATEWAY_URL, STRICT, USE_GATEWAY } from '../../lib/config';
 import { sortByDistance, withLiveDistance } from '@/utils/distance';
 import type { DeliveryFeeBreakdown } from '@/features/cart/utils';
@@ -53,8 +54,9 @@ const REMOTE_ENABLED = GATEWAY_URL.length > 0 && USE_GATEWAY;
 const REMOTE_STRICT = REMOTE_ENABLED && STRICT;
 /**
  * Dev-only identity override for an `AUTH_DISABLED=true` gateway (local/pre-prod staging). Sent as the
- * `X-Dev-User` header **only in dev builds** so the mocked-login app no longer relies on the server's
- * `DEV_USER_ID` fallback. Never attached in a release build; the gateway ignores it when auth is on.
+ * `X-Dev-User` header **only in dev builds** so a Firebase-unconfigured dev app no longer relies on
+ * the server's `DEV_USER_ID` fallback. Never attached in a release build; the gateway ignores it when
+ * auth is on.
  */
 
 function delay<T>(value: T, ms = LATENCY_MS): Promise<T> {
@@ -760,8 +762,9 @@ export class GatewayClient {
 
   private async authHeader(): Promise<Record<string, string>> {
     const headers: Record<string, string> = {};
-    // Dev-only `X-Dev-User` override (mock-auth app against an AUTH_DISABLED gateway). Never in
-    // release builds; the gateway ignores it when JWT auth is enabled (AUTH_DISABLED=false).
+    // Dev-only `X-Dev-User` override (Firebase-unconfigured dev app against an AUTH_DISABLED
+    // gateway). Never in release builds; the gateway ignores it when JWT auth is enabled
+    // (AUTH_DISABLED=false).
     if (__DEV__ && DEV_USER) headers['X-Dev-User'] = DEV_USER;
     const token = await getAccessToken();
     if (token) headers.Authorization = `Bearer ${token}`;
@@ -770,8 +773,9 @@ export class GatewayClient {
 
   /**
    * Silent 401 recovery: force a Firebase ID-token refresh once, persist it to the Keychain and
-   * retry. A missing native user clears the local session so the app falls back to Login instead of
-   * flapping every write to the mock. Returns false when recovery is impossible.
+   * retry. A missing native user clears the Keychain + in-memory auth state so the root navigator
+   * returns to Login instead of flapping every write against a dead session. Returns false when
+   * recovery is impossible.
    */
   private async recoverSession(): Promise<boolean> {
     if (this.refreshInFlight) return this.refreshInFlight;
@@ -786,12 +790,14 @@ export class GatewayClient {
             return true;
           } catch {
             await clearSession();
+            useAuthStore.getState().expireSession();
             return false;
           }
         }
         const session = await refreshIdToken();
         if (!session) {
           await clearSession();
+          useAuthStore.getState().expireSession();
           return false;
         }
         await updateSessionTokens(session.accessToken);
