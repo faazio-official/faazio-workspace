@@ -14,7 +14,7 @@ import { SCREEN_W, hs, ms, vs } from '@/utils/responsive';
 import { SPACE } from '@/theme/spacing';
 import AppText from '@/components/AppText';
 import { foodTheme } from '../constants/theme';
-import type { DiningRestaurant } from '../mocks/types';
+import type { FoodRestaurant } from '../mocks/types';
 import RatingBadge from './RatingBadge';
 import DistanceBadge from './DistanceBadge';
 import FavoriteButton from './FavoriteButton';
@@ -26,8 +26,8 @@ const PAD = (SCREEN_W - CARD_W) / 2;
 const CARD_H = 250;
 
 interface TopRestaurantCarouselProps {
-  restaurants: DiningRestaurant[];
-  onPress?: (restaurant: DiningRestaurant) => void;
+  restaurants: FoodRestaurant[];
+  onPress?: (restaurant: FoodRestaurant) => void;
 }
 
 /**
@@ -55,7 +55,7 @@ const TopRestaurantCarousel = memo(function TopRestaurantCarousel({
   );
 
   const renderItem = useCallback(
-    ({ item, index }: { item: DiningRestaurant; index: number }) => (
+    ({ item, index }: { item: FoodRestaurant; index: number }) => (
       <HeroCard restaurant={item} index={index} scrollX={scrollX} onPress={onPress} />
     ),
     [onPress],
@@ -91,10 +91,10 @@ const HeroCard = memo(function HeroCard({
   scrollX,
   onPress,
 }: {
-  restaurant: DiningRestaurant;
+  restaurant: FoodRestaurant;
   index: number;
   scrollX: SharedValue<number>;
-  onPress?: (restaurant: DiningRestaurant) => void;
+  onPress?: (restaurant: FoodRestaurant) => void;
 }) {
   const inputRange = [(index - 1) * SNAP, index * SNAP, (index + 1) * SNAP];
 

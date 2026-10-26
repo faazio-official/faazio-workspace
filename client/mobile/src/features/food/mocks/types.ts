@@ -1,11 +1,10 @@
-export interface DiningRestaurant {
+export interface FoodRestaurant {
   id: string;
   name: string;
   image: string;
   rating: number;
   ratingCount: number;
   distance: number;
-  deliveryTime: string;
   priceForTwo: number;
   cuisine: string;
   cuisines: string[];

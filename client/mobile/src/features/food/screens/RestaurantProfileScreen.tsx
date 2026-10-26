@@ -18,7 +18,6 @@ import {
   MapPin,
   Star,
   ShieldCheck,
-  Clock,
   CheckCircle2,
 } from 'lucide-react-native';
 import { hs, vs, ms } from '@/utils/responsive';
@@ -232,7 +231,6 @@ export function RestaurantProfileScreen({ navigation, route }: Props) {
                 <View style={styles.openBadge}>
                   <AppText style={styles.openText}>Open now</AppText>
                 </View>
-                <AppText style={styles.closeText}> • {restaurant.deliveryTime} delivery</AppText>
               </View>
             </View>
           </View>
@@ -245,14 +243,6 @@ export function RestaurantProfileScreen({ navigation, route }: Props) {
               </View>
               <AppText style={styles.highlightTitle}>{restaurant.rating.toFixed(1)} Rating</AppText>
               <AppText style={styles.highlightSub}>{restaurant.ratingCount / 1000}k+ reviews</AppText>
-            </View>
-            <View style={styles.highlightDivider} />
-            <View style={styles.highlightItem}>
-              <View style={styles.iconCircle}>
-                <Clock color={foodTheme.primary} size={ms(16)} />
-              </View>
-              <AppText style={styles.highlightTitle}>{restaurant.deliveryTime}</AppText>
-              <AppText style={styles.highlightSub}>Delivery time</AppText>
             </View>
             <View style={styles.highlightDivider} />
             <View style={styles.highlightItem}>
@@ -498,7 +488,6 @@ const styles = StyleSheet.create({
   timeRow: { flexDirection: 'row', alignItems: 'center', marginTop: 6 },
   openBadge: { backgroundColor: '#DCFCE7', paddingHorizontal: 8, paddingVertical: 2, borderRadius: 6 },
   openText: { color: GREEN, fontSize: ms(10), fontWeight: '700' },
-  closeText: { fontSize: ms(12), color: foodTheme.textSecondary, fontWeight: '500' },
   highlightsContainer: {
     flexDirection: 'row',
     marginHorizontal: hs(16),

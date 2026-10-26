@@ -5,7 +5,7 @@ import { gateway } from '@/services/api/GatewayClient';
 import { applyActiveDiscount, useActiveDiscounts } from '@/services/pricing';
 import { useCartStore } from '@/state/cartStore';
 import { useFavoriteStore } from '@/state/favoriteStore';
-import { getDiningRestaurantForProduct } from '@/features/food/utils/restaurantForProduct';
+import { getFoodRestaurantForProduct } from '@/features/food/utils/restaurantForProduct';
 import type { SubAppId } from '@/state/uiStore';
 import type { RootStackParamList } from '@/navigation/types';
 import type { Product } from '@data/types';
@@ -84,7 +84,7 @@ export function ProductDetailScreen({ navigation, route }: Props) {
   );
 
   const restaurant = useMemo(
-    () => (product?.app === 'FOOD' ? getDiningRestaurantForProduct(product) : undefined),
+    () => (product?.app === 'FOOD' ? getFoodRestaurantForProduct(product) : undefined),
     [product],
   );
   const handleViewRestaurant = useCallback(() => {

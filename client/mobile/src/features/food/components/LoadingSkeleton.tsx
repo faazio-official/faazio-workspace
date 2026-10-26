@@ -35,7 +35,7 @@ const LoadingSkeleton = memo(function LoadingSkeleton() {
         <SkeletonBlock width={hs(168)} height={vs(250)} radius={ms(18)} />
       </View>
 
-      {/* Dining grid */}
+      {/* Restaurant grid */}
       <SkeletonBlock width="52%" height={vs(16)} radius={ms(6)} style={styles.sectionTitle} />
       {[0, 1, 2].map((i) => (
         <View key={i} style={styles.listRow}>

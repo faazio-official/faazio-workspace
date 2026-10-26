@@ -103,6 +103,11 @@ catalog/directory row: `GET /venues?app=` reads the PII-free `directory.dining_v
 `delivery_time` so the Food restaurant screens can leave the fixture. The blood board is unchanged —
 it stays redacted (no PII widening).
 
+`directory.dining_venues` is restaurant identity only: it serves food discovery/menu lookup and has
+no booking/reservation fields. There is no `/book-table`, `/reserve`, or `/dining` endpoint, and
+`checkout.orders.fulfillment_mode` is `DELIVERY | PICKUP` only — so this change needs **no ownership,
+table, cache-key, or endpoint update** in §1.
+
 **Portal-only management endpoints** (role-scoped, audited via `admins`; no `GatewayClient` method):
 `GET /seller/products` + `PUT /seller/products/{id}/status` (catalog), `GET /seller/stores` +
 `PUT /seller/stores/{id}/live` (directory), `GET /seller/orders` + `PUT /orders/{id}/status` (checkout, maps mobile `Processing ↔ NEW/PACKED`),
@@ -126,7 +131,7 @@ adds no new
 endpoint/table/cache key of its own. The public `GET /sdui/mart` read (`internal/sdui`, cache
 `faazio:v1:gateway:sdui:{locale}:/mart`) serves the Mart-only section subset, `GET /sdui/food`
 (cache `faazio:v1:gateway:sdui:{locale}:/food`) the Food-only subset (`foodHero` fields the house
-hero, `foodSpecials` the "Today's Special" dish order, `mostRatedDining` the dining store rail) and
+hero, `foodSpecials` the "Today's Special" dish order, `mostRatedDining` the restaurant store rail) and
 `GET /sdui/pharma` (cache `faazio:v1:gateway:sdui:{locale}:/pharma`) the Pharma-only subset
 (`pharmaHero` house banners, `pharmaPopular`/`pharmaEssentials` OTC product rails; Rx-gated products
 excluded). The anon `GET /home/campaigns(/{id})` (`internal/sdui`, cache

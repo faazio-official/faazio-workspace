@@ -7,8 +7,8 @@ export interface HeroTargetHandlers {
   /** Open a store/venue deep-link target. */
   onStore: (store: StoreProfile) => void;
   /**
-   * Optional: open a dining venue (restaurant) target — used for DISH/VENUE ads in the Food
-   * sub-app. `dishId` is set when the ad targets a specific dish, so the host can anchor the menu.
+   * Optional: open a restaurant target — used for DISH/VENUE ads in the Food sub-app. `dishId` is
+   * set when the ad targets a specific dish, so the host can anchor the menu.
    */
   onVenue?: (store: StoreProfile, dishId?: string) => void;
 }

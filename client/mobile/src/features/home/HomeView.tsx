@@ -19,11 +19,11 @@ import {
 import { nearbyOffers } from '@data/home/nearbyOffers';
 
 import AdBannerSection from '@/features/home/sections/AdBannerSection';
-import DiningSpecialsSection from '@/features/home/sections/DiningSpecialsSection';
+import TodaysSpecialsSection from '@/features/home/sections/TodaysSpecialsSection';
 import BrandCampaignsSection from '@/features/home/sections/BrandCampaignsSection';
 import DealsOfDaySection from '@/features/home/sections/DealsOfDaySection';
 import SponsoredRailSection from '@/features/home/sections/SponsoredRailSection';
-import MostRatedDiningSection from '@/features/home/sections/MostRatedDiningSection';
+import MostRatedRestaurantsSection from '@/features/home/sections/MostRatedRestaurantsSection';
 import RecentlyViewedRailSection from '@/features/home/sections/RecentlyViewedRailSection';
 import NearbyOffersSection from '@/features/home/sections/NearbyOffersSection';
 import MensSection from '@/features/home/sections/MensSection';
@@ -121,11 +121,11 @@ export default function HomeView({
       const rail = (fallback: Product[]) => (products && products.length > 0 ? products : fallback);
       switch (id) {
         case 'adBanner': return <AdBannerSection {...sectionProps} />;
-        case 'diningSpecials': return <DiningSpecialsSection {...sectionProps} products={products} />;
+        case 'diningSpecials': return <TodaysSpecialsSection {...sectionProps} products={products} />;
         case 'hotBrandDeals': return <BrandCampaignsSection {...sectionProps} campaigns={campaigns} />;
         case 'dealsOfDay': return <DealsOfDaySection {...sectionProps} />;
         case 'sponsoredRail': return <SponsoredRailSection {...sectionProps} />;
-        case 'mostRatedDining': return <MostRatedDiningSection {...sectionProps} stores={stores} />;
+        case 'mostRatedDining': return <MostRatedRestaurantsSection {...sectionProps} stores={stores} />;
         case 'recentlyViewedMart': return <RecentlyViewedRailSection {...sectionProps} title="Recently Viewed — Mart" products={rail(recentlyViewedMart)} accent="#1162D3" appBrand="MART" />;
         case 'recentlyViewedFood': return <RecentlyViewedRailSection {...sectionProps} title="Recently Viewed — Food" products={rail(recentlyViewedFood)} accent="#1E5D44" appBrand="FOOD" />;
         case 'recentlyViewedPharma': return <RecentlyViewedRailSection {...sectionProps} title="Recently Viewed — Pharma" products={rail(recentlyViewedPharma)} accent="#065F46" appBrand="PHARMA" />;

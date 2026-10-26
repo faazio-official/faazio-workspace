@@ -1,17 +1,17 @@
 import { useEffect, useMemo, useState } from 'react';
 import { haversineKm } from '@/utils/distance';
 import { useLiveOrigin } from '@/hooks/useLiveLocation';
-import { fetchDiningFeed, type DiningFeed } from '../services/diningService';
-import type { DiningRestaurant } from '../mocks/types';
+import { fetchRestaurantFeed, type RestaurantFeed } from '../services/restaurantFeedService';
+import type { FoodRestaurant } from '../mocks/types';
 
 /**
  * Nearest-first, recomputed from the live fix. Fixture rows already carry real
  * coordinates, so cards update in place as the poll lands without re-fetching.
  */
 function byLiveDistance(
-  restaurants: DiningRestaurant[],
+  restaurants: FoodRestaurant[],
   origin: { latitude: number; longitude: number } | null,
-): DiningRestaurant[] {
+): FoodRestaurant[] {
   if (!origin) return restaurants;
   return restaurants
     .map((r) => {
@@ -29,13 +29,13 @@ function byLiveDistance(
     });
 }
 
-export function useDiningFeed(): DiningFeed | null {
-  const [feed, setFeed] = useState<DiningFeed | null>(null);
+export function useRestaurantFeed(): RestaurantFeed | null {
+  const [feed, setFeed] = useState<RestaurantFeed | null>(null);
   const origin = useLiveOrigin();
 
   useEffect(() => {
     let active = true;
-    fetchDiningFeed().then((data) => {
+    fetchRestaurantFeed().then((data) => {
       if (active) setFeed(data);
     });
     return () => {
@@ -48,7 +48,7 @@ export function useDiningFeed(): DiningFeed | null {
     return {
       ...feed,
       topRated: byLiveDistance(feed.topRated, origin),
-      dining: byLiveDistance(feed.dining, origin),
+      restaurants: byLiveDistance(feed.restaurants, origin),
     };
   }, [feed, origin]);
 }

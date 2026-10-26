@@ -5,18 +5,18 @@ import { MapPin } from 'lucide-react-native';
 import { hs, ms, vs } from '@/utils/responsive';
 import AppText from '@/components/AppText';
 import { foodTheme } from '../constants/theme';
-import type { DiningRestaurant } from '../mocks/types';
+import type { FoodRestaurant } from '../mocks/types';
 import RemoteImage from './RemoteImage';
 import RatingBadge from './RatingBadge';
 import FavoriteButton from './FavoriteButton';
 
 interface RestaurantCardProps {
-  restaurant: DiningRestaurant;
-  onPress?: (restaurant: DiningRestaurant) => void;
+  restaurant: FoodRestaurant;
+  onPress?: (restaurant: FoodRestaurant) => void;
 }
 
 /**
- * Single-column dining row — square image on the LEFT, details on the right.
+ * Single-column restaurant row — square image on the LEFT, details on the right.
  * Flat white card: no shadow, no border, compact text (matches the home feed).
  */
 const RestaurantCard = memo(function RestaurantCard({ restaurant, onPress }: RestaurantCardProps) {

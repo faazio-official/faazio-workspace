@@ -1,10 +1,10 @@
-import type { DiningRestaurant } from './types';
+import type { FoodRestaurant } from './types';
 
 const img = (id: string, w = 900, h = 620) =>
   `https://images.unsplash.com/${id}?fm=jpg&fit=crop&q=80&w=${w}&h=${h}`;
 
-/** Hero carousel — premium dining rooms, rooftop spaces and cafes. */
-export const TOP_RATED_RESTAURANTS: DiningRestaurant[] = [
+/** Hero carousel — premium restaurants, rooftop spaces and cafes. */
+export const TOP_RATED_RESTAURANTS: FoodRestaurant[] = [
   {
     id: 'tr-1',
     name: 'Skyline Bistro',
@@ -12,7 +12,6 @@ export const TOP_RATED_RESTAURANTS: DiningRestaurant[] = [
     rating: 4.9,
     ratingCount: 2480,
     distance: 1.2,
-    deliveryTime: '25 min',
     priceForTwo: 1800,
     cuisine: 'Continental • Rooftop',
     cuisines: ['Continental', 'Rooftop'],
@@ -31,7 +30,6 @@ export const TOP_RATED_RESTAURANTS: DiningRestaurant[] = [
     rating: 4.8,
     ratingCount: 3120,
     distance: 2.4,
-    deliveryTime: '30 min',
     priceForTwo: 1400,
     cuisine: 'North Indian • Mughlai',
     cuisines: ['North Indian', 'Mughlai'],
@@ -50,7 +48,6 @@ export const TOP_RATED_RESTAURANTS: DiningRestaurant[] = [
     rating: 4.7,
     ratingCount: 1890,
     distance: 0.8,
-    deliveryTime: '20 min',
     priceForTwo: 1200,
     cuisine: 'Cafe • Italian',
     cuisines: ['Cafe', 'Italian'],
@@ -69,7 +66,6 @@ export const TOP_RATED_RESTAURANTS: DiningRestaurant[] = [
     rating: 4.8,
     ratingCount: 2760,
     distance: 3.1,
-    deliveryTime: '35 min',
     priceForTwo: 1600,
     cuisine: 'Tandoor • North Indian',
     cuisines: ['Tandoor', 'North Indian'],
@@ -88,7 +84,6 @@ export const TOP_RATED_RESTAURANTS: DiningRestaurant[] = [
     rating: 4.9,
     ratingCount: 1540,
     distance: 4.6,
-    deliveryTime: '40 min',
     priceForTwo: 2200,
     cuisine: 'Seafood • Coastal',
     cuisines: ['Seafood', 'Coastal'],
@@ -107,7 +102,6 @@ export const TOP_RATED_RESTAURANTS: DiningRestaurant[] = [
     rating: 4.6,
     ratingCount: 980,
     distance: 5.3,
-    deliveryTime: '45 min',
     priceForTwo: 2000,
     cuisine: 'Multi-cuisine • Fine Dining',
     cuisines: ['Multi-cuisine', 'Fine Dining'],
@@ -120,8 +114,8 @@ export const TOP_RATED_RESTAURANTS: DiningRestaurant[] = [
   },
 ];
 
-/** Two-column dining grid — one restaurant per card, image on top. */
-export const DINING_RESTAURANTS: DiningRestaurant[] = [
+/** Restaurant grid — one restaurant per card, image on top. */
+export const FOOD_RESTAURANTS: FoodRestaurant[] = [
   {
     id: 'dn-1',
     name: 'Sea Salt Grill',
@@ -129,7 +123,6 @@ export const DINING_RESTAURANTS: DiningRestaurant[] = [
     rating: 4.8,
     ratingCount: 2210,
     distance: 1.7,
-    deliveryTime: '28 min',
     priceForTwo: 1700,
     cuisine: 'Continental • Grill',
     cuisines: ['Continental', 'Grill'],
@@ -148,7 +141,6 @@ export const DINING_RESTAURANTS: DiningRestaurant[] = [
     rating: 4.7,
     ratingCount: 1360,
     distance: 1.1,
-    deliveryTime: '22 min',
     priceForTwo: 900,
     cuisine: 'South Indian • Pure Veg',
     cuisines: ['South Indian', 'Pure Veg'],
@@ -167,7 +159,6 @@ export const DINING_RESTAURANTS: DiningRestaurant[] = [
     rating: 4.5,
     ratingCount: 720,
     distance: 2.8,
-    deliveryTime: '25 min',
     priceForTwo: 800,
     cuisine: 'Breakfast • Continental',
     cuisines: ['Breakfast', 'Continental'],
@@ -185,7 +176,6 @@ export const DINING_RESTAURANTS: DiningRestaurant[] = [
     rating: 4.6,
     ratingCount: 1630,
     distance: 3.6,
-    deliveryTime: '35 min',
     priceForTwo: 1500,
     cuisine: 'Pan-Asian • Bar',
     cuisines: ['Pan-Asian', 'Bar'],
@@ -204,7 +194,6 @@ export const DINING_RESTAURANTS: DiningRestaurant[] = [
     rating: 4.7,
     ratingCount: 1140,
     distance: 4.1,
-    deliveryTime: '40 min',
     priceForTwo: 1900,
     cuisine: 'Latin • Rooftop',
     cuisines: ['Latin', 'Rooftop'],
@@ -222,7 +211,6 @@ export const DINING_RESTAURANTS: DiningRestaurant[] = [
     rating: 4.9,
     ratingCount: 3410,
     distance: 2.0,
-    deliveryTime: '30 min',
     priceForTwo: 1300,
     cuisine: 'Tandoor • North Indian',
     cuisines: ['Tandoor', 'North Indian'],
@@ -241,7 +229,6 @@ export const DINING_RESTAURANTS: DiningRestaurant[] = [
     rating: 4.4,
     ratingCount: 640,
     distance: 0.6,
-    deliveryTime: '18 min',
     priceForTwo: 750,
     cuisine: 'Italian • Cafe',
     cuisines: ['Italian', 'Cafe'],
@@ -259,7 +246,6 @@ export const DINING_RESTAURANTS: DiningRestaurant[] = [
     rating: 4.8,
     ratingCount: 2050,
     distance: 3.4,
-    deliveryTime: '32 min',
     priceForTwo: 1100,
     cuisine: 'Farm-to-table • Healthy',
     cuisines: ['Farm-to-table', 'Healthy'],
@@ -278,7 +264,6 @@ export const DINING_RESTAURANTS: DiningRestaurant[] = [
     rating: 4.6,
     ratingCount: 1280,
     distance: 4.8,
-    deliveryTime: '38 min',
     priceForTwo: 1450,
     cuisine: 'Chinese • Asian',
     cuisines: ['Chinese', 'Asian'],
@@ -296,7 +281,6 @@ export const DINING_RESTAURANTS: DiningRestaurant[] = [
     rating: 4.5,
     ratingCount: 890,
     distance: 5.6,
-    deliveryTime: '42 min',
     priceForTwo: 2100,
     cuisine: 'Pub • Continental',
     cuisines: ['Pub', 'Continental'],
@@ -314,7 +298,6 @@ export const DINING_RESTAURANTS: DiningRestaurant[] = [
     rating: 4.7,
     ratingCount: 980,
     distance: 2.6,
-    deliveryTime: '26 min',
     priceForTwo: 950,
     cuisine: 'South Indian • Andhra',
     cuisines: ['South Indian', 'Andhra'],
@@ -332,7 +315,6 @@ export const DINING_RESTAURANTS: DiningRestaurant[] = [
     rating: 4.8,
     ratingCount: 1980,
     distance: 3.2,
-    deliveryTime: '30 min',
     priceForTwo: 850,
     cuisine: 'Hyderabadi • Biryani',
     cuisines: ['Hyderabadi', 'Biryani'],

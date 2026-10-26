@@ -25,9 +25,9 @@ const CART_EMOJI = '🍽️';
 
 /**
  * Search result dish card — row layout per the Dishes view spec: square
- * thumbnail left, details right (title + price, source restaurant, rating +
- * prep time) with a "+ ADD" button that flips into a quantity stepper once the
- * dish is in the cart. Renders edge-to-edge (no horizontal gutter).
+ * thumbnail left, details right (title + price, source restaurant, rating)
+ * with a "+ ADD" button that flips into a quantity stepper once the dish is in
+ * the cart. Renders edge-to-edge (no horizontal gutter).
  */
 const SearchDishCard = memo(function SearchDishCard({ dish, onPress, oldPrice, restaurantId }: SearchDishCardProps) {
   const cart = useCartStore((s) => s.cart);
@@ -75,10 +75,6 @@ const SearchDishCard = memo(function SearchDishCard({ dish, onPress, oldPrice, r
               <Star size={ms(10)} color="#FFFFFF" fill="#FFFFFF" strokeWidth={2.5} />
               <AppText style={styles.ratingText}>{dish.rating.toFixed(1)}</AppText>
             </View>
-          ) : null}
-          {dish.rating !== undefined && dish.deliveryTime ? <View style={styles.dot} /> : null}
-          {dish.deliveryTime ? (
-            <AppText style={styles.metricText}>{dish.deliveryTime}</AppText>
           ) : null}
         </View>
 
@@ -203,17 +199,6 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontSize: ms(11),
     fontWeight: '800',
-  },
-  dot: {
-    width: ms(3),
-    height: ms(3),
-    borderRadius: ms(1.5),
-    backgroundColor: foodTheme.dotInactive,
-  },
-  metricText: {
-    fontSize: ms(11),
-    fontWeight: '600',
-    color: '#666666',
   },
   actionRow: {
     flexDirection: 'row',

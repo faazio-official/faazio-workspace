@@ -14,7 +14,7 @@ interface FoodDetailTopBarProps {
 }
 
 /**
- * Simple back + title bar for pushed Food detail screens (Dining / Order).
+ * Simple back + title bar for pushed Food detail screens (Restaurant / Order).
  * Respects the status-bar inset.
  */
 const FoodDetailTopBar = memo(function FoodDetailTopBar({ title, onBack, right }: FoodDetailTopBarProps) {

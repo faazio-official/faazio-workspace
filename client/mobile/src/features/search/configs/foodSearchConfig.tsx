@@ -78,8 +78,8 @@ function makeDishPredicate(dietFilter: DietFilter) {
 
 /**
  * Food sub-app search wiring for the shared SearchScreen. Dishes-only: the
- * single "Dishes" mode renders the spec dish cards with veg indicator, rating +
- * prep time and an ADD-to-cart stepper. The toggle rail is hidden.
+ * single "Dishes" mode renders the spec dish cards with veg indicator, rating
+ * and an ADD-to-cart stepper. The toggle rail is hidden.
  */
 export function createFoodSearchConfig({
   onDishPress,

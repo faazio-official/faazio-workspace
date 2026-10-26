@@ -32,7 +32,7 @@ Every domain file below carries its tag as a top-of-file banner comment.
 | Domain | Owner (feature) | Entry files | Status |
 |---|---|---|---|
 | `mart` | `features/ecommerce` | `products.ts`, `stores.ts` | `@server` (fixtures are type/offline seeds) |
-| `food` | `features/food` | `products.ts`, `stores.ts`, `menus.ts`, `specials.ts`, `diningVenues.ts` | mixed `@mock` / `@server` — `menus.ts` + `diningVenues.ts` seed `directory.menus`/`directory.dining_venues` and fall back locally (`getList` → `GatewayClient.fetchMenu`/`fetchVenues`); `features/food/mocks/*` (`restaurants`, `homeFeed`, `specials`) are the client-side first-paint for the dining grid + mind/snack rails (see `@data/food` below) |
+| `food` | `features/food` | `products.ts`, `stores.ts`, `menus.ts`, `specials.ts`, `diningVenues.ts` | mixed `@mock` / `@server` — `menus.ts` + `diningVenues.ts` seed `directory.menus`/`directory.dining_venues` and fall back locally (`getList` → `GatewayClient.fetchMenu`/`fetchVenues`); `features/food/mocks/*` (`restaurants`, `homeFeed`, `specials`) are the client-side first-paint for the restaurant grid + mind/snack rails (see `@data/food` below) |
 | `pharma` | `features/pharma` | `products.ts`, `stores.ts`, `bloodRequests.ts`, `recentOrders.ts` | mixed `@mock` / `@server` — pharma home feed (SDUI sections, coupons, hero) + History read `GatewayClient`; fixtures seed mock-mode first paint / remote fallback |
 | `explore` | `features/catalog` (Categories/Favourites) | `stacks.ts` | `@server` (fixtures are type seeds) |
 | `categories` | `features/catalog` | `searchDatabase.ts` | `@static` taxonomy |
@@ -41,6 +41,11 @@ Every domain file below carries its tag as a top-of-file banner comment.
 | `account` | `features/profile` | `orders.ts` | `@server` |
 | `directory` / `reviews` (vendor) | `features/profile` (rating form/CTA) + every vendor surface | `directory/vendors.ts`, `food/diningVenues.ts`, `reviews/vendorReviews.ts` | `@server` (fixtures are type seeds) |
 | `home` | `features/home` | `sections.ts`, `rails.ts`, `campaigns.ts`, `demographics.ts`, `instantFeed.ts`, `nearbyOffers.ts`, `filterFeed.ts`, `seeds.ts` | `@server` + `@seed`/`@static` registry |
+
+> **No dining/table-booking feature exists.** The Food sub-app supports only delivery and pickup
+> fulfillment (`FulfillmentMode = 'DELIVERY' | 'PICKUP'`). `directory.dining_venues` (and the
+> `data/food/diningVenues.ts` fixture) is **restaurant identity only** — no table counts, time slots,
+> or reservation fields exist and none will be added.
 
 **Seed inventory expansion:** the mart/food/pharma/explore/categories/orders/coupons fixtures
 were expanded so the new search-results-style Favourites page and richer catalogs look alive on
@@ -77,7 +82,7 @@ surface for these tables). These tables **pull from the legacy sources via impor
 | `catalog/products.ts` | Rust + Tantivy (search index) | mart/food/pharma/home/explore/categories product records, deduped by `id`, tokenized. Exposes `getProductById` (resolves a real `Product` from the domain arrays + converted deal/special products) used by `OrderDetailsScreen`'s **View Product** drill-in; `CatalogEntry.storeId` + `getCatalogEntriesByStore` back the offline mirror of `GET /stores/{id}/products` (Mart vendor drill-in) | `@mock` |
 | `directory/stores.ts` | Go + PostgreSQL (store directory) | `mart/stores`, `food/stores` | `@mock` |
 | `directory/vendors.ts` | Go + PostgreSQL (vendor identity view) | `directory/stores` + `food/diningVenues` — deduped `VendorRef[]` with `resolveVendorForProduct` (identity resolver, single owner). Snapshotted onto orders at placement | `@mock` |
-| `food/diningVenues.ts` | Go + PostgreSQL (dining-venue identity + data) | ids/names mirroring `features/food/mocks/restaurants.ts` + `food/stores`. `directory.dining_venues` now carries `app`/`rating`/`cover_image`/`categories` (+ gated `address`/`phone`/`hours`) — migration `0013` | `@mock` → `@server` |
+| `food/diningVenues.ts` | Go + PostgreSQL (restaurant-venue identity only — no booking/reservation fields) | ids/names mirroring `features/food/mocks/restaurants.ts` + `food/stores`. `directory.dining_venues` now carries `app`/`rating`/`cover_image`/`categories` (+ gated `address`/`phone`/`hours`) — migration `0013` | `@mock` → `@server` |
 | `reviews/vendorReviews.ts` | Go + PostgreSQL (vendor reviews) | vendor-scoped public reviews (full name only) keyed by vendor id; merged with the user's live rating from `state/vendorRatingStore` by `services/vendorRatings` | `@mock` |
 | `reviews/reviews.ts` | Go + PostgreSQL (reviews/specs) | `productMeta/reviews`. Reviews are now **product-keyed** — per-product rows attached to real catalog ids (`fm-*`/`sp-*`/`ph-*` bestsellers) with an app-scoped fallback so `getReviewsByProductId` never returns empty | `@mock` |
 | `inventory/stock.ts` | Go + DynamoDB (key-value stock) | net new — one row per catalog product id | `@mock` |
@@ -169,11 +174,11 @@ the `GROCERY` member was dropped from `AppBrand` / `CartCategory` / `SubAppId` /
 |---|---|---|---|
 | `foodProducts` | `FoodProduct[]` | `FoodMenuView`; `data/home/filterFeed` (internal). Each carries optional `isVeg?` for the diet filter | `@mock` |
 | `topOfWeekDishes` | `TopOfWeekDish[]` | `FoodScreen` (top-of-week rail). Each carries optional `isVeg?` | `@mock` |
-| `foodStores` | `StoreProfile[]` | `FoodScreen`; home `DiningSpecialsSection`, `MostRatedDiningSection` | `@mock` |
-| `restaurantMenus` | `Record<string, SpecialDish[]>` | `RestaurantProfileScreen.getMenuForRestaurant` (per-restaurant menus keyed by dining-restaurant name, so every dining room's "Recommended & Offers" rail + menu is populated); seeded into `directory.menus` (migrations `0013`/`0019`/`0022`, `status` from `0017`). Dishes may carry an authored `SpecialDish.mrp`; only `mrp > price` shows a strike-through (never synthesized) | `@mock` → `@server` |
+| `foodStores` | `StoreProfile[]` | `FoodScreen`; home `TodaysSpecialsSection`, `MostRatedRestaurantsSection` | `@mock` |
+| `restaurantMenus` | `Record<string, SpecialDish[]>` | `RestaurantProfileScreen.getMenuForRestaurant` (per-restaurant menus keyed by restaurant name, so every restaurant's "Recommended & Offers" rail + menu is populated); seeded into `directory.menus` (migrations `0013`/`0019`/`0022`, `status` from `0017`). Dishes may carry an authored `SpecialDish.mrp`; only `mrp > price` shows a strike-through (never synthesized) | `@mock` → `@server` |
 | `storeMenus` | `Record<string, SpecialDish[]>` | delivery-kitchen menus keyed by `foodStores[].name`, derived from `foodProducts` via `storeId` (single source — no hand-copied literals); consumed by `getMenuForRestaurant` / `GatewayClient.getMenu` fallback and seeded into `directory.menus` (88 dishes / 30 venues). Removes the old per-venue `TODAYS_SPECIALS` cuisine-match for the 12 `store-f*` kitchens | `@mock` → `@server` |
 | `allRestaurantMenuDishes` | `SpecialDish[]` | catalog index (search) — flat pool of all per-restaurant menu dishes | `@mock` |
-| `menuForVenueName` | `(name: string) => SpecialDish[]` | `getMenuForRestaurant` + `GatewayClient.getMenu` — dining menu first, then delivery menu (the single resolver for both) | `@mock` |
+| `menuForVenueName` | `(name: string) => SpecialDish[]` | `getMenuForRestaurant` + `GatewayClient.getMenu` — restaurant menu first, then delivery menu (the single resolver for both) | `@mock` |
 
 > **Food offers/ads disclosure rule (W45).** Organic food is **never** paid and never an "offer":
 > only `mrp > price` dishes (`getOfferDishes` in `features/food/utils/menu.ts`, shared by
@@ -189,7 +194,7 @@ the `GROCERY` member was dropped from `AppBrand` / `CartCategory` / `SubAppId` /
 
 > **Menu discount truth (W56).** A `directory.menus` dish is **not** festival-eligible:
 > `promo.festival_optins` is `catalog.products`-scoped and checkout ignores menus, so the authored
-> `mrp_paisa` strike is the only menu discount. The dining grid shows an honest empty state on a
+> `mrp_paisa` strike is the only menu discount. The restaurant grid shows an honest empty state on a
 > server-authoritative empty venue list (`GatewayClient.fetchVenues`); no fixture venues are shown.
 
 ### `@data/pharma` — owner: `features/pharma`

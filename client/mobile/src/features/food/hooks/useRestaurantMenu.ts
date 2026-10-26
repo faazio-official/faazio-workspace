@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import type { SpecialDish } from '@data/types';
 import { gateway, type MenuDish } from '@/services/api/GatewayClient';
-import type { DiningRestaurant } from '../mocks/types';
+import type { FoodRestaurant } from '../mocks/types';
 
 /** Map one durable `directory.menus` dish onto the app's `SpecialDish` card shape. */
 function toSpecialDish(dish: MenuDish, restaurantName: string): SpecialDish {
@@ -16,7 +16,6 @@ function toSpecialDish(dish: MenuDish, restaurantName: string): SpecialDish {
     description: dish.description ?? '',
     cuisine: dish.cuisine,
     rating: dish.rating,
-    deliveryTime: dish.deliveryTime,
   };
 }
 
@@ -37,7 +36,7 @@ export interface RestaurantMenuState {
  * menu-dish discount would be display-only (a price the cart can't honour). Discounted menu
  * dishes instead carry their own authored `mrp_paisa > price_paisa` strike (migration 0022).
  */
-export function useRestaurantMenu(restaurant: DiningRestaurant): RestaurantMenuState {
+export function useRestaurantMenu(restaurant: FoodRestaurant): RestaurantMenuState {
   const [menu, setMenu] = useState<SpecialDish[]>([]);
   const [loading, setLoading] = useState(true);
 

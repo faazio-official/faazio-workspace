@@ -1,7 +1,7 @@
 import type { NavigatorScreenParams } from '@react-navigation/native';
 import type { SubAppId } from '@/state/uiStore';
 import type { DietFilter } from '@/state/foodFilterStore';
-import type { DiningRestaurant, SpecialDish } from '@/features/food/mocks/types';
+import type { FoodRestaurant, SpecialDish } from '@/features/food/mocks/types';
 import type { MyOrdersStatusFilter } from '@data/types';
 
 export type MainTabParamList = {
@@ -139,9 +139,9 @@ export type FoodStackParamList = {
   FoodHome: undefined;
   Search: { initialQuery?: string; initialMode?: string } | undefined;
   /** Full restaurant profile drill-in (hero, menu, floating cart footer). */
-  RestaurantProfile: { restaurant: DiningRestaurant };
+  RestaurantProfile: { restaurant: FoodRestaurant };
   /** "View All" — every discounted dish for a restaurant, search-result-style list. */
-  RestaurantOffers: { restaurant: DiningRestaurant; offers: SpecialDish[] };
+  RestaurantOffers: { restaurant: FoodRestaurant; offers: SpecialDish[] };
   /** Full restaurant menu page — every dish + its own search bar. */
-  RestaurantMenu: { restaurant: DiningRestaurant; dietFilter: DietFilter };
+  RestaurantMenu: { restaurant: FoodRestaurant; dietFilter: DietFilter };
 };

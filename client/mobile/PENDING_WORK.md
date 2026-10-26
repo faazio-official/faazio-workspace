@@ -2466,16 +2466,17 @@ This item routes each module through it, one at a time, keeping the built-in fix
 - [x] **search** — `SearchScreen` gains an optional `SearchModeConfig.fetch`: when remote, the
       committed query loads from `gateway.searchProducts` and the server pool replaces `mode.data`
       (local predicate/facets still refine; the substring predicate is skipped for server FTS hits).
-      Wired in the mart/pharma/home product configs; food search stays local (dining venues aren't in
+      Wired in the mart/pharma/home product configs; food search stays local (restaurant venues aren't in
       `directory.stores`), and Food's `getMenu` is already remote.
 - [x] **home/SDUI** — new `features/home/hooks/useHomeFeed.ts` loads the server SDUI doc
       (`gateway.getHomeFeed`) and `HomeView` renders its ordered sections, threading the doc's joined
       rail products into the Recently-Viewed sections; the static `@data/home/sections` registry is the
       offline/first-paint fallback. Bespoke hero sections (ad/brand/dining/filter-feed) keep their local
       fixtures until the SDUI doc is extended to carry their content.
-- [ ] **dining** — blocked: the `tr-*`/`dn-*` dining venues are identity-only in `data/food/diningVenues.ts`
-      and are **not** in `directory.stores`, so `diningService` cannot be server-backed until the
-      dining-venue profile data is seeded. `gateway.getMenu(venueId)` (dish lists) is already remote-ready.
+- [x] **restaurant feed** — ✅ Removed the old "dining" naming: no dining/table-booking feature exists;
+      food discovery is restaurant delivery/pickup only. The restaurant grid is server-backed via
+      `restaurantFeedService.fetchRestaurantFeed` → `getVenues('FOOD')`, with the `tr-*`/`dn-*`
+      restaurants in `data/food/diningVenues.ts` used as identity/fixture fallback.
 - [x] **cart durability** — `state/cartStore.ts` mirrors every mutation to `inventory.carts`
       best-effort and `hydrate()`s the durable cart at startup (remote mode; empty server cart is a
       no-op). Local state stays the optimistic model.

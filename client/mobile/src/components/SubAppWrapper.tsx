@@ -238,7 +238,7 @@ export default function SubAppWrapper({
 
   const HEADER_TITLES: Record<SubAppWrapperProps['subAppId'], string> = {
     FA_MART: 'Mart',
-    FOOD: 'Food & Dining',
+    FOOD: 'Food',
     PHARMA: 'Pharma',
   };
   const brandKey: AppBrand = subAppId === 'FA_MART' ? 'MART' : subAppId;

@@ -17,7 +17,7 @@ type Props = NativeStackScreenProps<FoodStackParamList, 'Search'>;
 
 /**
  * Food sub-app search screen. Composes the shared SearchScreen shell with the
- * Food search config (dishes-only, toggle-less with dining filter chips) plus
+ * Food search config (dishes-only, toggle-less with restaurant filter chips) plus
  * the floating cart bar and the fixed 2-tab bottom nav (Search active).
  */
 export function FoodSearchScreen({ navigation, route }: Props) {
