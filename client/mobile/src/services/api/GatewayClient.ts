@@ -46,9 +46,9 @@ const LATENCY_MS = 40;
 
 const REMOTE_ENABLED = GATEWAY_URL.length > 0 && USE_GATEWAY;
 /**
- * Strict mode (`STRICT=true`): money/Rx/address WRITES never silently fall back to a
- * local mock. A failed remote write surfaces as an error instead of a fake local success — the
- * safety net that keeps reads working during migration must never fabricate a payment or a script.
+ * Legacy strict flag (`STRICT`). Reads and writes are now unconditionally server-only, so this
+ * value no longer changes behavior; it is retained only so the generated config stays backward
+ * compatible. A failed remote call always surfaces as `GatewayHttpError`/`GatewayOfflineError`.
  */
 const REMOTE_STRICT = REMOTE_ENABLED && STRICT;
 /**
@@ -839,7 +839,7 @@ export class GatewayClient {
     return remote();
   }
 
-  /** True when money/Rx/address writes fail loudly instead of using the local mock. */
+  /** Legacy `STRICT` flag (see `REMOTE_STRICT`); every remote call is strict regardless. */
   get strictWritesEnabled(): boolean {
     return REMOTE_STRICT;
   }

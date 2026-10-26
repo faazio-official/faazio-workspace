@@ -121,7 +121,7 @@ dependencies exist. Do not build the backend/seller flows until told to.
 **Status:** 🟢 Shipped (DB + gateway + mobile + portal).
 
 - **District replaces state admin:** `admins.state_admins` → `admins.district_admins` (0048), wire
-  role `DISTRICT_ADMIN`; MVP coverage = 42 TN/PY districts (`admins.district_master`, 0046). The
+  role `DISTRICT_ADMIN`; production coverage = 42 TN/PY districts (`admins.district_master`, 0046). The
   gateway resolves district scope through `internal/platform/geo`; legacy non-TN/PY admins fall back
   to their 2-letter `state_code`.
 - Mobile onboarding requires a district for TN/PY (`@data/districts`), sellers carry
@@ -188,9 +188,9 @@ dependencies exist. Do not build the backend/seller flows until told to.
   customer screen prompts for it after delivery yet.
 - **Multi-vehicle VRP** — dispatch now runs a globally optimal single-rider Held-Karp VRP across all
   accepted stops (started stops pinned, pickup before drop). Coordinating several riders/vehicles
-  remains Future Prod; this is intentional per the lightweight mandate.
+  remains scaling-stage; this is intentional per the lightweight mandate.
 - **Multi-store auto-dispatch** — the checkout order-ready trigger dispatches only when the order
-  has exactly one vendor store (the MVP case). Multi-vendor orders still need one job per store,
+  has exactly one vendor store (the single-store case). Multi-vendor orders still need one job per store,
   so they stay on the admin `POST /dispatch/assign` path until the fan-out is designed.
 - **Partner Firebase entries (ops)** — register the partner Android app + iOS bundle id in the
   Firebase project, add `android/app/src/delivery/google-services.json` and
@@ -1227,8 +1227,9 @@ Home section whose doc carries the data, with each fixture kept as the offline f
 - **App:** `GatewayClient` money-critical reads are now **strict** (no fixture on a remote error):
   `getProduct`, `getStock`, `getProductsByIds`, `getMenu`, `getCoupons`, `validateCoupon`,
   `getOrderTracking`. New client methods `getVenue(id)` and `getOrderTracking(orderId)` expose the
-  new endpoints. `MyOrdersScreen` polls `GET /notifications` every 60 s while mounted (MVP monitoring
-  without FCM). Offline behaviour is unchanged when `USE_GATEWAY`/`STRICT` are unset/non-true.
+  new endpoints. `MyOrdersScreen` polls `GET /notifications` every 60 s while mounted (production monitoring
+  without FCM). Offline behaviour is unchanged when `USE_GATEWAY` is false/unset (`STRICT` no longer
+  affects reads or writes).
 - **Web portal:** every money/status/Rx/menu/booking/rewards mutation is now an awaited write with
   store-snapshot rollback + error toast (`pushWrite` → `writeAwaited`), replacing the silent
   `writeBehind` fallback.
@@ -1387,7 +1388,7 @@ HomeView case + the `sponsoredRail` registry entries; seed revert = drop the two
   `createPrescription`, `payForOrder` and `saveAddress` — a failed remote write fails loudly instead
   of fabricating a local success (`GatewayClient.strictWritesEnabled`).
 - **Coupon read.** `GatewayClient.getCoupons` + cart coupon sheet hydration (see Home rails entry).
-- **Rewards** documented as device-local writes for MVP.
+- **Rewards** documented as device-local writes by product decision.
 - Web portal seed-keep is removed in production (empty gateway slice clears the slice, so sellers
   never see phantom demo rows) and the customers page gained an **activity-trail** panel fed by the
   admin-only `GET /admin/user-trail`.
@@ -1459,9 +1460,9 @@ the SDUI doc.
   The brand-campaign/hero rails stay **`@static-editorial`** — no ceiling on the SDUI layout doc.
 - **Food-order bookings — removed.** `GatewayClient.createFoodBooking`/`getFoodBookings`,
   `state/foodBookingStore`, the `/food-bookings` routes and `contracts.FoodBooking` were dead code
-  (no screen/route); deleted. `bookings.food_orders` stays a reserved, unseeded table seam.
+  (no screen/route); deleted, along with migrations `0011`/`0020` — no `bookings` schema or table remains.
 - **Rewards writes — local by decision.** `rewardsStore.recordOrder`/`redeemCoins` stay device-local
-  for MVP; the server view (`GET /rewards`) is reconciled on read only.
+  by product decision; the server view (`GET /rewards`) is reconciled on read only.
 - **Razorpay native checkout.** Still the mock adapter seam (`services/payments/checkout.ts`); needs
   the SDK adapter, no screen change (see the W22 entry above).
 
@@ -2412,21 +2413,23 @@ added a dev-only authoring guard in `data/home/campaigns.ts` that `console.warn`
 
 ## Wire GatewayClient → production tables (per mvp-backend.md / db-schema.md)
 
-**Status:** 🟢 Shipped (client wiring + MVP monolith). Screens still read `@data/*` and migrate
-incrementally.
+**Status:** 🟢 Shipped (client wiring + production monolith). Screens read the gateway; the
+`@mock` → `@server` migration is complete (fixtures remain as types, seed and offline first paint).
 
-**Feature:** `src/services/api/GatewayClient.ts` is wired to the MVP **Go Chi modular monolith**
+**Feature:** `src/services/api/GatewayClient.ts` is wired to the production **Go Chi modular monolith**
 (`server/gateway`, `docs/architecture/mvp-backend.md` + `docs/architecture/monolith-breakdown.md`)
 over Supabase (Postgres) + MongoDB + Aiven Valkey. Set `GATEWAY_URL` +
-`USE_GATEWAY=true` (in `.env.local`, then `npm run configure`) to go remote; otherwise it reads `@data/*` and every remote call
-**falls back to fixtures on error**, so screen migration can't regress. Cache keys/TTLs follow
-`docs/architecture/caching-cloudflare-valkey.md` (unchanged). Caveat: local dev is auth-open
-(`AUTH_DISABLED=true`); phone-OTP → gateway JWT still to be exercised end-to-end on device.
+`USE_GATEWAY=true` (in `.env.local`, then `npm run configure`) to go remote. `GatewayClient` is
+**server-only**: a failed or disabled remote call throws (`GatewayHttpError` / `GatewayOfflineError`)
+instead of substituting `@data/*`; screens that need an offline first paint own that fallback
+explicitly. Cache keys/TTLs follow `docs/architecture/caching-cloudflare-valkey.md` (unchanged).
+Caveat: local dev is auth-open (`AUTH_DISABLED=true`); phone-OTP → gateway JWT still to be exercised
+end-to-end on device.
 
 **Wiring order** (`docs/architecture/data-layer-sdui.md`): `searchProducts` → `getProduct` →
 `getHomeFeed` → `getReviews` → `getOrders`/`getProfile` — all implemented.
 
-**MVP endpoint checklist** (`mvp-backend.md` §3) — all shipped server-side:
+**Production endpoint checklist** (`mvp-backend.md` §3) — all shipped server-side:
 - [x] `GET /health`
 - [x] `GET /search?q=&app=` → `searchProducts`
 - [x] `GET /product/:id` (+ `/product/:id/reviews`) → `getProduct`
@@ -2442,7 +2445,7 @@ product/store list projections, one-batch SDUI join, `auth_uid → user_id` cach
 reviews, `/sdui/home` ETag. Cache keys/TTLs and `GatewayClient` signatures are unchanged, so no
 client change is required. Authority: `docs/architecture/{db-schema,caching-cloudflare-valkey,monolith-breakdown}.md`.
 
-**Date:** 2026-10-13 (updated: MVP monolith built + sweetspot pass)
+**Date:** 2026-10-13 (updated: production monolith built + sweetspot pass)
 
 ---
 
@@ -2885,10 +2888,10 @@ currently reads a static seed array from `data/home/storeOffers.ts`.
 **Future:** Must be backed by seller/store-owner dashboard writes — a store owner
 creates/edits/expires their own offer, which flows into this Home section per-store,
 geofenced/ranked by relevance. This will likely be served by the Go Chi backend in
-`server/` (MVP modular monolith: `docs/architecture/mvp-backend.md`).
+`server/` (production modular monolith: `docs/architecture/mvp-backend.md`).
 
 **Blocked by:**
-- Seller/store-owner write APIs (the MVP monolith exists; this seller surface is not modelled yet).
+- Seller/store-owner write APIs (the production monolith exists; this seller surface is not modelled yet).
 - Auth/roles for store owners.
 - An admin/seller app or web portal (out of scope for `client/mobile/`).
 
@@ -3224,13 +3227,13 @@ tightened (`paddingBottom vs(8)`, `marginTop vs(4)`) and `CARDS_PER_RAIL` 8 → 
   blood.donors/rewards.balances), a `checkout.purge_idempotency_keys()` pg_cron sweep (7-day window),
   hot-path indexes (`vendor_reviews(vendor_id, created_at desc)`, `prescriptions(user_id, status)`),
   and schema `USAGE` grants to `anon`/`authenticated` (Supabase-only). Idempotent/re-runnable.
-- **Mongo**: `seed.js` now validates + creates the four MVP collections
+- **Mongo**: `seed.js` now validates + creates the four production collections
   (`sdui_layouts`, `user_events`, `recommendations`, `product_stats`).
 - **reco read path**: `GET /recommendations` (auth-scoped) reads the caller's `recommendations` doc by
   `userIdHash`, falls back to top `product_stats`, joins catalog, cached `faazio:v1:reco:{hash}:home`
   1 h. Client `getRecommendations()` falls back to highest-rated catalog entries.
 
-**Remaining (Future Prod):** the batch job that writes `recommendations` / `product_stats` (and the
+**Remaining (scaling stage):** the batch job that writes `recommendations` / `product_stats` (and the
 `segments` collection); wiring recommendations into a Home rail.
 
 **Date:** 2026-10-13
