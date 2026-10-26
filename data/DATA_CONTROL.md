@@ -33,7 +33,7 @@ Every domain file below carries its tag as a top-of-file banner comment.
 |---|---|---|---|
 | `mart` | `features/ecommerce` | `products.ts`, `stores.ts` | `@server` (fixtures are type/offline seeds) |
 | `food` | `features/food` | `products.ts`, `stores.ts`, `menus.ts`, `specials.ts`, `diningVenues.ts` | mixed `@mock` / `@server` — `menus.ts` + `diningVenues.ts` seed `directory.menus`/`directory.dining_venues` and fall back locally (`getList` → `GatewayClient.fetchMenu`/`fetchVenues`); `features/food/mocks/*` (`restaurants`, `homeFeed`, `specials`) are the client-side first-paint for the restaurant grid + mind/snack rails (see `@data/food` below) |
-| `pharma` | `features/pharma` | `products.ts`, `stores.ts`, `bloodRequests.ts`, `recentOrders.ts` | mixed `@mock` / `@server` — pharma home feed (SDUI sections, coupons, hero) + History read `GatewayClient`; fixtures seed mock-mode first paint / remote fallback |
+| `pharma` | `features/pharma` | `products.ts`, `stores.ts`, `bloodRequests.ts`, `recentOrders.ts` | mixed `@mock` / `@server` — pharma home feed (SDUI sections, coupons, hero) + History read `GatewayClient`; fixtures seed offline/mock-mode first paint only (never substituted for a failed remote read) |
 | `explore` | `features/catalog` (Categories/Favourites) | `stacks.ts` | `@server` (fixtures are type seeds) |
 | `categories` | `features/catalog` | `searchDatabase.ts` | `@static` taxonomy |
 | `productMeta` | `features/product` (ProductDetail) | `reviews.ts` | `@server` (fixture `@unused`) |

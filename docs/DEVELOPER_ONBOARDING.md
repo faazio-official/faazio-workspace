@@ -108,10 +108,11 @@ For the seller product (a WebView over the Partner Portal) also set `WEB_PORTAL_
 `GOOGLE_SERVICES_SELLER_JSON` CI secret. For nearby ordering + the seller shop-pin map, also set
 `GOOGLE_MAPS_API_KEY_ANDROID` and
 `GOOGLE_PLACES_API_KEY` (restricted keys; empty is a supported degraded mode). Run
-`npm run configure` after changing them.
-and `USE_GATEWAY=true`; `scripts/configure.js` generates `src/lib/config.ts` before Metro starts and
-`GatewayClient` falls back to `@data/*` on any error. Add `STRICT=true` to disable the fallback for
-money/Rx/address writes (a failed write then fails loudly instead of faking a local success).
+`npm run configure` after changing them; set `USE_GATEWAY=true` so `scripts/configure.js` generates
+`src/lib/config.ts` before Metro starts. `GatewayClient` is **server-only**: a failed or disabled
+remote read/write throws (`GatewayHttpError` / `GatewayOfflineError`) instead of substituting
+`@data/*` — screens that want an offline first paint own that fallback explicitly. `STRICT` is
+retained for build compatibility and no longer changes behavior (all remote calls are strict).
 Optionally set `DEV_USER=user-1` to send the dev-only `X-Dev-User` header explicitly (dev builds
 only; never attached in a release APK, and ignored by an `AUTH_DISABLED=false` gateway). Real
 phone-OTP sign-in uses the native Firebase SDK: the public client config is committed in

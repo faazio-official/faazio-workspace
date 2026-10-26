@@ -92,8 +92,9 @@ const gatewayUrl = env('GATEWAY_URL').replace(/\/+$/, '');
 // Web Partner Portal origin loaded by the seller WebView shell. The portal owns the session
 // (HttpOnly cookies), so this is the only seller-side endpoint the native shell talks to.
 const webPortalUrl = env('WEB_PORTAL_URL').replace(/\/+$/, '');
-// Server-only by default: an explicitly empty value still means "on"; set USE_GATEWAY=false
-// or STRICT=false to opt out for a special build. A missing GATEWAY_URL leaves the app offline.
+// Server-only by default: an explicitly empty value still means "on"; set USE_GATEWAY=false to
+// build a deliberately offline app. A missing GATEWAY_URL leaves the app offline too.
+// STRICT is retained below as a legacy flag; it no longer changes read/write behavior.
 const useGateway = env('USE_GATEWAY') === '' ? true : flag('USE_GATEWAY');
 const strict = env('STRICT') === '' ? true : flag('STRICT');
 const devUser = env('DEV_USER').trim();

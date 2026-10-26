@@ -56,6 +56,7 @@ psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f ../supabase/migrations/0052_delivery_
 psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f ../supabase/migrations/0053_delivery_fee_settings.sql
 psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f ../supabase/migrations/0054_weather_festival.sql
 psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f ../supabase/migrations/0055_delivery_manual_payout.sql
+psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f ../supabase/migrations/0056_seller_order_decisions.sql
 ```
 
 List the files (`ls ../supabase/migrations/ | tail`) and apply everything newer than the last one
@@ -66,9 +67,10 @@ that succeeded. Verify a boot: the gateway log on Render should stop emitting
 
 - **Supabase SQL Editor** — paste the target migration file's contents into
   Dashboard → SQL Editor and run. Slower for many files; fine for a one-off.
-- **Local dev (`server/gateway` docker compose)** — the postgres container auto-applies
-  migrations `0001`–`0040` + seed via `docker-entrypoint-initdb.d` **on first boot only**.
-  Migrations `0041+` are not mounted, so apply them by hand against the compose DB too
+- **Local dev (`server/gateway` docker compose)** — the postgres container auto-applies the files
+  mounted in `docker-compose.yml` (currently `0001`–`0040`, excluding the deleted booking migrations
+  `0011`/`0020` and the unused `0035` slot) + seed via `docker-entrypoint-initdb.d` **on first boot
+  only**. Migrations `0041+` are not mounted, so apply them by hand against the compose DB too
   (e.g. `psql "$DATABASE_URL" -f ../supabase/migrations/0041_…`), or re-create the volume
   after copying the new files into the compose mounts.
 

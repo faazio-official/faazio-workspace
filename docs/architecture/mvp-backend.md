@@ -152,7 +152,7 @@ through `POST /auth/portal/login` (HS256 portal JWT + opaque refresh token).
 
 No gRPC yet; `contracts/` holds Go interfaces that mirror the future `.proto` shape. Method
 signatures above keep the `@mock` → `@server` swap call-site-compatible (`GatewayClient` adds a
-`baseUrl`/flag and keeps the `@data/*` fallback). Local dev runs:
+`baseUrl`/flag and is server-only — no `@data/*` runtime fallback). Local dev runs:
 `AUTH_DISABLED=true` uses `DEV_USER_ID` / `X-Dev-User`, and role probing accepts `X-Dev-Role` /
 `X-Dev-Seller` / `X-Dev-State` (all three are on the CORS allow-list so the local portal can exercise
 role-gated routes; they are ignored whenever auth is enabled). The app mirrors the portal's dev guard:
@@ -215,8 +215,8 @@ contract stable so the swap is invisible to the app):
 5. ✅ `server/gateway/` (Go Chi) — all 6 contexts in one binary; `GET /health` + the §3 endpoints;
    Supabase + Mongo + Valkey read-through; `contracts/` interfaces; `tools/importlint` boundary gate.
 6. ✅ `client/mobile/src/services/api/GatewayClient.ts` — `GATEWAY_URL` +
-   `USE_GATEWAY` (+ `STRICT` to fail money/Rx/address writes loudly);
-   wired in `data-layer-sdui.md` order; `@data/*` fallback per method.
+   `USE_GATEWAY`; wired in `data-layer-sdui.md` order; server-only (no `@data/*` runtime fallback;
+   `STRICT` is retained as a no-op for build compatibility).
 7. ✅ Verify: `go build/vet/test ./...` + `go run ./tools/importlint`; `npm run ts:check`,
    `check:boundaries`, `check:drillin`.
 8. ✅ **DB layer verified locally** (`docker compose up`): 421 products / 32 stores / 32 orders seeded,
