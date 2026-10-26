@@ -320,14 +320,20 @@ select p.id, p.name, p.app::text, p.category, p.status::text, coalesce(p.seller_
 from catalog.products p`
 
 // SellerProducts lists a seller's products (status "" = all), newest edit first.
-func (r *Repo) SellerProducts(ctx context.Context, sellerID, status string) ([]SellerProduct, error) {
+// SellerProducts lists products scoped to a seller or a district. A district admin passes
+// district (strict: the seller must belong to it); a seller passes sellerID; a super admin passes
+// neither and sees every product.
+func (r *Repo) SellerProducts(ctx context.Context, sellerID, district, status string) ([]SellerProduct, error) {
 	if r.pool == nil {
 		return nil, fmt.Errorf("catalog: database not configured")
 	}
 	rows, err := r.pool.Query(ctx, sellerProductSelect+`
 		where ($1 = '' or p.seller_id = $1)
-		  and ($2 = '' or p.status::text = $2)
-		order by p.updated_at desc`, sellerID, status)
+		  and ($2 = '' or exists (
+		         select 1 from sellers.sellers se
+		          where se.seller_id = p.seller_id and se.district_code = $2))
+		  and ($3 = '' or p.status::text = $3)
+		order by p.updated_at desc`, sellerID, district, status)
 	if err != nil {
 		return nil, err
 	}
@@ -335,9 +341,9 @@ func (r *Repo) SellerProducts(ctx context.Context, sellerID, status string) ([]S
 	return scanSellerProducts(rows)
 }
 
-// SetProductStatus transitions a product's status. When admin is false the write is scoped to the
-// caller's seller_id, so a seller can never mutate another seller's product.
-func (r *Repo) SetProductStatus(ctx context.Context, id, sellerID, status string, admin bool) (SellerProduct, bool, error) {
+// SetProductStatus transitions a product's status. The write is scoped to the caller's seller_id or
+// district (strict). Passing neither is the super-admin all-products case.
+func (r *Repo) SetProductStatus(ctx context.Context, id, sellerID, district, status string) (SellerProduct, bool, error) {
 	if r.pool == nil {
 		return SellerProduct{}, false, fmt.Errorf("catalog: database not configured")
 	}
@@ -346,11 +352,16 @@ func (r *Repo) SetProductStatus(ctx context.Context, id, sellerID, status string
 		updatedAt time.Time
 	)
 	err := r.pool.QueryRow(ctx, `
-		update catalog.products p set status = $2::product_status
-		 where p.id = $1 and ($3 or p.seller_id = $4)
+		update catalog.products p set status = $4::product_status
+		 where p.id = $1 and (
+		       ($2 <> '' and p.seller_id = $2) or
+		       ($3 <> '' and exists (
+		          select 1 from sellers.sellers se
+		           where se.seller_id = p.seller_id and se.district_code = $3)) or
+		       ($2 = '' and $3 = ''))
 		 returning p.id, p.name, p.app::text, p.category, p.status::text,
 		           coalesce(p.seller_id,''), coalesce(p.store_id,''), p.price_paisa, p.updated_at`,
-		id, status, admin, sellerID).
+		id, sellerID, district, status).
 		Scan(&p.ID, &p.Name, &p.App, &p.Category, &p.Status, &p.SellerID, &p.StoreID, &p.Price, &updatedAt)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
@@ -374,10 +385,11 @@ type ProductEdit struct {
 	ImageAssetID *string
 }
 
-// UpdateProduct edits price/MRP/stock for a seller's product (admin: any). Price is written to both
-// catalog.products and inventory.stock so the two stay in lockstep. Returns ok=false when the
-// product is absent or not owned.
-func (r *Repo) UpdateProduct(ctx context.Context, id, sellerID string, admin bool, e ProductEdit) (SellerProduct, bool, error) {
+// UpdateProduct edits price/MRP/stock for a seller's product. The row must belong to sellerID, or
+// to a seller in district (strict); passing neither is the super-admin case. Price is written to
+// both catalog.products and inventory.stock so the two stay in lockstep. Returns ok=false when the
+// product is absent or outside the caller's scope.
+func (r *Repo) UpdateProduct(ctx context.Context, id, sellerID, district string, e ProductEdit) (SellerProduct, bool, error) {
 	if r.pool == nil {
 		return SellerProduct{}, false, fmt.Errorf("catalog: database not configured")
 	}
@@ -387,15 +399,30 @@ func (r *Repo) UpdateProduct(ctx context.Context, id, sellerID string, admin boo
 	}
 	defer func() { _ = tx.Rollback(ctx) }()
 
-	var owner *string
-	if err := tx.QueryRow(ctx, `select seller_id from catalog.products where id = $1 for update`, id).Scan(&owner); err != nil {
+	var (
+		owner         *string
+		ownerDistrict string
+	)
+	if err := tx.QueryRow(ctx, `
+		select p.seller_id, coalesce(se.district_code, '')
+		  from catalog.products p
+		  left join sellers.sellers se on se.seller_id = p.seller_id
+		 where p.id = $1
+		 for update of p`, id).Scan(&owner, &ownerDistrict); err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return SellerProduct{}, false, nil
 		}
 		return SellerProduct{}, false, err
 	}
-	if !admin && (owner == nil || *owner != sellerID) {
-		return SellerProduct{}, false, nil
+	switch {
+	case sellerID != "":
+		if owner == nil || *owner != sellerID {
+			return SellerProduct{}, false, nil
+		}
+	case district != "":
+		if owner == nil || ownerDistrict != district {
+			return SellerProduct{}, false, nil
+		}
 	}
 	if e.Price != nil || e.MRP != nil {
 		if _, err := tx.Exec(ctx, `

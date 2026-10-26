@@ -122,13 +122,16 @@ func (h *Handler) updateProduct(w http.ResponseWriter, r *http.Request) {
 		httpx.Fail(w, http.StatusBadRequest, "bad_request", "invalid stock quantity")
 		return
 	}
-	role := auth.Role(r.Context())
-	admin := role == auth.RoleStateAdmin || role == auth.RoleSuperAdmin
-	imageKey, imageAssetID, ok := h.resolveImageLink(w, r, body.ImageAssetID, body.ImageKey, admin)
+	sellerID, district, scopeOK := managementScope(r)
+	if !scopeOK {
+		httpx.Fail(w, http.StatusForbidden, "forbidden", "no product scope on this account")
+		return
+	}
+	imageKey, imageAssetID, ok := h.resolveImageLink(w, r, body.ImageAssetID, body.ImageKey, auth.IsAdmin(r.Context()))
 	if !ok {
 		return // resolveImageLink already wrote the error
 	}
-	p, found, err := h.repo.UpdateProduct(r.Context(), id, auth.SellerID(r.Context()), admin, ProductEdit{
+	p, found, err := h.repo.UpdateProduct(r.Context(), id, sellerID, district, ProductEdit{
 		Price: body.Price, MRP: body.MRP, InStockQty: body.InStockQty, Available: body.Available,
 		ImageKey: imageKey, ImageAssetID: imageAssetID,
 	})
@@ -283,11 +286,15 @@ func (h *Handler) storeProducts(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) sellerProducts(w http.ResponseWriter, r *http.Request) {
-	sellerID := strings.TrimSpace(r.URL.Query().Get("sellerId"))
-	if auth.Role(r.Context()) == auth.RoleSeller {
-		sellerID = auth.SellerID(r.Context())
+	sellerID, district, ok := managementScope(r)
+	if !ok {
+		httpx.Fail(w, http.StatusForbidden, "forbidden", "no product scope on this account")
+		return
 	}
-	items, err := h.repo.SellerProducts(r.Context(), sellerID, strings.TrimSpace(r.URL.Query().Get("status")))
+	if auth.Role(r.Context()) != auth.RoleSeller {
+		sellerID = strings.TrimSpace(r.URL.Query().Get("sellerId"))
+	}
+	items, err := h.repo.SellerProducts(r.Context(), sellerID, district, strings.TrimSpace(r.URL.Query().Get("status")))
 	if err != nil {
 		httpx.Fail(w, http.StatusInternalServerError, "catalog_unavailable", "catalog unavailable")
 		return
@@ -305,13 +312,16 @@ func (h *Handler) setProductStatus(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	status := strings.ToUpper(strings.TrimSpace(body.Status))
-	role := auth.Role(r.Context())
-	admin := role == auth.RoleStateAdmin || role == auth.RoleSuperAdmin
-	if !allowedProductStatus(status, admin) {
+	if !allowedProductStatus(status, auth.IsAdmin(r.Context())) {
 		httpx.Fail(w, http.StatusBadRequest, "bad_request", "status not permitted for this role")
 		return
 	}
-	p, ok, err := h.repo.SetProductStatus(r.Context(), id, auth.SellerID(r.Context()), status, admin)
+	sellerID, district, scopeOK := managementScope(r)
+	if !scopeOK {
+		httpx.Fail(w, http.StatusForbidden, "forbidden", "no product scope on this account")
+		return
+	}
+	p, ok, err := h.repo.SetProductStatus(r.Context(), id, sellerID, district, status)
 	if err != nil {
 		httpx.Fail(w, http.StatusInternalServerError, "catalog_unavailable", "catalog unavailable")
 		return
@@ -323,6 +333,20 @@ func (h *Handler) setProductStatus(w http.ResponseWriter, r *http.Request) {
 	h.cache.Del(r.Context(), cache.Product(id), cache.StoreProducts(p.StoreID))
 	h.log(r, "PRODUCT_"+status, id, map[string]string{"status": status})
 	httpx.JSON(w, http.StatusOK, p)
+}
+
+// managementScope resolves the row filter for product management. A seller is scoped to their own
+// seller_id; a district admin to their district (strict — no state fallback); a super admin sees all.
+func managementScope(r *http.Request) (sellerID, district string, ok bool) {
+	if auth.Role(r.Context()) == auth.RoleSeller {
+		sellerID = auth.SellerID(r.Context())
+		return sellerID, "", sellerID != ""
+	}
+	district, super, ok := auth.AdminScope(r.Context())
+	if !ok || super {
+		return "", "", ok
+	}
+	return "", district, true
 }
 
 // allowedProductStatus separates seller self-service transitions from admin moderation.

@@ -280,11 +280,15 @@ func (h *Handler) venue(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) sellerStores(w http.ResponseWriter, r *http.Request) {
-	sellerID := strings.TrimSpace(r.URL.Query().Get("sellerId"))
-	if auth.Role(r.Context()) == auth.RoleSeller {
-		sellerID = auth.SellerID(r.Context())
+	sellerID, district, ok := managementScope(r)
+	if !ok {
+		httpx.Fail(w, http.StatusForbidden, "forbidden", "no store scope on this account")
+		return
 	}
-	items, err := h.repo.SellerStores(r.Context(), sellerID)
+	if auth.Role(r.Context()) != auth.RoleSeller {
+		sellerID = strings.TrimSpace(r.URL.Query().Get("sellerId"))
+	}
+	items, err := h.repo.SellerStores(r.Context(), sellerID, district)
 	if err != nil {
 		httpx.Fail(w, http.StatusInternalServerError, "directory_unavailable", "directory unavailable")
 		return
@@ -301,9 +305,12 @@ func (h *Handler) setStoreLive(w http.ResponseWriter, r *http.Request) {
 		httpx.Fail(w, http.StatusBadRequest, "bad_request", "`live` boolean is required")
 		return
 	}
-	role := auth.Role(r.Context())
-	admin := role == auth.RoleStateAdmin || role == auth.RoleSuperAdmin
-	store, ok, err := h.repo.SetStoreLive(r.Context(), id, auth.SellerID(r.Context()), *body.Live, admin)
+	sellerID, district, scopeOK := managementScope(r)
+	if !scopeOK {
+		httpx.Fail(w, http.StatusForbidden, "forbidden", "no store scope on this account")
+		return
+	}
+	store, ok, err := h.repo.SetStoreLive(r.Context(), id, sellerID, district, *body.Live)
 	if err != nil {
 		httpx.Fail(w, http.StatusInternalServerError, "directory_unavailable", "directory unavailable")
 		return
@@ -330,7 +337,11 @@ func (h *Handler) setStoreCover(w http.ResponseWriter, r *http.Request) {
 		httpx.Fail(w, http.StatusBadRequest, "bad_request", "invalid body")
 		return
 	}
-	admin := roleAdmin(r)
+	sellerID, district, scopeOK := managementScope(r)
+	if !scopeOK {
+		httpx.Fail(w, http.StatusForbidden, "forbidden", "no store scope on this account")
+		return
+	}
 	assetID, imageKey := "", ""
 	if body.ImageAssetID != nil {
 		assetID = strings.TrimSpace(*body.ImageAssetID)
@@ -338,11 +349,11 @@ func (h *Handler) setStoreCover(w http.ResponseWriter, r *http.Request) {
 	if body.ImageKey != nil {
 		imageKey = strings.TrimSpace(*body.ImageKey)
 	}
-	key, linkedID, ok := h.resolveImageLink(w, r, assetID, imageKey, admin)
+	key, linkedID, ok := h.resolveImageLink(w, r, assetID, imageKey, auth.IsAdmin(r.Context()))
 	if !ok {
 		return
 	}
-	store, found, err := h.repo.SetStoreCover(r.Context(), id, auth.SellerID(r.Context()), key, linkedID, admin)
+	store, found, err := h.repo.SetStoreCover(r.Context(), id, sellerID, district, key, linkedID)
 	if err != nil {
 		httpx.Fail(w, http.StatusInternalServerError, "directory_unavailable", "directory unavailable")
 		return
@@ -403,15 +414,15 @@ func boolToken(b bool) string {
 }
 
 func (h *Handler) sellerMenus(w http.ResponseWriter, r *http.Request) {
-	sellerID := strings.TrimSpace(r.URL.Query().Get("sellerId"))
-	if auth.Role(r.Context()) == auth.RoleSeller {
-		sellerID = auth.SellerID(r.Context())
-		if sellerID == "" {
-			httpx.Fail(w, http.StatusForbidden, "forbidden", "no seller scope on this account")
-			return
-		}
+	sellerID, district, ok := managementScope(r)
+	if !ok {
+		httpx.Fail(w, http.StatusForbidden, "forbidden", "no menu scope on this account")
+		return
 	}
-	items, err := h.repo.SellerMenus(r.Context(), sellerID, strings.TrimSpace(r.URL.Query().Get("venueId")))
+	if auth.Role(r.Context()) != auth.RoleSeller {
+		sellerID = strings.TrimSpace(r.URL.Query().Get("sellerId"))
+	}
+	items, err := h.repo.SellerMenus(r.Context(), sellerID, district, strings.TrimSpace(r.URL.Query().Get("venueId")))
 	if err != nil {
 		httpx.Fail(w, http.StatusInternalServerError, "directory_unavailable", "directory unavailable")
 		return
@@ -459,30 +470,33 @@ func (h *Handler) upsertMenu(w http.ResponseWriter, r *http.Request) {
 		httpx.Fail(w, http.StatusBadRequest, "bad_request", "mrp must be present, non-negative and not below the selling price")
 		return
 	}
-	admin := roleAdmin(r)
-	sellerID := auth.SellerID(r.Context())
-	if !admin && sellerID == "" {
-		httpx.Fail(w, http.StatusForbidden, "forbidden", "no seller scope on this account")
-		return
-	}
-	imageKey, imageAssetID := "", ""
-	if strings.TrimSpace(req.ImageAssetID) != "" || strings.TrimSpace(req.ImageKey) != "" {
-		var ok bool
-		imageKey, imageAssetID, ok = h.resolveImageLink(w, r, req.ImageAssetID, req.ImageKey, admin)
-		if !ok {
-			return
-		}
-	}
-	m, ok, err := h.repo.UpsertMenu(r.Context(), SellerMenu{
-		VenueID: req.VenueID, DishID: req.DishID, Name: req.Name, Price: req.Price, MRP: req.MRP,
-		IsVeg: req.IsVeg, Cuisine: req.Cuisine, Rating: req.Rating, Image: req.Image,
-		ImageKey: imageKey, ImageAssetID: imageAssetID,
-	}, sellerID, admin)
+	sellerID, all, ok, err := h.menuOwner(r, req.VenueID)
 	if err != nil {
 		httpx.Fail(w, http.StatusInternalServerError, "directory_unavailable", "directory unavailable")
 		return
 	}
 	if !ok {
+		httpx.Fail(w, http.StatusForbidden, "forbidden", "no menu scope on this account")
+		return
+	}
+	imageKey, imageAssetID := "", ""
+	if strings.TrimSpace(req.ImageAssetID) != "" || strings.TrimSpace(req.ImageKey) != "" {
+		var imageOK bool
+		imageKey, imageAssetID, imageOK = h.resolveImageLink(w, r, req.ImageAssetID, req.ImageKey, auth.IsAdmin(r.Context()))
+		if !imageOK {
+			return
+		}
+	}
+	m, found, err := h.repo.UpsertMenu(r.Context(), SellerMenu{
+		VenueID: req.VenueID, DishID: req.DishID, Name: req.Name, Price: req.Price, MRP: req.MRP,
+		IsVeg: req.IsVeg, Cuisine: req.Cuisine, Rating: req.Rating, Image: req.Image,
+		ImageKey: imageKey, ImageAssetID: imageAssetID,
+	}, sellerID, all)
+	if err != nil {
+		httpx.Fail(w, http.StatusInternalServerError, "directory_unavailable", "directory unavailable")
+		return
+	}
+	if !found {
 		httpx.Fail(w, http.StatusForbidden, "forbidden", "dish belongs to another seller")
 		return
 	}
@@ -501,18 +515,26 @@ func (h *Handler) setMenuStatus(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	status = strings.ToUpper(strings.TrimSpace(body.Status))
-	admin := roleAdmin(r)
-	if !allowedMenuStatus(status, admin) {
+	if !allowedMenuStatus(status, auth.IsAdmin(r.Context())) {
 		httpx.Fail(w, http.StatusBadRequest, "bad_request", "status not permitted for this role")
 		return
 	}
 	venueID := chi.URLParam(r, "venueId")
-	m, ok, err := h.repo.SetMenuStatus(r.Context(), venueID, chi.URLParam(r, "dishId"), auth.SellerID(r.Context()), status, admin)
+	sellerID, all, ok, err := h.menuOwner(r, venueID)
 	if err != nil {
 		httpx.Fail(w, http.StatusInternalServerError, "directory_unavailable", "directory unavailable")
 		return
 	}
 	if !ok {
+		httpx.Fail(w, http.StatusForbidden, "forbidden", "no menu scope on this account")
+		return
+	}
+	m, found, err := h.repo.SetMenuStatus(r.Context(), venueID, chi.URLParam(r, "dishId"), sellerID, status, all)
+	if err != nil {
+		httpx.Fail(w, http.StatusInternalServerError, "directory_unavailable", "directory unavailable")
+		return
+	}
+	if !found {
 		httpx.Fail(w, http.StatusNotFound, "not_found", "dish not found")
 		return
 	}
@@ -523,12 +545,21 @@ func (h *Handler) setMenuStatus(w http.ResponseWriter, r *http.Request) {
 
 func (h *Handler) deleteMenu(w http.ResponseWriter, r *http.Request) {
 	venueID := chi.URLParam(r, "venueId")
-	ok, err := h.repo.DeleteMenu(r.Context(), venueID, chi.URLParam(r, "dishId"), auth.SellerID(r.Context()), roleAdmin(r))
+	sellerID, all, ok, err := h.menuOwner(r, venueID)
 	if err != nil {
 		httpx.Fail(w, http.StatusInternalServerError, "directory_unavailable", "directory unavailable")
 		return
 	}
 	if !ok {
+		httpx.Fail(w, http.StatusForbidden, "forbidden", "no menu scope on this account")
+		return
+	}
+	deleted, err := h.repo.DeleteMenu(r.Context(), venueID, chi.URLParam(r, "dishId"), sellerID, all)
+	if err != nil {
+		httpx.Fail(w, http.StatusInternalServerError, "directory_unavailable", "directory unavailable")
+		return
+	}
+	if !deleted {
 		httpx.Fail(w, http.StatusNotFound, "not_found", "dish not found")
 		return
 	}
@@ -537,9 +568,37 @@ func (h *Handler) deleteMenu(w http.ResponseWriter, r *http.Request) {
 	httpx.JSON(w, http.StatusOK, map[string]bool{"ok": true})
 }
 
-func roleAdmin(r *http.Request) bool {
-	role := auth.Role(r.Context())
-	return role == auth.RoleStateAdmin || role == auth.RoleSuperAdmin
+// managementScope resolves the row filter for store/menu management. A seller is scoped to their
+// own seller_id; a district admin to their district (strict — no state fallback); a super admin
+// sees all.
+func managementScope(r *http.Request) (sellerID, district string, ok bool) {
+	if auth.Role(r.Context()) == auth.RoleSeller {
+		sellerID = auth.SellerID(r.Context())
+		return sellerID, "", sellerID != ""
+	}
+	district, super, ok := auth.AdminScope(r.Context())
+	if !ok || super {
+		return "", "", ok
+	}
+	return "", district, true
+}
+
+// menuOwner resolves the seller that owns a venue. A district admin may only manage menus for a
+// store whose seller belongs to their district; dining venues without a seller are SUPER_ADMIN-only.
+// all=true is the super-admin bypass.
+func (h *Handler) menuOwner(r *http.Request, venueID string) (sellerID string, all, ok bool, err error) {
+	sellerID, district, ok := managementScope(r)
+	if !ok {
+		return "", false, false, nil
+	}
+	if district == "" {
+		return sellerID, auth.Role(r.Context()) == auth.RoleSuperAdmin, true, nil
+	}
+	sellerID, found, err := h.repo.VenueSellerInDistrict(r.Context(), venueID, district)
+	if err != nil {
+		return "", false, false, err
+	}
+	return sellerID, false, found, nil
 }
 
 // allowedMenuStatus mirrors catalog's product-status gate: sellers self-serve DRAFT/PENDING/DELISTED,

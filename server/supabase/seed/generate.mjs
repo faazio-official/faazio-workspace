@@ -80,8 +80,11 @@ const isPrescription = (e) => e.app === 'PHARMA' && PRESCRIPTION_CATEGORIES.has(
 // catalog rows (asserted by `assertLeanContract`), so the app's `getProductsByIds` join never drops
 // a placement.
 const DEMO_SELLERS = [
-  { id: 'sel-3', businessName: 'Faazio Mart Flagship', ownerName: 'Faazio Retail', app: 'MART', state: 'KA' },
+  { id: 'sel-3', businessName: 'Faazio Mart Flagship', ownerName: 'Faazio Retail', app: 'MART', state: 'TN', district: 'TCH' },
+  { id: 'sel-pharma', businessName: 'Faazio Pharma Flagship', ownerName: 'Faazio Health', app: 'PHARMA', state: 'TN', district: 'TCH' },
+  { id: 'sel-food', businessName: 'Faazio Food Flagship', ownerName: 'Faazio Kitchens', app: 'FOOD', state: 'TN', district: 'TCH' },
 ];
+const sellerForApp = (app) => ({ MART: 'sel-3', PHARMA: 'sel-pharma', FOOD: 'sel-food' }[app] ?? 'sel-3');
 const SPONSORED_SLOTS = [
   { slotId: 'ad-demo-home-1', sellerId: 'sel-3', productId: 'fm-m1', placement: 'HOME_TOP' },
   { slotId: 'ad-demo-home-2', sellerId: 'sel-3', productId: 'fm-m2', placement: 'HOME_TOP' },
@@ -102,21 +105,21 @@ const DEMO_HEROES = [
     placementId: 'ad-cmp-demo-mart-1', campaignId: 'cmp-demo-mart', sellerId: 'sel-3',
     placement: 'MART_HERO', targetType: 'PRODUCT', targetId: 'fm-m1', targetApp: 'MART',
     category: null, storeId: null, title: 'Big Savings Everyday', subtitle: 'UP TO 50% OFF',
-    cta: 'Shop Now', state: 'KA',
+    cta: 'Shop Now', state: 'TN',
     imageUrl: 'https://images.unsplash.com/photo-1542838132-92c53300491e?fm=jpg&fit=crop&q=80&w=800&h=450',
   },
   {
     placementId: 'ad-cmp-demo-cat-1', campaignId: 'cmp-demo-cat', sellerId: 'sel-3',
     placement: 'CATEGORY_TOP', targetType: 'PRODUCT', targetId: 'fm-gad10', targetApp: 'MART',
     category: 'cat_smart_gadgets', storeId: null, title: 'Gadget Fest', subtitle: 'FLAT 40% OFF',
-    cta: 'Shop Now', state: 'KA',
+    cta: 'Shop Now', state: 'TN',
     imageUrl: 'https://images.unsplash.com/photo-1498050108023-c5249f4df085?fm=jpg&fit=crop&q=80&w=800&h=450',
   },
   {
     placementId: 'ad-cmp-demo-store-1', campaignId: 'cmp-demo-store', sellerId: 'sel-3',
     placement: 'STORE_TOP', targetType: 'STORE', targetId: 'store-m1', targetApp: 'MART',
     category: null, storeId: 'store-m1', title: 'Fresh Groceries Doorstep', subtitle: 'FREE DELIVERY',
-    cta: 'View Store', state: 'KA',
+    cta: 'View Store', state: 'TN',
     imageUrl: 'https://images.unsplash.com/photo-1579113800032-c38bd1625818?fm=jpg&fit=crop&q=80&w=800&h=450',
   },
   // Food sub-app hero (FOOD_HERO) — two LIVE poster creatives targeting real FOOD stores so the
@@ -125,14 +128,14 @@ const DEMO_HEROES = [
     placementId: 'ad-cmp-demo-foodhero-1', campaignId: 'cmp-demo-foodhero', sellerId: 'sel-3',
     placement: 'FOOD_HERO', targetType: 'STORE', targetId: 'store-f1', targetApp: 'FOOD',
     category: null, storeId: null, title: 'Biryani Festival', subtitle: 'FLAT ₹150 OFF',
-    cta: 'Order Now', state: 'KA',
+    cta: 'Order Now', state: 'TN',
     imageUrl: 'https://images.unsplash.com/photo-1563379091339-03b21ab4a4f8?fm=jpg&fit=crop&q=80&w=800&h=450',
   },
   {
     placementId: 'ad-cmp-demo-foodhero-2', campaignId: 'cmp-demo-foodhero', sellerId: 'sel-3',
     placement: 'FOOD_HERO', targetType: 'STORE', targetId: 'store-f8', targetApp: 'FOOD',
     category: null, storeId: null, title: 'Royal Mughlai Feast', subtitle: 'FESTIVE40 — 40% OFF',
-    cta: 'Order Now', state: 'KA',
+    cta: 'Order Now', state: 'TN',
     imageUrl: 'https://images.unsplash.com/photo-1585032226651-759b368d7246?fm=jpg&fit=crop&q=80&w=800&h=450',
   },
 ];
@@ -162,13 +165,14 @@ if (manifest) {
 // ---------------------------------------------------------------- directory
 sql.push(inserts(
   'directory.stores',
-  ['id', 'app', 'name', 'categories', 'rating', 'reviews_count', 'delivery_time', 'distance', 'cover_image', 'cover_image_key', 'cover_image_asset_id', 'emoji', 'desc_text', 'offer_tag', 'is_veg', 'address', 'phone', 'hours', 'latitude', 'longitude'],
+  ['id', 'app', 'name', 'categories', 'rating', 'reviews_count', 'delivery_time', 'distance', 'cover_image', 'cover_image_key', 'cover_image_asset_id', 'emoji', 'desc_text', 'offer_tag', 'is_veg', 'address', 'phone', 'hours', 'latitude', 'longitude', 'seller_id', 'state_code'],
   d.storeDirectory.map((s) => {
     const cover = entryFor(manifest, s.coverImage);
     return [
       q(s.id), APP(s.app), q(s.name), arr(s.categories), n(s.rating), n(s.reviewsCount ?? 0),
       q(s.deliveryTime), q(s.distance), q(s.coverImage), q(cover?.key), q(cover?.id), q(s.emoji),
       q(s.desc), q(s.offerTag), b(s.isVeg), q(s.address), q(s.phone), q(s.hours), n(s.latitude), n(s.longitude),
+      q(sellerForApp(s.app)), q('TN'),
     ];
   }),
 ));
@@ -197,12 +201,13 @@ for (const [name, dishes] of Object.entries(venueMenus)) {
       q(venueId), q(dish.id), q(dish.dishName), paisa(dish.price), paisa(dish.mrp), b(dish.isVeg),
       q(dish.cuisine), n(dish.rating), q(dish.image), q(img?.key), q(img?.id),
       q(dish.description ?? ''), q(dish.emoji ?? ''), q(dish.deliveryTime ?? ''), `'ACTIVE'::product_status`,
+      q('sel-food'),
     ]);
   }
 }
 sql.push(inserts(
   'directory.menus',
-  ['venue_id', 'dish_id', 'name', 'price_paisa', 'mrp_paisa', 'is_veg', 'cuisine', 'rating', 'image', 'image_key', 'image_asset_id', 'description', 'emoji', 'delivery_time', 'status'],
+  ['venue_id', 'dish_id', 'name', 'price_paisa', 'mrp_paisa', 'is_veg', 'cuisine', 'rating', 'image', 'image_key', 'image_asset_id', 'description', 'emoji', 'delivery_time', 'status', 'seller_id'],
   menuRows,
 ));
 
@@ -223,7 +228,7 @@ sql.push(inserts(
 // ---------------------------------------------------------------- catalog + inventory
 sql.push(inserts(
   'catalog.products',
-  ['id', 'app', 'category', 'name', 'search_tokens', 'price_paisa', 'mrp_paisa', 'rating', 'reviews_count', 'emoji', 'image_url', 'image_key', 'image_asset_id', 'desc_text', 'badge', 'shop', 'unit', 'attributes', 'store_id', 'is_prescription', 'is_veg', 'status'],
+  ['id', 'app', 'category', 'name', 'search_tokens', 'price_paisa', 'mrp_paisa', 'rating', 'reviews_count', 'emoji', 'image_url', 'image_key', 'image_asset_id', 'desc_text', 'badge', 'shop', 'unit', 'attributes', 'store_id', 'is_prescription', 'is_veg', 'status', 'seller_id'],
   d.catalogIndex.map((e) => {
     const meta = productMeta.get(e.id);
     const storeId = meta?.storeId && storeIds.has(meta.storeId) ? meta.storeId : null;
@@ -232,7 +237,7 @@ sql.push(inserts(
       q(e.id), APP(e.app), q(e.category), q(e.name), arr(e.searchTokens),
       paisa(e.price), paisa(e.originalPrice), n(e.rating), n(e.reviewsCount ?? 0),
       q(e.emoji), q(e.image), q(img?.key), q(img?.id), q(e.desc), q(e.badge), q(e.shop), q(e.unit), jsonb(e.attributes),
-      q(storeId), b(isPrescription(e)), b(meta?.isVeg), `'ACTIVE'::product_status`,
+      q(storeId), b(isPrescription(e)), b(meta?.isVeg), `'ACTIVE'::product_status`, q(sellerForApp(e.app)),
     ];
   }),
 ));
@@ -411,8 +416,8 @@ sql.push(inserts(
 // Must follow the seller insert (FK) — the ads rail is the anon `GET /ads/live` projection.
 sql.push(inserts(
   'sellers.sellers',
-  ['seller_id', 'business_name', 'owner_name', 'category', 'state_code', 'status'],
-  DEMO_SELLERS.map((s) => [q(s.id), q(s.businessName), q(s.ownerName), APP(s.app), q(s.state), `'ACTIVE'::seller_status`]),
+  ['seller_id', 'business_name', 'owner_name', 'category', 'state_code', 'district_code', 'status'],
+  DEMO_SELLERS.map((s) => [q(s.id), q(s.businessName), q(s.ownerName), APP(s.app), q(s.state), q(s.district), `'ACTIVE'::seller_status`]),
 ));
 sql.push(inserts(
   'ads.sponsored_slots',

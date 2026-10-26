@@ -9,6 +9,25 @@ dependencies exist. Do not build the backend/seller flows until told to.
 
 ---
 
+## W70 — Strict district scope for seller-owned catalog/directory/pharma (P0)
+
+**Status:** 🟢 Shipped (gateway + seed + migration `0057`).
+
+- Catalog/directory/pharma management routes now use `auth.AdminScope`: `SUPER_ADMIN` is unscoped;
+  `DISTRICT_ADMIN` must carry `district_code` and gets no parent-state fallback. Product/store/menu
+  and vendor-prescription rows must resolve `seller_id` to a seller in that district.
+- Unowned rows (and dining menus with no store seller) are super-admin-only until backfilled;
+  district-created menus resolve the seller through the store venue.
+- Seed now assigns three demo sellers (`sel-3` MART, `sel-pharma` PHARMA, `sel-food` FOOD) and writes
+  store/product/menu ownership; `0057` backfills store state, product seller and menu seller from
+  existing store relationships.
+- Docs: `docs/architecture/db-schema.md` §12.29, `mvp-backend.md`, `monolith-breakdown.md` §1.
+- Out of scope: `media` moderation and `admins` customer/audit reads remain coarse.
+
+**Date:** 2026-10-27
+
+---
+
 ## W69 — Server-authority cleanup: Pharma grid, PDP store, search (P1)
 
 **Status:** 🟢 Shipped (mobile + gateway dev CORS).

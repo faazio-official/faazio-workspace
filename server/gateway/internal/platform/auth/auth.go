@@ -252,6 +252,21 @@ func IsPortal(ctx context.Context) bool {
 	return false
 }
 
+// AdminScope returns the district filter for an admin caller. super=true means no row filter
+// (SUPER_ADMIN). ok=false means the caller is not an admin, or is a DISTRICT_ADMIN without a
+// district claim — strict scoping never falls back to state for a district-scoped resource.
+func AdminScope(ctx context.Context) (district string, super bool, ok bool) {
+	switch Role(ctx) {
+	case RoleSuperAdmin:
+		return "", true, true
+	case RoleDistrictAdmin:
+		d := DistrictCode(ctx)
+		return d, false, d != ""
+	default:
+		return "", false, false
+	}
+}
+
 // IsAdmin reports whether the caller is a state or super admin.
 func IsAdmin(ctx context.Context) bool {
 	switch Role(ctx) {

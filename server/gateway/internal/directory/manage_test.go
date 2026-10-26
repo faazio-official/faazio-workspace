@@ -24,8 +24,8 @@ func TestStoreLiveModeration(t *testing.T) {
 
 	sellerID := "sel-dir-" + manageID("")
 	if _, err := pool.Exec(ctx, `
-		insert into sellers.sellers (seller_id, business_name, owner_name, category, state_code)
-		values ($1,'Directory Test','O','MART','KA')`, sellerID); err != nil {
+		insert into sellers.sellers (seller_id, business_name, owner_name, category, state_code, district_code)
+		values ($1,'Directory Test','O','MART','TN','TCH')`, sellerID); err != nil {
 		t.Fatalf("seed seller: %v", err)
 	}
 	t.Cleanup(func() { _, _ = pool.Exec(ctx, `delete from sellers.sellers where seller_id=$1`, sellerID) })
@@ -33,7 +33,7 @@ func TestStoreLiveModeration(t *testing.T) {
 	storeID := "store-" + manageID("")
 	if _, err := pool.Exec(ctx, `
 		insert into directory.stores (id, app, name, seller_id, state_code, is_live)
-		values ($1,'MART','Live Test',$2,'KA', false)`, storeID, sellerID); err != nil {
+		values ($1,'MART','Live Test',$2,'TN', false)`, storeID, sellerID); err != nil {
 		t.Fatalf("seed store: %v", err)
 	}
 	t.Cleanup(func() { _, _ = pool.Exec(ctx, `delete from directory.stores where id=$1`, storeID) })
@@ -50,10 +50,10 @@ func TestStoreLiveModeration(t *testing.T) {
 	}
 
 	// Cross-seller write denied; owner can go live; public list then includes it.
-	if _, ok, err := repo.SetStoreLive(ctx, storeID, "sel-other", true, false); err != nil || ok {
+	if _, ok, err := repo.SetStoreLive(ctx, storeID, "sel-other", "", true); err != nil || ok {
 		t.Fatalf("cross-seller live write must be denied: ok=%v err=%v", ok, err)
 	}
-	if s, ok, err := repo.SetStoreLive(ctx, storeID, sellerID, true, false); err != nil || !ok || !s.IsLive {
+	if s, ok, err := repo.SetStoreLive(ctx, storeID, sellerID, "", true); err != nil || !ok || !s.IsLive {
 		t.Fatalf("owner go-live: ok=%v err=%v live=%v", ok, err, s.IsLive)
 	}
 	page, _ = repo.ByAppPage(ctx, "MART", 500, 0, "", false)
@@ -67,9 +67,21 @@ func TestStoreLiveModeration(t *testing.T) {
 		t.Fatal("live store missing from the public list")
 	}
 
-	stores, err := repo.SellerStores(ctx, sellerID)
+	stores, err := repo.SellerStores(ctx, sellerID, "")
 	if err != nil || len(stores) != 1 {
 		t.Fatalf("SellerStores: err=%v n=%d", err, len(stores))
+	}
+	if stores, err := repo.SellerStores(ctx, "", "TCH"); err != nil || len(stores) != 1 {
+		t.Fatalf("district SellerStores: err=%v n=%d", err, len(stores))
+	}
+	if stores, err := repo.SellerStores(ctx, "", "TCO"); err != nil || len(stores) != 0 {
+		t.Fatalf("cross-district SellerStores must be empty: err=%v n=%d", err, len(stores))
+	}
+	if owner, ok, err := repo.VenueSellerInDistrict(ctx, storeID, "TCH"); err != nil || !ok || owner != sellerID {
+		t.Fatalf("VenueSellerInDistrict: ok=%v err=%v owner=%q", ok, err, owner)
+	}
+	if _, ok, err := repo.VenueSellerInDistrict(ctx, storeID, "TCO"); err != nil || ok {
+		t.Fatalf("cross-district venue must be denied: ok=%v err=%v", ok, err)
 	}
 }
 

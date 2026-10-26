@@ -175,9 +175,12 @@ func (h *Handler) imageURLs(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	id := chi.URLParam(r, "id")
-	role := auth.Role(r.Context())
-	admin := role == auth.RoleStateAdmin || role == auth.RoleSuperAdmin
-	paths, ok, err := h.repo.ImagePathsFor(r.Context(), id, auth.UserID(r.Context()), auth.SellerID(r.Context()), admin)
+	sellerID, district, scopeOK := prescriptionScope(r)
+	if auth.IsAdmin(r.Context()) && !scopeOK {
+		httpx.Fail(w, http.StatusForbidden, "forbidden", "no prescription scope on this account")
+		return
+	}
+	paths, ok, err := h.repo.ImagePathsFor(r.Context(), id, auth.UserID(r.Context()), sellerID, district, auth.Role(r.Context()) == auth.RoleSuperAdmin)
 	if err != nil {
 		httpx.Fail(w, http.StatusInternalServerError, "prescriptions_unavailable", "prescriptions unavailable")
 		return
@@ -204,12 +207,16 @@ func randomObjectName() string {
 }
 
 func (h *Handler) vendorList(w http.ResponseWriter, r *http.Request) {
-	sellerID := strings.TrimSpace(r.URL.Query().Get("sellerId"))
-	if auth.Role(r.Context()) == auth.RoleSeller {
-		sellerID = auth.SellerID(r.Context())
+	sellerID, district, ok := prescriptionScope(r)
+	if !ok {
+		httpx.Fail(w, http.StatusForbidden, "forbidden", "no prescription scope on this account")
+		return
+	}
+	if auth.Role(r.Context()) != auth.RoleSeller {
+		sellerID = strings.TrimSpace(r.URL.Query().Get("sellerId"))
 	}
 	status := strings.ToUpper(strings.TrimSpace(r.URL.Query().Get("status")))
-	items, err := h.repo.VendorPrescriptions(r.Context(), sellerID, status)
+	items, err := h.repo.VendorPrescriptions(r.Context(), sellerID, district, status)
 	if err != nil {
 		httpx.Fail(w, http.StatusInternalServerError, "prescriptions_unavailable", "prescriptions unavailable")
 		return
@@ -222,9 +229,12 @@ func (h *Handler) vendorList(w http.ResponseWriter, r *http.Request) {
 // (admin sees all). Used by the portal deep-link view.
 func (h *Handler) vendorGet(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "id")
-	role := auth.Role(r.Context())
-	admin := role == auth.RoleStateAdmin || role == auth.RoleSuperAdmin
-	p, ok, err := h.repo.VendorPrescriptionByID(r.Context(), id, auth.SellerID(r.Context()), admin)
+	sellerID, district, scopeOK := prescriptionScope(r)
+	if !scopeOK {
+		httpx.Fail(w, http.StatusForbidden, "forbidden", "no prescription scope on this account")
+		return
+	}
+	p, ok, err := h.repo.VendorPrescriptionByID(r.Context(), id, sellerID, district)
 	if err != nil {
 		httpx.Fail(w, http.StatusInternalServerError, "prescriptions_unavailable", "prescriptions unavailable")
 		return
@@ -273,8 +283,12 @@ func (h *Handler) upsertQuote(w http.ResponseWriter, r *http.Request) {
 		items = append(items, QuoteItem{Name: name, Qty: it.Qty, MRP: it.MRP, Price: it.Price, Discount: it.Discount})
 	}
 	role := auth.Role(r.Context())
-	admin := role == auth.RoleStateAdmin || role == auth.RoleSuperAdmin
-	p, ok, err := h.repo.UpsertQuote(r.Context(), id, auth.SellerID(r.Context()), actorID(r), role, admin, items)
+	sellerID, district, scopeOK := prescriptionScope(r)
+	if !scopeOK {
+		httpx.Fail(w, http.StatusForbidden, "forbidden", "no prescription scope on this account")
+		return
+	}
+	p, ok, err := h.repo.UpsertQuote(r.Context(), id, sellerID, district, actorID(r), role, items)
 	if err != nil {
 		httpx.Fail(w, http.StatusInternalServerError, "quote_failed", "could not save quote")
 		return
@@ -306,16 +320,20 @@ func (h *Handler) setStatus(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	role := auth.Role(r.Context())
-	admin := role == auth.RoleStateAdmin || role == auth.RoleSuperAdmin
+	sellerID, district, scopeOK := prescriptionScope(r)
+	if !scopeOK {
+		httpx.Fail(w, http.StatusForbidden, "forbidden", "no prescription scope on this account")
+		return
+	}
 	// Idempotency: a repeated READY (or a READY on an already-FULFILLED Rx) must not fire a second
 	// customer notification. The repo no-ops the duplicate history row; we suppress the notify here.
 	notify := status == "READY"
 	if notify {
-		if prev, ok, err := h.repo.ScopedStatus(r.Context(), id, auth.SellerID(r.Context()), admin); err == nil && ok && (prev == "READY" || prev == "FULFILLED") {
+		if prev, ok, err := h.repo.ScopedStatus(r.Context(), id, sellerID, district); err == nil && ok && (prev == "READY" || prev == "FULFILLED") {
 			notify = false
 		}
 	}
-	p, ok, err := h.repo.SetStatus(r.Context(), id, auth.SellerID(r.Context()), status, actorID(r), role, admin)
+	p, ok, err := h.repo.SetStatus(r.Context(), id, sellerID, district, status, actorID(r), role)
 	switch {
 	case errors.Is(err, ErrEmptyQuote):
 		httpx.Fail(w, http.StatusBadRequest, "empty_quote", "add at least one quoted item before marking ready")
@@ -346,6 +364,21 @@ func (h *Handler) notifyReady(r *http.Request, p Prescription) {
 		"Your prescription is ready",
 		"The pharmacy has quoted your prescription. Tap to review and order.",
 		map[string]any{"prescriptionId": p.ID})
+}
+
+// prescriptionScope resolves the vendor row filter. A seller is scoped to their own seller_id; a
+// district admin to their district (strict); a super admin sees all. Customers get no vendor scope
+// (their own-prescription routes are handled by user_id).
+func prescriptionScope(r *http.Request) (sellerID, district string, ok bool) {
+	if auth.Role(r.Context()) == auth.RoleSeller {
+		sellerID = auth.SellerID(r.Context())
+		return sellerID, "", sellerID != ""
+	}
+	district, super, ok := auth.AdminScope(r.Context())
+	if !ok || super {
+		return "", "", ok
+	}
+	return "", district, true
 }
 
 func allowedRxStatus(s string) bool {

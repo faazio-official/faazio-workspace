@@ -71,7 +71,7 @@ sign-out is the only seller session authority (HttpOnly cookies).
 | `seller/returns` · `seller/reviews` · `seller/payments` | after-sales — commission-free payments ledger (TCS, TDS 0.1%, product GST; sellers keep full gross) | all |
 | `seller/analytics` · `seller/support` · `seller/settings` · `seller/onboarding` | console | all |
 
-**District admin console (`app/admin/district/**`)** — district-scoped oversight (campaigns, coupons and ads remain state-level; delivery allocation and payouts are district-scoped).
+**District admin console (`app/admin/district/**`)** — district-scoped oversight (campaigns, coupons and ads remain state-level; delivery allocation and payouts are district-scoped). Seller-owned catalog/store/menu and Rx quote/status endpoints are strict (`0057`): district admins need a district claim, rows must resolve to a seller in it, and unowned/dining menus are super-admin-only.
 
 | Route | Page |
 | --- | --- |

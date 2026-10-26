@@ -255,3 +255,41 @@ func TestCanActForSellerDistrict(t *testing.T) {
 		})
 	}
 }
+
+func TestAdminScope(t *testing.T) {
+	cases := []struct {
+		name         string
+		ctx          context.Context
+		wantDistrict string
+		wantSuper    bool
+		wantOK       bool
+	}{
+		{
+			name:      "super admin sees all",
+			ctx:       context.WithValue(context.Background(), identityKey{}, Identity{Role: RoleSuperAdmin}),
+			wantSuper: true, wantOK: true,
+		},
+		{
+			name:         "district admin is district scoped",
+			ctx:          context.WithValue(context.Background(), identityKey{}, Identity{Role: RoleDistrictAdmin, DistrictCode: "TCH"}),
+			wantDistrict: "TCH", wantOK: true,
+		},
+		{
+			name: "district admin without district is denied",
+			ctx:  context.WithValue(context.Background(), identityKey{}, Identity{Role: RoleDistrictAdmin, StateCode: "TN"}),
+		},
+		{
+			name: "seller is not an admin",
+			ctx:  context.WithValue(context.Background(), identityKey{}, Identity{Role: RoleSeller, SellerID: "sel-1"}),
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			district, super, ok := AdminScope(tc.ctx)
+			if district != tc.wantDistrict || super != tc.wantSuper || ok != tc.wantOK {
+				t.Fatalf("AdminScope = (%q, %v, %v), want (%q, %v, %v)",
+					district, super, ok, tc.wantDistrict, tc.wantSuper, tc.wantOK)
+			}
+		})
+	}
+}

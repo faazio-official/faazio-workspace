@@ -152,6 +152,15 @@ Every endpoint above now has a `GatewayClient` method (`getVendorReviews`, `rate
 `authStore.login()`). Sellers and admins sign in to the seller app with the same portal email/password
 through `POST /auth/portal/login` (HS256 portal JWT + opaque refresh token).
 
+**Strict district scope (migration `0057`).** The seller-owned catalog/directory/pharma management
+routes (`/seller/products`, `/seller/stores`, `/seller/menus`, vendor prescription list/detail/quote/
+status/images) now require a district-precise admin: `SUPER_ADMIN` is unscoped; `DISTRICT_ADMIN`
+must carry a non-empty `district_code` and gets **no** parent-state fallback. Access requires the row's
+`seller_id` to resolve to a seller in that district; unowned rows are super-admin-only until
+backfilled. District-created menus resolve the seller through the **store** venue, so a dining venue
+without a store seller is super-admin-only. `sellers` RLS/legacy fallback and media/admin surfaces
+are unchanged.
+
 No gRPC yet; `contracts/` holds Go interfaces that mirror the future `.proto` shape. Method
 signatures above keep the `@mock` → `@server` swap call-site-compatible (`GatewayClient` adds a
 `baseUrl`/flag and is server-only — no `@data/*` runtime fallback). Local dev runs:
