@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { StyleSheet, View, ScrollView, Image, TouchableOpacity } from 'react-native';
+import { StyleSheet, View, ScrollView, Image, TouchableOpacity, ActivityIndicator } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import {
@@ -25,7 +25,7 @@ import { quickReorderToProduct } from './mocks/pharmaHomeFeed';
 import PharmaHeroBanner from './components/pharma-home/PharmaHeroBanner';
 import CampaignHero from '@/components/shared/CampaignHero';
 import { openHeroTarget } from '@/services/adsTarget';
-import { gateway, type HeroAd } from '@/services/api/GatewayClient';
+import { gateway, type HeroAd, type ProductView } from '@/services/api/GatewayClient';
 import { effectivePrice, useActiveDiscounts, withActiveDiscounts } from '@/services/pricing';
 import QuickReorderRail from './components/pharma-home/QuickReorderRail';
 import TopOffersRail from './components/pharma-home/TopOffersRail';
@@ -54,6 +54,26 @@ function formatPlacedDate(iso: string): string {
 function isPharmaOrder(o: PlacedOrder): boolean {
   if (o.kind === 'prescription') return true;
   return (o.items ?? []).some((i) => i.id.startsWith('ph-'));
+}
+
+/**
+ * Overlay the authoritative batch row onto an authored category card. `/products/batch` is a slim
+ * projection (no desc/attributes), so authored copy (desc/bullets) is preserved while money, stock
+ * signals, rating and imagery come from the server.
+ */
+function overlayCategoryProduct(authored: PharmaDBItem, row: ProductView): PharmaDBItem {
+  return {
+    ...authored,
+    category: row.category || authored.category,
+    name: row.name || authored.name,
+    price: row.price,
+    originalPrice: row.originalPrice ?? null,
+    discountBadge: row.badge ?? null,
+    rating: row.rating,
+    reviewsCount: row.reviewsCount ?? authored.reviewsCount,
+    image: row.image || authored.image,
+    emoji: row.emoji || authored.emoji,
+  };
 }
 
 interface PharmaScreenProps {
@@ -87,6 +107,8 @@ export function PharmaScreen({
   const [addedAnimationId, setAddedAnimationId] = useState<string | null>(null);
   const [feedAddedIds, setFeedAddedIds] = useState<Set<string>>(new Set());
   const [localFavorites, setLocalFavorites] = useState<string[]>(['ph-t1', 'ph-f1']);
+  const [categorySource, setCategorySource] = useState<'idle' | 'loading' | 'live' | 'fallback'>('idle');
+  const [categoryServerById, setCategoryServerById] = useState<Record<string, ProductView> | null>(null);
 
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const feed = usePharmaFeed();
@@ -114,6 +136,34 @@ export function PharmaScreen({
     () => PHARMA_PRODUCTS_DB.filter(p => p.category === selectedCategoryId).map(p => p.id),
     [selectedCategoryId],
   );
+
+  // The authored `ph-*` list is curation (ids + copy); the gateway batch is the price/rating/
+  // availability authority. Online: never render authored prices while the batch is in flight or
+  // after it answers (delisted ids drop out). Offline/HTTP error: authored rows keep the grid usable.
+  useEffect(() => {
+    if (!selectedCategoryId || categoryProductIds.length === 0) {
+      setCategoryServerById(null);
+      setCategorySource('idle');
+      return;
+    }
+    let active = true;
+    setCategoryServerById(null);
+    setCategorySource('loading');
+    gateway
+      .getProductsByIds(categoryProductIds)
+      .then((rows) => {
+        if (!active) return;
+        setCategoryServerById(Object.fromEntries(rows.map((row) => [row.id, row])));
+        setCategorySource('live');
+      })
+      .catch(() => {
+        if (!active) return;
+        setCategorySource('fallback');
+      });
+    return () => {
+      active = false;
+    };
+  }, [selectedCategoryId, categoryProductIds]);
   const categoryDiscounts = useActiveDiscounts(categoryProductIds);
   const discountFor = (id: string) => categoryDiscounts[id]?.discountPercent ?? 0;
   const displayPrice = (p: { id: string; price: number }) => effectivePrice(p.price, discountFor(p.id));
@@ -192,10 +242,20 @@ export function PharmaScreen({
 
   const searchedProducts = homeSearchNormalized ? searchResults : [];
 
-  const filteredCategoryProducts = PHARMA_PRODUCTS_DB.filter(p =>
-    p.category === selectedCategoryId &&
-    (categorySearchQuery === '' || p.name.toLowerCase().includes(categorySearchQuery.toLowerCase()))
-  );
+  const filteredCategoryProducts = useMemo(() => {
+    const q = categorySearchQuery.trim().toLowerCase();
+    const authored = PHARMA_PRODUCTS_DB.filter(
+      (p) => p.category === selectedCategoryId && (q === '' || p.name.toLowerCase().includes(q)),
+    );
+    if (categorySource === 'live' && categoryServerById) {
+      return authored.flatMap((p) => {
+        const row = categoryServerById[p.id];
+        return row ? [overlayCategoryProduct(p, row)] : [];
+      });
+    }
+    if (categorySource === 'fallback' || !gateway.remoteEnabled) return authored;
+    return [];
+  }, [selectedCategoryId, categorySearchQuery, categorySource, categoryServerById]);
 
   const renderStars = (rating: number, size: number = 10) => {
     return Array.from({ length: 5 }, (_, i) => (
@@ -358,7 +418,11 @@ export function PharmaScreen({
         />
       </View>
 
-      {filteredCategoryProducts.length === 0 ? (
+      {categorySource === 'loading' ? (
+        <View style={styles.categoryLoading}>
+          <ActivityIndicator color="#FF7A59" />
+        </View>
+      ) : filteredCategoryProducts.length === 0 ? (
         <View style={styles.emptyStateCard}>
           <AppText style={styles.emptyStateEmoji}>💊</AppText>
           <AppText style={styles.emptyStateTitle}>No products found</AppText>
@@ -705,6 +769,10 @@ const styles = StyleSheet.create({
     flexWrap: 'wrap',
     paddingHorizontal: hs(16),
     gap: hs(12),
+  },
+  categoryLoading: {
+    paddingVertical: vs(60),
+    alignItems: 'center',
   },
   emptyStateCard: {
     marginHorizontal: hs(20),

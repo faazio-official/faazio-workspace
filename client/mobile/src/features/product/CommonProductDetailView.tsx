@@ -123,15 +123,38 @@ export default function CommonProductDetailView({
     if (product) updateCartQuantity(product.id, -1);
   };
 
-  // Store resolution is per sub-app: a Mart product resolves its `martStores` row, a Pharma product
-  // its `pharmaStores` row (the same directory that backs `GET /stores/{id}`), so the store block and
-  // "More from store" work on the Pharma PDP exactly like Mart instead of silently vanishing.
+  // Store resolution is server-first: `GET /store/{id}` is the same directory that backs the
+  // vendor/medical-shop pages, so the PDP block never shows stale authored copy while online.
+  // Fixtures remain the offline/error fallback only (no answer → authored row).
+  const [serverStore, setServerStore] = useState<{ id: string; store: StoreProfile } | null>(null);
+  useEffect(() => {
+    setServerStore(null);
+    const storeId = product?.storeId;
+    if (!storeId) return;
+    let active = true;
+    gateway
+      .getStore(storeId)
+      .then((row) => {
+        if (active && row) setServerStore({ id: storeId, store: row as StoreProfile });
+      })
+      .catch(() => {
+        if (active) setServerStore(null);
+      });
+    return () => {
+      active = false;
+    };
+  }, [product?.storeId]);
+
+  // Per sub-app fallback: a Mart product resolves its `martStores` row, a Pharma product its
+  // `pharmaStores` row, so the store block and "More from store" work on the Pharma PDP exactly
+  // like Mart instead of silently vanishing offline.
   const store = useMemo<StoreProfile | undefined>(() => {
     if (!product?.storeId) return undefined;
+    if (serverStore?.id === product.storeId) return serverStore.store;
     if (product.app === 'MART') return martStores.find((s) => s.id === product.storeId);
     if (product.app === 'PHARMA') return pharmaStores.find((s) => s.id === product.storeId);
     return undefined;
-  }, [product?.app, product?.storeId]);
+  }, [serverStore, product?.app, product?.storeId]);
 
   // "More from store": server-backed (`catalog.products` by store_id + ACTIVE) with the local
   // `@data` pool kept as the offline fallback, so the rail never regresses when the gateway is off.

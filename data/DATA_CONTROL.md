@@ -7,7 +7,10 @@
 
 > **Production (live):** live data is served **server-only** by the Go gateway over Supabase
 > (Postgres) + MongoDB via `GatewayClient`. `@data/*` fixtures are retained for shared types,
-> static taxonomy and seed rows; they are **never substituted at runtime** on a remote error.
+> static taxonomy and seed rows; `GatewayClient` never substitutes them on a remote error.
+> A few presentation surfaces (`PharmaScreen` category grid, PDP store/related blocks, search
+> fallback) still use curated `@data/*` rows as an explicit **offline/error shell** — never as the
+> online origin while the gateway answers. Each is called out below.
 > See `docs/architecture/mvp-backend.md` and `docs/architecture/data-layer-sdui.md`.
 
 ---
@@ -16,7 +19,7 @@
 
 | Tag | Meaning |
 |---|---|
-| `@mock` | Fixture retained for types/editorial seeds only. **Never served at runtime** — `GatewayClient` is server-only. |
+| `@mock` | Fixture retained for types/editorial seeds or an explicit offline/error fallback. **Never the online origin** — `GatewayClient` is server-only; screens may show it only when the server gave no answer. |
 | `@seed` | Bootstrap seed hydrated into client state stores on first launch (cart / favourites / location). |
 | `@static` | Deliberately immutable in-code config (e.g. the Home section registry order). Expected to become server-driven later. |
 | `@static-editorial` | Editorial/marketing fixture with no backing table (brand campaign cards, Mart/Food/Pharma hero + deal rails). Presentation-owned; the correct long-term home is the SDUI layout doc, **not** a per-table migration. Not a wiring gap. |
@@ -33,7 +36,7 @@ Every domain file below carries its tag as a top-of-file banner comment.
 |---|---|---|---|
 | `mart` | `features/ecommerce` | `products.ts`, `stores.ts` | `@server` (fixtures are type/offline seeds) |
 | `food` | `features/food` | `products.ts`, `stores.ts`, `menus.ts`, `specials.ts`, `diningVenues.ts` | mixed `@mock` / `@server` — `menus.ts` + `diningVenues.ts` seed `directory.menus`/`directory.dining_venues` and fall back locally (`getList` → `GatewayClient.fetchMenu`/`fetchVenues`); `features/food/mocks/*` (`restaurants`, `homeFeed`, `specials`) are the client-side first-paint for the restaurant grid + mind/snack rails (see `@data/food` below) |
-| `pharma` | `features/pharma` | `products.ts`, `stores.ts`, `bloodRequests.ts`, `recentOrders.ts` | mixed `@mock` / `@server` — pharma home feed (SDUI sections, coupons, hero) + History read `GatewayClient`; fixtures seed offline/mock-mode first paint only (never substituted for a failed remote read) |
+| `pharma` | `features/pharma` | `products.ts`, `stores.ts`, `bloodRequests.ts`, `recentOrders.ts` | mixed `@mock` / `@server` — pharma home feed (SDUI sections, coupons, hero) + History read `GatewayClient`; `PHARMA_PRODUCTS_DB` supplies authored category ids/copy while `POST /products/batch` overlays money/rating/image online; authored rows are the offline/error shell only |
 | `explore` | `features/catalog` (Categories/Favourites) | `stacks.ts` | `@server` (fixtures are type seeds) |
 | `categories` | `features/catalog` | `searchDatabase.ts` | `@static` taxonomy |
 | `productMeta` | `features/product` (ProductDetail) | `reviews.ts` | `@server` (fixture `@unused`) |
@@ -126,7 +129,7 @@ wiring order in `docs/architecture/data-layer-sdui.md`.
 |---|---|---|---|
 | `martProducts` | `MartProduct[]` | `FaMartScreen`; `data/home/filterFeed` (data-internal pool) | `@mock` |
 | `MartProduct.storeId` | `string` (**required**) | Vendor link for campaigns, vendor drill-in, product-detail store section, self-pickup. Every `martProducts` row must set **top-level** `storeId` — enforced by the type; `ts:check` fails otherwise | contract |
-| `martStores` | `StoreProfile[]` | `FaMartScreen` "Local Vendors Near You" rail + vendor drill-in (replaces the retired `MART_LOCAL_VENDORS` mock) | `@mock` |
+| `martStores` | `StoreProfile[]` | `FaMartScreen` "Local Vendors Near You" rail + vendor drill-in (replaces the retired `MART_LOCAL_VENDORS` mock); also the PDP store-block offline/error fallback (server-first via `GET /store/{id}`) | `@mock` |
 | `MART_DEALS` / `dealToProduct` | `MartDeal[]` / `(MartDeal) => Product` | `FaMartScreen` `DealsOfDayRail` — **server-controlled** via the SDUI doc (`martDeals.productIds`, read by `martService.fetchMartFeed` → `getMartFeed`); `dealToProduct` and this fixture are the offline first-paint fallback only. `home/DealsOfDaySection` (Home) still resolves `md-*` through the catalog independently. Rows seeded into `catalog.products`. `MartDeal` gained optional `rating?`/`priceNote?` for the minimal deal card | `@static-editorial` (copy) + `@fallback` → SDUI ids, server-priced |
 | `MART_DAILY_ESSENTIALS` (`features/ecommerce/mocks/martHomeFeed.ts`) | `MartEssential[]` | `DailyEssentialsRail` — now **server-controlled** via the SDUI home doc (`martEssentials.productIds`, read by `martService.fetchMartFeed` → `getMartFeed`); this fixture is the offline first-paint fallback only. The retired `mf-*` ghost ids were replaced with real `gr-*` catalog ids. The old `MART_HERO_BANNERS` fixture + `MartHeroCarousel` are **retired** (`W42`) — the Mart hero is a paid `MART_HERO` placement; when there is no LIVE fill it falls back to the SDUI `martHero.banners` house hero (`MartHouseHero`), and to nothing when empty | `@fallback` → SDUI |
 
@@ -201,10 +204,10 @@ the `GROCERY` member was dropped from `AppBrand` / `CartCategory` / `SubAppId` /
 
 | Export | Type | Mobile consumers | Status |
 |---|---|---|---|
-| `pharmaProducts` | `PharmaProduct[]` | `services/categoryVendors` (category drill-in / vendor details, via `storeId`); **`@unused`** by `PharmaScreen` (keeps an inline `PHARMA_PRODUCTS_DB`) | `@mock` |
-| `pharmaStores` | `StoreProfile[]` | Pharma home **Local Medicals Near You** rail + `MedicalShopDetails` profile/inventory entry + prescription vendor list, preset flow, and self-pickup resolver (6 outlets `store-p1…p6`, each pickup-capable) | `@mock` |
+| `pharmaProducts` | `PharmaProduct[]` | `services/categoryVendors` (category drill-in / vendor details, via `storeId`) + seed generation; **`@unused`** by `PharmaScreen` (keeps an inline `PHARMA_PRODUCTS_DB`) | `@mock` |
+| `pharmaStores` | `StoreProfile[]` | Pharma home **Local Medicals Near You** rail + `MedicalShopDetails` profile/inventory entry + prescription vendor list, preset flow, and self-pickup resolver (6 outlets `store-p1…p6`, each pickup-capable); also the PDP store-block offline/error fallback (server-first via `GET /store/{id}`) | `@mock` |
 | `PHARMA_RECENT_ORDERS` / `PharmaRecentOrder` | `PharmaRecentOrder[]` / type | `PharmaScreen` History tab (recently ordered cards; de-dups the former inline `RECENT_ORDERS`) | `@mock` |
-| `PHARMA_PRODUCTS_DB` | `PharmaDBItem[]` | `PharmaScreen` inline `CATEGORY_PRODUCTS` grid (real `ph-*` ids, server-priceable at checkout; the inline grid overlays `useActiveDiscounts` so its price matches settlement) | `@mock` |
+| `PHARMA_PRODUCTS_DB` | `PharmaDBItem[]` | `PharmaScreen` **authored category grid** (real `ph-*` ids + copy). Online, ids are resolved via `POST /products/batch` and the server price/rating/image/badge are overlaid before `useActiveDiscounts`, so the shown price matches checkout; authored rows render only while offline or if the batch call fails. Delisted ids drop out of the grid | `@mock` |
 | `PHARMA_CATEGORIES` | `PharmaCategory[]` | `data/catalog/products.ts` pharma facet categories (server search) | `@mock` |
 | `BLOOD_GROUPS` | `BloodGroup[]` | Blood Donor wizard (blood-group chip grid) | `@mock` |
 | `BLOOD_DONOR_STEPS` | `BloodDonorStep[]` | Blood Donor wizard (stepper + step nav) | `@mock` |

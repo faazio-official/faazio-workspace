@@ -156,8 +156,8 @@ No gRPC yet; `contracts/` holds Go interfaces that mirror the future `.proto` sh
 signatures above keep the `@mock` → `@server` swap call-site-compatible (`GatewayClient` adds a
 `baseUrl`/flag and is server-only — no `@data/*` runtime fallback). Local dev runs:
 `AUTH_DISABLED=true` uses `DEV_USER_ID` / `X-Dev-User`, and role probing accepts `X-Dev-Role` /
-`X-Dev-Seller` / `X-Dev-State` (all three are on the CORS allow-list so the local portal can exercise
-role-gated routes; they are ignored whenever auth is enabled). The app mirrors the portal's dev guard:
+`X-Dev-Seller` / `X-Dev-State` / `X-Dev-District` (all four are on the CORS allow-list so the local
+portal can exercise role- and district-gated routes; they are ignored whenever auth is enabled). The app mirrors the portal's dev guard:
 `GatewayClient` attaches `X-Dev-User` only in dev builds when `DEV_USER` is set.
 
 Under a production `AUTH_DISABLED=false` gateway a real OTP session now satisfies every
