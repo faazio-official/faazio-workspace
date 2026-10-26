@@ -2,7 +2,7 @@ import React, { memo } from 'react';
 import { View, StyleSheet } from 'react-native';
 import { MapPin } from 'lucide-react-native';
 import AppText from '@/components/AppText';
-import { hs, ms, vs } from '@/utils/responsive';
+import { hs, ms } from '@/utils/responsive';
 import { foodTheme } from '../constants/theme';
 
 interface DistanceBadgeProps {

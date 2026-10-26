@@ -122,7 +122,7 @@ legacy fixtures (never hand-copied), so the two surfaces can't drift:
 | `directory/stores.ts` | Go + PostgreSQL | mart + food stores | Supabase `directory` |
 | `storeGeo.ts` | (shared helper) | deterministic fixture coordinates (`approximateGeo`, `withStoreGeo`); live rows carry real `latitude`/`longitude` from `directory.stores` (0041) | — |
 | `directory/vendors.ts` | Go + PostgreSQL | vendor identity view (stores + `food/diningVenues`) — `resolveVendorForProduct` | Supabase `directory` (derived view) |
-| `food/diningVenues.ts` | Go + PostgreSQL | restaurant-venue ids/names only (identity; no booking fields) | Supabase `directory` (identity) |
+| `food/diningVenues.ts` | Go + PostgreSQL | restaurant-venue ids/names only (identity; no booking fields; exports `restaurantVenues`) | Supabase `directory` (identity) |
 | `reviews/reviews.ts` | Go + PostgreSQL | `productMeta/reviews` | Supabase `reviews` |
 | `reviews/vendorReviews.ts` | Go + PostgreSQL | seeded public vendor reviews (full name only) | Supabase `reviews` |
 | `inventory/stock.ts` | Go + DynamoDB | net-new stock rows | Supabase `inventory` |

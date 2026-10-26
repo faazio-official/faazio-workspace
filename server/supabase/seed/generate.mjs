@@ -177,7 +177,7 @@ const storeIds = new Set(d.storeDirectory.map((s) => s.id));
 sql.push(inserts(
   'directory.dining_venues',
   ['id', 'name', 'app', 'rating', 'cover_image', 'address', 'phone', 'hours', 'categories', 'latitude', 'longitude'],
-  d.diningVenues.filter((v) => !storeIds.has(v.id)).map((v) => [
+  d.restaurantVenues.filter((v) => !storeIds.has(v.id)).map((v) => [
     q(v.id), q(v.name), APP('FOOD'), 'null', q(''), 'null', 'null', 'null', `ARRAY[]::text[]`, n(v.latitude), n(v.longitude),
   ]),
 ));
@@ -189,7 +189,7 @@ sql.push(inserts(
 const venueMenus = { ...(d.restaurantMenus ?? {}), ...(d.storeMenus ?? {}) };
 const menuRows = [];
 for (const [name, dishes] of Object.entries(venueMenus)) {
-  const venue = d.findDiningVenueByName(name);
+  const venue = d.findRestaurantVenueByName(name);
   const venueId = venue ? venue.id : slug(name);
   for (const dish of dishes) {
     const img = entryFor(manifest, dish.image);
@@ -508,7 +508,7 @@ function assertLeanContract() {
   // Hero campaigns must point at real rows (the FK/read join would otherwise drop or dangle): a
   // catalog product, a seeded store/venue, a known app, and the contextual scope each placement needs.
   const storeIds = new Set(d.storeDirectory.map((s) => s.id));
-  const venueIds = new Set((d.diningVenues ?? []).map((v) => v.id));
+  const venueIds = new Set((d.restaurantVenues ?? []).map((v) => v.id));
   for (const h of DEMO_HEROES) {
     if (!sellerIds.has(h.sellerId)) violations.push(`hero ${h.placementId}: seller ${h.sellerId} not seeded`);
     if (!['MART', 'FOOD', 'PHARMA'].includes(h.targetApp)) violations.push(`hero ${h.placementId}: bad target app ${h.targetApp}`);

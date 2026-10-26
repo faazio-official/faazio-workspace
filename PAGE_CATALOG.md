@@ -117,21 +117,25 @@
 
 ### 1.4 Sub-App: Food
 
+> **No dining/table-booking feature exists.** The Food workflow is discover → menu → cart → checkout,
+> with only `DELIVERY` or `PICKUP` fulfilment. F05/F07 and the "Dinner Booking" toggle below are
+> legacy Vite-audit rows only; the shipped RN Food app has no reservation screen, route or store.
+
 | # | Screen | File | Lines | Description |
 |---|--------|------|-------|-------------|
 | F01 | **Food Order Mode** | `src/components/FoodPage.tsx` | 237–663 | Full order mode view |
 | F02 | **Store Profile / Restaurant Detail** | `src/components/FoodPage.tsx` | 399–511 | Cover image, menu grid, offers |
 | F03 | **Restaurant Directory** | `src/components/FoodPage.tsx` | 512–661 | Filter bar + store list |
-| F05 | **Table Reservation Form** | `src/components/FoodPage.tsx` | 892–1125 | Full-screen: date, time, guests, confirm |
+| F05 | ~~**Table Reservation Form**~~ | — | — | 🗑️ Removed — no booking feature exists |
 | F06 | **Food Menu View** | `src/components/FoodMenuView.tsx` | full (211) | Search, category tabs, 2-column grid |
-| F07 | **My Bookings (SubAppWrapper tab)** | `src/components/SubAppWrapper.tsx` | 185–301 | Reservation list + empty state |
+| F07 | ~~**My Bookings (SubAppWrapper tab)**~~ | — | — | 🗑️ Removed — no booking feature exists |
 | F08 | **Food Profile (SubAppWrapper tab)** | `src/components/SubAppWrapper.tsx` | 303–329 | Account details |
 
 #### Food Order Mode (F01) sub-sections:
 
 | # | Sub-Section | Lines | Description |
 |---|-------------|-------|-------------|
-| FO1 | Mode Toggle | 212–233 | Food Order / Dinner Booking segmented control |
+| FO1 | Mode Toggle | 212–233 | Food Order mode only — the Dinner Booking toggle was removed |
 | FO2 | Search Input | 247–258 | "Search on Food" |
 | FO3 | Address Card | 260–285 | Emerald green delivery card |
 | FO4 | Promo Card | 287–325 | Chicken Teriyaki with Order Now |
@@ -338,7 +342,7 @@ Feed order and paid/organic classification:
 | # | Section | Component | Kind | Placement / fallback |
 | --- | --- | --- | --- | --- |
 | Fd1 | Hero carousel (top) | `CampaignHero` (`components/shared`) | **PAID** | `FOOD_HERO` (venue/product target); fallback = `foodHero.banners` via `FoodHouseHero` (non-interactive) |
-| Fd2 | Top Rated carousel | `TopRestaurantCarousel` | Organic directory | `TOP_RATED_RESTAURANTS` ordered by SDUI `mostRatedDining.storeIds` (dining `tr-*` ids) |
+| Fd2 | Top Rated carousel | `TopRestaurantCarousel` | Organic directory | `TOP_RATED_RESTAURANTS` ordered by SDUI `mostRatedDining.storeIds` (restaurant `tr-*` ids) |
 | Fd3 | Today's Special rail | `FeaturedDishCarousel` | Organic offer | SDUI `foodSpecials.productIds`; `TODAYS_SPECIALS` fallback (fixture) |
 | Fd4 | What's on your mind? | `MindGridRail` | Organic category | Fixture-owned (not server-driven) |
 | Fd5 | Snacks & Beverages rail | `SnacksRail` | Organic offer | Fixture-owned (not server-driven) |
@@ -452,8 +456,8 @@ sector). They are where paid ads, organic offers, SDUI layouts and all seller da
 |-------------|-------------|-----------------|
 | **Food — Store Profile / Restaurant Detail** (F02) | RN FoodScreen has no store profile view | High |
 | **Food — Restaurant Directory** (F03) | RN has no directory/filter bar | High |
-| **Food — Table Reservation Form** (F05) | RN has no full-screen reservation form | High |
-| **Food — "My Bookings" tab** (F07) | RN has only empty-state placeholder | Medium |
+| ~~**Food — Table Reservation Form** (F05)~~ | 🗑️ Removed — no table-booking feature exists | — |
+| ~~**Food — "My Bookings" tab** (F07)~~ | 🗑️ Removed — no booking feature exists | — |
 | **Food Menu View** (F06) | RN has only empty-state placeholder | Medium |
 | **Mart — Store Profile** (M02) | RN FaMartScreen has no store profile | High |
 | **Mart — "Offers" tab** (M04) | RN SubAppWrapper has no Offers tab | Low |
@@ -502,9 +506,9 @@ These tabs render with empty-state messages:
 | `src/components/FavouritesView.tsx` | Favourites tab (per-sector grids, empty state) |
 | `src/components/CartView.tsx` | Cart tab (4-step checkout) |
 | `src/components/AccountView.tsx` | Account tab (profile, orders, settings, logout) |
-| `src/components/SubAppWrapper.tsx` | Sub-app shell, exit modal, Food tabs (My Bookings, Profile), Mart tabs (Categories, Offers) — Grocery config preset removed (Grocery merged into Mart) |
+| `src/components/SubAppWrapper.tsx` | Sub-app shell, exit modal, Food tab (Profile only — My Bookings removed, no booking feature), Mart tabs (Categories, Offers) — Grocery config preset removed (Grocery merged into Mart) |
 | `src/components/ProductDetailView.tsx` | Product detail modal (hero, specs, reviews, add-to-cart) |
-| `src/components/FoodPage.tsx` | Food Order mode, Food Booking mode, Store Profile, Reservation Form |
+| `src/components/FoodPage.tsx` | Food Order mode, Store Profile (legacy Vite audit; no booking mode/reservation form) |
 | `src/components/FoodMenuView.tsx` | Full food menu (category tabs, search, 2-column grid) |
 | `src/components/FaMartPage.tsx` | Mart Home, Mart Store Profile |
 | `src/components/GroceryPage.tsx` | ~~Grocery Home~~ — deleted/nonexistent (Grocery merged into Mart) |

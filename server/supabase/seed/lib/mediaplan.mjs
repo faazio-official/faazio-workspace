@@ -36,7 +36,7 @@ export function collectImageRefs(d) {
   }
   const venueMenus = { ...(d.restaurantMenus ?? {}), ...(d.storeMenus ?? {}) };
   for (const [name, dishes] of Object.entries(venueMenus)) {
-    const venue = d.findDiningVenueByName?.(name);
+    const venue = d.findRestaurantVenueByName?.(name);
     const venueId = venue ? venue.id : slug(name);
     for (const dish of dishes ?? []) {
       if (dish?.image) refs.push({ ownerType: OWNER.MENU, ownerId: dish.id, venueId, url: dish.image });

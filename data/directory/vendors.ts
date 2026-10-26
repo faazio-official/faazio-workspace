@@ -40,7 +40,7 @@ export function findVendorByName(name?: string, app?: AppBrand): VendorRef | und
 
 /**
  * Resolve the vendor a product is sold by. Resolution order mirrors the pickup
- * resolver: `product.storeId` → store/dining-venue directory, then `product.shop`
+ * resolver: `product.storeId` → store/restaurant-venue directory, then `product.shop`
  * matched by name, then the app's default outlet (PHARMA flagship). Returns
  * `undefined` when no vendor can be determined.
  */
