@@ -312,7 +312,8 @@ a real Supabase GoTrue phone-OTP session, so every `auth.Require` write (`/cart`
 
 ## W59 — Pharma residual honesty + routing closure (P0/P1)
 
-**Status:** 🟢 Shipped (app + docs). Auth is now real Supabase phone OTP (see W23). Closes the
+**Status:** 🟢 Shipped (app + docs). Auth uses real Firebase phone OTP
+(`services/firebaseAuth.ts`, W60). Closes the
 remaining Pharma gaps from the sub-app audit; several plan items were **already fixed by W57** (the
 discount overlay + live Top Offers codes) and one (**P0-3** portal wizard) was a **false alarm** — see
 below.
@@ -368,8 +369,9 @@ server function, handler, package, table, cache key, endpoint, or `GatewayClient
 
 ## W58 — Food menu authority + Offers authoring (P0/P1)
 
-**Status:** 🟢 Shipped (app + web + server + db + docs). App auth stays **mocked** (no Supabase phone
-OTP). Closes the remaining Food gaps from the sub-app audit: the seller could not author the MRP
+**Status:** 🟢 Shipped (app + web + server + db + docs). App auth uses real **Firebase phone OTP**
+(`services/firebaseAuth.ts`, W60). Closes the remaining Food gaps from the sub-app audit: the seller
+could not author the MRP
 strike the "Recommended & Offers" rail requires (P0-3), a delisted/emptied menu never cleared (P1-6),
 the offer banner's coupon was never applied (P1-4), loose Food route params (P1-8/P1-10), and dead
 UI/catalog pollution (P1-9).
@@ -403,8 +405,9 @@ UI/catalog pollution (P1-9).
   no store could fulfil to the FOOD FTS pool (also dropped from the seed).
 
 **Intentionally unchanged / accepted:** paid-ad measurement (`POST /ads/events`) and the auth-gated
-rating writes stay inert under a production `AUTH_DISABLED=false` gateway with mocked login
-(W49 decision — real session or anon rate-limit is out of scope). `mostRatedDining` remains an
+rating writes use the real Firebase session (W60), so a signed-in shopper reaches them on a
+production `AUTH_DISABLED=false` gateway; no anon write endpoint is opened (W49 decision — an anon
+rate-limited path stays optional). `mostRatedDining` remains an
 ID-only contract (a dev `console.warn` now flags an unresolved curated id instead of a silent no-op).
 The fixture-first mind/snack rails, thin server-only restaurant cards, and the `sp-*` base-price PDP stay
 as previously documented.
@@ -499,13 +502,14 @@ The audit's suspected "seed has no Food SDUI sections" (P0-4) was **false** — 
   `foodSpecials`) to match the `internal/sdui` allowlist.
 
 **Still deferred / documented-only:** P0-1 paid-event measurement (`POST /ads/events` is behind
-`auth.Require`; with mocked login it only lands on an `AUTH_DISABLED` gateway) — needs a product
-decision (anon rate-limited path vs honest dev-only stub), not a screen. P1-3 `mostRatedDining` join
+`auth.Require`; the real Firebase session now satisfies it for signed-in shoppers) — an anon
+rate-limited path is still a product decision, not a screen. P1-3 `mostRatedDining` join
 is a **deliberate ID-only contract** (client reads raw `storeIds`); P1-5 unclassifiable server-only
 dishes stay hidden under an active Veg/Non-Veg filter (conservative — never mislabels); P1-8/P1-9
 portal VENUE targeting/menu media are enhancements (the DISH → `STORE_TOP` path already resolves a
-venue server-side via `ResolveOwnedTarget(..., "VENUE", ...)`); P1-10 rating write is inert in prod
-until a real session or anon rate-limit decision; P1-11 mind-tile search already merges the remote
+venue server-side via `ResolveOwnedTarget(..., "VENUE", ...)`); P1-10 rating write is reachable with
+the real Firebase session (W60), with an anon rate-limit path still optional; P1-11 mind-tile search
+already merges the remote
 pool over the `TODAYS_SPECIALS` fallback in the shared `SearchScreen`.
 
 **Rollback:** revert `features/food/hooks/useRestaurantMenu.ts`,
@@ -560,7 +564,8 @@ change (interest is not cached). **Date:** 2026-10-18
 
 ## W53 — Pharma production-readiness pass (P0/P1 gaps + doc truth-up)
 
-**Status:** 🟢 Shipped (app + docs). No new screens; app auth stays **mocked** (no Supabase OTP).
+**Status:** 🟢 Shipped (app + docs). No new screens; app auth uses real Firebase phone OTP
+(`services/firebaseAuth.ts`, W60).
 No server/DB/cache change — closes the P0/P1 gaps from the PHARMA sub-app audit.
 
 - **P0-1 donor discovery is remote-first.** `services/donorDirectory.ts` reads `GET /donors`
@@ -603,8 +608,8 @@ feed never blanks mid-migration.
 
 ## W53b — Blood write authority (P0-2b/P0-3b) + read transparency (P1-1b)
 
-**Status:** 🟢 Shipped (app + docs). No new screens/routes/tables/keys; app auth stays **mocked**
-(no Supabase phone OTP). Follow-up to W53 (which left blood writes best-effort `void …catch` and
+**Status:** 🟢 Shipped (app + docs). No new screens/routes/tables/keys; app auth uses real Firebase
+phone OTP (`services/firebaseAuth.ts`, W60). Follow-up to W53 (which left blood writes best-effort `void …catch` and
 reads unable to tell a live empty from a fixture). The `submitVendorRating` outcome pattern is
 applied to blood.
 
@@ -642,8 +647,8 @@ stores table), `docs/architecture/monolith-breakdown.md` §1 (blood/directory/sd
 ## W50 — Campaign + Pharma merchandising de-mock (the two deferred anon reads)
 
 **Status:** 🟢 Shipped (server + data + seed + web + app + docs). Resolves the W47/W48 deferrals.
-App auth stays **mocked** (no Supabase phone OTP) — these are anon merchandising reads, independent
-of the auth-gated writes.
+App auth uses real Firebase phone OTP (`services/firebaseAuth.ts`, W60) — these are anon
+merchandising reads, independent of the auth-gated writes.
 
 **1. Editorial campaigns (Home "Deals of the day").** The ID-only campaign defs
 (`{id,storeId,productIds,carousel}`) now live on the SDUI `hotBrandDeals.campaigns[]` leaf
@@ -679,15 +684,15 @@ seed, `GatewayClient`, `BrandCampaignsSection`/`HomeView`/`DealsLanding`, `pharm
 
 ---
 
-## W49 — Honest handling for the two auth-gated writes (no anon endpoint, no Supabase OTP)
+## W49 — Honest handling for the two auth-gated writes (no anon endpoint; Firebase OTP active)
 
 **Status:** 🟢 Shipped (app + docs). No server / DB / cache change at the time. **Superseded by
-W23:** app auth is now real Supabase phone OTP, so both auth-gated writes are reachable in prod;
-the honest client handling below still applies.
+W60:** app auth is now real Firebase phone OTP (`services/firebaseAuth.ts`), so both auth-gated
+writes are reachable in prod; the honest client handling below still applies.
 
 - **Dev identity is explicit + dev-only.** `GatewayClient.authHeader()` sends `X-Dev-User` **only
   when `__DEV__` and `DEV_USER` is set** (mirrors the portal's `X-Dev-*` guard), so the
-  mocked app exercises an `AUTH_DISABLED=true` gateway deterministically instead of relying on the
+  dev app exercises an `AUTH_DISABLED=true` gateway deterministically instead of relying on the
   server's `DEV_USER_ID` fallback. Never attached in a release build; a `AUTH_DISABLED=false`
   gateway ignores it. New `GatewayClient.authStatus()` (`dev-bypass` / `mock` / `enterprise` /
   `none`) is diagnostic only.
@@ -704,7 +709,7 @@ the honest client handling below still applies.
 - **No new `VendorRatingOutcome` divergence:** `GatewayClient.rateVendor` returns the outcome union
   rather than a bare `boolean`; `withFallback` no longer fabricates a `false` rating.
 
-**Resolved by W23:** the real GoTrue session satisfies `auth.Require`, so `POST /ads/events`
+**Resolved by W60:** the real Firebase ID token satisfies `auth.Require`, so `POST /ads/events`
 (portal ad KPIs) and `PUT /vendors/{id}/rating` (server-durable ratings) are now reachable in prod.
 No anon event endpoint was opened (KPI-poisoning surface avoided). Local dev can still use
 `AUTH_DISABLED=true` + `user-1`.
@@ -746,17 +751,17 @@ Closes the W47-listed Mart P0/P1 correctness gaps without new screens or endpoin
 
 **Still deferred (deliberately safe options):**
 
-- **Paid-ad measurement is auth-gated.** `POST /ads/events` is behind `auth.Require`; app auth is the
-  **mocked** login, so impression/click events only reach the ad-server when the gateway runs
-  `AUTH_DISABLED=true` (topic-1 dev identity) — under a production `AUTH_DISABLED=false` gateway
-  they stay inert and portal KPIs undercount to zero. W49 made the client-side path honest +
-  observable (boolean result, dev warning, no fabricated success) without opening an anon endpoint.
+- **Paid-ad measurement is auth-gated.** `POST /ads/events` is behind `auth.Require`; signed-in
+  shoppers now carry a real Firebase ID token (W60), so impression/click events reach the ad-server
+  on a production `AUTH_DISABLED=false` gateway; local dev can still use `AUTH_DISABLED=true`
+  (topic-1 dev identity). W49 keeps the client-side path honest + observable (boolean result, dev
+  warning, no fabricated success) without opening an anon endpoint.
 - **`DealsLanding` `campaign` mode stays Home-owned `@data`** (no `GET /ads/campaigns/{id}` read;
   reachable only from Home). Unchanged from W38/W40/W44/W47. **(Resolved in W50** — now the anon
   `GET /home/campaigns(/{id})` projection.)
 - **Vendor ratings remain device-local on display** — the server `PUT /vendors/{id}/rating` is
   mirrored and now reports its outcome (`synced`/`offline`/`signed-out`/`not-verified`) so the screen
-  is honest (W49); a fully server-durable row still waits on a real session (auth mocked).
+  is honest (W49); signed-in shoppers have a real Firebase session (W60), so the server row is durable.
 - **Pharma SDUI parity** — no `GET /sdui/pharma`; Pharma rails stay feature-mock (stores are
   server-backed). **(Resolved in W50** — `GET /sdui/pharma` shipped.)
 
@@ -969,7 +974,7 @@ publishes/seller/day), and a human admin only takes abuse down after a report.
 
 **Still deferred:** seller-side Pause/Resume (needs a seller-scoped window mutation — deliberately not
 shipped half-baked); `VENUE` in-app deep-link resolves to the vendor page (no restaurant-menu anchor for
-a dish without a catalog row); App auth remains the mocked login (no Supabase phone OTP).
+a dish without a catalog row); App auth uses real Firebase phone OTP (`services/firebaseAuth.ts`, W60).
 
 **Docs:** `mobile-app.md`, `data/DATA_CONTROL.md`, `PAGE_CATALOG.md`, `caching-cloudflare-valkey.md` §5a,
 `db-schema.md §12.17`, `monolith-breakdown.md §1`, `mvp-backend.md`, `web-portal.md`.
@@ -1002,7 +1007,7 @@ approves/activates it, and the app shows it as a labelled 16:9 hero.
 
 **Still deferred:** (superseded by W42 — `FOOD_HERO`/`PHARMA_HERO`/`HOME_HERO` hosts and the
 self-serve/no-admin workflow shipped there) `VENUE` targets resolve to the vendor page (no
-restaurant-menu anchor). App auth remains the mocked login (no Supabase phone OTP).
+restaurant-menu anchor). App auth uses real Firebase phone OTP (`services/firebaseAuth.ts`, W60).
 
 **Docs:** `mobile-app.md`, `data/DATA_CONTROL.md`, `PAGE_CATALOG.md`, `caching-cloudflare-valkey.md` §5a,
 `db-schema.md §12.17`, `monolith-breakdown.md §1`, `mvp-backend.md`, `web-portal.md`.
@@ -1233,9 +1238,9 @@ Home section whose doc carries the data, with each fixture kept as the offline f
 - **Web portal:** every money/status/Rx/menu/booking/rewards mutation is now an awaited write with
   store-snapshot rollback + error toast (`pushWrite` → `writeAwaited`), replacing the silent
   `writeBehind` fallback.
-- **Still mocked / not de-mocked (remaining Phase 2/4):** app auth (`authStore.login()`), cart +
-  favourites + rewards + orders stores remain device-local-first (gateway mirrors best-effort), and
-  there is no FCM/APNs sender (in-app inbox is poll-based).
+- **Still device-local-first (remaining Phase 2/4):** cart + favourites + rewards + orders stores
+  remain device-local-first (gateway mirrors best-effort), and there is no FCM/APNs sender (in-app
+  inbox is poll-based). App auth is real Firebase phone OTP (W60).
 
 **Date:** 2026-10-16
 
@@ -1246,7 +1251,8 @@ Home section whose doc carries the data, with each fixture kept as the offline f
 **Status:** 🟢 Shipped (finish-and-cutover pass, Phase A+B slice 1).
 
 Scope was the first slice of the "de-mock → single DB source" plan: Mart home and the
-Food delivery menus. Auth stays mocked (no Supabase phone OTP) by product decision.
+Food delivery menus. Auth uses real Firebase phone OTP (`services/firebaseAuth.ts`, W60); the
+Supabase cutover stays dropped by product decision.
 
 - **Mart home deals de-mock.** `features/ecommerce/services/martService.ts`
   `fetchMartFeed` now resolves the `md-*` deal ids through the catalog
@@ -1305,7 +1311,8 @@ on-device; a festival opt-in only reaches the app after an admin approves it.
   `NearbyOffers`/`SponsoredRail`).
 - **Portal.** `seller/promotions` gained a **Live price** column + approval hint (cap enforced
   server-side).
-- **Auth unchanged** — the app keeps its mocked login (no Supabase phone OTP by product decision).
+- **Auth unchanged** — the app keeps real Firebase phone OTP (`services/firebaseAuth.ts`, W60); the
+  Supabase cutover stays dropped by product decision.
 
 ---
 
@@ -1426,8 +1433,9 @@ rows gracefully).
   adapter, and register it once via `setPaymentCheckout()`; no screen change. The mock refuses to
   fabricate a payment when a real publishable key is present (fails loudly).
 
-**Dropped by product decision:** mobile auth stays **mocked** (`authStore.login()`) — no Supabase
-phone-OTP/JWT cutover. `GatewayClient` still attaches a bearer when a session is present.
+**Dropped by product decision:** the Supabase phone-OTP/JWT cutover stays dropped — mobile auth uses
+real **Firebase phone OTP** (`services/firebaseAuth.ts`, W60). `GatewayClient` attaches the Firebase
+ID token as its bearer.
 
 **Date:** 2026-10-14
 
@@ -1538,8 +1546,8 @@ profile). The rating form is a root `RateVendor` route.
 **Deferred:** the `DELIVERED`-only tightening; moderation on the public review list. **Now built
 (server):** the Go reviews endpoints (`GET /vendors/:id/reviews`, `GET /vendors/:id/reviews/summary`,
 `PUT /vendors/:id/rating`) with the server-side derived purchase gate, plus the `GatewayClient`
-seam (`getVendorReviews`, `rateVendor`). The screen migration waits on Supabase phone OTP replacing
-`authStore.login()`.
+seam (`getVendorReviews`, `rateVendor`). The screen migration uses the real Firebase phone-OTP
+session (W60); `authStore.login()` persists the Firebase ID token.
 
 ---
 
@@ -2423,8 +2431,8 @@ over Supabase (Postgres) + MongoDB + Aiven Valkey. Set `GATEWAY_URL` +
 **server-only**: a failed or disabled remote call throws (`GatewayHttpError` / `GatewayOfflineError`)
 instead of substituting `@data/*`; screens that need an offline first paint own that fallback
 explicitly. Cache keys/TTLs follow `docs/architecture/caching-cloudflare-valkey.md` (unchanged).
-Caveat: local dev is auth-open (`AUTH_DISABLED=true`); phone-OTP → gateway JWT still to be exercised
-end-to-end on device.
+Caveat: local dev can be auth-open (`AUTH_DISABLED=true`); the Firebase phone-OTP → gateway
+ID-token path is shipped (W60) and verified server-side.
 
 **Wiring order** (`docs/architecture/data-layer-sdui.md`): `searchProducts` → `getProduct` →
 `getHomeFeed` → `getReviews` → `getOrders`/`getProfile` — all implemented.

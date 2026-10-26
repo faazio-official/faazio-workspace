@@ -294,9 +294,10 @@ Extract the **first** context (search) as the reference. The others repeat the s
   already a `portal_users` id.
   Never trust a client-supplied user id. Local dev
   can still resolve the app as `user-1` (`AUTH_DISABLED=true`); the app sends `X-Dev-User` only in dev builds
-  (`DEV_USER`). Consequently the two app writes behind `auth.Require` (`POST /ads/events`,
-  `PUT /vendors/{id}/rating`) are inert on a production `AUTH_DISABLED=false` gateway — W49 makes the
-  client honest about it (confirmed-only boolean / rating outcome) without opening an anon endpoint.
+  (`DEV_USER`). The two app writes behind `auth.Require` (`POST /ads/events`,
+  `PUT /vendors/{id}/rating`) are reachable with the real Firebase ID token — W49 keeps the client
+  honest about the outcome (confirmed-only boolean / rating `synced`/`offline`/`signed-out`/
+  `not-verified`) without opening an anon endpoint.
 - **Observability:** OTel hooks live in `internal/platform/otel`; exporters are env-gated (no-op when
   unset) so local dev adds no cost.
 

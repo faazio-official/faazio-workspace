@@ -251,7 +251,7 @@ Scope tags:
 | RN3 | `LanguageSelection` | **LanguageSelectionScreen** | `src/features/onboarding/LanguageSelectionScreen.tsx` | After OTP (`replace`) |
 | RN4 | `Location` | **LocationScreen** | `src/features/auth/LocationScreen.tsx` | After language |
 
-Auth is the **mocked login** (`authStore.login()`, 3 SecureStore writes). No Supabase phone OTP.
+Auth uses real **Firebase phone OTP** (`services/firebaseAuth.ts`, W60); `authStore.login()` persists the Firebase ID token + profile as one Keychain session payload (`services/secureSession.ts`).
 
 ### 2.2 Hub tabs (`MainTabs.tsx` — MAIN)
 
