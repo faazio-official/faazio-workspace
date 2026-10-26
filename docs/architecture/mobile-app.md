@@ -555,7 +555,7 @@ still separate files; consolidating them is tracked in `client/mobile/PENDING_WO
 
 | Store | Purpose |
 |---|---|
-| `authStore` | Session, login payload, auth state. `AuthUser` carries the decoded partner role/state claims (`role`, `stateCode`) read from the Firebase ID token (`lib/tokenClaims.ts`) so admin UI can gate client-side — the gateway re-verifies the token on every call |
+| `authStore` | Session, login payload, auth state. `AuthUser` carries the decoded partner role/state claims (`role`, `stateCode`) read from the Firebase ID token (`lib/tokenClaims.ts`) so admin UI can gate client-side — the gateway re-verifies the token on every call. `expireSession()` drops the in-memory session after `GatewayClient` has cleared a dead Keychain session; the root navigators react by returning to Login (customer) / Phone entry (delivery) |
 | `cartStore` | Cart items, quantity, totals; `addToCart(id, name, price, emoji, restaurantId?)` — the optional 5th arg tags a line to a restaurant (adopts an untagged line on re-add); `clearRestaurantCart(id)` removes only that restaurant's lines. Fulfilment is chosen order-level on the cart, not per item. The local cart is the optimistic UI model; every mutation mirrors best-effort to the durable `inventory.carts` row (`gateway.addToCart`/`updateCartItem`/`removeCartItem`) and `hydrate()` pulls + rejoins catalog details at startup (remote mode only); the first empty remote hydrate clears the local `seedCartItems` |
 | `favoriteStore` | Favourites (ids) |
 | `pharmaStore` | Prescriptions |
@@ -575,8 +575,9 @@ still separate files; consolidating them is tracked in `client/mobile/PENDING_WO
 - `firebaseAuth.ts` — native Firebase phone-OTP client (`sendOtp` → `signInWithPhoneNumber`,
   `verifyOtp` → `ConfirmationResult.confirm`, `refreshIdToken` → `getIdToken(true)`, `signOutRemote`).
   Returns the Firebase ID token (RS256 JWT) the gateway verifies; tokens are handed to
-  `secureSession` (never logged). The public native config lives in
-  `android/app/google-services.json` + `ios/Faazio/GoogleService-Info.plist`.
+  `secureSession` (never logged). `GatewayClient.recoverSession` forces one `refreshIdToken` on a
+  401; when no native user remains it clears the Keychain + `authStore.expireSession()`. The public
+  native config lives in `android/app/google-services.json` + `ios/Faazio/GoogleService-Info.plist`.
 - `secureSession.ts` — tokens via `react-native-keychain` (Android Keystore / iOS Keychain; never AsyncStorage for secrets). Single owner of the session with an in-memory mirror so `GatewayClient` can read `getAccessToken()` per request without a Keychain round-trip; `updateSessionTokens()` persists a rotated pair, and `getRefreshToken()` returns the portal refresh token for seller/admin sessions.
 - `logout.ts` — clears auth + cart + favourites + search + pharma + blood donor + rewards + vendor-rating stores + the session impression set.
 - `productViews.ts` — `trackProductView(id)`: emits a `view` behavior event **at most once per product per session** (`user_events` has no dedupe), reset on logout; consumed by `hooks/useViewableTracking` on the Mart search grid, the vendor drill-in "All Products" grid, and the feed rails.

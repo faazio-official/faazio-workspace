@@ -55,6 +55,8 @@ export interface AuthState {
   login: (payload: LoginPayload) => Promise<void>;
   /** Persist a refreshed Firebase ID token (Keychain stays the single owner). */
   updateTokens: (accessToken: string) => Promise<void>;
+  /** Drop in-memory auth after GatewayClient already cleared the Keychain (dead session). */
+  expireSession: () => void;
   logout: () => Promise<void>;
   hydrate: () => Promise<boolean>;
 }
@@ -80,6 +82,9 @@ export const useAuthStore = create<AuthState>()((set) => ({
   updateTokens: async (accessToken) => {
     const session = await updateSessionTokens(accessToken);
     if (session) set({ accessToken: session.accessToken });
+  },
+  expireSession: () => {
+    set({ isAuthenticated: false, user: null, accessToken: null });
   },
   logout: async () => {
     // Best-effort native Firebase sign-out before dropping the local session (never blocks).

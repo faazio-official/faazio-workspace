@@ -397,8 +397,9 @@ means the session is missing/expired or Firebase is unconfigured/misconfigured. 
 
 - **Configured build:** `google-services.json` / `GoogleService-Info.plist` must be present and the
   release `FIREBASE_PROJECT_ID` must match the token's project. A forced refresh with no native user
-  clears the session and returns to Login (`GatewayClient.recoverSession`). Token failures are
-  rarely `401` at the source: check `iss`/`aud` first (see `docs/RUNBOOKS/FIREBASE_AUTH.md`).
+  clears the Keychain + `authStore` (`GatewayClient.recoverSession` → `authStore.expireSession()`),
+  and the root navigator returns the customer app to Login / the delivery app to Phone entry. Token
+  failures are rarely `401` at the source: check `iss`/`aud` first (see `docs/RUNBOOKS/FIREBASE_AUTH.md`).
 - **Dev build console:** `recordAdEvent` logs `[ads] impression not recorded (401, auth=…)`; a
   `auth=dev-bypass` result means the dev header is in play. `GatewayClient.authStatus()` returns
   `dev-bypass` / `enterprise` / `none`.

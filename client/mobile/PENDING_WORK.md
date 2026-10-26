@@ -228,7 +228,9 @@ end to end; the mobile app no longer talks to Supabase Auth.
 - **Mobile auth:** `services/firebaseAuth.ts` uses the native `@react-native-firebase/auth` SDK
   (`sendOtp` → `signInWithPhoneNumber`, `verifyOtp` → `confirm`, `refreshIdToken` →
   `getIdToken(true)`, `signOutRemote`). `LoginScreen` UI is unchanged; `authStore` + `secureSession`
-  still own the Keychain session and `GatewayClient` forces one ID-token refresh on 401.
+  still own the Keychain session and `GatewayClient` forces one ID-token refresh on 401. A failed
+  refresh clears the Keychain **and** the in-memory auth state (`authStore.expireSession()`), and
+  the root navigator returns the customer app to Login / the delivery app to Phone entry.
 - **Native config (public, committed):** `android/app/google-services.json` +
   `ios/Faazio/GoogleService-Info.plist`; Android applies the `com.google.gms.google-services`
   plugin (`4.5.0`). iOS has `UIBackgroundModes → remote-notification`; APNs/Play Integrity
@@ -694,8 +696,8 @@ writes are reachable in prod; the honest client handling below still applies.
   when `__DEV__` and `DEV_USER` is set** (mirrors the portal's `X-Dev-*` guard), so the
   dev app exercises an `AUTH_DISABLED=true` gateway deterministically instead of relying on the
   server's `DEV_USER_ID` fallback. Never attached in a release build; a `AUTH_DISABLED=false`
-  gateway ignores it. New `GatewayClient.authStatus()` (`dev-bypass` / `mock` / `enterprise` /
-  `none`) is diagnostic only.
+  gateway ignores it. `GatewayClient.authStatus()` (`dev-bypass` / `enterprise` / `none`) is
+  diagnostic only.
 - **Paid-ad measurement is observable, never fabricated.** `GatewayClient.recordAdEvent` now
   returns `boolean` (true only when the ad-server confirmed; no local mock fallback) and logs a
   dev-only warning with the HTTP status + auth status on failure. `SponsoredRail` / `CampaignHero`

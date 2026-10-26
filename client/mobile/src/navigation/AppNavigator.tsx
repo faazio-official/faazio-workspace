@@ -1,4 +1,4 @@
-import React, { Suspense, lazy } from 'react';
+import React, { Suspense, lazy, useEffect, useRef } from 'react';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { ErrorBoundary } from '@/components/ErrorBoundary';
 import { SplashFallback } from '@/components/SplashFallback';
@@ -60,6 +60,23 @@ const MedicalShopDetailsScreen = lazyNamed(() => import('@/features/pharma/Medic
 
 export function AppNavigator() {
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
+  const hydrated = useAuthStore((s) => s.hydrated);
+  const wasAuthenticated = useRef(isAuthenticated);
+
+  // A dead/revoked session is cleared by GatewayClient.recoverSession, which also resets
+  // authStore. Follow that transition here so the customer app actually returns to Login
+  // instead of sitting on an authenticated screen with no Keychain session.
+  useEffect(() => {
+    if (!hydrated) return;
+    if (wasAuthenticated.current && !isAuthenticated) {
+      if (navigationRef.isReady()) {
+        navigationRef.reset({ index: 0, routes: [{ name: 'Login' }] });
+      }
+      wasAuthenticated.current = false;
+    } else {
+      wasAuthenticated.current = isAuthenticated;
+    }
+  }, [hydrated, isAuthenticated]);
 
   return (
     <ErrorBoundary

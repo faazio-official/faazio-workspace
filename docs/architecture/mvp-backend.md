@@ -61,8 +61,10 @@ set. See `db-schema.md` §12.16.
   resolves `sub → checkout.users.user_id`; on first call the checkout resolver **upserts** the link
   (`ProvisionUserID`, deterministic `u-<sha256 prefix>`, `auth_uid` unique) so a new OTP user works
   without a manual row. Migration `0031` widens `auth_uid` from `UUID` to `TEXT` (Firebase UIDs are
-  strings); apply it in Supabase before deploying the Firebase verifier. `GatewayClient` forces one native ID-token refresh on 401 (`recoverSession`),
-  then clears the session and returns to Login. `FIREBASE_PROJECT_ID` enables Firebase verification;
+  strings); apply it in Supabase before deploying the Firebase verifier. `GatewayClient` forces one native ID-token refresh on 401 (`recoverSession`);
+  if no native user remains it clears the Keychain **and** `authStore`, and the root navigator
+  returns the customer app to Login / the delivery app to Phone entry. `FIREBASE_PROJECT_ID` enables
+  Firebase verification;
   the legacy GoTrue `SUPABASE_JWT_SECRET` HS256 path remains only for older partner tokens during
   the migration and is tried after Firebase fails. Portal tokens use a separate
   `auth.PortalVerifier` + `PORTAL_JWT_SECRET` and never fall through to either verifier. `render.yaml`
