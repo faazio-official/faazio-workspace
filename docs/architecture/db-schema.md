@@ -2075,3 +2075,33 @@ The generic `PUT /orders/{id}/status` deliberately does **not** accept `REJECTED
 be skipped. It accepts the portal's upper-case lifecycle; the gateway maps `SHIPPED`/`DELIVERED`/
 `CANCELLED` onto the legacy TitleCase enum labels created in `0001` before writing, and projects
 them back to upper-case on seller reads.
+
+### 12.29 Strict district scope for seller-owned catalog/directory/pharma (migration `0057`)
+
+**Authority:** `monolith-breakdown.md` §1 (`catalog/directory`, `pharma`), `mvp-backend.md`
+(management endpoint scope). No cache keys/TTLs change.
+
+`0057` only backfills ownership already implied by the schema, so strict service-layer scope has a
+deterministic owner before handlers start denying legacy rows:
+
+```sql
+-- store state from its seller
+UPDATE directory.stores s SET state_code = sel.state_code
+  FROM sellers.sellers sel WHERE s.seller_id = sel.seller_id AND s.state_code IS NULL;
+-- product/menu owner from its store
+UPDATE catalog.products p SET seller_id = s.seller_id
+  FROM directory.stores s WHERE p.store_id = s.id AND p.seller_id IS NULL;
+UPDATE directory.menus m SET seller_id = s.seller_id
+  FROM directory.stores s WHERE m.venue_id = s.id AND m.seller_id IS NULL;
+```
+
+- `auth.AdminScope` is strict for these routes: `SUPER_ADMIN` is unscoped; `DISTRICT_ADMIN` needs a
+  non-empty `district_code` and **does not** fall back to the parent state. A `SELLER` or a legacy
+  state-only admin is denied by the management handlers.
+- District-admin reads/writes for products, stores, menus and vendor prescriptions require the row's
+  `seller_id` to resolve to a seller in that district. Rows with no seller ownership remain
+  `SUPER_ADMIN`-only until an owner is assigned.
+- District-created menus resolve the seller from the **store** venue. A dining-venue menu with no
+  store seller is therefore super-admin-only under strict scope.
+- Seller/app and admin RLS (`0050`) keeps its legacy state fallback; strict scoping is enforced in the
+  gateway service layer. Media moderation and `admins` audit/customer reads are unchanged.

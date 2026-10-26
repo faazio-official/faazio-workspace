@@ -176,7 +176,7 @@ select id, user_id, coalesce(vendor_id,''), coalesce(fulfillment::text,''), page
 
 // VendorPrescriptions lists prescriptions routed to a seller's stores (admin: all), by status, as a
 // PII-redacted projection (name only until READY/FULFILLED).
-func (r *Repo) VendorPrescriptions(ctx context.Context, sellerID, status string) ([]VendorPrescription, error) {
+func (r *Repo) VendorPrescriptions(ctx context.Context, sellerID, district, status string) ([]VendorPrescription, error) {
 	if r.pool == nil {
 		return nil, fmt.Errorf("pharma: database not configured")
 	}
@@ -184,8 +184,12 @@ func (r *Repo) VendorPrescriptions(ctx context.Context, sellerID, status string)
 		 where ($1 = '' or exists (
 		         select 1 from directory.stores s
 		          where s.seller_id = $1 and s.id = p.vendor_id))
-		   and ($2 = '' or p.status::text = $2)
-		 order by p.created_at desc`, sellerID, status)
+		   and ($2 = '' or exists (
+		         select 1 from directory.stores s
+		          join sellers.sellers se on se.seller_id = s.seller_id
+		          where s.id = p.vendor_id and se.district_code = $2))
+		   and ($3 = '' or p.status::text = $3)
+		 order by p.created_at desc`, sellerID, district, status)
 	if err != nil {
 		return nil, err
 	}
@@ -200,15 +204,21 @@ func (r *Repo) VendorPrescriptions(ctx context.Context, sellerID, status string)
 // VendorPrescriptionByID returns one prescription routed to a seller's stores (admin: any), as the
 // same PII-redacted projection as the list. ok=false for an unknown id or a row outside the seller's
 // scope — another seller's Rx is never exposed. Used by the portal deep-link view.
-func (r *Repo) VendorPrescriptionByID(ctx context.Context, id, sellerID string, admin bool) (VendorPrescription, bool, error) {
+func (r *Repo) VendorPrescriptionByID(ctx context.Context, id, sellerID, district string) (VendorPrescription, bool, error) {
 	if r.pool == nil {
 		return VendorPrescription{}, false, fmt.Errorf("pharma: database not configured")
 	}
 	rows, err := r.pool.Query(ctx, vendorPrescriptionSelect+`
 		 where p.id = $2
-		   and ($3 or exists (
-		         select 1 from directory.stores s
-		          where s.seller_id = $1 and s.id = p.vendor_id))`, sellerID, id, admin)
+		   and (
+		       ($1 <> '' and exists (
+		          select 1 from directory.stores s
+		           where s.seller_id = $1 and s.id = p.vendor_id)) or
+		       ($3 <> '' and exists (
+		          select 1 from directory.stores s
+		           join sellers.sellers se on se.seller_id = s.seller_id
+		           where s.id = p.vendor_id and se.district_code = $3)) or
+		       ($1 = '' and $3 = ''))`, sellerID, id, district)
 	if err != nil {
 		return VendorPrescription{}, false, err
 	}
@@ -288,9 +298,9 @@ func scanVendorPrescriptions(rows pgx.Rows) ([]VendorPrescription, error) {
 }
 
 // UpsertQuote replaces the seller's quote lines, recomputes the total and advances the status to
-// QUOTED (unless already READY/FULFILLED/CANCELLED). Scoped to the seller's own stores unless admin.
-// Returns ok=false when the prescription is absent or not owned.
-func (r *Repo) UpsertQuote(ctx context.Context, id, sellerID, actorID, actorRole string, admin bool, items []QuoteItem) (Prescription, bool, error) {
+// QUOTED (unless already READY/FULFILLED/CANCELLED). Scoped to the seller's own stores or a
+// district (strict). Returns ok=false when the prescription is absent or not owned.
+func (r *Repo) UpsertQuote(ctx context.Context, id, sellerID, district, actorID, actorRole string, items []QuoteItem) (Prescription, bool, error) {
 	if r.pool == nil {
 		return Prescription{}, false, fmt.Errorf("pharma: database not configured")
 	}
@@ -300,7 +310,7 @@ func (r *Repo) UpsertQuote(ctx context.Context, id, sellerID, actorID, actorRole
 	}
 	defer func() { _ = tx.Rollback(ctx) }()
 
-	fromStatus, err := ownedStatus(ctx, tx, id, sellerID, admin)
+	fromStatus, err := ownedStatus(ctx, tx, id, sellerID, district)
 	if err != nil {
 		if errors.Is(err, errNoQuote) {
 			return Prescription{}, false, nil
@@ -350,7 +360,7 @@ func (r *Repo) UpsertQuote(ctx context.Context, id, sellerID, actorID, actorRole
 // requires at least one quote line and records the reveal (the audited transition to PII access).
 // Every change appends a status_history row. Prescription images are PII — the caller must
 // invalidate the owner cache key.
-func (r *Repo) SetStatus(ctx context.Context, id, sellerID, status, actorID, actorRole string, admin bool) (Prescription, bool, error) {
+func (r *Repo) SetStatus(ctx context.Context, id, sellerID, district, status, actorID, actorRole string) (Prescription, bool, error) {
 	if r.pool == nil {
 		return Prescription{}, false, fmt.Errorf("pharma: database not configured")
 	}
@@ -360,7 +370,7 @@ func (r *Repo) SetStatus(ctx context.Context, id, sellerID, status, actorID, act
 	}
 	defer func() { _ = tx.Rollback(ctx) }()
 
-	fromStatus, err := ownedStatus(ctx, tx, id, sellerID, admin)
+	fromStatus, err := ownedStatus(ctx, tx, id, sellerID, district)
 	if err != nil {
 		if errors.Is(err, errNoQuote) {
 			return Prescription{}, false, nil
@@ -406,7 +416,7 @@ func (r *Repo) SetStatus(ctx context.Context, id, sellerID, status, actorID, act
 // ScopedStatus returns a prescription's current status within a seller's scope (admin: any).
 // ok=false when the row is absent or outside the seller's stores — used for a pre-flight idempotency
 // check so a repeated READY never fires a duplicate customer notification.
-func (r *Repo) ScopedStatus(ctx context.Context, id, sellerID string, admin bool) (string, bool, error) {
+func (r *Repo) ScopedStatus(ctx context.Context, id, sellerID, district string) (string, bool, error) {
 	if r.pool == nil {
 		return "", false, fmt.Errorf("pharma: database not configured")
 	}
@@ -414,9 +424,15 @@ func (r *Repo) ScopedStatus(ctx context.Context, id, sellerID string, admin bool
 	err := r.pool.QueryRow(ctx, `
 		select p.status::text from pharma.prescriptions p
 		 where p.id = $1
-		   and ($3 or exists (
-		         select 1 from directory.stores s
-		          where s.seller_id = $2 and s.id = p.vendor_id))`, id, sellerID, admin).Scan(&status)
+		   and (
+		       ($2 <> '' and exists (
+		          select 1 from directory.stores s
+		           where s.seller_id = $2 and s.id = p.vendor_id)) or
+		       ($3 <> '' and exists (
+		          select 1 from directory.stores s
+		           join sellers.sellers se on se.seller_id = s.seller_id
+		           where s.id = p.vendor_id and se.district_code = $3)) or
+		       ($2 = '' and $3 = ''))`, id, sellerID, district).Scan(&status)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return "", false, nil
@@ -428,7 +444,7 @@ func (r *Repo) ScopedStatus(ctx context.Context, id, sellerID string, admin bool
 
 // ImagePathsFor authorises the caller and returns the prescription's Storage object keys.
 // The owner, the assigned vendor, or an admin may view them.
-func (r *Repo) ImagePathsFor(ctx context.Context, id, userID, sellerID string, admin bool) ([]string, bool, error) {
+func (r *Repo) ImagePathsFor(ctx context.Context, id, userID, sellerID, district string, all bool) ([]string, bool, error) {
 	if r.pool == nil {
 		return nil, false, fmt.Errorf("pharma: database not configured")
 	}
@@ -436,9 +452,15 @@ func (r *Repo) ImagePathsFor(ctx context.Context, id, userID, sellerID string, a
 	err := r.pool.QueryRow(ctx, `
 		select image_paths from pharma.prescriptions p
 		 where p.id = $1
-		   and (p.user_id = $2 or $4 or exists (
-		         select 1 from directory.stores s
-		          where s.seller_id = $3 and s.id = p.vendor_id))`, id, userID, sellerID, admin).Scan(&paths)
+		   and (p.user_id = $2
+		        or $5
+		        or ($3 <> '' and exists (
+		            select 1 from directory.stores s
+		             where s.seller_id = $3 and s.id = p.vendor_id))
+		        or ($4 <> '' and exists (
+		            select 1 from directory.stores s
+		             join sellers.sellers se on se.seller_id = s.seller_id
+		             where s.id = p.vendor_id and se.district_code = $4)))`, id, userID, sellerID, district, all).Scan(&paths)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return nil, false, nil
@@ -465,17 +487,24 @@ func (r *Repo) byID(ctx context.Context, id string) (Prescription, bool, error) 
 	return withQuote[0], true, nil
 }
 
-// ownedStatus locks the row and returns its current status, enforcing seller ownership unless admin.
-// Returns errNoQuote when the row is absent or not owned.
-func ownedStatus(ctx context.Context, tx pgx.Tx, id, sellerID string, admin bool) (string, error) {
+// ownedStatus locks the row and returns its current status, enforcing seller or district scope
+// (strict). Passing neither is the super-admin case. Returns errNoQuote when the row is absent or
+// outside the caller's scope.
+func ownedStatus(ctx context.Context, tx pgx.Tx, id, sellerID, district string) (string, error) {
 	var status string
 	err := tx.QueryRow(ctx, `
 		select status::text from pharma.prescriptions p
 		 where p.id = $1
-		   and ($2 or exists (
-		         select 1 from directory.stores s
-		          where s.seller_id = $3 and s.id = p.vendor_id))
-		 for update`, id, admin, sellerID).Scan(&status)
+		   and (
+		       ($2 <> '' and exists (
+		          select 1 from directory.stores s
+		           where s.seller_id = $2 and s.id = p.vendor_id)) or
+		       ($3 <> '' and exists (
+		          select 1 from directory.stores s
+		           join sellers.sellers se on se.seller_id = s.seller_id
+		           where s.id = p.vendor_id and se.district_code = $3)) or
+		       ($2 = '' and $3 = ''))
+		 for update`, id, sellerID, district).Scan(&status)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return "", errNoQuote

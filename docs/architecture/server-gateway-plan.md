@@ -87,10 +87,13 @@ keys/TTLs unchanged.
   `portal_users`, the roster and `sellers.sellers` is hard-blocked (`409 email_has_district_login`
   / `email_has_district_roster`); duplicate **phone** is a soft `201 warnings[]` notice (shared
   lines are allowed by policy). See `0036`, `0048` + `db-schema.md` §12.19/§12.24.
-- **District scope (`internal/platform/geo`, migrations `0046`–`0049`):** the wire role is
+- **District scope (`internal/platform/geo`, migrations `0046`–`0049` + `0057`):** the wire role is
   `DISTRICT_ADMIN`; the 42 TN/PY district codes are validated against `admins.district_master` and
-  the Go master. Sellers carry an optional `district_code`; admin reads/writes use
-  `auth.CanActForSellerDistrict` (district claim first, legacy parent `state_code` fallback).
+  the Go master. Sellers carry an optional `district_code`; seller/KYC/admin reads/writes use
+  `auth.CanActForSellerDistrict` (district claim first, legacy parent `state_code` fallback). The
+  seller-owned catalog/directory/pharma management routes are stricter: `auth.AdminScope` requires a
+  district claim with **no** state fallback, and rows without a seller resolve to super-admin only
+  (`0057` backfills store/product/menu ownership).
 - **Platform-fee change requests:** sellers file `POST /sellers/{id}/platform-fee-request` and read
   `GET /sellers/{id}/platform-fee-requests`; the review queue is
   `GET /seller/fee-change-requests` (district-scoped) with
