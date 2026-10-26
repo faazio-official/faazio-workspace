@@ -328,7 +328,7 @@ build (Reanimated is far slower in debug); use a **CI release** build.
 - Search/detail returns `*_unavailable` → Postgres reachable but migrations/seed not applied. Apply
   the **pending** migrations then seed from a dev terminal using `server/gateway/.env`
   (`docs/RUNBOOKS/DATABASE_MIGRATIONS.md` — Render never auto-applies; local compose applies
-  `0001`-`0040` + seed on first boot).
+  `0001`-`0056` + seed on first boot).
 - Mongo `home feed unavailable` → `mongodb` not seeded. Run `server/supabase/seed/mongo/seed.js`
   (compose mounts it into `/docker-entrypoint-initdb.d`).
 

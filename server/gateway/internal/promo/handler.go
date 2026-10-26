@@ -119,6 +119,11 @@ func (h *Handler) getCampaign(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "id")
 	var cached Campaign
 	if h.cache.GetJSON(r.Context(), cache.PromoCampaign(id), &cached) {
+		// The cache is shared across callers, so the scope check must run on every hit.
+		if !adminScopeAllowed(r, cached.Scope, cached.StateCode) {
+			httpx.Fail(w, http.StatusNotFound, "not_found", "campaign not found")
+			return
+		}
 		httpx.JSON(w, http.StatusOK, cached)
 		return
 	}
@@ -127,12 +132,26 @@ func (h *Handler) getCampaign(w http.ResponseWriter, r *http.Request) {
 		httpx.Fail(w, http.StatusInternalServerError, "promo_unavailable", "promo unavailable")
 		return
 	}
-	if !ok {
+	if !ok || !adminScopeAllowed(r, c.Scope, c.StateCode) {
 		httpx.Fail(w, http.StatusNotFound, "not_found", "campaign not found")
 		return
 	}
 	h.cache.SetJSON(r.Context(), cache.PromoCampaign(id), c, cache.TTLPromo)
 	httpx.JSON(w, http.StatusOK, c)
+}
+
+// adminScopeAllowed enforces the state-wide scope of campaign/coupon control-plane reads and
+// writes: a district/state admin may only touch their own state's rows; GLOBAL rows are
+// super-admin-only. Sellers are rejected (these routes are admin-only).
+func adminScopeAllowed(r *http.Request, scope, stateCode string) bool {
+	role := auth.Role(r.Context())
+	if role == auth.RoleSuperAdmin {
+		return true
+	}
+	if role != auth.RoleDistrictAdmin {
+		return false
+	}
+	return scope == "STATE" && stateCode != "" && stateCode == auth.StateCode(r.Context())
 }
 
 // publicCoupons serves active, unexpired coupons for an app/sector and optional state. Non-PII,
@@ -322,6 +341,16 @@ func (h *Handler) setCampaignStatus(w http.ResponseWriter, r *http.Request) {
 		httpx.Fail(w, http.StatusBadRequest, "bad_request", "invalid campaign status")
 		return
 	}
+	// Scope-check before mutating: a district admin may only change their own state's campaign.
+	before, found, err := h.repo.Campaign(r.Context(), id)
+	if err != nil {
+		httpx.Fail(w, http.StatusInternalServerError, "promo_unavailable", "promo unavailable")
+		return
+	}
+	if !found || !adminScopeAllowed(r, before.Scope, before.StateCode) {
+		httpx.Fail(w, http.StatusNotFound, "not_found", "campaign not found")
+		return
+	}
 	c, ok, err := h.repo.SetCampaignStatus(r.Context(), id, req.Status)
 	if err != nil {
 		httpx.Fail(w, http.StatusInternalServerError, "campaign_update_failed", "could not update campaign")
@@ -341,6 +370,7 @@ func (h *Handler) setCampaignStatus(w http.ResponseWriter, r *http.Request) {
 
 func (h *Handler) listOptins(w http.ResponseWriter, r *http.Request) {
 	sellerID := strings.TrimSpace(r.URL.Query().Get("sellerId"))
+	stateCode := ""
 	if auth.Role(r.Context()) == auth.RoleSeller {
 		sellerID = auth.SellerID(r.Context())
 		if sellerID == "" {
@@ -348,7 +378,14 @@ func (h *Handler) listOptins(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
-	optins, err := h.repo.Optins(r.Context(), sellerID, strings.TrimSpace(r.URL.Query().Get("campaignId")))
+	if auth.Role(r.Context()) == auth.RoleDistrictAdmin {
+		stateCode = auth.StateCode(r.Context())
+		if stateCode == "" {
+			httpx.Fail(w, http.StatusForbidden, "forbidden", "no state scope on this account")
+			return
+		}
+	}
+	optins, err := h.repo.Optins(r.Context(), sellerID, strings.TrimSpace(r.URL.Query().Get("campaignId")), stateCode)
 	if err != nil {
 		httpx.Fail(w, http.StatusInternalServerError, "promo_unavailable", "promo unavailable")
 		return
@@ -401,6 +438,25 @@ func (h *Handler) setOptinStatus(w http.ResponseWriter, r *http.Request) {
 	req.Status = strings.ToUpper(strings.TrimSpace(req.Status))
 	if req.Status != "APPROVED" && req.Status != "REJECTED" {
 		httpx.Fail(w, http.StatusBadRequest, "bad_request", "invalid opt-in status")
+		return
+	}
+	// Scope-check before mutating: the opt-in's campaign must be in the admin's state.
+	optin, found, err := h.repo.OptinByID(r.Context(), id)
+	if err != nil {
+		httpx.Fail(w, http.StatusInternalServerError, "promo_unavailable", "promo unavailable")
+		return
+	}
+	if !found {
+		httpx.Fail(w, http.StatusNotFound, "not_found", "opt-in not found")
+		return
+	}
+	campaign, found, err := h.repo.Campaign(r.Context(), optin.CampaignID)
+	if err != nil {
+		httpx.Fail(w, http.StatusInternalServerError, "promo_unavailable", "promo unavailable")
+		return
+	}
+	if !found || !adminScopeAllowed(r, campaign.Scope, campaign.StateCode) {
+		httpx.Fail(w, http.StatusNotFound, "not_found", "opt-in not found")
 		return
 	}
 	o, ok, err := h.repo.SetOptinStatus(r.Context(), id, req.Status)
@@ -480,6 +536,16 @@ func (h *Handler) createCoupon(w http.ResponseWriter, r *http.Request) {
 
 func (h *Handler) toggleCoupon(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "id")
+	// Scope-check before mutating: a district admin may only toggle their own state's coupon.
+	before, found, err := h.repo.CouponByID(r.Context(), id)
+	if err != nil {
+		httpx.Fail(w, http.StatusInternalServerError, "promo_unavailable", "promo unavailable")
+		return
+	}
+	if !found || !adminScopeAllowed(r, before.Scope, before.StateCode) {
+		httpx.Fail(w, http.StatusNotFound, "not_found", "coupon not found")
+		return
+	}
 	c, ok, err := h.repo.ToggleCoupon(r.Context(), id)
 	if err != nil {
 		httpx.Fail(w, http.StatusInternalServerError, "coupon_update_failed", "could not update coupon")

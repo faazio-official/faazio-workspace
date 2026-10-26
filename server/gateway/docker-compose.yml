@@ -54,6 +54,22 @@ services:
       - ../supabase/migrations/0038_portal_session_lifetime.sql:/docker-entrypoint-initdb.d/0038_portal_session_lifetime.sql:ro
       - ../supabase/migrations/0039_seller_onboarding_extended.sql:/docker-entrypoint-initdb.d/0039_seller_onboarding_extended.sql:ro
       - ../supabase/migrations/0040_route_webhook_reversal.sql:/docker-entrypoint-initdb.d/0040_route_webhook_reversal.sql:ro
+      - ../supabase/migrations/0041_store_geo.sql:/docker-entrypoint-initdb.d/0041_store_geo.sql:ro
+      - ../supabase/migrations/0042_delivery.sql:/docker-entrypoint-initdb.d/0042_delivery.sql:ro
+      - ../supabase/migrations/0043_delivery_reassign.sql:/docker-entrypoint-initdb.d/0043_delivery_reassign.sql:ro
+      - ../supabase/migrations/0044_checkout_drop_coordinates.sql:/docker-entrypoint-initdb.d/0044_checkout_drop_coordinates.sql:ro
+      - ../supabase/migrations/0045_delivery_otp_attempts.sql:/docker-entrypoint-initdb.d/0045_delivery_otp_attempts.sql:ro
+      - ../supabase/migrations/0046_district_master.sql:/docker-entrypoint-initdb.d/0046_district_master.sql:ro
+      - ../supabase/migrations/0047_seller_district.sql:/docker-entrypoint-initdb.d/0047_seller_district.sql:ro
+      - ../supabase/migrations/0048_district_admins.sql:/docker-entrypoint-initdb.d/0048_district_admins.sql:ro
+      - ../supabase/migrations/0049_seller_fee_change_requests.sql:/docker-entrypoint-initdb.d/0049_seller_fee_change_requests.sql:ro
+      - ../supabase/migrations/0050_district_rls.sql:/docker-entrypoint-initdb.d/0050_district_rls.sql:ro
+      - ../supabase/migrations/0051_tax_invoices.sql:/docker-entrypoint-initdb.d/0051_tax_invoices.sql:ro
+      - ../supabase/migrations/0052_delivery_payout.sql:/docker-entrypoint-initdb.d/0052_delivery_payout.sql:ro
+      - ../supabase/migrations/0053_delivery_fee_settings.sql:/docker-entrypoint-initdb.d/0053_delivery_fee_settings.sql:ro
+      - ../supabase/migrations/0054_weather_festival.sql:/docker-entrypoint-initdb.d/0054_weather_festival.sql:ro
+      - ../supabase/migrations/0055_delivery_manual_payout.sql:/docker-entrypoint-initdb.d/0055_delivery_manual_payout.sql:ro
+      - ../supabase/migrations/0056_seller_order_decisions.sql:/docker-entrypoint-initdb.d/0056_seller_order_decisions.sql:ro
       - ../supabase/seed/0001_seed.sql:/docker-entrypoint-initdb.d/0099_seed.sql:ro
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U postgres -d faazio"]

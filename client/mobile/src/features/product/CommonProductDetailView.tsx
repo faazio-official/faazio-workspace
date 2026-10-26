@@ -135,10 +135,12 @@ export default function CommonProductDetailView({
 
   // "More from store": server-backed (`catalog.products` by store_id + ACTIVE) with the local
   // `@data` pool kept as the offline fallback, so the rail never regresses when the gateway is off.
-  const [serverRelated, setServerRelated] = useState<Product[]>([]);
+  // `null` = no authoritative answer (offline/error/not loaded); `[]` = the server confirmed the
+  // store has no other ACTIVE products, so the fixture pool must NOT be substituted.
+  const [serverRelated, setServerRelated] = useState<Product[] | null>(null);
   useEffect(() => {
+    setServerRelated(null);
     if ((product?.app !== 'MART' && product?.app !== 'PHARMA') || !product.storeId) {
-      setServerRelated([]);
       return;
     }
     let active = true;
@@ -147,7 +149,9 @@ export default function CommonProductDetailView({
       .then((rows) => {
         if (active) setServerRelated(rows.filter((p) => p.id !== product.id));
       })
-      .catch(() => undefined);
+      .catch(() => {
+        if (active) setServerRelated(null);
+      });
     return () => {
       active = false;
     };
@@ -155,7 +159,7 @@ export default function CommonProductDetailView({
 
   const relatedProducts = useMemo(() => {
     if (!product) return [];
-    if (serverRelated.length > 0) return serverRelated;
+    if (serverRelated !== null) return serverRelated;
     if (!store) return [];
     const pool = product.app === 'PHARMA' ? pharmaProducts : martProducts;
     return pool.filter((p) => p.storeId === store.id && p.id !== product.id);

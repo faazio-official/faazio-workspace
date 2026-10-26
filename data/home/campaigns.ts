@@ -77,7 +77,7 @@ export const adCampaigns: AdCampaign[] = [
  * 1-product row. Catches stale/mis-linked ids and malformed rows at authoring
  * time instead of silently producing a visually inconsistent carousel.
  */
-if (__DEV__) {
+if ((globalThis as { __DEV__?: boolean }).__DEV__) {
   for (const campaign of adCampaigns) {
     if (getCampaignProducts(campaign).length < 2) {
       console.warn(
