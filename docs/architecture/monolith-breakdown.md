@@ -211,7 +211,7 @@ partner portal's promo/ads writes now await the gateway and roll back with a toa
 
 **Server quench + Rx privacy (W34, `0023`).** Closes the last app-quench/monitoring thin reads with
 additive handlers in existing contexts (no new service): `internal/directory` `GET /venues/{id}`
-(single dining venue, PII-redacted for anon, cached `faazio:v1:directory:venue:{id}` 24 h),
+(single restaurant venue, PII-redacted for anon, cached `faazio:v1:directory:venue:{id}` 24 h),
 `internal/pharma` `GET /seller/prescriptions/{id}` (one Rx in the same name-only-until-READY seller
 projection; cross-seller id is a 404), `internal/checkout` `GET /orders/tracking/{id}` (owner-scoped
 lightweight status projection — no line items/PII; status mapped to the mobile vocabulary), and

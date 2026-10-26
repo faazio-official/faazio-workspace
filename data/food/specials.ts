@@ -9,7 +9,7 @@ const img = (id: string, w = 560, h = 560) =>
 
 /**
  * Today's Special — clean food photography, no promotional labels.
- * Single source of truth: read by the Food Dining "Today's Special Near You"
+ * Single source of truth: read by the Food "Today's Special Near You"
  * rail and the Home "Today's Special" stacked rail (2-up columns).
  */
 export const TODAYS_SPECIALS: SpecialDish[] = [
@@ -224,7 +224,7 @@ export const TODAYS_SPECIALS: SpecialDish[] = [
 ];
 
 /**
- * Map a dining "today's special" dish to a full Product so it can render in the
+ * Map a food "today's special" dish to a full Product so it can render in the
  * unified CommonProductDetail page. FOOD dishes carry no MRP/unit by default,
  * so those are left undefined (the detail page falls back gracefully).
  */

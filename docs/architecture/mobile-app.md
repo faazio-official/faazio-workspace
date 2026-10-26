@@ -651,7 +651,7 @@ AppNavigator (root native stack)
 │    rail + "View All" → DealsLanding{discounts}; distinct from the pushed `VendorDetails` screen —
 │    both read GET /stores/{id}/products)
 │   (Pharma tabs: Home · Search · Cart · History · Donor)
-├── FoodApp (FoodStack — FoodHome dining-first → Search → RestaurantProfile → RestaurantMenu / RestaurantOffers; 2-tab bottom nav Home/Search + You/Cart)
+├── FoodApp (FoodStack — FoodHome restaurant-first → Search → RestaurantProfile → RestaurantMenu / RestaurantOffers; 2-tab bottom nav Home/Search + You/Cart)
 ├── ProductDetail · Search · Cart (`{ restaurantId?, restaurantName? }`) · PaymentOptions · AddCard
 ├── CategoryDrillIn (category drill-in page from the Home/Mart rail) ── VendorDetails (single-store search)
 ├── DealsLanding (deals page — four modes: `campaign` from the Home "Deals of the day" carousel
@@ -1015,7 +1015,7 @@ is a fallback only (no price promise) when no coupon exists.
   can't drop rows). The remote result is **authoritative**: a live `[]` (the seller has no public
   `ACTIVE` dishes) clears the seed and shows the honest empty menu, so a delisted/emptied venue never
   lingers as stale fixture rows; only a real failure (offline / HTTP error) keeps the seed, so the
-  profile is never blank offline. `menuForVenueName` returns the authored dining menu or the `storeMenus` delivery menu
+  profile is never blank offline. `menuForVenueName` returns the authored restaurant menu or the `storeMenus` delivery menu
   (derived from `foodProducts` by `storeId`) for the 12 `store-f*` kitchens; an unseeded venue shows
   an **honest empty menu** — the old `TODAYS_SPECIALS` cuisine-match padding (which could leak other
   restaurants' dishes into a profile) was removed. Festival
@@ -1125,7 +1125,7 @@ on launch. Consent is explicit: `LocationScreen` "ALLOW LOCATION ACCESS" calls
 autocomplete when `GOOGLE_PLACES_API_KEY` is configured, otherwise the existing static results.
 
 Consumers enrich rows locally with `src/utils/distance.ts` (Haversine + `formatDistanceKm`):
-Mart local vendors, Pharma outlets, Food top-rated/dining, category drill-in vendors, and search
+Mart local vendors, Pharma outlets, Food top-rated/restaurants, category drill-in vendors, and search
 results (Relevance order, via `features/search/storeDistance.ts`) are nearest-first and re-sort as
 the poll lands without refetching. Explicit search sorts (price/popularity) stay authoritative. Server-backed nearby reads
 (`GatewayClient.getStoresNearby`/`getProductsNearby`) return `distanceKm` computed by the gateway

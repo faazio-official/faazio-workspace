@@ -11,8 +11,8 @@ const FoodStackNav = createNativeStackNavigator<FoodStackParamList>();
 
 /**
  * Self-contained Food sub-app navigator. Bypasses SubAppWrapper: the root
- * FoodHome owns its own location header + 2-tab bottom nav and the dining-first
- * home content (carousels + order rails + dining grid). Search, the restaurant
+ * FoodHome owns its own location header + 2-tab bottom nav and the restaurant-first
+ * home content (carousels + order rails + restaurant grid). Search, the restaurant
  * profile drill-in, and the profile's "View All" offers page complete the stack.
  */
 export function FoodStack() {

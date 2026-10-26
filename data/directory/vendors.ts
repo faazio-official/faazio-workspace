@@ -1,7 +1,7 @@
 /**
  * @mock Vendor identity resolver — the single owner of "which vendor does this
  * product/order belong to". A vendor is a ratable place: a Mart/Pharma store
- * (`directory/stores.ts`) or a Food dining venue (`food/diningVenues.ts`).
+ * (`directory/stores.ts`) or a Food restaurant venue (`food/diningVenues.ts`).
  *
  * Identity is resolved once (here) and snapshotted onto orders at placement, so
  * an old order keeps resolving to the same vendor even if catalog linkage later
@@ -9,7 +9,7 @@
  */
 import type { AppBrand, Product } from '../types';
 import { storeDirectory, getStoreById } from './stores';
-import { diningVenues, findDiningVenueByName } from '../food/diningVenues';
+import { restaurantVenues, findRestaurantVenueByName } from '../food/diningVenues';
 
 export interface VendorRef {
   id: string;
@@ -17,10 +17,10 @@ export interface VendorRef {
   app: AppBrand;
 }
 
-/** Flattened vendor directory (stores + dining venues), deduped by id. */
+/** Flattened vendor directory (stores + restaurant venues), deduped by id. */
 export const vendorDirectory: VendorRef[] = [
   ...storeDirectory.map((store) => ({ id: store.id, name: store.name, app: store.app })),
-  ...diningVenues
+  ...restaurantVenues
     .filter((venue) => !storeDirectory.some((store) => store.id === venue.id))
     .map((venue) => ({ id: venue.id, name: venue.name, app: 'FOOD' as const })),
 ];
@@ -66,5 +66,5 @@ export function resolveVendorIdForProduct(product: Product): string | undefined 
 
 /** Resolve a vendor by a free-text shop/restaurant name (used for legacy orders). */
 export function resolveVendorIdByName(name?: string): string | undefined {
-  return findVendorByName(name)?.id ?? findDiningVenueByName(name)?.id;
+  return findVendorByName(name)?.id ?? findRestaurantVenueByName(name)?.id;
 }

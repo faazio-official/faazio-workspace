@@ -129,8 +129,8 @@ export {
 } from './directory/vendors';
 export type { VendorRef } from './directory/vendors';
 
-export { diningVenues, getDiningVenueById, findDiningVenueByName } from './food/diningVenues';
-export type { DiningVenue } from './food/diningVenues';
+export { restaurantVenues, getRestaurantVenueById, findRestaurantVenueByName } from './food/diningVenues';
+export type { RestaurantVenue } from './food/diningVenues';
 
 export { reviewsTable, specsTable, highlightsTable, getReviewsByProductId } from './reviews/reviews';
 export type { ReviewRow, SpecRow, HighlightRow } from './reviews/reviews';

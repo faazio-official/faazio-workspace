@@ -68,10 +68,10 @@ function resolveStoreIds(app: AppBrand): string[] {
 
 /**
  * Order of the Food "Top Rated Restaurants" carousel — `directory.dining_venues` ids (tr-*), not the
- * delivery-kitchen `store-f*` ids. The Food feed (`diningService`) reorders its curated Top Rated
- * rows by this list, so a stale/delivery id would make the curation a silent no-op.
+ * delivery-kitchen `store-f*` ids. The Food feed (`restaurantFeedService`) reorders its curated Top
+ * Rated rows by this list, so a stale/delivery id would make the curation a silent no-op.
  */
-const MOST_RATED_DINING_VENUE_IDS = ['tr-1', 'tr-2', 'tr-3', 'tr-4', 'tr-5', 'tr-6'];
+const MOST_RATED_RESTAURANT_VENUE_IDS = ['tr-1', 'tr-2', 'tr-3', 'tr-4', 'tr-5', 'tr-6'];
 
 const FILTER_FEED: SduiSection['chips'] = filterChips.map((chip) => ({
   id: chip.id,
@@ -134,8 +134,8 @@ export const homeSdui: SduiSection[] = [
   { id: 'martEssentials', title: 'Daily Essentials', accent: '#0F766E', productIds: ['gr-p3', 'gr-p4', 'gr-p5', 'gr-p6', 'gr-p7'] },
   // Food-only section, same pattern as the Mart rails: lives in the Home doc so Food has one
   // merchandising owner (super-admin SDUI editor) and the mock/remote shapes match. Only
-  // `diningService.fetchDiningFeed` reads it (via `GET /sdui/food`); `HomeView` skips the
-  // unknown id. Banners are editorial (never money) and render as the organic fallback when the
+  // `restaurantFeedService.fetchRestaurantFeed` reads it (via `GET /sdui/food`); `HomeView` skips
+  // the unknown id. Banners are editorial (never money) and render as the organic fallback when the
   // paid `FOOD_HERO` placement has no LIVE fill. Raw ids so the seed generator can fail loudly.
   {
     id: 'foodHero',
@@ -143,14 +143,15 @@ export const homeSdui: SduiSection[] = [
     accent: '#1E5D44',
     productIds: [],
     banners: [
-      { id: 'fb-1', title: 'Dining Deals Near You', subtitle: 'UP TO 40% OFF', accent: '#E8F5E9', imageUrl: 'https://images.unsplash.com/photo-1504674900247-0877df9cc836?fm=jpg&fit=crop&q=80&w=800&h=450' },
+      { id: 'fb-1', title: 'Restaurant Deals Near You', subtitle: 'UP TO 40% OFF', accent: '#E8F5E9', imageUrl: 'https://images.unsplash.com/photo-1504674900247-0877df9cc836?fm=jpg&fit=crop&q=80&w=800&h=450' },
       { id: 'fb-2', title: 'Biryani Festival', subtitle: 'FLAT ₹150 OFF', accent: '#FFF3E0', imageUrl: 'https://images.unsplash.com/photo-1563379091339-03b21ab4a4f8?fm=jpg&fit=crop&q=80&w=800&h=450' },
       { id: 'fb-3', title: 'Late Night Cravings', subtitle: 'FREE DELIVERY', accent: '#EDE9FE', imageUrl: 'https://images.unsplash.com/photo-1555396273-367ea4eb4db5?fm=jpg&fit=crop&q=80&w=800&h=450' },
     ],
   },
   // Food-only dish rail: the super-admin SDUI editor owns "Today's Special Near You" order
-  // (ID-only, money joined). Served on `GET /sdui/food` and read by `diningService.fetchDiningFeed`;
-  // `HomeView` skips the id (`default → null`), so Home's own `diningSpecials` rail is unaffected.
+  // (ID-only, money joined). Served on `GET /sdui/food` and read by
+  // `restaurantFeedService.fetchRestaurantFeed`; `HomeView` skips the id (`default → null`), so
+  // Home's own `diningSpecials` rail is unaffected.
   // Raw `sp-*` ids so the seed generator fails loudly on a typo (all exist in `catalogIndex`).
   {
     id: 'foodSpecials',
@@ -184,7 +185,7 @@ export const homeSdui: SduiSection[] = [
   // Paid placement: the doc owns the slot order, the ad-server (`GET /ads/live`) owns the fill.
   // No productIds are baked in — the app resolves LIVE ads at render time (they expire).
   { id: 'sponsoredRail', title: 'Sponsored picks', accent: '#B45309', productIds: [] },
-  { id: 'mostRatedDining', title: 'Most Rated Dining', accent: '#1E5D44', productIds: [], storeIds: MOST_RATED_DINING_VENUE_IDS },
+  { id: 'mostRatedDining', title: 'Most Rated Restaurants', accent: '#1E5D44', productIds: [], storeIds: MOST_RATED_RESTAURANT_VENUE_IDS },
   { id: 'recentlyViewedMart', title: 'Recently Viewed — Mart', accent: '#1162D3', productIds: resolveProductIds(['rvm-1', 'rvm-2', 'rvm-3', 'rvm-4']) },
   { id: 'recentlyViewedFood', title: 'Recently Viewed — Food', accent: '#1E5D44', productIds: resolveProductIds(['rvf-1', 'rvf-2', 'rvf-3']) },
   { id: 'recentlyViewedPharma', title: 'Recently Viewed — Pharma', accent: '#065F46', productIds: resolveProductIds(['rvp-1', 'rvp-2', 'rvp-3']) },

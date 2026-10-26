@@ -1,9 +1,9 @@
 /**
- * @mock Static fixture — per-venue menu items for both the dining rooms surfaced
- * in the Food dining tab (see `features/food/mocks/restaurants.ts`) and the 12
- * food-delivery kitchens (`foodStores`, `store-f1…f12`). Dining rows are authored
- * as `SpecialDish` (keyed by restaurant name); delivery rows are derived from
- * `foodProducts` by `storeId`. `RestaurantProfileScreen.getMenuForRestaurant()`
+ * @mock Static fixture — per-venue menu items for both the restaurants surfaced
+ * in the Food tab (see `features/food/mocks/restaurants.ts`) and the 12
+ * food-delivery kitchens (`foodStores`, `store-f1…f12`). Restaurant rows are
+ * authored as `SpecialDish` (keyed by restaurant name); delivery rows are derived
+ * from `foodProducts` by `storeId`. `RestaurantProfileScreen.getMenuForRestaurant()`
  * populates every venue's "Recommended & Offers" rail from here instead of padding
  * the shared specials. Seeded into `directory.menus`. See data/DATA_CONTROL.md.
  */
@@ -98,7 +98,7 @@ const MENUS: MenuSeed[] = [
   { key: 'bb-3', dishName: 'Hyderabadi Veg Biryani', restaurant: 'Biryani Basera', price: 330, image: img('photo-1589302168068-964664d93dc0'), isVeg: true, description: 'Fragrant veg biryani with paneer, saffron and mint raita on the side.', cuisine: 'Biryani', rating: 4.8, deliveryTime: '30 min' },
 ];
 
-/** Per-restaurant menu keyed by dining restaurant name. */
+/** Per-restaurant menu keyed by restaurant name. */
 export const restaurantMenus: Record<string, SpecialDish[]> = MENUS.reduce<Record<string, SpecialDish[]>>(
   (acc, seed) => {
     const { key, ...dish } = seed;
@@ -143,7 +143,7 @@ export const storeMenus: Record<string, SpecialDish[]> = (() => {
 })();
 
 /**
- * The menu for a venue, by name — per-restaurant (dining room) first, then the derived
+ * The menu for a venue, by name — per-restaurant first, then the derived
  * delivery-store menu. Empty when the name matches neither (the caller may then fall
  * back to a cuisine match).
  */

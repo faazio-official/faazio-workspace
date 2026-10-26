@@ -68,9 +68,9 @@ const sectors = [
     icon: UtensilsCrossed,
     theme: "bg-food-soft text-food",
     action: "Explore Food",
-    detail: "Local restaurants · Meals · Dining bookings",
+    detail: "Local restaurants · Meals · Delivery & pickup",
     details:
-      "Discover meals from local restaurants and plan your next sit-down meal with dining bookings. Participating restaurants and availability are shown in the app.",
+      "Discover meals from local restaurants and choose delivery or self-pickup at checkout. Order details and tracking are available in the app.",
   },
   {
     id: "pharma",

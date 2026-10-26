@@ -311,7 +311,7 @@ export default function CommonProductDetailView({
                   </View>
                   <AppText style={styles.storeCloseText}>
                     {' '}
-                    · {foodStore.distance} · {foodStore.deliveryTime}
+                    · {foodStore.distance}
                   </AppText>
                 </View>
               ) : null}

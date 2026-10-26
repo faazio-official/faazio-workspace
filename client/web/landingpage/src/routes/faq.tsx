@@ -14,9 +14,9 @@ import { seoHead, type JsonLdNode } from "@/lib/seo";
 
 const title = "Faazio FAQ — Download, ordering, coverage & pharmacy | Karaikal";
 const description =
-  "Answers to the everyday questions about Faazio — how ordering works, Karaikal coverage, pharmacy prescriptions, dining bookings, and blood donation.";
+  "Answers to the everyday questions about Faazio — how ordering works, Karaikal coverage, pharmacy prescriptions, food delivery and pickup, and blood donation.";
 const keywords =
-  "Faazio FAQ, Faazio questions, download Faazio app, ordering on Faazio, Faazio Karaikal coverage, prescription pharmacy, Faazio dining booking, Faazio blood donor";
+  "Faazio FAQ, Faazio questions, download Faazio app, ordering on Faazio, Faazio Karaikal coverage, prescription pharmacy, Faazio food delivery, Faazio pickup, Faazio blood donor";
 
 const faqPageNode: JsonLdNode = {
   "@type": "FAQPage",

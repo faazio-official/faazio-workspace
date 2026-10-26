@@ -322,7 +322,7 @@ export interface UserDetailsData {
   securitySubtitle: string;
 }
 
-/** Food dining "today's special" dish (owner: features/food). */
+/** Food "today's special" dish (owner: features/food). */
 export interface SpecialDish {
   id: string;
   dishName: string;

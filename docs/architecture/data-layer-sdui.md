@@ -79,13 +79,13 @@ reads the server-joined store + products. `data/home/campaigns.ts` remains a typ
 never a runtime fallback.
 
 **Per-venue menus** (`data/food/menus.ts`): exports `restaurantMenus`
-(`Record<string, SpecialDish[]>` keyed by the 18 dining-restaurant names, ~5 dishes each),
+(`Record<string, SpecialDish[]>` keyed by the 18 restaurant names, ~5 dishes each),
 `storeMenus` (keyed by the 12 delivery-store names, derived from `foodProducts` via `storeId`)
 and the flat pool `allRestaurantMenuDishes`. `menuForVenueName(name)`
-resolves dining first then delivery; the shared `features/food/utils/menu.ts`
+resolves restaurant first then delivery; the shared `features/food/utils/menu.ts`
 `getMenuForRestaurant()` reads it first; an unseeded venue shows an **honest empty menu** (the old
 `TODAYS_SPECIALS` cuisine-match + padding fallback, which could leak other restaurants' dishes,
-was removed in W45), so every dining room **and delivery kitchen** has its
+was removed in W45), so every restaurant **and delivery kitchen** has its
 own menu (`RestaurantProfileScreen` + `RestaurantMenuScreen` consume it). Both pools are seeded
 into `directory.menus` (88 dishes / 30 venues), so `GatewayClient.getMenu` serves durable rows
 only (no fixture substitution).
@@ -103,7 +103,7 @@ replacing its former inline `RECENT_ORDERS` copy (Phase 7 de-dup).
 **Vendor identity & ratings** (`data/directory/vendors.ts`, `data/food/diningVenues.ts`,
 `data/reviews/vendorReviews.ts`): `resolveVendorForProduct(product)` is the single owner of
 "which vendor does this product/order belong to", merging `directory/stores` with the
-dining-venue identity table. Vendor identity is resolved once and snapshotted onto orders
+restaurant-venue identity table. Vendor identity is resolved once and snapshotted onto orders
 (`MyOrder.storeId`, `OrderRow.vendorStoreIds`, `PlacedOrder.storeIds`), so an old order keeps
 resolving to the same vendor. `hasPurchasedFromVendor(userId, vendorId)` is the **derived**
 rating-eligibility gate (non-cancelled order; server later tightens to `DELIVERED`; stays true
@@ -122,7 +122,7 @@ legacy fixtures (never hand-copied), so the two surfaces can't drift:
 | `directory/stores.ts` | Go + PostgreSQL | mart + food stores | Supabase `directory` |
 | `storeGeo.ts` | (shared helper) | deterministic fixture coordinates (`approximateGeo`, `withStoreGeo`); live rows carry real `latitude`/`longitude` from `directory.stores` (0041) | — |
 | `directory/vendors.ts` | Go + PostgreSQL | vendor identity view (stores + `food/diningVenues`) — `resolveVendorForProduct` | Supabase `directory` (derived view) |
-| `food/diningVenues.ts` | Go + PostgreSQL | dining-venue ids/names only (identity) | Supabase `directory` (identity) |
+| `food/diningVenues.ts` | Go + PostgreSQL | restaurant-venue ids/names only (identity; no booking fields) | Supabase `directory` (identity) |
 | `reviews/reviews.ts` | Go + PostgreSQL | `productMeta/reviews` | Supabase `reviews` |
 | `reviews/vendorReviews.ts` | Go + PostgreSQL | seeded public vendor reviews (full name only) | Supabase `reviews` |
 | `inventory/stock.ts` | Go + DynamoDB | net-new stock rows | Supabase `inventory` |
