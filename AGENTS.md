@@ -6,10 +6,10 @@ Build **lightweight, fast, secure**. Every change must justify its size:
 - **Fast** — efficient rendering, lazy/native where sensible, minimal re-renders.
 - **Secure** — never log or commit secrets/PII; tokens via `react-native-keychain`; prescriptions & payments never in plain logs.
 
-## Phase: MVP (now)
-**Status: MVP.** The backend is a **thin Go Chi gateway** over **Supabase (Postgres) + MongoDB Atlas M0 + Aiven Valkey**, with Cloudflare in front. This replaces the mocked `@mock` data per module (`@mock` → `@server`).
-The full microservices target — Rust/Tantivy search, CockroachDB, DynamoDB, per-service Postgres — is **Future Prod** and stays documented. Single authorities: **`docs/architecture/mvp-backend.md`** (MVP) and **`docs/architecture/monolith-breakdown.md`** (context → package → future-service mapping + extraction playbook).
-- MVP = **one Go Chi modular monolith** (`server/gateway`) hosting all 6 bounded contexts (reads + writes), with Supabase migrations + seed under `server/supabase/`. Extract Rust/Go services later per `monolith-breakdown.md` — no rewrite.
+## Phase: Production (live)
+**Status: Production (live).** The backend is a **Go Chi modular monolith** over **Supabase (Postgres) + MongoDB Atlas M0 + Aiven Valkey**, with Cloudflare in front. It serves live data per module (`@mock` → `@server`) and is the production runtime today.
+The microservices scaling target — Rust/Tantivy search, CockroachDB, DynamoDB, per-service Postgres — is the **scaling stage** and stays documented. Single authorities: **`docs/architecture/mvp-backend.md`** (production) and **`docs/architecture/monolith-breakdown.md`** (context → package → scaling-service mapping + extraction playbook).
+- Production = **one Go Chi modular monolith** (`server/gateway`) hosting all 6 bounded contexts (reads + writes), with Supabase migrations + seed under `server/supabase/`. Extract Rust/Go services only when a scale trigger hits, per `monolith-breakdown.md` — a packaging change, not a rewrite.
 - Cache keys/TTLs are **unchanged** (Aiven Valkey + Cloudflare); Supabase is the origin, not the cache.
 
 ## Repo map
@@ -18,7 +18,7 @@ faazio-workspace/
 ├── (root)          Repo root — docs + project docs only (AGENTS.md, ARCHITECTURE.md, LICENSE, PAGE_CATALOG.md, PENDING_WORK.md, README.md).
 ├── client/mobile/  Bare React Native SuperApp (committed android/ + ios/) — ALL active work lives here.
 ├── client/web/     Partner Portal — Next.js App Router console (`portal/`, shipping) + the Vite/TanStack reference (`vite-reference/`, read-only diff baseline) + the marketing landing page (`landingpage/`, TanStack Start + Nitro, deployed on Vercel — see its README.md). See docs/architecture/web-portal.md.
-├── server/         MVP Go Chi modular monolith `gateway/` + Supabase migrations/seed (active) + future full microservices (see docs/architecture/mvp-backend.md, monolith-breakdown.md).
+├── server/         Production Go Chi modular monolith `gateway/` + Supabase migrations/seed (active) + documented scaling-stage microservices (see docs/architecture/mvp-backend.md, monolith-breakdown.md).
 ├── data/           SDUI source of truth (enterprise-controlled), consumed via @data/*.
 ├── docs/           Documentation system — architecture deep-dives + runbooks (see "Documentation map").
 └── security/       Security hardening scripts + remediation guide (see "Security").
@@ -42,7 +42,7 @@ Reading order for a new contributor: `AGENTS.md` → `ARCHITECTURE.md` →
 `client/mobile/` also has `docs/` (appstore/playstore/release) and `PENDING_WORK.md` (backlog).
 
 ## Hard rules
-1. **Wait for user intent.** Do NOT build screens/pages until explicitly requested. **Exception:** the MVP thin gateway + Supabase migrations (`docs/architecture/mvp-backend.md`) are the sanctioned server scope — build them when the user asks for the MVP backend.
+1. **Wait for user intent.** Do NOT build screens/pages until explicitly requested. The gateway (`server/gateway`) + Supabase migrations (`docs/architecture/mvp-backend.md`) are the sanctioned, already-live server scope — extend them only when explicitly requested.
 2. **Imports** — `@/` → `client/mobile/src/`, `@data/` → root `data/`.
 3. **State** — shared state ONLY in Zustand stores under `src/state/`. Keep components presentational; read via selectors. No duplicate shared state.
 4. **Modularity** — small components under `src/components/`; screen helpers under their `src/features/<module>/`; shared widgets under `src/components/shared/`. Reuse before duplicating (avoid parallel mock copies).
@@ -148,7 +148,7 @@ Dinner-booking was removed (mobile, portal and gateway).
 
 Remaining/backlog work is tracked in `client/mobile/PENDING_WORK.md` (e.g. server-backed flows and
 de-duplicating inline fixture data). `GatewayClient` wiring is
-**unblocked by the MVP thin gateway** (`docs/architecture/mvp-backend.md`); build new screens
+**unblocked by the production gateway** (`docs/architecture/mvp-backend.md`); build new screens
 only when explicitly requested.
 
 ## Security — Phase 1: Security steps for future projects

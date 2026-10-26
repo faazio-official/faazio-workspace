@@ -64,7 +64,7 @@ sub-app's internals (only `Home` is allowed to cross sub-apps). `check:drillin` 
 
 ### 4a. Run & verify the backend (Go modular monolith)
 
-The MVP backend is one Go Chi binary at `server/gateway`. Run it with the local stack
+The production backend is one Go Chi binary at `server/gateway`. Run it with the local stack
 (Postgres + Valkey + Mongo, migrations + seed applied automatically):
 
 ```bash

@@ -1,17 +1,18 @@
 # Faazio DB Schema Bible
 
-> **Status:** REFERENCE — MVP implemented, Future Prod planned. This is the canonical, LLM-greppable
+> **Status:** REFERENCE — Production implemented, scaling stage planned. This is the canonical, LLM-greppable
 > reference for the microservice databases behind `server/`. It answers, for every table: *which
 > microservice → which DB → which language → which schema → which datatype → which cache key → which
 > admin queries*. All sample rows are derived from the **real `@data/*` fixtures** (provenance noted
 > per row) — nothing is invented.
-> **Implemented (MVP):** the DDL in §5–§8 ships as Postgres migrations under
+> **Implemented (production):** the DDL in §5–§8 ships as Postgres migrations under
 > `server/supabase/migrations/` (schemas, INT8 paisa, `TIMESTAMPTZ`, ENUMs verbatim) with seed under
-> `server/supabase/seed/`. The CockroachDB / Tantivy / DynamoDB targets remain **Future Prod**.
+> `server/supabase/seed/`. The CockroachDB / Tantivy / DynamoDB targets remain **scaling-stage targets**.
 >
-> **MVP vs Future Prod:** the **MVP** (single authority: `docs/architecture/mvp-backend.md`) runs on
-> **one Supabase (Postgres) project + MongoDB Atlas M0 + Aiven Valkey**. The CockroachDB / Tantivy /
-> DynamoDB / per-service Postgres targets in this doc are **Future Prod**. See the MVP mapping in §0.
+> **Production vs scaling stage:** **production** (single authority: `docs/architecture/mvp-backend.md`)
+> runs on **one Supabase (Postgres) project + MongoDB Atlas M0 + Aiven Valkey**. The CockroachDB /
+> Tantivy / DynamoDB / per-service Postgres targets in this doc are **scaling-stage targets**. See the
+> production mapping in §0.
 > The DDL below stays copy-paste-ready (CockroachDB → Postgres is near-verbatim; the datatype policy §2
 > is Postgres-compatible).
 >
@@ -47,14 +48,14 @@ Every table uses one identical 9-part template:
 | Compression | **None** at DB/app layer — Cloudflare does gzip/zstd at the edge; Valkey values are plain JSON. |
 | PII | Never at the edge; Valkey ACL-scoped keys; app-layer hashing where required; never logged. |
 
-### MVP mapping (read this first)
+### Production mapping (read this first)
 
-The **MVP** runs each production table below on **one Supabase (Postgres) project** + **MongoDB
+**Production** runs each production table below on **one Supabase (Postgres) project** + **MongoDB
 Atlas M0** + **Aiven Valkey**; the CockroachDB / Tantivy / DynamoDB / standalone Postgres targets
-specified in this doc are **Future Prod**. Datatypes (§2) are unchanged — the policy is
+specified in this doc are **scaling-stage targets**. Datatypes (§2) are unchanged — the policy is
 Postgres-compatible.
 
-| Production table (§) | MVP origin | Future Prod DB |
+| Production table (§) | Production origin | Scaling-stage DB |
 |---|---|---|
 | `catalog.products` + search (§5) | Supabase `catalog` + Postgres FTS `catalog.products_search` (`tsvector`/`pg_trgm`/`unaccent`) | CockroachDB + Tantivy |
 | `inventory.*` stock/carts/reservations/pickup_points (§6) | Supabase `inventory` + `SELECT … FOR UPDATE SKIP LOCKED` + `pg_cron` TTL | DynamoDB / Firestore |
@@ -62,7 +63,7 @@ Postgres-compatible.
 | `recommendations.*` (§8) | MongoDB Atlas M0 (unchanged) | Same (no change) |
 | Gateway (§4) | Thin Go Chi over Supabase + Mongo + Valkey | Full gateway + gRPC microservices |
 
-Full MVP matrix, RLS classes, and endpoints: `docs/architecture/mvp-backend.md`.
+Full production matrix, RLS classes, and endpoints: `docs/architecture/mvp-backend.md`.
 
 ---
 
@@ -96,7 +97,7 @@ public HTTPS/JSON surface. Every `@mock` entry in `data/DATA_CONTROL.md` maps to
 | Compression | None at DB/app layer; Cloudflare gzip/zstd at edge; Valkey plain JSON | No decrypt/decompress tax per request. |
 | PII | Never at edge; Valkey ACL-scoped keys; app-layer hashing; never logged | AGENTS.md security mandate. |
 
-**MVP narrowing (migrations `0004`–`0006`).** The Postgres MVP applies a byte diet on top of this
+**Production narrowing (migrations `0004`–`0006`).** The Postgres production schema applies a byte diet on top of this
 policy without changing any wire shape: `catalog.products.rating` → `real` (1-decimal), `rating`
 counts/`reviews_count`/`in_stock_qty` → `int4`, `qty` on `checkout.order_items` /
 `inventory.stock_reservations` → `smallint`, and the dead `catalog.products.slug_uid` column plus the
@@ -121,7 +122,7 @@ Traceability is 1:1 — each production table documents its `@data/*` source.
 | `inventory.stock` / `carts` / `reservations` / `pickup_points` | `data/inventory/stock.ts`, `data/cart/*` | DynamoDB |
 | `checkout.*` (users/addresses/coupons/orders/order_items/payments/events) | `data/checkout/orders.ts` | CockroachDB |
 | `accounts.*` (profile/membership/order_status/nav/details) | `data/accounts/profile.ts` | CockroachDB (PostgreSQL-shaped) |
-| `recommendations.*` (sdui_layouts/user_events/recommendations/product_stats; segments Future Prod) | `data/home/sdui.ts` | MongoDB |
+| `recommendations.*` (sdui_layouts/user_events/recommendations/product_stats; segments scaling-stage) | `data/home/sdui.ts` | MongoDB |
 
 > **Ownership note:** `catalog.*`, `directory.*`, `reviews.*`, and `accounts.*` physically live in the
 > same CockroachDB cluster as `checkout.*`, but each is owned by a distinct logical schema (documented
@@ -151,9 +152,9 @@ stateless JWT (Valkey-scoped, see cache doc).
 
 ## 5. Service 2 — Search & Catalog (Rust · Axum + Tantivy)
 
-> **MVP:** Supabase `catalog.products` + Postgres FTS `catalog.products_search` (`tsvector` + `pg_trgm`
-> GIN + `unaccent`, `search_tokens` generated col) replace the Tantivy index. The Tantivy spec below is
-> **Future Prod**; the datatypes here stay.
+> **Production:** Supabase `catalog.products` + Postgres FTS `catalog.products_search` (`tsvector` +
+> `pg_trgm` GIN + `unaccent`, `search_tokens` generated col) replace the Tantivy index. The Tantivy spec
+> below is the **scaling stage**; the datatypes here stay.
 
 ### 5.1 CockroachDB master: `catalog.products` (owned by Checkout schema, read by Search)
 
@@ -170,7 +171,7 @@ CREATE TABLE catalog.products (
   search_tokens TEXT[] NOT NULL DEFAULT '{}',
   price_paisa   INT8 NOT NULL,               -- money as paisa (₹1 = 100)
   mrp_paisa     INT8,                        -- optional original price
-  rating        REAL NOT NULL DEFAULT 0,     -- 0..5, 1-decimal (MVP 0005; Future Prod f64/FAST)
+  rating        REAL NOT NULL DEFAULT 0,     -- 0..5, 1-decimal (0005; scaling stage f64/FAST)
   reviews_count INT4 NOT NULL DEFAULT 0,
   emoji         TEXT NOT NULL,
   image_url     TEXT NOT NULL,
@@ -256,9 +257,9 @@ truth — the durable master is `catalog.products`.
 
 ## 6. Service 3 — Cart & Stock (Go · DynamoDB — Firestore mapping)
 
-> **MVP:** Supabase `inventory` schema; atomic decrement via `SELECT … FOR UPDATE SKIP LOCKED`, TTL
-> sweep via `pg_cron` (replaces DynamoDB condition expressions + TTL). The DynamoDB/Firestore mapping
-> below is **Future Prod**.
+> **Production:** Supabase `inventory` schema; atomic decrement via `SELECT … FOR UPDATE SKIP LOCKED`,
+> TTL sweep via `pg_cron` (replaces DynamoDB condition expressions + TTL). The DynamoDB/Firestore
+> mapping below is the **scaling stage**.
 
 **Tables:** `carts`, `stock`, `stock_reservations` (TTL), `pickup_points`. Key-value design.
 
@@ -340,9 +341,9 @@ queries: low-stock scan, pickup-point list.
 
 ## 7. Service 4 — Checkout & Orders (Go · CockroachDB)
 
-> **MVP:** the `checkout`, `directory`, `reviews`, and `accounts` schemas all live in the one Supabase
-> project (RLS on); the CockroachDB + standalone Postgres split below is **Future Prod**. DDL is
-> Postgres-compatible.
+> **Production:** the `checkout`, `directory`, `reviews`, and `accounts` schemas all live in the one
+> Supabase project (RLS on); the CockroachDB + standalone Postgres split below is the **scaling stage**.
+> DDL is Postgres-compatible.
 
 **One DB, three logical schemas** (all ownership-annotated): `checkout` (primary owner), `catalog`
 (documented in §5 — physical home), `accounts` (§8), `directory` (§7.5), `reviews` (§7.6).
@@ -454,7 +455,7 @@ CREATE TABLE checkout.order_items (
   product_id   TEXT,                  -- nullable, links to catalog
   name         TEXT NOT NULL,
   variant      TEXT,
-  qty          SMALLINT NOT NULL,     -- app caps qty at 99 (MVP 0005)
+  qty          SMALLINT NOT NULL,     -- app caps qty at 99 (0005)
   unit_price_paisa INT8 NOT NULL
 );
 ```
@@ -611,7 +612,7 @@ SELECT EXISTS (
 the same vendor. The gate is permanently true for a `(user, vendor)` pair once it
 exists ("old customer keeps the ability").
 
-**O(1) rating aggregate (MVP 0004).** `GET /vendors/:id/reviews/summary` reads a
+**O(1) rating aggregate (migration 0004).** `GET /vendors/:id/reviews/summary` reads a
 trigger-maintained counter row instead of a per-request `GROUP BY`:
 
 ```sql
@@ -649,8 +650,8 @@ public output exposes `user_name`, `rating`, `comment` only. Moderation queries 
 
 ## 8. Service 6 — Recommendations (Python · FastAPI + MongoDB)
 
-> **MVP:** MongoDB Atlas M0 is kept **as-is** (no change); the Python service is Future Prod — the thin
-> gateway reads `sdui_layouts` directly (ID-only) until then.
+> **Production:** MongoDB Atlas M0 is kept **as-is** (no change); the Python service is the scaling
+> stage — the Go gateway reads `sdui_layouts` directly (ID-only) until then.
 
 **Collections:** `user_events` (TTL), `recommendations`, `segments`, `product_stats`, `sdui_layouts`.
 
@@ -740,7 +741,7 @@ Raw user-behavior events (browse/view/add-to-cart), **ID-only + no PII**, auto-e
 { _id: ObjectId, userIdHash: 'sha256…', productId: 'fm-f1', event: 'view', at: ISODate(), expiresAt: ISODate() }
 ```
 
-**MVP (live):** written by `POST /events` (`server/gateway/internal/reco/repo.go`); the 90-day
+**Production (live):** written by `POST /events` (`server/gateway/internal/reco/repo.go`); the 90-day
 TTL is the native Mongo TTL index `user_events_ttl` (`expireAfterSeconds: 0` on `expiresAt`),
 created by `server/supabase/seed/mongo/seed.js`. The handler bounds the vocabulary to
 `event ∈ {view, cart_add, order, search}` and `productId ≤ 64` chars so the Atlas M0 collection
@@ -751,14 +752,14 @@ the TTL index is the only index, keeping M0 writes/space minimal.
 
 ### 8.3 `recommendations` / `segments` / `product_stats`
 
-> **MVP status:** the gateway now ships a **read path** over these collections (`GET /recommendations`,
-> migration `0014` series). MongoDB in the MVP is **exactly four collections**: `sdui_layouts` +
-> `user_events` (live writes) and `recommendations` + `product_stats` (validated, read-only — written
-> by the Future Prod batch job). `segments` remains Future Prod. Both read-only collections are
+> **Production status:** the gateway now ships a **read path** over these collections (`GET
+> /recommendations`, migration `0014` series). MongoDB in production is **exactly four collections**:
+> `sdui_layouts` + `user_events` (live writes) and `recommendations` + `product_stats` (validated,
+> read-only — written by the scaling-stage batch job). `segments` remains scaling-stage. Both read-only collections are
 > created + validated eagerly by `server/supabase/seed/mongo/seed.js` (`collMod`, moderate validation).
 
 - `recommendations`: precomputed per-user (`userIdHash`) product-id list (`{ userIdHash, productIds[], generatedAt }`), ID-only, ≤ 100 ids.
-- `segments`: user-segment mappings (ID-only) — still Future Prod, no validator/writes.
+- `segments`: user-segment mappings (ID-only) — still scaling-stage, no validator/writes.
 - `product_stats`: aggregate score per product id (`{ productId, score, views, cartAdds, orders, updatedAt }`), ID-only, no PII.
 
 **Access patterns:** `GET /recommendations` reads the caller's `recommendations` doc by `userIdHash`;
@@ -809,17 +810,16 @@ logged.
 
 ## 11. Honest limitations
 
-- **MVP implemented, Future Prod plan-only.** The Postgres migrations
-  (`server/supabase/migrations/0001–0006`) and generated seed exist on disk; the CockroachDB /
-  Tantivy / DynamoDB / Python targets do **not**. The DDL below is the authority those migrations
-  port from. `0004` adds lean indexes + guards, `0005` the type byte diet, `0006` the checkout
-  idempotency table.
+- **Production implemented, scaling stage plan-only.** The Postgres migrations
+  (`server/supabase/migrations/`) and generated seed exist on disk; the CockroachDB / Tantivy /
+  DynamoDB / Python targets do **not**. The DDL below is the authority those migrations port from.
+  `0004` adds lean indexes + guards, `0005` the type byte diet, `0006` the checkout idempotency table.
 - **Sample rows** are `@data/*`-derived where noted; the `stock` numbers are **algorithm-derived**
   (not hardcoded) to avoid drift, and `ph-c1`/`sp-1` point to their fixture files rather than repeating
   values.
 - The **datatype choices** cite real type systems (CockroachDB ENUM/INT8/TIMESTAMPTZ, Tantivy
   STORED/INDEXED/FAST, DynamoDB attribute types, BSON int32/int64/Date) but are **recommendations** —
-  final DDL tuning happens when the backend is built.
+  final DDL tuning happens when the scaling stage is built.
 - Ownership of the CockroachDB cluster is **shared across logical schemas** (`catalog`, `directory`,
   `reviews`, `accounts`, `checkout`) — each owned by its service, physically co-located. This is
   documented per section and may be split into separate clusters later.
@@ -828,9 +828,9 @@ logged.
 
 ---
 
-## 12. MVP additions — previously-orphaned workflows get a durable home
+## 12. Production additions — previously-orphaned workflows get a durable home
 
-> **Status:** MVP code active (migrations `0007`–`0015`). These tables close the "DB gap": workflows
+> **Status:** Production code live (migrations `0007`–`0015`). These tables close the "DB gap": workflows
 > that lived only in client memory / `AsyncStorage` / Portal `localStorage` now have a Supabase table +
 > gateway endpoint. Money is INT8 paisa; IDs are stable slugs; RLS is own-rows unless noted.
 
@@ -1049,7 +1049,7 @@ requester. Contact disclosure on acceptance is **not** part of this — sharing 
 
 The `bookings` schema (migrations `0011` + `0020`), `internal/bookings`, the mobile seat-reservation
 flow and the web booking pages were removed. There is no booking table, route, cache key or
-`GatewayClient` method in the MVP. Do not recreate the schema from older docs; the order lifecycle now
+`GatewayClient` method in production. Do not recreate the schema from older docs; the order lifecycle now
 owns seller accept/reject (see §12.28).
 
 ### 12.8 Hardening — triggers, purge sweep, hot-path indexes, schema grants (migration `0014`)
@@ -1806,7 +1806,7 @@ splitting, COD reconciliation, TDS and payout frequency remain out of scope.
 
 **Authority:** `monolith-breakdown.md` §1 (`admins`, `sellers`, `portal auth`), `mobile-app.md`
 ("Sell with us", account console), `web-portal.md` (district console + fee review), `caching-cloudflare-valkey.md`
-(no new cache keys). MVP coverage is **Tamil Nadu (38) + Puducherry (4)** districts.
+(no new cache keys). Production coverage is **Tamil Nadu (38) + Puducherry (4)** districts.
 
 ```sql
 -- 0046: district master (the FK target; seeded, read-only to app roles)
@@ -2067,7 +2067,7 @@ CREATE INDEX IF NOT EXISTS orders_seller_status_date_idx
 chars) and marks every captured `checkout.payments` row `REFUNDED` in the same transaction as the
 order status, so order state + payment ledger can never diverge; `refundedPaisa` is a
 response/detail projection (money state stays in `checkout.payments`) and `ORDER_REJECTED` is
-enqueued to the customer after the commit. The MVP checkout does not persist a Razorpay payment id,
+enqueued to the customer after the commit. The production checkout does not persist a Razorpay payment id,
 so this is a ledger refund; calling the Razorpay refund API is a future payment-capture task.
 The generic `PUT /orders/{id}/status` deliberately does **not** accept `REJECTED` so a refund cannot
 be skipped. It accepts the portal's upper-case lifecycle; the gateway maps `SHIPPED`/`DELIVERED`/

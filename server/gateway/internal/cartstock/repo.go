@@ -1,6 +1,6 @@
 // Package cartstock serves the cart + stock context. Future service: Go + DynamoDB
 // / Firestore (monolith-breakdown §1). Stock decrements use SELECT … FOR UPDATE SKIP
-// LOCKED for MVP contention safety (mvp-backend §1).
+// LOCKED for production contention safety (mvp-backend §1).
 package cartstock
 
 import (

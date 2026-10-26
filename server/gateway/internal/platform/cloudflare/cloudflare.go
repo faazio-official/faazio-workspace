@@ -1,4 +1,4 @@
-// Package cloudflare talks to the Cloudflare API. Its single MVP responsibility is purging cached
+// Package cloudflare talks to the Cloudflare API. Its single responsibility is purging cached
 // object URLs (the public R2 CDN under `img.faazio.in`) when a media asset changes or is removed, so
 // an immutable-key cache can still be invalidated on moderation/delete.
 //

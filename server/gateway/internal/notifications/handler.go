@@ -35,7 +35,7 @@ func (h *Handler) Register(r chi.Router) {
 	r.Group(func(g chi.Router) {
 		g.Use(auth.RequireRole(auth.RoleStateAdmin, auth.RoleSuperAdmin))
 		g.Get("/admin/notifications", h.outbox)
-		// Manual MVP drain trigger: runs one synchronous outbox batch (503 when no push provider).
+		// Manual drain trigger: runs one synchronous outbox batch (503 when no push provider).
 		g.Post("/notifications/drain", h.drain)
 	})
 }

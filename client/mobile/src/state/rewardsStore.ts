@@ -51,7 +51,7 @@ const persist = (blob: PersistedBlob) => {
 };
 
 /**
- * MVP decision (PENDING_WORK §1): rewards WRITES are device-local. `recordOrder`/`redeemCoins`
+ * Product decision (PENDING_WORK §1): rewards WRITES are device-local. `recordOrder`/`redeemCoins`
  * update the persisted store directly; the server-authoritative view (`GET /rewards`) is only
  * reconciled on read via `reconcile()`. Do not wire order flows to expect a server earn here until
  * the rewards write contract lands.

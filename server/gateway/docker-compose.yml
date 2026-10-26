@@ -1,4 +1,4 @@
-# Local dev stack for the Faazio MVP monolith. Mirrors the managed services:
+# Local dev stack for the Faazio production monolith. Mirrors the managed services:
 #   Postgres  <-> Supabase      (migrations + seed applied on first boot)
 #   Valkey    <-> Aiven Valkey
 #   MongoDB   <-> Atlas M0      (sdui_layouts seeded)

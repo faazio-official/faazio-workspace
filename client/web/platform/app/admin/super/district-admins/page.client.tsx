@@ -73,7 +73,7 @@ function generatePassword(): string {
   return Array.from(bytes, (b) => PASSWORD_CHARS[b % PASSWORD_CHARS.length]).join("");
 }
 
-/** District picker grouped by parent state (MVP coverage: Tamil Nadu + Puducherry). */
+/** District picker grouped by parent state (production coverage: Tamil Nadu + Puducherry). */
 function DistrictSelect({
   value,
   onValueChange,

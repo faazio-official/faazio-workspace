@@ -107,7 +107,7 @@ origins, and provision an API token. Set `R2_ACCOUNT_ID` / `R2_ACCESS_KEY_ID` /
 `R2_SECRET_ACCESS_KEY` (optionally `R2_PUBLIC_BUCKET`). Public serving is optional, pick one:
 - **Custom domain (recommended for prod):** attach `img.faazio.in` to the public bucket (Cache Rule
   `max-age=31536000, immutable`) and set `R2_CDN_BASE=https://img.faazio.in`.
-- **No CDN (MVP):** leave `R2_CDN_BASE` empty and set `PUBLIC_BASE_URL` to the gateway's public origin;
+- **No CDN (production):** leave `R2_CDN_BASE` empty and set `PUBLIC_BASE_URL` to the gateway's public origin;
   public objects are then served by the gateway's `/assets/{key}` route, which 302-redirects to a
   300 s presigned GET. Do **not** use the rate-limited `r2.dev` URL.
 - With neither set, `image_key` decorations are skipped and the legacy `image_url` column (seed

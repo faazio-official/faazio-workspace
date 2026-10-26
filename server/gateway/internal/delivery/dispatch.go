@@ -235,7 +235,7 @@ func lastActiveDrop(stops []Stop) (Stop, bool) {
 	return Stop{}, false
 }
 
-// maxGlobalRouteStops bounds the exact solver. The MVP capacity is five four-wheeler orders (ten
+// maxGlobalRouteStops bounds the exact solver. Production capacity is five four-wheeler orders (ten
 // stops), so a Held-Karp state space of 2^n·n² stays tiny; the ceiling only protects future changes.
 const maxGlobalRouteStops = 15
 

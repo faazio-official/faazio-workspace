@@ -5,7 +5,7 @@
 > for each entry in the shared `data/` layer. The React Native app (`client/mobile/`) is the only
 > current consumer — the root Vite web app (frozen reference) uses its own `src/data/` copies.
 
-> **MVP (active):** live data is served **server-only** by the Go gateway over Supabase
+> **Production (live):** live data is served **server-only** by the Go gateway over Supabase
 > (Postgres) + MongoDB via `GatewayClient`. `@data/*` fixtures are retained for shared types,
 > static taxonomy and seed rows; they are **never substituted at runtime** on a remote error.
 > See `docs/architecture/mvp-backend.md` and `docs/architecture/data-layer-sdui.md`.
@@ -104,9 +104,10 @@ rating-related is logged. Production schema: `docs/architecture/db-schema.md` §
 
 **Gateway:** `client/mobile/src/services/api/GatewayClient.ts` joins the tables above and is the
 single data surface for the app. It is **wired** — set `GATEWAY_URL` +
-`USE_GATEWAY=true` (then `npm run configure`) to hit the MVP monolith (`server/gateway`); otherwise it reads the
-`@data/*` fixtures, and every remote call falls back to fixtures on error. Screens migrate
-incrementally with no call-site change. Authored by the MVP backend
+`USE_GATEWAY=true` (then `npm run configure`) to hit the production monolith (`server/gateway`). Live
+reads/writes are **server-only**: a failed or disabled remote call throws (`GatewayHttpError` /
+`GatewayOfflineError`) instead of fabricating a remote success; the per-entry status column below notes
+where a screen keeps an explicit offline first-paint. Authored by the production backend
 (`docs/architecture/mvp-backend.md`); context mapping in `docs/architecture/monolith-breakdown.md`;
 wiring order in `docs/architecture/data-layer-sdui.md`.
 
@@ -475,7 +476,7 @@ the `GROCERY` member was dropped from `AppBrand` / `CartCategory` / `SubAppId` /
 6. **Two `auth.Require` writes are app-inert under production auth (by decision).** With the mocked
    login, `POST /ads/events` (paid-ad measurement → portal KPIs) and `PUT /vendors/{id}/rating`
    (server-durable vendor rating) only reach the ad-server/reviews origin when the gateway runs
-   `AUTH_DISABLED=true` (local dev / MVP staging, `user-1`). W49 makes both client paths honest —
+   `AUTH_DISABLED=true` (local dev / pre-prod staging, `user-1`). W49 makes both client paths honest —
    `recordAdEvent` returns a confirmed-only boolean, `submitVendorRating` resolves a
    `synced`/`offline`/`signed-out`/`not-verified` outcome — and the device-local rating display +
    local last-click attribution keep the shopper flow complete. Closing the server side needs a real

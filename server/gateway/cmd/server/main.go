@@ -1,4 +1,4 @@
-// Command server runs the Faazio MVP modular monolith: one chi binary hosting all
+// Command server runs the Faazio production modular monolith: one chi binary hosting all
 // six bounded contexts over Supabase (Postgres) + MongoDB + Aiven Valkey.
 // See docs/architecture/mvp-backend.md and monolith-breakdown.md.
 package main
