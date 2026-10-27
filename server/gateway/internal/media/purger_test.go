@@ -40,6 +40,15 @@ func TestPurgeWorkerHandlePrivateSkipped(t *testing.T) {
 	}
 }
 
+func TestPurgeWorkerHandleDraftSkipsPurge(t *testing.T) {
+	p := &fakePurger{enabled: true}
+	w := NewPurgeWorker(nil, enabledSigner(), p, nil, nil)
+	w.handle(context.Background(), `{"id":"img_3","status":"DRAFT","r2_key":"media/ab/draft.jpg","kind":"PUBLIC"}`)
+	if len(p.urlCalls) != 0 {
+		t.Fatalf("DRAFT asset was never cached — must not trigger a purge, got %v", p.urlCalls)
+	}
+}
+
 func TestPurgeWorkerHandleBadJSON(t *testing.T) {
 	w := NewPurgeWorker(nil, enabledSigner(), &fakePurger{enabled: true}, nil, nil)
 	w.handle(context.Background(), "not-json") // must not panic

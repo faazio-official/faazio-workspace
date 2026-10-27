@@ -113,6 +113,13 @@ func (w *PurgeWorker) handle(ctx context.Context, payload string) {
 	if p.Kind != "PUBLIC" || p.R2Key == "" {
 		return // PRIVATE assets are never publicly cached
 	}
+	if p.Status == "DRAFT" {
+		// A DRAFT has never been publicly served, so nothing is cached at its URL yet. Purging here
+		// would waste a metered purge_cache call on every upload (mint → DRAFT). The Valkey identity
+		// key was already dropped above. A rare ACTIVE → DRAFT flip just falls back to Cache-Rule TTL
+		// expiry (best-effort purge contract, caching-cloudflare-valkey.md §9).
+		return
+	}
 	url := w.signer.PublicURL(p.R2Key)
 	if url == "" {
 		return

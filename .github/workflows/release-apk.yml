@@ -14,7 +14,7 @@ name: Release APK
 #   STORE_FILE       keystore file name (optional, default faazio-release.keystore)
 #   CERT_PINS        comma-separated base64 SHA-256 SPKI pins (required when
 #                    GATEWAY_URL + USE_GATEWAY=true; release fails without them)
-#   USE_GATEWAY       (optional) defaults to true for the Render production gateway
+#   USE_GATEWAY       (optional) defaults to true for the Cloudflare-fronted gateway (api.faazio.com)
 on:
   workflow_dispatch:
     inputs:
@@ -163,7 +163,7 @@ jobs:
         env:
           CONFIGURE_RELEASE: "1"
           REQUIRE_CERT_PINS: "1"
-          GATEWAY_URL: ${{ secrets.GATEWAY_URL || 'https://faazio-workspace.onrender.com' }}
+          GATEWAY_URL: ${{ secrets.GATEWAY_URL || 'https://api.faazio.com' }}
           WEB_PORTAL_URL: ${{ vars.WEB_PORTAL_URL || secrets.WEB_PORTAL_URL }}
           USE_GATEWAY: ${{ secrets.USE_GATEWAY || 'true' }}
           STRICT: "true"
