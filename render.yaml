@@ -7,6 +7,8 @@
 # RENDER_EXTERNAL_URL for PUBLIC_BASE_URL, so only the config/secrets below need adding:
 #   DATABASE_URL, VALKEY_URL, MONGO_URI, FIREBASE_PROJECT_ID, SUPABASE_SERVICE_KEY,
 #   SUPABASE_JWT_SECRET (legacy portal tokens), SUPABASE_URL,
+#   FCM_PROJECT_ID (declared here) + FCM_SERVICE_ACCOUNT_JSON (secret, dashboard-only) if the
+#   embedded FCM push sender is used (Android push; else the legacy PUSH_WEBHOOK_URL bridge),
 #   PORTAL_JWT_SECRET (openssl rand -base64 48), PORTAL_PEPPER (openssl rand -base64 32) — gateway-native
 #   portal auth (migrations 0032 + 0033); provisioning: docs/RUNBOOKS/PORTAL_AUTH.md,
 #   R2_ACCESS_KEY_ID, R2_SECRET_ACCESS_KEY,
@@ -49,6 +51,13 @@ services:
       # the gateway verifies RS256 signatures against Google's published certificate set.
       - key: FIREBASE_PROJECT_ID
         value: project-65696e12-8def-460e-b29
+      # FCM HTTP v1 push sender (Android, server-side). Same Firebase project as FIREBASE_PROJECT_ID;
+      # FCM_SERVICE_ACCOUNT_JSON is the generated service-account key (secret → dashboard only, sync:false)
+      # — see docs/RUNBOOKS/FIREBASE_AUTH.md "Server-side FCM push credentials".
+      - key: FCM_PROJECT_ID
+        value: project-65696e12-8def-460e-b29
+      - key: FCM_SERVICE_ACCOUNT_JSON
+        sync: false
       # Routes API (delivery dispatch road time). Server-only key; restrict it to Routes API.
       # Unset is safe: dispatch falls back to a Haversine/urban-speed estimate.
       - key: GOOGLE_ROUTES_API_KEY
