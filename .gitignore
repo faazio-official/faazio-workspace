@@ -6,5 +6,9 @@ dist/
 *.log
 .env*
 !.env.example
+# Firebase service-account / FCM private-key artifacts (downloaded; creds live in the
+# FCM_SERVICE_ACCOUNT_JSON env var / dashboard secret).
+server/gateway/.secrets/
+server/gateway/project-*.json
 *.apk
 *.aab
