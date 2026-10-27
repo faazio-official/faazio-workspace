@@ -18,12 +18,24 @@ func TestOutboxRetryBackoffAndTerminal(t *testing.T) {
 	const userID = "notif-retry-test-user"
 	const token = "notif-retry-device-token"
 
+	// notifications.outbox.user_id references checkout.users (user_id), so the test seeds its own
+	// parent row and removes every trace on the way out. That keeps it runnable against any DB —
+	// local non-Supabase, the local compose stack via TEST_DATABASE_URL, or a live gateway DB from
+	// server/gateway/.env — instead of failing on outbox_user_id_fkey for a made-up user.
+	if _, err := pool.Exec(ctx, `
+		insert into checkout.users (user_id, name, email, phone)
+		values ($1, 'Notification Retry Test', 'notif-retry-test@faazio.in', '9999999999')
+		on conflict (user_id) do nothing`, userID); err != nil {
+		t.Fatalf("seed checkout.user: %v", err)
+	}
+
 	if err := repo.Register(ctx, userID, token, "android"); err != nil {
 		t.Fatalf("Register: %v", err)
 	}
 	defer func() {
 		_, _ = pool.Exec(ctx, `delete from notifications.push_tokens where user_id = $1`, userID)
 		_, _ = pool.Exec(ctx, `delete from notifications.outbox where user_id = $1`, userID)
+		_, _ = pool.Exec(ctx, `delete from checkout.users where user_id = $1`, userID)
 	}()
 
 	if err := repo.Enqueue(ctx, userID, "ORDER_SHIPPED", "Shipped", "On the way", nil); err != nil {
