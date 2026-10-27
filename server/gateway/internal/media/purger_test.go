@@ -3,6 +3,8 @@ package media
 import (
 	"context"
 	"testing"
+
+	"github.com/faazio/server/gateway/internal/platform/db"
 )
 
 type fakePurger struct {
@@ -49,5 +51,8 @@ func TestPurgeWorkerDisabled(t *testing.T) {
 	}
 	if NewPurgeWorker(nil, enabledSigner(), &fakePurger{enabled: false}, nil, nil).Enabled() {
 		t.Fatal("worker with a disabled purger must be disabled")
+	}
+	if NewPurgeWorker(&db.Pool{}, enabledSigner(), &fakePurger{enabled: true}, nil, nil).Enabled() {
+		t.Fatal("worker without a cache must be disabled")
 	}
 }

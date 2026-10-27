@@ -96,6 +96,9 @@ const webPortalUrl = env('WEB_PORTAL_URL').replace(/\/+$/, '');
 // build a deliberately offline app. A missing GATEWAY_URL leaves the app offline too.
 // STRICT is retained below as a legacy flag; it no longer changes read/write behavior.
 const useGateway = env('USE_GATEWAY') === '' ? true : flag('USE_GATEWAY');
+if (useGateway && !gatewayUrl) {
+  warn('USE_GATEWAY=true but GATEWAY_URL is empty — the app boots offline and every GatewayClient call throws GatewayOfflineError.');
+}
 const strict = env('STRICT') === '' ? true : flag('STRICT');
 const devUser = env('DEV_USER').trim();
 const googleMapsAndroidKey = env('GOOGLE_MAPS_API_KEY_ANDROID').trim();

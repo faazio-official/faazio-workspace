@@ -112,6 +112,11 @@ origins, and provision an API token. Set `R2_ACCOUNT_ID` / `R2_ACCESS_KEY_ID` /
   300 s presigned GET. Do **not** use the rate-limited `r2.dev` URL.
 - With neither set, `image_key` decorations are skipped and the legacy `image_url` column (seed
   fixtures) is used.
+- **Activation:** `R2_CDN_BASE=https://img.faazio.in` switches public decoration to CDN URLs. With
+  `CF_ZONE_ID` + `CF_API_TOKEN` set, the gateway's purge worker (`LISTEN media_updated`, migrations
+  `0025`/`0026`) invalidates the exact CDN URL on `confirm`/status change/delete, so the immutable
+  1-year edge cache never serves stale bytes. Without CF creds, content expires via the Cache Rule
+  TTL instead — best-effort, never broken.
 
 ### 2. Backfill + regenerate
 ```bash

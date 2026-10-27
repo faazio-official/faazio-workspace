@@ -45,9 +45,10 @@ func NewPurgeWorker(pool *db.Pool, signer *r2.Signer, purger cdnPurger, c *cache
 	return &PurgeWorker{pool: pool, signer: signer, purger: purger, cache: c, logger: logger}
 }
 
-// Enabled reports whether the worker has a DB, an enabled signer and an enabled purger.
+// Enabled reports whether the worker has a DB + cache, an enabled signer and an enabled purger.
+// Any nil/disabled dependency disables the worker so it never makes half-configured purge calls.
 func (w *PurgeWorker) Enabled() bool {
-	return w != nil && w.pool != nil && w.signer.Enabled() && w.purger != nil && w.purger.Enabled()
+	return w != nil && w.pool != nil && w.cache != nil && w.signer.Enabled() && w.purger != nil && w.purger.Enabled()
 }
 
 // Run blocks until ctx is cancelled, keeping a LISTEN connection alive and reconnecting with backoff.

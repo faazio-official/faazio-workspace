@@ -12,13 +12,17 @@
 #   PORTAL_JWT_SECRET (openssl rand -base64 48), PORTAL_PEPPER (openssl rand -base64 32) — gateway-native
 #   portal auth (migrations 0032 + 0033); provisioning: docs/RUNBOOKS/PORTAL_AUTH.md,
 #   R2_ACCESS_KEY_ID, R2_SECRET_ACCESS_KEY,
+#   R2_CDN_BASE (https://img.faazio.in → CDN-served public images; empty → /assets/{key} 302 via
+#   PUBLIC_BASE_URL, default RENDER_EXTERNAL_URL),
+#   CF_ZONE_ID + CF_API_TOKEN (CDN purge worker: LISTEN media_updated → purge_cache; see
+#   docs/architecture/caching-cloudflare-valkey.md §6),
 #   GOOGLE_ROUTES_API_KEY (server-side Routes API key for road-aware delivery dispatch; optional —
 #   unset means the straight-line fallback), DELIVERY_MAX_DISPATCH_ATTEMPTS (default 5),
 #   MONGO_DATABASE=faazio, PRESCRIPTION_BUCKET=prescriptions,
 #   SUPABASE_URL=https://mivisyjvvizyyidjdjmh.supabase.co,
 #   R2_ACCOUNT_ID=28cbf78411f854a8a41a5b737e698004, R2_PUBLIC_BUCKET=faazio-public,
 #   R2_PRIVATE_BUCKET=faazio-private, BOOKING_FEE_PAISA=5000, AUTH_DISABLED=false,
-#   ALLOWED_ORIGINS=https://app.faazio.com, OTEL_ENABLED=true
+#   ALLOWED_ORIGINS=https://app.faazio.com, PUBLIC_BASE_URL=https://api.faazio.com, OTEL_ENABLED=true
 #
 # Migrations: Render NEVER applies them — the distroless image ships only the /server binary (no
 # SQL, no psql), and the gateway just health-checks the schema. Apply server/supabase/migrations/*
