@@ -79,9 +79,10 @@ func (w *Worker) Run(ctx context.Context) {
 	}
 }
 
-// drainOnce delivers one batch. A per-row delivery error marks that row FAILED and never stops the
-// batch. Returns only context/DB errors. Serialized so the background loop and the admin drain
-// trigger never deliver the same PENDING row twice within this process.
+// drainOnce delivers one batch. A per-row delivery error marks that row FAILED and schedules a
+// retry (capped exponential backoff, see repo.MarkFailed) without stopping the batch. Returns only
+// context/DB errors. Serialized so the background loop and the admin drain trigger never deliver
+// the same row twice within this process.
 func (w *Worker) drainOnce(ctx context.Context) error {
 	w.mu.Lock()
 	defer w.mu.Unlock()

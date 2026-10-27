@@ -10,6 +10,8 @@ import (
 	"context"
 	"encoding/json"
 	"time"
+
+	"github.com/jackc/pgx/v5"
 )
 
 // ------------------------------------------------------------------ blood-donor DTOs (blood schema)
@@ -314,10 +316,19 @@ type LayoutWriter interface {
 	SaveHome(ctx context.Context, sections []SduiSection) (int64, error)
 }
 
-// StockWriter atomically decrements inventory.stock (implemented by internal/cartstock).
+// Querier is the row-returning handle shared by the Postgres pool and a pgx.Tx, so a context can
+// run a write (e.g. a stock decrement) inside the same DB transaction as a second context's insert.
+// `*db.Pool` (pgxpool.Pool) and `pgx.Tx` both implement it.
+type Querier interface {
+	QueryRow(ctx context.Context, sql string, args ...any) pgx.Row
+}
+
+// StockWriter atomically decrements inventory.stock (implemented by internal/cartstock). It runs on
+// the caller-provided Querier so checkout can move stock in the same transaction as the order
+// insert — a failed insert rolls the decrement back instead of silently draining inventory.
 // Future service: Go + DynamoDB (monolith-breakdown §1).
 type StockWriter interface {
-	Decrement(ctx context.Context, productID string, qty int64) (remaining int64, ok bool, err error)
+	Decrement(ctx context.Context, q Querier, productID string, qty int64) (remaining int64, ok bool, err error)
 }
 
 // PurchaseGate derives rating eligibility from order history (implemented by

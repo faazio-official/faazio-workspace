@@ -883,10 +883,11 @@ func (r *Repo) InvoiceForUser(ctx context.Context, orderID, userID string) (taxm
 	return inv, true, nil
 }
 
-// InsertOrder writes an order, its line items, an optional payment row, and (when idempotencyKey is
-// set) the replay record in one transaction, so a retry can never observe an order without its
-// idempotency key. The optional payment is passed as a variadic to keep existing callers source-stable.
-func (r *Repo) InsertOrder(ctx context.Context, o Order, lines []OrderLineItem, idempotencyKey string, invoices []taxmath.Invoice, payments ...Payment) error {
+// WithTx runs fn inside one DB transaction, committing when it returns nil and rolling back
+// otherwise. Used by CreateOrder so the stock decrements and the order insert (plus idempotency
+// key, invoice and payment) commit or roll back together — a failed insert never leaves stock
+// drained without an order.
+func (r *Repo) WithTx(ctx context.Context, fn func(tx pgx.Tx) error) error {
 	if r.pool == nil {
 		return fmt.Errorf("checkout: database not configured")
 	}
@@ -895,7 +896,27 @@ func (r *Repo) InsertOrder(ctx context.Context, o Order, lines []OrderLineItem, 
 		return err
 	}
 	defer func() { _ = tx.Rollback(ctx) }()
+	if err := fn(tx); err != nil {
+		return err
+	}
+	return tx.Commit(ctx)
+}
 
+// InsertOrder writes an order, its line items, an optional payment row, and (when idempotencyKey is
+// set) the replay record in one transaction, so a retry can never observe an order without its
+// idempotency key. The optional payment is passed as a variadic to keep existing callers source-stable.
+func (r *Repo) InsertOrder(ctx context.Context, o Order, lines []OrderLineItem, idempotencyKey string, invoices []taxmath.Invoice, payments ...Payment) error {
+	if r.pool == nil {
+		return fmt.Errorf("checkout: database not configured")
+	}
+	return r.WithTx(ctx, func(tx pgx.Tx) error {
+		return r.InsertOrderTx(ctx, tx, o, lines, idempotencyKey, invoices, payments...)
+	})
+}
+
+// InsertOrderTx writes the order + lines + invoice + payment + idempotency record on a caller-owned
+// transaction (no commit — the caller controls the boundary, e.g. to include stock decrements).
+func (r *Repo) InsertOrderTx(ctx context.Context, tx pgx.Tx, o Order, lines []OrderLineItem, idempotencyKey string, invoices []taxmath.Invoice, payments ...Payment) error {
 	var fulfillment any
 	if o.Fulfillment == "PICKUP" || o.Fulfillment == "DELIVERY" {
 		fulfillment = o.Fulfillment
@@ -960,7 +981,7 @@ func (r *Repo) InsertOrder(ctx context.Context, o Order, lines []OrderLineItem, 
 			return err
 		}
 	}
-	return tx.Commit(ctx)
+	return nil
 }
 
 func totalPaisa(lines []OrderLineItem) int64 {

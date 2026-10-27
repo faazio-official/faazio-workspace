@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log/slog"
 	"strings"
 	"time"
 
@@ -15,6 +16,7 @@ import (
 	"github.com/faazio/server/gateway/internal/platform/cache"
 	"github.com/faazio/server/gateway/internal/platform/taxmath"
 	"github.com/faazio/server/gateway/internal/pricing"
+	"github.com/jackc/pgx/v5"
 )
 
 // coinsPerRupee is the redemption rate (100 coins = ₹1) — mirrors @data/rewards COIN_REDEEM_RATE.
@@ -85,6 +87,7 @@ type Service struct {
 	weather     contracts.WeatherChecker
 	festivals   contracts.FestivalLookup
 	cache       *cache.Cache
+	logger      *slog.Logger
 }
 
 // NewService builds the checkout service. rewards/coupons/discounts/ads/surge/weather/festivals may
@@ -93,6 +96,7 @@ func NewService(repo *Repo, stock contracts.StockWriter, cache *cache.Cache, rew
 	s := &Service{
 		repo: repo, stock: stock, cache: cache, rewards: rewards, coupons: coupons, discounts: discounts,
 		ads: ads, surge: surge, weather: weather, festivals: festivals,
+		logger: slog.Default(),
 	}
 	if reader, ok := rewards.(contracts.RewardsReader); ok {
 		s.rewardCoins = reader
@@ -337,17 +341,6 @@ func (s *Service) CreateOrder(ctx context.Context, userID string, req PlaceOrder
 	platformRates.DeliveryFeePaisa = orderDeliveryFeePaisa
 	breakdown := taxmath.Compute(taxLines, platformRates)
 
-	// Reserve inventory only after all pricing/validation has passed.
-	for _, it := range req.Items {
-		if _, ok, err := s.stock.Decrement(ctx, it.ProductID, it.Qty); err != nil {
-			return Order{}, err
-		} else if !ok {
-			return Order{}, ErrInsufficientStock
-		}
-		// Invalidate the stock read-through cache so the next GET reflects the decrement.
-		s.cache.Del(ctx, cache.Stock(it.ProductID))
-	}
-
 	vendors := make([]string, 0, len(vendorSet))
 	for v := range vendorSet {
 		vendors = append(vendors, v)
@@ -429,16 +422,31 @@ func (s *Service) CreateOrder(ctx context.Context, userID string, req PlaceOrder
 		})
 	}
 
-	if err := s.repo.InsertOrder(ctx, order, lines, req.IdempotencyKey, []taxmath.Invoice{invoice}, payments...); err != nil {
+	// Reserve inventory and persist the order, lines, invoice, payment and idempotency key in ONE
+	// transaction: the stock movement and the order row commit or roll back together, so a failed
+	// insert (bad FK, replay-step write error, …) can never drain inventory without an order.
+	if err := s.repo.WithTx(ctx, func(tx pgx.Tx) error {
+		for _, it := range req.Items {
+			if _, ok, err := s.stock.Decrement(ctx, tx, it.ProductID, it.Qty); err != nil {
+				return err
+			} else if !ok {
+				return ErrInsufficientStock
+			}
+			// Invalidate the stock read-through cache so the next GET reflects the decrement.
+			s.cache.Del(ctx, cache.Stock(it.ProductID))
+		}
+		return s.repo.InsertOrderTx(ctx, tx, order, lines, req.IdempotencyKey, []taxmath.Invoice{invoice}, payments...)
+	}); err != nil {
 		return Order{}, err
 	}
 	s.cache.Del(ctx, cache.Orders(userID))
 
-	// Server-authoritative rewards: best-effort, since the order is already committed. The client
-	// mirrors this optimistically and reconciles on the next GET /rewards.
+	// Server-authoritative rewards: best-effort (the order is already committed; the client mirrors
+	// this optimistically and reconciles on the next GET /rewards). A failure is logged loudly so a
+	// silently-missing coin grant is discoverable and the honest balance is served by the ledger.
 	if s.rewards != nil {
 		if err := s.rewards.Earn(ctx, userID, order.ID, paidRupees, coins); err != nil {
-			_ = err
+			s.logger.Error("rewards earn failed after order commit", "orderId", order.ID, "coinsRedeemed", coins, "err", err)
 		} else {
 			s.cache.Del(ctx, cache.Rewards(userID))
 		}
