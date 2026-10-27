@@ -39,7 +39,7 @@ The release keystore + signing properties are stored as GitHub repository secret
 | `KEY_ALIAS` | value from `keystore.properties` |
 | `ALIAS_PASS` | value from `keystore.properties` |
 | `STORE_FILE` | (optional) keystore file name, default `faazio-release.keystore` |
-| `GATEWAY_URL` | deployed gateway origin, `https://…` (release refuses `http://`); defaults to `https://faazio-workspace.onrender.com` |
+| `GATEWAY_URL` | deployed gateway origin, `https://…` (release refuses `http://`); defaults to `https://api.faazio.com` (Cloudflare edge) |
 | `WEB_PORTAL_URL` | deployed web Partner Portal origin, `https://…` (required for `app=seller`; release refuses `http://`). Set as a repo variable/secret |
 | `USE_GATEWAY` | `true` to embed the live gateway (defaults to `true` in the workflow) |
 | `CERT_PINS` | comma-separated base64 SHA-256 SPKI pins for the gateway host |
@@ -61,14 +61,17 @@ CI can build; see `docs/RUNBOOKS/FIREBASE_AUTH.md`.
 
 ### Certificate-pin rotation
 
-Render issues its TLS cert via Let's Encrypt (≈90-day lifetime). Keep **two** pins live during a
-rotation so an in-flight app never fails closed:
-1. Add the new pin alongside the current one in `CERT_PINS` (and in the CI secret) — 2-pin overlap.
+Behind Cloudflare the app pins the **Cloudflare edge cert** served at `api.faazio.com` (Universal
+SSL — issued to the zone, auto-rotated by Cloudflare) — **not** Render's origin Let's Encrypt cert.
+Keep **two** pins live during a rotation so an in-flight app never fails closed:
+1. Add the new SPKI SHA-256 pin alongside the current one in `CERT_PINS` (and in the CI secret) —
+   2-pin overlap. Derive it from the edge chain Cloudflare actually presents:
+   `openssl s_client -connect api.faazio.com:443 -servername api.faazio.com </dev/null 2>/dev/null | openssl x509 -pubkey -noout | openssl pkey -pubin -outform der | openssl dgst -sha256 -binary | openssl enc -base64`
 2. Ship a release with both pins; wait for adoption.
-3. ≥30 days before the current cert expires, cut over to the new pin only (search the old expiry and
-   schedule the removal).
+3. ≥30 days before the current edge cert rotates, cut over to the new pin only (search the old expiry
+   and schedule the removal).
 
-If Render's cert changes before a pinned release is updated, clients fail closed (intended) — the
+If the edge cert changes before a pinned release is updated, clients fail closed (intended) — the
 network-security-config is what blocks a MITM even with a valid CA.
 
 ## 🚀 Release a new APK (GitHub Actions + gh CLI)
