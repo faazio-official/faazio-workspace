@@ -15,6 +15,12 @@ import (
 // DefaultDrainInterval is the polling SLA: a PENDING row is delivered within ~30s of enqueue.
 const DefaultDrainInterval = 30 * time.Second
 
+// adminDrainBatch bounds a single manual POST /notifications/drain to a small batch so a large
+// backlog cannot keep the admin endpoint past the router's request timeout (10s) and return a
+// misleading 500 mid-batch. The background loop keeps the full batch — its context is not
+// request-bounded.
+const adminDrainBatch = 10
+
 // ErrNoSender is returned by DrainOnce when the worker has no provider configured.
 var ErrNoSender = errors.New("notifications: no push sender configured")
 
@@ -47,12 +53,13 @@ func NewWorker(repo *Repo, sender Sender, logger *slog.Logger) *Worker {
 func (w *Worker) Enabled() bool { return w != nil && w.repo != nil && w.sender != nil }
 
 // DrainOnce runs a single synchronous drain batch — the manual trigger for deployments without a
-// background worker. Returns ErrNoSender when no provider is configured (the app still polls the inbox).
+// background worker. The batch is capped at adminDrainBatch and stops cleanly if the request context
+// expires mid-batch. Returns ErrNoSender when no provider is configured (the app still polls the inbox).
 func (w *Worker) DrainOnce(ctx context.Context) error {
 	if !w.Enabled() {
 		return ErrNoSender
 	}
-	return w.drainOnce(ctx)
+	return w.drainOnce(ctx, adminDrainBatch)
 }
 
 // Run blocks until ctx is cancelled, draining each tick. Safe to call in a goroutine.
@@ -69,26 +76,39 @@ func (w *Worker) Run(ctx context.Context) {
 		case <-ctx.Done():
 			return
 		case <-ticker.C:
-			if err := w.drainOnce(ctx); err != nil {
+			if err := w.drainOnce(ctx, w.batch); err != nil {
 				w.logger.Warn("notifications drain failed", "err", err)
 			}
 		}
 	}
 }
 
-// drainOnce delivers one batch. A per-row delivery error marks that row FAILED and schedules a
-// retry (capped exponential backoff, see repo.MarkFailed) without stopping the batch. Returns only
-// context/DB errors. Serialized so the background loop and the admin drain trigger never deliver
-// the same row twice within this process.
-func (w *Worker) drainOnce(ctx context.Context) error {
+// drainOnce delivers one batch of up to limit rows. A per-row delivery error marks that row FAILED
+// and schedules a retry (capped exponential backoff, see repo.MarkFailed) without stopping the
+// batch. A permanently-dead token (ErrTokenUnregistered) instead expires the row and prunes the
+// token atomically (repo.ExpireToken) — no retry budget is spent on a token that can never accept a
+// push again. If the context expires mid-batch (the manual drain hits the router timeout) the
+// remaining rows are left untouched and the context error is returned — never a fabricated success.
+// Serialized so the background loop and the admin drain trigger never deliver the same row twice
+// within this process.
+func (w *Worker) drainOnce(ctx context.Context, limit int) error {
 	w.mu.Lock()
 	defer w.mu.Unlock()
-	msgs, err := w.repo.Pending(ctx, w.batch)
+	msgs, err := w.repo.Pending(ctx, limit)
 	if err != nil {
 		return err
 	}
 	for _, m := range msgs {
+		if err := ctx.Err(); err != nil {
+			return err
+		}
 		if err := w.sender.Send(ctx, m.Token, m.Title, m.Body, m.Data); err != nil {
+			if errors.Is(err, ErrTokenUnregistered) {
+				if rerr := w.repo.ExpireToken(ctx, m.ID, m.Token); rerr != nil {
+					w.logger.Warn("notification expire-token", "id", m.ID, "err", rerr)
+				}
+				continue
+			}
 			if rerr := w.repo.MarkFailed(ctx, m.ID); rerr != nil {
 				w.logger.Warn("notification mark-failed", "id", m.ID, "err", rerr)
 			}

@@ -78,7 +78,8 @@ server/
   `degraded`) with per-dependency latency, for Render's health-check/uptime alerts.
 - **Notifications:** the durable outbox drains via the embedded **FCM HTTP v1 sender** when
   `FCM_SERVICE_ACCOUNT_JSON` + `FCM_PROJECT_ID` are set; `PENDING`→`SENT`, `FAILED` retried with
-  capped exponential backoff up to 6 attempts; no sender configured = in-app inbox only and
+  capped exponential backoff up to 6 attempts (an FCM `UNREGISTERED` response instead expires the row
+  and prunes the dead token immediately); no sender configured = in-app inbox only and
   `POST /notifications/drain` returns `503 push_unconfigured` without marking rows `FAILED`).
 - **Build order / status:** `docs/architecture/mvp-backend.md` §7.
 

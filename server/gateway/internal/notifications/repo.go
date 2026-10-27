@@ -205,7 +205,7 @@ func (r *Repo) MarkSent(ctx context.Context, id string) error {
 
 // MarkFailed flips a row to FAILED and schedules the next retry attempt: capped exponential backoff
 // (1s, 2s, 4s, … ≤ MaxRetryBackoff). After MaxDeliveryAttempts attempts next_attempt_at is null and
-// the row is terminal. A transient webhook 5xx no longer drops the notification for good.
+// the row is terminal. A transient send failure no longer drops the notification for good.
 func (r *Repo) MarkFailed(ctx context.Context, id string) error {
 	if r.pool == nil {
 		return fmt.Errorf("notifications: database not configured")
@@ -221,6 +221,35 @@ func (r *Repo) MarkFailed(ctx context.Context, id string) error {
 		       updated_at = now()
 		 where id = $1`, id, MaxDeliveryAttempts, MaxRetryBackoff.Seconds())
 	return err
+}
+
+// ExpireToken marks the outbox row terminal (retry budget exhausted, next_attempt_at null) AND
+// prunes the device's push_tokens row in one transaction. Called when FCM reports a permanently-dead
+// token (UNREGISTERED): retrying against it would waste the whole budget on every future enqueue, and
+// keeping the row would re-attempt it forever. Atomic so a terminal row can never survive without its
+// dead token being pruned (and vice versa).
+func (r *Repo) ExpireToken(ctx context.Context, id, token string) error {
+	if r.pool == nil {
+		return fmt.Errorf("notifications: database not configured")
+	}
+	tx, err := r.pool.Begin(ctx)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+	if _, err := tx.Exec(ctx, `
+		update notifications.outbox
+		   set status = 'FAILED',
+		       attempts = $2,
+		       next_attempt_at = null, -- terminal: never retry a dead token
+		       updated_at = now()
+		 where id = $1`, id, MaxDeliveryAttempts); err != nil {
+		return err
+	}
+	if _, err := tx.Exec(ctx, `delete from notifications.push_tokens where token = $1`, token); err != nil {
+		return err
+	}
+	return tx.Commit(ctx)
 }
 
 // Register upserts a device push token for the user.

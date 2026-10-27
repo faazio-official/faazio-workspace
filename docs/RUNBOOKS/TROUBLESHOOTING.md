@@ -161,14 +161,22 @@ rendered on the error card** (plus the first stack frame in a dev build) — tha
   is configured** (`FCM_PROJECT_ID`/`FCM_SERVICE_ACCOUNT_JSON` not both set). The
   drain refuses to run and leaves `PENDING` rows untouched (the sender gate is a real nil interface,
   so rows are never marked `FAILED` without a provider); the in-app inbox keeps working. Set the FCM
-  credentials on the gateway to actually deliver pushes.
+  credentials on the gateway to actually deliver pushes. (The endpoint is a bounded 10-row batch and
+  returns `500 drain_failed` with a context error if it hits the request timeout mid-batch — re-run
+  it or let the background worker continue.)
 - **Worker not starting** → the FCM credentials are not set; the gateway
-  logs `notifications worker disabled (no sender configured)`. This is the intended no-push mode.
+  logs `notifications_push=disabled reason=fcm_credentials_unset` at startup (plus, when a malformed
+  key was detected, `notifications: fcm sender disabled (...)`), and
+  `notifications worker disabled (no sender configured)`. This is the intended no-push mode.
 - **A delivery failed but the push should retry** → `FAILED` is no longer terminal. The worker
   retries with capped exponential backoff (1s→2s→4s→… ≤1h, up to 6 attempts, `0058`); only rows past
   the budget stay `FAILED`. The admin outbox exposes the `attempts` count. Re-deploying a fixed
   sender does not re-drain a terminal row — re-enqueue or reset `attempts`/`next_attempt_at` to
   retry it.
+- **Device uninstalled but pushes keep retrying** → not anymore: FCM `UNREGISTERED` is now handled —
+  the row goes terminal immediately (no retry budget spent) and the dead token is pruned from
+  `push_tokens` atomically. Future notifications for that user simply stay in the inbox until the
+  app is reinstalled and a fresh token is registered (they are not push-able).
 - **Cart/order changes did not persist** → check `GET /cart` / `GET /orders` and the `syncError`
   banner; a failed write rolls the optimistic UI back rather than faking success.
 

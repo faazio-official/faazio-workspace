@@ -35,7 +35,7 @@ func (h *Handler) Register(r chi.Router) {
 	r.Group(func(g chi.Router) {
 		g.Use(auth.RequireRole(auth.RoleStateAdmin, auth.RoleSuperAdmin))
 		g.Get("/admin/notifications", h.outbox)
-		// Manual drain trigger: runs one synchronous outbox batch (503 when no push provider).
+		// Manual drain trigger: runs one synchronous, bounded outbox batch (503 when no push provider).
 		g.Post("/notifications/drain", h.drain)
 	})
 }
@@ -95,8 +95,8 @@ func (h *Handler) outbox(w http.ResponseWriter, r *http.Request) {
 	httpx.JSON(w, http.StatusOK, items)
 }
 
-// drain runs one synchronous outbox batch. 503 when no push provider is configured (the app still
-// polls GET /notifications); admin-only, never exposes tokens.
+// drain runs one synchronous, bounded outbox batch (see adminDrainBatch). 503 when no push provider
+// is configured (the app still polls GET /notifications); admin-only, never exposes tokens.
 func (h *Handler) drain(w http.ResponseWriter, r *http.Request) {
 	if h.drainer == nil {
 		httpx.Fail(w, http.StatusServiceUnavailable, "push_unconfigured", "push delivery not configured")
