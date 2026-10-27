@@ -40,6 +40,7 @@ import { getStoreById } from '@data/directory/stores';
 import type { RootStackParamList } from '@/navigation/types';
 import { useRewardsStore } from '@/state/rewardsStore';
 import { useOrdersStore } from '@/state/ordersStore';
+import { useCartStore } from '@/state/cartStore';
 import { gateway, GatewayHttpError } from '@/services/api/GatewayClient';
 import { consumeLastClickedSlotId } from '@/services/adsAttribution';
 import { coinsEarnedFor, isCardActive } from '@/features/rewards/rewardsLogic';
@@ -460,8 +461,6 @@ export default function CartView({
         const mode = fulfillment ?? 'DELIVERY';
         const pickups = isPickup ? pickupPointList : [];
         const primaryPickup = pickups[0];
-        // Vendor identity snapshot — resolved once at placement (see data/directory/vendors.ts).
-        const storeIds = getStoreIdsForItems(selectedItems);
         // Only a durable server address id is safe to submit; pickup carries no address.
         const addressId = isPickup ? undefined : savedAddress?.id || undefined;
         const idempotencyKey =
@@ -473,68 +472,49 @@ export default function CartView({
         // same shape (the withFallback seam keeps checkout working offline). The coupon is re-validated
         // and settled server-side; the applied discount in the UI is display-only.
         const attributedSlotId = consumeLastClickedSlotId();
-        const [placed] = await Promise.all([
-          gateway.placeOrder({
-            items: selectedItems.map((i) => ({ productId: i.id, qty: i.quantity })),
-            ...(addressId ? { addressId } : {}),
-            fulfillment: mode,
-            paymentMethod: method,
-            idempotencyKey,
-            ...(appliedCouponCode ? { couponCode: appliedCouponCode } : {}),
-            ...(attributedSlotId ? { attribution: { slotId: attributedSlotId } } : {}),
-            ...(!isPickup && hasLiveFix
-              ? { deliveryLocation: { latitude: liveAddress.lat, longitude: liveAddress.lng } }
-              : {}),
-            ...(primaryPickup
-              ? { pickup: { name: primaryPickup.name, address: primaryPickup.address } }
-              : {}),
-            ...(pickups.length
-              ? {
-                  pickups: pickups.map((p) => ({
-                    name: p.name,
-                    address: p.address,
-                    hours: p.hours,
-                    phone: p.phone,
-                  })),
-                }
-              : {}),
-            ...(coinsRedeemed > 0 ? { coinsRedeemed } : {}),
-          }),
-          new Promise((resolve) => setTimeout(() => resolve(undefined), 1200)),
-        ]);
-        const orderId = placed?.id ?? `FZ-${Math.floor(100000 + Math.random() * 900000)}`;
-
-        useRewardsStore.getState().recordOrder(paidAmount, coinsRedeemed, orderId);
-        useOrdersStore.getState().recordOrder({
-          orderId,
-          kind: 'items',
+        const placed = await gateway.placeOrder({
+          items: selectedItems.map((i) => ({ productId: i.id, qty: i.quantity })),
+          ...(addressId ? { addressId } : {}),
           fulfillment: mode,
-          storeIds,
-          vendorName: isPickup
-            ? primaryPickup?.name ?? 'Pickup point'
-            : deliveryAddress.label ?? 'Delivery',
-          pickup: primaryPickup
-            ? { name: primaryPickup.name, address: primaryPickup.address }
-            : undefined,
-          pickups: pickups.map((p) => ({
-            name: p.name,
-            address: p.address,
-            hours: p.hours,
-            phone: p.phone,
-          })),
-          location: hasLiveFix ? { lat: liveAddress.lat, lng: liveAddress.lng } : undefined,
-          items: [...selectedItems].map((i) => ({
-            id: i.id,
-            name: i.name,
-            price: i.price,
-            quantity: i.quantity,
-            emoji: i.emoji,
-          })),
-          total: paidAmount,
+          paymentMethod: method,
+          idempotencyKey,
+          ...(appliedCouponCode ? { couponCode: appliedCouponCode } : {}),
+          ...(attributedSlotId ? { attribution: { slotId: attributedSlotId } } : {}),
+          ...(!isPickup && hasLiveFix
+            ? { deliveryLocation: { latitude: liveAddress.lat, longitude: liveAddress.lng } }
+            : {}),
+          ...(primaryPickup
+            ? { pickup: { name: primaryPickup.name, address: primaryPickup.address } }
+            : {}),
+          ...(pickups.length
+            ? {
+                pickups: pickups.map((p) => ({
+                  name: p.name,
+                  address: p.address,
+                  hours: p.hours,
+                  phone: p.phone,
+                })),
+              }
+            : {}),
+          ...(coinsRedeemed > 0 ? { coinsRedeemed } : {}),
         });
+        const orderId = placed.id;
+
+        // Server order is authoritative: adopt its id/status instead of a local Date.now() placeholder.
+        useOrdersStore.getState().recordServerOrder(placed);
+        // Coins are earned inside the order transaction server-side — refresh the ledger, never
+        // write a local balance the server did not confirm.
+        void useRewardsStore.getState().reconcile().catch(() => {});
 
         // The order already took the stock; drop the purchased lines from the durable server cart.
-        selectedItems.forEach((i) => void gateway.removeCartItem(i.id).catch(() => {}));
+        // If any delete fails, re-pull the server cart so the device never hides a line the server
+        // still holds (the next cart view must be honest, even if that means re-showing a line).
+        const removals = await Promise.allSettled(
+          selectedItems.map((i) => gateway.removeCartItem(i.id)),
+        );
+        if (removals.some((r) => r.status === 'rejected')) {
+          void useCartStore.getState().hydrate().catch(() => {});
+        }
         // Behavior analytics (ID-only, allowlisted) — the outbox is best-effort.
         selectedItems.forEach((i) => void gateway.trackEvent(i.id, 'order').catch(() => {}));
 

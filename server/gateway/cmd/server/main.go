@@ -65,6 +65,8 @@ func main() {
 	// Notification outbox drain worker (provider-agnostic webhook). The worker is always constructed so
 	// the admin manual trigger (POST /notifications/drain) works; the background loop only runs when a
 	// provider is configured, so PENDING rows are never marked SENT without a real delivery attempt.
+	// With PUSH_WEBHOOK_URL empty the sender is a nil interface and an admin drain returns 503
+	// push_unconfigured without touching PENDING rows (their in-app inbox read is unaffected).
 	workerCtx, stopWorkers := context.WithCancel(context.Background())
 	defer stopWorkers()
 	notifyWorker := notifications.NewWorker(notifications.New(pool, valkey), notifications.NewWebhookSender(cfg.PushWebhookURL), nil)

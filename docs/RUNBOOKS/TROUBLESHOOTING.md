@@ -139,6 +139,23 @@ rendered on the error card** (plus the first stack frame in a dev build) — tha
 - **Seller drawer missing on a phone** → the console shows the drawer below the Tailwind `lg`
   breakpoint; a tablet in landscape uses the desktop sidebar by design.
 
+## 🔧 Customer notifications / push
+
+- **No push on the device** → Android 13+ needs the runtime notification permission, iOS needs the
+  APNs key + Push Notifications capability (`FIREBASE_AUTH.md` Part 6), and the gateway needs
+  `PUSH_WEBHOOK_URL` set so the outbox worker drains `PENDING` rows. The token is registered after
+  sign-in by `services/customerPush.ts`; check the app logs for `POST /notifications/register`.
+- **Push works but the inbox is empty** → `NotificationsScreen` reads `GET /notifications`
+  (owner-scoped, 30 s cache). Pull to refresh; an empty outbox is an honest empty state.
+- **Signed-out device still receives pushes** → `logout.ts` calls `DELETE /notifications/register`
+  best-effort; if it failed offline, sign in and out again while online.
+- **Admin `POST /notifications/drain` returns `503 push_unconfigured`** → expected when
+  `PUSH_WEBHOOK_URL` is empty. The drain refuses to run and leaves `PENDING` rows untouched (the
+  sender gate is a real nil interface, so rows are never marked `FAILED` without a provider); the
+  in-app inbox keeps working. Set `PUSH_WEBHOOK_URL` on the gateway to actually deliver pushes.
+- **Cart/order changes did not persist** → check `GET /cart` / `GET /orders` and the `syncError`
+  banner; a failed write rolls the optimistic UI back rather than faking success.
+
 ## 🔧 Gradle / native build failures
 
 > **Rule: do not run Gradle locally on this machine.** Build in GitHub Actions

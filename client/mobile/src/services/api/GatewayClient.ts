@@ -27,7 +27,6 @@ import { profileTable, membershipTable, orderStatusTable, navTable, detailsTable
 import { getReviewsByVendorId, type VendorReviewRow } from '@data/reviews/vendorReviews';
 import { homeSdui, type SduiSection } from '@data/home/sdui';
 import { adCampaigns } from '@data/home/campaigns';
-import { seedFavorites } from '@data/home/seeds';
 import { savedAddresses } from '@data/account/addresses';
 import {
   clearSession,
@@ -674,8 +673,6 @@ function toSavedAddress(a: AddressRecord): SavedAddress {
 }
 
 export class GatewayClient {
-  /** In-memory favourites shelf for mock mode (mirrors the durable favourites.items table). */
-  private mockFavourites: string[] = [...seedFavorites];
   /** Single-flight 401 recovery so parallel rejected requests share one refresh round-trip. */
   private refreshInFlight: Promise<boolean> | null = null;
 
@@ -1192,26 +1189,21 @@ export class GatewayClient {
   async getFavourites(): Promise<string[]> {
     return this.withFallback(
       () => this.http<{ items: string[] }>('/favourites').then((r) => r.items ?? []),
-      () => delay([...this.mockFavourites]),
+      () => delay([] as string[]),
     );
   }
 
   async addFavourite(productId: string): Promise<string[]> {
     return this.withStrict(
       () => this.http<{ items: string[] }>(`/favourites/${encodeURIComponent(productId)}`, { method: 'PUT' }).then((r) => r.items ?? []),
-      () =>
-        delay(
-          this.mockFavourites.includes(productId)
-            ? [...this.mockFavourites]
-            : [...this.mockFavourites, productId],
-        ),
+      () => delay([] as string[]),
     );
   }
 
   async removeFavourite(productId: string): Promise<string[]> {
     return this.withStrict(
       () => this.http<{ items: string[] }>(`/favourites/${encodeURIComponent(productId)}`, { method: 'DELETE' }).then((r) => r.items ?? []),
-      () => delay((this.mockFavourites = this.mockFavourites.filter((id) => id !== productId))),
+      () => delay([] as string[]),
     );
   }
 
@@ -1230,6 +1222,12 @@ export class GatewayClient {
       method: 'POST',
       body: JSON.stringify({ token, platform }),
     });
+  }
+
+  /** Remove this device's push token on sign-out so a logged-out device stops receiving pushes. */
+  async unregisterPushToken(): Promise<void> {
+    if (!REMOTE_ENABLED) return;
+    await this.http<{ ok: boolean }>('/notifications/register', { method: 'DELETE' });
   }
 
   /** The caller's notification inbox (newest first); mock fallback is empty. */

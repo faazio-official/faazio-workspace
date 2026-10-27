@@ -7,6 +7,7 @@ import {
   TouchableOpacity,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useFocusEffect } from '@react-navigation/native';
 import {
   Bell,
   Settings,
@@ -20,8 +21,8 @@ import AppText from '@/components/AppText';
 import { VendorRateButton } from '@/components/shared';
 import { hs, vs, ms } from '@/utils/responsive';
 import { SPACE } from '@/theme/spacing';
-import { myOrders, getVendorById, getCatalogEntryById } from '@data/index';
-import type { MyOrder, OrderStatus, MyOrdersStatusFilter } from '@data/types';
+import { getCatalogEntryById } from '@data/index';
+import type { OrderStatus, MyOrdersStatusFilter } from '@data/types';
 import type { AppBrand } from '@data/types';
 import type { RootStackParamList } from '@/navigation/types';
 import { useOrdersStore, type PlacedOrder } from '@/state/ordersStore';
@@ -47,12 +48,13 @@ const STATUS_BADGE_BG: Record<OrderStatus, string> = {
 };
 
 /**
- * Union used to render both `@data` fixtures and in-session placed orders
- * (ordersStore) in one list. Placed orders carry an inferred sub-app.
+ * One row in My Orders, built only from durable server history (serverOrders) and in-session
+ * placements (orders). Each carries the sub-app inferred from its line items / Rx kind.
  */
-type ViewOrder =
-  | { kind: 'data'; order: MyOrder; app: AppBrand }
-  | { kind: 'placed'; order: PlacedOrder; app: AppBrand };
+interface ViewOrder {
+  order: PlacedOrder;
+  app: AppBrand;
+}
 
 const inferPlacedApp = (o: PlacedOrder): AppBrand => {
   if (o.kind === 'prescription') return 'PHARMA';
@@ -78,17 +80,17 @@ const inferPlacedApp = (o: PlacedOrder): AppBrand => {
   return 'FOOD';
 };
 
-const placedToViewOrder = (o: PlacedOrder): ViewOrder => ({ kind: 'placed', order: o, app: inferPlacedApp(o) });
+const placedToViewOrder = (o: PlacedOrder): ViewOrder => ({ order: o, app: inferPlacedApp(o) });
 
-/** Stable id used for `key` and highlight matching across both order kinds. */
-const viewOrderRefId = (vo: ViewOrder): string =>
-  vo.kind === 'placed' ? vo.order.orderId : (vo.order as MyOrder).id;
+/** Stable id used for `key` and highlight matching across the merged list. */
+const viewOrderRefId = (vo: ViewOrder): string => vo.order.orderId;
 
 export function MyOrdersScreen({ navigation, route }: Props) {
   const insets = useSafeAreaInsets();
   const placedOrders = useOrdersStore((s) => s.orders);
   const serverOrders = useOrdersStore((s) => s.serverOrders);
   const ordersHydrated = useOrdersStore((s) => s.ordersHydrated);
+  const refreshOrders = useOrdersStore((s) => s.refresh);
   const highlightOrderId = route.params?.highlightOrderId;
   const [activeApp, setActiveApp] = useState<AppFilter>('ALL');
   const [statusFilter, setStatusFilter] = useState<MyOrdersStatusFilter>(
@@ -97,6 +99,13 @@ export function MyOrdersScreen({ navigation, route }: Props) {
   const [filterSheetVisible, setFilterSheetVisible] = useState(false);
   const [stagedStatus, setStagedStatus] = useState<MyOrdersStatusFilter>(statusFilter);
   const [notificationCount, setNotificationCount] = useState(0);
+
+  // Server history is authoritative: refresh on every focus (status changes while away).
+  useFocusEffect(
+    useCallback(() => {
+      void refreshOrders();
+    }, [refreshOrders]),
+  );
 
   useEffect(() => {
     let active = true;
@@ -121,8 +130,8 @@ export function MyOrdersScreen({ navigation, route }: Props) {
 
   const handleBack = useCallback(() => navigation.goBack(), [navigation]);
   const handleNotificationPress = useCallback(() => {
-    // TODO: Notifications screen — no-op placeholder (no target screen yet).
-  }, []);
+    navigation.navigate('Notifications');
+  }, [navigation]);
   const handleSettingsPress = useCallback(() => {
     // TODO: Settings screen — no-op placeholder (no target screen yet).
   }, []);
@@ -150,19 +159,16 @@ export function MyOrdersScreen({ navigation, route }: Props) {
   }, []);
 
   /**
-   * Merged list: in-session placed orders above durable history. When the
-   * gateway history has hydrated we show it (authoritative), otherwise the
-   * `@data` fixtures (offline / mock). Any history row already present as an
-   * in-session placement is dropped so it isn't listed twice.
+   * Merged list: in-session placements above the durable server history. The server is the only
+   * history authority — no `@data` fixture is substituted when it is empty/offline. Any history row
+   * already present as an in-session placement is dropped so it isn't listed twice.
    */
   const allOrders = useMemo<ViewOrder[]>(() => {
     const placed: ViewOrder[] = placedOrders.map(placedToViewOrder);
-    const history: ViewOrder[] = ordersHydrated
-      ? serverOrders.map(placedToViewOrder)
-      : myOrders.map((o) => ({ kind: 'data' as const, order: o, app: o.app }));
+    const history: ViewOrder[] = serverOrders.map(placedToViewOrder);
     const placedIds = new Set(placed.map((vo) => viewOrderRefId(vo)));
     return [...placed, ...history.filter((vo) => !placedIds.has(viewOrderRefId(vo)))];
-  }, [placedOrders, serverOrders, ordersHydrated]);
+  }, [placedOrders, serverOrders]);
 
   const appCounts = useMemo(() => {
     const counts: Record<string, number> = { ALL: allOrders.length };
@@ -335,28 +341,34 @@ export function MyOrdersScreen({ navigation, route }: Props) {
             <View style={styles.emptyIconBox}>
               <PackageOpen size={ms(34)} color="#9CA3AF" strokeWidth={2} />
             </View>
-            <AppText style={styles.emptyTitle}>No orders here yet</AppText>
-            <AppText style={styles.emptySubtitle}>
-              Try a different sub-app or clear your filters.
+            <AppText style={styles.emptyTitle}>
+              {ordersHydrated ? 'No orders here yet' : 'Loading your orders...'}
             </AppText>
-            <TouchableOpacity
-              onPress={handleClearFilters}
-              style={styles.emptyBtn}
-              activeOpacity={0.85}
-              accessibilityRole="button"
-            >
-              <AppText style={styles.emptyBtnText}>Clear filters</AppText>
-            </TouchableOpacity>
+            <AppText style={styles.emptySubtitle}>
+              {ordersHydrated
+                ? 'Try a different sub-app or clear your filters.'
+                : 'Fetching your server order history.'}
+            </AppText>
+            {ordersHydrated ? (
+              <TouchableOpacity
+                onPress={handleClearFilters}
+                style={styles.emptyBtn}
+                activeOpacity={0.85}
+                accessibilityRole="button"
+              >
+                <AppText style={styles.emptyBtnText}>Clear filters</AppText>
+              </TouchableOpacity>
+            ) : null}
           </View>
         ) : (
           <View style={styles.list}>
             {visibleOrders.map((vo) => {
               const highlighted = !!highlightOrderId && viewOrderRefId(vo) === highlightOrderId;
+              const po = vo.order;
 
               // Prescription placed order — distinct card; opens OrderDetails for the durable Rx
               // status + seller quote (same route as item orders).
-              if (vo.kind === 'placed' && vo.order.kind === 'prescription') {
-                const po = vo.order as PlacedOrder;
+              if (po.kind === 'prescription') {
                 return (
                   <TouchableOpacity
                     key={po.id}
@@ -408,110 +420,34 @@ export function MyOrdersScreen({ navigation, route }: Props) {
                 );
               }
 
-              // Placed items order (in-session) — standard card from store data.
-              if (vo.kind === 'placed') {
-                const po = vo.order as PlacedOrder;
-                const first = po.items?.[0];
-                const emoji = first?.emoji ?? '🛍️';
-                const qtyTotal = po.items?.reduce((s, i) => s + i.quantity, 0) ?? 0;
-                return (
-                  <TouchableOpacity
-                    key={po.id}
-                    style={[styles.orderCard, highlighted && styles.orderCardHighlighted]}
-                    activeOpacity={0.9}
-                    onPress={() => handleOpenOrder(po.orderId)}
-                    accessibilityRole="button"
-                    accessibilityLabel={`Open order ${po.orderId}`}
-                  >
-                    <View style={styles.cardHeader}>
-                      <AppText style={styles.orderDate}>
-                        {new Date(po.placedAt).toLocaleDateString('en-IN', {
-                          day: '2-digit',
-                          month: 'short',
-                          year: 'numeric',
-                        })}
-                      </AppText>
-                      <View style={styles.headerPills}>
-                        <View style={[styles.statusPill, { backgroundColor: STATUS_BADGE_BG[po.status] }]}>
-                          <AppText style={[styles.statusText, { color: STATUS_COLORS[po.status] }]}>
-                            {po.status}
-                          </AppText>
-                        </View>
-                        {po.fulfillment === 'PICKUP' ? (
-                          <View style={[styles.fulfillmentPill, styles.fulfillmentPillPickup]}>
-                            <AppText style={[styles.fulfillmentPillText, styles.fulfillmentPillTextPickup]}>Self Pickup</AppText>
-                          </View>
-                        ) : (
-                          <View style={[styles.fulfillmentPill, styles.fulfillmentPillDelivery]}>
-                            <AppText style={[styles.fulfillmentPillText, styles.fulfillmentPillTextDelivery]}>Delivery</AppText>
-                          </View>
-                        )}
-                      </View>
-                    </View>
-
-                    <View style={styles.cardBody}>
-                      <View style={styles.productImagePlaceholder}>
-                        <AppText style={styles.productEmoji}>{emoji}</AppText>
-                      </View>
-                      <View style={styles.productInfo}>
-                        <AppText style={styles.productName} numberOfLines={1}>{po.vendorName}</AppText>
-                        <AppText style={styles.productMeta} numberOfLines={1}>
-                          {first?.name ?? 'Order'} • Qty {qtyTotal}
-                        </AppText>
-                      </View>
-                      <AppText style={styles.priceText}>₹{po.total}</AppText>
-                    </View>
-
-                    <View style={styles.cardFooter}>
-                      <VendorRateButton
-                        vendorId={po.storeIds?.[0]}
-                        variant="compact"
-                        onPress={handleRateVendor}
-                      />
-                      {po.status === 'Delivered' ? (
-                        <TouchableOpacity
-                          style={styles.invoiceBtn}
-                          activeOpacity={0.7}
-                          accessibilityRole="button"
-                          accessibilityLabel={`Download invoice for order ${po.orderId}`}
-                          onPress={() => void handleDownloadInvoice(po.orderId)}
-                        >
-                          <AppText style={styles.invoiceBtnText}>Invoice</AppText>
-                        </TouchableOpacity>
-                      ) : null}
-                      <TouchableOpacity
-                        style={styles.viewDetailsBtn}
-                        activeOpacity={0.7}
-                        accessibilityRole="button"
-                        onPress={() => handleOpenOrder(po.orderId)}
-                      >
-                        <AppText style={styles.viewDetailsText}>View Details &gt;</AppText>
-                      </TouchableOpacity>
-                    </View>
-                  </TouchableOpacity>
-                );
-              }
-
-              // @data fixture order.
-              const order = vo.order as MyOrder;
+              // Placed items order (in-session + server history) — standard card from store data.
+              const first = po.items?.[0];
+              const emoji = first?.emoji ?? '🛍️';
+              const qtyTotal = po.items?.reduce((s, i) => s + i.quantity, 0) ?? 0;
               return (
                 <TouchableOpacity
-                  key={order.id}
+                  key={po.id}
                   style={[styles.orderCard, highlighted && styles.orderCardHighlighted]}
                   activeOpacity={0.9}
-                  onPress={() => handleOpenOrder(order.id)}
+                  onPress={() => handleOpenOrder(po.orderId)}
                   accessibilityRole="button"
-                  accessibilityLabel={`Open order ${order.orderNumber}`}
+                  accessibilityLabel={`Open order ${po.orderId}`}
                 >
                   <View style={styles.cardHeader}>
-                    <AppText style={styles.orderDate}>{order.orderDateTime}</AppText>
+                    <AppText style={styles.orderDate}>
+                      {new Date(po.placedAt).toLocaleDateString('en-IN', {
+                        day: '2-digit',
+                        month: 'short',
+                        year: 'numeric',
+                      })}
+                    </AppText>
                     <View style={styles.headerPills}>
-                      <View style={[styles.statusPill, { backgroundColor: STATUS_BADGE_BG[order.status] }]}>
-                        <AppText style={[styles.statusText, { color: STATUS_COLORS[order.status] }]}>
-                          {order.status}
+                      <View style={[styles.statusPill, { backgroundColor: STATUS_BADGE_BG[po.status] }]}>
+                        <AppText style={[styles.statusText, { color: STATUS_COLORS[po.status] }]}>
+                          {po.status}
                         </AppText>
                       </View>
-                      {order.fulfillment === 'PICKUP' ? (
+                      {po.fulfillment === 'PICKUP' ? (
                         <View style={[styles.fulfillmentPill, styles.fulfillmentPillPickup]}>
                           <AppText style={[styles.fulfillmentPillText, styles.fulfillmentPillTextPickup]}>Self Pickup</AppText>
                         </View>
@@ -525,29 +461,39 @@ export function MyOrdersScreen({ navigation, route }: Props) {
 
                   <View style={styles.cardBody}>
                     <View style={styles.productImagePlaceholder}>
-                      <AppText style={styles.productEmoji}>{order.emoji}</AppText>
+                      <AppText style={styles.productEmoji}>{emoji}</AppText>
                     </View>
                     <View style={styles.productInfo}>
-                      <AppText style={styles.productName} numberOfLines={1}>{order.productName}</AppText>
+                      <AppText style={styles.productName} numberOfLines={1}>{po.vendorName}</AppText>
                       <AppText style={styles.productMeta} numberOfLines={1}>
-                        {order.variant} • Qty {order.qty}
+                        {first?.name ?? 'Order'} • Qty {qtyTotal}
                       </AppText>
                     </View>
-                    <AppText style={styles.priceText}>₹{order.price}</AppText>
+                    <AppText style={styles.priceText}>₹{po.total}</AppText>
                   </View>
 
                   <View style={styles.cardFooter}>
                     <VendorRateButton
-                      vendorId={order.storeId}
-                      vendorName={getVendorById(order.storeId ?? '')?.name}
+                      vendorId={po.storeIds?.[0]}
                       variant="compact"
                       onPress={handleRateVendor}
                     />
+                    {po.status === 'Delivered' ? (
+                      <TouchableOpacity
+                        style={styles.invoiceBtn}
+                        activeOpacity={0.7}
+                        accessibilityRole="button"
+                        accessibilityLabel={`Download invoice for order ${po.orderId}`}
+                        onPress={() => void handleDownloadInvoice(po.orderId)}
+                      >
+                        <AppText style={styles.invoiceBtnText}>Invoice</AppText>
+                      </TouchableOpacity>
+                    ) : null}
                     <TouchableOpacity
                       style={styles.viewDetailsBtn}
                       activeOpacity={0.7}
                       accessibilityRole="button"
-                      onPress={() => handleOpenOrder(order.id)}
+                      onPress={() => handleOpenOrder(po.orderId)}
                     >
                       <AppText style={styles.viewDetailsText}>View Details &gt;</AppText>
                     </TouchableOpacity>

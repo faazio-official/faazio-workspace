@@ -556,22 +556,22 @@ still separate files; consolidating them is tracked in `client/mobile/PENDING_WO
 | Store | Purpose |
 |---|---|
 | `authStore` | Session, login payload, auth state. `AuthUser` carries the decoded partner role/state claims (`role`, `stateCode`) read from the Firebase ID token (`lib/tokenClaims.ts`; legacy `STATE_ADMIN` is canonicalised to `DISTRICT_ADMIN` to match the gateway) so admin UI can gate client-side — the gateway re-verifies the token on every call. `expireSession()` drops the in-memory session after `GatewayClient` has cleared a dead Keychain session; the root navigators react by returning to Login (customer) / Phone entry (delivery) |
-| `cartStore` | Cart items, quantity, totals; `addToCart(id, name, price, emoji, restaurantId?)` — the optional 5th arg tags a line to a restaurant (adopts an untagged line on re-add); `clearRestaurantCart(id)` removes only that restaurant's lines. Fulfilment is chosen order-level on the cart, not per item. The local cart is the optimistic UI model; every mutation mirrors best-effort to the durable `inventory.carts` row (`gateway.addToCart`/`updateCartItem`/`removeCartItem`) and `hydrate()` pulls + rejoins catalog details at startup (remote mode only); the first empty remote hydrate clears the local `seedCartItems` |
-| `favoriteStore` | Favourites (ids) |
+| `cartStore` | Cart items, quantity, totals; `addToCart(id, name, price, emoji, restaurantId?)` — the optional 5th arg tags a line to a restaurant (adopts an untagged line on re-add); `clearRestaurantCart(id)` removes only that restaurant's lines. Fulfilment is chosen order-level on the cart, not per item. **Server-authoritative:** every mutation optimistically updates the UI, awaits the durable `inventory.carts` write, and rolls back with `syncError` on failure. An existing line re-add sends its next absolute qty via `updateCartItem` because the gateway `POST/PUT` both **set** (not increment). `hydrate()` pulls + rejoins catalog details at login/cold start (remote mode); `resetLocal()` drops the device cache on sign-out without deleting the server cart. The `seedCartItems` fixture is gone; mock mode degrades to device-local state |
+| `favoriteStore` | Favourites (ids), server-authoritative via `GET/POST/DELETE /favourites`; optimistic toggle with rollback + `syncError`, `hydrate()` at login/cold start, `reset()` on sign-out |
 | `pharmaStore` | Prescriptions |
 | `bloodDonorStore` | Blood Donor wizard draft + committed registration + outgoing targeted requests (`donorMatchRequests`) + server-hydrated incoming requests (`incomingMatchRequests`; recipient-scoped, `respondToMatch` accept/decline) + the offline write outbox (`pendingOps`; register/interest/match/match-status/request; flushed on hydration/foreground, server-wins reconcile) |
 | `searchStore` | Search state/history |
 | `languageStore` | Selected language |
 | `uiStore` | Sub-app id (`FA_MART`/`FOOD`/`PHARMA`), tab name |
 | `foodFilterStore` | Food sub-app Veg / Non-Veg diet filter (`all`/`veg`/`nonveg`), session-scoped |
-| `rewardsStore` | FaazioCoins balance, order streak, discount card + activity ledger (persisted AsyncStorage `faazio/rewards/v1`, reset on logout) |
-| `ordersStore` | In-session placed orders (`PlacedOrder`: items or prescription kind) + a durable `serverOrders` slice hydrated from `gateway.getOrders()` at startup (remote mode); `recordOrder` / `hydrateServerOrders` / `getOrderById` (server history wins); `storeIds` vendor-identity snapshot captured at placement |
+| `rewardsStore` | FaazioCoins balance, streak, discount card + ledger — **server-authoritative** (`GET /rewards`); AsyncStorage `faazio/rewards/v1` is an offline read-through cache only and there is no client earn/redeem (coins are written inside the checkout order transaction). `reconcile()` on login/focus, reset on logout; the seeded 245-coin/5-streak fiction is gone. A server reconcile result is race-guarded so a slow AsyncStorage hydration read can never overwrite fresh balances |
+| `ordersStore` | In-session placed orders (`PlacedOrder`: items or prescription kind) + durable `serverOrders` from `gateway.getOrders()` (`refresh()` on login + My Orders focus); `recordServerOrder(row)` adopts the server order after checkout; `recordOrder` remains for the mock-mode Rx flow; `getOrderById` prefers server history; reset on logout |
 | `vendorRatingStore` | The signed-in user's live vendor ratings (one per `(user, vendor)`, latest wins) + verified-purchase `orderIds`; persisted AsyncStorage `faazio/vendor-ratings/v1`, reset on logout |
 | `deliveryPartnerStore` | Partner-app only: verified application phone + the rider/detail projection from `GET /delivery/me`. The Firebase session itself stays in `authStore`/Keychain and is never duplicated here |
 
 ### Services (`src/services/`)
 
-- `api/GatewayClient.ts` — single data surface; **wired** to the production gateway (`GATEWAY_URL` + `USE_GATEWAY`) and **server-only** (no `@data/*` fallback on a failed/disabled read). Migration (W22) done so far: mart feed (`martService` → `getStores('MART')`), catalog vendor detail (`VendorDetailScreen` → `getStore`), favourites (`getProductsByIds`), product search (`SearchModeConfig.fetch` → `searchProducts`), the Home SDUI registry + recently-viewed rails (`useHomeFeed` → `getHomeFeed`, no fixture substitution), the **cart/checkout** path (see below), the **Pharma Rx** capture/upload/create path, the **orders history** (`ordersStore` ← `getOrders`), **vendor reviews** (`useVendorReviews` ← `getVendorReviews` + `getVendorReviewSummary`) and the `search` analytics event. **(W25)** pharma store rails/vendor picker (`usePharmaStores` → `getStores('PHARMA')`), `getVenues` + `getNotifications` added; `getMenu` now carries `description`. **(W26)** food restaurant menus (`useRestaurantMenu` → server-only `fetchMenu`, then `getMenu` for mock-mode) and the FoodHome restaurant grid (`restaurantFeedService` → `getVenues('FOOD')`, fixture-enriched); saved-address add/edit/delete (`saveAddress`/`deleteAddress`). **(W27)** blood donor dashboard feed (`useBloodRequests` → `getBloodRequests`, server-backed, fixture-enriched display extras; detail renders redacted rows gracefully). **(W29)** `getCoupons` feeds the cart coupon sheet; money/Rx/address writes honour `STRICT=true` (no silent fixture success). **(W30)** Home sponsored rail (`SponsoredRailSection` → `getLiveAds`/`getSponsoredProducts`, `HOME_TOP`, paid placements collapse on empty — no fixture fallback) and the Home SDUI `sponsoredRail` section. **(W31)** shopper pricing: `getActiveDiscounts` + `services/pricing.ts` (`effectivePrice`/`applyActiveDiscount`/`applyActiveDiscounts`/`useActiveDiscounts`/`fetchActiveDiscounts`/`withActiveDiscounts`) overlay approved festival discounts across every product surface — Mart vendor rail + `DealsLanding` (`discounts`), search (`SearchModeConfig.fetch` → `withActiveDiscounts`), vendor drill-in (`VendorDetailScreen`), PDP (`ProductDetailScreen` re-resolves the canonical row before overlaying once), favourites, and the Home rails (`usePricedProducts`); the Food offers rail uses authored `SpecialDish.mrp` (no more `price × 1.2`); the Home `DealsOfDaySection` resolves `md-*` through the catalog. **(W32)** coupon validate/settle at checkout (`validateCoupon` → `POST /checkout/validate-coupon`; `POST /orders` settles server-side) and closed-loop ads (shared `components/shared/SponsoredRail` reports impression/click via `recordAdEvent`, last-click attribution via `services/adsAttribution.ts`; `SPONSORED_SHOWCASE`/`SECTOR_RAIL` consumed). **(W33)** Mart home deals de-mock (`martService.fetchMartFeed` resolves `md-*` through `getProductsByIds`, overlaying server name/price/MRP/rating/image onto the `@static-editorial` row) and Food **delivery-store menus** (`data/food/menus.ts` `storeMenus` derived from `foodProducts` by `storeId`; `menuForVenueName` resolver; 12 `store-f*` kitchens seeded into `directory.menus` — 88 dishes / 30 venues). **(W35)** Home SDUI cutover: the feed now drives every data-backed rail — `HomeView` threads `products`/`stores`/`chips[].productIds` into `NearbyOffersSection`, `Mens`/`Womens`/`Childrens`, `HairSkinCare`, `MostRatedRestaurants` (server-joined `directory.stores` via the new `sdui` store join + `directory.Repo.ByIDs`), `TodaysSpecials` and `FilterFeed` (active-chip ids resolved through `getProductsByIds`); each fixture stays the offline first-paint. `adBanner` (`HOME_HERO` slot) remains fixture-owned; `hotBrandDeals` (vendor campaigns) stayed fixture-owned until **(W50)**. **(W38)** Mart hero + Daily Essentials de-mock: `martService.fetchMartFeed` now reads the `martHero.banners` / `martEssentials.productIds` sections from `getHomeFeed()` (portal-editable, `mocks/martHomeFeed.ts` = offline fallback; `mf-*` retired for real `gr-*` ids), the `DealsLanding` `discounts` grid uses `getStoreProducts`, and Mart search emits the `search` behavior event. **(W39)** Mart monitoring + cart gate: `services/productViews.trackProductView` emits a session-deduped `view` impression (reset on logout) via `hooks/useViewableTracking` on the Mart search grid + both feed rails (`DealsOfDayRail`/`DailyEssentialsRail` `onItemView`); `cartStore.hydrate()` clears the local `seedCartItems` on the first empty remote pull. **(W40)** Mart residual de-mock: the PDP "More from store" grid reads `getStoreProducts` (local filter fallback), `VendorHighlights` derives its badges from the store row (`deliveryTime`/`rating`) instead of a hardcoded const, the organic "Discounted Products" rail no longer carries the 'AD' pill, and checkout now settles approved festival discounts server-side (`contracts.DiscountReader`) so the charged price matches the overlaid one. Remaining: Mart media path (R2 backfill blocked on creds); Mart campaign-`DealsLanding` mode stays Home-owned fixture. **(W41)** seller-run paid hero campaigns: `GatewayClient.getHeroAds` (`GET /ads/hero`) feeds the shared `components/shared/CampaignHero` (via `hooks/useCampaignHero`) at `MART_HERO`/`CATEGORY_TOP`/`STORE_TOP`, closing the loop into the seller Ads console; the category drill-in's fake store-derived `SPONSORED` ad slides (`getAdsForQuery`/`VendorAdSlide`) were deleted. **(W42)** self-serve heroes: every hero surface is now a paid placement (no organic hero) — `HOME_HERO` replaces the Home `topAdSlides` fixture, `FOOD_HERO`/`PHARMA_HERO` are new hosts, `STORE_TOP` covers the restaurant profile, and the Mart `MartHeroCarousel`+`MART_HERO_BANNERS` are retired; `CampaignHero` gains a one-impression guard + `accessibilityLabel="Sponsored"`; `GatewayClient.reportHeroAd` (`POST /ads/campaigns/{id}/report`) wires the user abuse report. **(W43)** Mart ads/offers hardening: `martService.fetchMartFeed` renders partial (per-leg catch + body guard) and reads `martHero.banners` as the `CampaignHero` house fallback, Deals/Essentials overlay `useActiveDiscounts` for price parity, and `SubAppWrapper` resolves the deep-linked vendor via `getStore` (local fixture fallback). **(W44)** Mart merchandising unification: the Deals rail moved onto SDUI (`martDeals.productIds`, same owner as Essentials; `@data/mart/deals` + `mocks/martHomeFeed.ts` are offline fallbacks), `fetchMartFeed` now reads the Mart-only `GET /sdui/mart` (`GatewayClient.getMartFeed`) instead of the full Home feed, the whole Mart feed shares one `useActiveDiscounts` batch (paid shelf gets a `discounts` prop; `SponsoredRail` impression guard), deal/essential taps resolve the canonical row via `openCatalogTarget`, the Mart rails gained a "View All" that opens `DealsLanding` in catalog-resolved `martDeals`/`martEssentials` modes, and the seed fills three `SPONSORED_SHOWCASE` slots. **(W45)** Food sub-app ads/offers rebuild: the "Recommended & Offers" rail/page lists only MRP-struck dishes (`getOfferDishes`, shared) and drops the false `AD` pill on organic food; the profile offer slot surfaces the live Food coupon (`useBestCoupon`); the `FOOD_HERO`/`STORE_TOP` hero gained a house fallback and full-band collapse, and `openVenue` now resolves delivery kitchens via `getStore` (no dead taps); Food gained its own `GET /sdui/food` projection (`GatewayClient.getFoodFeed`, `foodHero`/`foodSpecials`/`mostRatedDining`) driving the hero fallback, the "Today's Special" order + Top Rated staleness filter; and `useRestaurantMenu`/`menuForVenueName` no longer pad an unseeded venue with other restaurants' dishes. **(W50)** Campaign + Pharma merchandising de-mock: the Home "Deals of the day" campaign defs are now server-owned — `hotBrandDeals.campaigns[]` on the SDUI doc compiles into the anon `GatewayClient.getHomeCampaigns`/`getHomeCampaign` (`GET /home/campaigns(/{id})`, store + products joined), `BrandCampaignsSection` renders the feed defs and the `DealsLanding` `campaign` drill-in reads the server join (fixture fallback); Pharma gained its own `GET /sdui/pharma` projection (`GatewayClient.getPharmaFeed`, `pharmaHero`/`pharmaPopular`/`pharmaEssentials`) backing the `PharmaHeroBanner` house fallback + the "Popular Medicines"/"Health Essentials" rails (`fetchPharmaFeed`, fixture fallback); the super-admin SDUI editor edits the campaign leaf and the Pharma sections off the same Home doc. **(W69)** server-authority cleanup: the Pharma category grid resolves authored `ph-*` ids through `getProductsByIds` (server price/rating/image/badge overlay, delisted ids drop, spinner while loading); the PDP store block reads `getStore` server-first (authored Mart/Pharma row is the offline/error fallback); `SearchScreen` shows a spinner and never paints authored results while an online fetch is pending or answered; `martService.fetchMartFeed` degrades each leg independently (`Promise.allSettled`); dev CORS advertises `X-Dev-District`.
+- `api/GatewayClient.ts` — single data surface; **wired** to the production gateway (`GATEWAY_URL` + `USE_GATEWAY`) and **server-only** (no `@data/*` fallback on a failed/disabled read). Migration (W22) done so far: mart feed (`martService` → `getStores('MART')`), catalog vendor detail (`VendorDetailScreen` → `getStore`), favourites (`getProductsByIds`), product search (`SearchModeConfig.fetch` → `searchProducts`), the Home SDUI registry + recently-viewed rails (`useHomeFeed` → `getHomeFeed`, no fixture substitution), the **cart/checkout** path (see below), the **Pharma Rx** capture/upload/create path, the **orders history** (`ordersStore` ← `getOrders`), **vendor reviews** (`useVendorReviews` ← `getVendorReviews` + `getVendorReviewSummary`) and the `search` analytics event. **(W25)** pharma store rails/vendor picker (`usePharmaStores` → `getStores('PHARMA')`), `getVenues` + `getNotifications` added; `getMenu` now carries `description`. **(W26)** food restaurant menus (`useRestaurantMenu` → server-only `fetchMenu`, then `getMenu` for mock-mode) and the FoodHome restaurant grid (`restaurantFeedService` → `getVenues('FOOD')`, fixture-enriched); saved-address add/edit/delete (`saveAddress`/`deleteAddress`). **(W27)** blood donor dashboard feed (`useBloodRequests` → `getBloodRequests`, server-backed, fixture-enriched display extras; detail renders redacted rows gracefully). **(W29)** `getCoupons` feeds the cart coupon sheet; money/Rx/address writes honour `STRICT=true` (no silent fixture success). **(W30)** Home sponsored rail (`SponsoredRailSection` → `getLiveAds`/`getSponsoredProducts`, `HOME_TOP`, paid placements collapse on empty — no fixture fallback) and the Home SDUI `sponsoredRail` section. **(W31)** shopper pricing: `getActiveDiscounts` + `services/pricing.ts` (`effectivePrice`/`applyActiveDiscount`/`applyActiveDiscounts`/`useActiveDiscounts`/`fetchActiveDiscounts`/`withActiveDiscounts`) overlay approved festival discounts across every product surface — Mart vendor rail + `DealsLanding` (`discounts`), search (`SearchModeConfig.fetch` → `withActiveDiscounts`), vendor drill-in (`VendorDetailScreen`), PDP (`ProductDetailScreen` re-resolves the canonical row before overlaying once), favourites, and the Home rails (`usePricedProducts`); the Food offers rail uses authored `SpecialDish.mrp` (no more `price × 1.2`); the Home `DealsOfDaySection` resolves `md-*` through the catalog. **(W32)** coupon validate/settle at checkout (`validateCoupon` → `POST /checkout/validate-coupon`; `POST /orders` settles server-side) and closed-loop ads (shared `components/shared/SponsoredRail` reports impression/click via `recordAdEvent`, last-click attribution via `services/adsAttribution.ts`; `SPONSORED_SHOWCASE`/`SECTOR_RAIL` consumed). **(W33)** Mart home deals de-mock (`martService.fetchMartFeed` resolves `md-*` through `getProductsByIds`, overlaying server name/price/MRP/rating/image onto the `@static-editorial` row) and Food **delivery-store menus** (`data/food/menus.ts` `storeMenus` derived from `foodProducts` by `storeId`; `menuForVenueName` resolver; 12 `store-f*` kitchens seeded into `directory.menus` — 88 dishes / 30 venues). **(W35)** Home SDUI cutover: the feed now drives every data-backed rail — `HomeView` threads `products`/`stores`/`chips[].productIds` into `NearbyOffersSection`, `Mens`/`Womens`/`Childrens`, `HairSkinCare`, `MostRatedRestaurants` (server-joined `directory.stores` via the new `sdui` store join + `directory.Repo.ByIDs`), `TodaysSpecials` and `FilterFeed` (active-chip ids resolved through `getProductsByIds`); each fixture stays the offline first-paint. `adBanner` (`HOME_HERO` slot) remains fixture-owned; `hotBrandDeals` (vendor campaigns) stayed fixture-owned until **(W50)**. **(W38)** Mart hero + Daily Essentials de-mock: `martService.fetchMartFeed` now reads the `martHero.banners` / `martEssentials.productIds` sections from `getHomeFeed()` (portal-editable, `mocks/martHomeFeed.ts` = offline fallback; `mf-*` retired for real `gr-*` ids), the `DealsLanding` `discounts` grid uses `getStoreProducts`, and Mart search emits the `search` behavior event. **(W39)** Mart monitoring + cart gate: `services/productViews.trackProductView` emits a session-deduped `view` impression (reset on logout) via `hooks/useViewableTracking` on the Mart search grid + both feed rails (`DealsOfDayRail`/`DailyEssentialsRail` `onItemView`); `cartStore.hydrate()` pulls the durable cart at login/cold start (W73 made the store server-authoritative and removed `seedCartItems`). **(W40)** Mart residual de-mock: the PDP "More from store" grid reads `getStoreProducts` (local filter fallback), `VendorHighlights` derives its badges from the store row (`deliveryTime`/`rating`) instead of a hardcoded const, the organic "Discounted Products" rail no longer carries the 'AD' pill, and checkout now settles approved festival discounts server-side (`contracts.DiscountReader`) so the charged price matches the overlaid one. Remaining: Mart media path (R2 backfill blocked on creds); Mart campaign-`DealsLanding` mode stays Home-owned fixture. **(W41)** seller-run paid hero campaigns: `GatewayClient.getHeroAds` (`GET /ads/hero`) feeds the shared `components/shared/CampaignHero` (via `hooks/useCampaignHero`) at `MART_HERO`/`CATEGORY_TOP`/`STORE_TOP`, closing the loop into the seller Ads console; the category drill-in's fake store-derived `SPONSORED` ad slides (`getAdsForQuery`/`VendorAdSlide`) were deleted. **(W42)** self-serve heroes: every hero surface is now a paid placement (no organic hero) — `HOME_HERO` replaces the Home `topAdSlides` fixture, `FOOD_HERO`/`PHARMA_HERO` are new hosts, `STORE_TOP` covers the restaurant profile, and the Mart `MartHeroCarousel`+`MART_HERO_BANNERS` are retired; `CampaignHero` gains a one-impression guard + `accessibilityLabel="Sponsored"`; `GatewayClient.reportHeroAd` (`POST /ads/campaigns/{id}/report`) wires the user abuse report. **(W43)** Mart ads/offers hardening: `martService.fetchMartFeed` renders partial (per-leg catch + body guard) and reads `martHero.banners` as the `CampaignHero` house fallback, Deals/Essentials overlay `useActiveDiscounts` for price parity, and `SubAppWrapper` resolves the deep-linked vendor via `getStore` (local fixture fallback). **(W44)** Mart merchandising unification: the Deals rail moved onto SDUI (`martDeals.productIds`, same owner as Essentials; `@data/mart/deals` + `mocks/martHomeFeed.ts` are offline fallbacks), `fetchMartFeed` now reads the Mart-only `GET /sdui/mart` (`GatewayClient.getMartFeed`) instead of the full Home feed, the whole Mart feed shares one `useActiveDiscounts` batch (paid shelf gets a `discounts` prop; `SponsoredRail` impression guard), deal/essential taps resolve the canonical row via `openCatalogTarget`, the Mart rails gained a "View All" that opens `DealsLanding` in catalog-resolved `martDeals`/`martEssentials` modes, and the seed fills three `SPONSORED_SHOWCASE` slots. **(W45)** Food sub-app ads/offers rebuild: the "Recommended & Offers" rail/page lists only MRP-struck dishes (`getOfferDishes`, shared) and drops the false `AD` pill on organic food; the profile offer slot surfaces the live Food coupon (`useBestCoupon`); the `FOOD_HERO`/`STORE_TOP` hero gained a house fallback and full-band collapse, and `openVenue` now resolves delivery kitchens via `getStore` (no dead taps); Food gained its own `GET /sdui/food` projection (`GatewayClient.getFoodFeed`, `foodHero`/`foodSpecials`/`mostRatedDining`) driving the hero fallback, the "Today's Special" order + Top Rated staleness filter; and `useRestaurantMenu`/`menuForVenueName` no longer pad an unseeded venue with other restaurants' dishes. **(W50)** Campaign + Pharma merchandising de-mock: the Home "Deals of the day" campaign defs are now server-owned — `hotBrandDeals.campaigns[]` on the SDUI doc compiles into the anon `GatewayClient.getHomeCampaigns`/`getHomeCampaign` (`GET /home/campaigns(/{id})`, store + products joined), `BrandCampaignsSection` renders the feed defs and the `DealsLanding` `campaign` drill-in reads the server join (fixture fallback); Pharma gained its own `GET /sdui/pharma` projection (`GatewayClient.getPharmaFeed`, `pharmaHero`/`pharmaPopular`/`pharmaEssentials`) backing the `PharmaHeroBanner` house fallback + the "Popular Medicines"/"Health Essentials" rails (`fetchPharmaFeed`, fixture fallback); the super-admin SDUI editor edits the campaign leaf and the Pharma sections off the same Home doc. **(W69)** server-authority cleanup: the Pharma category grid resolves authored `ph-*` ids through `getProductsByIds` (server price/rating/image/badge overlay, delisted ids drop, spinner while loading); the PDP store block reads `getStore` server-first (authored Mart/Pharma row is the offline/error fallback); `SearchScreen` shows a spinner and never paints authored results while an online fetch is pending or answered; `martService.fetchMartFeed` degrades each leg independently (`Promise.allSettled`); dev CORS advertises `X-Dev-District`.
 - `firebaseAuth.ts` — native Firebase phone-OTP client (`sendOtp` → `signInWithPhoneNumber`,
   `verifyOtp` → `ConfirmationResult.confirm`, `refreshIdToken` → `getIdToken(true)`, `signOutRemote`).
   Returns the Firebase ID token (RS256 JWT) the gateway verifies; tokens are handed to
@@ -579,7 +579,15 @@ still separate files; consolidating them is tracked in `client/mobile/PENDING_WO
   401; when no native user remains it clears the Keychain + `authStore.expireSession()`. The public
   native config lives in `android/app/google-services.json` + `ios/Faazio/GoogleService-Info.plist`.
 - `secureSession.ts` — tokens via `react-native-keychain` (Android Keystore / iOS Keychain; never AsyncStorage for secrets). Single owner of the session with an in-memory mirror so `GatewayClient` can read `getAccessToken()` per request without a Keychain round-trip; `updateSessionTokens()` persists a rotated pair, and `getRefreshToken()` returns the portal refresh token for seller/admin sessions.
-- `logout.ts` — clears auth + cart + favourites + search + pharma + blood donor + rewards + vendor-rating stores + the session impression set.
+- `sessionStores.ts` — `hydrateUserStores()` runs after authentication and in parallel pulls the
+  cart, favourites, orders (`refresh`) and rewards (`reconcile`); every leg is `allSettled` so one
+  failing module cannot block the rest.
+- `customerPush.ts` — registers the customer FCM token (`POST /notifications/register`), re-registers
+  on token refresh, and routes foreground/notification-tap events; the in-app inbox stays the
+  durable record when push is unavailable.
+- `logout.ts` — clears auth + device cart cache (`resetLocal`, leaves the server cart) + favourites
+  + orders + search + pharma + blood donor + rewards + vendor-rating stores + the session impression
+  set, and best-effort unregisters the push token.
 - `productViews.ts` — `trackProductView(id)`: emits a `view` behavior event **at most once per product per session** (`user_events` has no dedupe), reset on logout; consumed by `hooks/useViewableTracking` on the Mart search grid, the vendor drill-in "All Products" grid, and the feed rails.
 - `vendorRatings.ts` — single owner of the vendor rating gate: `canRateVendor(vendorId)`
   (derived from fixture orders via `hasPurchasedFromVendor` + in-session `ordersStore.orders`
@@ -611,12 +619,14 @@ still separate files; consolidating them is tracked in `client/mobile/PENDING_WO
 
 ### Cart / checkout → gateway (W22)
 
-- **Cart durability:** `cartStore` mutations optimistically update local state, then mirror
-  best-effort to `inventory.carts` (`gateway.addToCart`/`updateCartItem`/`removeCartItem`/
-  `clearCart`). No-op in mock mode. `hydrate()` runs once at startup (remote mode only): it pulls
-  the durable cart, resolves `productId`s via `getProductsByIds`, and replaces local state. On the
-  **first** remote hydrate an empty server cart clears the local `seedCartItems` (no fixture lines
-  the server lacks); later empty responses leave local state untouched.
+- **Cart durability:** `cartStore` is server-authoritative. Each mutation optimistically updates
+  local state, awaits the `inventory.carts` write (`gateway.addToCart`/`updateCartItem`/
+  `removeCartItem`), and rolls back with `syncError` on failure. An existing line re-add sends the
+  next **absolute** qty via `updateCartItem` (the gateway `POST/PUT` both set, not increment).
+  `hydrate()` runs at login/cold start (remote mode): it pulls the durable cart, resolves
+  `productId`s via `getProductsByIds`, and replaces local state (an empty server cart is an honest
+  empty cart — the `seedCartItems` fixture is gone). `resetLocal()` drops the device cache on
+  sign-out without deleting the server cart. Mock mode degrades to device-local state.
 - **Order placement:** `CartView.handlePlaceOrder` calls `gateway.placeOrder({ items, addressId,
   fulfillment, idempotencyKey, pickup, pickups, coinsRedeemed })`; the **server is the money/stock
   authority** (prices, decrements stock, holds the idempotency lock) and returns the durable order
@@ -629,10 +639,11 @@ still separate files; consolidating them is tracked in `client/mobile/PENDING_WO
   capture itself stays deferred. The **delivery fee is dynamic**: `CartView` quotes it on the FULFILLMENT
   step via `gateway.fetchDeliveryFee` (`GET /checkout/delivery-fee`, store pin + live drop), falling
   back to a Haversine estimate when the gateway is unreachable — the server settles the same math.
-  On success the purchased lines are removed from the
-  durable server cart; rewards (`recordOrder`) stay local-first. A 1.2s minimum delay preserves the
-  processing spinner. The coupon sheet treats an authoritative empty `GET /coupons` list as empty
-  (no retired fixtures).
+  On success the returned `OrderRow` is adopted via `ordersStore.recordServerOrder`, the purchased
+  lines are removed from the durable server cart (`Promise.allSettled`), and `rewardsStore.reconcile()`
+  refreshes the server-written coin balance (no local earn). There is no artificial delay; the
+  processing spinner is driven by the real request. The coupon sheet treats an authoritative empty
+  `GET /coupons` list as empty (no retired fixtures).
 - **Pharma Rx:** `PrescriptionFlowScreen.handleConfirm` uploads each captured photo to the private
   `prescriptions` bucket via a signed URL (`gateway.uploadPrescriptionImage` → object **key**, never
   a URL/logged), then calls `gateway.createPrescription({ vendorId, fulfillment, pages, note,
@@ -667,7 +678,7 @@ AppNavigator (root native stack)
 │   (Home-owned `@data`), `discounts` from the Mart vendor profile "View All" (server pool),
 │   `martDeals`/`martEssentials` from the Mart rail "View All" (catalog-resolved `productIds`); the
 │   last three carry the paid `SECTOR_RAIL` header shelf)
-├── You · UserDetails · SavedAddresses · MyOrders · Favourites · OrderDetails · FaazioRewards · SellWithUs
+├── You · UserDetails · SavedAddresses · MyOrders · Notifications · Favourites · OrderDetails · FaazioRewards · SellWithUs
 │   └── SellerRequests (admin application queue, role-gated) ── SellerRequestDetail (`{ sellerId }`; KYC verify/activate/reject)
 ├── RateVendor (verified-buyer rating form; every vendor surface + order screens link here)
 ├── BloodDonor (Pharma blood-donor wizard/dashboard)
@@ -715,6 +726,12 @@ message or notification tap to `AcceptRejectScreen`, and `src/services/deliveryL
 `faazio-delivery://accept-reject?orderId=…` (`Linking` warm/cold start). The screen loads the offer
 from `GET /delivery/route/{id}` so a cold start needs only the order id; the server's `expiresAt`
 drives the countdown.
+
+**Customer push.** `src/services/customerPush.ts` requests notification permission, registers the
+customer FCM token (`POST /notifications/register`), re-registers on token refresh, and listens for
+foreground messages plus notification taps. The durable inbox is `NotificationsScreen` (root route
+`Notifications`, opened from the My Orders bell), which reads `GET /notifications`; push delivery is
+best-effort and the inbox still works without FCM/APNs.
 
 **Native identity.** One committed RN shell, three products: the Android `customer`/`delivery`/`seller`
 product flavors (`com.faazio.customer` / `com.faazio.deliverypartner` / `com.faazio.seller`) and the
@@ -831,8 +848,9 @@ search shell: a static header (back chevron + "Favourites (N)" title pill), a
 `SegmentedToggle` (All / Mart / Food / Pharma), a sort-only `FilterChipsRail`, and a
 `FlatList` of favourite items resolved via `getCatalogEntriesByIds(useFavoriteStore.favorites)`
 rendered with the shared `SearchProductRowCard` (each heart toggles the favourite off/on
-live). Tapping an item pushes `ProductDetail`. The store reads `seedFavorites`
-(`@data/home/seeds.ts`) on first launch.
+live). Tapping an item pushes `ProductDetail`. The store hydrates from the server
+(`GET /favourites`) at login/cold start; an empty server list is an honest empty state (the
+`seedFavorites` fixture is gone).
 
 ## Saved addresses (edit / delete)
 
@@ -899,31 +917,33 @@ pending request per seller is enforced by the server.
 ## FaazioRewards (coins + streak)
 
 The `rewards` module (`src/features/rewards/`) implements a lightweight FaazioCoins
-loyalty loop that is entirely device-local (no backend yet — see `PENDING_WORK.md`):
+loyalty loop that is **server-authoritative** (`rewards.balances` + `rewards.ledger`); the client
+cannot earn or redeem coins on its own:
 
-- **Earn:** `rewardsStore.recordOrder(paidTotal, coinsRedeemed, orderId)` runs on order
-  placement in `CartView.handlePlaceOrder`. Coins are earned at `COIN_EARN_RATE` (₹1000/coin)
-  on the **paid** amount (post coupon + coin redemption), so users can't farm coins by paying
-  with coins. Pure math lives in `features/rewards/rewardsLogic.ts` (`evaluateStreak`,
-  `coinsEarnedFor`, `computeRedeemableRupees`, `isCardActive`, …) — unit-testable with no store.
-- **Streak:** calendar-date based (`lastOrderDay` vs today, local). Same-day orders count once;
-  a missed day hard-resets to 1. At `STREAK_TARGET_DAYS` (7) a `DISCOUNT_CARD_PERCENT` (10%)
+- **Earn:** the gateway's `contracts.RewardsWriter.Earn` runs inside the `POST /orders`
+  transaction, so coins are earned at `COIN_EARN_RATE` (₹1000/coin) on the **paid** amount (post
+  coupon + coin redemption) and cannot be forged. `CartView` calls `rewardsStore.reconcile()`
+  after placement to pull the confirmed balance. Pure display math (`coinsEarnedFor`,
+  `computeRedeemableRupees`, `isCardActive`, …) lives in `features/rewards/rewardsLogic.ts`.
+- **Streak:** evaluated server-side on order placement (`lastOrderDay` vs today). Same-day orders
+  count once; a missed day resets to 1. At `STREAK_TARGET_DAYS` (7) a `DISCOUNT_CARD_PERCENT` (10%)
   card is granted (`grantedAt` + `expiresAt` 5 days out) and the streak resets to 0.
-- **Redeem:** the payment step shows an opt-in `CoinsRedeemRow` (only when balance ≥
-  `COIN_REDEEM_MIN`) that redeems whole rupees of coins and lowers the pay total.
-- **Streak card in cart:** an active card is listed first in the Bag coupon sheet as
+- **Redeem:** the payment step shows an opt-in `CoinsRedeemRow` (only when the server balance ≥
+  `COIN_REDEEM_MIN`) that redeems whole rupees of coins and lowers the pay total; `POST /orders`
+  re-validates the redemption against the server-held balance (`400 insufficient_coins`).
+- **Streak card in cart:** a server-granted active card is listed first in the Bag coupon sheet as
   "Faazio Streak — 10% OFF" and reuses the existing `appliedDiscount` machinery (opt-in).
-- **Card expiry:** `expireStaleCard()` is invoked at hydration and read time; no timers.
+- **Card expiry:** `expireStaleCard()` hides an expired card locally at hydration/read time; no
+  timers, no client grant.
 - **Visibility:** the Account page (`AccountView`) shows a FaazioCoins streak card (title +
   balance + 7 flame icons filled per `streakCount`); `FaazioRewardsScreen` (route
-  `FaazioRewards`) shows the balance card, 7-dot streak strip, active discount card, and the
-  activity ledger.
-- **Persistence:** hand-rolled AsyncStorage (`faazio/rewards/v1`, `bloodDonorStore` pattern),
-  `reset()` wired into `logout.ts`. All rules come from `@data/rewards/rewards.ts`
-  (enterprise-controlled constants — see `data/DATA_CONTROL.md`).
-- **Mock seed:** on a fresh install the store starts at `coinBalance = 245` /
-  `streakCount = 5` (demo values) until real orders override them; `reset()` on logout zeroes
-  the balance and streak.
+  `FaazioRewards`) reconciles on focus, supports pull-to-refresh, and shows the balance card,
+  7-dot streak strip, active discount card, and the activity ledger.
+- **Persistence:** AsyncStorage (`faazio/rewards/v1`) is an offline read-through cache only;
+  `reconcile()` overwrites it from `GET /rewards`, and `reset()` on logout clears it. Rates come
+  from `rewards.rates` (admin-tunable; defaults mirror `@data/rewards/rewards.ts`).
+- **No mock seed:** the old `coinBalance = 245` / `streakCount = 5` demo values were removed;
+  a fresh account starts at 0 until the server reports a balance.
 
 ## Food diet filter
 
@@ -1214,8 +1234,9 @@ The receipt (`CartView`) shows a **single unified Real-Time Tracking Status** bo
 order: a pulsing "Order has been placed" row (no ETA badge, no two-step variants). For
 PICKUP it additionally renders a "Pickup from: {store} +N more, {address}" line and a
 **"Pickup From" section listing one card per vendor** (name, address, hours, contact).
-`handlePlaceOrder` also writes to `ordersStore.recordOrder` (items kind) so the order is real
-in My Orders. A primary **Track My Order** button (optional `onTrackOrder` prop, wired in
+`handlePlaceOrder` adopts the server's returned `OrderRow` via `ordersStore.recordServerOrder`
+(no local `recordOrder` for item orders), so the order id/status in My Orders are authoritative.
+A primary **Track My Order** button (optional `onTrackOrder` prop, wired in
 `CartScreen` to `navigation.navigate('MyOrders', { highlightOrderId })`) sits in the receipt
 actions. "Items Purchased" rows no longer show an icon: the name is ¾-width ellipsized
 (`maxWidth: '75%'`) with a grey "x {qty}" and right-aligned price.
@@ -1246,12 +1267,13 @@ normal entry:
 ## My Orders — merged list + prescription cards
 
 `MyOrdersScreen` merges `ordersStore.orders` (in-session, newest first) above the durable
-history; the history is the hydrated `ordersStore.serverOrders` when the gateway read settled,
-else the `@data myOrders` fixtures. Rows already present as an in-session placement are dropped
-(deduped by order id) and the placed card renders the order's real status (server status wins).
-The sub-app rail counts recompute from the merged list. Prescription placed orders render a
-distinct 📄 card, and a `highlightOrderId` route param auto-selects that order's sub-app in the
-rail and rings its card.
+history; the history is the hydrated `ordersStore.serverOrders` (refreshed on focus). The
+`@data myOrders` fixture fallback was removed — an authoritative empty history is an honest empty
+state, with a loading state until the first read settles. Rows already present as an in-session
+placement are dropped (deduped by order id) and the placed card renders the order's real status
+(server status wins). The sub-app rail counts recompute from the merged list. Prescription placed
+orders render a distinct 📄 card, and a `highlightOrderId` route param auto-selects that order's
+sub-app in the rail and rings its card.
 
 ## Vendor ratings & reviews (phase 1)
 

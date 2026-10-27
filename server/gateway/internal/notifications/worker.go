@@ -11,6 +11,7 @@ import (
 	"errors"
 	"log/slog"
 	"net/http"
+	"sync"
 	"time"
 )
 
@@ -26,13 +27,15 @@ type Sender interface {
 	Send(ctx context.Context, token, title, body string, data []byte) error
 }
 
-// Worker drains PENDING outbox rows to a Sender on a fixed interval.
+// Worker drains PENDING outbox rows to a Sender on a fixed interval. DrainOnce is serialized with
+// the background tick (single-process monolith) so two movers can never claim the same PENDING row.
 type Worker struct {
 	repo     *Repo
 	sender   Sender
 	interval time.Duration
 	batch    int
 	logger   *slog.Logger
+	mu       sync.Mutex
 }
 
 // NewWorker builds a drain worker. A nil sender yields a no-op worker (see Enabled).
@@ -77,8 +80,11 @@ func (w *Worker) Run(ctx context.Context) {
 }
 
 // drainOnce delivers one batch. A per-row delivery error marks that row FAILED and never stops the
-// batch. Returns only context/DB errors.
+// batch. Returns only context/DB errors. Serialized so the background loop and the admin drain
+// trigger never deliver the same PENDING row twice within this process.
 func (w *Worker) drainOnce(ctx context.Context) error {
+	w.mu.Lock()
+	defer w.mu.Unlock()
 	msgs, err := w.repo.Pending(ctx, w.batch)
 	if err != nil {
 		return err
@@ -105,8 +111,10 @@ type WebhookSender struct {
 	client *http.Client
 }
 
-// NewWebhookSender builds a sender posting to url. An empty url returns a nil sender.
-func NewWebhookSender(url string) *WebhookSender {
+// NewWebhookSender builds a sender posting to url. Returns the Sender interface so an empty url
+// yields a nil interface (not a typed-nil): the worker then reports Enabled() == false and an admin
+// drain returns ErrNoSender (503) instead of marking PENDING rows FAILED with no provider.
+func NewWebhookSender(url string) Sender {
 	if url == "" {
 		return nil
 	}

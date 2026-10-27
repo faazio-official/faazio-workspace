@@ -219,11 +219,13 @@ fixture. Screens render their own honest offline/empty state. Wiring order (all 
 server status wins) and `getVendorReviews` / `getVendorReviewSummary` back the `useVendorReviews`
 hook (server list + `reviews.vendor_summary` aggregate).
 
-**Write + vendor methods (server routes live; client seam added):** `getVendorReviews` /
+**Write + vendor methods (server routes live; stores are server-authoritative):** `getVendorReviews` /
 `getVendorReviewSummary` / `rateVendor` (derived purchase gate re-checked server-side), `getCart` / `addToCart` /
-`updateCartItem` / `removeCartItem` (auth-scoped, never edge-cached), `placeOrder`
-(idempotency lock + `SELECT … FOR UPDATE SKIP LOCKED` stock decrement), `getFavourites` /
-`addFavourite` / `removeFavourite` (auth-scoped durable shelf, never edge-cached), `getPickupPoints`
+`updateCartItem` / `removeCartItem` (auth-scoped, never edge-cached; the client awaits the write and
+rolls the optimistic UI back on failure), `placeOrder` (idempotency lock + `SELECT … FOR UPDATE SKIP
+LOCKED` stock decrement; the returned `OrderRow` is adopted by `ordersStore`), `getFavourites` /
+`addFavourite` / `removeFavourite` (auth-scoped durable shelf, never edge-cached; optimistic toggle
+with rollback), `getPickupPoints`
 (durable `inventory.pickup_points`, replaces the runtime `NEUTRAL_PICKUP` derivation), `payForOrder`
 (server-derived payment ledger), `getRewards` (server-authoritative coins/streak/ledger — earned
 in-process during `POST /orders`), `getMenu` (durable `directory.menus`), `createPrescription` /
