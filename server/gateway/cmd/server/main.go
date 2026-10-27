@@ -84,6 +84,11 @@ func main() {
 	if pushSender != nil && pool != nil {
 		go notifyWorker.Run(workerCtx)
 	}
+	// FCM-only transport: a missing/broken service-account config must be loud at boot, not surface
+	// as a silent no-push outage. Greppable key=value, matching the portal_auth= line above.
+	if pushSender == nil && pool != nil {
+		log.Print("notifications_push=disabled reason=fcm_credentials_unset hint=set FCM_PROJECT_ID + FCM_SERVICE_ACCOUNT_JSON (docs/RUNBOOKS/FIREBASE_AUTH.md)")
+	}
 
 	// Media plane: one R2 signer shared by the registry, the GC sweeper and the CDN purge worker.
 	// The signer/purger are nil when their credentials are unset, so each worker is disabled rather than

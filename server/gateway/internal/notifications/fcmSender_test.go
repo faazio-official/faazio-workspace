@@ -7,6 +7,7 @@ import (
 	"crypto/x509"
 	"encoding/json"
 	"encoding/pem"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -140,6 +141,40 @@ func TestFCMSenderRejectsNon2xx(t *testing.T) {
 		tokenSrc: staticTokenSource{tok: &oauth2.Token{AccessToken: "t"}}}
 	if err := s.Send(context.Background(), "t", "a", "b", nil); err == nil {
 		t.Fatal("non-2xx must be an error so the row becomes FAILED")
+	}
+}
+
+// Regression: FCM UNREGISTERED must surface as ErrTokenUnregistered so the drain worker expires the
+// row and prunes the token instead of burning six retries on a dead device.
+func TestFCMSenderUnregisteredIsTerminal(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusNotFound)
+		_, _ = w.Write([]byte(`{"error":{"code":404,"message":"Requested entity was not found.","status":"NOT_FOUND","details":[{"@type":"type.googleapis.com/google.firebase.fcm.v1.FcmError","errorCode":"UNREGISTERED"}]}}`))
+	}))
+	defer srv.Close()
+
+	s := &FCMSender{projectID: "project-1", endpoint: srv.URL, httpClient: srv.Client(),
+		tokenSrc: staticTokenSource{tok: &oauth2.Token{AccessToken: "t"}}}
+	err := s.Send(context.Background(), "t", "a", "b", nil)
+	if !errors.Is(err, ErrTokenUnregistered) {
+		t.Fatalf("UNREGISTERED must produce ErrTokenUnregistered, got %v", err)
+	}
+}
+
+func TestFCMErrorCode(t *testing.T) {
+	unregistered := []byte(`{"error":{"code":404,"message":"not found.","status":"NOT_FOUND","details":[{"@type":"type.googleapis.com/google.firebase.fcm.v1.FcmError","errorCode":"UNREGISTERED"}]}}`)
+	if got := fcmErrorCode(unregistered); got != "UNREGISTERED" {
+		t.Fatalf("expected UNREGISTERED from details[].errorCode, got %q", got)
+	}
+	legacy := []byte(`{"error":{"status":"UNREGISTERED"}}`)
+	if got := fcmErrorCode(legacy); got != "UNREGISTERED" {
+		t.Fatalf("expected UNREGISTERED from legacy error.status, got %q", got)
+	}
+	if got := fcmErrorCode([]byte(`not json`)); got != "" {
+		t.Fatalf("malformed body must yield an empty code, got %q", got)
+	}
+	if got := fcmErrorCode(nil); got != "" {
+		t.Fatalf("nil body must yield an empty code, got %q", got)
 	}
 }
 

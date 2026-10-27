@@ -28,6 +28,11 @@ const (
 	fcmMaxErrorBody = 1024
 )
 
+// ErrTokenUnregistered marks a permanently-dead device token — FCM HTTP v1 reports errorCode
+// UNREGISTERED when the app was uninstalled or the token was rotated. The drain worker treats it as
+// terminal: no retry budget is spent and the token is pruned from push_tokens (repo.ExpireToken).
+var ErrTokenUnregistered = errors.New("fcm: token unregistered")
+
 // FCMSender delivers one push message to an FCM registration token via the HTTP v1 API. Safe for
 // concurrent use (the oauth2 token source and http.Client are concurrency-safe). The token travels
 // only in the request body.
@@ -97,10 +102,36 @@ func (s *FCMSender) Send(ctx context.Context, token, title, body string, data []
 	defer func() { _ = res.Body.Close() }()
 	if res.StatusCode < 200 || res.StatusCode >= 300 {
 		bodyBytes, _ := io.ReadAll(io.LimitReader(res.Body, fcmMaxErrorBody))
+		if fcmErrorCode(bodyBytes) == "UNREGISTERED" {
+			return fmt.Errorf("%w: status %d", ErrTokenUnregistered, res.StatusCode)
+		}
 		return fmt.Errorf("fcm: status %d: %s", res.StatusCode, string(bodyBytes))
 	}
 	_, _ = io.Copy(io.Discard, res.Body)
 	return nil
+}
+
+// fcmErrorCode extracts the FCM HTTP v1 errorCode from a non-2xx body. The v1 API carries it as
+// details[].errorCode (e.g. UNREGISTERED, INVALID_ARGUMENT, QUOTA_EXCEEDED); the top-level
+// error.status (e.g. NOT_FOUND) is the legacy fallback. Empty when the body carries none.
+func fcmErrorCode(body []byte) string {
+	var envelope struct {
+		Error struct {
+			Status  string `json:"status"`
+			Details []struct {
+				ErrorCode string `json:"errorCode"`
+			} `json:"details"`
+		} `json:"error"`
+	}
+	if err := json.Unmarshal(body, &envelope); err != nil {
+		return ""
+	}
+	for _, d := range envelope.Error.Details {
+		if d.ErrorCode != "" {
+			return d.ErrorCode
+		}
+	}
+	return envelope.Error.Status
 }
 
 // fcmStringData flattens the outbox data JSON (created from map[string]any at enqueue time) into
