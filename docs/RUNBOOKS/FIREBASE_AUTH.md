@@ -73,15 +73,23 @@ requires the runtime notification permission.
 
 - The Android client config (`google-services.json`) is **public** and already committed. Sending is
   a separate, **secret** server-side credential: Firebase Console → Project Settings → Service
-  Accounts → **Generate new private key** (JSON).
+  Accounts → **Generate new private key** (JSON). Active sender account:
+  `firebase-adminsdk-fbsvc@project-65696e12-8def-460e-b29.iam.gserviceaccount.com` (project
+  `project-65696e12-8def-460e-b29`, project number `29787592730`, GCP folder `info-faazio-org`).
 - Set these on the gateway (never commit the JSON):
-  - `FCM_PROJECT_ID` — public, Firebase Console → Project Settings → General → Project ID.
-  - `FCM_SERVICE_ACCOUNT_JSON` — the **entire** downloaded JSON file contents. Treat as a secret
-    (Render secret env var or mounted secret file).
-- On startup the gateway builds an `FCMSender` when both are set and calls
+  - `FCM_PROJECT_ID` — public; `project-65696e12-8def-460e-b29` (already declared in `render.yaml`).
+  - `FCM_SERVICE_ACCOUNT_JSON` — the **entire** downloaded JSON file contents. For shell sourcing
+    (`set -a; . ./.env`) write it as one double-quoted line with inner quotes escaped. Treat it as a
+    secret: Render dashboard env var only (`sync: false` in `render.yaml`); locally it lives in the
+    gitignored `server/gateway/.env`.
+- On startup the gateway builds an `FCMSender` when both are set (log
+  `notifications: using FCM HTTP v1 sender (project=…)`) and calls
   `https://fcm.googleapis.com/v1/projects/{project}/messages:send` directly — **no separate
   `PUSH_WEBHOOK_URL` server is needed**. Android push works immediately; iOS still requires the APNs
   `.p8` key + Push Notifications capability (Part 6) and is unaffected by this.
+- `go test ./internal/notifications/ -run TestNewFCMSenderLiveCredentials -v` (from a terminal with
+  `server/gateway/.env` sourced) confirms a key parses before a deploy; it skips when the env vars
+  are unset.
 
 ## 4. Console setup (already done, except Part 6)
 
@@ -94,6 +102,7 @@ requires the runtime notification permission.
 - [x] SMS region policy allow-list includes **+91 (India)**.
 - [x] Test numbers added (use them for Metro + CI); real SMS for device tests.
 - [x] API keys restricted to the Android/iOS apps + Identity Toolkit API.
+- [x] Server FCM service-account key generated (`firebase-adminsdk-fbsvc@project-65696e12-8def-460e-b29`).
 - [ ] **Part 6 — anti-abuse (blocked): Firebase project is not linked to Google Cloud.**
   - [ ] Enable **Play Integrity API** in the linked GCP project.
   - [ ] App Check → Android app → Play Integrity → **Enforce** (after testing).
