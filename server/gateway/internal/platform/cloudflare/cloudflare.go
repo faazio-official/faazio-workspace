@@ -10,6 +10,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"strings"
@@ -55,22 +56,25 @@ func New(cfg Config) *Purger {
 func (p *Purger) Enabled() bool { return p != nil && p.apiToken != "" }
 
 // PurgeURLs purges the given absolute URLs from the zone cache. It chunks to the API limit and is a
-// no-op for an empty list. A nil purger returns nil (disabled is not an error for best-effort callers).
+// no-op for an empty list. Every chunk is attempted even if an earlier one fails; any failures are
+// joined into the returned error (best-effort callers log one line). A nil purger returns nil
+// (disabled is not an error for best-effort callers).
 func (p *Purger) PurgeURLs(ctx context.Context, urls []string) error {
 	if !p.Enabled() {
 		return nil
 	}
 	files := uniqueNonEmpty(urls)
+	var errs []error
 	for start := 0; start < len(files); start += maxFilesPerPurge {
 		end := start + maxFilesPerPurge
 		if end > len(files) {
 			end = len(files)
 		}
 		if err := p.purgeFiles(ctx, files[start:end]); err != nil {
-			return err
+			errs = append(errs, err)
 		}
 	}
-	return nil
+	return errors.Join(errs...)
 }
 
 func (p *Purger) purgeFiles(ctx context.Context, files []string) error {

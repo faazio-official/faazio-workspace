@@ -3,6 +3,7 @@ package cloudflare
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -65,5 +66,33 @@ func TestPurgeURLsFailure(t *testing.T) {
 	p.baseURL = srv.URL
 	if err := p.PurgeURLs(context.Background(), []string{"https://img.faazio.in/a.jpg"}); err == nil {
 		t.Fatal("expected error on non-2xx")
+	}
+}
+
+func TestPurgeURLsContinuesAfterChunkFailure(t *testing.T) {
+	var calls int
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		calls++
+		if calls == 1 {
+			w.WriteHeader(http.StatusForbidden)
+			_, _ = w.Write([]byte(`{"success":false,"errors":[]}`))
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"success":true,"errors":[]}`))
+	}))
+	defer srv.Close()
+
+	p := New(Config{ZoneID: "zone1", APIToken: "tok"})
+	p.baseURL = srv.URL
+	urls := make([]string, 0, maxFilesPerPurge+1)
+	for i := 0; i < maxFilesPerPurge+1; i++ {
+		urls = append(urls, fmt.Sprintf("https://img.faazio.in/%d.jpg", i))
+	}
+	if err := p.PurgeURLs(context.Background(), urls); err == nil {
+		t.Fatal("expected aggregated error from the failed first chunk")
+	}
+	if calls != 2 {
+		t.Fatalf("chunk calls = %d, want 2 (later chunks must still be attempted)", calls)
 	}
 }

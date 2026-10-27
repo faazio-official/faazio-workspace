@@ -377,8 +377,8 @@ end to end; the mobile app no longer talks to Supabase Auth.
   widens that column from `UUID` to `TEXT` because Firebase UIDs are not UUIDs (apply it in
   Supabase before deploying the new gateway).
 - **Prod:** `render.yaml` pins `FIREBASE_PROJECT_ID` + `AUTH_DISABLED=false`; the mobile `.env`
-  points at `https://faazio-workspace.onrender.com`; the debug/release workflows default
-  `GATEWAY_URL` to the same Render origin. Release still requires `CERT_PINS`.
+  and both CI workflows default `GATEWAY_URL` to `https://api.faazio.com` (Cloudflare edge in front
+  of Render). Release still requires `CERT_PINS` (pins for the Cloudflare edge cert).
 - **Ops remaining (not code):** Part 6 — enable Play Integrity (Android) + APNs key (iOS) and App
   Check enforcement once the Firebase project is linked to Google Cloud; register the release
   keystore SHA-1/SHA-256 in Firebase for SMS auto-retrieval.
