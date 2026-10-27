@@ -159,7 +159,7 @@ export function FaazioCommunity({ onAction }: Props) {
         <div className="page-width donor-inner">
           <HeartHandshake className="donor-illustration" strokeWidth={1} />
           <div>
-            <p className="eyebrow">A LITTLE HELP. A SECOND CHANCE.</p>
+            <p className="eyebrow text-donor">A LITTLE HELP. A SECOND CHANCE.</p>
             <h2>Some deliveries mean more.</h2>
             <p>
               Be someone’s second chance. Join a community that believes

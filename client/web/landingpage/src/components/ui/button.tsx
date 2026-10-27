@@ -10,9 +10,9 @@ const buttonVariants = cva(
     variants: {
       variant: {
         default: "bg-primary text-primary-foreground hover:bg-primary-hover",
-        download: "bg-primary text-primary-foreground hover:bg-primary-hover font-bold",
+        download: "bg-cta text-cta-foreground hover:bg-cta-hover font-bold",
         inverse: "bg-background text-primary hover:bg-secondary",
-        donor: "border border-primary/30 bg-transparent text-primary hover:bg-brand-soft",
+        donor: "border border-donor/30 bg-transparent text-donor hover:bg-donor-soft",
         destructive: "bg-destructive text-destructive-foreground shadow-sm hover:bg-destructive/90",
         outline:
           "border border-input bg-background shadow-sm hover:bg-accent hover:text-accent-foreground",
