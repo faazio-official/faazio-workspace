@@ -129,8 +129,8 @@ Examples: `faazio:v1:stock:fm-f1`, `faazio:v1:search:q:hoodie`, `faazio:v1:sdui:
 | Recommendations (per userHash) | 3600 s (1 h) | — | `user_events` flush |
 | Store directory / reviews | 86400 s (24 h) | — | edit event |
 | Store products (anon `GET /stores/{id}/products`, ACTIVE first page) | 300 s | — | product edit / status change (purges `catalog:store-products:{storeId}`; later pages are not cached) |
-| Nearby stores (`GET /stores/nearby`, anon public projection) | 120 s | key includes `lat`/`lng` rounded to 3 dp (~110 m), `radiusKm`, `app` | TTL only; pin/live changes surface within 2 min |
-| Nearby products (`GET /products/nearby`, anon ACTIVE rows) | 120 s | same key shape | TTL only |
+| Nearby stores (`GET /stores/nearby`, anon public projection) | 120 s fresh (+ 300 s stale-while-revalidate) | key includes `lat`/`lng` rounded to 3 dp (~110 m), `radiusKm`, `app` | SWR (§7a): a lapsed TTL serves the previous list and refreshes once in the background (single-flight); store live toggle purges the store's 3×3 tile prefixes (~330 m block) for `geo:nearby:stores:...` + `geo:nearby:products:...` + `directory:store:{id}` + `catalog:store-products:{id}` — readers beyond the tile block stay bounded by the 120 s fresh TTL |
+| Nearby products (`GET /products/nearby`, anon ACTIVE rows) | 120 s fresh (+ 300 s stale-while-revalidate) | same key shape | same SWR + live-toggle tile purge (above) |
 | Single restaurant venue (anon `GET /venues/{id}`, PII-redacted) | 86400 s (24 h) | — | venue edit / store live toggle (authed reads bypass the cache) |
 | Media asset (public `GET /media/resolve?ids=`, per asset identity) | 86400 s (24 h) | `public, max-age=31536000, immutable` via `img.faazio.in`; no CDN → stable `/assets/{key}` 302 with `max-age=300` | confirm / status change / delete (purges `faazio:v1:media:asset:{id}` + the exact CDN key) |
 | Promo campaigns / coupons (partner) | 300 s | **never** | campaign/coupon write |
@@ -192,7 +192,7 @@ pipelines; a placement with no LIVE fill collapses the surface to `null` (never 
 | `order.placed` | `checkout:orders:{userId}`, `reco:{userIdHash}` | — |
 | `layout.updated` | `sdui:home:{version}` | `/sdui/home` |
 | `user_events.flush` | `reco:{userIdHash}` | — |
-| `store.updated` / `review.moderated` | `directory:store:{id}`, `reviews:product:{id}` | store/review URLs |
+| `store.updated` / store live toggle (portal `PUT /seller/stores/{id}/live`) / `review.moderated` | `directory:store:{id}`, `catalog:store-products:{id}`, `reviews:product:{id}`, `geo:nearby:stores:{lat3}:{lng3}:*` + `geo:nearby:products:{lat3}:{lng3}:*` tile prefixes around the store's pin (3×3 block, all `radiusKm`/`app` variants; §5) | store/review URLs |
 | profile merge | `auth:uid:{sha256}` (delete) | — |
 
 ---
@@ -218,6 +218,19 @@ pipelines; a placement with no LIVE fill collapses the surface to `null` (never 
   `Del(faazio:v1:gateway:sdui:en:/home)`, so the next `GET /sdui/home` recompiles and the ETag
   changes (`home-v{version}` → the app's `If-None-Match` no longer 304s). A `pg_notify`/Pub/Sub
   automation is scaling-stage; the reply-level TTL (300 s) still bounds staleness if a purge is missed.
+- **Geo reads are stale-while-revalidate (SWR), not empty-on-TTL:** `GET /stores/nearby` /
+  `GET /products/nearby` read via `cache.ReadStale` (`internal/platform/cache`). Each value is stored
+  for `fresh + stale` minutes alongside a `{key}:fresh` marker expiring at `fresh`. On a fresh hit the
+  value decodes straight away; once the marker lapses the **stale** value is still served while one
+  single-flight background refresh per key repopulates it (a lapsed TTL can never blank the list, and
+  100 concurrent users in a tile share one DB refetch); if the refresh fails the stale value keeps
+  serving until the stale window lapses, then a true miss refetches synchronously — mirroring
+  Cloudflare's `stale-while-revalidate` / `stale-if-error`. A store's online/offline flip
+  (`PUT /seller/stores/{id}/live`) additionally purges the current `geo:nearby:*` tile prefixes around
+  its pin (immediate for co-located shoppers) and `catalog:store-products:{id}`; honesty for readers
+  beyond the tile block is bounded by the 120 s fresh TTL. No separate per-seller availability key is
+  used: a store's presence is `directory.stores.is_live` (the geographic list is never the availability
+  authority).
 - **PII never enters the cache:** `GET /store/:id` caches only the redacted projection; authenticated
   reads bypass the cache (see §8).
 - **Slim values (no key/TTL change):** list/search reads cache the lean product projection
