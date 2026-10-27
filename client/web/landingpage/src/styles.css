@@ -20,19 +20,10 @@
 
 @theme inline {
   --font-sans: "Plus Jakarta Sans", sans-serif;
-  --font-display: "Outfit", sans-serif;
-  --color-cta: var(--cta);
-  --color-cta-hover: var(--cta-hover);
-  --color-cta-foreground: var(--cta-foreground);
+  --font-display: "Playfair Display", Georgia, serif;
+  --color-brand: var(--brand);
+  --color-brand-soft: var(--brand-soft);
   --color-primary-hover: var(--primary-hover);
-  --color-food: var(--food);
-  --color-pharma: var(--pharma);
-  --color-donor: var(--donor);
-  --color-donor-soft: var(--donor-soft);
-  --color-hero: var(--hero);
-  --color-mart-soft: var(--mart-soft);
-  --color-food-soft: var(--food-soft);
-  --color-pharma-soft: var(--pharma-soft);
   --radius-sm: calc(var(--radius) - 4px);
   --radius-md: calc(var(--radius) - 2px);
   --radius-lg: var(--radius);
@@ -76,20 +67,11 @@
 }
 
 :root {
-  --cta: oklch(0.91 0.22 121);
-  --cta-hover: oklch(0.85 0.22 121);
-  --cta-foreground: oklch(0.19 0.025 240);
-  --shadow-cta: 0 5px 0 oklch(0.65 0.17 121), 0 9px 22px oklch(0.19 0.025 240 / 0.14);
-  --shadow-card: 0 16px 30px oklch(0.25 0.06 258 / 0.1);
-  --primary-hover: oklch(0.43 0.22 258);
-  --food: oklch(0.49 0.19 34);
-  --pharma: oklch(0.4 0.13 162);
-  --donor: oklch(0.577 0.218 25);
-  --donor-soft: oklch(0.955 0.035 17.38);
-  --hero: oklch(0.946 0.032 236);
-  --mart-soft: oklch(0.92 0.055 250);
-  --food-soft: oklch(0.94 0.075 72);
-  --pharma-soft: oklch(0.92 0.07 163);
+  --brand: oklch(0.521 0.189 258.9);
+  --brand-soft: oklch(0.95 0.045 258.9);
+  --shadow-brand: 0 5px 0 oklch(0.4 0.165 258.9), 0 12px 26px oklch(0.4 0.17 258.9 / 0.25);
+  --shadow-card: 0 16px 30px oklch(0.25 0.06 258.9 / 0.1);
+  --primary-hover: oklch(0.45 0.175 258.9);
   --radius: 0.5rem;
   --background: oklch(1 0 0);
   --foreground: oklch(0.19 0.018 255);
@@ -97,7 +79,7 @@
   --card-foreground: oklch(0.129 0.042 264.695);
   --popover: oklch(1 0 0);
   --popover-foreground: oklch(0.129 0.042 264.695);
-  --primary: oklch(0.515 0.225 258);
+  --primary: oklch(0.521 0.189 258.9);
   --primary-foreground: oklch(0.984 0.003 247.858);
   --secondary: oklch(0.968 0.007 247.896);
   --secondary-foreground: oklch(0.208 0.042 265.755);
@@ -199,6 +181,7 @@
   h2,
   h3 {
     font-family: var(--font-display);
+    letter-spacing: -0.02em;
   }
   ::selection {
     background: var(--secondary);
@@ -284,7 +267,7 @@
   min-height: 610px;
   height: min(640px, 72vh);
   overflow: hidden;
-  background: var(--hero);
+  background: var(--brand-soft);
 }
 .hero-image {
   position: absolute;
@@ -308,6 +291,7 @@
   font-size: 11px;
   font-weight: 700;
   color: var(--primary);
+  letter-spacing: 0.12em;
   margin-bottom: 23px;
 }
 .hero-eyebrow span {
@@ -381,14 +365,15 @@
   color: var(--muted-foreground);
 }
 .section {
-  padding-block: 88px;
+  padding-block: 96px;
 }
 .eyebrow {
   font-size: 10px;
   font-weight: 800;
   color: var(--primary);
   margin-bottom: 13px;
-  letter-spacing: 0;
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
 }
 h2 {
   font-size: 36px;
@@ -420,7 +405,7 @@ h3 {
 .sector-card {
   position: relative;
   overflow: hidden;
-  border-radius: 8px;
+  border-radius: 14px;
   border-top: 4px solid currentColor;
   padding: 28px;
   min-height: 420px;
@@ -455,7 +440,7 @@ h3 {
   height: 205px;
   object-fit: cover;
   margin-top: 20px;
-  border-radius: 4px;
+  border-radius: 8px;
 }
 .sector-link {
   margin-top: 18px;
@@ -489,7 +474,7 @@ h3 {
 .how-section .text-primary,
 .how-section .eyebrow,
 .how-section .journey-kicker {
-  color: var(--cta);
+  color: var(--brand-soft);
 }
 .how-section .section-copy,
 .how-section .availability-note,
@@ -501,8 +486,8 @@ h3 {
   opacity: 0.85;
 }
 .how-section .journey-number {
-  background: var(--cta);
-  color: var(--cta-foreground);
+  background: var(--primary-foreground);
+  color: var(--brand);
   border: 0;
 }
 .how-section .journey-steps > li:not(:last-child)::before {
@@ -618,8 +603,8 @@ h3 {
 }
 .rewards-band {
   padding-block: 34px;
-  background: var(--cta);
-  color: var(--cta-foreground);
+  background: var(--brand);
+  color: var(--primary-foreground);
 }
 .rewards-band .eyebrow,
 .rewards-band .reward-note,
@@ -636,8 +621,8 @@ h3 {
   height: 62px;
   display: grid;
   place-items: center;
-  background: var(--cta-foreground);
-  color: var(--cta);
+  background: var(--primary-foreground);
+  color: var(--brand);
   border-radius: 8px;
   flex-shrink: 0;
 }
@@ -659,7 +644,7 @@ h3 {
   font-weight: 600;
 }
 .donor-band {
-  background: var(--donor-soft);
+  background: var(--brand-soft);
   padding-block: 70px;
 }
 .donor-inner {
@@ -668,7 +653,7 @@ h3 {
   gap: 42px;
 }
 .donor-illustration {
-  color: var(--donor);
+  color: var(--brand);
   width: 110px;
   height: 110px;
   flex-shrink: 0;
@@ -688,7 +673,7 @@ h3 {
   font-size: 18px;
   line-height: 1.6;
   font-weight: 600;
-  color: var(--donor);
+  color: var(--brand);
 }
 .faq-grid {
   display: grid;
@@ -879,8 +864,8 @@ h3 {
   height: 56px;
   padding: 0 20px 0 9px;
   gap: 12px;
-  border-radius: 7px;
-  box-shadow: var(--shadow-cta);
+  border-radius: 10px;
+  box-shadow: var(--shadow-brand);
   font-size: 14px;
   transition:
     background 0.2s,
@@ -891,9 +876,9 @@ h3 {
   height: 36px;
   display: grid;
   place-items: center;
-  border-radius: 4px;
-  background: var(--cta-foreground);
-  color: var(--cta);
+  border-radius: 8px;
+  background: var(--primary-foreground);
+  color: var(--brand);
 }
 .download-button .download-button-icon svg {
   width: 19px;
@@ -935,12 +920,6 @@ h3 {
   border-radius: 4px;
   font-size: 12px;
   font-weight: 700;
-}
-.hero-category-tags span:nth-child(2) {
-  background: var(--food);
-}
-.hero-category-tags span:nth-child(3) {
-  background: var(--pharma);
 }
 .hero-category-tags svg {
   width: 17px;
@@ -1122,7 +1101,7 @@ h3 {
     width: 14px;
   }
   .section {
-    padding-block: 57px;
+    padding-block: 64px;
   }
   h2 {
     font-size: 29px;

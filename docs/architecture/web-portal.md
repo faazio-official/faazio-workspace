@@ -411,6 +411,23 @@ browser                        Next.js route handlers                 Go gateway
   `portal_unavailable` (credential tables/migration missing); `invalid_credentials` stays generic
   (no enumeration).
 
+## Landing-page design system
+
+The marketing landing page (`client/web/landingpage/`) keeps its own design
+system in `src/styles.css` (Tailwind v4 `@theme inline`), deliberately stripped
+to a **single brand accent**:
+
+- **Faazio Blue** `oklch(0.521 0.189 258.9)` (exactly `#1162D3` — the hex the
+  mobile app and both `theme-color` metas use) as `--brand` / `--primary`, plus
+  a soft tint `--brand-soft: oklch(0.95 0.045 258.9)` for subtle fills. The old
+  per-sector accents (green CTA, food orange, pharma teal, donor amber) were
+  removed; every section renders on brand blue + neutrals.
+- **Display type**: `Playfair Display` for headings (`--font-display`,
+  `letter-spacing: -0.02em`); **body**: `Plus Jakarta Sans` (`--font-sans`).
+  Both load via Google Fonts in `src/routes/__root.tsx`.
+- **Favicon**: `public/favicon.ico` is the brand `client/faazio-logo.ico`
+  (cache-bust `?v=3`), shared by the landing page and this portal.
+
 ## Verify
 
 Run from `client/web/platform/`:
@@ -448,12 +465,15 @@ Readiness config that ships with the app:
   login screen all compose `BrandTile` + `FaazioWordmark` (wordmark only in the
   expanded sidebar; the collapsed rail stays icon-only). `public/` carries the
   generated icon set — `favicon.svg` (kept vector, untouched),
-  `favicon.ico` (multi-size 16/32/48 ICO), `favicon-16x16`/`favicon-32x32`,
+  `favicon.ico` (the brand `client/faazio-logo.ico`, cache-bust `?v=4`),
+  `favicon-16x16`/`favicon-32x32`,
   `apple-touch-icon.png` (opaque white), `android-chrome-192x192`
   (`any`) / `android-chrome-512x512` (full-bleed, maskable-safe) — wired via
-  `app/layout.tsx` `metadata.icons` (cache-busting `?v=3`, mirroring the
-  landing page's `?v=2`) + `metadata.manifest` (`/site.webmanifest`), plus
-  `viewport.themeColor` (`#1162D3`). The raster set is regenerated from the
+  `app/layout.tsx` `metadata.icons` (cache-busting `?v=4` for the ico,
+  `?v=3` for the rest, mirroring the landing page's `?v=3`) +
+  `metadata.manifest` (`/site.webmanifest`), plus
+  `viewport.themeColor` (`#1162D3`). The non-ico PNG raster set is regenerated
+  from the
   canonical mobile knot PNG (`client/mobile/src/assets/faazio-logo.png`) by
   `scripts/generate-brand-icons.py` (dev-only, python3 + Pillow); and
   `src/styles.css` provides the `.brand-wordmark` sizing token (18px for 14px
