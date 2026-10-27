@@ -52,7 +52,7 @@ func TestNewFCMSenderEmptyDisables(t *testing.T) {
 func TestNewFCMSenderMalformedServiceAccount(t *testing.T) {
 	s, err := NewFCMSender("project-1", []byte(`not json`))
 	if err == nil {
-		t.Fatal("malformed service account must error so the caller can fall back")
+		t.Fatal("malformed service account must error so the caller can log and disable pushes")
 	}
 	if s != nil {
 		t.Fatal("malformed service account must not produce a sender")
@@ -143,8 +143,8 @@ func TestFCMSenderRejectsNon2xx(t *testing.T) {
 	}
 }
 
-// Regression: an empty FCM config yields a nil Sender interface (mirroring NewWebhookSender("")),
-// so the worker stays disabled and an admin drain returns 503 instead of marking rows FAILED.
+// Regression: an empty FCM config yields a nil Sender interface, so the worker stays disabled and
+// an admin drain returns 503 instead of marking rows FAILED.
 func TestWorkerDisabledWithEmptyFCM(t *testing.T) {
 	s, err := NewFCMSender("", nil)
 	if err != nil || s != nil {

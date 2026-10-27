@@ -1,16 +1,13 @@
 // Outbox drain worker (W24 follow-up). The outbox is durable; this worker is the single mover of
-// PENDING → SENT. It is provider-agnostic: a Sender delivers one push message (FCM/webhook/APNs),
-// so the transport can be swapped without touching the outbox contract. When no Sender is
-// configured the worker is not started at all — the app still reads the in-app inbox (polling).
+// PENDING → SENT. It is provider-agnostic: a Sender delivers one push message (FCM), so the
+// transport can be swapped without touching the outbox contract. When no Sender is configured the
+// worker is not started at all — the app still reads the in-app inbox (polling).
 package notifications
 
 import (
-	"bytes"
 	"context"
-	"encoding/json"
 	"errors"
 	"log/slog"
-	"net/http"
 	"sync"
 	"time"
 )
@@ -100,58 +97,6 @@ func (w *Worker) drainOnce(ctx context.Context) error {
 		if err := w.repo.MarkSent(ctx, m.ID); err != nil {
 			w.logger.Warn("notification mark-sent", "id", m.ID, "err", err)
 		}
-	}
-	return nil
-}
-
-// WebhookSender POSTs each message to a configured HTTPS endpoint as JSON
-// {token,title,body,data}. This is the provider-agnostic default so any push relay (or a thin FCM
-// bridge) can be dropped in without a code change. The token travels in the request body only.
-type WebhookSender struct {
-	url    string
-	client *http.Client
-}
-
-// NewWebhookSender builds a sender posting to url. Returns the Sender interface so an empty url
-// yields a nil interface (not a typed-nil): the worker then reports Enabled() == false and an admin
-// drain returns ErrNoSender (503) instead of marking PENDING rows FAILED with no provider.
-func NewWebhookSender(url string) Sender {
-	if url == "" {
-		return nil
-	}
-	return &WebhookSender{url: url, client: &http.Client{Timeout: 10 * time.Second}}
-}
-
-// Send delivers one message. A non-2xx response is an error (the row becomes FAILED).
-func (s *WebhookSender) Send(ctx context.Context, token, title, body string, data []byte) error {
-	if s == nil || s.url == "" {
-		return errors.New("push webhook not configured")
-	}
-	payload := struct {
-		Token string          `json:"token"`
-		Title string          `json:"title"`
-		Body  string          `json:"body"`
-		Data  json.RawMessage `json:"data,omitempty"`
-	}{Token: token, Title: title, Body: body}
-	if len(data) > 0 {
-		payload.Data = json.RawMessage(data)
-	}
-	b, err := json.Marshal(payload)
-	if err != nil {
-		return err
-	}
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, s.url, bytes.NewReader(b))
-	if err != nil {
-		return err
-	}
-	req.Header.Set("Content-Type", "application/json")
-	res, err := s.client.Do(req)
-	if err != nil {
-		return err
-	}
-	defer func() { _ = res.Body.Close() }()
-	if res.StatusCode < 200 || res.StatusCode >= 300 {
-		return errors.New("push webhook non-2xx")
 	}
 	return nil
 }

@@ -38,8 +38,8 @@ dependencies exist. Do not build the backend/seller flows until told to.
 - **Push:** `services/customerPush.ts` registers the customer FCM token, handles token refresh,
   foreground messages, and notification taps. `NotificationsScreen` (root route `Notifications`)
   reads the durable `GET /notifications` inbox; the gateway drain worker is enabled by the embedded
-  **FCM HTTP v1 sender** when `FCM_SERVICE_ACCOUNT_JSON` + `FCM_PROJECT_ID` are set (legacy
-  `PUSH_WEBHOOK_URL` bridge remains the fallback; both empty = in-app inbox only, worker disabled).
+  **FCM HTTP v1 sender** when `FCM_SERVICE_ACCOUNT_JSON` + `FCM_PROJECT_ID` are set (unset = in-app
+  inbox only, worker disabled).
 - **Removed:** the 1.2s fake checkout delay and the local-first `recordOrder`/`redeemCoins` writes.
 
 **Date:** 2026-10-27
@@ -310,7 +310,7 @@ dependencies exist. Do not build the backend/seller flows until told to.
   serves the invoice JSON today and returns a presigned URL only when a PDF exists.
 - **Push (Android): done** — delivery push is now **resolved end-to-end**: the gateway's embedded
   FCM HTTP v1 sender (server-side service account, `FCM_SERVICE_ACCOUNT_JSON` + `FCM_PROJECT_ID`)
-  delivers outbox rows straight to Firebase (legacy `PUSH_WEBHOOK_URL` bridge is the fallback). The
+  delivers outbox rows straight to Firebase. The
   app side — token registration, foreground handler, notification tap and
   `faazio-delivery://accept-reject?orderId=…` all open `AcceptRejectScreen` — was already done.
 - **iOS force-quit** — background location now survives backgrounding (`UIBackgroundModes: location`

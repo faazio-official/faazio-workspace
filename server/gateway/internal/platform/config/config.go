@@ -67,15 +67,9 @@ type Config struct {
 	RazorpayRouteWebhookSecret string
 	AuthDisabled               bool
 	DevUserID                  string
-	// PushWebhookURL enables the legacy notification outbox drain worker via an external push relay.
-	// Empty = sender falls back to the embedded FCM sender or stays disabled. See
-	// internal/notifications/worker.go.
-	PushWebhookURL string
 	// FCMProjectID + FCMServiceAccount enable the gateway's embedded FCM HTTP v1 sender (Android
-	// push without a webhook bridge). FCMServiceAccount is the raw JSON of the Firebase service
-	// account private key — a secret, never committed. When both are set the FCM sender takes
-	// precedence over PushWebhookURL; when unset, push delivery falls back to the webhook bridge or
-	// stays disabled (in-app inbox only).
+	// push). FCMServiceAccount is the raw JSON of the Firebase service account private key — a
+	// secret, never committed. When unset, push delivery stays disabled (in-app inbox only).
 	FCMProjectID      string
 	FCMServiceAccount string
 	AllowedOrigins    []string
@@ -119,7 +113,6 @@ func Load() Config {
 		RazorpayRouteWebhookSecret: envFirst("RAZORPAY_ROUTE_WEBHOOK_SECRET", "RAZORPAY_WEBHOOK_SECRET"),
 		AuthDisabled:               envBool("AUTH_DISABLED", false),
 		DevUserID:                  env("DEV_USER_ID", "user-1"),
-		PushWebhookURL:             env("PUSH_WEBHOOK_URL", ""),
 		FCMProjectID:               env("FCM_PROJECT_ID", ""),
 		FCMServiceAccount:          env("FCM_SERVICE_ACCOUNT_JSON", ""),
 		AllowedOrigins:             splitCSV(env("ALLOWED_ORIGINS", "")),

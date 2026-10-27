@@ -77,10 +77,9 @@ server/
 - **Health:** `GET /health` probes Postgres (required → 503), Valkey and Mongo (optional →
   `degraded`) with per-dependency latency, for Render's health-check/uptime alerts.
 - **Notifications:** the durable outbox drains via the embedded **FCM HTTP v1 sender** when
-  `FCM_SERVICE_ACCOUNT_JSON` + `FCM_PROJECT_ID` are set (legacy `PUSH_WEBHOOK_URL` webhook bridge is
-  the fallback); `PENDING`→`SENT`, `FAILED` retried with capped exponential backoff up to
-  6 attempts; no sender configured = in-app inbox only and `POST /notifications/drain` returns `503
-  push_unconfigured` without marking rows `FAILED`).
+  `FCM_SERVICE_ACCOUNT_JSON` + `FCM_PROJECT_ID` are set; `PENDING`→`SENT`, `FAILED` retried with
+  capped exponential backoff up to 6 attempts; no sender configured = in-app inbox only and
+  `POST /notifications/drain` returns `503 push_unconfigured` without marking rows `FAILED`).
 - **Build order / status:** `docs/architecture/mvp-backend.md` §7.
 
 ---

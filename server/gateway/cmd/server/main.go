@@ -63,18 +63,18 @@ func main() {
 	logPortalStartup(ctx, cfg, pool)
 
 	// Notification outbox drain worker. The worker is always constructed so the admin manual trigger
-	// (POST /notifications/drain) works; the background loop only runs when a provider is configured,
-	// so PENDING rows are never marked SENT without a real delivery attempt. Sender precedence:
-	// embedded FCM HTTP v1 (FCM_SERVICE_ACCOUNT_JSON + FCM_PROJECT_ID) → legacy PUSH_WEBHOOK_URL
-	// webhook bridge → none. With no sender the worker is disabled and an admin drain returns 503
-	// push_unconfigured without touching PENDING rows (their in-app inbox read is unaffected).
+	// (POST /notifications/drain) works; the background loop only runs when a sender is configured,
+	// so PENDING rows are never marked SENT without a real delivery attempt. The embedded FCM HTTP
+	// v1 sender (FCM_SERVICE_ACCOUNT_JSON + FCM_PROJECT_ID) is the only transport. When it is unset
+	// push delivery is disabled and an admin drain returns 503 push_unconfigured without touching
+	// PENDING rows (their in-app inbox read is unaffected).
 	workerCtx, stopWorkers := context.WithCancel(context.Background())
 	defer stopWorkers()
-	pushSender := notifications.NewWebhookSender(cfg.PushWebhookURL)
+	var pushSender notifications.Sender
 	if cfg.FCMProjectID != "" && cfg.FCMServiceAccount != "" {
 		fcmSender, fcmErr := notifications.NewFCMSender(cfg.FCMProjectID, []byte(cfg.FCMServiceAccount))
 		if fcmErr != nil {
-			log.Printf("notifications: fcm sender disabled (%v) — falling back to webhook sender", fcmErr)
+			log.Printf("notifications: fcm sender disabled (%v)", fcmErr)
 		} else {
 			pushSender = fcmSender
 			log.Printf("notifications: using FCM HTTP v1 sender (project=%s)", cfg.FCMProjectID)
