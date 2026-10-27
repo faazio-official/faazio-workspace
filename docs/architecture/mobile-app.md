@@ -589,8 +589,9 @@ still separate files; consolidating them is tracked in `client/mobile/PENDING_WO
   / `getVendorReviewSummary` (seeded `@data` reviews merged with the user's own — the offline
   fallback for the remote `useVendorReviews`). Reused by all five entry points.
 - `orderHistory.ts` — projects a durable `checkout.orders` row (`OrderRow`) onto the app's
-  `PlacedOrder` view model (status map: `NEW`/`PACKED`→`Processing`, `RETURNED`→`Cancelled`,
-  vendor name resolved from the store snapshot; **W71** total prefers the server's
+  `PlacedOrder` view model (status map: `NEW`/`PACKED`→`Processing`, `RETURNED`/`REJECTED`→`Cancelled`
+  — the gateway also projects `REJECTED` to `Cancelled` for the customer; vendor name resolved from
+  the store snapshot; **W71** total prefers the server's
   `totalChargedPaisa` over the line-item subtotal so delivery/tax/coupon are reflected). Used by
   the `ordersStore` hydration.
 - `categoryVendors.ts` — repository seam for the category drill-in: `getVendorsForApp(app, q)`

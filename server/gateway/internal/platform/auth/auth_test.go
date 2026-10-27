@@ -256,6 +256,34 @@ func TestCanActForSellerDistrict(t *testing.T) {
 	}
 }
 
+func TestCanActForState(t *testing.T) {
+	districtAdmin := context.WithValue(context.Background(), identityKey{}, Identity{
+		Role: RoleDistrictAdmin, StateCode: "TN", DistrictCode: "TCH",
+	})
+	superAdmin := context.WithValue(context.Background(), identityKey{}, Identity{Role: RoleSuperAdmin})
+	seller := context.WithValue(context.Background(), identityKey{}, Identity{Role: RoleSeller, SellerID: "sel-1"})
+
+	cases := []struct {
+		name      string
+		ctx       context.Context
+		stateCode string
+		want      bool
+	}{
+		{"district admin same state", districtAdmin, "TN", true},
+		{"district admin other state", districtAdmin, "KA", false},
+		{"district admin unscoped row", districtAdmin, "", false},
+		{"super admin anywhere", superAdmin, "KA", true},
+		{"seller is not an admin", seller, "TN", false},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := CanActForState(tc.ctx, tc.stateCode); got != tc.want {
+				t.Fatalf("CanActForState = %v, want %v", got, tc.want)
+			}
+		})
+	}
+}
+
 func TestAdminScope(t *testing.T) {
 	cases := []struct {
 		name         string

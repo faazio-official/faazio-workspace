@@ -30,6 +30,11 @@ var ErrInsufficientStock = errors.New("insufficient stock")
 // ErrAddressNotOwned is returned when the supplied addressId does not belong to the caller.
 var ErrAddressNotOwned = errors.New("address does not belong to user")
 
+// ErrInsufficientCoins is returned when a redemption exceeds the caller's server-held balance.
+// The payment amount is settled server-side, so the client can never mint free value by asserting
+// more coins than it owns.
+var ErrInsufficientCoins = errors.New("insufficient coins")
+
 // ErrInvalidCoupon is returned when a supplied coupon code fails server-side validation at
 // settlement (unknown/expired/sector/state/min-order). The client must never apply a discount the
 // server did not rule valid.
@@ -67,25 +72,48 @@ type PlaceOrderRequest struct {
 
 // Service orchestrates order placement with the idempotency lock + stock decrement.
 type Service struct {
-	repo      *Repo
-	stock     contracts.StockWriter
-	rewards   contracts.RewardsWriter
-	coupons   contracts.CouponValidator
-	discounts contracts.DiscountReader
-	ads       contracts.AdAttributor
-	surge     contracts.SurgeReader
-	weather   contracts.WeatherChecker
-	festivals contracts.FestivalLookup
-	cache     *cache.Cache
+	repo    *Repo
+	stock   contracts.StockWriter
+	rewards contracts.RewardsWriter
+	// rewardCoins reads the server-held balance so a redemption can never exceed it. Optional: the
+	// rewards repo implements both writer and reader, so it is wired by type assertion below.
+	rewardCoins contracts.RewardsReader
+	coupons     contracts.CouponValidator
+	discounts   contracts.DiscountReader
+	ads         contracts.AdAttributor
+	surge       contracts.SurgeReader
+	weather     contracts.WeatherChecker
+	festivals   contracts.FestivalLookup
+	cache       *cache.Cache
 }
 
 // NewService builds the checkout service. rewards/coupons/discounts/ads/surge/weather/festivals may
 // be nil (disabled / unit contexts); pricing then falls back to the base rate card with no surges.
 func NewService(repo *Repo, stock contracts.StockWriter, cache *cache.Cache, rewards contracts.RewardsWriter, coupons contracts.CouponValidator, discounts contracts.DiscountReader, ads contracts.AdAttributor, surge contracts.SurgeReader, weather contracts.WeatherChecker, festivals contracts.FestivalLookup) *Service {
-	return &Service{
+	s := &Service{
 		repo: repo, stock: stock, cache: cache, rewards: rewards, coupons: coupons, discounts: discounts,
 		ads: ads, surge: surge, weather: weather, festivals: festivals,
 	}
+	if reader, ok := rewards.(contracts.RewardsReader); ok {
+		s.rewardCoins = reader
+	}
+	return s
+}
+
+// ValidateCoins rejects a redemption larger than the caller's server-held balance. A non-positive
+// request is always valid. When no rewards reader is wired (unit contexts), validation is skipped.
+func (s *Service) ValidateCoins(ctx context.Context, userID string, coins int64) error {
+	if coins <= 0 || s.rewardCoins == nil {
+		return nil
+	}
+	balance, err := s.rewardCoins.Coins(ctx, userID)
+	if err != nil {
+		return err
+	}
+	if coins > balance {
+		return ErrInsufficientCoins
+	}
+	return nil
 }
 
 func validLatitude(v float64) bool { return v >= -90 && v <= 90 }
@@ -279,6 +307,10 @@ func (s *Service) CreateOrder(ctx context.Context, userID string, req PlaceOrder
 	coins := req.CoinsRedeemed
 	if coins < 0 {
 		coins = 0
+	}
+	// Reject a redemption the caller does not actually hold before reserving stock or settling money.
+	if err := s.ValidateCoins(ctx, userID, coins); err != nil {
+		return Order{}, err
 	}
 	// Coupon settlement: the server re-validates any supplied code against the order's app + state
 	// and settles the discount itself (the client's applied discount is display-only). This runs

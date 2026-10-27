@@ -40,7 +40,7 @@ func TestTicketsAndReturns(t *testing.T) {
 	if approved, ok, err := repo.SetReturnStatus(ctx, ret.ReturnID, "APPROVED"); err != nil || !ok || approved.Status != "APPROVED" {
 		t.Fatalf("SetReturnStatus: ok=%v err=%v status=%q", ok, err, approved.Status)
 	}
-	list, err := repo.Returns(ctx, "", userID)
+	list, err := repo.Returns(ctx, "", userID, "")
 	if err != nil || len(list) == 0 {
 		t.Fatalf("Returns: err=%v n=%d", err, len(list))
 	}

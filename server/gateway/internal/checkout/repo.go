@@ -213,7 +213,11 @@ func (r *Repo) ProvisionUserID(ctx context.Context, authUID, phone, email string
 	}
 	sum := sha256.Sum256([]byte(authUID))
 	userID := "u-" + hex.EncodeToString(sum[:8])
-	var resolved string
+	var (
+		resolved      string
+		resolvedEmail string
+		resolvedPhone string
+	)
 	err := r.pool.QueryRow(ctx, `
 		insert into checkout.users (user_id, auth_uid, name, email, phone, last_login_at)
 		values ($1, $2, 'Faazio User', $3, $4, now())
@@ -221,8 +225,20 @@ func (r *Repo) ProvisionUserID(ctx context.Context, authUID, phone, email string
 		   set email = coalesce(nullif(excluded.email, ''), checkout.users.email),
 		       phone = coalesce(nullif(excluded.phone, ''), checkout.users.phone),
 		       last_login_at = now()
-		returning user_id`, userID, authUID, email, phone).Scan(&resolved)
+		returning user_id, email, phone`, userID, authUID, email, phone).Scan(&resolved, &resolvedEmail, &resolvedPhone)
 	if err != nil {
+		return "", err
+	}
+	// The account screens read accounts.profile; without this row a brand-new user would see the
+	// @data fixture (a fabricated name/phone) instead of their own (possibly empty) details. The
+	// upsert only forward-fills non-empty values so it never erases a profile the user has edited.
+	if _, err := r.pool.Exec(ctx, `
+		insert into accounts.profile (id, account_id, name, email, phone)
+		values ($1, $1, 'Faazio User', $2, $3)
+		on conflict (id) do update
+		   set email = coalesce(nullif(excluded.email, ''), accounts.profile.email),
+		       phone = coalesce(nullif(excluded.phone, ''), accounts.profile.phone),
+		       updated_at = now()`, resolved, resolvedEmail, resolvedPhone); err != nil {
 		return "", err
 	}
 	r.cacheUserID(ctx, authUID, resolved)
@@ -1036,10 +1052,21 @@ func (r *Repo) ProfileByUser(ctx context.Context, userID string) (Profile, bool,
 	err := r.pool.QueryRow(ctx, `select id, account_id, name, email, phone from accounts.profile where id = $1`, userID).
 		Scan(&p.ID, &p.AccountID, &p.Name, &p.Email, &p.Phone)
 	if err != nil {
-		if err == pgx.ErrNoRows {
-			return Profile{}, false, nil
+		if err != pgx.ErrNoRows {
+			return Profile{}, false, err
 		}
-		return Profile{}, false, err
+		// Legacy/first-login users may not have an accounts.profile row yet. Fall back to the
+		// checkout.users identity (real, possibly empty contact fields) instead of returning 404 and
+		// letting the app render the @data fixture as if it were the signed-in user.
+		var name, email, phone string
+		if err := r.pool.QueryRow(ctx, `select name, email, phone from checkout.users where user_id = $1`, userID).
+			Scan(&name, &email, &phone); err != nil {
+			if err == pgx.ErrNoRows {
+				return Profile{}, false, nil
+			}
+			return Profile{}, false, err
+		}
+		return Profile{ID: userID, AccountID: userID, Name: name, Email: email, Phone: phone}, true, nil
 	}
 	return p, true, nil
 }

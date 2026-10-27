@@ -7,9 +7,10 @@ import AppText from '@/components/AppText';
 import { VendorRateButton } from '@/components/shared';
 import { hs, vs, ms } from '@/utils/responsive';
 import { SPACE } from '@/theme/spacing';
-import { getMyOrderById, getProductById, getVendorById, portalSectors, userProfile } from '@data/index';
+import { getMyOrderById, getProductById, getVendorById, portalSectors } from '@data/index';
 import { SECTOR_VISUALS } from '@/theme/sectorVisuals';
 import { useOrdersStore } from '@/state/ordersStore';
+import { useAuthStore } from '@/state/authStore';
 import { useCanRateVendor } from '@/hooks/useVendorRating';
 import { gateway, type OrderInvoice } from '@/services/api/GatewayClient';
 import { usePrescriptionDetail } from '@/features/pharma/prescription/usePrescriptionDetail';
@@ -77,6 +78,7 @@ interface OrderView {
 
 export function OrderDetailsScreen({ navigation, route }: Props) {
   const insets = useSafeAreaInsets();
+  const accountPhone = useAuthStore((s) => s.user?.phone);
   const placedOrder = useOrdersStore((s) => s.getOrderById(route.params.orderId));
   const dataOrder = useMemo(() => getMyOrderById(route.params.orderId), [route.params.orderId]);
   // Prescription orders poll the durable Rx for the seller quote + READY reveal (remote mode only).
@@ -332,7 +334,7 @@ export function OrderDetailsScreen({ navigation, route }: Props) {
                 ) : null}
                 <View style={styles.pickupContactRow}>
                   <AppText style={styles.pickupContactLabel}>Pickup contact: </AppText>
-                  <AppText style={styles.pickupContactValue}>{userProfile.phone}</AppText>
+                  <AppText style={styles.pickupContactValue}>{accountPhone || ''}</AppText>
                 </View>
               </View>
             ))}

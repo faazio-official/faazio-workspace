@@ -113,6 +113,37 @@ func (r *Repo) ByID(ctx context.Context, id string) (Slot, bool, error) {
 	return s, true, nil
 }
 
+// ProductOwnedBy reports whether the catalog product belongs to the seller. A slot may only point
+// at the requesting seller's own SKU (it is rendered as that seller's paid placement).
+func (r *Repo) ProductOwnedBy(ctx context.Context, productID, sellerID string) (bool, error) {
+	if r.pool == nil {
+		return false, fmt.Errorf("ads: database not configured")
+	}
+	var ok bool
+	err := r.pool.QueryRow(ctx, `
+		select exists (
+			select 1 from catalog.products where id = $1 and seller_id = $2)`, productID, sellerID).Scan(&ok)
+	return ok, err
+}
+
+// SellerScope returns a seller's district and parent state so an admin request can be scoped before
+// a slot is created.
+func (r *Repo) SellerScope(ctx context.Context, sellerID string) (districtCode, stateCode string, ok bool, err error) {
+	if r.pool == nil {
+		return "", "", false, fmt.Errorf("ads: database not configured")
+	}
+	err = r.pool.QueryRow(ctx, `
+		select coalesce(district_code,''), coalesce(state_code,'')
+		  from sellers.sellers where seller_id = $1`, sellerID).Scan(&districtCode, &stateCode)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return "", "", false, nil
+		}
+		return "", "", false, err
+	}
+	return districtCode, stateCode, true, nil
+}
+
 // Request inserts a REQUESTED slot.
 func (r *Repo) Request(ctx context.Context, s Slot) (Slot, error) {
 	if r.pool == nil {

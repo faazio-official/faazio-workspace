@@ -24,7 +24,7 @@ import { SAVED_CARDS, type SavedCard } from './paymentData';
 import { detectUpiApps, type UpiApp } from '@/services/upi';
 import { loadSavedCards } from './cardStorage';
 import type { FulfillmentMode, PickupPoint } from '@data/types';
-import { userProfile } from '@data/account/profile';
+import { useAuthStore } from '@/state/authStore';
 import { COIN_REDEEM_MIN } from '@data/rewards/rewards';
 import { coinsForRedemption } from '@/features/rewards/rewardsLogic';
 import type { RootStackParamList } from '@/navigation/types';
@@ -81,12 +81,16 @@ export default function PaymentOptionsScreen({
   originLabel = 'Instamart',
   fulfillment = 'DELIVERY',
   pickup,
-  contactPhone = userProfile.phone,
+  contactPhone,
   onBack,
   onPlaceOrder,
 }: PaymentOptionsScreenProps) {
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const insets = useSafeAreaInsets();
+  // The pickup contact is the signed-in shopper's verified phone, never a @data fixture. A caller
+  // may pass an explicit override (saved address phone); otherwise fall back to the auth session.
+  const accountPhone = useAuthStore((s) => s.user?.phone);
+  const resolvedContactPhone = contactPhone || accountPhone || '';
   const cartItems = useCartStore((s) => s.cart);
   const totals = computeTotals(cartItems, 0, fulfillment);
   const coinBalance = useRewardsStore((s) => s.coinBalance);
@@ -173,7 +177,7 @@ export default function PaymentOptionsScreen({
           eta={fulfillment === 'PICKUP' ? '15 mins' : '10 mins'}
           fulfillment={fulfillment}
           pickup={pickup}
-          contactPhone={contactPhone}
+          contactPhone={resolvedContactPhone}
         />
 
         {showCoins && (

@@ -372,6 +372,7 @@ func (h *Handler) setCampaignStatus(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) listOptins(w http.ResponseWriter, r *http.Request) {
 	sellerID := strings.TrimSpace(r.URL.Query().Get("sellerId"))
 	stateCode := ""
+	districtCode := ""
 	if auth.Role(r.Context()) == auth.RoleSeller {
 		sellerID = auth.SellerID(r.Context())
 		if sellerID == "" {
@@ -379,14 +380,17 @@ func (h *Handler) listOptins(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
-	if auth.Role(r.Context()) == auth.RoleDistrictAdmin {
+	if district, super, ok := auth.AdminScope(r.Context()); ok && !super {
+		// A district admin only sees opt-ins from sellers in their own district; the parent-state
+		// filter remains as the legacy fallback for rows without a district.
 		stateCode = auth.StateCode(r.Context())
-		if stateCode == "" {
+		districtCode = district
+		if stateCode == "" && districtCode == "" {
 			httpx.Fail(w, http.StatusForbidden, "forbidden", "no state scope on this account")
 			return
 		}
 	}
-	optins, err := h.repo.Optins(r.Context(), sellerID, strings.TrimSpace(r.URL.Query().Get("campaignId")), stateCode)
+	optins, err := h.repo.Optins(r.Context(), sellerID, strings.TrimSpace(r.URL.Query().Get("campaignId")), stateCode, districtCode)
 	if err != nil {
 		httpx.Fail(w, http.StatusInternalServerError, "promo_unavailable", "promo unavailable")
 		return
@@ -493,6 +497,17 @@ func (h *Handler) setOptinStatus(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if !found || !adminScopeAllowed(r, campaign.Scope, campaign.StateCode) {
+		httpx.Fail(w, http.StatusNotFound, "not_found", "opt-in not found")
+		return
+	}
+	// The campaign is state-scoped, but the opting seller is district-scoped: a district admin may
+	// only decide an opt-in from a seller inside their own district.
+	district, state, found, err := h.repo.SellerScope(r.Context(), optin.SellerID)
+	if err != nil {
+		httpx.Fail(w, http.StatusInternalServerError, "promo_unavailable", "promo unavailable")
+		return
+	}
+	if !found || !auth.CanActForSellerDistrict(r.Context(), optin.SellerID, district, state) {
 		httpx.Fail(w, http.StatusNotFound, "not_found", "opt-in not found")
 		return
 	}

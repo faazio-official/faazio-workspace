@@ -45,6 +45,13 @@ function parseDate(input, fallbackIndex = 0) {
 
 const APP = (v) => `'${v}'::app_brand`;
 const STATUS = { Processing: 'Processing', Shipped: 'Shipped', Delivered: 'Delivered', Cancelled: 'Cancelled' };
+// Never silently coerce an unknown status into Delivered: a fixture typo must fail generation so
+// the seed cannot disagree with the order_status enum.
+const orderStatus = (v) => {
+  const mapped = STATUS[v];
+  if (!mapped) throw new Error(`seed: unknown order status "${v}" (expected ${Object.keys(STATUS).join('/')})`);
+  return mapped;
+};
 const FULFIL = (v) => (v === 'PICKUP' ? "'PICKUP'::fulfillment_mode" : v === 'DELIVERY' ? "'DELIVERY'::fulfillment_mode" : 'null');
 const slug = (s) => 'seed-' + String(s).toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
 
@@ -306,7 +313,7 @@ const orders = d.ordersTable.map((o, i) => ({
   totalPaisa: o.lineItems.reduce((sum, li) => sum + li.qty * li.unitPrice, 0) * 100,
   placedAt: parseDate(o.placedAt, i),
   statusDate: o.statusDate ? parseDate(o.statusDate, i) : null,
-  status: STATUS[o.status] ?? 'Delivered',
+  status: orderStatus(o.status),
   addressId: o.addressId && d.addressesTable.some((a) => a.id === o.addressId) ? o.addressId : null,
 }));
 sql.push(inserts(

@@ -29,11 +29,11 @@ const (
 // RateSet is the tunable rewards program (rewards.rates). It mirrors the constants above; the admin
 // console edits the row, and Earn reads it live so a change applies to the next order.
 type RateSet struct {
-	CoinEarnRate        int64 `json:"coinEarnRate"`
-	CoinRedeemRate      int64 `json:"coinRedeemRate"`
-	StreakTargetDays    int64 `json:"streakTargetDays"`
-	DiscountCardPercent int64 `json:"discountCardPercent"`
-	CardValidityDays    int64 `json:"cardValidityDays"`
+	CoinEarnRate        int64  `json:"coinEarnRate"`
+	CoinRedeemRate      int64  `json:"coinRedeemRate"`
+	StreakTargetDays    int64  `json:"streakTargetDays"`
+	DiscountCardPercent int64  `json:"discountCardPercent"`
+	CardValidityDays    int64  `json:"cardValidityDays"`
 	UpdatedAt           string `json:"updatedAt,omitempty"`
 }
 
@@ -262,6 +262,23 @@ func (r *Repo) Earn(ctx context.Context, userID, orderID string, paidRupees, coi
 		return err
 	}
 	return tx.Commit(ctx)
+}
+
+// Coins returns the caller's current coin balance (0 when no rewards row exists yet). Checkout
+// calls it to reject a redemption larger than the balance; the ledger write clamps the same value.
+func (r *Repo) Coins(ctx context.Context, userID string) (int64, error) {
+	if r.pool == nil {
+		return 0, fmt.Errorf("rewards: database not configured")
+	}
+	var coins int64
+	err := r.pool.QueryRow(ctx, `select coins from rewards.balances where user_id = $1`, userID).Scan(&coins)
+	if err != nil {
+		if err == pgx.ErrNoRows {
+			return 0, nil
+		}
+		return 0, err
+	}
+	return coins, nil
 }
 
 // View returns the caller's balance plus the 50 most recent ledger entries.

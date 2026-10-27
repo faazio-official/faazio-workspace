@@ -121,8 +121,12 @@ func (h *Handler) create(w http.ResponseWriter, r *http.Request) {
 		httpx.Fail(w, http.StatusBadRequest, "bad_request", "too many images")
 		return
 	}
+	userID := auth.UserID(r.Context())
+	// Uploads are minted under `<userID>/rx-…`; only accept paths in the caller's own prefix so a
+	// prescription can never reference (and later sign a GET for) another user's object.
+	ownPrefix := userID + "/"
 	for _, p := range body.ImagePaths {
-		if p == "" || len(p) > maxObjectLen || strings.Contains(p, "..") {
+		if p == "" || len(p) > maxObjectLen || strings.Contains(p, "..") || !strings.HasPrefix(p, ownPrefix) {
 			httpx.Fail(w, http.StatusBadRequest, "bad_request", "invalid image path")
 			return
 		}
@@ -131,7 +135,6 @@ func (h *Handler) create(w http.ResponseWriter, r *http.Request) {
 		httpx.Fail(w, http.StatusBadRequest, "bad_request", "invalid address")
 		return
 	}
-	userID := auth.UserID(r.Context())
 	p, err := h.repo.Create(r.Context(), Prescription{
 		UserID:      userID,
 		VendorID:    body.VendorID,
