@@ -20,22 +20,22 @@ export const Route = createFileRoute("/partners")({
 
 const partnerTypes = [
   {
-    name: "Grocery & local stores",
+    name: "Grocery",
     detail: "For the weekly list and the everyday essentials.",
     icon: Store,
-    theme: "bg-mart-soft text-primary",
+    theme: "bg-brand-soft text-brand",
   },
   {
     name: "Restaurants",
     detail: "For familiar favourites and the next meal.",
     icon: UtensilsCrossed,
-    theme: "bg-food-soft text-food",
+    theme: "bg-brand-soft text-brand",
   },
   {
     name: "Medical stores",
     detail: "For pharmacy essentials and everyday care.",
     icon: Pill,
-    theme: "bg-pharma-soft text-pharma",
+    theme: "bg-brand-soft text-brand",
   },
 ];
 

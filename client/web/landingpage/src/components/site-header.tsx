@@ -43,7 +43,7 @@ export function SiteHeader() {
           </span>
           <a
             href="/download"
-            className="download-button download-button-compact inline-flex items-center justify-center"
+            className="download-button download-button-compact inline-flex items-center justify-center bg-primary text-primary-foreground hover:bg-primary-hover"
           >
             <span className="download-button-icon">
               <HiArrowDownTray aria-hidden="true" />

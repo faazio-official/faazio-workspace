@@ -52,7 +52,7 @@ const sectors = [
     image: martImage,
     alt: "Fresh vegetables, bread, apples, and a lemon in a grocery tote",
     icon: ShoppingBag,
-    theme: "bg-mart-soft text-primary",
+    theme: "bg-brand-soft text-brand",
     action: "Discover Mart",
     detail: "Fresh produce · Pantry staples · Daily essentials",
     details:
@@ -66,7 +66,7 @@ const sectors = [
     image: foodImage,
     alt: "Biryani, curry, and raita from a local restaurant",
     icon: UtensilsCrossed,
-    theme: "bg-food-soft text-food",
+    theme: "bg-brand-soft text-brand",
     action: "Explore Food",
     detail: "Local restaurants · Meals · Delivery & pickup",
     details:
@@ -80,7 +80,7 @@ const sectors = [
     image: pharmaImage,
     alt: "Unbranded pharmacy boxes, vitamins, a blister pack, and a bandage",
     icon: Pill,
-    theme: "bg-pharma-soft text-pharma",
+    theme: "bg-brand-soft text-brand",
     action: "Meet Pharma",
     detail: "Nearby medicals · Prescriptions · Personal care",
     details:

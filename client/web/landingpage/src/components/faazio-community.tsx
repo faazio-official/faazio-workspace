@@ -159,7 +159,7 @@ export function FaazioCommunity({ onAction }: Props) {
         <div className="page-width donor-inner">
           <HeartHandshake className="donor-illustration" strokeWidth={1} />
           <div>
-            <p className="eyebrow text-donor">A LITTLE HELP. A SECOND CHANCE.</p>
+            <p className="eyebrow">A LITTLE HELP. A SECOND CHANCE.</p>
             <h2>Some deliveries mean more.</h2>
             <p>
               Be someone’s second chance. Join a community that believes
@@ -204,22 +204,22 @@ export function FaazioCommunity({ onAction }: Props) {
           <div className="partner-types">
             {[
               {
-                name: "Grocery & local stores",
+                name: "Grocery",
                 detail: "For the weekly list and the everyday essentials.",
                 icon: Store,
-                theme: "bg-mart-soft text-primary",
+                theme: "bg-brand-soft text-brand",
               },
               {
                 name: "Restaurants",
                 detail: "For familiar favourites and the next meal.",
                 icon: UtensilsCrossed,
-                theme: "bg-food-soft text-food",
+                theme: "bg-brand-soft text-brand",
               },
               {
                 name: "Medical stores",
                 detail: "For pharmacy essentials and everyday care.",
                 icon: Pill,
-                theme: "bg-pharma-soft text-pharma",
+                theme: "bg-brand-soft text-brand",
               },
             ].map(({ name, detail, icon: Icon, theme }) => (
               <div className="partner-type" key={name}>

@@ -7,6 +7,19 @@ content pages at `/about`, `/faq`, `/partners`, `/karaikal`, and `/download`.
 Built with **TanStack Start** (file-based routing + SSR), **React 19**,
 **Tailwind CSS v4**, and **Nitro** for the deployment bundle.
 
+## Design system
+
+- **Single brand accent** — Faazio Blue `oklch(0.521 0.189 258.9)`
+  (`#1162D3`, the hex used across the mobile app) via `--brand` / `--primary`,
+  with a soft tint `--brand-soft` for subtle fills. Old per-sector accents
+  (green CTA, food orange, pharma teal, donor amber) were removed.
+- **Type** — `Playfair Display` for headings (`--font-display`),
+  `Plus Jakarta Sans` for body (`--font-sans`); loaded via Google Fonts in
+  `src/routes/__root.tsx`.
+- **Favicon** — `public/favicon.ico` is the brand `client/faazio-logo.ico`
+  (cache-bust `?v=3`). Headings tighten their tracking (`-0.02em`) and the
+  `--shadow-brand` CTA shadow keeps every button on-brand.
+
 ## Development
 
 Requires Node.js `>=22.12` and [Bun](https://bun.sh) (the lockfile is `bun.lock`).
