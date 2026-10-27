@@ -48,7 +48,7 @@ if (cdn.endsWith("/assets")) {
 }
 if (!hasLocal && /^https:\/\//.test(gateway)) {
   warnings.push(
-    "No .env.local — copy .env.example to .env.local and use http://localhost:8080 for local dev; keep the Render origin for prod preview only (and redeploy after changing it).",
+    "No .env.local — copy .env.example to .env.local and use http://localhost:8080 for local dev; keep https://api.faazio.com for prod preview only (and redeploy after changing it).",
   );
 }
 
