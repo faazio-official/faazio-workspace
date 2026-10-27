@@ -109,8 +109,8 @@ Examples: `faazio:v1:stock:fm-f1`, `faazio:v1:search:q:hoodie`, `faazio:v1:sdui:
 | SDUI Food projection (`/sdui/food`) | 300 s | `public, max-age=300, swr=60` | `layout.updated` / version bump (purged with home) |
 | SDUI Pharma projection (`/sdui/pharma`) | 300 s | `public, max-age=300, swr=60` | `layout.updated` / version bump (purged with home) |
 | Editorial campaigns (`/home/campaigns(/{id})`) | 600 s | `public, max-age=600, swr=60` | `layout.updated` / version bump (namespace purged by prefix on publish) |
-| Search top-query results | 600 s | `public, max-age=600` | `catalog.updated` |
-| Product detail | 86400 s (24 h) | `public, max-age=86400, immutable` | `catalog.updated` |
+| Search top-query results | 600 s | `public, max-age=600` | TTL-bounded (600 s); **not** purged per edit — a `search:q:*` namespace purge on every product edit would cold-start every query (the 600 s window is the accepted bound) |
+| Product detail | 86400 s (24 h) | `public, max-age=86400, immutable` | `catalog.updated` · `order.placed` (product detail embeds stock, so a sale purges `product:{id}` too) |
 | Stock (per product) | 30–60 s | — | stock decrement / reservation commit |
 | Orders (per user, auth-scoped) | 60 s | **never** | order write |
 | Favourites (per user, auth-scoped) | 60 s | **never** | favourite add/remove |
@@ -129,8 +129,8 @@ Examples: `faazio:v1:stock:fm-f1`, `faazio:v1:search:q:hoodie`, `faazio:v1:sdui:
 | Recommendations (per userHash) | 3600 s (1 h) | — | `user_events` flush |
 | Store directory / reviews | 86400 s (24 h) | — | edit event |
 | Store products (anon `GET /stores/{id}/products`, ACTIVE first page) | 300 s | — | product edit / status change (purges `catalog:store-products:{storeId}`; later pages are not cached) |
-| Nearby stores (`GET /stores/nearby`, anon public projection) | 120 s fresh (+ 300 s stale-while-revalidate) | key includes `lat`/`lng` rounded to 3 dp (~110 m), `radiusKm`, `app` | SWR (§7a): a lapsed TTL serves the previous list and refreshes once in the background (single-flight); store live toggle purges the store's 3×3 tile prefixes (~330 m block) for `geo:nearby:stores:...` + `geo:nearby:products:...` + `directory:store:{id}` + `catalog:store-products:{id}` — readers beyond the tile block stay bounded by the 120 s fresh TTL |
-| Nearby products (`GET /products/nearby`, anon ACTIVE rows) | 120 s fresh (+ 300 s stale-while-revalidate) | same key shape | same SWR + live-toggle tile purge (above) |
+| Nearby stores (`GET /stores/nearby`, anon public projection) | 120 s fresh (+ 300 s stale-while-revalidate) | key includes `lat`/`lng` rounded to 3 dp (~110 m), `radiusKm`, `app` | SWR (§7a): a lapsed TTL serves the previous list and refreshes once in the background (single-flight); the cached value is the **canonical max** (`limit` 200 for stores, 100 for products) and is sliced per request, so one tile key is shared across every `limit` variant (the first requester's `limit` never poisons the shared list); store live toggle purges the store's 3×3 tile prefixes (~330 m block) for `geo:nearby:stores:...` + `geo:nearby:products:...` + `directory:store:{id}` + `catalog:store-products:{id}` — readers beyond the tile block stay bounded by the 120 s fresh TTL |
+| Nearby products (`GET /products/nearby`, anon ACTIVE rows) | 120 s fresh (+ 300 s stale-while-revalidate) | same key shape | same SWR + canonical-max limit + live-toggle tile purge (above); a product edit/status change (`catalog.updated`) also purges the store's 3×3 `geo:nearby:products:{lat3}:{lng3}:*` tile prefixes so a delist/re-price lands in nearby reads immediately |
 | Single restaurant venue (anon `GET /venues/{id}`, PII-redacted) | 86400 s (24 h) | — | venue edit / store live toggle (authed reads bypass the cache) |
 | Media asset (public `GET /media/resolve?ids=`, per asset identity) | 86400 s (24 h) | `public, max-age=31536000, immutable` via `img.faazio.in`; no CDN → stable `/assets/{key}` 302 with `max-age=300` | confirm / status change / delete (purges `faazio:v1:media:asset:{id}` + the exact CDN key) |
 | Promo campaigns / coupons (partner) | 300 s | **never** | campaign/coupon write |
@@ -187,9 +187,9 @@ pipelines; a placement with no LIVE fill collapses the surface to `null` (never 
 
 | Event | Valkey keys affected | Cloudflare purge |
 |---|---|---|
-| `catalog.updated` | `search:q:*`, `product:{id}` | `/search?*`, product URL |
+| `catalog.updated` (product edit / status change) | `product:{id}`, `stock:{productId}`, `catalog:store-products:{storeId}`, `geo:nearby:products:{lat3}:{lng3}:*` tile prefixes around the product's store pin (3×3 block, all `radiusKm`/`app` variants) — `search:q:*` is TTL-bounded (600 s), deliberately not purged per edit | `/search?*`, product URL |
 | `stock.updated` | `stock:{productId}` | — |
-| `order.placed` | `checkout:orders:{userId}`, `reco:{userIdHash}` | — |
+| `order.placed` | `checkout:orders:{userId}`, `product:{id}` (embedded stock; purged per line item), `reco:{userIdHash}` | — |
 | `layout.updated` | `sdui:home:{version}` | `/sdui/home` |
 | `user_events.flush` | `reco:{userIdHash}` | — |
 | `store.updated` / store live toggle (portal `PUT /seller/stores/{id}/live`) / `review.moderated` | `directory:store:{id}`, `catalog:store-products:{id}`, `reviews:product:{id}`, `geo:nearby:stores:{lat3}:{lng3}:*` + `geo:nearby:products:{lat3}:{lng3}:*` tile prefixes around the store's pin (3×3 block, all `radiusKm`/`app` variants; §5) | store/review URLs |
@@ -231,6 +231,13 @@ pipelines; a placement with no LIVE fill collapses the surface to `null` (never 
   beyond the tile block is bounded by the 120 s fresh TTL. No separate per-seller availability key is
   used: a store's presence is `directory.stores.is_live` (the geographic list is never the availability
   authority).
+- **Canonical cache size + catalog write purges:** each `geo:nearby:*` tile caches the max allowed
+  `limit` and is sliced per request, so one key serves every caller (the first requester's `limit` never
+  poisons the shared list). A product edit/status change (`internal/catalog`, `PUT /seller/products/{id}`
+  and `/{id}/status`) purges the product's store-pin `geo:nearby:products:*` tile prefixes (via
+  `Repo.StorePin`) so a delist/re-price lands immediately for co-located shoppers; an `order.placed`
+  stock decrement also purges `product:{id}` per line item because product detail embeds stock; and
+  `rateVendor` purges `directory:store:{id}` because the store card embeds rating/reviews_count.
 - **PII never enters the cache:** `GET /store/:id` caches only the redacted projection; authenticated
   reads bypass the cache (see §8).
 - **Slim values (no key/TTL change):** list/search reads cache the lean product projection

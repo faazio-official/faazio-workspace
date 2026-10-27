@@ -183,7 +183,6 @@ func Settlement(sellerID, cycle string) string {
 func DeliveryRiderLocation(riderID string) string {
 	return fmt.Sprintf("delivery:rider:%s:location", riderID)
 }
-func DeliveryRiderLocationPrefix() string { return "delivery:rider:" }
 func DeliveryRouteLeg(fromLat, fromLng, toLat, toLng float64) string {
 	return fmt.Sprintf("delivery:route:%.4f,%.4f:%.4f,%.4f", fromLat, fromLng, toLat, toLng)
 }
@@ -298,10 +297,9 @@ const (
 
 	TTLPortalLoginWindow = 60 * time.Second
 	TTLPortalDeny        = 15 * time.Minute
-	TTLPortalRefresh     = 30 * 24 * time.Hour
 )
 
-// Cache is a JSON read-through cache. A nil *Client (disabled) is safe to call.
+// Cache is a JSON read-through cache. A nil/disabled cache (no Valkey client) is safe to call.
 type Cache struct {
 	rdb *redis.Client
 	g   singleflight.Group
@@ -405,7 +403,12 @@ func (c *Cache) ReadStale(ctx context.Context, key string, dst any, freshTTL, st
 		return assignJSON(dst, v)
 	}
 	if n, _ := c.rdb.Exists(ctx, key+":fresh").Result(); n > 0 {
-		return json.Unmarshal(b, dst)
+		if json.Unmarshal(b, dst) == nil {
+			return nil
+		}
+		// Corrupt payload inside the fresh window: rebuild synchronously (same fallback as the
+		// stale-corrupt path below) instead of surfacing a 500 from an out-of-band Valkey write.
+		return c.loadSync(ctx, key, dst, freshTTL, staleIfError, load)
 	}
 	if json.Unmarshal(b, dst) != nil {
 		// Corrupt payload: treat as a miss and rebuild synchronously.

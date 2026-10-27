@@ -53,5 +53,8 @@ func (s *Service) RateVendor(ctx context.Context, userID, vendorID string, ratin
 		return err
 	}
 	s.cache.Del(ctx, cache.VendorReviews(vendorID))
+	// The store projection embeds rating/reviews_count (24 h cache); a new vendor rating must
+	// refresh it right away (review.moderated → directory:store:{id}).
+	s.cache.Del(ctx, cache.Store(vendorID))
 	return nil
 }
