@@ -16,11 +16,12 @@ it wastes the user's RAM. Local `npm run start` (Metro) is fine — it is the JS
 Three workflows:
 
 - [`.github/workflows/release-apk.yml`](../../.github/workflows/release-apk.yml) — signed release
-  APK → GitHub Release. `app: customer|delivery` picks the product; delivery releases land on a
-  `-delivery` tag and need `GOOGLE_SERVICES_DELIVERY_JSON`.
+  APK → GitHub Release. `app: customer|delivery|seller` picks the product; delivery/seller releases
+  land on a `-delivery` / `-seller` tag and need `GOOGLE_SERVICES_DELIVERY_JSON` /
+  `GOOGLE_SERVICES_SELLER_JSON`.
 - [`.github/workflows/android-debug.yml`](../../.github/workflows/android-debug.yml) — debug APK →
   downloadable Actions artifact (for device testing with a local Metro). Also takes
-  `app: customer|delivery`.
+  `app: customer|delivery|seller`.
 - [`.github/workflows/server-gateway.yml`](../../.github/workflows/server-gateway.yml) — Go monolith
   `build` / `vet` / `test` / `importlint` with Postgres + Valkey service containers (integration
   tests run; they skip cleanly when the services are absent). Triggers on `server/**` changes.

@@ -101,10 +101,10 @@ rendered on the error card** (plus the first stack frame in a dev build) — tha
 ## 🛵 Delivery Partner background tracking
 
 - **Rider disappears from dispatch after backgrounding** → the Android partner build should keep an
-  ongoing "Faazio Delivery is online" notification and wake `FaazioDeliveryHeartbeat` every 120 s.
+  ongoing "Faazio Delivery Partner is online" notification and wake `FaazioDeliveryHeartbeat` every 120 s.
   Verify the delivered artifact is the **delivery** flavor/entry (`index.delivery.js`), location
   permission is granted, and the service was not killed by OEM battery optimisation (whitelist
-  Faazio Delivery in Settings → Battery → Unrestricted).
+  Faazio Delivery Partner in Settings → Battery → Unrestricted).
 - **No notification on Android 13+** → POST_NOTIFICATIONS was denied. The service can still run, but
   ask the rider to allow notifications; a missed heartbeat removes them from candidates after the
   300 s Valkey TTL.

@@ -26,17 +26,19 @@ Each native app must be registered against its own ID. One typo makes
 |---|---|
 | `client/mobile/android/app/google-services.json` | Customer Android Firebase app registration + public API key |
 | `client/mobile/ios/Faazio/GoogleService-Info.plist` | Customer iOS Firebase app registration (Xcode `Copy Bundle Resources`) |
-| `client/mobile/android/app/src/delivery/google-services.json` | Delivery Android app config — **CI-only**, from `GOOGLE_SERVICES_DELIVERY_JSON` (gitignored) |
+| `client/mobile/android/app/src/delivery/google-services.json` | Delivery Android app config — **committed** (public client config); CI overwrites it from `GOOGLE_SERVICES_DELIVERY_JSON` |
 | `client/mobile/ios/Faazio/GoogleService-Info-Delivery.plist` | Delivery iOS app config — **supplied by ops/CI**, not committed |
-| `client/mobile/android/app/src/seller/google-services.json` | Seller Android app config — **CI-only**, from `GOOGLE_SERVICES_SELLER_JSON` (gitignored) |
+| `client/mobile/android/app/src/seller/google-services.json` | Seller Android app config — **committed** (public client config); CI overwrites it from `GOOGLE_SERVICES_SELLER_JSON` |
 | `client/mobile/ios/Faazio/GoogleService-Info-Seller.plist` | Seller iOS app config — **supplied by ops/CI**, not committed |
 | `client/mobile/android/build.gradle` | `com.google.gms:google-services:4.5.0` classpath |
 | `client/mobile/android/app/build.gradle` | applies `com.google.gms.google-services` |
 | `client/mobile/ios/Faazio/Info.plist` | `UIBackgroundModes → remote-notification` |
 
-The customer files are public by design (the API key is restricted per platform in Google Cloud)
-and committed so CI can build without extra secrets. The delivery files contain the partner app's
-registration and are injected from CI secrets. No service-account key is used by the mobile app.
+The Firebase files are public by design (the API key is restricted per platform in Google Cloud) and
+committed so CI can build without extra secrets — the customer, delivery and seller Android
+`google-services.json` files are all committed. The iOS partner plists are injected by CI. CI also
+overwrites the committed partner Android JSONs from the delivery/seller secrets so a rotated config
+never needs a git change. No service-account key is used by the mobile app.
 
 ## 3. Flow
 
@@ -100,9 +102,9 @@ requires the runtime notification permission.
 - [x] Firebase project created; Google Analytics disabled.
 - [x] Android app registered with `com.faazio.customer` + debug SHA-1/SHA-256.
 - [x] iOS app registered with `com.faazio.customer`.
-- [ ] Delivery Android app registered with `com.faazio.deliverypartner` (config -> `GOOGLE_SERVICES_DELIVERY_JSON`).
+- [x] Delivery Android app registered with `com.faazio.deliverypartner` (config -> `GOOGLE_SERVICES_DELIVERY_JSON`).
 - [ ] Delivery iOS app registered with `com.faazio.deliverypartner` (config -> `GoogleService-Info-Delivery.plist`).
-- [ ] Seller Android app registered with `com.faazio.sellerpartner` (config -> `GOOGLE_SERVICES_SELLER_JSON`).
+- [x] Seller Android app registered with `com.faazio.sellerpartner` (config -> `GOOGLE_SERVICES_SELLER_JSON`).
 - [ ] Seller iOS app registered with `com.faazio.sellerpartner` (config -> `GoogleService-Info-Seller.plist`).
 - [x] Authentication → Sign-in method → **Phone** enabled.
 - [x] SMS region policy allow-list includes **+91 (India)**.
