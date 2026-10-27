@@ -77,7 +77,8 @@ server/
 - **Health:** `GET /health` probes Postgres (required → 503), Valkey and Mongo (optional →
   `degraded`) with per-dependency latency, for Render's health-check/uptime alerts.
 - **Notifications:** the durable outbox drains to a provider-agnostic push webhook when
-  `PUSH_WEBHOOK_URL` is set (`PENDING`→`SENT`/`FAILED`, 30 s polling; unset = in-app inbox only).
+  `PUSH_WEBHOOK_URL` is set (`PENDING`→`SENT`/`FAILED`, 30 s polling; unset = in-app inbox only and
+  `POST /notifications/drain` returns `503 push_unconfigured` without marking rows `FAILED`).
 - **Build order / status:** `docs/architecture/mvp-backend.md` §7.
 
 ---

@@ -1,11 +1,13 @@
-import React, { useMemo, useState } from 'react';
+import React, { useCallback, useMemo, useState } from 'react';
 import {
   StyleSheet,
   View,
   ScrollView,
   TouchableOpacity,
+  RefreshControl,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useFocusEffect } from '@react-navigation/native';
 import {
   ChevronLeft,
   Coins,
@@ -52,7 +54,26 @@ export function FaazioRewardsScreen({ navigation }: Props) {
   const streakCount = useRewardsStore((s) => s.streakCount);
   const discountCard = useRewardsStore((s) => s.discountCard);
   const ledger = useRewardsStore((s) => s.ledger);
+  const syncError = useRewardsStore((s) => s.syncError);
+  const reconcile = useRewardsStore((s) => s.reconcile);
   const [infoVisible, setInfoVisible] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
+
+  const refresh = useCallback(async () => {
+    setRefreshing(true);
+    try {
+      await reconcile();
+    } finally {
+      setRefreshing(false);
+    }
+  }, [reconcile]);
+
+  // Coins are server-authoritative; refresh whenever the screen gains focus.
+  useFocusEffect(
+    useCallback(() => {
+      void reconcile().catch(() => {});
+    }, [reconcile]),
+  );
 
   const handleBack = () => navigation.goBack();
 
@@ -70,6 +91,9 @@ export function FaazioRewardsScreen({ navigation }: Props) {
         contentContainerStyle={[styles.scrollContent, { paddingTop: insets.top }]}
         showsVerticalScrollIndicator={false}
         bounces={false}
+        refreshControl={
+          <RefreshControl refreshing={refreshing} onRefresh={() => void refresh()} tintColor="#1162D3" />
+        }
       >
         {/* Header */}
         <View style={styles.header}>
@@ -108,6 +132,8 @@ export function FaazioRewardsScreen({ navigation }: Props) {
             1 coin = ₹{(1 / COIN_REDEEM_RATE).toFixed(2)} · Redeem in whole rupees
           </AppText>
         </View>
+
+        {syncError ? <AppText style={styles.syncError}>{syncError}</AppText> : null}
 
         {/* Streak strip */}
         <View style={styles.card}>
@@ -286,6 +312,13 @@ const styles = StyleSheet.create({
     fontSize: ms(11),
     color: '#DDD6FE',
     marginTop: vs(4),
+  },
+  syncError: {
+    fontSize: ms(12),
+    color: '#B91C1C',
+    textAlign: 'center',
+    marginTop: vs(10),
+    marginHorizontal: hs(16),
   },
   card: {
     backgroundColor: '#FFFFFF',

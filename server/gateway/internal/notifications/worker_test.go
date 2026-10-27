@@ -49,6 +49,30 @@ func TestWorkerDisabledWithoutSender(t *testing.T) {
 	}
 }
 
+// Regression: NewWebhookSender("") returns a nil Sender interface (not a typed-nil pointer in a
+// non-nil interface) so the worker is disabled and an admin drain returns 503 instead of marking
+// every PENDING row FAILED with no provider configured.
+func TestWorkerDisabledWithEmptyWebhookURL(t *testing.T) {
+	w := NewWorker(nil, NewWebhookSender(""), nil)
+	if w.Enabled() {
+		t.Fatal("an empty-url webhook sender must leave the worker disabled")
+	}
+	if err := w.DrainOnce(context.Background()); err != ErrNoSender {
+		t.Fatalf("DrainOnce without a configured sender must return ErrNoSender, got %v", err)
+	}
+}
+
+func TestWebhookSenderConfiguredIsNotEmpty(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer srv.Close()
+
+	if s := NewWebhookSender(srv.URL); s == nil {
+		t.Fatal("a configured url must produce a non-nil Sender")
+	}
+}
+
 func TestDrainOnceWithoutSender(t *testing.T) {
 	w := NewWorker(nil, nil, nil)
 	if err := w.DrainOnce(context.Background()); err != ErrNoSender {

@@ -8,6 +8,8 @@ import { SplashFallback } from './src/components/SplashFallback';
 import { useAuthStore } from './src/state/authStore';
 import { useLiveLocation } from './src/hooks/useLiveLocation';
 import { useLanguageStore } from './src/state/languageStore';
+import { hydrateUserStores } from './src/services/sessionStores';
+import { startCustomerPush } from './src/services/customerPush';
 import { useAppFonts, resolveFontFamily } from './src/theme/fonts';
 import { useBottomInset } from './src/utils/responsive';
 
@@ -112,6 +114,7 @@ export default function App() {
   const mountedAt = useRef(Date.now());
   const hydrateAuth = useAuthStore((s) => s.hydrate);
   const hydrateLanguage = useLanguageStore((s) => s.hydrate);
+  const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
   // Hydrate the last fix and poll only while foregrounded (never prompts on launch).
   useLiveLocation();
 
@@ -150,6 +153,25 @@ export default function App() {
       return () => clearTimeout(timer);
     }
   }, [fontsLoaded, ready]);
+
+  // Session-scoped server state: pull the user's cart/favourites/orders/rewards after login or a
+  // restored session, and register this device for push. Both are best-effort and independent.
+  useEffect(() => {
+    if (!isAuthenticated) return;
+    void hydrateUserStores().catch(() => {});
+    let active = true;
+    let stopPush: (() => void) | undefined;
+    void startCustomerPush()
+      .then((cleanup) => {
+        if (active) stopPush = cleanup;
+        else cleanup();
+      })
+      .catch(() => undefined);
+    return () => {
+      active = false;
+      stopPush?.();
+    };
+  }, [isAuthenticated]);
 
   if (!ready || !minSplashDone) {
     return <SplashFallback variant="royal" />;

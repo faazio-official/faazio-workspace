@@ -398,8 +398,8 @@ the `GROCERY` member was dropped from `AppBrand` / `CartCategory` / `SubAppId` /
 | `instantFeed` | `Product[]` | data-internal only (`filterFeed`); not directly by screens | `@mock` |
 | `nearbyOffers` | `NearbyOffer[]` | home `NearbyOffersSection` | `@mock` |
 | `filterChips` / `filterFeedPools` / `FilterChipId` | typed pools | home `FilterFeedSection` | `@mock` |
-| `seedCartItems` | `CartItem[]` | `state/cartStore` | `@seed` |
-| `seedFavorites` | `string[]` | `state/favoriteStore` (seeds the search-results-style Favourites page — 15 ids spanning FOOD, MART, PHARMA, explore & `cat-*` search ids, all resolvable in `catalogIndex`); also seeded into `favourites.items` (migration `0007`) | `@seed` → `@server` |
+| `seedCartItems` | `CartItem[]` | **`@unused`** (cart is server-authoritative — `state/cartStore` pulls `inventory.carts`; no client reads this fixture) | `@seed` + `@unused` |
+| `seedFavorites` | `string[]` | Supabase seed generator only (`server/supabase/seed/generate.mjs` inserts them into `favourites.items` for the demo user — 15 ids spanning FOOD, MART, PHARMA, explore & `cat-*` search ids, all resolvable in `catalogIndex`); the mobile `state/favoriteStore` is server-authoritative and reads `GET /favourites` | `@seed` → `@server` |
 | `seedLocation` | `string` | **`@unused`** by mobile | `@seed` + `@unused` |
 
 > **Sponsored rail (W30):** `HomeSectionKind` gained `sponsoredRail` — a paid, separately-labelled

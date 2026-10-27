@@ -6,6 +6,42 @@ dependencies exist. Do not build the backend/seller flows until told to.
 > **Dinner/table bookings were removed** (mobile, web portal, gateway, migrations `0011`/`0020`).
 > Older W28/W29 booking entries below are historical and superseded; there is no booking screen,
 > store, route, cache key or client method. The seller app now accepts/rejects orders.
+>
+> **W73 supersedes** every earlier cart/favourites/rewards/orders "local-first" or "seed" note
+> below: those stores are now server-authoritative and the demo fixtures are gone.
+
+---
+
+## W73 — De-mock cart/favourites/rewards/orders + customer push (P0/P1)
+
+**Status:** 🟢 Shipped (mobile + gateway push plumbing already live).
+
+- **Cart:** `cartStore` is server-authoritative. Mutations optimistically update the UI, await the
+  `inventory.carts` write, and roll back with `syncError` on failure. Re-adding an existing line
+  sends its next absolute qty via `updateCartItem` because the gateway `POST/PUT` both **set** (not
+  increment). `hydrate()` runs at login/cold start; `resetLocal()` drops the device cache on sign-out
+  without deleting the server cart. The `seedCartItems` fixture is gone.
+- **Favourites:** `favoriteStore` mirrors `GET/POST/DELETE /favourites` with optimistic toggle +
+  rollback; `hydrate()` at login/cold start; `reset()` on sign-out. `mockFavourites`/`seedFavorites`
+  are gone, so an empty server list is an honest empty state.
+- **Rewards:** `rewardsStore` has no client earn/redeem and no seeded 245-coin/5-streak fiction.
+  `reconcile()` reads `GET /rewards` (coins are written inside the checkout transaction) and the
+  AsyncStorage blob is an offline cache only. The rewards screen reconciles on focus and supports
+  pull-to-refresh.
+- **Orders:** checkout adopts the returned `OrderRow` (`recordServerOrder`); My Orders renders the
+  in-session `placedOrders` (e.g. Rx) plus durable `serverOrders`, refreshing on focus, and the
+  `myOrders` fixture fallback is gone. The order id is the server id, never a local
+  `Date.now()`/random placeholder.
+- **Session lifecycle:** `services/sessionStores.ts` hydrates cart/favourites/orders/rewards after
+  authentication; `logout.ts` resets the device stores, unregisters the push token, and leaves the
+  server cart/favourites intact for the next login.
+- **Push:** `services/customerPush.ts` registers the customer FCM token, handles token refresh,
+  foreground messages, and notification taps. `NotificationsScreen` (root route `Notifications`)
+  reads the durable `GET /notifications` inbox; the gateway outbox drain worker is enabled by
+  `PUSH_WEBHOOK_URL` (already wired in `cmd/server/main.go`).
+- **Removed:** the 1.2s fake checkout delay and the local-first `recordOrder`/`redeemCoins` writes.
+
+**Date:** 2026-10-27
 
 ---
 
@@ -1336,9 +1372,9 @@ Home section whose doc carries the data, with each fixture kept as the offline f
 - **Web portal:** every money/status/Rx/menu/booking/rewards mutation is now an awaited write with
   store-snapshot rollback + error toast (`pushWrite` → `writeAwaited`), replacing the silent
   `writeBehind` fallback.
-- **Still device-local-first (remaining Phase 2/4):** cart + favourites + rewards + orders stores
-  remain device-local-first (gateway mirrors best-effort), and there is no FCM/APNs sender (in-app
-  inbox is poll-based). App auth is real Firebase phone OTP (W60).
+- **Superseded by W73:** cart + favourites + rewards + orders are now server-authoritative, and the
+  customer app registers FCM tokens (`services/customerPush.ts`) with a durable `NotificationsScreen`
+  inbox. App auth is real Firebase phone OTP (W60).
 
 **Date:** 2026-10-16
 

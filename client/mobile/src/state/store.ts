@@ -16,3 +16,6 @@ export { useSearchStore } from './searchStore';
 export { useRewardsStore } from './rewardsStore';
 export type { RewardLedgerEntry, RewardLedgerType } from './rewardsStore';
 
+export { useOrdersStore } from './ordersStore';
+export type { PlacedOrder, PlacedOrderItem, PlacedOrderKind } from './ordersStore';
+

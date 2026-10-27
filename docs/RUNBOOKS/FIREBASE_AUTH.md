@@ -61,6 +61,13 @@ the `GOOGLE_SERVICES_SELLER_JSON` CI secret (iOS: `GoogleService-Info-Seller.pli
 notification permission. The FCM token is injected into the portal WebView, which registers it via
 `POST /api/gateway/notifications/register`.
 
+The **customer app** uses the same Firebase project for FCM. `services/customerPush.ts` requests
+permission after sign-in and registers the token via `POST /notifications/register`; `logout.ts`
+calls `DELETE /notifications/register` best-effort. Push delivery requires the gateway's
+`PUSH_WEBHOOK_URL` outbox worker (empty = worker disabled, in-app `GET /notifications` still works).
+APNs requires the Part 6 `.p8` key + Xcode Push Notifications capability; Android 13+ requires the
+runtime notification permission.
+
 ## 4. Console setup (already done, except Part 6)
 
 - [x] Firebase project created; Google Analytics disabled.

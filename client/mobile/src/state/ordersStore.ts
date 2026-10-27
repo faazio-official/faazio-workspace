@@ -1,4 +1,5 @@
 import { create } from 'zustand';
+import type { OrderRow } from '@data/checkout/orders';
 import type { FulfillmentMode, OrderStatus } from '@data/types';
 import { orderRowToPlaced } from '@/services/orderHistory';
 import { gateway } from '@/services/api/GatewayClient';
@@ -61,7 +62,7 @@ interface PlacedOrderInput {
 }
 
 interface OrdersState {
-  /** In-session optimistic placements (not persisted). */
+  /** In-session optimistic placements (not persisted; e.g. a prescription draft). */
   orders: PlacedOrder[];
   /**
    * Durable order history pulled from the gateway. Kept separate from `orders`
@@ -70,9 +71,16 @@ interface OrdersState {
   serverOrders: PlacedOrder[];
   /** True once the durable history read has settled (success or empty), remote mode only. */
   ordersHydrated: boolean;
+  /** Local transient placement (only for flows that do not yet return a server order row). */
   recordOrder: (order: PlacedOrderInput) => void;
+  /** Adopt a server order returned by POST /orders (authoritative id + status). */
+  recordServerOrder: (row: OrderRow) => void;
   /** Merge the durable history (server is authoritative for status). */
   hydrateServerOrders: (orders: PlacedOrder[]) => void;
+  /** Refetch the caller's durable order history from the gateway. */
+  refresh: () => Promise<void>;
+  /** Drop per-user history on sign-out. */
+  reset: () => void;
   getOrderById: (orderId: string) => PlacedOrder | undefined;
 }
 
@@ -91,23 +99,35 @@ export const useOrdersStore = create<OrdersState>()((set, get) => ({
     set((state) => ({ orders: [order, ...state.orders] }));
   },
 
+  recordServerOrder: (row) => {
+    const placed = orderRowToPlaced(row);
+    set((state) => ({
+      serverOrders: [placed, ...state.serverOrders.filter((o) => o.orderId !== placed.orderId)],
+      ordersHydrated: true,
+    }));
+  },
+
   hydrateServerOrders: (orders) => set({ serverOrders: orders, ordersHydrated: true }),
 
+  refresh: async () => {
+    if (!gateway.remoteEnabled) {
+      set({ ordersHydrated: true });
+      return;
+    }
+    try {
+      const rows = await gateway.getOrders();
+      set({ serverOrders: rows.map(orderRowToPlaced), ordersHydrated: true });
+    } catch {
+      // Keep the previous live history (stale-but-honest) instead of showing fixtures.
+      set({ ordersHydrated: true });
+    }
+  },
+
+  reset: () => set({ orders: [], serverOrders: [], ordersHydrated: false }),
+
   // Server history wins over a same-id in-session placement (fresh status), but keep
-  // in-session placements the server hasn't adopted yet (e.g. just placed, mock mode).
+  // in-session placements the server hasn't adopted yet (e.g. a prescription draft).
   getOrderById: (orderId) =>
     get().serverOrders.find((o) => o.orderId === orderId) ??
     get().orders.find((o) => o.orderId === orderId),
 }));
-
-/**
- * Pull the durable order history once at startup (remote mode only). The gateway
- * projects NEW/PACKED → Processing so this shares the mobile `OrderStatus` union.
- * Best-effort: a failure leaves the fixture-backed view untouched.
- */
-if (gateway.remoteEnabled) {
-  void gateway
-    .getOrders()
-    .then((rows) => useOrdersStore.getState().hydrateServerOrders(rows.map(orderRowToPlaced)))
-    .catch(() => {});
-}

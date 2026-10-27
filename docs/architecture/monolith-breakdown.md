@@ -174,9 +174,15 @@ seller) + three LIVE `HOME_TOP` slots (`ad-demo-home-*`) in `0001_seed.sql`. Mon
 `internal/reco` exposes admin-only `GET /admin/user-trail?userId=&limit=` reading the same ID-only
 `user_events` (hash match; no raw user id), surfaced as an activity-trail panel on the portal
 customers page. Delivery: `internal/notifications` gained a provider-agnostic outbox **drain worker**
-(`WebhookSender`; start with `PUSH_WEBHOOK_URL`) that moves `PENDING`→`SENT`/`FAILED` — the app's
-inbox stays poll-based until it is configured. Prod auth is unchanged in code (dev `X-Dev-*` headers
-are only honoured when `AUTH_DISABLED=true`, which now logs a loud warning).
+(`WebhookSender`; start with `PUSH_WEBHOOK_URL`) that moves `PENDING`→`SENT`/`FAILED`. The customer
+app now registers its FCM token (`services/customerPush.ts` → `POST /notifications/register`) and
+renders the durable `GET /notifications` inbox in `NotificationsScreen`; `DELETE
+/notifications/register` runs on sign-out. Push delivery is optional — the inbox still works when
+`PUSH_WEBHOOK_URL` is empty, and then the manual `POST /notifications/drain` returns `503
+push_unconfigured` without touching `PENDING` rows (the empty-URL sender is a nil interface, not a
+typed nil, so `Worker.Enabled()` is truthful). Background and admin drains are serialized
+in-process so the same batch is never double-delivered. Prod auth is unchanged in code (dev
+`X-Dev-*` headers are only honoured when `AUTH_DISABLED=true`, which now logs a loud warning).
 
 **Shopper price authority + discount integrity (W31, `0022`).** Festival opt-ins were control-plane
 only: an approved `discount_percent` never reached the app, and two surfaces fabricated discounts
