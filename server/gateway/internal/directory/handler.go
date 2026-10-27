@@ -112,7 +112,10 @@ func (h *Handler) nearby(w http.ResponseWriter, r *http.Request) {
 	var stores []contracts.Store
 	err := h.cache.ReadStale(r.Context(), key, &stores, cache.TTLNearby, cache.TTLNearbyStale,
 		func(ctx context.Context) (any, error) {
-			s, err := h.repo.Nearby(ctx, app, lat, lng, radius, limit)
+			// Cache one canonical size (the max) so a tile key serves every `limit` variant — the
+			// first requester's limit never poisons the shared list. The response is sliced to the
+			// caller's limit below (order is nearest-first, so the head is correct).
+			s, err := h.repo.Nearby(ctx, app, lat, lng, radius, maxStoreLimit)
 			if err != nil {
 				return nil, err
 			}
@@ -124,6 +127,9 @@ func (h *Handler) nearby(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		httpx.Fail(w, http.StatusInternalServerError, "directory_unavailable", "directory unavailable")
 		return
+	}
+	if len(stores) > limit {
+		stores = stores[:limit]
 	}
 	httpx.JSON(w, http.StatusOK, stores)
 }

@@ -64,14 +64,17 @@ func (h *Handler) nearby(w http.ResponseWriter, r *http.Request) {
 			radius = v
 		}
 	}
-	limit := httpx.LimitParam(r, 40, 100)
+	limit := httpx.LimitParam(r, 40, maxStoreProductLimit)
 	latKey := strconv.FormatFloat(lat, 'f', 3, 64)
 	lngKey := strconv.FormatFloat(lng, 'f', 3, 64)
 	key := cache.NearbyProducts(latKey, lngKey, int(math.Ceil(radius)), app)
 	var products []contracts.Product
 	err := h.cache.ReadStale(r.Context(), key, &products, cache.TTLNearby, cache.TTLNearbyStale,
 		func(ctx context.Context) (any, error) {
-			p, err := h.repo.Nearby(ctx, app, lat, lng, radius, limit)
+			// Cache one canonical size (the max) so a tile key serves every `limit` variant — the
+			// first requester's limit never poisons the shared list. The response is sliced to the
+			// caller's limit below (order is nearest-first, so the head is correct).
+			p, err := h.repo.Nearby(ctx, app, lat, lng, radius, maxStoreProductLimit)
 			if err != nil {
 				return nil, err
 			}
@@ -83,6 +86,9 @@ func (h *Handler) nearby(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		httpx.Fail(w, http.StatusInternalServerError, "catalog_unavailable", "catalog unavailable")
 		return
+	}
+	if len(products) > limit {
+		products = products[:limit]
 	}
 	httpx.JSON(w, http.StatusOK, products)
 }
@@ -96,6 +102,22 @@ func parseNearbyLatLng(r *http.Request) (float64, float64, bool) {
 		return 0, 0, false
 	}
 	return lat, lng, true
+}
+
+// purgeNearbyProductTiles flushes the geo:nearby:products tiles around a store's pin so a product
+// edit/status change lands in nearby reads immediately for co-located shoppers. A missing pin is a
+// no-op; readers beyond the 3×3 tile block stay bounded by TTLNearby + SWR.
+func (h *Handler) purgeNearbyProductTiles(r *http.Request, storeID string) {
+	if storeID == "" {
+		return
+	}
+	lat, lng, err := h.repo.StorePin(r.Context(), storeID)
+	if err != nil || (lat == 0 && lng == 0) {
+		return
+	}
+	for _, p := range cache.NearbyProductsTilePrefixes(lat, lng) {
+		h.cache.DelPrefix(r.Context(), p)
+	}
 }
 
 // updateProduct edits price/MRP/stock/image (seller-scoped). Body: {price?, mrp?, inStockQty?,
@@ -149,6 +171,7 @@ func (h *Handler) updateProduct(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	h.cache.Del(r.Context(), cache.Product(id), cache.Stock(id), cache.StoreProducts(p.StoreID))
+	h.purgeNearbyProductTiles(r, p.StoreID)
 	h.log(r, "PRODUCT_EDIT", id, map[string]any{"price": p.Price})
 	httpx.JSON(w, http.StatusOK, p)
 }
@@ -336,6 +359,7 @@ func (h *Handler) setProductStatus(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	h.cache.Del(r.Context(), cache.Product(id), cache.StoreProducts(p.StoreID))
+	h.purgeNearbyProductTiles(r, p.StoreID)
 	h.log(r, "PRODUCT_"+status, id, map[string]string{"status": status})
 	httpx.JSON(w, http.StatusOK, p)
 }

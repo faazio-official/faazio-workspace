@@ -434,6 +434,9 @@ func (s *Service) CreateOrder(ctx context.Context, userID string, req PlaceOrder
 			}
 			// Invalidate the stock read-through cache so the next GET reflects the decrement.
 			s.cache.Del(ctx, cache.Stock(it.ProductID))
+			// Product detail embeds stock (24 h cache); purge it too so /product/{id} never keeps
+			// serving a pre-decrement snapshot after a sale (order.placed → product:{id}).
+			s.cache.Del(ctx, cache.Product(it.ProductID))
 		}
 		return s.repo.InsertOrderTx(ctx, tx, order, lines, req.IdempotencyKey, []taxmath.Invoice{invoice}, payments...)
 	}); err != nil {

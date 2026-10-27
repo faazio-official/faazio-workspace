@@ -124,6 +124,22 @@ func (r *Repo) Nearby(ctx context.Context, app string, lat, lng, radiusKm float6
 	return scanProducts(rows, r.cdnBase)
 }
 
+// StorePin returns a store's geo pin (for flushing the geo:nearby:products tiles on catalog
+// writes). Zero values mean the store has no pin — nothing to flush.
+func (r *Repo) StorePin(ctx context.Context, storeID string) (float64, float64, error) {
+	if r.pool == nil {
+		return 0, 0, fmt.Errorf("catalog: database not configured")
+	}
+	var lat, lng float64
+	err := r.pool.QueryRow(ctx,
+		`select coalesce(latitude,0), coalesce(longitude,0) from directory.stores where id = $1`,
+		storeID).Scan(&lat, &lng)
+	if err != nil {
+		return 0, 0, err
+	}
+	return lat, lng, nil
+}
+
 // ByIDs returns products for the given ids (stable input order preserved by app).
 func (r *Repo) ByIDs(ctx context.Context, ids []string) ([]contracts.Product, error) {
 	if r.pool == nil {

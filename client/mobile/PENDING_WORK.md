@@ -351,9 +351,13 @@ dependencies exist. Do not build the backend/seller flows until told to.
   stale-while-revalidate (`cache.ReadStale` — stale value + single-flight background refresh on TTL
   lapse, never a blank list); store live toggle (`PUT /seller/stores/{id}/live`) purges the store's
   3×3 geo-tile prefixes + `directory:store:{id}` + `catalog:store-products:{id}` so the flip lands
-  immediately for co-located shoppers (readers beyond the tile block bounded by the 120 s fresh TTL);
-  `directory.stores`/`directory.dining_venues` gained coordinates and partial geo indexes;
-  `sellers.sellers` gained the shop pin.
+   immediately for co-located shoppers (readers beyond the tile block bounded by the 120 s fresh TTL);
+   `directory.stores`/`directory.dining_venues` gained coordinates and partial geo indexes;
+   `sellers.sellers` gained the shop pin.
+- **Refinements (server-side, no client contract change):** nearby caches store the canonical max
+   `limit` and slice per request (no per-`limit` key poisoning); a product edit/status change purges the
+   store's `geo:nearby:products` tile prefixes; `order.placed` purges `product:{id}` per line item
+   (embedded stock); `rateVendor` purges `directory:store:{id}` (embedded rating).
 - **Ops remaining:** provision restricted `GOOGLE_MAPS_API_KEY_ANDROID` + `GOOGLE_PLACES_API_KEY`
   (and run `npm run configure`); add the iOS Pod (`cd ios && pod install`) during the first iOS build.
 

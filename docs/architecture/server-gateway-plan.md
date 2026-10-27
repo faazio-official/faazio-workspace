@@ -40,7 +40,10 @@ The production backend is a **single Go Chi modular monolith** (`server/gateway`
 contexts as packages — no gRPC, no separate services. `contracts/` holds Go interfaces (the future `.proto`
 shape); contexts talk through them, never through sibling imports. It serves read + write endpoints
 against **Supabase (Postgres) + MongoDB Atlas M0 + Aiven Valkey**, with Cloudflare in front; cache
-keys/TTLs unchanged.
+keys/TTLs unchanged. `GET /stores/nearby` + `GET /products/nearby` read through `cache.ReadStale`
+(120 s fresh + 300 s stale-while-revalidate, canonical-max `limit` per key so one tile serves every
+caller) and are event-purged on store live toggle and product edit/status change (see
+`caching-cloudflare-valkey.md` §5–§7a).
 
 - **Endpoints:** reads `GET /health`, `/search?q=`, `/sdui/home`, `/sdui/mart` (Mart-only sections),
   `/sdui/food` (Food-only sections), `/sdui/pharma` (Pharma-only sections),
