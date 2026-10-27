@@ -757,8 +757,7 @@ switcher.
 
 **Known production limits** (tracked in `client/mobile/PENDING_WORK.md`): force-quit iOS background
 location (plus OEM battery whitelisting) and push delivery is an ops step (fee-free: set the
-gateway's `FCM_SERVICE_ACCOUNT_JSON` + `FCM_PROJECT_ID`; the legacy `PUSH_WEBHOOK_URL` bridge is the
-fallback). Dispatch
+gateway's `FCM_SERVICE_ACCOUNT_JSON` + `FCM_PROJECT_ID`). Dispatch
 runs a global Held-Karp VRP across all accepted stops (insertion fallback above 15 open stops).
 Reject re-offers the job to the next candidate up to 5 attempts. Payout splits (Phase 5) are
 intentionally not built.

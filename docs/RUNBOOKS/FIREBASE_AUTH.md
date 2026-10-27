@@ -64,9 +64,9 @@ notification permission. The FCM token is injected into the portal WebView, whic
 The **customer app** uses the same Firebase project for FCM. `services/customerPush.ts` requests
 permission after sign-in and registers the token via `POST /notifications/register`; `logout.ts`
 calls `DELETE /notifications/register` best-effort. Push delivery comes from the **gateway's embedded
-FCM HTTP v1 sender** when `FCM_PROJECT_ID` + `FCM_SERVICE_ACCOUNT_JSON` are set (see below); the legacy
-`PUSH_WEBHOOK_URL` bridge is the fallback (both empty = worker disabled, in-app `GET /notifications`
-still works). APNs requires the Part 6 `.p8` key + Xcode Push Notifications capability; Android 13+
+FCM HTTP v1 sender** when `FCM_PROJECT_ID` + `FCM_SERVICE_ACCOUNT_JSON` are set (see below); without
+them the worker is disabled and the in-app `GET /notifications`
+still works. APNs requires the Part 6 `.p8` key + Xcode Push Notifications capability; Android 13+
 requires the runtime notification permission.
 
 ### Server-side FCM push credentials (Android)
@@ -84,8 +84,8 @@ requires the runtime notification permission.
     gitignored `server/gateway/.env`.
 - On startup the gateway builds an `FCMSender` when both are set (log
   `notifications: using FCM HTTP v1 sender (project=…)`) and calls
-  `https://fcm.googleapis.com/v1/projects/{project}/messages:send` directly — **no separate
-  `PUSH_WEBHOOK_URL` server is needed**. Android push works immediately; iOS still requires the APNs
+  `https://fcm.googleapis.com/v1/projects/{project}/messages:send` directly — **no relay server is
+  needed**. Android push works immediately; iOS still requires the APNs
   `.p8` key + Push Notifications capability (Part 6) and is unaffected by this.
 - `go test ./internal/notifications/ -run TestNewFCMSenderLiveCredentials -v` (from a terminal with
   `server/gateway/.env` sourced) confirms a key parses before a deploy; it skips when the env vars

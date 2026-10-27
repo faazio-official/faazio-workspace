@@ -1,6 +1,6 @@
 // FCMSender delivers pushes straight from the gateway to Firebase Cloud Messaging (HTTP v1),
-// authenticated with a server-side service account. No separate PUSH_WEBHOOK_URL relay is needed;
-// the drain worker treats it like any other Sender. It never logs the token or the payload.
+// authenticated with a server-side service account; the drain worker treats it like any other
+// Sender. It never logs the token or the payload.
 package notifications
 
 import (
@@ -38,10 +38,10 @@ type FCMSender struct {
 	tokenSrc   oauth2.TokenSource
 }
 
-// NewFCMSender builds a sender calling FCM HTTP v1 directly. Mirroring NewWebhookSender, an empty
-// project id or service account yields a nil Sender (worker stays disabled, admin drain returns
-// 503 push_unconfigured). A non-nil error means the service account JSON is malformed — the caller
-// should log one loud line and fall back rather than silently disabling pushes.
+// NewFCMSender builds a sender calling FCM HTTP v1 directly. An empty project id or service account
+// yields a nil Sender (worker stays disabled, admin drain returns 503 push_unconfigured). A non-nil
+// error means the service account JSON is malformed — the caller should log one loud line rather
+// than silently disabling pushes.
 func NewFCMSender(projectID string, serviceAccountJSON []byte) (Sender, error) {
 	if projectID == "" || len(bytes.TrimSpace(serviceAccountJSON)) == 0 {
 		return nil, nil
@@ -50,17 +50,18 @@ func NewFCMSender(projectID string, serviceAccountJSON []byte) (Sender, error) {
 	if err != nil {
 		return nil, fmt.Errorf("fcm: parse service account: %w", err)
 	}
+	tokenCtx := context.WithValue(context.Background(), oauth2.HTTPClient, &http.Client{Timeout: 10 * time.Second})
 	return &FCMSender{
 		projectID:  projectID,
 		endpoint:   fmt.Sprintf(fcmEndpointTemplate, projectID),
 		httpClient: &http.Client{Timeout: 10 * time.Second},
-		tokenSrc:   conf.TokenSource(context.Background()),
+		tokenSrc:   conf.TokenSource(tokenCtx),
 	}, nil
 }
 
 // Send delivers one message. A non-2xx response is an error so the outbox row becomes FAILED and
-// retries (same contract as WebhookSender). The `data` blob is flattened to FCM's string-only data
-// map; a malformed blob is dropped silently so the notification copy still delivers.
+// retries. The `data` blob is flattened to FCM's string-only data map; a malformed blob is dropped
+// silently so the notification copy still delivers.
 func (s *FCMSender) Send(ctx context.Context, token, title, body string, data []byte) error {
 	if s == nil || s.projectID == "" {
 		return errors.New("push FCM not configured")

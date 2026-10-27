@@ -133,8 +133,8 @@ rendered on the error card** (plus the first stack frame in a dev build) — tha
   URL opens in the phone browser, check the release network-security config contains the portal host,
   and remember the portal session is a cookie: clearing app data signs the seller out.
 - **New-order beep/push missing** → the seller build needs its own Firebase app
-  (`GOOGLE_SERVICES_SELLER_JSON`), notification permission granted, `PUSH_WEBHOOK_URL` configured on
-  the gateway, and the portal open at least once after login so `SellerPushBridge` can register the
+  (`GOOGLE_SERVICES_SELLER_JSON`), notification permission granted, and the portal open at least
+  once after login so `SellerPushBridge` can register the
   FCM token. `DELETE /notifications/register` runs on portal sign-out.
 - **Seller drawer missing on a phone** → the console shows the drawer below the Tailwind `lg`
   breakpoint; a tablet in landscape uses the desktop sidebar by design.
@@ -144,7 +144,7 @@ rendered on the error card** (plus the first stack frame in a dev build) — tha
 - **No push on the device** → Android 13+ needs the runtime notification permission; iOS needs the
   APNs key + Push Notifications capability (`FIREBASE_AUTH.md` Part 6). On the gateway, the embedded
   FCM sender must have `FCM_SERVICE_ACCOUNT_JSON` **and** `FCM_PROJECT_ID` set (startup log
-  `using FCM HTTP v1 sender`), or the legacy `PUSH_WEBHOOK_URL` bridge must point at a live relay. The
+  `using FCM HTTP v1 sender`). The
   token is registered after sign-in by `services/customerPush.ts`; check the app logs for
   `POST /notifications/register`.
 - **`401` from FCM** → the service-account JSON is malformed or was regenerated. Check the gateway
@@ -158,16 +158,17 @@ rendered on the error card** (plus the first stack frame in a dev build) — tha
 - **Signed-out device still receives pushes** → `logout.ts` calls `DELETE /notifications/register`
   best-effort; if it failed offline, sign in and out again while online.
 - **Admin `POST /notifications/drain` returns `503 push_unconfigured`** → expected when **no sender
-  is configured** (neither `FCM_PROJECT_ID`/`FCM_SERVICE_ACCOUNT_JSON` nor `PUSH_WEBHOOK_URL`). The
+  is configured** (`FCM_PROJECT_ID`/`FCM_SERVICE_ACCOUNT_JSON` not both set). The
   drain refuses to run and leaves `PENDING` rows untouched (the sender gate is a real nil interface,
   so rows are never marked `FAILED` without a provider); the in-app inbox keeps working. Set the FCM
-  credentials (or `PUSH_WEBHOOK_URL`) on the gateway to actually deliver pushes.
-- **Worker not starting** → neither the FCM credentials nor `PUSH_WEBHOOK_URL` is set; the gateway
+  credentials on the gateway to actually deliver pushes.
+- **Worker not starting** → the FCM credentials are not set; the gateway
   logs `notifications worker disabled (no sender configured)`. This is the intended no-push mode.
 - **A delivery failed but the push should retry** → `FAILED` is no longer terminal. The worker
   retries with capped exponential backoff (1s→2s→4s→… ≤1h, up to 6 attempts, `0058`); only rows past
-  the budget stay `FAILED`. The admin outbox exposes the `attempts` count. Re-deploying a fixed relay
-  does not re-drain a terminal row — re-enqueue or reset `attempts`/`next_attempt_at` to retry it.
+  the budget stay `FAILED`. The admin outbox exposes the `attempts` count. Re-deploying a fixed
+  sender does not re-drain a terminal row — re-enqueue or reset `attempts`/`next_attempt_at` to
+  retry it.
 - **Cart/order changes did not persist** → check `GET /cart` / `GET /orders` and the `syncError`
   banner; a failed write rolls the optimistic UI back rather than faking success.
 
