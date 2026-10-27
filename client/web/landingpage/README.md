@@ -16,8 +16,9 @@ Built with **TanStack Start** (file-based routing + SSR), **React 19**,
 - **Type** — `Playfair Display` for headings (`--font-display`),
   `Plus Jakarta Sans` for body (`--font-sans`); loaded via Google Fonts in
   `src/routes/__root.tsx`.
-- **Favicon** — `public/favicon.ico` is the brand `client/faazio-logo.ico`
-  (cache-bust `?v=3`). Headings tighten their tracking (`-0.02em`) and the
+- **Favicon** — `public/favicon.ico` *and* `public/favicon.svg` carry the brand
+  `client/faazio-logo.ico` art (the SVG embeds the 64×64 raster as base64),
+  cache-bust `?v=3`. Headings tighten their tracking (`-0.02em`) and the
   `--shadow-brand` CTA shadow keeps every button on-brand.
 
 ## Development

@@ -425,8 +425,10 @@ to a **single brand accent**:
 - **Display type**: `Playfair Display` for headings (`--font-display`,
   `letter-spacing: -0.02em`); **body**: `Plus Jakarta Sans` (`--font-sans`).
   Both load via Google Fonts in `src/routes/__root.tsx`.
-- **Favicon**: `public/favicon.ico` is the brand `client/faazio-logo.ico`
-  (cache-bust `?v=3`), shared by the landing page and this portal.
+- **Favicon**: `public/favicon.ico` *and* `public/favicon.svg` are built from the
+  brand `client/faazio-logo.ico` art (the `favicon.svg` embeds the same 64×64
+  raster as base64), cache-bust `?v=3`, shared by the landing page and this
+  portal.
 
 ## Verify
 
@@ -464,7 +466,8 @@ Readiness config that ships with the app:
   `app/page.client.tsx` (the raw `F` tile), `SellerShell`, `AdminShell` and the
   login screen all compose `BrandTile` + `FaazioWordmark` (wordmark only in the
   expanded sidebar; the collapsed rail stays icon-only). `public/` carries the
-  generated icon set — `favicon.svg` (kept vector, untouched),
+  generated icon set — `favicon.svg` (the brand `client/faazio-logo.ico` art,
+  base64 raster in an SVG wrapper, cache-bust `?v=4`),
   `favicon.ico` (the brand `client/faazio-logo.ico`, cache-bust `?v=4`),
   `favicon-16x16`/`favicon-32x32`,
   `apple-touch-icon.png` (opaque white), `android-chrome-192x192`
