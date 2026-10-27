@@ -93,7 +93,10 @@ keys/TTLs unchanged.
   `auth.CanActForSellerDistrict` (district claim first, legacy parent `state_code` fallback). The
   seller-owned catalog/directory/pharma management routes are stricter: `auth.AdminScope` requires a
   district claim with **no** state fallback, and rows without a seller resolve to super-admin only
-  (`0057` backfills store/product/menu ownership).
+  (`0057` backfills store/product/menu ownership). Dining menus resolve dish → store → venue-menu
+  owner (W71), so seeded `tr-*`/`dn-*` rows are not orphaned; `UpsertMenu`, promo opt-ins and blood
+  moderation re-check scope at the write (`DELETE /blood-requests/{id}` is state-scoped for district
+  admins). Product projections now include `storeId` for the PDP store link.
 - **Platform-fee change requests:** sellers file `POST /sellers/{id}/platform-fee-request` and read
   `GET /sellers/{id}/platform-fee-requests`; the review queue is
   `GET /seller/fee-change-requests` (district-scoped) with

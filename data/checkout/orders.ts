@@ -108,6 +108,19 @@ export interface OrderRow {
    */
   pickup?: { name: string; address: string; hours?: string; phone?: string };
   pickups?: { name: string; address: string; hours?: string; phone?: string }[];
+  /**
+   * Server-derived money snapshot (paisa) from `checkout.orders`/`tax.tax_invoices`. Present on
+   * durable gateway orders; absent on the local fixture rows. The list must show the amount the
+   * customer actually paid (delivery fee, coupon, tax), not the line-item subtotal.
+   */
+  totalChargedPaisa?: number;
+  deliveryFeePaisa?: number;
+  taxableValuePaisa?: number;
+  productTaxPaisa?: number;
+  platformFeePaisa?: number;
+  platformGstPaisa?: number;
+  tcsPaisa?: number;
+  tdsPaisa?: number;
 }
 
 function fromMyOrder(o: (typeof myOrders)[number], idx: number): OrderRow {

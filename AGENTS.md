@@ -17,7 +17,7 @@ The microservices scaling target — Rust/Tantivy search, CockroachDB, DynamoDB,
 faazio-workspace/
 ├── (root)          Repo root — docs + project docs only (AGENTS.md, ARCHITECTURE.md, LICENSE, PAGE_CATALOG.md, PENDING_WORK.md, README.md).
 ├── client/mobile/  Bare React Native SuperApp (committed android/ + ios/) — ALL active work lives here.
-├── client/web/     Partner Portal — Next.js App Router console (`portal/`, shipping) + the Vite/TanStack reference (`vite-reference/`, read-only diff baseline) + the marketing landing page (`landingpage/`, TanStack Start + Nitro, deployed on Vercel — see its README.md). See docs/architecture/web-portal.md.
+├── client/web/     Partner Portal — Next.js App Router console (`platform/`, shipping) + the Vite/TanStack reference (`vite-reference/`, read-only diff baseline) + the marketing landing page (`landingpage/`, TanStack Start + Nitro, deployed on Vercel — see its README.md). See docs/architecture/web-portal.md.
 ├── server/         Production Go Chi modular monolith `gateway/` + Supabase migrations/seed (active) + documented scaling-stage microservices (see docs/architecture/mvp-backend.md, monolith-breakdown.md).
 ├── data/           SDUI source of truth (enterprise-controlled), consumed via @data/*.
 ├── docs/           Documentation system — architecture deep-dives + runbooks (see "Documentation map").

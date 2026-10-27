@@ -77,10 +77,10 @@ func TestStoreLiveModeration(t *testing.T) {
 	if stores, err := repo.SellerStores(ctx, "", "TCO"); err != nil || len(stores) != 0 {
 		t.Fatalf("cross-district SellerStores must be empty: err=%v n=%d", err, len(stores))
 	}
-	if owner, ok, err := repo.VenueSellerInDistrict(ctx, storeID, "TCH"); err != nil || !ok || owner != sellerID {
-		t.Fatalf("VenueSellerInDistrict: ok=%v err=%v owner=%q", ok, err, owner)
+	if ok, err := repo.SellerInDistrict(ctx, sellerID, "TCH"); err != nil || !ok {
+		t.Fatalf("SellerInDistrict TCH: ok=%v err=%v", ok, err)
 	}
-	if _, ok, err := repo.VenueSellerInDistrict(ctx, storeID, "TCO"); err != nil || ok {
+	if ok, err := repo.SellerInDistrict(ctx, sellerID, "TCO"); err != nil || ok {
 		t.Fatalf("cross-district venue must be denied: ok=%v err=%v", ok, err)
 	}
 }
@@ -92,8 +92,8 @@ func TestMenuLifecycle(t *testing.T) {
 
 	sellerID := "sel-menu-" + manageID("")
 	if _, err := pool.Exec(ctx, `
-		insert into sellers.sellers (seller_id, business_name, owner_name, category, state_code)
-		values ($1,'Menu Test','O','FOOD','KA')`, sellerID); err != nil {
+		insert into sellers.sellers (seller_id, business_name, owner_name, category, state_code, district_code)
+		values ($1,'Menu Test','O','FOOD','TN','TCH')`, sellerID); err != nil {
 		t.Fatalf("seed seller: %v", err)
 	}
 	t.Cleanup(func() { _, _ = pool.Exec(ctx, `delete from sellers.sellers where seller_id=$1`, sellerID) })
@@ -101,6 +101,12 @@ func TestMenuLifecycle(t *testing.T) {
 	venueID := "venue-" + manageID("")
 	dishID := "dish-" + manageID("")
 	t.Cleanup(func() { _, _ = pool.Exec(ctx, `delete from directory.menus where venue_id=$1`, venueID) })
+	if _, err := pool.Exec(ctx, `
+		insert into directory.stores (id, app, name, seller_id, state_code, is_live)
+		values ($1,'FOOD','Menu Venue',$2,'TN', true)`, venueID, sellerID); err != nil {
+		t.Fatalf("seed store: %v", err)
+	}
+	t.Cleanup(func() { _, _ = pool.Exec(ctx, `delete from directory.stores where id=$1`, venueID) })
 
 	m, ok, err := repo.UpsertMenu(ctx, SellerMenu{
 		VenueID: venueID, DishID: dishID, Name: "Paneer Tikka", Price: 240, MRP: i64(300),
@@ -158,5 +164,97 @@ func TestMenuLifecycle(t *testing.T) {
 	}
 	if ok, err := repo.DeleteMenu(ctx, venueID, dishID, sellerID, false); err != nil || !ok {
 		t.Fatalf("owner delete: ok=%v err=%v", ok, err)
+	}
+}
+
+func TestMenuDiningVenueOwnership(t *testing.T) {
+	pool := testenv.Pool(t)
+	repo := New(pool)
+	ctx := context.Background()
+
+	sellerID := "sel-dining-" + manageID("")
+	otherID := "sel-dining-other-" + manageID("")
+	if _, err := pool.Exec(ctx, `
+		insert into sellers.sellers (seller_id, business_name, owner_name, category, state_code, district_code)
+		values ($1,'Dining Test','O','FOOD','TN','TCH'), ($2,'Other Dining','O','FOOD','TN','TCO')`,
+		sellerID, otherID); err != nil {
+		t.Fatalf("seed sellers: %v", err)
+	}
+	t.Cleanup(func() {
+		_, _ = pool.Exec(ctx, `delete from sellers.sellers where seller_id = any($1)`, []string{sellerID, otherID})
+	})
+
+	venueID := "tr-test-" + manageID("")
+	dishID := "dish-dining-" + manageID("")
+	if _, err := pool.Exec(ctx, `
+		insert into directory.dining_venues (id, name, app)
+		values ($1,'Dining Test Venue','FOOD')`, venueID); err != nil {
+		t.Fatalf("seed dining venue: %v", err)
+	}
+	t.Cleanup(func() {
+		_, _ = pool.Exec(ctx, `delete from directory.menus where venue_id=$1`, venueID)
+		_, _ = pool.Exec(ctx, `delete from directory.dining_venues where id=$1`, venueID)
+	})
+	// A seeded dining-venue dish carries its seller in directory.menus (no store row exists).
+	if _, err := pool.Exec(ctx, `
+		insert into directory.menus (venue_id, dish_id, name, price_paisa, seller_id, status)
+		values ($1,$2,'Seeded Dish',10000,$3,'ACTIVE')`, venueID, dishID, sellerID); err != nil {
+		t.Fatalf("seed dining menu: %v", err)
+	}
+
+	owner, ok, err := repo.MenuOrVenueSeller(ctx, venueID, dishID)
+	if err != nil || !ok || owner != sellerID {
+		t.Fatalf("MenuOrVenueSeller: ok=%v err=%v owner=%q", ok, err, owner)
+	}
+	if ok, err := repo.SellerInDistrict(ctx, sellerID, "TCH"); err != nil || !ok {
+		t.Fatalf("district owner: ok=%v err=%v", ok, err)
+	}
+	if ok, err := repo.SellerInDistrict(ctx, sellerID, "TCO"); err != nil || ok {
+		t.Fatalf("cross-district owner must be denied: ok=%v err=%v", ok, err)
+	}
+
+	// The seeded owner can edit the dining-venue dish; another seller cannot.
+	if m, ok, err := repo.UpsertMenu(ctx, SellerMenu{VenueID: venueID, DishID: dishID, Name: "Updated", Price: 120}, sellerID, false); err != nil || !ok || m.Price != 120 {
+		t.Fatalf("owner dining update: ok=%v err=%v m=%+v", ok, err, m)
+	}
+	if _, ok, err := repo.UpsertMenu(ctx, SellerMenu{VenueID: venueID, DishID: dishID, Name: "Hijack", Price: 1}, otherID, false); err != nil || ok {
+		t.Fatalf("cross-seller dining update must be denied: ok=%v err=%v", ok, err)
+	}
+}
+
+func TestMenuInsertRequiresVenueOwnership(t *testing.T) {
+	pool := testenv.Pool(t)
+	repo := New(pool)
+	ctx := context.Background()
+
+	ownerID := "sel-venue-" + manageID("")
+	otherID := "sel-venue-other-" + manageID("")
+	if _, err := pool.Exec(ctx, `
+		insert into sellers.sellers (seller_id, business_name, owner_name, category, state_code)
+		values ($1,'Venue Owner','O','FOOD','TN'), ($2,'Venue Other','O','FOOD','TN')`,
+		ownerID, otherID); err != nil {
+		t.Fatalf("seed sellers: %v", err)
+	}
+	t.Cleanup(func() {
+		_, _ = pool.Exec(ctx, `delete from sellers.sellers where seller_id = any($1)`, []string{ownerID, otherID})
+	})
+
+	venueID := "venue-own-" + manageID("")
+	if _, err := pool.Exec(ctx, `
+		insert into directory.stores (id, app, name, seller_id, state_code, is_live)
+		values ($1,'FOOD','Owned Venue',$2,'TN', true)`, venueID, ownerID); err != nil {
+		t.Fatalf("seed store: %v", err)
+	}
+	t.Cleanup(func() {
+		_, _ = pool.Exec(ctx, `delete from directory.menus where venue_id=$1`, venueID)
+		_, _ = pool.Exec(ctx, `delete from directory.stores where id=$1`, venueID)
+	})
+
+	dishID := "dish-own-" + manageID("")
+	if _, ok, err := repo.UpsertMenu(ctx, SellerMenu{VenueID: venueID, DishID: dishID, Name: "Rogue", Price: 10}, otherID, false); err != nil || ok {
+		t.Fatalf("cross-venue insert must be denied: ok=%v err=%v", ok, err)
+	}
+	if _, ok, err := repo.UpsertMenu(ctx, SellerMenu{VenueID: venueID, DishID: dishID, Name: "Mine", Price: 10}, ownerID, false); err != nil || !ok {
+		t.Fatalf("owner insert: ok=%v err=%v", ok, err)
 	}
 }

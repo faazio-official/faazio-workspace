@@ -2,6 +2,7 @@ package promo
 
 import (
 	"context"
+	"errors"
 	"testing"
 	"time"
 
@@ -15,12 +16,16 @@ func TestPromoLifecycle(t *testing.T) {
 
 	// A temporary seller owns the opt-in (FK).
 	sellerID := "sel-promo-" + shortID()
+	otherSellerID := "sel-promo-other-" + shortID()
 	if _, err := pool.Exec(ctx, `
 		insert into sellers.sellers (seller_id, business_name, owner_name, category, state_code)
-		values ($1,'Promo Test','O','MART','KA')`, sellerID); err != nil {
-		t.Fatalf("seed seller: %v", err)
+		values ($1,'Promo Test','O','MART','KA'), ($2,'Promo Other','O','MART','KA')`,
+		sellerID, otherSellerID); err != nil {
+		t.Fatalf("seed sellers: %v", err)
 	}
-	t.Cleanup(func() { _, _ = pool.Exec(ctx, `delete from sellers.sellers where seller_id=$1`, sellerID) })
+	t.Cleanup(func() {
+		_, _ = pool.Exec(ctx, `delete from sellers.sellers where seller_id = any($1)`, []string{sellerID, otherSellerID})
+	})
 
 	// Sector cap upsert + list.
 	if _, err := repo.SetSectorCap(ctx, SectorCap{Sector: "MART", StateCode: "KA", MaxDiscountPercent: 40}); err != nil {
@@ -66,6 +71,10 @@ func TestPromoLifecycle(t *testing.T) {
 	// Re-optin resets to PENDING.
 	if again, err := repo.UpsertOptin(ctx, Optin{CampaignID: c.CampaignID, SellerID: sellerID, ProductID: "md-1", DiscountPercent: 20}); err != nil || again.Status != "PENDING" {
 		t.Fatalf("re-upsert must reset PENDING: err=%v status=%q", err, again.Status)
+	}
+	// A second seller can never rewrite the first seller's row (product-keyed conflict).
+	if _, err := repo.UpsertOptin(ctx, Optin{CampaignID: c.CampaignID, SellerID: otherSellerID, ProductID: "md-1", DiscountPercent: 90}); !errors.Is(err, ErrOptinNotOwned) {
+		t.Fatalf("cross-seller opt-in must be rejected, got %v", err)
 	}
 
 	// Coupon create + toggle (money rupees -> paisa round-trip).

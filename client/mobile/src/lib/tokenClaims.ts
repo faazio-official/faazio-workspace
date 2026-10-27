@@ -92,8 +92,11 @@ export function decodeIdToken(token: string | null | undefined): TokenClaims {
     const state = asString(p.state_code) ?? asString(meta.state_code);
     const district = asString(p.district_code) ?? asString(meta.district_code);
     const seller = asString(p.seller_id) ?? asString(meta.seller_id);
+    // The server canonicalises the retired STATE_ADMIN wiring value to DISTRICT_ADMIN; mirror it so
+    // a legacy token still unlocks the admin console instead of silently hiding it.
+    const canonical = role?.toUpperCase() === 'STATE_ADMIN' ? 'DISTRICT_ADMIN' : role?.toUpperCase();
     return {
-      role: role?.toUpperCase(),
+      role: canonical,
       stateCode: state?.toUpperCase(),
       districtCode: district?.toUpperCase(),
       sellerId: seller,

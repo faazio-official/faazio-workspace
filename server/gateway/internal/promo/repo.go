@@ -261,6 +261,11 @@ func (r *Repo) Optins(ctx context.Context, sellerID, campaignID, stateCode strin
 	return out, rows.Err()
 }
 
+// ErrOptinNotOwned is returned when an opt-in already belongs to another seller. The upsert never
+// rewrites another seller's row (the discount applies to the product, so a cross-seller overwrite
+// would cut the owner's revenue).
+var ErrOptinNotOwned = errors.New("promo: opt-in belongs to another seller")
+
 // UpsertOptin creates/replaces a seller's opt-in for a product (resets to PENDING).
 func (r *Repo) UpsertOptin(ctx context.Context, o Optin) (Optin, error) {
 	if r.pool == nil {
@@ -272,13 +277,48 @@ func (r *Repo) UpsertOptin(ctx context.Context, o Optin) (Optin, error) {
 		values ($1,$2,$3,$4,$5)
 		on conflict (campaign_id, product_id) do update
 		  set discount = excluded.discount, status = 'PENDING'
+		 where promo.festival_optins.seller_id = excluded.seller_id
 		returning optin_id, campaign_id, seller_id, product_id, discount, status::text`,
 		o.OptinID, o.CampaignID, o.SellerID, o.ProductID, o.DiscountPercent).
 		Scan(&o.OptinID, &o.CampaignID, &o.SellerID, &o.ProductID, &o.DiscountPercent, &o.Status)
 	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return Optin{}, ErrOptinNotOwned
+		}
 		return Optin{}, err
 	}
 	return o, nil
+}
+
+// ProductOwnedBy reports whether the catalog product belongs to the seller. Opt-ins are scoped to
+// the seller's own products so a seller cannot attach a discount to a competitor's SKU.
+func (r *Repo) ProductOwnedBy(ctx context.Context, productID, sellerID string) (bool, error) {
+	if r.pool == nil {
+		return false, fmt.Errorf("promo: database not configured")
+	}
+	var ok bool
+	err := r.pool.QueryRow(ctx, `
+		select exists (
+			select 1 from catalog.products
+			 where id = $1 and seller_id = $2)`, productID, sellerID).Scan(&ok)
+	return ok, err
+}
+
+// SellerScope returns a seller's district and parent state (for admin scope checks).
+func (r *Repo) SellerScope(ctx context.Context, sellerID string) (districtCode, stateCode string, ok bool, err error) {
+	if r.pool == nil {
+		return "", "", false, fmt.Errorf("promo: database not configured")
+	}
+	err = r.pool.QueryRow(ctx, `
+		select coalesce(district_code,''), coalesce(state_code,'')
+		  from sellers.sellers where seller_id = $1`, sellerID).Scan(&districtCode, &stateCode)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return "", "", false, nil
+		}
+		return "", "", false, err
+	}
+	return districtCode, stateCode, true, nil
 }
 
 // OptinByID returns one opt-in (used to scope-check an admin decision before mutating it).

@@ -1,5 +1,5 @@
-import React, { useState, useRef, useEffect, useMemo } from 'react';
-import { StyleSheet, View, ScrollView, TouchableOpacity, Animated, Image } from 'react-native';
+import React, { useState, useRef, useEffect, useMemo, useCallback } from 'react';
+import { StyleSheet, View, ScrollView, TouchableOpacity, Animated, Image, Alert } from 'react-native';
 import {
   ArrowLeft,
   ShoppingBag,
@@ -24,12 +24,9 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import EnterpriseIcon from '@/components/EnterpriseIcon';
 import Checkbox from '@/components/shared/Checkbox';
 import type { CartItem, CartCategory } from '@/state/cartStore';
-import { defaultAddresses } from '@data/cart/addresses';
-import { coupons as fixtureCoupons } from '@data/cart/coupons';
 import { getPickupPointsForItems, getStoreIdsForItems } from '@data/cart/pickup-resolver';
-import { userProfile } from '@data/account/profile';
-import type { Coupon, FulfillmentMode, PickupPoint } from '@data/types';
-import { useNavigation } from '@react-navigation/native';
+import type { Coupon, FulfillmentMode, PickupPoint, SavedAddress } from '@data/types';
+import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import AppText from '@/components/AppText';
 import SlideUpSheet from '@/components/shared/SlideUpSheet';
@@ -43,11 +40,12 @@ import { getStoreById } from '@data/directory/stores';
 import type { RootStackParamList } from '@/navigation/types';
 import { useRewardsStore } from '@/state/rewardsStore';
 import { useOrdersStore } from '@/state/ordersStore';
-import { gateway } from '@/services/api/GatewayClient';
+import { gateway, GatewayHttpError } from '@/services/api/GatewayClient';
 import { consumeLastClickedSlotId } from '@/services/adsAttribution';
 import { coinsEarnedFor, isCardActive } from '@/features/rewards/rewardsLogic';
 import { COIN_REDEEM_RATE, DISCOUNT_CARD_PERCENT } from '@data/rewards/rewards';
 import { useLiveAddress } from '@/hooks/useLiveAddress';
+import { useAuthStore } from '@/state/authStore';
 
 const CATEGORY_META: Record<CartCategory, { label: string }> = {
   MART: { label: 'Mart' },
@@ -152,16 +150,16 @@ export default function CartView({
   const [expandedCategories, setExpandedCategories] = useState<CartCategory[]>(CATEGORY_ORDER);
   const [showCouponSheet, setShowCouponSheet] = useState(false);
   const [deselectedIds, setDeselectedIds] = useState<Set<string>>(new Set());
-  // Coupon list is server-owned when the gateway is reachable (GET /coupons); otherwise the
-  // `@data/cart/coupons` fixture keeps the sheet working offline.
-  const [couponList, setCouponList] = useState<Coupon[]>(fixtureCoupons);
+  // Coupon list is server-owned (GET /coupons). An authoritative empty list is a real empty — the
+  // sheet never falls back to the retired fixtures when the gateway answers.
+  const [couponList, setCouponList] = useState<Coupon[]>([]);
 
   useEffect(() => {
     let cancelled = false;
     void gateway
       .getCoupons()
       .then((list) => {
-        if (cancelled || list.length === 0) return;
+        if (cancelled) return;
         setCouponList(
           list.map((c) => ({
             code: c.code,
@@ -172,11 +170,34 @@ export default function CartView({
           })),
         );
       })
-      .catch(() => {});
+      .catch(() => {
+        if (!cancelled) setCouponList([]);
+      });
     return () => {
       cancelled = true;
     };
   }, []);
+
+  // Checkout must reference one of the caller's durable addresses. Fixture ids belong to the demo
+  // user, so submitting them makes the server reject the order with `invalid_address`.
+  const [savedAddresses, setSavedAddresses] = useState<SavedAddress[]>([]);
+  // Refetch on focus so an address added/edited on the SavedAddresses screen is picked up.
+  useFocusEffect(
+    useCallback(() => {
+      let cancelled = false;
+      void gateway
+        .getAddresses()
+        .then((rows) => {
+          if (!cancelled) setSavedAddresses(rows);
+        })
+        .catch(() => {
+          if (!cancelled) setSavedAddresses([]);
+        });
+      return () => {
+        cancelled = true;
+      };
+    }, []),
+  );
 
   const discountCard = useRewardsStore((s) => s.discountCard);
   const streakCardActive = discountCard ? isCardActive(discountCard, new Date()) : false;
@@ -185,13 +206,22 @@ export default function CartView({
   const liveAddress = useLiveAddress(fulfillment === 'DELIVERY');
   // Only a resolved fix is persisted for auto-dispatch; idle/loading/denied keeps the 0,0 sentinel.
   const hasLiveFix = liveAddress.status === 'ready' && liveAddress.lat !== 0 && liveAddress.lng !== 0;
-  const fallbackAddress = defaultAddresses.find((a) => a.isDefault === true) ?? defaultAddresses[0];
+  const savedAddress = savedAddresses.find((a) => a.isDefault === true) ?? savedAddresses[0];
   const deliveryAddress = liveAddress?.address
     ? { label: 'Current location', address: liveAddress.address }
-    : { label: fallbackAddress?.label ?? 'Home', address: fallbackAddress?.address ?? '' };
+    : savedAddress
+      ? {
+          label:
+            savedAddress.tag === 'HOME' ? 'Home' : savedAddress.tag === 'WORK' ? 'Work' : 'Saved address',
+          address: savedAddress.address,
+        }
+      : { label: 'Delivery address', address: '' };
+  const accountPhone = useAuthStore((s) => s.user?.phone);
 
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const [paymentProcessing, setPaymentProcessing] = useState(false);
+  // One key per checkout attempt: a retry after a lost response must not create a second order.
+  const idempotencyKeyRef = useRef<string | null>(null);
   /** Server-authoritative delivery-fee quote (road distance); falls back to a Haversine estimate. */
   const [deliveryFeeQuote, setDeliveryFeeQuote] = useState<DeliveryFeeBreakdown | null>(null);
 
@@ -422,114 +452,130 @@ export default function CartView({
     const { method = 'UPI', upiLabel, cardLast4, coinsRedeemed = 0 } = payload ?? {};
     setPaymentProcessing(true);
     void (async () => {
-      const redeemRupees = Math.floor(coinsRedeemed / COIN_REDEEM_RATE);
-      const paidAmount = Math.max(0, finalTotal - redeemRupees);
-      const coinsEarned = coinsEarnedFor(paidAmount);
-      const isPickup = fulfillment === 'PICKUP';
-      const mode = fulfillment ?? 'DELIVERY';
-      const pickups = isPickup ? pickupPointList : [];
-      const primaryPickup = pickups[0];
-      // Vendor identity snapshot — resolved once at placement (see data/directory/vendors.ts).
-      const storeIds = getStoreIdsForItems(selectedItems);
-      const addressId = defaultAddresses.find((a) => a.isDefault === true)?.id ?? defaultAddresses[0]?.id;
+      try {
+        const redeemRupees = Math.floor(coinsRedeemed / COIN_REDEEM_RATE);
+        const paidAmount = Math.max(0, finalTotal - redeemRupees);
+        const coinsEarned = coinsEarnedFor(paidAmount);
+        const isPickup = fulfillment === 'PICKUP';
+        const mode = fulfillment ?? 'DELIVERY';
+        const pickups = isPickup ? pickupPointList : [];
+        const primaryPickup = pickups[0];
+        // Vendor identity snapshot — resolved once at placement (see data/directory/vendors.ts).
+        const storeIds = getStoreIdsForItems(selectedItems);
+        // Only a durable server address id is safe to submit; pickup carries no address.
+        const addressId = isPickup ? undefined : savedAddress?.id || undefined;
+        const idempotencyKey =
+          idempotencyKeyRef.current ??
+          (idempotencyKeyRef.current = `cart-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`);
 
-      // Server is the money/stock authority: it prices, decrements stock and holds the idempotency
-      // lock, returning the durable order id. In mock mode this resolves to a local order of the
-      // same shape (the withFallback seam keeps checkout working offline). The coupon is re-validated
-      // and settled server-side; the applied discount in the UI is display-only.
-      const attributedSlotId = consumeLastClickedSlotId();
-      const [placed] = await Promise.all([
-        gateway.placeOrder({
-          items: selectedItems.map((i) => ({ productId: i.id, qty: i.quantity })),
-          ...(addressId ? { addressId } : {}),
+        // Server is the money/stock authority: it prices, decrements stock and holds the idempotency
+        // lock, returning the durable order id. In mock mode this resolves to a local order of the
+        // same shape (the withFallback seam keeps checkout working offline). The coupon is re-validated
+        // and settled server-side; the applied discount in the UI is display-only.
+        const attributedSlotId = consumeLastClickedSlotId();
+        const [placed] = await Promise.all([
+          gateway.placeOrder({
+            items: selectedItems.map((i) => ({ productId: i.id, qty: i.quantity })),
+            ...(addressId ? { addressId } : {}),
+            fulfillment: mode,
+            paymentMethod: method,
+            idempotencyKey,
+            ...(appliedCouponCode ? { couponCode: appliedCouponCode } : {}),
+            ...(attributedSlotId ? { attribution: { slotId: attributedSlotId } } : {}),
+            ...(!isPickup && hasLiveFix
+              ? { deliveryLocation: { latitude: liveAddress.lat, longitude: liveAddress.lng } }
+              : {}),
+            ...(primaryPickup
+              ? { pickup: { name: primaryPickup.name, address: primaryPickup.address } }
+              : {}),
+            ...(pickups.length
+              ? {
+                  pickups: pickups.map((p) => ({
+                    name: p.name,
+                    address: p.address,
+                    hours: p.hours,
+                    phone: p.phone,
+                  })),
+                }
+              : {}),
+            ...(coinsRedeemed > 0 ? { coinsRedeemed } : {}),
+          }),
+          new Promise((resolve) => setTimeout(() => resolve(undefined), 1200)),
+        ]);
+        const orderId = placed?.id ?? `FZ-${Math.floor(100000 + Math.random() * 900000)}`;
+
+        useRewardsStore.getState().recordOrder(paidAmount, coinsRedeemed, orderId);
+        useOrdersStore.getState().recordOrder({
+          orderId,
+          kind: 'items',
           fulfillment: mode,
-          paymentMethod: method,
-          idempotencyKey: `cart-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
-          ...(appliedCouponCode ? { couponCode: appliedCouponCode } : {}),
-          ...(attributedSlotId ? { attribution: { slotId: attributedSlotId } } : {}),
-          ...(!isPickup && hasLiveFix
-            ? { deliveryLocation: { latitude: liveAddress.lat, longitude: liveAddress.lng } }
-            : {}),
-          ...(primaryPickup
-            ? { pickup: { name: primaryPickup.name, address: primaryPickup.address } }
-            : {}),
-          ...(pickups.length
-            ? {
-                pickups: pickups.map((p) => ({
-                  name: p.name,
-                  address: p.address,
-                  hours: p.hours,
-                  phone: p.phone,
-                })),
-              }
-            : {}),
-          ...(coinsRedeemed > 0 ? { coinsRedeemed } : {}),
-        }),
-        new Promise((resolve) => setTimeout(() => resolve(undefined), 1200)),
-      ]);
-      const orderId = placed?.id ?? `FZ-${Math.floor(100000 + Math.random() * 900000)}`;
+          storeIds,
+          vendorName: isPickup
+            ? primaryPickup?.name ?? 'Pickup point'
+            : deliveryAddress.label ?? 'Delivery',
+          pickup: primaryPickup
+            ? { name: primaryPickup.name, address: primaryPickup.address }
+            : undefined,
+          pickups: pickups.map((p) => ({
+            name: p.name,
+            address: p.address,
+            hours: p.hours,
+            phone: p.phone,
+          })),
+          location: hasLiveFix ? { lat: liveAddress.lat, lng: liveAddress.lng } : undefined,
+          items: [...selectedItems].map((i) => ({
+            id: i.id,
+            name: i.name,
+            price: i.price,
+            quantity: i.quantity,
+            emoji: i.emoji,
+          })),
+          total: paidAmount,
+        });
 
-      useRewardsStore.getState().recordOrder(paidAmount, coinsRedeemed, orderId);
-      useOrdersStore.getState().recordOrder({
-        orderId,
-        kind: 'items',
-        fulfillment: mode,
-        storeIds,
-        vendorName: isPickup
-          ? primaryPickup?.name ?? 'Pickup point'
-          : deliveryAddress.label ?? 'Delivery',
-        pickup: primaryPickup
-          ? { name: primaryPickup.name, address: primaryPickup.address }
-          : undefined,
-        pickups: pickups.map((p) => ({
-          name: p.name,
-          address: p.address,
-          hours: p.hours,
-          phone: p.phone,
-        })),
-        location: hasLiveFix ? { lat: liveAddress.lat, lng: liveAddress.lng } : undefined,
-        items: [...selectedItems].map((i) => ({
-          id: i.id,
-          name: i.name,
-          price: i.price,
-          quantity: i.quantity,
-          emoji: i.emoji,
-        })),
-        total: paidAmount,
-      });
+        // The order already took the stock; drop the purchased lines from the durable server cart.
+        selectedItems.forEach((i) => void gateway.removeCartItem(i.id).catch(() => {}));
+        // Behavior analytics (ID-only, allowlisted) — the outbox is best-effort.
+        selectedItems.forEach((i) => void gateway.trackEvent(i.id, 'order').catch(() => {}));
 
-      // The order already took the stock; drop the purchased lines from the durable server cart.
-      selectedItems.forEach((i) => void gateway.removeCartItem(i.id).catch(() => {}));
-      // Behavior analytics (ID-only, allowlisted) — the outbox is best-effort.
-      selectedItems.forEach((i) => void gateway.trackEvent(i.id, 'order').catch(() => {}));
-
-      const details = {
-        orderId,
-        items: [...selectedItems],
-        subtotal,
-        discount: discountAmount,
-        tax,
-        total: paidAmount,
-        deliveryAddress: isPickup
-          ? primaryPickup?.address ?? 'Pickup point'
-          : deliveryAddress.address,
-        payment:
-          method === 'UPI'
-            ? `UPI (${upiLabel ?? 'UPI'})`
-            : `Card (*${cardLast4 ?? '4242'})`,
-        eta: isPickup ? '15 Mins' : '12-15 Mins',
-        fulfillment: mode,
-        pickup: primaryPickup,
-        pickups,
-        location: hasLiveFix ? { lat: liveAddress.lat, lng: liveAddress.lng } : undefined,
-        coinsEarned,
-        coinsRedeemed,
-      };
-      setPlacedOrderDetails(details);
-      setCartItems(cartItems.filter((i) => deselectedIds.has(i.id)));
-      setDeselectedIds(new Set());
-      setStep('RECEIPT');
-      setPaymentProcessing(false);
+        const details = {
+          orderId,
+          items: [...selectedItems],
+          subtotal,
+          discount: discountAmount,
+          tax,
+          total: paidAmount,
+          deliveryAddress: isPickup
+            ? primaryPickup?.address ?? 'Pickup point'
+            : deliveryAddress.address,
+          payment:
+            method === 'UPI'
+              ? `UPI (${upiLabel ?? 'UPI'})`
+              : `Card (*${cardLast4 ?? '4242'})`,
+          eta: isPickup ? '15 Mins' : '12-15 Mins',
+          fulfillment: mode,
+          pickup: primaryPickup,
+          pickups,
+          location: hasLiveFix ? { lat: liveAddress.lat, lng: liveAddress.lng } : undefined,
+          coinsEarned,
+          coinsRedeemed,
+        };
+        setPlacedOrderDetails(details);
+        setCartItems(cartItems.filter((i) => deselectedIds.has(i.id)));
+        setDeselectedIds(new Set());
+        setStep('RECEIPT');
+        idempotencyKeyRef.current = null;
+      } catch (err) {
+        const message =
+          err instanceof GatewayHttpError
+            ? err.status === 409
+              ? 'This order is already being processed. Please check My Orders before retrying.'
+              : 'We could not place your order. Please review your address and items and try again.'
+            : 'You appear to be offline. Check your connection and try again.';
+        Alert.alert('Order not placed', message);
+      } finally {
+        setPaymentProcessing(false);
+      }
     })();
   };
 
@@ -1057,7 +1103,7 @@ export default function CartView({
                   {placedOrderDetails?.fulfillment === 'PICKUP' ? (
                     <View style={styles.pickupContactRow}>
                       <AppText style={styles.pickupContactLabel}>Contact phone: </AppText>
-                      <AppText style={styles.pickupContactValue}>{userProfile.phone}</AppText>
+                      <AppText style={styles.pickupContactValue}>{accountPhone || savedAddress?.phone || ''}</AppText>
                     </View>
                   ) : null}
                 </>

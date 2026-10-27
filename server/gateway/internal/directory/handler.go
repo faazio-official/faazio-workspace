@@ -470,7 +470,7 @@ func (h *Handler) upsertMenu(w http.ResponseWriter, r *http.Request) {
 		httpx.Fail(w, http.StatusBadRequest, "bad_request", "mrp must be present, non-negative and not below the selling price")
 		return
 	}
-	sellerID, all, ok, err := h.menuOwner(r, req.VenueID)
+	sellerID, all, ok, err := h.menuOwner(r, req.VenueID, req.DishID)
 	if err != nil {
 		httpx.Fail(w, http.StatusInternalServerError, "directory_unavailable", "directory unavailable")
 		return
@@ -520,7 +520,7 @@ func (h *Handler) setMenuStatus(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	venueID := chi.URLParam(r, "venueId")
-	sellerID, all, ok, err := h.menuOwner(r, venueID)
+	sellerID, all, ok, err := h.menuOwner(r, venueID, chi.URLParam(r, "dishId"))
 	if err != nil {
 		httpx.Fail(w, http.StatusInternalServerError, "directory_unavailable", "directory unavailable")
 		return
@@ -545,7 +545,7 @@ func (h *Handler) setMenuStatus(w http.ResponseWriter, r *http.Request) {
 
 func (h *Handler) deleteMenu(w http.ResponseWriter, r *http.Request) {
 	venueID := chi.URLParam(r, "venueId")
-	sellerID, all, ok, err := h.menuOwner(r, venueID)
+	sellerID, all, ok, err := h.menuOwner(r, venueID, chi.URLParam(r, "dishId"))
 	if err != nil {
 		httpx.Fail(w, http.StatusInternalServerError, "directory_unavailable", "directory unavailable")
 		return
@@ -583,22 +583,36 @@ func managementScope(r *http.Request) (sellerID, district string, ok bool) {
 	return "", district, true
 }
 
-// menuOwner resolves the seller that owns a venue. A district admin may only manage menus for a
-// store whose seller belongs to their district; dining venues without a seller are SUPER_ADMIN-only.
-// all=true is the super-admin bypass.
-func (h *Handler) menuOwner(r *http.Request, venueID string) (sellerID string, all, ok bool, err error) {
-	sellerID, district, ok := managementScope(r)
-	if !ok {
+// menuOwner resolves the seller that owns a menu row or, for a new dish, its venue. A seller may
+// only write their own dishes; a district admin may only manage dishes/venues owned by a seller in
+// their district. Venues with no seller (and dining venues with no store/menu owner) are
+// SUPER_ADMIN-only. all=true is the super-admin bypass.
+func (h *Handler) menuOwner(r *http.Request, venueID, dishID string) (sellerID string, all, ok bool, err error) {
+	scopedSeller, district, scoped := managementScope(r)
+	if !scoped {
 		return "", false, false, nil
 	}
-	if district == "" {
-		return sellerID, auth.Role(r.Context()) == auth.RoleSuperAdmin, true, nil
-	}
-	sellerID, found, err := h.repo.VenueSellerInDistrict(r.Context(), venueID, district)
+	owner, found, err := h.repo.MenuOrVenueSeller(r.Context(), venueID, dishID)
 	if err != nil {
 		return "", false, false, err
 	}
-	return sellerID, false, found, nil
+	if auth.Role(r.Context()) == auth.RoleSuperAdmin {
+		if found {
+			return owner, true, true, nil
+		}
+		return "", true, true, nil
+	}
+	if !found {
+		return "", false, false, nil
+	}
+	if district != "" {
+		inDistrict, err := h.repo.SellerInDistrict(r.Context(), owner, district)
+		if err != nil {
+			return "", false, false, err
+		}
+		return owner, false, inDistrict, nil
+	}
+	return owner, false, owner == scopedSeller, nil
 }
 
 // allowedMenuStatus mirrors catalog's product-status gate: sellers self-serve DRAFT/PENDING/DELISTED,
