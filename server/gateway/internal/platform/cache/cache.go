@@ -10,9 +10,11 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strconv"
 	"time"
 
 	"github.com/redis/go-redis/v9"
+	"golang.org/x/sync/singleflight"
 )
 
 // Key builders — the frozen taxonomy (contract-freeze §4). AuthUser hashes the Supabase
@@ -57,6 +59,38 @@ func NearbyStores(lat, lng string, radius int, app string) string {
 }
 func NearbyProducts(lat, lng string, radius int, app string) string {
 	return fmt.Sprintf("faazio:v1:geo:nearby:products:%s:%s:%d:%s", lat, lng, radius, app)
+}
+
+// NearbyStoresTilePrefixes returns DelPrefix patterns that purge every geo:nearby:stores key on
+// the rounded 3-decimal tile around (lat,lng) plus its 8 immediate neighbours (~330 m block).
+// The store live toggle deletes these so shoppers co-located with the store see the
+// online/offline flip immediately; readers farther away stay bounded by TTLNearby.
+func NearbyStoresTilePrefixes(lat, lng float64) []string {
+	return nearbyTilePrefixes("stores", lat, lng)
+}
+
+// NearbyProductsTilePrefixes is NearbyStoresTilePrefixes for the geo:nearby:products keys.
+func NearbyProductsTilePrefixes(lat, lng float64) []string {
+	return nearbyTilePrefixes("products", lat, lng)
+}
+
+func nearbyTilePrefixes(kind string, lat, lng float64) []string {
+	seen := make(map[string]struct{}, 9)
+	out := make([]string, 0, 9)
+	for dLat := -1; dLat <= 1; dLat++ {
+		for dLng := -1; dLng <= 1; dLng++ {
+			p := fmt.Sprintf("faazio:v1:geo:nearby:%s:%s:%s:",
+				kind,
+				strconv.FormatFloat(lat+float64(dLat)*0.001, 'f', 3, 64),
+				strconv.FormatFloat(lng+float64(dLng)*0.001, 'f', 3, 64))
+			if _, ok := seen[p]; ok {
+				continue
+			}
+			seen[p] = struct{}{}
+			out = append(out, p)
+		}
+	}
+	return out
 }
 
 func SduiHome(locale string) string { return fmt.Sprintf("faazio:v1:gateway:sdui:%s:/home", locale) }
@@ -177,14 +211,20 @@ func PortalDeny(jti string) string { return "faazio:v1:auth:deny:" + jti }
 const (
 	TTLSearch = 600 * time.Second
 	// TTLNearby bounds public geo reads; short enough to pick up store/pin changes quickly.
-	TTLNearby  = 120 * time.Second
-	TTLProduct = 24 * time.Hour
-	TTLStore   = 24 * time.Hour
-	TTLStock   = 45 * time.Second
-	TTLReviews = 24 * time.Hour
-	TTLOrders  = 60 * time.Second
-	TTLSdui    = 300 * time.Second
-	TTLAuth    = 3600 * time.Second
+	TTLNearby = 120 * time.Second
+
+	// TTLNearbyStale is the stale-while-revalidate window for geo reads (see Cache.ReadStale).
+	// An expired-but-present value keeps being served while one background refresh per key runs
+	// (single-flight), so a TTL lapse never blanks a nearby list; if the refresh fails the stale
+	// value keeps serving until this window lapses, then a true miss refetches synchronously.
+	TTLNearbyStale = 300 * time.Second
+	TTLProduct     = 24 * time.Hour
+	TTLStore       = 24 * time.Hour
+	TTLStock       = 45 * time.Second
+	TTLReviews     = 24 * time.Hour
+	TTLOrders      = 60 * time.Second
+	TTLSdui        = 300 * time.Second
+	TTLAuth        = 3600 * time.Second
 
 	// TTLHomeCampaign bounds the anon editorial-campaign projection (Home "Deals of the day"
 	// drill-in). Slower-moving merchandising than the SDUI feed, so 600s; purged on layout publish.
@@ -264,6 +304,7 @@ const (
 // Cache is a JSON read-through cache. A nil *Client (disabled) is safe to call.
 type Cache struct {
 	rdb *redis.Client
+	g   singleflight.Group
 }
 
 // Connect opens Valkey. Returns a no-op cache when url is empty.
@@ -327,6 +368,104 @@ func (c *Cache) SetJSON(ctx context.Context, key string, v any, ttl time.Duratio
 		return
 	}
 	_ = c.rdb.Set(ctx, key, b, ttl).Err()
+}
+
+// ReadStale is the stale-while-revalidate read-through for geo reads that must never return an
+// empty list just because a TTL lapsed. Behaviour:
+//
+//   - fresh cache hit (within freshTTL): decode and return;
+//   - expired-but-present value (within freshTTL+staleIfError): serve the stale value immediately
+//     and refresh the key once in the background, coalesced with single-flight so concurrent
+//     requests share one DB refetch;
+//   - full miss: load synchronously behind single-flight and store a fresh entry;
+//   - load error on a full miss: returned as-is (callers keep their existing error path); a load
+//     error during a background refresh is a no-op — the stale value keeps being served until the
+//     stale window lapses (stale-if-error), then a true miss refetches.
+//
+// Freshness is tracked with a sibling {key}:fresh marker expiring at freshTTL while the value is
+// stored for freshTTL+staleIfError, so "how fresh is it" is answerable in one GET.
+func (c *Cache) ReadStale(ctx context.Context, key string, dst any, freshTTL, staleIfError time.Duration, load func(context.Context) (any, error)) error {
+	if !c.Enabled() {
+		v, err := load(ctx)
+		if err != nil {
+			return err
+		}
+		return assignJSON(dst, v)
+	}
+	b, err := c.rdb.Get(ctx, key).Bytes()
+	switch {
+	case errors.Is(err, redis.Nil):
+		return c.loadSync(ctx, key, dst, freshTTL, staleIfError, load)
+	case err != nil:
+		// Valkey error: fail safe to a synchronous load (no store attempted).
+		v, lerr := load(ctx)
+		if lerr != nil {
+			return lerr
+		}
+		return assignJSON(dst, v)
+	}
+	if n, _ := c.rdb.Exists(ctx, key+":fresh").Result(); n > 0 {
+		return json.Unmarshal(b, dst)
+	}
+	if json.Unmarshal(b, dst) != nil {
+		// Corrupt payload: treat as a miss and rebuild synchronously.
+		return c.loadSync(ctx, key, dst, freshTTL, staleIfError, load)
+	}
+	// Stale but present: serve it now, refresh exactly once behind single-flight.
+	go c.g.Do(key, func() (any, error) {
+		ctx := context.WithoutCancel(ctx)
+		v, lerr := load(ctx)
+		if lerr != nil {
+			return nil, lerr
+		}
+		c.setFresh(ctx, key, v, freshTTL, staleIfError)
+		return nil, nil
+	})
+	return nil
+}
+
+// loadSync performs a true miss behind single-flight so one DB push serves every concurrent
+// waiter, then stores a fresh entry.
+func (c *Cache) loadSync(ctx context.Context, key string, dst any, freshTTL, staleIfError time.Duration, load func(context.Context) (any, error)) error {
+	v, err, _ := c.g.Do(key, func() (any, error) {
+		ctx := context.WithoutCancel(ctx)
+		val, lerr := load(ctx)
+		if lerr != nil {
+			return nil, lerr
+		}
+		c.setFresh(ctx, key, val, freshTTL, staleIfError)
+		return val, nil
+	})
+	if err != nil {
+		return err
+	}
+	return assignJSON(dst, v)
+}
+
+// setFresh stores v under key for freshTTL+staleIfError and arms a {key}:fresh marker for
+// freshTTL. ReadStale reads the marker to distinguish the fresh window from the stale window.
+func (c *Cache) setFresh(ctx context.Context, key string, v any, freshTTL, staleIfError time.Duration) {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return
+	}
+	ttl := freshTTL
+	if staleIfError > 0 {
+		ttl = freshTTL + staleIfError
+	}
+	_ = c.rdb.Set(ctx, key, b, ttl).Err()
+	if freshTTL > 0 {
+		_ = c.rdb.Set(ctx, key+":fresh", "1", freshTTL).Err()
+	}
+}
+
+// assignJSON mirrors a cache round-trip so a cache hit and a fresh load decode dst identically.
+func assignJSON(dst, v any) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+	return json.Unmarshal(b, dst)
 }
 
 // Del invalidates keys (write-around).

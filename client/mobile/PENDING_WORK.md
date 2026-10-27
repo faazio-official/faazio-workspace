@@ -347,8 +347,13 @@ dependencies exist. Do not build the backend/seller flows until told to.
   Relevance results sort nearest-first and show live distance; seller onboarding has a native map pin
   picker and submits `latitude`/`longitude`.
 - **Gateway:** `GET /stores/nearby` and `GET /products/nearby` (bounding box + Haversine, public
-  projections), cached 120 s under `faazio:v1:geo:nearby:*`; `directory.stores`/`directory.dining_venues`
-  gained coordinates and partial geo indexes; `sellers.sellers` gained the shop pin.
+  projections), cached under `faazio:v1:geo:nearby:*` with a 120 s fresh window + 300 s
+  stale-while-revalidate (`cache.ReadStale` — stale value + single-flight background refresh on TTL
+  lapse, never a blank list); store live toggle (`PUT /seller/stores/{id}/live`) purges the store's
+  3×3 geo-tile prefixes + `directory:store:{id}` + `catalog:store-products:{id}` so the flip lands
+  immediately for co-located shoppers (readers beyond the tile block bounded by the 120 s fresh TTL);
+  `directory.stores`/`directory.dining_venues` gained coordinates and partial geo indexes;
+  `sellers.sellers` gained the shop pin.
 - **Ops remaining:** provision restricted `GOOGLE_MAPS_API_KEY_ANDROID` + `GOOGLE_PLACES_API_KEY`
   (and run `npm run configure`); add the iOS Pod (`cd ios && pod install`) during the first iOS build.
 

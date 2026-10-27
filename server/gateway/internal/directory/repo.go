@@ -391,6 +391,10 @@ type SellerStore struct {
 	IsLive    bool    `json:"isLive"`
 	Rating    float64 `json:"rating"`
 	UpdatedAt string  `json:"updatedAt"`
+	// Public geo pin, returned by SetStoreLive so the handler can flush the store's geo:nearby
+	// tiles. Internal only (never serialized).
+	Latitude  float64 `json:"-"`
+	Longitude float64 `json:"-"`
 }
 
 // MenuOrVenueSeller resolves the seller that owns a menu row or, when the dish is new, the venue.
@@ -490,9 +494,10 @@ func (r *Repo) SetStoreLive(ctx context.Context, id, sellerID, district string, 
 		          select 1 from sellers.sellers se
 		           where se.seller_id = s.seller_id and se.district_code = $4)) or
 		       ($2 = '' and $4 = ''))
-		 returning s.id, s.name, s.app::text, coalesce(s.seller_id,''), coalesce(s.state_code,''), s.is_live, s.rating, s.updated_at`,
+		 returning s.id, s.name, s.app::text, coalesce(s.seller_id,''), coalesce(s.state_code,''), s.is_live, s.rating, s.updated_at,
+		           coalesce(s.latitude,0), coalesce(s.longitude,0)`,
 		id, sellerID, live, district).
-		Scan(&s.ID, &s.Name, &s.App, &s.SellerID, &s.StateCode, &s.IsLive, &s.Rating, &updatedAt)
+		Scan(&s.ID, &s.Name, &s.App, &s.SellerID, &s.StateCode, &s.IsLive, &s.Rating, &updatedAt, &s.Latitude, &s.Longitude)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return SellerStore{}, false, nil

@@ -1161,7 +1161,9 @@ Mart local vendors, Pharma outlets, Food top-rated/restaurants, category drill-i
 results (Relevance order, via `features/search/storeDistance.ts`) are nearest-first and re-sort as
 the poll lands without refetching. Explicit search sorts (price/popularity) stay authoritative. Server-backed nearby reads
 (`GatewayClient.getStoresNearby`/`getProductsNearby`) return `distanceKm` computed by the gateway
-(`GET /stores/nearby`, `GET /products/nearby`), cached in Valkey for 120 s.
+(`GET /stores/nearby`, `GET /products/nearby`), cached in Valkey with a 120 s fresh window + 300 s
+stale-while-revalidate (a lapsed TTL serves the previous list and refreshes in the background, so the
+grid never blanks; a store's online/offline toggle purges the geo tiles around its pin immediately).
 
 Seller onboarding adds a foreground `SellerLocationPicker` (native `react-native-maps` modal) and
 submits `latitude`/`longitude` with the application; the shop pin is stored on `sellers.sellers` and

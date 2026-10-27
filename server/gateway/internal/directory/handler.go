@@ -1,6 +1,7 @@
 package directory
 
 import (
+	"context"
 	"encoding/json"
 	"math"
 	"net/http"
@@ -89,7 +90,8 @@ func (h *Handler) list(w http.ResponseWriter, r *http.Request) {
 
 // nearby serves live stores ordered by straight-line distance from the caller's foreground fix.
 // Public business data only (PII-free projection). Coordinates are validated, rounded to 3
-// decimals for the cache key, and never logged.
+// decimals for the cache key, and never logged. The cache is stale-while-revalidate: a lapsed
+// TTL serves the previous list and refreshes in the background instead of blanking the screen.
 func (h *Handler) nearby(w http.ResponseWriter, r *http.Request) {
 	lat, lng, ok := parseLatLng(r)
 	if !ok {
@@ -107,20 +109,22 @@ func (h *Handler) nearby(w http.ResponseWriter, r *http.Request) {
 	latKey := strconv.FormatFloat(lat, 'f', 3, 64)
 	lngKey := strconv.FormatFloat(lng, 'f', 3, 64)
 	key := cache.NearbyStores(latKey, lngKey, int(math.Ceil(radius)), app)
-	var cached []contracts.Store
-	if h.cache.GetJSON(r.Context(), key, &cached) {
-		httpx.JSON(w, http.StatusOK, cached)
-		return
-	}
-	stores, err := h.repo.Nearby(r.Context(), app, lat, lng, radius, limit)
+	var stores []contracts.Store
+	err := h.cache.ReadStale(r.Context(), key, &stores, cache.TTLNearby, cache.TTLNearbyStale,
+		func(ctx context.Context) (any, error) {
+			s, err := h.repo.Nearby(ctx, app, lat, lng, radius, limit)
+			if err != nil {
+				return nil, err
+			}
+			if s == nil {
+				s = []contracts.Store{}
+			}
+			return s, nil
+		})
 	if err != nil {
 		httpx.Fail(w, http.StatusInternalServerError, "directory_unavailable", "directory unavailable")
 		return
 	}
-	if stores == nil {
-		stores = []contracts.Store{}
-	}
-	h.cache.SetJSON(r.Context(), key, stores, cache.TTLNearby)
 	httpx.JSON(w, http.StatusOK, stores)
 }
 
@@ -321,6 +325,17 @@ func (h *Handler) setStoreLive(w http.ResponseWriter, r *http.Request) {
 	}
 	// The store projection is cached per id (24 h) for anonymous callers.
 	h.cache.Del(r.Context(), cache.Store(id))
+	// Flush the geo:nearby tiles around the store so shoppers co-located with it see the
+	// online/offline flip immediately; readers farther away stay bounded by TTLNearby + SWR.
+	if store.Latitude != 0 || store.Longitude != 0 {
+		prefixes := append(cache.NearbyStoresTilePrefixes(store.Latitude, store.Longitude),
+			cache.NearbyProductsTilePrefixes(store.Latitude, store.Longitude)...)
+		for _, p := range prefixes {
+			h.cache.DelPrefix(r.Context(), p)
+		}
+	}
+	// An offline store's anon product page must stop serving its catalog right away.
+	h.cache.Del(r.Context(), cache.StoreProducts(id))
 	h.log(r, "directory.stores", "STORE_LIVE_"+boolToken(*body.Live), id)
 	httpx.JSON(w, http.StatusOK, store)
 }

@@ -1,6 +1,7 @@
 package catalog
 
 import (
+	"context"
 	"encoding/json"
 	"math"
 	"net/http"
@@ -48,6 +49,8 @@ func (h *Handler) Register(r chi.Router) {
 }
 
 // nearby serves ACTIVE products sold by live stores, nearest to the caller's foreground fix.
+// The cache is stale-while-revalidate (same as GET /stores/nearby): a lapsed TTL serves the
+// previous list and refreshes in the background instead of blanking the grid.
 func (h *Handler) nearby(w http.ResponseWriter, r *http.Request) {
 	lat, lng, ok := parseNearbyLatLng(r)
 	if !ok {
@@ -65,20 +68,22 @@ func (h *Handler) nearby(w http.ResponseWriter, r *http.Request) {
 	latKey := strconv.FormatFloat(lat, 'f', 3, 64)
 	lngKey := strconv.FormatFloat(lng, 'f', 3, 64)
 	key := cache.NearbyProducts(latKey, lngKey, int(math.Ceil(radius)), app)
-	var cached []contracts.Product
-	if h.cache.GetJSON(r.Context(), key, &cached) {
-		httpx.JSON(w, http.StatusOK, cached)
-		return
-	}
-	products, err := h.repo.Nearby(r.Context(), app, lat, lng, radius, limit)
+	var products []contracts.Product
+	err := h.cache.ReadStale(r.Context(), key, &products, cache.TTLNearby, cache.TTLNearbyStale,
+		func(ctx context.Context) (any, error) {
+			p, err := h.repo.Nearby(ctx, app, lat, lng, radius, limit)
+			if err != nil {
+				return nil, err
+			}
+			if p == nil {
+				p = []contracts.Product{}
+			}
+			return p, nil
+		})
 	if err != nil {
 		httpx.Fail(w, http.StatusInternalServerError, "catalog_unavailable", "catalog unavailable")
 		return
 	}
-	if products == nil {
-		products = []contracts.Product{}
-	}
-	h.cache.SetJSON(r.Context(), key, products, cache.TTLNearby)
 	httpx.JSON(w, http.StatusOK, products)
 }
 
