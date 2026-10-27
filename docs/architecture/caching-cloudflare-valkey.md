@@ -1,8 +1,11 @@
 # Faazio Caching — Cloudflare Edge + Aiven Valkey
 
-> **Status:** Production code live / edge config planned. The Valkey read-through layer ships in
+> **Status:** Production code live. The Valkey read-through layer ships in
 > `server/gateway/internal/platform/cache` (search/product/store/reviews/orders/sdui keys + checkout
-> idempotency lock). The Cloudflare edge rules + `pg_cron`/Pub-Sub invalidation remain ops setup.
+> idempotency lock). The CDN purge worker (`LISTEN media_updated` → Cloudflare `purge_cache`) and the
+> media GC sweeper are live in the gateway and enable when CF creds / R2 creds are set (see §6). The
+> edge Cache Rules to apply in the Cloudflare zone are prescribed in §2a; the `pg_cron` scheduling
+> alternative remains ops setup.
 > Referenced by every table in `docs/architecture/db-schema.md` for cache-key → TTL → invalidation
 > without re-explaining mechanics here.
 > **Decision:** this plan supersedes the older **Upstash Redis** mentions in `server/README.md` /
@@ -36,13 +39,33 @@
   change; versioning is a new key. Without a custom domain, public objects use the gateway's stable
   `/assets/{key}` path, which 302-redirects to a 300 s presigned GET (`Cache-Control: public, max-age=300`
   on the redirect); cached JSON still holds a non-expiring URL. Cloudflare does compression/Polish at the
-  edge (zero origin CPU); purge is by exact R2 key on `confirm`/status change/delete (`caching doc §5`,
+  edge (zero origin CPU); purge is by exact R2 key on `confirm`/status change/delete (§5 media row,
   migration `0025`).
 - **Edge Cache TTL rules:** match on path/content-type; keep the negotiated format (JPEG `fm=jpg`,
   gzip/zstd) so Cloudflare does the compression — **no origin CPU cost**.
 - **Never cache** responses with `Set-Cookie` or auth-scoped content (carts, orders, payments, PII).
 - **Purge strategy:** by URL/prefix (e.g. `/sdui/home`, `/search?*`) + **event-triggered purge** from
   services (Pub/Sub → purge the affected keys).
+
+### 2a. Active cache rules (production, apply in the Cloudflare zone)
+
+The gateway is the only origin and is fronted by `api.faazio.com`. In the zone dashboard → Cache
+Rules, apply these edge/browser TTLs (they mirror the Valkey matrix in §5 so public reads resolve at
+the edge). Free-tier allows ~5 rules, so prefixes are combined:
+
+| Path pattern | Edge TTL | Browser TTL | Why |
+|---|---|---|---|
+| `/sdui/*` | 300 s | 300 s | Home/mart/food/pharma layouts; serve stale on origin error |
+| `/search*` | 600 s | 60 s | Public, anonymous results |
+| `/product/*` | 86400 s | 86400 s | Immutable by slug; purge on edit |
+| `/stores`, `/store/*` | 86400 s | 86400 s | Directory data, versioned by slug |
+| `/media/resolve*` | 300 s | 300 s | Image registry; purge on asset status change |
+| `/coupons*`, `/promo/*`, `/ads/live*` | 300 s | 60 s | Public promo content |
+
+**Never edge-cache (Bypass)** `/cart*`, `/orders*`, `/profile*`, `/checkout*`, `/favourites*`,
+`/events` — auth-scoped. Also bypass any request bearing an `Authorization` header or returning
+`Set-Cookie`, plus lat/long-dependent reads (`/stores/nearby*`, `/checkout/delivery-fee*`) that must
+reach the origin.
 
 ---
 
@@ -270,8 +293,10 @@ pipelines; a placement with no LIVE fill collapses the surface to `null` (never 
 ## 9. Honest limitations
 
 - **Valkey read-through is built** (`internal/platform/cache`, JSON values, TTL matrix §5);
-  a nil client is a safe no-op. **Cloudflare edge rules + event-triggered purge are not wired** —
-  they are ops configuration, not code.
+  a nil client is a safe no-op. The **event-triggered CDN purge worker is wired** (§6) and enables
+  when `CF_ZONE_ID` + `CF_API_TOKEN` are set; the **edge Cache Rules are dashboard config** — the
+  exact rules to apply are in §2a. Without CF creds, stale content still expires via the Cache Rule
+  TTLs (best-effort, never broken).
 - **TTLs are starting points** — tune from real traffic (hit ratio, origin load).
 - **Production unchanged:** Aiven Valkey + Cloudflare are kept exactly as specified; only the **origin**
   swapped from `@mock` fixtures to Supabase/Mongo (`docs/architecture/mvp-backend.md`) — **no key or TTL

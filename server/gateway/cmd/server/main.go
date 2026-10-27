@@ -113,8 +113,11 @@ func main() {
 	if mediaPurge.Enabled() {
 		go mediaPurge.Run(workerCtx)
 	}
-	if mediaGC.Enabled() || mediaPurge.Enabled() {
-		log.Print("media workers started (gc + cdn purge)")
+	if mediaGC.Enabled() {
+		log.Print("media workers started (gc)")
+	}
+	if mediaPurge.Enabled() {
+		log.Print("media workers started (cdn purge)")
 	}
 
 	// Audit-log retention worker: nightly 00:00 IST purge of rows older than 7 days (0037).
