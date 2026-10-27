@@ -24,6 +24,11 @@
   --color-brand: var(--brand);
   --color-brand-soft: var(--brand-soft);
   --color-primary-hover: var(--primary-hover);
+  --color-cta: var(--cta);
+  --color-cta-hover: var(--cta-hover);
+  --color-cta-foreground: var(--cta-foreground);
+  --color-donor: var(--donor);
+  --color-donor-soft: var(--donor-soft);
   --radius-sm: calc(var(--radius) - 4px);
   --radius-md: calc(var(--radius) - 2px);
   --radius-lg: var(--radius);
@@ -69,9 +74,14 @@
 :root {
   --brand: oklch(0.521 0.189 258.9);
   --brand-soft: oklch(0.95 0.045 258.9);
-  --shadow-brand: 0 5px 0 oklch(0.4 0.165 258.9), 0 12px 26px oklch(0.4 0.17 258.9 / 0.25);
   --shadow-card: 0 16px 30px oklch(0.25 0.06 258.9 / 0.1);
   --primary-hover: oklch(0.45 0.175 258.9);
+  --cta: oklch(0.705 0.187 47.6);
+  --cta-hover: oklch(0.646 0.194 41.1);
+  --cta-foreground: oklch(0.984 0.003 247.858);
+  --donor: oklch(0.577 0.218 25);
+  --donor-soft: oklch(0.955 0.035 17.38);
+  --coin: oklch(0.883 0.165 92.2);
   --radius: 0.5rem;
   --background: oklch(1 0 0);
   --foreground: oklch(0.19 0.018 255);
@@ -622,7 +632,7 @@ h3 {
   display: grid;
   place-items: center;
   background: var(--primary-foreground);
-  color: var(--brand);
+  color: var(--coin);
   border-radius: 8px;
   flex-shrink: 0;
 }
@@ -644,7 +654,7 @@ h3 {
   font-weight: 600;
 }
 .donor-band {
-  background: var(--brand-soft);
+  background: var(--donor-soft);
   padding-block: 70px;
 }
 .donor-inner {
@@ -653,7 +663,7 @@ h3 {
   gap: 42px;
 }
 .donor-illustration {
-  color: var(--brand);
+  color: var(--donor);
   width: 110px;
   height: 110px;
   flex-shrink: 0;
@@ -673,7 +683,7 @@ h3 {
   font-size: 18px;
   line-height: 1.6;
   font-weight: 600;
-  color: var(--brand);
+  color: var(--donor);
 }
 .faq-grid {
   display: grid;
@@ -865,11 +875,8 @@ h3 {
   padding: 0 20px 0 9px;
   gap: 12px;
   border-radius: 10px;
-  box-shadow: var(--shadow-brand);
   font-size: 14px;
-  transition:
-    background 0.2s,
-    box-shadow 0.2s;
+  transition: background 0.2s;
 }
 .download-button-icon {
   width: 36px;
@@ -877,8 +884,8 @@ h3 {
   display: grid;
   place-items: center;
   border-radius: 8px;
-  background: var(--primary-foreground);
-  color: var(--brand);
+  background: var(--cta-foreground);
+  color: var(--cta);
 }
 .download-button .download-button-icon svg {
   width: 19px;
