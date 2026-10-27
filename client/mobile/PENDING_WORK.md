@@ -362,11 +362,13 @@ dependencies exist. Do not build the backend/seller flows until told to.
 - **Multi-store auto-dispatch** — the checkout order-ready trigger dispatches only when the order
   has exactly one vendor store (the single-store case). Multi-vendor orders still need one job per store,
   so they stay on the admin `POST /dispatch/assign` path until the fan-out is designed.
-- **Partner Firebase entries (ops)** — register the partner Android app + iOS bundle id
-  (`com.faazio.deliverypartner`) in the Firebase project, add `android/app/src/delivery/google-services.json`
-  and `ios/Faazio/GoogleService-Info-Delivery.plist`, and store the Android JSON as the
-  `GOOGLE_SERVICES_DELIVERY_JSON` CI secret (seller uses `com.faazio.sellerpartner` →
-  `GOOGLE_SERVICES_SELLER_JSON`). Without them a `delivery`/`seller` build fails fast. CI now
+- **Partner Firebase entries (ops)** — the partner Android registrations are now committed (public
+  client config): `android/app/src/delivery/google-services.json` (`com.faazio.deliverypartner`) and
+  `android/app/src/seller/google-services.json` (`com.faazio.sellerpartner`). Remaining: register the
+  iOS bundle ids and add `ios/Faazio/GoogleService-Info-Delivery.plist` +
+  `GoogleService-Info-Seller.plist`; CI still overwrites the committed Android JSONs from the
+  `GOOGLE_SERVICES_DELIVERY_JSON` / `GOOGLE_SERVICES_SELLER_JSON` secrets. Without the secrets a
+  `delivery`/`seller` build fails fast. CI now
   passes `GOOGLE_MAPS_API_KEY_ANDROID`/`GOOGLE_PLACES_API_KEY` to `configure.js` after typecheck so
   debug artifacts keep the live gateway config and the partner map renders.
 - **Legal/trust** — independent-contractor + police-assistance clause still needs adding to the

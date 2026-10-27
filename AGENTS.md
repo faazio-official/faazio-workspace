@@ -132,13 +132,14 @@ a native prebuild/generator and never commit generated `src/lib/config.ts`.
   `ENTRY_FILE` from the environment/.env and generates `src/lib/config.ts` +
   `src/lib/activeTransport.ts` (gitignored). `prestart`/`preandroid` and CI run it; release builds
   also write the Android certificate-pin network config. Phone OTP is Firebase
-  (`@react-native-firebase/auth`) with committed public customer config
-  (`android/app/google-services.json`, `ios/Faazio/GoogleService-Info.plist`); the delivery config
-  is supplied by CI (`GOOGLE_SERVICES_DELIVERY_JSON` → `android/app/src/delivery/google-services.json`,
-  `GoogleService-Info-Delivery.plist` for iOS), as is the seller config
-  (`GOOGLE_SERVICES_SELLER_JSON` → `android/app/src/seller/google-services.json`,
-  `GoogleService-Info-Seller.plist` for iOS). See `docs/RUNBOOKS/FIREBASE_AUTH.md` and
-  `docs/RUNBOOKS/RELEASE.md`.
+  (`@react-native-firebase/auth`). Public client configs are committed for all three Android apps
+  (`android/app/google-services.json` customer, `android/app/src/delivery/google-services.json`
+  partner, `android/app/src/seller/google-services.json` seller) plus the customer iOS plist
+  (`ios/Faazio/GoogleService-Info.plist`); the delivery/seller iOS plists
+  (`GoogleService-Info-Delivery.plist` / `GoogleService-Info-Seller.plist`) are supplied by CI, which
+  also overwrites the committed partner Android JSONs from the
+  `GOOGLE_SERVICES_DELIVERY_JSON` / `GOOGLE_SERVICES_SELLER_JSON` secrets. See
+  `docs/RUNBOOKS/FIREBASE_AUTH.md` and `docs/RUNBOOKS/RELEASE.md`.
 - **Debug vs release:** debug shells load JS from Metro (`adb reverse tcp:8081`) with cleartext
   allowed only to the loopback/emulator host; release shells embed the bundle and deny cleartext.
   JS-only changes need Metro + Fast Refresh; native changes require a CI rebuild.

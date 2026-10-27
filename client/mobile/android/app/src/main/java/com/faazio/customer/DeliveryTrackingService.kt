@@ -62,7 +62,7 @@ class DeliveryTrackingService : Service() {
     val notification: Notification =
       NotificationCompat.Builder(this, CHANNEL_ID)
         .setSmallIcon(R.drawable.ic_delivery_tracking)
-        .setContentTitle("Faazio Delivery is online")
+        .setContentTitle("Faazio Delivery Partner is online")
         .setContentText("Sharing your location so nearby orders can reach you.")
         .setContentIntent(openApp)
         .setOngoing(true)
