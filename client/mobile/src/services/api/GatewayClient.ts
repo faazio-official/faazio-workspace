@@ -37,6 +37,7 @@ import {
 import { refreshIdToken } from '../firebaseAuth';
 import { useAuthStore } from '@/state/authStore';
 import { DEV_USER, GATEWAY_URL, STRICT, USE_GATEWAY } from '../../lib/config';
+import { APP_VARIANT } from '../../lib/appVariant';
 import { sortByDistance, withLiveDistance } from '@/utils/distance';
 import type { DeliveryFeeBreakdown } from '@/features/cart/utils';
 import type { Coordinates } from '../location';
@@ -117,6 +118,22 @@ export class GatewayOfflineError extends Error {
  *  - `none`       — no token/override configured.
  */
 export type GatewayAuthStatus = 'dev-bypass' | 'enterprise' | 'none';
+
+/**
+ * One `admins.app_config` row served to the app from `GET /app-config`. Only public rows are ever
+ * returned to the client (superadmin-only / secret rows are masked and unlisted). `value` is the
+ * raw JSONB value — a string, number, boolean, or nested object/array depending on the key.
+ */
+export interface AppConfigRow {
+  key: string;
+  category: 'brand' | 'maps' | 'region' | 'feature' | 'maintenance' | 'limits';
+  value: any;
+  isPublic: boolean;
+  appVariant: 'customer' | 'delivery' | 'seller' | 'all';
+  valueSecret?: boolean;
+  description?: string;
+  updatedAt?: string;
+}
 
 /** Build a `?a=b&c=d` string from defined, non-empty filter values. */
 function queryString(params?: Record<string, string | undefined>): string {
@@ -729,6 +746,19 @@ export class GatewayClient {
     } catch {
       // Offline sign-out still clears the local Keychain session.
     }
+  }
+
+  /**
+   * Central remote config: the public, SUPER_ADMIN-editable app settings from `GET /app-config`,
+   * filtered to this build's app variant. Values override the bake-time `scripts/configure.js`
+   * defaults at runtime — no app-store release needed (see `remoteConfigStore`). Server-only:
+   * throws `GatewayOfflineError` when the remote is disabled.
+   */
+  async getAppConfig(): Promise<AppConfigRow[]> {
+    return this.withStrict(
+      () => this.http<AppConfigRow[]>(`/app-config${queryString({ variant: APP_VARIANT })}`),
+      () => delay([]),
+    );
   }
 
   /** Seller order board. `status` is the portal lifecycle (NEW, PACKED, SHIPPED, ...). */

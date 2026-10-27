@@ -102,6 +102,7 @@ sign-out is the only seller session authority (HttpOnly cookies).
 | `admin/{district,super}/fee-change-requests` | seller-initiated platform-fee change review — district admins see their district, super admins every district; approve applies the fee, reject requires a reason (server-enforced one pending request per seller) |
 | `admin/super/district-admins` | district-admin directory — all 42 TN/PY districts; coverage summary (X / 42) + progress bar + grouped uncovered chips. **Unified creation:** one form creates the roster + (optionally, `issueLogin` default ON) the portal login + temporary password atomically; duplicate email blocked on/off-server, duplicate phone soft-warned |
 | `admin/super/credentials` | issue/disable seller and district-admin portal logins (role + seller/district scope) |
+| `admin/super/app-config` | central remote config — the SUPER_ADMIN-edited app settings every Faazio app reads on boot (`admins.app_config`, `0059`), `GET/PUT/DELETE /admin/app-config(/{key})`. PRIVATE/SECRET rows are masked, writes are audit-logged, and a change is picked up on the next app boot (`getAppConfig` on mobile) with no app-store release |
 | `admin/super/security` | superadmin password rotation (same component as `/security`) |
 | `admin/super/delivery-boys` | all-India delivery-partner console — same review board, super-only activation and suspend/blacklist |
 | `admin/super/delivery/manual-allocation` | all-district allocation board — filter by district, rider picker by road distance, mandatory payout mode |

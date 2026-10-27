@@ -24,7 +24,6 @@ import locationAccessPageImg from '@/assets/location_access_page.webp';
 import AppTextInput from '@/components/AppTextInput';
 import AppText from '@/components/AppText';
 import {
-  placesAutocompleteEnabled,
   resolvePlaceLocation,
   usePlaceAutocomplete,
   type PlaceSuggestion,
@@ -203,7 +202,7 @@ export function LocationScreen({ navigation }: Props) {
   const [isSearchFocused, setIsSearchFocused] = useState(false);
   const [permissionError, setPermissionError] = useState('');
   const liveOrigin = useLiveOrigin();
-  const { suggestions, loading: suggestionsLoading } = usePlaceAutocomplete(
+  const { suggestions, loading: suggestionsLoading, enabled: placesEnabled } = usePlaceAutocomplete(
     searchQuery,
     liveOrigin,
   );
@@ -496,7 +495,7 @@ export function LocationScreen({ navigation }: Props) {
               <AppText style={styles.resultsHeader}>
                 {suggestionsLoading ? 'SEARCHING…' : 'SEARCH RESULTS'}
               </AppText>
-              {placesAutocompleteEnabled && suggestions.length > 0 ? (
+              {placesEnabled && suggestions.length > 0 ? (
                 suggestions.map((item) => (
                   <Pressable
                     key={item.placeId}

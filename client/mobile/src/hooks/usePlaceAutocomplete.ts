@@ -1,13 +1,13 @@
 import { useEffect, useRef, useState } from 'react';
-import {
-  GOOGLE_PLACES_API_KEY,
-} from '@/lib/config';
+import { useRemoteConfigStore, selectPlacesApiKey, resolvePlacesApiKey } from '@/state/remoteConfigStore';
 import type { Coordinates } from '@/services/location';
 
 /**
- * Google Places API (New) autocomplete. The key is a restricted client key
- * (Places API only, app/package restricted) injected by `scripts/configure.js`.
- * With no key, callers fall back to their static suggestions — nothing breaks.
+ * Google Places API (New) autocomplete. The key is a restricted client key (Places API only,
+ * app/package restricted). It is normally injected at build time by `scripts/configure.js`, but a
+ * SUPER_ADMIN-set `maps.places_api_key` in the central remote config overrides it at runtime — a
+ * new key applies on the next app boot, no app-store release. With no key, callers fall back to
+ * their static suggestions — nothing breaks.
  */
 export interface PlaceSuggestion {
   placeId: string;
@@ -24,8 +24,6 @@ const AUTOCOMPLETE_URL = 'https://places.googleapis.com/v1/places:autocomplete';
 const PLACE_URL = 'https://places.googleapis.com/v1/places/';
 const DEBOUNCE_MS = 300;
 
-export const placesAutocompleteEnabled = Boolean(GOOGLE_PLACES_API_KEY);
-
 interface RawSuggestion {
   placePrediction?: {
     placeId?: string;
@@ -40,14 +38,16 @@ interface RawSuggestion {
 export function usePlaceAutocomplete(
   query: string,
   origin: Coordinates | null,
-): { suggestions: PlaceSuggestion[]; loading: boolean } {
+): { suggestions: PlaceSuggestion[]; loading: boolean; enabled: boolean } {
   const [suggestions, setSuggestions] = useState<PlaceSuggestion[]>([]);
   const [loading, setLoading] = useState(false);
   const requestId = useRef(0);
+  const placesKey = useRemoteConfigStore(selectPlacesApiKey);
+  const enabled = Boolean(placesKey);
 
   useEffect(() => {
     const trimmed = query.trim();
-    if (!placesAutocompleteEnabled || trimmed.length < 3) {
+    if (!enabled || trimmed.length < 3) {
       setSuggestions([]);
       setLoading(false);
       return;
@@ -72,7 +72,7 @@ export function usePlaceAutocomplete(
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
-            'X-Goog-Api-Key': GOOGLE_PLACES_API_KEY,
+            'X-Goog-Api-Key': placesKey,
           },
           body: JSON.stringify(body),
         });
@@ -97,20 +97,21 @@ export function usePlaceAutocomplete(
     }, DEBOUNCE_MS);
 
     return () => clearTimeout(timer);
-  }, [query, origin]);
+  }, [query, origin, placesKey, enabled]);
 
-  return { suggestions, loading };
+  return { suggestions, loading, enabled };
 }
 
 /** Resolve a selected prediction to coordinates + formatted address. */
 export async function resolvePlaceLocation(
   placeId: string,
 ): Promise<ResolvedPlace | null> {
-  if (!placesAutocompleteEnabled || !placeId) return null;
+  const placesKey = resolvePlacesApiKey();
+  if (!placesKey || !placeId) return null;
   try {
     const response = await fetch(
       `${PLACE_URL}${encodeURIComponent(placeId)}?fields=location,formattedAddress`,
-      { headers: { 'X-Goog-Api-Key': GOOGLE_PLACES_API_KEY } },
+      { headers: { 'X-Goog-Api-Key': placesKey } },
     );
     if (!response.ok) return null;
     const data = (await response.json()) as {

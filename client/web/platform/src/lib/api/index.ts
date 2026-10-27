@@ -16,6 +16,9 @@ import { sellerSeries, stateSeries, globalSeries, productSeries } from "@/data/a
 import type {
   AdStatus,
   AdTargetType,
+  AppConfigCategory,
+  AppConfigRow,
+  AppConfigVariant,
   AuthUser,
   CampaignScope,
   CouponRecord,
@@ -208,6 +211,40 @@ export async function resetPortalCredentialPassword(
     { newPassword, ...(opts.forceChange !== undefined ? { forceChange: opts.forceChange } : {}) },
   );
   return { mustChange: res.mustChange ?? true };
+}
+
+/* --------------------------- remote config (app-config) --------------------------- */
+
+export interface UpdateAppConfigInput {
+  category: AppConfigCategory;
+  /**
+   * The raw JSON value (string / number / boolean / object / array). For a masked secret row the
+   * gateway returns `value: null`; sending `null` on PUT keeps the stored secret value unchanged.
+   */
+  value: unknown;
+  isPublic: boolean;
+  appVariant: AppConfigVariant;
+  valueSecret: boolean;
+  description: string;
+}
+
+/** Superadmin-only: every app_config row. Secret values are masked by the gateway as `null`. */
+export async function listAppConfig(): Promise<AppConfigRow[]> {
+  const res = await remote.get<{ items?: AppConfigRow[] }>("/admin/app-config");
+  return res.items ?? [];
+}
+
+/** Superadmin-only: create or update one config key (audit-logged). */
+export async function updateAppConfig(
+  key: string,
+  input: UpdateAppConfigInput,
+): Promise<AppConfigRow> {
+  return remote.put<AppConfigRow>(`/admin/app-config/${encodeURIComponent(key)}`, input);
+}
+
+/** Superadmin-only: remove one config key (audit-logged); apps fall back to their baked defaults. */
+export async function deleteAppConfig(key: string): Promise<void> {
+  await remote.delete(`/admin/app-config/${encodeURIComponent(key)}`);
 }
 
 /* -------------------------------- products ------------------------------- */
