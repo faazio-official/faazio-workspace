@@ -32,11 +32,11 @@ knot PNG (`client/mobile/src/assets/faazio-logo.png`), filled white on the same
 brand-gradient tile as `BrandTile`, by `scripts/generate-brand-icons.py`
 (dev-only; python3 + Pillow, no npm dep). It writes the multi-size
 `favicon.ico` (16/32/48), the PNG set and the opaque `apple-touch-icon.png`.
-`favicon.svg` is the shipped vector and is left untouched. The shipped
-`public/favicon.ico` is now the brand `client/faazio-logo.ico` (single 32×32
-frame) — re-copy it over the generated one if the script is re-run. Icons are
+The shipped `public/favicon.ico` and `public/favicon.svg` are now the brand
+`client/faazio-logo.ico` art (the SVG embeds that 64×64 raster as base64) —
+re-copy/re-generate both if the script is run again. Icons are
 wired through `app/layout.tsx` `metadata.icons` with a `?v=4` cache-bust on the
-ico and `?v=3` on the rest.
+ico and svg, `?v=3` on the rest.
 
 ## Data + auth
 
