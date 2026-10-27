@@ -182,6 +182,36 @@ func (h *Handler) request(w http.ResponseWriter, r *http.Request) {
 		httpx.Fail(w, http.StatusBadRequest, "bad_request", "invalid ad slot request")
 		return
 	}
+	// A slot advertises the seller's own product. Check ownership plus the admin's district scope
+	// before creating a row, so a seller cannot promote a competitor's SKU and an admin cannot act
+	// outside their district.
+	owned, err := h.repo.ProductOwnedBy(r.Context(), productID, sellerID)
+	if err != nil {
+		httpx.Fail(w, http.StatusInternalServerError, "ads_unavailable", "ads unavailable")
+		return
+	}
+	if !owned {
+		httpx.Fail(w, http.StatusForbidden, "forbidden", "product does not belong to this seller")
+		return
+	}
+	district, sellerState, found, err := h.repo.SellerScope(r.Context(), sellerID)
+	if err != nil {
+		httpx.Fail(w, http.StatusInternalServerError, "ads_unavailable", "ads unavailable")
+		return
+	}
+	if !found {
+		httpx.Fail(w, http.StatusNotFound, "not_found", "seller not found")
+		return
+	}
+	if auth.Role(r.Context()) != auth.RoleSeller && !auth.CanActForSellerDistrict(r.Context(), sellerID, district, sellerState) {
+		httpx.Fail(w, http.StatusForbidden, "forbidden", "seller is outside your scope")
+		return
+	}
+	// The seller's registered state is authoritative; a client-supplied state is only a fallback
+	// for legacy rows that predate the state backfill.
+	if sellerState != "" {
+		stateCode = sellerState
+	}
 	s, err := h.repo.Request(r.Context(), Slot{
 		SellerID: sellerID, ProductID: productID, Placement: placement, StateCode: stateCode,
 	})

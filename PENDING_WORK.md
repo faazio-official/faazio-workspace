@@ -71,6 +71,11 @@ node server/supabase/seed/generate.mjs               # 0001_seed.sql now emits m
   gains an upload surface (e.g. seller-on-mobile, Rx capture).
 - **Razorpay native checkout.** Mock adapter seam (`client/mobile/src/services/payments/checkout.ts`);
   needs the SDK adapter + a real publishable key. No screen change. (See mobile backlog W22.)
+  **Server-side coin redemption is validated** (`contracts.RewardsReader` → `400 insufficient_coins`
+  when the requested coins exceed the ledger balance) on both `POST /orders` and
+  `POST /orders/{id}/payments`; **payment capture/signature verification remains the open item** —
+  the gateway still records the client-asserted method, so no real charge is proven until the SDK +
+  webhook verification land.
 - **Editorial `@data` rails.** Hero banners / brand campaigns / Pharma rails are now server-owned
   through the SDUI doc (W42 heroes; W50 campaigns on `hotBrandDeals.campaigns[]` → anon
   `GET /home/campaigns(/{id})`, and Pharma `pharmaHero`/`pharmaPopular`/`pharmaEssentials` →

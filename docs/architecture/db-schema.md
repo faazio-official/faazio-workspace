@@ -379,6 +379,11 @@ CREATE TABLE checkout.users (
 | `created_at` | TIMESTAMPTZ | 8 | audit | — |
 | `last_login_at` | TIMESTAMPTZ | 8 | ops visibility of real sessions | — |
 
+`ProvisionUserID` (first authenticated OTP call) upserts this row **and** forward-fills the matching
+`accounts.profile` row (`id = account_id = user_id`, real phone/email only) so the app never renders
+the `@data` profile fixture for a signed-in user. `GET /profile` also falls back to this row for
+users provisioned before that write existed.
+
 **Sample row:** `user-1` · Rohit Sharma · rohit.sharma@gmail.com · +91 98765 43210 · addr_1
 (provenance `data/checkout/orders.ts:20-22`).
 
@@ -1136,7 +1141,8 @@ CREATE TABLE payments.payouts (payout_id PK, seller_id FK, cycle, amount_paisa I
 
 CREATE TABLE admins.state_admins (admin_id PK, name, email/phone /*PII*/, state_code CHAR(2),
   active BOOL, created_at/last_active_at);
-  -- 0036: UNIQUE on lower(email) and on digit-only phone — duplicates impossible.
+  -- 0036: UNIQUE on lower(email) only. Phone is a soft warning (shared/SME lines allowed):
+  -- the draft unique phone index is explicitly dropped; a non-unique digits-only lookup remains.
 CREATE TABLE admins.audit_logs (log_id PK, actor_id, actor_role TEXT CHECK seller/state/super,
   action, entity, entity_id, before/after JSONB CHECK ≤8192, created_at);
   -- 0037: rolling 7-day retention — admins.purge_audit_logs() + a gateway worker
@@ -1164,7 +1170,9 @@ Idempotent and re-runnable.
 `admins.state_admins.state_code` (and every other `state_code char(2)` column) has **no FK/CHECK yet** —
 the gateway is authoritative: `internal/admins/states.go` allowlists the 36 ISO 3166-2:IN state/UT codes
 (no aliases — CT/OR/TG/UT/DH, never CG/OD/TS/UK/DN) and `POST /district-admins` also validates the district against `admins.district_master` (`0046`/`0048`); an unknown code is rejected with
-400 `unknown_state`. Planned `ops.states` seed (`0035`) will become the FK target.
+400 `unknown_state`. `0035` is intentionally unused; `0046` introduced `admins.district_master`
+(42 TN/PY districts) and `0048` renamed `state_admins` → `district_admins` (district_code is the
+authoritative scope).
 
 ### 12.10 Store live flag (migration `0016`)
 

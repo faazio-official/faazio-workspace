@@ -309,6 +309,20 @@ func CanActForDistrict(ctx context.Context, districtCode, stateCode string) bool
 	}
 }
 
+// CanActForState reports whether the caller may act on a resource that only carries a parent-state
+// scope (e.g. support tickets). Super admins may act anywhere; a district admin must match the
+// state claim. A row with no state is only actionable by a super admin.
+func CanActForState(ctx context.Context, stateCode string) bool {
+	switch Role(ctx) {
+	case RoleSuperAdmin:
+		return true
+	case RoleStateAdmin:
+		return stateCode != "" && StateCode(ctx) == stateCode
+	default:
+		return false
+	}
+}
+
 // CanActForSellerDistrict is the district-precise predicate used by the sellers context. A district
 // admin with a district claim may only act on sellers in that district; a legacy state-scoped admin
 // (district claim empty) falls back to the state match. Super admins may act anywhere.

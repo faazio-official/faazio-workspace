@@ -23,6 +23,7 @@ const STATUS_MAP: Record<string, OrderStatus> = {
   Cancelled: 'Cancelled',
   CANCELLED: 'Cancelled',
   RETURNED: 'Cancelled',
+  REJECTED: 'Cancelled',
 };
 
 function vendorNameFor(storeIds: string[]): string {

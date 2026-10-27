@@ -32,8 +32,31 @@ dependencies exist. Do not build the backend/seller flows until told to.
   over the line-item subtotal.
 - **Tokens:** legacy `STATE_ADMIN` claims are canonicalised to `DISTRICT_ADMIN` in the app so an
   already-issued portal token is not locked out of the admin console.
-- Out of scope (tracked): `media` private-asset cross-district reads, `admins` audit/customer reads,
-  and support return/ticket writes remain coarse.
+- Out of scope (tracked): `media` private-asset cross-district reads and `admins` audit-log reads
+  remain coarse (support ticket/return scope was closed in W72).
+
+**Date:** 2026-10-27
+
+---
+
+## W72 — Profile, order-status and pickup-contact correctness
+
+**Status:** 🟢 Shipped (gateway + mobile).
+
+- **New-user profile:** `ProvisionUserID` now forward-fills `accounts.profile` on first OTP login and
+  `GET /profile` falls back to `checkout.users`, so a signed-in user no longer sees the `@data`
+  fixture ("Rohit Sharma" / fake phone). `UserDetailsScreen` still starts from the fixture only as an
+  offline shell.
+- **Rejected orders:** `REJECTED` maps to `Cancelled` in both the gateway customer projection and the
+  mobile `orderHistory` status map (it previously fell through to `Processing`).
+- **Pickup contact:** checkout and Order Details use the signed-in `authStore.user.phone` (or saved
+  address phone), never `userProfile.phone`.
+- **Seed hygiene:** an unknown order status now fails seed generation instead of silently becoming
+  `Delivered`; `pastOrders` `Completed` corrected to `Delivered`; `accounts.order_status` counts
+  mirror the 32 seeded orders.
+- **Server authority:** coin redemption is validated against the rewards balance; support
+  tickets/returns, ads slot requests, promo opt-in decisions and pharma Rx image paths are scoped
+  server-side (see `docs/architecture/server-gateway-plan.md`).
 
 **Date:** 2026-10-27
 

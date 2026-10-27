@@ -25,7 +25,7 @@ import {
 import AppText from '@/components/AppText';
 import { hs, vs, ms } from '@/utils/responsive';
 import { SPACE } from '@/theme/spacing';
-import { userProfile, accountNavGroups } from '@data/index';
+import { accountNavGroups } from '@data/index';
 import type { AccountNavGroup, AccountNavRow } from '@data/types';
 import { useRewardsStore } from '@/state/rewardsStore';
 import { STREAK_TARGET_DAYS } from '@data/rewards/rewards';

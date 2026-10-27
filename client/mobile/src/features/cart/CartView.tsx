@@ -990,6 +990,7 @@ export default function CartView({
           originLabel="Instamart"
           fulfillment={fulfillment ?? 'DELIVERY'}
           pickup={primaryPickup}
+          contactPhone={accountPhone || savedAddress?.phone}
           onBack={() => setStep('FULFILLMENT')}
           onPlaceOrder={handlePlaceOrder}
         />

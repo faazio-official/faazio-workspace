@@ -248,6 +248,8 @@ func (h *Handler) placeOrder(w http.ResponseWriter, r *http.Request) {
 		httpx.Fail(w, http.StatusConflict, "out_of_stock", "one or more items are out of stock")
 	case errors.Is(err, ErrAddressNotOwned):
 		httpx.Fail(w, http.StatusBadRequest, "invalid_address", "address does not belong to you")
+	case errors.Is(err, ErrInsufficientCoins):
+		httpx.Fail(w, http.StatusBadRequest, "insufficient_coins", "not enough coins for this redemption")
 	case errors.Is(err, ErrInvalidCoupon):
 		httpx.Fail(w, http.StatusBadRequest, "invalid_coupon", "coupon is not valid for this order")
 	case err != nil:
@@ -348,6 +350,14 @@ func (h *Handler) payOrder(w http.ResponseWriter, r *http.Request) {
 	coins := body.CoinsRedeemed
 	if coins < 0 {
 		coins = 0
+	}
+	if err := h.service.ValidateCoins(r.Context(), userID, coins); err != nil {
+		if errors.Is(err, ErrInsufficientCoins) {
+			httpx.Fail(w, http.StatusBadRequest, "insufficient_coins", "not enough coins for this redemption")
+			return
+		}
+		httpx.Fail(w, http.StatusInternalServerError, "payment_failed", "could not record payment")
+		return
 	}
 	paidPaisa := totalPaisa - coins
 	if paidPaisa < 0 {
@@ -736,10 +746,16 @@ func canonicalOrderStatus(s string) string {
 
 // mobileStatus collapses the portal lifecycle back to the mobile vocabulary (NEW/PACKED -> Processing).
 func mobileStatus(s string) string {
-	if s == "NEW" || s == "PACKED" {
+	switch s {
+	case "NEW", "PACKED":
 		return "Processing"
+	case "REJECTED":
+		// A seller rejection is terminal and refunded; the customer sees it as Cancelled, matching
+		// RETURNED (the app has no separate rejected state).
+		return "Cancelled"
+	default:
+		return s
 	}
-	return s
 }
 
 func (h *Handler) projectMobileStatus(orders []Order) {

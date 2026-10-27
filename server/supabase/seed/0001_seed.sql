@@ -1190,11 +1190,11 @@ insert into accounts.membership (id, user_id, title, saved_label, saved_amount) 
   ('member-1', 'user-1', 'Smart Saver', 'You saved', 184300);
 
 insert into accounts.order_status (id, user_id, key, label, count) values
-  ('all-status', 'user-1', 'all', 'All Orders', 20),
+  ('all-status', 'user-1', 'all', 'All Orders', 32),
   ('processing-status', 'user-1', 'processing', 'Processing', 3),
   ('shipped-status', 'user-1', 'shipped', 'Shipped', 4),
-  ('delivered-status', 'user-1', 'delivered', 'Delivered', 10),
-  ('cancelled-status', 'user-1', 'cancelled', 'Cancelled', 3);
+  ('delivered-status', 'user-1', 'delivered', 'Delivered', 21),
+  ('cancelled-status', 'user-1', 'cancelled', 'Cancelled', 4);
 
 insert into accounts.nav (user_id, key, rows) values
   ('user-1', 'profile', '[{"key":"orders","icon":"package","title":"My Orders","subtitle":"Track and manage your orders"},{"key":"details","icon":"idcard","title":"My Profile","subtitle":"Manage your personal information"},{"key":"addresses","icon":"map-pin","title":"Addresses","subtitle":"Manage saved addresses"},{"key":"favourites","icon":"heart","title":"Favourites","subtitle":"Your favourite items across all apps"},{"key":"recently-viewed","icon":"clock","title":"Recently Viewed","subtitle":"Items you recently viewed"}]'::jsonb),

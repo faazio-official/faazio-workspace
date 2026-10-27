@@ -175,9 +175,9 @@ the `GROCERY` member was dropped from `AppBrand` / `CartCategory` / `SubAppId` /
 
 | Export | Type | Mobile consumers | Status |
 |---|---|---|---|
-| `foodProducts` | `FoodProduct[]` | `FoodMenuView`; `data/home/filterFeed` (internal). Each carries optional `isVeg?` for the diet filter | `@mock` |
-| `topOfWeekDishes` | `TopOfWeekDish[]` | `FoodScreen` (top-of-week rail). Each carries optional `isVeg?` | `@mock` |
-| `foodStores` | `StoreProfile[]` | `FoodScreen`; home `TodaysSpecialsSection`, `MostRatedRestaurantsSection` | `@mock` |
+| `foodProducts` | `FoodProduct[]` | data-internal only — `data/catalog/products.ts` (catalog index), `data/food/menus.ts` (`storeMenus`), `data/home/filterFeed.ts`, `data/reviews/reviews.ts` + seed generation. Each carries optional `isVeg?` for the diet filter | `@mock` |
+| `topOfWeekDishes` | `TopOfWeekDish[]` | **`@unused`** — no mobile import; retained as an editorial/seed fixture only. Each carries optional `isVeg?` | `@mock` + `@unused` |
+| `foodStores` | `StoreProfile[]` | `features/food/utils/restaurantForProduct` (product → restaurant resolution), home `MostRatedRestaurantsSection` (offline first-paint), `CommonProductDetailView` (PDP store block fallback) + seed generation | `@mock` |
 | `restaurantMenus` | `Record<string, SpecialDish[]>` | `RestaurantProfileScreen.getMenuForRestaurant` (per-restaurant menus keyed by restaurant name, so every restaurant's "Recommended & Offers" rail + menu is populated); seeded into `directory.menus` (migrations `0013`/`0019`/`0022`, `status` from `0017`). Dishes may carry an authored `SpecialDish.mrp`; only `mrp > price` shows a strike-through (never synthesized) | `@mock` → `@server` |
 | `storeMenus` | `Record<string, SpecialDish[]>` | delivery-kitchen menus keyed by `foodStores[].name`, derived from `foodProducts` via `storeId` (single source — no hand-copied literals); consumed by `getMenuForRestaurant` / `GatewayClient.getMenu` fallback and seeded into `directory.menus` (88 dishes / 30 venues). Removes the old per-venue `TODAYS_SPECIALS` cuisine-match for the 12 `store-f*` kitchens | `@mock` → `@server` |
 | `allRestaurantMenuDishes` | `SpecialDish[]` | catalog index (search) — flat pool of all per-restaurant menu dishes | `@mock` |
@@ -318,8 +318,9 @@ the `GROCERY` member was dropped from `AppBrand` / `CartCategory` / `SubAppId` /
 > shown on the receipt + Order Details. `MyOrder.fulfillment` (optional — absent = delivery) drives
 > the My Orders "Delivery / Self Pickup" chip; `MyOrder.pickup` (a `PickupAddress` snapshot —
 > name, address, hours — taken at placement time, present only for `PICKUP` orders) drives the
-> Order Details "Pickup From" card. Contact phone for pickup is the signed-in user's
-> `userProfile.phone` — no fabricated PII.
+> Order Details "Pickup From" card. Contact phone for pickup is the signed-in user's verified
+> `authStore.user.phone` (or the saved address phone), never the `userProfile` fixture — no
+> fabricated PII.
 >
 > **Dynamic delivery fee (W65/W66) — no data change needed.** The delivery fee is a **server
 > setting**, not a `@data` value: `tax.delivery_fee_settings` (`0053`) holds the rate card (default
@@ -334,11 +335,11 @@ the `GROCERY` member was dropped from `AppBrand` / `CartCategory` / `SubAppId` /
 
 | Export | Type | Mobile consumers | Status |
 |---|---|---|---|
-| `pastOrders` | `PastOrder[]` | **`@unused`** — old order-history UI removed with `AccountView` | `@mock` + `@unused` |
+| `pastOrders` | `PastOrder[]` | **`@unused` (UI)** — old order-history UI removed with `AccountView`; still consumed by `ordersTable` (seed generation). Statuses must stay inside the `order_status` enum — the seed generator now fails on an unknown value instead of silently coercing it | `@mock` + `@unused` |
 | `myOrders` | `MyOrder[]` (with `app` sub-app field, optional `fulfillment`, optional `pickup` pickup-address snapshot for `PICKUP` orders, and optional `productId` linking to a real product) | `MyOrdersScreen` (order list, sub-app rail, status filter, Delivery/Self-Pickup chip); `getMyOrderById` → `OrderDetailsScreen` (incl. "Pickup From" card for pickup orders) | `@mock` |
 | `getMyOrderById` | `(id: string) => MyOrder \| undefined` | `OrderDetailsScreen` (resolves the order by `orderId` route param) | `@mock` |
 | `myOrdersStatusFilters` | `MyOrdersStatusFilterItem[]` (labels only) | `MyOrdersScreen` (filter sheet options; counts derived at runtime) | `@mock` |
-| `userProfile` | `UserProfile` | `AccountScreen` (My Account header card) | `@mock` → `@server` |
+| `userProfile` | `UserProfile` | `UserDetailsScreen` fallback only — `GET /profile` is the live source; `ProvisionUserID` now forward-fills `accounts.profile` on first OTP login and the server falls back to `checkout.users` for pre-provision rows, so a signed-in user never renders this fixture's fabricated PII | `@server` (fixture is offline/error shell) |
 | `saverMembership` | `SaverMembership` | **`@unused` (UI)** — Smart Saver banner removed from `AccountView`; still consumed by `membershipTable` (`data/accounts/profile.ts` → `GatewayClient.getMembership`) | `@mock` |
 | `orderStatusCounts` | `OrderStatusCount[]` | **`@unused` (UI)** — status grid removed from `AccountView`; still consumed by `orderStatusTable` (`data/accounts/profile.ts` → `GatewayClient.getOrderStatus`) | `@mock` |
 | `accountNavGroups` | `AccountNavGroup[]` — six titled groups (`profile`, `payments`, `privacy`, `earn`, `legal`, `support`); `privacy`/`legal` are `comingSoon`; `earn` is active with a `sell-with-us` row | `AccountScreen` (nav list, incl. My Orders + Sell with us entry rows; group titles + Coming-soon placeholders) | `@mock` |

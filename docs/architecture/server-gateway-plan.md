@@ -234,6 +234,14 @@ The HTTP route is not used service-to-service — the dual mount is intentional.
   `/delivery/otp/verify` can mark that stop delivered. Attempts are bounded at 5 (`429 otp_locked`,
   migration `0045`); the hash/expiry are cleared on delivery so a code cannot be replayed.
 - Every mutation writes an `admins.audit_logs` row through `contracts.AuditWriter`.
+- **Money-adjacent authority:** coin redemption is validated against the server-held balance
+  (`contracts.RewardsReader`; `400 insufficient_coins`) on both order placement and payment recording,
+  so a client cannot mint a free order by asserting more coins than it owns. Payment *capture*
+  (Razorpay signature/webhook) remains the open item tracked in `PENDING_WORK.md`.
+- **Admin scope is re-checked before every scoped mutation:** support tickets/returns
+  (`auth.CanActForState`, server-derived `state_code`, caller-owned order), ads slot requests
+  (product ownership + seller district), promo opt-in decisions (seller district), and pharma
+  prescription image paths (caller's `<userId>/` prefix).
 - `GET /admin/delivery-boys` projects `currentCategory` (`AVAILABLE`, `AT_PICKUP`, `AT_DELIVERY`,
   `BUSY`, `OFFLINE`) from the rider's next open stop and load/capacity. `GET
   /admin/delivery-boys/{id}/location` is a one-time Valkey read with the Postgres mirror fallback.

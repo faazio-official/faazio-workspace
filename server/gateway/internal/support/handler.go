@@ -112,6 +112,16 @@ func (h *Handler) setTicketStatus(w http.ResponseWriter, r *http.Request) {
 		httpx.Fail(w, http.StatusBadRequest, "bad_request", "invalid ticket status")
 		return
 	}
+	// Scope before mutating: a district admin may only touch tickets in their own state.
+	stateCode, found, err := h.repo.TicketScope(r.Context(), id)
+	if err != nil {
+		httpx.Fail(w, http.StatusInternalServerError, "support_unavailable", "support unavailable")
+		return
+	}
+	if !found || !auth.CanActForState(r.Context(), stateCode) {
+		httpx.Fail(w, http.StatusNotFound, "not_found", "ticket not found")
+		return
+	}
 	t, ok, err := h.repo.SetTicketStatus(r.Context(), id, req.Status)
 	if err != nil {
 		httpx.Fail(w, http.StatusInternalServerError, "ticket_update_failed", "could not update ticket")
@@ -127,14 +137,23 @@ func (h *Handler) setTicketStatus(w http.ResponseWriter, r *http.Request) {
 
 func (h *Handler) listReturns(w http.ResponseWriter, r *http.Request) {
 	sellerID := strings.TrimSpace(r.URL.Query().Get("sellerId"))
-	if auth.Role(r.Context()) == auth.RoleSeller {
+	stateCode := ""
+	switch auth.Role(r.Context()) {
+	case auth.RoleSeller:
 		sellerID = auth.SellerID(r.Context())
 		if sellerID == "" {
 			httpx.Fail(w, http.StatusForbidden, "forbidden", "no seller scope on this account")
 			return
 		}
+	case auth.RoleStateAdmin:
+		// District admins see only their own state's returns (never the national queue).
+		stateCode = auth.StateCode(r.Context())
+		if stateCode == "" {
+			httpx.Fail(w, http.StatusForbidden, "forbidden", "no state scope on this account")
+			return
+		}
 	}
-	items, err := h.repo.Returns(r.Context(), sellerID, "")
+	items, err := h.repo.Returns(r.Context(), sellerID, "", stateCode)
 	if err != nil {
 		httpx.Fail(w, http.StatusInternalServerError, "returns_unavailable", "returns unavailable")
 		return
@@ -159,9 +178,24 @@ func (h *Handler) createReturn(w http.ResponseWriter, r *http.Request) {
 		httpx.Fail(w, http.StatusBadRequest, "bad_request", "orderId is required and reason must be ≤ 2000 chars")
 		return
 	}
+	// A return may only be filed against the caller's own order. The seller is derived from the
+	// order's vendor snapshot (the client cannot attach a return to an arbitrary seller).
+	orderSeller, _, owned, err := h.repo.OrderReturnScope(r.Context(), req.OrderID, auth.UserID(r.Context()))
+	if err != nil {
+		httpx.Fail(w, http.StatusInternalServerError, "return_create_failed", "could not create return")
+		return
+	}
+	if !owned {
+		httpx.Fail(w, http.StatusNotFound, "not_found", "order not found")
+		return
+	}
+	sellerID := strings.TrimSpace(req.SellerID)
+	if orderSeller != "" {
+		sellerID = orderSeller
+	}
 	ret, err := h.repo.CreateReturn(r.Context(), Return{
 		OrderID: req.OrderID, UserID: auth.UserID(r.Context()),
-		SellerID: strings.TrimSpace(req.SellerID), Reason: req.Reason,
+		SellerID: sellerID, Reason: req.Reason,
 	})
 	if err != nil {
 		httpx.Fail(w, http.StatusInternalServerError, "return_create_failed", "could not create return")
@@ -183,6 +217,16 @@ func (h *Handler) setReturnStatus(w http.ResponseWriter, r *http.Request) {
 	req.Status = strings.ToUpper(strings.TrimSpace(req.Status))
 	if !validReturnStatus(req.Status) {
 		httpx.Fail(w, http.StatusBadRequest, "bad_request", "invalid return status")
+		return
+	}
+	// Scope before mutating: a district admin may only touch returns whose order is in their state.
+	stateCode, found, err := h.repo.ReturnScope(r.Context(), id)
+	if err != nil {
+		httpx.Fail(w, http.StatusInternalServerError, "returns_unavailable", "returns unavailable")
+		return
+	}
+	if !found || !auth.CanActForState(r.Context(), stateCode) {
+		httpx.Fail(w, http.StatusNotFound, "not_found", "return not found")
 		return
 	}
 	ret, ok, err := h.repo.SetReturnStatus(r.Context(), id, req.Status)

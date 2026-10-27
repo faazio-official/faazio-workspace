@@ -333,6 +333,13 @@ type RewardsWriter interface {
 	Earn(ctx context.Context, userID, orderID string, paidRupees, coinsRedeemed int64) error
 }
 
+// RewardsReader exposes the caller's coin balance so checkout can reject a redemption larger than
+// the balance the server actually holds (implemented by internal/rewards). The ledger writer clamps
+// the same value, but the payment amount must be settled against the clamped figure too.
+type RewardsReader interface {
+	Coins(ctx context.Context, userID string) (int64, error)
+}
+
 // CouponValidation is the server-authoritative verdict on a coupon code for a given cart. Money is
 // paisa internally; the HTTP layer projects whole rupees. Reason is a machine code when invalid
 // (not_found|inactive|expired|wrong_sector|wrong_state|min_order) and empty when valid.

@@ -234,7 +234,7 @@ func (r *Repo) SetCampaignStatus(ctx context.Context, id, status string) (Campai
 }
 
 // Optins lists opt-ins scoped by seller and/or campaign.
-func (r *Repo) Optins(ctx context.Context, sellerID, campaignID, stateCode string) ([]Optin, error) {
+func (r *Repo) Optins(ctx context.Context, sellerID, campaignID, stateCode, districtCode string) ([]Optin, error) {
 	if r.pool == nil {
 		return nil, fmt.Errorf("promo: database not configured")
 	}
@@ -242,10 +242,12 @@ func (r *Repo) Optins(ctx context.Context, sellerID, campaignID, stateCode strin
 		select o.optin_id, o.campaign_id, o.seller_id, o.product_id, o.discount, o.status::text
 		  from promo.festival_optins o
 		  join promo.festival_campaigns c on c.campaign_id = o.campaign_id
+		  join sellers.sellers sl on sl.seller_id = o.seller_id
 		 where ($1 = '' or o.seller_id = $1)
 		   and ($2 = '' or o.campaign_id = $2)
 		   and ($3 = '' or c.state_code = $3)
-		 order by o.created_at desc`, sellerID, campaignID, stateCode)
+		   and ($4 = '' or sl.district_code = $4)
+		 order by o.created_at desc`, sellerID, campaignID, stateCode, districtCode)
 	if err != nil {
 		return nil, err
 	}

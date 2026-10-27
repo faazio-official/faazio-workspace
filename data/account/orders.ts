@@ -6,7 +6,7 @@ import type { MyOrder, MyOrdersStatusFilterItem, PastOrder } from '../types';
 
 export const pastOrders: PastOrder[] = [
   { id: 'ORD-001', item: 'Truffle Mushroom Burger', store: 'Hungry Minds Cafe', price: 320, date: '12 Jul 2026', status: 'Delivered', app: 'FOOD', storeId: 'store-f3' },
-  { id: 'ORD-002', item: 'AC Jet Cleaning Service', store: 'HomeServ Pro', price: 2499, date: '08 Jul 2026', status: 'Completed', app: 'MART' },
+  { id: 'ORD-002', item: 'AC Jet Cleaning Service', store: 'HomeServ Pro', price: 2499, date: '08 Jul 2026', status: 'Delivered', app: 'MART' },
   { id: 'ORD-003', item: 'Vitamin D3 2000 IU (60 Caps)', store: 'CareFirst Meds', price: 450, date: '30 Jun 2026', status: 'Delivered', app: 'PHARMA', storeId: 'store-p3' },
   { id: 'ORD-004', item: 'Premium Cotton Hoodie', store: 'Thread Labs Studio', price: 1499, date: '24 Jun 2026', status: 'Delivered', app: 'MART', storeId: 'store-m3' },
   { id: 'ORD-005', item: 'Lucknowi Chicken Biryani', store: 'Royal Mughlai Dastarkhwan', price: 420, date: '18 Jun 2026', status: 'Delivered', app: 'FOOD', storeId: 'store-f8' },

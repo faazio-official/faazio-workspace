@@ -230,7 +230,7 @@ contract stable so the swap is invisible to the app):
    `STRICT` is retained as a no-op for build compatibility).
 7. ✅ Verify: `go build/vet/test ./...` + `go run ./tools/importlint`; `npm run ts:check`,
    `check:boundaries`, `check:drillin`.
-8. ✅ **DB layer verified locally** (`docker compose up`): 421 products / 32 stores / 32 orders seeded,
+8. ✅ **DB layer verified locally** (`docker compose up`): 405 products / 32 stores / 32 orders seeded,
    Postgres FTS returns `coffee` hits, no orphan `store_id`s, Mongo `sdui_layouts` v1 (14 sections) +
    `user_events_ttl` index, `/health` reports `db:true cache:true mongo:true`.
 9. ✅ **Hardening (Phase 2):** directory PII redaction (public vs authed), global 1 MiB body limit,
