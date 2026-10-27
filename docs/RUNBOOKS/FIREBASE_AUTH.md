@@ -63,10 +63,25 @@ notification permission. The FCM token is injected into the portal WebView, whic
 
 The **customer app** uses the same Firebase project for FCM. `services/customerPush.ts` requests
 permission after sign-in and registers the token via `POST /notifications/register`; `logout.ts`
-calls `DELETE /notifications/register` best-effort. Push delivery requires the gateway's
-`PUSH_WEBHOOK_URL` outbox worker (empty = worker disabled, in-app `GET /notifications` still works).
-APNs requires the Part 6 `.p8` key + Xcode Push Notifications capability; Android 13+ requires the
-runtime notification permission.
+calls `DELETE /notifications/register` best-effort. Push delivery comes from the **gateway's embedded
+FCM HTTP v1 sender** when `FCM_PROJECT_ID` + `FCM_SERVICE_ACCOUNT_JSON` are set (see below); the legacy
+`PUSH_WEBHOOK_URL` bridge is the fallback (both empty = worker disabled, in-app `GET /notifications`
+still works). APNs requires the Part 6 `.p8` key + Xcode Push Notifications capability; Android 13+
+requires the runtime notification permission.
+
+### Server-side FCM push credentials (Android)
+
+- The Android client config (`google-services.json`) is **public** and already committed. Sending is
+  a separate, **secret** server-side credential: Firebase Console → Project Settings → Service
+  Accounts → **Generate new private key** (JSON).
+- Set these on the gateway (never commit the JSON):
+  - `FCM_PROJECT_ID` — public, Firebase Console → Project Settings → General → Project ID.
+  - `FCM_SERVICE_ACCOUNT_JSON` — the **entire** downloaded JSON file contents. Treat as a secret
+    (Render secret env var or mounted secret file).
+- On startup the gateway builds an `FCMSender` when both are set and calls
+  `https://fcm.googleapis.com/v1/projects/{project}/messages:send` directly — **no separate
+  `PUSH_WEBHOOK_URL` server is needed**. Android push works immediately; iOS still requires the APNs
+  `.p8` key + Push Notifications capability (Part 6) and is unaffected by this.
 
 ## 4. Console setup (already done, except Part 6)
 

@@ -275,6 +275,7 @@ Run **each pending** migration (numeric order) → then roll the Render deploy. 
 - [ ] `gh workflow run release-apk.yml` succeeded and the signed APK is on the GitHub Release.
 - [ ] Portal (if deploying): `0032` + `0033` applied, `PORTAL_JWT_SECRET`/`PORTAL_PEPPER` set, a superadmin hash provisioned (`PORTAL_AUTH.md`).
 - [ ] **Server/Render:** all `server/supabase/migrations/` files up to the latest are applied from a dev terminal (`DATABASE_MIGRATIONS.md` — Render never auto-applies); then the gateway deploy rolled.
+- [ ] Push delivery: `FCM_PROJECT_ID` + `FCM_SERVICE_ACCOUNT_JSON` (server-side Firebase service-account key — a Render secret env var) set for the gateway's embedded FCM sender, or `PUSH_WEBHOOK_URL` for the legacy bridge. See `FIREBASE_AUTH.md`.
 - [ ] Seller splits: `0039` + `0040` applied; Route keys + webhook endpoint/secret set (or the `RAZORPAY_*` fallback used); `R2_PRIVATE_BUCKET` set.
 - [ ] Release signed and smoke-tested on a device (R8 gate: Home → Cart → Checkout → Pharma).
 - [ ] Store metadata / data-safety updated.

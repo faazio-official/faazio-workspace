@@ -26,8 +26,7 @@ type Config struct {
 	FirebaseProjectID string
 	// GoogleRoutesAPIKey backs the road-aware dispatch matrix (Routes API, server-side only).
 	// The mobile Maps SDK key is a separate, app-restricted client key. Empty = straight-line
-	// fallback for local/dev. Push delivery reuses the notifications outbox, so no service-account
-	// JSON lives in the gateway.
+	// fallback for local/dev.
 	GoogleRoutesAPIKey string
 	// DeliveryMaxDispatchAttempts caps the reject→reassign fallback chain (initial offer + retries).
 	DeliveryMaxDispatchAttempts int
@@ -66,13 +65,21 @@ type Config struct {
 	RazorpayRouteKeyID         string
 	RazorpayRouteKeySecret     string
 	RazorpayRouteWebhookSecret string
-	AuthDisabled    bool
-	DevUserID       string
-	// PushWebhookURL enables the notification outbox drain worker. Empty = worker not started
-	// (notifications stay durable + readable in-app). See internal/notifications/worker.go.
+	AuthDisabled               bool
+	DevUserID                  string
+	// PushWebhookURL enables the legacy notification outbox drain worker via an external push relay.
+	// Empty = sender falls back to the embedded FCM sender or stays disabled. See
+	// internal/notifications/worker.go.
 	PushWebhookURL string
-	AllowedOrigins []string
-	OTelEnabled    bool
+	// FCMProjectID + FCMServiceAccount enable the gateway's embedded FCM HTTP v1 sender (Android
+	// push without a webhook bridge). FCMServiceAccount is the raw JSON of the Firebase service
+	// account private key — a secret, never committed. When both are set the FCM sender takes
+	// precedence over PushWebhookURL; when unset, push delivery falls back to the webhook bridge or
+	// stays disabled (in-app inbox only).
+	FCMProjectID      string
+	FCMServiceAccount string
+	AllowedOrigins    []string
+	OTelEnabled       bool
 }
 
 // Load reads config from the environment with safe local-dev defaults.
@@ -113,6 +120,8 @@ func Load() Config {
 		AuthDisabled:               envBool("AUTH_DISABLED", false),
 		DevUserID:                  env("DEV_USER_ID", "user-1"),
 		PushWebhookURL:             env("PUSH_WEBHOOK_URL", ""),
+		FCMProjectID:               env("FCM_PROJECT_ID", ""),
+		FCMServiceAccount:          env("FCM_SERVICE_ACCOUNT_JSON", ""),
 		AllowedOrigins:             splitCSV(env("ALLOWED_ORIGINS", "")),
 		OTelEnabled:                envBool("OTEL_ENABLED", false),
 	}

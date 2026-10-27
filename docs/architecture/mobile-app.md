@@ -731,7 +731,9 @@ drives the countdown.
 customer FCM token (`POST /notifications/register`), re-registers on token refresh, and listens for
 foreground messages plus notification taps. The durable inbox is `NotificationsScreen` (root route
 `Notifications`, opened from the My Orders bell), which reads `GET /notifications`; push delivery is
-best-effort and the inbox still works without FCM/APNs.
+best-effort via the gateway's embedded FCM sender (Android; `FCM_SERVICE_ACCOUNT_JSON` +
+`FCM_PROJECT_ID` on the gateway — see `RUNBOOKS/FIREBASE_AUTH.md`) and the inbox still works without
+FCM/APNs.
 
 **Native identity.** One committed RN shell, three products: the Android `customer`/`delivery`/`seller`
 product flavors (`com.faazio.customer` / `com.faazio.deliverypartner` / `com.faazio.seller`) and the
@@ -754,7 +756,9 @@ re-prompting; sign-out clears it. iOS still ends the watch when the app is force
 switcher.
 
 **Known production limits** (tracked in `client/mobile/PENDING_WORK.md`): force-quit iOS background
-location (plus OEM battery whitelisting) and the `PUSH_WEBHOOK_URL` bridge is an ops step. Dispatch
+location (plus OEM battery whitelisting) and push delivery is an ops step (fee-free: set the
+gateway's `FCM_SERVICE_ACCOUNT_JSON` + `FCM_PROJECT_ID`; the legacy `PUSH_WEBHOOK_URL` bridge is the
+fallback). Dispatch
 runs a global Held-Karp VRP across all accepted stops (insertion fallback above 15 open stops).
 Reject re-offers the job to the next candidate up to 5 attempts. Payout splits (Phase 5) are
 intentionally not built.

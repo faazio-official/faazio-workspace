@@ -141,18 +141,29 @@ rendered on the error card** (plus the first stack frame in a dev build) — tha
 
 ## 🔧 Customer notifications / push
 
-- **No push on the device** → Android 13+ needs the runtime notification permission, iOS needs the
-  APNs key + Push Notifications capability (`FIREBASE_AUTH.md` Part 6), and the gateway needs
-  `PUSH_WEBHOOK_URL` set so the outbox worker drains `PENDING` rows. The token is registered after
-  sign-in by `services/customerPush.ts`; check the app logs for `POST /notifications/register`.
+- **No push on the device** → Android 13+ needs the runtime notification permission; iOS needs the
+  APNs key + Push Notifications capability (`FIREBASE_AUTH.md` Part 6). On the gateway, the embedded
+  FCM sender must have `FCM_SERVICE_ACCOUNT_JSON` **and** `FCM_PROJECT_ID` set (startup log
+  `using FCM HTTP v1 sender`), or the legacy `PUSH_WEBHOOK_URL` bridge must point at a live relay. The
+  token is registered after sign-in by `services/customerPush.ts`; check the app logs for
+  `POST /notifications/register`.
+- **`401` from FCM** → the service-account JSON is malformed or was regenerated. Check the gateway
+  logs for `fcm sender disabled`; regenerate the key in Firebase Console → Project Settings →
+  Service Accounts and update `FCM_SERVICE_ACCOUNT_JSON`.
+- **`403` from FCM** → the Firebase Cloud Messaging API is not enabled in the Google Cloud project
+  linked to Firebase (GCP Console → APIs & Services → Firebase Cloud Messaging API). Enable it, then
+  re-test.
 - **Push works but the inbox is empty** → `NotificationsScreen` reads `GET /notifications`
   (owner-scoped, 30 s cache). Pull to refresh; an empty outbox is an honest empty state.
 - **Signed-out device still receives pushes** → `logout.ts` calls `DELETE /notifications/register`
   best-effort; if it failed offline, sign in and out again while online.
-- **Admin `POST /notifications/drain` returns `503 push_unconfigured`** → expected when
-  `PUSH_WEBHOOK_URL` is empty. The drain refuses to run and leaves `PENDING` rows untouched (the
-  sender gate is a real nil interface, so rows are never marked `FAILED` without a provider); the
-  in-app inbox keeps working. Set `PUSH_WEBHOOK_URL` on the gateway to actually deliver pushes.
+- **Admin `POST /notifications/drain` returns `503 push_unconfigured`** → expected when **no sender
+  is configured** (neither `FCM_PROJECT_ID`/`FCM_SERVICE_ACCOUNT_JSON` nor `PUSH_WEBHOOK_URL`). The
+  drain refuses to run and leaves `PENDING` rows untouched (the sender gate is a real nil interface,
+  so rows are never marked `FAILED` without a provider); the in-app inbox keeps working. Set the FCM
+  credentials (or `PUSH_WEBHOOK_URL`) on the gateway to actually deliver pushes.
+- **Worker not starting** → neither the FCM credentials nor `PUSH_WEBHOOK_URL` is set; the gateway
+  logs `notifications worker disabled (no sender configured)`. This is the intended no-push mode.
 - **A delivery failed but the push should retry** → `FAILED` is no longer terminal. The worker
   retries with capped exponential backoff (1s→2s→4s→… ≤1h, up to 6 attempts, `0058`); only rows past
   the budget stay `FAILED`. The admin outbox exposes the `attempts` count. Re-deploying a fixed relay
