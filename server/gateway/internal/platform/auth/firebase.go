@@ -29,8 +29,9 @@ const (
 )
 
 // FirebaseVerifier verifies Firebase Authentication ID tokens (RS256) against Google's
-// published certificate set. It keeps the standard library only: no service account JSON,
-// no firebase-admin SDK, no extra dependency in the gateway binary.
+// published certificate set. It keeps the standard library only: no service account JSON and no
+// firebase-admin SDK in this verification path (push sending lives in internal/notifications and
+// uses golang.org/x/oauth2/google for FCM).
 //
 // Checks: RS256 signature, kid lookup, iss = https://securetoken.google.com/<project>,
 // aud = <project>, exp, iat, and a non-empty subject (Firebase `user_id`).

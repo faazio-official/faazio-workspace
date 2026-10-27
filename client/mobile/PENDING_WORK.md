@@ -37,8 +37,9 @@ dependencies exist. Do not build the backend/seller flows until told to.
   server cart/favourites intact for the next login.
 - **Push:** `services/customerPush.ts` registers the customer FCM token, handles token refresh,
   foreground messages, and notification taps. `NotificationsScreen` (root route `Notifications`)
-  reads the durable `GET /notifications` inbox; the gateway outbox drain worker is enabled by
-  `PUSH_WEBHOOK_URL` (already wired in `cmd/server/main.go`).
+  reads the durable `GET /notifications` inbox; the gateway drain worker is enabled by the embedded
+  **FCM HTTP v1 sender** when `FCM_SERVICE_ACCOUNT_JSON` + `FCM_PROJECT_ID` are set (legacy
+  `PUSH_WEBHOOK_URL` bridge remains the fallback; both empty = in-app inbox only, worker disabled).
 - **Removed:** the 1.2s fake checkout delay and the local-first `recordOrder`/`redeemCoins` writes.
 
 **Date:** 2026-10-27
@@ -307,10 +308,11 @@ dependencies exist. Do not build the backend/seller flows until told to.
   TDS/product-GST/platform-GST, partner **Earnings** screen). What remains is COD reconciliation,
   bank-credit payout runs/frequency and invoice PDF rendering (`tax_invoices.pdf_key`); the API
   serves the invoice JSON today and returns a presigned URL only when a PDF exists.
-- **Push bridge ops (`PUSH_WEBHOOK_URL`)** — the app side is done (token registration, foreground
-  handler, notification tap and `faazio-delivery://accept-reject?orderId=…` all open
-  `AcceptRejectScreen`), but end-to-end delivery still needs the gateway's FCM/webhook bridge
-  configured in the deployed environment.
+- **Push (Android): done** — delivery push is now **resolved end-to-end**: the gateway's embedded
+  FCM HTTP v1 sender (server-side service account, `FCM_SERVICE_ACCOUNT_JSON` + `FCM_PROJECT_ID`)
+  delivers outbox rows straight to Firebase (legacy `PUSH_WEBHOOK_URL` bridge is the fallback). The
+  app side — token registration, foreground handler, notification tap and
+  `faazio-delivery://accept-reject?orderId=…` all open `AcceptRejectScreen` — was already done.
 - **iOS force-quit** — background location now survives backgrounding (`UIBackgroundModes: location`
   + a CoreLocation watch behind persisted explicit consent, resumed without re-prompting when an
   already-online rider relaunches the app), but iOS stops the watch when the rider swipes the app
@@ -2979,8 +2981,8 @@ plus a registered-donor dashboard.
   yet; the nearby sort is a real sort over the seeded values.
 - **Notification inbox screen is not built** — the bell is an honest non-interactive indicator
   (live `GET /notifications` count + pending incoming; no `BLOOD_DONOR_UNREAD_ALERTS` seed). A tap
-  target / inbox screen and push delivery (`notifications.outbox` drain + `PUSH_WEBHOOK_URL`) remain
-  ops + a future UI pass.
+  target / inbox screen remains a future UI pass (push delivery itself is served by the outbox drain
+  + gateway FCM sender; blood rows are enqueued the same as every other outbox row).
 - **"Nearby" is city-matching, not geo**: request `city` vs the donor's registered
   `preferredLocation` (case-insensitive contains); the chip now says so. Real geo (device coords +
   an earthdistance/lat-lng index on `blood.donors`/`blood.requests`) swaps the matcher, not the UI.
