@@ -1,6 +1,9 @@
 export { useAuthStore } from './authStore';
 export type { AuthState, AuthUser, LoginPayload } from './authStore';
 
+export { useRemoteConfigStore } from './remoteConfigStore';
+export type { RemoteConfigState, AppConfigValue } from './remoteConfigStore';
+
 export { useCartStore } from './cartStore';
 export type { CartItem } from './cartStore';
 

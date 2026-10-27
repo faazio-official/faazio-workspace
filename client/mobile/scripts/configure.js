@@ -16,6 +16,18 @@
  *
  * Nothing here is secret at rest: values are public client config. Never put
  * tokens or passwords in these variables.
+ *
+ * Remote-manageable vs permanently baked (central remote config, migration 0059):
+ *   - Remote-manageable at runtime (admins.app_config → GET /app-config, set by SUPER_ADMIN in the
+ *     partner portal, applied on the next app boot with no app-store release):
+ *       GOOGLE_PLACES_API_KEY  (maps.places_api_key — consumed by usePlaceAutocomplete)
+ *       plus future keys the app reads from remoteConfigStore (see src/state/remoteConfigStore.ts).
+ *   - Permanently baked — changing these still needs a build + store release; they are NEVER
+ *     overridden by remote config (chicken-and-egg: the app needs GATEWAY_URL to fetch config):
+ *       GATEWAY_URL, USE_GATEWAY, TRANSPORT, APP_VARIANT, DEV_USER, CERT_PINS,
+ *       USE_FIREBASE_AUTH, GOOGLE_MAPS_API_KEY_ANDROID (consumed natively at build time by the
+ *       Android Maps SDK via google_maps_api_key.xml), GOOGLE_MAPS_API_KEY_IOS.
+ *   Do not expect an env change to GATEWAY_URL to reach running apps without a release.
  */
 'use strict';
 

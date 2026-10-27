@@ -12,6 +12,37 @@ dependencies exist. Do not build the backend/seller flows until told to.
 
 ---
 
+## W74 — Central remote config (the "Central Digital Menu", P0)
+
+**Status:** 🟢 Shipped (gateway + migration `0059` + mobile + web portal).
+
+- Replaces the "printed menu": app settings that used to need a build + App Store/Play Store resubmit
+  are now a SUPER_ADMIN-edited key/value set (`admins.app_config`) that every app fetches on cold
+  boot. A portal edit is live on the next boot — no store review.
+- **Mobile:** `GatewayClient.getAppConfig()` → `GET /app-config?variant=` (public, strict —
+  `GatewayOfflineError` when remote disabled). `state/remoteConfigStore.ts` fetches best-effort under
+  the 5 s branded splash (`App.tsx`, never awaited → never blocks startup), keeps a flat key→value
+  map, and falls back to the baked `scripts/configure.js` defaults on any failure. `GATEWAY_URL` /
+  `USE_GATEWAY` / `APP_VARIANT` / `TRANSPORT` are **never** overridden (chicken-and-egg).
+- **Consumers:** `usePlaceAutocomplete` + `LocationScreen` use `selectPlacesApiKey` so a
+  `maps.places_api_key` edit gives every app fresh creds at runtime (falls back to the baked key when
+  empty). `selectMaintenanceEnabled` (seeded `maintenance.enabled`) is available for a future banner —
+  no screen consumes it yet.
+- **Gateway (`internal/appconfig`, `0059`):** public GET + SUPER_ADMIN `GET|PUT|DELETE
+  /admin/app-config(/{key})`. `is_public` gates client visibility (RLS for direct Supabase reads),
+  `value_secret` rows are masked in the portal (`value=null`, "leave blank to keep") and never leave
+  the gateway, `is_public + value_secret` is rejected, values capped at 4 KiB, every write audited
+  (`APP_CONFIG_UPSERT`/`APP_CONFIG_DELETE`, secret omitted from the snapshot).
+- **Portal:** `admin/super/app-config` page (list / create / edit / delete, masked secrets, audit-link)
+  + `listAppConfig`/`updateAppConfig`/`deleteAppConfig`.
+- **Not cached** in Valkey on purpose — config must land on the next boot, not a TTL later.
+- **Baked (still a release):** `GATEWAY_URL`, native Android/iOS Maps keys, `CERT_PINS`,
+  `DEV_USER`, firebase config. Documented in `scripts/configure.js` + `docs/architecture/*`.
+
+**Date:** 2026-10-27
+
+---
+
 ## W73 — De-mock cart/favourites/rewards/orders + customer push (P0/P1)
 
 **Status:** 🟢 Shipped (mobile + gateway push plumbing already live).

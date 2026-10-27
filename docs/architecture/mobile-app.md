@@ -36,7 +36,7 @@ src/
 ├── features/                   # vertical feature modules (16)
 ├── navigation/                 # AppNavigator, MainTabs, FoodStack, types
 ├── services/                   # GatewayClient, logout, secureSession, categoryVendors, homeFeed, pricing
-├── state/                      # Zustand stores (15)
+├── state/                      # Zustand stores (16)
 ├── theme/                      # brandTokens, spacing (SPACE tokens), fonts, sectorVisuals
 └── utils/                      # responsive (hs/vs/ms/wp/hp)
 ```
@@ -568,6 +568,7 @@ still separate files; consolidating them is tracked in `client/mobile/PENDING_WO
 | `ordersStore` | In-session placed orders (`PlacedOrder`: items or prescription kind) + durable `serverOrders` from `gateway.getOrders()` (`refresh()` on login + My Orders focus); `recordServerOrder(row)` adopts the server order after checkout; `recordOrder` remains for the mock-mode Rx flow; `getOrderById` prefers server history; reset on logout |
 | `vendorRatingStore` | The signed-in user's live vendor ratings (one per `(user, vendor)`, latest wins) + verified-purchase `orderIds`; persisted AsyncStorage `faazio/vendor-ratings/v1`, reset on logout |
 | `deliveryPartnerStore` | Partner-app only: verified application phone + the rider/detail projection from `GET /delivery/me`. The Firebase session itself stays in `authStore`/Keychain and is never duplicated here |
+| `remoteConfigStore` | Central remote config (the "Central Digital Menu", `admins.app_config` `0059`): boots `gateway.getAppConfig()` (`GET /app-config`, public, variant-filtered) best-effort under the splash, keeps a flat key→value map, and **never blocks startup** (failure keeps the bake-time `config.ts` defaults). Baked values are the safe defaults; a remote row overrides its key only when present; `GATEWAY_URL`/`APP_VARIANT` are never overridden. Selectors: `selectPlacesApiKey` (wired → `usePlaceAutocomplete` — a `maps.places_api_key` edit is live on the next boot), `selectMaintenanceEnabled` (available, no screen consumes it yet), `resolvePlacesApiKey` (non-hook read for `resolvePlaceLocation`). Not persisted — refetched every cold boot |
 
 ### Services (`src/services/`)
 

@@ -120,6 +120,14 @@ caller) and are event-purged on store live toggle and product edit/status change
   `GET /tax/categories`, `GET|PUT /admin/tax/categories`, `DELETE /admin/tax/categories/{id}`,
   `GET|PUT /admin/tax/settings` (SUPER_ADMIN writes). Settlement ledger carries the same
   TDS/product-GST/platform-GST figures (commission now zero).
+- **Central remote config (`internal/appconfig`, `0059`):** public `GET /app-config?variant=customer|delivery|seller`
+  serves the `admins.app_config` **public** rows (no auth — the app fetches it on cold boot, before
+  login) so a SUPER_ADMIN portal edit reaches every app on the next boot with no app-store release.
+  Portal: `GET /admin/app-config` (all rows; `value_secret` rows masked as `null`),
+  `PUT|DELETE /admin/app-config/{key}` (SUPER_ADMIN, audit-logged). A masked `null` on PUT keeps the
+  stored secret; `is_public` + `value_secret` combined is rejected; key/category/variant are
+  validated and values capped at 4 KiB. Only non-chicken-and-egg settings live here —
+  `GATEWAY_URL`/`APP_VARIANT`/`TRANSPORT` stay build-time baked.
 - **Rider payouts (`internal/delivery`, `0052` + `0054`):** `GET /delivery/payouts` (rider history)
   and `GET /delivery/payouts/{orderId}` (upsert a PENDING calculation). The payout reuses the
   customer-billed distance + surge stored on `checkout.orders` (`delivery_distance_km`,

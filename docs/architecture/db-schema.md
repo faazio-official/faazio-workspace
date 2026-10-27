@@ -1922,6 +1922,27 @@ CREATE TABLE tax.delivery_fee_settings (-- singleton row id = 1; gateway reads, 
   per_extra_km_paisa BIGINT NOT NULL DEFAULT 700,
   updated_by TEXT NOT NULL DEFAULT '', updated_at TIMESTAMPTZ NOT NULL DEFAULT now());
 
+### 12.25b Central remote config — the "Central Digital Menu" (migration `0059`)
+
+-- 0059: central remote config ("Central Digital Menu") — SUPER_ADMIN-edited key/value set the
+-- mobile apps fetch on cold boot (GET /app-config) to override bake-time defaults, no store release
+CREATE TABLE admins.app_config (
+  key TEXT PRIMARY KEY CHECK (key ~ '^[a-z0-9][a-z0-9._-]{0,63}$'),
+  category TEXT NOT NULL CHECK (category IN ('brand','maps','region','feature','maintenance','limits')),
+  value JSONB NOT NULL DEFAULT 'null'::jsonb CHECK (octet_length(value::text) <= 4096),
+  is_public BOOLEAN NOT NULL DEFAULT false,
+  app_variant TEXT NOT NULL DEFAULT 'all' CHECK (app_variant IN ('customer','delivery','seller','all')),
+  value_secret BOOLEAN NOT NULL DEFAULT false, description TEXT NOT NULL DEFAULT '',
+  updated_by TEXT NOT NULL DEFAULT '', updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  CHECK (NOT is_public OR NOT value_secret));
+CREATE INDEX app_config_public_idx ON admins.app_config (is_public) WHERE is_public;
+CREATE INDEX app_config_variant_idx ON admins.app_config (app_variant);
+CREATE INDEX app_config_category_idx ON admins.app_config (category);
+-- access classes: mobile apps read public rows through the gateway (service_role, bypasses RLS);
+-- direct anon/authenticated Supabase clients may SELECT only is_public rows (RLS). The gateway is
+-- the only writer. value_secret rows are masked in the portal (value = null, "leave blank to keep")
+-- and never served to the app; writes are audit-logged (admins.audit_logs, secret omitted).
+
 -- 0052: rider payout engine (supersedes the "Phase 5 out of scope" note in 0042)
 CREATE TABLE delivery.payout_settings ( -- singleton row id = 1
   id SMALLINT PRIMARY KEY CHECK (id = 1),

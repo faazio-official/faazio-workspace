@@ -12,6 +12,7 @@ import (
 
 	"github.com/faazio/server/gateway/internal/admins"
 	"github.com/faazio/server/gateway/internal/ads"
+	"github.com/faazio/server/gateway/internal/appconfig"
 	"github.com/faazio/server/gateway/internal/blood"
 	"github.com/faazio/server/gateway/internal/cartstock"
 	"github.com/faazio/server/gateway/internal/catalog"
@@ -114,6 +115,7 @@ func NewRouter(d Deps) http.Handler {
 	// partner mutation is recorded.
 	sellersRepo := sellers.New(d.Pool)
 	adminsRepo := admins.New(d.Pool)
+	appconfigRepo := appconfig.New(d.Pool)
 	promoRepo := promo.New(d.Pool)
 	adsRepo := ads.New(d.Pool)
 	settlementRepo := settlement.New(d.Pool)
@@ -179,6 +181,9 @@ func NewRouter(d Deps) http.Handler {
 	sdui.NewHandler(sduiService, adminsRepo).Register(r)
 	admins.NewHandler(adminsRepo, admins.NewProvisioner(d.Pool, portal.NewHasher(d.Config.PortalPepper)), d.AuditPurger).Register(r)
 	portal.NewHandler(portalRepo, d.Cache, adminsRepo, d.Config.PortalJWTSecret, d.Config.PortalPepper).Register(r)
+	// Central remote config (0059): public GET /app-config for the mobile apps + SUPER_ADMIN control
+	// plane (GET/PUT/DELETE /admin/app-config). Audited through the admins context.
+	appconfig.NewHandler(appconfigRepo, adminsRepo).Register(r)
 	sellers.NewHandler(sellersRepo, d.Cache, adminsRepo, routeGateway).Register(r)
 	promo.NewHandler(promoRepo, d.Cache, adminsRepo).Register(r)
 	ads.NewHandler(adsRepo, d.Cache, adminsRepo, d.Signer.PublicOrigin()).Register(r)

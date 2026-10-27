@@ -6,6 +6,7 @@ import { AppNavigator } from './src/navigation/AppNavigator';
 import { navigationRef } from './src/navigation/navigationRef';
 import { SplashFallback } from './src/components/SplashFallback';
 import { useAuthStore } from './src/state/authStore';
+import { useRemoteConfigStore } from './src/state/remoteConfigStore';
 import { useLiveLocation } from './src/hooks/useLiveLocation';
 import { useLanguageStore } from './src/state/languageStore';
 import { hydrateUserStores } from './src/services/sessionStores';
@@ -114,12 +115,17 @@ export default function App() {
   const mountedAt = useRef(Date.now());
   const hydrateAuth = useAuthStore((s) => s.hydrate);
   const hydrateLanguage = useLanguageStore((s) => s.hydrate);
+  const fetchRemoteConfig = useRemoteConfigStore((s) => s.fetchConfig);
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
   // Hydrate the last fix and poll only while foregrounded (never prompts on launch).
   useLiveLocation();
 
   useEffect(() => {
     let active = true;
+    // Best-effort central remote config (superadmin-managed app settings). Fetched in parallel with
+    // the session/language hydrations but never awaited, so startup is never blocked: the branded
+    // splash's minimum 5 s window covers the fetch, and a failure keeps the bake-time defaults.
+    void fetchRemoteConfig();
     (async () => {
       try {
         await Promise.all([
@@ -139,7 +145,7 @@ export default function App() {
     return () => {
       active = false;
     };
-  }, [hydrateAuth, hydrateLanguage]);
+  }, [hydrateAuth, hydrateLanguage, fetchRemoteConfig]);
 
   useEffect(() => {
     if (fontsLoaded && ready) {

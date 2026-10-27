@@ -62,6 +62,15 @@ All three must pass before pushing. `check:boundaries` fails on any sub-app impo
 sub-app's internals (only `Home` is allowed to cross sub-apps). `check:drillin` fails if any
 `MASTER_CATEGORIES` title resolves no vendor (the category drill-in would render empty).
 
+### 4b. Central remote config (the "Central Digital Menu")
+
+App settings that used to need a store release are now SUPER_ADMIN-edited in
+`admin/super/app-config` and served to every app on cold boot (`GET /app-config`, `admins.app_config`
+`0059`, `remoteConfigStore`). A fetch failure is silent — the app falls back to the bake-time
+`scripts/configure.js` values, so build-time keys (`GATEWAY_URL`, native Maps keys, `CERT_PINS`)
+stay unchanged. `GOOGLE_PLACES_API_KEY` is the first runtime-managed key (`maps.places_api_key`;
+empty keeps the baked value).
+
 ### 4a. Run & verify the backend (Go modular monolith)
 
 The production backend is one Go Chi binary at `server/gateway`. Run it with the local stack

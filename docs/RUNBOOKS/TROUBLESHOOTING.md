@@ -373,6 +373,25 @@ build (Reanimated is far slower in debug); use a **CI release** build.
 - Mongo `home feed unavailable` → `mongodb` not seeded. Run `server/supabase/seed/mongo/seed.js`
   (compose mounts it into `/docker-entrypoint-initdb.d`).
 
+## 🔧 Central remote config (`admins.app_config`, `0059`)
+
+- The app fetches `GET /app-config` best-effort under the splash (`remoteConfigStore`). A failure is
+  **silent** — the app keeps the bake-time `scripts/configure.js` defaults (`config.ts`), so "missing
+  config" usually means the gateway was reachable but the row is empty/not-public, or `0059` is not
+  applied. On a fresh local volume run `docker compose down -v && docker compose up -d` so the
+  migration + defaults seed.
+- A portal edit on `admin/super/app-config` is **not cached** — it is served to apps on the next
+  cold boot. If an app still shows the old value immediately, restart it; if it persists, confirm the
+  row is `is_public` and `app_variant` includes the app (`all` matches everything).
+- `maps.places_api_key` is the first live consumer (`usePlaceAutocomplete`). An **empty** value keeps
+  the baked key — blanking the seed row does not disable autocomplete, it restores the baked default.
+- `GET /app-config` never returns secret rows and `value_secret` values are `null` in the portal
+  list. To change a secret value, PUT the other fields and leave Value blank ("keep"); the gateway
+  preserves the stored secret (a `null` value would overwrite it).
+- **Permanently baked, not remote-manageable:** `GATEWAY_URL`, `APP_VARIANT`, native Android/iOS Maps
+  keys (consumed natively at build time), `CERT_PINS`, Firebase config. Changing these still needs a
+  build + store release — do not try to change them via app-config.
+
 ## 🔧 Audit-log retention / purge (`admins.audit_logs`, `0037`)
 
 Portal audit rows are a **rolling 7-day window** for all roles — the gateway worker on Render purges

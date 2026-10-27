@@ -332,6 +332,30 @@ export interface PortalCredential {
   createdAt?: string | undefined;
 }
 
+/** admins.app_config category allowlist (checked in the DB constraint). */
+export type AppConfigCategory = "brand" | "maps" | "region" | "feature" | "maintenance" | "limits";
+
+/** admins.app_config app_variant allowlist — "all" applies to every product. */
+export type AppConfigVariant = "customer" | "delivery" | "seller" | "all";
+
+/**
+ * admins.app_config — the central remote config ("Central Digital Menu"). A SUPER_ADMIN-edited
+ * key/value set that the mobile apps fetch on cold boot (GET /app-config) to override their
+ * build-time baked defaults with no app-store release. In the admin API a secret row's `value`
+ * comes back as `null` (masked); send `null` on PUT to keep the stored value.
+ */
+export interface AppConfigRow {
+  key: string;
+  category: AppConfigCategory;
+  value: unknown;
+  isPublic: boolean;
+  appVariant: AppConfigVariant;
+  valueSecret: boolean;
+  description: string;
+  updatedBy?: string | undefined;
+  updatedAt: string;
+}
+
 /** sellers.seller_fee_change_requests */
 export interface FeeChangeRequest {
   requestId: string;
