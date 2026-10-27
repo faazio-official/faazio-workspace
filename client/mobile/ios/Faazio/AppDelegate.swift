@@ -67,7 +67,7 @@ class ReactNativeDelegate: RCTDefaultReactNativeFactoryDelegate {
     switch Bundle.main.bundleIdentifier {
     case "com.faazio.deliverypartner":
       bundleRoot = "index.delivery"
-    case "com.faazio.seller":
+    case "com.faazio.sellerpartner":
       bundleRoot = "index.seller"
     default:
       bundleRoot = "index"

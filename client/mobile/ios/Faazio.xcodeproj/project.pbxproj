@@ -330,7 +330,7 @@
 				CLANG_ENABLE_MODULES = YES;
 				CODE_SIGN_ENTITLEMENTS = Faazio/Faazio.entitlements;
 				CURRENT_PROJECT_VERSION = 3;
-				FAAZIO_APP_NAME = "Faazio Delivery";
+				FAAZIO_APP_NAME = "Faazio Delivery Partner";
 				FAZIO_APP_VARIANT = delivery;
 				INFOPLIST_FILE = Faazio/Info.plist;
 				IPHONEOS_DEPLOYMENT_TARGET = 16.4;
@@ -361,7 +361,7 @@
 				CLANG_ENABLE_MODULES = YES;
 				CODE_SIGN_ENTITLEMENTS = Faazio/Faazio.entitlements;
 				CURRENT_PROJECT_VERSION = 3;
-				FAAZIO_APP_NAME = "Faazio Seller";
+				FAAZIO_APP_NAME = "Faazio Seller Partner";
 				FAZIO_APP_VARIANT = seller;
 				INFOPLIST_FILE = Faazio/Info.plist;
 				IPHONEOS_DEPLOYMENT_TARGET = 16.4;
@@ -376,7 +376,7 @@
 					"-ObjC",
 					"-lc++",
 				);
-				PRODUCT_BUNDLE_IDENTIFIER = com.faazio.seller;
+				PRODUCT_BUNDLE_IDENTIFIER = com.faazio.sellerpartner;
 				PRODUCT_NAME = FaazioSeller;
 				SWIFT_OBJC_BRIDGING_HEADER = "Faazio/Faazio-Bridging-Header.h";
 				SWIFT_VERSION = 5.0;
@@ -726,7 +726,7 @@
 				CODE_SIGN_ENTITLEMENTS = Faazio/Faazio.entitlements;
 				CURRENT_PROJECT_VERSION = 3;
 				ENABLE_BITCODE = NO;
-				FAAZIO_APP_NAME = "Faazio Delivery";
+				FAAZIO_APP_NAME = "Faazio Delivery Partner";
 				FAZIO_APP_VARIANT = delivery;
 				GCC_PREPROCESSOR_DEFINITIONS = (
 					"$(inherited)",
@@ -763,7 +763,7 @@
 				CODE_SIGN_ENTITLEMENTS = Faazio/Faazio.entitlements;
 				CURRENT_PROJECT_VERSION = 3;
 				ENABLE_BITCODE = NO;
-				FAAZIO_APP_NAME = "Faazio Seller";
+				FAAZIO_APP_NAME = "Faazio Seller Partner";
 				FAZIO_APP_VARIANT = seller;
 				GCC_PREPROCESSOR_DEFINITIONS = (
 					"$(inherited)",
@@ -782,7 +782,7 @@
 					"-ObjC",
 					"-lc++",
 				);
-				PRODUCT_BUNDLE_IDENTIFIER = com.faazio.seller;
+				PRODUCT_BUNDLE_IDENTIFIER = com.faazio.sellerpartner;
 				PRODUCT_NAME = FaazioSeller;
 				SWIFT_OBJC_BRIDGING_HEADER = "Faazio/Faazio-Bridging-Header.h";
 				SWIFT_OPTIMIZATION_LEVEL = "-Onone";

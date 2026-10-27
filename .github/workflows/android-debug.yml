@@ -10,7 +10,7 @@ name: Android Debug APK
 #   adb reverse tcp:8081 tcp:8081   # then run `npm run start` in client/mobile
 #
 # Three products share this native shell. Pick `app: delivery` for the Delivery Partner app
-# (com.faazio.deliverypartner) or `app: seller` for the Seller Partner app (com.faazio.seller).
+# (com.faazio.deliverypartner) or `app: seller` for the Seller Partner app (com.faazio.sellerpartner).
 # Each partner build needs its own Firebase Android config secret
 # (`GOOGLE_SERVICES_DELIVERY_JSON` / `GOOGLE_SERVICES_SELLER_JSON`) so the google-services plugin
 # can generate variant resources; the seller app itself authenticates through the web portal.
@@ -105,7 +105,7 @@ jobs:
           GOOGLE_SERVICES_SELLER_JSON: ${{ secrets.GOOGLE_SERVICES_SELLER_JSON }}
         run: |
           if [ -z "$GOOGLE_SERVICES_SELLER_JSON" ]; then
-            echo "::error::GOOGLE_SERVICES_SELLER_JSON is not set. Register com.faazio.seller in Firebase and store its google-services.json as the secret."
+            echo "::error::GOOGLE_SERVICES_SELLER_JSON is not set. Register com.faazio.sellerpartner in Firebase and store its google-services.json as the secret."
             exit 1
           fi
           mkdir -p android/app/src/seller

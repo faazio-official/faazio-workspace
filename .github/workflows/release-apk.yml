@@ -145,7 +145,7 @@ jobs:
           GOOGLE_SERVICES_SELLER_JSON: ${{ secrets.GOOGLE_SERVICES_SELLER_JSON }}
         run: |
           if [ -z "$GOOGLE_SERVICES_SELLER_JSON" ]; then
-            echo "::error::GOOGLE_SERVICES_SELLER_JSON is not set. Register com.faazio.seller in Firebase and store its google-services.json as the secret."
+            echo "::error::GOOGLE_SERVICES_SELLER_JSON is not set. Register com.faazio.sellerpartner in Firebase and store its google-services.json as the secret."
             exit 1
           fi
           mkdir -p android/app/src/seller
@@ -214,10 +214,10 @@ jobs:
           APP="${{ github.event.inputs.app }}"
           VERSION="$(node -p "require('./package.json').version")"
           if [[ "$APP" == "delivery" ]]; then
-            APP_NAME="Faazio Delivery"
+            APP_NAME="Faazio Delivery Partner"
             TAG="v${VERSION}-delivery"
           elif [[ "$APP" == "seller" ]]; then
-            APP_NAME="Faazio Seller"
+            APP_NAME="Faazio Seller Partner"
             TAG="v${VERSION}-seller"
           else
             APP_NAME="Faazio"

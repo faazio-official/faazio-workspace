@@ -30,6 +30,12 @@ Android metadata lives in the committed native project, not `app.json` (deleted)
 > **CRITICAL:** `com.faazio.customer` must remain globally unique and unchanged — changing it creates
 > a new Play listing and breaks updates.
 
+> The partner apps are separate Play listings built from the same shell with their own `applicationId`
+> and launcher label: Delivery Partner `com.faazio.deliverypartner` ("Faazio Delivery Partner"),
+> Seller Partner `com.faazio.sellerpartner` ("Faazio Seller Partner"). Their Firebase
+> `google-services.json` files are CI-only (`GOOGLE_SERVICES_DELIVERY_JSON` /
+> `GOOGLE_SERVICES_SELLER_JSON`).
+
 ---
 
 ## Step 2: Signing
