@@ -94,8 +94,10 @@ func (r *Repo) StockByProductIDs(ctx context.Context, ids []string) (map[string]
 }
 
 // Decrement atomically reduces stock. Uses SELECT … FOR UPDATE SKIP LOCKED so
-// concurrent decrements don't block each other; returns ok=false when unavailable.
-func (r *Repo) Decrement(ctx context.Context, productID string, qty int64) (int64, bool, error) {
+// concurrent decrements don't block each other; returns ok=false when unavailable. Runs on the
+// provided Querier (the checkout transaction's handle, or the pool for a standalone call) so the
+// caller controls the commit boundary.
+func (r *Repo) Decrement(ctx context.Context, q contracts.Querier, productID string, qty int64) (int64, bool, error) {
 	if r.pool == nil {
 		return 0, false, fmt.Errorf("cartstock: database not configured")
 	}
@@ -103,7 +105,7 @@ func (r *Repo) Decrement(ctx context.Context, productID string, qty int64) (int6
 		return 0, false, ErrInsufficientStock
 	}
 	var remaining int64
-	err := r.pool.QueryRow(ctx, `
+	err := q.QueryRow(ctx, `
 		update inventory.stock
 		   set in_stock_qty = in_stock_qty - $2, updated_at = now()
 		 where product_id = (

@@ -153,6 +153,10 @@ rendered on the error card** (plus the first stack frame in a dev build) — tha
   `PUSH_WEBHOOK_URL` is empty. The drain refuses to run and leaves `PENDING` rows untouched (the
   sender gate is a real nil interface, so rows are never marked `FAILED` without a provider); the
   in-app inbox keeps working. Set `PUSH_WEBHOOK_URL` on the gateway to actually deliver pushes.
+- **A delivery failed but the push should retry** → `FAILED` is no longer terminal. The worker
+  retries with capped exponential backoff (1s→2s→4s→… ≤1h, up to 6 attempts, `0058`); only rows past
+  the budget stay `FAILED`. The admin outbox exposes the `attempts` count. Re-deploying a fixed relay
+  does not re-drain a terminal row — re-enqueue or reset `attempts`/`next_attempt_at` to retry it.
 - **Cart/order changes did not persist** → check `GET /cart` / `GET /orders` and the `syncError`
   banner; a failed write rolls the optimistic UI back rather than faking success.
 

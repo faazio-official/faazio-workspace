@@ -57,3 +57,10 @@ func TestStockWithoutDBErrors(t *testing.T) {
 		t.Fatal("expected error when pool is nil")
 	}
 }
+
+func TestDecrementWithoutDBErrors(t *testing.T) {
+	_, ok, err := New(nil).Decrement(context.Background(), nil, "md-1", 1)
+	if err == nil || ok {
+		t.Fatal("expected error when pool is nil")
+	}
+}

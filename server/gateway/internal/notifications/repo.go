@@ -10,11 +10,21 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"time"
 
 	"github.com/faazio/server/gateway/internal/platform/cache"
 	"github.com/faazio/server/gateway/internal/platform/db"
+)
+
+// Delivery retry policy for the drain worker: a FAILED row is retried with capped exponential
+// backoff (1s, 2s, 4s, … up to MaxRetryBackoff) until it hits MaxDeliveryAttempts, after which it
+// stays FAILED permanently (drainable rows are `status='PENDING'` or `FAILED` with
+// `next_attempt_at <= now()`).
+const (
+	MaxDeliveryAttempts = 6
+	MaxRetryBackoff     = 3600 * time.Second
 )
 
 // Notification is one notifications.outbox row (user-facing copy only).
@@ -26,6 +36,7 @@ type Notification struct {
 	Body      string          `json:"body"`
 	Data      json.RawMessage `json:"data,omitempty"`
 	Status    string          `json:"status"`
+	Attempts  int             `json:"attempts"`
 	CreatedAt string          `json:"createdAt"`
 	SentAt    string          `json:"sentAt,omitempty"`
 }
@@ -93,12 +104,15 @@ func (r *Repo) EnqueueSeller(ctx context.Context, storeIDs []string, kind, title
 	if err := rows.Err(); err != nil {
 		return err
 	}
+	// Fan out to every seller. A single user's enqueue failure must not starve the rest of order
+	// notifications — attempt all rows and return the joined errors (if any) to the caller.
+	var errs []error
 	for _, userID := range userIDs {
 		if err := r.Enqueue(ctx, userID, kind, title, body, data); err != nil {
-			return err
+			errs = append(errs, fmt.Errorf("notify seller %s: %w", userID, err))
 		}
 	}
-	return nil
+	return errors.Join(errs...)
 }
 
 // Inbox returns a user's notifications, newest first.
@@ -110,7 +124,7 @@ func (r *Repo) Inbox(ctx context.Context, userID string, limit int) ([]Notificat
 		limit = 50
 	}
 	return r.scan(ctx, `
-		select id, coalesce(user_id,''), kind, title, body, data, status, created_at, sent_at
+		select id, coalesce(user_id,''), kind, title, body, data, status, attempts, created_at, sent_at
 		  from notifications.outbox
 		 where user_id = $1
 		 order by created_at desc limit $2`, userID, limit)
@@ -125,7 +139,7 @@ func (r *Repo) Outbox(ctx context.Context, status string, limit int) ([]Notifica
 		limit = 100
 	}
 	return r.scan(ctx, `
-		select id, coalesce(user_id,''), kind, title, body, data, status, created_at, sent_at
+		select id, coalesce(user_id,''), kind, title, body, data, status, attempts, created_at, sent_at
 		  from notifications.outbox
 		 where ($1 = '' or status = $1)
 		 order by created_at desc limit $2`, status, limit)
@@ -142,8 +156,9 @@ type PendingMessage struct {
 	Data   []byte
 }
 
-// Pending returns up to limit PENDING rows that have a registered push token, oldest first.
-// Rows without a token stay PENDING (they are still visible in the in-app inbox).
+// Pending returns up to limit drainable rows that have a registered push token, oldest first:
+// status PENDING plus FAILED rows whose next_attempt_at has passed (retry window). Rows past
+// MaxDeliveryAttempts (next_attempt_at NULL) and rows without a token stay out of the drain.
 func (r *Repo) Pending(ctx context.Context, limit int) ([]PendingMessage, error) {
 	if r.pool == nil {
 		return nil, fmt.Errorf("notifications: database not configured")
@@ -156,6 +171,7 @@ func (r *Repo) Pending(ctx context.Context, limit int) ([]PendingMessage, error)
 		  from notifications.outbox o
 		  join notifications.push_tokens t on t.user_id = o.user_id
 		 where o.status = 'PENDING'
+		    or (o.status = 'FAILED' and o.next_attempt_at is not null and o.next_attempt_at <= now())
 		 order by o.created_at asc
 		 limit $1`, limit)
 	if err != nil {
@@ -187,13 +203,23 @@ func (r *Repo) MarkSent(ctx context.Context, id string) error {
 	return err
 }
 
-// MarkFailed flips a row to FAILED (a terminal delivery error for this attempt).
+// MarkFailed flips a row to FAILED and schedules the next retry attempt: capped exponential backoff
+// (1s, 2s, 4s, … ≤ MaxRetryBackoff). After MaxDeliveryAttempts attempts next_attempt_at is null and
+// the row is terminal. A transient webhook 5xx no longer drops the notification for good.
 func (r *Repo) MarkFailed(ctx context.Context, id string) error {
 	if r.pool == nil {
 		return fmt.Errorf("notifications: database not configured")
 	}
-	_, err := r.pool.Exec(ctx,
-		`update notifications.outbox set status = 'FAILED' where id = $1`, id)
+	_, err := r.pool.Exec(ctx, `
+		update notifications.outbox
+		   set status = 'FAILED',
+		       attempts = attempts + 1,
+		       next_attempt_at = case
+		         when attempts + 1 >= $2 then null -- terminal: retry budget exhausted
+		         else now() + make_interval(secs => least($3::double precision, power(2::float8, attempts::float8)))
+		       end,
+		       updated_at = now()
+		 where id = $1`, id, MaxDeliveryAttempts, MaxRetryBackoff.Seconds())
 	return err
 }
 
@@ -244,7 +270,7 @@ func (r *Repo) scan(ctx context.Context, query string, args ...any) ([]Notificat
 			createdAt time.Time
 			sentAt    *time.Time
 		)
-		if err := rows.Scan(&n.ID, &n.UserID, &n.Kind, &n.Title, &n.Body, &data, &n.Status, &createdAt, &sentAt); err != nil {
+		if err := rows.Scan(&n.ID, &n.UserID, &n.Kind, &n.Title, &n.Body, &data, &n.Status, &n.Attempts, &createdAt, &sentAt); err != nil {
 			return nil, err
 		}
 		if len(data) > 0 {

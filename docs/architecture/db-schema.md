@@ -1283,6 +1283,13 @@ CREATE TABLE notifications.outbox (
   status text NOT NULL DEFAULT 'PENDING' CHECK (status IN ('PENDING','SENT','FAILED')),
   created_at timestamptz NOT NULL DEFAULT now(), sent_at timestamptz
 );
+-- 0058 adds the retry budget: attempts + next_attempt_at (capped exponential backoff, terminal after
+-- 6 attempts) + updated_at. Drainable = PENDING or FAILED with next_attempt_at <= now().
+ALTER TABLE notifications.outbox ADD COLUMN attempts INT NOT NULL DEFAULT 0;
+ALTER TABLE notifications.outbox ADD COLUMN next_attempt_at timestamptz;
+ALTER TABLE notifications.outbox ADD COLUMN updated_at timestamptz NOT NULL DEFAULT now();
+CREATE INDEX notifications_outbox_retry_idx ON notifications.outbox (status, next_attempt_at)
+  WHERE status IN ('PENDING','FAILED');
 CREATE TABLE notifications.push_tokens (
   user_id text PRIMARY KEY, token text NOT NULL, platform text, updated_at timestamptz
 );
@@ -1302,7 +1309,10 @@ address are surfaced by the query's `CASE` only in those states; the projection 
 quote line, sets the reveal and enqueues `notifications.outbox` (`RX_READY`). The outbox carries no PII
 beyond `user_id`; `push_tokens.token` is a device credential and is never logged. A device token
 belongs to one portal login at a time: registering it deletes any prior owner's row (shared phones),
-and `DELETE /notifications/register` removes it on sign-out. New tables are
+and `DELETE /notifications/register` removes it on sign-out. FAILED delivery is **retryable** (the
+drain worker's `MarkFailed` schedules `next_attempt_at` with capped exponential backoff 1s→2s→4s→…
+≤1h; terminal after 6 attempts, `0058`) — a transient webhook 5xx no longer drops the row, and
+legacy `FAILED` rows were backfilled one retry window. New tables are
 deny-all to `anon`/`authenticated` (gateway-only); `pharma.prescriptions`' own-rows RLS is untouched.
 `util.touch_updated_at()` is attached to `pharma.quote_items`. Idempotent and re-runnable.
 
