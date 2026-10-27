@@ -63,9 +63,9 @@ the edge). Free-tier allows ~5 rules, so prefixes are combined:
 | `/coupons*`, `/promo/*`, `/ads/live*` | 300 s | 60 s | Public promo content |
 
 **Never edge-cache (Bypass)** `/cart*`, `/orders*`, `/profile*`, `/checkout*`, `/favourites*`,
-`/events` — auth-scoped. Also bypass any request bearing an `Authorization` header or returning
-`Set-Cookie`, plus lat/long-dependent reads (`/stores/nearby*`, `/checkout/delivery-fee*`) that must
-reach the origin.
+`/events`, `/app-config*` — auth-scoped or a live-control value. Also bypass any request bearing an
+`Authorization` header or returning `Set-Cookie`, plus lat/long-dependent reads
+(`/stores/nearby*`, `/checkout/delivery-fee*`) that must reach the origin.
 
 ---
 
