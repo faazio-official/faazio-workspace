@@ -86,6 +86,22 @@ func TestSnapshotOmitsSecretValue(t *testing.T) {
 	}
 }
 
+// TestPublicListNoStore pins the no-store contract: the public config must never be edge/browser
+// cached, or a superadmin edit would reach apps a boot late. The header is set before the repo call,
+// so a nil-repo 500 response still carries it.
+func TestPublicListNoStore(t *testing.T) {
+	h := NewHandler(New(nil), nil) // nil pool (health-only mode): the 500 response still carries the header
+	req := httptest.NewRequest(http.MethodGet, "/app-config", nil)
+	rr := httptest.NewRecorder()
+	h.publicList(rr, req)
+	if got := rr.Header().Get("Cache-Control"); got != "no-store" {
+		t.Fatalf("GET /app-config Cache-Control = %q, want no-store", got)
+	}
+	if rr.Code != http.StatusInternalServerError {
+		t.Fatalf("GET /app-config status = %d, want 500 (nil pool)", rr.Code)
+	}
+}
+
 func TestUpsertHandlerValidation(t *testing.T) {
 	h := NewHandler(nil, nil) // nil repo: any attempt to hit the DB fails, so a 400 means validation ran first.
 	body := `{"category":"brand","value":"\"#000\""}`

@@ -183,6 +183,12 @@ function AppConfigPage() {
       toast.error("A public value cannot be marked secret.");
       return;
     }
+    // A masked secret row edits as blank ("keep"). Unchecking Secret with no value would send a
+    // JSON null and permanently clobber the stored secret, so require a real value on that path.
+    if (editing?.valueSecret && !formSecret && formValue.trim() === "") {
+      toast.error("Enter a value before making this key public.");
+      return;
+    }
     if (formDescription.trim().length > 300) {
       toast.error("Description is too long (max 300 characters).");
       return;

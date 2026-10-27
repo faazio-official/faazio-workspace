@@ -124,8 +124,9 @@ export default function App() {
     let active = true;
     // Best-effort central remote config (superadmin-managed app settings). Fetched in parallel with
     // the session/language hydrations but never awaited, so startup is never blocked: the branded
-    // splash's minimum 5 s window covers the fetch, and a failure keeps the bake-time defaults.
-    void fetchRemoteConfig();
+    // splash's minimum 5 s window covers the fetch, and a failure keeps the bake-time defaults. The
+    // 4 s timeout mirrors the hydration bound so a black-holed connection can't strand the fetch.
+    void withTimeout(fetchRemoteConfig(), 4000, 'remoteConfig').catch(() => {});
     (async () => {
       try {
         await Promise.all([

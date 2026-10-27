@@ -37,8 +37,11 @@ func (h *Handler) Register(r chi.Router) {
 }
 
 // publicList serves the public rows for one app variant (?variant=customer|delivery|seller). Only
-// is_public rows are ever returned, so no secret can leak to the app.
+// is_public rows are ever returned, so no secret can leak to the app. `no-store` (never edge/browser
+// cached, per caching-cloudflare-valkey.md) so a superadmin edit lands on the next app boot instead
+// of a stale Cloudflare/gateway-cached reply.
 func (h *Handler) publicList(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Cache-Control", "no-store")
 	items, err := h.repo.ListPublic(r.Context(), r.URL.Query().Get("variant"))
 	if err != nil {
 		httpx.Fail(w, http.StatusInternalServerError, "config_unavailable", "app config unavailable")
