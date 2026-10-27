@@ -555,7 +555,7 @@ still separate files; consolidating them is tracked in `client/mobile/PENDING_WO
 
 | Store | Purpose |
 |---|---|
-| `authStore` | Session, login payload, auth state. `AuthUser` carries the decoded partner role/state claims (`role`, `stateCode`) read from the Firebase ID token (`lib/tokenClaims.ts`) so admin UI can gate client-side — the gateway re-verifies the token on every call. `expireSession()` drops the in-memory session after `GatewayClient` has cleared a dead Keychain session; the root navigators react by returning to Login (customer) / Phone entry (delivery) |
+| `authStore` | Session, login payload, auth state. `AuthUser` carries the decoded partner role/state claims (`role`, `stateCode`) read from the Firebase ID token (`lib/tokenClaims.ts`; legacy `STATE_ADMIN` is canonicalised to `DISTRICT_ADMIN` to match the gateway) so admin UI can gate client-side — the gateway re-verifies the token on every call. `expireSession()` drops the in-memory session after `GatewayClient` has cleared a dead Keychain session; the root navigators react by returning to Login (customer) / Phone entry (delivery) |
 | `cartStore` | Cart items, quantity, totals; `addToCart(id, name, price, emoji, restaurantId?)` — the optional 5th arg tags a line to a restaurant (adopts an untagged line on re-add); `clearRestaurantCart(id)` removes only that restaurant's lines. Fulfilment is chosen order-level on the cart, not per item. The local cart is the optimistic UI model; every mutation mirrors best-effort to the durable `inventory.carts` row (`gateway.addToCart`/`updateCartItem`/`removeCartItem`) and `hydrate()` pulls + rejoins catalog details at startup (remote mode only); the first empty remote hydrate clears the local `seedCartItems` |
 | `favoriteStore` | Favourites (ids) |
 | `pharmaStore` | Prescriptions |
@@ -590,7 +590,9 @@ still separate files; consolidating them is tracked in `client/mobile/PENDING_WO
   fallback for the remote `useVendorReviews`). Reused by all five entry points.
 - `orderHistory.ts` — projects a durable `checkout.orders` row (`OrderRow`) onto the app's
   `PlacedOrder` view model (status map: `NEW`/`PACKED`→`Processing`, `RETURNED`→`Cancelled`,
-  vendor name resolved from the store snapshot). Used by the `ordersStore` hydration.
+  vendor name resolved from the store snapshot; **W71** total prefers the server's
+  `totalChargedPaisa` over the line-item subtotal so delivery/tax/coupon are reflected). Used by
+  the `ordersStore` hydration.
 - `categoryVendors.ts` — repository seam for the category drill-in: `getVendorsForApp(app, q)`
   (per-token match over the search configs' `searchableText`, grouped per `storeId`, sorted by
   match count then rating), `getVendorsWithProducts(app, q)` (adds each store's matching product
@@ -617,20 +619,25 @@ still separate files; consolidating them is tracked in `client/mobile/PENDING_WO
 - **Order placement:** `CartView.handlePlaceOrder` calls `gateway.placeOrder({ items, addressId,
   fulfillment, idempotencyKey, pickup, pickups, coinsRedeemed })`; the **server is the money/stock
   authority** (prices, decrements stock, holds the idempotency lock) and returns the durable order
-  `id`, now used as the `ordersStore` key (fallback `FZ-*` only if the call fails). The chosen
-  `paymentMethod` (`UPI | CARD`) is sent so the durable payment ledger reflects it; payment capture
-  itself stays deferred. The **delivery fee is dynamic**: `CartView` quotes it on the FULFILLMENT
+  `id`, now used as the `ordersStore` key. **(W71)** `addressId` is the caller's durable
+  `GET /profile/addresses` id (never the `@data/cart/addresses` demo fixture) and is omitted for
+  pickup; the idempotency key is created once per checkout attempt, reused across retries, and reset
+  only after success. A failed placement (`GatewayHttpError`/offline) shows an alert and always
+  clears the spinner in `finally`; `409` is treated as "already processing" (check My Orders). The
+  chosen `paymentMethod` (`UPI | CARD`) is sent so the durable payment ledger reflects it; payment
+  capture itself stays deferred. The **delivery fee is dynamic**: `CartView` quotes it on the FULFILLMENT
   step via `gateway.fetchDeliveryFee` (`GET /checkout/delivery-fee`, store pin + live drop), falling
   back to a Haversine estimate when the gateway is unreachable — the server settles the same math.
   On success the purchased lines are removed from the
   durable server cart; rewards (`recordOrder`) stay local-first. A 1.2s minimum delay preserves the
-  processing spinner.
+  processing spinner. The coupon sheet treats an authoritative empty `GET /coupons` list as empty
+  (no retired fixtures).
 - **Pharma Rx:** `PrescriptionFlowScreen.handleConfirm` uploads each captured photo to the private
   `prescriptions` bucket via a signed URL (`gateway.uploadPrescriptionImage` → object **key**, never
   a URL/logged), then calls `gateway.createPrescription({ vendorId, fulfillment, pages, note,
   imagePaths, addressId })`. **(W29)** the delivery `addressId` is resolved from
   `gateway.getAddresses()` (server-owned) rather than the `@data/cart/addresses` fixture, so a
-  `DELIVERY` Rx never stores a phantom fixture FK. The Rx is keyed by the **server-owned id** so My
+  `DELIVERY` Rx never stores a phantom fixture FK. **(W71)** cart checkout follows the same rule. The Rx is keyed by the **server-owned id** so My
   Orders can poll it;
   failed photo uploads drop that page but never block the Rx. Seller quote/READY reveal + outbox
   notifications are served by the gateway (see `mvp-backend.md`). The customer sees the quote in

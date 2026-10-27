@@ -113,6 +113,9 @@ func TestByStorePageActiveOnly(t *testing.T) {
 	if page[0].ID != active1 || page[0].Rating != 4.5 {
 		t.Fatalf("expected %s (4.5) first, got %s (%v)", active1, page[0].ID, page[0].Rating)
 	}
+	if page[0].StoreID != storeID {
+		t.Fatalf("storeId = %q, want %q", page[0].StoreID, storeID)
+	}
 	for _, p := range page {
 		if p.ID == draft {
 			t.Fatal("DRAFT product leaked into the ACTIVE list")

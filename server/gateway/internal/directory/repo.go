@@ -393,27 +393,48 @@ type SellerStore struct {
 	UpdatedAt string  `json:"updatedAt"`
 }
 
-// SellerStores lists the stores a seller owns.
-// VenueSellerInDistrict resolves the seller that owns a store venue inside the given district.
-// ok=false when the venue is not a store, has no seller, or the seller is outside the district
-// (strict — a district admin cannot manage an unowned/dining venue).
-func (r *Repo) VenueSellerInDistrict(ctx context.Context, venueID, district string) (string, bool, error) {
+// MenuOrVenueSeller resolves the seller that owns a menu row or, when the dish is new, the venue.
+// The dish owner wins so a multi-seller venue never misattributes an existing row; otherwise the
+// store owner is used, and finally any existing menu row for the venue. ok=false means the venue
+// has no seller at all (a dining venue with no store/menu owner is SUPER_ADMIN-only).
+func (r *Repo) MenuOrVenueSeller(ctx context.Context, venueID, dishID string) (string, bool, error) {
 	if r.pool == nil {
 		return "", false, fmt.Errorf("directory: database not configured")
 	}
-	var sellerID string
+	var sellerID *string
 	err := r.pool.QueryRow(ctx, `
-		select s.seller_id
-		  from directory.stores s
-		  join sellers.sellers se on se.seller_id = s.seller_id
-		 where s.id = $1 and se.district_code = $2`, venueID, district).Scan(&sellerID)
+		select coalesce(
+		         (select seller_id from directory.menus
+		           where venue_id = $1 and dish_id = $2
+		             and seller_id is not null and seller_id <> ''),
+		         (select seller_id from directory.stores
+		           where id = $1 and seller_id is not null and seller_id <> ''),
+		         (select seller_id from directory.menus
+		           where venue_id = $1 and seller_id is not null and seller_id <> ''
+		           order by dish_id asc limit 1))`, venueID, dishID).Scan(&sellerID)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return "", false, nil
 		}
 		return "", false, err
 	}
-	return sellerID, true, nil
+	if sellerID == nil || *sellerID == "" {
+		return "", false, nil
+	}
+	return *sellerID, true, nil
+}
+
+// SellerInDistrict reports whether a seller belongs to the given district (strict).
+func (r *Repo) SellerInDistrict(ctx context.Context, sellerID, district string) (bool, error) {
+	if r.pool == nil {
+		return false, fmt.Errorf("directory: database not configured")
+	}
+	var ok bool
+	err := r.pool.QueryRow(ctx, `
+		select exists (
+			select 1 from sellers.sellers
+			 where seller_id = $1 and district_code = $2)`, sellerID, district).Scan(&ok)
+	return ok, err
 }
 
 // SellerStores lists stores scoped to a seller or district. A district admin passes district
@@ -592,6 +613,18 @@ func (r *Repo) SellerMenus(ctx context.Context, sellerID, district, venueID stri
 func (r *Repo) UpsertMenu(ctx context.Context, m SellerMenu, sellerID string, all bool) (SellerMenu, bool, error) {
 	if r.pool == nil {
 		return SellerMenu{}, false, fmt.Errorf("directory: database not configured")
+	}
+	// A non-super caller may only write a dish at a venue they own (store owner, or the owner of an
+	// existing menu row for a dining venue). This also closes the insert path: the ON CONFLICT guard
+	// alone only protects rows that already exist.
+	if !all {
+		owner, found, err := r.MenuOrVenueSeller(ctx, m.VenueID, m.DishID)
+		if err != nil {
+			return SellerMenu{}, false, err
+		}
+		if !found || owner != sellerID {
+			return SellerMenu{}, false, nil
+		}
 	}
 	var (
 		out      SellerMenu

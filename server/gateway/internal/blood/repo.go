@@ -182,12 +182,15 @@ func (r *Repo) CreateRequest(ctx context.Context, req contracts.BloodRequest) (c
 	return req, nil
 }
 
-// DeleteRequest removes a request (moderation). Reports whether a row existed.
-func (r *Repo) DeleteRequest(ctx context.Context, id string) (bool, error) {
+// DeleteRequest removes a request (moderation), scoped to a state when stateCode is non-empty (a
+// district admin), or globally for a super admin. Reports whether a row existed in scope.
+func (r *Repo) DeleteRequest(ctx context.Context, id, stateCode string) (bool, error) {
 	if r.pool == nil {
 		return false, fmt.Errorf("blood: database not configured")
 	}
-	tag, err := r.pool.Exec(ctx, `delete from blood.requests where id = $1`, id)
+	tag, err := r.pool.Exec(ctx, `
+		delete from blood.requests
+		 where id = $1 and ($2 = '' or state = $2)`, id, stateCode)
 	if err != nil {
 		return false, err
 	}

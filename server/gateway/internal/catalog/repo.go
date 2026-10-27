@@ -36,7 +36,8 @@ func New(pool *db.Pool, cdnBase ...string) *Repo {
 const productSelect = `
 select p.id, p.app::text, p.category, p.name, p.search_tokens,
        p.price_paisa, p.mrp_paisa, p.rating, p.reviews_count,
-       p.emoji, p.image_url, p.image_key, p.desc_text, p.badge, p.shop, p.unit, p.attributes,
+       p.emoji, p.image_url, p.image_key, p.desc_text, p.badge, p.shop, coalesce(p.store_id,''),
+       p.unit, p.attributes,
        s.available, s.in_stock_qty, s.price_paisa, s.mrp_paisa, s.eta, s.is_prescription,
        null::float8 as distance_km
 from catalog.products p
@@ -49,7 +50,8 @@ left join inventory.stock s on s.product_id = p.id`
 const productListSelect = `
 select p.id, p.app::text, p.category, p.name, p.search_tokens,
        p.price_paisa, p.mrp_paisa, p.rating, p.reviews_count,
-       p.emoji, p.image_url, p.image_key, ''::text as desc_text, p.badge, null::text as shop, p.unit, null::jsonb as attributes,
+       p.emoji, p.image_url, p.image_key, ''::text as desc_text, p.badge, null::text as shop,
+       coalesce(p.store_id,''), p.unit, null::jsonb as attributes,
        s.available, s.in_stock_qty, s.price_paisa, s.mrp_paisa, s.eta, s.is_prescription,
        null::float8 as distance_km
 from catalog.products p
@@ -97,7 +99,7 @@ func (r *Repo) Nearby(ctx context.Context, app string, lat, lng, radiusKm float6
 		select p.id, p.app::text, p.category, p.name, p.search_tokens,
 		       p.price_paisa, p.mrp_paisa, p.rating, p.reviews_count,
 		       p.emoji, p.image_url, p.image_key, ''::text as desc_text, p.badge,
-		       null::text as shop, p.unit, null::jsonb as attributes,
+		       null::text as shop, coalesce(p.store_id,''), p.unit, null::jsonb as attributes,
 		       s.available, s.in_stock_qty, s.price_paisa, s.mrp_paisa, s.eta, s.is_prescription,
 		       (6371.0088 * acos(least(1, greatest(-1,
 		           sin(radians($1)) * sin(radians(d.latitude)) +
@@ -230,7 +232,7 @@ func scanProducts(rows pgx.Rows, cdnBase string) ([]contracts.Product, error) {
 		if err := rows.Scan(
 			&p.ID, &p.App, &p.Category, &p.Name, &p.SearchTokens,
 			&pricePaisa, &mrpPaisa, &rating, &reviewsCount,
-			&p.Emoji, &p.Image, &imageKey, &p.Desc, &badge, &shop, &unit, &attrsRaw,
+			&p.Emoji, &p.Image, &imageKey, &p.Desc, &badge, &shop, &p.StoreID, &unit, &attrsRaw,
 			&sAvail, &sQty, &stockPrice, &sMRP, &sETA, &sRx,
 			&distance,
 		); err != nil {

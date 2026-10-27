@@ -101,6 +101,7 @@ type Product struct {
 	Desc          string         `json:"desc"`
 	Badge         string         `json:"badge,omitempty"`
 	Shop          string         `json:"shop,omitempty"`
+	StoreID       string         `json:"storeId,omitempty"`
 	ReviewsCount  *int64         `json:"reviewsCount,omitempty"`
 	Unit          string         `json:"unit,omitempty"`
 	Attributes    map[string]any `json:"attributes,omitempty"`

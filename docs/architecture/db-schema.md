@@ -2101,7 +2101,9 @@ UPDATE directory.menus m SET seller_id = s.seller_id
 - District-admin reads/writes for products, stores, menus and vendor prescriptions require the row's
   `seller_id` to resolve to a seller in that district. Rows with no seller ownership remain
   `SUPER_ADMIN`-only until an owner is assigned.
-- District-created menus resolve the seller from the **store** venue. A dining-venue menu with no
-  store seller is therefore super-admin-only under strict scope.
+- Menus resolve the seller as dish owner → store owner → any menu owner on the venue. Seeded
+  dining-venue menus (`tr-*`/`dn-*`, `seller_id='sel-food'`, no `directory.stores` row) are
+  therefore editable by that seller and its district admin; a venue with no ownership at all stays
+  super-admin-only. `UpsertMenu` re-checks the same owner at the repo layer (W71).
 - Seller/app and admin RLS (`0050`) keeps its legacy state fallback; strict scoping is enforced in the
   gateway service layer. Media moderation and `admins` audit/customer reads are unchanged.

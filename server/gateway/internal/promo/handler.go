@@ -2,6 +2,7 @@ package promo
 
 import (
 	"encoding/json"
+	"errors"
 	"net/http"
 	"strings"
 	"time"
@@ -406,8 +407,9 @@ func (h *Handler) upsertOptin(w http.ResponseWriter, r *http.Request) {
 		httpx.Fail(w, http.StatusBadRequest, "bad_request", "invalid request body")
 		return
 	}
+	role := auth.Role(r.Context())
 	sellerID := strings.TrimSpace(req.SellerID)
-	if auth.Role(r.Context()) == auth.RoleSeller {
+	if role == auth.RoleSeller {
 		sellerID = auth.SellerID(r.Context())
 	}
 	productID := strings.TrimSpace(req.ProductID)
@@ -416,9 +418,44 @@ func (h *Handler) upsertOptin(w http.ResponseWriter, r *http.Request) {
 		httpx.Fail(w, http.StatusBadRequest, "bad_request", "invalid opt-in")
 		return
 	}
+	// Scope the write before touching the row: the product must belong to the seller, and an admin
+	// may only act for a seller inside their own campaign scope.
+	owned, err := h.repo.ProductOwnedBy(r.Context(), productID, sellerID)
+	if err != nil {
+		httpx.Fail(w, http.StatusInternalServerError, "promo_unavailable", "promo unavailable")
+		return
+	}
+	if !owned {
+		httpx.Fail(w, http.StatusForbidden, "forbidden", "product does not belong to this seller")
+		return
+	}
+	if role != auth.RoleSeller {
+		campaign, found, err := h.repo.Campaign(r.Context(), req.CampaignID)
+		if err != nil {
+			httpx.Fail(w, http.StatusInternalServerError, "promo_unavailable", "promo unavailable")
+			return
+		}
+		if !found || !adminScopeAllowed(r, campaign.Scope, campaign.StateCode) {
+			httpx.Fail(w, http.StatusNotFound, "not_found", "campaign not found")
+			return
+		}
+		district, state, found, err := h.repo.SellerScope(r.Context(), sellerID)
+		if err != nil {
+			httpx.Fail(w, http.StatusInternalServerError, "promo_unavailable", "promo unavailable")
+			return
+		}
+		if !found || !auth.CanActForSellerDistrict(r.Context(), sellerID, district, state) {
+			httpx.Fail(w, http.StatusForbidden, "forbidden", "seller is outside your scope")
+			return
+		}
+	}
 	o, err := h.repo.UpsertOptin(r.Context(), Optin{
 		CampaignID: req.CampaignID, SellerID: sellerID, ProductID: productID, DiscountPercent: req.DiscountPercent,
 	})
+	if errors.Is(err, ErrOptinNotOwned) {
+		httpx.Fail(w, http.StatusConflict, "optin_owned", "another seller already opted in for this product")
+		return
+	}
 	if err != nil {
 		httpx.Fail(w, http.StatusInternalServerError, "optin_update_failed", "could not save opt-in")
 		return

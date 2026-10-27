@@ -9,6 +9,36 @@ dependencies exist. Do not build the backend/seller flows until told to.
 
 ---
 
+## W71 — Admin scope + checkout correctness hardening (P0/P1)
+
+**Status:** 🟢 Shipped (gateway + mobile + `@data` types).
+
+- **Menus (dining venues):** ownership now resolves dish owner → store owner → any menu owner for
+  the venue. Seeded `tr-*`/`dn-*` dining menus (owned by `sel-food`, no `directory.stores` row) are
+  editable by that seller and by its district admin; unowned dining venues stay super-admin-only.
+  `UpsertMenu` also machine-checks ownership so the decision does not live in the handler alone.
+- **Promo opt-ins:** `POST /seller/promo-optins` refuses to overwrite another seller's row
+  (`409 optin_not_owned`), checks the product is owned by the seller, and applies campaign/district
+  scope for admins.
+- **Blood moderation:** `DELETE /blood-requests/{id}` is state-scoped for `DISTRICT_ADMIN`
+  (out-of-state id → 404, missing state → 403); super-admin remains global.
+- **Catalog DTO:** product reads (`GET /product/{id}`, batch, nearby) now carry `storeId` so the PDP
+  store block links to the real store instead of guessing from fixtures.
+- **Checkout:** delivery orders submit a durable server address id (`GET /profile/addresses`, never
+  the demo fixture); pickup submits none. Placement failures surface an alert and always clear the
+  processing spinner, and a per-attempt idempotency key is reused across retries and reset on success.
+  Coupons treat an authoritative empty list as empty instead of showing retired fixtures.
+- **Orders:** the list/receipt total prefers the server's `totalChargedPaisa` (delivery/tax/coupon)
+  over the line-item subtotal.
+- **Tokens:** legacy `STATE_ADMIN` claims are canonicalised to `DISTRICT_ADMIN` in the app so an
+  already-issued portal token is not locked out of the admin console.
+- Out of scope (tracked): `media` private-asset cross-district reads, `admins` audit/customer reads,
+  and support return/ticket writes remain coarse.
+
+**Date:** 2026-10-27
+
+---
+
 ## W70 — Strict district scope for seller-owned catalog/directory/pharma (P0)
 
 **Status:** 🟢 Shipped (gateway + seed + migration `0057`).
@@ -16,8 +46,9 @@ dependencies exist. Do not build the backend/seller flows until told to.
 - Catalog/directory/pharma management routes now use `auth.AdminScope`: `SUPER_ADMIN` is unscoped;
   `DISTRICT_ADMIN` must carry `district_code` and gets no parent-state fallback. Product/store/menu
   and vendor-prescription rows must resolve `seller_id` to a seller in that district.
-- Unowned rows (and dining menus with no store seller) are super-admin-only until backfilled;
-  district-created menus resolve the seller through the store venue.
+- Unowned rows are super-admin-only until backfilled. Dining menus resolve ownership through the
+  dish/seller, then the store, then any menu row on the venue (W71), so seeded `tr-*`/`dn-*` menus
+  owned by `sel-food` are not orphaned.
 - Seed now assigns three demo sellers (`sel-3` MART, `sel-pharma` PHARMA, `sel-food` FOOD) and writes
   store/product/menu ownership; `0057` backfills store state, product seller and menu seller from
   existing store relationships.

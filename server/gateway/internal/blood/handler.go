@@ -271,7 +271,15 @@ func queryFilter(r *http.Request) (group, city string) {
 // moderateRequest removes an inappropriate or stale public request (state/super admin only).
 func (h *Handler) moderateRequest(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "id")
-	ok, err := h.repo.DeleteRequest(r.Context(), id)
+	stateCode := ""
+	if auth.Role(r.Context()) == auth.RoleDistrictAdmin {
+		stateCode = auth.StateCode(r.Context())
+		if stateCode == "" {
+			httpx.Fail(w, http.StatusForbidden, "forbidden", "no state scope on this account")
+			return
+		}
+	}
+	ok, err := h.repo.DeleteRequest(r.Context(), id, stateCode)
 	if err != nil {
 		httpx.Fail(w, http.StatusInternalServerError, "request_failed", "could not remove request")
 		return
