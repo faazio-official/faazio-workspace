@@ -176,6 +176,10 @@ dependencies exist. Do not build the backend/seller flows until told to.
 **Status:** 🟢 Shipped (mobile shell + portal mobile nav/orders + gateway seller push). Requires
 `WEB_PORTAL_URL` (release https) and the `GOOGLE_SERVICES_SELLER_JSON` CI secret.
 
+- Seller native identity: Android `seller` flavor / iOS `Seller-*` configs
+  (`com.faazio.sellerpartner`, launcher label "Faazio Seller Partner") own their Firebase config
+  (`GOOGLE_SERVICES_SELLER_JSON` → `src/seller/google-services.json`, `GoogleService-Info-Seller.plist`).
+
 - Seller app is now `react-native-webview` (`14.0.1`) loading `${WEB_PORTAL_URL}/seller`; the four
   native seller screens and the Keychain seller session were removed. `GatewayClient` still carries
   the seller-onboarding/fee-request calls (customer-app "Sell with us"); its old portal-order
@@ -304,10 +308,11 @@ dependencies exist. Do not build the backend/seller flows until told to.
 
 - **Separate product, one native shell:** `index.js` (customer) and `index.delivery.js` (partner)
   are distinct Metro entries; the delivery entry mounts `src/DeliveryPartnerApp.tsx`, so the
-  customer navigator is never mounted. Android flavors `customer`/`delivery` (`com.faazio.customer`
-  / `com.faazio.deliverypartner`) and iOS `Delivery-Debug`/`Delivery-Release` configurations give
-  the partner its own listings, labels and Firebase config; Gradle/Xcode bundle only the selected
-  entry, so neither product ships the other's screens/stores.
+  customer navigator is never mounted. Android flavors `customer`/`delivery`/`seller`
+  (`com.faazio.customer` / `com.faazio.deliverypartner` / `com.faazio.sellerpartner`, launcher labels
+  "Faazio" / "Faazio Delivery Partner" / "Faazio Seller Partner") and iOS `Delivery-*`/`Seller-*`
+  configurations give each product its own listings, labels and Firebase config; Gradle/Xcode bundle
+  only the selected entry, so neither product ships the other's screens/stores.
 - **Flow:** phone OTP → KYC application (live camera capture for Aadhaar/selfie and motorized
   DL/RC/insurance; private R2 keys only) → admin per-document verify/reject and admin-side
   replacement upload (the rider app has no re-upload screen) → super-admin
@@ -357,10 +362,11 @@ dependencies exist. Do not build the backend/seller flows until told to.
 - **Multi-store auto-dispatch** — the checkout order-ready trigger dispatches only when the order
   has exactly one vendor store (the single-store case). Multi-vendor orders still need one job per store,
   so they stay on the admin `POST /dispatch/assign` path until the fan-out is designed.
-- **Partner Firebase entries (ops)** — register the partner Android app + iOS bundle id in the
-  Firebase project, add `android/app/src/delivery/google-services.json` and
-  `ios/Faazio/GoogleService-Info-Delivery.plist`, and store the Android JSON as the
-  `GOOGLE_SERVICES_DELIVERY_JSON` CI secret. Without them a `delivery` build fails fast. CI now
+- **Partner Firebase entries (ops)** — register the partner Android app + iOS bundle id
+  (`com.faazio.deliverypartner`) in the Firebase project, add `android/app/src/delivery/google-services.json`
+  and `ios/Faazio/GoogleService-Info-Delivery.plist`, and store the Android JSON as the
+  `GOOGLE_SERVICES_DELIVERY_JSON` CI secret (seller uses `com.faazio.sellerpartner` →
+  `GOOGLE_SERVICES_SELLER_JSON`). Without them a `delivery`/`seller` build fails fast. CI now
   passes `GOOGLE_MAPS_API_KEY_ANDROID`/`GOOGLE_PLACES_API_KEY` to `configure.js` after typecheck so
   debug artifacts keep the live gateway config and the partner map renders.
 - **Legal/trust** — independent-contractor + police-assistance clause still needs adding to the

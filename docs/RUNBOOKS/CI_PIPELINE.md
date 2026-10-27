@@ -106,14 +106,16 @@ adb install -r app-customer-debug.apk
 adb reverse tcp:8081 tcp:8081                       # then `npm run start` locally
 ```
 
-The `delivery` product is a **separate app** (`com.faazio.deliverypartner`, "Faazio Delivery"); it
-needs the partner `google-services.json` in the `GOOGLE_SERVICES_DELIVERY_JSON` secret. The workflow
+The `delivery` product is a **separate app** (`com.faazio.deliverypartner`, "Faazio Delivery Partner");
+it needs the partner `google-services.json` in the `GOOGLE_SERVICES_DELIVERY_JSON` secret. The workflow
 sets `APP_VARIANT=delivery` and `ENTRY_FILE=index.delivery.js`, so Gradle bundles only the partner
-root (the customer build uses `index.js`).
+root (the customer build uses `index.js`). `app: seller` is the Seller Partner app
+(`com.faazio.sellerpartner`, "Faazio Seller Partner"); it needs `GOOGLE_SERVICES_SELLER_JSON` and
+`ENTRY_FILE=index.seller.js`.
 
 > A debug APK is signed with the CI runner's **debug** keystore — different from the release key.
-> If a release build is installed, `adb uninstall com.faazio.customer` (or `com.faazio.deliverypartner`)
-> before installing it.
+> If a release build is installed, `adb uninstall com.faazio.customer` (or `com.faazio.deliverypartner`
+> / `com.faazio.sellerpartner`) before installing it.
 
 The signed APK lands on the GitHub Release at `<tag>` (e.g. `v1.0.2`). Because the publish step
 uses `gh release upload --clobber`, re-running the same tag **replaces** the old APK.

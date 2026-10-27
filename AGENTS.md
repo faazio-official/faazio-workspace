@@ -122,7 +122,8 @@ a native prebuild/generator and never commit generated `src/lib/config.ts`.
   `index.delivery.js`; the seller partner app from `index.seller.js`. Metro/config are
   `@react-native/*`.
 - **Three products, one native shell.** Android flavors `customer` / `delivery` / `seller`
-  (`com.faazio.customer` / `com.faazio.deliverypartner` / `com.faazio.seller`) and iOS
+  (`com.faazio.customer` / `com.faazio.deliverypartner` / `com.faazio.sellerpartner`, launcher labels
+  "Faazio" / "Faazio Delivery Partner" / "Faazio Seller Partner") and iOS
   `Delivery-*` / `Seller-*` configurations select the JS entry and native Firebase config. Sellers
   sign in to the seller app with the same email/password as the web portal (portal HS256 JWT). Never
   build two flavors in one Gradle task.
@@ -134,7 +135,9 @@ a native prebuild/generator and never commit generated `src/lib/config.ts`.
   (`@react-native-firebase/auth`) with committed public customer config
   (`android/app/google-services.json`, `ios/Faazio/GoogleService-Info.plist`); the delivery config
   is supplied by CI (`GOOGLE_SERVICES_DELIVERY_JSON` → `android/app/src/delivery/google-services.json`,
-  `GoogleService-Info-Delivery.plist` for iOS). See `docs/RUNBOOKS/FIREBASE_AUTH.md` and
+  `GoogleService-Info-Delivery.plist` for iOS), as is the seller config
+  (`GOOGLE_SERVICES_SELLER_JSON` → `android/app/src/seller/google-services.json`,
+  `GoogleService-Info-Seller.plist` for iOS). See `docs/RUNBOOKS/FIREBASE_AUTH.md` and
   `docs/RUNBOOKS/RELEASE.md`.
 - **Debug vs release:** debug shells load JS from Metro (`adb reverse tcp:8081`) with cleartext
   allowed only to the loopback/emulator host; release shells embed the bundle and deny cleartext.

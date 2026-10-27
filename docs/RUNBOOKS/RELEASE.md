@@ -47,7 +47,7 @@ The release keystore + signing properties are stored as GitHub repository secret
 | `GOOGLE_PLACES_API_KEY` | restricted Places API (New) key for address autocomplete (empty ⇒ static suggestions) |
 | `USE_FIREBASE_AUTH` | `true` (default) — phone OTP via the committed native Firebase config |
 | `GOOGLE_SERVICES_DELIVERY_JSON` | the **partner** Android `google-services.json` (Firebase app registered for `com.faazio.deliverypartner`); required only for `app=delivery` builds |
-| `GOOGLE_SERVICES_SELLER_JSON` | the **seller** Android `google-services.json` (Firebase app registered for `com.faazio.seller`); required for `app=seller` builds. The iOS `Seller-*` configuration copies `GoogleService-Info-Seller.plist`. |
+| `GOOGLE_SERVICES_SELLER_JSON` | the **seller** Android `google-services.json` (Firebase app registered for `com.faazio.sellerpartner`); required for `app=seller` builds. The iOS `Seller-*` configuration copies `GoogleService-Info-Seller.plist`. |
 
 Both workflows pass `GOOGLE_MAPS_API_KEY_ANDROID` and `GOOGLE_PLACES_API_KEY` to `configure.js`
 after typecheck (debug accepts them as repository variables or secrets; release uses secrets), so a
@@ -174,10 +174,12 @@ cd android && ./gradlew assembleCustomerRelease --no-daemon \
   -Pandroid.enableShrinkResourcesInReleaseBuilds=true
 ```
 
-The Android project has two product flavors: `customer` (`com.faazio.customer`) and `delivery`
-(`com.faazio.deliverypartner`, label "Faazio Delivery"). Always name the flavor in the task —
-`assembleDebug` would try both and the partner flavor needs its own Firebase config. The same
-split exists on iOS as the `Delivery-Debug` / `Delivery-Release` build configurations.
+The Android project has three product flavors: `customer` (`com.faazio.customer`), `delivery`
+(`com.faazio.deliverypartner`, label "Faazio Delivery Partner") and `seller`
+(`com.faazio.sellerpartner`, label "Faazio Seller Partner"). Always name the flavor in the task —
+`assembleDebug` would try all three and each partner flavor needs its own Firebase config. The same
+split exists on iOS as the `Delivery-Debug` / `Delivery-Release` and `Seller-Debug` / `Seller-Release`
+build configurations.
 
 To verify a **downloaded** APK is signed with the release cert (not the debug cert):
 ```bash
@@ -201,7 +203,9 @@ apksigner verify --verbose --print-certs app-release.apk
 Requires macOS + Xcode; run `cd client/mobile && npm install && cd ios && pod install` first.
 
 The partner app is a separate listing built from the same target with the `Delivery-Release`
-configuration (`com.faazio.deliverypartner`, display name "Faazio Delivery"). Before archiving it:
+configuration (`com.faazio.deliverypartner`, display name "Faazio Delivery Partner"). The seller
+listing uses the `Seller-Release` configuration (`com.faazio.sellerpartner`, display name
+"Faazio Seller Partner"). Before archiving the delivery app:
 1. Put the partner `GoogleService-Info-Delivery.plist` in `ios/Faazio/` (the build phase copies it
    over the bundled customer plist; a Delivery build fails without it).
 2. Run `APP_VARIANT=delivery npm run configure` (the bundle phase hard-fails otherwise). The

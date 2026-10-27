@@ -11,9 +11,11 @@
 |---|---|---|---|
 | Android | Customer SuperApp | `com.faazio.customer` | `client/mobile/android/app/build.gradle` (`applicationId`) |
 | Android | Delivery Partner | `com.faazio.deliverypartner` | `client/mobile/android/app/build.gradle` (`delivery` flavor) |
+| Android | Seller Partner | `com.faazio.sellerpartner` | `client/mobile/android/app/build.gradle` (`seller` flavor) |
 | iOS | Customer SuperApp | `com.faazio.customer` | `ios/Faazio.xcodeproj` (`PRODUCT_BUNDLE_IDENTIFIER`) |
 | iOS | Delivery Partner | `com.faazio.deliverypartner` | `ios/Faazio.xcodeproj` (`Delivery-*` configurations) |
-| Firebase project | both | `project-65696e12-8def-460e-b29` | public client config + `FIREBASE_PROJECT_ID` |
+| iOS | Seller Partner | `com.faazio.sellerpartner` | `ios/Faazio.xcodeproj` (`Seller-*` configurations) |
+| Firebase project | all apps | `project-65696e12-8def-460e-b29` | public client config + `FIREBASE_PROJECT_ID` |
 
 Each native app must be registered against its own ID. One typo makes
 `signInWithPhoneNumber` fail with an opaque invalid-credential error.
@@ -26,6 +28,8 @@ Each native app must be registered against its own ID. One typo makes
 | `client/mobile/ios/Faazio/GoogleService-Info.plist` | Customer iOS Firebase app registration (Xcode `Copy Bundle Resources`) |
 | `client/mobile/android/app/src/delivery/google-services.json` | Delivery Android app config — **CI-only**, from `GOOGLE_SERVICES_DELIVERY_JSON` (gitignored) |
 | `client/mobile/ios/Faazio/GoogleService-Info-Delivery.plist` | Delivery iOS app config — **supplied by ops/CI**, not committed |
+| `client/mobile/android/app/src/seller/google-services.json` | Seller Android app config — **CI-only**, from `GOOGLE_SERVICES_SELLER_JSON` (gitignored) |
+| `client/mobile/ios/Faazio/GoogleService-Info-Seller.plist` | Seller iOS app config — **supplied by ops/CI**, not committed |
 | `client/mobile/android/build.gradle` | `com.google.gms:google-services:4.5.0` classpath |
 | `client/mobile/android/app/build.gradle` | applies `com.google.gms.google-services` |
 | `client/mobile/ios/Faazio/Info.plist` | `UIBackgroundModes → remote-notification` |
@@ -56,7 +60,7 @@ that OTP is only a signature and must not replace the shopper session. `refreshI
 phone number or OTP code.
 
 The **seller partner app** does not use Firebase Auth (the portal owns its session). It only needs
-the native Firebase app for FCM: register `com.faazio.seller`, store its `google-services.json` as
+the native Firebase app for FCM: register `com.faazio.sellerpartner`, store its `google-services.json` as
 the `GOOGLE_SERVICES_SELLER_JSON` CI secret (iOS: `GoogleService-Info-Seller.plist`), and grant the
 notification permission. The FCM token is injected into the portal WebView, which registers it via
 `POST /api/gateway/notifications/register`.
@@ -98,6 +102,8 @@ requires the runtime notification permission.
 - [x] iOS app registered with `com.faazio.customer`.
 - [ ] Delivery Android app registered with `com.faazio.deliverypartner` (config -> `GOOGLE_SERVICES_DELIVERY_JSON`).
 - [ ] Delivery iOS app registered with `com.faazio.deliverypartner` (config -> `GoogleService-Info-Delivery.plist`).
+- [ ] Seller Android app registered with `com.faazio.sellerpartner` (config -> `GOOGLE_SERVICES_SELLER_JSON`).
+- [ ] Seller iOS app registered with `com.faazio.sellerpartner` (config -> `GoogleService-Info-Seller.plist`).
 - [x] Authentication → Sign-in method → **Phone** enabled.
 - [x] SMS region policy allow-list includes **+91 (India)**.
 - [x] Test numbers added (use them for Metro + CI); real SMS for device tests.

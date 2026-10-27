@@ -133,9 +133,12 @@ rendered on the error card** (plus the first stack frame in a dev build) — tha
   URL opens in the phone browser, check the release network-security config contains the portal host,
   and remember the portal session is a cookie: clearing app data signs the seller out.
 - **New-order beep/push missing** → the seller build needs its own Firebase app
-  (`GOOGLE_SERVICES_SELLER_JSON`), notification permission granted, and the portal open at least
+  (`GOOGLE_SERVICES_SELLER_JSON`, registered for `com.faazio.sellerpartner`), notification permission
+  granted, and the portal open at least
   once after login so `SellerPushBridge` can register the
   FCM token. `DELETE /notifications/register` runs on portal sign-out.
+- **"App not installed" when upgrading a seller APK** → a debug-signed vs release-signed mismatch;
+  `adb uninstall com.faazio.sellerpartner` before installing the release APK.
 - **Seller drawer missing on a phone** → the console shows the drawer below the Tailwind `lg`
   breakpoint; a tablet in landscape uses the desktop sidebar by design.
 
@@ -215,7 +218,8 @@ rendered on the error card** (plus the first stack frame in a dev build) — tha
   ```bash
   git checkout -- android/ ios/
   ```
-  Then verify `namespace`/`applicationId` = `com.faazio.customer`, `versionCode`/`versionName` in
+  Then verify `namespace`/`applicationId` = `com.faazio.customer` (partner flavors;
+  `com.faazio.deliverypartner` / `com.faazio.sellerpartner`), `versionCode`/`versionName` in
   `android/app/build.gradle`, and that `ios/Faazio/AppDelegate.swift` sets moduleName `main`.
 - **NDK / CMake issues** → the project pins NDK `27.1.12297006` (see `android/build.gradle`).
   Install via Android Studio SDK Manager; confirm `ANDROID_HOME` points at the SDK.

@@ -13,6 +13,12 @@ manager, and there is no prebuild/EAS step.
 3. CocoaPods (`gem install cocoapods` or Bundler).
 4. An App Store Connect app record for `com.faazio.customer`.
 
+The partner apps are **separate listings** built from the same target: Delivery Partner bundle id
+`com.faazio.deliverypartner` (`Delivery-Release`, display name "Faazio Delivery Partner"), Seller
+Partner bundle id `com.faazio.sellerpartner` (`Seller-Release`, display name "Faazio Seller Partner").
+Each needs its own Firebase app's `GoogleService-Info-*.plist` (ops-supplied) and an App Store Connect
+record.
+
 ---
 
 ## Step 1: iOS configuration

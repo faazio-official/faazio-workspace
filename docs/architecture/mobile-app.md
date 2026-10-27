@@ -737,11 +737,14 @@ best-effort via the gateway's embedded FCM sender (Android; `FCM_SERVICE_ACCOUNT
 FCM/APNs.
 
 **Native identity.** One committed RN shell, three products: the Android `customer`/`delivery`/`seller`
-product flavors (`com.faazio.customer` / `com.faazio.deliverypartner` / `com.faazio.seller`) and the
-iOS `Debug`/`Release` plus `Delivery-*`/`Seller-*` configurations (same bundle split).
-The partner build needs its own Firebase Android app + iOS plist; `APP_VARIANT=delivery` selects
-that config in `configure.js` (the iOS bundle phase hard-fails otherwise). CI builds them explicitly
-(`assembleCustomerDebug` / `assembleDeliveryDebug`); see `docs/RUNBOOKS/RELEASE.md`.
+product flavors (`com.faazio.customer`, launcher label "Faazio" / `com.faazio.deliverypartner`,
+"Faazio Delivery Partner" / `com.faazio.sellerpartner`, "Faazio Seller Partner") and the
+iOS `Debug`/`Release` plus `Delivery-*`/`Seller-*` configurations (same bundle split and display
+names via `FAAZIO_APP_NAME`).
+The partner builds need their own Firebase Android app + iOS plist; `APP_VARIANT=delivery` / `=seller`
+selects that config in `configure.js` (the iOS bundle phase hard-fails otherwise). CI builds them
+explicitly (`assembleCustomerDebug` / `assembleDeliveryDebug` / `assembleSellerDebug`); see
+`docs/RUNBOOKS/RELEASE.md`.
 
 **Background tracking.** While online, Android runs `DeliveryTrackingService` with
 `foregroundServiceType="location"` and a persistent low-importance notification, waking
