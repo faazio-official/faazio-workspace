@@ -39,6 +39,9 @@ const LIB_DIR = path.join(ROOT, 'src', 'lib');
 const CONFIG_FILE = path.join(LIB_DIR, 'config.ts');
 const TRANSPORT_FILE = path.join(LIB_DIR, 'activeTransport.ts');
 const VARIANT_FILE = path.join(LIB_DIR, 'appVariant.ts');
+// Embedded app version — mirrors package.json (the release workflow rewrites it when `version` is
+// passed). Sent with crash reports so the operator can tell which build failed.
+const appVersion = JSON.parse(fs.readFileSync(path.join(ROOT, 'package.json'), 'utf8')).version || '0.0.0';
 const NSC_FILE = path.join(
   ROOT,
   'android',
@@ -255,6 +258,8 @@ write(
   CONFIG_FILE,
   `${header}
 export const GATEWAY_URL = ${JSON.stringify(gatewayUrl)};
+/** Embedded build version (crash-sink release tag). Mirrors package.json. */
+export const APP_VERSION = ${JSON.stringify(appVersion)};
 /**
  * Web Partner Portal origin for the seller WebView shell. Empty disables the seller app
  * (native auth was removed — the portal owns the HttpOnly session).

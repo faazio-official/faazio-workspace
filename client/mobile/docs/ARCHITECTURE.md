@@ -39,7 +39,8 @@ client/mobile/src/
 - Shared state **only** in Zustand stores under `src/state/` (no duplicate shared state).
 - All routes typed in `src/navigation/AppNavigator.tsx`; screens use `NativeStackScreenProps`.
 - Cross-sub-app access **only via Home** — enforced by `npm run check:boundaries`.
-- All data is mock (`@data/*`); `GatewayClient` is the future single surface (not yet wired).
+- The app is server-first (`USE_GATEWAY=true`): every read/write is remote via `GatewayClient`;
+  `@data/*` fixtures are never substituted at runtime (see `docs/architecture/data-layer-sdui.md`).
 
 ## See also
 

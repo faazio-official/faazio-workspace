@@ -55,13 +55,16 @@ caller) and are event-purged on store live toggle and product edit/status change
   `DELETE /users/me` (account deletion: anonymises the user row, erases PII tables — incl. the
   author's `blood.requests` via `created_by` and a `delivery_orders.route_sequence` reset, 0061 —
   keeps financial records; idempotent), `POST /users/me/data-deletion` (partial erasure of addresses/favourites/
-  prescriptions), `/membership`, `/order-status`, `/account-nav`, `/seller/orders`, `/seller/orders/:id`,
+  prescriptions), `/membership`, `/order-status`, `/account-nav` (titled groups: universal chrome
+  server-side, per-user rows from `accounts.nav`), `/seller/orders`, `/seller/orders/:id`,
   `/coupons?app=` (anon), `/promo/active-discounts?ids=` (anon), `/ads/live?slot=` (anon),
   `/admin/user-trail?userId=` (admin, ID-only), `/admin/sdui/home` (super-admin, raw ID-only layout);
   writes `POST/PUT/DELETE /cart…`, `POST /orders` (festival-discount + coupon settlement + ad
   attribution + optional live drop fix for auto-dispatch + dynamic delivery fee),
   `POST /checkout/validate-coupon`, `GET /checkout/delivery-fee?storeId=&lat=&lng=` (auth-scoped,
   server-authoritative road-distance delivery-fee quote), `POST /ads/events`, `PUT /vendors/:id/rating`, `POST /events`,
+  `POST /errors` (client crash/error sink, optional-auth, non-PII, capped + throttle-limited, best-effort
+  `ops.error_events` insert — migration 0062 — and always a structured `error_event` log line),
   `PUT /admin/sdui/home` (super-admin, publishes the Home layout: version bump + cache purge),
   seller order decisions `PUT /seller/orders/:id/accept` (NEW→PACKED) and
   `PUT /seller/orders/:id/reject` (NEW→REJECTED, payment ledger marked REFUNDED, customer notified),

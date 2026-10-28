@@ -2028,13 +2028,28 @@ CREATE TABLE ops.weather_api_usage (   -- one durable row per day (≤365/year);
   d DATE PRIMARY KEY, calls BIGINT NOT NULL DEFAULT 0 CHECK (calls >= 0),
   fy TEXT NOT NULL, updated_at TIMESTAMPTZ NOT NULL DEFAULT now());
 CREATE TABLE ops.festival_calendar (   -- active row's surge_paisa is the customer + rider surcharge
-  id TEXT PRIMARY KEY, name TEXT NOT NULL, start_date DATE NOT NULL,
-  end_date DATE NOT NULL CHECK (end_date >= start_date),
-  surge_paisa BIGINT NOT NULL DEFAULT 0 CHECK (surge_paisa >= 0),
-  active BOOLEAN NOT NULL DEFAULT true, created_by TEXT NOT NULL DEFAULT '',
-  created_at TIMESTAMPTZ NOT NULL DEFAULT now());
+  id           TEXT PRIMARY KEY, name TEXT NOT NULL, start_date DATE NOT NULL,
+  end_date     DATE NOT NULL CHECK (end_date >= start_date),
+  surge_paisa  BIGINT NOT NULL DEFAULT 0 CHECK (surge_paisa >= 0),
+  active       BOOLEAN NOT NULL DEFAULT true, created_by TEXT NOT NULL DEFAULT '',
+  created_at   TIMESTAMPTZ NOT NULL DEFAULT now());
 CREATE INDEX festival_calendar_active_window_idx
   ON ops.festival_calendar (active, start_date, end_date);
+
+-- 0062: non-PII client crash/error sink (POST /errors → ops.error_events). Written by the gateway
+-- service role only (RLS on, no client grants); the structured error_event slog line is always-on.
+CREATE TABLE ops.error_events (
+  id              bigint generated always as identity primary key,
+  user_id         text not null default '',
+  app_variant     text not null default '',
+  release         text not null default '',
+  message         text not null,
+  stack           text,
+  component_stack text,
+  created_at      timestamptz not null default now()
+);
+CREATE INDEX error_events_created_at_idx
+  ON ops.error_events (created_at desc);
 
 -- checkout.orders: the customer-price basis, persisted once at placement
 ALTER TABLE checkout.orders

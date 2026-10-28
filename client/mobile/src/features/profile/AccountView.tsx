@@ -27,7 +27,7 @@ import {
 import AppText from '@/components/AppText';
 import { hs, vs, ms } from '@/utils/responsive';
 import { SPACE } from '@/theme/spacing';
-import { accountNavGroups } from '@data/index';
+import { useAccountNav } from '@/features/profile/useAccountNav';
 import type { AccountNavGroup, AccountNavRow } from '@data/types';
 import { useRewardsStore } from '@/state/rewardsStore';
 import { STREAK_TARGET_DAYS } from '@data/rewards/rewards';
@@ -90,6 +90,8 @@ export function AccountView({
   const coinBalance = useRewardsStore((s) => s.coinBalance);
   const streakCount = useRewardsStore((s) => s.streakCount);
   const authUser = useAuthStore((s) => s.user);
+  // Nav groups: server rows first, universal catalog chrome fills empty groups (see useAccountNav).
+  const accountNavGroups = useAccountNav();
 
   const handleRowPress = useCallback(
     (row: AccountNavRow) => {

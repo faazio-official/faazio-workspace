@@ -72,10 +72,10 @@ export async function findMatchingDonors(
 }
 
 /**
- * Resolve a donor by id. When the search that opened the detail route was live (or an honest empty),
- * only a server-resolved row counts — an unknown id is an honest "no longer available" screen, never
- * a fixture lookalike. For an offline fallback (or an unlabelled deep link) the fixture directory is
- * also consulted.
+ * Resolve a donor by id from the last live search only. An id the server never
+ * returned is an honest "no longer available" screen — never a fixture lookalike.
+ * `source` is accepted for navigation compat (the route param type) but the
+ * resolution is always server-only.
  */
 export function getDonorById(donorId: string, _source?: ReadSource): DonorProfile | undefined {
   return resolved.get(donorId);

@@ -2697,9 +2697,12 @@ This item routes each module through it, one at a time, keeping the built-in fix
       local derivation is the fallback and the user's own rating stays first.
 - [x] **search analytics** — `SearchScreen` fires `gateway.trackEvent(topResultId, 'search')` once the
       server result pool lands; the allowlisted `search` event is anchored to the top result id.
-- [ ] **profile reads** — `GET /profile` hydrates the header safely, but `/profile/details` returns the
-      nested `{userId, accountId, data}` blob (not the flat `DetailsTable`), and seeded
-      `checkout.addresses` include non-tag labels — wire these when the projection is aligned.
+- [x] **profile reads** — `gateway.getDetails()` (L1234) calls `GET /profile/details` and flattens the
+      nested `{userId, accountId, data}` blob onto the app's flat `DetailsTable`; `UserDetailsScreen`
+      hydrates header + details from the gateway with an honest "couldn't load" shell (no `@data`
+      fixture fallback). `/account-nav` now returns titled `{key, title, comingSoon, rows}` groups
+      (universal chrome server-side, rows from `accounts.nav`); `useAccountNav()` feeds `AccountView`
+      with a per-group catalog fill for unprovisioned users.
 - [x] **rewards, blood** — stores call `GatewayClient`; verified on-device. (Bookings were removed.)
 
 **Date:** 2026-10-14 (updated: orders history + vendor reviews + search analytics)
@@ -3245,7 +3248,7 @@ completes. Field labels/placeholders still come from the stable
 
 ## Production crash telemetry + release signing (build hardening)
 
-**Status:** 🟢 Release signing done (CI); remote crash reporting still open.
+**Status:** 🟢 Release signing done (CI); crash reporting shipped (`/errors` sink), device smoke test pending.
 
 **Shipped (2026-09-11):** `App.tsx` now installs a global `ErrorUtils` handler (so JS/render
 errors are no longer swallowed in release, where `babel` strips `console.*`) and guards the splash
@@ -3274,8 +3277,12 @@ TROUBLESHOOTING.md "Gradle / native build failures" for the full diagnosis. **Wo
 policy: build via CI (`gh workflow run "Release APK"`); local builds only on a freed machine.**
 
 **Future / honest gaps:**
-- **No remote crash reporting.** The global handler only logs locally (dev). Production needs
-  Sentry/Crashlytics (or a `GatewayClient` `/errors` endpoint) to surface real-device crashes.
+- **Crash reporting shipped via the gateway `/errors` sink** (no native SDK). The customer App entry,
+  Delivery + Seller partner entries install a shared `ErrorUtils` handler, and `ErrorBoundary` reports
+  render failures — all fire-and-forget, non-PII (message + stack only, capped, rate-limited) into
+  `ops.error_events` (`migration 0062`) plus the structured request log. Remaining: adopt Sentry/
+  Crashlytics later if a stack-symbolicated UI is wanted (the gateway sink gives raw stacks + R8
+  mapping.txt retracing).
 
 **Shipped (2026-09-15): release APK install failure diagnosis + hardening.** A shared release APK
 failed on a friend's device with **"App not installed as package appears to be invalid."**

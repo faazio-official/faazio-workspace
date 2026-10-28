@@ -21,6 +21,9 @@
 *.keystore
 !android/app/debug.keystore
 keystore.properties
+*.der
+*.p12
+*.jks
 
 # Environment (see .env.example)
 .env
