@@ -588,7 +588,12 @@ still separate files; consolidating them is tracked in `client/mobile/PENDING_WO
   durable record when push is unavailable.
 - `logout.ts` — clears auth + device cart cache (`resetLocal`, leaves the server cart) + favourites
   + orders + search + pharma + blood donor + rewards + vendor-rating stores + the session impression
-  set, and best-effort unregisters the push token.
+  set + saved card tokens (`FaazioCardToken` Keychain entry), and best-effort unregisters the push
+  token. `resetLocalUserState()` is exported separately for account deletion.
+- `accountDeletion.ts` — `deleteAccountEverywhere()` calls `DELETE /users/me` then resets local state
+  + the session Keychain entry (never calls the gateway again after deletion);
+  `deleteSelectedUserData()` calls `POST /users/me/data-deletion` and clears the matching local
+  caches + recent searches.
 - `productViews.ts` — `trackProductView(id)`: emits a `view` behavior event **at most once per product per session** (`user_events` has no dedupe), reset on logout; consumed by `hooks/useViewableTracking` on the Mart search grid, the vendor drill-in "All Products" grid, and the feed rails.
 - `vendorRatings.ts` — single owner of the vendor rating gate: `canRateVendor(vendorId)`
   (derived from fixture orders via `hasPurchasedFromVendor` + in-session `ordersStore.orders`
@@ -680,6 +685,8 @@ AppNavigator (root native stack)
 │   `martDeals`/`martEssentials` from the Mart rail "View All" (catalog-resolved `productIds`); the
 │   last three carry the paid `SECTOR_RAIL` header shelf)
 ├── You · UserDetails · SavedAddresses · MyOrders · Notifications · Favourites · OrderDetails · FaazioRewards · SellWithUs
+│   ├── DeleteAccount (Account → Privacy and security; erases PII, clears session, returns to Login)
+│   ├── RequestDataDeletion (Account → Privacy and security; partial erasure, keeps the account)
 │   └── SellerRequests (admin application queue, role-gated) ── SellerRequestDetail (`{ sellerId }`; KYC verify/activate/reject)
 ├── RateVendor (verified-buyer rating form; every vendor surface + order screens link here)
 ├── BloodDonor (Pharma blood-donor wizard/dashboard)

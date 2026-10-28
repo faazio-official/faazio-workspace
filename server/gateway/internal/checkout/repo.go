@@ -1249,6 +1249,184 @@ func (r *Repo) DeleteAddress(ctx context.Context, userID, addressID string) (boo
 	return tag.RowsAffected() > 0, nil
 }
 
+// DeleteAccount erases a customer's personal data and anonymises their checkout.users row. The row
+// is kept because checkout.orders, checkout.payments and tax.tax_invoices reference it for
+// tax/accounting/dispute-resolution retention; those financial rows survive but are no longer
+// linked to a name, email or phone. auth_uid is unlinked so a stale Firebase token can never
+// resolve (or re-provision) the deleted identity. It returns the previous auth_uid for cache
+// invalidation and ok=false when the user does not exist. Repeated calls are idempotent.
+func (r *Repo) DeleteAccount(ctx context.Context, userID string) (authUID string, ok bool, err error) {
+	if r.pool == nil {
+		return "", false, fmt.Errorf("checkout: database not configured")
+	}
+	if userID == "" {
+		return "", false, nil
+	}
+	var alreadyDeleted bool
+	err = r.pool.QueryRow(ctx, `select coalesce(auth_uid, ''), deleted_at is not null
+		from checkout.users where user_id = $1`, userID).Scan(&authUID, &alreadyDeleted)
+	if err == pgx.ErrNoRows {
+		return "", false, nil
+	}
+	if err != nil {
+		return "", false, err
+	}
+	if alreadyDeleted {
+		return authUID, true, nil
+	}
+
+	// Order matters only for readability: every statement is scoped to this user (or to the user's
+	// own delivery orders) and the whole set commits atomically.
+	statements := []string{
+		`delete from checkout.addresses where user_id = $1`,
+		`delete from inventory.carts where user_id = $1`,
+		// Stock reservations are left to the existing expiry sweep: deleting them here would
+		// release the row without restoring the stock it holds.
+		`delete from favourites.items where user_id = $1`,
+		`delete from rewards.ledger where user_id = $1`,
+		`delete from rewards.balances where user_id = $1`,
+		`delete from pharma.prescriptions where user_id = $1`,
+		`delete from blood.interests where donor_user_id = $1`,
+		`delete from blood.match_requests where requester_user_id = $1 or donor_user_id = $1`,
+		`delete from blood.donors where user_id = $1`,
+		`delete from notifications.outbox where user_id = $1`,
+		`delete from notifications.push_tokens where user_id = $1`,
+		`delete from delivery.delivery_ratings where customer_id = $1`,
+		`delete from accounts.profile where id = $1 or account_id = $1`,
+		`delete from accounts.membership where user_id = $1`,
+		`delete from accounts.order_status where user_id = $1`,
+		`delete from accounts.nav where user_id = $1`,
+		`delete from accounts.details where user_id = $1`,
+		`update support.tickets set user_id = null where user_id = $1`,
+		`update reviews.vendor_reviews set user_name = 'Deleted user' where user_id = $1`,
+		`update media.assets set created_by = '' where created_by = $1`,
+		`update delivery.delivery_stops s
+		    set label = '', address = '', customer_name = '', customer_phone = ''
+		   from delivery.delivery_orders o
+		  where s.delivery_order_id = o.order_id
+		    and o.customer_order_id in (select order_id from checkout.orders where user_id = $1)`,
+	}
+	err = r.WithTx(ctx, func(tx pgx.Tx) error {
+		for _, q := range statements {
+			if _, execErr := tx.Exec(ctx, q, userID); execErr != nil {
+				return execErr
+			}
+		}
+		_, execErr := tx.Exec(ctx, `
+			update checkout.users
+			   set name = 'Deleted user',
+			       email = $2,
+			       phone = '',
+			       default_address_id = null,
+			       state_code = null,
+			       auth_uid = null,
+			       deleted_at = now()
+			 where user_id = $1`, userID, deletedAccountEmail(userID))
+		return execErr
+	})
+	if err != nil {
+		return "", false, err
+	}
+	return authUID, true, nil
+}
+
+// ReviewedVendorIDs lists the vendors whose public review pages include this user's display name.
+// The account-deletion handler purges those caches after anonymising the review rows.
+func (r *Repo) ReviewedVendorIDs(ctx context.Context, userID string) ([]string, error) {
+	if r.pool == nil {
+		return nil, fmt.Errorf("checkout: database not configured")
+	}
+	rows, err := r.pool.Query(ctx,
+		`select vendor_id from reviews.vendor_reviews where user_id = $1`, userID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var ids []string
+	for rows.Next() {
+		var id string
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		ids = append(ids, id)
+	}
+	return ids, rows.Err()
+}
+
+// PrescriptionImagePaths returns the private object keys referenced by the user's prescriptions.
+// Callers read them before deleting the rows so the blobs can be removed from object storage too.
+func (r *Repo) PrescriptionImagePaths(ctx context.Context, userID string) ([]string, error) {
+	if r.pool == nil {
+		return nil, fmt.Errorf("checkout: database not configured")
+	}
+	rows, err := r.pool.Query(ctx, `
+		select distinct p
+		  from pharma.prescriptions, unnest(image_paths) as p
+		 where user_id = $1 and p <> ''`, userID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var paths []string
+	for rows.Next() {
+		var path string
+		if err := rows.Scan(&path); err != nil {
+			return nil, err
+		}
+		paths = append(paths, path)
+	}
+	return paths, rows.Err()
+}
+
+// DeleteUserData erases the selected categories of personal data while keeping the account active.
+// Order/payment/tax records are intentionally not a category: they are retained for legal reasons.
+func (r *Repo) DeleteUserData(ctx context.Context, userID string, categories []string) ([]string, error) {
+	if r.pool == nil {
+		return nil, fmt.Errorf("checkout: database not configured")
+	}
+	if userID == "" || len(categories) == 0 {
+		return nil, nil
+	}
+	allowed := map[string]string{
+		"addresses":     `delete from checkout.addresses where user_id = $1`,
+		"favourites":    `delete from favourites.items where user_id = $1`,
+		"prescriptions": `delete from pharma.prescriptions where user_id = $1`,
+	}
+	done := make([]string, 0, len(categories))
+	seen := make(map[string]bool, len(categories))
+	err := r.WithTx(ctx, func(tx pgx.Tx) error {
+		for _, category := range categories {
+			q, ok := allowed[category]
+			if !ok || seen[category] {
+				continue
+			}
+			seen[category] = true
+			if _, execErr := tx.Exec(ctx, q, userID); execErr != nil {
+				return execErr
+			}
+			if category == "addresses" {
+				if _, execErr := tx.Exec(ctx,
+					`update checkout.users set default_address_id = null
+					  where user_id = $1 and default_address_id is not null`, userID); execErr != nil {
+					return execErr
+				}
+			}
+			done = append(done, category)
+		}
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+	return done, nil
+}
+
+// deletedAccountEmail is deterministic and non-routable (.invalid) so the retained, anonymised row
+// still satisfies the NOT NULL email column without keeping the customer's real address.
+func deletedAccountEmail(userID string) string {
+	return "deleted+" + userID + "@deleted.invalid"
+}
+
 // OrderOwnedBy reports whether the order belongs to userID (contracts.OrderOwnership). It is a
 // single indexed lookup so sibling contexts (delivery ratings) can enforce ownership without
 // loading the full order.

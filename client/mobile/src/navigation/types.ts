@@ -62,6 +62,10 @@ export type RootStackParamList = {
   UserDetails: undefined;
   /** "Saved Addresses" — manage, select, add delivery locations (pushed from Account). */
   SavedAddresses: undefined;
+  /** Permanently delete the account (pushed from Account → Privacy and security). */
+  DeleteAccount: undefined;
+  /** Erase selected data categories while keeping the account (pushed from Account). */
+  RequestDataDeletion: undefined;
   /** "My Orders" — status tabs, sort/filter, and order cards (pushed from Account). */
   MyOrders: { initialTab?: MyOrdersStatusFilter; highlightOrderId?: string } | undefined;
   /** Durable notification inbox (notifications.outbox) opened from the My Orders bell. */

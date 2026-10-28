@@ -286,6 +286,8 @@ Auth uses real **Firebase phone OTP** (`services/firebaseAuth.ts`, W60); `authSt
 | RN26 | `SellWithUs` | **SellerRegistrationScreen** | `src/features/seller-onboarding/SellerRegistrationScreen.tsx` | Partner onboarding → `POST /sellers` |
 | RN32 | `SellerRequests` | **SellerRequestsScreen** | `src/features/seller-onboarding/SellerRequestsScreen.tsx` | Admin application queue (role-gated); routes off the Account "Seller applications" card |
 | RN33 | `SellerRequestDetail` | **SellerRequestDetailScreen** | `src/features/seller-onboarding/SellerRequestDetailScreen.tsx` | `{ sellerId }`; KYC doc view via presigned GET, platform-fee editor, verify/activate, reject |
+| RN34 | `DeleteAccount` | **DeleteAccountScreen** | `src/features/profile/DeleteAccountScreen.tsx` | Account → Privacy and security. Calls `DELETE /users/me`, clears session/stores, returns to Login |
+| RN35 | `RequestDataDeletion` | **RequestDataDeletionScreen** | `src/features/profile/RequestDataDeletionScreen.tsx` | Account → Privacy and security. Partial erasure via `POST /users/me/data-deletion`; account stays active |
 
 ### 2.4 Sub-app shell (`SubAppWrapper` — MART + PHARMA)
 

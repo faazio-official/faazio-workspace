@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -55,6 +56,8 @@ func (h *Handler) Register(r chi.Router) {
 		g.Put("/profile/addresses", h.putAddress)
 		g.Delete("/profile/addresses/{addressID}", h.deleteAddress)
 		g.Get("/profile/details", h.getDetails)
+		g.Delete("/users/me", h.deleteAccount)
+		g.Post("/users/me/data-deletion", h.deleteUserData)
 		g.Get("/membership", h.getMembership)
 		g.Get("/order-status", h.getOrderStatus)
 		g.Get("/account-nav", h.getAccountNav)
@@ -230,6 +233,128 @@ func (h *Handler) deleteAddress(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	httpx.JSON(w, http.StatusOK, map[string]any{"ok": true})
+}
+
+// deleteAccount permanently erases the caller's PII and unlinks the auth identity. Financial
+// records (orders/payments/invoices) are retained for legal reasons, so this is an anonymising
+// soft delete rather than a row delete. Idempotent: a second call still returns `{"ok":true}`.
+func (h *Handler) deleteAccount(w http.ResponseWriter, r *http.Request) {
+	userID := auth.UserID(r.Context())
+	if userID == "" {
+		httpx.Fail(w, http.StatusUnauthorized, "unauthorized", "authentication required")
+		return
+	}
+	imagePaths, _ := h.repo.PrescriptionImagePaths(r.Context(), userID)
+	vendorIDs, _ := h.repo.ReviewedVendorIDs(r.Context(), userID)
+	authUID, ok, err := h.repo.DeleteAccount(r.Context(), userID)
+	if err != nil {
+		httpx.Fail(w, http.StatusInternalServerError, "account_delete_failed", "could not delete account")
+		return
+	}
+	if !ok {
+		httpx.Fail(w, http.StatusNotFound, "not_found", "account not found")
+		return
+	}
+	h.deleteStoredObjects(r.Context(), imagePaths)
+	h.purgeUserCache(r, userID, authUID, vendorIDs)
+	if h.audit != nil {
+		raw, _ := json.Marshal(map[string]string{"action": "account_deleted"})
+		_ = h.audit.Audit(r.Context(), contracts.AuditEntry{
+			ActorID: userID, ActorRole: auth.Role(r.Context()), Action: "ACCOUNT_DELETE",
+			Entity: "checkout.users", EntityID: userID, After: raw,
+		})
+	}
+	httpx.JSON(w, http.StatusOK, map[string]any{"ok": true})
+}
+
+// dataDeletionRequest is the partial-erasure payload. Only categories the server owns are
+// accepted; recent-search history is device-local and cleared by the client.
+type dataDeletionRequest struct {
+	Categories []string `json:"categories"`
+}
+
+var deletableUserDataCategories = map[string]bool{
+	"addresses":     true,
+	"favourites":    true,
+	"prescriptions": true,
+}
+
+// deleteUserData erases selected personal-data categories without deleting the account.
+func (h *Handler) deleteUserData(w http.ResponseWriter, r *http.Request) {
+	var req dataDeletionRequest
+	if err := httpx.Decode(r, &req); err != nil {
+		httpx.Fail(w, http.StatusBadRequest, "bad_request", "invalid body")
+		return
+	}
+	if len(req.Categories) == 0 {
+		httpx.Fail(w, http.StatusBadRequest, "invalid_category", "select at least one data category")
+		return
+	}
+	for _, category := range req.Categories {
+		if !deletableUserDataCategories[category] {
+			httpx.Fail(w, http.StatusBadRequest, "invalid_category", "unsupported data category")
+			return
+		}
+	}
+	userID := auth.UserID(r.Context())
+	imagePaths, _ := h.repo.PrescriptionImagePaths(r.Context(), userID)
+	deleted, err := h.repo.DeleteUserData(r.Context(), userID, req.Categories)
+	if err != nil {
+		httpx.Fail(w, http.StatusInternalServerError, "data_delete_failed", "could not delete data")
+		return
+	}
+	if slices.Contains(deleted, "prescriptions") {
+		h.deleteStoredObjects(r.Context(), imagePaths)
+	}
+	if h.cache != nil {
+		h.cache.Del(r.Context(), cache.Favourites(userID), cache.Prescriptions(userID))
+	}
+	if h.audit != nil {
+		raw, _ := json.Marshal(map[string]any{"categories": deleted})
+		_ = h.audit.Audit(r.Context(), contracts.AuditEntry{
+			ActorID: userID, ActorRole: auth.Role(r.Context()), Action: "USER_DATA_DELETE",
+			Entity: "checkout.users", EntityID: userID, After: raw,
+		})
+	}
+	httpx.JSON(w, http.StatusOK, map[string]any{"ok": true, "deleted": deleted})
+}
+
+// purgeUserCache drops every per-user cache slice after account deletion, including the
+// auth_uid → user_id read-through mapping so a stale token cannot resolve the deleted account.
+func (h *Handler) purgeUserCache(r *http.Request, userID, authUID string, vendorIDs []string) {
+	if h.cache == nil {
+		return
+	}
+	keys := []string{
+		cache.Orders(userID),
+		cache.Favourites(userID),
+		cache.Rewards(userID),
+		cache.Notifications(userID),
+		cache.Prescriptions(userID),
+	}
+	if authUID != "" {
+		keys = append(keys, cache.AuthUser(authUID))
+	}
+	for _, vendorID := range vendorIDs {
+		keys = append(keys, cache.VendorReviews(vendorID))
+	}
+	h.cache.Del(r.Context(), keys...)
+}
+
+// deleteStoredObjects best-effort removes the private prescription blobs after their rows are gone.
+// It is a no-op when R2 is unconfigured (Supabase Storage remains the backend in that mode).
+func (h *Handler) deleteStoredObjects(ctx context.Context, paths []string) {
+	if h.signer == nil || !h.signer.Enabled() || len(paths) == 0 {
+		return
+	}
+	bucket := h.signer.PrivateBucket()
+	for _, path := range paths {
+		key := strings.TrimLeft(path, "/")
+		if key == "" {
+			continue
+		}
+		_ = h.signer.DeleteObject(ctx, bucket, key)
+	}
 }
 
 func (h *Handler) placeOrder(w http.ResponseWriter, r *http.Request) {

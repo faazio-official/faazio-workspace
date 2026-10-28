@@ -224,6 +224,14 @@ apksigner verify --verbose --print-certs app-customer-release.apk
 3. **Testing** → create a release, upload the `.aab`.
 4. Fill metadata, Content Rating, and Data Safety (note CAMERA + location + media permissions and
    Keychain/Keystore token storage).
+   - **Target audience:** 18+ only, minors restricted.
+   - **Delete account URL:** `https://faazio.com/privacy` (prominent `#delete-account` steps);
+     in-app: Account → Privacy and security → Delete account.
+   - **Delete data without deleting account:** Yes (Request data deletion).
+   - **Advertising ID:** No (no ad SDK / `AD_ID` permission).
+   - **Financial:** mobile payments/digital wallets + rewards/points. **Health:** medication and
+     treatment management + healthcare services.
+   - Full answer sheet: `client/mobile/docs/PLAYSTORE_RELEASE.md` Step 3c.
 5. **Rollout** to begin review.
 
 > See `client/mobile/docs/PLAYSTORE_RELEASE.md` for store-console specifics.
@@ -316,7 +324,7 @@ Run **each pending** migration (numeric order) → then roll the Render deploy. 
 - [ ] Push delivery: `FCM_PROJECT_ID` + `FCM_SERVICE_ACCOUNT_JSON` (server-side Firebase service-account key — a Render secret env var) set for the gateway's embedded FCM sender. See `FIREBASE_AUTH.md`.
 - [ ] Seller splits: `0039` + `0040` applied; Route keys + webhook endpoint/secret set (or the `RAZORPAY_*` fallback used); `R2_PRIVATE_BUCKET` set.
 - [ ] Release signed and smoke-tested on a device (R8 gate: Home → Cart → Checkout → Pharma).
-- [ ] Store metadata / data-safety updated.
+- [ ] Store metadata / data-safety updated (see Google Play §4 answer sheet; delete-account URL + in-app flow verified).
 
 ### Expected build-time / size impact (CI workflow)
 

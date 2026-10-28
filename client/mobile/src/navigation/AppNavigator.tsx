@@ -40,6 +40,8 @@ const CategoryDrillInScreen = lazyNamed(() => import('@/features/catalog/Categor
 const VendorDetailScreen = lazyNamed(() => import('@/features/catalog/VendorDetailScreen'), 'VendorDetailScreen');
 const UserDetailsScreen = lazyNamed(() => import('@/features/profile/UserDetailsScreen'), 'UserDetailsScreen');
 const SavedAddressesScreen = lazyNamed(() => import('@/features/profile/SavedAddressesScreen'), 'SavedAddressesScreen');
+const DeleteAccountScreen = lazyNamed(() => import('@/features/profile/DeleteAccountScreen'), 'DeleteAccountScreen');
+const RequestDataDeletionScreen = lazyNamed(() => import('@/features/profile/RequestDataDeletionScreen'), 'RequestDataDeletionScreen');
 const MyOrdersScreen = lazyNamed(() => import('@/features/profile/MyOrdersScreen'), 'MyOrdersScreen');
 const NotificationsScreen = lazyNamed(() => import('@/features/notifications/NotificationsScreen'), 'NotificationsScreen');
 const OrderDetailsScreen = lazyNamed(() => import('@/features/profile/OrderDetailsScreen'), 'OrderDetailsScreen');
@@ -157,6 +159,16 @@ export function AppNavigator() {
             name="SavedAddresses"
             component={SavedAddressesScreen}
             options={{ animation: 'fade', animationDuration: 180 }}
+          />
+          <Stack.Screen
+            name="DeleteAccount"
+            component={DeleteAccountScreen}
+            options={{ animation: 'slide_from_right', animationDuration: 220 }}
+          />
+          <Stack.Screen
+            name="RequestDataDeletion"
+            component={RequestDataDeletionScreen}
+            options={{ animation: 'slide_from_right', animationDuration: 220 }}
           />
           <Stack.Screen
             name="MyOrders"

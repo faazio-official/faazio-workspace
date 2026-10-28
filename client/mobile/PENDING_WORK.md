@@ -3132,23 +3132,27 @@ the old `/veg/i` cuisine heuristic). Unclassifiable dishes hide while a filter i
 
 ## Account — nav rows & Coming-soon groups
 
-**Status:** 🟡 Placeholder rows; Privacy/Legal sections are empty (Earn is now active).
+**Status:** 🟢 Privacy is active (Delete account + Request data deletion); Legal remains a placeholder.
 
 **Feature:** The "You" page nav list (`features/profile/AccountView.tsx`, driven by
 `@data/account/accountNav.ts` `accountNavGroups`) is grouped and titled: `profile`
 (Profile settings), `payments` (Payments and credits), `privacy` (Privacy and security),
 `earn` (Earn with us — now active with a `sell-with-us` row → `SellWithUs`), `legal` (Terms
-and policies), `support` (Help & Support). The `privacy` and `legal` groups are
-`comingSoon` and render a non-tappable "Coming soon" placeholder row.
+and policies), `support` (Help & Support). `privacy` is now active with `Delete account`
+→ `DeleteAccount` and `Request data deletion` → `RequestDataDeletion` (both root-stack
+routes). `legal` remains `comingSoon` and renders a non-tappable placeholder row.
 
 **Future / honest gaps:**
 - **Destination screens not built** for Payments, Recently Viewed, and Customer Support —
   these rows keep the TODO stub in `AccountView.handleRowPress` and don't navigate yet.
   Favourites now opens the search-results-style `Favourites` root route, and the
   "Coupons & Offers" stub row was removed from the `payments` group.
-- **Privacy / Legal have no content** — no privacy/security settings, referral/
-  partner/delivery-partner flow, or legal screens exist. Flip `comingSoon` off and add rows
-  to each group once those screens are built; no component change is needed (data-driven).
+- **Legal has no content** — no terms/privacy-document screens exist. Flip `comingSoon`
+  off and add rows once those screens are built; no component change is needed (data-driven).
+- **Privacy is complete for Play** — `DeleteAccount` calls `DELETE /users/me` (anonymising
+  soft delete: PII erased, financial rows retained) and `RequestDataDeletion` calls
+  `POST /users/me/data-deletion` (addresses/favourites/prescriptions; recent searches are
+  device-local). Both are wired through `services/accountDeletion.ts`.
 
 **Interim contract:** Keep the `AccountNavGroup` shape (`title` + optional `comingSoon` +
 `rows`) stable so server wiring via `GatewayClient.getAccountNav` (`navTable`) is a
