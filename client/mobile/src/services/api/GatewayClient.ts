@@ -1290,8 +1290,10 @@ export class GatewayClient {
    * deletion succeeded while offline.
    */
   async deleteAccount(): Promise<void> {
-    if (!REMOTE_ENABLED) throw new GatewayOfflineError();
-    await this.http<{ ok: boolean }>('/users/me', { method: 'DELETE' });
+    await this.withStrict(
+      () => this.http<{ ok: boolean }>('/users/me', { method: 'DELETE' }).then(() => undefined),
+      () => delay(undefined),
+    );
   }
 
   /**
@@ -1301,10 +1303,13 @@ export class GatewayClient {
   async requestDataDeletion(
     categories: DataDeletionCategory[],
   ): Promise<DataDeletionCategory[]> {
-    if (!REMOTE_ENABLED) throw new GatewayOfflineError();
-    const res = await this.http<{ ok: boolean; deleted?: DataDeletionCategory[] }>(
-      '/users/me/data-deletion',
-      { method: 'POST', body: JSON.stringify({ categories }) },
+    const res = await this.withStrict(
+      () =>
+        this.http<{ ok: boolean; deleted?: DataDeletionCategory[] }>(
+          '/users/me/data-deletion',
+          { method: 'POST', body: JSON.stringify({ categories }) },
+        ),
+      () => delay({ ok: true, deleted: categories }),
     );
     return res.deleted ?? [];
   }

@@ -2,28 +2,23 @@ import React, { useCallback, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
+  Linking,
   ScrollView,
   StyleSheet,
   TouchableOpacity,
   View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { ChevronLeft, ShieldAlert, Trash2 } from 'lucide-react-native';
+import { ChevronLeft, Mail, ShieldAlert, Trash2 } from 'lucide-react-native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import AppText from '@/components/AppText';
 import { hs, vs, ms } from '@/utils/responsive';
 import { SPACE } from '@/theme/spacing';
 import { deleteAccountEverywhere } from '@/services/accountDeletion';
+import { ACCOUNT_DELETION_MAILTO, PRIVACY_URL } from '@/lib/site';
 import type { RootStackParamList } from '@/navigation/types';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'DeleteAccount'>;
-
-const REASONS = [
-  'I no longer use Faazio',
-  'I have another account',
-  'Privacy concerns',
-  'Something else',
-];
 
 const DELETED = [
   'Profile details (name, email, phone)',
@@ -47,23 +42,32 @@ const KEPT = [
  */
 export function DeleteAccountScreen({ navigation }: Props) {
   const insets = useSafeAreaInsets();
-  const [reason, setReason] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const handleBack = useCallback(() => navigation.goBack(), [navigation]);
+  const handleEmailDelete = useCallback(() => {
+    void Linking.openURL(ACCOUNT_DELETION_MAILTO);
+  }, []);
+  const handleOpenPrivacy = useCallback(() => {
+    void Linking.openURL(PRIVACY_URL);
+  }, []);
 
   const runDelete = useCallback(async () => {
     setSubmitting(true);
     setError(null);
     try {
       await deleteAccountEverywhere();
-      // AppNavigator resets to Login when isAuthenticated flips to false.
+      if (navigation.isFocused()) {
+        navigation.reset({ index: 0, routes: [{ name: 'Login' }] });
+      }
     } catch {
       setSubmitting(false);
-      setError('We could not delete your account. Check your connection and try again.');
+      setError(
+        'We could not delete your account. Check your connection and try again, or use the email option below.',
+      );
     }
-  }, []);
+  }, [navigation]);
 
   const handleDelete = useCallback(() => {
     Alert.alert(
@@ -132,30 +136,12 @@ export function DeleteAccountScreen({ navigation }: Props) {
           ))}
           <AppText style={styles.retentionNote}>
             We complete deletion within 30 days of your request, except for records we must retain
-            under the periods above. See the Privacy Policy section “How long we keep your
-            information” for details.
+            under the periods above. See the{' '}
+            <AppText style={styles.link} onPress={handleOpenPrivacy}>
+              Privacy Policy
+            </AppText>{' '}
+            section “How long we keep your information” for details.
           </AppText>
-        </View>
-
-        <AppText style={styles.sectionTitle}>Why are you leaving? (optional)</AppText>
-        <View style={styles.reasonWrap}>
-          {REASONS.map((option) => {
-            const selected = reason === option;
-            return (
-              <TouchableOpacity
-                key={option}
-                style={[styles.reasonChip, selected && styles.reasonChipSelected]}
-                activeOpacity={0.8}
-                onPress={() => setReason(selected ? null : option)}
-                accessibilityRole="radio"
-                accessibilityState={{ selected }}
-              >
-                <AppText style={[styles.reasonText, selected && styles.reasonTextSelected]}>
-                  {option}
-                </AppText>
-              </TouchableOpacity>
-            );
-          })}
         </View>
 
         {error ? <AppText style={styles.errorText}>{error}</AppText> : null}
@@ -178,10 +164,16 @@ export function DeleteAccountScreen({ navigation }: Props) {
           )}
         </TouchableOpacity>
 
-        <AppText style={styles.footnote}>
-          You can also request deletion by emailing fashoppingofficial@gmail.com with the subject
-          “Delete my account”.
-        </AppText>
+        <TouchableOpacity
+          style={styles.emailButton}
+          activeOpacity={0.8}
+          onPress={handleEmailDelete}
+          accessibilityRole="button"
+          accessibilityLabel="Delete my account by email"
+        >
+          <Mail size={ms(16)} color="#1162D3" strokeWidth={2.2} />
+          <AppText style={styles.emailButtonText}>Delete by email instead</AppText>
+        </TouchableOpacity>
 
         <View style={styles.bottomSpacer} />
       </ScrollView>
@@ -237,18 +229,7 @@ const styles = StyleSheet.create({
     lineHeight: ms(18),
     marginTop: vs(2),
   },
-  reasonWrap: { flexDirection: 'row', flexWrap: 'wrap', gap: hs(8), marginBottom: SPACE.SECTION },
-  reasonChip: {
-    borderWidth: 1,
-    borderColor: '#CBD5E1',
-    backgroundColor: '#FFFFFF',
-    borderRadius: ms(20),
-    paddingHorizontal: hs(13),
-    paddingVertical: vs(8),
-  },
-  reasonChipSelected: { borderColor: '#1162D3', backgroundColor: '#EFF6FF' },
-  reasonText: { fontSize: ms(12), fontWeight: '600', color: '#475569' },
-  reasonTextSelected: { color: '#1162D3' },
+  link: { color: '#1162D3', fontWeight: '700' },
   errorText: { fontSize: ms(12), fontWeight: '600', color: '#B91C1C', marginBottom: vs(12) },
   deleteButton: {
     flexDirection: 'row',
@@ -266,13 +247,18 @@ const styles = StyleSheet.create({
   },
   deleteButtonDisabled: { opacity: 0.65 },
   deleteButtonText: { fontSize: ms(14), fontWeight: '800', color: '#ffffff' },
-  footnote: {
-    fontSize: ms(11),
-    fontWeight: '500',
-    color: '#94a3b8',
-    textAlign: 'center',
+  emailButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: hs(8),
     marginTop: vs(14),
-    lineHeight: ms(17),
+    paddingVertical: vs(12),
+    borderRadius: ms(14),
+    borderWidth: 1,
+    borderColor: '#CBD5E1',
+    backgroundColor: '#FFFFFF',
   },
+  emailButtonText: { fontSize: ms(13), fontWeight: '700', color: '#1162D3' },
   bottomSpacer: { height: vs(40) },
 });

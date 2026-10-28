@@ -84,6 +84,47 @@ func TestProvisionUserIDLinksOnFirstLogin(t *testing.T) {
 	}
 }
 
+func TestProvisionUserIDAfterDeletionCreatesFreshAccount(t *testing.T) {
+	pool := testenv.Pool(t)
+	repo := New(pool)
+	ctx := context.Background()
+
+	authUID := "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee"
+	first, err := repo.ProvisionUserID(ctx, authUID, "+919000000002", "after-delete@t")
+	if err != nil || first == "" {
+		t.Fatalf("initial provision: id=%q err=%v", first, err)
+	}
+	t.Cleanup(func() {
+		_, _ = pool.Exec(ctx, `delete from accounts.profile where id = $1`, first)
+		_, _ = pool.Exec(ctx, `delete from checkout.users where user_id = $1`, first)
+	})
+
+	if _, ok, err := repo.DeleteAccount(ctx, first); err != nil || !ok {
+		t.Fatalf("delete account: ok=%v err=%v", ok, err)
+	}
+
+	second, err := repo.ProvisionUserID(ctx, authUID, "", "")
+	if err != nil || second == "" {
+		t.Fatalf("provision after deletion: id=%q err=%v", second, err)
+	}
+	t.Cleanup(func() {
+		_, _ = pool.Exec(ctx, `delete from accounts.profile where id = $1`, second)
+		_, _ = pool.Exec(ctx, `delete from checkout.users where user_id = $1`, second)
+	})
+	if second == first {
+		t.Fatalf("re-registration revived the anonymised account: %q", first)
+	}
+	resolved, err := repo.ResolveUserID(ctx, authUID)
+	if err != nil || resolved != second {
+		t.Fatalf("resolve after re-registration: id=%q err=%v", resolved, err)
+	}
+	var deleted bool
+	if err := pool.QueryRow(ctx,
+		`select deleted_at is not null from checkout.users where user_id = $1`, first).Scan(&deleted); err != nil || !deleted {
+		t.Fatalf("old account should stay anonymised: deleted=%v err=%v", deleted, err)
+	}
+}
+
 func TestOrderByIdempotencyKeyMiss(t *testing.T) {
 	pool := testenv.Pool(t)
 	repo := New(pool)

@@ -19,11 +19,16 @@ type Props = CompositeScreenProps<
  */
 export function AccountScreen({ navigation }: Props) {
   const handleLogout = useCallback(() => {
-    logoutUser();
-    (navigation.getParent() as NativeStackNavigationProp<RootStackParamList>)?.reset({
-      index: 0,
-      routes: [{ name: 'Login' }],
-    });
+    void logoutUser()
+      .catch(() => {})
+      .finally(() => {
+        if (navigation.isFocused()) {
+          (navigation.getParent() as NativeStackNavigationProp<RootStackParamList>)?.reset({
+            index: 0,
+            routes: [{ name: 'Login' }],
+          });
+        }
+      });
   }, [navigation]);
 
   const handleOpenDetails = useCallback(() => {

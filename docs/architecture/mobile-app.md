@@ -843,8 +843,9 @@ The "You" page (`features/profile/AccountView.tsx`) renders its nav list from th
 `@data/account/accountNav.ts` fixture (`accountNavGroups`), which is grouped and titled
 via `AccountNavGroup.title`. Six groups render in order: `profile` (Profile settings),
 `payments` (Payments and credits), `privacy` (Privacy and security), `earn` (Earn with us),
-`legal` (Terms and policies), and `support` (Help & Support). The `privacy` and `legal`
-groups are `comingSoon` — they render a single non-tappable "Coming soon" row in place of
+`legal` (Terms and policies), and `support` (Help & Support). The `privacy` group is active
+with `Delete account` → `DeleteAccount` and `Request data deletion` → `RequestDataDeletion`;
+only `legal` is `comingSoon` — it renders a single non-tappable "Coming soon" row in place of
 real nav rows. The `earn` group is active and carries a `sell-with-us` row ("Sell with us")
 that pushes the `SellWithUs` screen. Orders / Details / Addresses / Favourites / Sell-with-us
 navigate today; Favourites opens the search-results-style `Favourites` root route (see below).

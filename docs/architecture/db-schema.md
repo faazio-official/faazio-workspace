@@ -389,9 +389,13 @@ users provisioned before that write existed.
 **Account deletion (`0060`):** `DELETE /users/me` does not hard-delete this row (the non-cascading
 `checkout.addresses`/`orders`/`payments` FKs and the legal-retention requirement forbid it). It
 erases the PII tables (addresses, carts, favourites, prescriptions, rewards, blood, notifications,
-accounts.*), sets `name` to `Deleted user`, blanks `phone`, writes a non-routable `deleted+<id>@deleted.invalid` email,
-nulls `auth_uid`, and stamps `deleted_at`. Order/payment/tax rows survive, linked only to the
-anonymised row. A later login provisions a fresh account.
+accounts.*), blanks free-text `support.tickets` subject/body, `checkout.returns.reason` and review
+comments, clears retained `checkout.orders` delivery coordinates plus DROP-stop coordinates/OTP,
+deletes prescription blobs from the active storage backend (R2 or Supabase Storage), sets `name` to
+`Deleted user`, blanks `phone`, writes a non-routable
+`deleted+<id>@deleted.invalid` email, nulls `auth_uid`/`last_login_at`, and stamps `deleted_at`.
+Order/payment/tax rows survive, linked only to the anonymised row. A later login provisions a fresh
+account under a new deterministic id with a random suffix, so the anonymised row is never revived.
 
 **Sample row:** `user-1` · Rohit Sharma · rohit.sharma@gmail.com · +91 98765 43210 · addr_1
 (provenance `data/checkout/orders.ts:20-22`).

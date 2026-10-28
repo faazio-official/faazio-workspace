@@ -15,8 +15,11 @@ import { useSearchStore } from '@/state/searchStore';
  */
 export async function deleteAccountEverywhere(): Promise<void> {
   await gateway.deleteAccount();
-  await resetLocalUserState();
-  await useAuthStore.getState().logout();
+  await resetLocalUserState().catch(() => {});
+  await useAuthStore
+    .getState()
+    .logout()
+    .catch(() => useAuthStore.getState().expireSession());
 }
 
 /**
