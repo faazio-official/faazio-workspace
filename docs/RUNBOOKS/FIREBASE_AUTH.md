@@ -116,6 +116,9 @@ requires the runtime notification permission.
   - [ ] App Check → Android app → Play Integrity → **Enforce** (after testing).
   - [ ] Upload the APNs **.p8 auth key** (Key ID + Team ID) for iOS.
   - [ ] Add the **release keystore** SHA-1/SHA-256 in Firebase Project Settings → Your apps.
+    The release cert (one keystore signs all three apps, alias `faazio`):
+    SHA-1 `7E:B1:2E:78:55:21:89:FF:6B:37:1A:FE:2F:F0:84:DE:58:42:A8:45`,
+    SHA-256 `23:8A:02:B2:0F:64:E6:EB:8A:33:17:39:75:A9:AE:C7:DD:66:CC:72:83:E1:0B:3B:EF:F4:70:01:4E:E4:09:9D`.
   - [ ] Xcode: Push Notifications capability + Background Modes → Remote notifications.
 
 Until Part 6 is done, SMS auto-retrieval and silent iOS verification may not work. OTP still works

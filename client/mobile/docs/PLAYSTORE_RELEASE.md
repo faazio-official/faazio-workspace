@@ -44,10 +44,12 @@ The release build reads `keystore/keystore.properties` (gitignored):
 
 ```properties
 STORE_FILE=../../keystore/faazio-release.keystore
-STORE_PASSWORD=...
+KEYSTORE_PASS=...
 KEY_ALIAS=...
-KEY_PASSWORD=...
+ALIAS_PASS=...
 ```
+> The key names must be `KEYSTORE_PASS` / `ALIAS_PASS` (not `STORE_PASSWORD` / `KEY_PASSWORD`) —
+> they are what `scripts/restore-keystore.sh` writes and `android/app/build.gradle` reads.
 
 - **CI:** `.github/workflows/release-apk.yml` restores the keystore from `KEYSTORE_BASE64` +
   password secrets via `scripts/restore-keystore.sh`.
@@ -62,7 +64,8 @@ Signature schemes: release APKs are v2/v3-signed, correct for `minSdk 24`. v1 is
 
 ## Step 3: Build the release artifact in CI
 
-The current release workflow publishes a signed **APK** (GitHub Release):
+The release workflow builds **both** a signed **APK** and a signed **AAB** (`.aab`) and attaches
+both to the GitHub Release (`gh release upload --clobber`):
 
 ```bash
 cd client/mobile
@@ -71,20 +74,22 @@ gh run watch
 gh run view --log-failed          # on failure
 ```
 
-Play requires an **AAB**. The workflow does not publish one yet; add a `bundleRelease` step/job
-(the Gradle command is identical to `assembleRelease`):
+Play requires an AAB — download the `faazio-<app>-<version>-aab` artifact (or grab `*.aab` from
+the GitHub Release) and upload that. The local equivalent (CI-only, never run this host's Gradle):
 
 ```bash
 cd android
-./gradlew bundleRelease --no-daemon \
+./gradlew bundleCustomerRelease --no-daemon \
   -PreactNativeArchitectures="arm64-v8a,armeabi-v7a" \
   -Pandroid.enableMinifyInReleaseBuilds=true \
   -Pandroid.enableShrinkResourcesInReleaseBuilds=true
-# -> app/build/outputs/bundle/release/app-release.aab
+# -> app/build/outputs/bundle/customerRelease/app-customer-release.aab
+# delivery: bundleDeliveryRelease -> app-delivery-release.aab
+# seller:   bundleSellerRelease   -> app-seller-release.aab
 ```
 
-> Do **not** run this locally. Add it to the GitHub Actions workflow (or a separate CI job) and
-> download the artifact from the run.
+> Do **not** run this locally. The workflow publishes the AAB in CI; download it as an
+> artifact (`faazio-<app>-<version|-release>-aab`) or from the GitHub Release.
 
 ---
 
@@ -92,7 +97,7 @@ cd android
 
 1. Open [Google Play Console](https://play.google.com/console/) and select Faazio.
 2. Go to **Testing → Closed testing** (or **Production**) → **Create new release**.
-3. Upload `app-release.aab`.
+3. Upload `app-customer-release.aab` (or `app-delivery-release.aab` / `app-seller-release.aab`).
 4. Fill in store listing, screenshots, content rating, and **Data Safety**.
 5. Start rollout and submit for review.
 
@@ -100,12 +105,13 @@ cd android
 
 ## Checklist
 
-- [ ] `versionCode` bumped (+1) and `versionName` matches `package.json`.
-- [ ] `npm run ts:check` and `npm run check:boundaries` pass.
+- [ ] `versionCode` > previous release (auto-derived from `-f version=` semver, or +1 committed bump) and `versionName` matches `package.json`.
+- [ ] `npm run ts:check` and `npm run check:boundaries` pass (both run in CI).
 - [ ] Release built in CI with the release keystore and `CERT_PINS` configured.
+- [ ] Release keystore SHA-1/SHA-256 registered in Firebase for all three apps; Maps/Places keys restricted to the release SHA-1.
 - [ ] R8 smoke test passed on a device: Home → Cart → Checkout → Pharma.
 - [ ] Data Safety discloses camera, location, media, and Keychain/Keystore token storage.
-- [ ] AAB produced in CI (add the `bundleRelease` job if not present).
+- [ ] AAB produced by the workflow (`bundleCustomerRelease` / `bundleDeliveryRelease` / `bundleSellerRelease`) and uploaded to Play Console.
 
 ## See also
 

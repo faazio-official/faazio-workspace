@@ -2737,8 +2737,8 @@ renderer and the safe-disable audit wasn't completed.
   GitHub APK download ~−50%.
 - **Smoke test the minified APK on a device** (Home → Cart → Checkout → Pharma) before trusting an
   R8 release — keep-rule gaps only show at runtime.
-- **AAB / Google Play** still not wired into the workflow (input-gated plan only); Play App Signing
-  enrollment is a one-time manual step before adopting it.
+- **Google Play App Signing** enrollment is a one-time manual step before the first AAB upload; the
+  workflow now produces the AAB + APK (`bundle<Flavor>Release` / `assemble<Flavor>Release`).
 - **`proguard-android-optimize.txt`** (more aggressive shrinking) not adopted yet — staying on the
   default `proguard-android.txt` first until the device smoke test passes.
 - Consider disabling unused Fresco decoders once every image path is confirmed to use

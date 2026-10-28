@@ -36,14 +36,14 @@ you (gh CLI) ──► GitHub Actions
                     ├─ npm ci                        (postinstall: patch-package + configure.js)
                     ├─ Set version (manual override)      [release only]
                     ├─ restore-keystore.sh           ← decode keystore from secrets  [release only]
-                    ├─ npm run ts:check              ← runs configure.js; must precede live config
+                    ├─ npm run ts:check + check:boundaries   ← both must pass
                     ├─ npm run configure             ← JS config + cert pins + Maps/Places keys
                     ├─ ./gradlew assemble<Customer|Delivery><Release|Debug> --no-daemon \
                     │    -PreactNativeArchitectures=... \
                     │    [-Pandroid.enableMinifyInReleaseBuilds=true \
                     │     -Pandroid.enableShrinkResourcesInReleaseBuilds=true]   [release only]
-                    ├─ Upload APK artifact
-                    ├─ Upload R8 mapping (faazio-mapping-<run_id>, private)        [release only]
+                    ├─ Upload APK + AAB artifacts
+                    ├─ Upload R8 mapping (faazio-<app>-mapping-<run_id>, private)      [release only]
                     └─ gh release create + upload --clobber                        [release only]
 ```
 
@@ -133,8 +133,11 @@ uses `gh release upload --clobber`, re-running the same tag **replaces** the old
 
 You manage **both** `package.json` `version` and `android/app/build.gradle` `versionCode`/
 `versionName`. A vc-1 APK is a downgrade and `adb install` fails with
-`INSTALL_FAILED_VERSION_DOWNGRADE`. Rule: **bump `versionCode` by 1 every release** alongside the
-package version (the workflow updates `versionName` when you pass `-f version=`).
+`INSTALL_FAILED_VERSION_DOWNGRADE`. Rule: **`versionCode` must increase every release**.
+
+- Passing `-f version=<semver>` makes the workflow derive `versionCode` deterministically
+  (`1.0.4` → `10004`) and rewrite `versionName` + `package.json` — no manual bump needed.
+- Without `-f version`, bump `versionCode` (+1) and `versionName` in `build.gradle` yourself.
 
 > Replacing an older **debug-signed** install with the release-signed APK will fail with
 > `INSTALL_FAILED_UPDATE_INCOMPATIBLE` — `adb uninstall com.faazio.customer` first (clears local
@@ -146,8 +149,8 @@ The published APK is a static release build — it does **not** hot-reload. To i
 
 ```bash
 cd /tmp/opencode
-gh release download v1.0.2 --repo FaizalBasha-123/faazio-workspace --pattern "*.apk" --clobber
-adb install -r app-release.apk
+gh release download v1.0.2 --repo FaizalBasha-123/faazio-workspace --pattern "app-customer-release.apk" --clobber
+adb install -r app-customer-release.apk   # flavor-named: app-delivery-release.apk / app-seller-release.apk
 ```
 
 > The release APK is signed with the **release** keystore. If a **debug**-signed Faazio is
