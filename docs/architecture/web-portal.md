@@ -79,7 +79,7 @@ sign-out is the only seller session authority (HttpOnly cookies).
 | `admin/district/products` · `admin/district/products/queue` | catalog + review queue |
 | `admin/district/sellers` · `admin/district/sellers/[id]` | seller directory + KYC review: full registration, masked payout account, private-bucket passbook/FSSAI links, platform-fee editor, per-document verify (PAN/GSTIN/FSSAI/passbook), reject with reason, **Verify KYC** (Razorpay Route linked account → ACTIVE). SUPER_ADMIN reaches the same detail page from `admin/super/sellers`. |
 | `admin/district/orders` | order oversight |
-| `admin/district/blood` | blood requests board (PHARMA) — server `blood.requests` with `contact`/`address` redacted for anon; moderation (`DELETE /blood-requests/{id}`) |
+| `admin/district/blood` | blood requests board (PHARMA) — server `blood.requests` with `contact`/`address`/`created_by` redacted for anon; moderation (`DELETE /blood-requests/{id}`) |
 | `admin/district/customers` | customer list + activity trail |
 | `admin/district/delivery-boys` | delivery-partner control plane (state-scoped): pending KYC queue, per-document verify and admin-side replacement upload (private R2 → `PUT /delivery/register/{id}/documents/{docType}/reupload`; the rider app has no re-upload screen), profile approve → super-admin activation, active-rider list (load/capacity) with on-demand Valkey location, suspend |
 | `admin/district/delivery/manual-allocation` | district allocation board: PACKED orders with no job + unaccepted/rejected offers, rider picker sorted by road distance from the store, mandatory `AUTOMATED`/`MANUAL` payout mode (`GET /admin/delivery/orders`, `POST …/allocate`) |

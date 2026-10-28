@@ -114,7 +114,7 @@ func (r *Repo) Requests(ctx context.Context, bloodGroup, city string) ([]contrac
 	rows, err := r.pool.Query(ctx, `
 		select id, hospital, city, state, blood_group, units, patient_context, needed_within,
 		       verified, urgency, coalesce(contact,''), coalesce(address,''), coalesce(remarks,''),
-		       posted_at, expires_at
+		       coalesce(created_by,''), posted_at, expires_at
 		  from blood.requests
 		 where ($1 = '' or blood_group = $1) and ($2 = '' or city = $2)
 		 order by posted_at desc`, bloodGroup, city)
@@ -132,7 +132,7 @@ func (r *Repo) Requests(ctx context.Context, bloodGroup, city string) ([]contrac
 		)
 		if err := rows.Scan(&req.ID, &req.Hospital, &req.City, &req.State, &req.BloodGroup, &req.UnitsRequired,
 			&req.PatientContext, &req.NeededWithin, &req.Verified, &req.Urgency, &req.Contact, &req.Address, &req.Remarks,
-			&postedAt, &expiresAt); err != nil {
+			&req.CreatedBy, &postedAt, &expiresAt); err != nil {
 			return nil, err
 		}
 		req.PostedAt = postedAt.UTC().Format(time.RFC3339)
@@ -166,11 +166,11 @@ func (r *Repo) CreateRequest(ctx context.Context, req contracts.BloodRequest) (c
 	)
 	err := r.pool.QueryRow(ctx, `
 		insert into blood.requests
-		  (id, hospital, city, state, blood_group, units, patient_context, needed_within, urgency, contact, address, remarks, expires_at)
-		values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12, now() + interval '14 days')
+		  (id, hospital, city, state, blood_group, units, patient_context, needed_within, urgency, contact, address, remarks, created_by, expires_at)
+		values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13, now() + interval '14 days')
 		returning posted_at, expires_at`,
 		req.ID, req.Hospital, req.City, req.State, req.BloodGroup, req.UnitsRequired, req.PatientContext,
-		req.NeededWithin, req.Urgency, nullIfEmpty(req.Contact), nullIfEmpty(req.Address), nullIfEmpty(req.Remarks)).
+		req.NeededWithin, req.Urgency, nullIfEmpty(req.Contact), nullIfEmpty(req.Address), nullIfEmpty(req.Remarks), req.CreatedBy).
 		Scan(&postedAt, &expiresAt)
 	if err != nil {
 		return contracts.BloodRequest{}, err

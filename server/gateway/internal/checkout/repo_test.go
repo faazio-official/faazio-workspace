@@ -125,6 +125,65 @@ func TestProvisionUserIDAfterDeletionCreatesFreshAccount(t *testing.T) {
 	}
 }
 
+// TestDeleteAccountErasesPostedBloodRequestsAndRouteSequence verifies the right-to-erasure paths
+// behind account deletion: the user's posted blood.requests rows (with contact/address PII) are
+// deleted, and retained delivery routes for a rider linked to the deleted user are purged.
+func TestDeleteAccountErasesPostedBloodRequestsAndRouteSequence(t *testing.T) {
+	pool := testenv.Pool(t)
+	repo := New(pool)
+	ctx := context.Background()
+
+	uid := "user-del-erasure"
+	if _, err := pool.Exec(ctx, `insert into checkout.users (user_id, name, email, phone) values ($1, 'T', 't@t', '0') on conflict (user_id) do nothing`, uid); err != nil {
+		t.Fatalf("seed test user: %v", err)
+	}
+	t.Cleanup(func() { _, _ = pool.Exec(ctx, `delete from checkout.users where user_id = $1`, uid) })
+
+	brID := "br-del-erasure"
+	if _, err := pool.Exec(ctx, `
+		insert into blood.requests (id, hospital, city, state, blood_group, units, created_by, contact)
+		values ($1, 'H', 'Chennai', 'TN', 'O+', 1, $2, '+91 99999 99999')`, brID, uid); err != nil {
+		t.Fatalf("seed blood request: %v", err)
+	}
+	t.Cleanup(func() { _, _ = pool.Exec(ctx, `delete from blood.requests where id = $1`, brID) })
+
+	riderID := "rider-erasure"
+	if _, err := pool.Exec(ctx, `
+		insert into delivery.delivery_boys (rider_id, user_id, phone, state_code)
+		values ($1, $2, '0', 'TN') on conflict (rider_id) do nothing`, riderID, uid); err != nil {
+		t.Fatalf("seed delivery boy: %v", err)
+	}
+	t.Cleanup(func() { _, _ = pool.Exec(ctx, `delete from delivery.delivery_boys where rider_id = $1`, riderID) })
+
+	dlvID := "dlv-erasure"
+	if _, err := pool.Exec(ctx, `
+		insert into delivery.delivery_orders (order_id, customer_order_id, store_id, rider_id, route_sequence, status)
+		values ($1, 'co-erasure', 'store-x', $2, '["stop-a","stop-b"]'::jsonb, 'ROUTE_COMPLETE')`, dlvID, riderID); err != nil {
+		t.Fatalf("seed delivery order: %v", err)
+	}
+	t.Cleanup(func() { _, _ = pool.Exec(ctx, `delete from delivery.delivery_orders where order_id = $1`, dlvID) })
+
+	if _, ok, err := repo.DeleteAccount(ctx, uid); err != nil || !ok {
+		t.Fatalf("DeleteAccount: ok=%v err=%v", ok, err)
+	}
+
+	var remaining int
+	if err := pool.QueryRow(ctx, `select count(*) from blood.requests where created_by = $1`, uid).Scan(&remaining); err != nil {
+		t.Fatal(err)
+	}
+	if remaining != 0 {
+		t.Fatalf("deleted user's blood.requests should be erased, %d remain", remaining)
+	}
+
+	var seq string
+	if err := pool.QueryRow(ctx, `select route_sequence::text from delivery.delivery_orders where order_id = $1`, dlvID).Scan(&seq); err != nil {
+		t.Fatal(err)
+	}
+	if seq != "[]" {
+		t.Fatalf("route_sequence should be reset, got %s", seq)
+	}
+}
+
 func TestOrderByIdempotencyKeyMiss(t *testing.T) {
 	pool := testenv.Pool(t)
 	repo := New(pool)

@@ -6,7 +6,12 @@ import {
   StoredSession,
   updateSessionTokens,
 } from '@/services/secureSession';
-import { signOutRemote } from '@/services/firebaseAuth';
+import {
+  deleteFirebaseUser,
+  sendOtp,
+  signOutRemote,
+  verifyOtp,
+} from '@/services/firebaseAuth';
 
 export interface AuthUser {
   id: string;
@@ -59,6 +64,18 @@ export interface AuthState {
   expireSession: () => void;
   logout: () => Promise<void>;
   hydrate: () => Promise<boolean>;
+  /**
+   * Re-authenticate the current Firebase user by phone OTP (send step). Firebase requires recent
+   * login for user.delete(), so irreversible account deletion gates on this first.
+   */
+  sendReauthOtp: (phone: string) => Promise<void>;
+  /**
+   * Complete the re-auth (verify step) and persist the fresh ID token so the subsequent
+   * gateway.deleteAccount() call carries a recently-authenticated bearer.
+   */
+  verifyReauthOtp: (phone: string, code: string) => Promise<void>;
+  /** Delete the Firebase Auth identity (the phone account at Firebase), distinct from sign-out. */
+  deleteFirebaseIdentity: () => Promise<void>;
 }
 
 export const useAuthStore = create<AuthState>()((set) => ({
@@ -111,5 +128,18 @@ export const useAuthStore = create<AuthState>()((set) => ({
     } finally {
       set({ hydrated: true });
     }
+  },
+  sendReauthOtp: async (phone) => {
+    await sendOtp(phone);
+  },
+  verifyReauthOtp: async (phone, code) => {
+    const session = await verifyOtp(phone, code);
+    if (session.accessToken) {
+      await updateSessionTokens(session.accessToken);
+      set({ accessToken: session.accessToken });
+    }
+  },
+  deleteFirebaseIdentity: async () => {
+    await deleteFirebaseUser();
   },
 }));

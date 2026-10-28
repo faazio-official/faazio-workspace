@@ -237,7 +237,8 @@ the `GROCERY` member was dropped from `AppBrand` / `CartCategory` / `SubAppId` /
 > the Go Chi backend persists (donor registry). As of migration `0010`, the server is the
 > durable home: `blood.donors` (health PII, RLS own-rows), the `blood.donor_directory`
 > security-definer view (consented, display-safe columns only), `blood.requests` (public board;
-> `contact`/`address` redacted for anon), `blood.interests`, and `blood.match_requests`.
+> `contact`/`address`/`created_by` redacted for anon; `created_by` stamps the author for right-to-erasure —
+> `0061`), `blood.interests`, and `blood.match_requests`.
 > `bloodDonorStore` keeps AsyncStorage (`faazio/bloodDonor/v1`) as an optimistic cache and mirrors
 > writes to `PUT /donors/me` + `setBloodInterest`/`createDonorMatch` as **outcome-returning** calls
 > (`synced`/`offline`/`signed-out`). It tags the optimistic row `pendingSync` and queues a

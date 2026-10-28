@@ -3157,14 +3157,21 @@ routes). `legal` remains `comingSoon` and renders a non-tappable placeholder row
   call fails, and local teardown failures can no longer be reported as a server deletion failure.
 
 **Remaining account-deletion gaps (not Play blockers):**
-- `blood.requests` has no author column, so a user's posted `contact`/`address` cannot be linked
-  back and erased; adding `created_by` + writing it on create is a schema change.
-- The Firebase Auth identity is signed out, not deleted (no Admin SDK call), so the phone identity
-  still exists at Firebase even though the app account/PII is gone.
-- `DELETE /users/me` requires only a bearer token — no fresh OTP/re-auth step.
-- `delivery.delivery_orders.route_sequence` may retain drop coordinates; it is not cleared.
-- No gateway test exercises `DeleteAccount`/`DeleteUserData` (they need the Postgres integration
-  harness).
+- ✅ **Resolved (2026-10-28, migration `0061`):** `blood.requests.created_by` — the gateway stamps
+  the author from the bearer token on `POST /blood-requests`, and `DELETE /users/me` erases the
+  author's rows; seed rows are hospital-posted (`created_by = ''`).
+- ✅ **Resolved (2026-10-28):** the Firebase Auth identity is now **deleted** client-side via native
+  `user.delete()` (`services/firebaseAuth.ts` → `authStore.deleteFirebaseIdentity`), ordered after
+  the server `DELETE /users/me`; the gateway itself uses no Admin SDK.
+- ✅ **Resolved (2026-10-28):** `DELETE /users/me` is now gated by a fresh phone OTP re-auth
+  (`DeleteAccountScreen` shows a 6-digit code step) — both a security control and the recent-login
+  requirement for Firebase `user.delete()`. Email fallback (`ACCOUNT_DELETION_MAILTO`) remains.
+- ✅ **Resolved (2026-10-28, migration `0061`):** `delivery.delivery_orders.route_sequence` is reset
+  to `[]` on account deletion for the deleted user's rider orders (scoped via
+  `delivery_boys.user_id`, since `rider_id` is a `delivery_boys` slug).
+- ✅ **Resolved (2026-10-28):** gateway `DeleteAccount` erasure paths are covered by
+  `TestDeleteAccountErasesPostedBloodRequestsAndRouteSequence` (Postgres integration harness); run
+  with `TEST_DATABASE_URL`.
 
 **Interim contract:** Keep the `AccountNavGroup` shape (`title` + optional `comingSoon` +
 `rows`) stable so server wiring via `GatewayClient.getAccountNav` (`navTable`) is a

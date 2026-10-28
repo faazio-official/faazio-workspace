@@ -683,6 +683,8 @@ export interface BloodRequestRecord {
   hospital: string;
   city: string;
   state: string;
+  /** Author checkout.users id; set from the bearer token on create, redacted for anon. */
+  createdBy?: string;
   bloodGroup: string;
   unitsRequired: number;
   patientContext: string;

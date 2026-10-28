@@ -185,6 +185,19 @@ export async function signOutRemote(): Promise<void> {
   }
 }
 
+/**
+ * Permanently delete the Firebase Auth identity (the phone account in Firebase) — distinct from
+ * signOut(), which only clears the device session. Firebase requires recent authentication for
+ * user.delete(), so account deletion runs an OTP re-auth first. No-op when Firebase is
+ * unconfigured or no user is signed in.
+ */
+export async function deleteFirebaseUser(): Promise<void> {
+  if (!firebaseAuthConfigured()) return;
+  const user = getAuth().currentUser;
+  if (!user) return;
+  await user.delete();
+}
+
 /** Display name from the Firebase profile, falling back to the phone (never blank). */
 export function displayName(user: FirebaseUser): string {
   return user.displayName || user.phoneNumber || 'Faazio User';

@@ -61,6 +61,15 @@ that OTP is only a signature and must not replace the shopper session. `refreshI
 `getIdToken(true)`; `GatewayClient.recoverSession` uses it once on a 401. Nothing logs the token,
 phone number or OTP code.
 
+**Account deletion deletes the Firebase identity client-side:** `DeleteAccountScreen` runs a fresh
+phone-OTP re-auth (`sendReauthOtp`/`verifyReauthOtp`), then `deleteAccountEverywhere()` calls the
+gateway `DELETE /users/me`, then native `user.delete()` (`authStore.deleteFirebaseIdentity` →
+`services/firebaseAuth.deleteFirebaseUser`) removes the phone account at Firebase. The re-auth is
+both a security gate and Firebase's recent-login requirement for `user.delete()`. **The gateway uses
+no Admin SDK** — it only nulls `checkout.users.auth_uid` on deletion, so a fresh `DELETE /users/me`
+is what unlinks the identity server-side; the client delete is the cleanup of the Firebase account
+itself.
+
 The **seller partner app** does not use Firebase Auth (the portal owns its session). It only needs
 the native Firebase app for FCM: register `com.faazio.sellerpartner`, store its `google-services.json` as
 the `GOOGLE_SERVICES_SELLER_JSON` CI secret (iOS: `GoogleService-Info-Seller.plist`), and grant the

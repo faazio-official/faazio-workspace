@@ -37,6 +37,7 @@ type BloodRequest struct {
 	Hospital       string `json:"hospital"`
 	City           string `json:"city"`
 	State          string `json:"state"`
+	CreatedBy      string `json:"createdBy,omitempty"`
 	BloodGroup     string `json:"bloodGroup"`
 	UnitsRequired  int64  `json:"unitsRequired"`
 	PatientContext string `json:"patientContext"`

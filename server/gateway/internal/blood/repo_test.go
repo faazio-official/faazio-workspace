@@ -41,13 +41,16 @@ func TestDonorDirectoryRequestsAndMatches(t *testing.T) {
 		t.Fatalf("donor not in directory: %+v", dir)
 	}
 
-	req, err := repo.CreateRequest(ctx, contracts.BloodRequest{Hospital: "Test Hospital", City: "Chennai", State: "TN", BloodGroup: "O+", UnitsRequired: 2})
+	req, err := repo.CreateRequest(ctx, contracts.BloodRequest{Hospital: "Test Hospital", City: "Chennai", State: "TN", BloodGroup: "O+", UnitsRequired: 2, CreatedBy: uid})
 	if err != nil {
 		t.Fatalf("CreateRequest: %v", err)
 	}
 	t.Cleanup(func() { pool.Exec(ctx, `delete from blood.requests where id = $1`, req.ID) })
 	if req.PostedAt == "" {
 		t.Fatalf("request missing postedAt: %+v", req)
+	}
+	if req.CreatedBy != uid {
+		t.Fatalf("request author not stamped: %+v", req)
 	}
 
 	if err := repo.SetInterest(ctx, req.ID, uid, "interested"); err != nil {
