@@ -14,12 +14,12 @@ function toUrgency(value: string): BloodRequestUrgency {
 
 /**
  * Map a durable `blood.requests` row onto the app's `BloodRequest` card/detail
- * shape. The server is the source of the clinical fields (hospital, group, units,
- * urgency, timing); the donation-safe display-only extras the app seeds
- * (`imageUrl`/`purposeDescription`/patient demographics/`distanceKm`) are borrowed
- * from the fixture row when the id matches, otherwise left blank and rendered as
- * a graceful "not provided" by the screens. `contact`/`address` come from the
- * server (present for an authed caller, redacted for anon).
+ * shape. The server is the single source for the clinical + contact fields
+ * (hospital, group, units, urgency, timing); the donation-safe display-only
+ * extras (`imageUrl`/`purposeDescription`/patient demographics/`distanceKm`)
+ * are left blank and rendered as a graceful "not provided" by the screens.
+ * `contact`/`address` are server-owned PII (present for an authed caller,
+ * absent for anon) — never substituted with a fixture lookalike.
  */
 function toBloodRequest(rec: BloodRequestRecord): BloodRequest {
   return {
@@ -39,7 +39,7 @@ function toBloodRequest(rec: BloodRequestRecord): BloodRequest {
     patientAge: 0,
     patientGender: '',
     // Contact/address are server-owned PII: an anon caller gets them redacted (absent) and must
-    // never be shown a fixture lookalike. Only the donation-safe display extras come from the fixture.
+    // never be shown a fixture lookalike. The display-only extras are honest blanks.
     hospitalContact: rec.contact ?? '',
     hospitalAddress: rec.address ?? `${rec.city}, ${rec.state}`,
     remarks: rec.remarks ?? '',

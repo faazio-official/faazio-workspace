@@ -840,19 +840,25 @@ Choose-language lands on Welcome, not a filled OTP form.
 
 ## Account navigation groups
 
-The "You" page (`features/profile/AccountView.tsx`) renders its nav list from the
-`@data/account/accountNav.ts` fixture (`accountNavGroups`), which is grouped and titled
-via `AccountNavGroup.title`. Six groups render in order: `profile` (Profile settings),
-`payments` (Payments and credits), `privacy` (Privacy and security), `earn` (Earn with us),
-`legal` (Terms and policies), and `support` (Help & Support). The `privacy` group is active
-with `Delete account` → `DeleteAccount` and `Request data deletion` → `RequestDataDeletion`;
-only `legal` is `comingSoon` — it renders a single non-tappable "Coming soon" row in place of
-real nav rows. The `earn` group is active and carries a `sell-with-us` row ("Sell with us")
-that pushes the `SellWithUs` screen. Orders / Details / Addresses / Favourites / Sell-with-us
-navigate today; Favourites opens the search-results-style `Favourites` root route (see below).
-The `payments` group now holds only the `payments` row ("Payments") — the old
-`coupons` "Coupons & Offers" stub row was removed. The remaining rows (Recently Viewed,
-Customer Support, Payments) are placeholders (TODO stub in `AccountView.handleRowPress`).
+The "You" page (`features/profile/AccountView.tsx`) renders its nav list through
+`features/profile/useAccountNav.ts`: server rows from `GET /account-nav`
+(`gateway.getAccountNav`, `accounts.nav`) are authoritative; the committed
+`@data/account/accountNav.ts` catalog (`accountNavGroups`) fills any group whose
+server rows are empty or absent (a fresh user has no `accounts.nav` rows yet). The
+server projection returns titled groups (`{key, title, comingSoon, rows}`) — universal
+chrome is held server-side, per-user row membership lives in `accounts.nav`. Six groups
+render in order: `profile` (Profile settings), `payments` (Payments and credits),
+`privacy` (Privacy and security), `earn` (Earn with us), `legal` (Terms and policies),
+and `support` (Help & Support). The `privacy` group is active with `Delete account` →
+`DeleteAccount` and `Request data deletion` → `RequestDataDeletion`; only `legal` is
+`comingSoon` — it renders a single non-tappable "Coming soon" row in place of real nav
+rows. The `earn` group is active and carries a `sell-with-us` row ("Sell with us")
+that pushes the `SellWithUs` screen. Orders / Details / Addresses / Favourites /
+Sell-with-us navigate today; Favourites opens the search-results-style `Favourites`
+root route (see below). The `payments` group now holds only the `payments` row
+("Payments") — the old `coupons` "Coupons & Offers" stub row was removed. The
+remaining rows (Recently Viewed, Customer Support, Payments) are placeholders
+(TODO stub in `AccountView.handleRowPress`).
 A FaazioCoins streak card (title + balance + a row of 7 flame icons, filled per
 `streakCount`) sits above the nav groups and pushes the `FaazioRewards` screen.
 

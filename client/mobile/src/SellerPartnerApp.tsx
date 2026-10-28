@@ -6,6 +6,10 @@ import { SellerPartnerNavigator } from './features/seller-partner/SellerPartnerN
 import { SplashFallback } from './components/SplashFallback';
 import { useAppFonts, resolveFontFamily } from './theme/fonts';
 import { useBottomInset } from './utils/responsive';
+import { installGlobalErrorHandlers } from './services/crashReporting';
+
+// Release crash observability for the seller partner app (see services/crashReporting.ts).
+installGlobalErrorHandlers('seller');
 
 const navigationTheme = {
   ...DefaultTheme,

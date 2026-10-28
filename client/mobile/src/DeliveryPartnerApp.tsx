@@ -9,6 +9,10 @@ import { SplashFallback } from './components/SplashFallback';
 import { useAuthStore } from './state/authStore';
 import { useAppFonts, resolveFontFamily } from './theme/fonts';
 import { useBottomInset } from './utils/responsive';
+import { installGlobalErrorHandlers } from './services/crashReporting';
+
+// Release crash observability for the delivery partner app (see services/crashReporting.ts).
+installGlobalErrorHandlers('delivery');
 
 const navigationTheme = {
   ...DefaultTheme,

@@ -7,7 +7,7 @@ import AppText from '@/components/AppText';
 import { VendorRateButton } from '@/components/shared';
 import { hs, vs, ms } from '@/utils/responsive';
 import { SPACE } from '@/theme/spacing';
-import { getMyOrderById, getProductById, getVendorById, portalSectors } from '@data/index';
+import { getProductById, getVendorById, portalSectors } from '@data/index';
 import { SECTOR_VISUALS } from '@/theme/sectorVisuals';
 import { useOrdersStore } from '@/state/ordersStore';
 import { useAuthStore } from '@/state/authStore';
@@ -57,7 +57,7 @@ interface PickupView {
   phone?: string;
 }
 
-/** Normalized order details shared by @data fixtures and in-session placed orders. */
+/** Normalized order details shared by durable server history and in-session placed orders. */
 interface OrderView {
   id: string;
   status: string;
@@ -80,7 +80,6 @@ export function OrderDetailsScreen({ navigation, route }: Props) {
   const insets = useSafeAreaInsets();
   const accountPhone = useAuthStore((s) => s.user?.phone);
   const placedOrder = useOrdersStore((s) => s.getOrderById(route.params.orderId));
-  const dataOrder = useMemo(() => getMyOrderById(route.params.orderId), [route.params.orderId]);
   // Prescription orders poll the durable Rx for the seller quote + READY reveal (remote mode only).
   const rxEnabled = Boolean(
     placedOrder?.kind === 'prescription' && gateway.remoteEnabled,
@@ -117,26 +116,8 @@ export function OrderDetailsScreen({ navigation, route }: Props) {
         vendorId: placedOrder.storeIds?.[0],
       };
     }
-    if (dataOrder) {
-      return {
-        id: dataOrder.id,
-        status: dataOrder.status,
-        statusDate: dataOrder.statusDate,
-        fulfillment: dataOrder.fulfillment ?? 'DELIVERY',
-        app: dataOrder.app,
-        emoji: dataOrder.emoji,
-        productName: dataOrder.productName,
-        variant: dataOrder.variant,
-        price: dataOrder.price,
-        qty: dataOrder.qty,
-        lineTotal: dataOrder.price * dataOrder.qty,
-        pickups: dataOrder.pickup ? [dataOrder.pickup] : [],
-        productId: dataOrder.productId,
-        vendorId: dataOrder.storeId,
-      };
-    }
     return null;
-  }, [placedOrder, dataOrder]);
+  }, [placedOrder]);
 
   const canRate = useCanRateVendor(order?.vendorId);
   const vendorName = order?.vendorId ? getVendorById(order.vendorId)?.name : undefined;

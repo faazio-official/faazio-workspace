@@ -20,6 +20,7 @@ import (
 	"github.com/faazio/server/gateway/internal/contracts"
 	"github.com/faazio/server/gateway/internal/delivery"
 	"github.com/faazio/server/gateway/internal/directory"
+	"github.com/faazio/server/gateway/internal/errorsink"
 	"github.com/faazio/server/gateway/internal/favourites"
 	"github.com/faazio/server/gateway/internal/festival"
 	"github.com/faazio/server/gateway/internal/media"
@@ -157,6 +158,9 @@ func NewRouter(d Deps) http.Handler {
 	r.Use(auth.Middleware(authConfig))
 
 	r.Get("/health", healthHandler(d))
+
+	// Crash/error sink (mobile apps, fire-and-forget, non-PII). Mounted before the contexts.
+	errorsink.New(d.Pool).Register(r)
 
 	// Contexts. Each owns its routes; cross-context calls use contracts interfaces.
 	checkoutService := checkout.NewService(checkoutRepo, cartRepo, d.Cache, rewardsRepo, promoRepo, promoRepo, adsRepo,
@@ -305,6 +309,8 @@ func sensitiveThrottle() func(http.Handler) http.Handler {
 func isSensitiveRequest(r *http.Request) bool {
 	path := r.URL.Path
 	switch {
+	case r.Method == http.MethodPost && path == "/errors":
+		return true
 	case r.Method == http.MethodPost && path == "/ads/events":
 		return true
 	case r.Method == http.MethodPut && strings.HasPrefix(path, "/vendors/") && strings.HasSuffix(path, "/rating"):

@@ -13,34 +13,16 @@ import { hydrateUserStores } from './src/services/sessionStores';
 import { startCustomerPush } from './src/services/customerPush';
 import { useAppFonts, resolveFontFamily } from './src/theme/fonts';
 import { useBottomInset } from './src/utils/responsive';
+import { installGlobalErrorHandlers } from './src/services/crashReporting';
 
 // Branded splash stays visible for at least this long on cold start. The native
 // launch theme (Android splash theme / iOS LaunchScreen) hands off to this JS
 // splash, which is the single owner of the branded cold-start experience.
 const SPLASH_MIN_DISPLAY_MS = 5000;
 
-/**
- * Routes synchronous JS/render errors to a single logger so crashes are not
- * silently swallowed in release builds (babel strips all console.* there).
- * Kept as a module-scope install so it runs before any screen mounts.
- */
-interface GlobalErrorUtils {
-  setGlobalHandler?: (
-    handler: (error: Error, isFatal?: boolean) => void,
-  ) => void;
-}
-
-function installGlobalErrorHandlers() {
-  const errorUtils = (globalThis as { ErrorUtils?: GlobalErrorUtils }).ErrorUtils;
-  if (errorUtils && typeof errorUtils.setGlobalHandler === 'function') {
-    errorUtils.setGlobalHandler((error: Error, isFatal?: boolean) => {
-      if (__DEV__) {
-        console.warn('[Faazio:global-error]', isFatal, error);
-      }
-    });
-  }
-}
-installGlobalErrorHandlers();
+// Routes unhandled JS/render errors to the gateway /errors sink (release observability). Runs at
+// module scope so it is installed before any screen mounts.
+installGlobalErrorHandlers('app');
 
 /** Resolves `promise` unless it doesn't settle within `ms` (rejects instead). */
 function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise<T> {

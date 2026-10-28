@@ -49,8 +49,8 @@ function firstName(name: string | undefined): string {
 
 /**
  * Registered-donor dashboard: greeting, impact banner, request feed with
- * chip + search filtering. Presentational — the feed comes from `@data` until
- * the backend is wired.
+ * chip + search filtering. The feed is server-backed (`useBloodRequests`); a
+ * labelled offline/stale chip is shown instead of fixture rows.
  */
 export function DonorDashboard() {
   const insets = useSafeAreaInsets();

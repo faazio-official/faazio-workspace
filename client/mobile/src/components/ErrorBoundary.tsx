@@ -1,5 +1,6 @@
 import React from 'react';
 import { StyleSheet, View, Text, TouchableOpacity } from 'react-native';
+import { reportRenderError } from '@/services/crashReporting';
 
 interface ErrorBoundaryProps {
   children: React.ReactNode;
@@ -30,6 +31,9 @@ export class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoun
 
   componentDidCatch(error: Error, info: React.ErrorInfo) {
     console.error('[ErrorBoundary]', this.props.scope ?? 'app', error, info);
+    // Release default (P0 observability): send message + stacks to the gateway /errors sink. Never
+    // renders props/route params here — the report stays PII-free (message + stack only).
+    reportRenderError(error, this.props.scope ?? 'app', info.componentStack ?? undefined);
   }
 
   private reset = () => {

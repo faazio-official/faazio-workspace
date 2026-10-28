@@ -50,6 +50,35 @@ func (h *Handler) WithRxBlobDeleter(deleter BlobDeleter) *Handler {
 	return h
 }
 
+// NavRow is one entry under an account-nav group (the accounts.nav row payload).
+type NavRow struct {
+	Key      string `json:"key"`
+	Icon     string `json:"icon,omitempty"`
+	Title    string `json:"title"`
+	Subtitle string `json:"subtitle,omitempty"`
+}
+
+// NavGroup is one titled account section served to the app. Rows are per-user (accounts.nav);
+// title/comingSoon are universal chrome held server-side so the projection matches the app's
+// `AccountNavGroup` exactly (the app never reads rows as live user data when a group is empty).
+type NavGroup struct {
+	Key        string   `json:"key"`
+	Title      string   `json:"title,omitempty"`
+	ComingSoon bool     `json:"comingSoon,omitempty"`
+	Rows       []NavRow `json:"rows"`
+}
+
+// accountNavCatalog is the universal group chrome (stable order, titles, coming-soon). Row
+// membership lives in accounts.nav; this catalog guarantees a complete, ordered menu.
+var accountNavCatalog = []NavGroup{
+	{Key: "profile", Title: "Profile settings"},
+	{Key: "payments", Title: "Payments and credits"},
+	{Key: "privacy", Title: "Privacy and security"},
+	{Key: "earn", Title: "Earn with us"},
+	{Key: "legal", Title: "Terms and policies", ComingSoon: true},
+	{Key: "support", Title: "Help & Support"},
+}
+
 // Register mounts auth-scoped order + account endpoints.
 func (h *Handler) Register(r chi.Router) {
 	r.Group(func(g chi.Router) {
@@ -611,10 +640,25 @@ func (h *Handler) getAccountNav(w http.ResponseWriter, r *http.Request) {
 		httpx.Fail(w, http.StatusInternalServerError, "profile_unavailable", "profile unavailable")
 		return
 	}
-	if rows == nil {
-		rows = []Nav{}
+	byKey := make(map[string]json.RawMessage, len(rows))
+	for _, n := range rows {
+		byKey[n.Key] = n.Rows
 	}
-	httpx.JSON(w, http.StatusOK, rows)
+	out := make([]NavGroup, 0, len(accountNavCatalog))
+	for _, cat := range accountNavCatalog {
+		group := cat
+		if raw, ok := byKey[cat.Key]; ok && len(raw) > 0 {
+			var ns []NavRow
+			if json.Unmarshal(raw, &ns) == nil && len(ns) > 0 {
+				group.Rows = ns
+			}
+		}
+		if group.Rows == nil {
+			group.Rows = []NavRow{}
+		}
+		out = append(out, group)
+	}
+	httpx.JSON(w, http.StatusOK, out)
 }
 
 func (h *Handler) sellerOrders(w http.ResponseWriter, r *http.Request) {

@@ -75,6 +75,7 @@ CI runs the full suite with Postgres + Valkey service containers
 | `GET/POST /orders`, `GET /profile`, `/profile/details`, `/membership`, `/order-status`, `/account-nav` | ✔ | checkout |
 | `GET /product/{id}/reviews` · `GET /vendors/{id}/reviews` · `/summary` · `PUT /vendors/{id}/rating` | partly ✔ | reviews |
 | `POST /events` | ✔ | reco |
+| `POST /errors` | optional auth | errorsink |
 | `GET /sdui/home?locale=` | — | sdui |
 | `POST /media/upload-url` · `POST /media/confirm` · `GET /media/private/{id}` | ✔ | media |
 | `GET /media/resolve?ids=` | — | media |

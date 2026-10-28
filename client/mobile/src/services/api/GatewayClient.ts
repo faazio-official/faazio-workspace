@@ -14,7 +14,7 @@
  * See data/DATA_CONTROL.md, docs/architecture/data-layer-sdui.md,
  * docs/architecture/mvp-backend.md §3, docs/architecture/monolith-breakdown.md.
  */
-import type { AppBrand, PickupPoint, SavedAddress, UserDetailsData } from '@data/types';
+import type { AccountNavGroup, AppBrand, PickupPoint, SavedAddress, UserDetailsData } from '@data/types';
 import { catalogIndex, getCatalogEntryById, getCatalogEntriesByIds, getCatalogEntriesByStore, type CatalogEntry } from '@data/catalog/products';
 import { storeDirectory, getStoreById, getStoresByApp, type StoreRecord } from '@data/directory/stores';
 import { NEUTRAL_PICKUP } from '@data/cart/pickup-resolver';
@@ -23,7 +23,7 @@ import { restaurantVenues } from '@data/food/diningVenues';
 import { getReviewsByProductId, type ReviewRow } from '@data/reviews/reviews';
 import { getStockByProductId, type StockRow } from '@data/inventory/stock';
 import { getOrdersByUser, MOCK_USER_ID, type OrderRow } from '@data/checkout/orders';
-import { profileTable, membershipTable, orderStatusTable, navTable, detailsTable, type ProfileRow, type MembershipRow, type OrderStatusRow, type NavRowGroup, type DetailsTable } from '@data/accounts/profile';
+import { profileTable, membershipTable, orderStatusTable, navTable, detailsTable, type ProfileRow, type MembershipRow, type OrderStatusRow, type DetailsTable } from '@data/accounts/profile';
 import { getReviewsByVendorId, type VendorReviewRow } from '@data/reviews/vendorReviews';
 import { homeSdui, type SduiSection } from '@data/home/sdui';
 import { adCampaigns } from '@data/home/campaigns';
@@ -36,7 +36,7 @@ import {
 } from '../secureSession';
 import { refreshIdToken } from '../firebaseAuth';
 import { useAuthStore } from '@/state/authStore';
-import { DEV_USER, GATEWAY_URL, STRICT, USE_GATEWAY } from '../../lib/config';
+import { APP_VERSION, DEV_USER, GATEWAY_URL, STRICT, USE_GATEWAY } from '../../lib/config';
 import { APP_VARIANT } from '../../lib/appVariant';
 import { sortByDistance, withLiveDistance } from '@/utils/distance';
 import type { DeliveryFeeBreakdown } from '@/features/cart/utils';
@@ -1224,9 +1224,9 @@ export class GatewayClient {
     );
   }
 
-  async getAccountNav(userId = 'user-1'): Promise<NavRowGroup[]> {
+  async getAccountNav(userId = 'user-1'): Promise<AccountNavGroup[]> {
     return this.withFallback(
-      () => this.http<NavRowGroup[]>('/account-nav'),
+      () => this.http<AccountNavGroup[]>('/account-nav'),
       () => delay(navTable.filter((n) => n.userId === userId)),
     );
   }
@@ -2515,6 +2515,24 @@ export class GatewayClient {
         ),
       () => delay(undefined),
     );
+  }
+
+  /**
+   * Fire-and-forget crash/error report to the gateway `/errors` sink. Non-PII by contract: message +
+   * stack only — callers must never attach route params, tokens or keys. Offline no-op.
+   */
+  async reportError(report: { message: string; stack?: string; componentStack?: string }): Promise<void> {
+    if (!REMOTE_ENABLED) return;
+    await this.http('/errors', {
+      method: 'POST',
+      body: JSON.stringify({
+        appVariant: APP_VARIANT,
+        release: __DEV__ ? 'dev' : APP_VERSION,
+        message: report.message,
+        stack: report.stack,
+        componentStack: report.componentStack,
+      }),
+    });
   }
 }
 

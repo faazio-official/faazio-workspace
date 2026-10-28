@@ -31,9 +31,11 @@ existing hospital donation-request feed.
   shows the live status. **Contact is not disclosed on acceptance** (reveal-gated future).
 - `AskBloodSheet` also offers **Post to the public board**: it writes city + blood group to
   `POST /blood-requests` (outcome-returning, never a fabricated local row) and reloads the board.
-- The hospital-request feed remains server-backed with the `BLOOD_REQUESTS` fixture as the labelled
-  offline fallback, and keeps its filters (chips + the funnel `FilterSheet`), search, details page,
-  Interested action, Accept & Proceed action, share, phone, map, and nearby-request behavior.
+- The hospital-request feed is fully server-backed (`GET /blood-requests` via
+  `useBloodRequests`): a server `200 []` is an honest empty, and offline shows a labelled
+  stale/offline chip — never fixture rows. The feed keeps its filters (chips + the funnel
+  `FilterSheet`), search, details page, Interested action, Accept & Proceed action, share, phone,
+  map, and nearby-request behavior.
 
 ## Key files
 
@@ -64,14 +66,16 @@ data is never logged. The gateway/`blood.*` schema is the durable home (RLS own-
 
 ## Data and backend seam
 
-`data/pharma/bloodDonors.ts` contains the typed mock `DonorProfile` registry.
+`data/pharma/bloodDonors.ts` retains the typed `@mock` `DonorProfile` registry as an unused
+type-checked seam (no runtime imports).
 `services/donorDirectory.ts` exposes `findMatchingDonors(city, bloodGroup)` →
 `{ donors, source }` and `getDonorById(donorId, source)`. It reads the server directory through the
 no-fallback `GatewayClient.fetchBloodDonors` (`GET /donors`), so the caller can tell a live
-(possibly-empty) consented directory from the offline fixture: a `200 []` is an honest
-`empty-authoritative`, a failure is `offline-fallback` (fixture, labelled). The `source` rides the
-`BloodDonorDetails` route so a donor opened from a live search resolves only from server rows and a
-fixture donor is never shown as consented live. Un-tapping interest calls
+(possibly-empty) consented directory from an offline failure: a `200 []` is an honest
+`empty-authoritative`, a failure is `offline-fallback` (an empty directory, labelled — never
+fixture donors). The `source` rides the `BloodDonorDetails` route so a donor opened from a live
+search resolves only from server rows and a fixture donor is never shown as consented live.
+Un-tapping interest calls
 `GatewayClient.clearBloodInterest` (`DELETE /blood-requests/{id}/interest`), queued as an
 `interest-remove` outbox op when offline.
 

@@ -25,7 +25,6 @@ import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import AppText from '@/components/AppText';
 import { hs, vs, ms } from '@/utils/responsive';
 import { SPACE } from '@/theme/spacing';
-import { userProfile, accountDetails } from '@data/index';
 import type { UserProfile, UserDetailsData } from '@data/types';
 import { gateway } from '@/services/api/GatewayClient';
 import type { RootStackParamList } from '@/navigation/types';
@@ -71,12 +70,15 @@ function InfoRow({ icon: Icon, title, subtitle, showDivider = true }: InfoRowPro
 
 export function UserDetailsScreen({ navigation }: Props) {
   const insets = useSafeAreaInsets();
-  const [profile, setProfile] = useState<UserProfile>(userProfile);
-  const [details, setDetails] = useState<UserDetailsData>(accountDetails);
+  // Honest empty state — the durable profile/details come from the gateway only. No @data fixture is
+  // ever substituted on a failed/empty read, so real users never see seeds rendered as their account.
+  const [profile, setProfile] = useState<UserProfile | null>(null);
+  const [details, setDetails] = useState<UserDetailsData | null>(null);
+  const [loadFailed, setLoadFailed] = useState(false);
 
   const handleBack = useCallback(() => navigation.goBack(), [navigation]);
 
-  // Hydrate the durable profile + details; silently keep the @data fixtures on mock/error.
+  // Hydrate the durable profile + details; on error render an honest "unavailable" shell.
   useEffect(() => {
     let alive = true;
     Promise.all([gateway.getProfile(), gateway.getDetails()])
@@ -85,7 +87,9 @@ export function UserDetailsScreen({ navigation }: Props) {
         if (p) setProfile(p);
         if (d) setDetails(d);
       })
-      .catch(() => {});
+      .catch(() => {
+        if (alive) setLoadFailed(true);
+      });
     return () => {
       alive = false;
     };
@@ -121,53 +125,65 @@ export function UserDetailsScreen({ navigation }: Props) {
               </View>
             </View>
             <View style={styles.profileInfo}>
-              <AppText style={styles.profileName}>{profile.name}</AppText>
-              <AppText style={styles.profileEmail} numberOfLines={1}>{profile.email}</AppText>
-              <AppText style={styles.profilePhone}>{profile.phone}</AppText>
+              <AppText style={styles.profileName}>{profile ? profile.name : ''}</AppText>
+              {profile ? (
+                <>
+                  <AppText style={styles.profileEmail} numberOfLines={1}>{profile.email}</AppText>
+                  <AppText style={styles.profilePhone}>{profile.phone}</AppText>
+                </>
+              ) : (
+                <AppText style={styles.profileUnavailable}>
+                  {loadFailed ? 'Your profile could not be loaded. Please try again later.' : 'Loading profile…'}
+                </AppText>
+              )}
             </View>
             <ChevronRight size={ms(20)} color="#94a3b8" strokeWidth={2.2} />
           </TouchableOpacity>
         </View>
 
         {/* 3. Personal Information */}
-        <AppText style={styles.sectionTitle}>Personal Information</AppText>
-        <View style={styles.listCard}>
-          {details.personalInfo.map((row, i) => (
-            <InfoRow
-              key={row.title}
-              icon={DETAIL_ICONS[row.icon] ?? User}
-              title={row.title}
-              subtitle={row.subtitle}
-              showDivider={i < details.personalInfo.length - 1}
-            />
-          ))}
-        </View>
+        {details ? (
+          <>
+            <AppText style={styles.sectionTitle}>Personal Information</AppText>
+            <View style={styles.listCard}>
+              {details.personalInfo.map((row, i) => (
+                <InfoRow
+                  key={row.title}
+                  icon={DETAIL_ICONS[row.icon] ?? User}
+                  title={row.title}
+                  subtitle={row.subtitle}
+                  showDivider={i < details.personalInfo.length - 1}
+                />
+              ))}
+            </View>
 
-        {/* 4. Account Preferences */}
-        <AppText style={styles.sectionTitle}>Account Preferences</AppText>
-        <View style={styles.listCard}>
-          {details.preferences.map((row, i) => (
-            <InfoRow
-              key={row.title}
-              icon={DETAIL_ICONS[row.icon] ?? User}
-              title={row.title}
-              subtitle={row.subtitle}
-              showDivider={i < details.preferences.length - 1}
-            />
-          ))}
-        </View>
+            {/* 4. Account Preferences */}
+            <AppText style={styles.sectionTitle}>Account Preferences</AppText>
+            <View style={styles.listCard}>
+              {details.preferences.map((row, i) => (
+                <InfoRow
+                  key={row.title}
+                  icon={DETAIL_ICONS[row.icon] ?? User}
+                  title={row.title}
+                  subtitle={row.subtitle}
+                  showDivider={i < details.preferences.length - 1}
+                />
+              ))}
+            </View>
 
-        {/* 5. Security Banner */}
-        <TouchableOpacity style={styles.securityBanner} activeOpacity={0.9}>
-          <View style={styles.securityIconBox}>
-            <ShieldCheck size={ms(26)} color="#16A34A" strokeWidth={2.2} />
-          </View>
-          <View style={styles.securityTextContainer}>
-            <AppText style={styles.securityTitle}>{details.securityTitle}</AppText>
-            <AppText style={styles.securitySubtitle}>{details.securitySubtitle}</AppText>
-          </View>
-          <ChevronRight size={ms(20)} color="#16A34A" strokeWidth={2.4} />
-        </TouchableOpacity>
+            {/* 5. Security Banner */}
+            <TouchableOpacity style={styles.securityBanner} activeOpacity={0.9}>
+              <View style={styles.securityIconBox}>
+                <ShieldCheck size={ms(26)} color="#16A34A" strokeWidth={2.2} />
+              </View>
+              <View style={styles.securityTextContainer}>
+                <AppText style={styles.securityTitle}>{details.securityTitle}</AppText>
+                <AppText style={styles.securitySubtitle}>{details.securitySubtitle}</AppText>
+              </View>
+              <ChevronRight size={ms(20)} color="#16A34A" strokeWidth={2.4} />
+            </TouchableOpacity>
+          </>
+        ) : null}
       </ScrollView>
     </View>
   );
@@ -306,6 +322,11 @@ const styles = StyleSheet.create({
     fontSize: ms(13),
     fontWeight: '600',
     color: '#16A34A',
+  },
+  profileUnavailable: {
+    fontSize: ms(13),
+    fontWeight: '500',
+    color: '#94A3B8',
   },
   cardDivider: {
     height: 1,
