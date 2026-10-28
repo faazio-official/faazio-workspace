@@ -4,6 +4,8 @@ package catalog
 
 import (
 	"context"
+	"crypto/rand"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -390,6 +392,169 @@ func (r *Repo) SetProductStatus(ctx context.Context, id, sellerID, district, sta
 	p.Price /= 100
 	p.UpdatedAt = updatedAt.UTC().Format(time.RFC3339)
 	return p, true, nil
+}
+
+// ProductCreateInput is the seller create-product payload. Money is whole rupees on the wire (the
+// repo converts to paisa at the insert boundary, matching ProductEdit).
+type ProductCreateInput struct {
+	StoreID        string
+	Name           string
+	Category       string
+	Desc           string
+	Price          int64  // rupees
+	MRP            *int64 // rupees
+	Unit           string
+	Emoji          string
+	ImageURL       string
+	ImageKey       *string
+	ImageAssetID   *string
+	IsVeg          *bool
+	IsPrescription bool
+	Attributes     map[string]any
+}
+
+// CreateProduct inserts a new catalog product owned by the calling seller and seeds its
+// inventory.stock row in one transaction. The listing opens as PENDING_REVIEW so a district admin
+// activates it before buyers see it (mirrors the portal create flow).
+//
+// Scope: a seller (sellerID != "") may only create under a live store they own. A district admin
+// (district != "") is confined to stores whose seller belongs to that district. A super admin
+// (both empty) may create under any existing store. The product's app is derived from the store,
+// never trusted from the client, and the stored seller_id is the store owner for admin creates.
+// Returns ok=false when the store is absent or outside the caller's scope.
+func (r *Repo) CreateProduct(ctx context.Context, sellerID, district string, e ProductCreateInput) (SellerProduct, bool, error) {
+	if r.pool == nil {
+		return SellerProduct{}, false, fmt.Errorf("catalog: database not configured")
+	}
+	if e.Price < 0 || e.Price > 10_000_000 {
+		return SellerProduct{}, false, fmt.Errorf("catalog: invalid price")
+	}
+	if e.MRP != nil && (*e.MRP < 0 || *e.MRP > 10_000_000) {
+		return SellerProduct{}, false, fmt.Errorf("catalog: invalid mrp")
+	}
+	if e.MRP != nil && *e.MRP < e.Price {
+		return SellerProduct{}, false, fmt.Errorf("catalog: mrp below price")
+	}
+	storeID := strings.TrimSpace(e.StoreID)
+	name := strings.TrimSpace(e.Name)
+	category := strings.TrimSpace(e.Category)
+	if storeID == "" || name == "" || category == "" {
+		return SellerProduct{}, false, fmt.Errorf("catalog: store, name and category are required")
+	}
+
+	tx, err := r.pool.Begin(ctx)
+	if err != nil {
+		return SellerProduct{}, false, err
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+
+	var (
+		app           string
+		storeSeller   string
+		storeLive     bool
+		storeDistrict string
+	)
+	if err := tx.QueryRow(ctx, `
+		select s.app::text, coalesce(s.seller_id, ''), s.is_live, coalesce(se.district_code, '')
+		  from directory.stores s
+		  left join sellers.sellers se on se.seller_id = s.seller_id
+		 where s.id = $1`, storeID).
+		Scan(&app, &storeSeller, &storeLive, &storeDistrict); err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return SellerProduct{}, false, nil
+		}
+		return SellerProduct{}, false, err
+	}
+	switch {
+	case sellerID != "":
+		if storeSeller != sellerID || !storeLive {
+			return SellerProduct{}, false, nil
+		}
+	case district != "":
+		if storeSeller == "" || storeDistrict != district {
+			return SellerProduct{}, false, nil
+		}
+	}
+
+	productSeller := sellerID
+	if productSeller == "" {
+		productSeller = storeSeller
+	}
+	var sellerArg *string
+	if productSeller != "" {
+		sellerArg = &productSeller
+	}
+
+	var attrJSON []byte
+	if e.Attributes != nil {
+		b, err := json.Marshal(e.Attributes)
+		if err != nil {
+			return SellerProduct{}, false, err
+		}
+		attrJSON = b
+	}
+
+	id := newProductID(app)
+	pricePaisa := e.Price * 100
+	var mrpPaisa *int64
+	if e.MRP != nil {
+		v := *e.MRP * 100
+		mrpPaisa = &v
+	}
+	if _, err := tx.Exec(ctx, `
+		insert into catalog.products
+		  (id, app, category, name, search_tokens, price_paisa, mrp_paisa, rating, reviews_count,
+		   emoji, image_url, image_key, image_asset_id, desc_text, store_id, is_prescription, is_veg,
+		   attributes, seller_id, status)
+		values ($1, $2::app_brand, $3, $4, $5, $6, $7, 0, 0,
+		        $8, $9, $10, $11, $12, $13, $14, $15,
+		        $16, $17, 'PENDING_REVIEW'::product_status)`,
+		id, app, category, name, searchTokens(name, category, e.Desc), pricePaisa, mrpPaisa,
+		strings.TrimSpace(e.Emoji), strings.TrimSpace(e.ImageURL), e.ImageKey, e.ImageAssetID,
+		strings.TrimSpace(e.Desc), storeID, e.IsPrescription, e.IsVeg, attrJSON, sellerArg); err != nil {
+		return SellerProduct{}, false, err
+	}
+	if _, err := tx.Exec(ctx, `
+		insert into inventory.stock
+		  (product_id, available, in_stock_qty, price_paisa, mrp_paisa, eta, is_prescription)
+		values ($1, true, 0, $2, $3, '', $4)`,
+		id, pricePaisa, mrpPaisa, e.IsPrescription); err != nil {
+		return SellerProduct{}, false, err
+	}
+	if err := tx.Commit(ctx); err != nil {
+		return SellerProduct{}, false, err
+	}
+	return r.sellerProductByID(ctx, id)
+}
+
+// searchTokens mirrors the client tokenizer: lowercase, split on non [a-z0-9], de-duplicated.
+func searchTokens(parts ...string) []string {
+	seen := make(map[string]struct{})
+	out := make([]string, 0, 24)
+	for _, part := range parts {
+		for _, token := range strings.FieldsFunc(strings.ToLower(part), func(r rune) bool {
+			return !((r >= 'a' && r <= 'z') || (r >= '0' && r <= '9'))
+		}) {
+			if _, ok := seen[token]; ok {
+				continue
+			}
+			seen[token] = struct{}{}
+			out = append(out, token)
+		}
+	}
+	return out
+}
+
+// newProductID returns an app-prefixed id (e.g. "ma-1a2b3c4d5e"). Random so a seller cannot pick a
+// collision-prone, client-controlled primary key.
+func newProductID(app string) string {
+	b := make([]byte, 5)
+	_, _ = rand.Read(b)
+	prefix := strings.ToLower(app)
+	if len(prefix) > 2 {
+		prefix = prefix[:2]
+	}
+	return prefix + "-" + hex.EncodeToString(b)
 }
 
 // ProductEdit is the seller price/stock/image edit payload (money in whole rupees; nil = leave

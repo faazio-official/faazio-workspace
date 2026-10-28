@@ -278,11 +278,37 @@ export function getProduct(productId: string): ProductRecord | undefined {
   return state().products.find((p) => p.productId === productId);
 }
 
-export function createProduct(dto: Omit<ProductRecord, "createdAt">): ProductRecord {
+export async function createProduct(dto: Omit<ProductRecord, "createdAt">): Promise<ProductRecord> {
   const record: ProductRecord = {
     ...dto,
     createdAt: nowIso(),
   };
+  // Live mode: persist the listing through the gateway (PENDING_REVIEW + catalog/stock in one
+  // transaction) and adopt the server-owned id/status. Offline seed mode keeps the local row.
+  if (remoteConfigured()) {
+    const image = (dto.imageUrl ?? "").trim();
+    const imageKey = image.startsWith("r2:") ? image.slice(3) : undefined;
+    if (image.startsWith("data:")) {
+      throw new Error("Photo upload did not reach the media service. Please retry the upload.");
+    }
+    const created = await remote.post<{ id: string; status?: ProductStatus }>("/seller/products", {
+      storeId: dto.storeId,
+      name: dto.name,
+      category: dto.category,
+      description: dto.description,
+      // Gateway speaks whole rupees; the DB stores paisa.
+      price: toRupees(dto.pricePaisa),
+      mrp: toRupees(dto.mrpPaisa),
+      unit: dto.unit,
+      emoji: dto.emoji,
+      imageUrl: imageKey ? undefined : /^https?:\/\//.test(image) ? image : undefined,
+      imageKey,
+      isVeg: dto.isVeg,
+      isPrescription: dto.isPrescription,
+    });
+    record.productId = created.id;
+    record.status = created.status ?? "PENDING_REVIEW";
+  }
   state().set((s) => ({
     products: [record, ...s.products],
     stock: [
@@ -654,6 +680,31 @@ export function listStores(filter: { sellerId?: string | undefined; stateCode?: 
     if (filter.stateCode && st.stateCode !== filter.stateCode) return false;
     return true;
   });
+}
+
+/** One seller-owned store as returned by `GET /seller/stores` (server scope, not the seed fixture). */
+export interface SellerStoreSummary {
+  storeId: string;
+  name: string;
+  sector: Sector;
+  isLive: boolean;
+}
+
+/**
+ * The caller's real store rows. Used by the create-listing flow because the gateway only accepts a
+ * store the logged-in seller owns; the local seed directory can diverge from production ids.
+ */
+export async function fetchSellerStores(): Promise<SellerStoreSummary[]> {
+  if (!remoteConfigured()) return [];
+  const rows = await remote.get<{ id: string; name: string; app: string; isLive?: boolean }[]>(
+    "/seller/stores",
+  );
+  return rows.map((row) => ({
+    storeId: row.id,
+    name: row.name,
+    sector: row.app as Sector,
+    isLive: row.isLive !== false,
+  }));
 }
 
 export function updateStore(storeId: string, patch: Partial<import("@/data/types").StoreRecord>): void {

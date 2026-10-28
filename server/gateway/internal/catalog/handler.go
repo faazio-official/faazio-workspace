@@ -42,6 +42,7 @@ func (h *Handler) Register(r chi.Router) {
 	r.Get("/stores/{id}/products", h.storeProducts)
 	r.Group(func(g chi.Router) {
 		g.Use(auth.RequireRole(auth.RoleSeller, auth.RoleStateAdmin, auth.RoleSuperAdmin))
+		g.Post("/seller/products", h.createProduct)
 		g.Get("/seller/products", h.sellerProducts)
 		g.Put("/seller/products/{id}/status", h.setProductStatus)
 		g.Put("/seller/products/{id}", h.updateProduct)
@@ -311,6 +312,107 @@ func (h *Handler) storeProducts(w http.ResponseWriter, r *http.Request) {
 		h.cache.SetJSON(r.Context(), cache.StoreProducts(storeID), products, cache.TTLStoreProducts)
 	}
 	httpx.JSON(w, http.StatusOK, products)
+}
+
+// createProduct creates a seller listing under one of the caller's stores. Body:
+// {storeId, name, category, description (or desc), price, mrp?, unit?, emoji?, imageUrl?,
+// imageKey?, imageAssetId?, isVeg?, isPrescription?, attributes?}. Money is whole rupees. A seller
+// may only target a live store they own; admins keep their district/super scope. The listing opens
+// as PENDING_REVIEW and both catalog.products + inventory.stock are written in one transaction.
+func (h *Handler) createProduct(w http.ResponseWriter, r *http.Request) {
+	var body struct {
+		StoreID        string         `json:"storeId"`
+		Name           string         `json:"name"`
+		Category       string         `json:"category"`
+		Desc           string         `json:"desc"`
+		Description    string         `json:"description"`
+		Price          int64          `json:"price"`
+		MRP            *int64         `json:"mrp"`
+		Unit           string         `json:"unit"`
+		Emoji          string         `json:"emoji"`
+		ImageURL       string         `json:"imageUrl"`
+		ImageKey       *string        `json:"imageKey"`
+		ImageAssetID   *string        `json:"imageAssetId"`
+		IsVeg          *bool          `json:"isVeg"`
+		IsPrescription bool           `json:"isPrescription"`
+		Attributes     map[string]any `json:"attributes"`
+	}
+	if err := httpx.Decode(r, &body); err != nil {
+		httpx.Fail(w, http.StatusBadRequest, "bad_request", "invalid body")
+		return
+	}
+	if body.Price < 0 || body.Price > 10_000_000 {
+		httpx.Fail(w, http.StatusBadRequest, "bad_request", "invalid price")
+		return
+	}
+	if body.MRP != nil && (*body.MRP < 0 || *body.MRP > 10_000_000) {
+		httpx.Fail(w, http.StatusBadRequest, "bad_request", "invalid mrp")
+		return
+	}
+	if body.MRP != nil && *body.MRP < body.Price {
+		httpx.Fail(w, http.StatusBadRequest, "bad_request", "mrp must be at least the price")
+		return
+	}
+	storeID := strings.TrimSpace(body.StoreID)
+	name := strings.TrimSpace(body.Name)
+	category := strings.TrimSpace(body.Category)
+	desc := strings.TrimSpace(body.Desc)
+	if desc == "" {
+		desc = strings.TrimSpace(body.Description)
+	}
+	if storeID == "" || name == "" || category == "" {
+		httpx.Fail(w, http.StatusBadRequest, "bad_request", "storeId, name and category are required")
+		return
+	}
+	if len(name) > 200 || len(category) > 120 || len(desc) > 4000 {
+		httpx.Fail(w, http.StatusBadRequest, "bad_request", "name, category or description too long")
+		return
+	}
+	sellerID, district, scopeOK := managementScope(r)
+	if !scopeOK {
+		httpx.Fail(w, http.StatusForbidden, "forbidden", "no product scope on this account")
+		return
+	}
+	// A portal upload stores an `r2:<key>` reference in imageUrl; treat it as the media key so the
+	// registry ownership check runs. Only https legacy URLs may be stored verbatim.
+	imageKey, imageAssetID := body.ImageKey, body.ImageAssetID
+	imageURL := strings.TrimSpace(body.ImageURL)
+	if imageKey == nil && imageAssetID == nil && strings.HasPrefix(imageURL, "r2:") {
+		key := strings.TrimPrefix(imageURL, "r2:")
+		imageKey = &key
+		imageURL = ""
+	}
+	if imageURL != "" && !strings.HasPrefix(imageURL, "https://") && !strings.HasPrefix(imageURL, "http://") {
+		httpx.Fail(w, http.StatusBadRequest, "bad_request", "imageUrl must be an http(s) URL")
+		return
+	}
+	imageKey, imageAssetID, ok := h.resolveImageLink(w, r, imageAssetID, imageKey, auth.IsAdmin(r.Context()))
+	if !ok {
+		return // resolveImageLink already wrote the error
+	}
+	if imageKey != nil && *imageKey != "" {
+		imageURL = ""
+	}
+	p, found, err := h.repo.CreateProduct(r.Context(), sellerID, district, ProductCreateInput{
+		StoreID: storeID, Name: name, Category: category, Desc: desc,
+		Price: body.Price, MRP: body.MRP, Unit: body.Unit, Emoji: body.Emoji,
+		ImageURL: imageURL, ImageKey: imageKey, ImageAssetID: imageAssetID,
+		IsVeg: body.IsVeg, IsPrescription: body.IsPrescription, Attributes: body.Attributes,
+	})
+	if err != nil {
+		httpx.Fail(w, http.StatusInternalServerError, "catalog_unavailable", "catalog unavailable")
+		return
+	}
+	if !found {
+		httpx.Fail(w, http.StatusNotFound, "not_found", "store not found or not owned")
+		return
+	}
+	h.cache.Del(r.Context(), cache.Product(p.ID), cache.Stock(p.ID), cache.StoreProducts(p.StoreID))
+	h.purgeNearbyProductTiles(r, p.StoreID)
+	h.log(r, "PRODUCT_CREATE", p.ID, map[string]any{
+		"storeId": p.StoreID, "status": p.Status, "price": p.Price,
+	})
+	httpx.JSON(w, http.StatusCreated, p)
 }
 
 func (h *Handler) sellerProducts(w http.ResponseWriter, r *http.Request) {

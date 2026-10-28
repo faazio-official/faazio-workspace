@@ -233,8 +233,8 @@ pipelines; a placement with no LIVE fill collapses the surface to `null` (never 
   authority).
 - **Canonical cache size + catalog write purges:** each `geo:nearby:*` tile caches the max allowed
   `limit` and is sliced per request, so one key serves every caller (the first requester's `limit` never
-  poisons the shared list). A product edit/status change (`internal/catalog`, `PUT /seller/products/{id}`
-  and `/{id}/status`) purges the product's store-pin `geo:nearby:products:*` tile prefixes (via
+  poisons the shared list). A product create (`POST /seller/products`), edit/status change (`internal/catalog`,
+  `PUT /seller/products/{id}` and `/{id}/status`) purges the product's store-pin `geo:nearby:products:*` tile prefixes (via
   `Repo.StorePin`) so a delist/re-price lands immediately for co-located shoppers; an `order.placed`
   stock decrement also purges `product:{id}` per line item because product detail embeds stock; and
   `rateVendor` purges `directory:store:{id}` because the store card embeds rating/reviews_count.
@@ -274,8 +274,8 @@ pipelines; a placement with no LIVE fill collapses the surface to `null` (never 
 >
 > **Mart vendor inventory (`0024`):** `GET /stores/{id}/products` caches the store's first ACTIVE page
 > under `faazio:v1:catalog:store-products:{storeId}` (300 s); a price/MRP/stock edit
-> (`PUT /seller/products/{id}`) or a status change (`PUT /seller/products/{id}/status`) purges that key
-> alongside `catalog:product:{id}` / `stock:{id}`.
+> (`PUT /seller/products/{id}`), a create (`POST /seller/products`) or a status change
+> (`PUT /seller/products/{id}/status`) purges that key alongside `catalog:product:{id}` / `stock:{id}`.
 >
 > **Media registry (`0025`):** public image identity is cached per asset under
 > `faazio:v1:media:asset:{id}` (24 h) and read in batch by `GET /media/resolve?ids=`. `confirm`

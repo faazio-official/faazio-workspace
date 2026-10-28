@@ -61,7 +61,9 @@ caller) and are event-purged on store live toggle and product edit/status change
   server-authoritative road-distance delivery-fee quote), `POST /ads/events`, `PUT /vendors/:id/rating`, `POST /events`,
   `PUT /admin/sdui/home` (super-admin, publishes the Home layout: version bump + cache purge),
   seller order decisions `PUT /seller/orders/:id/accept` (NEW→PACKED) and
-  `PUT /seller/orders/:id/reject` (NEW→REJECTED, payment ledger marked REFUNDED, customer notified).
+  `PUT /seller/orders/:id/reject` (NEW→REJECTED, payment ledger marked REFUNDED, customer notified),
+  and seller listing creation `POST /seller/products` (owned live store, `PENDING_REVIEW`, catalog +
+  inventory.stock in one transaction; created rows surface in the public nearby reads once ACTIVE).
   `POST /orders` also enqueues a PII-free seller new-order notification per active seller portal user
   owning a store in the order (`contracts.Notifier.EnqueueSeller`). Notification devices register
   with `POST /notifications/register` and unregister with `DELETE /notifications/register` (portal

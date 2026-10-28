@@ -1,6 +1,6 @@
 "use client";
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { PageHeader } from "@/components/patterns/PageHeader";
 import { SectionCard } from "@/components/patterns/SectionCard";
@@ -17,7 +17,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { formatINR, parseRupeesToPaisa } from "@/lib/format";
-import { createProduct, updateStock } from "@/lib/api";
+import { createProduct, fetchSellerStores, updateStock, type SellerStoreSummary } from "@/lib/api";
 import { useSeller, useStores, useTaxCategories } from "@/lib/api/hooks";
 import { useSession } from "@/lib/hooks/useSession";
 import { cn } from "@/lib/utils";
@@ -30,7 +30,37 @@ function NewProduct() {
   const session = useSession();
   const sellerId = session?.sellerId ?? "sel-1";
   const seller = useSeller(sellerId);
-  const stores = useStores({ sellerId });
+  const localStores = useStores({ sellerId });
+  // The gateway only accepts a store the logged-in seller owns, so prefer its live store rows over
+  // the seed directory (which can carry different ids/owners).
+  const [serverStores, setServerStores] = useState<SellerStoreSummary[]>([]);
+  const [storeId, setStoreId] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+  useEffect(() => {
+    let active = true;
+    fetchSellerStores()
+      .then((rows) => {
+        if (active) setServerStores(rows);
+      })
+      .catch(() => {
+        /* keep the seed directory as the offline fallback */
+      });
+    return () => {
+      active = false;
+    };
+  }, []);
+  const stores: SellerStoreSummary[] =
+    serverStores.length > 0
+      ? serverStores
+      : localStores.map((s) => ({
+          storeId: s.storeId,
+          name: s.name,
+          sector: s.sector,
+          isLive: s.isLive,
+        }));
+  useEffect(() => {
+    if (!storeId && stores[0]) setStoreId(stores[0].storeId);
+  }, [storeId, stores]);
   const [step, setStep] = useState(0);
 
   // Sector is assigned at onboarding / by a super admin — a seller can never switch it here.
@@ -51,38 +81,51 @@ function NewProduct() {
   const taxRatePct = selected?.gstRatePct ?? 5;
 
   const stepValid = [
-    Boolean(sector && category.trim()),
+    Boolean(sector && storeId && category.trim()),
     name.trim().length > 2 && description.trim().length > 5 && images.length > 0,
     pricePaisa > 0,
     Number(quantity) >= 0,
     true,
   ];
 
-  function submit() {
+  async function submit() {
+    if (submitting) return;
+    setSubmitting(true);
     const productId = `${sector.slice(0, 2).toLowerCase()}-${Date.now().toString().slice(-5)}`;
-    createProduct({
-      productId,
-      sellerId,
-      storeId: stores[0]?.storeId ?? "store-m1",
-      name: name.trim(),
-      description: description.trim(),
-      sector,
-      category: category.trim(),
-      emoji: "",
-      imageUrl: images[0] ?? "",
-      galleryUrls: images.slice(1),
-      unit,
-      pricePaisa,
-      // MRP is no longer collected from sellers; the listing price is the single price.
-      mrpPaisa: pricePaisa,
-      isVeg,
-      isPrescription,
-      status: "PENDING_REVIEW",
-    });
-    // Delivery ETA is platform-owned (not a seller promise); default 30 minutes.
-    updateStock(productId, Number(quantity), 30);
-    toast.success("Product submitted for review");
-    router.push("/seller/products");
+    try {
+      const created = await createProduct({
+        productId,
+        sellerId,
+        storeId: storeId || stores[0]?.storeId || "store-m1",
+        name: name.trim(),
+        description: description.trim(),
+        sector,
+        category: category.trim(),
+        emoji: "",
+        imageUrl: images[0] ?? "",
+        galleryUrls: images.slice(1),
+        unit,
+        pricePaisa,
+        // MRP is no longer collected from sellers; the listing price is the single price.
+        mrpPaisa: pricePaisa,
+        isVeg,
+        isPrescription,
+        status: "PENDING_REVIEW",
+      });
+      // Delivery ETA is platform-owned (not a seller promise); default 30 minutes.
+      updateStock(created.productId, Number(quantity), 30);
+      toast.success("Product submitted for review");
+      router.push("/seller/products");
+    } catch (error) {
+      toast.error("Could not submit listing", {
+        description:
+          error instanceof Error && error.message
+            ? error.message
+            : "The server rejected the listing. Please try again.",
+      });
+    } finally {
+      setSubmitting(false);
+    }
   }
 
   return (
@@ -120,6 +163,25 @@ function NewProduct() {
               </div>
               <p className="text-[11px] text-muted-foreground">
                 Fixed by your registration. Contact an admin to change it.
+              </p>
+            </div>
+            <div className="space-y-1.5">
+              <Label>Store</Label>
+              <Select value={storeId} onValueChange={setStoreId}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Pick the store that stocks this listing" />
+                </SelectTrigger>
+                <SelectContent>
+                  {stores.map((s) => (
+                    <SelectItem key={s.storeId} value={s.storeId}>
+                      {s.name}
+                      {s.isLive ? "" : " · offline"}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <p className="text-[11px] text-muted-foreground">
+                Only stores your seller account owns are accepted by the gateway.
               </p>
             </div>
             <div className="space-y-1.5">
@@ -252,8 +314,12 @@ function NewProduct() {
               Continue
             </Button>
           ) : (
-            <Button size="sm" disabled={!stepValid[0] || pricePaisa <= 0} onClick={submit}>
-              Submit for review
+            <Button
+              size="sm"
+              disabled={!stepValid[0] || pricePaisa <= 0 || submitting}
+              onClick={() => void submit()}
+            >
+              {submitting ? "Submitting…" : "Submit for review"}
             </Button>
           )}
         </div>

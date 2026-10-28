@@ -59,7 +59,7 @@ sign-out is the only seller session authority (HttpOnly cookies).
 | `seller` | dashboard | all |
 | `seller/ads` | hero CampaignWizard (what→where→creative→when→review) + campaign list/KPIs — includes the `PHARMA_HERO` (Pharma home), `CATEGORY_TOP` (Pharma/mart category drill-in) and `STORE_TOP` (Pharma medical shop / mart vendor) placements | all |
 | `seller/products` | catalog list | all |
-| `seller/products/new` | create listing — sector fixed from registration, category from the **approved GST category master**, no MRP/ETA inputs, live seller "What you keep" deduction preview (platform fee, platform GST, TCS, TDS) | all |
+| `seller/products/new` | create listing — sector fixed from registration, store picked from the seller's own `GET /seller/stores`, category from the **approved GST category master**, no MRP/ETA inputs, live seller "What you keep" deduction preview (platform fee, platform GST, TCS, TDS); submit persists through `POST /seller/products` (seed mode keeps the local demo path) | all |
 | `seller/products/[id]/edit` | listing editor (name/desc/photos + `upsertPrice`) — no MRP field, GST note | all |
 | `seller/inventory` | stock | all |
 | `seller/pricing` | price/MRP | all |
@@ -166,7 +166,9 @@ when configured. Every money/status/Rx/menu/order/rewards write is **awaited wit
 on a rejected write the pre-mutation snapshot is restored and a toast surfaces the error, so a
 change that did not persist can never linger on screen. (`writeBehind` remains the offline no-op
 used when `NEXT_PUBLIC_GATEWAY_URL` is unset; seed mode reconciles on the next hydrate.)
-Write bodies send **whole rupee** integers (the mapper divides paisa by 100). The seller listing
+Write bodies send **whole rupee** integers (the mapper divides paisa by 100). Listing creation
+(`seller/products/new`) awaits `POST /seller/products` and adopts the server id/status before inserting
+the local row + stock, so a rejected listing never lingers. The seller listing
 editor (`seller/products/[id]/edit`) persists name/description/photos through `updateProduct` but
 routes **price/MRP through `upsertPrice`** (`PUT /seller/products/{id}`) so money edits reach
 `catalog.products` + `inventory.stock` instead of staying local-only. The Food menu editor

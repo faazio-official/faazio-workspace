@@ -1169,6 +1169,13 @@ the poll lands without refetching. Explicit search sorts (price/popularity) stay
 stale-while-revalidate (a lapsed TTL serves the previous list and refreshes in the background, so the
 grid never blanks; a store's online/offline toggle purges the geo tiles around its pin immediately).
 
+Two Home/Mart rails consume those server nearby reads: `NearbyOffersSection` calls the no-fallback
+`fetchProductsNearby({app:'MART', radiusKm:25, limit:6})` and `martService.fetchMartFeed` calls
+`getStoresNearby({app:'MART', radiusKm:25})` for the "Local Vendors" rail. Both use the gateway's
+`distanceKm` (shown via `formatDistanceKm`) and fall back to the fixture only when there is no live
+fix / the gateway is unreachable — an authoritative empty response renders empty, never fixture data.
+Without a fix, the Mart rail uses the full `getStores('MART')` directory.
+
 Seller onboarding adds a foreground `SellerLocationPicker` (native `react-native-maps` modal) and
 submits `latitude`/`longitude` with the application; the shop pin is stored on `sellers.sellers` and
 is public business data. Maps keys come from `GOOGLE_MAPS_API_KEY_ANDROID` (manifest resource generated
