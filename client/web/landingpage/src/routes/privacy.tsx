@@ -81,7 +81,7 @@ const privacySections: PolicySection[] = [
               <strong>Location.</strong> With your permission, we use your device's approximate and
               precise location to show nearby stores and estimate delivery. Customers share location
               only while using the app. Delivery partners share location while they are online on a
-              delivery so customers can track the order.
+              delivery so we can dispatch, coordinate, and support active orders.
             </>,
             <>
               <strong>Camera and photos.</strong> If you grant camera or photo permission, we use it
@@ -171,8 +171,8 @@ const privacySections: PolicySection[] = [
               prepare and hand over your order.
             </>,
             <>
-              <strong>Delivery partners.</strong> Your name, phone number, delivery address, and
-              order details while a delivery is assigned to them.
+              <strong>Delivery partners.</strong> Your name, phone number, drop-off location and
+              address, and order details while a delivery is assigned to them.
             </>,
             <>
               <strong>Legal and safety.</strong> We may disclose data if required by law, a court
