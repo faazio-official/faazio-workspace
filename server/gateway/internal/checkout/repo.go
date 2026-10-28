@@ -1299,6 +1299,8 @@ func (r *Repo) DeleteAccount(ctx context.Context, userID string) (authUID string
 		`delete from blood.interests where donor_user_id = $1`,
 		`delete from blood.match_requests where requester_user_id = $1 or donor_user_id = $1`,
 		`delete from blood.donors where user_id = $1`,
+		// The author's own posted requests carry contact/address PII; interests on them cascade.
+		`delete from blood.requests where created_by = $1`,
 		`delete from notifications.outbox where user_id = $1`,
 		`delete from notifications.push_tokens where user_id = $1`,
 		`delete from delivery.delivery_ratings where customer_id = $1`,
@@ -1322,6 +1324,12 @@ func (r *Repo) DeleteAccount(ctx context.Context, userID string) (authUID string
 		  where s.delivery_order_id = o.order_id
 		    and s.stop_type = 'DROP'
 		    and o.customer_order_id in (select order_id from checkout.orders where user_id = $1)`,
+		// route_sequence lists the drop stop ids carried by a rider; when a rider's linked
+		// checkout.users row is deleted, reset it so no retained route can point at PII coords
+		// (rider_id is a delivery_boys slug, so scope through delivery_boys.user_id).
+		`update delivery.delivery_orders o
+		    set route_sequence = '[]'::jsonb
+		   where o.rider_id in (select rider_id from delivery.delivery_boys where user_id = $1)`,
 	}
 	err = r.WithTx(ctx, func(tx pgx.Tx) error {
 		for _, q := range statements {

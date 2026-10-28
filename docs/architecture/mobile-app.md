@@ -555,7 +555,7 @@ still separate files; consolidating them is tracked in `client/mobile/PENDING_WO
 
 | Store | Purpose |
 |---|---|
-| `authStore` | Session, login payload, auth state. `AuthUser` carries the decoded partner role/state claims (`role`, `stateCode`) read from the Firebase ID token (`lib/tokenClaims.ts`; legacy `STATE_ADMIN` is canonicalised to `DISTRICT_ADMIN` to match the gateway) so admin UI can gate client-side — the gateway re-verifies the token on every call. `expireSession()` drops the in-memory session after `GatewayClient` has cleared a dead Keychain session; the root navigators react by returning to Login (customer) / Phone entry (delivery) |
+| `authStore` | Session, login payload, auth state. `AuthUser` carries the decoded partner role/state claims (`role`, `stateCode`) read from the Firebase ID token (`lib/tokenClaims.ts`; legacy `STATE_ADMIN` is canonicalised to `DISTRICT_ADMIN` to match the gateway) so admin UI can gate client-side — the gateway re-verifies the token on every call. `expireSession()` drops the in-memory session after `GatewayClient` has cleared a dead Keychain session; the root navigators react by returning to Login (customer) / Phone entry (delivery). Irreversible actions re-auth by phone OTP (`sendReauthOtp`/`verifyReauthOtp`, the latter persisting the fresh ID token) and delete the Firebase identity (`deleteFirebaseIdentity` → native `user.delete()`), which requires that recent login |
 | `cartStore` | Cart items, quantity, totals; `addToCart(id, name, price, emoji, restaurantId?)` — the optional 5th arg tags a line to a restaurant (adopts an untagged line on re-add); `clearRestaurantCart(id)` removes only that restaurant's lines. Fulfilment is chosen order-level on the cart, not per item. **Server-authoritative:** every mutation optimistically updates the UI, awaits the durable `inventory.carts` write, and rolls back with `syncError` on failure. An existing line re-add sends its next absolute qty via `updateCartItem` because the gateway `POST/PUT` both **set** (not increment). `hydrate()` pulls + rejoins catalog details at login/cold start (remote mode); `resetLocal()` drops the device cache on sign-out without deleting the server cart. The `seedCartItems` fixture is gone; mock mode degrades to device-local state |
 | `favoriteStore` | Favourites (ids), server-authoritative via `GET/POST/DELETE /favourites`; optimistic toggle with rollback + `syncError`, `hydrate()` at login/cold start, `reset()` on sign-out |
 | `pharmaStore` | Prescriptions |
@@ -590,10 +590,11 @@ still separate files; consolidating them is tracked in `client/mobile/PENDING_WO
   + orders + search + pharma + blood donor + rewards + vendor-rating stores + the session impression
   set + saved card tokens (`FaazioCardToken` Keychain entry), and best-effort unregisters the push
   token. `resetLocalUserState()` is exported separately for account deletion.
-- `accountDeletion.ts` — `deleteAccountEverywhere()` calls `DELETE /users/me` then resets local state
-  + the session Keychain entry (never calls the gateway again after deletion);
-  `deleteSelectedUserData()` calls `POST /users/me/data-deletion` and clears the matching local
-  caches + recent searches.
+- `accountDeletion.ts` — `deleteAccountEverywhere()` calls `DELETE /users/me`, then deletes the
+  Firebase Auth identity (`user.delete()`, preceded by an OTP re-auth gate in the delete screen),
+  then resets local state + the session Keychain entry (never calls the gateway again after
+  deletion); `deleteSelectedUserData()` calls `POST /users/me/data-deletion` and clears the matching
+  local caches + recent searches.
 - `productViews.ts` — `trackProductView(id)`: emits a `view` behavior event **at most once per product per session** (`user_events` has no dedupe), reset on logout; consumed by `hooks/useViewableTracking` on the Mart search grid, the vendor drill-in "All Products" grid, and the feed rails.
 - `vendorRatings.ts` — single owner of the vendor rating gate: `canRateVendor(vendorId)`
   (derived from fixture orders via `hasPurchasedFromVendor` + in-session `ordersStore.orders`
@@ -685,7 +686,7 @@ AppNavigator (root native stack)
 │   `martDeals`/`martEssentials` from the Mart rail "View All" (catalog-resolved `productIds`); the
 │   last three carry the paid `SECTOR_RAIL` header shelf)
 ├── You · UserDetails · SavedAddresses · MyOrders · Notifications · Favourites · OrderDetails · FaazioRewards · SellWithUs
-│   ├── DeleteAccount (Account → Privacy and security; erases PII, clears session, returns to Login)
+│   ├── DeleteAccount (Account → Privacy and security; OTP re-auth gate → erases PII + Firebase identity, clears session, returns to Login)
 │   ├── RequestDataDeletion (Account → Privacy and security; partial erasure, keeps the account)
 │   └── SellerRequests (admin application queue, role-gated) ── SellerRequestDetail (`{ sellerId }`; KYC verify/activate/reject)
 ├── RateVendor (verified-buyer rating form; every vendor surface + order screens link here)

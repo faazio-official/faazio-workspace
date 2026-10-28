@@ -293,6 +293,25 @@ webhook in the Razorpay dashboard at `https://<gateway>/webhooks/razorpay/route`
 `transfer.released`, `transfer.failed` and `transfer.reversed`. The private KYC bucket is
 `R2_PRIVATE_BUCKET`; KYC images are never public.
 
+## 🛒 Web (Landing page) — Vercel
+
+The marketing landing page (`client/web/landingpage`) deploys **zero-config** on Vercel: import the
+repo, set **Root Directory** to `client/web/landingpage`, and Vercel runs `bun run build` (TanStack
+Start + Nitro). `vercel.json` only ships security/caching headers. See
+`client/web/landingpage/README.md` for the project contract.
+
+Because builds are immutable on Vercel, **a merged commit does not go live until the production
+deployment runs.** If `https://faazio.com` serves a stale page (e.g. the Play data-safety
+`https://faazio.com/privacy#delete-account` anchor not resolving), trigger a redeploy of the same
+commit:
+
+- **Vercel dashboard:** open the landingpage project → **Deployments** → latest **Production**
+  deployment → **⋮ → Redeploy**.
+- **Vercel CLI** (authenticated): from `client/web/landingpage`, `vercel --prod`.
+- **No-op commit + push** falls back to an automatic production build when a deploy hook is wired.
+
+Verify afterwards: `https://faazio.com/privacy#delete-account` renders "Delete your account".
+
 ## 🚀 Server (Gateway) — Render + database migrations
 
 The gateway deploys to **Render** (repo-root `render.yaml` Blueprint → `server/gateway/Dockerfile`,

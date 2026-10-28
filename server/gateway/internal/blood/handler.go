@@ -115,10 +115,12 @@ func (h *Handler) listRequests(w http.ResponseWriter, r *http.Request) {
 		requests = []contracts.BloodRequest{}
 	}
 	if !authed {
-		// Public projection: contact/address are PII and are dropped; cache the redacted view only.
+		// Public projection: contact/address/created_by are PII/internal ids and are dropped;
+		// cache the redacted view only.
 		for i := range requests {
 			requests[i].Contact = ""
 			requests[i].Address = ""
+			requests[i].CreatedBy = ""
 		}
 		h.cache.SetJSON(r.Context(), cache.BloodRequests(cacheKey), requests, cache.TTLBloodRequests)
 	}
@@ -135,6 +137,9 @@ func (h *Handler) createRequest(w http.ResponseWriter, r *http.Request) {
 		httpx.Fail(w, http.StatusBadRequest, "bad_request", "invalid blood group")
 		return
 	}
+	// Right-to-erasure (account deletion): stamp the author from the bearer token so
+	// DeleteAccount can erase this request (and its contact/address) when the account goes.
+	body.CreatedBy = auth.UserID(r.Context())
 	req, err := h.repo.CreateRequest(r.Context(), body)
 	if err != nil {
 		httpx.Fail(w, http.StatusInternalServerError, "request_failed", "could not post request")

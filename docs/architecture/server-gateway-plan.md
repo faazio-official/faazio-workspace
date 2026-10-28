@@ -52,8 +52,9 @@ caller) and are event-purged on store live toggle and product edit/status change
   `/vendors/:id/reviews` (+ `/summary`), `/stores`, `/stores/nearby?lat=&lng=&radius=&app=`,
   `/store/:id`, `/products/nearby?lat=&lng=&radius=&app=`, `/venues`, `/venues/:id/menu`,
   `/stock/:id`, `/orders`, `/profile`, `/profile/details`, `/profile/addresses` (GET/PUT/DELETE),
-  `DELETE /users/me` (account deletion: anonymises the user row, erases PII tables, keeps financial
-  records; idempotent), `POST /users/me/data-deletion` (partial erasure of addresses/favourites/
+  `DELETE /users/me` (account deletion: anonymises the user row, erases PII tables — incl. the
+  author's `blood.requests` via `created_by` and a `delivery_orders.route_sequence` reset, 0061 —
+  keeps financial records; idempotent), `POST /users/me/data-deletion` (partial erasure of addresses/favourites/
   prescriptions), `/membership`, `/order-status`, `/account-nav`, `/seller/orders`, `/seller/orders/:id`,
   `/coupons?app=` (anon), `/promo/active-discounts?ids=` (anon), `/ads/live?slot=` (anon),
   `/admin/user-trail?userId=` (admin, ID-only), `/admin/sdui/home` (super-admin, raw ID-only layout);

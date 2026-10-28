@@ -398,9 +398,11 @@ sql.push(inserts(
 ));
 sql.push(inserts(
   'blood.requests',
-  ['id', 'hospital', 'city', 'state', 'blood_group', 'units', 'patient_context', 'needed_within', 'verified', 'urgency', 'contact', 'address', 'remarks', 'posted_at', 'expires_at'],
+  ['id', 'created_by', 'hospital', 'city', 'state', 'blood_group', 'units', 'patient_context', 'needed_within', 'verified', 'urgency', 'contact', 'address', 'remarks', 'posted_at', 'expires_at'],
   (d.BLOOD_REQUESTS ?? []).map((r) => [
-    q(r.id), q(r.hospital), q(r.city), q(r.state), q(r.bloodGroup), n(r.unitsRequired),
+    // Seed requests are hospital-posted (no app-user owner), so created_by stays '' (never
+    // matched by DeleteAccount). Real user-posted requests get created_by stamped server-side.
+    q(r.id), q(''), q(r.hospital), q(r.city), q(r.state), q(r.bloodGroup), n(r.unitsRequired),
     q(r.patientContext), q(r.neededWithin), b(r.verified), q(r.urgency), q(r.hospitalContact),
     q(r.hospitalAddress), q(r.remarks), `(now() - interval '${n(r.postedHoursAgo) || 0} hours')`, `(now() + interval '14 days')`,
   ]),

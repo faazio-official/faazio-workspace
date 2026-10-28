@@ -390,12 +390,14 @@ users provisioned before that write existed.
 `checkout.addresses`/`orders`/`payments` FKs and the legal-retention requirement forbid it). It
 erases the PII tables (addresses, carts, favourites, prescriptions, rewards, blood, notifications,
 accounts.*), blanks free-text `support.tickets` subject/body, `checkout.returns.reason` and review
-comments, clears retained `checkout.orders` delivery coordinates plus DROP-stop coordinates/OTP,
-deletes prescription blobs from the active storage backend (R2 or Supabase Storage), sets `name` to
-`Deleted user`, blanks `phone`, writes a non-routable
-`deleted+<id>@deleted.invalid` email, nulls `auth_uid`/`last_login_at`, and stamps `deleted_at`.
-Order/payment/tax rows survive, linked only to the anonymised row. A later login provisions a fresh
-account under a new deterministic id with a random suffix, so the anonymised row is never revived.
+comments, clears retained `checkout.orders` delivery coordinates plus DROP-stop coordinates/OTP and
+resets each affected `delivery.delivery_orders.route_sequence` to `[]` (`0061`), deletes the author's
+own `blood.requests` rows via the new `created_by` column (`0061`), deletes prescription blobs from
+the active storage backend (R2 or Supabase Storage), sets `name` to `Deleted user`, blanks `phone`,
+writes a non-routable `deleted+<id>@deleted.invalid` email, nulls `auth_uid`/`last_login_at`, and
+stamps `deleted_at`. Order/payment/tax rows survive, linked only to the anonymised row. A later login
+provisions a fresh account under a new deterministic id with a random suffix, so the anonymised row is
+never revived.
 
 **Sample row:** `user-1` · Rohit Sharma · rohit.sharma@gmail.com · +91 98765 43210 · addr_1
 (provenance `data/checkout/orders.ts:20-22`).
@@ -1034,6 +1036,7 @@ CREATE TABLE blood.requests (
   units SMALLINT NOT NULL DEFAULT 1, patient_context TEXT, needed_within TEXT,
   verified BOOL NOT NULL DEFAULT false, urgency TEXT NOT NULL DEFAULT 'normal',
   contact TEXT, address TEXT, remarks TEXT,          -- PII: redacted for anon by the gateway
+  created_by TEXT NOT NULL DEFAULT '',               -- (0061) author checkout.users id; erased on account deletion
   posted_at TIMESTAMPTZ NOT NULL DEFAULT now(), expires_at TIMESTAMPTZ
 );
 CREATE TABLE blood.interests (request_id, donor_user_id, kind, PRIMARY KEY (request_id, donor_user_id, kind));
@@ -1044,9 +1047,14 @@ CREATE TABLE blood.match_requests (id, requester_user_id, donor_user_id, blood_g
 
 Donor data is health PII and matching needs a queryable registry — it cannot stay in `AsyncStorage`.
 The public surface is the `blood.donor_directory` security-definer view (consented, display-safe
-columns only); own rows are RLS-scoped. The request board is public but `contact`/`address` are
-stripped for anon. `blood.expire_requests()` is scheduled (pg_cron, daily) to prune expired requests.
+columns only); own rows are RLS-scoped. The request board is public but `contact`/`address` (and the
+internal `created_by` id) are stripped for anon. `blood.expire_requests()` is scheduled (pg_cron,
+daily) to prune expired requests.
 Donor directory + request board cached 60 s (`faazio:v1:blood:requests:{bloodGroup};{city}`).
+**Author stamp (0061):** `POST /blood-requests` writes the caller's `checkout.users.user_id` into
+`blood.requests.created_by` from the bearer token (client payload stays `{bloodGroup, city}`);
+`DELETE /users/me` deletes the author's rows (their `contact`/`address` PII) — interests on them
+cascade. Seed rows are hospital-posted so they keep `created_by = ''`.
 **Un-interest (no schema change):** the `blood.interests` primary key `(request_id, donor_user_id, kind)`
 already keys a single mark, so an un-tap is a plain `DELETE` (`DELETE /blood-requests/{id}/interest`,
 idempotent) — no new table, column, or index. It touches no cache: the public `blood.requests`
@@ -1816,7 +1824,7 @@ tables are untouched.
 | `delivery.delivery_boys` | Rider profile + KYC review state. `rider_id` PK; `user_id` links the checkout identity that receives the order-ping notification; `phone` is E.164; `state_code` + `hub_zone` scope dispatch; `vehicle_type`; `max_capacity` is hard-capped by vehicle at intake (`BICYCLE=1`, `TWO_WHEELER=2`, `FOUR_WHEELER=5`); `status` (`APPLIED → PENDING_REVIEW → VERIFIED → ACTIVE`, plus `SUSPENDED`/`BLACKLISTED`/`REJECTED`); `is_available`, `current_load`, `rating`, `completed_orders`, `last_heartbeat_at` |
 | `delivery.delivery_documents` | One row per captured document (`AADHAAR`, `PAN`, `SELFIE`, `DL_FRONT/BACK`, `RC_FRONT/BACK`, `INSURANCE_FRONT/BACK`). Holds the private R2 `file_key` + optional `media.assets` id only — never a URL or bytes. `status` (`PENDING`/`VERIFIED`/`REJECTED`/`REUPLOAD_REQUESTED`), reviewer + reason |
 | `delivery.delivery_bank_accounts` | Pending-review payout account. Stores the masked tail only (same rule as `sellers.bank_accounts`); the full number is never persisted |
-| `delivery.delivery_orders` | Dispatch job (`ASSIGNED → ACCEPTED → ROUTE_COMPLETE`, or `REJECTED`/`CANCELLED`), store/customer-order ids, `route_sequence` JSONB, distance/ETA, `require_otp`, `expires_at` (45 s accept window). `0043` adds `dispatch_attempts` (max 5 offers) and `excluded_rider_ids` JSONB (riders who declined this job) for the fallback chain |
+| `delivery.delivery_orders` | Dispatch job (`ASSIGNED → ACCEPTED → ROUTE_COMPLETE`, or `REJECTED`/`CANCELLED`), store/customer-order ids, `route_sequence` JSONB, distance/ETA, `require_otp`, `expires_at` (45 s accept window). `0043` adds `dispatch_attempts` (max 5 offers) and `excluded_rider_ids` JSONB (riders who declined this job) for the fallback chain. Account deletion resets `route_sequence` to `[]` for a deleted user's rider orders (`0061`) so no retained route points at PII coords |
 | `delivery.delivery_stops` | Ordered `PICKUP`/`DROP` stops with `PENDING/AT_PICKUP/PICKED_UP/AT_CUSTOMER/DELIVERED/FAILED`. `sequence` is unique per order; dispatch globally re-optimizes the rider's open stops across all accepted jobs (full VRP) and renumbers them, so the lowest sequence is the next actionable stop and each order's `route_sequence` lists its stop ids in that global order. The handover OTP is stored **hashed** (`customer_otp_hash`, SHA-256 of code + stop id) with `otp_expires_at`; plaintext never reaches Postgres. `0045` adds `otp_attempts` (locked after 5 guesses; reset when delivered) |
 | `delivery.rider_heartbeats` | Optional low-frequency Postgres mirror. The authoritative live coordinate is Valkey `delivery:rider:{id}:location` (TTL 300 s) |
 | `delivery.delivery_ratings` | Post-delivery 1–5 rating + comment, unique per order; the rider aggregate is recomputed in the same tx |
