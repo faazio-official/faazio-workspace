@@ -2,7 +2,7 @@
 
 Marketing landing page for the Faazio Daily SuperApp (Mart · Food · Pharma),
 starting in Karaikal. An SEO-focused long-scrolling homepage at `/` plus
-content pages at `/about`, `/faq`, `/partners`, `/karaikal`, and `/download`.
+content pages at `/about`, `/faq`, `/partners`, `/karaikal`, `/download`, and `/privacy`.
 
 Built with **TanStack Start** (file-based routing + SSR), **React 19**,
 **Tailwind CSS v4**, and **Nitro** for the deployment bundle.
@@ -16,7 +16,7 @@ Built with **TanStack Start** (file-based routing + SSR), **React 19**,
 - **Type** — `Playfair Display` for headings (`--font-display`),
   `Plus Jakarta Sans` for body (`--font-sans`); loaded via Google Fonts in
   `src/routes/__root.tsx`.
-- **Favicon** — `public/favicon.ico` *and* `public/favicon.svg` carry the brand
+- **Favicon** — `public/favicon.ico` _and_ `public/favicon.svg` carry the brand
   `client/faazio-logo.ico` art (the SVG embeds the 64×64 raster as base64),
   cache-bust `?v=3`. Headings tighten their tracking (`-0.02em`) and the
   `--shadow-brand` CTA shadow keeps every button on-brand.
@@ -70,17 +70,18 @@ When the production domain changes, update `SITE_URL` in `src/lib/site.ts`,
 
 ## Structure
 
-| Path                    | Purpose                                               |
-| ----------------------- | ----------------------------------------------------- |
-| `src/routes/__root.tsx` | App shell, global `<head>` defaults, error/404 UI     |
-| `src/routes/index.tsx`  | The landing page                                      |
-| `src/routes/about.tsx`  | Company story (`/about`)                              |
-| `src/routes/faq.tsx`    | FAQ page with `FAQPage` structured data (`/faq`)      |
-| `src/routes/partners.tsx` | Partner page for local businesses (`/partners`)     |
-| `src/routes/karaikal.tsx` | Karaikal location page (`/karaikal`)                |
-| `src/routes/download.tsx` | App download page (`/download`)                     |
-| `src/components/`       | Section + shared components (incl. `faazio-logo.tsx`) |
-| `src/components/ui/`    | shadcn/ui primitives                                  |
-| `src/styles.css`        | Tailwind entry + semantic colour tokens               |
-| `src/lib/site.ts`       | Canonical SEO + business identity constants           |
-| `src/lib/seo.ts`        | Shared `seoHead()` + JSON-LD graph builders           |
+| Path                      | Purpose                                               |
+| ------------------------- | ----------------------------------------------------- |
+| `src/routes/__root.tsx`   | App shell, global `<head>` defaults, error/404 UI     |
+| `src/routes/index.tsx`    | The landing page                                      |
+| `src/routes/about.tsx`    | Company story (`/about`)                              |
+| `src/routes/faq.tsx`      | FAQ page with `FAQPage` structured data (`/faq`)      |
+| `src/routes/partners.tsx` | Partner page for local businesses (`/partners`)       |
+| `src/routes/karaikal.tsx` | Karaikal location page (`/karaikal`)                  |
+| `src/routes/download.tsx` | App download page (`/download`)                       |
+| `src/routes/privacy.tsx`  | Privacy policy (`/privacy`)                           |
+| `src/components/`         | Section + shared components (incl. `faazio-logo.tsx`) |
+| `src/components/ui/`      | shadcn/ui primitives                                  |
+| `src/styles.css`          | Tailwind entry + semantic colour tokens               |
+| `src/lib/site.ts`         | Canonical SEO + business identity constants           |
+| `src/lib/seo.ts`          | Shared `seoHead()` + JSON-LD graph builders           |
