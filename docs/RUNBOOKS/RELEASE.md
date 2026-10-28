@@ -24,6 +24,28 @@
   which is correct for `minSdkVersion 24` (Android 7.0+). v1 (JAR) signing is intentionally omitted
   by both AGP and `apksigner` when minSdk ≥ 24 and is not required for install on Android 7.0+.
 
+### Register the release cert (Firebase + Google Play + Maps keys)
+
+The release keystore's fingerprints are public (not secrets) and **must be whitelisted before a
+signed build can verify phone OTP or render restricted Maps keys**. They are **identical for all
+three apps** (one keystore signs customer, delivery, seller):
+
+| Signing cert (`CN=Faazio`, alias `faazio`) | SHA-1 | SHA-256 |
+|---|---|---|
+| All three applicationIds | `7E:B1:2E:78:55:21:89:FF:6B:37:1A:FE:2F:F0:84:DE:58:42:A8:45` | `23:8A:02:B2:0F:64:E6:EB:8A:33:17:39:75:A9:AE:C7:DD:66:CC:72:83:E1:0B:3B:EF:F4:70:01:4E:E4:09:9D` |
+
+- **Firebase** (Project Settings → Your apps): add the **release** SHA-1/SHA-256 to every Android
+  app (`com.faazio.customer`, `com.faazio.deliverypartner`, `com.faazio.sellerpartner`). Without it
+  the release build fails phone OTP with `auth/invalid-app-credential`. See
+  `docs/RUNBOOKS/FIREBASE_AUTH.md` §4.
+- **Maps / Places API keys**: restrict the Android keys to each app's package **+ the release
+  SHA-1** (the debug key's SHA-1 is not accepted for the signed build). See TROUBLESHOOTING.md →
+  "Location / maps".
+- **Google Play Console** (Setup → App signing): the first AAB upload from this keystore registers
+  the **upload key**; confirm Play shows the SHA-256 above, or future uploads from this keystore are
+  rejected.
+- Drill the fingerprints with `keytool -list -v -keystore faazio-release.keystore -alias faazio`.
+
 > Never commit `keystore.properties` or the `.keystore` file. Both are gitignored.
 > `android/` and `ios/` are committed source-of-truth shells; CI does **not** regenerate them.
 
@@ -83,6 +105,9 @@ triggered with the `gh` CLI.
 cd client/mobile
 # 1) Bump the version (or pass it to the workflow)
 #    edit package.json -> version, e.g. "1.1.0"
+#    Passing -f version=<semver> makes the workflow derive versionCode from it
+#    (e.g. 1.0.4 -> 10004). Without -f version, bump versionCode (+1) and
+#    versionName in android/app/build.gradle yourself.
 
 # 2) Trigger the CI build + release (app=customer|delivery)
 gh workflow run release-apk.yml -f app=customer -f version=1.0.2 -f tag=v1.0.2
@@ -96,13 +121,15 @@ gh run watch
 
 The workflow: checkout → setup Node 24 + JDK 21 → `gradle/actions/setup-gradle` (caches
 `~/.gradle` + build cache) → **CI Gradle tuning** (overrides laptop memory caps via
-`~/.gradle/gradle.properties`) → `npm ci` → `npm run configure` (release cert pins + JS config) →
-`restore-keystore.sh` → `npm run ts:check` → `./gradlew assembleRelease` with **ABI + R8 minify flags**
-(see below) → upload APK artifact → upload **R8 `mapping.txt` (private artifact)** →
-`gh release create` + `gh release upload --clobber`.
+`~/.gradle/gradle.properties`) → `npm ci` → set version (optional override; derives `versionCode`
+from the semver) → `restore-keystore.sh` → `npm run ts:check` + `npm run check:boundaries` →
+`npm run configure` (release cert pins + JS config) → `./gradlew assemble<App>Release
+bundle<App>Release` with **ABI + R8 minify flags** (see below) → upload APK + AAB artifacts →
+upload **R8 `mapping.txt` (private artifact)** → `gh release create` + `gh release upload --clobber`.
 
-The built APK is also saved as a versioned `faazio-<version>-apk` Actions artifact for direct
-download.
+The built APK + AAB are also saved as versioned Actions artifacts for direct download:
+`faazio-<app>-<version|-release>-apk` and `faazio-<app>-<version|-release>-aab`
+(e.g. `faazio-customer-1.0.4-apk`, or `...-release-apk` when `-f version` is left empty).
 
 ### Build flags (faster + smaller + obfuscated)
 
@@ -117,8 +144,9 @@ download.
 
 ### R8 mapping file (crash retracing)
 
-Minified builds produce `android/app/build/outputs/mapping/release/mapping.txt`. It is uploaded
-as a **private Actions artifact** (`faazio-mapping-<run_id>`) — never attach it to the public
+Minified builds produce `android/app/build/outputs/mapping/<flavor>Release/mapping.txt` (e.g.
+`mapping/customerRelease/mapping.txt`). It is uploaded as a **private Actions artifact**
+(`faazio-<app>-mapping-<run_id>`) — never attach it to the public
 GitHub Release (that would defeat obfuscation). To retrace a release stack trace, see
 `docs/RUNBOOKS/TROUBLESHOOTING.md` → "Retracing a minified crash".
 
@@ -132,8 +160,8 @@ device and walk the core flows: **Home → Cart → Checkout → Pharma**. See
 
 ```bash
 cd /tmp/opencode
-gh release download v1.0.2 --repo FaizalBasha-123/faazio-workspace --pattern "*.apk" --clobber
-adb install -r app-release.apk
+gh release download v1.0.2 --repo FaizalBasha-123/faazio-workspace --pattern "app-*-release.apk" --clobber
+adb install -r app-customer-release.apk   # flavor-named: app-delivery-release.apk / app-seller-release.apk
 ```
 
 > The release APK is a **static release build** — it does **not** hot-reload. For instant preview
@@ -183,12 +211,13 @@ build configurations.
 
 To verify a **downloaded** APK is signed with the release cert (not the debug cert):
 ```bash
-apksigner verify --verbose --print-certs app-release.apk
+apksigner verify --verbose --print-certs app-customer-release.apk
 # EXPECT "Signer #1 certificate DN: CN=Faazio, ..."  (release cert, NOT "CN=Android Debug")
 ```
 ## 🌐 Google Play (manual)
 
-1. Build the release `.aab` (`./gradlew bundleRelease` with the release keystore; CI-only on this host).
+1. Build the release `.aab` (`./gradlew bundleCustomerRelease` with the release keystore;
+   the workflow already produces it — for Play upload use the `.aab` attached to the GitHub Release).
 2. Sign in to [Play Console](https://play.google.com/console/), open the Faazio app
    (package `com.faazio.customer`).
 3. **Testing** → create a release, upload the `.aab`.
@@ -274,8 +303,9 @@ Run **each pending** migration (numeric order) → then roll the Render deploy. 
 
 ## ✅ Release checklist
 
-- [ ] `npm run ts:check` and `npm run check:boundaries` pass.
-- [ ] Version bumped in `package.json` **and** `android/app/build.gradle` `versionCode` (+1 every release).
+- [ ] `npm run ts:check` and `npm run check:boundaries` pass (both are CI steps).
+- [ ] `versionCode` > the previous release (committed +1 bump, or derived from `-f version` semver — e.g. `1.0.4` → `10004`).
+- [ ] Release keystore SHA-1/SHA-256 registered in Firebase for all three Android apps and the Maps/Places keys restricted to the release SHA-1 (see "Register the release cert").
 - [ ] `CERT_PINS` set and Firebase native config committed when `USE_GATEWAY=true` (release configure fails without them).
 - [ ] GitHub secrets set: `KEYSTORE_BASE64`, `KEYSTORE_PASS`, `KEY_ALIAS`, `ALIAS_PASS` (keystore backed up).
 - [ ] Release APK signed with the **release cert** (`CN=Faazio`), not the debug cert.

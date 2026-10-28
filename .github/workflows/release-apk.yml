@@ -113,9 +113,20 @@ jobs:
             const p = require('./package.json');
             p.version = process.env.VERSION;
             fs.writeFileSync('./package.json', JSON.stringify(p, null, 2) + '\n');
+            // Derive versionCode deterministically from the semver so a -f version
+            // release can never reuse a stale committed versionCode (e.g. 1.0.4 ->
+            // 10004). Must strictly increase per release to avoid downgrade installs.
+            const parts = process.env.VERSION.split('.').map(Number);
+            let vc = null;
+            if (parts.length >= 3 && parts.every((n) => Number.isInteger(n) && n >= 0)) {
+              vc = parts[0] * 10000 + parts[1] * 100 + parts[2];
+            }
             const g = 'android/app/build.gradle';
             let s = fs.readFileSync(g, 'utf8');
             s = s.replace(/versionName \"[^\"]+\"/, 'versionName \"' + process.env.VERSION + '\"');
+            if (vc != null) {
+              s = s.replace(/versionCode \d+/, 'versionCode ' + vc);
+            }
             fs.writeFileSync(g, s);
           "
 
@@ -151,8 +162,10 @@ jobs:
           mkdir -p android/app/src/seller
           printf '%s' "$GOOGLE_SERVICES_SELLER_JSON" > android/app/src/seller/google-services.json
 
-      - name: Typecheck
-        run: npm run ts:check
+      - name: Typecheck + module boundaries
+        run: |
+          npm run ts:check
+          npm run check:boundaries
         env:
           # ts:check re-runs configure.js; keep the selected product variant from being reset.
           # Release settings are generated again below with cert pins + restricted keys.
@@ -173,17 +186,19 @@ jobs:
           GOOGLE_MAPS_API_KEY_ANDROID: ${{ secrets.GOOGLE_MAPS_API_KEY_ANDROID }}
           GOOGLE_PLACES_API_KEY: ${{ secrets.GOOGLE_PLACES_API_KEY }}
 
-      - name: Build release APK
+      - name: Build release APK + AAB
         run: |
           cd android
           case "${{ github.event.inputs.app }}" in
-            delivery) TASK=assembleDeliveryRelease ;;
-            seller) TASK=assembleSellerRelease ;;
-            *) TASK=assembleCustomerRelease ;;
+            delivery) TASK=assembleDeliveryRelease; BUNDLE=bundleDeliveryRelease ;;
+            seller) TASK=assembleSellerRelease; BUNDLE=bundleSellerRelease ;;
+            *) TASK=assembleCustomerRelease; BUNDLE=bundleCustomerRelease ;;
           esac
           # R8 minify + resource shrinking ON → smaller dex + obfuscation.
           # ABI restricted to REACT_NATIVE_ARCHS → less native work + payload.
-          ./gradlew "$TASK" --no-daemon \
+          # The bundled AAB powers Google Play uploads (APK is for direct install
+          # / smoke testing); both are signed with the same release keystore.
+          ./gradlew "$TASK" "$BUNDLE" --no-daemon \
             -PreactNativeArchitectures="$REACT_NATIVE_ARCHS" \
             -Pandroid.enableMinifyInReleaseBuilds=true \
             -Pandroid.enableShrinkResourcesInReleaseBuilds=true
@@ -195,6 +210,13 @@ jobs:
         with:
           name: faazio-${{ github.event.inputs.app }}-${{ github.event.inputs.version || 'release' }}-apk
           path: client/mobile/android/app/build/outputs/apk/${{ github.event.inputs.app }}/release/*.apk
+          if-no-files-found: error
+
+      - name: Upload AAB artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: faazio-${{ github.event.inputs.app }}-${{ github.event.inputs.version || 'release' }}-aab
+          path: client/mobile/android/app/build/outputs/bundle/${{ github.event.inputs.app }}Release/*.aab
           if-no-files-found: error
 
       # R8 mapping.txt is REQUIRED to retrace minified crash stack traces.
@@ -239,9 +261,10 @@ jobs:
             $PRERELEASE \
             || true
 
-          # Attach (replace) the APK on the release.
+          # Attach (replace) the APK + AAB on the release.
           gh release upload "$TAG" \
             "android/app/build/outputs/apk/${APP}/release/"*.apk \
+            "android/app/build/outputs/bundle/${APP}Release/"*.aab \
             --clobber
 
           echo "::notice::Published ${APP_NAME} ${VERSION} to release ${TAG}"

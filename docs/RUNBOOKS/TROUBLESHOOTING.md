@@ -538,13 +538,13 @@ runtime, not build time.
   cd /tmp/opencode
   gh release download v1.0.2 --repo FaizalBasha-123/faazio-workspace --pattern "*.apk" --clobber
   adb uninstall com.faazio.customer     # if a debug-signed install is present
-  adb install -r app-release.apk
+  adb install -r app-customer-release.apk   # flavor-named: app-delivery-release.apk / app-seller-release.apk
   ```
   Walk the core flows: **Home → Cart → Checkout → Pharma**. If something crashes that worked
   before minification, add a keep rule to the committed `android/app/proguard-rules.pro` and rebuild.
 - **Retracing a minified crash** — release stack traces have obfuscated class/method names. Retrace
-  with the run's `mapping.txt` (private Actions artifact `faazio-mapping-<run_id>` — never publish
-  it, it defeats obfuscation):
+  with the run's `mapping.txt` (private Actions artifact `faazio-<app>-mapping-<run_id>` — never
+  publish it, it defeats obfuscation):
   ```bash
   # Android SDK build-tools retrace
   retrace.sh <mapping.txt> <obfuscated-stacktrace.txt>

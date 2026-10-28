@@ -1316,7 +1316,7 @@ sheet.
 
 ## Build & patch system
 
-- `patch-package` (`postinstall`) applies the `@shopify/react-native-skia` patch — mandatory.
+- `patch-package` (`postinstall`) applies the pinned `react-native-reanimated` patch — mandatory.
 - `react-native-svg-transformer` + `sharp` for asset optimization.
 - `babel-plugin-transform-remove-console` trims logs in production builds.
 
