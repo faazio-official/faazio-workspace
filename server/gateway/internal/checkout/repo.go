@@ -213,6 +213,16 @@ func (r *Repo) ProvisionUserID(ctx context.Context, authUID, phone, email string
 	}
 	sum := sha256.Sum256([]byte(authUID))
 	userID := "u-" + hex.EncodeToString(sum[:8])
+	var linked bool
+	lookupErr := r.pool.QueryRow(ctx,
+		`select coalesce(auth_uid = $2, false) from checkout.users where user_id = $1`,
+		userID, authUID).Scan(&linked)
+	if lookupErr != nil && lookupErr != pgx.ErrNoRows {
+		return "", lookupErr
+	}
+	if lookupErr == nil && !linked {
+		userID = userID + "-" + shortAddrID()
+	}
 	var (
 		resolved      string
 		resolvedEmail string
@@ -1297,13 +1307,20 @@ func (r *Repo) DeleteAccount(ctx context.Context, userID string) (authUID string
 		`delete from accounts.order_status where user_id = $1`,
 		`delete from accounts.nav where user_id = $1`,
 		`delete from accounts.details where user_id = $1`,
-		`update support.tickets set user_id = null where user_id = $1`,
-		`update reviews.vendor_reviews set user_name = 'Deleted user' where user_id = $1`,
+		`update support.tickets set user_id = null, subject = '', body = '' where user_id = $1`,
+		`update checkout.returns set reason = '' where user_id = $1`,
+		`update reviews.vendor_reviews set user_name = 'Deleted user', comment = null where user_id = $1`,
 		`update media.assets set created_by = '' where created_by = $1`,
+		`update checkout.orders
+		    set delivery_latitude = null, delivery_longitude = null
+		  where user_id = $1`,
 		`update delivery.delivery_stops s
-		    set label = '', address = '', customer_name = '', customer_phone = ''
+		    set label = '', address = '', latitude = null, longitude = null,
+		        customer_name = '', customer_phone = '', customer_otp_hash = null,
+		        otp_expires_at = null, failure_reason = null
 		   from delivery.delivery_orders o
 		  where s.delivery_order_id = o.order_id
+		    and s.stop_type = 'DROP'
 		    and o.customer_order_id in (select order_id from checkout.orders where user_id = $1)`,
 	}
 	err = r.WithTx(ctx, func(tx pgx.Tx) error {
@@ -1319,6 +1336,7 @@ func (r *Repo) DeleteAccount(ctx context.Context, userID string) (authUID string
 			       phone = '',
 			       default_address_id = null,
 			       state_code = null,
+			       last_login_at = null,
 			       auth_uid = null,
 			       deleted_at = now()
 			 where user_id = $1`, userID, deletedAccountEmail(userID))

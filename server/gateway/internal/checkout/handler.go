@@ -19,6 +19,11 @@ import (
 	"github.com/go-chi/chi/v5"
 )
 
+// BlobDeleter removes private prescription objects from the active storage backend.
+type BlobDeleter interface {
+	DeleteObject(ctx context.Context, key string) error
+}
+
 // Handler serves orders + account endpoints.
 type Handler struct {
 	repo     *Repo
@@ -30,12 +35,19 @@ type Handler struct {
 	stores   contracts.StoreReader
 	delivery contracts.DeliveryDispatcher
 	signer   *r2.Signer
+	rxBlobs  BlobDeleter
 }
 
 // NewHandler builds the checkout handler. notifier/coupons/stores/delivery/signer may be nil
 // (dispatch, notifications and presigned invoice downloads are then disabled, e.g. in unit tests).
 func NewHandler(repo *Repo, service *Service, c *cache.Cache, audit contracts.AuditWriter, notifier contracts.Notifier, coupons contracts.CouponValidator, stores contracts.StoreReader, delivery contracts.DeliveryDispatcher, signer *r2.Signer) *Handler {
 	return &Handler{repo: repo, service: service, cache: c, audit: audit, notifier: notifier, coupons: coupons, stores: stores, delivery: delivery, signer: signer}
+}
+
+// WithRxBlobDeleter enables prescription-blob cleanup for the configured storage backend.
+func (h *Handler) WithRxBlobDeleter(deleter BlobDeleter) *Handler {
+	h.rxBlobs = deleter
+	return h
 }
 
 // Register mounts auth-scoped order + account endpoints.
@@ -235,6 +247,13 @@ func (h *Handler) deleteAddress(w http.ResponseWriter, r *http.Request) {
 	httpx.JSON(w, http.StatusOK, map[string]any{"ok": true})
 }
 
+func auditActorRole(ctx context.Context) string {
+	if role := auth.Role(ctx); role != "" {
+		return role
+	}
+	return auth.RoleSeller
+}
+
 // deleteAccount permanently erases the caller's PII and unlinks the auth identity. Financial
 // records (orders/payments/invoices) are retained for legal reasons, so this is an anonymising
 // soft delete rather than a row delete. Idempotent: a second call still returns `{"ok":true}`.
@@ -260,7 +279,7 @@ func (h *Handler) deleteAccount(w http.ResponseWriter, r *http.Request) {
 	if h.audit != nil {
 		raw, _ := json.Marshal(map[string]string{"action": "account_deleted"})
 		_ = h.audit.Audit(r.Context(), contracts.AuditEntry{
-			ActorID: userID, ActorRole: auth.Role(r.Context()), Action: "ACCOUNT_DELETE",
+			ActorID: userID, ActorRole: auditActorRole(r.Context()), Action: "ACCOUNT_DELETE",
 			Entity: "checkout.users", EntityID: userID, After: raw,
 		})
 	}
@@ -312,7 +331,7 @@ func (h *Handler) deleteUserData(w http.ResponseWriter, r *http.Request) {
 	if h.audit != nil {
 		raw, _ := json.Marshal(map[string]any{"categories": deleted})
 		_ = h.audit.Audit(r.Context(), contracts.AuditEntry{
-			ActorID: userID, ActorRole: auth.Role(r.Context()), Action: "USER_DATA_DELETE",
+			ActorID: userID, ActorRole: auditActorRole(r.Context()), Action: "USER_DATA_DELETE",
 			Entity: "checkout.users", EntityID: userID, After: raw,
 		})
 	}
@@ -342,9 +361,22 @@ func (h *Handler) purgeUserCache(r *http.Request, userID, authUID string, vendor
 }
 
 // deleteStoredObjects best-effort removes the private prescription blobs after their rows are gone.
-// It is a no-op when R2 is unconfigured (Supabase Storage remains the backend in that mode).
+// It uses the injected backend deleter (R2 or Supabase Storage) and falls back to the R2 signer.
 func (h *Handler) deleteStoredObjects(ctx context.Context, paths []string) {
-	if h.signer == nil || !h.signer.Enabled() || len(paths) == 0 {
+	if len(paths) == 0 {
+		return
+	}
+	if h.rxBlobs != nil {
+		for _, path := range paths {
+			key := strings.TrimLeft(path, "/")
+			if key == "" {
+				continue
+			}
+			_ = h.rxBlobs.DeleteObject(ctx, key)
+		}
+		return
+	}
+	if h.signer == nil || !h.signer.Enabled() {
 		return
 	}
 	bucket := h.signer.PrivateBucket()

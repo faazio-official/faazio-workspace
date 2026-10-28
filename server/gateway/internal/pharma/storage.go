@@ -142,3 +142,32 @@ func (s *Storage) SignDownload(ctx context.Context, objectPath string, expiresIn
 	}
 	return s.baseURL + path, nil
 }
+
+// DeleteObject removes a private prescription object from the active backend (R2 or Supabase Storage).
+func (s *Storage) DeleteObject(ctx context.Context, objectPath string) error {
+	if s == nil {
+		return ErrStorageDisabled
+	}
+	key := strings.TrimLeft(objectPath, "/")
+	if key == "" {
+		return nil
+	}
+	if s.r2.Enabled() {
+		return s.r2.DeleteObject(ctx, s.r2Bucket, key)
+	}
+	endpoint := fmt.Sprintf("%s/storage/v1/object/%s/%s", s.baseURL, s.bucket, key)
+	req, err := http.NewRequestWithContext(ctx, http.MethodDelete, endpoint, nil)
+	if err != nil {
+		return err
+	}
+	req.Header.Set("Authorization", "Bearer "+s.key)
+	resp, err := s.client.Do(req)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode == http.StatusNotFound || resp.StatusCode/100 == 2 {
+		return nil
+	}
+	return fmt.Errorf("storage delete: status %d", resp.StatusCode)
+}

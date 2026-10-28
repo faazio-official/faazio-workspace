@@ -14,11 +14,16 @@ type Props = NativeStackScreenProps<RootStackParamList, 'You'>;
  */
 export function YouScreen({ navigation }: Props) {
   const handleLogout = useCallback(() => {
-    logoutUser();
-    navigation.reset({
-      index: 0,
-      routes: [{ name: 'Login' }],
-    });
+    void logoutUser()
+      .catch(() => {})
+      .finally(() => {
+        if (navigation.isFocused()) {
+          navigation.reset({
+            index: 0,
+            routes: [{ name: 'Login' }],
+          });
+        }
+      });
   }, [navigation]);
 
   const handleOpenDetails = useCallback(() => {

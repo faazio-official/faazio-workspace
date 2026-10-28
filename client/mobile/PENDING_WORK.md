@@ -3152,7 +3152,19 @@ routes). `legal` remains `comingSoon` and renders a non-tappable placeholder row
 - **Privacy is complete for Play** — `DeleteAccount` calls `DELETE /users/me` (anonymising
   soft delete: PII erased, financial rows retained) and `RequestDataDeletion` calls
   `POST /users/me/data-deletion` (addresses/favourites/prescriptions; recent searches are
-  device-local). Both are wired through `services/accountDeletion.ts`.
+  device-local). Both are wired through `services/accountDeletion.ts`. The delete screen always
+  offers an email fallback (`ACCOUNT_DELETION_MAILTO`) and a Privacy Policy link when the gateway
+  call fails, and local teardown failures can no longer be reported as a server deletion failure.
+
+**Remaining account-deletion gaps (not Play blockers):**
+- `blood.requests` has no author column, so a user's posted `contact`/`address` cannot be linked
+  back and erased; adding `created_by` + writing it on create is a schema change.
+- The Firebase Auth identity is signed out, not deleted (no Admin SDK call), so the phone identity
+  still exists at Firebase even though the app account/PII is gone.
+- `DELETE /users/me` requires only a bearer token — no fresh OTP/re-auth step.
+- `delivery.delivery_orders.route_sequence` may retain drop coordinates; it is not cleared.
+- No gateway test exercises `DeleteAccount`/`DeleteUserData` (they need the Postgres integration
+  harness).
 
 **Interim contract:** Keep the `AccountNavGroup` shape (`title` + optional `comingSoon` +
 `rows`) stable so server wiring via `GatewayClient.getAccountNav` (`navTable`) is a
