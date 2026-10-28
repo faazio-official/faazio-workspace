@@ -30,9 +30,9 @@ export function useMartFeed(): MartFeedState {
   );
 
   const load = useCallback(async () => {
-    const data = await fetchMartFeed();
+    const data = await fetchMartFeed(origin);
     if (mounted.current) setFeed(data);
-  }, []);
+  }, [origin]);
 
   useEffect(() => {
     void load();

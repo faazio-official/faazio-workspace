@@ -152,6 +152,40 @@ export interface ProductView extends CatalogEntry {
 }
 
 /**
+ * Seller create-listing payload. Money is **whole rupees** (the gateway converts to paisa at the
+ * DB boundary) — never pass paisa here.
+ */
+export interface CreateProductInput {
+  storeId: string;
+  name: string;
+  category: string;
+  description: string;
+  price: number;
+  mrp?: number;
+  unit?: string;
+  emoji?: string;
+  /** `r2:<key>` media reference or an http(s) legacy URL. */
+  imageUrl?: string;
+  imageKey?: string;
+  isVeg?: boolean;
+  isPrescription?: boolean;
+  attributes?: Record<string, string | number | string[]>;
+}
+
+/** The gateway's catalog-management projection returned by POST /seller/products. */
+export interface CreatedProduct {
+  id: string;
+  name: string;
+  app: AppBrand;
+  category: string;
+  status: string;
+  sellerId?: string;
+  storeId?: string;
+  price: number;
+  updatedAt: string;
+}
+
+/**
  * A compiled editorial campaign (`GET /home/campaigns(/{id})`): the ID-only definition joined to its
  * vendor store + catalog products. Display-only — the Home "Deals of the day" drill-in read.
  */
@@ -785,6 +819,38 @@ export class GatewayClient {
       method: 'PUT',
       body: JSON.stringify({ reason: reason ?? '' }),
     });
+  }
+
+  /**
+   * Create a seller listing under one of the caller's stores. The gateway opens it as
+   * PENDING_REVIEW and writes catalog + stock atomically. Server-only: a create must never fake
+   * success offline, so the fallback throws instead of fabricating a row.
+   */
+  async createProduct(input: CreateProductInput): Promise<CreatedProduct> {
+    return this.withStrict(
+      () =>
+        this.http<CreatedProduct>('/seller/products', {
+          method: 'POST',
+          body: JSON.stringify({
+            storeId: input.storeId,
+            name: input.name,
+            category: input.category,
+            description: input.description,
+            price: Math.round(input.price),
+            mrp: input.mrp !== undefined ? Math.round(input.mrp) : undefined,
+            unit: input.unit,
+            emoji: input.emoji,
+            imageUrl: input.imageUrl,
+            imageKey: input.imageKey,
+            isVeg: input.isVeg,
+            isPrescription: input.isPrescription,
+            attributes: input.attributes,
+          }),
+        }),
+      () => {
+        throw new GatewayOfflineError();
+      },
+    );
   }
 
   private async authHeader(): Promise<Record<string, string>> {

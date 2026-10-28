@@ -8,6 +8,8 @@ import {
 } from '../mocks/martHomeFeed';
 import { gateway, type ActiveDiscount, type ProductView } from '@/services/api/GatewayClient';
 import { applyActiveDiscount } from '@/services/pricing';
+import type { Coordinates } from '@/services/location';
+import { formatDistanceKm } from '@/utils/distance';
 import { martStores } from '@data/mart/stores';
 import type { SduiBanner } from '@data/home/sdui';
 import type { StoreProfile } from '@data/types';
@@ -133,15 +135,29 @@ export function priceEssentials(
  * `Promise.allSettled`, so one failing route never discards a successful response or blanks the
  * feed; the caller never sees a rejected promise (fixes skeleton-forever).
  */
-export async function fetchMartFeed(): Promise<MartFeed> {
-  const [feedResult, storesResult] = await Promise.allSettled([
+export async function fetchMartFeed(origin?: Coordinates | null): Promise<MartFeed> {
+  const [feedResult, storesResult, nearbyResult] = await Promise.allSettled([
     gateway.getMartFeed(),
     gateway.getStores('MART'),
+    // Live nearby vendor rail: nearest-first rows with a server-computed distance. No fix →
+    // skip this leg and use the full directory below.
+    origin
+      ? gateway.getStoresNearby(origin, { app: 'MART', radiusKm: 25 })
+      : Promise.resolve(null),
   ]);
   const feed = feedResult.status === 'fulfilled' ? feedResult.value : [];
-  // Offline first-paint: the local Mart directory keeps the "Local Vendors" footer renderable
-  // instead of blanking to an empty "No vendors found" state.
-  const localVendors = storesResult.status === 'fulfilled' ? storesResult.value : martStores;
+  const nearby = nearbyResult.status === 'fulfilled' ? nearbyResult.value : null;
+  // Prefer the live nearby list when a fix existed (even if empty, so we never show a distance-less
+  // directory as if it were nearby). Without a fix, use the directory, then the offline fixture.
+  const localVendors =
+    nearby !== null
+      ? nearby.map((store) => ({
+          ...store,
+          distance: formatDistanceKm(store.distanceKm) || store.distance,
+        }))
+      : storesResult.status === 'fulfilled'
+        ? storesResult.value
+        : martStores;
 
   const dealsSection = martSection(feed, 'martDeals');
   const essentials = martSection(feed, 'martEssentials');

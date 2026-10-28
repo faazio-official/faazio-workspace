@@ -3098,19 +3098,19 @@ static array for an API call should be a one-file change inside
 
 ## Nearby Offers — product-level, from nearby stores (live geo)
 
-**Status:** 🟡 Static seed. Data shape stable.
+**Status:** 🟢 Shipped — live nearby reads (`fetchProductsNearby`), fixture offline/no-fix fallback.
 
 **Feature:** The Home **Nearby Offers** section (`features/home/sections/NearbyOffersSection.tsx`)
-shows product-level deals (`NearbyOffer` in `data/types.ts`) surfaced from stores physically
-near the user. Currently seeded statically in `data/home/nearbyOffers.ts`.
+shows product-level rows (`NearbyOffer extends Product` + distance) from ACTIVE listings at live
+stores near the user. With a live origin it calls
+`fetchProductsNearby({app:'MART', radiusKm:25, limit:6})` and displays the gateway's `distanceKm`;
+without a fix / when offline it paints the `data/home/nearbyOffers.ts` fixture. An authoritative
+empty response renders empty (never fixture data). Registered ACTIVE rows created through
+`POST /seller/products` therefore appear here once approved and live.
 
-**Future:** Rank/geofence by live user location and per-store availability once the backend
-exists.
+**Contract:** `NearbyOffer extends Product` (`distanceKm` optional). Keep the shape stable.
 
-**Interim contract:** `NearbyOffer extends Product` + `distance`. Keep the shape stable so
-swapping in a geo-ranked API response is a data-layer change only.
-
-**Date:** 2026-08-01
+**Date:** 2026-10-28
 
 ---
 
