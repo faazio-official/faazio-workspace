@@ -93,10 +93,34 @@ cd android
 
 ---
 
+## Step 3b: First-time Play Console setup (once per app)
+
+Each product is a **separate Play listing**; run this for `com.faazio.customer` ("Faazio"),
+`com.faazio.deliverypartner` ("Faazio Delivery Partner"), and `com.faazio.sellerpartner`
+("Faazio Seller Partner").
+
+1. **Create the app** (Play Console → **Create app**): name + default language; enter the exact
+   `applicationId` as the Application ID; free/paid; declare ads.
+2. **App signing** (Setup → **App signing**): Play App Signing is mandatory for new apps. Your
+   release keystore becomes the **upload key**. Export its public certificate and upload it —
+   `keytool -exportcert -rfc -keystore keystore/faazio-release.keystore -alias faazio -file /tmp/faazio_upload_key.pem`
+   (public cert only; safe to send to Play). Confirm the **upload-key SHA-256** shown matches
+   `23:8A:02:B2:0F:64:E6:EB:8A:33:17:39:75:A9:AE:C7:DD:66:CC:72:83:E1:0B:3B:EF:F4:70:01:4E:E4:09:9D`.
+   Google then manages the **app signing key**; CI keeps signing every AAB with the same release
+   keystore (upload key) so uploads are always accepted.
+3. **App content / Data safety** (App content → Data safety): disclose **camera, location (rough +
+   precise), media/photos, and Keychain/Keystore token storage**. Also complete content rating,
+   target audience, and a Privacy Policy URL before a production rollout.
+4. **Internal testing first** (Testing → Internal testing): upload the workflow's `.aab`, add your
+   tester email, roll out. Installing via the internal link also makes **Play Integrity** return
+   valid (it checks the Play Store app record against the Firebase SHA-256) — the prerequisite for
+   turning on **App Check → Play Integrity → Enforce** and for SMS auto-retrieval on the signed build.
+5. After internal smoke tests pass, repeat the upload in **Closed testing**, then **Production**.
+
 ## Step 4: Upload to Play Console
 
 1. Open [Google Play Console](https://play.google.com/console/) and select Faazio.
-2. Go to **Testing → Closed testing** (or **Production**) → **Create new release**.
+2. Go to **Testing → Internal/Closed testing** (or **Production**) → **Create new release**.
 3. Upload `app-customer-release.aab` (or `app-delivery-release.aab` / `app-seller-release.aab`).
 4. Fill in store listing, screenshots, content rating, and **Data Safety**.
 5. Start rollout and submit for review.

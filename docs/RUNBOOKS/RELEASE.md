@@ -45,6 +45,7 @@ three apps** (one keystore signs customer, delivery, seller):
   the **upload key**; confirm Play shows the SHA-256 above, or future uploads from this keystore are
   rejected.
 - Drill the fingerprints with `keytool -list -v -keystore faazio-release.keystore -alias faazio`.
+- Private copy (gitignored, safe to edit): `client/mobile/keystore/RELEASE_CERT_FINGERPRINTS.md`.
 
 > Never commit `keystore.properties` or the `.keystore` file. Both are gitignored.
 > `android/` and `ios/` are committed source-of-truth shells; CI does **not** regenerate them.
