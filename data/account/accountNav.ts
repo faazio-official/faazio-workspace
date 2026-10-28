@@ -26,8 +26,20 @@ export const accountNavGroups: AccountNavGroup[] = [
   {
     key: 'privacy',
     title: 'Privacy and security',
-    comingSoon: true,
-    rows: [],
+    rows: [
+      {
+        key: 'delete-account',
+        icon: 'trash',
+        title: 'Delete account',
+        subtitle: 'Permanently delete your Faazio account',
+      },
+      {
+        key: 'request-data-deletion',
+        icon: 'shield',
+        title: 'Request data deletion',
+        subtitle: 'Erase selected data and keep your account',
+      },
+    ],
   },
   {
     key: 'earn',

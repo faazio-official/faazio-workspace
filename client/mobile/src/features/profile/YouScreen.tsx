@@ -33,6 +33,14 @@ export function YouScreen({ navigation }: Props) {
     navigation.navigate('MyOrders');
   }, [navigation]);
 
+  const handleOpenDeleteAccount = useCallback(() => {
+    navigation.navigate('DeleteAccount');
+  }, [navigation]);
+
+  const handleOpenRequestDataDeletion = useCallback(() => {
+    navigation.navigate('RequestDataDeletion');
+  }, [navigation]);
+
   const handleOpenFavourites = useCallback(() => {
     navigation.navigate('Favourites');
   }, [navigation]);
@@ -63,6 +71,8 @@ export function YouScreen({ navigation }: Props) {
         onBack={() => navigation.goBack()}
         onOpenDetails={handleOpenDetails}
         onOpenAddresses={handleOpenAddresses}
+        onOpenDeleteAccount={handleOpenDeleteAccount}
+        onOpenRequestDataDeletion={handleOpenRequestDataDeletion}
         onOpenOrders={handleOpenOrders}
         onOpenFavourites={handleOpenFavourites}
         onOpenRewards={handleOpenRewards}

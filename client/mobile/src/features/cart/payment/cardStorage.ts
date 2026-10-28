@@ -65,6 +65,15 @@ export async function loadSavedCards(): Promise<SavedCard[]> {
   return readList();
 }
 
+/** Removes every saved card token from this device (sign-out and account deletion). */
+export async function clearSavedCards(): Promise<void> {
+  try {
+    await Keychain.resetGenericPassword({ service: SERVICE });
+  } catch {
+    // Best-effort: a missing entry or an unavailable Keychain is already "cleared".
+  }
+}
+
 /** Returns a new card's token, or a zero-value `{ error }` result when invalid. */
 export interface AddCardResult {
   card?: SavedCard;

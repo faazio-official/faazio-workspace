@@ -21,6 +21,8 @@ import {
   Flame,
   Store,
   Percent,
+  Trash2,
+  ShieldCheck,
 } from 'lucide-react-native';
 import AppText from '@/components/AppText';
 import { hs, vs, ms } from '@/utils/responsive';
@@ -40,6 +42,8 @@ const NAV_ICONS: Record<string, React.ComponentType<any>> = {
   clock: Clock,
   package: Package,
   store: Store,
+  trash: Trash2,
+  shield: ShieldCheck,
 };
 
 const BRAND_BLUE = '#1162D3';
@@ -49,6 +53,8 @@ export interface AccountViewProps {
   onBack?: () => void;
   onOpenDetails: () => void;
   onOpenAddresses: () => void;
+  onOpenDeleteAccount?: () => void;
+  onOpenRequestDataDeletion?: () => void;
   onOpenOrders: () => void;
   onOpenFavourites?: () => void;
   onOpenRewards?: () => void;
@@ -69,6 +75,8 @@ export function AccountView({
   onBack,
   onOpenDetails,
   onOpenAddresses,
+  onOpenDeleteAccount,
+  onOpenRequestDataDeletion,
   onOpenOrders,
   onOpenFavourites,
   onOpenRewards,
@@ -105,9 +113,25 @@ export function AccountView({
         onOpenAddresses();
         return;
       }
+      if (row.key === 'delete-account' && onOpenDeleteAccount) {
+        onOpenDeleteAccount();
+        return;
+      }
+      if (row.key === 'request-data-deletion' && onOpenRequestDataDeletion) {
+        onOpenRequestDataDeletion();
+        return;
+      }
       // TODO: Destination screens per row — stubs for now.
     },
-    [onOpenOrders, onOpenFavourites, onOpenSellWithUs, onOpenDetails, onOpenAddresses]
+    [
+      onOpenOrders,
+      onOpenFavourites,
+      onOpenSellWithUs,
+      onOpenDetails,
+      onOpenAddresses,
+      onOpenDeleteAccount,
+      onOpenRequestDataDeletion,
+    ]
   );
 
   return (

@@ -194,6 +194,8 @@ pipelines; a placement with no LIVE fill collapses the surface to `null` (never 
 | `user_events.flush` | `reco:{userIdHash}` | — |
 | `store.updated` / store live toggle (portal `PUT /seller/stores/{id}/live`) / `review.moderated` | `directory:store:{id}`, `catalog:store-products:{id}`, `reviews:product:{id}`, `geo:nearby:stores:{lat3}:{lng3}:*` + `geo:nearby:products:{lat3}:{lng3}:*` tile prefixes around the store's pin (3×3 block, all `radiusKm`/`app` variants; §5) | store/review URLs |
 | profile merge | `auth:uid:{sha256}` (delete) | — |
+| account deleted (`DELETE /users/me`) | `checkout:orders:{userId}`, `favourites:items:{userId}`, `rewards:view:{userId}`, `notifications:inbox:{userId}`, `pharma:prescriptions:{userId}`, `reviews:vendor:{vendorId}` for each vendor the user reviewed, `auth:uid:{sha256}` (delete) | — |
+| user data deleted (`POST /users/me/data-deletion`) | `favourites:items:{userId}`, `pharma:prescriptions:{userId}` (delete) | — |
 
 ---
 

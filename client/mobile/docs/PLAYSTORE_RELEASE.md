@@ -110,12 +110,42 @@ Each product is a **separate Play listing**; run this for `com.faazio.customer` 
    keystore (upload key) so uploads are always accepted.
 3. **App content / Data safety** (App content → Data safety): disclose **camera, location (rough +
    precise), media/photos, and Keychain/Keystore token storage**. Also complete content rating,
-   target audience, and a Privacy Policy URL before a production rollout.
+   target audience, and a Privacy Policy URL before a production rollout. Use the answer sheet in
+   **Step 3c** below.
 4. **Internal testing first** (Testing → Internal testing): upload the workflow's `.aab`, add your
    tester email, roll out. Installing via the internal link also makes **Play Integrity** return
    valid (it checks the Play Store app record against the Firebase SHA-256) — the prerequisite for
    turning on **App Check → Play Integrity → Enforce** and for SMS auto-retrieval on the signed build.
 5. After internal smoke tests pass, repeat the upload in **Closed testing**, then **Production**.
+
+## Step 3c: Data Safety / App Content answer sheet (per listing)
+
+Record the answers here so each listing is submitted consistently. The app has no advertising SDK
+and no `AD_ID` permission.
+
+| Section | Selection | Why |
+|---|---|---|
+| Target age groups | **18 and over only** | Pharma prescriptions + payments; policy says the service is for adults |
+| Restrict minors | **Enabled** | Under-18 groups become unselectable |
+| Account creation method | **Username and other authentication** | Phone number + Firebase OTP |
+| Independent security review | **No** | No SOC 2 / ISO 27001 / third-party audit |
+| UPI payments verified (NPCI) | **No** | Faazio launches third-party UPI apps; it is not a finance app |
+| Delete account URL | `https://faazio.com/privacy` | Prominent “Delete your account” section (`#delete-account`) |
+| Delete data without deleting account | **Yes** | In-app Account → Privacy and security → Request data deletion (`POST /users/me/data-deletion`) |
+| Ephemeral processing | **No** for personal data | Data persists in Supabase / Keychain |
+| Encrypted in transit | **Yes** | HTTPS release + certificate pinning; cleartext denied |
+| Advertising ID | **No** | No ad SDK / `AD_ID` permission |
+| Data collected / shared | **Yes** | Camera, location, media/photos, personal info, financial, health |
+| Required vs optional | Phone/name/IDs **required**; location/photos/address **optional** | Phone+OTP is sole auth; manual fallbacks exist |
+| Why collected | App functionality, account management, fraud prevention/security, personalisation | Derived from the app flows |
+| Why shared | App functionality, account management, fraud prevention/security | Gateway, Firebase, Supabase, Razorpay, UPI apps |
+| Financial features | **Mobile payments / digital wallets** + **Rewards, points, incentives** | UPI + tokenised cards; FaazioCoins / streak discounts |
+| Health features | **Medication and treatment management** + **Healthcare services and management** | Prescription upload, pharma ordering, blood donation |
+
+**Account deletion (required):** in-app **Account (You) → Privacy and security → Delete account**
+calls `DELETE /users/me`. It erases profile/addresses/favourites/prescriptions/rewards/blood records,
+unlinks the auth identity and clears the session, while retaining order/payment/tax records for
+legal retention. Never ship a build with the row hidden or the route removed.
 
 ## Step 4: Upload to Play Console
 
@@ -134,7 +164,9 @@ Each product is a **separate Play listing**; run this for `com.faazio.customer` 
 - [ ] Release built in CI with the release keystore and `CERT_PINS` configured.
 - [ ] Release keystore SHA-1/SHA-256 registered in Firebase for all three apps; Maps/Places keys restricted to the release SHA-1.
 - [ ] R8 smoke test passed on a device: Home → Cart → Checkout → Pharma.
+- [ ] Data Safety answer sheet (Step 3c) applied to every listing: 18+, minors restricted, delete-account URL `https://faazio.com/privacy`, delete-without-account = Yes, advertising ID = No.
 - [ ] Data Safety discloses camera, location, media, and Keychain/Keystore token storage.
+- [ ] In-app **Delete account** works (`Account → Privacy and security`) and clears the session; the public `#delete-account` section loads.
 - [ ] AAB produced by the workflow (`bundleCustomerRelease` / `bundleDeliveryRelease` / `bundleSellerRelease`) and uploaded to Play Console.
 
 ## See also

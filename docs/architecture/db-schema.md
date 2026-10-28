@@ -363,7 +363,8 @@ CREATE TABLE checkout.users (
   phone            TEXT NOT NULL,           -- PII
   default_address_id TEXT REFERENCES checkout.addresses(address_id),
   created_at       TIMESTAMPTZ NOT NULL DEFAULT now(),
-  last_login_at    TIMESTAMPTZ              -- set by the first authenticated OTP call (0030)
+  last_login_at    TIMESTAMPTZ,             -- set by the first authenticated OTP call (0030)
+  deleted_at       TIMESTAMPTZ              -- set by DELETE /users/me; PII blanked, auth_uid unlinked (0060)
 );
 ```
 
@@ -378,11 +379,19 @@ CREATE TABLE checkout.users (
 | `default_address_id` | TEXT | 6 | FK | btree |
 | `created_at` | TIMESTAMPTZ | 8 | audit | — |
 | `last_login_at` | TIMESTAMPTZ | 8 | ops visibility of real sessions | — |
+| `deleted_at` | TIMESTAMPTZ | 8 | account-deletion tombstone (`0060`); PII blanked + `auth_uid` unlinked, financial rows retained | partial (`deleted_at IS NOT NULL`) |
 
 `ProvisionUserID` (first authenticated OTP call) upserts this row **and** forward-fills the matching
 `accounts.profile` row (`id = account_id = user_id`, real phone/email only) so the app never renders
 the `@data` profile fixture for a signed-in user. `GET /profile` also falls back to this row for
 users provisioned before that write existed.
+
+**Account deletion (`0060`):** `DELETE /users/me` does not hard-delete this row (the non-cascading
+`checkout.addresses`/`orders`/`payments` FKs and the legal-retention requirement forbid it). It
+erases the PII tables (addresses, carts, favourites, prescriptions, rewards, blood, notifications,
+accounts.*), sets `name` to `Deleted user`, blanks `phone`, writes a non-routable `deleted+<id>@deleted.invalid` email,
+nulls `auth_uid`, and stamps `deleted_at`. Order/payment/tax rows survive, linked only to the
+anonymised row. A later login provisions a fresh account.
 
 **Sample row:** `user-1` · Rohit Sharma · rohit.sharma@gmail.com · +91 98765 43210 · addr_1
 (provenance `data/checkout/orders.ts:20-22`).

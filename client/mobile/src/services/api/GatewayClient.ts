@@ -258,6 +258,9 @@ export type ReadSource = 'live' | 'empty-authoritative' | 'offline-fallback' | '
 /** Accepted `POST /events` vocabulary (server-enforced). */
 export type TrackableEvent = 'view' | 'cart_add' | 'order' | 'search';
 
+/** Server-owned categories for partial data erasure (recent searches are device-local). */
+export type DataDeletionCategory = 'addresses' | 'favourites' | 'prescriptions';
+
 /** `POST /orders` request body. */
 export interface PlaceOrderInput {
   items: CartItem[];
@@ -1279,6 +1282,31 @@ export class GatewayClient {
         ),
       () => delay(undefined),
     );
+  }
+
+  /**
+   * Permanently delete the caller's account (DELETE /users/me). The server erases PII and keeps
+   * only the financial records it must retain for tax/accounting purposes. Strict: never pretend a
+   * deletion succeeded while offline.
+   */
+  async deleteAccount(): Promise<void> {
+    if (!REMOTE_ENABLED) throw new GatewayOfflineError();
+    await this.http<{ ok: boolean }>('/users/me', { method: 'DELETE' });
+  }
+
+  /**
+   * Erase selected categories of personal data while keeping the account (POST
+   * /users/me/data-deletion). Recent-search history is device-local and cleared by the caller.
+   */
+  async requestDataDeletion(
+    categories: DataDeletionCategory[],
+  ): Promise<DataDeletionCategory[]> {
+    if (!REMOTE_ENABLED) throw new GatewayOfflineError();
+    const res = await this.http<{ ok: boolean; deleted?: DataDeletionCategory[] }>(
+      '/users/me/data-deletion',
+      { method: 'POST', body: JSON.stringify({ categories }) },
+    );
+    return res.deleted ?? [];
   }
 
   /** Durable favourites shelf (auth-scoped, never edge-cached). */

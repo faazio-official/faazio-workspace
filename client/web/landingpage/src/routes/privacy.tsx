@@ -23,7 +23,7 @@ import {
 
 const title = "Privacy Policy — Faazio | How we handle your data";
 const description =
-  "Read the Faazio privacy policy — what personal data we collect across Mart, Food, Pharma, and community features, how we use and share it, and the rights you have.";
+  "Read the Faazio privacy policy — what personal data we collect across Mart, Food, Pharma, and community features, how we use and share it, how to delete your account, and the rights you have.";
 const keywords =
   "Faazio privacy policy, Faazio data protection, Faazio app privacy, Faazio personal data, Faazio Karaikal privacy, DPDP, data deletion Faazio";
 
@@ -102,6 +102,12 @@ const privacySections: PolicySection[] = [
               <strong>Push notifications.</strong> A Firebase Cloud Messaging token so we can send
               order updates and service messages. You can disable notifications in your device
               settings.
+            </>,
+            <>
+              <strong>Installed payment apps.</strong> To show the UPI payment options available at
+              checkout, we check which UPI apps (for example Google Pay, PhonePe, Paytm, Amazon Pay,
+              or BHIM) are installed on your device. This check happens locally on your device; we
+              do not transmit the list of installed apps to our servers.
             </>,
             <>
               <strong>Community and reviews.</strong> If you use Faazio Community (including blood
@@ -390,6 +396,91 @@ function PrivacyPolicy() {
             </p>
           </div>
         </section>
+        <section
+          id="delete-account"
+          className="section scroll-mt-24"
+          aria-labelledby="delete-account-title"
+        >
+          <div className="page-width">
+            <div className="content-block">
+              <div className="rounded-2xl border border-border bg-muted/40 p-6 md:p-8">
+                <p className="eyebrow">ACCOUNT DELETION</p>
+                <h2
+                  id="delete-account-title"
+                  className="mt-0 font-display text-[26px] font-bold text-foreground"
+                >
+                  Delete your account
+                </h2>
+                <p>
+                  You can permanently delete your Faazio account in the app or by email. Deleting
+                  your account removes your personal data; a limited set of records is kept where
+                  the law requires it.
+                </p>
+
+                <h3 className="mt-6 font-display text-[19px] font-bold text-foreground">
+                  Delete your account in the app
+                </h3>
+                <ol className="mt-3 list-decimal space-y-2 pl-5 text-[14px] leading-7 text-muted-foreground">
+                  <li>Open the Faazio app and go to the Account (You) tab.</li>
+                  <li>Open Privacy and security, then tap Delete account.</li>
+                  <li>Review what is deleted and kept, then confirm Delete my account.</li>
+                </ol>
+
+                <h3 className="mt-6 font-display text-[19px] font-bold text-foreground">
+                  Delete your account by email
+                </h3>
+                <p>
+                  If you cannot sign in, email{" "}
+                  <a
+                    href={`mailto:${BUSINESS_EMAIL}?subject=Delete%20my%20account`}
+                    className="font-semibold text-primary underline underline-offset-4"
+                  >
+                    {BUSINESS_EMAIL}
+                  </a>{" "}
+                  with the subject “Delete my account” from the email or phone number on your
+                  account. We may ask you to verify your identity before acting.
+                </p>
+
+                <h3 className="mt-6 font-display text-[19px] font-bold text-foreground">
+                  What we delete
+                </h3>
+                <PolicyList
+                  items={[
+                    "Account and profile details — name, email address, and phone number.",
+                    "Saved delivery addresses and default-address selection.",
+                    "Saved card tokens stored on your device.",
+                    "Favourites, recent searches, and cart contents.",
+                    "Prescription images and prescription details you uploaded.",
+                    "Blood donation records and notification device tokens.",
+                    "FaazioCoins balance and streak progress.",
+                  ]}
+                />
+
+                <h3 className="mt-6 font-display text-[19px] font-bold text-foreground">
+                  What we keep, and for how long
+                </h3>
+                <PolicyList
+                  items={[
+                    "Order, payment, return, and tax invoice records are kept as long as required by tax, accounting, consumer-protection, and dispute-resolution rules. They are no longer linked to your name, email address, or phone number.",
+                    "Security and audit logs are currently kept for about 7 days, then deleted.",
+                    "Hashed usage events are kept for about 90 days, then deleted.",
+                  ]}
+                />
+                <p>
+                  We complete deletion within 30 days of a verified request, except for records we
+                  must retain under the periods above. See{" "}
+                  <a
+                    href="#retention"
+                    className="font-semibold text-primary underline underline-offset-4"
+                  >
+                    Section 5, “How long we keep your information”
+                  </a>{" "}
+                  for the full retention schedule.
+                </p>
+              </div>
+            </div>
+          </div>
+        </section>
         <section className="section">
           <div className="page-width">
             <div className="content-block">
@@ -399,7 +490,12 @@ function PrivacyPolicy() {
                 defaultValue={privacySections.map((section) => section.id)}
               >
                 {privacySections.map((section) => (
-                  <AccordionItem key={section.id} value={section.id}>
+                  <AccordionItem
+                    key={section.id}
+                    id={section.id}
+                    value={section.id}
+                    className="scroll-mt-24"
+                  >
                     <AccordionTrigger className="py-6 font-display text-[19px] font-bold">
                       {section.title}
                     </AccordionTrigger>

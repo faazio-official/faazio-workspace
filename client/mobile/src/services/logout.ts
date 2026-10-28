@@ -7,14 +7,16 @@ import { useBloodDonorStore } from '@/state/bloodDonorStore';
 import { useRewardsStore } from '@/state/rewardsStore';
 import { useOrdersStore } from '@/state/ordersStore';
 import { useVendorRatingStore } from '@/state/vendorRatingStore';
+import { clearSavedCards } from '@/features/cart/payment/cardStorage';
 import { gateway } from './api/GatewayClient';
 import { resetProductViews } from './productViews';
 
 /**
- * Clears every piece of per-user local state on explicit logout.
+ * Clears every piece of per-user local state. Used by sign-out and by account deletion (which must
+ * not call the gateway again after the server has already anonymised the account).
  * Global app config (language) is intentionally preserved.
  */
-export async function logoutUser(): Promise<void> {
+export async function resetLocalUserState(): Promise<void> {
   // Drop the device caches without deleting the server-authoritative cart/favourites, which must
   // survive sign-out and be re-hydrated for this user on the next login.
   useCartStore.getState().resetLocal();
@@ -26,6 +28,12 @@ export async function logoutUser(): Promise<void> {
   useRewardsStore.getState().reset();
   useVendorRatingStore.getState().reset();
   resetProductViews();
+  await clearSavedCards();
+}
+
+/** Explicit sign-out: local reset, stop pushes, then drop the Keychain session. */
+export async function logoutUser(): Promise<void> {
+  await resetLocalUserState();
 
   // Stop pushes to a signed-out device (best-effort; the token is re-registered on next login).
   await gateway.unregisterPushToken().catch(() => {});
