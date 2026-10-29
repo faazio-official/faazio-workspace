@@ -31,6 +31,7 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import AppText from '@/components/AppText';
+import InfoButton from '@/components/shared/InfoButton';
 import { hs, vs, ms } from '@/utils/responsive';
 import { SPACE } from '@/theme/spacing';
 import { BLOOD_REQUEST_DETAIL_COPY } from '@data/index';
@@ -113,7 +114,7 @@ export function BloodRequestDescriptionScreen({ navigation, route }: Props) {
             <ChevronLeft size={ms(26)} color={BLOOD_TEXT} strokeWidth={2.2} />
           </TouchableOpacity>
           <AppText style={styles.headerTitle}>Request Details</AppText>
-          <View style={styles.headerRightSpacer} />
+          <InfoButton contentKey="BloodRequestDescription" />
         </View>
         <View style={styles.missingBody}>
           <Droplet size={ms(30)} color={BLOOD_RED_SOFT} fill={BLOOD_RED_SOFT} strokeWidth={2} />
@@ -210,6 +211,7 @@ export function BloodRequestDescriptionScreen({ navigation, route }: Props) {
           <ChevronLeft size={ms(26)} color={BLOOD_TEXT} strokeWidth={2.2} />
         </TouchableOpacity>
         <AppText style={styles.headerTitle}>Request Details</AppText>
+        <InfoButton contentKey="BloodRequestDescription" />
         <TouchableOpacity
           onPress={handleShare}
           style={styles.shareBtn}

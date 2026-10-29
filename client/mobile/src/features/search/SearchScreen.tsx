@@ -29,6 +29,8 @@ interface SearchScreenProps {
   inputRef?: React.RefObject<TextInput | null>;
   /** Optional scroll callback forwarded to the underlying FlatList. */
   onScroll?: (event: NativeSyntheticEvent<NativeScrollEvent>) => void;
+  /** Registry key for the header "i" guidance button. */
+  infoKey?: string;
 }
 
 /**
@@ -45,6 +47,7 @@ const SearchScreen = memo(function SearchScreen({
   initialMode,
   inputRef,
   onScroll,
+  infoKey,
 }: SearchScreenProps) {
   const defaultKey = config.toggles[0]?.key ?? '';
   const [activeKey, setActiveKey] = useState(
@@ -254,6 +257,7 @@ const SearchScreen = memo(function SearchScreen({
         inputRef={headerInputRef}
         onSubmit={commitQuery}
         accentColor={config.accentColor}
+        infoKey={infoKey}
       />
 
       {typing ? (

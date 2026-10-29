@@ -20,6 +20,7 @@ import {
 import { hs, vs, ms, SCREEN_W } from '@/utils/responsive';
 import { SPACE } from '@/theme/spacing';
 import AppText from '@/components/AppText';
+import InfoButton from '@/components/shared/InfoButton';
 import ProductCardBase from '@/components/shared/ProductCardBase';
 import { applyActiveDiscounts, useActiveDiscounts } from '@/services/pricing';
 import { gateway } from '@/services/api/GatewayClient';
@@ -403,6 +404,7 @@ export default function CommonProductDetailView({
           <ArrowLeft size={ms(22)} color="#0f172a" strokeWidth={2.2} />
         </TouchableOpacity>
         <View style={styles.headerRight}>
+          <InfoButton contentKey="ProductDetail" />
           <TouchableOpacity onPress={onSearch} style={styles.headerBtn} activeOpacity={0.7}>
             <Search size={ms(23)} color="#0f172a" strokeWidth={2.2} />
           </TouchableOpacity>

@@ -18,6 +18,7 @@ import {
 } from 'lucide-react-native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import AppText from '@/components/AppText';
+import InfoButton from '@/components/shared/InfoButton';
 import { VendorRateButton } from '@/components/shared';
 import { hs, vs, ms } from '@/utils/responsive';
 import { SPACE } from '@/theme/spacing';
@@ -291,6 +292,7 @@ export function MyOrdersScreen({ navigation, route }: Props) {
             >
               <Settings size={ms(22)} color="#0f172a" strokeWidth={2} />
             </TouchableOpacity>
+            <InfoButton contentKey="MyOrders" />
           </View>
         </View>
       </View>

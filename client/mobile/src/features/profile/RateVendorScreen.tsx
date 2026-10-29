@@ -10,6 +10,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ChevronLeft, ShieldCheck } from 'lucide-react-native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import AppText from '@/components/AppText';
+import InfoButton from '@/components/shared/InfoButton';
 import { StarRatingInput } from '@/components/shared';
 import { getVendorById } from '@data/index';
 import { MAX_VENDOR_RATING_COMMENT } from '@/state/vendorRatingStore';
@@ -88,6 +89,7 @@ export function RateVendorScreen({ navigation, route }: Props) {
           <ChevronLeft size={ms(26)} color="#0f172a" strokeWidth={2.2} />
         </TouchableOpacity>
         <AppText style={styles.headerTitle}>Rate Vendor</AppText>
+        <InfoButton contentKey="RateVendor" />
       </View>
 
       <ScrollView

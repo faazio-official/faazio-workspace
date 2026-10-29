@@ -6,6 +6,7 @@ import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { hs, ms, vs } from '@/utils/responsive';
 import { SPACE } from '@/theme/spacing';
 import AppText from '@/components/AppText';
+import InfoButton from '@/components/shared/InfoButton';
 import type { Product } from '@data/types';
 import { gateway, type HomeCampaignDetail } from '@/services/api/GatewayClient';
 import { adCampaigns, getCampaignProducts, getCampaignStore } from '@data/home/campaigns';
@@ -251,6 +252,7 @@ export function DealsLandingScreen({ navigation, route }: Props) {
           <ArrowLeft size={ms(20)} color="#1E2022" strokeWidth={2.6} />
         </TouchableOpacity>
         <AppText style={styles.topBarTitle} numberOfLines={1}>{title}</AppText>
+        <InfoButton contentKey="DealsLanding" />
       </View>
 
       <FlatList

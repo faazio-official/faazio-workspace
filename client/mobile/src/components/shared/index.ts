@@ -1,3 +1,5 @@
+export { default as InfoButton } from './InfoButton';
+export { default as InfoSheet } from './InfoSheet';
 export { default as ProductCardBase } from './ProductCardBase';
 export { default as StoreCardBase } from './StoreCardBase';
 export { default as AdLabelBadge } from './AdLabelBadge';

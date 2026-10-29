@@ -38,7 +38,7 @@ export function SearchRouteScreen({ navigation, route }: Props) {
 
   return (
     <View style={styles.container}>
-      <SearchScreen config={config} onBack={handleBack} initialQuery={initialQuery} />
+      <SearchScreen config={config} onBack={handleBack} initialQuery={initialQuery} infoKey="Search" />
     </View>
   );
 }

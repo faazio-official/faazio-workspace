@@ -6,6 +6,7 @@ import { hs, vs, ms } from '@/utils/responsive';
 import { brandTokens } from '@/theme/brandTokens';
 import { resolveBadgeBg, formatRating } from './format';
 import AdLabelBadge from './AdLabelBadge';
+import InfoButton from './InfoButton';
 import type { Product, AppBrand } from '@data/types';
 import type { CardVariant } from '@data/schema';
 import AppText from '@/components/AppText';
@@ -36,6 +37,8 @@ interface ProductCardBaseProps {
   roundedImageBottom?: boolean;
   /** Image aspect ratio for grid2/rail/flash variants. Default 3/4 portrait. */
   imageAspect?: number;
+  /** Opt-in registry key that renders a small "i" guidance badge. */
+  infoKey?: string;
 }
 
 const ProductCardBase = memo(function ProductCardBase({
@@ -45,7 +48,7 @@ const ProductCardBase = memo(function ProductCardBase({
   width, showRating = true, showDescription = false,
   showHeart = false, showBadge = true, showAdLabel = false, originalPrice,
   roundedImageBottom = false, imageAspect = 3 / 4,
-  showPrice = true, showAddButton = true,
+  showPrice = true, showAddButton = true, infoKey,
 }: ProductCardBaseProps) {
   const tokens = brandTokens[appBrand];
   const isRail = variant === 'rail' || variant === 'flash';
@@ -96,6 +99,11 @@ const ProductCardBase = memo(function ProductCardBase({
             <AdLabelBadge />
           </View>
         )}
+        {infoKey ? (
+          <View style={styles.infoBadge}>
+            <InfoButton variant="badge" contentKey={infoKey} backgroundColor="#ffffff" />
+          </View>
+        ) : null}
       </View>
       <View style={styles.body}>
         {product.rating !== undefined && showRating && (
@@ -160,6 +168,7 @@ const styles = StyleSheet.create({
   flashBadge: { position: 'absolute', top: vs(6), right: hs(6), backgroundColor: '#ef4444', paddingHorizontal: hs(6), paddingVertical: vs(2), borderRadius: ms(4) },
   flashText: { fontSize: ms(7), fontWeight: '900', color: '#ffffff' },
   adLabelWrap: { position: 'absolute', bottom: vs(4), right: hs(4) },
+  infoBadge: { position: 'absolute', bottom: vs(4), left: hs(4), borderRadius: ms(14), overflow: 'hidden' },
   heartBtn: { position: 'absolute', top: vs(6), right: hs(6) },
   body: { padding: hs(8) },
   ratingRow: { flexDirection: 'row', alignItems: 'center', marginBottom: vs(2) },

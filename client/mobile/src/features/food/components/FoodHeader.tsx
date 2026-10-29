@@ -3,11 +3,14 @@ import { View, TouchableOpacity, StyleSheet } from 'react-native';
 import { ArrowLeft } from 'lucide-react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { hs, ms, vs } from '@/utils/responsive';
+import InfoButton from '@/components/shared/InfoButton';
 import { foodTheme } from '../constants/theme';
 import DietToggle from './DietToggle';
 
 interface FoodHeaderProps {
   onBack?: () => void;
+  /** Registry key for the header "i" guidance button. */
+  infoKey?: string;
 }
 
 /**
@@ -15,7 +18,7 @@ interface FoodHeaderProps {
  * the status-bar inset. The toggle is uncontrolled, so it reads/writes the
  * shared `foodFilterStore` like the rest of the Food home.
  */
-const FoodHeader = memo(function FoodHeader({ onBack }: FoodHeaderProps) {
+const FoodHeader = memo(function FoodHeader({ onBack, infoKey }: FoodHeaderProps) {
   const insets = useSafeAreaInsets();
 
   return (
@@ -35,7 +38,13 @@ const FoodHeader = memo(function FoodHeader({ onBack }: FoodHeaderProps) {
           <DietToggle />
         </View>
 
-        <View style={styles.spacer} />
+        {infoKey ? (
+          <View style={styles.trailing}>
+            <InfoButton contentKey={infoKey} color={foodTheme.textPrimary} backgroundColor="#FFFFFF" />
+          </View>
+        ) : (
+          <View style={styles.spacer} />
+        )}
       </View>
     </View>
   );
@@ -68,5 +77,9 @@ const styles = StyleSheet.create({
   },
   spacer: {
     width: ms(40),
+  },
+  trailing: {
+    width: ms(40),
+    alignItems: 'flex-end',
   },
 });
