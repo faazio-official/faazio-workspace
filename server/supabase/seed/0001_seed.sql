@@ -1199,9 +1199,9 @@ insert into accounts.order_status (id, user_id, key, label, count) values
 insert into accounts.nav (user_id, key, rows) values
   ('user-1', 'profile', '[{"key":"orders","icon":"package","title":"My Orders","subtitle":"Track and manage your orders"},{"key":"details","icon":"idcard","title":"My Profile","subtitle":"Manage your personal information"},{"key":"addresses","icon":"map-pin","title":"Addresses","subtitle":"Manage saved addresses"},{"key":"favourites","icon":"heart","title":"Favourites","subtitle":"Your favourite items across all apps"},{"key":"recently-viewed","icon":"clock","title":"Recently Viewed","subtitle":"Items you recently viewed"}]'::jsonb),
   ('user-1', 'payments', '[{"key":"payments","icon":"credit-card","title":"Payments","subtitle":"UPI, Cards, Wallets, Gift Cards"}]'::jsonb),
-  ('user-1', 'privacy', '[]'::jsonb),
+  ('user-1', 'privacy', '[{"key":"delete-account","icon":"trash","title":"Delete account","subtitle":"Permanently delete your Faazio account"},{"key":"request-data-deletion","icon":"shield","title":"Request data deletion","subtitle":"Erase selected data and keep your account"}]'::jsonb),
   ('user-1', 'earn', '[{"key":"sell-with-us","icon":"store","title":"Sell with us","subtitle":"Partner with Faazio & list your products"}]'::jsonb),
-  ('user-1', 'legal', '[]'::jsonb),
+  ('user-1', 'legal', '[{"key":"terms","icon":"file-text","title":"Terms & Conditions","subtitle":"How Faazio works and what you agree to"},{"key":"privacy","icon":"lock","title":"Privacy Policy","subtitle":"How we collect, use, and protect your data"},{"key":"refunds","icon":"receipt","title":"Refund & Cancellation Policy","subtitle":"Returns, refunds, and cancellations"},{"key":"cookies","icon":"cookie","title":"Cookie Policy","subtitle":"Cookies used on faazio.com"},{"key":"disclaimer","icon":"info","title":"Disclaimer","subtitle":"Health, pricing, and third-party notices"}]'::jsonb),
   ('user-1', 'support', '[{"key":"support","icon":"headphones","title":"Customer Support","subtitle":"Help center, Chat with us"}]'::jsonb);
 
 insert into accounts.details (user_id, account_id, data) values
