@@ -1,6 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { MotionConfig } from "motion/react";
-import { FaazioLogo } from "@/components/faazio-logo";
 import {
   LEGAL_EFFECTIVE_DATE,
   PolicyList,
@@ -150,9 +149,6 @@ function CookiePolicy() {
       <main id="main">
         <section className="page-hero" aria-labelledby="cookies-title">
           <div className="page-width">
-            <div className="mb-4 flex items-center gap-3 text-primary">
-              <FaazioLogo className="h-7 w-auto" aria-hidden="true" />
-            </div>
             <p className="eyebrow">COOKIE POLICY</p>
             <h1 id="cookies-title">A light touch on cookies.</h1>
             <p className="page-lead">

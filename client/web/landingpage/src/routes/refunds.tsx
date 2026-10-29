@@ -1,6 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { MotionConfig } from "motion/react";
-import { FaazioLogo } from "@/components/faazio-logo";
 import {
   LEGAL_EFFECTIVE_DATE,
   PolicyList,
@@ -164,9 +163,6 @@ function RefundPolicy() {
       <main id="main">
         <section className="page-hero" aria-labelledby="refunds-title">
           <div className="page-width">
-            <div className="mb-4 flex items-center gap-3 text-primary">
-              <FaazioLogo className="h-7 w-auto" aria-hidden="true" />
-            </div>
             <p className="eyebrow">REFUND &amp; CANCELLATION POLICY</p>
             <h1 id="refunds-title">Returns, refunds, and cancellations.</h1>
             <p className="page-lead">
