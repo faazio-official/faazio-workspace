@@ -80,21 +80,25 @@ rendered on the error card** (plus the first stack frame in a dev build) — tha
 - If the icon is unchanged after `adb install`, the installed APK predates the icon assets, or the
   OS didn't see a version change. **Bump `versionCode`/`versionName`** in
   `android/app/build.gradle` (+ `package.json` `version`), rebuild, and reinstall.
-- Shipped launcher assets are committed (not generated at build time):
-  - Android legacy (API 24–25): `android/app/src/main/res/mipmap-*/ic_launcher.webp` +
-    `ic_launcher_round.webp`.
-  - Android adaptive (API 26+): `res/mipmap-anydpi-v26/ic_launcher.xml` +
-    `ic_launcher_round.xml`, using `@color/iconBackground` (#4250FF) and
+- Shipped launcher assets are committed (not generated at build time) and are **per product**:
+  - Customer (main): `android/app/src/main/res/` + iOS `AppIcon.appiconset`.
+  - Delivery: `android/app/src/delivery/res/` + iOS `Delivery-AppIcon.appiconset`.
+  - Seller: `android/app/src/seller/res/` + iOS `Seller-AppIcon.appiconset`.
+  - Android legacy (API 24–25): `mipmap-*/ic_launcher.webp` + `ic_launcher_round.webp`.
+  - Android adaptive (API 26+): shared `res/mipmap-anydpi-v26/ic_launcher.xml` +
+    `ic_launcher_round.xml` (in `src/main`), using the flavor's `@color/iconBackground` and
     `res/drawable/ic_launcher_foreground_inset.xml` — a 20dp safe-zone inset around
     `@mipmap/ic_launcher_foreground` so the knot is never clipped by the launcher mask.
-  - iOS: `ios/Faazio/Images.xcassets/AppIcon.appiconset/` (single 1024×1024 universal icon,
-    RGB with no alpha).
-- All three Android flavors (`customer`/`delivery`/`seller`) share this one icon set; each flavor
-  manifest declares the same `android:icon`/`android:roundIcon`, and the launcher label still comes
-  from the per-flavor `resValue app_name`.
-- `src/assets/icon.png`, `adaptive-icon.png` and `faazio-logo.png` are **not** packaged as launcher
-  icons. `scripts/regenerate-icons.py` only writes into `src/assets/` (and reuses `icon.png` as its
-  own source), so running it does **not** change the APK/IPA icon — edit the committed files above.
+  - iOS: single 1024×1024 universal icon, RGB with no alpha.
+- Each flavor manifest declares its own `android:icon`/`android:roundIcon`; the resources resolve
+  from the flavor source set (overriding `src/main`), and the launcher label comes from the
+  per-flavor `resValue app_name`. The iOS build setting `ASSETCATALOG_COMPILER_APPICON_NAME` selects
+  `AppIcon` / `Delivery-AppIcon` / `Seller-AppIcon` per configuration.
+- Regenerate the delivery/seller icons from the committed artwork
+  (`src/assets/icon-delivery.png` / `icon-seller.png`) with
+  `python3 scripts/generate-partner-icons.py`. `src/assets/icon.png`, `adaptive-icon.png` and
+  `faazio-logo.png` are **not** packaged as launcher icons — `scripts/regenerate-icons.py` only
+  writes into `src/assets/`, so running it does **not** change the APK/IPA icon.
 
 ## 📍 Location / maps
 

@@ -23,7 +23,7 @@ Android metadata lives in the committed native project, not `app.json` (deleted)
 | `applicationId` / `namespace` | `android/app/build.gradle` (`com.faazio.customer`) |
 | `versionCode` / `versionName` | `android/app/build.gradle` (keep `package.json` version in sync) |
 | Permissions | `android/app/src/main/AndroidManifest.xml` |
-| Icons / splash | `android/app/src/main/res/` |
+| Icons | customer `android/app/src/main/res/`; delivery/seller `android/app/src/<flavor>/res/` (splash stays in `src/main/res/`) |
 | Cleartext / cert pins | `android/app/src/main/res/xml/network_security_config.xml` |
 | Min/target/compile SDK | `android/build.gradle` (`24/36/36`) |
 
@@ -32,9 +32,10 @@ Android metadata lives in the committed native project, not `app.json` (deleted)
 
 > The partner apps are separate Play listings built from the same shell with their own `applicationId`
 > and launcher label: Delivery Partner `com.faazio.deliverypartner` ("Faazio Delivery Partner"),
-> Seller Partner `com.faazio.sellerpartner` ("Faazio Seller Partner"). Their Firebase
-> `google-services.json` files are CI-only (`GOOGLE_SERVICES_DELIVERY_JSON` /
-> `GOOGLE_SERVICES_SELLER_JSON`).
+> Seller Partner `com.faazio.sellerpartner` ("Faazio Seller Partner"). Each also ships its own
+> launcher icon from `src/delivery/res/` / `src/seller/res/` (iOS: `Delivery-AppIcon` /
+> `Seller-AppIcon` in `ios/Faazio/Images.xcassets/`). Their Firebase `google-services.json` files
+> are CI-only (`GOOGLE_SERVICES_DELIVERY_JSON` / `GOOGLE_SERVICES_SELLER_JSON`).
 
 ---
 

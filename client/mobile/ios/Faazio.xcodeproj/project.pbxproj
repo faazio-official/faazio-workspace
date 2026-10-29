@@ -326,7 +326,7 @@
 		1C9A84DC22AFCA9097DB1B75 /* Delivery-Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
-				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_APPICON_NAME = Delivery-AppIcon;
 				CLANG_ENABLE_MODULES = YES;
 				CODE_SIGN_ENTITLEMENTS = Faazio/Faazio.entitlements;
 				CURRENT_PROJECT_VERSION = 4;
@@ -357,7 +357,7 @@
 		5E11E0D00000000000000002 /* Seller-Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
-				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_APPICON_NAME = Seller-AppIcon;
 				CLANG_ENABLE_MODULES = YES;
 				CODE_SIGN_ENTITLEMENTS = Faazio/Faazio.entitlements;
 				CURRENT_PROJECT_VERSION = 4;
@@ -721,7 +721,7 @@
 		CE0F4654955E4F36310CC65B /* Delivery-Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
-				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_APPICON_NAME = Delivery-AppIcon;
 				CLANG_ENABLE_MODULES = YES;
 				CODE_SIGN_ENTITLEMENTS = Faazio/Faazio.entitlements;
 				CURRENT_PROJECT_VERSION = 4;
@@ -758,7 +758,7 @@
 		5E11E0D00000000000000001 /* Seller-Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
-				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_APPICON_NAME = Seller-AppIcon;
 				CLANG_ENABLE_MODULES = YES;
 				CODE_SIGN_ENTITLEMENTS = Faazio/Faazio.entitlements;
 				CURRENT_PROJECT_VERSION = 4;
