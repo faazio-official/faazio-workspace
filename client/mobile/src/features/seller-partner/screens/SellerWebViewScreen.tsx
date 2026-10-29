@@ -9,12 +9,13 @@ import {
   Text,
   View,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { WebView as NativeWebView } from 'react-native-webview';
 import type { WebViewNavigation, WebViewProps } from 'react-native-webview';
 import { WEB_PORTAL_URL } from '@/lib/config';
 import { getSellerPushToken, startSellerPush } from '@/services/sellerPush';
-import { ms, vs } from '@/utils/responsive';
+import InfoButton from '@/components/shared/InfoButton';
+import { hs, ms, vs } from '@/utils/responsive';
 
 type WebViewHandle = {
   injectJavaScript: (script: string) => void;
@@ -72,6 +73,7 @@ export function SellerWebViewScreen() {
   const [error, setError] = useState<string | null>(null);
   const [reloadKey, setReloadKey] = useState(0);
   const origin = useMemo(portalOrigin, []);
+  const insets = useSafeAreaInsets();
 
   const portalUrl = `${portalBase}/seller`;
   const originWhitelist = useMemo(
@@ -234,6 +236,15 @@ export function SellerWebViewScreen() {
           </Pressable>
         </View>
       ) : null}
+      <View style={[styles.infoFab, { bottom: Math.max(insets.bottom, vs(16)) }]}>
+        <InfoButton
+          contentKey="Portal"
+          variant="badge"
+          color="#1162D3"
+          backgroundColor="#ffffff"
+          accessibilityLabel="About the seller portal"
+        />
+      </View>
     </SafeAreaView>
   );
 }
@@ -270,4 +281,15 @@ const styles = StyleSheet.create({
     backgroundColor: '#1162D3',
   },
   buttonText: { fontSize: ms(13), fontWeight: '800', color: '#fff' },
+  infoFab: {
+    position: 'absolute',
+    right: hs(14),
+    zIndex: 20,
+    borderRadius: ms(14),
+    shadowColor: '#000000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 6,
+    elevation: 4,
+  },
 });

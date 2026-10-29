@@ -32,7 +32,7 @@ src/
 │   # the designer SVG (source at assets/brand/logo-welcomepage.svg) to avoid the
 │   # fragile react-native-svg `<Image>` + base64 data-URI path; size is applied to
 │   # the visible glyph box (829×227) so both variants share one optical scale.
-│   └── shared/                 # 15 reusable primitives (ProductCardBase, StoreCardBase, Screen, AdBannerCarousel, …)
+│   └── shared/                 # 17 reusable primitives (ProductCardBase, StoreCardBase, Screen, AdBannerCarousel, …)
 ├── features/                   # vertical feature modules (16)
 ├── navigation/                 # AppNavigator, MainTabs, FoodStack, types
 ├── services/                   # GatewayClient, logout, secureSession, categoryVendors, homeFeed, pricing
@@ -1327,6 +1327,23 @@ sheet.
   `VendorRateButton`.
 - **Shared widgets** (`src/components/shared/`): `StarRatingInput`, `VendorRatingSummaryBar`,
   `VendorReviewsSection`, `VendorRateButton`; hook `useVendorRating` re-derives on store changes.
+
+## In-app guidance — the "i" InfoButton
+
+- **One registry** (`src/lib/pageInfo.ts`): plain-data `PAGE_INFO` (per page: why it exists,
+  bounded workflow, what changes, a concrete example, owning app) + `COMPONENT_INFO` (per component
+  type). `resolveInfo(key)` normalises either into an `InfoDoc`. No PII/secrets; static text only.
+- **One button + one surface** (`src/components/shared/InfoButton.tsx`, `InfoSheet.tsx`): the small
+  lucide `Info` "i" opens a `SlideUpSheet` (existing pattern, no new deps) with labelled sections and
+  a "Got it" dismiss. Hook `src/lib/usePageInfo.ts` resolves the key; an unregistered key renders
+  nothing (graceful).
+- **Every screen header** carries a page-level "i" (customer routes, the shared `SubAppHeader`/
+  `SearchHeader`/`FoodHeader` via their `infoKey` prop, all 8 Delivery Partner screens, and a small
+  floating "i" over the Seller WebView shell). **Component-level** guidance is opt-in via an
+  `infoKey` prop on `ProductCardBase`, `StoreCardBase`, `SearchProductRowCard` and the delivery
+  `Field`/`Card` primitives.
+- **Seller app caveat:** the portal (WebView) owns its own UI and cannot be injected into; the native
+  "i" documents that the web portal governs seller flows.
 
 ## Boundary enforcement
 

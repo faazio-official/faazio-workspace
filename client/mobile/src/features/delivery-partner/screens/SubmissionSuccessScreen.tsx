@@ -3,6 +3,7 @@ import { RefreshControl, ScrollView, StyleSheet, TouchableOpacity, View } from '
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import AppText from '@/components/AppText';
 import { FaazioLogo } from '@/components/FaazioLogo';
+import InfoButton from '@/components/shared/InfoButton';
 import { gateway, type DeliveryPartnerRider } from '@/services/api/GatewayClient';
 import { useAuthStore } from '@/state/authStore';
 import { useDeliveryPartnerStore } from '@/state/deliveryPartnerStore';
@@ -63,6 +64,8 @@ export function SubmissionSuccessScreen({ navigation }: Props) {
         <View style={styles.brandRow}>
           <FaazioLogo size={26} />
           <AppText style={styles.kicker}>Delivery Partner</AppText>
+          <View style={styles.flex} />
+          <InfoButton contentKey="SubmissionSuccess" />
         </View>
         <AppText style={styles.title}>Application status</AppText>
         {rider ? <RiderSummary rider={rider} /> : null}

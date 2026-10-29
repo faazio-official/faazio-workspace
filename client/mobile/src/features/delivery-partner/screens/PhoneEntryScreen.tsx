@@ -10,6 +10,7 @@ import {
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import AppText from '@/components/AppText';
 import { FaazioLogo } from '@/components/FaazioLogo';
+import InfoButton from '@/components/shared/InfoButton';
 import { Card, DP, ErrorText, Field, PrimaryButton, Screen } from '../components';
 import { sendOtp } from '@/services/firebaseAuth';
 import { GatewayHttpError, gateway } from '@/services/api/GatewayClient';
@@ -90,7 +91,10 @@ export function PhoneEntryScreen({ navigation }: Props) {
               <FaazioLogo size={30} />
             </View>
             <AppText style={styles.kicker}>Faazio</AppText>
-            <AppText style={styles.title}>Delivery Partner</AppText>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: hs(8) }}>
+              <AppText style={styles.title}>Delivery Partner</AppText>
+              <InfoButton contentKey="PhoneEntry" />
+            </View>
             <AppText style={styles.subtitle}>
               Earn on your schedule. Verify your documents once, then go online and accept orders.
             </AppText>

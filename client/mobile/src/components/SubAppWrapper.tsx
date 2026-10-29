@@ -346,6 +346,7 @@ export default function SubAppWrapper({
           title={HEADER_TITLES[subAppId]}
           gradient={tokens.headerGradient}
           textColor={tokens.headerTextColor}
+          infoKey="SubApp"
           onBack={handleBack}
           searchValue={searchQuery}
           onSearchChange={setSearchQuery}

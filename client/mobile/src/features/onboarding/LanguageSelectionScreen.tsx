@@ -13,6 +13,7 @@ import { RootStackParamList } from '@/navigation/AppNavigator';
 import { Search } from 'lucide-react-native';
 import AppText from '@/components/AppText';
 import { Screen } from '@/components/shared';
+import InfoButton from '@/components/shared/InfoButton';
 import { useLanguageStore } from '@/state/languageStore';
 import { hs, vs, ms } from '@/utils/responsive';
 import { SPACE } from '@/theme/spacing';
@@ -84,7 +85,10 @@ export default function LanguageSelectionScreen({ navigation }: Props) {
           {/* HEADER */}
           <View style={styles.headerContainer}>
             <View style={styles.headerTextContainer}>
-              <AppText style={styles.headerTitle}>Choose your language</AppText>
+              <View style={styles.headerTitleRow}>
+                <AppText style={styles.headerTitle}>Choose your language</AppText>
+                <InfoButton contentKey="LanguageSelection" />
+              </View>
             </View>
 
             {/* Custom Illustration Block */}
@@ -226,6 +230,7 @@ const styles = StyleSheet.create({
     paddingTop: vs(8),
   },
   headerTitle: { fontSize: ms(22), fontWeight: '700', color: '#111827', marginBottom: vs(6) },
+  headerTitleRow: { flexDirection: 'row', alignItems: 'center', gap: hs(8) },
 
   /* Illustration Block */
   illustrationContainer: { width: hs(60), height: vs(60), position: 'relative' },

@@ -14,6 +14,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ArrowLeft, CreditCard, Lock } from 'lucide-react-native';
 import AppText from '@/components/AppText';
 import AppTextInput from '@/components/AppTextInput';
+import InfoButton from '@/components/shared/InfoButton';
 import { hs, vs, ms } from '@/utils/responsive';
 import { SPACE } from '@/theme/spacing';
 import { addCard } from './cardStorage';
@@ -82,7 +83,7 @@ export default function AddCardScreen() {
           <ArrowLeft size={ms(20)} color="#1E2022" strokeWidth={2.4} />
         </TouchableOpacity>
         <AppText style={styles.title}>Add New Card</AppText>
-        <View style={{ width: ms(38) }} />
+        <InfoButton contentKey="AddCard" />
       </View>
 
       <ScrollView

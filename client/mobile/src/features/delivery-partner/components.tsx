@@ -10,6 +10,7 @@ import {
 } from 'react-native';
 import AppText from '@/components/AppText';
 import AppTextInput from '@/components/AppTextInput';
+import InfoButton from '@/components/shared/InfoButton';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { hs, ms, vs } from '@/utils/responsive';
 
@@ -33,18 +34,40 @@ export function Screen({ children, style }: { children: React.ReactNode; style?:
   );
 }
 
-export function Card({ children, style }: { children: React.ReactNode; style?: StyleProp<ViewStyle> }) {
-  return <View style={[styles.card, style]}>{children}</View>;
+export function Card({
+  children,
+  style,
+  infoKey,
+}: {
+  children: React.ReactNode;
+  style?: StyleProp<ViewStyle>;
+  /** Opt-in registry key that renders a small "i" guidance badge. */
+  infoKey?: string;
+}) {
+  return (
+    <View style={[styles.card, style]}>
+      {infoKey ? (
+        <View style={styles.cardInfoBadge}>
+          <InfoButton variant="badge" contentKey={infoKey} />
+        </View>
+      ) : null}
+      {children}
+    </View>
+  );
 }
 
 export function Field({
   label,
   hint,
+  infoKey,
   ...props
-}: TextInputProps & { label: string; hint?: string }) {
+}: TextInputProps & { label: string; hint?: string; infoKey?: string }) {
   return (
     <View style={styles.field}>
-      <AppText style={styles.label}>{label}</AppText>
+      <View style={styles.labelRow}>
+        <AppText style={styles.label}>{label}</AppText>
+        {infoKey ? <InfoButton variant="badge" contentKey={infoKey} /> : null}
+      </View>
       <AppTextInput
         placeholderTextColor="#94a3b8"
         {...props}
@@ -121,7 +144,9 @@ const styles = StyleSheet.create({
     padding: hs(16),
   },
   field: { marginBottom: vs(12) },
-  label: { fontSize: ms(11), fontWeight: '800', color: DP.muted, marginBottom: vs(6), textTransform: 'uppercase' },
+  labelRow: { flexDirection: 'row', alignItems: 'center', gap: hs(6), marginBottom: vs(6) },
+  label: { fontSize: ms(11), fontWeight: '800', color: DP.muted, textTransform: 'uppercase' },
+  cardInfoBadge: { position: 'absolute', top: vs(8), right: hs(8), zIndex: 2 },
   input: {
     minHeight: vs(48),
     borderRadius: ms(12),

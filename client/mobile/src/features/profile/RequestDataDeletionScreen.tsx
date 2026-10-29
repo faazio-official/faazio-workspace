@@ -11,6 +11,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Check, ChevronLeft, ShieldCheck } from 'lucide-react-native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import AppText from '@/components/AppText';
+import InfoButton from '@/components/shared/InfoButton';
 import { hs, vs, ms } from '@/utils/responsive';
 import { SPACE } from '@/theme/spacing';
 import { deleteSelectedUserData } from '@/services/accountDeletion';
@@ -120,7 +121,10 @@ export function RequestDataDeletionScreen({ navigation }: Props) {
             <ChevronLeft size={ms(26)} color="#0f172a" strokeWidth={2.2} />
           </TouchableOpacity>
           <View style={styles.headerText}>
-            <AppText style={styles.headerTitle}>Request data deletion</AppText>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: hs(8) }}>
+              <AppText style={styles.headerTitle}>Request data deletion</AppText>
+              <InfoButton contentKey="RequestDataDeletion" />
+            </View>
             <AppText style={styles.headerSubtitle}>Delete some data and keep your account</AppText>
           </View>
         </View>

@@ -14,6 +14,7 @@ import { Check, ChevronLeft, Percent, X } from 'lucide-react-native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import AppText from '@/components/AppText';
 import AppTextInput from '@/components/AppTextInput';
+import InfoButton from '@/components/shared/InfoButton';
 import { hs, ms, vs } from '@/utils/responsive';
 import { SPACE } from '@/theme/spacing';
 import { gateway, type FeeChangeRequest } from '@/services/api/GatewayClient';
@@ -123,7 +124,7 @@ export function FeeChangeRequestsScreen({ navigation }: Props) {
           <ChevronLeft size={ms(26)} color="#0f172a" strokeWidth={2.2} />
         </TouchableOpacity>
         <AppText style={styles.headerTitle}>Fee change requests</AppText>
-        <View style={styles.headerSpacer} />
+        <InfoButton contentKey="FeeChangeRequests" />
       </View>
 
       <View style={styles.filterRow}>

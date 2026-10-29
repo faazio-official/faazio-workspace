@@ -4,6 +4,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ChevronLeft, ExternalLink, PackageOpen } from 'lucide-react-native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import AppText from '@/components/AppText';
+import InfoButton from '@/components/shared/InfoButton';
 import { VendorRateButton } from '@/components/shared';
 import { hs, vs, ms } from '@/utils/responsive';
 import { SPACE } from '@/theme/spacing';
@@ -176,6 +177,7 @@ export function OrderDetailsScreen({ navigation, route }: Props) {
             <ChevronLeft size={ms(26)} color="#0f172a" strokeWidth={2.2} />
           </TouchableOpacity>
           <AppText style={styles.headerTitle}>Order Details</AppText>
+          <InfoButton contentKey="OrderDetails" />
         </View>
         <View style={styles.missing}>
           <AppText style={styles.missingText}>This order could not be found.</AppText>
@@ -210,6 +212,7 @@ export function OrderDetailsScreen({ navigation, route }: Props) {
             <ChevronLeft size={ms(26)} color="#0f172a" strokeWidth={2.2} />
           </TouchableOpacity>
           <AppText style={styles.headerTitle}>Order Details</AppText>
+          <InfoButton contentKey="OrderDetails" />
         </View>
 
         {/* Status card */}

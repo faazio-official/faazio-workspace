@@ -76,6 +76,7 @@ export function FoodSearchScreen({ navigation, route }: Props) {
         initialQuery={route.params?.initialQuery}
         initialMode={route.params?.initialMode}
         onScroll={onScroll}
+        infoKey="FoodSearch"
       />
       <FoodStatusBarStrip scrollY={scrollY} />
       <FoodBottomNav activeTab="Search" onChange={handleTabChange} onCartPress={openCart} onYouPress={openYou} onHomePress={openHubHome} />

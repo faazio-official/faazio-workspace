@@ -5,6 +5,7 @@ import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { Search, X } from 'lucide-react-native';
 import { hs, vs, ms } from '@/utils/responsive';
 import AppText from '@/components/AppText';
+import InfoButton from '@/components/shared/InfoButton';
 import FoodDetailTopBar from '../components/FoodDetailTopBar';
 import DietToggle from '../components/DietToggle';
 import MenuItemRow from '../components/MenuItemRow';
@@ -113,7 +114,12 @@ export function RestaurantMenuScreen({ navigation, route }: Props) {
       <FoodDetailTopBar
         title="Menu"
         onBack={() => navigation.goBack()}
-        right={<DietToggle value={dietFilter} onChange={setDietFilter} />}
+        right={
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: hs(8) }}>
+            <DietToggle value={dietFilter} onChange={setDietFilter} />
+            <InfoButton contentKey="RestaurantMenu" />
+          </View>
+        }
       />
 
       <View style={styles.titleBlock}>
