@@ -12,7 +12,6 @@ import {
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import AppText from '@/components/AppText';
 import { FaazioLogo } from '@/components/FaazioLogo';
-import InfoButton from '@/components/shared/InfoButton';
 import {
   gateway,
   type DeliveryOrder,
@@ -287,7 +286,6 @@ export function DashboardScreen({ navigation }: Props) {
             <AppText style={styles.name}>{rider?.fullName ?? 'Rider'}</AppText>
           </View>
           {rider ? <StatusPill status={rider.status} /> : null}
-          <InfoButton contentKey="Dashboard" />
         </View>
 
         <Card style={[styles.availability, online ? styles.onlineCard : null]}>

@@ -2,7 +2,6 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { ScrollView, StyleSheet, View } from 'react-native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import AppText from '@/components/AppText';
-import InfoButton from '@/components/shared/InfoButton';
 import { gateway, type DeliveryOrder } from '@/services/api/GatewayClient';
 import { Card, DP, ErrorText, PrimaryButton, Screen } from '../components';
 import { hs, ms, vs } from '@/utils/responsive';
@@ -129,10 +128,7 @@ export function AcceptRejectScreen({ navigation, route }: Props) {
       <ScrollView contentContainerStyle={styles.body}>
         <View style={styles.header}>
           <AppText style={styles.kicker}>New delivery offer</AppText>
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: hs(10) }}>
-            <AppText style={[styles.timer, seconds <= 10 && styles.timerDanger]}>{seconds}s</AppText>
-            <InfoButton contentKey="AcceptReject" />
-          </View>
+          <AppText style={[styles.timer, seconds <= 10 && styles.timerDanger]}>{seconds}s</AppText>
         </View>
         <AppText style={styles.title}>{expired ? 'Offer expired' : 'Accept before the timer ends'}</AppText>
 

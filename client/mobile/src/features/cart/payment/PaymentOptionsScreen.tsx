@@ -8,7 +8,6 @@ import { ArrowLeft, CreditCard, Smartphone } from 'lucide-react-native';
 import { hs, vs, ms } from '@/utils/responsive';
 import { SPACE } from '@/theme/spacing';
 import AppText from '@/components/AppText';
-import InfoButton from '@/components/shared/InfoButton';
 import { useCartStore } from '@/state/cartStore';
 import { useRewardsStore } from '@/state/rewardsStore';
 import { defaultAddresses } from '@data/cart/addresses';
@@ -154,7 +153,7 @@ export default function PaymentOptionsScreen({
           <ArrowLeft size={ms(20)} color={BRAND.ink} strokeWidth={2.4} />
         </TouchableOpacity>
         <AppText style={styles.topTitle}>Payment Options</AppText>
-        <InfoButton contentKey="PaymentOptions" />
+        <View style={{ width: ms(38) }} />
       </View>
 
       <ScrollView

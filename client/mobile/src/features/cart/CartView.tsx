@@ -23,7 +23,6 @@ import { SPACE } from '@/theme/spacing';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import EnterpriseIcon from '@/components/EnterpriseIcon';
 import Checkbox from '@/components/shared/Checkbox';
-import InfoButton from '@/components/shared/InfoButton';
 import type { CartItem, CartCategory } from '@/state/cartStore';
 import { getPickupPointsForItems, getStoreIdsForItems } from '@data/cart/pickup-resolver';
 import type { Coupon, FulfillmentMode, PickupPoint, SavedAddress } from '@data/types';
@@ -843,7 +842,7 @@ export default function CartView({
           <AppText style={styles.bagTitle} numberOfLines={1}>
             How do you want your order?
           </AppText>
-          <InfoButton contentKey="Cart" />
+          <View style={{ width: ms(40) }} />
         </View>
 
         <ScrollView

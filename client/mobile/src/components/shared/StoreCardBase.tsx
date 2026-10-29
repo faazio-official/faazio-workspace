@@ -4,7 +4,6 @@ import { Star, Clock, MapPin, ChevronRight } from 'lucide-react-native';
 import { hs, vs, ms } from '@/utils/responsive';
 import { brandTokens } from '@/theme/brandTokens';
 import AdLabelBadge from './AdLabelBadge';
-import InfoButton from './InfoButton';
 import type { StoreProfile } from '@data/types';
 import AppText from '@/components/AppText';
 
@@ -14,11 +13,9 @@ interface StoreCardBaseProps {
   width?: number;
   showAdLabel?: boolean;
   onPress?: () => void;
-  /** Opt-in registry key that renders a small "i" guidance badge. */
-  infoKey?: string;
 }
 
-const StoreCardBase = memo(function StoreCardBase({ store, variant = 'vendor', width, showAdLabel = false, onPress, infoKey }: StoreCardBaseProps) {
+const StoreCardBase = memo(function StoreCardBase({ store, variant = 'vendor', width, showAdLabel = false, onPress }: StoreCardBaseProps) {
   const tokens = brandTokens[store.app];
   const isRail = variant === 'rail';
 
@@ -39,11 +36,6 @@ const StoreCardBase = memo(function StoreCardBase({ store, variant = 'vendor', w
             <Star size={ms(10)} color="#f59e0b" fill="#f59e0b" />
             <AppText style={styles.ratingText}>{store.rating}</AppText>
             {store.reviewsCount && <AppText style={styles.reviewText}>({store.reviewsCount.toLocaleString('en-IN')})</AppText>}
-            {infoKey ? (
-              <View style={styles.infoBadgeInline}>
-                <InfoButton variant="badge" contentKey={infoKey} />
-              </View>
-            ) : null}
           </View>
           <View style={styles.infoRow}>
             <Clock size={ms(9)} color="#64748b" />
@@ -86,11 +78,6 @@ const StoreCardBase = memo(function StoreCardBase({ store, variant = 'vendor', w
           <Star size={ms(10)} color="#f59e0b" fill="#f59e0b" />
           <AppText style={styles.ratingText}>{store.rating}</AppText>
           {store.reviewsCount && <AppText style={styles.reviewText}>({store.reviewsCount.toLocaleString('en-IN')})</AppText>}
-          {infoKey ? (
-            <View style={styles.infoBadgeInline}>
-              <InfoButton variant="badge" contentKey={infoKey} />
-            </View>
-          ) : null}
         </View>
         <View style={styles.infoRow}>
           <Clock size={ms(9)} color="#64748b" />
@@ -157,7 +144,6 @@ const styles = StyleSheet.create({
     paddingVertical: vs(3), borderRadius: ms(6), marginBottom: vs(6),
   },
   offerText: { fontSize: ms(8), fontWeight: '800', color: '#d97706' },
-  infoBadgeInline: { marginLeft: 'auto' },
   descRow: { flexDirection: 'row', alignItems: 'center' },
   desc: { flex: 1, fontSize: ms(8), fontWeight: '600', color: '#64748b' },
 });

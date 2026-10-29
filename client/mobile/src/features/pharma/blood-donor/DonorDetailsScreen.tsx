@@ -4,7 +4,6 @@ import { ArrowLeft, CheckCircle2, ChevronLeft, Droplet, MapPin, ShieldCheck } fr
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import AppText from '@/components/AppText';
-import InfoButton from '@/components/shared/InfoButton';
 import { hs, vs, ms } from '@/utils/responsive';
 import { SPACE } from '@/theme/spacing';
 import type { RootStackParamList } from '@/navigation/types';
@@ -36,10 +35,7 @@ export function DonorDetailsScreen({ navigation, route }: Props) {
           <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton} activeOpacity={0.7} accessibilityRole="button" accessibilityLabel="Go back">
             <ChevronLeft size={ms(26)} color={BLOOD_TEXT} strokeWidth={2.2} />
           </TouchableOpacity>
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: hs(8) }}>
-            <AppText style={styles.headerTitle}>Donor Details</AppText>
-            <InfoButton contentKey="BloodDonorDetails" />
-          </View>
+          <AppText style={styles.headerTitle}>Donor Details</AppText>
         </View>
         <View style={styles.emptyState}>
           <Droplet size={ms(32)} color={BLOOD_RED} strokeWidth={2} />
@@ -85,10 +81,7 @@ export function DonorDetailsScreen({ navigation, route }: Props) {
         <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton} activeOpacity={0.7} accessibilityRole="button" accessibilityLabel="Go back">
           <ChevronLeft size={ms(26)} color={BLOOD_TEXT} strokeWidth={2.2} />
         </TouchableOpacity>
-        <View style={{ flexDirection: 'row', alignItems: 'center', gap: hs(8) }}>
-          <AppText style={styles.headerTitle}>Donor Details</AppText>
-          <InfoButton contentKey="BloodDonorDetails" />
-        </View>
+        <AppText style={styles.headerTitle}>Donor Details</AppText>
       </View>
 
       <ScrollView style={styles.scroll} contentContainerStyle={styles.content} showsVerticalScrollIndicator={false} bounces={false}>

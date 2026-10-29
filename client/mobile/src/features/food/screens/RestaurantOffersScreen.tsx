@@ -12,7 +12,6 @@ import { dishToProduct } from '../mocks/specials';
 import { getOfferDishes } from '../utils/menu';
 import { useRestaurantMenu } from '../hooks/useRestaurantMenu';
 import AppText from '@/components/AppText';
-import InfoButton from '@/components/shared/InfoButton';
 import FoodDetailTopBar from '../components/FoodDetailTopBar';
 import SearchDishCard from '../components/SearchDishCard';
 
@@ -63,11 +62,7 @@ export function RestaurantOffersScreen({ navigation, route }: Props) {
 
   return (
     <View style={styles.container}>
-      <FoodDetailTopBar
-        title={`Offers from ${restaurant.name}`}
-        onBack={() => navigation.goBack()}
-        right={<InfoButton contentKey="RestaurantOffers" />}
-      />
+      <FoodDetailTopBar title={`Offers from ${restaurant.name}`} onBack={() => navigation.goBack()} />
 
       <View style={styles.searchBox}>
         <Search color={foodTheme.textSecondary} size={ms(16)} />

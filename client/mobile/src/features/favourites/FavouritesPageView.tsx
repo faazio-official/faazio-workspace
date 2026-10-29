@@ -5,7 +5,6 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { hs, vs, ms } from '@/utils/responsive';
 import { SPACE } from '@/theme/spacing';
 import AppText from '@/components/AppText';
-import InfoButton from '@/components/shared/InfoButton';
 import { useFavoriteStore } from '@/state/favoriteStore';
 import { getCatalogEntriesByIds } from '@data/catalog/products';
 import type { CatalogEntry } from '@data/catalog/products';
@@ -148,7 +147,6 @@ const FavouritesPageView = memo(function FavouritesPageView({
             Favourites ({totalCount})
           </AppText>
         </View>
-        <InfoButton contentKey="Favourites" />
       </View>
 
       <SegmentedToggle options={TOGGLES} activeKey={activeKey} onChange={setActiveKey} />

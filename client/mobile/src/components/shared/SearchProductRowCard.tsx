@@ -4,7 +4,6 @@ import { Heart, Store } from 'lucide-react-native';
 import { hs, vs, ms } from '@/utils/responsive';
 import { getStoreById, getStoresByApp } from '@data/directory/stores';
 import AppText from '@/components/AppText';
-import InfoButton from './InfoButton';
 import type { Product, AppBrand } from '@data/types';
 
 const TEXT_DARK = '#111827';
@@ -24,8 +23,6 @@ interface SearchProductRowCardProps {
   onFavorite?: () => void;
   /** Show a slim one-line vendor header above the row. Default true. */
   showStoreHeader?: boolean;
-  /** Opt-in registry key that renders a small "i" guidance badge. */
-  infoKey?: string;
 }
 
 function getDiscountPct(price: number, originalPrice?: number): number | null {
@@ -69,7 +66,6 @@ const SearchProductRowCard = memo(function SearchProductRowCard({
   onPress,
   onFavorite,
   showStoreHeader = true,
-  infoKey,
 }: SearchProductRowCardProps) {
   const originalPrice = product.originalPrice;
   const discountPct = getDiscountPct(product.price, originalPrice);
@@ -119,12 +115,6 @@ const SearchProductRowCard = memo(function SearchProductRowCard({
           </View>
         </View>
       </View>
-
-      {infoKey ? (
-        <View style={styles.infoBadge}>
-          <InfoButton variant="badge" contentKey={infoKey} />
-        </View>
-      ) : null}
 
       {showFavorite && (
         <TouchableOpacity
@@ -189,12 +179,6 @@ const styles = StyleSheet.create({
   heartBtn: {
     position: 'absolute',
     top: vs(8),
-    right: hs(8),
-    zIndex: 2,
-  },
-  infoBadge: {
-    position: 'absolute',
-    bottom: vs(6),
     right: hs(8),
     zIndex: 2,
   },

@@ -18,7 +18,6 @@ import type { StoreProfile } from '@data/types';
 import ExploreSectorsSection from '@/features/home/sections/ExploreSectorsSection';
 import HomeView from '@/features/home/HomeView';
 import AppText from '@/components/AppText';
-import InfoButton from '@/components/shared/InfoButton';
 import { useCartStore } from '@/state/cartStore';
 import { HubGradient } from '@/features/home/HubGradient';
 import {
@@ -145,12 +144,6 @@ export function HomeTabScreen({ navigation }: Props) {
                       <ChevronDown size={ms(11)} color="rgba(255,255,255,0.6)" />
                     </TouchableOpacity>
                   </View>
-
-                  <InfoButton
-                    contentKey="Home"
-                    color="#ffffff"
-                    backgroundColor="rgba(255,255,255,0.14)"
-                  />
                 </View>
 
                 <View style={styles.sectorsRow}>

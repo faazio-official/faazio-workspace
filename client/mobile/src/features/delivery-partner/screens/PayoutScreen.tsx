@@ -2,7 +2,6 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { RefreshControl, ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import AppText from '@/components/AppText';
-import InfoButton from '@/components/shared/InfoButton';
 import { gateway, type RiderPayout } from '@/services/api/GatewayClient';
 import { Card, DP, ErrorText, Screen, StatusPill } from '../components';
 import { hs, ms, vs } from '@/utils/responsive';
@@ -60,8 +59,6 @@ export function PayoutScreen({ navigation }: Props) {
             <AppText style={styles.backText}>←</AppText>
           </TouchableOpacity>
           <AppText style={styles.title}>Earnings</AppText>
-          <View style={{ flex: 1 }} />
-          <InfoButton contentKey="Payouts" />
         </View>
 
         <View style={styles.summaryRow}>

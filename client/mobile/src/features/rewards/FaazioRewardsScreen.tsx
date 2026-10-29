@@ -19,7 +19,6 @@ import {
 } from 'lucide-react-native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import AppText from '@/components/AppText';
-import InfoButton from '@/components/shared/InfoButton';
 import { hs, vs, ms } from '@/utils/responsive';
 import { SPACE } from '@/theme/spacing';
 import SlideUpSheet from '@/components/shared/SlideUpSheet';
@@ -108,7 +107,7 @@ export function FaazioRewardsScreen({ navigation }: Props) {
             <ChevronLeft size={ms(26)} color="#0f172a" strokeWidth={2.2} />
           </TouchableOpacity>
           <AppText style={styles.headerTitle}>FaazioRewards</AppText>
-          <InfoButton contentKey="FaazioRewards" />
+          <View style={{ width: ms(40) }} />
         </View>
 
         {/* Coin balance card */}

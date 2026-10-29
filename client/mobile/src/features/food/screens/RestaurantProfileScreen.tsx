@@ -11,7 +11,6 @@ import {
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import InfoButton from '@/components/shared/InfoButton';
 import { useSharedValue } from 'react-native-reanimated';
 import {
   ArrowLeft,
@@ -400,7 +399,6 @@ export function RestaurantProfileScreen({ navigation, route }: Props) {
           >
             <Search color="#fff" size={ms(20)} />
           </TouchableOpacity>
-          <InfoButton contentKey="RestaurantProfile" color="#ffffff" backgroundColor="rgba(0,0,0,0.5)" />
         </View>
       </View>
 

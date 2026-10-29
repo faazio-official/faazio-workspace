@@ -162,7 +162,7 @@ export function FoodHomeScreen({ navigation }: Props) {
           />
         </Animated.View>
         <Animated.View entering={FadeIn.duration(260)}>
-          <FoodHeader onBack={goBack} infoKey="FoodHome" />
+          <FoodHeader onBack={goBack} />
         </Animated.View>
         <Animated.View entering={FadeInDown.duration(320)}>
           <View style={styles.sectionHeaderWrap}>

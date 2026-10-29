@@ -12,7 +12,6 @@ import { ArrowLeft, Clock, MapPin, Phone, Search, Star, X } from 'lucide-react-n
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import AppText from '@/components/AppText';
-import InfoButton from '@/components/shared/InfoButton';
 import { VendorReviewsSection } from '@/components/shared';
 import CampaignHero from '@/components/shared/CampaignHero';
 import { openHeroTarget } from '@/services/adsTarget';
@@ -197,7 +196,6 @@ export function MedicalShopDetailsScreen({ navigation, route }: Props) {
             </TouchableOpacity>
           ) : null}
         </View>
-        <InfoButton contentKey="MedicalShopDetails" />
       </View>
 
       <FlatList

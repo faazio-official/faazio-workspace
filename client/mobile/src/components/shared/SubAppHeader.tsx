@@ -7,7 +7,6 @@ import Svg, { Defs, LinearGradient as SvgGrad, Stop, Rect as SvgRect, Circle as 
 import { SCREEN_W, hs, vs, ms } from '@/utils/responsive';
 import AppText from '@/components/AppText';
 import AppTextInput from '@/components/AppTextInput';
-import InfoButton from '@/components/shared/InfoButton';
 
 const SUB_HEADER_TOP_GAP = vs(12);
 const SUB_HEADER_ROW_H = vs(24);
@@ -39,8 +38,6 @@ interface SubAppHeaderProps {
   hideBrandRow?: boolean;
   /** Rendered below the search row (e.g. the pinned Mart category rail). */
   belowSearchSlot?: React.ReactNode;
-  /** Registry key for the header "i" guidance button. */
-  infoKey?: string;
 }
 
 export default function SubAppHeader({
@@ -55,7 +52,6 @@ export default function SubAppHeader({
   inputRef,
   hideBrandRow = false,
   belowSearchSlot,
-  infoKey,
 }: SubAppHeaderProps) {
   const insets = useSafeAreaInsets();
   const topInset = insets.top;
@@ -99,7 +95,6 @@ export default function SubAppHeader({
               placeholderTextColor="#94a3b8"
             />
           </View>
-          {infoKey ? <InfoButton contentKey={infoKey} color={textColor} backgroundColor="rgba(255,255,255,0.14)" /> : null}
         </View>
         {belowSearchSlot}
       </View>

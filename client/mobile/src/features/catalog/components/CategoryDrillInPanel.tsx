@@ -12,7 +12,6 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { hs, ms, vs } from '@/utils/responsive';
 import { SPACE } from '@/theme/spacing';
 import AppText from '@/components/AppText';
-import InfoButton from '@/components/shared/InfoButton';
 import CampaignHero from '@/components/shared/CampaignHero';
 import { MASTER_CATEGORIES } from '@data/categories/masterCategories';
 import type { CategoryTab } from '@data/categories/masterCategories';
@@ -117,7 +116,7 @@ export function CategoryDrillInPanel({
             <ChevronLeft size={ms(22)} color="#1E2022" strokeWidth={2.5} />
           </TouchableOpacity>
           <AppText style={styles.headerTitle} numberOfLines={1}>{title}</AppText>
-          <InfoButton contentKey="CategoryDrillIn" />
+          <View style={styles.headerSpacer} />
         </View>
         <View style={styles.emptyWrap}>
           <AppText style={styles.emptyText}>Category not found</AppText>
@@ -154,7 +153,6 @@ export function CategoryDrillInPanel({
             )}
           </View>
         </View>
-        <InfoButton contentKey="CategoryDrillIn" />
       </View>
 
       {/* Flat pill rail — every sub-category title, no grouping. */}
