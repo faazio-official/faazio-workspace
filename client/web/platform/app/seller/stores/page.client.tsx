@@ -12,7 +12,7 @@ import { Switch } from "@/components/ui/switch";
 import { updateStore } from "@/lib/api";
 import { useMockLoading, useStores } from "@/lib/api/hooks";
 import { useSession } from "@/lib/hooks/useSession";
-
+import { ComponentHelp } from "@/components/patterns/ComponentHelp";
 
 function SellerStores() {
   const session = useSession();
@@ -31,12 +31,19 @@ function SellerStores() {
       <DataShell
         loading={loading}
         isEmpty={stores.length === 0}
-        empty={<EmptyState title="No store yet" description="Finish onboarding to create your first store." />}
+        empty={
+          <EmptyState
+            title="No store yet"
+            description="Finish onboarding to create your first store."
+          />
+        }
       >
         <div className="grid gap-4 lg:grid-cols-2">
           {stores.map((store) => {
-            const draft =
-              drafts[store.storeId] ?? { hours: store.hours, deliveryTime: store.deliveryTime };
+            const draft = drafts[store.storeId] ?? {
+              hours: store.hours,
+              deliveryTime: store.deliveryTime,
+            };
             return (
               <SectionCard
                 key={store.storeId}
@@ -46,17 +53,26 @@ function SellerStores() {
               >
                 <div className="grid gap-4 md:grid-cols-2">
                   <div className="space-y-1.5">
-                    <Label htmlFor={`hours-${store.storeId}`}>Opening hours</Label>
+                    <div className="flex items-center gap-1.5">
+                      <Label htmlFor={`hours-${store.storeId}`}>Opening hours</Label>
+                      <ComponentHelp id="hours-input" />
+                    </div>
                     <Input
                       id={`hours-${store.storeId}`}
                       value={draft.hours}
                       onChange={(e) =>
-                        setDrafts((d) => ({ ...d, [store.storeId]: { ...draft, hours: e.target.value } }))
+                        setDrafts((d) => ({
+                          ...d,
+                          [store.storeId]: { ...draft, hours: e.target.value },
+                        }))
                       }
                     />
                   </div>
                   <div className="space-y-1.5">
-                    <Label htmlFor={`eta-${store.storeId}`}>Delivery time</Label>
+                    <div className="flex items-center gap-1.5">
+                      <Label htmlFor={`eta-${store.storeId}`}>Delivery time</Label>
+                      <ComponentHelp id="delivery-input" />
+                    </div>
                     <Input
                       id={`eta-${store.storeId}`}
                       value={draft.deliveryTime}
@@ -69,7 +85,10 @@ function SellerStores() {
                     />
                   </div>
                   <div className="flex items-center justify-between rounded-lg border border-border px-3 py-2 md:col-span-2">
-                    <Label htmlFor={`live-${store.storeId}`}>Store live in the app</Label>
+                    <div className="flex items-center gap-1.5">
+                      <Label htmlFor={`live-${store.storeId}`}>Store live in the app</Label>
+                      <ComponentHelp id="live-switch" />
+                    </div>
                     <Switch
                       id={`live-${store.storeId}`}
                       checked={store.isLive}
@@ -80,7 +99,10 @@ function SellerStores() {
                     />
                   </div>
                   <div className="flex items-center justify-between rounded-lg border border-border px-3 py-2 md:col-span-2">
-                    <Label htmlFor={`veg-${store.storeId}`}>Pure vegetarian</Label>
+                    <div className="flex items-center gap-1.5">
+                      <Label htmlFor={`veg-${store.storeId}`}>Pure vegetarian</Label>
+                      <ComponentHelp id="veg-switch" />
+                    </div>
                     <Switch
                       id={`veg-${store.storeId}`}
                       checked={store.isVeg}
@@ -89,18 +111,21 @@ function SellerStores() {
                   </div>
                 </div>
                 <div className="mt-4 flex justify-end">
-                  <Button
-                    size="sm"
-                    onClick={() => {
-                      updateStore(store.storeId, {
-                        hours: draft.hours,
-                        deliveryTime: draft.deliveryTime,
-                      });
-                      toast.success("Store profile saved");
-                    }}
-                  >
-                    Save profile
-                  </Button>
+                  <div className="flex items-center gap-1.5">
+                    <Button
+                      size="sm"
+                      onClick={() => {
+                        updateStore(store.storeId, {
+                          hours: draft.hours,
+                          deliveryTime: draft.deliveryTime,
+                        });
+                        toast.success("Store profile saved");
+                      }}
+                    >
+                      Save profile
+                    </Button>
+                    <ComponentHelp id="save-store-button" />
+                  </div>
                 </div>
               </SectionCard>
             );

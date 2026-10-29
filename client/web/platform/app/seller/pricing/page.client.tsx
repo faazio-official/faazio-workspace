@@ -22,7 +22,7 @@ import { useSession } from "@/lib/hooks/useSession";
 import { formatDateTime } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { ProductThumb } from "@/components/patterns/ProductThumb";
-
+import { ComponentHelp } from "@/components/patterns/ComponentHelp";
 
 function SellerPricing() {
   const session = useSession();
@@ -62,16 +62,22 @@ function SellerPricing() {
         description="Everyday pricing is yours. Festival discounts stay inside admin caps."
         actions={
           <div className="flex items-center gap-2">
-            <Input
-              className="h-9 w-40"
-              placeholder="Mass cut %"
-              value={massPercent}
-              onChange={(e) => setMassPercent(e.target.value)}
-              inputMode="numeric"
-            />
-            <Button size="sm" variant="outline" onClick={applyMass} disabled={!massPercent}>
-              Apply to all
-            </Button>
+            <div className="flex items-center gap-1.5">
+              <Input
+                className="h-9 w-40"
+                placeholder="Mass cut %"
+                value={massPercent}
+                onChange={(e) => setMassPercent(e.target.value)}
+                inputMode="numeric"
+              />
+              <ComponentHelp id="mass-cut-input" />
+            </div>
+            <div className="flex items-center gap-1.5">
+              <Button size="sm" variant="outline" onClick={applyMass} disabled={!massPercent}>
+                Apply to all
+              </Button>
+              <ComponentHelp id="apply-to-all-button" />
+            </div>
           </div>
         }
       />
@@ -91,11 +97,23 @@ function SellerPricing() {
             <TableHeader>
               <TableRow>
                 <TableHead>Product</TableHead>
-                <TableHead className="w-32 text-right">MRP (₹)</TableHead>
-                <TableHead className="w-32 text-right">Price (₹)</TableHead>
+                <TableHead className="w-32 text-right">
+                  <span className="flex items-center justify-end gap-1">
+                    MRP (₹)
+                    <ComponentHelp id="mrp-input" />
+                  </span>
+                </TableHead>
+                <TableHead className="w-32 text-right">
+                  <span className="flex items-center justify-end gap-1">
+                    Price (₹)
+                    <ComponentHelp id="price-input" />
+                  </span>
+                </TableHead>
                 <TableHead className="text-right">Discount</TableHead>
                 <TableHead>vs category median</TableHead>
-                <TableHead />
+                <TableHead className="text-right">
+                  <ComponentHelp id="save-price-button" label="About saving a price" />
+                </TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -112,7 +130,9 @@ function SellerPricing() {
                         <ProductThumb product={product} />
                         <div>
                           <p className="text-[13px] font-medium">{product.name}</p>
-                          <p className="num text-[11px] text-muted-foreground">{product.productId}</p>
+                          <p className="num text-[11px] text-muted-foreground">
+                            {product.productId}
+                          </p>
                         </div>
                       </div>
                     </TableCell>
@@ -178,12 +198,18 @@ function SellerPricing() {
         </DataShell>
       </SectionCard>
 
-      <SectionCard title="Price change history" description="Written to the audit log on every save">
+      <SectionCard
+        title="Price change history"
+        description="Written to the audit log on every save"
+      >
         <DataShell
           loading={loading}
           isEmpty={logs.length === 0}
           empty={
-            <EmptyState title="No price changes yet" description="Saved edits appear here with before and after values." />
+            <EmptyState
+              title="No price changes yet"
+              description="Saved edits appear here with before and after values."
+            />
           }
           skeletonRows={3}
         >

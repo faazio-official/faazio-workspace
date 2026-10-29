@@ -17,7 +17,7 @@ import { formatINR } from "@/lib/format";
 import { advanceOrder } from "@/lib/api";
 import { useMockLoading, useOrders } from "@/lib/api/hooks";
 import { useSession } from "@/lib/hooks/useSession";
-
+import { ComponentHelp } from "@/components/patterns/ComponentHelp";
 
 const REASONS = ["Damaged in transit", "Wrong item", "Changed mind", "Late delivery"];
 
@@ -56,7 +56,12 @@ function SellerReturns() {
                 <TableHead className="text-right">Order value</TableHead>
                 <TableHead className="text-right">Refund from settlement</TableHead>
                 <TableHead>Status</TableHead>
-                <TableHead />
+                <TableHead className="text-right">
+                  <span className="flex items-center justify-end gap-1.5">
+                    <ComponentHelp id="approve-button" label="About approving a return" />
+                    <ComponentHelp id="reject-button" label="About rejecting a return" />
+                  </span>
+                </TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>

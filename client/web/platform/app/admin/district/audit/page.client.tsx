@@ -15,6 +15,7 @@ import {
 } from "@/components/ui/table";
 import { formatDateTime } from "@/lib/format";
 import { useAuditLogs, useMockLoading } from "@/lib/api/hooks";
+import { ComponentHelp } from "@/components/patterns/ComponentHelp";
 import type { Role } from "@/data/types";
 
 
@@ -35,20 +36,28 @@ function StateAudit() {
 
       <SectionCard bodyClassName="p-0">
         <div className="flex flex-wrap items-center gap-2 border-b border-border p-3">
-          <Input
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            placeholder="Search action, entity id or actor"
-            className="h-9 w-64"
-          />
-          {ROLES.map((option) => (
-            <FilterChip
-              key={option}
-              label={option === "ALL" ? "All roles" : option.replace("_", " ")}
-              active={role === option}
-              onClick={() => setRole(option)}
+          <div className="flex items-center gap-1.5">
+            <Input
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder="Search action, entity id or actor"
+              className="h-9 w-64"
             />
-          ))}
+            <ComponentHelp id="audit-search" label="About audit search" />
+          </div>
+          <div className="flex items-center gap-1.5">
+            <div className="flex flex-wrap gap-1">
+              {ROLES.map((option) => (
+                <FilterChip
+                  key={option}
+                  label={option === "ALL" ? "All roles" : option.replace("_", " ")}
+                  active={role === option}
+                  onClick={() => setRole(option)}
+                />
+              ))}
+            </div>
+            <ComponentHelp id="role-filter" label="About the role filter" />
+          </div>
         </div>
         <DataShell
           loading={loading}

@@ -3,6 +3,7 @@ import { useState } from "react";
 import { toast } from "sonner";
 import { PageHeader } from "@/components/patterns/PageHeader";
 import { SectionCard } from "@/components/patterns/SectionCard";
+import { ComponentHelp } from "@/components/patterns/ComponentHelp";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -31,7 +32,10 @@ function PlatformSettings() {
       <SectionCard title="Tax & statutory">
         <div className="grid gap-4 md:grid-cols-2">
           <div className="space-y-1.5">
-            <Label htmlFor="tcs">TCS %</Label>
+            <div className="flex items-center gap-1.5">
+              <Label htmlFor="tcs">TCS %</Label>
+              <ComponentHelp id="tcs-input" label="About TCS" />
+            </div>
             <Input
               id="tcs"
               className="num"
@@ -49,7 +53,10 @@ function PlatformSettings() {
       <SectionCard title="FaazioCoins">
         <div className="grid gap-4 md:grid-cols-2">
           <div className="space-y-1.5">
-            <Label htmlFor="earn">Earn rate (coins per ₹100)</Label>
+            <div className="flex items-center gap-1.5">
+              <Label htmlFor="earn">Earn rate (coins per ₹100)</Label>
+              <ComponentHelp id="earn-rate" label="About the earn rate" />
+            </div>
             <Input
               id="earn"
               className="num"
@@ -58,7 +65,10 @@ function PlatformSettings() {
             />
           </div>
           <div className="space-y-1.5">
-            <Label htmlFor="redeem">Redeem rate (₹ per coin)</Label>
+            <div className="flex items-center gap-1.5">
+              <Label htmlFor="redeem">Redeem rate (₹ per coin)</Label>
+              <ComponentHelp id="redeem-rate" label="About the redeem rate" />
+            </div>
             <Input
               id="redeem"
               className="num"
@@ -72,7 +82,10 @@ function PlatformSettings() {
       <SectionCard title="Service levels">
         <div className="grid gap-4 md:grid-cols-2">
           <div className="space-y-1.5">
-            <Label htmlFor="sla">Dispatch SLA (hours)</Label>
+            <div className="flex items-center gap-1.5">
+              <Label htmlFor="sla">Dispatch SLA (hours)</Label>
+              <ComponentHelp id="sla-input" label="About the dispatch SLA" />
+            </div>
             <Input
               id="sla"
               className="num"
@@ -81,7 +94,8 @@ function PlatformSettings() {
             />
           </div>
         </div>
-        <div className="mt-4 flex justify-end">
+        <div className="mt-4 flex items-center justify-end gap-1.5">
+          <ComponentHelp id="save-settings" label="About saving settings" />
           <Button size="sm" onClick={() => toast.success("Platform settings saved")}>
             Save settings
           </Button>

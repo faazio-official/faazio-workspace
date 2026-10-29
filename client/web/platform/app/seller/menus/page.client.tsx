@@ -29,9 +29,16 @@ import { formatINR, parseRupeesToPaisa } from "@/lib/format";
 import { deleteMenu, setMenuStatus, upsertMenu, type MenuDto } from "@/lib/api";
 import { useMenus, useMockLoading } from "@/lib/api/hooks";
 import { useSession } from "@/lib/hooks/useSession";
+import { ComponentHelp } from "@/components/patterns/ComponentHelp";
 import type { MenuItemRecord, ProductStatus } from "@/data/types";
 
-const STATUSES: (ProductStatus | "ALL")[] = ["ALL", "DRAFT", "PENDING_REVIEW", "ACTIVE", "DELISTED"];
+const STATUSES: (ProductStatus | "ALL")[] = [
+  "ALL",
+  "DRAFT",
+  "PENDING_REVIEW",
+  "ACTIVE",
+  "DELISTED",
+];
 
 interface FormState {
   venueId: string;
@@ -45,7 +52,16 @@ interface FormState {
 }
 
 function emptyForm(): FormState {
-  return { venueId: "", dishId: "", name: "", price: "", mrp: "", isVeg: true, cuisine: "", image: "" };
+  return {
+    venueId: "",
+    dishId: "",
+    name: "",
+    price: "",
+    mrp: "",
+    isVeg: true,
+    cuisine: "",
+    image: "",
+  };
 }
 
 function toForm(m: MenuItemRecord): FormState {
@@ -124,21 +140,27 @@ function SellerMenus() {
         title="Menu"
         description="Dishes are per venue. Submit a dish for review, then district admins make it live."
         actions={
-          <Button size="sm" onClick={openCreate}>
-            Add dish
-          </Button>
+          <div className="flex items-center gap-1.5">
+            <Button size="sm" onClick={openCreate}>
+              Add dish
+            </Button>
+            <ComponentHelp id="add-dish-button" />
+          </div>
         }
       />
 
       <SectionCard bodyClassName="p-0">
         <div className="flex flex-wrap items-center gap-2 border-b border-border p-3">
-          <Input
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            placeholder="Search dish name or id"
-            className="max-w-xs"
-          />
-          <div className="flex flex-wrap gap-1">
+          <div className="flex items-center gap-1.5">
+            <Input
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder="Search dish name or id"
+              className="max-w-xs"
+            />
+            <ComponentHelp id="search-input" />
+          </div>
+          <div className="flex flex-wrap items-center gap-1">
             {STATUSES.map((option) => (
               <FilterChip
                 key={option}
@@ -147,6 +169,7 @@ function SellerMenus() {
                 onClick={() => setStatus(option)}
               />
             ))}
+            <ComponentHelp id="status-filter" />
           </div>
         </div>
         <DataShell
@@ -166,9 +189,11 @@ function SellerMenus() {
                 <TableHead>Venue</TableHead>
                 <TableHead>Cuisine</TableHead>
                 <TableHead className="text-right">Price</TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead />
-              </TableRow>
+                 <TableHead>Status</TableHead>
+                 <TableHead className="text-right">
+                   <ComponentHelp id="row-actions" label="About dish actions" />
+                 </TableHead>
+               </TableRow>
             </TableHeader>
             <TableBody>
               {menus.map((m) => (
@@ -187,7 +212,9 @@ function SellerMenus() {
                   <TableCell className="text-muted-foreground">{m.cuisine ?? "—"}</TableCell>
                   <TableCell className="num text-right">
                     {m.mrpPaisa != null && m.mrpPaisa > m.pricePaisa ? (
-                      <span className="mr-1 text-muted-foreground line-through">{formatINR(m.mrpPaisa)}</span>
+                      <span className="mr-1 text-muted-foreground line-through">
+                        {formatINR(m.mrpPaisa)}
+                      </span>
                     ) : null}
                     <span className="font-medium">{formatINR(m.pricePaisa)}</span>
                   </TableCell>
@@ -278,7 +305,10 @@ function SellerMenus() {
               />
             </div>
             <div className="space-y-1.5">
-              <Label htmlFor="price">Price (₹)</Label>
+              <div className="flex items-center gap-1.5">
+                <Label htmlFor="price">Price (₹)</Label>
+                <ComponentHelp id="price-input" />
+              </div>
               <Input
                 id="price"
                 className="num"
@@ -287,7 +317,10 @@ function SellerMenus() {
               />
             </div>
             <div className="space-y-1.5">
-              <Label htmlFor="mrp">MRP (₹, optional)</Label>
+              <div className="flex items-center gap-1.5">
+                <Label htmlFor="mrp">MRP (₹, optional)</Label>
+                <ComponentHelp id="mrp-input" />
+              </div>
               <Input
                 id="mrp"
                 className="num"
@@ -319,13 +352,17 @@ function SellerMenus() {
                 onCheckedChange={(checked) => setForm({ ...form, isVeg: checked })}
               />
               <Label htmlFor="isVeg">Vegetarian</Label>
+              <ComponentHelp id="veg-switch" />
             </div>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setOpen(false)}>
               Cancel
             </Button>
-            <Button onClick={save}>{editing ? "Save changes" : "Create dish"}</Button>
+            <div className="flex items-center gap-1.5">
+              <Button onClick={save}>{editing ? "Save changes" : "Create dish"}</Button>
+              <ComponentHelp id="save-dish-button" />
+            </div>
           </DialogFooter>
         </DialogContent>
       </Dialog>

@@ -16,8 +16,8 @@ import { formatNumber, formatPercent } from "@/lib/format";
 import { useAdSlots, useHeroCampaigns, useMockLoading } from "@/lib/api/hooks";
 import { useSession } from "@/lib/hooks/useSession";
 import { HERO_PLACEMENT_META } from "@/data/ads/placements";
+import { ComponentHelp } from "@/components/patterns/ComponentHelp";
 import { CampaignWizard } from "./components/CampaignWizard";
-
 
 function SellerAds() {
   const session = useSession();
@@ -26,15 +26,20 @@ function SellerAds() {
   const slots = useAdSlots({ sellerId });
   const campaigns = useHeroCampaigns({ sellerId });
 
-  const impressions = slots.reduce((t, s) => t + s.impressions, 0) + campaigns.reduce((t, c) => t + c.impressions, 0);
-  const clicks = slots.reduce((t, s) => t + s.clicks, 0) + campaigns.reduce((t, c) => t + c.clicks, 0);
-  const attributed = slots.reduce((t, s) => t + s.ordersAttributed, 0) + campaigns.reduce((t, c) => t + c.ordersAttributed, 0);
+  const impressions =
+    slots.reduce((t, s) => t + s.impressions, 0) + campaigns.reduce((t, c) => t + c.impressions, 0);
+  const clicks =
+    slots.reduce((t, s) => t + s.clicks, 0) + campaigns.reduce((t, c) => t + c.clicks, 0);
+  const attributed =
+    slots.reduce((t, s) => t + s.ordersAttributed, 0) +
+    campaigns.reduce((t, c) => t + c.ordersAttributed, 0);
 
   return (
     <div className="space-y-4">
       <PageHeader
         title="Ads"
         description="Ads go live instantly — machine-checked, not admin-approved. Abuse is removed only after a report."
+        actions={<ComponentHelp id="campaign-wizard" label="About creating a campaign" />}
       />
 
       <DataShell loading={loading}>
@@ -53,11 +58,20 @@ function SellerAds() {
 
       <CampaignWizard sellerId={sellerId} stateCode={session?.stateCode} />
 
-      <SectionCard title="My campaigns" bodyClassName="p-0">
+      <SectionCard
+        title="My campaigns"
+        bodyClassName="p-0"
+        actions={<ComponentHelp id="my-campaigns" />}
+      >
         <DataShell
           loading={loading}
           isEmpty={campaigns.length === 0}
-          empty={<EmptyState title="No hero campaigns yet" description="Publish a campaign above — it goes live immediately on the placements you pick." />}
+          empty={
+            <EmptyState
+              title="No hero campaigns yet"
+              description="Publish a campaign above — it goes live immediately on the placements you pick."
+            />
+          }
         >
           <Table>
             <TableHeader>
@@ -107,11 +121,20 @@ function SellerAds() {
         </DataShell>
       </SectionCard>
 
-      <SectionCard title="Product rails" bodyClassName="p-0">
+      <SectionCard
+        title="Product rails"
+        bodyClassName="p-0"
+        actions={<ComponentHelp id="product-rails" />}
+      >
         <DataShell
           loading={loading}
           isEmpty={slots.length === 0}
-          empty={<EmptyState title="No rail placements yet" description="Rail placements are requested from the placement picker." />}
+          empty={
+            <EmptyState
+              title="No rail placements yet"
+              description="Rail placements are requested from the placement picker."
+            />
+          }
         >
           <Table>
             <TableHeader>
@@ -137,7 +160,9 @@ function SellerAds() {
                   <TableCell className="num text-right">{formatNumber(slot.impressions)}</TableCell>
                   <TableCell className="num text-right">{formatNumber(slot.clicks)}</TableCell>
                   <TableCell className="num text-right">
-                    {slot.impressions ? formatPercent((slot.clicks / slot.impressions) * 100, 2) : "—"}
+                    {slot.impressions
+                      ? formatPercent((slot.clicks / slot.impressions) * 100, 2)
+                      : "—"}
                   </TableCell>
                   <TableCell className="num text-right">{slot.ordersAttributed}</TableCell>
                   <TableCell>

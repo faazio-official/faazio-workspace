@@ -5,6 +5,7 @@ import { toast } from "sonner";
 import { Copy, KeyRound, Plus, RefreshCw } from "lucide-react";
 import { PageHeader } from "@/components/patterns/PageHeader";
 import { SectionCard } from "@/components/patterns/SectionCard";
+import { ComponentHelp } from "@/components/patterns/ComponentHelp";
 import { DataShell, EmptyState } from "@/components/patterns/DataState";
 import { StatusPill } from "@/components/patterns/Pills";
 import { Button } from "@/components/ui/button";
@@ -213,16 +214,19 @@ function CredentialsPage() {
         title="Portal credentials"
         description="Issue seller and state-admin logins, and reset the password for any role. New superadmins are seeded operationally."
         actions={
-          <Button
-            size="sm"
-            className="gap-2"
-            onClick={() => {
-              setForm((f) => ({ ...f, password: generatePassword() }));
-              setCreateOpen(true);
-            }}
-          >
-            <Plus className="size-4" /> New credential
-          </Button>
+          <div className="flex items-center gap-1.5">
+            <ComponentHelp id="issue-login" label="About issuing a login" />
+            <Button
+              size="sm"
+              className="gap-2"
+              onClick={() => {
+                setForm((f) => ({ ...f, password: generatePassword() }));
+                setCreateOpen(true);
+              }}
+            >
+              <Plus className="size-4" /> New credential
+            </Button>
+          </div>
         }
       />
 
@@ -247,7 +251,13 @@ function CredentialsPage() {
                 <TableHead>Email</TableHead>
                 <TableHead>Last sign-in</TableHead>
                 <TableHead>Status</TableHead>
-                <TableHead className="text-right">Actions</TableHead>
+                <TableHead className="text-right">
+                  <span className="inline-flex items-center gap-1.5">
+                    Actions
+                    <ComponentHelp id="reset-password" label="About resetting a password" />
+                    <ComponentHelp id="toggle-active" label="About deactivating a login" />
+                  </span>
+                </TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -300,7 +310,10 @@ function CredentialsPage() {
           </SheetHeader>
           <div className="space-y-4 px-4 pb-6">
             <div className="space-y-1.5">
-              <Label>Role</Label>
+              <div className="flex items-center gap-1.5">
+                <Label>Role</Label>
+                <ComponentHelp id="role-select" label="About the credential role" />
+              </div>
               <Select
                 value={form.role}
                 onValueChange={(value) =>
@@ -419,26 +432,30 @@ function CredentialsPage() {
                 At least {MIN_PASSWORD} characters. Copy it now — it is not shown again.
               </p>
             </div>
-            <label className="flex items-start gap-2.5 text-[13px]">
-              <Checkbox
-                className="mt-0.5"
-                checked={form.forceChange}
-                onCheckedChange={(checked) => setForm({ ...form, forceChange: checked === true })}
-              />
-              <span>
-                Require a password change on first sign-in
-                <span className="block text-[11px] text-muted-foreground">
-                  Recommended for seller and state-admin logins. Uncheck to activate this password
-                  immediately.
+            <div className="flex items-start gap-2">
+              <label className="flex items-start gap-2.5 text-[13px]">
+                <Checkbox
+                  className="mt-0.5"
+                  checked={form.forceChange}
+                  onCheckedChange={(checked) => setForm({ ...form, forceChange: checked === true })}
+                />
+                <span>
+                  Require a password change on first sign-in
+                  <span className="block text-[11px] text-muted-foreground">
+                    Recommended for seller and state-admin logins. Uncheck to activate this password
+                    immediately.
+                  </span>
                 </span>
-              </span>
-            </label>
-            <div className="flex justify-end gap-2">
+              </label>
+              <ComponentHelp id="force-change" label="About forcing a password change" className="mt-0.5" />
+            </div>
+            <div className="flex items-center justify-end gap-2">
+              <ComponentHelp id="create-credential" label="About creating a credential" />
               <Button variant="outline" onClick={() => setCreateOpen(false)}>
                 Cancel
               </Button>
               <Button disabled={!createValid || busy} onClick={() => void submitCreate()}>
-                {busy ? "Creating…" : "Create credential"}
+                {busy ? "Creating..." : "Create credential"}
               </Button>
             </div>
           </div>

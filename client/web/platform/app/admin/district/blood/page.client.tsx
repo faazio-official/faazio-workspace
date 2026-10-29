@@ -17,6 +17,7 @@ import { formatDateTime } from "@/lib/format";
 import { useMockLoading, useBloodRequests } from "@/lib/api/hooks";
 import { removeBloodRequest } from "@/lib/api";
 import { useSession } from "@/lib/hooks/useSession";
+import { ComponentHelp } from "@/components/patterns/ComponentHelp";
 
 function StateBlood() {
   const session = useSession();
@@ -52,7 +53,12 @@ function StateBlood() {
                 <TableHead className="text-right">Units</TableHead>
                 <TableHead>Urgency</TableHead>
                 <TableHead>Expires</TableHead>
-                <TableHead />
+                <TableHead className="text-right">
+                  <span className="inline-flex items-center justify-end gap-1.5">
+                    Action
+                    <ComponentHelp id="remove-button" label="About removing a request" />
+                  </span>
+                </TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>

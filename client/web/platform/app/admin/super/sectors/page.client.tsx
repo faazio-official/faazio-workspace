@@ -3,6 +3,7 @@ import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
 import { PageHeader } from "@/components/patterns/PageHeader";
 import { SectionCard } from "@/components/patterns/SectionCard";
+import { ComponentHelp } from "@/components/patterns/ComponentHelp";
 import { DataShell } from "@/components/patterns/DataState";
 import { SectorPill } from "@/components/patterns/Pills";
 import { Button } from "@/components/ui/button";
@@ -101,7 +102,8 @@ function SuperSectors() {
               <Input id="rename-to" value={renameTo} onChange={(e) => setRenameTo(e.target.value)} />
             </div>
           </div>
-          <div className="mt-4 flex justify-end">
+          <div className="mt-4 flex items-center justify-end gap-1.5">
+            <ComponentHelp id="rename-category" label="About renaming a category" />
             <Button
               size="sm"
               disabled={!renameFrom || renameTo.trim().length < 2}
@@ -154,7 +156,8 @@ function SuperSectors() {
               </Select>
             </div>
           </div>
-          <div className="mt-4 flex justify-end">
+          <div className="mt-4 flex items-center justify-end gap-1.5">
+            <ComponentHelp id="merge-categories" label="About merging categories" />
             <Button
               size="sm"
               variant="outline"
@@ -322,7 +325,8 @@ function GstRateMaster() {
             </SelectContent>
           </Select>
         </div>
-        <div className="flex items-end">
+        <div className="flex items-end gap-1.5">
+          <ComponentHelp id="gst-add" label="About adding a category" />
           <Button
             size="sm"
             className="w-full"
@@ -343,8 +347,18 @@ function GstRateMaster() {
             <TableRow>
               <TableHead>Category</TableHead>
               <TableHead>Sector</TableHead>
-              <TableHead>GST rate</TableHead>
-              <TableHead className="text-right">Action</TableHead>
+              <TableHead>
+                <span className="inline-flex items-center gap-1.5">
+                  GST rate
+                  <ComponentHelp id="gst-rate" label="About the GST rate" />
+                </span>
+              </TableHead>
+              <TableHead className="text-right">
+                <span className="inline-flex items-center gap-1.5">
+                  Action
+                  <ComponentHelp id="gst-delete" label="About deleting a category" />
+                </span>
+              </TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>

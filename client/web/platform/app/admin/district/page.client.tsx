@@ -13,6 +13,7 @@ import { stateMetrics } from "@/lib/api";
 import { useCampaigns, useMockLoading, useOrders, useSellers } from "@/lib/api/hooks";
 import { useSession } from "@/lib/hooks/useSession";
 import { districtName } from "@/data/districts";
+import { ComponentHelp } from "@/components/patterns/ComponentHelp";
 
 
 function StateDashboard() {
@@ -85,9 +86,12 @@ function StateDashboard() {
           title="Festival campaigns"
           description="Your state plus global campaigns you must obey"
           actions={
-            <Link href="/admin/district/festival" className="text-[12px] font-semibold text-primary">
-              Manage
-            </Link>
+            <div className="flex items-center gap-1.5">
+              <Link href="/admin/district/festival" className="text-[12px] font-semibold text-primary">
+                Manage
+              </Link>
+              <ComponentHelp id="manage-campaigns-link" label="About managing campaigns" />
+            </div>
           }
         >
           <ul className="space-y-2">
@@ -109,17 +113,22 @@ function StateDashboard() {
           </ul>
         </SectionCard>
 
-        <SectionCard title="Alerts" description="Each alert links to its entity">
+        <SectionCard
+          title="Alerts"
+          description="Each alert links to its entity"
+          actions={<ComponentHelp id="alerts-list" label="About the alerts feed" />}
+        >
           <ul className="space-y-2">
             {pendingKyc > 0 ? (
-              <li>
+              <li className="flex items-center gap-1.5">
                 <Link
                   href="/admin/district/sellers"
-                  className="flex items-center gap-2 rounded-lg border border-warning/40 bg-warning/10 px-3 py-2 text-[13px]"
+                  className="flex flex-1 items-center gap-2 rounded-lg border border-warning/40 bg-warning/10 px-3 py-2 text-[13px]"
                 >
                   <AlertTriangle className="size-4 text-warning" />
                   {pendingKyc} seller application{pendingKyc > 1 ? "s" : ""} awaiting KYC review
                 </Link>
+                <ComponentHelp id="alert-pending-kyc" label="About this alert" />
               </li>
             ) : null}
             {breaches.slice(0, 4).map((order) => (

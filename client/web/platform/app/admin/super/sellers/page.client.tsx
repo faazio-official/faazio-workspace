@@ -4,6 +4,7 @@ import { useState } from "react";
 import { toast } from "sonner";
 import { PageHeader } from "@/components/patterns/PageHeader";
 import { SectionCard } from "@/components/patterns/SectionCard";
+import { ComponentHelp } from "@/components/patterns/ComponentHelp";
 import { DataShell, EmptyState } from "@/components/patterns/DataState";
 import { FilterChip } from "@/components/patterns/FilterChip";
 import { SectorPill, StatusPill } from "@/components/patterns/Pills";
@@ -47,12 +48,15 @@ function SuperSellers() {
 
       <SectionCard bodyClassName="p-0">
         <div className="flex flex-wrap items-center gap-2 border-b border-border p-3">
-          <Input
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            placeholder="Search name, district or state"
-            className="h-9 w-56"
-          />
+          <div className="flex items-center gap-1.5">
+            <Input
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder="Search name, district or state"
+              className="h-9 w-56"
+            />
+            <ComponentHelp id="seller-search" label="About searching sellers" />
+          </div>
           {STATUSES.map((option) => (
             <FilterChip
               key={option}
@@ -61,6 +65,7 @@ function SuperSellers() {
               onClick={() => setStatus(option)}
             />
           ))}
+          <ComponentHelp id="status-filter" label="About the status filter" />
         </div>
         <DataShell
           loading={loading}
@@ -77,7 +82,13 @@ function SuperSellers() {
                 <TableHead>Applied</TableHead>
                 <TableHead className="text-right">Rating</TableHead>
                 <TableHead>Status</TableHead>
-                <TableHead className="text-right">Override</TableHead>
+                <TableHead className="text-right">
+                  <span className="inline-flex items-center gap-1.5">
+                    Override
+                    <ComponentHelp id="seller-activate" label="About activating a seller" />
+                    <ComponentHelp id="seller-suspend" label="About suspending a seller" />
+                  </span>
+                </TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>

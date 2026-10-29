@@ -28,6 +28,7 @@ import { capFor } from "@/lib/pricing/rules";
 import { createFestivalCampaign, setOptinStatus, updateCampaign } from "@/lib/api";
 import { useCampaigns, useMockLoading, useOptins, useProducts, useSectorCaps } from "@/lib/api/hooks";
 import { useSession } from "@/lib/hooks/useSession";
+import { ComponentHelp } from "@/components/patterns/ComponentHelp";
 import type { CampaignStatus, Sector } from "@/data/types";
 
 
@@ -76,15 +77,24 @@ function StateFestival() {
       <SectionCard title="Create a state campaign">
         <div className="grid gap-4 md:grid-cols-2">
           <div className="space-y-1.5">
-            <Label htmlFor="cmp-name">Campaign name</Label>
+            <span className="flex items-center gap-1.5">
+              <Label htmlFor="cmp-name">Campaign name</Label>
+              <ComponentHelp id="campaign-name" label="About the campaign name" />
+            </span>
             <Input id="cmp-name" value={name} onChange={(e) => setName(e.target.value)} />
           </div>
           <div className="space-y-1.5">
-            <Label htmlFor="cmp-banner">Banner asset URL</Label>
+            <span className="flex items-center gap-1.5">
+              <Label htmlFor="cmp-banner">Banner asset URL</Label>
+              <ComponentHelp id="campaign-banner" label="About the campaign banner" />
+            </span>
             <Input id="cmp-banner" value={bannerUrl} onChange={(e) => setBannerUrl(e.target.value)} />
           </div>
           <div className="space-y-1.5">
-            <Label htmlFor="cmp-start">Starts</Label>
+            <span className="flex items-center gap-1.5">
+              <Label htmlFor="cmp-start">Starts</Label>
+              <ComponentHelp id="campaign-dates" label="About the campaign window" />
+            </span>
             <Input
               id="cmp-start"
               type="date"
@@ -107,7 +117,7 @@ function StateFestival() {
         {startsAt && endsAt && startsAt >= endsAt ? (
           <p className="mt-2 text-[12px] text-destructive">The end date must be after the start date.</p>
         ) : null}
-        <div className="mt-4 flex justify-end">
+        <div className="mt-4 flex items-center justify-end gap-1.5">
           <Button
             size="sm"
             disabled={!canCreate}
@@ -130,6 +140,7 @@ function StateFestival() {
           >
             Create campaign
           </Button>
+          <ComponentHelp id="create-campaign" label="About creating a campaign" />
         </div>
       </SectionCard>
 
@@ -146,7 +157,12 @@ function StateFestival() {
                 <TableHead>Scope</TableHead>
                 <TableHead>Window</TableHead>
                 <TableHead>Status</TableHead>
-                <TableHead className="text-right">Lifecycle</TableHead>
+                <TableHead className="text-right">
+                  <span className="inline-flex items-center justify-end gap-1.5">
+                    Lifecycle
+                    <ComponentHelp id="campaign-lifecycle" label="About the campaign lifecycle" />
+                  </span>
+                </TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -208,7 +224,13 @@ function StateFestival() {
                 <TableHead className="text-right">Requested</TableHead>
                 <TableHead className="text-right">Cap</TableHead>
                 <TableHead>Status</TableHead>
-                <TableHead className="text-right">Decision</TableHead>
+                <TableHead className="text-right">
+                  <span className="inline-flex items-center justify-end gap-1.5">
+                    Decision
+                    <ComponentHelp id="approve-optin" label="About approving an opt-in" />
+                    <ComponentHelp id="reject-optin" label="About rejecting an opt-in" />
+                  </span>
+                </TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>

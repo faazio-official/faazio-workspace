@@ -5,6 +5,7 @@ import { toast } from "sonner";
 import { AlertTriangle, Copy, KeyRound, RefreshCw } from "lucide-react";
 import { PageHeader } from "@/components/patterns/PageHeader";
 import { SectionCard } from "@/components/patterns/SectionCard";
+import { ComponentHelp } from "@/components/patterns/ComponentHelp";
 import { DataShell, EmptyState } from "@/components/patterns/DataState";
 import { StatusPill } from "@/components/patterns/Pills";
 import { Button } from "@/components/ui/button";
@@ -234,7 +235,7 @@ function DistrictAdminAccounts() {
             <button type="button" className="font-semibold text-interactive underline" onClick={() => setForm((f) => ({ ...f, issueLogin: false, password: "" }))}>
               pre-provision without a login
             </button>
-            .
+            <ComponentHelp id="pre-provision" label="About pre-provisioning an admin" />.
           </>
         ) : (
           <>
@@ -342,7 +343,10 @@ function DistrictAdminAccounts() {
             ) : null}
           </div>
           <div className="space-y-1.5">
-            <Label>District</Label>
+            <div className="flex items-center gap-1.5">
+              <Label>District</Label>
+              <ComponentHelp id="district-select" label="About the district field" />
+            </div>
             <DistrictSelect
               value={form.districtCode}
               onValueChange={(value) => setForm({ ...form, districtCode: value })}
@@ -351,23 +355,26 @@ function DistrictAdminAccounts() {
         </div>
 
         <div className="mt-4 space-y-3">
-          <label className="flex items-start gap-2.5 text-[13px]">
-            <Checkbox
-              className="mt-0.5"
-              checked={form.issueLogin}
-              onCheckedChange={(checked) => {
-                const issueLogin = checked === true;
-                setForm((f) => ({ ...f, issueLogin, password: issueLogin ? f.password : "" }));
-              }}
-            />
-            <span>
-              Issue portal login now
-              <span className="block text-[11px] text-muted-foreground">
-                Creates the DISTRICT_ADMIN credential + temporary password in the same step. Uncheck to
-                pre-provision a roster-only row (they cannot sign in until you issue a login).
+          <div className="flex items-start gap-2">
+            <label className="flex items-start gap-2.5 text-[13px]">
+              <Checkbox
+                className="mt-0.5"
+                checked={form.issueLogin}
+                onCheckedChange={(checked) => {
+                  const issueLogin = checked === true;
+                  setForm((f) => ({ ...f, issueLogin, password: issueLogin ? f.password : "" }));
+                }}
+              />
+              <span>
+                Issue portal login now
+                <span className="block text-[11px] text-muted-foreground">
+                  Creates the DISTRICT_ADMIN credential + temporary password in the same step. Uncheck to
+                  pre-provision a roster-only row (they cannot sign in until you issue a login).
+                </span>
               </span>
-            </span>
-          </label>
+            </label>
+            <ComponentHelp id="issue-login-toggle" label="About issuing a login" className="mt-0.5" />
+          </div>
 
           {form.issueLogin ? (
             <div className="space-y-2 rounded-xl border border-border bg-muted/30 px-4 py-3">
@@ -472,13 +479,14 @@ function DistrictAdminAccounts() {
           </div>
         ) : null}
 
-        <div className="mt-4 flex justify-end">
+        <div className="mt-4 flex items-center justify-end gap-1.5">
+          <ComponentHelp id="create-admin-button" label="About creating an admin" />
           <Button
             size="sm"
             disabled={!valid || creating}
             onClick={() => void handleCreate()}
           >
-            {creating ? "Creating…" : "Create admin"}
+            {creating ? "Creating..." : "Create admin"}
           </Button>
         </div>
       </SectionCard>
@@ -489,13 +497,16 @@ function DistrictAdminAccounts() {
         description={query ? `${filtered.length} of ${admins.length} admins` : undefined}
         bodyClassName="p-0"
         actions={
-          <Input
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            placeholder="Search by name, email or code…"
-            className="h-8 w-56 text-[12px]"
-            aria-label="Search admin roster"
-          />
+          <div className="flex items-center gap-1.5">
+            <Input
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder="Search by name, email or code..."
+              className="h-8 w-56 text-[12px]"
+              aria-label="Search admin roster"
+            />
+            <ComponentHelp id="roster-search" label="About the roster search" />
+          </div>
         }
       >
         <DataShell

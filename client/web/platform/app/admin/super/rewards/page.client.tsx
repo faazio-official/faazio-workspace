@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { PageHeader } from "@/components/patterns/PageHeader";
 import { SectionCard } from "@/components/patterns/SectionCard";
+import { ComponentHelp } from "@/components/patterns/ComponentHelp";
 import { DataShell, EmptyState } from "@/components/patterns/DataState";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -69,30 +70,35 @@ function SuperRewards() {
           <Field
             id="earn"
             label="Earn rate (₹ per coin)"
+            hintId="earn-rate"
             value={form.coinEarnRate}
             onChange={(v) => setForm({ ...form, coinEarnRate: v })}
           />
           <Field
             id="redeem"
             label="Redeem rate (coins per ₹1)"
+            hintId="redeem-rate"
             value={form.coinRedeemRate}
             onChange={(v) => setForm({ ...form, coinRedeemRate: v })}
           />
           <Field
             id="streak"
             label="Streak target (days)"
+            hintId="streak-target"
             value={form.streakTargetDays}
             onChange={(v) => setForm({ ...form, streakTargetDays: v })}
           />
           <Field
             id="card"
             label="Discount card (%)"
+            hintId="discount-card"
             value={form.discountCardPercent}
             onChange={(v) => setForm({ ...form, discountCardPercent: v })}
           />
           <Field
             id="validity"
             label="Card validity (days)"
+            hintId="card-validity"
             value={form.cardValidityDays}
             onChange={(v) => setForm({ ...form, cardValidityDays: v })}
           />
@@ -101,9 +107,12 @@ function SuperRewards() {
           <p className="num text-[12px] text-muted-foreground">
             {rates.updatedAt ? `Last updated ${formatDateTime(rates.updatedAt)}` : "Using frozen defaults"}
           </p>
-          <Button size="sm" onClick={save}>
-            Save program
-          </Button>
+          <div className="flex items-center gap-1.5">
+            <ComponentHelp id="save-program" label="About saving the program" />
+            <Button size="sm" onClick={save}>
+              Save program
+            </Button>
+          </div>
         </div>
       </SectionCard>
 
@@ -148,17 +157,22 @@ function SuperRewards() {
 function Field({
   id,
   label,
+  hintId,
   value,
   onChange,
 }: {
   id: string;
   label: string;
+  hintId?: string;
   value: string;
   onChange: (value: string) => void;
 }) {
   return (
     <div className="space-y-1.5">
-      <Label htmlFor={id}>{label}</Label>
+      <div className="flex items-center gap-1.5">
+        <Label htmlFor={id}>{label}</Label>
+        {hintId ? <ComponentHelp id={hintId} label={`About ${label}`} /> : null}
+      </div>
       <Input id={id} className="num" value={value} onChange={(e) => onChange(e.target.value)} />
     </div>
   );

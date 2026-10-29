@@ -27,6 +27,7 @@ import { formatDate, formatINR, parseRupeesToPaisa } from "@/lib/format";
 import { createCoupon, toggleCoupon } from "@/lib/api";
 import { useCoupons, useMockLoading } from "@/lib/api/hooks";
 import { useSession } from "@/lib/hooks/useSession";
+import { ComponentHelp } from "@/components/patterns/ComponentHelp";
 import type { Sector } from "@/data/types";
 
 
@@ -52,7 +53,10 @@ function StateCoupons() {
       <SectionCard title="Issue a coupon">
         <div className="grid gap-4 md:grid-cols-5">
           <div className="space-y-1.5">
-            <Label htmlFor="code">Code</Label>
+            <span className="flex items-center gap-1.5">
+              <Label htmlFor="code">Code</Label>
+              <ComponentHelp id="coupon-code" label="About the coupon code" />
+            </span>
             <Input
               id="code"
               className="num"
@@ -62,7 +66,10 @@ function StateCoupons() {
             />
           </div>
           <div className="space-y-1.5">
-            <Label>Sector</Label>
+            <span className="flex items-center gap-1.5">
+              <Label>Sector</Label>
+              <ComponentHelp id="coupon-sector" label="About the coupon sector" />
+            </span>
             <Select value={sector} onValueChange={(v) => setSector(v as Sector)}>
               <SelectTrigger>
                 <SelectValue />
@@ -75,7 +82,10 @@ function StateCoupons() {
             </Select>
           </div>
           <div className="space-y-1.5">
-            <Label htmlFor="pct">Value %</Label>
+            <span className="flex items-center gap-1.5">
+              <Label htmlFor="pct">Value %</Label>
+              <ComponentHelp id="coupon-value" label="About the discount value" />
+            </span>
             <Input
               id="pct"
               className="num"
@@ -85,7 +95,10 @@ function StateCoupons() {
             {percent > 50 ? <p className="text-[11px] text-destructive">Maximum 50%.</p> : null}
           </div>
           <div className="space-y-1.5">
-            <Label htmlFor="cap">Max discount (₹)</Label>
+            <span className="flex items-center gap-1.5">
+              <Label htmlFor="cap">Max discount (₹)</Label>
+              <ComponentHelp id="coupon-cap" label="About the maximum discount" />
+            </span>
             <Input
               id="cap"
               className="num"
@@ -94,7 +107,10 @@ function StateCoupons() {
             />
           </div>
           <div className="space-y-1.5">
-            <Label htmlFor="till">Valid till</Label>
+            <span className="flex items-center gap-1.5">
+              <Label htmlFor="till">Valid till</Label>
+              <ComponentHelp id="coupon-valid-till" label="About the validity date" />
+            </span>
             <Input
               id="till"
               type="date"
@@ -104,7 +120,7 @@ function StateCoupons() {
             />
           </div>
         </div>
-        <div className="mt-4 flex justify-end">
+        <div className="mt-4 flex items-center justify-end gap-1.5">
           <Button
             size="sm"
             disabled={!valid}
@@ -125,6 +141,7 @@ function StateCoupons() {
           >
             Issue coupon
           </Button>
+          <ComponentHelp id="issue-coupon" label="About issuing a coupon" />
         </div>
       </SectionCard>
 
@@ -144,7 +161,12 @@ function StateCoupons() {
                 <TableHead className="text-right">Cap</TableHead>
                 <TableHead>Valid till</TableHead>
                 <TableHead>Status</TableHead>
-                <TableHead className="text-right">Action</TableHead>
+                <TableHead className="text-right">
+                  <span className="inline-flex items-center justify-end gap-1.5">
+                    Action
+                    <ComponentHelp id="toggle-coupon" label="About retiring a coupon" />
+                  </span>
+                </TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>

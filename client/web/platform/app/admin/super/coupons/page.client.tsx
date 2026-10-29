@@ -3,6 +3,7 @@ import { useState } from "react";
 import { toast } from "sonner";
 import { PageHeader } from "@/components/patterns/PageHeader";
 import { SectionCard } from "@/components/patterns/SectionCard";
+import { ComponentHelp } from "@/components/patterns/ComponentHelp";
 import { DataShell, EmptyState } from "@/components/patterns/DataState";
 import { StatusPill } from "@/components/patterns/Pills";
 import { Button } from "@/components/ui/button";
@@ -48,7 +49,10 @@ function SuperCoupons() {
       <SectionCard title="Issue a global coupon">
         <div className="grid gap-4 md:grid-cols-5">
           <div className="space-y-1.5">
-            <Label htmlFor="g-code">Code</Label>
+            <div className="flex items-center gap-1.5">
+              <Label htmlFor="g-code">Code</Label>
+              <ComponentHelp id="coupon-code" label="About the coupon code" />
+            </div>
             <Input
               id="g-code"
               className="num"
@@ -58,7 +62,10 @@ function SuperCoupons() {
             />
           </div>
           <div className="space-y-1.5">
-            <Label>Sector</Label>
+            <div className="flex items-center gap-1.5">
+              <Label>Sector</Label>
+              <ComponentHelp id="coupon-sector" label="About the coupon sector" />
+            </div>
             <Select value={sector} onValueChange={(v) => setSector(v as Sector | "ALL")}>
               <SelectTrigger>
                 <SelectValue />
@@ -72,7 +79,10 @@ function SuperCoupons() {
             </Select>
           </div>
           <div className="space-y-1.5">
-            <Label htmlFor="g-pct">Value %</Label>
+            <div className="flex items-center gap-1.5">
+              <Label htmlFor="g-pct">Value %</Label>
+              <ComponentHelp id="coupon-value" label="About the discount value" />
+            </div>
             <Input
               id="g-pct"
               className="num"
@@ -82,7 +92,10 @@ function SuperCoupons() {
             {percent > 50 ? <p className="text-[11px] text-destructive">Maximum 50%.</p> : null}
           </div>
           <div className="space-y-1.5">
-            <Label htmlFor="g-cap">Max discount (₹)</Label>
+            <div className="flex items-center gap-1.5">
+              <Label htmlFor="g-cap">Max discount (₹)</Label>
+              <ComponentHelp id="coupon-cap" label="About the discount cap" />
+            </div>
             <Input
               id="g-cap"
               className="num"
@@ -91,7 +104,10 @@ function SuperCoupons() {
             />
           </div>
           <div className="space-y-1.5">
-            <Label htmlFor="g-till">Valid till</Label>
+            <div className="flex items-center gap-1.5">
+              <Label htmlFor="g-till">Valid till</Label>
+              <ComponentHelp id="coupon-validity" label="About the coupon validity" />
+            </div>
             <Input
               id="g-till"
               type="date"
@@ -101,7 +117,8 @@ function SuperCoupons() {
             />
           </div>
         </div>
-        <div className="mt-4 flex justify-end">
+        <div className="mt-4 flex items-center justify-end gap-1.5">
+          <ComponentHelp id="issue-coupon-button" label="About issuing a coupon" />
           <Button
             size="sm"
             disabled={!valid}
@@ -140,7 +157,12 @@ function SuperCoupons() {
                 <TableHead className="text-right">Cap</TableHead>
                 <TableHead>Valid till</TableHead>
                 <TableHead>Status</TableHead>
-                <TableHead className="text-right">Action</TableHead>
+                <TableHead className="text-right">
+                  <span className="inline-flex items-center gap-1.5">
+                    Action
+                    <ComponentHelp id="toggle-coupon" label="About retiring a coupon" />
+                  </span>
+                </TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>

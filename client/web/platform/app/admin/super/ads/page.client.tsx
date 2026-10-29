@@ -2,6 +2,7 @@
 import { toast } from "sonner";
 import { PageHeader } from "@/components/patterns/PageHeader";
 import { SectionCard } from "@/components/patterns/SectionCard";
+import { ComponentHelp } from "@/components/patterns/ComponentHelp";
 import { KpiStrip } from "@/components/patterns/KpiCard";
 import { DataShell, EmptyState } from "@/components/patterns/DataState";
 import { StatusPill } from "@/components/patterns/Pills";
@@ -45,7 +46,16 @@ function SuperAds() {
         ]}
       />
 
-      <SectionCard title="Live hero campaigns" bodyClassName="p-0">
+      <SectionCard
+        title="Live hero campaigns"
+        bodyClassName="p-0"
+        actions={
+          <div className="flex items-center gap-1.5">
+            <ComponentHelp id="takedown-button" label="About taking down a campaign" />
+            <ComponentHelp id="restore-button" label="About restoring a campaign" />
+          </div>
+        }
+      >
         <DataShell
           loading={loading}
           isEmpty={campaigns.length === 0}
@@ -131,7 +141,16 @@ function SuperAds() {
         </DataShell>
       </SectionCard>
 
-      <SectionCard title="Rail placements" bodyClassName="p-0">
+      <SectionCard
+        title="Rail placements"
+        bodyClassName="p-0"
+        actions={
+          <div className="flex items-center gap-1.5">
+            <ComponentHelp id="approve-placement" label="About approving a placement" />
+            <ComponentHelp id="reject-placement" label="About rejecting a placement" />
+          </div>
+        }
+      >
         <DataShell
           loading={loading}
           isEmpty={slots.length === 0}

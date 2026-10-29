@@ -32,6 +32,7 @@ import { useMockLoading, useProducts } from "@/lib/api/hooks";
 import { useSession } from "@/lib/hooks/useSession";
 import type { ProductRecord, Sector } from "@/data/types";
 import { ProductThumb } from "@/components/patterns/ProductThumb";
+import { ComponentHelp } from "@/components/patterns/ComponentHelp";
 
 
 const SECTORS: (Sector | "ALL")[] = ["ALL", "MART", "FOOD", "PHARMA"];
@@ -64,20 +65,28 @@ function StateProducts() {
 
       <SectionCard bodyClassName="p-0">
         <div className="flex flex-wrap items-center gap-2 border-b border-border p-3">
-          <Input
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            placeholder="Search product or id"
-            className="h-9 w-56"
-          />
-          {SECTORS.map((option) => (
-            <FilterChip
-              key={option}
-              label={option === "ALL" ? "All sectors" : option}
-              active={sector === option}
-              onClick={() => setSector(option)}
+          <div className="flex items-center gap-1.5">
+            <Input
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder="Search product or id"
+              className="h-9 w-56"
             />
-          ))}
+            <ComponentHelp id="product-search" label="About product search" />
+          </div>
+          <div className="flex items-center gap-1.5">
+            <div className="flex flex-wrap gap-1">
+              {SECTORS.map((option) => (
+                <FilterChip
+                  key={option}
+                  label={option === "ALL" ? "All sectors" : option}
+                  active={sector === option}
+                  onClick={() => setSector(option)}
+                />
+              ))}
+            </div>
+            <ComponentHelp id="sector-filter" label="About the sector filter" />
+          </div>
         </div>
         <DataShell
           loading={loading}
@@ -94,7 +103,12 @@ function StateProducts() {
                 <TableHead className="text-right">Price</TableHead>
                 <TableHead className="text-right">Discount</TableHead>
                 <TableHead>Status</TableHead>
-                <TableHead className="text-right">Action</TableHead>
+                <TableHead className="text-right">
+                  <span className="inline-flex items-center justify-end gap-1.5">
+                    Action
+                    <ComponentHelp id="moderate-button" label="About moderating a listing" />
+                  </span>
+                </TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -137,42 +151,57 @@ function StateProducts() {
           {active ? (
             <div className="space-y-4 px-4 pb-6">
               <div className="space-y-1.5">
-                <Label htmlFor="mod-name">Product name</Label>
+                <span className="flex items-center gap-1.5">
+                  <Label htmlFor="mod-name">Product name</Label>
+                  <ComponentHelp id="moderation-name" label="About the product name" />
+                </span>
                 <Input id="mod-name" value={name} onChange={(e) => setName(e.target.value)} />
               </div>
               <div className="space-y-1.5">
-                <Label htmlFor="mod-price">Selling price (₹)</Label>
+                <span className="flex items-center gap-1.5">
+                  <Label htmlFor="mod-price">Selling price (₹)</Label>
+                  <ComponentHelp id="moderation-price" label="About the selling price" />
+                </span>
                 <Input id="mod-price" className="num" value={price} onChange={(e) => setPrice(e.target.value)} />
               </div>
               <div className="space-y-1.5">
-                <Label htmlFor="mod-reason">Reason (required)</Label>
+                <span className="flex items-center gap-1.5">
+                  <Label htmlFor="mod-reason">Reason (required)</Label>
+                  <ComponentHelp id="moderation-reason" label="About the reason" />
+                </span>
                 <Textarea id="mod-reason" rows={3} value={reason} onChange={(e) => setReason(e.target.value)} />
               </div>
               <div className="flex flex-wrap gap-2">
-                <Button
-                  size="sm"
-                  disabled={reason.trim().length < 4}
-                  onClick={() => {
-                    updateProduct(active.productId, { name });
-                    upsertPrice(active.productId, parseRupeesToPaisa(price), active.mrpPaisa);
-                    toast.success("Listing updated");
-                    setActive(null);
-                  }}
-                >
-                  Save changes
-                </Button>
-                <Button
-                  size="sm"
-                  variant="destructive"
-                  disabled={reason.trim().length < 4}
-                  onClick={() => {
-                    deleteProduct(active.productId, reason.trim());
-                    toast.success("Listing removed");
-                    setActive(null);
-                  }}
-                >
-                  Delete listing
-                </Button>
+                <div className="flex items-center gap-1.5">
+                  <Button
+                    size="sm"
+                    disabled={reason.trim().length < 4}
+                    onClick={() => {
+                      updateProduct(active.productId, { name });
+                      upsertPrice(active.productId, parseRupeesToPaisa(price), active.mrpPaisa);
+                      toast.success("Listing updated");
+                      setActive(null);
+                    }}
+                  >
+                    Save changes
+                  </Button>
+                  <ComponentHelp id="save-changes" label="About saving changes" />
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <Button
+                    size="sm"
+                    variant="destructive"
+                    disabled={reason.trim().length < 4}
+                    onClick={() => {
+                      deleteProduct(active.productId, reason.trim());
+                      toast.success("Listing removed");
+                      setActive(null);
+                    }}
+                  >
+                    Delete listing
+                  </Button>
+                  <ComponentHelp id="delete-listing" label="About deleting a listing" />
+                </div>
               </div>
             </div>
           ) : null}
