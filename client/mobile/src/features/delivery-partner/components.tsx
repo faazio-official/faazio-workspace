@@ -84,12 +84,15 @@ export function PrimaryButton({
   disabled,
   loading,
   variant = 'solid',
+  infoKey,
 }: {
   label: string;
   onPress: () => void;
   disabled?: boolean;
   loading?: boolean;
   variant?: 'solid' | 'ghost' | 'danger';
+  /** Opt-in registry key that renders a small "i" guidance badge on the button. */
+  infoKey?: string;
 }) {
   const isGhost = variant === 'ghost';
   const isDanger = variant === 'danger';
@@ -106,6 +109,11 @@ export function PrimaryButton({
         pressed && !disabled && !loading ? styles.buttonPressed : null,
       ]}
     >
+      {infoKey ? (
+        <View style={styles.buttonInfoBadge}>
+          <InfoButton variant="badge" contentKey={infoKey} color={isGhost ? DP.brand : '#ffffff'} />
+        </View>
+      ) : null}
       {loading ? (
         <ActivityIndicator color={isGhost ? DP.brand : '#ffffff'} />
       ) : (
@@ -115,16 +123,23 @@ export function PrimaryButton({
   );
 }
 
-export function StatusPill({ status }: { status: string }) {
+export function StatusPill({ status, infoKey }: { status: string; infoKey?: string }) {
   const tone =
     status === 'ACTIVE' || status === 'PAID'
       ? DP.success
       : status === 'REJECTED' || status === 'BLACKLISTED' || status === 'SUSPENDED'
         ? DP.danger
         : DP.warning;
-  return (
+  const pill = (
     <View style={[styles.pill, { borderColor: tone }]}>
       <AppText style={[styles.pillText, { color: tone }]}>{status.replace(/_/g, ' ')}</AppText>
+    </View>
+  );
+  if (!infoKey) return pill;
+  return (
+    <View style={styles.pillRow}>
+      {pill}
+      <InfoButton variant="badge" contentKey={infoKey} />
     </View>
   );
 }
@@ -170,6 +185,7 @@ const styles = StyleSheet.create({
   buttonDisabled: { opacity: 0.5 },
   buttonGhost: { backgroundColor: 'transparent', borderWidth: 1, borderColor: DP.brand },
   buttonDanger: { backgroundColor: DP.danger },
+  buttonInfoBadge: { position: 'absolute', top: vs(4), right: hs(6), zIndex: 2 },
   buttonText: { fontSize: ms(14), fontWeight: '900', color: '#ffffff', textTransform: 'uppercase', letterSpacing: 0.4 },
   buttonGhostText: { color: DP.brand },
   pill: {
@@ -180,5 +196,6 @@ const styles = StyleSheet.create({
     paddingVertical: vs(3),
   },
   pillText: { fontSize: ms(10), fontWeight: '900', letterSpacing: 0.5 },
+  pillRow: { flexDirection: 'row', alignItems: 'center', gap: hs(6), alignSelf: 'flex-start' },
   error: { fontSize: ms(12), color: DP.danger, marginBottom: vs(8) },
 });

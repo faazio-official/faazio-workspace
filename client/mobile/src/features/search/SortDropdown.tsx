@@ -2,6 +2,7 @@ import React, { memo, useState } from 'react';
 import { View, TouchableOpacity, StyleSheet } from 'react-native';
 import { ChevronDown, Check } from 'lucide-react-native';
 import AppText from '@/components/AppText';
+import InfoButton from '@/components/shared/InfoButton';
 import { hs, ms, vs } from '@/utils/responsive';
 import type { SortOption } from './types';
 
@@ -10,6 +11,8 @@ interface SortDropdownProps {
   activeId: string;
   onSelect: (id: string) => void;
   accentColor?: string;
+  /** Opt-in registry key that renders a small "i" guidance badge beside the pill. */
+  infoKey?: string;
 }
 
 /**
@@ -22,25 +25,29 @@ const SortDropdown = memo(function SortDropdown({
   activeId,
   onSelect,
   accentColor = '#FF4500',
+  infoKey,
 }: SortDropdownProps) {
   const [open, setOpen] = useState(false);
   const active = options.find((o) => o.id === activeId);
 
   return (
     <View>
-      <TouchableOpacity
-        onPress={() => setOpen((o) => !o)}
-        style={styles.pill}
-        activeOpacity={0.8}
-        accessibilityRole="button"
-        accessibilityLabel="Sort by"
-        accessibilityState={{ expanded: open }}
-      >
-        <AppText style={styles.label} numberOfLines={1}>
-          {active ? active.label : 'Sort'}
-        </AppText>
-        <ChevronDown size={ms(14)} color="#374151" strokeWidth={2.2} />
-      </TouchableOpacity>
+      <View style={styles.pillRow}>
+        <TouchableOpacity
+          onPress={() => setOpen((o) => !o)}
+          style={styles.pill}
+          activeOpacity={0.8}
+          accessibilityRole="button"
+          accessibilityLabel="Sort by"
+          accessibilityState={{ expanded: open }}
+        >
+          <AppText style={styles.label} numberOfLines={1}>
+            {active ? active.label : 'Sort'}
+          </AppText>
+          <ChevronDown size={ms(14)} color="#374151" strokeWidth={2.2} />
+        </TouchableOpacity>
+        {infoKey ? <InfoButton variant="badge" contentKey={infoKey} /> : null}
+      </View>
 
       {open ? (
         <View style={styles.panel}>
@@ -76,6 +83,11 @@ const SortDropdown = memo(function SortDropdown({
 export default SortDropdown;
 
 const styles = StyleSheet.create({
+  pillRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: hs(6),
+  },
   pill: {
     flexDirection: 'row',
     alignItems: 'center',

@@ -1,7 +1,8 @@
 import React, { memo, useCallback } from 'react';
-import { StyleSheet, TouchableOpacity } from 'react-native';
+import { StyleSheet, TouchableOpacity, View } from 'react-native';
 import { Star } from 'lucide-react-native';
 import AppText from '@/components/AppText';
+import InfoButton from './InfoButton';
 import { getVendorById } from '@data/index';
 import { hs, vs, ms } from '@/utils/responsive';
 import { useCanRateVendor, useUserVendorRating } from '@/hooks/useVendorRating';
@@ -12,6 +13,8 @@ interface VendorRateButtonProps {
   onPress: (vendor: { id: string; name: string }) => void;
   variant?: 'full' | 'compact';
   accentColor?: string;
+  /** Opt-in registry key that renders a small "i" guidance badge beside the button. */
+  infoKey?: string;
 }
 
 /**
@@ -25,6 +28,7 @@ const VendorRateButton = memo(function VendorRateButton({
   onPress,
   variant = 'full',
   accentColor = '#16A34A',
+  infoKey,
 }: VendorRateButtonProps) {
   const canRate = useCanRateVendor(vendorId);
   const myRating = useUserVendorRating(vendorId);
@@ -39,7 +43,7 @@ const VendorRateButton = memo(function VendorRateButton({
   const label = myRating ? 'Update your rating' : 'Rate this store';
   const compact = variant === 'compact';
 
-  return (
+  const button = (
     <TouchableOpacity
       onPress={handlePress}
       style={[
@@ -56,6 +60,14 @@ const VendorRateButton = memo(function VendorRateButton({
         {label}
       </AppText>
     </TouchableOpacity>
+  );
+
+  if (!infoKey) return button;
+  return (
+    <View style={styles.withInfo}>
+      {button}
+      <InfoButton variant="badge" contentKey={infoKey} />
+    </View>
   );
 });
 
@@ -86,5 +98,10 @@ const styles = StyleSheet.create({
   },
   textCompact: {
     fontSize: ms(12),
+  },
+  withInfo: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: hs(6),
   },
 });

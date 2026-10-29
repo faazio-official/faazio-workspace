@@ -1340,8 +1340,11 @@ sheet.
 - **Every screen header** carries a page-level "i" (customer routes, the shared `SubAppHeader`/
   `SearchHeader`/`FoodHeader` via their `infoKey` prop, all 8 Delivery Partner screens, and a small
   floating "i" over the Seller WebView shell). **Component-level** guidance is opt-in via an
-  `infoKey` prop on `ProductCardBase`, `StoreCardBase`, `SearchProductRowCard` and the delivery
-  `Field`/`Card` primitives.
+  `infoKey` prop on the shared primitives (`ProductCardBase`, `StoreCardBase`, `SearchProductRowCard`,
+  `AppTextInput`, `SortDropdown`, `FilterChipsRail`, `FilterSortBar`, `HeaderCategoryRail`,
+  `FloatingCartBar`, `StarRatingInput`, `VendorRateButton`, `Checkbox`) and the delivery
+  `Field`/`Card`/`PrimaryButton`/`StatusPill`. No screen enables a component badge yet by design;
+  `SlideUpSheet` uses its existing `sheetTop` slot for injection (avoids an import cycle).
 - **Seller app caveat:** the portal (WebView) owns its own UI and cannot be injected into; the native
   "i" documents that the web portal governs seller flows.
 
