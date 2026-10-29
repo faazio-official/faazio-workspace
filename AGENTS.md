@@ -29,6 +29,7 @@ See `ARCHITECTURE.md` (root) for the full mobile + backend design. Data ownershi
 - **"web app" / "the web app"** (as said in chat) = the **web platform** = `client/web/` — the Next.js Partner Portal (`client/web/platform/`, shipping) and, when stated, the marketing landing page (`client/web/landingpage/`). It does **not** mean the mobile app.
 - **"app" / "mobile app"** = the bare React Native SuperApp under `client/mobile/`.
 - When a request says "the web app", scope work to `client/web/` unless the user explicitly says mobile.
+- **"run the migration" / "run migrations"** (as said in chat) = apply the SQL to the Supabase database **from the developer terminal**, using the git-ignored credentials in `server/gateway/.env` (`DATABASE_URL`) via `server/supabase/apply-migration.sh` (uses local `psql` when present, else a throwaway `postgres:16` Docker container). Render never applies migrations (distroless image). Treat it as an actionable request — run the script; do not reply that it "cannot be run". See `docs/RUNBOOKS/DATABASE_MIGRATIONS.md`.
 
 ## Documentation map
 Structured docs live under root `docs/` (mirrors the repo layout):
@@ -71,8 +72,9 @@ the same change — do not wait to be asked. Concretely, after implementing:
   `monolith-breakdown.md` §1 when a context's schema set changes).
 - **Cache key / TTL / purge changes** → update `docs/architecture/caching-cloudflare-valkey.md`.
 - **Build/deploy/signing changes** → update `docs/RUNBOOKS/RELEASE.md`.
-- **DB migrations on Supabase** → never auto-run on Render; update/point to
-  `docs/RUNBOOKS/DATABASE_MIGRATIONS.md` (apply from a dev terminal with `server/gateway/.env`).
+- **DB migrations on Supabase** → never auto-run on Render; apply from a dev terminal with
+  `server/supabase/apply-migration.sh` (reads `DATABASE_URL` from `server/gateway/.env`);
+  update/point to `docs/RUNBOOKS/DATABASE_MIGRATIONS.md`.
 - **Build/run/verification changes** → update `docs/RUNBOOKS/TROUBLESHOOTING.md` and the relevant section of `docs/DEVELOPER_ONBOARDING.md`.
 - **Behavior removed** (e.g. deleted UI like an exit-confirm sheet) → remove the now-stale
   description from the deep-dive/runbook that mentioned it.

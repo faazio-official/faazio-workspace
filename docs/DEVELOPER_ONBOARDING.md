@@ -95,9 +95,9 @@ and starts the gateway. `curl localhost:8080/health` should report `db:true cach
 > with `column … does not exist` even though `/health` looks green.
 >
 > Production (Supabase) is the opposite: **Render never applies migrations** — they are run by hand
-> from a dev terminal with `server/gateway/.env`
-> (`docs/RUNBOOKS/DATABASE_MIGRATIONS.md`). Local compose auto-applies every committed migration
-> (`0001`–`0056`) + seed on a fresh volume.
+> from a dev terminal with `server/supabase/apply-migration.sh` (reads `DATABASE_URL` from
+> `server/gateway/.env`; `docs/RUNBOOKS/DATABASE_MIGRATIONS.md`). Local compose auto-applies every
+> committed migration (`0001`–`0056`) + seed on a fresh volume.
 
 Integration tests (FTS, order lock/decrement, rating gate, PII redaction, pagination) **skip**
 unless pointed at the stack; run them fully with:

@@ -12,25 +12,55 @@ hint=apply migrations 0032 + 0033`). If a migration is pending, the affected rou
 Render talks to). Recommended order on a release: **apply migrations → deploy/roll the gateway**, so
 the new code never runs against an un-migrated schema.
 
+> **"Run the migration" in chat means run `server/supabase/apply-migration.sh`** from a dev terminal.
+> It reads `DATABASE_URL` from `server/gateway/.env`, uses local `psql` when present (otherwise a
+> throwaway `postgres:16` Docker container), aborts on the first error, and never prints the
+> connection string. Treat it as an actionable request.
+
 ## 0. Where migrations live + ordering
 
 - Files: `server/supabase/migrations/*.sql` (zero-padded `NNNN_name.sql`).
 - Run strictly in numeric order. SQL outside a transaction (e.g. `create index` / `grant`) is already
   `if not exists`-guarded where needed, but re-applying an already-applied migration is still not
   guaranteed safe — **apply only the pending ones** against production.
-- A migration may fail part-way; `ON_ERROR_STOP=1` makes `psql` abort so you can see exactly where.
-  Fix forward (a small follow-up migration) rather than editing an applied file.
+- A migration may fail part-way; the script passes `ON_ERROR_STOP=1` so `psql` aborts and you can see
+  exactly where. Fix forward (a small follow-up migration) rather than editing an applied file.
 
-## 1. Load the credentials
+## 1. Apply with the script (preferred)
+
+`server/supabase/apply-migration.sh` sources the git-ignored `server/gateway/.env` — run it from the
+**repo root**:
+
+```bash
+# one or more specific files, applied in the order given:
+server/supabase/apply-migration.sh server/supabase/migrations/0061_blood_request_author.sql
+
+# every migration numbered >= the given prefix (i.e. the pending ones):
+server/supabase/apply-migration.sh --from 0061
+
+# fresh database: every migration, then the seed:
+server/supabase/apply-migration.sh --all --seed
+```
+
+`--from NNNN` compares the zero-padded numeric prefix, so `--from 0061` applies `0061…` onward.
+`--seed` appends `server/supabase/seed/0001_seed.sql`.
+
+List the files (`ls server/supabase/migrations/ | tail`) and apply everything newer than the last one
+that succeeded. Verify a boot: the gateway log on Render should stop emitting
+`portal_tables=... hint=apply migration ...`, and `GET /health` shows `"db":true`.
+
+## 2. Manual `psql` (alternative)
+
+Use this only when `psql` is already installed and you prefer the raw commands.
 
 ```bash
 cd server/gateway
 set -a && . ./.env && set +a     # exports DATABASE_URL, SUPABASE_URL, etc. from the git-ignored .env
 ```
 
-`DATABASE_URL` is the Supabase **Supavisor pooler** connection string (`postgres://postgres.<ref>@…pooler.supabase.com:5432/postgres?sslmode=require`) — IPv4, supports prepared statements.
+`DATABASE_URL` is the Supabase **Supavisor pooler** connection string (`postgres://postgres.<ref>@...pooler.supabase.com:5432/postgres?sslmode=require`) — IPv4, supports prepared statements.
 
-## 2. Apply a fresh database (all migrations + seed)
+### Fresh database (all migrations + seed)
 
 ```bash
 cd server/gateway
@@ -41,7 +71,7 @@ done
 psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f ../supabase/seed/0001_seed.sql
 ```
 
-## 3. Apply only pending migrations (production / existing DB)
+### Only pending migrations (production / existing DB)
 
 ```bash
 cd server/gateway
@@ -63,11 +93,7 @@ psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f ../supabase/migrations/0059_app_confi
 psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f ../supabase/migrations/0060_account_deletion.sql
 ```
 
-List the files (`ls ../supabase/migrations/ | tail`) and apply everything newer than the last one
-that succeeded. Verify a boot: the gateway log on Render should stop emitting
-`portal_tables=… hint=apply migration …`, and `GET /health` shows `"db":true`.
-
-## 4. Alternatives to `psql`
+## 3. Other alternatives
 
 - **Supabase SQL Editor** — paste the target migration file's contents into
   Dashboard → SQL Editor and run. Slower for many files; fine for a one-off.
@@ -76,11 +102,11 @@ that succeeded. Verify a boot: the gateway log on Render should stop emitting
   `0011`/`0020` and the unused `0035` slot) + seed via `docker-entrypoint-initdb.d` **on first boot
   only**.
 
-## 5. Symptoms of a pending migration
+## 4. Symptoms of a pending migration
 
 - `*_unavailable` (500) on search/sellers/portal routes while Postgres is healthy.
 - Boot log: `portal_tables=missing|partial hint=apply migration NN`.
-- Request log: `sqlstate=42703 column=…` (column added by a migration you have not applied).
+- Request log: `sqlstate=42703 column=...` (column added by a migration you have not applied).
 
-Fix = run the pending migration with §1–§3, then roll the Render deploy if the gateway needs a restart
-(it does not auto-apply anything).
+Fix = run the pending migration with §1 (or §2), then roll the Render deploy if the gateway needs a
+restart (it does not auto-apply anything).
