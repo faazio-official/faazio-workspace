@@ -392,9 +392,10 @@ build (Reanimated is far slower in debug); use a **CI release** build.
   (`DATABASE_URL`/`MONGO_URI`); the gateway starts without them for `/health`-only runs. Use
   `docker compose up --build` in `server/gateway/`, or set `.env` from `.env.example`.
 - Search/detail returns `*_unavailable` → Postgres reachable but migrations/seed not applied. Apply
-  the **pending** migrations then seed from a dev terminal using `server/gateway/.env`
-  (`docs/RUNBOOKS/DATABASE_MIGRATIONS.md` — Render never auto-applies; local compose applies
-  `0001`-`0056` + seed on first boot).
+  the **pending** migrations (and seed) from a dev terminal with
+  `server/supabase/apply-migration.sh --from NNNN --seed` (reads `DATABASE_URL` from
+  `server/gateway/.env`; `docs/RUNBOOKS/DATABASE_MIGRATIONS.md` — Render never auto-applies; local
+  compose applies migrations + seed on first boot).
 - Mongo `home feed unavailable` → `mongodb` not seeded. Run `server/supabase/seed/mongo/seed.js`
   (compose mounts it into `/docker-entrypoint-initdb.d`).
 
@@ -468,7 +469,8 @@ Full triage table + commands: `docs/RUNBOOKS/PORTAL_AUTH.md` §0.
   request log (`portal_error op=login_session_create sqlstate=42703 column=absolute_expires_at`).
   `0038` is the common one: a valid password reaches `CreateSession`, which writes the lifetime
   columns and 500s when `0038` is missing. Render never runs migrations — apply the named file from
-  a dev terminal (`DATABASE_MIGRATIONS.md`); for an existing compose volume `docker compose down -v`
+  a dev terminal with `server/supabase/apply-migration.sh server/supabase/migrations/<file>.sql`
+  (`DATABASE_MIGRATIONS.md`); for an existing compose volume `docker compose down -v`
   (dev only) or `psql -f 0038_portal_session_lifetime.sql`. `0034` is
   data-only (clears the superadmin forced-rotation flag) and can be applied separately.
 - After C/D are fixed, a **valid** email still returns `401 invalid_credentials` until the account is
