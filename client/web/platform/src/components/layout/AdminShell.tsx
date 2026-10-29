@@ -35,6 +35,7 @@ import { districtName, stateForDistrict } from "@/data/districts";
 import { RoleGate } from "@/components/layout/RoleGate";
 import { FaazioWordmark } from "@/components/brand/FaazioWordmark";
 import { ROLE_LABEL } from "@/lib/auth/permissions";
+import { ComponentHelp } from "@/components/patterns/ComponentHelp";
 
 export function AdminShell({
   scope,
@@ -87,11 +88,14 @@ export function AdminShell({
         >
           <div className="flex h-14 items-center gap-2 border-b border-ink-border px-3">
             {!collapsed ? (
-              <div className="min-w-0">
-                <FaazioWordmark className="brand-wordmark text-ink-foreground" />
-                <p className="truncate text-[11px] text-ink-muted">
-                  {scope === "DISTRICT" ? "District console" : "Global console"}
-                </p>
+              <div className="flex min-w-0 flex-1 items-center justify-between gap-2">
+                <div className="min-w-0">
+                  <FaazioWordmark className="brand-wordmark text-ink-foreground" />
+                  <p className="truncate text-[11px] text-ink-muted">
+                    {scope === "DISTRICT" ? "District console" : "Global console"}
+                  </p>
+                </div>
+                <ComponentHelp helpKey="shell:admin-nav" label="About admin navigation" />
               </div>
             ) : null}
           </div>
@@ -193,6 +197,7 @@ export function AdminShell({
                   : "GLOBAL · All districts"}
               </span>
             </span>
+            <ComponentHelp helpKey="shell:admin-scope" label="About your scope" />
             <Button
               variant="outline"
               size="sm"
@@ -206,10 +211,13 @@ export function AdminShell({
                 ⌘K
               </kbd>
             </Button>
+            <ComponentHelp helpKey="shell:admin-search" label="About admin search" />
             <div className="ml-auto flex items-center gap-1">
               <Button variant="ghost" size="icon" aria-label="Notifications">
                 <Bell className="size-4" />
               </Button>
+              <ComponentHelp helpKey="shell:admin-bell" label="About admin notifications" />
+              <ComponentHelp helpKey="shell:admin-user" label="About your account menu" />
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <Button variant="ghost" size="sm" className="gap-2">

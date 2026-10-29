@@ -18,6 +18,7 @@ import { setProductStatus } from "@/lib/api";
 import { useMockLoading, useProducts } from "@/lib/api/hooks";
 import { useSession } from "@/lib/hooks/useSession";
 import { ProductThumb } from "@/components/patterns/ProductThumb";
+import { ComponentHelp } from "@/components/patterns/ComponentHelp";
 
 
 function ListingQueue() {
@@ -52,7 +53,13 @@ function ListingQueue() {
                 <TableHead>Seller</TableHead>
                 <TableHead className="text-right">Price</TableHead>
                 <TableHead>Submitted</TableHead>
-                <TableHead className="text-right">Decision</TableHead>
+                <TableHead className="text-right">
+                  <span className="inline-flex items-center gap-1.5">
+                    Decision
+                    <ComponentHelp id="approve-button" label="About approving a listing" />
+                    <ComponentHelp id="reject-button" label="About rejecting a listing" />
+                  </span>
+                </TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>

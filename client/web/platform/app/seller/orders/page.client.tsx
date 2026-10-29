@@ -5,6 +5,7 @@ import { PageHeader } from "@/components/patterns/PageHeader";
 import { SectionCard } from "@/components/patterns/SectionCard";
 import { DataShell, EmptyState } from "@/components/patterns/DataState";
 import { StatusPill } from "@/components/patterns/Pills";
+import { ComponentHelp } from "@/components/patterns/ComponentHelp";
 import { Button } from "@/components/ui/button";
 import { formatDateTime, formatINR } from "@/lib/format";
 import { acceptOrder, advanceOrder, rejectOrder } from "@/lib/api";
@@ -48,6 +49,14 @@ function SellerOrders() {
                 title={column.status.replace(/_/g, " ")}
                 description={`${columnOrders.length} orders`}
                 bodyClassName="space-y-2 p-3"
+                actions={
+                  column.status === "NEW" ? (
+                    <div className="flex items-center gap-1.5">
+                      <ComponentHelp id="accept-button" label="About accepting an order" />
+                      <ComponentHelp id="reject-button" label="About rejecting an order" />
+                    </div>
+                  ) : undefined
+                }
               >
                 {columnOrders.length === 0 ? (
                   <p className="py-6 text-center text-[12px] text-muted-foreground">Nothing here.</p>
