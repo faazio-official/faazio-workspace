@@ -19,7 +19,6 @@ import { groupTone, TONE_SOFT, TONE_TEXT, TONE_VAR } from "@/lib/ui/tones";
 import { useSession } from "@/lib/hooks/useSession";
 import { signOut } from "@/lib/api";
 import { RoleGate } from "@/components/layout/RoleGate";
-import { BrandTile } from "@/components/brand/FaazioMark";
 import { FaazioWordmark } from "@/components/brand/FaazioWordmark";
 import { SellerPushBridge } from "@/components/layout/SellerPushBridge";
 
@@ -58,7 +57,6 @@ export function SellerShell({ children }: { children: ReactNode }) {
             />
             <div className="absolute inset-y-0 left-0 flex w-72 max-w-[85%] flex-col bg-card shadow-xl">
               <div className="flex h-14 items-center gap-2 border-b border-border px-3">
-                <BrandTile className="size-7 rounded-md" />
                 <FaazioWordmark className="brand-wordmark text-primary" />
                 <Button
                   variant="ghost"
@@ -107,7 +105,6 @@ export function SellerShell({ children }: { children: ReactNode }) {
           )}
         >
           <div className="flex h-14 items-center gap-2 border-b border-border px-3">
-            <BrandTile className="size-7 rounded-md" />
             {!collapsed ? (
               <div className="min-w-0">
                 <FaazioWordmark className="brand-wordmark text-primary" />

@@ -10,7 +10,6 @@ import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { BrandTile } from "@/components/brand/FaazioMark";
 import { FaazioWordmark } from "@/components/brand/FaazioWordmark";
 
 function diagnosticCopy(status: PortalStatus): string | null {
@@ -93,7 +92,6 @@ function LoginPage() {
     <div className="flex min-h-screen items-center justify-center bg-background px-4 py-10">
       <div className="w-full max-w-md">
         <div className="mb-5 flex items-center gap-2.5">
-          <BrandTile className="size-8 rounded-md" />
           <div className="min-w-0">
             <FaazioWordmark className="h-[22px] w-auto text-primary" />
             <p className="mt-0.5 text-[12px] text-muted-foreground">Seller and admin sign-in</p>

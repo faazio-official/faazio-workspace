@@ -27,7 +27,6 @@ import { useSession } from "@/lib/hooks/useSession";
 import { signOut } from "@/lib/api";
 import { districtName, stateForDistrict } from "@/data/districts";
 import { RoleGate } from "@/components/layout/RoleGate";
-import { BrandTile } from "@/components/brand/FaazioMark";
 import { FaazioWordmark } from "@/components/brand/FaazioWordmark";
 import { ROLE_LABEL } from "@/lib/auth/permissions";
 
@@ -78,7 +77,6 @@ export function AdminShell({
           )}
         >
           <div className="flex h-14 items-center gap-2 border-b border-ink-border px-3">
-            <BrandTile className="size-7 rounded-md" />
             {!collapsed ? (
               <div className="min-w-0">
                 <FaazioWordmark className="brand-wordmark text-ink-foreground" />

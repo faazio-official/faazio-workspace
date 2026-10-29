@@ -3,7 +3,6 @@ import Link from "next/link";
 import { ArrowRight, PartyPopper, ShieldCheck, Store } from "lucide-react";
 import { ROLE_LABEL } from "@/lib/auth/permissions";
 import { Button } from "@/components/ui/button";
-import { BrandTile } from "@/components/brand/FaazioMark";
 import { FaazioWordmark } from "@/components/brand/FaazioWordmark";
 
 
@@ -33,7 +32,6 @@ function Landing() {
     <div className="min-h-screen bg-background">
       <header className="border-b border-border bg-card">
         <div className="mx-auto flex h-14 max-w-[1200px] items-center gap-2 px-4">
-          <BrandTile className="size-7 rounded-md" />
           <FaazioWordmark className="brand-wordmark text-primary" />
           <Button asChild size="sm" className="ml-auto">
             <Link href="/login">

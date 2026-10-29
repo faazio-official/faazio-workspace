@@ -13,7 +13,7 @@ vector `favicon.svg` itself is left untouched.
 The source of truth is `client/mobile/src/assets/faazio-logo.png`
 (1254x1254 RGBA knot; byte-identical to `icon.png`/`adaptive-icon.png`).
 Its alpha channel is the knot silhouette; we fill it white over the
-gradient tile so the favicons match the in-app `BrandTile`.
+gradient tile so the favicons match the brand favicon/logo art.
 
 Outputs (overwrites 7 files in `public/`):
   favicon.ico                 real multi-size ICO (16 + 32 + 48)
