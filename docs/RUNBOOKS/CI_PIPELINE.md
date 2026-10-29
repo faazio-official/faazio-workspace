@@ -181,6 +181,10 @@ adb install -r app-customer-release.apk   # flavor-named: app-delivery-release.a
   orphan `patches/<pkg>.patch` (e.g. the old `react-native-skia` one).
 - `restore-keystore.sh` fails → `KEYSTORE_BASE64`/`KEYSTORE_PASS`/`KEY_ALIAS`/`ALIAS_PASS` secrets
   are missing or wrong (`gh secret list`).
+- **`Typecheck` fails with "Seller builds require WEB_PORTAL_URL"** → `configure.js` runs in the
+  Typecheck step too, and a seller build needs a portal origin. Both workflows pass `WEB_PORTAL_URL`
+  (falling back to `https://app.faazio.com`) plus `GATEWAY_URL` in that step; if you renamed the
+  secret/variable, update the Typecheck step as well as the config step.
 - "keystore/keystore.properties not found" → run `scripts/restore-keystore.sh` (release) or create
   the gitignored file locally.
 - "Store file not found" → `STORE_FILE`/keystore path mismatch in `keystore.properties`.
