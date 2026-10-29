@@ -11,9 +11,9 @@ import type { SVGProps } from "react";
  * even-odd fill rule, so the wordmark renders in `currentColor` on any
  * background (no blue plate, no raster, no second colour).
  *
- * This is the header/footer lockup primitive — do NOT use it as a favicon
- * (2171x724 downscaled to 16px is illegible); the knot-on-gradient `BrandTile`
- * is the tab-icon art.
+ * This is the header/footer (and login) lockup primitive — do NOT use it as a
+ * favicon (2171x724 downscaled to 16px is illegible); the favicon is the knot
+ * on the brand-gradient tile (see `public/favicon.svg`).
  */
 export function FaazioWordmark(props: SVGProps<SVGSVGElement>) {
   return (

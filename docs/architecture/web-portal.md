@@ -459,16 +459,13 @@ Readiness config that ships with the app:
   runtime (matches `client/web/landingpage`).
 - **`public/robots.txt`** — `Disallow: /`; the console is private and every route
   also carries `metadata.robots: { index: false, follow: false }`.
-- **Brand assets** — `src/components/brand/FaazioMark.tsx` exports `FaazioMark`
-  (the Faazio knot glyph, contours copied from the mobile brand asset
-  `client/mobile/src/assets/logo.svg`) and `BrandTile` (the glyph on the
-  brand-gradient tile). `src/components/brand/FaazioWordmark.tsx` exports
+- **Brand assets** — `src/components/brand/FaazioWordmark.tsx` exports
   `FaazioWordmark` (the vector letterforms, copied verbatim from the landing
   page `client/web/landingpage/src/components/faazio-logo.tsx`) for the
-  header/sidebar/login lockups. The placeholders they replaced:
-  `app/page.client.tsx` (the raw `F` tile), `SellerShell`, `AdminShell` and the
-  login screen all compose `BrandTile` + `FaazioWordmark` (wordmark only in the
-  expanded sidebar; the collapsed rail stays icon-only). `public/` carries the
+  header/sidebar/login lockups (wordmark-only — no tile in the console chrome).
+  The placeholders they replaced: `app/page.client.tsx` (the raw `F` tile),
+  `SellerShell`, `AdminShell` and the login screen all show the wordmark alone
+  (the collapsed seller/admin rail shows no brand mark). `public/` carries the
   generated icon set — `favicon.svg` (the brand `client/faazio-logo.ico` art,
   base64 raster in an SVG wrapper, cache-bust `?v=4`),
   `favicon.ico` (the brand `client/faazio-logo.ico`, cache-bust `?v=4`),
@@ -482,7 +479,7 @@ Readiness config that ships with the app:
   from the
   canonical mobile knot PNG (`client/mobile/src/assets/faazio-logo.png`) by
   `scripts/generate-brand-icons.py` (dev-only, python3 + Pillow); and
-  `src/styles.css` provides the `.brand-wordmark` sizing token (18px for 14px
+  `src/styles.css` provides the `.brand-wordmark` sizing token (20px for 14px
   chrome).
 
 No secrets are baked into the build: `NEXT_PUBLIC_*` values are read at build

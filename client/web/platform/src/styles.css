@@ -187,10 +187,11 @@
   background-image: var(--gradient-brand);
 }
 
-/* Wordmark scale for 14px (h-14) header/sidebar chrome. Mirrors the landing
-   page's .wordmark-logo{height:31px} scaled down for console density. */
+/* Standalone wordmark scale for 14px (h-14) header/sidebar chrome (the console
+   lockup is wordmark-only). Mirrors the landing page's
+   .wordmark-logo{height:31px} scaled down for console density. */
 @utility brand-wordmark {
-  height: 18px;
+  height: 20px;
   width: auto;
 }
 

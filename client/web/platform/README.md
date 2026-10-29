@@ -17,19 +17,17 @@ is kept for visual diffing; this is the shipping app.
 
 ## Branding
 
-The brand lockup has two primitives in `src/components/brand/`:
+The console chrome lockup is wordmark-only (`src/components/brand/FaazioWordmark.tsx`):
 
-- `FaazioMark.tsx` — `FaazioMark` (the knot glyph) + `BrandTile` (the glyph on
-  the brand-gradient tile). Used for the console/favicon mark.
-- `FaazioWordmark.tsx` — `FaazioWordmark` (the vector letterforms, copied
+- `FaazioWordmark.tsx` — `FaazioWordmark`, the vector letterforms copied
   verbatim from the landing page `client/web/landingpage/src/components/faazio-logo.tsx`,
-  which mirrors the mobile brand asset `client/mobile/src/assets/logo.svg`).
-  Used next to `BrandTile` in the landing header (`app/page.client.tsx`), both
-  console shells, and the login screen.
+  which mirrors the mobile brand asset `client/mobile/src/assets/logo.svg`.
+  Used standalone in the landing header (`app/page.client.tsx`), both console
+  shells, and the login screen.
 
 The favicon/PWA raster set in `public/` is generated from the canonical mobile
-knot PNG (`client/mobile/src/assets/faazio-logo.png`), filled white on the same
-brand-gradient tile as `BrandTile`, by `scripts/generate-brand-icons.py`
+knot PNG (`client/mobile/src/assets/faazio-logo.png`), filled white on the
+brand-gradient tile, by `scripts/generate-brand-icons.py`
 (dev-only; python3 + Pillow, no npm dep). It writes the multi-size
 `favicon.ico` (16/32/48), the PNG set and the opaque `apple-touch-icon.png`.
 The shipped `public/favicon.ico` and `public/favicon.svg` are now the brand
