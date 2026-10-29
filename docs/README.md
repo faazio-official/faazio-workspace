@@ -35,6 +35,7 @@ Operational and architectural documentation for the **Faazio SuperApp**.
 
 ## Conventions
 
+- **Terminology:** **"web app" / "the web app"** means the **web platform** — `client/web/` (Next.js Partner Portal at `client/web/platform/`, plus the landing page at `client/web/landingpage/`). **"app" / "mobile app"** means the React Native SuperApp at `client/mobile/`.
 - **Architecture deep-dives** live under `docs/architecture/`.
 - **Operational guides / runbooks** live under `docs/RUNBOOKS/`.
 - When you add a doc, add it to this index and to the `docs/` tree in root `AGENTS.md`.

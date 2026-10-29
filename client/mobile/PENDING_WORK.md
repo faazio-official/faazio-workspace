@@ -196,6 +196,12 @@ default it to `https://app.faazio.com`.
   `/admin/*` deep links), and shows a branded offline/reconnect state (`OfflineState`). An unreachable
   portal renders a branded native "Try again" state instead of a white WebView. Restriction is a UX
   guard only — the gateway JWT remains the security boundary.
+- **Seller-only sessions (defense in depth).** The seller app rejects any non-`SELLER` role:
+  `/login` signs an admin straight back out at submit (and clears a pre-existing admin cookie on
+  load) with the generic "Invalid email or password." copy — no role disclosure — and `RoleGate`
+  signs out any admin session it sees. The native WebView (`SellerWebViewScreen`) additionally
+  refuses to load `/admin/*` portal URLs. The web portal is unchanged (no `window.__faazio` →
+  admins sign in normally).
 - Portal: seller orders now hydrate from `GET /seller/orders`; the Kanban + detail page call the
   seller accept/reject endpoints; a mobile drawer replaces the desktop-only sidebar below `lg`;
   `SellerPushBridge` registers the native FCM token via `/api/gateway/notifications/register`.

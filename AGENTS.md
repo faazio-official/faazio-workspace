@@ -25,6 +25,11 @@ faazio-workspace/
 ```
 See `ARCHITECTURE.md` (root) for the full mobile + backend design. Data ownership lives in `data/DATA_CONTROL.md`.
 
+## Terminology (authoritative)
+- **"web app" / "the web app"** (as said in chat) = the **web platform** = `client/web/` — the Next.js Partner Portal (`client/web/platform/`, shipping) and, when stated, the marketing landing page (`client/web/landingpage/`). It does **not** mean the mobile app.
+- **"app" / "mobile app"** = the bare React Native SuperApp under `client/mobile/`.
+- When a request says "the web app", scope work to `client/web/` unless the user explicitly says mobile.
+
 ## Documentation map
 Structured docs live under root `docs/` (mirrors the repo layout):
 

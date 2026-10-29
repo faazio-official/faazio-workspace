@@ -1,5 +1,7 @@
 "use client";
 
+import type { Role } from "@/data/types";
+
 /**
  * Native WebView app detection.
  *
@@ -49,4 +51,13 @@ export function isSellerScopedPath(pathname: string): boolean {
     pathname.startsWith("/login") ||
     pathname.startsWith("/security")
   );
+}
+
+/**
+ * The single definition of "this role may not sign in / stay signed in inside the native seller
+ * app". Used by the login page (rejects at sign-in) and the shells/gates (clear a stale session).
+ * A plain browser returns `false`, so the full portal keeps working unchanged.
+ */
+export function isBlockedInNativeSellerApp(role: Role | string | null | undefined): boolean {
+  return isNativeSellerApp() && !!role && role !== "SELLER";
 }
