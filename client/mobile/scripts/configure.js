@@ -188,11 +188,13 @@ if (webPortalUrl) {
   }
 }
 if (appVariant === 'seller' && !webPortalUrl) {
-  const message =
-    'Web Portal origin is not configured. Seller builds need WEB_PORTAL_URL ' +
-    '(e.g. https://<portal-origin>; http://localhost:3000 for local Metro + portal dev).';
-  if (isRelease) fail(message);
-  warn(message);
+  // The seller app is a WebView shell — with no portal origin it cannot render anything.
+  // Fail at configure time (dev and release) instead of shipping a non-functional build.
+  fail(
+    'Web Portal origin is not configured. Seller builds require WEB_PORTAL_URL ' +
+      '(e.g. https://app.faazio.com; http://localhost:3000 for local Metro + portal dev). ' +
+      'Set it in .env.local (gitignored) for local seller dev.',
+  );
 }
 
 for (const pin of pins) {

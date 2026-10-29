@@ -13,6 +13,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { WebView as NativeWebView } from 'react-native-webview';
 import type { WebViewNavigation, WebViewProps } from 'react-native-webview';
 import { WEB_PORTAL_URL } from '@/lib/config';
+import { FaazioLogo } from '@/components/FaazioLogo';
 import { getSellerPushToken, startSellerPush } from '@/services/sellerPush';
 import { ms, vs } from '@/utils/responsive';
 
@@ -29,6 +30,12 @@ const WebView = NativeWebView as unknown as React.ComponentType<
 >;
 
 const portalBase = WEB_PORTAL_URL.replace(/\/+$/, '');
+
+// Injected before the portal hydrates so it can detect the native seller shell (routes are
+// restricted to seller scope client-side; the gateway JWT remains the security boundary).
+const APP_CONTEXT_SCRIPT = `window.__faazio=Object.assign({},window.__faazio,{app:'seller',platform:${
+  Platform.OS === 'ios' ? "'ios'" : "'android'"
+},webview:true});true;`;
 
 function portalOrigin(): { protocol: string; host: string } | null {
   if (!portalBase) return null;
@@ -73,7 +80,9 @@ export function SellerWebViewScreen() {
   const [reloadKey, setReloadKey] = useState(0);
   const origin = useMemo(portalOrigin, []);
 
-  const portalUrl = `${portalBase}/seller`;
+  // Go straight to the seller sign-in. The portal middleware bounces unauthenticated
+  // /seller/* → /login itself, so loading /login avoids ever painting the dashboard shell.
+  const portalUrl = `${portalBase}/login`;
   const originWhitelist = useMemo(
     () =>
       origin
@@ -164,6 +173,7 @@ export function SellerWebViewScreen() {
     return (
       <SafeAreaView style={styles.container} edges={['top']}>
         <View style={styles.state}>
+          <FaazioLogo size={30} />
           <Text style={styles.title}>Portal not configured</Text>
           <Text style={styles.body}>
             This build is missing WEB_PORTAL_URL. Set it before building the seller app.
@@ -179,6 +189,7 @@ export function SellerWebViewScreen() {
         key={reloadKey}
         ref={webviewRef}
         source={{ uri: portalUrl }}
+        injectedJavaScriptBeforeContentLoaded={APP_CONTEXT_SCRIPT}
         originWhitelist={originWhitelist}
         javaScriptEnabled
         domStorageEnabled
@@ -227,8 +238,12 @@ export function SellerWebViewScreen() {
       ) : null}
       {error ? (
         <View style={styles.state}>
-          <Text style={styles.title}>Cannot reach the portal</Text>
-          <Text style={styles.body}>{error}</Text>
+          <FaazioLogo size={30} />
+          <Text style={styles.title}>Unable to reach the seller portal</Text>
+          <Text style={styles.body}>
+            Check your internet connection and try again.
+          </Text>
+          <Text style={styles.detail}>{error}</Text>
           <Pressable onPress={retry} style={styles.button} accessibilityRole="button">
             <Text style={styles.buttonText}>Try again</Text>
           </Pressable>
@@ -262,6 +277,7 @@ const styles = StyleSheet.create({
   },
   title: { fontSize: ms(18), fontWeight: '900', color: '#0f172a', textAlign: 'center' },
   body: { fontSize: ms(13), lineHeight: ms(19), color: '#64748b', textAlign: 'center' },
+  detail: { fontSize: ms(12), lineHeight: ms(17), color: '#94a3b8', textAlign: 'center' },
   button: {
     marginTop: vs(8),
     paddingHorizontal: ms(20),

@@ -174,19 +174,28 @@ dependencies exist. Do not build the backend/seller flows until told to.
 ## W68 — Seller Partner WebView shell (P0)
 
 **Status:** 🟢 Shipped (mobile shell + portal mobile nav/orders + gateway seller push). Requires
-`WEB_PORTAL_URL` (release https) and the `GOOGLE_SERVICES_SELLER_JSON` CI secret.
+`WEB_PORTAL_URL` (release https) and the `GOOGLE_SERVICES_SELLER_JSON` CI secret. A seller build now
+**fails `configure.js`** when `WEB_PORTAL_URL` is empty (dev and release), and both CI workflows
+default it to `https://app.faazio.com`.
 
 - Seller native identity: Android `seller` flavor / iOS `Seller-*` configs
   (`com.faazio.sellerpartner`, launcher label "Faazio Seller Partner") own their Firebase config
   (`GOOGLE_SERVICES_SELLER_JSON` → `src/seller/google-services.json`, `GoogleService-Info-Seller.plist`).
 
-- Seller app is now `react-native-webview` (`14.0.1`) loading `${WEB_PORTAL_URL}/seller`; the four
+- Seller app is now `react-native-webview` (`14.0.1`) loading `${WEB_PORTAL_URL}/login` (the seller
+  sign-in; `/login` skips the form when a live cookie session exists); the four
   native seller screens and the Keychain seller session were removed. `GatewayClient` still carries
   the seller-onboarding/fee-request calls (customer-app "Sell with us"); its old portal-order
   helpers (`portalLogin`/`getSellerOrders`/accept/reject) are now unused and are prune candidates.
 - Native handles safe area, external links, hardware back, FCM token injection, foreground order
   beep (`react-native-sound` + `orderBeep.wav`), notification-tap deep link, and the Android
   `seller_orders` notification channel.
+- App identity + offline UX: the shell injects `window.__faazio = { app: 'seller', platform, webview: true }`
+  before the portal hydrates; the portal detects it (`src/lib/appContext.ts` + `AppContextDetector`),
+  restricts routes to seller scope in-app (branded "Not available in the Faazio Seller app" panel for
+  `/admin/*` deep links), and shows a branded offline/reconnect state (`OfflineState`). An unreachable
+  portal renders a branded native "Try again" state instead of a white WebView. Restriction is a UX
+  guard only — the gateway JWT remains the security boundary.
 - Portal: seller orders now hydrate from `GET /seller/orders`; the Kanban + detail page call the
   seller accept/reject endpoints; a mobile drawer replaces the desktop-only sidebar below `lg`;
   `SellerPushBridge` registers the native FCM token via `/api/gateway/notifications/register`.

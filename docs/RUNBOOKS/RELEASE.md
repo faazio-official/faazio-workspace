@@ -63,7 +63,7 @@ The release keystore + signing properties are stored as GitHub repository secret
 | `ALIAS_PASS` | value from `keystore.properties` |
 | `STORE_FILE` | (optional) keystore file name, default `faazio-release.keystore` |
 | `GATEWAY_URL` | deployed gateway origin, `https://…` (release refuses `http://`); defaults to `https://api.faazio.com` (Cloudflare edge) |
-| `WEB_PORTAL_URL` | deployed web Partner Portal origin, `https://…` (required for `app=seller`; release refuses `http://`). Set as a repo variable/secret |
+| `WEB_PORTAL_URL` | deployed web Partner Portal origin, `https://…` (required for `app=seller`; release refuses `http://`). Set as a repo variable/secret; defaults to `https://app.faazio.com` in both workflows. A seller build fails `configure.js` when it is empty |
 | `USE_GATEWAY` | `true` to embed the live gateway (defaults to `true` in the workflow) |
 | `CERT_PINS` | comma-separated base64 SHA-256 SPKI pins for the gateway host |
 | `GOOGLE_MAPS_API_KEY_ANDROID` | restricted Maps SDK key; `configure.js` writes the manifest string resource (empty ⇒ blank shop-pin map) |

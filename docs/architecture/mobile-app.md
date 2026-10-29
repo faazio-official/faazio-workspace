@@ -779,14 +779,22 @@ intentionally not built.
 `index.seller.js` mounts `src/SellerPartnerApp.tsx` (its own `NavigationContainer` +
 `SellerPartnerNavigator`); the `seller` flavor/configuration selects it. The seller product is a
 **WebView shell over the web partner portal** (`client/web/platform`): one native route loads
-`${WEB_PORTAL_URL}/seller` and the portal owns every seller screen — dashboard, the orders Kanban
+`${WEB_PORTAL_URL}/login` (the seller sign-in) directly — never the dashboard shell, which the
+portal middleware would bounce back to `/login` anyway. The portal owns every seller screen —
+dashboard, the orders Kanban
 (`/seller/orders`), order detail with accept/reject (`/seller/orders/[id]`), products, inventory,
 menus, stores, payments, promotions and settings.
 
 ```
 SellerPartnerNavigator (native stack, no customer/delivery screens)
-└── Portal — full-screen react-native-webview at WEB_PORTAL_URL/seller
+└── Portal — full-screen react-native-webview at WEB_PORTAL_URL/login
 ```
+
+Before the portal hydrates, the shell injects `window.__faazio = { app: 'seller', platform, webview: true }`
+via `injectedJavaScriptBeforeContentLoaded`; the portal reads it (never the user-agent) to detect the
+native seller app and restrict routes to seller scope (see `web-portal.md`). No internet / an
+unreachable portal renders a branded Faazio state with **Try again** (native side) instead of a
+white WebView; a missing `WEB_PORTAL_URL` renders a distinct "Portal not configured" state.
 
 **Session (Option A).** The portal's `/login` page authenticates against the gateway
 (`POST /auth/portal/login`) and keeps the access/refresh pair in HttpOnly cookies. Native stores no
@@ -816,7 +824,8 @@ Native config: the seller build needs its own Android Firebase app + `GoogleServ
 (CI secret `GOOGLE_SERVICES_SELLER_JSON`; `APP_VARIANT=seller` selects `src/seller/google-services.json`
 and the Seller plist in `configure.js`). FCM is required for push; the seller app itself
 authenticates through the portal, not Firebase. `WEB_PORTAL_URL` is a build-time public config
-(release requires https); a seller build without it shows a configuration error inside the shell.
+(release requires https); a seller build without it **fails at configure time** (dev and release)
+instead of shipping a non-functional shell.
 
 ### Phone-auth flow (Login)
 
