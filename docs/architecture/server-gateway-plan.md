@@ -351,7 +351,7 @@ lightweight-superapp playbook on two of three axes:
   so today this is **server-driven data, not full server-driven layout**. The chosen trajectory is
   data-driven → widget-tree, moving composition server-side once the gateway exists; the interim
   keeps payloads small and typed.
-- **Aggressive code shrinking — handled client-side.** R8 minify + resource shrinking, 2-ABI
+- **Aggressive code shrinking — handled client-side.** R8 minify + resource shrinking, arm64-only
   trimming and Hermes keep the shipped JS/native payload small; see `docs/RUNBOOKS/RELEASE.md`
   and `docs/architecture/mobile-app.md` ("Size & delivery strategy").
 - **Differential / per-feature OTA — not covered (out of scope for now).** There is no OTA

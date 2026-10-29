@@ -38,11 +38,12 @@ you (gh CLI) ──► GitHub Actions
                     ├─ restore-keystore.sh           ← decode keystore from secrets  [release only]
                     ├─ npm run ts:check + check:boundaries   ← both must pass
                     ├─ npm run configure             ← JS config + cert pins + Maps/Places keys
-                    ├─ ./gradlew assemble<Customer|Delivery><Release|Debug> --no-daemon \
+                    ├─ ./gradlew assemble<Customer|Delivery|Seller><Release|Debug> --no-daemon \
                     │    -PreactNativeArchitectures=... \
                     │    [-Pandroid.enableMinifyInReleaseBuilds=true \
                     │     -Pandroid.enableShrinkResourcesInReleaseBuilds=true]   [release only]
-                    ├─ Upload APK + AAB artifacts
+                    │    [+ bundle<App>Release only when include-aab=true]       [release only]
+                    ├─ Upload APK artifact (+ AAB when include-aab=true)
                     ├─ Upload R8 mapping (faazio-<app>-mapping-<run_id>, private)      [release only]
                     └─ gh release create + upload --clobber                        [release only]
 ```
@@ -55,9 +56,10 @@ you (gh CLI) ──► GitHub Actions
   (`-Xmx6144m`, `workers.max=4`, `parallel=true`, `caching=true`). `GRADLE_USER_HOME` **takes
   precedence** over the generated `android/gradle.properties`, so it lifts the laptop caps only on
   CI — the repo's `gradle.properties` stays laptop-capped by design (see TROUBLESHOOTING.md).
-- **2-ABI build + R8:** `reactNativeArchitectures=arm64-v8a,armeabi-v7a` and both minify/shrink
+- **arm64-only build + R8:** `reactNativeArchitectures=arm64-v8a` and both minify/shrink
   flags are passed via `-P` (they read `android/app/build.gradle`'s `findProperty`). Minified
-  builds emit `mapping.txt`, uploaded as a **private** artifact for crash retracing.
+  builds emit `mapping.txt`, uploaded as a **private** artifact for crash retracing. Pass
+  `-f include-aab=true` to also build and attach the Play-bound AAB (default is APK-only).
 - **Disk headroom:** the "Free disk space" step removes unused runner payloads (`.NET`, GHC,
   Boost, Swift, emulator/system images) before Gradle starts. Without it the runner's root
   filesystem can fill mid-build and the job dies with `No space left on device`.
@@ -87,10 +89,14 @@ Set on the repo with `gh secret set`:
 
 ```bash
 cd client/mobile
-gh workflow run "Release APK" -f version=1.0.2 -f tag=v1.0.2
+gh workflow run "Release APK" -f version=1.0.2 -f tag=v1.0.2                    # APK only
+gh workflow run "Release APK" -f version=1.0.2 -f tag=v1.0.2 -f include-aab=true  # APK + Play AAB
 gh run watch              # wait for the green check
 gh run view --log-failed  # if it fails, pull the Gradle error here
 ```
+
+Add `-f include-aab=true` only for a Play Console upload — it adds the `bundle<App>Release` task and
+attaches the `.aab`; the default dispatch produces the signed APK alone.
 
 ## 🐞 Trigger a debug build (device testing)
 
@@ -128,6 +134,7 @@ uses `gh release upload --clobber`, re-running the same tag **replaces** the old
 | `version` | Overrides `package.json` `version` (e.g. `1.0.2`). Empty = keep package.json. |
 | `tag` | Git tag for the release (e.g. `v1.0.2`). Empty = `v<version>`. |
 | `prerelease` | `true` marks the release as a prerelease. |
+| `include-aab` | `true` also builds and attaches the Play-bound AAB (`.aab`); default `false` (APK only). |
 
 ### Version bump
 

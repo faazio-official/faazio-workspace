@@ -1359,8 +1359,8 @@ The "lightweight, fast, secure" mandate (AGENTS.md) is enforced at build and del
 - **R8 minify + resource shrinking ON for release** — `-Pandroid.enableMinifyInReleaseBuilds=true`
   and `-Pandroid.enableShrinkResourcesInReleaseBuilds=true`; `mapping.txt` kept as a **private**
   artifact for crash retracing, behind a mandatory device smoke test. See `docs/RUNBOOKS/RELEASE.md`.
-- **2-ABI build** (`arm64-v8a,armeabi-v7a`, ~95% device coverage) — roughly halves native `.so`
-  payload and C++ build work vs the old 4-ABI universal build (APK download ~−50%).
+- **arm64-only build** (`arm64-v8a`, 64-bit devices) — roughly halves native `.so` payload and
+  C++ build work vs the old 4-ABI universal build (APK download ~−50%).
 - **Asset + console trimming** — `react-native-svg-transformer` + `sharp` for assets;
   `babel-plugin-transform-remove-console` strips `console.*` from production. Images go through
   the shared `AppImage` wrapper (RN `Image`, platform-native decoders/caches).

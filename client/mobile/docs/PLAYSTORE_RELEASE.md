@@ -65,12 +65,13 @@ Signature schemes: release APKs are v2/v3-signed, correct for `minSdk 24`. v1 is
 
 ## Step 3: Build the release artifact in CI
 
-The release workflow builds **both** a signed **APK** and a signed **AAB** (`.aab`) and attaches
-both to the GitHub Release (`gh release upload --clobber`):
+The release workflow always builds a signed **APK**; pass `-f include-aab=true` to also build and
+attach a signed **AAB** (`.aab`). Both are attached to the GitHub Release
+(`gh release upload --clobber`):
 
 ```bash
 cd client/mobile
-gh workflow run release-apk.yml -f version=1.1.0 -f tag=v1.1.0
+gh workflow run release-apk.yml -f version=1.1.0 -f tag=v1.1.0 -f include-aab=true
 gh run watch
 gh run view --log-failed          # on failure
 ```
@@ -81,7 +82,7 @@ the GitHub Release) and upload that. The local equivalent (CI-only, never run th
 ```bash
 cd android
 ./gradlew bundleCustomerRelease --no-daemon \
-  -PreactNativeArchitectures="arm64-v8a,armeabi-v7a" \
+  -PreactNativeArchitectures="arm64-v8a" \
   -Pandroid.enableMinifyInReleaseBuilds=true \
   -Pandroid.enableShrinkResourcesInReleaseBuilds=true
 # -> app/build/outputs/bundle/customerRelease/app-customer-release.aab
@@ -89,8 +90,9 @@ cd android
 # seller:   bundleSellerRelease   -> app-seller-release.aab
 ```
 
-> Do **not** run this locally. The workflow publishes the AAB in CI; download it as an
-> artifact (`faazio-<app>-<version|-release>-aab`) or from the GitHub Release.
+> Do **not** run this locally. When the workflow is dispatched with `-f include-aab=true` it
+> publishes the AAB in CI; download it as an artifact (`faazio-<app>-<version|-release>-aab`) or
+> from the GitHub Release.
 
 ---
 
@@ -168,7 +170,7 @@ legal retention. Never ship a build with the row hidden or the route removed.
 - [ ] Data Safety answer sheet (Step 3c) applied to every listing: 18+, minors restricted, delete-account URL `https://faazio.com/privacy`, delete-without-account = Yes, advertising ID = No.
 - [ ] Data Safety discloses camera, location, media, and Keychain/Keystore token storage.
 - [ ] In-app **Delete account** works (`Account → Privacy and security`) and clears the session; the public `#delete-account` section loads.
-- [ ] AAB produced by the workflow (`bundleCustomerRelease` / `bundleDeliveryRelease` / `bundleSellerRelease`) and uploaded to Play Console.
+- [ ] AAB produced by the workflow with `-f include-aab=true` (`bundleCustomerRelease` / `bundleDeliveryRelease` / `bundleSellerRelease`) and uploaded to Play Console.
 
 ## See also
 

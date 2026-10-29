@@ -110,8 +110,12 @@ cd client/mobile
 #    (e.g. 1.0.4 -> 10004). Without -f version, bump versionCode (+1) and
 #    versionName in android/app/build.gradle yourself.
 
-# 2) Trigger the CI build + release (app=customer|delivery)
+# 2) Trigger the CI build + release (app=customer|delivery|seller).
+#    Default is APK-only; add -f include-aab=true to also build + attach the
+#    Play-bound AAB.
 gh workflow run release-apk.yml -f app=customer -f version=1.0.2 -f tag=v1.0.2
+# with Play AAB:
+gh workflow run release-apk.yml -f app=customer -f version=1.0.2 -f tag=v1.0.2 -f include-aab=true
 
 # 3) Watch it finish
 gh run watch
@@ -124,20 +128,25 @@ The workflow: checkout → setup Node 24 + JDK 21 → `gradle/actions/setup-grad
 `~/.gradle` + build cache) → **CI Gradle tuning** (overrides laptop memory caps via
 `~/.gradle/gradle.properties`) → `npm ci` → set version (optional override; derives `versionCode`
 from the semver) → `restore-keystore.sh` → `npm run ts:check` + `npm run check:boundaries` →
-`npm run configure` (release cert pins + JS config) → `./gradlew assemble<App>Release
-bundle<App>Release` with **ABI + R8 minify flags** (see below) → upload APK + AAB artifacts →
-upload **R8 `mapping.txt` (private artifact)** → `gh release create` + `gh release upload --clobber`.
+`npm run configure` (release cert pins + JS config) → `./gradlew assemble<App>Release` with
+**ABI + R8 minify flags** (see below), plus `bundle<App>Release` when `-f include-aab=true` →
+upload APK artifact (+ AAB artifact when `include-aab`) → upload **R8 `mapping.txt` (private
+artifact)** → `gh release create` + `gh release upload --clobber` (the AAB is attached to the
+release only when `include-aab=true`).
 
-The built APK + AAB are also saved as versioned Actions artifacts for direct download:
-`faazio-<app>-<version|-release>-apk` and `faazio-<app>-<version|-release>-aab`
-(e.g. `faazio-customer-1.0.4-apk`, or `...-release-apk` when `-f version` is left empty).
+The built APK is also saved as a versioned Actions artifact for direct download:
+`faazio-<app>-<version|-release>-apk` (and `faazio-<app>-<version|-release>-aab` when
+`include-aab=true`), e.g. `faazio-customer-1.0.4-apk`, or `...-release-apk` when `-f version`
+is left empty.
 
 ### Build flags (faster + smaller + obfuscated)
 
-- **2-ABI build** — `REACT_NATIVE_ARCHS=arm64-v8a,armeabi-v7a` (env in the workflow) is passed as
-  `-PreactNativeArchitectures`. Covers ~95% of devices while roughly halving native (C++)
-  compile work and the `.so` payload vs the old 4-ABI universal build. Override to
-  `arm64-v8a` for an even smaller (arm64-only) APK.
+- **arm64-only build** — `REACT_NATIVE_ARCHS=arm64-v8a` (env in the workflow) is passed as
+  `-PreactNativeArchitectures`. 64-bit devices only; roughly halves native (C++) compile work
+  and the `.so` payload vs the old 4-ABI universal build. Re-add `armeabi-v7a` in the workflow
+  env only if 32-bit device support is required.
+- **AAB on demand** — the Play-bound `.aab` is built and attached only when the release is
+  dispatched with `-f include-aab=true`; the default dispatch is APK-only.
 - **R8 minify + resource shrink ON** — passed as `-Pandroid.enableMinifyInReleaseBuilds=true`
   and `-Pandroid.enableShrinkResourcesInReleaseBuilds=true`. These read the committed
   `android/app/build.gradle`'s `findProperty`. Smaller dex + obfuscation (raises the reverse-engineering bar for
@@ -198,7 +207,7 @@ npm run configure                       # release env: CONFIGURE_RELEASE=1, GATE
                                         # GOOGLE_PLACES_API_KEY
 bash scripts/restore-keystore.sh
 cd android && ./gradlew assembleCustomerRelease --no-daemon \
-  -PreactNativeArchitectures=arm64-v8a,armeabi-v7a \
+  -PreactNativeArchitectures=arm64-v8a \
   -Pandroid.enableMinifyInReleaseBuilds=true \
   -Pandroid.enableShrinkResourcesInReleaseBuilds=true
 ```
@@ -217,8 +226,10 @@ apksigner verify --verbose --print-certs app-customer-release.apk
 ```
 ## 🌐 Google Play (manual)
 
-1. Build the release `.aab` (`./gradlew bundleCustomerRelease` with the release keystore;
-   the workflow already produces it — for Play upload use the `.aab` attached to the GitHub Release).
+1. Build the release `.aab` — dispatch the workflow with `-f include-aab=true` (it runs
+   `bundleCustomerRelease` with the release keystore; the default APK-only release does **not**
+   produce one). Download the `.aab` from the GitHub Release or the `faazio-<app>-<version>-aab`
+   Actions artifact.
 2. Sign in to [Play Console](https://play.google.com/console/), open the Faazio app
    (package `com.faazio.customer`).
 3. **Testing** → create a release, upload the `.aab`.
@@ -347,8 +358,9 @@ Run **each pending** migration (numeric order) → then roll the Render deploy. 
 
 ### Expected build-time / size impact (CI workflow)
 
-| Metric | Before | After (2-ABI + R8) |
+| Metric | Before | After (arm64-only + R8) |
 |---|---|---|
-| CI build time | ~43 min (cold) | ~18–26 min (cached) |
-| GitHub APK download | universal 4-ABI, unminified | ~−50% (2-ABI, minified) |
+| CI build time, APK-only (default) | ~43 min (cold) | ~18–26 min (cached) |
+| CI build time, `include-aab=true` | ~43 min (cold) | ~18–26 min + the extra bundle task |
+| GitHub APK download | universal 4-ABI, unminified | ~−50% (arm64-only, minified) |
 | Dex size / cold start | unminified | smaller dex (R8) → faster cold start |
