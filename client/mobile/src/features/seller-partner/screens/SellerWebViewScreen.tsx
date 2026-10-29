@@ -59,6 +59,15 @@ function isPortalUrl(raw: string): boolean {
   }
 }
 
+function isAdminPath(raw: string): boolean {
+  if (!isPortalUrl(raw)) return false;
+  try {
+    return new URL(raw).pathname.startsWith('/admin');
+  } catch {
+    return false;
+  }
+}
+
 function openExternal(raw: string): void {
   if (!/^(https?:|mailto:|tel:|upi:|intent:)/i.test(raw)) return;
   void Linking.openURL(raw).catch(() => undefined);
@@ -77,6 +86,7 @@ export function SellerWebViewScreen() {
   const pendingOrder = useRef<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [blocked, setBlocked] = useState(false);
   const [reloadKey, setReloadKey] = useState(0);
   const origin = useMemo(portalOrigin, []);
 
@@ -155,7 +165,12 @@ export function SellerWebViewScreen() {
     } catch {
       path = nav.url;
     }
-    if (path.startsWith('/seller') || path.startsWith('/admin')) {
+    // Defense-in-depth: even if a client-side redirect slips past the portal guard, never leave the
+    // seller shell sitting on an admin route.
+    if (path.startsWith('/admin')) {
+      setBlocked(true);
+    }
+    if (path.startsWith('/seller')) {
       wasInPortal.current = true;
     } else if (path === '/login' && wasInPortal.current) {
       wasInPortal.current = false;
@@ -165,6 +180,7 @@ export function SellerWebViewScreen() {
 
   const retry = useCallback(() => {
     setError(null);
+    setBlocked(false);
     setLoading(true);
     setReloadKey((key) => key + 1);
   }, []);
@@ -225,18 +241,34 @@ export function SellerWebViewScreen() {
         }}
         onNavigationStateChange={onNavigationChange}
         onShouldStartLoadWithRequest={(request: { url: string }) => {
-          if (isPortalUrl(request.url)) return true;
+          if (isPortalUrl(request.url)) {
+            if (isAdminPath(request.url)) {
+              setBlocked(true);
+              return false;
+            }
+            return true;
+          }
           openExternal(request.url);
           return false;
         }}
         style={styles.webview}
       />
-      {loading ? (
+      {loading && !blocked ? (
         <View style={styles.loading} pointerEvents="none">
           <ActivityIndicator size="small" color="#1162D3" />
         </View>
       ) : null}
-      {error ? (
+      {blocked ? (
+        <View style={styles.state}>
+          <FaazioLogo size={30} />
+          <Text style={styles.title}>Not available in the Faazio Seller app</Text>
+          <Text style={styles.body}>This section is limited to seller tools.</Text>
+          <Pressable onPress={retry} style={styles.button} accessibilityRole="button">
+            <Text style={styles.buttonText}>Back to sign in</Text>
+          </Pressable>
+        </View>
+      ) : null}
+      {error && !blocked ? (
         <View style={styles.state}>
           <FaazioLogo size={30} />
           <Text style={styles.title}>Unable to reach the seller portal</Text>

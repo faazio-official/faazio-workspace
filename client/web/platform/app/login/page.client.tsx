@@ -2,10 +2,11 @@
 import { useRouter } from "next/navigation";
 import { Suspense, useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
-import { signIn } from "@/lib/api";
+import { signIn, signOut } from "@/lib/api";
 import { hydrateFromGateway } from "@/lib/api/sync";
 import { fetchPortalStatus, portalErrorMessage, type PortalStatus } from "@/lib/portal/auth";
 import { homeFor, ROLE_LABEL } from "@/lib/auth/permissions";
+import { isBlockedInNativeSellerApp } from "@/lib/appContext";
 import { useHydrated } from "@/lib/hooks/useHydrated";
 import { useSession } from "@/lib/hooks/useSession";
 import { Button } from "@/components/ui/button";
@@ -44,6 +45,10 @@ function diagnosticCopy(status: PortalStatus): Diagnostic | null {
 }
 
 const NEXT_KEY = "faazio.next";
+
+/** The seller app is seller-only. A rejected role sees the same copy as a bad password so the app
+ *  never reveals that the credentials were valid-but-admin. */
+const INVALID_CREDENTIALS = "Invalid email or password.";
 
 /** Only allow an internal absolute path (guards /login?next= against open redirects). */
 function safeNext(raw: string | null): string {
@@ -89,6 +94,16 @@ function LoginPage() {
   // Returning users (e.g. the seller app re-opening on /login with a live cookie) skip the form.
   useEffect(() => {
     if (!hydrated || submittedRef.current || !session) return;
+    // A stale non-seller cookie inside the seller app (e.g. from before this guard shipped): clear
+    // it and stay on the seller sign-in rather than bouncing to a blocked admin route.
+    if (isBlockedInNativeSellerApp(session.role)) {
+      submittedRef.current = true;
+      void signOut().finally(() => {
+        submittedRef.current = false;
+        setError(INVALID_CREDENTIALS);
+      });
+      return;
+    }
     const target =
       session.mustChange && session.role !== "SUPER_ADMIN"
         ? "/security"
@@ -102,6 +117,15 @@ function LoginPage() {
     setError(null);
     try {
       const user = await signIn(nextEmail, nextPassword, remember);
+      // The seller app never accepts an admin session: sign straight back out (clears the HttpOnly
+      // cookies) and show the generic bad-credentials copy — no role disclosure. The web portal is
+      // unaffected (isBlockedInNativeSellerApp is false without `window.__faazio`).
+      if (isBlockedInNativeSellerApp(user.role)) {
+        await signOut();
+        submittedRef.current = false;
+        setError(INVALID_CREDENTIALS);
+        return;
+      }
       const next = initialNext();
       if (user.mustChange && user.role !== "SUPER_ADMIN") {
         // Temporary password: rotate at /security first, then finish the deep link on re-sign-in.

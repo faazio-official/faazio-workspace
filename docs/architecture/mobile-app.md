@@ -270,8 +270,11 @@ too — one component).
 `seller-partner` is the **standalone Seller Partner app** (not a customer route). Sellers log in
 with the same email/password as the web portal (gateway HS256 portal JWT; roles SELLER /
 DISTRICT_ADMIN / SUPER_ADMIN), then accept incoming NEW orders (→ PACKED, auto-dispatch) or reject
-them (→ REJECTED, captured payment marked REFUNDED and the customer notified). Delivery riders keep
-their separate `delivery-partner` app.
+them (→ REJECTED, captured payment marked REFUNDED and the customer notified). The app is
+**seller-only**: an admin (district/super) credential is rejected at sign-in inside the WebView —
+signed straight back out with the generic "Invalid email or password." copy (no role disclosure),
+and any pre-existing admin cookie is cleared on load. Delivery riders keep their separate
+`delivery-partner` app.
 
 Pharma hosts the **Blood Donor** feature (`pharma/blood-donor/`) — a 5-step registration
 wizard (persistent draft/registration via AsyncStorage; the wizard closes permanently on
@@ -792,16 +795,20 @@ SellerPartnerNavigator (native stack, no customer/delivery screens)
 
 Before the portal hydrates, the shell injects `window.__faazio = { app: 'seller', platform, webview: true }`
 via `injectedJavaScriptBeforeContentLoaded`; the portal reads it (never the user-agent) to detect the
-native seller app and restrict routes to seller scope (see `web-portal.md`). No internet / an
-unreachable portal renders a branded Faazio state with **Try again** (native side) instead of a
-white WebView; a missing `WEB_PORTAL_URL` renders a distinct "Portal not configured" state.
+native seller app, restrict routes to seller scope and **reject admin sign-in** (a non-`SELLER` role
+is signed straight back out with a generic invalid-credentials message — see `web-portal.md`). The
+native shell also refuses to load any `/admin/*` portal URL, rendering the branded "Not available in
+the Faazio Seller app" block with a **Back to sign in** action instead. No internet / an unreachable
+portal renders a branded Faazio state with **Try again** (native side) instead of a white WebView; a
+missing `WEB_PORTAL_URL` renders a distinct "Portal not configured" state.
 
 **Session (Option A).** The portal's `/login` page authenticates against the gateway
 (`POST /auth/portal/login`) and keeps the access/refresh pair in HttpOnly cookies. Native stores no
 seller token, calls no `GatewayClient` portal endpoint, and cannot read the cookies; the WebView
-cookie store persists the session across app restarts. Portal sign-out clears the cookies; the shell
-also clears the WebView cache when it navigates back to `/login`. Hardware back walks the WebView
-history, then exits.
+cookie store persists the session across app restarts. A non-`SELLER` (admin) cookie is rejected on
+sign-in and cleared on load, so only a seller session ever persists. Portal sign-out clears the
+cookies; the shell also clears the WebView cache when it navigates back to `/login`. Hardware back
+walks the WebView history, then exits.
 
 **Native responsibilities only:** safe-area/status-bar chrome, external links (anything outside the
 portal origin opens in the system browser), FCM token registration, foreground order beep, and

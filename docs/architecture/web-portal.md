@@ -58,14 +58,25 @@ FCM token into `window.__faazioPushToken`; `SellerPushBridge`
 registers it through `/api/gateway/notifications/register` and removes it on sign-out. Portal
 sign-out is the only seller session authority (HttpOnly cookies).
 
+**Seller app is seller-only (defense in depth).** The native seller app never accepts an admin
+session. At sign-in, `/login` checks `isBlockedInNativeSellerApp(role)` (every role except `SELLER`)
+and, on a match, signs the session straight back out (`signOut()` → clears the HttpOnly cookies) and
+shows the same generic `Invalid email or password.` copy as a bad password — the app never reveals
+that the credentials were valid-but-admin. The `/login` returning-session effect does the same for a
+pre-existing admin cookie, so an admin can never loop into a blocked route; the shells' `RoleGate`
+also signs out any admin session it encounters. The web portal is unchanged: a plain browser has no
+`window.__faazio`, so admins sign in normally.
+
 **Native app detection + route restriction.** Before the portal hydrates the shell injects
 `window.__faazio = { app: 'seller' | 'customer' | 'delivery', platform, webview: true }`. The portal
 reads it via `src/lib/appContext.ts` (never the user-agent — unreliable), exposes it on `<html>`
 (`AppContextDetector` → `data-faazio-app` / `data-faazio-webview` / `.faazio-app-seller`), and, in a
-native seller WebView, blocks any non-seller-scoped route (e.g. a deep link to `/admin/*`) with a
-branded "Not available in the Faazio Seller app" panel. This is a UX guard only — the edge middleware
-can't see `window.__faazio`, so the real security boundary stays the gateway JWT (`app_role` /
-`iss=faazio-portal`). A plain browser has no `window.__faazio` and keeps the full portal.
+native seller WebView, rejects admin sign-in (above) and blocks any non-seller-scoped route (e.g. a
+deep link to `/admin/*`) with a branded "Not available in the Faazio Seller app" panel. The native
+shell independently refuses to load `/admin/*` URLs (and surfaces the same branded block if one
+slips through). This is a UX guard only — the edge middleware can't see `window.__faazio`, so the
+real security boundary stays the gateway JWT (`app_role` / `iss=faazio-portal`). A plain browser has
+no `window.__faazio` and keeps the full portal.
 
 **Offline / gateway-unavailable UX.** `src/components/patterns/OfflineState.tsx` is a branded
 full-screen state with **Try again**; the session gate uses it for the silent-reconnect ("Reconnecting…")

@@ -1,5 +1,5 @@
 "use client";
-import { useState, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { Lock } from "lucide-react";
@@ -10,8 +10,12 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { OfflineState } from "@/components/patterns/OfflineState";
 import { homeFor, ROLE_LABEL } from "@/lib/auth/permissions";
-import { restoreSession } from "@/lib/api";
-import { isNativeSellerApp, isSellerScopedPath } from "@/lib/appContext";
+import { restoreSession, signOut } from "@/lib/api";
+import {
+  isBlockedInNativeSellerApp,
+  isNativeSellerApp,
+  isSellerScopedPath,
+} from "@/lib/appContext";
 
 export function RoleGate({ allow, children }: { allow: Role[]; children: ReactNode }) {
   const hydrated = useHydrated();
@@ -20,6 +24,14 @@ export function RoleGate({ allow, children }: { allow: Role[]; children: ReactNo
   const router = useRouter();
   const pathname = usePathname();
   const [retrying, setRetrying] = useState(false);
+  const nativeSeller = hydrated && isNativeSellerApp();
+  const blockedRole = nativeSeller && isBlockedInNativeSellerApp(session?.role);
+
+  // An admin session must never persist inside the seller app: clear the HttpOnly cookies so the
+  // next load returns to the seller sign-in instead of looping on a blocked admin route.
+  useEffect(() => {
+    if (blockedRole) void signOut();
+  }, [blockedRole]);
 
   if (!hydrated) {
     return (
@@ -30,13 +42,27 @@ export function RoleGate({ allow, children }: { allow: Role[]; children: ReactNo
     );
   }
 
-  // The native Seller app is seller-scoped: a deep link to an admin console inside its WebView
-  // gets a branded block instead of the admin shell. (The gateway JWT is the real boundary.)
-  if (isNativeSellerApp() && !isSellerScopedPath(pathname)) {
+  if (blockedRole) {
     return (
       <Denied
         title="Not available in the Faazio Seller app"
-        body="This area is for Faazio admins. Head back to your seller dashboard to keep working."
+        body="This app is for sellers. Sign in with a seller account to continue."
+        action={
+          <Button asChild size="sm">
+            <Link href="/login">Sign in as seller</Link>
+          </Button>
+        }
+      />
+    );
+  }
+
+  // The native Seller app is seller-scoped: a deep link to an admin console inside its WebView
+  // gets a branded block instead of the admin shell. (The gateway JWT is the real boundary.)
+  if (nativeSeller && !isSellerScopedPath(pathname)) {
+    return (
+      <Denied
+        title="Not available in the Faazio Seller app"
+        body="This section is limited to seller tools. Head back to your seller dashboard to keep working."
         action={
           <Button asChild size="sm">
             <Link href="/seller">Go to seller dashboard</Link>
