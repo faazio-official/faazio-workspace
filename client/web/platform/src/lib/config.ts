@@ -3,7 +3,13 @@ const env = {
   gatewayUrl: process.env["NEXT_PUBLIC_GATEWAY_URL"]?.replace(/\/+$/, "") ?? "",
   /** Cloudflare R2 media CDN origin (custom domain in front of the public bucket), e.g. https://img.faazio.in. */
   mediaCdnBase: process.env["NEXT_PUBLIC_MEDIA_CDN_BASE"]?.replace(/\/+$/, "") ?? "",
+  /** Public legal pages shown on the sign-in screen. Terms has no first-party page yet, so it is env-only. */
+  termsUrl: process.env["NEXT_PUBLIC_TERMS_URL"]?.trim() ?? "",
+  privacyUrl: process.env["NEXT_PUBLIC_PRIVACY_URL"]?.trim() ?? "",
 };
+
+/** Landing-page Privacy Policy, used when NEXT_PUBLIC_PRIVACY_URL is not set. */
+const DEFAULT_PRIVACY_URL = "https://faazio.com/privacy";
 
 export const config = {
   appName: "Faazio Partner Portal",
@@ -16,6 +22,10 @@ export const config = {
   gatewayUrl: env.gatewayUrl,
   /** Cloudflare R2 media CDN origin (maps stored `r2:<key>` values to displayable URLs). */
   mediaCdnBase: env.mediaCdnBase,
+  /** Terms & Conditions URL (env-only until a first-party page exists; empty hides the link). */
+  termsUrl: env.termsUrl,
+  /** Privacy Policy URL, defaulting to the landing page when unset. */
+  privacyUrl: env.privacyUrl || DEFAULT_PRIVACY_URL,
 } as const;
 
 /** True when the portal is wired to the live gateway. */
