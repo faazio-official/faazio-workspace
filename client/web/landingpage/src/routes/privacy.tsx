@@ -1,6 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { MotionConfig } from "motion/react";
-import { FaazioLogo } from "@/components/faazio-logo";
 import { PolicyList, type PolicySection } from "@/components/legal";
 import { SiteFooter } from "@/components/site-footer";
 import { SiteHeader } from "@/components/site-header";
@@ -224,8 +223,77 @@ const privacySections: PolicySection[] = [
     ),
   },
   {
+    id: "delete-account",
+    title: "6. Delete your account",
+    body: (
+      <>
+        <p>
+          You can permanently delete your Faazio account in the app or by email. Deleting your
+          account removes your personal data; a limited set of records is kept where the law
+          requires it.
+        </p>
+
+        <h3 className="mt-6 font-display text-[19px] font-bold text-foreground">
+          Delete your account in the app
+        </h3>
+        <ol className="mt-3 list-decimal space-y-2 pl-5 text-[14px] leading-7 text-muted-foreground">
+          <li>Open the Faazio app and go to the Account (You) tab.</li>
+          <li>Open Privacy and security, then tap Delete account.</li>
+          <li>Review what is deleted and kept, then confirm Delete my account.</li>
+        </ol>
+
+        <h3 className="mt-6 font-display text-[19px] font-bold text-foreground">
+          Delete your account by email
+        </h3>
+        <p>
+          If you cannot sign in, email{" "}
+          <a
+            href={`mailto:${BUSINESS_EMAIL}?subject=Delete%20my%20account`}
+            className="font-semibold text-primary underline underline-offset-4"
+          >
+            {BUSINESS_EMAIL}
+          </a>{" "}
+          with the subject “Delete my account” from the email or phone number on your account. We
+          may ask you to verify your identity before acting.
+        </p>
+
+        <h3 className="mt-6 font-display text-[19px] font-bold text-foreground">What we delete</h3>
+        <PolicyList
+          items={[
+            "Account and profile details — name, email address, and phone number.",
+            "Saved delivery addresses and default-address selection.",
+            "Saved card tokens stored on your device.",
+            "Favourites, recent searches, and cart contents.",
+            "Prescription images and prescription details you uploaded.",
+            "Blood donation records and notification device tokens.",
+            "FaazioCoins balance and streak progress.",
+          ]}
+        />
+
+        <h3 className="mt-6 font-display text-[19px] font-bold text-foreground">
+          What we keep, and for how long
+        </h3>
+        <PolicyList
+          items={[
+            "Order, payment, return, and tax invoice records are kept as long as required by tax, accounting, consumer-protection, and dispute-resolution rules. They are no longer linked to your name, email address, or phone number.",
+            "Security and audit logs are currently kept for about 7 days, then deleted.",
+            "Hashed usage events are kept for about 90 days, then deleted.",
+          ]}
+        />
+        <p>
+          We complete deletion within 30 days of a verified request, except for records we must
+          retain under the periods above. See{" "}
+          <a href="#retention" className="font-semibold text-primary underline underline-offset-4">
+            Section 5, “How long we keep your information”
+          </a>{" "}
+          for the full retention schedule.
+        </p>
+      </>
+    ),
+  },
+  {
     id: "your-rights",
-    title: "6. Your rights and choices",
+    title: "7. Your rights and choices",
     body: (
       <>
         <p>
@@ -261,7 +329,7 @@ const privacySections: PolicySection[] = [
   },
   {
     id: "children",
-    title: "7. Children's privacy",
+    title: "8. Children's privacy",
     body: (
       <p>
         Faazio is intended for adults. It is not directed to children under 18, and we do not
@@ -279,7 +347,7 @@ const privacySections: PolicySection[] = [
   },
   {
     id: "security",
-    title: "8. How we protect your information",
+    title: "9. How we protect your information",
     body: (
       <>
         <p>
@@ -307,7 +375,7 @@ const privacySections: PolicySection[] = [
   },
   {
     id: "changes",
-    title: "9. Changes to this policy",
+    title: "10. Changes to this policy",
     body: (
       <p>
         We may update this policy from time to time. The effective date at the top of this page
@@ -318,7 +386,7 @@ const privacySections: PolicySection[] = [
   },
   {
     id: "contact",
-    title: "10. Contact us",
+    title: "11. Contact us",
     body: (
       <>
         <p>
@@ -366,9 +434,6 @@ function PrivacyPolicy() {
       <main id="main">
         <section className="page-hero" aria-labelledby="privacy-title">
           <div className="page-width">
-            <div className="mb-4 flex items-center gap-3 text-primary">
-              <FaazioLogo className="h-7 w-auto" aria-hidden="true" />
-            </div>
             <p className="eyebrow">PRIVACY POLICY</p>
             <h1 id="privacy-title">Your privacy, in plain language.</h1>
             <p className="page-lead">
@@ -378,91 +443,6 @@ function PrivacyPolicy() {
             <p className="mt-4 text-[12px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
               Effective 28 October 2026 · Applies to faazio.com and the Faazio apps
             </p>
-          </div>
-        </section>
-        <section
-          id="delete-account"
-          className="section scroll-mt-24"
-          aria-labelledby="delete-account-title"
-        >
-          <div className="page-width">
-            <div className="content-block">
-              <div className="rounded-2xl border border-border bg-muted/40 p-6 md:p-8">
-                <p className="eyebrow">ACCOUNT DELETION</p>
-                <h2
-                  id="delete-account-title"
-                  className="mt-0 font-display text-[26px] font-bold text-foreground"
-                >
-                  Delete your account
-                </h2>
-                <p>
-                  You can permanently delete your Faazio account in the app or by email. Deleting
-                  your account removes your personal data; a limited set of records is kept where
-                  the law requires it.
-                </p>
-
-                <h3 className="mt-6 font-display text-[19px] font-bold text-foreground">
-                  Delete your account in the app
-                </h3>
-                <ol className="mt-3 list-decimal space-y-2 pl-5 text-[14px] leading-7 text-muted-foreground">
-                  <li>Open the Faazio app and go to the Account (You) tab.</li>
-                  <li>Open Privacy and security, then tap Delete account.</li>
-                  <li>Review what is deleted and kept, then confirm Delete my account.</li>
-                </ol>
-
-                <h3 className="mt-6 font-display text-[19px] font-bold text-foreground">
-                  Delete your account by email
-                </h3>
-                <p>
-                  If you cannot sign in, email{" "}
-                  <a
-                    href={`mailto:${BUSINESS_EMAIL}?subject=Delete%20my%20account`}
-                    className="font-semibold text-primary underline underline-offset-4"
-                  >
-                    {BUSINESS_EMAIL}
-                  </a>{" "}
-                  with the subject “Delete my account” from the email or phone number on your
-                  account. We may ask you to verify your identity before acting.
-                </p>
-
-                <h3 className="mt-6 font-display text-[19px] font-bold text-foreground">
-                  What we delete
-                </h3>
-                <PolicyList
-                  items={[
-                    "Account and profile details — name, email address, and phone number.",
-                    "Saved delivery addresses and default-address selection.",
-                    "Saved card tokens stored on your device.",
-                    "Favourites, recent searches, and cart contents.",
-                    "Prescription images and prescription details you uploaded.",
-                    "Blood donation records and notification device tokens.",
-                    "FaazioCoins balance and streak progress.",
-                  ]}
-                />
-
-                <h3 className="mt-6 font-display text-[19px] font-bold text-foreground">
-                  What we keep, and for how long
-                </h3>
-                <PolicyList
-                  items={[
-                    "Order, payment, return, and tax invoice records are kept as long as required by tax, accounting, consumer-protection, and dispute-resolution rules. They are no longer linked to your name, email address, or phone number.",
-                    "Security and audit logs are currently kept for about 7 days, then deleted.",
-                    "Hashed usage events are kept for about 90 days, then deleted.",
-                  ]}
-                />
-                <p>
-                  We complete deletion within 30 days of a verified request, except for records we
-                  must retain under the periods above. See{" "}
-                  <a
-                    href="#retention"
-                    className="font-semibold text-primary underline underline-offset-4"
-                  >
-                    Section 5, “How long we keep your information”
-                  </a>{" "}
-                  for the full retention schedule.
-                </p>
-              </div>
-            </div>
           </div>
         </section>
         <section className="section">

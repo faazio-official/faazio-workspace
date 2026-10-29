@@ -1,6 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { MotionConfig } from "motion/react";
-import { FaazioLogo } from "@/components/faazio-logo";
 import {
   LEGAL_EFFECTIVE_DATE,
   PolicyList,
@@ -145,9 +144,6 @@ function Disclaimer() {
       <main id="main">
         <section className="page-hero" aria-labelledby="disclaimer-title">
           <div className="page-width">
-            <div className="mb-4 flex items-center gap-3 text-primary">
-              <FaazioLogo className="h-7 w-auto" aria-hidden="true" />
-            </div>
             <p className="eyebrow">DISCLAIMER</p>
             <h1 id="disclaimer-title">What to keep in mind.</h1>
             <p className="page-lead">
