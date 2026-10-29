@@ -175,6 +175,10 @@ jobs:
           # ts:check re-runs configure.js; keep the selected product variant from being reset.
           # Release settings are generated again below with cert pins + restricted keys.
           APP_VARIANT: ${{ github.event.inputs.app }}
+          # configure.js fails a seller typecheck without a portal origin. Supply the same
+          # gateway/portal values the release config step uses so seller builds pass this gate.
+          GATEWAY_URL: ${{ secrets.GATEWAY_URL || 'https://api.faazio.com' }}
+          WEB_PORTAL_URL: ${{ vars.WEB_PORTAL_URL || secrets.WEB_PORTAL_URL || 'https://app.faazio.com' }}
 
       - name: Generate JS/native config (release)
         run: npm run configure
