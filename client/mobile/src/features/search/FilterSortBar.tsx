@@ -4,7 +4,6 @@ import { SlidersHorizontal } from 'lucide-react-native';
 import AppText from '@/components/AppText';
 import { hs, ms, vs } from '@/utils/responsive';
 import SortDropdown from './SortDropdown';
-import InfoButton from '@/components/shared/InfoButton';
 import FilterOverlaySheet from './FilterOverlaySheet';
 import type { ActiveFacets, FacetGroup, SortOption } from './types';
 
@@ -16,8 +15,6 @@ interface FilterSortBarProps {
   activeSortId: string;
   onSelectSort: (id: string) => void;
   accentColor?: string;
-  /** Opt-in registry key that renders a small "i" guidance badge at the bar end. */
-  infoKey?: string;
 }
 
 const countActive = (facets: ActiveFacets) =>
@@ -36,7 +33,6 @@ const FilterSortBar = memo(function FilterSortBar({
   activeSortId,
   onSelectSort,
   accentColor = '#FF4500',
-  infoKey,
 }: FilterSortBarProps) {
   const [sheetOpen, setSheetOpen] = useState(false);
   const [staged, setStaged] = useState<ActiveFacets>(activeFacets);
@@ -97,8 +93,6 @@ const FilterSortBar = memo(function FilterSortBar({
         onSelect={onSelectSort}
         accentColor={accentColor}
       />
-
-      {infoKey ? <InfoButton variant="badge" contentKey={infoKey} /> : null}
 
       <FilterOverlaySheet
         visible={sheetOpen}

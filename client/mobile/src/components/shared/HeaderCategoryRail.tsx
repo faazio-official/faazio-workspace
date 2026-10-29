@@ -2,7 +2,6 @@ import React, { memo, useCallback } from 'react';
 import { View, TouchableOpacity, ScrollView, StyleSheet, NativeSyntheticEvent, NativeScrollEvent } from 'react-native';
 import { AppImage } from './AppImage';
 import AppText from '@/components/AppText';
-import InfoButton from './InfoButton';
 import { hs, ms, vs } from '@/utils/responsive';
 import { usePagedRail } from '@/hooks/usePagedRail';
 import type { CategoryRailItem } from '@data/categories/railFeed';
@@ -10,8 +9,6 @@ import type { CategoryRailItem } from '@data/categories/railFeed';
 interface HeaderCategoryRailProps {
   /** Fired when a category chip is tapped — opens the category drill-in for that tab. */
   onCategoryPress: (item: CategoryRailItem) => void;
-  /** Opt-in registry key that renders a small "i" guidance badge at the rail end. */
-  infoKey?: string;
 }
 
 /**
@@ -25,7 +22,6 @@ interface HeaderCategoryRailProps {
  */
 const HeaderCategoryRail = memo(function HeaderCategoryRail({
   onCategoryPress,
-  infoKey,
 }: HeaderCategoryRailProps) {
   const { items, loadMore } = usePagedRail();
 
@@ -70,7 +66,6 @@ const HeaderCategoryRail = memo(function HeaderCategoryRail({
           </AppText>
         </TouchableOpacity>
       ))}
-      {infoKey ? <InfoButton variant="badge" contentKey={infoKey} /> : null}
     </ScrollView>
   );
 });

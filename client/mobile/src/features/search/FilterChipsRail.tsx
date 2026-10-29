@@ -2,7 +2,6 @@ import React, { memo, useState } from 'react';
 import { View, TouchableOpacity, ScrollView, StyleSheet } from 'react-native';
 import { ChevronDown, Zap, Leaf, Star, Check } from 'lucide-react-native';
 import AppText from '@/components/AppText';
-import InfoButton from '@/components/shared/InfoButton';
 import { hs, ms, vs } from '@/utils/responsive';
 import type { SearchFilterChip, SortOption } from './types';
 
@@ -14,8 +13,6 @@ interface FilterChipsRailProps {
   activeSortId: string;
   onSelectSort: (id: string) => void;
   accentColor?: string;
-  /** Opt-in registry key that renders a small "i" guidance badge at the rail end. */
-  infoKey?: string;
 }
 
 /**
@@ -32,7 +29,6 @@ const FilterChipsRail = memo(function FilterChipsRail({
   activeSortId,
   onSelectSort,
   accentColor = '#FF4500',
-  infoKey,
 }: FilterChipsRailProps) {
   const [sortOpen, setSortOpen] = useState(false);
   const activeSort = sortOptions.find((o) => o.id === activeSortId);
@@ -83,7 +79,6 @@ const FilterChipsRail = memo(function FilterChipsRail({
             </TouchableOpacity>
           );
         })}
-        {infoKey ? <InfoButton variant="badge" contentKey={infoKey} /> : null}
       </ScrollView>
 
       {sortOpen ? (

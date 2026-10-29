@@ -1,7 +1,6 @@
 import React, { memo } from 'react';
 import { View, StyleSheet, TouchableOpacity } from 'react-native';
 import { Star } from 'lucide-react-native';
-import InfoButton from './InfoButton';
 import { hs, ms } from '@/utils/responsive';
 
 interface StarRatingInputProps {
@@ -13,8 +12,6 @@ interface StarRatingInputProps {
   activeColor?: string;
   inactiveColor?: string;
   disabled?: boolean;
-  /** Opt-in registry key that renders a small "i" guidance badge beside the stars. */
-  infoKey?: string;
 }
 
 /** Interactive 1–5 star picker used by the Rate Vendor form. */
@@ -25,7 +22,6 @@ const StarRatingInput = memo(function StarRatingInput({
   activeColor = '#F59E0B',
   inactiveColor = '#D1D5DB',
   disabled = false,
-  infoKey,
 }: StarRatingInputProps) {
   return (
     <View style={styles.row} accessibilityRole="adjustable" accessibilityLabel="Star rating">
@@ -51,7 +47,6 @@ const StarRatingInput = memo(function StarRatingInput({
           </TouchableOpacity>
         );
       })}
-      {infoKey ? <InfoButton variant="badge" contentKey={infoKey} /> : null}
     </View>
   );
 });

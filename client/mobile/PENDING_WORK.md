@@ -12,23 +12,21 @@ dependencies exist. Do not build the backend/seller flows until told to.
 
 ---
 
-## W75 — App-wide "i" guidance system
+## W75 — App-wide "i" guidance system (page-level shipped; component-level opt-in)
 
-**Status:** 🟢 Shipped (page-level + component-level opt-in API).
+**Status:** 🟢 Page-level shipped · 🟡 component-level opt-in partially wired.
 
 - **Shipped:** `src/lib/pageInfo.ts` registry (`PAGE_INFO` + `COMPONENT_INFO` + `resolveInfo`) and
   `src/lib/usePageInfo.ts`; shared `InfoButton` + `InfoSheet` (`src/components/shared/`). Page-level
   "i" buttons are wired into every customer route header, the shared `SubAppHeader`/`SearchHeader`/
   `FoodHeader` (via `infoKey`), all 8 Delivery Partner screens, and the Seller WebView shell (floating
   native button — the portal owns its own UI and cannot be injected into).
-- **Component opt-in `infoKey` API:** `ProductCardBase`, `StoreCardBase`, `SearchProductRowCard`,
-  `AppTextInput`, `SortDropdown`, `FilterChipsRail`, `FilterSortBar`, `HeaderCategoryRail`,
-  `FloatingCartBar`, `StarRatingInput`, `VendorRateButton`, `Checkbox`, delivery `Field`/`Card`/
-  `PrimaryButton`/`StatusPill`. Opt-in by design: no screen enables a badge yet, so there is no
-  runtime/visual change until a caller passes a key. `SlideUpSheet` already exposes `sheetTop` for
-  injecting an `InfoButton` (a direct import would create an InfoButton→InfoSheet→SlideUpSheet cycle).
-- **Remaining (opt-in by design, not blocking):** turn component badges on for the specific screens
-  that want them.
+- **Wired (opt-in `infoKey` prop, no caller enables it yet):** `ProductCardBase`, `StoreCardBase`,
+  `SearchProductRowCard`, delivery `Field`/`Card`.
+- **Deferred:** `infoKey` opt-in for the remaining shared components (`AppTextInput`, `SortDropdown`,
+  `FilterChipsRail`/`FilterSortBar`, `HeaderCategoryRail`, `FloatingCartBar`, `StarRatingInput`,
+  `VendorRateButton`, `Checkbox`, `SlideUpSheet`, delivery `PrimaryButton`/`StatusPill`) and enabling
+  component badges on the screens that want them.
 
 **Date:** 2026-10-29
 

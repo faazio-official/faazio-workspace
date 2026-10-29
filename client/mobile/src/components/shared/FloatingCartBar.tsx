@@ -3,7 +3,6 @@ import { View, TouchableOpacity, StyleSheet } from 'react-native';
 import { ChevronRight } from 'lucide-react-native';
 import { useCartStore } from '@/state/store';
 import AppText from '@/components/AppText';
-import InfoButton from './InfoButton';
 import { hs, ms, vs } from '@/utils/responsive';
 
 interface FloatingCartBarProps {
@@ -11,8 +10,6 @@ interface FloatingCartBarProps {
   onViewMenu?: () => void;
   accentColor?: string;
   bottomOffset?: number;
-  /** Opt-in registry key that renders a small "i" guidance badge in the bar. */
-  infoKey?: string;
 }
 
 /**
@@ -25,7 +22,6 @@ const FloatingCartBar = memo(function FloatingCartBar({
   onViewMenu,
   accentColor = '#FF4500',
   bottomOffset = 104,
-  infoKey,
 }: FloatingCartBarProps) {
   const cart = useCartStore((s) => s.cart);
 
@@ -73,8 +69,6 @@ const FloatingCartBar = memo(function FloatingCartBar({
           <ChevronRight size={ms(14)} color="#FFFFFF" strokeWidth={2.8} />
         </View>
       </TouchableOpacity>
-
-      {infoKey ? <InfoButton variant="badge" contentKey={infoKey} /> : null}
     </View>
   );
 });
