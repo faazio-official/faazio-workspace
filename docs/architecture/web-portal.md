@@ -138,7 +138,7 @@ gateway never shows a raw 503 or a blank page.
 | `admin/super/sectors` · `admin/super/coverage` | taxonomy + coverage — **GST rate master** (sector + category + GST rate, `tax.tax_rates` via `GET/PUT /admin/tax/categories` + `DELETE /admin/tax/categories/{id}`): the approved category list that seller listings and the checkout tax split both consume |
 | `admin/super/rewards` · `admin/super/users` · `admin/super/districts` | platform — `districts` is the per-district drill-down (supply, campaigns, roster) |
 | `admin/{district,super}/fee-change-requests` | seller-initiated platform-fee change review — district admins see their district, super admins every district; approve applies the fee, reject requires a reason (server-enforced one pending request per seller) |
-| `admin/super/district-admins` | district-admin directory — all 42 TN/PY districts; coverage summary (X / 42) + progress bar + grouped uncovered chips. **Unified creation:** one form creates the roster + (optionally, `issueLogin` default ON) the portal login + temporary password atomically; duplicate email blocked on/off-server, duplicate phone soft-warned |
+| `admin/super/district-admins` | district-admin directory — **locked to Tiruchirappalli (TTC)**; coverage summary (1 / 1) + progress bar + uncovered chip; roster read from `GET /district-admins?district=TTC` (store also hydrated at login). **Unified creation:** one form (district fixed to TTC) creates the roster + (optionally, `issueLogin` default ON) the portal login + temporary password atomically; duplicate email blocked on/off-server, duplicate phone soft-warned. No state picker or state fallback |
 | `admin/super/credentials` | issue/disable seller and district-admin portal logins (role + seller/district scope) |
 | `admin/super/app-config` | central remote config — the SUPER_ADMIN-edited app settings every Faazio app reads on boot (`admins.app_config`, `0059`), `GET/PUT/DELETE /admin/app-config(/{key})`. PRIVATE/SECRET rows are masked, writes are audit-logged, and a change is picked up on the next app boot (`getAppConfig` on mobile) with no app-store release |
 | `admin/super/security` | superadmin password rotation (same component as `/security`) |
@@ -395,8 +395,9 @@ browser                        Next.js route handlers                 Go gateway
   `PUT /admin/portal-users/{id}/password`. Creating/resetting a scoped credential defaults to
   `must_change=true` (`forceChange:false` opts out) and revokes that user's refresh sessions; a
   superadmin is reset with the password active immediately (`must_change=false`).
-- **Unified district-admin creation (`/admin/super/district-admins`, `0036`)** — `POST /district-admins` is the
-  single form: `issueLogin:true` (default) mints the roster **and** the `DISTRICT_ADMIN` portal login
+- **Unified district-admin creation (`/admin/super/district-admins`, `0036`; district-mandatory since `0065`)** — `POST /district-admins` is the
+  single form and **requires a district** (state-only scope is retired; `state_code` is derived from the district, never a fallback input). The page is
+  **locked to Tiruchirappalli (TTC)** and reads its roster from `GET /district-admins?district=TTC`. `issueLogin:true` (default) mints the roster **and** the `DISTRICT_ADMIN` portal login
   (temporary password, `must_change` locked `true`) in one atomic server call and returns both; the
   page shows the copyable temporary password once. `issueLogin:false` pre-provisions a roster-only row
   (No login badge + one-click issue). Duplicate **email** (portal-email/roster-email, case-normalized)

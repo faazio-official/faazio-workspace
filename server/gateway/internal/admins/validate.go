@@ -2,7 +2,7 @@ package admins
 
 import "strings"
 
-// Input helpers for the unified state-admin creator. They mirror the portal auth rules
+// Input helpers for the unified district-admin creator. They mirror the portal auth rules
 // (internal/portal) so the boundary rule (monolith-breakdown.md §2 — admins never imports a
 // sibling context) is kept: the two copies are tiny and stable.
 

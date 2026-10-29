@@ -10,8 +10,8 @@ import (
 // (28 States + 8 Union Territories). It mirrors the frontend STATES master
 // (client/web/platform/src/data/states.ts) and the future ops.states seed (0035 — Phase 2;
 // no FK yet). Contested codes are rejected here, never aliased: CT not CG, OR not OD, TG not
-// TS, UT not UK, DH not DN/DD — a typo (e.g. MB for MH) would otherwise create an orphan admin
-// invisible to the 36-code UI filter, so it surfaces as `unknown_state` instead.
+// TS, UT not UK, DH not DN/DD. The district-admin creator is now district-mandatory (it never
+// accepts state-only scope), so this allowlist is retained for state-scoped reads and tests.
 var ValidStates = map[string]bool{
 	"AN": true, "AP": true, "AR": true, "AS": true, "BR": true, "CH": true,
 	"CT": true, "DH": true, "DL": true, "GA": true, "GJ": true, "HP": true,

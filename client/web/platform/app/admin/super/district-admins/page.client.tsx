@@ -1,5 +1,5 @@
 "use client";
-import React, { useCallback, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { toast } from "sonner";
 import { AlertTriangle, Copy, KeyRound, RefreshCw } from "lucide-react";
@@ -12,16 +12,6 @@ import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import {
-  Select,
-  SelectContent,
-  SelectGroup,
-  SelectItem,
-  SelectLabel,
-  SelectSeparator,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import {
   Sheet,
   SheetContent,
@@ -49,24 +39,30 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { formatDate, formatDateTime } from "@/lib/format";
-import { ApiError } from "@/lib/api/http";
+import { ApiError, remote } from "@/lib/api/http";
+import { remoteConfigured } from "@/lib/config";
 import {
   createDistrictAdminWithLogin,
   deleteDistrictAdmin,
+  districtAdminConflictMessage,
+  districtAdminDuplicateHint,
   listAuditLogs,
   listPortalCredentials,
   normalizePhoneDigits,
-  stateAdminConflictMessage,
-  stateAdminDuplicateHint,
   updateDistrictAdmin,
 } from "@/lib/api";
 import { useMockLoading, useSellers, useDistrictAdmins } from "@/lib/api/hooks";
-import { DISTRICTS, stateForDistrict } from "@/data/districts";
+import { usePortalStore } from "@/lib/api/store";
+import { DISTRICTS, districtName } from "@/data/districts";
 import type { PortalCredential, DistrictAdmin } from "@/data/types";
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const MIN_PASSWORD = 12;
 const PASSWORD_CHARS = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789!@#$%^&*";
+
+/** This page is district-locked: it only ever provisions admins for Tiruchirappalli (TTC). */
+const TTC_CODE = "TTC";
+const TTC_DISTRICT = DISTRICTS.find((d) => d.districtCode === TTC_CODE);
 
 function generatePassword(): string {
   const bytes = new Uint8Array(16);
@@ -74,50 +70,26 @@ function generatePassword(): string {
   return Array.from(bytes, (b) => PASSWORD_CHARS[b % PASSWORD_CHARS.length]).join("");
 }
 
-/** District picker grouped by parent state (production coverage: Tamil Nadu + Puducherry). */
-function DistrictSelect({
-  value,
-  onValueChange,
-}: {
-  value: string;
-  onValueChange: (value: string) => void;
-}) {
-  const groups = ["TN", "PY"] as const;
-  const labels: Record<string, string> = { TN: "Tamil Nadu", PY: "Puducherry" };
+/** Read-only district chip — the page is locked to Tiruchirappalli (TTC). */
+function DistrictChip() {
   return (
-    <Select value={value} onValueChange={onValueChange}>
-      <SelectTrigger>
-        <SelectValue />
-      </SelectTrigger>
-      <SelectContent>
-        {groups.map((stateCode, index) => (
-          <React.Fragment key={stateCode}>
-            {index > 0 ? <SelectSeparator /> : null}
-            <SelectGroup>
-              <SelectLabel>{labels[stateCode]}</SelectLabel>
-              {DISTRICTS.filter((d) => d.stateCode === stateCode).map((d) => (
-                <SelectItem key={d.districtCode} value={d.districtCode}>
-                  {d.name} · {d.districtCode}
-                </SelectItem>
-              ))}
-            </SelectGroup>
-          </React.Fragment>
-        ))}
-      </SelectContent>
-    </Select>
+    <div className="flex h-9 items-center rounded-md border border-border bg-muted/40 px-3 text-[13px]">
+      <span className="num font-semibold">{TTC_CODE}</span>
+      <span className="ml-1.5 text-muted-foreground">{districtName(TTC_CODE)}</span>
+    </div>
   );
 }
 
 function DistrictAdminAccounts() {
   const loading = useMockLoading();
-  const admins = useDistrictAdmins();
+  const admins = useDistrictAdmins(TTC_CODE);
   const sellers = useSellers();
   const [creds, setCreds] = useState<PortalCredential[]>([]);
   const [form, setForm] = useState({
     name: "",
     email: "",
     phone: "",
-    districtCode: "TCH",
+    districtCode: TTC_CODE,
     issueLogin: true,
     password: "",
     forceChange: true, // locked ON for DISTRICT_ADMIN — the temp password is single-use
@@ -127,7 +99,7 @@ function DistrictAdminAccounts() {
   const [createdWarnings, setCreatedWarnings] = useState<string[] | null>(null);
   const [creating, setCreating] = useState(false);
   const [editing, setEditing] = useState<DistrictAdmin | null>(null);
-  const [draft, setDraft] = useState({ name: "", email: "", phone: "", districtCode: "TCH" });
+  const [draft, setDraft] = useState({ name: "", email: "", phone: "", districtCode: TTC_CODE });
   const [query, setQuery] = useState("");
 
   // Portal logins drive the roster's login-status badges + the pre-submit one-person-one-role lint.
@@ -141,12 +113,34 @@ function DistrictAdminAccounts() {
     };
   }, []);
 
+  // DB-backed roster: refresh the TTC slice from the gateway when configured. The store is already
+  // hydrated at login (hydrateFromGateway); this is a best-effort refresh and keeps the demo seed
+  // when the gateway is absent or the call fails.
+  useEffect(() => {
+    if (!remoteConfigured()) return;
+    let active = true;
+    void remote
+      .get<DistrictAdmin[]>("/district-admins", { query: { district: TTC_CODE } })
+      .then((rows) => {
+        if (!active) return;
+        usePortalStore.getState().set((s) => ({
+          districtAdmins: [...s.districtAdmins.filter((a) => a.districtCode !== TTC_CODE), ...rows],
+        }));
+      })
+      .catch(() => {
+        /* keep the hydrated/seed roster */
+      });
+    return () => {
+      active = false;
+    };
+  }, []);
+
   const loginEmails = new Set(creds.filter((c) => c.role === "DISTRICT_ADMIN").map((c) => c.email.toLowerCase()));
   const loginByEmail = (email: string) =>
     creds.find((c) => c.role === "DISTRICT_ADMIN" && c.email.toLowerCase() === email.toLowerCase());
 
   const phoneDigits = normalizePhoneDigits(form.phone);
-  const duplicateHint = stateAdminDuplicateHint(form.email, form.phone, creds, sellers, admins);
+  const duplicateHint = districtAdminDuplicateHint(form.email, form.phone, creds, sellers, admins);
   const passwordValid = !form.issueLogin || form.password.length >= MIN_PASSWORD;
   const valid =
     form.name.trim().length > 2 &&
@@ -155,12 +149,12 @@ function DistrictAdminAccounts() {
     passwordValid &&
     duplicateHint?.kind !== "error";
 
-  const uncovered = DISTRICTS.filter(
-    (d) => admins.filter((a) => a.districtCode === d.districtCode && a.active).length === 0,
-  );
+  // This page covers exactly one district (TTC), so coverage is 1/1 or 0/1.
+  const covered = admins.some((a) => a.districtCode === TTC_CODE && a.active) ? 1 : 0;
+  const uncovered = TTC_DISTRICT && covered === 0 ? [TTC_DISTRICT] : [];
+  const totalDistricts = TTC_DISTRICT ? 1 : 0;
   const activeCount = admins.filter((a) => a.active).length;
-  const covered = DISTRICTS.length - uncovered.length;
-  const coveragePct = Math.round((covered / DISTRICTS.length) * 100);
+  const coveragePct = totalDistricts ? Math.round((covered / totalDistricts) * 100) : 0;
 
   const q = query.trim().toLowerCase();
   const filtered = admins.filter(
@@ -168,7 +162,7 @@ function DistrictAdminAccounts() {
       !q ||
       a.name.toLowerCase().includes(q) ||
       a.email.toLowerCase().includes(q) ||
-      (a.districtCode || a.stateCode || "").toLowerCase().includes(q),
+      (a.districtCode ?? "").toLowerCase().includes(q),
   );
 
   async function handleCreate() {
@@ -206,7 +200,7 @@ function DistrictAdminAccounts() {
         forceChange: true,
       }));
     } catch (err) {
-      const conflict = stateAdminConflictMessage(err);
+      const conflict = districtAdminConflictMessage(err);
       setServerError(conflict);
       if (err instanceof ApiError && (err.status === 409 || err.status === 400)) {
         toast.error("District admin blocked", { description: conflict.message });
@@ -224,7 +218,7 @@ function DistrictAdminAccounts() {
     <div className="space-y-4">
       <PageHeader
         title="District admins"
-        description="A district may have several admins; each admin is locked to exactly one district."
+        description="This page manages Tiruchirappalli (TTC) admins only — a district may have several admins; each admin is locked to exactly one district."
       />
 
       <p className="text-[12px] text-muted-foreground">
@@ -251,7 +245,7 @@ function DistrictAdminAccounts() {
       <div className="space-y-2 rounded-xl border border-border bg-card px-4 py-3">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <p className="text-[13px] font-semibold">
-            <span className="num">{covered}</span> / {DISTRICTS.length} districts covered
+            <span className="num">{covered}</span> / {totalDistricts} district{totalDistricts === 1 ? "" : "s"} covered
           </p>
           <p className="num text-[12px] text-muted-foreground">
             {activeCount} active admin{activeCount === 1 ? "" : "s"}
@@ -276,7 +270,6 @@ function DistrictAdminAccounts() {
               title={`Create an admin for ${d.name}`}
               onClick={() => {
                 setEditing(null);
-                setForm((f) => ({ ...f, districtCode: d.districtCode }));
                 document.getElementById("create-admin")?.scrollIntoView({ behavior: "smooth" });
               }}
               className="num rounded-full border border-warning/40 bg-warning/10 px-2 py-0.5 text-[11px] font-semibold text-warning transition-colors hover:bg-warning/20"
@@ -311,7 +304,7 @@ function DistrictAdminAccounts() {
                 setForm({ ...form, email: e.target.value });
                 setServerError(null);
               }}
-              placeholder="admin.mh@faazio.dev"
+              placeholder="admin.ttc@faazio.dev"
               className={serverError?.field === "email" ? "border-destructive" : undefined}
             />
             {form.email && !EMAIL_RE.test(form.email) ? (
@@ -347,10 +340,10 @@ function DistrictAdminAccounts() {
               <Label>District</Label>
               <ComponentHelp id="district-select" label="About the district field" />
             </div>
-            <DistrictSelect
-              value={form.districtCode}
-              onValueChange={(value) => setForm({ ...form, districtCode: value })}
-            />
+            <DistrictChip />
+            <p className="text-[11px] text-muted-foreground">
+              This page provisions admins for Tiruchirappalli (TTC) only.
+            </p>
           </div>
         </div>
 
@@ -526,7 +519,7 @@ function DistrictAdminAccounts() {
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>State</TableHead>
+                <TableHead>District</TableHead>
                 <TableHead>Name</TableHead>
                 <TableHead>Email</TableHead>
                 <TableHead>Phone</TableHead>
@@ -542,13 +535,17 @@ function DistrictAdminAccounts() {
                 const login = loginByEmail(admin.email);
                 return (
                   <TableRow key={admin.adminId} className="h-12">
-                    <TableCell className="num text-[13px] font-semibold">
-                      {admin.districtCode || admin.stateCode || "—"}
+                    <TableCell className="text-[13px] font-semibold">
                       {admin.districtCode ? (
-                        <span className="ml-1 text-[11px] text-muted-foreground">
-                          {stateForDistrict(admin.districtCode)}
-                        </span>
-                      ) : null}
+                        <>
+                          <span className="num">{admin.districtCode}</span>
+                          <span className="ml-1 text-[11px] text-muted-foreground">
+                            {districtName(admin.districtCode)}
+                          </span>
+                        </>
+                      ) : (
+                        <span className="num">—</span>
+                      )}
                     </TableCell>
                     <TableCell className="text-[13px] font-medium">{admin.name}</TableCell>
                     <TableCell className="num text-[12px]">{admin.email}</TableCell>
@@ -675,10 +672,7 @@ function DistrictAdminAccounts() {
               </div>
               <div className="space-y-1.5">
                 <Label>District</Label>
-                <DistrictSelect
-                  value={draft.districtCode}
-                  onValueChange={(value) => setDraft({ ...draft, districtCode: value })}
-                />
+                <DistrictChip />
               </div>
               <Button
                 size="sm"

@@ -1188,10 +1188,13 @@ real enforcer. Adds `order_status` values `NEW`/`PACKED`/`RETURNED` (Option A) s
 share one lifecycle; `directory.stores.rating` is narrowed to REAL (0005 narrowed only products).
 Idempotent and re-runnable.
 
-`admins.state_admins.state_code` (and every other `state_code char(2)` column) has **no FK/CHECK yet** —
-the gateway is authoritative: `internal/admins/states.go` allowlists the 36 ISO 3166-2:IN state/UT codes
-(no aliases — CT/OR/TG/UT/DH, never CG/OD/TS/UK/DN) and `POST /district-admins` also validates the district against `admins.district_master` (`0046`/`0048`); an unknown code is rejected with
-400 `unknown_state`. `0035` is intentionally unused; `0046` introduced `admins.district_master`
+`admins.district_admins.state_code` (and every other `state_code char(2)` column) has **no FK/CHECK yet** —
+the gateway is authoritative: `internal/platform/geo` is the district master and `POST /district-admins`
+validates the district against it (plus the FK to `admins.district_master`, `0046`/`0048`). The creator is
+**district-mandatory** (`0065`): a missing/unknown district is rejected with 400 `unknown_district` and
+`state_code` is derived from the district — state-only scope is retired. `internal/admins/states.go` keeps
+the 36 ISO 3166-2:IN state allowlist (no aliases — CT/OR/TG/UT/DH, never CG/OD/TS/UK/DN) for state-scoped
+reads. `0035` is intentionally unused; `0046` introduced `admins.district_master`
 (42 TN/PY districts) and `0048` renamed `state_admins` → `district_admins` (district_code is the
 authoritative scope).
 
@@ -1881,6 +1884,12 @@ CREATE FUNCTION sellers.is_admin_for(p_state char(2), p_district text) RETURNS b
 -- SUPER_ADMIN all; STATE_ADMIN/DISTRICT_ADMIN same state + district claim match (empty row district
 -- or empty claim falls back to state). seller/kyc/bank/opt-in/fee-request policies repointed.
 ```
+
+`0065` seeds one active Tiruchirappalli (`TTC`) roster row (`adm-tiruchi-01`) so the TTC-locked
+district-admins page is non-empty on a fresh DB. It inserts the roster row only — no portal login or
+password hash (`PORTAL_AUTH.md` §2) — and is idempotent (`on conflict do nothing`). With it,
+`POST /district-admins` is district-mandatory: state-only scope is retired and `state_code` is
+derived from the district.
 
 **Rules**
 

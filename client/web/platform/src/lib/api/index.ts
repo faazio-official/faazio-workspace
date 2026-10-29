@@ -1173,7 +1173,7 @@ export function listDistrictAdmins(districtCode?: string) {
 
 /**
  * Reduces a phone to its bare 10 Indian digits (strips +91/91/0 prefixes and every separator), or ""
- * when the result is not exactly 10 digits. Shared by the state-admin form and the credentials page.
+ * when the result is not exactly 10 digits. Shared by the district-admin form and the credentials page.
  */
 export function normalizePhoneDigits(raw: string): string {
   const digits = raw.replace(/\D/g, "");
@@ -1206,7 +1206,7 @@ export interface DistrictAdminCreateResult {
 }
 
 /**
- * Unified state-admin creator (superadmin-only). One server call writes the roster and — when
+ * Unified district-admin creator (superadmin-only). One server call writes the roster and — when
  * `issueLogin` — the DISTRICT_ADMIN portal login atomically; a duplicate email rejects with a
  * specific 409 `code` so the form can be kept (never an optimistic flash-then-rollback). A
  * duplicate PHONE is allowed and reported back as `warnings` (soft, policy decision).
@@ -1244,7 +1244,7 @@ export interface IdentityHint {
 }
 
 /** Pre-submit identity lint (fast, non-authoritative; the server is the source of truth). */
-export function stateAdminDuplicateHint(
+export function districtAdminDuplicateHint(
   email: string,
   phone: string,
   creds: PortalCredential[],
@@ -1271,7 +1271,7 @@ export function stateAdminDuplicateHint(
 }
 
 /** Maps a 409/400 `code` from POST /district-admins to a field + friendly block message. */
-export function stateAdminConflictMessage(err: unknown): { field: "email" | "phone" | null; message: string } {
+export function districtAdminConflictMessage(err: unknown): { field: "email" | "phone" | null; message: string } {
   const code = err instanceof ApiError ? err.code : undefined;
   const id = err instanceof ApiError ? err.conflictingId : undefined;
   switch (code) {

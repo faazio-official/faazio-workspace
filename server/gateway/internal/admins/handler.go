@@ -119,8 +119,9 @@ type createAdminRequest struct {
 	Email        string `json:"email"`
 	Phone        string `json:"phone"`
 	DistrictCode string `json:"districtCode"`
-	// StateCode is the legacy field accepted from an older portal; it is only used when no district
-	// is supplied (and keeps the row working as a state-scoped legacy admin).
+	// StateCode is the legacy field accepted from an older portal for wire back-compat; it is IGNORED
+	// as an authorization scope. The creator is district-mandatory and always derives state_code from
+	// the district (state-only scope is retired).
 	StateCode  string `json:"stateCode,omitempty"`
 	IssueLogin *bool  `json:"issueLogin"`
 	Password   string `json:"password,omitempty"`
@@ -138,7 +139,6 @@ func (h *Handler) createAdmin(w http.ResponseWriter, r *http.Request) {
 	req.Name = strings.TrimSpace(req.Name)
 	req.Email = strings.ToLower(strings.TrimSpace(req.Email))
 	req.DistrictCode = NormaliseDistrictCode(req.DistrictCode)
-	req.StateCode = NormaliseStateCode(req.StateCode)
 	if req.Name == "" || len(req.Name) < 3 || len(req.Name) > 120 {
 		httpx.Fail(w, http.StatusBadRequest, "bad_request", "a name of at least 3 characters is required")
 		return
@@ -152,16 +152,16 @@ func (h *Handler) createAdmin(w http.ResponseWriter, r *http.Request) {
 		httpx.Fail(w, http.StatusBadRequest, "invalid_phone", "phone must be a 10-digit Indian mobile number")
 		return
 	}
-	if req.DistrictCode != "" {
-		if !IsValidDistrict(req.DistrictCode) {
-			httpx.Fail(w, http.StatusBadRequest, "unknown_district", "unknown district code")
-			return
-		}
-		req.StateCode = StateForDistrict(req.DistrictCode)
-	} else if !IsValidState(req.StateCode) {
-		httpx.Fail(w, http.StatusBadRequest, "unknown_state", "unknown state code")
+	if req.DistrictCode == "" {
+		httpx.Fail(w, http.StatusBadRequest, "unknown_district", "a district is required (state-only scope is retired)")
 		return
 	}
+	if !IsValidDistrict(req.DistrictCode) {
+		httpx.Fail(w, http.StatusBadRequest, "unknown_district", "unknown district code")
+		return
+	}
+	// Derived display scope only — never a fallback input.
+	req.StateCode = StateForDistrict(req.DistrictCode)
 	issueLogin := true
 	if req.IssueLogin != nil {
 		issueLogin = *req.IssueLogin
