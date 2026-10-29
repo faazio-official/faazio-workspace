@@ -1,3 +1,3 @@
 <resources>
-  <!-- app_name is provided per product flavor (customer/delivery) in app/build.gradle. -->
+  <!-- app_name is provided per product flavor (customer/delivery/seller) in app/build.gradle. -->
 </resources>

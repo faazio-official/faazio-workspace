@@ -4,7 +4,9 @@
   <uses-permission android:name="android.permission.FOREGROUND_SERVICE_LOCATION"/>
   <uses-permission android:name="android.permission.WAKE_LOCK"/>
 
-  <application>
+  <application
+    android:icon="@mipmap/ic_launcher"
+    android:roundIcon="@mipmap/ic_launcher_round">
     <!-- Warm/cold-start offer deep link from the system notification. -->
     <activity android:name=".MainActivity">
       <intent-filter>
