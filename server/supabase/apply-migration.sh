@@ -52,7 +52,9 @@ while [[ $# -gt 0 ]]; do
       exit 1
       ;;
     *)
-      FILES+=("$1")
+      # Resolve to an absolute path now: the migrator is invoked from $GATEWAY_DIR (below), so a
+      # relative arg would otherwise be looked up from the wrong directory.
+      FILES+=("$(cd "$(dirname "$1")" && pwd)/$(basename "$1")")
       shift
       ;;
   esac
