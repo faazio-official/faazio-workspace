@@ -1,9 +1,15 @@
 "use client";
-import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { Bell, ChevronLeft, Command as CommandIcon, LogOut, PanelLeft } from "lucide-react";
-import { DISTRICT_ADMIN_NAV, SUPER_ADMIN_NAV } from "@/components/layout/nav";
+import { Bell, ChevronLeft, Command as CommandIcon, LogOut, Menu, PanelLeft } from "lucide-react";
+import {
+  activeNavHref,
+  DISTRICT_ADMIN_NAV,
+  normalizeNavPath,
+  SUPER_ADMIN_NAV,
+} from "@/components/layout/nav";
+import { MobileNavDrawer } from "@/components/layout/MobileNavDrawer";
 import { Button } from "@/components/ui/button";
 import {
   CommandDialog,
@@ -38,6 +44,7 @@ export function AdminShell({
   children: ReactNode;
 }) {
   const [collapsed, setCollapsed] = useState(false);
+  const [mobileNav, setMobileNav] = useState(false);
   const [paletteOpen, setPaletteOpen] = useState(false);
   const session = useSession();
   const router = useRouter();
@@ -45,16 +52,18 @@ export function AdminShell({
 
   const nav = scope === "DISTRICT" ? DISTRICT_ADMIN_NAV : SUPER_ADMIN_NAV;
   const groups = useMemo(() => Array.from(new Set(nav.map((i) => i.group))), [nav]);
+  const current = activeNavHref(pathname, nav);
+  const closeMobileNav = useCallback(() => setMobileNav(false), []);
 
   useEffect(() => {
-    if (
-      session?.mustChange &&
-      session.role !== "SUPER_ADMIN" &&
-      pathname !== "/security"
-    ) {
+    if (session?.mustChange && session.role !== "SUPER_ADMIN" && pathname !== "/security") {
       router.replace("/security");
     }
   }, [pathname, router, session?.mustChange, session?.role]);
+
+  useEffect(() => {
+    setMobileNav(false);
+  }, [pathname]);
 
   useEffect(() => {
     function onKey(event: KeyboardEvent) {
@@ -91,50 +100,50 @@ export function AdminShell({
             {groups.map((group) => {
               const hue = groupTone(group);
               return (
-              <div key={group} className="mb-3">
-                {!collapsed ? (
-                  <p className="flex items-center gap-1.5 px-2 pb-1 text-[10px] font-semibold uppercase tracking-wider text-ink-muted">
-                    <span
-                      aria-hidden
-                      className="size-1.5 rounded-full"
-                      style={{ background: TONE_VAR[hue] }}
-                    />
-                    {group}
-                  </p>
-                ) : null}
-                {nav
-                  .filter((i) => i.group === group)
-                  .map((item) => {
-                    const active = pathname === item.to;
-                    return (
-                      <Link
-                        key={item.to}
-                        href={item.to}
-                        className={cn(
-                          "mb-0.5 flex items-center gap-2 rounded-md px-2 py-2 text-[13px] transition-colors",
-                          active
-                            ? "font-semibold text-ink-foreground shadow-sm"
-                            : "text-ink-muted hover:bg-ink-border hover:text-ink-foreground",
-                        )}
-                        style={
-                          active
-                            ? {
-                                backgroundColor: `color-mix(in oklab, ${TONE_VAR[hue]} 30%, transparent)`,
-                                boxShadow: `inset 3px 0 0 0 ${TONE_VAR[hue]}`,
-                              }
-                            : undefined
-                        }
-                        aria-current={active ? "page" : undefined}
-                      >
-                        <item.icon
-                          className="size-4 shrink-0"
-                          style={active ? undefined : { color: TONE_VAR[hue] }}
-                        />
-                        {!collapsed ? <span className="truncate">{item.label}</span> : null}
-                      </Link>
-                    );
-                  })}
-              </div>
+                <div key={group} className="mb-3">
+                  {!collapsed ? (
+                    <p className="flex items-center gap-1.5 px-2 pb-1 text-[10px] font-semibold uppercase tracking-wider text-ink-muted">
+                      <span
+                        aria-hidden
+                        className="size-1.5 rounded-full"
+                        style={{ background: TONE_VAR[hue] }}
+                      />
+                      {group}
+                    </p>
+                  ) : null}
+                  {nav
+                    .filter((i) => i.group === group)
+                    .map((item) => {
+                      const active = normalizeNavPath(item.to) === current;
+                      return (
+                        <Link
+                          key={item.to}
+                          href={item.to}
+                          className={cn(
+                            "mb-0.5 flex items-center gap-2 rounded-md px-2 py-2 text-[13px] transition-colors",
+                            active
+                              ? "font-semibold text-ink-foreground shadow-sm"
+                              : "text-ink-muted hover:bg-ink-border hover:text-ink-foreground",
+                          )}
+                          style={
+                            active
+                              ? {
+                                  backgroundColor: `color-mix(in oklab, ${TONE_VAR[hue]} 30%, transparent)`,
+                                  boxShadow: `inset 3px 0 0 0 ${TONE_VAR[hue]}`,
+                                }
+                              : undefined
+                          }
+                          aria-current={active ? "page" : undefined}
+                        >
+                          <item.icon
+                            className="size-4 shrink-0"
+                            style={active ? undefined : { color: TONE_VAR[hue] }}
+                          />
+                          {!collapsed ? <span className="truncate">{item.label}</span> : null}
+                        </Link>
+                      );
+                    })}
+                </div>
               );
             })}
           </nav>
@@ -152,25 +161,50 @@ export function AdminShell({
           </div>
         </aside>
 
+        <MobileNavDrawer
+          open={mobileNav}
+          onClose={closeMobileNav}
+          nav={nav}
+          pathname={pathname}
+          scopeLabel={scope === "DISTRICT" ? "District console" : "Global console"}
+        />
+
         <div className="flex min-w-0 flex-1 flex-col">
           <header className="sticky top-0 z-20 flex h-14 items-center gap-3 border-b border-border bg-card/95 px-4 backdrop-blur">
-            <span className="inline-flex items-center gap-1.5 rounded-full bg-ink px-2.5 py-1 text-[11px] font-semibold text-ink-foreground">
-              {scope === "DISTRICT"
-                ? session?.districtCode
-                  ? `${session.districtCode} · ${districtName(session.districtCode)} · ${stateForDistrict(session.districtCode)}`
-                  : session?.stateCode
-                    ? `STATE · ${session.stateCode}`
-                    : "DISTRICT"
-                : "GLOBAL · All districts"}
+            <Button
+              variant="ghost"
+              size="icon"
+              className="shrink-0 lg:hidden"
+              aria-label="Open menu"
+              aria-controls="mobile-nav-drawer"
+              aria-expanded={mobileNav}
+              onClick={() => setMobileNav(true)}
+            >
+              <Menu className="size-4" />
+            </Button>
+            <span className="inline-flex min-w-0 items-center gap-1.5 rounded-full bg-ink px-2.5 py-1 text-[11px] font-semibold text-ink-foreground">
+              <span className="truncate">
+                {scope === "DISTRICT"
+                  ? session?.districtCode
+                    ? `${session.districtCode} · ${districtName(session.districtCode)} · ${stateForDistrict(session.districtCode)}`
+                    : session?.stateCode
+                      ? `STATE · ${session.stateCode}`
+                      : "DISTRICT"
+                  : "GLOBAL · All districts"}
+              </span>
             </span>
             <Button
               variant="outline"
               size="sm"
-              className="gap-2 text-muted-foreground"
+              className="shrink-0 gap-2 text-muted-foreground"
+              aria-label="Search"
               onClick={() => setPaletteOpen(true)}
             >
-              <CommandIcon className="size-4" /> Search
-              <kbd className="num ml-1 rounded border border-border px-1 text-[10px]">⌘K</kbd>
+              <CommandIcon className="size-4" />
+              <span className="hidden sm:inline">Search</span>
+              <kbd className="num ml-1 hidden rounded border border-border px-1 text-[10px] sm:inline">
+                ⌘K
+              </kbd>
             </Button>
             <div className="ml-auto flex items-center gap-1">
               <Button variant="ghost" size="icon" aria-label="Notifications">
