@@ -3152,7 +3152,7 @@ the old `/veg/i` cuisine heuristic). Unclassifiable dishes hide while a filter i
 
 ## Account — nav rows & Coming-soon groups
 
-**Status:** 🟢 Privacy is active (Delete account + Request data deletion). Legal has no in-app screen yet, but the login row now links to the published policies.
+**Status:** 🟢 Privacy is active (Delete account + Request data deletion); Legal is active with published-policy links.
 
 **Feature:** The "You" page nav list (`features/profile/AccountView.tsx`, driven by
 `@data/account/accountNav.ts` `accountNavGroups`) is grouped and titled: `profile`
@@ -3160,19 +3160,19 @@ the old `/veg/i` cuisine heuristic). Unclassifiable dishes hide while a filter i
 `earn` (Earn with us — now active with a `sell-with-us` row → `SellWithUs`), `legal` (Terms
 and policies), `support` (Help & Support). `privacy` is now active with `Delete account`
 → `DeleteAccount` and `Request data deletion` → `RequestDataDeletion` (both root-stack
-routes). `legal` remains `comingSoon` and renders a non-tappable placeholder row.
+routes). `legal` is now active with `terms` / `privacy` / `refunds` / `cookies` / `disclaimer`
+rows that open the published landing pages in the system browser.
 
 **Future / honest gaps:**
 - **Destination screens not built** for Payments, Recently Viewed, and Customer Support —
   these rows keep the TODO stub in `AccountView.handleRowPress` and don't navigate yet.
   Favourites now opens the search-results-style `Favourites` root route, and the
   "Coupons & Offers" stub row was removed from the `payments` group.
-- **Legal (in-app screens) still pending** — the account-nav `legal` group remains
-  `comingSoon` (no in-app Terms/Privacy-document screens or rows). The published policies now
-  live on the landing page and are linked from the login acceptance row: `LoginScreen` opens
-  `TERMS_URL` / `PRIVACY_URL` via `openTrustedUrl()` (`src/lib/externalLinks.ts`), which
-  restricts external opens to `https://faazio.com`. Flip `comingSoon` off and add rows once
-  in-app screens are built; no component change is needed (data-driven).
+- **Legal is active** — the account-nav `legal` group now has `terms` / `privacy` / `refunds` /
+  `cookies` / `disclaimer` rows (see `@data/account/accountNav.ts`) that open the published
+  landing pages in the system browser via `openTrustedUrl()` (`src/lib/externalLinks.ts`,
+  restricted to `https://faazio.com`). No in-app document screens are needed; the login
+  acceptance row links the same pages.
 - **Privacy is complete for Play** — `DeleteAccount` calls `DELETE /users/me` (anonymising
   soft delete: PII erased, financial rows retained) and `RequestDataDeletion` calls
   `POST /users/me/data-deletion` (addresses/favourites/prescriptions; recent searches are

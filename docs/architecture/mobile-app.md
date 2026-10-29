@@ -869,9 +869,11 @@ chrome is held server-side, per-user row membership lives in `accounts.nav`. Six
 render in order: `profile` (Profile settings), `payments` (Payments and credits),
 `privacy` (Privacy and security), `earn` (Earn with us), `legal` (Terms and policies),
 and `support` (Help & Support). The `privacy` group is active with `Delete account` →
-`DeleteAccount` and `Request data deletion` → `RequestDataDeletion`; only `legal` is
-`comingSoon` — it renders a single non-tappable "Coming soon" row in place of real nav
-rows. The `earn` group is active and carries a `sell-with-us` row ("Sell with us")
+`DeleteAccount` and `Request data deletion` → `RequestDataDeletion`. The `legal` group is
+active with `terms` / `privacy` / `refunds` / `cookies` / `disclaimer` rows that open the
+published landing pages in the system browser through the host-restricted `openTrustedUrl()`
+(`lib/externalLinks.ts`, `https://faazio.com` only). The `earn` group is active and carries a
+`sell-with-us` row ("Sell with us")
 that pushes the `SellWithUs` screen. Orders / Details / Addresses / Favourites /
 Sell-with-us navigate today; Favourites opens the search-results-style `Favourites`
 root route (see below). The `payments` group now holds only the `payments` row

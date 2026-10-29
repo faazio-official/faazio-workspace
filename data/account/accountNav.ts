@@ -51,8 +51,38 @@ export const accountNavGroups: AccountNavGroup[] = [
   {
     key: 'legal',
     title: 'Terms and policies',
-    comingSoon: true,
-    rows: [],
+    rows: [
+      {
+        key: 'terms',
+        icon: 'file-text',
+        title: 'Terms & Conditions',
+        subtitle: 'How Faazio works and what you agree to',
+      },
+      {
+        key: 'privacy',
+        icon: 'lock',
+        title: 'Privacy Policy',
+        subtitle: 'How we collect, use, and protect your data',
+      },
+      {
+        key: 'refunds',
+        icon: 'receipt',
+        title: 'Refund & Cancellation Policy',
+        subtitle: 'Returns, refunds, and cancellations',
+      },
+      {
+        key: 'cookies',
+        icon: 'cookie',
+        title: 'Cookie Policy',
+        subtitle: 'Cookies used on faazio.com',
+      },
+      {
+        key: 'disclaimer',
+        icon: 'info',
+        title: 'Disclaimer',
+        subtitle: 'Health, pricing, and third-party notices',
+      },
+    ],
   },
   {
     key: 'support',
