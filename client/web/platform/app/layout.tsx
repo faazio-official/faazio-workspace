@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import { Suspense, type ReactNode } from "react";
 
 import "@/styles.css";
+import { AppContextDetector } from "@/components/layout/AppContextDetector";
 import { Providers } from "./providers";
 
 export const metadata: Metadata = {
@@ -38,6 +39,7 @@ export default function RootLayout({ children }: { children: ReactNode }) {
   return (
     <html lang="en">
       <body>
+        <AppContextDetector />
         {/* Boundary so the first future page that reads useSearchParams can
             prerender without a build error. Nothing here suspends today. */}
         <Suspense fallback={null}>

@@ -51,10 +51,26 @@ The campaign wizard's **what→where** placements map 1:1 to the paid mobile sur
 desktop sidebar and show the shared `MobileNavDrawer` — a touch-friendly, grouped nav drawer with
 active-route tones that closes on navigation, backdrop tap, or `Esc`; `viewport-fit=cover` is set in
 the root layout. The React Native seller app is a WebView over the seller console
-(`client/mobile/src/features/seller-partner/SellerWebViewScreen.tsx`). The native layer injects its
+(`client/mobile/src/features/seller-partner/SellerWebViewScreen.tsx`). It loads the portal's `/login`
+directly; `/login` skips the form when a live HttpOnly-cookie session already exists (straight to
+`homeFor(role)`). The native layer injects its
 FCM token into `window.__faazioPushToken`; `SellerPushBridge`
 registers it through `/api/gateway/notifications/register` and removes it on sign-out. Portal
 sign-out is the only seller session authority (HttpOnly cookies).
+
+**Native app detection + route restriction.** Before the portal hydrates the shell injects
+`window.__faazio = { app: 'seller' | 'customer' | 'delivery', platform, webview: true }`. The portal
+reads it via `src/lib/appContext.ts` (never the user-agent — unreliable), exposes it on `<html>`
+(`AppContextDetector` → `data-faazio-app` / `data-faazio-webview` / `.faazio-app-seller`), and, in a
+native seller WebView, blocks any non-seller-scoped route (e.g. a deep link to `/admin/*`) with a
+branded "Not available in the Faazio Seller app" panel. This is a UX guard only — the edge middleware
+can't see `window.__faazio`, so the real security boundary stays the gateway JWT (`app_role` /
+`iss=faazio-portal`). A plain browser has no `window.__faazio` and keeps the full portal.
+
+**Offline / gateway-unavailable UX.** `src/components/patterns/OfflineState.tsx` is a branded
+full-screen state with **Try again**; the session gate uses it for the silent-reconnect ("Reconnecting…")
+and the login page uses it when `fetchPortalStatus()` reports the gateway unreachable, so a dead
+gateway never shows a raw 503 or a blank page.
 
 | Route | Page | Sector |
 | --- | --- | --- |

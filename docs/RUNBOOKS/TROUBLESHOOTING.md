@@ -143,10 +143,16 @@ rendered on the error card** (plus the first stack frame in a dev build) — tha
 ## 🔧 Seller WebView shell
 
 - **"Portal not configured" inside the seller app** → `WEB_PORTAL_URL` was empty at build time.
-  Set it in `client/mobile/.env.local` / the CI repo variable and rebuild (release requires https).
-- **Blank white WebView** → the portal origin is unreachable or mixed content is blocked. Verify the
-  URL opens in the phone browser, check the release network-security config contains the portal host,
-  and remember the portal session is a cookie: clearing app data signs the seller out.
+  A seller build now **fails `configure.js`** (dev and release) rather than shipping — set it in
+  `client/mobile/.env.local` / the CI repo variable and rebuild (release requires https). If the
+  release APK was built before this guard, rebuild.
+- **Branded "Unable to reach the seller portal" with Try again** → the portal origin was unreachable
+  (no internet, TLS, cold start). This is the intended native offline state — tap **Try again** once
+  connectivity returns. Not a white blank anymore; a blank WebView means the origin loads but the
+  page threw (check the portal logs).
+- **Blank white WebView (page loads, then blank)** → mixed content blocked or a portal JS error.
+  Verify the URL opens in the phone browser, check the release network-security config contains the
+  portal host, and remember the portal session is a cookie: clearing app data signs the seller out.
 - **New-order beep/push missing** → the seller build needs its own Firebase app
   (`GOOGLE_SERVICES_SELLER_JSON`, registered for `com.faazio.sellerpartner`), notification permission
   granted, and the portal open at least
