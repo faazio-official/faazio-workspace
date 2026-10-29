@@ -10,8 +10,8 @@ import { Button } from "@/components/ui/button";
 import { formatDateTime, formatINR } from "@/lib/format";
 import { acceptOrder, advanceOrder, rejectOrder } from "@/lib/api";
 import { useOrder } from "@/lib/api/hooks";
+import { ComponentHelp } from "@/components/patterns/ComponentHelp";
 import type { OrderStatus } from "@/data/types";
-
 
 const FLOW: OrderStatus[] = ["NEW", "PACKED", "SHIPPED", "DELIVERED"];
 
@@ -49,41 +49,50 @@ function OrderDetail() {
             <StatusPill status={order.status} />
             {order.status === "NEW" ? (
               <>
-                <Button
-                  size="sm"
-                  onClick={() => {
-                    acceptOrder(order.orderId);
-                    toast.success("Order accepted");
-                  }}
-                >
-                  Accept
-                </Button>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  onClick={() => {
-                    const reason = window.prompt(
-                      "Rejection reason (the customer is refunded)",
-                      "Out of stock",
-                    );
-                    if (reason === null) return;
-                    rejectOrder(order.orderId, reason.trim() || "Out of stock");
-                    toast.success("Order rejected");
-                  }}
-                >
-                  Reject
-                </Button>
+                <div className="flex items-center gap-1.5">
+                  <Button
+                    size="sm"
+                    onClick={() => {
+                      acceptOrder(order.orderId);
+                      toast.success("Order accepted");
+                    }}
+                  >
+                    Accept
+                  </Button>
+                  <ComponentHelp id="accept-button" />
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => {
+                      const reason = window.prompt(
+                        "Rejection reason (the customer is refunded)",
+                        "Out of stock",
+                      );
+                      if (reason === null) return;
+                      rejectOrder(order.orderId, reason.trim() || "Out of stock");
+                      toast.success("Order rejected");
+                    }}
+                  >
+                    Reject
+                  </Button>
+                  <ComponentHelp id="reject-button" />
+                </div>
               </>
             ) : next ? (
-              <Button
-                size="sm"
-                onClick={() => {
-                  advanceOrder(order.orderId, next);
-                  toast.success(`Moved to ${next}`);
-                }}
-              >
-                Mark {next.toLowerCase()}
-              </Button>
+              <div className="flex items-center gap-1.5">
+                <Button
+                  size="sm"
+                  onClick={() => {
+                    advanceOrder(order.orderId, next);
+                    toast.success(`Moved to ${next}`);
+                  }}
+                >
+                  Mark {next.toLowerCase()}
+                </Button>
+                <ComponentHelp id="advance-button" />
+              </div>
             ) : null}
           </>
         }
@@ -99,7 +108,11 @@ function OrderDetail() {
             <Row label="SLA due" value={formatDateTime(order.slaDueAt)} />
             <Row
               label="SLA countdown"
-              value={hoursLeft > 0 ? `${hoursLeft.toFixed(1)} h left` : `${Math.abs(hoursLeft).toFixed(1)} h overdue`}
+              value={
+                hoursLeft > 0
+                  ? `${hoursLeft.toFixed(1)} h left`
+                  : `${Math.abs(hoursLeft).toFixed(1)} h overdue`
+              }
             />
             <Row label="Delivery address" value="Flat •••, ••• Road, ••• (revealed on dispatch)" />
             <Row label="Store" value={order.storeId} />

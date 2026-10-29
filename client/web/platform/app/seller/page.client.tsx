@@ -11,13 +11,20 @@ import { StatusPill } from "@/components/patterns/Pills";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { formatINR, formatNumber } from "@/lib/format";
-import { listingQuality, periodDelta, sellerHealth, sparkline, sumGmv, sumOrders } from "@/lib/analytics/derive";
+import {
+  listingQuality,
+  periodDelta,
+  sellerHealth,
+  sparkline,
+  sumGmv,
+  sumOrders,
+} from "@/lib/analytics/derive";
 import { sellerMetrics } from "@/lib/api";
 import { useMockLoading, useOrders, useProducts, useCampaigns } from "@/lib/api/hooks";
 import { useSession } from "@/lib/hooks/useSession";
 import { cn } from "@/lib/utils";
 import { ProductThumb } from "@/components/patterns/ProductThumb";
-
+import { ComponentHelp } from "@/components/patterns/ComponentHelp";
 
 function SellerDashboard() {
   const session = useSession();
@@ -58,9 +65,12 @@ function SellerDashboard() {
         title={`Good day, ${session?.name ?? "Partner"}`}
         description="Your shop at a glance — supply, dispatch and growth in one screen."
         actions={
-          <Button asChild size="sm">
-            <Link href="/seller/products/new">Add product</Link>
-          </Button>
+          <div className="flex items-center gap-1.5">
+            <Button asChild size="sm">
+              <Link href="/seller/products/new">Add product</Link>
+            </Button>
+            <ComponentHelp id="add-product-button" />
+          </div>
         }
       />
 
@@ -74,6 +84,7 @@ function SellerDashboard() {
           <Button asChild size="sm" variant="outline" className="ml-auto">
             <Link href="/seller/promotions">Opt in products</Link>
           </Button>
+          <ComponentHelp id="opt-in-products-button" />
         </div>
       ) : null}
 
@@ -141,7 +152,11 @@ function SellerDashboard() {
       </div>
 
       <div className="grid gap-4 lg:grid-cols-3">
-        <SectionCard title="Setup checklist" description={`${doneCount} of ${tasks.length} done`}>
+        <SectionCard
+          title="Setup checklist"
+          description={`${doneCount} of ${tasks.length} done`}
+          actions={<ComponentHelp id="setup-checklist" />}
+        >
           <ul className="space-y-2">
             {tasks.map((task) => (
               <li key={task.label} className="flex items-center gap-2 text-[13px]">
@@ -156,7 +171,12 @@ function SellerDashboard() {
           </ul>
         </SectionCard>
 
-        <SectionCard title="Top products" description="By listing quality and price band" className="lg:col-span-2">
+        <SectionCard
+          title="Top products"
+          description="By listing quality and price band"
+          className="lg:col-span-2"
+          actions={<ComponentHelp id="top-products" />}
+        >
           <DataShell
             loading={loading}
             isEmpty={products.length === 0}
@@ -191,7 +211,11 @@ function SellerDashboard() {
         </SectionCard>
       </div>
 
-      <SectionCard title="Alerts" description="Every alert links to the entity that raised it">
+      <SectionCard
+        title="Alerts"
+        description="Every alert links to the entity that raised it"
+        actions={<ComponentHelp id="alerts" />}
+      >
         <ul className="space-y-2">
           {pendingDispatch.slice(0, 3).map((order) => (
             <li key={order.orderId} className="flex items-center gap-2 text-[13px]">
@@ -199,9 +223,7 @@ function SellerDashboard() {
               <span className="num">{order.orderId}</span>
               <span className="text-muted-foreground">awaits dispatch</span>
               <Button asChild size="sm" variant="ghost" className="ml-auto">
-                <Link href={`/seller/orders/${order.orderId}`}>
-                  Open
-                </Link>
+                <Link href={`/seller/orders/${order.orderId}`}>Open</Link>
               </Button>
             </li>
           ))}

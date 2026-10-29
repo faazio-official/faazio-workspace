@@ -6,6 +6,7 @@ import { SectionCard } from "@/components/patterns/SectionCard";
 import { DataShell, EmptyState } from "@/components/patterns/DataState";
 import { FilterChip } from "@/components/patterns/FilterChip";
 import { StatusPill } from "@/components/patterns/Pills";
+import { ComponentHelp } from "@/components/patterns/ComponentHelp";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -443,6 +444,10 @@ export function DeliveryReviewBoard({ scope }: { scope: Scope }) {
                             Upload replacement
                           </Button>
                         ) : null}
+                        <ComponentHelp
+                          helpKey="pattern:delivery-doc-verify"
+                          label="About verifying a document"
+                        />
                       </div>
                     </li>
                   ))}
@@ -484,6 +489,10 @@ export function DeliveryReviewBoard({ scope }: { scope: Scope }) {
                     Approve profile
                   </Button>
                 ) : null}
+                <ComponentHelp
+                  helpKey="pattern:delivery-profile-approve"
+                  label="About approving a rider profile"
+                />
                 {detail.status === "PENDING_REVIEW" || detail.status === "VERIFIED" ? (
                   <Button
                     variant="destructive"
@@ -508,6 +517,7 @@ export function DeliveryReviewBoard({ scope }: { scope: Scope }) {
                     Activate
                   </Button>
                 ) : null}
+                <ComponentHelp helpKey="pattern:delivery-activate" label="About activating a rider" />
                 {detail.status === "ACTIVE" || detail.status === "SUSPENDED" ? (
                   <Button
                     variant="outline"
@@ -521,6 +531,7 @@ export function DeliveryReviewBoard({ scope }: { scope: Scope }) {
                     Suspend
                   </Button>
                 ) : null}
+                <ComponentHelp helpKey="pattern:delivery-suspend" label="About suspending a rider" />
                 {scope === "SUPER" && detail.status !== "BLACKLISTED" ? (
                   <Button
                     variant="destructive"

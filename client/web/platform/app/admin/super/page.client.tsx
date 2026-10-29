@@ -4,6 +4,7 @@ import Link from "next/link";
 import { AlertTriangle } from "lucide-react";
 import { PageHeader } from "@/components/patterns/PageHeader";
 import { SectionCard } from "@/components/patterns/SectionCard";
+import { ComponentHelp } from "@/components/patterns/ComponentHelp";
 import { KpiStrip } from "@/components/patterns/KpiCard";
 import { GmvTrend, StatusDonut } from "@/components/patterns/Charts";
 import { DataShell } from "@/components/patterns/DataState";
@@ -84,7 +85,7 @@ function SuperDashboard() {
         title="District matrix"
         description="Sellers and admin coverage per district"
         actions={
-          <div className="flex gap-1">
+          <div className="flex items-center gap-1.5">
             <FilterChip
               label="All"
               active={!showUncoveredOnly}
@@ -95,6 +96,7 @@ function SuperDashboard() {
               active={showUncoveredOnly}
               onClick={() => setShowUncoveredOnly(true)}
             />
+            <ComponentHelp id="district-filter" label="About the district filter" />
           </div>
         }
       >
@@ -130,9 +132,12 @@ function SuperDashboard() {
         <SectionCard
           title="Festival overview"
           actions={
-            <Link href="/admin/super/festival" className="text-[12px] font-semibold text-primary">
-              Governance
-            </Link>
+            <div className="flex items-center gap-1.5">
+              <Link href="/admin/super/festival" className="text-[12px] font-semibold text-primary">
+                Governance
+              </Link>
+              <ComponentHelp id="festival-overview" label="About festival overview" />
+            </div>
           }
         >
           <ul className="space-y-2">
@@ -154,7 +159,10 @@ function SuperDashboard() {
           </ul>
         </SectionCard>
 
-        <SectionCard title="System alerts">
+        <SectionCard
+          title="System alerts"
+          actions={<ComponentHelp id="system-alerts" label="About system alerts" />}
+        >
           <ul className="space-y-2">
             {uncovered.slice(0, 6).map((info) => (
               <li key={info.districtCode}>

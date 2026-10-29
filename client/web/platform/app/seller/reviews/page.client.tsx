@@ -11,7 +11,7 @@ import { formatDate } from "@/lib/format";
 import { flagReview, replyToReview } from "@/lib/api";
 import { useMockLoading, useReviews } from "@/lib/api/hooks";
 import { useSession } from "@/lib/hooks/useSession";
-
+import { ComponentHelp } from "@/components/patterns/ComponentHelp";
 
 function SellerReviews() {
   const session = useSession();
@@ -20,9 +20,7 @@ function SellerReviews() {
   const reviews = useReviews({ sellerId });
   const [drafts, setDrafts] = useState<Record<string, string>>({});
 
-  const average = reviews.length
-    ? reviews.reduce((t, r) => t + r.rating, 0) / reviews.length
-    : 0;
+  const average = reviews.length ? reviews.reduce((t, r) => t + r.rating, 0) / reviews.length : 0;
   const breakdown = [5, 4, 3, 2, 1].map((star) => ({
     star,
     count: reviews.filter((r) => r.rating === star).length,
@@ -30,16 +28,17 @@ function SellerReviews() {
 
   return (
     <div className="space-y-4">
-      <PageHeader title="Reviews" description="Replies show under the product in the consumer app." />
+      <PageHeader
+        title="Reviews"
+        description="Replies show under the product in the consumer app."
+      />
 
       <div className="grid gap-4 lg:grid-cols-3">
         <SectionCard title="Rating breakdown">
           <div className="flex items-end gap-2">
             <p className="num text-[28px] font-semibold leading-none">{average.toFixed(1)}</p>
             <Star className="mb-1 size-4 text-warning" />
-            <span className="mb-1 text-[12px] text-muted-foreground">
-              {reviews.length} reviews
-            </span>
+            <span className="mb-1 text-[12px] text-muted-foreground">{reviews.length} reviews</span>
           </div>
           <ul className="mt-3 space-y-1.5">
             {breakdown.map((row) => (
@@ -59,11 +58,27 @@ function SellerReviews() {
           </ul>
         </SectionCard>
 
-        <SectionCard title="Recent reviews" className="lg:col-span-2" bodyClassName="p-0">
+        <SectionCard
+          title="Recent reviews"
+          className="lg:col-span-2"
+          bodyClassName="p-0"
+          actions={
+            <div className="flex items-center gap-1.5">
+              <ComponentHelp id="reply-input" label="About replying" />
+              <ComponentHelp id="send-reply-button" label="About publishing a reply" />
+              <ComponentHelp id="flag-button" label="About flagging a review" />
+            </div>
+          }
+        >
           <DataShell
             loading={loading}
             isEmpty={reviews.length === 0}
-            empty={<EmptyState title="No reviews yet" description="Reviews arrive after your first deliveries." />}
+            empty={
+              <EmptyState
+                title="No reviews yet"
+                description="Reviews arrive after your first deliveries."
+              />
+            }
           >
             <ul className="divide-y divide-border">
               {reviews.map((review) => (

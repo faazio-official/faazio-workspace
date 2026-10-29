@@ -3,6 +3,7 @@ import { CheckCircle2, AlertTriangle } from "lucide-react";
 import { PageHeader } from "@/components/patterns/PageHeader";
 import { discountPercent } from "@/lib/pricing/rules";
 import { SectionCard } from "@/components/patterns/SectionCard";
+import { ComponentHelp } from "@/components/patterns/ComponentHelp";
 import { KpiStrip } from "@/components/patterns/KpiCard";
 import {
   Table,
@@ -129,15 +130,29 @@ function Coverage() {
         ]}
       />
 
-      <SectionCard title="Surface to data mapping" bodyClassName="p-0">
+      <SectionCard
+        title="Surface to data mapping"
+        bodyClassName="p-0"
+        actions={<ComponentHelp id="coverage-table" label="About coverage" />}
+      >
         <Table>
           <TableHeader>
             <TableRow>
               <TableHead>Consumer app surface</TableHead>
               <TableHead>Owning table</TableHead>
               <TableHead>Maintained by</TableHead>
-              <TableHead className="text-right">Rows</TableHead>
-              <TableHead>Coverage</TableHead>
+                <TableHead className="text-right">
+                  <span className="inline-flex items-center gap-1.5">
+                    Rows
+                    <ComponentHelp id="coverage-rows" label="About the row count" />
+                  </span>
+                </TableHead>
+                <TableHead>
+                  <span className="inline-flex items-center gap-1.5">
+                    Coverage
+                    <ComponentHelp id="coverage-status" label="About coverage status" />
+                  </span>
+                </TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>

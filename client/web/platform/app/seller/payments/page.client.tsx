@@ -17,7 +17,7 @@ import { formatDate, formatINR } from "@/lib/format";
 import { useLedger, useMockLoading, usePayouts } from "@/lib/api/hooks";
 import { useSession } from "@/lib/hooks/useSession";
 import { config } from "@/lib/config";
-
+import { ComponentHelp } from "@/components/patterns/ComponentHelp";
 
 function SellerPayments() {
   const session = useSession();
@@ -26,7 +26,7 @@ function SellerPayments() {
   const ledger = useLedger(sellerId);
   const payouts = usePayouts(sellerId);
 
-const gross = ledger.reduce((t, l) => t + l.orderValuePaisa, 0);
+  const gross = ledger.reduce((t, l) => t + l.orderValuePaisa, 0);
   const tcs = ledger.reduce((t, l) => t + l.tcsPaisa, 0);
   const tds = ledger.reduce((t, l) => t + l.tdsPaisa, 0);
   const productTax = ledger.reduce((t, l) => t + l.productTaxPaisa, 0);
@@ -38,9 +38,12 @@ const gross = ledger.reduce((t, l) => t + l.orderValuePaisa, 0);
         title="Payments"
         description={`No platform commission · TCS ${config.tcsPercent}% · TDS 0.1% · weekly cycles`}
         actions={
-          <Button size="sm" variant="outline" onClick={() => window.print()}>
-            Print statement
-          </Button>
+          <div className="flex items-center gap-1.5">
+            <Button size="sm" variant="outline" onClick={() => window.print()}>
+              Print statement
+            </Button>
+            <ComponentHelp id="print-statement-button" />
+          </div>
         }
       />
 
@@ -56,11 +59,20 @@ const gross = ledger.reduce((t, l) => t + l.orderValuePaisa, 0);
         />
       </DataShell>
 
-      <SectionCard title="Settlement ledger" bodyClassName="p-0">
+      <SectionCard
+        title="Settlement ledger"
+        bodyClassName="p-0"
+        actions={<ComponentHelp id="settlement-ledger" />}
+      >
         <DataShell
           loading={loading}
           isEmpty={ledger.length === 0}
-          empty={<EmptyState title="No settlements yet" description="Cycles appear after your first held payout." />}
+          empty={
+            <EmptyState
+              title="No settlements yet"
+              description="Cycles appear after your first held payout."
+            />
+          }
         >
           <Table>
             <TableHeader>
@@ -77,7 +89,9 @@ const gross = ledger.reduce((t, l) => t + l.orderValuePaisa, 0);
               {ledger.map((entry) => (
                 <TableRow key={entry.entryId} className="h-12">
                   <TableCell className="num font-medium">{entry.cycle}</TableCell>
-                  <TableCell className="num text-right">{formatINR(entry.orderValuePaisa)}</TableCell>
+                  <TableCell className="num text-right">
+                    {formatINR(entry.orderValuePaisa)}
+                  </TableCell>
                   <TableCell className="num text-right text-muted-foreground">
                     −{formatINR(entry.tcsPaisa)}
                   </TableCell>
@@ -97,7 +111,11 @@ const gross = ledger.reduce((t, l) => t + l.orderValuePaisa, 0);
         </DataShell>
       </SectionCard>
 
-      <SectionCard title="Payout schedule" bodyClassName="p-0">
+      <SectionCard
+        title="Payout schedule"
+        bodyClassName="p-0"
+        actions={<ComponentHelp id="payout-schedule" />}
+      >
         <Table>
           <TableHeader>
             <TableRow>

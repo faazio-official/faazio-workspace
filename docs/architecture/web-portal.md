@@ -138,32 +138,39 @@ Every page and every wired control carries a small "i" button that explains, in 
 it does, which workflow it belongs to, what changes when the user acts, and **which Faazio app the
 change reaches** (`Faazio app`, `Faazio Seller app`, `Faazio Delivery app`, `Partner Portal`).
 
-All copy lives in `client/web/platform/src/lib/help/hints.ts` in four layers:
+All copy lives in `client/web/platform/src/lib/help/`:
 
-- `PAGE_HINTS` — one per route (dynamic segments collapsed to `:id`), carrying `what`, `how`,
-  `whyCreated`, `boundedWorkflow`, `changesMade` and `app[]`. Rendered by `PageHeader` through
-  `routeHint(pathname)` (every route with a `PageHeader` has an entry).
-- `SECTION_HINTS` — keyed by `SectionCard` title.
-- `METRIC_HINTS` — keyed by `KpiCard` label.
-- `COMPONENT_HINTS` — keyed by a **global id** (`shell:seller-search`, `pattern:image-uploader`) for
-  chrome/patterns that repeat on every page, or a **page-scoped** `<pagePath>:<componentId>` built
-  with `scopedKey(pathname, id)`. A role-specific variant is stored as `<key>@<ROLE>` and wins over
-  the generic entry for that role.
+- `hints.ts` — the types (`PageHint`, `ComponentHint`, `FaazioApp`), `PAGE_HINTS` (one per route),
+  `SECTION_HINTS` (keyed by `SectionCard` title), `METRIC_HINTS` (keyed by `KpiCard` label),
+  `CORE_COMPONENT_HINTS` (shell chrome + shared patterns + shared boards), the `componentHint()` /
+  `routeHint()` / `scopedKey()` lookups, and the merged `COMPONENT_HINTS` registry.
+- `componentHints.seller.ts`, `componentHints.district.ts`, `componentHints.super.ts` — the
+  per-console page-scoped component copy, spread into `COMPONENT_HINTS` (per-console wins on a key
+  clash). Keeping them in separate files lets each console be worked on independently.
+
+Keying: a `COMPONENT_HINTS` key is either a **global id** (`shell:seller-search`,
+`pattern:image-uploader`) for chrome/patterns that repeat on every page, or a **page-scoped**
+`<pagePath>:<componentId>` built with `scopedKey(pathname, id)` (dynamic segments collapse to `:id`,
+e.g. `/seller/products/:id/edit:name-input`). A **role-specific variant** is stored as
+`<key>@<ROLE>` and wins over the generic entry for that role — used where one control means something
+different to each role that can reach it (e.g. the seller KYC verification and the delivery boards,
+which a `DISTRICT_ADMIN` sees scoped to their district and a `SUPER_ADMIN` sees platform-wide).
 
 `src/components/patterns/ComponentHelp.tsx` is the wrapper: it resolves the key (accepts `id` for a
 page-scoped lookup or `helpKey` for a global one), filters by the session role (`useSession()`), and
 renders **nothing** when no copy exists — so it is always safe to drop beside any control.
 `ComponentHelpBody` / `PageHelpBody` render the structured tooltip plus the app-tag chips.
 
-To add help for a control: add an entry to `COMPONENT_HINTS` (or a `<key>@<ROLE>` variant) and place
-`<ComponentHelp id="my-control" />` next to it; use a global `helpKey` for chrome that appears on
-every page.
+To add help for a control: add an entry to the relevant registry file (or a `<key>@<ROLE>` variant)
+and place `<ComponentHelp id="my-control" />` next to it; use a global `helpKey` for chrome that
+appears on every page.
 
-**Coverage.** Page-level help is on all 65 routes. Component-level help is currently wired for the
-shared shells (seller + admin nav, search, notifications, scope badge, account menu), the
-`ImageUploader`, the seller create-listing flow, seller orders (accept/reject), the district product
-review queue and seller KYC decisions, and the delivery allocation/payout boards. Wiring the
-remaining page-specific controls is incremental — add the hint entry and the `ComponentHelp`.
+**Coverage.** Page-level help is on all 65 routes. Component-level help is wired across all three
+consoles — the shared shells (nav, search, notifications, scope badge, account menu), the shared
+patterns and boards (`ImageUploader`, delivery review/allocation/payout boards, fee-change requests,
+account security), and the primary controls of every seller, district-admin and super-admin page
+(main actions, form inputs/selects, filters, and per-column decision headers). Wiring further
+controls is incremental — add the hint entry and the `ComponentHelp`.
 
 ## Migration decisions (the "ditto UI" fixes)
 

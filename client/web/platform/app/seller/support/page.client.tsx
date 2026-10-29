@@ -10,7 +10,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { formatDateTime } from "@/lib/format";
-
+import { ComponentHelp } from "@/components/patterns/ComponentHelp";
 
 interface Ticket {
   id: string;
@@ -33,34 +33,43 @@ function SellerSupport() {
         <SectionCard title="Raise a ticket">
           <div className="space-y-4">
             <div className="space-y-1.5">
-              <Label htmlFor="subject">Subject</Label>
+              <div className="flex items-center gap-1.5">
+                <Label htmlFor="subject">Subject</Label>
+                <ComponentHelp id="subject-input" />
+              </div>
               <Input id="subject" value={subject} onChange={(e) => setSubject(e.target.value)} />
             </div>
             <div className="space-y-1.5">
-              <Label htmlFor="body">What happened?</Label>
+              <div className="flex items-center gap-1.5">
+                <Label htmlFor="body">What happened?</Label>
+                <ComponentHelp id="body-input" />
+              </div>
               <Textarea id="body" rows={4} value={body} onChange={(e) => setBody(e.target.value)} />
             </div>
-            <Button
-              size="sm"
-              disabled={subject.trim().length < 4 || body.trim().length < 8}
-              onClick={() => {
-                setTickets((list) => [
-                  {
-                    id: `TCK-${list.length + 1}`,
-                    subject: subject.trim(),
-                    body: body.trim(),
-                    status: "NEW",
-                    createdAt: new Date().toISOString(),
-                  },
-                  ...list,
-                ]);
-                setSubject("");
-                setBody("");
-                toast.success("Ticket raised");
-              }}
-            >
-              Submit ticket
-            </Button>
+            <div className="flex items-center gap-1.5">
+              <Button
+                size="sm"
+                disabled={subject.trim().length < 4 || body.trim().length < 8}
+                onClick={() => {
+                  setTickets((list) => [
+                    {
+                      id: `TCK-${list.length + 1}`,
+                      subject: subject.trim(),
+                      body: body.trim(),
+                      status: "NEW",
+                      createdAt: new Date().toISOString(),
+                    },
+                    ...list,
+                  ]);
+                  setSubject("");
+                  setBody("");
+                  toast.success("Ticket raised");
+                }}
+              >
+                Submit ticket
+              </Button>
+              <ComponentHelp id="submit-ticket-button" />
+            </div>
           </div>
         </SectionCard>
 

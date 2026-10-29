@@ -15,6 +15,7 @@ import {
 import { formatINR, formatDate, formatDateTime } from "@/lib/format";
 import { useCustomers, useMockLoading, useUserTrail } from "@/lib/api/hooks";
 import { useSession } from "@/lib/hooks/useSession";
+import { ComponentHelp } from "@/components/patterns/ComponentHelp";
 
 function StateCustomers() {
   const session = useSession();
@@ -39,12 +40,15 @@ function StateCustomers() {
 
       <SectionCard bodyClassName="p-0">
         <div className="flex items-center justify-between gap-3 border-b border-border p-3">
-          <Input
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            placeholder="Search by name or user id"
-            className="max-w-xs"
-          />
+          <div className="flex items-center gap-1.5">
+            <Input
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder="Search by name or user id"
+              className="max-w-xs"
+            />
+            <ComponentHelp id="customer-search" label="About customer search" />
+          </div>
           <span className="num text-sm text-muted-foreground">
             {customers.length} customers · {formatINR(totalSpend)}
           </span>
@@ -62,7 +66,12 @@ function StateCustomers() {
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>Customer</TableHead>
+                <TableHead>
+                  <span className="inline-flex items-center gap-1.5">
+                    Customer
+                    <ComponentHelp id="customer-row" label="About selecting a customer" />
+                  </span>
+                </TableHead>
                 <TableHead>User id</TableHead>
                 <TableHead>State</TableHead>
                 <TableHead className="text-right">Orders</TableHead>
@@ -98,6 +107,7 @@ function StateCustomers() {
         <SectionCard
           title="Activity trail"
           description={`ID-only behaviour events for ${selectedUserId} (no PII; sourced from the app's event stream).`}
+          actions={<ComponentHelp id="activity-trail" label="About the activity trail" />}
           bodyClassName="p-0"
         >
           <DataShell

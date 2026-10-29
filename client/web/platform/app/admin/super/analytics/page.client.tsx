@@ -2,6 +2,7 @@
 import { useState } from "react";
 import { PageHeader } from "@/components/patterns/PageHeader";
 import { SectionCard } from "@/components/patterns/SectionCard";
+import { ComponentHelp } from "@/components/patterns/ComponentHelp";
 import { KpiStrip } from "@/components/patterns/KpiCard";
 import { CategoryBars, GmvTrend, OrdersTrend, StatusDonut } from "@/components/patterns/Charts";
 import { DataShell } from "@/components/patterns/DataState";
@@ -65,7 +66,7 @@ function SuperAnalytics() {
         title="Global analytics"
         description="Platform-wide business intelligence over the deterministic mock series."
         actions={
-          <div className="flex gap-1">
+          <div className="flex items-center gap-1.5">
             {PERIODS.map((option) => (
               <FilterChip
                 key={option}
@@ -74,6 +75,7 @@ function SuperAnalytics() {
                 onClick={() => setDays(option)}
               />
             ))}
+            <ComponentHelp id="period-filter" label="About the date range" />
           </div>
         }
       />
@@ -125,11 +127,20 @@ function SuperAnalytics() {
         </SectionCard>
       </div>
 
-      <SectionCard title="Category performance" description="Catalogue value by category">
+      <SectionCard
+        title="Category performance"
+        description="Catalogue value by category"
+        actions={<ComponentHelp id="category-performance" label="About category performance" />}
+      >
         <CategoryBars data={byCategory.slice(0, 8)} />
       </SectionCard>
 
-      <SectionCard title="Seller concentration" description={`Ranked by GMV over ${days} days`} bodyClassName="p-0">
+      <SectionCard
+        title="Seller concentration"
+        description={`Ranked by GMV over ${days} days`}
+        bodyClassName="p-0"
+        actions={<ComponentHelp id="seller-concentration" label="About seller concentration" />}
+      >
         <Table>
           <TableHeader>
             <TableRow>

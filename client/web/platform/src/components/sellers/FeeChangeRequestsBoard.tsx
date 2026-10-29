@@ -6,6 +6,7 @@ import { SectionCard } from "@/components/patterns/SectionCard";
 import { DataShell, EmptyState } from "@/components/patterns/DataState";
 import { FilterChip } from "@/components/patterns/FilterChip";
 import { StatusPill } from "@/components/patterns/Pills";
+import { ComponentHelp } from "@/components/patterns/ComponentHelp";
 import { Button } from "@/components/ui/button";
 import {
   Table,
@@ -133,7 +134,19 @@ export function FeeChangeRequestsBoard({
                 <TableHead className="text-right">Requested</TableHead>
                 <TableHead>Requested at</TableHead>
                 <TableHead>Status</TableHead>
-                <TableHead className="text-right">Actions</TableHead>
+                <TableHead className="text-right">
+                  <span className="inline-flex items-center gap-1.5">
+                    Actions
+                    <ComponentHelp
+                      helpKey="pattern:fee-change-approve"
+                      label="About approving a fee change"
+                    />
+                    <ComponentHelp
+                      helpKey="pattern:fee-change-reject"
+                      label="About rejecting a fee change"
+                    />
+                  </span>
+                </TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>

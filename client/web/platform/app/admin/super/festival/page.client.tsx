@@ -3,6 +3,7 @@ import { useState } from "react";
 import { toast } from "sonner";
 import { PageHeader } from "@/components/patterns/PageHeader";
 import { SectionCard } from "@/components/patterns/SectionCard";
+import { ComponentHelp } from "@/components/patterns/ComponentHelp";
 import { KpiStrip } from "@/components/patterns/KpiCard";
 import { CategoryBars } from "@/components/patterns/Charts";
 import { DataShell, EmptyState } from "@/components/patterns/DataState";
@@ -95,7 +96,11 @@ function SuperFestival() {
         ]}
       />
 
-      <SectionCard title="Global sector caps" description="Maximum festival discount per sector">
+      <SectionCard
+        title="Global sector caps"
+        description="Maximum festival discount per sector"
+        actions={<ComponentHelp id="global-cap" label="About the global cap" />}
+      >
         <div className="grid gap-4 md:grid-cols-3">
           {SECTORS.map((sector) => {
             const current = capFor(caps, sector);
@@ -133,7 +138,11 @@ function SuperFestival() {
         </div>
       </SectionCard>
 
-      <SectionCard title="Per-state overrides" description="An override replaces the global cap for that state only">
+      <SectionCard
+        title="Per-state overrides"
+        description="An override replaces the global cap for that state only"
+        actions={<ComponentHelp id="state-override" label="About state overrides" />}
+      >
         <div className="grid gap-4 md:grid-cols-4">
           <div className="space-y-1.5">
             <Label>State</Label>
@@ -191,11 +200,17 @@ function SuperFestival() {
       <SectionCard title="Create a global campaign">
         <div className="grid gap-4 md:grid-cols-3">
           <div className="space-y-1.5">
-            <Label htmlFor="g-name">Campaign name</Label>
+            <div className="flex items-center gap-1.5">
+              <Label htmlFor="g-name">Campaign name</Label>
+              <ComponentHelp id="campaign-name" label="About the campaign name" />
+            </div>
             <Input id="g-name" value={name} onChange={(e) => setName(e.target.value)} />
           </div>
           <div className="space-y-1.5">
-            <Label htmlFor="g-start">Starts</Label>
+            <div className="flex items-center gap-1.5">
+              <Label htmlFor="g-start">Starts</Label>
+              <ComponentHelp id="campaign-dates" label="About the campaign dates" />
+            </div>
             <Input
               id="g-start"
               type="date"
@@ -215,7 +230,8 @@ function SuperFestival() {
             />
           </div>
         </div>
-        <div className="mt-4 flex justify-end">
+        <div className="mt-4 flex items-center justify-end gap-1.5">
+          <ComponentHelp id="create-campaign-button" label="About creating a campaign" />
           <Button
             size="sm"
             disabled={!canCreate}
@@ -253,7 +269,12 @@ function SuperFestival() {
                 <TableHead>Window</TableHead>
                 <TableHead className="text-right">Opt-ins</TableHead>
                 <TableHead>Status</TableHead>
-                <TableHead className="text-right">Lifecycle</TableHead>
+                <TableHead className="text-right">
+                  <span className="inline-flex items-center gap-1.5">
+                    Lifecycle
+                    <ComponentHelp id="campaign-lifecycle" label="About the campaign lifecycle" />
+                  </span>
+                </TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>

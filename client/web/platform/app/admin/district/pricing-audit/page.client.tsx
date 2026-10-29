@@ -19,6 +19,7 @@ import { formatINR, formatNumber } from "@/lib/format";
 import { useMockLoading, useProducts } from "@/lib/api/hooks";
 import { useSession } from "@/lib/hooks/useSession";
 import { ProductThumb } from "@/components/patterns/ProductThumb";
+import { ComponentHelp } from "@/components/patterns/ComponentHelp";
 
 
 function PricingAudit() {
@@ -66,7 +67,11 @@ function PricingAudit() {
         ]}
       />
 
-      <SectionCard title="Flagged listings" bodyClassName="p-0">
+      <SectionCard
+        title="Flagged listings"
+        actions={<ComponentHelp id="flagged-list" label="About flagged listings" />}
+        bodyClassName="p-0"
+      >
         <DataShell
           loading={loading}
           isEmpty={flagged.length === 0}
@@ -81,7 +86,12 @@ function PricingAudit() {
                 <TableHead className="text-right">Price</TableHead>
                 <TableHead className="text-right">Category median</TableHead>
                 <TableHead>Flags</TableHead>
-                <TableHead className="text-right">Action</TableHead>
+                <TableHead className="text-right">
+                  <span className="inline-flex items-center justify-end gap-1.5">
+                    Action
+                    <ComponentHelp id="contact-seller" label="About contacting the seller" />
+                  </span>
+                </TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>

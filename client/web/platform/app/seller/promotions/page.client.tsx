@@ -25,10 +25,16 @@ import {
 import { formatDate, formatINR } from "@/lib/format";
 import { capFor, validateOptin } from "@/lib/pricing/rules";
 import { upsertOptin } from "@/lib/api";
-import { useCampaigns, useMockLoading, useOptins, useProducts, useSectorCaps } from "@/lib/api/hooks";
+import {
+  useCampaigns,
+  useMockLoading,
+  useOptins,
+  useProducts,
+  useSectorCaps,
+} from "@/lib/api/hooks";
 import { useSession } from "@/lib/hooks/useSession";
 import { ProductThumb } from "@/components/patterns/ProductThumb";
-
+import { ComponentHelp } from "@/components/patterns/ComponentHelp";
 
 function SellerPromotions() {
   const session = useSession();
@@ -53,18 +59,21 @@ function SellerPromotions() {
         description="Your everyday discounts stay yours. Festival discounts must sit under the cap."
         actions={
           campaigns.length > 0 ? (
-            <Select value={campaign?.campaignId ?? ""} onValueChange={setCampaignId}>
-              <SelectTrigger className="w-64">
-                <SelectValue placeholder="Choose campaign" />
-              </SelectTrigger>
-              <SelectContent>
-                {campaigns.map((c) => (
-                  <SelectItem key={c.campaignId} value={c.campaignId}>
-                    {c.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <div className="flex items-center gap-1.5">
+              <Select value={campaign?.campaignId ?? ""} onValueChange={setCampaignId}>
+                <SelectTrigger className="w-64">
+                  <SelectValue placeholder="Choose campaign" />
+                </SelectTrigger>
+                <SelectContent>
+                  {campaigns.map((c) => (
+                    <SelectItem key={c.campaignId} value={c.campaignId}>
+                      {c.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <ComponentHelp id="campaign-select" />
+            </div>
           ) : null
         }
       />
@@ -84,14 +93,19 @@ function SellerPromotions() {
               <div key={sector}>
                 <p className="text-muted-foreground">{sector} cap</p>
                 <p className="num font-semibold">
-                  {capFor(caps, sector, campaign.scope === "STATE" ? campaign.stateCode : undefined)}%
+                  {capFor(
+                    caps,
+                    sector,
+                    campaign.scope === "STATE" ? campaign.stateCode : undefined,
+                  )}
+                  %
                 </p>
               </div>
             ))}
           </div>
           <p className="w-full text-[11px] text-muted-foreground">
-            Shoppers see the live price only after a district admin approves the opt-in; the sector cap
-            is enforced server-side.
+            Shoppers see the live price only after a district admin approves the opt-in; the sector
+            cap is enforced server-side.
           </p>
         </div>
       ) : null}
@@ -118,9 +132,16 @@ function SellerPromotions() {
                 <TableHead>Sector</TableHead>
                 <TableHead className="text-right">Cap</TableHead>
                 <TableHead className="text-right">Live price</TableHead>
-                <TableHead className="w-36 text-right">Your discount %</TableHead>
+                <TableHead className="w-36 text-right">
+                  <span className="flex items-center justify-end gap-1">
+                    Your discount %
+                    <ComponentHelp id="discount-input" />
+                  </span>
+                </TableHead>
                 <TableHead>Opt-in status</TableHead>
-                <TableHead />
+                <TableHead className="text-right">
+                  <ComponentHelp id="optin-button" label="About opting in" />
+                </TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -182,7 +203,11 @@ function SellerPromotions() {
                       />
                     </TableCell>
                     <TableCell>
-                      {existing ? <StatusPill status={existing.status} /> : <span className="text-[12px] text-muted-foreground">Not joined</span>}
+                      {existing ? (
+                        <StatusPill status={existing.status} />
+                      ) : (
+                        <span className="text-[12px] text-muted-foreground">Not joined</span>
+                      )}
                     </TableCell>
                     <TableCell className="text-right">
                       <Button

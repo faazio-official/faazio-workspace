@@ -5,6 +5,7 @@ import { toast } from "sonner";
 import { Pencil, Plus, Trash2 } from "lucide-react";
 import { PageHeader } from "@/components/patterns/PageHeader";
 import { SectionCard } from "@/components/patterns/SectionCard";
+import { ComponentHelp } from "@/components/patterns/ComponentHelp";
 import { DataShell, EmptyState } from "@/components/patterns/DataState";
 import { StatusPill } from "@/components/patterns/Pills";
 import { Button } from "@/components/ui/button";
@@ -244,9 +245,12 @@ function AppConfigPage() {
         title="App config"
         description="The central remote config every Faazio app fetches on boot. Edit a value here and the next app boot picks it up — no app-store review."
         actions={
-          <Button size="sm" className="gap-2" onClick={openCreate}>
-            <Plus className="size-4" /> New config key
-          </Button>
+          <div className="flex items-center gap-1.5">
+            <ComponentHelp id="new-config" label="About adding a config key" />
+            <Button size="sm" className="gap-2" onClick={openCreate}>
+              <Plus className="size-4" /> New config key
+            </Button>
+          </div>
         }
       />
 
@@ -282,7 +286,12 @@ function AppConfigPage() {
                 <TableHead>Visibility</TableHead>
                 <TableHead>App</TableHead>
                 <TableHead>Last updated</TableHead>
-                <TableHead className="text-right">Actions</TableHead>
+                <TableHead className="text-right">
+                  <span className="inline-flex items-center gap-1.5">
+                    Actions
+                    <ComponentHelp id="delete-config" label="About removing a config" />
+                  </span>
+                </TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -345,13 +354,20 @@ function AppConfigPage() {
             </SheetDescription>
           </SheetHeader>
           <div className="space-y-4 px-4 pb-6">
-            <Input
-              value={formKey}
-              onChange={(e) => setFormKey(e.target.value)}
-              placeholder="e.g. maps.places_api_key"
-              disabled={Boolean(editing)}
-              aria-label="Config key"
-            />
+            <div className="space-y-1.5">
+              <div className="flex items-center gap-1.5">
+                <Label htmlFor="config-key">Key</Label>
+                <ComponentHelp id="config-key" label="About the config key" />
+              </div>
+              <Input
+                id="config-key"
+                value={formKey}
+                onChange={(e) => setFormKey(e.target.value)}
+                placeholder="e.g. maps.places_api_key"
+                disabled={Boolean(editing)}
+                aria-label="Config key"
+              />
+            </div>
 
             <div className="space-y-1.5">
               <Label>Category</Label>
@@ -373,7 +389,10 @@ function AppConfigPage() {
             </div>
 
             <div className="space-y-1.5">
-              <Label htmlFor="config-value">Value</Label>
+              <div className="flex items-center gap-1.5">
+                <Label htmlFor="config-value">Value</Label>
+                <ComponentHelp id="config-value" label="About the config value" />
+              </div>
               <Textarea
                 id="config-value"
                 value={formValue}
@@ -389,7 +408,10 @@ function AppConfigPage() {
             </div>
 
             <div className="space-y-1.5">
-              <Label>Applies to</Label>
+              <div className="flex items-center gap-1.5">
+                <Label>Applies to</Label>
+                <ComponentHelp id="config-variant" label="About the app scope" />
+              </div>
               <Select
                 value={formAppVariant}
                 onValueChange={(v) => setFormAppVariant(v as AppConfigVariant)}
@@ -417,31 +439,43 @@ function AppConfigPage() {
               />
             </div>
 
-            <label className="flex items-center justify-between rounded-lg border border-border bg-muted/40 px-3 py-2.5">
-              <span className="text-[13px]">
-                Public
-                <span className="block text-[11px] text-muted-foreground">
-                  Served to every app on boot.
-                </span>
-              </span>
-              <Switch checked={formIsPublic} onCheckedChange={setFormIsPublic} disabled={formSecret} />
-            </label>
-
-            <label className="flex items-center justify-between rounded-lg border border-border bg-muted/40 px-3 py-2.5">
-              <span className="text-[13px]">
-                Secret
-                <span className="block text-[11px] text-muted-foreground">
-                  Masked in this portal and never served to the app. Cannot be public.
-                </span>
-              </span>
+            <div className="flex items-center justify-between rounded-lg border border-border bg-muted/40 px-3 py-2.5">
+              <div className="flex items-center gap-1.5">
+                <label htmlFor="config-public" className="text-[13px]">
+                  Public
+                  <span className="block text-[11px] text-muted-foreground">
+                    Served to every app on boot.
+                  </span>
+                </label>
+                <ComponentHelp id="config-public" label="About public values" />
+              </div>
               <Switch
+                id="config-public"
+                checked={formIsPublic}
+                onCheckedChange={setFormIsPublic}
+                disabled={formSecret}
+              />
+            </div>
+
+            <div className="flex items-center justify-between rounded-lg border border-border bg-muted/40 px-3 py-2.5">
+              <div className="flex items-center gap-1.5">
+                <label htmlFor="config-secret" className="text-[13px]">
+                  Secret
+                  <span className="block text-[11px] text-muted-foreground">
+                    Masked in this portal and never served to the app. Cannot be public.
+                  </span>
+                </label>
+                <ComponentHelp id="config-secret" label="About secret values" />
+              </div>
+              <Switch
+                id="config-secret"
                 checked={formSecret}
                 onCheckedChange={(next) => {
                   setFormSecret(next);
                   if (next) setFormIsPublic(false);
                 }}
               />
-            </label>
+            </div>
 
             <div className="flex justify-end gap-2">
               <Button
@@ -453,9 +487,12 @@ function AppConfigPage() {
               >
                 Cancel
               </Button>
-              <Button disabled={busy} onClick={() => void save()}>
-                {busy ? "Saving…" : editing ? "Save changes" : "Create key"}
-              </Button>
+              <div className="flex items-center gap-1.5">
+                <ComponentHelp id="save-config" label="About saving a config" />
+                <Button disabled={busy} onClick={() => void save()}>
+                  {busy ? "Saving..." : editing ? "Save changes" : "Create key"}
+                </Button>
+              </div>
             </div>
           </div>
         </SheetContent>

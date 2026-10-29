@@ -17,6 +17,9 @@
 
 import type { Role } from "@/data/types";
 import type { Tone } from "@/lib/ui/tones";
+import { SELLER_COMPONENT_HINTS } from "@/lib/help/componentHints.seller";
+import { DISTRICT_COMPONENT_HINTS } from "@/lib/help/componentHints.district";
+import { SUPER_COMPONENT_HINTS } from "@/lib/help/componentHints.super";
 
 /** Which Faazio product a hint's change reaches. */
 export type FaazioApp = "consumer" | "seller" | "delivery" | "portal";
@@ -774,7 +777,7 @@ export function metricHint(label: string): string | undefined {
  * with `scopedKey()`. A role-specific variant is stored as "<key>@<ROLE>" and
  * wins over the generic entry for that role.
  */
-export const COMPONENT_HINTS: Record<string, ComponentHint> = {
+const CORE_COMPONENT_HINTS: Record<string, ComponentHint> = {
   // ── Shell chrome (every console page) ──────────────────────────────────────
   "shell:seller-nav": {
     what: "The seller console sections, grouped by job (Overview, Catalog, Operations, Growth, Account).",
@@ -970,13 +973,6 @@ export const COMPONENT_HINTS: Record<string, ComponentHint> = {
       example: "Mention pack size, flavour or strength.",
       app: ["consumer"],
     },
-    "photos": {
-      what: "The product photos shown in the gallery.",
-      workflow: "Create a new listing → details.",
-      changes: "At least one photo is required before the listing can go live.",
-      example: "A clean white-background shot sells far better than a shelf photo.",
-      app: ["consumer"],
-    },
     "veg-switch": {
       what: "Marks the item as vegetarian.",
       workflow: "Create a new listing → details.",
@@ -1023,20 +1019,6 @@ export const COMPONENT_HINTS: Record<string, ComponentHint> = {
 
   // ── Seller — orders (fulfilment workflow) ─────────────────────────────────
   ...buildPageHints("/seller/orders", {
-    "status-tabs": {
-      what: "Tabs that filter orders by their current status.",
-      workflow: "Order fulfilment.",
-      changes: "Re-filters the list; nothing is changed.",
-      example: "Open 'NEW' to see orders still waiting to be accepted.",
-      app: ["portal"],
-    },
-    "order-card": {
-      what: "One order with its items, value and promise time.",
-      workflow: "Order fulfilment.",
-      changes: "Read-only; open it to advance its status.",
-      example: "A red timer means the SLA is close.",
-      app: ["consumer", "delivery"],
-    },
     "accept-button": {
       what: "Accepts a new order so you can start packing it.",
       workflow: "Order fulfilment: accept → pack → hand over.",
@@ -1125,6 +1107,136 @@ export const COMPONENT_HINTS: Record<string, ComponentHint> = {
     example: "Pay the rider in cash, then Mark Paid to record it.",
     app: ["delivery"],
   },
+
+  // ── Shared boards (rider review, fee-change review, account security) ─────
+  "pattern:delivery-doc-verify": {
+    what: "Marks one rider document as checked and verified.",
+    workflow: "Rider onboarding: review documents → verify → activate.",
+    changes: "Verifying records your check against that document; audit-logged.",
+    example: "Open the licence image, confirm the name, then Verify.",
+    app: ["delivery"],
+  },
+  "pattern:delivery-profile-approve": {
+    what: "Approves the rider's profile after their documents pass.",
+    workflow: "Rider onboarding.",
+    changes: "Moves the rider to VERIFIED, ready for a super admin to activate.",
+    example: "Approve once every required document shows VERIFIED.",
+    app: ["delivery"],
+  },
+  "pattern:delivery-activate": {
+    what: "Activates a verified rider so they receive delivery jobs.",
+    workflow: "Rider onboarding — super admin only.",
+    changes: "Puts the rider online for jobs in the delivery app.",
+    example: "Activate after the profile is verified.",
+    app: ["delivery"],
+  },
+  "pattern:delivery-suspend": {
+    what: "Suspends an active rider with a reason.",
+    workflow: "Rider management — exception path.",
+    changes: "Removes the rider from new jobs; existing jobs are unaffected.",
+    example: "Suspend for repeated failed deliveries and state the reason.",
+    app: ["delivery"],
+  },
+  "pattern:fee-change-approve": {
+    what: "Approves a seller's fee-change request and applies the new fee.",
+    workflow: "Fee review: open a request → approve or reject.",
+    changes: "Applies the requested platform fee to the seller's future payouts.",
+    example: "Approve to move the seller from 15% to 12%.",
+    app: ["portal"],
+  },
+  "pattern:fee-change-reject": {
+    what: "Rejects a fee-change request with a reason the seller reads.",
+    workflow: "Fee review — exception path.",
+    changes: "Keeps the current fee and notifies the seller with your reason.",
+    example: "Reject and explain the current rate already reflects the category.",
+    app: ["portal"],
+  },
+  "pattern:account-current-password": {
+    what: "Your current portal password, used to authorise the change.",
+    workflow: "Account security.",
+    changes: "Checked by the server on submit; never stored in the browser.",
+    example: "Type the password you signed in with.",
+    app: ["portal"],
+  },
+  "pattern:account-new-password": {
+    what: "The new password you want to set (at least 12 characters).",
+    workflow: "Account security.",
+    changes: "On submit, replaces your password and signs out every other device.",
+    example: "Use a long, unique passphrase you do not reuse elsewhere.",
+    app: ["portal"],
+  },
+  "pattern:account-submit": {
+    what: "Applies the password change.",
+    workflow: "Account security.",
+    changes: "Rotates the password and revokes all other sessions.",
+    example: "After changing, sign in again with the new password.",
+    app: ["portal"],
+  },
+
+  // ── Role-specific variants ─────────────────────────────────────────────────
+  // Keyed "<baseKey>@<ROLE>" so the same control can explain itself differently
+  // to each role that can reach it. A SUPER_ADMIN reaches the district seller
+  // detail (via admin/super/sellers) and the global delivery boards, where the
+  // scope is platform-wide rather than one district.
+  "/admin/district/sellers/:id:verify-kyc-button@SUPER_ADMIN": {
+    what: "Approves the seller's KYC and activates their shop platform-wide.",
+    workflow: "Seller verification: check documents → verify → activate.",
+    changes: "Activates the seller so their listings can go live; audit-logged.",
+    example: "Only verify after every document matches the registered business name.",
+    app: ["portal", "consumer"],
+    role: "SUPER_ADMIN",
+  },
+  "/admin/district/sellers/:id:reject-button@SUPER_ADMIN": {
+    what: "Rejects the seller's application with a reason, as a platform-level decision.",
+    workflow: "Seller verification — exception path.",
+    changes: "Blocks the seller and sends them the reason; audit-logged with your admin identity.",
+    example: "Name the exact document that failed so the seller can fix it.",
+    app: ["portal"],
+    role: "SUPER_ADMIN",
+  },
+  "/admin/district/sellers/:id:fee-input@SUPER_ADMIN": {
+    what: "The seller's platform-fee percentage, set with platform-wide authority.",
+    workflow: "Seller verification → commercial terms.",
+    changes: "Changes the fee deducted from that seller's future payouts in every district.",
+    example: "Set 12 to keep a 12% platform fee on their sales.",
+    app: ["portal"],
+    role: "SUPER_ADMIN",
+  },
+  "pattern:allocation-rider-picker@SUPER_ADMIN": {
+    what: "Picks the rider for an order, drawn from every district, sorted by road distance.",
+    workflow: "Manual delivery allocation (platform-wide).",
+    changes: "Choosing a rider sets who will deliver the order, regardless of district.",
+    example: "Filter by district first, then pick the closest eligible rider.",
+    app: ["delivery"],
+    role: "SUPER_ADMIN",
+  },
+  "pattern:allocation-payout-mode@SUPER_ADMIN": {
+    what: "How the rider will be paid: AUTOMATED (system fare) or MANUAL (you enter it).",
+    workflow: "Manual delivery allocation (platform-wide).",
+    changes: "Sets the payout method for this order across any district.",
+    example: "Choose MANUAL when a district agrees a flat fare with the rider.",
+    app: ["delivery"],
+    role: "SUPER_ADMIN",
+  },
+  "pattern:payout-mark-paid@SUPER_ADMIN": {
+    what: "Records that a rider has been paid, platform-wide.",
+    workflow: "Payout settlement (all districts).",
+    changes: "Marks the payout PAID in the ledger; no money moves.",
+    example: "After paying the rider, Mark Paid to close the payout.",
+    app: ["delivery"],
+    role: "SUPER_ADMIN",
+  },
+};
+
+/**
+ * Merged component registry: core chrome/patterns + each console's page-scoped
+ * entries. Later spread wins, so per-console files may override a core key.
+ */
+export const COMPONENT_HINTS: Record<string, ComponentHint> = {
+  ...CORE_COMPONENT_HINTS,
+  ...SELLER_COMPONENT_HINTS,
+  ...DISTRICT_COMPONENT_HINTS,
+  ...SUPER_COMPONENT_HINTS,
 };
 
 /** Expands `{ componentId: hint }` into `{ "<pagePath>:<componentId>": hint }`. */

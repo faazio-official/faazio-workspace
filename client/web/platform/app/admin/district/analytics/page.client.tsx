@@ -20,6 +20,7 @@ import { periodDelta, sparkline, sumGmv, sumOrders } from "@/lib/analytics/deriv
 import { sellerMetrics, stateMetrics } from "@/lib/api";
 import { useMockLoading, useOrders, useSellers } from "@/lib/api/hooks";
 import { useSession } from "@/lib/hooks/useSession";
+import { ComponentHelp } from "@/components/patterns/ComponentHelp";
 
 
 const PERIODS = [7, 30, 90];
@@ -72,15 +73,18 @@ function StateAnalytics() {
         title="State analytics"
         description="Scoped to your district, generated from the same deterministic series everywhere."
         actions={
-          <div className="flex gap-1">
-            {PERIODS.map((option) => (
-              <FilterChip
-                key={option}
-                label={`${option}d`}
-                active={days === option}
-                onClick={() => setDays(option)}
-              />
-            ))}
+          <div className="flex items-center gap-1.5">
+            <div className="flex gap-1">
+              {PERIODS.map((option) => (
+                <FilterChip
+                  key={option}
+                  label={`${option}d`}
+                  active={days === option}
+                  onClick={() => setDays(option)}
+                />
+              ))}
+            </div>
+            <ComponentHelp id="period-filter" label="About the reporting window" />
           </div>
         }
       />
@@ -157,7 +161,12 @@ function StateAnalytics() {
         <CategoryBars data={byCity.slice(0, 8)} />
       </SectionCard>
 
-      <SectionCard title="Seller leaderboard" description="Top and bottom movers" bodyClassName="p-0">
+      <SectionCard
+        title="Seller leaderboard"
+        description="Top and bottom movers"
+        actions={<ComponentHelp id="seller-leaderboard" label="About the leaderboard" />}
+        bodyClassName="p-0"
+      >
         <Table>
           <TableHeader>
             <TableRow>

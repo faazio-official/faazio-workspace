@@ -4,6 +4,7 @@ import { toast } from "sonner";
 import { PageHeader } from "@/components/patterns/PageHeader";
 import { discountPercent } from "@/lib/pricing/rules";
 import { SectionCard } from "@/components/patterns/SectionCard";
+import { ComponentHelp } from "@/components/patterns/ComponentHelp";
 import { KpiStrip } from "@/components/patterns/KpiCard";
 import { DataShell, EmptyState } from "@/components/patterns/DataState";
 import { FilterChip } from "@/components/patterns/FilterChip";
@@ -68,12 +69,15 @@ function SuperProducts() {
 
       <SectionCard bodyClassName="p-0">
         <div className="flex flex-wrap items-center gap-2 border-b border-border p-3">
-          <Input
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            placeholder="Search product or id"
-            className="h-9 w-56"
-          />
+          <div className="flex items-center gap-1.5">
+            <Input
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder="Search product or id"
+              className="h-9 w-56"
+            />
+            <ComponentHelp id="product-search" label="About searching the catalog" />
+          </div>
           {SECTORS.map((option) => (
             <FilterChip
               key={option}
@@ -82,8 +86,10 @@ function SuperProducts() {
               onClick={() => setSector(option)}
             />
           ))}
+          <ComponentHelp id="sector-filter" label="About the sector filter" />
           {selected.length > 0 ? (
-            <div className="ml-auto flex gap-2">
+            <div className="ml-auto flex items-center gap-1.5">
+              <ComponentHelp id="approve-selected" label="About bulk approving" />
               <Button
                 size="sm"
                 onClick={() => {
@@ -94,6 +100,7 @@ function SuperProducts() {
               >
                 Approve selected
               </Button>
+              <ComponentHelp id="delete-selected" label="About bulk deleting" />
               <AlertDialog>
                 <AlertDialogTrigger asChild>
                   <Button size="sm" variant="destructive">
@@ -132,7 +139,9 @@ function SuperProducts() {
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead className="w-10" />
+                <TableHead className="w-10">
+                  <ComponentHelp id="bulk-select" label="About bulk selection" />
+                </TableHead>
                 <TableHead>Product</TableHead>
                 <TableHead>Sector</TableHead>
                 <TableHead>Seller</TableHead>

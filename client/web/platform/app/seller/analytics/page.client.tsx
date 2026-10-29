@@ -19,7 +19,7 @@ import { periodDelta, sparkline, sumGmv, sumOrders } from "@/lib/analytics/deriv
 import { productMetrics, sellerMetrics } from "@/lib/api";
 import { useMockLoading, useOrders, useProducts } from "@/lib/api/hooks";
 import { useSession } from "@/lib/hooks/useSession";
-
+import { ComponentHelp } from "@/components/patterns/ComponentHelp";
 
 const PERIODS = [7, 30, 90];
 
@@ -75,7 +75,7 @@ function SellerAnalytics() {
         title="Shop analytics"
         description="Deterministic mock series — same numbers on every reload."
         actions={
-          <div className="flex gap-1">
+          <div className="flex items-center gap-1.5">
             {PERIODS.map((option) => (
               <FilterChip
                 key={option}
@@ -84,6 +84,7 @@ function SellerAnalytics() {
                 onClick={() => setDays(option)}
               />
             ))}
+            <ComponentHelp id="period-filter" />
           </div>
         }
       />
@@ -118,12 +119,20 @@ function SellerAnalytics() {
       </DataShell>
 
       <div className="grid gap-4 lg:grid-cols-3">
-        <SectionCard title="Revenue trend" className="lg:col-span-2">
+        <SectionCard
+          title="Revenue trend"
+          className="lg:col-span-2"
+          actions={<ComponentHelp id="revenue-trend" />}
+        >
           <DataShell loading={loading} skeletonRows={4}>
             <GmvTrend data={series} />
           </DataShell>
         </SectionCard>
-        <SectionCard title="Conversion funnel" description={`Last ${days} days`}>
+        <SectionCard
+          title="Conversion funnel"
+          description={`Last ${days} days`}
+          actions={<ComponentHelp id="conversion-funnel" />}
+        >
           <ul className="space-y-3">
             {[
               { label: "Views", value: views },
@@ -145,7 +154,8 @@ function SellerAnalytics() {
                   </div>
                   {index > 0 ? (
                     <p className="num mt-1 text-[11px] text-muted-foreground">
-                      {formatPercent((step.value / (all[index - 1]?.value ?? 1)) * 100)} of previous step
+                      {formatPercent((step.value / (all[index - 1]?.value ?? 1)) * 100)} of previous
+                      step
                     </p>
                   ) : null}
                 </li>
@@ -173,7 +183,11 @@ function SellerAnalytics() {
         </SectionCard>
       </div>
 
-      <SectionCard title="Product performance" bodyClassName="p-0">
+      <SectionCard
+        title="Product performance"
+        bodyClassName="p-0"
+        actions={<ComponentHelp id="product-performance" />}
+      >
         <Table>
           <TableHeader>
             <TableRow>
@@ -195,7 +209,9 @@ function SellerAnalytics() {
                   <TableCell className="num text-right">
                     {row.views ? formatPercent((row.orders / row.views) * 100, 2) : "—"}
                   </TableCell>
-                  <TableCell className="num text-right font-semibold">{formatINR(row.gmv)}</TableCell>
+                  <TableCell className="num text-right font-semibold">
+                    {formatINR(row.gmv)}
+                  </TableCell>
                 </TableRow>
               ))}
           </TableBody>

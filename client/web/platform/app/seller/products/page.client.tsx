@@ -22,8 +22,8 @@ import { useMockLoading, useProducts } from "@/lib/api/hooks";
 import { useSession } from "@/lib/hooks/useSession";
 import { FilterChip } from "@/components/patterns/FilterChip";
 import { ProductThumb } from "@/components/patterns/ProductThumb";
+import { ComponentHelp } from "@/components/patterns/ComponentHelp";
 import type { ProductStatus, Sector } from "@/data/types";
-
 
 const SECTORS: (Sector | "ALL")[] = ["ALL", "MART", "FOOD", "PHARMA"];
 const STATUSES: (ProductStatus | "ALL")[] = ["ALL", "ACTIVE", "PENDING_REVIEW", "DELISTED"];
@@ -47,12 +47,18 @@ function SellerProducts() {
         description="Everything a shopper can buy from you starts as a row here."
         actions={
           <>
-            <Button asChild size="sm" variant="outline">
-              <Link href="/seller/products/new">Bulk CSV upload</Link>
-            </Button>
-            <Button asChild size="sm">
-              <Link href="/seller/products/new">Add product</Link>
-            </Button>
+            <div className="flex items-center gap-1.5">
+              <Button asChild size="sm" variant="outline">
+                <Link href="/seller/products/new">Bulk CSV upload</Link>
+              </Button>
+              <ComponentHelp id="bulk-upload-button" />
+            </div>
+            <div className="flex items-center gap-1.5">
+              <Button asChild size="sm">
+                <Link href="/seller/products/new">Add product</Link>
+              </Button>
+              <ComponentHelp id="add-product-button" />
+            </div>
           </>
         }
       />
@@ -68,7 +74,8 @@ function SellerProducts() {
               onChange={(e) => setQuery(e.target.value)}
             />
           </div>
-          <div className="flex flex-wrap gap-1">
+          <ComponentHelp id="search-input" />
+          <div className="flex flex-wrap items-center gap-1">
             {SECTORS.map((option) => (
               <FilterChip
                 key={option}
@@ -77,8 +84,9 @@ function SellerProducts() {
                 onClick={() => setSector(option)}
               />
             ))}
+            <ComponentHelp id="sector-filter" />
           </div>
-          <div className="flex flex-wrap gap-1">
+          <div className="flex flex-wrap items-center gap-1">
             {STATUSES.map((option) => (
               <FilterChip
                 key={option}
@@ -87,6 +95,7 @@ function SellerProducts() {
                 onClick={() => setStatus(option)}
               />
             ))}
+            <ComponentHelp id="status-filter" />
           </div>
         </div>
 
@@ -114,9 +123,11 @@ function SellerProducts() {
                 <TableHead className="text-right">Price</TableHead>
                 <TableHead className="text-right">MRP</TableHead>
                 <TableHead className="text-right">Discount</TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead />
-              </TableRow>
+                 <TableHead>Status</TableHead>
+                 <TableHead className="text-right">
+                   <ComponentHelp id="row-actions" label="About listing actions" />
+                 </TableHead>
+               </TableRow>
             </TableHeader>
             <TableBody>
               {rows.map((product) => (
@@ -148,9 +159,7 @@ function SellerProducts() {
                   </TableCell>
                   <TableCell className="text-right">
                     <Button asChild size="sm" variant="ghost">
-                      <Link href={`/seller/products/${product.productId}/edit`}>
-                        Edit
-                      </Link>
+                      <Link href={`/seller/products/${product.productId}/edit`}>Edit</Link>
                     </Button>
                   </TableCell>
                 </TableRow>
@@ -162,6 +171,7 @@ function SellerProducts() {
               <Button size="sm" variant="outline" onClick={() => setLimit((l) => l + 10)}>
                 Load more
               </Button>
+              <ComponentHelp id="load-more-button" />
             </div>
           ) : null}
         </DataShell>

@@ -19,7 +19,7 @@ import { updateStock } from "@/lib/api";
 import { useMockLoading, useStock } from "@/lib/api/hooks";
 import { useSession } from "@/lib/hooks/useSession";
 import { ProductThumb } from "@/components/patterns/ProductThumb";
-
+import { ComponentHelp } from "@/components/patterns/ComponentHelp";
 
 function SellerInventory() {
   const session = useSession();
@@ -38,26 +38,32 @@ function SellerInventory() {
         description="Out-of-stock rows stop showing in the consumer app immediately."
         actions={
           <div className="flex items-center gap-2">
-            <Input
-              className="h-9 w-40"
-              placeholder="Set all to qty"
-              value={bulk}
-              onChange={(e) => setBulk(e.target.value)}
-              inputMode="numeric"
-            />
-            <Button
-              size="sm"
-              variant="outline"
-              disabled={!bulk}
-              onClick={() => {
-                rows.forEach((row) => updateStock(row.productId, Number(bulk), row.etaMinutes));
-                setBulk("");
-                setDrafts({});
-                toast.success("Stock updated for all listings");
-              }}
-            >
-              Apply
-            </Button>
+            <div className="flex items-center gap-1.5">
+              <Input
+                className="h-9 w-40"
+                placeholder="Set all to qty"
+                value={bulk}
+                onChange={(e) => setBulk(e.target.value)}
+                inputMode="numeric"
+              />
+              <ComponentHelp id="bulk-qty-input" />
+            </div>
+            <div className="flex items-center gap-1.5">
+              <Button
+                size="sm"
+                variant="outline"
+                disabled={!bulk}
+                onClick={() => {
+                  rows.forEach((row) => updateStock(row.productId, Number(bulk), row.etaMinutes));
+                  setBulk("");
+                  setDrafts({});
+                  toast.success("Stock updated for all listings");
+                }}
+              >
+                Apply
+              </Button>
+              <ComponentHelp id="bulk-apply-button" />
+            </div>
           </div>
         }
       />
@@ -74,22 +80,41 @@ function SellerInventory() {
         <DataShell
           loading={loading}
           isEmpty={rows.length === 0}
-          empty={<EmptyState title="No stock rows" description="Stock appears once you list a product." />}
+          empty={
+            <EmptyState
+              title="No stock rows"
+              description="Stock appears once you list a product."
+            />
+          }
         >
           <Table>
             <TableHeader>
               <TableRow>
                 <TableHead>Product</TableHead>
-                <TableHead className="w-32 text-right">Quantity</TableHead>
-                <TableHead className="w-32 text-right">ETA (min)</TableHead>
+                <TableHead className="w-32 text-right">
+                  <span className="flex items-center justify-end gap-1">
+                    Quantity
+                    <ComponentHelp id="qty-column" />
+                  </span>
+                </TableHead>
+                <TableHead className="w-32 text-right">
+                  <span className="flex items-center justify-end gap-1">
+                    ETA (min)
+                    <ComponentHelp id="eta-column" />
+                  </span>
+                </TableHead>
                 <TableHead>Signal</TableHead>
-                <TableHead />
+                <TableHead className="text-right">
+                  <ComponentHelp id="save-column" label="About saving stock" />
+                </TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {rows.map((row) => {
-                const draft =
-                  drafts[row.productId] ?? { qty: String(row.quantity), eta: String(row.etaMinutes) };
+                const draft = drafts[row.productId] ?? {
+                  qty: String(row.quantity),
+                  eta: String(row.etaMinutes),
+                };
                 const low = Number(draft.qty) <= row.lowStockThreshold;
                 return (
                   <TableRow key={row.productId} className="h-12">
@@ -107,7 +132,10 @@ function SellerInventory() {
                         className="num h-8 text-right"
                         value={draft.qty}
                         onChange={(e) =>
-                          setDrafts((d) => ({ ...d, [row.productId]: { ...draft, qty: e.target.value } }))
+                          setDrafts((d) => ({
+                            ...d,
+                            [row.productId]: { ...draft, qty: e.target.value },
+                          }))
                         }
                       />
                     </TableCell>
@@ -116,7 +144,10 @@ function SellerInventory() {
                         className="num h-8 text-right"
                         value={draft.eta}
                         onChange={(e) =>
-                          setDrafts((d) => ({ ...d, [row.productId]: { ...draft, eta: e.target.value } }))
+                          setDrafts((d) => ({
+                            ...d,
+                            [row.productId]: { ...draft, eta: e.target.value },
+                          }))
                         }
                       />
                     </TableCell>

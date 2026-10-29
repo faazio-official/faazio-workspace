@@ -18,6 +18,7 @@ import {
 import { formatDateTime, formatINR, formatNumber, formatPercent } from "@/lib/format";
 import { useMockLoading, useOrders } from "@/lib/api/hooks";
 import { useSession } from "@/lib/hooks/useSession";
+import { ComponentHelp } from "@/components/patterns/ComponentHelp";
 
 
 function StateOrders() {
@@ -56,7 +57,12 @@ function StateOrders() {
         ]}
       />
 
-      <SectionCard title="Escalations" description="Breached dispatch SLA" bodyClassName="p-0">
+      <SectionCard
+        title="Escalations"
+        description="Breached dispatch SLA"
+        actions={<ComponentHelp id="escalations-board" label="About the escalations board" />}
+        bodyClassName="p-0"
+      >
         <DataShell
           loading={loading}
           isEmpty={breaches.length === 0}
@@ -72,7 +78,12 @@ function StateOrders() {
                 <TableHead className="text-right">Value</TableHead>
                 <TableHead>SLA due</TableHead>
                 <TableHead>Status</TableHead>
-                <TableHead className="text-right">Action</TableHead>
+                <TableHead className="text-right">
+                  <span className="inline-flex items-center justify-end gap-1.5">
+                    Action
+                    <ComponentHelp id="escalate-button" label="About escalating an order" />
+                  </span>
+                </TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>

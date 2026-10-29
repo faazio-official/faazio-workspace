@@ -2,6 +2,7 @@
 import { useState } from "react";
 import { PageHeader } from "@/components/patterns/PageHeader";
 import { SectionCard } from "@/components/patterns/SectionCard";
+import { ComponentHelp } from "@/components/patterns/ComponentHelp";
 import { KpiStrip } from "@/components/patterns/KpiCard";
 import { GmvTrend } from "@/components/patterns/Charts";
 import { StatusPill } from "@/components/patterns/Pills";
@@ -55,19 +56,24 @@ function SuperDistricts() {
         description="Pick a district to see its supply, demand and governance in one place."
         actions={
           <div className="flex flex-wrap items-center gap-2">
-            <Input
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-              placeholder="Search districts…"
-              className="h-8 w-44 text-[12px]"
-              aria-label="Search districts"
-            />
-            <Select value={districtCode} onValueChange={setDistrictCode}>
-              <SelectTrigger className="w-60">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {visibleTn.length > 0 ? (
+            <div className="flex items-center gap-1.5">
+              <Input
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                placeholder="Search districts..."
+                className="h-8 w-44 text-[12px]"
+                aria-label="Search districts"
+              />
+              <ComponentHelp id="district-search" label="About searching districts" />
+            </div>
+            <div className="flex items-center gap-1.5">
+              <ComponentHelp id="district-select" label="About choosing a district" />
+              <Select value={districtCode} onValueChange={setDistrictCode}>
+                <SelectTrigger className="w-60">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {visibleTn.length > 0 ? (
                   <SelectGroup>
                     <SelectLabel>Tamil Nadu</SelectLabel>
                     {visibleTn.map((info) => (
@@ -91,7 +97,8 @@ function SuperDistricts() {
                   </>
                 ) : null}
               </SelectContent>
-            </Select>
+              </Select>
+            </div>
           </div>
         }
       />
@@ -116,7 +123,11 @@ function SuperDistricts() {
       </SectionCard>
 
       <div className="grid gap-4 lg:grid-cols-2">
-        <SectionCard title="Admin roster" bodyClassName="p-0">
+        <SectionCard
+          title="Admin roster"
+          bodyClassName="p-0"
+          actions={<ComponentHelp id="district-admin-roster" label="About the admin roster" />}
+        >
           {admins.length === 0 ? (
             <EmptyState
               title="No admins for this district"
@@ -146,7 +157,11 @@ function SuperDistricts() {
           )}
         </SectionCard>
 
-        <SectionCard title="Campaigns" bodyClassName="p-0">
+        <SectionCard
+          title="Campaigns"
+          bodyClassName="p-0"
+          actions={<ComponentHelp id="district-campaigns" label="About district campaigns" />}
+        >
           {campaigns.length === 0 ? (
             <EmptyState title="No campaigns" description="This state has no festival campaigns yet." />
           ) : (
@@ -176,7 +191,11 @@ function SuperDistricts() {
         </SectionCard>
       </div>
 
-      <SectionCard title="Sellers in this district" bodyClassName="p-0">
+      <SectionCard
+        title="Sellers in this district"
+        bodyClassName="p-0"
+        actions={<ComponentHelp id="district-sellers" label="About district sellers" />}
+      >
         {sellers.length === 0 ? (
           <EmptyState title="No sellers" description="No seller has applied from this district yet." />
         ) : (

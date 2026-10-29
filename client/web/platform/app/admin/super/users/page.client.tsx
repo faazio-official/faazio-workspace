@@ -2,6 +2,7 @@
 import { useMemo, useState } from "react";
 import { PageHeader } from "@/components/patterns/PageHeader";
 import { SectionCard } from "@/components/patterns/SectionCard";
+import { ComponentHelp } from "@/components/patterns/ComponentHelp";
 import { DataShell, EmptyState } from "@/components/patterns/DataState";
 import { Input } from "@/components/ui/input";
 import {
@@ -38,12 +39,15 @@ function PlatformUsers() {
 
       <SectionCard bodyClassName="p-0">
         <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border p-3">
-          <Input
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            placeholder="Search by name or user id"
-            className="max-w-xs"
-          />
+          <div className="flex items-center gap-1.5">
+            <Input
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder="Search by name or user id"
+              className="max-w-xs"
+            />
+            <ComponentHelp id="user-search" label="About searching users" />
+          </div>
           <span className="num text-sm text-muted-foreground">
             {customers.length} users · {totalOrders} orders · {formatINR(totalSpend)}
           </span>
@@ -64,8 +68,18 @@ function PlatformUsers() {
                 <TableHead>Customer</TableHead>
                 <TableHead>User id</TableHead>
                 <TableHead>State</TableHead>
-                <TableHead className="text-right">Orders</TableHead>
-                <TableHead className="text-right">Spend</TableHead>
+                <TableHead className="text-right">
+                  <span className="inline-flex items-center gap-1.5">
+                    Orders
+                    <ComponentHelp id="user-orders" label="About the order count" />
+                  </span>
+                </TableHead>
+                <TableHead className="text-right">
+                  <span className="inline-flex items-center gap-1.5">
+                    Spend
+                    <ComponentHelp id="user-spend" label="About the spend total" />
+                  </span>
+                </TableHead>
                 <TableHead>Last order</TableHead>
                 <TableHead>Joined</TableHead>
               </TableRow>

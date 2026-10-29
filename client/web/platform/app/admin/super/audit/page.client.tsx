@@ -3,6 +3,7 @@ import { useState } from "react";
 
 import { PageHeader } from "@/components/patterns/PageHeader";
 import { SectionCard } from "@/components/patterns/SectionCard";
+import { ComponentHelp } from "@/components/patterns/ComponentHelp";
 import { DataShell, EmptyState } from "@/components/patterns/DataState";
 import { FilterChip } from "@/components/patterns/FilterChip";
 import { Input } from "@/components/ui/input";
@@ -43,22 +44,29 @@ function SuperAudit() {
       <SectionCard bodyClassName="p-0">
         <div className="space-y-2 border-b border-border p-3">
           <div className="flex flex-wrap items-center gap-2">
-            <Input
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-              placeholder="Search action, entity id or actor"
-              className="h-9 w-64"
-            />
-            {ROLES.map((option) => (
-              <FilterChip
-                key={option}
-                label={option === "ALL" ? "All roles" : option.replace("_", " ")}
-                active={role === option}
-                onClick={() => setRole(option)}
+            <div className="flex items-center gap-1.5">
+              <Input
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                placeholder="Search action, entity id or actor"
+                className="h-9 w-64"
               />
-            ))}
+              <ComponentHelp id="audit-search" label="About audit search" />
+            </div>
+            <div className="flex items-center gap-1.5">
+              <ComponentHelp id="role-filter" label="About the role filter" />
+              {ROLES.map((option) => (
+                <FilterChip
+                  key={option}
+                  label={option === "ALL" ? "All roles" : option.replace("_", " ")}
+                  active={role === option}
+                  onClick={() => setRole(option)}
+                />
+              ))}
+            </div>
           </div>
           <div className="flex flex-wrap items-center gap-2">
+            <ComponentHelp id="entity-filter" label="About the entity filter" />
             <FilterChip label="All entities" active={entity === ""} onClick={() => setEntity("")} />
             {entities.map((option) => (
               <FilterChip

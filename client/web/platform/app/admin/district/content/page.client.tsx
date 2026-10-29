@@ -13,6 +13,7 @@ import { formatINR } from "@/lib/format";
 import { useMockLoading, useProducts } from "@/lib/api/hooks";
 import { useSession } from "@/lib/hooks/useSession";
 import { ProductThumb } from "@/components/patterns/ProductThumb";
+import { ComponentHelp } from "@/components/patterns/ComponentHelp";
 
 
 function StateContent() {
@@ -38,7 +39,10 @@ function StateContent() {
       <div className="grid gap-4 lg:grid-cols-2">
         <SectionCard title="Rail being edited">
           <div className="space-y-1.5">
-            <Label htmlFor="rail">Rail title</Label>
+            <span className="flex items-center gap-1.5">
+              <Label htmlFor="rail">Rail title</Label>
+              <ComponentHelp id="rail-title" label="About the rail title" />
+            </span>
             <Input id="rail" value={railTitle} onChange={(e) => setRailTitle(e.target.value)} />
           </div>
           <div className="mt-4 space-y-2">
@@ -70,7 +74,7 @@ function StateContent() {
               })
             )}
           </div>
-          <div className="mt-4 flex justify-end">
+          <div className="mt-4 flex items-center justify-end gap-1.5">
             <Button
               size="sm"
               disabled={picks.length === 0 || railTitle.trim().length < 3}
@@ -78,17 +82,26 @@ function StateContent() {
             >
               Publish rail
             </Button>
+            <ComponentHelp id="publish-rail" label="About publishing a rail" />
           </div>
         </SectionCard>
 
-        <SectionCard title="Catalog" description="Active listings in your district" bodyClassName="p-0">
+        <SectionCard
+          title="Catalog"
+          description="Active listings in your district"
+          actions={<ComponentHelp id="add-to-rail" label="About adding to a rail" />}
+          bodyClassName="p-0"
+        >
           <div className="border-b border-border p-3">
-            <Input
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-              placeholder="Search catalog"
-              className="h-9"
-            />
+            <div className="flex items-center gap-1.5">
+              <Input
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                placeholder="Search catalog"
+                className="h-9"
+              />
+              <ComponentHelp id="catalog-search" label="About catalog search" />
+            </div>
           </div>
           <DataShell
             loading={loading}

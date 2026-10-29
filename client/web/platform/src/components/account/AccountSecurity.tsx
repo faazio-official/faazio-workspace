@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { PageHeader } from "@/components/patterns/PageHeader";
 import { SectionCard } from "@/components/patterns/SectionCard";
+import { ComponentHelp } from "@/components/patterns/ComponentHelp";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -59,7 +60,13 @@ export function AccountSecurity() {
       <SectionCard title="Change password">
         <div className="grid max-w-md gap-4">
           <div className="space-y-1.5">
-            <Label htmlFor="current-password">Current password</Label>
+            <div className="flex items-center gap-1.5">
+              <Label htmlFor="current-password">Current password</Label>
+              <ComponentHelp
+                helpKey="pattern:account-current-password"
+                label="About your current password"
+              />
+            </div>
             <Input
               id="current-password"
               type="password"
@@ -69,7 +76,13 @@ export function AccountSecurity() {
             />
           </div>
           <div className="space-y-1.5">
-            <Label htmlFor="new-password">New password</Label>
+            <div className="flex items-center gap-1.5">
+              <Label htmlFor="new-password">New password</Label>
+              <ComponentHelp
+                helpKey="pattern:account-new-password"
+                label="About the new password"
+              />
+            </div>
             <Input
               id="new-password"
               type="password"
@@ -94,8 +107,9 @@ export function AccountSecurity() {
           {error ? <p className="text-[12px] text-destructive">{error}</p> : null}
           <div className="flex justify-end">
             <Button disabled={busy} onClick={() => void submit()}>
-              {busy ? "Changing…" : "Change password"}
+              {busy ? "Changing..." : "Change password"}
             </Button>
+            <ComponentHelp helpKey="pattern:account-submit" label="About changing your password" />
           </div>
         </div>
       </SectionCard>

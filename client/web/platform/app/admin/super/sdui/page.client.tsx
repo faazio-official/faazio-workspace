@@ -3,6 +3,7 @@ import { Fragment, useEffect, useState } from "react";
 import { toast } from "sonner";
 import { PageHeader } from "@/components/patterns/PageHeader";
 import { SectionCard } from "@/components/patterns/SectionCard";
+import { ComponentHelp } from "@/components/patterns/ComponentHelp";
 import { DataShell, EmptyState } from "@/components/patterns/DataState";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -110,9 +111,12 @@ function SuperSdui() {
       <SectionCard
         title="Home layout"
         actions={
-          <Button size="sm" onClick={publish} disabled={!dirty}>
-            {dirty ? "Publish changes" : "Published"}
-          </Button>
+          <div className="flex items-center gap-1.5">
+            <ComponentHelp id="publish-button" label="About publishing the layout" />
+            <Button size="sm" onClick={publish} disabled={!dirty}>
+              {dirty ? "Publish changes" : "Published"}
+            </Button>
+          </div>
         }
       >
         {layout ? (
@@ -136,9 +140,24 @@ function SuperSdui() {
             <TableHeader>
               <TableRow>
                 <TableHead className="w-40">Section</TableHead>
-                <TableHead className="w-56">Title</TableHead>
-                <TableHead>Product ids</TableHead>
-                <TableHead className="w-32">Refs</TableHead>
+                <TableHead className="w-56">
+                  <span className="inline-flex items-center gap-1.5">
+                    Title
+                    <ComponentHelp id="section-title" label="About the section title" />
+                  </span>
+                </TableHead>
+                <TableHead>
+                  <span className="inline-flex items-center gap-1.5">
+                    Product ids
+                    <ComponentHelp id="section-product-ids" label="About the product ids" />
+                  </span>
+                </TableHead>
+                <TableHead className="w-32">
+                  <span className="inline-flex items-center gap-1.5">
+                    Refs
+                    <ComponentHelp id="section-refs" label="About the references" />
+                  </span>
+                </TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -173,9 +192,12 @@ function SuperSdui() {
                     <TableRow>
                       <TableCell colSpan={4} className="bg-muted/30">
                         <div className="space-y-2">
-                          <p className="text-xs font-medium text-muted-foreground">
-                            {s.id} banners (image + copy; prices are always joined from the catalog)
-                          </p>
+                          <div className="flex items-center gap-1.5">
+                            <p className="text-xs font-medium text-muted-foreground">
+                              {s.id} banners (image + copy; prices are always joined from the catalog)
+                            </p>
+                            <ComponentHelp id="banner-editor" label="About the banner editor" />
+                          </div>
                           {s.banners.map((b) => (
                             <div
                               key={b.id}
@@ -227,10 +249,13 @@ function SuperSdui() {
                     <TableRow>
                       <TableCell colSpan={4} className="bg-muted/30">
                         <div className="space-y-2">
-                          <p className="text-xs font-medium text-muted-foreground">
-                            {s.id} campaigns (vendor store + catalog product ids; title/price are joined
-                            from the directory/catalog on <span className="num">GET /home/campaigns</span>)
-                          </p>
+                          <div className="flex items-center gap-1.5">
+                            <p className="text-xs font-medium text-muted-foreground">
+                              {s.id} campaigns (vendor store + catalog product ids; title/price are joined
+                              from the directory/catalog on <span className="num">GET /home/campaigns</span>)
+                            </p>
+                            <ComponentHelp id="campaign-editor" label="About the campaign editor" />
+                          </div>
                           {s.campaigns.map((c) => (
                             <div
                               key={c.id}

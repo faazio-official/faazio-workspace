@@ -19,7 +19,7 @@ import {
 import { cn } from "@/lib/utils";
 import { STATES } from "@/data/states";
 import type { Sector } from "@/data/types";
-
+import { ComponentHelp } from "@/components/patterns/ComponentHelp";
 
 const STEPS = ["Business", "KYC documents", "Bank", "Store", "E-sign"];
 
@@ -86,10 +86,21 @@ function Onboarding() {
       <SectionCard title={STEPS[step]} description={`Step ${step + 1} of ${STEPS.length}`}>
         {step === 0 ? (
           <div className="grid gap-4 md:grid-cols-2">
-            <Text label="Business name" value={form.businessName} onChange={(v) => field("businessName", v)} />
-            <Text label="Owner name" value={form.ownerName} onChange={(v) => field("ownerName", v)} />
+            <Text
+              label="Business name"
+              value={form.businessName}
+              onChange={(v) => field("businessName", v)}
+            />
+            <Text
+              label="Owner name"
+              value={form.ownerName}
+              onChange={(v) => field("ownerName", v)}
+            />
             <div className="space-y-1.5">
-              <Label>Primary sector</Label>
+              <div className="flex items-center gap-1.5">
+                <Label>Primary sector</Label>
+                <ComponentHelp id="sector-select" />
+              </div>
               <Select value={form.category} onValueChange={(v) => field("category", v as Sector)}>
                 <SelectTrigger>
                   <SelectValue />
@@ -102,7 +113,10 @@ function Onboarding() {
               </Select>
             </div>
             <div className="space-y-1.5">
-              <Label htmlFor="gstin">GSTIN</Label>
+              <div className="flex items-center gap-1.5">
+                <Label htmlFor="gstin">GSTIN</Label>
+                <ComponentHelp id="gstin-input" />
+              </div>
               <Input
                 id="gstin"
                 className="num"
@@ -116,7 +130,11 @@ function Onboarding() {
                 </p>
               ) : null}
             </div>
-            <Text label="Contact phone" value={form.contactPhone} onChange={(v) => field("contactPhone", v)} />
+            <Text
+              label="Contact phone"
+              value={form.contactPhone}
+              onChange={(v) => field("contactPhone", v)}
+            />
             <Text
               label="Registered address"
               value={form.businessAddress}
@@ -133,16 +151,19 @@ function Onboarding() {
                 className="flex items-center justify-between rounded-lg border border-dashed border-border px-4 py-3"
               >
                 <span className="text-[13px]">{doc}</span>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  onClick={() => {
-                    field("docsUploaded", true);
-                    toast.success(`${doc} attached (mock upload)`);
-                  }}
-                >
-                  <Upload className="size-4" /> Attach
-                </Button>
+                <div className="flex items-center gap-1.5">
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => {
+                      field("docsUploaded", true);
+                      toast.success(`${doc} attached (mock upload)`);
+                    }}
+                  >
+                    <Upload className="size-4" /> Attach
+                  </Button>
+                  <ComponentHelp id="attach-docs-button" />
+                </div>
               </div>
             ))}
             {form.docsUploaded ? (
@@ -155,17 +176,29 @@ function Onboarding() {
 
         {step === 2 ? (
           <div className="grid gap-4 md:grid-cols-2">
-            <Text label="Bank account number" value={form.bankAccount} onChange={(v) => field("bankAccount", v)} />
+            <Text
+              label="Bank account number"
+              value={form.bankAccount}
+              onChange={(v) => field("bankAccount", v)}
+              hint="bank-input"
+            />
             <Text label="IFSC" value={form.ifsc} onChange={(v) => field("ifsc", v.toUpperCase())} />
           </div>
         ) : null}
 
         {step === 3 ? (
           <div className="grid gap-4 md:grid-cols-2">
-            <Text label="Store name" value={form.storeName} onChange={(v) => field("storeName", v)} />
+            <Text
+              label="Store name"
+              value={form.storeName}
+              onChange={(v) => field("storeName", v)}
+            />
             <Text label="City" value={form.city} onChange={(v) => field("city", v)} />
             <div className="space-y-1.5">
-              <Label>State</Label>
+              <div className="flex items-center gap-1.5">
+                <Label>State</Label>
+                <ComponentHelp id="state-select" />
+              </div>
               <Select value={form.stateCode} onValueChange={(v) => field("stateCode", v)}>
                 <SelectTrigger>
                   <SelectValue />
@@ -179,7 +212,11 @@ function Onboarding() {
                 </SelectContent>
               </Select>
             </div>
-            <Text label="Delivery time" value={form.deliveryTime} onChange={(v) => field("deliveryTime", v)} />
+            <Text
+              label="Delivery time"
+              value={form.deliveryTime}
+              onChange={(v) => field("deliveryTime", v)}
+            />
             <Text label="Opening hours" value={form.hours} onChange={(v) => field("hours", v)} />
             <div className="flex items-center justify-between rounded-lg border border-border px-3 py-2">
               <Label htmlFor="veg">Pure vegetarian store</Label>
@@ -195,7 +232,10 @@ function Onboarding() {
               terms, including commission and settlement timelines.
             </p>
             <div className="flex items-center justify-between rounded-lg border border-border px-3 py-2">
-              <Label htmlFor="sign">I agree and e-sign this application</Label>
+              <div className="flex items-center gap-1.5">
+                <Label htmlFor="sign">I agree and e-sign this application</Label>
+                <ComponentHelp id="esign-switch" />
+              </div>
               <Switch id="sign" checked={form.signed} onCheckedChange={(v) => field("signed", v)} />
             </div>
           </div>
@@ -215,16 +255,19 @@ function Onboarding() {
               Continue
             </Button>
           ) : (
-            <Button
-              size="sm"
-              disabled={!valid[step]}
-              onClick={() => {
-                toast.success("Application submitted — status PENDING_REVIEW");
-                router.push("/seller");
-              }}
-            >
-              Submit application
-            </Button>
+            <div className="flex items-center gap-1.5">
+              <Button
+                size="sm"
+                disabled={!valid[step]}
+                onClick={() => {
+                  toast.success("Application submitted — status PENDING_REVIEW");
+                  router.push("/seller");
+                }}
+              >
+                Submit application
+              </Button>
+              <ComponentHelp id="submit-button" />
+            </div>
           )}
         </div>
       </SectionCard>
@@ -236,14 +279,19 @@ function Text({
   label,
   value,
   onChange,
+  hint,
 }: {
   label: string;
   value: string;
   onChange: (value: string) => void;
+  hint?: string;
 }) {
   return (
     <div className="space-y-1.5">
-      <Label>{label}</Label>
+      <div className="flex items-center gap-1.5">
+        <Label>{label}</Label>
+        {hint ? <ComponentHelp id={hint} /> : null}
+      </div>
       <Input value={value} onChange={(e) => onChange(e.target.value)} />
     </div>
   );
