@@ -52,7 +52,7 @@ import {
   listPortalCredentials,
   resetPortalCredentialPassword,
   setPortalCredentialActive,
-  stateAdminConflictMessage,
+  districtAdminConflictMessage,
   type CreatePortalCredentialInput,
 } from "@/lib/api";
 import { DISTRICTS } from "@/data/districts";
@@ -163,7 +163,7 @@ function CredentialsPage() {
           : "Credential created — the password is active now.",
       );
     } catch (err) {
-      const conflict = stateAdminConflictMessage(err);
+      const conflict = districtAdminConflictMessage(err);
       toast.error("Could not create the credential", {
         description: err instanceof ApiError ? conflict.message : err instanceof Error ? err.message : undefined,
       });

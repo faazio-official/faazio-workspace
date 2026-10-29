@@ -64,8 +64,8 @@ export const DISTRICT_ADMINS: DistrictAdmin[] = [
     phone: "+91 90030 11223",
     districtCode: "TTC",
     stateCode: "TN",
-    active: false,
+    active: true,
     createdAt: "2025-10-11T06:00:00.000Z",
-    lastActiveAt: "2026-08-30T17:45:00.000Z",
+    lastActiveAt: "2026-09-12T10:15:00.000Z",
   },
 ];

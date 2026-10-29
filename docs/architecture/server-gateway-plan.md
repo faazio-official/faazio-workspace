@@ -93,7 +93,8 @@ caller) and are event-purged on store live toggle and product edit/status change
   `transfer.failed` / `transfer.reversed` by HMAC. `RAZORPAY_ROUTE_KEY_ID`/`_SECRET`/`_WEBHOOK_SECRET`
   fall back to the main Razorpay pair.
 - **Portal identity writes (`internal/admins` + `internal/portal`):** `POST /district-admins` is the
-  unified district-admin creator — `issueLogin` optionally mints the `DISTRICT_ADMIN` portal
+  unified district-admin creator — a district is **mandatory** (`0065`; state-only scope is retired and
+  `state_code` is derived from the district), and `issueLogin` optionally mints the `DISTRICT_ADMIN` portal
   credential in the same tx (legacy `/state-admins` route alias retained). Duplicate **email** across
   `portal_users`, the roster and `sellers.sellers` is hard-blocked (`409 email_has_district_login`
   / `email_has_district_roster`); duplicate **phone** is a soft `201 warnings[]` notice (shared

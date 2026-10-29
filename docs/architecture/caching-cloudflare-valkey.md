@@ -260,7 +260,7 @@ pipelines; a placement with no LIVE fill collapses the surface to `null` (never 
 - **Payments / order PII** — never at the edge; only short-lived auth-scoped Valkey keys.
 - **Seller records (`0015`)** — carry PII (phone/address) and are role-scoped, so `internal/sellers`
   reads bypass the cache entirely (no `faazio:v1:sellers:*` key exists).
-- **State-admin roster + credential writes (`0036`)** — roster rows carry email/phone PII and portal
+- **District-admin roster + credential writes (`0036`)** — roster rows carry email/phone PII and portal
   users carry credentials; the unified `POST /district-admins` never reads/writes a cache key (same rule
   as seller PII). The roster is a portal-only read with no cache.
 - **Audit logs (`admins.audit_logs`, `0015`/`0037`)** — still **never cached** (no `faazio:v1:audit:*`
