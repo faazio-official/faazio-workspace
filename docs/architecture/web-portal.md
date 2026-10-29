@@ -67,6 +67,15 @@ pre-existing admin cookie, so an admin can never loop into a blocked route; the 
 also signs out any admin session it encounters. The web portal is unchanged: a plain browser has no
 `window.__faazio`, so admins sign in normally.
 
+**Sign-in copy + legal links.** The `/login` eyebrow reads `Sign in` (not role-specific), and beneath
+the button a muted acceptance row reads `By continuing, you agree to our Terms & Conditions and
+Privacy Policy`. The links are env-driven via `src/lib/config.ts`: `termsUrl`
+(`NEXT_PUBLIC_TERMS_URL`; the plain text is shown when unset — there is no first-party Terms page)
+and `privacyUrl` (`NEXT_PUBLIC_PRIVACY_URL`, defaulting to the landing page `/privacy`). In a plain
+browser they open a new tab; inside the native seller WebView the targets are external origins, so
+`SellerWebViewScreen` routes them to the system browser (`onShouldStartLoadWithRequest` →
+`openExternal`) instead of navigating in-app.
+
 **Native app detection + route restriction.** Before the portal hydrates the shell injects
 `window.__faazio = { app: 'seller' | 'customer' | 'delivery', platform, webview: true }`. The portal
 reads it via `src/lib/appContext.ts` (never the user-agent — unreliable), exposes it on `<html>`
@@ -347,6 +356,8 @@ Bootstrap (`app/providers.tsx`) restores the session then hydrates. Copy
 ```bash
 NEXT_PUBLIC_GATEWAY_URL=        # e.g. http://localhost:8080 (server-side upstream)
 NEXT_PUBLIC_MEDIA_CDN_BASE=     # optional R2 CDN origin (defaults to the gateway's /assets path)
+NEXT_PUBLIC_TERMS_URL=          # optional Terms & Conditions link on /login (hidden when empty)
+NEXT_PUBLIC_PRIVACY_URL=        # optional Privacy Policy link on /login (defaults to the landing page /privacy)
 ```
 
 `NEXT_PUBLIC_*` is inlined by `next build`, not read at request time: after changing it you must

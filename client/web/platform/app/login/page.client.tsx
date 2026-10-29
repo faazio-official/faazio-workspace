@@ -7,6 +7,7 @@ import { hydrateFromGateway } from "@/lib/api/sync";
 import { fetchPortalStatus, portalErrorMessage, type PortalStatus } from "@/lib/portal/auth";
 import { homeFor, ROLE_LABEL } from "@/lib/auth/permissions";
 import { isBlockedInNativeSellerApp } from "@/lib/appContext";
+import { config } from "@/lib/config";
 import { useHydrated } from "@/lib/hooks/useHydrated";
 import { useSession } from "@/lib/hooks/useSession";
 import { Button } from "@/components/ui/button";
@@ -167,7 +168,7 @@ function LoginPage() {
         <div className="mb-5 flex items-center gap-2.5">
           <div className="min-w-0">
             <FaazioWordmark className="h-[22px] w-auto text-primary" />
-            <p className="mt-0.5 text-[12px] text-muted-foreground">Seller and admin sign-in</p>
+            <p className="mt-0.5 text-[12px] text-muted-foreground">Sign in</p>
           </div>
         </div>
 
@@ -219,6 +220,30 @@ function LoginPage() {
           <Button type="submit" className="w-full" disabled={busy}>
             {busy ? "Signing in..." : "Sign in"}
           </Button>
+          <p className="text-center text-[12px] leading-relaxed text-muted-foreground">
+            By continuing, you agree to our{" "}
+            {config.termsUrl ? (
+              <a
+                href={config.termsUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-primary underline underline-offset-2"
+              >
+                Terms &amp; Conditions
+              </a>
+            ) : (
+              "Terms & Conditions"
+            )}{" "}
+            and{" "}
+            <a
+              href={config.privacyUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-primary underline underline-offset-2"
+            >
+              Privacy Policy
+            </a>
+          </p>
         </form>
 
         <p className="mt-4 text-[12px] text-muted-foreground">
