@@ -2,7 +2,6 @@ import React from 'react';
 import { StyleSheet, TouchableOpacity, View } from 'react-native';
 import { Check, Minus } from 'lucide-react-native';
 import { hs, ms } from '@/utils/responsive';
-import InfoButton from './InfoButton';
 
 interface CheckboxProps {
   checked: boolean;
@@ -11,8 +10,6 @@ interface CheckboxProps {
   indeterminate?: boolean;
   disabled?: boolean;
   size?: number;
-  /** Opt-in registry key that renders a small "i" guidance badge beside the box. */
-  infoKey?: string;
 }
 
 /**
@@ -27,11 +24,10 @@ export default function Checkbox({
   indeterminate = false,
   disabled = false,
   size = 22,
-  infoKey,
 }: CheckboxProps) {
   const box = ms(size);
   const filled = checked || indeterminate;
-  const checkbox = (
+  return (
     <TouchableOpacity
       onPress={onToggle}
       disabled={disabled}
@@ -52,14 +48,6 @@ export default function Checkbox({
       ) : null}
     </TouchableOpacity>
   );
-
-  if (!infoKey) return checkbox;
-  return (
-    <View style={styles.withInfo}>
-      {checkbox}
-      <InfoButton variant="badge" contentKey={infoKey} />
-    </View>
-  );
 }
 
 const styles = StyleSheet.create({
@@ -76,10 +64,5 @@ const styles = StyleSheet.create({
   },
   boxDisabled: {
     opacity: 0.4,
-  },
-  withInfo: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: hs(6),
   },
 });
