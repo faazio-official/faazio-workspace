@@ -1,9 +1,11 @@
-<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
   <!-- Seller-only: route FCM notification payloads through the high-importance order channel
        created in MainApplication (custom beep). Customer/delivery builds never merge this. -->
   <application>
     <meta-data
       android:name="com.google.firebase.messaging.default_notification_channel_id"
-      android:value="seller_orders"/>
+      android:value="seller_orders"
+      tools:replace="android:value"/>
   </application>
 </manifest>
