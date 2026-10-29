@@ -15,6 +15,7 @@ const navLinks = [
   { label: "Partners", href: "/partners" },
   { label: "Karaikal", href: "/karaikal" },
   { label: "Privacy Policy", href: "/privacy" },
+  { label: "Terms & Conditions", href: "/terms" },
 ];
 
 export function SiteHeader() {
@@ -85,6 +86,9 @@ export function SiteHeader() {
           </a>
           <a href="/privacy" onClick={() => setMenuOpen(false)}>
             Privacy Policy
+          </a>
+          <a href="/terms" onClick={() => setMenuOpen(false)}>
+            Terms &amp; Conditions
           </a>
           <a href="/download" onClick={() => setMenuOpen(false)}>
             Get the app

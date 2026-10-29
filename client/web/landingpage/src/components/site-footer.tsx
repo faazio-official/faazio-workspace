@@ -27,13 +27,20 @@ export function SiteFooter() {
               <a href="/about">About Faazio</a>
               <a href="/karaikal">Karaikal</a>
               <a href="/partners">Partner with us</a>
-              <a href="/privacy">Privacy Policy</a>
             </div>
             <div>
               <h3>A little help</h3>
               <a href="/faq">FAQs</a>
               <a href="/download">Get the app</a>
               <a href="/#how-it-works">How it works</a>
+            </div>
+            <div>
+              <h3>Legal</h3>
+              <a href="/terms">Terms &amp; Conditions</a>
+              <a href="/privacy">Privacy Policy</a>
+              <a href="/refunds">Refund &amp; Cancellation Policy</a>
+              <a href="/cookies">Cookie Policy</a>
+              <a href="/disclaimer">Disclaimer</a>
             </div>
           </div>
         </div>

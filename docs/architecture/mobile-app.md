@@ -852,7 +852,10 @@ awaiting) is the manual fallback, so the user can never be stranded. Back is two
 both the chevron and Android hardware back (`BackHandler` via `useFocusEffect`): first press closes
 the keyboard, second returns to phone entry with the typed number preserved; on phone entry the
 hardware back pops to Welcome. `replace` deliberately removes the consumed OTP screen so back from
-Choose-language lands on Welcome, not a filled OTP form.
+Choose-language lands on Welcome, not a filled OTP form. The acceptance row under the phone field
+renders **Terms & Conditions** and **Privacy Policy** as tappable links (`TERMS_URL` / `PRIVACY_URL`
+in `lib/site.ts`) opened through `openTrustedUrl()` (`lib/externalLinks.ts`), which restricts
+external opens to `https://faazio.com` and refuses any other host.
 
 ## Account navigation groups
 

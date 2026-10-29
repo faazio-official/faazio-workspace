@@ -826,6 +826,7 @@ h3 {
 }
 .footer-links {
   display: flex;
+  flex-wrap: wrap;
   gap: 85px;
 }
 .footer-links h3 {

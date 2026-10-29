@@ -3,12 +3,13 @@ const env = {
   gatewayUrl: process.env["NEXT_PUBLIC_GATEWAY_URL"]?.replace(/\/+$/, "") ?? "",
   /** Cloudflare R2 media CDN origin (custom domain in front of the public bucket), e.g. https://img.faazio.in. */
   mediaCdnBase: process.env["NEXT_PUBLIC_MEDIA_CDN_BASE"]?.replace(/\/+$/, "") ?? "",
-  /** Public legal pages shown on the sign-in screen. Terms has no first-party page yet, so it is env-only. */
+  /** Public legal pages shown on the sign-in screen. */
   termsUrl: process.env["NEXT_PUBLIC_TERMS_URL"]?.trim() ?? "",
   privacyUrl: process.env["NEXT_PUBLIC_PRIVACY_URL"]?.trim() ?? "",
 };
 
-/** Landing-page Privacy Policy, used when NEXT_PUBLIC_PRIVACY_URL is not set. */
+/** Landing-page legal pages, used when the matching NEXT_PUBLIC_* URL is not set. */
+const DEFAULT_TERMS_URL = "https://faazio.com/terms";
 const DEFAULT_PRIVACY_URL = "https://faazio.com/privacy";
 
 export const config = {
@@ -22,8 +23,8 @@ export const config = {
   gatewayUrl: env.gatewayUrl,
   /** Cloudflare R2 media CDN origin (maps stored `r2:<key>` values to displayable URLs). */
   mediaCdnBase: env.mediaCdnBase,
-  /** Terms & Conditions URL (env-only until a first-party page exists; empty hides the link). */
-  termsUrl: env.termsUrl,
+  /** Terms & Conditions URL, defaulting to the landing page when unset. */
+  termsUrl: env.termsUrl || DEFAULT_TERMS_URL,
   /** Privacy Policy URL, defaulting to the landing page when unset. */
   privacyUrl: env.privacyUrl || DEFAULT_PRIVACY_URL,
 } as const;

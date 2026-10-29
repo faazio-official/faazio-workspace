@@ -1,7 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { MotionConfig } from "motion/react";
-import type { ReactNode } from "react";
 import { FaazioLogo } from "@/components/faazio-logo";
+import { PolicyList, type PolicySection } from "@/components/legal";
 import { SiteFooter } from "@/components/site-footer";
 import { SiteHeader } from "@/components/site-header";
 import {
@@ -26,12 +26,6 @@ const description =
   "Read the Faazio privacy policy — what personal data we collect across Mart, Food, Pharma, and community features, how we use and share it, how to delete your account, and the rights you have.";
 const keywords =
   "Faazio privacy policy, Faazio data protection, Faazio app privacy, Faazio personal data, Faazio Karaikal privacy, DPDP, data deletion Faazio";
-
-type PolicySection = {
-  id: string;
-  title: string;
-  body: ReactNode;
-};
 
 export const Route = createFileRoute("/privacy")({
   component: PrivacyPolicy,
@@ -364,16 +358,6 @@ const privacySections: PolicySection[] = [
     ),
   },
 ];
-
-function PolicyList({ items }: { items: ReactNode[] }) {
-  return (
-    <ul className="mt-3 list-disc space-y-2 pl-5 text-[14px] leading-7 text-muted-foreground">
-      {items.map((item, index) => (
-        <li key={index}>{item}</li>
-      ))}
-    </ul>
-  );
-}
 
 function PrivacyPolicy() {
   return (

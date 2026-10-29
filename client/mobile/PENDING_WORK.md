@@ -386,8 +386,9 @@ default it to `https://app.faazio.com`.
   `delivery`/`seller` build fails fast. CI now
   passes `GOOGLE_MAPS_API_KEY_ANDROID`/`GOOGLE_PLACES_API_KEY` to `configure.js` after typecheck so
   debug artifacts keep the live gateway config and the partner map renders.
-- **Legal/trust** — independent-contractor + police-assistance clause still needs adding to the
-  Terms; suspension/blacklist endpoints and audit already exist (`PUT /delivery/boys/{id}/suspend|blacklist`).
+- ✅ **Resolved (2026-10-29):** the independent-contractor + police-assistance clause now lives in
+  the public Terms (`faazio.com/terms` §12, "Delivery partner terms"); suspension/blacklist
+  endpoints and audit already exist (`PUT /delivery/boys/{id}/suspend|blacklist`).
 **Date:** 2026-10-22
 
 ## W62 — Live-location nearby retrieval (P0)
@@ -3151,7 +3152,7 @@ the old `/veg/i` cuisine heuristic). Unclassifiable dishes hide while a filter i
 
 ## Account — nav rows & Coming-soon groups
 
-**Status:** 🟢 Privacy is active (Delete account + Request data deletion); Legal remains a placeholder.
+**Status:** 🟢 Privacy is active (Delete account + Request data deletion). Legal has no in-app screen yet, but the login row now links to the published policies.
 
 **Feature:** The "You" page nav list (`features/profile/AccountView.tsx`, driven by
 `@data/account/accountNav.ts` `accountNavGroups`) is grouped and titled: `profile`
@@ -3166,8 +3167,12 @@ routes). `legal` remains `comingSoon` and renders a non-tappable placeholder row
   these rows keep the TODO stub in `AccountView.handleRowPress` and don't navigate yet.
   Favourites now opens the search-results-style `Favourites` root route, and the
   "Coupons & Offers" stub row was removed from the `payments` group.
-- **Legal has no content** — no terms/privacy-document screens exist. Flip `comingSoon`
-  off and add rows once those screens are built; no component change is needed (data-driven).
+- **Legal (in-app screens) still pending** — the account-nav `legal` group remains
+  `comingSoon` (no in-app Terms/Privacy-document screens or rows). The published policies now
+  live on the landing page and are linked from the login acceptance row: `LoginScreen` opens
+  `TERMS_URL` / `PRIVACY_URL` via `openTrustedUrl()` (`src/lib/externalLinks.ts`), which
+  restricts external opens to `https://faazio.com`. Flip `comingSoon` off and add rows once
+  in-app screens are built; no component change is needed (data-driven).
 - **Privacy is complete for Play** — `DeleteAccount` calls `DELETE /users/me` (anonymising
   soft delete: PII erased, financial rows retained) and `RequestDataDeletion` calls
   `POST /users/me/data-deletion` (addresses/favourites/prescriptions; recent searches are

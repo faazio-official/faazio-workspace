@@ -222,18 +222,14 @@ function LoginPage() {
           </Button>
           <p className="text-center text-[12px] leading-relaxed text-muted-foreground">
             By continuing, you agree to our{" "}
-            {config.termsUrl ? (
-              <a
-                href={config.termsUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-primary underline underline-offset-2"
-              >
-                Terms &amp; Conditions
-              </a>
-            ) : (
-              "Terms & Conditions"
-            )}{" "}
+            <a
+              href={config.termsUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-primary underline underline-offset-2"
+            >
+              Terms &amp; Conditions
+            </a>{" "}
             and{" "}
             <a
               href={config.privacyUrl}
