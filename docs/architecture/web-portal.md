@@ -47,10 +47,12 @@ The campaign wizard's **what→where** placements map 1:1 to the paid mobile sur
 `PAGE_CATALOG.md` §2.5/§2.6: `MART_HERO`/`FOOD_HERO` (house hero carousels) and `STORE_TOP`
 (restaurant profile band), so a seller target resolves to the same slot the shopper sees.
 
-**Mobile shell.** The React Native seller app is a WebView over this console
-(`client/mobile/src/features/seller-partner/SellerWebViewScreen.tsx`). Below `lg` the seller shell
-shows a touch drawer instead of the hidden desktop sidebar; `viewport-fit=cover` is set in the root
-layout. The native layer injects its FCM token into `window.__faazioPushToken`; `SellerPushBridge`
+**Mobile shell.** Below `lg`, the seller and admin consoles (`SellerShell`, `AdminShell`) hide their
+desktop sidebar and show the shared `MobileNavDrawer` — a touch-friendly, grouped nav drawer with
+active-route tones that closes on navigation, backdrop tap, or `Esc`; `viewport-fit=cover` is set in
+the root layout. The React Native seller app is a WebView over the seller console
+(`client/mobile/src/features/seller-partner/SellerWebViewScreen.tsx`). The native layer injects its
+FCM token into `window.__faazioPushToken`; `SellerPushBridge`
 registers it through `/api/gateway/notifications/register` and removes it on sign-out. Portal
 sign-out is the only seller session authority (HttpOnly cookies).
 
@@ -151,8 +153,9 @@ metadata + `src/styles.css`) plus `app/providers.tsx`
 5. **Router API swap.** `Link to=` → `next/link` `href=`, `useNavigate()` →
    `useRouter().push()`, `useRouterState(pathname)` → `usePathname()`, in the
    shells (`SellerShell`, `AdminShell`), `RoleGate` and `PageHeader` only.
-   Active-nav highlighting is computed manually (`pathname === item.to` /
-   `startsWith(item.to + "/")`).
+   Active-nav highlighting is computed manually with `activeNavHref` (exact
+   match or the longest matching nav prefix), shared by the desktop sidebars
+   and `MobileNavDrawer`.
 
 ## Data ownership
 

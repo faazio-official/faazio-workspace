@@ -1,9 +1,10 @@
 "use client";
-import { useEffect, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useState, type ReactNode } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { Bell, ChevronLeft, LogOut, Menu, PanelLeft, Search, X } from "lucide-react";
-import { SELLER_NAV } from "@/components/layout/nav";
+import { Bell, ChevronLeft, LogOut, Menu, PanelLeft, Search } from "lucide-react";
+import { activeNavHref, normalizeNavPath, SELLER_NAV } from "@/components/layout/nav";
+import { MobileNavDrawer } from "@/components/layout/MobileNavDrawer";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -30,6 +31,8 @@ export function SellerShell({ children }: { children: ReactNode }) {
   const pathname = usePathname();
 
   const groups = Array.from(new Set(SELLER_NAV.map((i) => i.group)));
+  const current = activeNavHref(pathname, SELLER_NAV);
+  const closeMobileNav = useCallback(() => setMobileNav(false), []);
 
   useEffect(() => {
     if (session?.mustChange && session.role !== "SUPER_ADMIN" && pathname !== "/security") {
@@ -45,59 +48,15 @@ export function SellerShell({ children }: { children: ReactNode }) {
     <RoleGate allow={["SELLER"]}>
       <SellerPushBridge />
       <div className="flex min-h-screen bg-background">
-        {/* Mobile WebView shell: the desktop sidebar is hidden below lg, so expose the same
-            navigation in a touch-friendly drawer. */}
-        {mobileNav ? (
-          <div className="fixed inset-0 z-40 lg:hidden">
-            <button
-              type="button"
-              aria-label="Close menu"
-              className="absolute inset-0 bg-black/30"
-              onClick={() => setMobileNav(false)}
-            />
-            <div className="absolute inset-y-0 left-0 flex w-72 max-w-[85%] flex-col bg-card shadow-xl">
-              <div className="flex h-14 items-center gap-2 border-b border-border px-3">
-                <FaazioWordmark className="brand-wordmark text-primary" />
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="ml-auto"
-                  aria-label="Close menu"
-                  onClick={() => setMobileNav(false)}
-                >
-                  <X className="size-4" />
-                </Button>
-              </div>
-              <nav className="flex-1 overflow-y-auto p-2">
-                {SELLER_NAV.map((item) => {
-                  const active =
-                    pathname === item.to ||
-                    (item.to !== "/seller" && pathname.startsWith(`${item.to}/`));
-                  return (
-                    <Link
-                      key={item.to}
-                      href={item.to}
-                      className={cn(
-                        "mb-0.5 flex items-center gap-2 rounded-md px-2 py-2 text-[13px] transition-colors",
-                        active
-                          ? cn("font-semibold shadow-sm", TONE_SOFT[groupTone(item.group)])
-                          : "text-muted-foreground hover:bg-secondary hover:text-foreground",
-                      )}
-                    >
-                      <item.icon
-                        className={cn(
-                          "size-4 shrink-0",
-                          active ? "" : TONE_TEXT[groupTone(item.group)],
-                        )}
-                      />
-                      <span className="truncate">{item.label}</span>
-                    </Link>
-                  );
-                })}
-              </nav>
-            </div>
-          </div>
-        ) : null}
+        {/* The desktop sidebar is hidden below lg, so expose the same navigation in a
+            touch-friendly drawer shared with the admin consoles. */}
+        <MobileNavDrawer
+          open={mobileNav}
+          onClose={closeMobileNav}
+          nav={SELLER_NAV}
+          pathname={pathname}
+          scopeLabel="Seller console"
+        />
         <aside
           className={cn(
             "sticky top-0 hidden h-screen shrink-0 border-r border-border bg-card lg:flex lg:flex-col",
@@ -119,45 +78,43 @@ export function SellerShell({ children }: { children: ReactNode }) {
             {groups.map((group) => {
               const hue = groupTone(group);
               return (
-              <div key={group} className="mb-3">
-                {!collapsed ? (
-                  <p
-                    className={cn(
-                      "flex items-center gap-1.5 px-2 pb-1 text-[10px] font-semibold uppercase tracking-wider",
-                      TONE_TEXT[hue],
-                    )}
-                  >
-                    <span
-                      aria-hidden
-                      className="size-1.5 rounded-full"
-                      style={{ background: TONE_VAR[hue] }}
-                    />
-                    {group}
-                  </p>
-                ) : null}
-                {SELLER_NAV.filter((i) => i.group === group).map((item) => {
-                  const active =
-                    pathname === item.to ||
-                    (item.to !== "/seller" && pathname.startsWith(`${item.to}/`));
-                  return (
-                    <Link
-                      key={item.to}
-                      href={item.to}
+                <div key={group} className="mb-3">
+                  {!collapsed ? (
+                    <p
                       className={cn(
-                        "mb-0.5 flex items-center gap-2 rounded-md px-2 py-2 text-[13px] transition-colors",
-                        active
-                          ? cn("font-semibold shadow-sm", TONE_SOFT[hue])
-                          : "text-muted-foreground hover:bg-secondary hover:text-foreground",
+                        "flex items-center gap-1.5 px-2 pb-1 text-[10px] font-semibold uppercase tracking-wider",
+                        TONE_TEXT[hue],
                       )}
                     >
-                      <item.icon
-                        className={cn("size-4 shrink-0", active ? "" : TONE_TEXT[hue])}
+                      <span
+                        aria-hidden
+                        className="size-1.5 rounded-full"
+                        style={{ background: TONE_VAR[hue] }}
                       />
-                      {!collapsed ? <span className="truncate">{item.label}</span> : null}
-                    </Link>
-                  );
-                })}
-              </div>
+                      {group}
+                    </p>
+                  ) : null}
+                  {SELLER_NAV.filter((i) => i.group === group).map((item) => {
+                    const active = normalizeNavPath(item.to) === current;
+                    return (
+                      <Link
+                        key={item.to}
+                        href={item.to}
+                        className={cn(
+                          "mb-0.5 flex items-center gap-2 rounded-md px-2 py-2 text-[13px] transition-colors",
+                          active
+                            ? cn("font-semibold shadow-sm", TONE_SOFT[hue])
+                            : "text-muted-foreground hover:bg-secondary hover:text-foreground",
+                        )}
+                      >
+                        <item.icon
+                          className={cn("size-4 shrink-0", active ? "" : TONE_TEXT[hue])}
+                        />
+                        {!collapsed ? <span className="truncate">{item.label}</span> : null}
+                      </Link>
+                    );
+                  })}
+                </div>
               );
             })}
           </nav>
@@ -182,6 +139,8 @@ export function SellerShell({ children }: { children: ReactNode }) {
               size="icon"
               className="lg:hidden"
               aria-label="Open menu"
+              aria-controls="mobile-nav-drawer"
+              aria-expanded={mobileNav}
               onClick={() => setMobileNav(true)}
             >
               <Menu className="size-4" />

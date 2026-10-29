@@ -39,10 +39,33 @@ export interface NavItem {
   to: string;
   icon: LucideIcon;
   group: string;
+  /** Match only this exact path (used by each console's root dashboard). */
+  exact?: boolean;
+}
+
+export function normalizeNavPath(value: string) {
+  return value.replace(/\/+$/, "") || "/";
+}
+
+/**
+ * Longest matching nav prefix wins, so a base route (e.g. `/admin/district`)
+ * is not marked active on a child page (`/admin/district/sellers`).
+ */
+export function activeNavHref(pathname: string, nav: NavItem[]) {
+  const current = normalizeNavPath(pathname);
+  let best = "";
+  for (const item of nav) {
+    const href = normalizeNavPath(item.to);
+    const matches = current === href || (!item.exact && current.startsWith(`${href}/`));
+    if (matches && href.length > best.length) {
+      best = href;
+    }
+  }
+  return best;
 }
 
 export const SELLER_NAV: NavItem[] = [
-  { label: "Dashboard", to: "/seller", icon: Gauge, group: "Overview" },
+  { label: "Dashboard", to: "/seller", icon: Gauge, group: "Overview", exact: true },
   { label: "Products", to: "/seller/products", icon: Package, group: "Catalog" },
   { label: "Pricing", to: "/seller/pricing", icon: Tags, group: "Catalog" },
   { label: "Inventory", to: "/seller/inventory", icon: Boxes, group: "Catalog" },
@@ -61,7 +84,7 @@ export const SELLER_NAV: NavItem[] = [
 ];
 
 export const DISTRICT_ADMIN_NAV: NavItem[] = [
-  { label: "Dashboard", to: "/admin/district", icon: Gauge, group: "Overview" },
+  { label: "Dashboard", to: "/admin/district", icon: Gauge, group: "Overview", exact: true },
   { label: "Sellers", to: "/admin/district/sellers", icon: Users, group: "Supply" },
   { label: "Customers", to: "/admin/district/customers", icon: Users, group: "Supply" },
   { label: "Delivery partners", to: "/admin/district/delivery-boys", icon: Truck, group: "Supply" },
@@ -82,7 +105,7 @@ export const DISTRICT_ADMIN_NAV: NavItem[] = [
 ];
 
 export const SUPER_ADMIN_NAV: NavItem[] = [
-  { label: "Command center", to: "/admin/super", icon: Gauge, group: "Overview" },
+  { label: "Command center", to: "/admin/super", icon: Gauge, group: "Overview", exact: true },
   { label: "District admins", to: "/admin/super/district-admins", icon: UserCog, group: "Governance" },
   { label: "Credentials", to: "/admin/super/credentials", icon: KeyRound, group: "Governance" },
   { label: "App config", to: "/admin/super/app-config", icon: SlidersHorizontal, group: "Governance" },
