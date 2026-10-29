@@ -25,7 +25,6 @@ import {
   ShieldCheck,
 } from 'lucide-react-native';
 import AppText from '@/components/AppText';
-import InfoButton from '@/components/shared/InfoButton';
 import { hs, vs, ms } from '@/utils/responsive';
 import { SPACE } from '@/theme/spacing';
 import { useAccountNav } from '@/features/profile/useAccountNav';
@@ -153,10 +152,7 @@ export function AccountView({
           </TouchableOpacity>
         ) : null}
         <View style={styles.headerText}>
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: hs(8) }}>
-            <AppText style={styles.headerTitle}>My Account</AppText>
-            <InfoButton contentKey="Account" />
-          </View>
+          <AppText style={styles.headerTitle}>My Account</AppText>
         </View>
       </View>
 

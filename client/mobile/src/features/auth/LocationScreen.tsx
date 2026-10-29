@@ -23,7 +23,6 @@ import Svg, {
 import locationAccessPageImg from '@/assets/location_access_page.webp';
 import AppTextInput from '@/components/AppTextInput';
 import AppText from '@/components/AppText';
-import InfoButton from '@/components/shared/InfoButton';
 import {
   resolvePlaceLocation,
   usePlaceAutocomplete,
@@ -358,15 +357,11 @@ export function LocationScreen({ navigation }: Props) {
         <Animated.View style={[styles.requestContainer, { opacity: fadeAnim }]}>
 
           <View style={styles.topTextContent}>
-            <View style={styles.titleRow}>
-              <View style={styles.titleSpacer} />
-              <View style={styles.titleWrapper}>
-                <AppText style={styles.titleText}>
-                  What is{' '}
-                  <AppText style={styles.titleTextAccent}>your</AppText> location?
-                </AppText>
-              </View>
-              <InfoButton contentKey="Location" />
+            <View style={styles.titleWrapper}>
+              <AppText style={styles.titleText}>
+                What is{' '}
+                <AppText style={styles.titleTextAccent}>your</AppText> location?
+              </AppText>
             </View>
           </View>
 
@@ -636,8 +631,6 @@ const styles = StyleSheet.create({
     position: 'relative',
   },
   topTextContent: { alignItems: 'center', zIndex: 10 },
-  titleRow: { flexDirection: 'row', alignItems: 'center', gap: hs(8) },
-  titleSpacer: { width: ms(30) },
   titleWrapper: { alignItems: 'center' },
   titleText: {
     fontWeight: '900',

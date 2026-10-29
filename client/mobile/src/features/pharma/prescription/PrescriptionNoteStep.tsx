@@ -3,7 +3,6 @@ import { View, TouchableOpacity, StyleSheet, ScrollView, Image } from 'react-nat
 import { ChevronLeft, FileText } from 'lucide-react-native';
 import AppText from '@/components/AppText';
 import AppTextInput from '@/components/AppTextInput';
-import InfoButton from '@/components/shared/InfoButton';
 import { hs, ms, vs } from '@/utils/responsive';
 import { PHARMA_TEAL, PHARMA_INK } from '../mocks/pharmaHomeFeed';
 
@@ -32,7 +31,7 @@ const PrescriptionNoteStep = memo(function PrescriptionNoteStep({
           <ChevronLeft size={ms(20)} color={PHARMA_INK} strokeWidth={2.6} />
         </TouchableOpacity>
         <AppText style={styles.topTitle}>Add a Note</AppText>
-        <InfoButton contentKey="PrescriptionFlow" />
+        <View style={{ width: ms(32) }} />
       </View>
 
       <ScrollView

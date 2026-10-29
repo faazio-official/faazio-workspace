@@ -22,7 +22,6 @@ import { hs, vs, ms } from '@/utils/responsive';
 import { SPACE } from '@/theme/spacing';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import AppText from '@/components/AppText';
-import InfoButton from '@/components/shared/InfoButton';
 import {
   filterChips,
   favCategories,
@@ -91,10 +90,7 @@ export default function FavouritesView({ onBack }: FavouritesViewProps) {
         >
           <ArrowLeft size={ms(20)} color="#1E2022" strokeWidth={2.4} />
         </TouchableOpacity>
-        <View style={{ flexDirection: 'row', alignItems: 'center', gap: hs(8) }}>
-          <AppText style={styles.topBarTitle}>Favourites</AppText>
-          <InfoButton contentKey="Favourites" />
-        </View>
+        <AppText style={styles.topBarTitle}>Favourites</AppText>
         <TouchableOpacity
           onPress={() => {
             setCleared(true);

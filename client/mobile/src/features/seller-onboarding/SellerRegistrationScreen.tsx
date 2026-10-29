@@ -21,7 +21,6 @@ import {
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import AppText from '@/components/AppText';
 import AppTextInput from '@/components/AppTextInput';
-import InfoButton from '@/components/shared/InfoButton';
 import { hs, vs, ms } from '@/utils/responsive';
 import { SPACE } from '@/theme/spacing';
 import { SELLER_SETUP_FIELDS } from '@data/index';
@@ -306,7 +305,7 @@ export function SellerRegistrationScreen({ navigation }: Props) {
           <ChevronLeft size={ms(26)} color="#0f172a" strokeWidth={2.2} />
         </TouchableOpacity>
         <AppText style={styles.headerTitle}>Sell with us</AppText>
-        <InfoButton contentKey="SellWithUs" />
+        <View style={{ width: ms(40) }} />
       </View>
 
       <ScrollView

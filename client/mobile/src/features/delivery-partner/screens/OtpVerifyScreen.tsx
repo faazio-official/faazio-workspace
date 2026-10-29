@@ -2,7 +2,6 @@ import React, { useCallback, useState } from 'react';
 import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import AppText from '@/components/AppText';
-import InfoButton from '@/components/shared/InfoButton';
 import { Card, DP, ErrorText, Field, PrimaryButton, Screen } from '../components';
 import { sendOtp, verifyOtp } from '@/services/firebaseAuth';
 import { gateway, GatewayHttpError } from '@/services/api/GatewayClient';
@@ -71,10 +70,7 @@ export function OtpVerifyScreen({ navigation, route }: Props) {
     <Screen>
       <KeyboardAvoidingView style={styles.flex} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
         <ScrollView contentContainerStyle={styles.body} keyboardShouldPersistTaps="handled">
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: hs(8) }}>
-            <AppText style={styles.title}>Verify your number</AppText>
-            <InfoButton contentKey="OtpVerify" />
-          </View>
+          <AppText style={styles.title}>Verify your number</AppText>
           <AppText style={styles.subtitle}>Enter the 6-digit code sent to +91 {phone}.</AppText>
           <Card style={styles.card}>
             <Field

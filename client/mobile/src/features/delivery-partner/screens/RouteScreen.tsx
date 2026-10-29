@@ -4,7 +4,6 @@ import MapView, { Marker, Polyline } from 'react-native-maps';
 import { useFocusEffect } from '@react-navigation/native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import AppText from '@/components/AppText';
-import InfoButton from '@/components/shared/InfoButton';
 import {
   gateway,
   type DeliveryOrder,
@@ -195,10 +194,7 @@ export function RouteScreen({ navigation }: Props) {
         <TouchableOpacity onPress={() => navigation.goBack()} style={styles.back}>
           <AppText style={styles.backText}>← Dashboard</AppText>
         </TouchableOpacity>
-        <View style={{ flexDirection: 'row', alignItems: 'center', gap: hs(8) }}>
-          <AppText style={styles.title}>Route</AppText>
-          <InfoButton contentKey="Route" />
-        </View>
+        <AppText style={styles.title}>Route</AppText>
         {stops.length > 0 ? (
           <AppText style={styles.subtitle}>
             {stops.length} stops · {acceptedCount} {acceptedCount === 1 ? 'order' : 'orders'} ·{' '}

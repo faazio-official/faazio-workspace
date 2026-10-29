@@ -13,7 +13,6 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { AppImage } from '@/components/shared/AppImage';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import AppText from '@/components/AppText';
-import InfoButton from '@/components/shared/InfoButton';
 import { hs, ms, vs } from '@/utils/responsive';
 import { SPACE } from '@/theme/spacing';
 import { getStoreById, type StoreRecord } from '@data/directory/stores';
@@ -158,7 +157,6 @@ export function VendorDetailScreen({ navigation, route }: Props) {
             </TouchableOpacity>
           )}
         </View>
-        <InfoButton contentKey="VendorDetails" />
       </View>
 
       <FlatList

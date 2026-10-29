@@ -12,26 +12,6 @@ dependencies exist. Do not build the backend/seller flows until told to.
 
 ---
 
-## W75 — App-wide "i" guidance system (page-level shipped; component-level opt-in)
-
-**Status:** 🟢 Page-level shipped · 🟡 component-level opt-in partially wired.
-
-- **Shipped:** `src/lib/pageInfo.ts` registry (`PAGE_INFO` + `COMPONENT_INFO` + `resolveInfo`) and
-  `src/lib/usePageInfo.ts`; shared `InfoButton` + `InfoSheet` (`src/components/shared/`). Page-level
-  "i" buttons are wired into every customer route header, the shared `SubAppHeader`/`SearchHeader`/
-  `FoodHeader` (via `infoKey`), all 8 Delivery Partner screens, and the Seller WebView shell (floating
-  native button — the portal owns its own UI and cannot be injected into).
-- **Wired (opt-in `infoKey` prop, no caller enables it yet):** `ProductCardBase`, `StoreCardBase`,
-  `SearchProductRowCard`, delivery `Field`/`Card`.
-- **Deferred:** `infoKey` opt-in for the remaining shared components (`AppTextInput`, `SortDropdown`,
-  `FilterChipsRail`/`FilterSortBar`, `HeaderCategoryRail`, `FloatingCartBar`, `StarRatingInput`,
-  `VendorRateButton`, `Checkbox`, `SlideUpSheet`, delivery `PrimaryButton`/`StatusPill`) and enabling
-  component badges on the screens that want them.
-
-**Date:** 2026-10-29
-
----
-
 ## W74 — Central remote config (the "Central Digital Menu", P0)
 
 **Status:** 🟢 Shipped (gateway + migration `0059` + mobile + web portal).

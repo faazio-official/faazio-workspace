@@ -11,7 +11,6 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ChevronLeft, ChevronRight, Store } from 'lucide-react-native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import AppText from '@/components/AppText';
-import InfoButton from '@/components/shared/InfoButton';
 import { hs, ms, vs } from '@/utils/responsive';
 import { SPACE } from '@/theme/spacing';
 import { gateway, type SellerApplication } from '@/services/api/GatewayClient';
@@ -92,7 +91,7 @@ export function SellerRequestsScreen({ navigation }: Props) {
           <ChevronLeft size={ms(26)} color="#0f172a" strokeWidth={2.2} />
         </TouchableOpacity>
         <AppText style={styles.headerTitle}>Seller requests</AppText>
-        <InfoButton contentKey="SellerRequests" />
+        <View style={styles.headerSpacer} />
       </View>
 
       <View style={styles.filterRow}>

@@ -25,7 +25,6 @@ import {
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import AppText from '@/components/AppText';
 import AppTextInput from '@/components/AppTextInput';
-import InfoButton from '@/components/shared/InfoButton';
 import { hs, vs, ms } from '@/utils/responsive';
 import { SPACE } from '@/theme/spacing';
 import { savedAddresses } from '@data/index';
@@ -383,13 +382,10 @@ export function SavedAddressesScreen({ navigation }: Props) {
               <AppText style={styles.headerSubtitle}>Manage your saved addresses</AppText>
             </View>
           </View>
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: hs(8) }}>
-            <TouchableOpacity onPress={openAdd} style={styles.addNewBtn} activeOpacity={0.7}>
-              <Plus size={ms(14)} color="#16A34A" strokeWidth={2.6} />
-              <AppText style={styles.addNewText}>Add New</AppText>
-            </TouchableOpacity>
-            <InfoButton contentKey="SavedAddresses" />
-          </View>
+          <TouchableOpacity onPress={openAdd} style={styles.addNewBtn} activeOpacity={0.7}>
+            <Plus size={ms(14)} color="#16A34A" strokeWidth={2.6} />
+            <AppText style={styles.addNewText}>Add New</AppText>
+          </TouchableOpacity>
         </View>
 
         {/* Section title */}

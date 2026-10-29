@@ -14,7 +14,6 @@ import welcomeIllustration3 from '../../assets/welcome_illustration_3.webp';
 import welcomeIllustration4 from '../../assets/welcome_illustration_4.webp';
 import welcomeIllustration5 from '../../assets/welcome_illustration_5.webp';
 import AppText from '@/components/AppText';
-import InfoButton from '@/components/shared/InfoButton';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'Onboarding'>;
 
@@ -154,12 +153,9 @@ export function OnboardingScreen({ navigation }: Props) {
         <View style={styles.headerLeft}>
           <FaazioLogo size={LOGO_HEIGHT} variant="welcome" />
         </View>
-        <View style={styles.headerRight}>
-          <InfoButton contentKey="Onboarding" />
-          <TouchableOpacity onPress={handleSkip} style={styles.skipButton} activeOpacity={0.8}>
-            <AppText style={styles.skipText}>Skip</AppText>
-          </TouchableOpacity>
-        </View>
+        <TouchableOpacity onPress={handleSkip} style={styles.skipButton} activeOpacity={0.8}>
+          <AppText style={styles.skipText}>Skip</AppText>
+        </TouchableOpacity>
       </View>
 
       {/* Main Content Area */}
@@ -266,11 +262,6 @@ const styles = StyleSheet.create({
     minHeight: vs(54),
   },
   headerLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: hs(8),
-  },
-  headerRight: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: hs(8),

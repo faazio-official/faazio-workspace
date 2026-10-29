@@ -2,7 +2,6 @@ import React, { useCallback, useMemo, useState } from 'react';
 import { ActivityIndicator, ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import AppText from '@/components/AppText';
-import InfoButton from '@/components/shared/InfoButton';
 import { Card, DP, ErrorText, Field, PrimaryButton, Screen } from '../components';
 import DocumentCapture from '@/features/seller-onboarding/DocumentCapture';
 import {
@@ -168,10 +167,7 @@ export function RegistrationFormScreen({ navigation }: Props) {
     <Screen>
       <ScrollView contentContainerStyle={styles.body} keyboardShouldPersistTaps="handled">
         <AppText style={styles.kicker}>Step 2 of 2</AppText>
-        <View style={{ flexDirection: 'row', alignItems: 'center', gap: hs(8) }}>
-          <AppText style={styles.title}>Your application</AppText>
-          <InfoButton contentKey="Register" />
-        </View>
+        <AppText style={styles.title}>Your application</AppText>
         <AppText style={styles.subtitle}>
           Documents are captured live (gallery uploads are blocked) and stored in a private bucket.
         </AppText>

@@ -23,7 +23,6 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import phoneAuthBackgroundImg from '@/assets/phone_auth_background.webp';
 import AppTextInput from '@/components/AppTextInput';
 import AppText from '@/components/AppText';
-import InfoButton from '@/components/shared/InfoButton';
 import { useAuthStore } from '@/state/authStore';
 import { decodeIdToken } from '@/lib/tokenClaims';
 import {
@@ -399,15 +398,6 @@ export function LoginScreen({ navigation }: Props) {
             <ChevronLeft size={ms(20)} color="#1e293b" strokeWidth={2.5} />
           </ScalePressable>
 
-          <View
-            style={[
-              styles.headerInfoBtn,
-              { top: Platform.OS === 'ios' ? vs(44) : insets.top + vs(8) },
-            ]}
-          >
-            <InfoButton contentKey="Login" />
-          </View>
-
           <View style={styles.topImageContainer}>
             <Pressable style={{ flex: 1 }} onPress={() => Keyboard.dismiss()}>
               <Image
@@ -668,11 +658,6 @@ const styles = StyleSheet.create({
     elevation: 4,
     borderWidth: 1,
     borderColor: 'rgba(241, 245, 249, 0.1)',
-  },
-  headerInfoBtn: {
-    position: 'absolute',
-    right: hs(16),
-    zIndex: 40,
   },
   topImageContainer: { width: '100%', backgroundColor: '#ffffff', zIndex: 1, height: hp(20) + DOME_RADIUS },
   topImage: { width: '100%', height: '100%' },

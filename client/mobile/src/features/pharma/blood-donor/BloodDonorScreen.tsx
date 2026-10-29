@@ -4,7 +4,6 @@ import { ChevronLeft, ShieldCheck, Droplet } from 'lucide-react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import AppText from '@/components/AppText';
-import InfoButton from '@/components/shared/InfoButton';
 import { hs, vs, ms } from '@/utils/responsive';
 import { SPACE } from '@/theme/spacing';
 import { BLOOD_DONOR_STEPS, PRIVACY_NOTE, ASK_BLOOD_COPY } from '@data/index';
@@ -119,10 +118,7 @@ export function BloodDonorScreen({ navigation }: Props) {
         >
           <ChevronLeft size={ms(26)} color={BLOOD_TEXT} strokeWidth={2.2} />
         </TouchableOpacity>
-        <View style={{ flexDirection: 'row', alignItems: 'center', gap: hs(8) }}>
-          <AppText style={styles.headerTitle}>Blood Donor Registration</AppText>
-          <InfoButton contentKey="BloodDonor" />
-        </View>
+        <AppText style={styles.headerTitle}>Blood Donor Registration</AppText>
       </View>
 
       <ScrollView

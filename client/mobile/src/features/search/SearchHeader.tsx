@@ -3,7 +3,6 @@ import { View, TouchableOpacity, StyleSheet, type TextInput } from 'react-native
 import { ChevronLeft, Search, X } from 'lucide-react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import AppTextInput from '@/components/AppTextInput';
-import InfoButton from '@/components/shared/InfoButton';
 import { hs, ms, vs } from '@/utils/responsive';
 import { SPACE } from '@/theme/spacing';
 
@@ -18,8 +17,6 @@ interface SearchHeaderProps {
   onSubmit?: () => void;
   /** Brand accent used for the focused-pill border tint. */
   accentColor?: string;
-  /** Registry key for the header "i" guidance button. */
-  infoKey?: string;
 }
 
 /**
@@ -36,7 +33,6 @@ const SearchHeader = memo(function SearchHeader({
   inputRef,
   onSubmit,
   accentColor = '#2563EB',
-  infoKey,
 }: SearchHeaderProps) {
   const insets = useSafeAreaInsets();
   const hasText = value.length > 0;
@@ -81,8 +77,6 @@ const SearchHeader = memo(function SearchHeader({
           <X size={ms(16)} color={hasText ? '#111827' : '#D1D5DB'} strokeWidth={2.4} />
         </TouchableOpacity>
       </View>
-
-      {infoKey ? <InfoButton contentKey={infoKey} /> : null}
     </View>
   );
 });
