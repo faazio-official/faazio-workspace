@@ -18,6 +18,7 @@ import { SPACE } from '@/theme/spacing';
 import { deleteAccountEverywhere } from '@/services/accountDeletion';
 import { firebaseAuthConfigured } from '@/services/firebaseAuth';
 import { useAuthStore } from '@/state/authStore';
+import { openTrustedUrl } from '@/lib/externalLinks';
 import { ACCOUNT_DELETION_MAILTO, PRIVACY_URL } from '@/lib/site';
 import type { RootStackParamList } from '@/navigation/types';
 
@@ -65,7 +66,7 @@ export function DeleteAccountScreen({ navigation }: Props) {
     void Linking.openURL(ACCOUNT_DELETION_MAILTO);
   }, []);
   const handleOpenPrivacy = useCallback(() => {
-    void Linking.openURL(PRIVACY_URL);
+    void openTrustedUrl(PRIVACY_URL);
   }, []);
 
   const runDelete = useCallback(async () => {

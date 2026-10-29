@@ -24,6 +24,8 @@ import phoneAuthBackgroundImg from '@/assets/phone_auth_background.webp';
 import AppTextInput from '@/components/AppTextInput';
 import AppText from '@/components/AppText';
 import { useAuthStore } from '@/state/authStore';
+import { openTrustedUrl } from '@/lib/externalLinks';
+import { PRIVACY_URL, TERMS_URL } from '@/lib/site';
 import { decodeIdToken } from '@/lib/tokenClaims';
 import {
   displayName,
@@ -118,6 +120,12 @@ function RotatingSpinner({ size = 14, borderWidth = 2, color = '#212121' }) {
 export function LoginScreen({ navigation }: Props) {
   const login = useAuthStore((s) => s.login);
   const insets = useSafeAreaInsets();
+  const handleOpenTerms = useCallback(() => {
+    void openTrustedUrl(TERMS_URL);
+  }, []);
+  const handleOpenPrivacy = useCallback(() => {
+    void openTrustedUrl(PRIVACY_URL);
+  }, []);
   const [phone, setPhone] = useState('');
   const [otpState, setOtpState] = useState(false);
   const [otpCode, setOtpCode] = useState('');
@@ -451,8 +459,13 @@ export function LoginScreen({ navigation }: Props) {
 
                 <AppText style={styles.termsText}>
                   By clicking, I accept the{' '}
-                  <AppText style={styles.termsLink}>Terms & Conditions</AppText> and{' '}
-                  <AppText style={styles.termsLink}>Privacy Policy</AppText>
+                  <AppText style={styles.termsLink} onPress={handleOpenTerms} accessibilityRole="link">
+                    Terms & Conditions
+                  </AppText>{' '}
+                  and{' '}
+                  <AppText style={styles.termsLink} onPress={handleOpenPrivacy} accessibilityRole="link">
+                    Privacy Policy
+                  </AppText>
                 </AppText>
 
                 <View style={styles.loaderContainer}>
