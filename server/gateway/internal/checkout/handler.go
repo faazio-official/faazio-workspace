@@ -75,7 +75,7 @@ var accountNavCatalog = []NavGroup{
 	{Key: "payments", Title: "Payments and credits"},
 	{Key: "privacy", Title: "Privacy and security"},
 	{Key: "earn", Title: "Earn with us"},
-	{Key: "legal", Title: "Terms and policies", ComingSoon: true},
+	{Key: "legal", Title: "Terms and policies"},
 	{Key: "support", Title: "Help & Support"},
 }
 

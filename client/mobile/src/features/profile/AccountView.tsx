@@ -18,7 +18,12 @@ import {
   Heart,
   Clock,
   Coins,
+  Cookie,
+  FileText,
   Flame,
+  Info,
+  Lock,
+  Receipt,
   Store,
   Percent,
   Trash2,
@@ -32,6 +37,8 @@ import type { AccountNavGroup, AccountNavRow } from '@data/types';
 import { useRewardsStore } from '@/state/rewardsStore';
 import { STREAK_TARGET_DAYS } from '@data/rewards/rewards';
 import { isPartnerAdmin, useAuthStore } from '@/state/authStore';
+import { openTrustedUrl } from '@/lib/externalLinks';
+import { COOKIES_URL, DISCLAIMER_URL, PRIVACY_URL, REFUNDS_URL, TERMS_URL } from '@/lib/site';
 
 const NAV_ICONS: Record<string, React.ComponentType<any>> = {
   idcard: IdCard,
@@ -44,6 +51,20 @@ const NAV_ICONS: Record<string, React.ComponentType<any>> = {
   store: Store,
   trash: Trash2,
   shield: ShieldCheck,
+  'file-text': FileText,
+  lock: Lock,
+  receipt: Receipt,
+  cookie: Cookie,
+  info: Info,
+};
+
+/** Legal rows open the published pages in the system browser (restricted to faazio.com). */
+const LEGAL_LINKS: Record<string, string> = {
+  terms: TERMS_URL,
+  privacy: PRIVACY_URL,
+  refunds: REFUNDS_URL,
+  cookies: COOKIES_URL,
+  disclaimer: DISCLAIMER_URL,
 };
 
 const BRAND_BLUE = '#1162D3';
@@ -121,6 +142,11 @@ export function AccountView({
       }
       if (row.key === 'request-data-deletion' && onOpenRequestDataDeletion) {
         onOpenRequestDataDeletion();
+        return;
+      }
+      const legalUrl = LEGAL_LINKS[row.key];
+      if (legalUrl) {
+        void openTrustedUrl(legalUrl);
         return;
       }
       // TODO: Destination screens per row — stubs for now.
