@@ -29,7 +29,7 @@ See `ARCHITECTURE.md` (root) for the full mobile + backend design. Data ownershi
 - **"web app" / "the web app"** (as said in chat) = the **web platform** = `client/web/` — the Next.js Partner Portal (`client/web/platform/`, shipping) and, when stated, the marketing landing page (`client/web/landingpage/`). It does **not** mean the mobile app.
 - **"app" / "mobile app"** = the bare React Native SuperApp under `client/mobile/`.
 - When a request says "the web app", scope work to `client/web/` unless the user explicitly says mobile.
-- **"run the migration" / "run migrations"** (as said in chat) = apply the SQL to the Supabase database **from the developer terminal**, using the git-ignored credentials in `server/gateway/.env` (`DATABASE_URL`) via `server/supabase/apply-migration.sh` (uses local `psql` when present, else a throwaway `postgres:16` Docker container). Render never applies migrations (distroless image). Treat it as an actionable request — run the script; do not reply that it "cannot be run". See `docs/RUNBOOKS/DATABASE_MIGRATIONS.md`.
+- **"run the migration" / "run migrations"** (as said in chat) = apply the SQL to the Supabase database **from the developer terminal**, using the git-ignored credentials in `server/gateway/.env` (`DATABASE_URL`) via `server/supabase/apply-migration.sh`. The script runs the Go migrator `server/gateway/cmd/migrate` (pgx; **no `psql`, no Docker**) and applies statement-by-statement. Render never applies migrations (distroless image). Treat it as an actionable request — run the script; do not reply that it "cannot be run". See `docs/RUNBOOKS/DATABASE_MIGRATIONS.md`.
 
 ## Documentation map
 Structured docs live under root `docs/` (mirrors the repo layout):

@@ -2,16 +2,14 @@
 #
 # apply-migration.sh — apply Supabase SQL from a developer terminal.
 #
-# Credentials come from the git-ignored server/gateway/.env (DATABASE_URL). Render never applies
+# Credentials come from the git-ignored server/gateway/.env (DATABASE_URL). The SQL is applied by
+# the Go migrator `server/gateway/cmd/migrate` (pgx, no psql, no Docker). Render never applies
 # migrations (distroless image); see docs/RUNBOOKS/DATABASE_MIGRATIONS.md.
 #
 # Usage:
 #   server/supabase/apply-migration.sh <file.sql> [more.sql ...]   # apply explicit files, in order
 #   server/supabase/apply-migration.sh --from 0046 [--seed]        # apply migrations >= 0046
 #   server/supabase/apply-migration.sh --all [--seed]              # fresh DB: all migrations (+seed)
-#
-# Uses local `psql` when available, otherwise a throwaway `postgres:16` Docker container (the
-# connection string is passed by env, never on the host command line).
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -19,9 +17,10 @@ ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 MIGRATIONS_DIR="$SCRIPT_DIR/migrations"
 SEED_FILE="$SCRIPT_DIR/seed/0001_seed.sql"
 ENV_FILE="$ROOT/server/gateway/.env"
+GATEWAY_DIR="$ROOT/server/gateway"
 
 usage() {
-  sed -n '2,14p' "${BASH_SOURCE[0]}" | sed -E 's/^# ?//'
+  sed -n '2,12p' "${BASH_SOURCE[0]}" | sed -E 's/^# ?//'
 }
 
 if [[ "${1:-}" == "-h" || "${1:-}" == "--help" ]]; then
@@ -33,39 +32,6 @@ if [[ ! -f "$ENV_FILE" ]]; then
   echo "error: $ENV_FILE not found (needed for DATABASE_URL)" >&2
   exit 1
 fi
-
-# Read just DATABASE_URL (avoids sourcing unrelated values / JSON secrets).
-DATABASE_URL="$(grep -E '^DATABASE_URL=' "$ENV_FILE" | tail -n 1 | cut -d= -f2- | sed -E "s/^[\"'](.*)[\"']$/\1/")"
-if [[ -z "${DATABASE_URL:-}" ]]; then
-  echo "error: DATABASE_URL is not set in $ENV_FILE" >&2
-  exit 1
-fi
-export DATABASE_URL
-
-if command -v psql >/dev/null 2>&1; then
-  RUNNER="psql"
-elif command -v docker >/dev/null 2>&1; then
-  RUNNER="docker"
-else
-  echo "error: neither 'psql' nor 'docker' is available to apply SQL" >&2
-  echo "       install postgresql-client (psql) or Docker, then retry" >&2
-  exit 1
-fi
-
-apply_file() {
-  local file="$1"
-  [[ -f "$file" ]] || {
-    echo "error: no such file: $file" >&2
-    exit 1
-  }
-  echo "→ applying ${file#"$ROOT"/}"
-  if [[ "$RUNNER" == "psql" ]]; then
-    psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f "$file"
-  else
-    docker run --rm -i --env DATABASE_URL postgres:16 \
-      sh -c 'psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f -' <"$file"
-  fi
-}
 
 FILES=()
 DO_ALL=0
@@ -110,7 +76,8 @@ if [[ $DO_SEED -eq 1 ]]; then
 fi
 
 for f in "${FILES[@]}"; do
-  apply_file "$f"
+  [[ -f "$f" ]] || { echo "error: no such file: $f" >&2; exit 1; }
 done
 
-echo "✓ applied ${#FILES[@]} file(s)"
+echo "→ applying ${#FILES[@]} file(s) via server/gateway/cmd/migrate"
+(cd "$GATEWAY_DIR" && go run ./cmd/migrate -env "$ENV_FILE" "${FILES[@]}")

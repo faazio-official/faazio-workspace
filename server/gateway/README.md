@@ -117,5 +117,6 @@ node ../supabase/seed/generate.mjs
 
 Migrations + seed: `../supabase/migrations/*.sql`, `../supabase/seed/0001_seed.sql`,
 `../supabase/seed/mongo/seed.js`. Apply them from the repo root with
-`server/supabase/apply-migration.sh` (reads `DATABASE_URL` from this directory's `.env`); see
+`server/supabase/apply-migration.sh`, which runs the Go migrator `cmd/migrate` (pgx; no
+`psql`/Docker) using `DATABASE_URL` from this directory's `.env`; see
 `docs/RUNBOOKS/DATABASE_MIGRATIONS.md`.

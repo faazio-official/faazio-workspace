@@ -13,9 +13,9 @@ Render talks to). Recommended order on a release: **apply migrations → deploy/
 the new code never runs against an un-migrated schema.
 
 > **"Run the migration" in chat means run `server/supabase/apply-migration.sh`** from a dev terminal.
-> It reads `DATABASE_URL` from `server/gateway/.env`, uses local `psql` when present (otherwise a
-> throwaway `postgres:16` Docker container), aborts on the first error, and never prints the
-> connection string. Treat it as an actionable request.
+> It reads `DATABASE_URL` from `server/gateway/.env` and applies the SQL through the Go migrator
+> `server/gateway/cmd/migrate` (pgx — **no `psql`, no Docker**). It aborts on the first error and
+> never prints the connection string. Treat it as an actionable request.
 
 ## 0. Where migrations live + ordering
 
@@ -23,12 +23,16 @@ the new code never runs against an un-migrated schema.
 - Run strictly in numeric order. SQL outside a transaction (e.g. `create index` / `grant`) is already
   `if not exists`-guarded where needed, but re-applying an already-applied migration is still not
   guaranteed safe — **apply only the pending ones** against production.
-- A migration may fail part-way; the script passes `ON_ERROR_STOP=1` so `psql` aborts and you can see
-  exactly where. Fix forward (a small follow-up migration) rather than editing an applied file.
+- The Go migrator splits each file into statements and applies them one at a time over the simple
+  query protocol (autocommit) — matching `psql` — so `CREATE INDEX CONCURRENTLY` (used in `0004` /
+  `0038`) still works. Files that carry their own `BEGIN`/`COMMIT` (the seed) batch as intended.
+- A migration may fail part-way; the migrator stops on the first failing statement and prints it.
+  Fix forward (a small follow-up migration) rather than editing an applied file.
 
-## 1. Apply with the script (preferred)
+## 1. Apply with the Go migrator (preferred)
 
-`server/supabase/apply-migration.sh` sources the git-ignored `server/gateway/.env` — run it from the
+`server/supabase/apply-migration.sh` reads `DATABASE_URL` from the git-ignored
+`server/gateway/.env` and runs `server/gateway/cmd/migrate` (pgx; no `psql`/Docker) — run it from the
 **repo root**:
 
 ```bash
