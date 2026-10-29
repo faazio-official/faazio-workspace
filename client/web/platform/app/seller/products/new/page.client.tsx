@@ -22,6 +22,7 @@ import { useSeller, useStores, useTaxCategories } from "@/lib/api/hooks";
 import { useSession } from "@/lib/hooks/useSession";
 import { cn } from "@/lib/utils";
 import { ImageUploader } from "@/components/patterns/ImageUploader";
+import { ComponentHelp } from "@/components/patterns/ComponentHelp";
 
 const STEPS = ["Category", "Details", "Pricing", "Inventory", "Review"];
 
@@ -153,11 +154,18 @@ function NewProduct() {
         ))}
       </ol>
 
-      <SectionCard title={STEPS[step]} description={`Step ${step + 1} of ${STEPS.length}`}>
+      <SectionCard
+        title={STEPS[step]}
+        description={`Step ${step + 1} of ${STEPS.length}`}
+        actions={<ComponentHelp id="step-rail" label="About the listing steps" />}
+      >
         {step === 0 ? (
           <div className="grid gap-4 md:grid-cols-2">
             <div className="space-y-1.5">
-              <Label>Sector</Label>
+              <div className="flex items-center gap-1.5">
+                <Label>Sector</Label>
+                <ComponentHelp id="sector-field" label="About the sector field" />
+              </div>
               <div className="rounded-md border border-border bg-muted/40 px-3 py-2 text-[13px] font-medium">
                 {sector}
               </div>
@@ -166,7 +174,10 @@ function NewProduct() {
               </p>
             </div>
             <div className="space-y-1.5">
-              <Label>Store</Label>
+              <div className="flex items-center gap-1.5">
+                <Label>Store</Label>
+                <ComponentHelp id="store-select" label="About the store field" />
+              </div>
               <Select value={storeId} onValueChange={setStoreId}>
                 <SelectTrigger>
                   <SelectValue placeholder="Pick the store that stocks this listing" />
@@ -185,7 +196,10 @@ function NewProduct() {
               </p>
             </div>
             <div className="space-y-1.5">
-              <Label>Category</Label>
+              <div className="flex items-center gap-1.5">
+                <Label>Category</Label>
+                <ComponentHelp id="category-select" label="About the category field" />
+              </div>
               <Select value={category} onValueChange={setCategory}>
                 <SelectTrigger>
                   <SelectValue placeholder="Pick an approved category" />
@@ -208,11 +222,17 @@ function NewProduct() {
         {step === 1 ? (
           <div className="grid gap-4 md:grid-cols-2">
             <div className="space-y-1.5 md:col-span-2">
-              <Label htmlFor="name">Product name</Label>
+              <div className="flex items-center gap-1.5">
+                <Label htmlFor="name">Product name</Label>
+                <ComponentHelp id="name-input" label="About the product name" />
+              </div>
               <Input id="name" value={name} onChange={(e) => setName(e.target.value)} />
             </div>
             <div className="space-y-1.5 md:col-span-2">
-              <Label htmlFor="desc">Description</Label>
+              <div className="flex items-center gap-1.5">
+                <Label htmlFor="desc">Description</Label>
+                <ComponentHelp id="description-input" label="About the description" />
+              </div>
               <Textarea
                 id="desc"
                 rows={3}
@@ -233,11 +253,17 @@ function NewProduct() {
               ) : null}
             </div>
             <div className="flex items-center justify-between rounded-lg border border-border px-3 py-2">
-              <Label htmlFor="veg">Vegetarian</Label>
+              <div className="flex items-center gap-1.5">
+                <Label htmlFor="veg">Vegetarian</Label>
+                <ComponentHelp id="veg-switch" label="About the vegetarian flag" />
+              </div>
               <Switch id="veg" checked={isVeg} onCheckedChange={setIsVeg} />
             </div>
             <div className="flex items-center justify-between rounded-lg border border-border px-3 py-2">
-              <Label htmlFor="rx">Prescription required</Label>
+              <div className="flex items-center gap-1.5">
+                <Label htmlFor="rx">Prescription required</Label>
+                <ComponentHelp id="rx-switch" label="About the prescription flag" />
+              </div>
               <Switch id="rx" checked={isPrescription} onCheckedChange={setIsPrescription} />
             </div>
           </div>
@@ -246,7 +272,10 @@ function NewProduct() {
         {step === 2 ? (
           <div className="grid gap-4 md:grid-cols-2">
             <div className="space-y-1.5">
-              <Label htmlFor="price">Selling price (₹)</Label>
+              <div className="flex items-center gap-1.5">
+                <Label htmlFor="price">Selling price (₹)</Label>
+                <ComponentHelp id="price-input" label="About the selling price" />
+              </div>
               <Input
                 id="price"
                 value={price}
@@ -258,7 +287,10 @@ function NewProduct() {
               </p>
             </div>
             <div className="space-y-1.5">
-              <Label>GST rate</Label>
+              <div className="flex items-center gap-1.5">
+                <Label>GST rate</Label>
+                <ComponentHelp id="gst-field" label="About the GST rate" />
+              </div>
               <div className="num rounded-md border border-border px-3 py-2 text-[13px]">
                 {taxRatePct}%
               </div>
@@ -269,7 +301,10 @@ function NewProduct() {
         {step === 3 ? (
           <div className="grid gap-4 md:grid-cols-2">
             <div className="space-y-1.5">
-              <Label htmlFor="qty">Stock quantity</Label>
+              <div className="flex items-center gap-1.5">
+                <Label htmlFor="qty">Stock quantity</Label>
+                <ComponentHelp id="stock-input" label="About stock quantity" />
+              </div>
               <Input id="qty" value={quantity} onChange={(e) => setQuantity(e.target.value)} inputMode="numeric" />
             </div>
           </div>
@@ -314,13 +349,16 @@ function NewProduct() {
               Continue
             </Button>
           ) : (
-            <Button
-              size="sm"
-              disabled={!stepValid[0] || pricePaisa <= 0 || submitting}
-              onClick={() => void submit()}
-            >
-              {submitting ? "Submitting…" : "Submit for review"}
-            </Button>
+            <div className="flex items-center gap-1.5">
+              <Button
+                size="sm"
+                disabled={!stepValid[0] || pricePaisa <= 0 || submitting}
+                onClick={() => void submit()}
+              >
+                {submitting ? "Submitting..." : "Submit for review"}
+              </Button>
+              <ComponentHelp id="submit-button" label="About submitting for review" />
+            </div>
           )}
         </div>
       </SectionCard>

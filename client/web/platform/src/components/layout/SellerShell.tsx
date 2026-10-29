@@ -22,6 +22,7 @@ import { signOut } from "@/lib/api";
 import { RoleGate } from "@/components/layout/RoleGate";
 import { FaazioWordmark } from "@/components/brand/FaazioWordmark";
 import { SellerPushBridge } from "@/components/layout/SellerPushBridge";
+import { ComponentHelp } from "@/components/patterns/ComponentHelp";
 
 export function SellerShell({ children }: { children: ReactNode }) {
   const [collapsed, setCollapsed] = useState(false);
@@ -65,11 +66,14 @@ export function SellerShell({ children }: { children: ReactNode }) {
         >
           <div className="flex h-14 items-center gap-2 border-b border-border px-3">
             {!collapsed ? (
-              <div className="min-w-0">
-                <FaazioWordmark className="brand-wordmark text-primary" />
-                <p className="truncate text-[11px] text-muted-foreground">
-                  {session?.name ?? "Partner"}
-                </p>
+              <div className="flex min-w-0 flex-1 items-center justify-between gap-2">
+                <div className="min-w-0">
+                  <FaazioWordmark className="brand-wordmark text-primary" />
+                  <p className="truncate text-[11px] text-muted-foreground">
+                    {session?.name ?? "Partner"}
+                  </p>
+                </div>
+                <ComponentHelp helpKey="shell:seller-nav" label="About seller navigation" />
               </div>
             ) : null}
           </div>
@@ -148,11 +152,18 @@ export function SellerShell({ children }: { children: ReactNode }) {
             <div className="relative w-full max-w-sm">
               <Search className="pointer-events-none absolute left-2.5 top-2.5 size-4 text-muted-foreground" />
               <Input placeholder="Search products, orders" className="h-9 pl-8 text-[13px]" />
+              <ComponentHelp
+                helpKey="shell:seller-search"
+                className="absolute right-2 top-2"
+                label="About seller search"
+              />
             </div>
             <div className="ml-auto flex items-center gap-1">
               <Button variant="ghost" size="icon" aria-label="Notifications">
                 <Bell className="size-4" />
               </Button>
+              <ComponentHelp helpKey="shell:seller-bell" label="About seller notifications" />
+              <ComponentHelp helpKey="shell:seller-user" label="About your account menu" />
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <Button variant="ghost" size="sm" className="gap-2">

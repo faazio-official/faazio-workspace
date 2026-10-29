@@ -132,6 +132,39 @@ metadata + `src/styles.css`) plus `app/providers.tsx`
 (QueryClientProvider + TooltipProvider + Toaster). `notFoundComponent` /
 `errorComponent` become `app/not-found.tsx` / `app/error.tsx`.
 
+## Help system (contextual "i" guidance)
+
+Every page and every wired control carries a small "i" button that explains, in plain English, what
+it does, which workflow it belongs to, what changes when the user acts, and **which Faazio app the
+change reaches** (`Faazio app`, `Faazio Seller app`, `Faazio Delivery app`, `Partner Portal`).
+
+All copy lives in `client/web/platform/src/lib/help/hints.ts` in four layers:
+
+- `PAGE_HINTS` — one per route (dynamic segments collapsed to `:id`), carrying `what`, `how`,
+  `whyCreated`, `boundedWorkflow`, `changesMade` and `app[]`. Rendered by `PageHeader` through
+  `routeHint(pathname)` (every route with a `PageHeader` has an entry).
+- `SECTION_HINTS` — keyed by `SectionCard` title.
+- `METRIC_HINTS` — keyed by `KpiCard` label.
+- `COMPONENT_HINTS` — keyed by a **global id** (`shell:seller-search`, `pattern:image-uploader`) for
+  chrome/patterns that repeat on every page, or a **page-scoped** `<pagePath>:<componentId>` built
+  with `scopedKey(pathname, id)`. A role-specific variant is stored as `<key>@<ROLE>` and wins over
+  the generic entry for that role.
+
+`src/components/patterns/ComponentHelp.tsx` is the wrapper: it resolves the key (accepts `id` for a
+page-scoped lookup or `helpKey` for a global one), filters by the session role (`useSession()`), and
+renders **nothing** when no copy exists — so it is always safe to drop beside any control.
+`ComponentHelpBody` / `PageHelpBody` render the structured tooltip plus the app-tag chips.
+
+To add help for a control: add an entry to `COMPONENT_HINTS` (or a `<key>@<ROLE>` variant) and place
+`<ComponentHelp id="my-control" />` next to it; use a global `helpKey` for chrome that appears on
+every page.
+
+**Coverage.** Page-level help is on all 65 routes. Component-level help is currently wired for the
+shared shells (seller + admin nav, search, notifications, scope badge, account menu), the
+`ImageUploader`, the seller create-listing flow, seller orders (accept/reject), the district product
+review queue and seller KYC decisions, and the delivery allocation/payout boards. Wiring the
+remaining page-specific controls is incremental — add the hint entry and the `ComponentHelp`.
+
 ## Migration decisions (the "ditto UI" fixes)
 
 1. **Images stay plain `<img>`.** Vite resolves image imports to a URL string;

@@ -5,6 +5,7 @@ import { PageHeader } from "@/components/patterns/PageHeader";
 import { SectionCard } from "@/components/patterns/SectionCard";
 import { DataShell, EmptyState } from "@/components/patterns/DataState";
 import { StatusPill } from "@/components/patterns/Pills";
+import { ComponentHelp } from "@/components/patterns/ComponentHelp";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -434,8 +435,9 @@ export function DeliveryPayoutBoard({ scope }: { scope: Scope }) {
                   Save details
                 </Button>
                 <Button onClick={() => void submit(true)} disabled={busy}>
-                  {busy ? "Saving…" : "Mark Paid"}
+                  {busy ? "Saving..." : "Mark Paid"}
                 </Button>
+                <ComponentHelp helpKey="pattern:payout-mark-paid" label="About marking a payout paid" />
               </div>
             </>
           ) : null}

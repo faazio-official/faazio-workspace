@@ -8,6 +8,7 @@ import { SectionCard } from "@/components/patterns/SectionCard";
 import { KpiStrip } from "@/components/patterns/KpiCard";
 import { EmptyState } from "@/components/patterns/DataState";
 import { SectorPill, StatusPill } from "@/components/patterns/Pills";
+import { ComponentHelp } from "@/components/patterns/ComponentHelp";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -190,7 +191,11 @@ function SellerReview() {
       />
 
       <div className="grid gap-4 lg:grid-cols-2">
-        <SectionCard title="KYC documents" description="Passbook is mandatory; FSSAI is required for food.">
+        <SectionCard
+          title="KYC documents"
+          description="Passbook is mandatory; FSSAI is required for food."
+          actions={<ComponentHelp id="doc-row" label="About KYC documents" />}
+        >
           {docs.length === 0 ? (
             <p className="text-[13px] text-muted-foreground">No documents uploaded yet.</p>
           ) : (
@@ -246,6 +251,7 @@ function SellerReview() {
           <label className="text-[12px] font-medium" htmlFor="platform-fee">
             Platform fee %
           </label>
+          <ComponentHelp id="fee-input" label="About the platform fee" />
           <Input
             id="platform-fee"
             className="num h-9 w-24"
@@ -276,16 +282,22 @@ function SellerReview() {
           placeholder="Reason for rejection or suspension"
         />
         <div className="mt-3 flex flex-wrap gap-2">
-          <Button size="sm" disabled={busy || seller.status === "ACTIVE"} onClick={() => void approve()}>
-            Verify KYC &amp; activate
-          </Button>
-          <ConfirmButton
-            label="Reject"
-            variant="outline"
-            disabled={busy || reason.trim().length < 4}
-            description="The seller can re-apply with corrected documents."
-            onConfirm={() => void reject()}
-          />
+          <div className="flex items-center gap-1.5">
+            <Button size="sm" disabled={busy || seller.status === "ACTIVE"} onClick={() => void approve()}>
+              Verify KYC &amp; activate
+            </Button>
+            <ComponentHelp id="verify-kyc-button" label="About verifying KYC" />
+          </div>
+          <div className="flex items-center gap-1.5">
+            <ConfirmButton
+              label="Reject"
+              variant="outline"
+              disabled={busy || reason.trim().length < 4}
+              description="The seller can re-apply with corrected documents."
+              onConfirm={() => void reject()}
+            />
+            <ComponentHelp id="reject-button" label="About rejecting a seller" />
+          </div>
           <ConfirmButton
             label="Suspend"
             variant="destructive"

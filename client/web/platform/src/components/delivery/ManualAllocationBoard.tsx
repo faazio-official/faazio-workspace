@@ -5,6 +5,7 @@ import { PageHeader } from "@/components/patterns/PageHeader";
 import { SectionCard } from "@/components/patterns/SectionCard";
 import { DataShell, EmptyState } from "@/components/patterns/DataState";
 import { StatusPill } from "@/components/patterns/Pills";
+import { ComponentHelp } from "@/components/patterns/ComponentHelp";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -370,7 +371,13 @@ export function ManualAllocationBoard({ scope }: { scope: Scope }) {
 
               <div className="space-y-2">
                 <div className="flex items-center justify-between">
-                  <p className="text-[13px] font-semibold">Available riders</p>
+                  <p className="inline-flex items-center gap-1.5 text-[13px] font-semibold">
+                    Available riders
+                    <ComponentHelp
+                      helpKey="pattern:allocation-rider-picker"
+                      label="About picking a rider"
+                    />
+                  </p>
                   <label className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
                     <input
                       type="checkbox"
@@ -433,7 +440,13 @@ export function ManualAllocationBoard({ scope }: { scope: Scope }) {
               </div>
 
               <div className="space-y-2">
-                <p className="text-[13px] font-semibold">Payout mode (required)</p>
+                <p className="inline-flex items-center gap-1.5 text-[13px] font-semibold">
+                  Payout mode (required)
+                  <ComponentHelp
+                    helpKey="pattern:allocation-payout-mode"
+                    label="About payout mode"
+                  />
+                </p>
                 <div className="grid gap-2 sm:grid-cols-2">
                   {(["AUTOMATED", "MANUAL"] as DeliveryPayoutMode[]).map((mode) => (
                     <button

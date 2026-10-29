@@ -2,6 +2,7 @@
 import type { ReactNode } from "react";
 import { usePathname } from "next/navigation";
 import { InfoHint } from "@/components/patterns/InfoHint";
+import { PageHelpBody } from "@/components/patterns/ComponentHelp";
 import { routeHint } from "@/lib/help/hints";
 import { toneFor, TONE_VAR } from "@/lib/ui/tones";
 
@@ -35,8 +36,7 @@ export function PageHeader({
             <h1 className="text-[19px] font-semibold text-foreground">{title}</h1>
             {hint ? (
               <InfoHint title={title} tone={tone} label={`How to use ${title}`}>
-                <p>{hint.what}</p>
-                <p className="mt-1.5 font-medium text-ink-foreground">Tip: {hint.how}</p>
+                <PageHelpBody hint={hint} />
               </InfoHint>
             ) : null}
           </div>

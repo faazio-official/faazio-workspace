@@ -3,6 +3,7 @@ import { useRef, useState } from "react";
 import { ImagePlus, Loader2, Star, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
+import { ComponentHelp } from "@/components/patterns/ComponentHelp";
 import { MAX_PRODUCT_IMAGES, resolveImage, uploadProductImage } from "@/lib/media/productImages";
 import { cn } from "@/lib/utils";
 
@@ -54,7 +55,10 @@ export function ImageUploader({
   return (
     <div className="space-y-2">
       <div>
-        <p className="text-[13px] font-medium">{label}</p>
+        <div className="flex items-center gap-1.5">
+          <p className="text-[13px] font-medium">{label}</p>
+          <ComponentHelp helpKey="pattern:image-uploader" label="About uploading photos" />
+        </div>
         <p className="text-[12px] text-muted-foreground">{hint}</p>
       </div>
 
