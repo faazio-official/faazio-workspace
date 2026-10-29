@@ -40,6 +40,11 @@ on:
         required: false
         type: boolean
         default: false
+      include-aab:
+        description: "Also build and attach the AAB for Play Console"
+        required: false
+        type: boolean
+        default: false
 
 permissions:
   contents: write
@@ -47,10 +52,10 @@ permissions:
 env:
   NODE_VERSION: "24"
   JAVA_VERSION: "21"
-  # ABIs to build into the GitHub-release APK. arm64-v8a + armeabi-v7a covers
-  # ~95% of devices while roughly halving native compile work and .so payload
-  # vs the 4-ABI universal build.
-  REACT_NATIVE_ARCHS: "arm64-v8a,armeabi-v7a"
+  # ABI to build into the release APK/AAB. arm64-v8a only — 64-bit devices — which
+  # roughly halves native compile work and .so payload vs a 2-ABI build. Re-add
+  # armeabi-v7a here only if 32-bit device support becomes a requirement.
+  REACT_NATIVE_ARCHS: "arm64-v8a"
 
 # Never run two release builds at once — they share the same tag/artifact names
 # and would clobber each other while burning parallel runners.
@@ -187,7 +192,7 @@ jobs:
           GOOGLE_MAPS_API_KEY_ANDROID: ${{ secrets.GOOGLE_MAPS_API_KEY_ANDROID }}
           GOOGLE_PLACES_API_KEY: ${{ secrets.GOOGLE_PLACES_API_KEY }}
 
-      - name: Build release APK + AAB
+      - name: Build release APK (and AAB when include-aab)
         run: |
           cd android
           case "${{ github.event.inputs.app }}" in
@@ -197,9 +202,14 @@ jobs:
           esac
           # R8 minify + resource shrinking ON → smaller dex + obfuscation.
           # ABI restricted to REACT_NATIVE_ARCHS → less native work + payload.
-          # The bundled AAB powers Google Play uploads (APK is for direct install
-          # / smoke testing); both are signed with the same release keystore.
-          ./gradlew "$TASK" "$BUNDLE" --no-daemon \
+          # The AAB is only built when requested (it powers Google Play uploads;
+          # the APK is for direct install / smoke testing). Both are signed with
+          # the same release keystore.
+          TASKS=( "$TASK" )
+          if [[ "${{ github.event.inputs['include-aab'] }}" == "true" ]]; then
+            TASKS+=( "$BUNDLE" )
+          fi
+          ./gradlew "${TASKS[@]}" --no-daemon \
             -PreactNativeArchitectures="$REACT_NATIVE_ARCHS" \
             -Pandroid.enableMinifyInReleaseBuilds=true \
             -Pandroid.enableShrinkResourcesInReleaseBuilds=true
@@ -214,6 +224,7 @@ jobs:
           if-no-files-found: error
 
       - name: Upload AAB artifact
+        if: ${{ github.event.inputs['include-aab'] == 'true' }}
         uses: actions/upload-artifact@v4
         with:
           name: faazio-${{ github.event.inputs.app }}-${{ github.event.inputs.version || 'release' }}-aab
@@ -262,10 +273,11 @@ jobs:
             $PRERELEASE \
             || true
 
-          # Attach (replace) the APK + AAB on the release.
-          gh release upload "$TAG" \
-            "android/app/build/outputs/apk/${APP}/release/"*.apk \
-            "android/app/build/outputs/bundle/${APP}Release/"*.aab \
-            --clobber
+          # Attach (replace) the APK on the release (plus the AAB when requested).
+          FILES=( "android/app/build/outputs/apk/${APP}/release/"*.apk )
+          if [[ "${{ github.event.inputs['include-aab'] }}" == "true" ]]; then
+            FILES+=( "android/app/build/outputs/bundle/${APP}Release/"*.aab )
+          fi
+          gh release upload "$TAG" "${FILES[@]}" --clobber
 
           echo "::notice::Published ${APP_NAME} ${VERSION} to release ${TAG}"

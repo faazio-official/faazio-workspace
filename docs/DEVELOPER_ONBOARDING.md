@@ -48,7 +48,8 @@ adb reverse tcp:8081 tcp:8081                 # then: npm run start   (Metro, lo
 ### Speed tip: single-ABI debug builds
 
 The CI debug workflow defaults to `arm64-v8a`; pass `-f archs=arm64-v8a,armeabi-v7a` if you need
-more. Release CI builds use `arm64-v8a,armeabi-v7a` (see `docs/RUNBOOKS/RELEASE.md`).
+more. Release CI builds are **arm64-only** (`arm64-v8a`); pass `-f include-aab=true` to also
+produce the Play-bound AAB (see `docs/RUNBOOKS/RELEASE.md`).
 
 ## 4. Verify every change
 

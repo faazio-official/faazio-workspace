@@ -2730,7 +2730,7 @@ This item routes each module through it, one at a time, keeping the built-in fix
   (`-Xmx6144m`, `workers.max=4`, `parallel=true`, `caching=true`). `GRADLE_USER_HOME` takes
   precedence over the generated `android/gradle.properties`, so it lifts the laptop memory caps only
   on the runner; the repo's `gradle.properties` stays laptop-capped by design (systemd-oomd).
-- **2-ABI build:** `REACT_NATIVE_ARCHS=arm64-v8a,armeabi-v7a` passed as
+- **arm64-only build:** `REACT_NATIVE_ARCHS=arm64-v8a` passed as
   `-PreactNativeArchitectures` — halves native (C++) work + `.so` payload vs the old 4-ABI build.
 - **R8 minify + resource shrink ON:** `-Pandroid.enableMinifyInReleaseBuilds=true` +
   `-Pandroid.enableShrinkResourcesInReleaseBuilds=true`. Smaller dex + obfuscation (security win).
@@ -2750,7 +2750,8 @@ renderer and the safe-disable audit wasn't completed.
 - **Smoke test the minified APK on a device** (Home → Cart → Checkout → Pharma) before trusting an
   R8 release — keep-rule gaps only show at runtime.
 - **Google Play App Signing** enrollment is a one-time manual step before the first AAB upload; the
-  workflow now produces the AAB + APK (`bundle<Flavor>Release` / `assemble<Flavor>Release`).
+  workflow produces the APK by default and the AAB only when dispatched with `include-aab=true`
+  (`assemble<Flavor>Release` / `bundle<Flavor>Release`).
 - **`proguard-android-optimize.txt`** (more aggressive shrinking) not adopted yet — staying on the
   default `proguard-android.txt` first until the device smoke test passes.
 - Consider disabling unused Fresco decoders once every image path is confirmed to use

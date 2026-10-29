@@ -101,7 +101,7 @@ cd android
 ./gradlew assembleCustomerDebug --no-daemon -PreactNativeArchitectures="arm64-v8a"
 # delivery: ./gradlew assembleDeliveryDebug ...
 # release:  ./gradlew assembleCustomerRelease --no-daemon \
-#   -PreactNativeArchitectures="arm64-v8a,armeabi-v7a" \
+#   -PreactNativeArchitectures="arm64-v8a" \
 #   -Pandroid.enableMinifyInReleaseBuilds=true \
 #   -Pandroid.enableShrinkResourcesInReleaseBuilds=true
 ```
