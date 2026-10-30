@@ -340,6 +340,11 @@ gateway rows.
   rupees**; the portal stores **paisa**, so the mapper multiplies by 100.
   The `admin/district/customers` page adds an on-demand **activity trail** panel per selected customer
   (`useUserTrail` → admin-only `GET /admin/user-trail?userId=`, ID-only `user_events`).
+  District-scoped pages read `districtCode` **straight from the session** (no hardcoded fallback):
+  `GET /sellers` is already scoped server-side by the caller's district claim — or by the parent
+  state for a legacy state-scoped admin — so a fabricated district (e.g. `?? "TCH"`) filtered out
+  every returned row. The `SELLERS` seed fixture mirrors the migration-seeded Tiruchirappalli seller
+  (`sel-tiruchi-01`, district `TTC`) so the local slice matches `0063`.
 - **Auth (portal-only)** — `src/lib/api/index.ts` `signIn` calls
   `src/lib/portal/auth.ts`, which talks only to same-origin `/api/auth/portal/*` route
   handlers. The tokens live in HttpOnly cookies and every data call goes through

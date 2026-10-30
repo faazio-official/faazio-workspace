@@ -72,6 +72,26 @@ export const SELLERS: SellerRecord[] = [
     rating: 3.2,
     createdAt: "2025-12-11T08:00:00.000Z",
   },
+  // Mirrors the pre-approved Tiruchirappalli seller seeded by migration 0063 (blank GSTIN/PAN/phone
+  // placeholders, corrected via the portal later). districtCode TTC = Tiruchirappalli, TN.
+  {
+    sellerId: "sel-tiruchi-01",
+    businessName: "Faazio Mart Tiruchirappalli",
+    ownerName: "Faazio Retail",
+    category: "MART",
+    gstin: "",
+    pan: "",
+    businessAddress: "Tiruchirappalli, Tamil Nadu",
+    contactPhone: "",
+    stateCode: "TN",
+    districtCode: "TTC",
+    status: "ACTIVE",
+    rating: 0,
+    createdAt: "2026-10-30T00:00:45.000Z",
+    platformFeePct: 10,
+    otpVerified: true,
+    otpVerifiedAt: "2026-10-30T00:00:45.000Z",
+  },
 ];
 
 export const KYC_DOCUMENTS: KycDocument[] = [

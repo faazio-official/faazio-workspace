@@ -28,7 +28,8 @@ const PERIODS = [7, 30, 90];
 function StateAnalytics() {
   const session = useSession();
   const stateCode = session?.stateCode ?? "TN";
-  const districtCode = session?.districtCode ?? "TCH";
+  // No hardcoded district fallback — see the sellers page; the gateway already scopes the rows.
+  const districtCode = session?.districtCode;
   const loading = useMockLoading();
   const [days, setDays] = useState(30);
   const series = stateMetrics(stateCode, days);

@@ -19,7 +19,10 @@ import { ComponentHelp } from "@/components/patterns/ComponentHelp";
 function StateDashboard() {
   const session = useSession();
   const stateCode = session?.stateCode ?? "TN";
-  const districtCode = session?.districtCode ?? "TCH";
+  // No hardcoded district fallback — the gateway scopes the rows; label the page by the caller's
+  // district when present, else by their state (a state-scoped admin) so nothing is hidden.
+  const districtCode = session?.districtCode;
+  const scopeLabel = districtCode ? districtName(districtCode) : stateCode;
   const loading = useMockLoading();
   const series = stateMetrics(stateCode, 30);
   const sellers = useSellers({ districtCode });
@@ -40,7 +43,7 @@ function StateDashboard() {
   return (
     <div className="space-y-4">
       <PageHeader
-        title={`${districtName(districtCode)} dashboard`}
+        title={`${scopeLabel} dashboard`}
         description="Everything here is scoped to your district only."
       />
 
@@ -144,7 +147,7 @@ function StateDashboard() {
             ))}
             {pendingKyc === 0 && breaches.length === 0 ? (
               <li className="rounded-lg border border-success/40 bg-success/10 px-3 py-2 text-[13px]">
-                No open alerts for {districtName(districtCode)}.
+                No open alerts for {scopeLabel}.
               </li>
             ) : null}
           </ul>
