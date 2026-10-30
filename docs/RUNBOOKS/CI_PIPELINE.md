@@ -35,7 +35,7 @@ you (gh CLI) ──► GitHub Actions
                     ├─ Tune Gradle for CI runner         ← ~/.gradle overrides laptop caps
                     ├─ npm ci                        (postinstall: patch-package + configure.js)
                     ├─ Set version (manual override)      [release only]
-                    ├─ restore-keystore.sh           ← decode keystore from secrets  [release only]
+                    ├─ restore-keystore.sh <app>     ← decode that product's keystore  [release only]
                     ├─ npm run ts:check + check:boundaries   ← both must pass
                     ├─ npm run configure             ← JS config + cert pins + Maps/Places keys
                     ├─ ./gradlew assemble<Customer|Delivery|Seller><Release|Debug> --no-daemon \
@@ -67,10 +67,12 @@ you (gh CLI) ──► GitHub Actions
 
 - **`android/` + `ios/` are committed** (bare RN) and are the source of truth. CI builds them
   directly — there is no prebuild/regeneration step.
-- **Signing is not committed.** The keystore lives only as GitHub secrets.
-  `scripts/restore-keystore.sh` decodes `KEYSTORE_BASE64` → `keystore/faazio-release.keystore`
-  and writes `keystore/keystore.properties` from `KEYSTORE_PASS`/`KEY_ALIAS`/`ALIAS_PASS`.
-  `android/app/build.gradle` reads that file directly; a release build fails fast if it is missing.
+- **Signing is not committed.** Each product has its own keystore, stored only as GitHub secrets.
+  `scripts/restore-keystore.sh <app>` decodes `KEYSTORE_BASE64_<APP>` → that app's store file and
+  writes `keystore/keystore[-app].properties` from `KEYSTORE_PASS_<APP>`/`KEY_ALIAS_<APP>`/
+  `ALIAS_PASS_<APP>`. `android/app/build.gradle` reads the matching file per flavor; a release build
+  fails fast if it is missing. CI also runs `apksigner verify` and fails if the APK is unsigned or
+  not signed with a `CN=Faazio…` cert.
 
 ## 🔐 Secrets (set once, never committed)
 
@@ -78,12 +80,13 @@ Set on the repo with `gh secret set`:
 
 | Secret | Value |
 |---|---|
-| `KEYSTORE_BASE64` | `openssl base64 -A -in client/mobile/keystore/faazio-release.keystore` (single line, portable) |
-| `KEYSTORE_PASS` | value from `keystore/keystore.properties` |
-| `KEY_ALIAS` | value from `keystore/keystore.properties` |
-| `ALIAS_PASS` | value from `keystore/keystore.properties` |
+| `KEYSTORE_BASE64_<APP>` | `openssl base64 -A -in client/mobile/keystore/<app store file>` (single line, portable) |
+| `KEYSTORE_PASS_<APP>` | value from that app's `keystore[-app].properties` |
+| `KEY_ALIAS_<APP>` | value from that app's properties (`faazio` / `faazio-delivery` / `faazio-seller`) |
+| `ALIAS_PASS_<APP>` | value from that app's properties |
 
-`STORE_FILE` is optional (defaults to `faazio-release.keystore`).
+`<APP>` = `CUSTOMER` / `DELIVERY` / `SELLER` (set all three; each release reads only its own).
+`STORE_FILE_<APP>` is optional (defaults per app).
 
 ## 🚀 Trigger a release
 
@@ -180,15 +183,17 @@ adb install -r app-customer-release.apk   # flavor-named: app-delivery-release.a
 
 - `npm ci` fails on `patch-package` → a stale patch references a removed package. Remove the
   orphan `patches/<pkg>.patch` (e.g. the old `react-native-skia` one).
-- `restore-keystore.sh` fails → `KEYSTORE_BASE64`/`KEYSTORE_PASS`/`KEY_ALIAS`/`ALIAS_PASS` secrets
-  are missing or wrong (`gh secret list`).
+- `restore-keystore.sh` fails → the `_<APP>` `KEYSTORE_BASE64`/`KEYSTORE_PASS`/`KEY_ALIAS`/`ALIAS_PASS`
+  secrets are missing or wrong (`gh secret list`).
 - **`Typecheck` fails with "Seller builds require WEB_PORTAL_URL"** → `configure.js` runs in the
   Typecheck step too, and a seller build needs a portal origin. Both workflows pass `WEB_PORTAL_URL`
   (falling back to `https://app.faazio.com`) plus `GATEWAY_URL` in that step; if you renamed the
   secret/variable, update the Typecheck step as well as the config step.
-- "keystore/keystore.properties not found" → run `scripts/restore-keystore.sh` (release) or create
-  the gitignored file locally.
-- "Store file not found" → `STORE_FILE`/keystore path mismatch in `keystore.properties`.
+- "missing release keystore properties for: …" → run `scripts/restore-keystore.sh <app>` (release) or
+  create the gitignored `keystore/keystore[-app].properties` locally.
+- "Store file not found" → `STORE_FILE`/keystore path mismatch in that app's `keystore[-app].properties`.
+- "release APK is not signed / not signed with a Faazio cert" → the per-app signing config was not
+  applied; check the variant hook in `android/app/build.gradle` and the `KEY_ALIAS_<APP>` secret.
 - **R8/minify build fails** (native `R8: ...` errors, or the APK crashes at runtime) → check the
   generated `android/app/proguard-rules.pro` and add keep rules; then the smoke-test gate in
   `RELEASE.md` is the runtime check. Minified stack traces must be retraced with `mapping.txt`

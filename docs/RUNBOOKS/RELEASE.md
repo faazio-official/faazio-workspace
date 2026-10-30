@@ -8,60 +8,65 @@
 ## 🔑 Signing credentials
 
 - Debug builds use the generated debug keystore (automatic).
-- **Release builds are signed with the release keystore in CI** via
-  `.github/workflows/release-apk.yml`. The committed `android/` project reads
-  `keystore/keystore.properties`; the workflow runs `scripts/restore-keystore.sh` (decodes the
-  keystore + writes `keystore.properties` from GitHub secrets) before `./gradlew assemble<App>Release`.
-  A release build without that file fails fast with a clear Gradle error.
-- The keystore file lives at `client/mobile/keystore/faazio-release.keystore` (gitignored).
-  **Back it up securely — losing it means you can never update the app on the store.**
+- **Each product has its own release keystore.** The CI workflow
+  (`.github/workflows/release-apk.yml`) runs `scripts/restore-keystore.sh <app>`, which decodes the
+  matching `KEYSTORE_BASE64_<APP>` secret and writes that product's properties file before
+  `./gradlew assemble<App>Release`. A release build without that product's file fails fast.
+  - customer → `keystore/keystore.properties` / `faazio-release.keystore` (alias `faazio`)
+  - delivery → `keystore/keystore-delivery.properties` / `faazio-delivery-release.keystore` (alias `faazio-delivery`)
+  - seller → `keystore/keystore-seller.properties` / `faazio-seller-release.keystore` (alias `faazio-seller`)
+- The keystore files live at `client/mobile/keystore/` (gitignored).
+  **Back all three up securely — losing one means you can never update that app on the store.**
 - **Release signing must use the release keystore, not the debug keystore.** A debug-signed
-  build (`CN=Android Debug`) differs from the release cert (`CN=Faazio`); a user who installed
+  build (`CN=Android Debug`) differs from the release cert (`CN=Faazio…`); a user who installed
   one can no longer update — Android reports a signature conflict as
-  **"App not installed as package appears to be invalid."** `android/app/build.gradle` wires the
-  `release` buildType to the release keystore and never falls back to the debug key.
+  **"App not installed as package appears to be invalid."** `android/app/build.gradle` assigns each
+  product flavor its own release signing config and never falls back to the debug key. CI also runs
+  `apksigner verify` and fails if the APK is not signed with a `CN=Faazio…` certificate.
 - **Signature schemes:** release APKs are signed with **v2 (APK Signature Scheme) only** (plus v3),
   which is correct for `minSdkVersion 24` (Android 7.0+). v1 (JAR) signing is intentionally omitted
   by both AGP and `apksigner` when minSdk ≥ 24 and is not required for install on Android 7.0+.
 
 ### Register the release cert (Firebase + Google Play + Maps keys)
 
-The release keystore's fingerprints are public (not secrets) and **must be whitelisted before a
-signed build can verify phone OTP or render restricted Maps keys**. They are **identical for all
-three apps** (one keystore signs customer, delivery, seller):
+Each product has its own signing cert, so the fingerprints are **different per app**. They are
+public (embedded in every signed APK) but must be whitelisted before a signed build can verify
+phone OTP or render restricted Maps keys:
 
-| Signing cert (`CN=Faazio`, alias `faazio`) | SHA-1 | SHA-256 |
-|---|---|---|
-| All three applicationIds | `7E:B1:2E:78:55:21:89:FF:6B:37:1A:FE:2F:F0:84:DE:58:42:A8:45` | `23:8A:02:B2:0F:64:E6:EB:8A:33:17:39:75:A9:AE:C7:DD:66:CC:72:83:E1:0B:3B:EF:F4:70:01:4E:E4:09:9D` |
+| App (applicationId) | Keystore / alias | SHA-1 | SHA-256 |
+|---|---|---|---|
+| customer (`com.faazio.customer`) | `faazio-release.keystore` / `faazio` | `7E:B1:2E:78:55:21:89:FF:6B:37:1A:FE:2F:F0:84:DE:58:42:A8:45` | `23:8A:02:B2:0F:64:E6:EB:8A:33:17:39:75:A9:AE:C7:DD:66:CC:72:83:E1:0B:3B:EF:F4:70:01:4E:E4:09:9D` |
+| delivery (`com.faazio.deliverypartner`) | `faazio-delivery-release.keystore` / `faazio-delivery` | `6A:D2:A2:E2:C8:A0:1D:66:09:61:EF:9E:C4:E8:40:1B:8B:86:CD:93` | `E1:B6:1B:A9:86:F6:76:C4:A0:C0:D5:EF:26:E9:25:8C:78:95:7C:A9:04:7F:E9:39:96:F3:E5:C5:96:E5:5E:ED` |
+| seller (`com.faazio.sellerpartner`) | `faazio-seller-release.keystore` / `faazio-seller` | `5F:03:B7:B1:C6:B6:6D:7C:DB:86:8E:3C:A7:E5:F3:4F:B4:02:5E:20` | `B7:DA:DE:58:08:F8:EB:9D:3D:EB:F8:BC:12:E6:75:5E:46:A2:F4:E5:7A:C2:C9:56:AA:06:45:10:18:1E:B7:A6` |
 
-- **Firebase** (Project Settings → Your apps): add the **release** SHA-1/SHA-256 to every Android
-  app (`com.faazio.customer`, `com.faazio.deliverypartner`, `com.faazio.sellerpartner`). Without it
-  the release build fails phone OTP with `auth/invalid-app-credential`. See
-  `docs/RUNBOOKS/FIREBASE_AUTH.md` §4.
-- **Maps / Places API keys**: restrict the Android keys to each app's package **+ the release
-  SHA-1** (the debug key's SHA-1 is not accepted for the signed build). See TROUBLESHOOTING.md →
-  "Location / maps".
-- **Google Play Console** (Setup → App signing): the first AAB upload from this keystore registers
-  the **upload key**; confirm Play shows the SHA-256 above, or future uploads from this keystore are
-  rejected.
-- Drill the fingerprints with `keytool -list -v -keystore faazio-release.keystore -alias faazio`.
+- **Firebase** (Project Settings → Your apps): add **each app's own** release SHA-1/SHA-256 to its
+  matching Android app registration. Without it that build fails phone OTP with
+  `auth/invalid-app-credential`. See `docs/RUNBOOKS/FIREBASE_AUTH.md` §4.
+- **Maps / Places API keys**: restrict the key each app uses to that app's package **+ that app's
+  release SHA-1** (the debug SHA-1 is not accepted). The workflow currently passes one shared
+  `GOOGLE_MAPS_API_KEY_ANDROID` / `GOOGLE_PLACES_API_KEY`; create per-app keys in Google Cloud and
+  set per-app secrets if you want them independent. See TROUBLESHOOTING.md → "Location / maps".
+- **Google Play Console** (Setup → App signing): each listing's first AAB upload registers that app's
+  **upload key**; confirm Play shows the matching SHA-256 above.
+- Drill a fingerprint with `keytool -list -v -keystore <file> -alias <alias>` (store password from
+  the matching `keystore[-app].properties`).
 - Private copy (gitignored, safe to edit): `client/mobile/keystore/RELEASE_CERT_FINGERPRINTS.md`.
 
-> Never commit `keystore.properties` or the `.keystore` file. Both are gitignored.
+> Never commit any `keystore*.properties` or `.keystore` file. All are gitignored.
 > `android/` and `ios/` are committed source-of-truth shells; CI does **not** regenerate them.
 
 ### GitHub secrets (set once)
 
-The release keystore + signing properties are stored as GitHub repository secrets
-(`gh secret set <NAME>`); they are never committed:
+The per-product keystores + signing properties are stored as GitHub repository secrets
+(`gh secret set <NAME>`); they are never committed. `<APP>` = `CUSTOMER` / `DELIVERY` / `SELLER`:
 
 | Secret | Value |
 |---|---|
-| `KEYSTORE_BASE64` | `openssl base64 -A -in client/mobile/keystore/faazio-release.keystore` (single line) |
-| `KEYSTORE_PASS` | value from `keystore.properties` |
-| `KEY_ALIAS` | value from `keystore.properties` |
-| `ALIAS_PASS` | value from `keystore.properties` |
-| `STORE_FILE` | (optional) keystore file name, default `faazio-release.keystore` |
+| `KEYSTORE_BASE64_<APP>` | `openssl base64 -A -in client/mobile/keystore/<app store file>` (single line) |
+| `KEYSTORE_PASS_<APP>` | value from that app's `keystore[-app].properties` |
+| `KEY_ALIAS_<APP>` | value from that app's properties (`faazio` / `faazio-delivery` / `faazio-seller`) |
+| `ALIAS_PASS_<APP>` | value from that app's properties |
+| `STORE_FILE_<APP>` | (optional) keystore file name; defaults per app |
 | `GATEWAY_URL` | deployed gateway origin, `https://…` (release refuses `http://`); defaults to `https://api.faazio.com` (Cloudflare edge) |
 | `WEB_PORTAL_URL` | deployed web Partner Portal origin, `https://…` (required for `app=seller`; release refuses `http://`). Set as a repo variable/secret; defaults to `https://app.faazio.com` in both workflows. A seller build fails `configure.js` when it is empty |
 | `USE_GATEWAY` | `true` to embed the live gateway (defaults to `true` in the workflow) |
@@ -138,7 +143,7 @@ gh run watch
 The workflow: checkout → setup Node 24 + JDK 21 → `gradle/actions/setup-gradle` (caches
 `~/.gradle` + build cache) → **CI Gradle tuning** (overrides laptop memory caps via
 `~/.gradle/gradle.properties`) → `npm ci` → set version (derives `versionName` + `versionCode` from
-the resolved semver, using `package.json` when `-f version` is omitted) → `restore-keystore.sh` →
+the resolved semver, using `package.json` when `-f version` is omitted) → `restore-keystore.sh <app>` →
 `npm run ts:check` + `npm run check:boundaries` →
 `npm run configure` (release cert pins + JS config) → `./gradlew assemble<App>Release` with
 **ABI + R8 minify flags** (see below), plus `bundle<App>Release` when `-f include-aab=true` →
@@ -217,7 +222,7 @@ machine (systemd-oomd OOM-kills Gradle). Use `gh workflow run "Release APK"` (se
 npm run configure                       # release env: CONFIGURE_RELEASE=1, GATEWAY_URL, USE_GATEWAY,
                                         # CERT_PINS, USE_FIREBASE_AUTH, GOOGLE_MAPS_API_KEY_ANDROID,
                                         # GOOGLE_PLACES_API_KEY
-bash scripts/restore-keystore.sh
+bash scripts/restore-keystore.sh customer
 cd android && ./gradlew assembleCustomerRelease --no-daemon \
   -PreactNativeArchitectures=arm64-v8a \
   -Pandroid.enableMinifyInReleaseBuilds=true \
@@ -359,7 +364,7 @@ Run **each pending** migration (numeric order) → then roll the Render deploy. 
 - [ ] `versionCode` > the previous release (committed +1 bump, or derived from `-f version` semver — e.g. `1.0.4` → `10004`).
 - [ ] Release keystore SHA-1/SHA-256 registered in Firebase for all three Android apps and the Maps/Places keys restricted to the release SHA-1 (see "Register the release cert").
 - [ ] `CERT_PINS` set and Firebase native config committed when `USE_GATEWAY=true` (release configure fails without them).
-- [ ] GitHub secrets set: `KEYSTORE_BASE64`, `KEYSTORE_PASS`, `KEY_ALIAS`, `ALIAS_PASS` (keystore backed up).
+- [ ] Per-app GitHub secrets set: `KEYSTORE_BASE64_<APP>`, `KEYSTORE_PASS_<APP>`, `KEY_ALIAS_<APP>`, `ALIAS_PASS_<APP>` for each product being released (all keystores backed up).
 - [ ] Release APK signed with the **release cert** (`CN=Faazio`), not the debug cert.
 - [ ] `gh workflow run release-apk.yml` succeeded and the signed APK is on the GitHub Release.
 - [ ] Portal (if deploying): `0032` + `0033` applied, `PORTAL_JWT_SECRET`/`PORTAL_PEPPER` set, a superadmin hash provisioned (`PORTAL_AUTH.md`).

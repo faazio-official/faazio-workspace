@@ -41,28 +41,37 @@ Android metadata lives in the committed native project, not `app.json` (deleted)
 
 ## Step 2: Signing
 
-The release build reads `keystore/keystore.properties` (gitignored). Start from the committed
-template:
+**Each product signs with its OWN release keystore.** The build reads the matching properties file
+(gitignored):
+
+| App | Properties file | Keystore | Alias |
+|---|---|---|---|
+| customer | `keystore/keystore.properties` | `faazio-release.keystore` | `faazio` |
+| delivery | `keystore/keystore-delivery.properties` | `faazio-delivery-release.keystore` | `faazio-delivery` |
+| seller | `keystore/keystore-seller.properties` | `faazio-seller-release.keystore` | `faazio-seller` |
+
+Start from the committed template (`keystore.properties.example`) for the app you're building:
 
 ```bash
-cp keystore.properties.example keystore/keystore.properties && chmod 600 keystore/keystore.properties
+cp keystore.properties.example keystore/keystore-seller.properties && chmod 600 keystore/keystore-seller.properties
 ```
 
 ```properties
-STORE_FILE=../../keystore/faazio-release.keystore
+STORE_FILE=../../keystore/faazio-seller-release.keystore
 KEYSTORE_PASS=...
-KEY_ALIAS=...
+KEY_ALIAS=faazio-seller
 ALIAS_PASS=...
 ```
-> The key names must be `KEYSTORE_PASS` / `ALIAS_PASS` (not `STORE_PASSWORD` / `KEY_PASSWORD`) —
-> they are what `scripts/restore-keystore.sh` writes and `android/app/build.gradle` reads.
+> Key names must be `KEYSTORE_PASS` / `ALIAS_PASS` (not `STORE_PASSWORD` / `KEY_PASSWORD`) —
+> `scripts/restore-keystore.sh <app>` writes them and `android/app/build.gradle` reads them.
 
-- **CI:** `.github/workflows/release-apk.yml` restores the keystore from `KEYSTORE_BASE64` +
-  password secrets via `scripts/restore-keystore.sh`.
-- **Manual:** run the same script with those env vars present.
-- A release build fails fast if the keystore/properties are missing — it never falls back to the
-  debug key.
-- **Back up the keystore.** Losing it means you can never update the app on Play.
+- **CI:** `.github/workflows/release-apk.yml` restores the product's keystore from
+  `KEYSTORE_BASE64_<APP>` + the matching password secrets via `scripts/restore-keystore.sh <app>`,
+  then `apksigner verify`s the signed APK.
+- **Manual:** run the same script with `<app>` and those env vars present.
+- A release build fails fast if that product's keystore/properties are missing — it never falls back
+  to the debug key.
+- **Back up all three keystores.** Losing one means you can never update that app on Play.
 
 Signature schemes: release APKs are v2/v3-signed, correct for `minSdk 24`. v1 is not required.
 

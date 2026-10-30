@@ -8,13 +8,14 @@ name: Release APK
 #
 # The committed android/ project is the source of truth — no prebuild step.
 #
-# Secrets required (set once via `gh secret set`):
-#   KEYSTORE_BASE64  base64 of client/mobile/keystore/faazio-release.keystore
-#   KEYSTORE_PASS, KEY_ALIAS, ALIAS_PASS  -> keystore.properties values
-#   STORE_FILE       keystore file name (optional, default faazio-release.keystore)
+# Secrets required (set once via `gh secret set`), one set PER PRODUCT
+# (suffix _CUSTOMER / _DELIVERY / _SELLER — each app has its own release keystore):
+#   KEYSTORE_BASE64_<APP>  base64 of client/mobile/keystore/<app store file>
+#   KEYSTORE_PASS_<APP>, KEY_ALIAS_<APP>, ALIAS_PASS_<APP>  -> that app's keystore.properties
+#   STORE_FILE_<APP>       (optional) keystore file name; defaults per app
 #   CERT_PINS        comma-separated base64 SHA-256 SPKI pins (required when
 #                    GATEWAY_URL + USE_GATEWAY=true; release fails without them)
-#   USE_GATEWAY       (optional) defaults to true for the Cloudflare-fronted gateway (api.faazio.com)
+#   USE_GATEWAY      (optional) defaults to true for the Cloudflare-fronted gateway (api.faazio.com)
 on:
   workflow_dispatch:
     inputs:
@@ -141,13 +142,20 @@ jobs:
           "
 
       - name: Restore keystore + signing properties
-        run: bash scripts/restore-keystore.sh
+        run: bash scripts/restore-keystore.sh "${{ github.event.inputs.app }}"
         env:
-          KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
-          KEYSTORE_PASS: ${{ secrets.KEYSTORE_PASS }}
-          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
-          ALIAS_PASS: ${{ secrets.ALIAS_PASS }}
-          STORE_FILE: ${{ secrets.STORE_FILE }}
+          KEYSTORE_BASE64_CUSTOMER: ${{ secrets.KEYSTORE_BASE64_CUSTOMER }}
+          KEYSTORE_PASS_CUSTOMER: ${{ secrets.KEYSTORE_PASS_CUSTOMER }}
+          KEY_ALIAS_CUSTOMER: ${{ secrets.KEY_ALIAS_CUSTOMER }}
+          ALIAS_PASS_CUSTOMER: ${{ secrets.ALIAS_PASS_CUSTOMER }}
+          KEYSTORE_BASE64_DELIVERY: ${{ secrets.KEYSTORE_BASE64_DELIVERY }}
+          KEYSTORE_PASS_DELIVERY: ${{ secrets.KEYSTORE_PASS_DELIVERY }}
+          KEY_ALIAS_DELIVERY: ${{ secrets.KEY_ALIAS_DELIVERY }}
+          ALIAS_PASS_DELIVERY: ${{ secrets.ALIAS_PASS_DELIVERY }}
+          KEYSTORE_BASE64_SELLER: ${{ secrets.KEYSTORE_BASE64_SELLER }}
+          KEYSTORE_PASS_SELLER: ${{ secrets.KEYSTORE_PASS_SELLER }}
+          KEY_ALIAS_SELLER: ${{ secrets.KEY_ALIAS_SELLER }}
+          ALIAS_PASS_SELLER: ${{ secrets.ALIAS_PASS_SELLER }}
 
       - name: Delivery Firebase config
         if: ${{ github.event.inputs.app == 'delivery' }}
@@ -224,6 +232,25 @@ jobs:
             -Pandroid.enableShrinkResourcesInReleaseBuilds=true
         env:
           ENTRY_FILE: ${{ github.event.inputs.app == 'delivery' && 'index.delivery.js' || (github.event.inputs.app == 'seller' && 'index.seller.js' || 'index.js') }}
+
+      # Guard against a silently unsigned release (e.g. a signing-config regression): the
+      # APK must verify AND carry a Faazio release certificate.
+      - name: Verify release APK is signed
+        run: |
+          set -euo pipefail
+          SDK="${ANDROID_HOME:-${ANDROID_SDK_ROOT:-}}"
+          APKSIGNER="$(ls "$SDK"/build-tools/*/apksigner 2>/dev/null | sort -V | tail -1)"
+          if [ -z "$APKSIGNER" ]; then
+            echo "::error::apksigner not found under ${SDK}/build-tools"
+            exit 1
+          fi
+          APK="$(ls android/app/build/outputs/apk/${{ github.event.inputs.app }}/release/*.apk | head -1)"
+          echo "apksigner: $APKSIGNER"; echo "apk: $APK"
+          "$APKSIGNER" verify --verbose --print-certs "$APK" | tee /tmp/apksigner.txt
+          if ! grep -q "CN=Faazio" /tmp/apksigner.txt; then
+            echo "::error::release APK is not signed with a Faazio release certificate"
+            exit 1
+          fi
 
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4

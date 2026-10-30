@@ -124,10 +124,14 @@ requires the runtime notification permission.
   - [ ] Enable **Play Integrity API** in the linked GCP project.
   - [ ] App Check → Android app → Play Integrity → **Enforce** (after testing).
   - [ ] Upload the APNs **.p8 auth key** (Key ID + Team ID) for iOS.
-  - [ ] Add the **release keystore** SHA-1/SHA-256 in Firebase Project Settings → Your apps.
-    The release cert (one keystore signs all three apps, alias `faazio`):
-    SHA-1 `7E:B1:2E:78:55:21:89:FF:6B:37:1A:FE:2F:F0:84:DE:58:42:A8:45`,
-    SHA-256 `23:8A:02:B2:0F:64:E6:EB:8A:33:17:39:75:A9:AE:C7:DD:66:CC:72:83:E1:0B:3B:EF:F4:70:01:4E:E4:09:9D`.
+  - [ ] Add each app's **release** SHA-1/SHA-256 in Firebase Project Settings → Your apps. Each
+    app has its own keystore, so the fingerprints **differ per app**:
+    - `com.faazio.customer` — SHA-1 `7E:B1:2E:78:55:21:89:FF:6B:37:1A:FE:2F:F0:84:DE:58:42:A8:45`,
+      SHA-256 `23:8A:02:B2:0F:64:E6:EB:8A:33:17:39:75:A9:AE:C7:DD:66:CC:72:83:E1:0B:3B:EF:F4:70:01:4E:E4:09:9D`
+    - `com.faazio.deliverypartner` — SHA-1 `6A:D2:A2:E2:C8:A0:1D:66:09:61:EF:9E:C4:E8:40:1B:8B:86:CD:93`,
+      SHA-256 `E1:B6:1B:A9:86:F6:76:C4:A0:C0:D5:EF:26:E9:25:8C:78:95:7C:A9:04:7F:E9:39:96:F3:E5:C5:96:E5:5E:ED`
+    - `com.faazio.sellerpartner` — SHA-1 `5F:03:B7:B1:C6:B6:6D:7C:DB:86:8E:3C:A7:E5:F3:4F:B4:02:5E:20`,
+      SHA-256 `B7:DA:DE:58:08:F8:EB:9D:3D:EB:F8:BC:12:E6:75:5E:46:A2:F4:E5:7A:C2:C9:56:AA:06:45:10:18:1E:B7:A6`.
   - [ ] Xcode: Push Notifications capability + Background Modes → Remote notifications.
 
 Until Part 6 is done, SMS auto-retrieval and silent iOS verification may not work. OTP still works
