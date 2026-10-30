@@ -87,6 +87,37 @@ CI-built partner APK can render the map. An empty key is still a supported degra
 unpinned build. The Firebase files are **public client config** (not secrets) and are committed so
 CI can build; see `docs/RUNBOOKS/FIREBASE_AUTH.md`.
 
+### Back up the keystores
+
+Three keystores sign three apps; losing one blocks updates for that app. Keep a **local
+(gitignored) copy** and an **encrypted offsite copy**.
+
+Local copy (lives beside the live keys; `/keystore/` is gitignored, so it is never committed):
+
+```bash
+cd client/mobile/keystore
+mkdir -p backup && chmod 700 backup
+cp faazio-*-release.keystore keystore*.properties RELEASE_CERT_FINGERPRINTS.md backup/
+chmod 600 backup/*
+```
+
+Encrypted offsite archive — store the passphrase in a password manager/vault, then copy the `.enc`
+file to an external drive or cloud vault (never commit key material or a plaintext archive):
+
+```bash
+cd client/mobile
+tar -czf - keystore \
+  | openssl enc -aes-256-cbc -pbkdf2 -iter 200000 -out ~/faazio-keystores-$(date +%F).tar.gz.enc
+# restore:
+openssl enc -d -aes-256-cbc -pbkdf2 -iter 200000 -in ~/faazio-keystores-<date>.tar.gz.enc | tar -xzf -
+```
+
+Restore on a new machine: extract, `cp` the files into `client/mobile/keystore/`, `chmod 600` them,
+and re-set the GitHub secrets from `keystore[-app].properties` (`scripts/restore-keystore.sh <app>`
+reconstructs them in CI). A local copy alone is **not** a backup: Play can reset an *upload* key only
+while Google holds the app-signing key, and a sideloaded app can never be updated after its signing
+key is lost.
+
 ### Certificate-pin rotation
 
 Behind Cloudflare the app pins the TLS certificate chain served at `api.faazio.com` (Universal SSL —
