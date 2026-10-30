@@ -4,22 +4,56 @@ apply plugin: "com.facebook.react"
 apply plugin: "com.google.gms.google-services"
 
 /**
- * Release signing is wired directly to keystore/keystore.properties (gitignored,
- * restored in CI by scripts/restore-keystore.sh). Never hardcode secrets here.
+ * Release signing is PER PRODUCT (all gitignored, restored in CI by
+ * scripts/restore-keystore.sh <app>):
+ *   customer -> keystore/keystore.properties           (faazio-release.keystore)
+ *   delivery -> keystore/keystore-delivery.properties  (faazio-delivery-release.keystore)
+ *   seller   -> keystore/keystore-seller.properties    (faazio-seller-release.keystore)
+ * Separate keys keep the blast radius of a leaked/misused key to a single app.
+ * Never hardcode secrets here.
  */
-def keystorePropertiesFile = rootProject.file("../keystore/keystore.properties")
-def keystoreProperties = new Properties()
-def hasReleaseKeystore = keystorePropertiesFile.exists()
-if (hasReleaseKeystore) {
-    keystorePropertiesFile.withInputStream { stream -> keystoreProperties.load(stream) }
+def keystoreDir = rootProject.file("../keystore")
+def loadKeystore = { String fileName ->
+    def f = new File(keystoreDir, fileName)
+    if (!f.exists()) return null
+    def p = new Properties()
+    f.withInputStream { stream -> p.load(stream) }
+    return p
 }
+def customerKeystore = loadKeystore("keystore.properties")
+def deliveryKeystore = loadKeystore("keystore-delivery.properties")
+def sellerKeystore = loadKeystore("keystore-seller.properties")
 
-def isReleaseTask = gradle.startParameter.taskNames.any { it.toLowerCase().contains("release") }
-if (isReleaseTask && !hasReleaseKeystore) {
-    throw new GradleException(
-        "[signing] keystore/keystore.properties not found. Run scripts/restore-keystore.sh " +
-        "(or create it locally) before building a release APK."
-    )
+// Which product is being built: the flavor named in the task (CI always names it, e.g.
+// assembleSellerRelease), else APP_VARIANT. Used to pick the right release keystore.
+def resolveApp = {
+    def names = gradle.startParameter.taskNames.collect { it.toLowerCase() }
+    if (names.any { it.contains("delivery") }) return "delivery"
+    if (names.any { it.contains("seller") }) return "seller"
+    if (names.any { it.contains("customer") }) return "customer"
+    def envApp = (System.getenv("APP_VARIANT") ?: "").toLowerCase()
+    if (["customer", "delivery", "seller"].contains(envApp)) return envApp
+    return null
+}
+def releaseTask = gradle.startParameter.taskNames.find { it.toLowerCase().contains("release") }
+def releaseApp = releaseTask ? resolveApp() : null
+
+// Fail fast: a release task must name a flavor and find that product's keystore — never ship an
+// unsigned or debug-signed release.
+if (releaseTask) {
+    if (releaseApp == null) {
+        throw new GradleException(
+            "[signing] release task '${releaseTask}' must name a flavor (Customer|Delivery|Seller) " +
+            "so the right keystore is selected."
+        )
+    }
+    def keystore = releaseApp == "customer" ? customerKeystore : releaseApp == "delivery" ? deliveryKeystore : sellerKeystore
+    if (keystore == null) {
+        throw new GradleException(
+            "[signing] missing release keystore for '${releaseApp}'. Run " +
+            "scripts/restore-keystore.sh ${releaseApp} (or create keystore/keystore[-app].properties) first."
+        )
+    }
 }
 
 /**
@@ -102,13 +136,29 @@ android {
             keyAlias 'androiddebugkey'
             keyPassword 'android'
         }
-        if (hasReleaseKeystore) {
-            release {
+        if (customerKeystore) {
+            releaseCustomer {
                 // STORE_FILE is relative to android/app/ (e.g. ../../keystore/faazio-release.keystore).
-                storeFile file(keystoreProperties['STORE_FILE'] ?: '../../keystore/faazio-release.keystore')
-                storePassword keystoreProperties['KEYSTORE_PASS']
-                keyAlias keystoreProperties['KEY_ALIAS']
-                keyPassword keystoreProperties['ALIAS_PASS']
+                storeFile file(customerKeystore['STORE_FILE'] ?: '../../keystore/faazio-release.keystore')
+                storePassword customerKeystore['KEYSTORE_PASS']
+                keyAlias customerKeystore['KEY_ALIAS']
+                keyPassword customerKeystore['ALIAS_PASS']
+            }
+        }
+        if (deliveryKeystore) {
+            releaseDelivery {
+                storeFile file(deliveryKeystore['STORE_FILE'] ?: '../../keystore/faazio-delivery-release.keystore')
+                storePassword deliveryKeystore['KEYSTORE_PASS']
+                keyAlias deliveryKeystore['KEY_ALIAS']
+                keyPassword deliveryKeystore['ALIAS_PASS']
+            }
+        }
+        if (sellerKeystore) {
+            releaseSeller {
+                storeFile file(sellerKeystore['STORE_FILE'] ?: '../../keystore/faazio-seller-release.keystore')
+                storePassword sellerKeystore['KEYSTORE_PASS']
+                keyAlias sellerKeystore['KEY_ALIAS']
+                keyPassword sellerKeystore['ALIAS_PASS']
             }
         }
     }
@@ -118,8 +168,15 @@ android {
             signingConfig signingConfigs.debug
         }
         release {
-            if (hasReleaseKeystore) {
-                signingConfig signingConfigs.release
+            // Each product signs with its own keystore. Assigning it on the build type (from the
+            // flavor named in the release task) avoids any buildType-vs-flavor precedence
+            // ambiguity — a release invocation always targets exactly one flavor.
+            if (releaseApp == 'delivery') {
+                signingConfig signingConfigs.releaseDelivery
+            } else if (releaseApp == 'seller') {
+                signingConfig signingConfigs.releaseSeller
+            } else if (releaseApp == 'customer') {
+                signingConfig signingConfigs.releaseCustomer
             }
             shrinkResources enableShrinkResources
             minifyEnabled enableMinifyInReleaseBuilds

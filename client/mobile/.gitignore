@@ -20,7 +20,7 @@
 /keystore/
 *.keystore
 !android/app/debug.keystore
-keystore.properties
+keystore*.properties
 *.der
 *.p12
 *.jks
