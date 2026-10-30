@@ -40,6 +40,7 @@ import type {
   SellerDetail,
   SellerRecord,
   SellerStatus,
+  SellerOptin,
   SduiSection,
   DistrictAdmin,
   FeeChangeRequest,
@@ -359,7 +360,7 @@ export function upsertPrice(productId: string, pricePaisa: number, mrpPaisa: num
   pushWrite(
     "Price update",
     "put",
-    `/seller/products/${encodeURIComponent(productId)}`,
+    `/seller/pricing/${encodeURIComponent(productId)}`,
     { price: toRupees(pricePaisa), mrp: toRupees(mrpPaisa) },
     () => restoreProduct(before),
   );
@@ -420,17 +421,19 @@ export function listStock(sellerId?: string) {
 
 export function updateStock(productId: string, quantity: number, etaMinutes: number): void {
   const before = state().stock.find((r) => r.productId === productId);
+  // The gateway clamps ETA to 0..600 minutes; clamp here so the optimistic row matches what persists.
+  const eta = Math.max(0, Math.min(600, Math.round(etaMinutes)));
   state().set((s) => ({
     stock: s.stock.map((row) =>
-      row.productId === productId ? { ...row, quantity, etaMinutes, updatedAt: nowIso() } : row,
+      row.productId === productId ? { ...row, quantity, etaMinutes: eta, updatedAt: nowIso() } : row,
     ),
   }));
-  // inventory.stock in_stock_qty is the gateway-owned field; etaMinutes stays portal-local for now.
+  // The seller inventory endpoint writes inventory.stock (qty + ETA) in one scoped call.
   pushWrite(
     "Stock update",
     "put",
-    `/seller/products/${encodeURIComponent(productId)}`,
-    { inStockQty: quantity },
+    `/seller/inventory/${encodeURIComponent(productId)}`,
+    { inStockQty: quantity, etaMinutes: eta },
     () => {
       if (!before) return;
       state().set((s) => ({
@@ -438,7 +441,62 @@ export function updateStock(productId: string, quantity: number, etaMinutes: num
       }));
     },
   );
-  audit({ action: "STOCK_UPDATE", entity: "inventory.stock", entityId: productId, after: { quantity, etaMinutes } });
+  audit({ action: "STOCK_UPDATE", entity: "inventory.stock", entityId: productId, after: { quantity, etaMinutes: eta } });
+}
+
+/* ------------------- seller console (live gateway reads) ------------------ */
+
+/**
+ * One gateway seller-product row (`GET /seller/inventory` or `/seller/pricing`). The two endpoints
+ * share this projection; money is whole rupees on the wire.
+ */
+export interface SellerConsoleRow {
+  id: string;
+  name: string;
+  app: string;
+  category: string;
+  status: ProductStatus;
+  sellerId?: string;
+  storeId?: string;
+  price: number;
+  mrp?: number;
+  description?: string;
+  unit?: string;
+  emoji?: string;
+  imageUrl?: string;
+  imageKey?: string;
+  isVeg?: boolean;
+  isPrescription: boolean;
+  inStockQty: number;
+  available: boolean;
+  eta?: string;
+  updatedAt: string;
+}
+
+async function fetchSellerRows(path: string): Promise<SellerConsoleRow[]> {
+  if (!remoteConfigured()) return [];
+  return toCamel(await remote.get<SellerConsoleRow[]>(path));
+}
+
+/** Live seller inventory rows: stock qty/ETA plus product identity. */
+export function fetchSellerInventory(): Promise<SellerConsoleRow[]> {
+  return fetchSellerRows("/seller/inventory");
+}
+
+/** Live seller pricing rows: shelf price/MRP plus product identity. */
+export function fetchSellerPricing(): Promise<SellerConsoleRow[]> {
+  return fetchSellerRows("/seller/pricing");
+}
+
+/** Live seller promotions: festival campaigns plus the caller's own opt-ins, in one read. */
+export interface SellerPromotionsView {
+  campaigns: FestivalCampaign[];
+  optins: SellerOptin[];
+}
+
+export async function fetchSellerPromotions(): Promise<SellerPromotionsView> {
+  if (!remoteConfigured()) return { campaigns: [], optins: [] };
+  return toCamel(await remote.get<SellerPromotionsView>("/seller/promotions"));
 }
 
 /* --------------------------------- orders -------------------------------- */

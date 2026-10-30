@@ -208,9 +208,15 @@ default it to `https://app.faazio.com`.
 - Gateway: `POST /orders` enqueues a PII-free new-order notification for every active seller portal
   user owning a store (`contracts.Notifier.EnqueueSeller`); `DELETE /notifications/register`
   removes a device token on portal sign-out, and re-registering a token drops any previous owner.
-- **Follow-up:** the remaining seller console modules (products, inventory, stores, payments,
-  promotions) still render their existing seed/hydrated slices; completing that data cutover is
-  not part of the shell migration.
+- **Follow-up (server-backed cutover, in progress):** the seller console now has first-class gateway
+  surfaces — `GET`/`PUT /seller/inventory`, `GET`/`PUT /seller/pricing`, `GET /seller/promotions` +
+  `POST /seller/promotions/optin`, `GET /seller/payments` (+ `/{cycleId}`). The portal seller
+  **products + stock** slices hydrate for the `SELLER` role from `GET /seller/pricing` +
+  `GET /seller/inventory`, and stock/price writes now target `/seller/inventory/{id}` +
+  `/seller/pricing/{id}`. Promotions and payments were already hydrated. Still pending: `seller/stores`
+  read hydration (hours/veg have no gateway write path — only `live`/`cover` persist), `seller/reviews`
+  and `seller/returns` server backing, `seller/analytics`/`support`/`onboarding`, and seller release
+  prerequisites (Firebase seller app, `CERT_PINS`, Play listing) tracked in the plan.
 
 ---
 

@@ -46,6 +46,11 @@ func (h *Handler) Register(r chi.Router) {
 		g.Get("/seller/products", h.sellerProducts)
 		g.Put("/seller/products/{id}/status", h.setProductStatus)
 		g.Put("/seller/products/{id}", h.updateProduct)
+		// Inventory + pricing are first-class seller surfaces over the same catalog/stock row.
+		g.Get("/seller/inventory", h.sellerInventory)
+		g.Put("/seller/inventory/{productId}", h.setSellerInventory)
+		g.Get("/seller/pricing", h.sellerPricing)
+		g.Put("/seller/pricing/{productId}", h.setSellerPricing)
 	})
 }
 
@@ -430,6 +435,106 @@ func (h *Handler) sellerProducts(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	httpx.JSON(w, http.StatusOK, items)
+}
+
+// sellerInventory lists the caller's product stock rows (GET /seller/inventory). The projection is
+// the shared seller-product shape; inStockQty/available/eta are the inventory facts the console edits.
+func (h *Handler) sellerInventory(w http.ResponseWriter, r *http.Request) {
+	h.sellerProducts(w, r)
+}
+
+// setSellerInventory updates one listing's on-hand quantity and ETA (PUT /seller/inventory/{productId}).
+// Body: {inStockQty?, etaMinutes?}. Seller-scoped; writes catalog+inventory in one transaction.
+func (h *Handler) setSellerInventory(w http.ResponseWriter, r *http.Request) {
+	id := chi.URLParam(r, "productId")
+	var body struct {
+		InStockQty *int64 `json:"inStockQty"`
+		EtaMinutes *int64 `json:"etaMinutes"`
+	}
+	if err := httpx.Decode(r, &body); err != nil {
+		httpx.Fail(w, http.StatusBadRequest, "bad_request", "invalid body")
+		return
+	}
+	if body.InStockQty == nil && body.EtaMinutes == nil {
+		httpx.Fail(w, http.StatusBadRequest, "bad_request", "nothing to update")
+		return
+	}
+	if body.InStockQty != nil && (*body.InStockQty < 0 || *body.InStockQty > 1_000_000) {
+		httpx.Fail(w, http.StatusBadRequest, "bad_request", "invalid stock quantity")
+		return
+	}
+	var eta *string
+	if body.EtaMinutes != nil {
+		if *body.EtaMinutes < 0 || *body.EtaMinutes > 600 {
+			httpx.Fail(w, http.StatusBadRequest, "bad_request", "invalid eta")
+			return
+		}
+		v := strconv.FormatInt(*body.EtaMinutes, 10)
+		eta = &v
+	}
+	h.applyProductEdit(w, r, id, ProductEdit{InStockQty: body.InStockQty, Eta: eta}, "INVENTORY_UPDATE",
+		map[string]any{"inStockQty": body.InStockQty, "etaMinutes": body.EtaMinutes})
+}
+
+// sellerPricing lists the caller's price/MRP rows (GET /seller/pricing). Same projection as inventory;
+// price/mrp are the fields the pricing console edits.
+func (h *Handler) sellerPricing(w http.ResponseWriter, r *http.Request) {
+	h.sellerProducts(w, r)
+}
+
+// setSellerPricing updates one listing's shelf price and MRP (PUT /seller/pricing/{productId}).
+// Body: {price?, mrp?} in whole rupees. MRP may not fall below price.
+func (h *Handler) setSellerPricing(w http.ResponseWriter, r *http.Request) {
+	id := chi.URLParam(r, "productId")
+	var body struct {
+		Price *int64 `json:"price"`
+		MRP   *int64 `json:"mrp"`
+	}
+	if err := httpx.Decode(r, &body); err != nil {
+		httpx.Fail(w, http.StatusBadRequest, "bad_request", "invalid body")
+		return
+	}
+	if body.Price == nil && body.MRP == nil {
+		httpx.Fail(w, http.StatusBadRequest, "bad_request", "nothing to update")
+		return
+	}
+	if body.Price != nil && (*body.Price < 0 || *body.Price > 10_000_000) {
+		httpx.Fail(w, http.StatusBadRequest, "bad_request", "invalid price")
+		return
+	}
+	if body.MRP != nil && (*body.MRP < 0 || *body.MRP > 10_000_000) {
+		httpx.Fail(w, http.StatusBadRequest, "bad_request", "invalid mrp")
+		return
+	}
+	if body.Price != nil && body.MRP != nil && *body.MRP < *body.Price {
+		httpx.Fail(w, http.StatusBadRequest, "bad_request", "mrp must be at least the price")
+		return
+	}
+	h.applyProductEdit(w, r, id, ProductEdit{Price: body.Price, MRP: body.MRP}, "PRICE_UPDATE",
+		map[string]any{"price": body.Price, "mrp": body.MRP})
+}
+
+// applyProductEdit runs a scoped catalog/inventory edit, invalidates the product/stock/store caches
+// (plus nearby tiles) and writes an audit row. Shared by the inventory and pricing PUT endpoints.
+func (h *Handler) applyProductEdit(w http.ResponseWriter, r *http.Request, id string, edit ProductEdit, action string, after any) {
+	sellerID, district, scopeOK := managementScope(r)
+	if !scopeOK {
+		httpx.Fail(w, http.StatusForbidden, "forbidden", "no product scope on this account")
+		return
+	}
+	p, found, err := h.repo.UpdateProduct(r.Context(), id, sellerID, district, edit)
+	if err != nil {
+		httpx.Fail(w, http.StatusInternalServerError, "catalog_unavailable", "catalog unavailable")
+		return
+	}
+	if !found {
+		httpx.Fail(w, http.StatusNotFound, "not_found", "product not found")
+		return
+	}
+	h.cache.Del(r.Context(), cache.Product(id), cache.Stock(id), cache.StoreProducts(p.StoreID))
+	h.purgeNearbyProductTiles(r, p.StoreID)
+	h.log(r, action, id, after)
+	httpx.JSON(w, http.StatusOK, p)
 }
 
 func (h *Handler) setProductStatus(w http.ResponseWriter, r *http.Request) {

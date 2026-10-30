@@ -96,12 +96,12 @@ gateway never shows a raw 503 or a blank page.
 | --- | --- | --- |
 | `seller` | dashboard | all |
 | `seller/ads` | hero CampaignWizard (what→where→creative→when→review) + campaign list/KPIs — includes the `PHARMA_HERO` (Pharma home), `CATEGORY_TOP` (Pharma/mart category drill-in) and `STORE_TOP` (Pharma medical shop / mart vendor) placements | all |
-| `seller/products` | catalog list | all |
+| `seller/products` | catalog list — seller products+stock hydrate from `GET /seller/pricing` + `GET /seller/inventory` | all |
 | `seller/products/new` | create listing — sector fixed from registration, store picked from the seller's own `GET /seller/stores`, category from the **approved GST category master**, no MRP/ETA inputs, live seller "What you keep" deduction preview (platform fee, platform GST, TCS, TDS); submit persists through `POST /seller/products` (seed mode keeps the local demo path) | all |
 | `seller/products/[id]/edit` | listing editor (name/desc/photos + `upsertPrice`) — no MRP field, GST note | all |
-| `seller/inventory` | stock | all |
-| `seller/pricing` | price/MRP | all |
-| `seller/promotions` | festival opt-ins + live price | all |
+| `seller/inventory` | stock — hydrated from `GET /seller/inventory`; qty/ETA writes `PUT /seller/inventory/{productId}` | all |
+| `seller/pricing` | price/MRP — hydrated from `GET /seller/pricing`; edits `PUT /seller/pricing/{productId}` | all |
+| `seller/promotions` | festival opt-ins + live price — hydrated `GET /seller/promotions` (campaigns + own opt-ins); opt-in `POST /seller/promotions/optin` | all |
 | `seller/stores` | store profile | all |
 | `seller/menus` | dish menus (+ authoritative MRP strike) | FOOD |
 | `seller/orders` · `seller/orders/[id]` | order queue + detail (hydrated `GET /seller/orders`; NEW cards use the explicit accept/reject endpoints) | all |
@@ -249,8 +249,12 @@ Write bodies send **whole rupee** integers (the mapper divides paisa by 100). Li
 (`seller/products/new`) awaits `POST /seller/products` and adopts the server id/status before inserting
 the local row + stock, so a rejected listing never lingers. The seller listing
 editor (`seller/products/[id]/edit`) persists name/description/photos through `updateProduct` but
-routes **price/MRP through `upsertPrice`** (`PUT /seller/products/{id}`) so money edits reach
-`catalog.products` + `inventory.stock` instead of staying local-only. The Food menu editor
+routes **price/MRP through `upsertPrice`** (`PUT /seller/pricing/{id}`) so money edits reach
+`catalog.products` + `inventory.stock` instead of staying local-only; the inventory console writes
+stock/ETA through `PUT /seller/inventory/{id}`. The seller **products + stock** slices hydrate for the
+`SELLER` role from `GET /seller/pricing` (price/MRP + identity) and `GET /seller/inventory`
+(qty/ETA), so the Products, Inventory, Pricing, Ads and Analytics pages read live gateway rows
+instead of seed fixtures. The Food menu editor
 (`seller/menus`) likewise writes an optional **MRP** (list price, rupees) alongside the selling price
 through `upsertMenu` → `POST`/`PUT /seller/menus/{venueId}/{dishId}`; the gateway rejects `mrp < price`
 (400) so the authored strike is always `mrp_paisa > price_paisa` and the mobile "Recommended & Offers"
@@ -281,8 +285,8 @@ mirror the gateway `contracts` doc so a published layout round-trips without rem
 The seller **Ads** page owns the **self-serve** hero creative surface (`ads.campaigns`, `0027`/`0028`):
 a five-step `CampaignWizard` (**what → where → creative → when → review**) replaces the old
 approval-gated flow. Step 1 picks a target scoped to the seller (Products / Dishes / My Stores, read
-from the hydrated `useProducts`/`useMenus`/`useStores` slices — the full catalog is never hydrated for
-this). The target's sub-app + type drive the allowed placements
+from the hydrated `useProducts`/`useMenus`/`useStores` slices — only the seller's own
+products hydrate (`GET /seller/pricing`), never the full catalog). The target's sub-app + type drive the allowed placements
 (`src/data/ads/placements.ts` `eligiblePlacementsFor` over `PLACEMENTS_BY_APP`), so a Mart item can
 only be bought on Mart surfaces + the cross-app `HOME_HERO` (Food/Pharma get their own hosts). A Pharma
 seller targets their `sector='PHARMA'` products/stores the same way — the app is read **per selected

@@ -236,7 +236,8 @@ pipelines; a placement with no LIVE fill collapses the surface to `null` (never 
 - **Canonical cache size + catalog write purges:** each `geo:nearby:*` tile caches the max allowed
   `limit` and is sliced per request, so one key serves every caller (the first requester's `limit` never
   poisons the shared list). A product create (`POST /seller/products`), edit/status change (`internal/catalog`,
-  `PUT /seller/products/{id}` and `/{id}/status`) purges the product's store-pin `geo:nearby:products:*` tile prefixes (via
+  `PUT /seller/products/{id}`, `PUT /seller/inventory/{productId}`, `PUT /seller/pricing/{productId}`
+  and `/{id}/status`) purges the product's store-pin `geo:nearby:products:*` tile prefixes (via
   `Repo.StorePin`) so a delist/re-price lands immediately for co-located shoppers; an `order.placed`
   stock decrement also purges `product:{id}` per line item because product detail embeds stock; and
   `rateVendor` purges `directory:store:{id}` because the store card embeds rating/reviews_count.

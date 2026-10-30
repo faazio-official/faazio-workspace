@@ -145,3 +145,74 @@ func TestSellerProductManagement(t *testing.T) {
 		t.Fatalf("admin activate: ok=%v err=%v status=%q", ok, err, p.Status)
 	}
 }
+
+func TestSellerInventoryAndPricing(t *testing.T) {
+	pool := testenv.Pool(t)
+	repo := New(pool)
+	ctx := context.Background()
+
+	sellerID := "sel-inv-" + manageID("")
+	if _, err := pool.Exec(ctx, `
+		insert into sellers.sellers (seller_id, business_name, owner_name, category, state_code, district_code)
+		values ($1,'Inventory Test','O','MART','TN','TCH')`, sellerID); err != nil {
+		t.Fatalf("seed seller: %v", err)
+	}
+	t.Cleanup(func() { _, _ = pool.Exec(ctx, `delete from sellers.sellers where seller_id=$1`, sellerID) })
+
+	storeID := "store-inv-" + manageID("")
+	if _, err := pool.Exec(ctx, `
+		insert into directory.stores (id, app, name, seller_id, state_code, is_live, latitude, longitude)
+		values ($1,'MART','Inventory Store',$2,'TN',true,17.44,78.38)`, storeID, sellerID); err != nil {
+		t.Fatalf("seed store: %v", err)
+	}
+	t.Cleanup(func() {
+		_, _ = pool.Exec(ctx, `delete from inventory.stock where product_id in (
+			select id from catalog.products where store_id=$1)`, storeID)
+		_, _ = pool.Exec(ctx, `delete from catalog.products where store_id=$1`, storeID)
+		_, _ = pool.Exec(ctx, `delete from directory.stores where id=$1`, storeID)
+	})
+
+	p, ok, err := repo.CreateProduct(ctx, sellerID, "", ProductCreateInput{
+		StoreID: storeID, Name: "Tracked", Category: "Test", Price: 100, MRP: ptr(120), Unit: "1 pc",
+	})
+	if err != nil || !ok {
+		t.Fatalf("create: ok=%v err=%v", ok, err)
+	}
+
+	qty := int64(42)
+	eta := "25"
+	got, ok, err := repo.UpdateProduct(ctx, p.ID, sellerID, "", ProductEdit{InStockQty: &qty, Eta: &eta})
+	if err != nil || !ok {
+		t.Fatalf("inventory update: ok=%v err=%v", ok, err)
+	}
+	if got.InStockQty != 42 || got.Eta != "25" || !got.Available {
+		t.Fatalf("inventory projection = qty %d eta %q available %v", got.InStockQty, got.Eta, got.Available)
+	}
+
+	price, mrp := int64(90), int64(110)
+	got, ok, err = repo.UpdateProduct(ctx, p.ID, sellerID, "", ProductEdit{Price: &price, MRP: &mrp})
+	if err != nil || !ok {
+		t.Fatalf("pricing update: ok=%v err=%v", ok, err)
+	}
+	if got.Price != 90 || got.MRP == nil || *got.MRP != 110 {
+		t.Fatalf("pricing projection = price %d mrp %v", got.Price, got.MRP)
+	}
+
+	items, err := repo.SellerProducts(ctx, sellerID, "", "")
+	if err != nil {
+		t.Fatalf("SellerProducts: %v", err)
+	}
+	var found *SellerProduct
+	for i := range items {
+		if items[i].ID == p.ID {
+			found = &items[i]
+		}
+	}
+	if found == nil {
+		t.Fatalf("product %s missing from SellerProducts", p.ID)
+	}
+	if found.InStockQty != 42 || found.Eta != "25" || found.Price != 90 ||
+		found.MRP == nil || *found.MRP != 110 || found.Unit != "1 pc" {
+		t.Fatalf("enriched projection mismatch: %+v", *found)
+	}
+}

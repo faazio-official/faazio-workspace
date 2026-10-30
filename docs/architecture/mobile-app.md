@@ -823,9 +823,13 @@ the seller-only manifest sets it as the FCM default channel.
 
 Mobile shell adaptations in the portal: a touch-friendly drawer navigation below `lg` (the desktop
 sidebar stays unchanged), `viewport-fit=cover`, and the seller orders page hydrates real gateway
-rows (accept/reject call the seller decision endpoints). Other seller console pages keep their
-existing seed/hydration behaviour — completing that data cutover is tracked in
-`client/mobile/PENDING_WORK.md`.
+rows (accept/reject call the seller decision endpoints). The seller **products + stock** slices now
+hydrate from `GET /seller/pricing` + `GET /seller/inventory` (stock/price writes target
+`PUT /seller/inventory/{id}` + `PUT /seller/pricing/{id}`), and promotions/payments were already
+server-backed. Remaining modules (stores reads, reviews/returns, analytics/support/onboarding) are
+tracked in `client/mobile/PENDING_WORK.md`. `SellerPartnerApp` wraps the navigator in the shared
+`ErrorBoundary` (scope `Seller`) so caught render errors are reported alongside the global
+`installGlobalErrorHandlers('seller')` sink.
 
 Native config: the seller build needs its own Android Firebase app + `GoogleService-Info-Seller.plist`
 (CI secret `GOOGLE_SERVICES_SELLER_JSON`; `APP_VARIANT=seller` selects `src/seller/google-services.json`
