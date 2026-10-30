@@ -60,7 +60,9 @@ android {
     defaultConfig {
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 4
+        // Fallback only: CI derives versionCode/versionName from the semver at build time
+        // (1.0.5 -> 10005). Keep this in sync when bumping the release version.
+        versionCode 10005
         versionName "1.0.5"
 
         buildConfigField "String", "REACT_NATIVE_RELEASE_LEVEL", "\"${findProperty('reactNativeReleaseLevel') ?: 'stable'}\""

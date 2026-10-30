@@ -78,7 +78,7 @@ Set on the repo with `gh secret set`:
 
 | Secret | Value |
 |---|---|
-| `KEYSTORE_BASE64` | `base64 -w0 client/mobile/keystore/faazio-release.keystore` |
+| `KEYSTORE_BASE64` | `openssl base64 -A -in client/mobile/keystore/faazio-release.keystore` (single line, portable) |
 | `KEYSTORE_PASS` | value from `keystore/keystore.properties` |
 | `KEY_ALIAS` | value from `keystore/keystore.properties` |
 | `ALIAS_PASS` | value from `keystore/keystore.properties` |
@@ -138,13 +138,14 @@ uses `gh release upload --clobber`, re-running the same tag **replaces** the old
 
 ### Version bump
 
-You manage **both** `package.json` `version` and `android/app/build.gradle` `versionCode`/
-`versionName`. A vc-1 APK is a downgrade and `adb install` fails with
-`INSTALL_FAILED_VERSION_DOWNGRADE`. Rule: **`versionCode` must increase every release**.
+`package.json` `version` is the single source of truth. The workflow **always** rewrites
+`android/app/build.gradle` `versionName` + `versionCode` from the resolved semver (the
+`-f version` input when supplied, otherwise `package.json`), so the build never ships a stale
+committed versionCode. A lower versionCode is a downgrade and `adb install`/Play reject it, so
+**`versionCode` must increase every release** — bump the semver for each release.
 
-- Passing `-f version=<semver>` makes the workflow derive `versionCode` deterministically
-  (`1.0.4` → `10004`) and rewrite `versionName` + `package.json` — no manual bump needed.
-- Without `-f version`, bump `versionCode` (+1) and `versionName` in `build.gradle` yourself.
+- `-f version=<semver>` also rewrites `package.json` and derives `versionCode` (`1.0.4` → `10004`).
+- Without `-f version`, the committed `package.json` version is used and `build.gradle` is aligned to it.
 
 > Replacing an older **debug-signed** install with the release-signed APK will fail with
 > `INSTALL_FAILED_UPDATE_INCOMPATIBLE` — `adb uninstall com.faazio.customer` first (clears local

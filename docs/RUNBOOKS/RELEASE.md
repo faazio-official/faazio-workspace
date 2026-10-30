@@ -11,7 +11,7 @@
 - **Release builds are signed with the release keystore in CI** via
   `.github/workflows/release-apk.yml`. The committed `android/` project reads
   `keystore/keystore.properties`; the workflow runs `scripts/restore-keystore.sh` (decodes the
-  keystore + writes `keystore.properties` from GitHub secrets) before `./gradlew assembleRelease`.
+  keystore + writes `keystore.properties` from GitHub secrets) before `./gradlew assemble<App>Release`.
   A release build without that file fails fast with a clear Gradle error.
 - The keystore file lives at `client/mobile/keystore/faazio-release.keystore` (gitignored).
   **Back it up securely — losing it means you can never update the app on the store.**
@@ -57,7 +57,7 @@ The release keystore + signing properties are stored as GitHub repository secret
 
 | Secret | Value |
 |---|---|
-| `KEYSTORE_BASE64` | `base64 client/mobile/keystore/faazio-release.keystore` |
+| `KEYSTORE_BASE64` | `openssl base64 -A -in client/mobile/keystore/faazio-release.keystore` (single line) |
 | `KEYSTORE_PASS` | value from `keystore.properties` |
 | `KEY_ALIAS` | value from `keystore.properties` |
 | `ALIAS_PASS` | value from `keystore.properties` |
@@ -65,7 +65,7 @@ The release keystore + signing properties are stored as GitHub repository secret
 | `GATEWAY_URL` | deployed gateway origin, `https://…` (release refuses `http://`); defaults to `https://api.faazio.com` (Cloudflare edge) |
 | `WEB_PORTAL_URL` | deployed web Partner Portal origin, `https://…` (required for `app=seller`; release refuses `http://`). Set as a repo variable/secret; defaults to `https://app.faazio.com` in both workflows. A seller build fails `configure.js` when it is empty |
 | `USE_GATEWAY` | `true` to embed the live gateway (defaults to `true` in the workflow) |
-| `CERT_PINS` | comma-separated base64 SHA-256 SPKI pins for the gateway host |
+| `CERT_PINS` | comma-separated base64 SHA-256 SPKI pins for the gateway host — derive with `scripts/cert-pins.sh` (see "Certificate-pin rotation") |
 | `GOOGLE_MAPS_API_KEY_ANDROID` | restricted Maps SDK key; `configure.js` writes the manifest string resource (empty ⇒ blank shop-pin map) |
 | `GOOGLE_PLACES_API_KEY` | restricted Places API (New) key for address autocomplete (empty ⇒ static suggestions) |
 | `USE_FIREBASE_AUTH` | `true` (default) — phone OTP via the committed native Firebase config |
@@ -84,18 +84,30 @@ CI can build; see `docs/RUNBOOKS/FIREBASE_AUTH.md`.
 
 ### Certificate-pin rotation
 
-Behind Cloudflare the app pins the **Cloudflare edge cert** served at `api.faazio.com` (Universal
-SSL — issued to the zone, auto-rotated by Cloudflare) — **not** Render's origin Let's Encrypt cert.
-Keep **two** pins live during a rotation so an in-flight app never fails closed:
-1. Add the new SPKI SHA-256 pin alongside the current one in `CERT_PINS` (and in the CI secret) —
-   2-pin overlap. Derive it from the edge chain Cloudflare actually presents:
-   `openssl s_client -connect api.faazio.com:443 -servername api.faazio.com </dev/null 2>/dev/null | openssl x509 -pubkey -noout | openssl pkey -pubin -outform der | openssl dgst -sha256 -binary | openssl enc -base64`
-2. Ship a release with both pins; wait for adoption.
-3. ≥30 days before the current edge cert rotates, cut over to the new pin only (search the old expiry
-   and schedule the removal).
+Behind Cloudflare the app pins the TLS certificate chain served at `api.faazio.com` (Universal SSL —
+issued by Cloudflare's CA, auto-rotated) — **not** Render's origin cert. Android allows a connection
+when **any** certificate in the presented chain matches a pin, so ship **both the leaf and its
+issuing intermediate CA**. That way a routine leaf rotation (Cloudflare reissues roughly every 90
+days) does not require an app update; only a full CA change does.
 
-If the edge cert changes before a pinned release is updated, clients fail closed (intended) — the
-network-security-config is what blocks a MITM even with a valid CA.
+```bash
+cd client/mobile
+scripts/cert-pins.sh          # prints "<leaf-pin>,<intermediate-pin>" (subject -> pin on stderr)
+```
+
+Put that comma-separated value in `client/mobile/.env` **and** the `CERT_PINS` GitHub secret
+(`gh secret set CERT_PINS`).
+
+Rotation playbook:
+1. Re-run `scripts/cert-pins.sh` after any chain change and update `.env` + the `CERT_PINS` secret.
+2. Ship a release with the fresh pins; during an overlap window keep the previous pins too so an
+   in-flight app never fails closed.
+3. Never pin the root (servers may omit it from the served chain).
+
+If the served chain changes before a pinned release is updated, clients fail closed (intended) — the
+network-security-config is what blocks a MITM even with a valid CA. This is a real operational
+hazard: an edge rotation on 2026-10-29 left the shipped v1.0.5 leaf pin stale — re-derive and
+rebuild whenever the edge cert changes.
 
 ## 🚀 Release a new APK (GitHub Actions + gh CLI)
 
@@ -104,11 +116,10 @@ triggered with the `gh` CLI.
 
 ```bash
 cd client/mobile
-# 1) Bump the version (or pass it to the workflow)
-#    edit package.json -> version, e.g. "1.1.0"
-#    Passing -f version=<semver> makes the workflow derive versionCode from it
-#    (e.g. 1.0.4 -> 10004). Without -f version, bump versionCode (+1) and
-#    versionName in android/app/build.gradle yourself.
+# 1) Bump the version: edit package.json -> version, e.g. "1.1.0", OR pass
+#    -f version=<semver>. Either way the workflow derives versionCode from the
+#    resolved semver (e.g. 1.0.4 -> 10004) and rewrites build.gradle versionName
+#    + versionCode, so the committed values are never stale.
 
 # 2) Trigger the CI build + release (app=customer|delivery|seller).
 #    Default is APK-only; add -f include-aab=true to also build + attach the
@@ -126,8 +137,9 @@ gh run watch
 
 The workflow: checkout → setup Node 24 + JDK 21 → `gradle/actions/setup-gradle` (caches
 `~/.gradle` + build cache) → **CI Gradle tuning** (overrides laptop memory caps via
-`~/.gradle/gradle.properties`) → `npm ci` → set version (optional override; derives `versionCode`
-from the semver) → `restore-keystore.sh` → `npm run ts:check` + `npm run check:boundaries` →
+`~/.gradle/gradle.properties`) → `npm ci` → set version (derives `versionName` + `versionCode` from
+the resolved semver, using `package.json` when `-f version` is omitted) → `restore-keystore.sh` →
+`npm run ts:check` + `npm run check:boundaries` →
 `npm run configure` (release cert pins + JS config) → `./gradlew assemble<App>Release` with
 **ABI + R8 minify flags** (see below), plus `bundle<App>Release` when `-f include-aab=true` →
 upload APK artifact (+ AAB artifact when `include-aab`) → upload **R8 `mapping.txt` (private
@@ -331,9 +343,10 @@ binary, and the gateway only logs `hint=apply migration NN` for a missing schema
 exclusively from a dev terminal:
 
 ```bash
-cd server/gateway
-set -a && . ./.env && set +a                 # creds for the same Supabase pooler the gateway uses
-psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f ../supabase/migrations/0050_district_rls.sql   # each pending file
+# from the repo root — reads DATABASE_URL from server/gateway/.env (pgx, no psql/Docker):
+server/supabase/apply-migration.sh server/supabase/migrations/0050_district_rls.sql   # each pending file
+# or everything newer than the last applied:
+server/supabase/apply-migration.sh --from 0050
 ```
 
 Run **each pending** migration (numeric order) → then roll the Render deploy. Release order is

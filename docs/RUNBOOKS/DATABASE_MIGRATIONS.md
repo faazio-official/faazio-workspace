@@ -95,16 +95,24 @@ psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f ../supabase/migrations/0057_strict_di
 psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f ../supabase/migrations/0058_notifications_retry.sql
 psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f ../supabase/migrations/0059_app_config.sql
 psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f ../supabase/migrations/0060_account_deletion.sql
+psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f ../supabase/migrations/0061_blood_request_author.sql
+psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f ../supabase/migrations/0062_error_events.sql
+psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f ../supabase/migrations/0063_seller_tiruchirappalli.sql
+psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f ../supabase/migrations/0064_seller_tiruchi_contact.sql
+psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f ../supabase/migrations/0065_tiruchirappalli_district_admin.sql
 ```
+
+> The list above is illustrative. Prefer §1 (`apply-migration.sh --from <last-applied>`), which
+> always targets the real pending files — the committed set grows every change.
 
 ## 3. Other alternatives
 
 - **Supabase SQL Editor** — paste the target migration file's contents into
   Dashboard → SQL Editor and run. Slower for many files; fine for a one-off.
 - **Local dev (`server/gateway` docker compose)** — the postgres container auto-applies the files
-  mounted in `docker-compose.yml` (`0001`–`0058`, excluding the deleted booking migrations
+  mounted in `docker-compose.yml` (`0001`–`0065`, excluding the deleted booking migrations
   `0011`/`0020` and the unused `0035` slot) + seed via `docker-entrypoint-initdb.d` **on first boot
-  only**.
+  only**. Re-run `docker compose down -v` to re-seed a changed migration set.
 
 ## 4. Symptoms of a pending migration
 
