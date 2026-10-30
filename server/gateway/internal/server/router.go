@@ -20,6 +20,7 @@ import (
 	"github.com/faazio/server/gateway/internal/contracts"
 	"github.com/faazio/server/gateway/internal/delivery"
 	"github.com/faazio/server/gateway/internal/directory"
+	"github.com/faazio/server/gateway/internal/districts"
 	"github.com/faazio/server/gateway/internal/errorsink"
 	"github.com/faazio/server/gateway/internal/favourites"
 	"github.com/faazio/server/gateway/internal/festival"
@@ -193,6 +194,7 @@ func NewRouter(d Deps) http.Handler {
 	ads.NewHandler(adsRepo, d.Cache, adminsRepo, d.Signer.PublicOrigin()).Register(r)
 	settlement.NewHandler(settlementRepo, d.Cache, adminsRepo, routeGateway, sellersRepo).Register(r)
 	tax.NewHandler(tax.NewRepo(d.Pool)).Register(r)
+	districts.NewHandler(districts.NewRepo(d.Pool)).Register(r)
 	support.NewHandler(supportRepo, adminsRepo).Register(r)
 	deliveryHandler.Register(r)
 	weather.NewHandler(weatherChecker, adminsRepo).Register(r)

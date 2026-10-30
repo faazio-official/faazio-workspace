@@ -24,7 +24,7 @@ import AppTextInput from '@/components/AppTextInput';
 import { hs, vs, ms } from '@/utils/responsive';
 import { SPACE } from '@/theme/spacing';
 import { SELLER_SETUP_FIELDS } from '@data/index';
-import { districtsForState } from '@data/districts';
+import { DISTRICTS, type DistrictInfo } from '@data/districts';
 import type { AppBrand } from '@data/types';
 import { gateway, type SellerApplication } from '@/services/api/GatewayClient';
 import { firebaseAuthConfigured, sendSellerOtp, verifySellerOtp } from '@/services/firebaseAuth';
@@ -124,12 +124,40 @@ export function SellerRegistrationScreen({ navigation }: Props) {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<SellerApplication | null>(null);
+  // District master for the picker. Hydrates from GET /geo/districts (DB is the read authority);
+  // the @data/districts fixture is the initial/offline fallback so the form stays usable offline.
+  const [districts, setDistricts] = useState<DistrictInfo[]>(DISTRICTS);
 
   const update = (key: keyof FormState) => (value: string) =>
     setForm((prev) => ({ ...prev, [key]: value }));
 
   const otpPhone = authPhone || form.contactPhone;
   const phoneDigits = useMemo(() => otpPhone.replace(/\D/g, '').slice(-10), [otpPhone]);
+
+  const districtsForState = useMemo(() => {
+    const byState = new Map<string, DistrictInfo[]>();
+    for (const d of districts) {
+      const list = byState.get(d.stateCode);
+      if (list) list.push(d);
+      else byState.set(d.stateCode, [d]);
+    }
+    return (stateCode: string) => byState.get(stateCode.trim().toUpperCase()) ?? [];
+  }, [districts]);
+
+  useEffect(() => {
+    let alive = true;
+    gateway
+      .getDistricts()
+      .then((rows) => {
+        if (alive && rows.length > 0) setDistricts(rows);
+      })
+      .catch(() => {
+        // Offline/unauthorized: keep the fixture fallback already in state.
+      });
+    return () => {
+      alive = false;
+    };
+  }, []);
 
   useEffect(() => {
     if (countdown <= 0) return;

@@ -1885,6 +1885,12 @@ CREATE FUNCTION sellers.is_admin_for(p_state char(2), p_district text) RETURNS b
 -- or empty claim falls back to state). seller/kyc/bank/opt-in/fee-request policies repointed.
 ```
 
+**Read path:** `GET /geo/districts?state=` (`internal/districts`, any signed-in account) serves the
+active `admins.district_master` rows (camelCase `{districtCode,name,stateCode}`) to the
+seller-onboarding picker. The DB is the read authority — seeding a new state/district is data-only —
+while `internal/platform/geo` stays the in-process validation mirror. Uncached
+(`caching-cloudflare-valkey.md` §8).
+
 `0065` seeds one active Tiruchirappalli (`TTC`) roster row (`adm-tiruchi-01`) so the TTC-locked
 district-admins page is non-empty on a fresh DB. It inserts the roster row only — no portal login or
 password hash (`PORTAL_AUTH.md` §2) — and is idempotent (`on conflict do nothing`). With it,

@@ -108,6 +108,7 @@ All read-through: Valkey → Supabase/Mongo → populate. Cloudflare caches publ
 | `GET /vendors/:id/reviews` | Supabase `reviews.vendor_reviews` (public columns only) | `data/reviews/vendorReviews.ts` | `getReviews` |
 | `GET /stores`, `GET /store/:id`, `GET /venues?app=` | Supabase `directory.stores` / `directory.dining_venues` | `data/directory/stores.ts`, `data/food/diningVenues.ts` | `getStores` / `getStore` / `getVenues` |
 | `GET /orders`, `GET /profile` | Supabase `checkout` / `accounts` (auth-scoped) | `data/checkout/orders.ts`, `data/accounts/profile.ts` | `getOrders` / `getProfile` |
+| `GET /geo/districts?state=` | Supabase `admins.district_master` (active rows, uncached) | `data/districts.ts` (offline fallback) | `getDistricts` |
 | `POST /auth/portal/{login,refresh,logout}`, `GET /auth/portal/me`, `PUT /auth/portal/password`; `GET|POST /admin/portal-users`, `PUT /admin/portal-users/{id}`, `PUT /admin/portal-users/{id}/password` | Supabase `admins.portal_users` + `admins.portal_sessions` (`0032` + `0033` + `0034` + `0038` session lifetimes); Valkey throttles/denylist | — (portal only) | `portalRequest` (portal auth). A `DISTRICT_ADMIN` login may alternatively be minted atomically with its roster via `POST /district-admins` (`issueLogin:true` — see the admins row below, `0036`/`0048`) |
 
 **Write endpoints (production, win chosen over the original read-only list):**

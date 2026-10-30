@@ -313,7 +313,8 @@ default it to `https://app.faazio.com`.
   role `DISTRICT_ADMIN`; production coverage = 42 TN/PY districts (`admins.district_master`, 0046). The
   gateway resolves district scope through `internal/platform/geo`; legacy non-TN/PY admins fall back
   to their 2-letter `state_code`.
-- Mobile onboarding requires a district for TN/PY (`@data/districts`), sellers carry
+- Mobile onboarding requires a district for TN/PY; the picker hydrates from `GET /geo/districts`
+  (`GatewayClient.getDistricts`) with `@data/districts` as the offline fallback, sellers carry
   `districtCode` (0047), and admin queues are server-scoped by district.
 - **Fee change requests (0049):** sellers file `POST /sellers/{id}/platform-fee-request` and read
   their history; district/super admins review via `GET /seller/fee-change-requests` +
@@ -321,7 +322,8 @@ default it to `https://app.faazio.com`.
   `FeeChangeRequestsScreen`, both linked from the Account page. One pending request per seller.
 - Portal: `admin/state` → `admin/district`, `super/state-admins` → `super/district-admins`,
   `super/states` → `super/districts`; district pickers + `admin/{district,super}/fee-change-requests`.
-- Docs: `db-schema.md` §12.24, `monolith-breakdown.md` §1, `data/DATA_CONTROL.md`.
+- Docs: `db-schema.md` §12.24, `monolith-breakdown.md` §1, `server-gateway-plan.md`,
+  `mvp-backend.md` §3, `data/DATA_CONTROL.md`, `caching-cloudflare-valkey.md` §8.
 
 ## W63 — Delivery Partner app (P0)
 

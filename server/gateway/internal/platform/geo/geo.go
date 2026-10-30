@@ -1,6 +1,8 @@
 // Package geo is the gateway's authoritative district master for the production coverage area
 // (Tamil Nadu + Puducherry). It mirrors admins.district_master (migration 0046) and the portal /
-// mobile fixtures. Platform code only — every context may import it.
+// mobile fixtures. Platform code only — every context may import it. The picker read
+// (GET /geo/districts) is served from the DB by internal/districts; this package stays the
+// in-process validation/write authority.
 package geo
 
 import "strings"

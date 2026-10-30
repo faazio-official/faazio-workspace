@@ -917,8 +917,9 @@ the server — the screen only ever sends `{tag, name, phone, address, isDefault
 minimal form and is reached from the Account `earn` group. One wizard collects business identity
 (name, owner, category `MART`/`FOOD`/`PHARMA`, GSTIN, PAN, address, contact phone/email), a
 location-derived 2-letter state (GPS → state code; manual entry is the fallback) plus a required
-**district** picker for TN/PY (`DISTRICTS` from `@data/districts`; the gateway rejects a district that
-does not belong to the state), platform fee %,
+**district** picker for TN/PY (hydrated from `GET /geo/districts` via `GatewayClient.getDistricts`,
+falling back to the `@data/districts` fixture offline; the gateway rejects a district that does not
+belong to the state), platform fee %,
 payout account (bank name, account number, IFSC, beneficiary), a **mandatory bank passbook** photo
 and — for FOOD only — the FSSAI number + certificate. All fields are mandatory. Labels/placeholders
 still come from `SELLER_SETUP_FIELDS` (`@data/seller/sellerSetup.ts`).

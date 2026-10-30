@@ -28,6 +28,7 @@ import { getReviewsByVendorId, type VendorReviewRow } from '@data/reviews/vendor
 import { homeSdui, type SduiSection } from '@data/home/sdui';
 import { adCampaigns } from '@data/home/campaigns';
 import { savedAddresses } from '@data/account/addresses';
+import type { DistrictInfo } from '@data/districts';
 import {
   clearSession,
   getAccessToken,
@@ -1932,6 +1933,27 @@ export class GatewayClient {
       () => this.http<ProductView[]>('/recommendations'),
       () => delay(this.joinStock([...catalogIndex].sort((a, b) => b.rating - a.rating).slice(0, 12))),
     );
+  }
+
+  /**
+   * The district master picker list (`GET /geo/districts`, any signed-in account). Server-only like
+   * the other reads: throws `GatewayOfflineError` when remote is disabled, so the caller owns the
+   * fixture fallback. The wire shape is `DistrictInfo` (@data/districts) — no remapping needed.
+   */
+  async getDistricts(stateCode?: string): Promise<DistrictInfo[]> {
+    return this.withFallback(
+      () => this.http<DistrictInfo[]>(`/geo/districts${queryString({ state: stateCode })}`),
+      () => delay([] as DistrictInfo[]),
+    );
+  }
+
+  /**
+   * No-fallback district read for callers that must distinguish a live list from offline. Throws
+   * `GatewayOfflineError` when remote is disabled.
+   */
+  async fetchDistricts(stateCode?: string): Promise<DistrictInfo[]> {
+    if (!REMOTE_ENABLED) throw new GatewayOfflineError();
+    return this.http<DistrictInfo[]>(`/geo/districts${queryString({ state: stateCode })}`);
   }
 
   /**

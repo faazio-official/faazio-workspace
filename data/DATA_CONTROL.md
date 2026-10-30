@@ -365,17 +365,19 @@ the `GROCERY` member was dropped from `AppBrand` / `CartCategory` / `SubAppId` /
 
 | Export | Type | Mobile consumers | Status |
 |---|---|---|---|
-| `DISTRICTS` | `DistrictInfo[]` — 42 TN/PY districts (`districtCode`, `name`, `stateCode`) | `SellerRegistrationScreen` (district picker for covered states) | `@mock` |
-| `districtsForState` / `stateForDistrict` / `districtName` | helpers | seller onboarding, future district-scoped lists | `@mock` |
-| `DistrictInfo` | type | mobile + web mirrors | `@mock` |
+| `DISTRICTS` | `DistrictInfo[]` — 42 TN/PY districts (`districtCode`, `name`, `stateCode`) | `SellerRegistrationScreen` (district picker for covered states) | `@server` (fixture fallback) |
+| `districtsForState` / `stateForDistrict` / `districtName` | helpers | seller onboarding, future district-scoped lists | `@mock` (not on the wire) |
+| `DistrictInfo` | type | mobile + web mirrors | `@server` (wire shape) |
 
 > **Contract:** Mirrors `admins.district_master` (migration `0046`); the gateway
 > (`internal/platform/geo`) is authoritative. `DISTRICTS` must stay in sync with `geo.go` and the web
 > mirror `client/web/platform/src/data/districts.ts`.
 
-> **Contract:** Read-only label/placeholder source for the seller-onboarding form. The list is
-> stable; FK/field changes to the server contract happen in `GatewayClient.submitSellerApplication`
-> (`sellers.sellers`), not here.
+> **Contract:** Live source is `GET /geo/districts` via `GatewayClient.getDistricts` (any signed-in
+> account; `?state=` optional 2-letter filter); the wire row is camelCase
+> `{districtCode,name,stateCode}` — shape-identical to `DistrictInfo`, so the fixture is a drop-in
+> offline fallback. `SellerRegistrationScreen` seeds state from the fixture and replaces it with the
+> live list; the server validates `districtCode` on `POST /sellers` regardless of the client list.
 
 ### `@data/home` — owner: `features/home`
 

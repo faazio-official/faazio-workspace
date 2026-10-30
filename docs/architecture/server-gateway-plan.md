@@ -114,6 +114,10 @@ caller) and are event-purged on store live toggle and product edit/status change
   owner (W71), so seeded `tr-*`/`dn-*` rows are not orphaned; `UpsertMenu`, promo opt-ins and blood
   moderation re-check scope at the write (`DELETE /blood-requests/{id}` is state-scoped for district
   admins). Product projections now include `storeId` for the PDP store link.
+- **District picker read (`internal/districts`, `0046`):** `GET /geo/districts?state=TN` serves the
+  active `admins.district_master` rows as camelCase `{districtCode,name,stateCode}` to any signed-in
+  account (the seller-onboarding picker); `?state=` is an optional 2-letter filter (400 on a longer
+  value). The DB is the read authority so seeding a new state/district is data-only; uncached.
 - **Platform-fee change requests:** sellers file `POST /sellers/{id}/platform-fee-request` and read
   `GET /sellers/{id}/platform-fee-requests`; the review queue is
   `GET /seller/fee-change-requests` (district-scoped) with
@@ -155,7 +159,7 @@ caller) and are event-purged on store live toggle and product edit/status change
   `ops.festival_calendar` window). Super-admin `GET /admin/weather/usage`,
   `PUT /admin/weather/override`, `GET|POST /admin/festival/calendar`,
   `DELETE /admin/festival/calendar/{id}`. Provider key is optional: unset means no rain surge.
-- **Packages:** `internal/{search,catalog,directory,cartstock,checkout,reviews,reco,sdui,delivery,weather,festival,geo,pricing}`
+- **Packages:** `internal/{search,catalog,directory,cartstock,checkout,reviews,reco,sdui,delivery,weather,festival,geo,pricing,districts}`
   + `internal/{contracts,platform/*,server}`. Ownership table: `monolith-breakdown.md` §1.
 - **Boundaries:** `go run ./tools/importlint` fails on sibling-context imports.
 - **Mapping** (`@data/*` twin + `GatewayClient` method) and RLS classes: `docs/architecture/mvp-backend.md` §1–§3.
