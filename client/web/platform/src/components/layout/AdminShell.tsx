@@ -2,7 +2,15 @@
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { Bell, ChevronLeft, Command as CommandIcon, LogOut, Menu, PanelLeft } from "lucide-react";
+import {
+  ArrowLeft,
+  Bell,
+  ChevronLeft,
+  Command as CommandIcon,
+  LogOut,
+  Menu,
+  PanelLeft,
+} from "lucide-react";
 import {
   activeNavHref,
   DISTRICT_ADMIN_NAV,
@@ -170,6 +178,8 @@ export function AdminShell({
           onClose={closeMobileNav}
           nav={nav}
           pathname={pathname}
+          scope={scope}
+          session={session}
           scopeLabel={scope === "DISTRICT" ? "District console" : "Global console"}
         />
 
@@ -198,6 +208,16 @@ export function AdminShell({
               </span>
             </span>
             <ComponentHelp helpKey="shell:admin-scope" label="About your scope" />
+            {scope === "DISTRICT" && session?.role === "SUPER_ADMIN" ? (
+              <Link
+                href="/admin/super"
+                className="flex shrink-0 items-center gap-1.5 rounded-full bg-ink px-2.5 py-1 text-[11px] font-semibold text-ink-foreground hover:bg-ink-border"
+                aria-label="Return to super admin console"
+              >
+                <ArrowLeft className="size-3.5 shrink-0" />
+                <span className="hidden sm:inline">Return to super admin</span>
+              </Link>
+            ) : null}
             <Button
               variant="outline"
               size="sm"
