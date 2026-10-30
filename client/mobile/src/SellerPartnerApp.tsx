@@ -4,6 +4,7 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { DefaultTheme, NavigationContainer } from '@react-navigation/native';
 import { SellerPartnerNavigator } from './features/seller-partner/SellerPartnerNavigator';
 import { SplashFallback } from './components/SplashFallback';
+import { ErrorBoundary } from './components/ErrorBoundary';
 import { useAppFonts, resolveFontFamily } from './theme/fonts';
 import { useBottomInset } from './utils/responsive';
 import { installGlobalErrorHandlers } from './services/crashReporting';
@@ -44,9 +45,11 @@ export default function SellerPartnerApp() {
     <SafeAreaProvider>
       <Layout>
         <StatusBar barStyle="dark-content" />
-        <NavigationContainer theme={navigationTheme}>
-          <SellerPartnerNavigator />
-        </NavigationContainer>
+        <ErrorBoundary scope="Seller">
+          <NavigationContainer theme={navigationTheme}>
+            <SellerPartnerNavigator />
+          </NavigationContainer>
+        </ErrorBoundary>
       </Layout>
     </SafeAreaProvider>
   );

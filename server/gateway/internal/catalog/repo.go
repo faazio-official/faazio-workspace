@@ -322,22 +322,40 @@ func deref(v *string) string {
 }
 
 // SellerProduct is the portal-facing product-management projection (not the mobile catalog shape).
+// It carries the catalog identity plus the inventory.stock fields the seller inventory/pricing
+// console needs, so one read hydrates the products + stock slices.
 type SellerProduct struct {
-	ID        string `json:"id"`
-	Name      string `json:"name"`
-	App       string `json:"app"`
-	Category  string `json:"category"`
-	Status    string `json:"status"`
-	SellerID  string `json:"sellerId,omitempty"`
-	StoreID   string `json:"storeId,omitempty"`
-	Price     int64  `json:"price"` // rupees
-	UpdatedAt string `json:"updatedAt"`
+	ID             string `json:"id"`
+	Name           string `json:"name"`
+	App            string `json:"app"`
+	Category       string `json:"category"`
+	Status         string `json:"status"`
+	SellerID       string `json:"sellerId,omitempty"`
+	StoreID        string `json:"storeId,omitempty"`
+	Price          int64  `json:"price"`         // rupees
+	MRP            *int64 `json:"mrp,omitempty"` // rupees
+	Description    string `json:"description,omitempty"`
+	Unit           string `json:"unit,omitempty"`
+	Emoji          string `json:"emoji,omitempty"`
+	ImageURL       string `json:"imageUrl,omitempty"`
+	ImageKey       string `json:"imageKey,omitempty"`
+	IsVeg          *bool  `json:"isVeg,omitempty"`
+	IsPrescription bool   `json:"isPrescription"`
+	InStockQty     int64  `json:"inStockQty"`
+	Available      bool   `json:"available"`
+	Eta            string `json:"eta,omitempty"` // free-text ETA carried from inventory.stock
+	UpdatedAt      string `json:"updatedAt"`
 }
 
 const sellerProductSelect = `
 select p.id, p.name, p.app::text, p.category, p.status::text, coalesce(p.seller_id,''),
-       coalesce(p.store_id,''), p.price_paisa, p.updated_at
-from catalog.products p`
+       coalesce(p.store_id,''), p.price_paisa, p.mrp_paisa,
+       coalesce(p.desc_text,''), coalesce(p.unit,''), coalesce(p.emoji,''),
+       coalesce(p.image_url,''), coalesce(p.image_key,''), p.is_veg, p.is_prescription,
+       coalesce(s.in_stock_qty, 0), coalesce(s.available, true), coalesce(s.eta, ''),
+       p.updated_at
+from catalog.products p
+left join inventory.stock s on s.product_id = p.id`
 
 // SellerProducts lists a seller's products (status "" = all), newest edit first.
 // SellerProducts lists products scoped to a seller or a district. A district admin passes
@@ -504,14 +522,15 @@ func (r *Repo) CreateProduct(ctx context.Context, sellerID, district string, e P
 	if _, err := tx.Exec(ctx, `
 		insert into catalog.products
 		  (id, app, category, name, search_tokens, price_paisa, mrp_paisa, rating, reviews_count,
-		   emoji, image_url, image_key, image_asset_id, desc_text, store_id, is_prescription, is_veg,
-		   attributes, seller_id, status)
+		   emoji, image_url, image_key, image_asset_id, desc_text, unit, store_id, is_prescription,
+		   is_veg, attributes, seller_id, status)
 		values ($1, $2::app_brand, $3, $4, $5, $6, $7, 0, 0,
 		        $8, $9, $10, $11, $12, $13, $14, $15,
-		        $16, $17, 'PENDING_REVIEW'::product_status)`,
+		        $16, $17, $18, 'PENDING_REVIEW'::product_status)`,
 		id, app, category, name, searchTokens(name, category, e.Desc), pricePaisa, mrpPaisa,
 		strings.TrimSpace(e.Emoji), strings.TrimSpace(e.ImageURL), e.ImageKey, e.ImageAssetID,
-		strings.TrimSpace(e.Desc), storeID, e.IsPrescription, e.IsVeg, attrJSON, sellerArg); err != nil {
+		strings.TrimSpace(e.Desc), strings.TrimSpace(e.Unit), storeID, e.IsPrescription, e.IsVeg,
+		attrJSON, sellerArg); err != nil {
 		return SellerProduct{}, false, err
 	}
 	if _, err := tx.Exec(ctx, `
@@ -564,6 +583,7 @@ type ProductEdit struct {
 	MRP          *int64
 	InStockQty   *int64
 	Available    *bool
+	Eta          *string
 	ImageKey     *string
 	ImageAssetID *string
 }
@@ -626,16 +646,17 @@ func (r *Repo) UpdateProduct(ctx context.Context, id, sellerID, district string,
 			return SellerProduct{}, false, err
 		}
 	}
-	if e.InStockQty != nil || e.Available != nil || e.Price != nil || e.MRP != nil {
+	if e.InStockQty != nil || e.Available != nil || e.Price != nil || e.MRP != nil || e.Eta != nil {
 		if _, err := tx.Exec(ctx, `
 			update inventory.stock
 			   set price_paisa  = coalesce($2, price_paisa),
 			       mrp_paisa    = coalesce($3, mrp_paisa),
 			       in_stock_qty = coalesce($4, in_stock_qty),
 			       available    = coalesce($5, available),
+			       eta          = coalesce($6, eta),
 			       updated_at   = now()
 			 where product_id = $1`, id,
-			mul100(e.Price), mul100(e.MRP), e.InStockQty, e.Available); err != nil {
+			mul100(e.Price), mul100(e.MRP), e.InStockQty, e.Available, e.Eta); err != nil {
 			return SellerProduct{}, false, err
 		}
 	}
@@ -646,20 +667,13 @@ func (r *Repo) UpdateProduct(ctx context.Context, id, sellerID, district string,
 }
 
 func (r *Repo) sellerProductByID(ctx context.Context, id string) (SellerProduct, bool, error) {
-	var (
-		p         SellerProduct
-		updatedAt time.Time
-	)
-	err := r.pool.QueryRow(ctx, sellerProductSelect+` where p.id = $1`, id).
-		Scan(&p.ID, &p.Name, &p.App, &p.Category, &p.Status, &p.SellerID, &p.StoreID, &p.Price, &updatedAt)
+	p, err := scanSellerProduct(r.pool.QueryRow(ctx, sellerProductSelect+` where p.id = $1`, id))
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return SellerProduct{}, false, nil
 		}
 		return SellerProduct{}, false, err
 	}
-	p.Price /= 100
-	p.UpdatedAt = updatedAt.UTC().Format(time.RFC3339)
 	return p, true, nil
 }
 
@@ -671,18 +685,32 @@ func mul100(v *int64) *int64 {
 	return &r
 }
 
+type sellerProductScanner interface{ Scan(dest ...any) error }
+
+func scanSellerProduct(row sellerProductScanner) (SellerProduct, error) {
+	var (
+		p         SellerProduct
+		mrpPaisa  *int64
+		updatedAt time.Time
+	)
+	if err := row.Scan(&p.ID, &p.Name, &p.App, &p.Category, &p.Status, &p.SellerID, &p.StoreID,
+		&p.Price, &mrpPaisa, &p.Description, &p.Unit, &p.Emoji, &p.ImageURL, &p.ImageKey,
+		&p.IsVeg, &p.IsPrescription, &p.InStockQty, &p.Available, &p.Eta, &updatedAt); err != nil {
+		return SellerProduct{}, err
+	}
+	p.Price /= 100
+	p.MRP = moneyPtr(mrpPaisa)
+	p.UpdatedAt = updatedAt.UTC().Format(time.RFC3339)
+	return p, nil
+}
+
 func scanSellerProducts(rows pgx.Rows) ([]SellerProduct, error) {
 	out := []SellerProduct{}
 	for rows.Next() {
-		var (
-			p         SellerProduct
-			updatedAt time.Time
-		)
-		if err := rows.Scan(&p.ID, &p.Name, &p.App, &p.Category, &p.Status, &p.SellerID, &p.StoreID, &p.Price, &updatedAt); err != nil {
+		p, err := scanSellerProduct(rows)
+		if err != nil {
 			return nil, err
 		}
-		p.Price /= 100
-		p.UpdatedAt = updatedAt.UTC().Format(time.RFC3339)
 		out = append(out, p)
 	}
 	return out, rows.Err()

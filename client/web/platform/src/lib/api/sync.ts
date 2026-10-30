@@ -4,6 +4,7 @@
 // When `NEXT_PUBLIC_GATEWAY_URL` is unset this is a no-op.
 import { remoteConfigured } from "@/lib/config";
 import { remote, toCamel } from "@/lib/api/http";
+import { fetchSellerInventory, fetchSellerPricing, type SellerConsoleRow } from "@/lib/api";
 import { usePortalStore } from "@/lib/api/store";
 import type {
   AdSlot,
@@ -22,6 +23,7 @@ import type {
   PayoutRecord,
   PrescriptionHistoryEntry,
   PrescriptionRecord,
+  ProductRecord,
   QuoteItemRecord,
   RewardLedgerEntry,
   Role,
@@ -30,6 +32,7 @@ import type {
   SellerRecord,
   SellerStatus,
   SduiLayout,
+  StockRecord,
   DistrictAdmin,
   TicketRecord,
 } from "@/data/types";
@@ -157,6 +160,37 @@ function mergeById<T>(incoming: T[], existing: T[], id: (x: T) => string): T[] {
   return incoming.map((x) => ({ ...(byId.get(id(x)) ?? ({} as T)), ...x }));
 }
 
+/** inventory.stock.eta is free text; the portal models it as whole minutes (default 30). */
+function parseEtaMinutes(v: unknown): number {
+  const m = String(v ?? "").match(/\d+/);
+  return m ? Number(m[0]) : 30;
+}
+
+/**
+ * Maps a gateway seller-product row (`GET /seller/inventory` | `/seller/pricing`) to the portal
+ * ProductRecord. Body/identity fields are shared by both endpoints; money arrives in whole rupees.
+ */
+function mapSellerProductRow(raw: SellerConsoleRow): ProductRecord {
+  return {
+    productId: raw.id,
+    sellerId: raw.sellerId ?? "",
+    storeId: raw.storeId ?? "",
+    name: raw.name,
+    description: raw.description ?? "",
+    sector: (raw.app || "MART") as Sector,
+    category: raw.category,
+    emoji: raw.emoji ?? "",
+    imageUrl: raw.imageUrl || (raw.imageKey ? `r2:${raw.imageKey}` : ""),
+    unit: raw.unit ?? "",
+    pricePaisa: toPaisa(raw.price),
+    mrpPaisa: toPaisa(raw.mrp ?? 0),
+    isVeg: raw.isVeg === true,
+    isPrescription: raw.isPrescription === true,
+    status: raw.status as ProductRecord["status"],
+    createdAt: raw.updatedAt,
+  };
+}
+
 /**
  * Fetches every gateway-owned slice and writes it into the store. Returns true
  * when at least one slice was hydrated.
@@ -166,7 +200,7 @@ export async function hydrateFromGateway(): Promise<boolean> {
   const cur = usePortalStore.getState();
   const role = cur.session?.role;
 
-  const [sellers, campaigns, coupons, caps, optins, slots, heroCampaigns, admins, logs, ledger, payouts, rx, blood, sdui, customers, menus, tickets, rates, rewardLedger, orders] =
+  const [sellers, campaigns, coupons, caps, optins, slots, heroCampaigns, admins, logs, ledger, payouts, rx, blood, sdui, customers, menus, tickets, rates, rewardLedger, orders, inventory, pricing] =
     await Promise.all([
       safe(() => remote.get<RawSeller[]>("/sellers").then(toCamel)),
       safe(() => remote.get<FestivalCampaign[]>("/promo/campaigns").then(toCamel)),
@@ -207,6 +241,18 @@ export async function hydrateFromGateway(): Promise<boolean> {
         role === "SELLER" ? Promise.resolve<Raw[]>([]) : remote.get<Raw[]>("/rewards/ledger").then(toCamel),
       ),
       safe(() => remote.get<Raw[]>("/seller/orders").then(toCamel)),
+      // Seller console: pricing feeds the products slice, inventory feeds the stock slice. Both carry
+      // the shared seller-product projection, so either could hydrate products; keep the split semantic.
+      safe(() =>
+        role === "SELLER"
+          ? fetchSellerPricing()
+          : Promise.resolve<SellerConsoleRow[] | undefined>(undefined),
+      ),
+      safe(() =>
+        role === "SELLER"
+          ? fetchSellerInventory()
+          : Promise.resolve<SellerConsoleRow[] | undefined>(undefined),
+      ),
     ]);
 
   const patch: Record<string, unknown> = {};
@@ -455,6 +501,22 @@ export async function hydrateFromGateway(): Promise<boolean> {
       }),
       cur.orders,
       (order) => order.orderId,
+    );
+    touched = true;
+  }
+  if (hasSlice(pricing)) {
+    patch["products"] = pricing.map(mapSellerProductRow);
+    touched = true;
+  }
+  if (hasSlice(inventory)) {
+    patch["stock"] = inventory.map(
+      (raw): StockRecord => ({
+        productId: raw.id,
+        quantity: raw.inStockQty,
+        lowStockThreshold: 12,
+        etaMinutes: parseEtaMinutes(raw.eta),
+        updatedAt: raw.updatedAt,
+      }),
     );
     touched = true;
   }

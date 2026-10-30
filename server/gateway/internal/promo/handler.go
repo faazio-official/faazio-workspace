@@ -40,6 +40,9 @@ func (h *Handler) Register(r chi.Router) {
 		g.Get("/promo/campaigns", h.listCampaigns)
 		g.Get("/promo/optins", h.listOptins)
 		g.Put("/promo/optins", h.upsertOptin)
+		// Seller-facing combined promotions surface (campaigns + own opt-ins, one read) and opt-in.
+		g.Get("/seller/promotions", h.sellerPromotions)
+		g.Post("/seller/promotions/optin", h.upsertOptin)
 	})
 	// Admin-only management.
 	r.Group(func(g chi.Router) {
@@ -367,6 +370,27 @@ func (h *Handler) setCampaignStatus(w http.ResponseWriter, r *http.Request) {
 	}
 	h.log(r, "CAMPAIGN_"+req.Status, id, nil, map[string]string{"status": c.Status})
 	httpx.JSON(w, http.StatusOK, c)
+}
+
+// sellerPromotions lists the festival campaigns plus the caller's opt-ins in one read
+// (GET /seller/promotions). Campaigns are seller-visible (no state filter); opt-ins are seller-scoped.
+func (h *Handler) sellerPromotions(w http.ResponseWriter, r *http.Request) {
+	sellerID := auth.SellerID(r.Context())
+	if sellerID == "" {
+		httpx.Fail(w, http.StatusForbidden, "forbidden", "no seller scope on this account")
+		return
+	}
+	campaigns, err := h.repo.Campaigns(r.Context(), "", "")
+	if err != nil {
+		httpx.Fail(w, http.StatusInternalServerError, "promo_unavailable", "promo unavailable")
+		return
+	}
+	optins, err := h.repo.Optins(r.Context(), sellerID, "", "", "")
+	if err != nil {
+		httpx.Fail(w, http.StatusInternalServerError, "promo_unavailable", "promo unavailable")
+		return
+	}
+	httpx.JSON(w, http.StatusOK, map[string]any{"campaigns": campaigns, "optins": optins})
 }
 
 func (h *Handler) listOptins(w http.ResponseWriter, r *http.Request) {

@@ -70,6 +70,11 @@ caller) and are event-purged on store live toggle and product edit/status change
   `PUT /seller/orders/:id/reject` (NEW→REJECTED, payment ledger marked REFUNDED, customer notified),
   and seller listing creation `POST /seller/products` (owned live store, `PENDING_REVIEW`, catalog +
   inventory.stock in one transaction; created rows surface in the public nearby reads once ACTIVE).
+  The seller console reads stock/pricing via `GET /seller/inventory` + `GET /seller/pricing` and writes
+  them via `PUT /seller/inventory/{productId}` (qty + ETA) and `PUT /seller/pricing/{productId}`
+  (price + MRP, `mrp >= price`), all seller-scoped and audit-logged; promotions read
+  `GET /seller/promotions` (campaigns + own opt-ins) with opt-in `POST /seller/promotions/optin`; the
+  money ledger reads `GET /seller/payments` and `GET /seller/payments/{cycleId}` (seller id from the token).
   `POST /orders` also enqueues a PII-free seller new-order notification per active seller portal user
   owning a store in the order (`contracts.Notifier.EnqueueSeller`). Notification devices register
   with `POST /notifications/register` and unregister with `DELETE /notifications/register` (portal

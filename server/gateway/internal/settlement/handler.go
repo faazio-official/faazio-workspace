@@ -42,6 +42,9 @@ func (h *Handler) Register(r chi.Router) {
 		g.Use(auth.RequireRole(auth.RoleSeller, auth.RoleSuperAdmin))
 		g.Get("/settlements", h.ledger)
 		g.Get("/payouts", h.payouts)
+		// Seller-facing payment ledger: all cycles, and one cycle's line items.
+		g.Get("/seller/payments", h.sellerPayments)
+		g.Get("/seller/payments/{cycleId}", h.sellerPaymentCycle)
 	})
 	r.Group(func(g chi.Router) {
 		g.Use(auth.RequireRole(auth.RoleSuperAdmin))
@@ -79,6 +82,33 @@ func (h *Handler) ledger(w http.ResponseWriter, r *http.Request) {
 		}
 		h.cache.SetJSON(r.Context(), cache.Settlement(sellerID, cycle), entries, cache.TTLSettlement)
 		httpx.JSON(w, http.StatusOK, entries)
+		return
+	}
+	entries, err := h.repo.Ledger(r.Context(), sellerID, cycle)
+	if err != nil {
+		httpx.Fail(w, http.StatusInternalServerError, "settlement_unavailable", "settlement unavailable")
+		return
+	}
+	httpx.JSON(w, http.StatusOK, entries)
+}
+
+// sellerPayments returns the caller's whole settlement ledger (GET /seller/payments).
+func (h *Handler) sellerPayments(w http.ResponseWriter, r *http.Request) {
+	h.sellerLedger(w, r, "")
+}
+
+// sellerPaymentCycle returns the ledger line items for one settlement cycle
+// (GET /seller/payments/{cycleId}).
+func (h *Handler) sellerPaymentCycle(w http.ResponseWriter, r *http.Request) {
+	h.sellerLedger(w, r, chi.URLParam(r, "cycleId"))
+}
+
+// sellerLedger is the shared seller-scoped ledger read. The seller id always comes from the token,
+// never the query, so a seller can only ever read their own settlement rows.
+func (h *Handler) sellerLedger(w http.ResponseWriter, r *http.Request, cycle string) {
+	sellerID := auth.SellerID(r.Context())
+	if sellerID == "" {
+		httpx.Fail(w, http.StatusForbidden, "forbidden", "no seller scope on this account")
 		return
 	}
 	entries, err := h.repo.Ledger(r.Context(), sellerID, cycle)
