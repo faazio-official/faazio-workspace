@@ -114,3 +114,12 @@ psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f ../supabase/migrations/0060_account_d
 
 Fix = run the pending migration with §1 (or §2), then roll the Render deploy if the gateway needs a
 restart (it does not auto-apply anything).
+
+## 5. Read-only diagnostics
+
+SELECT-only checks live in `server/supabase/diagnostics/*.sql` — **never** under `migrations/`. The
+Go migrator discards query result rows (`server/gateway/cmd/migrate/main.go` runs
+`PgConn().Exec().ReadAll()` and ignores the rows), so a diagnostic piped through
+`apply-migration.sh` prints nothing. Run one in the Supabase SQL Editor (or any pgx/psql client);
+`diagnostics/verify-seller-tiruchi.sql` confirms the `0063` seller, the `0065` TTC roster row and the
+district-admin login's `district_code` scope.
