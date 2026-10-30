@@ -2,24 +2,29 @@
 
 import { useEffect, useMemo, useRef, type KeyboardEvent as ReactKeyboardEvent } from "react";
 import Link from "next/link";
-import { X } from "lucide-react";
+import { ArrowLeft, X } from "lucide-react";
 import { activeNavHref, normalizeNavPath, type NavItem } from "@/components/layout/nav";
 import { Button } from "@/components/ui/button";
 import { FaazioWordmark } from "@/components/brand/FaazioWordmark";
 import { cn } from "@/lib/utils";
 import { groupTone, TONE_SOFT, TONE_TEXT, TONE_VAR } from "@/lib/ui/tones";
+import type { AuthUser } from "@/data/types";
 
 export function MobileNavDrawer({
   open,
   onClose,
   nav,
   pathname,
+  scope,
+  session,
   scopeLabel,
 }: {
   open: boolean;
   onClose: () => void;
   nav: NavItem[];
   pathname: string;
+  scope?: "DISTRICT" | "SUPER";
+  session?: AuthUser | null;
   scopeLabel: string;
 }) {
   const groups = useMemo(() => Array.from(new Set(nav.map((i) => i.group))), [nav]);
@@ -112,6 +117,16 @@ export function MobileNavDrawer({
             <X className="size-4" />
           </Button>
         </div>
+        {scope === "DISTRICT" && session?.role === "SUPER_ADMIN" ? (
+          <Link
+            href="/admin/super"
+            onClick={onClose}
+            className="mx-2 mt-2 flex items-center gap-2 rounded-lg px-3 py-2 text-[12px] font-semibold text-primary hover:bg-secondary"
+          >
+            <ArrowLeft className="size-4 shrink-0" />
+            Return to super admin
+          </Link>
+        ) : null}
         <nav className="flex-1 overflow-y-auto p-2">
           {groups.map((group) => {
             const hue = groupTone(group);

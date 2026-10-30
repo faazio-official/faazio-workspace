@@ -115,7 +115,7 @@ gateway never shows a raw 503 or a blank page.
 | --- | --- |
 | `admin/district` | dashboard |
 | `admin/district/products` · `admin/district/products/queue` | catalog + review queue |
-| `admin/district/sellers` · `admin/district/sellers/[id]` | seller directory + KYC review: full registration, masked payout account, private-bucket passbook/FSSAI links, platform-fee editor, per-document verify (PAN/GSTIN/FSSAI/passbook), reject with reason, **Verify KYC** (Razorpay Route linked account → ACTIVE). SUPER_ADMIN reaches the same detail page from `admin/super/sellers`. |
+| `admin/district/sellers` · `admin/district/sellers/[id]` | seller directory + KYC review: full registration, masked payout account, private-bucket passbook/FSSAI links, platform-fee editor, per-document verify (PAN/GSTIN/FSSAI/passbook), reject with reason, **Verify KYC** (Razorpay Route linked account → ACTIVE). SUPER_ADMIN reaches the same detail page from `admin/super/sellers`; a role-gated **Return to super admin** link in the `AdminShell` header and `MobileNavDrawer` (shown only when `scope === "DISTRICT"` and `session.role === "SUPER_ADMIN"`) takes them back to `/admin/super`. |
 | `admin/district/orders` | order oversight |
 | `admin/district/blood` | blood requests board (PHARMA) — server `blood.requests` with `contact`/`address`/`created_by` redacted for anon; moderation (`DELETE /blood-requests/{id}`) |
 | `admin/district/customers` | customer list + activity trail |
