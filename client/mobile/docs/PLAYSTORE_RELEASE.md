@@ -41,7 +41,12 @@ Android metadata lives in the committed native project, not `app.json` (deleted)
 
 ## Step 2: Signing
 
-The release build reads `keystore/keystore.properties` (gitignored):
+The release build reads `keystore/keystore.properties` (gitignored). Start from the committed
+template:
+
+```bash
+cp keystore.properties.example keystore/keystore.properties && chmod 600 keystore/keystore.properties
+```
 
 ```properties
 STORE_FILE=../../keystore/faazio-release.keystore

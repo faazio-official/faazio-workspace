@@ -110,25 +110,30 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Set version (manual override)
-        if: ${{ github.event.inputs.version != '' }}
+      - name: Set version (package.json is the source of truth)
+        # Always runs: aligns build.gradle versionName + versionCode to the resolved
+        # version. With -f version it also rewrites package.json. This removes the
+        # stale-committed-versionCode trap (a no-input dispatch previously shipped the
+        # hardcoded versionCode, which could be a downgrade vs a -f version build).
         run: |
           VERSION="${{ github.event.inputs.version }}" node -e "
             const fs = require('fs');
             const p = require('./package.json');
-            p.version = process.env.VERSION;
-            fs.writeFileSync('./package.json', JSON.stringify(p, null, 2) + '\n');
-            // Derive versionCode deterministically from the semver so a -f version
-            // release can never reuse a stale committed versionCode (e.g. 1.0.4 ->
+            const version = process.env.VERSION || p.version;
+            if (process.env.VERSION) {
+              p.version = process.env.VERSION;
+              fs.writeFileSync('./package.json', JSON.stringify(p, null, 2) + '\n');
+            }
+            // Derive versionCode deterministically from the semver (e.g. 1.0.4 ->
             // 10004). Must strictly increase per release to avoid downgrade installs.
-            const parts = process.env.VERSION.split('.').map(Number);
+            const parts = String(version).split('.').map(Number);
             let vc = null;
             if (parts.length >= 3 && parts.every((n) => Number.isInteger(n) && n >= 0)) {
               vc = parts[0] * 10000 + parts[1] * 100 + parts[2];
             }
             const g = 'android/app/build.gradle';
             let s = fs.readFileSync(g, 'utf8');
-            s = s.replace(/versionName \"[^\"]+\"/, 'versionName \"' + process.env.VERSION + '\"');
+            s = s.replace(/versionName \"[^\"]+\"/, 'versionName \"' + version + '\"');
             if (vc != null) {
               s = s.replace(/versionCode \d+/, 'versionCode ' + vc);
             }

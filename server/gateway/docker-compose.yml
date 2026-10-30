@@ -72,6 +72,13 @@ services:
       - ../supabase/migrations/0056_seller_order_decisions.sql:/docker-entrypoint-initdb.d/0056_seller_order_decisions.sql:ro
       - ../supabase/migrations/0057_strict_district_owner_backfill.sql:/docker-entrypoint-initdb.d/0057_strict_district_owner_backfill.sql:ro
       - ../supabase/migrations/0058_notifications_retry.sql:/docker-entrypoint-initdb.d/0058_notifications_retry.sql:ro
+      - ../supabase/migrations/0059_app_config.sql:/docker-entrypoint-initdb.d/0059_app_config.sql:ro
+      - ../supabase/migrations/0060_account_deletion.sql:/docker-entrypoint-initdb.d/0060_account_deletion.sql:ro
+      - ../supabase/migrations/0061_blood_request_author.sql:/docker-entrypoint-initdb.d/0061_blood_request_author.sql:ro
+      - ../supabase/migrations/0062_error_events.sql:/docker-entrypoint-initdb.d/0062_error_events.sql:ro
+      - ../supabase/migrations/0063_seller_tiruchirappalli.sql:/docker-entrypoint-initdb.d/0063_seller_tiruchirappalli.sql:ro
+      - ../supabase/migrations/0064_seller_tiruchi_contact.sql:/docker-entrypoint-initdb.d/0064_seller_tiruchi_contact.sql:ro
+      - ../supabase/migrations/0065_tiruchirappalli_district_admin.sql:/docker-entrypoint-initdb.d/0065_tiruchirappalli_district_admin.sql:ro
       - ../supabase/seed/0001_seed.sql:/docker-entrypoint-initdb.d/0099_seed.sql:ro
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U postgres -d faazio"]
