@@ -23,7 +23,7 @@ export type RootStackParamList = {
    * main category's subgroups as a plain-text rail, each listing its vendors.
    */
   CategoryDrillIn: {
-    /** `CategoryTab.id` of the tapped rail chip, resolved via `MASTER_CATEGORIES[app]`. */
+    /** Tapped rail chip id, resolved from the server taxonomy (`GET /categories`). */
     tabId: string;
     /** Header title — the tapped rail name (never "All Categories"). */
     title: string;

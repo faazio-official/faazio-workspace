@@ -1,10 +1,13 @@
 package categories
 
 import (
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
+
+	"github.com/jackc/pgx/v5/pgconn"
 )
 
 func TestValidApp(t *testing.T) {
@@ -17,6 +20,18 @@ func TestValidApp(t *testing.T) {
 		if validApp(a) {
 			t.Errorf("validApp(%q) = true, want false", a)
 		}
+	}
+}
+
+func TestIsUniqueViolation(t *testing.T) {
+	if !isUniqueViolation(&pgconn.PgError{Code: "23505"}) {
+		t.Fatal("SQLSTATE 23505 must be treated as a duplicate")
+	}
+	if isUniqueViolation(&pgconn.PgError{Code: "23503"}) {
+		t.Fatal("SQLSTATE 23503 (FK violation) is not a duplicate")
+	}
+	if isUniqueViolation(nil) || isUniqueViolation(errors.New("boom")) {
+		t.Fatal("non-pg errors are not duplicates")
 	}
 }
 

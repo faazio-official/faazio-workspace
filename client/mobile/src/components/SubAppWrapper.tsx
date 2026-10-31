@@ -355,6 +355,7 @@ export default function SubAppWrapper({
           belowSearchSlot={
             subAppId === 'FA_MART' ? (
               <HeaderCategoryRail
+                app="FA_MART"
                 onCategoryPress={handleRailCategoryPress}
               />
             ) : undefined

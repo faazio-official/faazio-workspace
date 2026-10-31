@@ -2194,6 +2194,7 @@ export class GatewayClient {
       passbookAssetId?: string;
     },
   ): Promise<SellerApplication> {
+    if (!REMOTE_ENABLED) throw new GatewayOfflineError();
     return this.http<SellerApplication>(`/sellers/${encodeURIComponent(sellerId)}/edit`, {
       method: 'POST',
       body: JSON.stringify(input),

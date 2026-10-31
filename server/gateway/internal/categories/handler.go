@@ -55,8 +55,9 @@ func (h *Handler) list(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if r.URL.Query().Has("parent_id") {
-		pid := strings.TrimSpace(r.URL.Query().Get("parent_id"))
-		opts.ParentID = &pid
+		if pid := strings.TrimSpace(r.URL.Query().Get("parent_id")); pid != "" {
+			opts.ParentID = &pid
+		}
 	}
 	if r.URL.Query().Get("top_level") == "true" {
 		opts.TopLevel = true
@@ -111,6 +112,10 @@ func (h *Handler) create(w http.ResponseWriter, r *http.Request) {
 	}
 	item, err := h.repo.Create(r.Context(), req, auth.UserID(r.Context()))
 	if err != nil {
+		if errors.Is(err, ErrDuplicate) {
+			httpx.Fail(w, http.StatusConflict, "conflict", "a category with this id already exists")
+			return
+		}
 		httpx.Fail(w, http.StatusInternalServerError, "categories_write_failed", "could not save category")
 		return
 	}

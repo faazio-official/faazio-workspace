@@ -61,7 +61,8 @@ npm run check:drillin     # category taxonomy ↔ mart/pharma catalog coverage g
 
 All three must pass before pushing. `check:boundaries` fails on any sub-app importing another
 sub-app's internals (only `Home` is allowed to cross sub-apps). `check:drillin` fails if any
-`MASTER_CATEGORIES` title resolves no vendor (the category drill-in would render empty).
+taxonomy title (from `server/supabase/seed/lib/taxonomy.mjs`) resolves no vendor (the category
+drill-in would render empty).
 
 ### 4b. Central remote config (the "Central Digital Menu")
 

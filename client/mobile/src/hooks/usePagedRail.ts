@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { gateway } from '@/services/api/GatewayClient';
 import { categoryToRailItem, type CategoryRailItem } from '@/services/categoryRail';
+import type { VendorApp } from '@/services/categoryVendors';
 
 /** Default page size for the header rail. */
 export const HEADER_RAIL_PAGE_SIZE = 8;
@@ -10,8 +11,11 @@ export const HEADER_RAIL_PAGE_SIZE = 8;
  * (`GET /categories/rail`, superadmin-owned `taxonomy.categories`) once, then pages over the local
  * list. There is no fixture fallback: an offline/empty result renders an empty rail. Presentation-
  * agnostic — the rail owns rendering.
+ *
+ * `app` optionally scopes the rail to one sub-app so a sub-app header never shows another
+ * sub-app's chips (the Home hub omits it and may cross sub-apps).
  */
-export function usePagedRail(pageSize = HEADER_RAIL_PAGE_SIZE) {
+export function usePagedRail(pageSize = HEADER_RAIL_PAGE_SIZE, app?: VendorApp) {
   const [all, setAll] = useState<CategoryRailItem[]>([]);
   const [page, setPage] = useState(0);
 
@@ -25,7 +29,7 @@ export function usePagedRail(pageSize = HEADER_RAIL_PAGE_SIZE) {
         setAll(
           categories
             .map(categoryToRailItem)
-            .filter((c): c is CategoryRailItem => c !== null),
+            .filter((c): c is CategoryRailItem => c !== null && (!app || c.app === app)),
         );
       })
       .catch(() => {
@@ -34,7 +38,7 @@ export function usePagedRail(pageSize = HEADER_RAIL_PAGE_SIZE) {
     return () => {
       active = false;
     };
-  }, []);
+  }, [app]);
 
   const items = all.slice(0, (page + 1) * pageSize);
 

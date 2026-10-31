@@ -34,13 +34,13 @@ interface CategoryDrillInPanelProps {
 }
 
 /**
- * Category drill-in page panel. Resolves the tapped main category (`tabId`) from
- * `MASTER_CATEGORIES[app]` and shows every sub-category title as one flat,
- * scrollable pill rail (first auto-selected). For the selected title it renders a
- * store-grouped body: the paid CATEGORY_TOP hero carousel (ad-server fill; collapses
- * when unfilled) under the rail, then one section per matching store — a heading followed
- * by a continuous vertical list of one-per-row product cards. An inline searchbar
- * (this page only) filters the store list by name/locality.
+ * Category drill-in page panel. Resolves the tapped main category (`tabId`) from the
+ * server taxonomy (`GET /categories`, via `useCategoryTree`) and shows every
+ * sub-category title as one flat, scrollable pill rail (first auto-selected). For the
+ * selected title it renders a store-grouped body: the paid CATEGORY_TOP hero carousel
+ * (ad-server fill; collapses when unfilled) under the rail, then one section per matching
+ * store — a heading followed by a continuous vertical list of one-per-row product cards.
+ * An inline searchbar (this page only) filters the store list by name/locality.
  */
 export function CategoryDrillInPanel({
   tabId,

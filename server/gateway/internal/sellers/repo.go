@@ -142,7 +142,7 @@ const sellerColumns = `seller_id, business_name, owner_name, category::text, gst
 	platform_fee_pct, coalesce(razorpay_linked_account_id,''), coalesce(fssai_number,''),
 	coalesce(fssai_cert_key,''), coalesce(fssai_cert_asset_id,''),
 	otp_verified, otp_verified_at, coalesce(rejection_reason,''), rejection_history, created_at,
-	latitude, longitude`
+	latitude, longitude, coalesce(seller_category_id,'')`
 
 const sellerSelect = `select ` + sellerColumns + ` from sellers.sellers`
 
@@ -679,7 +679,7 @@ func scanSeller(row rowScanner) (Seller, error) {
 		&s.BusinessAddress, &s.ContactPhone, &s.ContactEmail, &s.StateCode, &s.DistrictCode, &s.Status, &s.Rating,
 		&s.PlatformFeePct, &s.RazorpayLinkedAccountID, &s.FSSAINumber, &s.FSSAICertKey,
 		&s.FSSAICertAssetID, &s.OTPVerified, &otpAt, &s.RejectionReason, &history, &createdAt,
-		&lat, &lng); err != nil {
+		&lat, &lng, &s.SellerCategoryID); err != nil {
 		return Seller{}, err
 	}
 	if otpAt != nil {

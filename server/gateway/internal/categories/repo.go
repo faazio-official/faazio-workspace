@@ -13,6 +13,7 @@ import (
 
 	"github.com/faazio/server/gateway/internal/platform/db"
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 )
 
 // Category is one taxonomy.categories row.
@@ -119,6 +120,9 @@ func (r *Repo) Get(ctx context.Context, id string) (Category, error) {
 // ErrNotFound is returned when a category id does not exist.
 var ErrNotFound = errors.New("categories: not found")
 
+// ErrDuplicate is returned when a create re-uses an existing category id.
+var ErrDuplicate = errors.New("categories: duplicate id")
+
 // Create inserts a new category. When in.ID is empty a stable `cat-<shortid>` id is minted.
 func (r *Repo) Create(ctx context.Context, in Input, actor string) (Category, error) {
 	if r.pool == nil {
@@ -146,6 +150,9 @@ func (r *Repo) Create(ctx context.Context, in Input, actor string) (Category, er
 		id, in.App, in.Name, slug, nullStr(in.Description), nullStr(in.IconURL),
 		in.ParentID, nullStr(in.SearchQuery), active, in.SortOrder, actor))
 	if err != nil {
+		if isUniqueViolation(err) {
+			return Category{}, ErrDuplicate
+		}
 		return Category{}, err
 	}
 	return c, nil
@@ -189,7 +196,8 @@ func (r *Repo) Update(ctx context.Context, id string, in Input, actor string) (C
 }
 
 // Deactivate soft-deletes a category (is_active = false) so existing sellers/products that reference
-// it are never orphaned. Returns false when the id does not exist.
+// it are never orphaned. Idempotent: a repeat deactivate of a live-or-already-hidden row still
+// returns true; false only when the id does not exist at all.
 func (r *Repo) Deactivate(ctx context.Context, id, actor string) (bool, error) {
 	if r.pool == nil {
 		return false, fmt.Errorf("categories: database not configured")
@@ -197,11 +205,17 @@ func (r *Repo) Deactivate(ctx context.Context, id, actor string) (bool, error) {
 	tag, err := r.pool.Exec(ctx, `
 		update taxonomy.categories
 		   set is_active = false, updated_by = $2, updated_at = now()
-		 where id = $1 and is_active`, id, actor)
+		 where id = $1`, id, actor)
 	if err != nil {
 		return false, err
 	}
 	return tag.RowsAffected() > 0, nil
+}
+
+// isUniqueViolation reports whether err is a Postgres unique-constraint violation (SQLSTATE 23505).
+func isUniqueViolation(err error) bool {
+	var pgErr *pgconn.PgError
+	return errors.As(err, &pgErr) && pgErr.Code == "23505"
 }
 
 func nullStr(s string) any {

@@ -170,7 +170,7 @@ wrapper over `AdBannerCarousel`, AD pill always on, `accessibilityLabel="Sponsor
 | Hero placement | Surface | Mobile entry |
 |---|---|---|
 | `MART_HERO` | Mart home feed hero (above Sponsored picks) | `ecommerce/FaMartScreen` (`CampaignHero`) |
-| `CATEGORY_TOP` | Category drill-in top banner (scoped by `category` = `MASTER_CATEGORIES` tab id) | `catalog/components/CategoryDrillInPanel` |
+| `CATEGORY_TOP` | Category drill-in top banner (scoped by `category` = taxonomy `tabId`) | `catalog/components/CategoryDrillInPanel` |
 | `STORE_TOP` | Store / medical-shop / restaurant header banner (scoped by `storeId`) | `catalog/VendorDetailScreen`, `pharma/MedicalShopDetailsScreen`, `food/screens/RestaurantProfileScreen` |
 | `HOME_HERO` | Main Home hub top hero (retired the static `topAdSlides` fixture) | `home/sections/AdBannerSection` |
 | `FOOD_HERO` | Food feed hero band | `food/screens/FoodHomeScreen` |

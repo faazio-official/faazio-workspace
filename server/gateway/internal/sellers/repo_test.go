@@ -2,10 +2,19 @@ package sellers
 
 import (
 	"context"
+	"strings"
 	"testing"
 
 	"github.com/faazio/server/gateway/internal/platform/testenv"
 )
+
+// TestSellerColumnsIncludeCategoryID guards the read-back of seller_category_id: it must stay in the
+// shared select list, otherwise every Seller response silently drops the superadmin category.
+func TestSellerColumnsIncludeCategoryID(t *testing.T) {
+	if !strings.Contains(sellerColumns, "seller_category_id") {
+		t.Fatal("sellerColumns must select seller_category_id so reads carry it")
+	}
+}
 
 func TestSellerLifecycle(t *testing.T) {
 	pool := testenv.Pool(t)

@@ -59,10 +59,11 @@ devices/baby-care/Ayurveda products; explore +3 stacks; categories +4 mart bucke
 `seedFavorites` extended to span FOOD/MART/PHARMA. Because the normalized tables import these
 arrays, every new product auto-derives its catalog + stock rows.
 
-**Drill-in coverage seeding:** the category drill-in page resolves each `MASTER_CATEGORIES`
-`searchQuery` to vendors via `services/categoryVendors.ts` (`matchesQuery` — per-token AND over a
-product's name + category + desc + attributes). The taxonomy had outgrown the catalog, so 80 of
-112 titles resolved **zero** vendors (`No vendors yet`, ad carousel hidden). `data/mart/products.ts`
+**Drill-in coverage seeding:** the category drill-in page resolves each taxonomy `searchQuery`
+(from `server/supabase/seed/lib/taxonomy.mjs`, the DB seed) to vendors via `services/categoryVendors.ts`
+(`matchesQuery` — per-token AND over a product's name + category + desc + attributes). The taxonomy had
+outgrown the catalog, so 80 of 112 titles resolved **zero** vendors (`No vendors yet`, ad carousel
+hidden). `data/mart/products.ts`
 (+74 rows) and `data/pharma/products.ts` (+11 rows, plus `STORE_BY_CATEGORY` keys `allergy` and
 `personal-care`) were seeded so every one of the 112 titles now resolves ≥1 vendor, and the thin
 first-of-tab titles (Bluetooth Headphones, Fresh Apples, Fresh Milk, BP Monitor, Multivitamin,
@@ -285,9 +286,12 @@ the `GROCERY` member was dropped from `AppBrand` / `CartCategory` / `SubAppId` /
 
 | Export | Type | Mobile consumers | Status |
 |---|---|---|---|
-| `categoriesSearchDatabase` | `Record<string, Product[]>` | `CategoriesView`, `FavouritesView` | `@mock` |
-| `MASTER_CATEGORIES` / `ALL_TABS` | `Record<CategoryAppId, CategoryTab[]>` / `CategoryTab[]` | `CategoryDrillInScreen` (via `CategoryDrillInPanel`), `SubgroupTextRail` | `@mock` |
-| `HEADER_CATEGORY_RAIL` / `getCategoryRailPage` / `HEADER_RAIL_TOTAL` | `CategoryRailItem[]` + paging helpers | `HeaderCategoryRail` (via `usePagedRail`) — Home/Mart header rail. Each item carries a `vendorTags: string[]` array (`TAB_VENDOR_TAGS`) mapping rail tab ids to `StoreProfile.categories` tags | `@mock` |
+| `categoriesSearchDatabase` | `Record<string, Product[]>` | `data/catalog/products.ts`, `data/home/filterFeed.ts` | `@mock` |
+
+> The category taxonomy (`MASTER_CATEGORIES` / `HEADER_CATEGORY_RAIL` / `getCategoryRailPage` /
+> `HEADER_RAIL_TOTAL` / `TAB_VENDOR_TAGS`) was **removed** — it now lives in the DB
+> (`taxonomy.categories`, superadmin-owned) and is served by the gateway (`GET /categories`,
+> `GET /categories/rail`). See `docs/architecture/db-schema.md` §12.30.
 
 ### `@data/productMeta` — owner: `features/product` (ProductDetail)
 

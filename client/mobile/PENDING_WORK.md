@@ -22,12 +22,17 @@ dependencies exist. Do not build the backend/seller flows until told to.
   (`is_active=false`). `sellers.sellers.seller_category_id` (nullable FK) added.
 - **Gateway:** `internal/categories` — `GET /categories`, `GET /categories/rail`, `GET /admin/categories`,
   `POST /categories`, `PUT /categories/{id}`, `DELETE /categories/{id}` (soft). Seller `POST /sellers`
-  + edit accept an app-scoped `categoryId` (validated).
+  + edit accept an app-scoped `categoryId` (validated). Reads require a signed-in account; every
+  mutation is SUPER_ADMIN only.
 - **Mobile:** removed `@data/categories/masterCategories.ts` + `railFeed.ts`; `usePagedRail`,
   `CategoryDrillInPanel`, `SellerRegistrationScreen` now read server categories (no fixture). The
-  seller app-onboarding category picker requires a server category. `submitSellerApplication` is
-  server-only (no fabricated `sel-local-*` row).
+  seller app-onboarding category picker requires a server category. `submitSellerApplication` and
+  `resubmitSellerApplication` are server-only (no fabricated `sel-local-*` row). The home header rail
+  chip still opens the existing `CategoryDrillIn` page (per decision — no separate `CategoriesScreen`).
 - **Portal:** `/admin/super/categories` — superadmin CRUD (All/Mart/Food/Pharma tabs, soft delete).
+- **Post-ship fixes:** `seller_category_id` now round-trips through every Seller read (it was written
+  but never selected — `sellerColumns`/`scanSeller`); `DELETE /categories/{id}` is idempotent; an
+  empty `?parent_id=` is treated as absent; a duplicate create id returns `409` (not `500`).
 
 **Remaining (follow-up):** the feature-local Food/Mart fixtures (`features/food/mocks/*`,
 `features/ecommerce/mocks/martHomeFeed.ts`, `data/categories/searchDatabase.ts`) are **not yet**
