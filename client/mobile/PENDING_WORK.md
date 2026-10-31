@@ -567,8 +567,11 @@ end to end; the mobile app no longer talks to Supabase Auth.
   `ios/Faazio/GoogleService-Info.plist`; Android applies the `com.google.gms.google-services`
   plugin (`4.5.0`). iOS uses per-variant plists (`ios/Faazio/Info.plist` customer,
   `Info-Delivery.plist`, `Info-Seller.plist`); customer/seller declare `UIBackgroundModes →
-  remote-notification` only while delivery also declares `location`; APNs/Play Integrity
-  anti-abuse is **not** configured yet (Part 6 blocked: Firebase project not linked to GCP) — see
+  remote-notification` only while delivery also declares `location`. The iOS APNs entitlement is now
+  committed for all three products (`ios/Faazio/Faazio.entitlements` = `aps-environment production`
+  for `*Release`; `ios/Faazio/Faazio-Debug.entitlements` = `development` for `*Debug`). Play
+  Integrity is **not** configured yet (Part 6 blocked: Firebase project not linked to GCP), and the
+  APNs `.p8` key upload + delivery/seller iOS app registration remain — see
   `docs/RUNBOOKS/FIREBASE_AUTH.md`.
 - **Gateway:** `platform/auth.FirebaseVerifier` verifies RS256 Firebase ID tokens with Google's
   x509 cert set (no firebase-admin dependency); `iss`/`aud`/`exp`/`sub` checked. `FIREBASE_PROJECT_ID`
@@ -579,9 +582,10 @@ end to end; the mobile app no longer talks to Supabase Auth.
 - **Prod:** `render.yaml` pins `FIREBASE_PROJECT_ID` + `AUTH_DISABLED=false`; the mobile `.env`
   and both CI workflows default `GATEWAY_URL` to `https://api.faazio.com` (Cloudflare edge in front
   of Render). Release still requires `CERT_PINS` (pins for the Cloudflare edge cert).
-- **Ops remaining (not code):** Part 6 — enable Play Integrity (Android) + APNs key (iOS) and App
-  Check enforcement once the Firebase project is linked to Google Cloud; register the release
-  keystore SHA-1/SHA-256 in Firebase for SMS auto-retrieval.
+- **Ops remaining (not code):** Part 6 — enable Play Integrity (Android) + upload the APNs `.p8` key
+  (iOS; the client entitlement is committed) and App Check enforcement once the Firebase project is
+  linked to Google Cloud; register the delivery/seller iOS apps and the release keystore
+  SHA-1/SHA-256 in Firebase for SMS auto-retrieval.
 
 **Date:** 2026-10-20
 

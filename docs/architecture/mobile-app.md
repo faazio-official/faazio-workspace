@@ -786,6 +786,15 @@ selects that config in `configure.js` (the iOS bundle phase hard-fails otherwise
 explicitly (`assembleCustomerDebug` / `assembleDeliveryDebug` / `assembleSellerDebug`); see
 `docs/RUNBOOKS/RELEASE.md`.
 
+**iOS push entitlement.** One committed file pair covers all three products: the three `*Release`
+configurations use `ios/Faazio/Faazio.entitlements` (`aps-environment = production`) and the three
+`*Debug` configurations use `ios/Faazio/Faazio-Debug.entitlements` (`aps-environment = development`),
+so APNs registration matches the signing profile (App Store distribution vs Apple development).
+Without it `registerForRemoteNotifications()` fails on distribution profiles and iOS push cannot
+work. `AppDelegate.swift` carries no push code — `@react-native-firebase/messaging` registers the
+APNs token through its default app-delegate swizzle. iOS push *delivery* still needs the Part 6 APNs
+`.p8` key uploaded to Firebase (`docs/RUNBOOKS/FIREBASE_AUTH.md`).
+
 **One shared native shell, one dependency set.** `android/` and `ios/` are committed source-of-truth
 shells shared by all three products; a flavor/configuration only *adds or overrides* source sets
 (manifest, resources, JS entry). Native dependencies are declared once in `package.json` and

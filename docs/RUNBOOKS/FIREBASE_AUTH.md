@@ -81,8 +81,11 @@ permission after sign-in and registers the token via `POST /notifications/regist
 calls `DELETE /notifications/register` best-effort. Push delivery comes from the **gateway's embedded
 FCM HTTP v1 sender** when `FCM_PROJECT_ID` + `FCM_SERVICE_ACCOUNT_JSON` are set (see below); without
 them the worker is disabled and the in-app `GET /notifications`
-still works. APNs requires the Part 6 `.p8` key + Xcode Push Notifications capability; Android 13+
-requires the runtime notification permission.
+still works. The iOS client side is now in place — the shared entitlements carry
+`aps-environment` (`production` for the `*Release` configs, `development` for `*Debug`) and every
+variant declares `UIBackgroundModes → remote-notification` — so APNs delivery only needs the Part 6
+`.p8` key uploaded to Firebase plus the delivery/seller iOS apps registered. Android 13+ requires the
+runtime notification permission.
 
 ### Server-side FCM push credentials (Android)
 
@@ -132,7 +135,10 @@ requires the runtime notification permission.
       SHA-256 `E1:B6:1B:A9:86:F6:76:C4:A0:C0:D5:EF:26:E9:25:8C:78:95:7C:A9:04:7F:E9:39:96:F3:E5:C5:96:E5:5E:ED`
     - `com.faazio.sellerpartner` — SHA-1 `5F:03:B7:B1:C6:B6:6D:7C:DB:86:8E:3C:A7:E5:F3:4F:B4:02:5E:20`,
       SHA-256 `B7:DA:DE:58:08:F8:EB:9D:3D:EB:F8:BC:12:E6:75:5E:46:A2:F4:E5:7A:C2:C9:56:AA:06:45:10:18:1E:B7:A6`.
-  - [ ] Xcode: Push Notifications capability + Background Modes → Remote notifications.
+  - [x] Push Notifications capability + Background Modes → Remote notifications — committed in the
+    repo (`ios/Faazio/Faazio.entitlements` = `aps-environment production` for `*Release`,
+    `ios/Faazio/Faazio-Debug.entitlements` = `development` for `*Debug`; `remote-notification` in all
+    three variant plists). Only the `.p8` upload above remains.
 
 Until Part 6 is done, SMS auto-retrieval and silent iOS verification may not work. OTP still works
 via manual code entry/reCAPTCHA.
