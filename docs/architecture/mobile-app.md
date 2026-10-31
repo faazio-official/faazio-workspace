@@ -799,13 +799,15 @@ instead, as the seller flavor does for the Maps key (below).
 `DeliveryHeartbeatTaskService` every 120 s. The headless JS task reads the Keychain session, takes
 one coarse fix and posts the same heartbeat as the foreground loop; the service stops when the
 rider goes offline/signs out. On iOS, `DeliveryBackgroundLocation` keeps a background-enabled
-CoreLocation watch (`UIBackgroundModes: location`, explicit consent) and posts a heartbeat throttled
+CoreLocation watch (`UIBackgroundModes: location`, declared only by the delivery variant's
+`ios/Faazio/Info-Delivery.plist`, explicit consent) and posts a heartbeat throttled
 to 120 s only while `AppState` is not active; the foreground interval owns heartbeats while the app
 is open. The watch uses coarse continuous updates (no distance filter) so a rider waiting at a store
 keeps refreshing the 300 s Valkey key instead of silently dropping out of dispatch. The in-app
 consent flag is persisted so a cold start while already online resumes the watch without
 re-prompting; sign-out clears it. iOS still ends the watch when the app is force-quit from the app
-switcher.
+switcher. The customer (`Info.plist`) and seller (`Info-Seller.plist`) variants declare only
+`remote-notification` — neither requests background location or `fetch`.
 
 **Known production limits** (tracked in `client/mobile/PENDING_WORK.md`): force-quit iOS background
 location (plus OEM battery whitelisting) and push delivery is an ops step (fee-free: set the
@@ -1269,9 +1271,13 @@ meta-data (`tools:node="remove"` in `android/app/src/seller/AndroidManifest.xml`
 `google_maps_api_key` empty in `src/seller/res/values/`. Consequently the Google Maps/Places keys only
 need the **customer + delivery** packages on their allowlist. Do not delete the shared `react-native-maps`
 dependency to achieve this — that would break customer and delivery.
-The customer product itself never requests background location. The shared iOS plist declares
-`UIBackgroundModes: location` for the delivery entry (the partner app is the only caller of the
-background watch); Android keeps background location scoped to the delivery flavor manifest.
+The customer product itself never requests background location. iOS plists are split per variant:
+only the delivery variant (`ios/Faazio/Info-Delivery.plist`) declares `UIBackgroundModes: location`
+and `NSLocationAlwaysAndWhenInUseUsageDescription` (the partner app is the only caller of the
+background watch); the customer `ios/Faazio/Info.plist` and seller `ios/Faazio/Info-Seller.plist`
+declare `remote-notification` only and are foreground-only, so they never prompt for "Always"
+location. `INFOPLIST_FILE` selects the plist per Xcode build configuration. Android keeps background
+location scoped to the delivery flavor manifest.
 
 ## Cart checkout — BAG → FULFILLMENT → PAYMENT → (PAYMENT_STATUS → PAYMENT_FAILED) → RECEIPT
 

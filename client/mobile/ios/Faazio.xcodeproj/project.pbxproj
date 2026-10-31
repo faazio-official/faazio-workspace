@@ -22,6 +22,8 @@
 		F11748412D0307B40044C1D9 /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = AppDelegate.swift; path = Faazio/AppDelegate.swift; sourceTree = "<group>"; };
 		F11748442D0722820044C1D9 /* Faazio-Bridging-Header.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; name = "Faazio-Bridging-Header.h"; path = "Faazio/Faazio-Bridging-Header.h"; sourceTree = "<group>"; };
 		FA10E0022E9A000000000002 /* GoogleService-Info.plist */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.plist.xml; name = "GoogleService-Info.plist"; path = "Faazio/GoogleService-Info.plist"; sourceTree = "<group>"; };
+		FA10E0032E9A000000000003 /* Info-Delivery.plist */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.plist.xml; name = "Info-Delivery.plist"; path = "Faazio/Info-Delivery.plist"; sourceTree = "<group>"; };
+		FA10E0042E9A000000000004 /* Info-Seller.plist */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.plist.xml; name = "Info-Seller.plist"; path = "Faazio/Info-Seller.plist"; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -43,6 +45,8 @@
 				BB2F792B24A3F905000567C9 /* Supporting */,
 				13B07FB51A68108700A75B9A /* Images.xcassets */,
 				13B07FB61A68108700A75B9A /* Info.plist */,
+				FA10E0032E9A000000000003 /* Info-Delivery.plist */,
+				FA10E0042E9A000000000004 /* Info-Seller.plist */,
 				FA10E0022E9A000000000002 /* GoogleService-Info.plist */,
 				AA286B85B6C04FC6940260E9 /* SplashScreen.storyboard */,
 			);
@@ -332,7 +336,7 @@
 				CURRENT_PROJECT_VERSION = 4;
 				FAAZIO_APP_NAME = "Faazio Delivery Partner";
 				FAZIO_APP_VARIANT = delivery;
-				INFOPLIST_FILE = Faazio/Info.plist;
+				INFOPLIST_FILE = Faazio/Info-Delivery.plist;
 				IPHONEOS_DEPLOYMENT_TARGET = 16.4;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
@@ -363,7 +367,7 @@
 				CURRENT_PROJECT_VERSION = 4;
 				FAAZIO_APP_NAME = "Faazio Seller Partner";
 				FAZIO_APP_VARIANT = seller;
-				INFOPLIST_FILE = Faazio/Info.plist;
+				INFOPLIST_FILE = Faazio/Info-Seller.plist;
 				IPHONEOS_DEPLOYMENT_TARGET = 16.4;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
@@ -732,7 +736,7 @@
 					"$(inherited)",
 					"FB_SONARKIT_ENABLED=1",
 				);
-				INFOPLIST_FILE = Faazio/Info.plist;
+				INFOPLIST_FILE = Faazio/Info-Delivery.plist;
 				IPHONEOS_DEPLOYMENT_TARGET = 16.4;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
@@ -769,7 +773,7 @@
 					"$(inherited)",
 					"FB_SONARKIT_ENABLED=1",
 				);
-				INFOPLIST_FILE = Faazio/Info.plist;
+				INFOPLIST_FILE = Faazio/Info-Seller.plist;
 				IPHONEOS_DEPLOYMENT_TARGET = 16.4;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",

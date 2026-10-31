@@ -32,7 +32,7 @@ Each native app must be registered against its own ID. One typo makes
 | `client/mobile/ios/Faazio/GoogleService-Info-Seller.plist` | Seller iOS app config — **supplied by ops/CI**, not committed |
 | `client/mobile/android/build.gradle` | `com.google.gms:google-services:4.5.0` classpath |
 | `client/mobile/android/app/build.gradle` | applies `com.google.gms.google-services` |
-| `client/mobile/ios/Faazio/Info.plist` | `UIBackgroundModes → remote-notification` |
+| `client/mobile/ios/Faazio/Info.plist` (customer) / `Info-Delivery.plist` / `Info-Seller.plist` | Per-variant `UIBackgroundModes → remote-notification`; delivery also declares `location` |
 
 The Firebase files are public by design (the API key is restricted per platform in Google Cloud) and
 committed so CI can build without extra secrets — the customer, delivery and seller Android

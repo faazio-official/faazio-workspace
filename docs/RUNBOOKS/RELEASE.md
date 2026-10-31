@@ -356,8 +356,9 @@ npm run ios                                    # debug build + Metro in simulato
 ```
 
 Upload via Xcode Organizer / Transporter; then fill App Store Connect metadata.
-`ios/Faazio/Info.plist` declares only the usage strings the app actually triggers (camera and
-location); no unused/generic permission strings.
+The per-variant plists (`ios/Faazio/Info.plist` customer, `Info-Delivery.plist`, `Info-Seller.plist`)
+declare only the usage strings each app actually triggers — camera, plus foreground location for
+customer and delivery and always-location for delivery only; no unused/generic permission strings.
 
 ## 🌍 Web (Partner Portal) — Vercel
 

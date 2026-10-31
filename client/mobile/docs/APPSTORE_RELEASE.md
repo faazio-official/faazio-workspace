@@ -34,8 +34,8 @@ iOS metadata lives in the committed Xcode project, not `app.json` (deleted):
 |---|---|
 | Bundle identifier | `ios/Faazio.xcodeproj/project.pbxproj` (`com.faazio.customer`) |
 | Version / build | Xcode target **General** tab (`MARKETING_VERSION` / `CURRENT_PROJECT_VERSION`) |
-| Permission strings | `ios/Faazio/Info.plist` (`NSCameraUsageDescription`, `NSLocationWhenInUseUsageDescription`, `NSLocationAlwaysAndWhenInUseUsageDescription`) |
-| App display name | `ios/Faazio/Info.plist` (`CFBundleDisplayName` = Faazio) |
+| Permission strings | Per-variant plists selected by `INFOPLIST_FILE`: `ios/Faazio/Info.plist` (customer — `NSCameraUsageDescription`, `NSLocationWhenInUseUsageDescription`), `Info-Delivery.plist` (delivery — camera, `NSLocationWhenInUseUsageDescription`, `NSLocationAlwaysAndWhenInUseUsageDescription`), `Info-Seller.plist` (seller — camera only) |
+| App display name | `ios/Faazio/Info*.plist` (`CFBundleDisplayName` = `$(FAAZIO_APP_NAME)`) |
 | Native geocoder | local pod `ios/FaazioGeocoder` |
 
 > Apple rejects vague permission strings. Keep each description specific to the feature that

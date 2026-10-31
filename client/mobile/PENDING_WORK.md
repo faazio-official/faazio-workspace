@@ -495,11 +495,12 @@ default it to `https://app.faazio.com`.
   delivers outbox rows straight to Firebase. The
   app side — token registration, foreground handler, notification tap and
   `faazio-delivery://accept-reject?orderId=…` all open `AcceptRejectScreen` — was already done.
-- **iOS force-quit** — background location now survives backgrounding (`UIBackgroundModes: location`
-  + a CoreLocation watch behind persisted explicit consent, resumed without re-prompting when an
-  already-online rider relaunches the app), but iOS stops the watch when the rider swipes the app
-  away. Android OEMs may also kill the foreground service under battery optimisation — riders need
-  the battery-whitelisting step.
+- **iOS force-quit** — background location (delivery variant only: `UIBackgroundModes: location` in
+  `ios/Faazio/Info-Delivery.plist`; the customer/seller variants are foreground-only) now survives
+  backgrounding via a CoreLocation watch behind persisted explicit consent, resumed without
+  re-prompting when an already-online rider relaunches the app, but iOS stops the watch when the
+  rider swipes the app away. Android OEMs may also kill the foreground service under battery
+  optimisation — riders need the battery-whitelisting step.
 - **Customer rating UI** — `POST /delivery/{orderId}/rate` stores a 1–5 rating + comment, but no
   customer screen prompts for it after delivery yet.
 - **Multi-vehicle VRP** — dispatch now runs a globally optimal single-rider Held-Karp VRP across all
@@ -564,7 +565,9 @@ end to end; the mobile app no longer talks to Supabase Auth.
   the root navigator returns the customer app to Login / the delivery app to Phone entry.
 - **Native config (public, committed):** `android/app/google-services.json` +
   `ios/Faazio/GoogleService-Info.plist`; Android applies the `com.google.gms.google-services`
-  plugin (`4.5.0`). iOS has `UIBackgroundModes → remote-notification`; APNs/Play Integrity
+  plugin (`4.5.0`). iOS uses per-variant plists (`ios/Faazio/Info.plist` customer,
+  `Info-Delivery.plist`, `Info-Seller.plist`); customer/seller declare `UIBackgroundModes →
+  remote-notification` only while delivery also declares `location`; APNs/Play Integrity
   anti-abuse is **not** configured yet (Part 6 blocked: Firebase project not linked to GCP) — see
   `docs/RUNBOOKS/FIREBASE_AUTH.md`.
 - **Gateway:** `platform/auth.FirebaseVerifier` verifies RS256 Firebase ID tokens with Google's

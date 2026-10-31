@@ -126,7 +126,8 @@ rendered on the error card** (plus the first stack frame in a dev build) — tha
   ask the rider to allow notifications; a missed heartbeat removes them from candidates after the
   300 s Valkey TTL.
 - **iOS rider stops receiving offers in the background** → confirm the rider allowed **Always**
-  location from the Go Online consent, `UIBackgroundModes` includes `location`, and the build is the
+  location from the Go Online consent, the delivery plist (`ios/Faazio/Info-Delivery.plist`) includes
+  `UIBackgroundModes: location`, and the build is the
   delivery configuration (`index.delivery.js`). The CoreLocation watch posts only when
   `AppState !== active`; if the rider force-quit the app from the switcher the watch is gone by
   design (reopen the app or use the foreground heartbeat). If no heartbeat reaches Valkey, check

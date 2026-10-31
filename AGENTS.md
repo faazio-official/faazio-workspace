@@ -53,7 +53,7 @@ Reading order for a new contributor: `AGENTS.md` → `ARCHITECTURE.md` →
 3. **State** — shared state ONLY in Zustand stores under `src/state/`. Keep components presentational; read via selectors. No duplicate shared state.
 4. **Modularity** — small components under `src/components/`; screen helpers under their `src/features/<module>/`; shared widgets under `src/components/shared/`. Reuse before duplicating (avoid parallel mock copies).
 5. **Navigation** — all routes typed in `src/navigation/AppNavigator.tsx`; screens use `NativeStackScreenProps`.
-6. **Native permissions** — document in `android/app/src/main/AndroidManifest.xml` + `ios/Faazio/Info.plist` and gate with consent dialogs before hardware.
+6. **Native permissions** — document in `android/app/src/main/AndroidManifest.xml` + the per-variant iOS plists (`ios/Faazio/Info.plist` customer, `Info-Delivery.plist`, `Info-Seller.plist`; selected by `INFOPLIST_FILE`) and gate with consent dialogs before hardware.
 7. **Brand** — always use the Faazio logo (`<FaazioLogo />`), never raw text placeholders.
 8. **Layout** — full-viewport, non-scrollable (`h-[100dvh]`), no faux device borders/notches.
 9. **Boundaries** — cross-sub-app access only via Home. Enforced by `check:boundaries`.
