@@ -1,4 +1,4 @@
- # Faazio SuperApp
+  # Faazio SuperApp
 
 Bare React Native superapp. All active work lives in `client/mobile/`.
 
