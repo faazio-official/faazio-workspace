@@ -32,7 +32,9 @@ func NewRepo(pool *db.Pool) *Repo { return &Repo{pool: pool} }
 
 // List returns active districts, optionally narrowed to one 2-letter state code ("" means all). The
 // predicate hits the partial index district_master_state_idx (state_code, district_name)
-// WHERE is_active, and the order matches the fixture/generation order in every mirror.
+// WHERE is_active. Order is Tamil Nadu first (the primary coverage state), then the remaining states
+// by code, then districts by name — the same order as internal/platform/geo and the @data fixtures
+// (locked by TestListMatchesMirror).
 func (r *Repo) List(ctx context.Context, stateCode string) ([]District, error) {
 	if r.pool == nil {
 		return nil, fmt.Errorf("districts: database not configured")
@@ -41,7 +43,7 @@ func (r *Repo) List(ctx context.Context, stateCode string) ([]District, error) {
 		select district_code as "districtCode", district_name as "name", state_code::text as "stateCode"
 		  from admins.district_master
 		 where is_active and ($1 = '' or state_code = $1)
-		 order by state_code, district_name`, stateCode)
+		 order by (state_code <> 'TN'), state_code, district_name`, stateCode)
 	if err != nil {
 		return nil, err
 	}

@@ -54,9 +54,9 @@ var Districts = []District{
 	{Code: "VEL", Name: "Vellore", StateCode: "TN"},
 	{Code: "VLP", Name: "Villupuram", StateCode: "TN"},
 	{Code: "VIR", Name: "Virudhunagar", StateCode: "TN"},
-	{Code: "PY0", Name: "Puducherry", StateCode: "PY"},
 	{Code: "PY1", Name: "Karaikal", StateCode: "PY"},
 	{Code: "PY2", Name: "Mahé", StateCode: "PY"},
+	{Code: "PY0", Name: "Puducherry", StateCode: "PY"},
 	{Code: "PY3", Name: "Yanam", StateCode: "PY"},
 }
 

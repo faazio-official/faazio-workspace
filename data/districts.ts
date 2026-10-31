@@ -46,9 +46,9 @@ export const DISTRICTS: DistrictInfo[] = [
   { districtCode: 'VEL', name: 'Vellore', stateCode: 'TN' },
   { districtCode: 'VLP', name: 'Villupuram', stateCode: 'TN' },
   { districtCode: 'VIR', name: 'Virudhunagar', stateCode: 'TN' },
-  { districtCode: 'PY0', name: 'Puducherry', stateCode: 'PY' },
   { districtCode: 'PY1', name: 'Karaikal', stateCode: 'PY' },
   { districtCode: 'PY2', name: 'Mahé', stateCode: 'PY' },
+  { districtCode: 'PY0', name: 'Puducherry', stateCode: 'PY' },
   { districtCode: 'PY3', name: 'Yanam', stateCode: 'PY' },
 ];
 
