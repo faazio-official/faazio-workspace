@@ -12,7 +12,6 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
   ChevronLeft,
-  ChevronRight,
   Home,
   Briefcase,
   Heart,
@@ -358,9 +357,6 @@ export function SavedAddressesScreen({ navigation }: Props) {
     }
   }, []);
 
-  const handleGoogleMaps = useCallback(() => {
-    // TODO: Add from Google Maps flow — no-op placeholder.
-  }, []);
   const handleCloseBanner = useCallback(() => setShowBanner(false), []);
 
   return (
@@ -427,17 +423,6 @@ export function SavedAddressesScreen({ navigation }: Props) {
             </TouchableOpacity>
           </View>
         )}
-
-        {/* Google Maps card */}
-        <TouchableOpacity onPress={handleGoogleMaps} style={styles.mapCard} activeOpacity={0.8}>
-          <View style={styles.mapCardLeft}>
-            <View style={styles.mapIconCircle}>
-              <MapPin size={ms(16)} color="#16A34A" strokeWidth={2.2} />
-            </View>
-            <AppText style={styles.mapCardTitle}>Add from Google Maps</AppText>
-          </View>
-          <ChevronRight size={ms(18)} color="#9CA3AF" strokeWidth={2.2} />
-        </TouchableOpacity>
 
         <View style={styles.bottomSpacer} />
       </ScrollView>
@@ -686,36 +671,6 @@ const styles = StyleSheet.create({
   },
   closeBannerBtn: {
     padding: hs(4),
-  },
-
-  /* Google Maps Card */
-  mapCard: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: ms(12),
-    padding: hs(16),
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    borderWidth: 1,
-    borderColor: '#E5E7EB',
-  },
-  mapCardLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  mapIconCircle: {
-    width: ms(32),
-    height: ms(32),
-    borderRadius: ms(16),
-    backgroundColor: '#F0FDF4',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginRight: hs(12),
-  },
-  mapCardTitle: {
-    fontSize: ms(13),
-    fontWeight: '700',
-    color: '#111827',
   },
 
   /* Empty state */

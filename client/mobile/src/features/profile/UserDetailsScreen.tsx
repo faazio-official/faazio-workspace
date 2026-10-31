@@ -9,9 +9,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
   Bell,
   ChevronLeft,
-  ChevronRight,
   User,
-  Camera,
   ShieldCheck,
   Mail,
   Phone,
@@ -53,7 +51,7 @@ interface InfoRowProps {
 function InfoRow({ icon: Icon, title, subtitle, showDivider = true }: InfoRowProps) {
   return (
     <View>
-      <TouchableOpacity style={styles.rowContainer} activeOpacity={0.7}>
+      <View style={styles.rowContainer}>
         <View style={styles.rowIconBox}>
           <Icon size={ms(17)} color="#16A34A" strokeWidth={2.2} />
         </View>
@@ -61,8 +59,7 @@ function InfoRow({ icon: Icon, title, subtitle, showDivider = true }: InfoRowPro
           <AppText style={styles.rowTitle}>{title}</AppText>
           <AppText style={styles.rowSubtitle} numberOfLines={2}>{subtitle}</AppText>
         </View>
-        <ChevronRight size={ms(18)} color="#CBD5E1" strokeWidth={2.2} />
-      </TouchableOpacity>
+      </View>
       {showDivider && <View style={styles.divider} />}
     </View>
   );
@@ -115,13 +112,10 @@ export function UserDetailsScreen({ navigation }: Props) {
 
         {/* 2. Main Profile Card */}
         <View style={styles.profileCard}>
-          <TouchableOpacity style={styles.profileTopRow} activeOpacity={0.8}>
+          <View style={styles.profileTopRow}>
             <View style={styles.avatarWrapper}>
               <View style={styles.avatarContainer}>
                 <User size={ms(28)} color="#10B981" strokeWidth={2.2} />
-              </View>
-              <View style={styles.cameraBadge}>
-                <Camera size={ms(11)} color="#FFFFFF" strokeWidth={2.4} />
               </View>
             </View>
             <View style={styles.profileInfo}>
@@ -137,8 +131,7 @@ export function UserDetailsScreen({ navigation }: Props) {
                 </AppText>
               )}
             </View>
-            <ChevronRight size={ms(20)} color="#94a3b8" strokeWidth={2.2} />
-          </TouchableOpacity>
+          </View>
         </View>
 
         {/* 3. Personal Information */}
@@ -172,7 +165,7 @@ export function UserDetailsScreen({ navigation }: Props) {
             </View>
 
             {/* 5. Security Banner */}
-            <TouchableOpacity style={styles.securityBanner} activeOpacity={0.9}>
+            <View style={styles.securityBanner}>
               <View style={styles.securityIconBox}>
                 <ShieldCheck size={ms(26)} color="#16A34A" strokeWidth={2.2} />
               </View>
@@ -180,8 +173,7 @@ export function UserDetailsScreen({ navigation }: Props) {
                 <AppText style={styles.securityTitle}>{details.securityTitle}</AppText>
                 <AppText style={styles.securitySubtitle}>{details.securitySubtitle}</AppText>
               </View>
-              <ChevronRight size={ms(20)} color="#16A34A" strokeWidth={2.4} />
-            </TouchableOpacity>
+            </View>
           </>
         ) : null}
       </ScrollView>
@@ -288,19 +280,6 @@ const styles = StyleSheet.create({
     backgroundColor: '#DCFCE7',
     alignItems: 'center',
     justifyContent: 'center',
-  },
-  cameraBadge: {
-    position: 'absolute',
-    bottom: 0,
-    right: hs(-4),
-    backgroundColor: '#16A34A',
-    width: ms(22),
-    height: ms(22),
-    borderRadius: ms(11),
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderWidth: 2,
-    borderColor: '#FFFFFF',
   },
   profileInfo: {
     flex: 1,

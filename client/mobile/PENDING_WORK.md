@@ -12,6 +12,30 @@ dependencies exist. Do not build the backend/seller flows until told to.
 
 ---
 
+## W77 — App Store 2.1 completeness: remove remaining dead tap targets (P0)
+
+**Status:** 🟢 Shipped (mobile only). No server/DB/cache/route change.
+
+- **`MyOrdersScreen`:** removed the header Settings gear and its `handleSettingsPress` no-op
+  (there is no Settings route), leaving the Notifications bell as the only header action.
+- **`SavedAddressesScreen`:** removed the "Add from Google Maps" card and its `handleGoogleMaps`
+  no-op (manual Add New already covers entry); dropped the now-unused `ChevronRight` import and the
+  `mapCard*` styles. `MapPin` stays (used by the deliver-here row, empty state and tip banner).
+- **`CartView`:** the receipt **Go to Hub** button now calls `onGoToHub` (falling back to
+  `setActiveTab('Home')`), matching the empty-cart button. On the pushed `Cart` route `setActiveTab`
+  is the no-op `() => {}`, so the previous direct `setActiveTab('Home')` call did nothing.
+- **`UserDetailsScreen`:** the info rows, the profile card and the security banner rendered as
+  non-interactive `View`s (removed the trailing chevrons and the profile camera badge). No
+  destination route exists for these, so the prior tappable affordances were dead navigation.
+- Dead tap targets are the App Store **Guideline 2.1** failure mode; see
+  `docs/APPSTORE_RELEASE.md` → "Guidelines and warnings". `SubAppWrapper`'s basket "Checkout"
+  button (no `onPress`) is left as-is: the basket fallback is unreachable (Mart only ever renders
+  Home; Food bypasses the wrapper; Pharma returns its own screen).
+
+**Date:** 2026-10-31
+
+---
+
 ## W76 — Offline / online awareness across mobile + seller portal (P0)
 
 **Status:** 🟢 Shipped (mobile + web portal). No server/DB/cache changes.

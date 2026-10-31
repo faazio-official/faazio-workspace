@@ -10,7 +10,6 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
 import {
   Bell,
-  Settings,
   ChevronLeft,
   SlidersHorizontal,
   PackageOpen,
@@ -132,9 +131,6 @@ export function MyOrdersScreen({ navigation, route }: Props) {
   const handleNotificationPress = useCallback(() => {
     navigation.navigate('Notifications');
   }, [navigation]);
-  const handleSettingsPress = useCallback(() => {
-    // TODO: Settings screen — no-op placeholder (no target screen yet).
-  }, []);
 
   const handleOpenFilter = useCallback(() => {
     setStagedStatus(statusFilter);
@@ -281,15 +277,6 @@ export function MyOrdersScreen({ navigation, route }: Props) {
                   <AppText style={styles.notifBadgeText}>{notificationCount > 9 ? '9+' : notificationCount}</AppText>
                 </View>
               ) : null}
-            </TouchableOpacity>
-            <TouchableOpacity
-              onPress={handleSettingsPress}
-              style={styles.headerIconBtn}
-              activeOpacity={0.75}
-              accessibilityRole="button"
-              accessibilityLabel="Settings"
-            >
-              <Settings size={ms(22)} color="#0f172a" strokeWidth={2} />
             </TouchableOpacity>
           </View>
         </View>

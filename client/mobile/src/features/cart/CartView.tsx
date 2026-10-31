@@ -1289,7 +1289,8 @@ export default function CartView({
 
           <TouchableOpacity
             onPress={() => {
-              setActiveTab('Home');
+              if (onGoToHub) onGoToHub();
+              else setActiveTab('Home');
               setStep('BAG');
               setPlacedOrderDetails(null);
               setPaymentAttempt(null);
