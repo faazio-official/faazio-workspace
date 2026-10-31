@@ -32,11 +32,11 @@ src/
 │   # the designer SVG (source at assets/brand/logo-welcomepage.svg) to avoid the
 │   # fragile react-native-svg `<Image>` + base64 data-URI path; size is applied to
 │   # the visible glyph box (829×227) so both variants share one optical scale.
-│   └── shared/                 # 15 reusable primitives (ProductCardBase, StoreCardBase, Screen, AdBannerCarousel, …)
+│   └── shared/                 # 17 reusable primitives (ProductCardBase, StoreCardBase, Screen, AdBannerCarousel, OfflinePage, OfflineToast, …)
 ├── features/                   # vertical feature modules (16)
-├── navigation/                 # AppNavigator, MainTabs, FoodStack, types
+├── navigation/                 # AppNavigator, MainTabs, FoodStack, offlineNavigationGuard, types
 ├── services/                   # GatewayClient, logout, secureSession, categoryVendors, homeFeed, pricing
-├── state/                      # Zustand stores (16)
+├── state/                      # Zustand stores (17)
 ├── theme/                      # brandTokens, spacing (SPACE tokens), fonts, sectorVisuals
 └── utils/                      # responsive (hs/vs/ms/wp/hp)
 ```
@@ -572,6 +572,29 @@ still separate files; consolidating them is tracked in `client/mobile/PENDING_WO
 | `vendorRatingStore` | The signed-in user's live vendor ratings (one per `(user, vendor)`, latest wins) + verified-purchase `orderIds`; persisted AsyncStorage `faazio/vendor-ratings/v1`, reset on logout |
 | `deliveryPartnerStore` | Partner-app only: verified application phone + the rider/detail projection from `GET /delivery/me`. The Firebase session itself stays in `authStore`/Keychain and is never duplicated here |
 | `remoteConfigStore` | Central remote config (the "Central Digital Menu", `admins.app_config` `0059`): boots `gateway.getAppConfig()` (`GET /app-config`, public, variant-filtered) best-effort under the splash, keeps a flat key→value map, and **never blocks startup** (failure keeps the bake-time `config.ts` defaults). Baked values are the safe defaults; a remote row overrides its key only when present; `GATEWAY_URL`/`APP_VARIANT` are never overridden. Selectors: `selectPlacesApiKey` (wired → `usePlaceAutocomplete` — a `maps.places_api_key` edit is live on the next boot), `selectMaintenanceEnabled` (available, no screen consumes it yet), `resolvePlacesApiKey` (non-hook read for `resolvePlaceLocation`). Not persisted — refetched every cold boot |
+| `connectivityStore` | Live device connectivity (no NetInfo dep): `GET {GATEWAY_URL}/health` with a 5 s timeout, polled every 30 s while foregrounded, re-checked on `AppState` → `active`. Any HTTP response (even 4xx/5xx) means online; only a thrown fetch/timeout means offline. Holds `isOnline` (`null` until the first probe so no cold-start flash), `hasConnected` (first-ever online, distinguishes cold-start offline), `pendingNavigation` + `navigationBlocked` for the offline guard. `checkConnectivity`/`startMonitoring`/`stopMonitoring`. In mock mode (`GATEWAY_URL` unset) it reports online (awareness is meaningless). State only — no UI |
+
+### Offline / connectivity awareness
+
+A network-awareness layer sits on top of the server-only reads (it does not change any read/write
+fallback behavior). Detection is dependency-free (`connectivityStore`: `GET /health` probe + poll +
+`AppState`). Four behaviors:
+
+1. **Toast** — `components/shared/OfflineToast.tsx` slides up "You're offline" when a foregrounded
+   user loses connectivity; it auto-dismisses on reconnect. The current page stays usable.
+2. **Navigation block** — `navigation/offlineNavigationGuard.ts` hooks `NavigationContainer.onStateChange`.
+   While offline, a forward navigation (focused route changed; going back is always allowed so the
+   user is never trapped) is reverted and its state stored as `pendingNavigation`;
+   `components/shared/OfflinePage.tsx` renders over the console until reconnect.
+3. **Auto-recovery** — when connectivity returns, `App.tsx` replays `pendingNavigation`
+   (`navigationRef.reset`), so the destination mounts and its screens fire their normal HTTP reads.
+4. **Cold-start offline** — `App.tsx` renders `OfflinePage` (not the navigator) when `isOnline ===
+   false && !hasConnected`, so an app opened offline shows the offline page instead of the splash.
+
+Auth/entry routes (`Login`/`Onboarding`/`LanguageSelection`/`Location`) are never blocked, so an
+offline session drop still lands on Login. `GatewayClient.withFallback` remains server-only — its
+`_mock` argument is type-checked but never invoked (an offline read still throws
+`GatewayOfflineError`); the offline layer is additive, not a fixture fallback.
 
 ### Services (`src/services/`)
 

@@ -12,6 +12,32 @@ dependencies exist. Do not build the backend/seller flows until told to.
 
 ---
 
+## W76 — Offline / online awareness across mobile + seller portal (P0)
+
+**Status:** 🟢 Shipped (mobile + web portal). No server/DB/cache changes.
+
+- **Mobile (customer app):** `state/connectivityStore.ts` (dependency-free `GET /health` probe, 5 s
+  timeout, 30 s poll while foregrounded, re-check on `AppState → active`; any HTTP response = online,
+  only a thrown fetch/timeout = offline). `components/shared/OfflineToast.tsx` ("You're offline",
+  auto-dismiss on reconnect) and `components/shared/OfflinePage.tsx` (branded, non-scrollable, "Try
+  again"). `navigation/offlineNavigationGuard.ts` reverts a forward navigation attempted while
+  offline (via `NavigationContainer.onStateChange`), stores it, and `App.tsx` replays it on reconnect
+  so the destination refetches. Cold-start offline renders `OfflinePage` instead of the splash.
+  Auth routes are never blocked. `GatewayClient.withFallback` is unchanged (still server-only — its
+  `_mock` closure is never invoked, so an offline read still throws `GatewayOfflineError`).
+- **Web (partner portal):** `lib/connectivityStore.ts` + `lib/hooks/useConnectivity.ts` (native
+  `navigator.onLine` + `online`/`offline` events; sonner "You're offline" toast).
+  `components/layout/OfflineGuard.tsx` (mounted in `app/providers.tsx`) covers cold-start offline,
+  intercepts internal link clicks while offline (App Router has no `routeChangeStart`), and resumes
+  the stored route on reconnect; `components/patterns/OfflinePage.tsx` builds on `OfflineState`.
+- **Known limits (by design):** mobile detection is poll-bounded and deep links from outside the app
+  bypass the guard; web intercepts anchor/`next/link` navigation + `guardNavigation()`-wrapped
+  programmatic pushes — full reloads / direct URL entry are server-side and render normally.
+
+**Date:** 2026-10-31
+
+---
+
 ## W75 — Customer payment system: UPI intent + COD + webhook detection (P0)
 
 **Status:** 🟢 Shipped (mobile + gateway + migration `0066`). Operational setup pending.

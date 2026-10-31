@@ -38,6 +38,7 @@ import {
 import { cn } from "@/lib/utils";
 import { groupTone, TONE_VAR } from "@/lib/ui/tones";
 import { useSession } from "@/lib/hooks/useSession";
+import { useConnectivityStore } from "@/lib/connectivityStore";
 import { signOut } from "@/lib/api";
 import { districtName, stateForDistrict } from "@/data/districts";
 import { RoleGate } from "@/components/layout/RoleGate";
@@ -58,6 +59,7 @@ export function AdminShell({
   const session = useSession();
   const router = useRouter();
   const pathname = usePathname();
+  const guardNavigation = useConnectivityStore((s) => s.guardNavigation);
 
   const nav = scope === "DISTRICT" ? DISTRICT_ADMIN_NAV : SUPER_ADMIN_NAV;
   const groups = useMemo(() => Array.from(new Set(nav.map((i) => i.group))), [nav]);
@@ -278,7 +280,8 @@ export function AdminShell({
                 value={item.label}
                 onSelect={() => {
                   setPaletteOpen(false);
-                  router.push(item.to);
+                  const to = item.to;
+                  if (guardNavigation(to)) router.push(to);
                 }}
               >
                 <item.icon className="size-4" />

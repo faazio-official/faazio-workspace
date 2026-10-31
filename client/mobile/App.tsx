@@ -4,7 +4,14 @@ import { DefaultTheme, NavigationContainer } from '@react-navigation/native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { AppNavigator } from './src/navigation/AppNavigator';
 import { navigationRef } from './src/navigation/navigationRef';
+import {
+  handleNavigationStateChange,
+  replayPendingNavigation,
+} from './src/navigation/offlineNavigationGuard';
 import { SplashFallback } from './src/components/SplashFallback';
+import { OfflinePage } from './src/components/shared/OfflinePage';
+import { OfflineToast } from './src/components/shared/OfflineToast';
+import { useConnectivityStore } from './src/state/connectivityStore';
 import { useAuthStore } from './src/state/authStore';
 import { useRemoteConfigStore } from './src/state/remoteConfigStore';
 import { useLiveLocation } from './src/hooks/useLiveLocation';
@@ -99,8 +106,27 @@ export default function App() {
   const hydrateLanguage = useLanguageStore((s) => s.hydrate);
   const fetchRemoteConfig = useRemoteConfigStore((s) => s.fetchConfig);
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
+  const isOnline = useConnectivityStore((s) => s.isOnline);
+  const hasConnected = useConnectivityStore((s) => s.hasConnected);
+  const navigationBlocked = useConnectivityStore((s) => s.navigationBlocked);
+  const startMonitoring = useConnectivityStore((s) => s.startMonitoring);
   // Hydrate the last fix and poll only while foregrounded (never prompts on launch).
   useLiveLocation();
+
+  // Probe `/health` on mount, then poll while foregrounded so a connectivity drop is noticed
+  // without a NetInfo dependency (see connectivityStore).
+  useEffect(() => {
+    startMonitoring();
+    return () => useConnectivityStore.getState().stopMonitoring();
+  }, [startMonitoring]);
+
+  // When connectivity returns with a navigation blocked, replay the destination the user intended —
+  // its screens mount fresh and run their normal HTTP reads.
+  useEffect(() => {
+    if (isOnline === true && navigationBlocked) {
+      replayPendingNavigation();
+    }
+  }, [isOnline, navigationBlocked]);
 
   useEffect(() => {
     let active = true;
@@ -162,7 +188,23 @@ export default function App() {
     };
   }, [isAuthenticated]);
 
-  if (!ready || !minSplashDone) {
+  if (!ready) {
+    return <SplashFallback variant="royal" />;
+  }
+
+  // Cold start while already offline: show the offline page immediately instead of a blank/loading
+  // screen. `hasConnected` false means we have never been online this session, so this is a cold
+  // start — a mid-session drop keeps the mounted navigator and only surfaces the toast/blocker.
+  if (isOnline === false && !hasConnected) {
+    return (
+      <SafeAreaProvider>
+        <StatusBar barStyle="dark-content" />
+        <OfflinePage />
+      </SafeAreaProvider>
+    );
+  }
+
+  if (!minSplashDone) {
     return <SplashFallback variant="royal" />;
   }
 
@@ -170,9 +212,19 @@ export default function App() {
     <SafeAreaProvider>
       <AppLayout>
         <StatusBar barStyle="dark-content" />
-        <NavigationContainer ref={navigationRef} theme={navigationTheme}>
+        <NavigationContainer
+          ref={navigationRef}
+          theme={navigationTheme}
+          onStateChange={handleNavigationStateChange}
+        >
           <AppNavigator />
         </NavigationContainer>
+        {isOnline === false ? <OfflineToast /> : null}
+        {navigationBlocked && isOnline === false ? (
+          <View style={styles.blocker}>
+            <OfflinePage />
+          </View>
+        ) : null}
       </AppLayout>
     </SafeAreaProvider>
   );
@@ -181,6 +233,14 @@ export default function App() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+    backgroundColor: '#ffffff',
+  },
+  blocker: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
     backgroundColor: '#ffffff',
   },
 });

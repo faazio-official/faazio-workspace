@@ -88,9 +88,25 @@ real security boundary stays the gateway JWT (`app_role` / `iss=faazio-portal`).
 no `window.__faazio` and keeps the full portal.
 
 **Offline / gateway-unavailable UX.** `src/components/patterns/OfflineState.tsx` is a branded
-full-screen state with **Try again**; the session gate uses it for the silent-reconnect ("Reconnecting…")
+full-screen state with **Try again**; the session gate uses it for the silent-reconnect ("Reconnecting...")
 and the login page uses it when `fetchPortalStatus()` reports the gateway unreachable, so a dead
 gateway never shows a raw 503 or a blank page.
+
+A separate **connectivity** layer (`src/lib/connectivityStore.ts`, `navigator.onLine` + `online`/
+`offline` events, no dependency) sits above that and is mounted once in `app/providers.tsx` via
+`src/components/layout/OfflineGuard.tsx`:
+
+- **Toast** — `src/lib/hooks/useConnectivity.ts` raises the sonner "You're offline" toast when a
+  foregrounded user drops connectivity and dismisses it on reconnect.
+- **Navigation block** — Next App Router has no `routeChangeStart` event, so `OfflineGuard`
+  intercepts internal `<a href>` (next/link) clicks in a document capture listener while offline,
+  stores the destination, and covers the console with `patterns/OfflinePage.tsx`. Programmatic
+  `router.push` callers check `useConnectivityStore().guardNavigation(href)` (wired in `AdminShell`'s
+  command palette). Full page reloads / direct URL entry are server-side and render normally.
+- **Auto-recovery** — on reconnect the stored route is pushed, so the page mounts and runs its usual
+  HTTP reads; `src/lib/api/http.ts` also flips the store offline when a `fetch` throws.
+- **Cold-start offline** — `OfflineGuard` renders `OfflinePage` instead of the console when
+  `isOnline === false && !hasConnected`, so an offline cold start never shows a blank page.
 
 | Route | Page | Sector |
 | --- | --- | --- |

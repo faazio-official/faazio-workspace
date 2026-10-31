@@ -3,6 +3,7 @@
 // /api/gateway proxy, which attaches the HttpOnly portal bearer server-side.
 import { toast } from "sonner";
 import { remoteConfigured } from "@/lib/config";
+import { useConnectivityStore } from "@/lib/connectivityStore";
 
 export class ApiError extends Error {
   constructor(
@@ -78,7 +79,16 @@ async function attempt(path: string, options: RequestOptions): Promise<Response>
   const init: RequestInit = { method: options.method ?? "GET", headers };
   if (options.body !== undefined) init.body = JSON.stringify(options.body);
 
-  return fetch(url(path, options.query), init);
+  try {
+    return await fetch(url(path, options.query), init);
+  } catch (error) {
+    // A thrown fetch (offline / DNS failure) is a connectivity signal — reflect it so OfflineGuard
+    // can react immediately, then re-throw so callers keep their existing error contract.
+    if (typeof navigator !== "undefined" && !navigator.onLine) {
+      useConnectivityStore.getState().setOnline(false);
+    }
+    throw error;
+  }
 }
 
 async function request<T>(path: string, options: RequestOptions = {}): Promise<T> {
