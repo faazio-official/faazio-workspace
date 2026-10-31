@@ -708,7 +708,7 @@ AppNavigator (root native stack)
 │    both read GET /stores/{id}/products)
 │   (Pharma tabs: Home · Search · Cart · History · Donor)
 ├── FoodApp (FoodStack — FoodHome restaurant-first → Search → RestaurantProfile → RestaurantMenu / RestaurantOffers; 2-tab bottom nav Home/Search + You/Cart)
-├── ProductDetail · Search · Cart (`{ restaurantId?, restaurantName? }`) · PaymentOptions · AddCard
+├── ProductDetail · Search · Cart (`{ restaurantId?, restaurantName? }`) · PaymentOptions · AddCard · PaymentCallback (`{ orderId?; status? }` — UPI `faazio://payment/callback` return leg, server-verified)
 ├── CategoryDrillIn (category drill-in page from the Home/Mart rail) ── VendorDetails (single-store search)
 ├── DealsLanding (deals page — four modes: `campaign` from the Home "Deals of the day" carousel
 │   (Home-owned `@data`), `discounts` from the Mart vendor profile "View All" (server pool),
@@ -1326,6 +1326,16 @@ dedicated **FULFILLMENT** step. `fulfillment` (`'DELIVERY' | 'PICKUP'`) is a sin
   `gateway.fetchPaymentStatus(orderId)` via `usePaymentPolling` (2.5 s, **foreground only**, immediate
   re-poll on `AppState → active`, 10-minute timeout). The server webhook is the source of truth, so
   detection works even if the UPI app never returns to a Faazio callback.
+- **UPI return deep link:** the intent's `url` is `faazio://payment/callback` (scheme registered in
+  the Android `main` manifest + iOS `Info.plist`). `services/paymentLinks.ts` consumes the warm/cold
+  URL and routes to the lazy `PaymentCallbackScreen` (`payment/PaymentCallbackScreen.tsx`), which
+  re-verifies `GET /orders/{id}/payment-status` (bounded poll) and shows PAID / FAILED / PENDING with
+  actions into `OrderDetails` / `MyOrders`. The URL's `status` is only a hint — never trusted.
+- **Cold-start reconciliation:** launching a UPI intent persists the order id
+  (`services/paymentReconciliation.ts`, AsyncStorage). On login and every `AppState → active` the app
+  re-checks it once and routes to `PaymentCallback` if the server has resolved it — covering the case
+  where the app was killed mid-payment and the webhook settled it. The marker clears on a terminal
+  status (or a COD switch).
 - **Failure + retry:** `PaymentFailedScreen` (`payment/PaymentFailedScreen.tsx`) offers **Click here to
   continue** (re-launch the same order/amount with the same or another detected app; `createRazorpayOrder`
   is idempotent, so a retry never double-charges), **Pay with Cash on Delivery** (records COD on the
@@ -1333,9 +1343,10 @@ dedicated **FULFILLMENT** step. `fulfillment` (`'DELIVERY' | 'PICKUP'`) is a sin
   on retry.
 - `onPlaceOrder` fires with `{ method: 'UPI' | 'COD', upiAppId?, upiLabel?, coinsRedeemed? }`;
   `CartView.handlePlaceOrder` sends `paymentMethod` and renders the receipt payment line. The
-  `CoinsRedeemRow` (only when balance ≥ `COIN_REDEEM_MIN`) is unchanged. In gateway **mock mode**
-  (Razorpay keys unset) `createRazorpayOrder` returns `status: 'PAID'`, so dev/CI checkout still
-  completes without a live webhook.
+  `CoinsRedeemRow` (only when balance ≥ `COIN_REDEEM_MIN`) is unchanged. Real Razorpay credentials are
+  required: `createRazorpayOrder` returns `PENDING` for a new UPI order (or the server's authoritative
+  `PAID`/`FAILED` on an idempotent re-request), and an unconfigured gateway returns 503 — there is no
+  client-side mock/PAID path.
 
 The **My Orders → Order Details** page resolves an order via `ordersStore.getOrderById` first
 (durable server history, then in-session placed orders), falling back to `@data getMyOrderById`

@@ -586,10 +586,10 @@ func (h *Handler) payOrder(w http.ResponseWriter, r *http.Request) {
 
 // createRazorpayOrder creates the Razorpay order that the customer UPI intent (`tr`) and the
 // payment webhook reconcile on. The amount is derived server-side from the stored order total
-// minus coins redeemed. When the gateway is in mock mode (keys unset) the order is immediately
-// recorded PAID so dev/CI checkout completes without a live webhook.
+// minus coins redeemed. Real Razorpay credentials are required: without them the endpoint returns
+// 503 and never fabricates a locally-paid order.
 func (h *Handler) createRazorpayOrder(w http.ResponseWriter, r *http.Request) {
-	if h.pay == nil {
+	if h.pay == nil || !h.pay.Enabled() {
 		httpx.Fail(w, http.StatusServiceUnavailable, "payments_disabled", "customer payments are not configured")
 		return
 	}
@@ -666,10 +666,11 @@ func (h *Handler) createRazorpayOrder(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// A mock gateway (keys unset) reports the order already paid. A real UPI payment starts PENDING
-	// and is confirmed by the webhook.
+	// The real gateway reports PENDING when the order is freshly created. Razorpay can also report
+	// the order already `paid` (rare, e.g. an auto-captured retry) — record that authoritatively.
+	// Every other UPI payment starts PENDING and is confirmed by the HMAC-verified webhook.
 	status := "PENDING"
-	if !h.pay.Enabled() || strings.EqualFold(rzp.Status, "paid") {
+	if strings.EqualFold(rzp.Status, "paid") {
 		status = "PAID"
 		if _, _, err := h.repo.SetPaymentStatusByRazorpayOrder(r.Context(), rzp.ID, "PAID", ""); err != nil {
 			httpx.Fail(w, http.StatusInternalServerError, "payment_failed", "could not record payment")

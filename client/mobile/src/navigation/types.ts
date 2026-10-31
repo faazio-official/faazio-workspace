@@ -56,6 +56,11 @@ export type RootStackParamList = {
   You: undefined;
   /** Pixel-perfect payment method picker (preferred card, UPI, cards, more). */
   PaymentOptions: undefined;
+  /**
+   * UPI return leg (`faazio://payment/callback`). Verifies the order's payment status against the
+   * server and shows the authoritative result; `status` is only a hint, never trusted.
+   */
+  PaymentCallback: { orderId?: string; status?: 'PAID' | 'FAILED' | 'PENDING' } | undefined;
   /** Secure "Add New Card" form (tokenized; PAN/CVV never stored or logged). */
   AddCard: undefined;
   /** "My Profile" — personal info, preferences, security (pushed from Account). */

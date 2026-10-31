@@ -5,6 +5,7 @@ import (
 	"crypto/hmac"
 	"crypto/sha256"
 	"encoding/hex"
+	"errors"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -12,20 +13,19 @@ import (
 	"testing"
 )
 
-func TestNewWithoutCredentialsIsMock(t *testing.T) {
+func TestNewWithoutCredentialsIsDisabled(t *testing.T) {
 	g := New("", "", "")
 	if g.Enabled() {
-		t.Fatal("empty credentials must run in mock mode")
+		t.Fatal("empty credentials must be disabled, not mocked")
 	}
 	if g.KeyID() != "" {
-		t.Fatalf("mock key id must be empty, got %q", g.KeyID())
+		t.Fatalf("disabled key id must be empty, got %q", g.KeyID())
 	}
-	o, err := g.CreateOrder(context.Background(), OrderInput{AmountPaisa: 12345, Receipt: "ord-1"})
-	if err != nil {
-		t.Fatalf("mock create order: %v", err)
+	if _, err := g.CreateOrder(context.Background(), OrderInput{AmountPaisa: 12345, Receipt: "ord-1"}); !errors.Is(err, ErrUnavailable) {
+		t.Fatalf("disabled CreateOrder err = %v, want ErrUnavailable", err)
 	}
-	if !strings.HasPrefix(o.ID, "order_mock_") || o.AmountPaisa != 12345 || o.Status != "paid" {
-		t.Fatalf("mock order = %+v", o)
+	if g.VerifyWebhook([]byte(`{}`), "sig") {
+		t.Fatal("disabled gateway must reject every webhook signature")
 	}
 }
 

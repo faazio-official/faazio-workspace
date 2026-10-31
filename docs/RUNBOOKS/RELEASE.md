@@ -368,10 +368,12 @@ webhook in the Razorpay dashboard at `https://<gateway>/webhooks/razorpay/route`
 Migration `0066` (customer Razorpay link columns) must be applied. The customer rail reuses the base
 `RAZORPAY_KEY_ID` / `RAZORPAY_KEY_SECRET` / `RAZORPAY_WEBHOOK_SECRET` (the ones already set in Render).
 No merchant VPA env is used — reconciliation is by `razorpay_order_id` and the raw UPI intent `pa` is the
-client-side default. With no keys the customer rail runs in **mock mode**: `POST /razorpay/customer/orders`
-records the order PAID so dev/staging checkout completes without a live webhook. Register the customer
-webhook in the Razorpay dashboard at `https://<gateway>/webhooks/razorpay/payments` for
-`payment.captured`, `payment.authorized` and `payment.failed`.
+client-side default. With either key unset the customer rail is **disabled**: `POST /razorpay/customer/orders`
+and `POST /webhooks/razorpay/payments` return `503 payments_disabled`, and the gateway never fabricates a
+synthetic paid order. Set the keys before accepting live payments. Register the customer webhook in the
+Razorpay dashboard at `https://api.faazio.com/webhooks/razorpay/payments` for `payment.captured`,
+`payment.authorized` and `payment.failed`; routing back into the app also relies on the
+`faazio://payment/callback` URL scheme (registered on Android + iOS).
 
 ## 🛒 Web (Landing page) — Vercel
 

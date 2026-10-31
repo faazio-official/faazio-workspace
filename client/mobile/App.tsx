@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { StatusBar, View, StyleSheet } from 'react-native';
+import { StatusBar, View, StyleSheet, AppState } from 'react-native';
 import { DefaultTheme, NavigationContainer } from '@react-navigation/native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { AppNavigator } from './src/navigation/AppNavigator';
@@ -21,6 +21,8 @@ import { startCustomerPush } from './src/services/customerPush';
 import { useAppFonts, resolveFontFamily } from './src/theme/fonts';
 import { useBottomInset } from './src/utils/responsive';
 import { installGlobalErrorHandlers } from './src/services/crashReporting';
+import { flushPendingPaymentCallback, startPaymentCallbackLinks } from './src/services/paymentLinks';
+import { reconcilePendingUpiOrder } from './src/services/paymentReconciliation';
 
 // Branded splash stays visible for at least this long on cold start. The native
 // launch theme (Android splash theme / iOS LaunchScreen) hands off to this JS
@@ -128,6 +130,38 @@ export default function App() {
     }
   }, [isOnline, navigationBlocked]);
 
+  // UPI return leg: listen for `faazio://payment/callback` (warm + cold start). The callback page
+  // re-verifies against the server, so a spoofed URL can never mark an order paid.
+  useEffect(() => startPaymentCallbackLinks(), []);
+
+  // Flush a callback queued while the navigator/session was not ready (e.g. cold start → login).
+  useEffect(() => {
+    if (isAuthenticated) flushPendingPaymentCallback();
+  }, [isAuthenticated]);
+
+  // Cold-start reconciliation: if the app was killed mid-UPI payment, the Razorpay webhook still
+  // settles the order server-side. On login and on every foreground, re-check the persisted order
+  // and route to the authoritative result (once per foreground).
+  useEffect(() => {
+    if (!isAuthenticated) return;
+    let active = true;
+    const check = async () => {
+      const outcome = await reconcilePendingUpiOrder();
+      if (!active || outcome.kind === 'none') return;
+      if (!navigationRef.isReady()) return;
+      if (navigationRef.getCurrentRoute()?.name === 'PaymentCallback') return;
+      navigationRef.navigate('PaymentCallback', { orderId: outcome.orderId });
+    };
+    void check();
+    const sub = AppState.addEventListener('change', (next) => {
+      if (next === 'active') void check();
+    });
+    return () => {
+      active = false;
+      sub.remove();
+    };
+  }, [isAuthenticated]);
+
   useEffect(() => {
     let active = true;
     // Best-effort central remote config (superadmin-managed app settings). Fetched in parallel with
@@ -215,6 +249,7 @@ export default function App() {
         <NavigationContainer
           ref={navigationRef}
           theme={navigationTheme}
+          onReady={flushPendingPaymentCallback}
           onStateChange={handleNavigationStateChange}
         >
           <AppNavigator />

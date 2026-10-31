@@ -55,8 +55,9 @@ type Config struct {
 	// (content expires via its Cache Rule instead) — never a broken call.
 	CFZoneID   string
 	CFAPIToken string
-	// Razorpay: secrets are env-only and never committed. Used for customer refunds when a
-	// captured payment id is available; empty keys mean the refund rail is unavailable.
+	// Razorpay: secrets are env-only and never committed. Customer payments (UPI order creation +
+	// webhook reconciliation). Empty keys mean the customer payment rail is unavailable (checkout
+	// returns 503); the gateway never fabricates a paid order.
 	RazorpayKeyID         string
 	RazorpayKeySecret     string
 	RazorpayWebhookSecret string

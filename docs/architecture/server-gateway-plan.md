@@ -89,10 +89,12 @@ caller) and are event-purged on store live toggle and product edit/status change
   foreground poll. The public `POST /webhooks/razorpay/payments` is the source of truth: it HMAC-verifies
   `X-Razorpay-Signature` and maps `payment.captured`/`payment.authorized` → `PAID` and `payment.failed`
   → `FAILED` on the `checkout.payments` row matched by `razorpay_order_id`. `checkout.payments` gained
-  `razorpay_order_id`/`razorpay_payment_id` (`0066`). When the Razorpay key pair is unset the gateway runs
-  in **mock mode**: `CreateOrder` returns a synthetic order and `POST /razorpay/customer/orders` records it
-  PAID so dev/CI checkout completes without a live webhook. The UPI intent itself is client-built
-  (`upi://pay?...` rewritten per app on iOS); the Razorpay order id is the intent `tr`.
+  `razorpay_order_id`/`razorpay_payment_id` (`0066`). Real credentials are required: with the key pair
+  unset the customer rail is disabled (`POST /razorpay/customer/orders` and the webhook return 503
+  `payments_disabled`) and no synthetic/paid order is ever fabricated. The UPI intent itself is
+  client-built (`upi://pay?...` rewritten per app on iOS); the Razorpay order id is the intent `tr`,
+  and the intent's `url=faazio://payment/callback` deep-links back into the app's `PaymentCallback`
+  screen (which re-verifies via `GET /orders/{orderId}/payment-status`).
 - **Seller onboarding + split payments (`internal/sellers` + `internal/settlement` + `internal/platform/razorpayroute`):**
   `POST /sellers` now carries the platform fee, payout bank details (full account number is forwarded
   to Razorpay and never stored), private R2 passbook/FSSAI keys and `otpVerified`. The OTP is the
@@ -104,7 +106,7 @@ caller) and are event-purged on store live toggle and product edit/status change
   `POST /sellers/:id/reject`, and seller `POST /sellers/:id/edit` (rejected rows only; field history).
   `GET /sellers/:id` returns the seller + masked bank account + KYC docs + verification log; admin KYC
   images render via the existing `GET /media/private/{id}` presigned-GET (creator or admin only).
-  Settlement adds SUPER_ADMIN `POST /payouts/holds` (Route transfer with `on_hold` for the 14-day
+  Settlement adds SUPER_ADMIN `POST /payouts/holds` (Route transfer with `on_hold` for the 7-day
   window + ledger row), `POST /payouts/:id/release` and `POST /payouts/:id/reverse` (refund/return
   clawback); a gateway worker releases due holds every 15 minutes when Route credentials are
   configured. The public `POST /webhooks/razorpay/route` reconciles `transfer.released` /

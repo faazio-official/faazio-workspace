@@ -47,6 +47,7 @@ import { useOrdersStore } from '@/state/ordersStore';
 import { useCartStore } from '@/state/cartStore';
 import { gateway, GatewayHttpError } from '@/services/api/GatewayClient';
 import type { RazorpayOrderResult } from '@/services/api/GatewayClient';
+import { clearUpiOrderPending, markUpiOrderPending } from '@/services/paymentReconciliation';
 import { consumeLastClickedSlotId } from '@/services/adsAttribution';
 import { coinsEarnedFor, isCardActive } from '@/features/rewards/rewardsLogic';
 import { COIN_REDEEM_RATE, DISCOUNT_CARD_PERCENT } from '@data/rewards/rewards';
@@ -578,9 +579,10 @@ export default function CartView({
           return;
         }
 
-        // UPI: create the Razorpay order that the intent `tr` param + webhook reconcile on,
-        // then hand off to the detection screen. A gateway-mock response (keys unset) is already
-        // PAID, so dev checkout still completes without a live webhook.
+        // UPI: create the Razorpay order that the intent `tr` param + webhook reconcile on, then
+        // hand off to the detected UPI app. The server is authoritative: a freshly created order is
+        // PENDING; PAID/FAILED only arrive as real server states (e.g. an idempotent re-request after
+        // the webhook already reconciled). There is no client-side mock PAID path.
         let rzp: RazorpayOrderResult;
         try {
           rzp = await gateway.createRazorpayOrder(orderId);
@@ -596,7 +598,19 @@ export default function CartView({
           return;
         }
         if (rzp.status === 'PAID') {
+          await clearUpiOrderPending();
           setStep('RECEIPT');
+          return;
+        }
+        if (rzp.status === 'FAILED') {
+          setPaymentAttempt({
+            orderId,
+            amountPaisa: rzp.amountPaisa,
+            upiAppId: upiAppId ?? '',
+            upiLabel: upiLabel ?? 'UPI',
+            coinsRedeemed,
+          });
+          setStep('PAYMENT_FAILED');
           return;
         }
         const attempt = {
@@ -607,6 +621,8 @@ export default function CartView({
           coinsRedeemed,
         };
         setPaymentAttempt(attempt);
+        // Persist the in-flight order so a cold start can reconcile it even without a deep link.
+        void markUpiOrderPending(orderId);
         setStep('PAYMENT_STATUS');
         void launchUpiPayment(
           attempt.upiAppId,
@@ -640,7 +656,12 @@ export default function CartView({
       try {
         const rzp = await gateway.createRazorpayOrder(attempt.orderId);
         if (rzp.status === 'PAID') {
+          await clearUpiOrderPending();
           setStep('RECEIPT');
+          return;
+        }
+        if (rzp.status === 'FAILED') {
+          setStep('PAYMENT_FAILED');
           return;
         }
         const next = {
@@ -650,6 +671,7 @@ export default function CartView({
           amountPaisa: rzp.amountPaisa,
         };
         setPaymentAttempt(next);
+        void markUpiOrderPending(next.orderId);
         setStep('PAYMENT_STATUS');
         void launchUpiPayment(
           next.upiAppId,
@@ -678,6 +700,7 @@ export default function CartView({
     void (async () => {
       try {
         await gateway.payForOrder(attempt.orderId, 'COD', attempt.coinsRedeemed);
+        await clearUpiOrderPending();
         setPlacedOrderDetails((prev) => (prev ? { ...prev, payment: 'Cash on Delivery' } : prev));
         setStep('RECEIPT');
       } catch {
@@ -695,7 +718,10 @@ export default function CartView({
           orderId={paymentAttempt.orderId}
           amountPaisa={paymentAttempt.amountPaisa}
           upiLabel={paymentAttempt.upiLabel}
-          onPaid={() => setStep('RECEIPT')}
+          onPaid={() => {
+            void clearUpiOrderPending();
+            setStep('RECEIPT');
+          }}
           onFailed={(timedOut) => {
             setPaymentTimedOut(timedOut);
             setStep('PAYMENT_FAILED');

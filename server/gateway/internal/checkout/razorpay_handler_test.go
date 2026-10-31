@@ -19,7 +19,7 @@ func signRazorpay(body, secret string) string {
 }
 
 func TestRazorpayWebhookDisabledGateway(t *testing.T) {
-	h := &Handler{pay: razorpaypay.New("", "", "")} // mock mode → not Enabled
+	h := &Handler{pay: razorpaypay.New("", "", "")} // disabled (no keys) → not Enabled
 	req := httptest.NewRequest(http.MethodPost, "/webhooks/razorpay/payments", strings.NewReader(`{"event":"payment.captured"}`))
 	rec := httptest.NewRecorder()
 	h.razorpayPaymentWebhook(rec, req)

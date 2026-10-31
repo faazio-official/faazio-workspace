@@ -61,6 +61,7 @@ func main() {
 		log.Print("AUTH_DISABLED=true — partner roles come from X-Dev-* headers. Never run this in production.")
 	}
 	logPortalStartup(ctx, cfg, pool)
+	logPaymentStartup(cfg)
 
 	// Notification outbox drain worker. The worker is always constructed so the admin manual trigger
 	// (POST /notifications/drain) works; the background loop only runs when a sender is configured,
@@ -129,7 +130,7 @@ func main() {
 		go auditPurger.Run(workerCtx)
 	}
 
-	// Razorpay Route hold releaser: once the 14-day buyer-protection window elapses, release the
+	// Razorpay Route hold releaser: once the 7-day buyer-protection window elapses, release the
 	// seller slice and mark the payout PAID. Disabled unless real Route credentials are configured.
 	routeGateway := razorpayroute.New(cfg.RazorpayRouteKeyID, cfg.RazorpayRouteKeySecret, cfg.RazorpayRouteWebhookSecret)
 	holdReleaser := settlement.NewReleaser(settlement.New(pool), routeGateway, nil)
@@ -177,6 +178,17 @@ func main() {
 		log.Printf("shutdown: %v", err)
 	}
 	log.Print("gateway stopped")
+}
+
+// logPaymentStartup reports whether the customer Razorpay rail is configured. Mirrors the
+// greppable portal_auth= log: a missing key pair means checkout returns 503 payments_disabled and
+// the webhook rejects every request, so it must be visible at boot. Never logs a key or secret.
+func logPaymentStartup(cfg config.Config) {
+	if cfg.RazorpayKeyID == "" || cfg.RazorpayKeySecret == "" {
+		log.Print("razorpay_customer=disabled reason=keys_unset hint=set RAZORPAY_KEY_ID + RAZORPAY_KEY_SECRET (+ RAZORPAY_WEBHOOK_SECRET) before accepting payments")
+		return
+	}
+	log.Print("razorpay_customer=enabled")
 }
 
 // logPortalStartup emits the two facts that explain a portal 503 in the Render logs: whether the

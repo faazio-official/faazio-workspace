@@ -113,7 +113,8 @@ func NewRouter(d Deps) http.Handler {
 	// Razorpay Route (seller split payments): linked accounts + held transfers. Shared by sellers
 	// (provision account on KYC) and settlement (hold/release the seller share).
 	routeGateway := razorpayroute.New(d.Config.RazorpayRouteKeyID, d.Config.RazorpayRouteKeySecret, d.Config.RazorpayRouteWebhookSecret)
-	// Customer Razorpay rail (UPI order creation + webhook). Mock mode when keys are unset.
+	// Customer Razorpay rail (UPI order creation + webhook). Disabled (503) when keys are unset —
+	// there is no mock/synthetic paid order.
 	razorpayPay := razorpaypay.New(d.Config.RazorpayKeyID, d.Config.RazorpayKeySecret, d.Config.RazorpayWebhookSecret)
 
 	// Partner control plane (0015). adminsRepo also implements contracts.AuditWriter so every

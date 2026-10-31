@@ -2,16 +2,16 @@
 // the mobile UPI intent + webhook reconciliation). It is domain-free: checkout owns the order
 // and the payment ledger, this package only talks to Razorpay.
 //
-// Secrets are loaded from env and never logged. When the key pair is unset the gateway runs in
-// mock mode: ids are synthetic, no network call is made, and CreateOrder reports a paid result so
-// local dev, CI and unit tests never depend on a live Razorpay account.
+// Secrets are loaded from env and never logged. There is no mock/synthetic mode: when the key
+// pair is unset the client is disabled (Enabled() reports false), CreateOrder returns
+// ErrUnavailable, and no order is ever fabricated locally. Checkout refuses the request with 503
+// rather than pretending a payment succeeded.
 package razorpaypay
 
 import (
 	"bytes"
 	"context"
 	"crypto/hmac"
-	"crypto/rand"
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
@@ -53,12 +53,9 @@ type Gateway interface {
 	VerifyWebhook(body []byte, signature string) bool
 }
 
-// New builds a customer-payment gateway. Empty credentials → mock mode (never a half-configured
-// client).
+// New builds a customer-payment gateway from the configured key pair. Empty credentials yield a
+// disabled client (`Enabled()` false); it never falls back to a synthetic mock order.
 func New(keyID, keySecret, webhookSecret string) Gateway {
-	if strings.TrimSpace(keyID) == "" || strings.TrimSpace(keySecret) == "" {
-		return mockGateway{}
-	}
 	return &Client{
 		keyID:         strings.TrimSpace(keyID),
 		keySecret:     strings.TrimSpace(keySecret),
@@ -67,20 +64,6 @@ func New(keyID, keySecret, webhookSecret string) Gateway {
 		http:          &http.Client{Timeout: 12 * time.Second},
 	}
 }
-
-type mockGateway struct{}
-
-func (mockGateway) Enabled() bool { return false }
-func (mockGateway) KeyID() string { return "" }
-func (m mockGateway) CreateOrder(_ context.Context, in OrderInput) (Order, error) {
-	return Order{
-		ID:          "order_mock_" + shortID(),
-		AmountPaisa: in.AmountPaisa,
-		Currency:    "INR",
-		Status:      "paid",
-	}, nil
-}
-func (mockGateway) VerifyWebhook([]byte, string) bool { return false }
 
 // Client is the real Razorpay customer-payment HTTP client.
 type Client struct {
@@ -181,10 +164,4 @@ func fallback(v, def string) string {
 		return def
 	}
 	return v
-}
-
-func shortID() string {
-	b := make([]byte, 5)
-	_, _ = rand.Read(b)
-	return hex.EncodeToString(b)
 }

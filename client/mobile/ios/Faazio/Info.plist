@@ -28,6 +28,7 @@
         <key>CFBundleURLSchemes</key>
         <array>
           <string>com.faazio.customer</string>
+          <string>faazio</string>
           <string>faazio-delivery</string>
         </array>
       </dict>

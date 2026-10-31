@@ -322,8 +322,11 @@ export interface RazorpayOrderResult {
   currency: string;
   /** Public Razorpay key id (safe to surface; the secret never leaves the server). */
   keyId: string;
-  /** `PAID` only in gateway mock mode (keys unset) so dev checkout still completes. */
-  status: 'PENDING' | 'PAID';
+  /**
+   * `PENDING` for a freshly created UPI order (`PAID`/`FAILED` are authoritative server states,
+   * e.g. an idempotent re-request after the webhook already reconciled).
+   */
+  status: 'PENDING' | 'PAID' | 'FAILED';
 }
 
 /** Result of GET /orders/{id}/payment-status (server/webhook is the source of truth). */
@@ -2342,55 +2345,30 @@ export class GatewayClient {
 
   /** Record a payment for an owned order (server derives the amount). */
   async payForOrder(orderId: string, method: string, coinsRedeemed = 0): Promise<PaymentRecord> {
-    return this.withStrict(
-      () =>
-        this.http<PaymentRecord>(`/orders/${encodeURIComponent(orderId)}/payments`, {
-          method: 'POST',
-          body: JSON.stringify({ method, coinsRedeemed }),
-        }),
-      () =>
-        delay({
-          id: `pay-local-${Date.now()}`,
-          orderId,
-          userId: MOCK_USER_ID,
-          method,
-          amount: 0,
-          coinsRedeemed,
-          status: 'PAID',
-          createdAt: new Date().toISOString(),
-        }),
-    );
+    if (!REMOTE_ENABLED) throw new GatewayOfflineError();
+    return this.http<PaymentRecord>(`/orders/${encodeURIComponent(orderId)}/payments`, {
+      method: 'POST',
+      body: JSON.stringify({ method, coinsRedeemed }),
+    });
   }
 
   /**
    * Create a Razorpay order for an owned checkout order (POST /razorpay/customer/orders).
    * The server derives the amount and stores the razorpay order id for webhook reconciliation.
-   * In gateway mock mode (keys unset) the server simulates capture and returns `status: 'PAID'`.
+   * Real credentials are required — an unconfigured gateway returns 503, never a synthetic PAID.
    */
   async createRazorpayOrder(orderId: string): Promise<RazorpayOrderResult> {
-    return this.withStrict(
-      () =>
-        this.http<RazorpayOrderResult>('/razorpay/customer/orders', {
-          method: 'POST',
-          body: JSON.stringify({ orderId }),
-        }),
-      () =>
-        delay<RazorpayOrderResult>({
-          razorpayOrderId: `order_local_${Date.now()}`,
-          amountPaisa: 0,
-          currency: 'INR',
-          keyId: '',
-          status: 'PAID',
-        }),
-    );
+    if (!REMOTE_ENABLED) throw new GatewayOfflineError();
+    return this.http<RazorpayOrderResult>('/razorpay/customer/orders', {
+      method: 'POST',
+      body: JSON.stringify({ orderId }),
+    });
   }
 
   /** Poll an owned order's payment status (GET /orders/{id}/payment-status). */
   async fetchPaymentStatus(orderId: string): Promise<PaymentStatusResult> {
-    return this.withStrict(
-      () => this.http<PaymentStatusResult>(`/orders/${encodeURIComponent(orderId)}/payment-status`),
-      () => delay<PaymentStatusResult>({ status: 'PAID' }),
-    );
+    if (!REMOTE_ENABLED) throw new GatewayOfflineError();
+    return this.http<PaymentStatusResult>(`/orders/${encodeURIComponent(orderId)}/payment-status`);
   }
 
   /** The caller's durable payment rows (GET /payments). */

@@ -77,18 +77,28 @@ dependencies exist. Do not build the backend/seller flows until told to.
   only, immediate re-poll on `AppState → active`, 10-min timeout) → `PaymentFailedScreen` retry
   (same order, `createRazorpayOrder` idempotent so it never double-charges) / switch to COD.
   `CheckoutStep` gained `PAYMENT_STATUS` + `PAYMENT_FAILED`.
-- **Gateway:** `internal/platform/razorpaypay` (mock mode when keys unset), `POST
-  /razorpay/customer/orders` (server-derived amount, idempotent), `GET /orders/{id}/payment-status`,
-  public `POST /webhooks/razorpay/payments` (HMAC `X-Razorpay-Signature`; `payment.captured/authorized`
-  → PAID, `payment.failed` → FAILED). `checkout.payments` gained `razorpay_order_id` +
-  `razorpay_payment_id` (`0066`). Server mock mode records PAID so dev/CI checkout completes.
+- **Return from the UPI app:** the intent `url=faazio://payment/callback` now opens the app (scheme
+  registered in the Android `main` manifest + iOS `Info.plist`). `services/paymentLinks.ts` consumes
+  the cold/warm URL and routes to the lazy `PaymentCallbackScreen`, which re-verifies via
+  `GET /orders/{id}/payment-status` and shows the authoritative PAID / FAILED / PENDING result.
+- **Cold-start reconciliation:** launching a UPI intent records the order in AsyncStorage
+  (`services/paymentReconciliation.ts`). On login + every `AppState → active`, the app re-checks that
+  order and routes to `PaymentCallback` when the server has resolved it — so a payment completed while
+  Faazio was closed still lands on the right result (the webhook remains the source of truth).
+- **Gateway:** `internal/platform/razorpaypay` (real credentials required; **no mock/synthetic paid
+  order** — unset keys make the rail return 503), `POST /razorpay/customer/orders` (server-derived
+  amount, idempotent), `GET /orders/{id}/payment-status`, public `POST /webhooks/razorpay/payments`
+  (HMAC `X-Razorpay-Signature`; `payment.captured/authorized` → PAID, `payment.failed` → FAILED).
+  `checkout.payments` gained `razorpay_order_id` + `razorpay_payment_id` (`0066`).
 
-**Remaining (ops):** apply `0066` and set the Razorpay **customer** webhook endpoint
-(`/webhooks/razorpay/payments`) + `RAZORPAY_WEBHOOK_SECRET` in the dashboard. No merchant VPA env is
-used: reconciliation is by `razorpay_order_id`, and the UPI intent `pa` is the client-side default
-(`UPI_MERCHANT_VPA`). **Phase 3 (not started):**
-seller/delivery linked-account + payout UIs (the Route linked-account/payout endpoints already exist
-server-side).
+**Remaining (ops):** apply `0066`; set `RAZORPAY_KEY_ID` + `RAZORPAY_KEY_SECRET` +
+`RAZORPAY_WEBHOOK_SECRET` in Render (declared in `render.yaml`); register the Razorpay **customer**
+webhook `https://api.faazio.com/webhooks/razorpay/payments` for `payment.captured` /
+`payment.authorized` / `payment.failed`; confirm the merchant VPA `faazio@razorpay` belongs to the
+Faazio account. No Razorpay credential is baked into the app: the raw UPI intent `pa` is the
+client-side default (`UPI_MERCHANT_VPA`) and the public `keyId` comes from the server response.
+**Phase 3 (not started):** seller/delivery linked-account + payout UIs (the Route linked-account/payout
+endpoints already exist server-side).
 
 **Date:** 2026-10-31
 
@@ -560,7 +570,7 @@ end to end; the mobile app no longer talks to Supabase Auth.
   `internal/platform/razorpayroute` (linked accounts, held transfers, release/reverse, webhook HMAC).
 - Portal state/super seller detail: full registration, fee editor, per-document verification,
   reject with history, Verify KYC → Route linked account + ACTIVE.
-- Settlement `POST /payouts/holds` holds the seller share for 14 days; the gateway releaser releases
+- Settlement `POST /payouts/holds` holds the seller share for 7 days; the gateway releaser releases
   due holds every 15 minutes (Route credentials required). `POST /payouts/{id}/reverse` claws a
   refund/return back, and `POST /webhooks/razorpay/route` reconciles `transfer.released/failed/reversed`
   (`0040`).

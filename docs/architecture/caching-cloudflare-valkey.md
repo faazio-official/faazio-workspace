@@ -190,7 +190,7 @@ pipelines; a placement with no LIVE fill collapses the surface to `null` (never 
 | `catalog.updated` (product edit / status change) | `product:{id}`, `stock:{productId}`, `catalog:store-products:{storeId}`, `geo:nearby:products:{lat3}:{lng3}:*` tile prefixes around the product's store pin (3×3 block, all `radiusKm`/`app` variants) — `search:q:*` is TTL-bounded (600 s), deliberately not purged per edit | `/search?*`, product URL |
 | `stock.updated` | `stock:{productId}` | — |
 | `order.placed` | `checkout:orders:{userId}`, `product:{id}` (embedded stock; purged per line item), `reco:{userIdHash}` | — |
-| customer payment confirmed/failed (`POST /razorpay/customer/orders` mock-paid, or the `POST /webhooks/razorpay/payments` webhook) | `checkout:orders:{userId}` (the cached order status reflects the payment) | — |
+| customer payment confirmed/failed (`POST /razorpay/customer/orders` when Razorpay reports `paid`, or the `POST /webhooks/razorpay/payments` webhook) | `checkout:orders:{userId}` (the cached order status reflects the payment) | — |
 | `layout.updated` | `sdui:home:{version}` | `/sdui/home` |
 | `user_events.flush` | `reco:{userIdHash}` | — |
 | `store.updated` / store live toggle (portal `PUT /seller/stores/{id}/live`) / `review.moderated` | `directory:store:{id}`, `catalog:store-products:{id}`, `reviews:product:{id}`, `geo:nearby:stores:{lat3}:{lng3}:*` + `geo:nearby:products:{lat3}:{lng3}:*` tile prefixes around the store's pin (3×3 block, all `radiusKm`/`app` variants; §5) | store/review URLs |

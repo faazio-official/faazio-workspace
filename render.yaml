@@ -106,8 +106,17 @@ services:
         sync: false
       - key: RAZORPAY_ROUTE_WEBHOOK_SECRET
         sync: false
-      # Razorpay customer payments (UPI). Uses the base RAZORPAY_KEY_ID/RAZORPAY_KEY_SECRET/
-      # RAZORPAY_WEBHOOK_SECRET; set the customer webhook to
-      # https://<gateway>/webhooks/razorpay/payments (payment.captured/authorized/failed).
+      # Razorpay customer payments (UPI): RAZORPAY_KEY_ID + RAZORPAY_KEY_SECRET create the UPI order
+      # and RAZORPAY_WEBHOOK_SECRET verifies POST /webhooks/razorpay/payments
+      # (payment.captured/authorized/failed). Required for live payments — with either key unset the
+      # customer rail is disabled and checkout returns 503 payments_disabled (there is no mock /
+      # synthetic paid order). Set the customer webhook to
+      # https://api.faazio.com/webhooks/razorpay/payments in the Razorpay dashboard.
       # No merchant VPA env is used: reconciliation is by razorpay_order_id, and the raw UPI
       # intent `pa` is the client-side default (see UpiIntent.ts / paymentData.ts).
+      - key: RAZORPAY_KEY_ID
+        sync: false
+      - key: RAZORPAY_KEY_SECRET
+        sync: false
+      - key: RAZORPAY_WEBHOOK_SECRET
+        sync: false
