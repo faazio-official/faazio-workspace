@@ -136,7 +136,8 @@ a native prebuild/generator and never commit generated `src/lib/config.ts`.
   build two flavors in one Gradle task.
 - **`scripts/configure.js` is the single JS↔native config owner.** It reads `GATEWAY_URL`,
   `USE_GATEWAY`, `STRICT`, `DEV_USER`, `USE_FIREBASE_AUTH`, `CERT_PINS`, `APP_VARIANT`,
-  `ENTRY_FILE` from the environment/.env and generates `src/lib/config.ts` +
+  `ENTRY_FILE` from the process environment, `.env` (shared), `.env.<platform>` and `.env.local`
+  (in that precedence) and generates `src/lib/config.ts` +
   `src/lib/activeTransport.ts` (gitignored). `prestart`/`preandroid` and CI run it; release builds
   also write the Android certificate-pin network config. Phone OTP is Firebase
   (`@react-native-firebase/auth`). Public client configs are committed for all three Android apps

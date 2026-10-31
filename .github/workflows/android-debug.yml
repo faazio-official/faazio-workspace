@@ -117,6 +117,7 @@ jobs:
           # ts:check re-runs configure.js; keep the selected product variant from being reset.
           # This runs before the live config step so it cannot overwrite the gateway/auth settings.
           APP_VARIANT: ${{ github.event.inputs.app }}
+          CONFIGURE_PLATFORM: android
           # configure.js fails a seller typecheck without a portal origin. Supply the same
           # gateway/portal values the build step uses so partner builds pass this gate.
           GATEWAY_URL: ${{ vars.GATEWAY_URL || 'https://api.faazio.com' }}
@@ -134,6 +135,7 @@ jobs:
           USE_GATEWAY: "true"
           STRICT: "true"
           USE_FIREBASE_AUTH: "true"
+          CONFIGURE_PLATFORM: android
           APP_VARIANT: ${{ github.event.inputs.app }}
           GOOGLE_MAPS_API_KEY_ANDROID: ${{ vars.GOOGLE_MAPS_API_KEY_ANDROID || secrets.GOOGLE_MAPS_API_KEY_ANDROID }}
           GOOGLE_PLACES_API_KEY: ${{ vars.GOOGLE_PLACES_API_KEY || secrets.GOOGLE_PLACES_API_KEY }}

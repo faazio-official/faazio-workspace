@@ -324,7 +324,7 @@ keychain, installs that product's App Store profile, writes `ios/ExportOptions.p
 → `xcodebuild archive` → `xcodebuild -exportArchive` → `codesign` verify (Apple Distribution) →
 TestFlight (`apple-actions/upload-testflight-build@v5`, App Store Connect API) → GitHub Release.
 Pass `-f upload=false` to skip the TestFlight upload (artifact/release only). Required secrets are in
-`docs/RUNBOOKS/CI_PIPELINE.md` → "iOS / App Store" and `client/mobile/.env`.
+`docs/RUNBOOKS/CI_PIPELINE.md` → "iOS / App Store" and `client/mobile/.env.ios`.
 
 The version input (or `package.json`) sets `MARKETING_VERSION`; the build number is derived from the
 semver (`1.0.6` → `10006`). `Info.plist` reads `$(MARKETING_VERSION)`/`$(CURRENT_PROJECT_VERSION)`,

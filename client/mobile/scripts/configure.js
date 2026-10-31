@@ -7,11 +7,14 @@
  * rewrite the Android network-security-config with the configured certificate
  * pins.
  *
- * Inputs are read from the process environment, then `.env.local`, then `.env`
- * (process env wins).
+ * Inputs are read from the process environment, then `.env.local`, then the platform
+ * file (`.env.android` / `.env.ios`), then `.env` (process env wins). The platform is
+ * selected by CONFIGURE_PLATFORM=android|ios; when unset (Metro / typecheck) both
+ * platform files load so the generated `config.ts` is complete.
  *
  * Usage:
- *   node scripts/configure.js                  # debug / Metro
+ *   node scripts/configure.js                  # debug / Metro (both platforms)
+ *   CONFIGURE_PLATFORM=ios node scripts/configure.js
  *   CONFIGURE_RELEASE=1 node scripts/configure.js
  *
  * Nothing here is secret at rest: values are public client config. Never put
@@ -88,8 +91,16 @@ function readEnvFile(file) {
   }
 }
 
+// Precedence (low → high): .env < .env.<platform> < .env.local < process env.
+// No platform selected (Metro / typecheck) → load both platform files.
+const platform = String(process.env.CONFIGURE_PLATFORM || '')
+  .trim()
+  .toLowerCase();
+const platformFiles =
+  platform === 'android' || platform === 'ios' ? [`.env.${platform}`] : ['.env.android', '.env.ios'];
 const fileEnv = {
   ...readEnvFile(path.join(ROOT, '.env')),
+  ...Object.assign({}, ...platformFiles.map((file) => readEnvFile(path.join(ROOT, file)))),
   ...readEnvFile(path.join(ROOT, '.env.local')),
 };
 
@@ -348,7 +359,8 @@ if (isRelease && fs.existsSync(path.dirname(NSC_FILE))) {
 }
 
 console.log(
-  `[configure] app=${appVariant} transport=${transport} gateway=${gatewayUrl || '(mock)'} ` +
+  `[configure] app=${appVariant} platform=${platform || 'all'} transport=${transport} ` +
+    `gateway=${gatewayUrl || '(mock)'} ` +
     `portal=${webPortalUrl || '(unconfigured)'} ` +
     `useGateway=${useGateway} strict=${strict} firebaseAuth=${useFirebaseAuth} pins=${pins.length}`,
 );

@@ -95,7 +95,7 @@ Set on the repo with `gh secret set`:
 
 One **shared** Apple Distribution certificate signs all three products; each product has its own
 App Store provisioning profile. Values are the GitHub secrets/variables listed in
-`client/mobile/.env` (iOS section) and used by `ios-release.yml`.
+`client/mobile/.env.ios` and used by `ios-release.yml`.
 
 | Secret / variable | Kind | Value |
 |---|---|---|
@@ -112,10 +112,18 @@ App Store provisioning profile. Values are the GitHub secrets/variables listed i
 | `GOOGLE_SERVICE_INFO_SELLER_PLIST` | secret | `base64 -i GoogleService-Info-Seller.plist` |
 
 `CERT_PINS` (already set for Android) is reused by the iOS release configure step; `GATEWAY_URL`
-(default `https://api.faazio.com`), `WEB_PORTAL_URL` (default `https://app.faazio.com`) and
-`GOOGLE_MAPS_API_KEY_IOS` are optional overrides. `scripts/restore-ios-signing.sh <app>` imports the
-certificate into a temporary keychain, installs that product's profile (Xcode 16 + legacy paths),
-and writes `ios/ExportOptions.plist` (manual signing, `method: app-store-connect`). No fastlane.
+(default `https://api.faazio.com`), `WEB_PORTAL_URL` (variable, default `https://app.faazio.com`),
+`GOOGLE_MAPS_API_KEY_IOS` and `GOOGLE_PLACES_API_KEY` are optional overrides.
+`scripts/restore-ios-signing.sh <app>` imports the certificate into a temporary keychain, installs that
+product's profile (Xcode 16 + legacy paths), and writes `ios/ExportOptions.plist` (manual signing,
+`method: app-store-connect`). No fastlane.
+
+### Env files (mobile)
+
+`scripts/configure.js` layers, lowest → highest: `.env` (shared) → `.env.android` / `.env.ios`
+(platform, selected by `CONFIGURE_PLATFORM`) → `.env.local` (gitignored) → process env. Both release
+workflows set `CONFIGURE_PLATFORM` (`android` / `ios`) and pass the same names as GitHub secrets, so
+the committed files are local defaults only and **never affect a CI release**.
 
 ## 🚀 Trigger a release
 
