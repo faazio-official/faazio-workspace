@@ -7,6 +7,9 @@
   "scripts": {
     "configure": "node scripts/configure.js",
     "configure:android": "CONFIGURE_PLATFORM=android node scripts/configure.js",
+    "configure:android:customer": "CONFIGURE_PLATFORM=android APP_VARIANT=customer node scripts/configure.js",
+    "configure:android:delivery": "CONFIGURE_PLATFORM=android APP_VARIANT=delivery node scripts/configure.js",
+    "configure:android:seller": "CONFIGURE_PLATFORM=android APP_VARIANT=seller node scripts/configure.js",
     "configure:ios": "CONFIGURE_PLATFORM=ios node scripts/configure.js",
     "configure:delivery": "APP_VARIANT=delivery node scripts/configure.js",
     "configure:seller": "APP_VARIANT=seller node scripts/configure.js",

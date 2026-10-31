@@ -120,11 +120,12 @@ product's profile (Xcode 16 + legacy paths), and writes `ios/ExportOptions.plist
 
 ### Env files (mobile)
 
-`scripts/configure.js` layers, lowest → highest: the platform env file (`.env.android` / `.env.ios`,
-each complete/standalone with the shared values duplicated) → `.env.local` (gitignored) → process env.
-`CONFIGURE_PLATFORM=android|ios` selects the file (unset loads both); both release workflows set it
-and pass the same names as GitHub secrets, so the committed files are local defaults only and
-**never affect a CI release**.
+`scripts/configure.js` layers, lowest → highest: the selected env file (Android is per-app —
+`.env.android.customer` / `.env.android.delivery` / `.env.android.seller`, chosen by `APP_VARIANT`;
+iOS is one `.env.ios`; each complete/standalone with the shared values duplicated) → `.env.local`
+(gitignored) → process env. Both release workflows set `CONFIGURE_PLATFORM` (`android` / `ios`) plus
+`APP_VARIANT`, and pass the same names as GitHub secrets, so the committed files are local defaults
+only and **never affect a CI release**.
 
 ## 🚀 Trigger a release
 

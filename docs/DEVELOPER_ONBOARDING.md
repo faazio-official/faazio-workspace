@@ -112,16 +112,17 @@ go test ./...
 > manually: `mongosh "$MONGO_URI/faazio" --file server/supabase/seed/mongo/seed.js`.
 
 Local dev is auth-open (`AUTH_DISABLED=true`, user `user-1`; the gateway logs a loud warning). To
-point the app at it, set `GATEWAY_URL=http://<host>:8080` in `client/mobile/.env.android` (and
-`.env.ios` for iOS — each file is standalone; a gitignored `.env.local` overrides locally).
+point the app at it, set `GATEWAY_URL=http://<host>:8080` in the Android app's env file
+(`client/mobile/.env.android.customer`, or `.delivery` / `.seller` for those apps; `.env.ios` for iOS
+— each file is standalone; a gitignored `.env.local` overrides locally).
 For the seller product (a WebView over the Partner Portal) also set `WEB_PORTAL_URL` — the portal
 origin the shell loads at `/login` (e.g. `WEB_PORTAL_URL=https://app.faazio.com`, or
 `http://localhost:3000` for a local portal). A seller build **fails `configure.js`** if it is empty
-(dev and release), so set it in `client/mobile/.env.android` / `.env.ios` before `npm run start:seller`. Release
+(dev and release), so set it in `client/mobile/.env.android.seller` / `.env.ios` before `npm run start:seller`. Release
 seller builds refuse `http://` and require the `GOOGLE_SERVICES_SELLER_JSON` CI secret. For nearby
 ordering + the seller shop-pin map, also set
-`GOOGLE_MAPS_API_KEY_ANDROID` (`.env.android`) and
-`GOOGLE_PLACES_API_KEY` (in both platform files; restricted keys; empty is a supported degraded mode). Run
+`GOOGLE_MAPS_API_KEY_ANDROID` (the `.env.android.*` files) and
+`GOOGLE_PLACES_API_KEY` (in every env file; restricted keys; empty is a supported degraded mode). Run
 `npm run configure` after changing them; set `USE_GATEWAY=true` so `scripts/configure.js` generates
 `src/lib/config.ts` before Metro starts. `GatewayClient` is **server-only**: a failed or disabled
 remote read/write throws (`GatewayHttpError` / `GatewayOfflineError`) instead of substituting

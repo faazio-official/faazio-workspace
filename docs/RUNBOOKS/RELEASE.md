@@ -135,11 +135,12 @@ cd client/mobile
 scripts/cert-pins.sh          # prints "<leaf-pin>,<intermediate-pin>" (subject -> pin on stderr)
 ```
 
-Put that comma-separated value in both `client/mobile/.env.android` and `client/mobile/.env.ios`
-**and** the `CERT_PINS` GitHub secret (`gh secret set CERT_PINS`).
+Put that comma-separated value in every Android env file (`client/mobile/.env.android.customer`,
+`.env.android.delivery`, `.env.android.seller`) and `client/mobile/.env.ios` **and** the `CERT_PINS`
+GitHub secret (`gh secret set CERT_PINS`).
 
 Rotation playbook:
-1. Re-run `scripts/cert-pins.sh` after any chain change and update both platform env files + the
+1. Re-run `scripts/cert-pins.sh` after any chain change and update all four env files + the
    `CERT_PINS` secret.
 2. Ship a release with the fresh pins; during an overlap window keep the previous pins too so an
    in-flight app never fails closed.

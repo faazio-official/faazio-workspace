@@ -7,14 +7,16 @@
  * rewrite the Android network-security-config with the configured certificate
  * pins.
  *
- * Inputs are read from the process environment, then `.env.local`, then the platform env
- * file — `.env.android` or `.env.ios` (process env wins). The platform is selected by
- * CONFIGURE_PLATFORM=android|ios; when unset (Metro / typecheck) both platform files load
- * so the generated `config.ts` is complete. Each platform file is standalone (shared values
- * are duplicated across them on purpose).
+ * Inputs are read from the process environment, then `.env.local`, then the app/platform env
+ * file (process env wins). Android is per-app — `.env.android.<customer|delivery|seller>`,
+ * selected by APP_VARIANT; iOS is a single `.env.ios` for all apps. The platform is selected
+ * by CONFIGURE_PLATFORM=android|ios; when unset (Metro / typecheck) the selected Android file
+ * and `.env.ios` both load so the generated `config.ts` is complete. Each file is standalone
+ * (the shared build values are duplicated across them on purpose).
  *
  * Usage:
  *   node scripts/configure.js                  # debug / Metro (both platforms)
+ *   CONFIGURE_PLATFORM=android APP_VARIANT=seller node scripts/configure.js
  *   CONFIGURE_PLATFORM=ios node scripts/configure.js
  *   CONFIGURE_RELEASE=1 node scripts/configure.js
  *
@@ -92,13 +94,24 @@ function readEnvFile(file) {
   }
 }
 
-// Precedence (low → high): .env.<platform> < .env.local < process env.
-// No platform selected (Metro / typecheck) → load both platform files.
+// Precedence (low → high): the selected env file(s) < .env.local < process env.
+// Android is per-app (.env.android.<customer|delivery|seller>), selected by APP_VARIANT;
+// iOS is a single file (.env.ios) for all three apps. With no platform (Metro / typecheck)
+// the selected Android file and the iOS file are both loaded so config.ts is complete.
 const platform = String(process.env.CONFIGURE_PLATFORM || '')
   .trim()
   .toLowerCase();
+const requestedVariant = String(process.env.APP_VARIANT || '')
+  .trim()
+  .toLowerCase();
+const fileVariant =
+  requestedVariant === 'delivery' || requestedVariant === 'seller' ? requestedVariant : 'customer';
 const platformFiles =
-  platform === 'android' || platform === 'ios' ? [`.env.${platform}`] : ['.env.android', '.env.ios'];
+  platform === 'android'
+    ? [`.env.android.${fileVariant}`]
+    : platform === 'ios'
+      ? ['.env.ios']
+      : [`.env.android.${fileVariant}`, '.env.ios'];
 const fileEnv = {
   ...Object.assign({}, ...platformFiles.map((file) => readEnvFile(path.join(ROOT, file)))),
   ...readEnvFile(path.join(ROOT, '.env.local')),
@@ -359,7 +372,8 @@ if (isRelease && fs.existsSync(path.dirname(NSC_FILE))) {
 }
 
 console.log(
-  `[configure] app=${appVariant} platform=${platform || 'all'} transport=${transport} ` +
+  `[configure] app=${appVariant} platform=${platform || 'all'} env=${platformFiles.join(',')} ` +
+    `transport=${transport} ` +
     `gateway=${gatewayUrl || '(mock)'} ` +
     `portal=${webPortalUrl || '(unconfigured)'} ` +
     `useGateway=${useGateway} strict=${strict} firebaseAuth=${useFirebaseAuth} pins=${pins.length}`,
