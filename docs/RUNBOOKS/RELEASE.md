@@ -42,10 +42,14 @@ phone OTP or render restricted Maps keys:
 - **Firebase** (Project Settings → Your apps): add **each app's own** release SHA-1/SHA-256 to its
   matching Android app registration. Without it that build fails phone OTP with
   `auth/invalid-app-credential`. See `docs/RUNBOOKS/FIREBASE_AUTH.md` §4.
-- **Maps / Places API keys**: restrict the key each app uses to that app's package **+ that app's
-  release SHA-1** (the debug SHA-1 is not accepted). The workflow currently passes one shared
-  `GOOGLE_MAPS_API_KEY_ANDROID` / `GOOGLE_PLACES_API_KEY`; create per-app keys in Google Cloud and
-  set per-app secrets if you want them independent. See TROUBLESHOOTING.md → "Location / maps".
+- **Maps / Places API keys**: only the **customer** and **delivery** apps mount a native map
+  (customer "Sell with us" pin picker, delivery route). Restrict each shared key to those packages
+  **+ each app's release SHA-1** (the debug SHA-1 is not accepted). The **seller** app is a WebView
+  shell with no `MapView`, so its package is **not** needed on the Maps/Places allowlist and its
+  flavor strips the key (`tools:node="remove"` + an empty string override under
+  `android/app/src/seller/`). The workflow passes one shared `GOOGLE_MAPS_API_KEY_ANDROID` /
+  `GOOGLE_PLACES_API_KEY`; create per-app keys in Google Cloud and set per-app secrets if you want
+  them independent. See TROUBLESHOOTING.md → "Location / maps".
 - **Google Play Console** (Setup → App signing): each listing's first AAB upload registers that app's
   **upload key**; confirm Play shows the matching SHA-256 above.
 - Drill a fingerprint with `keytool -list -v -keystore <file> -alias <alias>` (store password from
@@ -267,6 +271,12 @@ The Android project has three product flavors: `customer` (`com.faazio.customer`
 split exists on iOS as the `Delivery-Debug` / `Delivery-Release` and `Seller-Debug` / `Seller-Release`
 build configurations.
 
+All three flavors share **one committed native shell and one dependency set** (`android/` + `ios/`;
+deps declared once in `package.json`), so a native library such as `react-native-maps` is compiled into
+every APK even if one product never uses it. Never delete a shared dependency to slim a single app —
+scope the exclusion in that flavor's manifest/resources instead (the seller flavor strips the Maps key
+this way). CI builds each flavor separately; do not build two in one Gradle task.
+
 To verify a **downloaded** APK is signed with the release cert (not the debug cert):
 ```bash
 apksigner verify --verbose --print-certs app-customer-release.apk
@@ -393,7 +403,7 @@ Run **each pending** migration (numeric order) → then roll the Render deploy. 
 
 - [ ] `npm run ts:check` and `npm run check:boundaries` pass (both are CI steps).
 - [ ] `versionCode` > the previous release (committed +1 bump, or derived from `-f version` semver — e.g. `1.0.4` → `10004`).
-- [ ] Release keystore SHA-1/SHA-256 registered in Firebase for all three Android apps and the Maps/Places keys restricted to the release SHA-1 (see "Register the release cert").
+- [ ] Release keystore SHA-1/SHA-256 registered in Firebase for all three Android apps; Maps/Places keys restricted to the release SHA-1 for **customer + delivery** only (seller mounts no map — see "Register the release cert").
 - [ ] `CERT_PINS` set and Firebase native config committed when `USE_GATEWAY=true` (release configure fails without them).
 - [ ] Per-app GitHub secrets set: `KEYSTORE_BASE64_<APP>`, `KEYSTORE_PASS_<APP>`, `KEY_ALIAS_<APP>`, `ALIAS_PASS_<APP>` for each product being released (all keystores backed up).
 - [ ] Release APK signed with the **release cert** (`CN=Faazio`), not the debug cert.

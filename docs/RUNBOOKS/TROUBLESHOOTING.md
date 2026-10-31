@@ -102,11 +102,13 @@ rendered on the error card** (plus the first stack frame in a dev build) — tha
 
 ## 📍 Location / maps
 
-- **Map is blank (seller pin picker or delivery route)** → `GOOGLE_MAPS_API_KEY_ANDROID` was empty
-  when `scripts/configure.js` ran, or the key is not restricted to the app package + signing SHA-1.
-  Set the repository variable/secret the workflows read, re-run `npm run configure` (writes the
-  gitignored `android/app/src/main/res/values/google_maps_api_key.xml`) and rebuild in CI. The
-  delivery APK needs the key restricted to `com.faazio.deliverypartner` as well.
+- **Map is blank (customer "Sell with us" pin picker, or delivery route)** → `GOOGLE_MAPS_API_KEY_ANDROID`
+  was empty when `scripts/configure.js` ran, or the key is not restricted to that app's package +
+  signing SHA-1. Set the repository variable/secret the workflows read, re-run `npm run configure`
+  (writes the gitignored `android/app/src/main/res/values/google_maps_api_key.xml`) and rebuild in CI.
+  The customer build needs the key restricted to `com.faazio.customer` and the delivery build to
+  `com.faazio.deliverypartner`. The **seller** APK has no native map (WebView shell) and deliberately
+  embeds no Maps key, so there is nothing to fix there.
 - **No address suggestions on the Location screen** → `GOOGLE_PLACES_API_KEY` is empty or the key
   lacks Places API (New); the screen intentionally falls back to static suggestions.
 - **Nearby lists fall back to fixture order** → no foreground fix yet. Check that permission was

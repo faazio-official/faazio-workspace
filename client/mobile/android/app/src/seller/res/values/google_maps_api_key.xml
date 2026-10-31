@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Seller flavor override (higher priority than src/main). The seller product is a WebView shell
+     with no MapView, so it never embeds the Maps SDK key: the meta-data is stripped in
+     src/seller/AndroidManifest.xml (tools:node="remove") and the value is forced empty here.
+     scripts/configure.js still writes the shared key into src/main for customer + delivery. -->
+<resources>
+  <string name="google_maps_api_key" translatable="false"></string>
+</resources>

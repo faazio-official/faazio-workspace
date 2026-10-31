@@ -422,7 +422,9 @@ default it to `https://app.faazio.com`.
    store's `geo:nearby:products` tile prefixes; `order.placed` purges `product:{id}` per line item
    (embedded stock); `rateVendor` purges `directory:store:{id}` (embedded rating).
 - **Ops remaining:** provision restricted `GOOGLE_MAPS_API_KEY_ANDROID` + `GOOGLE_PLACES_API_KEY`
-  (and run `npm run configure`); add the iOS Pod (`cd ios && pod install`) during the first iOS build.
+  for **customer + delivery** (the seller app is a WebView shell with no `MapView`; its flavor strips
+  the Maps key via `tools:node="remove"`) and run `npm run configure`; add the iOS Pod
+  (`cd ios && pod install`) during the first iOS build.
 
 **Date:** 2026-10-21
 

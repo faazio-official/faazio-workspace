@@ -179,7 +179,7 @@ legal retention. Never ship a build with the row hidden or the route removed.
 - [ ] `versionCode` > previous release (auto-derived from `-f version=` semver, or +1 committed bump) and `versionName` matches `package.json`.
 - [ ] `npm run ts:check` and `npm run check:boundaries` pass (both run in CI).
 - [ ] Release built in CI with the release keystore and `CERT_PINS` configured.
-- [ ] Release keystore SHA-1/SHA-256 registered in Firebase for all three apps; Maps/Places keys restricted to the release SHA-1.
+- [ ] Release keystore SHA-1/SHA-256 registered in Firebase for all three apps; Maps/Places keys restricted to the release SHA-1 for **customer + delivery** (the seller app is a WebView shell with no native map).
 - [ ] R8 smoke test passed on a device: Home → Cart → Checkout → Pharma.
 - [ ] Data Safety answer sheet (Step 3c) applied to every listing: 18+, minors restricted, delete-account URL `https://faazio.com/privacy`, delete-without-account = Yes, advertising ID = No.
 - [ ] Data Safety discloses camera, location, media, and Keychain/Keystore token storage.

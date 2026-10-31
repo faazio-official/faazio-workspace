@@ -757,6 +757,14 @@ selects that config in `configure.js` (the iOS bundle phase hard-fails otherwise
 explicitly (`assembleCustomerDebug` / `assembleDeliveryDebug` / `assembleSellerDebug`); see
 `docs/RUNBOOKS/RELEASE.md`.
 
+**One shared native shell, one dependency set.** `android/` and `ios/` are committed source-of-truth
+shells shared by all three products; a flavor/configuration only *adds or overrides* source sets
+(manifest, resources, JS entry). Native dependencies are declared once in `package.json` and
+compiled into every flavor — e.g. `react-native-maps` is present in the seller APK even though the
+seller app never mounts a `MapView`. **Never delete a shared native dependency to slim one product**
+(it would break customer/delivery). Scope a per-product exclusion in that flavor's manifest/resources
+instead, as the seller flavor does for the Maps key (below).
+
 **Background tracking.** While online, Android runs `DeliveryTrackingService` with
 `foregroundServiceType="location"` and a persistent low-importance notification, waking
 `DeliveryHeartbeatTaskService` every 120 s. The headless JS task reads the Keychain session, takes
@@ -1221,6 +1229,16 @@ Seller onboarding adds a foreground `SellerLocationPicker` (native `react-native
 submits `latitude`/`longitude` with the application; the shop pin is stored on `sellers.sellers` and
 is public business data. Maps keys come from `GOOGLE_MAPS_API_KEY_ANDROID` (manifest resource generated
 by `scripts/configure.js`) and `GOOGLE_MAPS_API_KEY_IOS`; no key ⇒ the map renders blank, no crash.
+
+The native `MapView` is mounted by exactly two products: the **customer** app (`SellerLocationPicker`,
+the "Sell with us" flow, wired in `AppNavigator.tsx`) and the **delivery** app
+(`features/delivery-partner/screens/RouteScreen.tsx`). The **seller** app is a WebView shell and mounts
+no map, so it must not carry the key: all three flavors share one native shell, so `configure.js` still
+writes the key into `src/main`, but the seller flavor removes the `com.google.android.geo.API_KEY`
+meta-data (`tools:node="remove"` in `android/app/src/seller/AndroidManifest.xml`) and overrides
+`google_maps_api_key` empty in `src/seller/res/values/`. Consequently the Google Maps/Places keys only
+need the **customer + delivery** packages on their allowlist. Do not delete the shared `react-native-maps`
+dependency to achieve this — that would break customer and delivery.
 The customer product itself never requests background location. The shared iOS plist declares
 `UIBackgroundModes: location` for the delivery entry (the partner app is the only caller of the
 background watch); Android keeps background location scoped to the delivery flavor manifest.

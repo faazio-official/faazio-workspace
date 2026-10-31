@@ -9,5 +9,11 @@
       android:name="com.google.firebase.messaging.default_notification_channel_id"
       android:value="seller_orders"
       tools:replace="android:value"/>
+    <!-- The seller product is a WebView shell over the portal and never mounts a MapView, so it
+         must not carry the Maps SDK key. Strip the meta-data merged from src/main (the shared shell
+         still builds react-native-maps for the customer/delivery flavors — do NOT remove the dep). -->
+    <meta-data
+      android:name="com.google.android.geo.API_KEY"
+      tools:node="remove"/>
   </application>
 </manifest>
