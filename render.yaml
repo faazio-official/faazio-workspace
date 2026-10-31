@@ -106,9 +106,8 @@ services:
         sync: false
       - key: RAZORPAY_ROUTE_WEBHOOK_SECRET
         sync: false
-      # Razorpay customer payments (UPI): the public merchant VPA placed in the UPI intent `pa`.
-      # Optional — falls back to the client default when unset. Uses the base RAZORPAY_KEY_ID/
-      # RAZORPAY_KEY_SECRET/RAZORPAY_WEBHOOK_SECRET; set the customer webhook to
+      # Razorpay customer payments (UPI). Uses the base RAZORPAY_KEY_ID/RAZORPAY_KEY_SECRET/
+      # RAZORPAY_WEBHOOK_SECRET; set the customer webhook to
       # https://<gateway>/webhooks/razorpay/payments (payment.captured/authorized/failed).
-      - key: RAZORPAY_UPI_VPA
-        sync: false
+      # No merchant VPA env is used: reconciliation is by razorpay_order_id, and the raw UPI
+      # intent `pa` is the client-side default (see UpiIntent.ts / paymentData.ts).

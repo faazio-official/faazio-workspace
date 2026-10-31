@@ -280,8 +280,11 @@ The HTTP route is not used service-to-service — the dual mount is intentional.
   so a client cannot mint a free order by asserting more coins than it owns. Customer payment
   **capture** is now server-authoritative (`internal/platform/razorpaypay` + the
   `/webhooks/razorpay/payments` HMAC webhook; W75) — the client only transitions UI from the polled
-  status. A raw UPI intent can't be reconciled without a Razorpay-managed VPA/order, so set
-  `RAZORPAY_UPI_VPA` to the account's merchant VPA in production.
+  status. **No merchant VPA is used:** reconciliation matches on `razorpay_order_id`
+  (`SetPaymentStatusByRazorpayOrder`), and settlement, refunds, COD and Route payouts never read a VPA.
+  A raw UPI intent to a static VPA cannot be reconciled — Razorpay's own UPI flow pays a
+  Razorpay-managed dynamic VPA — so the server-side VPA surface (`RAZORPAY_UPI_VPA`) was removed; the
+  intent `pa` is the client-side default.
 - **Admin scope is re-checked before every scoped mutation:** support tickets/returns
   (`auth.CanActForState`, server-derived `state_code`, caller-owned order), ads slot requests
   (product ownership + seller district), promo opt-in decisions (seller district), and pharma

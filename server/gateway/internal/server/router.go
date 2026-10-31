@@ -114,7 +114,7 @@ func NewRouter(d Deps) http.Handler {
 	// (provision account on KYC) and settlement (hold/release the seller share).
 	routeGateway := razorpayroute.New(d.Config.RazorpayRouteKeyID, d.Config.RazorpayRouteKeySecret, d.Config.RazorpayRouteWebhookSecret)
 	// Customer Razorpay rail (UPI order creation + webhook). Mock mode when keys are unset.
-	razorpayPay := razorpaypay.New(d.Config.RazorpayKeyID, d.Config.RazorpayKeySecret, d.Config.RazorpayWebhookSecret, d.Config.RazorpayUPIVPA)
+	razorpayPay := razorpaypay.New(d.Config.RazorpayKeyID, d.Config.RazorpayKeySecret, d.Config.RazorpayWebhookSecret)
 
 	// Partner control plane (0015). adminsRepo also implements contracts.AuditWriter so every
 	// partner mutation is recorded.

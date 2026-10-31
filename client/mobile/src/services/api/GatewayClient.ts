@@ -322,8 +322,6 @@ export interface RazorpayOrderResult {
   currency: string;
   /** Public Razorpay key id (safe to surface; the secret never leaves the server). */
   keyId: string;
-  /** Merchant VPA for the UPI intent `pa` param (empty → client default). */
-  upiVpa?: string;
   /** `PAID` only in gateway mock mode (keys unset) so dev checkout still completes. */
   status: 'PENDING' | 'PAID';
 }

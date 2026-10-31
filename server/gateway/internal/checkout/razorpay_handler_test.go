@@ -19,7 +19,7 @@ func signRazorpay(body, secret string) string {
 }
 
 func TestRazorpayWebhookDisabledGateway(t *testing.T) {
-	h := &Handler{pay: razorpaypay.New("", "", "", "")} // mock mode → not Enabled
+	h := &Handler{pay: razorpaypay.New("", "", "")} // mock mode → not Enabled
 	req := httptest.NewRequest(http.MethodPost, "/webhooks/razorpay/payments", strings.NewReader(`{"event":"payment.captured"}`))
 	rec := httptest.NewRecorder()
 	h.razorpayPaymentWebhook(rec, req)
@@ -29,7 +29,7 @@ func TestRazorpayWebhookDisabledGateway(t *testing.T) {
 }
 
 func TestRazorpayWebhookRejectsBadSignature(t *testing.T) {
-	h := &Handler{pay: razorpaypay.New("k", "s", "whsec", "")}
+	h := &Handler{pay: razorpaypay.New("k", "s", "whsec")}
 	body := `{"event":"payment.captured"}`
 	req := httptest.NewRequest(http.MethodPost, "/webhooks/razorpay/payments", strings.NewReader(body))
 	req.Header.Set("X-Razorpay-Signature", "deadbeef")
@@ -41,7 +41,7 @@ func TestRazorpayWebhookRejectsBadSignature(t *testing.T) {
 }
 
 func TestRazorpayWebhookIgnoresUnknownEvent(t *testing.T) {
-	h := &Handler{pay: razorpaypay.New("k", "s", "whsec", "")}
+	h := &Handler{pay: razorpaypay.New("k", "s", "whsec")}
 	body := `{"event":"refund.created","payload":{"payment":{"entity":{"id":"pay_1","order_id":"order_1","status":"captured"}}}}`
 	req := httptest.NewRequest(http.MethodPost, "/webhooks/razorpay/payments", strings.NewReader(body))
 	req.Header.Set("X-Razorpay-Signature", signRazorpay(body, "whsec"))

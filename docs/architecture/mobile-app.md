@@ -1296,7 +1296,8 @@ dedicated **FULFILLMENT** step. `fulfillment` (`'DELIVERY' | 'PICKUP'`) is a sin
   rewrites it per app on iOS (`gpay://upi/pay`, `phonepe://upi/pay`, `paytmmp://upi/pay`,
   `bhim://upi/pay`) before `Linking.openURL`. After `placeOrder` the client calls
   `gateway.createRazorpayOrder(orderId)` (server derives the amount, returns the Razorpay order id +
-  public key + optional VPA) and launches the intent with `tr=<razorpayOrderId>`.
+  public key) and launches the intent with `tr=<razorpayOrderId>`. The `pa` param is the client-side
+  default `UPI_MERCHANT_VPA` — no server-provided VPA is used (reconciliation is by `razorpay_order_id`).
   `PaymentStatusScreen` (`payment/PaymentStatusScreen.tsx`) polls
   `gateway.fetchPaymentStatus(orderId)` via `usePaymentPolling` (2.5 s, **foreground only**, immediate
   re-poll on `AppState → active`, 10-minute timeout). The server webhook is the source of truth, so

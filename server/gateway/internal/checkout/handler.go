@@ -618,7 +618,6 @@ func (h *Handler) createRazorpayOrder(w http.ResponseWriter, r *http.Request) {
 			"amountPaisa":     st.AmountPaisa,
 			"currency":        "INR",
 			"keyId":           h.pay.KeyID(),
-			"upiVpa":          h.pay.UPIVPA(),
 			"status":          "PAID",
 		})
 		return
@@ -628,7 +627,6 @@ func (h *Handler) createRazorpayOrder(w http.ResponseWriter, r *http.Request) {
 			"amountPaisa":     st.AmountPaisa,
 			"currency":        "INR",
 			"keyId":           h.pay.KeyID(),
-			"upiVpa":          h.pay.UPIVPA(),
 			"status":          "PENDING",
 		})
 		return
@@ -686,7 +684,6 @@ func (h *Handler) createRazorpayOrder(w http.ResponseWriter, r *http.Request) {
 		"amountPaisa":     amountPaisa,
 		"currency":        "INR",
 		"keyId":           h.pay.KeyID(),
-		"upiVpa":          h.pay.UPIVPA(),
 		"status":          status,
 	})
 }

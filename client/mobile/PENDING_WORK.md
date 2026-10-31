@@ -33,9 +33,10 @@ dependencies exist. Do not build the backend/seller flows until told to.
   → PAID, `payment.failed` → FAILED). `checkout.payments` gained `razorpay_order_id` +
   `razorpay_payment_id` (`0066`). Server mock mode records PAID so dev/CI checkout completes.
 
-**Remaining (ops):** apply `0066`, set the Razorpay **customer** webhook endpoint
-(`/webhooks/razorpay/payments`) + `RAZORPAY_WEBHOOK_SECRET` in the dashboard, and optionally set
-`RAZORPAY_UPI_VPA` (public merchant VPA; falls back to the client default). **Phase 3 (not started):**
+**Remaining (ops):** apply `0066` and set the Razorpay **customer** webhook endpoint
+(`/webhooks/razorpay/payments`) + `RAZORPAY_WEBHOOK_SECRET` in the dashboard. No merchant VPA env is
+used: reconciliation is by `razorpay_order_id`, and the UPI intent `pa` is the client-side default
+(`UPI_MERCHANT_VPA`). **Phase 3 (not started):**
 seller/delivery linked-account + payout UIs (the Route linked-account/payout endpoints already exist
 server-side).
 

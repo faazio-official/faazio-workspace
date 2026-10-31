@@ -614,7 +614,6 @@ export default function CartView({
             orderId,
             amountPaisa: rzp.amountPaisa,
             txnRef: rzp.razorpayOrderId,
-            payeeVpa: rzp.upiVpa,
           }),
         );
       } catch (err) {
@@ -658,7 +657,6 @@ export default function CartView({
             orderId: next.orderId,
             amountPaisa: rzp.amountPaisa,
             txnRef: rzp.razorpayOrderId,
-            payeeVpa: rzp.upiVpa,
           }),
         );
       } catch {

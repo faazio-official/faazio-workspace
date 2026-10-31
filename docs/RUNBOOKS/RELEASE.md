@@ -366,8 +366,8 @@ webhook in the Razorpay dashboard at `https://<gateway>/webhooks/razorpay/route`
 
 Migration `0066` (customer Razorpay link columns) must be applied. The customer rail reuses the base
 `RAZORPAY_KEY_ID` / `RAZORPAY_KEY_SECRET` / `RAZORPAY_WEBHOOK_SECRET` (the ones already set in Render).
-`RAZORPAY_UPI_VPA` is optional — the public merchant VPA placed in the UPI intent `pa` (falls back to the
-client default). With no keys the customer rail runs in **mock mode**: `POST /razorpay/customer/orders`
+No merchant VPA env is used — reconciliation is by `razorpay_order_id` and the raw UPI intent `pa` is the
+client-side default. With no keys the customer rail runs in **mock mode**: `POST /razorpay/customer/orders`
 records the order PAID so dev/staging checkout completes without a live webhook. Register the customer
 webhook in the Razorpay dashboard at `https://<gateway>/webhooks/razorpay/payments` for
 `payment.captured`, `payment.authorized` and `payment.failed`.
@@ -422,7 +422,7 @@ Run **each pending** migration (numeric order) → then roll the Render deploy. 
 - [ ] **Server/Render:** all `server/supabase/migrations/` files up to the latest are applied from a dev terminal (`DATABASE_MIGRATIONS.md` — Render never auto-applies); then the gateway deploy rolled.
 - [ ] Push delivery: `FCM_PROJECT_ID` + `FCM_SERVICE_ACCOUNT_JSON` (server-side Firebase service-account key — a Render secret env var) set for the gateway's embedded FCM sender. See `FIREBASE_AUTH.md`.
 - [ ] Seller splits: `0039` + `0040` applied; Route keys + webhook endpoint/secret set (or the `RAZORPAY_*` fallback used); `R2_PRIVATE_BUCKET` set.
-- [ ] Customer payments: `0066` applied; Razorpay **customer** webhook `/webhooks/razorpay/payments` registered (`payment.captured/authorized/failed`); `RAZORPAY_UPI_VPA` set to the merchant VPA.
+- [ ] Customer payments: `0066` applied; Razorpay **customer** webhook `/webhooks/razorpay/payments` registered (`payment.captured/authorized/failed`).
 - [ ] Release signed and smoke-tested on a device (R8 gate: Home → Cart → Checkout → Pharma).
 - [ ] Store metadata / data-safety updated (see Google Play §4 answer sheet; delete-account URL + in-app flow verified).
 

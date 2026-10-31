@@ -48,34 +48,30 @@ type Gateway interface {
 	Enabled() bool
 	// KeyID is the public Razorpay key id (safe to hand to the client intent).
 	KeyID() string
-	// UPIVPA is the merchant VPA for the UPI intent `pa` param (may be empty).
-	UPIVPA() string
 	CreateOrder(ctx context.Context, in OrderInput) (Order, error)
 	// VerifyWebhook validates the X-Razorpay-Signature over the raw body.
 	VerifyWebhook(body []byte, signature string) bool
 }
 
 // New builds a customer-payment gateway. Empty credentials → mock mode (never a half-configured
-// client). upiVPA is a public merchant identifier (never a secret) and is returned as-is.
-func New(keyID, keySecret, webhookSecret, upiVPA string) Gateway {
+// client).
+func New(keyID, keySecret, webhookSecret string) Gateway {
 	if strings.TrimSpace(keyID) == "" || strings.TrimSpace(keySecret) == "" {
-		return mockGateway{upiVPA: strings.TrimSpace(upiVPA)}
+		return mockGateway{}
 	}
 	return &Client{
 		keyID:         strings.TrimSpace(keyID),
 		keySecret:     strings.TrimSpace(keySecret),
 		webhookSecret: strings.TrimSpace(webhookSecret),
-		upiVPA:        strings.TrimSpace(upiVPA),
 		baseURL:       "https://api.razorpay.com/v1",
 		http:          &http.Client{Timeout: 12 * time.Second},
 	}
 }
 
-type mockGateway struct{ upiVPA string }
+type mockGateway struct{}
 
-func (mockGateway) Enabled() bool    { return false }
-func (mockGateway) KeyID() string    { return "" }
-func (m mockGateway) UPIVPA() string { return m.upiVPA }
+func (mockGateway) Enabled() bool { return false }
+func (mockGateway) KeyID() string { return "" }
 func (m mockGateway) CreateOrder(_ context.Context, in OrderInput) (Order, error) {
 	return Order{
 		ID:          "order_mock_" + shortID(),
@@ -91,7 +87,6 @@ type Client struct {
 	keyID         string
 	keySecret     string
 	webhookSecret string
-	upiVPA        string
 	baseURL       string
 	http          *http.Client
 }
@@ -105,14 +100,6 @@ func (c *Client) KeyID() string {
 		return ""
 	}
 	return c.keyID
-}
-
-// UPIVPA satisfies Gateway.
-func (c *Client) UPIVPA() string {
-	if c == nil {
-		return ""
-	}
-	return c.upiVPA
 }
 
 // CreateOrder creates a Razorpay order (`order_*`) with auto-capture so a UPI payment settles

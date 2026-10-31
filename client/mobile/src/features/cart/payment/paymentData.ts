@@ -4,7 +4,7 @@
  */
 export type PaymentMethod = 'UPI' | 'COD';
 
-/** Merchant VPA baked into the UPI intent `pa` param. The server may override with `upiVpa`. */
+/** Merchant VPA baked into the UPI intent `pa` param (client-side default; no server override). */
 export const UPI_MERCHANT_VPA = 'faazio@razorpay';
 
 /** Merchant display name baked into the UPI intent `pn` param. */

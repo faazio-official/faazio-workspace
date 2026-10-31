@@ -13,15 +13,12 @@ import (
 )
 
 func TestNewWithoutCredentialsIsMock(t *testing.T) {
-	g := New("", "", "", "faazio@razorpay")
+	g := New("", "", "")
 	if g.Enabled() {
 		t.Fatal("empty credentials must run in mock mode")
 	}
 	if g.KeyID() != "" {
 		t.Fatalf("mock key id must be empty, got %q", g.KeyID())
-	}
-	if g.UPIVPA() != "faazio@razorpay" {
-		t.Fatalf("upi vpa = %q", g.UPIVPA())
 	}
 	o, err := g.CreateOrder(context.Background(), OrderInput{AmountPaisa: 12345, Receipt: "ord-1"})
 	if err != nil {
@@ -33,7 +30,7 @@ func TestNewWithoutCredentialsIsMock(t *testing.T) {
 }
 
 func TestVerifyWebhook(t *testing.T) {
-	g := New("key", "secret", "whsec", "")
+	g := New("key", "secret", "whsec")
 	body := []byte(`{"event":"payment.captured"}`)
 	mac := hmac.New(sha256.New, []byte("whsec"))
 	mac.Write(body)
@@ -50,10 +47,10 @@ func TestVerifyWebhook(t *testing.T) {
 }
 
 func TestEnabledRequiresKeys(t *testing.T) {
-	if New("key", "", "", "").Enabled() {
+	if New("key", "", "").Enabled() {
 		t.Fatal("half-configured client must stay disabled")
 	}
-	if !New("key", "secret", "", "").Enabled() {
+	if !New("key", "secret", "").Enabled() {
 		t.Fatal("key pair must enable the client")
 	}
 }

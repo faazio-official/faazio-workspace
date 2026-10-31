@@ -30,8 +30,6 @@ export interface UpiIntentInput {
   amountPaisa: number;
   /** Transaction reference — the Razorpay order id the webhook reconciles on. */
   txnRef: string;
-  /** Merchant VPA (server `upiVpa` when provided, else the client default). */
-  payeeVpa?: string;
   /** Merchant display name. */
   payeeName?: string;
   /** Optional transaction note. */
@@ -45,7 +43,7 @@ export interface UpiIntentInput {
 export function buildUpiIntent(input: UpiIntentInput): string {
   const amount = (Math.max(0, input.amountPaisa) / 100).toFixed(2);
   const params: [string, string][] = [
-    ['pa', input.payeeVpa || UPI_MERCHANT_VPA],
+    ['pa', UPI_MERCHANT_VPA],
     ['pn', input.payeeName || UPI_MERCHANT_NAME],
     ['am', amount],
     ['cu', 'INR'],
