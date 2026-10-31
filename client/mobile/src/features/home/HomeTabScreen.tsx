@@ -32,7 +32,7 @@ import {
 import type { MainTabParamList, RootStackParamList } from '@/navigation/types';
 import type { SubAppId } from '@/state/uiStore';
 import HeaderCategoryRail from '@/components/shared/HeaderCategoryRail';
-import type { CategoryRailItem } from '@data/categories/railFeed';
+import type { CategoryRailItem } from '@/services/categoryRail';
 
 type Props = CompositeScreenProps<
   BottomTabScreenProps<MainTabParamList, 'Home'>,
@@ -81,7 +81,7 @@ export function HomeTabScreen({ navigation }: Props) {
       navigation.navigate('CategoryDrillIn', {
         tabId: item.id,
         title: item.name,
-        app: 'FA_MART',
+        app: item.app,
       });
     },
     [navigation],

@@ -26,7 +26,7 @@ import { SPACE } from '@/theme/spacing';
 import { SELLER_SETUP_FIELDS } from '@data/index';
 import { DISTRICTS, type DistrictInfo } from '@data/districts';
 import type { AppBrand } from '@data/types';
-import { gateway, type SellerApplication } from '@/services/api/GatewayClient';
+import { gateway, type Category, type SellerApplication } from '@/services/api/GatewayClient';
 import { firebaseAuthConfigured, sendSellerOtp, verifySellerOtp } from '@/services/firebaseAuth';
 import { getCurrentAddress, type Coordinates } from '@/services/location';
 import SellerLocationPicker from './SellerLocationPicker';
@@ -103,6 +103,11 @@ export function SellerRegistrationScreen({ navigation }: Props) {
     fssaiNumber: '',
   });
   const [category, setCategory] = useState<AppBrand>('MART');
+  // Superadmin-owned category taxonomy for the selected app (GET /categories?app=). Server-only —
+  // no fixture list. A seller picks one before submitting; the gateway re-validates it on write.
+  const [subCategories, setSubCategories] = useState<Category[]>([]);
+  const [subCategoryId, setSubCategoryId] = useState<string | null>(null);
+  const [subCategoriesLoading, setSubCategoriesLoading] = useState(false);
   const [passbookUri, setPassbookUri] = useState<string | null>(null);
   const [fssaiUri, setFssaiUri] = useState<string | null>(null);
   const [capture, setCapture] = useState<'passbook' | 'fssai' | null>(null);
@@ -158,6 +163,28 @@ export function SellerRegistrationScreen({ navigation }: Props) {
       alive = false;
     };
   }, []);
+
+  // Load the superadmin-owned category list for the selected app. Server-only: an offline/failed
+  // read leaves the picker empty (the seller can retry by re-selecting the app).
+  useEffect(() => {
+    let alive = true;
+    setSubCategoriesLoading(true);
+    setSubCategoryId(null);
+    gateway
+      .fetchCategories(category)
+      .then((rows) => {
+        if (alive) setSubCategories(rows.filter((c) => c.parentId === null && c.isActive));
+      })
+      .catch(() => {
+        if (alive) setSubCategories([]);
+      })
+      .finally(() => {
+        if (alive) setSubCategoriesLoading(false);
+      });
+    return () => {
+      alive = false;
+    };
+  }, [category]);
 
   useEffect(() => {
     if (countdown <= 0) return;
@@ -260,6 +287,10 @@ export function SellerRegistrationScreen({ navigation }: Props) {
     if (!Number.isInteger(pct) || pct < 1 || pct > 100) return 'Platform fee must be between 1 and 100.';
     if (category === 'FOOD' && pct < 5) return 'Food sellers must set a platform fee of at least 5%.';
 
+    if (!subCategoryId) return subCategories.length === 0
+      ? 'Categories are unavailable right now. Reconnect and try again.'
+      : 'Select a category from the list.';
+
     if (!passbookUri) return 'Capture your bank passbook photo.';
     if (category === 'FOOD') {
       if (!form.fssaiNumber.trim()) return 'Enter your FSSAI licence number.';
@@ -288,6 +319,7 @@ export function SellerRegistrationScreen({ navigation }: Props) {
         businessName: form.businessName.trim(),
         ownerName: form.ownerName.trim(),
         category,
+        categoryId: subCategoryId ?? undefined,
         gstin: form.gstin.trim().toUpperCase(),
         pan: form.pan.trim().toUpperCase(),
         businessAddress: form.businessAddress.trim(),
@@ -317,7 +349,7 @@ export function SellerRegistrationScreen({ navigation }: Props) {
     }
   };
 
-  const canSubmit = !submitting && otpVerified && Boolean(passbookUri) &&
+  const canSubmit = !submitting && otpVerified && Boolean(passbookUri) && Boolean(subCategoryId) &&
     (category !== 'FOOD' || Boolean(fssaiUri));
 
   return (
@@ -405,6 +437,37 @@ export function SellerRegistrationScreen({ navigation }: Props) {
                   );
                 })}
               </View>
+
+              <AppText style={styles.inputLabel}>
+                {category === 'FOOD' ? 'Restaurant type' : 'Category'}
+              </AppText>
+              {subCategoriesLoading ? (
+                <ActivityIndicator color="#1162D3" style={styles.categoryLoader} />
+              ) : subCategories.length === 0 ? (
+                <AppText style={styles.categoryEmpty}>
+                  Categories are unavailable. Check your connection and re-select a business type.
+                </AppText>
+              ) : (
+                <View style={styles.chipRow}>
+                  {subCategories.map((c) => {
+                    const active = subCategoryId === c.id;
+                    return (
+                      <TouchableOpacity
+                        key={c.id}
+                        style={[styles.chip, active && styles.chipActive]}
+                        onPress={() => setSubCategoryId(c.id)}
+                        activeOpacity={0.8}
+                        accessibilityRole="button"
+                        accessibilityState={{ selected: active }}
+                      >
+                        <AppText style={[styles.chipText, active && styles.chipTextActive]}>
+                          {c.name}
+                        </AppText>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </View>
+              )}
 
               <TextInputField
                 label={setup('businessName')?.label ?? 'Business name'}
@@ -907,7 +970,9 @@ const styles = StyleSheet.create({
     color: '#0f172a',
   },
   inputReadOnly: { backgroundColor: '#EEF2F7', color: '#64748B' },
-  chipRow: { flexDirection: 'row', gap: hs(8) },
+  chipRow: { flexDirection: 'row', flexWrap: 'wrap', gap: hs(8) },
+  categoryLoader: { alignSelf: 'flex-start', marginVertical: vs(8) },
+  categoryEmpty: { fontSize: ms(12), fontWeight: '600', color: '#94A3B8', marginBottom: vs(8) },
   chip: {
     flex: 1,
     alignItems: 'center',

@@ -12,6 +12,32 @@ dependencies exist. Do not build the backend/seller flows until told to.
 
 ---
 
+## W78 — Central superadmin category taxonomy (P0)
+
+**Status:** 🟢 Shipped (DB + gateway + mobile + portal). Migration `0067_categories.sql`.
+
+- **DB:** new `taxonomy.categories` parent/child tree (MART/FOOD/PHARMA), seeded from the former
+  `data/categories/masterCategories.ts` tree + new FOOD restaurant categories
+  (`server/supabase/seed/lib/taxonomy.mjs`; also emitted by `generate.mjs`). Soft delete
+  (`is_active=false`). `sellers.sellers.seller_category_id` (nullable FK) added.
+- **Gateway:** `internal/categories` — `GET /categories`, `GET /categories/rail`, `GET /admin/categories`,
+  `POST /categories`, `PUT /categories/{id}`, `DELETE /categories/{id}` (soft). Seller `POST /sellers`
+  + edit accept an app-scoped `categoryId` (validated).
+- **Mobile:** removed `@data/categories/masterCategories.ts` + `railFeed.ts`; `usePagedRail`,
+  `CategoryDrillInPanel`, `SellerRegistrationScreen` now read server categories (no fixture). The
+  seller app-onboarding category picker requires a server category. `submitSellerApplication` is
+  server-only (no fabricated `sel-local-*` row).
+- **Portal:** `/admin/super/categories` — superadmin CRUD (All/Mart/Food/Pharma tabs, soft delete).
+
+**Remaining (follow-up):** the feature-local Food/Mart fixtures (`features/food/mocks/*`,
+`features/ecommerce/mocks/martHomeFeed.ts`, `data/categories/searchDatabase.ts`) are **not yet**
+removed — that needs a server-backed Food/Mart home feed first (products/catalog, not the category
+taxonomy). `check:drillin` now validates against `server/supabase/seed/lib/taxonomy.mjs`.
+
+**Date:** 2026-11-01
+
+---
+
 ## W77 — App Store 2.1 completeness: remove remaining dead tap targets (P0)
 
 **Status:** 🟢 Shipped (mobile only). No server/DB/cache/route change.

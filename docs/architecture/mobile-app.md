@@ -412,11 +412,12 @@ The Home hub header (`features/home/HomeTabScreen.tsx` + `hubHeader.ts`) is a **
  list container is full-screen with `contentContainerStyle.paddingTop = expandedHeaderH(top)`, so at
  rest the first section sits flush below the expanded header and, as the header slides up, the
   freed area simply reveals already-laid-out content. It pins a compact **category rail**
-  (`components/shared/HeaderCategoryRail.tsx`) below the search bar, fed by `usePagedRail` over
-   `@data/categories/railFeed` (derived from the merged Mart category tree). The same rail is reused
-   by the Mart sub-app header (pinned below its searchbar). Tapping a chip opens the **category
-   drill-in page** (`features/catalog/CategoryDrillInScreen.tsx`, route `CategoryDrillIn`) scoped to
-   that tab (see below). On scroll the header
+  (`components/shared/HeaderCategoryRail.tsx`) below the search bar, fed by `usePagedRail` from the
+   **server-backed** taxonomy (`GET /categories/rail`, superadmin-owned `taxonomy.categories` —
+   `GatewayClient.fetchCategoryRail`, projected to chips by `services/categoryRail.ts`; no fixture).
+   The same rail is reused by the Mart sub-app header (pinned below its searchbar). Tapping a chip
+   opens the **category drill-in page** (`features/catalog/CategoryDrillInScreen.tsx`, route
+   `CategoryDrillIn`) scoped to that category/app (see below). On scroll the header
  **shrinks**: the `headerSlid` stack translates up by `min(clamp, collapseCap)`, and the two blocks
  that would otherwise be hard-clipped fade out **on the UI thread** (Reanimated, reading only
  shared values — no JS work per frame):

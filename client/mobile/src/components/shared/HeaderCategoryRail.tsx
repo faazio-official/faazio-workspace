@@ -4,7 +4,7 @@ import { AppImage } from './AppImage';
 import AppText from '@/components/AppText';
 import { hs, ms, vs } from '@/utils/responsive';
 import { usePagedRail } from '@/hooks/usePagedRail';
-import type { CategoryRailItem } from '@data/categories/railFeed';
+import type { CategoryRailItem } from '@/services/categoryRail';
 
 interface HeaderCategoryRailProps {
   /** Fired when a category chip is tapped — opens the category drill-in for that tab. */
@@ -55,12 +55,14 @@ const HeaderCategoryRail = memo(function HeaderCategoryRail({
           accessibilityRole="button"
           accessibilityLabel={`Browse ${item.name}`}
         >
-          <AppImage
-            source={{ uri: item.icon }}
-            style={styles.chipIcon}
-            contentFit="contain"
-            cachePolicy="memory-disk"
-          />
+          {item.icon ? (
+            <AppImage
+              source={{ uri: item.icon }}
+              style={styles.chipIcon}
+              contentFit="contain"
+              cachePolicy="memory-disk"
+            />
+          ) : null}
           <AppText style={styles.chipLabel} numberOfLines={1}>
             {item.name}
           </AppText>

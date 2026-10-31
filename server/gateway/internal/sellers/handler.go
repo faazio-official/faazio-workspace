@@ -122,9 +122,11 @@ func (h *Handler) get(w http.ResponseWriter, r *http.Request) {
 }
 
 type createSellerRequest struct {
-	BusinessName    string   `json:"businessName"`
-	OwnerName       string   `json:"ownerName"`
-	Category        string   `json:"category"`
+	BusinessName string `json:"businessName"`
+	OwnerName    string `json:"ownerName"`
+	Category     string `json:"category"`
+	// CategoryID is an optional taxonomy.categories id within the app brand (Food restaurant type).
+	CategoryID      string   `json:"categoryId"`
 	GSTIN           string   `json:"gstin"`
 	PAN             string   `json:"pan"`
 	BusinessAddress string   `json:"businessAddress"`
@@ -172,6 +174,18 @@ func (h *Handler) create(w http.ResponseWriter, r *http.Request) {
 	if !validCategory(req.Category) || len(req.StateCode) != 2 {
 		httpx.Fail(w, http.StatusBadRequest, "bad_request", "category or state is invalid")
 		return
+	}
+	req.CategoryID = strings.TrimSpace(req.CategoryID)
+	if req.CategoryID != "" {
+		ok, err := h.repo.ValidCategoryID(r.Context(), req.Category, req.CategoryID)
+		if err != nil {
+			httpx.Fail(w, http.StatusInternalServerError, "sellers_unavailable", "sellers unavailable")
+			return
+		}
+		if !ok {
+			httpx.Fail(w, http.StatusBadRequest, "bad_request", "category is not an active category of this app")
+			return
+		}
 	}
 	if req.DistrictCode != "" {
 		if !geo.IsValid(req.DistrictCode) {
@@ -236,7 +250,8 @@ func (h *Handler) create(w http.ResponseWriter, r *http.Request) {
 
 	s, err := h.repo.CreateExtended(r.Context(), Seller{
 		BusinessName: req.BusinessName, OwnerName: req.OwnerName, Category: req.Category,
-		GSTIN: req.GSTIN, PAN: req.PAN, BusinessAddress: req.BusinessAddress,
+		SellerCategoryID: req.CategoryID,
+		GSTIN:            req.GSTIN, PAN: req.PAN, BusinessAddress: req.BusinessAddress,
 		ContactPhone: req.ContactPhone, ContactEmail: req.ContactEmail, StateCode: req.StateCode,
 		DistrictCode: req.DistrictCode, PlatformFeePct: *req.PlatformFeePct, FSSAINumber: strings.TrimSpace(req.FSSAINumber),
 		FSSAICertKey: strings.TrimSpace(req.FSSAIFileKey), FSSAICertAssetID: strings.TrimSpace(req.FSSAIAssetID),
@@ -436,6 +451,7 @@ type editSellerRequest struct {
 	BusinessName      string   `json:"businessName"`
 	OwnerName         string   `json:"ownerName"`
 	Category          string   `json:"category"`
+	CategoryID        string   `json:"categoryId"`
 	GSTIN             string   `json:"gstin"`
 	PAN               string   `json:"pan"`
 	BusinessAddress   string   `json:"businessAddress"`
@@ -476,6 +492,18 @@ func (h *Handler) edit(w http.ResponseWriter, r *http.Request) {
 	if !validCategory(req.Category) || len(req.StateCode) != 2 || !validPlatformFee(req.Category, req.PlatformFeePct) {
 		httpx.Fail(w, http.StatusBadRequest, "bad_request", "category, state or platform fee is invalid")
 		return
+	}
+	req.CategoryID = strings.TrimSpace(req.CategoryID)
+	if req.CategoryID != "" {
+		ok, err := h.repo.ValidCategoryID(r.Context(), req.Category, req.CategoryID)
+		if err != nil {
+			httpx.Fail(w, http.StatusInternalServerError, "sellers_unavailable", "sellers unavailable")
+			return
+		}
+		if !ok {
+			httpx.Fail(w, http.StatusBadRequest, "bad_request", "category is not an active category of this app")
+			return
+		}
 	}
 	if req.DistrictCode != "" {
 		if !geo.IsValid(req.DistrictCode) {
@@ -527,7 +555,8 @@ func (h *Handler) edit(w http.ResponseWriter, r *http.Request) {
 	}
 	after, changes, err := h.repo.EditRequest(r.Context(), id, Seller{
 		BusinessName: req.BusinessName, OwnerName: req.OwnerName, Category: req.Category,
-		GSTIN: req.GSTIN, PAN: req.PAN, BusinessAddress: req.BusinessAddress,
+		SellerCategoryID: req.CategoryID,
+		GSTIN:            req.GSTIN, PAN: req.PAN, BusinessAddress: req.BusinessAddress,
 		ContactPhone: req.ContactPhone, ContactEmail: strings.TrimSpace(req.ContactEmail),
 		StateCode: req.StateCode, DistrictCode: req.DistrictCode, PlatformFeePct: req.PlatformFeePct,
 		FSSAINumber: strings.TrimSpace(req.FSSAINumber), FSSAICertKey: strings.TrimSpace(req.FSSAIFileKey),

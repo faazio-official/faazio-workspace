@@ -13,11 +13,10 @@ import { hs, ms, vs } from '@/utils/responsive';
 import { SPACE } from '@/theme/spacing';
 import AppText from '@/components/AppText';
 import CampaignHero from '@/components/shared/CampaignHero';
-import { MASTER_CATEGORIES } from '@data/categories/masterCategories';
-import type { CategoryTab } from '@data/categories/masterCategories';
 import type { Product } from '@data/types';
 import { openHeroTarget } from '@/services/adsTarget';
 import { useCategoryVendors } from '@/features/catalog/hooks/useCategoryVendors';
+import { useCategoryTree } from '@/features/catalog/hooks/useCategoryTree';
 import type { VendorApp } from '@/services/categoryVendors';
 import CategoryTitleRail from './CategoryTitleRail';
 import StoreProductSection from './StoreProductSection';
@@ -55,17 +54,40 @@ export function CategoryDrillInPanel({
   const accent = FAAZIO_BLUE;
   const bodyRef = useRef<ScrollView>(null);
 
-  const tab: CategoryTab | undefined = useMemo(
-    () => (MASTER_CATEGORIES[app] ?? []).find((t) => t.id === tabId),
-    [tabId, app],
-  );
-  const activeTab = tab ?? (MASTER_CATEGORIES[app] ?? [])[0];
+  // Server-backed taxonomy for this sub-app (superadmin-owned; no fixture fallback).
+  const { categories, loading: treeLoading } = useCategoryTree(app);
 
-  /** Flat list of every sub-category title in the tab (no grouping). */
-  const items = useMemo(
-    () => activeTab?.subgroups.flatMap((s) => s.items) ?? [],
-    [activeTab],
-  );
+  // Parent id → children map, built from the flat `GET /categories?app=` list.
+  const byParent = useMemo(() => {
+    const map = new Map<string | null, typeof categories>();
+    for (const c of categories) {
+      const key = c.parentId ?? null;
+      const bucket = map.get(key);
+      if (bucket) bucket.push(c);
+      else map.set(key, [c]);
+    }
+    return map;
+  }, [categories]);
+
+  const topLevel = useMemo(() => byParent.get(null) ?? [], [byParent]);
+  const activeTab = categories.find((c) => c.id === tabId) ?? topLevel[0];
+
+  /** Flat list of every leaf sub-category in the tab (parent/child tree → leaves). */
+  const items = useMemo(() => {
+    if (!activeTab) return [] as { id: string; name: string; searchQuery: string }[];
+    const out: { id: string; name: string; searchQuery: string }[] = [];
+    const walk = (id: string) => {
+      const kids = byParent.get(id) ?? [];
+      if (kids.length === 0) {
+        const node = categories.find((c) => c.id === id);
+        if (node) out.push({ id: node.id, name: node.name, searchQuery: node.searchQuery || node.name });
+        return;
+      }
+      for (const k of kids) walk(k.id);
+    };
+    walk(activeTab.id);
+    return out;
+  }, [activeTab, byParent, categories]);
 
   const [activeItemId, setActiveItemId] = useState<string | null>(null);
   const activeItem = items.find((i) => i.id === activeItemId) ?? items[0];
@@ -119,7 +141,11 @@ export function CategoryDrillInPanel({
           <View style={styles.headerSpacer} />
         </View>
         <View style={styles.emptyWrap}>
-          <AppText style={styles.emptyText}>Category not found</AppText>
+          {treeLoading ? (
+            <ActivityIndicator color={accent} />
+          ) : (
+            <AppText style={styles.emptyText}>Category not found</AppText>
+          )}
         </View>
       </View>
     );

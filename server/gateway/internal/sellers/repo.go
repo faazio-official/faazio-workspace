@@ -25,19 +25,22 @@ var ErrNotEditable = errors.New("sellers: application is not editable")
 
 // Seller is one sellers.sellers row (contact_phone is PII — auth/role-scoped only).
 type Seller struct {
-	SellerID        string  `json:"sellerId"`
-	BusinessName    string  `json:"businessName"`
-	OwnerName       string  `json:"ownerName"`
-	Category        string  `json:"category"`
-	GSTIN           string  `json:"gstin"`
-	PAN             string  `json:"pan"`
-	BusinessAddress string  `json:"businessAddress"`
-	ContactPhone    string  `json:"contactPhone,omitempty"`
-	ContactEmail    string  `json:"contactEmail,omitempty"`
-	StateCode       string  `json:"stateCode"`
-	DistrictCode    string  `json:"districtCode,omitempty"`
-	Status          string  `json:"status"`
-	Rating          float64 `json:"rating"`
+	SellerID     string `json:"sellerId"`
+	BusinessName string `json:"businessName"`
+	OwnerName    string `json:"ownerName"`
+	Category     string `json:"category"`
+	// SellerCategoryID is an optional taxonomy.categories id (superadmin-owned) within the app brand;
+	// e.g. a Food restaurant picks "North Indian". Empty = only the app brand is set.
+	SellerCategoryID string  `json:"sellerCategoryId,omitempty"`
+	GSTIN            string  `json:"gstin"`
+	PAN              string  `json:"pan"`
+	BusinessAddress  string  `json:"businessAddress"`
+	ContactPhone     string  `json:"contactPhone,omitempty"`
+	ContactEmail     string  `json:"contactEmail,omitempty"`
+	StateCode        string  `json:"stateCode"`
+	DistrictCode     string  `json:"districtCode,omitempty"`
+	Status           string  `json:"status"`
+	Rating           float64 `json:"rating"`
 	// Shop pin captured during onboarding (public business location, not customer PII).
 	Latitude  *float64 `json:"latitude,omitempty"`
 	Longitude *float64 `json:"longitude,omitempty"`
@@ -121,6 +124,18 @@ type Repo struct {
 
 // New returns a sellers repo.
 func New(pool *db.Pool) *Repo { return &Repo{pool: pool} }
+
+// ValidCategoryID reports whether id is an active taxonomy.categories row for the given app brand.
+func (r *Repo) ValidCategoryID(ctx context.Context, app, id string) (bool, error) {
+	if r.pool == nil {
+		return false, fmt.Errorf("sellers: database not configured")
+	}
+	var exists bool
+	err := r.pool.QueryRow(ctx, `
+		select exists(select 1 from taxonomy.categories
+		               where id = $1 and app::text = $2 and is_active)`, id, app).Scan(&exists)
+	return exists, err
+}
 
 const sellerColumns = `seller_id, business_name, owner_name, category::text, gstin, pan, address,
 	coalesce(phone,''), coalesce(contact_email,''), state_code, coalesce(district_code,''), status::text, rating,
@@ -245,14 +260,14 @@ func (r *Repo) CreateExtended(ctx context.Context, s Seller, bank *BankAccount, 
 		insert into sellers.sellers
 		  (seller_id, business_name, owner_name, category, gstin, pan, address, phone, contact_email,
 		   state_code, district_code, platform_fee_pct, razorpay_linked_account_id, fssai_number, fssai_cert_key,
-		   fssai_cert_asset_id, otp_verified, otp_verified_at, latitude, longitude)
-		values ($1,$2,$3,$4::app_brand,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20)
+		   fssai_cert_asset_id, otp_verified, otp_verified_at, latitude, longitude, seller_category_id)
+		values ($1,$2,$3,$4::app_brand,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21)
 		returning `+sellerColumns,
 		s.SellerID, s.BusinessName, s.OwnerName, s.Category, s.GSTIN, s.PAN, s.BusinessAddress,
 		nullIfEmpty(s.ContactPhone), nullIfEmpty(s.ContactEmail), s.StateCode, nullIfEmpty(s.DistrictCode),
 		s.PlatformFeePct, nullIfEmpty(s.RazorpayLinkedAccountID), nullIfEmpty(s.FSSAINumber),
 		nullIfEmpty(s.FSSAICertKey), nullIfEmpty(s.FSSAICertAssetID), s.OTPVerified, otpAt,
-		s.Latitude, s.Longitude))
+		s.Latitude, s.Longitude, nullIfEmpty(s.SellerCategoryID)))
 	if err != nil {
 		return Seller{}, err
 	}
@@ -427,13 +442,14 @@ func (r *Repo) EditRequest(ctx context.Context, id string, next Seller, bank *Ba
 		  fssai_cert_key=coalesce(nullif($14,''), fssai_cert_key),
 		  fssai_cert_asset_id=coalesce(nullif($15,''), fssai_cert_asset_id),
 		  latitude=coalesce($16, latitude), longitude=coalesce($17, longitude),
+		  seller_category_id=coalesce(nullif($18,''), seller_category_id),
 		  status='PENDING_REVIEW', rejection_reason=null
 		 where seller_id=$1
 		 returning `+sellerColumns,
 		id, next.BusinessName, next.OwnerName, next.Category, next.GSTIN, next.PAN,
 		next.BusinessAddress, nullIfEmpty(next.ContactPhone), nullIfEmpty(next.ContactEmail), next.StateCode,
 		nullIfEmpty(next.DistrictCode), next.PlatformFeePct, nullIfEmpty(next.FSSAINumber),
-		next.FSSAICertKey, next.FSSAICertAssetID, next.Latitude, next.Longitude))
+		next.FSSAICertKey, next.FSSAICertAssetID, next.Latitude, next.Longitude, nullIfEmpty(next.SellerCategoryID)))
 	if err != nil {
 		return Seller{}, nil, err
 	}

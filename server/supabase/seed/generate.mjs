@@ -15,6 +15,7 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { buildData, cleanData } from './lib/databuild.mjs';
 import { assetsInsertSql, assetRowsFromManifest, entryFor, loadManifest } from './lib/mediaplan.mjs';
+import { TAXONOMY_CATEGORIES } from './lib/taxonomy.mjs';
 
 const here = dirname(fileURLToPath(import.meta.url));
 
@@ -448,6 +449,19 @@ sql.push(inserts(
     `(now() - interval '1 day')`, `(now() + interval '60 days')`, `'LIVE'::ad_status`,
   ]),
 ));
+// ---------------------------------------------------------------- category taxonomy
+// The central superadmin-owned category tree (taxonomy.categories). Ids mirror the legacy
+// `@data/categories/masterCategories.ts` tree so CATEGORY_TOP ad targeting and drill-in deep links
+// stay stable; FOOD rows are new restaurant categories. The migration `0067_categories.sql` embeds
+// the same rows, so the seed is idempotent (`on conflict (id) do nothing`) and applied after it.
+sql.push(`-- taxonomy.categories (superadmin-owned, from server/supabase/seed/lib/taxonomy.mjs)
+insert into taxonomy.categories
+  (id, app, name, slug, parent_id, icon_url, search_query, sort_order)
+values
+${TAXONOMY_CATEGORIES.map((r) => `  (${q(r.id)}, ${APP(r.app)}, ${q(r.name)}, ${q(r.slug)}, ${q(r.parentId)}, ${q(r.iconUrl)}, ${q(r.searchQuery)}, ${n(r.sortOrder)})`).join(',\n')}
+on conflict (id) do nothing;`);
+sql.push('');
+
 sql.push('commit;');
 sql.push('');
 

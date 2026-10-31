@@ -16,6 +16,7 @@ import (
 	"github.com/faazio/server/gateway/internal/blood"
 	"github.com/faazio/server/gateway/internal/cartstock"
 	"github.com/faazio/server/gateway/internal/catalog"
+	"github.com/faazio/server/gateway/internal/categories"
 	"github.com/faazio/server/gateway/internal/checkout"
 	"github.com/faazio/server/gateway/internal/contracts"
 	"github.com/faazio/server/gateway/internal/delivery"
@@ -198,6 +199,8 @@ func NewRouter(d Deps) http.Handler {
 	ads.NewHandler(adsRepo, d.Cache, adminsRepo, d.Signer.PublicOrigin()).Register(r)
 	settlement.NewHandler(settlementRepo, d.Cache, adminsRepo, routeGateway, sellersRepo).Register(r)
 	tax.NewHandler(tax.NewRepo(d.Pool)).Register(r)
+	// Central superadmin category taxonomy (0067): read tree/rail for every app + CRUD for the portal.
+	categories.NewHandler(categories.NewRepo(d.Pool)).Register(r)
 	districts.NewHandler(districts.NewRepo(d.Pool)).Register(r)
 	support.NewHandler(supportRepo, adminsRepo).Register(r)
 	deliveryHandler.Register(r)

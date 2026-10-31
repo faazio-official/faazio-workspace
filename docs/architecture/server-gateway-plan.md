@@ -161,6 +161,13 @@ caller) and are event-purged on store live toggle and product edit/status change
   stored secret; `is_public` + `value_secret` combined is rejected; key/category/variant are
   validated and values capped at 4 KiB. Only non-chicken-and-egg settings live here —
   `GATEWAY_URL`/`APP_VARIANT`/`TRANSPORT` stay build-time baked.
+- **Central category taxonomy (`internal/categories`, `0067`):** `GET /categories?app=&parent_id=`
+  (any signed-in account) and `GET /categories/rail` serve the superadmin-owned `taxonomy.categories`
+  tree — the Home header rail and the Mart/Pharma drill-in read it (no category fixture). Portal:
+  `GET /admin/categories` (includes deactivated rows), `POST /categories`, `PUT /categories/{id}`,
+  `DELETE /categories/{id}` (soft delete — `is_active=false`, references preserved; SUPER_ADMIN).
+  Seller onboarding selects a `categoryId` (validated app-scoped against the tree, optional) carried
+  on `POST /sellers` and `POST /sellers/{id}/edit`.
 - **Rider payouts (`internal/delivery`, `0052` + `0054`):** `GET /delivery/payouts` (rider history)
   and `GET /delivery/payouts/{orderId}` (upsert a PENDING calculation). The payout reuses the
   customer-billed distance + surge stored on `checkout.orders` (`delivery_distance_km`,
@@ -174,7 +181,7 @@ caller) and are event-purged on store live toggle and product edit/status change
   `ops.festival_calendar` window). Super-admin `GET /admin/weather/usage`,
   `PUT /admin/weather/override`, `GET|POST /admin/festival/calendar`,
   `DELETE /admin/festival/calendar/{id}`. Provider key is optional: unset means no rain surge.
-- **Packages:** `internal/{search,catalog,directory,cartstock,checkout,reviews,reco,sdui,delivery,weather,festival,geo,pricing,districts}`
+- **Packages:** `internal/{search,catalog,directory,categories,cartstock,checkout,reviews,reco,sdui,delivery,weather,festival,geo,pricing,districts}`
   + `internal/{contracts,platform/*,server}`. Ownership table: `monolith-breakdown.md` §1.
 - **Boundaries:** `go run ./tools/importlint` fails on sibling-context imports.
 - **Mapping** (`@data/*` twin + `GatewayClient` method) and RLS classes: `docs/architecture/mvp-backend.md` §1–§3.

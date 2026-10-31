@@ -248,6 +248,58 @@ export async function deleteAppConfig(key: string): Promise<void> {
   await remote.delete(`/admin/app-config/${encodeURIComponent(key)}`);
 }
 
+/* ---------------------------- category taxonomy --------------------------- */
+
+/** One `taxonomy.categories` row (superadmin-owned parent/child tree shared by every sub-app). */
+export interface CategoryRow {
+  id: string;
+  app: string;
+  name: string;
+  slug: string;
+  description?: string;
+  iconUrl?: string;
+  parentId: string | null;
+  searchQuery?: string;
+  isActive: boolean;
+  sortOrder: number;
+  createdAt?: string;
+  updatedAt?: string;
+  createdBy?: string;
+}
+
+export interface CategoryInput {
+  app: Sector;
+  name: string;
+  slug?: string;
+  description?: string;
+  iconUrl?: string;
+  parentId?: string | null;
+  searchQuery?: string;
+  sortOrder?: number;
+  isActive?: boolean;
+}
+
+/** Superadmin-only: every category (including deactivated) for the portal, optionally app-scoped. */
+export async function listCategories(app?: Sector | "ALL"): Promise<CategoryRow[]> {
+  const q = app && app !== "ALL" ? `?app=${app}` : "";
+  return remote.get<CategoryRow[]>(`/admin/categories${q}`);
+}
+
+/** Superadmin-only: create a category (audit-logged). */
+export async function createCategory(input: CategoryInput): Promise<CategoryRow> {
+  return remote.post<CategoryRow>("/categories", input);
+}
+
+/** Superadmin-only: update a category (audit-logged). */
+export async function updateCategory(id: string, input: CategoryInput): Promise<CategoryRow> {
+  return remote.put<CategoryRow>(`/categories/${encodeURIComponent(id)}`, input);
+}
+
+/** Superadmin-only: deactivate a category (soft delete — hidden in the app, references preserved). */
+export async function deleteCategory(id: string): Promise<void> {
+  await remote.delete(`/categories/${encodeURIComponent(id)}`);
+}
+
 /* -------------------------------- products ------------------------------- */
 
 export interface ProductFilter {

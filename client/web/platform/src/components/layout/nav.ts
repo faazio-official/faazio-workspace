@@ -117,6 +117,7 @@ export const SUPER_ADMIN_NAV: NavItem[] = [
   { label: "Delivery partners", to: "/admin/super/delivery-boys", icon: Truck, group: "Supply" },
   { label: "Products", to: "/admin/super/products", icon: Package, group: "Supply" },
   { label: "Sectors", to: "/admin/super/sectors", icon: Tags, group: "Supply" },
+  { label: "Categories", to: "/admin/super/categories", icon: Tags, group: "Supply" },
   { label: "Festival", to: "/admin/super/festival", icon: PartyPopper, group: "Growth" },
   { label: "Coupons", to: "/admin/super/coupons", icon: Ticket, group: "Growth" },
   { label: "Ads", to: "/admin/super/ads", icon: Megaphone, group: "Growth" },

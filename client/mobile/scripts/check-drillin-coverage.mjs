@@ -1,9 +1,9 @@
 /**
  * Drill-in coverage guard.
  *
- * The category drill-in page (CategoryDrillInPanel) resolves each sub-category
- * title from MASTER_CATEGORIES to vendors by running the title's `searchQuery`
- * through `getVendorsWithProducts` → `matchesQuery` (per-token AND over a
+ * The category drill-in page (CategoryDrillInPanel) resolves each leaf taxonomy
+ * category (server/supabase/seed/lib/taxonomy.mjs) to vendors by running its
+ * `searchQuery` through `getVendorsWithProducts` → `matchesQuery` (per-token AND over a
  * product's name + category + desc + attributes). The taxonomy and the product
  * fixtures evolve independently, so a title can silently resolve ZERO vendors
  * and the page renders "No vendors yet" with no ad carousel.
@@ -18,12 +18,12 @@
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
+import { TAXONOMY_CATEGORIES } from '../../../server/supabase/seed/lib/taxonomy.mjs';
 
 const SCRIPT_DIR = dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = join(SCRIPT_DIR, '..', '..', '..');
 const read = (rel) => readFileSync(join(REPO_ROOT, rel), 'utf8');
 
-const MASTER_CATEGORIES = read('data/categories/masterCategories.ts');
 const MART_PRODUCTS = read('data/mart/products.ts');
 const PHARMA_PRODUCTS = read('data/pharma/products.ts');
 const MART_STORES = read('data/mart/stores.ts');
@@ -55,33 +55,22 @@ function searchText(p) {
 const words = (q) => q.trim().toLowerCase().split(/\s+/).filter(Boolean);
 const matchesQuery = (p, q) => words(q).every((w) => searchText(p).includes(w));
 
-// --- Parse MASTER_CATEGORIES items, tagged with their source app -------------
-function parseSection(startMarker, endMarker, app) {
-  const a = MASTER_CATEGORIES.indexOf(startMarker);
-  const b = endMarker ? MASTER_CATEGORIES.indexOf(endMarker) : MASTER_CATEGORIES.length;
-  const src = MASTER_CATEGORIES.slice(a, b);
-  const re = /id:\s*'(cat_[^']+)'|title:\s*'([^']+)'|id:\s*'(sub_[^']+)'\s*,\s*name:\s*'([^']+)'\s*,\s*image:\s*'[^']*'\s*,\s*searchQuery:\s*'([^']+)'/g;
-  const tabs = [];
-  let current = null;
-  let m;
-  while ((m = re.exec(src))) {
-    if (m[1]) {
-      current = { id: m[1], title: '', items: [] };
-      tabs.push(current);
-    } else if (m[2] && current && !current.title) {
-      current.title = m[2];
-    } else if (m[3]) {
-      current?.items.push({ id: m[3], name: m[4], query: m[5], app });
-    }
-  }
-  return tabs;
-}
+// --- Build the drill-in taxonomy from the superadmin seed data --------------
+// `TAXONOMY_CATEGORIES` is the single source of truth (server/supabase/seed/lib/taxonomy.mjs,
+// embedded by migration 0067 and the seed generator). Only leaf rows carry a `searchQuery` — the
+// drill-in routes a leaf to vendors by that query. FOOD has no consumer product pool, so it is
+// skipped (Food categories back restaurant onboarding, not the Mart/Pharma drill-in).
+const APP_POOL = { MART: 'FA_MART', PHARMA: 'PHARMA' };
 
-const tabs = [
-  ...parseSection('const MART_TABS', 'const GROCERY_TABS', 'FA_MART'),
-  ...parseSection('const GROCERY_TABS', 'const PHARMA_TABS', 'FA_MART'),
-  ...parseSection('const PHARMA_TABS', 'export const MASTER_CATEGORIES', 'PHARMA'),
-];
+const childrenOf = new Set(TAXONOMY_CATEGORIES.map((c) => c.parentId).filter(Boolean));
+const tabs = TAXONOMY_CATEGORIES.filter((c) => APP_POOL[c.app])
+  .filter((c) => c.searchQuery && !childrenOf.has(c.id))
+  .map((leaf) => ({
+    id: leaf.id,
+    title: leaf.name,
+    app: APP_POOL[leaf.app],
+    items: [{ id: leaf.id, name: leaf.name, query: leaf.searchQuery, app: APP_POOL[leaf.app] }],
+  }));
 
 // --- Parse store ids ---------------------------------------------------------
 const storeIds = new Set(
@@ -188,6 +177,6 @@ if (errors.length) {
   process.exit(1);
 }
 console.log(
-  `✓ ${label} — every MASTER_CATEGORIES searchQuery resolves ≥1 vendor ` +
+  `✓ ${label} — every taxonomy category searchQuery resolves ≥1 vendor ` +
     `(mart=${martProducts.length}, pharma=${pharmaProducts.length} products)`,
 );

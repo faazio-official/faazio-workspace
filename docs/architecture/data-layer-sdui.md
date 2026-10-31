@@ -48,12 +48,12 @@ data/
 | `account` | `features/profile` | `@server` |
 | `home` | `features/home` | `@server` + `@static` registry |
 
-The category rail feed (`data/categories/railFeed.ts`, consumed by `HeaderCategoryRail` via
-`usePagedRail`) is derived from `MASTER_CATEGORIES.FA_MART`.
-Each `CategoryRailItem` also carries a `vendorTags: string[]` array (`TAB_VENDOR_TAGS`) that maps a
-rail tab id to the `StoreProfile.categories` tags a vendor must match — this lives in the data layer
-because the rail taxonomy names don't equal the store category tags, and the future Go
-`GET /categories/rail?page=` endpoint will serve the same shape.
+The category rail (`HeaderCategoryRail` via `usePagedRail`) is now **server-backed**: it reads the
+superadmin-owned `taxonomy.categories` tree through `GatewayClient.fetchCategoryRail`
+(`GET /categories/rail`) and projects rows to chips in `services/categoryRail.ts`. The former
+`data/categories/railFeed.ts` + `masterCategories.ts` fixtures were removed — there is no category
+fixture. The Mart/Pharma drill-in (`useCategoryTree` → `fetchCategories`) reads the same tree, and
+the vendor query per leaf lives on the row (`taxonomy.categories.search_query`).
 
 **Blood Donor targeted Ask Blood** (`data/pharma/bloodRequests.ts` and
 `data/pharma/bloodDonors.ts`) exports `DonorMatchRequest`, `DonorProfile`, `BLOOD_DONORS`,
@@ -290,10 +290,10 @@ essentials) resolves its `md-*` ids through the catalog (`getProductsByIds`).
 4. Data files may cross-link within `data/` (e.g. `getProductById`) but must not import
    `client/mobile` internals.
 5. Prefer typed exports over `as` casts.
-6. **Taxonomy ↔ catalog coverage:** every `MASTER_CATEGORIES` `searchQuery` must resolve ≥1
-   vendor in the matching app's product pool (the drill-in's `matchesQuery` per-token predicate).
-   After editing `data/categories/masterCategories.ts` or the mart/pharma product fixtures, run
-   `npm run check:drillin` (fails on any unresolved title or duplicate product id).
+6. **Taxonomy ↔ catalog coverage:** every leaf taxonomy `searchQuery` (in
+   `server/supabase/seed/lib/taxonomy.mjs`) must resolve ≥1 vendor in the matching app's product pool
+   (the drill-in's `matchesQuery` per-token predicate). After editing that file or the mart/pharma
+   product fixtures, run `npm run check:drillin` (fails on any unresolved title or duplicate product id).
 
 ## Honest limitations
 

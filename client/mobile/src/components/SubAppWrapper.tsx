@@ -31,7 +31,7 @@ import AppText from '@/components/AppText';
 import SubAppHeader from './shared/SubAppHeader';
 import { subAppHeaderH } from './shared/SubAppHeader';
 import HeaderCategoryRail from '@/components/shared/HeaderCategoryRail';
-import type { CategoryRailItem } from '@data/categories/railFeed';
+import type { CategoryRailItem } from '@/services/categoryRail';
 import { brandTokens } from '@/theme/brandTokens';
 import type { AppBrand, StoreProfile } from '@data/types';
 import { martStores } from '@data/mart/stores';
@@ -201,7 +201,7 @@ export default function SubAppWrapper({
       navigation.navigate('CategoryDrillIn', {
         tabId: item.id,
         title: item.name,
-        app: 'FA_MART',
+        app: item.app,
       });
     },
     [navigation],

@@ -2205,3 +2205,42 @@ UPDATE directory.menus m SET seller_id = s.seller_id
   super-admin-only. `UpsertMenu` re-checks the same owner at the repo layer (W71).
 - Seller/app and admin RLS (`0050`) keeps its legacy state fallback; strict scoping is enforced in the
   gateway service layer. Media moderation and `admins` audit/customer reads are unchanged.
+
+### 12.30 Central category taxonomy — superadmin-owned tree (migration `0067`)
+
+The single source of truth for every sub-app category (Mart, Food, Pharma): one parent/child tree
+owned by the superadmin (portal-only writes; the Go gateway, `service_role`, is the only writer).
+The app Home rail, the Mart/Pharma category drill-in and the seller-onboarding category picker all
+read it — there is no category fixture.
+
+```sql
+CREATE SCHEMA taxonomy;
+
+CREATE TABLE taxonomy.categories (
+  id           TEXT PRIMARY KEY,          -- 'cat_smart_gadgets' / 'sg_audio' / 'sub_bt_head'
+  app          app_brand NOT NULL,        -- MART | FOOD | PHARMA
+  name         TEXT NOT NULL,
+  slug         TEXT NOT NULL,
+  description  TEXT,
+  icon_url     TEXT,
+  parent_id    TEXT REFERENCES taxonomy.categories(id),  -- NULL = top-level
+  search_query TEXT,                      -- leaf only: the drill-in vendor query
+  is_active    BOOLEAN NOT NULL DEFAULT true,
+  sort_order   INT8 NOT NULL DEFAULT 0,
+  created_at   TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at   TIMESTAMPTZ NOT NULL DEFAULT now(),
+  created_by   TEXT NOT NULL DEFAULT 'system',
+  updated_by   TEXT
+);
+```
+
+- **Seeded rows** (`0067` + `generate.mjs` → `server/supabase/seed/lib/taxonomy.mjs`): the former
+  `@data/categories/masterCategories.ts` tree (Mart + Pharma) plus new FOOD restaurant categories
+  (North Indian, South Indian, Chinese, Bakery, Cafe, Fast Food, Desserts). Ids are the legacy
+  `cat_*` / `sg_*` / `sub_*` ids so `CATEGORY_TOP` ad targeting and drill-in deep links stay stable.
+- **`DELETE /categories/{id}` is a soft delete** (`is_active = false`): hidden from the apps/rail,
+  but existing sellers/products that reference it are never orphaned.
+- **RLS (Supabase only):** `anon`/`authenticated` SELECT active rows; `service_role` writes.
+- **`sellers.sellers.seller_category_id`** (nullable FK) records the seller's chosen taxonomy
+  category within its app brand (a Food restaurant's type). Onboarding / `edit` validate it against
+  the active app-scoped tree; legacy sellers keep only their `category` app_brand.

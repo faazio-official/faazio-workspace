@@ -386,6 +386,25 @@ export interface Venue {
   hours?: string;
 }
 
+/**
+ * One `taxonomy.categories` row (`GET /categories` / `GET /categories/rail`). Superadmin-owned; the
+ * parent/child tree backs the Home category rail and the drill-in. `searchQuery` is the vendor query
+ * the drill-in leaf routes to (nullable for non-leaf rows), and `iconUrl` is the rail chip icon.
+ */
+export interface Category {
+  id: string;
+  app: AppBrand;
+  name: string;
+  slug: string;
+  description?: string;
+  iconUrl?: string;
+  parentId: string | null;
+  /** Free-text vendor query for a leaf category (drill-in). Null on parent rows. */
+  searchQuery?: string;
+  isActive: boolean;
+  sortOrder: number;
+}
+
 /** One anon-visible active coupon (`GET /coupons`); money in whole rupees. */
 export interface PublicCoupon {
   code: string;
@@ -543,6 +562,8 @@ export interface SellerApplicationInput {
   ownerName: string;
   /** app_brand enum (MART | FOOD | PHARMA). */
   category: AppBrand;
+  /** Optional taxonomy.categories id within the app brand (a Food restaurant's type). */
+  categoryId?: string;
   gstin: string;
   pan: string;
   businessAddress: string;
@@ -1169,6 +1190,25 @@ export class GatewayClient {
   async fetchVenues(app?: string): Promise<Venue[]> {
     if (!REMOTE_ENABLED) throw new GatewayOfflineError();
     return this.http<Venue[]>(`/venues${app ? `?app=${app}` : ''}`);
+  }
+
+  /**
+   * Server-only category tree reads. The superadmin-owned `taxonomy.categories` is the single source
+   * of truth — categories are **never** mocked. `app`/`parentId` narrow the list; `fetchCategoryRail`
+   * returns the flat active top-level rows for the Home header rail. Throws `GatewayOfflineError`
+   * when remote is disabled and rethrows HTTP errors, so callers render an honest empty state.
+   */
+  async fetchCategories(app?: AppBrand, parentId?: string): Promise<Category[]> {
+    if (!REMOTE_ENABLED) throw new GatewayOfflineError();
+    return this.http<Category[]>(
+      `/categories${queryString({ app, parent_id: parentId })}`,
+    );
+  }
+
+  /** Flat active top-level categories for the Home/Mart header rail (`GET /categories/rail`). */
+  async fetchCategoryRail(): Promise<Category[]> {
+    if (!REMOTE_ENABLED) throw new GatewayOfflineError();
+    return this.http<Category[]>('/categories/rail');
   }
 
   /** One restaurant venue by id (server-only single read; throws offline). */
@@ -1978,39 +2018,14 @@ export class GatewayClient {
   }
 
   /**
-   * Submit a partner onboarding application. The server creates a PENDING_REVIEW seller
-   * (sellers.sellers) and audits the write; KYC documents + bank account are added afterwards.
-   * Mock fallback returns a local PENDING_REVIEW row so the screen still confirms.
+   * Submit a partner onboarding application. Server-only: the gateway creates a PENDING_REVIEW
+   * seller (sellers.sellers) and audits the write. Nothing is fabricated locally — an offline or
+   * failed call throws (`GatewayOfflineError` / `GatewayHttpError`) so the screen shows an honest
+   * error instead of a fake confirmation row.
    */
   async submitSellerApplication(input: SellerApplicationInput): Promise<SellerApplication> {
-    return this.withFallback(
-      () => this.http<SellerApplication>('/sellers', { method: 'POST', body: JSON.stringify(input) }),
-      () =>
-        delay({
-          sellerId: `sel-local-${Date.now().toString(36)}`,
-          businessName: input.businessName,
-          ownerName: input.ownerName,
-          category: input.category,
-          gstin: input.gstin,
-          pan: input.pan,
-          businessAddress: input.businessAddress,
-          contactPhone: input.contactPhone,
-          contactEmail: input.contactEmail,
-          stateCode: input.stateCode.toUpperCase(),
-          districtCode: input.districtCode?.toUpperCase(),
-          latitude: input.latitude,
-          longitude: input.longitude,
-          status: 'PENDING_REVIEW',
-          rating: 0,
-          platformFeePct: input.platformFeePct,
-          fssaiNumber: input.fssaiNumber,
-          fssaiCertKey: input.fssaiFileKey,
-          fssaiCertAssetId: input.fssaiAssetId,
-          otpVerified: input.otpVerified,
-          otpVerifiedAt: new Date().toISOString(),
-          createdAt: new Date().toISOString(),
-        }),
-    );
+    if (!REMOTE_ENABLED) throw new GatewayOfflineError();
+    return this.http<SellerApplication>('/sellers', { method: 'POST', body: JSON.stringify(input) });
   }
 
   /** One seller with payout account, KYC documents and manual verification log. */
