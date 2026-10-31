@@ -32,7 +32,13 @@ export interface AppliedDiscount {
   amount: number;
 }
 
-export type CheckoutStep = 'BAG' | 'FULFILLMENT' | 'PAYMENT' | 'RECEIPT';
+export type CheckoutStep =
+  | 'BAG'
+  | 'FULFILLMENT'
+  | 'PAYMENT'
+  | 'PAYMENT_STATUS'
+  | 'PAYMENT_FAILED'
+  | 'RECEIPT';
 
 /**
  * Dynamic delivery fee rate card. The server is the road-distance authority

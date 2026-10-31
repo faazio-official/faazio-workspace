@@ -1,10 +1,7 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { StyleSheet, ScrollView, View, TouchableOpacity } from 'react-native';
-import { useNavigation } from '@react-navigation/native';
-import { useFocusEffect } from '@react-navigation/native';
-import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { ArrowLeft, CreditCard, Smartphone } from 'lucide-react-native';
+import { ArrowLeft, Banknote, Smartphone } from 'lucide-react-native';
 import { hs, vs, ms } from '@/utils/responsive';
 import { SPACE } from '@/theme/spacing';
 import AppText from '@/components/AppText';
@@ -20,20 +17,19 @@ import UpiAppRow from './components/UpiAppRow';
 import BottomPayBar from './components/BottomPayBar';
 import { computeTotals, type DeliveryFeeBreakdown } from '../utils';
 import { BRAND } from './constants';
-import { SAVED_CARDS, type SavedCard } from './paymentData';
+import { COD_METHOD, type PaymentMethod } from './paymentData';
 import { detectUpiApps, type UpiApp } from '@/services/upi';
-import { loadSavedCards } from './cardStorage';
 import type { FulfillmentMode, PickupPoint } from '@data/types';
 import { useAuthStore } from '@/state/authStore';
 import { COIN_REDEEM_MIN } from '@data/rewards/rewards';
 import { coinsForRedemption } from '@/features/rewards/rewardsLogic';
-import type { RootStackParamList } from '@/navigation/types';
 
-/** What the shopper picked at payment: a detected UPI app or a saved card. */
+/** What the shopper picked at payment: a detected UPI app or Cash on Delivery. */
 export interface PlaceOrderPayload {
-  method: 'UPI' | 'CARD';
+  method: PaymentMethod;
+  /** Detected UPI app id (drives the iOS intent rewrite on launch). */
+  upiAppId?: string;
   upiLabel?: string;
-  cardLast4?: string;
   coinsRedeemed?: number;
 }
 
@@ -63,13 +59,12 @@ export interface PaymentOptionsScreenProps {
   onPlaceOrder?: (payload: PlaceOrderPayload) => void;
 }
 
-type SelectedMethod = { kind: 'upi' | 'card'; id: string } | null;
+type SelectedMethod = { kind: 'upi'; id: string } | { kind: 'cod' } | null;
 
 /**
- * Reworked "Payment Options" screen: pale-blue total + 2-row breakdown at top,
- * detected UPI apps and tokenized saved cards as methods, and a fixed floating
- * "Pay ₹X" bar once a method is chosen. No more hardcoded cards / net-banking /
- * wallet / COD, and no CVV prompt (tokenized flow).
+ * "Payment Options" screen: pale-blue total + 2-row breakdown at top, detected UPI apps and
+ * Cash on Delivery as methods, and a fixed floating "Pay ₹X" bar once a method is chosen.
+ * Cards / net-banking / wallet are intentionally not offered (UPI + COD only).
  */
 export default function PaymentOptionsScreen({
   itemCount: itemCountProp,
@@ -85,7 +80,6 @@ export default function PaymentOptionsScreen({
   onBack,
   onPlaceOrder,
 }: PaymentOptionsScreenProps) {
-  const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const insets = useSafeAreaInsets();
   // The pickup contact is the signed-in shopper's verified phone, never a @data fixture. A caller
   // may pass an explicit override (saved address phone); otherwise fall back to the auth session.
@@ -104,7 +98,6 @@ export default function PaymentOptionsScreen({
   };
 
   const [installedUpiApps, setInstalledUpiApps] = useState<UpiApp[]>([]);
-  const [savedCards, setSavedCards] = useState<SavedCard[]>(SAVED_CARDS);
   const [selected, setSelected] = useState<SelectedMethod>(null);
   const [redeemRupees, setRedeemRupees] = useState(0);
 
@@ -118,32 +111,23 @@ export default function PaymentOptionsScreen({
     };
   }, []);
 
-  // Refresh the card shelf whenever the screen regains focus (Add New Card returns).
-  useFocusEffect(
-    useCallback(() => {
-      let active = true;
-      void loadSavedCards().then((cards) => {
-        if (active) setSavedCards(cards);
-      });
-      return () => {
-        active = false;
-      };
-    }, []),
-  );
-
   const showCoins = coinBalance >= COIN_REDEEM_MIN;
   const payableTotal = Math.max(0, total - redeemRupees);
 
   const handlePay = () => {
     if (!selected || !onPlaceOrder) return;
     const coins = redeemRupees > 0 ? coinsForRedemption(redeemRupees) : 0;
-    if (selected.kind === 'upi') {
-      const upi = installedUpiApps.find((a) => a.id === selected.id);
-      onPlaceOrder({ method: 'UPI', upiLabel: upi?.label ?? 'UPI', coinsRedeemed: coins });
-    } else {
-      const card = savedCards.find((c) => c.id === selected.id);
-      onPlaceOrder({ method: 'CARD', cardLast4: card?.last4, coinsRedeemed: coins });
+    if (selected.kind === 'cod') {
+      onPlaceOrder({ method: 'COD', coinsRedeemed: coins });
+      return;
     }
+    const upi = installedUpiApps.find((a) => a.id === selected.id);
+    onPlaceOrder({
+      method: 'UPI',
+      upiAppId: selected.id,
+      upiLabel: upi?.label ?? 'UPI',
+      coinsRedeemed: coins,
+    });
   };
 
   return (
@@ -209,33 +193,22 @@ export default function PaymentOptionsScreen({
           )}
         </PaymentSectionCard>
 
-        <PaymentSectionCard title="Credit & Debit cards">
-          {savedCards.map((card, i) => (
-            <PaymentRow
-              key={card.id}
-              icon={CreditCard}
-              iconBg="#FFF0E5"
-              title={`${card.network} •••• ${card.last4}`}
-              subtitle={`Expiry ${card.exp}`}
-              selected={selected?.kind === 'card' && selected.id === card.id}
-              trailing={selected?.kind === 'card' && selected.id === card.id ? 'check' : 'radio'}
-              onPress={() => setSelected({ kind: 'card', id: card.id })}
-              last={i === savedCards.length - 1}
-            />
-          ))}
+        <PaymentSectionCard title="Cash on Delivery">
           <PaymentRow
-            icon={CreditCard}
-            iconBg="#F3F4F6"
-            title="Add New Card"
-            trailing="add"
-            onPress={() => navigation.navigate('AddCard')}
+            icon={Banknote}
+            iconBg="#EAF7EE"
+            title={COD_METHOD.label}
+            subtitle={COD_METHOD.subtitle}
+            selected={selected?.kind === 'cod'}
+            trailing={selected?.kind === 'cod' ? 'check' : 'radio'}
+            onPress={() => setSelected({ kind: 'cod' })}
             last
           />
         </PaymentSectionCard>
 
         <AppText style={styles.secureNote}>
-          Payments are encrypted & processed securely under Faazio Gateway. Saved cards are
-          tokenized and stored in your device keychain.
+          Payments are encrypted & processed securely under Faazio Gateway. UPI payments are
+          confirmed by our server and this screen updates automatically.
         </AppText>
       </ScrollView>
 

@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"io"
 	"net/http"
 	"slices"
 	"strconv"
@@ -15,6 +16,7 @@ import (
 	"github.com/faazio/server/gateway/internal/platform/cache"
 	"github.com/faazio/server/gateway/internal/platform/httpx"
 	"github.com/faazio/server/gateway/internal/platform/r2"
+	"github.com/faazio/server/gateway/internal/platform/razorpaypay"
 	"github.com/faazio/server/gateway/internal/platform/taxmath"
 	"github.com/go-chi/chi/v5"
 )
@@ -36,6 +38,9 @@ type Handler struct {
 	delivery contracts.DeliveryDispatcher
 	signer   *r2.Signer
 	rxBlobs  BlobDeleter
+	// pay is the customer Razorpay rail (order creation + webhook). nil disables the customer
+	// payment endpoints (unit tests / unconfigured deployments).
+	pay razorpaypay.Gateway
 }
 
 // NewHandler builds the checkout handler. notifier/coupons/stores/delivery/signer may be nil
@@ -47,6 +52,12 @@ func NewHandler(repo *Repo, service *Service, c *cache.Cache, audit contracts.Au
 // WithRxBlobDeleter enables prescription-blob cleanup for the configured storage backend.
 func (h *Handler) WithRxBlobDeleter(deleter BlobDeleter) *Handler {
 	h.rxBlobs = deleter
+	return h
+}
+
+// WithPaymentGateway enables the customer Razorpay rail (create order + webhook + status).
+func (h *Handler) WithPaymentGateway(gw razorpaypay.Gateway) *Handler {
+	h.pay = gw
 	return h
 }
 
@@ -91,6 +102,8 @@ func (h *Handler) Register(r chi.Router) {
 		g.Get("/orders/{orderID}", h.getOrder)
 		g.Get("/orders/{orderID}/invoice", h.getInvoice)
 		g.Post("/orders/{orderID}/payments", h.payOrder)
+		g.Get("/orders/{orderID}/payment-status", h.paymentStatus)
+		g.Post("/razorpay/customer/orders", h.createRazorpayOrder)
 		g.Get("/payments", h.getPayments)
 		g.Get("/profile", h.getProfile)
 		g.Get("/profile/addresses", h.getAddresses)
@@ -111,6 +124,8 @@ func (h *Handler) Register(r chi.Router) {
 		g.Put("/seller/orders/{orderID}/reject", h.rejectSellerOrder)
 		g.Put("/orders/{orderID}/status", h.setOrderStatus)
 	})
+	// Public (no auth): Razorpay signs the body with X-Razorpay-Signature (HMAC), not a session.
+	r.Post("/webhooks/razorpay/payments", h.razorpayPaymentWebhook)
 }
 
 func (h *Handler) getOrders(w http.ResponseWriter, r *http.Request) {
@@ -569,6 +584,186 @@ func (h *Handler) payOrder(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	httpx.JSON(w, http.StatusCreated, payment)
+}
+
+// createRazorpayOrder creates the Razorpay order that the customer UPI intent (`tr`) and the
+// payment webhook reconcile on. The amount is derived server-side from the stored order total
+// minus coins redeemed. When the gateway is in mock mode (keys unset) the order is immediately
+// recorded PAID so dev/CI checkout completes without a live webhook.
+func (h *Handler) createRazorpayOrder(w http.ResponseWriter, r *http.Request) {
+	if h.pay == nil {
+		httpx.Fail(w, http.StatusServiceUnavailable, "payments_disabled", "customer payments are not configured")
+		return
+	}
+	userID := auth.UserID(r.Context())
+	var body struct {
+		OrderID string `json:"orderId"`
+	}
+	if err := httpx.Decode(r, &body); err != nil || strings.TrimSpace(body.OrderID) == "" {
+		httpx.Fail(w, http.StatusBadRequest, "bad_request", "orderId is required")
+		return
+	}
+	orderID := strings.TrimSpace(body.OrderID)
+
+	// Idempotent: never spawn a second Razorpay order for the same checkout order. Only rows on the
+	// Razorpay rail (razorpay_order_id set) count — the placeholder row written with the order is
+	// ignored so the rail can take it over. If PAID, report that; if a payment is in flight, reuse
+	// the existing Razorpay order so a retry cannot double-charge or orphan the webhook.
+	if st, found, err := h.repo.PaymentStatusForOrder(r.Context(), orderID, userID); err != nil {
+		httpx.Fail(w, http.StatusInternalServerError, "payment_failed", "could not start payment")
+		return
+	} else if found && st.RazorpayOrderID != "" && st.Status == "PAID" {
+		httpx.JSON(w, http.StatusOK, map[string]any{
+			"razorpayOrderId": st.RazorpayOrderID,
+			"amountPaisa":     st.AmountPaisa,
+			"currency":        "INR",
+			"keyId":           h.pay.KeyID(),
+			"upiVpa":          h.pay.UPIVPA(),
+			"status":          "PAID",
+		})
+		return
+	} else if found && st.RazorpayOrderID != "" && st.Status == "PENDING" {
+		httpx.JSON(w, http.StatusOK, map[string]any{
+			"razorpayOrderId": st.RazorpayOrderID,
+			"amountPaisa":     st.AmountPaisa,
+			"currency":        "INR",
+			"keyId":           h.pay.KeyID(),
+			"upiVpa":          h.pay.UPIVPA(),
+			"status":          "PENDING",
+		})
+		return
+	}
+
+	totalPaisa, coins, ok, err := h.repo.OrderPaymentContext(r.Context(), orderID, userID)
+	if err != nil {
+		httpx.Fail(w, http.StatusInternalServerError, "payment_failed", "could not start payment")
+		return
+	}
+	if !ok {
+		httpx.Fail(w, http.StatusNotFound, "not_found", "order not found")
+		return
+	}
+	payablePaisa := totalPaisa - coins
+	if payablePaisa < 0 {
+		payablePaisa = 0
+	}
+	if payablePaisa == 0 {
+		httpx.Fail(w, http.StatusBadRequest, "nothing_to_pay", "order has no payable amount")
+		return
+	}
+
+	rzp, err := h.pay.CreateOrder(r.Context(), razorpaypay.OrderInput{
+		AmountPaisa: payablePaisa,
+		Receipt:     orderID,
+		Notes:       map[string]string{"orderId": orderID, "userId": userID},
+	})
+	if err != nil {
+		httpx.Fail(w, http.StatusBadGateway, "payment_gateway_error", "could not reach the payment gateway")
+		return
+	}
+	amountPaisa := rzp.AmountPaisa
+	if amountPaisa <= 0 {
+		amountPaisa = payablePaisa
+	}
+	if err := h.repo.AttachRazorpayOrder(r.Context(), orderID, userID, "UPI", amountPaisa, coins, rzp.ID); err != nil {
+		httpx.Fail(w, http.StatusInternalServerError, "payment_failed", "could not start payment")
+		return
+	}
+
+	// A mock gateway (keys unset) reports the order already paid. A real UPI payment starts PENDING
+	// and is confirmed by the webhook.
+	status := "PENDING"
+	if !h.pay.Enabled() || strings.EqualFold(rzp.Status, "paid") {
+		status = "PAID"
+		if _, _, err := h.repo.SetPaymentStatusByRazorpayOrder(r.Context(), rzp.ID, "PAID", ""); err != nil {
+			httpx.Fail(w, http.StatusInternalServerError, "payment_failed", "could not record payment")
+			return
+		}
+		h.cache.Del(r.Context(), cache.Orders(userID))
+	}
+	httpx.JSON(w, http.StatusCreated, map[string]any{
+		"razorpayOrderId": rzp.ID,
+		"amountPaisa":     amountPaisa,
+		"currency":        "INR",
+		"keyId":           h.pay.KeyID(),
+		"upiVpa":          h.pay.UPIVPA(),
+		"status":          status,
+	})
+}
+
+// paymentStatus returns the caller's order payment state for the client to poll (foreground only).
+func (h *Handler) paymentStatus(w http.ResponseWriter, r *http.Request) {
+	userID := auth.UserID(r.Context())
+	orderID := chi.URLParam(r, "orderID")
+	st, ok, err := h.repo.PaymentStatusForOrder(r.Context(), orderID, userID)
+	if err != nil {
+		httpx.Fail(w, http.StatusInternalServerError, "payment_failed", "could not read payment status")
+		return
+	}
+	if !ok {
+		httpx.Fail(w, http.StatusNotFound, "not_found", "order not found")
+		return
+	}
+	httpx.JSON(w, http.StatusOK, st)
+}
+
+// razorpayPaymentWebhook is the server-to-server source of truth for customer UPI payments. It is
+// public but HMAC-verified (X-Razorpay-Signature). payment.captured/authorized → PAID,
+// payment.failed → FAILED; every other event is acknowledged and ignored.
+func (h *Handler) razorpayPaymentWebhook(w http.ResponseWriter, r *http.Request) {
+	if h.pay == nil || !h.pay.Enabled() {
+		httpx.Fail(w, http.StatusServiceUnavailable, "payments_disabled", "customer payments are not configured")
+		return
+	}
+	body, err := io.ReadAll(io.LimitReader(r.Body, 1<<20))
+	if err != nil {
+		httpx.Fail(w, http.StatusBadRequest, "bad_request", "unreadable body")
+		return
+	}
+	if !h.pay.VerifyWebhook(body, r.Header.Get("X-Razorpay-Signature")) {
+		httpx.Fail(w, http.StatusUnauthorized, "invalid_signature", "invalid webhook signature")
+		return
+	}
+	var evt struct {
+		Event   string `json:"event"`
+		Payload struct {
+			Payment struct {
+				Entity struct {
+					ID      string `json:"id"`
+					OrderID string `json:"order_id"`
+					Status  string `json:"status"`
+				} `json:"entity"`
+			} `json:"payment"`
+		} `json:"payload"`
+	}
+	if err := json.Unmarshal(body, &evt); err != nil {
+		httpx.Fail(w, http.StatusBadRequest, "bad_request", "invalid payload")
+		return
+	}
+	entity := evt.Payload.Payment.Entity
+	if entity.OrderID == "" {
+		httpx.Fail(w, http.StatusBadRequest, "bad_request", "missing razorpay order id")
+		return
+	}
+	var status string
+	switch evt.Event {
+	case "payment.captured", "payment.authorized":
+		status = "PAID"
+	case "payment.failed":
+		status = "FAILED"
+	default:
+		httpx.JSON(w, http.StatusOK, map[string]string{"status": "ignored"})
+		return
+	}
+	userID, ok, err := h.repo.SetPaymentStatusByRazorpayOrder(r.Context(), entity.OrderID, status, entity.ID)
+	if err != nil {
+		httpx.Fail(w, http.StatusInternalServerError, "payment_failed", "could not update payment")
+		return
+	}
+	if ok && userID != "" {
+		h.cache.Del(r.Context(), cache.Orders(userID))
+	}
+	httpx.JSON(w, http.StatusOK, map[string]string{"status": "ok"})
 }
 
 func (h *Handler) getPayments(w http.ResponseWriter, r *http.Request) {

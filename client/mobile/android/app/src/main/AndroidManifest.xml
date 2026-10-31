@@ -22,6 +22,12 @@
     </intent>
     <!-- UPI app detection at checkout (Linking.canOpenURL — Android 11 package visibility).
          Scheme intents + package visibility for GPay / PhonePe / Paytm / Amazon Pay / BHIM. -->
+    <!-- The generic `upi` intent is required so `Linking.canOpenURL('upi://pay?...')` succeeds
+         before launching a UPI payment; `paytmmp` is Paytm's own scheme (iOS detection parity). -->
+    <intent>
+      <action android:name="android.intent.action.VIEW"/>
+      <data android:scheme="upi"/>
+    </intent>
     <intent>
       <action android:name="android.intent.action.VIEW"/>
       <data android:scheme="gpay"/>
@@ -33,6 +39,10 @@
     <intent>
       <action android:name="android.intent.action.VIEW"/>
       <data android:scheme="paytm"/>
+    </intent>
+    <intent>
+      <action android:name="android.intent.action.VIEW"/>
+      <data android:scheme="paytmmp"/>
     </intent>
     <intent>
       <action android:name="android.intent.action.VIEW"/>

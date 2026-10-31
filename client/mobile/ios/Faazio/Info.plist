@@ -40,10 +40,11 @@
     <true/>
     <key>LSApplicationQueriesSchemes</key>
     <array>
-      <!-- UPI app detection at checkout (Linking.canOpenURL). -->
+      <!-- UPI app detection at checkout (Linking.canOpenURL). Paytm's iOS scheme is `paytmmp`. -->
       <string>gpay</string>
       <string>phonepe</string>
       <string>paytm</string>
+      <string>paytmmp</string>
       <string>amazonpay</string>
       <string>bhim</string>
     </array>

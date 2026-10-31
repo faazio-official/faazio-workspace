@@ -12,6 +12,37 @@ dependencies exist. Do not build the backend/seller flows until told to.
 
 ---
 
+## W75 — Customer payment system: UPI intent + COD + webhook detection (P0)
+
+**Status:** 🟢 Shipped (mobile + gateway + migration `0066`). Operational setup pending.
+
+- **Methods:** checkout is **UPI + Cash on Delivery only** — the saved-card / net-banking / wallet
+  options are removed from `PaymentOptionsScreen` (`PlaceOrderPayload.method: 'UPI' | 'COD'`).
+- **UPI intent:** `features/cart/payment/UpiIntent.ts` builds `upi://pay?pa&pn&am&cu&tn&tr&url` and
+  rewrites it per app on iOS (`gpay://upi/pay`, `phonepe://upi/pay`, `paytmmp://upi/pay`,
+  `bhim://upi/pay`). Paytm's iOS detection scheme is `paytmmp` (Info.plist), and Android gained the
+  generic `upi` + `paytmmp` `<queries>` intents.
+- **Flow:** order is placed first, then `gateway.createRazorpayOrder(orderId)` → UPI intent launch →
+  `PaymentStatusScreen` polls `gateway.fetchPaymentStatus` via `usePaymentPolling` (2.5 s, foreground
+  only, immediate re-poll on `AppState → active`, 10-min timeout) → `PaymentFailedScreen` retry
+  (same order, `createRazorpayOrder` idempotent so it never double-charges) / switch to COD.
+  `CheckoutStep` gained `PAYMENT_STATUS` + `PAYMENT_FAILED`.
+- **Gateway:** `internal/platform/razorpaypay` (mock mode when keys unset), `POST
+  /razorpay/customer/orders` (server-derived amount, idempotent), `GET /orders/{id}/payment-status`,
+  public `POST /webhooks/razorpay/payments` (HMAC `X-Razorpay-Signature`; `payment.captured/authorized`
+  → PAID, `payment.failed` → FAILED). `checkout.payments` gained `razorpay_order_id` +
+  `razorpay_payment_id` (`0066`). Server mock mode records PAID so dev/CI checkout completes.
+
+**Remaining (ops):** apply `0066`, set the Razorpay **customer** webhook endpoint
+(`/webhooks/razorpay/payments`) + `RAZORPAY_WEBHOOK_SECRET` in the dashboard, and optionally set
+`RAZORPAY_UPI_VPA` (public merchant VPA; falls back to the client default). **Phase 3 (not started):**
+seller/delivery linked-account + payout UIs (the Route linked-account/payout endpoints already exist
+server-side).
+
+**Date:** 2026-10-31
+
+---
+
 ## W74 — Central remote config (the "Central Digital Menu", P0)
 
 **Status:** 🟢 Shipped (gateway + migration `0059` + mobile + web portal).
@@ -279,8 +310,8 @@ default it to `https://app.faazio.com`.
   fixed **Proceed to pay** bar; PAYMENT renders the reworked payment screen.
 - **Payment rework** (`PaymentOptionsScreen.tsx`): pale-blue total card + ordered value and an
   itemised delivery quote (base / extra distance / active surge; no tax row — GST is inside the
-  prices); the Preferred-Payment card,
-  CVV pay bar and Net Banking / Wallet / COD options are gone. UPI rows are **detected** apps
+  prices); the old Preferred-Payment card, CVV pay bar, Net Banking and Wallet options are gone
+  (COD returns with UPI in W75). UPI rows are **detected** apps
   (`src/services/upi.ts` probing `UPI_APP_PACKAGES` via `Linking.canOpenURL`; Android `<queries>` +
   iOS `LSApplicationQueriesSchemes`), and a fixed floating **Pay ₹X** bar appears once a method is
   chosen. **Add New Card** is real (`AddCardScreen.tsx` + `cardStorage.ts`): the form validates and
@@ -484,9 +515,10 @@ end to end; the mobile app no longer talks to Supabase Auth.
   (`0040`).
 
 **Remaining (ops):** configure `RAZORPAY_ROUTE_*` in Render, apply `0039` + `0040`, and set the Route
-webhook endpoint (`/webhooks/razorpay/route`) + secret in the Razorpay dashboard. Cart-order payments
-are still recorded locally (no Razorpay capture), so the automatic post-capture split trigger is not
-wired yet; holds are created via the super-admin endpoint. **AVIF is deliberately deferred:** KYC
+webhook endpoint (`/webhooks/razorpay/route`) + secret in the Razorpay dashboard. Customer capture is
+now wired by **W75** (UPI Razorpay order + `POST /webhooks/razorpay/payments`), so the seller-share
+hold can be created from a captured customer payment; the automatic post-capture split trigger is
+still created via the super-admin endpoint. **AVIF is deliberately deferred:** KYC
 captures upload as JPEG (`uploadSellerDocument` default) — the media allowlist accepts `image/avif`
 but no lightweight RN encoder exists without a native/CGO dependency, so it stays allowlisted for
 future use.

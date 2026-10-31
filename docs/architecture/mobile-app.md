@@ -645,8 +645,11 @@ still separate files; consolidating them is tracked in `client/mobile/PENDING_WO
   pickup; the idempotency key is created once per checkout attempt, reused across retries, and reset
   only after success. A failed placement (`GatewayHttpError`/offline) shows an alert and always
   clears the spinner in `finally`; `409` is treated as "already processing" (check My Orders). The
-  chosen `paymentMethod` (`UPI | CARD`) is sent so the durable payment ledger reflects it; payment
-  capture itself stays deferred. The **delivery fee is dynamic**: `CartView` quotes it on the FULFILLMENT
+  chosen `paymentMethod` (`UPI | COD`) is sent so the durable payment ledger reflects it. For **UPI**
+  the order is placed first, then `gateway.createRazorpayOrder(orderId)` creates the server-side
+  Razorpay order (the intent `tr`), the UPI intent is launched, and capture is confirmed by the
+  Razorpay **webhook** + `GET /orders/{id}/payment-status` polling; **COD** completes straight to the
+  receipt. The **delivery fee is dynamic**: `CartView` quotes it on the FULFILLMENT
   step via `gateway.fetchDeliveryFee` (`GET /checkout/delivery-fee`, store pin + live drop), falling
   back to a Haversine estimate when the gateway is unreachable — the server settles the same math.
   On success the returned `OrderRow` is adopted via `ordersStore.recordServerOrder`, the purchased
@@ -1243,10 +1246,11 @@ The customer product itself never requests background location. The shared iOS p
 `UIBackgroundModes: location` for the delivery entry (the partner app is the only caller of the
 background watch); Android keeps background location scoped to the delivery flavor manifest.
 
-## Cart checkout — BAG → FULFILLMENT → PAYMENT → RECEIPT
+## Cart checkout — BAG → FULFILLMENT → PAYMENT → (PAYMENT_STATUS → PAYMENT_FAILED) → RECEIPT
 
-The checkout wizard (`features/cart/CartView.tsx`) is now **BAG → FULFILLMENT → PAYMENT →
-RECEIPT** (`CheckoutStep`). The order-level **Delivery ⇄ Self Pickup** choice moved off BAG onto a
+The checkout wizard (`features/cart/CartView.tsx`) is **BAG → FULFILLMENT → PAYMENT → RECEIPT**
+(`CheckoutStep`), with two extra UPI-only states between PAYMENT and RECEIPT: **PAYMENT_STATUS**
+(detection) and **PAYMENT_FAILED** (retry). The order-level **Delivery ⇄ Self Pickup** choice moved off BAG onto a
 dedicated **FULFILLMENT** step. `fulfillment` (`'DELIVERY' | 'PICKUP'`) is a single
 `CartView`-scoped state; it drives `computeTotals` (pickup waives the delivery fee),
 `PaymentOptionsScreen`, and the receipt timeline.
@@ -1280,20 +1284,33 @@ dedicated **FULFILLMENT** step. `fulfillment` (`'DELIVERY' | 'PICKUP'`) is a sin
 - A pale-blue **BreakdownCard** sits at top: "to pay:" total plus **Ordered value** and the server
   delivery quote itemised into base (first 3 km), extra distance, and any active night / rain /
   festival surge (hidden for Self Pickup). There is **no tax row**: catalog prices are GST-inclusive
-  so the customer total is `subtotal + deliveryFee − discount`, matching the server invoice. The old Preferred-Payment card, CVV pay bar, and Net Banking / Wallet / COD
-  options are removed.
+  so the customer total is `subtotal + deliveryFee − discount`, matching the server invoice.
+  **UPI + Cash on Delivery only** — cards, net-banking and wallets are not offered.
 - **UPI:** `src/services/upi.ts` probes the `UPI_APP_PACKAGES` list (`paymentData.ts`: GPay, PhonePe,
   Paytm, Amazon Pay, BHIM) via `Linking.canOpenURL` (Android `<queries>` + iOS
   `LSApplicationQueriesSchemes`), rendering installed apps as `UpiAppRow` selectable rows. Selecting a
   UPI app shows the fixed floating **BottomPayBar** ("Pay ₹X").
-- **Cards:** saved cards come from the device Keychain (`payment/cardStorage.ts`, service
-  `FaazioCardToken`) — only a token + last4 + expiry + network, never a PAN/CVV. **Add New Card**
-  opens the real `AddCardScreen` (`AddCard` route), where the 16-digit/MM-YY/CVV/name form is
-  validated, a token is minted and stored in the Keychain, and the card appears on return (a
-  `useFocusEffect` reload). Selecting a saved card also shows the pay bar.
-- `onPlaceOrder` fires with `{ method: 'UPI' | 'CARD', upiLabel?, cardLast4?, coinsRedeemed? }`;
+- **Cash on Delivery:** `COD_METHOD` (`paymentData.ts`) renders a radio row; paying with COD records
+  the COD payment at order placement and goes straight to the receipt.
+- **UPI intent + detection:** `payment/UpiIntent.ts` builds `upi://pay?pa&pn&am&cu&tn&tr&url` and
+  rewrites it per app on iOS (`gpay://upi/pay`, `phonepe://upi/pay`, `paytmmp://upi/pay`,
+  `bhim://upi/pay`) before `Linking.openURL`. After `placeOrder` the client calls
+  `gateway.createRazorpayOrder(orderId)` (server derives the amount, returns the Razorpay order id +
+  public key + optional VPA) and launches the intent with `tr=<razorpayOrderId>`.
+  `PaymentStatusScreen` (`payment/PaymentStatusScreen.tsx`) polls
+  `gateway.fetchPaymentStatus(orderId)` via `usePaymentPolling` (2.5 s, **foreground only**, immediate
+  re-poll on `AppState → active`, 10-minute timeout). The server webhook is the source of truth, so
+  detection works even if the UPI app never returns to a Faazio callback.
+- **Failure + retry:** `PaymentFailedScreen` (`payment/PaymentFailedScreen.tsx`) offers **Click here to
+  continue** (re-launch the same order/amount with the same or another detected app; `createRazorpayOrder`
+  is idempotent, so a retry never double-charges), **Pay with Cash on Delivery** (records COD on the
+  existing order via `gateway.payForOrder`), and an inline app picker. The order is **never re-placed**
+  on retry.
+- `onPlaceOrder` fires with `{ method: 'UPI' | 'COD', upiAppId?, upiLabel?, coinsRedeemed? }`;
   `CartView.handlePlaceOrder` sends `paymentMethod` and renders the receipt payment line. The
-  `CoinsRedeemRow` (only when balance ≥ `COIN_REDEEM_MIN`) is unchanged.
+  `CoinsRedeemRow` (only when balance ≥ `COIN_REDEEM_MIN`) is unchanged. In gateway **mock mode**
+  (Razorpay keys unset) `createRazorpayOrder` returns `status: 'PAID'`, so dev/CI checkout still
+  completes without a live webhook.
 
 The **My Orders → Order Details** page resolves an order via `ordersStore.getOrderById` first
 (durable server history, then in-session placed orders), falling back to `@data getMyOrderById`

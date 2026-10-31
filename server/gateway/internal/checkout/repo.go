@@ -103,6 +103,10 @@ type Payment struct {
 	CoinsRedeemed int64  `json:"coinsRedeemed"`
 	Status        string `json:"status"`
 	CreatedAt     string `json:"createdAt"`
+	// RazorpayOrderID/RazorpayPaymentID link a UPI row to the Razorpay rail (empty for other
+	// methods). The webhook reconciles by razorpay order id (migration 0066).
+	RazorpayOrderID   string `json:"razorpayOrderId,omitempty"`
+	RazorpayPaymentID string `json:"razorpayPaymentId,omitempty"`
 	// AmountPaisa is the exact ledger amount (json-hidden). Fractional-km delivery fees mean the
 	// whole-rupee wire Amount can lose paise, so the DB write must use this when set.
 	AmountPaisa int64 `json:"-"`
@@ -1072,6 +1076,106 @@ func (r *Repo) PaymentsByUser(ctx context.Context, userID string) ([]Payment, er
 		out = append(out, p)
 	}
 	return out, rows.Err()
+}
+
+// PaymentStatus is the client-facing payment state for one order (GET /orders/{id}/payment-status).
+type PaymentStatus struct {
+	Status            string `json:"status"`
+	AmountPaisa       int64  `json:"amountPaisa"`
+	RazorpayOrderID   string `json:"razorpayOrderId,omitempty"`
+	RazorpayPaymentID string `json:"razorpayPaymentId,omitempty"`
+}
+
+// OrderPaymentContext returns an owned order's charged total (paisa) and the coins redeemed on its
+// most recent payment row, so the customer payment amount is derived server-side (never client-set).
+func (r *Repo) OrderPaymentContext(ctx context.Context, orderID, userID string) (totalPaisa, coins int64, ok bool, err error) {
+	if r.pool == nil {
+		return 0, 0, false, fmt.Errorf("checkout: database not configured")
+	}
+	err = r.pool.QueryRow(ctx, `
+		select coalesce(nullif(o.total_charged_paisa, 0), o.total_paisa),
+		       coalesce((select p.coins_redeemed from checkout.payments p
+		                  where p.order_id = o.order_id order by p.created_at desc limit 1), 0)
+		  from checkout.orders o
+		 where o.order_id = $1 and o.user_id = $2`, orderID, userID).Scan(&totalPaisa, &coins)
+	if err != nil {
+		if err == pgx.ErrNoRows {
+			return 0, 0, false, nil
+		}
+		return 0, 0, false, err
+	}
+	return totalPaisa, coins, true, nil
+}
+
+// AttachRazorpayOrder binds the order's customer payment row to a Razorpay order and moves it to
+// PENDING (awaiting the webhook). It reuses the placeholder row written with the order when one
+// exists; otherwise it inserts a fresh row. Idempotent per (order, razorpay order) pair.
+func (r *Repo) AttachRazorpayOrder(ctx context.Context, orderID, userID, method string, amountPaisa, coins int64, rzpOrderID string) error {
+	if r.pool == nil {
+		return fmt.Errorf("checkout: database not configured")
+	}
+	tag, err := r.pool.Exec(ctx, `
+		update checkout.payments
+		   set razorpay_order_id = $2, status = 'PENDING', method = $3, amount_paisa = $4, coins_redeemed = $5
+		 where id = (
+		   select id from checkout.payments
+		    where order_id = $1 and method <> 'COINS'
+		    order by created_at desc limit 1
+		 )`, orderID, rzpOrderID, method, amountPaisa, coins)
+	if err != nil {
+		return err
+	}
+	if tag.RowsAffected() > 0 {
+		return nil
+	}
+	_, err = r.pool.Exec(ctx, `
+		insert into checkout.payments (id, order_id, user_id, method, amount_paisa, coins_redeemed, status, razorpay_order_id)
+		values ($1, $2, $3, $4, $5, $6, 'PENDING', $7)`,
+		newPaymentID(), orderID, userID, method, amountPaisa, coins, rzpOrderID)
+	return err
+}
+
+// PaymentStatusForOrder returns the latest payment row's status for an owned order.
+func (r *Repo) PaymentStatusForOrder(ctx context.Context, orderID, userID string) (PaymentStatus, bool, error) {
+	if r.pool == nil {
+		return PaymentStatus{}, false, fmt.Errorf("checkout: database not configured")
+	}
+	var s PaymentStatus
+	err := r.pool.QueryRow(ctx, `
+		select p.status, p.amount_paisa, coalesce(p.razorpay_order_id, ''), coalesce(p.razorpay_payment_id, '')
+		  from checkout.payments p
+		  join checkout.orders o on o.order_id = p.order_id
+		 where p.order_id = $1 and o.user_id = $2
+		 order by p.created_at desc limit 1`, orderID, userID).
+		Scan(&s.Status, &s.AmountPaisa, &s.RazorpayOrderID, &s.RazorpayPaymentID)
+	if err != nil {
+		if err == pgx.ErrNoRows {
+			return PaymentStatus{}, false, nil
+		}
+		return PaymentStatus{}, false, err
+	}
+	return s, true, nil
+}
+
+// SetPaymentStatusByRazorpayOrder flips the ledger row matched by razorpay order id (webhook) and
+// returns the owning user id so the caller can purge the orders cache. Idempotent.
+func (r *Repo) SetPaymentStatusByRazorpayOrder(ctx context.Context, rzpOrderID, status, rzpPaymentID string) (userID string, ok bool, err error) {
+	if r.pool == nil {
+		return "", false, fmt.Errorf("checkout: database not configured")
+	}
+	err = r.pool.QueryRow(ctx, `
+		update checkout.payments
+		   set status = $2,
+		       razorpay_payment_id = coalesce(nullif($3, ''), razorpay_payment_id)
+		 where razorpay_order_id = $1
+		 returning user_id`, rzpOrderID, status, rzpPaymentID).Scan(&userID)
+	if err != nil {
+		if err == pgx.ErrNoRows {
+			return "", false, nil
+		}
+		return "", false, err
+	}
+	return userID, true, nil
 }
 
 // ProfileByUser returns accounts.profile.

@@ -32,6 +32,10 @@ import AppText from '@/components/AppText';
 import SlideUpSheet from '@/components/shared/SlideUpSheet';
 import PaymentOptionsScreen from '@/features/cart/payment/PaymentOptionsScreen';
 import type { PlaceOrderPayload } from '@/features/cart/payment/PaymentOptionsScreen';
+import PaymentStatusScreen from '@/features/cart/payment/PaymentStatusScreen';
+import PaymentFailedScreen from '@/features/cart/payment/PaymentFailedScreen';
+import { buildUpiIntent, launchUpiPayment } from '@/features/cart/payment/UpiIntent';
+import { detectUpiApps, type UpiApp } from '@/services/upi';
 import BreakdownCard from '@/features/cart/payment/components/BreakdownCard';
 import { computeTotals, estimateDeliveryBreakdown, DELIVERY_FEE_BASE_KM, DEFAULT_DELIVERY_FEE_PAISA } from './utils';
 import type { CheckoutStep, DeliveryFeeBreakdown } from './utils';
@@ -42,6 +46,7 @@ import { useRewardsStore } from '@/state/rewardsStore';
 import { useOrdersStore } from '@/state/ordersStore';
 import { useCartStore } from '@/state/cartStore';
 import { gateway, GatewayHttpError } from '@/services/api/GatewayClient';
+import type { RazorpayOrderResult } from '@/services/api/GatewayClient';
 import { consumeLastClickedSlotId } from '@/services/adsAttribution';
 import { coinsEarnedFor, isCardActive } from '@/features/rewards/rewardsLogic';
 import { COIN_REDEEM_RATE, DISCOUNT_CARD_PERCENT } from '@data/rewards/rewards';
@@ -221,6 +226,28 @@ export default function CartView({
 
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const [paymentProcessing, setPaymentProcessing] = useState(false);
+  // In-flight UPI attempt (order already placed): drives the status/failed screens and retry.
+  const [paymentAttempt, setPaymentAttempt] = useState<{
+    orderId: string;
+    amountPaisa: number;
+    upiAppId: string;
+    upiLabel: string;
+    coinsRedeemed: number;
+  } | null>(null);
+  const [retryingPayment, setRetryingPayment] = useState(false);
+  // True when the last UPI attempt failed by poll timeout (vs an explicit FAILED webhook).
+  const [paymentTimedOut, setPaymentTimedOut] = useState(false);
+  // Detected UPI apps, offered on the failure screen to retry with a different app.
+  const [installedUpiApps, setInstalledUpiApps] = useState<UpiApp[]>([]);
+  useEffect(() => {
+    let cancelled = false;
+    void detectUpiApps().then((apps) => {
+      if (!cancelled) setInstalledUpiApps(apps.filter((a) => a.installed));
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
   // One key per checkout attempt: a retry after a lost response must not create a second order.
   const idempotencyKeyRef = useRef<string | null>(null);
   /** Server-authoritative delivery-fee quote (road distance); falls back to a Haversine estimate. */
@@ -450,7 +477,7 @@ export default function CartView({
   }, [step, fulfillment, hasLiveFix, storeIdsForQuote, liveAddress.lat, liveAddress.lng]);
 
   const handlePlaceOrder = (payload?: PlaceOrderPayload) => {
-    const { method = 'UPI', upiLabel, cardLast4, coinsRedeemed = 0 } = payload ?? {};
+    const { method = 'COD', upiAppId, upiLabel, coinsRedeemed = 0 } = payload ?? {};
     setPaymentProcessing(true);
     void (async () => {
       try {
@@ -531,7 +558,7 @@ export default function CartView({
           payment:
             method === 'UPI'
               ? `UPI (${upiLabel ?? 'UPI'})`
-              : `Card (*${cardLast4 ?? '4242'})`,
+              : 'Cash on Delivery',
           eta: isPickup ? '15 Mins' : '12-15 Mins',
           fulfillment: mode,
           pickup: primaryPickup,
@@ -543,8 +570,53 @@ export default function CartView({
         setPlacedOrderDetails(details);
         setCartItems(cartItems.filter((i) => deselectedIds.has(i.id)));
         setDeselectedIds(new Set());
-        setStep('RECEIPT');
         idempotencyKeyRef.current = null;
+
+        // COD collects at delivery → straight to the receipt.
+        if (method === 'COD') {
+          setStep('RECEIPT');
+          return;
+        }
+
+        // UPI: create the Razorpay order that the intent `tr` param + webhook reconcile on,
+        // then hand off to the detection screen. A gateway-mock response (keys unset) is already
+        // PAID, so dev checkout still completes without a live webhook.
+        let rzp: RazorpayOrderResult;
+        try {
+          rzp = await gateway.createRazorpayOrder(orderId);
+        } catch {
+          setPaymentAttempt({
+            orderId,
+            amountPaisa: paidAmount * 100,
+            upiAppId: upiAppId ?? '',
+            upiLabel: upiLabel ?? 'UPI',
+            coinsRedeemed,
+          });
+          setStep('PAYMENT_FAILED');
+          return;
+        }
+        if (rzp.status === 'PAID') {
+          setStep('RECEIPT');
+          return;
+        }
+        const attempt = {
+          orderId,
+          amountPaisa: rzp.amountPaisa,
+          upiAppId: upiAppId ?? '',
+          upiLabel: upiLabel ?? 'UPI',
+          coinsRedeemed,
+        };
+        setPaymentAttempt(attempt);
+        setStep('PAYMENT_STATUS');
+        void launchUpiPayment(
+          attempt.upiAppId,
+          buildUpiIntent({
+            orderId,
+            amountPaisa: rzp.amountPaisa,
+            txnRef: rzp.razorpayOrderId,
+            payeeVpa: rzp.upiVpa,
+          }),
+        );
       } catch (err) {
         const message =
           err instanceof GatewayHttpError
@@ -558,6 +630,102 @@ export default function CartView({
       }
     })();
   };
+
+  // Retry the failed UPI payment: same order, same amount, optionally a different app. A fresh
+  // 10-minute detection window starts on the status screen. Never places a second order.
+  const handleRetryWithApp = (appId: string, label: string) => {
+    const attempt = paymentAttempt;
+    if (!attempt) return;
+    setRetryingPayment(true);
+    void (async () => {
+      try {
+        const rzp = await gateway.createRazorpayOrder(attempt.orderId);
+        if (rzp.status === 'PAID') {
+          setStep('RECEIPT');
+          return;
+        }
+        const next = {
+          ...attempt,
+          upiAppId: appId || attempt.upiAppId,
+          upiLabel: label || attempt.upiLabel,
+          amountPaisa: rzp.amountPaisa,
+        };
+        setPaymentAttempt(next);
+        setStep('PAYMENT_STATUS');
+        void launchUpiPayment(
+          next.upiAppId,
+          buildUpiIntent({
+            orderId: next.orderId,
+            amountPaisa: rzp.amountPaisa,
+            txnRef: rzp.razorpayOrderId,
+            payeeVpa: rzp.upiVpa,
+          }),
+        );
+      } catch {
+        Alert.alert('Could not restart payment', 'Please check your connection and try again.');
+      } finally {
+        setRetryingPayment(false);
+      }
+    })();
+  };
+
+  const handleRetryPayment = () =>
+    handleRetryWithApp(paymentAttempt?.upiAppId ?? '', paymentAttempt?.upiLabel ?? 'UPI');
+
+  // Switch the already-placed order to Cash on Delivery (records a COD payment server-side).
+  const handleSwitchToCod = () => {
+    const attempt = paymentAttempt;
+    if (!attempt) return;
+    setRetryingPayment(true);
+    void (async () => {
+      try {
+        await gateway.payForOrder(attempt.orderId, 'COD', attempt.coinsRedeemed);
+        setPlacedOrderDetails((prev) => (prev ? { ...prev, payment: 'Cash on Delivery' } : prev));
+        setStep('RECEIPT');
+      } catch {
+        Alert.alert('Could not switch to Cash on Delivery', 'Please check your connection and try again.');
+      } finally {
+        setRetryingPayment(false);
+      }
+    })();
+  };
+
+  if (step === 'PAYMENT_STATUS' && paymentAttempt) {
+    return (
+      <View style={styles.paymentRoot}>
+        <PaymentStatusScreen
+          orderId={paymentAttempt.orderId}
+          amountPaisa={paymentAttempt.amountPaisa}
+          upiLabel={paymentAttempt.upiLabel}
+          onPaid={() => setStep('RECEIPT')}
+          onFailed={(timedOut) => {
+            setPaymentTimedOut(timedOut);
+            setStep('PAYMENT_FAILED');
+          }}
+        />
+      </View>
+    );
+  }
+
+  if (step === 'PAYMENT_FAILED' && paymentAttempt) {
+    return (
+      <View style={styles.paymentRoot}>
+        <PaymentFailedScreen
+          orderId={paymentAttempt.orderId}
+          amountPaisa={paymentAttempt.amountPaisa}
+          upiLabel={paymentAttempt.upiLabel}
+          timedOut={paymentTimedOut}
+          busy={retryingPayment}
+          upiApps={installedUpiApps
+            .filter((a) => a.id !== paymentAttempt.upiAppId)
+            .map((a) => ({ id: a.id, label: a.label }))}
+          onRetry={handleRetryPayment}
+          onSwitchToCod={handleSwitchToCod}
+          onSelectApp={handleRetryWithApp}
+        />
+      </View>
+    );
+  }
 
   if (step === 'BAG') {
     return (
@@ -1113,6 +1281,7 @@ export default function CartView({
             onPress={() => {
               setStep('BAG');
               setPlacedOrderDetails(null);
+              setPaymentAttempt(null);
             }}
             style={styles.receiptNewOrderBtn}
             activeOpacity={0.8}
@@ -1125,6 +1294,7 @@ export default function CartView({
               setActiveTab('Home');
               setStep('BAG');
               setPlacedOrderDetails(null);
+              setPaymentAttempt(null);
             }}
             style={styles.receiptGoToHubBtn}
             activeOpacity={0.8}

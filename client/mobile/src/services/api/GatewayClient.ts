@@ -315,6 +315,26 @@ export interface PaymentRecord {
   createdAt: string;
 }
 
+/** Result of POST /razorpay/customer/orders — the reference for the UPI intent + webhook. */
+export interface RazorpayOrderResult {
+  razorpayOrderId: string;
+  amountPaisa: number;
+  currency: string;
+  /** Public Razorpay key id (safe to surface; the secret never leaves the server). */
+  keyId: string;
+  /** Merchant VPA for the UPI intent `pa` param (empty → client default). */
+  upiVpa?: string;
+  /** `PAID` only in gateway mock mode (keys unset) so dev checkout still completes. */
+  status: 'PENDING' | 'PAID';
+}
+
+/** Result of GET /orders/{id}/payment-status (server/webhook is the source of truth). */
+export interface PaymentStatusResult {
+  status: 'PENDING' | 'PAID' | 'FAILED';
+  amountPaisa?: number;
+  razorpayPaymentId?: string;
+}
+
 /** Server-authoritative rewards view (GET /rewards) — the client reconciles against this. */
 export interface RewardsView {
   coins: number;
@@ -2341,6 +2361,45 @@ export class GatewayClient {
           status: 'PAID',
           createdAt: new Date().toISOString(),
         }),
+    );
+  }
+
+  /**
+   * Create a Razorpay order for an owned checkout order (POST /razorpay/customer/orders).
+   * The server derives the amount and stores the razorpay order id for webhook reconciliation.
+   * In gateway mock mode (keys unset) the server simulates capture and returns `status: 'PAID'`.
+   */
+  async createRazorpayOrder(orderId: string): Promise<RazorpayOrderResult> {
+    return this.withStrict(
+      () =>
+        this.http<RazorpayOrderResult>('/razorpay/customer/orders', {
+          method: 'POST',
+          body: JSON.stringify({ orderId }),
+        }),
+      () =>
+        delay<RazorpayOrderResult>({
+          razorpayOrderId: `order_local_${Date.now()}`,
+          amountPaisa: 0,
+          currency: 'INR',
+          keyId: '',
+          status: 'PAID',
+        }),
+    );
+  }
+
+  /** Poll an owned order's payment status (GET /orders/{id}/payment-status). */
+  async fetchPaymentStatus(orderId: string): Promise<PaymentStatusResult> {
+    return this.withStrict(
+      () => this.http<PaymentStatusResult>(`/orders/${encodeURIComponent(orderId)}/payment-status`),
+      () => delay<PaymentStatusResult>({ status: 'PAID' }),
+    );
+  }
+
+  /** The caller's durable payment rows (GET /payments). */
+  async getPayments(): Promise<PaymentRecord[]> {
+    return this.withFallback(
+      () => this.http<PaymentRecord[]>('/payments'),
+      () => delay<PaymentRecord[]>([]),
     );
   }
 

@@ -1,3 +1,29 @@
+/**
+ * Customer-facing payment method. Phase 1 supports UPI (GPay / PhonePe / Paytm / BHIM via
+ * intent) and Cash on Delivery only.
+ */
+export type PaymentMethod = 'UPI' | 'COD';
+
+/** Merchant VPA baked into the UPI intent `pa` param. The server may override with `upiVpa`. */
+export const UPI_MERCHANT_VPA = 'faazio@razorpay';
+
+/** Merchant display name baked into the UPI intent `pn` param. */
+export const UPI_MERCHANT_NAME = 'Faazio';
+
+/** Cash on Delivery radio row (`id` is a literal for narrowing). */
+export interface CodMethod {
+  id: 'cod';
+  label: string;
+  subtitle: string;
+}
+
+/** Cash on Delivery radio row config. */
+export const COD_METHOD: CodMethod = {
+  id: 'cod',
+  label: 'Cash on Delivery',
+  subtitle: 'Pay in cash when your order arrives',
+};
+
 /** A card saved on this device (tokenized — never a raw PAN/CVV). */
 export interface SavedCard {
   id: string;
@@ -45,7 +71,9 @@ export const UPI_APP_PACKAGES: UpiAppPackage[] = [
     id: 'paytm',
     label: 'Paytm',
     androidPackage: 'net.one97.paytm',
-    iosScheme: 'paytm://',
+    // Paytm's iOS scheme is `paytmmp` (not `paytm`); the launch intent is rewritten to
+    // `paytmmp://upi/pay?...` (see UpiIntent.ts / ios/Info.plist).
+    iosScheme: 'paytmmp://',
   },
   {
     id: 'amazon-pay',

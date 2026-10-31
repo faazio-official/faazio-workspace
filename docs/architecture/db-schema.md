@@ -902,6 +902,14 @@ when `coinsRedeemed > 0` or a payment method is supplied. The order `pickup`/`pi
 persist today's `PlacedOrder.pickup/pickups` snapshot, so the "Pickup From" card survives a server
 round-trip. Payments are own-rows, never edge-cached.
 
+**Customer Razorpay link (migration `0066`).** UPI payments add nullable
+`razorpay_order_id` / `razorpay_payment_id` columns to `checkout.payments` (only UPI rows populate
+them), a unique partial index on `razorpay_order_id` (one checkout order → at most one live Razorpay
+order, so a retry cannot orphan the webhook) and `payments_order_created_idx` for the status poll.
+`POST /razorpay/customer/orders` writes a `PENDING` row (idempotently reusing it), the public
+`POST /webhooks/razorpay/payments` flips it to `PAID`/`FAILED`, and `GET /orders/{id}/payment-status`
+reads the latest row. COD / coins rows leave both columns null.
+
 ### 12.3 `rewards.balances` + `rewards.ledger` — source `data/rewards/rewards.ts` (migration `0008`)
 
 ```sql

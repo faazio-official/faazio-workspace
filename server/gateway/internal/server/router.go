@@ -33,6 +33,7 @@ import (
 	"github.com/faazio/server/gateway/internal/platform/db"
 	"github.com/faazio/server/gateway/internal/platform/httpx"
 	"github.com/faazio/server/gateway/internal/platform/r2"
+	"github.com/faazio/server/gateway/internal/platform/razorpaypay"
 	"github.com/faazio/server/gateway/internal/platform/razorpayroute"
 	"github.com/faazio/server/gateway/internal/portal"
 	"github.com/faazio/server/gateway/internal/promo"
@@ -112,6 +113,8 @@ func NewRouter(d Deps) http.Handler {
 	// Razorpay Route (seller split payments): linked accounts + held transfers. Shared by sellers
 	// (provision account on KYC) and settlement (hold/release the seller share).
 	routeGateway := razorpayroute.New(d.Config.RazorpayRouteKeyID, d.Config.RazorpayRouteKeySecret, d.Config.RazorpayRouteWebhookSecret)
+	// Customer Razorpay rail (UPI order creation + webhook). Mock mode when keys are unset.
+	razorpayPay := razorpaypay.New(d.Config.RazorpayKeyID, d.Config.RazorpayKeySecret, d.Config.RazorpayWebhookSecret, d.Config.RazorpayUPIVPA)
 
 	// Partner control plane (0015). adminsRepo also implements contracts.AuditWriter so every
 	// partner mutation is recorded.
@@ -180,7 +183,7 @@ func NewRouter(d Deps) http.Handler {
 	notifications.NewHandler(notificationsRepo, d.Cache, d.Drainer).Register(r)
 	blood.NewHandler(bloodRepo, d.Cache, adminsRepo, notificationsRepo).Register(r)
 	checkout.NewHandler(checkoutRepo, checkoutService, d.Cache, adminsRepo, notificationsRepo, promoRepo,
-		directoryRepo, deliveryHandler, d.Signer).WithRxBlobDeleter(pharmaStorage).Register(r)
+		directoryRepo, deliveryHandler, d.Signer).WithRxBlobDeleter(pharmaStorage).WithPaymentGateway(razorpayPay).Register(r)
 	reviews.NewHandler(reviewsRepo, reviewsService, d.Cache, adminsRepo).Register(r)
 	reco.NewHandler(recoRepo, recoService).Register(r)
 	sdui.NewHandler(sduiService, adminsRepo).Register(r)

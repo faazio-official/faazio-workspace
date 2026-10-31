@@ -80,6 +80,18 @@ caller) and are event-purged on store live toggle and product edit/status change
   with `POST /notifications/register` and unregister with `DELETE /notifications/register` (portal
   sign-out); re-registering a token drops any previous owner so a shared phone cannot inherit the
   old seller's order pushes.
+- **Customer payments — UPI + COD (`internal/checkout` + `internal/platform/razorpaypay`, migration `0066`):**
+  `POST /razorpay/customer/orders` creates a Razorpay order for an owned checkout order (server-derived
+  amount = stored order total − coins redeemed; **idempotent** — reuses an in-flight Razorpay order and
+  never re-creates once PAID). `GET /orders/{orderId}/payment-status` returns
+  `{ status: PENDING | PAID | FAILED, amountPaisa, razorpayOrderId?, razorpayPaymentId? }` for the client's
+  foreground poll. The public `POST /webhooks/razorpay/payments` is the source of truth: it HMAC-verifies
+  `X-Razorpay-Signature` and maps `payment.captured`/`payment.authorized` → `PAID` and `payment.failed`
+  → `FAILED` on the `checkout.payments` row matched by `razorpay_order_id`. `checkout.payments` gained
+  `razorpay_order_id`/`razorpay_payment_id` (`0066`). When the Razorpay key pair is unset the gateway runs
+  in **mock mode**: `CreateOrder` returns a synthetic order and `POST /razorpay/customer/orders` records it
+  PAID so dev/CI checkout completes without a live webhook. The UPI intent itself is client-built
+  (`upi://pay?...` rewritten per app on iOS); the Razorpay order id is the intent `tr`.
 - **Seller onboarding + split payments (`internal/sellers` + `internal/settlement` + `internal/platform/razorpayroute`):**
   `POST /sellers` now carries the platform fee, payout bank details (full account number is forwarded
   to Razorpay and never stored), private R2 passbook/FSSAI keys and `otpVerified`. The OTP is the
@@ -265,8 +277,11 @@ The HTTP route is not used service-to-service — the dual mount is intentional.
 - Every mutation writes an `admins.audit_logs` row through `contracts.AuditWriter`.
 - **Money-adjacent authority:** coin redemption is validated against the server-held balance
   (`contracts.RewardsReader`; `400 insufficient_coins`) on both order placement and payment recording,
-  so a client cannot mint a free order by asserting more coins than it owns. Payment *capture*
-  (Razorpay signature/webhook) remains the open item tracked in `PENDING_WORK.md`.
+  so a client cannot mint a free order by asserting more coins than it owns. Customer payment
+  **capture** is now server-authoritative (`internal/platform/razorpaypay` + the
+  `/webhooks/razorpay/payments` HMAC webhook; W75) — the client only transitions UI from the polled
+  status. A raw UPI intent can't be reconciled without a Razorpay-managed VPA/order, so set
+  `RAZORPAY_UPI_VPA` to the account's merchant VPA in production.
 - **Admin scope is re-checked before every scoped mutation:** support tickets/returns
   (`auth.CanActForState`, server-derived `state_code`, caller-owned order), ads slot requests
   (product ownership + seller district), promo opt-in decisions (seller district), and pharma

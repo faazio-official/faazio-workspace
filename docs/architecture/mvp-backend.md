@@ -117,7 +117,7 @@ All read-through: Valkey → Supabase/Mongo → populate. Cloudflare caches publ
 |---|---|---|
 | `GET/POST/PUT/DELETE /cart…` | cartstock | auth-scoped; `inventory.carts` JSONB, never edge-cached |
 | `GET/PUT/DELETE /favourites…` | favourites | auth-scoped durable shelf (`favourites.items`), never edge-cached |
-| `POST /orders/{id}/payments`, `GET /payments` | checkout | real-money ledger (`checkout.payments`); amount derived server-side, never edge-cached |
+| `POST /orders/{id}/payments`, `GET /payments`, `POST /razorpay/customer/orders`, `GET /orders/{id}/payment-status`, `POST /webhooks/razorpay/payments` | checkout | real-money ledger (`checkout.payments`); amount derived server-side, never edge-cached. Customer UPI capture: `internal/platform/razorpaypay` creates the Razorpay order (the intent `tr`), the HMAC webhook (`payment.captured/authorized/failed`) is the source of truth, and the client foreground-polls the status endpoint. COD rides `POST /orders/{id}/payments` |
 | `GET /pickup-points` | directory | durable `inventory.pickup_points` (public business locations, cached 24 h) |
 | `GET /rewards` | rewards | server-authoritative coins/streak/ledger; earn runs inside `POST /orders` via `contracts.RewardsWriter` (never client-forgeable) |
 | `GET /venues/{id}/menu` | directory | durable `directory.menus` (public catalog data, cached 24 h); menu rows carry `description`/`emoji`/`delivery_time` (`0019`) |

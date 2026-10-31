@@ -60,6 +60,9 @@ type Config struct {
 	RazorpayKeyID         string
 	RazorpayKeySecret     string
 	RazorpayWebhookSecret string
+	// RazorpayUPIVPA is the public merchant VPA placed in the customer UPI intent (`pa`). It is a
+	// public identifier, not a secret; empty → the client's default.
+	RazorpayUPIVPA string
 	// Razorpay Route (seller split payments). Falls back to the main Razorpay key pair when the
 	// dedicated Route envs are unset, so one merchant account works out of the box.
 	RazorpayRouteKeyID         string
@@ -107,6 +110,7 @@ func Load() Config {
 		RazorpayKeyID:               env("RAZORPAY_KEY_ID", ""),
 		RazorpayKeySecret:           env("RAZORPAY_KEY_SECRET", ""),
 		RazorpayWebhookSecret:       env("RAZORPAY_WEBHOOK_SECRET", ""),
+		RazorpayUPIVPA:              env("RAZORPAY_UPI_VPA", ""),
 		// Route defaults to the main key pair; a separate Route webhook secret is optional.
 		RazorpayRouteKeyID:         envFirst("RAZORPAY_ROUTE_KEY_ID", "RAZORPAY_KEY_ID"),
 		RazorpayRouteKeySecret:     envFirst("RAZORPAY_ROUTE_KEY_SECRET", "RAZORPAY_KEY_SECRET"),
