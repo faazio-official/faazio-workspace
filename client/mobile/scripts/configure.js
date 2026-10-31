@@ -7,10 +7,11 @@
  * rewrite the Android network-security-config with the configured certificate
  * pins.
  *
- * Inputs are read from the process environment, then `.env.local`, then the platform
- * file (`.env.android` / `.env.ios`), then `.env` (process env wins). The platform is
- * selected by CONFIGURE_PLATFORM=android|ios; when unset (Metro / typecheck) both
- * platform files load so the generated `config.ts` is complete.
+ * Inputs are read from the process environment, then `.env.local`, then the platform env
+ * file — `.env.android` or `.env.ios` (process env wins). The platform is selected by
+ * CONFIGURE_PLATFORM=android|ios; when unset (Metro / typecheck) both platform files load
+ * so the generated `config.ts` is complete. Each platform file is standalone (shared values
+ * are duplicated across them on purpose).
  *
  * Usage:
  *   node scripts/configure.js                  # debug / Metro (both platforms)
@@ -91,7 +92,7 @@ function readEnvFile(file) {
   }
 }
 
-// Precedence (low → high): .env < .env.<platform> < .env.local < process env.
+// Precedence (low → high): .env.<platform> < .env.local < process env.
 // No platform selected (Metro / typecheck) → load both platform files.
 const platform = String(process.env.CONFIGURE_PLATFORM || '')
   .trim()
@@ -99,7 +100,6 @@ const platform = String(process.env.CONFIGURE_PLATFORM || '')
 const platformFiles =
   platform === 'android' || platform === 'ios' ? [`.env.${platform}`] : ['.env.android', '.env.ios'];
 const fileEnv = {
-  ...readEnvFile(path.join(ROOT, '.env')),
   ...Object.assign({}, ...platformFiles.map((file) => readEnvFile(path.join(ROOT, file)))),
   ...readEnvFile(path.join(ROOT, '.env.local')),
 };

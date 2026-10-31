@@ -23,8 +23,9 @@ npm run start
   `index.seller.js`, `com.faazio.sellerpartner`). Partner builds need `APP_VARIANT=delivery` /
   `APP_VARIANT=seller` + the partner Firebase config; see `docs/RUNBOOKS/RELEASE.md`.
 - Release builds: `gh workflow run "Release APK"` (see `docs/RUNBOOKS/RELEASE.md`).
-- Configuration is generated into `src/lib/config.ts` by `scripts/configure.js`, layered
-  `.env` (shared) → `.env.android` / `.env.ios` (platform) → gitignored `.env.local` (local).
-  `CONFIGURE_PLATFORM=android|ios` selects the platform file (`npm run configure:android` / `:ios`).
+- Configuration is generated into `src/lib/config.ts` by `scripts/configure.js`. Each platform has
+  a complete, standalone env file: `.env.android` / `.env.ios` (shared values duplicated in both);
+  a gitignored `.env.local` overrides either. `CONFIGURE_PLATFORM=android|ios` selects the file
+  (`npm run configure:android` / `:ios`); unset loads both (Metro / `ts:check`).
 - iOS requires macOS + Xcode for a manual build (`cd ios && pod install`, open `Faazio.xcworkspace`).
   Releases build, sign and upload to TestFlight in CI: `gh workflow run ios-release.yml`.
