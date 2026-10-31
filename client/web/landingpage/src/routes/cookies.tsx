@@ -152,7 +152,7 @@ function CookiePolicy() {
             <p className="eyebrow">COOKIE POLICY</p>
             <h1 id="cookies-title">A light touch on cookies.</h1>
             <p className="page-lead">
-              How the Faazio website uses cookies and similar technologies — and how you can control
+              How the Faazio website uses cookies and similar technologies, and how you can control
               them.
             </p>
             <p className="mt-4 text-[12px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">

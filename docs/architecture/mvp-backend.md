@@ -316,7 +316,7 @@ contract stable so the swap is invisible to the app):
     the portal state/super seller detail performs fee edits, per-document verification, rejection and
     **Verify KYC** (Route linked account + activation). `internal/platform/razorpayroute` is the
     domain-free Route client (accounts, held transfers, release/reverse, webhook HMAC); a settlement
-    worker releases due holds after the 14-day window. Full account numbers are forwarded to Razorpay
+    worker releases due holds after the 7-day window. Full account numbers are forwarded to Razorpay
     in memory and never stored. Owner: `db-schema.md` §12.21, `mobile-app.md`, `web-portal.md`,
     `server-gateway-plan.md`, `monolith-breakdown.md` §1.
 

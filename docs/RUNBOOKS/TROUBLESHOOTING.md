@@ -649,7 +649,7 @@ build on the Linux host.
   linked-account call (or keys are unset in a non-mock deploy). Check `RAZORPAY_ROUTE_KEY_ID`/
   `_SECRET` (or the `RAZORPAY_*` fallback). The gateway never logs the upstream body (it may contain
   PCI data); check the Razorpay dashboard by account id / timestamp.
-- **Payout stays `ON_HOLD` past 14 days** — the releaser only runs when real Route credentials are
+- **Payout stays `ON_HOLD` past 7 days** — the releaser only runs when real Route credentials are
   configured. Check the gateway logs for `settlement hold releaser`, then release manually as
   SUPER_ADMIN: `POST /payouts/{id}/release` (the payout id is on the portal settlement page).
 - **`POST /webhooks/razorpay/route` returns `invalid_signature`** — the HMAC must use

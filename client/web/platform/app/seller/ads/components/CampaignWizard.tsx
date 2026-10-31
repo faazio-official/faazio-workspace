@@ -330,7 +330,7 @@ export function CampaignWizard({ sellerId, stateCode }: { sellerId: string; stat
               </div>
               <Input value={imageUrl} onChange={(e) => setImageUrl(e.target.value)} placeholder="https://…/hero.jpg" />
               <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={(e) => { void pickPoster(e.target.files?.[0]); e.target.value = ""; }} />
-              <p className="text-[11px] text-muted-foreground">External image links are rejected — upload to Faazio so the poster is served from our CDN.</p>
+              <p className="text-[11px] text-muted-foreground">External image links are rejected; upload to Faazio so the poster is served from our CDN.</p>
             </div>
             <div className="space-y-1.5">
               <Label>Call to action</Label>
@@ -358,7 +358,7 @@ export function CampaignWizard({ sellerId, stateCode }: { sellerId: string; stat
                 {imageUrl ? (
                   <img src={resolveImage(imageUrl) ?? imageUrl} alt="" className="size-full object-cover" />
                 ) : null}
-                <span className="absolute right-2 top-2 rounded bg-black/60 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide text-white">
+                <span className="absolute right-2 top-2 rounded bg-black/60 px-1.5 py-0.5 text-[11px] font-bold text-white">
                   Ad
                 </span>
                 <div className="absolute inset-x-3 bottom-2">
@@ -398,7 +398,7 @@ export function CampaignWizard({ sellerId, stateCode }: { sellerId: string; stat
                 <p className="text-[15px] font-extrabold text-white">{title}</p>
                 {subtitle ? <p className="text-[11px] font-semibold text-slate-200">{subtitle}</p> : null}
               </div>
-              <span className="absolute right-3 top-3 rounded bg-black/60 px-2 py-0.5 text-[10px] font-bold uppercase text-white">Ad</span>
+              <span className="absolute right-3 top-3 rounded bg-black/60 px-2 py-0.5 text-[11px] font-bold text-white">Ad</span>
             </div>
           </div>
           <dl className="grid gap-x-6 gap-y-2 text-[13px] sm:grid-cols-2">

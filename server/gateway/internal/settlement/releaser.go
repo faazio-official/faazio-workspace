@@ -1,4 +1,4 @@
-// Razorpay Route hold releaser. A seller's share is transferred with on_hold until the 14-day
+// Razorpay Route hold releaser. A seller's share is transferred with on_hold until the 7-day
 // buyer-protection window elapses; this worker releases every due transfer and marks the payout PAID.
 // The manual SUPER_ADMIN endpoint (POST /payouts/{id}/release) stays available for ops overrides.
 package settlement

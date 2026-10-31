@@ -178,7 +178,7 @@ function SuperDistricts() {
                   <TableRow key={campaign.campaignId} className="h-12">
                     <TableCell className="text-[13px] font-medium">{campaign.name}</TableCell>
                     <TableCell className="num text-[12px]">
-                      {formatDate(campaign.startsAt)} – {formatDate(campaign.endsAt)}
+                      {formatDate(campaign.startsAt)} to {formatDate(campaign.endsAt)}
                     </TableCell>
                     <TableCell>
                       <StatusPill status={campaign.status} />

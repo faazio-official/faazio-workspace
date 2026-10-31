@@ -174,7 +174,7 @@ function StateFestival() {
                     {campaign.stateCode ? ` · ${campaign.stateCode}` : ""}
                   </TableCell>
                   <TableCell className="num text-[12px]">
-                    {formatDate(campaign.startsAt)} – {formatDate(campaign.endsAt)}
+                    {formatDate(campaign.startsAt)} to {formatDate(campaign.endsAt)}
                   </TableCell>
                   <TableCell>
                     <StatusPill status={campaign.status} />
@@ -200,7 +200,7 @@ function StateFestival() {
                         </SelectContent>
                       </Select>
                     ) : (
-                      <span className="text-[12px] text-muted-foreground">Global — read only</span>
+                      <span className="text-[12px] text-muted-foreground">Global (read only)</span>
                     )}
                   </TableCell>
                 </TableRow>

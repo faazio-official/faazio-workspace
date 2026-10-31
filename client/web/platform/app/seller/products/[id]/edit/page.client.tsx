@@ -74,7 +74,7 @@ function EditProduct() {
         <ImageUploader images={images} onChange={setImages} />
         {images.length === 0 ? (
           <p className="mt-2 text-[12px] text-destructive">
-            This listing has no photo — shoppers will skip it. Upload at least one.
+            This listing has no photo; shoppers will skip it. Upload at least one.
           </p>
         ) : null}
       </SectionCard>

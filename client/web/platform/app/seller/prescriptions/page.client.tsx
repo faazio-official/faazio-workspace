@@ -218,7 +218,7 @@ function SellerPrescriptions() {
 
               {selected.note ? (
                 <div className="rounded-md border border-border bg-secondary/40 p-3 text-[13px]">
-                  <p className="mb-1 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+                  <p className="mb-1 text-[11px] font-semibold text-muted-foreground">
                     Patient note
                   </p>
                   {selected.note}
@@ -227,7 +227,7 @@ function SellerPrescriptions() {
 
               <div>
                 <div className="mb-2 flex items-center justify-between">
-                  <Label className="text-[12px] uppercase tracking-wide text-muted-foreground">
+                  <Label className="text-[12px] text-muted-foreground">
                     Rx images
                   </Label>
                   <div className="flex items-center gap-1.5">
@@ -258,7 +258,7 @@ function SellerPrescriptions() {
 
               <div className="space-y-2">
                 <div className="flex items-center justify-between">
-                  <Label className="text-[12px] uppercase tracking-wide text-muted-foreground">
+                  <Label className="text-[12px] text-muted-foreground">
                     Quote
                   </Label>
                   <div className="flex items-center gap-1.5">
@@ -351,7 +351,7 @@ function SellerPrescriptions() {
               {revealed ? (
                 <div className="rounded-md border border-warning/40 bg-warning/10 p-3">
                   <p className="flex items-center gap-1.5 text-[12px] font-semibold text-warning">
-                    <ShieldAlert className="size-4" /> PII revealed — audited
+                    <ShieldAlert className="size-4" /> PII revealed (audited)
                   </p>
                   <p className="mt-1 text-[13px]">
                     {selected.customerPhone || "Phone unavailable"} ·{" "}
@@ -403,7 +403,7 @@ function SellerPrescriptions() {
 
               {selected.history && selected.history.length > 0 ? (
                 <div>
-                  <Label className="text-[12px] uppercase tracking-wide text-muted-foreground">
+                  <Label className="text-[12px] text-muted-foreground">
                     Audit trail
                   </Label>
                   <ul className="mt-2 space-y-1 text-[12px] text-muted-foreground">

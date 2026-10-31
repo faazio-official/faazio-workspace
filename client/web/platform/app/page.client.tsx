@@ -43,7 +43,7 @@ function Landing() {
 
       <main className="mx-auto max-w-[1200px] px-4 py-10">
         <h1 className="max-w-2xl text-[26px] font-semibold leading-tight">
-          The console behind the Faazio SuperApp — MART, FOOD and PHARMA supply in one place.
+          The console behind the Faazio SuperApp: MART, FOOD and PHARMA supply in one place.
         </h1>
         <p className="mt-2 max-w-2xl text-[14px] text-muted-foreground">
           Nothing reaches a shopper unless a seller listed it here and an admin cleared it. Sign in

@@ -24,7 +24,7 @@ export function KpiCard({ label, value, deltaPercent, hint, info, tone, spark }:
   return (
     <div className={cn("surface lift rail wash p-4", TONE_TEXT[hue])}>
       <div className="flex items-start justify-between gap-2">
-        <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+        <p className="text-[11px] font-semibold text-muted-foreground">
           {label}
         </p>
         {help ? (

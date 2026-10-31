@@ -145,7 +145,7 @@ function OrderDetail() {
 function Row({ label, value }: { label: string; value: string }) {
   return (
     <div className="rounded-lg border border-border px-3 py-2">
-      <dt className="text-[11px] uppercase tracking-wide text-muted-foreground">{label}</dt>
+      <dt className="text-[11px] text-muted-foreground">{label}</dt>
       <dd className="num mt-0.5 font-medium">{value}</dd>
     </div>
   );

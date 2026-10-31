@@ -134,7 +134,7 @@ export function MobileNavDrawer({
               <div key={group} className="mb-3">
                 <p
                   className={cn(
-                    "flex items-center gap-1.5 px-2 pb-1 text-[10px] font-semibold uppercase tracking-wider",
+                    "flex items-center gap-1.5 px-2 pb-1 text-[11px] font-semibold",
                     TONE_TEXT[hue],
                   )}
                 >
@@ -157,7 +157,7 @@ export function MobileNavDrawer({
                           onClick={onClose}
                           aria-current={active ? "page" : undefined}
                           className={cn(
-                            "mb-0.5 flex items-center gap-2 rounded-md px-2 py-2 text-[13px] transition-colors",
+                            "focus-ringed mb-0.5 flex items-center gap-2 rounded-md px-2 py-2 text-[13px] transition-colors",
                             active
                               ? cn("font-semibold shadow-sm", TONE_SOFT[hue])
                               : "text-muted-foreground hover:bg-secondary hover:text-foreground",

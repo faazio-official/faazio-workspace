@@ -35,7 +35,7 @@ function About() {
           <div className="page-width content-block">
             <h2>Built for the everyday</h2>
             <p>
-              Faazio started with a simple idea: the things you need most — fresh groceries, a meal
+              Faazio started with a simple idea: the things you need most: fresh groceries, a meal
               you’re craving, everyday pharmacy essentials — shouldn’t take a dozen trips and a
               handful of apps. So Faazio brings your neighbourhood together in one app.
             </p>

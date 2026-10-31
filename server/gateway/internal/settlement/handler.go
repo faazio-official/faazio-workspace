@@ -173,7 +173,7 @@ type holdRequest struct {
 	PaymentID    string `json:"paymentId"`
 	GrossAmount  int64  `json:"grossAmount"`  // whole rupees captured from the customer (GST-inclusive)
 	GSTRatePct   int    `json:"gstRatePct"`   // optional; defaults to 5%
-	ReleaseAfter string `json:"releaseAfter"` // optional RFC3339; default now + 14 days
+	ReleaseAfter string `json:"releaseAfter"` // optional RFC3339; default now + 7 days
 }
 
 type holdResponse struct {
@@ -207,7 +207,7 @@ func (h *Handler) createHold(w http.ResponseWriter, r *http.Request) {
 		httpx.Fail(w, http.StatusBadRequest, "bad_request", "sellerId, paymentId and grossAmount are required")
 		return
 	}
-	releaseAfter := time.Now().UTC().Add(14 * 24 * time.Hour)
+	releaseAfter := time.Now().UTC().Add(7 * 24 * time.Hour)
 	if strings.TrimSpace(req.ReleaseAfter) != "" {
 		t, err := time.Parse(time.RFC3339, strings.TrimSpace(req.ReleaseAfter))
 		if err != nil {

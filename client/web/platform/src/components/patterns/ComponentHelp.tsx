@@ -20,7 +20,7 @@ function AppChips({ app }: { app: FaazioApp[] }) {
   if (!app.length) return null;
   return (
     <div className="mt-1.5 flex flex-wrap items-center gap-1">
-      <span className="text-[10px] uppercase tracking-wide text-ink-foreground/55">Reaches</span>
+      <span className="text-[11px] text-ink-foreground/70">Reaches</span>
       {app.map((a) => (
         <span
           key={a}

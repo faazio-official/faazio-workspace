@@ -76,10 +76,10 @@
   --brand-soft: oklch(0.95 0.045 258.9);
   --shadow-card: 0 16px 30px oklch(0.25 0.06 258.9 / 0.1);
   --primary-hover: oklch(0.45 0.175 258.9);
-  --cta: oklch(0.705 0.187 47.6);
-  --cta-hover: oklch(0.646 0.194 41.1);
+  --cta: oklch(0.55 0.19 47.6);
+  --cta-hover: oklch(0.52 0.19 44);
   --cta-foreground: oklch(0.984 0.003 247.858);
-  --donor: oklch(0.577 0.218 25);
+  --donor: oklch(0.54 0.21 25);
   --donor-soft: oklch(0.955 0.035 17.38);
   --coin: oklch(0.883 0.165 92.2);
   --radius: 0.5rem;
@@ -167,11 +167,13 @@
   html {
     scroll-behavior: smooth;
     scroll-padding-top: 95px;
+    overflow-x: clip;
   }
   body {
     font-family: var(--font-sans);
     -webkit-font-smoothing: antialiased;
     letter-spacing: 0;
+    overflow-x: clip;
   }
   button,
   a {
@@ -256,6 +258,7 @@
 }
 .nav-links a {
   transition: color 0.2s;
+  white-space: nowrap;
 }
 .nav-links a:hover {
   color: var(--primary);
@@ -275,7 +278,7 @@
 .hero {
   position: relative;
   min-height: 610px;
-  height: min(640px, 72vh);
+  height: min(640px, 72svh);
   overflow: hidden;
   background: var(--brand-soft);
 }
@@ -836,6 +839,7 @@ h3 {
 .footer-links a {
   display: block;
   font-size: 11px;
+  white-space: nowrap;
   color: var(--muted-foreground);
   margin-top: 11px;
 }
@@ -844,7 +848,7 @@ h3 {
   padding-block: 22px;
   display: flex;
   justify-content: space-between;
-  font-size: 10px;
+  font-size: 11px;
   color: var(--muted-foreground);
 }
 .mobile-menu {

@@ -184,7 +184,7 @@ function DistrictAdminAccounts() {
       }
       if (warnings?.length) {
         setCreatedWarnings(warnings);
-        toast.info("District admin created — shared phone", { description: warnings.join(" · ") });
+        toast.info("District admin created: shared phone", { description: warnings.join(" · ") });
       } else if (credential) {
         toast.success("District admin created with a portal login");
       } else {
@@ -218,7 +218,7 @@ function DistrictAdminAccounts() {
     <div className="space-y-4">
       <PageHeader
         title="District admins"
-        description="This page manages Tiruchirappalli (TTC) admins only — a district may have several admins; each admin is locked to exactly one district."
+        description="This page manages Tiruchirappalli (TTC) admins only, a district may have several admins; each admin is locked to exactly one district."
       />
 
       <p className="text-[12px] text-muted-foreground">
@@ -233,7 +233,7 @@ function DistrictAdminAccounts() {
           </>
         ) : (
           <>
-            without a login — that admin cannot sign in until you{" "}
+            without a login; that admin cannot sign in until you{" "}
             <Link href="/admin/super/credentials" className="font-semibold text-interactive">
               issue a portal login
             </Link>
@@ -253,8 +253,8 @@ function DistrictAdminAccounts() {
         </div>
         <div className="h-1.5 w-full overflow-hidden rounded-full bg-muted">
           <div
-            className="h-full rounded-full bg-primary transition-all"
-            style={{ width: `${coveragePct}%` }}
+            className="h-full w-full origin-left rounded-full bg-primary transition-transform"
+            style={{ transform: `scaleX(${coveragePct / 100})` }}
           />
         </div>
       </div>
@@ -277,7 +277,7 @@ function DistrictAdminAccounts() {
               {d.districtCode}
             </button>
           ))}
-          <span className="text-muted-foreground">— those districts have no one to review KYC or run campaigns.</span>
+          <span className="text-muted-foreground">Those districts have no one to review KYC or run campaigns.</span>
         </div>
       ) : null}
 
@@ -311,7 +311,7 @@ function DistrictAdminAccounts() {
               <p className="text-[11px] text-destructive">Enter a valid email address.</p>
             ) : null}
             {duplicateHint?.field === "email" ? (
-              <p className="text-[11px] text-destructive">Already in use — {duplicateHint.message}</p>
+              <p className="text-[11px] text-destructive">Already in use: {duplicateHint.message}</p>
             ) : null}
           </div>
           <div className="space-y-1.5">
@@ -404,14 +404,14 @@ function DistrictAdminAccounts() {
                 </Button>
               </div>
               <p className="text-[11px] text-muted-foreground">
-                At least {MIN_PASSWORD} characters. Shown once — copy it before creating.
+                At least {MIN_PASSWORD} characters. Shown once; copy it before creating.
               </p>
               <label className="flex items-start gap-2.5 text-[13px]">
                 <Checkbox className="mt-0.5" checked={form.forceChange} disabled />
                 <span>
                   Require a password change on first sign-in
                   <span className="block text-[11px] text-muted-foreground">
-                    Locked ON for district admins — the temporary password is single-use.
+                    Locked ON for district admins; the temporary password is single-use.
                   </span>
                 </span>
               </label>
@@ -430,7 +430,7 @@ function DistrictAdminAccounts() {
               <p className="num text-[13px]">{createdPassword}</p>
             </div>
             <p className="text-[11px] text-muted-foreground">
-              Shown only once. Copy it now — it is not stored by the server.
+              Shown only once. Copy it now; it is not stored by the server.
             </p>
             <Button
               size="sm"
@@ -451,7 +451,7 @@ function DistrictAdminAccounts() {
           <div className="mt-4 flex items-start gap-2 rounded-xl border border-warning/40 bg-warning/10 px-4 py-3">
             <AlertTriangle className="mt-0.5 size-4 shrink-0 text-warning" />
             <div>
-              <p className="text-[12px] font-semibold text-warning">Created — shared phone</p>
+              <p className="text-[12px] font-semibold text-warning">Created: shared phone</p>
               <p className="text-[11px] text-muted-foreground">
                 This phone already belongs to another account. You can still continue; confirm the
                 intended owner if you did not expect this.
@@ -544,7 +544,7 @@ function DistrictAdminAccounts() {
                           </span>
                         </>
                       ) : (
-                        <span className="num">—</span>
+                        <span className="num">Not set</span>
                       )}
                     </TableCell>
                     <TableCell className="text-[13px] font-medium">{admin.name}</TableCell>
@@ -693,7 +693,7 @@ function DistrictAdminAccounts() {
                     .slice(0, 6)
                     .map((log) => (
                       <li key={log.logId} className="num text-[11px] text-muted-foreground">
-                        {formatDateTime(log.createdAt)} — {log.action} on {log.entityId}
+                        {formatDateTime(log.createdAt)}: {log.action} on {log.entityId}
                       </li>
                     ))}
                   {listAuditLogs({ query: editing.adminId }).length === 0 ? (

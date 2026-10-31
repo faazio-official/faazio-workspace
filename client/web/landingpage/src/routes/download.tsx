@@ -51,7 +51,7 @@ function Download() {
             <h2 style={{ marginTop: 20 }}>Your everyday, in the Faazio app</h2>
             <p>
               Faazio’s journey starts in Karaikal. Official App Store and Play Store links will be
-              shared here once they are provided — there is no download link available on this page
+              shared here once they are provided; there is no download link available on this page
               yet.
             </p>
             <p>

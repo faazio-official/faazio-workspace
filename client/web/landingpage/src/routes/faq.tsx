@@ -43,7 +43,7 @@ function Faq() {
             <p className="eyebrow">GOOD QUESTIONS.</p>
             <h1 id="faq-title">A little clarity goes a long way.</h1>
             <p className="page-lead">
-              The everyday things you might want to know about Faazio — before you get started.
+              The everyday things you might want to know about Faazio before you get started.
             </p>
           </div>
         </section>

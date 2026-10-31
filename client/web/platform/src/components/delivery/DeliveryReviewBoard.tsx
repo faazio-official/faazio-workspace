@@ -391,7 +391,7 @@ export function DeliveryReviewBoard({ scope }: { scope: Scope }) {
               <p className="text-[12px] text-muted-foreground">Address: {detail.address || "—"}</p>
 
               <div>
-                <p className="mb-2 text-[12px] font-semibold uppercase tracking-wide text-muted-foreground">
+                <p className="mb-2 text-[12px] font-semibold text-muted-foreground">
                   KYC documents
                 </p>
                 <ul className="space-y-2">
@@ -564,7 +564,7 @@ export function DeliveryReviewBoard({ scope }: { scope: Scope }) {
           <DialogHeader>
             <DialogTitle>{locationRider?.fullName || "Rider location"}</DialogTitle>
             <DialogDescription>
-              One-time Valkey read — no polling or continuous streaming.
+              One-time Valkey read; no polling or continuous streaming.
             </DialogDescription>
           </DialogHeader>
           {location?.source === "none" || !location ? (

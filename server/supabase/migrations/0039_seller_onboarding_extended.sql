@@ -74,7 +74,7 @@ create index if not exists seller_request_history_seller_idx
   on sellers.seller_request_history (seller_id, changed_at desc);
 
 -- ================================================================ settlement hold columns
--- A Route transfer is held (on_hold) for the 14-day buyer-protection window. The payout row is the
+-- A Route transfer is held (on_hold) for the 7-day buyer-protection window. The payout row is the
 -- durable record of that hold; release marks it PAID and stamps released_at.
 alter table payments.payouts
   add column if not exists razorpay_transfer_id text,

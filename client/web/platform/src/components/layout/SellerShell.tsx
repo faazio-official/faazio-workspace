@@ -48,7 +48,7 @@ export function SellerShell({ children }: { children: ReactNode }) {
   return (
     <RoleGate allow={["SELLER"]}>
       <SellerPushBridge />
-      <div className="flex min-h-screen bg-background">
+      <div className="flex min-h-screen bg-background lg:h-screen lg:overflow-hidden">
         {/* The desktop sidebar is hidden below lg, so expose the same navigation in a
             touch-friendly drawer shared with the admin consoles. */}
         <MobileNavDrawer
@@ -60,7 +60,7 @@ export function SellerShell({ children }: { children: ReactNode }) {
         />
         <aside
           className={cn(
-            "sticky top-0 hidden h-screen shrink-0 border-r border-border bg-card lg:flex lg:flex-col",
+            "hidden h-screen shrink-0 border-r border-border bg-card lg:flex lg:flex-col",
             collapsed ? "w-16" : "w-60",
           )}
         >
@@ -86,7 +86,7 @@ export function SellerShell({ children }: { children: ReactNode }) {
                   {!collapsed ? (
                     <p
                       className={cn(
-                        "flex items-center gap-1.5 px-2 pb-1 text-[10px] font-semibold uppercase tracking-wider",
+                        "flex items-center gap-1.5 px-2 pb-1 text-[11px] font-semibold",
                         TONE_TEXT[hue],
                       )}
                     >
@@ -105,7 +105,7 @@ export function SellerShell({ children }: { children: ReactNode }) {
                         key={item.to}
                         href={item.to}
                         className={cn(
-                          "mb-0.5 flex items-center gap-2 rounded-md px-2 py-2 text-[13px] transition-colors",
+                          "focus-ringed mb-0.5 flex items-center gap-2 rounded-md px-2 py-2 text-[13px] transition-colors",
                           active
                             ? cn("font-semibold shadow-sm", TONE_SOFT[hue])
                             : "text-muted-foreground hover:bg-secondary hover:text-foreground",
@@ -137,7 +137,7 @@ export function SellerShell({ children }: { children: ReactNode }) {
         </aside>
 
         <div className="flex min-w-0 flex-1 flex-col">
-          <header className="sticky top-0 z-20 flex h-14 items-center gap-3 border-b border-border bg-card/95 px-4 backdrop-blur">
+          <header className="sticky top-0 z-20 flex h-14 items-center gap-3 border-b border-border bg-card/95 px-4 backdrop-blur lg:static">
             <Button
               variant="ghost"
               size="icon"
@@ -151,7 +151,7 @@ export function SellerShell({ children }: { children: ReactNode }) {
             </Button>
             <div className="relative w-full max-w-sm">
               <Search className="pointer-events-none absolute left-2.5 top-2.5 size-4 text-muted-foreground" />
-              <Input placeholder="Search products, orders" className="h-9 pl-8 text-[13px]" />
+              <Input placeholder="Search products, orders" className="h-[36px] pl-8 text-[13px]" />
               <ComponentHelp
                 helpKey="shell:seller-search"
                 className="absolute right-2 top-2"
@@ -193,7 +193,9 @@ export function SellerShell({ children }: { children: ReactNode }) {
               </DropdownMenu>
             </div>
           </header>
-          <main className="mx-auto w-full max-w-[1440px] flex-1 px-4 py-5 lg:px-6">{children}</main>
+          <main className="mx-auto w-full max-w-[1440px] flex-1 px-4 py-5 lg:min-h-0 lg:overflow-y-auto lg:px-6">
+            {children}
+          </main>
         </div>
       </div>
     </RoleGate>

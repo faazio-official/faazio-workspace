@@ -6,7 +6,13 @@ import dynamic from "next/dynamic";
 // client-side only behind a fixed-height skeleton so pages stay untouched and
 // the layout does not jump. Implementations live in ChartsImpl.tsx.
 function ChartSkeleton({ height }: { height: number }) {
-  return <div aria-hidden className="animate-pulse rounded-lg bg-muted" style={{ height }} />;
+  return (
+    <div
+      aria-hidden
+      className="animate-pulse rounded-lg bg-muted motion-reduce:animate-none"
+      style={{ height }}
+    />
+  );
 }
 
 const loading = (height: number) => () => <ChartSkeleton height={height} />;

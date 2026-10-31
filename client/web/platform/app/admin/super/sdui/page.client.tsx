@@ -121,8 +121,8 @@ function SuperSdui() {
       >
         {layout ? (
           <p className="mb-3 text-sm text-muted-foreground">
-            Locale <span className="num">{layout.locale}</span> · v{layout.version} · updated{" "}
-            {formatDateTime(layout.updatedAt)} · {draft.length} sections. Ids reference catalog
+            Locale <span className="num">{layout.locale}</span>, version {layout.version}, updated{" "}
+            {formatDateTime(layout.updatedAt)}, {draft.length} sections. Ids reference catalog
             products / directory stores (ID-only).
           </p>
         ) : null}

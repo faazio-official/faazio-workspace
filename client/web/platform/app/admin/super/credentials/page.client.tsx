@@ -429,7 +429,7 @@ function CredentialsPage() {
                 </Button>
               </div>
               <p className="text-[11px] text-muted-foreground">
-                At least {MIN_PASSWORD} characters. Copy it now — it is not shown again.
+                At least {MIN_PASSWORD} characters. Copy it now; it is not shown again.
               </p>
             </div>
             <div className="flex items-start gap-2">

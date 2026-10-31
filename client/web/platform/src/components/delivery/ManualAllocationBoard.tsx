@@ -339,14 +339,12 @@ export function ManualAllocationBoard({ scope }: { scope: Scope }) {
 
               <div className="grid gap-3 rounded-lg border border-border p-3 text-[12px] sm:grid-cols-2">
                 <div>
-                  <p className="text-[10px] uppercase tracking-wide text-muted-foreground">
-                    Pickup
-                  </p>
+                  <p className="text-[11px] text-muted-foreground">Pickup</p>
                   <p className="mt-0.5 font-medium">{selected.storeName}</p>
                   <p className="text-muted-foreground">{selected.storeAddress || "—"}</p>
                 </div>
                 <div>
-                  <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Drop</p>
+                  <p className="text-[11px] text-muted-foreground">Drop</p>
                   <p className="mt-0.5 font-medium">{selected.customerName || "Customer"}</p>
                   <p className="text-muted-foreground">{selected.dropAddress || "—"}</p>
                   <p className="num text-muted-foreground">
@@ -354,17 +352,13 @@ export function ManualAllocationBoard({ scope }: { scope: Scope }) {
                   </p>
                 </div>
                 <div>
-                  <p className="text-[10px] uppercase tracking-wide text-muted-foreground">
-                    Estimated distance
-                  </p>
+                  <p className="text-[11px] text-muted-foreground">Estimated distance</p>
                   <p className="num mt-0.5 font-medium">
                     {(selected.distanceMeters / 1000).toFixed(1)} km
                   </p>
                 </div>
                 <div>
-                  <p className="text-[10px] uppercase tracking-wide text-muted-foreground">
-                    Order value
-                  </p>
+                  <p className="text-[11px] text-muted-foreground">Order value</p>
                   <p className="num mt-0.5 font-medium">{formatINR(selected.orderValuePaisa)}</p>
                 </div>
               </div>

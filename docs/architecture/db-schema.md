@@ -1791,7 +1791,7 @@ ALTER TABLE sellers.sellers ADD COLUMN latitude FLOAT8, ADD COLUMN longitude FLO
 - RLS: seller reads their own rows; district admin their district (legacy rows without a district
   and legacy state-scoped admins fall back to the parent state); super admin all. Writes stay
   `service_role` only (the gateway).
-- Route transfers are stored with `on_hold` + `release_after = now() + 14 days`; the settlement
+- Route transfers are stored with `on_hold` + `release_after = now() + 7 days`; the settlement
   worker releases due holds every 15 minutes when `RAZORPAY_ROUTE_*` (or the fallback
   `RAZORPAY_*`) credentials are configured, and marks the payout `PAID`.
 

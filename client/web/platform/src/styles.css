@@ -1,3 +1,6 @@
+/* Hallmark · checked: 2026-10-31 · genre: modern-minimal (inferred)
+ * floor: fixed focus rings, sticky shell, input/chart contrast, 10px tracked labels, 320px overflow
+ * built: the project · redesign: polish · v2.0.0 */
 @import "tailwindcss" source(none);
 @source "../src";
 @source "../app";
@@ -93,14 +96,15 @@
 
   --destructive: oklch(0.58 0.219 27);
   --destructive-foreground: oklch(0.99 0 0);
-  --success: oklch(0.6 0.128 163);
+  --success: oklch(0.5 0.13 163);
   --success-foreground: oklch(0.99 0 0);
-  --warning: oklch(0.66 0.152 62);
+  --warning: oklch(0.6 0.15 62);
   --warning-foreground: oklch(0.99 0 0);
 
   --border: oklch(0.918 0.011 250);
-  --input: oklch(0.918 0.011 250);
+  --input: oklch(0.66 0.02 258);
   --ring: oklch(0.6 0.168 258);
+  --focus-on-ink: oklch(0.9 0.02 250);
 
   --ink: oklch(0.19 0.04 265);
   --ink-foreground: oklch(0.97 0.005 250);
@@ -108,22 +112,22 @@
   --ink-border: oklch(0.28 0.035 263);
 
   --mart: oklch(0.5 0.185 262);
-  --food: oklch(0.6 0.161 148);
-  --pharma: oklch(0.72 0.153 40);
+  --food: oklch(0.5 0.15 148);
+  --pharma: oklch(0.56 0.15 40);
 
   --chart-1: oklch(0.5 0.185 262);
   --chart-2: oklch(0.6 0.161 148);
-  --chart-3: oklch(0.72 0.153 40);
+  --chart-3: oklch(0.58 0.15 40);
   --chart-4: oklch(0.66 0.152 62);
   --chart-5: oklch(0.68 0.022 258);
 
   /* Group hues: each nav group and card family owns one. */
   --tone-indigo: oklch(0.52 0.19 268);
   --tone-grape: oklch(0.53 0.2 305);
-  --tone-teal: oklch(0.58 0.115 187);
-  --tone-amber: oklch(0.7 0.15 68);
-  --tone-rose: oklch(0.59 0.19 12);
-  --tone-cyan: oklch(0.6 0.13 225);
+  --tone-teal: oklch(0.5 0.115 187);
+  --tone-amber: oklch(0.6 0.15 68);
+  --tone-rose: oklch(0.56 0.19 12);
+  --tone-cyan: oklch(0.52 0.13 225);
 
   --gradient-brand: linear-gradient(135deg, var(--primary), var(--interactive) 55%, var(--tone-cyan));
   --gradient-header: linear-gradient(
@@ -138,21 +142,33 @@
     border-color: var(--color-border);
   }
 
+  html,
+  body {
+    overflow-x: clip;
+  }
+
   html {
     font-size: 13px;
+    scrollbar-color: color-mix(in oklab, var(--color-muted-foreground) 45%, transparent) transparent;
   }
 
   body {
     background-color: var(--color-background);
     color: var(--color-foreground);
     font-family: var(--font-sans);
+    caret-color: var(--color-primary);
     -webkit-font-smoothing: antialiased;
+  }
+
+  ::selection {
+    background-color: color-mix(in oklab, var(--color-primary) 22%, transparent);
   }
 
   h1,
   h2,
   h3 {
     letter-spacing: -0.01em;
+    text-wrap: balance;
   }
 
   table {
@@ -221,7 +237,15 @@
 
 @utility focus-ringed {
   &:focus-visible {
-    outline: 2px solid color-mix(in oklab, var(--ring) 70%, transparent);
+    outline: 2px solid var(--ring);
+    outline-offset: 2px;
+  }
+}
+
+/* Keyboard focus on the dark ink surfaces (sidebar, drawer headers). */
+@utility focus-ring-ink {
+  &:focus-visible {
+    outline: 2px solid var(--focus-on-ink);
     outline-offset: 2px;
   }
 }

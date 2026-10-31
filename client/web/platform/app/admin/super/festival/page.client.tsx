@@ -286,7 +286,7 @@ function SuperFestival() {
                     {campaign.stateCode ? ` · ${campaign.stateCode}` : ""}
                   </TableCell>
                   <TableCell className="num text-[12px]">
-                    {formatDate(campaign.startsAt)} – {formatDate(campaign.endsAt)}
+                    {formatDate(campaign.startsAt)} to {formatDate(campaign.endsAt)}
                   </TableCell>
                   <TableCell className="num text-right">
                     {optins.filter((o) => o.campaignId === campaign.campaignId).length}

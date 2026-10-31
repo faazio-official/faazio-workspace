@@ -171,7 +171,8 @@ function SuperDashboard() {
                   className="flex items-center gap-2 rounded-lg border border-warning/40 bg-warning/10 px-3 py-2 text-[13px]"
                 >
                   <AlertTriangle className="size-4 text-warning" />
-                  0 active admins for <span className="num">{info.districtCode}</span> — {districtName(info.districtCode)}
+                  0 active admins for <span className="num">{info.districtCode}</span>{" "}
+                  {districtName(info.districtCode)}
                 </Link>
               </li>
             ))}
@@ -184,7 +185,7 @@ function SuperDashboard() {
                   <span className="num">
                     {uncovered.length - 6} more uncovered district{uncovered.length - 6 === 1 ? "" : "s"}
                   </span>
-                  — review the roster
+                  Review the roster
                 </Link>
               </li>
             ) : null}

@@ -12,7 +12,7 @@ export function SeedModeBanner() {
       role="status"
       className="pointer-events-none fixed bottom-3 left-3 z-50 rounded-full border border-warning/40 bg-warning/15 px-3 py-1 text-[11px] font-semibold text-warning shadow-sm"
     >
-      SEED MODE — not connected to gateway
+      Seed mode: not connected to gateway
     </div>
   );
 }

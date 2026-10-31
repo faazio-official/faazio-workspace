@@ -57,7 +57,7 @@ function Karaikal() {
               <span className="text-primary">Starting right here.</span>
             </h1>
             <p className="page-lead">
-              Faazio’s journey starts in Karaikal, Puducherry — bringing the local stores,
+              Faazio’s journey starts in Karaikal, Puducherry, bringing the local stores,
               restaurants, and medicals you already know into one daily app.
             </p>
           </div>

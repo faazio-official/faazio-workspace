@@ -249,6 +249,27 @@ controls is incremental — add the hint entry and the `ComponentHelp`.
    match or the longest matching nav prefix), shared by the desktop sidebars
    and `MobileNavDrawer`.
 
+## Accessibility / design-system polish (Hallmark sweep)
+
+A Hallmark `polish` pass (2026-10-31, `src/styles.css` check stamp line 1) fixed
+the console's Floor/Reflex tells in place — no component tree, route, prop or
+handler changed:
+
+- **Focus** — sidebar/drawer nav links get a `:focus-visible` ring
+  (`focus-ring-ink` on the ink sidebar, `focus-ringed` on light surfaces; both
+  `outline: 2px`, instant). Previously the sidebar links had no ring ≥ 3:1.
+- **Overflow** — `html, body { overflow-x: clip }`, removing the 320px
+  horizontal scroll on district pages.
+- **Sticky** — the desktop shell is `lg:h-screen lg:overflow-hidden` and the
+  content column (`<main>`) scrolls, so only one `sticky top-0` (the header, and
+  `lg:static`) remains instead of two.
+- **Contrast** — `--input`, `--success`, `--food`, `--pharma` and the `--tone-*`
+  label hues were darkened to clear the 3:1 edge / 4.5:1 text thresholds
+  (`--input` now `oklch(0.66 0.02 258)`, `--success` `oklch(0.5 0.13 163)`).
+- **Size** — the 13px root scaled Tailwind rem sizes (`h-8` → 26px, `text-xs` →
+  9.75px); `Button`/`Input` control heights are now px (`h-[32px]`/`h-[36px]`)
+  and functional labels moved off `text-[10px]` / `uppercase tracking-*`.
+
 ## Data ownership
 
 The portal reads records from `src/data/**` through `src/lib/api/*`

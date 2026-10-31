@@ -550,7 +550,7 @@ export function SellerRegistrationScreen({ navigation }: Props) {
               />
               <AppText style={styles.helperText}>
                 The platform retains this share of each order; the rest is settled to your bank
-                after the 14-day buyer-protection hold.
+                after the 7-day buyer-protection hold.
               </AppText>
             </View>
 

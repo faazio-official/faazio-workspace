@@ -360,8 +360,8 @@ export function DeliveryPayoutBoard({ scope }: { scope: Scope }) {
                     onChange={(e) => setNextMode(e.target.value as DeliveryPayoutMode)}
                     disabled={busy}
                   >
-                    <option value="AUTOMATED">AUTOMATED — rate card</option>
-                    <option value="MANUAL">MANUAL — admin fare</option>
+                    <option value="AUTOMATED">AUTOMATED (rate card)</option>
+                    <option value="MANUAL">MANUAL (admin fare)</option>
                   </select>
                 </div>
 

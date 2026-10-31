@@ -45,7 +45,7 @@ type LinkedAccountInput struct {
 }
 
 // TransferInput creates a split transfer. When OnHoldUntil is non-zero the funds stay in escrow
-// until that time (the 14-day buyer-protection window).
+// until that time (the 7-day buyer-protection window).
 type TransferInput struct {
 	PaymentID   string
 	AccountID   string
