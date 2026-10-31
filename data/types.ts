@@ -301,8 +301,6 @@ export interface AccountNavGroup {
   key: string;
   /** Section label rendered above the group's card (e.g. "Profile settings"). */
   title?: string;
-  /** When true, the group has no real rows yet — render a non-tappable "Coming soon" placeholder. */
-  comingSoon?: boolean;
   rows: AccountNavRow[];
 }
 

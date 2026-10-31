@@ -154,9 +154,7 @@ export function DonorDashboard() {
           <View
             style={styles.bellBtn}
             accessibilityLabel={
-              unreadCount > 0
-                ? `Notifications, ${unreadCount} unread. Inbox opens in a future update.`
-                : 'Notifications. Inbox opens in a future update.'
+              unreadCount > 0 ? `Notifications, ${unreadCount} unread` : 'Notifications'
             }
           >
             <Bell size={ms(20)} color={BLOOD_TEXT} strokeWidth={2.2} />
@@ -262,7 +260,7 @@ export function DonorDashboard() {
         </View>
 
         {filter === 'nearby' ? (
-          <AppText style={styles.nearbyNote}>Matched by city, not GPS — real distance is coming soon.</AppText>
+          <AppText style={styles.nearbyNote}>Matched by your registered city — not GPS distance.</AppText>
         ) : null}
 
         {offlineFeed ? (

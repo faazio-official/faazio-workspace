@@ -70,24 +70,22 @@ type NavRow struct {
 }
 
 // NavGroup is one titled account section served to the app. Rows are per-user (accounts.nav);
-// title/comingSoon are universal chrome held server-side so the projection matches the app's
+// the title is universal chrome held server-side so the projection matches the app's
 // `AccountNavGroup` exactly (the app never reads rows as live user data when a group is empty).
 type NavGroup struct {
-	Key        string   `json:"key"`
-	Title      string   `json:"title,omitempty"`
-	ComingSoon bool     `json:"comingSoon,omitempty"`
-	Rows       []NavRow `json:"rows"`
+	Key   string   `json:"key"`
+	Title string   `json:"title,omitempty"`
+	Rows  []NavRow `json:"rows"`
 }
 
-// accountNavCatalog is the universal group chrome (stable order, titles, coming-soon). Row
-// membership lives in accounts.nav; this catalog guarantees a complete, ordered menu.
+// accountNavCatalog is the universal group chrome (stable order + titles). Row membership lives
+// in accounts.nav; this catalog guarantees a complete, ordered menu. A group with no real row
+// destinations in the app is omitted entirely rather than served as an empty/placeholder section.
 var accountNavCatalog = []NavGroup{
 	{Key: "profile", Title: "Profile settings"},
-	{Key: "payments", Title: "Payments and credits"},
 	{Key: "privacy", Title: "Privacy and security"},
 	{Key: "earn", Title: "Earn with us"},
 	{Key: "legal", Title: "Terms and policies"},
-	{Key: "support", Title: "Help & Support"},
 }
 
 // Register mounts auth-scoped order + account endpoints.

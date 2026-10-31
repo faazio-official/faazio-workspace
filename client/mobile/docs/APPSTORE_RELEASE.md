@@ -29,12 +29,14 @@ iOS metadata lives in the committed Xcode project, not `app.json` (deleted):
 |---|---|
 | Bundle identifier | `ios/Faazio.xcodeproj/project.pbxproj` (`com.faazio.customer`) |
 | Version / build | Xcode target **General** tab (`MARKETING_VERSION` / `CURRENT_PROJECT_VERSION`) |
-| Permission strings | `ios/Faazio/Info.plist` (`NSCameraUsageDescription`, `NSPhotoLibraryUsageDescription`, `NSLocationWhenInUseUsageDescription`) |
+| Permission strings | `ios/Faazio/Info.plist` (`NSCameraUsageDescription`, `NSLocationWhenInUseUsageDescription`, `NSLocationAlwaysAndWhenInUseUsageDescription`) |
 | App display name | `ios/Faazio/Info.plist` (`CFBundleDisplayName` = Faazio) |
 | Native geocoder | local pod `ios/FaazioGeocoder` |
 
 > Apple rejects vague permission strings. Keep each description specific to the feature that
-> triggers it (prescription capture, barcode scan, live address auto-fill).
+> triggers it (prescription capture + seller document capture, live address auto-fill). Do not
+> declare a usage string for an API the app never calls — unused/generic strings (e.g. Face ID,
+> motion, photo library) were removed.
 
 ---
 
@@ -91,6 +93,9 @@ For a quick debug run in the simulator, `npm run ios` builds the debug app and s
 - **In-App Purchases (3.1.1):** physical goods and pharmacy items are exempt from IAP; use your
   normal payment gateway.
 - **Completeness (2.1):** no placeholder screens or dead navigation paths in the submitted build.
+  The Account nav catalog renders only rows with a real destination (the former Payments /
+  Customer Support groups and Recently Viewed row were removed), and no "Coming soon" chrome
+  remains.
 - **Prescription data:** never upload real prescription images or PII in review builds/test data.
 
 ## See also

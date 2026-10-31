@@ -902,11 +902,12 @@ The "You" page (`features/profile/AccountView.tsx`) renders its nav list through
 (`gateway.getAccountNav`, `accounts.nav`) are authoritative; the committed
 `@data/account/accountNav.ts` catalog (`accountNavGroups`) fills any group whose
 server rows are empty or absent (a fresh user has no `accounts.nav` rows yet). The
-server projection returns titled groups (`{key, title, comingSoon, rows}`) — universal
-chrome is held server-side, per-user row membership lives in `accounts.nav`. Six groups
-render in order: `profile` (Profile settings), `payments` (Payments and credits),
-`privacy` (Privacy and security), `earn` (Earn with us), `legal` (Terms and policies),
-and `support` (Help & Support). The `privacy` group is active with `Delete account` →
+server projection returns titled groups (`{key, title, rows}`) — universal
+chrome is held server-side, per-user row membership lives in `accounts.nav`. Four groups
+render in order: `profile` (Profile settings), `privacy` (Privacy and security),
+`earn` (Earn with us), and `legal` (Terms and policies). Every rendered row has a real
+destination in `AccountView.handleRowPress` — there are no placeholder or dead rows.
+The `privacy` group is active with `Delete account` →
 `DeleteAccount` and `Request data deletion` → `RequestDataDeletion`. The `legal` group is
 active with `terms` / `privacy` / `refunds` / `cookies` / `disclaimer` rows that open the
 published landing pages in the system browser through the host-restricted `openTrustedUrl()`
@@ -914,10 +915,10 @@ published landing pages in the system browser through the host-restricted `openT
 `sell-with-us` row ("Sell with us")
 that pushes the `SellWithUs` screen. Orders / Details / Addresses / Favourites /
 Sell-with-us navigate today; Favourites opens the search-results-style `Favourites`
-root route (see below). The `payments` group now holds only the `payments` row
-("Payments") — the old `coupons` "Coupons & Offers" stub row was removed. The
-remaining rows (Recently Viewed, Customer Support, Payments) are placeholders
-(TODO stub in `AccountView.handleRowPress`).
+root route (see below). The former `payments` (Payments) and `support` (Customer Support)
+groups and the `recently-viewed` row were removed — each was an unwired placeholder that
+violated App Store completeness (Guideline 2.1); re-add them only alongside a real
+destination screen.
 A FaazioCoins streak card (title + balance + a row of 7 flame icons, filled per
 `streakCount`) sits above the nav groups and pushes the `FaazioRewards` screen.
 

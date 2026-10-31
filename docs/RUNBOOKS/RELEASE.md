@@ -328,7 +328,8 @@ npm run ios                                    # debug build + Metro in simulato
 
 - Bundle id `com.faazio.customer` (from the Xcode project / `project.pbxproj`).
 - Upload via Xcode Organizer / Transporter; then fill App Store Connect metadata.
-- `ios/Faazio/Info.plist` declares camera, photo-library, and location usage strings.
+- `ios/Faazio/Info.plist` declares only the usage strings the app actually triggers (camera and
+  location); no unused/generic permission strings.
 
 ## 🌍 Web (Partner Portal) — Vercel
 

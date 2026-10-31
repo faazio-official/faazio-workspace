@@ -13,10 +13,7 @@ import {
   LogOut,
   IdCard,
   MapPin,
-  CreditCard,
-  Headphones,
   Heart,
-  Clock,
   Coins,
   Cookie,
   FileText,
@@ -43,10 +40,7 @@ import { COOKIES_URL, DISCLAIMER_URL, PRIVACY_URL, REFUNDS_URL, TERMS_URL } from
 const NAV_ICONS: Record<string, React.ComponentType<any>> = {
   idcard: IdCard,
   'map-pin': MapPin,
-  'credit-card': CreditCard,
-  headphones: Headphones,
   heart: Heart,
-  clock: Clock,
   package: Package,
   store: Store,
   trash: Trash2,
@@ -147,9 +141,7 @@ export function AccountView({
       const legalUrl = LEGAL_LINKS[row.key];
       if (legalUrl) {
         void openTrustedUrl(legalUrl);
-        return;
       }
-      // TODO: Destination screens per row — stubs for now.
     },
     [
       onOpenOrders,
@@ -236,39 +228,27 @@ export function AccountView({
               <AppText style={styles.navGroupTitle}>{group.title}</AppText>
             ) : null}
             <View style={styles.navCard}>
-              {group.comingSoon ? (
-                <View style={[styles.navRow, styles.navRowLast, styles.navComingSoon]}>
-                  <View style={styles.navComingSoonBox}>
-                    <AppText style={styles.navComingSoonDot}>•</AppText>
-                  </View>
-                  <View style={styles.navText}>
-                    <AppText style={styles.navComingSoonTitle}>Coming soon</AppText>
-                    <AppText style={styles.navSubtitle}>This section isn't available yet</AppText>
-                  </View>
-                </View>
-              ) : (
-                group.rows.map((row, i) => {
-                  const Icon = NAV_ICONS[row.icon] ?? IdCard;
-                  const isLast = i === group.rows.length - 1;
-                  return (
-                    <TouchableOpacity
-                      key={row.key}
-                      style={[styles.navRow, isLast && styles.navRowLast]}
-                      activeOpacity={0.7}
-                      onPress={() => handleRowPress(row)}
-                    >
-                      <View style={styles.navIconBox}>
-                        <Icon size={ms(18)} color={BRAND_BLUE} strokeWidth={2.2} />
-                      </View>
-                      <View style={styles.navText}>
-                        <AppText style={styles.navTitle}>{row.title}</AppText>
-                        <AppText style={styles.navSubtitle}>{row.subtitle}</AppText>
-                      </View>
-                      <ChevronRight size={ms(18)} color={BRAND_BLUE} strokeWidth={2.2} />
-                    </TouchableOpacity>
-                  );
-                })
-              )}
+              {group.rows.map((row, i) => {
+                const Icon = NAV_ICONS[row.icon] ?? IdCard;
+                const isLast = i === group.rows.length - 1;
+                return (
+                  <TouchableOpacity
+                    key={row.key}
+                    style={[styles.navRow, isLast && styles.navRowLast]}
+                    activeOpacity={0.7}
+                    onPress={() => handleRowPress(row)}
+                  >
+                    <View style={styles.navIconBox}>
+                      <Icon size={ms(18)} color={BRAND_BLUE} strokeWidth={2.2} />
+                    </View>
+                    <View style={styles.navText}>
+                      <AppText style={styles.navTitle}>{row.title}</AppText>
+                      <AppText style={styles.navSubtitle}>{row.subtitle}</AppText>
+                    </View>
+                    <ChevronRight size={ms(18)} color={BRAND_BLUE} strokeWidth={2.2} />
+                  </TouchableOpacity>
+                );
+              })}
             </View>
           </View>
         ))}
@@ -464,27 +444,6 @@ const styles = StyleSheet.create({
     letterSpacing: 0.6,
     marginLeft: hs(4),
     marginBottom: SPACE.BLOCK,
-  },
-  navComingSoon: {
-    opacity: 0.75,
-  },
-  navComingSoonBox: {
-    width: ms(40),
-    height: ms(40),
-    borderRadius: ms(12),
-    backgroundColor: '#F1F5F9',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  navComingSoonDot: {
-    fontSize: ms(22),
-    fontWeight: '800',
-    color: '#94a3b8',
-  },
-  navComingSoonTitle: {
-    fontSize: ms(14),
-    fontWeight: '700',
-    color: '#64748b',
   },
   navRow: {
     flexDirection: 'row',

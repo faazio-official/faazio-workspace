@@ -55,8 +55,9 @@ caller) and are event-purged on store live toggle and product edit/status change
   `DELETE /users/me` (account deletion: anonymises the user row, erases PII tables — incl. the
   author's `blood.requests` via `created_by` and a `delivery_orders.route_sequence` reset, 0061 —
   keeps financial records; idempotent), `POST /users/me/data-deletion` (partial erasure of addresses/favourites/
-  prescriptions), `/membership`, `/order-status`, `/account-nav` (titled groups: universal chrome
-  server-side, per-user rows from `accounts.nav`), `/seller/orders`, `/seller/orders/:id`,
+  prescriptions), `/membership`, `/order-status`, `/account-nav` (`{key, title, rows}` groups:
+  universal titles server-side, per-user rows from `accounts.nav`; only groups with real
+  destinations are served — no empty/placeholder sections), `/seller/orders`, `/seller/orders/:id`,
   `/coupons?app=` (anon), `/promo/active-discounts?ids=` (anon), `/ads/live?slot=` (anon),
   `/admin/user-trail?userId=` (admin, ID-only), `/admin/sdui/home` (super-admin, raw ID-only layout);
   writes `POST/PUT/DELETE /cart…`, `POST /orders` (festival-discount + coupon settlement + ad

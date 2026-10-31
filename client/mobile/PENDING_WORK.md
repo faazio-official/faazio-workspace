@@ -2785,8 +2785,8 @@ This item routes each module through it, one at a time, keeping the built-in fix
 - [x] **profile reads** — `gateway.getDetails()` (L1234) calls `GET /profile/details` and flattens the
       nested `{userId, accountId, data}` blob onto the app's flat `DetailsTable`; `UserDetailsScreen`
       hydrates header + details from the gateway with an honest "couldn't load" shell (no `@data`
-      fixture fallback). `/account-nav` now returns titled `{key, title, comingSoon, rows}` groups
-      (universal chrome server-side, rows from `accounts.nav`); `useAccountNav()` feeds `AccountView`
+      fixture fallback). `/account-nav` now returns titled `{key, title, rows}` groups
+      (group titles server-side, rows from `accounts.nav`); `useAccountNav()` feeds `AccountView`
       with a per-group catalog fill for unprovisioned users.
 - [x] **rewards, blood** — stores call `GatewayClient`; verified on-device. (Bookings were removed.)
 
@@ -3219,24 +3219,31 @@ the old `/veg/i` cuisine heuristic). Unclassifiable dishes hide while a filter i
 
 ---
 
-## Account — nav rows & Coming-soon groups
+## Account — nav rows (no placeholder groups)
 
-**Status:** 🟢 Privacy is active (Delete account + Request data deletion); Legal is active with published-policy links.
+**Status:** 🟢 Complete — every rendered nav row has a real destination; no placeholder/coming-soon groups.
 
 **Feature:** The "You" page nav list (`features/profile/AccountView.tsx`, driven by
 `@data/account/accountNav.ts` `accountNavGroups`) is grouped and titled: `profile`
-(Profile settings), `payments` (Payments and credits), `privacy` (Privacy and security),
-`earn` (Earn with us — now active with a `sell-with-us` row → `SellWithUs`), `legal` (Terms
-and policies), `support` (Help & Support). `privacy` is now active with `Delete account`
-→ `DeleteAccount` and `Request data deletion` → `RequestDataDeletion` (both root-stack
-routes). `legal` is now active with `terms` / `privacy` / `refunds` / `cookies` / `disclaimer`
-rows that open the published landing pages in the system browser.
+(Profile settings), `privacy` (Privacy and security), `earn` (Earn with us — active with a
+`sell-with-us` row → `SellWithUs`), `legal` (Terms and policies). `privacy` is active with
+`Delete account` → `DeleteAccount` and `Request data deletion` → `RequestDataDeletion`
+(both root-stack routes). `legal` is active with `terms` / `privacy` / `refunds` / `cookies` /
+`disclaimer` rows that open the published landing pages in the system browser.
+
+**✅ Resolved (2026-10-31) — App Store completeness (Guideline 2.1):** removed the
+`payments` (Payments) and `support` (Customer Support) groups, the `recently-viewed` row, the
+`comingSoon` group flag (client `AccountNavGroup` + server `NavGroup`), the AccountView
+"Coming soon" render branch/styles, and the `handleRowPress` TODO stub. None had a destination
+screen, so they were unwired placeholders that fail App Review completeness; re-add only
+alongside a real destination screen. Server catalog (`accountNavCatalog`) and the seed
+(`accounts.nav`) were trimmed to match; production users with no `accounts.nav` rows render the
+client catalog directly.
 
 **Future / honest gaps:**
-- **Destination screens not built** for Payments, Recently Viewed, and Customer Support —
-  these rows keep the TODO stub in `AccountView.handleRowPress` and don't navigate yet.
-  Favourites now opens the search-results-style `Favourites` root route, and the
-  "Coupons & Offers" stub row was removed from the `payments` group.
+- **Destination screens not built** for Payments, Recently Viewed, and Customer Support — the
+  rows/groups were removed from the catalog rather than left as dead-end placeholders.
+  Favourites opens the search-results-style `Favourites` root route.
 - **Legal is active** — the account-nav `legal` group now has `terms` / `privacy` / `refunds` /
   `cookies` / `disclaimer` rows (see `@data/account/accountNav.ts`) that open the published
   landing pages in the system browser via `openTrustedUrl()` (`src/lib/externalLinks.ts`,
@@ -3266,9 +3273,9 @@ rows that open the published landing pages in the system browser.
   `TestDeleteAccountErasesPostedBloodRequestsAndRouteSequence` (Postgres integration harness); run
   with `TEST_DATABASE_URL`.
 
-**Interim contract:** Keep the `AccountNavGroup` shape (`title` + optional `comingSoon` +
-`rows`) stable so server wiring via `GatewayClient.getAccountNav` (`navTable`) is a
-data-layer change only.
+**Interim contract:** The `AccountNavGroup` shape is `title` + `rows` (the optional
+`comingSoon` flag was removed 2026-10-31) so server wiring via `GatewayClient.getAccountNav`
+(`navTable`) stays a data-layer change.
 
 **Date:** 2026-09-10
 

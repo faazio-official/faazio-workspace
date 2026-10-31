@@ -101,7 +101,7 @@ export function DonorDetailsScreen({ navigation, route }: Props) {
 
         <View style={styles.privacyCard}>
           <ShieldCheck size={ms(18)} color="#059669" strokeWidth={2.2} />
-          <AppText style={styles.privacyText}>Your request is sent only to this donor. Contact details stay private — sharing after an accepted response is coming soon.</AppText>
+          <AppText style={styles.privacyText}>Your request is sent only to this donor. Contact details stay private and are never shared in the app.</AppText>
         </View>
       </ScrollView>
 

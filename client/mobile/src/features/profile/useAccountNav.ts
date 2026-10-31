@@ -6,8 +6,9 @@ import { gateway } from '@/services/api/GatewayClient';
 /**
  * Nav source for the "You" page. Row data is server-authoritative (`GET /account-nav`); the
  * committed universal group catalog fills in any group whose server rows are empty or absent (a
- * fresh user has no `accounts.nav` rows yet, and the group chrome — titles/coming-soon — is
- * universal UI, not user data). Fixture rows are never rendered as live user data.
+ * fresh user has no `accounts.nav` rows yet, and the group titles are universal UI, not user data).
+ * Fixture rows are never rendered as live user data, and every rendered row has a real
+ * destination in `AccountView.handleRowPress`.
  */
 export function useAccountNav(): AccountNavGroup[] {
   const [serverGroups, setServerGroups] = useState<AccountNavGroup[] | null>(null);
@@ -36,7 +37,6 @@ export function useAccountNav(): AccountNavGroup[] {
       return {
         ...server,
         title: server.title || group.title,
-        comingSoon: server.comingSoon ?? group.comingSoon,
       };
     });
   }, [serverGroups]);

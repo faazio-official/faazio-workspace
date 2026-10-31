@@ -13,14 +13,6 @@ export const accountNavGroups: AccountNavGroup[] = [
       { key: 'details', icon: 'idcard', title: 'My Profile', subtitle: 'Manage your personal information' },
       { key: 'addresses', icon: 'map-pin', title: 'Addresses', subtitle: 'Manage saved addresses' },
       { key: 'favourites', icon: 'heart', title: 'Favourites', subtitle: 'Your favourite items across all apps' },
-      { key: 'recently-viewed', icon: 'clock', title: 'Recently Viewed', subtitle: 'Items you recently viewed' },
-    ],
-  },
-  {
-    key: 'payments',
-    title: 'Payments and credits',
-    rows: [
-      { key: 'payments', icon: 'credit-card', title: 'Payments', subtitle: 'UPI, Cards, Wallets, Gift Cards' },
     ],
   },
   {
@@ -82,13 +74,6 @@ export const accountNavGroups: AccountNavGroup[] = [
         title: 'Disclaimer',
         subtitle: 'Health, pricing, and third-party notices',
       },
-    ],
-  },
-  {
-    key: 'support',
-    title: 'Help & Support',
-    rows: [
-      { key: 'support', icon: 'headphones', title: 'Customer Support', subtitle: 'Help center, Chat with us' },
     ],
   },
 ];
