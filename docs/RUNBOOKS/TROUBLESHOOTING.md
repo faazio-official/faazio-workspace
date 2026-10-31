@@ -615,6 +615,30 @@ runtime, not build time.
   to force v1 — both AGP and `apksigner` intentionally omit it when minSdk ≥ 24, and v2-only APKs
   install fine on Android 7.0+.
 
+## 🔧 iOS CI (signing / archive / TestFlight)
+
+`ios-release.yml` builds on a GitHub-hosted `macos-15` runner (Xcode 16.4). There is no local iOS
+build on the Linux host.
+
+- **`restore-ios-signing.sh` fails** → `APPSTORE_CERTIFICATE_BASE64` / `APPSTORE_CERTIFICATE_PASSWORD`
+  / `APPSTORE_TEAM_ID` / `APPSTORE_PROVISIONING_PROFILE_<APP>` are missing or wrong
+  (`gh secret list`, `gh variable list`). The `.p12` password must match; the profile must be an
+  **App Store** profile for that product's bundle id.
+- **`xcodebuild` "No signing certificate" / "provisioning profile doesn't match"** → the profile's
+  bundle id must equal the built configuration's (`com.faazio.customer` / `com.faazio.deliverypartner`
+  / `com.faazio.sellerpartner`), and the certificate, profile and `APPSTORE_TEAM_ID` must belong to
+  the same team. The workflow uses `CODE_SIGN_STYLE=Manual`.
+- **Xcode 16 can't find the profile** → profiles must be installed under
+  `~/Library/Developer/Xcode/UserData/Provisioning Profiles` (Xcode 16) as well as the legacy
+  `~/Library/MobileDevice/Provisioning Profiles`. The script writes both, named by the profile UUID.
+- **TestFlight upload rejects the build** → bump the semver: the build number is derived from it
+  (`1.0.6` → `10006`), and App Store Connect rejects a duplicate build number for the same
+  marketing version. Also check `APPSTORE_ISSUER_ID` / `APPSTORE_API_KEY_ID` /
+  `APPSTORE_API_PRIVATE_KEY` and that the API key has the App Manager role.
+- **Partner build fails with "requires GoogleService-Info-Delivery.plist"** → the
+  `GOOGLE_SERVICE_INFO_DELIVERY_PLIST` (or `_SELLER_`) secret is not set; the build phase copies it
+  over the bundled customer plist.
+
 ## Seller onboarding / Razorpay Route
 
 - **`POST /sellers` returns `otp_required`** — the client did not complete the OTP digital signature.

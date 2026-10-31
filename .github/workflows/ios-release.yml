@@ -1,0 +1,291 @@
+name: Release iOS
+
+# Builds a release-signed iOS .ipa on a GitHub-hosted macOS runner, uploads it to
+# TestFlight (App Store Connect API), and optionally attaches it to a GitHub Release
+# (replacing any existing .ipa on that tag via --clobber). Triggered manually so you
+# control when a build runs:
+#   gh workflow run ios-release.yml -f app=customer
+#   gh run watch
+#
+# The committed ios/ Xcode project is the source of truth — no prebuild step.
+# Signing uses ONE shared Apple Distribution certificate + one App Store provisioning
+# profile per product (no fastlane). Uses Apple's own tooling only.
+#
+# Required repository secrets (set once via `gh secret set`):
+#   APPSTORE_CERTIFICATE_BASE64          base64 of the shared distribution .p12
+#   APPSTORE_CERTIFICATE_PASSWORD        .p12 password
+#   APPSTORE_PROVISIONING_PROFILE_CUSTOMER  base64 App Store .mobileprovision (com.faazio.customer)
+#   APPSTORE_PROVISIONING_PROFILE_DELIVERY  base64 App Store .mobileprovision (com.faazio.deliverypartner)
+#   APPSTORE_PROVISIONING_PROFILE_SELLER    base64 App Store .mobileprovision (com.faazio.sellerpartner)
+#   APPSTORE_API_PRIVATE_KEY             contents of the App Store Connect AuthKey_*.p8
+#   CERT_PINS                           comma-separated base64 SHA-256 SPKI pins (required for release)
+#   GOOGLE_MAPS_API_KEY_IOS             restricted iOS Maps key (optional)
+#   GOOGLE_SERVICE_INFO_DELIVERY_PLIST  base64 Firebase iOS plist for delivery (delivery builds)
+#   GOOGLE_SERVICE_INFO_SELLER_PLIST    base64 Firebase iOS plist for seller (seller builds)
+# Required repository variables (or secrets):
+#   APPSTORE_TEAM_ID                    Apple Developer Team ID
+#   APPSTORE_ISSUER_ID                  App Store Connect API issuer ID
+#   APPSTORE_API_KEY_ID                 App Store Connect API key ID
+# Optional (prod defaults shown):
+#   GATEWAY_URL, WEB_PORTAL_URL, USE_GATEWAY
+on:
+  workflow_dispatch:
+    inputs:
+      app:
+        description: "Product to build"
+        required: true
+        type: choice
+        options:
+          - customer
+          - delivery
+          - seller
+        default: customer
+      version:
+        description: "Release version (e.g. 1.0.6) — overrides package.json"
+        required: false
+        type: string
+      tag:
+        description: "Git tag for the release (e.g. v1.0.6); blank uses the app convention"
+        required: false
+        type: string
+      prerelease:
+        description: "Mark the GitHub Release as prerelease"
+        required: false
+        type: boolean
+        default: false
+      upload:
+        description: "Upload the build to TestFlight"
+        required: false
+        type: boolean
+        default: true
+
+permissions:
+  contents: write
+
+env:
+  NODE_VERSION: "24"
+  # Pin the Xcode version explicitly; the runner has several installed side by side.
+  XCODE_VERSION: "16.4"
+
+# Never run two release builds at once — they share tag/artifact names.
+concurrency:
+  group: release-ios
+  cancel-in-progress: false
+
+jobs:
+  build-release-ipa:
+    runs-on: macos-15
+    defaults:
+      run:
+        working-directory: client/mobile
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: client/mobile/package-lock.json
+
+      - name: Select Xcode
+        run: |
+          sudo xcode-select -s "/Applications/Xcode_${XCODE_VERSION}.app"
+          xcodebuild -version
+          pod --version
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Set version (package.json + Xcode MARKETING_VERSION/CURRENT_PROJECT_VERSION)
+        # Aligns the iOS marketing version + build number with the resolved version.
+        # Info.plist reads $(MARKETING_VERSION)/$(CURRENT_PROJECT_VERSION), so this is
+        # the single source of truth for the submitted build. With -f version it also
+        # rewrites package.json.
+        run: |
+          VERSION="${{ github.event.inputs.version }}" node -e "
+            const fs = require('fs');
+            const p = require('./package.json');
+            const version = process.env.VERSION || p.version;
+            if (process.env.VERSION) {
+              p.version = process.env.VERSION;
+              fs.writeFileSync('./package.json', JSON.stringify(p, null, 2) + '\n');
+            }
+            // Derive the build number deterministically from the semver (e.g. 1.0.6 ->
+            // 10006). Must strictly increase per upload of the same marketing version.
+            const parts = String(version).split('.').map(Number);
+            let vc = null;
+            if (parts.length >= 3 && parts.every((n) => Number.isInteger(n) && n >= 0)) {
+              vc = parts[0] * 10000 + parts[1] * 100 + parts[2];
+            }
+            const f = 'ios/Faazio.xcodeproj/project.pbxproj';
+            let s = fs.readFileSync(f, 'utf8');
+            s = s.replace(/MARKETING_VERSION = [^;]+;/g, 'MARKETING_VERSION = ' + version + ';');
+            if (vc != null) {
+              s = s.replace(/CURRENT_PROJECT_VERSION = \d+;/g, 'CURRENT_PROJECT_VERSION = ' + vc + ';');
+            }
+            fs.writeFileSync(f, s);
+          "
+
+      - name: Delivery Firebase config
+        if: ${{ github.event.inputs.app == 'delivery' }}
+        env:
+          GOOGLE_SERVICE_INFO_DELIVERY_PLIST: ${{ secrets.GOOGLE_SERVICE_INFO_DELIVERY_PLIST }}
+        run: |
+          if [ -z "$GOOGLE_SERVICE_INFO_DELIVERY_PLIST" ]; then
+            echo "::error::GOOGLE_SERVICE_INFO_DELIVERY_PLIST is not set. Register com.faazio.deliverypartner in Firebase and store its GoogleService-Info plist as base64."
+            exit 1
+          fi
+          printf '%s' "$GOOGLE_SERVICE_INFO_DELIVERY_PLIST" | base64 --decode > ios/Faazio/GoogleService-Info-Delivery.plist
+
+      - name: Seller Firebase config
+        if: ${{ github.event.inputs.app == 'seller' }}
+        env:
+          GOOGLE_SERVICE_INFO_SELLER_PLIST: ${{ secrets.GOOGLE_SERVICE_INFO_SELLER_PLIST }}
+        run: |
+          if [ -z "$GOOGLE_SERVICE_INFO_SELLER_PLIST" ]; then
+            echo "::error::GOOGLE_SERVICE_INFO_SELLER_PLIST is not set. Register com.faazio.sellerpartner in Firebase and store its GoogleService-Info plist as base64."
+            exit 1
+          fi
+          printf '%s' "$GOOGLE_SERVICE_INFO_SELLER_PLIST" | base64 --decode > ios/Faazio/GoogleService-Info-Seller.plist
+
+      - name: Typecheck + module boundaries
+        run: |
+          npm run ts:check
+          npm run check:boundaries
+        env:
+          # ts:check re-runs configure.js; keep the selected product variant from being reset.
+          APP_VARIANT: ${{ github.event.inputs.app }}
+          GATEWAY_URL: ${{ secrets.GATEWAY_URL || 'https://api.faazio.com' }}
+          WEB_PORTAL_URL: ${{ vars.WEB_PORTAL_URL || secrets.WEB_PORTAL_URL || 'https://app.faazio.com' }}
+
+      - name: Generate JS/native config (release)
+        run: npm run configure
+        env:
+          CONFIGURE_RELEASE: "1"
+          REQUIRE_CERT_PINS: "1"
+          GATEWAY_URL: ${{ secrets.GATEWAY_URL || 'https://api.faazio.com' }}
+          WEB_PORTAL_URL: ${{ vars.WEB_PORTAL_URL || secrets.WEB_PORTAL_URL || 'https://app.faazio.com' }}
+          USE_GATEWAY: ${{ secrets.USE_GATEWAY || 'true' }}
+          STRICT: "true"
+          USE_FIREBASE_AUTH: "true"
+          CERT_PINS: ${{ secrets.CERT_PINS }}
+          APP_VARIANT: ${{ github.event.inputs.app }}
+          GOOGLE_MAPS_API_KEY_IOS: ${{ secrets.GOOGLE_MAPS_API_KEY_IOS }}
+
+      - name: Restore Apple signing certificate + provisioning profile
+        id: signing
+        run: bash scripts/restore-ios-signing.sh "${{ github.event.inputs.app }}"
+        env:
+          APPSTORE_CERTIFICATE_BASE64: ${{ secrets.APPSTORE_CERTIFICATE_BASE64 }}
+          APPSTORE_CERTIFICATE_PASSWORD: ${{ secrets.APPSTORE_CERTIFICATE_PASSWORD }}
+          APPSTORE_TEAM_ID: ${{ vars.APPSTORE_TEAM_ID || secrets.APPSTORE_TEAM_ID }}
+          APPSTORE_PROVISIONING_PROFILE_CUSTOMER: ${{ secrets.APPSTORE_PROVISIONING_PROFILE_CUSTOMER }}
+          APPSTORE_PROVISIONING_PROFILE_DELIVERY: ${{ secrets.APPSTORE_PROVISIONING_PROFILE_DELIVERY }}
+          APPSTORE_PROVISIONING_PROFILE_SELLER: ${{ secrets.APPSTORE_PROVISIONING_PROFILE_SELLER }}
+
+      - name: Install CocoaPods
+        run: cd ios && pod install
+
+      - name: Archive
+        env:
+          APPSTORE_TEAM_ID: ${{ vars.APPSTORE_TEAM_ID || secrets.APPSTORE_TEAM_ID }}
+        run: |
+          xcodebuild \
+            -workspace ios/Faazio.xcworkspace \
+            -scheme Faazio \
+            -configuration "${{ steps.signing.outputs.configuration }}" \
+            -sdk iphoneos \
+            -destination 'generic/platform=iOS' \
+            -archivePath "$RUNNER_TEMP/Faazio.xcarchive" \
+            CODE_SIGN_STYLE=Manual \
+            DEVELOPMENT_TEAM="$APPSTORE_TEAM_ID" \
+            CODE_SIGN_IDENTITY="Apple Distribution" \
+            PROVISIONING_PROFILE_SPECIFIER="${{ steps.signing.outputs.profile_name }}" \
+            archive
+
+      - name: Export signed .ipa
+        id: export
+        run: |
+          xcodebuild \
+            -exportArchive \
+            -archivePath "$RUNNER_TEMP/Faazio.xcarchive" \
+            -exportPath "$RUNNER_TEMP/export" \
+            -exportOptionsPlist ios/ExportOptions.plist
+          IPA="$(ls "$RUNNER_TEMP"/export/*.ipa | head -1)"
+          echo "ipa_path=$IPA" >> "$GITHUB_OUTPUT"
+
+      # Guard against a silently mis-signed build: the .app must verify AND carry an
+      # Apple Distribution authority.
+      - name: Verify the .ipa is signed for distribution
+        run: |
+          set -euo pipefail
+          IPA="${{ steps.export.outputs.ipa_path }}"
+          rm -rf "$RUNNER_TEMP/ipa-check"
+          unzip -q "$IPA" -d "$RUNNER_TEMP/ipa-check"
+          APP="$(ls -d "$RUNNER_TEMP"/ipa-check/Payload/*.app | head -1)"
+          echo "ipa: $IPA"; echo "app: $APP"
+          codesign --verify --deep --strict --verbose=2 "$APP"
+          codesign -dv --verbose=4 "$APP" 2>&1 | tee /tmp/codesign.txt
+          if ! grep -q "Apple Distribution" /tmp/codesign.txt; then
+            echo "::error::the exported .app is not signed with an Apple Distribution certificate"
+            exit 1
+          fi
+
+      - name: Upload IPA artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: faazio-${{ github.event.inputs.app }}-${{ github.event.inputs.version || 'release' }}-ipa
+          path: ${{ runner.temp }}/export/*.ipa
+          if-no-files-found: error
+
+      - name: Upload to TestFlight
+        if: ${{ github.event.inputs.upload != 'false' }}
+        uses: apple-actions/upload-testflight-build@v5
+        with:
+          app-path: ${{ steps.export.outputs.ipa_path }}
+          issuer-id: ${{ vars.APPSTORE_ISSUER_ID || secrets.APPSTORE_ISSUER_ID }}
+          api-key-id: ${{ vars.APPSTORE_API_KEY_ID || secrets.APPSTORE_API_KEY_ID }}
+          api-private-key: ${{ secrets.APPSTORE_API_PRIVATE_KEY }}
+
+      - name: Publish GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          APP="${{ github.event.inputs.app }}"
+          VERSION="$(node -p "require('./package.json').version")"
+          if [[ "$APP" == "delivery" ]]; then
+            APP_NAME="Faazio Delivery Partner"
+            TAG="v${VERSION}-delivery"
+          elif [[ "$APP" == "seller" ]]; then
+            APP_NAME="Faazio Seller Partner"
+            TAG="v${VERSION}-seller"
+          else
+            APP_NAME="Faazio"
+            TAG="v${VERSION}"
+          fi
+          if [[ -n "${{ github.event.inputs.tag }}" ]]; then
+            TAG="${{ github.event.inputs.tag }}"
+          fi
+          NOTES="Automated ${APP_NAME} iOS build via GitHub Actions.\n\nVersion: ${VERSION}\n"
+          PRERELEASE=""
+          if [[ "${{ github.event.inputs.prerelease }}" == "true" ]]; then
+            PRERELEASE="--prerelease"
+          fi
+
+          gh release create "$TAG" \
+            --title "${APP_NAME} ${VERSION}" \
+            --notes "$(printf "$NOTES")" \
+            $PRERELEASE \
+            || true
+
+          gh release upload "$TAG" "${{ steps.export.outputs.ipa_path }}" --clobber
+
+          echo "::notice::Published ${APP_NAME} ${VERSION} iOS build to release ${TAG}"
+
+      - name: Clean up signing keychain
+        if: ${{ always() }}
+        run: |
+          security default-keychain -s login.keychain-db || true
+          security delete-keychain "$RUNNER_TEMP/ios-signing.keychain-db" || true

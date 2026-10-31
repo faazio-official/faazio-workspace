@@ -13,12 +13,15 @@ it wastes the user's RAM. Local `npm run start` (Metro) is fine — it is the JS
 
 ## 📐 Pipeline overview
 
-Three workflows:
+Four workflows:
 
 - [`.github/workflows/release-apk.yml`](../../.github/workflows/release-apk.yml) — signed release
   APK → GitHub Release. `app: customer|delivery|seller` picks the product; delivery/seller releases
   land on a `-delivery` / `-seller` tag and need `GOOGLE_SERVICES_DELIVERY_JSON` /
   `GOOGLE_SERVICES_SELLER_JSON`.
+- [`.github/workflows/ios-release.yml`](../../.github/workflows/ios-release.yml) — signed release
+  `.ipa` on `macos-15` → TestFlight (App Store Connect API) + GitHub Release. Also takes
+  `app: customer|delivery|seller`; see "🍎 iOS release" below.
 - [`.github/workflows/android-debug.yml`](../../.github/workflows/android-debug.yml) — debug APK →
   downloadable Actions artifact (for device testing with a local Metro). Also takes
   `app: customer|delivery|seller`.
@@ -88,6 +91,32 @@ Set on the repo with `gh secret set`:
 `<APP>` = `CUSTOMER` / `DELIVERY` / `SELLER` (set all three; each release reads only its own).
 `STORE_FILE_<APP>` is optional (defaults per app).
 
+### iOS / App Store (set once, never committed)
+
+One **shared** Apple Distribution certificate signs all three products; each product has its own
+App Store provisioning profile. Values are the GitHub secrets/variables listed in
+`client/mobile/.env` (iOS section) and used by `ios-release.yml`.
+
+| Secret / variable | Kind | Value |
+|---|---|---|
+| `APPSTORE_CERTIFICATE_BASE64` | secret | `base64 -i distribution.p12` (single line) |
+| `APPSTORE_CERTIFICATE_PASSWORD` | secret | that `.p12` password |
+| `APPSTORE_TEAM_ID` | variable (or secret) | 10-char Apple Developer Team ID |
+| `APPSTORE_PROVISIONING_PROFILE_CUSTOMER` | secret | `base64 -i customer.mobileprovision` (App Store) |
+| `APPSTORE_PROVISIONING_PROFILE_DELIVERY` | secret | `base64 -i delivery.mobileprovision` (`com.faazio.deliverypartner`) |
+| `APPSTORE_PROVISIONING_PROFILE_SELLER` | secret | `base64 -i seller.mobileprovision` (`com.faazio.sellerpartner`) |
+| `APPSTORE_ISSUER_ID` | variable (or secret) | App Store Connect API issuer ID |
+| `APPSTORE_API_KEY_ID` | variable (or secret) | App Store Connect API key ID |
+| `APPSTORE_API_PRIVATE_KEY` | secret | contents of `AuthKey_XXXXXXXXXX.p8` |
+| `GOOGLE_SERVICE_INFO_DELIVERY_PLIST` | secret | `base64 -i GoogleService-Info-Delivery.plist` |
+| `GOOGLE_SERVICE_INFO_SELLER_PLIST` | secret | `base64 -i GoogleService-Info-Seller.plist` |
+
+`CERT_PINS` (already set for Android) is reused by the iOS release configure step; `GATEWAY_URL`
+(default `https://api.faazio.com`), `WEB_PORTAL_URL` (default `https://app.faazio.com`) and
+`GOOGLE_MAPS_API_KEY_IOS` are optional overrides. `scripts/restore-ios-signing.sh <app>` imports the
+certificate into a temporary keychain, installs that product's profile (Xcode 16 + legacy paths),
+and writes `ios/ExportOptions.plist` (manual signing, `method: app-store-connect`). No fastlane.
+
 ## 🚀 Trigger a release
 
 ```bash
@@ -100,6 +129,31 @@ gh run view --log-failed  # if it fails, pull the Gradle error here
 
 Add `-f include-aab=true` only for a Play Console upload — it adds the `bundle<App>Release` task and
 attaches the `.aab`; the default dispatch produces the signed APK alone.
+
+## 🍎 iOS release
+
+Builds a release-signed `.ipa` on a GitHub-hosted `macos-15` runner (Xcode 16.4), uploads it to
+TestFlight via the App Store Connect API, and attaches it to a GitHub Release. The committed `ios/`
+Xcode project is the source of truth — no prebuild. See the "iOS / App Store" secrets table above.
+
+```bash
+gh workflow run ios-release.yml -f app=customer -f version=1.0.6 -f tag=v1.0.6
+gh workflow run ios-release.yml -f app=delivery -f upload=false   # build + artifact only, no TestFlight
+gh run watch
+gh run view --log-failed                 # if it fails, pull the xcodebuild error here
+```
+
+Steps: `npm ci` → rewrite `package.json` + Xcode `MARKETING_VERSION`/`CURRENT_PROJECT_VERSION`
+(and inject the partner Firebase plist) → `ts:check` + `check:boundaries` → `npm run configure`
+(release) → `restore-ios-signing.sh <app>` → `pod install` → `xcodebuild archive` →
+`xcodebuild -exportArchive` → `codesign` verify (must be an "Apple Distribution" authority) → upload
+IPA artifact → TestFlight → `gh release upload --clobber`.
+
+The version is the same single source of truth as Android: the input (or `package.json`) sets the
+marketing version, and the build number is derived from the semver (`1.0.6` → `10006`). App Store
+Connect rejects a duplicate build number for the same marketing version, so **bump the semver for
+each upload**. Product → tag conventions match Android (`v<version>`, `v<version>-delivery`,
+`v<version>-seller`).
 
 ## 🐞 Trigger a debug build (device testing)
 
@@ -198,3 +252,12 @@ adb install -r app-customer-release.apk   # flavor-named: app-delivery-release.a
   generated `android/app/proguard-rules.pro` and add keep rules; then the smoke-test gate in
   `RELEASE.md` is the runtime check. Minified stack traces must be retraced with `mapping.txt`
   (see TROUBLESHOOTING.md → "Retracing a minified crash").
+- **iOS `restore-ios-signing.sh` fails** → the `APPSTORE_CERTIFICATE_BASE64` /
+  `APPSTORE_CERTIFICATE_PASSWORD` / `APPSTORE_TEAM_ID` / `APPSTORE_PROVISIONING_PROFILE_<APP>`
+  secrets are missing or wrong (`gh secret list`); the profile must be an **App Store** profile for
+  that product's bundle id.
+- **iOS archive/export fails with a signing error** → the profile's bundle id must match the built
+  configuration (`com.faazio.customer` / `com.faazio.deliverypartner` / `com.faazio.sellerpartner`),
+  and `APPSTORE_TEAM_ID` must be the team that owns both the certificate and the profile.
+- **TestFlight upload fails** → check `APPSTORE_ISSUER_ID`/`APPSTORE_API_KEY_ID` (variables) and
+  `APPSTORE_API_PRIVATE_KEY` (the full `.p8` contents). The API key needs the App Manager role.

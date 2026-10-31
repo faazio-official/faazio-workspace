@@ -112,11 +112,12 @@ go test ./...
 > manually: `mongosh "$MONGO_URI/faazio" --file server/supabase/seed/mongo/seed.js`.
 
 Local dev is auth-open (`AUTH_DISABLED=true`, user `user-1`; the gateway logs a loud warning). To
-point the app at it, copy `.env.example` → `.env.local` and set `GATEWAY_URL=http://<host>:8080`.
+point the app at it, set `GATEWAY_URL=http://<host>:8080` in the committed `client/mobile/.env`
+(the single source of truth; a gitignored `.env.local` overrides it locally).
 For the seller product (a WebView over the Partner Portal) also set `WEB_PORTAL_URL` — the portal
 origin the shell loads at `/login` (e.g. `WEB_PORTAL_URL=https://app.faazio.com`, or
 `http://localhost:3000` for a local portal). A seller build **fails `configure.js`** if it is empty
-(dev and release), so add it to `client/mobile/.env.local` before `npm run start:seller`. Release
+(dev and release), so set it in `client/mobile/.env` before `npm run start:seller`. Release
 seller builds refuse `http://` and require the `GOOGLE_SERVICES_SELLER_JSON` CI secret. For nearby
 ordering + the seller shop-pin map, also set
 `GOOGLE_MAPS_API_KEY_ANDROID` and

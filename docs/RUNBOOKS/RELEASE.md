@@ -307,29 +307,55 @@ apksigner verify --verbose --print-certs app-customer-release.apk
 
 ## 🍎 App Store (iOS)
 
-Requires macOS + Xcode; run `cd client/mobile && npm install && cd ios && pod install` first.
+### CI release (preferred)
 
-The partner app is a separate listing built from the same target with the `Delivery-Release`
-configuration (`com.faazio.deliverypartner`, display name "Faazio Delivery Partner"). The seller
-listing uses the `Seller-Release` configuration (`com.faazio.sellerpartner`, display name
-"Faazio Seller Partner"). Before archiving the delivery app:
-1. Put the partner `GoogleService-Info-Delivery.plist` in `ios/Faazio/` (the build phase copies it
-   over the bundled customer plist; a Delivery build fails without it).
-2. Run `APP_VARIANT=delivery npm run configure` (the bundle phase hard-fails otherwise). The
-   `Delivery-*` configurations bundle `index.delivery.js` (set as `ENTRY_FILE` by the build phase);
-   customer configurations use `index.js`.
-3. In Xcode, Edit Scheme → Archive → Build Configuration → `Delivery-Release`, then Archive.
+Build the signed `.ipa` and upload it to TestFlight in GitHub Actions — no local Mac needed:
+
+```bash
+gh workflow run ios-release.yml -f app=customer -f version=1.0.6 -f tag=v1.0.6
+gh run watch
+gh run view --log-failed       # xcodebuild errors on failure
+```
+
+`.github/workflows/ios-release.yml` runs on `macos-15` (Xcode 16.4): `npm ci` → version rewrite →
+`ts:check`/`check:boundaries` → `npm run configure` (release) →
+`scripts/restore-ios-signing.sh <app>` (imports the shared distribution cert into a temporary
+keychain, installs that product's App Store profile, writes `ios/ExportOptions.plist`) → `pod install`
+→ `xcodebuild archive` → `xcodebuild -exportArchive` → `codesign` verify (Apple Distribution) →
+TestFlight (`apple-actions/upload-testflight-build@v5`, App Store Connect API) → GitHub Release.
+Pass `-f upload=false` to skip the TestFlight upload (artifact/release only). Required secrets are in
+`docs/RUNBOOKS/CI_PIPELINE.md` → "iOS / App Store" and `client/mobile/.env`.
+
+The version input (or `package.json`) sets `MARKETING_VERSION`; the build number is derived from the
+semver (`1.0.6` → `10006`). `Info.plist` reads `$(MARKETING_VERSION)`/`$(CURRENT_PROJECT_VERSION)`,
+so the bump flows into the submitted bundle. Bump the semver for each upload — App Store Connect
+rejects a duplicate build number for the same marketing version.
+
+Each product is a separate listing built from the same target via a build configuration:
+
+| Product | Configuration | Bundle id | Firebase plist |
+|---|---|---|---|
+| Faazio | `Release` | `com.faazio.customer` | `GoogleService-Info.plist` (committed) |
+| Delivery Partner | `Delivery-Release` | `com.faazio.deliverypartner` | `GoogleService-Info-Delivery.plist` (CI secret) |
+| Seller Partner | `Seller-Release` | `com.faazio.sellerpartner` | `GoogleService-Info-Seller.plist` (CI secret) |
+
+### Manual fallback (macOS + Xcode)
+
+Requires macOS + Xcode; run `cd client/mobile && npm install && cd ios && pod install` first. Before
+archiving a partner app: put its `GoogleService-Info-<App>.plist` in `ios/Faazio/` and run
+`APP_VARIANT=delivery|seller npm run configure` (the bundle phase hard-fails otherwise). The
+`Delivery-*` / `Seller-*` configurations bundle `index.delivery.js` / `index.seller.js` (set as
+`ENTRY_FILE` by the build phase); customer configurations use `index.js`.
 
 ```bash
 cd client/mobile
 npm run ios                                    # debug build + Metro in simulator
-# release: open ios/Faazio.xcworkspace, Product → Scheme → Edit Scheme → Release, then Archive
+# release: open ios/Faazio.xcworkspace, Product → Scheme → Edit Scheme → <App>-Release, then Archive
 ```
 
-- Bundle id `com.faazio.customer` (from the Xcode project / `project.pbxproj`).
-- Upload via Xcode Organizer / Transporter; then fill App Store Connect metadata.
-- `ios/Faazio/Info.plist` declares only the usage strings the app actually triggers (camera and
-  location); no unused/generic permission strings.
+Upload via Xcode Organizer / Transporter; then fill App Store Connect metadata.
+`ios/Faazio/Info.plist` declares only the usage strings the app actually triggers (camera and
+location); no unused/generic permission strings.
 
 ## 🌍 Web (Partner Portal) — Vercel
 

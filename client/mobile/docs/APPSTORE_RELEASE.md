@@ -4,6 +4,11 @@ This document covers compiling, signing, and uploading the **Faazio** iOS app to
 The project is a **bare React Native 0.86.3** app: `ios/` is committed, CocoaPods is the dependency
 manager, and there is no prebuild/EAS step.
 
+> **CI can build, sign and upload the `.ipa` now.** Prefer
+> `gh workflow run ios-release.yml -f app=customer` (see `docs/RUNBOOKS/CI_PIPELINE.md` →
+> "🍎 iOS release" and `docs/RUNBOOKS/RELEASE.md` → "App Store (iOS)"). The Xcode steps below remain
+> the manual fallback when no CI run is wanted.
+
 ---
 
 ## Prerequisites

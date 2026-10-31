@@ -24,5 +24,7 @@ npm run start
   `APP_VARIANT=seller` + the partner Firebase config; see `docs/RUNBOOKS/RELEASE.md`.
 - Release builds: `gh workflow run "Release APK"` (see `docs/RUNBOOKS/RELEASE.md`).
 - Configuration (`GATEWAY_URL`, `USE_GATEWAY`, `STRICT`, `DEV_USER`, `CERT_PINS`) is generated into
-  `src/lib/config.ts` by `scripts/configure.js`; copy `.env.example` → `.env.local`.
-- iOS requires macOS + Xcode: `cd ios && pod install`, then open `Faazio.xcworkspace`.
+  `src/lib/config.ts` by `scripts/configure.js`; the committed `.env` is the single source of truth
+  (a gitignored `.env.local` overrides it locally).
+- iOS requires macOS + Xcode for a manual build (`cd ios && pod install`, open `Faazio.xcworkspace`).
+  Releases build, sign and upload to TestFlight in CI: `gh workflow run ios-release.yml`.
