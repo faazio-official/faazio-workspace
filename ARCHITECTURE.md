@@ -58,7 +58,7 @@ presentation primitives (src/components/shared/, src/theme/)
 - Use the shared `components/shared/AppImage` (React Native `Image`, Fresco/NSURLCache) with explicit dimensions + local bundled fallback + `onError`; prefer JPEG (`fm=jpg`) so the negotiated format always decodes.
 
 ### Security
-- Tokens via `react-native-keychain` (Android Keystore / iOS Keychain); never log secrets/PII; prescriptions & payment details never in plain logs; document native permissions in `android/app/src/main/AndroidManifest.xml` + `ios/Faazio/Info.plist` and gate with consent.
+- Tokens via `react-native-keychain` (Android Keystore / iOS Keychain); never log secrets/PII; prescriptions & payment details never in plain logs; document native permissions in `android/app/src/main/AndroidManifest.xml` + the per-variant iOS plists (`ios/Faazio/Info.plist` customer, `Info-Delivery.plist`, `Info-Seller.plist`; selected by `INFOPLIST_FILE`) and gate with consent.
 
 ---
 

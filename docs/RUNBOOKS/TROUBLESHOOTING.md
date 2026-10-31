@@ -169,7 +169,10 @@ rendered on the error card** (plus the first stack frame in a dev build) — tha
 ## 🔧 Customer notifications / push
 
 - **No push on the device** → Android 13+ needs the runtime notification permission; iOS needs the
-  APNs key + Push Notifications capability (`FIREBASE_AUTH.md` Part 6). On the gateway, the embedded
+  APNs `.p8` key uploaded to Firebase (the Push Notifications entitlement is committed in
+  `ios/Faazio/Faazio.entitlements` = production / `Faazio-Debug.entitlements` = development) **and**
+  an App Store/development provisioning profile that carries the Push Notifications capability
+  (`FIREBASE_AUTH.md` Part 6). On the gateway, the embedded
   FCM sender must have `FCM_SERVICE_ACCOUNT_JSON` **and** `FCM_PROJECT_ID` set (startup log
   `using FCM HTTP v1 sender`). The
   token is registered after sign-in by `services/customerPush.ts`; check the app logs for
@@ -223,9 +226,17 @@ rendered on the error card** (plus the first stack frame in a dev build) — tha
   gh run download <run-id> -n faazio-customer-debug-apk
   adb install -r app-customer-debug.apk
   ```
-  > Changing a permission string (`AndroidManifest.xml` or `Info.plist`
-  > `NSLocationWhenInUseUsageDescription` — e.g. checkout live-address auto-fill) **also
-  > requires a native rebuild** (CI debug build, as above) so the new prompt text is baked into the client.
+  > Changing a permission string (`AndroidManifest.xml`, or the per-variant iOS plists — e.g.
+  > `ios/Faazio/Info.plist` / `Info-Delivery.plist` `NSLocationWhenInUseUsageDescription` for
+  > checkout live-address auto-fill) **also requires a native rebuild** (CI debug build, as above)
+  > so the new prompt text is baked into the client.
+- **iOS `registerForRemoteNotifications()` fails / no APNs token in release** → `xcodebuild` signed
+  the app with a provisioning profile whose environment does not match the committed entitlement.
+  `*Release` configs use `Faazio/Faazio.entitlements` (`aps-environment = production`); `*Debug`
+  configs use `Faazio/Faazio-Debug.entitlements` (`development`). A profile without the Push
+  Notifications capability fails the archive with an entitlements/profile mismatch — regenerate the
+  App Store profiles for all three bundle ids (`com.faazio.customer`,
+  `com.faazio.deliverypartner`, `com.faazio.sellerpartner`) with Push Notifications enabled.
 - **`compileDebugKotlin FAILED` — `Module was compiled with an incompatible version of Kotlin`
   (`firebase-auth-*.jar`, metadata 2.4.0, expected 2.1.0)** → the Android Kotlin version is older
   than the Firebase/Kotlin metadata used by `@react-native-firebase/auth`. Keep

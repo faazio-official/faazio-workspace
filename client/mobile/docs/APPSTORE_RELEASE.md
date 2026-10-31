@@ -66,6 +66,10 @@ Use the **workspace**, not `.xcodeproj`, so CocoaPods targets are linked.
 3. Let Xcode manage signing, or select your **Distribution Certificate** +
    **App Store Provisioning Profile**.
 4. Confirm the bundle identifier matches the App Store Connect record.
+5. Confirm the profile has the **Push Notifications** capability: the `*Release` configs sign with
+   `ios/Faazio/Faazio.entitlements` (`aps-environment = production`) and the `*Debug` configs with
+   `Faazio-Debug.entitlements` (`development`). A profile without Push fails with an
+   entitlements/profile mismatch.
 
 Signing credentials are managed locally in Xcode; they are not stored in this repo.
 

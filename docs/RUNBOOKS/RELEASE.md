@@ -341,6 +341,13 @@ Each product is a separate listing built from the same target via a build config
 | Delivery Partner | `Delivery-Release` | `com.faazio.deliverypartner` | `GoogleService-Info-Delivery.plist` (CI secret) |
 | Seller Partner | `Seller-Release` | `com.faazio.sellerpartner` | `GoogleService-Info-Seller.plist` (CI secret) |
 
+APNs entitlements are split by configuration: the three `*Release` configs sign with
+`ios/Faazio/Faazio.entitlements` (`aps-environment = production`) and the three `*Debug` configs
+with `ios/Faazio/Faazio-Debug.entitlements` (`development`). The App Store/development provisioning
+profiles for all three bundle ids must therefore carry the Push Notifications capability, or
+`xcodebuild archive`/export fails with an entitlements/profile mismatch. The workflow does not
+validate this — check it when rotating profiles.
+
 ### Manual fallback (macOS + Xcode)
 
 Requires macOS + Xcode; run `cd client/mobile && npm install && cd ios && pod install` first. Before
