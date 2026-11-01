@@ -122,8 +122,8 @@ Each product is a **separate Play listing**; run this for `com.faazio.customer` 
 2. **App signing** (Setup → **App signing**): Play App Signing is mandatory for new apps. Your
    release keystore becomes the **upload key**. Export its public certificate and upload it —
    `keytool -exportcert -rfc -keystore keystore/faazio-release.keystore -alias faazio -file /tmp/faazio_upload_key.pem`
-   (public cert only; safe to send to Play). Confirm the **upload-key SHA-256** shown matches
-   `23:8A:02:B2:0F:64:E6:EB:8A:33:17:39:75:A9:AE:C7:DD:66:CC:72:83:E1:0B:3B:EF:F4:70:01:4E:E4:09:9D`.
+   (public cert only; safe to send to Play). Confirm the **upload-key SHA-256** shown matches the
+   customer release SHA-256 in `docs/RUNBOOKS/SIGNING_FINGERPRINTS.md` §2 (gitignored, local copy).
    Google then manages the **app signing key**; CI keeps signing every AAB with the same release
    keystore (upload key) so uploads are always accepted.
 3. **App content / Data safety** (App content → Data safety): disclose **camera, location (rough +

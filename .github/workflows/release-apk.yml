@@ -238,7 +238,7 @@ jobs:
       # Guard against a silently unsigned or cross-signed release (e.g. a signing-config
       # regression, or the customer keystore used for a delivery APK): the APK must verify
       # AND its signer certificate must match that app's pinned SHA-256 fingerprint.
-      # Fingerprints: client/mobile/keystore/RELEASE_CERT_FINGERPRINTS.md + RELEASE.md.
+      # Fingerprints: docs/RUNBOOKS/SIGNING_FINGERPRINTS.md (single source of truth).
       - name: Verify release APK is signed with the app's certificate
         env:
           APP: ${{ github.event.inputs.app }}
@@ -257,7 +257,9 @@ jobs:
           # a failure also fails this step before any fingerprint comparison runs.
           "$APKSIGNER" verify --verbose --print-certs "$APK" | tee /tmp/apksigner.txt
 
-          # Per-app expected signer cert SHA-256 (see RELEASE.md "Register the release cert").
+          # Per-app expected signer cert SHA-256. These MUST be inline: the authoritative
+          # fingerprint doc (docs/RUNBOOKS/SIGNING_FINGERPRINTS.md) is gitignored, so it is not
+          # present on a CI checkout. Keep these three values in sync with that doc by hand.
           case "$APP" in
             customer) EXPECTED_SHA256="23:8A:02:B2:0F:64:E6:EB:8A:33:17:39:75:A9:AE:C7:DD:66:CC:72:83:E1:0B:3B:EF:F4:70:01:4E:E4:09:9D" ;;
             delivery) EXPECTED_SHA256="E1:B6:1B:A9:86:F6:76:C4:A0:C0:D5:EF:26:E9:25:8C:78:95:7C:A9:04:7F:E9:39:96:F3:E5:C5:96:E5:5E:ED" ;;

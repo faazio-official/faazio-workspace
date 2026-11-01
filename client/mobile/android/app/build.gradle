@@ -130,8 +130,27 @@ android {
     }
 
     signingConfigs {
-        debug {
+        // Debug signing is PER PRODUCT, mirroring the per-product release keys. Each debug
+        // keystore is committed (password `android`, alias `androiddebugkey`) so CI and every
+        // developer produce the same cert per app — a debug APK must keep the same signature
+        // across machines or Firebase rejects the app-identifier check for phone OTP.
+        //   customer -> debug.keystore          (com.faazio.customer)
+        //   delivery -> debug-delivery.keystore (com.faazio.deliverypartner)
+        //   seller   -> debug-seller.keystore   (com.faazio.sellerpartner)
+        debugCustomer {
             storeFile file('debug.keystore')
+            storePassword 'android'
+            keyAlias 'androiddebugkey'
+            keyPassword 'android'
+        }
+        debugDelivery {
+            storeFile file('debug-delivery.keystore')
+            storePassword 'android'
+            keyAlias 'androiddebugkey'
+            keyPassword 'android'
+        }
+        debugSeller {
+            storeFile file('debug-seller.keystore')
             storePassword 'android'
             keyAlias 'androiddebugkey'
             keyPassword 'android'
@@ -165,7 +184,19 @@ android {
 
     buildTypes {
         debug {
-            signingConfig signingConfigs.debug
+            // Per-product debug keystore, selected exactly like the release key below: from the
+            // flavor named in the task, else APP_VARIANT. Assigning it on the build type (rather
+            // than the flavor) keeps one mechanism and one precedence rule for both build types.
+            // Falls back to customer for an unnamed `assembleDebug`, matching the pre-existing
+            // single-keystore behaviour; CI and npm scripts always name the flavor.
+            def debugApp = resolveApp() ?: 'customer'
+            if (debugApp == 'delivery') {
+                signingConfig signingConfigs.debugDelivery
+            } else if (debugApp == 'seller') {
+                signingConfig signingConfigs.debugSeller
+            } else {
+                signingConfig signingConfigs.debugCustomer
+            }
         }
         release {
             // Each product signs with its own keystore. Assigning it on the build type (from the
@@ -177,6 +208,12 @@ android {
                 signingConfig signingConfigs.releaseSeller
             } else if (releaseApp == 'customer') {
                 signingConfig signingConfigs.releaseCustomer
+            } else {
+                // Reached only for non-release tasks: this block configures on every build. A
+                // release task with no product is already rejected by the fail-fast block at the
+                // top of this file, so a release build can never fall through to a flavor's
+                // debug keystore.
+                logger.info("[signing] no release product selected; release signingConfig left unset")
             }
             shrinkResources enableShrinkResources
             minifyEnabled enableMinifyInReleaseBuilds

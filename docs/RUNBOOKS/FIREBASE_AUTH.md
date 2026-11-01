@@ -113,22 +113,23 @@ runtime notification permission.
 
 - [x] Firebase project created; Google Analytics disabled.
 - [x] Android app registered with `com.faazio.customer`.
-- [ ] **Debug cert SHA-1 is NOT registered on `com.faazio.customer`** — verified against the
-  Firebase Management API on 2026-11-02. The app carries only these fingerprints:
-  - SHA-1 `DE:0E:7A:EF:5F:79:94:35:C1:8C:0F:F5:6C:DF:A0:5E:F4:10:D7:EE` (release)
-  - SHA-256 `23:8A:02:B2:…:09:9D`, `7B:3C:7B:F0:…:21:CB`, `FA:C6:17:45:…:3B:9C` (debug)
+- [ ] **Signing fingerprints are not fully registered — phone OTP fails on debug APKs.**
 
-  The debug **SHA-256** `FA:C6:17:45:DC:09:03:78:6F:B9:ED:E6:2A:96:2B:39:9F:73:48:F0:BB:6F:89:9B:83:32:66:75:91:03:3B:9C`
-  is registered but its **SHA-1** `5E:8F:16:06:2E:A3:CD:2C:4A:0D:54:78:76:BA:A6:F3:8C:AB:F6:25`
-  (the shared `android/app/debug.keystore` cert that signs every debug APK) is missing. Firebase
-  validates the SHA-1 for the reCAPTCHA/Play Integrity app-identifier check, so **phone OTP fails on
-  every debug APK with a real number** while Firebase *test* numbers still work (they skip the
-  app-verification round trip).
+  > Digests are not repeated here. The single source of truth for every app's release and debug
+  > SHA-1/SHA-256, and what is registered where, is
+  > `docs/RUNBOOKS/SIGNING_FINGERPRINTS.md` §5 — **gitignored**, so it exists only on a local
+  > machine that has it, never in a fresh clone.
 
-  **Fix (console):** Firebase Console → Project Settings → Your apps → `com.faazio.customer` →
-  *Add fingerprint* → SHA-1 `5E:8F:16:06:2E:A3:CD:2C:4A:0D:54:78:76:BA:A6:F3:8C:AB:F6:25`.
-  Repeat for `com.faazio.deliverypartner` and `com.faazio.sellerpartner` (all three debug APKs share
-  this keystore). No rebuild is needed — the fingerprint is read server-side at request time.
+  Summary as of 2026-11-02: no debug SHA-1 is registered on **any** of the three
+  Firebase apps, and `com.faazio.customer` carries a **stale release SHA-1**. Firebase validates
+  the signing cert's SHA-1 during the app-identifier check, so **phone OTP fails on every debug
+  APK with a real number** while Firebase *test* numbers still work — they skip the
+  app-verification round trip. The customer release SHA-1 mismatch additionally breaks phone OTP
+  for a production build.
+
+  **Fix:** add the fingerprints listed in `SIGNING_FINGERPRINTS.md` §5 (local copy) to each Android app in
+  Firebase Console → Project Settings → Your apps → *Add fingerprint*, and remove the stale
+  customer SHA-1. No rebuild is needed — fingerprints are read server-side per request.
 
   **Symptom chain in logcat** (this is what to grep for):
   ```
@@ -154,15 +155,8 @@ runtime notification permission.
   - [ ] Enable **Play Integrity API** in the linked GCP project.
   - [ ] App Check → Android app → Play Integrity → **Enforce** (after testing).
   - [ ] Upload the APNs **.p8 auth key** (Key ID + Team ID) for iOS.
-  - [ ] Add each app's **release** SHA-1/SHA-256 in Firebase Project Settings → Your apps. Each
-    app has its own keystore, so the fingerprints **differ per app** (debug APKs still use the
-    shared debug cert above, so keep that registered too for Metro/CI device testing):
-    - `com.faazio.customer` — SHA-1 `7E:B1:2E:78:55:21:89:FF:6B:37:1A:FE:2F:F0:84:DE:58:42:A8:45`,
-      SHA-256 `23:8A:02:B2:0F:64:E6:EB:8A:33:17:39:75:A9:AE:C7:DD:66:CC:72:83:E1:0B:3B:EF:F4:70:01:4E:E4:09:9D`
-    - `com.faazio.deliverypartner` — SHA-1 `6A:D2:A2:E2:C8:A0:1D:66:09:61:EF:9E:C4:E8:40:1B:8B:86:CD:93`,
-      SHA-256 `E1:B6:1B:A9:86:F6:76:C4:A0:C0:D5:EF:26:E9:25:8C:78:95:7C:A9:04:7F:E9:39:96:F3:E5:C5:96:E5:5E:ED`
-    - `com.faazio.sellerpartner` — SHA-1 `5F:03:B7:B1:C6:B6:6D:7C:DB:86:8E:3C:A7:E5:F3:4F:B4:02:5E:20`,
-      SHA-256 `B7:DA:DE:58:08:F8:EB:9D:3D:EB:F8:BC:12:E6:75:5E:46:A2:F4:E5:7A:C2:C9:56:AA:06:45:10:18:1E:B7:A6`.
+  - [ ] Add each app's **release** and its own **debug** SHA-1/SHA-256 in Firebase Project
+    Settings → Your apps. Digests and current gaps: `SIGNING_FINGERPRINTS.md` §5 (local copy).
   - [x] Push Notifications capability + Background Modes → Remote notifications — committed in the
     repo (`ios/Faazio/Faazio.entitlements` = `aps-environment production` for `*Release`,
     `ios/Faazio/Faazio-Debug.entitlements` = `development` for `*Debug`; `remote-notification` in all

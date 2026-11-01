@@ -19,7 +19,11 @@
 # Release signing secrets
 /keystore/
 *.keystore
+# Debug keystores are committed on purpose: one per product, so every machine and CI
+# produce the same debug cert for each app (Firebase matches on the cert's SHA-1).
 !android/app/debug.keystore
+!android/app/debug-delivery.keystore
+!android/app/debug-seller.keystore
 keystore*.properties
 *.der
 *.p12

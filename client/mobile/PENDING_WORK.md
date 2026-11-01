@@ -3628,3 +3628,21 @@ tightened (`paddingBottom vs(8)`, `marginTop vs(4)`) and `CARDS_PER_RAIL` 8 → 
 `segments` collection); wiring recommendations into a Home rail.
 
 **Date:** 2026-10-13
+
+**Shipped (2026-11-02): per-product debug keystores + single-source signing doc.**
+Debug signing was one shared cert (`android/app/debug.keystore`) for all three apps. Each product
+now has its own committed debug keystore so its debug APK carries a stable, distinct cert that can
+be registered in Firebase independently:
+- `android/app/debug.keystore` → customer (unchanged cert)
+- `android/app/debug-delivery.keystore` → delivery (new)
+- `android/app/debug-seller.keystore` → seller (new)
+`android/app/build.gradle` gained `debugCustomer` / `debugDelivery` / `debugSeller` signing configs,
+selected on the `debug` build type by the same `resolveApp()` rule the release key uses, so one
+mechanism covers both build types. Release signing is untouched and still fails fast when a
+product's keystore is missing.
+All fingerprints (3 release + 3 debug, SHA-1 and SHA-256) now live **only** in
+`docs/RUNBOOKS/SIGNING_FINGERPRINTS.md`, which is **gitignored** (local copy only, never committed).
+RELEASE.md, CI_PIPELINE.md, FIREBASE_AUTH.md and the Play Store manuals point at it instead of
+restating digests; the sole exception is the CI pin in `.github/workflows/release-apk.yml`, which
+must inline the three release SHA-256s because CI cannot read a gitignored file. **Outstanding:**
+the three debug fingerprints still need adding in Firebase Console (see that file §5).

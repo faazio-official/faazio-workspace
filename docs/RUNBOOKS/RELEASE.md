@@ -7,7 +7,7 @@
 
 ## 🔑 Signing credentials
 
-- Debug builds use the generated debug keystore (automatic).
+- Debug builds use the committed per-app debug keystore (automatic, one per product).
 - **Each product has its own release keystore.** The CI workflow
   (`.github/workflows/release-apk.yml`) runs `scripts/restore-keystore.sh <app>`, which decodes the
   matching `KEYSTORE_BASE64_<APP>` secret and writes that product's properties file before
@@ -32,17 +32,20 @@
 
 Each product has its own signing cert, so the fingerprints are **different per app**. They are
 public (embedded in every signed APK) but must be whitelisted before a signed build can verify
-phone OTP or render restricted Maps keys:
+phone OTP or render restricted Maps keys.
 
-| App (applicationId) | Keystore / alias | SHA-1 | SHA-256 |
-|---|---|---|---|
-| customer (`com.faazio.customer`) | `faazio-release.keystore` / `faazio` | `7E:B1:2E:78:55:21:89:FF:6B:37:1A:FE:2F:F0:84:DE:58:42:A8:45` | `23:8A:02:B2:0F:64:E6:EB:8A:33:17:39:75:A9:AE:C7:DD:66:CC:72:83:E1:0B:3B:EF:F4:70:01:4E:E4:09:9D` |
-| delivery (`com.faazio.deliverypartner`) | `faazio-delivery-release.keystore` / `faazio-delivery` | `6A:D2:A2:E2:C8:A0:1D:66:09:61:EF:9E:C4:E8:40:1B:8B:86:CD:93` | `E1:B6:1B:A9:86:F6:76:C4:A0:C0:D5:EF:26:E9:25:8C:78:95:7C:A9:04:7F:E9:39:96:F3:E5:C5:96:E5:5E:ED` |
-| seller (`com.faazio.sellerpartner`) | `faazio-seller-release.keystore` / `faazio-seller` | `5F:03:B7:B1:C6:B6:6D:7C:DB:86:8E:3C:A7:E5:F3:4F:B4:02:5E:20` | `B7:DA:DE:58:08:F8:EB:9D:3D:EB:F8:BC:12:E6:75:5E:46:A2:F4:E5:7A:C2:C9:56:AA:06:45:10:18:1E:B7:A6` |
+> **All fingerprints live in one local file:** `docs/RUNBOOKS/SIGNING_FINGERPRINTS.md`.
+> It is the single source of truth for every app's release and debug SHA-1/SHA-256 and for what
+> is registered where. It is **gitignored** (see the repo-root `.gitignore`), so it exists only on
+> a machine that has it — it is not in a fresh clone. Do not restate a digest in another document;
+> point at that file. The one exception is the CI pin in `.github/workflows/release-apk.yml`,
+> which must inline the three release SHA-256s because CI cannot read a gitignored file.
 
 - **Firebase** (Project Settings → Your apps): add **each app's own** release SHA-1/SHA-256 to its
-  matching Android app registration. Without it that build fails phone OTP with
-  `auth/invalid-app-credential`. See `docs/RUNBOOKS/FIREBASE_AUTH.md` §4.
+  matching Android app registration, plus the shared debug SHA-1 for debug-APK testing. Without it
+  that build fails phone OTP with `auth/missing-client-identifier` or `auth/invalid-app-credential`.
+  Current gaps are tracked in `SIGNING_FINGERPRINTS.md` §5 and `docs/RUNBOOKS/FIREBASE_AUTH.md` §4.
+  That file is gitignored — read it on a machine that has it, not from a fresh clone.
 - **Maps / Places API keys**: only the **customer** and **delivery** apps mount a native map
   (customer "Sell with us" pin picker, delivery route). Restrict each shared key to those packages
   **+ each app's release SHA-1** (the debug SHA-1 is not accepted). The **seller** app is a WebView
@@ -52,24 +55,20 @@ phone OTP or render restricted Maps keys:
   `GOOGLE_PLACES_API_KEY`; create per-app keys in Google Cloud and set per-app secrets if you want
   them independent. See TROUBLESHOOTING.md → "Location / maps".
 - **CI pin:** `.github/workflows/release-apk.yml` compares the built APK's signer cert SHA-256
-  against the matching row above and fails on any mismatch. Update the workflow constants whenever a
+  against the matching value in `SIGNING_FINGERPRINTS.md` and fails on any mismatch. Because that
+  file is gitignored, the three SHA-256s are inlined in the workflow — update **both** whenever a
   keystore is rotated (they are public digests, safe to commit).
-- **Debug builds use the shared debug cert, not the release cert.** Debug APKs
-  (`android-debug.yml`, or a local `assemble<App>Debug`) are signed with the committed
-  `android/app/debug.keystore` (`CN=Android Debug`), shared by all three flavors. When testing
-  Firebase phone OTP from a **debug** APK, register this cert for that app in Firebase (customer
-  already has it):
-  - SHA-1 `5E:8F:16:06:2E:A3:CD:2C:4A:0D:54:78:76:BA:A6:F3:8C:AB:F6:25`
-  - SHA-256 `FA:C6:17:45:DC:09:03:78:6F:B9:ED:E6:2A:96:2B:39:9F:73:48:F0:BB:6F:89:9B:83:32:66:75:91:03:3B:9C`
-
-  This is expected: a debug-signed customer APK shows `FA:C6:…:3B:9C`, while the customer **release**
-  APK shows `23:8A:…:09:9D` (the row above). Do **not** add the debug cert to the release workflow
-  pin — release builds must match the per-app release SHA-256 and the debug cert is rejected there.
+- **Debug builds use a per-app debug cert, not the release cert.** Debug APKs
+  (`android-debug.yml`, or a local `assemble<App>Debug`) are signed with that product's committed
+  debug keystore (`android/app/debug.keystore` for customer, `debug-delivery.keystore`,
+  `debug-seller.keystore`; all `CN=Android Debug`). Each flavor assigns its own debug signing
+  config, so the three debug certs are distinct. See `SIGNING_FINGERPRINTS.md` §1 and §2–§4
+  (gitignored, local copy only).
 - **Google Play Console** (Setup → App signing): each listing's first AAB upload registers that app's
-  **upload key**; confirm Play shows the matching SHA-256 above.
+  **upload key**; confirm Play shows the matching SHA-256 from `SIGNING_FINGERPRINTS.md`
+  (gitignored, local copy only).
 - Drill a fingerprint with `keytool -list -v -keystore <file> -alias <alias>` (store password from
   the matching `keystore[-app].properties`).
-- Private copy (gitignored, safe to edit): `client/mobile/keystore/RELEASE_CERT_FINGERPRINTS.md`.
 
 > Never commit any `keystore*.properties` or `.keystore` file. All are gitignored.
 > `android/` and `ios/` are committed source-of-truth shells; CI does **not** regenerate them.
@@ -116,7 +115,7 @@ Local copy (lives beside the live keys; `/keystore/` is gitignored, so it is nev
 ```bash
 cd client/mobile/keystore
 mkdir -p backup && chmod 700 backup
-cp faazio-*-release.keystore keystore*.properties RELEASE_CERT_FINGERPRINTS.md backup/
+cp faazio-*-release.keystore keystore*.properties backup/
 chmod 600 backup/*
 ```
 

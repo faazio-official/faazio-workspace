@@ -14,3 +14,7 @@ server/gateway/project-*.json
 
 # Perch local tooling
 .perch/
+
+# Signing fingerprints: local-only single source of truth.
+# NOT committed — these digests must never enter git history again.
+docs/RUNBOOKS/SIGNING_FINGERPRINTS.md
