@@ -63,9 +63,9 @@ function StateFestival() {
       <SectionCard title="Sector caps in force" description="Global cap, or your district override when set">
         <div className="grid gap-3 md:grid-cols-3">
           {SECTORS.map((sector) => (
-            <div key={sector} className="rounded-xl border border-border p-3">
+            <div key={sector} className="rounded-md border border-border p-3">
               <SectorPill sector={sector} />
-              <p className="num mt-2 text-[22px] font-semibold leading-none">
+              <p className="num mt-2 text-[22px] font-medium leading-none">
                 {capFor(caps, sector, stateCode)}%
               </p>
               <p className="text-[11px] text-muted-foreground">Maximum festival discount</p>

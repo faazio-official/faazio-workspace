@@ -218,7 +218,7 @@ function SellerPrescriptions() {
 
               {selected.note ? (
                 <div className="rounded-md border border-border bg-secondary/40 p-3 text-[13px]">
-                  <p className="mb-1 text-[11px] font-semibold text-muted-foreground">
+                  <p className="mb-1 text-[11px] font-medium text-muted-foreground">
                     Patient note
                   </p>
                   {selected.note}
@@ -240,7 +240,7 @@ function SellerPrescriptions() {
                 <p className="text-[11px] text-muted-foreground">
                   {selected.imagePaths?.length
                     ? `${selected.imagePaths.length} private Storage key(s)`
-                    : "No images attached."}
+                    : "No images attached"}
                 </p>
                 {images && images.length > 0 ? (
                   <div className="mt-2 flex flex-wrap gap-2">
@@ -330,7 +330,7 @@ function SellerPrescriptions() {
 
                 <div className="flex items-center justify-between border-t border-border pt-2 text-[13px]">
                   <span className="text-muted-foreground">Quote total</span>
-                  <span className="font-semibold">{formatINR(draftTotalPaisa)}</span>
+                  <span className="font-medium">{formatINR(draftTotalPaisa)}</span>
                 </div>
                 <div className="flex justify-end gap-2">
                   <div className="flex items-center gap-1.5">
@@ -350,7 +350,7 @@ function SellerPrescriptions() {
 
               {revealed ? (
                 <div className="rounded-md border border-warning/40 bg-warning/10 p-3">
-                  <p className="flex items-center gap-1.5 text-[12px] font-semibold text-warning">
+                  <p className="flex items-center gap-1.5 text-[12px] font-medium text-warning">
                     <ShieldAlert className="size-4" /> PII revealed (audited)
                   </p>
                   <p className="mt-1 text-[13px]">

@@ -11,7 +11,7 @@ import { DataShell } from "@/components/patterns/DataState";
 import { FilterChip } from "@/components/patterns/FilterChip";
 import { StatusPill } from "@/components/patterns/Pills";
 import { formatINR, formatNumber } from "@/lib/format";
-import { periodDelta, sparkline, sumGmv, sumOrders } from "@/lib/analytics/derive";
+import { periodDelta, sumGmv, sumOrders } from "@/lib/analytics/derive";
 import { globalMetrics } from "@/lib/api";
 import {
   useCampaigns,
@@ -54,13 +54,13 @@ function SuperDashboard() {
               label: "GMV (30d)",
               value: formatINR(sumGmv(series), { compact: true }),
               deltaPercent: periodDelta(series, (p) => p.gmvPaisa),
-              spark: sparkline(series, (p) => p.gmvPaisa),
+              compare: "vs previous 30 days",
             },
             {
               label: "Orders (30d)",
               value: formatNumber(sumOrders(series)),
               deltaPercent: periodDelta(series, (p) => p.orders),
-              spark: sparkline(series, (p) => p.orders),
+              compare: "vs previous 30 days",
             },
             { label: "Sellers", value: formatNumber(sellers.length) },
             { label: "Districts live", value: formatNumber(DISTRICTS.length) },
@@ -77,7 +77,14 @@ function SuperDashboard() {
           </DataShell>
         </SectionCard>
         <SectionCard title="Sector mix">
-          <StatusDonut data={sectorMix} />
+          <StatusDonut
+            data={sectorMix}
+            colors={{
+              MART: "var(--color-mart)",
+              FOOD: "var(--color-food)",
+              PHARMA: "var(--color-pharma)",
+            }}
+          />
         </SectionCard>
       </div>
 
@@ -108,15 +115,15 @@ function SuperDashboard() {
               <Link
                 key={info.districtCode}
                 href="/admin/super/districts"
-                className="lift rounded-xl border border-border p-3 transition-transform"
+                className="rounded-md border border-border p-3 transition-colors hover:border-primary/40"
               >
                 <div className="flex items-center justify-between">
-                  <p className="text-[13px] font-semibold">
+                  <p className="text-[13px] font-medium">
                     <span className="num">{info.districtCode}</span> · {info.name}
                   </p>
                   <StatusPill status={roster.length === 0 ? "AT_RISK" : "HEALTHY"} />
                 </div>
-                <p className="num mt-2 text-[18px] font-semibold leading-none">
+                <p className="num mt-2 text-[18px] font-medium leading-none">
                   {formatNumber(districtSellers.length)}
                 </p>
                 <p className="num mt-1 text-[11px] text-muted-foreground">
@@ -133,7 +140,7 @@ function SuperDashboard() {
           title="Festival overview"
           actions={
             <div className="flex items-center gap-1.5">
-              <Link href="/admin/super/festival" className="text-[12px] font-semibold text-primary">
+              <Link href="/admin/super/festival" className="text-[12px] font-medium text-primary">
                 Governance
               </Link>
               <ComponentHelp id="festival-overview" label="About festival overview" />

@@ -16,7 +16,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { formatINR, formatNumber, formatPercent } from "@/lib/format";
-import { periodDelta, sparkline, sumGmv, sumOrders } from "@/lib/analytics/derive";
+import { periodDelta, sumGmv, sumOrders } from "@/lib/analytics/derive";
 import { globalMetrics, sellerMetrics, stateMetrics } from "@/lib/api";
 import { useMockLoading, useOrders, useProducts, useSellers } from "@/lib/api/hooks";
 import { STATES } from "@/data/states";
@@ -64,7 +64,7 @@ function SuperAnalytics() {
     <div className="space-y-4">
       <PageHeader
         title="Global analytics"
-        description="Platform-wide business intelligence over the deterministic mock series."
+        description="Platform GMV, orders and category mix across every district."
         actions={
           <div className="flex items-center gap-1.5">
             {PERIODS.map((option) => (
@@ -87,13 +87,13 @@ function SuperAnalytics() {
               label: `GMV (${days}d)`,
               value: formatINR(gmv, { compact: true }),
               deltaPercent: periodDelta(series, (p) => p.gmvPaisa),
-              spark: sparkline(series, (p) => p.gmvPaisa),
+              compare: "vs previous period",
             },
             {
               label: "Orders",
               value: formatNumber(sumOrders(series)),
               deltaPercent: periodDelta(series, (p) => p.orders),
-              spark: sparkline(series, (p) => p.orders),
+              compare: "vs previous period",
             },
             {
               label: "Avg order value",
@@ -114,7 +114,14 @@ function SuperAnalytics() {
           <GmvTrend data={series} />
         </SectionCard>
         <SectionCard title="Sector mix">
-          <StatusDonut data={sectorMix} />
+          <StatusDonut
+            data={sectorMix}
+            colors={{
+              MART: "var(--color-mart)",
+              FOOD: "var(--color-food)",
+              PHARMA: "var(--color-pharma)",
+            }}
+          />
         </SectionCard>
       </div>
 
@@ -157,7 +164,7 @@ function SuperAnalytics() {
                 <TableCell className="num text-[12px] text-muted-foreground">{index + 1}</TableCell>
                 <TableCell className="text-[13px] font-medium">{row.seller.businessName}</TableCell>
                 <TableCell className="num text-[13px]">{row.seller.stateCode}</TableCell>
-                <TableCell className="num text-right font-semibold">{formatINR(row.gmv)}</TableCell>
+                <TableCell className="num text-right font-medium">{formatINR(row.gmv)}</TableCell>
                 <TableCell className="num text-right">
                   {sellerGmvTotal ? formatPercent((row.gmv / sellerGmvTotal) * 100) : "—"}
                 </TableCell>

@@ -371,7 +371,7 @@ function CredentialsPage() {
                 </div>
                 <p className="rounded-lg border border-border bg-muted/40 px-3 py-2 text-[11px] text-muted-foreground">
                   Tip: creating a district admin on{" "}
-                  <Link href="/admin/super/district-admins" className="font-semibold text-interactive">
+                  <Link href="/admin/super/district-admins" className="font-medium text-interactive">
                     District admins
                   </Link>{" "}
                   mints the roster row and login in one step, so they stay in sync.

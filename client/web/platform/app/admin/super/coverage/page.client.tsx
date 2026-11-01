@@ -164,11 +164,11 @@ function Coverage() {
                 <TableCell className="num text-right">{formatNumber(row.rows)}</TableCell>
                 <TableCell>
                   {row.rows > 0 ? (
-                    <span className="flex items-center gap-1 text-[12px] font-semibold text-success">
+                    <span className="flex items-center gap-1 text-[12px] font-medium text-success">
                       <CheckCircle2 className="size-4" /> Covered
                     </span>
                   ) : (
-                    <span className="flex items-center gap-1 text-[12px] font-semibold text-warning">
+                    <span className="flex items-center gap-1 text-[12px] font-medium text-warning">
                       <AlertTriangle className="size-4" /> Needs data
                     </span>
                   )}

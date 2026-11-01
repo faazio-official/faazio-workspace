@@ -81,7 +81,7 @@ function SellerPromotions() {
       {campaign ? (
         <div className="surface flex flex-wrap items-center gap-4 p-4">
           <div>
-            <p className="text-[14px] font-semibold">{campaign.name}</p>
+            <p className="text-[14px] font-medium">{campaign.name}</p>
             <p className="num text-[12px] text-muted-foreground">
               {formatDate(campaign.startsAt)} → {formatDate(campaign.endsAt)} ·{" "}
               {campaign.scope === "STATE" ? campaign.stateCode : "All states"}
@@ -92,7 +92,7 @@ function SellerPromotions() {
             {(["MART", "FOOD", "PHARMA"] as const).map((sector) => (
               <div key={sector}>
                 <p className="text-muted-foreground">{sector} cap</p>
-                <p className="num font-semibold">
+                <p className="num font-medium">
                   {capFor(
                     caps,
                     sector,
@@ -182,7 +182,7 @@ function SellerPromotions() {
                             : product.pricePaisa;
                         return (
                           <div className="flex flex-col items-end leading-tight">
-                            <span className="font-semibold">{formatINR(livePaisa)}</span>
+                            <span className="font-medium">{formatINR(livePaisa)}</span>
                             {product.mrpPaisa > livePaisa ? (
                               <span className="text-[11px] text-muted-foreground line-through">
                                 {formatINR(product.mrpPaisa)}

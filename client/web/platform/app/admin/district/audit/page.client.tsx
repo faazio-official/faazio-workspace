@@ -82,7 +82,7 @@ function StateAudit() {
                   <TableCell className="num text-[12px]">
                     {log.actorId} · {log.actorRole.replace("_", " ")}
                   </TableCell>
-                  <TableCell className="num text-[12px] font-semibold">{log.action}</TableCell>
+                  <TableCell className="num text-[12px] font-medium">{log.action}</TableCell>
                   <TableCell className="num text-[12px] text-muted-foreground">{log.entity}</TableCell>
                   <TableCell className="num text-[12px]">{log.entityId}</TableCell>
                   <TableCell className="num max-w-[280px] truncate text-[11px] text-muted-foreground">

@@ -128,5 +128,5 @@ export const SUPER_ADMIN_NAV: NavItem[] = [
   { label: "Audit log", to: "/admin/super/audit", icon: ShieldCheck, group: "Operations" },
   { label: "Coverage", to: "/admin/super/coverage", icon: LayoutGrid, group: "Operations" },
   { label: "Rewards", to: "/admin/super/rewards", icon: Coins, group: "Operations" },
-  { label: "Settings", to: "/admin/super/settings", icon: Coins, group: "Operations" },
+  { label: "Settings", to: "/admin/super/settings", icon: Settings, group: "Operations" },
 ];

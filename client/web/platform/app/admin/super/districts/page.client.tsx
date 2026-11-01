@@ -27,7 +27,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { formatDate, formatINR, formatNumber } from "@/lib/format";
-import { periodDelta, sparkline, sumGmv, sumOrders } from "@/lib/analytics/derive";
+import { periodDelta, sumGmv, sumOrders } from "@/lib/analytics/derive";
 import { stateMetrics } from "@/lib/api";
 import { useCampaigns, useSellers, useDistrictAdmins } from "@/lib/api/hooks";
 import { DISTRICTS, districtName, stateForDistrict } from "@/data/districts";
@@ -109,7 +109,7 @@ function SuperDistricts() {
             label: "GMV (30d)",
             value: formatINR(sumGmv(series), { compact: true }),
             deltaPercent: periodDelta(series, (p) => p.gmvPaisa),
-            spark: sparkline(series, (p) => p.gmvPaisa),
+            compare: "vs previous 30 days",
           },
           { label: "Orders (30d)", value: formatNumber(sumOrders(series)) },
           { label: "Sellers", value: formatNumber(sellers.length) },

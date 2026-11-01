@@ -84,7 +84,7 @@ function SellerSupport() {
               {tickets.map((ticket) => (
                 <li key={ticket.id} className="p-4">
                   <div className="flex items-center gap-2">
-                    <span className="num text-[12px] font-semibold">{ticket.id}</span>
+                    <span className="num text-[12px] font-medium">{ticket.id}</span>
                     <StatusPill status={ticket.status} />
                     <span className="num ml-auto text-[11px] text-muted-foreground">
                       {formatDateTime(ticket.createdAt)}

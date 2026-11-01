@@ -186,7 +186,7 @@ export function CampaignWizard({ sellerId, stateCode }: { sellerId: string; stat
         {steps.map((label, i) => (
           <li
             key={label}
-            className={`flex items-center gap-1.5 rounded-full px-3 py-1 text-[12px] font-medium ring-1 ${
+            className={`flex items-center gap-1.5 rounded-md px-3 py-1 text-[12px] font-medium ring-1 ${
               i === step
                 ? "bg-primary/10 text-primary ring-primary/30"
                 : i < step
@@ -211,7 +211,7 @@ export function CampaignWizard({ sellerId, stateCode }: { sellerId: string; stat
                   setTab(t.key);
                   setQuery("");
                 }}
-                className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-[12px] font-semibold ring-1 transition-colors ${
+                className={`inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-[12px] font-medium ring-1 transition-colors ${
                   tab === t.key ? "bg-primary text-primary-foreground ring-primary" : "bg-secondary text-muted-foreground ring-border"
                 }`}
               >
@@ -273,7 +273,7 @@ export function CampaignWizard({ sellerId, stateCode }: { sellerId: string; stat
                 >
                   <input type="checkbox" className="mt-1 size-4 accent-[var(--primary)]" checked={on} onChange={() => togglePlacement(p)} />
                   <span>
-                    <span className="block text-[13px] font-semibold">{meta.label}</span>
+                    <span className="block text-[13px] font-medium">{meta.label}</span>
                     <span className="block text-[11px] text-muted-foreground">{meta.hint}</span>
                     <span className="block text-[11px] text-primary/80">{PLACEMENT_REACH_NOTE[p]}</span>
                   </span>
@@ -340,7 +340,7 @@ export function CampaignWizard({ sellerId, stateCode }: { sellerId: string; stat
                     key={c}
                     type="button"
                     onClick={() => setCta(c)}
-                    className={`rounded-full px-3 py-1.5 text-[12px] font-semibold ring-1 ${
+                    className={`rounded-md px-3 py-1.5 text-[12px] font-medium ring-1 ${
                       cta === c ? "bg-primary text-primary-foreground ring-primary" : "bg-secondary text-muted-foreground ring-border"
                     }`}
                   >
@@ -353,17 +353,17 @@ export function CampaignWizard({ sellerId, stateCode }: { sellerId: string; stat
           {/* Phone-frame preview (16:9 hero) */}
           <div className="space-y-2">
             <p className="text-[12px] font-medium text-muted-foreground">Live preview</p>
-            <div className="mx-auto w-full max-w-[280px] overflow-hidden rounded-2xl border border-border bg-card p-2 shadow-sm">
-              <div className="relative aspect-video overflow-hidden rounded-xl bg-muted">
+            <div className="mx-auto w-full max-w-[280px] overflow-hidden rounded-2xl border border-border bg-card p-2 shadow-card">
+              <div className="relative aspect-video overflow-hidden rounded-lg bg-muted">
                 {imageUrl ? (
                   <img src={resolveImage(imageUrl) ?? imageUrl} alt="" className="size-full object-cover" />
                 ) : null}
-                <span className="absolute right-2 top-2 rounded bg-black/60 px-1.5 py-0.5 text-[11px] font-bold text-white">
+                <span className="absolute right-2 top-2 rounded bg-black/50 px-1.5 py-0.5 text-[11px] font-medium text-white">
                   Ad
                 </span>
                 <div className="absolute inset-x-3 bottom-2">
-                  <p className="text-[13px] font-extrabold leading-tight text-white">{title || "Your title"}</p>
-                  {subtitle ? <p className="text-[10px] font-semibold text-slate-200">{subtitle}</p> : null}
+                  <p className="text-[13px] font-medium leading-tight text-white">{title || "Your title"}</p>
+                  {subtitle ? <p className="text-[11px] text-white/80">{subtitle}</p> : null}
                 </div>
               </div>
             </div>
@@ -389,16 +389,16 @@ export function CampaignWizard({ sellerId, stateCode }: { sellerId: string; stat
 
       {step === 4 && target && (
         <div className="space-y-4">
-          <div className="overflow-hidden rounded-xl border border-border">
+          <div className="overflow-hidden rounded-md border border-border">
             <div className="relative aspect-[2/1] bg-muted">
               {imageUrl ? (
                 <img src={resolveImage(imageUrl) ?? imageUrl} alt="" className="size-full object-cover" />
               ) : null}
               <div className="absolute inset-x-4 bottom-3">
-                <p className="text-[15px] font-extrabold text-white">{title}</p>
-                {subtitle ? <p className="text-[11px] font-semibold text-slate-200">{subtitle}</p> : null}
+                <p className="text-[15px] font-medium text-white">{title}</p>
+                {subtitle ? <p className="text-[11px] text-white/80">{subtitle}</p> : null}
               </div>
-              <span className="absolute right-3 top-3 rounded bg-black/60 px-2 py-0.5 text-[11px] font-bold text-white">Ad</span>
+              <span className="absolute right-3 top-3 rounded bg-black/50 px-2 py-0.5 text-[11px] font-medium text-white">Ad</span>
             </div>
           </div>
           <dl className="grid gap-x-6 gap-y-2 text-[13px] sm:grid-cols-2">

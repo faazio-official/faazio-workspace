@@ -1,5 +1,11 @@
 import { cn } from "@/lib/utils";
 
+/** PENDING_REVIEW → Pending review. Filter labels are prose, never raw enum values. */
+export function humanizeLabel(value: string): string {
+  const spaced = value.replace(/_/g, " ").toLowerCase();
+  return spaced.charAt(0).toUpperCase() + spaced.slice(1);
+}
+
 export function FilterChip({
   label,
   active,
@@ -15,13 +21,13 @@ export function FilterChip({
       onClick={onClick}
       aria-pressed={active}
       className={cn(
-        "focus-ringed rounded-full border px-2.5 py-1 text-[11px] font-semibold transition-colors",
+        "focus-ringed rounded-md border px-2.5 py-1 text-[12px] transition-colors",
         active
-          ? "border-transparent bg-primary text-primary-foreground shadow-glow"
-          : "border-border bg-card text-muted-foreground hover:border-primary/40 hover:bg-primary/5 hover:text-primary",
+          ? "border-primary bg-primary text-primary-foreground"
+          : "border-border bg-card text-muted-foreground hover:border-primary/40 hover:text-foreground",
       )}
     >
-      {label}
+      {label === "ALL" ? "All" : humanizeLabel(label)}
     </button>
   );
 }

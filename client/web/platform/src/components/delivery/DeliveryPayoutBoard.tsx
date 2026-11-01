@@ -289,13 +289,13 @@ export function DeliveryPayoutBoard({ scope }: { scope: Scope }) {
                 <TableRow key={payout.orderId} className="h-12">
                   <TableCell className="num text-[12px] font-medium">
                     {payout.orderId}
-                    <span className="block text-[10px] text-muted-foreground">
+                    <span className="block text-[11px] text-muted-foreground">
                       {payout.customerOrderId}
                     </span>
                   </TableCell>
                   <TableCell className="text-[13px]">
                     {payout.riderName}
-                    <span className="num block text-[10px] text-muted-foreground">
+                    <span className="num block text-[11px] text-muted-foreground">
                       {payout.riderId}
                     </span>
                   </TableCell>

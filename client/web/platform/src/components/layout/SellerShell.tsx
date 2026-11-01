@@ -16,7 +16,6 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
-import { groupTone, TONE_SOFT, TONE_TEXT, TONE_VAR } from "@/lib/ui/tones";
 import { useSession } from "@/lib/hooks/useSession";
 import { signOut } from "@/lib/api";
 import { RoleGate } from "@/components/layout/RoleGate";
@@ -79,48 +78,37 @@ export function SellerShell({ children }: { children: ReactNode }) {
           </div>
 
           <nav className="flex-1 overflow-y-auto px-2 py-3">
-            {groups.map((group) => {
-              const hue = groupTone(group);
-              return (
-                <div key={group} className="mb-3">
-                  {!collapsed ? (
-                    <p
+            {groups.map((group) => (
+              <div key={group} className="mb-4">
+                {!collapsed ? (
+                  <p className="px-2 pb-1 text-[11px] font-medium text-muted-foreground">
+                    {group}
+                  </p>
+                ) : null}
+                {SELLER_NAV.filter((i) => i.group === group).map((item) => {
+                  const active = normalizeNavPath(item.to) === current;
+                  return (
+                    <Link
+                      key={item.to}
+                      href={item.to}
                       className={cn(
-                        "flex items-center gap-1.5 px-2 pb-1 text-[11px] font-semibold",
-                        TONE_TEXT[hue],
+                        "focus-ringed mb-0.5 flex items-center gap-2 rounded-md px-2 py-2 text-[13px] transition-colors",
+                        active
+                          ? "bg-secondary font-medium text-foreground"
+                          : "text-muted-foreground hover:bg-secondary hover:text-foreground",
                       )}
+                      style={
+                        active ? { boxShadow: "inset 2px 0 0 0 var(--color-primary)" } : undefined
+                      }
+                      aria-current={active ? "page" : undefined}
                     >
-                      <span
-                        aria-hidden
-                        className="size-1.5 rounded-full"
-                        style={{ background: TONE_VAR[hue] }}
-                      />
-                      {group}
-                    </p>
-                  ) : null}
-                  {SELLER_NAV.filter((i) => i.group === group).map((item) => {
-                    const active = normalizeNavPath(item.to) === current;
-                    return (
-                      <Link
-                        key={item.to}
-                        href={item.to}
-                        className={cn(
-                          "focus-ringed mb-0.5 flex items-center gap-2 rounded-md px-2 py-2 text-[13px] transition-colors",
-                          active
-                            ? cn("font-semibold shadow-sm", TONE_SOFT[hue])
-                            : "text-muted-foreground hover:bg-secondary hover:text-foreground",
-                        )}
-                      >
-                        <item.icon
-                          className={cn("size-4 shrink-0", active ? "" : TONE_TEXT[hue])}
-                        />
-                        {!collapsed ? <span className="truncate">{item.label}</span> : null}
-                      </Link>
-                    );
-                  })}
-                </div>
-              );
-            })}
+                      <item.icon className="size-4 shrink-0" />
+                      {!collapsed ? <span className="truncate">{item.label}</span> : null}
+                    </Link>
+                  );
+                })}
+              </div>
+            ))}
           </nav>
 
           <div className="border-t border-border p-2">

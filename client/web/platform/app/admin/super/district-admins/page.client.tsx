@@ -74,7 +74,7 @@ function generatePassword(): string {
 function DistrictChip() {
   return (
     <div className="flex h-9 items-center rounded-md border border-border bg-muted/40 px-3 text-[13px]">
-      <span className="num font-semibold">{TTC_CODE}</span>
+      <span className="num font-medium">{TTC_CODE}</span>
       <span className="ml-1.5 text-muted-foreground">{districtName(TTC_CODE)}</span>
     </div>
   );
@@ -226,7 +226,7 @@ function DistrictAdminAccounts() {
         {form.issueLogin ? (
           <>
             and the portal login together. You can also{" "}
-            <button type="button" className="font-semibold text-interactive underline" onClick={() => setForm((f) => ({ ...f, issueLogin: false, password: "" }))}>
+            <button type="button" className="font-medium text-interactive underline" onClick={() => setForm((f) => ({ ...f, issueLogin: false, password: "" }))}>
               pre-provision without a login
             </button>
             <ComponentHelp id="pre-provision" label="About pre-provisioning an admin" />.
@@ -234,7 +234,7 @@ function DistrictAdminAccounts() {
         ) : (
           <>
             without a login; that admin cannot sign in until you{" "}
-            <Link href="/admin/super/credentials" className="font-semibold text-interactive">
+            <Link href="/admin/super/credentials" className="font-medium text-interactive">
               issue a portal login
             </Link>
             .
@@ -242,9 +242,9 @@ function DistrictAdminAccounts() {
         )}
       </p>
 
-      <div className="space-y-2 rounded-xl border border-border bg-card px-4 py-3">
+      <div className="space-y-2 rounded-lg border border-border bg-card px-4 py-3">
         <div className="flex flex-wrap items-center justify-between gap-2">
-          <p className="text-[13px] font-semibold">
+          <p className="text-[13px] font-medium">
             <span className="num">{covered}</span> / {totalDistricts} district{totalDistricts === 1 ? "" : "s"} covered
           </p>
           <p className="num text-[12px] text-muted-foreground">
@@ -260,7 +260,7 @@ function DistrictAdminAccounts() {
       </div>
 
       {uncovered.length > 0 ? (
-        <div className="flex flex-wrap items-center gap-2 rounded-xl border border-warning/40 bg-warning/10 px-4 py-3 text-[13px]">
+        <div className="flex flex-wrap items-center gap-2 rounded-lg border border-warning/40 bg-warning/10 px-4 py-3 text-[13px]">
           <AlertTriangle className="size-4 shrink-0 text-warning" />
           <span className="text-muted-foreground">No active admin for</span>
           {uncovered.map((d) => (
@@ -272,7 +272,7 @@ function DistrictAdminAccounts() {
                 setEditing(null);
                 document.getElementById("create-admin")?.scrollIntoView({ behavior: "smooth" });
               }}
-              className="num rounded-full border border-warning/40 bg-warning/10 px-2 py-0.5 text-[11px] font-semibold text-warning transition-colors hover:bg-warning/20"
+              className="num rounded-md border border-warning/40 bg-warning/10 px-2 py-0.5 text-[11px] font-medium text-warning transition-colors hover:bg-warning/20"
             >
               {d.districtCode}
             </button>
@@ -330,7 +330,7 @@ function DistrictAdminAccounts() {
             ) : null}
             {duplicateHint?.field === "phone" ? (
               <p className="flex items-start gap-1 text-[11px] text-warning">
-                <AlertTriangle className="mt-0.5 size-3 shrink-0" />
+                <AlertTriangle className="mt-0.5 size-4 shrink-0" />
                 <span>{duplicateHint.message}</span>
               </p>
             ) : null}
@@ -370,7 +370,7 @@ function DistrictAdminAccounts() {
           </div>
 
           {form.issueLogin ? (
-            <div className="space-y-2 rounded-xl border border-border bg-muted/30 px-4 py-3">
+            <div className="space-y-2 rounded-md border border-border bg-muted/30 px-4 py-3">
               <div className="flex items-end gap-2">
                 <div className="flex-1 space-y-1.5">
                   <Label htmlFor="adm-password">Temporary password</Label>
@@ -424,9 +424,9 @@ function DistrictAdminAccounts() {
         </div>
 
         {createdPassword ? (
-          <div className="mt-4 flex flex-wrap items-center gap-3 rounded-xl border border-accent/40 bg-accent/10 px-4 py-3">
+          <div className="mt-4 flex flex-wrap items-center gap-3 rounded-md border border-accent/40 bg-accent/10 px-4 py-3">
             <div>
-              <p className="text-[12px] font-semibold">Temporary password created</p>
+              <p className="text-[12px] font-medium">Temporary password created</p>
               <p className="num text-[13px]">{createdPassword}</p>
             </div>
             <p className="text-[11px] text-muted-foreground">
@@ -448,10 +448,10 @@ function DistrictAdminAccounts() {
         ) : null}
 
         {createdWarnings?.length ? (
-          <div className="mt-4 flex items-start gap-2 rounded-xl border border-warning/40 bg-warning/10 px-4 py-3">
+          <div className="mt-4 flex items-start gap-2 rounded-md border border-warning/40 bg-warning/10 px-4 py-3">
             <AlertTriangle className="mt-0.5 size-4 shrink-0 text-warning" />
             <div>
-              <p className="text-[12px] font-semibold text-warning">Created: shared phone</p>
+              <p className="text-[12px] font-medium text-warning">Created: shared phone</p>
               <p className="text-[11px] text-muted-foreground">
                 This phone already belongs to another account. You can still continue; confirm the
                 intended owner if you did not expect this.
@@ -463,7 +463,7 @@ function DistrictAdminAccounts() {
               </ul>
               <button
                 type="button"
-                className="mt-1 text-[11px] font-semibold text-interactive underline"
+                className="mt-1 text-[11px] font-medium text-interactive underline"
                 onClick={() => setCreatedWarnings(null)}
               >
                 Dismiss
@@ -535,7 +535,7 @@ function DistrictAdminAccounts() {
                 const login = loginByEmail(admin.email);
                 return (
                   <TableRow key={admin.adminId} className="h-12">
-                    <TableCell className="text-[13px] font-semibold">
+                    <TableCell className="text-[13px] font-medium">
                       {admin.districtCode ? (
                         <>
                           <span className="num">{admin.districtCode}</span>
@@ -687,7 +687,7 @@ function DistrictAdminAccounts() {
               </Button>
 
               <div>
-                <p className="mb-2 text-[12px] font-semibold">Recent activity</p>
+                <p className="mb-2 text-[12px] font-medium">Recent activity</p>
                 <ul className="space-y-1">
                   {listAuditLogs({ query: editing.adminId })
                     .slice(0, 6)

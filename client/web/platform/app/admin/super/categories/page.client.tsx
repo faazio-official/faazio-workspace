@@ -6,6 +6,7 @@ import { PageHeader } from "@/components/patterns/PageHeader";
 import { SectionCard } from "@/components/patterns/SectionCard";
 import { DataShell, EmptyState } from "@/components/patterns/DataState";
 import { StatusPill } from "@/components/patterns/Pills";
+import { FilterChip } from "@/components/patterns/FilterChip";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -203,14 +204,12 @@ export function CategoriesPage() {
       <SectionCard title="Category tree" bodyClassName="p-0">
         <div className="flex flex-wrap gap-1.5 border-b border-border px-3 py-2">
           {TABS.map((t) => (
-            <Button
+            <FilterChip
               key={t}
-              size="sm"
-              variant={tab === t ? "default" : "outline"}
+              label={TAB_LABEL[t]}
+              active={tab === t}
               onClick={() => setTab(t)}
-            >
-              {TAB_LABEL[t]}
-            </Button>
+            />
           ))}
         </div>
 

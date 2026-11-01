@@ -8,7 +8,7 @@ import { CategoryBars, GmvTrend } from "@/components/patterns/Charts";
 import { DataShell } from "@/components/patterns/DataState";
 import { StatusPill } from "@/components/patterns/Pills";
 import { formatINR, formatNumber, formatPercent } from "@/lib/format";
-import { periodDelta, sparkline, sumGmv, sumOrders } from "@/lib/analytics/derive";
+import { periodDelta, sumGmv, sumOrders } from "@/lib/analytics/derive";
 import { stateMetrics } from "@/lib/api";
 import { useCampaigns, useMockLoading, useOrders, useSellers } from "@/lib/api/hooks";
 import { useSession } from "@/lib/hooks/useSession";
@@ -54,13 +54,13 @@ function StateDashboard() {
               label: "GMV (30d)",
               value: formatINR(sumGmv(series), { compact: true }),
               deltaPercent: periodDelta(series, (p) => p.gmvPaisa),
-              spark: sparkline(series, (p) => p.gmvPaisa),
+              compare: "vs previous 30 days",
             },
             {
               label: "Orders (30d)",
               value: formatNumber(sumOrders(series)),
               deltaPercent: periodDelta(series, (p) => p.orders),
-              spark: sparkline(series, (p) => p.orders),
+              compare: "vs previous 30 days",
             },
             { label: "Active sellers", value: formatNumber(sellers.filter((s) => s.status === "ACTIVE").length) },
             { label: "Pending KYC", value: formatNumber(pendingKyc), hint: "Awaiting your review" },
@@ -90,7 +90,7 @@ function StateDashboard() {
           description="Your state plus global campaigns you must obey"
           actions={
             <div className="flex items-center gap-1.5">
-              <Link href="/admin/district/festival" className="text-[12px] font-semibold text-primary">
+              <Link href="/admin/district/festival" className="text-[12px] font-medium text-primary">
                 Manage
               </Link>
               <ComponentHelp id="manage-campaigns-link" label="About managing campaigns" />

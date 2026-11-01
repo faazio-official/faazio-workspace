@@ -212,7 +212,7 @@ function LoginPage() {
             </Label>
           </div>
           {diagnostic ? (
-            <p className="rounded-md border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-[12px] text-amber-700 dark:text-amber-300">
+            <p className="rounded-md border border-warning/40 bg-warning/10 px-3 py-2 text-[12px] text-warning">
               {diagnostic.message}
             </p>
           ) : null}

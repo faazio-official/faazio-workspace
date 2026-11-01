@@ -15,7 +15,6 @@ import {
   listingQuality,
   periodDelta,
   sellerHealth,
-  sparkline,
   sumGmv,
   sumOrders,
 } from "@/lib/analytics/derive";
@@ -62,8 +61,8 @@ function SellerDashboard() {
   return (
     <div className="space-y-4">
       <PageHeader
-        title={`Good day, ${session?.name ?? "Partner"}`}
-        description="Your shop at a glance — supply, dispatch and growth in one screen."
+        title="Dashboard"
+        description={`${session?.name ?? "Your shop"} — last 30 days of sales, dispatch and listing health.`}
         actions={
           <div className="flex items-center gap-1.5">
             <Button asChild size="sm">
@@ -75,9 +74,9 @@ function SellerDashboard() {
       />
 
       {liveCampaign ? (
-        <div className="flex flex-wrap items-center gap-3 rounded-xl border border-primary/30 bg-primary/5 px-4 py-3">
+        <div className="flex flex-wrap items-center gap-3 rounded-xl border border-border px-4 py-3">
           <StatusPill status="LIVE" />
-          <p className="text-[13px] font-semibold">{liveCampaign.name} is running</p>
+          <p className="text-[13px] font-medium">{liveCampaign.name} is running</p>
           <p className="text-[12px] text-muted-foreground">
             Opt products in at or below the sector cap to appear in festival rails.
           </p>
@@ -95,13 +94,13 @@ function SellerDashboard() {
               label: "GMV (30d)",
               value: formatINR(sumGmv(series), { compact: true }),
               deltaPercent: periodDelta(series, (p) => p.gmvPaisa),
-              spark: sparkline(series, (p) => p.gmvPaisa),
+              compare: "vs previous 30 days",
             },
             {
               label: "Orders (30d)",
               value: formatNumber(sumOrders(series)),
               deltaPercent: periodDelta(series, (p) => p.orders),
-              spark: sparkline(series, (p) => p.orders),
+              compare: "vs previous 30 days",
             },
             {
               label: "Pending dispatch",
@@ -128,7 +127,7 @@ function SellerDashboard() {
           <DataShell loading={loading} skeletonRows={4}>
             <div className="space-y-3">
               <div className="flex items-end gap-2">
-                <p className="num text-[28px] font-semibold leading-none">{health.score}</p>
+                <p className="num text-[28px] font-medium leading-none">{health.score}</p>
                 <span className="text-[12px] text-muted-foreground">/ 100</span>
               </div>
               <Progress value={health.score} className="h-1.5" />
@@ -141,7 +140,7 @@ function SellerDashboard() {
                       <TriangleAlert className="size-4 text-warning" />
                     )}
                     <span className="flex-1 text-muted-foreground">{part.label}</span>
-                    <span className="num font-semibold">{part.value}</span>
+                    <span className="num font-medium">{part.value}</span>
                     <span className="num text-muted-foreground">w{part.weight}</span>
                   </li>
                 ))}
@@ -228,7 +227,7 @@ function SellerDashboard() {
             </li>
           ))}
           {pendingDispatch.length === 0 ? (
-            <li className="text-[13px] text-muted-foreground">Dispatch queue is clear.</li>
+            <li className="text-[13px] text-muted-foreground">Dispatch queue is clear</li>
           ) : null}
         </ul>
       </SectionCard>

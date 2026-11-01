@@ -36,7 +36,7 @@ function SellerReviews() {
       <div className="grid gap-4 lg:grid-cols-3">
         <SectionCard title="Rating breakdown">
           <div className="flex items-end gap-2">
-            <p className="num text-[28px] font-semibold leading-none">{average.toFixed(1)}</p>
+            <p className="num text-[28px] font-medium leading-none">{average.toFixed(1)}</p>
             <Star className="mb-1 size-4 text-warning" />
             <span className="mb-1 text-[12px] text-muted-foreground">{reviews.length} reviews</span>
           </div>
@@ -84,14 +84,14 @@ function SellerReviews() {
               {reviews.map((review) => (
                 <li key={review.reviewId} className="space-y-2 p-4">
                   <div className="flex items-center gap-2">
-                    <span className="num text-[13px] font-semibold">{review.rating}.0</span>
+                    <span className="num text-[13px] font-medium">{review.rating}.0</span>
                     <Star className="size-3.5 text-warning" />
                     <span className="text-[13px] font-medium">{review.customerName}</span>
                     <span className="num text-[11px] text-muted-foreground">
                       {formatDate(review.createdAt)}
                     </span>
                     {review.flagged ? (
-                      <span className="ml-auto text-[11px] font-semibold text-destructive">
+                      <span className="ml-auto text-[11px] font-medium text-destructive">
                         Flagged to admin
                       </span>
                     ) : null}

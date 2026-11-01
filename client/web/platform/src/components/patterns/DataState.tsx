@@ -28,7 +28,7 @@ export function EmptyState({
       <div className="flex size-10 items-center justify-center rounded-full bg-accent text-accent-foreground">
         <Inbox className="size-5" />
       </div>
-      <p className="text-[14px] font-semibold text-foreground">{title}</p>
+      <p className="text-[14px] font-medium text-foreground">{title}</p>
       <p className="max-w-sm text-[13px] text-muted-foreground">{description}</p>
       {action ? <div className="mt-2">{action}</div> : null}
     </div>
@@ -41,7 +41,7 @@ export function ErrorState({ message, onRetry }: { message: string; onRetry?: ()
       <div className="flex size-10 items-center justify-center rounded-full bg-destructive/10 text-destructive">
         <AlertTriangle className="size-5" />
       </div>
-      <p className="text-[14px] font-semibold text-foreground">Something didn’t load</p>
+      <p className="text-[14px] font-medium text-foreground">Something didn’t load</p>
       <p className="max-w-sm text-[13px] text-muted-foreground">{message}</p>
       {onRetry ? (
         <Button variant="outline" size="sm" className="mt-2" onClick={onRetry}>

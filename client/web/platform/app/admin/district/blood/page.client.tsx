@@ -67,7 +67,7 @@ function StateBlood() {
                   <TableCell className="font-medium">{r.requestId}</TableCell>
                   <TableCell>{r.hospital}</TableCell>
                   <TableCell>{r.city}</TableCell>
-                  <TableCell className="font-semibold">{r.bloodGroup}</TableCell>
+                  <TableCell className="font-medium">{r.bloodGroup}</TableCell>
                   <TableCell className="num text-right">{r.unitsRequired}</TableCell>
                   <TableCell>
                     <StatusPill status={r.urgency} />

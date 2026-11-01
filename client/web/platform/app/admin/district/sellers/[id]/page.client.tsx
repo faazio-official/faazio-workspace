@@ -87,7 +87,7 @@ function SellerReview() {
         title="Seller not found"
         description="This application may have been removed."
         action={
-          <Link href="/admin/district/sellers" className="text-[13px] font-semibold text-primary">
+          <Link href="/admin/district/sellers" className="text-[13px] font-medium text-primary">
             Back to sellers
           </Link>
         }

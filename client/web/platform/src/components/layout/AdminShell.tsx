@@ -36,7 +36,6 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
-import { groupTone, TONE_VAR } from "@/lib/ui/tones";
 import { useSession } from "@/lib/hooks/useSession";
 import { useConnectivityStore } from "@/lib/connectivityStore";
 import { signOut } from "@/lib/api";
@@ -111,55 +110,39 @@ export function AdminShell({
           </div>
 
           <nav className="flex-1 overflow-y-auto px-2 py-3">
-            {groups.map((group) => {
-              const hue = groupTone(group);
-              return (
-                <div key={group} className="mb-3">
-                  {!collapsed ? (
-                    <p className="flex items-center gap-1.5 px-2 pb-1 text-[11px] font-semibold text-ink-muted">
-                      <span
-                        aria-hidden
-                        className="size-1.5 rounded-full"
-                        style={{ background: TONE_VAR[hue] }}
-                      />
-                      {group}
-                    </p>
-                  ) : null}
-                  {nav
-                    .filter((i) => i.group === group)
-                    .map((item) => {
-                      const active = normalizeNavPath(item.to) === current;
-                      return (
-                        <Link
-                          key={item.to}
-                          href={item.to}
-                          className={cn(
-                            "focus-ring-ink mb-0.5 flex items-center gap-2 rounded-md px-2 py-2 text-[13px] transition-colors",
-                            active
-                              ? "font-semibold text-ink-foreground shadow-sm"
-                              : "text-ink-muted hover:bg-ink-border hover:text-ink-foreground",
-                          )}
-                          style={
-                            active
-                              ? {
-                                  backgroundColor: `color-mix(in oklab, ${TONE_VAR[hue]} 30%, transparent)`,
-                                  boxShadow: `inset 3px 0 0 0 ${TONE_VAR[hue]}`,
-                                }
-                              : undefined
-                          }
-                          aria-current={active ? "page" : undefined}
-                        >
-                          <item.icon
-                            className="size-4 shrink-0"
-                            style={active ? undefined : { color: TONE_VAR[hue] }}
-                          />
-                          {!collapsed ? <span className="truncate">{item.label}</span> : null}
-                        </Link>
-                      );
-                    })}
-                </div>
-              );
-            })}
+            {groups.map((group) => (
+              <div key={group} className="mb-4">
+                {!collapsed ? (
+                  <p className="px-2 pb-1 text-[11px] font-medium text-ink-muted">{group}</p>
+                ) : null}
+                {nav
+                  .filter((i) => i.group === group)
+                  .map((item) => {
+                    const active = normalizeNavPath(item.to) === current;
+                    return (
+                      <Link
+                        key={item.to}
+                        href={item.to}
+                        className={cn(
+                          "focus-ring-ink mb-0.5 flex items-center gap-2 rounded-md px-2 py-2 text-[13px] transition-colors",
+                          active
+                            ? "bg-ink-border text-ink-foreground"
+                            : "text-ink-muted hover:bg-ink-border/50 hover:text-ink-foreground",
+                        )}
+                        style={
+                          active
+                            ? { boxShadow: "inset 2px 0 0 0 var(--color-primary)" }
+                            : undefined
+                        }
+                        aria-current={active ? "page" : undefined}
+                      >
+                        <item.icon className="size-4 shrink-0" />
+                        {!collapsed ? <span className="truncate">{item.label}</span> : null}
+                      </Link>
+                    );
+                  })}
+              </div>
+            ))}
           </nav>
 
           <div className="border-t border-ink-border p-2">
@@ -198,7 +181,7 @@ export function AdminShell({
             >
               <Menu className="size-4" />
             </Button>
-            <span className="inline-flex min-w-0 items-center gap-1.5 rounded-full bg-ink px-2.5 py-1 text-[11px] font-semibold text-ink-foreground">
+            <span className="inline-flex min-w-0 items-center gap-1.5 rounded-md border border-border bg-secondary px-2 py-1 text-[11px] font-medium text-foreground/70">
               <span className="truncate">
                 {scope === "DISTRICT"
                   ? session?.districtCode
@@ -213,33 +196,34 @@ export function AdminShell({
             {scope === "DISTRICT" && session?.role === "SUPER_ADMIN" ? (
               <Link
                 href="/admin/super"
-                className="flex shrink-0 items-center gap-1.5 rounded-full bg-ink px-2.5 py-1 text-[11px] font-semibold text-ink-foreground hover:bg-ink-border"
+                className="flex shrink-0 items-center gap-1.5 rounded-md border border-border px-2 py-1 text-[11px] text-muted-foreground hover:text-foreground"
                 aria-label="Return to super admin console"
               >
                 <ArrowLeft className="size-3.5 shrink-0" />
                 <span className="hidden sm:inline">Return to super admin</span>
               </Link>
             ) : null}
-            <Button
-              variant="outline"
-              size="sm"
-              className="shrink-0 gap-2 text-muted-foreground"
-              aria-label="Search"
-              onClick={() => setPaletteOpen(true)}
-            >
-              <CommandIcon className="size-4" />
-              <span className="hidden sm:inline">Search</span>
-              <kbd className="num ml-1 hidden rounded border border-border px-1 text-[11px] sm:inline">
-                ⌘K
-              </kbd>
-            </Button>
-            <ComponentHelp helpKey="shell:admin-search" label="About admin search" />
+            <div className="flex items-center gap-1">
+              <Button
+                variant="outline"
+                size="sm"
+                className="shrink-0 gap-2 text-muted-foreground"
+                aria-label="Search"
+                onClick={() => setPaletteOpen(true)}
+              >
+                <CommandIcon className="size-4" />
+                <span className="hidden sm:inline">Search</span>
+                <kbd className="num ml-1 hidden rounded border border-border px-1 text-[11px] sm:inline">
+                  ⌘K
+                </kbd>
+              </Button>
+              <ComponentHelp helpKey="shell:admin-search" label="About admin search" />
+            </div>
             <div className="ml-auto flex items-center gap-1">
               <Button variant="ghost" size="icon" aria-label="Notifications">
                 <Bell className="size-4" />
               </Button>
               <ComponentHelp helpKey="shell:admin-bell" label="About admin notifications" />
-              <ComponentHelp helpKey="shell:admin-user" label="About your account menu" />
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <Button variant="ghost" size="sm" className="gap-2">
@@ -263,6 +247,7 @@ export function AdminShell({
                   </DropdownMenuItem>
                 </DropdownMenuContent>
               </DropdownMenu>
+              <ComponentHelp helpKey="shell:admin-user" label="About your account menu" />
             </div>
           </header>
           <main className="mx-auto w-full max-w-[1440px] flex-1 px-4 py-5 lg:min-h-0 lg:overflow-y-auto lg:px-6">

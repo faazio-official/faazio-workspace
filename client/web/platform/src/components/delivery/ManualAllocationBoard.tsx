@@ -278,7 +278,7 @@ export function ManualAllocationBoard({ scope }: { scope: Scope }) {
                   <TableCell className="num text-[12px] font-medium">
                     {order.customerOrderId}
                     {order.orderId ? (
-                      <span className="block text-[10px] text-muted-foreground">
+                      <span className="block text-[11px] text-muted-foreground">
                         {order.orderId}
                       </span>
                     ) : null}

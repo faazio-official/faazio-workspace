@@ -42,7 +42,7 @@ function Landing() {
       </header>
 
       <main className="mx-auto max-w-[1200px] px-4 py-10">
-        <h1 className="max-w-2xl text-[26px] font-semibold leading-tight">
+        <h1 className="max-w-2xl text-[26px] font-medium leading-tight">
           The console behind the Faazio SuperApp: MART, FOOD and PHARMA supply in one place.
         </h1>
         <p className="mt-2 max-w-2xl text-[14px] text-muted-foreground">
@@ -52,11 +52,15 @@ function Landing() {
 
         <div className="mt-7 grid gap-3 md:grid-cols-3">
           {ROLE_CARDS.map((card) => (
-            <Link key={card.role} href={card.to} className="surface lift block p-5">
+            <Link
+              key={card.role}
+              href={card.to}
+              className="surface block p-5 transition-colors hover:border-primary/40"
+            >
               <card.icon className="size-5 text-primary" />
-              <p className="mt-3 text-[15px] font-semibold">{ROLE_LABEL[card.role]}</p>
+              <p className="mt-3 text-[15px] font-medium">{ROLE_LABEL[card.role]}</p>
               <p className="mt-1 text-[13px] text-muted-foreground">{card.blurb}</p>
-              <span className="mt-3 inline-flex items-center gap-1 text-[13px] font-semibold text-interactive">
+              <span className="mt-3 inline-flex items-center gap-1 text-[13px] font-medium text-interactive">
                 Open console <ArrowRight className="size-3.5" />
               </span>
             </Link>

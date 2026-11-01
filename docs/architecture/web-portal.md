@@ -263,12 +263,52 @@ handler changed:
 - **Sticky** — the desktop shell is `lg:h-screen lg:overflow-hidden` and the
   content column (`<main>`) scrolls, so only one `sticky top-0` (the header, and
   `lg:static`) remains instead of two.
-- **Contrast** — `--input`, `--success`, `--food`, `--pharma` and the `--tone-*`
-  label hues were darkened to clear the 3:1 edge / 4.5:1 text thresholds
-  (`--input` now `oklch(0.66 0.02 258)`, `--success` `oklch(0.5 0.13 163)`).
+- **Contrast** — `--input`, `--success`, `--food` and `--pharma` were darkened
+  to clear the 3:1 edge / 4.5:1 text thresholds (`--input` now
+  `oklch(0.66 0.02 258)`, `--success` `oklch(0.5 0.13 163)`). The `--tone-*`
+  label hues this pass darkened were removed entirely in the Unslop pass below.
 - **Size** — the 13px root scaled Tailwind rem sizes (`h-8` → 26px, `text-xs` →
   9.75px); `Button`/`Input` control heights are now px (`h-[32px]`/`h-[36px]`)
   and functional labels moved off `text-[10px]` / `uppercase tracking-*`.
+
+## Unslop pass (console design system)
+
+An Unslop pass (2026-11-01) removed the AI-default chrome that had accumulated
+across the console, without changing any route, feature, prop contract or data:
+
+- **Colour** — the six per-group `--tone-*` hues and the `toneFor()` string hash
+  are gone. `src/lib/ui/tones.ts` resolves every legacy tone to the neutral
+  roles (`TONE_VAR` → `--color-primary` / `--color-muted-foreground`), so one
+  cool graphite ramp and Faazio blue (the single accent) carry the whole
+  console. Sector colours MART/FOOD/PHARMA stay, and only in sector labels and
+  the sector-mix chart.
+- **Surfaces** — removed `--gradient-brand`, `--gradient-header`, the `wash`,
+  `rail` and `lift` utilities and `--shadow-glow`. The primary `Button` is now
+  solid brand blue with a visible focus ring instead of a gradient with a glow;
+  `SectionCard`/`PageHeader` headers are a plain hairline, not a tinted rail.
+- **Data-viz** — `KpiCard` is a figure, its change and the comparison only
+  (sparklines removed). `ChartsImpl` uses one accent lead over neutral ramp
+  steps (the legacy 7-hue bars and 6-hue donut are gone); `StatusDonut` takes an
+  optional per-label colour map so the sector chart keeps its semantic colours.
+- **Type** — IBM Plex Sans with IBM Plex Mono for figures and codes, loaded in
+  `app/layout.tsx`; titles and labels step down from `font-semibold` to
+  `font-medium`. `.num` now renders tabular mono — the console's signature
+  detail (district codes, order ids, money).
+- **Copy** — the seller greeting headline and the "at a glance / deterministic
+  mock series" descriptions are replaced with plain, page-specific copy.
+  `StatusPill` humanises raw enums (`PENDING_REVIEW` → `Pending review`) and
+  renders as quiet text with a toned dot, not a glowing pill.
+- **Empty data** — `ChartsImpl` renders a quiet "No data for this period"
+  placeholder (dashed hairline, no axis frame) when a series has no rows, so an
+  empty slice never draws a bare grid. `FilterChip` humanises its label the same
+  way `StatusPill` does, so filter rows read as prose rather than raw enums.
+- **Help affordances** — every `ComponentHelp`/`InfoHint` button and its copy is
+  kept. `SectionCard` skips its title-derived hint when the page already passes
+  a `ComponentHelp` into `actions` (detected at any depth by `containsHelp`), so
+  a section header never shows two identical "i" buttons. `InfoHint` triggers
+  align inline with their label instead of being pushed to the card edge.
+- **KPI strips** — `KpiStrip` picks a column count from a literal class map so a
+  strip of 5 or 6 reads as one row and no card is stranded alone on its own row.
 
 ## Data ownership
 

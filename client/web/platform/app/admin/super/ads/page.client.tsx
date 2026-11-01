@@ -96,7 +96,7 @@ function SuperAds() {
                     {c.targetType} · {c.targetId}
                   </TableCell>
                   <TableCell className="num text-right">
-                    {c.reports ? <span className="font-semibold text-warning">{c.reports}</span> : "—"}
+                    {c.reports ? <span className="font-medium text-warning">{c.reports}</span> : "—"}
                   </TableCell>
                   <TableCell className="num text-right">
                     {c.impressions ? formatPercent((c.clicks / c.impressions) * 100, 2) : "—"}

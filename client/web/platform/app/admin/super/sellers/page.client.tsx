@@ -102,7 +102,7 @@ function SuperSellers() {
                       {seller.businessName}
                     </Link>
                   </TableCell>
-                  <TableCell className="num text-[13px] font-semibold">
+                  <TableCell className="num text-[13px] font-medium">
                     {seller.districtCode ?? seller.stateCode}
                   </TableCell>
                   <TableCell>

@@ -70,7 +70,7 @@ function Onboarding() {
           <li
             key={label}
             className={cn(
-              "flex items-center gap-2 rounded-full border px-3 py-1.5 text-[12px] font-semibold",
+              "flex items-center gap-2 rounded-md border px-3 py-1.5 text-[12px] font-medium",
               index === step
                 ? "border-primary bg-primary/10 text-primary"
                 : index < step

@@ -71,7 +71,7 @@ function SellerInventory() {
       {lowStock.length > 0 ? (
         <div className="flex items-center gap-2 rounded-xl border border-warning/40 bg-warning/10 px-4 py-3 text-[13px]">
           <AlertTriangle className="size-4 text-warning" />
-          <span className="num font-semibold">{lowStock.length}</span> listings are at or below the
+          <span className="num font-medium">{lowStock.length}</span> listings are at or below the
           low-stock threshold.
         </div>
       ) : null}

@@ -15,7 +15,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { formatINR, formatNumber, formatPercent } from "@/lib/format";
-import { periodDelta, sparkline, sumGmv, sumOrders } from "@/lib/analytics/derive";
+import { periodDelta, sumGmv, sumOrders } from "@/lib/analytics/derive";
 import { productMetrics, sellerMetrics } from "@/lib/api";
 import { useMockLoading, useOrders, useProducts } from "@/lib/api/hooks";
 import { useSession } from "@/lib/hooks/useSession";
@@ -73,7 +73,7 @@ function SellerAnalytics() {
     <div className="space-y-4">
       <PageHeader
         title="Shop analytics"
-        description="Deterministic mock series — same numbers on every reload."
+        description="Sales, conversion and category mix for your shop."
         actions={
           <div className="flex items-center gap-1.5">
             {PERIODS.map((option) => (
@@ -96,18 +96,19 @@ function SellerAnalytics() {
               label: `GMV (${days}d)`,
               value: formatINR(sumGmv(series), { compact: true }),
               deltaPercent: periodDelta(series, (p) => p.gmvPaisa),
-              spark: sparkline(series, (p) => p.gmvPaisa),
+              compare: "vs previous period",
             },
             {
               label: "Orders",
               value: formatNumber(orderCount),
               deltaPercent: periodDelta(series, (p) => p.orders),
-              spark: sparkline(series, (p) => p.orders),
+              compare: "vs previous period",
             },
             {
               label: "Product views",
               value: formatNumber(views),
               deltaPercent: periodDelta(series, (p) => p.views),
+              compare: "vs previous period",
             },
             {
               label: "View → order",
@@ -118,16 +119,13 @@ function SellerAnalytics() {
         />
       </DataShell>
 
+      <SectionCard title="Revenue trend" actions={<ComponentHelp id="revenue-trend" />}>
+        <DataShell loading={loading} skeletonRows={4}>
+          <GmvTrend data={series} />
+        </DataShell>
+      </SectionCard>
+
       <div className="grid gap-4 lg:grid-cols-3">
-        <SectionCard
-          title="Revenue trend"
-          className="lg:col-span-2"
-          actions={<ComponentHelp id="revenue-trend" />}
-        >
-          <DataShell loading={loading} skeletonRows={4}>
-            <GmvTrend data={series} />
-          </DataShell>
-        </SectionCard>
         <SectionCard
           title="Conversion funnel"
           description={`Last ${days} days`}
@@ -144,7 +142,7 @@ function SellerAnalytics() {
                 <li key={step.label}>
                   <div className="flex items-center justify-between text-[12px]">
                     <span className="text-muted-foreground">{step.label}</span>
-                    <span className="num font-semibold">{formatNumber(step.value)}</span>
+                    <span className="num font-medium">{formatNumber(step.value)}</span>
                   </div>
                   <div className="mt-1 h-2 rounded-full bg-secondary">
                     <div
@@ -163,10 +161,7 @@ function SellerAnalytics() {
             })}
           </ul>
         </SectionCard>
-      </div>
-
-      <div className="grid gap-4 lg:grid-cols-3">
-        <SectionCard title="Orders per day" className="lg:col-span-2">
+        <SectionCard title="Orders per day">
           <OrdersTrend data={series} />
         </SectionCard>
         <SectionCard title="Order status split">
@@ -209,7 +204,7 @@ function SellerAnalytics() {
                   <TableCell className="num text-right">
                     {row.views ? formatPercent((row.orders / row.views) * 100, 2) : "—"}
                   </TableCell>
-                  <TableCell className="num text-right font-semibold">
+                  <TableCell className="num text-right font-medium">
                     {formatINR(row.gmv)}
                   </TableCell>
                 </TableRow>

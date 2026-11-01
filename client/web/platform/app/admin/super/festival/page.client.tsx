@@ -106,7 +106,7 @@ function SuperFestival() {
             const current = capFor(caps, sector);
             const key = `global:${sector}`;
             return (
-              <div key={sector} className="space-y-2 rounded-xl border border-border p-3">
+              <div key={sector} className="space-y-2 rounded-md border border-border p-3">
                 <SectorPill sector={sector} />
                 <div className="space-y-1.5">
                   <Label htmlFor={key}>Cap %</Label>

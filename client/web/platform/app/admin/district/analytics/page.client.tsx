@@ -16,7 +16,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { formatINR, formatNumber, formatPercent } from "@/lib/format";
-import { periodDelta, sparkline, sumGmv, sumOrders } from "@/lib/analytics/derive";
+import { periodDelta, sumGmv, sumOrders } from "@/lib/analytics/derive";
 import { sellerMetrics, stateMetrics } from "@/lib/api";
 import { useMockLoading, useOrders, useSellers } from "@/lib/api/hooks";
 import { useSession } from "@/lib/hooks/useSession";
@@ -72,7 +72,7 @@ function StateAnalytics() {
     <div className="space-y-4">
       <PageHeader
         title="State analytics"
-        description="Scoped to your district, generated from the same deterministic series everywhere."
+        description="Scoped to your district — GMV, orders, sellers and category mix."
         actions={
           <div className="flex items-center gap-1.5">
             <div className="flex gap-1">
@@ -97,13 +97,13 @@ function StateAnalytics() {
               label: `GMV (${days}d)`,
               value: formatINR(sumGmv(series), { compact: true }),
               deltaPercent: periodDelta(series, (p) => p.gmvPaisa),
-              spark: sparkline(series, (p) => p.gmvPaisa),
+              compare: "vs previous period",
             },
             {
               label: "Orders",
               value: formatNumber(sumOrders(series)),
               deltaPercent: periodDelta(series, (p) => p.orders),
-              spark: sparkline(series, (p) => p.orders),
+              compare: "vs previous period",
             },
             { label: "Sellers", value: formatNumber(sellers.length) },
             {
@@ -118,17 +118,22 @@ function StateAnalytics() {
         />
       </DataShell>
 
-      <div className="grid gap-4 lg:grid-cols-3">
-        <SectionCard title="GMV by day" className="lg:col-span-2">
-          <GmvTrend data={series} />
-        </SectionCard>
-        <SectionCard title="Sector mix">
-          <StatusDonut data={bySector} />
-        </SectionCard>
-      </div>
+      <SectionCard title="GMV by day">
+        <GmvTrend data={series} />
+      </SectionCard>
 
       <div className="grid gap-4 lg:grid-cols-3">
-        <SectionCard title="Orders by day" className="lg:col-span-2">
+        <SectionCard title="Sector mix">
+          <StatusDonut
+            data={bySector}
+            colors={{
+              MART: "var(--color-mart)",
+              FOOD: "var(--color-food)",
+              PHARMA: "var(--color-pharma)",
+            }}
+          />
+        </SectionCard>
+        <SectionCard title="Orders by day">
           <OrdersTrend data={series} />
         </SectionCard>
         <SectionCard title="Onboarding funnel">
@@ -137,7 +142,7 @@ function StateAnalytics() {
               <li key={step.label}>
                 <div className="flex items-center justify-between text-[12px]">
                   <span className="text-muted-foreground">{step.label}</span>
-                  <span className="num font-semibold">{formatNumber(step.value)}</span>
+                  <span className="num font-medium">{formatNumber(step.value)}</span>
                 </div>
                 <div className="mt-1 h-2 rounded-full bg-secondary">
                   <div
@@ -184,7 +189,7 @@ function StateAnalytics() {
               <TableRow key={row.seller.sellerId} className="h-12">
                 <TableCell className="num text-[12px] text-muted-foreground">{index + 1}</TableCell>
                 <TableCell className="text-[13px] font-medium">{row.seller.businessName}</TableCell>
-                <TableCell className="num text-right font-semibold">{formatINR(row.gmv)}</TableCell>
+                <TableCell className="num text-right font-medium">{formatINR(row.gmv)}</TableCell>
                 <TableCell className="num text-right">{formatNumber(row.orders)}</TableCell>
                 <TableCell className="num text-right">{row.seller.rating.toFixed(1)}</TableCell>
                 <TableCell>

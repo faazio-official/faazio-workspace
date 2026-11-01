@@ -7,7 +7,6 @@ import { activeNavHref, normalizeNavPath, type NavItem } from "@/components/layo
 import { Button } from "@/components/ui/button";
 import { FaazioWordmark } from "@/components/brand/FaazioWordmark";
 import { cn } from "@/lib/utils";
-import { groupTone, TONE_SOFT, TONE_TEXT, TONE_VAR } from "@/lib/ui/tones";
 import type { AuthUser } from "@/data/types";
 
 export function MobileNavDrawer({
@@ -128,52 +127,40 @@ export function MobileNavDrawer({
           </Link>
         ) : null}
         <nav className="flex-1 overflow-y-auto p-2">
-          {groups.map((group) => {
-            const hue = groupTone(group);
-            return (
-              <div key={group} className="mb-3">
-                <p
-                  className={cn(
-                    "flex items-center gap-1.5 px-2 pb-1 text-[11px] font-semibold",
-                    TONE_TEXT[hue],
-                  )}
-                >
-                  <span
-                    aria-hidden
-                    className="size-1.5 rounded-full"
-                    style={{ background: TONE_VAR[hue] }}
-                  />
-                  {group}
-                </p>
-                <div className="space-y-0.5">
-                  {nav
-                    .filter((item) => item.group === group)
-                    .map((item) => {
-                      const active = normalizeNavPath(item.to) === current;
-                      return (
-                        <Link
-                          key={item.to}
-                          href={item.to}
-                          onClick={onClose}
-                          aria-current={active ? "page" : undefined}
-                          className={cn(
-                            "focus-ringed mb-0.5 flex items-center gap-2 rounded-md px-2 py-2 text-[13px] transition-colors",
-                            active
-                              ? cn("font-semibold shadow-sm", TONE_SOFT[hue])
-                              : "text-muted-foreground hover:bg-secondary hover:text-foreground",
-                          )}
-                        >
-                          <item.icon
-                            className={cn("size-4 shrink-0", active ? "" : TONE_TEXT[hue])}
-                          />
-                          <span className="truncate">{item.label}</span>
-                        </Link>
-                      );
-                    })}
-                </div>
+          {groups.map((group) => (
+            <div key={group} className="mb-4">
+              <p className="px-2 pb-1 text-[11px] font-medium text-muted-foreground">{group}</p>
+              <div className="space-y-0.5">
+                {nav
+                  .filter((item) => item.group === group)
+                  .map((item) => {
+                    const active = normalizeNavPath(item.to) === current;
+                    return (
+                      <Link
+                        key={item.to}
+                        href={item.to}
+                        onClick={onClose}
+                        aria-current={active ? "page" : undefined}
+                        className={cn(
+                          "focus-ringed mb-0.5 flex items-center gap-2 rounded-md px-2 py-2 text-[13px] transition-colors",
+                          active
+                            ? "bg-secondary font-medium text-foreground"
+                            : "text-muted-foreground hover:bg-secondary hover:text-foreground",
+                        )}
+                        style={
+                          active
+                            ? { boxShadow: "inset 2px 0 0 0 var(--color-primary)" }
+                            : undefined
+                        }
+                      >
+                        <item.icon className="size-4 shrink-0" />
+                        <span className="truncate">{item.label}</span>
+                      </Link>
+                    );
+                  })}
               </div>
-            );
-          })}
+            </div>
+          ))}
         </nav>
       </div>
     </div>

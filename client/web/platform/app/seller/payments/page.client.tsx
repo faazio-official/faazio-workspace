@@ -101,7 +101,7 @@ function SellerPayments() {
                   <TableCell className="num text-right text-muted-foreground">
                     {formatINR(entry.productTaxPaisa)}
                   </TableCell>
-                  <TableCell className="num text-right font-semibold">
+                  <TableCell className="num text-right font-medium">
                     {formatINR(entry.netPayoutPaisa)}
                   </TableCell>
                 </TableRow>

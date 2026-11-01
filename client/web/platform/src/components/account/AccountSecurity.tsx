@@ -84,7 +84,7 @@ export function AccountSecurity() {
       />
 
       {session?.mustChange && session.role !== "SUPER_ADMIN" ? (
-        <div className="rounded-lg border border-amber-500/40 bg-amber-500/10 px-4 py-3 text-[13px]">
+        <div className="rounded-lg border border-warning/40 bg-warning/10 px-4 py-3 text-[13px] text-warning">
           You are still using a temporary password. Change it now to continue.
         </div>
       ) : null}

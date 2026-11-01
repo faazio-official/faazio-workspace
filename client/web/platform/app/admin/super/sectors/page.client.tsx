@@ -68,9 +68,9 @@ function SuperSectors() {
       <SectionCard title="Sector caps in force">
         <div className="grid gap-3 md:grid-cols-3">
           {SECTORS.map((sector) => (
-            <div key={sector} className="rounded-xl border border-border p-3">
+            <div key={sector} className="rounded-md border border-border p-3">
               <SectorPill sector={sector} />
-              <p className="num mt-2 text-[22px] font-semibold leading-none">{capFor(caps, sector)}%</p>
+              <p className="num mt-2 text-[22px] font-medium leading-none">{capFor(caps, sector)}%</p>
               <p className="text-[11px] text-muted-foreground">
                 {formatNumber(products.filter((p) => p.sector === sector).length)} listings
               </p>

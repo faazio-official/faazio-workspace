@@ -172,7 +172,7 @@ function StateCoupons() {
             <TableBody>
               {coupons.map((coupon) => (
                 <TableRow key={coupon.couponId} className="h-12">
-                  <TableCell className="num text-[13px] font-semibold">{coupon.code}</TableCell>
+                  <TableCell className="num text-[13px] font-medium">{coupon.code}</TableCell>
                   <TableCell className="num text-[12px]">
                     {coupon.scope}
                     {coupon.stateCode ? ` · ${coupon.stateCode}` : ""}

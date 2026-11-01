@@ -59,14 +59,14 @@ function SellerOrders() {
                 }
               >
                 {columnOrders.length === 0 ? (
-                  <p className="py-6 text-center text-[12px] text-muted-foreground">Nothing here.</p>
+                  <p className="py-6 text-center text-[12px] text-muted-foreground">Nothing here</p>
                 ) : (
                   columnOrders.map((order) => (
                     <div key={order.orderId} className="rounded-lg border border-border p-3">
                       <div className="flex items-center justify-between gap-2">
                         <Link
                           href={`/seller/orders/${order.orderId}`}
-                          className="num text-[12px] font-semibold text-interactive"
+                          className="num text-[12px] font-medium text-interactive"
                         >
                           {order.orderId}
                         </Link>

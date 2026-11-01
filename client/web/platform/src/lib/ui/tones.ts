@@ -1,70 +1,65 @@
 /**
- * Six group hues used across the portal. Each surface family sticks to one
- * hue so colour carries meaning instead of decoration.
+ * Legacy tone API, kept so call sites compile. The console no longer assigns a
+ * hue per group or card: the chrome is one neutral ramp with a single accent,
+ * and colour only carries meaning (sector, status, the one figure that matters).
+ *
+ * `primary` is the accent; every other tone now resolves to the neutral roles.
  */
 export type Tone = "primary" | "indigo" | "grape" | "teal" | "amber" | "rose" | "cyan";
 
+const NEUTRAL_TEXT = "text-muted-foreground";
+const NEUTRAL_SOFT = "bg-secondary text-secondary-foreground";
+const NEUTRAL_BORDER = "border-border";
+const NEUTRAL_VAR = "var(--color-muted-foreground)";
+
 export const TONE_TEXT: Record<Tone, string> = {
   primary: "text-primary",
-  indigo: "text-tone-indigo",
-  grape: "text-tone-grape",
-  teal: "text-tone-teal",
-  amber: "text-tone-amber",
-  rose: "text-tone-rose",
-  cyan: "text-tone-cyan",
+  indigo: NEUTRAL_TEXT,
+  grape: NEUTRAL_TEXT,
+  teal: NEUTRAL_TEXT,
+  amber: NEUTRAL_TEXT,
+  rose: NEUTRAL_TEXT,
+  cyan: NEUTRAL_TEXT,
 };
 
 export const TONE_SOFT: Record<Tone, string> = {
   primary: "bg-primary/10 text-primary",
-  indigo: "bg-tone-indigo/10 text-tone-indigo",
-  grape: "bg-tone-grape/10 text-tone-grape",
-  teal: "bg-tone-teal/12 text-tone-teal",
-  amber: "bg-tone-amber/15 text-tone-amber",
-  rose: "bg-tone-rose/10 text-tone-rose",
-  cyan: "bg-tone-cyan/12 text-tone-cyan",
+  indigo: NEUTRAL_SOFT,
+  grape: NEUTRAL_SOFT,
+  teal: NEUTRAL_SOFT,
+  amber: NEUTRAL_SOFT,
+  rose: NEUTRAL_SOFT,
+  cyan: NEUTRAL_SOFT,
 };
 
 export const TONE_BORDER: Record<Tone, string> = {
   primary: "border-primary/30",
-  indigo: "border-tone-indigo/30",
-  grape: "border-tone-grape/30",
-  teal: "border-tone-teal/30",
-  amber: "border-tone-amber/35",
-  rose: "border-tone-rose/30",
-  cyan: "border-tone-cyan/30",
+  indigo: NEUTRAL_BORDER,
+  grape: NEUTRAL_BORDER,
+  teal: NEUTRAL_BORDER,
+  amber: NEUTRAL_BORDER,
+  rose: NEUTRAL_BORDER,
+  cyan: NEUTRAL_BORDER,
 };
 
 export const TONE_VAR: Record<Tone, string> = {
   primary: "var(--color-primary)",
-  indigo: "var(--color-tone-indigo)",
-  grape: "var(--color-tone-grape)",
-  teal: "var(--color-tone-teal)",
-  amber: "var(--color-tone-amber)",
-  rose: "var(--color-tone-rose)",
-  cyan: "var(--color-tone-cyan)",
+  indigo: NEUTRAL_VAR,
+  grape: NEUTRAL_VAR,
+  teal: NEUTRAL_VAR,
+  amber: NEUTRAL_VAR,
+  rose: NEUTRAL_VAR,
+  cyan: NEUTRAL_VAR,
 };
 
-/** Deterministic hue for a label, so the same card keeps its colour. */
-const CYCLE: Tone[] = ["primary", "teal", "amber", "grape", "cyan", "rose", "indigo"];
-
-export function toneFor(key: string): Tone {
-  let sum = 0;
-  for (let i = 0; i < key.length; i += 1) sum += key.charCodeAt(i);
-  return CYCLE[sum % CYCLE.length] as Tone;
+/** Neutral by design: a card's colour is not derived from its title. */
+export function toneFor(_key: string): Tone {
+  return "primary";
 }
 
-/** Hue per navigation group, shared by the sidebar and page headers. */
-export const GROUP_TONE: Record<string, Tone> = {
-  Overview: "primary",
-  Catalog: "grape",
-  Supply: "grape",
-  Operations: "teal",
-  Growth: "amber",
-  Account: "cyan",
-  Governance: "indigo",
-  Platform: "rose",
-};
+/** Navigation groups are neutral; the active row carries the accent instead. */
+export const GROUP_TONE: Record<string, Tone> = {};
 
-export function groupTone(group: string): Tone {
-  return GROUP_TONE[group] ?? "primary";
+export function groupTone(_group: string): Tone {
+  return "primary";
 }
