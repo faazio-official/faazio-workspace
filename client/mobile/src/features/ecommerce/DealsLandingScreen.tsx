@@ -16,6 +16,7 @@ import { useCartStore } from '@/state/cartStore';
 import type { RootStackParamList } from '@/navigation/types';
 import MartProductCard from '@/features/ecommerce/cards/MartProductCard';
 import SponsoredRail from '@/components/shared/SponsoredRail';
+import { parentRamp } from '@/theme/brandTokens';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'DealsLanding'>;
 
@@ -290,7 +291,7 @@ export function DealsLandingScreen({ navigation, route }: Props) {
         ListEmptyComponent={
           loading || campaignLoading ? (
             <View style={styles.emptyWrap}>
-              <ActivityIndicator color="#1162D3" />
+              <ActivityIndicator color={parentRamp.base} />
             </View>
           ) : failed ? (
             <View style={styles.emptyWrap}>

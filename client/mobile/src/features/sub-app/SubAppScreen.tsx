@@ -5,6 +5,7 @@ import SubAppWrapper from '@/components/SubAppWrapper';
 import { ErrorBoundary } from '@/components/ErrorBoundary';
 import { useCartStore, type CartItem } from '@/state/cartStore';
 import type { RootStackParamList } from '@/navigation/types';
+import { parentRamp } from '@/theme/brandTokens';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'SubApp'>;
 
@@ -93,7 +94,7 @@ const styles = StyleSheet.create({
   fallbackBtn: {
     height: 44,
     borderRadius: 12,
-    backgroundColor: '#1162D3',
+    backgroundColor: parentRamp.base,
     alignItems: 'center',
     justifyContent: 'center',
     paddingHorizontal: 24,

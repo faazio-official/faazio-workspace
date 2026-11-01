@@ -9,6 +9,7 @@ import { hs, vs, ms } from '@/utils/responsive';
 import { SPACE } from '@/theme/spacing';
 import { getProductById, getVendorById, portalSectors } from '@data/index';
 import { SECTOR_VISUALS } from '@/theme/sectorVisuals';
+import { semantic } from '@/theme/brandTokens';
 import { useOrdersStore } from '@/state/ordersStore';
 import { useAuthStore } from '@/state/authStore';
 import { useCanRateVendor } from '@/hooks/useVendorRating';
@@ -21,11 +22,11 @@ type Props = NativeStackScreenProps<RootStackParamList, 'OrderDetails'>;
 
 const STATUS_COLORS: Record<string, string> = {
   Delivered: '#16A34A',
-  Shipped: '#2563EB',
-  Processing: '#D97706',
+  Shipped: semantic.info,
+  Processing: semantic.warning,
   Cancelled: '#EF4444',
-  'Awaiting quote': '#D97706',
-  'Quote ready': '#2563EB',
+  'Awaiting quote': semantic.warning,
+  'Quote ready': semantic.info,
   Ready: '#16A34A',
   Fulfilled: '#16A34A',
 };

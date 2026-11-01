@@ -11,6 +11,7 @@ import { useAuthStore } from '@/state/authStore';
 import { useBloodDonorStore, type BloodWriteStatus } from '@/state/bloodDonorStore';
 import { getDonorById } from './services/donorDirectory';
 import { BLOOD_RED, BLOOD_RED_SOFT, BLOOD_TEXT, BLOOD_TEXT_MUTED, BLOOD_BORDER, BLOOD_RADII } from './tokens';
+import { semantic } from '@/theme/brandTokens';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'BloodDonorDetails'>;
 
@@ -88,7 +89,7 @@ export function DonorDetailsScreen({ navigation, route }: Props) {
         <View style={styles.profileCard}>
           <View style={styles.avatar}><Droplet size={ms(34)} color={BLOOD_RED} fill={BLOOD_RED} strokeWidth={2} /></View>
           <AppText style={styles.name}>{donor.name}</AppText>
-          <View style={styles.availableRow}><ShieldCheck size={ms(14)} color="#059669" strokeWidth={2.3} /><AppText style={styles.availableText}>Available donor</AppText></View>
+          <View style={styles.availableRow}><ShieldCheck size={ms(14)} color={semantic.success} strokeWidth={2.3} /><AppText style={styles.availableText}>Available donor</AppText></View>
         </View>
 
         <View style={styles.infoCard}>
@@ -100,7 +101,7 @@ export function DonorDetailsScreen({ navigation, route }: Props) {
         </View>
 
         <View style={styles.privacyCard}>
-          <ShieldCheck size={ms(18)} color="#059669" strokeWidth={2.2} />
+          <ShieldCheck size={ms(18)} color={semantic.success} strokeWidth={2.2} />
           <AppText style={styles.privacyText}>Your request is sent only to this donor. Contact details stay private and are never shared in the app.</AppText>
         </View>
       </ScrollView>
@@ -126,7 +127,7 @@ const styles = StyleSheet.create({
   avatar: { width: ms(72), height: ms(72), borderRadius: ms(24), alignItems: 'center', justifyContent: 'center', backgroundColor: BLOOD_RED_SOFT },
   name: { color: BLOOD_TEXT, fontSize: ms(21), fontWeight: '900' },
   availableRow: { flexDirection: 'row', alignItems: 'center', gap: hs(5) },
-  availableText: { color: '#059669', fontSize: ms(11), fontWeight: '800' },
+  availableText: { color: semantic.success, fontSize: ms(11), fontWeight: '800' },
   infoCard: { backgroundColor: '#ffffff', borderRadius: BLOOD_RADII.card, borderWidth: 1, borderColor: BLOOD_BORDER, padding: hs(16), gap: SPACE.BLOCK },
   sectionTitle: { color: BLOOD_TEXT, fontSize: ms(13), fontWeight: '900', marginBottom: vs(2) },
   infoRow: { flexDirection: 'row', alignItems: 'center', gap: hs(11) },
@@ -137,7 +138,7 @@ const styles = StyleSheet.create({
   privacyText: { flex: 1, color: '#166534', fontSize: ms(11), lineHeight: vs(16), fontWeight: '600' },
   footer: { paddingHorizontal: hs(20), paddingTop: SPACE.BLOCK, backgroundColor: '#ffffff', borderTopWidth: 1, borderTopColor: BLOOD_BORDER },
   requestButton: { minHeight: ms(50), flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: hs(7), borderRadius: BLOOD_RADII.pill, backgroundColor: BLOOD_RED },
-  requestButtonComplete: { backgroundColor: '#059669' },
+  requestButtonComplete: { backgroundColor: semantic.success },
   requestButtonText: { color: '#ffffff', fontSize: ms(14), fontWeight: '900' },
   emptyState: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: SPACE.BLOCK, padding: hs(32) },
   emptyTitle: { color: BLOOD_TEXT, fontSize: ms(14), fontWeight: '900', textAlign: 'center' },

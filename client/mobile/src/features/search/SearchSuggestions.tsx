@@ -4,6 +4,7 @@ import { ArrowUpLeft, Search } from 'lucide-react-native';
 import { hs, ms, vs } from '@/utils/responsive';
 import AppText from '@/components/AppText';
 import type { SearchSuggestion } from './suggestions';
+import { semantic } from '@/theme/brandTokens';
 
 interface SearchSuggestionsProps {
   suggestions: SearchSuggestion[];
@@ -21,7 +22,7 @@ interface SearchSuggestionsProps {
 const SearchSuggestions = memo(function SearchSuggestions({
   suggestions,
   query,
-  accentColor = '#2563EB',
+  accentColor = semantic.info,
   onSelect,
 }: SearchSuggestionsProps) {
   const data: SearchSuggestion[] =

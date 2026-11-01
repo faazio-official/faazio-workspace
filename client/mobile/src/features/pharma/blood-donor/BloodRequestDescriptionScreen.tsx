@@ -41,6 +41,7 @@ import { BloodRequestInfoGrid } from './components/BloodRequestInfoGrid';
 import { NearbyRequestCard } from './components/NearbyRequestCard';
 import { postedLabel } from './components/BloodRequestCard';
 import { useBloodRequests } from './hooks/useBloodRequests';
+import { semantic } from '@/theme/brandTokens';
 import {
   BLOOD_RED,
   BLOOD_RED_DARK,
@@ -253,7 +254,7 @@ export function BloodRequestDescriptionScreen({ navigation, route }: Props) {
               {request.hospital}
             </AppText>
             <View style={styles.verifiedChip}>
-              <CircleCheck size={ms(12)} color="#059669" strokeWidth={2.4} />
+              <CircleCheck size={ms(12)} color={semantic.success} strokeWidth={2.4} />
               <AppText style={styles.verifiedText}>Verified Hospital</AppText>
             </View>
             <View style={styles.addressRow}>
@@ -405,7 +406,7 @@ export function BloodRequestDescriptionScreen({ navigation, route }: Props) {
 
         {/* Privacy note */}
         <View style={styles.privacyNote}>
-          <ShieldCheck size={ms(14)} color="#059669" strokeWidth={2.2} />
+          <ShieldCheck size={ms(14)} color={semantic.success} strokeWidth={2.2} />
           <AppText style={styles.privacyText}>{BLOOD_REQUEST_DETAIL_COPY.confirmNote}</AppText>
         </View>
 
@@ -536,7 +537,7 @@ const styles = StyleSheet.create({
   },
   verifiedText: {
     fontSize: ms(9.5),
-    color: '#059669',
+    color: semantic.success,
     fontWeight: '700',
   },
   addressRow: {
@@ -756,7 +757,7 @@ const styles = StyleSheet.create({
   },
   privacyText: {
     fontSize: ms(10.5),
-    color: '#059669',
+    color: semantic.success,
     fontWeight: '600',
     flex: 1,
   },

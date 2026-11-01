@@ -21,6 +21,7 @@ import { useAuthStore } from '@/state/authStore';
 import { openTrustedUrl } from '@/lib/externalLinks';
 import { ACCOUNT_DELETION_MAILTO, PRIVACY_URL } from '@/lib/site';
 import type { RootStackParamList } from '@/navigation/types';
+import { parentRamp } from '@/theme/brandTokens';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'DeleteAccount'>;
 
@@ -285,7 +286,7 @@ export function DeleteAccountScreen({ navigation }: Props) {
               accessibilityRole="button"
               accessibilityLabel="Delete my account by email"
             >
-              <Mail size={ms(16)} color="#1162D3" strokeWidth={2.2} />
+              <Mail size={ms(16)} color={parentRamp.base} strokeWidth={2.2} />
               <AppText style={styles.emailButtonText}>Delete by email instead</AppText>
             </TouchableOpacity>
           </>
@@ -333,7 +334,7 @@ const styles = StyleSheet.create({
     width: ms(6),
     height: ms(6),
     borderRadius: ms(3),
-    backgroundColor: '#1162D3',
+    backgroundColor: parentRamp.base,
     marginTop: vs(6),
   },
   bulletKept: { backgroundColor: '#94a3b8' },
@@ -345,7 +346,7 @@ const styles = StyleSheet.create({
     lineHeight: ms(18),
     marginTop: vs(2),
   },
-  link: { color: '#1162D3', fontWeight: '700' },
+  link: { color: parentRamp.base, fontWeight: '700' },
   errorText: { fontSize: ms(12), fontWeight: '600', color: '#B91C1C', marginBottom: vs(12) },
   otpTitle: { fontSize: ms(15), fontWeight: '800', color: '#0f172a' },
   otpBody: {
@@ -395,6 +396,6 @@ const styles = StyleSheet.create({
     borderColor: '#CBD5E1',
     backgroundColor: '#FFFFFF',
   },
-  emailButtonText: { fontSize: ms(13), fontWeight: '700', color: '#1162D3' },
+  emailButtonText: { fontSize: ms(13), fontWeight: '700', color: parentRamp.base },
   bottomSpacer: { height: vs(40) },
 });

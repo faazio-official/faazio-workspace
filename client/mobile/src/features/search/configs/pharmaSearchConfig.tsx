@@ -7,6 +7,7 @@ import SearchPharmaProductCard from '@/features/pharma/components/SearchPharmaPr
 import { buildProductSuggestions } from '../suggestions';
 import { storeDistanceKm } from '../storeDistance';
 import type { ActiveFacets, SearchScreenConfig } from '../types';
+import { brandRamp } from '@/theme/brandTokens';
 
 const searchableText = (p: Product) => {
   const parts = [
@@ -45,7 +46,7 @@ export function createPharmaSearchConfig({
 }: PharmaSearchConfigOptions = {}): SearchScreenConfig {
   return {
     searchPlaceholder: 'Search medicines…',
-    accentColor: '#FF7A59',
+    accentColor: brandRamp.PHARMA.deep,
     toggles: [{ key: 'products', label: 'Medicines', icon: Stethoscope }],
     showToggles: false,
     filterChips: [],

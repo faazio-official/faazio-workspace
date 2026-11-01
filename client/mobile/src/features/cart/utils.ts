@@ -1,5 +1,6 @@
 import type { CartItem } from '@/state/cartStore';
 import type { FulfillmentMode } from '@data/types';
+import { brandRamp } from '@/theme/brandTokens';
 
 export interface AppLabel {
   name: string;
@@ -108,12 +109,12 @@ export function computeDeliveryFee(distanceKm: number): number {
 export const getAppLabel = (itemId: string): AppLabel => {
   const id = itemId.toLowerCase();
   if (id.startsWith('ph-') || id.includes('pharma') || id.includes('med')) {
-    return { name: 'Pharma', bgColor: '#fff1f2', textColor: '#f43f5e', border: '#ffe4e6', icon: '\u{1F48A}' };
+    return { name: 'Pharma', bgColor: brandRamp.PHARMA.tint, textColor: brandRamp.PHARMA.deep, border: brandRamp.PHARMA.tint, icon: '\u{1F48A}' };
   }
   if (id.startsWith('fm-') || id.startsWith('gr-') || id.includes('mart') || id.includes('grocery') || id.startsWith('cat-mt') || id.startsWith('cat-mf') || id.startsWith('cat-gr') || id.startsWith('cat-fb')) {
-    return { name: 'Mart', bgColor: '#eef2ff', textColor: '#4f46e5', border: '#e0e7ff', icon: '\u{1F6CD}' };
+    return { name: 'Mart', bgColor: brandRamp.MART.tint, textColor: brandRamp.MART.deep, border: brandRamp.MART.tint, icon: '\u{1F6CD}' };
   }
-  return { name: 'Food', bgColor: '#fffbeb', textColor: '#d97706', border: '#fef3c7', icon: '\u{1F354}' };
+  return { name: 'Food', bgColor: brandRamp.FOOD.tint, textColor: brandRamp.FOOD.deep, border: brandRamp.FOOD.tint, icon: '\u{1F354}' };
 };
 
 export function groupCartItems(items: CartItem[]): CartGroup[] {

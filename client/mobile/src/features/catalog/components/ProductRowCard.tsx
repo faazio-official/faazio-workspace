@@ -89,7 +89,7 @@ const ProductRowCard = memo(function ProductRowCard({
             </View>
           ) : (
             <TouchableOpacity
-              style={[styles.addBtn, { backgroundColor: tokens.accent }]}
+              style={[styles.addBtn, { backgroundColor: tokens.btnBg }]}
               onPress={cart.onAdd}
               activeOpacity={0.8}
               hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}

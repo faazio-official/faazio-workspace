@@ -3,11 +3,15 @@ import { View, TouchableOpacity, StyleSheet } from 'react-native';
 import { Star, Clock, MapPin, ChevronRight } from 'lucide-react-native';
 import AppText from '@/components/AppText';
 import { hs, ms, vs } from '@/utils/responsive';
+import { brandRamp } from '@/theme/brandTokens';
 import type { StoreProfile } from '@data/types';
 import MartImage from './MartImage';
 
 const IMG_SIZE = 96;
-const MART_YELLOW = '#FFC107';
+/** Mart anchor. `base` is a fill only — it cannot carry text or sit on white. */
+const MART_YELLOW = brandRamp.MART.base;
+/** Mart ink. Use for text and icons on light surfaces. */
+const MART_INK = brandRamp.MART.deep;
 
 interface LocalVendorCardProps {
   store: StoreProfile;
@@ -54,7 +58,7 @@ const LocalVendorCard = memo(function LocalVendorCard({
         ) : null}
         <View style={styles.ctaRow}>
           <AppText style={styles.ctaText}>Visit Store</AppText>
-          <ChevronRight size={ms(14)} color={MART_YELLOW} strokeWidth={2.6} />
+          <ChevronRight size={ms(14)} color={MART_INK} strokeWidth={2.6} />
         </View>
       </View>
     </TouchableOpacity>
@@ -155,6 +159,6 @@ const styles = StyleSheet.create({
   ctaText: {
     fontSize: ms(11),
     fontWeight: '700',
-    color: MART_YELLOW,
+    color: MART_INK,
   },
 });

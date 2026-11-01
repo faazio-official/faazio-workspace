@@ -139,7 +139,7 @@ const styles = StyleSheet.create({
   },
   labelActive: {
     fontWeight: '800',
-    color: foodTheme.primary,
+    color: foodTheme.primaryDeep,
   },
   cartBadge: {
     position: 'absolute',
@@ -151,7 +151,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: hs(4),
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: foodTheme.primary,
+    backgroundColor: foodTheme.primaryDeep,
   },
   cartBadgeText: {
     fontSize: ms(10),

@@ -16,6 +16,7 @@ import { SPACE } from '@/theme/spacing';
 import { deleteSelectedUserData } from '@/services/accountDeletion';
 import type { DataDeletionCategory } from '@/services/api/GatewayClient';
 import type { RootStackParamList } from '@/navigation/types';
+import { parentRamp } from '@/theme/brandTokens';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'RequestDataDeletion'>;
 
@@ -127,7 +128,7 @@ export function RequestDataDeletionScreen({ navigation }: Props) {
 
         <View style={styles.infoCard}>
           <View style={styles.infoIcon}>
-            <ShieldCheck size={ms(22)} color="#1162D3" strokeWidth={2.2} />
+            <ShieldCheck size={ms(22)} color={parentRamp.base} strokeWidth={2.2} />
           </View>
           <AppText style={styles.infoText}>
             Choose the data you want removed. Your account stays active, and order, payment, and tax
@@ -224,7 +225,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     marginTop: vs(1),
   },
-  checkboxSelected: { backgroundColor: '#1162D3', borderColor: '#1162D3' },
+  checkboxSelected: { backgroundColor: parentRamp.base, borderColor: parentRamp.base },
   rowText: { flex: 1 },
   rowTitle: { fontSize: ms(13.5), fontWeight: '800', color: '#0f172a' },
   rowSubtitle: { fontSize: ms(11.5), fontWeight: '500', color: '#64748b', marginTop: vs(2), lineHeight: ms(17) },
@@ -233,8 +234,8 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     height: Math.max(50, vs(50)),
     borderRadius: ms(14),
-    backgroundColor: '#1162D3',
-    shadowColor: '#1162D3',
+    backgroundColor: parentRamp.base,
+    shadowColor: parentRamp.base,
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.25,
     shadowRadius: 8,

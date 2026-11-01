@@ -4,7 +4,7 @@ import { ShieldCheck, Truck, Star } from 'lucide-react-native';
 import AppText from '@/components/AppText';
 import { hs, ms, vs } from '@/utils/responsive';
 import type { StoreProfile } from '@data/types';
-import { VENDOR_YELLOW, TEXT_DARK, TEXT_LIGHT, BG_GRAY } from './theme';
+import { VENDOR_INK, TEXT_DARK, TEXT_LIGHT, BG_GRAY } from './theme';
 
 interface Highlight {
   icon: React.ReactNode;
@@ -25,19 +25,19 @@ const VendorHighlights = memo(function VendorHighlights({ vendor }: VendorHighli
   const highlights = useMemo<Highlight[]>(() => {
     const items: Highlight[] = [
       {
-        icon: <ShieldCheck color={VENDOR_YELLOW} size={ms(20)} strokeWidth={2.4} />,
+        icon: <ShieldCheck color={VENDOR_INK} size={ms(20)} strokeWidth={2.4} />,
         title: 'Verified Vendor',
         sub: 'Background verified',
       },
       {
-        icon: <Truck color={VENDOR_YELLOW} size={ms(20)} strokeWidth={2.4} />,
+        icon: <Truck color={VENDOR_INK} size={ms(20)} strokeWidth={2.4} />,
         title: 'Fast Delivery',
         sub: vendor.deliveryTime ? `${vendor.deliveryTime} delivery` : 'On-time delivery',
       },
     ];
     if (vendor.rating > 0) {
       items.push({
-        icon: <Star color={VENDOR_YELLOW} size={ms(20)} strokeWidth={2.4} />,
+        icon: <Star color={VENDOR_INK} size={ms(20)} strokeWidth={2.4} />,
         title: vendor.rating >= 4.5 ? 'Top Rated' : 'Rated',
         sub: `${vendor.rating} ★ Rating`,
       });

@@ -6,6 +6,7 @@ import AppText from '@/components/AppText';
 import { FaazioLogo } from '@/components/FaazioLogo';
 import { useConnectivityStore } from '@/state/connectivityStore';
 import { ms, vs } from '@/utils/responsive';
+import { parentRamp } from '@/theme/brandTokens';
 
 /**
  * Full-screen, non-scrollable offline page. Shown on a cold start while offline and in place of a
@@ -34,7 +35,7 @@ export function OfflinePage() {
     <View style={[styles.container, { paddingTop: insets.top, paddingBottom: insets.bottom }]}>
       <FaazioLogo size={40} />
       <View style={styles.iconCircle}>
-        <WifiOff size={26} color="#1162D3" />
+        <WifiOff size={26} color={parentRamp.base} />
       </View>
       <AppText style={styles.title}>You&apos;re offline</AppText>
       <AppText style={styles.body}>
@@ -93,7 +94,7 @@ const styles = StyleSheet.create({
     minWidth: ms(140),
     height: vs(44),
     borderRadius: ms(12),
-    backgroundColor: '#1162D3',
+    backgroundColor: parentRamp.base,
     alignItems: 'center',
     justifyContent: 'center',
     paddingHorizontal: ms(24),

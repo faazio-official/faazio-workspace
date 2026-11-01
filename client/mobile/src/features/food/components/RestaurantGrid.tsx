@@ -231,7 +231,7 @@ const styles = StyleSheet.create({
   sortChipLabel: {
     fontSize: ms(12),
     fontWeight: '700',
-    color: foodTheme.primary,
+    color: foodTheme.primaryDeep,
   },
   searchWrap: {
     paddingHorizontal: hs(16),
@@ -291,7 +291,7 @@ const styles = StyleSheet.create({
     color: foodTheme.textPrimary,
   },
   menuItemTextActive: {
-    color: foodTheme.primary,
+    color: foodTheme.primaryDeep,
     fontWeight: '600',
   },
 });

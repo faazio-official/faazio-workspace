@@ -3,6 +3,7 @@ import { View, StyleSheet } from 'react-native';
 import { hs, ms, vs } from '@/utils/responsive';
 import { SPACE } from '@/theme/spacing';
 import { BG_GRAY } from './theme';
+import { brandRamp } from '@/theme/brandTokens';
 
 const VendorProfileSkeleton = memo(function VendorProfileSkeleton() {
   return (
@@ -35,7 +36,7 @@ const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: '#fff' },
   hero: {
     height: vs(120),
-    backgroundColor: '#FACC15',
+    backgroundColor: brandRamp.MART.base,
     opacity: 0.5,
   },
   board: {

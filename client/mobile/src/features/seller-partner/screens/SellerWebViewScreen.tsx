@@ -16,6 +16,7 @@ import { WEB_PORTAL_URL } from '@/lib/config';
 import { FaazioLogo } from '@/components/FaazioLogo';
 import { getSellerPushToken, startSellerPush } from '@/services/sellerPush';
 import { ms, vs } from '@/utils/responsive';
+import { parentRamp } from '@/theme/brandTokens';
 
 type WebViewHandle = {
   injectJavaScript: (script: string) => void;
@@ -255,7 +256,7 @@ export function SellerWebViewScreen() {
       />
       {loading && !blocked ? (
         <View style={styles.loading} pointerEvents="none">
-          <ActivityIndicator size="small" color="#1162D3" />
+          <ActivityIndicator size="small" color={parentRamp.base} />
         </View>
       ) : null}
       {blocked ? (
@@ -315,7 +316,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: ms(20),
     paddingVertical: vs(10),
     borderRadius: ms(10),
-    backgroundColor: '#1162D3',
+    backgroundColor: parentRamp.base,
   },
   buttonText: { fontSize: ms(13), fontWeight: '800', color: '#fff' },
 });

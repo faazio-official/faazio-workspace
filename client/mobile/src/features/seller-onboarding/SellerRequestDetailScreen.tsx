@@ -18,6 +18,7 @@ import { SPACE } from '@/theme/spacing';
 import { gateway, type SellerDetail, type SellerKycDocument } from '@/services/api/GatewayClient';
 import { isPartnerAdmin, useAuthStore } from '@/state/authStore';
 import type { RootStackParamList } from '@/navigation/types';
+import { parentRamp } from '@/theme/brandTokens';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'SellerRequestDetail'>;
 
@@ -146,7 +147,7 @@ export function SellerRequestDetailScreen({ navigation, route }: Props) {
   if (loading || !detail) {
     return (
       <View style={[styles.root, styles.center]}>
-        <ActivityIndicator size="large" color="#1162D3" />
+        <ActivityIndicator size="large" color={parentRamp.base} />
       </View>
     );
   }
@@ -178,7 +179,7 @@ export function SellerRequestDetailScreen({ navigation, route }: Props) {
         <View style={styles.hero}>
           <View style={styles.heroRow}>
             <View style={styles.heroIcon}>
-              <Store size={ms(20)} color="#1162D3" strokeWidth={2.2} />
+              <Store size={ms(20)} color={parentRamp.base} strokeWidth={2.2} />
             </View>
             <View style={{ flex: 1 }}>
               <AppText style={styles.heroTitle}>{d.businessName}</AppText>
@@ -257,7 +258,7 @@ export function SellerRequestDetailScreen({ navigation, route }: Props) {
                     {verified ? (
                       <BadgeCheck size={ms(18)} color="#16A34A" strokeWidth={2.2} />
                     ) : (
-                      <FileCheck2 size={ms(18)} color="#1162D3" strokeWidth={2.2} />
+                      <FileCheck2 size={ms(18)} color={parentRamp.base} strokeWidth={2.2} />
                     )}
                   </View>
                   <View style={{ flex: 1 }}>
@@ -267,7 +268,7 @@ export function SellerRequestDetailScreen({ navigation, route }: Props) {
                     </AppText>
                   </View>
                   <TouchableOpacity style={styles.docButton} onPress={() => openDoc(doc)} activeOpacity={0.8}>
-                    <Eye size={ms(14)} color="#1162D3" strokeWidth={2.2} />
+                    <Eye size={ms(14)} color={parentRamp.base} strokeWidth={2.2} />
                     <AppText style={styles.docButtonText}>View</AppText>
                   </TouchableOpacity>
                   {!verified ? (
@@ -480,7 +481,7 @@ const styles = StyleSheet.create({
     height: Math.max(46, vs(46)),
     paddingHorizontal: hs(20),
     borderRadius: ms(12),
-    backgroundColor: '#1162D3',
+    backgroundColor: parentRamp.base,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -515,8 +516,8 @@ const styles = StyleSheet.create({
     borderColor: '#BFDBFE',
     backgroundColor: '#EFF6FF',
   },
-  docButtonPrimary: { backgroundColor: '#1162D3', borderColor: '#1162D3' },
-  docButtonText: { fontSize: ms(11), fontWeight: '800', color: '#1162D3' },
+  docButtonPrimary: { backgroundColor: parentRamp.base, borderColor: parentRamp.base },
+  docButtonText: { fontSize: ms(11), fontWeight: '800', color: parentRamp.base },
   docButtonTextPrimary: { fontSize: ms(11), fontWeight: '800', color: '#FFFFFF' },
   activateBtn: {
     flexDirection: 'row',
@@ -573,7 +574,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   cancelButton: { paddingVertical: vs(12), alignItems: 'center' },
-  cancelText: { fontSize: ms(12), fontWeight: '800', color: '#1162D3' },
+  cancelText: { fontSize: ms(12), fontWeight: '800', color: parentRamp.base },
   previewOverlay: {
     flex: 1,
     backgroundColor: 'rgba(0,0,0,0.9)',

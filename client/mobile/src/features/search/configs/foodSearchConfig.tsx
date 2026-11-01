@@ -9,6 +9,7 @@ import type { DietFilter } from '@/state/foodFilterStore';
 import { dishMatches } from '@/features/food/utils/dietFilter';
 import SearchDishCard from '@/features/food/components/SearchDishCard';
 import type { SearchScreenConfig } from '../types';
+import { brandRamp } from '@/theme/brandTokens';
 
 /**
  * Map a server FTS result (catalog row, app=FOOD) onto the Food search card shape. The catalog
@@ -88,7 +89,7 @@ export function createFoodSearchConfig({
   const dishPredicate = makeDishPredicate(dietFilter);
   return {
     searchPlaceholder: 'Search dishes or cuisines…',
-    accentColor: '#FF4500',
+    accentColor: brandRamp.FOOD.deep,
     toggles: [{ key: 'dishes', label: 'Dishes', icon: Soup }],
     showToggles: false,
     filterChips: [

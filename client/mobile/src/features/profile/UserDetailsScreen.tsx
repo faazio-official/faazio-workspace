@@ -26,6 +26,7 @@ import { SPACE } from '@/theme/spacing';
 import type { UserProfile, UserDetailsData } from '@data/types';
 import { gateway } from '@/services/api/GatewayClient';
 import type { RootStackParamList } from '@/navigation/types';
+import { semantic } from '@/theme/brandTokens';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'UserDetails'>;
 
@@ -115,7 +116,7 @@ export function UserDetailsScreen({ navigation }: Props) {
           <View style={styles.profileTopRow}>
             <View style={styles.avatarWrapper}>
               <View style={styles.avatarContainer}>
-                <User size={ms(28)} color="#10B981" strokeWidth={2.2} />
+                <User size={ms(28)} color={semantic.success} strokeWidth={2.2} />
               </View>
             </View>
             <View style={styles.profileInfo}>

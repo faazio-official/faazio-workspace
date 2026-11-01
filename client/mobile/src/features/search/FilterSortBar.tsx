@@ -3,6 +3,7 @@ import { View, TouchableOpacity, StyleSheet } from 'react-native';
 import { SlidersHorizontal } from 'lucide-react-native';
 import AppText from '@/components/AppText';
 import { hs, ms, vs } from '@/utils/responsive';
+import { brandRamp } from '@/theme/brandTokens';
 import SortDropdown from './SortDropdown';
 import FilterOverlaySheet from './FilterOverlaySheet';
 import type { ActiveFacets, FacetGroup, SortOption } from './types';
@@ -32,7 +33,7 @@ const FilterSortBar = memo(function FilterSortBar({
   sortOptions,
   activeSortId,
   onSelectSort,
-  accentColor = '#FF4500',
+  accentColor = brandRamp.FOOD.deep,
 }: FilterSortBarProps) {
   const [sheetOpen, setSheetOpen] = useState(false);
   const [staged, setStaged] = useState<ActiveFacets>(activeFacets);

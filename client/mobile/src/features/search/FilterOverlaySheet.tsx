@@ -4,6 +4,7 @@ import { ChevronLeft, SlidersHorizontal, Check } from 'lucide-react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import AppText from '@/components/AppText';
 import { hs, ms, vs } from '@/utils/responsive';
+import { brandRamp } from '@/theme/brandTokens';
 import type { ActiveFacets, FacetGroup } from './types';
 
 interface FilterOverlaySheetProps {
@@ -38,7 +39,7 @@ const FilterOverlaySheet = memo(function FilterOverlaySheet({
   onClearAll,
   onApply,
   onClose,
-  accentColor = '#FF4500',
+  accentColor = brandRamp.FOOD.deep,
 }: FilterOverlaySheetProps) {
   const insets = useSafeAreaInsets();
   const [selectedKey, setSelectedKey] = useState<string | null>(null);

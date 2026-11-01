@@ -4,6 +4,7 @@ import { ChevronRight } from 'lucide-react-native';
 import { useCartStore } from '@/state/store';
 import AppText from '@/components/AppText';
 import { hs, ms, vs } from '@/utils/responsive';
+import { brandRamp } from '@/theme/brandTokens';
 
 interface FloatingCartBarProps {
   onPress?: () => void;
@@ -20,7 +21,7 @@ interface FloatingCartBarProps {
 const FloatingCartBar = memo(function FloatingCartBar({
   onPress,
   onViewMenu,
-  accentColor = '#FF4500',
+  accentColor = brandRamp.FOOD.deep,
   bottomOffset = 104,
 }: FloatingCartBarProps) {
   const cart = useCartStore((s) => s.cart);

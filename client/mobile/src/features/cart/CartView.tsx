@@ -20,6 +20,7 @@ import {
 } from 'lucide-react-native';
 import { hs, vs, ms } from '@/utils/responsive';
 import { SPACE } from '@/theme/spacing';
+import { semantic } from '@/theme/brandTokens';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import EnterpriseIcon from '@/components/EnterpriseIcon';
 import Checkbox from '@/components/shared/Checkbox';
@@ -53,6 +54,7 @@ import { coinsEarnedFor, isCardActive } from '@/features/rewards/rewardsLogic';
 import { COIN_REDEEM_RATE, DISCOUNT_CARD_PERCENT } from '@data/rewards/rewards';
 import { useLiveAddress } from '@/hooks/useLiveAddress';
 import { useAuthStore } from '@/state/authStore';
+import { brandRamp } from '@/theme/brandTokens';
 
 const CATEGORY_META: Record<CartCategory, { label: string }> = {
   MART: { label: 'Mart' },
@@ -824,7 +826,7 @@ export default function CartView({
                 </TouchableOpacity>
                 {appliedDiscount && (
                   <TouchableOpacity style={styles.appliedChipRow} onPress={removeCoupon} activeOpacity={0.8}>
-                    <Check size={ms(12)} strokeWidth={3} color="#059669" style={{ marginRight: hs(4) }} />
+                    <Check size={ms(12)} strokeWidth={3} color={semantic.success} style={{ marginRight: hs(4) }} />
                     <AppText style={styles.appliedDiscountText}>{appliedDiscount.code}</AppText>
                     <AppText style={styles.removeCouponText}>  Remove</AppText>
                   </TouchableOpacity>
@@ -1868,7 +1870,7 @@ const styles = StyleSheet.create({
   },
   secureDetailsText: {
     fontSize: ms(7.5),
-    color: '#065f46',
+    color: brandRamp.PHARMA.deep,
     fontWeight: '900',
     textTransform: 'uppercase',
   },
@@ -2101,7 +2103,7 @@ const styles = StyleSheet.create({
   receiptRewardsRedeem: {
     fontSize: ms(9),
     fontWeight: '900',
-    color: '#D97706',
+    color: semantic.warning,
   },
   deliveryLocationSection: {
     borderTopWidth: 1,
@@ -2335,7 +2337,7 @@ const styles = StyleSheet.create({
   appliedDiscountText: {
     fontSize: ms(10.5),
     fontWeight: '800',
-    color: '#059669',
+    color: semantic.success,
   },
   removeCouponText: {
     fontSize: ms(10.5),

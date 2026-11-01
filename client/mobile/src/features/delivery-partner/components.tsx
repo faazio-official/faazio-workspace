@@ -12,6 +12,7 @@ import AppText from '@/components/AppText';
 import AppTextInput from '@/components/AppTextInput';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { hs, ms, vs } from '@/utils/responsive';
+import { semantic } from '@/theme/brandTokens';
 
 export const DP = {
   brand: '#2c56f6',
@@ -22,7 +23,7 @@ export const DP = {
   bg: '#f8fafc',
   card: '#ffffff',
   danger: '#dc2626',
-  success: '#059669',
+  success: semantic.success,
   warning: '#b45309',
 } as const;
 

@@ -20,6 +20,7 @@ import AppText from '@/components/AppText';
 import { VendorRateButton } from '@/components/shared';
 import { hs, vs, ms } from '@/utils/responsive';
 import { SPACE } from '@/theme/spacing';
+import { semantic } from '@/theme/brandTokens';
 import { getCatalogEntryById } from '@data/index';
 import type { OrderStatus, MyOrdersStatusFilter } from '@data/types';
 import type { AppBrand } from '@data/types';
@@ -34,8 +35,8 @@ type Props = NativeStackScreenProps<RootStackParamList, 'MyOrders'>;
 
 const STATUS_COLORS: Record<OrderStatus, string> = {
   Delivered: '#16A34A',
-  Shipped: '#2563EB',
-  Processing: '#D97706',
+  Shipped: semantic.info,
+  Processing: semantic.warning,
   Cancelled: '#EF4444',
 };
 

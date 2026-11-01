@@ -5,6 +5,7 @@ import { Camera as CameraIcon, ChevronLeft, X } from 'lucide-react-native';
 import AppText from '@/components/AppText';
 import { hs, ms, vs } from '@/utils/responsive';
 import { SPACE } from '@/theme/spacing';
+import { parentRamp } from '@/theme/brandTokens';
 
 interface Props {
   visible: boolean;
@@ -57,7 +58,7 @@ export default function DocumentCapture({ visible, title, onClose, onCaptured }:
           <View style={styles.consentWrap}>
             <View style={styles.consentCard}>
               <View style={styles.consentIcon}>
-                <CameraIcon size={ms(28)} color="#1162D3" strokeWidth={2} />
+                <CameraIcon size={ms(28)} color={parentRamp.base} strokeWidth={2} />
               </View>
               <AppText style={styles.consentTitle}>Camera access</AppText>
               <AppText style={styles.consentText}>
@@ -146,7 +147,7 @@ const styles = StyleSheet.create({
     alignSelf: 'stretch',
     height: Math.max(48, vs(48)),
     borderRadius: ms(12),
-    backgroundColor: '#1162D3',
+    backgroundColor: parentRamp.base,
     alignItems: 'center',
     justifyContent: 'center',
   },

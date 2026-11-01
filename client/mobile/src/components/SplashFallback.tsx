@@ -2,6 +2,7 @@ import React from 'react';
 import { StyleSheet, View, ActivityIndicator, Image } from 'react-native';
 import { FaazioLogo } from '@/components/FaazioLogo';
 import logoImg from '@/assets/logo.png';
+import { parentRamp } from '@/theme/brandTokens';
 
 interface SplashFallbackProps {
   /**
@@ -33,7 +34,7 @@ export function SplashFallback({ variant = 'default' }: SplashFallbackProps) {
   return (
     <View style={styles.container}>
       <FaazioLogo size={40} />
-      <ActivityIndicator size="small" color="#1162D3" style={styles.spinner} />
+      <ActivityIndicator size="small" color={parentRamp.base} style={styles.spinner} />
     </View>
   );
 }

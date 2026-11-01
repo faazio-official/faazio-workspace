@@ -7,6 +7,7 @@ import AppText from '@/components/AppText';
 import { BRAND } from '../constants';
 import { COIN_REDEEM_RATE } from '@data/rewards/rewards';
 import { computeRedeemableRupees, coinsForRedemption } from '@/features/rewards/rewardsLogic';
+import { semantic } from '@/theme/brandTokens';
 
 interface CoinsRedeemRowProps {
   /** User's current FaazioCoin balance (row hidden by caller when < min). */
@@ -168,7 +169,7 @@ const styles = StyleSheet.create({
   savingValue: {
     fontSize: ms(12),
     fontWeight: '900',
-    color: '#059669',
+    color: semantic.success,
   },
   infoBox: {
     backgroundColor: '#F8FAFC',

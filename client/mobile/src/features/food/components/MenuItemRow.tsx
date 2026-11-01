@@ -125,7 +125,7 @@ const styles = StyleSheet.create({
     elevation: 3,
   },
   addBtnPlus: { marginRight: 2 },
-  addBtnOutlineText: { color: foodTheme.primary, fontWeight: 'bold', fontSize: 14 },
+  addBtnOutlineText: { color: foodTheme.primaryDeep, fontWeight: 'bold', fontSize: 14 },
   qtyStepper: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -147,7 +147,7 @@ const styles = StyleSheet.create({
   qtyStepperValue: {
     minWidth: ms(24),
     textAlign: 'center',
-    color: foodTheme.primary,
+    color: foodTheme.primaryDeep,
     fontWeight: 'bold',
     fontSize: 14,
   },

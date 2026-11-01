@@ -156,7 +156,7 @@ const styles = StyleSheet.create({
   newBadgeText: {
     fontSize: ms(11),
     fontWeight: '700',
-    color: foodTheme.primary,
+    color: foodTheme.primaryDeep,
   },
   dot: {
     width: ms(3),

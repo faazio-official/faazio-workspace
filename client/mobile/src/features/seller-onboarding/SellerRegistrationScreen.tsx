@@ -33,6 +33,7 @@ import SellerLocationPicker from './SellerLocationPicker';
 import { useAuthStore } from '@/state/authStore';
 import type { RootStackParamList } from '@/navigation/types';
 import DocumentCapture from './DocumentCapture';
+import { parentRamp } from '@/theme/brandTokens';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'SellWithUs'>;
 
@@ -377,7 +378,7 @@ export function SellerRegistrationScreen({ navigation }: Props) {
       >
         <View style={styles.heroCard}>
           <View style={styles.heroIcon}>
-            <Store size={ms(22)} color="#1162D3" strokeWidth={2.2} />
+            <Store size={ms(22)} color={parentRamp.base} strokeWidth={2.2} />
           </View>
           <AppText style={styles.heroTitle}>Partner with Faazio</AppText>
           <AppText style={styles.heroSub}>
@@ -442,7 +443,7 @@ export function SellerRegistrationScreen({ navigation }: Props) {
                 {category === 'FOOD' ? 'Restaurant type' : 'Category'}
               </AppText>
               {subCategoriesLoading ? (
-                <ActivityIndicator color="#1162D3" style={styles.categoryLoader} />
+                <ActivityIndicator color={parentRamp.base} style={styles.categoryLoader} />
               ) : subCategories.length === 0 ? (
                 <AppText style={styles.categoryEmpty}>
                   Categories are unavailable. Check your connection and re-select a business type.
@@ -506,7 +507,7 @@ export function SellerRegistrationScreen({ navigation }: Props) {
                 onPress={() => setPinOpen(true)}
                 activeOpacity={0.8}
               >
-                <LocateFixed size={ms(16)} color="#1162D3" strokeWidth={2.2} />
+                <LocateFixed size={ms(16)} color={parentRamp.base} strokeWidth={2.2} />
                 <View style={{ flex: 1 }}>
                   <AppText style={styles.pinButtonTitle}>
                     {shopPin ? 'Shop pin selected' : 'Pin shop location on map'}
@@ -562,9 +563,9 @@ export function SellerRegistrationScreen({ navigation }: Props) {
                   activeOpacity={0.8}
                 >
                   {locating ? (
-                    <ActivityIndicator size="small" color="#1162D3" />
+                    <ActivityIndicator size="small" color={parentRamp.base} />
                   ) : (
-                    <LocateFixed size={ms(16)} color="#1162D3" strokeWidth={2.2} />
+                    <LocateFixed size={ms(16)} color={parentRamp.base} strokeWidth={2.2} />
                   )}
                   <AppText style={styles.locationText}>
                     {locationLabel ? 'Detected' : 'Use location'}
@@ -868,7 +869,7 @@ function DocumentRow({
         {uri ? (
           <BadgeCheck size={ms(18)} color="#16A34A" strokeWidth={2.2} />
         ) : (
-          <Camera size={ms(18)} color="#1162D3" strokeWidth={2.2} />
+          <Camera size={ms(18)} color={parentRamp.base} strokeWidth={2.2} />
         )}
       </View>
       <View style={{ flex: 1 }}>
@@ -913,7 +914,7 @@ const styles = StyleSheet.create({
   backButton: { width: ms(40), height: ms(40), alignItems: 'center', justifyContent: 'center' },
   headerTitle: { fontSize: ms(18), fontWeight: '900', color: '#0f172a' },
   heroCard: {
-    backgroundColor: '#1162D3',
+    backgroundColor: parentRamp.base,
     borderRadius: ms(20),
     padding: hs(18),
     marginBottom: SPACE.SECTION,
@@ -983,9 +984,9 @@ const styles = StyleSheet.create({
     borderColor: '#E2E8F0',
     backgroundColor: '#F8FAFC',
   },
-  chipActive: { borderColor: '#1162D3', backgroundColor: '#EFF6FF' },
+  chipActive: { borderColor: parentRamp.base, backgroundColor: '#EFF6FF' },
   chipText: { fontSize: ms(13), fontWeight: '800', color: '#64748B' },
-  chipTextActive: { color: '#1162D3' },
+  chipTextActive: { color: parentRamp.base },
   districtBlock: { marginTop: vs(10) },
   districtLabel: { fontSize: ms(12), fontWeight: '800', color: '#334155', marginBottom: vs(8) },
   districtChips: { flexDirection: 'row', flexWrap: 'wrap', gap: hs(8) },
@@ -997,7 +998,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#E2E8F0',
   },
-  districtChipActive: { backgroundColor: '#1162D3', borderColor: '#1162D3' },
+  districtChipActive: { backgroundColor: parentRamp.base, borderColor: parentRamp.base },
   districtChipText: { fontSize: ms(11.5), fontWeight: '700', color: '#64748B' },
   districtChipTextActive: { color: '#FFFFFF' },
   stateRow: { flexDirection: 'row', alignItems: 'flex-end', gap: hs(8) },
@@ -1027,7 +1028,7 @@ const styles = StyleSheet.create({
   },
   pinButtonTitle: { fontSize: ms(11), fontWeight: '800', color: '#0f172a' },
   pinButtonValue: { fontSize: ms(10), color: '#64748B', marginTop: vs(1) },
-  locationText: { fontSize: ms(11), fontWeight: '800', color: '#1162D3' },
+  locationText: { fontSize: ms(11), fontWeight: '800', color: parentRamp.base },
   helperText: {
     fontSize: ms(10.5),
     color: '#94A3B8',
@@ -1035,7 +1036,7 @@ const styles = StyleSheet.create({
     marginTop: vs(8),
   },
   helperError: { fontSize: ms(11), color: '#DC2626', fontWeight: '700', marginTop: vs(8) },
-  linkText: { fontSize: ms(11), fontWeight: '800', color: '#1162D3', marginTop: vs(8) },
+  linkText: { fontSize: ms(11), fontWeight: '800', color: parentRamp.base, marginTop: vs(8) },
   linkTextMuted: { color: '#94A3B8' },
   docRow: {
     flexDirection: 'row',
@@ -1064,7 +1065,7 @@ const styles = StyleSheet.create({
     borderColor: '#BFDBFE',
     backgroundColor: '#EFF6FF',
   },
-  docButtonText: { fontSize: ms(11), fontWeight: '800', color: '#1162D3' },
+  docButtonText: { fontSize: ms(11), fontWeight: '800', color: parentRamp.base },
   verifiedPill: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -1081,7 +1082,7 @@ const styles = StyleSheet.create({
     height: Math.max(46, vs(46)),
     minWidth: hs(96),
     borderRadius: ms(12),
-    backgroundColor: '#1162D3',
+    backgroundColor: parentRamp.base,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -1110,7 +1111,7 @@ const styles = StyleSheet.create({
     gap: hs(8),
     height: Math.max(50, vs(50)),
     borderRadius: ms(14),
-    backgroundColor: '#1162D3',
+    backgroundColor: parentRamp.base,
   },
   submitBtnDisabled: { opacity: 0.55 },
   submitText: { fontSize: ms(13), fontWeight: '800', color: '#ffffff', textTransform: 'uppercase' },

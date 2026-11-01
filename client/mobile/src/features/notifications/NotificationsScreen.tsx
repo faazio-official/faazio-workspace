@@ -13,8 +13,10 @@ import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import AppText from '@/components/AppText';
 import { hs, vs, ms } from '@/utils/responsive';
 import { SPACE } from '@/theme/spacing';
+import { semantic } from '@/theme/brandTokens';
 import type { RootStackParamList } from '@/navigation/types';
 import { gateway, type NotificationRecord } from '@/services/api/GatewayClient';
+import { parentRamp } from '@/theme/brandTokens';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'Notifications'>;
 
@@ -88,7 +90,7 @@ export function NotificationsScreen({ navigation }: Props) {
           <RefreshControl
             refreshing={refreshing}
             onRefresh={() => void load(true)}
-            tintColor="#1162D3"
+            tintColor={parentRamp.base}
           />
         }
       >
@@ -205,7 +207,7 @@ const styles = StyleSheet.create({
   statusPending: { backgroundColor: '#FEF3C7' },
   statusText: { fontSize: ms(10), fontWeight: '700' },
   statusTextSent: { color: '#16A34A' },
-  statusTextPending: { color: '#D97706' },
+  statusTextPending: { color: semantic.warning },
   emptyState: {
     alignItems: 'center',
     paddingTop: vs(72),

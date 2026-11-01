@@ -14,6 +14,7 @@ import welcomeIllustration3 from '../../assets/welcome_illustration_3.webp';
 import welcomeIllustration4 from '../../assets/welcome_illustration_4.webp';
 import welcomeIllustration5 from '../../assets/welcome_illustration_5.webp';
 import AppText from '@/components/AppText';
+import { parentRamp } from '@/theme/brandTokens';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'Onboarding'>;
 
@@ -29,7 +30,7 @@ interface OnboardingStep {
   image: any;
 }
 
-const BRAND_BLUE = '#1162D3';
+const BRAND_BLUE = parentRamp.base;
 const BLOOD_RED = '#E11D2E';
 
 const ONBOARDING_DATA: OnboardingStep[] = [

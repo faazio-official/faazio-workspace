@@ -3,6 +3,7 @@ import { View, TouchableOpacity, StyleSheet } from 'react-native';
 import { ChevronDown, Check } from 'lucide-react-native';
 import AppText from '@/components/AppText';
 import { hs, ms, vs } from '@/utils/responsive';
+import { brandRamp } from '@/theme/brandTokens';
 import type { SortOption } from './types';
 
 interface SortDropdownProps {
@@ -21,7 +22,7 @@ const SortDropdown = memo(function SortDropdown({
   options,
   activeId,
   onSelect,
-  accentColor = '#FF4500',
+  accentColor = brandRamp.FOOD.deep,
 }: SortDropdownProps) {
   const [open, setOpen] = useState(false);
   const active = options.find((o) => o.id === activeId);

@@ -33,6 +33,8 @@ import HairSkinCareSection from '@/features/home/sections/HairSkinCareSection';
 import FilterFeedSection from '@/features/home/sections/FilterFeedSection';
 
 import { recentlyViewedMart, recentlyViewedFood, recentlyViewedPharma } from '@data/home/rails';
+import { parentRamp } from '@/theme/brandTokens';
+import { brandRamp } from '@/theme/brandTokens';
 
 interface HomeViewProps {
   onLaunchSubApp: (subAppId: SubAppId) => void;
@@ -126,9 +128,9 @@ export default function HomeView({
         case 'dealsOfDay': return <DealsOfDaySection {...sectionProps} />;
         case 'sponsoredRail': return <SponsoredRailSection {...sectionProps} />;
         case 'mostRatedDining': return <MostRatedRestaurantsSection {...sectionProps} stores={stores} />;
-        case 'recentlyViewedMart': return <RecentlyViewedRailSection {...sectionProps} title="Recently Viewed — Mart" products={rail(recentlyViewedMart)} accent="#1162D3" appBrand="MART" />;
-        case 'recentlyViewedFood': return <RecentlyViewedRailSection {...sectionProps} title="Recently Viewed — Food" products={rail(recentlyViewedFood)} accent="#1E5D44" appBrand="FOOD" />;
-        case 'recentlyViewedPharma': return <RecentlyViewedRailSection {...sectionProps} title="Recently Viewed — Pharma" products={rail(recentlyViewedPharma)} accent="#065F46" appBrand="PHARMA" />;
+        case 'recentlyViewedMart': return <RecentlyViewedRailSection {...sectionProps} title="Recently Viewed — Mart" products={rail(recentlyViewedMart)} accent={brandRamp.MART.base} appBrand="MART" />;
+        case 'recentlyViewedFood': return <RecentlyViewedRailSection {...sectionProps} title="Recently Viewed — Food" products={rail(recentlyViewedFood)} accent={brandRamp.FOOD.base} appBrand="FOOD" />;
+        case 'recentlyViewedPharma': return <RecentlyViewedRailSection {...sectionProps} title="Recently Viewed — Pharma" products={rail(recentlyViewedPharma)} accent={brandRamp.PHARMA.base} appBrand="PHARMA" />;
         case 'nearbyOffers': return <NearbyOffersSection {...sectionProps} products={rail(nearbyOffers)} />;
         case 'mens': return <MensSection {...sectionProps} products={rail(mensPicks)} />;
         case 'womens': return <WomensSection {...sectionProps} products={rail(womensPicks)} />;

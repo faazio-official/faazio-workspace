@@ -5,6 +5,7 @@ import AppText from '@/components/AppText';
 import { hs, vs, ms } from '@/utils/responsive';
 import type { DonorMatchRequest, DonorMatchStatus } from '@data/index';
 import { BLOOD_RED, BLOOD_RED_SOFT, BLOOD_TEXT, BLOOD_TEXT_MUTED, BLOOD_BORDER, BLOOD_RADII } from '../tokens';
+import { semantic } from '@/theme/brandTokens';
 
 interface IncomingDonorRequestCardProps {
   request: DonorMatchRequest;
@@ -109,7 +110,7 @@ const styles = StyleSheet.create({
   actionBtn: { flex: 1, minHeight: ms(38), borderRadius: BLOOD_RADII.pill, alignItems: 'center', justifyContent: 'center' },
   declineBtn: { borderWidth: 1, borderColor: BLOOD_BORDER, backgroundColor: '#ffffff' },
   declineText: { color: BLOOD_TEXT_MUTED, fontSize: ms(12), fontWeight: '800' },
-  acceptBtn: { backgroundColor: '#059669' },
+  acceptBtn: { backgroundColor: semantic.success },
   acceptText: { color: '#ffffff', fontSize: ms(12), fontWeight: '900' },
   disabled: { opacity: 0.6 },
 });

@@ -3,6 +3,7 @@ import { View, TouchableOpacity, ScrollView, StyleSheet } from 'react-native';
 import { ChevronDown, Zap, Leaf, Star, Check } from 'lucide-react-native';
 import AppText from '@/components/AppText';
 import { hs, ms, vs } from '@/utils/responsive';
+import { brandRamp } from '@/theme/brandTokens';
 import type { SearchFilterChip, SortOption } from './types';
 
 interface FilterChipsRailProps {
@@ -28,7 +29,7 @@ const FilterChipsRail = memo(function FilterChipsRail({
   sortOptions,
   activeSortId,
   onSelectSort,
-  accentColor = '#FF4500',
+  accentColor = brandRamp.FOOD.deep,
 }: FilterChipsRailProps) {
   const [sortOpen, setSortOpen] = useState(false);
   const activeSort = sortOptions.find((o) => o.id === activeSortId);
@@ -150,8 +151,8 @@ const styles = StyleSheet.create({
     borderColor: '#E5E5E5',
   },
   chipActive: {
-    backgroundColor: '#FF4500',
-    borderColor: '#FF4500',
+    backgroundColor: brandRamp.FOOD.deep,
+    borderColor: brandRamp.FOOD.deep,
   },
   chipLabel: {
     fontSize: ms(12),

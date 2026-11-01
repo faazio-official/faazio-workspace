@@ -15,6 +15,7 @@ import { useFacets } from './useFacets';
 import { gateway } from '@/services/api/GatewayClient';
 import { useLiveOrigin } from '@/hooks/useLiveLocation';
 import type { ActiveFacets, SearchScreenConfig } from './types';
+import { semantic } from '@/theme/brandTokens';
 
 const PAGE_SIZE = 10;
 
@@ -308,7 +309,7 @@ const SearchScreen = memo(function SearchScreen({
             fetching ? (
               <ActivityIndicator
                 size="small"
-                color={config.accentColor ?? '#2563EB'}
+                color={config.accentColor ?? semantic.info}
                 style={styles.listEmptySpinner}
               />
             ) : (
@@ -317,7 +318,7 @@ const SearchScreen = memo(function SearchScreen({
           }
           ListFooterComponent={
             isLoadingMore && visibleCount < allResults.length ? (
-              <ActivityIndicator size="small" color={config.accentColor ?? '#2563EB'} style={styles.listFooter} />
+              <ActivityIndicator size="small" color={config.accentColor ?? semantic.info} style={styles.listFooter} />
             ) : null
           }
           onEndReached={handleLoadMore}
@@ -344,7 +345,7 @@ function EmptyState({
   onClearQuery?: () => void;
   onClearFilters?: () => void;
 }) {
-  const linkColor = accentColor ?? '#2563EB';
+  const linkColor = accentColor ?? semantic.info;
   return (
     <View style={styles.emptyCard}>
       <View style={styles.emptyIconCircle}>

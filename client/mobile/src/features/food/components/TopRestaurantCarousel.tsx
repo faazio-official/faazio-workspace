@@ -259,7 +259,7 @@ const styles = StyleSheet.create({
   newBadgeText: {
     fontSize: ms(11),
     fontWeight: '800',
-    color: foodTheme.primary,
+    color: foodTheme.primaryDeep,
   },
   distanceRow: {
     flexDirection: 'row',

@@ -15,13 +15,14 @@ import FilterChipsRail from '@/features/search/FilterChipsRail';
 import type { SortOption, SearchToggleOption } from '@/features/search/types';
 import SearchProductRowCard from '@/components/shared/SearchProductRowCard';
 import type { Product } from '@data/types';
+import { parentRamp } from '@/theme/brandTokens';
 
 interface FavouritesPageViewProps {
   onBack: () => void;
   onProductPress: (product: CatalogEntry) => void;
 }
 
-const ACCENT = '#1162D3';
+const ACCENT = parentRamp.base;
 
 const SORT_OPTIONS: SortOption[] = [
   { id: 'relevance', label: 'Relevance' },

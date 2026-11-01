@@ -8,6 +8,7 @@ import SearchMartProductCard from '@/features/ecommerce/components/SearchMartPro
 import { buildProductSuggestions } from '../suggestions';
 import { storeDistanceKm } from '../storeDistance';
 import type { ActiveFacets, SearchScreenConfig } from '../types';
+import { brandRamp } from '@/theme/brandTokens';
 
 const searchableText = (p: Product) => {
   const parts = [
@@ -46,7 +47,7 @@ export function createMartSearchConfig({
 }: MartSearchConfigOptions = {}): SearchScreenConfig {
   return {
     searchPlaceholder: 'Search products in Mart…',
-    accentColor: '#1162D3',
+    accentColor: brandRamp.MART.deep,
     toggles: [{ key: 'products', label: 'Products', icon: Package }],
     showToggles: false,
     filterChips: [],

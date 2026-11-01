@@ -15,6 +15,7 @@ import { ms, vs, hs } from '@/utils/responsive';
 import { reverseGeocode, type Coordinates } from '@/services/location';
 import { refreshLiveLocation } from '@/hooks/useLiveLocation';
 import { useLocationStore } from '@/state/locationStore';
+import { parentRamp } from '@/theme/brandTokens';
 
 interface Props {
   visible: boolean;
@@ -116,7 +117,7 @@ export default function SellerLocationPicker({
 
         <View style={[styles.sheet, { paddingBottom: insets.bottom + vs(14) }]}>
           <View style={styles.pinRow}>
-            <MapPin size={ms(18)} color="#1162D3" />
+            <MapPin size={ms(18)} color={parentRamp.base} />
             <View style={{ flex: 1 }}>
               <AppText style={styles.pinLabel}>Selected point</AppText>
               <AppText style={styles.pinValue} numberOfLines={2}>
@@ -132,9 +133,9 @@ export default function SellerLocationPicker({
               disabled={locating}
             >
               {locating ? (
-                <ActivityIndicator size="small" color="#1162D3" />
+                <ActivityIndicator size="small" color={parentRamp.base} />
               ) : (
-                <LocateFixed size={ms(15)} color="#1162D3" />
+                <LocateFixed size={ms(15)} color={parentRamp.base} />
               )}
               <AppText style={styles.locateText}>Use my location</AppText>
             </Pressable>
@@ -187,14 +188,14 @@ const styles = StyleSheet.create({
     borderRadius: ms(10),
     backgroundColor: '#EAF2FE',
   },
-  locateText: { fontSize: ms(11), fontWeight: '800', color: '#1162D3' },
+  locateText: { fontSize: ms(11), fontWeight: '800', color: parentRamp.base },
   confirmBtn: {
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
     paddingVertical: vs(11),
     borderRadius: ms(10),
-    backgroundColor: '#1162D3',
+    backgroundColor: parentRamp.base,
   },
   confirmText: { fontSize: ms(11), fontWeight: '800', color: '#ffffff' },
 });

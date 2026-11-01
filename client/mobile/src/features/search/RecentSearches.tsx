@@ -3,6 +3,7 @@ import { View, ScrollView, TouchableOpacity, StyleSheet } from 'react-native';
 import { X, Clock } from 'lucide-react-native';
 import AppText from '@/components/AppText';
 import { hs, ms, vs } from '@/utils/responsive';
+import { brandRamp } from '@/theme/brandTokens';
 import { useSearchStore } from '@/state/searchStore';
 
 interface RecentSearchesProps {
@@ -17,7 +18,7 @@ interface RecentSearchesProps {
  */
 const RecentSearches = memo(function RecentSearches({
   onSelect,
-  accentColor = '#FF4500',
+  accentColor = brandRamp.FOOD.deep,
 }: RecentSearchesProps) {
   const recent = useSearchStore((s) => s.recentSearches);
   const remove = useSearchStore((s) => s.removeRecentSearch);

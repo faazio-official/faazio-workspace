@@ -30,6 +30,8 @@ import {
 } from '@/hooks/usePlaceAutocomplete';
 import { requestAndRefreshLocation, useLiveOrigin } from '@/hooks/useLiveLocation';
 import { useLocationStore } from '@/state/locationStore';
+import { parentRamp } from '@/theme/brandTokens';
+import { semantic } from '@/theme/brandTokens';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'Location'>;
 
@@ -120,7 +122,7 @@ function PulsingLocator() {
             backgroundColor: 'rgba(16,185,129,0.2)',
             alignItems: 'center',
             justifyContent: 'center',
-            shadowColor: '#10B981',
+            shadowColor: semantic.success,
             shadowOffset: { width: 0, height: 4 },
             shadowOpacity: 0.15,
             shadowRadius: 12,
@@ -132,7 +134,7 @@ function PulsingLocator() {
               width: ms(24),
               height: ms(24),
               borderRadius: ms(12),
-              backgroundColor: '#10B981',
+              backgroundColor: semantic.success,
               alignItems: 'center',
               justifyContent: 'center',
             }}
@@ -186,7 +188,7 @@ function BouncingPin() {
           fill="#111111"
         />
         <Circle cx="50" cy="38" r="14" fill="#FFFFFF" />
-        <Circle cx="50" cy="38" r="7" fill="#10B981" />
+        <Circle cx="50" cy="38" r="7" fill={semantic.success} />
       </Svg>
     </Animated.View>
   );
@@ -641,7 +643,7 @@ const styles = StyleSheet.create({
     marginTop: SPACE.BLOCK,
   },
   titleTextAccent: {
-    color: '#1162D3',
+    color: parentRamp.base,
   },
   graphicContainer: {
     flex: 1,
@@ -658,10 +660,10 @@ const styles = StyleSheet.create({
     width: '100%',
     height: Math.max(44, vs(44)),
     borderRadius: ms(12),
-    backgroundColor: '#1162D3',
+    backgroundColor: parentRamp.base,
     alignItems: 'center',
     justifyContent: 'center',
-    shadowColor: '#1162D3',
+    shadowColor: parentRamp.base,
     shadowOffset: { width: 0, height: 8 },
     shadowOpacity: 0.3,
     shadowRadius: 20,
@@ -874,7 +876,7 @@ const styles = StyleSheet.create({
     width: ms(8),
     height: ms(8),
     borderRadius: ms(4),
-    backgroundColor: '#10B981',
+    backgroundColor: semantic.success,
   },
   deliveringTitle: {
     fontSize: ms(14),

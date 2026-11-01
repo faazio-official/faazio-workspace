@@ -21,6 +21,7 @@ import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import AppText from '@/components/AppText';
 import { hs, vs, ms } from '@/utils/responsive';
 import { SPACE } from '@/theme/spacing';
+import { semantic } from '@/theme/brandTokens';
 import SlideUpSheet from '@/components/shared/SlideUpSheet';
 import { useRewardsStore } from '@/state/rewardsStore';
 import {
@@ -30,6 +31,7 @@ import {
 } from '@data/rewards/rewards';
 import type { RootStackParamList } from '@/navigation/types';
 import type { RewardLedgerEntry } from '@/state/rewardsStore';
+import { parentRamp } from '@/theme/brandTokens';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'FaazioRewards'>;
 
@@ -37,8 +39,8 @@ const LEDGER_META: Record<
   RewardLedgerEntry['type'],
   { label: string; color: string; sign: (e: RewardLedgerEntry) => string }
 > = {
-  EARN: { label: 'Coins earned', color: '#059669', sign: () => '+' },
-  REDEEM: { label: 'Coins redeemed', color: '#D97706', sign: () => '−' },
+  EARN: { label: 'Coins earned', color: semantic.success, sign: () => '+' },
+  REDEEM: { label: 'Coins redeemed', color: semantic.warning, sign: () => '−' },
   EXPIRE: { label: 'Card expired', color: '#94A3B8', sign: () => '' },
   STREAK: { label: '7-day streak reward', color: '#7C3AED', sign: () => '🎉' },
 };
@@ -92,7 +94,7 @@ export function FaazioRewardsScreen({ navigation }: Props) {
         showsVerticalScrollIndicator={false}
         bounces={false}
         refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={() => void refresh()} tintColor="#1162D3" />
+          <RefreshControl refreshing={refreshing} onRefresh={() => void refresh()} tintColor={parentRamp.base} />
         }
       >
         {/* Header */}

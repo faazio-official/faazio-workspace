@@ -37,6 +37,8 @@ import type { AppBrand, StoreProfile } from '@data/types';
 import { martStores } from '@data/mart/stores';
 import { gateway } from '@/services/api/GatewayClient';
 import { useBloodDonorStore } from '@/state/bloodDonorStore';
+import { brandRamp } from '@/theme/brandTokens';
+import { parentRamp } from '@/theme/brandTokens';
 
 type SubAppKey = 'FA_MART' | 'FOOD' | 'PHARMA';
 
@@ -50,8 +52,8 @@ interface SubAppPreset {
 const SUB_APP_PRESETS: Record<SubAppKey, SubAppPreset> = {
   FA_MART: {
     name: 'Mart',
-    primaryColor: '#1162D3',
-    textColor: '#1162D3',
+    primaryColor: brandRamp.MART.deep,
+    textColor: brandRamp.MART.deep,
     tabs: [
       { name: 'Home', icon: Home },
       { name: 'Search', icon: Search },
@@ -61,8 +63,8 @@ const SUB_APP_PRESETS: Record<SubAppKey, SubAppPreset> = {
   },
   FOOD: {
     name: 'Food',
-    primaryColor: '#1E5D44',
-    textColor: '#1E5D44',
+    primaryColor: brandRamp.FOOD.deep,
+    textColor: brandRamp.FOOD.deep,
     tabs: [
       { name: 'Home', icon: Home },
       { name: 'Menu', icon: LayoutGrid },
@@ -71,8 +73,8 @@ const SUB_APP_PRESETS: Record<SubAppKey, SubAppPreset> = {
   },
   PHARMA: {
     name: 'Pharma',
-    primaryColor: '#FF7A59',
-    textColor: '#FF7A59',
+    primaryColor: brandRamp.PHARMA.deep,
+    textColor: brandRamp.PHARMA.deep,
     tabs: [
       { name: 'Home', icon: Home },
       { name: 'Search', icon: Search },
@@ -87,8 +89,8 @@ const SUB_APP_PRESETS: Record<SubAppKey, SubAppPreset> = {
  *  dereferencing `config.tabs` on `undefined`. */
 const FALLBACK_SUB_APP_PRESET: SubAppPreset = {
   name: 'Faazio',
-  primaryColor: '#1162D3',
-  textColor: '#1162D3',
+  primaryColor: brandRamp.MART.deep,
+  textColor: brandRamp.MART.deep,
   tabs: [],
 };
 
@@ -382,7 +384,7 @@ export default function SubAppWrapper({
         {tabs.map((tab, idx) => {
           const isCurrent = activeTab === tab.name;
           const Icon = tab.icon;
-          const activeColor = tokens.headerGradient[0];
+          const activeColor = tokens.tabActiveColor;
 
           return (
             <TouchableOpacity
@@ -680,7 +682,7 @@ const styles = StyleSheet.create({
   unsupportedBtn: {
     height: Math.max(44, vs(44)),
     borderRadius: ms(12),
-    backgroundColor: '#1162D3',
+    backgroundColor: parentRamp.base,
     alignItems: 'center',
     justifyContent: 'center',
     paddingHorizontal: hs(24),

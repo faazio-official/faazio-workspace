@@ -4,6 +4,7 @@ import { Droplet, MapPin, Clock, Check, ChevronRight } from 'lucide-react-native
 import AppText from '@/components/AppText';
 import { hs, vs, ms } from '@/utils/responsive';
 import type { BloodRequest, BloodRequestUrgency } from '@data/index';
+import { semantic } from '@/theme/brandTokens';
 import {
   BLOOD_RED,
   BLOOD_RED_DARK,
@@ -92,7 +93,7 @@ export function BloodRequestCard({ request, onPress }: BloodRequestCardProps) {
         </View>
         {request.verified ? (
           <View style={styles.verifiedChip}>
-            <Check size={ms(11)} color="#059669" strokeWidth={3} />
+            <Check size={ms(11)} color={semantic.success} strokeWidth={3} />
             <AppText style={styles.verifiedText}>Verified Hospital</AppText>
           </View>
         ) : null}
@@ -217,7 +218,7 @@ const styles = StyleSheet.create({
   },
   verifiedText: {
     fontSize: ms(10),
-    color: '#059669',
+    color: semantic.success,
     fontWeight: '700',
   },
   chevronWrap: {

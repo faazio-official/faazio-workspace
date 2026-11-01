@@ -16,6 +16,7 @@ import { Screen } from '@/components/shared';
 import { useLanguageStore } from '@/state/languageStore';
 import { hs, vs, ms } from '@/utils/responsive';
 import { SPACE } from '@/theme/spacing';
+import { parentRamp } from '@/theme/brandTokens';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'LanguageSelection'>;
 
@@ -46,7 +47,7 @@ const ALL_LANGUAGES: Language[] = [
   { id: 'ur', native: 'اردو', english: 'Urdu', avatar: 'اردو' },
 ];
 
-const ACCENT = '#1162D3';
+const ACCENT = parentRamp.base;
 const ACCENT_LIGHT = '#DBEAFE';
 const ACCENT_SOFT = '#EFF6FF';
 

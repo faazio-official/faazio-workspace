@@ -30,6 +30,7 @@ import { pharmaProducts } from '@data/pharma/products';
 import { foodStores } from '@data/food/stores';
 import { TODAYS_SPECIALS, dishToProduct } from '@data/food/specials';
 import type { Product, StoreProfile } from '@data/types';
+import { semantic } from '@/theme/brandTokens';
 
 interface ProductDetailViewProps {
   product?: Product;
@@ -658,7 +659,7 @@ const styles = StyleSheet.create({
     gap: hs(8),
   },
   ratingPill: {
-    backgroundColor: '#059669',
+    backgroundColor: semantic.success,
     borderRadius: ms(6),
     paddingVertical: vs(3),
     paddingHorizontal: hs(8),
@@ -751,7 +752,7 @@ const styles = StyleSheet.create({
     width: ms(6),
     height: ms(6),
     borderRadius: ms(3),
-    backgroundColor: '#059669',
+    backgroundColor: semantic.success,
   },
   highlightText: {
     fontSize: ms(12),
@@ -785,7 +786,7 @@ const styles = StyleSheet.create({
     position: 'absolute',
     bottom: vs(-8),
     alignSelf: 'center',
-    backgroundColor: '#059669',
+    backgroundColor: semantic.success,
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: hs(6),
@@ -834,7 +835,7 @@ const styles = StyleSheet.create({
     borderRadius: ms(4),
   },
   storeOpenText: {
-    color: '#059669',
+    color: semantic.success,
     fontSize: ms(10),
     fontWeight: '700',
   },

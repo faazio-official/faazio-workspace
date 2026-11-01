@@ -40,6 +40,8 @@ import { usePharmaStores } from './hooks/usePharmaStores';
 import PharmaHomeSkeleton from './components/skeletons/PharmaHomeSkeleton';
 import { DonorDashboard } from './blood-donor/DonorDashboard';
 import { useOrdersStore, type PlacedOrder } from '@/state/ordersStore';
+import { brandRamp } from '@/theme/brandTokens';
+import { semantic } from '@/theme/brandTokens';
 
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
@@ -259,7 +261,7 @@ export function PharmaScreen({
 
   const renderStars = (rating: number, size: number = 10) => {
     return Array.from({ length: 5 }, (_, i) => (
-      <Star key={i} size={ms(size)} color={i < Math.floor(rating) ? '#FF7A59' : '#E2E8F0'} fill={i < Math.floor(rating) ? '#FF7A59' : 'none'} strokeWidth={1.5} />
+      <Star key={i} size={ms(size)} color={i < Math.floor(rating) ? brandRamp.PHARMA.deep : '#E2E8F0'} fill={i < Math.floor(rating) ? brandRamp.PHARMA.deep : 'none'} strokeWidth={1.5} />
     ));
   };
 
@@ -420,7 +422,7 @@ export function PharmaScreen({
 
       {categorySource === 'loading' ? (
         <View style={styles.categoryLoading}>
-          <ActivityIndicator color="#FF7A59" />
+          <ActivityIndicator color={brandRamp.PHARMA.deep} />
         </View>
       ) : filteredCategoryProducts.length === 0 ? (
         <View style={styles.emptyStateCard}>
@@ -502,7 +504,7 @@ export function PharmaScreen({
           {selectedProduct.bullets?.map((bullet: string, idx: number) => (
             <View key={idx} style={styles.bulletRow}>
               <View style={styles.bulletCircle}>
-                <CheckCircle size={ms(8)} color="#FF7A59" strokeWidth={4} />
+                <CheckCircle size={ms(8)} color={brandRamp.PHARMA.deep} strokeWidth={4} />
               </View>
               <AppText style={styles.bulletText}>{bullet}</AppText>
             </View>
@@ -537,7 +539,7 @@ export function PharmaScreen({
   const historyView = (
     <ScrollView showsVerticalScrollIndicator={false}>
       <View style={styles.historyHeader}>
-        <ClipboardList size={ms(18)} color="#FF7A59" strokeWidth={2} />
+        <ClipboardList size={ms(18)} color={brandRamp.PHARMA.deep} strokeWidth={2} />
         <AppText style={styles.historyTitle}>Recently Ordered</AppText>
         <AppText style={styles.historySubtitle}>Your latest medicine orders</AppText>
       </View>
@@ -945,7 +947,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   addToCartBtnAdded: {
-    backgroundColor: '#059669',
+    backgroundColor: semantic.success,
   },
   addToCartBtnText: {
     fontSize: ms(11),
@@ -1035,7 +1037,7 @@ const styles = StyleSheet.create({
   historyStatusText: {
     fontSize: ms(8),
     fontWeight: '900',
-    color: '#065f46',
+    color: brandRamp.PHARMA.deep,
   },
   historyDirectiveBox: {
     marginHorizontal: hs(20),

@@ -90,5 +90,5 @@ const styles = StyleSheet.create({
     borderColor: foodTheme.primary,
   },
   text: { fontSize: ms(14), color: foodTheme.textSecondary, fontWeight: '500' },
-  activeText: { color: foodTheme.primary, fontWeight: 'bold' },
+  activeText: { color: foodTheme.primaryDeep, fontWeight: 'bold' },
 });

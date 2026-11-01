@@ -534,7 +534,7 @@ const styles = StyleSheet.create({
     marginTop: SPACE.SECTION,
   },
   sectionTitle: { fontSize: ms(16), fontWeight: 'bold', color: foodTheme.textPrimary },
-  seeAllText: { fontSize: ms(13), color: foodTheme.primary, fontWeight: '600' },
+  seeAllText: { fontSize: ms(13), color: foodTheme.primaryDeep, fontWeight: '600' },
   discountScroll: { paddingLeft: hs(16), paddingRight: hs(8) },
   discountCard: { width: 140, marginRight: 16 },
   discountImageWrap: { position: 'relative', marginBottom: 8 },

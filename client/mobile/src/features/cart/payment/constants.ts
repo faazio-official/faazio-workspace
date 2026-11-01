@@ -1,3 +1,4 @@
+import { parentRamp } from '@/theme/brandTokens';
 /** Shared colour tokens for the Payment Options screen. */
 export const BRAND = {
   /** Light gray screen background. */
@@ -13,5 +14,5 @@ export const BRAND = {
   /** Subtle borders / separators. */
   border: '#EEF1F4',
   /** Destination dot / timeline. */
-  blue: '#1162D3',
+  blue: parentRamp.base,
 } as const;

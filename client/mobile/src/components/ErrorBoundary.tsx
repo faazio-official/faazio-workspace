@@ -1,6 +1,7 @@
 import React from 'react';
 import { StyleSheet, View, Text, TouchableOpacity } from 'react-native';
 import { reportRenderError } from '@/services/crashReporting';
+import { parentRamp } from '@/theme/brandTokens';
 
 interface ErrorBoundaryProps {
   children: React.ReactNode;
@@ -110,7 +111,7 @@ const styles = StyleSheet.create({
   scope: {
     fontSize: 11,
     fontWeight: '800',
-    color: '#1162D3',
+    color: parentRamp.base,
     letterSpacing: 0.5,
     textTransform: 'uppercase',
     marginBottom: 6,
@@ -135,7 +136,7 @@ const styles = StyleSheet.create({
   button: {
     height: 44,
     borderRadius: 12,
-    backgroundColor: '#1162D3',
+    backgroundColor: parentRamp.base,
     alignItems: 'center',
     justifyContent: 'center',
     paddingHorizontal: 24,
@@ -149,6 +150,6 @@ const styles = StyleSheet.create({
     fontWeight: '800',
   },
   secondaryButtonText: {
-    color: '#1162D3',
+    color: parentRamp.base,
   },
 });

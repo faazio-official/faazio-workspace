@@ -2,8 +2,9 @@ import React, { memo } from 'react';
 import { StyleSheet, TouchableOpacity, View } from 'react-native';
 import { Home } from 'lucide-react-native';
 import { ms } from '@/utils/responsive';
+import { parentRamp } from '@/theme/brandTokens';
 
-const FAAZIO_BLUE = '#1162D3';
+const FAAZIO_BLUE = parentRamp.base;
 
 interface NavbarHomeShortcutProps {
   centerX: number;

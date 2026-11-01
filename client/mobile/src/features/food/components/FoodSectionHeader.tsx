@@ -64,6 +64,6 @@ const styles = StyleSheet.create({
   seeAllText: {
     fontSize: ms(12),
     fontWeight: '600',
-    color: foodTheme.primary,
+    color: foodTheme.primaryDeep,
   },
 });

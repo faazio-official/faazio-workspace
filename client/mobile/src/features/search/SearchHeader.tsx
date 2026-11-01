@@ -5,6 +5,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import AppTextInput from '@/components/AppTextInput';
 import { hs, ms, vs } from '@/utils/responsive';
 import { SPACE } from '@/theme/spacing';
+import { semantic } from '@/theme/brandTokens';
 
 interface SearchHeaderProps {
   onBack: () => void;
@@ -32,7 +33,7 @@ const SearchHeader = memo(function SearchHeader({
   placeholder = 'Search…',
   inputRef,
   onSubmit,
-  accentColor = '#2563EB',
+  accentColor = semantic.info,
 }: SearchHeaderProps) {
   const insets = useSafeAreaInsets();
   const hasText = value.length > 0;

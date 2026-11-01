@@ -36,6 +36,7 @@ import { STREAK_TARGET_DAYS } from '@data/rewards/rewards';
 import { isPartnerAdmin, useAuthStore } from '@/state/authStore';
 import { openTrustedUrl } from '@/lib/externalLinks';
 import { COOKIES_URL, DISCLAIMER_URL, PRIVACY_URL, REFUNDS_URL, TERMS_URL } from '@/lib/site';
+import { parentRamp } from '@/theme/brandTokens';
 
 const NAV_ICONS: Record<string, React.ComponentType<any>> = {
   idcard: IdCard,
@@ -61,7 +62,7 @@ const LEGAL_LINKS: Record<string, string> = {
   disclaimer: DISCLAIMER_URL,
 };
 
-const BRAND_BLUE = '#1162D3';
+const BRAND_BLUE = parentRamp.base;
 
 export interface AccountViewProps {
   /** When provided, a back arrow is rendered in the fixed header (pushed mode). */
@@ -257,7 +258,7 @@ export function AccountView({
         {isPartnerAdmin(authUser) && onOpenSellerRequests ? (
           <TouchableOpacity style={styles.adminCard} activeOpacity={0.7} onPress={onOpenSellerRequests}>
             <View style={styles.adminIcon}>
-              <Store size={ms(18)} color="#1162D3" strokeWidth={2.2} />
+              <Store size={ms(18)} color={parentRamp.base} strokeWidth={2.2} />
             </View>
             <View style={styles.adminText}>
               <AppText style={styles.adminTitle}>Seller applications</AppText>
@@ -278,7 +279,7 @@ export function AccountView({
             onPress={onOpenFeeChangeRequests}
           >
             <View style={styles.adminIcon}>
-              <Percent size={ms(18)} color="#1162D3" strokeWidth={2.2} />
+              <Percent size={ms(18)} color={parentRamp.base} strokeWidth={2.2} />
             </View>
             <View style={styles.adminText}>
               <AppText style={styles.adminTitle}>Fee change requests</AppText>
@@ -299,7 +300,7 @@ export function AccountView({
             onPress={onOpenPlatformFeeRequest}
           >
             <View style={styles.adminIcon}>
-              <Percent size={ms(18)} color="#1162D3" strokeWidth={2.2} />
+              <Percent size={ms(18)} color={parentRamp.base} strokeWidth={2.2} />
             </View>
             <View style={styles.adminText}>
               <AppText style={styles.adminTitle}>Request a fee change</AppText>

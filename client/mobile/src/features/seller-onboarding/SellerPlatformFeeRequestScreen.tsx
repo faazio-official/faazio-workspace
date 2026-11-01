@@ -16,6 +16,7 @@ import { SPACE } from '@/theme/spacing';
 import { gateway, type FeeChangeRequest } from '@/services/api/GatewayClient';
 import { useAuthStore } from '@/state/authStore';
 import type { RootStackParamList } from '@/navigation/types';
+import { parentRamp } from '@/theme/brandTokens';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'SellerPlatformFeeRequest'>;
 
@@ -130,7 +131,7 @@ export function SellerPlatformFeeRequestScreen({ navigation, route }: Props) {
       <ScrollView contentContainerStyle={styles.content}>
         <View style={styles.card}>
           <View style={styles.cardTitleRow}>
-            <Percent size={ms(18)} color="#1162D3" strokeWidth={2.2} />
+            <Percent size={ms(18)} color={parentRamp.base} strokeWidth={2.2} />
             <AppText style={styles.cardTitle}>Request a fee change</AppText>
           </View>
           <AppText style={styles.muted}>
@@ -173,7 +174,7 @@ export function SellerPlatformFeeRequestScreen({ navigation, route }: Props) {
 
         <AppText style={styles.sectionTitle}>History</AppText>
         {loading ? (
-          <ActivityIndicator color="#1162D3" style={styles.loader} />
+          <ActivityIndicator color={parentRamp.base} style={styles.loader} />
         ) : history.length === 0 ? (
           <AppText style={styles.muted}>No requests yet.</AppText>
         ) : (
@@ -239,7 +240,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#EFF6FF',
   },
   currentLabel: { fontSize: ms(12), fontWeight: '700', color: '#1D4ED8' },
-  currentValue: { fontSize: ms(16), fontWeight: '900', color: '#1162D3' },
+  currentValue: { fontSize: ms(16), fontWeight: '900', color: parentRamp.base },
   label: { fontSize: ms(12), fontWeight: '800', color: '#334155', marginTop: vs(14), marginBottom: vs(6) },
   input: {
     borderWidth: 1,
@@ -257,7 +258,7 @@ const styles = StyleSheet.create({
   primaryBtn: {
     marginTop: vs(16),
     borderRadius: ms(14),
-    backgroundColor: '#1162D3',
+    backgroundColor: parentRamp.base,
     paddingVertical: vs(13),
     alignItems: 'center',
   },

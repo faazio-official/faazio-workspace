@@ -131,7 +131,7 @@ const ProductCardBase = memo(function ProductCardBase({
               </View>
             ) : (
               <TouchableOpacity
-                style={[styles.addBtn, { backgroundColor: tokens.accent }]}
+                style={[styles.addBtn, { backgroundColor: tokens.btnBg }]}
                 onPress={() => onAdd?.(product)}
                 activeOpacity={0.8}
                 hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}

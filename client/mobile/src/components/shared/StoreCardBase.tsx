@@ -2,7 +2,7 @@ import React, { memo } from 'react';
 import { View, Image, TouchableOpacity, StyleSheet } from 'react-native';
 import { Star, Clock, MapPin, ChevronRight } from 'lucide-react-native';
 import { hs, vs, ms } from '@/utils/responsive';
-import { brandTokens } from '@/theme/brandTokens';
+import { brandTokens, semantic } from '@/theme/brandTokens';
 import AdLabelBadge from './AdLabelBadge';
 import type { StoreProfile } from '@data/types';
 import AppText from '@/components/AppText';
@@ -143,7 +143,7 @@ const styles = StyleSheet.create({
     alignSelf: 'flex-start', backgroundColor: '#fef3c7', paddingHorizontal: hs(8),
     paddingVertical: vs(3), borderRadius: ms(6), marginBottom: vs(6),
   },
-  offerText: { fontSize: ms(8), fontWeight: '800', color: '#d97706' },
+  offerText: { fontSize: ms(8), fontWeight: '800', color: semantic.warning },
   descRow: { flexDirection: 'row', alignItems: 'center' },
   desc: { flex: 1, fontSize: ms(8), fontWeight: '600', color: '#64748b' },
 });

@@ -20,9 +20,10 @@ import { useCategoryTree } from '@/features/catalog/hooks/useCategoryTree';
 import type { VendorApp } from '@/services/categoryVendors';
 import CategoryTitleRail from './CategoryTitleRail';
 import StoreProductSection from './StoreProductSection';
+import { parentRamp } from '@/theme/brandTokens';
 
 /** Faazio brand blue — the category drill-in page is a brand surface. */
-const FAAZIO_BLUE = '#1162D3';
+const FAAZIO_BLUE = parentRamp.base;
 
 interface CategoryDrillInPanelProps {
   tabId: string;

@@ -1,4 +1,4 @@
-import { brandTokens } from '@/theme/brandTokens';
+import { brandTokens, semantic } from '@/theme/brandTokens';
 import type { AppBrand } from '@data/types';
 
 export function formatPrice(price: number, locale = 'en-IN', currency = 'INR') {
@@ -14,21 +14,27 @@ export function formatRating(rating: number, decimals = 1) {
   return rating.toFixed(decimals);
 }
 
+/**
+ * Named badge fills. These are read as a background under white badge text, so
+ * every value must clear 4.5:1 against white — which is why they come from the
+ * shared `semantic` set rather than Tailwind's 500-level shades. The old
+ * `#10B981` here carried white at 2.54 and failed.
+ */
 const badgeHexMap: Record<string, string> = {
-  'bg-amber': '#F59E0B',
-  'bg-red': '#EF4444',
-  'bg-green': '#10B981',
-  'bg-blue': '#3B82F6',
-  'bg-purple': '#8B5CF6',
-  'bg-pink': '#EC4899',
-  'bg-indigo': '#6366F1',
-  'bg-teal': '#14B8A6',
-  'bg-orange': '#F97316',
-  'bg-gray': '#6B7280',
+  'bg-amber': semantic.warning,
+  'bg-red': semantic.danger,
+  'bg-green': semantic.success,
+  'bg-blue': semantic.info,
+  'bg-purple': '#6D28D9',
+  'bg-pink': '#BE185D',
+  'bg-indigo': '#4338CA',
+  'bg-teal': '#0F766E',
+  'bg-orange': '#C2410C',
+  'bg-gray': semantic.neutral,
 };
 
 export function resolveBadgeBg(badgeBg?: string): string {
-  if (!badgeBg) return '#6B7280';
+  if (!badgeBg) return semantic.neutral;
   if (badgeBg.startsWith('#')) return badgeBg;
-  return badgeHexMap[badgeBg] || '#6B7280';
+  return badgeHexMap[badgeBg] || semantic.neutral;
 }

@@ -19,6 +19,7 @@ import type { ReadSource } from '@/services/api/GatewayClient';
 import { useAuthStore } from '@/state/authStore';
 import { useBloodDonorStore, type BloodWriteStatus } from '@/state/bloodDonorStore';
 import { BLOOD_RED, BLOOD_RED_DARK, BLOOD_TEXT, BLOOD_TEXT_MUTED, BLOOD_BORDER, BLOOD_RADII } from '../tokens';
+import { semantic } from '@/theme/brandTokens';
 
 interface AskBloodSheetProps {
   visible: boolean;
@@ -158,7 +159,7 @@ const AskBloodSheet = memo(function AskBloodSheet({ visible, onClose, onPosted }
           <View style={styles.postedState}>
             <View style={[styles.postedIcon, postStatus === 'synced' && styles.postedIconOk]}>
               {postStatus === 'synced'
-                ? <CheckCircle2 size={ms(30)} color="#059669" strokeWidth={2.4} />
+                ? <CheckCircle2 size={ms(30)} color={semantic.success} strokeWidth={2.4} />
                 : <UploadCloud size={ms(30)} color={BLOOD_RED} strokeWidth={2.2} />}
             </View>
             <AppText style={styles.postedTitle}>{POSTED_COPY[postStatus ?? 'offline'].title}</AppText>

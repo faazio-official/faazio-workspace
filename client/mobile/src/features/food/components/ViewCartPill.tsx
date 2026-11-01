@@ -62,7 +62,7 @@ const styles = StyleSheet.create({
     shadowRadius: 10,
     elevation: 6,
   },
-  viewCartText: { color: foodTheme.primary, fontSize: ms(14), fontWeight: 'bold' },
+  viewCartText: { color: foodTheme.primaryDeep, fontSize: ms(14), fontWeight: 'bold' },
   viewCartDivider: { width: 1, height: vs(16), backgroundColor: '#E5E7EB' },
-  viewCartCount: { color: foodTheme.primary, fontSize: ms(14), fontWeight: 'bold' },
+  viewCartCount: { color: foodTheme.primaryDeep, fontSize: ms(14), fontWeight: 'bold' },
 });

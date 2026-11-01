@@ -5,6 +5,7 @@ import AppText from '@/components/AppText';
 import { hs, vs, ms } from '@/utils/responsive';
 import type { DonorProfile } from '@data/index';
 import { BLOOD_RED, BLOOD_RED_SOFT, BLOOD_TEXT, BLOOD_TEXT_MUTED, BLOOD_BORDER, BLOOD_RADII } from '../tokens';
+import { semantic } from '@/theme/brandTokens';
 
 interface MatchingDonorCardProps {
   donor: DonorProfile;
@@ -31,7 +32,7 @@ export function MatchingDonorCard({ donor, onPress }: MatchingDonorCardProps) {
         <View style={styles.nameRow}>
           <AppText style={styles.name} numberOfLines={1}>{donor.name}</AppText>
           <View style={styles.availableChip}>
-            <ShieldCheck size={ms(11)} color="#059669" strokeWidth={2.3} />
+            <ShieldCheck size={ms(11)} color={semantic.success} strokeWidth={2.3} />
             <AppText style={styles.availableText}>Available</AppText>
           </View>
         </View>
@@ -55,7 +56,7 @@ const styles = StyleSheet.create({
   nameRow: { flexDirection: 'row', alignItems: 'center', gap: hs(6) },
   name: { flex: 1, color: BLOOD_TEXT, fontSize: ms(14), fontWeight: '900' },
   availableChip: { flexDirection: 'row', alignItems: 'center', gap: hs(3), paddingHorizontal: hs(6), paddingVertical: vs(3), borderRadius: BLOOD_RADII.pill, backgroundColor: '#ECFDF5' },
-  availableText: { color: '#059669', fontSize: ms(9), fontWeight: '800' },
+  availableText: { color: semantic.success, fontSize: ms(9), fontWeight: '800' },
   metaRow: { flexDirection: 'row', alignItems: 'center', gap: hs(5) },
   bloodGroup: { color: BLOOD_RED, fontSize: ms(13), fontWeight: '900' },
   separator: { color: BLOOD_BORDER, fontSize: ms(14) },

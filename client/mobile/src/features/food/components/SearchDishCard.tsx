@@ -88,7 +88,7 @@ const SearchDishCard = memo(function SearchDishCard({ dish, onPress, oldPrice, r
                 accessibilityRole="button"
                 accessibilityLabel={`Decrease quantity of ${dish.dishName}`}
               >
-                <Minus size={ms(12)} color="#FF4500" strokeWidth={2.6} />
+                <Minus size={ms(12)} color={foodTheme.primaryDeep} strokeWidth={2.6} />
               </TouchableOpacity>
               <AppText style={styles.stepperQty}>{quantity}</AppText>
               <TouchableOpacity
@@ -98,7 +98,7 @@ const SearchDishCard = memo(function SearchDishCard({ dish, onPress, oldPrice, r
                 accessibilityRole="button"
                 accessibilityLabel={`Increase quantity of ${dish.dishName}`}
               >
-                <Plus size={ms(12)} color="#FF4500" strokeWidth={2.6} />
+                <Plus size={ms(12)} color={foodTheme.primaryDeep} strokeWidth={2.6} />
               </TouchableOpacity>
             </View>
           ) : (
@@ -218,7 +218,7 @@ const styles = StyleSheet.create({
   addBtnText: {
     fontSize: ms(12),
     fontWeight: '800',
-    color: '#FF4500',
+    color: foodTheme.primaryDeep,
   },
   stepper: {
     flexDirection: 'row',

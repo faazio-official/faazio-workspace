@@ -25,6 +25,7 @@ import { useVendorProducts } from '@/features/catalog/hooks/useVendorProducts';
 import type { RootStackParamList } from '@/navigation/types';
 import SearchMartProductCard from '@/features/ecommerce/components/SearchMartProductCard';
 import SearchPharmaProductCard from '@/features/pharma/components/SearchPharmaProductCard';
+import { parentRamp } from '@/theme/brandTokens';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'VendorDetails'>;
 
@@ -118,7 +119,7 @@ export function VendorDetailScreen({ navigation, route }: Props) {
     if (!resolved) {
       return (
         <View style={[styles.container, styles.center]}>
-          <ActivityIndicator color="#1162D3" />
+          <ActivityIndicator color={parentRamp.base} />
         </View>
       );
     }
@@ -337,7 +338,7 @@ const styles = StyleSheet.create({
   offerText: {
     fontSize: ms(8.5),
     fontWeight: '700',
-    color: '#1162D3',
+    color: parentRamp.base,
   },
   storeHero: {
     marginTop: SPACE.ITEM,

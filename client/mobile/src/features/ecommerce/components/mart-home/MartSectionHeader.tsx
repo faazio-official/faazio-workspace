@@ -4,8 +4,12 @@ import { ChevronRight } from 'lucide-react-native';
 import AppText from '@/components/AppText';
 import { hs, ms, vs } from '@/utils/responsive';
 import { SPACE } from '@/theme/spacing';
+import { brandRamp } from '@/theme/brandTokens';
 
-const MART_YELLOW = '#FFC107';
+/** Mart anchor. `base` is a fill only — it cannot carry text or sit on white. */
+const MART_YELLOW = brandRamp.MART.base;
+/** Mart ink. Use for text and icons on light surfaces. */
+const MART_INK = brandRamp.MART.deep;
 
 interface MartSectionHeaderProps {
   title: string;
@@ -30,7 +34,7 @@ const MartSectionHeader = memo(function MartSectionHeader({
           accessibilityLabel={`${title}, view all`}
         >
           <AppText style={styles.viewAllText}>View All</AppText>
-          <ChevronRight size={ms(14)} color={MART_YELLOW} strokeWidth={2.6} />
+          <ChevronRight size={ms(14)} color={MART_INK} strokeWidth={2.6} />
         </TouchableOpacity>
       ) : null}
     </View>
@@ -64,6 +68,6 @@ const styles = StyleSheet.create({
   viewAllText: {
     fontSize: ms(12),
     fontWeight: '600',
-    color: MART_YELLOW,
+    color: MART_INK,
   },
 });

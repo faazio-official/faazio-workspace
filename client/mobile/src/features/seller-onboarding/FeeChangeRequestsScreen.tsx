@@ -19,6 +19,7 @@ import { SPACE } from '@/theme/spacing';
 import { gateway, type FeeChangeRequest } from '@/services/api/GatewayClient';
 import { isPartnerAdmin, useAuthStore } from '@/state/authStore';
 import type { RootStackParamList } from '@/navigation/types';
+import { parentRamp } from '@/theme/brandTokens';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'FeeChangeRequests'>;
 
@@ -147,7 +148,7 @@ export function FeeChangeRequestsScreen({ navigation }: Props) {
 
       {loading ? (
         <View style={styles.center}>
-          <ActivityIndicator size="large" color="#1162D3" />
+          <ActivityIndicator size="large" color={parentRamp.base} />
         </View>
       ) : (
         <FlatList
@@ -155,7 +156,7 @@ export function FeeChangeRequestsScreen({ navigation }: Props) {
           keyExtractor={(item) => item.requestId}
           contentContainerStyle={[styles.listContent, items.length === 0 && styles.emptyContent]}
           refreshControl={
-            <RefreshControl refreshing={refreshing} onRefresh={() => load(true)} tintColor="#1162D3" />
+            <RefreshControl refreshing={refreshing} onRefresh={() => load(true)} tintColor={parentRamp.base} />
           }
           ListHeaderComponent={
             error ? (
@@ -170,7 +171,7 @@ export function FeeChangeRequestsScreen({ navigation }: Props) {
           renderItem={({ item }) => (
             <View style={styles.row}>
               <View style={styles.rowIcon}>
-                <Percent size={ms(18)} color="#1162D3" strokeWidth={2.2} />
+                <Percent size={ms(18)} color={parentRamp.base} strokeWidth={2.2} />
               </View>
               <View style={styles.rowText}>
                 <AppText style={styles.rowTitle} numberOfLines={1}>
@@ -282,7 +283,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#E2E8F0',
   },
-  filterChipActive: { backgroundColor: '#1162D3', borderColor: '#1162D3' },
+  filterChipActive: { backgroundColor: parentRamp.base, borderColor: parentRamp.base },
   filterText: { fontSize: ms(12), fontWeight: '700', color: '#64748B' },
   filterTextActive: { color: '#FFFFFF' },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: hs(24) },

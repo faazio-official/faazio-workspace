@@ -459,10 +459,44 @@ app. Tokens live in `src/theme/`:
 
 | File | Owns |
 |---|---|
-| `src/theme/brandTokens.ts` | Per-`AppBrand` colour: `accent`, `accentDark`, `cardBg`, `btnBg`, `btnText`, `btnAdded`, `gradient`, `headerGradient`, `headerTextColor`, `priceColor`, `pillBg` |
+| `src/theme/brandTokens.ts` | Per-`AppBrand` colour: `accent`, `accentDark`, `cardBg`, `btnBg`, `btnText`, `btnAdded`, `gradient`, `headerGradient`, `headerTextColor`, `priceColor`, `pillBg` — plus the four-role ramp (`brandRamp`, `parentRamp`), `semantic` / `semanticTint`, and `neutral` |
 | `src/theme/spacing.ts` | `SPACE.SECTION` / `BLOCK` / `ITEM` / `LIST_BOTTOM` — the canonical vertical rhythm |
 | `src/theme/fonts.ts` | Platform fonts only (Roboto on Android, `System` on iOS). No custom font module, no font-load gate |
-| `src/theme/sectorVisuals.ts` | `SECTOR_VISUALS` — sector icon, fill and icon tint |
+| `src/theme/sectorVisuals.ts` | `SECTOR_VISUALS` — sector icon, fill and icon tint, derived from `brandRamp` |
+| `src/theme/categorical.ts` | `categorical` — the product-category icon palette. Not brand colour: 23 categories in one hue would be unreadable, so these are a defined, documented set that must stay clear of the brand anchors |
+
+**The four-role ramp.** Every brand anchor is bright, so it can never carry
+white text (Mart 1.63, Pharma 2.49, Food 2.80 against white). The anchor is a
+fill colour only. Each brand therefore expands into roles, and the role decides
+the pairing:
+
+| Role | Use | Pairs with |
+|---|---|---|
+| `base` | fills, icons, chips, badges, accents | `onBase` |
+| `baseLift` | second header-gradient stop only | `onBase` |
+| `deep` | CTA/button fill, text on white, active tab | `onDeep` (white) |
+| `pressed` | `:active` state of `deep` | `onDeep` (white) |
+| `tint` | card/pill background | `onTint` |
+
+Never put white text on `base`. Never derive `pressed` by lightening `base` —
+that produces colours that fail their own rule (Mart 2.65, Food 4.23); derive it
+from `deep`. `semantic` and `neutral` are shared across all sub-apps and are not
+tinted per brand. `npm run check:brand-contrast` asserts every one of these rules
+against the real token file.
+
+**Legacy field mapping.** The `brandTokens` field names are kept so no consumer
+had to change, but each one now projects a ramp role: `accent`, `btnBg`,
+`priceColor` and `tabActiveColor` are `deep`; `badgeBg` and `accentLight` are
+`base` (fill only); `accentDark` is `pressed`; `cardBg` and `pillBg` are `tint`;
+`btnAdded` is `semantic.success`; `headerGradient` is `base` → `baseLift` with
+`headerTextColor` = `#0F172A`. Do not reintroduce a literal here — add a role to
+the ramp and project it.
+
+**Sub-app headers are bright, not dark.** The header gradient runs `base` →
+`baseLift` and carries dark ink (`#0F172A`), which is the only legal pairing on a
+bright surface. Food and Pharma previously ran white text over `#FB923C` (2.26)
+and `#2DD4BF` (1.86); both failed.
+
 
 Rules specific to this surface:
 - **`SPACE` owns section rhythm.** A boundary has exactly one owner of its gap: a
