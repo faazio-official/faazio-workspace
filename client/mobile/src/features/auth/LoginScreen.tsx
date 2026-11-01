@@ -313,8 +313,16 @@ export function LoginScreen({ navigation }: Props) {
         setIsSending(true);
         try {
           await sendOtp(digits);
-        } catch {
+        } catch (err) {
           setIsSending(false);
+          // Surface the Firebase code in dev: a bare "check your number" hides the real cause
+          // (e.g. app-not-authorized from an unregistered signing cert) and makes it undebuggable.
+          if (__DEV__) {
+            const code = (err as { code?: string })?.code ?? 'unknown';
+            console.warn('[phone-auth] sendOtp failed:', code, (err as Error)?.message);
+            Alert.alert('Could not send OTP', `${code}\n\n${(err as Error)?.message ?? ''}`);
+            return;
+          }
           Alert.alert('Could not send OTP', 'Please check your number and try again.');
           return;
         }
@@ -382,9 +390,15 @@ export function LoginScreen({ navigation }: Props) {
     submitRef.current = false;
     setIsVerifying(false);
     if (firebaseAuthConfigured()) {
-      void sendOtp(phone).catch(() =>
-        Alert.alert('Could not send OTP', 'Please try again in a moment.'),
-      );
+      void sendOtp(phone).catch((err: unknown) => {
+        if (__DEV__) {
+          const code = (err as { code?: string })?.code ?? 'unknown';
+          console.warn('[phone-auth] resend failed:', code, (err as Error)?.message);
+          Alert.alert('Could not send OTP', `${code}\n\n${(err as Error)?.message ?? ''}`);
+          return;
+        }
+        Alert.alert('Could not send OTP', 'Please try again in a moment.');
+      });
     } else {
       Alert.alert('Resend', 'A new demo OTP code has been sent to (+91) ' + phone);
     }
