@@ -188,9 +188,11 @@ root (the customer build uses `index.js`). `app: seller` is the Seller Partner a
 (`com.faazio.sellerpartner`, "Faazio Seller Partner"); it needs `GOOGLE_SERVICES_SELLER_JSON` and
 `ENTRY_FILE=index.seller.js`.
 
-> A debug APK is signed with the CI runner's **debug** keystore — different from the release key.
-> If a release build is installed, `adb uninstall com.faazio.customer` (or `com.faazio.deliverypartner`
-> / `com.faazio.sellerpartner`) before installing it.
+> A debug APK is signed with the shared **debug** keystore (`android/app/debug.keystore`,
+> `CN=Android Debug`, SHA-256 `FA:C6:17:45:DC:09:03:78:6F:B9:ED:E6:2A:96:2B:39:9F:73:48:F0:BB:6F:89:9B:83:32:66:75:91:03:3B:9C`)
+> — different from any product's release key. If a release build is installed, `adb uninstall
+> com.faazio.customer` (or `com.faazio.deliverypartner` / `com.faazio.sellerpartner`) before
+> installing it.
 
 The signed APK lands on the GitHub Release at `<tag>` (e.g. `v1.0.2`). Because the publish step
 uses `gh release upload --clobber`, re-running the same tag **replaces** the old APK.

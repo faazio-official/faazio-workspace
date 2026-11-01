@@ -112,7 +112,11 @@ runtime notification permission.
 ## 4. Console setup (already done, except Part 6)
 
 - [x] Firebase project created; Google Analytics disabled.
-- [x] Android app registered with `com.faazio.customer` + debug SHA-1/SHA-256.
+- [x] Android app registered with `com.faazio.customer` + debug cert SHA-1
+  `5E:8F:16:06:2E:A3:CD:2C:4A:0D:54:78:76:BA:A6:F3:8C:AB:F6:25` / SHA-256
+  `FA:C6:17:45:DC:09:03:78:6F:B9:ED:E6:2A:96:2B:39:9F:73:48:F0:BB:6F:89:9B:83:32:66:75:91:03:3B:9C`
+  (the shared `android/app/debug.keystore` cert used by debug APKs — distinct from the per-app
+  **release** certs below).
 - [x] iOS app registered with `com.faazio.customer`.
 - [x] Delivery Android app registered with `com.faazio.deliverypartner` (config -> `GOOGLE_SERVICES_DELIVERY_JSON`).
 - [ ] Delivery iOS app registered with `com.faazio.deliverypartner` (config -> `GoogleService-Info-Delivery.plist`).
@@ -128,7 +132,8 @@ runtime notification permission.
   - [ ] App Check → Android app → Play Integrity → **Enforce** (after testing).
   - [ ] Upload the APNs **.p8 auth key** (Key ID + Team ID) for iOS.
   - [ ] Add each app's **release** SHA-1/SHA-256 in Firebase Project Settings → Your apps. Each
-    app has its own keystore, so the fingerprints **differ per app**:
+    app has its own keystore, so the fingerprints **differ per app** (debug APKs still use the
+    shared debug cert above, so keep that registered too for Metro/CI device testing):
     - `com.faazio.customer` — SHA-1 `7E:B1:2E:78:55:21:89:FF:6B:37:1A:FE:2F:F0:84:DE:58:42:A8:45`,
       SHA-256 `23:8A:02:B2:0F:64:E6:EB:8A:33:17:39:75:A9:AE:C7:DD:66:CC:72:83:E1:0B:3B:EF:F4:70:01:4E:E4:09:9D`
     - `com.faazio.deliverypartner` — SHA-1 `6A:D2:A2:E2:C8:A0:1D:66:09:61:EF:9E:C4:E8:40:1B:8B:86:CD:93`,

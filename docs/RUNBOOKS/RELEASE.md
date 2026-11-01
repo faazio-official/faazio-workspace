@@ -54,6 +54,17 @@ phone OTP or render restricted Maps keys:
 - **CI pin:** `.github/workflows/release-apk.yml` compares the built APK's signer cert SHA-256
   against the matching row above and fails on any mismatch. Update the workflow constants whenever a
   keystore is rotated (they are public digests, safe to commit).
+- **Debug builds use the shared debug cert, not the release cert.** Debug APKs
+  (`android-debug.yml`, or a local `assemble<App>Debug`) are signed with the committed
+  `android/app/debug.keystore` (`CN=Android Debug`), shared by all three flavors. When testing
+  Firebase phone OTP from a **debug** APK, register this cert for that app in Firebase (customer
+  already has it):
+  - SHA-1 `5E:8F:16:06:2E:A3:CD:2C:4A:0D:54:78:76:BA:A6:F3:8C:AB:F6:25`
+  - SHA-256 `FA:C6:17:45:DC:09:03:78:6F:B9:ED:E6:2A:96:2B:39:9F:73:48:F0:BB:6F:89:9B:83:32:66:75:91:03:3B:9C`
+
+  This is expected: a debug-signed customer APK shows `FA:C6:…:3B:9C`, while the customer **release**
+  APK shows `23:8A:…:09:9D` (the row above). Do **not** add the debug cert to the release workflow
+  pin — release builds must match the per-app release SHA-256 and the debug cert is rejected there.
 - **Google Play Console** (Setup → App signing): each listing's first AAB upload registers that app's
   **upload key**; confirm Play shows the matching SHA-256 above.
 - Drill a fingerprint with `keytool -list -v -keystore <file> -alias <alias>` (store password from
