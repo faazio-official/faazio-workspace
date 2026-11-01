@@ -609,10 +609,11 @@ runtime, not build time.
   **debug-signed** build (from earlier `npm run android` dev testing) that was never uninstalled.
   The release APK is signed with the release keystore (`CN=Faazio`); the debug build is signed
   with the debug keystore (`CN=Android Debug`) — a *different cert*, so Android refuses the update
-  with this exact error. Verify the certs differ:
+  with this exact error. Verify the certs differ (use `apksigner`: the v2/v3-only APK has no
+  v1/JAR signature for `keytool -printcert -jarfile` to read):
   ```bash
-  keytool -printcert -jarfile faazio.apk | grep Owner   # release: CN=Faazio
-  # prior debug install: CN=Android Debug
+  apksigner verify --print-certs faazio.apk | grep 'certificate DN'
+  # release: CN=Faazio…   prior debug install: CN=Android Debug
   ```
   **Fix (installer side):** uninstall the existing Faazio first, then install the release APK:
   ```bash

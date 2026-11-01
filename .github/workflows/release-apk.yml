@@ -235,9 +235,13 @@ jobs:
         env:
           ENTRY_FILE: ${{ github.event.inputs.app == 'delivery' && 'index.delivery.js' || (github.event.inputs.app == 'seller' && 'index.seller.js' || 'index.js') }}
 
-      # Guard against a silently unsigned release (e.g. a signing-config regression): the
-      # APK must verify AND carry a Faazio release certificate.
-      - name: Verify release APK is signed
+      # Guard against a silently unsigned or cross-signed release (e.g. a signing-config
+      # regression, or the customer keystore used for a delivery APK): the APK must verify
+      # AND its signer certificate must match that app's pinned SHA-256 fingerprint.
+      # Fingerprints: client/mobile/keystore/RELEASE_CERT_FINGERPRINTS.md + RELEASE.md.
+      - name: Verify release APK is signed with the app's certificate
+        env:
+          APP: ${{ github.event.inputs.app }}
         run: |
           set -euo pipefail
           SDK="${ANDROID_HOME:-${ANDROID_SDK_ROOT:-}}"
@@ -246,13 +250,39 @@ jobs:
             echo "::error::apksigner not found under ${SDK}/build-tools"
             exit 1
           fi
-          APK="$(ls android/app/build/outputs/apk/${{ github.event.inputs.app }}/release/*.apk | head -1)"
+          APK="$(ls android/app/build/outputs/apk/"$APP"/release/*.apk | head -1)"
           echo "apksigner: $APKSIGNER"; echo "apk: $APK"
+
+          # apksigner verify exits non-zero on an invalid/unsigned APK. With pipefail set,
+          # a failure also fails this step before any fingerprint comparison runs.
           "$APKSIGNER" verify --verbose --print-certs "$APK" | tee /tmp/apksigner.txt
-          if ! grep -q "CN=Faazio" /tmp/apksigner.txt; then
-            echo "::error::release APK is not signed with a Faazio release certificate"
+
+          # Per-app expected signer cert SHA-256 (see RELEASE.md "Register the release cert").
+          case "$APP" in
+            customer) EXPECTED_SHA256="23:8A:02:B2:0F:64:E6:EB:8A:33:17:39:75:A9:AE:C7:DD:66:CC:72:83:E1:0B:3B:EF:F4:70:01:4E:E4:09:9D" ;;
+            delivery) EXPECTED_SHA256="E1:B6:1B:A9:86:F6:76:C4:A0:C0:D5:EF:26:E9:25:8C:78:95:7C:A9:04:7F:E9:39:96:F3:E5:C5:96:E5:5E:ED" ;;
+            seller)   EXPECTED_SHA256="B7:DA:DE:58:08:F8:EB:9D:3D:EB:F8:BC:12:E6:75:5E:46:A2:F4:E5:7A:C2:C9:56:AA:06:45:10:18:1E:B7:A6" ;;
+            *)
+              echo "::error::unknown app input '$APP' (expected customer, delivery or seller)"
+              exit 1
+              ;;
+          esac
+
+          # apksigner prints the digest as lowercase hex with no separators; normalise both
+          # sides to uppercase hex without colons before comparing.
+          SIGNER_COUNT="$(grep -cE '^Signer #[0-9]+ certificate SHA-256 digest:' /tmp/apksigner.txt || true)"
+          if [ "$SIGNER_COUNT" -ne 1 ]; then
+            echo "::error::expected exactly one signer certificate, found ${SIGNER_COUNT:-0}"
             exit 1
           fi
+          ACTUAL_SHA256="$(grep -E '^Signer #[0-9]+ certificate SHA-256 digest:' /tmp/apksigner.txt \
+            | head -1 | awk '{print $NF}' | tr '[:lower:]' '[:upper:]')"
+          EXPECTED_SHA256="${EXPECTED_SHA256//:/}"
+          if [ -z "$ACTUAL_SHA256" ] || [ "$ACTUAL_SHA256" != "$EXPECTED_SHA256" ]; then
+            echo "::error::APK signer SHA-256 (${ACTUAL_SHA256:-<missing>}) does not match the expected certificate for '$APP' (${EXPECTED_SHA256})"
+            exit 1
+          fi
+          echo "OK: $APP APK signed with the pinned certificate (SHA-256 ${EXPECTED_SHA256})"
 
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4

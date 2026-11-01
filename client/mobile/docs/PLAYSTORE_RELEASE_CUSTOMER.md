@@ -67,7 +67,8 @@ ALIAS_PASS=...
 
 - **CI:** `.github/workflows/release-apk.yml` restores the product's keystore from
   `KEYSTORE_BASE64_<APP>` + the matching password secrets via `scripts/restore-keystore.sh <app>`,
-  then `apksigner verify`s the signed APK.
+  then `apksigner verify`s the signed APK and pins that app's release-cert SHA-256 — a cross-app
+  keystore mix fails the build.
 - **Manual:** run the same script with `<app>` and those env vars present.
 - A release build fails fast if that product's keystore/properties are missing — it never falls back
   to the debug key.

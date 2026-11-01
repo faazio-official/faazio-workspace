@@ -22,7 +22,8 @@
   one can no longer update — Android reports a signature conflict as
   **"App not installed as package appears to be invalid."** `android/app/build.gradle` assigns each
   product flavor its own release signing config and never falls back to the debug key. CI also runs
-  `apksigner verify` and fails if the APK is not signed with a `CN=Faazio…` certificate.
+  `apksigner verify` and pins the signer certificate's SHA-256 **per app** (table below), so a
+  debug-signed APK or a cross-app keystore mix (e.g. customer key on a delivery APK) fails the build.
 - **Signature schemes:** release APKs are signed with **v2 (APK Signature Scheme) only** (plus v3),
   which is correct for `minSdkVersion 24` (Android 7.0+). v1 (JAR) signing is intentionally omitted
   by both AGP and `apksigner` when minSdk ≥ 24 and is not required for install on Android 7.0+.
@@ -50,6 +51,9 @@ phone OTP or render restricted Maps keys:
   `android/app/src/seller/`). The workflow passes one shared `GOOGLE_MAPS_API_KEY_ANDROID` /
   `GOOGLE_PLACES_API_KEY`; create per-app keys in Google Cloud and set per-app secrets if you want
   them independent. See TROUBLESHOOTING.md → "Location / maps".
+- **CI pin:** `.github/workflows/release-apk.yml` compares the built APK's signer cert SHA-256
+  against the matching row above and fails on any mismatch. Update the workflow constants whenever a
+  keystore is rotated (they are public digests, safe to commit).
 - **Google Play Console** (Setup → App signing): each listing's first AAB upload registers that app's
   **upload key**; confirm Play shows the matching SHA-256 above.
 - Drill a fingerprint with `keytool -list -v -keystore <file> -alias <alias>` (store password from
@@ -283,7 +287,11 @@ To verify a **downloaded** APK is signed with the release cert (not the debug ce
 ```bash
 apksigner verify --verbose --print-certs app-customer-release.apk
 # EXPECT "Signer #1 certificate DN: CN=Faazio, ..."  (release cert, NOT "CN=Android Debug")
+# EXPECT "Signer #1 certificate SHA-256 digest:" to equal that app's digest in the table above
+#        (apksigner prints it as lowercase hex without colons, e.g. 238a02b2…099d).
 ```
+`keytool -printcert -jarfile` cannot verify these APKs: they are v2/v3-signed with no v1/JAR
+signature, so use `apksigner`.
 ## 🌐 Google Play (manual)
 
 1. Build the release `.aab` — dispatch the workflow with `-f include-aab=true` (it runs
@@ -456,7 +464,7 @@ Run **each pending** migration (numeric order) → then roll the Render deploy. 
 - [ ] Release keystore SHA-1/SHA-256 registered in Firebase for all three Android apps; Maps/Places keys restricted to the release SHA-1 for **customer + delivery** only (seller mounts no map — see "Register the release cert").
 - [ ] `CERT_PINS` set and Firebase native config committed when `USE_GATEWAY=true` (release configure fails without them).
 - [ ] Per-app GitHub secrets set: `KEYSTORE_BASE64_<APP>`, `KEYSTORE_PASS_<APP>`, `KEY_ALIAS_<APP>`, `ALIAS_PASS_<APP>` for each product being released (all keystores backed up).
-- [ ] Release APK signed with the **release cert** (`CN=Faazio`), not the debug cert.
+- [ ] Release APK signed with that app's **release cert** (CI pins its SHA-256: customer `23:8A…09:9D`, delivery `E1:B6…5E:ED`, seller `B7:DA…B7:A6`), not the debug cert.
 - [ ] `gh workflow run release-apk.yml` succeeded and the signed APK is on the GitHub Release.
 - [ ] Portal (if deploying): `0032` + `0033` applied, `PORTAL_JWT_SECRET`/`PORTAL_PEPPER` set, a superadmin hash provisioned (`PORTAL_AUTH.md`).
 - [ ] **Server/Render:** all `server/supabase/migrations/` files up to the latest are applied from a dev terminal (`DATABASE_MIGRATIONS.md` — Render never auto-applies); then the gateway deploy rolled.

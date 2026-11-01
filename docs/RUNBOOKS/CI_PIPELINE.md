@@ -74,8 +74,9 @@ you (gh CLI) ──► GitHub Actions
   `scripts/restore-keystore.sh <app>` decodes `KEYSTORE_BASE64_<APP>` → that app's store file and
   writes `keystore/keystore[-app].properties` from `KEYSTORE_PASS_<APP>`/`KEY_ALIAS_<APP>`/
   `ALIAS_PASS_<APP>`. `android/app/build.gradle` reads the matching file per flavor; a release build
-  fails fast if it is missing. CI also runs `apksigner verify` and fails if the APK is unsigned or
-  not signed with a `CN=Faazio…` cert.
+  fails fast if it is missing. CI also runs `apksigner verify` and pins the APK signer certificate's
+  SHA-256 **per app** (customer/delivery/seller — values in `RELEASE.md`). An unsigned APK, a
+  debug-signed APK, or one signed with another app's keystore fails the build.
 
 ## 🔐 Secrets (set once, never committed)
 
