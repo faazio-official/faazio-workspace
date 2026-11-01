@@ -8,7 +8,6 @@ import {
 import { PiForkKnifeFill as UtensilsCrossed } from "react-icons/pi";
 import { SiteFooter } from "@/components/site-footer";
 import { SiteHeader } from "@/components/site-header";
-import { Button } from "@/components/ui/button";
 import {
   BUSINESS_CITY,
   BUSINESS_COUNTRY,
@@ -50,15 +49,11 @@ function Karaikal() {
       <main id="main">
         <section className="page-hero" aria-labelledby="karaikal-title">
           <div className="page-width">
-            <p className="eyebrow">WHERE FAAZIO STARTS</p>
-            <h1 id="karaikal-title">
-              Made for Karaikal.
-              <br />
-              <span className="text-primary">Starting right here.</span>
-            </h1>
+            <p className="eyebrow">Where Faazio starts</p>
+            <h1 id="karaikal-title">Made for Karaikal. Starting right here.</h1>
             <p className="page-lead">
-              Faazio’s journey starts in Karaikal, Puducherry, bringing the local stores,
-              restaurants, and medicals you already know into one daily app.
+              Faazio&apos;s journey starts in Karaikal, Puducherry, bringing the local stores,
+              restaurants and medicals you already know into one daily app.
             </p>
           </div>
         </section>
@@ -67,34 +62,31 @@ function Karaikal() {
             <h2>Your neighbourhood, all in one app</h2>
             <p>
               From your weekly grocery list to the little things you ran out of, Faazio brings Mart,
-              Food, and Pharma together for Karaikal. Explore nearby stores, order what you need,
-              and follow along — all from one place.
+              Food and Pharma together for Karaikal. Explore nearby stores, order what you need, and
+              follow along — all from one place.
             </p>
-            <ul className="content-block" style={{ listStyle: "none", padding: 0, marginTop: 26 }}>
+            <ul>
               {[
                 { icon: ShoppingBag, label: "Groceries from local stores" },
                 { icon: UtensilsCrossed, label: "Meals from local restaurants" },
                 { icon: Pill, label: "Essentials from nearby medicals" },
               ].map(({ icon: Icon, label }) => (
-                <li
-                  key={label}
-                  style={{ display: "flex", alignItems: "center", gap: 10, paddingBlock: 8 }}
-                >
-                  <Icon size={17} className="text-primary" />
-                  <span style={{ fontSize: 14 }}>{label}</span>
+                <li key={label}>
+                  <Icon aria-hidden="true" />
+                  <span>{label}</span>
                 </li>
               ))}
             </ul>
             <h2>Find us</h2>
             <p>
-              <MapPin size={14} className="inline text-primary" /> {BUSINESS_STREET_ADDRESS},{" "}
-              {BUSINESS_CITY} — {BUSINESS_POSTAL_CODE}, {BUSINESS_REGION}, {BUSINESS_COUNTRY}.
+              <MapPin size={14} className="inline text-brand-ink" aria-hidden="true" />{" "}
+              {BUSINESS_STREET_ADDRESS}, {BUSINESS_CITY} — {BUSINESS_POSTAL_CODE}, {BUSINESS_REGION}
+              , {BUSINESS_COUNTRY}.
             </p>
-            <div className="download-actions" style={{ marginTop: 34, alignItems: "flex-start" }}>
-              <Button asChild variant="download" size="lg" className="download-button">
-                <a href="/download">Get the Faazio app</a>
-              </Button>
-              <span>Starting in Karaikal · Growing with you</span>
+            <div style={{ marginTop: 32 }}>
+              <a href="/download" className="btn btn-primary">
+                Get the Faazio app
+              </a>
             </div>
           </div>
         </section>

@@ -4,6 +4,7 @@ import { toast } from "sonner";
 import { PageHeader } from "@/components/patterns/PageHeader";
 import { SectionCard } from "@/components/patterns/SectionCard";
 import { ComponentHelp } from "@/components/patterns/ComponentHelp";
+import { ThemeSegmentedControl } from "@/components/layout/ThemeToggle";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -99,6 +100,21 @@ function PlatformSettings() {
           <Button size="sm" onClick={() => toast.success("Platform settings saved")}>
             Save settings
           </Button>
+        </div>
+      </SectionCard>
+
+      <SectionCard
+        title="Appearance"
+        description="Applies to this browser, on every console you sign in to"
+      >
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="min-w-0">
+            <Label>Theme</Label>
+            <p className="mt-0.5 text-[12px] text-muted-foreground">
+              Auto follows your device&apos;s light or dark setting.
+            </p>
+          </div>
+          <ThemeSegmentedControl />
         </div>
       </SectionCard>
     </div>

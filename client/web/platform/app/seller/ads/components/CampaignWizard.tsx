@@ -361,7 +361,9 @@ export function CampaignWizard({ sellerId, stateCode }: { sellerId: string; stat
                 <span className="absolute right-2 top-2 rounded bg-black/50 px-1.5 py-0.5 text-[11px] font-medium text-white">
                   Ad
                 </span>
-                <div className="absolute inset-x-3 bottom-2">
+                {/* Scrim: the title sits on whatever photo the seller uploaded, so it needs its
+                    own contrast rather than trusting the image to be dark at the bottom. */}
+                <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/70 to-transparent px-3 pb-2 pt-6">
                   <p className="text-[13px] font-medium leading-tight text-white">{title || "Your title"}</p>
                   {subtitle ? <p className="text-[11px] text-white/80">{subtitle}</p> : null}
                 </div>
@@ -394,7 +396,7 @@ export function CampaignWizard({ sellerId, stateCode }: { sellerId: string; stat
               {imageUrl ? (
                 <img src={resolveImage(imageUrl) ?? imageUrl} alt="" className="size-full object-cover" />
               ) : null}
-              <div className="absolute inset-x-4 bottom-3">
+              <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/70 to-transparent px-4 pb-3 pt-8">
                 <p className="text-[15px] font-medium text-white">{title}</p>
                 {subtitle ? <p className="text-[11px] text-white/80">{subtitle}</p> : null}
               </div>

@@ -1,21 +1,24 @@
 import { motion, useReducedMotion } from "motion/react";
 import { HiArrowDownTray, HiArrowUpRight } from "react-icons/hi2";
-import { Button } from "@/components/ui/button";
 
 type DownloadButtonProps = { onClick: () => void; compact?: boolean };
 
+/**
+ * The app-download control. There is no verified store link yet, so it opens an
+ * informative dialog rather than pretending to download.
+ */
 export function DownloadButton({ onClick, compact = false }: DownloadButtonProps) {
   const reduced = useReducedMotion();
   return (
     <motion.div
       className="download-control"
-      whileHover={reduced ? {} : { y: -3 }}
-      whileTap={reduced ? {} : { scale: 0.97 }}
+      whileHover={reduced ? {} : { y: -2 }}
+      whileTap={reduced ? {} : { scale: 0.985 }}
+      transition={{ duration: 0.15 }}
     >
-      <Button
-        variant="download"
-        size={compact ? "default" : "lg"}
-        className={compact ? "download-button download-button-compact" : "download-button"}
+      <button
+        type="button"
+        className={compact ? "download-button btn-sm" : "download-button"}
         onClick={onClick}
       >
         <span className="download-button-icon">
@@ -23,7 +26,7 @@ export function DownloadButton({ onClick, compact = false }: DownloadButtonProps
         </span>
         <span>{compact ? "Get the app" : "Get the Faazio app"}</span>
         <HiArrowUpRight aria-hidden="true" className="download-button-arrow" />
-      </Button>
+      </button>
     </motion.div>
   );
 }

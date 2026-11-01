@@ -1,13 +1,10 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useState } from "react";
+import { useState, type CSSProperties } from "react";
 import {
   HiArrowRight as ArrowRight,
-  HiArrowUpRight as ArrowUpRight,
   HiCheck as Check,
   HiHeart as HeartHandshake,
-  HiMapPin as MapPin,
   HiBeaker as Pill,
-  HiShieldCheck as ShieldCheck,
   HiShoppingBag as ShoppingBag,
   HiDevicePhoneMobile as Smartphone,
   HiBuildingStorefront as Store,
@@ -15,7 +12,6 @@ import {
 import { PiForkKnifeFill as UtensilsCrossed } from "react-icons/pi";
 import { motion, MotionConfig } from "motion/react";
 import { DownloadButton } from "@/components/download-button";
-import { Button } from "@/components/ui/button";
 import {
   Dialog,
   DialogContent,
@@ -46,65 +42,73 @@ export const Route = createFileRoute("/")({
 const sectors = [
   {
     id: "mart",
-    label: "FAAZIO MART",
-    title: "Fresh finds. Everyday essentials.",
-    copy: "Your grocery list, minus the grocery trip.",
+    label: "Faazio Mart",
+    title: "The weekly list, without the trip",
+    copy: "Fresh produce, pantry staples and the household things you ran out of, from the shops you already know.",
     image: martImage,
-    alt: "Fresh vegetables, bread, apples, and a lemon in a grocery tote",
+    alt: "Fresh vegetables, bread, apples and a lemon in a grocery tote",
     icon: ShoppingBag,
-    theme: "bg-brand-soft text-brand",
+    color: "var(--color-mart)",
     action: "Discover Mart",
-    detail: "Fresh produce · Pantry staples · Daily essentials",
+    detail: "Produce · Pantry · Household",
     details:
       "From the weekly grocery list to the little things you ran out of. Explore fresh produce, pantry staples, and household essentials from neighbourhood stores in the Faazio app.",
   },
   {
     id: "food",
-    label: "FAAZIO FOOD",
-    title: "Good food. Great moods.",
-    copy: "Local favourites for every kind of craving.",
+    label: "Faazio Food",
+    title: "The meal you were thinking about",
+    copy: "Local restaurants, ordered for delivery to your door or picked up on the way home.",
     image: foodImage,
-    alt: "Biryani, curry, and raita from a local restaurant",
+    alt: "Biryani, curry and raita from a local restaurant",
     icon: UtensilsCrossed,
-    theme: "bg-brand-soft text-brand",
+    color: "var(--color-food)",
     action: "Explore Food",
-    detail: "Local restaurants · Meals · Delivery & pickup",
+    detail: "Restaurants · Delivery · Pickup",
     details:
       "Discover meals from local restaurants and choose delivery or self-pickup at checkout. Order details and tracking are available in the app.",
   },
   {
     id: "pharma",
-    label: "FAAZIO PHARMA",
-    title: "A little care. Closer to home.",
-    copy: "Everyday health, from nearby medicals.",
+    label: "Faazio Pharma",
+    title: "Everyday care, close to home",
+    copy: "Medicines, personal care and baby essentials from nearby medical stores.",
     image: pharmaImage,
-    alt: "Unbranded pharmacy boxes, vitamins, a blister pack, and a bandage",
+    alt: "Unbranded pharmacy boxes, vitamins, a blister pack and a bandage",
     icon: Pill,
-    theme: "bg-brand-soft text-brand",
+    color: "var(--color-pharma)",
     action: "Meet Pharma",
-    detail: "Nearby medicals · Prescriptions · Personal care",
+    detail: "Medicals · Prescriptions · Care",
     details:
       "Explore medicines, OTC products, baby care, Ayurveda, and personal care from nearby medical stores. Prescription upload is part of the planned experience. Prescription medicines require a valid prescription; availability is shown in the app.",
   },
 ];
+
 type Action = "download" | "donor" | "partner" | "mart" | "food" | "pharma";
+
+/** CSS custom properties are not in React's CSSProperties type; this keeps the
+ *  sector dot tint typed instead of casting at the call site. */
+function sectorTint(color: string): CSSProperties {
+  return { "--sector-color": color } as CSSProperties;
+}
+
 const dialogCopy = {
   download: {
-    title: "Your everyday, in the Faazio app.",
+    title: "The app is not on the stores yet",
     description:
-      "Faazio’s journey starts in Karaikal. Official app-store links will be shared here once they are provided. There is no download link available on this page yet.",
-    note: "Mart. Food. Pharma. One place for your day.",
+      "Faazio starts in Karaikal. The App Store and Play Store links will be published here as soon as they are live — there is no download on this page yet.",
+    note: "Mart, Food and Pharma, in one app for your day.",
   },
   donor: {
-    title: "Be someone’s second chance.",
+    title: "The donor programme is still being built",
     description:
-      "We’re building a community of people who want to help patients, families, hospitals, and blood banks. Donor registration details will be shared when the programme opens.",
+      "We are putting together a community of people who want to help patients, families, hospitals and blood banks. Registration details will be shared when it opens.",
     note: "For urgent medical needs, contact your hospital or local blood bank directly. This page is not an emergency service.",
   },
   partner: {
-    title: "Let’s build a more connected neighbourhood.",
+    title: "Partner onboarding opens soon",
     description:
-      "Faazio welcomes interest from local grocery stores, restaurants, and medical businesses, starting in Karaikal. Official partner contact and onboarding details will be published here when available.",
+      "Faazio works with local grocery stores, restaurants and medical businesses, starting in Karaikal. Contact and onboarding details will be published here when they are ready.",
     note: "No application is collected or submitted on this page.",
   },
 };
@@ -114,178 +118,170 @@ function Index() {
   const sector = sectors.find((item) => item.id === action);
   const copy =
     action === "download" || action === "donor" || action === "partner" ? dialogCopy[action] : null;
+
   return (
     <MotionConfig reducedMotion="user">
       <SiteHeader />
       <main id="main">
-        <motion.section
-          className="hero"
-          aria-labelledby="hero-title"
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ duration: 0.55 }}
-        >
-          <img
-            src={heroImage}
-            width={1920}
-            height={1024}
-            fetchPriority="high"
-            alt="Groceries, a freshly prepared biryani, and pharmacy essentials together"
-            className="hero-image"
-          />
+        {/* Hero: a scene. The photograph carries the colour; the type sits in
+            the calm left side it was composed to leave open. */}
+        <section className="hero" aria-labelledby="hero-title">
+          <div className="hero-media">
+            <img
+              src={heroImage}
+              width={1920}
+              height={1024}
+              fetchPriority="high"
+              alt="Groceries, a freshly prepared biryani and pharmacy essentials together"
+            />
+          </div>
           <motion.div
-            className="page-width hero-content"
-            initial={{ opacity: 0, y: 24 }}
+            className="page-width hero-inner"
+            initial={{ opacity: 0, y: 16 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.65, delay: 0.12 }}
+            transition={{ duration: 0.5, ease: [0.22, 1, 0.36, 1] }}
           >
-            <p className="hero-eyebrow">
-              <span /> YOUR NEIGHBOURHOOD. NOW IN ONE APP.
-            </p>
-            <h1 id="hero-title">
-              <span className="hero-brand">Meet Faazio.</span>Your daily essentials.
-              <br />
-              One app.
-            </h1>
-            <p className="hero-description">
-              Fresh groceries. Favourite meals. Everyday care.
-              <br />
-              From the local places you know, with a little less effort.
-            </p>
-            <div className="hero-ctas">
-              <DownloadButton onClick={() => setAction("download")} />
-              <Button asChild variant="ghost" size="lg">
-                <a href="#sectors">
-                  Explore your everyday <ArrowRight />
-                </a>
-              </Button>
-            </div>
-            <p className="hero-trust">
-              <MapPin size={14} /> Starting in Karaikal. Growing with you.
-            </p>
-          </motion.div>
-          <div className="hero-category-tags" aria-hidden="true">
-            <span>
-              <ShoppingBag /> Mart
-            </span>
-            <span>
-              <UtensilsCrossed /> Food
-            </span>
-            <span>
-              <Pill /> Pharma
-            </span>
-          </div>
-          <p className="hero-caption">A whole day’s essentials. A single destination.</p>
-        </motion.section>
-        <div className="local-strip">
-          <div className="page-width local-strip-inner">
-            <span className="local-strip-title">
-              <Store size={21} strokeWidth={1.5} /> Big on convenience. Rooted in local.
-            </span>
-            <span className="local-strip-item">
-              <ShoppingBag size={17} /> Neighbourhood stores
-            </span>
-            <span className="local-strip-item">
-              <UtensilsCrossed size={17} /> Favourite restaurants
-            </span>
-            <span className="local-strip-item">
-              <ShieldCheck size={17} /> Nearby medicals
-            </span>
-          </div>
-        </div>
-        <section id="sectors" className="section">
-          <div className="page-width">
-            <div className="section-heading">
-              <div>
-                <p className="eyebrow">THREE WAYS TO MAKE YOUR DAY.</p>
-                <h2>One app. All your everyday.</h2>
-              </div>
-              <p>
-                From your first cup to your last errand.
+            <div className="hero-copy">
+              <p className="eyebrow">Karaikal · Mart, Food and Pharma</p>
+              <h1 id="hero-title" className="display hero-title">
+                Your neighbourhood,
                 <br />
-                There’s a little Faazio for everything.
+                <em>in one app.</em>
+              </h1>
+              <p className="hero-lead">
+                Groceries from the shop down the road. Dinner from the place you like. Medicine from
+                the medical you trust. One app, one delivery.
+              </p>
+              <div className="hero-actions">
+                <DownloadButton onClick={() => setAction("download")} />
+                <a href="#sectors" className="btn btn-outline">
+                  See what&apos;s inside
+                  <ArrowRight aria-hidden="true" />
+                </a>
+              </div>
+              <p className="hero-note">
+                <span className="open-dot" aria-hidden="true" />
+                Starting in Karaikal. Growing with you.
               </p>
             </div>
-            <div className="sectors-grid">
-              {sectors.map((item) => (
+          </motion.div>
+        </section>
+
+        <div className="strip">
+          <div className="page-width strip-inner">
+            <span className="strip-lead">
+              <Store size={18} strokeWidth={1.5} aria-hidden="true" />
+              Local shops, not a warehouse
+            </span>
+            <div className="strip-items">
+              <span className="strip-item">
+                <span className="open-dot" aria-hidden="true" />
+                Neighbourhood stores
+              </span>
+              <span className="strip-item">
+                <span className="open-dot" aria-hidden="true" />
+                Local restaurants
+              </span>
+              <span className="strip-item">
+                <span className="open-dot" aria-hidden="true" />
+                Nearby medicals
+              </span>
+            </div>
+          </div>
+        </div>
+
+        <section id="sectors" className="section">
+          <div className="page-width">
+            <div className="section-head">
+              <div className="section-head-copy">
+                <p className="eyebrow">Three parts of your day</p>
+                <h2 className="headline" style={{ marginTop: 12 }}>
+                  One app. All your everyday.
+                </h2>
+              </div>
+              <p>
+                From your first cup to your last errand. There is a little Faazio for all of it.
+              </p>
+            </div>
+            <div className="sectors">
+              {sectors.map((item, index) => (
                 <motion.article
                   id={item.id}
                   key={item.id}
-                  className={`sector-card ${item.theme}`}
-                  initial={{ opacity: 0, y: 28 }}
+                  className="sector"
+                  initial={{ opacity: 0, y: 20 }}
                   whileInView={{ opacity: 1, y: 0 }}
-                  viewport={{ once: true, amount: 0.15 }}
-                  transition={{ duration: 0.5, delay: sectors.indexOf(item) * 0.08 }}
-                  whileHover={{ y: -6 }}
+                  viewport={{ once: true, amount: 0.2 }}
+                  transition={{ duration: 0.45, delay: index * 0.06 }}
                 >
-                  <div className="sector-label">
-                    <item.icon size={16} />
-                    {item.label}
+                  <div className="sector-media">
+                    <img
+                      src={item.image}
+                      alt={item.alt}
+                      loading="lazy"
+                      width={1024}
+                      height={1024}
+                    />
                   </div>
-                  <h3 className="text-foreground">{item.title}</h3>
-                  <p>{item.copy}</p>
-                  <img
-                    className="sector-image"
-                    src={item.image}
-                    alt={item.alt}
-                    loading="lazy"
-                    width={1024}
-                    height={1024}
-                  />
-                  <Button
-                    variant="ghost"
-                    className="sector-link"
-                    onClick={() => setAction(item.id as Action)}
-                  >
-                    {item.action}
-                    <ArrowUpRight />
-                  </Button>
+                  <div className="sector-body">
+                    <p className="sector-label" style={sectorTint(item.color)}>
+                      <span className="open-dot" aria-hidden="true" />
+                      {item.label}
+                    </p>
+                    <h3>{item.title}</h3>
+                    <p className="sector-copy">{item.copy}</p>
+                    <div className="sector-foot">
+                      <span className="sector-detail">{item.detail}</span>
+                      <button
+                        type="button"
+                        className="sector-action"
+                        onClick={() => setAction(item.id as Action)}
+                      >
+                        {item.action}
+                        <ArrowRight aria-hidden="true" />
+                      </button>
+                    </div>
+                  </div>
                 </motion.article>
-              ))}
-            </div>
-            <div className="service-details">
-              {sectors.map((item) => (
-                <div key={item.id}>
-                  <Check size={14} />
-                  <span>{item.detail}</span>
-                </div>
               ))}
             </div>
           </div>
         </section>
+
         <FaazioCommunity onAction={setAction} />
       </main>
       <SiteFooter />
+
       <Dialog
         open={action !== null}
         onOpenChange={(open) => {
           if (!open) setAction(null);
         }}
       >
-        <DialogContent className="max-w-[calc(100%-32px)] sm:max-w-lg rounded-lg p-7">
-          <div className="dialog-symbol">
+        <DialogContent className="dialog-panel">
+          <div className="dialog-mark">
             {action === "donor" ? (
-              <HeartHandshake />
+              <HeartHandshake aria-hidden="true" />
             ) : action === "partner" ? (
-              <Store />
+              <Store aria-hidden="true" />
             ) : (
-              <Smartphone />
+              <Smartphone aria-hidden="true" />
             )}
           </div>
           <DialogHeader>
             <DialogTitle className="text-left text-xl leading-8">
               {sector ? sector.title : copy?.title}
             </DialogTitle>
-            <DialogDescription className="text-left leading-7 pt-3">
+            <DialogDescription className="pt-3 text-left leading-7">
               {sector ? sector.details : copy?.description}
             </DialogDescription>
           </DialogHeader>
-          {copy && (
-            <p className="text-xs leading-6 text-muted-foreground border-t border-border pt-4">
-              {copy.note}
-            </p>
+          {copy && <p className="dialog-note">{copy.note}</p>}
+          {sector && (
+            <div style={{ marginTop: 20 }}>
+              <DownloadButton onClick={() => setAction("download")} />
+            </div>
           )}
-          {sector && <DownloadButton onClick={() => setAction("download")} />}
         </DialogContent>
       </Dialog>
     </MotionConfig>

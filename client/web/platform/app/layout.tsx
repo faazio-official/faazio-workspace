@@ -3,6 +3,7 @@ import { Suspense, type ReactNode } from "react";
 
 import "@/styles.css";
 import { AppContextDetector } from "@/components/layout/AppContextDetector";
+import { themeInitScript } from "@/lib/theme";
 import { Providers } from "./providers";
 
 export const metadata: Metadata = {
@@ -32,12 +33,22 @@ export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
   viewportFit: "cover",
-  themeColor: "#1162D3",
+  // Both themes get a matching browser chrome colour; the media queries pick
+  // the one that matches the OS, and the resolved theme class overrides it.
+  themeColor: [
+    { media: "(prefers-color-scheme: light)", color: "#f6f8fb" },
+    { media: "(prefers-color-scheme: dark)", color: "#1b1e26" },
+  ],
 };
 
 export default function RootLayout({ children }: { children: ReactNode }) {
   return (
-    <html lang="en">
+    <html lang="en" suppressHydrationWarning>
+      <head>
+        {/* Resolve auto/light/dark before first paint so the shell never flashes
+            the wrong theme. Keep in sync with src/lib/theme.ts. */}
+        <script dangerouslySetInnerHTML={{ __html: themeInitScript }} />
+      </head>
       <body>
         <AppContextDetector />
         {/* Boundary so the first future page that reads useSearchParams can

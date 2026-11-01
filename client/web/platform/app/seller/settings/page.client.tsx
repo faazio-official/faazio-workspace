@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { ThemeSegmentedControl } from "@/components/layout/ThemeToggle";
 import { getBankAccount } from "@/lib/api";
 import { useSeller } from "@/lib/api/hooks";
 import { useSession } from "@/lib/hooks/useSession";
@@ -31,6 +32,7 @@ function SellerSettings() {
             <TabsTrigger value="profile">Profile</TabsTrigger>
             <TabsTrigger value="bank">Bank</TabsTrigger>
             <TabsTrigger value="notifications">Notifications</TabsTrigger>
+            <TabsTrigger value="appearance">Appearance</TabsTrigger>
             <TabsTrigger value="users">Sub-users</TabsTrigger>
           </TabsList>
           <ComponentHelp id="profile-tabs" />
@@ -87,6 +89,23 @@ function SellerSettings() {
                   <Switch id={label} defaultChecked />
                 </div>
               ))}
+            </div>
+          </SectionCard>
+        </TabsContent>
+
+        <TabsContent value="appearance" className="mt-4">
+          <SectionCard
+            title="Appearance"
+            description="Applies to this browser, on every console you sign in to"
+          >
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div className="min-w-0">
+                <Label>Theme</Label>
+                <p className="mt-0.5 text-[12px] text-muted-foreground">
+                  Auto follows your device&apos;s light or dark setting.
+                </p>
+              </div>
+              <ThemeSegmentedControl />
             </div>
           </SectionCard>
         </TabsContent>

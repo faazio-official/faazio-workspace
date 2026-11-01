@@ -20,6 +20,7 @@ import { useSession } from "@/lib/hooks/useSession";
 import { signOut } from "@/lib/api";
 import { RoleGate } from "@/components/layout/RoleGate";
 import { FaazioWordmark } from "@/components/brand/FaazioWordmark";
+import { ThemeMenu } from "@/components/layout/ThemeToggle";
 import { SellerPushBridge } from "@/components/layout/SellerPushBridge";
 import { ComponentHelp } from "@/components/patterns/ComponentHelp";
 
@@ -59,16 +60,16 @@ export function SellerShell({ children }: { children: ReactNode }) {
         />
         <aside
           className={cn(
-            "hidden h-screen shrink-0 border-r border-border bg-card lg:flex lg:flex-col",
+            "hidden h-screen shrink-0 border-r border-sidebar-border bg-sidebar lg:flex lg:flex-col",
             collapsed ? "w-16" : "w-60",
           )}
         >
-          <div className="flex h-14 items-center gap-2 border-b border-border px-3">
+          <div className="flex h-14 items-center gap-2 border-b border-sidebar-border px-3">
             {!collapsed ? (
               <div className="flex min-w-0 flex-1 items-center justify-between gap-2">
                 <div className="min-w-0">
                   <FaazioWordmark className="brand-wordmark text-primary" />
-                  <p className="truncate text-[11px] text-muted-foreground">
+                  <p className="truncate text-[11px] text-sidebar-muted">
                     {session?.name ?? "Partner"}
                   </p>
                 </div>
@@ -81,7 +82,7 @@ export function SellerShell({ children }: { children: ReactNode }) {
             {groups.map((group) => (
               <div key={group} className="mb-4">
                 {!collapsed ? (
-                  <p className="px-2 pb-1 text-[11px] font-medium text-muted-foreground">
+                  <p className="px-2 pb-1 text-[11px] font-medium text-sidebar-muted">
                     {group}
                   </p>
                 ) : null}
@@ -94,8 +95,8 @@ export function SellerShell({ children }: { children: ReactNode }) {
                       className={cn(
                         "focus-ringed mb-0.5 flex items-center gap-2 rounded-md px-2 py-2 text-[13px] transition-colors",
                         active
-                          ? "bg-secondary font-medium text-foreground"
-                          : "text-muted-foreground hover:bg-secondary hover:text-foreground",
+                          ? "bg-sidebar-active font-medium text-sidebar-active-foreground"
+                          : "text-sidebar-muted hover:bg-sidebar-active/60 hover:text-sidebar-foreground",
                       )}
                       style={
                         active ? { boxShadow: "inset 2px 0 0 0 var(--color-primary)" } : undefined
@@ -111,11 +112,11 @@ export function SellerShell({ children }: { children: ReactNode }) {
             ))}
           </nav>
 
-          <div className="border-t border-border p-2">
+          <div className="border-t border-sidebar-border p-2">
             <Button
               variant="ghost"
               size="sm"
-              className="w-full justify-start gap-2 text-muted-foreground"
+              className="w-full justify-start gap-2 text-sidebar-muted hover:bg-sidebar-active hover:text-sidebar-foreground"
               onClick={() => setCollapsed((c) => !c)}
             >
               {collapsed ? <PanelLeft className="size-4" /> : <ChevronLeft className="size-4" />}
@@ -147,6 +148,7 @@ export function SellerShell({ children }: { children: ReactNode }) {
               />
             </div>
             <div className="ml-auto flex items-center gap-1">
+              <ThemeMenu />
               <Button variant="ghost" size="icon" aria-label="Notifications">
                 <Bell className="size-4" />
               </Button>

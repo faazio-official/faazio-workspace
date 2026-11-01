@@ -310,6 +310,49 @@ across the console, without changing any route, feature, prop contract or data:
 - **KPI strips** — `KpiStrip` picks a column count from a literal class map so a
   strip of 5 or 6 reads as one row and no card is stranded alone on its own row.
 
+## Theming (auto / light / dark)
+
+Every role gets a theme setting. It is a property of the browser, not the
+account, so one preference applies across the seller console, the district
+console and the super admin console on that device.
+
+- **Tokens, not variants.** `src/styles.css` defines every surface token twice:
+  `:root` is light, `.dark` is dark. Components read tokens only, so both themes
+  are complete and no component needs a `dark:` variant to look right. Adding a
+  token means adding it to `:root` **and** `.dark`, then registering it in
+  `@theme inline`.
+- **Resolution.** `src/lib/theme.ts` owns the three-way rule (`auto` follows
+  `prefers-color-scheme` live, `light` and `dark` are explicit) plus the
+  `localStorage` key `faazio.theme`. `src/lib/hooks/useTheme.tsx` is the React
+  binding (`ThemeProvider` + `useTheme`), mounted in `app/providers.tsx`.
+- **No flash.** `themeInitScript` is injected inline in `<head>` from
+  `app/layout.tsx` and puts the resolved class on `<html>` before first paint;
+  `<html>` carries `suppressHydrationWarning`. The provider adopts the stored
+  value after mount, so server and first client render agree.
+- **Controls.** `src/components/layout/ThemeToggle.tsx` exports
+  `ThemeSegmentedControl` (Settings pages, three labelled options) and
+  `ThemeMenu` (the shell header icon menu). Both shells render `ThemeMenu`.
+- **Settings surfaces.** `/seller/settings` (Appearance tab),
+  `/admin/super/settings` (Appearance section) and `/admin/district/settings`
+  (new page, added to `DISTRICT_ADMIN_NAV`).
+- **The sidebar is a surface, not a slab.** The shells use the `--sidebar-*`
+  tokens (`bg-sidebar`, `border-sidebar-border`, `text-sidebar-muted`,
+  `bg-sidebar-active`), so the nav sits one quiet step from the content in both
+  themes. `--ink-*` is now reserved for the genuinely dark help popover and the
+  seed banner; painting the shell with it is what produced the black-sidebar /
+  white-content split.
+- **Overlays.** Dialog, sheet, alert-dialog, drawer and the mobile nav scrim use
+  `bg-overlay`, which is a neutral scrim per theme instead of a fixed black.
+- **Browser chrome.** The two media-scoped `<meta name="theme-color">` tags in
+  `app/layout.tsx` follow the OS, not the stored preference, so an explicit
+  Light choice under a dark OS would paint dark browser chrome above a light
+  page. `applyTheme` rewrites both metas to the resolved theme's `--background`
+  (`#f6f8fb` / `#1b1e26`), and `themeInitScript` does the same before first
+  paint so the chrome never flashes the wrong colour.
+- **Verify.** `npm run check:theme` (`node scripts/check-theme.mjs`) asserts the
+  resolution matrix, that the pre-paint script implements the same rule, and
+  that it syncs the chrome colour (12 checks).
+
 ## Data ownership
 
 The portal reads records from `src/data/**` through `src/lib/api/*`
@@ -596,9 +639,16 @@ to a **single brand accent**:
   a soft tint `--brand-soft: oklch(0.95 0.045 258.9)` for subtle fills. The old
   per-sector accents (green CTA, food orange, pharma teal, donor amber) were
   removed; every section renders on brand blue + neutrals.
-- **Display type**: `Playfair Display` for headings (`--font-display`,
-  `letter-spacing: -0.02em`); **body**: `Plus Jakarta Sans` (`--font-sans`).
-  Both load via Google Fonts in `src/routes/__root.tsx`.
+- **Display type**: `Instrument Serif` for headings (`--font-display`);
+  **body**: `Instrument Sans` (`--font-sans`); figures in `IBM Plex Mono`
+  (`--font-mono`). All load via Google Fonts in `src/routes/__root.tsx`.
+- **Theming**: the landing page resolves `auto` / `light` / `dark` exactly like
+  the portal. `src/lib/theme.ts` holds the rule and the pre-paint script,
+  `src/lib/hooks/useTheme.tsx` is the React binding mounted in
+  `src/routes/__root.tsx`, and `src/components/theme-toggle.tsx` is the header
+  control. It shares the `faazio.theme` storage key with the portal, so a
+  visitor's choice carries across both surfaces. `npm run check:theme` guards
+  the contract (14 checks).
 - **Favicon**: `public/favicon.ico` *and* `public/favicon.svg` are built from the
   brand `client/faazio-logo.ico` art (the `favicon.svg` embeds the same 64×64
   raster as base64), cache-bust `?v=3`, shared by the landing page and this

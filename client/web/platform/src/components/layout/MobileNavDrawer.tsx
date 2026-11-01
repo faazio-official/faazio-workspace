@@ -92,19 +92,19 @@ export function MobileNavDrawer({
       <button
         type="button"
         aria-label="Close menu"
-        className="absolute inset-0 bg-black/30"
+        className="absolute inset-0 bg-overlay"
         onClick={onClose}
       />
       <div
         ref={panelRef}
         id="mobile-nav-drawer"
-        className="absolute inset-y-0 left-0 flex w-72 max-w-[85%] flex-col bg-card shadow-xl"
+        className="absolute inset-y-0 left-0 flex w-72 max-w-[85%] flex-col border-r border-sidebar-border bg-sidebar shadow-xl"
         onKeyDown={onPanelKeyDown}
       >
         <div className="flex h-14 items-center gap-2 border-b border-border px-3">
           <div className="min-w-0">
             <FaazioWordmark className="brand-wordmark text-primary" />
-            <p className="truncate text-[11px] text-muted-foreground">{scopeLabel}</p>
+            <p className="truncate text-[11px] text-sidebar-muted">{scopeLabel}</p>
           </div>
           <Button
             variant="ghost"
@@ -129,7 +129,7 @@ export function MobileNavDrawer({
         <nav className="flex-1 overflow-y-auto p-2">
           {groups.map((group) => (
             <div key={group} className="mb-4">
-              <p className="px-2 pb-1 text-[11px] font-medium text-muted-foreground">{group}</p>
+              <p className="px-2 pb-1 text-[11px] font-medium text-sidebar-muted">{group}</p>
               <div className="space-y-0.5">
                 {nav
                   .filter((item) => item.group === group)
@@ -144,8 +144,8 @@ export function MobileNavDrawer({
                         className={cn(
                           "focus-ringed mb-0.5 flex items-center gap-2 rounded-md px-2 py-2 text-[13px] transition-colors",
                           active
-                            ? "bg-secondary font-medium text-foreground"
-                            : "text-muted-foreground hover:bg-secondary hover:text-foreground",
+                            ? "bg-sidebar-active font-medium text-sidebar-active-foreground"
+                            : "text-sidebar-muted hover:bg-sidebar-active/60 hover:text-sidebar-foreground",
                         )}
                         style={
                           active

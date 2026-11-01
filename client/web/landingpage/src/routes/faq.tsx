@@ -40,7 +40,7 @@ function Faq() {
       <main id="main">
         <section className="page-hero" aria-labelledby="faq-title">
           <div className="page-width">
-            <p className="eyebrow">GOOD QUESTIONS.</p>
+            <p className="eyebrow">Good questions</p>
             <h1 id="faq-title">A little clarity goes a long way.</h1>
             <p className="page-lead">
               The everyday things you might want to know about Faazio before you get started.
@@ -48,14 +48,14 @@ function Faq() {
           </div>
         </section>
         <section className="section">
-          <div className="page-width">
-            <Accordion type="single" collapsible className="max-w-[720px]">
+          <div className="page-width" style={{ maxWidth: 760 }}>
+            <Accordion type="single" collapsible>
               {faqs.map(([question, answer], i) => (
                 <AccordionItem value={`faq-${i}`} key={question}>
-                  <AccordionTrigger className="py-6 text-[15px] font-semibold">
+                  <AccordionTrigger className="py-5 text-left text-[15px] font-medium">
                     {question}
                   </AccordionTrigger>
-                  <AccordionContent className="leading-7 text-muted-foreground">
+                  <AccordionContent className="text-[15px] leading-7 text-muted-foreground">
                     {answer}
                   </AccordionContent>
                 </AccordionItem>

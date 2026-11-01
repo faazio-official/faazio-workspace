@@ -19,4 +19,4 @@ export function PolicyList({ items }: { items: ReactNode[] }) {
 export const LEGAL_EFFECTIVE_DATE = "28 October 2026";
 
 /** Inline mail/phone link styling shared by every legal page. */
-export const legalLinkClass = "font-semibold text-primary underline underline-offset-4";
+export const legalLinkClass = "font-medium text-brand-ink underline underline-offset-4";

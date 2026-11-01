@@ -233,7 +233,7 @@ const privacySections: PolicySection[] = [
           requires it.
         </p>
 
-        <h3 className="mt-6 font-display text-[19px] font-bold text-foreground">
+        <h3 className="mt-6 font-display text-[19px] font-normal text-foreground">
           Delete your account in the app
         </h3>
         <ol className="mt-3 list-decimal space-y-2 pl-5 text-[14px] leading-7 text-muted-foreground">
@@ -242,14 +242,14 @@ const privacySections: PolicySection[] = [
           <li>Review what is deleted and kept, then confirm Delete my account.</li>
         </ol>
 
-        <h3 className="mt-6 font-display text-[19px] font-bold text-foreground">
+        <h3 className="mt-6 font-display text-[19px] font-normal text-foreground">
           Delete your account by email
         </h3>
         <p>
           If you cannot sign in, email{" "}
           <a
             href={`mailto:${BUSINESS_EMAIL}?subject=Delete%20my%20account`}
-            className="font-semibold text-primary underline underline-offset-4"
+            className="font-medium text-brand-ink underline underline-offset-4"
           >
             {BUSINESS_EMAIL}
           </a>{" "}
@@ -257,7 +257,9 @@ const privacySections: PolicySection[] = [
           may ask you to verify your identity before acting.
         </p>
 
-        <h3 className="mt-6 font-display text-[19px] font-bold text-foreground">What we delete</h3>
+        <h3 className="mt-6 font-display text-[19px] font-normal text-foreground">
+          What we delete
+        </h3>
         <PolicyList
           items={[
             "Account and profile details — name, email address, and phone number.",
@@ -270,7 +272,7 @@ const privacySections: PolicySection[] = [
           ]}
         />
 
-        <h3 className="mt-6 font-display text-[19px] font-bold text-foreground">
+        <h3 className="mt-6 font-display text-[19px] font-normal text-foreground">
           What we keep, and for how long
         </h3>
         <PolicyList
@@ -283,7 +285,7 @@ const privacySections: PolicySection[] = [
         <p>
           We complete deletion within 30 days of a verified request, except for records we must
           retain under the periods above. See{" "}
-          <a href="#retention" className="font-semibold text-primary underline underline-offset-4">
+          <a href="#retention" className="font-medium text-brand-ink underline underline-offset-4">
             Section 5, “How long we keep your information”
           </a>{" "}
           for the full retention schedule.
@@ -315,7 +317,7 @@ const privacySections: PolicySection[] = [
           To exercise a right, email{" "}
           <a
             href={`mailto:${BUSINESS_EMAIL}`}
-            className="font-semibold text-primary underline underline-offset-4"
+            className="font-medium text-brand-ink underline underline-offset-4"
           >
             {BUSINESS_EMAIL}
           </a>{" "}
@@ -337,7 +339,7 @@ const privacySections: PolicySection[] = [
         with personal data, contact us at{" "}
         <a
           href={`mailto:${BUSINESS_EMAIL}`}
-          className="font-semibold text-primary underline underline-offset-4"
+          className="font-medium text-brand-ink underline underline-offset-4"
         >
           {BUSINESS_EMAIL}
         </a>{" "}
@@ -405,7 +407,7 @@ const privacySections: PolicySection[] = [
           Email:{" "}
           <a
             href={`mailto:${BUSINESS_EMAIL}`}
-            className="font-semibold text-primary underline underline-offset-4"
+            className="font-medium text-brand-ink underline underline-offset-4"
           >
             {BUSINESS_EMAIL}
           </a>
@@ -413,7 +415,7 @@ const privacySections: PolicySection[] = [
           Phone:{" "}
           <a
             href={`tel:${BUSINESS_PHONE.replace(/[^+\d]/g, "")}`}
-            className="font-semibold text-primary underline underline-offset-4"
+            className="font-medium text-brand-ink underline underline-offset-4"
           >
             {BUSINESS_PHONE}
           </a>
@@ -440,7 +442,7 @@ function PrivacyPolicy() {
               How Faazio collects, uses, shares, and protects your information across our Mart,
               Food, Pharma, and community features.
             </p>
-            <p className="mt-4 text-[12px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
+            <p className="meta mt-4">
               Effective 28 October 2026 · Applies to faazio.com and the Faazio apps
             </p>
           </div>
@@ -460,7 +462,7 @@ function PrivacyPolicy() {
                     value={section.id}
                     className="scroll-mt-24"
                   >
-                    <AccordionTrigger className="py-6 font-display text-[19px] font-bold">
+                    <AccordionTrigger className="py-5 text-left text-[15px] font-medium">
                       {section.title}
                     </AccordionTrigger>
                     <AccordionContent className="pb-6">{section.body}</AccordionContent>

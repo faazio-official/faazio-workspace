@@ -102,6 +102,7 @@ export const DISTRICT_ADMIN_NAV: NavItem[] = [
   { label: "Support", to: "/admin/district/support", icon: LifeBuoy, group: "Operations" },
   { label: "Analytics", to: "/admin/district/analytics", icon: BarChart3, group: "Operations" },
   { label: "Audit log", to: "/admin/district/audit", icon: ShieldCheck, group: "Operations" },
+  { label: "Settings", to: "/admin/district/settings", icon: Settings, group: "Operations" },
 ];
 
 export const SUPER_ADMIN_NAV: NavItem[] = [

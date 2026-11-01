@@ -13,6 +13,7 @@
     "prebuild": "node scripts/check-env.mjs --strict",
     "start": "next start",
     "lint": "eslint .",
+    "check:theme": "node scripts/check-theme.mjs",
     "ts:check": "tsc --noEmit",
     "format": "prettier --write ."
   },

@@ -20,7 +20,7 @@ faazio-workspace/
 ├── client/web/     Partner Portal — Next.js App Router console (`platform/`, shipping) + the Vite/TanStack reference (`vite-reference/`, read-only diff baseline) + the marketing landing page (`landingpage/`, TanStack Start + Nitro, deployed on Vercel — see its README.md). See docs/architecture/web-portal.md.
 ├── server/         Production Go Chi modular monolith `gateway/` + Supabase migrations/seed (active) + documented scaling-stage microservices (see docs/architecture/mvp-backend.md, monolith-breakdown.md).
 ├── data/           SDUI source of truth (enterprise-controlled), consumed via @data/*.
-├── docs/           Documentation system — architecture deep-dives + runbooks (see "Documentation map").
+├── docs/           Documentation system — architecture deep-dives + runbooks + UI_DESIGN_SYSTEM.md (see "Documentation map").
 └── security/       Security hardening scripts + remediation guide (see "Security").
 ```
 See `ARCHITECTURE.md` (root) for the full mobile + backend design. Data ownership lives in `data/DATA_CONTROL.md`.
@@ -38,6 +38,7 @@ Structured docs live under root `docs/` (mirrors the repo layout):
 docs/
 ├── README.md                       # index + reading order
 ├── DEVELOPER_ONBOARDING.md         # numbered getting-started guide
+├── UI_DESIGN_SYSTEM.md             # unslop: direction, 9 passes, tokens, theme contract, done checklist
 ├── BRAND_COLOR_MIGRATION.md        # royal-purple → Faazio-blue change log + revert
 ├── architecture/                   # deep-dives (mvp-backend, monolith-breakdown, mobile-app, web-portal, data-layer-sdui, server-gateway-plan, db-schema, caching-cloudflare-valkey)
 └── RUNBOOKS/                       # operational guides (RELEASE, CI_PIPELINE, DATA_FIXTURES, DATABASE_MIGRATIONS, FIREBASE_AUTH, PORTAL_AUTH, TROUBLESHOOTING)
@@ -45,20 +46,22 @@ docs/
 
 Reading order for a new contributor: `AGENTS.md` → `ARCHITECTURE.md` →
 `docs/DEVELOPER_ONBOARDING.md` → `data/DATA_CONTROL.md` → `docs/README.md`.
+Anyone doing UI work reads `docs/UI_DESIGN_SYSTEM.md` first.
 `client/mobile/` also has `docs/` (appstore/playstore/release) and `PENDING_WORK.md` (backlog).
 
 ## Hard rules
 1. **Wait for user intent.** Do NOT build screens/pages until explicitly requested. The gateway (`server/gateway`) + Supabase migrations (`docs/architecture/mvp-backend.md`) are the sanctioned, already-live server scope — extend them only when explicitly requested.
-2. **Imports** — `@/` → `client/mobile/src/`, `@data/` → root `data/`.
-3. **State** — shared state ONLY in Zustand stores under `src/state/`. Keep components presentational; read via selectors. No duplicate shared state.
-4. **Modularity** — small components under `src/components/`; screen helpers under their `src/features/<module>/`; shared widgets under `src/components/shared/`. Reuse before duplicating (avoid parallel mock copies).
-5. **Navigation** — all routes typed in `src/navigation/AppNavigator.tsx`; screens use `NativeStackScreenProps`.
-6. **Native permissions** — document in `android/app/src/main/AndroidManifest.xml` + the per-variant iOS plists (`ios/Faazio/Info.plist` customer, `Info-Delivery.plist`, `Info-Seller.plist`; selected by `INFOPLIST_FILE`) and gate with consent dialogs before hardware.
-7. **Brand** — always use the Faazio logo (`<FaazioLogo />`), never raw text placeholders.
-8. **Layout** — full-viewport, non-scrollable (`h-[100dvh]`), no faux device borders/notches.
-9. **Boundaries** — cross-sub-app access only via Home. Enforced by `check:boundaries`.
-10. **Docs** — architecture deep-dives live in `docs/architecture/`, operational guides in `docs/RUNBOOKS/`; update `docs/README.md` and the "Documentation map" when adding docs.
-11. **Refactor-doc freshness** — any new server function/handler/package, DB table/column/index, cache key/TTL, endpoint, or `GatewayClient` method MUST update `docs/architecture/monolith-breakdown.md` (ownership table + extraction checklist) in the same change. PRs that add server code without the doc touch fail review. If no doc change is needed, state why in the PR.
+2. **UI craft** — any new screen, page, component, or visual change on the web platform, the landing page, or the mobile app follows **`docs/UI_DESIGN_SYSTEM.md`** (the unslop skill, adapted for this repo). Read it before writing UI. It is not optional polish: it defines the direction, the nine passes, the token contract, the theme contract, and the done checklist. Never hardcode a colour literal where a token exists; never patch a token gap with a `dark:` variant.
+3. **Imports** — `@/` → `client/mobile/src/`, `@data/` → root `data/`.
+4. **State** — shared state ONLY in Zustand stores under `src/state/`. Keep components presentational; read via selectors. No duplicate shared state.
+5. **Modularity** — small components under `src/components/`; screen helpers under their `src/features/<module>/`; shared widgets under `src/components/shared/`. Reuse before duplicating (avoid parallel mock copies).
+6. **Navigation** — all routes typed in `src/navigation/AppNavigator.tsx`; screens use `NativeStackScreenProps`.
+7. **Native permissions** — document in `android/app/src/main/AndroidManifest.xml` + the per-variant iOS plists (`ios/Faazio/Info.plist` customer, `Info-Delivery.plist`, `Info-Seller.plist`; selected by `INFOPLIST_FILE`) and gate with consent dialogs before hardware.
+8. **Brand** — always use the Faazio logo (`<FaazioLogo />`), never raw text placeholders.
+9. **Layout** — full-viewport, non-scrollable (`h-[100dvh]`), no faux device borders/notches.
+10. **Boundaries** — cross-sub-app access only via Home. Enforced by `check:boundaries`.
+11. **Docs** — architecture deep-dives live in `docs/architecture/`, operational guides in `docs/RUNBOOKS/`; update `docs/README.md` and the "Documentation map" when adding docs.
+12. **Refactor-doc freshness** — any new server function/handler/package, DB table/column/index, cache key/TTL, endpoint, or `GatewayClient` method MUST update `docs/architecture/monolith-breakdown.md` (ownership table + extraction checklist) in the same change. PRs that add server code without the doc touch fail review. If no doc change is needed, state why in the PR.
 
 ## Update docs by default
 Any code change that affects behavior, structure, or APIs must update the docs **by default** in

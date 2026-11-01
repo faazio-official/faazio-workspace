@@ -1,30 +1,24 @@
 import { useState } from "react";
-import {
-  HiArrowDownTray,
-  HiArrowUpRight,
-  HiBars3 as Menu,
-  HiMapPin as MapPin,
-  HiXMark as X,
-} from "react-icons/hi2";
+import { HiArrowDownTray, HiBars3 as Menu, HiXMark as X } from "react-icons/hi2";
 import { FaazioLogo } from "@/components/faazio-logo";
-import { Button } from "@/components/ui/button";
+import { ThemeToggle } from "@/components/theme-toggle";
 
 const navLinks = [
   { label: "About", href: "/about" },
   { label: "FAQ", href: "/faq" },
   { label: "Partners", href: "/partners" },
   { label: "Karaikal", href: "/karaikal" },
-  { label: "Privacy Policy", href: "/privacy" },
-  { label: "Terms & Conditions", href: "/terms" },
 ];
 
+/** Legal links live in the footer; the header carries only what a first-time
+ *  visitor needs to decide. */
 export function SiteHeader() {
   const [menuOpen, setMenuOpen] = useState(false);
   return (
-    <header className="sticky top-0 z-40 border-b border-border bg-background">
+    <header className="site-header">
       <a
         href="#main"
-        className="sr-only focus:not-sr-only focus:absolute focus:z-50 focus:bg-background focus:p-4"
+        className="sr-only focus:not-sr-only focus:absolute focus:left-4 focus:top-4 focus:z-50 focus:rounded-md focus:bg-background focus:px-4 focus:py-2 focus:text-foreground"
       >
         Skip to content
       </a>
@@ -40,59 +34,39 @@ export function SiteHeader() {
           ))}
         </div>
         <div className="nav-actions">
-          <span className="nav-location">
-            <MapPin size={13} /> Starting in Karaikal
-          </span>
-          <a
-            href="/download"
-            className="download-button download-button-compact inline-flex items-center justify-center bg-cta text-cta-foreground hover:bg-cta-hover"
-          >
+          <ThemeToggle />
+          <a href="/download" className="download-button">
             <span className="download-button-icon">
               <HiArrowDownTray aria-hidden="true" />
             </span>
             <span>Get the app</span>
-            <HiArrowUpRight aria-hidden="true" className="download-button-arrow" />
           </a>
-          <Button
-            variant="ghost"
-            size="icon"
-            className="md:hidden"
+          <button
+            type="button"
+            className="btn btn-outline btn-sm nav-menu-btn"
             aria-label={menuOpen ? "Close menu" : "Open menu"}
             aria-expanded={menuOpen}
             aria-controls="mobile-navigation"
             onClick={() => setMenuOpen(!menuOpen)}
           >
             {menuOpen ? <X /> : <Menu />}
-          </Button>
+          </button>
         </div>
       </nav>
       {menuOpen && (
-        <nav
-          id="mobile-navigation"
-          aria-label="Mobile navigation"
-          className="mobile-menu md:hidden"
-        >
-          <a href="/about" onClick={() => setMenuOpen(false)}>
-            About
-          </a>
-          <a href="/faq" onClick={() => setMenuOpen(false)}>
-            FAQ
-          </a>
-          <a href="/partners" onClick={() => setMenuOpen(false)}>
-            Partners
-          </a>
-          <a href="/karaikal" onClick={() => setMenuOpen(false)}>
-            Karaikal
-          </a>
-          <a href="/privacy" onClick={() => setMenuOpen(false)}>
-            Privacy Policy
-          </a>
-          <a href="/terms" onClick={() => setMenuOpen(false)}>
-            Terms &amp; Conditions
-          </a>
+        <nav id="mobile-navigation" aria-label="Mobile navigation" className="mobile-menu">
+          {navLinks.map((link) => (
+            <a key={link.href} href={link.href} onClick={() => setMenuOpen(false)}>
+              {link.label}
+            </a>
+          ))}
           <a href="/download" onClick={() => setMenuOpen(false)}>
             Get the app
           </a>
+          <div className="mobile-menu-theme">
+            <span>Theme</span>
+            <ThemeToggle />
+          </div>
         </nav>
       )}
     </header>

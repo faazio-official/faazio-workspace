@@ -3,7 +3,6 @@ import { MotionConfig } from "motion/react";
 import { HiArrowUpRight as ArrowUpRight, HiDevicePhoneMobile as Smartphone } from "react-icons/hi2";
 import { SiteFooter } from "@/components/site-footer";
 import { SiteHeader } from "@/components/site-header";
-import { Button } from "@/components/ui/button";
 import { SITE_URL } from "@/lib/site";
 import { seoHead, type JsonLdNode } from "@/lib/seo";
 
@@ -35,46 +34,43 @@ function Download() {
       <main id="main">
         <section className="page-hero" aria-labelledby="download-title">
           <div className="page-width">
-            <p className="eyebrow">YOUR DAILY SUPERAPP</p>
+            <p className="eyebrow">Your daily superapp</p>
             <h1 id="download-title">A little more life. A lot less app-hopping.</h1>
             <p className="page-lead">
-              Make room for the things that matter. Mart, Food, and Pharma in one place for your
-              day.
+              Make room for the things that matter. Mart, Food and Pharma in one place for your day.
             </p>
           </div>
         </section>
         <section className="section">
           <div className="page-width content-block">
-            <div className="dialog-symbol">
-              <Smartphone />
+            <div className="dialog-mark">
+              <Smartphone aria-hidden="true" />
             </div>
-            <h2 style={{ marginTop: 20 }}>Your everyday, in the Faazio app</h2>
+            <h2 style={{ marginTop: 0 }}>The app is not on the stores yet</h2>
             <p>
-              Faazio’s journey starts in Karaikal. Official App Store and Play Store links will be
-              shared here once they are provided; there is no download link available on this page
-              yet.
+              Faazio starts in Karaikal. The App Store and Play Store links will be published here
+              as soon as they are live — there is no download on this page yet.
             </p>
             <p>
-              <a href="/" className="inline-flex items-center gap-2 text-sm font-semibold">
-                Explore Faazio <ArrowUpRight size={15} />
+              <a href="/" className="btn btn-ghost btn-sm" style={{ paddingInline: 0 }}>
+                Explore Faazio
+                <ArrowUpRight aria-hidden="true" />
               </a>
             </p>
           </div>
         </section>
-        <section className="download-band">
+        <section className="download">
           <div className="page-width download-inner">
-            <div>
-              <p className="eyebrow">STARTING IN KARAIKAL</p>
-              <h2>Groceries. Food. Pharma. One place for your day.</h2>
+            <div className="download-copy">
+              <p className="eyebrow">Starting in Karaikal</p>
+              <h2 className="headline">Groceries. Food. Pharma. One place for your day.</h2>
               <p>Official app-store links are coming soon.</p>
             </div>
             <div className="download-actions">
-              <Button asChild variant="download" size="lg" className="download-button">
-                <a href="/">
-                  <span>Mart · Food · Pharma · More</span>
-                  <ArrowUpRight aria-hidden="true" />
-                </a>
-              </Button>
+              <a href="/" className="btn btn-primary">
+                Mart · Food · Pharma
+                <ArrowUpRight aria-hidden="true" />
+              </a>
             </div>
           </div>
         </section>

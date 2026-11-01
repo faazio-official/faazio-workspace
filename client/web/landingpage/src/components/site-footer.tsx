@@ -9,11 +9,7 @@ export function SiteFooter() {
             <a href="/" className="wordmark" aria-label="Faazio home">
               <FaazioLogo className="wordmark-logo" />
             </a>
-            <p>
-              Your daily superapp.
-              <br />
-              Made for your neighbourhood.
-            </p>
+            <p>Groceries, meals and everyday care from the shops around you. Made for Karaikal.</p>
           </div>
           <div className="footer-links">
             <div>
@@ -45,7 +41,7 @@ export function SiteFooter() {
           </div>
         </div>
         <div className="footer-bottom">
-          <span>© {new Date().getUTCFullYear()} Faazio. Made for daily India.</span>
+          <span>© {new Date().getUTCFullYear()} Faazio. Operated by FA CREATORS, Karaikal.</span>
           <span>Starting in Karaikal · More neighbourhoods to come</span>
         </div>
       </div>

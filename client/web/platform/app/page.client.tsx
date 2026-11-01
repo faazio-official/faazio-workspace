@@ -1,6 +1,6 @@
 "use client";
 import Link from "next/link";
-import { ArrowRight, PartyPopper, ShieldCheck, Store } from "lucide-react";
+import { ArrowRight, Globe2, ShieldCheck, Store } from "lucide-react";
 import { ROLE_LABEL } from "@/lib/auth/permissions";
 import { Button } from "@/components/ui/button";
 import { FaazioWordmark } from "@/components/brand/FaazioWordmark";
@@ -22,7 +22,7 @@ const ROLE_CARDS = [
   {
     role: "SUPER_ADMIN" as const,
     to: "/admin/super",
-    icon: PartyPopper,
+    icon: Globe2,
     blurb: "Set sector discount caps, manage district admins, watch the whole marketplace.",
   },
 ];

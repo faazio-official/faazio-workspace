@@ -1,18 +1,13 @@
 import {
   HiArrowRight as ArrowRight,
-  HiArrowUpRight as ArrowUpRight,
   HiCircleStack as Coins,
-  HiHeart as HeartHandshake,
-  HiMapPin as MapPin,
+  HiOutlineHeart as HeartHandshake,
   HiBeaker as Pill,
-  HiShoppingBag as ShoppingBag,
-  HiDevicePhoneMobile as Smartphone,
   HiBuildingStorefront as Store,
 } from "react-icons/hi2";
 import { PiForkKnifeFill as UtensilsCrossed } from "react-icons/pi";
 import { motion } from "motion/react";
 import { DownloadButton } from "@/components/download-button";
-import { Button } from "@/components/ui/button";
 import {
   Accordion,
   AccordionContent,
@@ -26,284 +21,275 @@ import { faqs } from "@/lib/faqs";
 
 type Props = { onAction: (action: "download" | "donor" | "partner") => void };
 
+const partnerTypes = [
+  {
+    name: "Grocery stores",
+    detail: "For the weekly list and the everyday essentials.",
+    icon: Store,
+  },
+  {
+    name: "Restaurants",
+    detail: "For familiar favourites and the next meal.",
+    icon: UtensilsCrossed,
+  },
+  {
+    name: "Medical stores",
+    detail: "For pharmacy essentials and everyday care.",
+    icon: Pill,
+  },
+];
+
+const steps = [
+  {
+    number: "01",
+    title: "Get the app and sign in",
+    copy: "Open Faazio and verify your phone number with a one-time code. No forms to fill in.",
+  },
+  {
+    number: "02",
+    title: "Set where you are",
+    copy: "Your location decides which stores, restaurants and medicals are actually near you.",
+  },
+  {
+    number: "03",
+    title: "Order and follow along",
+    copy: "Pick what you need, then watch the order and its tracking in the app.",
+  },
+];
+
 export function FaazioCommunity({ onAction }: Props) {
   return (
     <>
       <motion.section
-        initial={{ opacity: 0, y: 24 }}
+        initial={{ opacity: 0, y: 16 }}
         whileInView={{ opacity: 1, y: 0 }}
-        viewport={{ once: true, amount: 0.08 }}
-        transition={{ duration: 0.5 }}
-        className="section how-section"
+        viewport={{ once: true, amount: 0.1 }}
+        transition={{ duration: 0.45 }}
+        className="section how"
         id="how-it-works"
         aria-labelledby="how-title"
       >
         <div className="page-width how-layout">
-          <div className="how-intro">
-            <p className="eyebrow">HOW FAAZIO WORKS</p>
-            <h2 id="how-title">
-              Your next errand.
-              <br />
-              <span className="text-primary">Minus the running around.</span>
+          <div className="how-copy">
+            <p className="eyebrow">How it works</p>
+            <h2 id="how-title" className="headline" style={{ marginTop: 12 }}>
+              Your next errand, minus the running around.
             </h2>
-            <p className="section-copy">
-              Groceries for home. A meal you’re craving. Everyday pharmacy essentials. Start with
-              what you need, all in Faazio.
+            <p className="lead">
+              Groceries for home. A meal you are craving. Everyday pharmacy essentials. Start with
+              what you need.
             </p>
             <DownloadButton onClick={() => onAction("download")} />
-            <p className="availability-note">
-              <MapPin size={14} /> Starting in Karaikal · Store links coming soon
+            <p className="hero-note">
+              <span className="open-dot" aria-hidden="true" />
+              Starting in Karaikal · Store links coming soon
             </p>
-            <a href="#faq" className="how-question">
-              Questions before you get started? <ArrowRight size={15} />
+            <a href="#faq" className="btn btn-ghost btn-sm how-link">
+              Questions before you start?
+              <ArrowRight aria-hidden="true" />
             </a>
           </div>
-          <ol className="journey-steps">
-            <motion.li
-              initial={{ opacity: 0, x: 18 }}
-              whileInView={{ opacity: 1, x: 0 }}
-              viewport={{ once: true }}
-              transition={{ duration: 0.45 }}
-            >
-              <span className="journey-number">01</span>
-              <div className="journey-detail">
-                <span className="journey-kicker">
-                  <Smartphone size={15} /> YOUR FIRST STEP
+          <ol className="steps">
+            {steps.map((step, index) => (
+              <motion.li
+                key={step.number}
+                className="step"
+                initial={{ opacity: 0, x: 12 }}
+                whileInView={{ opacity: 1, x: 0 }}
+                viewport={{ once: true }}
+                transition={{ duration: 0.4, delay: index * 0.05 }}
+              >
+                <span className="step-number" aria-hidden="true">
+                  {step.number}
                 </span>
-                <h3>Get Faazio on your phone</h3>
-                <p>Open the app and sign in with your phone number and OTP.</p>
-              </div>
-            </motion.li>
-            <motion.li
-              initial={{ opacity: 0, x: 18 }}
-              whileInView={{ opacity: 1, x: 0 }}
-              viewport={{ once: true }}
-              transition={{ duration: 0.45 }}
-            >
-              <span className="journey-number">02</span>
-              <div className="journey-detail">
-                <span className="journey-kicker">
-                  <MapPin size={15} /> KEEP IT LOCAL
-                </span>
-                <h3>See what’s near you</h3>
-                <p>
-                  Set your location to see available stores, restaurants, and medicals in your area.
-                </p>
-              </div>
-            </motion.li>
-            <motion.li
-              initial={{ opacity: 0, x: 18 }}
-              whileInView={{ opacity: 1, x: 0 }}
-              viewport={{ once: true }}
-              transition={{ duration: 0.45 }}
-            >
-              <span className="journey-number">03</span>
-              <div className="journey-detail">
-                <span className="journey-kicker">
-                  <ShoppingBag size={15} /> MAKE IT AN EVERYDAY THING
-                </span>
-                <h3>Choose. Order. Follow along.</h3>
-                <p>Pick your essentials and view your order details and tracking in the app.</p>
-                <div className="journey-products">
-                  {[
-                    { image: martImage, name: "Groceries" },
-                    { image: foodImage, name: "Meals" },
-                    { image: pharmaImage, name: "Everyday care" },
-                  ].map((item) => (
-                    <figure key={item.name}>
-                      <img
-                        src={item.image}
-                        alt={item.name}
-                        width={1024}
-                        height={1024}
-                        loading="lazy"
-                      />
-                      <figcaption>{item.name}</figcaption>
-                    </figure>
-                  ))}
+                <div className="step-body">
+                  <h3>{step.title}</h3>
+                  <p>{step.copy}</p>
+                  {index === steps.length - 1 && (
+                    <div className="step-thumbs">
+                      {[
+                        { image: martImage, name: "Groceries" },
+                        { image: foodImage, name: "Meals" },
+                        { image: pharmaImage, name: "Everyday care" },
+                      ].map((item) => (
+                        <figure key={item.name}>
+                          <img
+                            src={item.image}
+                            alt={item.name}
+                            width={1024}
+                            height={1024}
+                            loading="lazy"
+                          />
+                          <figcaption>{item.name}</figcaption>
+                        </figure>
+                      ))}
+                    </div>
+                  )}
                 </div>
-              </div>
-            </motion.li>
+              </motion.li>
+            ))}
           </ol>
         </div>
       </motion.section>
-      <motion.section
-        initial={{ opacity: 0, y: 24 }}
-        whileInView={{ opacity: 1, y: 0 }}
-        viewport={{ once: true, amount: 0.08 }}
-        transition={{ duration: 0.5 }}
-        className="rewards-band"
-      >
+
+      {/* One line of fact, not a banner. */}
+      <section className="rewards" aria-labelledby="rewards-title">
         <div className="page-width rewards-inner">
-          <div className="reward-icon">
-            <Coins size={30} strokeWidth={1.5} />
+          <div className="rewards-copy">
+            <Coins
+              size={18}
+              strokeWidth={1.5}
+              aria-hidden="true"
+              className="text-muted-foreground"
+            />
+            <h3 id="rewards-title">FaazioCoins on every order</h3>
+            <p>Daily streaks, and a little back for the routine.</p>
           </div>
-          <div>
-            <p className="eyebrow">LITTLE ORDERS. LITTLE WINS.</p>
-            <h3>Everyday deserves a little extra.</h3>
-            <p>FaazioCoins. Daily streaks. More to look forward to.</p>
-          </div>
-          <span className="reward-note">
-            Your routine, rewarded <ArrowUpRight size={17} />
-          </span>
+          <span className="meta">Earned in the app</span>
         </div>
-      </motion.section>
+      </section>
+
       <motion.section
-        initial={{ opacity: 0, y: 24 }}
+        initial={{ opacity: 0, y: 16 }}
         whileInView={{ opacity: 1, y: 0 }}
-        viewport={{ once: true, amount: 0.08 }}
-        transition={{ duration: 0.5 }}
+        viewport={{ once: true, amount: 0.1 }}
+        transition={{ duration: 0.45 }}
         id="community"
-        className="donor-band"
+        className="donor"
+        aria-labelledby="donor-title"
       >
         <div className="page-width donor-inner">
-          <HeartHandshake className="donor-illustration" strokeWidth={1} />
-          <div>
-            <p className="eyebrow text-donor">A LITTLE HELP. A SECOND CHANCE.</p>
-            <h2>Some deliveries mean more.</h2>
+          <div className="donor-copy">
+            <p className="eyebrow">Blood donation</p>
+            <h2 id="donor-title" className="headline">
+              Some deliveries mean more.
+            </h2>
             <p>
-              Be someone’s second chance. Join a community that believes
-              <br className="hidden lg:block" /> in showing up for patients, families, and each
-              other.
+              We are building a community of people who show up for patients, families and each
+              other. Registration opens when the programme is ready.
             </p>
-            <Button variant="donor" size="lg" onClick={() => onAction("donor")}>
-              Become a donor <ArrowUpRight />
-            </Button>
+            <button type="button" className="btn btn-donor" onClick={() => onAction("donor")}>
+              Become a donor
+              <ArrowRight aria-hidden="true" />
+            </button>
           </div>
-          <span className="donor-side">
-            A community
-            <br />
-            with heart.
-          </span>
+          <HeartHandshake className="donor-mark" strokeWidth={1.25} aria-hidden="true" />
         </div>
       </motion.section>
+
       <motion.section
-        initial={{ opacity: 0, y: 24 }}
+        initial={{ opacity: 0, y: 16 }}
         whileInView={{ opacity: 1, y: 0 }}
-        viewport={{ once: true, amount: 0.08 }}
-        transition={{ duration: 0.5 }}
+        viewport={{ once: true, amount: 0.1 }}
+        transition={{ duration: 0.45 }}
         id="partners"
-        className="section partner-section"
+        className="section"
         aria-labelledby="partner-title"
       >
         <div className="page-width">
-          <div className="partner-heading">
-            <div>
-              <p className="eyebrow">FOR KARAIKAL BUSINESSES</p>
-              <h2 id="partner-title">
-                Local favourites.
-                <br />
-                <span className="text-primary">A new way to be found.</span>
+          <div className="section-head">
+            <div className="section-head-copy">
+              <p className="eyebrow">For Karaikal businesses</p>
+              <h2 id="partner-title" className="headline" style={{ marginTop: 12 }}>
+                Local favourites, a new way to be found.
               </h2>
             </div>
             <p>
-              Behind every everyday essential is a local business. Faazio brings stores,
-              restaurants, and medicals into one place for your neighbourhood to explore.
+              Behind every everyday essential is a local business. Faazio brings stores, restaurants
+              and medicals into one place for your neighbourhood.
             </p>
           </div>
+
           <div className="partner-types">
-            {[
-              {
-                name: "Grocery",
-                detail: "For the weekly list and the everyday essentials.",
-                icon: Store,
-                theme: "bg-brand-soft text-brand",
-              },
-              {
-                name: "Restaurants",
-                detail: "For familiar favourites and the next meal.",
-                icon: UtensilsCrossed,
-                theme: "bg-brand-soft text-brand",
-              },
-              {
-                name: "Medical stores",
-                detail: "For pharmacy essentials and everyday care.",
-                icon: Pill,
-                theme: "bg-brand-soft text-brand",
-              },
-            ].map(({ name, detail, icon: Icon, theme }) => (
+            {partnerTypes.map(({ name, detail, icon: Icon }) => (
               <div className="partner-type" key={name}>
-                <span className={`partner-icon ${theme}`}>
-                  <Icon size={24} strokeWidth={1.5} />
-                </span>
-                <h3>{name}</h3>
+                <Icon
+                  size={20}
+                  strokeWidth={1.5}
+                  aria-hidden="true"
+                  className="text-muted-foreground"
+                />
+                <h3 style={{ marginTop: 12 }}>{name}</h3>
                 <p>{detail}</p>
               </div>
             ))}
           </div>
+
           <div className="partner-intents">
-            <div className="partner-shopper">
-              <span className="intent-label">HERE TO SHOP?</span>
+            <div className="intent">
+              <p className="eyebrow">Here to shop</p>
               <h3>Your neighbourhood is the place to start.</h3>
-              <p>Explore Mart, Food, and Pharma in the Faazio app.</p>
+              <p>Explore Mart, Food and Pharma in the Faazio app.</p>
               <DownloadButton onClick={() => onAction("download")} />
-              <span className="intent-status">Starting in Karaikal · Store links coming soon</span>
+              <span className="intent-status">
+                <span className="open-dot" aria-hidden="true" />
+                Starting in Karaikal · Store links coming soon
+              </span>
             </div>
-            <div className="partner-business">
-              <span className="intent-label">OWN A LOCAL BUSINESS?</span>
-              <h3>Let’s talk about your place on Faazio.</h3>
+            <div className="intent">
+              <p className="eyebrow">Own a local business</p>
+              <h3>Let&apos;s talk about your place on Faazio.</h3>
               <p>
-                We’re starting with Karaikal. Partner contact and onboarding details are coming
+                We are starting with Karaikal. Partner contact and onboarding details are coming
                 soon.
               </p>
-              <Button variant="outline" size="lg" onClick={() => onAction("partner")}>
-                View partnership details <ArrowRight />
-              </Button>
+              <button type="button" className="btn btn-outline" onClick={() => onAction("partner")}>
+                View partnership details
+                <ArrowRight aria-hidden="true" />
+              </button>
             </div>
           </div>
         </div>
       </motion.section>
+
       <motion.section
-        initial={{ opacity: 0, y: 24 }}
+        initial={{ opacity: 0, y: 16 }}
         whileInView={{ opacity: 1, y: 0 }}
-        viewport={{ once: true, amount: 0.08 }}
-        transition={{ duration: 0.5 }}
+        viewport={{ once: true, amount: 0.1 }}
+        transition={{ duration: 0.45 }}
         id="download"
-        className="download-band"
+        className="download"
+        aria-labelledby="download-title"
       >
         <div className="page-width download-inner">
-          <div>
-            <p className="eyebrow">YOUR DAILY SUPERAPP</p>
-            <h2>
-              A little more life.
-              <br />A lot less app-hopping.
+          <div className="download-copy">
+            <p className="eyebrow">Your daily superapp</p>
+            <h2 id="download-title" className="headline">
+              A little more life. A lot less app-hopping.
             </h2>
             <p>Make room for the things that matter. Get Faazio.</p>
           </div>
           <div className="download-actions">
             <DownloadButton onClick={() => onAction("download")} />
-            <span>Mart · Food · Pharma · More</span>
+            <span className="meta">Mart · Food · Pharma</span>
           </div>
         </div>
       </motion.section>
+
       <motion.section
-        initial={{ opacity: 0, y: 24 }}
+        initial={{ opacity: 0, y: 16 }}
         whileInView={{ opacity: 1, y: 0 }}
-        viewport={{ once: true, amount: 0.08 }}
-        transition={{ duration: 0.5 }}
+        viewport={{ once: true, amount: 0.1 }}
+        transition={{ duration: 0.45 }}
         id="faq"
         className="section"
+        aria-labelledby="faq-title"
       >
         <div className="page-width faq-grid">
-          <div>
-            <p className="eyebrow">GOOD QUESTIONS.</p>
-            <h2>
-              A little clarity
-              <br />
-              goes a long way.
+          <div className="faq-copy">
+            <p className="eyebrow">Good questions</p>
+            <h2 id="faq-title" className="headline" style={{ marginTop: 12 }}>
+              A little clarity goes a long way.
             </h2>
-            <p className="section-copy">
-              The everyday things you might
-              <br className="hidden sm:block" /> want to know.
-            </p>
+            <p className="lead">The everyday things you might want to know first.</p>
           </div>
           <Accordion type="single" collapsible>
             {faqs.map(([question, answer], i) => (
               <AccordionItem value={`faq-${i}`} key={question}>
-                <AccordionTrigger className="py-6 text-[15px] font-semibold">
+                <AccordionTrigger className="py-5 text-left text-[15px] font-medium">
                   {question}
                 </AccordionTrigger>
-                <AccordionContent className="leading-7 text-muted-foreground">
+                <AccordionContent className="text-[15px] leading-7 text-muted-foreground">
                   {answer}
                 </AccordionContent>
               </AccordionItem>

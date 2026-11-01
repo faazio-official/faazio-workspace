@@ -6,16 +6,18 @@ Operational and architectural documentation for the **Faazio SuperApp**.
 
 1. `AGENTS.md` (root) — core mandate, hard rules, verify commands.
 2. `ARCHITECTURE.md` (root) — high-level mobile + backend design.
-3. **`DEVELOPER_ONBOARDING.md`** — get a device booting in ~15 minutes.
-4. `data/DATA_CONTROL.md` — data ownership & status matrix (authoritative).
-5. `PAGE_CATALOG.md` (root) — every screen/path in the app.
-6. `PENDING_WORK.md` (root) — repo-level backlog (server/DB/web/data); app-only backlog lives in `client/mobile/PENDING_WORK.md`.
+3. **`UI_DESIGN_SYSTEM.md`** — required before any UI work (web platform, landing page, mobile app).
+4. **`DEVELOPER_ONBOARDING.md`** — get a device booting in ~15 minutes.
+5. `data/DATA_CONTROL.md` — data ownership & status matrix (authoritative).
+6. `PAGE_CATALOG.md` (root) — every screen/path in the app.
+7. `PENDING_WORK.md` (root) — repo-level backlog (server/DB/web/data); app-only backlog lives in `client/mobile/PENDING_WORK.md`.
 
 ## Map
 
 | Doc | Purpose | Audience |
 |---|---|---|
 | [DEVELOPER_ONBOARDING.md](./DEVELOPER_ONBOARDING.md) | Numbered getting-started guide (setup → run → verify) | Everyone |
+| [UI_DESIGN_SYSTEM.md](./UI_DESIGN_SYSTEM.md) | **UI authority**: unslop direction, nine passes, tokens, theme contract, per-surface playbooks, done checklist | Anyone touching UI |
 | [BRAND_COLOR_MIGRATION.md](./BRAND_COLOR_MIGRATION.md) | Royal-purple → Faazio-blue change log + revert command | Design / maintainers |
 | [architecture/mvp-backend.md](./architecture/mvp-backend.md) | **Production authority**: Go Chi modular monolith over Supabase + MongoDB + Valkey (production runtime; contexts, endpoints, RLS) | Engineers / infra |
 | [architecture/monolith-breakdown.md](./architecture/monolith-breakdown.md) | **Refactor authority**: context → package → schema → scaling-service ownership, boundaries, extraction playbook | Engineers / infra |

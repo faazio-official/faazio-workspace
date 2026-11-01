@@ -149,7 +149,7 @@ function Disclaimer() {
             <p className="page-lead">
               A short notice on health information, third-party stores, pricing, and external links.
             </p>
-            <p className="mt-4 text-[12px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
+            <p className="meta mt-4">
               Effective {LEGAL_EFFECTIVE_DATE} · Applies to faazio.com and the Faazio apps
             </p>
           </div>
@@ -169,7 +169,7 @@ function Disclaimer() {
                     value={section.id}
                     className="scroll-mt-24"
                   >
-                    <AccordionTrigger className="py-6 font-display text-[19px] font-bold">
+                    <AccordionTrigger className="py-5 text-left text-[15px] font-medium">
                       {section.title}
                     </AccordionTrigger>
                     <AccordionContent className="pb-6">{section.body}</AccordionContent>

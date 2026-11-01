@@ -12,6 +12,7 @@
     "build:dev": "vite build --mode development",
     "preview": "vite preview",
     "typecheck": "tsc --noEmit",
+    "check:theme": "node scripts/check-theme.mjs",
     "lint": "eslint .",
     "format": "prettier --write .",
     "test": "vitest run",

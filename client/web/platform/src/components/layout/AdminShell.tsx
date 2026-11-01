@@ -42,6 +42,7 @@ import { signOut } from "@/lib/api";
 import { districtName, stateForDistrict } from "@/data/districts";
 import { RoleGate } from "@/components/layout/RoleGate";
 import { FaazioWordmark } from "@/components/brand/FaazioWordmark";
+import { ThemeMenu } from "@/components/layout/ThemeToggle";
 import { ROLE_LABEL } from "@/lib/auth/permissions";
 import { ComponentHelp } from "@/components/patterns/ComponentHelp";
 
@@ -91,16 +92,16 @@ export function AdminShell({
       <div className="flex min-h-screen bg-background lg:h-screen lg:overflow-hidden">
         <aside
           className={cn(
-            "hidden h-screen shrink-0 flex-col bg-ink text-ink-foreground lg:flex",
+            "hidden h-screen shrink-0 flex-col border-r border-sidebar-border bg-sidebar text-sidebar-foreground lg:flex",
             collapsed ? "w-16" : "w-60",
           )}
         >
-          <div className="flex h-14 items-center gap-2 border-b border-ink-border px-3">
+          <div className="flex h-14 items-center gap-2 border-b border-sidebar-border px-3">
             {!collapsed ? (
               <div className="flex min-w-0 flex-1 items-center justify-between gap-2">
                 <div className="min-w-0">
-                  <FaazioWordmark className="brand-wordmark text-ink-foreground" />
-                  <p className="truncate text-[11px] text-ink-muted">
+                  <FaazioWordmark className="brand-wordmark text-foreground" />
+                  <p className="truncate text-[11px] text-sidebar-muted">
                     {scope === "DISTRICT" ? "District console" : "Global console"}
                   </p>
                 </div>
@@ -113,7 +114,7 @@ export function AdminShell({
             {groups.map((group) => (
               <div key={group} className="mb-4">
                 {!collapsed ? (
-                  <p className="px-2 pb-1 text-[11px] font-medium text-ink-muted">{group}</p>
+                  <p className="px-2 pb-1 text-[11px] font-medium text-sidebar-muted">{group}</p>
                 ) : null}
                 {nav
                   .filter((i) => i.group === group)
@@ -124,10 +125,10 @@ export function AdminShell({
                         key={item.to}
                         href={item.to}
                         className={cn(
-                          "focus-ring-ink mb-0.5 flex items-center gap-2 rounded-md px-2 py-2 text-[13px] transition-colors",
+                          "focus-ringed mb-0.5 flex items-center gap-2 rounded-md px-2 py-2 text-[13px] transition-colors",
                           active
-                            ? "bg-ink-border text-ink-foreground"
-                            : "text-ink-muted hover:bg-ink-border/50 hover:text-ink-foreground",
+                            ? "bg-sidebar-active font-medium text-sidebar-active-foreground"
+                            : "text-sidebar-muted hover:bg-sidebar-active/60 hover:text-sidebar-foreground",
                         )}
                         style={
                           active
@@ -145,11 +146,11 @@ export function AdminShell({
             ))}
           </nav>
 
-          <div className="border-t border-ink-border p-2">
+          <div className="border-t border-sidebar-border p-2">
             <Button
               variant="ghost"
               size="sm"
-              className="w-full justify-start gap-2 text-ink-muted hover:bg-ink-border hover:text-ink-foreground"
+              className="w-full justify-start gap-2 text-sidebar-muted hover:bg-sidebar-active hover:text-sidebar-foreground"
               onClick={() => setCollapsed((c) => !c)}
             >
               {collapsed ? <PanelLeft className="size-4" /> : <ChevronLeft className="size-4" />}
@@ -220,6 +221,7 @@ export function AdminShell({
               <ComponentHelp helpKey="shell:admin-search" label="About admin search" />
             </div>
             <div className="ml-auto flex items-center gap-1">
+              <ThemeMenu />
               <Button variant="ghost" size="icon" aria-label="Notifications">
                 <Bell className="size-4" />
               </Button>
@@ -227,7 +229,7 @@ export function AdminShell({
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <Button variant="ghost" size="sm" className="gap-2">
-                    <span className="flex size-6 items-center justify-center rounded-full bg-ink text-[11px] font-semibold text-ink-foreground">
+                    <span className="flex size-6 items-center justify-center rounded-full bg-primary text-[11px] font-semibold text-primary-foreground">
                       {(session?.name ?? "A").slice(0, 1)}
                     </span>
                     <span className="hidden text-[13px] sm:inline">{session?.name}</span>

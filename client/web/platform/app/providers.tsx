@@ -5,6 +5,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { Toaster } from "@/components/ui/sonner";
+import { ThemeProvider } from "@/lib/hooks/useTheme";
 import { SeedModeBanner } from "@/components/patterns/SeedModeBanner";
 import { OfflineGuard } from "@/components/layout/OfflineGuard";
 import { restoreSession } from "@/lib/api";
@@ -57,12 +58,14 @@ export function Providers({ children }: { children: ReactNode }) {
   }, []);
 
   return (
-    <QueryClientProvider client={queryClient}>
-      <TooltipProvider delayDuration={120}>
-        <OfflineGuard>{children}</OfflineGuard>
-      </TooltipProvider>
-      <SeedModeBanner />
-      <Toaster position="top-right" />
-    </QueryClientProvider>
+    <ThemeProvider>
+      <QueryClientProvider client={queryClient}>
+        <TooltipProvider delayDuration={120}>
+          <OfflineGuard>{children}</OfflineGuard>
+        </TooltipProvider>
+        <SeedModeBanner />
+        <Toaster position="top-right" />
+      </QueryClientProvider>
+    </ThemeProvider>
   );
 }

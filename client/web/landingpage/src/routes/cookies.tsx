@@ -155,9 +155,7 @@ function CookiePolicy() {
               How the Faazio website uses cookies and similar technologies, and how you can control
               them.
             </p>
-            <p className="mt-4 text-[12px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
-              Effective {LEGAL_EFFECTIVE_DATE} · Applies to faazio.com
-            </p>
+            <p className="meta mt-4">Effective {LEGAL_EFFECTIVE_DATE} · Applies to faazio.com</p>
           </div>
         </section>
         <section className="section">
@@ -172,7 +170,7 @@ function CookiePolicy() {
                     value={section.id}
                     className="scroll-mt-24"
                   >
-                    <AccordionTrigger className="py-6 font-display text-[19px] font-bold">
+                    <AccordionTrigger className="py-5 text-left text-[15px] font-medium">
                       {section.title}
                     </AccordionTrigger>
                     <AccordionContent className="pb-6">{section.body}</AccordionContent>

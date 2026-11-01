@@ -1,6 +1,6 @@
-/* Hallmark · checked: 2026-10-31 · genre: modern-minimal (inferred)
+/* Hallmark · checked: 2026-11-01 · genre: modern-minimal (inferred)
  * floor: fixed focus rings, sticky shell, input/chart contrast, 10px tracked labels, 320px overflow
- * built: the project · redesign: polish · v2.0.0 */
+ * built: the project · redesign: polish · v2.1.0 (theme layer: auto / light / dark) */
 @import "tailwindcss" source(none);
 @source "../src";
 @source "../app";
@@ -10,11 +10,25 @@
 
 /*
  * Faazio Partner Portal design system.
+ *
  * One cool graphite ramp, Faazio blue as the only accent, figures in tabular
  * mono. Brand blue #1162D3, ink #0F172A, page bg #F6F8FB, success #059669,
  * warning #D97706, danger #DC2626. Sector colours (MART blue, FOOD green,
  * PHARMA coral) are semantic and appear only in sector labels and the sector
- * mix chart. All values oklch. Add new tokens in :root AND register in @theme inline.
+ * mix chart.
+ *
+ * THEMING
+ * Every surface token is defined twice: `:root` is the light theme, `.dark` is
+ * the dark theme. The `<html>` element carries the class, set before first
+ * paint by the inline script in `app/layout.tsx` (see `src/lib/theme`).
+ * Because every component reads tokens rather than literals, both themes are
+ * complete: no component needs a `dark:` variant to look right.
+ *
+ * The sidebar is part of the same ramp as the content — it is a quiet surface
+ * step, never a black slab against a white page. That is what the `--sidebar-*`
+ * tokens are for; do not paint the shell with `--ink-*`.
+ *
+ * Add a new token in `:root` AND `.dark`, then register it in `@theme inline`.
  */
 
 @theme inline {
@@ -51,10 +65,17 @@
   --color-border: var(--border);
   --color-input: var(--input);
   --color-ring: var(--ring);
+  --color-overlay: var(--overlay);
   --color-ink: var(--ink);
   --color-ink-foreground: var(--ink-foreground);
   --color-ink-muted: var(--ink-muted);
   --color-ink-border: var(--ink-border);
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-muted: var(--sidebar-muted);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-active: var(--sidebar-active);
+  --color-sidebar-active-foreground: var(--sidebar-active-foreground);
   --color-mart: var(--mart);
   --color-food: var(--food);
   --color-pharma: var(--pharma);
@@ -68,7 +89,9 @@
   --shadow-lift: 0 8px 24px oklch(0.19 0.04 265 / 0.07);
 }
 
+/* ── Light theme ─────────────────────────────────────────────────────────── */
 :root {
+  color-scheme: light;
   --radius: 0.75rem;
 
   --background: oklch(0.976 0.004 250);
@@ -99,8 +122,18 @@
   --border: oklch(0.918 0.011 250);
   --input: oklch(0.66 0.02 258);
   --ring: oklch(0.6 0.168 258);
+  --overlay: oklch(0.19 0.04 265 / 0.4);
   --focus-on-ink: oklch(0.9 0.02 250);
 
+  /* Sidebar: a quiet step of the same ramp, not a separate dark world. */
+  --sidebar: oklch(0.968 0.007 255);
+  --sidebar-foreground: oklch(0.19 0.04 265);
+  --sidebar-muted: oklch(0.53 0.026 258);
+  --sidebar-border: oklch(0.918 0.011 250);
+  --sidebar-active: oklch(0.932 0.023 255);
+  --sidebar-active-foreground: oklch(0.34 0.09 262);
+
+  /* Genuinely dark surfaces only: the help popover and the seed banner. */
   --ink: oklch(0.19 0.04 265);
   --ink-foreground: oklch(0.97 0.005 250);
   --ink-muted: oklch(0.68 0.022 258);
@@ -116,6 +149,70 @@
   --chart-3: oklch(0.68 0.018 258);
   --chart-4: oklch(0.8 0.014 258);
   --chart-5: oklch(0.89 0.011 258);
+}
+
+/* ── Dark theme ──────────────────────────────────────────────────────────── */
+.dark {
+  color-scheme: dark;
+
+  --background: oklch(0.185 0.014 265);
+  --foreground: oklch(0.96 0.004 250);
+  --card: oklch(0.232 0.016 265);
+  --card-foreground: oklch(0.96 0.004 250);
+  --popover: oklch(0.262 0.017 265);
+  --popover-foreground: oklch(0.96 0.004 250);
+
+  /* On dark, the accent lifts so it still clears 4.5:1 on the card surface. */
+  --primary: oklch(0.7 0.145 258);
+  --primary-foreground: oklch(0.18 0.02 265);
+  --interactive: oklch(0.76 0.13 258);
+
+  --secondary: oklch(0.272 0.016 265);
+  --secondary-foreground: oklch(0.96 0.004 250);
+  --muted: oklch(0.262 0.015 265);
+  --muted-foreground: oklch(0.72 0.02 258);
+  --accent: oklch(0.302 0.028 262);
+  --accent-foreground: oklch(0.93 0.03 258);
+
+  --destructive: oklch(0.68 0.19 25);
+  --destructive-foreground: oklch(0.16 0.02 265);
+  --success: oklch(0.72 0.14 163);
+  --success-foreground: oklch(0.16 0.02 265);
+  --warning: oklch(0.79 0.14 70);
+  --warning-foreground: oklch(0.16 0.02 265);
+
+  --border: oklch(1 0 0 / 9%);
+  --input: oklch(1 0 0 / 16%);
+  --ring: oklch(0.7 0.145 258);
+  --overlay: oklch(0.1 0.012 265 / 0.68);
+  --focus-on-ink: oklch(0.9 0.02 250);
+
+  /* Sidebar recedes one step below the content surface. */
+  --sidebar: oklch(0.158 0.013 265);
+  --sidebar-foreground: oklch(0.95 0.004 250);
+  --sidebar-muted: oklch(0.7 0.02 258);
+  --sidebar-border: oklch(1 0 0 / 8%);
+  --sidebar-active: oklch(0.272 0.03 262);
+  --sidebar-active-foreground: oklch(0.97 0.01 258);
+
+  --ink: oklch(0.14 0.012 265);
+  --ink-foreground: oklch(0.95 0.005 250);
+  --ink-muted: oklch(0.7 0.02 258);
+  --ink-border: oklch(1 0 0 / 10%);
+
+  --mart: oklch(0.7 0.145 258);
+  --food: oklch(0.72 0.14 152);
+  --pharma: oklch(0.72 0.13 45);
+
+  --chart-1: oklch(0.7 0.145 258);
+  --chart-2: oklch(0.74 0.02 258);
+  --chart-3: oklch(0.6 0.018 258);
+  --chart-4: oklch(0.46 0.016 258);
+  --chart-5: oklch(0.36 0.014 258);
+
+  /* Depth on dark comes from surface steps and hairlines, not shadows. */
+  --shadow-card: 0 1px 2px oklch(0 0 0 / 0.3);
+  --shadow-lift: 0 8px 24px oklch(0 0 0 / 0.4);
 }
 
 @layer base {
@@ -155,6 +252,13 @@
   table {
     font-variant-numeric: tabular-nums;
   }
+
+  /* Native controls (selects, date pickers, scrollbars) follow the theme. */
+  input,
+  select,
+  textarea {
+    color-scheme: inherit;
+  }
 }
 
 @utility num {
@@ -185,7 +289,7 @@
   }
 }
 
-/* Keyboard focus on the dark ink surfaces (sidebar, drawer headers). */
+/* Keyboard focus on genuinely dark surfaces (help popover, seed banner). */
 @utility focus-ring-ink {
   &:focus-visible {
     outline: 2px solid var(--focus-on-ink);
