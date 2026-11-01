@@ -135,10 +135,11 @@ Each product is a **separate Play listing**; run this for `com.faazio.customer` 
    turning on **App Check → Play Integrity → Enforce** and for SMS auto-retrieval on the signed build.
 5. After internal smoke tests pass, repeat the upload in **Closed testing**, then **Production**.
 
-## Step 3c: Data Safety / App Content answer sheet (per listing)
+## Step 3c: Data Safety / App Content answer sheet (customer listing)
 
-Record the answers here so each listing is submitted consistently. The app has no advertising SDK
-and no `AD_ID` permission.
+Record the answers here so the **customer** listing is submitted consistently. The app has no
+advertising SDK and no `AD_ID` permission. The **seller** listing uses a different set of answers —
+see `PLAYSTORE_RELEASE_SELLER.md`.
 
 | Section | Selection | Why |
 |---|---|---|
@@ -188,5 +189,7 @@ legal retention. Never ship a build with the row hidden or the route removed.
 
 ## See also
 
+- `PLAYSTORE_RELEASE_SELLER.md` — Play Console answer sheet for the seller listing
+  (`com.faazio.sellerpartner`).
 - `docs/RUNBOOKS/RELEASE.md` — signing, CI release flow, R8, smoke tests.
 - `docs/RUNBOOKS/CI_PIPELINE.md` — workflow triggers and artifacts.

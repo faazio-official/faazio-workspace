@@ -302,10 +302,11 @@ apksigner verify --verbose --print-certs app-customer-release.apk
    - **Advertising ID:** No (no ad SDK / `AD_ID` permission).
    - **Financial:** mobile payments/digital wallets + rewards/points. **Health:** medication and
      treatment management + healthcare services.
-   - Full answer sheet: `client/mobile/docs/PLAYSTORE_RELEASE.md` Step 3c.
+   - Full answer sheet: `client/mobile/docs/PLAYSTORE_RELEASE_CUSTOMER.md` Step 3c.
 5. **Rollout** to begin review.
 
-> See `client/mobile/docs/PLAYSTORE_RELEASE.md` for store-console specifics.
+> See `client/mobile/docs/PLAYSTORE_RELEASE_CUSTOMER.md` for store-console specifics (customer
+> listing). Seller listing: `client/mobile/docs/PLAYSTORE_RELEASE_SELLER.md`.
 
 ## 🍎 App Store (iOS)
 
