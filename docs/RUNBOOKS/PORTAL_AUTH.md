@@ -162,6 +162,13 @@ The holder signs in at `/login`, is forced to `/security` to rotate the password
 `seller` or `/admin/district`. Deactivate/reactivate from the same page; resetting a password revokes
 every existing refresh session and forces another change.
 
+After a **voluntary** rotation at `/security` the portal immediately re-authenticates with the new
+password (a fresh `POST /auth/portal/login`) and lands on `homeFor(role)` — it does **not** bounce the
+user to `/login`. The rotation still revokes every refresh session and denylists the caller's access
+`jti` server-side; the re-auth simply mints a new cookie pair so the dashboard and every subsequent
+`/api/gateway/*` call stay authorized (no `401 unauthorized` cascade, no stale "zombie" session). If
+the re-auth itself fails, the UI falls back to clearing the session and sending the user to `/login`.
+
 Equivalent API (superadmin bearer only): `GET|POST /admin/portal-users`,
 `PUT /admin/portal-users/{id}` (`{active}`), `PUT /admin/portal-users/{id}/password`
 (`{newPassword, forceChange?}`). A reset defaults to `forceChange=true` for `SELLER` / `DISTRICT_ADMIN`

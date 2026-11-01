@@ -9,8 +9,24 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useSession } from "@/lib/hooks/useSession";
-import { changePortalPassword } from "@/lib/portal/auth";
-import { signOut } from "@/lib/api";
+import { changePortalPassword, PortalError } from "@/lib/portal/auth";
+import { homeFor } from "@/lib/auth/permissions";
+import { signIn, signOut } from "@/lib/api";
+import { hydrateFromGateway } from "@/lib/api/sync";
+
+/** Surface the specific server validation code instead of the generic fallback. */
+function changePasswordErrorMessage(err: unknown): string {
+  if (err instanceof PortalError) {
+    if (err.code === "weak_password") {
+      return "Use a stronger, different password: at least 12 characters, not a common value.";
+    }
+    if (err.code === "invalid_current_password") {
+      return "Your current password is incorrect.";
+    }
+    return err.message;
+  }
+  return err instanceof Error ? err.message : "Could not change the password.";
+}
 
 export function AccountSecurity() {
   const router = useRouter();
@@ -32,13 +48,29 @@ export function AccountSecurity() {
       return;
     }
     setBusy(true);
+    // The password route cleared this browser's HttpOnly cookies (the gateway revoked every
+    // refresh session and denylisted the current access token). Mint a fresh session with the new
+    // password instead of bouncing the user to /login — otherwise every /api/gateway/* call 401s
+    // behind a stale "zombie" session. Do NOT call signOut(): it would unregister this device's
+    // push token, which is wrong for a voluntary rotation.
     try {
       await changePortalPassword(currentPassword, newPassword);
-      toast.success("Password changed — sign in again with the new password.");
-      await signOut();
-      router.push("/login");
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Could not change the password.");
+      setError(changePasswordErrorMessage(err));
+      setBusy(false);
+      return;
+    }
+    try {
+      if (!session?.email) throw new Error("No session email");
+      const user = await signIn(session.email, newPassword);
+      await hydrateFromGateway();
+      toast.success("Password changed — signed in with your new password.");
+      router.push(homeFor(user.role));
+    } catch {
+      // Fallback: the fresh session could not be minted (race/edge). Force a clean manual sign-in.
+      await signOut();
+      toast.success("Password changed — sign in again with the new password.");
+      router.push("/login");
     } finally {
       setBusy(false);
     }

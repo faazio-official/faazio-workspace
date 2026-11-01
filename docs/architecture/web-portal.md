@@ -522,7 +522,10 @@ browser                        Next.js route handlers                 Go gateway
   login spray cannot exhaust container memory. Newly-issued scoped credentials start with
   `must_change=true`; the portal forces `/security`, which rotates the password and revokes every
   existing session. Seeded superadmins start with `must_change=false` (never confined) and may
-  rotate voluntarily from `/security`.
+  rotate voluntarily from `/security`. After `changePortalPassword` succeeds the page auto
+  re-authenticates with the new password (`signIn`) and redirects to `homeFor(role)` — the session
+  is replaced in one step instead of forcing a manual `/login` round-trip (fallback: sign-out →
+  `/login`), and validation errors (`weak_password`, `invalid_current_password`) are surfaced.
 - **Throttling** — per-IP (10/min) + per-email (5/min) Valkey counters (hashed keys) plus a
   durable 5-failure → 15-minute `locked_until`; failures return a generic
   `invalid_credentials` (no user enumeration). Cloudflare adds an edge WAF rule on
