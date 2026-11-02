@@ -296,8 +296,10 @@ this way). CI builds each flavor separately; do not build two in one Gradle task
 To verify a **downloaded** APK is signed with the release cert (not the debug cert):
 ```bash
 apksigner verify --verbose --print-certs app-customer-release.apk
-# EXPECT "Signer #1 certificate DN: CN=Faazio, ..."  (release cert, NOT "CN=Android Debug")
-# EXPECT "Signer #1 certificate SHA-256 digest:" to equal that app's digest in the table above
+# EXPECT a "certificate DN: CN=Faazio, ..." line (release cert, NOT "CN=Android Debug")
+# EXPECT a "certificate SHA-256 digest:" line to equal that app's digest in the table above.
+#        The line prefix depends on the build-tools version: "Signer #1 certificate SHA-256
+#        digest:" on older releases, "V2 Signer: certificate SHA-256 digest:" on 37+.
 #        (apksigner prints it as lowercase hex without colons, e.g. 238a02b2…099d).
 ```
 `keytool -printcert -jarfile` cannot verify these APKs: they are v2/v3-signed with no v1/JAR

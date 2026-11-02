@@ -270,15 +270,18 @@ jobs:
               ;;
           esac
 
-          # apksigner prints the digest as lowercase hex with no separators; normalise both
-          # sides to uppercase hex without colons before comparing.
-          SIGNER_COUNT="$(grep -cE '^Signer #[0-9]+ certificate SHA-256 digest:' /tmp/apksigner.txt || true)"
+          # The line prefix varies by build-tools version: older apksigner prints
+          # "Signer #1 certificate SHA-256 digest:" while 37+ prints
+          # "V2 Signer: certificate SHA-256 digest:". Match the stable suffix and de-duplicate
+          # so a shared cert across schemes counts once. Digests are lowercase hex with no
+          # separators; normalise both sides to uppercase hex without colons before comparing.
+          ACTUAL_SHA256="$(grep -oE 'certificate SHA-256 digest: *[0-9a-fA-F]+' /tmp/apksigner.txt \
+            | awk '{print $NF}' | tr '[:lower:]' '[:upper:]' | sort -u || true)"
+          SIGNER_COUNT="$(printf '%s\n' "$ACTUAL_SHA256" | grep -c . || true)"
           if [ "$SIGNER_COUNT" -ne 1 ]; then
             echo "::error::expected exactly one signer certificate, found ${SIGNER_COUNT:-0}"
             exit 1
           fi
-          ACTUAL_SHA256="$(grep -E '^Signer #[0-9]+ certificate SHA-256 digest:' /tmp/apksigner.txt \
-            | head -1 | awk '{print $NF}' | tr '[:lower:]' '[:upper:]')"
           EXPECTED_SHA256="${EXPECTED_SHA256//:/}"
           if [ -z "$ACTUAL_SHA256" ] || [ "$ACTUAL_SHA256" != "$EXPECTED_SHA256" ]; then
             echo "::error::APK signer SHA-256 (${ACTUAL_SHA256:-<missing>}) does not match the expected certificate for '$APP' (${EXPECTED_SHA256})"
