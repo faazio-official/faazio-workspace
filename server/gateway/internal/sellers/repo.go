@@ -137,7 +137,7 @@ func (r *Repo) ValidCategoryID(ctx context.Context, app, id string) (bool, error
 	return exists, err
 }
 
-const sellerColumns = `seller_id, business_name, owner_name, category::text, gstin, pan, address,
+const sellerColumns = `seller_id, business_name, owner_name, coalesce(category::text,''), gstin, pan, address,
 	coalesce(phone,''), coalesce(contact_email,''), state_code, coalesce(district_code,''), status::text, rating,
 	platform_fee_pct, coalesce(razorpay_linked_account_id,''), coalesce(fssai_number,''),
 	coalesce(fssai_cert_key,''), coalesce(fssai_cert_asset_id,''),
@@ -261,7 +261,7 @@ func (r *Repo) CreateExtended(ctx context.Context, s Seller, bank *BankAccount, 
 		  (seller_id, business_name, owner_name, category, gstin, pan, address, phone, contact_email,
 		   state_code, district_code, platform_fee_pct, razorpay_linked_account_id, fssai_number, fssai_cert_key,
 		   fssai_cert_asset_id, otp_verified, otp_verified_at, latitude, longitude, seller_category_id)
-		values ($1,$2,$3,$4::app_brand,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21)
+		values ($1,$2,$3,nullif($4,'')::app_brand,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21)
 		returning `+sellerColumns,
 		s.SellerID, s.BusinessName, s.OwnerName, s.Category, s.GSTIN, s.PAN, s.BusinessAddress,
 		nullIfEmpty(s.ContactPhone), nullIfEmpty(s.ContactEmail), s.StateCode, nullIfEmpty(s.DistrictCode),
@@ -435,9 +435,9 @@ func (r *Repo) EditRequest(ctx context.Context, id string, next Seller, bank *Ba
 
 	after, err := scanSeller(tx.QueryRow(ctx, `
 		update sellers.sellers set
-		  business_name=$2, owner_name=$3, category=$4::app_brand, gstin=$5, pan=$6,
+		  business_name=$2, owner_name=$3, category=nullif($4,'')::app_brand, gstin=$5, pan=$6,
 		  address=$7, phone=$8, contact_email=$9, state_code=$10, district_code=$11,
-		  platform_fee_pct=$12,
+		  platform_fee_pct=case when $12 = 0 then platform_fee_pct else $12 end,
 		  fssai_number=$13,
 		  fssai_cert_key=coalesce(nullif($14,''), fssai_cert_key),
 		  fssai_cert_asset_id=coalesce(nullif($15,''), fssai_cert_asset_id),
@@ -703,6 +703,7 @@ var ErrPendingRequest = errors.New("sellers: a platform-fee request is already p
 type FeeChangeRequest struct {
 	RequestID       string `json:"requestId"`
 	SellerID        string `json:"sellerId"`
+	StoreID         string `json:"storeId,omitempty"`
 	BusinessName    string `json:"businessName,omitempty"`
 	DistrictCode    string `json:"districtCode,omitempty"`
 	CurrentFeePct   int    `json:"currentFeePct"`
@@ -715,7 +716,7 @@ type FeeChangeRequest struct {
 	ReviewReason    string `json:"reviewReason,omitempty"`
 }
 
-const feeRequestColumns = `r.request_id, r.seller_id, coalesce(s.business_name,''),
+const feeRequestColumns = `r.request_id, r.seller_id, coalesce(r.store_id,''), coalesce(s.business_name,''),
 	coalesce(r.district_code, coalesce(s.district_code,'')), r.current_fee_pct, r.requested_fee_pct,
 	r.status, r.admin_note, r.requested_at, coalesce(r.reviewed_by,''), r.reviewed_at,
 	r.review_reason`
@@ -726,7 +727,7 @@ func scanFeeRequest(row rowScanner) (FeeChangeRequest, error) {
 		requested  time.Time
 		reviewedAt *time.Time
 	)
-	if err := row.Scan(&f.RequestID, &f.SellerID, &f.BusinessName, &f.DistrictCode,
+	if err := row.Scan(&f.RequestID, &f.SellerID, &f.StoreID, &f.BusinessName, &f.DistrictCode,
 		&f.CurrentFeePct, &f.RequestedFeePct, &f.Status, &f.AdminNote, &requested,
 		&f.ReviewedBy, &reviewedAt, &f.ReviewReason); err != nil {
 		return FeeChangeRequest{}, err
@@ -738,20 +739,38 @@ func scanFeeRequest(row rowScanner) (FeeChangeRequest, error) {
 	return f, nil
 }
 
-// CreateFeeChangeRequest inserts a PENDING request. A second pending row for the same seller is
-// rejected by the partial unique index and surfaces as ErrPendingRequest.
-func (r *Repo) CreateFeeChangeRequest(ctx context.Context, sellerID, districtCode string, currentPct, requestedPct int) (FeeChangeRequest, error) {
+// StoreFeeForSeller returns a vendor store's current platform fee and app brand, only when the store
+// is owned by sellerID. ok=false means the store does not exist or is not owned by the caller.
+func (r *Repo) StoreFeeForSeller(ctx context.Context, storeID, sellerID string) (feePct int, app string, ok bool, err error) {
+	if r.pool == nil {
+		return 0, "", false, fmt.Errorf("sellers: database not configured")
+	}
+	err = r.pool.QueryRow(ctx, `
+		select platform_fee_pct, app::text from directory.stores
+		 where id = $1 and seller_id = $2`, storeID, sellerID).Scan(&feePct, &app)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return 0, "", false, nil
+		}
+		return 0, "", false, err
+	}
+	return feePct, app, true, nil
+}
+
+// CreateFeeChangeRequest inserts a PENDING request for a VENDOR (store_id). A second pending row for
+// the same store is rejected by the partial unique index and surfaces as ErrPendingRequest.
+func (r *Repo) CreateFeeChangeRequest(ctx context.Context, sellerID, storeID, districtCode string, currentPct, requestedPct int) (FeeChangeRequest, error) {
 	if r.pool == nil {
 		return FeeChangeRequest{}, fmt.Errorf("sellers: database not configured")
 	}
 	f, err := scanFeeRequest(r.pool.QueryRow(ctx, `
 		insert into sellers.seller_fee_change_requests
-		  (request_id, seller_id, district_code, current_fee_pct, requested_fee_pct)
-		values ($1,$2,$3,$4,$5)
-		returning request_id, seller_id, '', coalesce(district_code,''), current_fee_pct,
+		  (request_id, seller_id, store_id, district_code, current_fee_pct, requested_fee_pct)
+		values ($1,$2,nullif($3,''),$4,$5,$6)
+		returning request_id, seller_id, coalesce(store_id,''), '', coalesce(district_code,''), current_fee_pct,
 		          requested_fee_pct, status, admin_note, requested_at, coalesce(reviewed_by,''),
 		          reviewed_at, review_reason`,
-		"fee-"+shortID(), sellerID, nullIfEmpty(districtCode), currentPct, requestedPct))
+		"fee-"+shortID(), sellerID, storeID, nullIfEmpty(districtCode), currentPct, requestedPct))
 	if err != nil {
 		if isUniqueViolation(err) {
 			return FeeChangeRequest{}, ErrPendingRequest
@@ -849,22 +868,32 @@ func (r *Repo) ApproveFeeChangeRequest(ctx context.Context, requestID, reviewer,
 	defer func() { _ = tx.Rollback(ctx) }()
 
 	var sellerID string
+	var storeID *string
 	var requested int
 	err = tx.QueryRow(ctx, `
-		select seller_id, requested_fee_pct
+		select seller_id, store_id, requested_fee_pct
 		  from sellers.seller_fee_change_requests
 		 where request_id = $1 and status = 'PENDING'
-		 for update`, requestID).Scan(&sellerID, &requested)
+		 for update`, requestID).Scan(&sellerID, &storeID, &requested)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return Seller{}, FeeChangeRequest{}, false, nil
 	}
 	if err != nil {
 		return Seller{}, FeeChangeRequest{}, false, err
 	}
+	// The fee lives on the VENDOR (directory.stores, 0069/0072). A legacy account-level request
+	// (store_id null) falls back to the account's default fee so old rows still resolve.
+	if storeID != nil && *storeID != "" {
+		if _, err := tx.Exec(ctx, `update directory.stores set platform_fee_pct = $2, updated_at = now() where id = $1`, *storeID, requested); err != nil {
+			return Seller{}, FeeChangeRequest{}, false, err
+		}
+	} else {
+		if _, err := tx.Exec(ctx, `update sellers.sellers set platform_fee_pct = $2 where seller_id = $1`, sellerID, requested); err != nil {
+			return Seller{}, FeeChangeRequest{}, false, err
+		}
+	}
 	seller, err := scanSeller(tx.QueryRow(ctx, `
-		update sellers.sellers set platform_fee_pct = $2
-		 where seller_id = $1
-		 returning `+sellerColumns, sellerID, requested))
+		select `+sellerColumns+` from sellers.sellers where seller_id=$1`, sellerID))
 	if err != nil {
 		return Seller{}, FeeChangeRequest{}, false, err
 	}
@@ -873,7 +902,7 @@ func (r *Repo) ApproveFeeChangeRequest(ctx context.Context, requestID, reviewer,
 		   set status = 'APPROVED', reviewed_by = $2, reviewed_at = now(), review_reason = $3,
 		       admin_note = case when $3 = '' then admin_note else $3 end
 		 where request_id = $1
-		 returning request_id, seller_id, '', coalesce(district_code,''), current_fee_pct,
+		 returning request_id, seller_id, coalesce(store_id,''), '', coalesce(district_code,''), current_fee_pct,
 		           requested_fee_pct, status, admin_note, requested_at, coalesce(reviewed_by,''),
 		           reviewed_at, review_reason`, requestID, reviewer, note))
 	if err != nil {
@@ -894,7 +923,7 @@ func (r *Repo) RejectFeeChangeRequest(ctx context.Context, requestID, reviewer, 
 		update sellers.seller_fee_change_requests
 		   set status = 'REJECTED', reviewed_by = $2, reviewed_at = now(), review_reason = $3
 		 where request_id = $1 and status = 'PENDING'
-		 returning request_id, seller_id, '', coalesce(district_code,''), current_fee_pct,
+		 returning request_id, seller_id, coalesce(store_id,''), '', coalesce(district_code,''), current_fee_pct,
 		           requested_fee_pct, status, admin_note, requested_at, coalesce(reviewed_by,''),
 		           reviewed_at, review_reason`, requestID, reviewer, reason))
 	if err != nil {

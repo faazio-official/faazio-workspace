@@ -58,6 +58,14 @@ FCM token into `window.__faazioPushToken`; `SellerPushBridge`
 registers it through `/api/gateway/notifications/register` and removes it on sign-out. Portal
 sign-out is the only seller session authority (HttpOnly cookies).
 
+**Vendor switcher (0068–0073).** A seller ACCOUNT owns many VENDORS across apps (Mart / Food / Pharma),
+so the seller console header (`SellerShell`) renders `VendorSwitcher` next to the account menu. It reads
+`GET /seller/stores` (`fetchSellerStores` → `useSellerStores`) and selects the vendor every seller page is
+scoped to; the choice is persisted in the portal store as `activeStoreId` (localStorage). Hidden when the
+account owns one vendor; a "Add a vendor" CTA when it owns none. The native seller WebView may inject
+`window.__faazio.vendorId`, which restores the last active shop on load (the same console is used in a
+desktop browser, so the switcher is seller-console-wide, not WebView-only).
+
 **Seller app is seller-only (defense in depth).** The native seller app never accepts an admin
 session. At sign-in, `/login` checks `isBlockedInNativeSellerApp(role)` (every role except `SELLER`)
 and, on a match, signs the session straight back out (`signOut()` → clears the HttpOnly cookies) and

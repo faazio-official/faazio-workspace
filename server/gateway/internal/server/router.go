@@ -39,6 +39,7 @@ import (
 	"github.com/faazio/server/gateway/internal/portal"
 	"github.com/faazio/server/gateway/internal/promo"
 	"github.com/faazio/server/gateway/internal/reco"
+	"github.com/faazio/server/gateway/internal/reference"
 	"github.com/faazio/server/gateway/internal/reviews"
 	"github.com/faazio/server/gateway/internal/rewards"
 	"github.com/faazio/server/gateway/internal/sdui"
@@ -202,6 +203,7 @@ func NewRouter(d Deps) http.Handler {
 	// Central superadmin category taxonomy (0067): read tree/rail for every app + CRUD for the portal.
 	categories.NewHandler(categories.NewRepo(d.Pool)).Register(r)
 	districts.NewHandler(districts.NewRepo(d.Pool)).Register(r)
+	reference.NewHandler(reference.NewRepo(d.Pool)).Register(r)
 	support.NewHandler(supportRepo, adminsRepo).Register(r)
 	deliveryHandler.Register(r)
 	weather.NewHandler(weatherChecker, adminsRepo).Register(r)

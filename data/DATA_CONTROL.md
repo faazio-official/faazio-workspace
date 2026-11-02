@@ -28,6 +28,14 @@
 
 Every domain file below carries its tag as a top-of-file banner comment.
 
+**Vendor ownership (0068–0073).** A seller ACCOUNT (`sellers.sellers`) is brand-agnostic and owns many
+VENDORS (`directory.stores`) across apps; the vendor carries `platform_fee_pct`, `seller_category_id`
+and `fssai_*`. `catalog.products.seller_id` and `directory.menus.seller_id` were dropped — product
+ownership derives via `store_id`, menu ownership via `venue_id` → the owning store (dining-venue menus
+are ownerless). The seed (`server/supabase/seed/generate.mjs`) now emits seller accounts **before**
+stores (FK order), binds each store's `seller_id`, sets a per-store fee + (FOOD) FSSAI, and no longer
+writes the dropped columns. `@data/*` stays seed input + types only, never a runtime origin.
+
 ---
 
 ## Ownership Matrix

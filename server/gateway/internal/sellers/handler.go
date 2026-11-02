@@ -171,7 +171,9 @@ func (h *Handler) create(w http.ResponseWriter, r *http.Request) {
 		httpx.Fail(w, http.StatusBadRequest, "bad_request", "business and owner name are required")
 		return
 	}
-	if !validCategory(req.Category) || len(req.StateCode) != 2 {
+	// The account is brand-agnostic: a category is optional (the app lives on each vendor). If one
+	// is supplied it must be a valid brand, for backward-compatible clients.
+	if len(req.StateCode) != 2 || (req.Category != "" && !validCategory(req.Category)) {
 		httpx.Fail(w, http.StatusBadRequest, "bad_request", "category or state is invalid")
 		return
 	}
@@ -201,7 +203,9 @@ func (h *Handler) create(w http.ResponseWriter, r *http.Request) {
 		httpx.Fail(w, http.StatusBadRequest, "bad_request", "shop location is invalid")
 		return
 	}
-	if req.PlatformFeePct == nil || !validPlatformFee(req.Category, *req.PlatformFeePct) {
+	// Platform fee is optional at account level (it is per-vendor now); when supplied it must be in
+	// range for the (optional) category.
+	if req.PlatformFeePct != nil && !validPlatformFee(req.Category, *req.PlatformFeePct) {
 		httpx.Fail(w, http.StatusBadRequest, "bad_request", "platform fee is outside the allowed range for this category")
 		return
 	}
@@ -248,12 +252,16 @@ func (h *Handler) create(w http.ResponseWriter, r *http.Request) {
 		})
 	}
 
+	feePct := 0
+	if req.PlatformFeePct != nil {
+		feePct = *req.PlatformFeePct
+	}
 	s, err := h.repo.CreateExtended(r.Context(), Seller{
 		BusinessName: req.BusinessName, OwnerName: req.OwnerName, Category: req.Category,
 		SellerCategoryID: req.CategoryID,
 		GSTIN:            req.GSTIN, PAN: req.PAN, BusinessAddress: req.BusinessAddress,
 		ContactPhone: req.ContactPhone, ContactEmail: req.ContactEmail, StateCode: req.StateCode,
-		DistrictCode: req.DistrictCode, PlatformFeePct: *req.PlatformFeePct, FSSAINumber: strings.TrimSpace(req.FSSAINumber),
+		DistrictCode: req.DistrictCode, PlatformFeePct: feePct, FSSAINumber: strings.TrimSpace(req.FSSAINumber),
 		FSSAICertKey: strings.TrimSpace(req.FSSAIFileKey), FSSAICertAssetID: strings.TrimSpace(req.FSSAIAssetID),
 		Latitude: req.Latitude, Longitude: req.Longitude, OTPVerified: true,
 	}, bank, docs)
@@ -489,7 +497,8 @@ func (h *Handler) edit(w http.ResponseWriter, r *http.Request) {
 	req.DistrictCode = geo.Normalise(req.DistrictCode)
 	req.GSTIN = strings.ToUpper(strings.TrimSpace(req.GSTIN))
 	req.PAN = strings.ToUpper(strings.TrimSpace(req.PAN))
-	if !validCategory(req.Category) || len(req.StateCode) != 2 || !validPlatformFee(req.Category, req.PlatformFeePct) {
+	if (req.Category != "" && !validCategory(req.Category)) || len(req.StateCode) != 2 ||
+		(req.PlatformFeePct != 0 && !validPlatformFee(req.Category, req.PlatformFeePct)) {
 		httpx.Fail(w, http.StatusBadRequest, "bad_request", "category, state or platform fee is invalid")
 		return
 	}
@@ -576,11 +585,12 @@ func (h *Handler) edit(w http.ResponseWriter, r *http.Request) {
 }
 
 type feeChangeRequestBody struct {
-	PlatformFeePct int `json:"platformFeePct"`
+	StoreID        string `json:"storeId"`
+	PlatformFeePct int    `json:"platformFeePct"`
 }
 
-// requestPlatformFeeChange lets a seller ASK for a new platform fee. It never mutates the live
-// fee; that only happens when a district/super admin approves the request.
+// requestPlatformFeeChange lets a seller ASK for a new platform fee for one of their VENDORS. It never
+// mutates the live fee; that only happens when a district/super admin approves the request.
 func (h *Handler) requestPlatformFeeChange(w http.ResponseWriter, r *http.Request) {
 	if auth.Role(r.Context()) != auth.RoleSeller || auth.SellerID(r.Context()) != chi.URLParam(r, "id") {
 		httpx.Fail(w, http.StatusForbidden, "forbidden", "only the seller can request a fee change")
@@ -600,15 +610,31 @@ func (h *Handler) requestPlatformFeeChange(w http.ResponseWriter, r *http.Reques
 		httpx.Fail(w, http.StatusBadRequest, "bad_request", "invalid request body")
 		return
 	}
-	if !validPlatformFee(s.Category, req.PlatformFeePct) {
-		httpx.Fail(w, http.StatusBadRequest, "bad_request", "platform fee is outside the allowed range for this category")
+	// The fee is a property of the vendor: resolve the current fee + app from the named store and
+	// screen the requested value against that app's floor.
+	storeID := strings.TrimSpace(req.StoreID)
+	if storeID == "" {
+		httpx.Fail(w, http.StatusBadRequest, "bad_request", "storeId is required")
 		return
 	}
-	if req.PlatformFeePct == s.PlatformFeePct {
+	currentFee, app, owned, err := h.repo.StoreFeeForSeller(r.Context(), storeID, s.SellerID)
+	if err != nil {
+		httpx.Fail(w, http.StatusInternalServerError, "sellers_unavailable", "sellers unavailable")
+		return
+	}
+	if !owned {
+		httpx.Fail(w, http.StatusNotFound, "not_found", "store not found")
+		return
+	}
+	if !validPlatformFee(app, req.PlatformFeePct) {
+		httpx.Fail(w, http.StatusBadRequest, "bad_request", "platform fee is outside the allowed range for this app")
+		return
+	}
+	if req.PlatformFeePct == currentFee {
 		httpx.Fail(w, http.StatusBadRequest, "bad_request", "requested fee is the current fee")
 		return
 	}
-	f, err := h.repo.CreateFeeChangeRequest(r.Context(), s.SellerID, s.DistrictCode, s.PlatformFeePct, req.PlatformFeePct)
+	f, err := h.repo.CreateFeeChangeRequest(r.Context(), s.SellerID, storeID, s.DistrictCode, currentFee, req.PlatformFeePct)
 	if err != nil {
 		if errors.Is(err, ErrPendingRequest) {
 			httpx.Fail(w, http.StatusConflict, "request_pending", "a fee-change request is already pending")
@@ -618,7 +644,7 @@ func (h *Handler) requestPlatformFeeChange(w http.ResponseWriter, r *http.Reques
 		return
 	}
 	h.log(r, "SELLER_PLATFORM_FEE_REQUEST", s.SellerID,
-		map[string]int{"platformFeePct": s.PlatformFeePct},
+		map[string]int{"platformFeePct": currentFee},
 		map[string]int{"requestedFeePct": req.PlatformFeePct})
 	httpx.JSON(w, http.StatusCreated, f)
 }

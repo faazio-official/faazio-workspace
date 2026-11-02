@@ -120,6 +120,14 @@ func (s *Service) ValidateCoins(ctx context.Context, userID string, coins int64)
 	return nil
 }
 
+// derefStr returns the pointed-to string or "" for a nil pointer.
+func derefStr(p *string) string {
+	if p == nil {
+		return ""
+	}
+	return *p
+}
+
 func validLatitude(v float64) bool { return v >= -90 && v <= 90 }
 
 func validLongitude(v float64) bool { return v >= -180 && v <= 180 }
@@ -212,6 +220,7 @@ func (s *Service) CreateOrder(ctx context.Context, userID string, req PlaceOrder
 		grossPaisa int64
 		ratePct    int
 		sellerID   string
+		storeID    string
 	}
 	priced := make([]pricedLine, 0, len(req.Items))
 	vendorSet := map[string]struct{}{}
@@ -246,6 +255,7 @@ func (s *Service) CreateOrder(ctx context.Context, userID string, req PlaceOrder
 			grossPaisa: grossPaisa,
 			ratePct:    taxRateFor(categoryRates, snap.App, snap.Category),
 			sellerID:   snap.SellerID,
+			storeID:    derefStr(snap.StoreID),
 		})
 		if snap.SellerID != "" {
 			sellerSet[snap.SellerID] = struct{}{}
@@ -263,10 +273,24 @@ func (s *Service) CreateOrder(ctx context.Context, userID string, req PlaceOrder
 	if err != nil {
 		return Order{}, err
 	}
+	// The platform fee is a property of the vendor shop (0069), not the seller account, so it is
+	// resolved per vendor_store_id. seller profiles remain the invoicing identity.
+	storeIDs := make([]string, 0, len(vendorSet))
+	for id := range vendorSet {
+		storeIDs = append(storeIDs, id)
+	}
+	storeFees, err := s.repo.StoreFeeProfiles(ctx, storeIDs)
+	if err != nil {
+		return Order{}, err
+	}
 	taxLines := make([]taxmath.Line, 0, len(priced))
 	for _, p := range priced {
 		feePct := 10 // ignored by Compute (commission removed); kept for structural compatibility
-		if prof, ok := profiles[p.sellerID]; ok && prof.PlatformFeePct > 0 {
+		if p.storeID != "" {
+			if sf, ok := storeFees[p.storeID]; ok && sf.PlatformFeePct > 0 {
+				feePct = sf.PlatformFeePct
+			}
+		} else if prof, ok := profiles[p.sellerID]; ok && prof.PlatformFeePct > 0 {
 			feePct = prof.PlatformFeePct
 		}
 		taxLines = append(taxLines, taxmath.Line{

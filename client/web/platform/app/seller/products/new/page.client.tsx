@@ -58,6 +58,7 @@ function NewProduct() {
           name: s.name,
           sector: s.sector,
           isLive: s.isLive,
+          platformFeePct: 10,
         }));
   useEffect(() => {
     if (!storeId && stores[0]) setStoreId(stores[0].storeId);

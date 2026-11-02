@@ -2,15 +2,15 @@
 // transfers). It is domain-free: sellers provisions a linked account and settlement holds/releases
 // transfers, but neither context owns an HTTP client.
 //
-// Secrets are loaded from env and never logged. When the key pair is unset the gateway runs in mock
-// mode: ids are synthetic and no network call is made, so local dev, CI and unit tests stay offline.
+// Secrets are loaded from env and never logged. When the key pair is unset the gateway is DISABLED:
+// Enabled() is false and every mutating call returns ErrUnavailable — it never fabricates a
+// synthetic account or transfer id. Callers treat that as "Razorpay not configured".
 package razorpayroute
 
 import (
 	"bytes"
 	"context"
 	"crypto/hmac"
-	"crypto/rand"
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
@@ -66,10 +66,11 @@ type Gateway interface {
 	VerifyWebhook(body []byte, signature string) bool
 }
 
-// New builds a Route gateway. Empty credentials → mock mode (never a half-configured client).
+// New builds a Route gateway. Empty credentials → a disabled gateway that errors on use (never a
+// half-configured client, and never a silent mock that fabricates ids).
 func New(keyID, keySecret, webhookSecret string) Gateway {
 	if strings.TrimSpace(keyID) == "" || strings.TrimSpace(keySecret) == "" {
-		return mockGateway{}
+		return disabledGateway{}
 	}
 	return &Client{
 		keyID:         strings.TrimSpace(keyID),
@@ -80,18 +81,20 @@ func New(keyID, keySecret, webhookSecret string) Gateway {
 	}
 }
 
-type mockGateway struct{}
+// disabledGateway is the unconfigured Route seam. It reports Enabled=false and refuses every
+// mutating call with ErrUnavailable so callers surface a real "not configured" state.
+type disabledGateway struct{}
 
-func (mockGateway) Enabled() bool { return false }
-func (mockGateway) CreateLinkedAccount(context.Context, LinkedAccountInput) (string, error) {
-	return "acc_mock_" + shortID(), nil
+func (disabledGateway) Enabled() bool { return false }
+func (disabledGateway) CreateLinkedAccount(context.Context, LinkedAccountInput) (string, error) {
+	return "", ErrUnavailable
 }
-func (mockGateway) CreateTransfer(context.Context, TransferInput) (string, error) {
-	return "trf_mock_" + shortID(), nil
+func (disabledGateway) CreateTransfer(context.Context, TransferInput) (string, error) {
+	return "", ErrUnavailable
 }
-func (mockGateway) ReleaseTransfer(context.Context, string) error { return nil }
-func (mockGateway) ReverseTransfer(context.Context, string) error { return nil }
-func (mockGateway) VerifyWebhook([]byte, string) bool             { return false }
+func (disabledGateway) ReleaseTransfer(context.Context, string) error { return ErrUnavailable }
+func (disabledGateway) ReverseTransfer(context.Context, string) error { return ErrUnavailable }
+func (disabledGateway) VerifyWebhook([]byte, string) bool             { return false }
 
 // Client is the real Razorpay Route HTTP client.
 type Client struct {
@@ -248,10 +251,4 @@ func fallback(v, def string) string {
 		return def
 	}
 	return v
-}
-
-func shortID() string {
-	b := make([]byte, 5)
-	_, _ = rand.Read(b)
-	return hex.EncodeToString(b)
 }

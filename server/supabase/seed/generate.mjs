@@ -56,12 +56,12 @@ const orderStatus = (v) => {
 const FULFIL = (v) => (v === 'PICKUP' ? "'PICKUP'::fulfillment_mode" : v === 'DELIVERY' ? "'DELIVERY'::fulfillment_mode" : 'null');
 const slug = (s) => 'seed-' + String(s).toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
 
-function inserts(table, columns, rows, batch = 100) {
+function inserts(table, columns, rows, batch = 100, onConflict = '') {
   const out = [];
   for (let i = 0; i < rows.length; i += batch) {
     const slice = rows.slice(i, i + batch);
     out.push(`insert into ${table} (${columns.join(', ')}) values`);
-    out.push(slice.map((r) => `  (${r.join(', ')})`).join(',\n') + ';');
+    out.push(slice.map((r) => `  (${r.join(', ')})`).join(',\n') + (onConflict ? ` ${onConflict}` : '') + ';');
     out.push('');
   }
   return out.join('\n');
@@ -80,29 +80,56 @@ for (const dish of d.TODAYS_SPECIALS ?? []) addProduct(d.dishToProduct(dish));
 const PRESCRIPTION_CATEGORIES = new Set(['hypertension', 'asthma', 'fever']);
 const isPrescription = (e) => e.app === 'PHARMA' && PRESCRIPTION_CATEGORIES.has(e.category);
 
-// ---------------------------------------------------------------- demo seller + sponsored ads
-// `sellers.sellers` has NO seeded row (there is no seller fixture in @data), yet
-// `ads.sponsored_slots.seller_id` FKs to it — so a fresh deploy served an empty `GET /ads/live`.
-// Seed one ACTIVE demo seller (the store-m1 owner), then the LIVE slots each placement reads
-// (HOME_TOP rail, SPONSORED_SHOWCASE Mart hero, SECTOR_RAIL category drill-in). Product ids must be
-// catalog rows (asserted by `assertLeanContract`), so the app's `getProductsByIds` join never drops
-// a placement.
-const DEMO_SELLERS = [
-  { id: 'sel-3', businessName: 'Faazio Mart Flagship', ownerName: 'Faazio Retail', app: 'MART', state: 'TN', district: 'TCH' },
-  { id: 'sel-pharma', businessName: 'Faazio Pharma Flagship', ownerName: 'Faazio Health', app: 'PHARMA', state: 'TN', district: 'TCH' },
-  { id: 'sel-food', businessName: 'Faazio Food Flagship', ownerName: 'Faazio Kitchens', app: 'FOOD', state: 'TN', district: 'TCH' },
+// ---------------------------------------------------------------- seller accounts + sponsored ads
+// Seller ACCOUNTS are brand-agnostic (0068): a business identity that owns one or more VENDORS
+// (directory.stores). `ads.sponsored_slots.seller_id` / `ads.campaigns.seller_id` FK to the account,
+// so a fresh deploy still serves a non-empty `GET /ads/live`. Ownership is bound per store below.
+const SELLER_ACCOUNTS = [
+  { id: 'sel-tiruchi-01', businessName: 'Faazio Mart Tiruchirappalli', ownerName: 'Faazio Retail Pvt Ltd', state: 'TN', district: 'TTC', email: 'retail.tiruchirappalli@faazio.example' },
+  { id: 'sel-trichy-foods', businessName: 'Trichy Hospitality Group', ownerName: 'R. Sundaram', state: 'TN', district: 'TTC', email: 'hospitality.trichy@faazio.example' },
+  { id: 'sel-trichy-health', businessName: 'Trichy Health Retail', ownerName: 'K. Meenakshi', state: 'TN', district: 'TTC', email: 'health.trichy@faazio.example' },
+  { id: 'sel-trichy-retail', businessName: 'Trichy Neighbourhood Retail', ownerName: 'S. Arun', state: 'TN', district: 'TTC', email: 'neighbourhood.trichy@faazio.example' },
 ];
-const sellerForApp = (app) => ({ MART: 'sel-3', PHARMA: 'sel-pharma', FOOD: 'sel-food' }[app] ?? 'sel-3');
+// Deliberately multi-brand: an account owns vendors across apps (the switcher's reason to exist).
+const STORE_OWNER = {
+  'store-f1': 'sel-trichy-foods', 'store-f2': 'sel-trichy-foods', 'store-f3': 'sel-trichy-foods',
+  'store-f4': 'sel-trichy-foods', 'store-f5': 'sel-trichy-foods', 'store-f6': 'sel-trichy-foods',
+  'store-g1': 'sel-trichy-foods',
+  'store-p1': 'sel-trichy-health', 'store-p2': 'sel-trichy-health', 'store-p3': 'sel-trichy-health',
+  'store-p4': 'sel-trichy-health', 'store-m5': 'sel-trichy-health',
+  'store-m1': 'sel-tiruchi-01', 'store-m2': 'sel-tiruchi-01', 'store-m3': 'sel-tiruchi-01',
+  'store-m4': 'sel-tiruchi-01', 'store-m6': 'sel-tiruchi-01', 'store-m7': 'sel-tiruchi-01',
+  'store-f7': 'sel-tiruchi-01',
+  'store-m8': 'sel-trichy-retail', 'store-m9': 'sel-trichy-retail', 'store-m10': 'sel-trichy-retail',
+  'store-m11': 'sel-trichy-retail', 'store-m12': 'sel-trichy-retail', 'store-m13': 'sel-trichy-retail',
+  'store-f8': 'sel-trichy-retail', 'store-f9': 'sel-trichy-retail', 'store-f10': 'sel-trichy-retail',
+  'store-f11': 'sel-trichy-retail', 'store-f12': 'sel-trichy-retail',
+  'store-p5': 'sel-trichy-retail', 'store-p6': 'sel-trichy-retail',
+};
+// Per-vendor platform fee (the fee is a property of the SHOP, 0069 — values differ per shop so the
+// per-vendor model is demonstrable). FOOD floor is 5%.
+const STORE_FEE = {
+  'store-f1': 8, 'store-f2': 6, 'store-f3': 7, 'store-f4': 9, 'store-f5': 5, 'store-f6': 8,
+  'store-f7': 6, 'store-f8': 7, 'store-f9': 5, 'store-f10': 9, 'store-f11': 8, 'store-f12': 6,
+  'store-m1': 12, 'store-m2': 11, 'store-m3': 10, 'store-m4': 13, 'store-m5': 9, 'store-m6': 8,
+  'store-m7': 14, 'store-m8': 10, 'store-m9': 12, 'store-m10': 15, 'store-m11': 11, 'store-m12': 13,
+  'store-m13': 10, 'store-g1': 7,
+  'store-p1': 7, 'store-p2': 6, 'store-p3': 8, 'store-p4': 7, 'store-p5': 6, 'store-p6': 9,
+};
+const ownerForStore = (id) => STORE_OWNER[id] ?? 'sel-tiruchi-01';
+const feeForStore = (id) => STORE_FEE[id] ?? 10;
+// The demo ad rail belongs to the account that owns the Mart flagship (store-m1).
+const AD_ACCOUNT = 'sel-tiruchi-01';
 const SPONSORED_SLOTS = [
-  { slotId: 'ad-demo-home-1', sellerId: 'sel-3', productId: 'fm-m1', placement: 'HOME_TOP' },
-  { slotId: 'ad-demo-home-2', sellerId: 'sel-3', productId: 'fm-m2', placement: 'HOME_TOP' },
-  { slotId: 'ad-demo-home-3', sellerId: 'sel-3', productId: 'fm-gad10', placement: 'HOME_TOP' },
+  { slotId: 'ad-demo-home-1', sellerId: AD_ACCOUNT, productId: 'fm-m1', placement: 'HOME_TOP' },
+  { slotId: 'ad-demo-home-2', sellerId: AD_ACCOUNT, productId: 'fm-m2', placement: 'HOME_TOP' },
+  { slotId: 'ad-demo-home-3', sellerId: AD_ACCOUNT, productId: 'fm-gad10', placement: 'HOME_TOP' },
   // Three LIVE SPONSORED_SHOWCASE rows so the Mart paid shelf demonstrates a real multi-card fill
   // instead of collapsing to null (a single row looked like a bug in QA).
-  { slotId: 'ad-demo-showcase-1', sellerId: 'sel-3', productId: 'fm-b1', placement: 'SPONSORED_SHOWCASE' },
-  { slotId: 'ad-demo-showcase-2', sellerId: 'sel-3', productId: 'fm-b2', placement: 'SPONSORED_SHOWCASE' },
-  { slotId: 'ad-demo-showcase-3', sellerId: 'sel-3', productId: 'fm-gad10', placement: 'SPONSORED_SHOWCASE' },
-  { slotId: 'ad-demo-sector-1', sellerId: 'sel-3', productId: 'fm-s1', placement: 'SECTOR_RAIL' },
+  { slotId: 'ad-demo-showcase-1', sellerId: AD_ACCOUNT, productId: 'fm-b1', placement: 'SPONSORED_SHOWCASE' },
+  { slotId: 'ad-demo-showcase-2', sellerId: AD_ACCOUNT, productId: 'fm-b2', placement: 'SPONSORED_SHOWCASE' },
+  { slotId: 'ad-demo-showcase-3', sellerId: AD_ACCOUNT, productId: 'fm-gad10', placement: 'SPONSORED_SHOWCASE' },
+  { slotId: 'ad-demo-sector-1', sellerId: AD_ACCOUNT, productId: 'fm-s1', placement: 'SECTOR_RAIL' },
 ];
 
 // Seller hero campaigns (0027): one LIVE poster creative per new placement so Mart hero, the category
@@ -110,21 +137,21 @@ const SPONSORED_SLOTS = [
 // rows / stores (asserted below) and `category` is a real `MASTER_CATEGORIES` tab id (cat_smart_gadgets).
 const DEMO_HEROES = [
   {
-    placementId: 'ad-cmp-demo-mart-1', campaignId: 'cmp-demo-mart', sellerId: 'sel-3',
+    placementId: 'ad-cmp-demo-mart-1', campaignId: 'cmp-demo-mart', sellerId: AD_ACCOUNT,
     placement: 'MART_HERO', targetType: 'PRODUCT', targetId: 'fm-m1', targetApp: 'MART',
     category: null, storeId: null, title: 'Big Savings Everyday', subtitle: 'UP TO 50% OFF',
     cta: 'Shop Now', state: 'TN',
     imageUrl: 'https://images.unsplash.com/photo-1542838132-92c53300491e?fm=jpg&fit=crop&q=80&w=800&h=450',
   },
   {
-    placementId: 'ad-cmp-demo-cat-1', campaignId: 'cmp-demo-cat', sellerId: 'sel-3',
+    placementId: 'ad-cmp-demo-cat-1', campaignId: 'cmp-demo-cat', sellerId: AD_ACCOUNT,
     placement: 'CATEGORY_TOP', targetType: 'PRODUCT', targetId: 'fm-gad10', targetApp: 'MART',
     category: 'cat_smart_gadgets', storeId: null, title: 'Gadget Fest', subtitle: 'FLAT 40% OFF',
     cta: 'Shop Now', state: 'TN',
     imageUrl: 'https://images.unsplash.com/photo-1498050108023-c5249f4df085?fm=jpg&fit=crop&q=80&w=800&h=450',
   },
   {
-    placementId: 'ad-cmp-demo-store-1', campaignId: 'cmp-demo-store', sellerId: 'sel-3',
+    placementId: 'ad-cmp-demo-store-1', campaignId: 'cmp-demo-store', sellerId: AD_ACCOUNT,
     placement: 'STORE_TOP', targetType: 'STORE', targetId: 'store-m1', targetApp: 'MART',
     category: null, storeId: 'store-m1', title: 'Fresh Groceries Doorstep', subtitle: 'FREE DELIVERY',
     cta: 'View Store', state: 'TN',
@@ -133,14 +160,14 @@ const DEMO_HEROES = [
   // Food sub-app hero (FOOD_HERO) — two LIVE poster creatives targeting real FOOD stores so the
   // placement is locally testable (was unseeded). The house fallback is `foodHero.banners`.
   {
-    placementId: 'ad-cmp-demo-foodhero-1', campaignId: 'cmp-demo-foodhero', sellerId: 'sel-3',
+    placementId: 'ad-cmp-demo-foodhero-1', campaignId: 'cmp-demo-foodhero', sellerId: AD_ACCOUNT,
     placement: 'FOOD_HERO', targetType: 'STORE', targetId: 'store-f1', targetApp: 'FOOD',
     category: null, storeId: null, title: 'Biryani Festival', subtitle: 'FLAT ₹150 OFF',
     cta: 'Order Now', state: 'TN',
     imageUrl: 'https://images.unsplash.com/photo-1563379091339-03b21ab4a4f8?fm=jpg&fit=crop&q=80&w=800&h=450',
   },
   {
-    placementId: 'ad-cmp-demo-foodhero-2', campaignId: 'cmp-demo-foodhero', sellerId: 'sel-3',
+    placementId: 'ad-cmp-demo-foodhero-2', campaignId: 'cmp-demo-foodhero', sellerId: AD_ACCOUNT,
     placement: 'FOOD_HERO', targetType: 'STORE', targetId: 'store-f8', targetApp: 'FOOD',
     category: null, storeId: null, title: 'Royal Mughlai Feast', subtitle: 'FESTIVE40 — 40% OFF',
     cta: 'Order Now', state: 'TN',
@@ -171,16 +198,33 @@ if (manifest) {
 }
 
 // ---------------------------------------------------------------- directory
+// Seller accounts FIRST: directory.stores.seller_id has an FK (stores_seller_fk, 0069) and is NOT
+// NULL (0071), so the owner rows must exist before the stores that reference them.
+sql.push(inserts(
+  'sellers.sellers',
+  ['seller_id', 'business_name', 'owner_name', 'contact_email', 'state_code', 'district_code', 'platform_fee_pct', 'status'],
+  SELLER_ACCOUNTS.map((s) => [
+    q(s.id), q(s.businessName), q(s.ownerName), q(s.email), q(s.state), q(s.district), n(10), `'ACTIVE'::seller_status`,
+  ]),
+  // 0071_backfill_live_sellers also seeds these accounts (for an existing DB), so the fresh
+  // `--all --seed` path must not collide: keep the seed idempotent.
+  100,
+  'on conflict (seller_id) do nothing',
+));
+
+// Each store is a VENDOR owned by an account and carries its own fee + (FOOD) FSSAI (0069).
 sql.push(inserts(
   'directory.stores',
-  ['id', 'app', 'name', 'categories', 'rating', 'reviews_count', 'delivery_time', 'distance', 'cover_image', 'cover_image_key', 'cover_image_asset_id', 'emoji', 'desc_text', 'offer_tag', 'is_veg', 'address', 'phone', 'hours', 'latitude', 'longitude', 'seller_id', 'state_code'],
+  ['id', 'app', 'name', 'categories', 'rating', 'reviews_count', 'delivery_time', 'distance', 'cover_image', 'cover_image_key', 'cover_image_asset_id', 'emoji', 'desc_text', 'offer_tag', 'is_veg', 'address', 'phone', 'hours', 'latitude', 'longitude', 'seller_id', 'state_code', 'platform_fee_pct', 'fssai_number', 'fssai_cert_key', 'fssai_cert_asset_id'],
   d.storeDirectory.map((s) => {
     const cover = entryFor(manifest, s.coverImage);
+    const isFood = s.app === 'FOOD';
     return [
       q(s.id), APP(s.app), q(s.name), arr(s.categories), n(s.rating), n(s.reviewsCount ?? 0),
       q(s.deliveryTime), q(s.distance), q(s.coverImage), q(cover?.key), q(cover?.id), q(s.emoji),
       q(s.desc), q(s.offerTag), b(s.isVeg), q(s.address), q(s.phone), q(s.hours), n(s.latitude), n(s.longitude),
-      q(sellerForApp(s.app)), q('TN'),
+      q(ownerForStore(s.id)), q('TN'), n(feeForStore(s.id)),
+      q(isFood ? `FSSAI-${s.id.toUpperCase()}` : ''), q(''), q(''),
     ];
   }),
 ));
@@ -209,13 +253,12 @@ for (const [name, dishes] of Object.entries(venueMenus)) {
       q(venueId), q(dish.id), q(dish.dishName), paisa(dish.price), paisa(dish.mrp), b(dish.isVeg),
       q(dish.cuisine), n(dish.rating), q(dish.image), q(img?.key), q(img?.id),
       q(dish.description ?? ''), q(dish.emoji ?? ''), q(dish.deliveryTime ?? ''), `'ACTIVE'::product_status`,
-      q('sel-food'),
     ]);
   }
 }
 sql.push(inserts(
   'directory.menus',
-  ['venue_id', 'dish_id', 'name', 'price_paisa', 'mrp_paisa', 'is_veg', 'cuisine', 'rating', 'image', 'image_key', 'image_asset_id', 'description', 'emoji', 'delivery_time', 'status', 'seller_id'],
+  ['venue_id', 'dish_id', 'name', 'price_paisa', 'mrp_paisa', 'is_veg', 'cuisine', 'rating', 'image', 'image_key', 'image_asset_id', 'description', 'emoji', 'delivery_time', 'status'],
   menuRows,
 ));
 
@@ -236,7 +279,7 @@ sql.push(inserts(
 // ---------------------------------------------------------------- catalog + inventory
 sql.push(inserts(
   'catalog.products',
-  ['id', 'app', 'category', 'name', 'search_tokens', 'price_paisa', 'mrp_paisa', 'rating', 'reviews_count', 'emoji', 'image_url', 'image_key', 'image_asset_id', 'desc_text', 'badge', 'shop', 'unit', 'attributes', 'store_id', 'is_prescription', 'is_veg', 'status', 'seller_id'],
+  ['id', 'app', 'category', 'name', 'search_tokens', 'price_paisa', 'mrp_paisa', 'rating', 'reviews_count', 'emoji', 'image_url', 'image_key', 'image_asset_id', 'desc_text', 'badge', 'shop', 'unit', 'attributes', 'store_id', 'is_prescription', 'is_veg', 'status'],
   d.catalogIndex.map((e) => {
     const meta = productMeta.get(e.id);
     const storeId = meta?.storeId && storeIds.has(meta.storeId) ? meta.storeId : null;
@@ -245,7 +288,7 @@ sql.push(inserts(
       q(e.id), APP(e.app), q(e.category), q(e.name), arr(e.searchTokens),
       paisa(e.price), paisa(e.originalPrice), n(e.rating), n(e.reviewsCount ?? 0),
       q(e.emoji), q(e.image), q(img?.key), q(img?.id), q(e.desc), q(e.badge), q(e.shop), q(e.unit), jsonb(e.attributes),
-      q(storeId), b(isPrescription(e)), b(meta?.isVeg), `'ACTIVE'::product_status`, q(sellerForApp(e.app)),
+      q(storeId), b(isPrescription(e)), b(meta?.isVeg), `'ACTIVE'::product_status`,
     ];
   }),
 ));
@@ -422,13 +465,8 @@ sql.push(inserts(
   [[q('dmr-000001'), q('user-1'), q((d.BLOOD_DONORS ?? [])[0]?.userId ?? 'user-2'), q('O+'), q('Chennai'), `'pending'::match_status`]],
 ));
 
-// ---------------------------------------------------------------- demo seller + sponsored ads
-// Must follow the seller insert (FK) — the ads rail is the anon `GET /ads/live` projection.
-sql.push(inserts(
-  'sellers.sellers',
-  ['seller_id', 'business_name', 'owner_name', 'category', 'state_code', 'district_code', 'status'],
-  DEMO_SELLERS.map((s) => [q(s.id), q(s.businessName), q(s.ownerName), APP(s.app), q(s.state), q(s.district), `'ACTIVE'::seller_status`]),
-));
+// ---------------------------------------------------------------- sponsored ads + hero campaigns
+// Follow the seller insert (FK) — the ads rail is the anon `GET /ads/live` projection.
 sql.push(inserts(
   'ads.sponsored_slots',
   ['slot_id', 'seller_id', 'product_id', 'placement', 'status', 'impressions', 'clicks', 'orders_attributed'],
@@ -528,7 +566,7 @@ function assertLeanContract() {
   // Sponsored slots must reference a real catalog row + a seeded seller, or the app's
   // `getProductsByIds` join silently drops a paid placement (and `ads.sponsored_slots.seller_id` FK).
   const catalogIds = new Set(d.catalogIndex.map((e) => e.id));
-  const sellerIds = new Set(DEMO_SELLERS.map((s) => s.id));
+  const sellerIds = new Set(SELLER_ACCOUNTS.map((s) => s.id));
   for (const a of SPONSORED_SLOTS) {
     if (!catalogIds.has(a.productId)) violations.push(`sponsored slot ${a.slotId}: product ${a.productId} not in catalogIndex`);
     if (!sellerIds.has(a.sellerId)) violations.push(`sponsored slot ${a.slotId}: seller ${a.sellerId} not seeded`);

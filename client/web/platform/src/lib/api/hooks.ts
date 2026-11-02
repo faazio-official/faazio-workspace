@@ -102,6 +102,62 @@ export function useStores(filter: { sellerId?: string | undefined; stateCode?: s
   return useMemo(() => api.listStores(filter), [stores, key]);
 }
 
+/**
+ * The caller's real vendors (`GET /seller/stores`) — the data source for the seller console switcher
+ * and for scoping seller pages to one shop. Empty when the gateway is unconfigured (local dev).
+ */
+export function useSellerStores(): { stores: api.SellerStoreSummary[]; loading: boolean } {
+  const [stores, setStores] = useState<api.SellerStoreSummary[]>([]);
+  const [loading, setLoading] = useState(false);
+  useEffect(() => {
+    if (!remoteConfigured()) {
+      setStores([]);
+      return;
+    }
+    let cancelled = false;
+    setLoading(true);
+    api
+      .fetchSellerStores()
+      .then((rows) => {
+        if (!cancelled) setStores(rows);
+      })
+      .catch(() => {
+        if (!cancelled) setStores([]);
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+  return { stores, loading };
+}
+
+/**
+ * Resolves the active vendor for the console: the persisted `activeStoreId` when it still exists among
+ * the caller's vendors, else the first vendor. Returns the vendor plus a setter.
+ */
+export function useActiveStore(): {
+  stores: api.SellerStoreSummary[];
+  loading: boolean;
+  activeStore: api.SellerStoreSummary | null;
+  setActiveStoreId: (id: string | null) => void;
+} {
+  const { stores, loading } = useSellerStores();
+  const activeStoreId = usePortalStore((s) => s.activeStoreId);
+  const setActiveStoreId = usePortalStore((s) => s.setActiveStoreId);
+  // Restore the vendor the native seller shell had active (window.__faazio.vendorId) on first load.
+  useEffect(() => {
+    if (activeStoreId || stores.length === 0) return;
+    const injected = typeof window !== "undefined" ? window.__faazio?.vendorId : undefined;
+    if (injected && stores.some((s) => s.storeId === injected)) setActiveStoreId(injected);
+  }, [activeStoreId, stores, setActiveStoreId]);
+  const activeStore =
+    stores.find((s) => s.storeId === activeStoreId) ?? (stores.length > 0 ? stores[0]! : null);
+  return { stores, loading, activeStore, setActiveStoreId };
+}
+
 export function useCampaigns(filter: { stateCode?: string | undefined } = {}) {
   const campaigns = usePortalStore((s) => s.campaigns);
   const key = JSON.stringify(filter);

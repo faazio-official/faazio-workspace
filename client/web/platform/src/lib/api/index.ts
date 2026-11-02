@@ -798,23 +798,68 @@ export interface SellerStoreSummary {
   name: string;
   sector: Sector;
   isLive: boolean;
+  /** Per-vendor platform fee (0069) — the fee is a property of the shop, not the account. */
+  platformFeePct: number;
+  sellerCategoryId?: string;
 }
 
 /**
  * The caller's real store rows. Used by the create-listing flow because the gateway only accepts a
- * store the logged-in seller owns; the local seed directory can diverge from production ids.
+ * store the logged-in seller owns; the local seed directory can diverge from production ids. Also the
+ * data source for the seller console vendor switcher.
  */
 export async function fetchSellerStores(): Promise<SellerStoreSummary[]> {
   if (!remoteConfigured()) return [];
-  const rows = await remote.get<{ id: string; name: string; app: string; isLive?: boolean }[]>(
-    "/seller/stores",
-  );
+  const rows = await remote.get<
+    { id: string; name: string; app: string; isLive?: boolean; platformFeePct?: number; sellerCategoryId?: string }[]
+  >("/seller/stores");
   return rows.map((row) => ({
     storeId: row.id,
     name: row.name,
     sector: row.app as Sector,
     isLive: row.isLive !== false,
+    platformFeePct: row.platformFeePct ?? 10,
+    ...(row.sellerCategoryId ? { sellerCategoryId: row.sellerCategoryId } : {}),
   }));
+}
+
+/* --------------------------- reference data ------------------------------ */
+
+/** One state/UT from `GET /geo/states` (admins.states — the DB is the authority; no client literals). */
+export interface StateSummary {
+  stateCode: string;
+  name: string;
+  kind: "STATE" | "UT";
+}
+
+/** One app brand from `GET /geo/apps` (ops.app_brand). */
+export interface AppBrandSummary {
+  brand: Sector;
+  label: string;
+}
+
+/** One ad placement from `GET /ads/placements` (ads.placements). */
+export interface PlacementSummary {
+  placement: string;
+  label: string;
+  reachNote: string;
+  apps: Sector[];
+  targetTypes: string[];
+}
+
+export async function fetchStates(): Promise<StateSummary[]> {
+  if (!remoteConfigured()) return [];
+  return remote.get<StateSummary[]>("/geo/states");
+}
+
+export async function fetchApps(): Promise<AppBrandSummary[]> {
+  if (!remoteConfigured()) return [];
+  return remote.get<AppBrandSummary[]>("/geo/apps");
+}
+
+export async function fetchPlacements(): Promise<PlacementSummary[]> {
+  if (!remoteConfigured()) return [];
+  return remote.get<PlacementSummary[]>("/ads/placements");
 }
 
 export function updateStore(storeId: string, patch: Partial<import("@/data/types").StoreRecord>): void {

@@ -5,6 +5,7 @@ import (
 	"crypto/hmac"
 	"crypto/sha256"
 	"encoding/hex"
+	"errors"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -12,18 +13,16 @@ import (
 	"testing"
 )
 
-func TestNewWithoutCredentialsIsMock(t *testing.T) {
+func TestNewWithoutCredentialsIsDisabled(t *testing.T) {
 	g := New("", "", "")
 	if g.Enabled() {
-		t.Fatal("empty credentials must run in mock mode")
+		t.Fatal("empty credentials must be disabled, not enabled")
 	}
-	id, err := g.CreateLinkedAccount(context.Background(), LinkedAccountInput{})
-	if err != nil || !strings.HasPrefix(id, "acc_mock_") {
-		t.Fatalf("mock linked account = %q err=%v", id, err)
+	if _, err := g.CreateLinkedAccount(context.Background(), LinkedAccountInput{}); !errors.Is(err, ErrUnavailable) {
+		t.Fatalf("disabled linked account err = %v, want ErrUnavailable", err)
 	}
-	tr, err := g.CreateTransfer(context.Background(), TransferInput{})
-	if err != nil || !strings.HasPrefix(tr, "trf_mock_") {
-		t.Fatalf("mock transfer = %q err=%v", tr, err)
+	if _, err := g.CreateTransfer(context.Background(), TransferInput{}); !errors.Is(err, ErrUnavailable) {
+		t.Fatalf("disabled transfer err = %v, want ErrUnavailable", err)
 	}
 }
 

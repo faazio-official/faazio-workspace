@@ -863,6 +863,9 @@ Before the portal hydrates, the shell injects `window.__faazio = { app: 'seller'
 via `injectedJavaScriptBeforeContentLoaded`; the portal reads it (never the user-agent) to detect the
 native seller app, restrict routes to seller scope and **reject admin sign-in** (a non-`SELLER` role
 is signed straight back out with a generic invalid-credentials message — see `web-portal.md`). The
+context may also carry an optional `vendorId` (`window.__faazio.vendorId`) — the vendor the console was
+last scoped to — so the portal's `activeStoreId` restores the same shop across WebView reloads (the
+seller-console vendor switcher itself is owned by the portal; 0068–0073). The
 native shell also refuses to load any `/admin/*` portal URL, rendering the branded "Not available in
 the Faazio Seller app" block with a **Back to sign in** action instead. No internet / an unreachable
 portal renders a branded Faazio state with **Try again** (native side) instead of a white WebView; a

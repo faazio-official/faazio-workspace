@@ -299,10 +299,13 @@ func (r *Repo) ProductOwnedBy(ctx context.Context, productID, sellerID string) (
 		return false, fmt.Errorf("promo: database not configured")
 	}
 	var ok bool
+	// Ownership derives through the vendor store (0070 dropped catalog.products.seller_id): a product
+	// belongs to whoever owns the store it is listed under.
 	err := r.pool.QueryRow(ctx, `
 		select exists (
-			select 1 from catalog.products
-			 where id = $1 and seller_id = $2)`, productID, sellerID).Scan(&ok)
+			select 1 from catalog.products p
+			  join directory.stores st on st.id = p.store_id
+			 where p.id = $1 and st.seller_id = $2)`, productID, sellerID).Scan(&ok)
 	return ok, err
 }
 

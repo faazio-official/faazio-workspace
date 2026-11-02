@@ -19,6 +19,9 @@ export interface FaazioAppContext {
   app?: FaazioAppVariant;
   platform?: FaazioPlatform;
   webview?: boolean;
+  /** The vendor (directory.stores id) the native seller shell last had active, so the console can
+   *  restore the same shop context across WebView reloads. Undefined for browser sessions. */
+  vendorId?: string;
 }
 
 declare global {

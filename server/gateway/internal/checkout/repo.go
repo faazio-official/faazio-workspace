@@ -693,7 +693,7 @@ func (r *Repo) ProductSnapshots(ctx context.Context, ids []string) (map[string]P
 	}
 	rows, err := r.pool.Query(ctx, `
 		select p.id, p.name, p.app::text, p.category, p.price_paisa,
-		       coalesce(p.seller_id, s.seller_id, ''), p.store_id
+		       coalesce(s.seller_id, ''), p.store_id
 		  from catalog.products p
 		  left join directory.stores s on s.id = p.store_id
 		 where p.id = any($1)`, ids)
@@ -820,6 +820,42 @@ func (r *Repo) StoreCoordinates(ctx context.Context, storeIDs []string) (map[str
 			return nil, err
 		}
 		out[id] = c
+	}
+	return out, rows.Err()
+}
+
+// StoreFeeProfile is the per-vendor commercial identity needed for commission and invoicing. The fee
+// is a property of the SHOP (0069), not of the seller account, so checkout resolves it per vendor.
+type StoreFeeProfile struct {
+	StoreID        string
+	SellerID       string
+	PlatformFeePct int
+}
+
+// StoreFeeProfiles returns the platform fee for each vendor store, keyed by store id. A store with no
+// owning seller is not returned (it cannot be paid out).
+func (r *Repo) StoreFeeProfiles(ctx context.Context, storeIDs []string) (map[string]StoreFeeProfile, error) {
+	if r.pool == nil {
+		return nil, fmt.Errorf("checkout: database not configured")
+	}
+	out := map[string]StoreFeeProfile{}
+	if len(storeIDs) == 0 {
+		return out, nil
+	}
+	rows, err := r.pool.Query(ctx, `
+		select id, seller_id, platform_fee_pct
+		  from directory.stores
+		 where id = any($1) and seller_id is not null and seller_id <> ''`, storeIDs)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var p StoreFeeProfile
+		if err := rows.Scan(&p.StoreID, &p.SellerID, &p.PlatformFeePct); err != nil {
+			return nil, err
+		}
+		out[p.StoreID] = p
 	}
 	return out, rows.Err()
 }

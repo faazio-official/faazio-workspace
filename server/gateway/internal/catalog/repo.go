@@ -347,15 +347,19 @@ type SellerProduct struct {
 	UpdatedAt      string `json:"updatedAt"`
 }
 
+// sellerProductSelect projects a product with its owner derived through the vendor store. Ownership
+// lives on directory.stores only (0070 dropped catalog.products.seller_id), so every seller-scoped
+// read joins the store rather than trusting a duplicated column.
 const sellerProductSelect = `
-select p.id, p.name, p.app::text, p.category, p.status::text, coalesce(p.seller_id,''),
+select p.id, p.name, p.app::text, p.category, p.status::text, coalesce(st.seller_id,''),
        coalesce(p.store_id,''), p.price_paisa, p.mrp_paisa,
        coalesce(p.desc_text,''), coalesce(p.unit,''), coalesce(p.emoji,''),
        coalesce(p.image_url,''), coalesce(p.image_key,''), p.is_veg, p.is_prescription,
        coalesce(s.in_stock_qty, 0), coalesce(s.available, true), coalesce(s.eta, ''),
        p.updated_at
 from catalog.products p
-left join inventory.stock s on s.product_id = p.id`
+left join inventory.stock s on s.product_id = p.id
+left join directory.stores st on st.id = p.store_id`
 
 // SellerProducts lists a seller's products (status "" = all), newest edit first.
 // SellerProducts lists products scoped to a seller or a district. A district admin passes
@@ -366,10 +370,10 @@ func (r *Repo) SellerProducts(ctx context.Context, sellerID, district, status st
 		return nil, fmt.Errorf("catalog: database not configured")
 	}
 	rows, err := r.pool.Query(ctx, sellerProductSelect+`
-		where ($1 = '' or p.seller_id = $1)
+		where ($1 = '' or st.seller_id = $1)
 		  and ($2 = '' or exists (
 		         select 1 from sellers.sellers se
-		          where se.seller_id = p.seller_id and se.district_code = $2))
+		          where se.seller_id = st.seller_id and se.district_code = $2))
 		  and ($3 = '' or p.status::text = $3)
 		order by p.updated_at desc`, sellerID, district, status)
 	if err != nil {
@@ -391,14 +395,15 @@ func (r *Repo) SetProductStatus(ctx context.Context, id, sellerID, district, sta
 	)
 	err := r.pool.QueryRow(ctx, `
 		update catalog.products p set status = $4::product_status
-		 where p.id = $1 and (
-		       ($2 <> '' and p.seller_id = $2) or
+		 from directory.stores st
+		 where p.id = $1 and st.id = p.store_id and (
+		       ($2 <> '' and st.seller_id = $2) or
 		       ($3 <> '' and exists (
 		          select 1 from sellers.sellers se
-		           where se.seller_id = p.seller_id and se.district_code = $3)) or
+		           where se.seller_id = st.seller_id and se.district_code = $3)) or
 		       ($2 = '' and $3 = ''))
 		 returning p.id, p.name, p.app::text, p.category, p.status::text,
-		           coalesce(p.seller_id,''), coalesce(p.store_id,''), p.price_paisa, p.updated_at`,
+		           coalesce(st.seller_id,''), coalesce(p.store_id,''), p.price_paisa, p.updated_at`,
 		id, sellerID, district, status).
 		Scan(&p.ID, &p.Name, &p.App, &p.Category, &p.Status, &p.SellerID, &p.StoreID, &p.Price, &updatedAt)
 	if err != nil {
@@ -494,15 +499,6 @@ func (r *Repo) CreateProduct(ctx context.Context, sellerID, district string, e P
 		}
 	}
 
-	productSeller := sellerID
-	if productSeller == "" {
-		productSeller = storeSeller
-	}
-	var sellerArg *string
-	if productSeller != "" {
-		sellerArg = &productSeller
-	}
-
 	var attrJSON []byte
 	if e.Attributes != nil {
 		b, err := json.Marshal(e.Attributes)
@@ -519,18 +515,19 @@ func (r *Repo) CreateProduct(ctx context.Context, sellerID, district string, e P
 		v := *e.MRP * 100
 		mrpPaisa = &v
 	}
+	// Ownership is not written here: the product's owner is its store's owner (0070).
 	if _, err := tx.Exec(ctx, `
 		insert into catalog.products
 		  (id, app, category, name, search_tokens, price_paisa, mrp_paisa, rating, reviews_count,
 		   emoji, image_url, image_key, image_asset_id, desc_text, unit, store_id, is_prescription,
-		   is_veg, attributes, seller_id, status)
+		   is_veg, attributes, status)
 		values ($1, $2::app_brand, $3, $4, $5, $6, $7, 0, 0,
 		        $8, $9, $10, $11, $12, $13, $14, $15,
-		        $16, $17, $18, 'PENDING_REVIEW'::product_status)`,
+		        $16, $17, 'PENDING_REVIEW'::product_status)`,
 		id, app, category, name, searchTokens(name, category, e.Desc), pricePaisa, mrpPaisa,
 		strings.TrimSpace(e.Emoji), strings.TrimSpace(e.ImageURL), e.ImageKey, e.ImageAssetID,
 		strings.TrimSpace(e.Desc), strings.TrimSpace(e.Unit), storeID, e.IsPrescription, e.IsVeg,
-		attrJSON, sellerArg); err != nil {
+		attrJSON); err != nil {
 		return SellerProduct{}, false, err
 	}
 	if _, err := tx.Exec(ctx, `
@@ -607,9 +604,10 @@ func (r *Repo) UpdateProduct(ctx context.Context, id, sellerID, district string,
 		ownerDistrict string
 	)
 	if err := tx.QueryRow(ctx, `
-		select p.seller_id, coalesce(se.district_code, '')
+		select st.seller_id, coalesce(se.district_code, '')
 		  from catalog.products p
-		  left join sellers.sellers se on se.seller_id = p.seller_id
+		  join directory.stores st on st.id = p.store_id
+		  left join sellers.sellers se on se.seller_id = st.seller_id
 		 where p.id = $1
 		 for update of p`, id).Scan(&owner, &ownerDistrict); err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {

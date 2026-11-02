@@ -23,6 +23,7 @@ import { FaazioWordmark } from "@/components/brand/FaazioWordmark";
 import { ThemeMenu } from "@/components/layout/ThemeToggle";
 import { SellerPushBridge } from "@/components/layout/SellerPushBridge";
 import { ComponentHelp } from "@/components/patterns/ComponentHelp";
+import { VendorSwitcher } from "@/components/layout/VendorSwitcher";
 
 export function SellerShell({ children }: { children: ReactNode }) {
   const [collapsed, setCollapsed] = useState(false);
@@ -148,6 +149,7 @@ export function SellerShell({ children }: { children: ReactNode }) {
               />
             </div>
             <div className="ml-auto flex items-center gap-1">
+              <VendorSwitcher />
               <ThemeMenu />
               <Button variant="ghost" size="icon" aria-label="Notifications">
                 <Bell className="size-4" />

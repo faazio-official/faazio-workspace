@@ -4,6 +4,8 @@ package directory
 
 import (
 	"context"
+	"crypto/rand"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"math"
@@ -391,31 +393,26 @@ type SellerStore struct {
 	IsLive    bool    `json:"isLive"`
 	Rating    float64 `json:"rating"`
 	UpdatedAt string  `json:"updatedAt"`
+	// Per-vendor commercial identity (0069): the fee is a property of the shop, not the account.
+	PlatformFeePct   int    `json:"platformFeePct"`
+	SellerCategoryID string `json:"sellerCategoryId,omitempty"`
 	// Public geo pin, returned by SetStoreLive so the handler can flush the store's geo:nearby
 	// tiles. Internal only (never serialized).
 	Latitude  float64 `json:"-"`
 	Longitude float64 `json:"-"`
 }
 
-// MenuOrVenueSeller resolves the seller that owns a menu row or, when the dish is new, the venue.
-// The dish owner wins so a multi-seller venue never misattributes an existing row; otherwise the
-// store owner is used, and finally any existing menu row for the venue. ok=false means the venue
-// has no seller at all (a dining venue with no store/menu owner is SUPER_ADMIN-only).
+// MenuOrVenueSeller resolves the seller that owns a menu row's venue. Ownership derives through the
+// vendor store (0070 dropped directory.menus.seller_id): a menu belongs to whoever owns the store it
+// is served from. ok=false means the venue has no owning store — a dining venue, which is
+// restaurant-only and not seller-bound, so it is SUPER_ADMIN-only.
 func (r *Repo) MenuOrVenueSeller(ctx context.Context, venueID, dishID string) (string, bool, error) {
 	if r.pool == nil {
 		return "", false, fmt.Errorf("directory: database not configured")
 	}
 	var sellerID *string
 	err := r.pool.QueryRow(ctx, `
-		select coalesce(
-		         (select seller_id from directory.menus
-		           where venue_id = $1 and dish_id = $2
-		             and seller_id is not null and seller_id <> ''),
-		         (select seller_id from directory.stores
-		           where id = $1 and seller_id is not null and seller_id <> ''),
-		         (select seller_id from directory.menus
-		           where venue_id = $1 and seller_id is not null and seller_id <> ''
-		           order by dish_id asc limit 1))`, venueID, dishID).Scan(&sellerID)
+		select seller_id from directory.stores where id = $1`, venueID).Scan(&sellerID)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return "", false, nil
@@ -449,7 +446,8 @@ func (r *Repo) SellerStores(ctx context.Context, sellerID, district string) ([]S
 		return nil, fmt.Errorf("directory: database not configured")
 	}
 	rows, err := r.pool.Query(ctx, `
-		select id, name, app::text, coalesce(seller_id,''), coalesce(state_code,''), is_live, rating, updated_at
+		select id, name, app::text, coalesce(seller_id,''), coalesce(state_code,''), is_live, rating, updated_at,
+		       platform_fee_pct, coalesce(seller_category_id,'')
 		  from directory.stores s
 		 where ($1 = '' or s.seller_id = $1)
 		   and ($2 = '' or exists (
@@ -466,7 +464,8 @@ func (r *Repo) SellerStores(ctx context.Context, sellerID, district string) ([]S
 			s         SellerStore
 			updatedAt time.Time
 		)
-		if err := rows.Scan(&s.ID, &s.Name, &s.App, &s.SellerID, &s.StateCode, &s.IsLive, &s.Rating, &updatedAt); err != nil {
+		if err := rows.Scan(&s.ID, &s.Name, &s.App, &s.SellerID, &s.StateCode, &s.IsLive, &s.Rating, &updatedAt,
+			&s.PlatformFeePct, &s.SellerCategoryID); err != nil {
 			return nil, err
 		}
 		s.Rating = math.Round(s.Rating*10) / 10
@@ -542,6 +541,141 @@ func (r *Repo) SetStoreCover(ctx context.Context, id, sellerID, district, key, a
 	return s, true, nil
 }
 
+// sellerStoreColumns is the shared projection for vendor writes (CreateStore/UpdateStore/SetStoreFee).
+const sellerStoreColumns = `s.id, s.name, s.app::text, coalesce(s.seller_id,''), coalesce(s.state_code,''),
+	s.is_live, s.rating, s.updated_at, s.platform_fee_pct, coalesce(s.seller_category_id,'')`
+
+func scanSellerStore(row pgx.Row) (SellerStore, error) {
+	var (
+		s         SellerStore
+		updatedAt time.Time
+	)
+	if err := row.Scan(&s.ID, &s.Name, &s.App, &s.SellerID, &s.StateCode, &s.IsLive, &s.Rating, &updatedAt,
+		&s.PlatformFeePct, &s.SellerCategoryID); err != nil {
+		return SellerStore{}, err
+	}
+	s.Rating = math.Round(s.Rating*10) / 10
+	s.UpdatedAt = updatedAt.UTC().Format(time.RFC3339)
+	return s, nil
+}
+
+// VendorInput is the create/edit payload for a vendor (directory.stores). Commercial fields
+// (platform fee, taxonomy category, FSSAI) belong to the shop, not the account.
+type VendorInput struct {
+	Name      string
+	App       string
+	StateCode string
+	Address   string
+	Phone     string
+	Hours     string
+	Latitude  *float64
+	Longitude *float64
+	// PlatformFeePct 0 means "keep existing" on update; on create 0 falls back to the default.
+	PlatformFeePct   int
+	SellerCategoryID string
+	FSSAINumber      string
+	FSSAICertKey     string
+	FSSAICertAssetID string
+	IsLive           *bool
+}
+
+// CreateStore inserts a vendor owned by sellerID under the caller's scope. stateCode is the owning
+// account's state (the shop inherits it); app is the vendor's brand.
+func (r *Repo) CreateStore(ctx context.Context, sellerID, stateCode string, in VendorInput) (SellerStore, error) {
+	if r.pool == nil {
+		return SellerStore{}, fmt.Errorf("directory: database not configured")
+	}
+	fee := in.PlatformFeePct
+	if fee == 0 {
+		fee = 10
+	}
+	live := true
+	if in.IsLive != nil {
+		live = *in.IsLive
+	}
+	return scanSellerStore(r.pool.QueryRow(ctx, `
+		insert into directory.stores
+		  (id, app, name, seller_id, state_code, address, phone, hours, latitude, longitude,
+		   platform_fee_pct, seller_category_id, fssai_number, fssai_cert_key, fssai_cert_asset_id, is_live)
+		values ($1, $2::app_brand, $3, $4, nullif($5,''), nullif($6,''), nullif($7,''), nullif($8,''),
+		        $9, $10, $11, nullif($12,''), $13, $14, $15, $16)
+		returning `+sellerStoreColumns,
+		"store-"+storeID(), in.App, in.Name, sellerID, stateCode, in.Address, in.Phone, in.Hours,
+		in.Latitude, in.Longitude, fee, in.SellerCategoryID, in.FSSAINumber, in.FSSAICertKey,
+		in.FSSAICertAssetID, live))
+}
+
+// UpdateStore edits a vendor, scoped to the caller's seller_id or district (strict) exactly like
+// SetStoreLive. Empty optional fields keep their existing value; PlatformFeePct 0 keeps the current
+// fee.
+func (r *Repo) UpdateStore(ctx context.Context, id, sellerID, district string, in VendorInput) (SellerStore, bool, error) {
+	if r.pool == nil {
+		return SellerStore{}, false, fmt.Errorf("directory: database not configured")
+	}
+	s, err := scanSellerStore(r.pool.QueryRow(ctx, `
+		update directory.stores s set
+		  name = coalesce(nullif($3,''), s.name),
+		  address = coalesce(nullif($4,''), s.address),
+		  phone = coalesce(nullif($5,''), s.phone),
+		  hours = coalesce(nullif($6,''), s.hours),
+		  latitude = coalesce($7, s.latitude),
+		  longitude = coalesce($8, s.longitude),
+		  platform_fee_pct = case when $9 = 0 then s.platform_fee_pct else $9 end,
+		  seller_category_id = coalesce(nullif($10,''), s.seller_category_id),
+		  fssai_number = coalesce(nullif($11,''), s.fssai_number),
+		  fssai_cert_key = coalesce(nullif($12,''), s.fssai_cert_key),
+		  fssai_cert_asset_id = coalesce(nullif($13,''), s.fssai_cert_asset_id),
+		  is_live = coalesce($14, s.is_live),
+		  updated_at = now()
+		 where s.id = $1 and (
+		       ($2 <> '' and s.seller_id = $2) or
+		       ($15 <> '' and exists (
+		          select 1 from sellers.sellers se
+		           where se.seller_id = s.seller_id and se.district_code = $15)) or
+		       ($2 = '' and $15 = ''))
+		 returning `+sellerStoreColumns,
+		id, sellerID, in.Name, in.Address, in.Phone, in.Hours, in.Latitude, in.Longitude,
+		in.PlatformFeePct, in.SellerCategoryID, in.FSSAINumber, in.FSSAICertKey, in.FSSAICertAssetID,
+		in.IsLive, district))
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return SellerStore{}, false, nil
+		}
+		return SellerStore{}, false, err
+	}
+	return s, true, nil
+}
+
+// SetStoreFee sets a vendor's platform fee, scoped like SetStoreLive. The fee is per shop (0069).
+func (r *Repo) SetStoreFee(ctx context.Context, id, sellerID, district string, pct int) (SellerStore, bool, error) {
+	if r.pool == nil {
+		return SellerStore{}, false, fmt.Errorf("directory: database not configured")
+	}
+	s, err := scanSellerStore(r.pool.QueryRow(ctx, `
+		update directory.stores s set platform_fee_pct = $3, updated_at = now()
+		 where s.id = $1 and (
+		       ($2 <> '' and s.seller_id = $2) or
+		       ($4 <> '' and exists (
+		          select 1 from sellers.sellers se
+		           where se.seller_id = s.seller_id and se.district_code = $4)) or
+		       ($2 = '' and $4 = ''))
+		 returning `+sellerStoreColumns,
+		id, sellerID, pct, district))
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return SellerStore{}, false, nil
+		}
+		return SellerStore{}, false, err
+	}
+	return s, true, nil
+}
+
+func storeID() string {
+	b := make([]byte, 5)
+	_, _ = rand.Read(b)
+	return hex.EncodeToString(b)
+}
+
 // SellerMenu is the portal-facing menu-management projection (includes seller scope + status).
 type SellerMenu struct {
 	VenueID      string   `json:"venueId"`
@@ -559,10 +693,13 @@ type SellerMenu struct {
 	Status       string   `json:"status"`
 }
 
+// sellerMenuSelect projects a menu row with its owner derived through the vendor store. A dining
+// venue has no directory.stores row, so its dishes carry no owner (empty seller id).
 const sellerMenuSelect = `
 select m.venue_id, m.dish_id, m.name, m.price_paisa, m.mrp_paisa, m.is_veg, m.cuisine, m.rating,
-       m.image, m.image_key, coalesce(m.seller_id,''), m.status::text
-from directory.menus m`
+       m.image, m.image_key, coalesce(st.seller_id,''), m.status::text
+from directory.menus m
+left join directory.stores st on st.id = m.venue_id`
 
 // SellerMenus lists menus scoped by seller, district and/or venue. A district admin passes
 // district (strict); a seller passes sellerID; a super admin passes neither and sees all.
@@ -571,10 +708,10 @@ func (r *Repo) SellerMenus(ctx context.Context, sellerID, district, venueID stri
 		return nil, fmt.Errorf("directory: database not configured")
 	}
 	rows, err := r.pool.Query(ctx, sellerMenuSelect+`
-		where ($1 = '' or m.seller_id = $1)
+		where ($1 = '' or st.seller_id = $1)
 		  and ($2 = '' or exists (
 		         select 1 from sellers.sellers se
-		          where se.seller_id = m.seller_id and se.district_code = $2))
+		          where se.seller_id = st.seller_id and se.district_code = $2))
 		  and ($3 = '' or m.venue_id = $3)
 		order by m.venue_id asc, m.name asc`, sellerID, district, venueID)
 	if err != nil {
@@ -640,17 +777,20 @@ func (r *Repo) UpsertMenu(ctx context.Context, m SellerMenu, sellerID string, al
 		imageKey *string
 	)
 	err := r.pool.QueryRow(ctx, `
-		insert into directory.menus (venue_id, dish_id, name, price_paisa, mrp_paisa, is_veg, cuisine, rating, image, image_key, image_asset_id, seller_id, status)
-		values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,'DRAFT')
+		insert into directory.menus (venue_id, dish_id, name, price_paisa, mrp_paisa, is_veg, cuisine, rating, image, image_key, image_asset_id, status)
+		values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,'DRAFT')
 		on conflict (venue_id, dish_id) do update
 		   set name = excluded.name, price_paisa = excluded.price_paisa, mrp_paisa = excluded.mrp_paisa,
 		       is_veg = excluded.is_veg, cuisine = excluded.cuisine, rating = excluded.rating,
 		       image = excluded.image, image_key = excluded.image_key, image_asset_id = excluded.image_asset_id
-		 where $13 or directory.menus.seller_id = $12
+		 where $12 or exists (
+		         select 1 from directory.stores st
+		          where st.id = directory.menus.venue_id and st.seller_id = $13)
 		returning venue_id, dish_id, name, price_paisa, mrp_paisa, is_veg, cuisine, rating, image, image_key,
-		          coalesce(seller_id,''), status::text`,
+		          coalesce((select st.seller_id from directory.stores st where st.id = directory.menus.venue_id), ''),
+		          status::text`,
 		m.VenueID, m.DishID, m.Name, m.Price*100, paisaPtr(m.MRP), m.IsVeg, nullIfEmpty(m.Cuisine), m.Rating, m.Image,
-		nullIfEmpty(m.ImageKey), nullIfEmpty(m.ImageAssetID), sellerID, all).
+		nullIfEmpty(m.ImageKey), nullIfEmpty(m.ImageAssetID), all, sellerID).
 		Scan(&out.VenueID, &out.DishID, &out.Name, &out.Price, &mrp, &isVeg, &cuisine, &rating, &out.Image, &imageKey, &out.SellerID, &out.Status)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
@@ -685,9 +825,13 @@ func (r *Repo) SetMenuStatus(ctx context.Context, venueID, dishID, sellerID, sta
 	)
 	err := r.pool.QueryRow(ctx, `
 		update directory.menus set status = $4::product_status
-		 where venue_id = $1 and dish_id = $2 and ($5 or seller_id = $3)
+		 where venue_id = $1 and dish_id = $2
+		   and ($5 or exists (
+		          select 1 from directory.stores st
+		           where st.id = directory.menus.venue_id and st.seller_id = $3))
 		 returning venue_id, dish_id, name, price_paisa, mrp_paisa, is_veg, cuisine, rating, image,
-		           coalesce(seller_id,''), status::text`,
+		           coalesce((select st.seller_id from directory.stores st where st.id = directory.menus.venue_id), ''),
+		           status::text`,
 		venueID, dishID, sellerID, status, all).
 		Scan(&m.VenueID, &m.DishID, &m.Name, &m.Price, &mrp, &isVeg, &cuisine, &rating, &m.Image, &m.SellerID, &m.Status)
 	if err != nil {
@@ -713,7 +857,10 @@ func (r *Repo) DeleteMenu(ctx context.Context, venueID, dishID, sellerID string,
 	}
 	tag, err := r.pool.Exec(ctx, `
 		delete from directory.menus
-		 where venue_id = $1 and dish_id = $2 and ($3 or seller_id = $4)`,
+		 where venue_id = $1 and dish_id = $2
+		   and ($3 or exists (
+		          select 1 from directory.stores st
+		           where st.id = directory.menus.venue_id and st.seller_id = $4))`,
 		venueID, dishID, all, sellerID)
 	if err != nil {
 		return false, err

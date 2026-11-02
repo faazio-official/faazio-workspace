@@ -46,6 +46,10 @@ func (h *Handler) Register(r chi.Router) {
 	r.Group(func(g chi.Router) {
 		g.Use(auth.RequireRole(auth.RoleSeller, auth.RoleStateAdmin, auth.RoleSuperAdmin))
 		g.Get("/seller/stores", h.sellerStores)
+		// Vendor (shop) creation + edits. Commercial fields (fee/category/FSSAI) are per vendor.
+		g.Post("/seller/stores", h.createStore)
+		g.Put("/seller/stores/{id}", h.updateStore)
+		g.Put("/seller/stores/{id}/fee", h.setStoreFee)
 		g.Put("/seller/stores/{id}/live", h.setStoreLive)
 		g.Put("/seller/stores/{id}/cover", h.setStoreCover)
 		g.Get("/seller/menus", h.sellerMenus)
@@ -304,6 +308,184 @@ func (h *Handler) sellerStores(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	httpx.JSON(w, http.StatusOK, items)
+}
+
+type vendorRequest struct {
+	Name             string   `json:"name"`
+	App              string   `json:"app"`
+	StateCode        string   `json:"stateCode"`
+	SellerID         string   `json:"sellerId"`
+	Address          string   `json:"address"`
+	Phone            string   `json:"phone"`
+	Hours            string   `json:"hours"`
+	Latitude         *float64 `json:"latitude"`
+	Longitude        *float64 `json:"longitude"`
+	PlatformFeePct   int      `json:"platformFeePct"`
+	SellerCategoryID string   `json:"sellerCategoryId"`
+	FSSAINumber      string   `json:"fssaiNumber"`
+	FSSAIFileKey     string   `json:"fssaiFileKey"`
+	FSSAIAssetID     string   `json:"fssaiAssetId"`
+	IsLive           *bool    `json:"isLive"`
+}
+
+// createStore creates a vendor owned by the calling seller (or a super admin naming sellerId). The
+// vendor's brand/fee/category/FSSAI are set here; the owning account stays brand-agnostic.
+func (h *Handler) createStore(w http.ResponseWriter, r *http.Request) {
+	var req vendorRequest
+	if err := httpx.Decode(r, &req); err != nil {
+		httpx.Fail(w, http.StatusBadRequest, "bad_request", "invalid request body")
+		return
+	}
+	req.App = strings.ToUpper(strings.TrimSpace(req.App))
+	req.StateCode = strings.ToUpper(strings.TrimSpace(req.StateCode))
+	req.FSSAINumber = strings.TrimSpace(req.FSSAINumber)
+	if strings.TrimSpace(req.Name) == "" || !validVendorApp(req.App) {
+		httpx.Fail(w, http.StatusBadRequest, "bad_request", "name and app are required")
+		return
+	}
+	if req.PlatformFeePct != 0 && !validVendorFee(req.App, req.PlatformFeePct) {
+		httpx.Fail(w, http.StatusBadRequest, "bad_request", "platform fee is outside the allowed range for this app")
+		return
+	}
+	if !validLatLngPtr(req.Latitude, req.Longitude) {
+		httpx.Fail(w, http.StatusBadRequest, "bad_request", "shop location is invalid")
+		return
+	}
+	if req.App == "FOOD" && req.FSSAINumber == "" {
+		httpx.Fail(w, http.StatusBadRequest, "bad_request", "fssai number is required for food vendors")
+		return
+	}
+
+	sellerID := auth.SellerID(r.Context())
+	stateCode := auth.StateCode(r.Context())
+	if auth.Role(r.Context()) == auth.RoleSuperAdmin {
+		if v := strings.TrimSpace(req.SellerID); v != "" {
+			sellerID = v
+		}
+		if v := strings.ToUpper(strings.TrimSpace(req.StateCode)); v != "" {
+			stateCode = v
+		}
+	}
+	if sellerID == "" {
+		httpx.Fail(w, http.StatusForbidden, "forbidden", "no seller scope on this account")
+		return
+	}
+	store, err := h.repo.CreateStore(r.Context(), sellerID, stateCode, VendorInput{
+		Name: req.Name, App: req.App, Address: req.Address, Phone: req.Phone, Hours: req.Hours,
+		Latitude: req.Latitude, Longitude: req.Longitude, PlatformFeePct: req.PlatformFeePct,
+		SellerCategoryID: strings.TrimSpace(req.SellerCategoryID), FSSAINumber: req.FSSAINumber,
+		FSSAICertKey: strings.TrimSpace(req.FSSAIFileKey), FSSAICertAssetID: strings.TrimSpace(req.FSSAIAssetID),
+		IsLive: req.IsLive,
+	})
+	if err != nil {
+		httpx.Fail(w, http.StatusInternalServerError, "vendor_create_failed", "could not create vendor")
+		return
+	}
+	h.log(r, "directory.stores", "STORE_CREATE", store.ID)
+	httpx.JSON(w, http.StatusCreated, store)
+}
+
+// updateStore edits a vendor's profile/commercial fields, scoped to the owner (or an admin).
+func (h *Handler) updateStore(w http.ResponseWriter, r *http.Request) {
+	var req vendorRequest
+	if err := httpx.Decode(r, &req); err != nil {
+		httpx.Fail(w, http.StatusBadRequest, "bad_request", "invalid request body")
+		return
+	}
+	if req.PlatformFeePct != 0 {
+		if app := strings.ToUpper(strings.TrimSpace(req.App)); app != "" && !validVendorFee(app, req.PlatformFeePct) {
+			httpx.Fail(w, http.StatusBadRequest, "bad_request", "platform fee is outside the allowed range for this app")
+			return
+		}
+	}
+	if !validLatLngPtr(req.Latitude, req.Longitude) {
+		httpx.Fail(w, http.StatusBadRequest, "bad_request", "shop location is invalid")
+		return
+	}
+	sellerID, district, scopeOK := managementScope(r)
+	if !scopeOK {
+		httpx.Fail(w, http.StatusForbidden, "forbidden", "no store scope on this account")
+		return
+	}
+	id := chi.URLParam(r, "id")
+	store, ok, err := h.repo.UpdateStore(r.Context(), id, sellerID, district, VendorInput{
+		Name: req.Name, Address: req.Address, Phone: req.Phone, Hours: req.Hours,
+		Latitude: req.Latitude, Longitude: req.Longitude, PlatformFeePct: req.PlatformFeePct,
+		SellerCategoryID: strings.TrimSpace(req.SellerCategoryID), FSSAINumber: strings.TrimSpace(req.FSSAINumber),
+		FSSAICertKey: strings.TrimSpace(req.FSSAIFileKey), FSSAICertAssetID: strings.TrimSpace(req.FSSAIAssetID),
+		IsLive: req.IsLive,
+	})
+	if err != nil {
+		httpx.Fail(w, http.StatusInternalServerError, "vendor_update_failed", "could not update vendor")
+		return
+	}
+	if !ok {
+		httpx.Fail(w, http.StatusNotFound, "not_found", "vendor not found")
+		return
+	}
+	h.cache.Del(r.Context(), cache.Store(id))
+	h.log(r, "directory.stores", "STORE_UPDATE", id)
+	httpx.JSON(w, http.StatusOK, store)
+}
+
+// setStoreFee replaces PATCH /sellers/{id}/platform-fee: the fee is a property of the vendor shop.
+func (h *Handler) setStoreFee(w http.ResponseWriter, r *http.Request) {
+	var body struct {
+		PlatformFeePct int    `json:"platformFeePct"`
+		App            string `json:"app"`
+	}
+	if err := httpx.Decode(r, &body); err != nil {
+		httpx.Fail(w, http.StatusBadRequest, "bad_request", "invalid request body")
+		return
+	}
+	app := strings.ToUpper(strings.TrimSpace(body.App))
+	if app == "" {
+		app = "MART"
+	}
+	if !validVendorFee(app, body.PlatformFeePct) {
+		httpx.Fail(w, http.StatusBadRequest, "bad_request", "platform fee is outside the allowed range for this app")
+		return
+	}
+	sellerID, district, scopeOK := managementScope(r)
+	if !scopeOK {
+		httpx.Fail(w, http.StatusForbidden, "forbidden", "no store scope on this account")
+		return
+	}
+	id := chi.URLParam(r, "id")
+	store, ok, err := h.repo.SetStoreFee(r.Context(), id, sellerID, district, body.PlatformFeePct)
+	if err != nil {
+		httpx.Fail(w, http.StatusInternalServerError, "vendor_update_failed", "could not update platform fee")
+		return
+	}
+	if !ok {
+		httpx.Fail(w, http.StatusNotFound, "not_found", "vendor not found")
+		return
+	}
+	h.log(r, "directory.stores", "STORE_FEE", id)
+	httpx.JSON(w, http.StatusOK, store)
+}
+
+func validVendorApp(a string) bool { return a == "MART" || a == "FOOD" || a == "PHARMA" }
+
+// validVendorFee enforces the product rule: 1–100, floor 5 for FOOD.
+func validVendorFee(app string, pct int) bool {
+	if pct < 1 || pct > 100 {
+		return false
+	}
+	if app == "FOOD" && pct < 5 {
+		return false
+	}
+	return true
+}
+
+func validLatLngPtr(lat, lng *float64) bool {
+	if lat == nil && lng == nil {
+		return true
+	}
+	if lat == nil || lng == nil {
+		return false
+	}
+	return *lat >= -90 && *lat <= 90 && *lng >= -180 && *lng <= 180
 }
 
 func (h *Handler) setStoreLive(w http.ResponseWriter, r *http.Request) {

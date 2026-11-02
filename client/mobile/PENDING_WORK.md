@@ -12,6 +12,29 @@ dependencies exist. Do not build the backend/seller flows until told to.
 
 ---
 
+## W79 — One seller account → many vendors (Mart/Food/Pharma) + console switcher
+
+**Status:** 🟡 Partial. DB (`0068`–`0073`), Go gateway vendor/read endpoints, seeded multi-vendor
+accounts, and the **web portal vendor switcher** (`VendorSwitcher` + `activeStoreId`) are landed.
+
+- **DB:** `directory.stores` is the VENDOR (NOT NULL `seller_id` FK, per-shop `platform_fee_pct` /
+  `seller_category_id` / `fssai_*`); `catalog.products.seller_id` + `directory.menus.seller_id` dropped
+  (ownership derives via the store); `admins.states` / `ops.app_brand` / `ads.placements` created;
+  `sellers.seller_fee_change_requests.store_id` added.
+- **Gateway:** `POST /seller/stores`, `PUT /seller/stores/{id}`, `PUT /seller/stores/{id}/fee`;
+  `GET /geo/states`, `GET /geo/apps`, `GET /ads/placements`; checkout resolves the fee per vendor;
+  `razorpayroute` mock removed (disabled gateway errors instead of fabricating ids).
+- **Remaining:** (1) apply migrations `0068`–`0073` + regenerated seed to Supabase; (2) scope every
+  seller page by `activeStoreId` (16 pages still default `?? "sel-1"`/`"sel-4"`); (3) mobile seller
+  WebView injects an optional `vendorId` for push/deep-link vendor resolution; (4) mobile seller
+  onboarding becomes vendor-scoped (app/fee/FSSAI per vendor) — currently account-level; (5) remove the
+  remaining runtime fixture fallbacks (E3 list); (6) auth dev-bypass (`AUTH_DISABLED` + `X-Dev-*`)
+  removal; (7) settlement still reads the account fee (fallback), to move to the vendor.
+- **Verify:** `server/gateway` `go build ./... && go test ./...` green; portal `tsc --noEmit` green;
+  mobile `ts:check` green.
+
+---
+
 ## W78 — Central superadmin category taxonomy (P0)
 
 **Status:** 🟢 Shipped (DB + gateway + mobile + portal). Migration `0067_categories.sql`.

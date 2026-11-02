@@ -62,6 +62,9 @@ export type SessionStatus = "unknown" | "signed-in" | "reconnecting" | "signed-o
 export interface PortalState {
   session: AuthUser | null;
   sessionStatus: SessionStatus;
+  /** The vendor (directory.stores id) the seller console is currently scoped to. Persisted so a
+   *  reload keeps the seller on the same shop; null means "not chosen yet" (fall back to the first). */
+  activeStoreId: string | null;
   sellers: SellerRecord[];
   kyc: KycDocument[];
   bankAccounts: BankAccount[];
@@ -89,11 +92,13 @@ export interface PortalState {
   rewardRates: RewardsRates;
   rewardLedger: RewardLedgerEntry[];
   set: (updater: (state: PortalState) => Partial<PortalState>) => void;
+  setActiveStoreId: (id: string | null) => void;
 }
 
 const seed = {
   session: null as AuthUser | null,
   sessionStatus: "unknown" as SessionStatus,
+  activeStoreId: null as string | null,
   sellers: SELLERS,
   kyc: KYC_DOCUMENTS,
   bankAccounts: BANK_ACCOUNTS,
@@ -127,6 +132,7 @@ export const usePortalStore = create<PortalState>()(
     (setState) => ({
       ...seed,
       set: (updater) => setState((state) => updater(state)),
+      setActiveStoreId: (id) => setState({ activeStoreId: id }),
     }),
     {
       name: config.storageKey,
@@ -140,7 +146,7 @@ export const usePortalStore = create<PortalState>()(
           : window.localStorage,
       ),
       partialize: (state) => {
-        const { set: _set, sessionStatus: _status, ...rest } = state;
+        const { set: _set, setActiveStoreId: _setActive, sessionStatus: _status, ...rest } = state;
         // The portal session is never persisted: it is refreshed from the HttpOnly cookie on load.
         return { ...rest, session: null };
       },
