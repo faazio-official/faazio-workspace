@@ -95,3 +95,18 @@ The cold-start splash background was changed from Faazio Blue `#1162D3` to pure 
 Native splash config lives in `client/mobile/android/app/src/main/res/values/colors.xml`
 (`splashscreen_background`) and `styles.xml` (the splash theme), so no JS config change was needed.
 The iOS launch-screen storyboard carries its own background color.
+
+## Follow-up (2026-11-02): Splash unified on `#4250FF` + shared wordmark
+
+The 2026-09-10 change above is **superseded**. All three splash layers now use Faazio blue
+`#4250FF` and the same wide wordmark:
+
+- **JS** — `SplashFallback.tsx` `royal` variant background is `#4250FF` (was `#0000FF`).
+- **Android** — `splashscreen_background` was already `#4250FF`; unchanged.
+- **iOS** — `SplashScreenBackground.colorset` **and** the inline `<namedColor>` in
+  `SplashScreen.storyboard` changed `#0000FF`→`#4250FF`. Both must be edited together: the
+  storyboard carries its own literal and does not read the colorset at runtime.
+
+All native splash logos are now generated from `client/mobile/src/assets/logo.png` by
+`client/mobile/scripts/generate-splash-logo.py` — see `docs/architecture/mobile-app.md`
+("Splash assets") for the mask and aspect-ratio constraints that script encodes.

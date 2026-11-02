@@ -527,11 +527,29 @@ paginated reads from `@data/*` — the contract the future Go Chi gateway will f
   blanking the app. Recovery resets navigation via `navigationRef`
   (`src/navigation/navigationRef.ts`, wired as `ref` on `NavigationContainer`).
 - **Splash failsafe** — the native launch theme hands off on first render; the JS `SplashFallback`
-  is dismissed after `SPLASH_TIMEOUT_MS` (10 s) even if fonts/hydration stall, preventing a stuck
-  splash that would trigger an ANR.
+  then owns the screen. There is **no timeout escape**: `App.tsx` has only
+  `SPLASH_MIN_DISPLAY_MS` (a floor, not a ceiling), so a hydration stall keeps the splash up
+  rather than falling through to the app.
 - **Branded splash minimum** — the cold-start splash (`SplashFallback` `royal` variant) shows the
   wide `logo.png` centered on Faazio blue (`#4250FF`) with no spinner, and stays up for at least
   `SPLASH_MIN_DISPLAY_MS` (5 s) via `App.tsx` before the app UI renders.
+- **Splash assets** — the three layers (Android native, iOS native, JS fallback) all render
+  `src/assets/logo.png`. Native copies are generated, never hand-edited:
+  `python3 scripts/generate-splash-logo.py` (add `--check` to verify without writing). The script
+  encodes two constraints that are easy to get wrong by hand:
+  - **Android 12+ masks the splash icon to a circle.** From `core-splashscreen:1.0.1`,
+    `splashscreen_icon_size_no_background` is 288dp and the platform clips to a 192dp circle
+    (radius 96dp). A 3:1 wordmark spanning the full canvas would lose ~39% of its width, so the
+    script fits the wordmark *inside* the mask circle at 92% fill. Verified: every density lands
+    at ~88dp max radius against the 96dp mask.
+  - **The iOS storyboard sizes the image view from the asset.** `SplashScreen.storyboard` sets
+    `translatesAutoresizingMaskIntoConstraints="false"` on the image view, so without explicit
+    constraints Auto Layout uses the asset's *intrinsic* size — a 2171pt-wide 1x asset would
+    render far off-screen. The storyboard therefore carries an explicit `width = 220` plus a
+    `width:height = 3.7231` aspect constraint, and the 1x asset is 220×59 pt.
+  The source PNG is opaque RGB with a non-flat blue field, so the script keys the field out to
+  transparency (luma key with a dead zone) and keeps only the white wordmark. That makes the
+  native assets background-independent on both platforms.
 - **Hydration timeout** — `hydrateAuth()` / `hydrateLanguage()` run under a 4 s `withTimeout`
   guard; a hanging or failing storage module no longer blocks startup (defaults to unauthenticated)
   and can't become a silent unhandled rejection.
