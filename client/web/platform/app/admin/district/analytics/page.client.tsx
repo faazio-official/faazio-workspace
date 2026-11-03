@@ -17,8 +17,7 @@ import {
 } from "@/components/ui/table";
 import { formatINR, formatNumber, formatPercent } from "@/lib/format";
 import { periodDelta, sumGmv, sumOrders } from "@/lib/analytics/derive";
-import { sellerMetrics, stateMetrics } from "@/lib/api";
-import { useMockLoading, useOrders, useSellers } from "@/lib/api/hooks";
+import { useAnalyticsRanks, useAnalyticsSeries, useMockLoading, useOrders, useSellers } from "@/lib/api/hooks";
 import { useSession } from "@/lib/hooks/useSession";
 import { ComponentHelp } from "@/components/patterns/ComponentHelp";
 
@@ -32,14 +31,16 @@ function StateAnalytics() {
   const districtCode = session?.districtCode;
   const loading = useMockLoading();
   const [days, setDays] = useState(30);
-  const series = stateMetrics(stateCode, days);
+  const series = useAnalyticsSeries("state", stateCode, days);
+  const ranks = useAnalyticsRanks(days);
   const sellers = useSellers({ districtCode });
   const orders = useOrders({ stateCode });
 
+  const sellerTotal = new Map(ranks.sellers.map((rank) => [rank.id, rank]));
   const leaderboard = sellers
     .map((seller) => {
-      const s = sellerMetrics(seller.sellerId, days);
-      return { seller, gmv: sumGmv(s), orders: sumOrders(s) };
+      const rank = sellerTotal.get(seller.sellerId);
+      return { seller, gmv: rank?.gmvPaisa ?? 0, orders: rank?.orders ?? 0 };
     })
     .sort((a, b) => b.gmv - a.gmv);
 

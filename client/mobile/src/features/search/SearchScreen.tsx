@@ -14,6 +14,7 @@ import SearchSuggestions from './SearchSuggestions';
 import { useFacets } from './useFacets';
 import { gateway } from '@/services/api/GatewayClient';
 import { useLiveOrigin } from '@/hooks/useLiveLocation';
+import { ReportIssueButton } from '@/components/shared/ReportIssueButton';
 import type { ActiveFacets, SearchScreenConfig } from './types';
 import { semantic } from '@/theme/brandTokens';
 
@@ -110,11 +111,10 @@ const SearchScreen = memo(function SearchScreen({
     };
   }, [mode, submittedQuery, preSearch]);
 
-  const dataPool =
-    remoteData ?? (gateway.remoteEnabled && !remoteFailed ? [] : mode?.data ?? []);
-  // Server FTS already matched the query text; only re-apply the local substring
-  // predicate when the authored pool is the fallback. Facets/chips still refine server results.
-  const effectiveQuery = remoteData || !remoteFailed ? '' : submittedQuery;
+  const dataPool = remoteData ?? [];
+  // Server FTS is the only result source; there is no authored fallback pool. When it fails or
+  // returns nothing the list is honestly empty (with the error surfaced by the reload state).
+  const effectiveQuery = remoteData ? '' : submittedQuery;
 
   const allResults = useMemo(() => {
     if (!mode) return [];
@@ -313,7 +313,12 @@ const SearchScreen = memo(function SearchScreen({
                 style={styles.listEmptySpinner}
               />
             ) : (
-              empty
+              <>
+                {empty}
+                {remoteFailed ? (
+                  <ReportIssueButton context={`search "${submittedQuery}"`} />
+                ) : null}
+              </>
             )
           }
           ListFooterComponent={

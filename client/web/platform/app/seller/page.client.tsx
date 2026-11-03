@@ -18,8 +18,7 @@ import {
   sumGmv,
   sumOrders,
 } from "@/lib/analytics/derive";
-import { sellerMetrics } from "@/lib/api";
-import { useMockLoading, useOrders, useProducts, useCampaigns, useSellerScope } from "@/lib/api/hooks";
+import { useAnalyticsSeries, useMockLoading, useOrders, useProducts, useCampaigns, useSellerScope } from "@/lib/api/hooks";
 import { useSession } from "@/lib/hooks/useSession";
 import { cn } from "@/lib/utils";
 import { ProductThumb } from "@/components/patterns/ProductThumb";
@@ -32,7 +31,7 @@ function SellerDashboard() {
   const orders = useOrders({ sellerId, storeId });
   const products = useProducts({ sellerId, storeId });
   const campaigns = useCampaigns({ stateCode: session?.stateCode });
-  const series = sellerMetrics(sellerId, 30);
+  const series = useAnalyticsSeries("seller", sellerId, 30);
 
   const delivered = orders.filter((o) => o.status === "DELIVERED").length;
   const cancelled = orders.filter((o) => o.status === "CANCELLED").length;

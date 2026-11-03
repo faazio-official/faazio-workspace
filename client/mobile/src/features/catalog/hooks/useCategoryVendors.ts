@@ -1,15 +1,10 @@
 import { useEffect, useMemo, useState } from 'react';
 import type { Product, StoreProfile } from '@data/types';
-import { getStoreById } from '@data/directory/stores';
 import { gateway } from '@/services/api/GatewayClient';
 import { withLiveDistance } from '@/utils/distance';
 import { useLiveOrigin } from '@/hooks/useLiveLocation';
 import { useActiveDiscounts, applyActiveDiscounts } from '@/services/pricing';
-import {
-  getVendorsWithProducts,
-  type VendorApp,
-  type VendorProducts,
-} from '@/services/categoryVendors';
+import type { VendorApp, VendorProducts } from '@/services/categoryVendors';
 
 const APP_BRAND: Record<VendorApp, 'MART' | 'PHARMA'> = {
   FA_MART: 'MART',
@@ -19,26 +14,29 @@ const APP_BRAND: Record<VendorApp, 'MART' | 'PHARMA'> = {
 export interface CategoryVendors {
   vendors: VendorProducts[];
   loading: boolean;
+  /** True when the last server read rejected (so the UI can offer "Report issue"). */
+  failed: boolean;
 }
 
 /**
  * Store-grouped catalog for the category drill-in, resolved from the server so new seller `ACTIVE`
  * rows appear and the shopper price matches checkout. Products come from the FTS read
  * (`GET /search?q=&app=`), grouped by `storeId` and joined to the store directory
- * (`GET /stores?app=`). The local token-containment grouping (`getVendorsWithProducts`) is the
- * offline authority *and* the safety net when the server FTS returns nothing for a multi-word
- * sub-category query, so the drill-in can never regress to empty for a query it used to serve.
+ * (`GET /stores?app=`). There is no local fallback: a failed or empty server read leaves the
+ * drill-in empty (customers can report it), never a stale fixture grouping.
  * Approved festival discounts are overlaid here — the pre-overlay pool as one `useActiveDiscounts`
  * batch — so a product without an authored MRP still shows its server discount.
  */
 export function useCategoryVendors(app: VendorApp, query: string): CategoryVendors {
   const [vendors, setVendors] = useState<VendorProducts[] | null>(null);
   const [loading, setLoading] = useState(false);
+  const [failed, setFailed] = useState(false);
   const origin = useLiveOrigin();
 
   useEffect(() => {
     let active = true;
     setLoading(true);
+    setFailed(false);
     (async () => {
       let list: VendorProducts[] | null = null;
       if (gateway.remoteEnabled) {
@@ -60,7 +58,7 @@ export function useCategoryVendors(app: VendorApp, query: string): CategoryVendo
           }
           const built = [...byStore.entries()]
             .map(([storeId, prods]) => {
-              const store = storeMap.get(storeId) ?? getStoreById(storeId);
+              const store = storeMap.get(storeId);
               return store
                 ? {
                     store: store as unknown as StoreProfile,
@@ -74,13 +72,16 @@ export function useCategoryVendors(app: VendorApp, query: string): CategoryVendo
           if (built.length > 0) list = built;
         } catch {
           list = null;
+          if (active) setFailed(true);
         }
       }
-      if (!list) list = getVendorsWithProducts(app, query);
       if (active) setVendors(list);
     })()
       .catch(() => {
-        if (active) setVendors(getVendorsWithProducts(app, query));
+        if (active) {
+          setVendors(null);
+          setFailed(true);
+        }
       })
       .finally(() => {
         if (active) setLoading(false);
@@ -117,5 +118,5 @@ export function useCategoryVendors(app: VendorApp, query: string): CategoryVendo
     [resolved, discounts],
   );
 
-  return { vendors: priced, loading };
+  return { vendors: priced, loading, failed };
 }

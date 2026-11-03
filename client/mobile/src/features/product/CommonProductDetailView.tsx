@@ -23,11 +23,6 @@ import AppText from '@/components/AppText';
 import ProductCardBase from '@/components/shared/ProductCardBase';
 import { applyActiveDiscounts, useActiveDiscounts } from '@/services/pricing';
 import { gateway } from '@/services/api/GatewayClient';
-import { martStores } from '@data/mart/stores';
-import { martProducts } from '@data/mart/products';
-import { pharmaStores } from '@data/pharma/stores';
-import { pharmaProducts } from '@data/pharma/products';
-import { foodStores } from '@data/food/stores';
 import { TODAYS_SPECIALS, dishToProduct } from '@data/food/specials';
 import type { Product, StoreProfile } from '@data/types';
 import { semantic } from '@/theme/brandTokens';
@@ -146,21 +141,18 @@ export default function CommonProductDetailView({
     };
   }, [product?.storeId]);
 
-  // Per sub-app fallback: a Mart product resolves its `martStores` row, a Pharma product its
-  // `pharmaStores` row, so the store block and "More from store" work on the Pharma PDP exactly
-  // like Mart instead of silently vanishing offline.
+  // The store block is server-backed (`GET /store/:id`). No bundled store directory is consulted —
+  // a failed/absent read simply leaves the block off the PDP.
   const store = useMemo<StoreProfile | undefined>(() => {
     if (!product?.storeId) return undefined;
     if (serverStore?.id === product.storeId) return serverStore.store;
-    if (product.app === 'MART') return martStores.find((s) => s.id === product.storeId);
-    if (product.app === 'PHARMA') return pharmaStores.find((s) => s.id === product.storeId);
     return undefined;
-  }, [serverStore, product?.app, product?.storeId]);
+  }, [serverStore, product?.storeId]);
 
-  // "More from store": server-backed (`catalog.products` by store_id + ACTIVE) with the local
-  // `@data` pool kept as the offline fallback, so the rail never regresses when the gateway is off.
-  // `null` = no authoritative answer (offline/error/not loaded); `[]` = the server confirmed the
-  // store has no other ACTIVE products, so the fixture pool must NOT be substituted.
+// "More from store": server-backed (`catalog.products` by store_id + ACTIVE). A failed/not-loaded
+  // read leaves the rail empty — there is no bundled product pool to substitute. `null` = no
+  // authoritative answer (offline/error/not loaded); `[]` = the store really has no other ACTIVE
+  // products.
   const [serverRelated, setServerRelated] = useState<Product[] | null>(null);
   useEffect(() => {
     setServerRelated(null);
@@ -184,10 +176,8 @@ export default function CommonProductDetailView({
   const relatedProducts = useMemo(() => {
     if (!product) return [];
     if (serverRelated !== null) return serverRelated;
-    if (!store) return [];
-    const pool = product.app === 'PHARMA' ? pharmaProducts : martProducts;
-    return pool.filter((p) => p.storeId === store.id && p.id !== product.id);
-  }, [store, serverRelated, product]);
+    return [];
+  }, [serverRelated, product]);
 
   // Overlay approved festival discounts on the "More from store" rail (no-op offline / none apply).
   const relatedDiscounts = useActiveDiscounts(relatedProducts.map((p) => p.id));
@@ -198,7 +188,7 @@ export default function CommonProductDetailView({
 
   const foodStore = useMemo<StoreProfile | undefined>(() => {
     if (product?.app !== 'FOOD' || !product.shop) return undefined;
-    return foodStores.find((s) => s.app === 'FOOD' && s.name === product.shop);
+    return undefined;
   }, [product?.app, product?.shop]);
 
   const relatedDishes = useMemo<Product[]>(() => {

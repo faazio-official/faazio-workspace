@@ -17,8 +17,7 @@ import {
 } from "@/components/ui/table";
 import { formatINR, formatNumber, formatPercent } from "@/lib/format";
 import { periodDelta, sumGmv, sumOrders } from "@/lib/analytics/derive";
-import { globalMetrics, sellerMetrics, stateMetrics } from "@/lib/api";
-import { useMockLoading, useOrders, useProducts, useSellers, useStates } from "@/lib/api/hooks";
+import { useAnalyticsRanks, useAnalyticsSeries, useMockLoading, useOrders, useProducts, useSellers, useStates } from "@/lib/api/hooks";
 
 
 const PERIODS = [7, 30, 90];
@@ -27,21 +26,24 @@ function SuperAnalytics() {
   const loading = useMockLoading();
   const [days, setDays] = useState(30);
   const states = useStates();
-  const series = globalMetrics(days);
+  const series = useAnalyticsSeries("global", "", days);
+  const ranks = useAnalyticsRanks(days);
   const sellers = useSellers();
   const products = useProducts();
   const orders = useOrders();
 
+  const sellerTotal = new Map(ranks.sellers.map((rank) => [rank.id, rank]));
+  const stateTotal = new Map(ranks.states.map((rank) => [rank.id, rank]));
   const gmv = sumGmv(series);
   const perSeller = sellers
-    .map((seller) => ({ seller, gmv: sumGmv(sellerMetrics(seller.sellerId, days)) }))
+    .map((seller) => ({ seller, gmv: sellerTotal.get(seller.sellerId)?.gmvPaisa ?? 0 }))
     .sort((a, b) => b.gmv - a.gmv);
   const topTenShare = perSeller.slice(0, 10).reduce((t, r) => t + r.gmv, 0);
   const sellerGmvTotal = perSeller.reduce((t, r) => t + r.gmv, 0);
 
   const byState = states.map((info) => ({
     label: info.stateCode,
-    value: sumGmv(stateMetrics(info.stateCode, days)),
+    value: stateTotal.get(info.stateCode)?.gmvPaisa ?? 0,
   })).sort((a, b) => b.value - a.value);
 
   const byCategory = Object.entries(

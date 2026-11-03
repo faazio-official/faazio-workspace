@@ -38,10 +38,8 @@ import PaymentFailedScreen from '@/features/cart/payment/PaymentFailedScreen';
 import { buildUpiIntent, launchUpiPayment } from '@/features/cart/payment/UpiIntent';
 import { detectUpiApps, type UpiApp } from '@/services/upi';
 import BreakdownCard from '@/features/cart/payment/components/BreakdownCard';
-import { computeTotals, estimateDeliveryBreakdown, DELIVERY_FEE_BASE_KM, DEFAULT_DELIVERY_FEE_PAISA } from './utils';
+import { computeTotals, DEFAULT_DELIVERY_FEE_PAISA } from './utils';
 import type { CheckoutStep, DeliveryFeeBreakdown } from './utils';
-import { haversineKm } from '@/utils/distance';
-import { getStoreById } from '@data/directory/stores';
 import type { RootStackParamList } from '@/navigation/types';
 import { useRewardsStore } from '@/state/rewardsStore';
 import { useOrdersStore } from '@/state/ordersStore';
@@ -451,27 +449,10 @@ export default function CartView({
         const quote = furthest(quotes);
         if (!cancelled && quote) setDeliveryFeeQuote(quote);
       } catch {
-        // Honest estimate: the furthest pinned store's great-circle distance × the client formula.
-        const km = storeIdsForQuote.reduce((maxKm, storeId) => {
-          const store = getStoreById(storeId);
-          if (
-            !store ||
-            typeof store.latitude !== 'number' ||
-            typeof store.longitude !== 'number'
-          ) {
-            return maxKm;
-          }
-          return Math.max(
-            maxKm,
-            haversineKm(
-              { latitude: liveAddress.lat, longitude: liveAddress.lng },
-              { latitude: store.latitude, longitude: store.longitude },
-            ),
-          );
-        }, DELIVERY_FEE_BASE_KM);
-        if (!cancelled) {
-          setDeliveryFeeQuote(estimateDeliveryBreakdown(km));
-        }
+        // No quote is better than an invented one: a failed delivery-fee read leaves the quote
+        // null (the checkout falls back to the standard default fee constant, never a distance
+        // guess against a bundled store directory).
+        if (!cancelled) setDeliveryFeeQuote(null);
       }
     })();
     return () => {

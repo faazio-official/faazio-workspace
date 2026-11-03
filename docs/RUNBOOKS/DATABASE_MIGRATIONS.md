@@ -114,6 +114,10 @@ psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f ../supabase/migrations/0065_tiruchira
 > ownership through `directory.stores`, so apply the migrations **before** rolling the new gateway.
 > After a fresh `--all`, the regenerated `seed/0001_seed.sql` must be used (it emits seller accounts
 > before stores and no longer writes the dropped columns).
+>
+> `0075_analytics_metrics.sql` is additive and independent: two indexes on `checkout.orders(placed_at)`
+> and `checkout.order_items(product_id)` that back the live portal analytics reads
+> (`internal/analytics`, `GET /analytics/series` + `/analytics/ranks`). No seed change.
 
 
 ## 3. Other alternatives

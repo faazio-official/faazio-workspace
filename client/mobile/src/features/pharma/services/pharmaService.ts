@@ -2,11 +2,8 @@ import { gateway, type ProductView, type ReadSource } from '@/services/api/Gatew
 import { effectivePrice, fetchActiveDiscounts } from '@/services/pricing';
 import type { SduiBanner, SduiSection } from '@data/home/sdui';
 import {
-  PHARMA_QUICK_REORDER,
   PHARMA_QUICK_REORDER_IDS,
   PHARMA_TOP_OFFERS,
-  PHARMA_POPULAR_MEDICINES,
-  PHARMA_HEALTH_ESSENTIALS,
   PHARMA_FEATURED_BRANDS,
   PHARMA_HEALTH_CORNER,
   type PharmaQuickReorderItem,
@@ -95,9 +92,9 @@ async function livePharmaOfferCodes(): Promise<Set<string> | null> {
  * `GET /sdui/pharma`, joined to the catalog, with approved festival discounts overlaid on the
  * shopper price (same `services/pricing` pipeline as Mart). Quick Reorder resolves its REAL catalog
  * ids (`getProductsByIds`) so a tap opens a canonical PDP and an add-to-cart id checkout can price;
- * Top Offers are filtered to live server coupons when online. The `@data`/feature fixtures are the
- * offline fallback, so the rails never blank. Rx-gated products are never referenced by the public
- * pharma rails.
+ * Top Offers are filtered to live server coupons when online. The product rails are strictly
+ * server-backed: a failed/absent SDUI section leaves the rail empty (never a bundled fixture).
+ * Rx-gated products are never referenced by the public pharma rails.
  */
 export async function fetchPharmaFeed(): Promise<PharmaFeed> {
   let sections: (SduiSection & { products: ProductView[] })[];
@@ -134,16 +131,16 @@ export async function fetchPharmaFeed(): Promise<PharmaFeed> {
     : PHARMA_TOP_OFFERS;
 
   return {
-    quickReorder: quickReorderResolved.length
-      ? quickReorderResolved.map((p) => toQuickReorder(p, discounts[p.id]?.discountPercent ?? 0))
-      : PHARMA_QUICK_REORDER,
+    quickReorder: quickReorderResolved.map(
+      (p) => toQuickReorder(p, discounts[p.id]?.discountPercent ?? 0),
+    ),
     topOffers,
     popularMedicines: popularProducts
       ? popularProducts.map((p) => toPopularMedicine(p, discounts[p.id]?.discountPercent ?? 0))
-      : PHARMA_POPULAR_MEDICINES,
+      : [],
     healthEssentials: essentials?.products?.length
       ? essentials.products.map(toHealthEssential)
-      : PHARMA_HEALTH_ESSENTIALS,
+      : [],
     featuredBrands: PHARMA_FEATURED_BRANDS,
     healthCorner: PHARMA_HEALTH_CORNER,
     heroBanners: hero?.banners ?? [],

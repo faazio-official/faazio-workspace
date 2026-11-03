@@ -224,6 +224,55 @@ export function useCategories(app: import("@/data/types").Sector): api.CategoryR
   return items;
 }
 
+/** One IST-day analytics bucket (from checkout.orders via GET /analytics/series). */
+type AnalyticsDailyPoint = import("@/data/types").DailyPoint;
+
+/** Live daily GMV/orders for a scope (global | seller | state | product) — the DB is the source. */
+export function useAnalyticsSeries(
+  scope: api.AnalyticsScope,
+  id: string,
+  days = 30,
+): AnalyticsDailyPoint[] {
+  const [items, setItems] = useState<AnalyticsDailyPoint[]>([]);
+  useEffect(() => {
+    if (!remoteConfigured()) return;
+    let cancelled = false;
+    api
+      .fetchAnalyticsSeries(scope, id, days)
+      .then((rows) => {
+        if (!cancelled) setItems(rows);
+      })
+      .catch(() => {
+        if (!cancelled) setItems([]);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [scope, id, days]);
+  return items;
+}
+
+/** Live seller/state/product totals from GET /analytics/ranks (used by the overview rankings). */
+export function useAnalyticsRanks(days = 30): api.AnalyticsRanks {
+  const [ranks, setRanks] = useState<api.AnalyticsRanks>({ sellers: [], states: [], products: [] });
+  useEffect(() => {
+    if (!remoteConfigured()) return;
+    let cancelled = false;
+    api
+      .fetchAnalyticsRanks(days)
+      .then((rows) => {
+        if (!cancelled) setRanks(rows);
+      })
+      .catch(() => {
+        if (!cancelled) setRanks({ sellers: [], states: [], products: [] });
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [days]);
+  return ranks;
+}
+
 /**
  * Resolves the active vendor for the console: the persisted `activeStoreId` when it still exists among
  * the caller's vendors, else the first vendor. Returns the vendor plus a setter.

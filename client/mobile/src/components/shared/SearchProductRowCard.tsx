@@ -2,7 +2,6 @@ import React, { memo } from 'react';
 import { View, Image, TouchableOpacity, StyleSheet } from 'react-native';
 import { Heart, Store } from 'lucide-react-native';
 import { hs, vs, ms } from '@/utils/responsive';
-import { getStoreById, getStoresByApp } from '@data/directory/stores';
 import AppText from '@/components/AppText';
 import type { Product, AppBrand } from '@data/types';
 
@@ -31,19 +30,12 @@ function getDiscountPct(price: number, originalPrice?: number): number | null {
 }
 
 /**
- * Resolve a human-readable seller name for a product. Resolution order mirrors
- * the cart pickup-resolver: `storeId` → store-directory name; else `shop`;
- * else the app's single default outlet; else the category label. Store names
- * come from the enterprise-controlled `@data` directory (no secrets / PII).
+ * Resolve a human-readable seller name for a product. Server-owned only: the product's own `shop`
+ * field when the catalog carries it, else the category label. No bundled store directory or default
+ * outlet is consulted.
  */
 function resolveStoreName(product: Product): string {
-  if (product.storeId) {
-    const store = getStoreById(product.storeId);
-    if (store?.name) return store.name;
-  }
   if (product.shop) return product.shop;
-  const defaultOutlet = getStoresByApp(product.app)[0];
-  if (defaultOutlet?.name) return defaultOutlet.name;
   return product.category;
 }
 

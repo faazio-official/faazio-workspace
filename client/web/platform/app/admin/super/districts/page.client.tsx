@@ -28,8 +28,7 @@ import {
 } from "@/components/ui/table";
 import { formatDate, formatINR, formatNumber } from "@/lib/format";
 import { periodDelta, sumGmv, sumOrders } from "@/lib/analytics/derive";
-import { stateMetrics } from "@/lib/api";
-import { useCampaigns, useSellers, useDistrictAdmins, useDistricts } from "@/lib/api/hooks";
+import { useAnalyticsSeries, useCampaigns, useSellers, useDistrictAdmins, useDistricts } from "@/lib/api/hooks";
 import { districtName, stateForDistrict } from "@/lib/api/reference";
 
 
@@ -42,7 +41,7 @@ function SuperDistricts() {
     if (!districtCode && districts.length > 0) setDistrictCode(districts[0]!.districtCode);
   }, [districtCode, districts]);
   const stateCode = districtCode ? stateForDistrict(districts, districtCode) : "";
-  const series = stateMetrics(stateCode, 30);
+  const series = useAnalyticsSeries("state", stateCode, 30);
   const sellers = useSellers({ districtCode });
   const admins = useDistrictAdmins(districtCode);
   const campaigns = useCampaigns({ stateCode });

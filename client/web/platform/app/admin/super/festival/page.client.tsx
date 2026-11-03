@@ -28,14 +28,13 @@ import {
 } from "@/components/ui/table";
 import { formatDate, formatINR, formatNumber } from "@/lib/format";
 import { capFor } from "@/lib/pricing/rules";
-import { sumGmv } from "@/lib/analytics/derive";
 import {
   createFestivalCampaign,
-  productMetrics,
   setSectorCap,
   updateCampaign,
 } from "@/lib/api";
 import {
+  useAnalyticsRanks,
   useCampaigns,
   useMockLoading,
   useOptins,
@@ -56,6 +55,8 @@ function SuperFestival() {
   const optins = useOptins();
   const products = useProducts();
   const states = useStates();
+  const ranks = useAnalyticsRanks(30);
+  const productTotal = new Map(ranks.products.map((p) => [p.id, p]));
 
   const [capDrafts, setCapDrafts] = useState<Record<string, string>>({});
   const [overrideState, setOverrideState] = useState(states[0]?.stateCode ?? "");
@@ -63,10 +64,10 @@ function SuperFestival() {
   const [startsAt, setStartsAt] = useState("");
   const [endsAt, setEndsAt] = useState("");
 
-  const optinGmv = optins.reduce((total, optin) => {
-    const series = productMetrics(optin.productId, 30);
-    return total + sumGmv(series);
-  }, 0);
+  const optinGmv = optins.reduce(
+    (total, optin) => total + (productTotal.get(optin.productId)?.gmvPaisa ?? 0),
+    0,
+  );
 
   const uplift = SECTORS.map((sector) => {
     const sectorOptins = optins.filter((o) => {
@@ -75,7 +76,7 @@ function SuperFestival() {
     });
     return {
       label: sector,
-      value: sectorOptins.reduce((t, o) => t + sumGmv(productMetrics(o.productId, 30)), 0),
+      value: sectorOptins.reduce((t, o) => t + (productTotal.get(o.productId)?.gmvPaisa ?? 0), 0),
     };
   });
 

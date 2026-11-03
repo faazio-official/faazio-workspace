@@ -6,7 +6,6 @@
  *
  * See docs/architecture/mobile-app.md (orders) and WORKFLOW_SCRATCHPAD.md §12 (W22).
  */
-import { getStoreById, storeDirectory } from '@data/directory/stores';
 import type { OrderRow } from '@data/checkout/orders';
 import type { OrderStatus } from '@data/types';
 import type { PlacedOrder } from '@/state/ordersStore';
@@ -26,11 +25,9 @@ const STATUS_MAP: Record<string, OrderStatus> = {
   REJECTED: 'Cancelled',
 };
 
-function vendorNameFor(storeIds: string[]): string {
-  for (const id of storeIds) {
-    const name = (getStoreById(id) ?? storeDirectory.find((s) => s.id === id))?.name;
-    if (name) return name;
-  }
+// The server order row carries vendor ids only (no names), and no bundled store directory is
+// consulted, so the card uses a neutral label rather than an invented store name.
+function vendorNameFor(_storeIds: string[]): string {
   return 'Order';
 }
 

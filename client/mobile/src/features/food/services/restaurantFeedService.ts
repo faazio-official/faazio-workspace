@@ -106,13 +106,12 @@ function orderByDishIds(specials: SpecialDish[], ids: string[]): SpecialDish[] {
 /**
  * Food-first home feed. The restaurant grid is driven by the durable
  * `directory.dining_venues` list (`GET /venues?app=FOOD`) through the server-only
- * `GatewayClient.fetchVenues`; only a network/HTTP error falls back to the `@data`
- * identity table and the feature fixtures — an authoritative empty result is
- * respected (the screen shows an honest empty state, so delisted venues never
- * linger as stale profiles). The house hero banners come from the Food-only SDUI
- * projection (`GET /sdui/food` → `foodHero`), the "Today's Special" rail order from
- * `foodSpecials`, and the Top Rated carousel drops venues the server no longer
- * lists. The curated mind/snack rails stay fixture-owned.
+ * `GatewayClient.fetchVenues`; only a network/HTTP error leaves the grid **empty** — an
+ * authoritative empty result is respected (the screen shows an honest empty state, so delisted
+ * venues never linger as stale profiles) and a failed fetch is never masked with a fixture. The
+ * house hero banners come from the Food-only SDUI projection (`GET /sdui/food` → `foodHero`), the
+ * "Today's Special" rail order from `foodSpecials`, and the Top Rated carousel drops venues the
+ * server no longer lists. The curated mind/snack rails stay fixture-owned.
  */
 export async function fetchRestaurantFeed(): Promise<RestaurantFeed> {
   // Independent legs — one failing route never blanks the whole feed (Mart W43 pattern).
@@ -132,10 +131,11 @@ export async function fetchRestaurantFeed(): Promise<RestaurantFeed> {
 
   const venueIds = new Set(venues.map((v) => v.id));
   // Authoritative empty → drop fixture venues that the server no longer lists (empty carousel).
-  // Offline (fixture fallback) → keep the curated fixture carousel untouched.
+  // Offline (server failed) → no bundled venues are shown at all — the grid is empty, never a
+  // stale fixture pretending to be the live directory.
   const liveTopRated = venueAuthoritative
     ? TOP_RATED_RESTAURANTS.filter((r) => venueIds.has(r.id))
-    : TOP_RATED_RESTAURANTS;
+    : [];
 
   const hero = food.find((s) => (s.id as string) === 'foodHero');
   const specials = food.find((s) => (s.id as string) === 'foodSpecials');
@@ -160,7 +160,7 @@ export async function fetchRestaurantFeed(): Promise<RestaurantFeed> {
   return {
     topRated: orderByStoreIds(liveTopRated, curatedIds),
     specials: orderByDishIds(TODAYS_SPECIALS, specials?.productIds ?? []),
-    restaurants: venueAuthoritative ? mergeVenues(FOOD_RESTAURANTS, venues) : FOOD_RESTAURANTS,
+    restaurants: venueAuthoritative ? mergeVenues(FOOD_RESTAURANTS, venues) : [],
     topFoods: TOP_FOODS_TO_ORDER,
     heroBanners: hero?.banners ?? [],
     venueAuthoritative,

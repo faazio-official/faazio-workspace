@@ -31,13 +31,12 @@ import {
   getBankAccount,
   listKyc,
   rejectSellerApplication,
-  sellerMetrics,
   setSellerStatus,
   updateVendorPlatformFee,
   verifySellerDocument,
   verifySellerKyc,
 } from "@/lib/api";
-import { useSeller } from "@/lib/api/hooks";
+import { useAnalyticsSeries, useSeller } from "@/lib/api/hooks";
 import type { KycDocument, SellerDetail, SellerVendorRecord } from "@/data/types";
 
 const GSTIN_RE = /^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z][0-9A-Z]{2}$/;
@@ -45,6 +44,7 @@ const GSTIN_RE = /^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z][0-9A-Z]{2}$/;
 function SellerReview() {
   const { id } = useParams<{ id: string }>();
   const local = useSeller(id);
+  const series = useAnalyticsSeries("seller", id, 30);
   const [detail, setDetail] = useState<SellerDetail | null>(null);
   const [reason, setReason] = useState("");
   const [busy, setBusy] = useState(false);
@@ -91,7 +91,6 @@ function SellerReview() {
     );
   }
 
-  const series = sellerMetrics(seller.sellerId, 30);
   const gstinOk = GSTIN_RE.test(seller.gstin);
   const docs = seller.kycDocuments ?? [];
   const bank = seller.bankAccount;

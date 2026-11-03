@@ -14,33 +14,46 @@ dependencies exist. Do not build the backend/seller flows until told to.
 
 ## W79 — One seller account → many vendors (Mart/Food/Pharma) + console switcher
 
-**Status:** 🟢 Shipped except seeding + customer-app fallback sweep. DB (`0068`–`0074`), Go gateway
-vendor/read endpoints, seeded multi-vendor accounts, the **web portal vendor switcher**
-(`VendorSwitcher` + `activeStoreId`), mobile seller onboarding (vendor-scoped payload) and the seller
-WebView vendor context are landed.
+**Status:** 🟢 Shipped. DB (`0068`–`0075`), Go gateway vendor/read/analytics endpoints, seeded
+multi-vendor accounts (applied to live Supabase), the **web portal vendor switcher**
+(`VendorSwitcher` + `activeStoreId`), mobile seller onboarding (vendor-scoped payload), the seller
+WebView vendor context, the real-ledger analytics, and the customer-app fixture-fallback sweep are
+landed.
 
 - **DB:** `directory.stores` is the VENDOR (NOT NULL `seller_id` FK, per-shop `platform_fee_pct` /
   `seller_category_id` / `fssai_*`); `catalog.products.seller_id` + `directory.menus.seller_id` dropped
   (ownership derives via the store); `admins.states` / `ops.app_brand` / `ads.placements` created;
   `sellers.seller_fee_change_requests.store_id` added; `sellers.sellers` account-level commercial
-  fields dropped (`0074`).
+  fields dropped (`0074`); analytics range indexes added (`0075`). Applied to live Supabase.
 - **Gateway:** `POST /seller/stores`, `PUT /seller/stores/{id}`, `PUT /seller/stores/{id}/fee`;
   `GET /geo/states`, `GET /geo/apps`, `GET /ads/placements`; checkout + settlement resolve the fee per
-  vendor; `razorpayroute` mock removed (missing keys = config error); weather "assume not raining" and
-  the straight-line route-matrix degrade removed (both now hard errors); no `AUTH_DISABLED`/`X-Dev-*`
-  in production auth.
+  vendor; `razorpayroute` mock removed (missing keys = config error); no `AUTH_DISABLED`/`X-Dev-*`
+  in production auth. **Weather + Routes degrade are GRACEFUL again but never silent**: a disabled
+  weather provider / budget / API error returns "no surcharge" and the Google Routes client falls
+  back to a straight-line leg, and every such degrade is logged in detail (`weather_degraded` /
+  `route_matrix_degraded` with zone/coords + cause).
+- **Analytics:** `GET /analytics/series` + `GET /analytics/ranks` (`internal/analytics`) aggregate the
+  live `checkout.orders`/`order_items` ledger — the portal's seeded `series.ts` is deleted and all
+  dashboards read the DB.
 - **Portal:** seller pages scope by `activeStoreId` via `useSellerScope` (no `?? "sel-1"`
   defaults); static `src/data/` states/districts/placements imports replaced with `GET /geo/*`
-  + `/ads/placements` + `/categories`; dead `src/data/` domain seed files deleted (kept `types.ts`);
-  onboarding is a live `POST /sellers` + `POST /seller/stores` flow.
+  + `/ads/placements` + `/categories`; dead `src/data/` domain seed files deleted (only `types.ts`
+  remains); onboarding is a live `POST /sellers` + `POST /seller/stores` flow.
 - **Mobile:** `SellerRegistrationScreen` submits the vendor-scoped `vendors[]` payload the gateway
   requires; admin review + seller fee-request screens edit per-vendor fee/FSSAI;
   `SellerWebViewScreen` injects `window.__faazio.vendorId` for push/deep-link vendor resolution and the
   portal order page switches the active vendor from the order's store.
-- **Remaining:** (1) apply migrations `0068`–`0074` + regenerated seed to Supabase (dev terminal,
-  `apply-migration.sh`); (2) remove the customer-app runtime fixture fallbacks (E3 list) in a
-  separate customer-risk PR; (3) replace the seeded `portal` analytics series (`src/data/analytics/
-  series.ts`) with order-derived metrics.
+- **Customer-app no-mocks sweep:** all runtime fixture fallbacks removed (mart vendors/deals,
+  restaurant grid + top-rated, pharma rails, category drill-in, search results, sub-app vendor,
+  product-detail store/related/food-store, most-rated section, order-history store name, search store
+  distance, cart delivery-fee estimate, food-restaurant resolver). A failed server read leaves the
+  rail/screen empty or `undefined` — never bundled fixture data. Failure surfaces now offer
+  **"Report issue"** (`ReportIssueButton` → `POST /errors` → `ops.error_events`), wired into search
+  and the category drill-in; the primitive is ready for any other screen.
+- **Remaining:** (1) keep adding the `ReportIssueButton` to the remaining feed/empty surfaces as they
+  are touched; (2) if store names matter in search/order history, project them from the gateway
+  (currently `<shop>`/`Order` when absent); (3) the authored editorial rails (Mart/Food/Pharma deal +
+  specials copy) stay as SDUI content, not server-failure fallbacks.
 - **Verify:** `server/gateway` `go build ./... && go test ./...` green; portal `tsc --noEmit` +
   `eslint` green; mobile `ts:check` + `check:boundaries` green.
 

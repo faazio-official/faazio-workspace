@@ -13,6 +13,7 @@ import { hs, ms, vs } from '@/utils/responsive';
 import { SPACE } from '@/theme/spacing';
 import AppText from '@/components/AppText';
 import CampaignHero from '@/components/shared/CampaignHero';
+import { ReportIssueButton } from '@/components/shared/ReportIssueButton';
 import type { Product } from '@data/types';
 import { openHeroTarget } from '@/services/adsTarget';
 import { useCategoryVendors } from '@/features/catalog/hooks/useCategoryVendors';
@@ -107,7 +108,7 @@ export function CategoryDrillInPanel({
   // Store-grouped body for the selected title: server products (FTS), grouped by store and joined
   // to the directory, with approved festival discounts overlaid — the local pool is the offline
   // fallback. Then filtered by the inline vendor search.
-  const { vendors: categoryVendors, loading } = useCategoryVendors(
+  const { vendors: categoryVendors, loading, failed } = useCategoryVendors(
     app,
     activeItem?.searchQuery ?? '',
   );
@@ -215,6 +216,7 @@ export function CategoryDrillInPanel({
         ) : vendors.length === 0 ? (
           <View style={styles.emptyWrap}>
             <AppText style={styles.emptyText}>No vendors yet</AppText>
+            {failed ? <ReportIssueButton context={`category "${activeItem?.searchQuery ?? ''}"`} /> : null}
           </View>
         ) : (
           vendors.map(({ store, products }) => (

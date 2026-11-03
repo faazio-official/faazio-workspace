@@ -12,6 +12,7 @@ import (
 
 	"github.com/faazio/server/gateway/internal/admins"
 	"github.com/faazio/server/gateway/internal/ads"
+	"github.com/faazio/server/gateway/internal/analytics"
 	"github.com/faazio/server/gateway/internal/appconfig"
 	"github.com/faazio/server/gateway/internal/blood"
 	"github.com/faazio/server/gateway/internal/cartstock"
@@ -208,6 +209,7 @@ func NewRouter(d Deps) http.Handler {
 	categories.NewHandler(categories.NewRepo(d.Pool)).Register(r)
 	districts.NewHandler(districts.NewRepo(d.Pool)).Register(r)
 	reference.NewHandler(reference.NewRepo(d.Pool)).Register(r)
+	analytics.NewHandler(analytics.NewRepo(d.Pool)).Register(r)
 	support.NewHandler(supportRepo, adminsRepo).Register(r)
 	deliveryHandler.Register(r)
 	weather.NewHandler(weatherChecker, adminsRepo).Register(r)

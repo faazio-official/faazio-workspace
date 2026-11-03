@@ -14,10 +14,9 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { formatINR, formatNumber, formatPercent } from "@/lib/format";
+import { formatINR, formatNumber } from "@/lib/format";
 import { periodDelta, sumGmv, sumOrders } from "@/lib/analytics/derive";
-import { productMetrics, sellerMetrics } from "@/lib/api";
-import { useMockLoading, useOrders, useProducts, useSellerScope } from "@/lib/api/hooks";
+import { useAnalyticsRanks, useAnalyticsSeries, useMockLoading, useOrders, useProducts, useSellerScope } from "@/lib/api/hooks";
 import { ComponentHelp } from "@/components/patterns/ComponentHelp";
 
 const PERIODS = [7, 30, 90];
@@ -26,21 +25,20 @@ function SellerAnalytics() {
   const { sellerId, storeId } = useSellerScope();
   const loading = useMockLoading();
   const [days, setDays] = useState(30);
-  const series = sellerMetrics(sellerId, days);
+  const series = useAnalyticsSeries("seller", sellerId, days);
+  const ranks = useAnalyticsRanks(days);
+  const productTotal = new Map(ranks.products.map((p) => [p.id, p]));
   const products = useProducts({ sellerId, storeId });
   const orders = useOrders({ sellerId, storeId });
 
-  const views = series.reduce((t, p) => t + p.views, 0);
-  const carts = series.reduce((t, p) => t + p.carts, 0);
   const orderCount = sumOrders(series);
 
   const perProduct = products.map((product) => {
-    const s = productMetrics(product.productId, days);
+    const rank = productTotal.get(product.productId);
     return {
       product,
-      gmv: sumGmv(s),
-      orders: sumOrders(s),
-      views: s.reduce((t, p) => t + p.views, 0),
+      gmv: rank?.gmvPaisa ?? 0,
+      orders: rank?.orders ?? 0,
     };
   });
 
@@ -102,17 +100,6 @@ function SellerAnalytics() {
               deltaPercent: periodDelta(series, (p) => p.orders),
               compare: "vs previous period",
             },
-            {
-              label: "Product views",
-              value: formatNumber(views),
-              deltaPercent: periodDelta(series, (p) => p.views),
-              compare: "vs previous period",
-            },
-            {
-              label: "View → order",
-              value: views ? formatPercent((orderCount / views) * 100, 2) : "0%",
-              hint: "Conversion",
-            },
           ]}
         />
       </DataShell>
@@ -123,42 +110,7 @@ function SellerAnalytics() {
         </DataShell>
       </SectionCard>
 
-      <div className="grid gap-4 lg:grid-cols-3">
-        <SectionCard
-          title="Conversion funnel"
-          description={`Last ${days} days`}
-          actions={<ComponentHelp id="conversion-funnel" />}
-        >
-          <ul className="space-y-3">
-            {[
-              { label: "Views", value: views },
-              { label: "Carts", value: carts },
-              { label: "Orders", value: orderCount },
-            ].map((step, index, all) => {
-              const first = all[0]?.value ?? 1;
-              return (
-                <li key={step.label}>
-                  <div className="flex items-center justify-between text-[12px]">
-                    <span className="text-muted-foreground">{step.label}</span>
-                    <span className="num font-medium">{formatNumber(step.value)}</span>
-                  </div>
-                  <div className="mt-1 h-2 rounded-full bg-secondary">
-                    <div
-                      className="h-2 rounded-full bg-primary"
-                      style={{ width: `${Math.max(4, (step.value / first) * 100)}%` }}
-                    />
-                  </div>
-                  {index > 0 ? (
-                    <p className="num mt-1 text-[11px] text-muted-foreground">
-                      {formatPercent((step.value / (all[index - 1]?.value ?? 1)) * 100)} of previous
-                      step
-                    </p>
-                  ) : null}
-                </li>
-              );
-            })}
-          </ul>
-        </SectionCard>
+      <div className="grid gap-4 lg:grid-cols-2">
         <SectionCard title="Orders per day">
           <OrdersTrend data={series} />
         </SectionCard>
@@ -185,9 +137,7 @@ function SellerAnalytics() {
           <TableHeader>
             <TableRow>
               <TableHead>Product</TableHead>
-              <TableHead className="text-right">Views</TableHead>
               <TableHead className="text-right">Orders</TableHead>
-              <TableHead className="text-right">Conversion</TableHead>
               <TableHead className="text-right">GMV</TableHead>
             </TableRow>
           </TableHeader>
@@ -197,11 +147,7 @@ function SellerAnalytics() {
               .map((row) => (
                 <TableRow key={row.product.productId} className="h-12">
                   <TableCell className="text-[13px] font-medium">{row.product.name}</TableCell>
-                  <TableCell className="num text-right">{formatNumber(row.views)}</TableCell>
                   <TableCell className="num text-right">{formatNumber(row.orders)}</TableCell>
-                  <TableCell className="num text-right">
-                    {row.views ? formatPercent((row.orders / row.views) * 100, 2) : "—"}
-                  </TableCell>
                   <TableCell className="num text-right font-medium">
                     {formatINR(row.gmv)}
                   </TableCell>

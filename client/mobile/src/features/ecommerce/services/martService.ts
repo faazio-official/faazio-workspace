@@ -1,6 +1,4 @@
 import {
-  MART_DEALS,
-  MART_DAILY_ESSENTIALS,
   dealToProduct,
   essentialToProduct,
   type MartDeal,
@@ -10,7 +8,6 @@ import { gateway, type ActiveDiscount, type ProductView } from '@/services/api/G
 import { applyActiveDiscount } from '@/services/pricing';
 import type { Coordinates } from '@/services/location';
 import { formatDistanceKm } from '@/utils/distance';
-import { martStores } from '@data/mart/stores';
 import type { SduiBanner } from '@data/home/sdui';
 import type { StoreProfile } from '@data/types';
 
@@ -20,24 +17,6 @@ export interface MartFeed {
   /** Editorial house hero (`martHero.banners` from `GET /sdui/mart`); paid MART_HERO renders first. */
   heroBanners: SduiBanner[];
   localVendors: StoreProfile[];
-}
-
-/**
- * Overlay the canonical catalog values (name/price/MRP/rating/image) onto one editorial `md-*`
- * deal row. The authored presentation copy (brand/size/discountTag/priceNote) stays; money comes
- * from the server so the rail never shows an invented price. Falls back to the fixture row when the
- * catalog has no matching product (`md-*` are seeded rows, so this only happens offline).
- */
-function overlayDeal(deal: MartDeal, product?: ProductView): MartDeal {
-  if (!product) return deal;
-  return {
-    ...deal,
-    name: product.name,
-    price: product.price,
-    originalPrice: product.originalPrice ?? deal.originalPrice,
-    rating: product.rating ?? deal.rating,
-    imageUrl: product.image || deal.imageUrl,
-  };
 }
 
 /** Project one catalog row onto a Mart deal card when no authored `md-*` copy exists (a portal
@@ -127,11 +106,11 @@ export function priceEssentials(
  * Mart home feed. Vendors are **server-backed** (`directory.stores`, app=MART). The `martDeals` and
  * `martEssentials` rails are **server-controlled** through the Mongo SDUI home doc
  * (`martDeals.productIds` / `martEssentials.productIds`) via `GET /sdui/mart`, so merchandising is
- * portal-editable without a release (the `md-*`/`gr-*` fixtures are offline first-paint fallbacks
- * only). The Mart hero is paid first (`MART_HERO` from `GET /ads/hero`); `martHero.banners` is the
- * editorial **house fallback** rendered only when there is no LIVE fill (`CampaignHero fallback`).
- * Never fabricated — absent section → fixture, present-but-empty section → empty (a portal typo is
- * visible, not masked). Each leg (feed doc, vendor directory) degrades independently via
+ * portal-editable without a release. The Mart hero is paid first (`MART_HERO` from `GET /ads/hero`);
+ * `martHero.banners` is the editorial **house fallback** rendered only when there is no LIVE fill
+ * (`CampaignHero fallback`). There are no bundled store/deal fixtures: a failed leg or an absent
+ * section leaves that rail empty (a portal typo is visible, not masked).
+ * Each leg (feed doc, vendor directory) degrades independently via
  * `Promise.allSettled`, so one failing route never discards a successful response or blanks the
  * feed; the caller never sees a rejected promise (fixes skeleton-forever).
  */
@@ -148,7 +127,8 @@ export async function fetchMartFeed(origin?: Coordinates | null): Promise<MartFe
   const feed = feedResult.status === 'fulfilled' ? feedResult.value : [];
   const nearby = nearbyResult.status === 'fulfilled' ? nearbyResult.value : null;
   // Prefer the live nearby list when a fix existed (even if empty, so we never show a distance-less
-  // directory as if it were nearby). Without a fix, use the directory, then the offline fixture.
+  // directory as if it were nearby). Without a fix or when the directory leg fails, the rail is
+  // empty — there is no bundled store fixture to fall back on.
   const localVendors =
     nearby !== null
       ? nearby.map((store) => ({
@@ -157,22 +137,17 @@ export async function fetchMartFeed(origin?: Coordinates | null): Promise<MartFe
         }))
       : storesResult.status === 'fulfilled'
         ? storesResult.value
-        : martStores;
+        : [];
 
   const dealsSection = martSection(feed, 'martDeals');
   const essentials = martSection(feed, 'martEssentials');
   const hero = martSection(feed, 'martHero');
 
-  const authoredById = new Map(MART_DEALS.map((d) => [d.id, d]));
-  // Section present → trust its joined products (authored copy overlaid when the row is known);
-  // section absent (offline / older doc) → the local fixture.
-  const deals = dealsSection
-    ? dealsSection.products.map((p) => overlayDeal(authoredById.get(p.id) ?? dealFromProduct(p), p))
-    : MART_DEALS;
+  // Section present → trust its joined products (server projections); section absent (offline / older
+  // doc) → the rail is empty, never a bundled fixture.
+  const deals = dealsSection ? dealsSection.products.map(dealFromProduct) : [];
 
-  const dailyEssentials = essentials
-    ? essentials.products.map(essentialFromProduct)
-    : MART_DAILY_ESSENTIALS;
+  const dailyEssentials = essentials ? essentials.products.map(essentialFromProduct) : [];
 
   return {
     deals,

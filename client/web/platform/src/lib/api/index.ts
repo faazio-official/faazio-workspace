@@ -12,7 +12,6 @@ import {
   logoutPortal,
   restorePortalSession,
 } from "@/lib/portal/auth";
-import { sellerSeries, stateSeries, globalSeries, productSeries } from "@/data/analytics/series";
 import type {
   AdStatus,
   AdTargetType,
@@ -1632,17 +1631,38 @@ export function flagReview(reviewId: string): void {
 
 /* -------------------------------- analytics ------------------------------ */
 
-export function sellerMetrics(sellerId: string, days = 30) {
-  return sellerSeries(sellerId, days);
+export interface AnalyticsRank {
+  id: string;
+  gmvPaisa: number;
+  orders: number;
 }
-export function stateMetrics(stateCode: string, days = 30) {
-  return stateSeries(stateCode, days);
+
+export interface AnalyticsRanks {
+  sellers: AnalyticsRank[];
+  states: AnalyticsRank[];
+  products: AnalyticsRank[];
 }
-export function globalMetrics(days = 30) {
-  return globalSeries(days);
+
+export type AnalyticsScope = "global" | "seller" | "state" | "product";
+
+/** Live IST-day GMV/orders buckets from `GET /analytics/series` (checkout.orders is the source). */
+export async function fetchAnalyticsSeries(
+  scope: AnalyticsScope,
+  id: string,
+  days = 30,
+): Promise<import("@/data/types").DailyPoint[]> {
+  if (!remoteConfigured()) return [];
+  const qs = new URLSearchParams({ scope, days: String(days) });
+  if (id) qs.set("id", id);
+  return remote.get<import("@/data/types").DailyPoint[]>(`/analytics/series?${qs.toString()}`);
 }
-export function productMetrics(productId: string, days = 30) {
-  return productSeries(productId, days);
+
+/** Live seller/state/product totals from `GET /analytics/ranks` (checkout ledger, not seeded). */
+export async function fetchAnalyticsRanks(days = 30): Promise<AnalyticsRanks> {
+  if (!remoteConfigured()) {
+    return { sellers: [], states: [], products: [] };
+  }
+  return remote.get<AnalyticsRanks>(`/analytics/ranks?days=${days}`);
 }
 
 /* ---------------------------------- audit -------------------------------- */

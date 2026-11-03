@@ -3,6 +3,7 @@ package weather
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"time"
 
 	"github.com/faazio/server/gateway/internal/geo"
@@ -31,30 +32,51 @@ type UsageStore interface {
 
 // Checker resolves rain per zone with a 30-minute cache, a manual override and an annual budget.
 type Checker struct {
-	cache CacheStore
-	api   API
-	usage UsageStore
-	limit int64
-	now   func() time.Time
+	cache  CacheStore
+	api    API
+	usage  UsageStore
+	limit  int64
+	now    func() time.Time
+	logger *slog.Logger
 }
 
-// NewChecker builds the weather checker. api/usage may be nil (provider disabled / no DB).
-func NewChecker(c CacheStore, api API, usage UsageStore, limit int64) *Checker {
+// NewChecker builds the weather checker. api/usage may be nil (provider disabled / no DB). The
+// optional logger receives a detailed line for every degrade (provider down, budget exhausted, API
+// error) so a silent "no rain surcharge" is always auditable. Nil logger → log/slog default.
+func NewChecker(c CacheStore, api API, usage UsageStore, limit int64, loggers ...*slog.Logger) *Checker {
 	if c == nil {
 		c = &cache.Cache{}
 	}
 	if limit <= 0 {
 		limit = AnnualCallLimit
 	}
-	return &Checker{cache: c, api: api, usage: usage, limit: limit, now: time.Now}
+	logger := slog.Default()
+	if len(loggers) > 0 && loggers[0] != nil {
+		logger = loggers[0]
+	}
+	return &Checker{cache: c, api: api, usage: usage, limit: limit, now: time.Now, logger: logger}
+}
+
+// logDegrade writes the always-on audit line for a graceful no-surcharge degrade. cell is the hex
+// delivery zone; extra key/value pairs carry the failure specifics.
+func (c *Checker) logDegrade(cellID string, detail string) {
+	lat, lng := geo.GeoCellCenter(cellID)
+	c.logger.Warn("weather_degraded",
+		"source", "weather",
+		"cell", cellID,
+		"lat", lat,
+		"lng", lng,
+		"detail", detail,
+	)
 }
 
 // IsRaining reports whether a zone is raining now. Manual overrides and a cached recent provider
-// verdict are honoured. A disabled provider or a provider error is an explicit error — the checker
-// never fabricates a "not raining" verdict for a cell it could not actually resolve.
+// verdict are honoured. When the provider is disabled, the annual budget is exhausted, or the
+// provider errors, the check degrades to "not raining" (no surcharge charged) and the failure is
+// logged in detail — a checkout is never blocked, and the override decision is never silent.
 func (c *Checker) IsRaining(ctx context.Context, cellID string) (bool, error) {
 	if c == nil || cellID == "" {
-		return false, fmt.Errorf("weather: no cell id")
+		return false, nil
 	}
 	var override bool
 	if c.cache.GetJSON(ctx, cache.WeatherOverride(cellID), &override) {
@@ -65,13 +87,15 @@ func (c *Checker) IsRaining(ctx context.Context, cellID string) (bool, error) {
 		return cached, nil
 	}
 	if c.api == nil || !c.api.Enabled() {
-		return false, fmt.Errorf("weather: rain provider is not configured")
+		c.logDegrade(cellID, "provider not configured or disabled")
+		return false, nil
 	}
 
 	now := c.now()
 	fy := FinancialYear(now)
 	if used, ok := c.cache.GetInt(ctx, cache.WeatherCalls(fy)); ok && used >= c.limit {
-		return false, fmt.Errorf("weather: annual call budget exhausted (%d/%d)", used, c.limit)
+		c.logDegrade(cellID, fmt.Sprintf("annual call budget exhausted (%d/%d)", used, c.limit))
+		return false, nil
 	}
 
 	lat, lng := geo.GeoCellCenter(cellID)
@@ -80,9 +104,11 @@ func (c *Checker) IsRaining(ctx context.Context, cellID string) (bool, error) {
 	// outage must not turn every checkout for a cell into another request.
 	c.recordCall(ctx, now, fy)
 	if err != nil {
-		// No verdict is better than a fabricated one: a broken provider is surfaced, not silently
-		// converted into "dry". (The cache above still serves the last real verdict for the window.)
-		return false, err
+		// Graceful no-surcharge degrade: the zone is treated as not raining, and the exact provider
+		// failure is logged so the silent decision is always audit-trail-able. No fabricated value is
+		// cached — the next check retries the provider (the cache above serves only real verdicts).
+		c.logDegrade(cellID, "provider error: "+err.Error())
+		return false, nil
 	}
 
 	c.cache.SetJSON(ctx, cache.WeatherZone(cellID), raining, cache.TTLWeatherZone)

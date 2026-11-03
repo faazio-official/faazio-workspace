@@ -12,8 +12,8 @@ import { FilterChip } from "@/components/patterns/FilterChip";
 import { StatusPill } from "@/components/patterns/Pills";
 import { formatINR, formatNumber } from "@/lib/format";
 import { periodDelta, sumGmv, sumOrders } from "@/lib/analytics/derive";
-import { globalMetrics } from "@/lib/api";
 import {
+  useAnalyticsSeries,
   useCampaigns,
   useMockLoading,
   useOrders,
@@ -26,7 +26,7 @@ import { districtName } from "@/lib/api/reference";
 
 function SuperDashboard() {
   const loading = useMockLoading();
-  const series = globalMetrics(30);
+  const series = useAnalyticsSeries("global", "", 30);
   const sellers = useSellers();
   const orders = useOrders();
   const campaigns = useCampaigns();

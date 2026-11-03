@@ -6,7 +6,9 @@ renders from a Zustand store that is hydrated from the Go Chi gateway when
 demo rows (the `src/data/**` domain seeds were removed — `src/data/types.ts` is the only source file
 left). Reference data (states, districts, ad placements, taxonomy categories) is read live from
 `GET /geo/states`, `GET /geo/districts`, `GET /ads/placements` and `/categories` — never from client
-literals. **Portal auth is the only auth mode** — the
+literals. Dashboard trends and rankings (super, district, seller analytics) are **real ledger
+aggregates** from `GET /analytics/series` + `GET /analytics/ranks` (`internal/analytics` over
+`checkout.orders`/`order_items`) — the old seeded client-side series was deleted. **Portal auth is the only auth mode** — the
 portal signs in against gateway-native credentials (HttpOnly cookies, no token in
 `localStorage`). A superadmin issues seller and district-admin logins from
 `/admin/super/credentials`; both carry a scope (`seller_id` or `state_code`) that the
