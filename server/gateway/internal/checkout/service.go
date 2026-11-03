@@ -219,6 +219,7 @@ func (s *Service) CreateOrder(ctx context.Context, userID string, req PlaceOrder
 	type pricedLine struct {
 		grossPaisa int64
 		ratePct    int
+		productID  string
 		sellerID   string
 		storeID    string
 	}
@@ -254,6 +255,7 @@ func (s *Service) CreateOrder(ctx context.Context, userID string, req PlaceOrder
 		priced = append(priced, pricedLine{
 			grossPaisa: grossPaisa,
 			ratePct:    taxRateFor(categoryRates, snap.App, snap.Category),
+			productID:  it.ProductID,
 			sellerID:   snap.SellerID,
 			storeID:    derefStr(snap.StoreID),
 		})
@@ -285,16 +287,15 @@ func (s *Service) CreateOrder(ctx context.Context, userID string, req PlaceOrder
 	}
 	taxLines := make([]taxmath.Line, 0, len(priced))
 	for _, p := range priced {
-		feePct := 10 // ignored by Compute (commission removed); kept for structural compatibility
-		if p.storeID != "" {
-			if sf, ok := storeFees[p.storeID]; ok && sf.PlatformFeePct > 0 {
-				feePct = sf.PlatformFeePct
-			}
-		} else if prof, ok := profiles[p.sellerID]; ok && prof.PlatformFeePct > 0 {
-			feePct = prof.PlatformFeePct
+		if p.storeID == "" {
+			return Order{}, fmt.Errorf("checkout: product %q has no vendor store", p.productID)
+		}
+		sf, ok := storeFees[p.storeID]
+		if !ok || sf.PlatformFeePct <= 0 {
+			return Order{}, fmt.Errorf("checkout: vendor store %q has no platform fee", p.storeID)
 		}
 		taxLines = append(taxLines, taxmath.Line{
-			GrossPaisa: p.grossPaisa, GSTRatePct: p.ratePct, PlatformFeePct: feePct,
+			GrossPaisa: p.grossPaisa, GSTRatePct: p.ratePct, PlatformFeePct: sf.PlatformFeePct,
 		})
 	}
 

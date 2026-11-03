@@ -87,7 +87,7 @@ func NewRouter(d Deps) http.Handler {
 	r.Use(httpx.MaxBytes(httpx.DefaultMaxBodyBytes))
 	r.Use(mediaBodyLimit())
 	r.Use(sensitiveThrottle())
-	r.Use(corsMiddleware(d.Config.AllowedOrigins, d.Config.AuthDisabled))
+	r.Use(corsMiddleware(d.Config.AllowedOrigins))
 	if d.Config.OTelEnabled {
 		r.Use(requestLogger())
 	}
@@ -114,7 +114,13 @@ func NewRouter(d Deps) http.Handler {
 	bloodRepo := blood.New(d.Pool)
 	// Razorpay Route (seller split payments): linked accounts + held transfers. Shared by sellers
 	// (provision account on KYC) and settlement (hold/release the seller share).
-	routeGateway := razorpayroute.New(d.Config.RazorpayRouteKeyID, d.Config.RazorpayRouteKeySecret, d.Config.RazorpayRouteWebhookSecret)
+	routeGateway, routeErr := razorpayroute.New(d.Config.RazorpayRouteKeyID, d.Config.RazorpayRouteKeySecret, d.Config.RazorpayRouteWebhookSecret)
+	if routeErr != nil {
+		// Tests and tooling construct a router without secrets. Production validates this in main
+		// and refuses to boot, so a nil gateway here can only mean "not configured".
+		slog.Warn("razorpay route disabled", "error", routeErr)
+		routeGateway = nil
+	}
 	// Customer Razorpay rail (UPI order creation + webhook). Disabled (503) when keys are unset —
 	// there is no mock/synthetic paid order.
 	razorpayPay := razorpaypay.New(d.Config.RazorpayKeyID, d.Config.RazorpayKeySecret, d.Config.RazorpayWebhookSecret)
@@ -151,8 +157,6 @@ func NewRouter(d Deps) http.Handler {
 	// separately. The legacy Supabase/GoTrue path remains for older partner tokens during the
 	// migration. checkout resolves the auth subject → app user slug.
 	authConfig := auth.Config{
-		Disabled:  d.Config.AuthDisabled,
-		DevUserID: d.Config.DevUserID,
 		JWTSecret: []byte(d.Config.SupabaseJWTSecret),
 		Resolver:  checkoutRepo,
 	}
@@ -359,10 +363,8 @@ func requestLogger() func(http.Handler) http.Handler {
 }
 
 // corsMiddleware is an explicit allow-list: only a configured origin gets CORS headers (default
-// deny). A literal `*` is honored **only** in dev (AUTH_DISABLED=true) so local tooling stays
-// convenient; production (AUTH_DISABLED=false) never reflects an arbitrary origin. The dev-only
-// `X-Dev-*` headers are likewise only advertised in dev — a prod preflight never invites them.
-func corsMiddleware(origins []string, devMode bool) func(http.Handler) http.Handler {
+// deny). A literal `*` is honoured only when the operator explicitly configures it.
+func corsMiddleware(origins []string) func(http.Handler) http.Handler {
 	allowed := map[string]struct{}{}
 	wildcard := false
 	for _, o := range origins {
@@ -371,17 +373,12 @@ func corsMiddleware(origins []string, devMode bool) func(http.Handler) http.Hand
 		case "":
 			continue
 		case "*":
-			if devMode {
-				wildcard = true
-			}
+			wildcard = true
 		default:
 			allowed[o] = struct{}{}
 		}
 	}
-	allowHeaders := "Authorization, Content-Type"
-	if devMode {
-		allowHeaders += ", X-Dev-User, X-Dev-Role, X-Dev-Seller, X-Dev-State, X-Dev-District"
-	}
+	const allowHeaders = "Authorization, Content-Type"
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			if origin := r.Header.Get("Origin"); origin != "" {

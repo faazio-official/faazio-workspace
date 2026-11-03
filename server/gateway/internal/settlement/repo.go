@@ -52,6 +52,25 @@ type Repo struct {
 // New returns a settlement repo.
 func New(pool *db.Pool) *Repo { return &Repo{pool: pool} }
 
+// StoreFee returns a vendor store's platform fee when the store belongs to sellerID. The fee is a
+// property of the shop (0069), so settlement must use it rather than the account-level default.
+func (r *Repo) StoreFee(ctx context.Context, sellerID, storeID string) (int, bool, error) {
+	if r.pool == nil {
+		return 0, false, fmt.Errorf("settlement: database not configured")
+	}
+	var fee int
+	err := r.pool.QueryRow(ctx, `
+		select platform_fee_pct from directory.stores
+		 where id = $1 and seller_id = $2`, storeID, sellerID).Scan(&fee)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return 0, false, nil
+		}
+		return 0, false, err
+	}
+	return fee, true, nil
+}
+
 // Ledger returns settlement entries for a seller (optionally one cycle).
 func (r *Repo) Ledger(ctx context.Context, sellerID, cycle string) ([]LedgerEntry, error) {
 	if r.pool == nil {

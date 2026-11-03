@@ -30,9 +30,6 @@ type Handler struct {
 
 // NewHandler builds the settlement handler. route/fees may be nil (hold endpoints return 503).
 func NewHandler(repo *Repo, c *cache.Cache, audit contracts.AuditWriter, route razorpayroute.Gateway, fees contracts.SellerProfileReader) *Handler {
-	if route == nil {
-		route = razorpayroute.New("", "", "")
-	}
 	return &Handler{repo: repo, cache: c, audit: audit, route: route, fees: fees}
 }
 
@@ -169,6 +166,7 @@ func (h *Handler) createPayout(w http.ResponseWriter, r *http.Request) {
 
 type holdRequest struct {
 	SellerID     string `json:"sellerId"`
+	StoreID      string `json:"storeId"` // vendor shop the payment belongs to (fee source)
 	Cycle        string `json:"cycle"`
 	PaymentID    string `json:"paymentId"`
 	GrossAmount  int64  `json:"grossAmount"`  // whole rupees captured from the customer (GST-inclusive)
@@ -188,8 +186,8 @@ type holdResponse struct {
 }
 
 func (h *Handler) createHold(w http.ResponseWriter, r *http.Request) {
-	if h.fees == nil {
-		httpx.Fail(w, http.StatusServiceUnavailable, "settlement_unconfigured", "seller profile reader not configured")
+	if h.fees == nil || h.route == nil {
+		httpx.Fail(w, http.StatusServiceUnavailable, "settlement_unconfigured", "settlement rail not configured")
 		return
 	}
 	var req holdRequest
@@ -198,13 +196,14 @@ func (h *Handler) createHold(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	req.SellerID = strings.TrimSpace(req.SellerID)
+	req.StoreID = strings.TrimSpace(req.StoreID)
 	req.PaymentID = strings.TrimSpace(req.PaymentID)
 	req.Cycle = strings.TrimSpace(req.Cycle)
 	if req.Cycle == "" {
 		req.Cycle = time.Now().UTC().Format("2006-01")
 	}
-	if req.SellerID == "" || req.PaymentID == "" || req.GrossAmount <= 0 {
-		httpx.Fail(w, http.StatusBadRequest, "bad_request", "sellerId, paymentId and grossAmount are required")
+	if req.SellerID == "" || req.StoreID == "" || req.PaymentID == "" || req.GrossAmount <= 0 {
+		httpx.Fail(w, http.StatusBadRequest, "bad_request", "sellerId, storeId, paymentId and grossAmount are required")
 		return
 	}
 	releaseAfter := time.Now().UTC().Add(7 * 24 * time.Hour)
@@ -232,8 +231,19 @@ func (h *Handler) createHold(w http.ResponseWriter, r *http.Request) {
 	if rate <= 0 {
 		rate = taxmath.DefaultProductGSTRate
 	}
+	// The fee is per vendor. There is no account-level fallback: a payment that cannot name its
+	// shop cannot be split correctly and must be rejected.
+	feePct, ok, ferr := h.repo.StoreFee(r.Context(), req.SellerID, req.StoreID)
+	if ferr != nil {
+		httpx.Fail(w, http.StatusInternalServerError, "settlement_unavailable", "settlement unavailable")
+		return
+	}
+	if !ok {
+		httpx.Fail(w, http.StatusNotFound, "store_not_found", "vendor store not found for this seller")
+		return
+	}
 	b := taxmath.Compute([]taxmath.Line{{
-		GrossPaisa: req.GrossAmount * 100, GSTRatePct: rate, PlatformFeePct: profile.PlatformFeePct,
+		GrossPaisa: req.GrossAmount * 100, GSTRatePct: rate, PlatformFeePct: feePct,
 	}}, taxmath.DefaultRates())
 	commission := int64(math.Round(float64(b.PlatformFeePaisa) / 100))
 	tcs := int64(math.Round(float64(b.TCSPaisa) / 100))

@@ -13,16 +13,17 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { formatNumber, formatPercent } from "@/lib/format";
-import { useAdSlots, useHeroCampaigns, useMockLoading } from "@/lib/api/hooks";
+import { useAdSlots, useHeroCampaigns, useMockLoading, usePlacements, useSellerScope } from "@/lib/api/hooks";
 import { useSession } from "@/lib/hooks/useSession";
-import { HERO_PLACEMENT_META } from "@/data/ads/placements";
+import { placementLabel } from "@/lib/api/reference";
 import { ComponentHelp } from "@/components/patterns/ComponentHelp";
 import { CampaignWizard } from "./components/CampaignWizard";
 
 function SellerAds() {
   const session = useSession();
-  const sellerId = session?.sellerId ?? "sel-1";
+  const { sellerId } = useSellerScope();
   const loading = useMockLoading();
+  const placements = usePlacements();
   const slots = useAdSlots({ sellerId });
   const campaigns = useHeroCampaigns({ sellerId });
 
@@ -90,7 +91,7 @@ function SellerAds() {
               {campaigns.map((c) => (
                 <TableRow key={c.placementId} className="h-14">
                   <TableCell className="text-[13px] font-medium">
-                    {HERO_PLACEMENT_META[c.placement]?.label ?? c.placement.replace(/_/g, " ")}
+                    {placementLabel(placements, c.placement)}
                   </TableCell>
                   <TableCell>
                     <div className="flex items-center gap-2">

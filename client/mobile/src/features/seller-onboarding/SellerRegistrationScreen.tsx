@@ -319,8 +319,6 @@ export function SellerRegistrationScreen({ navigation }: Props) {
       const res = await gateway.submitSellerApplication({
         businessName: form.businessName.trim(),
         ownerName: form.ownerName.trim(),
-        category,
-        categoryId: subCategoryId ?? undefined,
         gstin: form.gstin.trim().toUpperCase(),
         pan: form.pan.trim().toUpperCase(),
         businessAddress: form.businessAddress.trim(),
@@ -330,16 +328,25 @@ export function SellerRegistrationScreen({ navigation }: Props) {
         districtCode: form.districtCode || undefined,
         latitude: shopPin?.latitude,
         longitude: shopPin?.longitude,
-        platformFeePct: Number(form.platformFee),
+        vendors: [
+          {
+            name: form.businessName.trim(),
+            app: category,
+            categoryId: subCategoryId ?? undefined,
+            platformFeePct: Number(form.platformFee),
+            fssaiNumber: form.fssaiNumber.trim() || undefined,
+            fssaiFileKey: fssai?.key,
+            fssaiAssetId: fssai?.assetId,
+            latitude: shopPin?.latitude,
+            longitude: shopPin?.longitude,
+          },
+        ],
         bankName: form.bankName.trim(),
         bankAccountNumber: form.bankAccountNumber.replace(/\D/g, ''),
         bankIfsc: form.bankIfsc.trim().toUpperCase(),
         bankBeneficiary: form.bankBeneficiary.trim(),
         passbookFileKey: passbook.key,
         passbookAssetId: passbook.assetId,
-        fssaiNumber: form.fssaiNumber.trim() || undefined,
-        fssaiFileKey: fssai?.key,
-        fssaiAssetId: fssai?.assetId,
         otpVerified: true,
       });
       setResult(res);
@@ -405,8 +412,12 @@ export function SellerRegistrationScreen({ navigation }: Props) {
               <AppText style={styles.successValue}>Pending review</AppText>
             </View>
             <View style={styles.successRow}>
-              <AppText style={styles.successKey}>Platform fee</AppText>
-              <AppText style={styles.successValue}>{result.platformFeePct}%</AppText>
+              <AppText style={styles.successKey}>Vendors</AppText>
+              <AppText style={styles.successValue}>
+                {result.vendors && result.vendors.length > 0
+                  ? result.vendors.map((v) => v.app).join(' / ')
+                  : '—'}
+              </AppText>
             </View>
             <TouchableOpacity style={styles.submitBtn} onPress={() => navigation.goBack()} activeOpacity={0.9}>
               <AppText style={styles.submitText}>Done</AppText>

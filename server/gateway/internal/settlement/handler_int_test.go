@@ -14,7 +14,7 @@ import (
 	"time"
 
 	"github.com/faazio/server/gateway/internal/contracts"
-	"github.com/faazio/server/gateway/internal/platform/auth"
+	"github.com/faazio/server/gateway/internal/platform/authtest"
 	"github.com/faazio/server/gateway/internal/platform/cache"
 	"github.com/faazio/server/gateway/internal/platform/razorpayroute"
 	"github.com/faazio/server/gateway/internal/platform/testenv"
@@ -57,7 +57,7 @@ type profileStub struct {
 }
 
 func (p profileStub) SettlementProfile(context.Context, string) (contracts.SellerSettlementProfile, error) {
-	return contracts.SellerSettlementProfile{PlatformFeePct: p.pct, LinkedAccountID: p.account}, nil
+	return contracts.SellerSettlementProfile{LinkedAccountID: p.account}, nil
 }
 
 func settlementRouter(t *testing.T, pool *pgxpool.Pool, route razorpayroute.Gateway, fees contracts.SellerProfileReader) http.Handler {
@@ -67,32 +67,42 @@ func settlementRouter(t *testing.T, pool *pgxpool.Pool, route razorpayroute.Gate
 		t.Fatal(err)
 	}
 	r := chi.NewRouter()
-	r.Use(auth.Middleware(auth.Config{Disabled: true, DevUserID: "admin-1"}))
+	r.Use(authtest.Middleware())
 	NewHandler(New(pool), c, nil, route, fees).Register(r)
 	return r
 }
 
-func seedSettlingSeller(t *testing.T, pool *pgxpool.Pool, sellerID, account string) {
+func seedSettlingSeller(t *testing.T, pool *pgxpool.Pool, sellerID, account string) string {
 	t.Helper()
 	ctx := context.Background()
 	if _, err := pool.Exec(ctx, `
 		insert into sellers.sellers
-		  (seller_id, business_name, owner_name, category, state_code, platform_fee_pct, razorpay_linked_account_id)
-		values ($1,'Settle Handler','O','MART','KA',10,$2)
+		  (seller_id, business_name, owner_name, state_code, razorpay_linked_account_id)
+		values ($1,'Settle Handler','O','KA',$2)
 		on conflict (seller_id) do update set razorpay_linked_account_id=excluded.razorpay_linked_account_id`,
 		sellerID, account); err != nil {
 		t.Fatalf("seed seller: %v", err)
 	}
+	storeID := "store-" + sellerID
+	if _, err := pool.Exec(ctx, `
+		insert into directory.stores (id, app, name, seller_id, state_code, platform_fee_pct)
+		values ($1,'mart','Settle Shop',$2,'KA',10)
+		on conflict (id) do update set platform_fee_pct=excluded.platform_fee_pct`,
+		storeID, sellerID); err != nil {
+		t.Fatalf("seed store: %v", err)
+	}
 	t.Cleanup(func() {
 		_, _ = pool.Exec(ctx, `delete from payments.settlement_ledger where seller_id=$1`, sellerID)
 		_, _ = pool.Exec(ctx, `delete from payments.payouts where seller_id=$1`, sellerID)
+		_, _ = pool.Exec(ctx, `delete from directory.stores where seller_id=$1`, sellerID)
 		_, _ = pool.Exec(ctx, `delete from sellers.sellers where seller_id=$1`, sellerID)
 	})
+	return storeID
 }
 
-func holdBody(sellerID string) map[string]any {
+func holdBody(sellerID, storeID string) map[string]any {
 	return map[string]any{
-		"sellerId": sellerID, "cycle": "2026-04", "paymentId": "pay_test",
+		"sellerId": sellerID, "storeId": storeID, "cycle": "2026-04", "paymentId": "pay_test",
 		"grossAmount": 1000, "releaseAfter": time.Now().UTC().Add(96 * time.Hour).Format(time.RFC3339),
 	}
 }
@@ -100,17 +110,17 @@ func holdBody(sellerID string) map[string]any {
 func TestCreateHoldHandler(t *testing.T) {
 	pool := testenv.Pool(t)
 	sellerID := "sel-holdh-" + shortID()
-	seedSettlingSeller(t, pool, sellerID, "acc_linked")
+	storeID := seedSettlingSeller(t, pool, sellerID, "acc_linked")
 	h := settlementRouter(t, pool, &routeStub{webhookSecret: "wsec"}, profileStub{pct: 10, account: "acc_linked"})
 
 	// A seller cannot create a hold (RequireRole SUPER_ADMIN).
-	noRole := doReq(h, http.MethodPost, "/payouts/holds", holdBody(sellerID),
+	noRole := doReq(h, http.MethodPost, "/payouts/holds", holdBody(sellerID, storeID),
 		map[string]string{"X-Dev-Role": "SELLER", "X-Dev-Seller": "sel-other"})
 	if noRole.Code != http.StatusUnauthorized {
 		t.Fatalf("seller hold status = %d, want 401", noRole.Code)
 	}
 
-	created := doReq(h, http.MethodPost, "/payouts/holds", holdBody(sellerID),
+	created := doReq(h, http.MethodPost, "/payouts/holds", holdBody(sellerID, storeID),
 		map[string]string{"X-Dev-Role": "SUPER_ADMIN"})
 	if created.Code != http.StatusCreated {
 		t.Fatalf("create hold status = %d body=%s", created.Code, created.Body.String())
@@ -129,9 +139,9 @@ func TestCreateHoldHandler(t *testing.T) {
 	// A seller without a linked account gets 409 kyc_incomplete. The profile reader returns an empty
 	// account for them, so the handler must stop before creating any transfer.
 	noAccount := "sel-holdh-" + shortID() + "b"
-	seedSettlingSeller(t, pool, noAccount, "")
+	noStore := seedSettlingSeller(t, pool, noAccount, "")
 	hNo := settlementRouter(t, pool, &routeStub{webhookSecret: "wsec"}, profileStub{pct: 10, account: ""})
-	conflict := doReq(hNo, http.MethodPost, "/payouts/holds", holdBody(noAccount),
+	conflict := doReq(hNo, http.MethodPost, "/payouts/holds", holdBody(noAccount, noStore),
 		map[string]string{"X-Dev-Role": "SUPER_ADMIN"})
 	if conflict.Code != http.StatusConflict {
 		t.Fatalf("no linked account status = %d body=%s, want 409", conflict.Code, conflict.Body.String())
@@ -148,7 +158,7 @@ func TestCreateHoldHandler(t *testing.T) {
 func TestReleaseHoldHandler(t *testing.T) {
 	pool := testenv.Pool(t)
 	sellerID := "sel-relh-" + shortID()
-	seedSettlingSeller(t, pool, sellerID, "acc_linked")
+	_ = seedSettlingSeller(t, pool, sellerID, "acc_linked")
 	stub := &routeStub{webhookSecret: "wsec"}
 	h := settlementRouter(t, pool, stub, profileStub{pct: 10, account: "acc_linked"})
 
@@ -193,7 +203,7 @@ func TestReleaseHoldHandler(t *testing.T) {
 func TestReverseHoldHandler(t *testing.T) {
 	pool := testenv.Pool(t)
 	sellerID := "sel-revh-" + shortID()
-	seedSettlingSeller(t, pool, sellerID, "acc_linked")
+	_ = seedSettlingSeller(t, pool, sellerID, "acc_linked")
 	ctx := context.Background()
 
 	held, err := New(pool).CreateHoldPayout(ctx, Payout{
@@ -242,7 +252,7 @@ func TestReverseHoldHandler(t *testing.T) {
 func TestRouteWebhookHandler(t *testing.T) {
 	pool := testenv.Pool(t)
 	sellerID := "sel-wbh-" + shortID()
-	seedSettlingSeller(t, pool, sellerID, "acc_linked")
+	_ = seedSettlingSeller(t, pool, sellerID, "acc_linked")
 	repo := New(pool)
 	ctx := context.Background()
 

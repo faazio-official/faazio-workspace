@@ -6,13 +6,13 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/faazio/server/gateway/internal/platform/auth"
+	"github.com/faazio/server/gateway/internal/platform/authtest"
 	"github.com/go-chi/chi/v5"
 )
 
 func newTestRouter() http.Handler {
 	r := chi.NewRouter()
-	r.Use(auth.Middleware(auth.Config{Disabled: true, DevUserID: "user-1"}))
+	r.Use(authtest.Middleware())
 	NewHandler(New(nil), NewService(New(nil), nil, nil)).Register(r) // nil Mongo: valid input reaches the repo and fails 500
 	return r
 }

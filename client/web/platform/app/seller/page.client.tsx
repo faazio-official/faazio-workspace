@@ -19,7 +19,7 @@ import {
   sumOrders,
 } from "@/lib/analytics/derive";
 import { sellerMetrics } from "@/lib/api";
-import { useMockLoading, useOrders, useProducts, useCampaigns } from "@/lib/api/hooks";
+import { useMockLoading, useOrders, useProducts, useCampaigns, useSellerScope } from "@/lib/api/hooks";
 import { useSession } from "@/lib/hooks/useSession";
 import { cn } from "@/lib/utils";
 import { ProductThumb } from "@/components/patterns/ProductThumb";
@@ -27,10 +27,10 @@ import { ComponentHelp } from "@/components/patterns/ComponentHelp";
 
 function SellerDashboard() {
   const session = useSession();
-  const sellerId = session?.sellerId ?? "sel-1";
+  const { sellerId, storeId } = useSellerScope();
   const loading = useMockLoading();
-  const orders = useOrders({ sellerId });
-  const products = useProducts({ sellerId });
+  const orders = useOrders({ sellerId, storeId });
+  const products = useProducts({ sellerId, storeId });
   const campaigns = useCampaigns({ stateCode: session?.stateCode });
   const series = sellerMetrics(sellerId, 30);
 

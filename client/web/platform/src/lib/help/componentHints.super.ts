@@ -573,7 +573,7 @@ export const SUPER_COMPONENT_HINTS: Record<string, ComponentHint> = {
       what: "The vendor store, carousel slot and catalog product ids for a campaign row.",
       workflow: "Merchandising — edit a store campaign.",
       changes: "Store and products are referenced by id; title and price come from the catalog.",
-      example: "Point the campaign at store-m1 and its food product ids.",
+      example: "Point the campaign at a store id and its product ids.",
       app: ["consumer"],
     },
   }),

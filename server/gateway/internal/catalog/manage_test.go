@@ -24,8 +24,8 @@ func TestCreateProduct(t *testing.T) {
 	sellerB := "sel-cat-" + manageID("")
 	for _, id := range []string{sellerA, sellerB} {
 		if _, err := pool.Exec(ctx, `
-			insert into sellers.sellers (seller_id, business_name, owner_name, category, state_code, district_code)
-			values ($1,'Catalog Create','O','MART','TN','TCH')`, id); err != nil {
+			insert into sellers.sellers (seller_id, business_name, owner_name, state_code, district_code)
+			values ($1,'Catalog Create','O','TN','TCH')`, id); err != nil {
 			t.Fatalf("seed seller: %v", err)
 		}
 	}
@@ -101,16 +101,24 @@ func TestSellerProductManagement(t *testing.T) {
 
 	sellerID := "sel-cat-" + manageID("")
 	if _, err := pool.Exec(ctx, `
-		insert into sellers.sellers (seller_id, business_name, owner_name, category, state_code, district_code)
-		values ($1,'Catalog Test','O','MART','TN','TCH')`, sellerID); err != nil {
+		insert into sellers.sellers (seller_id, business_name, owner_name, state_code, district_code)
+		values ($1,'Catalog Test','O','TN','TCH')`, sellerID); err != nil {
 		t.Fatalf("seed seller: %v", err)
 	}
 	t.Cleanup(func() { _, _ = pool.Exec(ctx, `delete from sellers.sellers where seller_id=$1`, sellerID) })
 
+	storeID := "store-cat-" + manageID("")
+	if _, err := pool.Exec(ctx, `
+		insert into directory.stores (id, app, name, seller_id, state_code)
+		values ($1,'MART','Catalog Store',$2,'TN')`, storeID, sellerID); err != nil {
+		t.Fatalf("seed store: %v", err)
+	}
+	t.Cleanup(func() { _, _ = pool.Exec(ctx, `delete from directory.stores where id=$1`, storeID) })
+
 	pid := "prod-" + manageID("")
 	if _, err := pool.Exec(ctx, `
-		insert into catalog.products (id, app, category, name, price_paisa, seller_id, status)
-		values ($1,'MART','Test','Unit', 12345, $2, 'DRAFT')`, pid, sellerID); err != nil {
+		insert into catalog.products (id, app, category, name, price_paisa, store_id, status)
+		values ($1,'MART','Test','Unit', 12345, $2, 'DRAFT')`, pid, storeID); err != nil {
 		t.Fatalf("seed product: %v", err)
 	}
 	t.Cleanup(func() { _, _ = pool.Exec(ctx, `delete from catalog.products where id=$1`, pid) })
@@ -153,8 +161,8 @@ func TestSellerInventoryAndPricing(t *testing.T) {
 
 	sellerID := "sel-inv-" + manageID("")
 	if _, err := pool.Exec(ctx, `
-		insert into sellers.sellers (seller_id, business_name, owner_name, category, state_code, district_code)
-		values ($1,'Inventory Test','O','MART','TN','TCH')`, sellerID); err != nil {
+		insert into sellers.sellers (seller_id, business_name, owner_name, state_code, district_code)
+		values ($1,'Inventory Test','O','TN','TCH')`, sellerID); err != nil {
 		t.Fatalf("seed seller: %v", err)
 	}
 	t.Cleanup(func() { _, _ = pool.Exec(ctx, `delete from sellers.sellers where seller_id=$1`, sellerID) })

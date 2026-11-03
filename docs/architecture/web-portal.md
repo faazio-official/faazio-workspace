@@ -1,9 +1,12 @@
 # Web Portal (Next.js) — architecture deep dive
 
 The Faazio Partner Portal is the seller / district-admin / super-admin console. It
-renders from a Zustand store that is seeded from `client/web/platform/src/data/**` and, when
-`NEXT_PUBLIC_GATEWAY_URL` is set, hydrated from the Go Chi gateway
-(`client/web/platform/src/lib/api/sync.ts`). **Portal auth is the only auth mode** — the
+renders from a Zustand store that is hydrated from the Go Chi gateway when
+`NEXT_PUBLIC_GATEWAY_URL` is set (`client/web/platform/src/lib/api/sync.ts`); there are no bundled
+demo rows (the `src/data/**` domain seeds were removed — `src/data/types.ts` is the only source file
+left). Reference data (states, districts, ad placements, taxonomy categories) is read live from
+`GET /geo/states`, `GET /geo/districts`, `GET /ads/placements` and `/categories` — never from client
+literals. **Portal auth is the only auth mode** — the
 portal signs in against gateway-native credentials (HttpOnly cookies, no token in
 `localStorage`). A superadmin issues seller and district-admin logins from
 `/admin/super/credentials`; both carry a scope (`seller_id` or `state_code`) that the
@@ -363,9 +366,10 @@ console and the super admin console on that device.
 
 ## Data ownership
 
-The portal reads records from `src/data/**` through `src/lib/api/*`
-(`hooks.ts` reactive reads, `index.ts` mutations). Pages never import
-`src/data/**` directly. This is the same seam as the mobile `GatewayClient`.
+The portal reads records from the gateway-hydrated Zustand store through `src/lib/api/*`
+(`hooks.ts` reactive reads, `index.ts` mutations). Pages never import `src/data/**`
+directly (`src/data/types.ts` is the only remaining source file, and it holds types only,
+mirroring `@data/types` on mobile). This is the same seam as the mobile `GatewayClient`.
 
 Mutations write optimistically to the store first, then push the change to the
 gateway through `pushWrite()` (`src/lib/api/index.ts` → `writeAwaited` in `src/lib/api/http.ts`)
@@ -415,13 +419,13 @@ a five-step `CampaignWizard` (**what → where → creative → when → review*
 approval-gated flow. Step 1 picks a target scoped to the seller (Products / Dishes / My Stores, read
 from the hydrated `useProducts`/`useMenus`/`useStores` slices — only the seller's own
 products hydrate (`GET /seller/pricing`), never the full catalog). The target's sub-app + type drive the allowed placements
-(`src/data/ads/placements.ts` `eligiblePlacementsFor` over `PLACEMENTS_BY_APP`), so a Mart item can
+(`GET /ads/placements` `eligiblePlacementsFor` over the DB `ads.placements.apps`/`target_types`), so a Mart item can
 only be bought on Mart surfaces + the cross-app `HOME_HERO` (Food/Pharma get their own hosts). A Pharma
 seller targets their `sector='PHARMA'` products/stores the same way — the app is read **per selected
 row**, not per tab, so no separate "Pharma" tab is needed and `PHARMA_HERO`/`CATEGORY_TOP`/`STORE_TOP`
 appear for them; each
-option shows a `PLACEMENT_REACH_NOTE`, `CATEGORY_TOP` adds a category picker (taxonomy category
-ids, `taxonomy.categories`) and `STORE_TOP` auto-scopes to the target's store (for a FOOD **Dish** target the gateway
+option shows the row's `reachNote` from `ads.placements`, `CATEGORY_TOP` adds a category picker
+(active top-level categories from `/categories?app=&top_level=true`, `taxonomy.categories`) and `STORE_TOP` auto-scopes to the target's store (for a FOOD **Dish** target the gateway
 resolves the dish's `venueId` as a restaurant venue via `ResolveOwnedTarget(..., "VENUE", …)`, so a
 restaurant header is reachable from the Dish tab — there is no separate VENUE target tab). Step 3 edits title (≤40), subtitle (≤60), a 16:9
 poster (hosted URL or upload, stored as the **resolved public URL** — same rule as the SDUI banner

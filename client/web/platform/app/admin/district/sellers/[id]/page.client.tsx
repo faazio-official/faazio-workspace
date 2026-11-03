@@ -33,12 +33,12 @@ import {
   rejectSellerApplication,
   sellerMetrics,
   setSellerStatus,
-  updateSellerPlatformFee,
+  updateVendorPlatformFee,
   verifySellerDocument,
   verifySellerKyc,
 } from "@/lib/api";
 import { useSeller } from "@/lib/api/hooks";
-import type { KycDocument, SellerDetail } from "@/data/types";
+import type { KycDocument, SellerDetail, SellerVendorRecord } from "@/data/types";
 
 const GSTIN_RE = /^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z][0-9A-Z]{2}$/;
 
@@ -46,7 +46,6 @@ function SellerReview() {
   const { id } = useParams<{ id: string }>();
   const local = useSeller(id);
   const [detail, setDetail] = useState<SellerDetail | null>(null);
-  const [fee, setFee] = useState("10");
   const [reason, setReason] = useState("");
   const [busy, setBusy] = useState(false);
 
@@ -72,14 +71,11 @@ function SellerReview() {
             bankAccount: getBankAccount(local.sellerId),
             kycDocuments: listKyc(local.sellerId),
             verificationLog: [],
+            vendors: [],
           }
         : undefined),
     [detail, local],
   );
-
-  useEffect(() => {
-    if (seller) setFee(String(seller.platformFeePct ?? 10));
-  }, [seller]);
 
   if (!seller) {
     return (
@@ -99,24 +95,6 @@ function SellerReview() {
   const gstinOk = GSTIN_RE.test(seller.gstin);
   const docs = seller.kycDocuments ?? [];
   const bank = seller.bankAccount;
-
-  const saveFee = async () => {
-    const pct = Number(fee);
-    if (!Number.isInteger(pct) || pct < 1 || pct > 100 || (seller.category === "FOOD" && pct < 5)) {
-      toast.error("Platform fee is outside the allowed range for this category");
-      return;
-    }
-    setBusy(true);
-    try {
-      await updateSellerPlatformFee(seller.sellerId, pct);
-      toast.success(`Platform fee set to ${pct}%`);
-      await loadDetail();
-    } catch {
-      toast.error("Could not update the platform fee");
-    } finally {
-      setBusy(false);
-    }
-  };
 
   const verifyDoc = async (doc: KycDocument) => {
     setBusy(true);
@@ -175,7 +153,9 @@ function SellerReview() {
         description={`${seller.ownerName} · ${seller.districtCode ?? seller.stateCode} · applied ${formatDate(seller.createdAt)}`}
         actions={
           <div className="flex items-center gap-2">
-            <SectorPill sector={seller.category} />
+            {(seller.vendors ?? []).map((vendor) => (
+              <SectorPill key={vendor.storeId} sector={vendor.app} />
+            ))}
             <StatusPill status={seller.status} />
           </div>
         }
@@ -185,7 +165,7 @@ function SellerReview() {
         items={[
           { label: "GMV (30d)", value: formatINR(sumGmv(series), { compact: true }) },
           { label: "Orders (30d)", value: formatNumber(sumOrders(series)) },
-          { label: "Platform fee", value: `${seller.platformFeePct ?? 10}%` },
+          { label: "Vendors", value: String(seller.vendors?.length ?? 0) },
           { label: "KYC", value: seller.razorpayLinkedAccountId ? "Route linked" : "Not linked" },
         ]}
       />
@@ -235,7 +215,6 @@ function SellerReview() {
             <Row label="Address" value={seller.businessAddress} />
             <Row label="Phone" value={seller.contactPhone || "—"} />
             <Row label="Email" value={seller.contactEmail || "—"} />
-            <Row label="FSSAI" value={seller.fssaiNumber || "Not applicable"} />
             <Row
               label="Bank"
               value={bank ? `${bank.bankName ? `${bank.bankName} · ` : ""}${bank.accountNumberMasked} · ${bank.ifsc}` : "Not added"}
@@ -246,26 +225,35 @@ function SellerReview() {
         </SectionCard>
       </div>
 
-      <SectionCard title="Platform fee" description="Editable before approval; server enforces the category floor.">
-        <div className="flex flex-wrap items-end gap-2">
-          <label className="text-[12px] font-medium" htmlFor="platform-fee">
-            Platform fee %
-          </label>
-          <ComponentHelp id="fee-input" label="About the platform fee" />
-          <Input
-            id="platform-fee"
-            className="num h-9 w-24"
-            value={fee}
-            inputMode="numeric"
-            onChange={(e) => setFee(e.target.value.replace(/\D/g, "").slice(0, 3))}
-          />
-          <Button size="sm" disabled={busy} onClick={() => void saveFee()}>
-            Save fee
-          </Button>
-          <span className="text-[12px] text-muted-foreground">
-            {seller.category === "FOOD" ? "Allowed: 5–100%" : "Allowed: 1–100%"}
-          </span>
-        </div>
+      <SectionCard
+        title="Vendors"
+        description="One account can own several shops. The platform fee and FSSAI are per vendor."
+      >
+        {(seller.vendors ?? []).length === 0 ? (
+          <p className="text-[13px] text-muted-foreground">No vendor attached to this account yet.</p>
+        ) : (
+          <div className="space-y-3">
+            {(seller.vendors ?? []).map((vendor) => (
+              <VendorFeeRow
+                key={vendor.storeId}
+                vendor={vendor}
+                busy={busy}
+                onSave={async (pct) => {
+                  setBusy(true);
+                  try {
+                    await updateVendorPlatformFee(seller.sellerId, vendor.storeId, pct);
+                    toast.success(`${vendor.name}: platform fee set to ${pct}%`);
+                    await loadDetail();
+                  } catch {
+                    toast.error("Could not update the platform fee");
+                  } finally {
+                    setBusy(false);
+                  }
+                }}
+              />
+            ))}
+          </div>
+        )}
       </SectionCard>
 
       {seller.rejectionReason ? (
@@ -310,6 +298,57 @@ function SellerReview() {
           />
         </div>
       </SectionCard>
+    </div>
+  );
+}
+
+function VendorFeeRow({
+  vendor,
+  busy,
+  onSave,
+}: {
+  vendor: SellerVendorRecord;
+  busy: boolean;
+  onSave: (pct: number) => Promise<void>;
+}) {
+  const [fee, setFee] = useState(String(vendor.platformFeePct));
+  useEffect(() => setFee(String(vendor.platformFeePct)), [vendor.platformFeePct]);
+  const floor = vendor.app === "FOOD" ? 5 : 1;
+  return (
+    <div className="rounded-lg border border-border px-3 py-2">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div>
+          <p className="text-[13px] font-medium">{vendor.name}</p>
+          <p className="num text-[11px] text-muted-foreground">
+            {vendor.storeId} · {vendor.app}
+            {vendor.fssaiNumber ? ` · FSSAI ${vendor.fssaiNumber}` : ""}
+            {vendor.isLive ? " · live" : " · paused"}
+          </p>
+        </div>
+        <div className="flex items-center gap-1.5">
+          <Input
+            className="num h-9 w-24"
+            value={fee}
+            inputMode="numeric"
+            onChange={(e) => setFee(e.target.value.replace(/\D/g, "").slice(0, 3))}
+          />
+          <Button
+            size="sm"
+            disabled={busy}
+            onClick={() => {
+              const pct = Number(fee);
+              if (!Number.isInteger(pct) || pct < floor || pct > 100) {
+                toast.error(`Allowed: ${floor}–100% for ${vendor.app}`);
+                return;
+              }
+              void onSave(pct);
+            }}
+          >
+            Save fee
+          </Button>
+          <ComponentHelp id="fee-input" label="About the platform fee" />
+        </div>
+      </div>
     </div>
   );
 }

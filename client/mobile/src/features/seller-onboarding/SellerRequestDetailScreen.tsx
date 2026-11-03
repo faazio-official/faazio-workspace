@@ -49,7 +49,7 @@ export function SellerRequestDetailScreen({ navigation, route }: Props) {
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
-  const [fee, setFee] = useState('');
+  const [feeDrafts, setFeeDrafts] = useState<Record<string, string>>({});
   const [showReject, setShowReject] = useState(false);
   const [rejectReason, setRejectReason] = useState('');
   const [preview, setPreview] = useState<{ src: string; title: string } | null>(null);
@@ -60,7 +60,9 @@ export function SellerRequestDetailScreen({ navigation, route }: Props) {
     try {
       const d = await gateway.getSellerDetail(sellerId);
       setDetail(d);
-      setFee(String(d.platformFeePct));
+      setFeeDrafts(
+        Object.fromEntries((d.vendors ?? []).map((v) => [v.id, String(v.platformFeePct ?? '')])),
+      );
     } catch {
       setError('Could not load this application.');
     } finally {
@@ -85,11 +87,11 @@ export function SellerRequestDetailScreen({ navigation, route }: Props) {
     }
   };
 
-  const saveFee = () => {
-    const pct = Number(fee);
-    if (!Number.isInteger(pct) || pct < 1 || pct > 100 || !detail) return;
+  const saveFee = (storeId: string) => {
+    const pct = Number(feeDrafts[storeId]);
+    if (!Number.isInteger(pct) || pct < 1 || pct > 100) return;
     run(
-      () => gateway.updateSellerPlatformFee(sellerId, pct),
+      () => gateway.updateSellerPlatformFee(sellerId, storeId, pct),
       'Could not update the platform fee.',
     );
   };
@@ -184,7 +186,9 @@ export function SellerRequestDetailScreen({ navigation, route }: Props) {
             <View style={{ flex: 1 }}>
               <AppText style={styles.heroTitle}>{d.businessName}</AppText>
               <AppText style={styles.heroSub}>
-                {d.category} · {d.districtCode || d.stateCode}
+                {d.vendors && d.vendors.length > 0
+                  ? `${d.vendors.map((v) => v.app).join(' / ')} · ${d.districtCode || d.stateCode}`
+                  : d.districtCode || d.stateCode}
               </AppText>
             </View>
             <View style={[styles.statusPill, { backgroundColor: STATUS_COLORS[d.status] ?? '#94A3B8' }]}>
@@ -203,7 +207,33 @@ export function SellerRequestDetailScreen({ navigation, route }: Props) {
           <InfoRow label="Address" value={d.businessAddress || '—'} />
           <InfoRow label="Phone" value={d.contactPhone || '—'} />
           <InfoRow label="Email" value={d.contactEmail || '—'} />
-          {d.fssaiNumber ? <InfoRow label="FSSAI no." value={d.fssaiNumber} /> : null}
+        </View>
+
+        <View style={styles.sectionCard}>
+          <AppText style={styles.sectionTitle}>Vendors</AppText>
+          <AppText style={styles.sectionNote}>
+            One account can own several shops (Mart / Food / Pharma). Each shop carries its own fee
+            and, for a Food shop, its FSSAI licence.
+          </AppText>
+          {d.vendors && d.vendors.length > 0 ? (
+            d.vendors.map((v) => (
+              <View key={v.id} style={styles.docRow}>
+                <View style={styles.docIcon}>
+                  <Store size={ms(16)} color={parentRamp.base} strokeWidth={2.2} />
+                </View>
+                <View style={styles.vendorText}>
+                  <AppText style={styles.docLabel}>
+                    {v.name} · <AppText style={styles.vendorApp}>{v.app}</AppText>
+                  </AppText>
+                  <AppText style={styles.docStatus}>
+                    {v.fssaiNumber ? `FSSAI ${v.fssaiNumber}` : 'No FSSAI'} · fee {v.platformFeePct}%
+                  </AppText>
+                </View>
+              </View>
+            ))
+          ) : (
+            <AppText style={styles.mutedText}>No vendors linked to this account.</AppText>
+          )}
         </View>
 
         <View style={styles.sectionCard}>
@@ -226,23 +256,41 @@ export function SellerRequestDetailScreen({ navigation, route }: Props) {
         <View style={styles.sectionCard}>
           <AppText style={styles.sectionTitle}>Platform fee</AppText>
           <AppText style={styles.sectionNote}>
-            The platform retains this share of every order; the rest settles to the seller after the
-            hold window.
+            The platform retains this share of every order for that shop; the rest settles to the
+            seller after the hold window. The Food floor (5%) keys on each vendor's app.
           </AppText>
-          <View style={styles.feeRow}>
-            <AppTextInput
-              style={[styles.input, styles.feeInput]}
-              value={fee}
-              onChangeText={setFee}
-              keyboardType="number-pad"
-              maxLength={3}
-              placeholder="%"
-              placeholderTextColor="#94A3B8"
-            />
-            <TouchableOpacity style={styles.primaryBtn} onPress={saveFee} disabled={busy} activeOpacity={0.85}>
-              <AppText style={styles.primaryBtnText}>Save</AppText>
-            </TouchableOpacity>
-          </View>
+          {d.vendors && d.vendors.length > 0 ? (
+            d.vendors.map((v) => (
+              <View key={v.id} style={styles.feeBlock}>
+                <AppText style={styles.feeVendorLabel}>
+                  {v.name} · {v.app}
+                </AppText>
+                <View style={styles.feeRow}>
+                  <AppTextInput
+                    style={[styles.input, styles.feeInput]}
+                    value={feeDrafts[v.id] ?? ''}
+                    onChangeText={(text) =>
+                      setFeeDrafts((prev) => ({ ...prev, [v.id]: text }))
+                    }
+                    keyboardType="number-pad"
+                    maxLength={3}
+                    placeholder="%"
+                    placeholderTextColor="#94A3B8"
+                  />
+                  <TouchableOpacity
+                    style={styles.primaryBtn}
+                    onPress={() => saveFee(v.id)}
+                    disabled={busy}
+                    activeOpacity={0.85}
+                  >
+                    <AppText style={styles.primaryBtnText}>Save</AppText>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            ))
+          ) : (
+            <AppText style={styles.mutedText}>No vendors to edit.</AppText>
+          )}
         </View>
 
         <View style={styles.sectionCard}>
@@ -505,6 +553,16 @@ const styles = StyleSheet.create({
   docIconDone: { backgroundColor: '#DCFCE7' },
   docLabel: { fontSize: ms(13), fontWeight: '800', color: '#0f172a' },
   docStatus: { fontSize: ms(10.5), color: '#94A3B8', marginTop: vs(2) },
+  vendorText: { flex: 1 },
+  vendorApp: { color: parentRamp.base },
+  feeBlock: {
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: '#EEF1F5',
+    paddingTop: vs(10),
+    marginTop: vs(6),
+    paddingBottom: vs(10),
+  },
+  feeVendorLabel: { fontSize: ms(12), fontWeight: '800', color: '#0f172a', marginBottom: vs(6) },
   docButton: {
     flexDirection: 'row',
     alignItems: 'center',

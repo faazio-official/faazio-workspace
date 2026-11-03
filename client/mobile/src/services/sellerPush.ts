@@ -50,16 +50,20 @@ function permissionGranted(status: number): boolean {
   );
 }
 
-/** Pull the order id out of an FCM data payload (values arrive as strings). */
-function orderFromMessage(message: RemoteMessage | null): string | null {
+/** Pull the order id + the vendor store it belongs to (if any) out of an FCM data payload. */
+function orderFromMessage(message: RemoteMessage | null): { orderId: string | null; storeId: string | null } {
   const data = message?.data as Record<string, unknown> | undefined;
   const orderId = data?.orderId ?? data?.order_id;
-  return typeof orderId === 'string' && orderId ? orderId : null;
+  const storeId = data?.storeId ?? data?.store_id ?? data?.vendorId;
+  return {
+    orderId: typeof orderId === 'string' && orderId ? orderId : null,
+    storeId: typeof storeId === 'string' && storeId ? storeId : null,
+  };
 }
 
 interface SellerPushHandlers {
   /** Foreground new-order message: beep + refresh/navigate the WebView. */
-  onOrder: (orderId: string | null) => void;
+  onOrder: (orderId: string | null, storeId?: string | null) => void;
   /** FCM token obtained or rotated; injected into the portal so it can register the device. */
   onToken: (token: string) => void;
 }
@@ -84,22 +88,22 @@ export async function startSellerPush(handlers: SellerPushHandlers): Promise<() 
       handlers.onToken(token);
     });
     const unsubMessage = onMessage(messaging, (message) => {
-      const orderId = orderFromMessage(message);
+      const { orderId, storeId } = orderFromMessage(message);
       if (!orderId) return;
       playOrderBeep();
-      handlers.onOrder(orderId);
+      handlers.onOrder(orderId, storeId);
     });
     const unsubOpen = onNotificationOpenedApp(messaging, (message) => {
-      const orderId = orderFromMessage(message);
-      if (orderId) handlers.onOrder(orderId);
+      const { orderId, storeId } = orderFromMessage(message);
+      if (orderId) handlers.onOrder(orderId, storeId);
     });
 
     if (!initialPushConsumed) {
       initialPushConsumed = true;
       void getInitialNotification(messaging)
         .then((initial) => {
-          const orderId = orderFromMessage(initial);
-          if (orderId) handlers.onOrder(orderId);
+          const { orderId, storeId } = orderFromMessage(initial);
+          if (orderId) handlers.onOrder(orderId, storeId);
         })
         .catch(() => undefined);
     }

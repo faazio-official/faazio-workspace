@@ -114,11 +114,12 @@ export type RootStackParamList = {
   FaazioRewards: undefined;
   /** Seller onboarding wizard: business, payout, private-bucket KYC and OTP signature. */
   SellWithUs: undefined;
-  /** Seller: file a platform-fee change request (admin approval required). */
+  /** Seller: file a platform-fee change request for one vendor (admin approval required). */
   SellerPlatformFeeRequest: {
     sellerId?: string;
+    storeId?: string;
+    app?: string;
     currentFeePct?: number;
-    category?: string;
   };
   /** Admin platform-fee review queue (DISTRICT_ADMIN scoped / SUPER_ADMIN all). Role-gated in-screen. */
   FeeChangeRequests: undefined;

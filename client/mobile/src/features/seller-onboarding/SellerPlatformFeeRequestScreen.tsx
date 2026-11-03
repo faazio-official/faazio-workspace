@@ -13,7 +13,7 @@ import AppText from '@/components/AppText';
 import AppTextInput from '@/components/AppTextInput';
 import { hs, ms, vs } from '@/utils/responsive';
 import { SPACE } from '@/theme/spacing';
-import { gateway, type FeeChangeRequest } from '@/services/api/GatewayClient';
+import { gateway, type FeeChangeRequest, type SellerApplicationVendor } from '@/services/api/GatewayClient';
 import { useAuthStore } from '@/state/authStore';
 import type { RootStackParamList } from '@/navigation/types';
 import { parentRamp } from '@/theme/brandTokens';
@@ -28,22 +28,28 @@ const STATUS_COLORS: Record<string, string> = {
 };
 
 /**
- * Seller-facing platform-fee change request. The live fee is fixed at registration; this screen
- * only files a PENDING request that a district or super admin must approve.
+ * Seller-facing platform-fee change request. The fee is a property of the SHOP (not the account), so
+ * the seller first picks the vendor store that needs a new rate; the live fee is read from that
+ * vendor and the request is filed against its store id for a district/super admin to approve.
  */
 export function SellerPlatformFeeRequestScreen({ navigation, route }: Props) {
   const insets = useSafeAreaInsets();
   const user = useAuthStore((s) => s.user);
   const sellerId = route.params?.sellerId ?? user?.sellerId ?? '';
-  const [category, setCategory] = useState(route.params?.category ?? '');
+
+  const [vendors, setVendors] = useState<SellerApplicationVendor[]>([]);
+  const [storeId, setStoreId] = useState(route.params?.storeId ?? '');
+  const [app, setApp] = useState(route.params?.app ?? '');
   const [currentFeePct, setCurrentFeePct] = useState(route.params?.currentFeePct ?? 0);
 
-  const [pct, setPct] = useState(String(route.params?.currentFeePct || ''));
+  const [pct, setPct] = useState(route.params?.currentFeePct ? String(route.params.currentFeePct) : '');
   const [history, setHistory] = useState<FeeChangeRequest[]>([]);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+
+  const activeVendor = vendors.find((v) => v.id === storeId) ?? null;
 
   const load = useCallback(async () => {
     if (!sellerId) {
@@ -55,24 +61,41 @@ export function SellerPlatformFeeRequestScreen({ navigation, route }: Props) {
     } catch {
       // history is a convenience; submission still works
     }
-    if (!route.params?.currentFeePct) {
-      try {
-        const seller = await gateway.getSellerDetail(sellerId);
-        setCurrentFeePct(seller.platformFeePct);
-        setCategory((prev) => prev || seller.category);
-        setPct((prev) => prev || String(seller.platformFeePct));
-      } catch {
-        // the fee stays unknown; validation still guards the submitted value
+    try {
+      const rows = await gateway.listSellerStores();
+      setVendors(rows);
+      if (!storeId && rows.length > 0) {
+        setStoreId(rows[0]!.id);
+        setApp(rows[0]!.app);
+        setCurrentFeePct(rows[0]!.platformFeePct);
+        setPct((prev) => prev || String(rows[0]!.platformFeePct));
+      } else if (storeId) {
+        const active = rows.find((v) => v.id === storeId);
+        if (active) {
+          setApp(active.app);
+          setCurrentFeePct(active.platformFeePct);
+        }
       }
+    } catch {
+      // stores stay unknown; validation still guards the submitted value
     }
     setLoading(false);
-  }, [route.params?.currentFeePct, sellerId]);
+  }, [route.params?.currentFeePct, sellerId, storeId]);
 
   useEffect(() => {
     void load();
   }, [load]);
 
   const pending = history.find((h) => h.status === 'PENDING');
+
+  const selectVendor = (id: string) => {
+    const v = vendors.find((item) => item.id === id);
+    if (!v) return;
+    setStoreId(id);
+    setApp(v.app);
+    setCurrentFeePct(v.platformFeePct);
+    setPct(String(v.platformFeePct));
+  };
 
   const submit = async () => {
     setError(null);
@@ -82,17 +105,25 @@ export function SellerPlatformFeeRequestScreen({ navigation, route }: Props) {
       setError('Enter a whole percentage between 1 and 100.');
       return;
     }
-    if (category.toUpperCase() === 'FOOD' && next < 5) {
-      setError('Food sellers must keep the platform fee at 5% or higher.');
+    if (app.toUpperCase() === 'FOOD' && next < 5) {
+      setError('Food vendors must keep the platform fee at 5% or higher.');
+      return;
+    }
+    if (!storeId) {
+      setError('Select the vendor store that needs the new fee.');
       return;
     }
     if (currentFeePct && next === currentFeePct) {
-      setError('That is already your current platform fee.');
+      setError('That is already this vendor\u2019s current platform fee.');
+      return;
+    }
+    if (pending) {
+      setError('A fee request is already pending approval.');
       return;
     }
     setBusy(true);
     try {
-      await gateway.requestSellerPlatformFeeChange(sellerId, next);
+      await gateway.requestSellerPlatformFeeChange(sellerId, storeId, next);
       setNotice('Request submitted. An admin will review it.');
       await load();
     } catch {
@@ -135,22 +166,55 @@ export function SellerPlatformFeeRequestScreen({ navigation, route }: Props) {
             <AppText style={styles.cardTitle}>Request a fee change</AppText>
           </View>
           <AppText style={styles.muted}>
-            Your platform fee is fixed when your application is approved. Ask for a new rate here and
-            an admin will review it.
+            Your platform fee is fixed when your store is approved. Ask for a new rate per shop here
+            and an admin will review it.
           </AppText>
-          <View style={styles.currentRow}>
-            <AppText style={styles.currentLabel}>Current fee</AppText>
-            <AppText style={styles.currentValue}>{currentFeePct || '--'}%</AppText>
-          </View>
-          <AppText style={styles.label}>Requested fee (%)</AppText>
-          <AppTextInput
-            value={pct}
-            onChangeText={setPct}
-            keyboardType="number-pad"
-            placeholder="e.g. 12"
-            editable={!busy && !pending}
-            style={styles.input}
-          />
+
+          {loading ? (
+            <ActivityIndicator color={parentRamp.base} style={styles.loader} />
+          ) : vendors.length === 0 ? (
+            <AppText style={styles.muted}>No vendor stores are linked to this account yet.</AppText>
+          ) : (
+            <>
+              <AppText style={styles.label}>Vendor store</AppText>
+              <View style={styles.chipRow}>
+                {vendors.map((v) => {
+                  const active = v.id === storeId;
+                  return (
+                    <TouchableOpacity
+                      key={v.id}
+                      style={[styles.chip, active && styles.chipActive]}
+                      onPress={() => selectVendor(v.id)}
+                      activeOpacity={0.8}
+                      accessibilityRole="button"
+                      accessibilityState={{ selected: active }}
+                    >
+                      <AppText style={[styles.chipText, active && styles.chipTextActive]} numberOfLines={1}>
+                        {v.name} · {v.app}
+                      </AppText>
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+
+              <View style={styles.currentRow}>
+                <AppText style={styles.currentLabel}>
+                  Current fee · {activeVendor ? `${activeVendor.name}` : ''}
+                </AppText>
+                <AppText style={styles.currentValue}>{currentFeePct || '--'}%</AppText>
+              </View>
+              <AppText style={styles.label}>Requested fee (%)</AppText>
+              <AppTextInput
+                value={pct}
+                onChangeText={setPct}
+                keyboardType="number-pad"
+                placeholder="e.g. 12"
+                editable={!busy && !pending && Boolean(storeId)}
+                style={styles.input}
+              />
+            </>
+          )}
+
           {pending ? (
             <AppText style={styles.pendingNote}>
               A request for {pending.requestedFeePct}% is pending review.
@@ -159,9 +223,9 @@ export function SellerPlatformFeeRequestScreen({ navigation, route }: Props) {
           {error ? <AppText style={styles.error}>{error}</AppText> : null}
           {notice ? <AppText style={styles.notice}>{notice}</AppText> : null}
           <TouchableOpacity
-            style={[styles.primaryBtn, (busy || !!pending) && styles.primaryBtnDisabled]}
+            style={[styles.primaryBtn, (busy || !!pending || !storeId) && styles.primaryBtnDisabled]}
             onPress={submit}
-            disabled={busy || !!pending}
+            disabled={busy || !!pending || !storeId}
             activeOpacity={0.85}
           >
             {busy ? (
@@ -229,6 +293,19 @@ const styles = StyleSheet.create({
   cardTitleRow: { flexDirection: 'row', alignItems: 'center', gap: hs(8), marginBottom: vs(6) },
   cardTitle: { fontSize: ms(15), fontWeight: '900', color: '#0f172a' },
   muted: { fontSize: ms(12), color: '#64748B', lineHeight: ms(18) },
+  chipRow: { flexDirection: 'row', flexWrap: 'wrap', gap: hs(8), marginTop: vs(6) },
+  chip: {
+    paddingHorizontal: hs(12),
+    paddingVertical: vs(7),
+    borderRadius: ms(18),
+    borderWidth: 1,
+    borderColor: '#CBD5E1',
+    backgroundColor: '#FFFFFF',
+    maxWidth: '100%',
+  },
+  chipActive: { backgroundColor: parentRamp.base, borderColor: parentRamp.base },
+  chipText: { fontSize: ms(11.5), fontWeight: '800', color: '#334155' },
+  chipTextActive: { color: '#FFFFFF' },
   currentRow: {
     flexDirection: 'row',
     alignItems: 'center',

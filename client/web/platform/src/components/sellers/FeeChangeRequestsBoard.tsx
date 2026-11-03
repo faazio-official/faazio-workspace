@@ -23,7 +23,8 @@ import {
   rejectFeeChangeRequest,
 } from "@/lib/api";
 import { useSession } from "@/lib/hooks/useSession";
-import { districtName } from "@/data/districts";
+import { useDistricts } from "@/lib/api/hooks";
+import { districtName } from "@/lib/api/reference";
 import type { FeeChangeRequest } from "@/data/types";
 
 const STATUSES = ["PENDING", "APPROVED", "REJECTED", "ALL"] as const;
@@ -38,6 +39,7 @@ export function FeeChangeRequestsBoard({
   scope: "district" | "global";
 }) {
   const session = useSession();
+  const districts = useDistricts();
   const [status, setStatus] = useState<(typeof STATUSES)[number]>("PENDING");
   const [rows, setRows] = useState<FeeChangeRequest[]>([]);
   const [loading, setLoading] = useState(true);
@@ -99,7 +101,7 @@ export function FeeChangeRequestsBoard({
         title="Fee change requests"
         description={
           scope === "district"
-            ? `Seller-initiated platform-fee changes in ${districtName(session?.districtCode ?? "") || "your district"}.`
+            ? `Seller-initiated platform-fee changes in ${districtName(districts, session?.districtCode ?? "") || "your district"}.`
             : "Seller-initiated platform-fee changes across every district."
         }
       />
@@ -156,7 +158,7 @@ export function FeeChangeRequestsBoard({
                     {row.businessName || row.sellerId}
                   </TableCell>
                   <TableCell className="text-[12px] text-muted-foreground">
-                    {row.districtCode ? districtName(row.districtCode) || row.districtCode : "—"}
+                    {row.districtCode ? districtName(districts, row.districtCode) || row.districtCode : "—"}
                   </TableCell>
                   <TableCell className="num text-right text-[12px]">{row.currentFeePct}%</TableCell>
                   <TableCell className="num text-right text-[13px] font-semibold">

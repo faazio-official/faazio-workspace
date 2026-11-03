@@ -713,10 +713,9 @@ func (r *Repo) ProductSnapshots(ctx context.Context, ids []string) (map[string]P
 
 // SellerTaxProfile is the seller identity + commission settings needed for tax and invoicing.
 type SellerTaxProfile struct {
-	SellerID       string
-	BusinessName   string
-	GSTIN          string
-	PlatformFeePct int
+	SellerID     string
+	BusinessName string
+	GSTIN        string
 }
 
 // TaxRates returns the active category GST rates keyed by "SECTOR|lower(category)".
@@ -870,7 +869,7 @@ func (r *Repo) SellerTaxProfiles(ctx context.Context, sellerIDs []string) (map[s
 		return out, nil
 	}
 	rows, err := r.pool.Query(ctx, `
-		select seller_id, business_name, coalesce(gstin,''), platform_fee_pct
+		select seller_id, business_name, coalesce(gstin,'')
 		  from sellers.sellers where seller_id = any($1)`, sellerIDs)
 	if err != nil {
 		return nil, err
@@ -878,7 +877,7 @@ func (r *Repo) SellerTaxProfiles(ctx context.Context, sellerIDs []string) (map[s
 	defer rows.Close()
 	for rows.Next() {
 		var p SellerTaxProfile
-		if err := rows.Scan(&p.SellerID, &p.BusinessName, &p.GSTIN, &p.PlatformFeePct); err != nil {
+		if err := rows.Scan(&p.SellerID, &p.BusinessName, &p.GSTIN); err != nil {
 			return nil, err
 		}
 		out[p.SellerID] = p

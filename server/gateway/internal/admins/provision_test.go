@@ -185,8 +185,8 @@ func TestProvisionSellerPhoneWarnsSoft(t *testing.T) {
 	ctx := context.Background()
 
 	if _, err := pool.Exec(ctx, `
-		insert into sellers.sellers (seller_id, business_name, owner_name, category, phone, state_code)
-		values ('sel-test', 'Test Mart', 'Owner', 'MART', '+91 90000 12345', 'MH')`); err != nil {
+		insert into sellers.sellers (seller_id, business_name, owner_name, phone, state_code)
+		values ('sel-test', 'Test Mart', 'Owner', '+91 90000 12345', 'MH')`); err != nil {
 		t.Fatalf("seed seller: %v", err)
 	}
 	t.Cleanup(func() { _, _ = pool.Exec(ctx, `delete from sellers.sellers where seller_id='sel-test'`) })

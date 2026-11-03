@@ -51,9 +51,9 @@ import {
   normalizePhoneDigits,
   updateDistrictAdmin,
 } from "@/lib/api";
-import { useMockLoading, useSellers, useDistrictAdmins } from "@/lib/api/hooks";
+import { useMockLoading, useSellers, useDistrictAdmins, useDistricts } from "@/lib/api/hooks";
 import { usePortalStore } from "@/lib/api/store";
-import { DISTRICTS, districtName } from "@/data/districts";
+import { districtName } from "@/lib/api/reference";
 import type { PortalCredential, DistrictAdmin } from "@/data/types";
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -62,7 +62,6 @@ const PASSWORD_CHARS = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789
 
 /** This page is district-locked: it only ever provisions admins for Tiruchirappalli (TTC). */
 const TTC_CODE = "TTC";
-const TTC_DISTRICT = DISTRICTS.find((d) => d.districtCode === TTC_CODE);
 
 function generatePassword(): string {
   const bytes = new Uint8Array(16);
@@ -72,10 +71,11 @@ function generatePassword(): string {
 
 /** Read-only district chip — the page is locked to Tiruchirappalli (TTC). */
 function DistrictChip() {
+  const districts = useDistricts();
   return (
     <div className="flex h-9 items-center rounded-md border border-border bg-muted/40 px-3 text-[13px]">
       <span className="num font-medium">{TTC_CODE}</span>
-      <span className="ml-1.5 text-muted-foreground">{districtName(TTC_CODE)}</span>
+      <span className="ml-1.5 text-muted-foreground">{districtName(districts, TTC_CODE)}</span>
     </div>
   );
 }
@@ -84,6 +84,7 @@ function DistrictAdminAccounts() {
   const loading = useMockLoading();
   const admins = useDistrictAdmins(TTC_CODE);
   const sellers = useSellers();
+  const districts = useDistricts();
   const [creds, setCreds] = useState<PortalCredential[]>([]);
   const [form, setForm] = useState({
     name: "",
@@ -151,8 +152,9 @@ function DistrictAdminAccounts() {
 
   // This page covers exactly one district (TTC), so coverage is 1/1 or 0/1.
   const covered = admins.some((a) => a.districtCode === TTC_CODE && a.active) ? 1 : 0;
-  const uncovered = TTC_DISTRICT && covered === 0 ? [TTC_DISTRICT] : [];
-  const totalDistricts = TTC_DISTRICT ? 1 : 0;
+  const ttcDistrict = districts.find((d) => d.districtCode === TTC_CODE);
+  const uncovered = ttcDistrict && covered === 0 ? [ttcDistrict] : [];
+  const totalDistricts = ttcDistrict ? 1 : 0;
   const activeCount = admins.filter((a) => a.active).length;
   const coveragePct = totalDistricts ? Math.round((covered / totalDistricts) * 100) : 0;
 
@@ -540,7 +542,7 @@ function DistrictAdminAccounts() {
                         <>
                           <span className="num">{admin.districtCode}</span>
                           <span className="ml-1 text-[11px] text-muted-foreground">
-                            {districtName(admin.districtCode)}
+                            {districtName(districts, admin.districtCode)}
                           </span>
                         </>
                       ) : (

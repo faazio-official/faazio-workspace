@@ -5,14 +5,15 @@
 -- PHARMA), the platform fee, the taxonomy category and FSSAI belong to the SHOP, not the account.
 -- A single account may therefore own a Mart shop and a Food restaurant at the same time.
 --
--- This migration only relaxes the account-level constraint. The vendor-level columns land in 0069
--- and the account-level `category` column is dropped in 0070 once no code reads it.
+-- This migration only relaxes the account-level constraint. The vendor-level columns land in 0069.
+-- The account-level `category` column is kept nullable as a transitional default until every client
+-- stops sending it; a later migration drops it.
 --
 -- Idempotent: safe to re-run.
 
 -- ---------------------------------------------------------------- account is brand-agnostic
 -- `category` was NOT NULL app_brand. It is now meaningless at account level (an account can span
--- brands), so relax it. Code stops writing it in the same change; 0070 drops the column.
+-- brands), so relax it. New code derives the brand from each vendor; the column is transitional.
 alter table sellers.sellers alter column category drop not null;
 
 -- ---------------------------------------------------------------- contact_email is an identity key

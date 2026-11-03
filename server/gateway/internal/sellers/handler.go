@@ -26,13 +26,10 @@ type Handler struct {
 	route razorpayroute.Gateway
 }
 
-// NewHandler builds the sellers handler. A nil Route gateway falls back to mock mode.
-func NewHandler(repo *Repo, c *cache.Cache, audit contracts.AuditWriter, route ...razorpayroute.Gateway) *Handler {
-	var g razorpayroute.Gateway = razorpayroute.New("", "", "")
-	if len(route) > 0 && route[0] != nil {
-		g = route[0]
-	}
-	return &Handler{repo: repo, cache: c, audit: audit, route: g}
+// NewHandler builds the sellers handler. A nil Route gateway is allowed only when the caller has
+// no Route credentials; provisioning then returns ErrUnavailable instead of fabricating an account.
+func NewHandler(repo *Repo, c *cache.Cache, audit contracts.AuditWriter, route razorpayroute.Gateway) *Handler {
+	return &Handler{repo: repo, cache: c, audit: audit, route: route}
 }
 
 // Register mounts the sellers routes.
@@ -79,7 +76,6 @@ func (h *Handler) list(w http.ResponseWriter, r *http.Request) {
 		StateCode:    strings.ToUpper(strings.TrimSpace(r.URL.Query().Get("state"))),
 		DistrictCode: geo.Normalise(r.URL.Query().Get("district")),
 		Status:       strings.ToUpper(strings.TrimSpace(r.URL.Query().Get("status"))),
-		Category:     strings.ToUpper(strings.TrimSpace(r.URL.Query().Get("category"))),
 	}
 	// Role scoping: a seller sees only themself; a district admin only their district (falling back
 	// to the parent state for legacy admins without a district claim).
@@ -121,37 +117,68 @@ func (h *Handler) get(w http.ResponseWriter, r *http.Request) {
 	httpx.JSON(w, http.StatusOK, d)
 }
 
+// vendorApplication is one VENDOR (shop) created with the account. The account itself is
+// brand-agnostic (0068); app brand, platform fee, taxonomy category and FSSAI live here.
+type vendorApplication struct {
+	Name           string   `json:"name"`
+	App            string   `json:"app"`
+	CategoryID     string   `json:"categoryId"`
+	PlatformFeePct int      `json:"platformFeePct"`
+	FSSAINumber    string   `json:"fssaiNumber"`
+	FSSAIFileKey   string   `json:"fssaiFileKey"`
+	FSSAIAssetID   string   `json:"fssaiAssetId"`
+	Address        string   `json:"address"`
+	Phone          string   `json:"phone"`
+	Hours          string   `json:"hours"`
+	Latitude       *float64 `json:"latitude"`
+	Longitude      *float64 `json:"longitude"`
+}
+
 type createSellerRequest struct {
-	BusinessName string `json:"businessName"`
-	OwnerName    string `json:"ownerName"`
-	Category     string `json:"category"`
-	// CategoryID is an optional taxonomy.categories id within the app brand (Food restaurant type).
-	CategoryID      string   `json:"categoryId"`
-	GSTIN           string   `json:"gstin"`
-	PAN             string   `json:"pan"`
-	BusinessAddress string   `json:"businessAddress"`
-	ContactPhone    string   `json:"contactPhone"`
-	ContactEmail    string   `json:"contactEmail"`
-	StateCode       string   `json:"stateCode"`
-	DistrictCode    string   `json:"districtCode"`
-	Latitude        *float64 `json:"latitude"`
-	Longitude       *float64 `json:"longitude"`
-	PlatformFeePct  *int     `json:"platformFeePct"`
+	BusinessName    string              `json:"businessName"`
+	OwnerName       string              `json:"ownerName"`
+	GSTIN           string              `json:"gstin"`
+	PAN             string              `json:"pan"`
+	BusinessAddress string              `json:"businessAddress"`
+	ContactPhone    string              `json:"contactPhone"`
+	ContactEmail    string              `json:"contactEmail"`
+	StateCode       string              `json:"stateCode"`
+	DistrictCode    string              `json:"districtCode"`
+	Latitude        *float64            `json:"latitude"`
+	Longitude       *float64            `json:"longitude"`
+	Vendors         []vendorApplication `json:"vendors"`
 	// Bank details. The full account number is accepted transiently for Razorpay Route and is
 	// masked before it ever reaches Postgres.
 	BankName          string `json:"bankName"`
 	BankAccountNumber string `json:"bankAccountNumber"`
 	BankIFSC          string `json:"bankIfsc"`
 	BankBeneficiary   string `json:"bankBeneficiary"`
-	// KYC uploads (private R2). Passbook is mandatory; FSSAI is mandatory for FOOD.
+	// KYC uploads (private R2). Passbook is mandatory for the account.
 	PassbookFileKey string `json:"passbookFileKey"`
 	PassbookAssetID string `json:"passbookAssetId"`
-	FSSAINumber     string `json:"fssaiNumber"`
-	FSSAIFileKey    string `json:"fssaiFileKey"`
-	FSSAIAssetID    string `json:"fssaiAssetId"`
 	// OTPVerified is the digital-signature gate. The mobile client only sets it after a successful
 	// Firebase OTP round-trip on the authenticated phone.
 	OTPVerified bool `json:"otpVerified"`
+}
+
+// linkedAccountCategory maps a vendor app brand onto Razorpay's business category. Route requires a
+// real category; there is no hardcoded "ecommerce" default.
+func linkedAccountCategory(app string) string {
+	switch strings.ToUpper(strings.TrimSpace(app)) {
+	case "FOOD":
+		return "food"
+	case "PHARMA":
+		return "healthcare"
+	default:
+		return "ecommerce"
+	}
+}
+
+func (r createSellerRequest) firstVendorApp() string {
+	if len(r.Vendors) == 0 {
+		return ""
+	}
+	return r.Vendors[0].App
 }
 
 func (h *Handler) create(w http.ResponseWriter, r *http.Request) {
@@ -160,7 +187,6 @@ func (h *Handler) create(w http.ResponseWriter, r *http.Request) {
 		httpx.Fail(w, http.StatusBadRequest, "bad_request", "invalid request body")
 		return
 	}
-	req.Category = strings.ToUpper(strings.TrimSpace(req.Category))
 	req.StateCode = strings.ToUpper(strings.TrimSpace(req.StateCode))
 	req.DistrictCode = geo.Normalise(req.DistrictCode)
 	req.GSTIN = strings.ToUpper(strings.TrimSpace(req.GSTIN))
@@ -171,21 +197,49 @@ func (h *Handler) create(w http.ResponseWriter, r *http.Request) {
 		httpx.Fail(w, http.StatusBadRequest, "bad_request", "business and owner name are required")
 		return
 	}
-	// The account is brand-agnostic: a category is optional (the app lives on each vendor). If one
-	// is supplied it must be a valid brand, for backward-compatible clients.
-	if len(req.StateCode) != 2 || (req.Category != "" && !validCategory(req.Category)) {
-		httpx.Fail(w, http.StatusBadRequest, "bad_request", "category or state is invalid")
+	if len(req.StateCode) != 2 {
+		httpx.Fail(w, http.StatusBadRequest, "bad_request", "state is invalid")
 		return
 	}
-	req.CategoryID = strings.TrimSpace(req.CategoryID)
-	if req.CategoryID != "" {
-		ok, err := h.repo.ValidCategoryID(r.Context(), req.Category, req.CategoryID)
-		if err != nil {
-			httpx.Fail(w, http.StatusInternalServerError, "sellers_unavailable", "sellers unavailable")
+	// An account is only useful with at least one vendor; the vendor carries the brand.
+	if len(req.Vendors) == 0 {
+		httpx.Fail(w, http.StatusBadRequest, "bad_request", "at least one vendor is required")
+		return
+	}
+	for i := range req.Vendors {
+		v := &req.Vendors[i]
+		v.App = strings.ToUpper(strings.TrimSpace(v.App))
+		v.Name = strings.TrimSpace(v.Name)
+		v.CategoryID = strings.TrimSpace(v.CategoryID)
+		v.FSSAINumber = strings.TrimSpace(v.FSSAINumber)
+		if v.Name == "" || !validCategory(v.App) {
+			httpx.Fail(w, http.StatusBadRequest, "bad_request", "each vendor needs a name and a valid app")
 			return
 		}
-		if !ok {
-			httpx.Fail(w, http.StatusBadRequest, "bad_request", "category is not an active category of this app")
+		if v.PlatformFeePct == 0 {
+			v.PlatformFeePct = 10
+		}
+		if !validPlatformFee(v.App, v.PlatformFeePct) {
+			httpx.Fail(w, http.StatusBadRequest, "bad_request", "platform fee is outside the allowed range for this app")
+			return
+		}
+		if !validLatLng(v.Latitude, v.Longitude) {
+			httpx.Fail(w, http.StatusBadRequest, "bad_request", "vendor shop location is invalid")
+			return
+		}
+		if v.CategoryID != "" {
+			ok, err := h.repo.ValidCategoryID(r.Context(), v.App, v.CategoryID)
+			if err != nil {
+				httpx.Fail(w, http.StatusInternalServerError, "sellers_unavailable", "sellers unavailable")
+				return
+			}
+			if !ok {
+				httpx.Fail(w, http.StatusBadRequest, "bad_request", "category is not an active category of this app")
+				return
+			}
+		}
+		if v.App == "FOOD" && (v.FSSAINumber == "" || !isStorageKey(v.FSSAIFileKey)) {
+			httpx.Fail(w, http.StatusBadRequest, "bad_request", "fssai number and certificate are required for food vendors")
 			return
 		}
 	}
@@ -201,12 +255,6 @@ func (h *Handler) create(w http.ResponseWriter, r *http.Request) {
 	}
 	if !validLatLng(req.Latitude, req.Longitude) {
 		httpx.Fail(w, http.StatusBadRequest, "bad_request", "shop location is invalid")
-		return
-	}
-	// Platform fee is optional at account level (it is per-vendor now); when supplied it must be in
-	// range for the (optional) category.
-	if req.PlatformFeePct != nil && !validPlatformFee(req.Category, *req.PlatformFeePct) {
-		httpx.Fail(w, http.StatusBadRequest, "bad_request", "platform fee is outside the allowed range for this category")
 		return
 	}
 	if !req.OTPVerified {
@@ -231,13 +279,6 @@ func (h *Handler) create(w http.ResponseWriter, r *http.Request) {
 		httpx.Fail(w, http.StatusBadRequest, "bad_request", "passbook document is required")
 		return
 	}
-	if req.Category == "FOOD" {
-		if strings.TrimSpace(req.FSSAINumber) == "" || !isStorageKey(req.FSSAIFileKey) {
-			httpx.Fail(w, http.StatusBadRequest, "bad_request", "fssai number and certificate are required for food sellers")
-			return
-		}
-	}
-
 	bank := &BankAccount{
 		BankName: strings.TrimSpace(req.BankName), AccountNumberMasked: masked,
 		IFSC:            strings.ToUpper(strings.TrimSpace(req.BankIFSC)),
@@ -246,25 +287,22 @@ func (h *Handler) create(w http.ResponseWriter, r *http.Request) {
 	docs := []KycDocument{
 		{DocType: "PASSBOOK", FileKey: strings.TrimSpace(req.PassbookFileKey), AssetID: strings.TrimSpace(req.PassbookAssetID)},
 	}
-	if req.Category == "FOOD" {
-		docs = append(docs, KycDocument{
-			DocType: "FSSAI", FileKey: strings.TrimSpace(req.FSSAIFileKey), AssetID: strings.TrimSpace(req.FSSAIAssetID),
+	vendors := make([]VendorSeed, 0, len(req.Vendors))
+	for _, v := range req.Vendors {
+		vendors = append(vendors, VendorSeed{
+			Name: v.Name, App: v.App, StateCode: req.StateCode, Address: v.Address, Phone: v.Phone,
+			Hours: v.Hours, Latitude: v.Latitude, Longitude: v.Longitude, PlatformFeePct: v.PlatformFeePct,
+			SellerCategoryID: v.CategoryID, FSSAINumber: v.FSSAINumber,
+			FSSAICertKey: strings.TrimSpace(v.FSSAIFileKey), FSSAICertAssetID: strings.TrimSpace(v.FSSAIAssetID),
 		})
 	}
-
-	feePct := 0
-	if req.PlatformFeePct != nil {
-		feePct = *req.PlatformFeePct
-	}
 	s, err := h.repo.CreateExtended(r.Context(), Seller{
-		BusinessName: req.BusinessName, OwnerName: req.OwnerName, Category: req.Category,
-		SellerCategoryID: req.CategoryID,
-		GSTIN:            req.GSTIN, PAN: req.PAN, BusinessAddress: req.BusinessAddress,
+		BusinessName: req.BusinessName, OwnerName: req.OwnerName,
+		GSTIN: req.GSTIN, PAN: req.PAN, BusinessAddress: req.BusinessAddress,
 		ContactPhone: req.ContactPhone, ContactEmail: req.ContactEmail, StateCode: req.StateCode,
-		DistrictCode: req.DistrictCode, PlatformFeePct: feePct, FSSAINumber: strings.TrimSpace(req.FSSAINumber),
-		FSSAICertKey: strings.TrimSpace(req.FSSAIFileKey), FSSAICertAssetID: strings.TrimSpace(req.FSSAIAssetID),
-		Latitude: req.Latitude, Longitude: req.Longitude, OTPVerified: true,
-	}, bank, docs)
+		DistrictCode: req.DistrictCode,
+		Latitude:     req.Latitude, Longitude: req.Longitude, OTPVerified: true,
+	}, bank, docs, vendors)
 	if err != nil {
 		httpx.Fail(w, http.StatusInternalServerError, "seller_create_failed", "could not create seller")
 		return
@@ -273,7 +311,7 @@ func (h *Handler) create(w http.ResponseWriter, r *http.Request) {
 	// Provision the Route linked account at onboarding: the full account number is only available
 	// here, so it is forwarded to Razorpay and never stored. Failure is non-fatal; an admin can
 	// retry from the review page (the account can be created without bank details).
-	if accountID, rerr := h.ensureLinkedAccount(r.Context(), s, bank, req.BankAccountNumber); rerr == nil && accountID != "" {
+	if accountID, rerr := h.ensureLinkedAccount(r.Context(), s, bank, req.BankAccountNumber, linkedAccountCategory(req.firstVendorApp())); rerr == nil && accountID != "" {
 		if updated, ok, uerr := h.repo.SetLinkedAccount(r.Context(), s.SellerID, accountID); uerr == nil && ok {
 			s = updated
 		}
@@ -326,9 +364,12 @@ type setStatusRequest struct {
 }
 
 type platformFeeRequest struct {
-	PlatformFeePct int `json:"platformFeePct"`
+	StoreID        string `json:"storeId"`
+	PlatformFeePct int    `json:"platformFeePct"`
 }
 
+// updatePlatformFee lets an admin apply a fee to one VENDOR (directory.stores). The fee is a property
+// of the shop (0069), so a storeId is required; validation uses the store's real app.
 func (h *Handler) updatePlatformFee(w http.ResponseWriter, r *http.Request) {
 	before, ok := h.adminSeller(w, r)
 	if !ok {
@@ -339,23 +380,39 @@ func (h *Handler) updatePlatformFee(w http.ResponseWriter, r *http.Request) {
 		httpx.Fail(w, http.StatusBadRequest, "bad_request", "invalid request body")
 		return
 	}
-	if !validPlatformFee(before.Category, req.PlatformFeePct) {
-		httpx.Fail(w, http.StatusBadRequest, "bad_request", "platform fee is outside the allowed range for this category")
+	storeID := strings.TrimSpace(req.StoreID)
+	if storeID == "" {
+		httpx.Fail(w, http.StatusBadRequest, "bad_request", "storeId is required")
 		return
 	}
-	after, ok, err := h.repo.UpdatePlatformFee(r.Context(), before.SellerID, req.PlatformFeePct)
+	_, app, owned, err := h.repo.StoreFeeForSeller(r.Context(), storeID, before.SellerID)
 	if err != nil {
 		httpx.Fail(w, http.StatusInternalServerError, "seller_update_failed", "could not update platform fee")
 		return
 	}
-	if !ok {
-		httpx.Fail(w, http.StatusNotFound, "not_found", "seller not found")
+	if !owned {
+		httpx.Fail(w, http.StatusNotFound, "not_found", "vendor not found")
+		return
+	}
+	if !validPlatformFee(app, req.PlatformFeePct) {
+		httpx.Fail(w, http.StatusBadRequest, "bad_request", "platform fee is outside the allowed range for this app")
+		return
+	}
+	if _, err := h.repo.UpdateStorePlatformFee(r.Context(), before.SellerID, storeID, req.PlatformFeePct); err != nil {
+		httpx.Fail(w, http.StatusInternalServerError, "seller_update_failed", "could not update platform fee")
+		return
+	}
+	after, ok, err := h.repo.ByID(r.Context(), before.SellerID)
+	if err != nil || !ok {
+		httpx.Fail(w, http.StatusInternalServerError, "seller_update_failed", "could not reload seller")
 		return
 	}
 	h.log(r, "SELLER_PLATFORM_FEE", before.SellerID,
-		map[string]int{"platformFeePct": before.PlatformFeePct},
-		map[string]int{"platformFeePct": after.PlatformFeePct})
-	httpx.JSON(w, http.StatusOK, after)
+		map[string]string{"storeId": storeID},
+		map[string]int{"platformFeePct": req.PlatformFeePct})
+	httpx.JSON(w, http.StatusOK, map[string]any{
+		"seller": after, "storeId": storeID, "platformFeePct": req.PlatformFeePct,
+	})
 }
 
 func (h *Handler) verifyKYC(w http.ResponseWriter, r *http.Request) {
@@ -364,7 +421,12 @@ func (h *Handler) verifyKYC(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if s.RazorpayLinkedAccountID == "" {
-		accountID, err := h.ensureLinkedAccount(r.Context(), s, nil, "")
+		app, err := h.repo.FirstStoreApp(r.Context(), s.SellerID)
+		if err != nil {
+			httpx.Fail(w, http.StatusConflict, "vendor_required", "create a vendor before provisioning payouts")
+			return
+		}
+		accountID, err := h.ensureLinkedAccount(r.Context(), s, nil, "", linkedAccountCategory(app))
 		if err != nil {
 			httpx.Fail(w, http.StatusBadGateway, "razorpay_unavailable", "could not create the Razorpay linked account")
 			return
@@ -458,8 +520,6 @@ func (h *Handler) reject(w http.ResponseWriter, r *http.Request) {
 type editSellerRequest struct {
 	BusinessName      string   `json:"businessName"`
 	OwnerName         string   `json:"ownerName"`
-	Category          string   `json:"category"`
-	CategoryID        string   `json:"categoryId"`
 	GSTIN             string   `json:"gstin"`
 	PAN               string   `json:"pan"`
 	BusinessAddress   string   `json:"businessAddress"`
@@ -469,10 +529,6 @@ type editSellerRequest struct {
 	DistrictCode      string   `json:"districtCode"`
 	Latitude          *float64 `json:"latitude"`
 	Longitude         *float64 `json:"longitude"`
-	PlatformFeePct    int      `json:"platformFeePct"`
-	FSSAINumber       string   `json:"fssaiNumber"`
-	FSSAIFileKey      string   `json:"fssaiFileKey"`
-	FSSAIAssetID      string   `json:"fssaiAssetId"`
 	PassbookFileKey   string   `json:"passbookFileKey"`
 	PassbookAssetID   string   `json:"passbookAssetId"`
 	BankName          string   `json:"bankName"`
@@ -492,27 +548,13 @@ func (h *Handler) edit(w http.ResponseWriter, r *http.Request) {
 		httpx.Fail(w, http.StatusBadRequest, "bad_request", "invalid request body")
 		return
 	}
-	req.Category = strings.ToUpper(strings.TrimSpace(req.Category))
 	req.StateCode = strings.ToUpper(strings.TrimSpace(req.StateCode))
 	req.DistrictCode = geo.Normalise(req.DistrictCode)
 	req.GSTIN = strings.ToUpper(strings.TrimSpace(req.GSTIN))
 	req.PAN = strings.ToUpper(strings.TrimSpace(req.PAN))
-	if (req.Category != "" && !validCategory(req.Category)) || len(req.StateCode) != 2 ||
-		(req.PlatformFeePct != 0 && !validPlatformFee(req.Category, req.PlatformFeePct)) {
-		httpx.Fail(w, http.StatusBadRequest, "bad_request", "category, state or platform fee is invalid")
+	if len(req.StateCode) != 2 {
+		httpx.Fail(w, http.StatusBadRequest, "bad_request", "state is invalid")
 		return
-	}
-	req.CategoryID = strings.TrimSpace(req.CategoryID)
-	if req.CategoryID != "" {
-		ok, err := h.repo.ValidCategoryID(r.Context(), req.Category, req.CategoryID)
-		if err != nil {
-			httpx.Fail(w, http.StatusInternalServerError, "sellers_unavailable", "sellers unavailable")
-			return
-		}
-		if !ok {
-			httpx.Fail(w, http.StatusBadRequest, "bad_request", "category is not an active category of this app")
-			return
-		}
 	}
 	if req.DistrictCode != "" {
 		if !geo.IsValid(req.DistrictCode) {
@@ -545,10 +587,6 @@ func (h *Handler) edit(w http.ResponseWriter, r *http.Request) {
 		httpx.Fail(w, http.StatusBadRequest, "bad_request", "passbook document is invalid")
 		return
 	}
-	if req.FSSAIFileKey != "" && !isStorageKey(req.FSSAIFileKey) {
-		httpx.Fail(w, http.StatusBadRequest, "bad_request", "fssai document is invalid")
-		return
-	}
 	docs := []KycDocument{}
 	if req.PassbookFileKey != "" {
 		docs = append(docs, KycDocument{
@@ -556,21 +594,12 @@ func (h *Handler) edit(w http.ResponseWriter, r *http.Request) {
 			AssetID: strings.TrimSpace(req.PassbookAssetID),
 		})
 	}
-	if req.Category == "FOOD" && req.FSSAIFileKey != "" {
-		docs = append(docs, KycDocument{
-			DocType: "FSSAI", FileKey: strings.TrimSpace(req.FSSAIFileKey),
-			AssetID: strings.TrimSpace(req.FSSAIAssetID),
-		})
-	}
 	after, changes, err := h.repo.EditRequest(r.Context(), id, Seller{
-		BusinessName: req.BusinessName, OwnerName: req.OwnerName, Category: req.Category,
-		SellerCategoryID: req.CategoryID,
-		GSTIN:            req.GSTIN, PAN: req.PAN, BusinessAddress: req.BusinessAddress,
+		BusinessName: req.BusinessName, OwnerName: req.OwnerName,
+		GSTIN: req.GSTIN, PAN: req.PAN, BusinessAddress: req.BusinessAddress,
 		ContactPhone: req.ContactPhone, ContactEmail: strings.TrimSpace(req.ContactEmail),
-		StateCode: req.StateCode, DistrictCode: req.DistrictCode, PlatformFeePct: req.PlatformFeePct,
-		FSSAINumber: strings.TrimSpace(req.FSSAINumber), FSSAICertKey: strings.TrimSpace(req.FSSAIFileKey),
-		FSSAICertAssetID: strings.TrimSpace(req.FSSAIAssetID),
-		Latitude:         req.Latitude, Longitude: req.Longitude,
+		StateCode: req.StateCode, DistrictCode: req.DistrictCode,
+		Latitude: req.Latitude, Longitude: req.Longitude,
 	}, bank, docs, h.actor(r))
 	if err != nil {
 		if errors.Is(err, ErrNotEditable) {
@@ -713,7 +742,7 @@ func (h *Handler) approveFeeChangeRequest(w http.ResponseWriter, r *http.Request
 	}
 	h.log(r, "SELLER_PLATFORM_FEE_APPROVED", f.SellerID,
 		map[string]int{"platformFeePct": f.CurrentFeePct},
-		map[string]int{"platformFeePct": seller.PlatformFeePct})
+		map[string]int{"platformFeePct": f.RequestedFeePct})
 	httpx.JSON(w, http.StatusOK, map[string]any{"request": approved, "seller": seller})
 }
 
@@ -794,14 +823,17 @@ func (h *Handler) adminSeller(w http.ResponseWriter, r *http.Request) (Seller, b
 // ensureLinkedAccount creates a Route linked account and returns its id. The full account number is
 // used transiently only; passing an empty number omits the bank object (the seller can complete it
 // later from the Route dashboard).
-func (h *Handler) ensureLinkedAccount(ctx context.Context, s Seller, bank *BankAccount, accountNumber string) (string, error) {
+func (h *Handler) ensureLinkedAccount(ctx context.Context, s Seller, bank *BankAccount, accountNumber, category string) (string, error) {
 	if s.RazorpayLinkedAccountID != "" {
 		return s.RazorpayLinkedAccountID, nil
+	}
+	if h.route == nil {
+		return "", razorpayroute.ErrUnavailable
 	}
 	in := razorpayroute.LinkedAccountInput{
 		Email: s.ContactEmail, Phone: digitsOnly(s.ContactPhone),
 		LegalBusinessName: s.BusinessName, ContactName: s.OwnerName,
-		Category: "ecommerce", AddressLine: s.BusinessAddress, StateCode: s.StateCode,
+		Category: category, AddressLine: s.BusinessAddress, StateCode: s.StateCode,
 	}
 	if bank != nil {
 		in.BankName = bank.BankName

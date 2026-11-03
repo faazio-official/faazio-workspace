@@ -56,8 +56,8 @@ func TestWeakPassword(t *testing.T) {
 		old         string
 		want        bool
 	}{
-		{"qwertyuiop", "", true},             // blocklisted common password
-		{"password", "old-password", true},   // blocklist
+		{"qwertyuiop", "", true},           // blocklisted common password
+		{"password", "old-password", true}, // blocklist
 		{"SamePassword12", "SamePassword12", true},
 		{"a-perfectly-fine-passphrase", "", false},
 	}

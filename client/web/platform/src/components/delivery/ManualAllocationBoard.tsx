@@ -26,7 +26,8 @@ import {
 } from "@/components/ui/table";
 import { formatDateTime, formatINR } from "@/lib/format";
 import { remoteConfigured } from "@/lib/config";
-import { DISTRICTS, districtName } from "@/data/districts";
+import { districtName } from "@/lib/api/reference";
+import { useDistricts } from "@/lib/api/hooks";
 import { useSession } from "@/lib/hooks/useSession";
 import {
   allocateDeliveryOrder,
@@ -45,6 +46,7 @@ const STATUSES: StatusFilter[] = ["ALL", "UNASSIGNED", "ASSIGNED", "REJECTED"];
 
 export function ManualAllocationBoard({ scope }: { scope: Scope }) {
   const session = useSession();
+  const districts = useDistricts();
   const [orders, setOrders] = useState<AdminDeliveryOrder[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -173,7 +175,7 @@ export function ManualAllocationBoard({ scope }: { scope: Scope }) {
               onChange={(e) => setDistrict(e.target.value)}
             >
               <option value="">All districts</option>
-              {DISTRICTS.map((d) => (
+              {districts.map((d) => (
                 <option key={d.districtCode} value={d.districtCode}>
                   {d.name} ({d.districtCode})
                 </option>
@@ -285,7 +287,7 @@ export function ManualAllocationBoard({ scope }: { scope: Scope }) {
                   </TableCell>
                   <TableCell className="text-[12px]">
                     {order.districtCode
-                      ? `${order.districtCode} · ${districtName(order.districtCode)}`
+                      ? `${order.districtCode} · ${districtName(districts, order.districtCode)}`
                       : "—"}
                   </TableCell>
                   <TableCell className="max-w-[180px] truncate text-[13px]">
@@ -332,7 +334,7 @@ export function ManualAllocationBoard({ scope }: { scope: Scope }) {
                 <DialogDescription>
                   {selected.customerOrderId} · {selected.storeName} ·{" "}
                   {selected.districtCode
-                    ? `${selected.districtCode} · ${districtName(selected.districtCode)}`
+                    ? `${selected.districtCode} · ${districtName(districts, selected.districtCode)}`
                     : "No district"}
                 </DialogDescription>
               </DialogHeader>

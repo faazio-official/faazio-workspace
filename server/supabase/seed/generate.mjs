@@ -56,7 +56,7 @@ const orderStatus = (v) => {
 const FULFIL = (v) => (v === 'PICKUP' ? "'PICKUP'::fulfillment_mode" : v === 'DELIVERY' ? "'DELIVERY'::fulfillment_mode" : 'null');
 const slug = (s) => 'seed-' + String(s).toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
 
-function inserts(table, columns, rows, batch = 100, onConflict = '') {
+function inserts(table, columns, rows, batch = 100, onConflict = 'on conflict do nothing') {
   const out = [];
   for (let i = 0; i < rows.length; i += batch) {
     const slice = rows.slice(i, i + batch);
@@ -202,14 +202,21 @@ if (manifest) {
 // NULL (0071), so the owner rows must exist before the stores that reference them.
 sql.push(inserts(
   'sellers.sellers',
-  ['seller_id', 'business_name', 'owner_name', 'contact_email', 'state_code', 'district_code', 'platform_fee_pct', 'status'],
+  ['seller_id', 'business_name', 'owner_name', 'contact_email', 'state_code', 'district_code', 'status'],
   SELLER_ACCOUNTS.map((s) => [
-    q(s.id), q(s.businessName), q(s.ownerName), q(s.email), q(s.state), q(s.district), n(10), `'ACTIVE'::seller_status`,
+    q(s.id), q(s.businessName), q(s.ownerName), q(s.email), q(s.state), q(s.district), `'ACTIVE'::seller_status`,
   ]),
-  // 0071_backfill_live_sellers also seeds these accounts (for an existing DB), so the fresh
-  // `--all --seed` path must not collide: keep the seed idempotent.
+  // 0071_backfill_live_sellers also seeds these accounts (for an existing DB) with an empty email,
+  // so a fresh `--all --seed` must UPDATE the seeded identity fields rather than silently keep the
+  // backfill placeholders.
   100,
-  'on conflict (seller_id) do nothing',
+  `on conflict (seller_id) do update set
+     business_name = excluded.business_name,
+     owner_name = excluded.owner_name,
+     contact_email = excluded.contact_email,
+     state_code = excluded.state_code,
+     district_code = excluded.district_code,
+     status = excluded.status`,
 ));
 
 // Each store is a VENDOR owned by an account and carries its own fee + (FOOD) FSSAI (0069).
@@ -227,6 +234,14 @@ sql.push(inserts(
       q(isFood ? `FSSAI-${s.id.toUpperCase()}` : ''), q(''), q(''),
     ];
   }),
+  100,
+  `on conflict (id) do update set
+     app = excluded.app,
+     name = excluded.name,
+     seller_id = excluded.seller_id,
+     state_code = excluded.state_code,
+     platform_fee_pct = excluded.platform_fee_pct,
+     fssai_number = excluded.fssai_number`,
 ));
 
 const storeIds = new Set(d.storeDirectory.map((s) => s.id));
@@ -236,6 +251,8 @@ sql.push(inserts(
   d.restaurantVenues.filter((v) => !storeIds.has(v.id)).map((v) => [
     q(v.id), q(v.name), APP('FOOD'), 'null', q(''), 'null', 'null', 'null', `ARRAY[]::text[]`, n(v.latitude), n(v.longitude),
   ]),
+  100,
+  'on conflict (id) do nothing',
 ));
 
 // ---------------------------------------------------------------- menus

@@ -10,6 +10,7 @@ import (
 
 	"github.com/faazio/server/gateway/internal/contracts"
 	"github.com/faazio/server/gateway/internal/platform/auth"
+	"github.com/faazio/server/gateway/internal/platform/authtest"
 	"github.com/faazio/server/gateway/internal/platform/cache"
 	"github.com/go-chi/chi/v5"
 )
@@ -21,7 +22,7 @@ func newAdminRouter(t *testing.T, layouts *fakeLayouts) http.Handler {
 		t.Fatal(err)
 	}
 	r := chi.NewRouter()
-	r.Use(auth.Middleware(auth.Config{Disabled: true, DevUserID: "user-1"}))
+	r.Use(authtest.Middleware())
 	svc := NewService(layouts, layouts, fakeProducts{}, fakeStores{}, c)
 	NewHandler(svc, nil).Register(r)
 	return r
@@ -134,7 +135,7 @@ func newFeedRouter(t *testing.T, layouts *fakeLayouts, products fakeProducts, st
 		t.Fatal(err)
 	}
 	r := chi.NewRouter()
-	r.Use(auth.Middleware(auth.Config{Disabled: true, DevUserID: "user-1"}))
+	r.Use(authtest.Middleware())
 	svc := NewService(layouts, layouts, products, stores, c)
 	NewHandler(svc, nil).Register(r)
 	return r

@@ -1,6 +1,6 @@
 "use client";
 // Reactive read hooks over the service layer. Pages use these instead of src/data/**.
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { usePortalStore } from "@/lib/api/store";
 import { remote } from "@/lib/api/http";
 import { remoteConfigured } from "@/lib/config";
@@ -70,14 +70,14 @@ export function useProducts(filter: api.ProductFilter = {}) {
   return useMemo(() => api.listProducts(filter), [products, stores, key]);
 }
 
-export function useStock(sellerId?: string) {
+export function useStock(sellerId?: string, storeId?: string) {
   const stock = usePortalStore((s) => s.stock);
   const products = usePortalStore((s) => s.products);
-  return useMemo(() => api.listStock(sellerId), [stock, products, sellerId]);
+  return useMemo(() => api.listStock(sellerId, storeId), [stock, products, sellerId, storeId]);
 }
 
 export function useOrders(
-  filter: { sellerId?: string | undefined; stateCode?: string | undefined; status?: OrderStatus | "ALL" | undefined } = {},
+  filter: { sellerId?: string | undefined; storeId?: string | undefined; stateCode?: string | undefined; status?: OrderStatus | "ALL" | undefined } = {},
 ) {
   const orders = usePortalStore((s) => s.orders);
   const key = JSON.stringify(filter);
@@ -106,9 +106,15 @@ export function useStores(filter: { sellerId?: string | undefined; stateCode?: s
  * The caller's real vendors (`GET /seller/stores`) — the data source for the seller console switcher
  * and for scoping seller pages to one shop. Empty when the gateway is unconfigured (local dev).
  */
-export function useSellerStores(): { stores: api.SellerStoreSummary[]; loading: boolean } {
+export function useSellerStores(): {
+  stores: api.SellerStoreSummary[];
+  loading: boolean;
+  reload: () => void;
+} {
   const [stores, setStores] = useState<api.SellerStoreSummary[]>([]);
   const [loading, setLoading] = useState(false);
+  const [version, setVersion] = useState(0);
+  const reload = useCallback(() => setVersion((v) => v + 1), []);
   useEffect(() => {
     if (!remoteConfigured()) {
       setStores([]);
@@ -130,8 +136,92 @@ export function useSellerStores(): { stores: api.SellerStoreSummary[]; loading: 
     return () => {
       cancelled = true;
     };
+  }, [version]);
+  return { stores, loading, reload };
+}
+
+/** States/UTs from `admins.states` (the DB is the authority). */
+export function useStates(): api.StateSummary[] {
+  const [items, setItems] = useState<api.StateSummary[]>([]);
+  useEffect(() => {
+    if (!remoteConfigured()) return;
+    let cancelled = false;
+    api
+      .fetchStates()
+      .then((rows) => {
+        if (!cancelled) setItems(rows);
+      })
+      .catch(() => {
+        if (!cancelled) setItems([]);
+      });
+    return () => {
+      cancelled = true;
+    };
   }, []);
-  return { stores, loading };
+  return items;
+}
+
+/** Districts from `admins.district_master` via GET /geo/districts (the DB is the authority). */
+export function useDistricts(): api.DistrictInfo[] {
+  const [items, setItems] = useState<api.DistrictInfo[]>([]);
+  useEffect(() => {
+    if (!remoteConfigured()) return;
+    let cancelled = false;
+    api
+      .fetchDistricts()
+      .then((rows) => {
+        if (!cancelled) setItems(rows);
+      })
+      .catch(() => {
+        if (!cancelled) setItems([]);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+  return items;
+}
+
+/** Ad placements from `ads.placements` via GET /ads/placements (the DB is the authority). */
+export function usePlacements(): api.PlacementSummary[] {
+  const [items, setItems] = useState<api.PlacementSummary[]>([]);
+  useEffect(() => {
+    if (!remoteConfigured()) return;
+    let cancelled = false;
+    api
+      .fetchPlacements()
+      .then((rows) => {
+        if (!cancelled) setItems(rows);
+      })
+      .catch(() => {
+        if (!cancelled) setItems([]);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+  return items;
+}
+
+/** Active top-level categories of one app from `GET /categories?app=` (taxonomy is the authority). */
+export function useCategories(app: import("@/data/types").Sector): api.CategoryRow[] {
+  const [items, setItems] = useState<api.CategoryRow[]>([]);
+  useEffect(() => {
+    if (!remoteConfigured()) return;
+    let cancelled = false;
+    api
+      .fetchCategories(app)
+      .then((rows) => {
+        if (!cancelled) setItems(rows);
+      })
+      .catch(() => {
+        if (!cancelled) setItems([]);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [app]);
+  return items;
 }
 
 /**
@@ -156,6 +246,20 @@ export function useActiveStore(): {
   const activeStore =
     stores.find((s) => s.storeId === activeStoreId) ?? (stores.length > 0 ? stores[0]! : null);
   return { stores, loading, activeStore, setActiveStoreId };
+}
+
+/** Seller console scope: the signed-in account plus its active vendor. */
+export function useSellerScope(): {
+  sellerId: string;
+  stores: api.SellerStoreSummary[];
+  activeStore: api.SellerStoreSummary | null;
+  storeId: string;
+  loading: boolean;
+  setActiveStoreId: (id: string | null) => void;
+} {
+  const sellerId = usePortalStore((s) => s.session?.sellerId ?? "");
+  const { stores, activeStore, loading, setActiveStoreId } = useActiveStore();
+  return { sellerId, stores, activeStore, storeId: activeStore?.storeId ?? "", loading, setActiveStoreId };
 }
 
 export function useCampaigns(filter: { stateCode?: string | undefined } = {}) {

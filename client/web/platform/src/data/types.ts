@@ -48,7 +48,6 @@ export interface SellerRecord {
   sellerId: string;
   businessName: string;
   ownerName: string;
-  category: Sector;
   gstin: string;
   pan: string;
   businessAddress: string;
@@ -59,15 +58,16 @@ export interface SellerRecord {
   status: SellerStatus;
   rating: number;
   createdAt: string;
-  /** Private onboarding extensions (migration 0039). Optional on legacy seed rows. */
+  /** Private onboarding extensions (migration 0039). */
   contactEmail?: string | undefined;
-  platformFeePct?: number | undefined;
   razorpayLinkedAccountId?: string | undefined;
-  fssaiNumber?: string | undefined;
   otpVerified?: boolean | undefined;
   otpVerifiedAt?: string | undefined;
   rejectionReason?: string | undefined;
   rejectionHistory?: unknown;
+  /** Vendor rollup from GET /sellers (an account can own shops in several apps). */
+  vendorCount?: number | undefined;
+  vendorApps?: Sector[] | undefined;
 }
 
 /** sellers.kyc_documents */
@@ -104,10 +104,26 @@ export interface SellerVerificationLog {
 }
 
 /** Admin review projection: seller + payout account + KYC documents + verification log. */
+/** One vendor (directory.stores row) owned by an account. Commercial terms live here. */
+export interface SellerVendorRecord {
+  storeId: string;
+  name: string;
+  app: Sector;
+  isLive: boolean;
+  platformFeePct: number;
+  sellerCategoryId?: string | undefined;
+  fssaiNumber?: string | undefined;
+  fssaiCertKey?: string | undefined;
+  fssaiCertAssetId?: string | undefined;
+  stateCode?: string | undefined;
+  districtCode?: string | undefined;
+}
+
 export interface SellerDetail extends SellerRecord {
   bankAccount?: BankAccount | undefined;
   kycDocuments: KycDocument[];
   verificationLog: SellerVerificationLog[];
+  vendors: SellerVendorRecord[];
 }
 
 /** directory.stores */

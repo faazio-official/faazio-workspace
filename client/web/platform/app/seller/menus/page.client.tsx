@@ -27,8 +27,7 @@ import {
 } from "@/components/ui/table";
 import { formatINR, parseRupeesToPaisa } from "@/lib/format";
 import { deleteMenu, setMenuStatus, upsertMenu, type MenuDto } from "@/lib/api";
-import { useMenus, useMockLoading } from "@/lib/api/hooks";
-import { useSession } from "@/lib/hooks/useSession";
+import { useMenus, useMockLoading, useSellerScope } from "@/lib/api/hooks";
 import { ComponentHelp } from "@/components/patterns/ComponentHelp";
 import type { MenuItemRecord, ProductStatus } from "@/data/types";
 
@@ -78,8 +77,7 @@ function toForm(m: MenuItemRecord): FormState {
 }
 
 function SellerMenus() {
-  const session = useSession();
-  const sellerId = session?.sellerId ?? "sel-1";
+  const { sellerId, storeId } = useSellerScope();
   const loading = useMockLoading();
   const [status, setStatus] = useState<ProductStatus | "ALL">("ALL");
   const [query, setQuery] = useState("");
@@ -87,7 +85,7 @@ function SellerMenus() {
   const [editing, setEditing] = useState<MenuItemRecord | null>(null);
   const [form, setForm] = useState<FormState>(emptyForm());
 
-  const menus = useMenus({ sellerId, status }).filter((m) => {
+  const menus = useMenus({ sellerId, venueId: storeId || undefined, status }).filter((m) => {
     if (!query) return true;
     const q = query.toLowerCase();
     return m.name.toLowerCase().includes(q) || m.dishId.toLowerCase().includes(q);

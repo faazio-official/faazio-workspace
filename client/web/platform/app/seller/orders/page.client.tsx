@@ -9,8 +9,7 @@ import { ComponentHelp } from "@/components/patterns/ComponentHelp";
 import { Button } from "@/components/ui/button";
 import { formatDateTime, formatINR } from "@/lib/format";
 import { acceptOrder, advanceOrder, rejectOrder } from "@/lib/api";
-import { useMockLoading, useOrders } from "@/lib/api/hooks";
-import { useSession } from "@/lib/hooks/useSession";
+import { useMockLoading, useOrders, useSellerScope } from "@/lib/api/hooks";
 import type { OrderStatus } from "@/data/types";
 
 
@@ -22,10 +21,9 @@ const COLUMNS: { status: OrderStatus; next?: OrderStatus }[] = [
 ];
 
 function SellerOrders() {
-  const session = useSession();
-  const sellerId = session?.sellerId ?? "sel-1";
+  const { sellerId, storeId } = useSellerScope();
   const loading = useMockLoading();
-  const orders = useOrders({ sellerId });
+  const orders = useOrders({ sellerId, storeId });
   const closed = orders.filter((o) => o.status === "CANCELLED" || o.status === "RETURNED");
 
   return (

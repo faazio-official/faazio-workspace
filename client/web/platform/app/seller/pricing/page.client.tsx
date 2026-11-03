@@ -17,18 +17,16 @@ import {
 import { formatINR, parseRupeesToPaisa } from "@/lib/format";
 import { validatePrice } from "@/lib/pricing/rules";
 import { upsertPrice } from "@/lib/api";
-import { useAuditLogs, useMockLoading, useProducts } from "@/lib/api/hooks";
-import { useSession } from "@/lib/hooks/useSession";
+import { useAuditLogs, useMockLoading, useProducts, useSellerScope } from "@/lib/api/hooks";
 import { formatDateTime } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { ProductThumb } from "@/components/patterns/ProductThumb";
 import { ComponentHelp } from "@/components/patterns/ComponentHelp";
 
 function SellerPricing() {
-  const session = useSession();
-  const sellerId = session?.sellerId ?? "sel-1";
+  const { sellerId, storeId } = useSellerScope();
   const loading = useMockLoading();
-  const products = useProducts({ sellerId });
+  const products = useProducts({ sellerId, storeId });
   const logs = useAuditLogs({ query: "" }).filter((l) => l.action === "PRICE_UPDATE");
   const [drafts, setDrafts] = useState<Record<string, { price: string; mrp: string }>>({});
   const [massPercent, setMassPercent] = useState("");

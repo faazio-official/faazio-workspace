@@ -18,7 +18,7 @@ import {
 } from "@/components/ui/table";
 import { formatINR } from "@/lib/format";
 import { discountPercent } from "@/lib/pricing/rules";
-import { useMockLoading, useProducts } from "@/lib/api/hooks";
+import { useMockLoading, useProducts, useSellerScope } from "@/lib/api/hooks";
 import { useSession } from "@/lib/hooks/useSession";
 import { FilterChip } from "@/components/patterns/FilterChip";
 import { ProductThumb } from "@/components/patterns/ProductThumb";
@@ -30,14 +30,14 @@ const STATUSES: (ProductStatus | "ALL")[] = ["ALL", "ACTIVE", "PENDING_REVIEW", 
 
 function SellerProducts() {
   const session = useSession();
-  const sellerId = session?.sellerId ?? "sel-1";
+  const { sellerId, storeId } = useSellerScope();
   const loading = useMockLoading();
   const [query, setQuery] = useState("");
   const [sector, setSector] = useState<Sector | "ALL">("ALL");
   const [status, setStatus] = useState<ProductStatus | "ALL">("ALL");
   const [limit, setLimit] = useState(10);
 
-  const products = useProducts({ sellerId, query, sector, status });
+  const products = useProducts({ sellerId, storeId, query, sector, status });
   const rows = products.slice(0, limit);
 
   return (

@@ -1,31 +1,9 @@
 "use client";
-// In-memory store seeded from src/data/**, persisted to localStorage.
-// Pages never import src/data/** directly — they call src/lib/api/* services.
+// Portal state. Every slice is hydrated from the Go gateway by `hydrateFromGateway`; there are no
+// bundled demo rows. Pages never import src/data/** directly — they call src/lib/api/* services.
 import { create } from "zustand";
 import { persist, createJSONStorage } from "zustand/middleware";
 import { config } from "@/lib/config";
-import { SELLERS, KYC_DOCUMENTS, BANK_ACCOUNTS } from "@/data/sellers/sellers";
-import { STORES } from "@/data/stores/stores";
-import { PRODUCTS } from "@/data/catalog/products";
-import { STOCK } from "@/data/inventory/stock";
-import { ORDERS } from "@/data/orders/orders";
-import { LEDGER, PAYOUTS } from "@/data/payments/ledger";
-import { SECTOR_CAPS } from "@/data/promotions/sectorCaps";
-import { FESTIVAL_CAMPAIGNS, SELLER_OPTINS } from "@/data/promotions/festivalCampaigns";
-import { COUPONS } from "@/data/promotions/coupons";
-import { AD_SLOTS } from "@/data/ads/adSlots";
-import { HERO_CAMPAIGNS } from "@/data/ads/heroCampaigns";
-import { DISTRICT_ADMINS } from "@/data/admins/districtAdmins";
-import { AUDIT_LOGS } from "@/data/admins/auditLogs";
-import { REVIEWS } from "@/data/reviews/reviews";
-import { PRESCRIPTIONS } from "@/data/pharma/prescriptions";
-import { BLOOD_REQUESTS } from "@/data/blood/bloodRequests";
-import { SDUI_LAYOUTS } from "@/data/sdui/layouts";
-import { CUSTOMERS } from "@/data/customers/customers";
-import { MENUS } from "@/data/menus/menus";
-import { TICKETS } from "@/data/support/tickets";
-import { REWARDS_RATES } from "@/data/rewards/rates";
-import { REWARDS_LEDGER } from "@/data/rewards/ledger";
 import type {
   AdSlot,
   AuditLog,
@@ -95,42 +73,48 @@ export interface PortalState {
   setActiveStoreId: (id: string | null) => void;
 }
 
-const seed = {
+const emptySeed = {
   session: null as AuthUser | null,
   sessionStatus: "unknown" as SessionStatus,
   activeStoreId: null as string | null,
-  sellers: SELLERS,
-  kyc: KYC_DOCUMENTS,
-  bankAccounts: BANK_ACCOUNTS,
-  stores: STORES,
-  products: PRODUCTS,
-  stock: STOCK,
-  orders: ORDERS,
-  ledger: LEDGER,
-  payouts: PAYOUTS,
-  sectorCaps: SECTOR_CAPS,
-  campaigns: FESTIVAL_CAMPAIGNS,
-  optins: SELLER_OPTINS,
-  coupons: COUPONS,
-  adSlots: AD_SLOTS,
-  heroCampaigns: HERO_CAMPAIGNS,
-  districtAdmins: DISTRICT_ADMINS,
-  auditLogs: AUDIT_LOGS,
-  reviews: REVIEWS,
-  prescriptions: PRESCRIPTIONS,
-  bloodRequests: BLOOD_REQUESTS,
-  sduiLayouts: SDUI_LAYOUTS,
-  customers: CUSTOMERS,
-  menus: MENUS,
-  tickets: TICKETS,
-  rewardRates: REWARDS_RATES,
-  rewardLedger: REWARDS_LEDGER,
+  sellers: [] as SellerRecord[],
+  kyc: [] as KycDocument[],
+  bankAccounts: [] as BankAccount[],
+  stores: [] as StoreRecord[],
+  products: [] as ProductRecord[],
+  stock: [] as StockRecord[],
+  orders: [] as OrderRecord[],
+  ledger: [] as LedgerEntry[],
+  payouts: [] as PayoutRecord[],
+  sectorCaps: [] as SectorCap[],
+  campaigns: [] as FestivalCampaign[],
+  optins: [] as SellerOptin[],
+  coupons: [] as CouponRecord[],
+  adSlots: [] as AdSlot[],
+  heroCampaigns: [] as HeroCampaign[],
+  districtAdmins: [] as DistrictAdmin[],
+  auditLogs: [] as AuditLog[],
+  reviews: [] as ReviewRecord[],
+  prescriptions: [] as PrescriptionRecord[],
+  bloodRequests: [] as BloodRequestRecord[],
+  sduiLayouts: [] as SduiLayout[],
+  customers: [] as CustomerRecord[],
+  menus: [] as MenuItemRecord[],
+  tickets: [] as TicketRecord[],
+  rewardRates: {
+    coinEarnRate: 1000,
+    coinRedeemRate: 100,
+    streakTargetDays: 7,
+    discountCardPercent: 10,
+    cardValidityDays: 5,
+  } as RewardsRates,
+  rewardLedger: [] as RewardLedgerEntry[],
 };
 
 export const usePortalStore = create<PortalState>()(
   persist(
     (setState) => ({
-      ...seed,
+      ...emptySeed,
       set: (updater) => setState((state) => updater(state)),
       setActiveStoreId: (id) => setState({ activeStoreId: id }),
     }),

@@ -119,8 +119,13 @@ export function SellerWebViewScreen() {
   );
 
   const openOrder = useCallback(
-    (orderId: string | null) => {
+    (orderId: string | null, storeId?: string | null) => {
       if (!orderId) return;
+      // When the push carries the order's vendor, set the portal's vendor context before landing
+      // (window.__faazio.vendorId) so the console opens scoped to the right shop.
+      if (storeId) {
+        inject(`window.__faazio=Object.assign({},window.__faazio,{vendorId:${JSON.stringify(storeId)}});true;`);
+      }
       const target = `${portalBase}/seller/orders/${encodeURIComponent(orderId)}`;
       if (webviewRef.current && loaded.current) {
         inject(`window.location.assign(${JSON.stringify(target)});`);

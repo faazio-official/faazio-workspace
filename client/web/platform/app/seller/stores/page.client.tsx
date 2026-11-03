@@ -1,5 +1,5 @@
 "use client";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { PageHeader } from "@/components/patterns/PageHeader";
 import { SectionCard } from "@/components/patterns/SectionCard";
@@ -9,23 +9,39 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
-import { updateStore } from "@/lib/api";
-import { useMockLoading, useStores } from "@/lib/api/hooks";
-import { useSession } from "@/lib/hooks/useSession";
+import { updateSellerStore } from "@/lib/api";
+import { useSellerStores } from "@/lib/api/hooks";
 import { ComponentHelp } from "@/components/patterns/ComponentHelp";
 
 function SellerStores() {
-  const session = useSession();
-  const sellerId = session?.sellerId ?? "sel-1";
-  const loading = useMockLoading();
-  const stores = useStores({ sellerId });
-  const [drafts, setDrafts] = useState<Record<string, { hours: string; deliveryTime: string }>>({});
+  const { stores, loading, reload } = useSellerStores();
+  const [drafts, setDrafts] = useState<Record<string, { hours: string }>>({});
+
+  useEffect(() => {
+    setDrafts((current) => {
+      const next = { ...current };
+      for (const store of stores) {
+        if (!next[store.storeId]) next[store.storeId] = { hours: store.hours ?? "" };
+      }
+      return next;
+    });
+  }, [stores]);
+
+  const save = async (storeId: string, patch: { hours?: string; isLive?: boolean; isVeg?: boolean }) => {
+    try {
+      await updateSellerStore(storeId, patch);
+      toast.success("Vendor saved");
+      reload();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Could not save the vendor");
+    }
+  };
 
   return (
     <div className="space-y-4">
       <PageHeader
-        title="Stores"
-        description="These fields render on the store profile and self-pickup screens in the app."
+        title="Vendors"
+        description="Each vendor is one shop in one app (Mart, Food or Pharma). Switch the active vendor in the top bar."
       />
 
       <DataShell
@@ -33,22 +49,19 @@ function SellerStores() {
         isEmpty={stores.length === 0}
         empty={
           <EmptyState
-            title="No store yet"
-            description="Finish onboarding to create your first store."
+            title="No vendor yet"
+            description="Finish onboarding to create your first vendor."
           />
         }
       >
         <div className="grid gap-4 lg:grid-cols-2">
           {stores.map((store) => {
-            const draft = drafts[store.storeId] ?? {
-              hours: store.hours,
-              deliveryTime: store.deliveryTime,
-            };
+            const draft = drafts[store.storeId] ?? { hours: store.hours ?? "" };
             return (
               <SectionCard
                 key={store.storeId}
                 title={store.name}
-                description={`${store.addressLine}, ${store.city} · ${store.stateCode}`}
+                description={`${store.address || "Address not set"} · ${store.platformFeePct}% platform fee`}
                 actions={<SectorPill sector={store.sector} />}
               >
                 <div className="grid gap-4 md:grid-cols-2">
@@ -68,37 +81,18 @@ function SellerStores() {
                       }
                     />
                   </div>
-                  <div className="space-y-1.5">
+                  <div className="flex items-center justify-between rounded-lg border border-border px-3 py-2">
                     <div className="flex items-center gap-1.5">
-                      <Label htmlFor={`eta-${store.storeId}`}>Delivery time</Label>
-                      <ComponentHelp id="delivery-input" />
-                    </div>
-                    <Input
-                      id={`eta-${store.storeId}`}
-                      value={draft.deliveryTime}
-                      onChange={(e) =>
-                        setDrafts((d) => ({
-                          ...d,
-                          [store.storeId]: { ...draft, deliveryTime: e.target.value },
-                        }))
-                      }
-                    />
-                  </div>
-                  <div className="flex items-center justify-between rounded-lg border border-border px-3 py-2 md:col-span-2">
-                    <div className="flex items-center gap-1.5">
-                      <Label htmlFor={`live-${store.storeId}`}>Store live in the app</Label>
+                      <Label htmlFor={`live-${store.storeId}`}>Vendor live in the app</Label>
                       <ComponentHelp id="live-switch" />
                     </div>
                     <Switch
                       id={`live-${store.storeId}`}
                       checked={store.isLive}
-                      onCheckedChange={(checked) => {
-                        updateStore(store.storeId, { isLive: checked });
-                        toast.success(checked ? "Store is live" : "Store paused");
-                      }}
+                      onCheckedChange={(checked) => void save(store.storeId, { isLive: checked })}
                     />
                   </div>
-                  <div className="flex items-center justify-between rounded-lg border border-border px-3 py-2 md:col-span-2">
+                  <div className="flex items-center justify-between rounded-lg border border-border px-3 py-2">
                     <div className="flex items-center gap-1.5">
                       <Label htmlFor={`veg-${store.storeId}`}>Pure vegetarian</Label>
                       <ComponentHelp id="veg-switch" />
@@ -106,7 +100,7 @@ function SellerStores() {
                     <Switch
                       id={`veg-${store.storeId}`}
                       checked={store.isVeg}
-                      onCheckedChange={(checked) => updateStore(store.storeId, { isVeg: checked })}
+                      onCheckedChange={(checked) => void save(store.storeId, { isVeg: checked })}
                     />
                   </div>
                 </div>
@@ -114,13 +108,7 @@ function SellerStores() {
                   <div className="flex items-center gap-1.5">
                     <Button
                       size="sm"
-                      onClick={() => {
-                        updateStore(store.storeId, {
-                          hours: draft.hours,
-                          deliveryTime: draft.deliveryTime,
-                        });
-                        toast.success("Store profile saved");
-                      }}
+                      onClick={() => void save(store.storeId, { hours: draft.hours })}
                     >
                       Save profile
                     </Button>

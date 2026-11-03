@@ -5,9 +5,8 @@
 //
 // Partner roles (portal) travel as custom JWT claims — `app_role`, `seller_id`, `state_code`,
 // `district_code` — either top-level or under `app_metadata`. The retired `STATE_ADMIN` spelling is
-// canonicalised to `DISTRICT_ADMIN` on read. In local dev (AUTH_DISABLED) they come from the
-// `X-Dev-Role` / `X-Dev-Seller` / `X-Dev-State` / `X-Dev-District` headers so integration tests can
-// act as any role.
+// canonicalised to `DISTRICT_ADMIN` on read. There is no header-based identity bypass: every caller
+// must present a verified bearer token.
 package auth
 
 import (
@@ -67,12 +66,8 @@ type Identity struct {
 	// rotation, so this is only ever set for SELLER/STATE_ADMIN.
 	MustChange bool
 	// Phone is the verified `phone_number` claim of a Firebase ID token. Empty for portal/legacy
-	// tokens and for the dev X-Dev-* cheat headers — a caller with an empty Phone has no
-	// server-verified phone, so OTPSigned must reject them in production.
+	// tokens — a caller with an empty Phone has no server-verified phone, so OTPSigned rejects them.
 	Phone string
-	// Dev marks an AUTH_DISABLED identity. Dev identities trust the client assertion (the whole
-	// identity comes from X-Dev-* headers); production never sets this flag.
-	Dev bool
 }
 
 // UserResolver maps a verified auth subject (Firebase UID / legacy auth.uid) to an app user slug.
@@ -89,8 +84,6 @@ type UserProvisioner interface {
 
 // Config is the auth middleware configuration.
 type Config struct {
-	Disabled  bool
-	DevUserID string
 	// JWTSecret verifies legacy Supabase/GoTrue HS256 tokens (portal partners). Mobile phone
 	// OTP uses Firebase and is verified by Firebase when set.
 	JWTSecret []byte
@@ -109,17 +102,7 @@ func Middleware(cfg Config) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			id := Identity{}
-			if cfg.Disabled {
-				id.UserID = strings.TrimSpace(r.Header.Get("X-Dev-User"))
-				if id.UserID == "" {
-					id.UserID = cfg.DevUserID
-				}
-				id.Role = canonicalRole(r.Header.Get("X-Dev-Role"))
-				id.SellerID = strings.TrimSpace(r.Header.Get("X-Dev-Seller"))
-				id.StateCode = strings.ToUpper(strings.TrimSpace(r.Header.Get("X-Dev-State")))
-				id.DistrictCode = geo.Normalise(r.Header.Get("X-Dev-District"))
-				id.Dev = true
-			} else if claims, err := verifyToken(r, cfg); err == nil {
+			if claims, err := verifyToken(r, cfg); err == nil {
 				if claims.Portal {
 					// A portal subject is already the portal user id (never an app user id).
 					id.UserID = claims.Sub
@@ -347,15 +330,11 @@ func CanActForSellerDistrict(ctx context.Context, sellerID, districtCode, stateC
 // OTPSigned reports whether the caller's identity carries a server-verified phone that matches the
 // given contact phone. The OTP is the "digital signature" on a seller application: trusting a
 // client-asserted `otpVerified` flag without binding it to a verified phone would let any caller
-// sign an application for an arbitrary contact phone. Dev mode (AUTH_DISABLED) always reports true
-// — the whole identity comes from the X-Dev-* cheat headers and is never production.
+// sign an application for an arbitrary contact phone.
 func OTPSigned(ctx context.Context, contactPhone string) bool {
 	id, ok := ctx.Value(identityKey{}).(Identity)
 	if !ok {
 		return false
-	}
-	if id.Dev {
-		return true
 	}
 	if id.Phone == "" {
 		return false
@@ -541,10 +520,12 @@ func Phone(ctx context.Context) string {
 	return ""
 }
 
-// Dev reports whether the identity came from AUTH_DISABLED X-Dev-* headers. Production is always false.
-func Dev(ctx context.Context) bool {
-	if id, ok := ctx.Value(identityKey{}).(Identity); ok {
-		return id.Dev
+// WithIdentity returns a context carrying an explicit identity. It is used by in-process tests and
+// internal tooling; HTTP callers always go through Middleware and a verified bearer token.
+func WithIdentity(ctx context.Context, id Identity) context.Context {
+	ctx = context.WithValue(ctx, identityKey{}, id)
+	if id.UserID != "" {
+		ctx = context.WithValue(ctx, ctxKey{}, id.UserID)
 	}
-	return false
+	return ctx
 }

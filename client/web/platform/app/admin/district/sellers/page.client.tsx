@@ -67,9 +67,9 @@ function StateSellers() {
               <TableRow>
                 <TableHead>Business</TableHead>
                 <TableHead>Owner</TableHead>
-                <TableHead>Sector</TableHead>
+                <TableHead>Vendors</TableHead>
                 <TableHead>GSTIN</TableHead>
-                <TableHead className="text-right">Fee</TableHead>
+                
                 <TableHead className="text-right">Rating</TableHead>
                 <TableHead>Applied</TableHead>
                 <TableHead>Status</TableHead>
@@ -88,10 +88,18 @@ function StateSellers() {
                   </TableCell>
                   <TableCell className="text-[13px]">{seller.ownerName}</TableCell>
                   <TableCell>
-                    <SectorPill sector={seller.category} />
+                    <span className="flex flex-wrap gap-1">
+                      {(seller.vendorApps ?? []).map((app) => (
+                        <SectorPill key={app} sector={app} />
+                      ))}
+                      {!seller.vendorApps?.length ? (
+                        <span className="text-[12px] text-muted-foreground">
+                          {seller.vendorCount ?? 0} vendor{(seller.vendorCount ?? 0) === 1 ? "" : "s"}
+                        </span>
+                      ) : null}
+                    </span>
                   </TableCell>
                   <TableCell className="num text-[12px]">{seller.gstin}</TableCell>
-                  <TableCell className="num text-right">{seller.platformFeePct ?? 10}%</TableCell>
                   <TableCell className="num text-right">{seller.rating.toFixed(1)}</TableCell>
                   <TableCell className="num text-[12px]">{formatDate(seller.createdAt)}</TableCell>
                   <TableCell>

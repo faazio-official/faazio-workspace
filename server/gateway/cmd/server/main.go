@@ -57,9 +57,6 @@ func main() {
 		log.Printf("mongo connected (db=%s)", cfg.MongoDatabase)
 	}
 
-	if cfg.AuthDisabled {
-		log.Print("AUTH_DISABLED=true — partner roles come from X-Dev-* headers. Never run this in production.")
-	}
 	logPortalStartup(ctx, cfg, pool)
 	logPaymentStartup(cfg)
 
@@ -132,7 +129,10 @@ func main() {
 
 	// Razorpay Route hold releaser: once the 7-day buyer-protection window elapses, release the
 	// seller slice and mark the payout PAID. Disabled unless real Route credentials are configured.
-	routeGateway := razorpayroute.New(cfg.RazorpayRouteKeyID, cfg.RazorpayRouteKeySecret, cfg.RazorpayRouteWebhookSecret)
+	routeGateway, err := razorpayroute.New(cfg.RazorpayRouteKeyID, cfg.RazorpayRouteKeySecret, cfg.RazorpayRouteWebhookSecret)
+	if err != nil {
+		log.Fatalf("razorpay route: %v", err)
+	}
 	holdReleaser := settlement.NewReleaser(settlement.New(pool), routeGateway, nil)
 	if pool != nil && holdReleaser.Enabled() {
 		go holdReleaser.Run(workerCtx)

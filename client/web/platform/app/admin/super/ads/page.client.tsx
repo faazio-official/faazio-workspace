@@ -17,12 +17,13 @@ import {
 } from "@/components/ui/table";
 import { formatDate, formatNumber, formatPercent } from "@/lib/format";
 import { setAdStatus, setHeroCampaignStatus } from "@/lib/api";
-import { useAdSlots, useHeroCampaigns, useMockLoading } from "@/lib/api/hooks";
-import { HERO_PLACEMENT_META } from "@/data/ads/placements";
+import { useAdSlots, useHeroCampaigns, useMockLoading, usePlacements } from "@/lib/api/hooks";
+import { placementLabel } from "@/lib/api/reference";
 
 
 function SuperAds() {
   const loading = useMockLoading();
+  const placements = usePlacements();
   const slots = useAdSlots();
   const campaigns = useHeroCampaigns();
   const impressions = slots.reduce((t, s) => t + s.impressions, 0);
@@ -88,7 +89,7 @@ function SuperAds() {
                     </div>
                   </TableCell>
                   <TableCell className="text-[12px] font-medium">
-                    {HERO_PLACEMENT_META[c.placement]?.label ?? c.placement.replace(/_/g, " ")}
+                    {placementLabel(placements, c.placement)}
                     {c.category ? <span className="num block text-[11px] text-muted-foreground">{c.category}</span> : null}
                   </TableCell>
                   <TableCell className="num text-[12px] text-muted-foreground">{c.sellerId}</TableCell>

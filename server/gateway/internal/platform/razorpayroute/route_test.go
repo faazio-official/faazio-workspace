@@ -5,7 +5,6 @@ import (
 	"crypto/hmac"
 	"crypto/sha256"
 	"encoding/hex"
-	"errors"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -13,21 +12,35 @@ import (
 	"testing"
 )
 
-func TestNewWithoutCredentialsIsDisabled(t *testing.T) {
-	g := New("", "", "")
-	if g.Enabled() {
-		t.Fatal("empty credentials must be disabled, not enabled")
+func TestNewWithoutCredentialsIsAConfigError(t *testing.T) {
+	for _, tc := range []struct{ id, secret string }{
+		{"", ""}, {"", "secret"}, {"key", ""}, {"  ", "secret"},
+	} {
+		g, err := New(tc.id, tc.secret, "")
+		if err == nil {
+			t.Fatalf("New(%q,%q) = %v, want configuration error", tc.id, tc.secret, g)
+		}
+		if g != nil {
+			t.Fatalf("New(%q,%q) returned a gateway with a missing key", tc.id, tc.secret)
+		}
 	}
-	if _, err := g.CreateLinkedAccount(context.Background(), LinkedAccountInput{}); !errors.Is(err, ErrUnavailable) {
-		t.Fatalf("disabled linked account err = %v, want ErrUnavailable", err)
+}
+
+func TestNewWithCredentials(t *testing.T) {
+	g, err := New("key", "secret", "whsec")
+	if err != nil {
+		t.Fatalf("New() error = %v", err)
 	}
-	if _, err := g.CreateTransfer(context.Background(), TransferInput{}); !errors.Is(err, ErrUnavailable) {
-		t.Fatalf("disabled transfer err = %v, want ErrUnavailable", err)
+	if !g.Enabled() {
+		t.Fatal("configured gateway must be enabled")
 	}
 }
 
 func TestVerifyWebhook(t *testing.T) {
-	g := New("key", "secret", "whsec")
+	g, err := New("key", "secret", "whsec")
+	if err != nil {
+		t.Fatalf("New() error = %v", err)
+	}
 	body := []byte(`{"event":"transfer.released"}`)
 	mac := hmac.New(sha256.New, []byte("whsec"))
 	mac.Write(body)

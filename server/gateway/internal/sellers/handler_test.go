@@ -8,7 +8,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/faazio/server/gateway/internal/platform/auth"
+	"github.com/faazio/server/gateway/internal/platform/authtest"
 	"github.com/faazio/server/gateway/internal/platform/cache"
 	"github.com/faazio/server/gateway/internal/platform/testenv"
 	"github.com/go-chi/chi/v5"
@@ -22,8 +22,8 @@ func handlerRouter(t *testing.T, pool *pgxpool.Pool) http.Handler {
 		t.Fatal(err)
 	}
 	r := chi.NewRouter()
-	r.Use(auth.Middleware(auth.Config{Disabled: true, DevUserID: "user-1"}))
-	NewHandler(New(pool), c, nil).Register(r)
+	r.Use(authtest.Middleware())
+	NewHandler(New(pool), c, nil, nil).Register(r)
 	return r
 }
 

@@ -7,30 +7,30 @@ import (
 
 func TestMergeItem(t *testing.T) {
 	cases := []struct {
-		name            string
-		start           []CartItem
-		productID       string
-		qty             int64
-		wantIDs         []string
-		wantQty         map[string]int64
+		name      string
+		start     []CartItem
+		productID string
+		qty       int64
+		wantIDs   []string
+		wantQty   map[string]int64
 	}{
 		{
-			name:    "append new",
-			start:   []CartItem{{ProductID: "a", Qty: 1}},
+			name:      "append new",
+			start:     []CartItem{{ProductID: "a", Qty: 1}},
 			productID: "b", qty: 2,
 			wantIDs: []string{"a", "b"},
 			wantQty: map[string]int64{"a": 1, "b": 2},
 		},
 		{
-			name:    "update existing",
-			start:   []CartItem{{ProductID: "a", Qty: 1}},
+			name:      "update existing",
+			start:     []CartItem{{ProductID: "a", Qty: 1}},
 			productID: "a", qty: 5,
 			wantIDs: []string{"a"},
 			wantQty: map[string]int64{"a": 5},
 		},
 		{
-			name:    "zero removes",
-			start:   []CartItem{{ProductID: "a", Qty: 1}, {ProductID: "b", Qty: 2}},
+			name:      "zero removes",
+			start:     []CartItem{{ProductID: "a", Qty: 1}, {ProductID: "b", Qty: 2}},
 			productID: "a", qty: 0,
 			wantIDs: []string{"b"},
 			wantQty: map[string]int64{"b": 2},

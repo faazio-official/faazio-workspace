@@ -266,7 +266,7 @@ function SuperSdui() {
                                 value={c.storeId}
                                 onChange={(e) => patchCampaign(s.id, c.id, { storeId: e.target.value })}
                                 aria-label={`${c.id} store id`}
-                                placeholder="store-m1"
+                                placeholder="store-abc123"
                               />
                               <Input
                                 type="number"

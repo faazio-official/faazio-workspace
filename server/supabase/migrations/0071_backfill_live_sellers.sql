@@ -85,7 +85,7 @@ update directory.stores d set platform_fee_pct = m.fee
  where d.id = m.store_id;
 
 -- Safety net for any row the explicit map missed: keep FOOD above its floor, others at the default.
-update directory.stores set platform_fee_pct = 6  where app = 'FOOD' and platform_fee_pct < 5;
+update directory.stores set platform_fee_pct = 5  where app = 'FOOD' and platform_fee_pct < 5;
 
 -- ---------------------------------------------------------------- enforce ownership
 alter table directory.stores alter column seller_id set not null;

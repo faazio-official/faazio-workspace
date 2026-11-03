@@ -9,10 +9,10 @@ import (
 
 func TestLimitParam(t *testing.T) {
 	cases := []struct {
-		name       string
-		query      string
-		def, max   int
-		want       int
+		name     string
+		query    string
+		def, max int
+		want     int
 	}{
 		{"absent uses default", "", 40, 100, 40},
 		{"valid passthrough", "limit=25", 40, 100, 25},

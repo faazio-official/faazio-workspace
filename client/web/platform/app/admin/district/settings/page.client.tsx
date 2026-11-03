@@ -4,7 +4,8 @@ import { SectionCard } from "@/components/patterns/SectionCard";
 import { Label } from "@/components/ui/label";
 import { ThemeSegmentedControl } from "@/components/layout/ThemeToggle";
 import { useSession } from "@/lib/hooks/useSession";
-import { districtName, stateForDistrict } from "@/data/districts";
+import { useDistricts } from "@/lib/api/hooks";
+import { districtName, stateForDistrict } from "@/lib/api/reference";
 
 /**
  * District console settings. Scoped to what a district admin controls: the
@@ -14,6 +15,7 @@ import { districtName, stateForDistrict } from "@/data/districts";
 function DistrictSettings() {
   const session = useSession();
   const code = session?.districtCode ?? "";
+  const districts = useDistricts();
 
   return (
     <div className="space-y-4">
@@ -27,13 +29,13 @@ function DistrictSettings() {
           <div className="space-y-1.5">
             <Label>District</Label>
             <p className="text-[13px] text-foreground">
-              {code ? `${code} · ${districtName(code)}` : "Not assigned"}
+              {code ? `${code} · ${districtName(districts, code)}` : "Not assigned"}
             </p>
           </div>
           <div className="space-y-1.5">
             <Label>State</Label>
             <p className="text-[13px] text-foreground">
-              {code ? stateForDistrict(code) : "Not assigned"}
+              {code ? stateForDistrict(districts, code) : "Not assigned"}
             </p>
           </div>
         </div>

@@ -22,8 +22,8 @@ func TestSellerOrderLifecycle(t *testing.T) {
 
 	sellerID := "sel-ord-" + manageID("")
 	if _, err := pool.Exec(ctx, `
-		insert into sellers.sellers (seller_id, business_name, owner_name, category, state_code)
-		values ($1,'Order Test','O','MART','KA')`, sellerID); err != nil {
+		insert into sellers.sellers (seller_id, business_name, owner_name, state_code)
+		values ($1,'Order Test','O','KA')`, sellerID); err != nil {
 		t.Fatalf("seed seller: %v", err)
 	}
 	t.Cleanup(func() { _, _ = pool.Exec(ctx, `delete from sellers.sellers where seller_id=$1`, sellerID) })
@@ -119,8 +119,8 @@ func TestSellerOrderDistrictScope(t *testing.T) {
 
 	sellerID := "sel-scope-" + manageID("")
 	if _, err := pool.Exec(ctx, `
-		insert into sellers.sellers (seller_id, business_name, owner_name, category, state_code)
-		values ($1,'Scope Test','O','MART','KA')`, sellerID); err != nil {
+		insert into sellers.sellers (seller_id, business_name, owner_name, state_code)
+		values ($1,'Scope Test','O','KA')`, sellerID); err != nil {
 		t.Fatalf("seed seller: %v", err)
 	}
 	t.Cleanup(func() { _, _ = pool.Exec(ctx, `delete from sellers.sellers where seller_id=$1`, sellerID) })

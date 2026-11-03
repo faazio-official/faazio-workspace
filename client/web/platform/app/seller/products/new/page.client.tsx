@@ -17,9 +17,8 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { formatINR, parseRupeesToPaisa } from "@/lib/format";
-import { createProduct, fetchSellerStores, updateStock, type SellerStoreSummary } from "@/lib/api";
-import { useSeller, useStores, useTaxCategories } from "@/lib/api/hooks";
-import { useSession } from "@/lib/hooks/useSession";
+import { createProduct, updateStock } from "@/lib/api";
+import { useSellerScope, useTaxCategories } from "@/lib/api/hooks";
 import { cn } from "@/lib/utils";
 import { ImageUploader } from "@/components/patterns/ImageUploader";
 import { ComponentHelp } from "@/components/patterns/ComponentHelp";
@@ -28,45 +27,16 @@ const STEPS = ["Category", "Details", "Pricing", "Inventory", "Review"];
 
 function NewProduct() {
   const router = useRouter();
-  const session = useSession();
-  const sellerId = session?.sellerId ?? "sel-1";
-  const seller = useSeller(sellerId);
-  const localStores = useStores({ sellerId });
-  // The gateway only accepts a store the logged-in seller owns, so prefer its live store rows over
-  // the seed directory (which can carry different ids/owners).
-  const [serverStores, setServerStores] = useState<SellerStoreSummary[]>([]);
+  const { sellerId, stores, activeStore } = useSellerScope();
   const [storeId, setStoreId] = useState("");
   const [submitting, setSubmitting] = useState(false);
   useEffect(() => {
-    let active = true;
-    fetchSellerStores()
-      .then((rows) => {
-        if (active) setServerStores(rows);
-      })
-      .catch(() => {
-        /* keep the seed directory as the offline fallback */
-      });
-    return () => {
-      active = false;
-    };
-  }, []);
-  const stores: SellerStoreSummary[] =
-    serverStores.length > 0
-      ? serverStores
-      : localStores.map((s) => ({
-          storeId: s.storeId,
-          name: s.name,
-          sector: s.sector,
-          isLive: s.isLive,
-          platformFeePct: 10,
-        }));
-  useEffect(() => {
-    if (!storeId && stores[0]) setStoreId(stores[0].storeId);
-  }, [storeId, stores]);
+    if (!storeId && activeStore) setStoreId(activeStore.storeId);
+  }, [storeId, activeStore]);
   const [step, setStep] = useState(0);
 
-  // Sector is assigned at onboarding / by a super admin — a seller can never switch it here.
-  const sector = seller?.category ?? "MART";
+  // The brand belongs to the vendor, not the account — a seller never switches it on a listing.
+  const sector = activeStore?.sector ?? "MART";
   const categories = useTaxCategories(sector);
   const [category, setCategory] = useState("");
   const [name, setName] = useState("");
@@ -98,7 +68,7 @@ function NewProduct() {
       const created = await createProduct({
         productId,
         sellerId,
-        storeId: storeId || stores[0]?.storeId || "store-m1",
+        storeId,
         name: name.trim(),
         description: description.trim(),
         sector,

@@ -26,8 +26,7 @@ import {
   setPrescriptionReady,
   setPrescriptionStatus,
 } from "@/lib/api";
-import { useMockLoading } from "@/lib/api/hooks";
-import { useSession } from "@/lib/hooks/useSession";
+import { useMockLoading, useSellerScope } from "@/lib/api/hooks";
 import { remoteConfigured } from "@/lib/config";
 import { usePortalStore } from "@/lib/api/store";
 import { ComponentHelp } from "@/components/patterns/ComponentHelp";
@@ -57,14 +56,13 @@ function toDraft(rx: PrescriptionRecord): DraftRow[] {
 }
 
 function SellerPrescriptions() {
-  const session = useSession();
-  const sellerId = session?.sellerId ?? "sel-4";
+  const { sellerId, storeId } = useSellerScope();
   const loading = useMockLoading();
   // In remote mode the gateway already scopes rows to the caller's seller token; seed mode filters.
   const prescriptions = usePortalStore((s) => s.prescriptions);
   const rows = useMemo(
-    () => listPrescriptions(remoteConfigured() ? {} : { sellerId }),
-    [prescriptions, sellerId],
+    () => listPrescriptions(remoteConfigured() ? { storeId } : { sellerId, storeId }),
+    [prescriptions, sellerId, storeId],
   );
 
   const [openId, setOpenId] = useState<string | null>(null);

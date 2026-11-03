@@ -17,21 +17,23 @@ import (
 
 // RoadMatrix returns the road travel time/distance between two points. The production
 // implementation is the Google Routes API (computeRouteMatrix, TRAFFIC_AWARE) called by the
-// gateway; results are cached in Valkey for 5 minutes (cache.DeliveryRoute). The default
-// StraightLineMatrix keeps local/dev/test behaviour deterministic and needs no network.
+// gateway; results are cached in Valkey for 5 minutes (cache.DeliveryRoute). A provider failure or
+// a missing API key is an explicit error — never a fabricated straight-line estimate. StraightLineMatrix
+// exists only for local/dev/test callers that opt in explicitly.
 type RoadMatrix interface {
-	Travel(fromLat, fromLng, toLat, toLng float64) (seconds int64, meters int64)
+	Travel(fromLat, fromLng, toLat, toLng float64) (seconds int64, meters int64, err error)
 }
 
 // StraightLineMatrix estimates travel from the Haversine distance at a conservative urban speed.
-// It is the explicit fallback — never a silent substitute for the production Routes client.
+// It is the explicit dev/test implementation, never the production client and never a silent
+// substitute for a failed Google Routes call.
 type StraightLineMatrix struct{}
 
 // Travel implements RoadMatrix.
-func (StraightLineMatrix) Travel(fromLat, fromLng, toLat, toLng float64) (int64, int64) {
+func (StraightLineMatrix) Travel(fromLat, fromLng, toLat, toLng float64) (int64, int64, error) {
 	metres := haversineMeters(fromLat, fromLng, toLat, toLng)
 	const urbanMetersPerSecond = 7.0 // ~25 km/h average
-	return int64(math.Round(metres / urbanMetersPerSecond)), int64(math.Round(metres))
+	return int64(math.Round(metres / urbanMetersPerSecond)), int64(math.Round(metres)), nil
 }
 
 // TravelLeg is the cached projection of one Routes API matrix leg.
@@ -42,21 +44,18 @@ type TravelLeg struct {
 
 // GoogleRoutesMatrix is the production RoadMatrix. It calls the Google Routes API
 // (distanceMatrix/v2:computeRouteMatrix, TRAFFIC_AWARE) and caches each leg in Valkey for
-// TTLDeliveryRoute. Any upstream failure degrades to StraightLineMatrix so dispatch stays
-// available; the fallback is logged by the caller-side metrics/audit trail, never silently
-// promoted to a "road" result.
+// TTLDeliveryRoute. Upstream failure or an empty API key is a hard error (the caller surfaces it),
+// never a fabricated straight-line result promoted as a road estimate.
 type GoogleRoutesMatrix struct {
 	apiKey string
 	cache  *cache.Cache
 	client *http.Client
 }
 
-// NewRoutesMatrix returns nil when apiKey is empty (the handler then uses the straight-line
-// fallback, which is correct for local/dev/test).
+// NewRoutesMatrix builds the production Routes client. An empty apiKey is a configuration error:
+// the returned client fails every Travel call loudly instead of silently degrading to a straight
+// line, so a missing GOOGLE_ROUTES_API_KEY can never masquerade as real road data.
 func NewRoutesMatrix(apiKey string, c *cache.Cache) RoadMatrix {
-	if strings.TrimSpace(apiKey) == "" {
-		return nil
-	}
 	return &GoogleRoutesMatrix{
 		apiKey: strings.TrimSpace(apiKey),
 		cache:  c,
@@ -90,13 +89,17 @@ func waypoint(lat, lng float64) routesWaypoint {
 	return w
 }
 
-// Travel implements RoadMatrix.
-func (m *GoogleRoutesMatrix) Travel(fromLat, fromLng, toLat, toLng float64) (int64, int64) {
+// Travel implements RoadMatrix. It never fabricates a result: an unconfigured key or a provider
+// failure returns an error so dispatch cannot ship straight-line seconds as road data.
+func (m *GoogleRoutesMatrix) Travel(fromLat, fromLng, toLat, toLng float64) (int64, int64, error) {
+	if m.apiKey == "" {
+		return 0, 0, fmt.Errorf("delivery: GOOGLE_ROUTES_API_KEY is not configured")
+	}
 	ctx := context.Background()
 	key := cache.DeliveryRouteLeg(fromLat, fromLng, toLat, toLng)
 	var cached TravelLeg
 	if m.cache != nil && m.cache.GetJSON(ctx, key, &cached) && cached.Seconds > 0 {
-		return cached.Seconds, cached.Meters
+		return cached.Seconds, cached.Meters, nil
 	}
 	body, _ := json.Marshal(map[string]any{
 		"origins":           []routesWaypoint{waypoint(fromLat, fromLng)},
@@ -107,22 +110,22 @@ func (m *GoogleRoutesMatrix) Travel(fromLat, fromLng, toLat, toLng float64) (int
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost,
 		"https://routes.googleapis.com/distanceMatrix/v2:computeRouteMatrix", bytes.NewReader(body))
 	if err != nil {
-		return StraightLineMatrix{}.Travel(fromLat, fromLng, toLat, toLng)
+		return 0, 0, fmt.Errorf("delivery: route matrix request: %w", err)
 	}
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("X-Goog-Api-Key", m.apiKey)
 	req.Header.Set("X-Goog-FieldMask", "originIndex,destinationIndex,duration,distanceMeters,condition")
 	res, err := m.client.Do(req)
 	if err != nil {
-		return StraightLineMatrix{}.Travel(fromLat, fromLng, toLat, toLng)
+		return 0, 0, fmt.Errorf("delivery: route matrix call: %w", err)
 	}
 	defer func() { _ = res.Body.Close() }()
 	if res.StatusCode < 200 || res.StatusCode >= 300 {
-		return StraightLineMatrix{}.Travel(fromLat, fromLng, toLat, toLng)
+		return 0, 0, fmt.Errorf("delivery: route matrix returned %d", res.StatusCode)
 	}
 	var rows []routesMatrixResponse
 	if err := json.NewDecoder(res.Body).Decode(&rows); err != nil {
-		return StraightLineMatrix{}.Travel(fromLat, fromLng, toLat, toLng)
+		return 0, 0, fmt.Errorf("delivery: route matrix decode: %w", err)
 	}
 	for _, row := range rows {
 		if row.Condition != "" && row.Condition != "ROUTE_EXISTS" {
@@ -135,9 +138,9 @@ func (m *GoogleRoutesMatrix) Travel(fromLat, fromLng, toLat, toLng float64) (int
 		if m.cache != nil {
 			m.cache.SetJSON(ctx, key, leg, cache.TTLDeliveryRoute)
 		}
-		return leg.Seconds, leg.Meters
+		return leg.Seconds, leg.Meters, nil
 	}
-	return StraightLineMatrix{}.Travel(fromLat, fromLng, toLat, toLng)
+	return 0, 0, fmt.Errorf("delivery: route matrix returned no usable leg")
 }
 
 func parseDurationSeconds(raw string) int64 {
@@ -165,7 +168,7 @@ type RiderLocation struct {
 
 // PickRider preserves the original road-time-to-store behaviour for callers that have no active
 // route context (and for the fallback chain).
-func PickRider(candidates []RiderLocation, storeLat, storeLng float64, matrix RoadMatrix) *RiderLocation {
+func PickRider(candidates []RiderLocation, storeLat, storeLng float64, matrix RoadMatrix) (*RiderLocation, error) {
 	return PickRiderWithStops(candidates, storeLat, storeLng, storeLat, storeLng, matrix)
 }
 
@@ -175,12 +178,13 @@ func PickRider(candidates []RiderLocation, storeLat, storeLng float64, matrix Ro
 // the leg they must first drive (last drop → store) plus the detour their route takes versus driving
 // straight from that last drop to the new customer. Capacity headroom and rating break ties. This is
 // an insertion heuristic, not a full VRP: it stays deterministic and cheap enough to run inline.
-func PickRiderWithStops(candidates []RiderLocation, storeLat, storeLng, customerLat, customerLng float64, matrix RoadMatrix) *RiderLocation {
+// An unavailable route matrix is a hard error — a rider is never matched on fabricated estimates.
+func PickRiderWithStops(candidates []RiderLocation, storeLat, storeLng, customerLat, customerLng float64, matrix RoadMatrix) (*RiderLocation, error) {
 	if len(candidates) == 0 {
-		return nil
+		return nil, nil
 	}
 	if matrix == nil {
-		matrix = StraightLineMatrix{}
+		return nil, fmt.Errorf("delivery: route matrix is not configured")
 	}
 	type scored struct {
 		loc      RiderLocation
@@ -192,11 +196,23 @@ func PickRiderWithStops(candidates []RiderLocation, storeLat, storeLng, customer
 		if c.Stale || c.Rider.CurrentLoad >= c.Rider.MaxCapacity {
 			continue
 		}
-		seconds, _ := matrix.Travel(c.Lat, c.Lng, storeLat, storeLng)
+		seconds, _, err := matrix.Travel(c.Lat, c.Lng, storeLat, storeLng)
+		if err != nil {
+			return nil, err
+		}
 		if last, ok := lastActiveDrop(c.ActiveStops); ok {
-			legA, _ := matrix.Travel(*last.Latitude, *last.Longitude, storeLat, storeLng)
-			legB, _ := matrix.Travel(storeLat, storeLng, customerLat, customerLng)
-			direct, _ := matrix.Travel(*last.Latitude, *last.Longitude, customerLat, customerLng)
+			legA, _, err := matrix.Travel(*last.Latitude, *last.Longitude, storeLat, storeLng)
+			if err != nil {
+				return nil, err
+			}
+			legB, _, err := matrix.Travel(storeLat, storeLng, customerLat, customerLng)
+			if err != nil {
+				return nil, err
+			}
+			direct, _, err := matrix.Travel(*last.Latitude, *last.Longitude, customerLat, customerLng)
+			if err != nil {
+				return nil, err
+			}
 			detour := legA + legB - direct
 			if detour < 0 {
 				detour = 0
@@ -206,7 +222,7 @@ func PickRiderWithStops(candidates []RiderLocation, storeLat, storeLng, customer
 		out = append(out, scored{loc: c, seconds: seconds, headroom: c.Rider.MaxCapacity - c.Rider.CurrentLoad})
 	}
 	if len(out) == 0 {
-		return nil
+		return nil, nil
 	}
 	sort.SliceStable(out, func(i, j int) bool {
 		if out[i].seconds != out[j].seconds {
@@ -218,7 +234,7 @@ func PickRiderWithStops(candidates []RiderLocation, storeLat, storeLng, customer
 		return out[i].loc.Rider.Rating > out[j].loc.Rider.Rating
 	})
 	best := out[0]
-	return &best.loc
+	return &best.loc, nil
 }
 
 // lastActiveDrop returns the drop the rider is currently heading to (the last open drop in their
@@ -249,7 +265,7 @@ func OptimizeGlobalRoute(stops []Stop, startLat, startLng float64, matrix RoadMa
 		return nil, nil
 	}
 	if matrix == nil {
-		matrix = StraightLineMatrix{}
+		return nil, fmt.Errorf("delivery: route matrix is not configured")
 	}
 	fixed := 0
 	for i, s := range stops {
@@ -277,24 +293,32 @@ func OptimizeGlobalRoute(stops []Stop, startLat, startLng float64, matrix RoadMa
 		}
 	}
 
-	legSeconds := func(fromLat, fromLng, toLat, toLng *float64) int64 {
+	legSeconds := func(fromLat, fromLng, toLat, toLng *float64) (int64, error) {
 		if fromLat == nil || fromLng == nil || toLat == nil || toLng == nil {
-			return 0
+			return 0, nil
 		}
-		seconds, _ := matrix.Travel(*fromLat, *fromLng, *toLat, *toLng)
-		return seconds
+		seconds, _, err := matrix.Travel(*fromLat, *fromLng, *toLat, *toLng)
+		return seconds, err
 	}
 
 	m := len(free)
 	startCost := make([]int64, m)
 	for i := range free {
-		startCost[i] = legSeconds(&fromLat, &fromLng, free[i].Latitude, free[i].Longitude)
+		seconds, err := legSeconds(&fromLat, &fromLng, free[i].Latitude, free[i].Longitude)
+		if err != nil {
+			return nil, err
+		}
+		startCost[i] = seconds
 	}
 	cost := make([][]int64, m)
 	for i := range cost {
 		cost[i] = make([]int64, m)
 		for j := range cost[i] {
-			cost[i][j] = legSeconds(free[i].Latitude, free[i].Longitude, free[j].Latitude, free[j].Longitude)
+			seconds, err := legSeconds(free[i].Latitude, free[i].Longitude, free[j].Latitude, free[j].Longitude)
+			if err != nil {
+				return nil, err
+			}
+			cost[i][j] = seconds
 		}
 	}
 
@@ -409,7 +433,7 @@ func OptimizeStopSequence(existing []Stop, newPickup, newDrop Stop, matrix RoadM
 		return nil, fmt.Errorf("%w: new stops need coordinates for re-sequencing", ErrConflict)
 	}
 	if matrix == nil {
-		matrix = StraightLineMatrix{}
+		return nil, fmt.Errorf("delivery: route matrix is not configured")
 	}
 	fixed := 0
 	for i, s := range existing {
@@ -429,7 +453,10 @@ func OptimizeStopSequence(existing []Stop, newPickup, newDrop Stop, matrix RoadM
 			candidate = append(candidate, existing[i:j]...)
 			candidate = append(candidate, newDrop)
 			candidate = append(candidate, existing[j:]...)
-			cost := routeDurationSeconds(candidate, matrix)
+			cost, err := routeDurationSeconds(candidate, matrix)
+			if err != nil {
+				return nil, err
+			}
 			adjacent := j == i
 			// Prefer the lower-cost route; on a tie prefer an adjacent pickup/drop (less handling),
 			// then the earliest valid insertion to keep the rider moving.
@@ -449,17 +476,20 @@ func OptimizeStopSequence(existing []Stop, newPickup, newDrop Stop, matrix RoadM
 	return best, nil
 }
 
-func routeDurationSeconds(stops []Stop, matrix RoadMatrix) int64 {
+func routeDurationSeconds(stops []Stop, matrix RoadMatrix) (int64, error) {
 	var total int64
 	for i := 1; i < len(stops); i++ {
 		from, to := stops[i-1], stops[i]
 		if from.Latitude == nil || from.Longitude == nil || to.Latitude == nil || to.Longitude == nil {
 			continue
 		}
-		seconds, _ := matrix.Travel(*from.Latitude, *from.Longitude, *to.Latitude, *to.Longitude)
+		seconds, _, err := matrix.Travel(*from.Latitude, *from.Longitude, *to.Latitude, *to.Longitude)
+		if err != nil {
+			return 0, err
+		}
 		total += seconds
 	}
-	return total
+	return total, nil
 }
 
 // EncodePolyline returns a Google-encoded polyline for the ordered stops that have coordinates. The

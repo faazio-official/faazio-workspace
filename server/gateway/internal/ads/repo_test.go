@@ -14,8 +14,8 @@ func TestAdSlotLifecycle(t *testing.T) {
 
 	sellerID := "sel-ads-" + shortID()
 	if _, err := pool.Exec(ctx, `
-		insert into sellers.sellers (seller_id, business_name, owner_name, category, state_code)
-		values ($1,'Ads Test','O','MART','KA')`, sellerID); err != nil {
+		insert into sellers.sellers (seller_id, business_name, owner_name, state_code)
+		values ($1,'Ads Test','O','KA')`, sellerID); err != nil {
 		t.Fatalf("seed seller: %v", err)
 	}
 	t.Cleanup(func() { _, _ = pool.Exec(ctx, `delete from sellers.sellers where seller_id=$1`, sellerID) })

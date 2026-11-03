@@ -132,14 +132,17 @@ func TestPickRiderPrefersNearbyAndSkipsFullOrStale(t *testing.T) {
 		{Rider: Rider{RiderID: "full", MaxCapacity: 1, CurrentLoad: 1}, Lat: 17.40, Lng: 78.40},
 		{Rider: Rider{RiderID: "stale", MaxCapacity: 2}, Lat: 17.40, Lng: 78.40, Stale: true},
 	}
-	best := PickRider(candidates, 17.40, 78.40, StraightLineMatrix{})
+	best, err := PickRider(candidates, 17.40, 78.40, StraightLineMatrix{})
+	if err != nil {
+		t.Fatalf("pick rider failed: %v", err)
+	}
 	if best == nil || best.Rider.RiderID != "near" {
 		t.Fatalf("expected nearest eligible rider, got %+v", best)
 	}
-	if got := PickRider(nil, 0, 0, nil); got != nil {
+	if got, err := PickRider(nil, 0, 0, nil); got != nil || err != nil {
 		t.Fatal("no candidates must return nil")
 	}
-	if got := PickRider(candidates[2:], 17.4, 78.4, nil); got != nil {
+	if got, err := PickRider(candidates[2:], 17.4, 78.4, StraightLineMatrix{}); got != nil || err != nil {
 		t.Fatal("full/stale riders must not be selected")
 	}
 }
@@ -243,13 +246,13 @@ type scriptedMatrix struct {
 	legs map[string]int64
 }
 
-func (m scriptedMatrix) Travel(fromLat, fromLng, toLat, toLng float64) (int64, int64) {
+func (m scriptedMatrix) Travel(fromLat, fromLng, toLat, toLng float64) (int64, int64, error) {
 	key := fmt.Sprintf("%.2f,%.2f->%.2f,%.2f", fromLat, fromLng, toLat, toLng)
 	if v, ok := m.legs[key]; ok {
-		return v, v * 10
+		return v, v * 10, nil
 	}
 	metres := math.Abs(toLat-fromLat)*111_000 + math.Abs(toLng-fromLng)*111_000
-	return int64(math.Round(metres / 7)), int64(math.Round(metres))
+	return int64(math.Round(metres / 7)), int64(math.Round(metres)), nil
 }
 
 func point(lat, lng float64) *float64 { return &lat }
@@ -258,9 +261,9 @@ func point(lat, lng float64) *float64 { return &lat }
 // makes the route-optimality assertions below independent of the production Haversine fallback.
 type unitMatrix struct{}
 
-func (unitMatrix) Travel(fromLat, fromLng, toLat, toLng float64) (int64, int64) {
+func (unitMatrix) Travel(fromLat, fromLng, toLat, toLng float64) (int64, int64, error) {
 	seconds := int64(math.Abs(toLat-fromLat) + math.Abs(toLng-fromLng))
-	return seconds, seconds
+	return seconds, seconds, nil
 }
 
 func TestPickRiderWithStopsPricesDetour(t *testing.T) {
@@ -275,7 +278,10 @@ func TestPickRiderWithStopsPricesDetour(t *testing.T) {
 			ActiveStops: []Stop{{StopType: "DROP", Latitude: point(1, 1), Longitude: point(1, 1)}}},
 		{Rider: Rider{RiderID: "idle-farther", MaxCapacity: 2}, Lat: 2, Lng: 2},
 	}
-	best := PickRiderWithStops(candidates, 0, 0, 3, 3, matrix)
+	best, err := PickRiderWithStops(candidates, 0, 0, 3, 3, matrix)
+	if err != nil {
+		t.Fatalf("pick rider with stops failed: %v", err)
+	}
 	if best == nil || best.Rider.RiderID != "idle-farther" {
 		t.Fatalf("expected the rider with no detour to win, got %+v", best)
 	}
@@ -377,7 +383,7 @@ func TestOptimizeGlobalRouteReordersUnstartedAcrossOrders(t *testing.T) {
 	cost := int64(0)
 	prevLat, prevLng := 0.0, 0.0
 	for _, s := range got {
-		leg, _ := unitMatrix{}.Travel(prevLat, prevLng, *s.Latitude, *s.Longitude)
+		leg, _, _ := unitMatrix{}.Travel(prevLat, prevLng, *s.Latitude, *s.Longitude)
 		cost += leg
 		prevLat, prevLng = *s.Latitude, *s.Longitude
 	}
@@ -437,7 +443,7 @@ func TestOptimizeGlobalRouteTrivialAndOversize(t *testing.T) {
 		t.Fatalf("empty route = (%v, %v)", got, err)
 	}
 	one := []Stop{makeStop("only", "A", "PICKUP", StopPending, 1, 1)}
-	got, err := OptimizeGlobalRoute(one, 0, 0, nil)
+	got, err := OptimizeGlobalRoute(one, 0, 0, StraightLineMatrix{})
 	if err != nil || len(got) != 1 || got[0].Sequence != 1 {
 		t.Fatalf("single stop route = (%v, %v)", got, err)
 	}
@@ -446,8 +452,11 @@ func TestOptimizeGlobalRouteTrivialAndOversize(t *testing.T) {
 		many[i] = makeStop(fmt.Sprintf("s%d", i), fmt.Sprintf("O%d", i), "PICKUP", StopPending,
 			float64(i+1), 0)
 	}
-	if _, err := OptimizeGlobalRoute(many, 0, 0, nil); err == nil {
+	if _, err := OptimizeGlobalRoute(many, 0, 0, StraightLineMatrix{}); err == nil {
 		t.Fatal("oversize route must request the insertion fallback")
+	}
+	if _, err := OptimizeGlobalRoute(one, 0, 0, nil); err == nil {
+		t.Fatal("a nil matrix must be an explicit error, never a silent straight-line estimate")
 	}
 }
 

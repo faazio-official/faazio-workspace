@@ -385,17 +385,25 @@ func derefStr(v *string) string {
 
 // SellerStore is the portal-facing store-management projection (includes seller scope + live flag).
 type SellerStore struct {
-	ID        string  `json:"id"`
-	Name      string  `json:"name"`
-	App       string  `json:"app"`
-	SellerID  string  `json:"sellerId,omitempty"`
-	StateCode string  `json:"stateCode,omitempty"`
-	IsLive    bool    `json:"isLive"`
-	Rating    float64 `json:"rating"`
-	UpdatedAt string  `json:"updatedAt"`
+	ID           string  `json:"id"`
+	Name         string  `json:"name"`
+	App          string  `json:"app"`
+	SellerID     string  `json:"sellerId,omitempty"`
+	StateCode    string  `json:"stateCode,omitempty"`
+	Address      string  `json:"address,omitempty"`
+	Phone        string  `json:"phone,omitempty"`
+	Hours        string  `json:"hours,omitempty"`
+	DeliveryTime string  `json:"deliveryTime,omitempty"`
+	IsVeg        bool    `json:"isVeg"`
+	IsLive       bool    `json:"isLive"`
+	Rating       float64 `json:"rating"`
+	UpdatedAt    string  `json:"updatedAt"`
 	// Per-vendor commercial identity (0069): the fee is a property of the shop, not the account.
 	PlatformFeePct   int    `json:"platformFeePct"`
 	SellerCategoryID string `json:"sellerCategoryId,omitempty"`
+	FSSAINumber      string `json:"fssaiNumber,omitempty"`
+	FSSAICertKey     string `json:"fssaiCertKey,omitempty"`
+	FSSAICertAssetID string `json:"fssaiCertAssetId,omitempty"`
 	// Public geo pin, returned by SetStoreLive so the handler can flush the store's geo:nearby
 	// tiles. Internal only (never serialized).
 	Latitude  float64 `json:"-"`
@@ -446,8 +454,7 @@ func (r *Repo) SellerStores(ctx context.Context, sellerID, district string) ([]S
 		return nil, fmt.Errorf("directory: database not configured")
 	}
 	rows, err := r.pool.Query(ctx, `
-		select id, name, app::text, coalesce(seller_id,''), coalesce(state_code,''), is_live, rating, updated_at,
-		       platform_fee_pct, coalesce(seller_category_id,'')
+		select `+sellerStoreColumns+`
 		  from directory.stores s
 		 where ($1 = '' or s.seller_id = $1)
 		   and ($2 = '' or exists (
@@ -464,8 +471,9 @@ func (r *Repo) SellerStores(ctx context.Context, sellerID, district string) ([]S
 			s         SellerStore
 			updatedAt time.Time
 		)
-		if err := rows.Scan(&s.ID, &s.Name, &s.App, &s.SellerID, &s.StateCode, &s.IsLive, &s.Rating, &updatedAt,
-			&s.PlatformFeePct, &s.SellerCategoryID); err != nil {
+		if err := rows.Scan(&s.ID, &s.Name, &s.App, &s.SellerID, &s.StateCode, &s.Address, &s.Phone, &s.Hours, &s.DeliveryTime,
+			&s.IsVeg, &s.IsLive, &s.Rating, &updatedAt, &s.PlatformFeePct, &s.SellerCategoryID,
+			&s.FSSAINumber, &s.FSSAICertKey, &s.FSSAICertAssetID); err != nil {
 			return nil, err
 		}
 		s.Rating = math.Round(s.Rating*10) / 10
@@ -543,15 +551,18 @@ func (r *Repo) SetStoreCover(ctx context.Context, id, sellerID, district, key, a
 
 // sellerStoreColumns is the shared projection for vendor writes (CreateStore/UpdateStore/SetStoreFee).
 const sellerStoreColumns = `s.id, s.name, s.app::text, coalesce(s.seller_id,''), coalesce(s.state_code,''),
-	s.is_live, s.rating, s.updated_at, s.platform_fee_pct, coalesce(s.seller_category_id,'')`
+	coalesce(s.address,''), coalesce(s.phone,''), coalesce(s.hours,''), coalesce(s.delivery_time,''),
+	coalesce(s.is_veg,false), s.is_live, s.rating, s.updated_at, s.platform_fee_pct, coalesce(s.seller_category_id,''),
+	coalesce(s.fssai_number,''), coalesce(s.fssai_cert_key,''), coalesce(s.fssai_cert_asset_id,'')`
 
 func scanSellerStore(row pgx.Row) (SellerStore, error) {
 	var (
 		s         SellerStore
 		updatedAt time.Time
 	)
-	if err := row.Scan(&s.ID, &s.Name, &s.App, &s.SellerID, &s.StateCode, &s.IsLive, &s.Rating, &updatedAt,
-		&s.PlatformFeePct, &s.SellerCategoryID); err != nil {
+	if err := row.Scan(&s.ID, &s.Name, &s.App, &s.SellerID, &s.StateCode, &s.Address, &s.Phone, &s.Hours, &s.DeliveryTime,
+		&s.IsVeg, &s.IsLive, &s.Rating, &updatedAt, &s.PlatformFeePct, &s.SellerCategoryID,
+		&s.FSSAINumber, &s.FSSAICertKey, &s.FSSAICertAssetID); err != nil {
 		return SellerStore{}, err
 	}
 	s.Rating = math.Round(s.Rating*10) / 10
@@ -644,6 +655,66 @@ func (r *Repo) UpdateStore(ctx context.Context, id, sellerID, district string, i
 		return SellerStore{}, false, err
 	}
 	return s, true, nil
+}
+
+// ValidVendorCategory reports whether id is an active taxonomy category for the vendor's app.
+func (r *Repo) ValidVendorCategory(ctx context.Context, app, id string) (bool, error) {
+	if r.pool == nil {
+		return false, fmt.Errorf("directory: database not configured")
+	}
+	var exists bool
+	err := r.pool.QueryRow(ctx, `
+		select exists(select 1 from taxonomy.categories
+		               where id = $1 and app::text = $2 and is_active)`, id, app).Scan(&exists)
+	return exists, err
+}
+
+// StoreVendorMeta returns the store's app + current FSSAI fields under the caller's scope, so update
+// validation can require a certificate only when the shop does not already hold one.
+func (r *Repo) StoreVendorMeta(ctx context.Context, id, sellerID, district string) (app, fssaiNumber, fssaiKey string, ok bool, err error) {
+	if r.pool == nil {
+		return "", "", "", false, fmt.Errorf("directory: database not configured")
+	}
+	err = r.pool.QueryRow(ctx, `
+		select s.app::text, coalesce(s.fssai_number,''), coalesce(s.fssai_cert_key,'')
+		  from directory.stores s
+		 where s.id = $1 and (
+		       ($2 <> '' and s.seller_id = $2) or
+		       ($3 <> '' and exists (
+		          select 1 from sellers.sellers se
+		           where se.seller_id = s.seller_id and se.district_code = $3)) or
+		       ($2 = '' and $3 = ''))`, id, sellerID, district).Scan(&app, &fssaiNumber, &fssaiKey)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return "", "", "", false, nil
+		}
+		return "", "", "", false, err
+	}
+	return app, fssaiNumber, fssaiKey, true, nil
+}
+
+// StoreApp returns a store's app brand under the caller's ownership scope, so fee validation can be
+// keyed on the store's real app (not a client-supplied one).
+func (r *Repo) StoreApp(ctx context.Context, id, sellerID, district string) (string, bool, error) {
+	if r.pool == nil {
+		return "", false, fmt.Errorf("directory: database not configured")
+	}
+	var app string
+	err := r.pool.QueryRow(ctx, `
+		select s.app::text from directory.stores s
+		 where s.id = $1 and (
+		       ($2 <> '' and s.seller_id = $2) or
+		       ($3 <> '' and exists (
+		          select 1 from sellers.sellers se
+		           where se.seller_id = s.seller_id and se.district_code = $3)) or
+		       ($2 = '' and $3 = ''))`, id, sellerID, district).Scan(&app)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return "", false, nil
+		}
+		return "", false, err
+	}
+	return app, true, nil
 }
 
 // SetStoreFee sets a vendor's platform fee, scoped like SetStoreLive. The fee is per shop (0069).

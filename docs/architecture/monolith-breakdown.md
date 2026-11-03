@@ -113,14 +113,15 @@ no booking/reservation fields. There is no `/book-table`, `/reserve`, or `/dinin
 `checkout.orders.fulfillment_mode` is `DELIVERY | PICKUP` only — so this change needs **no ownership,
 table, cache-key, or endpoint update** in §1.
 
-**Vendor ownership (0068–0073):** a seller ACCOUNT (`sellers.sellers`) is brand-agnostic and may own
-many VENDORS (`directory.stores`) across apps; the vendor carries `platform_fee_pct`, `seller_category_id`
-and `fssai_*` and has a NOT NULL `seller_id` FK. `catalog.products.seller_id` and `directory.menus.seller_id`
-were dropped — ownership derives through the store. New portal-only endpoints: `POST /seller/stores`
-(create a vendor under the caller), `PUT /seller/stores/{id}` (edit profile/fee/category/FSSAI),
-`PUT /seller/stores/{id}/fee` (replaces `PATCH /sellers/{id}/platform-fee` for vendors); a seller
-fee-change request now carries a `store_id`. Checkout resolves the platform fee per `vendor_store_id`
-from `directory.stores`. `GET /seller/stores` is the portal switcher's data source.
+**Vendor ownership (0068–0074):** a seller ACCOUNT (`sellers.sellers`) is brand-agnostic and may own
+ many VENDORS (`directory.stores`) across apps; the vendor carries `platform_fee_pct`, `seller_category_id`
+ and `fssai_*` and has a NOT NULL `seller_id` FK. `catalog.products.seller_id` and `directory.menus.seller_id`
+ were dropped — ownership derives through the store; `0074` drops the account-level
+ `category`/`platform_fee_pct`/`seller_category_id`/`fssai_*` columns. New portal-only endpoints: `POST /seller/stores`
+ (create a vendor under the caller), `PUT /seller/stores/{id}` (edit profile/fee/category/FSSAI),
+ `PUT /seller/stores/{id}/fee` (replaces `PATCH /sellers/{id}/platform-fee` for vendors); a seller
+ fee-change request now carries a `store_id`. Checkout + settlement resolve the platform fee per
+ `vendor_store_id` from `directory.stores`. `GET /seller/stores` is the portal switcher's data source.
 
 **Portal-only management endpoints** (role-scoped, audited via `admins`; no `GatewayClient` method):
 `POST /seller/products` (catalog create: owned-store scope, `PENDING_REVIEW`, catalog+stock txn) + `GET /seller/products` + `PUT /seller/products/{id}/status` (catalog),

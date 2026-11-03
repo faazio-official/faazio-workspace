@@ -9,16 +9,18 @@ import { SectionCard } from "@/components/patterns/SectionCard";
 import { StatusPill } from "@/components/patterns/Pills";
 import { resolveImage, uploadProductImage } from "@/lib/media/productImages";
 import { requestHeroCampaign } from "@/lib/api";
-import { useMenus, useProducts, useStores } from "@/lib/api/hooks";
-import {
-  CATEGORY_OPTIONS,
-  HERO_PLACEMENT_META,
-  PLACEMENT_REACH_NOTE,
-  TARGET_TABS,
-  eligiblePlacementsFor,
-  type TargetTabKey,
-} from "@/data/ads/placements";
+import { useCategories, useMenus, usePlacements, useProducts, useStores } from "@/lib/api/hooks";
+import { eligiblePlacementsFor, placementLabel, placementReach } from "@/lib/api/reference";
 import type { AdTargetType, HeroPlacement, Sector } from "@/data/types";
+
+/** Target tabs the picker offers (each seller item maps to a `targetType`). */
+const TARGET_TABS = [
+  { key: "PRODUCT", label: "Products", app: "MART" as Sector },
+  { key: "DISH", label: "Dishes", app: "FOOD" as Sector },
+  { key: "STORE", label: "My Stores", app: "MART" as Sector },
+] as const;
+
+type TargetTabKey = (typeof TARGET_TABS)[number]["key"];
 
 const CTAS = ["Shop Now", "Order Now", "View Store", "Explore"] as const;
 
@@ -66,6 +68,8 @@ export function CampaignWizard({ sellerId, stateCode }: { sellerId: string; stat
   const products = useProducts({ sellerId, status: "ACTIVE" });
   const dishes = useMenus({ sellerId });
   const stores = useStores({ sellerId });
+  const placementMeta = usePlacements();
+  const categoryOptions = useCategories(target?.app ?? "MART");
 
   const q = query.trim().toLowerCase();
   const rows = useMemo(() => {
@@ -102,7 +106,7 @@ export function CampaignWizard({ sellerId, stateCode }: { sellerId: string; stat
       }));
   }, [tab, products, dishes, stores, q]);
 
-  const allowed = target ? eligiblePlacementsFor(target.app, target.type) : [];
+  const allowed = target ? eligiblePlacementsFor(placementMeta, target.app, target.type) : [];
   const needsCategory = placements.includes("CATEGORY_TOP");
   const needsStore = placements.includes("STORE_TOP");
 
@@ -262,7 +266,6 @@ export function CampaignWizard({ sellerId, stateCode }: { sellerId: string; stat
         <div className="space-y-4">
           <div className="grid gap-2 sm:grid-cols-2">
             {allowed.map((p) => {
-              const meta = HERO_PLACEMENT_META[p];
               const on = placements.includes(p);
               return (
                 <label
@@ -273,9 +276,8 @@ export function CampaignWizard({ sellerId, stateCode }: { sellerId: string; stat
                 >
                   <input type="checkbox" className="mt-1 size-4 accent-[var(--primary)]" checked={on} onChange={() => togglePlacement(p)} />
                   <span>
-                    <span className="block text-[13px] font-medium">{meta.label}</span>
-                    <span className="block text-[11px] text-muted-foreground">{meta.hint}</span>
-                    <span className="block text-[11px] text-primary/80">{PLACEMENT_REACH_NOTE[p]}</span>
+                    <span className="block text-[13px] font-medium">{placementLabel(placementMeta, p)}</span>
+                    <span className="block text-[11px] text-primary/80">{placementReach(placementMeta, p)}</span>
                   </span>
                 </label>
               );
@@ -290,9 +292,9 @@ export function CampaignWizard({ sellerId, stateCode }: { sellerId: string; stat
                 onChange={(e) => setCategory(e.target.value)}
               >
                 <option value="">Pick a category…</option>
-                {CATEGORY_OPTIONS[target?.app ?? "MART"].map((c) => (
+                {categoryOptions.map((c) => (
                   <option key={c.id} value={c.id}>
-                    {c.label}
+                    {c.name}
                   </option>
                 ))}
               </select>
@@ -406,7 +408,7 @@ export function CampaignWizard({ sellerId, stateCode }: { sellerId: string; stat
           <dl className="grid gap-x-6 gap-y-2 text-[13px] sm:grid-cols-2">
             <Row label="Target" value={`${target.label} (${target.id})`} />
             <Row label="Sub-app" value={target.app} />
-            <Row label="Placements" value={placements.map((p) => HERO_PLACEMENT_META[p].label).join(", ")} />
+            <Row label="Placements" value={placements.map((p) => placementLabel(placementMeta, p)).join(", ")} />
             <Row label="CTA" value={cta} />
             {needsCategory ? <Row label="Category" value={category} /> : null}
             {needsStore ? <Row label="Store" value={target.storeId ?? "—"} /> : null}

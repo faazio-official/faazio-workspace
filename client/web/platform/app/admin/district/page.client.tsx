@@ -10,19 +10,20 @@ import { StatusPill } from "@/components/patterns/Pills";
 import { formatINR, formatNumber, formatPercent } from "@/lib/format";
 import { periodDelta, sumGmv, sumOrders } from "@/lib/analytics/derive";
 import { stateMetrics } from "@/lib/api";
-import { useCampaigns, useMockLoading, useOrders, useSellers } from "@/lib/api/hooks";
+import { useCampaigns, useDistricts, useMockLoading, useOrders, useSellers } from "@/lib/api/hooks";
 import { useSession } from "@/lib/hooks/useSession";
-import { districtName } from "@/data/districts";
+import { districtName } from "@/lib/api/reference";
 import { ComponentHelp } from "@/components/patterns/ComponentHelp";
 
 
 function StateDashboard() {
   const session = useSession();
+  const districts = useDistricts();
   const stateCode = session?.stateCode ?? "TN";
   // No hardcoded district fallback — the gateway scopes the rows; label the page by the caller's
   // district when present, else by their state (a state-scoped admin) so nothing is hidden.
   const districtCode = session?.districtCode;
-  const scopeLabel = districtCode ? districtName(districtCode) : stateCode;
+  const scopeLabel = districtCode ? districtName(districts, districtCode) : stateCode;
   const loading = useMockLoading();
   const series = stateMetrics(stateCode, 30);
   const sellers = useSellers({ districtCode });

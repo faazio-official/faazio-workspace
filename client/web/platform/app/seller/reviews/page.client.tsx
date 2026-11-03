@@ -9,13 +9,11 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { formatDate } from "@/lib/format";
 import { flagReview, replyToReview } from "@/lib/api";
-import { useMockLoading, useReviews } from "@/lib/api/hooks";
-import { useSession } from "@/lib/hooks/useSession";
+import { useMockLoading, useReviews, useSellerScope } from "@/lib/api/hooks";
 import { ComponentHelp } from "@/components/patterns/ComponentHelp";
 
 function SellerReviews() {
-  const session = useSession();
-  const sellerId = session?.sellerId ?? "sel-1";
+  const { sellerId } = useSellerScope();
   const loading = useMockLoading();
   const reviews = useReviews({ sellerId });
   const [drafts, setDrafts] = useState<Record<string, string>>({});

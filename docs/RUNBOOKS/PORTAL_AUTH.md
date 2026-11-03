@@ -144,7 +144,11 @@ curl -sS "$GATEWAY/admin/portal-users" -H "Authorization: Bearer <accessToken>" 
 
 A signed-in superadmin uses **Portal credentials** (`/admin/super/credentials`) to create a login:
 
-- role `SELLER` → requires a real `seller_id` (the gateway checks `sellers.sellers`);
+- role `SELLER` → requires a real `seller_id` (the gateway checks `sellers.sellers`). A seller
+  session is **account-level** (brand-agnostic): one login may own several vendor shops across
+  Mart/Food/Pharma. The console's active vendor (`activeStoreId`, see web-portal.md "Vendor switcher")
+  is a client-side preference persisted in localStorage — it is **not** an auth scope; every
+  `/seller/*` read is still authorized by the account's JWT, never by the switched vendor id.
 - role `DISTRICT_ADMIN` → requires a `district_code` from `admins.district_master` (or, for a
   legacy non-TN/PY admin, a 2-letter `state_code`);
 - email, display name and a temporary password (≥12 chars, not a common value);

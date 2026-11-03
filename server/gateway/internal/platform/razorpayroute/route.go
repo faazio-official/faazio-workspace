@@ -2,9 +2,9 @@
 // transfers). It is domain-free: sellers provisions a linked account and settlement holds/releases
 // transfers, but neither context owns an HTTP client.
 //
-// Secrets are loaded from env and never logged. When the key pair is unset the gateway is DISABLED:
-// Enabled() is false and every mutating call returns ErrUnavailable — it never fabricates a
-// synthetic account or transfer id. Callers treat that as "Razorpay not configured".
+// Secrets are loaded from env and never logged. The key pair is required at construction time:
+// New returns an error when either key is missing, so the gateway can never silently fabricate a
+// synthetic account or transfer id.
 package razorpayroute
 
 import (
@@ -66,35 +66,22 @@ type Gateway interface {
 	VerifyWebhook(body []byte, signature string) bool
 }
 
-// New builds a Route gateway. Empty credentials → a disabled gateway that errors on use (never a
-// half-configured client, and never a silent mock that fabricates ids).
-func New(keyID, keySecret, webhookSecret string) Gateway {
-	if strings.TrimSpace(keyID) == "" || strings.TrimSpace(keySecret) == "" {
-		return disabledGateway{}
+// New builds a Route gateway. Credentials are required: a missing key pair is a configuration
+// error, never a half-configured client and never a silent mock that fabricates ids.
+func New(keyID, keySecret, webhookSecret string) (Gateway, error) {
+	keyID = strings.TrimSpace(keyID)
+	keySecret = strings.TrimSpace(keySecret)
+	if keyID == "" || keySecret == "" {
+		return nil, fmt.Errorf("razorpayroute: RAZORPAY_ROUTE_KEY_ID and RAZORPAY_ROUTE_KEY_SECRET are required")
 	}
 	return &Client{
-		keyID:         strings.TrimSpace(keyID),
-		keySecret:     strings.TrimSpace(keySecret),
+		keyID:         keyID,
+		keySecret:     keySecret,
 		webhookSecret: strings.TrimSpace(webhookSecret),
 		baseURL:       "https://api.razorpay.com/v1",
 		http:          &http.Client{Timeout: 12 * time.Second},
-	}
+	}, nil
 }
-
-// disabledGateway is the unconfigured Route seam. It reports Enabled=false and refuses every
-// mutating call with ErrUnavailable so callers surface a real "not configured" state.
-type disabledGateway struct{}
-
-func (disabledGateway) Enabled() bool { return false }
-func (disabledGateway) CreateLinkedAccount(context.Context, LinkedAccountInput) (string, error) {
-	return "", ErrUnavailable
-}
-func (disabledGateway) CreateTransfer(context.Context, TransferInput) (string, error) {
-	return "", ErrUnavailable
-}
-func (disabledGateway) ReleaseTransfer(context.Context, string) error { return ErrUnavailable }
-func (disabledGateway) ReverseTransfer(context.Context, string) error { return ErrUnavailable }
-func (disabledGateway) VerifyWebhook([]byte, string) bool             { return false }
 
 // Client is the real Razorpay Route HTTP client.
 type Client struct {

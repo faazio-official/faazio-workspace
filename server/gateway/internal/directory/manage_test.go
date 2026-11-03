@@ -24,8 +24,8 @@ func TestStoreLiveModeration(t *testing.T) {
 
 	sellerID := "sel-dir-" + manageID("")
 	if _, err := pool.Exec(ctx, `
-		insert into sellers.sellers (seller_id, business_name, owner_name, category, state_code, district_code)
-		values ($1,'Directory Test','O','MART','TN','TCH')`, sellerID); err != nil {
+		insert into sellers.sellers (seller_id, business_name, owner_name, state_code, district_code)
+		values ($1,'Directory Test','O','TN','TCH')`, sellerID); err != nil {
 		t.Fatalf("seed seller: %v", err)
 	}
 	t.Cleanup(func() { _, _ = pool.Exec(ctx, `delete from sellers.sellers where seller_id=$1`, sellerID) })
@@ -92,8 +92,8 @@ func TestMenuLifecycle(t *testing.T) {
 
 	sellerID := "sel-menu-" + manageID("")
 	if _, err := pool.Exec(ctx, `
-		insert into sellers.sellers (seller_id, business_name, owner_name, category, state_code, district_code)
-		values ($1,'Menu Test','O','FOOD','TN','TCH')`, sellerID); err != nil {
+		insert into sellers.sellers (seller_id, business_name, owner_name, state_code, district_code)
+		values ($1,'Menu Test','O','TN','TCH')`, sellerID); err != nil {
 		t.Fatalf("seed seller: %v", err)
 	}
 	t.Cleanup(func() { _, _ = pool.Exec(ctx, `delete from sellers.sellers where seller_id=$1`, sellerID) })
@@ -175,8 +175,8 @@ func TestMenuDiningVenueOwnership(t *testing.T) {
 	sellerID := "sel-dining-" + manageID("")
 	otherID := "sel-dining-other-" + manageID("")
 	if _, err := pool.Exec(ctx, `
-		insert into sellers.sellers (seller_id, business_name, owner_name, category, state_code, district_code)
-		values ($1,'Dining Test','O','FOOD','TN','TCH'), ($2,'Other Dining','O','FOOD','TN','TCO')`,
+		insert into sellers.sellers (seller_id, business_name, owner_name, state_code, district_code)
+		values ($1,'Dining Test','O','TN','TCH'), ($2,'Other Dining','O','TN','TCO')`,
 		sellerID, otherID); err != nil {
 		t.Fatalf("seed sellers: %v", err)
 	}
@@ -195,16 +195,17 @@ func TestMenuDiningVenueOwnership(t *testing.T) {
 		_, _ = pool.Exec(ctx, `delete from directory.menus where venue_id=$1`, venueID)
 		_, _ = pool.Exec(ctx, `delete from directory.dining_venues where id=$1`, venueID)
 	})
-	// A seeded dining-venue dish carries its seller in directory.menus (no store row exists).
+	// A dining venue is restaurant-only and not seller-bound (no directory.stores row), so its menu
+	// carries no owner after 0070 dropped directory.menus.seller_id.
 	if _, err := pool.Exec(ctx, `
-		insert into directory.menus (venue_id, dish_id, name, price_paisa, seller_id, status)
-		values ($1,$2,'Seeded Dish',10000,$3,'ACTIVE')`, venueID, dishID, sellerID); err != nil {
+		insert into directory.menus (venue_id, dish_id, name, price_paisa, status)
+		values ($1,$2,'Seeded Dish',10000,'ACTIVE')`, venueID, dishID); err != nil {
 		t.Fatalf("seed dining menu: %v", err)
 	}
 
 	owner, ok, err := repo.MenuOrVenueSeller(ctx, venueID, dishID)
-	if err != nil || !ok || owner != sellerID {
-		t.Fatalf("MenuOrVenueSeller: ok=%v err=%v owner=%q", ok, err, owner)
+	if err != nil || ok || owner != "" {
+		t.Fatalf("MenuOrVenueSeller: ok=%v err=%v owner=%q (dining venues are ownerless)", ok, err, owner)
 	}
 	if ok, err := repo.SellerInDistrict(ctx, sellerID, "TCH"); err != nil || !ok {
 		t.Fatalf("district owner: ok=%v err=%v", ok, err)
@@ -230,8 +231,8 @@ func TestMenuInsertRequiresVenueOwnership(t *testing.T) {
 	ownerID := "sel-venue-" + manageID("")
 	otherID := "sel-venue-other-" + manageID("")
 	if _, err := pool.Exec(ctx, `
-		insert into sellers.sellers (seller_id, business_name, owner_name, category, state_code)
-		values ($1,'Venue Owner','O','FOOD','TN'), ($2,'Venue Other','O','FOOD','TN')`,
+		insert into sellers.sellers (seller_id, business_name, owner_name, state_code)
+		values ($1,'Venue Owner','O','TN'), ($2,'Venue Other','O','TN')`,
 		ownerID, otherID); err != nil {
 		t.Fatalf("seed sellers: %v", err)
 	}

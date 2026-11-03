@@ -557,13 +557,28 @@ export interface PrescriptionRecord {
 }
 
 /** Body for POST /sellers — a partner onboarding application (sellers.sellers). */
+export interface SellerApplicationVendorInput {
+  /** Shop display name. */
+  name: string;
+  /** app_brand enum (MART | FOOD | PHARMA). */
+  app: AppBrand;
+  /** Optional taxonomy.categories id within the app brand (a Food restaurant's type). */
+  categoryId?: string;
+  /** Server-owned split percentage; admin may edit per vendor before approval. */
+  platformFeePct: number;
+  fssaiNumber?: string;
+  fssaiFileKey?: string;
+  fssaiAssetId?: string;
+  address?: string;
+  phone?: string;
+  hours?: string;
+  latitude?: number;
+  longitude?: number;
+}
+
 export interface SellerApplicationInput {
   businessName: string;
   ownerName: string;
-  /** app_brand enum (MART | FOOD | PHARMA). */
-  category: AppBrand;
-  /** Optional taxonomy.categories id within the app brand (a Food restaurant's type). */
-  categoryId?: string;
   gstin: string;
   pan: string;
   businessAddress: string;
@@ -573,11 +588,11 @@ export interface SellerApplicationInput {
   stateCode: string;
   /** 3-letter district code (sellers.sellers.district_code) — required by the district rollout. */
   districtCode?: string;
-  /** Optional shop pin captured on the map; both values travel together. */
+  /** Optional account-level pin; vendors carry their own shop pin. */
   latitude?: number;
   longitude?: number;
-  /** Server-owned split percentage; admin may edit before approval. */
-  platformFeePct: number;
+  /** One or more shops owned by this account. */
+  vendors: SellerApplicationVendorInput[];
   /** Full account number is sent transiently and never stored (masked tail only). */
   bankName: string;
   bankAccountNumber: string;
@@ -586,20 +601,34 @@ export interface SellerApplicationInput {
   /** Private R2 object key + media asset id for the bank passbook page. */
   passbookFileKey: string;
   passbookAssetId?: string;
-  /** FOOD sellers only. */
-  fssaiNumber?: string;
-  fssaiFileKey?: string;
-  fssaiAssetId?: string;
   /** Digital-signature gate: true only after a successful Firebase OTP round-trip. */
   otpVerified: boolean;
 }
 
 /** A sellers.sellers row (server creates it PENDING_REVIEW; contactPhone is PII). */
+export interface SellerApplicationVendor {
+  id: string;
+  name: string;
+  app: string;
+  isLive: boolean;
+  rating: number;
+  platformFeePct: number;
+  sellerCategoryId?: string;
+  fssaiNumber?: string;
+  fssaiCertKey?: string;
+  fssaiCertAssetId?: string;
+  address?: string;
+  phone?: string;
+  hours?: string;
+  deliveryTime?: string;
+  isVeg?: boolean;
+  updatedAt?: string;
+}
+
 export interface SellerApplication {
   sellerId: string;
   businessName: string;
   ownerName: string;
-  category: string;
   gstin: string;
   pan: string;
   businessAddress: string;
@@ -611,11 +640,10 @@ export interface SellerApplication {
   longitude?: number;
   status: string;
   rating: number;
-  platformFeePct: number;
+  vendorCount?: number;
+  vendorApps?: string[];
+  vendors?: SellerApplicationVendor[];
   razorpayLinkedAccountId?: string;
-  fssaiNumber?: string;
-  fssaiCertKey?: string;
-  fssaiCertAssetId?: string;
   otpVerified: boolean;
   otpVerifiedAt?: string;
   rejectionReason?: string;
@@ -627,6 +655,7 @@ export interface SellerApplication {
 export interface FeeChangeRequest {
   requestId: string;
   sellerId: string;
+  storeId?: string;
   businessName?: string;
   districtCode?: string;
   currentFeePct: number;
@@ -672,6 +701,7 @@ export interface SellerVerificationLog {
 
 /** Admin review projection: seller + payout account + KYC documents + verification log. */
 export interface SellerDetail extends SellerApplication {
+  vendors: SellerApplicationVendor[];
   bankAccount?: SellerBankAccount;
   kycDocuments: SellerKycDocument[];
   verificationLog: SellerVerificationLog[];
@@ -2110,22 +2140,28 @@ export class GatewayClient {
     return { key: ticket.key, assetId: ticket.assetId };
   }
 
-  /** Admin: edit the platform fee before approval (server re-validates the category floor). */
-  async updateSellerPlatformFee(sellerId: string, platformFeePct: number): Promise<SellerApplication> {
+  /** The signed-in seller's vendor shops (GET /seller/stores). */
+  async listSellerStores(): Promise<SellerApplicationVendor[]> {
+    return this.http<SellerApplicationVendor[]>('/seller/stores');
+  }
+
+  /** Admin: edit one vendor's platform fee (server re-validates the app floor). */
+  async updateSellerPlatformFee(sellerId: string, storeId: string, platformFeePct: number): Promise<SellerApplication> {
     return this.http<SellerApplication>(`/sellers/${encodeURIComponent(sellerId)}/platform-fee`, {
       method: 'PATCH',
-      body: JSON.stringify({ platformFeePct }),
+      body: JSON.stringify({ storeId, platformFeePct }),
     });
   }
 
-  /** Seller: ask for a new platform fee (a district/super admin must approve it). */
+  /** Seller: ask for a new platform fee for one vendor (a district/super admin must approve it). */
   async requestSellerPlatformFeeChange(
     sellerId: string,
+    storeId: string,
     platformFeePct: number,
   ): Promise<FeeChangeRequest> {
     return this.http<FeeChangeRequest>(
       `/sellers/${encodeURIComponent(sellerId)}/platform-fee-request`,
-      { method: 'POST', body: JSON.stringify({ platformFeePct }) },
+      { method: 'POST', body: JSON.stringify({ storeId, platformFeePct }) },
     );
   }
 

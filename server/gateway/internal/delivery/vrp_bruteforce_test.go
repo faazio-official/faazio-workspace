@@ -38,7 +38,7 @@ func TestOptimizeGlobalRouteMatchesBruteForce(t *testing.T) {
 func routeCost(stops []Stop, lat, lng float64, matrix RoadMatrix) int64 {
 	var total int64
 	for _, s := range stops {
-		leg, _ := matrix.Travel(lat, lng, *s.Latitude, *s.Longitude)
+		leg, _, _ := matrix.Travel(lat, lng, *s.Latitude, *s.Longitude)
 		total += leg
 		lat, lng = *s.Latitude, *s.Longitude
 	}

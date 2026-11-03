@@ -2,19 +2,10 @@ package sellers
 
 import (
 	"context"
-	"strings"
 	"testing"
 
 	"github.com/faazio/server/gateway/internal/platform/testenv"
 )
-
-// TestSellerColumnsIncludeCategoryID guards the read-back of seller_category_id: it must stay in the
-// shared select list, otherwise every Seller response silently drops the superadmin category.
-func TestSellerColumnsIncludeCategoryID(t *testing.T) {
-	if !strings.Contains(sellerColumns, "seller_category_id") {
-		t.Fatal("sellerColumns must select seller_category_id so reads carry it")
-	}
-}
 
 func TestSellerLifecycle(t *testing.T) {
 	pool := testenv.Pool(t)
@@ -22,14 +13,17 @@ func TestSellerLifecycle(t *testing.T) {
 	ctx := context.Background()
 
 	s, err := repo.Create(ctx, Seller{
-		BusinessName: "Test Traders", OwnerName: "A. Kaur", Category: "MART",
+		BusinessName: "Test Traders", OwnerName: "A. Kaur",
 		GSTIN: "29ABCDE1234F1Z5", PAN: "ABCDE1234F", BusinessAddress: "1 Test St",
 		ContactPhone: "+91 9000000000", ContactEmail: "test@example.com", StateCode: "KA",
 	})
 	if err != nil {
 		t.Fatalf("create: %v", err)
 	}
-	t.Cleanup(func() { _, _ = pool.Exec(ctx, `delete from sellers.sellers where seller_id = $1`, s.SellerID) })
+	t.Cleanup(func() {
+		_, _ = pool.Exec(ctx, `delete from directory.stores where seller_id = $1`, s.SellerID)
+		_, _ = pool.Exec(ctx, `delete from sellers.sellers where seller_id = $1`, s.SellerID)
+	})
 	if s.Status != "PENDING_REVIEW" || s.SellerID == "" || s.StateCode != "KA" {
 		t.Fatalf("unexpected created seller: %+v", s)
 	}

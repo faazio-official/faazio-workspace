@@ -351,9 +351,31 @@ func (h *Handler) createStore(w http.ResponseWriter, r *http.Request) {
 		httpx.Fail(w, http.StatusBadRequest, "bad_request", "shop location is invalid")
 		return
 	}
+	if req.FSSAINumber != "" || req.FSSAIFileKey != "" || req.FSSAIAssetID != "" {
+		if req.FSSAINumber == "" || !isStorageKey(req.FSSAIFileKey) {
+			httpx.Fail(w, http.StatusBadRequest, "bad_request", "fssai number and certificate key are required together")
+			return
+		}
+	}
 	if req.App == "FOOD" && req.FSSAINumber == "" {
 		httpx.Fail(w, http.StatusBadRequest, "bad_request", "fssai number is required for food vendors")
 		return
+	}
+	if req.App == "FOOD" && !isStorageKey(req.FSSAIFileKey) {
+		httpx.Fail(w, http.StatusBadRequest, "bad_request", "fssai certificate is required for food vendors")
+		return
+	}
+	req.SellerCategoryID = strings.TrimSpace(req.SellerCategoryID)
+	if req.SellerCategoryID != "" {
+		ok, err := h.repo.ValidVendorCategory(r.Context(), req.App, req.SellerCategoryID)
+		if err != nil {
+			httpx.Fail(w, http.StatusInternalServerError, "directory_unavailable", "directory unavailable")
+			return
+		}
+		if !ok {
+			httpx.Fail(w, http.StatusBadRequest, "bad_request", "category is not an active category of this app")
+			return
+		}
 	}
 
 	sellerID := auth.SellerID(r.Context())
@@ -392,12 +414,6 @@ func (h *Handler) updateStore(w http.ResponseWriter, r *http.Request) {
 		httpx.Fail(w, http.StatusBadRequest, "bad_request", "invalid request body")
 		return
 	}
-	if req.PlatformFeePct != 0 {
-		if app := strings.ToUpper(strings.TrimSpace(req.App)); app != "" && !validVendorFee(app, req.PlatformFeePct) {
-			httpx.Fail(w, http.StatusBadRequest, "bad_request", "platform fee is outside the allowed range for this app")
-			return
-		}
-	}
 	if !validLatLngPtr(req.Latitude, req.Longitude) {
 		httpx.Fail(w, http.StatusBadRequest, "bad_request", "shop location is invalid")
 		return
@@ -408,6 +424,47 @@ func (h *Handler) updateStore(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	id := chi.URLParam(r, "id")
+	app, fssaiNumber, fssaiKey, found, appErr := h.repo.StoreVendorMeta(r.Context(), id, sellerID, district)
+	if appErr != nil {
+		httpx.Fail(w, http.StatusInternalServerError, "directory_unavailable", "directory unavailable")
+		return
+	}
+	if !found {
+		httpx.Fail(w, http.StatusNotFound, "not_found", "vendor not found")
+		return
+	}
+	req.SellerCategoryID = strings.TrimSpace(req.SellerCategoryID)
+	if req.SellerCategoryID != "" {
+		ok, err := h.repo.ValidVendorCategory(r.Context(), app, req.SellerCategoryID)
+		if err != nil {
+			httpx.Fail(w, http.StatusInternalServerError, "directory_unavailable", "directory unavailable")
+			return
+		}
+		if !ok {
+			httpx.Fail(w, http.StatusBadRequest, "bad_request", "category is not an active category of this app")
+			return
+		}
+	}
+	if req.FSSAINumber != "" || req.FSSAIFileKey != "" || req.FSSAIAssetID != "" {
+		if req.FSSAINumber == "" || !isStorageKey(req.FSSAIFileKey) {
+			httpx.Fail(w, http.StatusBadRequest, "bad_request", "fssai number and certificate key are required together")
+			return
+		}
+	}
+	if app == "FOOD" && (req.FSSAINumber == "" && fssaiNumber == "" || req.FSSAIFileKey == "" && fssaiKey == "") {
+		httpx.Fail(w, http.StatusBadRequest, "bad_request", "food vendors must keep an fssai number and certificate")
+		return
+	}
+	// Sellers cannot edit the fee directly; they file a fee-change request. Admins may set it, but
+	// validation is keyed on the store's actual app (never a client-supplied one).
+	if req.PlatformFeePct != 0 {
+		if auth.Role(r.Context()) == auth.RoleSeller {
+			req.PlatformFeePct = 0
+		} else if !validVendorFee(app, req.PlatformFeePct) {
+			httpx.Fail(w, http.StatusBadRequest, "bad_request", "platform fee is outside the allowed range for this app")
+			return
+		}
+	}
 	store, ok, err := h.repo.UpdateStore(r.Context(), id, sellerID, district, VendorInput{
 		Name: req.Name, Address: req.Address, Phone: req.Phone, Hours: req.Hours,
 		Latitude: req.Latitude, Longitude: req.Longitude, PlatformFeePct: req.PlatformFeePct,
@@ -429,21 +486,17 @@ func (h *Handler) updateStore(w http.ResponseWriter, r *http.Request) {
 }
 
 // setStoreFee replaces PATCH /sellers/{id}/platform-fee: the fee is a property of the vendor shop.
+// Only admins may apply a fee directly; sellers file a platform-fee request instead.
 func (h *Handler) setStoreFee(w http.ResponseWriter, r *http.Request) {
+	if auth.Role(r.Context()) == auth.RoleSeller {
+		httpx.Fail(w, http.StatusForbidden, "forbidden", "sellers must file a platform-fee request")
+		return
+	}
 	var body struct {
-		PlatformFeePct int    `json:"platformFeePct"`
-		App            string `json:"app"`
+		PlatformFeePct int `json:"platformFeePct"`
 	}
 	if err := httpx.Decode(r, &body); err != nil {
 		httpx.Fail(w, http.StatusBadRequest, "bad_request", "invalid request body")
-		return
-	}
-	app := strings.ToUpper(strings.TrimSpace(body.App))
-	if app == "" {
-		app = "MART"
-	}
-	if !validVendorFee(app, body.PlatformFeePct) {
-		httpx.Fail(w, http.StatusBadRequest, "bad_request", "platform fee is outside the allowed range for this app")
 		return
 	}
 	sellerID, district, scopeOK := managementScope(r)
@@ -452,6 +505,20 @@ func (h *Handler) setStoreFee(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	id := chi.URLParam(r, "id")
+	// Validate against the store's real app so a FOOD vendor can never be dropped below its floor.
+	app, found, appErr := h.repo.StoreApp(r.Context(), id, sellerID, district)
+	if appErr != nil {
+		httpx.Fail(w, http.StatusInternalServerError, "directory_unavailable", "directory unavailable")
+		return
+	}
+	if !found {
+		httpx.Fail(w, http.StatusNotFound, "not_found", "vendor not found")
+		return
+	}
+	if !validVendorFee(app, body.PlatformFeePct) {
+		httpx.Fail(w, http.StatusBadRequest, "bad_request", "platform fee is outside the allowed range for this app")
+		return
+	}
 	store, ok, err := h.repo.SetStoreFee(r.Context(), id, sellerID, district, body.PlatformFeePct)
 	if err != nil {
 		httpx.Fail(w, http.StatusInternalServerError, "vendor_update_failed", "could not update platform fee")
@@ -855,4 +922,18 @@ func (h *Handler) log(r *http.Request, entity, action, entityID string) {
 		ActorID: actorID, ActorRole: role, Action: action,
 		Entity: entity, EntityID: entityID, After: raw,
 	})
+}
+
+// isStorageKey rejects URLs and inline data — vendor certificates live in R2 as object keys.
+func isStorageKey(k string) bool {
+	k = strings.TrimSpace(k)
+	if k == "" || len(k) > 512 {
+		return false
+	}
+	lower := strings.ToLower(k)
+	if strings.HasPrefix(lower, "http://") || strings.HasPrefix(lower, "https://") ||
+		strings.HasPrefix(lower, "data:") || strings.HasPrefix(lower, "mock://") {
+		return false
+	}
+	return true
 }

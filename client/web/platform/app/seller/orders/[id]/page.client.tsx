@@ -2,6 +2,7 @@
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { toast } from "sonner";
+import { useEffect } from "react";
 import { PageHeader } from "@/components/patterns/PageHeader";
 import { SectionCard } from "@/components/patterns/SectionCard";
 import { EmptyState } from "@/components/patterns/DataState";
@@ -9,7 +10,7 @@ import { StatusPill } from "@/components/patterns/Pills";
 import { Button } from "@/components/ui/button";
 import { formatDateTime, formatINR } from "@/lib/format";
 import { acceptOrder, advanceOrder, rejectOrder } from "@/lib/api";
-import { useOrder } from "@/lib/api/hooks";
+import { useOrder, useActiveStore } from "@/lib/api/hooks";
 import { ComponentHelp } from "@/components/patterns/ComponentHelp";
 import type { OrderStatus } from "@/data/types";
 
@@ -18,6 +19,16 @@ const FLOW: OrderStatus[] = ["NEW", "PACKED", "SHIPPED", "DELIVERED"];
 function OrderDetail() {
   const { id } = useParams<{ id: string }>();
   const order = useOrder(id);
+  const { stores, setActiveStoreId } = useActiveStore();
+
+  // A push deep link (seller app) may land on an order belonging to a non-active vendor. Resolve the
+  // order's store and switch the console scope so the shell header and lists match the shop.
+  useEffect(() => {
+    if (!order?.storeId) return;
+    if (stores.some((s) => s.storeId === order.storeId)) {
+      setActiveStoreId(order.storeId);
+    }
+  }, [order?.storeId, stores, setActiveStoreId]);
 
   if (!order) {
     return (

@@ -21,7 +21,7 @@ import { ComponentHelp } from "@/components/patterns/ComponentHelp";
 
 function SellerPayments() {
   const session = useSession();
-  const sellerId = session?.sellerId ?? "sel-1";
+  const sellerId = session?.sellerId ?? "";
   const loading = useMockLoading();
   const ledger = useLedger(sellerId);
   const payouts = usePayouts(sellerId);

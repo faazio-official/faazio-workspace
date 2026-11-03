@@ -84,19 +84,6 @@ func TestMiddlewareRejectsBadTokens(t *testing.T) {
 	}
 }
 
-func TestDevModeUsesHeaderThenDefault(t *testing.T) {
-	var got string
-	h := Middleware(Config{Disabled: true, DevUserID: "user-1"})(
-		http.HandlerFunc(func(_ http.ResponseWriter, r *http.Request) { got = UserID(r.Context()) }),
-	)
-	req := httptest.NewRequest(http.MethodGet, "/", nil)
-	req.Header.Set("X-Dev-User", "user-42")
-	h.ServeHTTP(httptest.NewRecorder(), req)
-	if got != "user-42" {
-		t.Fatalf("UserID = %q, want user-42", got)
-	}
-}
-
 func TestOTPSigned(t *testing.T) {
 	with := func(id Identity) context.Context { return context.WithValue(context.Background(), identityKey{}, id) }
 
@@ -106,7 +93,6 @@ func TestOTPSigned(t *testing.T) {
 		phone string
 		want  bool
 	}{
-		{"dev identity always signs", Identity{Dev: true}, "+91 98765 43210", true},
 		{"matching e.164 phone", Identity{Phone: "+919876543210"}, "9876543210", true},
 		{"matching with spaces", Identity{Phone: "+91 98765 43210"}, " 9 8 7 6 5 4 3 2 1 0 ", true},
 		{"mismatched phone", Identity{Phone: "+919999999999"}, "9876543210", false},
@@ -189,16 +175,10 @@ func TestPortalMustChangeIsConfined(t *testing.T) {
 	})
 }
 
-func TestMiddlewareCanonicalisesLegacyDevRole(t *testing.T) {
-	var role string
-	h := Middleware(Config{Disabled: true})(http.HandlerFunc(func(_ http.ResponseWriter, r *http.Request) {
-		role = Role(r.Context())
-	}))
-	req := httptest.NewRequest(http.MethodGet, "/", nil)
-	req.Header.Set("X-Dev-Role", "STATE_ADMIN")
-	h.ServeHTTP(httptest.NewRecorder(), req)
-	if role != RoleDistrictAdmin {
-		t.Fatalf("role = %q, want %q", role, RoleDistrictAdmin)
+func TestWithIdentitySetsRole(t *testing.T) {
+	ctx := WithIdentity(context.Background(), Identity{Role: RoleDistrictAdmin})
+	if got := Role(ctx); got != RoleDistrictAdmin {
+		t.Fatalf("role = %q, want %q", got, RoleDistrictAdmin)
 	}
 }
 

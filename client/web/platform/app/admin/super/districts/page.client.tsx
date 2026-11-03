@@ -1,5 +1,5 @@
 "use client";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { PageHeader } from "@/components/patterns/PageHeader";
 import { SectionCard } from "@/components/patterns/SectionCard";
 import { ComponentHelp } from "@/components/patterns/ComponentHelp";
@@ -29,21 +29,26 @@ import {
 import { formatDate, formatINR, formatNumber } from "@/lib/format";
 import { periodDelta, sumGmv, sumOrders } from "@/lib/analytics/derive";
 import { stateMetrics } from "@/lib/api";
-import { useCampaigns, useSellers, useDistrictAdmins } from "@/lib/api/hooks";
-import { DISTRICTS, districtName, stateForDistrict } from "@/data/districts";
+import { useCampaigns, useSellers, useDistrictAdmins, useDistricts } from "@/lib/api/hooks";
+import { districtName, stateForDistrict } from "@/lib/api/reference";
 
 
 function SuperDistricts() {
-  const [districtCode, setDistrictCode] = useState(DISTRICTS[0]?.districtCode ?? "TCH");
+  const districts = useDistricts();
+  const [districtCode, setDistrictCode] = useState("");
   const [query, setQuery] = useState("");
-  const stateCode = stateForDistrict(districtCode);
+  // Default to the first DB-backed district once the master loads; never a hardcoded client code.
+  useEffect(() => {
+    if (!districtCode && districts.length > 0) setDistrictCode(districts[0]!.districtCode);
+  }, [districtCode, districts]);
+  const stateCode = districtCode ? stateForDistrict(districts, districtCode) : "";
   const series = stateMetrics(stateCode, 30);
   const sellers = useSellers({ districtCode });
   const admins = useDistrictAdmins(districtCode);
   const campaigns = useCampaigns({ stateCode });
 
   const q = query.trim().toLowerCase();
-  const visibleDistricts = DISTRICTS.filter(
+  const visibleDistricts = districts.filter(
     (d) => !q || d.districtCode.toLowerCase().includes(q) || d.name.toLowerCase().includes(q),
   );
   const visibleTn = visibleDistricts.filter((d) => d.stateCode === "TN");
@@ -118,7 +123,7 @@ function SuperDistricts() {
         ]}
       />
 
-      <SectionCard title={`${districtName(districtCode)} GMV`} description="Last 30 days">
+      <SectionCard title={`${districtCode ? districtName(districts, districtCode) : "District"} GMV`} description="Last 30 days">
         <GmvTrend data={series} />
       </SectionCard>
 

@@ -66,8 +66,6 @@ type Config struct {
 	RazorpayRouteKeyID         string
 	RazorpayRouteKeySecret     string
 	RazorpayRouteWebhookSecret string
-	AuthDisabled               bool
-	DevUserID                  string
 	// FCMProjectID + FCMServiceAccount enable the gateway's embedded FCM HTTP v1 sender (Android
 	// push). FCMServiceAccount is the raw JSON of the Firebase service account private key — a
 	// secret, never committed. When unset, push delivery stays disabled (in-app inbox only).
@@ -112,8 +110,6 @@ func Load() Config {
 		RazorpayRouteKeyID:         envFirst("RAZORPAY_ROUTE_KEY_ID", "RAZORPAY_KEY_ID"),
 		RazorpayRouteKeySecret:     envFirst("RAZORPAY_ROUTE_KEY_SECRET", "RAZORPAY_KEY_SECRET"),
 		RazorpayRouteWebhookSecret: envFirst("RAZORPAY_ROUTE_WEBHOOK_SECRET", "RAZORPAY_WEBHOOK_SECRET"),
-		AuthDisabled:               envBool("AUTH_DISABLED", false),
-		DevUserID:                  env("DEV_USER_ID", "user-1"),
 		FCMProjectID:               env("FCM_PROJECT_ID", ""),
 		FCMServiceAccount:          env("FCM_SERVICE_ACCOUNT_JSON", ""),
 		AllowedOrigins:             splitCSV(env("ALLOWED_ORIGINS", "")),

@@ -862,10 +862,10 @@ SellerPartnerNavigator (native stack, no customer/delivery screens)
 Before the portal hydrates, the shell injects `window.__faazio = { app: 'seller', platform, webview: true }`
 via `injectedJavaScriptBeforeContentLoaded`; the portal reads it (never the user-agent) to detect the
 native seller app, restrict routes to seller scope and **reject admin sign-in** (a non-`SELLER` role
-is signed straight back out with a generic invalid-credentials message — see `web-portal.md`). The
-context may also carry an optional `vendorId` (`window.__faazio.vendorId`) — the vendor the console was
-last scoped to — so the portal's `activeStoreId` restores the same shop across WebView reloads (the
-seller-console vendor switcher itself is owned by the portal; 0068–0073). The
+is signed straight back out with a generic invalid-credentials message — see `web-portal.md`). When a
+push/notification carries the order's `storeId`, the shell first injects
+`window.__faazio.vendorId = <storeId>` so the console can open scoped to the right shop (0068–0074);
+the portal's `activeStoreId` restore also accepts that injected vendor. The
 native shell also refuses to load any `/admin/*` portal URL, rendering the branded "Not available in
 the Faazio Seller app" block with a **Back to sign in** action instead. No internet / an unreachable
 portal renders a branded Faazio state with **Try again** (native side) instead of a white WebView; a
@@ -1000,12 +1000,12 @@ PUT → `/media/confirm`), and only the object key + asset id reach the applicat
 blocked until both documents and the OTP digital signature are complete; the OTP runs on a
 disposable secondary Firebase app (`services/firebaseAuth.ts`) so the shopper's primary session is
 never swapped. `GatewayClient.submitSellerApplication` (`POST /sellers`, audited) creates the
-`PENDING_REVIEW` seller, bank account and KYC rows in one transaction. The server treats the OTP as
+`PENDING_REVIEW` seller, bank account and KYC rows in one transaction, plus one `directory.stores`
+**vendor** per entry in the `vendors[]` payload — the account is brand-agnostic, and the app,
+platform fee %, category and FSSAI all live on the vendor. The server treats the OTP as
 a **digital signature**: it requires a Firebase ID token whose `phone_number` claim matches the
-application's `contactPhone` (`auth.OTPSigned`, dev-mode X-Dev-* headers are the only exception) —
-a client-asserted `otpVerified: true` alone is rejected with `401 otp_unverified`. The success state
-shows the `sellerId`, status and platform fee. In mock mode the client returns a local
-`PENDING_REVIEW` row so the flow completes offline.
+application's `contactPhone` (`auth.OTPSigned`) — a client-asserted `otpVerified: true` alone is
+rejected with `401 otp_unverified`. The success state shows the `sellerId`, status and vendor apps.
 
 Admin review ships on **both surfaces** — the web portal (`admin/district/sellers[/[id]]`,
 SUPER_ADMIN reaches every district) and the mobile app:
@@ -1014,9 +1014,10 @@ SUPER_ADMIN reaches every district) and the mobile app:
   Reachable from the Account page through a role-gated "Seller applications" card (`AccountView`,
   shown only for `DISTRICT_ADMIN`/`SUPER_ADMIN`).
 - `SellerRequestDetailScreen` (route `SellerRequestDetail`, `{ sellerId }`) — full registration +
-  masked payout account, a platform-fee editor, per-document verify actions (PASSBOOK / FSSAI / PAN /
-  GSTIN), **Verify KYC** (attaches the Razorpay Route linked account and activates the seller) and
-  reject-with-reason. KYC images are rendered live through `GatewayClient.getPrivateMediaUrl`
+  masked payout account, a **vendors** list (name · app · FSSAI) with a **per-vendor platform-fee
+  editor** (each shop's `platformFeePct`, FOOD floor 5%), per-document verify actions (PASSBOOK /
+  FSSAI / PAN / GSTIN), **Verify KYC** (attaches the Razorpay Route linked account and activates the
+  seller) and reject-with-reason. KYC images are rendered live through `GatewayClient.getPrivateMediaUrl`
   (`GET /media/private/{assetId}` — a short-lived presigned GET that only the creator or an admin
   may mint). Rejected sellers may edit and resubmit; changed fields are recorded until approval
   clears the trail.
@@ -1027,10 +1028,11 @@ SUPER_ADMIN reaches every district) and the mobile app:
 
 Sellers never edit the live fee directly. `SellerPlatformFeeRequestScreen` (route
 `SellerPlatformFeeRequest`, opened from the Account "Request a fee change" card for `SELLER` sessions)
-loads the current fee via `GET /sellers/{id}`, shows request history
+loads the seller's vendors via `GET /seller/stores` (fee is per **shop**, not per account), lets the
+seller pick the store, shows request history
 (`GET /sellers/{id}/platform-fee-requests`) and files a `PENDING` request
-(`POST /sellers/{id}/platform-fee-request`). Only an admin approval mutates `platformFeePct`; one
-pending request per seller is enforced by the server.
+(`POST /sellers/{id}/platform-fee-request` with the chosen `storeId`). Only an admin approval mutates
+a vendor's `platformFeePct`; one pending request per vendor is enforced by the server.
 
 ## FaazioRewards (coins + streak)
 

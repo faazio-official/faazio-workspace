@@ -30,6 +30,7 @@ import {
   useMockLoading,
   useOptins,
   useProducts,
+  useSellerScope,
   useSectorCaps,
 } from "@/lib/api/hooks";
 import { useSession } from "@/lib/hooks/useSession";
@@ -38,10 +39,10 @@ import { ComponentHelp } from "@/components/patterns/ComponentHelp";
 
 function SellerPromotions() {
   const session = useSession();
-  const sellerId = session?.sellerId ?? "sel-1";
+  const { sellerId, storeId } = useSellerScope();
   const stateCode = session?.stateCode;
   const loading = useMockLoading();
-  const products = useProducts({ sellerId });
+  const products = useProducts({ sellerId, storeId });
   const campaigns = useCampaigns({ stateCode }).filter(
     (c) => c.status === "LIVE" || c.status === "SCHEDULED",
   );

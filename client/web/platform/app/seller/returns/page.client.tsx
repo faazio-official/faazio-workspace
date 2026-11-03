@@ -15,17 +15,15 @@ import {
 } from "@/components/ui/table";
 import { formatINR } from "@/lib/format";
 import { advanceOrder } from "@/lib/api";
-import { useMockLoading, useOrders } from "@/lib/api/hooks";
-import { useSession } from "@/lib/hooks/useSession";
+import { useMockLoading, useOrders, useSellerScope } from "@/lib/api/hooks";
 import { ComponentHelp } from "@/components/patterns/ComponentHelp";
 
 const REASONS = ["Damaged in transit", "Wrong item", "Changed mind", "Late delivery"];
 
 function SellerReturns() {
-  const session = useSession();
-  const sellerId = session?.sellerId ?? "sel-1";
+  const { sellerId, storeId } = useSellerScope();
   const loading = useMockLoading();
-  const returns = useOrders({ sellerId }).filter(
+  const returns = useOrders({ sellerId, storeId }).filter(
     (o) => o.status === "RETURNED" || o.status === "CANCELLED",
   );
 

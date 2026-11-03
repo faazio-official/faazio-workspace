@@ -34,13 +34,11 @@ type Handler struct {
 	maxDispatchAttempts int
 }
 
-// NewHandler builds the delivery handler. matrix may be nil (straight-line fallback); notifier may
-// be nil (the durable outbox is simply not written in non-Supabase dev environments); orders is the
+// NewHandler builds the delivery handler. A nil matrix means the route matrix is not configured;
+// every Travel call then fails loudly instead of fabricating straight-line estimates. notifier may be
+// nil (the durable outbox is simply not written in non-Supabase dev environments); orders is the
 // checkout ownership checker used by the customer rating path.
 func NewHandler(repo *Repo, c *cache.Cache, audit contracts.AuditWriter, notifier contracts.Notifier, matrix RoadMatrix, orders contracts.OrderOwnership, maxDispatchAttempts int) *Handler {
-	if matrix == nil {
-		matrix = StraightLineMatrix{}
-	}
 	if c == nil {
 		c = &cache.Cache{}
 	}
@@ -134,11 +132,8 @@ func (h *Handler) register(w http.ResponseWriter, r *http.Request) {
 	}
 	phoneRaw := auth.Phone(r.Context())
 	if phoneRaw == "" {
-		if !auth.Dev(r.Context()) {
-			httpx.Fail(w, http.StatusUnauthorized, "phone_required", "a verified phone is required")
-			return
-		}
-		phoneRaw = req.Phone // dev-only: AUTH_DISABLED has no verified token
+		httpx.Fail(w, http.StatusUnauthorized, "phone_required", "a verified phone is required")
+		return
 	}
 	phone, ok := NormalizePhone(phoneRaw)
 	if !ok {
@@ -884,8 +879,11 @@ func (h *Handler) dispatch(ctx context.Context, req dispatchRequest, stateCode s
 	if err != nil {
 		return Order{}, "", false, err
 	}
-	best := PickRiderWithStops(candidates, *req.StoreLatitude, *req.StoreLongitude,
+	best, err := PickRiderWithStops(candidates, *req.StoreLatitude, *req.StoreLongitude,
 		*req.DropLatitude, *req.DropLongitude, h.matrix)
+	if err != nil {
+		return Order{}, "", false, err
+	}
 	if best == nil {
 		return Order{}, "", false, nil
 	}
@@ -893,8 +891,14 @@ func (h *Handler) dispatch(ctx context.Context, req dispatchRequest, stateCode s
 	orderID := "dlv-" + shortID()
 	pickupID := "stop-" + shortID()
 	dropID := "stop-" + shortID()
-	dropSeconds, dropMeters := h.matrix.Travel(*req.StoreLatitude, *req.StoreLongitude, *req.DropLatitude, *req.DropLongitude)
-	approachSeconds, approachMeters := h.matrix.Travel(best.Lat, best.Lng, *req.StoreLatitude, *req.StoreLongitude)
+	dropSeconds, dropMeters, err := h.matrix.Travel(*req.StoreLatitude, *req.StoreLongitude, *req.DropLatitude, *req.DropLongitude)
+	if err != nil {
+		return Order{}, "", false, err
+	}
+	approachSeconds, approachMeters, err := h.matrix.Travel(best.Lat, best.Lng, *req.StoreLatitude, *req.StoreLongitude)
+	if err != nil {
+		return Order{}, "", false, err
+	}
 	totalMeters := dropMeters + approachMeters
 	etaSeconds := dropSeconds + approachSeconds
 	expires := time.Now().Add(45 * time.Second)
@@ -1051,8 +1055,11 @@ func (h *Handler) retryReleasedOrder(ctx context.Context, order Order, stateCode
 	if err != nil {
 		return false, err
 	}
-	next := PickRiderWithStops(candidates, *pickup.Latitude, *pickup.Longitude,
+	next, err := PickRiderWithStops(candidates, *pickup.Latitude, *pickup.Longitude,
 		*drop.Latitude, *drop.Longitude, h.matrix)
+	if err != nil {
+		return false, err
+	}
 	if next == nil {
 		return false, nil
 	}
@@ -1073,12 +1080,18 @@ func (h *Handler) retryReleasedOrder(ctx context.Context, order Order, stateCode
 			}
 		}
 	}
-	approachSeconds, approachMeters := h.matrix.Travel(
+	approachSeconds, approachMeters, err := h.matrix.Travel(
 		next.Lat, next.Lng, *pickup.Latitude, *pickup.Longitude,
 	)
-	dropSeconds, dropMeters := h.matrix.Travel(
+	if err != nil {
+		return false, err
+	}
+	dropSeconds, dropMeters, err := h.matrix.Travel(
 		*pickup.Latitude, *pickup.Longitude, *drop.Latitude, *drop.Longitude,
 	)
+	if err != nil {
+		return false, err
+	}
 	updated, err := h.repo.ReassignOrder(
 		ctx, order.OrderID, next.Rider.RiderID,
 		time.Now().Add(45*time.Second),

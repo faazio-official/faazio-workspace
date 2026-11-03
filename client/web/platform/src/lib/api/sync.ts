@@ -39,22 +39,15 @@ import type {
 
 type Raw = Record<string, unknown>;
 
-/**
- * Production builds must never show phantom demo rows: an empty (but successfully fetched) gateway
- * slice clears the local slice. In development the seeded rows stay as a demo fallback.
- */
-const isProd = process.env.NODE_ENV === "production";
-
-/** True when a gateway list slice should replace local state (non-empty, or prod + fetched). */
+/** True when a gateway list slice should replace local state (including an intentionally empty one). */
 function hasSlice<T>(v: T[] | undefined | null): v is T[] {
-  return Array.isArray(v) && (v.length > 0 || isProd);
+  return Array.isArray(v);
 }
 
 interface RawSeller {
   sellerId: string;
   businessName: string;
   ownerName: string;
-  category: string;
   gstin: string;
   pan: string;
   businessAddress: string;
@@ -65,9 +58,7 @@ interface RawSeller {
   rating: number;
   createdAt: string;
   contactEmail?: string;
-  platformFeePct?: number;
   razorpayLinkedAccountId?: string;
-  fssaiNumber?: string;
   otpVerified?: boolean;
   otpVerifiedAt?: string;
   rejectionReason?: string;
@@ -151,13 +142,9 @@ async function safe<T>(fn: () => Promise<T>): Promise<T | undefined> {
   }
 }
 
-function mergeById<T>(incoming: T[], existing: T[], id: (x: T) => string): T[] {
-  // A missing/empty gateway slice keeps the seeded rows in dev; in prod an empty remote response
-  // clears local state so sellers/admins never see phantom demo rows.
-  if (incoming.length === 0) return isProd ? incoming : existing;
-  if (existing.length === 0) return incoming;
-  const byId = new Map(existing.map((x) => [id(x), x]));
-  return incoming.map((x) => ({ ...(byId.get(id(x)) ?? ({} as T)), ...x }));
+function mergeById<T>(incoming: T[], _existing: T[], _id: (x: T) => string): T[] {
+  // The gateway is the only source: never merge phantom local fixtures into a live response.
+  return incoming;
 }
 
 /** inventory.stock.eta is free text; the portal models it as whole minutes (default 30). */
@@ -262,7 +249,6 @@ export async function hydrateFromGateway(): Promise<boolean> {
     patch["sellers"] = sellers.map(
       (s): SellerRecord => ({
         ...s,
-        category: s.category as Sector,
         status: s.status as SellerStatus,
         contactPhone: s.contactPhone ?? "",
       }),
@@ -489,7 +475,7 @@ export async function hydrateFromGateway(): Promise<boolean> {
           customerName: "Customer",
           city: store?.city ?? "",
           stateCode: store?.stateCode ?? cur.session?.stateCode ?? seller?.stateCode ?? "",
-          sector: store?.sector ?? seller?.category ?? "MART",
+          sector: store?.sector ?? "MART",
           itemsCount,
           amountPaisa: num(raw["totalChargedPaisa"]) || lineTotalPaisa,
           status: mappedStatus,

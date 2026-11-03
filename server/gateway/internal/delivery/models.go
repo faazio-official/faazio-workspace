@@ -310,8 +310,8 @@ type Heartbeat struct {
 	UpdatedAt string  `json:"updatedAt"`
 }
 
-// ApplyRequest is the rider registration payload. Phone is taken from the verified ID token in
-// production; the body value is only honoured in AUTH_DISABLED dev mode.
+// ApplyRequest is the rider registration payload. Phone is always taken from the verified ID token;
+// the body value is never trusted as identity.
 type ApplyRequest struct {
 	FullName         string          `json:"fullName"`
 	StateCode        string          `json:"stateCode"`

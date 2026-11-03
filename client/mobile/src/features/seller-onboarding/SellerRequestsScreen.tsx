@@ -154,7 +154,9 @@ export function SellerRequestsScreen({ navigation }: Props) {
                   {item.businessName}
                 </AppText>
                 <AppText style={styles.rowSubtitle}>
-                  {item.category} · {item.districtCode || item.stateCode} · {item.platformFeePct}% fee
+                  {item.vendors && item.vendors.length > 0
+                    ? `${item.vendors.map((v) => v.app).join(' / ')} · ${item.districtCode || item.stateCode} · ${item.vendors.length} vendor${item.vendors.length > 1 ? 's' : ''}`
+                    : `${item.districtCode || item.stateCode}`}
                 </AppText>
               </View>
               <View style={styles.rowRight}>

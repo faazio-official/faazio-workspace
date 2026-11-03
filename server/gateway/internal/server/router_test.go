@@ -22,11 +22,7 @@ func newTestServer(t *testing.T) (http.Handler, *pgxpool.Pool, *cache.Cache) {
 	t.Helper()
 	pool := testenv.Pool(t)
 	c := testenv.Cache(t)
-	cfg := config.Config{
-		AuthDisabled:   true,
-		DevUserID:      "user-1",
-		AllowedOrigins: []string{"http://localhost:3000"},
-	}
+	cfg := config.Config{AllowedOrigins: []string{"http://localhost:3000"}}
 	return NewRouter(Deps{Config: cfg, Pool: pool, Cache: c}), pool, c
 }
 
@@ -66,7 +62,7 @@ func pickStockedProduct(t *testing.T, pool *pgxpool.Pool, minQty int64) (product
 // TestRouterRegistersWithDeps exercises every route registration (chi panics on conflicts) using a
 // dependency-free router, so a new/duplicated pattern fails fast without a database.
 func TestRouterRegistersWithDeps(t *testing.T) {
-	if NewRouter(Deps{Config: config.Config{AuthDisabled: true}}) == nil {
+	if NewRouter(Deps{Config: config.Config{}}) == nil {
 		t.Fatal("nil router")
 	}
 }
@@ -74,7 +70,7 @@ func TestRouterRegistersWithDeps(t *testing.T) {
 // TestAssetsRedirectWithoutOrigin covers the no-CDN public-media route with media disabled/nil signer:
 // the stable /assets/{key} path must 404 rather than mint an unsigned URL.
 func TestAssetsRedirectWithoutOrigin(t *testing.T) {
-	h := NewRouter(Deps{Config: config.Config{AuthDisabled: true}})
+	h := NewRouter(Deps{Config: config.Config{}})
 	rec := do(t, h, http.MethodGet, "/assets/media/ab/x.jpg", nil)
 	if rec.Code != http.StatusNotFound {
 		t.Fatalf("status = %d, want 404", rec.Code)
@@ -88,7 +84,7 @@ func TestAssetsRedirectPresigns(t *testing.T) {
 		AccountID: "acct123", AccessKeyID: "AKIAEXAMPLE", SecretKey: "secret",
 		PublicBase: "https://gateway.faazio.com",
 	})
-	h := NewRouter(Deps{Config: config.Config{AuthDisabled: true}, Signer: signer})
+	h := NewRouter(Deps{Config: config.Config{}, Signer: signer})
 	rec := do(t, h, http.MethodGet, "/assets/media/ab/x.jpg", nil)
 	if rec.Code != http.StatusFound {
 		t.Fatalf("status = %d, want 302", rec.Code)
@@ -105,7 +101,7 @@ func TestAssetsRedirectPresigns(t *testing.T) {
 // TestCORSWildcardReflectsOrigin covers the temporary `ALLOWED_ORIGINS=*` posture: any Origin is
 // reflected (not "*") so bearer/credentialed calls behave and Vary stays correct.
 func TestCORSWildcardReflectsOrigin(t *testing.T) {
-	h := NewRouter(Deps{Config: config.Config{AuthDisabled: true, AllowedOrigins: []string{"*"}}})
+	h := NewRouter(Deps{Config: config.Config{AllowedOrigins: []string{"*"}}})
 	req := httptest.NewRequest(http.MethodGet, "/health", nil)
 	req.Header.Set("Origin", "https://anything.example")
 	rec := httptest.NewRecorder()
@@ -115,48 +111,6 @@ func TestCORSWildcardReflectsOrigin(t *testing.T) {
 	}
 	if got := rec.Header().Get("Vary"); got != "Origin" {
 		t.Fatalf("Vary = %q", got)
-	}
-}
-
-// TestCORSWildcardIgnoredInProd covers the enterprise posture: `ALLOWED_ORIGINS=*` no longer
-// reflects an arbitrary origin when auth is enabled (AUTH_DISABLED=false).
-func TestCORSWildcardIgnoredInProd(t *testing.T) {
-	h := NewRouter(Deps{Config: config.Config{AuthDisabled: false, AllowedOrigins: []string{"*"}}})
-	req := httptest.NewRequest(http.MethodGet, "/health", nil)
-	req.Header.Set("Origin", "https://evil.example")
-	rec := httptest.NewRecorder()
-	h.ServeHTTP(rec, req)
-	if got := rec.Header().Get("Access-Control-Allow-Origin"); got != "" {
-		t.Fatalf("Allow-Origin = %q, want empty in prod", got)
-	}
-}
-
-// TestCORSDevHeadersAdvertisedInDev guards that every X-Dev-* header the middleware reads is also
-// allowed through a dev preflight (a missing one silently blocks browser dev calls before the
-// gateway can read the role/district override).
-func TestCORSDevHeadersAdvertisedInDev(t *testing.T) {
-	h := NewRouter(Deps{Config: config.Config{AuthDisabled: true, AllowedOrigins: []string{"http://localhost:3000"}}})
-	req := httptest.NewRequest(http.MethodOptions, "/health", nil)
-	req.Header.Set("Origin", "http://localhost:3000")
-	rec := httptest.NewRecorder()
-	h.ServeHTTP(rec, req)
-	got := rec.Header().Get("Access-Control-Allow-Headers")
-	for _, header := range []string{"X-Dev-User", "X-Dev-Role", "X-Dev-Seller", "X-Dev-State", "X-Dev-District"} {
-		if !strings.Contains(got, header) {
-			t.Fatalf("Allow-Headers = %q, want %s", got, header)
-		}
-	}
-}
-
-// TestCORSDevHeadersNotAdvertisedInProd guards that a prod preflight never invites the X-Dev-* headers.
-func TestCORSDevHeadersNotAdvertisedInProd(t *testing.T) {
-	h := NewRouter(Deps{Config: config.Config{AuthDisabled: false, AllowedOrigins: []string{"https://portal.example"}}})
-	req := httptest.NewRequest(http.MethodOptions, "/health", nil)
-	req.Header.Set("Origin", "https://portal.example")
-	rec := httptest.NewRecorder()
-	h.ServeHTTP(rec, req)
-	if got := rec.Header().Get("Access-Control-Allow-Headers"); strings.Contains(got, "X-Dev-") {
-		t.Fatalf("Allow-Headers = %q, want no dev headers", got)
 	}
 }
 
@@ -189,7 +143,7 @@ func TestHealthReportsDependencies(t *testing.T) {
 // TestCORSRejectsUnlistedOrigin guards the allow-list path: an origin not configured gets no CORS
 // headers (the pre-change behavior must keep working).
 func TestCORSRejectsUnlistedOrigin(t *testing.T) {
-	h := NewRouter(Deps{Config: config.Config{AuthDisabled: true, AllowedOrigins: []string{"https://portal.example"}}})
+	h := NewRouter(Deps{Config: config.Config{AllowedOrigins: []string{"https://portal.example"}}})
 	req := httptest.NewRequest(http.MethodGet, "/health", nil)
 	req.Header.Set("Origin", "https://evil.example")
 	rec := httptest.NewRecorder()

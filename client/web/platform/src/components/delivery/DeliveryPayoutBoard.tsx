@@ -27,7 +27,8 @@ import {
 } from "@/components/ui/table";
 import { formatDateTime, formatINR, parseRupeesToPaisa } from "@/lib/format";
 import { remoteConfigured } from "@/lib/config";
-import { DISTRICTS, districtName } from "@/data/districts";
+import { districtName } from "@/lib/api/reference";
+import { useDistricts } from "@/lib/api/hooks";
 import { useSession } from "@/lib/hooks/useSession";
 import {
   listAdminDeliveryPayouts,
@@ -42,6 +43,7 @@ type Scope = "SUPER" | "DISTRICT";
 
 export function DeliveryPayoutBoard({ scope }: { scope: Scope }) {
   const session = useSession();
+  const districts = useDistricts();
   const [payouts, setPayouts] = useState<AdminDeliveryPayout[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -175,7 +177,7 @@ export function DeliveryPayoutBoard({ scope }: { scope: Scope }) {
               onChange={(e) => setDistrict(e.target.value)}
             >
               <option value="">All districts</option>
-              {DISTRICTS.map((d) => (
+              {districts.map((d) => (
                 <option key={d.districtCode} value={d.districtCode}>
                   {d.name} ({d.districtCode})
                 </option>
@@ -301,7 +303,7 @@ export function DeliveryPayoutBoard({ scope }: { scope: Scope }) {
                   </TableCell>
                   <TableCell className="text-[12px]">
                     {payout.districtCode
-                      ? `${payout.districtCode} · ${districtName(payout.districtCode)}`
+                      ? `${payout.districtCode} · ${districtName(districts, payout.districtCode)}`
                       : "—"}
                   </TableCell>
                   <TableCell className="num text-right text-[12px]">
@@ -346,7 +348,7 @@ export function DeliveryPayoutBoard({ scope }: { scope: Scope }) {
                 <DialogTitle>Settle payout</DialogTitle>
                 <DialogDescription>
                   {selected.orderId} · {selected.riderName} ·{" "}
-                  {selected.districtCode ? districtName(selected.districtCode) : "No district"}
+                  {selected.districtCode ? districtName(districts, selected.districtCode) : "No district"}
                 </DialogDescription>
               </DialogHeader>
 

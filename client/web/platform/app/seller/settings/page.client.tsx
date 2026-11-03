@@ -9,13 +9,12 @@ import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ThemeSegmentedControl } from "@/components/layout/ThemeToggle";
 import { getBankAccount } from "@/lib/api";
-import { useSeller } from "@/lib/api/hooks";
+import { useSeller, useSellerScope } from "@/lib/api/hooks";
 import { useSession } from "@/lib/hooks/useSession";
 import { ComponentHelp } from "@/components/patterns/ComponentHelp";
 
 function SellerSettings() {
-  const session = useSession();
-  const sellerId = session?.sellerId ?? "sel-1";
+  const { sellerId, activeStore, stores } = useSellerScope();
   const seller = useSeller(sellerId);
   const bank = getBankAccount(sellerId);
 

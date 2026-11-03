@@ -17,20 +17,18 @@ import {
 import { formatINR, formatNumber, formatPercent } from "@/lib/format";
 import { periodDelta, sumGmv, sumOrders } from "@/lib/analytics/derive";
 import { productMetrics, sellerMetrics } from "@/lib/api";
-import { useMockLoading, useOrders, useProducts } from "@/lib/api/hooks";
-import { useSession } from "@/lib/hooks/useSession";
+import { useMockLoading, useOrders, useProducts, useSellerScope } from "@/lib/api/hooks";
 import { ComponentHelp } from "@/components/patterns/ComponentHelp";
 
 const PERIODS = [7, 30, 90];
 
 function SellerAnalytics() {
-  const session = useSession();
-  const sellerId = session?.sellerId ?? "sel-1";
+  const { sellerId, storeId } = useSellerScope();
   const loading = useMockLoading();
   const [days, setDays] = useState(30);
   const series = sellerMetrics(sellerId, days);
-  const products = useProducts({ sellerId });
-  const orders = useOrders({ sellerId });
+  const products = useProducts({ sellerId, storeId });
+  const orders = useOrders({ sellerId, storeId });
 
   const views = series.reduce((t, p) => t + p.views, 0);
   const carts = series.reduce((t, p) => t + p.carts, 0);

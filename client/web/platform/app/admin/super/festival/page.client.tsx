@@ -41,8 +41,8 @@ import {
   useOptins,
   useProducts,
   useSectorCaps,
+  useStates,
 } from "@/lib/api/hooks";
-import { STATES } from "@/data/states";
 import type { CampaignStatus, Sector } from "@/data/types";
 
 
@@ -55,9 +55,10 @@ function SuperFestival() {
   const campaigns = useCampaigns();
   const optins = useOptins();
   const products = useProducts();
+  const states = useStates();
 
   const [capDrafts, setCapDrafts] = useState<Record<string, string>>({});
-  const [overrideState, setOverrideState] = useState(STATES[0]?.stateCode ?? "MH");
+  const [overrideState, setOverrideState] = useState(states[0]?.stateCode ?? "");
   const [name, setName] = useState("");
   const [startsAt, setStartsAt] = useState("");
   const [endsAt, setEndsAt] = useState("");
@@ -151,7 +152,7 @@ function SuperFestival() {
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                {STATES.map((s) => (
+                {states.map((s) => (
                   <SelectItem key={s.stateCode} value={s.stateCode}>
                     {s.stateCode} · {s.name}
                   </SelectItem>

@@ -49,11 +49,12 @@ func NewChecker(c CacheStore, api API, usage UsageStore, limit int64) *Checker {
 	return &Checker{cache: c, api: api, usage: usage, limit: limit, now: time.Now}
 }
 
-// IsRaining reports whether a zone is raining now. It never blocks checkout: a disabled provider,
-// exhausted budget or provider error degrades to false.
+// IsRaining reports whether a zone is raining now. Manual overrides and a cached recent provider
+// verdict are honoured. A disabled provider or a provider error is an explicit error — the checker
+// never fabricates a "not raining" verdict for a cell it could not actually resolve.
 func (c *Checker) IsRaining(ctx context.Context, cellID string) (bool, error) {
 	if c == nil || cellID == "" {
-		return false, nil
+		return false, fmt.Errorf("weather: no cell id")
 	}
 	var override bool
 	if c.cache.GetJSON(ctx, cache.WeatherOverride(cellID), &override) {
@@ -64,7 +65,7 @@ func (c *Checker) IsRaining(ctx context.Context, cellID string) (bool, error) {
 		return cached, nil
 	}
 	if c.api == nil || !c.api.Enabled() {
-		return false, nil
+		return false, fmt.Errorf("weather: rain provider is not configured")
 	}
 
 	now := c.now()
@@ -79,8 +80,8 @@ func (c *Checker) IsRaining(ctx context.Context, cellID string) (bool, error) {
 	// outage must not turn every checkout for a cell into another request.
 	c.recordCall(ctx, now, fy)
 	if err != nil {
-		// Cache a dry fallback for this window so a broken provider cannot be hammered per order.
-		c.cache.SetJSON(ctx, cache.WeatherZone(cellID), false, cache.TTLWeatherZone)
+		// No verdict is better than a fabricated one: a broken provider is surfaced, not silently
+		// converted into "dry". (The cache above still serves the last real verdict for the window.)
 		return false, err
 	}
 

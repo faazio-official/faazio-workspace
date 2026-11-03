@@ -2,11 +2,17 @@
 -- Do not edit by hand; re-run the generator after any @data fixture change.
 begin;
 
-insert into sellers.sellers (seller_id, business_name, owner_name, contact_email, state_code, district_code, platform_fee_pct, status) values
-  ('sel-tiruchi-01', 'Faazio Mart Tiruchirappalli', 'Faazio Retail Pvt Ltd', 'retail.tiruchirappalli@faazio.example', 'TN', 'TTC', 10, 'ACTIVE'::seller_status),
-  ('sel-trichy-foods', 'Trichy Hospitality Group', 'R. Sundaram', 'hospitality.trichy@faazio.example', 'TN', 'TTC', 10, 'ACTIVE'::seller_status),
-  ('sel-trichy-health', 'Trichy Health Retail', 'K. Meenakshi', 'health.trichy@faazio.example', 'TN', 'TTC', 10, 'ACTIVE'::seller_status),
-  ('sel-trichy-retail', 'Trichy Neighbourhood Retail', 'S. Arun', 'neighbourhood.trichy@faazio.example', 'TN', 'TTC', 10, 'ACTIVE'::seller_status) on conflict (seller_id) do nothing;
+insert into sellers.sellers (seller_id, business_name, owner_name, contact_email, state_code, district_code, status) values
+  ('sel-tiruchi-01', 'Faazio Mart Tiruchirappalli', 'Faazio Retail Pvt Ltd', 'retail.tiruchirappalli@faazio.example', 'TN', 'TTC', 'ACTIVE'::seller_status),
+  ('sel-trichy-foods', 'Trichy Hospitality Group', 'R. Sundaram', 'hospitality.trichy@faazio.example', 'TN', 'TTC', 'ACTIVE'::seller_status),
+  ('sel-trichy-health', 'Trichy Health Retail', 'K. Meenakshi', 'health.trichy@faazio.example', 'TN', 'TTC', 'ACTIVE'::seller_status),
+  ('sel-trichy-retail', 'Trichy Neighbourhood Retail', 'S. Arun', 'neighbourhood.trichy@faazio.example', 'TN', 'TTC', 'ACTIVE'::seller_status) on conflict (seller_id) do update set
+     business_name = excluded.business_name,
+     owner_name = excluded.owner_name,
+     contact_email = excluded.contact_email,
+     state_code = excluded.state_code,
+     district_code = excluded.district_code,
+     status = excluded.status;
 
 insert into directory.stores (id, app, name, categories, rating, reviews_count, delivery_time, distance, cover_image, cover_image_key, cover_image_asset_id, emoji, desc_text, offer_tag, is_veg, address, phone, hours, latitude, longitude, seller_id, state_code, platform_fee_pct, fssai_number, fssai_cert_key, fssai_cert_asset_id) values
   ('store-m1', 'MART'::app_brand, 'Darling Mobiles', ARRAY['Mobile & Electronics', 'Home Appliances']::text[], 4.9, 1240, '25 min', '1.8 km', 'https://images.unsplash.com/photo-1550009158-9ebf69173e03?fm=jpg&fit=crop&q=80&w=600&h=300', null, null, '📱', 'Authorized dealer for Apple, Samsung, Sony & Premium Gadgets', 'FLAT ₹2000 OFF on Card Payments', null, 'Shop 12, Greenwood Mall, MG Road, Greenwood City - 609602', '+91 91001 11101', '10 AM – 9 PM', 17.429824, 78.366828, 'sel-tiruchi-01', 'TN', 12, '', '', ''),
@@ -40,7 +46,13 @@ insert into directory.stores (id, app, name, categories, rating, reviews_count, 
   ('store-p3', 'PHARMA'::app_brand, 'CareFirst Meds', ARRAY['Diabetes', 'Cardiac', 'Ayurveda', 'Supplements']::text[], 4.8, 980, '22 min', '2.3 km', 'https://images.unsplash.com/photo-1576602976047-174e57a47881?fm=jpg&fit=crop&q=80&w=600&h=300', null, null, '💊', 'Specialist store for chronic-care, diabetes and cardiac medicines', 'FLAT ₹50 OFF on ₹299+', null, '23, Lakeview Road, Greenwood City - 609604', '+91 94004 44403', '9 AM – 10 PM', 17.421757, 78.369833, 'sel-trichy-health', 'TN', 8, '', '', ''),
   ('store-p4', 'PHARMA'::app_brand, 'Wellness Plus Pharmacy', ARRAY['Skin Care', 'Hair Care', 'Vitamins', 'Devices']::text[], 4.6, 760, '20 min', '2.8 km', 'https://images.unsplash.com/photo-1584308666744-24d5c474f2ae?fm=jpg&fit=crop&q=80&w=600&h=300', null, null, '🧴', 'Wellness-focused pharmacy with skincare, vitamins and health devices', 'BUY 2 GET 5% OFF', null, '8, Garden Street, Greenwood City - 609605', '+91 94004 44404', '8 AM – 10 PM', 17.463482, 78.389448, 'sel-trichy-health', 'TN', 7, '', '', ''),
   ('store-p5', 'PHARMA'::app_brand, 'City Medico', ARRAY['Cough & Cold', 'Fever', 'Digestive', 'First Aid']::text[], 4.5, 540, '28 min', '3.4 km', 'https://images.unsplash.com/photo-1471864190281-a93a3070b6de?fm=jpg&fit=crop&q=80&w=600&h=300', null, null, '💊', 'Reliable pharmacy for everyday cold, fever and first-aid supplies', 'FREE DELIVERY today', null, '45, Central Avenue, Greenwood City - 609606', '+91 94004 44405', '8 AM – 12 AM', 17.411681, 78.368007, 'sel-trichy-retail', 'TN', 6, '', '', ''),
-  ('store-p6', 'PHARMA'::app_brand, 'MediTrust Pharmacy', ARRAY['Ortho', 'Devices', 'Supplements', 'Baby Care']::text[], 4.9, 1120, '24 min', '3.9 km', 'https://images.unsplash.com/photo-1587854692152-cbe660dbde88?fm=jpg&fit=crop&q=80&w=600&h=300', null, null, '💊', 'Full-service pharmacy with ortho support and premium health devices', 'FLAT ₹150 OFF on ₹899+', null, '101, Civic Plaza, Greenwood City - 609607', '+91 94004 44406', '9 AM – 10 PM', 17.472249, 78.394349, 'sel-trichy-retail', 'TN', 9, '', '', '');
+  ('store-p6', 'PHARMA'::app_brand, 'MediTrust Pharmacy', ARRAY['Ortho', 'Devices', 'Supplements', 'Baby Care']::text[], 4.9, 1120, '24 min', '3.9 km', 'https://images.unsplash.com/photo-1587854692152-cbe660dbde88?fm=jpg&fit=crop&q=80&w=600&h=300', null, null, '💊', 'Full-service pharmacy with ortho support and premium health devices', 'FLAT ₹150 OFF on ₹899+', null, '101, Civic Plaza, Greenwood City - 609607', '+91 94004 44406', '9 AM – 10 PM', 17.472249, 78.394349, 'sel-trichy-retail', 'TN', 9, '', '', '') on conflict (id) do update set
+     app = excluded.app,
+     name = excluded.name,
+     seller_id = excluded.seller_id,
+     state_code = excluded.state_code,
+     platform_fee_pct = excluded.platform_fee_pct,
+     fssai_number = excluded.fssai_number;
 
 insert into directory.dining_venues (id, name, app, rating, cover_image, address, phone, hours, categories, latitude, longitude) values
   ('tr-1', 'Skyline Bistro', 'FOOD'::app_brand, null, '', null, null, null, ARRAY[]::text[], 17.422, 78.442),
@@ -60,7 +72,7 @@ insert into directory.dining_venues (id, name, app, rating, cover_image, address
   ('dn-9', 'Lotus & Lantern', 'FOOD'::app_brand, null, '', null, null, null, ARRAY[]::text[], 17.4879, 78.3993),
   ('dn-10', 'The Irish Anchor', 'FOOD'::app_brand, null, '', null, null, null, ARRAY[]::text[], 17.4297, 78.4094),
   ('dn-11', 'Dakshin Swad', 'FOOD'::app_brand, null, '', null, null, null, ARRAY[]::text[], 17.4803, 78.3923),
-  ('dn-12', 'Biryani Basera', 'FOOD'::app_brand, null, '', null, null, null, ARRAY[]::text[], 17.4419, 78.3806);
+  ('dn-12', 'Biryani Basera', 'FOOD'::app_brand, null, '', null, null, null, ARRAY[]::text[], 17.4419, 78.3806) on conflict (id) do nothing;
 
 insert into directory.menus (venue_id, dish_id, name, price_paisa, mrp_paisa, is_veg, cuisine, rating, image, image_key, image_asset_id, description, emoji, delivery_time, status) values
   ('tr-1', 'rm-sky-1', 'Grilled Chicken Steak', 52000, null, false, 'Continental', 4.8, 'https://images.unsplash.com/photo-1544025162-d76694265947?fm=jpg&fit=crop&q=80&w=400&h=300', null, null, 'Chargrilled chicken breast with red wine jus, garlic mash and seasonal greens.', '', '25 min', 'ACTIVE'::product_status),
@@ -150,7 +162,7 @@ insert into directory.menus (venue_id, dish_id, name, price_paisa, mrp_paisa, is
   ('store-f5', 'm-f5-cheesecake', 'New York Cheesecake Slice', 32000, null, true, 'Desserts', 4.9, 'https://images.unsplash.com/photo-1533134242443-d4fd215305ad?fm=jpg&fit=crop&q=80&w=400&h=400', null, null, 'Creamy baked cheesecake on a buttery biscuit base with berry compote.', '', '', 'ACTIVE'::product_status),
   ('store-f6', 'm-f6-kebab', 'Chicken Malai Kebab', 34000, null, false, 'Tandoor', 4.8, 'https://images.unsplash.com/photo-1544025162-d76694265947?fm=jpg&fit=crop&q=80&w=400&h=400', null, null, 'Creamy, melt-in-the-mouth chicken kebabs chargrilled in the tandoor.', '', '', 'ACTIVE'::product_status),
   ('store-f6', 'm-f6-dal', 'Dal Makhani', 28000, null, true, 'North Indian', 4.9, 'https://images.unsplash.com/photo-1546833999-b9f581a1996d?fm=jpg&fit=crop&q=80&w=400&h=400', null, null, 'Black lentils simmered overnight with butter, cream and aromatic spices.', '', '', 'ACTIVE'::product_status),
-  ('store-f6', 'm-f6-roti', 'Garlic Cheese Naan', 12000, null, true, 'North Indian', 4.7, 'https://images.unsplash.com/photo-1584637828277-43228b442c02?fm=jpg&fit=crop&q=80&w=400&h=400', null, null, 'Tandoor-fresh naan stuffed with molten cheese and roasted garlic.', '', '', 'ACTIVE'::product_status);
+  ('store-f6', 'm-f6-roti', 'Garlic Cheese Naan', 12000, null, true, 'North Indian', 4.7, 'https://images.unsplash.com/photo-1584637828277-43228b442c02?fm=jpg&fit=crop&q=80&w=400&h=400', null, null, 'Tandoor-fresh naan stuffed with molten cheese and roasted garlic.', '', '', 'ACTIVE'::product_status) on conflict do nothing;
 
 insert into inventory.pickup_points (id, store_id, name, address, phone, hours, is_active) values
   ('store-m1', 'store-m1', 'Darling Mobiles', 'Shop 12, Greenwood Mall, MG Road, Greenwood City - 609602', '+91 91001 11101', '10 AM – 9 PM', true),
@@ -185,7 +197,7 @@ insert into inventory.pickup_points (id, store_id, name, address, phone, hours, 
   ('store-p4', 'store-p4', 'Wellness Plus Pharmacy', '8, Garden Street, Greenwood City - 609605', '+91 94004 44404', '8 AM – 10 PM', true),
   ('store-p5', 'store-p5', 'City Medico', '45, Central Avenue, Greenwood City - 609606', '+91 94004 44405', '8 AM – 12 AM', true),
   ('store-p6', 'store-p6', 'MediTrust Pharmacy', '101, Civic Plaza, Greenwood City - 609607', '+91 94004 44406', '9 AM – 10 PM', true),
-  ('pickup-neutral', null, 'Greenwood Pickup Hub', 'Central Collection Desk, Greenwood City Centre, Ring Road - 609602', '+91 95005 55500', '9 AM – 10 PM', true);
+  ('pickup-neutral', null, 'Greenwood Pickup Hub', 'Central Collection Desk, Greenwood City Centre, Ring Road - 609602', '+91 95005 55500', '9 AM – 10 PM', true) on conflict do nothing;
 
 insert into catalog.products (id, app, category, name, search_tokens, price_paisa, mrp_paisa, rating, reviews_count, emoji, image_url, image_key, image_asset_id, desc_text, badge, shop, unit, attributes, store_id, is_prescription, is_veg, status) values
   ('fm-f1', 'MART'::app_brand, 'Fashion', 'Premium Cotton Hoodie', ARRAY['premium', 'cotton', 'hoodie', 'ultra', 'soft', 'heavyweight', 'fleece', 'with', 'custom', 'faazio', 'tailoring', 'and', 'dynamic', 'dropped', 'shoulder', 'design', 'fashion']::text[], 149900, 199900, 4.8, 0, '🧥', 'https://images.unsplash.com/photo-1556821840-3a63f95609a7?fm=jpg&fit=crop&q=80&w=400&h=400', null, null, 'Ultra-soft heavyweight cotton fleece with custom premium Faazio tailoring and dynamic dropped shoulder design.', 'Best Seller', null, null, null, 'store-m3', false, null, 'ACTIVE'::product_status),
@@ -287,7 +299,7 @@ insert into catalog.products (id, app, category, name, search_tokens, price_pais
   ('fm-hk6', 'MART'::app_brand, 'Furniture', '3-Seater Fabric Sofa', ARRAY['3', 'seater', 'fabric', 'sofa', 'comfortable', 'with', 'high', 'density', 'foam', 'cushions', 'and', 'a', 'solid', 'wood', 'frame', 'furniture']::text[], 2499900, 3299900, 4.8, 0, '🛋️', 'https://images.unsplash.com/photo-1555041469-a586c61ea9bc?fm=jpg&fit=crop&q=80&w=400&h=400', null, null, 'Comfortable 3-seater fabric sofa with high-density foam cushions and a solid wood frame.', 'Living Room', null, null, null, 'store-m8', false, null, 'ACTIVE'::product_status),
   ('fm-hk7', 'MART'::app_brand, 'Furniture', 'Wooden Coffee Table', ARRAY['wooden', 'coffee', 'table', 'rustic', 'with', 'a', 'lower', 'storage', 'shelf', 'and', 'scratch', 'resistant', 'finish', 'furniture']::text[], 699900, 949900, 4.7, 0, '🪵', 'https://images.unsplash.com/photo-1533090481720-856c6e3c1fdc?fm=jpg&fit=crop&q=80&w=400&h=400', null, null, 'Rustic wooden coffee table with a lower storage shelf and a scratch-resistant finish.', 'Living Room', null, null, null, 'store-m8', false, null, 'ACTIVE'::product_status),
   ('fm-hk8', 'MART'::app_brand, 'Furniture', 'Modern Floor Lamp', ARRAY['modern', 'floor', 'lamp', 'minimalist', 'tripod', 'with', 'a', 'warm', 'linen', 'shade', 'and', 'an', 'energy', 'efficient', 'led', 'bulb', 'furniture']::text[], 399900, 549900, 4.6, 0, '🛋️', 'https://images.unsplash.com/photo-1507473885765-e6ed057f782c?fm=jpg&fit=crop&q=80&w=400&h=400', null, null, 'Minimalist tripod floor lamp with a warm linen shade and an energy-efficient LED bulb.', 'Home Decor', null, null, null, 'store-m8', false, null, 'ACTIVE'::product_status),
-  ('fm-hk9', 'MART'::app_brand, 'Furniture', '5-Tier Storage Rack', ARRAY['5', 'tier', 'storage', 'rack', 'heavy', 'duty', 'with', 'rust', 'proof', 'shelves', 'for', 'kitchen', 'garage', 'or', 'pantry', 'furniture']::text[], 499900, 699900, 4.7, 0, '🗄️', 'https://images.unsplash.com/photo-1594620302200-9a762244a156?fm=jpg&fit=crop&q=80&w=400&h=400', null, null, 'Heavy-duty 5-tier storage rack with rust-proof shelves for kitchen, garage or pantry.', 'Space Saver', null, null, null, 'store-m8', false, null, 'ACTIVE'::product_status);
+  ('fm-hk9', 'MART'::app_brand, 'Furniture', '5-Tier Storage Rack', ARRAY['5', 'tier', 'storage', 'rack', 'heavy', 'duty', 'with', 'rust', 'proof', 'shelves', 'for', 'kitchen', 'garage', 'or', 'pantry', 'furniture']::text[], 499900, 699900, 4.7, 0, '🗄️', 'https://images.unsplash.com/photo-1594620302200-9a762244a156?fm=jpg&fit=crop&q=80&w=400&h=400', null, null, 'Heavy-duty 5-tier storage rack with rust-proof shelves for kitchen, garage or pantry.', 'Space Saver', null, null, null, 'store-m8', false, null, 'ACTIVE'::product_status) on conflict do nothing;
 
 insert into catalog.products (id, app, category, name, search_tokens, price_paisa, mrp_paisa, rating, reviews_count, emoji, image_url, image_key, image_asset_id, desc_text, badge, shop, unit, attributes, store_id, is_prescription, is_veg, status) values
   ('gr-f1', 'MART'::app_brand, 'Fresh Produce', 'Alphonso Mango (Box of 6)', ARRAY['alphonso', 'mango', 'box', 'of', '6', 'sweet', 'juicy', 'mangoes', 'hand', 'picked', 'from', 'ratnagiri', 'orchards', 'at', 'peak', 'ripeness', 'fresh', 'produce']::text[], 49900, 65000, 4.9, 0, '🥭', 'https://images.unsplash.com/photo-1560806887-1e4cd0b6cbd6?fm=jpg&fit=crop&q=80&w=400&h=400', null, null, 'Sweet, juicy Alphonso mangoes hand-picked from Ratnagiri orchards at peak ripeness.', 'Seasonal', null, '6 pcs', null, 'store-m13', false, null, 'ACTIVE'::product_status),
@@ -389,7 +401,7 @@ insert into catalog.products (id, app, category, name, search_tokens, price_pais
   ('ph-dev1', 'PHARMA'::app_brand, 'hypertension', 'Digital BP Monitor', ARRAY['digital', 'bp', 'monitor', 'clinically', 'accurate', 'upper', 'arm', 'blood', 'pressure', 'with', 'large', 'backlit', 'display', 'hypertension']::text[], 129900, 169900, 4.8, 0, '🩺', 'https://img.icons8.com/3d-fluency/94/tensiometer.png', null, null, 'Clinically accurate upper-arm blood pressure monitor with large backlit display.', '24% OFF', null, null, '{"form":"Other","prescription":"Prescription","brand":"Faazio Health"}'::jsonb, 'store-p3', true, null, 'ACTIVE'::product_status),
   ('ph-dev2', 'PHARMA'::app_brand, 'hypertension', 'Wrist BP Monitor', ARRAY['wrist', 'bp', 'monitor', 'compact', 'worn', 'blood', 'pressure', 'perfect', 'for', 'travel', 'and', 'daily', 'tracking', 'hypertension']::text[], 89900, 119900, 4.6, 0, '⌚', 'https://img.icons8.com/3d-fluency/94/tensiometer.png', null, null, 'Compact wrist-worn blood pressure monitor perfect for travel and daily tracking.', '25% OFF', null, null, '{"form":"Other","prescription":"Prescription","brand":"Faazio Health"}'::jsonb, 'store-p3', true, null, 'ACTIVE'::product_status),
   ('ph-dev3', 'PHARMA'::app_brand, 'supplements', 'Glucometer & Test Strips (50)', ARRAY['glucometer', 'test', 'strips', '50', 'fast', '5', 'second', 'glucose', 'reading', 'with', 'and', 'lancing', 'device', 'supplements']::text[], 74900, 99900, 4.7, 0, '💉', 'https://img.icons8.com/3d-fluency/94/glucometer.png', null, null, 'Fast 5-second glucose reading with 50 test strips and lancing device.', '25% OFF', null, null, '{"form":"Other","prescription":"OTC","brand":"Faazio Health"}'::jsonb, 'store-p6', false, null, 'ACTIVE'::product_status),
-  ('ph-dev4', 'PHARMA'::app_brand, 'supplements', 'Glucose Test Strips (25)', ARRAY['glucose', 'test', 'strips', '25', 'refill', 'pack', 'of', 'compatible', 'with', 'faazio', 'glucometer', 'supplements']::text[], 34900, 45000, 4.8, 0, '🧪', 'https://img.icons8.com/3d-fluency/94/glucometer.png', null, null, 'Refill pack of 25 glucose test strips compatible with Faazio glucometer.', '22% OFF', null, null, '{"form":"Other","prescription":"OTC","brand":"Faazio Health"}'::jsonb, 'store-p6', false, null, 'ACTIVE'::product_status);
+  ('ph-dev4', 'PHARMA'::app_brand, 'supplements', 'Glucose Test Strips (25)', ARRAY['glucose', 'test', 'strips', '25', 'refill', 'pack', 'of', 'compatible', 'with', 'faazio', 'glucometer', 'supplements']::text[], 34900, 45000, 4.8, 0, '🧪', 'https://img.icons8.com/3d-fluency/94/glucometer.png', null, null, 'Refill pack of 25 glucose test strips compatible with Faazio glucometer.', '22% OFF', null, null, '{"form":"Other","prescription":"OTC","brand":"Faazio Health"}'::jsonb, 'store-p6', false, null, 'ACTIVE'::product_status) on conflict do nothing;
 
 insert into catalog.products (id, app, category, name, search_tokens, price_paisa, mrp_paisa, rating, reviews_count, emoji, image_url, image_key, image_asset_id, desc_text, badge, shop, unit, attributes, store_id, is_prescription, is_veg, status) values
   ('ph-dev5', 'PHARMA'::app_brand, 'asthma', 'Fingertip Pulse Oximeter', ARRAY['fingertip', 'pulse', 'oximeter', 'accurate', 'spo2', 'and', 'rate', 'in', '8', 'seconds', 'with', 'bright', 'oled', 'display', 'asthma']::text[], 89900, 119900, 4.8, 0, '🫁', 'https://img.icons8.com/3d-fluency/94/oximeter.png', null, null, 'Accurate SpO2 and pulse rate in 8 seconds with bright OLED display.', '25% OFF', null, null, '{"form":"Other","prescription":"Prescription","brand":"Faazio Health"}'::jsonb, 'store-p1', true, null, 'ACTIVE'::product_status),
@@ -491,7 +503,7 @@ insert into catalog.products (id, app, category, name, search_tokens, price_pais
   ('toy-2', 'FOOD'::app_brand, '🔥 Trending Street Food', 'Crispy Korean Fried Chicken', ARRAY['crispy', 'korean', 'fried', 'chicken', 'featured', 'pick', 'from', 'seoul', 'kitchen', 'trending', 'street', 'food']::text[], 25000, null, 4.9, 0, '🍗', 'https://images.unsplash.com/photo-1598515214211-89d3c73ae83b?fm=jpg&fit=crop&q=80&w=400&h=400', null, null, 'Featured pick from Seoul Kitchen', null, 'Seoul Kitchen', null, null, null, false, null, 'ACTIVE'::product_status),
   ('toy-3', 'FOOD'::app_brand, '🔥 Trending Street Food', 'Peri Peri French Fries', ARRAY['peri', 'french', 'fries', 'featured', 'pick', 'from', 'fry', 'house', 'trending', 'street', 'food']::text[], 12000, null, 4.7, 0, '🍟', 'https://images.unsplash.com/photo-1573080496219-bb080dd4f877?fm=jpg&fit=crop&q=80&w=400&h=400', null, null, 'Featured pick from Fry House', null, 'Fry House', null, null, null, false, null, 'ACTIVE'::product_status),
   ('hk-1', 'MART'::app_brand, '👟 Hype Kicks & Drops', 'Air Retro High Mint Kicks', ARRAY['air', 'retro', 'high', 'mint', 'kicks', 'featured', 'pick', 'from', 'sneaker', 'spot', 'hype', 'drops']::text[], 1499900, null, 4.9, 0, '👟', 'https://images.unsplash.com/photo-1542291026-7eec264c27ff?fm=jpg&fit=crop&q=80&w=400&h=400', null, null, 'Featured pick from Sneaker Spot', null, 'Sneaker Spot', null, null, null, false, null, 'ACTIVE'::product_status),
-  ('hk-2', 'MART'::app_brand, '👟 Hype Kicks & Drops', 'Futuristic Neo-Glow Runners', ARRAY['futuristic', 'neo', 'glow', 'runners', 'featured', 'pick', 'from', 'runlab', 'hype', 'kicks', 'drops']::text[], 849900, null, 4.8, 0, '👟', 'https://images.unsplash.com/photo-1539185441755-769473a23570?fm=jpg&fit=crop&q=80&w=400&h=400', null, null, 'Featured pick from RunLab', null, 'RunLab', null, null, null, false, null, 'ACTIVE'::product_status);
+  ('hk-2', 'MART'::app_brand, '👟 Hype Kicks & Drops', 'Futuristic Neo-Glow Runners', ARRAY['futuristic', 'neo', 'glow', 'runners', 'featured', 'pick', 'from', 'runlab', 'hype', 'kicks', 'drops']::text[], 849900, null, 4.8, 0, '👟', 'https://images.unsplash.com/photo-1539185441755-769473a23570?fm=jpg&fit=crop&q=80&w=400&h=400', null, null, 'Featured pick from RunLab', null, 'RunLab', null, null, null, false, null, 'ACTIVE'::product_status) on conflict do nothing;
 
 insert into catalog.products (id, app, category, name, search_tokens, price_paisa, mrp_paisa, rating, reviews_count, emoji, image_url, image_key, image_asset_id, desc_text, badge, shop, unit, attributes, store_id, is_prescription, is_veg, status) values
   ('hk-3', 'MART'::app_brand, '👟 Hype Kicks & Drops', 'Limited Drop Metallic Force 1s', ARRAY['limited', 'drop', 'metallic', 'force', '1s', 'featured', 'pick', 'from', 'kick', 'district', 'hype', 'kicks', 'drops']::text[], 1899900, null, 4.7, 0, '👟', 'https://images.unsplash.com/photo-1608231387042-66d1773070a5?fm=jpg&fit=crop&q=80&w=400&h=400', null, null, 'Featured pick from Kick District', null, 'Kick District', null, null, null, false, null, 'ACTIVE'::product_status),
@@ -593,14 +605,14 @@ insert into catalog.products (id, app, category, name, search_tokens, price_pais
   ('cat-mfu-1', 'MART'::app_brand, 'mart-furniture', 'Ergonomic Mesh Office Chair', ARRAY['ergonomic', 'mesh', 'office', 'chair', 'adjustable', 'lumbar', 'support', 'and', 'breathable', 'korean', 'mart', 'furniture']::text[], 1199900, null, 4.9, 0, '🪑', 'https://images.unsplash.com/photo-1580481077494-e3299ac2fef6?fm=jpg&fit=crop&q=80&w=400&h=400', null, null, 'Adjustable lumbar support and breathable Korean mesh.', null, null, null, null, null, false, null, 'ACTIVE'::product_status),
   ('cat-mfu-2', 'MART'::app_brand, 'mart-furniture', 'Solid Wood Bookshelf (5 Tier)', ARRAY['solid', 'wood', 'bookshelf', '5', 'tier', 'rustic', 'mango', 'with', 'ladder', 'frame', 'mart', 'furniture']::text[], 899900, null, 4.8, 0, '📚', 'https://images.unsplash.com/photo-1594620302200-9a762244a156?fm=jpg&fit=crop&q=80&w=400&h=400', null, null, 'Rustic mango-wood 5-tier bookshelf with ladder frame.', null, null, null, null, null, false, null, 'ACTIVE'::product_status),
   ('cat-mfu-3', 'MART'::app_brand, 'mart-furniture', 'Foldable Storage Ottoman', ARRAY['foldable', 'storage', 'ottoman', 'multi', 'purpose', 'with', 'hidden', 'and', 'linen', 'upholstery', 'mart', 'furniture']::text[], 249900, null, 4.7, 0, '🪑', 'https://images.unsplash.com/photo-1540574163026-643ea20ade25?fm=jpg&fit=crop&q=80&w=400&h=400', null, null, 'Multi-purpose ottoman with hidden storage and linen upholstery.', null, null, null, null, null, false, null, 'ACTIVE'::product_status),
-  ('cat-mbk-1', 'MART'::app_brand, 'mart-books', 'Best-Selling Fiction Bundle (4 Books)', ARRAY['best', 'selling', 'fiction', 'bundle', '4', 'books', 'four', 'hand', 'picked', 'page', 'turners', 'across', 'mystery', 'and', 'sci', 'fi', 'mart']::text[], 129900, null, 4.9, 0, '📖', 'https://images.unsplash.com/photo-1512820790803-83ca734da794?fm=jpg&fit=crop&q=80&w=400&h=400', null, null, 'Four hand-picked page-turners across mystery and sci-fi.', null, null, null, null, null, false, null, 'ACTIVE'::product_status);
+  ('cat-mbk-1', 'MART'::app_brand, 'mart-books', 'Best-Selling Fiction Bundle (4 Books)', ARRAY['best', 'selling', 'fiction', 'bundle', '4', 'books', 'four', 'hand', 'picked', 'page', 'turners', 'across', 'mystery', 'and', 'sci', 'fi', 'mart']::text[], 129900, null, 4.9, 0, '📖', 'https://images.unsplash.com/photo-1512820790803-83ca734da794?fm=jpg&fit=crop&q=80&w=400&h=400', null, null, 'Four hand-picked page-turners across mystery and sci-fi.', null, null, null, null, null, false, null, 'ACTIVE'::product_status) on conflict do nothing;
 
 insert into catalog.products (id, app, category, name, search_tokens, price_paisa, mrp_paisa, rating, reviews_count, emoji, image_url, image_key, image_asset_id, desc_text, badge, shop, unit, attributes, store_id, is_prescription, is_veg, status) values
   ('cat-mbk-2', 'MART'::app_brand, 'mart-books', 'Kids Illustrated Storybook Set (12)', ARRAY['kids', 'illustrated', 'storybook', 'set', '12', 'a', 'dozen', 'colourful', 'bedtime', 'storybooks', 'for', 'early', 'readers', 'mart', 'books']::text[], 89900, null, 4.8, 0, '🧒', 'https://images.unsplash.com/photo-1512820790803-83ca734da794?fm=jpg&fit=crop&q=80&w=400&h=400', null, null, 'A dozen colourful bedtime storybooks for early readers.', null, null, null, null, null, false, null, 'ACTIVE'::product_status),
   ('cat-mbk-3', 'MART'::app_brand, 'mart-books', 'Executive Hardcover Journal & Pen Set', ARRAY['executive', 'hardcover', 'journal', 'pen', 'set', 'premium', '120gsm', 'bleed', 'proof', 'dotted', 'paper', 'with', 'brass', 'rollerball', 'mart', 'books']::text[], 89900, null, 4.9, 0, '📓', 'https://images.unsplash.com/photo-1544716278-ca5e3f4abd8c?fm=jpg&fit=crop&q=80&w=400&h=400', null, null, 'Premium 120gsm bleed-proof dotted paper with brass rollerball.', null, null, null, null, null, false, null, 'ACTIVE'::product_status),
   ('cat-mty-1', 'MART'::app_brand, 'mart-toys', 'Modular Magnetic Building Blocks (100p)', ARRAY['modular', 'magnetic', 'building', 'blocks', '100p', 'vibrant', 'translucent', 'tiles', 'for', '3d', 'architecture', 'mart', 'toys']::text[], 249900, null, 4.9, 0, '🧱', 'https://images.unsplash.com/photo-1587654780291-39c9404d746b?fm=jpg&fit=crop&q=80&w=400&h=400', null, null, 'Vibrant translucent magnetic tiles for 3D architecture.', null, null, null, null, null, false, null, 'ACTIVE'::product_status),
   ('cat-mty-2', 'MART'::app_brand, 'mart-toys', 'Soft Plush Teddy Bear (24")', ARRAY['soft', 'plush', 'teddy', 'bear', '24', 'huggable', 'ultra', 'with', 'premium', 'polyester', 'fill', 'mart', 'toys']::text[], 129900, null, 4.9, 0, '🧸', 'https://images.unsplash.com/photo-1559454403-b8fb8b2d0b8e?fm=jpg&fit=crop&q=80&w=400&h=400', null, null, 'Huggable ultra-soft plush teddy with premium polyester fill.', null, null, null, null, null, false, null, 'ACTIVE'::product_status),
-  ('cat-mty-3', 'MART'::app_brand, 'mart-toys', 'Remote Control Dinosaur', ARRAY['remote', 'control', 'dinosaur', 'roaring', 'rc', 'with', 'realistic', 'walking', 'and', 'led', 'eyes', 'mart', 'toys']::text[], 189900, null, 4.7, 0, '🦖', 'https://images.unsplash.com/photo-1566576721346-d4a3b4eaeb55?fm=jpg&fit=crop&q=80&w=400&h=400', null, null, 'Roaring RC dinosaur with realistic walking and LED eyes.', null, null, null, null, null, false, null, 'ACTIVE'::product_status);
+  ('cat-mty-3', 'MART'::app_brand, 'mart-toys', 'Remote Control Dinosaur', ARRAY['remote', 'control', 'dinosaur', 'roaring', 'rc', 'with', 'realistic', 'walking', 'and', 'led', 'eyes', 'mart', 'toys']::text[], 189900, null, 4.7, 0, '🦖', 'https://images.unsplash.com/photo-1566576721346-d4a3b4eaeb55?fm=jpg&fit=crop&q=80&w=400&h=400', null, null, 'Roaring RC dinosaur with realistic walking and LED eyes.', null, null, null, null, null, false, null, 'ACTIVE'::product_status) on conflict do nothing;
 
 insert into inventory.stock (product_id, available, in_stock_qty, price_paisa, mrp_paisa, eta, is_prescription) values
   ('fm-f1', true, 18, 124400, 149900, '1-2 days', null),
@@ -702,7 +714,7 @@ insert into inventory.stock (product_id, available, in_stock_qty, price_paisa, m
   ('fm-hk6', false, 22, 2224900, 2499900, '1-2 days', null),
   ('fm-hk7', true, 23, 615900, 699900, '1-2 days', null),
   ('fm-hk8', true, 24, 347900, 399900, '1-2 days', null),
-  ('fm-hk9', true, 25, 429900, 499900, '1-2 days', null);
+  ('fm-hk9', true, 25, 429900, 499900, '1-2 days', null) on conflict do nothing;
 
 insert into inventory.stock (product_id, available, in_stock_qty, price_paisa, mrp_paisa, eta, is_prescription) values
   ('gr-f1', true, 14, 38400, 49900, '1-2 days', null),
@@ -804,7 +816,7 @@ insert into inventory.stock (product_id, available, in_stock_qty, price_paisa, m
   ('ph-dev1', false, 2, 102600, 129900, '45 min', true),
   ('ph-dev2', true, 3, 70100, 89900, '45 min', true),
   ('ph-dev3', true, 4, 57700, 74900, '45 min', null),
-  ('ph-dev4', true, 5, 26500, 34900, '45 min', null);
+  ('ph-dev4', true, 5, 26500, 34900, '45 min', null) on conflict do nothing;
 
 insert into inventory.stock (product_id, available, in_stock_qty, price_paisa, mrp_paisa, eta, is_prescription) values
   ('ph-dev5', true, 6, 67400, 89900, '45 min', true),
@@ -906,7 +918,7 @@ insert into inventory.stock (product_id, available, in_stock_qty, price_paisa, m
   ('toy-2', true, 4, 19300, 25000, '25-30 min', null),
   ('toy-3', true, 5, 9100, 12000, '25-30 min', null),
   ('hk-1', false, 16, 1424900, 1499900, '1-2 days', null),
-  ('hk-2', true, 17, 798900, 849900, '1-2 days', null);
+  ('hk-2', true, 17, 798900, 849900, '1-2 days', null) on conflict do nothing;
 
 insert into inventory.stock (product_id, available, in_stock_qty, price_paisa, mrp_paisa, eta, is_prescription) values
   ('hk-3', true, 18, 1766900, 1899900, '1-2 days', null),
@@ -1008,14 +1020,14 @@ insert into inventory.stock (product_id, available, in_stock_qty, price_paisa, m
   ('cat-mfu-1', true, 26, 1139900, 1199900, '1-2 days', null),
   ('cat-mfu-2', true, 27, 845900, 899900, '1-2 days', null),
   ('cat-mfu-3', false, 28, 232400, 249900, '1-2 days', null),
-  ('cat-mbk-1', true, 12, 102600, 129900, '1-2 days', null);
+  ('cat-mbk-1', true, 12, 102600, 129900, '1-2 days', null) on conflict do nothing;
 
 insert into inventory.stock (product_id, available, in_stock_qty, price_paisa, mrp_paisa, eta, is_prescription) values
   ('cat-mbk-2', true, 13, 70100, 89900, '1-2 days', null),
   ('cat-mbk-3', true, 14, 69200, 89900, '1-2 days', null),
   ('cat-mty-1', true, 24, 192400, 249900, '1-2 days', null),
   ('cat-mty-2', false, 25, 98700, 129900, '1-2 days', null),
-  ('cat-mty-3', true, 26, 142400, 189900, '1-2 days', null);
+  ('cat-mty-3', true, 26, 142400, 189900, '1-2 days', null) on conflict do nothing;
 
 insert into reviews.reviews (id, product_id, app, user_name, avatar, rating, comment, date_label) values
   ('prv-1', 'fm-m1', 'MART'::app_brand, 'Karan Malhotra', 'https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?fm=jpg&fit=crop&q=80&w=56&h=56', 5, 'Flagship speed and an incredible camera. Battery easily lasts a full day.', '1 week ago'),
@@ -1054,7 +1066,7 @@ insert into reviews.reviews (id, product_id, app, user_name, avatar, rating, com
   ('prv-34', 'ph-ayur1', 'PHARMA'::app_brand, 'Kavya Menon', 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?fm=jpg&fit=crop&q=80&w=56&h=56', 5, 'Family has used this brand for years. Genuine product.', '1 month ago'),
   ('prv-35', 'ph-t3', 'PHARMA'::app_brand, 'Arnav Deshpande', 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?fm=jpg&fit=crop&q=80&w=56&h=56', 5, 'Good strength capsules, easy to swallow. Value pack.', '5 days ago'),
   ('prv-36', 'ph-t3', 'PHARMA'::app_brand, 'Pooja Nair', 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?fm=jpg&fit=crop&q=80&w=56&h=56', 4, 'Helps with energy. Packaging is fine.', '1 week ago'),
-  ('prv-37', 'ph-t3', 'PHARMA'::app_brand, 'Divya Krishnan', 'https://images.unsplash.com/photo-1438761681033-6461ffad8d80?fm=jpg&fit=crop&q=80&w=56&h=56', 5, 'Great price for the count. Genuine stock.', '2 weeks ago');
+  ('prv-37', 'ph-t3', 'PHARMA'::app_brand, 'Divya Krishnan', 'https://images.unsplash.com/photo-1438761681033-6461ffad8d80?fm=jpg&fit=crop&q=80&w=56&h=56', 5, 'Great price for the count. Genuine stock.', '2 weeks ago') on conflict do nothing;
 
 insert into reviews.specs (id, app, label, value) values
   ('food-spec-0', 'FOOD'::app_brand, 'Cuisine', 'Asian Fusion'),
@@ -1068,7 +1080,7 @@ insert into reviews.specs (id, app, label, value) values
   ('pharma-spec-0', 'PHARMA'::app_brand, 'Manufacturer', 'Faazio Healthcare'),
   ('pharma-spec-1', 'PHARMA'::app_brand, 'GMP Certified', 'Yes'),
   ('pharma-spec-2', 'PHARMA'::app_brand, 'Storage', 'Cool & Dry Place'),
-  ('pharma-spec-3', 'PHARMA'::app_brand, 'Expiry', '24 Months');
+  ('pharma-spec-3', 'PHARMA'::app_brand, 'Expiry', '24 Months') on conflict do nothing;
 
 insert into reviews.highlights (id, app, text) values
   ('food-hl-0', 'FOOD'::app_brand, '🔥 Chef''s Special Recipe'),
@@ -1082,7 +1094,7 @@ insert into reviews.highlights (id, app, text) values
   ('pharma-hl-0', 'PHARMA'::app_brand, '💊 Genuine & Verified'),
   ('pharma-hl-1', 'PHARMA'::app_brand, '📋 Prescription Upload Available'),
   ('pharma-hl-2', 'PHARMA'::app_brand, '🚚 Discreet Packaging'),
-  ('pharma-hl-3', 'PHARMA'::app_brand, '🔒 Temperature Controlled');
+  ('pharma-hl-3', 'PHARMA'::app_brand, '🔒 Temperature Controlled') on conflict do nothing;
 
 insert into reviews.vendor_reviews (id, vendor_id, app, user_id, user_name, rating, comment, order_ids, date_label) values
   ('vr-g1-1', 'store-g1', 'MART'::app_brand, 'seed-pooja-nair', 'Pooja Nair', 5, 'Fresh produce every single time. The apples and milk are my weekly staples now.', ARRAY[]::text[], '2 days ago'),
@@ -1095,7 +1107,7 @@ insert into reviews.vendor_reviews (id, vendor_id, app, user_id, user_name, rati
   ('vr-f3-2', 'store-f3', 'FOOD'::app_brand, 'seed-neha-kapoor', 'Neha Kapoor', 4, 'Tasty food, generous portions. Delivery took a little longer than promised.', ARRAY[]::text[], '1 week ago'),
   ('vr-f8-1', 'store-f8', 'FOOD'::app_brand, 'seed-ravi-desai', 'Ravi Desai', 5, 'Rich, aromatic biryani — the dum flavour really comes through.', ARRAY[]::text[], '2 days ago'),
   ('vr-f7-1', 'store-f7', 'FOOD'::app_brand, 'seed-meera-nair', 'Meera Nair', 5, 'Wood-fired pizza done right. Fresh bufala and a beautifully blistered crust.', ARRAY[]::text[], '6 days ago'),
-  ('vr-dn12-1', 'dn-12', 'FOOD'::app_brand, 'seed-priya-patel', 'Priya Patel', 5, 'Best Hyderabadi biryani in the city. The raita and salan were a lovely bonus.', ARRAY[]::text[], '1 week ago');
+  ('vr-dn12-1', 'dn-12', 'FOOD'::app_brand, 'seed-priya-patel', 'Priya Patel', 5, 'Best Hyderabadi biryani in the city. The raita and salan were a lovely bonus.', ARRAY[]::text[], '1 week ago') on conflict do nothing;
 
 insert into checkout.users (user_id, name, email, phone, default_address_id) values
   ('user-1', 'Rohit Sharma', 'rohit.sharma@gmail.com', '+91 98765 43210', 'addr_1'),
@@ -1103,14 +1115,14 @@ insert into checkout.users (user_id, name, email, phone, default_address_id) val
   ('user_9000000002', 'Vikram Rao', 'vikram.rao@example.com', '', null),
   ('user_9000000003', 'Meera Iyer', 'meera.iyer@example.com', '', null),
   ('user_9000000004', 'Arjun Nair', 'arjun.nair@example.com', '', null),
-  ('user_9000000005', 'Priya Menon', 'priya.menon@example.com', '', null);
+  ('user_9000000005', 'Priya Menon', 'priya.menon@example.com', '', null) on conflict do nothing;
 
 insert into checkout.addresses (address_id, user_id, label, name, phone, address, is_default) values
   ('addr-1', 'user-1', 'Greenwood', null, null, 'Greenwood Regency, Greenwood Regt Rd, Greenwood City - 609602', true),
   ('addr-2', 'user-1', 'Greenwood Office', null, null, '7th Floor, Greenwood Tech Park, Greenwood City - 609602', false),
   ('addr_1', 'user-1', 'HOME', 'Rohit Sharma', '+91 98765 43210', 'Flat 101, Greenwood Residency, Block A, Greenwood Main Road, Greenwood Regency, Bangalore – 560068, Karnataka', true),
   ('addr_2', 'user-1', 'WORK', 'Rohit Sharma', '+91 98765 43210', 'Upcraft Solutions Pvt Ltd, 3rd Floor, 27th Cross, HSR Layout, Sector 2, Bangalore – 560102, Karnataka', false),
-  ('addr_3', 'user-1', 'OTHER', 'Rohit Sharma', '+91 98765 43210', '12-8-134, New Friends Colony, Tolichowki, Hyderabad – 500008, Telangana', false);
+  ('addr_3', 'user-1', 'OTHER', 'Rohit Sharma', '+91 98765 43210', '12-8-134, New Friends Colony, Tolichowki, Hyderabad – 500008, Telangana', false) on conflict do nothing;
 
 insert into promo.coupons (coupon_id, code, title, scope, state_code, sector, value_percent, max_discount_paisa, min_order_paisa, free_delivery, valid_till, active) values
   ('cpn-faazio20', 'FAAZIO20', 'FAAZIO20', 'GLOBAL'::campaign_scope, null, null, 20, 0, 49900, false, '2027-12-31T23:59:59Z'::timestamptz, true),
@@ -1119,7 +1131,7 @@ insert into promo.coupons (coupon_id, code, title, scope, state_code, sector, va
   ('cpn-mart30', 'MART30', 'MART30', 'GLOBAL'::campaign_scope, null, null, 30, 0, 79900, false, '2027-12-31T23:59:59Z'::timestamptz, true),
   ('cpn-welcome15', 'WELCOME15', 'WELCOME15', 'GLOBAL'::campaign_scope, null, null, 15, 0, 29900, false, '2027-12-31T23:59:59Z'::timestamptz, true),
   ('cpn-monsoon25', 'MONSOON25', 'MONSOON25', 'GLOBAL'::campaign_scope, null, null, 25, 0, 89900, false, '2027-12-31T23:59:59Z'::timestamptz, true),
-  ('cpn-health10', 'HEALTH10', 'HEALTH10', 'GLOBAL'::campaign_scope, null, null, 10, 0, 39900, false, '2027-12-31T23:59:59Z'::timestamptz, true);
+  ('cpn-health10', 'HEALTH10', 'HEALTH10', 'GLOBAL'::campaign_scope, null, null, 10, 0, 39900, false, '2027-12-31T23:59:59Z'::timestamptz, true) on conflict do nothing;
 
 insert into checkout.orders (order_id, order_number, user_id, address_id, placed_at, status, status_date, fulfillment, total_paisa, vendor_store_ids) values
   ('1', '#ORD123456789', 'user-1', 'addr_1', '2025-05-06T06:00:00.000Z'::timestamptz, 'Delivered'::order_status, '2025-05-07T18:30:00.000Z'::timestamptz, null, 45000, ARRAY['store-g1']::text[]),
@@ -1153,7 +1165,7 @@ insert into checkout.orders (order_id, order_number, user_id, address_id, placed
   ('past-8', 'ORD-009', 'user-1', 'addr_1', '2026-05-21T18:30:00.000Z'::timestamptz, 'Delivered'::order_status, null, null, 24900, ARRAY['store-g1']::text[]),
   ('past-9', 'ORD-010', 'user-1', 'addr_1', '2026-05-14T18:30:00.000Z'::timestamptz, 'Delivered'::order_status, null, null, 49900, ARRAY['store-p3']::text[]),
   ('past-10', 'ORD-011', 'user-1', 'addr_1', '2026-05-08T18:30:00.000Z'::timestamptz, 'Delivered'::order_status, null, null, 52000, ARRAY['store-f7']::text[]),
-  ('past-11', 'ORD-012', 'user-1', 'addr_1', '2026-05-01T18:30:00.000Z'::timestamptz, 'Delivered'::order_status, null, null, 1199900, ARRAY['store-m8']::text[]);
+  ('past-11', 'ORD-012', 'user-1', 'addr_1', '2026-05-01T18:30:00.000Z'::timestamptz, 'Delivered'::order_status, null, null, 1199900, ARRAY['store-m8']::text[]) on conflict do nothing;
 
 insert into checkout.order_items (line_id, order_id, product_id, name, variant, qty, unit_price_paisa) values
   ('1-l1', '1', 'gr-p7', 'Arabica Coffee Beans Medium', '250g', 1, 45000),
@@ -1187,29 +1199,29 @@ insert into checkout.order_items (line_id, order_id, product_id, name, variant, 
   ('past-8-l1', 'past-8', null, 'Organic Royal Gala Apples', null, 1, 24900),
   ('past-9-l1', 'past-9', null, 'Ashwagandha Capsules (60)', null, 1, 49900),
   ('past-10-l1', 'past-10', null, 'Bufala Margherita', null, 1, 52000),
-  ('past-11-l1', 'past-11', null, 'Ergonomic Mesh Office Chair', null, 1, 1199900);
+  ('past-11-l1', 'past-11', null, 'Ergonomic Mesh Office Chair', null, 1, 1199900) on conflict do nothing;
 
 insert into accounts.profile (id, account_id, name, email, phone) values
-  ('user-1', 'HC12345678', 'Rohit Sharma', 'rohit.sharma@gmail.com', '+91 98765 43210');
+  ('user-1', 'HC12345678', 'Rohit Sharma', 'rohit.sharma@gmail.com', '+91 98765 43210') on conflict do nothing;
 
 insert into accounts.membership (id, user_id, title, saved_label, saved_amount) values
-  ('member-1', 'user-1', 'Smart Saver', 'You saved', 184300);
+  ('member-1', 'user-1', 'Smart Saver', 'You saved', 184300) on conflict do nothing;
 
 insert into accounts.order_status (id, user_id, key, label, count) values
   ('all-status', 'user-1', 'all', 'All Orders', 32),
   ('processing-status', 'user-1', 'processing', 'Processing', 3),
   ('shipped-status', 'user-1', 'shipped', 'Shipped', 4),
   ('delivered-status', 'user-1', 'delivered', 'Delivered', 21),
-  ('cancelled-status', 'user-1', 'cancelled', 'Cancelled', 4);
+  ('cancelled-status', 'user-1', 'cancelled', 'Cancelled', 4) on conflict do nothing;
 
 insert into accounts.nav (user_id, key, rows) values
   ('user-1', 'profile', '[{"key":"orders","icon":"package","title":"My Orders","subtitle":"Track and manage your orders"},{"key":"details","icon":"idcard","title":"My Profile","subtitle":"Manage your personal information"},{"key":"addresses","icon":"map-pin","title":"Addresses","subtitle":"Manage saved addresses"},{"key":"favourites","icon":"heart","title":"Favourites","subtitle":"Your favourite items across all apps"}]'::jsonb),
   ('user-1', 'privacy', '[{"key":"delete-account","icon":"trash","title":"Delete account","subtitle":"Permanently delete your Faazio account"},{"key":"request-data-deletion","icon":"shield","title":"Request data deletion","subtitle":"Erase selected data and keep your account"}]'::jsonb),
   ('user-1', 'earn', '[{"key":"sell-with-us","icon":"store","title":"Sell with us","subtitle":"Partner with Faazio & list your products"}]'::jsonb),
-  ('user-1', 'legal', '[{"key":"terms","icon":"file-text","title":"Terms & Conditions","subtitle":"How Faazio works and what you agree to"},{"key":"privacy","icon":"lock","title":"Privacy Policy","subtitle":"How we collect, use, and protect your data"},{"key":"refunds","icon":"receipt","title":"Refund & Cancellation Policy","subtitle":"Returns, refunds, and cancellations"},{"key":"cookies","icon":"cookie","title":"Cookie Policy","subtitle":"Cookies used on faazio.com"},{"key":"disclaimer","icon":"info","title":"Disclaimer","subtitle":"Health, pricing, and third-party notices"}]'::jsonb);
+  ('user-1', 'legal', '[{"key":"terms","icon":"file-text","title":"Terms & Conditions","subtitle":"How Faazio works and what you agree to"},{"key":"privacy","icon":"lock","title":"Privacy Policy","subtitle":"How we collect, use, and protect your data"},{"key":"refunds","icon":"receipt","title":"Refund & Cancellation Policy","subtitle":"Returns, refunds, and cancellations"},{"key":"cookies","icon":"cookie","title":"Cookie Policy","subtitle":"Cookies used on faazio.com"},{"key":"disclaimer","icon":"info","title":"Disclaimer","subtitle":"Health, pricing, and third-party notices"}]'::jsonb) on conflict do nothing;
 
 insert into accounts.details (user_id, account_id, data) values
-  ('user-1', 'HC12345678', '{"userId":"user-1","accountId":"HC12345678","personalInfo":[{"icon":"user","title":"Full Name","subtitle":"Rohit Sharma"},{"icon":"mail","title":"Email Address","subtitle":"rohit.sharma@gmail.com"},{"icon":"phone","title":"Mobile Number","subtitle":"+91 98765 43210"},{"icon":"calendar","title":"Date of Birth","subtitle":"15 May 1992"},{"icon":"gender","title":"Gender","subtitle":"Male"},{"icon":"globe","title":"Preferred Language","subtitle":"English"}],"preferences":[{"icon":"map-pin","title":"Default Location","subtitle":"Greenwood Regency, Bengaluru, Karnataka 560001"},{"icon":"bell","title":"Notification Preferences","subtitle":"Manage what you want to be notified"},{"icon":"lock","title":"Privacy Settings","subtitle":"Manage your privacy and data"}],"securityTitle":"Your data is 100% secure with us","securitySubtitle":"We never share your personal information with anyone."}'::jsonb);
+  ('user-1', 'HC12345678', '{"userId":"user-1","accountId":"HC12345678","personalInfo":[{"icon":"user","title":"Full Name","subtitle":"Rohit Sharma"},{"icon":"mail","title":"Email Address","subtitle":"rohit.sharma@gmail.com"},{"icon":"phone","title":"Mobile Number","subtitle":"+91 98765 43210"},{"icon":"calendar","title":"Date of Birth","subtitle":"15 May 1992"},{"icon":"gender","title":"Gender","subtitle":"Male"},{"icon":"globe","title":"Preferred Language","subtitle":"English"}],"preferences":[{"icon":"map-pin","title":"Default Location","subtitle":"Greenwood Regency, Bengaluru, Karnataka 560001"},{"icon":"bell","title":"Notification Preferences","subtitle":"Manage what you want to be notified"},{"icon":"lock","title":"Privacy Settings","subtitle":"Manage your privacy and data"}],"securityTitle":"Your data is 100% secure with us","securitySubtitle":"We never share your personal information with anyone."}'::jsonb) on conflict do nothing;
 
 insert into favourites.items (user_id, product_id) values
   ('user-1', 'cat-fm-1'),
@@ -1226,35 +1238,35 @@ insert into favourites.items (user_id, product_id) values
   ('user-1', 'm-italian-pasta'),
   ('user-1', 'm-korean-fc'),
   ('user-1', 'ph-t3'),
-  ('user-1', 'cat-pw-1');
+  ('user-1', 'cat-pw-1') on conflict do nothing;
 
 insert into rewards.balances (user_id, coins, streak, last_order_day, card) values
-  ('user-1', 245, 5, null, null);
+  ('user-1', 245, 5, null, null) on conflict do nothing;
 
 insert into pharma.prescriptions (id, user_id, vendor_id, fulfillment, pages, note, image_paths, status) values
   ('RX-000001', 'user-1', 'store-p1', 'DELIVERY'::fulfillment_mode, 1, 'Blood pressure medication refill', ARRAY[]::text[], 'RECEIVED'::prescription_status),
-  ('RX-000002', 'user-1', 'store-p2', 'PICKUP'::fulfillment_mode, 2, 'Post-surgery antibiotics', ARRAY[]::text[], 'PROCESSING'::prescription_status);
+  ('RX-000002', 'user-1', 'store-p2', 'PICKUP'::fulfillment_mode, 2, 'Post-surgery antibiotics', ARRAY[]::text[], 'PROCESSING'::prescription_status) on conflict do nothing;
 
 insert into blood.donors (user_id, name, blood_group, city, donation_type, willing_to_travel, available, consent, consent_at) values
   ('user_9000000001', 'Ananya Kumar', 'O+', 'Chennai', 'both', true, true, true, now()),
   ('user_9000000002', 'Vikram Rao', 'A+', 'Chennai', 'hospital', false, true, true, now()),
   ('user_9000000003', 'Meera Iyer', 'B+', 'Bengaluru', 'blood-bank', true, true, true, now()),
   ('user_9000000004', 'Arjun Nair', 'O-', 'Kochi', 'both', true, true, true, now()),
-  ('user_9000000005', 'Priya Menon', 'AB+', 'Chennai', 'blood-bank', true, true, true, now());
+  ('user_9000000005', 'Priya Menon', 'AB+', 'Chennai', 'blood-bank', true, true, true, now()) on conflict do nothing;
 
 insert into blood.requests (id, created_by, hospital, city, state, blood_group, units, patient_context, needed_within, verified, urgency, contact, address, remarks, posted_at, expires_at) values
   ('br-1', '', 'Government General Hospital', 'Chennai', 'Tamil Nadu', 'O+', 3, 'Accident Patient (Emergency)', 'Needed within 24 hours', true, 'urgent', '+91 98765 43210', 'Park Town, Chennai, Tamil Nadu', 'Donor should carry a valid ID proof at the time of donation.', (now() - interval '2 hours'), (now() + interval '14 days')),
   ('br-2', '', 'Apollo Hospitals', 'Chennai', 'Tamil Nadu', 'A-', 2, 'Thalassemia patient — regular transfusion', 'Needed within 48 hours', true, 'high', '+91 98450 11223', 'Greams Road, Chennai, Tamil Nadu', 'Prefer donors who have donated at Apollo before.', (now() - interval '5 hours'), (now() + interval '14 days')),
   ('br-3', '', 'MIOT International', 'Chennai', 'Tamil Nadu', 'B+', 1, 'Cancer patient — platelet transfusion', 'Flexible date', true, 'normal', '+91 97110 44556', 'Manapakkam, Chennai, Tamil Nadu', 'Platelet donors should be non-smokers.', (now() - interval '8 hours'), (now() + interval '14 days')),
   ('br-4', '', 'Global Hospitals', 'Chennai', 'Tamil Nadu', 'AB+', 4, 'Emergency surgery patient', 'Needed within 6 hours', true, 'urgent', '+91 99410 88776', 'Perumbakkam, Chennai, Tamil Nadu', 'Hospital can arrange pickup for the donor if needed.', (now() - interval '1 hours'), (now() + interval '14 days')),
-  ('br-5', '', 'Kauvery Hospital', 'Chennai', 'Tamil Nadu', 'O-', 1, 'Postpartum complication patient', 'Needed within 72 hours', true, 'normal', '+91 90030 22110', 'Alwarpet, Chennai, Tamil Nadu', 'Universal donor type — most impactful donation.', (now() - interval '24 hours'), (now() + interval '14 days'));
+  ('br-5', '', 'Kauvery Hospital', 'Chennai', 'Tamil Nadu', 'O-', 1, 'Postpartum complication patient', 'Needed within 72 hours', true, 'normal', '+91 90030 22110', 'Alwarpet, Chennai, Tamil Nadu', 'Universal donor type — most impactful donation.', (now() - interval '24 hours'), (now() + interval '14 days')) on conflict do nothing;
 
 insert into blood.interests (request_id, donor_user_id, kind) values
   ('br-1', 'user-1', 'interested'),
-  ('br-4', 'user-1', 'accepted');
+  ('br-4', 'user-1', 'accepted') on conflict do nothing;
 
 insert into blood.match_requests (id, requester_user_id, donor_user_id, blood_group, city, status) values
-  ('dmr-000001', 'user-1', 'user_9000000001', 'O+', 'Chennai', 'pending'::match_status);
+  ('dmr-000001', 'user-1', 'user_9000000001', 'O+', 'Chennai', 'pending'::match_status) on conflict do nothing;
 
 insert into ads.sponsored_slots (slot_id, seller_id, product_id, placement, status, impressions, clicks, orders_attributed) values
   ('ad-demo-home-1', 'sel-tiruchi-01', 'fm-m1', 'HOME_TOP'::ad_placement, 'LIVE'::ad_status, 0, 0, 0),
@@ -1263,14 +1275,14 @@ insert into ads.sponsored_slots (slot_id, seller_id, product_id, placement, stat
   ('ad-demo-showcase-1', 'sel-tiruchi-01', 'fm-b1', 'SPONSORED_SHOWCASE'::ad_placement, 'LIVE'::ad_status, 0, 0, 0),
   ('ad-demo-showcase-2', 'sel-tiruchi-01', 'fm-b2', 'SPONSORED_SHOWCASE'::ad_placement, 'LIVE'::ad_status, 0, 0, 0),
   ('ad-demo-showcase-3', 'sel-tiruchi-01', 'fm-gad10', 'SPONSORED_SHOWCASE'::ad_placement, 'LIVE'::ad_status, 0, 0, 0),
-  ('ad-demo-sector-1', 'sel-tiruchi-01', 'fm-s1', 'SECTOR_RAIL'::ad_placement, 'LIVE'::ad_status, 0, 0, 0);
+  ('ad-demo-sector-1', 'sel-tiruchi-01', 'fm-s1', 'SECTOR_RAIL'::ad_placement, 'LIVE'::ad_status, 0, 0, 0) on conflict do nothing;
 
 insert into ads.campaigns (placement_id, campaign_id, seller_id, placement, target_type, target_id, target_app, category, store_id, title, subtitle, image_url, cta, state_code, starts_at, ends_at, status) values
   ('ad-cmp-demo-mart-1', 'cmp-demo-mart', 'sel-tiruchi-01', 'MART_HERO'::ad_placement, 'PRODUCT'::ad_target_type, 'fm-m1', 'MART'::app_brand, null, null, 'Big Savings Everyday', 'UP TO 50% OFF', 'https://images.unsplash.com/photo-1542838132-92c53300491e?fm=jpg&fit=crop&q=80&w=800&h=450', 'Shop Now', 'TN', (now() - interval '1 day'), (now() + interval '60 days'), 'LIVE'::ad_status),
   ('ad-cmp-demo-cat-1', 'cmp-demo-cat', 'sel-tiruchi-01', 'CATEGORY_TOP'::ad_placement, 'PRODUCT'::ad_target_type, 'fm-gad10', 'MART'::app_brand, 'cat_smart_gadgets', null, 'Gadget Fest', 'FLAT 40% OFF', 'https://images.unsplash.com/photo-1498050108023-c5249f4df085?fm=jpg&fit=crop&q=80&w=800&h=450', 'Shop Now', 'TN', (now() - interval '1 day'), (now() + interval '60 days'), 'LIVE'::ad_status),
   ('ad-cmp-demo-store-1', 'cmp-demo-store', 'sel-tiruchi-01', 'STORE_TOP'::ad_placement, 'STORE'::ad_target_type, 'store-m1', 'MART'::app_brand, null, 'store-m1', 'Fresh Groceries Doorstep', 'FREE DELIVERY', 'https://images.unsplash.com/photo-1579113800032-c38bd1625818?fm=jpg&fit=crop&q=80&w=800&h=450', 'View Store', 'TN', (now() - interval '1 day'), (now() + interval '60 days'), 'LIVE'::ad_status),
   ('ad-cmp-demo-foodhero-1', 'cmp-demo-foodhero', 'sel-tiruchi-01', 'FOOD_HERO'::ad_placement, 'STORE'::ad_target_type, 'store-f1', 'FOOD'::app_brand, null, null, 'Biryani Festival', 'FLAT ₹150 OFF', 'https://images.unsplash.com/photo-1563379091339-03b21ab4a4f8?fm=jpg&fit=crop&q=80&w=800&h=450', 'Order Now', 'TN', (now() - interval '1 day'), (now() + interval '60 days'), 'LIVE'::ad_status),
-  ('ad-cmp-demo-foodhero-2', 'cmp-demo-foodhero', 'sel-tiruchi-01', 'FOOD_HERO'::ad_placement, 'STORE'::ad_target_type, 'store-f8', 'FOOD'::app_brand, null, null, 'Royal Mughlai Feast', 'FESTIVE40 — 40% OFF', 'https://images.unsplash.com/photo-1585032226651-759b368d7246?fm=jpg&fit=crop&q=80&w=800&h=450', 'Order Now', 'TN', (now() - interval '1 day'), (now() + interval '60 days'), 'LIVE'::ad_status);
+  ('ad-cmp-demo-foodhero-2', 'cmp-demo-foodhero', 'sel-tiruchi-01', 'FOOD_HERO'::ad_placement, 'STORE'::ad_target_type, 'store-f8', 'FOOD'::app_brand, null, null, 'Royal Mughlai Feast', 'FESTIVE40 — 40% OFF', 'https://images.unsplash.com/photo-1585032226651-759b368d7246?fm=jpg&fit=crop&q=80&w=800&h=450', 'Order Now', 'TN', (now() - interval '1 day'), (now() + interval '60 days'), 'LIVE'::ad_status) on conflict do nothing;
 
 -- taxonomy.categories (superadmin-owned, from server/supabase/seed/lib/taxonomy.mjs)
 insert into taxonomy.categories

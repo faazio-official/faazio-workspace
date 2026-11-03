@@ -451,14 +451,14 @@ type HomeSection struct {
 	Stores []Store `json:"stores,omitempty"`
 }
 
-// SellerSettlementProfile is the server-owned split input for one seller.
+// SellerSettlementProfile is the server-owned Route account for one seller. The platform fee is a
+// property of the vendor (directory.stores) and is resolved separately per store.
 type SellerSettlementProfile struct {
-	PlatformFeePct  int
 	LinkedAccountID string
 }
 
-// SellerProfileReader resolves a seller's platform fee + Route account (implemented by sellers.Repo).
-// The settlement context uses it to split a capture server-side; the client never supplies the fee.
+// SellerProfileReader resolves a seller's Route account (implemented by sellers.Repo).
+// The settlement context resolves the fee per vendor; the client never supplies it.
 type SellerProfileReader interface {
 	SettlementProfile(ctx context.Context, sellerID string) (SellerSettlementProfile, error)
 }

@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/faazio/server/gateway/internal/platform/auth"
+	"github.com/faazio/server/gateway/internal/platform/authtest"
 	"github.com/faazio/server/gateway/internal/platform/cache"
 	"github.com/faazio/server/gateway/internal/platform/testenv"
 	"github.com/go-chi/chi/v5"
@@ -63,8 +64,8 @@ func TestCampaignHeroLifecycle(t *testing.T) {
 
 	sellerID := "sel-hero-" + shortID()
 	if _, err := pool.Exec(ctx, `
-		insert into sellers.sellers (seller_id, business_name, owner_name, category, state_code)
-		values ($1,'Hero Test','O','MART','KA')`, sellerID); err != nil {
+		insert into sellers.sellers (seller_id, business_name, owner_name, state_code)
+		values ($1,'Hero Test','O','KA')`, sellerID); err != nil {
 		t.Fatalf("seed seller: %v", err)
 	}
 	t.Cleanup(func() { _, _ = pool.Exec(ctx, `delete from sellers.sellers where seller_id=$1`, sellerID) })
@@ -156,16 +157,16 @@ func TestPublishCampaignHTTP(t *testing.T) {
 
 	productID := "hero-prod-" + shortID()
 	if _, err := pool.Exec(ctx, `
-		insert into catalog.products (id, app, category, name, price_paisa, seller_id, status)
-		values ($1,'MART','cat_dairy','Hero Atta',4500,$2,'ACTIVE')`, productID, owner.sellerID); err != nil {
+		insert into catalog.products (id, app, category, name, price_paisa, store_id, status)
+		values ($1,'MART','cat_dairy','Hero Atta',4500,$2,'ACTIVE')`, productID, owner.storeID); err != nil {
 		t.Fatalf("seed product: %v", err)
 	}
 	t.Cleanup(func() { _, _ = pool.Exec(ctx, `delete from catalog.products where id=$1`, productID) })
 
 	dishID := "hero-dish-" + shortID()
 	if _, err := pool.Exec(ctx, `
-		insert into directory.menus (venue_id, dish_id, name, price_paisa, seller_id)
-		values ($1,$2,'Hero Biryani',25000,$3)`, owner.storeID, dishID, owner.sellerID); err != nil {
+		insert into directory.menus (venue_id, dish_id, name, price_paisa)
+		values ($1,$2,'Hero Biryani',25000)`, owner.storeID, dishID); err != nil {
 		t.Fatalf("seed dish: %v", err)
 	}
 	t.Cleanup(func() { _, _ = pool.Exec(ctx, `delete from directory.menus where dish_id=$1`, dishID) })
@@ -255,8 +256,8 @@ func seedHeroSeller(t *testing.T, ctx context.Context, pool *pgxpool.Pool, tag s
 	suffix := shortID()
 	s := heroSeller{sellerID: "sel-" + strings.ToLower(tag) + "-" + suffix}
 	if _, err := pool.Exec(ctx, `
-		insert into sellers.sellers (seller_id, business_name, owner_name, category, state_code)
-		values ($1,$2,'Owner','MART','KA')`, s.sellerID, "Hero "+tag); err != nil {
+		insert into sellers.sellers (seller_id, business_name, owner_name, state_code)
+		values ($1,$2,'Owner','KA')`, s.sellerID, "Hero "+tag); err != nil {
 		t.Fatalf("seed seller: %v", err)
 	}
 	s.storeID = "hero-store-" + suffix
@@ -267,8 +268,8 @@ func seedHeroSeller(t *testing.T, ctx context.Context, pool *pgxpool.Pool, tag s
 	}
 	s.productID = "hero-item-" + suffix
 	if _, err := pool.Exec(ctx, `
-		insert into catalog.products (id, app, category, name, price_paisa, seller_id, status, store_id)
-		values ($1,'MART','cat_dairy','Hero Item',1000,$2,'ACTIVE',$3)`, s.productID, s.sellerID, s.storeID); err != nil {
+		insert into catalog.products (id, app, category, name, price_paisa, status, store_id)
+		values ($1,'MART','cat_dairy','Hero Item',1000,'ACTIVE',$2)`, s.productID, s.storeID); err != nil {
 		t.Fatalf("seed product: %v", err)
 	}
 	t.Cleanup(func() {
@@ -287,7 +288,7 @@ func newAdsRouter(t *testing.T, repo *Repo, cdnBase string) http.Handler {
 		t.Fatal(err)
 	}
 	r := chi.NewRouter()
-	r.Use(auth.Middleware(auth.Config{Disabled: true, DevUserID: "user-1"}))
+	r.Use(authtest.Middleware())
 	NewHandler(repo, c, nil, cdnBase).Register(r)
 	return r
 }

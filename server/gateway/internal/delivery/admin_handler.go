@@ -123,7 +123,10 @@ func (h *Handler) adminOrderRiders(w http.ResponseWriter, r *http.Request) {
 		// the store and must still sort nearest, so it cannot share the unknown sentinel.
 		meters := int64(-1)
 		if online && o.StoreLatitude != nil && o.StoreLongitude != nil {
-			_, meters = h.matrix.Travel(hb.Latitude, hb.Longitude, *o.StoreLatitude, *o.StoreLongitude)
+			if _, m, err := h.matrix.Travel(hb.Latitude, hb.Longitude, *o.StoreLatitude, *o.StoreLongitude); err == nil {
+				meters = m
+			}
+			// A failed route call leaves meters = -1 ("distance unknown"), never a fabricated number.
 		}
 		// The picker needs identity + availability only; home address and emergency contact are PII
 		// with no allocation purpose, so never project them here.
@@ -214,11 +217,19 @@ func (h *Handler) allocateOrder(w http.ResponseWriter, r *http.Request) {
 		httpx.Fail(w, http.StatusConflict, "missing_coordinates", "store and drop coordinates are required")
 		return
 	}
-	dropSeconds, dropMeters := h.matrix.Travel(*o.StoreLatitude, *o.StoreLongitude, *o.DropLatitude, *o.DropLongitude)
+	dropSeconds, dropMeters, tErr := h.matrix.Travel(*o.StoreLatitude, *o.StoreLongitude, *o.DropLatitude, *o.DropLongitude)
+	if tErr != nil {
+		h.writeErr(w, tErr)
+		return
+	}
 	totalMeters, etaSeconds := dropMeters, dropSeconds
 	var hb Heartbeat
 	if h.cache.GetJSON(r.Context(), cache.DeliveryRiderLocation(rider.RiderID), &hb) {
-		approachSeconds, approachMeters := h.matrix.Travel(hb.Latitude, hb.Longitude, *o.StoreLatitude, *o.StoreLongitude)
+		approachSeconds, approachMeters, tErr := h.matrix.Travel(hb.Latitude, hb.Longitude, *o.StoreLatitude, *o.StoreLongitude)
+		if tErr != nil {
+			h.writeErr(w, tErr)
+			return
+		}
 		totalMeters += approachMeters
 		etaSeconds += approachSeconds
 	}

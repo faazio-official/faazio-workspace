@@ -39,7 +39,8 @@ import { cn } from "@/lib/utils";
 import { useSession } from "@/lib/hooks/useSession";
 import { useConnectivityStore } from "@/lib/connectivityStore";
 import { signOut } from "@/lib/api";
-import { districtName, stateForDistrict } from "@/data/districts";
+import { useDistricts } from "@/lib/api/hooks";
+import { districtName, stateForDistrict } from "@/lib/api/reference";
 import { RoleGate } from "@/components/layout/RoleGate";
 import { FaazioWordmark } from "@/components/brand/FaazioWordmark";
 import { ThemeMenu } from "@/components/layout/ThemeToggle";
@@ -57,6 +58,7 @@ export function AdminShell({
   const [mobileNav, setMobileNav] = useState(false);
   const [paletteOpen, setPaletteOpen] = useState(false);
   const session = useSession();
+  const districts = useDistricts();
   const router = useRouter();
   const pathname = usePathname();
   const guardNavigation = useConnectivityStore((s) => s.guardNavigation);
@@ -186,7 +188,7 @@ export function AdminShell({
               <span className="truncate">
                 {scope === "DISTRICT"
                   ? session?.districtCode
-                    ? `${session.districtCode} · ${districtName(session.districtCode)} · ${stateForDistrict(session.districtCode)}`
+                    ? `${session.districtCode} · ${districtName(districts, session.districtCode)} · ${stateForDistrict(districts, session.districtCode)}`
                     : session?.stateCode
                       ? `STATE · ${session.stateCode}`
                       : "DISTRICT"

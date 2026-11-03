@@ -105,10 +105,12 @@ psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f ../supabase/migrations/0065_tiruchira
 > The list above is illustrative. Prefer §1 (`apply-migration.sh --from <last-applied>`), which
 > always targets the real pending files — the committed set grows every change.
 
-> **Vendor ownership (0068–0073).** `0068_seller_account_multibrand`, `0069_vendor_ownership`,
+> **Vendor ownership (0068–0074).** `0068_seller_account_multibrand`, `0069_vendor_ownership`,
 > `0070_drop_denormalized_seller_ids`, `0071_backfill_live_sellers`, `0072_seller_fee_per_vendor`,
-> `0073_geo_states_and_placements` introduce the account→vendor split. Apply `0068`–`0073` in order.
-> `0070` **drops** `catalog.products.seller_id` and `directory.menus.seller_id`; the gateway reads
+> `0073_geo_states_and_placements`, `0074_drop_account_commercial_fields` introduce the account→vendor
+> split. Apply `0068`–`0074` **in order** — `0071` still writes the account columns that `0074` later
+> drops. `0070` **drops** `catalog.products.seller_id` and `directory.menus.seller_id`; `0074` drops
+> `sellers.sellers.category`/`platform_fee_pct`/`seller_category_id`/`fssai_*`. The gateway reads
 > ownership through `directory.stores`, so apply the migrations **before** rolling the new gateway.
 > After a fresh `--all`, the regenerated `seed/0001_seed.sql` must be used (it emits seller accounts
 > before stores and no longer writes the dropped columns).

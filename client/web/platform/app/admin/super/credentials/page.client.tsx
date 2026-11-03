@@ -55,7 +55,7 @@ import {
   districtAdminConflictMessage,
   type CreatePortalCredentialInput,
 } from "@/lib/api";
-import { DISTRICTS } from "@/data/districts";
+import { useDistricts } from "@/lib/api/hooks";
 import type { PortalCredential, Role } from "@/data/types";
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -80,6 +80,7 @@ function roleLabel(role: Role): string {
 
 function CredentialsPage() {
   const sellers = useSellers();
+  const districts = useDistricts();
   const [creds, setCreds] = useState<PortalCredential[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -361,7 +362,7 @@ function CredentialsPage() {
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      {DISTRICTS.map((d) => (
+                      {districts.map((d) => (
                         <SelectItem key={d.districtCode} value={d.districtCode}>
                           {d.name} · {d.districtCode}
                         </SelectItem>

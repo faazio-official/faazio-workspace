@@ -25,7 +25,7 @@ func testRouter(t *testing.T, pool *pgxpool.Pool, authed bool) http.Handler {
 	}
 	cfg := auth.Config{JWTSecret: []byte("unused")} // no resolver => unauthenticated
 	if authed {
-		cfg = auth.Config{Disabled: true, DevUserID: "user-1"}
+		cfg = auth.Config{}
 	}
 	r := chi.NewRouter()
 	r.Use(auth.Middleware(cfg))

@@ -304,6 +304,7 @@ export async function deleteCategory(id: string): Promise<void> {
 
 export interface ProductFilter {
   sellerId?: string | undefined;
+  storeId?: string | undefined;
   stateCode?: string | undefined;
   sector?: Sector | "ALL" | undefined;
   status?: ProductStatus | "ALL" | undefined;
@@ -315,6 +316,7 @@ export function listProducts(filter: ProductFilter = {}): ProductRecord[] {
   const storeByProduct = new Map(s.stores.map((st) => [st.storeId, st]));
   return s.products.filter((p) => {
     if (filter.sellerId && p.sellerId !== filter.sellerId) return false;
+    if (filter.storeId && p.storeId !== filter.storeId) return false;
     if (filter.stateCode && storeByProduct.get(p.storeId)?.stateCode !== filter.stateCode)
       return false;
     if (filter.sector && filter.sector !== "ALL" && p.sector !== filter.sector) return false;
@@ -458,10 +460,12 @@ export function setProductStatus(productId: string, status: ProductStatus, reaso
 
 /* -------------------------------- inventory ------------------------------ */
 
-export function listStock(sellerId?: string) {
+export function listStock(sellerId?: string, storeId?: string) {
   const s = state();
   const owned = new Set(
-    s.products.filter((p) => !sellerId || p.sellerId === sellerId).map((p) => p.productId),
+    s.products
+      .filter((p) => (!sellerId || p.sellerId === sellerId) && (!storeId || p.storeId === storeId))
+      .map((p) => p.productId),
   );
   return s.stock
     .filter((row) => owned.has(row.productId))
@@ -553,9 +557,10 @@ export async function fetchSellerPromotions(): Promise<SellerPromotionsView> {
 
 /* --------------------------------- orders -------------------------------- */
 
-export function listOrders(filter: { sellerId?: string | undefined; stateCode?: string | undefined; status?: OrderStatus | "ALL" | undefined } = {}) {
+export function listOrders(filter: { sellerId?: string | undefined; storeId?: string | undefined; stateCode?: string | undefined; status?: OrderStatus | "ALL" | undefined } = {}) {
   return state().orders.filter((o) => {
     if (filter.sellerId && o.sellerId !== filter.sellerId) return false;
+    if (filter.storeId && o.storeId !== filter.storeId) return false;
     if (filter.stateCode && o.stateCode !== filter.stateCode) return false;
     if (filter.status && filter.status !== "ALL" && o.status !== filter.status) return false;
     return true;
@@ -694,24 +699,23 @@ function patchSellerLocal(sellerId: string, patch: Partial<SellerRecord>): void 
   }));
 }
 
-/** Admin: edit the platform fee before approval (server re-checks the category floor). */
-export async function updateSellerPlatformFee(sellerId: string, platformFeePct: number): Promise<void> {
-  const before = getSeller(sellerId)?.platformFeePct;
-  patchSellerLocal(sellerId, { platformFeePct });
-  if (!remoteConfigured()) return;
-  try {
-    await remote.patch(`/sellers/${encodeURIComponent(sellerId)}/platform-fee`, { platformFeePct });
-    audit({
-      action: "SELLER_PLATFORM_FEE",
-      entity: "sellers.sellers",
-      entityId: sellerId,
-      before: { platformFeePct: before },
-      after: { platformFeePct },
-    });
-  } catch (err) {
-    patchSellerLocal(sellerId, { platformFeePct: before });
-    throw err;
-  }
+/** Admin: set one vendor's platform fee (server re-checks the app's floor). */
+export async function updateVendorPlatformFee(
+  sellerId: string,
+  storeId: string,
+  platformFeePct: number,
+): Promise<void> {
+  if (!remoteConfigured()) throw new ApiError(0, "unconfigured", "Gateway is not configured");
+  await remote.patch(`/sellers/${encodeURIComponent(sellerId)}/platform-fee`, {
+    storeId,
+    platformFeePct,
+  });
+  audit({
+    action: "SELLER_PLATFORM_FEE",
+    entity: "directory.stores",
+    entityId: storeId,
+    after: { sellerId, storeId, platformFeePct },
+  });
 }
 
 /** Admin: mark one manual document check (PAN, GSTIN, FSSAI, PASSBOOK). */
@@ -797,6 +801,11 @@ export interface SellerStoreSummary {
   storeId: string;
   name: string;
   sector: Sector;
+  address?: string;
+  phone?: string;
+  hours?: string;
+  deliveryTime?: string;
+  isVeg: boolean;
   isLive: boolean;
   /** Per-vendor platform fee (0069) — the fee is a property of the shop, not the account. */
   platformFeePct: number;
@@ -811,16 +820,91 @@ export interface SellerStoreSummary {
 export async function fetchSellerStores(): Promise<SellerStoreSummary[]> {
   if (!remoteConfigured()) return [];
   const rows = await remote.get<
-    { id: string; name: string; app: string; isLive?: boolean; platformFeePct?: number; sellerCategoryId?: string }[]
+    {
+      id: string;
+      name: string;
+      app: string;
+      address?: string;
+      phone?: string;
+      hours?: string;
+      deliveryTime?: string;
+      isVeg?: boolean;
+      isLive?: boolean;
+      platformFeePct?: number;
+      sellerCategoryId?: string;
+    }[]
   >("/seller/stores");
   return rows.map((row) => ({
     storeId: row.id,
     name: row.name,
     sector: row.app as Sector,
-    isLive: row.isLive !== false,
-    platformFeePct: row.platformFeePct ?? 10,
+    ...(row.address ? { address: row.address } : {}),
+    ...(row.phone ? { phone: row.phone } : {}),
+    ...(row.hours ? { hours: row.hours } : {}),
+    ...(row.deliveryTime ? { deliveryTime: row.deliveryTime } : {}),
+    isVeg: row.isVeg === true,
+    isLive: row.isLive === true,
+    platformFeePct: row.platformFeePct ?? 0,
     ...(row.sellerCategoryId ? { sellerCategoryId: row.sellerCategoryId } : {}),
   }));
+}
+
+export interface CreateVendorInput {
+  name: string;
+  app: Sector;
+  address?: string;
+  phone?: string;
+  hours?: string;
+  isLive?: boolean;
+  fssaiNumber?: string;
+  fssaiFileKey?: string;
+  fssaiAssetId?: string;
+}
+
+/** Create a vendor for the signed-in seller account. Commercial fields stay server-validated. */
+export async function createSellerVendor(input: CreateVendorInput): Promise<SellerStoreSummary> {
+  if (!remoteConfigured()) throw new ApiError(0, "unconfigured", "Gateway is not configured");
+  const row = await remote.post<{
+    id: string;
+    name: string;
+    app: string;
+    address?: string;
+    phone?: string;
+    hours?: string;
+    isVeg?: boolean;
+    isLive?: boolean;
+    platformFeePct?: number;
+  }>("/seller/stores", {
+    name: input.name,
+    app: input.app,
+    address: input.address ?? "",
+    phone: input.phone ?? "",
+    hours: input.hours ?? "",
+    ...(input.isLive !== undefined ? { isLive: input.isLive } : {}),
+    ...(input.fssaiNumber ? { fssaiNumber: input.fssaiNumber } : {}),
+    ...(input.fssaiFileKey ? { fssaiFileKey: input.fssaiFileKey } : {}),
+    ...(input.fssaiAssetId ? { fssaiAssetId: input.fssaiAssetId } : {}),
+  });
+  return {
+    storeId: row.id,
+    name: row.name,
+    sector: row.app as Sector,
+    ...(row.address ? { address: row.address } : {}),
+    ...(row.phone ? { phone: row.phone } : {}),
+    ...(row.hours ? { hours: row.hours } : {}),
+    isVeg: row.isVeg === true,
+    isLive: row.isLive === true,
+    platformFeePct: row.platformFeePct ?? 0,
+  };
+}
+
+/** Save a vendor profile (name/address/phone/hours/live/veg). Sellers cannot set the fee here. */
+export async function updateSellerStore(
+  storeId: string,
+  patch: { hours?: string; isLive?: boolean; isVeg?: boolean },
+): Promise<void> {
+  if (!remoteConfigured()) throw new ApiError(0, "unconfigured", "Gateway is not configured");
+  await remote.put(`/seller/stores/${encodeURIComponent(storeId)}`, patch);
 }
 
 /* --------------------------- reference data ------------------------------ */
@@ -852,6 +936,18 @@ export async function fetchStates(): Promise<StateSummary[]> {
   return remote.get<StateSummary[]>("/geo/states");
 }
 
+/** One row from `GET /geo/districts` (admins.district_master — the DB is the authority). */
+export interface DistrictInfo {
+  districtCode: string;
+  name: string;
+  stateCode: string;
+}
+
+export async function fetchDistricts(): Promise<DistrictInfo[]> {
+  if (!remoteConfigured()) return [];
+  return remote.get<DistrictInfo[]>("/geo/districts");
+}
+
 export async function fetchApps(): Promise<AppBrandSummary[]> {
   if (!remoteConfigured()) return [];
   return remote.get<AppBrandSummary[]>("/geo/apps");
@@ -860,6 +956,12 @@ export async function fetchApps(): Promise<AppBrandSummary[]> {
 export async function fetchPlacements(): Promise<PlacementSummary[]> {
   if (!remoteConfigured()) return [];
   return remote.get<PlacementSummary[]>("/ads/placements");
+}
+
+/** Active top-level categories of one app from `GET /categories?app=&top_level=true` (taxonomy is the authority). */
+export async function fetchCategories(app: Sector): Promise<CategoryRow[]> {
+  if (!remoteConfigured()) return [];
+  return remote.get<CategoryRow[]>(`/categories?app=${app}&top_level=true`);
 }
 
 export function updateStore(storeId: string, patch: Partial<import("@/data/types").StoreRecord>): void {

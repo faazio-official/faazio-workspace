@@ -88,7 +88,7 @@ func TestCheckerCachesOneCallPerWindow(t *testing.T) {
 	}
 }
 
-func TestCheckerCachesProviderErrorAsDry(t *testing.T) {
+func TestCheckerProviderErrorIsNeverCachedAsDry(t *testing.T) {
 	cache := newFakeCache()
 	api := &fakeAPI{err: errors.New("provider down")}
 	c := NewChecker(cache, api, nil, AnnualCallLimit)
@@ -105,13 +105,22 @@ func TestCheckerCachesProviderErrorAsDry(t *testing.T) {
 		t.Fatalf("failed call must count against the budget, counter = %d", got)
 	}
 
-	// The failed window is cached dry, so the next quote cannot hammer the provider.
+	// A provider failure is NOT cached as a fabricated "dry" verdict: the next check must surface
+	// the error again rather than silently asserting the zone is not raining.
 	raining, err = c.IsRaining(context.Background(), "9:9")
-	if err != nil || raining {
-		t.Fatalf("cached check = %v, %v; want false, nil", raining, err)
+	if err == nil || raining {
+		t.Fatalf("recheck = %v, %v; want false + error (never a cached dry verdict)", raining, err)
 	}
-	if api.calls != 1 {
-		t.Fatalf("cached check must not call the provider again: calls=%d", api.calls)
+	if api.calls != 2 {
+		t.Fatalf("recheck must call the provider again (no dry cache): calls=%d", api.calls)
+	}
+}
+
+func TestCheckerDisabledProviderIsAnError(t *testing.T) {
+	c := NewChecker(newFakeCache(), nil, nil, AnnualCallLimit)
+	raining, err := c.IsRaining(context.Background(), "9:9")
+	if err == nil || raining {
+		t.Fatalf("disabled provider = %v, %v; want error, not a fabricated \"not raining\" verdict", raining, err)
 	}
 }
 

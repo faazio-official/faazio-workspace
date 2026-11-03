@@ -18,8 +18,7 @@ import {
 import { formatINR, formatNumber, formatPercent } from "@/lib/format";
 import { periodDelta, sumGmv, sumOrders } from "@/lib/analytics/derive";
 import { globalMetrics, sellerMetrics, stateMetrics } from "@/lib/api";
-import { useMockLoading, useOrders, useProducts, useSellers } from "@/lib/api/hooks";
-import { STATES } from "@/data/states";
+import { useMockLoading, useOrders, useProducts, useSellers, useStates } from "@/lib/api/hooks";
 
 
 const PERIODS = [7, 30, 90];
@@ -27,6 +26,7 @@ const PERIODS = [7, 30, 90];
 function SuperAnalytics() {
   const loading = useMockLoading();
   const [days, setDays] = useState(30);
+  const states = useStates();
   const series = globalMetrics(days);
   const sellers = useSellers();
   const products = useProducts();
@@ -39,7 +39,7 @@ function SuperAnalytics() {
   const topTenShare = perSeller.slice(0, 10).reduce((t, r) => t + r.gmv, 0);
   const sellerGmvTotal = perSeller.reduce((t, r) => t + r.gmv, 0);
 
-  const byState = STATES.map((info) => ({
+  const byState = states.map((info) => ({
     label: info.stateCode,
     value: sumGmv(stateMetrics(info.stateCode, days)),
   })).sort((a, b) => b.value - a.value);

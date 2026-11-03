@@ -11,7 +11,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"strconv"
 	"strings"
 	"time"
 
@@ -24,38 +23,52 @@ import (
 var ErrNotEditable = errors.New("sellers: application is not editable")
 
 // Seller is one sellers.sellers row (contact_phone is PII — auth/role-scoped only).
+// Seller is one sellers.sellers row: the ACCOUNT (brand-agnostic business identity). App brand,
+// platform fee, taxonomy category and FSSAI are properties of each vendor (directory.stores), not
+// of this row. contact_phone is PII — auth/role-scoped only.
 type Seller struct {
-	SellerID     string `json:"sellerId"`
-	BusinessName string `json:"businessName"`
-	OwnerName    string `json:"ownerName"`
-	Category     string `json:"category"`
-	// SellerCategoryID is an optional taxonomy.categories id (superadmin-owned) within the app brand;
-	// e.g. a Food restaurant picks "North Indian". Empty = only the app brand is set.
-	SellerCategoryID string  `json:"sellerCategoryId,omitempty"`
-	GSTIN            string  `json:"gstin"`
-	PAN              string  `json:"pan"`
-	BusinessAddress  string  `json:"businessAddress"`
-	ContactPhone     string  `json:"contactPhone,omitempty"`
-	ContactEmail     string  `json:"contactEmail,omitempty"`
-	StateCode        string  `json:"stateCode"`
-	DistrictCode     string  `json:"districtCode,omitempty"`
-	Status           string  `json:"status"`
-	Rating           float64 `json:"rating"`
+	SellerID        string  `json:"sellerId"`
+	BusinessName    string  `json:"businessName"`
+	OwnerName       string  `json:"ownerName"`
+	GSTIN           string  `json:"gstin"`
+	PAN             string  `json:"pan"`
+	BusinessAddress string  `json:"businessAddress"`
+	ContactPhone    string  `json:"contactPhone,omitempty"`
+	ContactEmail    string  `json:"contactEmail,omitempty"`
+	StateCode       string  `json:"stateCode"`
+	DistrictCode    string  `json:"districtCode,omitempty"`
+	Status          string  `json:"status"`
+	Rating          float64 `json:"rating"`
 	// Shop pin captured during onboarding (public business location, not customer PII).
-	Latitude  *float64 `json:"latitude,omitempty"`
-	Longitude *float64 `json:"longitude,omitempty"`
-	// PlatformFeePct is the commission the platform retains on every split (admin-editable before
-	// approval). FOOD sellers have a higher floor (5%).
-	PlatformFeePct          int             `json:"platformFeePct"`
+	Latitude                *float64        `json:"latitude,omitempty"`
+	Longitude               *float64        `json:"longitude,omitempty"`
 	RazorpayLinkedAccountID string          `json:"razorpayLinkedAccountId,omitempty"`
-	FSSAINumber             string          `json:"fssaiNumber,omitempty"`
-	FSSAICertKey            string          `json:"fssaiCertKey,omitempty"`
-	FSSAICertAssetID        string          `json:"fssaiCertAssetId,omitempty"`
 	OTPVerified             bool            `json:"otpVerified"`
 	OTPVerifiedAt           string          `json:"otpVerifiedAt,omitempty"`
 	RejectionReason         string          `json:"rejectionReason,omitempty"`
 	RejectionHistory        json.RawMessage `json:"rejectionHistory,omitempty"`
 	CreatedAt               string          `json:"createdAt"`
+	// VendorCount/VendorApps are populated by List (one account can own shops in several apps).
+	VendorCount int      `json:"vendorCount,omitempty"`
+	VendorApps  []string `json:"vendorApps,omitempty"`
+}
+
+// VendorSeed is one VENDOR created alongside an onboarding account. Commercial fields belong to the
+// shop and are written to directory.stores.
+type VendorSeed struct {
+	Name             string
+	App              string
+	StateCode        string
+	Address          string
+	Phone            string
+	Hours            string
+	Latitude         *float64
+	Longitude        *float64
+	PlatformFeePct   int
+	SellerCategoryID string
+	FSSAINumber      string
+	FSSAICertKey     string
+	FSSAICertAssetID string
 }
 
 // KycDocument is one sellers.kyc_documents row; file_key is a private R2 object key, never a URL.
@@ -90,11 +103,28 @@ type VerificationLog struct {
 }
 
 // Detail is the admin review projection: the seller plus payout account, documents and log.
+// Vendor is one directory.stores row owned by the account. Commercial fields (app brand, platform
+// fee, taxonomy category, FSSAI) live here, never on the account.
+type Vendor struct {
+	StoreID          string `json:"storeId"`
+	Name             string `json:"name"`
+	App              string `json:"app"`
+	IsLive           bool   `json:"isLive"`
+	PlatformFeePct   int    `json:"platformFeePct"`
+	SellerCategoryID string `json:"sellerCategoryId,omitempty"`
+	FSSAINumber      string `json:"fssaiNumber,omitempty"`
+	FSSAICertKey     string `json:"fssaiCertKey,omitempty"`
+	FSSAICertAssetID string `json:"fssaiCertAssetId,omitempty"`
+	StateCode        string `json:"stateCode,omitempty"`
+	DistrictCode     string `json:"districtCode,omitempty"`
+}
+
 type Detail struct {
 	Seller
 	BankAccount     *BankAccount      `json:"bankAccount,omitempty"`
 	KYCDocuments    []KycDocument     `json:"kycDocuments"`
 	VerificationLog []VerificationLog `json:"verificationLog"`
+	Vendors         []Vendor          `json:"vendors"`
 }
 
 // RequestHistoryEntry is one changed field on a rejected application resubmission.
@@ -114,7 +144,6 @@ type ListFilter struct {
 	StateCode    string
 	DistrictCode string
 	Status       string
-	Category     string
 }
 
 // Repo reads/writes the sellers schema.
@@ -124,6 +153,19 @@ type Repo struct {
 
 // New returns a sellers repo.
 func New(pool *db.Pool) *Repo { return &Repo{pool: pool} }
+
+// FirstStoreApp returns the app brand of the seller's first vendor. Linked-account provisioning is
+// vendor-scoped: an account with no vendor cannot be provisioned.
+func (r *Repo) FirstStoreApp(ctx context.Context, sellerID string) (string, error) {
+	if r.pool == nil {
+		return "", fmt.Errorf("sellers: database not configured")
+	}
+	var app string
+	err := r.pool.QueryRow(ctx, `
+		select app::text from directory.stores
+		 where seller_id = $1 order by id limit 1`, sellerID).Scan(&app)
+	return app, err
+}
 
 // ValidCategoryID reports whether id is an active taxonomy.categories row for the given app brand.
 func (r *Repo) ValidCategoryID(ctx context.Context, app, id string) (bool, error) {
@@ -137,12 +179,11 @@ func (r *Repo) ValidCategoryID(ctx context.Context, app, id string) (bool, error
 	return exists, err
 }
 
-const sellerColumns = `seller_id, business_name, owner_name, coalesce(category::text,''), gstin, pan, address,
+const sellerColumns = `seller_id, business_name, owner_name, gstin, pan, address,
 	coalesce(phone,''), coalesce(contact_email,''), state_code, coalesce(district_code,''), status::text, rating,
-	platform_fee_pct, coalesce(razorpay_linked_account_id,''), coalesce(fssai_number,''),
-	coalesce(fssai_cert_key,''), coalesce(fssai_cert_asset_id,''),
+	coalesce(razorpay_linked_account_id,''),
 	otp_verified, otp_verified_at, coalesce(rejection_reason,''), rejection_history, created_at,
-	latitude, longitude, coalesce(seller_category_id,'')`
+	latitude, longitude`
 
 const sellerSelect = `select ` + sellerColumns + ` from sellers.sellers`
 
@@ -153,20 +194,25 @@ func (r *Repo) List(ctx context.Context, f ListFilter) ([]Seller, error) {
 	if r.pool == nil {
 		return nil, fmt.Errorf("sellers: database not configured")
 	}
-	rows, err := r.pool.Query(ctx, sellerSelect+`
-		 where ($1 = '' or state_code = $1)
-		   and ($2 = '' or status::text = $2)
-		   and ($3 = '' or category::text = $3)
-		   and ($4 = '' or seller_id = $4)
-		   and ($5 = '' or district_code = $5)
-		 order by created_at desc`, f.StateCode, f.Status, f.Category, f.SellerID, f.DistrictCode)
+	rows, err := r.pool.Query(ctx, `
+		select `+sellerColumns+`, coalesce(v.vendor_count, 0), coalesce(v.vendor_apps, '{}')
+		  from sellers.sellers s
+		  left join (
+		    select seller_id, count(*)::int as vendor_count, array_agg(distinct app::text) as vendor_apps
+		      from directory.stores group by seller_id
+		  ) v on v.seller_id = s.seller_id
+		 where ($1 = '' or s.state_code = $1)
+		   and ($2 = '' or s.status::text = $2)
+		   and ($3 = '' or s.seller_id = $3)
+		   and ($4 = '' or s.district_code = $4)
+		 order by s.created_at desc`, f.StateCode, f.Status, f.SellerID, f.DistrictCode)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
 	out := []Seller{}
 	for rows.Next() {
-		s, err := scanSeller(rows)
+		s, err := scanSellerList(rows)
 		if err != nil {
 			return nil, err
 		}
@@ -196,7 +242,12 @@ func (r *Repo) DetailByID(ctx context.Context, id string) (Detail, bool, error) 
 	if err != nil || !ok {
 		return Detail{}, ok, err
 	}
-	d := Detail{Seller: s, KYCDocuments: []KycDocument{}, VerificationLog: []VerificationLog{}}
+	d := Detail{Seller: s, KYCDocuments: []KycDocument{}, VerificationLog: []VerificationLog{}, Vendors: []Vendor{}}
+	if vendors, verr := r.Vendors(ctx, id); verr != nil {
+		return Detail{}, false, verr
+	} else {
+		d.Vendors = vendors
+	}
 	if b, found, berr := r.BankAccount(ctx, id); berr != nil {
 		return Detail{}, false, berr
 	} else if found {
@@ -215,6 +266,36 @@ func (r *Repo) DetailByID(ctx context.Context, id string) (Detail, bool, error) 
 	return d, true, nil
 }
 
+// Vendors returns every vendor (directory.stores row) owned by the account.
+func (r *Repo) Vendors(ctx context.Context, sellerID string) ([]Vendor, error) {
+	if r.pool == nil {
+		return nil, fmt.Errorf("sellers: database not configured")
+	}
+	rows, err := r.pool.Query(ctx, `
+		select id, name, app::text, is_live, platform_fee_pct,
+		       coalesce(seller_category_id,''), coalesce(fssai_number,''),
+		       coalesce(fssai_cert_key,''), coalesce(fssai_cert_asset_id,''),
+		       coalesce(state_code,''), coalesce(district_code,'')
+		  from directory.stores
+		 where seller_id = $1
+		 order by name`, sellerID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := []Vendor{}
+	for rows.Next() {
+		var v Vendor
+		if err := rows.Scan(&v.StoreID, &v.Name, &v.App, &v.IsLive, &v.PlatformFeePct,
+			&v.SellerCategoryID, &v.FSSAINumber, &v.FSSAICertKey, &v.FSSAICertAssetID,
+			&v.StateCode, &v.DistrictCode); err != nil {
+			return nil, err
+		}
+		out = append(out, v)
+	}
+	return out, rows.Err()
+}
+
 // SettlementProfile is the read seam used by settlement when splitting a payment.
 func (r *Repo) SettlementProfile(ctx context.Context, sellerID string) (contracts.SellerSettlementProfile, error) {
 	if r.pool == nil {
@@ -222,26 +303,24 @@ func (r *Repo) SettlementProfile(ctx context.Context, sellerID string) (contract
 	}
 	var p contracts.SellerSettlementProfile
 	err := r.pool.QueryRow(ctx, `
-		select platform_fee_pct, coalesce(razorpay_linked_account_id,'')
+		select coalesce(razorpay_linked_account_id,'')
 		  from sellers.sellers where seller_id=$1`, sellerID).
-		Scan(&p.PlatformFeePct, &p.LinkedAccountID)
+		Scan(&p.LinkedAccountID)
 	return p, err
 }
 
 // Create inserts an onboarding seller (status PENDING_REVIEW) and returns the new row.
 func (r *Repo) Create(ctx context.Context, s Seller) (Seller, error) {
-	return r.CreateExtended(ctx, s, nil, nil)
+	return r.CreateExtended(ctx, s, nil, nil, nil)
 }
 
-// CreateExtended inserts the seller, payout account and KYC documents in one transaction.
-func (r *Repo) CreateExtended(ctx context.Context, s Seller, bank *BankAccount, docs []KycDocument) (Seller, error) {
+// CreateExtended inserts the account, payout account, KYC documents and its vendors in one
+// transaction. The account row carries no brand/fee/FSSAI: those live on each vendor row.
+func (r *Repo) CreateExtended(ctx context.Context, s Seller, bank *BankAccount, docs []KycDocument, vendors []VendorSeed) (Seller, error) {
 	if r.pool == nil {
 		return Seller{}, fmt.Errorf("sellers: database not configured")
 	}
 	s.SellerID = "sel-" + shortID()
-	if s.PlatformFeePct == 0 {
-		s.PlatformFeePct = 10
-	}
 	var otpAt any
 	if s.OTPVerified {
 		if s.OTPVerifiedAt == "" {
@@ -258,16 +337,15 @@ func (r *Repo) CreateExtended(ctx context.Context, s Seller, bank *BankAccount, 
 
 	created, err := scanSeller(tx.QueryRow(ctx, `
 		insert into sellers.sellers
-		  (seller_id, business_name, owner_name, category, gstin, pan, address, phone, contact_email,
-		   state_code, district_code, platform_fee_pct, razorpay_linked_account_id, fssai_number, fssai_cert_key,
-		   fssai_cert_asset_id, otp_verified, otp_verified_at, latitude, longitude, seller_category_id)
-		values ($1,$2,$3,nullif($4,'')::app_brand,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21)
+		  (seller_id, business_name, owner_name, gstin, pan, address, phone, contact_email,
+		   state_code, district_code, razorpay_linked_account_id,
+		   otp_verified, otp_verified_at, latitude, longitude)
+		values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15)
 		returning `+sellerColumns,
-		s.SellerID, s.BusinessName, s.OwnerName, s.Category, s.GSTIN, s.PAN, s.BusinessAddress,
+		s.SellerID, s.BusinessName, s.OwnerName, s.GSTIN, s.PAN, s.BusinessAddress,
 		nullIfEmpty(s.ContactPhone), nullIfEmpty(s.ContactEmail), s.StateCode, nullIfEmpty(s.DistrictCode),
-		s.PlatformFeePct, nullIfEmpty(s.RazorpayLinkedAccountID), nullIfEmpty(s.FSSAINumber),
-		nullIfEmpty(s.FSSAICertKey), nullIfEmpty(s.FSSAICertAssetID), s.OTPVerified, otpAt,
-		s.Latitude, s.Longitude, nullIfEmpty(s.SellerCategoryID)))
+		nullIfEmpty(s.RazorpayLinkedAccountID), s.OTPVerified, otpAt,
+		s.Latitude, s.Longitude))
 	if err != nil {
 		return Seller{}, err
 	}
@@ -280,6 +358,22 @@ func (r *Repo) CreateExtended(ctx context.Context, s Seller, bank *BankAccount, 
 	for i := range docs {
 		docs[i].SellerID = created.SellerID
 		if _, err := insertKYC(ctx, tx, docs[i]); err != nil {
+			return Seller{}, err
+		}
+	}
+	for _, v := range vendors {
+		fee := v.PlatformFeePct
+		if fee == 0 {
+			fee = 10
+		}
+		if _, err := tx.Exec(ctx, `
+			insert into directory.stores
+			  (id, app, name, seller_id, state_code, address, phone, hours, latitude, longitude,
+			   platform_fee_pct, seller_category_id, fssai_number, fssai_cert_key, fssai_cert_asset_id, is_live)
+			values ($1, $2::app_brand, $3, $4, nullif($5,''), nullif($6,''), nullif($7,''), nullif($8,''),
+			        $9, $10, $11, nullif($12,''), $13, $14, $15, false)`,
+			"store-"+shortID(), v.App, v.Name, created.SellerID, v.StateCode, v.Address, v.Phone, v.Hours,
+			v.Latitude, v.Longitude, fee, v.SellerCategoryID, v.FSSAINumber, v.FSSAICertKey, v.FSSAICertAssetID); err != nil {
 			return Seller{}, err
 		}
 	}
@@ -324,22 +418,18 @@ func (r *Repo) SetStatus(ctx context.Context, id, status string) (Seller, bool, 
 	return s, true, nil
 }
 
-// UpdatePlatformFee sets the commission before approval.
-func (r *Repo) UpdatePlatformFee(ctx context.Context, id string, pct int) (Seller, bool, error) {
+// UpdateStorePlatformFee applies a fee to one vendor shop owned by sellerID.
+func (r *Repo) UpdateStorePlatformFee(ctx context.Context, sellerID, storeID string, pct int) (bool, error) {
 	if r.pool == nil {
-		return Seller{}, false, fmt.Errorf("sellers: database not configured")
+		return false, fmt.Errorf("sellers: database not configured")
 	}
-	s, err := scanSeller(r.pool.QueryRow(ctx, `
-		update sellers.sellers set platform_fee_pct = $2
-		 where seller_id = $1
-		 returning `+sellerColumns, id, pct))
+	tag, err := r.pool.Exec(ctx, `
+		update directory.stores set platform_fee_pct = $3, updated_at = now()
+		 where id = $1 and seller_id = $2`, storeID, sellerID, pct)
 	if err != nil {
-		if errors.Is(err, pgx.ErrNoRows) {
-			return Seller{}, false, nil
-		}
-		return Seller{}, false, err
+		return false, err
 	}
-	return s, true, nil
+	return tag.RowsAffected() > 0, nil
 }
 
 // SetLinkedAccount stores the Razorpay Route linked-account id.
@@ -435,21 +525,15 @@ func (r *Repo) EditRequest(ctx context.Context, id string, next Seller, bank *Ba
 
 	after, err := scanSeller(tx.QueryRow(ctx, `
 		update sellers.sellers set
-		  business_name=$2, owner_name=$3, category=nullif($4,'')::app_brand, gstin=$5, pan=$6,
-		  address=$7, phone=$8, contact_email=$9, state_code=$10, district_code=$11,
-		  platform_fee_pct=case when $12 = 0 then platform_fee_pct else $12 end,
-		  fssai_number=$13,
-		  fssai_cert_key=coalesce(nullif($14,''), fssai_cert_key),
-		  fssai_cert_asset_id=coalesce(nullif($15,''), fssai_cert_asset_id),
-		  latitude=coalesce($16, latitude), longitude=coalesce($17, longitude),
-		  seller_category_id=coalesce(nullif($18,''), seller_category_id),
+		  business_name=$2, owner_name=$3, gstin=$4, pan=$5,
+		  address=$6, phone=$7, contact_email=$8, state_code=$9, district_code=$10,
+		  latitude=coalesce($11, latitude), longitude=coalesce($12, longitude),
 		  status='PENDING_REVIEW', rejection_reason=null
 		 where seller_id=$1
 		 returning `+sellerColumns,
-		id, next.BusinessName, next.OwnerName, next.Category, next.GSTIN, next.PAN,
+		id, next.BusinessName, next.OwnerName, next.GSTIN, next.PAN,
 		next.BusinessAddress, nullIfEmpty(next.ContactPhone), nullIfEmpty(next.ContactEmail), next.StateCode,
-		nullIfEmpty(next.DistrictCode), next.PlatformFeePct, nullIfEmpty(next.FSSAINumber),
-		next.FSSAICertKey, next.FSSAICertAssetID, next.Latitude, next.Longitude, nullIfEmpty(next.SellerCategoryID)))
+		nullIfEmpty(next.DistrictCode), next.Latitude, next.Longitude))
 	if err != nil {
 		return Seller{}, nil, err
 	}
@@ -516,7 +600,6 @@ func diffFields(before, after Seller) []fieldChange {
 	}{
 		{"businessName", before.BusinessName, after.BusinessName},
 		{"ownerName", before.OwnerName, after.OwnerName},
-		{"category", before.Category, after.Category},
 		{"gstin", before.GSTIN, after.GSTIN},
 		{"pan", before.PAN, after.PAN},
 		{"businessAddress", before.BusinessAddress, after.BusinessAddress},
@@ -524,8 +607,6 @@ func diffFields(before, after Seller) []fieldChange {
 		{"contactEmail", before.ContactEmail, after.ContactEmail},
 		{"stateCode", before.StateCode, after.StateCode},
 		{"districtCode", before.DistrictCode, after.DistrictCode},
-		{"platformFeePct", strconv.Itoa(before.PlatformFeePct), strconv.Itoa(after.PlatformFeePct)},
-		{"fssaiNumber", before.FSSAINumber, after.FSSAINumber},
 	}
 	out := []fieldChange{}
 	for _, p := range pairs {
@@ -675,11 +756,10 @@ func scanSeller(row rowScanner) (Seller, error) {
 		createdAt time.Time
 		lat, lng  *float64
 	)
-	if err := row.Scan(&s.SellerID, &s.BusinessName, &s.OwnerName, &s.Category, &s.GSTIN, &s.PAN,
+	if err := row.Scan(&s.SellerID, &s.BusinessName, &s.OwnerName, &s.GSTIN, &s.PAN,
 		&s.BusinessAddress, &s.ContactPhone, &s.ContactEmail, &s.StateCode, &s.DistrictCode, &s.Status, &s.Rating,
-		&s.PlatformFeePct, &s.RazorpayLinkedAccountID, &s.FSSAINumber, &s.FSSAICertKey,
-		&s.FSSAICertAssetID, &s.OTPVerified, &otpAt, &s.RejectionReason, &history, &createdAt,
-		&lat, &lng, &s.SellerCategoryID); err != nil {
+		&s.RazorpayLinkedAccountID, &s.OTPVerified, &otpAt, &s.RejectionReason, &history, &createdAt,
+		&lat, &lng); err != nil {
 		return Seller{}, err
 	}
 	if otpAt != nil {
@@ -693,6 +773,37 @@ func scanSeller(row rowScanner) (Seller, error) {
 	s.CreatedAt = createdAt.UTC().Format(time.RFC3339)
 	s.Latitude = lat
 	s.Longitude = lng
+	return s, nil
+}
+
+// scanSellerList decodes the base seller columns plus the aggregated vendor count/apps.
+func scanSellerList(row rowScanner) (Seller, error) {
+	var (
+		s         Seller
+		otpAt     *time.Time
+		history   []byte
+		createdAt time.Time
+		lat, lng  *float64
+		apps      []string
+	)
+	if err := row.Scan(&s.SellerID, &s.BusinessName, &s.OwnerName, &s.GSTIN, &s.PAN,
+		&s.BusinessAddress, &s.ContactPhone, &s.ContactEmail, &s.StateCode, &s.DistrictCode, &s.Status, &s.Rating,
+		&s.RazorpayLinkedAccountID, &s.OTPVerified, &otpAt, &s.RejectionReason, &history, &createdAt,
+		&lat, &lng, &s.VendorCount, &apps); err != nil {
+		return Seller{}, err
+	}
+	if otpAt != nil {
+		s.OTPVerifiedAt = otpAt.UTC().Format(time.RFC3339)
+	}
+	if len(history) > 0 {
+		s.RejectionHistory = json.RawMessage(history)
+	} else {
+		s.RejectionHistory = json.RawMessage("[]")
+	}
+	s.CreatedAt = createdAt.UTC().Format(time.RFC3339)
+	s.Latitude = lat
+	s.Longitude = lng
+	s.VendorApps = apps
 	return s, nil
 }
 
@@ -881,16 +992,13 @@ func (r *Repo) ApproveFeeChangeRequest(ctx context.Context, requestID, reviewer,
 	if err != nil {
 		return Seller{}, FeeChangeRequest{}, false, err
 	}
-	// The fee lives on the VENDOR (directory.stores, 0069/0072). A legacy account-level request
-	// (store_id null) falls back to the account's default fee so old rows still resolve.
-	if storeID != nil && *storeID != "" {
-		if _, err := tx.Exec(ctx, `update directory.stores set platform_fee_pct = $2, updated_at = now() where id = $1`, *storeID, requested); err != nil {
-			return Seller{}, FeeChangeRequest{}, false, err
-		}
-	} else {
-		if _, err := tx.Exec(ctx, `update sellers.sellers set platform_fee_pct = $2 where seller_id = $1`, sellerID, requested); err != nil {
-			return Seller{}, FeeChangeRequest{}, false, err
-		}
+	// The fee lives on the VENDOR (directory.stores, 0069/0072). Legacy account-level rows carry no
+	// store and cannot be applied to a single shop; they are left PENDING for an explicit review.
+	if storeID == nil || *storeID == "" {
+		return Seller{}, FeeChangeRequest{}, false, nil
+	}
+	if _, err := tx.Exec(ctx, `update directory.stores set platform_fee_pct = $2, updated_at = now() where id = $1`, *storeID, requested); err != nil {
+		return Seller{}, FeeChangeRequest{}, false, err
 	}
 	seller, err := scanSeller(tx.QueryRow(ctx, `
 		select `+sellerColumns+` from sellers.sellers where seller_id=$1`, sellerID))

@@ -16,16 +16,14 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { updateStock } from "@/lib/api";
-import { useMockLoading, useStock } from "@/lib/api/hooks";
-import { useSession } from "@/lib/hooks/useSession";
+import { useMockLoading, useSellerScope, useStock } from "@/lib/api/hooks";
 import { ProductThumb } from "@/components/patterns/ProductThumb";
 import { ComponentHelp } from "@/components/patterns/ComponentHelp";
 
 function SellerInventory() {
-  const session = useSession();
-  const sellerId = session?.sellerId ?? "sel-1";
+  const { sellerId, storeId } = useSellerScope();
   const loading = useMockLoading();
-  const rows = useStock(sellerId);
+  const rows = useStock(sellerId, storeId);
   const [drafts, setDrafts] = useState<Record<string, { qty: string; eta: string }>>({});
   const [bulk, setBulk] = useState("");
 

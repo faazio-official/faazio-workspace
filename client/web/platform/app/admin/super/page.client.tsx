@@ -19,8 +19,9 @@ import {
   useOrders,
   useSellers,
   useDistrictAdmins,
+  useDistricts,
 } from "@/lib/api/hooks";
-import { DISTRICTS, districtName } from "@/data/districts";
+import { districtName } from "@/lib/api/reference";
 
 
 function SuperDashboard() {
@@ -30,12 +31,13 @@ function SuperDashboard() {
   const orders = useOrders();
   const campaigns = useCampaigns();
   const admins = useDistrictAdmins();
+  const districts = useDistricts();
   const [showUncoveredOnly, setShowUncoveredOnly] = useState(false);
 
-  const uncovered = DISTRICTS.filter(
+  const uncovered = districts.filter(
     (d) => admins.filter((a) => a.districtCode === d.districtCode && a.active).length === 0,
   );
-  const visibleDistricts = showUncoveredOnly ? uncovered : DISTRICTS;
+  const visibleDistricts = showUncoveredOnly ? uncovered : districts;
   const sectorMix = Object.entries(
     orders.reduce<Record<string, number>>((acc, o) => {
       acc[o.sector] = (acc[o.sector] ?? 0) + o.amountPaisa;
@@ -63,7 +65,7 @@ function SuperDashboard() {
               compare: "vs previous 30 days",
             },
             { label: "Sellers", value: formatNumber(sellers.length) },
-            { label: "Districts live", value: formatNumber(DISTRICTS.length) },
+            { label: "Districts live", value: formatNumber(districts.length) },
             { label: "Uncovered districts", value: formatNumber(uncovered.length) },
             { label: "District admins", value: formatNumber(admins.filter((a) => a.active).length) },
           ]}
@@ -179,7 +181,7 @@ function SuperDashboard() {
                 >
                   <AlertTriangle className="size-4 text-warning" />
                   0 active admins for <span className="num">{info.districtCode}</span>{" "}
-                  {districtName(info.districtCode)}
+                  {districtName(districts, info.districtCode)}
                 </Link>
               </li>
             ))}

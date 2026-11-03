@@ -38,8 +38,10 @@ ico and svg, `?v=3` on the rest.
 
 ## Data + auth
 
-The Zustand store seeds from `src/data/**` for local development and hydrates
-from the Go gateway when `NEXT_PUBLIC_GATEWAY_URL` is set (`src/lib/api/sync.ts`).
+The Zustand store starts empty and hydrates from the Go gateway when
+`NEXT_PUBLIC_GATEWAY_URL` is set (`src/lib/api/sync.ts`) — there are no bundled
+demo rows (`src/data/` holds only `types.ts`; reference data like states,
+districts, placements and taxonomy categories is fetched live from the gateway).
 Pages read through `src/lib/api/*`; browser data calls go through the same-origin
 `/api/gateway/*` proxy. Portal auth is the only auth mode: credentials are
 issued by a superadmin (`/admin/super/credentials`) and the session lives in
