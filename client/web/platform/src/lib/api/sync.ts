@@ -4,7 +4,7 @@
 // When `NEXT_PUBLIC_GATEWAY_URL` is unset this is a no-op.
 import { remoteConfigured } from "@/lib/config";
 import { remote, toCamel } from "@/lib/api/http";
-import { fetchSellerInventory, fetchSellerPricing, type SellerConsoleRow } from "@/lib/api";
+import { fetchSellerInventory, fetchSellerPricing, fetchSellerStores, type SellerConsoleRow } from "@/lib/api";
 import { usePortalStore } from "@/lib/api/store";
 import type {
   AdSlot,
@@ -33,6 +33,7 @@ import type {
   SellerStatus,
   SduiLayout,
   StockRecord,
+  StoreRecord,
   DistrictAdmin,
   TicketRecord,
 } from "@/data/types";
@@ -187,7 +188,7 @@ export async function hydrateFromGateway(): Promise<boolean> {
   const cur = usePortalStore.getState();
   const role = cur.session?.role;
 
-  const [sellers, campaigns, coupons, caps, optins, slots, heroCampaigns, admins, logs, ledger, payouts, rx, blood, sdui, customers, menus, tickets, rates, rewardLedger, orders, inventory, pricing] =
+  const [sellers, campaigns, coupons, caps, optins, slots, heroCampaigns, admins, logs, ledger, payouts, rx, blood, sdui, customers, menus, tickets, rates, rewardLedger, orders, inventory, pricing, stores] =
     await Promise.all([
       safe(() => remote.get<RawSeller[]>("/sellers").then(toCamel)),
       safe(() => remote.get<FestivalCampaign[]>("/promo/campaigns").then(toCamel)),
@@ -240,6 +241,31 @@ export async function hydrateFromGateway(): Promise<boolean> {
           ? fetchSellerInventory()
           : Promise.resolve<SellerConsoleRow[] | undefined>(undefined),
       ),
+      // The seller's own directory store rows (`accounts.stores` via GET /seller/stores). Hydrating
+      // them lets seller order/product rows resolve city/sector and keeps the console scoped the
+      // same way the gateway scopes it. Admins are unaffected (their stores stay seed-empty, as today).
+      safe(() =>
+        role === "SELLER"
+          ? fetchSellerStores().then((rows) =>
+              rows.map(
+                (r): StoreRecord => ({
+                  storeId: r.storeId,
+                  sellerId: cur.session?.sellerId ?? "",
+                  name: r.name,
+                  sector: r.sector,
+                  addressLine: r.address ?? "",
+                  city: "",
+                  stateCode: cur.session?.stateCode ?? "",
+                  deliveryTime: r.deliveryTime ?? "",
+                  hours: r.hours ?? "",
+                  isVeg: r.isVeg,
+                  isLive: r.isLive,
+                  rating: 0,
+                }),
+              ),
+            )
+          : Promise.resolve<StoreRecord[] | undefined>(undefined),
+      ),
     ]);
 
   const patch: Record<string, unknown> = {};
@@ -253,6 +279,10 @@ export async function hydrateFromGateway(): Promise<boolean> {
         contactPhone: s.contactPhone ?? "",
       }),
     );
+    touched = true;
+  }
+  if (hasSlice(stores)) {
+    patch["stores"] = stores;
     touched = true;
   }
   if (hasSlice(campaigns)) {
@@ -437,13 +467,22 @@ export async function hydrateFromGateway(): Promise<boolean> {
   if (hasSlice(orders)) {
     const sellerId = cur.session?.sellerId ?? "";
     const seller = cur.sellers.find((row) => row.sellerId === sellerId);
-    const storeById = new Map(cur.stores.map((store) => [store.storeId, store]));
+    const storeById = new Map(
+      [...cur.stores, ...(Array.isArray(stores) ? stores : [])].map((store) => [store.storeId, store]),
+    );
     patch["orders"] = mergeById(
       orders.map((raw): OrderRecord => {
-        const stores = Array.isArray(raw["vendorStoreIds"])
+        const vendorStoreIds = Array.isArray(raw["vendorStoreIds"])
           ? raw["vendorStoreIds"].map((id) => str(id)).filter(Boolean)
           : [];
-        const storeId = stores[0] ?? "";
+        // Prefer the order's own store id, then a vendor-scoped list, then — when the seller owns a
+        // single shop — that shop, so a scoped seller list never hides an order it owns.
+        const ownedStoreIds = Array.isArray(stores) ? stores.map((s) => s.storeId) : [];
+        const storeId =
+          str(raw["storeId"]) ||
+          vendorStoreIds[0] ||
+          (ownedStoreIds.length === 1 ? ownedStoreIds[0]! : "") ||
+          "";
         const store = storeById.get(storeId);
         const placedAt = str(raw["placedAt"]);
         const placed = Date.parse(placedAt);

@@ -1,6 +1,13 @@
 /* Hallmark · checked: 2026-11-01 · genre: modern-minimal (inferred)
  * floor: fixed focus rings, sticky shell, input/chart contrast, 10px tracked labels, 320px overflow
- * built: the project · redesign: polish · v2.1.0 (theme layer: auto / light / dark) */
+ * built: the project · redesign: polish · v2.1.0 (theme layer: auto / light / dark)
+ *
+ * Seller console reference layer (seller app vite reference): Figtree + brand/status/nav tokens
+ * + sheet/fade animations. Loaded once, but only the seller chrome applies `.font-seller` and the
+ * new tokens (bg-brand, bg-info, bg-nav, ...) — admin consoles keep IBM Plex Sans + Faazio blue.
+ * @import url(<figtree>) MUST stay first (CSS @import ordering).
+ */
+@import url("https://fonts.googleapis.com/css2?family=Figtree:wght@400..800&display=swap");
 @import "tailwindcss" source(none);
 @source "../src";
 @source "../app";
@@ -34,12 +41,16 @@
 @theme inline {
   --font-sans: "IBM Plex Sans", Inter, ui-sans-serif, system-ui, sans-serif;
   --font-mono: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+  /* Seller console (vite reference) type — applied by `.font-seller`, never the default. */
+  --font-seller: "Figtree", Inter, ui-sans-serif, system-ui, sans-serif;
 
   --radius-sm: calc(var(--radius) - 4px);
   --radius-md: calc(var(--radius) - 2px);
   --radius-lg: var(--radius);
   --radius-xl: calc(var(--radius) + 4px);
   --radius-2xl: calc(var(--radius) + 8px);
+  --radius-3xl: calc(var(--radius) + 12px);
+  --radius-4xl: calc(var(--radius) + 16px);
 
   --color-background: var(--background);
   --color-foreground: var(--foreground);
@@ -84,6 +95,17 @@
   --color-chart-3: var(--chart-3);
   --color-chart-4: var(--chart-4);
   --color-chart-5: var(--chart-5);
+
+  /* Seller console accent/status set (vite reference hue family). Brand is the coral accent,
+   * info is the reference's blue; soft tints derive from each token so dark mode stays correct. */
+  --color-brand: var(--brand);
+  --color-brand-soft: var(--brand-soft);
+  --color-info: var(--info);
+  --color-info-soft: var(--info-soft);
+  --color-success-soft: var(--success-soft);
+  --color-warning-soft: var(--warning-soft);
+  --color-nav: var(--nav);
+  --color-nav-foreground: var(--nav-foreground);
 
   --shadow-card: 0 1px 2px oklch(0.19 0.04 265 / 0.04);
   --shadow-lift: 0 8px 24px oklch(0.19 0.04 265 / 0.07);
@@ -149,6 +171,19 @@
   --chart-3: oklch(0.68 0.018 258);
   --chart-4: oklch(0.8 0.014 258);
   --chart-5: oklch(0.89 0.011 258);
+
+  /* Seller console (vite reference) accents. Soft tints mix from the token so they stay
+   * theme-correct; `info` blue is new to the ramp and used only by seller chrome. */
+  --brand: oklch(0.6 0.22 20);
+  --brand-soft: color-mix(in oklab, var(--brand) 13%, var(--card));
+  --info: oklch(0.52 0.17 255);
+  --info-soft: color-mix(in oklab, var(--info) 13%, var(--card));
+  --success-soft: color-mix(in oklab, var(--success) 13%, var(--card));
+  --warning-soft: color-mix(in oklab, var(--warning) 14%, var(--card));
+  --nav: oklch(0.22 0.01 260);
+  --nav-foreground: oklch(0.85 0.005 260);
+  --promo-from: oklch(0.55 0.2 0);
+  --promo-to: oklch(0.72 0.14 15);
 }
 
 /* ── Dark theme ──────────────────────────────────────────────────────────── */
@@ -209,6 +244,19 @@
   --chart-3: oklch(0.6 0.018 258);
   --chart-4: oklch(0.46 0.016 258);
   --chart-5: oklch(0.36 0.014 258);
+
+  /* Seller console accents on dark: brand/info lift a step above the card surface; the nav pill
+   * stays a dark-but-visible step so the active tab (`bg-background/15`) still reads. */
+  --brand: oklch(0.72 0.18 22);
+  --brand-soft: color-mix(in oklab, var(--brand) 18%, var(--card));
+  --info: oklch(0.68 0.15 255);
+  --info-soft: color-mix(in oklab, var(--info) 20%, var(--card));
+  --success-soft: color-mix(in oklab, var(--success) 20%, var(--card));
+  --warning-soft: color-mix(in oklab, var(--warning) 22%, var(--card));
+  --nav: oklch(0.27 0.02 258);
+  --nav-foreground: oklch(0.62 0.015 258);
+  --promo-from: oklch(0.55 0.2 0);
+  --promo-to: oklch(0.72 0.14 15);
 
   /* Depth on dark comes from surface steps and hairlines, not shadows. */
   --shadow-card: 0 1px 2px oklch(0 0 0 / 0.3);
@@ -295,4 +343,44 @@
     outline: 2px solid var(--focus-on-ink);
     outline-offset: 2px;
   }
+}
+
+/* ── Seller console (vite reference) utilities ───────────────────────────── */
+/* Figtree for seller chrome only; admin surfaces keep IBM Plex Sans. */
+@utility font-seller {
+  font-family: var(--font-seller);
+}
+@utility bg-promo {
+  background-image: linear-gradient(110deg, var(--promo-from), var(--promo-to));
+}
+@utility bg-info-gradient {
+  background-image: linear-gradient(180deg, var(--info-soft), var(--background));
+}
+@utility no-scrollbar {
+  scrollbar-width: none;
+  &::-webkit-scrollbar {
+    display: none;
+  }
+}
+@keyframes sheet-up {
+  from {
+    transform: translateY(100%);
+  }
+  to {
+    transform: translateY(0);
+  }
+}
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+@utility animate-sheet {
+  animation: sheet-up 0.25s ease-out;
+}
+@utility animate-fade {
+  animation: fade-in 0.2s ease-out;
 }

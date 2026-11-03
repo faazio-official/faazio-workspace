@@ -137,7 +137,7 @@ function SellerPrescriptions() {
   const revealed = selected?.status === "READY" || selected?.status === "FULFILLED";
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-4 px-4 pt-4">
       <PageHeader
         title="Prescriptions"
         description="Price each Rx, then flip it READY to reveal the customer's contact and notify them. Images stay private to Storage."

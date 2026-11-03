@@ -59,7 +59,7 @@ function EditProduct() {
   const pricePaisa = parseRupeesToPaisa(price);
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-4 px-4 pt-4">
       <PageHeader
         title={product.name}
         description={`${product.productId} · ${product.sector} · ${product.category}`}

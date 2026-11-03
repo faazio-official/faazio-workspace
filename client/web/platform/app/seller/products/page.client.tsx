@@ -41,7 +41,7 @@ function SellerProducts() {
   const rows = products.slice(0, limit);
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-4 px-4 pt-4">
       <PageHeader
         title="Products"
         description="Everything a shopper can buy from you starts as a row here."

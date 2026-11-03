@@ -19,7 +19,7 @@ function SellerSettings() {
   const bank = getBankAccount(sellerId);
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-4 px-4 pt-4">
       <PageHeader
         title="Settings"
         description="Profile changes that affect KYC need admin re-verification."

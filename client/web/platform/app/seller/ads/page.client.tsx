@@ -36,7 +36,7 @@ function SellerAds() {
     campaigns.reduce((t, c) => t + c.ordersAttributed, 0);
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-4 px-4 pt-4">
       <PageHeader
         title="Ads"
         description="Ads go live instantly — machine-checked, not admin-approved. Abuse is removed only after a report."

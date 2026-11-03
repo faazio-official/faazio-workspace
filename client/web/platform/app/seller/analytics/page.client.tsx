@@ -66,7 +66,7 @@ function SellerAnalytics() {
     .sort((a, b) => b.value - a.value);
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-4 px-4 pt-4">
       <PageHeader
         title="Shop analytics"
         description="Sales, conversion and category mix for your shop."

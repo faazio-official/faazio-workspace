@@ -38,7 +38,7 @@ function SellerStores() {
   };
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-4 px-4 pt-4">
       <PageHeader
         title="Vendors"
         description="Each vendor is one shop in one app (Mart, Food or Pharma). Switch the active vendor in the top bar."

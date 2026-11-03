@@ -133,7 +133,7 @@ function SellerMenus() {
   }
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-4 px-4 pt-4">
       <PageHeader
         title="Menu"
         description="Dishes are per venue. Submit a dish for review, then district admins make it live."

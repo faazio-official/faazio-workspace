@@ -25,7 +25,7 @@ function SellerReviews() {
   }));
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-4 px-4 pt-4">
       <PageHeader
         title="Reviews"
         description="Replies show under the product in the consumer app."

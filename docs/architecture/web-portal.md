@@ -71,6 +71,30 @@ account owns one vendor; a "Add a vendor" CTA when it owns none. The native sell
 `window.__faazio.vendorId`, which restores the last active shop on load (the same console is used in a
 desktop browser, so the switcher is seller-console-wide, not WebView-only).
 
+**Seller console reference redesign (phased).** The seller console is being ported to the visual language
+of `client/web/seller app vite reference` (restaurant partner app) — Figtree, coral `--brand` accent,
+softer success/info/warning tints, dark pill bottom nav, bottom Sheet interactions and inline SVG charts.
+The seller-only token/utility layer lives at the bottom of `src/styles.css` (`.font-seller`, `bg-promo`,
+`bg-info-gradient`, `no-scrollbar`, `animate-sheet`, `animate-fade`, `--color-brand/-soft`,
+`--color-info/-soft`, `--color-success-soft`, `--color-warning-soft`, `--color-nav`, `--color-nav-foreground`,
+`--radius-3xl/4xl`); admin consoles keep IBM Plex Sans + Faazio blue. New seller-only primitives live in
+`src/components/sellers/` (`kit.tsx`, `charts.tsx`, `promo.tsx`, `shells.tsx`, `hamburger.tsx`,
+`desktop-shell.tsx`) and are never imported by admin routes.
+
+`app/seller/layout.tsx` now renders `SellerAppShell` (`src/components/sellers/shells.tsx`) instead of the
+old width-1440 `SellerShell`: on mobile a centered 430px frame with a floating dark pill tab bar
+(Orders / Inventory / Menu / Feedback) and a hamburger that opens `/seller/explore`; on ≥ 768px a
+persistent left sidebar (all `SELLER_NAV` groups) beside a wider `max-w-[1024px]` content column.
+Restaurant-status-ish UI state (online/rush/delivery) is not server data, so it lives in a small
+persisted Zustand slice `src/lib/sellerUi.ts`.
+
+Currently converted to the reference kit (phased roll-out — the rest of the seller pages still use the
+old patterns but render inside the new shell): `orders`, `orders/[id]`, `inventory`, plus new routes
+`order-history`, `restaurant-status`, `rush-hour`, `explore`. `/seller` still shows the legacy dashboard
+(redirect to orders is deferred until the hub page lands). Order rows resolve their store from the order's
+own `storeId`/`vendorStoreIds` and — when a seller owns one shop — that shop (`src/lib/api/sync.ts`), and
+the seller's directory stores are hydrated from `GET /seller/stores` so scoped lists resolve sector/city.
+
 **Seller app is seller-only (defense in depth).** The native seller app never accepts an admin
 session. At sign-in, `/login` checks `isBlockedInNativeSellerApp(role)` (every role except `SELLER`)
 and, on a match, signs the session straight back out (`signOut()` → clears the HttpOnly cookies) and
@@ -134,6 +158,8 @@ A separate **connectivity** layer (`src/lib/connectivityStore.ts`, `navigator.on
 | `seller/stores` | store profile | all |
 | `seller/menus` | dish menus (+ authoritative MRP strike) | FOOD |
 | `seller/orders` · `seller/orders/[id]` | order queue + detail (hydrated `GET /seller/orders`; NEW cards use the explicit accept/reject endpoints) | all |
+| `seller/order-history` | past-orders search (order id + date range sheet) over the same `/seller/orders` data | all |
+| `seller/restaurant-status` · `seller/rush-hour` · `seller/explore` | online/offline + delivery settings, rush-mode timer, and the grouped "all tools" grid that opens from the hamburger (covers every `SELLER_NAV` item) | all |
 | `seller/prescriptions` | Rx quote → READY reveal | PHARMA |
 | `seller/returns` · `seller/reviews` · `seller/payments` | after-sales — commission-free payments ledger (TCS, TDS 0.1%, product GST; sellers keep full gross) | all |
 | `seller/analytics` · `seller/support` · `seller/settings` · `seller/onboarding` | console | all |

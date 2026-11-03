@@ -89,7 +89,7 @@ function AddVendor() {
   }
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-4 px-4 pt-4">
       <PageHeader
         title="Add a vendor"
         description="A vendor is one shop in one app. Your account can own several vendors (Mart, Food, Pharma)."

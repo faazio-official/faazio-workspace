@@ -26,7 +26,7 @@ function SellerSupport() {
   const [body, setBody] = useState("");
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-4 px-4 pt-4">
       <PageHeader title="Support" description="Partner support replies inside working hours." />
 
       <div className="grid gap-4 lg:grid-cols-2">

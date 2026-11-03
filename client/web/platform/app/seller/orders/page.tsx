@@ -1,7 +1,10 @@
 import { pageMetadata } from "@/lib/seo";
 import PageClient from "./page.client";
 
-export const metadata = pageMetadata("Orders", "Pipeline board from new to delivered, with SLA countdown and cancellations.");
+export const metadata = pageMetadata(
+  "Orders",
+  "Live orders grouped by stage, with accept/reject and advance actions.",
+);
 
 export default function Page() {
   return <PageClient />;

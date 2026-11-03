@@ -559,7 +559,9 @@ export async function fetchSellerPromotions(): Promise<SellerPromotionsView> {
 export function listOrders(filter: { sellerId?: string | undefined; storeId?: string | undefined; stateCode?: string | undefined; status?: OrderStatus | "ALL" | undefined } = {}) {
   return state().orders.filter((o) => {
     if (filter.sellerId && o.sellerId !== filter.sellerId) return false;
-    if (filter.storeId && o.storeId !== filter.storeId) return false;
+    // An order whose store could not be resolved (storeId blank on the wire) is never hidden from a
+    // store-scoped seller list — a gateway omitting the field must not empty the board.
+    if (filter.storeId && o.storeId && o.storeId !== filter.storeId) return false;
     if (filter.stateCode && o.stateCode !== filter.stateCode) return false;
     if (filter.status && filter.status !== "ALL" && o.status !== filter.status) return false;
     return true;

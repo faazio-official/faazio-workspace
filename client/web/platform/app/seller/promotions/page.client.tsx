@@ -54,7 +54,7 @@ function SellerPromotions() {
   const campaign = campaigns.find((c) => c.campaignId === campaignId) ?? campaigns[0];
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-4 px-4 pt-4">
       <PageHeader
         title="Promotions"
         description="Your everyday discounts stay yours. Festival discounts must sit under the cap."

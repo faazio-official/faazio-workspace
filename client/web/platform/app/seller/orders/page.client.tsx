@@ -1,148 +1,295 @@
 "use client";
 import Link from "next/link";
+import { useState } from "react";
 import { toast } from "sonner";
-import { PageHeader } from "@/components/patterns/PageHeader";
-import { SectionCard } from "@/components/patterns/SectionCard";
-import { DataShell, EmptyState } from "@/components/patterns/DataState";
-import { StatusPill } from "@/components/patterns/Pills";
-import { ComponentHelp } from "@/components/patterns/ComponentHelp";
-import { Button } from "@/components/ui/button";
-import { formatDateTime, formatINR } from "@/lib/format";
+import { ClipboardList, Clock, Receipt } from "lucide-react";
+import { OrdersHeaderIcons, OrdersTopBar } from "@/components/sellers/shells";
+import { PromoBanner } from "@/components/sellers/promo";
+import { EmptyState, PillTabs, RadioRow, Sheet } from "@/components/sellers/kit";
 import { acceptOrder, advanceOrder, rejectOrder } from "@/lib/api";
-import { useMockLoading, useOrders, useSellerScope } from "@/lib/api/hooks";
-import type { OrderStatus } from "@/data/types";
+import { useOrders, useSellerScope } from "@/lib/api/hooks";
+import { useSellerUi } from "@/lib/sellerUi";
+import { formatDateTime, formatINR } from "@/lib/format";
+import type { OrderRecord, OrderStatus } from "@/data/types";
 
+const TABS = [
+  { key: "NEW", label: "Preparing" },
+  { key: "PACKED", label: "Ready" },
+  { key: "SHIPPED", label: "Out for delivery" },
+  { key: "DELIVERED", label: "Completed" },
+] as const;
+type TabKey = (typeof TABS)[number]["key"];
 
-const COLUMNS: { status: OrderStatus; next?: OrderStatus }[] = [
-  { status: "NEW", next: "PACKED" },
-  { status: "PACKED", next: "SHIPPED" },
-  { status: "SHIPPED", next: "DELIVERED" },
-  { status: "DELIVERED" },
-];
+/** Accept is NEW → PACKED; the rest advance along the ready/shipped flows. */
+const NEXT: Partial<Record<OrderStatus, { to: OrderStatus; label: string }>> = {
+  PACKED: { to: "SHIPPED", label: "Handed over" },
+  SHIPPED: { to: "DELIVERED", label: "Mark delivered" },
+};
+
+const REJECT_REASONS = ["Items out of stock", "Kitchen is full", "Restaurant closing soon", "Customer requested", "Other"];
+
+function slaLeft(iso: string): string {
+  const h = (new Date(iso).getTime() - Date.now()) / 3600000;
+  return h > 0 ? `${h.toFixed(1)}h left` : "SLA overdue";
+}
+
+function OrderCard({
+  o,
+  onReject,
+}: {
+  o: OrderRecord;
+  onReject: () => void;
+}) {
+  const next = NEXT[o.status];
+  return (
+    <div className="overflow-hidden rounded-2xl border border-border bg-card shadow-sm">
+      <Link href={`/seller/orders/${encodeURIComponent(o.orderId)}`} className="block p-4">
+        <span className="rounded bg-success px-1.5 py-0.5 text-[9px] font-bold uppercase text-primary-foreground">
+          {o.sector === "PHARMA" ? "Pharmacy" : "Delivery"}
+        </span>
+        <div className="mt-2 flex items-start justify-between gap-2">
+          <div className="min-w-0">
+            <p className="truncate text-base font-bold">#{o.orderId}</p>
+            <p className="truncate text-[11px] text-muted-foreground">{o.customerName}</p>
+          </div>
+          <span className="shrink-0 text-[11px] text-muted-foreground">{formatDateTime(o.placedAt)}</span>
+        </div>
+        <div className="mt-3 space-y-2 border-t border-dashed border-border pt-3 text-xs">
+          <div className="flex justify-between">
+            <span className="flex items-center gap-2">
+              <ClipboardList className="h-3.5 w-3.5" />
+              Details
+            </span>
+            <span>{o.itemsCount} items</span>
+          </div>
+          <div className="flex justify-between">
+            <span className="flex items-center gap-2">
+              <Receipt className="h-3.5 w-3.5" />
+              Total bill
+            </span>
+            <span className="font-semibold">{formatINR(o.amountPaisa)}</span>
+          </div>
+        </div>
+      </Link>
+      {o.status === "NEW" || next ? (
+        <div className="flex items-center gap-2 border-t border-border bg-muted/50 px-4 py-2.5">
+          <span className="flex flex-1 items-center gap-1 text-[11px] text-muted-foreground">
+            <Clock className="h-3 w-3" />
+            {o.status === "NEW" ? slaLeft(o.slaDueAt) : `SLA ${slaLeft(o.slaDueAt)}`}
+          </span>
+          {o.status === "NEW" ? (
+            <div className="flex items-center gap-2">
+              <button
+                onClick={onReject}
+                className="rounded-lg border border-border bg-card px-3 py-1.5 text-xs font-semibold"
+              >
+                Reject
+              </button>
+              <button
+                onClick={() => {
+                  acceptOrder(o.orderId);
+                  toast.success(`#${o.orderId} accepted`);
+                }}
+                className="rounded-lg bg-foreground px-3 py-1.5 text-xs font-semibold text-background"
+              >
+                Accept
+              </button>
+            </div>
+          ) : next ? (
+            <button
+              onClick={() => {
+                advanceOrder(o.orderId, next.to);
+                toast.success(`#${o.orderId} → ${next.label}`);
+              }}
+              className="rounded-lg bg-foreground px-3 py-1.5 text-xs font-semibold text-background"
+            >
+              {next.label}
+            </button>
+          ) : null}
+        </div>
+      ) : null}
+    </div>
+  );
+}
 
 function SellerOrders() {
   const { sellerId, storeId } = useSellerScope();
-  const loading = useMockLoading();
+  const online = useSellerUi((s) => s.online);
   const orders = useOrders({ sellerId, storeId });
-  const closed = orders.filter((o) => o.status === "CANCELLED" || o.status === "RETURNED");
+  const [tab, setTab] = useState<TabKey>("NEW");
+  const [search, setSearch] = useState(false);
+  const [scan, setScan] = useState(false);
+  const [q, setQ] = useState("");
+  const [rejecting, setRejecting] = useState<OrderRecord | null>(null);
+  const [reason, setReason] = useState<string>(REJECT_REASONS[0]!);
+
+  const sorted = [...orders].sort((a, b) => b.placedAt.localeCompare(a.placedAt));
+  const list = sorted.filter((o) => o.status === tab);
+  const closed = sorted.filter((o) => o.status === "CANCELLED" || o.status === "RETURNED");
+  const tabs = TABS.map((t) => {
+    const count = orders.filter((o) => o.status === t.key).length;
+    return count > 0 ? { ...t, count } : t;
+  });
+  const ql = q.toLowerCase();
+  const found = sorted.filter(
+    (o) => ql && (o.orderId.toLowerCase().includes(ql) || o.customerName.toLowerCase().includes(ql)),
+  );
 
   return (
-    <div className="space-y-4">
-      <PageHeader
-        title="Orders"
-        description="Move each order forward before its SLA clock runs out."
+    <>
+      <OrdersTopBar
+        extra={<OrdersHeaderIcons onSearch={() => setSearch(true)} onScan={() => setScan(true)} />}
       />
-
-      <DataShell
-        loading={loading}
-        isEmpty={orders.length === 0}
-        empty={<EmptyState title="No orders yet" description="Orders land here as shoppers check out." />}
-      >
-        <div className="grid gap-3 lg:grid-cols-4">
-          {COLUMNS.map((column) => {
-            const columnOrders = orders.filter((o) => o.status === column.status);
-            return (
-              <SectionCard
-                key={column.status}
-                title={column.status.replace(/_/g, " ")}
-                description={`${columnOrders.length} orders`}
-                bodyClassName="space-y-2 p-3"
-                actions={
-                  column.status === "NEW" ? (
-                    <div className="flex items-center gap-1.5">
-                      <ComponentHelp id="accept-button" label="About accepting an order" />
-                      <ComponentHelp id="reject-button" label="About rejecting an order" />
-                    </div>
-                  ) : undefined
-                }
-              >
-                {columnOrders.length === 0 ? (
-                  <p className="py-6 text-center text-[12px] text-muted-foreground">Nothing here</p>
-                ) : (
-                  columnOrders.map((order) => (
-                    <div key={order.orderId} className="rounded-lg border border-border p-3">
-                      <div className="flex items-center justify-between gap-2">
-                        <Link
-                          href={`/seller/orders/${order.orderId}`}
-                          className="num text-[12px] font-medium text-interactive"
-                        >
-                          {order.orderId}
-                        </Link>
-                        <StatusPill status={order.status} />
-                      </div>
-                      <p className="mt-1 text-[13px] font-medium">{order.customerName}</p>
-                      <p className="num text-[12px] text-muted-foreground">
-                        {formatINR(order.amountPaisa)} · {order.itemsCount} items · {order.city}
-                      </p>
-                      <p className="num mt-1 text-[11px] text-muted-foreground">
-                        SLA {formatDateTime(order.slaDueAt)}
-                      </p>
-                      {column.status === "NEW" ? (
-                        <div className="mt-2 grid grid-cols-2 gap-2">
-                          <Button
-                            size="sm"
-                            onClick={() => {
-                              acceptOrder(order.orderId);
-                              toast.success(`${order.orderId} accepted`);
-                            }}
-                          >
-                            Accept
-                          </Button>
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            onClick={() => {
-                              const reason = window.prompt(
-                                "Rejection reason (the customer is refunded)",
-                                "Out of stock",
-                              );
-                              if (reason === null) return;
-                              rejectOrder(order.orderId, reason.trim() || "Out of stock");
-                              toast.success(`${order.orderId} rejected`);
-                            }}
-                          >
-                            Reject
-                          </Button>
-                        </div>
-                      ) : column.next ? (
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          className="mt-2 w-full"
-                          onClick={() => {
-                            advanceOrder(order.orderId, column.next!);
-                            toast.success(`${order.orderId} → ${column.next}`);
-                          }}
-                        >
-                          Mark {column.next.toLowerCase()}
-                        </Button>
-                      ) : null}
-                    </div>
-                  ))
-                )}
-              </SectionCard>
-            );
-          })}
-        </div>
-      </DataShell>
-
-      <SectionCard title="Cancellations and returns" description="Counts against your health score">
-        {closed.length === 0 ? (
-          <p className="text-[13px] text-muted-foreground">No cancellations or returns.</p>
-        ) : (
-          <ul className="divide-y divide-border">
-            {closed.map((order) => (
-              <li key={order.orderId} className="flex items-center gap-3 py-2.5 text-[13px]">
-                <span className="num font-medium">{order.orderId}</span>
-                <span className="text-muted-foreground">{order.customerName}</span>
-                <span className="num ml-auto">{formatINR(order.amountPaisa)}</span>
-                <StatusPill status={order.status} />
-              </li>
-            ))}
-          </ul>
+      <div className="space-y-3 px-4 pt-3">
+        <PromoBanner />
+        {!online && (
+          <Link
+            href="/seller/restaurant-status"
+            className="block rounded-xl bg-brand-soft px-4 py-2.5 text-xs font-semibold text-brand"
+          >
+            You are offline and not receiving new orders. Tap to go online →
+          </Link>
         )}
-      </SectionCard>
-    </div>
+        <PillTabs tabs={tabs} value={tab} onChange={setTab} />
+        {tab === "DELIVERED" && (
+          <Link
+            href="/seller/order-history"
+            className="block rounded-xl bg-info-soft px-4 py-2.5 text-xs text-info"
+          >
+            Want to see orders older than today? <b>View order history</b>
+          </Link>
+        )}
+        {list.length === 0 ? (
+          <EmptyState
+            text={`No orders are currently ${
+              tab === "DELIVERED" ? "completed" : "in " + tabs.find((t) => t.key === tab)?.label.toLowerCase()
+            }`}
+          />
+        ) : (
+          <div className="grid gap-3 md:grid-cols-2">
+            {list.map((o) => (
+              <OrderCard key={o.orderId} o={o} onReject={() => setRejecting(o)} />
+            ))}
+          </div>
+        )}
+
+        {closed.length > 0 && (
+          <section className="pt-2">
+            <h2 className="px-1 pb-2 text-sm font-bold">Cancelled & returns</h2>
+            <div className="space-y-3">
+              {closed.map((o) => (
+                <Link
+                  key={o.orderId}
+                  href={`/seller/orders/${encodeURIComponent(o.orderId)}`}
+                  className="flex items-center justify-between rounded-2xl border border-border bg-card px-4 py-3 text-sm shadow-sm"
+                >
+                  <span className="min-w-0">
+                    <span className="block truncate font-semibold">#{o.orderId}</span>
+                    <span className="block text-[11px] text-muted-foreground">{o.customerName}</span>
+                  </span>
+                  <span className="flex items-center gap-3">
+                    <span className="text-[11px] text-muted-foreground">
+                      {o.status === "CANCELLED" ? "Cancelled" : "Returned"} · {formatINR(o.amountPaisa)}
+                    </span>
+                    <span
+                      className={`rounded px-1.5 py-0.5 text-[10px] font-bold uppercase ${
+                        o.status === "CANCELLED"
+                          ? "bg-warning-soft text-warning"
+                          : "bg-brand-soft text-brand"
+                      }`}
+                    >
+                      {o.status}
+                    </span>
+                  </span>
+                </Link>
+              ))}
+            </div>
+          </section>
+        )}
+      </div>
+
+      <Sheet
+        open={search}
+        onClose={() => {
+          setSearch(false);
+          setQ("");
+        }}
+        title="Search orders"
+      >
+        <input
+          autoFocus
+          value={q}
+          onChange={(e) => setQ(e.target.value)}
+          placeholder="Search by order ID or customer name"
+          className="w-full rounded-xl border border-border px-3 py-2.5 text-sm outline-none focus:border-info"
+        />
+        <div className="mt-3 space-y-2 pb-4">
+          {found.map((o) => (
+            <Link
+              key={o.orderId}
+              href={`/seller/orders/${encodeURIComponent(o.orderId)}`}
+              className="flex justify-between rounded-xl border border-border p-3 text-sm"
+            >
+              <span>
+                #{o.orderId} • {o.customerName}
+              </span>
+              <span className="text-xs text-muted-foreground">
+                {TABS.find((t) => t.key === o.status)?.label ?? o.status}
+              </span>
+            </Link>
+          ))}
+          {q && !found.length && (
+            <p className="py-6 text-center text-xs text-muted-foreground">No matching orders</p>
+          )}
+        </div>
+      </Sheet>
+
+      <Sheet open={scan} onClose={() => setScan(false)} title="Scan rider QR">
+        <div className="mx-auto my-4 flex aspect-square w-56 items-center justify-center rounded-2xl border-2 border-dashed border-info text-xs text-muted-foreground">
+          Point camera at delivery partner&apos;s QR
+        </div>
+        <button
+          onClick={() => {
+            setScan(false);
+            toast.success("Rider verified");
+          }}
+          className="mb-3 w-full rounded-xl bg-foreground py-3 text-sm font-semibold text-background"
+        >
+          Simulate scan
+        </button>
+      </Sheet>
+
+      <Sheet
+        open={rejecting !== null}
+        onClose={() => setRejecting(null)}
+        title="Reason for rejection"
+        footer={
+          <div className="flex gap-2">
+            <button
+              onClick={() => setRejecting(null)}
+              className="flex-1 rounded-xl border border-border bg-card px-4 py-3 text-sm font-semibold"
+            >
+              Back
+            </button>
+            <button
+              className="flex-1 rounded-xl bg-foreground px-4 py-3 text-sm font-semibold text-background"
+              onClick={() => {
+                if (!rejecting) return;
+                rejectOrder(rejecting.orderId, reason);
+                toast.success(`#${rejecting.orderId} rejected — customer refunded`);
+                setRejecting(null);
+              }}
+            >
+              Reject order
+            </button>
+          </div>
+        }
+      >
+        {REJECT_REASONS.map((r) => (
+          <RadioRow key={r} label={r} checked={reason === r} onClick={() => setReason(r)} />
+        ))}
+      </Sheet>
+    </>
   );
 }
 

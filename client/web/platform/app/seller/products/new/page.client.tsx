@@ -1,9 +1,11 @@
 "use client";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { PageHeader } from "@/components/patterns/PageHeader";
 import { SectionCard } from "@/components/patterns/SectionCard";
+import { EmptyState } from "@/components/patterns/DataState";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -27,7 +29,7 @@ const STEPS = ["Category", "Details", "Pricing", "Inventory", "Review"];
 
 function NewProduct() {
   const router = useRouter();
-  const { sellerId, stores, activeStore } = useSellerScope();
+  const { sellerId, stores, activeStore, loading } = useSellerScope();
   const [storeId, setStoreId] = useState("");
   const [submitting, setSubmitting] = useState(false);
   useEffect(() => {
@@ -100,8 +102,30 @@ function NewProduct() {
     }
   }
 
+  if (!loading && stores.length === 0) {
+    return (
+      <div className="space-y-4 px-4 pt-4">
+        <PageHeader
+          title="List a new product"
+          description="Submitted listings go to your district admin's approval queue."
+        />
+        <SectionCard>
+          <EmptyState
+            title="No shop yet"
+            description="Listings belong to a shop. Create your first vendor first, then come back to list products."
+            action={
+              <Button asChild size="sm">
+                <Link href="/seller/onboarding">Create a shop</Link>
+              </Button>
+            }
+          />
+        </SectionCard>
+      </div>
+    );
+  }
+
   return (
-    <div className="space-y-4">
+    <div className="space-y-4 px-4 pt-4">
       <PageHeader
         title="List a new product"
         description="Submitted listings go to your district admin's approval queue."

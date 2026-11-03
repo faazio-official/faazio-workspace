@@ -18,8 +18,6 @@ import { advanceOrder } from "@/lib/api";
 import { useMockLoading, useOrders, useSellerScope } from "@/lib/api/hooks";
 import { ComponentHelp } from "@/components/patterns/ComponentHelp";
 
-const REASONS = ["Damaged in transit", "Wrong item", "Changed mind", "Late delivery"];
-
 function SellerReturns() {
   const { sellerId, storeId } = useSellerScope();
   const loading = useMockLoading();
@@ -28,7 +26,7 @@ function SellerReturns() {
   );
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-4 px-4 pt-4">
       <PageHeader
         title="Returns"
         description="Approvals refund the full order value from your next settlement cycle."
@@ -50,7 +48,6 @@ function SellerReturns() {
               <TableRow>
                 <TableHead>Order</TableHead>
                 <TableHead>Customer</TableHead>
-                <TableHead>Reason</TableHead>
                 <TableHead className="text-right">Order value</TableHead>
                 <TableHead className="text-right">Refund from settlement</TableHead>
                 <TableHead>Status</TableHead>
@@ -63,39 +60,45 @@ function SellerReturns() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {returns.map((order, index) => {
+              {returns.map((order) => {
                 const refund = order.amountPaisa;
                 return (
                   <TableRow key={order.orderId} className="h-12">
                     <TableCell className="num font-medium">{order.orderId}</TableCell>
                     <TableCell>{order.customerName}</TableCell>
-                    <TableCell className="text-[12px] text-muted-foreground">
-                      {REASONS[index % REASONS.length]}
-                    </TableCell>
                     <TableCell className="num text-right">{formatINR(order.amountPaisa)}</TableCell>
                     <TableCell className="num text-right">{formatINR(refund)}</TableCell>
                     <TableCell>
                       <StatusPill status={order.status} />
                     </TableCell>
                     <TableCell className="space-x-1 text-right">
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        onClick={() => {
-                          advanceOrder(order.orderId, "RETURNED");
-                          toast.success("Return approved, refund queued");
-                        }}
-                      >
-                        Approve
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        className="text-destructive"
-                        onClick={() => toast.success("Return rejected with reason recorded")}
-                      >
-                        Reject
-                      </Button>
+                      {/* Approving writes the (idempotent) RETURNED transition + audit trail; a
+                          CANCELLED row is a rejection by the seller, so there is nothing to refund. */}
+                      {order.status === "RETURNED" ? (
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => {
+                            advanceOrder(order.orderId, "RETURNED");
+                            toast.success("Return approved, refund queued");
+                          }}
+                        >
+                          Approve
+                        </Button>
+                      ) : null}
+                      {order.status === "RETURNED" ? (
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          className="text-destructive"
+                          onClick={() => {
+                            advanceOrder(order.orderId, "DELIVERED");
+                            toast.success("Return rejected — order stays delivered");
+                          }}
+                        >
+                          Reject
+                        </Button>
+                      ) : null}
                     </TableCell>
                   </TableRow>
                 );

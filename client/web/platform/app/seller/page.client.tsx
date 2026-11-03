@@ -40,7 +40,7 @@ function SellerDashboard() {
   const avgQuality = listingQuality(products);
 
   const health = sellerHealth({
-    slaPercent: orders.length ? (delivered / Math.max(1, orders.length)) * 100 + 62 : 0,
+    slaPercent: orders.length ? (delivered / orders.length) * 100 : 0,
     cancellationPercent: orders.length ? (cancelled / orders.length) * 100 : 0,
     rating: 4.4,
     listingQuality: avgQuality,
@@ -58,7 +58,7 @@ function SellerDashboard() {
   const doneCount = tasks.filter((t) => t.done).length;
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-4 px-4 pt-4">
       <PageHeader
         title="Dashboard"
         description={`${session?.name ?? "Your shop"} — last 30 days of sales, dispatch and listing health.`}

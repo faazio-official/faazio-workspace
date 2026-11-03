@@ -54,7 +54,7 @@ function SellerPricing() {
   }
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-4 px-4 pt-4">
       <PageHeader
         title="Pricing"
         description="Everyday pricing is yours. Festival discounts stay inside admin caps."

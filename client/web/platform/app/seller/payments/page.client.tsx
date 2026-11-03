@@ -33,7 +33,7 @@ function SellerPayments() {
   const net = ledger.reduce((t, l) => t + l.netPayoutPaisa, 0);
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-4 px-4 pt-4">
       <PageHeader
         title="Payments"
         description={`No platform commission · TCS ${config.tcsPercent}% · TDS 0.1% · weekly cycles`}
