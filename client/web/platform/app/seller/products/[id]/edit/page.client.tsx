@@ -10,6 +10,7 @@ import { deleteProduct, saveProductImage, updateProduct, upsertPrice } from "@/l
 import { useProduct } from "@/lib/api/hooks";
 import { ImageUploader } from "@/components/patterns/ImageUploader";
 import { productGallery } from "@/lib/media/productImages";
+import { sectorLabel } from "@/lib/sector";
 import { cn } from "@/lib/utils";
 import type { ProductStatus } from "@/data/types";
 
@@ -29,6 +30,7 @@ function EditProduct() {
   const [description, setDescription] = useState(product?.description ?? "");
   const [price, setPrice] = useState(product ? String(product.pricePaisa / 100) : "");
   const [isPrescription, setIsPrescription] = useState(product?.isPrescription ?? false);
+  const [isVeg, setIsVeg] = useState(product?.isVeg ?? true);
   const [images, setImages] = useState<string[]>(product ? productGallery(product) : []);
   const [confirmDelete, setConfirmDelete] = useState(false);
 
@@ -84,7 +86,7 @@ function EditProduct() {
         <Card>
           <p className="mb-2 text-sm font-bold">Listing details</p>
           <p className="text-[11px] text-muted-foreground">
-            {product.productId} · {product.sector} · {product.category}
+            {product.productId} · {sectorLabel(product.sector)} · {product.category}
           </p>
           <TextField label="Name" value={name} onChange={setName} />
           <TextField label="Description" value={description} onChange={setDescription} />
@@ -100,14 +102,22 @@ function EditProduct() {
             </p>
             <p className="mt-1 text-xs">Rate is set by the platform category master.</p>
           </div>
-          <div className="flex items-center justify-between border-t border-border py-3">
-            <span className="text-sm font-medium">Prescription required</span>
-            <Toggle
-              label="Prescription required"
-              checked={isPrescription}
-              onChange={setIsPrescription}
-            />
-          </div>
+          {product.sector === "FOOD" && (
+            <div className="flex items-center justify-between border-t border-border py-3">
+              <span className="text-sm font-medium">Vegetarian</span>
+              <Toggle label="Vegetarian" checked={isVeg} onChange={setIsVeg} />
+            </div>
+          )}
+          {product.sector === "PHARMA" && (
+            <div className="flex items-center justify-between border-t border-border py-3">
+              <span className="text-sm font-medium">Prescription required</span>
+              <Toggle
+                label="Prescription required"
+                checked={isPrescription}
+                onChange={setIsPrescription}
+              />
+            </div>
+          )}
           <p className="border-t border-border pt-3 text-xs text-muted-foreground">
             New shelf price{" "}
             <b className="text-foreground">
@@ -135,7 +145,8 @@ function EditProduct() {
             updateProduct(product.productId, {
               name: name.trim(),
               description: description.trim(),
-              isPrescription,
+              ...(product.sector === "FOOD" ? { isVeg } : {}),
+              ...(product.sector === "PHARMA" ? { isPrescription } : {}),
               imageUrl: images[0] ?? "",
               galleryUrls: images.slice(1),
             });

@@ -4,10 +4,11 @@ import { useParams } from "next/navigation";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { Printer } from "lucide-react";
-import { PageHeader, Card, EmptyState, Sheet, RadioRow } from "@/components/sellers/kit";
+import { PageHeader, Card, EmptyState, Sheet, RadioRow, SectorBadge } from "@/components/sellers/kit";
 import { formatDateTime, formatINR } from "@/lib/format";
 import { acceptOrder, advanceOrder, rejectOrder } from "@/lib/api";
 import { useOrder, useActiveStore } from "@/lib/api/hooks";
+import { orderStatusLabel } from "@/lib/sector";
 import type { OrderRecord, OrderStatus } from "@/data/types";
 
 const FLOW: OrderStatus[] = ["NEW", "PACKED", "SHIPPED", "DELIVERED"];
@@ -20,14 +21,25 @@ const NEXT_STATUS: Partial<Record<OrderStatus, OrderStatus>> = {
   SHIPPED: "DELIVERED",
 };
 
-const REJECT_REASONS = ["Items out of stock", "Kitchen is full", "Restaurant closing soon", "Customer requested", "Other"];
+const REJECT_BY_SECTOR: Record<string, string[]> = {
+  FOOD: ["Items out of stock", "Kitchen is full", "Restaurant closing soon", "Customer requested", "Other"],
+  DEFAULT: ["Items out of stock", "Shop closed", "Customer requested", "Other"],
+};
 
 function OrderDetail() {
   const { id } = useParams<{ id: string }>();
   const order = useOrder(id);
   const { stores, setActiveStoreId } = useActiveStore();
   const [rejecting, setRejecting] = useState(false);
-  const [reason, setReason] = useState<string>(REJECT_REASONS[0]!);
+  const sector = order?.sector;
+  const rejectReasons = REJECT_BY_SECTOR[sector ?? "DEFAULT"] ?? REJECT_BY_SECTOR["DEFAULT"]!;
+  const [reason, setReason] = useState<string>(rejectReasons[0]!);
+
+  // The order may arrive after first render (order loads async); keep the selected reason valid for
+  // the order's sector so a food excuse never leaks to a Mart/Pharmacy order.
+  useEffect(() => {
+    setReason((current) => (rejectReasons.includes(current) ? current : rejectReasons[0]!));
+  }, [rejectReasons]);
 
   // A push deep link (seller app) may land on an order belonging to a non-active vendor. Resolve the
   // order's store and switch the console scope so the shell header and lists match the shop.
@@ -61,8 +73,8 @@ function OrderDetail() {
         {...(FLOW.includes(order.status) ? {} : { sub: order.status })}
         right={
           <button
-            aria-label="Print KOT"
-            onClick={() => toast.success("KOT sent to printer")}
+            aria-label={sector === "FOOD" ? "Print KOT" : "Print"}
+            onClick={() => toast.success(sector === "FOOD" ? "KOT sent to printer" : "Sent to printer")}
             className="rounded-full p-1.5 hover:bg-muted"
           >
             <Printer className="h-5 w-5" />
@@ -81,14 +93,8 @@ function OrderDetail() {
                 {order.city ? `${order.city}, ${order.stateCode}` : order.sector}
               </p>
             </div>
-            <span
-              className={`rounded px-1.5 py-0.5 text-[10px] font-bold uppercase ${
-                order.sector === "PHARMA"
-                  ? "bg-info-soft text-info"
-                  : "bg-success-soft text-success"
-              }`}
-            >
-              {order.sector === "PHARMA" ? "Pharmacy" : "Delivery"}
+            <span className="shrink-0">
+              <SectorBadge sector={order.sector} />
             </span>
           </div>
         </Card>
@@ -120,7 +126,7 @@ function OrderDetail() {
                   }
                 />
                 <span className={index <= currentIndex ? "font-medium" : "text-muted-foreground"}>
-                  {stage}
+                  {orderStatusLabel(stage, sector)}
                 </span>
                 {index === currentIndex && (
                   <span className="ml-auto rounded bg-info-soft px-1.5 py-0.5 text-[10px] font-bold uppercase text-info">
@@ -185,7 +191,7 @@ function OrderDetail() {
           </div>
         }
       >
-        {REJECT_REASONS.map((r) => (
+        {rejectReasons.map((r) => (
           <RadioRow key={r} label={r} checked={reason === r} onClick={() => setReason(r)} />
         ))}
       </Sheet>

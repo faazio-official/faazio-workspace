@@ -1,21 +1,30 @@
 "use client";
 import Link from "next/link";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { ChevronRight, Info } from "lucide-react";
 import { toast } from "sonner";
 import { PageHeader, Toggle, Sheet, RadioRow, TextField } from "@/components/sellers/kit";
 import { useSellerUi } from "@/lib/sellerUi";
 import { useSellerScope } from "@/lib/api/hooks";
 
-const OFF_REASONS = ["Kitchen is full", "Staff shortage", "Closing early today", "Technical issue", "Other"];
+const OFF_REASONS_FOOD = ["Kitchen is full", "Staff shortage", "Closing early today", "Technical issue", "Other"];
+const OFF_REASONS_DEFAULT = ["Staff shortage", "Closing early today", "Inventory unavailable", "Technical issue", "Other"];
 
 function RestaurantStatus() {
   const online = useSellerUi((s) => s.online);
   const rush = useSellerUi((s) => s.rush);
   const delivery = useSellerUi((s) => s.delivery);
   const { activeStore } = useSellerScope();
+  const sector = activeStore?.sector;
+  const offReasons = sector === "FOOD" ? OFF_REASONS_FOOD : OFF_REASONS_DEFAULT;
   const [off, setOff] = useState(false);
-  const [reason, setReason] = useState<string>(OFF_REASONS[0]!);
+  const [reason, setReason] = useState<string>(offReasons[0]!);
+
+  // The active shop can change under this page (StoreSwitcher in the header); keep the selected
+  // offline reason valid for the active shop's sector.
+  useEffect(() => {
+    setReason((current) => (offReasons.includes(current) ? current : offReasons[0]!));
+  }, [offReasons]);
   const [edit, setEdit] = useState(false);
   const [form, setForm] = useState(() => ({
     minOrder: String(delivery.minOrder),
@@ -28,7 +37,7 @@ function RestaurantStatus() {
 
   return (
     <>
-      <PageHeader title="Restaurant status" />
+      <PageHeader title={sector === "FOOD" ? "Restaurant status" : "Store status"} />
       <div className="space-y-3 p-4 pb-10">
         <div className="rounded-2xl border border-border bg-card p-4">
           <p className="font-bold">{activeStore?.name ?? "Your shop"}</p>
@@ -59,16 +68,18 @@ function RestaurantStatus() {
               onChange={() => toast("Own delivery is managed by the Faazio delivery network")}
             />
           </div>
-          <Link
-            href="/seller/rush-hour"
-            className="mt-3 flex items-center justify-between border-t border-border pt-3 text-sm"
-          >
-            <b>Rush mode</b>
-            <span className="flex items-center gap-1 text-xs">
-              {rush.on ? `ON till ${rush.until}` : "OFF"}
-              <ChevronRight className="h-4 w-4" />
-            </span>
-          </Link>
+          {sector === "FOOD" && (
+            <Link
+              href="/seller/rush-hour"
+              className="mt-3 flex items-center justify-between border-t border-border pt-3 text-sm"
+            >
+              <b>Rush mode</b>
+              <span className="flex items-center gap-1 text-xs">
+                {rush.on ? `ON till ${rush.until}` : "OFF"}
+                <ChevronRight className="h-4 w-4" />
+              </span>
+            </Link>
+          )}
           <Link href="/seller/stores" className="mt-3 block border-t border-border pt-3 text-xs">
             <span className="text-muted-foreground">Store hours</span>
             <br />
@@ -130,7 +141,7 @@ function RestaurantStatus() {
           </div>
         }
       >
-        {OFF_REASONS.map((r) => (
+        {offReasons.map((r) => (
           <RadioRow key={r} label={r} checked={reason === r} onClick={() => setReason(r)} />
         ))}
       </Sheet>

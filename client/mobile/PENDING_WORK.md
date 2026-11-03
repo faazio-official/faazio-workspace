@@ -62,8 +62,16 @@ landed.
 - **Portal:** seller pages scope by `activeStoreId` via `useSellerScope` (no `?? "sel-1"`
   defaults); static `src/data/` states/districts/placements imports replaced with `GET /geo/*`
   + `/ads/placements` + `/categories`; dead `src/data/` domain seed files deleted (only `types.ts`
-  remains); onboarding is a live `POST /sellers` + `POST /seller/stores` flow. The vendor switcher
-  renders wherever a SELLER is signed in (native WebView **and** desktop web — the same console).
+  remains); onboarding is a live `POST /sellers` + `POST /seller/stores` flow. A single
+  `StoreSwitcher` (`src/components/sellers/StoreSwitcher.tsx`) replaces the per-store `/seller/stores`
+  switching: clicking the shop name in the hub/orders headers or the desktop sidebar lists all shops
+  (name + sector badge + live dot) and calls `setActiveStoreId` — every scoped hook re-renders and the
+  choice persists. The console chrome and the seller pages are sector-aware since then
+  (`src/lib/sector.ts` + `SectorBadge`): raw `MART/FOOD/PHARMA` strings, kitchen/"Preparing" labels and
+  `UtensilsCrossed` Menu icon are replaced with labelled sector chips, neutral order status words
+  (`New/Packed`), food-only gates (rush hour, dishes, vegetarian toggles) and PHARMA-only gates
+  (prescriptions). The vendor switcher renders wherever a SELLER is signed in (native WebView **and**
+  desktop web — the same console).
 - **Mobile:** `SellerRegistrationScreen` collects **multiple shops per account** (each shop card picks
   its own app, category, fee and FOOD FSSAI) and submits the full `vendors[]` payload the gateway
   requires; admin review + seller fee-request screens edit per-vendor fee/FSSAI;
@@ -85,7 +93,10 @@ landed.
 - **Remaining:** (1) keep adding the `ReportIssueButton` to the remaining feed/empty surfaces as they
   are touched; (2) if store names matter in search/order history, project them from the gateway
   (currently `<shop>`/`Order` when absent); (3) the authored editorial rails (Mart/Food/Pharma deal +
-  specials copy) stay as SDUI content, not server-failure fallbacks.
+  specials copy) stay as SDUI content, not server-failure fallbacks; (4) PHARMA vendor onboarding
+  captures a drug licence (number + document upload into the seller's private Storage) but
+  `directory.stores` has no drug-license columns yet — persist it via a gateway + DB migration
+  (`drug_license_number` / cert key columns) when the licence flow is added.
 - **Verify:** `server/gateway` `go build ./... && go test ./...` green; portal `tsc --noEmit` +
   `eslint` green; mobile `ts:check` + `check:boundaries` green.
 

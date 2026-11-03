@@ -2,10 +2,9 @@
 import { useEffect, useState } from "react";
 import { Store } from "lucide-react";
 import { toast } from "sonner";
-import { PageHeader, Card, TextField, Toggle, EmptyState } from "@/components/sellers/kit";
+import { PageHeader, Card, TextField, Toggle, EmptyState, SectorBadge } from "@/components/sellers/kit";
 import { updateSellerStore } from "@/lib/api";
 import { useSellerStores } from "@/lib/api/hooks";
-import { cn } from "@/lib/utils";
 
 function SellerStores() {
   const { stores, loading, reload } = useSellerStores();
@@ -58,17 +57,8 @@ function SellerStores() {
                       {store.address || "Address not set"} · {store.platformFeePct}% platform fee
                     </p>
                   </div>
-                  <span
-                    className={cn(
-                      "shrink-0 rounded px-1.5 py-0.5 text-[9px] font-bold uppercase",
-                      store.sector === "FOOD"
-                        ? "bg-brand-soft text-brand"
-                        : store.sector === "PHARMA"
-                          ? "bg-info-soft text-info"
-                          : "bg-success-soft text-success",
-                    )}
-                  >
-                    {store.sector}
+                  <span className="shrink-0">
+                    <SectorBadge sector={store.sector} />
                   </span>
                 </div>
                 <div className="mt-3 border-t border-border pt-3">

@@ -26,6 +26,8 @@ function AddVendor() {
     fssaiNumber: "",
     fssaiFileKey: "",
     fssaiAssetId: "",
+    drugLicenseNumber: "",
+    drugLicenseFileKey: "",
     isLive: false,
   });
   const [busy, setBusy] = useState(false);
@@ -42,6 +44,16 @@ function AddVendor() {
       toast.success("FSSAI certificate uploaded");
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Could not upload the certificate");
+    }
+  }
+
+  async function attachDrugLicense(file: File) {
+    try {
+      const uploaded = await uploadPrivateDocument(file);
+      setForm((f) => ({ ...f, drugLicenseFileKey: uploaded.key }));
+      toast.success("Drug licence document uploaded");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Could not upload the document");
     }
   }
 
@@ -155,6 +167,41 @@ function AddVendor() {
                 onChange={(e) => {
                   const file = e.target.files?.[0];
                   if (file) void attachCertificate(file);
+                }}
+              />
+            </label>
+          </Card>
+        )}
+
+        {/* PHARMA compliance is captured here so onboarding feels complete; persisting the licence to
+            directory.stores needs a gateway/db migration (drug_license_number + cert key columns) —
+            tracked in PENDING_WORK. The uploaded file is still written to the seller's private Storage. */}
+        {form.app === "PHARMA" && (
+          <Card>
+            <p className="text-sm font-bold">Drug licence</p>
+            <p className="mb-1 text-[10px] text-muted-foreground">
+              Pharmacy shops are verified on a valid drug-selling licence before going live.
+            </p>
+            <TextField
+              label="Drug licence number"
+              value={form.drugLicenseNumber}
+              onChange={(v) => field("drugLicenseNumber", v.toUpperCase())}
+            />
+            <label className="block py-2">
+              <span className="mb-1 block text-xs font-medium text-muted-foreground">
+                Licence document
+              </span>
+              <span className="flex items-center justify-center gap-2 rounded-xl border border-dashed border-border bg-card px-3 py-4 text-xs font-semibold text-muted-foreground">
+                <Upload className="h-4 w-4" />
+                {form.drugLicenseFileKey ? "Document uploaded ✓" : "Tap to upload (JPG / PNG / WEBP)"}
+              </span>
+              <input
+                type="file"
+                accept="image/jpeg,image/png,image/webp"
+                className="hidden"
+                onChange={(e) => {
+                  const file = e.target.files?.[0];
+                  if (file) void attachDrugLicense(file);
                 }}
               />
             </label>

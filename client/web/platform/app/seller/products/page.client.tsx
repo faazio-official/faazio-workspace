@@ -6,6 +6,7 @@ import { PageHeader, Card, EmptyState, Sheet } from "@/components/sellers/kit";
 import { formatINR } from "@/lib/format";
 import { discountPercent } from "@/lib/pricing/rules";
 import { useMockLoading, useProducts, useSellerScope } from "@/lib/api/hooks";
+import { sectorLabel } from "@/lib/sector";
 import { cn } from "@/lib/utils";
 import type { ProductRecord, ProductStatus, Sector } from "@/data/types";
 
@@ -93,7 +94,7 @@ function SellerProducts() {
                 sector === option ? "border-foreground bg-foreground text-background" : "border-border bg-card",
               )}
             >
-              {option}
+{option === "ALL" ? "All" : sectorLabel(option)}
               {sector === option && option !== "ALL" && <X className="h-3 w-3" />}
             </button>
           ))}

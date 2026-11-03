@@ -1,10 +1,12 @@
 "use client";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { CheckCircle2, Zap } from "lucide-react";
 import { toast } from "sonner";
-import { PageHeader, RadioRow } from "@/components/sellers/kit";
+import { PageHeader, RadioRow, EmptyState } from "@/components/sellers/kit";
 import { useSellerUi } from "@/lib/sellerUi";
+import { useSellerScope } from "@/lib/api/hooks";
 
 const DURATIONS = ["30 minutes", "1 hour", "2 hours", "3 hours"];
 
@@ -17,7 +19,27 @@ function rushMinutes(label: string): number {
 function RushHour() {
   const router = useRouter();
   const rush = useSellerUi((s) => s.rush);
+  const { activeStore } = useSellerScope();
   const [sel, setSel] = useState<string | null>(null);
+
+  if (activeStore && activeStore.sector !== "FOOD") {
+    return (
+      <>
+        <PageHeader title="Rush mode" />
+        <div className="space-y-3 px-4 pt-3 pb-8">
+          <EmptyState
+            text="Rush (peak-busy) mode is a Food-outlet feature. It tells the platform your outlet is unusually busy so delivery times stay accurate."
+          />
+          <Link
+            href="/seller/stores"
+            className="block rounded-xl bg-info-soft px-4 py-2.5 text-center text-xs font-semibold text-info"
+          >
+            View your stores →
+          </Link>
+        </div>
+      </>
+    );
+  }
 
   return (
     <>

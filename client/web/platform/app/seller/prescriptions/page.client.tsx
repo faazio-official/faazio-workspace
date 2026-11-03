@@ -1,4 +1,5 @@
 "use client";
+import Link from "next/link";
 import { useMemo, useState } from "react";
 import { toast } from "sonner";
 import { FileText, Plus, ShieldAlert, Trash2 } from "lucide-react";
@@ -53,7 +54,7 @@ const inputCls =
   "w-full rounded-lg border border-border bg-card px-2 py-2 text-xs outline-none focus:border-info";
 
 function SellerPrescriptions() {
-  const { sellerId, storeId } = useSellerScope();
+  const { sellerId, storeId, activeStore } = useSellerScope();
   const loading = useMockLoading();
   const prescriptions = usePortalStore((s) => s.prescriptions);
   const rows = useMemo(
@@ -129,6 +130,26 @@ function SellerPrescriptions() {
   };
 
   const revealed = selected?.status === "READY" || selected?.status === "FULFILLED";
+
+  if (activeStore && activeStore.sector !== "PHARMA") {
+    return (
+      <>
+        <PageHeader title="Prescriptions" sub="Operations" />
+        <div className="space-y-3 px-4 pt-3 pb-8">
+          <EmptyState
+            icon={<FileText className="h-12 w-12" strokeWidth={1.2} />}
+            text="Prescriptions are routed only to your Pharmacy stores. Switch to a Pharmacy shop to review and fulfil them."
+          />
+          <Link
+            href="/seller/stores"
+            className="block rounded-xl bg-info-soft px-4 py-2.5 text-center text-xs font-semibold text-info"
+          >
+            View your stores →
+          </Link>
+        </div>
+      </>
+    );
+  }
 
   return (
     <>

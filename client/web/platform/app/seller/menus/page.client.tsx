@@ -58,7 +58,8 @@ function toForm(m: MenuItemRecord): FormState {
 }
 
 function SellerMenus() {
-  const { sellerId, storeId } = useSellerScope();
+  const { sellerId, storeId, activeStore } = useSellerScope();
+  const isFood = activeStore?.sector === "FOOD";
   const loading = useMockLoading();
   const [status, setStatus] = useState<ProductStatus | "ALL">("ALL");
   const [query, setQuery] = useState("");
@@ -87,8 +88,9 @@ function SellerMenus() {
 
   function save() {
     const pricePaisa = parseRupeesToPaisa(form.price);
+    const itemLabel = isFood ? "Dish" : "Item";
     if (!form.venueId.trim() || !form.dishId.trim() || !form.name.trim() || pricePaisa < 0) {
-      toast.error("Venue, dish id, name and a non-negative price are required");
+      toast.error(`Venue, ${itemLabel.toLowerCase()} id, name and a non-negative price are required`);
       return;
     }
     const mrpRaw = form.mrp.trim();
@@ -109,7 +111,7 @@ function SellerMenus() {
       sellerId,
     };
     upsertMenu(dto);
-    toast.success(editing ? `Dish ${dto.dishId} updated` : `Dish ${dto.dishId} created`);
+    toast.success(editing ? `${itemLabel} ${dto.dishId} updated` : `${itemLabel} ${dto.dishId} created`);
     setOpen(false);
   }
 
@@ -127,7 +129,7 @@ function SellerMenus() {
             className="flex items-center gap-1 rounded-xl bg-foreground px-3 py-2 text-xs font-semibold text-background"
           >
             <Plus className="h-3.5 w-3.5" />
-            Add dish
+            {isFood ? "Add dish" : "Add item"}
           </button>
         }
       />
@@ -139,7 +141,7 @@ function SellerMenus() {
             <input
               value={query}
               onChange={(e) => setQuery(e.target.value)}
-              placeholder="Search dish name or id"
+              placeholder={isFood ? "Search dish name or id" : "Search item name or id"}
               className="w-full bg-transparent text-sm outline-none"
             />
           </div>
@@ -162,17 +164,17 @@ function SellerMenus() {
             ))}
           </div>
         ) : menus.length === 0 ? (
-          <EmptyState text="No dishes yet — add a dish or change the status filter" />
+          <EmptyState text={isFood ? "No dishes yet — add a dish or change the status filter" : "No items yet — add an item or change the status filter"} />
         ) : (
           <div className="space-y-3">
             {menus.map((m) => (
               <div key={`${m.venueId}:${m.dishId}`} className="rounded-2xl border border-border bg-card p-4 shadow-sm">
                 <div className="flex items-start gap-3">
-                  <VegMark veg={m.isVeg !== false} />
+                  {isFood && <VegMark veg={m.isVeg !== false} />}
                   <div className="min-w-0 flex-1">
                     <p className="truncate text-sm font-semibold">{m.name}</p>
                     <p className="truncate text-[11px] text-muted-foreground">
-                      {m.cuisine ?? "No cuisine"} · {m.dishId}
+                      {m.cuisine ?? (isFood ? "No cuisine" : "Item code")} · {m.dishId}
                     </p>
                     <div className="mt-1 flex items-center gap-2 text-xs">
                       <b>{formatINR(m.pricePaisa)}</b>
@@ -224,12 +226,12 @@ function SellerMenus() {
       <Sheet
         open={open}
         onClose={() => setOpen(false)}
-        title={editing ? "Edit dish" : "Add dish"}
+        title={editing ? (isFood ? "Edit dish" : "Edit item") : isFood ? "Add dish" : "Add item"}
         footer={
           <div className="flex items-center gap-2">
             {editing && (
               <button
-                aria-label="Delete dish"
+                aria-label={isFood ? "Delete dish" : "Delete item"}
                 onClick={() => {
                   deleteMenu(editing.venueId, editing.dishId);
                   toast.success(`${editing.name} removed`);
@@ -237,7 +239,7 @@ function SellerMenus() {
                 }}
                 className="rounded-xl border border-border bg-card p-3 text-brand"
               >
-                <Trash2 className="h-4 w-4" />
+                <Trash2 className="h-3 w-3" />
               </button>
             )}
             <button
@@ -250,7 +252,7 @@ function SellerMenus() {
               onClick={save}
               className="flex-[2] rounded-xl bg-foreground px-4 py-3 text-sm font-semibold text-background"
             >
-              {editing ? "Save changes" : "Create dish"}
+              {editing ? "Save changes" : isFood ? "Create dish" : "Create item"}
             </button>
           </div>
         }
@@ -263,12 +265,16 @@ function SellerMenus() {
             onChange={(v) => setForm({ ...form, venueId: v })}
           />
           <TextField
-            label="Dish id"
+            label={isFood ? "Dish id" : "Item id"}
             value={form.dishId}
             disabled={editing !== null}
             onChange={(v) => setForm({ ...form, dishId: v })}
           />
-          <TextField label="Dish name" value={form.name} onChange={(v) => setForm({ ...form, name: v })} />
+          <TextField
+            label={isFood ? "Dish name" : "Item name"}
+            value={form.name}
+            onChange={(v) => setForm({ ...form, name: v })}
+          />
           <TextField
             label="Price (₹)"
             type="number"
@@ -282,16 +288,22 @@ function SellerMenus() {
             placeholder="Leave blank for no offer"
             onChange={(v) => setForm({ ...form, mrp: v })}
           />
-          <TextField label="Cuisine" value={form.cuisine} onChange={(v) => setForm({ ...form, cuisine: v })} />
+          <TextField
+            label={isFood ? "Cuisine" : "Category"}
+            value={form.cuisine}
+            onChange={(v) => setForm({ ...form, cuisine: v })}
+          />
           <TextField label="Image URL" value={form.image} onChange={(v) => setForm({ ...form, image: v })} />
-          <div className="flex items-center justify-between py-3">
-            <span className="text-sm font-medium">Vegetarian</span>
-            <Toggle
-              label="Vegetarian"
-              checked={form.isVeg}
-              onChange={(v) => setForm({ ...form, isVeg: v })}
-            />
-          </div>
+          {isFood && (
+            <div className="flex items-center justify-between py-3">
+              <span className="text-sm font-medium">Vegetarian</span>
+              <Toggle
+                label="Vegetarian"
+                checked={form.isVeg}
+                onChange={(v) => setForm({ ...form, isVeg: v })}
+              />
+            </div>
+          )}
         </div>
       </Sheet>
 

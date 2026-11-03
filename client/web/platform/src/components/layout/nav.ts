@@ -3,6 +3,7 @@ import {
   Activity,
   BadgePercent,
   BarChart3,
+  BookOpen,
   Boxes,
   ClipboardList,
   Coins,
@@ -31,7 +32,6 @@ import {
   Truck,
   UserCog,
   Users,
-  UtensilsCrossed,
 } from "lucide-react";
 
 export interface NavItem {
@@ -69,7 +69,7 @@ export const SELLER_NAV: NavItem[] = [
   { label: "Products", to: "/seller/products", icon: Package, group: "Catalog" },
   { label: "Pricing", to: "/seller/pricing", icon: Tags, group: "Catalog" },
   { label: "Inventory", to: "/seller/inventory", icon: Boxes, group: "Catalog" },
-  { label: "Menu", to: "/seller/menus", icon: UtensilsCrossed, group: "Catalog" },
+  { label: "Menu", to: "/seller/menus", icon: BookOpen, group: "Catalog" },
   { label: "Orders", to: "/seller/orders", icon: ShoppingCart, group: "Operations" },
   { label: "Returns", to: "/seller/returns", icon: RotateCcw, group: "Operations" },
   { label: "Prescriptions", to: "/seller/prescriptions", icon: FileText, group: "Operations" },

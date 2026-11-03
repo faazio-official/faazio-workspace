@@ -7,6 +7,8 @@ import { useRouter } from "next/navigation";
 import { ArrowLeft, Package, X } from "lucide-react";
 import type { ReactNode } from "react";
 import { cn } from "@/lib/utils";
+import { sectorChip, sectorLabel } from "@/lib/sector";
+import type { Sector } from "@/data/types";
 
 export function Toggle({
   checked,
@@ -260,6 +262,27 @@ export function VegMark({ veg }: { veg: boolean }) {
       )}
     >
       <span className={cn("h-1.5 w-1.5 rounded-full", veg ? "bg-success" : "bg-brand")} />
+    </span>
+  );
+}
+
+/** Sector chip ("Mart" / "Food" / "Pharmacy") with the shared token colors. */
+export function SectorBadge({
+  sector,
+  className,
+}: {
+  sector?: Sector | null;
+  className?: string;
+}) {
+  return (
+    <span
+      className={cn(
+        "shrink-0 rounded px-1.5 py-0.5 text-[9px] font-bold uppercase",
+        sectorChip(sector),
+        className,
+      )}
+    >
+      {sectorLabel(sector)}
     </span>
   );
 }

@@ -8,6 +8,7 @@ import { SellerHamburger } from "@/components/sellers/hamburger";
 import { Sheet, EmptyState } from "@/components/sellers/kit";
 import { useOrders, useSellerScope } from "@/lib/api/hooks";
 import { formatDateTime, formatINR } from "@/lib/format";
+import { orderStatusLabel } from "@/lib/sector";
 import { cn } from "@/lib/utils";
 
 const RANGES = [
@@ -15,15 +16,6 @@ const RANGES = [
   { key: "30", label: "Last 30 days" },
   { key: "all", label: "All time" },
 ];
-
-const STATUS_LABEL: Record<string, string> = {
-  DELIVERED: "Delivered",
-  CANCELLED: "Cancelled",
-  RETURNED: "Returned",
-  NEW: "Preparing",
-  PACKED: "Ready",
-  SHIPPED: "Out for delivery",
-};
 
 function OrderHistory() {
   const router = useRouter();
@@ -95,7 +87,7 @@ function OrderHistory() {
                     o.status === "DELIVERED" ? "bg-success" : o.status === "CANCELLED" ? "bg-warning" : "bg-info",
                   )}
                 >
-                  {STATUS_LABEL[o.status] ?? o.status}
+                  {orderStatusLabel(o.status, o.sector)}
                 </span>
                 {o.status === "DELIVERED" && o.amountPaisa > 0 && (
                   <span className="rounded bg-info-soft px-1.5 text-[9px] font-bold uppercase text-info">

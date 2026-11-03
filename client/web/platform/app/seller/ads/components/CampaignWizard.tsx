@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { resolveImage, uploadProductImage } from "@/lib/media/productImages";
 import { requestHeroCampaign } from "@/lib/api";
-import { useCategories, useMenus, usePlacements, useProducts, useStores } from "@/lib/api/hooks";
+import { useCategories, useMenus, usePlacements, useProducts, useSellerScope, useStores } from "@/lib/api/hooks";
 import { eligiblePlacementsFor, placementLabel, placementReach } from "@/lib/api/reference";
 import { cn } from "@/lib/utils";
 import type { AdTargetType, HeroPlacement, Sector } from "@/data/types";
@@ -45,8 +45,10 @@ function isoDaysFromNow(days: number): string {
  * optimistic LIVE row rolls back if the gateway rejects the write.
  */
 export function CampaignWizard({ sellerId, stateCode }: { sellerId: string; stateCode?: string | undefined }) {
+  const { activeStore } = useSellerScope();
+  const initialTab: TargetTabKey = activeStore?.sector === "FOOD" ? "DISH" : "PRODUCT";
   const [step, setStep] = useState(0);
-  const [tab, setTab] = useState<TargetTabKey>("PRODUCT");
+  const [tab, setTab] = useState<TargetTabKey>(initialTab);
   const [query, setQuery] = useState("");
   const [target, setTarget] = useState<SelectedTarget | null>(null);
 

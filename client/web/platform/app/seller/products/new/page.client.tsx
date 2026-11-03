@@ -7,8 +7,10 @@ import { PageHeader, Card, Sheet, RadioRow, TextField, Toggle, EmptyState } from
 import { formatINR, parseRupeesToPaisa } from "@/lib/format";
 import { createProduct, updateStock } from "@/lib/api";
 import { useSellerScope, useTaxCategories } from "@/lib/api/hooks";
+import { sectorLabel } from "@/lib/sector";
 import { cn } from "@/lib/utils";
 import { ImageUploader } from "@/components/patterns/ImageUploader";
+import type { Sector } from "@/data/types";
 
 const STEPS = ["Category", "Details", "Pricing", "Inventory", "Review"];
 
@@ -21,10 +23,21 @@ function NewProduct() {
     if (!storeId && activeStore) setStoreId(activeStore.storeId);
   }, [storeId, activeStore]);
   const [step, setStep] = useState(0);
-
-  const sector = activeStore?.sector ?? "MART";
-  const categories = useTaxCategories(sector);
   const [category, setCategory] = useState("");
+
+  // Sector follows the picked store — a seller can own Mart + Food + Pharma shops, so the listing
+  // must carry the picked store's sector (productId prefix, category list, veg/Rx toggles).
+  const pickedStore = storeId ? stores.find((s) => s.storeId === storeId) : undefined;
+  const sector: Sector = pickedStore?.sector ?? activeStore?.sector ?? "MART";
+  const categories = useTaxCategories(sector);
+
+  // If the chosen store belongs to another sector, the previously picked category no longer exists.
+  const [sectorForCategory, setSectorForCategory] = useState("");
+  useEffect(() => {
+    if (sectorForCategory && sectorForCategory !== sector) setCategory("");
+    setSectorForCategory(sector);
+  }, [sector, sectorForCategory]);
+
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
   const [unit, setUnit] = useState("1 unit");
@@ -68,8 +81,8 @@ function NewProduct() {
         unit,
         pricePaisa,
         mrpPaisa: pricePaisa,
-        isVeg,
-        isPrescription,
+        isVeg: sector === "FOOD" ? isVeg : false,
+        isPrescription: sector === "PHARMA" ? isPrescription : false,
         status: "PENDING_REVIEW",
       });
       updateStock(created.productId, Number(quantity), 30);
@@ -143,7 +156,7 @@ function NewProduct() {
             <Card>
               <p className="text-xs font-bold uppercase tracking-wide text-muted-foreground">Sector</p>
               <p className="mt-1 text-sm">
-                {sector}
+                {sectorLabel(sector)}
                 <span className="ml-2 text-[11px] text-muted-foreground">
                   Fixed by your registration.
                 </span>
@@ -177,14 +190,18 @@ function NewProduct() {
                 </p>
               )}
             </div>
-            <div className="flex items-center justify-between border-t border-border py-3">
-              <span className="text-sm font-medium">Vegetarian</span>
-              <Toggle label="Vegetarian" checked={isVeg} onChange={setIsVeg} />
-            </div>
-            <div className="flex items-center justify-between border-t border-border py-3 last:border-0">
-              <span className="text-sm font-medium">Prescription required</span>
-              <Toggle label="Prescription required" checked={isPrescription} onChange={setIsPrescription} />
-            </div>
+            {sector === "FOOD" && (
+              <div className="flex items-center justify-between border-t border-border py-3">
+                <span className="text-sm font-medium">Vegetarian</span>
+                <Toggle label="Vegetarian" checked={isVeg} onChange={setIsVeg} />
+              </div>
+            )}
+            {sector === "PHARMA" && (
+              <div className="flex items-center justify-between border-t border-border py-3 last:border-0">
+                <span className="text-sm font-medium">Prescription required</span>
+                <Toggle label="Prescription required" checked={isPrescription} onChange={setIsPrescription} />
+              </div>
+            )}
           </Card>
         )}
 
@@ -235,13 +252,15 @@ function NewProduct() {
               ))}
             </div>
             <dl className="divide-y divide-border text-sm">
-              <Row label="Sector / category" value={`${sector} · ${category}`} />
+              <Row label="Sector / category" value={`${sectorLabel(sector)} · ${category}`} />
               <Row label="Name" value={name} />
               <Row label="Unit" value={unit} />
               <Row label="Price (GST incl.)" value={formatINR(pricePaisa)} />
               <Row label="GST rate" value={`${taxRatePct}%`} />
               <Row label="Stock" value={`${quantity} units`} />
-              <Row label="Prescription" value={isPrescription ? "Required" : "Not required"} />
+              {sector === "PHARMA" && (
+                <Row label="Prescription" value={isPrescription ? "Required" : "Not required"} />
+              )}
               <Row label="Status on submit" value="PENDING_REVIEW" />
             </dl>
           </Card>

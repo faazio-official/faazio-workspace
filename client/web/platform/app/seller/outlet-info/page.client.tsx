@@ -4,9 +4,8 @@
 // management surfaces that already exist rather than duplicating an edit flow.
 import Link from "next/link";
 import { ChevronRight, Clock, MapPin, Phone, Store, Bike } from "lucide-react";
-import { PageHeader, Card, EmptyState } from "@/components/sellers/kit";
+import { PageHeader, Card, EmptyState, SectorBadge } from "@/components/sellers/kit";
 import { useActiveStore } from "@/lib/api/hooks";
-import { cn } from "@/lib/utils";
 
 function OutletInfo() {
   const { activeStore } = useActiveStore();
@@ -47,18 +46,7 @@ function OutletInfo() {
                 {activeStore.platformFeePct}% platform fee
               </p>
             </div>
-            <span
-              className={cn(
-                "shrink-0 rounded px-1.5 py-0.5 text-[9px] font-bold uppercase",
-                activeStore.sector === "FOOD"
-                  ? "bg-brand-soft text-brand"
-                  : activeStore.sector === "PHARMA"
-                    ? "bg-info-soft text-info"
-                    : "bg-success-soft text-success",
-              )}
-            >
-              {activeStore.sector}
-            </span>
+            <SectorBadge sector={activeStore.sector} />
           </div>
           <div className="mt-3 flex gap-1.5">
             {(activeStore.isLive ? ["Live in the app"] : [])

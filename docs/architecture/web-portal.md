@@ -64,13 +64,26 @@ FCM token into `window.__faazioPushToken`; `SellerPushBridge`
 registers it through `/api/gateway/notifications/register` and removes it on sign-out. Portal
 sign-out is the only seller session authority (HttpOnly cookies).
 
-**Active shop (0068–0073).** A seller ACCOUNT owns many VENDORS across apps (Mart / Food / Pharma), so
-every seller page resolves its shop through `useActiveStore` (`fetchSellerStores` → `GET /seller/stores`),
-persisted as `activeStoreId` (localStorage); the active shop is shown by the hub header (`OutletHeader`)
-and the `/seller/outlet-info` profile. The native seller WebView may inject `window.__faazio.vendorId`,
-which restores the last active shop on load (the same console is used in a desktop browser). The old
-desktop `VendorSwitcher` shipped inside the removed width-1440 `SellerShell`; shop switching now happens
-per-store from `/seller/stores`.
+**Active shop + shop switcher (0068–0073).** A seller ACCOUNT owns many VENDORS across apps
+(Mart / Food / Pharma), so every seller page resolves its shop through `useActiveStore`
+(`fetchSellerStores` → `GET /seller/stores`), persisted as `activeStoreId` (localStorage). The
+`StoreSwitcher` (`src/components/sellers/StoreSwitcher.tsx`) is the single switcher UI: clicking the
+active shop name in the hub header, the orders header or the desktop sidebar opens a list of the
+seller's shops (name + sector badge + live dot); picking one calls `setActiveStoreId`, which
+re-scopes every data hook (orders/products/menus/etc.) to that shop without a reload and persists the
+choice. The `/seller/outlet-info` profile stays reachable via the shop-initials avatar. The native
+seller WebView may inject `window.__faazio.vendorId`, which restores the last active shop on load (the
+same console is used in a desktop browser). The old desktop `VendorSwitcher` shipped inside the
+removed width-1440 `SellerShell`.
+
+**Sector-aware console chrome.** The seller UI is sector-aware rather than Zomato-flavoured. A shared
+vocabulary (`src/lib/sector.ts` — `sectorLabel` / `sectorIcon` / `sectorChip` / `orderStatusLabel`) plus
+the `SectorBadge` kit primitive render "Mart / Food / Pharmacy" instead of raw enum strings. Food-only
+surfaces are gated to FOOD shops (hub rush link + the "Kitchen" tab label, `/seller/rush-hour`, the
+restaurant-status title, kitchen reject reasons, the vegeterian/`isVeg` toggles, dish/cuisine menus
+fields); the prescriptions queue is gated to PHARMA shops; rest of the chrome uses neutral copy
+("New"/"Packed" vs "Preparing"/"Ready", "Pending orders", "Store status", `BookOpen` for the Menu
+nav/tiles instead of `UtensilsCrossed`).
 
 **Seller console reference redesign (phased).** The seller console is being ported to the visual language
 of `client/web/seller app vite reference` (restaurant partner app) — Figtree, coral `--brand` accent,
@@ -96,10 +109,11 @@ top products / alerts now live in the `/seller/hub` Business Hub page. Restauran
 
 **Hub-mode headers match the reference HubShell.** Hub surfaces (`hub`, `analytics`, `ads`, `payments`,
 `menus`, `reviews`) render the sticky `HubHeader` from `src/components/sellers/shells.tsx`: the
-`OutletHeader` (shop name + "Showing data for" eyebrow) plus the reference's bell →
-`/seller/notifications`, round shop-initials avatar → `/seller/outlet-info`, and the explore icon →
-`/seller/explore`; pages pass `actions` (analytics period pills, menus "Add dish", payments "Print
-statement") and an optional sticky tab row. Orders/operations surfaces keep `OrdersTopBar` +
+`OutletHeader` (shop name — its chevron opens the `StoreSwitcher` — plus "Showing data for" eyebrow)
+plus the reference's bell → `/seller/notifications`, round shop-initials avatar → `/seller/outlet-info`,
+and the explore icon → `/seller/explore`; pages pass `actions` (analytics period pills, a sector-aware
+menus "Add dish"/"Add item", payments "Print statement") and an optional sticky tab row.
+Orders/operations surfaces keep `OrdersTopBar` (whose shop name also opens the `StoreSwitcher`) +
 `OrdersHeaderIcons` (`orders`, `inventory`) and detail/edit screens keep `PageHeader`
 (`promotions`, `products`, `orders/[id]`, `explore`, `settings`, `stores`, `support`, …).
 `notifications` and `outlet-info` were added as lightweight pages (a mark-all-read notification list and

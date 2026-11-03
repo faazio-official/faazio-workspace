@@ -106,7 +106,8 @@ function OosSheet({
 }
 
 function SellerInventory() {
-  const { sellerId, storeId } = useSellerScope();
+  const { sellerId, storeId, activeStore } = useSellerScope();
+  const isFood = activeStore?.sector === "FOOD";
   const rows = useStock(sellerId, storeId);
   const menus = useMenus({ sellerId });
   const [tab, setTab] = useState<"items" | "addons">("items");
@@ -144,7 +145,7 @@ function SellerInventory() {
       <OrdersTopBar />
       <div className="bg-info-gradient px-4 pb-2 pt-3">
         <div className="flex items-center justify-between rounded-xl bg-info-soft px-3 py-2.5 text-xs">
-          <span>Want to edit your catalog or dishes?</span>
+          <span>Want to edit your catalog or {isFood ? "dishes" : "items"}?</span>
           <Link href="/seller/products" className="rounded-lg bg-card px-3 py-1 font-semibold text-info">
             Edit now
           </Link>
@@ -155,7 +156,7 @@ function SellerInventory() {
             <input
               value={q}
               onChange={(e) => setQ(e.target.value)}
-              placeholder="Search menu"
+              placeholder="Search catalog"
               className="w-full bg-transparent text-sm outline-none"
             />
           </div>
@@ -174,7 +175,7 @@ function SellerInventory() {
           <PillTabs
             tabs={[
               { key: "items", label: "All items", count: rows.length },
-              { key: "addons", label: "Menu dishes", count: menus.length },
+              { key: "addons", label: isFood ? "Menu dishes" : "Menu items", count: menus.length },
             ]}
             value={tab}
             onChange={setTab}
@@ -205,7 +206,7 @@ function SellerInventory() {
               <div className="mt-2">
                 {g.items.map((r) => (
                   <div key={r.productId} className="flex items-center gap-3 py-2.5">
-                    <VegMark veg={r.product.isVeg} />
+                    {isFood && <VegMark veg={r.product.isVeg} />}
                     <div className="min-w-0 flex-1">
                       <p className="truncate text-sm">{r.product.name}</p>
                       <p className={cn("text-[10px]", r.quantity <= 0 ? "text-brand" : "text-muted-foreground")}>
@@ -235,7 +236,7 @@ function SellerInventory() {
         <div className="px-4">
           {menus.map((m) => (
             <div key={`${m.venueId}:${m.dishId}`} className="flex items-center gap-3 border-b border-border py-3">
-              <VegMark veg={m.isVeg !== false} />
+              {isFood && <VegMark veg={m.isVeg !== false} />}
               <div className="min-w-0 flex-1">
                 <p className="truncate text-sm">{m.name}</p>
                 <p className="text-[10px] text-muted-foreground">
@@ -252,7 +253,9 @@ function SellerInventory() {
               />
             </div>
           ))}
-          {menus.length === 0 && <EmptyState text="No dishes in your menu yet" />}
+          {menus.length === 0 && (
+            <EmptyState text={isFood ? "No dishes in your menu yet" : "No items in your menu yet"} />
+          )}
         </div>
       )}
 
@@ -261,11 +264,11 @@ function SellerInventory() {
           onClick={() => setJump(true)}
           className="fixed bottom-24 right-[max(1rem,calc(50%-199px))] z-30 flex items-center gap-1 rounded-full border border-border bg-card px-3 py-1.5 text-xs font-semibold shadow-md"
         >
-          <BookOpen className="h-3.5 w-3.5" />Menu
+          <BookOpen className="h-3.5 w-3.5" />Jump
         </button>
       )}
 
-      <Sheet open={jump} onClose={() => setJump(false)} title="Menu">
+      <Sheet open={jump} onClose={() => setJump(false)} title="Jump to category">
         {grouped.map((g) => (
           <button
             key={g.category}

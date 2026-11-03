@@ -6,6 +6,7 @@ import { LineSpark, Bars } from "@/components/sellers/charts";
 import { formatINR, formatNumber } from "@/lib/format";
 import { periodDelta, sumGmv, sumOrders } from "@/lib/analytics/derive";
 import { useAnalyticsRanks, useAnalyticsSeries, useMockLoading, useOrders, useProducts, useSellerScope } from "@/lib/api/hooks";
+import { orderStatusLabel } from "@/lib/sector";
 import { cn } from "@/lib/utils";
 
 const PERIODS = [
@@ -13,14 +14,6 @@ const PERIODS = [
   { key: 30, label: "30d" },
   { key: 90, label: "90d" },
 ];
-const STATUS_LABEL: Record<string, string> = {
-  NEW: "Preparing",
-  PACKED: "Ready",
-  SHIPPED: "Out for delivery",
-  DELIVERED: "Completed",
-  CANCELLED: "Cancelled",
-  RETURNED: "Returned",
-};
 
 function Delta({ value }: { value: number }) {
   if (value === 0) return <span className="text-[10px] text-muted-foreground">—</span>;
@@ -33,7 +26,8 @@ function Delta({ value }: { value: number }) {
 }
 
 function SellerAnalytics() {
-  const { sellerId, storeId } = useSellerScope();
+  const { sellerId, storeId, activeStore } = useSellerScope();
+  const sector = activeStore?.sector;
   const loading = useMockLoading();
   const [days, setDays] = useState(30);
   const series = useAnalyticsSeries("seller", sellerId, days);
@@ -151,7 +145,7 @@ function SellerAnalytics() {
                 statusMix.map((s) => (
                   <div key={s.label} className="mt-3">
                     <div className="flex justify-between text-xs">
-                      <span>{STATUS_LABEL[s.label] ?? s.label}</span>
+                      <span>{orderStatusLabel(s.label, sector)}</span>
                       <b>{formatNumber(s.value)}</b>
                     </div>
                     <div className="mt-1 h-2 rounded-full bg-muted">

@@ -5,6 +5,7 @@ import {
   BadgePercent,
   BarChart3,
   Bike,
+  BookOpen,
   Boxes,
   FileText,
   History,
@@ -21,12 +22,12 @@ import {
   Star,
   Store,
   Tags,
-  UtensilsCrossed,
   X,
 } from "lucide-react";
 import { PageHeader } from "@/components/sellers/kit";
 import { useSellerUi } from "@/lib/sellerUi";
 import { useSession } from "@/lib/hooks/useSession";
+import { useSellerScope } from "@/lib/api/hooks";
 
 type Tile = { label: string; icon: typeof LayoutGrid; to: string; badge?: string };
 
@@ -54,7 +55,7 @@ const SECTIONS: { title: string; tiles: Tile[] }[] = [
       { label: "Products", icon: Package, to: "/seller/products" },
       { label: "Pricing", icon: Tags, to: "/seller/pricing" },
       { label: "Inventory", icon: Boxes, to: "/seller/inventory" },
-      { label: "Menu", icon: UtensilsCrossed, to: "/seller/menus" },
+      { label: "Menu", icon: BookOpen, to: "/seller/menus" },
     ],
   },
   {
@@ -80,14 +81,20 @@ const SECTIONS: { title: string; tiles: Tile[] }[] = [
 function Explore() {
   const session = useSession();
   const rush = useSellerUi((s) => s.rush);
+  const { activeStore } = useSellerScope();
+  const sector = activeStore?.sector;
   const [q, setQ] = useState("");
   const [searching, setSearching] = useState(false);
   const ql = q.toLowerCase();
 
+  // Sector-aware tile surface: food-only features (restaurant status, rush hour) and the pharmacy
+  // prescriptions queue are hidden for shops that can't use them — but kept until the shop resolves.
   const filtered = SECTIONS.map((s) => ({
     ...s,
     tiles: s.tiles
       .map((t) => (t.label === "Rush hour" ? { ...t, badge: rush.on ? "ON" : "OFF" } : t))
+      .filter((t) => sector == null || sector === "FOOD" || (t.label !== "Restaurant status" && t.label !== "Rush hour"))
+      .filter((t) => sector == null || sector === "PHARMA" || t.label !== "Prescriptions")
       .filter((t) => t.label.toLowerCase().includes(ql)),
   })).filter((s) => s.tiles.length);
 

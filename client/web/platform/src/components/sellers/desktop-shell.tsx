@@ -9,12 +9,16 @@ import { activeNavHref, normalizeNavPath, SELLER_NAV } from "@/components/layout
 import { FaazioWordmark } from "@/components/brand/FaazioWordmark";
 import { signOut } from "@/lib/api";
 import { useSession } from "@/lib/hooks/useSession";
+import { useActiveStore } from "@/lib/api/hooks";
 import { cn } from "@/lib/utils";
+import { StoreSwitcher } from "@/components/sellers/StoreSwitcher";
+import { SectorBadge } from "@/components/sellers/kit";
 
 export function SellerDesktopShell({ className }: { className?: string }) {
   const session = useSession();
   const router = useRouter();
   const pathname = usePathname();
+  const { activeStore } = useActiveStore();
   const groups = Array.from(new Set(SELLER_NAV.map((i) => i.group)));
   const current = activeNavHref(pathname, SELLER_NAV);
 
@@ -25,11 +29,23 @@ export function SellerDesktopShell({ className }: { className?: string }) {
         className,
       )}
     >
-      <div className="flex h-14 items-center gap-2 border-b border-border px-4">
-        <FaazioWordmark className="brand-wordmark text-primary" />
-        <p className="truncate text-[11px] text-muted-foreground">
-          {session?.name ?? "Partner"}
-        </p>
+      <div className="border-b border-border px-4 py-2">
+        <div className="flex h-8 items-center gap-2">
+          <FaazioWordmark className="brand-wordmark text-primary" />
+          <p className="truncate text-[10px] text-muted-foreground">
+            {session?.name ?? "Partner"}
+          </p>
+        </div>
+        <div className="mt-1 border-t border-border pt-2">
+          <StoreSwitcher caption="Active shop" align="end">
+            <span className="flex min-w-0 items-center gap-1.5">
+              <span className="truncate text-[12px] font-semibold">
+                {activeStore?.name ?? "Your shop"}
+              </span>
+              {activeStore && <SectorBadge sector={activeStore.sector} className="uppercase" />}
+            </span>
+          </StoreSwitcher>
+        </div>
       </div>
 
       <nav className="flex-1 overflow-y-auto px-2 py-3">

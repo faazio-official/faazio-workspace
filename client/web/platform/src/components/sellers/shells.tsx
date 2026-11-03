@@ -9,8 +9,8 @@ import { useEffect, useState, type ReactNode } from "react";
 import {
   ArrowLeftRight,
   Bell,
+  BookOpen,
   Boxes,
-  ChevronDown,
   ChevronRight,
   ClipboardList,
   LayoutGrid,
@@ -19,7 +19,6 @@ import {
   ScanLine,
   Search,
   TrendingUp,
-  UtensilsCrossed,
   Wallet,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -29,6 +28,8 @@ import { useSession } from "@/lib/hooks/useSession";
 import { RoleGate } from "@/components/layout/RoleGate";
 import { SellerPushBridge } from "@/components/layout/SellerPushBridge";
 import { SellerDesktopShell } from "@/components/sellers/desktop-shell";
+import { StoreSwitcher } from "@/components/sellers/StoreSwitcher";
+import { sectorLabel } from "@/lib/sector";
 
 /** Centered app column. Mobile = 430px; desktop = wider so the expanded view can use side-by-side grids. */
 export function MobileFrame({ children, className }: { children: ReactNode; className?: string }) {
@@ -50,7 +51,7 @@ type NavItem = { to: string; label: string; icon: typeof ClipboardList };
 const ORDERS_NAV: NavItem[] = [
   { to: "/seller/orders", label: "Orders", icon: ClipboardList },
   { to: "/seller/inventory", label: "Inventory", icon: Boxes },
-  { to: "/seller/menus", label: "Menu", icon: UtensilsCrossed },
+  { to: "/seller/menus", label: "Menu", icon: BookOpen },
   { to: "/seller/reviews", label: "Feedback", icon: MessageSquareText },
 ];
 
@@ -58,7 +59,7 @@ const ORDERS_NAV: NavItem[] = [
 const HUB_NAV: NavItem[] = [
   { to: "/seller/hub", label: "Hub", icon: LayoutGrid },
   { to: "/seller/ads", label: "Growth", icon: TrendingUp },
-  { to: "/seller/menus", label: "Menu", icon: UtensilsCrossed },
+  { to: "/seller/menus", label: "Menu", icon: BookOpen },
   { to: "/seller/payments", label: "Finance", icon: Wallet },
 ];
 
@@ -91,9 +92,7 @@ export function SwitchingOverlay({ to }: { to: "hub" | "orders" }) {
         <ArrowLeftRight className="h-5 w-5" />
       </div>
       <p className="text-lg font-bold">Switching to {to === "hub" ? "Business Hub" : "Orders"}</p>
-      <p className="mt-1 text-xs text-muted-foreground">
-        Use sturdy packaging, avoid overfilling, especially with gravies
-      </p>
+      <p className="mt-1 text-xs text-muted-foreground">Hang tight — your shop dashboard is loading</p>
     </div>
   );
 }
@@ -183,16 +182,10 @@ export function OutletHeader({
   const name = activeStore?.name ?? "Your shop";
   return (
     <div className="min-w-0 flex-1">
-      {showData && (
-        <p className="text-[9px] font-semibold uppercase tracking-wider text-muted-foreground">
-          Showing data for
-        </p>
-      )}
       <div className="flex items-center gap-1.5">
-        <Link href="/seller/outlet-info" className="flex min-w-0 items-center gap-1">
+        <StoreSwitcher caption={showData ? "Showing data for" : undefined}>
           <span className="truncate text-[15px] font-bold">{name}</span>
-          <ChevronDown className="h-4 w-4 shrink-0" />
-        </Link>
+        </StoreSwitcher>
         <Link
           href="/seller/notifications"
           aria-label="Notifications"
@@ -210,7 +203,7 @@ export function OutletHeader({
       </div>
       {!showData && (
         <p className="truncate text-[11px] text-muted-foreground">
-          {activeStore?.sector ?? "Seller console"}
+          {sectorLabel(activeStore?.sector) || "Seller console"}
         </p>
       )}
       {right}
@@ -248,14 +241,14 @@ export function HubHeader({
 export function OrdersTopBar({ extra }: { extra?: ReactNode }) {
   const online = useSellerUi((s) => s.online);
   const { activeStore } = useActiveStore();
-  const area = activeStore ? (activeStore.address ?? activeStore.sector) : "Seller console";
+  const area = activeStore ? (activeStore.address ?? sectorLabel(activeStore.sector)) : "Seller console";
   return (
     <header className="sticky top-0 z-30 bg-card px-4 pb-2 pt-3">
       <div className="flex items-center gap-2">
-        <div className="min-w-0 flex-1">
-          <p className="truncate text-[15px] font-bold">{activeStore?.name ?? "Your shop"}</p>
-          <p className="truncate text-[11px] text-muted-foreground">{area}</p>
-        </div>
+        <StoreSwitcher>
+          <span className="block truncate text-[15px] font-bold">{activeStore?.name ?? "Your shop"}</span>
+          <span className="block truncate text-[11px] text-muted-foreground">{area}</span>
+        </StoreSwitcher>
         <Link
           href="/seller/restaurant-status"
           className={cn(

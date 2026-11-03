@@ -1,8 +1,8 @@
 "use client";
-// Promo banner from the seller app vite reference (promo.tsx), Faazio-branded copy. The gear icon
-// replaces the reference chef emoji, and the CTA's toast is explicitly non-PII.
+// Promo banner from the seller app vite reference (promo.tsx), Faazio-branded copy. The megaphone
+// icon replaces the reference chef emoji/crossed-cutlery, and the CTA's toast is explicitly non-PII.
 import { toast } from "sonner";
-import { UtensilsCrossed } from "lucide-react";
+import { Megaphone } from "lucide-react";
 
 export function PromoBanner() {
   return (
@@ -20,7 +20,7 @@ export function PromoBanner() {
         Ask now
       </button>
       <div className="absolute bottom-0 right-3 flex h-24 w-24 items-end justify-center rounded-t-full bg-primary-foreground/15">
-        <UtensilsCrossed className="h-10 w-10 pb-2 text-primary-foreground" strokeWidth={1.6} />
+        <Megaphone className="h-10 w-10 pb-2 text-primary-foreground" strokeWidth={1.6} />
       </div>
     </div>
   );

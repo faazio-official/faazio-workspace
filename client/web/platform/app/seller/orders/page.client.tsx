@@ -1,32 +1,33 @@
 "use client";
 import Link from "next/link";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { ClipboardList, Clock, Receipt } from "lucide-react";
 import { OrdersHeaderIcons, OrdersTopBar } from "@/components/sellers/shells";
 import { PromoBanner } from "@/components/sellers/promo";
-import { EmptyState, PillTabs, RadioRow, Sheet } from "@/components/sellers/kit";
+import { EmptyState, PillTabs, RadioRow, SectorBadge, Sheet } from "@/components/sellers/kit";
 import { acceptOrder, advanceOrder, rejectOrder } from "@/lib/api";
 import { useOrders, useSellerScope } from "@/lib/api/hooks";
 import { useSellerUi } from "@/lib/sellerUi";
 import { formatDateTime, formatINR } from "@/lib/format";
+import { orderStatusLabel } from "@/lib/sector";
 import type { OrderRecord, OrderStatus } from "@/data/types";
 
-const TABS = [
-  { key: "NEW", label: "Preparing" },
-  { key: "PACKED", label: "Ready" },
-  { key: "SHIPPED", label: "Out for delivery" },
-  { key: "DELIVERED", label: "Completed" },
-] as const;
-type TabKey = (typeof TABS)[number]["key"];
+type TabKey = "NEW" | "PACKED" | "SHIPPED" | "DELIVERED";
 
-/** Accept is NEW → PACKED; the rest advance along the ready/shipped flows. */
+const TAB_KEYS: TabKey[] = ["NEW", "PACKED", "SHIPPED", "DELIVERED"];
+
+/** Accept is NEW → PACKED; the rest advance along the packed/shipped flows. */
 const NEXT: Partial<Record<OrderStatus, { to: OrderStatus; label: string }>> = {
   PACKED: { to: "SHIPPED", label: "Handed over" },
   SHIPPED: { to: "DELIVERED", label: "Mark delivered" },
 };
 
-const REJECT_REASONS = ["Items out of stock", "Kitchen is full", "Restaurant closing soon", "Customer requested", "Other"];
+/** Reject reasons conditioned on the active shop's sector — no kitchen excuses on a Mart/Pharmacy. */
+const REJECT_BY_SECTOR: Record<string, string[]> = {
+  FOOD: ["Items out of stock", "Kitchen is full", "Restaurant closing soon", "Customer requested", "Other"],
+  DEFAULT: ["Items out of stock", "Shop closed", "Customer requested", "Other"],
+};
 
 function slaLeft(iso: string): string {
   const h = (new Date(iso).getTime() - Date.now()) / 3600000;
@@ -44,8 +45,8 @@ function OrderCard({
   return (
     <div className="overflow-hidden rounded-2xl border border-border bg-card shadow-sm">
       <Link href={`/seller/orders/${encodeURIComponent(o.orderId)}`} className="block p-4">
-        <span className="rounded bg-success px-1.5 py-0.5 text-[9px] font-bold uppercase text-primary-foreground">
-          {o.sector === "PHARMA" ? "Pharmacy" : "Delivery"}
+        <span className="shrink-0">
+          <SectorBadge sector={o.sector} />
         </span>
         <div className="mt-2 flex items-start justify-between gap-2">
           <div className="min-w-0">
@@ -113,7 +114,8 @@ function OrderCard({
 }
 
 function SellerOrders() {
-  const { sellerId, storeId } = useSellerScope();
+  const { sellerId, storeId, activeStore } = useSellerScope();
+  const sector = activeStore?.sector;
   const online = useSellerUi((s) => s.online);
   const orders = useOrders({ sellerId, storeId });
   const [tab, setTab] = useState<TabKey>("NEW");
@@ -121,14 +123,22 @@ function SellerOrders() {
   const [scan, setScan] = useState(false);
   const [q, setQ] = useState("");
   const [rejecting, setRejecting] = useState<OrderRecord | null>(null);
-  const [reason, setReason] = useState<string>(REJECT_REASONS[0]!);
+  const rejectReasons = REJECT_BY_SECTOR[sector ?? "DEFAULT"] ?? REJECT_BY_SECTOR["DEFAULT"]!;
+  const [reason, setReason] = useState<string>(rejectReasons[0]!);
+
+  // The active shop can change under this page (StoreSwitcher in the header); reset the selected
+  // reject reason when the sector's reason list changes so a food excuse never leaks to a Mart order.
+  useEffect(() => {
+    setReason((current) => (rejectReasons.includes(current) ? current : rejectReasons[0]!));
+  }, [rejectReasons]);
 
   const sorted = [...orders].sort((a, b) => b.placedAt.localeCompare(a.placedAt));
   const list = sorted.filter((o) => o.status === tab);
   const closed = sorted.filter((o) => o.status === "CANCELLED" || o.status === "RETURNED");
-  const tabs = TABS.map((t) => {
-    const count = orders.filter((o) => o.status === t.key).length;
-    return count > 0 ? { ...t, count } : t;
+  const tabs = TAB_KEYS.map((key) => {
+    const label = orderStatusLabel(key, sector);
+    const count = orders.filter((o) => o.status === key).length;
+    return count > 0 ? { key, label, count } : { key, label };
   });
   const ql = q.toLowerCase();
   const found = sorted.filter(
@@ -161,9 +171,7 @@ function SellerOrders() {
         )}
         {list.length === 0 ? (
           <EmptyState
-            text={`No orders are currently ${
-              tab === "DELIVERED" ? "completed" : "in " + tabs.find((t) => t.key === tab)?.label.toLowerCase()
-            }`}
+            text={`No ${tabs.find((t) => t.key === tab)?.label.toLowerCase()} orders right now`}
           />
         ) : (
           <div className="grid gap-3 md:grid-cols-2">
@@ -234,7 +242,7 @@ function SellerOrders() {
                 #{o.orderId} • {o.customerName}
               </span>
               <span className="text-xs text-muted-foreground">
-                {TABS.find((t) => t.key === o.status)?.label ?? o.status}
+                {orderStatusLabel(o.status, sector)}
               </span>
             </Link>
           ))}
@@ -285,7 +293,7 @@ function SellerOrders() {
           </div>
         }
       >
-        {REJECT_REASONS.map((r) => (
+        {rejectReasons.map((r) => (
           <RadioRow key={r} label={r} checked={reason === r} onClick={() => setReason(r)} />
         ))}
       </Sheet>

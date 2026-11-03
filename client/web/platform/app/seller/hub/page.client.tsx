@@ -27,6 +27,7 @@ import {
 } from "@/lib/api/hooks";
 import { useSellerUi } from "@/lib/sellerUi";
 import { formatINR, formatNumber } from "@/lib/format";
+import { orderStatusLabel } from "@/lib/sector";
 import {
   listingQuality,
   periodDelta,
@@ -46,14 +47,7 @@ const TABS: { key: Tab; label: string }[] = [
   { key: "kitchen", label: "Kitchen" },
 ];
 
-const STATUS_ROWS: { key: string; label: string }[] = [
-  { key: "NEW", label: "Preparing" },
-  { key: "PACKED", label: "Ready" },
-  { key: "SHIPPED", label: "Out for delivery" },
-  { key: "DELIVERED", label: "Completed" },
-  { key: "CANCELLED", label: "Cancelled" },
-  { key: "RETURNED", label: "Returned" },
-];
+const STATUS_KEYS = ["NEW", "PACKED", "SHIPPED", "DELIVERED", "CANCELLED", "RETURNED"];
 
 const TASKS = [
   { label: "Business KYC verified", done: true },
@@ -64,7 +58,8 @@ const TASKS = [
 ];
 
 function Hub() {
-  const { sellerId, storeId } = useSellerScope();
+  const { sellerId, storeId, activeStore } = useSellerScope();
+  const sector = activeStore?.sector;
   const orders = useOrders({ sellerId, storeId });
   const products = useProducts({ sellerId, storeId });
   const series = useAnalyticsSeries("seller", sellerId, 30);
@@ -72,6 +67,12 @@ function Hub() {
   const [tab, setTab] = useState<Tab>("feed");
   const [uploaded, setUploaded] = useState(false);
   const [dateOpen, setDateOpen] = useState(false);
+
+  // The kitchen tab is food vocabulary; non-food shops see "Operations".
+  const hubTabs = TABS.map((t) =>
+    t.key === "kitchen" && sector !== "FOOD" ? { ...t, label: "Operations" } : t,
+  );
+  const statusRows = STATUS_KEYS.map((key) => ({ key, label: orderStatusLabel(key, sector) }));
 
   const gmv = sumGmv(series);
   const orderCount = sumOrders(series);
@@ -85,7 +86,6 @@ function Hub() {
 
   const delivered = orders.filter((o) => o.status === "DELIVERED").length;
   const cancelled = orders.filter((o) => o.status === "CANCELLED").length;
-  const returns = orders.filter((o) => o.status === "RETURNED").length;
   const pending = orders.filter((o) => o.status === "NEW" || o.status === "PACKED");
   const outForDelivery = orders.filter((o) => o.status === "SHIPPED");
   const health = sellerHealth({
@@ -95,7 +95,7 @@ function Hub() {
     listingQuality: listingQuality(products),
   });
   const doneCount = TASKS.filter((t) => t.done).length;
-  const maxStatus = Math.max(1, ...STATUS_ROWS.map((s) => orders.filter((o) => o.status === s.key).length));
+  const maxStatus = Math.max(1, ...statusRows.map((s) => orders.filter((o) => o.status === s.key).length));
 
   const DateBar = (
     <button
@@ -106,7 +106,7 @@ function Hub() {
     </button>
   );
 
-  const header = <HubHeader sticky={<PillTabs tabs={TABS} value={tab} onChange={setTab} />} />;
+  const header = <HubHeader sticky={<PillTabs tabs={hubTabs} value={tab} onChange={setTab} />} />;
 
   return (
     <>
@@ -326,7 +326,7 @@ function Hub() {
               {orders.length === 0 ? (
                 <EmptyState text="No orders yet to build a funnel" />
               ) : (
-                STATUS_ROWS.map((s) => {
+                statusRows.map((s) => {
                   const count = orders.filter((o) => o.status === s.key).length;
                   return (
                     <div key={s.key} className="mt-3">
@@ -349,7 +349,10 @@ function Hub() {
               <p className="text-sm font-bold">How can we help you?</p>
               <ul className="mt-1 divide-y divide-border">
                 {[
-                  { label: "Manage your menu", to: "/seller/menus" },
+                  {
+                    label: sector === "FOOD" ? "Manage your menu" : "Manage your catalog",
+                    to: sector === "FOOD" ? "/seller/menus" : "/seller/products",
+                  },
                   { label: "Offers and ads", to: "/seller/promotions" },
                   { label: "Payouts", to: "/seller/payments" },
                 ].map((t) => (
@@ -404,7 +407,7 @@ function Hub() {
               <b>{delivered}</b>
             </Card>
             <div className="rounded-2xl border border-border bg-card p-4">
-              <p className="text-sm font-bold">Dispatch alerts</p>
+              <p className="text-sm font-bold">Pending orders</p>
               <ul className="mt-2 space-y-2">
                 {pending.slice(0, 3).map((o) => (
                   <li key={o.orderId}>
@@ -414,24 +417,26 @@ function Hub() {
                     >
                       <TriangleAlert className="h-3.5 w-3.5 shrink-0 text-warning" />
                       <span className="truncate">
-                        <b>#{o.orderId}</b> awaits dispatch
+                        <b>#{o.orderId}</b> is pending
                       </span>
                       <ChevronRight className="ml-auto h-3 w-3 shrink-0 text-muted-foreground" />
                     </Link>
                   </li>
                 ))}
                 {pending.length === 0 && (
-                  <li className="text-xs text-muted-foreground">Dispatch queue is clear</li>
+                  <li className="text-xs text-muted-foreground">No pending orders — you&apos;re all set</li>
                 )}
               </ul>
             </div>
-            <Link
-              href="/seller/rush-hour"
-              className="block rounded-xl bg-info-soft p-3 text-xs text-info"
-            >
-              Kitchen getting busy?{" "}
-              <b>{rush.on ? `Rush mode ON till ${rush.until}` : "Turn on rush hour →"}</b>
-            </Link>
+            {sector === "FOOD" && (
+              <Link
+                href="/seller/rush-hour"
+                className="block rounded-xl bg-info-soft p-3 text-xs text-info"
+              >
+                Kitchen getting busy?{" "}
+                <b>{rush.on ? `Rush mode ON till ${rush.until}` : "Turn on rush hour →"}</b>
+              </Link>
+            )}
           </>
         )}
       </div>
