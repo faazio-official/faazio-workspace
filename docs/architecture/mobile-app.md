@@ -613,9 +613,9 @@ fallback behavior). Detection is dependency-free (`connectivityStore`: `GET /hea
    false && !hasConnected`, so an app opened offline shows the offline page instead of the splash.
 
 Auth/entry routes (`Login`/`Onboarding`/`LanguageSelection`/`Location`) are never blocked, so an
-offline session drop still lands on Login. `GatewayClient.withFallback` remains server-only — its
-`_mock` argument is type-checked but never invoked (an offline read still throws
-`GatewayOfflineError`); the offline layer is additive, not a fixture fallback.
+offline session drop still lands on Login. `GatewayClient.serverOnly` remains server-only — an
+offline read still throws `GatewayOfflineError` (the retired `_mock` lambdas/`withFallback`/
+`withStrict` guards were collapsed to it); the offline layer is additive, not a fixture fallback.
 
 ### Services (`src/services/`)
 

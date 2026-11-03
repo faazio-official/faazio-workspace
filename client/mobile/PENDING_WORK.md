@@ -55,8 +55,8 @@ landed.
   resolver, profile account-nav, seller-onboarding districts fixture, `RX-LOCAL` prescription place-
   holder, mock KYC upload key, store-backed pickup-points resolver). A failed server read leaves the
   rail/screen empty or `undefined` — never bundled fixture data. The gateway is the only origin;
-  unreachable `_mock` lambdas in `GatewayClient` survive only as type-check compile stubs and are
-  never invoked. Failure surfaces now offer
+  the `_mock` lambdas / `withFallback` / `withStrict` guards were removed and collapsed to a single
+  private `serverOnly` helper (never invoked with a fixture). Failure surfaces now offer
   **"Report issue"** (`ReportIssueButton` → `POST /errors` → `ops.error_events`), wired into search
   and the category drill-in; the primitive is ready for any other screen.
 - **Remaining:** (1) keep adding the `ReportIssueButton` to the remaining feed/empty surfaces as they
@@ -134,8 +134,8 @@ taxonomy). `check:drillin` now validates against `server/supabase/seed/lib/taxon
   again"). `navigation/offlineNavigationGuard.ts` reverts a forward navigation attempted while
   offline (via `NavigationContainer.onStateChange`), stores it, and `App.tsx` replays it on reconnect
   so the destination refetches. Cold-start offline renders `OfflinePage` instead of the splash.
-  Auth routes are never blocked. `GatewayClient.withFallback` is unchanged (still server-only — its
-  `_mock` closure is never invoked, so an offline read still throws `GatewayOfflineError`).
+  Auth routes are never blocked. `GatewayClient.serverOnly` is unchanged (still server-only — no
+  fixture fallback, so an offline read still throws `GatewayOfflineError`).
 - **Web (partner portal):** `lib/connectivityStore.ts` + `lib/hooks/useConnectivity.ts` (native
   `navigator.onLine` + `online`/`offline` events; sonner "You're offline" toast).
   `components/layout/OfflineGuard.tsx` (mounted in `app/providers.tsx`) covers cold-start offline,

@@ -15,19 +15,13 @@
  * docs/architecture/mvp-backend.md §3, docs/architecture/monolith-breakdown.md.
  */
 import type { AccountNavGroup, AppBrand, PickupPoint, SavedAddress, UserDetailsData } from '@data/types';
-import { catalogIndex, getCatalogEntryById, getCatalogEntriesByIds, getCatalogEntriesByStore, type CatalogEntry } from '@data/catalog/products';
-import { storeDirectory, getStoreById, getStoresByApp, type StoreRecord } from '@data/directory/stores';
-import { NEUTRAL_PICKUP } from '@data/cart/pickup-resolver';
-import { coupons as fixtureCoupons } from '@data/cart/coupons';
-import { restaurantVenues } from '@data/food/diningVenues';
-import { getReviewsByProductId, type ReviewRow } from '@data/reviews/reviews';
-import { getStockByProductId, type StockRow } from '@data/inventory/stock';
-import { getOrdersByUser, MOCK_USER_ID, type OrderRow } from '@data/checkout/orders';
-import { profileTable, membershipTable, orderStatusTable, navTable, detailsTable, type ProfileRow, type MembershipRow, type OrderStatusRow, type DetailsTable } from '@data/accounts/profile';
-import { getReviewsByVendorId, type VendorReviewRow } from '@data/reviews/vendorReviews';
-import { homeSdui, type SduiSection } from '@data/home/sdui';
-import { adCampaigns } from '@data/home/campaigns';
-import { savedAddresses } from '@data/account/addresses';
+import type { CatalogEntry } from '@data/catalog/products';
+import type { StoreRecord } from '@data/directory/stores';
+import type { ReviewRow } from '@data/reviews/reviews';
+import type { StockRow } from '@data/inventory/stock';
+import type { OrderRow } from '@data/checkout/orders';
+import type { ProfileRow, MembershipRow, OrderStatusRow, DetailsTable } from '@data/accounts/profile';
+import type { SduiSection } from '@data/home/sdui';
 import type { DistrictInfo } from '@data/districts';
 import {
   clearSession,
@@ -39,12 +33,8 @@ import { refreshIdToken } from '../firebaseAuth';
 import { useAuthStore } from '@/state/authStore';
 import { APP_VERSION, DEV_USER, GATEWAY_URL, STRICT, USE_GATEWAY } from '../../lib/config';
 import { APP_VARIANT } from '../../lib/appVariant';
-import { sortByDistance, withLiveDistance } from '@/utils/distance';
 import type { DeliveryFeeBreakdown } from '@/features/cart/utils';
 import type { Coordinates } from '../location';
-
-/** Simulated network latency (ms) for mock mode. Drop to 0 to run pure in-memory. */
-const LATENCY_MS = 40;
 
 const REMOTE_ENABLED = GATEWAY_URL.length > 0 && USE_GATEWAY;
 /**
@@ -53,16 +43,6 @@ const REMOTE_ENABLED = GATEWAY_URL.length > 0 && USE_GATEWAY;
  * compatible. A failed remote call always surfaces as `GatewayHttpError`/`GatewayOfflineError`.
  */
 const REMOTE_STRICT = REMOTE_ENABLED && STRICT;
-/**
- * Dev-only identity override for an `AUTH_DISABLED=true` gateway (local/pre-prod staging). Sent as the
- * `X-Dev-User` header **only in dev builds** so a Firebase-unconfigured dev app no longer relies on
- * the server's `DEV_USER_ID` fallback. Never attached in a release build; the gateway ignores it when
- * auth is on.
- */
-
-function delay<T>(value: T, ms = LATENCY_MS): Promise<T> {
-  return new Promise((resolve) => setTimeout(() => resolve(value), ms));
-}
 
 /** Seller portal user returned by POST /auth/portal/login (web credentials). */
 export interface PortalSessionUser {
@@ -867,9 +847,8 @@ export class GatewayClient {
    * throws `GatewayOfflineError` when the remote is disabled.
    */
   async getAppConfig(): Promise<AppConfigRow[]> {
-    return this.withStrict(
+    return this.serverOnly(
       () => this.http<AppConfigRow[]>(`/app-config${queryString({ variant: APP_VARIANT })}`),
-      () => delay([]),
     );
   }
 
@@ -902,10 +881,10 @@ export class GatewayClient {
   /**
    * Create a seller listing under one of the caller's stores. The gateway opens it as
    * PENDING_REVIEW and writes catalog + stock atomically. Server-only: a create must never fake
-   * success offline, so the fallback throws instead of fabricating a row.
+   * success offline, so it throws instead of fabricating a row.
    */
   async createProduct(input: CreateProductInput): Promise<CreatedProduct> {
-    return this.withStrict(
+    return this.serverOnly(
       () =>
         this.http<CreatedProduct>('/seller/products', {
           method: 'POST',
@@ -925,9 +904,6 @@ export class GatewayClient {
             attributes: input.attributes,
           }),
         }),
-      () => {
-        throw new GatewayOfflineError();
-      },
     );
   }
 
@@ -998,20 +974,11 @@ export class GatewayClient {
   }
 
   /**
-   * Server-only read. The gateway is the single origin: no `@data` fixture is ever substituted on a
-   * failed or disabled remote call. Callers see `GatewayOfflineError` (remote disabled) or
-   * `GatewayHttpError` (HTTP failure) and can render an honest offline/empty state.
-   *
-   * The `_mock` argument is retained only so the (now unreachable) fixture libraries stay
-   * type-checked during the migration; it is never invoked.
+   * Server-only read/write. The gateway is the single origin: no `@data` fixture is ever substituted
+   * on a failed or disabled remote call. Callers see `GatewayOfflineError` (remote disabled) or
+   * `GatewayHttpError` (HTTP failure) and can render an honest offline/empty state / error.
    */
-  private async withFallback<T>(remote: () => Promise<T>, _mock: () => Promise<T>): Promise<T> {
-    if (!REMOTE_ENABLED) throw new GatewayOfflineError();
-    return remote();
-  }
-
-  /** Server-only write. A failure surfaces loudly; nothing is fabricated locally. */
-  private async withStrict<T>(remote: () => Promise<T>, _mock: () => Promise<T>): Promise<T> {
+  private async serverOnly<T>(remote: () => Promise<T>): Promise<T> {
     if (!REMOTE_ENABLED) throw new GatewayOfflineError();
     return remote();
   }
@@ -1027,59 +994,34 @@ export class GatewayClient {
     return 'offline';
   }
 
-  private joinStock(entries: CatalogEntry[]): ProductView[] {
-    return entries.map((entry) => ({ ...entry, stock: getStockByProductId(entry.id) }));
-  }
-
-  /** Full-text search over the catalog (remote FTS, else Tantivy-style local mirror). */
+  /** Full-text search over the catalog (remote FTS). */
   async searchProducts(query: string, app?: AppBrand): Promise<ProductView[]> {
-    return this.withFallback(
+    return this.serverOnly(
       () => this.http<ProductView[]>(`/search?q=${encodeURIComponent(query)}${app ? `&app=${app}` : ''}`),
-      () => this.searchProductsMock(query, app),
     );
-  }
-
-  private async searchProductsMock(query: string, app?: AppBrand): Promise<ProductView[]> {
-    const q = query.trim().toLowerCase();
-    const matches = q === ''
-      ? catalogIndex
-      : catalogIndex.filter((e) =>
-          e.searchTokens.some((t) => t.includes(q)) || e.name.toLowerCase().includes(q) || e.category.toLowerCase().includes(q),
-        );
-    const scoped = app ? matches.filter((e) => e.app === app) : matches;
-    return delay(this.joinStock(scoped));
   }
 
   /** Fetch one catalog entry with stock and reviews. Price/stock are money-critical → strict. */
   async getProduct(id: string): Promise<{ product: ProductView; reviews: ReviewRow[] } | undefined> {
-    return this.withStrict(
+    return this.serverOnly(
       async () => {
         const { product } = await this.http<{ product: ProductView }>(`/product/${encodeURIComponent(id)}`);
         const reviews = await this.http<ReviewRow[]>(`/product/${encodeURIComponent(id)}/reviews`).catch(() => [] as ReviewRow[]);
         return { product, reviews };
       },
-      () => this.getProductMock(id),
     );
-  }
-
-  private async getProductMock(id: string): Promise<{ product: ProductView; reviews: ReviewRow[] } | undefined> {
-    const entry = getCatalogEntryById(id);
-    if (!entry) return delay(undefined);
-    return delay({ product: this.joinStock([entry])[0], reviews: getReviewsByProductId(id) });
   }
 
   /** Batch catalog read (used by deals/home price overlays). Strict — prices are never fabricated. */
   async getProductsByIds(ids: string[]): Promise<ProductView[]> {
-    return this.withStrict(
+    return this.serverOnly(
       () => this.http<ProductView[]>('/products/batch', { method: 'POST', body: JSON.stringify({ ids }) }),
-      () => delay(this.joinStock(getCatalogEntriesByIds(ids))),
     );
   }
 
   async getStores(app?: AppBrand): Promise<StoreRecord[]> {
-    return this.withFallback(
+    return this.serverOnly(
       () => this.http<StoreRecord[]>(`/stores${app ? `?app=${app}` : ''}`),
-      () => delay(app ? getStoresByApp(app as 'MART' | 'FOOD') : storeDirectory),
     );
   }
 
@@ -1091,16 +1033,8 @@ export class GatewayClient {
     origin: Coordinates,
     options: { app?: AppBrand; radiusKm?: number; limit?: number } = {},
   ): Promise<StoreRecord[]> {
-    return this.withFallback(
+    return this.serverOnly(
       () => this.fetchStoresNearby(origin, options),
-      () =>
-        delay(
-          sortByDistance(
-            (options.app ? getStoresByApp(options.app) : storeDirectory).map((store) =>
-              withLiveDistance(store, origin),
-            ),
-          ).slice(0, options.limit ?? 100) as StoreRecord[],
-        ),
     );
   }
 
@@ -1125,23 +1059,8 @@ export class GatewayClient {
     origin: Coordinates,
     options: { app?: AppBrand; radiusKm?: number; limit?: number } = {},
   ): Promise<ProductView[]> {
-    return this.withFallback(
+    return this.serverOnly(
       () => this.fetchProductsNearby(origin, options),
-      () => {
-        const scoped = options.app
-          ? catalogIndex.filter((entry) => entry.app === options.app)
-          : catalogIndex;
-        const stores = new Map(storeDirectory.map((store) => [store.id, store]));
-        const products: ProductView[] = scoped.map((entry) => {
-          const store = entry.storeId ? stores.get(entry.storeId) : undefined;
-          const km =
-            store && typeof store.latitude === 'number' && typeof store.longitude === 'number'
-              ? withLiveDistance(store, origin).distanceKm
-              : undefined;
-          return { ...entry, stock: getStockByProductId(entry.id), distanceKm: km };
-        });
-        return delay(sortByDistance(products).slice(0, options.limit ?? 40));
-      },
     );
   }
 
@@ -1171,44 +1090,29 @@ export class GatewayClient {
   }
 
   async getStore(id: string): Promise<StoreRecord | undefined> {
-    return this.withFallback(
+    return this.serverOnly(
       () => this.http<StoreRecord>(`/store/${encodeURIComponent(id)}`),
-      () => delay(getStoreById(id)),
     );
   }
 
   /**
    * A store's ACTIVE catalog rows (vendor drill-in; mirrors `catalog.products` filtered by
-   * `store_id` + `status = 'ACTIVE'`). Server is the origin; the local mock filters `catalogIndex`
-   * by `storeId` so the drill-in never regresses offline. The server caps a page at 100.
+   * `store_id` + `status = 'ACTIVE'`). Server-only; throws `GatewayOfflineError` offline. The
+   * server caps a page at 100.
    */
   async getStoreProducts(storeId: string, cursor?: string): Promise<ProductView[]> {
-    return this.withFallback(
+    return this.serverOnly(
       () =>
         this.http<ProductView[]>(
           `/stores/${encodeURIComponent(storeId)}/products${cursor ? `?cursor=${encodeURIComponent(cursor)}` : ''}`,
         ),
-      // Store-scoped (not app-scoped): store ids are unique across Mart & Pharma, and the real
-      // `GET /stores/{id}/products` is app-agnostic. Keeps the Pharma medical-shop inventory working
-      // offline as well as Mart.
-      () => delay(this.joinStock(getCatalogEntriesByStore(storeId))),
     );
   }
 
   /** Restaurant venues from `directory.dining_venues` (server-only; throws offline). */
   async getVenues(app?: string): Promise<Venue[]> {
-    return this.withFallback(
+    return this.serverOnly(
       () => this.http<Venue[]>(`/venues${app ? `?app=${app}` : ''}`),
-      () =>
-        delay(
-          restaurantVenues.map((v) => ({
-            id: v.id,
-            app: 'FOOD',
-            name: v.name,
-            coverImage: '',
-            categories: [],
-          })),
-        ),
     );
   }
 
@@ -1243,34 +1147,27 @@ export class GatewayClient {
 
   /** One restaurant venue by id (server-only single read; throws offline). */
   async getVenue(id: string): Promise<Venue | undefined> {
-    return this.withFallback(
+    return this.serverOnly(
       () => this.http<Venue>(`/venues/${encodeURIComponent(id)}`),
-      () => {
-        const v = restaurantVenues.find((x) => x.id === id);
-        return delay(v ? { id: v.id, app: 'FOOD', name: v.name, coverImage: '', categories: [] } : undefined);
-      },
     );
   }
 
   /** Live stock for a product. Strict — availability/price must not be faked offline. */
   async getStock(productId: string): Promise<StockRow | undefined> {
-    return this.withStrict(
+    return this.serverOnly(
       () => this.http<StockRow>(`/stock/${encodeURIComponent(productId)}`),
-      () => delay(getStockByProductId(productId)),
     );
   }
 
   async getReviews(productId: string): Promise<ReviewRow[]> {
-    return this.withFallback(
+    return this.serverOnly(
       () => this.http<ReviewRow[]>(`/product/${encodeURIComponent(productId)}/reviews`),
-      () => delay(getReviewsByProductId(productId)),
     );
   }
 
   async getOrders(userId = 'user-1'): Promise<OrderRow[]> {
-    return this.withFallback(
+    return this.serverOnly(
       () => this.http<OrderRow[]>('/orders'),
-      () => delay(getOrdersByUser(userId)),
     );
   }
 
@@ -1280,9 +1177,8 @@ export class GatewayClient {
    * is never fabricated offline.
    */
   async getOrderTracking(orderId: string): Promise<OrderTrackingView | undefined> {
-    return this.withStrict(
+    return this.serverOnly(
       () => this.http<OrderTrackingView>(`/orders/tracking/${encodeURIComponent(orderId)}`),
-      () => delay(undefined),
     );
   }
 
@@ -1296,57 +1192,50 @@ export class GatewayClient {
   }
 
   async getProfile(userId = 'user-1'): Promise<ProfileRow | undefined> {
-    return this.withFallback(
+    return this.serverOnly(
       () => this.http<ProfileRow>('/profile'),
-      () => delay(profileTable.find((p) => p.id === userId)),
     );
   }
 
   async getMembership(userId = 'user-1'): Promise<MembershipRow | undefined> {
-    return this.withFallback(
+    return this.serverOnly(
       () => this.http<MembershipRow>('/membership'),
-      () => delay(membershipTable.find((m) => m.userId === userId)),
     );
   }
 
   async getOrderStatus(userId = 'user-1'): Promise<OrderStatusRow[]> {
-    return this.withFallback(
+    return this.serverOnly(
       () => this.http<OrderStatusRow[]>('/order-status'),
-      () => delay(orderStatusTable.filter((s) => s.userId === userId)),
     );
   }
 
   async getAccountNav(userId = 'user-1'): Promise<AccountNavGroup[]> {
-    return this.withFallback(
+    return this.serverOnly(
       () => this.http<AccountNavGroup[]>('/account-nav'),
-      () => delay(navTable.filter((n) => n.userId === userId)),
     );
   }
 
   async getDetails(userId = 'user-1'): Promise<DetailsTable | undefined> {
-    return this.withFallback(
+    return this.serverOnly(
       async () => {
         // The server stores the payload as a nested blob ({ userId, accountId, data }); flatten it
         // to the app's `DetailsTable` row so the screen can read personalInfo/preferences directly.
         const d = await this.http<{ userId: string; accountId?: string; data: UserDetailsData }>('/profile/details');
         return { ...d.data, accountId: d.accountId ?? d.data?.accountId ?? '', userId: d.userId };
       },
-      () => delay(detailsTable.find((d) => d.userId === userId)),
     );
   }
 
   /** The caller's saved delivery addresses (auth-scoped, server-only; throws offline). */
   async getAddresses(): Promise<SavedAddress[]> {
-    return this.withFallback(
+    return this.serverOnly(
       () => this.http<AddressRecord[]>('/profile/addresses').then((rows) => rows.map(toSavedAddress)),
-      () => delay([...savedAddresses]),
     );
   }
 
   /**
    * Upsert the caller's saved address (PUT /profile/addresses; server-enforced ownership). An
-   * empty `id` creates a new address (the server mints the id); a non-empty id updates it. Mock
-   * fallback is a no-op echo so the screen still confirms offline.
+   * empty `id` creates a new address (the server mints the id); a non-empty id updates it.
    */
   async saveAddress(addr: SavedAddress): Promise<SavedAddress> {
     const body = {
@@ -1357,24 +1246,22 @@ export class GatewayClient {
       address: addr.address,
       isDefault: !!addr.isDefault,
     };
-    return this.withStrict(
+    return this.serverOnly(
       () =>
         this.http<AddressRecord>('/profile/addresses', { method: 'PUT', body: JSON.stringify(body) }).then(
           toSavedAddress,
         ),
-      () => delay(addr),
     );
   }
 
   /** Remove one of the caller's saved addresses (DELETE /profile/addresses/{id}). Strict: a deleted
    *  address must not silently reappear from the local fixture. */
   async deleteAddress(id: string): Promise<void> {
-    await this.withStrict(
+    await this.serverOnly(
       () =>
         this.http<{ ok: boolean }>(`/profile/addresses/${encodeURIComponent(id)}`, { method: 'DELETE' }).then(
           () => undefined,
         ),
-      () => delay(undefined),
     );
   }
 
@@ -1384,9 +1271,8 @@ export class GatewayClient {
    * deletion succeeded while offline.
    */
   async deleteAccount(): Promise<void> {
-    await this.withStrict(
+    await this.serverOnly(
       () => this.http<{ ok: boolean }>('/users/me', { method: 'DELETE' }).then(() => undefined),
-      () => delay(undefined),
     );
   }
 
@@ -1397,44 +1283,39 @@ export class GatewayClient {
   async requestDataDeletion(
     categories: DataDeletionCategory[],
   ): Promise<DataDeletionCategory[]> {
-    const res = await this.withStrict(
+    const res = await this.serverOnly(
       () =>
         this.http<{ ok: boolean; deleted?: DataDeletionCategory[] }>(
           '/users/me/data-deletion',
           { method: 'POST', body: JSON.stringify({ categories }) },
         ),
-      () => delay({ ok: true, deleted: categories }),
     );
     return res.deleted ?? [];
   }
 
   /** Durable favourites shelf (auth-scoped, never edge-cached). */
   async getFavourites(): Promise<string[]> {
-    return this.withFallback(
+    return this.serverOnly(
       () => this.http<{ items: string[] }>('/favourites').then((r) => r.items ?? []),
-      () => delay([] as string[]),
     );
   }
 
   async addFavourite(productId: string): Promise<string[]> {
-    return this.withStrict(
+    return this.serverOnly(
       () => this.http<{ items: string[] }>(`/favourites/${encodeURIComponent(productId)}`, { method: 'PUT' }).then((r) => r.items ?? []),
-      () => delay([] as string[]),
     );
   }
 
   async removeFavourite(productId: string): Promise<string[]> {
-    return this.withStrict(
+    return this.serverOnly(
       () => this.http<{ items: string[] }>(`/favourites/${encodeURIComponent(productId)}`, { method: 'DELETE' }).then((r) => r.items ?? []),
-      () => delay([] as string[]),
     );
   }
 
   /** Server-authoritative rewards (coins / streak / card / ledger) — client reconciles on read. */
   async getRewards(): Promise<RewardsView> {
-    return this.withFallback(
+    return this.serverOnly(
       () => this.http<RewardsView>('/rewards'),
-      () => delay({ coins: 0, streak: 0, lastOrderDay: null, card: null, ledger: [] }),
     );
   }
 
@@ -1453,11 +1334,10 @@ export class GatewayClient {
     await this.http<{ ok: boolean }>('/notifications/register', { method: 'DELETE' });
   }
 
-  /** The caller's notification inbox (newest first); mock fallback is empty. */
+  /** The caller's notification inbox (newest first). */
   async getNotifications(): Promise<NotificationRecord[]> {
-    return this.withFallback(
+    return this.serverOnly(
       () => this.http<NotificationRecord[]>('/notifications'),
-      () => delay([] as NotificationRecord[]),
     );
   }
 
@@ -1466,32 +1346,18 @@ export class GatewayClient {
    * authority for which coupons exist and their terms — a discount is never fabricated offline.
    */
   async getCoupons(app?: AppBrand): Promise<PublicCoupon[]> {
-    return this.withStrict(
+    return this.serverOnly(
       () => this.http<PublicCoupon[]>(`/coupons${app ? `?app=${app}` : ''}`),
-      () =>
-        delay(
-          fixtureCoupons.map((c) => ({
-            code: c.code,
-            title: c.label,
-            valuePercent: c.discountPercent,
-            maxDiscount: 0,
-            minOrder: c.minOrder ?? 0,
-            freeDelivery: !!c.isFreeDelivery,
-            validTill: '',
-          })),
-        ),
     );
   }
 
   /**
    * LIVE sponsored ads for a placement (public, anon, cached 600 s server-side). Paid placements
-   * are **never** fabricated offline: the fallback is an empty list, so the rail collapses rather
-   * than faking a sponsored disclosure.
+   * are **never** fabricated offline, so the rail collapses rather than faking a disclosure.
    */
   async getLiveAds(placement?: string): Promise<LiveAd[]> {
-    return this.withFallback(
+    return this.serverOnly(
       () => this.http<LiveAd[]>(`/ads/live${queryString({ slot: placement })}`),
-      () => delay([] as LiveAd[]),
     );
   }
 
@@ -1517,14 +1383,14 @@ export class GatewayClient {
 
   /**
    * LIVE hero campaigns for a placement context (`GET /ads/hero`). Paid placements are **never**
-   * fabricated offline: the fallback is an empty list, so a hero collapses rather than faking a
-   * sponsored disclosure (same contract as `getLiveAds`).
+   * fabricated offline, so a hero collapses rather than faking a sponsored disclosure (same
+   * contract as `getLiveAds`).
    */
   async getHeroAds(
     placement?: string,
     ctx: { app?: string; category?: string; storeId?: string } = {},
   ): Promise<HeroAd[]> {
-    return this.withFallback(
+    return this.serverOnly(
       () =>
         this.http<HeroAd[]>(
           `/ads/hero${queryString({
@@ -1534,7 +1400,6 @@ export class GatewayClient {
             storeId: ctx.storeId,
           })}`,
         ),
-      () => delay([] as HeroAd[]),
     );
   }
 
@@ -1569,12 +1434,11 @@ export class GatewayClient {
    */
   async reportHeroAd(placementId: string): Promise<void> {
     if (!placementId) return;
-    await this.withFallback(
+    await this.serverOnly(
       () =>
         this.http<{ ok: boolean }>(`/ads/campaigns/${encodeURIComponent(placementId)}/report`, {
           method: 'POST',
         }).then(() => undefined),
-      () => delay(undefined),
     );
   }
 
@@ -1588,60 +1452,24 @@ export class GatewayClient {
     state?: string;
     subtotal: number;
   }): Promise<CouponValidation> {
-    return this.withStrict(
+    return this.serverOnly(
       () =>
         this.http<CouponValidation>('/checkout/validate-coupon', {
           method: 'POST',
           body: JSON.stringify(input),
         }),
-      () => delay(this.validateCouponMock(input)),
     );
-  }
-
-  private validateCouponMock(input: {
-    code: string;
-    subtotal: number;
-  }): CouponValidation {
-    const code = input.code.toUpperCase().trim();
-    const empty: CouponValidation = {
-      valid: false,
-      reason: 'not_found',
-      code,
-      valuePercent: 0,
-      maxDiscount: 0,
-      minOrder: 0,
-      discount: 0,
-      freeDelivery: false,
-    };
-    const c = fixtureCoupons.find((x) => x.code === code);
-    if (!c) return empty;
-    if (c.minOrder && input.subtotal < c.minOrder) {
-      return { ...empty, reason: 'min_order', minOrder: c.minOrder };
-    }
-    const discount = c.isFreeDelivery ? 0 : Math.round((input.subtotal * c.discountPercent) / 100);
-    return {
-      valid: true,
-      reason: '',
-      code,
-      valuePercent: c.discountPercent,
-      maxDiscount: 0,
-      minOrder: c.minOrder ?? 0,
-      discount,
-      freeDelivery: !!c.isFreeDelivery,
-    };
   }
 
   /**
    * Active festival discounts for a batch of products (public, anon, cached per product). The
    * server only returns approved + LIVE + sector-capped discounts, so the client never invents one.
-   * Fallback is empty — a discount is never fabricated offline.
    */
   async getActiveDiscounts(productIds: string[]): Promise<ActiveDiscount[]> {
     if (productIds.length === 0) return [];
     const ids = productIds.slice(0, 200).join(',');
-    return this.withFallback(
+    return this.serverOnly(
       () => this.http<ActiveDiscount[]>(`/promo/active-discounts?ids=${encodeURIComponent(ids)}`),
-      () => delay([] as ActiveDiscount[]),
     );
   }
 
@@ -1705,25 +1533,22 @@ export class GatewayClient {
 
   /** The signed-in user's durable prescriptions. */
   async getPrescriptions(): Promise<PrescriptionRecord[]> {
-    return this.withFallback(
+    return this.serverOnly(
       () => this.http<{ items: PrescriptionRecord[] }>('/prescriptions').then((r) => r.items ?? []),
-      () => delay([] as PrescriptionRecord[]),
     );
   }
 
   /** One of the signed-in user's own prescriptions (owner-scoped; undefined off-server). */
   async getPrescription(id: string): Promise<PrescriptionRecord | undefined> {
-    return this.withFallback(
+    return this.serverOnly(
       () => this.http<PrescriptionRecord>(`/prescriptions/${encodeURIComponent(id)}`),
-      () => delay(undefined),
     );
   }
 
   /** The caller's own donor profile, or null if not registered (server-only; throws offline). */
   async getDonorProfile(): Promise<BloodDonorProfile | null> {
-    return this.withFallback(
+    return this.serverOnly(
       () => this.http<BloodDonorProfile | null>('/donors/me'),
-      () => delay(null),
     );
   }
 
@@ -1754,9 +1579,8 @@ export class GatewayClient {
 
   /** The consented donor directory, filtered by blood group / city when provided (server-only). */
   async getBloodDonors(filters?: { bloodGroup?: string; city?: string }): Promise<BloodDonorProfile[]> {
-    return this.withFallback(
+    return this.serverOnly(
       () => this.http<BloodDonorProfile[]>(`/donors${queryString(filters)}`),
-      () => delay([] as BloodDonorProfile[]),
     );
   }
 
@@ -1772,9 +1596,8 @@ export class GatewayClient {
 
   /** The public blood-request board (contact/address hidden for anon callers). */
   async getBloodRequests(filters?: { bloodGroup?: string; city?: string }): Promise<BloodRequestRecord[]> {
-    return this.withFallback(
+    return this.serverOnly(
       () => this.http<BloodRequestRecord[]>(`/blood-requests${queryString(filters)}`),
-      () => delay([] as BloodRequestRecord[]),
     );
   }
 
@@ -1841,9 +1664,8 @@ export class GatewayClient {
 
   /** The caller's outgoing donor-match requests. */
   async getDonorMatches(): Promise<DonorMatchRecord[]> {
-    return this.withFallback(
+    return this.serverOnly(
       () => this.http<DonorMatchRecord[]>('/donor-match-requests'),
-      () => delay([] as DonorMatchRecord[]),
     );
   }
 
@@ -1852,9 +1674,8 @@ export class GatewayClient {
    * Recipient-scoped server read, so targeted asks arrive on any device — not only the requester's.
    */
   async getIncomingDonorMatches(): Promise<DonorMatchRecord[]> {
-    return this.withFallback(
+    return this.serverOnly(
       () => this.http<DonorMatchRecord[]>('/donor-match-requests/incoming'),
-      () => delay([] as DonorMatchRecord[]),
     );
   }
 
@@ -1874,79 +1695,39 @@ export class GatewayClient {
 
   /** Resolve the Home SDUI doc tree into rendered sections with joined data. */
   async getHomeFeed(): Promise<(SduiSection & { products: ProductView[]; stores?: StoreRecord[] })[]> {
-    return this.withFallback(
+    return this.serverOnly(
       () => this.http<(SduiSection & { products: ProductView[]; stores?: StoreRecord[] })[]>('/sdui/home'),
-      () => this.getHomeFeedMock(),
     );
   }
 
   /**
    * Resolve only the Mart SDUI sections (`martHero`/`martDeals`/`martEssentials`) with joined data
-   * (`GET /sdui/mart`). The Mart feed stays decoupled from the full Home payload/ETag; the offline
-   * mock filters the same Home doc so remote and mock shapes match.
+   * (`GET /sdui/mart`). The Mart feed stays decoupled from the full Home payload/ETag.
    */
   async getMartFeed(): Promise<(SduiSection & { products: ProductView[]; stores?: StoreRecord[] })[]> {
-    return this.withFallback(
+    return this.serverOnly(
       () => this.http<(SduiSection & { products: ProductView[]; stores?: StoreRecord[] })[]>('/sdui/mart'),
-      () => this.getMartFeedMock(),
     );
-  }
-
-  private async getMartFeedMock(): Promise<(SduiSection & { products: ProductView[]; stores?: StoreRecord[] })[]> {
-    const martIds = new Set(['martHero', 'martDeals', 'martEssentials']);
-    const sections = homeSdui
-      .filter((section) => martIds.has(section.id))
-      .map((section) => ({
-        ...section,
-        products: this.joinStock(getCatalogEntriesByIds(section.productIds)),
-        stores: (section.storeIds ?? []).map((id) => getStoreById(id)).filter((s): s is StoreRecord => !!s),
-      }));
-    return delay(sections);
   }
 
   /**
    * Resolve only the Food SDUI sections (`foodHero`/`foodSpecials`/`mostRatedDining`) with joined
-   * data (`GET /sdui/food`). The Food feed stays decoupled from the full Home payload/ETag; the
-   * offline mock filters the same Home doc so remote and mock shapes match.
+   * data (`GET /sdui/food`). The Food feed stays decoupled from the full Home payload/ETag.
    */
   async getFoodFeed(): Promise<(SduiSection & { products: ProductView[]; stores?: StoreRecord[] })[]> {
-    return this.withFallback(
+    return this.serverOnly(
       () => this.http<(SduiSection & { products: ProductView[]; stores?: StoreRecord[] })[]>('/sdui/food'),
-      () => this.getFoodFeedMock(),
     );
-  }
-
-  private async getFoodFeedMock(): Promise<(SduiSection & { products: ProductView[]; stores?: StoreRecord[] })[]> {
-    const foodIds = new Set(['foodHero', 'foodSpecials', 'mostRatedDining']);
-    const sections = homeSdui
-      .filter((section) => foodIds.has(section.id))
-      .map((section) => ({
-        ...section,
-        products: this.joinStock(getCatalogEntriesByIds(section.productIds)),
-        stores: (section.storeIds ?? []).map((id) => getStoreById(id)).filter((s): s is StoreRecord => !!s),
-      }));
-    return delay(sections);
-  }
-
-  private async getHomeFeedMock(): Promise<(SduiSection & { products: ProductView[]; stores?: StoreRecord[] })[]> {
-    const sections = homeSdui.map((section) => ({
-      ...section,
-      products: this.joinStock(getCatalogEntriesByIds(section.productIds)),
-      stores: (section.storeIds ?? []).map((id) => getStoreById(id)).filter((s): s is StoreRecord => !!s),
-    }));
-    return delay(sections);
   }
 
   /**
    * Resolve only the Pharma SDUI sections (`pharmaHero`/`pharmaPopular`/`pharmaEssentials`) with
-   * joined data (`GET /sdui/pharma`). Pharma stays decoupled from the full Home payload/ETag; the
-   * offline mock filters the same Home doc so remote and mock shapes match. Rx-gated products are
-   * never referenced by these sections.
+   * joined data (`GET /sdui/pharma`). Pharma stays decoupled from the full Home payload/ETag.
+   * Rx-gated products are never referenced by these sections.
    */
   async getPharmaFeed(): Promise<(SduiSection & { products: ProductView[]; stores?: StoreRecord[] })[]> {
-    return this.withFallback(
+    return this.serverOnly(
       () => this.http<(SduiSection & { products: ProductView[]; stores?: StoreRecord[] })[]>('/sdui/pharma'),
-      () => this.getPharmaFeedMock(),
     );
   }
 
@@ -1959,56 +1740,28 @@ export class GatewayClient {
     return this.http<(SduiSection & { products: ProductView[]; stores?: StoreRecord[] })[]>('/sdui/pharma');
   }
 
-  private async getPharmaFeedMock(): Promise<(SduiSection & { products: ProductView[]; stores?: StoreRecord[] })[]> {
-    const pharmaIds = new Set(['pharmaHero', 'pharmaPopular', 'pharmaEssentials']);
-    const sections = homeSdui
-      .filter((section) => pharmaIds.has(section.id))
-      .map((section) => ({
-        ...section,
-        products: this.joinStock(getCatalogEntriesByIds(section.productIds)),
-        stores: (section.storeIds ?? []).map((id) => getStoreById(id)).filter((s): s is StoreRecord => !!s),
-      }));
-    return delay(sections);
-  }
-
   /**
    * The compiled editorial-campaign list (Home "Deals of the day"), server-joined to store + products.
-   * Falls back to the `@data/home/campaigns` fixture offline.
    */
   async getHomeCampaigns(): Promise<HomeCampaignDetail[]> {
-    return this.withFallback(
+    return this.serverOnly(
       () => this.http<HomeCampaignDetail[]>('/home/campaigns'),
-      () => this.getHomeCampaignsMock(),
     );
   }
 
-  /** One compiled editorial campaign by id (undefined when unknown). Fixture-backed offline. */
+  /** One compiled editorial campaign by id (undefined when unknown). */
   async getHomeCampaign(id: string): Promise<HomeCampaignDetail | undefined> {
-    return this.withFallback(
+    return this.serverOnly(
       () => this.http<HomeCampaignDetail>(`/home/campaigns/${encodeURIComponent(id)}`),
-      async () => (await this.getHomeCampaignsMock()).find((c) => c.id === id),
     );
-  }
-
-  private async getHomeCampaignsMock(): Promise<HomeCampaignDetail[]> {
-    const views: HomeCampaignDetail[] = adCampaigns.map((c) => ({
-      id: c.id,
-      carousel: c.carousel,
-      storeId: c.storeId,
-      store: getStoreById(c.storeId),
-      products: this.joinStock(getCatalogEntriesByIds(c.productIds)),
-    }));
-    return delay(views);
   }
 
   /**
    * Personalized recommendations (Mongo `recommendations`/`product_stats` joined to catalog).
-   * Cold-start / offline fallback: highest-rated catalog entries (mirrors the trending rail).
    */
   async getRecommendations(): Promise<ProductView[]> {
-    return this.withFallback(
+    return this.serverOnly(
       () => this.http<ProductView[]>('/recommendations'),
-      () => delay(this.joinStock([...catalogIndex].sort((a, b) => b.rating - a.rating).slice(0, 12))),
     );
   }
 
@@ -2018,9 +1771,8 @@ export class GatewayClient {
    * fixture fallback. The wire shape is `DistrictInfo` (@data/districts) — no remapping needed.
    */
   async getDistricts(stateCode?: string): Promise<DistrictInfo[]> {
-    return this.withFallback(
+    return this.serverOnly(
       () => this.http<DistrictInfo[]>(`/geo/districts${queryString({ state: stateCode })}`),
-      () => delay([] as DistrictInfo[]),
     );
   }
 
@@ -2223,46 +1975,18 @@ export class GatewayClient {
 
   /** Public vendor reviews (server projection hides user_id / order_ids). */
   async getVendorReviews(vendorId: string): Promise<VendorReview[]> {
-    return this.withFallback(
+    return this.serverOnly(
       () => this.http<VendorReview[]>(`/vendors/${encodeURIComponent(vendorId)}/reviews`),
-      () => delay(this.getVendorReviewsMock(vendorId)),
     );
-  }
-
-  private getVendorReviewsMock(vendorId: string): VendorReview[] {
-    return getReviewsByVendorId(vendorId).map((r: VendorReviewRow) => ({
-      id: r.id,
-      vendorId: r.vendorId,
-      app: r.app,
-      userName: r.userName,
-      rating: r.rating,
-      comment: r.comment,
-      date: r.date,
-    }));
   }
 
   /**
    * The server-maintained vendor rating aggregate (`reviews.vendor_summary`) — an O(1) read
-   * that covers ALL reviews, not just the fetched page. Falls back to a local derivation.
+   * that covers ALL reviews, not just the fetched page.
    */
   async getVendorReviewSummary(vendorId: string): Promise<VendorReviewSummary> {
-    return this.withFallback(
+    return this.serverOnly(
       () => this.http<VendorReviewSummary>(`/vendors/${encodeURIComponent(vendorId)}/reviews/summary`),
-      () => {
-        const reviews = getReviewsByVendorId(vendorId);
-        const distribution = [0, 0, 0, 0, 0];
-        let sum = 0;
-        for (const r of reviews) {
-          const v = Math.max(1, Math.min(5, Math.round(r.rating)));
-          distribution[v - 1] += 1;
-          sum += v;
-        }
-        return delay({
-          average: reviews.length ? sum / reviews.length : 0,
-          count: reviews.length,
-          distribution,
-        });
-      },
     );
   }
 
@@ -2291,38 +2015,33 @@ export class GatewayClient {
 
   /** The auth-scoped cart (never edge-cached). */
   async getCart(): Promise<Cart> {
-    return this.withFallback(
+    return this.serverOnly(
       () => this.http<Cart>('/cart'),
-      () => delay({ items: [] as CartItem[] }),
     );
   }
 
   async addToCart(productId: string, qty = 1): Promise<Cart> {
-    return this.withStrict(
+    return this.serverOnly(
       () => this.http<Cart>('/cart/items', { method: 'POST', body: JSON.stringify({ productId, qty }) }),
-      () => delay({ items: [] as CartItem[] }),
     );
   }
 
   async updateCartItem(productId: string, qty: number): Promise<Cart> {
-    return this.withStrict(
+    return this.serverOnly(
       () => this.http<Cart>('/cart/items', { method: 'PUT', body: JSON.stringify({ productId, qty }) }),
-      () => delay({ items: [] as CartItem[] }),
     );
   }
 
   async removeCartItem(productId: string): Promise<Cart> {
-    return this.withStrict(
+    return this.serverOnly(
       () => this.http<Cart>(`/cart/items/${encodeURIComponent(productId)}`, { method: 'DELETE' }),
-      () => delay({ items: [] as CartItem[] }),
     );
   }
 
   /** Place an order (server decrements stock + holds an idempotency lock). */
   async placeOrder(input: PlaceOrderInput): Promise<OrderRow> {
-    return this.withStrict(
+    return this.serverOnly(
       () => this.http<OrderRow>('/orders', { method: 'POST', body: JSON.stringify(input) }),
-      () => delay(this.placeOrderMock(input)),
     );
   }
 
@@ -2399,9 +2118,8 @@ export class GatewayClient {
 
   /** The caller's durable payment rows (GET /payments). */
   async getPayments(): Promise<PaymentRecord[]> {
-    return this.withFallback(
+    return this.serverOnly(
       () => this.http<PaymentRecord[]>('/payments'),
-      () => delay<PaymentRecord[]>([]),
     );
   }
 
@@ -2563,40 +2281,13 @@ export class GatewayClient {
     return this.http<DeliveryBoyLocation>(`/admin/delivery-boys/${encodeURIComponent(id)}/location`);
   }
 
-  private placeOrderMock(input: PlaceOrderInput): OrderRow {
-    const entries = getCatalogEntriesByIds(input.items.map((i) => i.productId));
-    const lineItems = input.items.map((it, idx) => {
-      const entry = entries.find((e) => e.id === it.productId);
-      return {
-        lineId: `local-${idx + 1}`,
-        productId: it.productId,
-        name: entry?.name ?? it.productId,
-        qty: it.qty,
-        unitPrice: entry?.price ?? 0,
-      };
-    });
-    const id = `ORD-LOCAL-${Date.now()}`;
-    return {
-      id,
-      orderNumber: `#${id}`,
-      userId: MOCK_USER_ID,
-      addressId: input.addressId ?? '',
-      placedAt: new Date().toISOString(),
-      status: 'Processing',
-      lineItems,
-      fulfillment: input.fulfillment,
-      vendorStoreIds: [],
-    };
-  }
-
-  /** Fire-and-forget behavior event (ID-only; mock fallback is a silent no-op). */
+  /** Fire-and-forget behavior event (ID-only; offline is a silent no-op). */
   async trackEvent(productId: string, event: TrackableEvent = 'view'): Promise<void> {
-    await this.withFallback(
+    await this.serverOnly(
       () =>
         this.http<{ ok: boolean }>('/events', { method: 'POST', body: JSON.stringify({ productId, event }) }).then(
           () => undefined,
         ),
-      () => delay(undefined),
     );
   }
 
