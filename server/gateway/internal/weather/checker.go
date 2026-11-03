@@ -40,9 +40,10 @@ type Checker struct {
 	logger *slog.Logger
 }
 
-// NewChecker builds the weather checker. api/usage may be nil (provider disabled / no DB). The
-// optional logger receives a detailed line for every degrade (provider down, budget exhausted, API
-// error) so a silent "no rain surcharge" is always auditable. Nil logger → log/slog default.
+// NewChecker builds the weather checker. api/usage may be nil (provider disabled / no DB); IsRaining
+// then fails closed. The optional logger receives a detailed line for every failure (provider down,
+// budget exhausted, API error) so a fail-closed dry check is always auditable. Nil logger → log/slog
+// default.
 func NewChecker(c CacheStore, api API, usage UsageStore, limit int64, loggers ...*slog.Logger) *Checker {
 	if c == nil {
 		c = &cache.Cache{}
@@ -57,7 +58,7 @@ func NewChecker(c CacheStore, api API, usage UsageStore, limit int64, loggers ..
 	return &Checker{cache: c, api: api, usage: usage, limit: limit, now: time.Now, logger: logger}
 }
 
-// logDegrade writes the always-on audit line for a graceful no-surcharge degrade. cell is the hex
+// logDegrade writes the always-on audit line for a fail-closed weather check. cell is the hex
 // delivery zone; extra key/value pairs carry the failure specifics.
 func (c *Checker) logDegrade(cellID string, detail string) {
 	lat, lng := geo.GeoCellCenter(cellID)
@@ -72,8 +73,9 @@ func (c *Checker) logDegrade(cellID string, detail string) {
 
 // IsRaining reports whether a zone is raining now. Manual overrides and a cached recent provider
 // verdict are honoured. When the provider is disabled, the annual budget is exhausted, or the
-// provider errors, the check degrades to "not raining" (no surcharge charged) and the failure is
-// logged in detail — a checkout is never blocked, and the override decision is never silent.
+// provider errors, IsRaining FAILS — a checkout is never charged a fabricated "not raining" verdict.
+// Each failure is still logged in detail, but the caller (delivery pricing) must propagate the error
+// rather than assume a dry zone.
 func (c *Checker) IsRaining(ctx context.Context, cellID string) (bool, error) {
 	if c == nil || cellID == "" {
 		return false, nil
@@ -88,14 +90,14 @@ func (c *Checker) IsRaining(ctx context.Context, cellID string) (bool, error) {
 	}
 	if c.api == nil || !c.api.Enabled() {
 		c.logDegrade(cellID, "provider not configured or disabled")
-		return false, nil
+		return false, fmt.Errorf("weather: provider not configured or disabled")
 	}
 
 	now := c.now()
 	fy := FinancialYear(now)
 	if used, ok := c.cache.GetInt(ctx, cache.WeatherCalls(fy)); ok && used >= c.limit {
 		c.logDegrade(cellID, fmt.Sprintf("annual call budget exhausted (%d/%d)", used, c.limit))
-		return false, nil
+		return false, fmt.Errorf("weather: annual call budget exhausted (%d/%d)", used, c.limit)
 	}
 
 	lat, lng := geo.GeoCellCenter(cellID)
@@ -104,11 +106,11 @@ func (c *Checker) IsRaining(ctx context.Context, cellID string) (bool, error) {
 	// outage must not turn every checkout for a cell into another request.
 	c.recordCall(ctx, now, fy)
 	if err != nil {
-		// Graceful no-surcharge degrade: the zone is treated as not raining, and the exact provider
-		// failure is logged so the silent decision is always audit-trail-able. No fabricated value is
-		// cached — the next check retries the provider (the cache above serves only real verdicts).
+		// Fail closed: propagate the provider error so delivery pricing errors instead of silently
+		// charging no rain surcharge. No fabricated value is cached — the next check retries the
+		// provider (the cache above serves only real verdicts).
 		c.logDegrade(cellID, "provider error: "+err.Error())
-		return false, nil
+		return false, fmt.Errorf("weather: provider error for cell %s: %w", cellID, err)
 	}
 
 	c.cache.SetJSON(ctx, cache.WeatherZone(cellID), raining, cache.TTLWeatherZone)

@@ -1691,29 +1691,15 @@ export class GatewayClient {
   /**
    * Create a durable prescription (images are Storage object keys, never bytes/URLs).
    *
-   * The server is the sole owner of the authoritative Rx id + quote/reveal lifecycle, so in remote
-   * mode a failed create **propagates** (the caller shows a real error and keeps the draft) rather
-   * than silently fabricating an `RX-LOCAL-*` row that looks durable but is not. Mock mode (no
-   * gateway configured) still returns the local placeholder so the flow works offline in dev.
+   * The server is the sole owner of the authoritative Rx id + quote/reveal lifecycle, so a failed
+   * or disabled remote create **propagates** (the caller shows a real error and keeps the draft) —
+   * an `RX-LOCAL-*` placeholder is never fabricated to look durable when it is not.
    */
   async createPrescription(input: PrescriptionInput): Promise<PrescriptionRecord> {
-    if (REMOTE_ENABLED) {
-      return this.http<PrescriptionRecord>('/prescriptions', {
-        method: 'POST',
-        body: JSON.stringify(input),
-      });
-    }
-    return delay({
-      id: `RX-LOCAL-${Date.now()}`,
-      userId: MOCK_USER_ID,
-      vendorId: input.vendorId,
-      fulfillment: input.fulfillment,
-      pages: input.pages ?? 1,
-      note: input.note,
-      imagePaths: input.imagePaths ?? [],
-      status: 'RECEIVED',
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
+    if (!REMOTE_ENABLED) throw new GatewayOfflineError();
+    return this.http<PrescriptionRecord>('/prescriptions', {
+      method: 'POST',
+      body: JSON.stringify(input),
     });
   }
 
@@ -2112,16 +2098,14 @@ export class GatewayClient {
   /**
    * Upload a KYC image to the private R2 bucket: mint → PUT straight to R2 → confirm. Returns the
    * object key + asset id the seller application stores (never a URL, never the image bytes).
+   * Server-only: a disabled gateway throws instead of fabricating a mock key.
    */
   async uploadSellerDocument(
     uri: string,
     ownerId: string,
     mime: 'image/jpeg' | 'image/png' | 'image/webp' | 'image/avif' = 'image/jpeg',
   ): Promise<UploadedSellerDocument> {
-    if (!REMOTE_ENABLED) {
-      const suffix = `${Date.now().toString(36)}`;
-      return { key: `mock/kyc/${ownerId}/${suffix}.jpg`, assetId: `mock-asset-${suffix}` };
-    }
+    if (!REMOTE_ENABLED) throw new GatewayOfflineError();
     const blob = await (await fetch(uri)).blob();
     const ticket = await this.getMediaUploadUrl({
       kind: 'PRIVATE',
@@ -2377,21 +2361,11 @@ export class GatewayClient {
     };
   }
 
-  /** Durable self-pickup locations (public). Falls back to the store-backed resolver. */
+  /** Durable self-pickup locations (public). Server-only — no store-backed fixture resolver. */
   async getPickupPoints(storeIds?: string[]): Promise<PickupPoint[]> {
-    return this.withFallback(
-      () =>
-        this.http<PickupPoint[]>(
-          `/pickup-points${storeIds && storeIds.length ? `?storeIds=${encodeURIComponent(storeIds.join(','))}` : ''}`,
-        ),
-      () => {
-        const wanted = new Set(storeIds ?? []);
-        const points: PickupPoint[] = storeDirectory
-          .filter((s) => (wanted.size === 0 || wanted.has(s.id)) && s.address && s.phone && s.hours)
-          .map((s) => ({ id: s.id, name: s.name, address: s.address as string, phone: s.phone as string, hours: s.hours as string, isActive: true }));
-        if (points.length === 0) points.push(NEUTRAL_PICKUP);
-        return delay(points);
-      },
+    if (!REMOTE_ENABLED) throw new GatewayOfflineError();
+    return this.http<PickupPoint[]>(
+      `/pickup-points${storeIds && storeIds.length ? `?storeIds=${encodeURIComponent(storeIds.join(','))}` : ''}`,
     );
   }
 

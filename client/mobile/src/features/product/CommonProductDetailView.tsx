@@ -23,7 +23,6 @@ import AppText from '@/components/AppText';
 import ProductCardBase from '@/components/shared/ProductCardBase';
 import { applyActiveDiscounts, useActiveDiscounts } from '@/services/pricing';
 import { gateway } from '@/services/api/GatewayClient';
-import { TODAYS_SPECIALS, dishToProduct } from '@data/food/specials';
 import type { Product, StoreProfile } from '@data/types';
 import { semantic } from '@/theme/brandTokens';
 
@@ -186,16 +185,12 @@ export default function CommonProductDetailView({
     [relatedProducts, relatedDiscounts],
   );
 
-  const foodStore = useMemo<StoreProfile | undefined>(() => {
-    if (product?.app !== 'FOOD' || !product.shop) return undefined;
-    return undefined;
-  }, [product?.app, product?.shop]);
-
+  // "Same restaurant dishes" is server-backed only: no bundled dish fixture is substituted for a FOOD
+  // product. On a failed/absent read the rail stays empty (an invented dish price on a PDP is worse
+  // than an honest gap).
   const relatedDishes = useMemo<Product[]>(() => {
     if (product?.app !== 'FOOD' || !product.shop) return [];
-    return TODAYS_SPECIALS.filter(
-      (d) => d.restaurant === product.shop && d.id !== product.id,
-    ).map(dishToProduct);
+    return [];
   }, [product?.app, product?.shop, product?.id]);
 
   // No product to render: an honest empty state beats a fabricated demo row (which could show an
@@ -301,15 +296,10 @@ export default function CommonProductDetailView({
           >
             <View style={styles.storeLogoContainer}>
               <Image
-                source={{ uri: foodStore?.coverImage ?? product.image }}
+                source={{ uri: product.image }}
                 style={styles.storeCover}
                 resizeMode="cover"
               />
-              {foodStore ? (
-                <View style={styles.storeRatingBadge}>
-                  <AppText style={styles.storeRatingText}>{foodStore.rating}</AppText>
-                </View>
-              ) : null}
             </View>
             <View style={styles.storeDetails}>
               <View style={styles.storeNameRow}>
@@ -318,21 +308,8 @@ export default function CommonProductDetailView({
               </View>
               <View style={styles.storeLocationRow}>
                 <MapPin size={ms(14)} color="#94a3b8" />
-                <AppText style={styles.storeLocationText}>
-                  {foodStore?.desc ?? 'Restaurant verified'}
-                </AppText>
+                <AppText style={styles.storeLocationText}>Restaurant verified</AppText>
               </View>
-              {foodStore ? (
-                <View style={styles.storeTimeRow}>
-                  <View style={styles.storeOpenBadge}>
-                    <AppText style={styles.storeOpenText}>Open now</AppText>
-                  </View>
-                  <AppText style={styles.storeCloseText}>
-                    {' '}
-                    · {foodStore.distance}
-                  </AppText>
-                </View>
-              ) : null}
             </View>
           </TouchableOpacity>
 

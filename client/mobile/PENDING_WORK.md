@@ -28,26 +28,35 @@ landed.
 - **Gateway:** `POST /seller/stores`, `PUT /seller/stores/{id}`, `PUT /seller/stores/{id}/fee`;
   `GET /geo/states`, `GET /geo/apps`, `GET /ads/placements`; checkout + settlement resolve the fee per
   vendor; `razorpayroute` mock removed (missing keys = config error); no `AUTH_DISABLED`/`X-Dev-*`
-  in production auth. **Weather + Routes degrade are GRACEFUL again but never silent**: a disabled
-  weather provider / budget / API error returns "no surcharge" and the Google Routes client falls
-  back to a straight-line leg, and every such degrade is logged in detail (`weather_degraded` /
-  `route_matrix_degraded` with zone/coords + cause).
+  in production auth. **Weather + Routes are FAIL-CLOSED**: a disabled weather provider / budget /
+  API error propagates to delivery pricing (no fabricated "not raining"), and the Google Routes
+  client errors on a missing key or any upstream failure so dispatch never matches a rider on a
+  straight-line estimate (`StraightLineMatrix` stays as the explicit dev/test opt-in); every failure
+  is logged in detail (`weather_degraded` / `route_matrix_unavailable` with cause).
 - **Analytics:** `GET /analytics/series` + `GET /analytics/ranks` (`internal/analytics`) aggregate the
   live `checkout.orders`/`order_items` ledger — the portal's seeded `series.ts` is deleted and all
   dashboards read the DB.
 - **Portal:** seller pages scope by `activeStoreId` via `useSellerScope` (no `?? "sel-1"`
   defaults); static `src/data/` states/districts/placements imports replaced with `GET /geo/*`
   + `/ads/placements` + `/categories`; dead `src/data/` domain seed files deleted (only `types.ts`
-  remains); onboarding is a live `POST /sellers` + `POST /seller/stores` flow.
-- **Mobile:** `SellerRegistrationScreen` submits the vendor-scoped `vendors[]` payload the gateway
+  remains); onboarding is a live `POST /sellers` + `POST /seller/stores` flow. The vendor switcher
+  renders wherever a SELLER is signed in (native WebView **and** desktop web — the same console).
+- **Mobile:** `SellerRegistrationScreen` collects **multiple shops per account** (each shop card picks
+  its own app, category, fee and FOOD FSSAI) and submits the full `vendors[]` payload the gateway
   requires; admin review + seller fee-request screens edit per-vendor fee/FSSAI;
-  `SellerWebViewScreen` injects `window.__faazio.vendorId` for push/deep-link vendor resolution and the
-  portal order page switches the active vendor from the order's store.
+  `SellerWebViewScreen` persists the last vendor (`@react-native-async-storage`) and injects
+  `window.__faazio.vendorId` on every load (cold start re-opens scoped to the same shop) plus for
+  push/deep-link vendor resolution; the portal order page switches the active vendor from the order's
+  store.
 - **Customer-app no-mocks sweep:** all runtime fixture fallbacks removed (mart vendors/deals,
-  restaurant grid + top-rated, pharma rails, category drill-in, search results, sub-app vendor,
-  product-detail store/related/food-store, most-rated section, order-history store name, search store
-  distance, cart delivery-fee estimate, food-restaurant resolver). A failed server read leaves the
-  rail/screen empty or `undefined` — never bundled fixture data. Failure surfaces now offer
+  restaurant grid + top-rated, pharma rails + top-offer fixture codes, category drill-in, search
+  results, sub-app vendor, product-detail store/related/food-store/dish rail, most-rated section,
+  order-history store name, search store distance, cart delivery-fee estimate, food-restaurant
+  resolver, profile account-nav, seller-onboarding districts fixture, `RX-LOCAL` prescription place-
+  holder, mock KYC upload key, store-backed pickup-points resolver). A failed server read leaves the
+  rail/screen empty or `undefined` — never bundled fixture data. The gateway is the only origin;
+  unreachable `_mock` lambdas in `GatewayClient` survive only as type-check compile stubs and are
+  never invoked. Failure surfaces now offer
   **"Report issue"** (`ReportIssueButton` → `POST /errors` → `ops.error_events`), wired into search
   and the category drill-in; the primitive is ready for any other screen.
 - **Remaining:** (1) keep adding the `ReportIssueButton` to the remaining feed/empty surfaces as they

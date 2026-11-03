@@ -118,6 +118,48 @@ const STORE_FEE = {
 };
 const ownerForStore = (id) => STORE_OWNER[id] ?? 'sel-tiruchi-01';
 const feeForStore = (id) => STORE_FEE[id] ?? 10;
+// Primary taxonomy category per vendor (seller_category_id, 0069): a best-fit top-level
+// `taxonomy.categories` id derived from the store fixture's category labels. Deterministic and small;
+// a vendor whose label has no obvious taxonomy home stays NULL (the FK is nullable — the seller can
+// pick one in the console). FOOD categories are matched by name; PHARMA by shelf; MART by feature.
+const MART_CATEGORY_FEATURES = [
+  [['Mobile & Electronics', 'Electronics'], 'cat_electronics'],
+  [['Fashion', 'Beauty'], 'cat_fashion'],
+  [['Home Appliances', 'Furniture'], 'cat_home'],
+  [['Fresh Produce'], 'cat_fruits_veg'],
+  [['Dairy & Eggs'], 'cat_dairy'],
+  [['Grains', 'Staples'], 'cat_grains'],
+  [['Snacks', 'Beverages'], 'cat_snacks'],
+  [['Smart'], 'cat_smart_gadgets'],
+];
+const FOOD_TOP_CATEGORIES = {
+  'North Indian': 'cat_north_indian',
+  'South Indian': 'cat_south_indian',
+  Chinese: 'cat_chinese',
+  Bakery: 'cat_bakery',
+  Desserts: 'cat_desserts',
+  Cafe: 'cat_cafe',
+  'Fast Food': 'cat_fast_food',
+};
+const topCategoryFor = (s) => {
+  const cats = (s.categories ?? []).map((c) => String(c));
+  if (s.app === 'PHARMA') {
+    if (cats.some((c) => /devices/i.test(c))) return 'cat_devices';
+    if (cats.some((c) => /vitamin|supplement/i.test(c))) return 'cat_vitamins';
+    if (cats.some((c) => /skin|hair|care/i.test(c))) return 'cat_personal_care';
+    return 'cat_medicines';
+  }
+  if (s.app === 'FOOD') {
+    for (const name of Object.keys(FOOD_TOP_CATEGORIES)) {
+      if (cats.some((c) => c === name)) return FOOD_TOP_CATEGORIES[name];
+    }
+    return 'cat_fast_food';
+  }
+  for (const [features, id] of MART_CATEGORY_FEATURES) {
+    if (cats.some((c) => features.includes(c))) return id;
+  }
+  return null;
+};
 // The demo ad rail belongs to the account that owns the Mart flagship (store-m1).
 const AD_ACCOUNT = 'sel-tiruchi-01';
 const SPONSORED_SLOTS = [
@@ -222,7 +264,7 @@ sql.push(inserts(
 // Each store is a VENDOR owned by an account and carries its own fee + (FOOD) FSSAI (0069).
 sql.push(inserts(
   'directory.stores',
-  ['id', 'app', 'name', 'categories', 'rating', 'reviews_count', 'delivery_time', 'distance', 'cover_image', 'cover_image_key', 'cover_image_asset_id', 'emoji', 'desc_text', 'offer_tag', 'is_veg', 'address', 'phone', 'hours', 'latitude', 'longitude', 'seller_id', 'state_code', 'platform_fee_pct', 'fssai_number', 'fssai_cert_key', 'fssai_cert_asset_id'],
+  ['id', 'app', 'name', 'categories', 'rating', 'reviews_count', 'delivery_time', 'distance', 'cover_image', 'cover_image_key', 'cover_image_asset_id', 'emoji', 'desc_text', 'offer_tag', 'is_veg', 'address', 'phone', 'hours', 'latitude', 'longitude', 'seller_id', 'state_code', 'platform_fee_pct', 'seller_category_id', 'fssai_number', 'fssai_cert_key', 'fssai_cert_asset_id'],
   d.storeDirectory.map((s) => {
     const cover = entryFor(manifest, s.coverImage);
     const isFood = s.app === 'FOOD';
@@ -230,7 +272,7 @@ sql.push(inserts(
       q(s.id), APP(s.app), q(s.name), arr(s.categories), n(s.rating), n(s.reviewsCount ?? 0),
       q(s.deliveryTime), q(s.distance), q(s.coverImage), q(cover?.key), q(cover?.id), q(s.emoji),
       q(s.desc), q(s.offerTag), b(s.isVeg), q(s.address), q(s.phone), q(s.hours), n(s.latitude), n(s.longitude),
-      q(ownerForStore(s.id)), q('TN'), n(feeForStore(s.id)),
+      q(ownerForStore(s.id)), q('TN'), n(feeForStore(s.id)), q(topCategoryFor(s)),
       q(isFood ? `FSSAI-${s.id.toUpperCase()}` : ''), q(''), q(''),
     ];
   }),
@@ -241,6 +283,7 @@ sql.push(inserts(
      seller_id = excluded.seller_id,
      state_code = excluded.state_code,
      platform_fee_pct = excluded.platform_fee_pct,
+     seller_category_id = excluded.seller_category_id,
      fssai_number = excluded.fssai_number`,
 ));
 

@@ -24,10 +24,9 @@ export interface PharmaFeed {
   /** Organic house-hero banners (`pharmaHero.banners` from `GET /sdui/pharma`); paid PHARMA_HERO wins. */
   heroBanners: SduiBanner[];
   /**
-   * The coupon code the house hero may advertise, or `null` to show none. Remote mode only ever
-   * returns a code the server honours (`GET /coupons?app=PHARMA`), so the hero can never advertise a
-   * code `POST /checkout/validate-coupon` would reject; mock mode keeps the editorial fixture for the
-   * local demo checkout.
+   * The coupon code the house hero may advertise, or `null` to show none. Only ever a code the
+   * server honours (`GET /coupons?app=PHARMA`), so the hero can never advertise a code
+   * `POST /checkout/validate-coupon` would reject; offline/disabled → `null`.
    */
   heroCouponCode: string | null;
   /** Provenance of the server-backed rails so a screen can label a fixture/offline view. */
@@ -71,9 +70,10 @@ function toHealthEssential(p: ProductView): PharmaHealthEssential {
 
 /**
  * The set of coupon codes the server actually honours for Pharma, or `null` in mock mode (where the
- * checkout is local, so the editorial offers can safely stand as a demo). In remote mode this is
- * ALWAYS a Set — on a failed/empty read it is an empty Set, so the rail hides rather than advertising
- * a fixture code (`MED20`/`FREEDEL`/…) that `contracts.CouponValidator` would reject at checkout.
+ * checkout is local). In remote mode this is ALWAYS a Set — on a failed/empty read it is an empty
+ * Set, so the rail hides rather than advertising a fixture code (`MED20`/`FREEDEL`/…) that
+ * `contracts.CouponValidator` would reject at checkout. Mock mode never renders the editorial
+ * fixtures either (the rail is empty when the codes are unknown).
  */
 async function livePharmaOfferCodes(): Promise<Set<string> | null> {
   if (!gateway.remoteEnabled) return null;
@@ -125,10 +125,11 @@ export async function fetchPharmaFeed(): Promise<PharmaFeed> {
     livePharmaOfferCodes(),
   ]);
 
-  // Remote: only the server-honoured codes. Mock: the editorial fixture (local demo checkout).
+  // Remote: only the server-honoured codes. Offline/disabled: the rail is empty — a fixture code
+  // (`MED20`/`FREEDEL`/…) is never advertised when `contracts.CouponValidator` cannot honour it.
   const topOffers = liveCodes
     ? PHARMA_TOP_OFFERS.filter((offer) => liveCodes.has(offer.code))
-    : PHARMA_TOP_OFFERS;
+    : [];
 
   return {
     quickReorder: quickReorderResolved.map(

@@ -10,6 +10,7 @@ import {
   View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { WebView as NativeWebView } from 'react-native-webview';
 import type { WebViewNavigation, WebViewProps } from 'react-native-webview';
 import { WEB_PORTAL_URL } from '@/lib/config';
@@ -32,11 +33,9 @@ const WebView = NativeWebView as unknown as React.ComponentType<
 
 const portalBase = WEB_PORTAL_URL.replace(/\/+$/, '');
 
-// Injected before the portal hydrates so it can detect the native seller shell (routes are
-// restricted to seller scope client-side; the gateway JWT remains the security boundary).
-const APP_CONTEXT_SCRIPT = `window.__faazio=Object.assign({},window.__faazio,{app:'seller',platform:${
-  Platform.OS === 'ios' ? "'ios'" : "'android'"
-},webview:true});true;`;
+// Last vendor the seller shell was on (persisted natively) so a cold start can re-open the portal
+// scoped to the same shop via window.__faazio.vendorId before the console hydrates.
+const LAST_VENDOR_KEY = 'faazio.seller.lastVendorId';
 
 function portalOrigin(): { protocol: string; host: string } | null {
   if (!portalBase) return null;
@@ -89,7 +88,21 @@ export function SellerWebViewScreen() {
   const [error, setError] = useState<string | null>(null);
   const [blocked, setBlocked] = useState(false);
   const [reloadKey, setReloadKey] = useState(0);
+  const [vendorId, setVendorId] = useState<string | null>(null);
   const origin = useMemo(portalOrigin, []);
+
+  // Restore the last active vendor so every portal (re)load opens scoped to the same shop.
+  useEffect(() => {
+    let alive = true;
+    AsyncStorage.getItem(LAST_VENDOR_KEY)
+      .then((stored) => {
+        if (alive && stored) setVendorId(stored);
+      })
+      .catch(() => undefined);
+    return () => {
+      alive = false;
+    };
+  }, []);
 
   // Go straight to the seller sign-in. The portal middleware bounces unauthenticated
   // /seller/* → /login itself, so loading /login avoids ever painting the dashboard shell.
@@ -101,6 +114,15 @@ export function SellerWebViewScreen() {
         : [],
     [origin],
   );
+
+  // Before the portal hydrates: app/platform/webview native-shell identity plus the last active
+  // vendor (window.__faazio.vendorId) so the console opens on the right shop after a reload.
+  const appContextScript = useMemo(() => {
+    const vendor = vendorId ? `,vendorId:${JSON.stringify(vendorId)}` : '';
+    return `window.__faazio=Object.assign({},window.__faazio,{app:'seller',platform:${
+      Platform.OS === 'ios' ? "'ios'" : "'android'"
+    },webview:true${vendor}});true;`;
+  }, [vendorId]);
 
   const inject = useCallback((script: string) => {
     webviewRef.current?.injectJavaScript(`${script};true;`);
@@ -121,9 +143,11 @@ export function SellerWebViewScreen() {
   const openOrder = useCallback(
     (orderId: string | null, storeId?: string | null) => {
       if (!orderId) return;
-      // When the push carries the order's vendor, set the portal's vendor context before landing
-      // (window.__faazio.vendorId) so the console opens scoped to the right shop.
+      // When the push carries the order's vendor, remember it natively AND set the portal's vendor
+      // context before landing (window.__faazio.vendorId) so the console opens scoped to the shop.
       if (storeId) {
+        setVendorId(storeId);
+        AsyncStorage.setItem(LAST_VENDOR_KEY, storeId).catch(() => undefined);
         inject(`window.__faazio=Object.assign({},window.__faazio,{vendorId:${JSON.stringify(storeId)}});true;`);
       }
       const target = `${portalBase}/seller/orders/${encodeURIComponent(orderId)}`;
@@ -211,7 +235,7 @@ export function SellerWebViewScreen() {
         key={reloadKey}
         ref={webviewRef}
         source={{ uri: portalUrl }}
-        injectedJavaScriptBeforeContentLoaded={APP_CONTEXT_SCRIPT}
+        injectedJavaScriptBeforeContentLoaded={appContextScript}
         originWhitelist={originWhitelist}
         javaScriptEnabled
         domStorageEnabled

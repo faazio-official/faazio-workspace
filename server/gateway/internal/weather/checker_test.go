@@ -91,7 +91,7 @@ func TestCheckerCachesOneCallPerWindow(t *testing.T) {
 	}
 }
 
-func TestCheckerProviderErrorDegradesToDryAndLogs(t *testing.T) {
+func TestCheckerProviderErrorFailsAndLogs(t *testing.T) {
 	cache := newFakeCache()
 	api := &fakeAPI{err: errors.New("provider down")}
 	var logs bytes.Buffer
@@ -100,8 +100,8 @@ func TestCheckerProviderErrorDegradesToDryAndLogs(t *testing.T) {
 	c.now = func() time.Time { return time.Date(2026, 6, 1, 10, 0, 0, 0, IST) }
 
 	raining, err := c.IsRaining(context.Background(), "9:9")
-	if err != nil || raining {
-		t.Fatalf("first check = %v, %v; want graceful false, nil", raining, err)
+	if err == nil || raining {
+		t.Fatalf("first check = %v, %v; want fail-closed error, false", raining, err)
 	}
 	if api.calls != 1 {
 		t.Fatalf("provider calls = %d, want 1", api.calls)
@@ -110,31 +110,31 @@ func TestCheckerProviderErrorDegradesToDryAndLogs(t *testing.T) {
 		t.Fatalf("failed call must count against the budget, counter = %d", got)
 	}
 
-	// A provider failure degrades to "not raining" (no fabricated dry verdict is cached), so the
-	// next check retries the provider — and every failure is logged in detail.
+	// A provider failure is never cached as a dry verdict, so the next check retries the provider —
+	// and every failure is logged in detail.
 	raining, err = c.IsRaining(context.Background(), "9:9")
-	if err != nil || raining {
-		t.Fatalf("recheck = %v, %v; want graceful false, nil", raining, err)
+	if err == nil || raining {
+		t.Fatalf("recheck = %v, %v; want fail-closed error, false", raining, err)
 	}
 	if api.calls != 2 {
 		t.Fatalf("recheck must call the provider again (no dry cache): calls=%d", api.calls)
 	}
 	logged := logs.String()
 	if !strings.Contains(logged, "weather_degraded") || !strings.Contains(logged, "provider down") {
-		t.Fatalf("degrade must be logged in detail, got: %s", logged)
+		t.Fatalf("failure must be logged in detail, got: %s", logged)
 	}
 }
 
-func TestCheckerDisabledProviderDegradesToDry(t *testing.T) {
+func TestCheckerDisabledProviderFails(t *testing.T) {
 	var logs bytes.Buffer
 	logger := slog.New(slog.NewJSONHandler(&logs, &slog.HandlerOptions{Level: slog.LevelWarn}))
 	c := NewChecker(newFakeCache(), nil, nil, AnnualCallLimit, logger)
 	raining, err := c.IsRaining(context.Background(), "9:9")
-	if err != nil || raining {
-		t.Fatalf("disabled provider = %v, %v; want graceful false, nil", raining, err)
+	if err == nil || raining {
+		t.Fatalf("disabled provider = %v, %v; want fail-closed error, false", raining, err)
 	}
 	if !strings.Contains(logs.String(), "provider not configured") {
-		t.Fatalf("disabled-provider degrade must be logged, got: %s", logs.String())
+		t.Fatalf("disabled-provider failure must be logged, got: %s", logs.String())
 	}
 }
 
@@ -159,8 +159,8 @@ func TestCheckerBudgetExhausted(t *testing.T) {
 	c.now = func() time.Time { return time.Date(2026, 6, 1, 10, 0, 0, 0, IST) }
 
 	raining, err := c.IsRaining(context.Background(), "3:4")
-	if err != nil || raining {
-		t.Fatalf("exhausted budget = %v, %v; want graceful false, nil (no surcharge)", raining, err)
+	if err == nil || raining {
+		t.Fatalf("exhausted budget = %v, %v; want fail-closed error, false", raining, err)
 	}
 	if api.calls != 0 {
 		t.Fatalf("exhausted budget must not call the provider: calls=%d", api.calls)

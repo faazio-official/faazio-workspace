@@ -510,7 +510,7 @@ type SurgeReader interface {
 }
 
 // WeatherChecker resolves whether a zone is raining now (implemented by weather.Checker). A failure
-// must degrade to "not raining" at the caller — checkout is never blocked by weather.
+// or a disabled provider is a hard error — delivery pricing fails closed and never assumes a dry zone.
 type WeatherChecker interface {
 	IsRaining(ctx context.Context, cellID string) (bool, error)
 }

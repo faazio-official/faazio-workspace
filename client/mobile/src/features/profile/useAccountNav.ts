@@ -1,14 +1,12 @@
 import { useEffect, useMemo, useState } from 'react';
-import { accountNavGroups } from '@data/index';
 import type { AccountNavGroup } from '@data/types';
 import { gateway } from '@/services/api/GatewayClient';
 
 /**
- * Nav source for the "You" page. Row data is server-authoritative (`GET /account-nav`); the
- * committed universal group catalog fills in any group whose server rows are empty or absent (a
- * fresh user has no `accounts.nav` rows yet, and the group titles are universal UI, not user data).
- * Fixture rows are never rendered as live user data, and every rendered row has a real
- * destination in `AccountView.handleRowPress`.
+ * Nav source for the "You" page. Server-authoritative (`GET /account-nav`): the gateway returns the
+ * full committed group catalog (with empty rows for a fresh user), so no bundled @data group is ever
+ * substituted. A failed/disabled read renders an empty list — the app's own catalog is never fixture
+ * data on the client.
  */
 export function useAccountNav(): AccountNavGroup[] {
   const [serverGroups, setServerGroups] = useState<AccountNavGroup[] | null>(null);
@@ -28,16 +26,5 @@ export function useAccountNav(): AccountNavGroup[] {
     };
   }, []);
 
-  return useMemo(() => {
-    if (!serverGroups) return accountNavGroups;
-    const byKey = new Map(serverGroups.map((g) => [g.key, g]));
-    return accountNavGroups.map((group) => {
-      const server = byKey.get(group.key);
-      if (!server || server.rows.length === 0) return group;
-      return {
-        ...server,
-        title: server.title || group.title,
-      };
-    });
-  }, [serverGroups]);
+  return useMemo(() => serverGroups ?? [], [serverGroups]);
 }

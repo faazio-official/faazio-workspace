@@ -71,7 +71,7 @@ search extraction is a pure index-replica swap.
 RN workspace with its own Metro entry (`index.delivery.js` → `src/DeliveryPartnerApp.tsx`), Android
 flavor and iOS configuration; neither product bundles the other's screens. The gateway owns KYC
 review, vehicle-capped capacity, availability, Valkey live coordinates, detour-aware candidate
-scoring (Google Routes API, `GOOGLE_ROUTES_API_KEY`; straight-line fallback when unset),
+scoring (Google Routes API, `GOOGLE_ROUTES_API_KEY`; fails closed when unset),
 globally optimized multi-stop re-sequencing (`ActiveStopsByRider`/`OptimizeGlobalRoute`/
 `ResequenceActiveStops`/`ResequenceAssignedRoute`; insertion `OptimizeStopSequence` is the
 oversize-solver fallback), pending-offer exclusion
@@ -124,11 +124,13 @@ table, cache-key, or endpoint update** in §1.
 fee-change request now carries a `store_id`. Checkout + settlement resolve the platform fee per
   `vendor_store_id` from `directory.stores`. `GET /seller/stores` is the portal switcher's data source.
 
-**Infra degrade is graceful but audited.** Weather and the delivery route matrix degrade instead of
-failing — a disabled weather provider / exhausted budget / API error yields "no surcharge", and the
-Google Routes client falls back to a straight-line leg so dispatch keeps working. Every such degrade
-is logged in detail (`weather_degraded` with zone/coords + cause; `route_matrix_degraded` with the
-leg + cause, HTTP status and latency) via `slog`, so the approximation is never silent. `POST /errors`
+**Infra degrade is fail-closed.** Weather and the delivery route matrix FAIL instead of fabricating a
+cheaper answer — a disabled weather provider / exhausted budget / API error propagates to delivery
+pricing (checkout errors), and the Google Routes client errors on a missing key or any upstream
+failure so dispatch never matches a rider on a straight-line estimate. `StraightLineMatrix` remains
+only as the explicit dev/test opt-in. Every failure is still logged in detail (`weather_degraded`
+with zone/coords + cause; `route_matrix_unavailable` with cause, HTTP status and latency) via
+`slog`. `POST /errors`
 (`errorsink` → `ops.error_events`) is the analogous customer-side sink for the mobile "Report issue"
 flow.
 

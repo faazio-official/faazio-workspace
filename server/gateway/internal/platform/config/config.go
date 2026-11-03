@@ -25,13 +25,14 @@ type Config struct {
 	PortalPepper      string
 	FirebaseProjectID string
 	// GoogleRoutesAPIKey backs the road-aware dispatch matrix (Routes API, server-side only).
-	// The mobile Maps SDK key is a separate, app-restricted client key. Empty = straight-line
-	// fallback for local/dev.
+	// The mobile Maps SDK key is a separate, app-restricted client key. Empty is a hard config error:
+	// dispatch fails closed instead of estimating a straight-line leg.
 	GoogleRoutesAPIKey string
 	// DeliveryMaxDispatchAttempts caps the reject→reassign fallback chain (initial offer + retries).
 	DeliveryMaxDispatchAttempts int
 	// Weather Union (Zomato giveback) powers the rain surge. BaseURL is optional (official endpoint
-	// by default); an empty key disables the provider and checkout degrades to "not raining".
+	// by default); an empty key fails the weather check, and delivery pricing fails closed rather
+	// than assuming a dry zone.
 	ZomatoWeatherUnionBaseURL string
 	ZomatoWeatherUnionKey     string
 	SupabaseURL               string

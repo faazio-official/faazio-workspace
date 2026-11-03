@@ -44,7 +44,10 @@ func TestPriceDeliveryStacksNightWeatherFestival(t *testing.T) {
 		weather:   fakeWeather{raining: true},
 		festivals: fakeFestival{festival: contracts.Festival{ID: "fest-1", SurgePaisa: 1500}, active: true},
 	}
-	b := s.priceDelivery(context.Background(), 5.2, DefaultDeliveryFeeSettings(), at, "10:20")
+	b, err := s.priceDelivery(context.Background(), 5.2, DefaultDeliveryFeeSettings(), at, "10:20")
+	if err != nil {
+		t.Fatalf("priceDelivery = %v, want nil", err)
+	}
 
 	if b.DistanceKm != 5.2 || b.ExtraKmPaisa != 1540 {
 		t.Fatalf("distance/extra = %v/%d, want 5.2/1540", b.DistanceKm, b.ExtraKmPaisa)
@@ -61,19 +64,32 @@ func TestPriceDeliveryStacksNightWeatherFestival(t *testing.T) {
 	}
 }
 
-func TestPriceDeliveryDegradesSurgeFailures(t *testing.T) {
+func TestPriceDeliveryDegradesSurgeAndFestivalFailures(t *testing.T) {
 	at := time.Date(2026, 1, 5, 12, 0, 0, 0, time.FixedZone("IST", 5*3600+1800))
 	s := &Service{
 		surge:     fakeSurge{err: errors.New("db down")},
-		weather:   fakeWeather{err: errors.New("provider down")},
+		weather:   fakeWeather{raining: false},
 		festivals: fakeFestival{err: errors.New("db down")},
 	}
-	b := s.priceDelivery(context.Background(), 5, DefaultDeliveryFeeSettings(), at, "10:20")
+	b, err := s.priceDelivery(context.Background(), 5, DefaultDeliveryFeeSettings(), at, "10:20")
+	if err != nil {
+		t.Fatalf("priceDelivery = %v, want nil (surge/festival degrade)", err)
+	}
 	if b.TotalPaisa != 3500+1400 {
 		t.Fatalf("degraded total = %d, want %d (base + extra only)", b.TotalPaisa, 3500+1400)
 	}
 	if len(b.SurgeReasons) != 0 {
 		t.Fatalf("reasons = %v, want none", b.SurgeReasons)
+	}
+}
+
+func TestPriceDeliveryFailsClosedOnWeatherError(t *testing.T) {
+	at := time.Date(2026, 1, 5, 12, 0, 0, 0, time.FixedZone("IST", 5*3600+1800))
+	s := &Service{
+		weather: fakeWeather{err: errors.New("provider down")},
+	}
+	if _, err := s.priceDelivery(context.Background(), 5, DefaultDeliveryFeeSettings(), at, "10:20"); err == nil {
+		t.Fatal("priceDelivery must fail when the weather provider errors (no fake 'not raining')")
 	}
 }
 
@@ -84,7 +100,10 @@ func TestPriceDeliveryFestivalOverridesCardAmount(t *testing.T) {
 		weather:   fakeWeather{raining: false},
 		festivals: fakeFestival{festival: contracts.Festival{ID: "fest-2", SurgePaisa: 1500}, active: true},
 	}
-	b := s.priceDelivery(context.Background(), 3, DefaultDeliveryFeeSettings(), at, "1:2")
+	b, err := s.priceDelivery(context.Background(), 3, DefaultDeliveryFeeSettings(), at, "1:2")
+	if err != nil {
+		t.Fatalf("priceDelivery = %v, want nil", err)
+	}
 	if b.FestivalSurgePaisa != 1500 {
 		t.Fatalf("festival = %d, want the calendar row's 1500", b.FestivalSurgePaisa)
 	}

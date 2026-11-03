@@ -329,7 +329,10 @@ func (s *Service) CreateOrder(ctx context.Context, userID string, req PlaceOrder
 				}
 			}
 		}
-		deliveryPrice = s.priceDelivery(ctx, distanceKm, deliverySettings, time.Now(), cellID)
+		deliveryPrice, err = s.priceDelivery(ctx, distanceKm, deliverySettings, time.Now(), cellID)
+		if err != nil {
+			return Order{}, err
+		}
 	}
 	orderDeliveryFeePaisa := deliveryPrice.TotalPaisa
 
@@ -507,12 +510,13 @@ func (s *Service) DeliveryFeeForStore(ctx context.Context, storeID string, lat, 
 	if c, ok := coords[storeID]; ok {
 		distanceKm = haversineKm(lat, lng, c.Latitude, c.Longitude)
 	}
-	return s.priceDelivery(ctx, distanceKm, settings, time.Now(), geo.GeoCell(lat, lng)), nil
+	return s.priceDelivery(ctx, distanceKm, settings, time.Now(), geo.GeoCell(lat, lng))
 }
 
-// priceDelivery resolves the active surge reasons and computes the customer bill. Surge lookup
-// failures degrade to no surcharge (checkout is never blocked); night is derived from the clock.
-func (s *Service) priceDelivery(ctx context.Context, distanceKm float64, settings DeliveryFeeSettings, at time.Time, cellID string) pricing.PriceBreakdown {
+// priceDelivery resolves the active surge reasons and computes the customer bill. Night is derived
+// from the clock; festival reads the DB calendar. Weather is fail-closed: a provider failure or a
+// disabled checker returns an error so a bill is never computed on a fabricated "not raining" basis.
+func (s *Service) priceDelivery(ctx context.Context, distanceKm float64, settings DeliveryFeeSettings, at time.Time, cellID string) (pricing.PriceBreakdown, error) {
 	rates := pricing.SurgeRates{}
 	if s.surge != nil {
 		if r, err := s.surge.SurgeSettings(ctx); err == nil {
@@ -522,8 +526,14 @@ func (s *Service) priceDelivery(ctx context.Context, distanceKm float64, setting
 	// Weather only applies when the zone is actually raining (manual overrides honoured by the checker).
 	if s.weather == nil || cellID == "" {
 		rates.WeatherPaisa = 0
-	} else if raining, err := s.weather.IsRaining(ctx, cellID); err != nil || !raining {
-		rates.WeatherPaisa = 0
+	} else {
+		raining, err := s.weather.IsRaining(ctx, cellID)
+		if err != nil {
+			return pricing.PriceBreakdown{}, err
+		}
+		if !raining {
+			rates.WeatherPaisa = 0
+		}
 	}
 	// Festival only applies inside an active super-admin window; that row's amount is authoritative.
 	if s.festivals == nil {
@@ -536,7 +546,7 @@ func (s *Service) priceDelivery(ctx context.Context, distanceKm float64, setting
 	b := pricing.ComputeDeliveryPrice(distanceKm, settings.BaseDistanceKm, settings.BaseFeePaisa,
 		settings.PerExtraKmPaisa, rates, at)
 	b.ZoneID = cellID
-	return b
+	return b, nil
 }
 
 // taxRateFor resolves a product's GST rate from tax.tax_rates, defaulting conservatively to 5%.

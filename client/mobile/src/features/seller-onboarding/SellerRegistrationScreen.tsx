@@ -15,8 +15,10 @@ import {
   LocateFixed,
   Lock,
   Mail,
+  Plus,
   ShieldCheck,
   Store,
+  X,
 } from 'lucide-react-native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import AppText from '@/components/AppText';
@@ -24,7 +26,7 @@ import AppTextInput from '@/components/AppTextInput';
 import { hs, vs, ms } from '@/utils/responsive';
 import { SPACE } from '@/theme/spacing';
 import { SELLER_SETUP_FIELDS } from '@data/index';
-import { DISTRICTS, type DistrictInfo } from '@data/districts';
+import type { DistrictInfo } from '@data/districts';
 import type { AppBrand } from '@data/types';
 import { gateway, type Category, type SellerApplication } from '@/services/api/GatewayClient';
 import { firebaseAuthConfigured, sendSellerOtp, verifySellerOtp } from '@/services/firebaseAuth';
@@ -68,12 +70,38 @@ interface FormState {
   contactEmail: string;
   stateCode: string;
   districtCode: string;
-  platformFee: string;
   bankName: string;
   bankAccountNumber: string;
   bankIfsc: string;
   bankBeneficiary: string;
+}
+
+/** One shop (vendor) the account applies to carry. Each vendor picks its own app, category, fee and
+ * (for FOOD) FSSAI licence — the account is brand-agnostic and can own several across Mart/Food/Pharma. */
+interface VendorDraft {
+  key: string;
+  app: AppBrand;
+  vendorName: string;
+  platformFee: string;
+  categoryId: string | null;
+  categories: Category[];
+  categoriesLoading: boolean;
   fssaiNumber: string;
+  fssaiUri: string | null;
+}
+
+function newVendor(app: AppBrand = 'MART'): VendorDraft {
+  return {
+    key: `v-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+    app,
+    vendorName: '',
+    platformFee: '10',
+    categoryId: null,
+    categories: [],
+    categoriesLoading: false,
+    fssaiNumber: '',
+    fssaiUri: null,
+  };
 }
 
 /**
@@ -96,22 +124,15 @@ export function SellerRegistrationScreen({ navigation }: Props) {
     contactEmail: user?.email ?? '',
     stateCode: '',
     districtCode: '',
-    platformFee: '10',
     bankName: '',
     bankAccountNumber: '',
     bankIfsc: '',
     bankBeneficiary: '',
-    fssaiNumber: '',
   });
-  const [category, setCategory] = useState<AppBrand>('MART');
-  // Superadmin-owned category taxonomy for the selected app (GET /categories?app=). Server-only —
-  // no fixture list. A seller picks one before submitting; the gateway re-validates it on write.
-  const [subCategories, setSubCategories] = useState<Category[]>([]);
-  const [subCategoryId, setSubCategoryId] = useState<string | null>(null);
-  const [subCategoriesLoading, setSubCategoriesLoading] = useState(false);
+  const [vendors, setVendors] = useState<VendorDraft[]>(() => [newVendor()]);
   const [passbookUri, setPassbookUri] = useState<string | null>(null);
-  const [fssaiUri, setFssaiUri] = useState<string | null>(null);
   const [capture, setCapture] = useState<'passbook' | 'fssai' | null>(null);
+  const [captureVendorKey, setCaptureVendorKey] = useState<string | null>(null);
 
   const [locating, setLocating] = useState(false);
   const [locationLabel, setLocationLabel] = useState('');
@@ -130,15 +151,45 @@ export function SellerRegistrationScreen({ navigation }: Props) {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<SellerApplication | null>(null);
-  // District master for the picker. Hydrates from GET /geo/districts (DB is the read authority);
-  // the @data/districts fixture is the initial/offline fallback so the form stays usable offline.
-  const [districts, setDistricts] = useState<DistrictInfo[]>(DISTRICTS);
+  // District master for the picker. Hydrates from GET /geo/districts — the DB is the read authority
+  // and the only source; an offline/empty read leaves the picker empty (no bundled district rows).
+  const [districts, setDistricts] = useState<DistrictInfo[]>([]);
 
   const update = (key: keyof FormState) => (value: string) =>
     setForm((prev) => ({ ...prev, [key]: value }));
 
   const otpPhone = authPhone || form.contactPhone;
   const phoneDigits = useMemo(() => otpPhone.replace(/\D/g, '').slice(-10), [otpPhone]);
+
+  const updateVendor = (key: string, patch: Partial<VendorDraft>) =>
+    setVendors((prev) => prev.map((v) => (v.key === key ? { ...v, ...patch } : v)));
+
+  // Superadmin-owned category taxonomy for one vendor's app (GET /categories?app=). Server-only — no
+  // fixture list. A failure leaves the picker empty so the seller can retry by re-selecting the app.
+  function loadCategoriesFor(key: string, app: AppBrand) {
+    updateVendor(key, { categoriesLoading: true, categories: [] });
+    gateway
+      .fetchCategories(app)
+      .then((rows) =>
+        updateVendor(key, { categories: rows.filter((c) => c.parentId === null && c.isActive) }),
+      )
+      .catch(() => updateVendor(key, { categories: [] }))
+      .finally(() => updateVendor(key, { categoriesLoading: false }));
+  }
+
+  const changeVendorApp = (key: string, app: AppBrand) => {
+    updateVendor(key, { app, categoryId: null, fssaiNumber: '', fssaiUri: null });
+    loadCategoriesFor(key, app);
+  };
+
+  const addVendor = () => {
+    const draft = newVendor();
+    setVendors((prev) => [...prev, draft]);
+    loadCategoriesFor(draft.key, 'MART');
+  };
+
+  const removeVendor = (key: string) =>
+    setVendors((prev) => (prev.length > 1 ? prev.filter((v) => v.key !== key) : prev));
 
   const districtsForState = useMemo(() => {
     const byState = new Map<string, DistrictInfo[]>();
@@ -158,34 +209,15 @@ export function SellerRegistrationScreen({ navigation }: Props) {
         if (alive && rows.length > 0) setDistricts(rows);
       })
       .catch(() => {
-        // Offline/unauthorized: keep the fixture fallback already in state.
+        // Offline/unauthorized: the picker stays empty; state code can still be typed manually.
       });
+    const first = vendors[0];
+    if (first) loadCategoriesFor(first.key, first.app);
     return () => {
       alive = false;
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
-
-  // Load the superadmin-owned category list for the selected app. Server-only: an offline/failed
-  // read leaves the picker empty (the seller can retry by re-selecting the app).
-  useEffect(() => {
-    let alive = true;
-    setSubCategoriesLoading(true);
-    setSubCategoryId(null);
-    gateway
-      .fetchCategories(category)
-      .then((rows) => {
-        if (alive) setSubCategories(rows.filter((c) => c.parentId === null && c.isActive));
-      })
-      .catch(() => {
-        if (alive) setSubCategories([]);
-      })
-      .finally(() => {
-        if (alive) setSubCategoriesLoading(false);
-      });
-    return () => {
-      alive = false;
-    };
-  }, [category]);
 
   useEffect(() => {
     if (countdown <= 0) return;
@@ -284,19 +316,24 @@ export function SellerRegistrationScreen({ navigation }: Props) {
     if (form.bankAccountNumber.replace(/\D/g, '').length < 6) return 'Enter a valid bank account number.';
     if (form.bankIfsc.trim().length !== 11) return 'IFSC must be 11 characters.';
 
-    const pct = Number(form.platformFee);
-    if (!Number.isInteger(pct) || pct < 1 || pct > 100) return 'Platform fee must be between 1 and 100.';
-    if (category === 'FOOD' && pct < 5) return 'Food sellers must set a platform fee of at least 5%.';
-
-    if (!subCategoryId) return subCategories.length === 0
-      ? 'Categories are unavailable right now. Reconnect and try again.'
-      : 'Select a category from the list.';
+    for (const v of vendors) {
+      const label = v.vendorName.trim() || 'every vendor';
+      const vPct = Number(v.platformFee);
+      if (!v.vendorName.trim()) return 'Give every shop a name.';
+      if (!Number.isInteger(vPct) || vPct < 1 || vPct > 100) {
+        return `Platform fee for ${label} must be between 1 and 100.`;
+      }
+      if (v.app === 'FOOD' && vPct < 5) return `${label} is a food shop: its platform fee must be at least 5%.`;
+      if (!v.categoryId) return v.categories.length === 0
+        ? 'Categories are unavailable right now. Reconnect and try again.'
+        : `Select a category for ${label}.`;
+      if (v.app === 'FOOD') {
+        if (!v.fssaiNumber.trim()) return `Enter the FSSAI licence number for ${label}.`;
+        if (!v.fssaiUri) return `Capture the FSSAI certificate for ${label}.`;
+      }
+    }
 
     if (!passbookUri) return 'Capture your bank passbook photo.';
-    if (category === 'FOOD') {
-      if (!form.fssaiNumber.trim()) return 'Enter your FSSAI licence number.';
-      if (!fssaiUri) return 'Capture your FSSAI certificate.';
-    }
     if (!otpVerified) return 'Verify the OTP to sign your application.';
     return null;
   };
@@ -312,10 +349,25 @@ export function SellerRegistrationScreen({ navigation }: Props) {
     const ownerId = user?.id ? `seller-${user.id}` : 'seller-pending';
     try {
       const passbook = await gateway.uploadSellerDocument(passbookUri!, ownerId);
-      let fssai: { key: string; assetId: string } | undefined;
-      if (category === 'FOOD' && fssaiUri) {
-        fssai = await gateway.uploadSellerDocument(fssaiUri, ownerId);
-      }
+      const vendorPayload = await Promise.all(
+        vendors.map(async (v) => {
+          let fssai: { key: string; assetId: string } | undefined;
+          if (v.app === 'FOOD' && v.fssaiUri) {
+            fssai = await gateway.uploadSellerDocument(v.fssaiUri, ownerId);
+          }
+          return {
+            name: v.vendorName.trim(),
+            app: v.app,
+            categoryId: v.categoryId ?? undefined,
+            platformFeePct: Number(v.platformFee),
+            fssaiNumber: v.fssaiNumber.trim() || undefined,
+            fssaiFileKey: fssai?.key,
+            fssaiAssetId: fssai?.assetId,
+            latitude: shopPin?.latitude,
+            longitude: shopPin?.longitude,
+          };
+        }),
+      );
       const res = await gateway.submitSellerApplication({
         businessName: form.businessName.trim(),
         ownerName: form.ownerName.trim(),
@@ -328,19 +380,7 @@ export function SellerRegistrationScreen({ navigation }: Props) {
         districtCode: form.districtCode || undefined,
         latitude: shopPin?.latitude,
         longitude: shopPin?.longitude,
-        vendors: [
-          {
-            name: form.businessName.trim(),
-            app: category,
-            categoryId: subCategoryId ?? undefined,
-            platformFeePct: Number(form.platformFee),
-            fssaiNumber: form.fssaiNumber.trim() || undefined,
-            fssaiFileKey: fssai?.key,
-            fssaiAssetId: fssai?.assetId,
-            latitude: shopPin?.latitude,
-            longitude: shopPin?.longitude,
-          },
-        ],
+        vendors: vendorPayload,
         bankName: form.bankName.trim(),
         bankAccountNumber: form.bankAccountNumber.replace(/\D/g, ''),
         bankIfsc: form.bankIfsc.trim().toUpperCase(),
@@ -357,8 +397,17 @@ export function SellerRegistrationScreen({ navigation }: Props) {
     }
   };
 
-  const canSubmit = !submitting && otpVerified && Boolean(passbookUri) && Boolean(subCategoryId) &&
-    (category !== 'FOOD' || Boolean(fssaiUri));
+  const canSubmit =
+    !submitting &&
+    otpVerified &&
+    Boolean(passbookUri) &&
+    vendors.length > 0 &&
+    vendors.every(
+      (v) =>
+        Boolean(v.vendorName.trim()) &&
+        Boolean(v.categoryId) &&
+        (v.app !== 'FOOD' || Boolean(v.fssaiUri)),
+    );
 
   return (
     <View style={styles.container}>
@@ -427,59 +476,9 @@ export function SellerRegistrationScreen({ navigation }: Props) {
           <>
             <View style={styles.sectionCard}>
               <AppText style={styles.sectionTitle}>Business details</AppText>
-              <AppText style={styles.sectionNote}>All fields are required.</AppText>
-
-              <AppText style={styles.inputLabel}>Category</AppText>
-              <View style={styles.chipRow}>
-                {CATEGORIES.map((c) => {
-                  const active = category === c.value;
-                  return (
-                    <TouchableOpacity
-                      key={c.value}
-                      style={[styles.chip, active && styles.chipActive]}
-                      onPress={() => setCategory(c.value)}
-                      activeOpacity={0.8}
-                      accessibilityRole="button"
-                      accessibilityState={{ selected: active }}
-                    >
-                      <AppText style={[styles.chipText, active && styles.chipTextActive]}>
-                        {c.label}
-                      </AppText>
-                    </TouchableOpacity>
-                  );
-                })}
-              </View>
-
-              <AppText style={styles.inputLabel}>
-                {category === 'FOOD' ? 'Restaurant type' : 'Category'}
+              <AppText style={styles.sectionNote}>
+                Your business identity. The shops you run under it are added next.
               </AppText>
-              {subCategoriesLoading ? (
-                <ActivityIndicator color={parentRamp.base} style={styles.categoryLoader} />
-              ) : subCategories.length === 0 ? (
-                <AppText style={styles.categoryEmpty}>
-                  Categories are unavailable. Check your connection and re-select a business type.
-                </AppText>
-              ) : (
-                <View style={styles.chipRow}>
-                  {subCategories.map((c) => {
-                    const active = subCategoryId === c.id;
-                    return (
-                      <TouchableOpacity
-                        key={c.id}
-                        style={[styles.chip, active && styles.chipActive]}
-                        onPress={() => setSubCategoryId(c.id)}
-                        activeOpacity={0.8}
-                        accessibilityRole="button"
-                        accessibilityState={{ selected: active }}
-                      >
-                        <AppText style={[styles.chipText, active && styles.chipTextActive]}>
-                          {c.name}
-                        </AppText>
-                      </TouchableOpacity>
-                    );
-                  })}
-                </View>
-              )}
 
               <TextInputField
                 label={setup('businessName')?.label ?? 'Business name'}
@@ -614,19 +613,142 @@ export function SellerRegistrationScreen({ navigation }: Props) {
                 </TouchableOpacity>
               ) : null}
               {locationError ? <AppText style={styles.helperError}>{locationError}</AppText> : null}
+            </View>
 
-              <TextInputField
-                label={setup('platformFee')?.label ?? 'Platform fee %'}
-                placeholder={category === 'FOOD' ? '5 – 100' : '1 – 100'}
-                value={form.platformFee}
-                onChangeText={update('platformFee')}
-                keyboardType="number-pad"
-                maxLength={3}
-              />
-              <AppText style={styles.helperText}>
-                The platform retains this share of each order; the rest is settled to your bank
-                after the 7-day buyer-protection hold.
+            <View style={styles.sectionCard}>
+              <AppText style={styles.sectionTitle}>Your shops</AppText>
+              <AppText style={styles.sectionNote}>
+                Add every shop you run. Each shop picks its own app, category, platform fee and (for
+                a food shop) FSSAI licence — one account can own several.
               </AppText>
+
+              {vendors.map((vm, index) => {
+                return (
+                  <View key={vm.key} style={styles.vendorCard}>
+                    <View style={styles.vendorHeader}>
+                      <View style={styles.vendorBadge}>
+                        <Store size={ms(14)} color="#FFFFFF" strokeWidth={2.2} />
+                      </View>
+                      <AppText style={styles.vendorTitle}>Shop {index + 1}</AppText>
+                      {vendors.length > 1 ? (
+                        <TouchableOpacity
+                          onPress={() => removeVendor(vm.key)}
+                          style={styles.vendorRemove}
+                          accessibilityRole="button"
+                          accessibilityLabel={`Remove shop ${index + 1}`}
+                          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                        >
+                          <X size={ms(16)} color="#64748B" strokeWidth={2.2} />
+                        </TouchableOpacity>
+                      ) : null}
+                    </View>
+
+                    <AppText style={styles.inputLabel}>App</AppText>
+                    <View style={styles.chipRow}>
+                      {CATEGORIES.map((c) => {
+                        const active = vm.app === c.value;
+                        return (
+                          <TouchableOpacity
+                            key={c.value}
+                            style={[styles.chip, active && styles.chipActive]}
+                            onPress={() => changeVendorApp(vm.key, c.value)}
+                            activeOpacity={0.8}
+                            accessibilityRole="button"
+                            accessibilityState={{ selected: active }}
+                          >
+                            <AppText style={[styles.chipText, active && styles.chipTextActive]}>
+                              {c.label}
+                            </AppText>
+                          </TouchableOpacity>
+                        );
+                      })}
+                    </View>
+
+                    <TextInputField
+                      label="Shop name"
+                      placeholder={vm.app === 'FOOD' ? 'e.g. Paradise Biryani House' : 'e.g. Darling Mobiles'}
+                      value={vm.vendorName}
+                      onChangeText={(value) => updateVendor(vm.key, { vendorName: value })}
+                    />
+
+                    <AppText style={styles.inputLabel}>
+                      {vm.app === 'FOOD' ? 'Restaurant type' : 'Category'}
+                    </AppText>
+                    {vm.categoriesLoading ? (
+                      <ActivityIndicator color={parentRamp.base} style={styles.categoryLoader} />
+                    ) : vm.categories.length === 0 ? (
+                      <AppText style={styles.categoryEmpty}>
+                        Categories are unavailable for {vm.app}. Check your connection and re-select
+                        the app.
+                      </AppText>
+                    ) : (
+                      <View style={styles.chipRow}>
+                        {vm.categories.map((c) => {
+                          const active = vm.categoryId === c.id;
+                          return (
+                            <TouchableOpacity
+                              key={c.id}
+                              style={[styles.chip, active && styles.chipActive]}
+                              onPress={() => updateVendor(vm.key, { categoryId: c.id })}
+                              activeOpacity={0.8}
+                              accessibilityRole="button"
+                              accessibilityState={{ selected: active }}
+                            >
+                              <AppText style={[styles.chipText, active && styles.chipTextActive]}>
+                                {c.name}
+                              </AppText>
+                            </TouchableOpacity>
+                          );
+                        })}
+                      </View>
+                    )}
+
+                    <TextInputField
+                      label={setup('platformFee')?.label ?? 'Platform fee %'}
+                      placeholder={vm.app === 'FOOD' ? '5 – 100' : '1 – 100'}
+                      value={vm.platformFee}
+                      onChangeText={(value) => updateVendor(vm.key, { platformFee: value })}
+                      keyboardType="number-pad"
+                      maxLength={3}
+                    />
+                    <AppText style={styles.helperText}>
+                      The platform retains this share of each order; the rest is settled to your bank
+                      after the 7-day buyer-protection hold.
+                    </AppText>
+
+                    {vm.app === 'FOOD' ? (
+                      <>
+                        <TextInputField
+                          label={setup('fssaiNumber')?.label ?? 'FSSAI licence number'}
+                          placeholder={setup('fssaiNumber')?.placeholder ?? '14-digit licence number'}
+                          value={vm.fssaiNumber}
+                          onChangeText={(value) => updateVendor(vm.key, { fssaiNumber: value })}
+                          keyboardType="number-pad"
+                        />
+                        <DocumentRow
+                          label="FSSAI certificate"
+                          uri={vm.fssaiUri}
+                          onCapture={() => {
+                            setCaptureVendorKey(vm.key);
+                            setCapture('fssai');
+                          }}
+                          onRemove={() => updateVendor(vm.key, { fssaiUri: null })}
+                        />
+                      </>
+                    ) : null}
+                  </View>
+                );
+              })}
+
+              <TouchableOpacity
+                style={styles.addVendorBtn}
+                onPress={addVendor}
+                activeOpacity={0.8}
+                accessibilityRole="button"
+              >
+                <Plus size={ms(16)} color={parentRamp.base} strokeWidth={2.2} />
+                <AppText style={styles.addVendorText}>Add another shop</AppText>
+              </TouchableOpacity>
             </View>
 
             <View style={styles.sectionCard}>
@@ -675,24 +797,6 @@ export function SellerRegistrationScreen({ navigation }: Props) {
                 onCapture={() => setCapture('passbook')}
                 onRemove={() => setPassbookUri(null)}
               />
-
-              {category === 'FOOD' ? (
-                <>
-                  <TextInputField
-                    label={setup('fssaiNumber')?.label ?? 'FSSAI licence number'}
-                    placeholder={setup('fssaiNumber')?.placeholder ?? '14-digit licence number'}
-                    value={form.fssaiNumber}
-                    onChangeText={update('fssaiNumber')}
-                    keyboardType="number-pad"
-                  />
-                  <DocumentRow
-                    label="FSSAI certificate"
-                    uri={fssaiUri}
-                    onCapture={() => setCapture('fssai')}
-                    onRemove={() => setFssaiUri(null)}
-                  />
-                </>
-              ) : null}
             </View>
 
             <View style={styles.sectionCard}>
@@ -813,11 +917,18 @@ export function SellerRegistrationScreen({ navigation }: Props) {
       <DocumentCapture
         visible={capture !== null}
         title={capture === 'fssai' ? 'FSSAI certificate' : 'Bank passbook'}
-        onClose={() => setCapture(null)}
-        onCaptured={(uri) => {
-          if (capture === 'fssai') setFssaiUri(uri);
-          else setPassbookUri(uri);
+        onClose={() => {
           setCapture(null);
+          setCaptureVendorKey(null);
+        }}
+        onCaptured={(uri) => {
+          if (capture === 'fssai' && captureVendorKey) {
+            updateVendor(captureVendorKey, { fssaiUri: uri });
+          } else if (capture === 'passbook') {
+            setPassbookUri(uri);
+          }
+          setCapture(null);
+          setCaptureVendorKey(null);
         }}
       />
     </View>
@@ -985,6 +1096,45 @@ const styles = StyleSheet.create({
   chipRow: { flexDirection: 'row', flexWrap: 'wrap', gap: hs(8) },
   categoryLoader: { alignSelf: 'flex-start', marginVertical: vs(8) },
   categoryEmpty: { fontSize: ms(12), fontWeight: '600', color: '#94A3B8', marginBottom: vs(8) },
+  vendorCard: {
+    backgroundColor: '#F8FAFC',
+    borderRadius: ms(14),
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    padding: hs(14),
+    marginBottom: SPACE.BLOCK,
+  },
+  vendorHeader: { flexDirection: 'row', alignItems: 'center', marginBottom: vs(12) },
+  vendorBadge: {
+    width: ms(26),
+    height: ms(26),
+    borderRadius: ms(8),
+    backgroundColor: parentRamp.base,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: hs(8),
+  },
+  vendorTitle: { flex: 1, fontSize: ms(13), fontWeight: '900', color: '#0f172a' },
+  vendorRemove: {
+    width: ms(28),
+    height: ms(28),
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: ms(8),
+  },
+  addVendorBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: hs(6),
+    height: Math.max(46, vs(46)),
+    borderRadius: ms(12),
+    borderWidth: 1,
+    borderColor: '#BFDBFE',
+    borderStyle: 'dashed',
+    backgroundColor: '#F8FAFC',
+  },
+  addVendorText: { fontSize: ms(12), fontWeight: '800', color: parentRamp.base },
   chip: {
     flex: 1,
     alignItems: 'center',

@@ -18,17 +18,17 @@ import (
 
 // RoadMatrix returns the road travel time/distance between two points. The production
 // implementation is the Google Routes API (computeRouteMatrix, TRAFFIC_AWARE) called by the
-// gateway; results are cached in Valkey for 5 minutes (cache.DeliveryRoute). The production client
-// degrades to StraightLineMatrix on a missing key or provider failure so dispatch stays available,
-// and every degrade is logged with its cause. A nil RoadMatrix is a programming error (the solvers
-// reject it) — StraightLineMatrix is the explicit dev/test opt-in type.
+// gateway; results are cached in Valkey for 5 minutes (cache.DeliveryRoute). A missing key or any
+// upstream failure is a hard error — dispatch never substitutes a fabricated straight-line leg.
+// A nil RoadMatrix is a programming error (the solvers reject it) — StraightLineMatrix is the
+// explicit dev/test opt-in type.
 type RoadMatrix interface {
 	Travel(fromLat, fromLng, toLat, toLng float64) (seconds int64, meters int64, err error)
 }
 
 // StraightLineMatrix estimates travel from the Haversine distance at a conservative urban speed.
-// It is the explicit dev/test implementation, never the production client and never a silent
-// substitute for a failed Google Routes call.
+// It is the explicit dev/test implementation only — never injected by production wiring, and never a
+// substitute for a failed Google Routes call (production dispatch fails closed instead).
 type StraightLineMatrix struct{}
 
 // Travel implements RoadMatrix.
@@ -46,9 +46,9 @@ type TravelLeg struct {
 
 // GoogleRoutesMatrix is the production RoadMatrix. It calls the Google Routes API
 // (distanceMatrix/v2:computeRouteMatrix, TRAFFIC_AWARE) and caches each leg in Valkey for
-// TTLDeliveryRoute. When the API key is missing or an upstream call fails it degrades to the
-// straight-line estimate so dispatch keeps working — and logs the failure in detail, so the
-// approximation is never silent.
+// TTLDeliveryRoute. A missing API key or an upstream failure is a hard, propagated error — dispatch
+// never estimates a leg as the crow flies. The failure is logged in detail, so the outage is never
+// silent.
 type GoogleRoutesMatrix struct {
 	apiKey string
 	cache  *cache.Cache
@@ -57,7 +57,7 @@ type GoogleRoutesMatrix struct {
 }
 
 // NewRoutesMatrix builds the production Routes client. The optional logger receives a detailed line
-// for every degrade (missing key, transport error, non-2xx, decode failure, no usable leg). Nil
+// for every failure (missing key, transport error, non-2xx, decode failure, no usable leg). Nil
 // logger → log/slog default.
 func NewRoutesMatrix(apiKey string, c *cache.Cache, loggers ...*slog.Logger) RoadMatrix {
 	logger := slog.Default()
@@ -72,18 +72,15 @@ func NewRoutesMatrix(apiKey string, c *cache.Cache, loggers ...*slog.Logger) Roa
 	}
 }
 
-// degrade is the audited straight-line fallback: the failure (why + where) is logged, and the leg is
-// estimated as the crow flies so dispatch never silently fabricates a road result.
-func (m *GoogleRoutesMatrix) degrade(fromLat, fromLng, toLat, toLng float64, detail string) (int64, int64, error) {
-	m.logger.Warn("route_matrix_degraded",
+// providerFailure logs the exact reason an authoritative leg could not be produced and returns a
+// dispatch-level error. Dispatch never fabricates a straight-line leg: a missing key or provider
+// outage fails the call so a rider is never matched on an invented estimate.
+func (m *GoogleRoutesMatrix) providerFailure(detail string) error {
+	m.logger.Warn("route_matrix_unavailable",
 		"source", "delivery",
-		"from_lat", fmt.Sprintf("%.5f", fromLat),
-		"from_lng", fmt.Sprintf("%.5f", fromLng),
-		"to_lat", fmt.Sprintf("%.5f", toLat),
-		"to_lng", fmt.Sprintf("%.5f", toLng),
 		"detail", detail,
 	)
-	return StraightLineMatrix{}.Travel(fromLat, fromLng, toLat, toLng)
+	return fmt.Errorf("delivery: route matrix unavailable: %s", detail)
 }
 
 type routesWaypoint struct {
@@ -112,11 +109,11 @@ func waypoint(lat, lng float64) routesWaypoint {
 	return w
 }
 
-// Travel implements RoadMatrix. It keeps dispatch available by degrading to the straight-line
-// estimate on a missing key or provider failure, and EVERY degrade is logged with the leg and cause.
+// Travel implements RoadMatrix. A missing key or any provider failure is a hard, propagated error —
+// dispatch never degrades to a straight-line estimate. Successful legs are cached in Valkey.
 func (m *GoogleRoutesMatrix) Travel(fromLat, fromLng, toLat, toLng float64) (int64, int64, error) {
 	if m.apiKey == "" {
-		return m.degrade(fromLat, fromLng, toLat, toLng, "GOOGLE_ROUTES_API_KEY is not configured")
+		return 0, 0, m.providerFailure("GOOGLE_ROUTES_API_KEY is not configured")
 	}
 	ctx := context.Background()
 	key := cache.DeliveryRouteLeg(fromLat, fromLng, toLat, toLng)
@@ -133,7 +130,7 @@ func (m *GoogleRoutesMatrix) Travel(fromLat, fromLng, toLat, toLng float64) (int
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost,
 		"https://routes.googleapis.com/distanceMatrix/v2:computeRouteMatrix", bytes.NewReader(body))
 	if err != nil {
-		return m.degrade(fromLat, fromLng, toLat, toLng, "request build: "+err.Error())
+		return 0, 0, m.providerFailure("request build: " + err.Error())
 	}
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("X-Goog-Api-Key", m.apiKey)
@@ -142,15 +139,15 @@ func (m *GoogleRoutesMatrix) Travel(fromLat, fromLng, toLat, toLng float64) (int
 	res, err := m.client.Do(req)
 	elapsed := time.Since(start).Round(time.Millisecond)
 	if err != nil {
-		return m.degrade(fromLat, fromLng, toLat, toLng, fmt.Sprintf("call failed after %s: %s", elapsed, err.Error()))
+		return 0, 0, m.providerFailure(fmt.Sprintf("call failed after %s: %s", elapsed, err.Error()))
 	}
 	defer func() { _ = res.Body.Close() }()
 	if res.StatusCode < 200 || res.StatusCode >= 300 {
-		return m.degrade(fromLat, fromLng, toLat, toLng, fmt.Sprintf("HTTP %d after %s", res.StatusCode, elapsed))
+		return 0, 0, m.providerFailure(fmt.Sprintf("HTTP %d after %s", res.StatusCode, elapsed))
 	}
 	var rows []routesMatrixResponse
 	if err := json.NewDecoder(res.Body).Decode(&rows); err != nil {
-		return m.degrade(fromLat, fromLng, toLat, toLng, "decode: "+err.Error())
+		return 0, 0, m.providerFailure("decode: " + err.Error())
 	}
 	for _, row := range rows {
 		if row.Condition != "" && row.Condition != "ROUTE_EXISTS" {
@@ -165,7 +162,7 @@ func (m *GoogleRoutesMatrix) Travel(fromLat, fromLng, toLat, toLng float64) (int
 		}
 		return leg.Seconds, leg.Meters, nil
 	}
-	return m.degrade(fromLat, fromLng, toLat, toLng, "no usable leg in the matrix response")
+	return 0, 0, m.providerFailure("no usable leg in the matrix response")
 }
 
 func parseDurationSeconds(raw string) int64 {

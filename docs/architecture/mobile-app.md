@@ -859,13 +859,15 @@ SellerPartnerNavigator (native stack, no customer/delivery screens)
 └── Portal — full-screen react-native-webview at WEB_PORTAL_URL/login
 ```
 
-Before the portal hydrates, the shell injects `window.__faazio = { app: 'seller', platform, webview: true }`
+Before the portal hydrates, the shell injects `window.__faazio = { app: 'seller', platform, webview: true, vendorId? }`
 via `injectedJavaScriptBeforeContentLoaded`; the portal reads it (never the user-agent) to detect the
 native seller app, restrict routes to seller scope and **reject admin sign-in** (a non-`SELLER` role
-is signed straight back out with a generic invalid-credentials message — see `web-portal.md`). When a
-push/notification carries the order's `storeId`, the shell first injects
-`window.__faazio.vendorId = <storeId>` so the console can open scoped to the right shop (0068–0074);
-the portal's `activeStoreId` restore also accepts that injected vendor. The
+is signed straight back out with a generic invalid-credentials message — see `web-portal.md`). The
+last vendor the seller was on is persisted natively (`@react-native-async-storage`, key
+`faazio.seller.lastVendorId`) and injected as `vendorId` on every (re)load so a cold start re-opens
+the console scoped to the same shop. When a push/notification carries the order's `storeId`, the
+shell first injects `window.__faazio.vendorId = <storeId>` so the console can open scoped to the
+right shop (0068–0074); the portal's `activeStoreId` restore also accepts that injected vendor. The
 native shell also refuses to load any `/admin/*` portal URL, rendering the branded "Not available in
 the Faazio Seller app" block with a **Back to sign in** action instead. No internet / an unreachable
 portal renders a branded Faazio state with **Try again** (native side) instead of a white WebView; a
@@ -984,14 +986,18 @@ the server — the screen only ever sends `{tag, name, phone, address, isDefault
 ## Sell with us (seller onboarding)
 
 `SellerRegistrationScreen` (`features/seller-onboarding/`, route `SellWithUs`) replaced the old
-minimal form and is reached from the Account `earn` group. One wizard collects business identity
-(name, owner, category `MART`/`FOOD`/`PHARMA`, GSTIN, PAN, address, contact phone/email), a
+minimal form and is reached from the Account `earn` group. One wizard collects the business identity
+(account name, owner, GSTIN, PAN, address, contact phone/email), a
 location-derived 2-letter state (GPS → state code; manual entry is the fallback) plus a required
-**district** picker for TN/PY (hydrated from `GET /geo/districts` via `GatewayClient.getDistricts`,
-falling back to the `@data/districts` fixture offline; the gateway rejects a district that does not
-belong to the state), platform fee %,
-payout account (bank name, account number, IFSC, beneficiary), a **mandatory bank passbook** photo
-and — for FOOD only — the FSSAI number + certificate. All fields are mandatory. Labels/placeholders
+**district** picker for TN/PY (hydrated from `GET /geo/districts` via `GatewayClient.getDistricts`;
+the DB is the only source, no fixture fallback; the gateway rejects a district that does not belong
+to the state), payout account (bank name, account number, IFSC, beneficiary), a **mandatory bank
+passbook** photo and the OTP digital signature — all account-level.
+
+The account then carries one or more **shops** (vendors). Each shop card picks its own app
+(`MART`/`FOOD`/`PHARMA`), shop name, taxonomy category (server-only `GET /categories?app=`, no
+fixture list), platform fee % (FOOD floor 5) and — for FOOD only — the FSSAI number + certificate;
+the submission sends every card in the `vendors[]` payload the gateway requires. Labels/placeholders
 still come from `SELLER_SETUP_FIELDS` (`@data/seller/sellerSetup.ts`).
 
 Documents are captured with `DocumentCapture` (Vision Camera, consent-gated), uploaded straight to

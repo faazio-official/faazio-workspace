@@ -21,7 +21,8 @@ type API interface {
 }
 
 // Client is the minimal Weather Union HTTP client. It is disabled (Enabled=false) when the key is
-// unset, so local/dev runs never make a network call and checkout degrades to "not raining".
+// unset; a disabled or failing client returns an error so callers fail closed instead of assuming a
+// dry zone.
 type Client struct {
 	baseURL string
 	apiKey  string
@@ -57,7 +58,7 @@ type payload struct {
 // Raining reports whether the locality is raining right now (rain_intensity > 0 mm/min).
 func (c *Client) Raining(ctx context.Context, lat, lng float64) (bool, error) {
 	if !c.Enabled() {
-		return false, nil
+		return false, fmt.Errorf("weather: provider not configured")
 	}
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, c.url(lat, lng), nil)
 	if err != nil {

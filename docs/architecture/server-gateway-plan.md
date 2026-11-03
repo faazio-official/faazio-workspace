@@ -245,7 +245,8 @@ The HTTP route is not used service-to-service — the dual mount is intentional.
   stops is scored by rider → store. Capacity headroom and rating break ties. Riders already holding
   an unaccepted `ASSIGNED` offer are skipped (`PendingOfferRiderIDs`): `current_load` only rises on
   accept, so without it one rider could accumulate offers while peers stay idle. With
-  `GOOGLE_ROUTES_API_KEY` unset (local/dev) it degrades to a Haversine/urban-speed estimate.
+  `GOOGLE_ROUTES_API_KEY` unset the matrix call fails closed — dispatch never estimates as the crow
+  flies (dev/test may opt into `StraightLineMatrix` explicitly).
 - Assignment then runs a **full VRP** (`OptimizeGlobalRoute`) over every open stop of all the
   rider's accepted jobs plus the new pickup/drop. A Held-Karp bitmask DP (`O(2ⁿ·n²)`; ten open stops
   at the five-order four-wheeler cap, with a >15-stop guard that falls back to the insertion
