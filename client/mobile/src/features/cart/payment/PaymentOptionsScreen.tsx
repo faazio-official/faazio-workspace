@@ -44,6 +44,8 @@ export interface PaymentOptionsScreenProps {
   deliveryFee?: number;
   /** Server quote breakdown (distance + active surges) for the bill rows. */
   deliveryBreakdown?: DeliveryFeeBreakdown;
+  /** True when no server quote could be fetched: the fee shown is a default estimate. */
+  deliveryFeeEstimated?: boolean;
   /** Selected delivery address. Defaults to the primary saved address. */
   deliveryAddress?: { label: string; address: string };
   /** Origin store name for the delivery timeline. */
@@ -72,6 +74,7 @@ export default function PaymentOptionsScreen({
   subtotal: subtotalProp,
   deliveryFee: deliveryFeeProp,
   deliveryBreakdown,
+  deliveryFeeEstimated = false,
   deliveryAddress,
   originLabel = 'Instamart',
   fulfillment = 'DELIVERY',
@@ -150,6 +153,7 @@ export default function PaymentOptionsScreen({
           subtotal={subtotal}
           deliveryFee={deliveryFee}
           deliveryBreakdown={deliveryBreakdown}
+          deliveryFeeEstimated={deliveryFeeEstimated}
           fulfillment={fulfillment}
         />
 

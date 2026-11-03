@@ -177,10 +177,13 @@ caller) and are event-purged on store live toggle and product edit/status change
   and super-admin `POST /delivery/payouts/{orderId}/settle` mark PAID.
 - **Weather + festival surge (`internal/weather` + `internal/festival`, `0054`):** `GET
   /checkout/delivery-fee` and `POST /orders` call `contracts.WeatherChecker` (Weather Union,
-  30-min per-hex cache, 60,000 calls/Indian FY) and `contracts.FestivalLookup` (active
-  `ops.festival_calendar` window). Super-admin `GET /admin/weather/usage`,
-  `PUT /admin/weather/override`, `GET|POST /admin/festival/calendar`,
-  `DELETE /admin/festival/calendar/{id}`. Provider key is optional: unset means no rain surge.
+  30-min per-hex cache + **5-min degraded marker**, 60,000 calls/Indian FY) and
+  `contracts.FestivalLookup` (active `ops.festival_calendar` window). A transient provider outage
+  DEGRADES the bill (`degraded:true`, weather surge waived, `weather_degraded` reason) so the order
+  proceeds; a disabled provider or exhausted budget stays FAIL-CLOSED (operator action). Super-admin
+  `GET /admin/weather/usage`, `PUT /admin/weather/override`, `GET|POST /admin/festival/calendar`,
+  `DELETE /admin/festival/calendar/{id}`. Provider key unset = fail-closed (never a silently-waived
+  rain surge from misconfiguration).
 - **Packages:** `internal/{search,catalog,directory,categories,cartstock,checkout,reviews,reco,sdui,delivery,weather,festival,geo,pricing,districts}`
   + `internal/{contracts,platform/*,server}`. Ownership table: `monolith-breakdown.md` §1.
 - **Boundaries:** `go run ./tools/importlint` fails on sibling-context imports.

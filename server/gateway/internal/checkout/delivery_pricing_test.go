@@ -3,6 +3,8 @@ package checkout
 import (
 	"context"
 	"errors"
+	"fmt"
+	"strings"
 	"testing"
 	"time"
 
@@ -89,7 +91,62 @@ func TestPriceDeliveryFailsClosedOnWeatherError(t *testing.T) {
 		weather: fakeWeather{err: errors.New("provider down")},
 	}
 	if _, err := s.priceDelivery(context.Background(), 5, DefaultDeliveryFeeSettings(), at, "10:20"); err == nil {
-		t.Fatal("priceDelivery must fail when the weather provider errors (no fake 'not raining')")
+		t.Fatal("priceDelivery must fail when the weather provider errors with a non-degraded error (no fake 'not raining')")
+	}
+}
+
+func TestPriceDeliveryFailsClosedOnWeatherHardErrors(t *testing.T) {
+	at := time.Date(2026, 1, 5, 12, 0, 0, 0, time.FixedZone("IST", 5*3600+1800))
+	for name, err := range map[string]error{
+		"not configured": contracts.ErrWeatherProviderNotConfigured,
+		"budget":         contracts.ErrWeatherBudgetExhausted,
+	} {
+		t.Run(name, func(t *testing.T) {
+			s := &Service{
+				weather: fakeWeather{err: err},
+			}
+			if _, err := s.priceDelivery(context.Background(), 5, DefaultDeliveryFeeSettings(), at, "10:20"); err == nil {
+				t.Fatal("priceDelivery must fail closed on a hard weather error")
+			}
+		})
+	}
+}
+
+func TestPriceDeliveryDegradesOnProviderUnavailable(t *testing.T) {
+	at := time.Date(2026, 1, 5, 23, 30, 0, 0, time.FixedZone("IST", 5*3600+1800))
+	// Night surge still applies; the weather surge (₹25) is waived because the provider is degraded.
+	s := &Service{
+		surge:     fakeSurge{rates: contracts.SurgeRates{NightPaisa: 2000, WeatherPaisa: 2500, FestivalPaisa: 1500}},
+		weather:   fakeWeather{err: fmt.Errorf("upstream: %w", contracts.ErrWeatherProviderUnavailable)},
+		festivals: fakeFestival{festival: contracts.Festival{ID: "fest-3", SurgePaisa: 1500}, active: true},
+	}
+	b, err := s.priceDelivery(context.Background(), 5.2, DefaultDeliveryFeeSettings(), at, "10:20")
+	if err != nil {
+		t.Fatalf("priceDelivery must fail OPEN on a degraded weather error, got %v", err)
+	}
+	if !b.Degraded {
+		t.Fatal("degraded bill must carry Degraded=true")
+	}
+	if b.WeatherSurgePaisa != 0 {
+		t.Fatalf("degraded weather surge = %d, want 0 (waived)", b.WeatherSurgePaisa)
+	}
+	if b.NightSurgePaisa != 2000 || b.FestivalSurgePaisa != 1500 {
+		t.Fatalf("night/festival must survive degradation = %d/%d", b.NightSurgePaisa, b.FestivalSurgePaisa)
+	}
+	if b.TotalPaisa != 3500+1540+2000+1500 {
+		t.Fatalf("degraded total = %d, want %d", b.TotalPaisa, 3500+1540+2000+1500)
+	}
+	var hasReason bool
+	for _, r := range b.SurgeReasons {
+		if r == "weather_degraded" {
+			hasReason = true
+		}
+	}
+	if !hasReason {
+		t.Fatalf("degraded bill must carry the weather_degraded reason, got %v", b.SurgeReasons)
+	}
+	if strings.Contains(strings.Join(b.SurgeReasons, ","), "weather,") {
+		t.Fatalf("a waived weather surge must not be reported as a charged weather reason: %v", b.SurgeReasons)
 	}
 }
 

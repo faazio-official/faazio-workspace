@@ -695,7 +695,9 @@ offline read still throws `GatewayOfflineError` (the retired `_mock` lambdas/`wi
   Razorpay **webhook** + `GET /orders/{id}/payment-status` polling; **COD** completes straight to the
   receipt. The **delivery fee is dynamic**: `CartView` quotes it on the FULFILLMENT
   step via `gateway.fetchDeliveryFee` (`GET /checkout/delivery-fee`, store pin + live drop), falling
-  back to a Haversine estimate when the gateway is unreachable — the server settles the same math.
+  back to the standard default fee constant flagged as an **estimate** when the gateway is
+  unreachable; a quote served during a weather-provider outage carries `degraded:true` (weather
+  surge waived) and is labelled in `BreakdownCard` — the server settles the same math.
   On success the returned `OrderRow` is adopted via `ordersStore.recordServerOrder`, the purchased
   lines are removed from the durable server cart (`Promise.allSettled`), and `rewardsStore.reconcile()`
   refreshes the server-written coin balance (no local earn). There is no artificial delay; the
@@ -1336,9 +1338,14 @@ dedicated **FULFILLMENT** step. `fulfillment` (`'DELIVERY' | 'PICKUP'`) is a sin
   **Proceed to pay** button is disabled until a mode is chosen. The **delivery fee is dynamic**:
   on entering Delivery with a live fix, `CartView` fetches a server quote
   (`gateway.fetchDeliveryFee`, `GET /checkout/delivery-fee`, typed `DeliveryFeeBreakdown`) and falls
-  back to an honest base + distance estimate (`estimateDeliveryBreakdown`, `utils.ts`: ≤3 km → ₹35,
-  then ₹7 per extra km) when the gateway is unreachable. The quote carries the server zone and any
-  active night/rain/festival surge; `BreakdownCard` itemises those rows so the bill is explainable.
+  back to an honest estimate flag when the gateway is unreachable (the default fee constant is shown,
+  labelled "estimate" — never a distance guess against a bundled directory). The quote carries the
+  server zone and any active night/rain/festival surge; `BreakdownCard` itemises those rows so the
+  bill is explainable. When the weather provider is in a transient outage the server waives the
+  weather surge and marks the quote `degraded:true`; `BreakdownCard` shows
+  "Delivery fee estimated — live surge data temporarily unavailable" so the order can proceed while
+  being transparent. The no-quote and degraded states are surfaced on BOTH the FULFILLMENT and PAYMENT
+  steps (the estimate flag is threaded through `PaymentOptionsScreen`).
   A FREE-Delivery coupon discounts the **live** quote (including a surge that arrives after the code
   was applied), not a frozen fee, and the gateway settles the same zero delivery line.
 - **PAYMENT:** the reworked `PaymentOptionsScreen` (below); its back button returns to FULFILLMENT.

@@ -6,6 +6,7 @@ import (
 	"log/slog"
 	"time"
 
+	"github.com/faazio/server/gateway/internal/contracts"
 	"github.com/faazio/server/gateway/internal/geo"
 	"github.com/faazio/server/gateway/internal/platform/cache"
 )
@@ -40,10 +41,10 @@ type Checker struct {
 	logger *slog.Logger
 }
 
-// NewChecker builds the weather checker. api/usage may be nil (provider disabled / no DB); IsRaining
-// then fails closed. The optional logger receives a detailed line for every failure (provider down,
-// budget exhausted, API error) so a fail-closed dry check is always auditable. Nil logger → log/slog
-// default.
+// NewChecker builds the weather checker. api/usage may be nil (provider disabled / no DB);
+// IsRaining then returns the fail-closed ErrWeatherProviderNotConfigured. The optional logger
+// receives a detailed line for every failure (provider down, budget exhausted, API error) so a
+// failed rain check is always auditable. Nil logger → log/slog default.
 func NewChecker(c CacheStore, api API, usage UsageStore, limit int64, loggers ...*slog.Logger) *Checker {
 	if c == nil {
 		c = &cache.Cache{}
@@ -58,8 +59,8 @@ func NewChecker(c CacheStore, api API, usage UsageStore, limit int64, loggers ..
 	return &Checker{cache: c, api: api, usage: usage, limit: limit, now: time.Now, logger: logger}
 }
 
-// logDegrade writes the always-on audit line for a fail-closed weather check. cell is the hex
-// delivery zone; extra key/value pairs carry the failure specifics.
+// logDegrade writes the always-on audit line for a failed weather check (hard or degraded). cell is
+// the hex delivery zone; extra key/value pairs carry the failure specifics.
 func (c *Checker) logDegrade(cellID string, detail string) {
 	lat, lng := geo.GeoCellCenter(cellID)
 	c.logger.Warn("weather_degraded",
@@ -72,10 +73,12 @@ func (c *Checker) logDegrade(cellID string, detail string) {
 }
 
 // IsRaining reports whether a zone is raining now. Manual overrides and a cached recent provider
-// verdict are honoured. When the provider is disabled, the annual budget is exhausted, or the
-// provider errors, IsRaining FAILS — a checkout is never charged a fabricated "not raining" verdict.
-// Each failure is still logged in detail, but the caller (delivery pricing) must propagate the error
-// rather than assume a dry zone.
+// verdict are honoured. Failure semantics follow the weather error taxonomy (contracts):
+//   - disabled provider / exhausted budget → ErrWeatherProviderNotConfigured / ErrWeatherBudgetExhausted
+//     (FAIL-CLOSED: delivery pricing must abort — an operator intervenes);
+//   - transient provider outage → an error wrapping ErrWeatherProviderUnavailable (DEGRADED: delivery
+//     pricing fails open on the weather surge) AND the zone is marked degraded in cache for 5 minutes
+//     so subsequent checkouts fast-fail without re-hitting Weather Union while it's down.
 func (c *Checker) IsRaining(ctx context.Context, cellID string) (bool, error) {
 	if c == nil || cellID == "" {
 		return false, nil
@@ -88,29 +91,38 @@ func (c *Checker) IsRaining(ctx context.Context, cellID string) (bool, error) {
 	if c.cache.GetJSON(ctx, cache.WeatherZone(cellID), &cached) {
 		return cached, nil
 	}
+	// Fast-fail on a live degraded marker: the provider already errored within the last 5 minutes,
+	// so skip the API call (and its budget charge) entirely.
+	var degraded bool
+	if c.cache.GetJSON(ctx, cache.WeatherDegraded(cellID), &degraded) && degraded {
+		c.logDegrade(cellID, "provider degraded marker active; skipping call")
+		return false, fmt.Errorf("weather: provider degraded for cell %s: %w", cellID, contracts.ErrWeatherProviderUnavailable)
+	}
 	if c.api == nil || !c.api.Enabled() {
 		c.logDegrade(cellID, "provider not configured or disabled")
-		return false, fmt.Errorf("weather: provider not configured or disabled")
+		return false, fmt.Errorf("weather: provider not configured or disabled: %w", contracts.ErrWeatherProviderNotConfigured)
 	}
 
 	now := c.now()
 	fy := FinancialYear(now)
 	if used, ok := c.cache.GetInt(ctx, cache.WeatherCalls(fy)); ok && used >= c.limit {
 		c.logDegrade(cellID, fmt.Sprintf("annual call budget exhausted (%d/%d)", used, c.limit))
-		return false, fmt.Errorf("weather: annual call budget exhausted (%d/%d)", used, c.limit)
+		return false, fmt.Errorf("weather: annual call budget exhausted (%d/%d): %w", used, c.limit, contracts.ErrWeatherBudgetExhausted)
 	}
 
 	lat, lng := geo.GeoCellCenter(cellID)
 	raining, err := c.api.Raining(ctx, lat, lng)
-	// The provider call is counted even when it fails: the annual budget guards API spend, and an
-	// outage must not turn every checkout for a cell into another request.
+	// The provider call is counted even when it fails: the annual budget guards API spend. The
+	// degraded marker below keeps a single outage to one call per zone per 5-minute window instead
+	// of one per checkout.
 	c.recordCall(ctx, now, fy)
 	if err != nil {
-		// Fail closed: propagate the provider error so delivery pricing errors instead of silently
-		// charging no rain surcharge. No fabricated value is cached — the next check retries the
-		// provider (the cache above serves only real verdicts).
+		// Mark the zone degraded so the outage is remembered briefly (fail-open surge path can rely
+		// on it) and subsequent checkouts don't re-hit Weather Union. Real verdicts are never
+		// fabricated — the recovery path re-calls the provider once the marker lapses.
+		c.cache.SetJSON(ctx, cache.WeatherDegraded(cellID), true, cache.TTLWeatherDegraded)
 		c.logDegrade(cellID, "provider error: "+err.Error())
-		return false, fmt.Errorf("weather: provider error for cell %s: %w", cellID, err)
+		return false, fmt.Errorf("weather: provider error for cell %s: %w: %w", cellID, err, contracts.ErrWeatherProviderUnavailable)
 	}
 
 	c.cache.SetJSON(ctx, cache.WeatherZone(cellID), raining, cache.TTLWeatherZone)

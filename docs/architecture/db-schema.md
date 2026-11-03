@@ -2122,7 +2122,11 @@ UPDATE tax.delivery_fee_settings SET per_extra_km_paisa = 700
   `delivery_fee_paisa` at settlement (platform-funded). The rider payout still reuses the stored
   distance/surge basis, so the pass-through is unaffected.
 - **Weather budget.** Hard cap 60,000 calls per Indian financial year (Apr 1 → Mar 31), enforced by
-  the gateway before every provider call; one Supabase row per day preserves the audit trail.
+  the gateway before every provider call; one Supabase row per day preserves the audit trail. A
+  transient provider outage marks the zone degraded for 5 min (`faazio:v1:weather:degraded:{cell}`)
+  so checkouts fast-fail without burning budget; checkout then waives the weather surge and persists
+  `delivery_billing_basis.degraded = true` + a `weather_degraded` surge reason on
+  `checkout.orders` — no new columns/tables required.
 - **RLS/grants.** `ops.*` is service_role-only (no client grants); RLS enabled where Supabase roles
   exist. New order columns follow the existing `checkout.orders` owner-scoped reads.
 

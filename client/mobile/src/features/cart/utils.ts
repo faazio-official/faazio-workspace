@@ -66,6 +66,11 @@ export interface DeliveryFeeBreakdown {
   nightSurgePaisa: number;
   weatherSurgePaisa: number;
   festivalSurgePaisa: number;
+  /**
+   * True when the server could not reach live weather data (transient outage): the weather surge is
+   * waived and the quote is an honest estimate, not a fabricated "not raining" bill.
+   */
+  degraded?: boolean;
   totalPaisa: number;
   /** Legacy alias for totalPaisa. */
   feePaisa: number;

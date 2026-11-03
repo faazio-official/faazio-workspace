@@ -45,11 +45,15 @@ func BloodRequests(key string) string { return fmt.Sprintf("faazio:v1:blood:requ
 
 // WeatherZone caches one zone's rain verdict for 30 minutes so a window costs at most one Weather
 // Union call. WeatherCalls is the financial-year API budget counter; WeatherOverride is the
-// super-admin manual rain flag (same 30-minute window).
+// super-admin manual rain flag (same 30-minute window). WeatherDegraded marks a zone whose provider
+// just errored so subsequent checkouts fast-fail without re-hitting Weather Union (outage guard).
 func WeatherZone(cellID string) string { return fmt.Sprintf("faazio:v1:weather:zone:%s", cellID) }
 func WeatherCalls(fy string) string    { return fmt.Sprintf("faazio:v1:weather:calls:%s", fy) }
 func WeatherOverride(cellID string) string {
 	return fmt.Sprintf("faazio:v1:weather:override:%s", cellID)
+}
+func WeatherDegraded(cellID string) string {
+	return fmt.Sprintf("faazio:v1:weather:degraded:%s", cellID)
 }
 
 // NearbyStores/NearbyProducts cache one geo read. Coordinates are rounded to 3 decimals (~110 m)
@@ -292,8 +296,12 @@ const (
 
 	// Weather: one Weather Union call per zone per 30-minute window; the manual rain override
 	// shares the same window. The annual call counter's TTL is computed to the financial-year end.
+	// TTLWeatherDegraded bounds the fail-open marker: a transient provider outage is remembered for
+	// only 5 minutes so checkouts don't re-hit Weather Union every time while it's down, but the
+	// provider is retried once the window lapses.
 	TTLWeatherZone     = 30 * time.Minute
 	TTLWeatherOverride = 30 * time.Minute
+	TTLWeatherDegraded = 5 * time.Minute
 
 	TTLPortalLoginWindow = 60 * time.Second
 	TTLPortalDeny        = 15 * time.Minute

@@ -12,6 +12,31 @@ dependencies exist. Do not build the backend/seller flows until told to.
 
 ---
 
+## W80 — Delivery fee: fail-open on transient weather outage (degraded quotes)
+
+**Status:** 🟢 Shipped (gateway + mobile + docs).
+
+- **Server — weather checker:** `internal/weather/checker.go` now distinguishes **hard failures**
+  from a **transient outage**. Disabled provider / FY-budget exhausted return
+  `contracts.ErrWeatherProviderNotConfigured` / `ErrWeatherBudgetExhausted` (fail-closed, uncached —
+  operator action). A transient provider outage returns an error wrapping
+  `contracts.ErrWeatherProviderUnavailable` **and** marks the drop cell
+  `faazio:v1:weather:degraded:{cell}` for **5 min** (`TTLWeatherDegraded`) so subsequent checkouts
+  fast-fail without re-hitting Weather Union (FY-budget guard). The marker lapses and the provider
+  is retried — real "not raining" verdicts are never fabricated or cached.
+- **Server — checkout:** `priceDelivery` fails OPEN on `ErrWeatherProviderUnavailable`: the weather
+  surge is waived, the bill carries `degraded:true` (JSON `Degraded`) plus a `weather_degraded`
+  surge reason (audit trace), and the order proceeds on base + distance + night/festival. Hard
+  weather errors still abort the bill. Dispatch/route matrix stays fail-closed (safety).
+- **Mobile:** `fetchDeliveryFee` parses `degraded` into `DeliveryFeeBreakdown.degraded`;
+  `CartView` tracks a quote-missing state (gateway unreachable / no live fix); `BreakdownCard`
+  shows an **estimate** or **weather-degraded** notice on FULFILLMENT **and** PAYMENT so the fee is
+  never presented as a confirmed quote. There is no distance-estimate fabrication — the no-quote
+  fallback stays the standard default fee constant, honestly labelled.
+- Docs: `caching-cloudflare-valkey.md` §5 (degraded key/TTL row), `monolith-breakdown.md` §1,
+  `mobile-app.md`, `server-gateway-plan.md`, `db-schema.md` (no schema change — existing
+  `ops.weather_api_usage` + `checkout.orders.delivery_billing_basis` suffice).
+
 ## W79 — One seller account → many vendors (Mart/Food/Pharma) + console switcher
 
 **Status:** 🟢 Shipped. DB (`0068`–`0075`), Go gateway vendor/read/analytics endpoints, seeded
@@ -28,11 +53,9 @@ landed.
 - **Gateway:** `POST /seller/stores`, `PUT /seller/stores/{id}`, `PUT /seller/stores/{id}/fee`;
   `GET /geo/states`, `GET /geo/apps`, `GET /ads/placements`; checkout + settlement resolve the fee per
   vendor; `razorpayroute` mock removed (missing keys = config error); no `AUTH_DISABLED`/`X-Dev-*`
-  in production auth. **Weather + Routes are FAIL-CLOSED**: a disabled weather provider / budget /
-  API error propagates to delivery pricing (no fabricated "not raining"), and the Google Routes
-  client errors on a missing key or any upstream failure so dispatch never matches a rider on a
-  straight-line estimate (`StraightLineMatrix` stays as the explicit dev/test opt-in); every failure
-  is logged in detail (`weather_degraded` / `route_matrix_unavailable` with cause).
+  in production auth. **Weather + Routes:** weather is fail-closed only for hard errors (disabled
+  provider / budget); a transient provider outage DEGRADES the quote (`degraded:true`, weather surge
+  waived) so the order proceeds, and Google
 - **Analytics:** `GET /analytics/series` + `GET /analytics/ranks` (`internal/analytics`) aggregate the
   live `checkout.orders`/`order_items` ledger — the portal's seeded `series.ts` is deleted and all
   dashboards read the DB.
@@ -466,9 +489,11 @@ default it to `https://app.faazio.com`.
   persists only a token + last4 + expiry + network in the Keychain under `FaazioCardToken`
   (`AddCard` route, refreshed on focus); raw PAN/CVV never touch state or logs.
 - **Dynamic delivery fee** (replaces the flat ₹49/₹50): PICKUP waives it; DELIVERY quotes via
-  `GET /checkout/delivery-fee` (`gateway.fetchDeliveryFee`, store pin + live drop) with an honest
-  Haversine + `estimateDeliveryBreakdown` fallback (≤3 km → ₹35, then ₹7/extra km as of W66).
-  Multi-store carts quote every store and keep the furthest, matching settlement.
+  `GET /checkout/delivery-fee` (`gateway.fetchDeliveryFee`, store pin + live drop). A failed quote
+  read falls back to the standard default fee constant flagged as an **estimate** (no distance
+  guess against a bundled directory); a server-degraded quote (weather provider down) carries
+  `degraded:true` and is labelled in `BreakdownCard`. Multi-store carts quote every store and keep
+  the furthest, matching settlement.
 - **Server:** `CreateOrder` charges PICKUP → 0 / DELIVERY → furthest pinned store ×
   `tax.delivery_fee_settings` (`0053`); `taxmath.Compute` zeroes platform commission/GST — sellers
   keep full gross, only statutory TCS/TDS are withheld (`SellerNet = Gross − TCS − TDS`).

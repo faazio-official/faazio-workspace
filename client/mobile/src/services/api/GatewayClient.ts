@@ -2049,9 +2049,10 @@ export class GatewayClient {
    * Server-authoritative delivery-fee quote for a store → drop distance
    * (GET /checkout/delivery-fee; the server owns the road-distance math from
    * directory.stores + the tax.delivery_fee_settings rate card). Throws
-   * `GatewayOfflineError` when remote is disabled, so the caller's honest
-   * Haversine + client-formula estimate (utils.computeDeliveryFeePaisa) is the
-   * fallback seam — a quote is never fabricated from a fixture.
+   * `GatewayOfflineError` when remote is disabled, so the caller falls back to
+   * the honest default fee constant and labels it an estimate — a quote is never
+   * fabricated from a fixture. When the server is itself degraded (live weather
+   * unreachable), `degraded` is parsed so the UI can show an estimate chip.
    */
   async fetchDeliveryFee(
     storeId: string,
@@ -2074,6 +2075,7 @@ export class GatewayClient {
       nightSurgePaisa: raw.nightSurgePaisa ?? 0,
       weatherSurgePaisa: raw.weatherSurgePaisa ?? 0,
       festivalSurgePaisa: raw.festivalSurgePaisa ?? 0,
+      degraded: raw.degraded === true,
       totalPaisa,
       feePaisa: raw.feePaisa ?? totalPaisa,
       surgeReasons: raw.surgeReasons ?? [],

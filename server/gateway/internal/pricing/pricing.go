@@ -17,7 +17,9 @@ type SurgeRates struct {
 }
 
 // PriceBreakdown is the customer-facing delivery bill. FeePaisa is the legacy alias for TotalPaisa
-// kept so older clients that read `feePaisa` keep working.
+// kept so older clients that read `feePaisa` keep working. Degraded marks a bill computed without
+// live weather data (transient provider outage): the weather surge was waived and the customer sees
+// an estimate, never a fabricated dry verdict.
 type PriceBreakdown struct {
 	DistanceKm         float64  `json:"distanceKm"`
 	ZoneID             string   `json:"zoneId,omitempty"`
@@ -27,6 +29,7 @@ type PriceBreakdown struct {
 	NightSurgePaisa    int64    `json:"nightSurgePaisa"`
 	WeatherSurgePaisa  int64    `json:"weatherSurgePaisa"`
 	FestivalSurgePaisa int64    `json:"festivalSurgePaisa"`
+	Degraded           bool     `json:"degraded,omitempty"`
 	TotalPaisa         int64    `json:"totalPaisa"`
 	FeePaisa           int64    `json:"feePaisa"`
 	SurgeReasons       []string `json:"surgeReasons,omitempty"`

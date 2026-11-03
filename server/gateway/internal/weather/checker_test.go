@@ -9,6 +9,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/faazio/server/gateway/internal/contracts"
 )
 
 type fakeCache struct {
@@ -101,7 +103,10 @@ func TestCheckerProviderErrorFailsAndLogs(t *testing.T) {
 
 	raining, err := c.IsRaining(context.Background(), "9:9")
 	if err == nil || raining {
-		t.Fatalf("first check = %v, %v; want fail-closed error, false", raining, err)
+		t.Fatalf("first check = %v, %v; want degraded error, false", raining, err)
+	}
+	if !errors.Is(err, contracts.ErrWeatherProviderUnavailable) {
+		t.Fatalf("first check error must wrap ErrWeatherProviderUnavailable, got: %v", err)
 	}
 	if api.calls != 1 {
 		t.Fatalf("provider calls = %d, want 1", api.calls)
@@ -110,18 +115,51 @@ func TestCheckerProviderErrorFailsAndLogs(t *testing.T) {
 		t.Fatalf("failed call must count against the budget, counter = %d", got)
 	}
 
-	// A provider failure is never cached as a dry verdict, so the next check retries the provider —
-	// and every failure is logged in detail.
+	// A provider failure is never fabricated as a dry verdict, but it IS remembered as degraded: the
+	// next check fast-fails on the marker without re-hitting Weather Union (protects the FY budget).
 	raining, err = c.IsRaining(context.Background(), "9:9")
 	if err == nil || raining {
-		t.Fatalf("recheck = %v, %v; want fail-closed error, false", raining, err)
+		t.Fatalf("recheck = %v, %v; want degraded error, false", raining, err)
 	}
-	if api.calls != 2 {
-		t.Fatalf("recheck must call the provider again (no dry cache): calls=%d", api.calls)
+	if !errors.Is(err, contracts.ErrWeatherProviderUnavailable) {
+		t.Fatalf("recheck error must wrap ErrWeatherProviderUnavailable, got: %v", err)
+	}
+	if api.calls != 1 {
+		t.Fatalf("recheck must fast-fail on the degraded marker (no provider call): calls=%d", api.calls)
+	}
+	if got := cache.ints["faazio:v1:weather:calls:2026-27"]; got != 1 {
+		t.Fatalf("fast-failed recheck must not burn budget again, counter = %d", got)
 	}
 	logged := logs.String()
 	if !strings.Contains(logged, "weather_degraded") || !strings.Contains(logged, "provider down") {
 		t.Fatalf("failure must be logged in detail, got: %s", logged)
+	}
+}
+
+func TestCheckerProviderRecoversAfterDegradedMarkerExpires(t *testing.T) {
+	cache := newFakeCache()
+	api := &fakeAPI{err: errors.New("provider down")}
+	c := NewChecker(cache, api, nil, AnnualCallLimit)
+	c.now = func() time.Time { return time.Date(2026, 6, 1, 10, 0, 0, 0, IST) }
+
+	if _, err := c.IsRaining(context.Background(), "9:9"); err == nil {
+		t.Fatal("first check must fail degraded")
+	}
+	marker := "faazio:v1:weather:degraded:9:9"
+	if b, ok := cache.values[marker]; !ok || string(b) != "true" {
+		t.Fatalf("degraded marker must be cached on error, got %q ok=%v", b, ok)
+	}
+
+	// Simulate the 5-minute marker expiring while the provider recovers.
+	delete(cache.values, marker)
+	api.err = nil
+	api.raining = true
+	raining, err := c.IsRaining(context.Background(), "9:9")
+	if err != nil || !raining {
+		t.Fatalf("after marker expiry + recovery = %v, %v; want true, nil", raining, err)
+	}
+	if api.calls != 2 {
+		t.Fatalf("recovered check must call the provider again, calls=%d", api.calls)
 	}
 }
 
@@ -132,6 +170,9 @@ func TestCheckerDisabledProviderFails(t *testing.T) {
 	raining, err := c.IsRaining(context.Background(), "9:9")
 	if err == nil || raining {
 		t.Fatalf("disabled provider = %v, %v; want fail-closed error, false", raining, err)
+	}
+	if !errors.Is(err, contracts.ErrWeatherProviderNotConfigured) {
+		t.Fatalf("disabled provider must wrap ErrWeatherProviderNotConfigured, got: %v", err)
 	}
 	if !strings.Contains(logs.String(), "provider not configured") {
 		t.Fatalf("disabled-provider failure must be logged, got: %s", logs.String())
@@ -161,6 +202,9 @@ func TestCheckerBudgetExhausted(t *testing.T) {
 	raining, err := c.IsRaining(context.Background(), "3:4")
 	if err == nil || raining {
 		t.Fatalf("exhausted budget = %v, %v; want fail-closed error, false", raining, err)
+	}
+	if !errors.Is(err, contracts.ErrWeatherBudgetExhausted) {
+		t.Fatalf("exhausted budget must wrap ErrWeatherBudgetExhausted, got: %v", err)
 	}
 	if api.calls != 0 {
 		t.Fatalf("exhausted budget must not call the provider: calls=%d", api.calls)

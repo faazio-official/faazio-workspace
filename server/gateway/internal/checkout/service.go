@@ -514,8 +514,10 @@ func (s *Service) DeliveryFeeForStore(ctx context.Context, storeID string, lat, 
 }
 
 // priceDelivery resolves the active surge reasons and computes the customer bill. Night is derived
-// from the clock; festival reads the DB calendar. Weather is fail-closed: a provider failure or a
-// disabled checker returns an error so a bill is never computed on a fabricated "not raining" basis.
+// from the clock; festival reads the DB calendar. Weather is fail-OPEN on a transient provider
+// outage (ErrWeatherProviderUnavailable) — the order proceeds on base + distance with the weather
+// surge waived and the bill flagged degraded, so an outage never blocks the customer. Hard weather
+// failures (provider not configured / budget exhausted) stay fail-closed: an operator must intervene.
 func (s *Service) priceDelivery(ctx context.Context, distanceKm float64, settings DeliveryFeeSettings, at time.Time, cellID string) (pricing.PriceBreakdown, error) {
 	rates := pricing.SurgeRates{}
 	if s.surge != nil {
@@ -523,15 +525,22 @@ func (s *Service) priceDelivery(ctx context.Context, distanceKm float64, setting
 			rates.NightPaisa, rates.WeatherPaisa, rates.FestivalPaisa = r.NightPaisa, r.WeatherPaisa, r.FestivalPaisa
 		}
 	}
+	degraded := false
 	// Weather only applies when the zone is actually raining (manual overrides honoured by the checker).
 	if s.weather == nil || cellID == "" {
 		rates.WeatherPaisa = 0
 	} else {
 		raining, err := s.weather.IsRaining(ctx, cellID)
 		if err != nil {
-			return pricing.PriceBreakdown{}, err
-		}
-		if !raining {
+			if errors.Is(err, contracts.ErrWeatherProviderUnavailable) {
+				// Degraded: transient provider outage — waive the weather surge, flag the bill, and let
+				// the order go through. The settled amount is server-computed at placement.
+				rates.WeatherPaisa = 0
+				degraded = true
+			} else {
+				return pricing.PriceBreakdown{}, err
+			}
+		} else if !raining {
 			rates.WeatherPaisa = 0
 		}
 	}
@@ -546,6 +555,12 @@ func (s *Service) priceDelivery(ctx context.Context, distanceKm float64, setting
 	b := pricing.ComputeDeliveryPrice(distanceKm, settings.BaseDistanceKm, settings.BaseFeePaisa,
 		settings.PerExtraKmPaisa, rates, at)
 	b.ZoneID = cellID
+	if degraded {
+		b.Degraded = true
+		// An audit trace on the order: the waived weather surge is recorded as a reason so a degraded
+		// bill is distinguishable from a genuinely rain-free one.
+		b.SurgeReasons = append(b.SurgeReasons, "weather_degraded")
+	}
 	return b, nil
 }
 

@@ -14,6 +14,11 @@ interface BreakdownCardProps {
   deliveryFee?: number;
   /** Server quote (distance + surges) so the bill is never a mystery number. */
   deliveryBreakdown?: DeliveryFeeBreakdown;
+  /**
+   * True when no server quote could be fetched (gateway unreachable / no live fix): the fee shown
+   * is the standard default, so the card must label it an estimate rather than a confirmed quote.
+   */
+  deliveryFeeEstimated?: boolean;
   /** PICKUP hides the delivery-fee row (waived). */
   fulfillment?: FulfillmentMode;
 }
@@ -38,9 +43,12 @@ export default function BreakdownCard({
   subtotal,
   deliveryFee,
   deliveryBreakdown,
+  deliveryFeeEstimated = false,
   fulfillment,
 }: BreakdownCardProps) {
   const showDelivery = fulfillment !== 'PICKUP';
+  const degraded = showDelivery && deliveryBreakdown?.degraded === true;
+  const estimated = showDelivery && deliveryFeeEstimated;
   const extraKm = deliveryBreakdown
     ? Math.max(0, deliveryBreakdown.distanceKm - (deliveryBreakdown.baseDistanceKm ?? 3))
     : 0;
@@ -113,6 +121,15 @@ export default function BreakdownCard({
           )}
         </View>
       )}
+      {(degraded || estimated) && (
+        <View style={styles.feeNotice}>
+          <AppText style={styles.feeNoticeText}>
+            {degraded
+              ? 'Delivery fee estimated — live surge data temporarily unavailable.'
+              : 'Delivery fee is an estimate — the final fee is confirmed at payment.'}
+          </AppText>
+        </View>
+      )}
     </View>
   );
 }
@@ -163,5 +180,18 @@ const styles = StyleSheet.create({
     fontSize: ms(11),
     color: '#0D2E4D',
     fontWeight: '800',
+  },
+  feeNotice: {
+    backgroundColor: '#FEF3C7',
+    borderRadius: ms(8),
+    paddingHorizontal: hs(10),
+    paddingVertical: vs(6),
+    marginTop: vs(10),
+  },
+  feeNoticeText: {
+    fontSize: ms(10.5),
+    color: '#92400E',
+    fontWeight: '600',
+    lineHeight: vs(15),
   },
 });

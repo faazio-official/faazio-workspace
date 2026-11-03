@@ -9,6 +9,7 @@ package contracts
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"time"
 
 	"github.com/jackc/pgx/v5"
@@ -509,8 +510,21 @@ type SurgeReader interface {
 	SurgeSettings(ctx context.Context) (SurgeRates, error)
 }
 
-// WeatherChecker resolves whether a zone is raining now (implemented by weather.Checker). A failure
-// or a disabled provider is a hard error — delivery pricing fails closed and never assumes a dry zone.
+// Weather error taxonomy returned by WeatherChecker.IsRaining.
+// ErrWeatherProviderUnavailable is the DEGRADED class: a transient provider outage (network/HTTP/
+// parse). Delivery pricing fails OPEN on it — the order proceeds on base + distance with the
+// weather surge waived and the quote flagged degraded. The other two are FAIL-CLOSED: an operator
+// must fix the wiring or top up the budget before delivery bills are computed.
+var (
+	ErrWeatherProviderUnavailable   = errors.New("weather: provider unavailable (degraded)")
+	ErrWeatherProviderNotConfigured = errors.New("weather: provider not configured")
+	ErrWeatherBudgetExhausted       = errors.New("weather: annual call budget exhausted")
+)
+
+// WeatherChecker resolves whether a zone is raining now (implemented by weather.Checker).
+// Hard failures (disabled provider / exhausted budget) are matched by the sentinels above and must
+// fail delivery pricing; a transient provider outage must be treated as degraded (see the error
+// taxonomy). A nil checker or an empty cell returns false, nil — no zone data, so no rain surge.
 type WeatherChecker interface {
 	IsRaining(ctx context.Context, cellID string) (bool, error)
 }

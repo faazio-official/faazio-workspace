@@ -251,8 +251,11 @@ export default function CartView({
   }, []);
   // One key per checkout attempt: a retry after a lost response must not create a second order.
   const idempotencyKeyRef = useRef<string | null>(null);
-  /** Server-authoritative delivery-fee quote (road distance); falls back to a Haversine estimate. */
+  /** Server-authoritative delivery-fee quote (road distance); null → honest default-fee fallback. */
   const [deliveryFeeQuote, setDeliveryFeeQuote] = useState<DeliveryFeeBreakdown | null>(null);
+  /** True once the quote fetch has concluded WITHOUT a server quote (gateway unreachable / no live
+   * fix): the displayed fee is the default constant, so the customer must see an estimate chip. */
+  const [deliveryQuoteMissing, setDeliveryQuoteMissing] = useState(false);
 
   const [placedOrderDetails, setPlacedOrderDetails] = useState<{
     orderId: string;
@@ -422,15 +425,18 @@ export default function CartView({
   // Server-authoritative delivery fee (road distance). Refetched on the FULFILLMENT step; kept once
   // fetched so the PAYMENT step shows the same figure the server will charge. A multi-store cart
   // quotes every pinned store and keeps the furthest one — settlement charges that same worst case.
-  // Falls back to a Haversine + client-formula estimate (honest) when the gateway is unreachable.
+  // When the gateway is unreachable or no live fix exists, the checkout shows the standard default
+  // fee constant and flags it as an estimate (never a distance guess against a bundled directory).
   useEffect(() => {
     if (fulfillment !== 'DELIVERY') {
       setDeliveryFeeQuote(null);
+      setDeliveryQuoteMissing(false);
       return;
     }
     if (step !== 'FULFILLMENT' && step !== 'PAYMENT') return;
     if (!hasLiveFix || storeIdsForQuote.length === 0) {
       setDeliveryFeeQuote(null);
+      setDeliveryQuoteMissing(true);
       return;
     }
     let cancelled = false;
@@ -447,12 +453,18 @@ export default function CartView({
           ),
         );
         const quote = furthest(quotes);
-        if (!cancelled && quote) setDeliveryFeeQuote(quote);
+        if (!cancelled && quote) {
+          setDeliveryFeeQuote(quote);
+          setDeliveryQuoteMissing(false);
+        }
       } catch {
-        // No quote is better than an invented one: a failed delivery-fee read leaves the quote
-        // null (the checkout falls back to the standard default fee constant, never a distance
-        // guess against a bundled store directory).
-        if (!cancelled) setDeliveryFeeQuote(null);
+        // Honest fallback: a failed delivery-fee read leaves the quote null (the checkout uses the
+        // standard default fee constant) and marks it as an estimate so the customer knows the
+        // figure is not server-confirmed.
+        if (!cancelled) {
+          setDeliveryFeeQuote(null);
+          setDeliveryQuoteMissing(true);
+        }
       }
     })();
     return () => {
@@ -1030,6 +1042,7 @@ export default function CartView({
             subtotal={subtotal}
             deliveryFee={deliveryFee}
             deliveryBreakdown={fulfillment === 'PICKUP' ? undefined : deliveryFeeQuote ?? undefined}
+            deliveryFeeEstimated={fulfillment === 'DELIVERY' && deliveryQuoteMissing}
             fulfillment={fulfillment ?? undefined}
           />
 
@@ -1138,6 +1151,7 @@ export default function CartView({
           subtotal={subtotal}
           deliveryFee={deliveryFee}
           deliveryBreakdown={fulfillment === 'PICKUP' ? undefined : deliveryFeeQuote ?? undefined}
+          deliveryFeeEstimated={fulfillment === 'DELIVERY' && deliveryQuoteMissing}
           deliveryAddress={{
             label: fulfillment === 'PICKUP' ? (primaryPickup?.name ?? 'Pickup point') : deliveryAddress.label,
             address: fulfillment === 'PICKUP' ? (primaryPickup?.address ?? '') : deliveryAddress.address,
