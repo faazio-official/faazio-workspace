@@ -1,27 +1,8 @@
 "use client";
 import { useState } from "react";
+import { BadgePercent, ChevronDown } from "lucide-react";
 import { toast } from "sonner";
-import { PageHeader } from "@/components/patterns/PageHeader";
-import { SectionCard } from "@/components/patterns/SectionCard";
-import { DataShell, EmptyState } from "@/components/patterns/DataState";
-import { SectorPill, StatusPill } from "@/components/patterns/Pills";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+import { PageHeader, Card, Sheet, RadioRow, EmptyState } from "@/components/sellers/kit";
 import { formatDate, formatINR } from "@/lib/format";
 import { capFor, validateOptin } from "@/lib/pricing/rules";
 import { upsertOptin } from "@/lib/api";
@@ -34,8 +15,13 @@ import {
   useSectorCaps,
 } from "@/lib/api/hooks";
 import { useSession } from "@/lib/hooks/useSession";
-import { ProductThumb } from "@/components/patterns/ProductThumb";
-import { ComponentHelp } from "@/components/patterns/ComponentHelp";
+import { cn } from "@/lib/utils";
+
+const CAP_STATUS: Record<string, string> = {
+  APPROVED: "bg-success-soft text-success",
+  PENDING: "bg-warning-soft text-warning",
+  REJECTED: "bg-brand-soft text-brand",
+};
 
 function SellerPromotions() {
   const session = useSession();
@@ -49,171 +35,142 @@ function SellerPromotions() {
   const caps = useSectorCaps();
   const optins = useOptins({ sellerId });
   const [campaignId, setCampaignId] = useState(campaigns[0]?.campaignId ?? "");
+  const [picker, setPicker] = useState(false);
   const [drafts, setDrafts] = useState<Record<string, string>>({});
 
   const campaign = campaigns.find((c) => c.campaignId === campaignId) ?? campaigns[0];
 
   return (
-    <div className="space-y-4 px-4 pt-4">
-      <PageHeader
-        title="Promotions"
-        description="Your everyday discounts stay yours. Festival discounts must sit under the cap."
-        actions={
-          campaigns.length > 0 ? (
-            <div className="flex items-center gap-1.5">
-              <Select value={campaign?.campaignId ?? ""} onValueChange={setCampaignId}>
-                <SelectTrigger className="w-64">
-                  <SelectValue placeholder="Choose campaign" />
-                </SelectTrigger>
-                <SelectContent>
-                  {campaigns.map((c) => (
-                    <SelectItem key={c.campaignId} value={c.campaignId}>
-                      {c.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              <ComponentHelp id="campaign-select" />
-            </div>
-          ) : null
-        }
-      />
+    <>
+      <PageHeader title="Promotions" sub="Growth" />
 
-      {campaign ? (
-        <div className="surface flex flex-wrap items-center gap-4 p-4">
-          <div>
-            <p className="text-[14px] font-medium">{campaign.name}</p>
-            <p className="num text-[12px] text-muted-foreground">
-              {formatDate(campaign.startsAt)} → {formatDate(campaign.endsAt)} ·{" "}
-              {campaign.scope === "STATE" ? campaign.stateCode : "All states"}
-            </p>
-          </div>
-          <StatusPill status={campaign.status} />
-          <div className="ml-auto flex gap-4 text-[12px]">
-            {(["MART", "FOOD", "PHARMA"] as const).map((sector) => (
-              <div key={sector}>
-                <p className="text-muted-foreground">{sector} cap</p>
-                <p className="num font-medium">
-                  {capFor(
-                    caps,
-                    sector,
-                    campaign.scope === "STATE" ? campaign.stateCode : undefined,
-                  )}
-                  %
-                </p>
+      <div className="space-y-3 px-4 pt-3 pb-8">
+        {campaign ? (
+          <>
+            <button
+              onClick={() => setPicker(true)}
+              className="flex w-full items-center gap-2 rounded-xl border border-border bg-card px-3 py-2.5 text-sm"
+            >
+              <BadgePercent className="h-4 w-4 text-muted-foreground" />
+              <span className="min-w-0 flex-1 text-left">
+                <span className="block truncate font-semibold">{campaign.name}</span>
+                <span className="block text-[10px] text-muted-foreground">
+                  {formatDate(campaign.startsAt)} → {formatDate(campaign.endsAt)} ·{" "}
+                  {campaign.scope === "STATE" ? campaign.stateCode : "All states"}
+                </span>
+              </span>
+              <span
+                className={cn(
+                  "shrink-0 rounded px-1.5 py-0.5 text-[9px] font-bold uppercase",
+                  campaign.status === "LIVE"
+                    ? "bg-success-soft text-success"
+                    : "bg-warning-soft text-warning",
+                )}
+              >
+                {campaign.status}
+              </span>
+              <ChevronDown className="h-4 w-4 text-muted-foreground" />
+            </button>
+
+            <Card>
+              <div className="grid grid-cols-3 gap-2 text-center text-xs">
+                {(["MART", "FOOD", "PHARMA"] as const).map((sector) => (
+                  <div key={sector}>
+                    <p className="text-muted-foreground">{sector} cap</p>
+                    <p className="font-bold">
+                      {capFor(
+                        caps,
+                        sector,
+                        campaign.scope === "STATE" ? campaign.stateCode : undefined,
+                      )}
+                      %
+                    </p>
+                  </div>
+                ))}
               </div>
-            ))}
-          </div>
-          <p className="w-full text-[11px] text-muted-foreground">
-            Shoppers see the live price only after a district admin approves the opt-in; the sector
-            cap is enforced server-side.
-          </p>
-        </div>
-      ) : null}
+              <p className="mt-3 border-t border-border pt-2 text-center text-[10px] text-muted-foreground">
+                Shoppers see the live price only after a district admin approves the opt-in.
+              </p>
+            </Card>
 
-      <SectionCard title="Opt products in" bodyClassName="p-0">
-        <DataShell
-          loading={loading}
-          isEmpty={products.length === 0 || !campaign}
-          empty={
-            <EmptyState
-              title={campaign ? "No products to opt in" : "No live or scheduled campaign"}
-              description={
-                campaign
-                  ? "List a product first, then join the festival campaign."
-                  : "Your district admin has not opened a festival window yet."
-              }
-            />
-          }
-        >
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Product</TableHead>
-                <TableHead>Sector</TableHead>
-                <TableHead className="text-right">Cap</TableHead>
-                <TableHead className="text-right">Live price</TableHead>
-                <TableHead className="w-36 text-right">
-                  <span className="flex items-center justify-end gap-1">
-                    Your discount %
-                    <ComponentHelp id="discount-input" />
-                  </span>
-                </TableHead>
-                <TableHead>Opt-in status</TableHead>
-                <TableHead className="text-right">
-                  <ComponentHelp id="optin-button" label="About opting in" />
-                </TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {products.map((product) => {
+            {loading && products.length === 0 ? (
+              <div className="space-y-3">
+                {[0, 1].map((i) => (
+                  <div key={i} className="h-28 animate-pulse rounded-2xl bg-muted" />
+                ))}
+              </div>
+            ) : products.length === 0 ? (
+              <EmptyState text="List a product first, then join the festival campaign" />
+            ) : (
+              products.map((product) => {
                 const cap = capFor(
                   caps,
                   product.sector,
-                  campaign?.scope === "STATE" ? campaign.stateCode : undefined,
+                  campaign.scope === "STATE" ? campaign.stateCode : undefined,
                 );
                 const existing = optins.find(
-                  (o) => o.productId === product.productId && o.campaignId === campaign?.campaignId,
+                  (o) => o.productId === product.productId && o.campaignId === campaign.campaignId,
                 );
                 const draft = drafts[product.productId] ?? String(existing?.discountPercent ?? "");
                 const check = validateOptin(
                   caps,
                   product.sector,
                   Number(draft || 0),
-                  campaign?.scope === "STATE" ? campaign.stateCode : undefined,
+                  campaign.scope === "STATE" ? campaign.stateCode : undefined,
                 );
+                const pct = check.ok ? Number(draft) : 0;
+                const livePaisa =
+                  pct > 0 ? Math.round((product.pricePaisa * (100 - pct)) / 100) : product.pricePaisa;
                 return (
-                  <TableRow key={product.productId} className="h-12">
-                    <TableCell>
-                      <div className="flex items-center gap-2">
-                        <ProductThumb product={product} />
-                        <span className="text-[13px] font-medium">{product.name}</span>
+                  <Card key={product.productId}>
+                    <div className="flex items-center gap-3">
+                      <div className="flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-lg bg-muted text-xl">
+                        {product.imageUrl ? (
+                          <img
+                            src={product.imageUrl}
+                            alt={product.name}
+                            className="h-full w-full object-cover"
+                          />
+                        ) : (
+                          product.emoji
+                        )}
                       </div>
-                    </TableCell>
-                    <TableCell>
-                      <SectorPill sector={product.sector} />
-                    </TableCell>
-                    <TableCell className="num text-right">{cap}%</TableCell>
-                    <TableCell className="num text-right">
-                      {(() => {
-                        const pct = check.ok ? Number(draft) : 0;
-                        const livePaisa =
-                          pct > 0
-                            ? Math.round((product.pricePaisa * (100 - pct)) / 100)
-                            : product.pricePaisa;
-                        return (
-                          <div className="flex flex-col items-end leading-tight">
-                            <span className="font-medium">{formatINR(livePaisa)}</span>
-                            {product.mrpPaisa > livePaisa ? (
-                              <span className="text-[11px] text-muted-foreground line-through">
-                                {formatINR(product.mrpPaisa)}
-                              </span>
-                            ) : null}
-                          </div>
-                        );
-                      })()}
-                    </TableCell>
-                    <TableCell>
-                      <Input
-                        className="num h-8 text-right"
-                        value={draft}
-                        inputMode="numeric"
-                        onChange={(e) =>
-                          setDrafts((d) => ({ ...d, [product.productId]: e.target.value }))
-                        }
-                      />
-                    </TableCell>
-                    <TableCell>
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate text-sm font-semibold">{product.name}</p>
+                        <p className="text-[10px] text-muted-foreground">
+                          {product.sector} · cap {cap}% ·{" "}
+                          <span className="line-through">{formatINR(product.mrpPaisa)}</span>
+                        </p>
+                      </div>
                       {existing ? (
-                        <StatusPill status={existing.status} />
+                        <span
+                          className={cn(
+                            "shrink-0 rounded px-1.5 py-0.5 text-[9px] font-bold uppercase",
+                            CAP_STATUS[existing.status] ?? "bg-muted text-muted-foreground",
+                          )}
+                        >
+                          {existing.status}
+                        </span>
                       ) : (
-                        <span className="text-[12px] text-muted-foreground">Not joined</span>
+                        <span className="shrink-0 text-[10px] text-muted-foreground">Not joined</span>
                       )}
-                    </TableCell>
-                    <TableCell className="text-right">
-                      <Button
-                        size="sm"
-                        variant="ghost"
+                    </div>
+                    <div className="mt-3 flex items-end gap-2 border-t border-border pt-3">
+                      <div className="flex-1">
+                        <p className="text-[10px] font-medium text-muted-foreground">
+                          Live price · <b>{formatINR(livePaisa)}</b>
+                        </p>
+                        <input
+                          value={draft}
+                          inputMode="numeric"
+                          placeholder="Your discount %"
+                          onChange={(e) =>
+                            setDrafts((d) => ({ ...d, [product.productId]: e.target.value }))
+                          }
+                          className="mt-1 w-full rounded-xl border border-border bg-card px-3 py-2 text-sm outline-none focus:border-info"
+                        />
+                      </div>
+                      <button
                         disabled={!check.ok || !campaign}
                         onClick={() => {
                           if (!campaign) return;
@@ -225,21 +182,39 @@ function SellerPromotions() {
                           });
                           toast.success("Opt-in submitted for approval");
                         }}
+                        className="shrink-0 rounded-xl bg-foreground px-4 py-2.5 text-xs font-semibold text-background disabled:opacity-40"
                       >
                         {existing ? "Update" : "Opt in"}
-                      </Button>
-                      {!check.ok && draft ? (
-                        <p className="text-[11px] text-destructive">{check.message}</p>
-                      ) : null}
-                    </TableCell>
-                  </TableRow>
+                      </button>
+                    </div>
+                    {!check.ok && draft && (
+                      <p className="mt-2 text-[11px] font-semibold text-brand">{check.message}</p>
+                    )}
+                  </Card>
                 );
-              })}
-            </TableBody>
-          </Table>
-        </DataShell>
-      </SectionCard>
-    </div>
+              })
+            )}
+          </>
+        ) : (
+          <EmptyState text="Your district admin has not opened a festival window yet" />
+        )}
+      </div>
+
+      <Sheet open={picker} onClose={() => setPicker(false)} title="Choose campaign">
+        {campaigns.map((c) => (
+          <RadioRow
+            key={c.campaignId}
+            label={c.name}
+            sub={`${formatDate(c.startsAt)} → ${formatDate(c.endsAt)}`}
+            checked={campaignId === c.campaignId}
+            onClick={() => {
+              setCampaignId(c.campaignId);
+              setPicker(false);
+            }}
+          />
+        ))}
+      </Sheet>
+    </>
   );
 }
 

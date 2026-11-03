@@ -7,9 +7,9 @@ import {
   Bike,
   Boxes,
   FileText,
-  Gauge,
   History,
   Hourglass,
+  LayoutGrid,
   LifeBuoy,
   Megaphone,
   Package,
@@ -28,13 +28,13 @@ import { PageHeader } from "@/components/sellers/kit";
 import { useSellerUi } from "@/lib/sellerUi";
 import { useSession } from "@/lib/hooks/useSession";
 
-type Tile = { label: string; icon: typeof Gauge; to: string; badge?: string };
+type Tile = { label: string; icon: typeof LayoutGrid; to: string; badge?: string };
 
 const SECTIONS: { title: string; tiles: Tile[] }[] = [
   {
     title: "Overview",
     tiles: [
-      { label: "Dashboard", icon: Gauge, to: "/seller" },
+      { label: "Business Hub", icon: LayoutGrid, to: "/seller/hub" },
       { label: "Analytics", icon: BarChart3, to: "/seller/analytics" },
       { label: "Order history", icon: History, to: "/seller/order-history" },
     ],

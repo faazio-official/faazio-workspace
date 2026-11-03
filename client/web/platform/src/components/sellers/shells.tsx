@@ -5,17 +5,22 @@
 // these — the seller shell owns the frame + nav, pages are just content.
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { useEffect, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import {
+  ArrowLeftRight,
+  Bell,
   Boxes,
   ChevronDown,
   ChevronRight,
   ClipboardList,
+  LayoutGrid,
   Menu as MenuIcon,
   MessageSquareText,
   ScanLine,
   Search,
+  TrendingUp,
   UtensilsCrossed,
+  Wallet,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useSellerUi } from "@/lib/sellerUi";
@@ -39,25 +44,97 @@ export function MobileFrame({ children, className }: { children: ReactNode; clas
   );
 }
 
-const BOTTOM_NAV = [
+type NavItem = { to: string; label: string; icon: typeof ClipboardList };
+
+/** Orders-mode tab bar (reference OrdersShell). */
+const ORDERS_NAV: NavItem[] = [
   { to: "/seller/orders", label: "Orders", icon: ClipboardList },
   { to: "/seller/inventory", label: "Inventory", icon: Boxes },
   { to: "/seller/menus", label: "Menu", icon: UtensilsCrossed },
   { to: "/seller/reviews", label: "Feedback", icon: MessageSquareText },
 ];
 
-/** Floating dark pill tab bar, fixed above the bottom edge (orders mode). */
-export function SellerBottomNav({ className }: { className?: string }) {
+/** Hub-mode tab bar (reference HubShell). Growth/Finance map onto the platform's ads/payments routes. */
+const HUB_NAV: NavItem[] = [
+  { to: "/seller/hub", label: "Hub", icon: LayoutGrid },
+  { to: "/seller/ads", label: "Growth", icon: TrendingUp },
+  { to: "/seller/menus", label: "Menu", icon: UtensilsCrossed },
+  { to: "/seller/payments", label: "Finance", icon: Wallet },
+];
+
+/** Routes that render with the hub-mode tab bar.
+ *  /seller/analytics, /seller/products and /seller/pricing could also be considered catalog (hub)
+ *  surfaces; they share the hub bar so the catalog group feels consistent on mobile. Notifications
+ *  and outlet-info are reached from the hub header (bell + shop avatar), so they keep hub mode too. */
+const HUB_MODE_PATHS = [
+  "/seller/hub",
+  "/seller/ads",
+  "/seller/promotions",
+  "/seller/analytics",
+  "/seller/products",
+  "/seller/pricing",
+  "/seller/payments",
+  "/seller/menus",
+  "/seller/notifications",
+  "/seller/outlet-info",
+];
+
+export function sellerNavMode(pathname: string): "orders" | "hub" {
+  return HUB_MODE_PATHS.some((p) => pathname === p || pathname.startsWith(`${p}/`)) ? "hub" : "orders";
+}
+
+/** Full-screen transition shown while switching between the Orders and Hub modes (reference pattern). */
+export function SwitchingOverlay({ to }: { to: "hub" | "orders" }) {
+  return (
+    <div className="fixed inset-0 z-[60] flex animate-fade flex-col items-center justify-center bg-card px-10 text-center font-seller">
+      <div className="mb-4 flex h-12 w-12 animate-pulse items-center justify-center rounded-full bg-foreground text-background">
+        <ArrowLeftRight className="h-5 w-5" />
+      </div>
+      <p className="text-lg font-bold">Switching to {to === "hub" ? "Business Hub" : "Orders"}</p>
+      <p className="mt-1 text-xs text-muted-foreground">
+        Use sturdy packaging, avoid overfilling, especially with gravies
+      </p>
+    </div>
+  );
+}
+
+/**
+ * Floating dark pill tab bar, fixed above the bottom edge. Renders either the orders-mode or the
+ * hub-mode tab set; the round switch button (left in hub mode, right in orders mode) flips modes.
+ */
+export function SellerBottomNav({
+  mode,
+  onSwitch,
+  className,
+}: {
+  mode: "orders" | "hub";
+  onSwitch: () => void;
+  className?: string;
+}) {
   const pathname = usePathname();
+  const items = mode === "orders" ? ORDERS_NAV : HUB_NAV;
+  const switchLabel = mode === "orders" ? "To Hub" : "To Orders";
+  const switchLeft = mode === "hub";
+  const sw = (
+    <button
+      onClick={onSwitch}
+      aria-label={switchLabel}
+      className="flex h-14 w-14 shrink-0 flex-col items-center justify-center rounded-full bg-nav text-[9px] font-semibold text-nav-foreground shadow-lg"
+    >
+      <ArrowLeftRight className="mb-0.5 h-4 w-4" />
+      {switchLabel}
+    </button>
+  );
   return (
     <nav
       className={cn(
-        "fixed bottom-3 left-1/2 z-40 flex w-full max-w-[430px] -translate-x-1/2 items-center px-3",
+        "fixed bottom-3 left-1/2 z-40 flex w-full max-w-[430px] -translate-x-1/2 items-center gap-2 px-3",
         className,
       )}
     >
+      {switchLeft && sw}
       <div className="flex flex-1 items-center justify-around rounded-full bg-nav px-2 py-1.5 shadow-lg">
-        {BOTTOM_NAV.map((item) => {
+        {items.map((item) => {
           const Icon = item.icon;
           const active =
             pathname === item.to ||
@@ -78,11 +155,23 @@ export function SellerBottomNav({ className }: { className?: string }) {
           );
         })}
       </div>
+      {!switchLeft && sw}
     </nav>
   );
 }
 
-/** "Showing data for <name>" block used by hub/history headers. */
+/** First 2 initials of a shop name for the header avatar (reference HubShell "BJ" badge). */
+const initialsFor = (name: string) =>
+  name
+    .trim()
+    .split(/\s+/)
+    .map((part) => part[0])
+    .join("")
+    .slice(0, 2)
+    .toUpperCase() || "S";
+
+/** "Showing data for <name>" block used by hub/history headers.
+ *  Matches the reference HubShell header actions: bell → notifications, round shop avatar → outlet-info. */
 export function OutletHeader({
   showData,
   right,
@@ -99,10 +188,26 @@ export function OutletHeader({
           Showing data for
         </p>
       )}
-      <Link href="/seller/explore" className="flex items-center gap-1">
-        <span className="truncate text-[15px] font-bold">{name}</span>
-        <ChevronDown className="h-4 w-4 shrink-0" />
-      </Link>
+      <div className="flex items-center gap-1.5">
+        <Link href="/seller/outlet-info" className="flex min-w-0 items-center gap-1">
+          <span className="truncate text-[15px] font-bold">{name}</span>
+          <ChevronDown className="h-4 w-4 shrink-0" />
+        </Link>
+        <Link
+          href="/seller/notifications"
+          aria-label="Notifications"
+          className="rounded-full p-1.5 hover:bg-muted"
+        >
+          <Bell className="h-5 w-5" />
+        </Link>
+        <Link
+          href="/seller/outlet-info"
+          aria-label="Profile"
+          className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-info text-[10px] font-bold text-primary-foreground"
+        >
+          {initialsFor(name)}
+        </Link>
+      </div>
       {!showData && (
         <p className="truncate text-[11px] text-muted-foreground">
           {activeStore?.sector ?? "Seller console"}
@@ -110,6 +215,32 @@ export function OutletHeader({
       )}
       {right}
     </div>
+  );
+}
+
+/** Sticky hub-mode header (reference HubShell): shop context + bell/avatar + optional actions + explore + optional tabs. */
+export function HubHeader({
+  actions,
+  sticky,
+}: {
+  actions?: ReactNode;
+  sticky?: ReactNode;
+}) {
+  return (
+    <header className="sticky top-0 z-30 bg-card px-4 pb-2 pt-3">
+      <div className="flex items-center gap-2">
+        <OutletHeader showData />
+        {actions}
+        <Link
+          href="/seller/explore"
+          aria-label="Explore more"
+          className="rounded-full p-1.5 hover:bg-muted"
+        >
+          <MenuIcon className="h-5 w-5" />
+        </Link>
+      </div>
+      {sticky && <div className="mt-3">{sticky}</div>}
+    </header>
   );
 }
 
@@ -188,12 +319,23 @@ export function SellerAppShell({ children }: { children: ReactNode }) {
   const session = useSession();
   const router = useRouter();
   const pathname = usePathname();
+  const [switching, setSwitching] = useState<null | "hub" | "orders">(null);
 
   useEffect(() => {
     if (session?.mustChange && session.role !== "SUPER_ADMIN" && pathname !== "/security") {
       router.replace("/security");
     }
   }, [pathname, router, session?.mustChange, session?.role]);
+
+  const mode = sellerNavMode(pathname);
+
+  const go = (to: "hub" | "orders") => {
+    setSwitching(to);
+    setTimeout(() => {
+      router.push(to === "hub" ? "/seller/hub" : "/seller/orders");
+      setSwitching(null);
+    }, 900);
+  };
 
   return (
     <RoleGate allow={["SELLER"]}>
@@ -204,9 +346,14 @@ export function SellerAppShell({ children }: { children: ReactNode }) {
           <main className="relative mx-auto w-full max-w-[430px] flex-1 pb-28 md:max-w-[1024px] md:pb-10">
             {children}
           </main>
-          <SellerBottomNav className="md:hidden" />
+          <SellerBottomNav
+            mode={mode}
+            onSwitch={() => go(mode === "orders" ? "hub" : "orders")}
+            className="md:hidden"
+          />
         </div>
       </div>
+      {switching && <SwitchingOverlay to={switching} />}
     </RoleGate>
   );
 }

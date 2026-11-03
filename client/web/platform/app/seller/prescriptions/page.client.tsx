@@ -1,23 +1,8 @@
 "use client";
 import { useMemo, useState } from "react";
 import { toast } from "sonner";
-import { Plus, ShieldAlert, Trash2 } from "lucide-react";
-import { PageHeader } from "@/components/patterns/PageHeader";
-import { SectionCard } from "@/components/patterns/SectionCard";
-import { DataShell, EmptyState } from "@/components/patterns/DataState";
-import { StatusPill } from "@/components/patterns/Pills";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
+import { FileText, Plus, ShieldAlert, Trash2 } from "lucide-react";
+import { PageHeader, Card, Sheet, EmptyState } from "@/components/sellers/kit";
 import { formatDateTime, formatINR, parseRupeesToPaisa } from "@/lib/format";
 import {
   fetchPrescriptionImages,
@@ -29,8 +14,17 @@ import {
 import { useMockLoading, useSellerScope } from "@/lib/api/hooks";
 import { remoteConfigured } from "@/lib/config";
 import { usePortalStore } from "@/lib/api/store";
-import { ComponentHelp } from "@/components/patterns/ComponentHelp";
-import type { PrescriptionFulfillment, PrescriptionRecord } from "@/data/types";
+import { cn } from "@/lib/utils";
+import type { PrescriptionRecord, PrescriptionStatus } from "@/data/types";
+
+const STATUS_PILL: Record<PrescriptionStatus, string> = {
+  RECEIVED: "bg-info-soft text-info",
+  PROCESSING: "bg-warning-soft text-warning",
+  QUOTED: "bg-info-soft text-info",
+  READY: "bg-success-soft text-success",
+  FULFILLED: "bg-success-soft text-success",
+  CANCELLED: "bg-muted text-muted-foreground",
+};
 
 interface DraftRow {
   name: string;
@@ -55,10 +49,12 @@ function toDraft(rx: PrescriptionRecord): DraftRow[] {
   }));
 }
 
+const inputCls =
+  "w-full rounded-lg border border-border bg-card px-2 py-2 text-xs outline-none focus:border-info";
+
 function SellerPrescriptions() {
   const { sellerId, storeId } = useSellerScope();
   const loading = useMockLoading();
-  // In remote mode the gateway already scopes rows to the caller's seller token; seed mode filters.
   const prescriptions = usePortalStore((s) => s.prescriptions);
   const rows = useMemo(
     () => listPrescriptions(remoteConfigured() ? { storeId } : { sellerId, storeId }),
@@ -87,8 +83,6 @@ function SellerPrescriptions() {
     setDraft(toDraft(rx));
     setImages(null);
   };
-
-  const close = () => setOpenId(null);
 
   const setRow = (index: number, patch: Partial<DraftRow>) =>
     setDraft((rows) => rows.map((r, i) => (i === index ? { ...r, ...patch } : r)));
@@ -137,293 +131,247 @@ function SellerPrescriptions() {
   const revealed = selected?.status === "READY" || selected?.status === "FULFILLED";
 
   return (
-    <div className="space-y-4 px-4 pt-4">
-      <PageHeader
-        title="Prescriptions"
-        description="Price each Rx, then flip it READY to reveal the customer's contact and notify them. Images stay private to Storage."
-      />
-
-      <SectionCard bodyClassName="p-0">
-        <DataShell
-          loading={loading}
-          isEmpty={rows.length === 0}
-          empty={
-            <EmptyState
-              title="No prescriptions yet"
-              description="Customer prescriptions routed to your stores appear here."
-            />
-          }
-        >
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Prescription</TableHead>
-                <TableHead>Customer</TableHead>
-                <TableHead className="text-right">Pages</TableHead>
-                <TableHead>Fulfilment</TableHead>
-                <TableHead className="text-right">Quote</TableHead>
-                <TableHead>Received</TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead />
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {rows.map((p) => (
-                <TableRow key={p.prescriptionId} className="h-12">
-                  <TableCell className="font-medium">{p.prescriptionId}</TableCell>
-                  <TableCell>{p.customerName || p.userId || "—"}</TableCell>
-                  <TableCell className="num text-right">{p.pages}</TableCell>
-                  <TableCell>{p.fulfillment}</TableCell>
-                  <TableCell className="num text-right">
-                    {formatINR(p.quotedTotalPaisa ?? 0)}
-                  </TableCell>
-                  <TableCell className="text-muted-foreground">
-                    {formatDateTime(p.createdAt)}
-                  </TableCell>
-                  <TableCell>
-                    <StatusPill status={p.status} />
-                  </TableCell>
-                  <TableCell className="text-right">
-                    <div className="flex items-center justify-end gap-1.5">
-                      <Button size="sm" variant="outline" onClick={() => open(p)}>
-                        Open
-                      </Button>
-                      <ComponentHelp id="open-button" />
-                    </div>
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </DataShell>
-      </SectionCard>
-
-      <Sheet open={selected !== null} onOpenChange={(o) => (o ? undefined : close())}>
-        <SheetContent side="right" className="w-full overflow-y-auto sm:max-w-lg">
-          {selected ? (
-            <div className="space-y-5">
-              <SheetHeader>
-                <SheetTitle className="flex items-center gap-2">
-                  {selected.prescriptionId}
-                  <StatusPill status={selected.status} />
-                </SheetTitle>
-                <p className="text-[13px] text-muted-foreground">
-                  {selected.customerName || "Customer"} · {selected.fulfillment} · {selected.pages}{" "}
-                  page
-                  {selected.pages === 1 ? "" : "s"}
-                </p>
-              </SheetHeader>
-
-              {selected.note ? (
-                <div className="rounded-md border border-border bg-secondary/40 p-3 text-[13px]">
-                  <p className="mb-1 text-[11px] font-medium text-muted-foreground">
-                    Patient note
+    <>
+      <PageHeader title="Prescriptions" sub="Operations" />
+      <div className="space-y-3 px-4 pt-3 pb-8">
+        {loading && rows.length === 0 ? (
+          <div className="space-y-3">
+            {[0, 1].map((i) => (
+              <div key={i} className="h-20 animate-pulse rounded-2xl bg-muted" />
+            ))}
+          </div>
+        ) : rows.length === 0 ? (
+          <EmptyState
+            icon={<FileText className="h-12 w-12" strokeWidth={1.2} />}
+            text="No prescriptions yet — customer prescriptions routed to your stores appear here"
+          />
+        ) : (
+          rows.map((p) => (
+            <Card key={p.prescriptionId} onClick={() => open(p)} className="cursor-pointer">
+              <div className="flex items-center justify-between gap-2">
+                <div className="min-w-0">
+                  <p className="truncate text-sm font-bold">{p.prescriptionId}</p>
+                  <p className="truncate text-[11px] text-muted-foreground">
+                    {p.customerName || p.userId || "—"} · {p.fulfillment} · {p.pages} page
+                    {p.pages === 1 ? "" : "s"}
                   </p>
-                  {selected.note}
                 </div>
-              ) : null}
-
-              <div>
-                <div className="mb-2 flex items-center justify-between">
-                  <Label className="text-[12px] text-muted-foreground">
-                    Rx images
-                  </Label>
-                  <div className="flex items-center gap-1.5">
-                    <Button size="sm" variant="ghost" onClick={() => void viewImages()}>
-                      View images
-                    </Button>
-                    <ComponentHelp id="view-images" />
-                  </div>
-                </div>
-                <p className="text-[11px] text-muted-foreground">
-                  {selected.imagePaths?.length
-                    ? `${selected.imagePaths.length} private Storage key(s)`
-                    : "No images attached"}
-                </p>
-                {images && images.length > 0 ? (
-                  <div className="mt-2 flex flex-wrap gap-2">
-                    {images.map((img) => (
-                      <img
-                        key={img.objectPath}
-                        src={img.url}
-                        alt="Prescription scan"
-                        className="h-28 w-24 rounded-md border border-border object-cover"
-                      />
-                    ))}
-                  </div>
-                ) : null}
+                <span
+                  className={cn(
+                    "shrink-0 rounded px-1.5 py-0.5 text-[9px] font-bold uppercase",
+                    STATUS_PILL[p.status],
+                  )}
+                >
+                  {p.status}
+                </span>
               </div>
+              <div className="mt-2 flex items-center justify-between border-t border-border pt-2 text-xs">
+                <span className="text-muted-foreground">{formatDateTime(p.createdAt)}</span>
+                <b>Quote {formatINR(p.quotedTotalPaisa ?? 0)}</b>
+              </div>
+            </Card>
+          ))
+        )}
+      </div>
 
-              <div className="space-y-2">
-                <div className="flex items-center justify-between">
-                  <Label className="text-[12px] text-muted-foreground">
-                    Quote
-                  </Label>
-                  <div className="flex items-center gap-1.5">
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      onClick={() => setDraft((r) => [...r, emptyRow()])}
-                      disabled={draft.length >= 50}
-                    >
-                      <Plus className="size-3.5" /> Add item
-                    </Button>
-                    <ComponentHelp id="add-item-button" />
-                  </div>
-                </div>
+      <Sheet
+        open={selected !== null}
+        onClose={() => setOpenId(null)}
+        title={selected ? `${selected.prescriptionId} · ${selected.status}` : ""}
+      >
+        {selected ? (
+          <div className="space-y-4 pb-6">
+            <p className="text-xs text-muted-foreground">
+              {selected.customerName || "Customer"} · {selected.fulfillment} · {selected.pages} page
+              {selected.pages === 1 ? "" : "s"}
+            </p>
 
-                <div className="space-y-2">
-                  {draft.map((row, i) => (
-                    <div key={i} className="grid grid-cols-12 gap-1.5">
-                      <Input
-                        className="col-span-4 h-8 text-[12px]"
-                        placeholder="Item"
-                        value={row.name}
-                        onChange={(e) => setRow(i, { name: e.target.value })}
-                      />
-                      <Input
-                        className="col-span-1 h-8 text-[12px]"
-                        placeholder="Qty"
-                        inputMode="numeric"
-                        value={row.qty}
-                        onChange={(e) => setRow(i, { qty: e.target.value })}
-                      />
-                      <Input
-                        className="col-span-2 h-8 text-[12px]"
-                        placeholder="MRP"
-                        inputMode="decimal"
-                        value={row.mrp}
-                        onChange={(e) => setRow(i, { mrp: e.target.value })}
-                      />
-                      <Input
-                        className="col-span-2 h-8 text-[12px]"
-                        placeholder="Price"
-                        inputMode="decimal"
-                        value={row.price}
-                        onChange={(e) => setRow(i, { price: e.target.value })}
-                      />
-                      <Input
-                        className="col-span-2 h-8 text-[12px]"
-                        placeholder="Disc ₹"
-                        inputMode="decimal"
-                        value={row.discount}
-                        onChange={(e) => setRow(i, { discount: e.target.value })}
-                      />
-                      <Button
-                        size="icon"
-                        variant="ghost"
-                        className="col-span-1 h-8 w-8 text-destructive"
-                        aria-label="Remove item"
-                        onClick={() =>
-                          setDraft((r) =>
-                            r.length > 1 ? r.filter((_, j) => j !== i) : [emptyRow()],
-                          )
-                        }
-                      >
-                        <Trash2 className="size-3.5" />
-                      </Button>
-                    </div>
+            {selected.note ? (
+              <div className="rounded-xl border border-border bg-muted/40 p-3 text-xs">
+                <p className="mb-1 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+                  Patient note
+                </p>
+                {selected.note}
+              </div>
+            ) : null}
+
+            <div>
+              <div className="flex items-center justify-between">
+                <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+                  Rx images
+                </p>
+                <button onClick={() => void viewImages()} className="text-xs font-semibold text-info">
+                  View images
+                </button>
+              </div>
+              <p className="mt-1 text-[10px] text-muted-foreground">
+                {selected.imagePaths?.length
+                  ? `${selected.imagePaths.length} private Storage key(s)`
+                  : "No images attached"}
+              </p>
+              {images && images.length > 0 && (
+                <div className="mt-2 flex flex-wrap gap-2">
+                  {images.map((img) => (
+                    <img
+                      key={img.objectPath}
+                      src={img.url}
+                      alt="Prescription scan"
+                      className="h-28 w-24 rounded-lg border border-border object-cover"
+                    />
                   ))}
                 </div>
-
-                <div className="flex items-center justify-between border-t border-border pt-2 text-[13px]">
-                  <span className="text-muted-foreground">Quote total</span>
-                  <span className="font-medium">{formatINR(draftTotalPaisa)}</span>
-                </div>
-                <div className="flex justify-end gap-2">
-                  <div className="flex items-center gap-1.5">
-                    <Button size="sm" variant="outline" onClick={saveQuote}>
-                      Save quote
-                    </Button>
-                    <ComponentHelp id="save-quote-button" />
-                  </div>
-                  <div className="flex items-center gap-1.5">
-                    <Button size="sm" onClick={markReady} disabled={draftTotalPaisa <= 0}>
-                      Mark READY
-                    </Button>
-                    <ComponentHelp id="mark-ready-button" />
-                  </div>
-                </div>
-              </div>
-
-              {revealed ? (
-                <div className="rounded-md border border-warning/40 bg-warning/10 p-3">
-                  <p className="flex items-center gap-1.5 text-[12px] font-medium text-warning">
-                    <ShieldAlert className="size-4" /> PII revealed (audited)
-                  </p>
-                  <p className="mt-1 text-[13px]">
-                    {selected.customerPhone || "Phone unavailable"} ·{" "}
-                    {selected.customerAddress || "Address unavailable"}
-                  </p>
-                  {selected.revealedAt ? (
-                    <p className="mt-1 text-[11px] text-muted-foreground">
-                      Revealed {formatDateTime(selected.revealedAt)}
-                    </p>
-                  ) : null}
-                </div>
-              ) : null}
-
-              <div className="flex flex-wrap justify-end gap-2 border-t border-border pt-3">
-                <div className="flex items-center gap-1.5">
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    disabled={selected.status !== "RECEIVED" && selected.status !== "QUOTED"}
-                    onClick={() => advance(selected.prescriptionId, "PROCESSING")}
-                  >
-                    Process
-                  </Button>
-                  <ComponentHelp id="process-button" />
-                </div>
-                <div className="flex items-center gap-1.5">
-                  <Button
-                    size="sm"
-                    disabled={selected.status !== "READY"}
-                    onClick={() => advance(selected.prescriptionId, "FULFILLED")}
-                  >
-                    Fulfil
-                  </Button>
-                  <ComponentHelp id="fulfil-button" />
-                </div>
-                <div className="flex items-center gap-1.5">
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    className="text-destructive"
-                    disabled={selected.status === "FULFILLED" || selected.status === "CANCELLED"}
-                    onClick={() => advance(selected.prescriptionId, "CANCELLED")}
-                  >
-                    Cancel
-                  </Button>
-                  <ComponentHelp id="cancel-button" />
-                </div>
-              </div>
-
-              {selected.history && selected.history.length > 0 ? (
-                <div>
-                  <Label className="text-[12px] text-muted-foreground">
-                    Audit trail
-                  </Label>
-                  <ul className="mt-2 space-y-1 text-[12px] text-muted-foreground">
-                    {selected.history.map((h, i) => (
-                      <li key={i} className="flex justify-between gap-2">
-                        <span>
-                          {h.fromStatus ? `${h.fromStatus} → ` : ""}
-                          {h.toStatus}
-                        </span>
-                        <span>
-                          {h.actorRole} · {formatDateTime(h.createdAt)}
-                        </span>
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              ) : null}
+              )}
             </div>
-          ) : null}
-        </SheetContent>
+
+            <div>
+              <div className="flex items-center justify-between">
+                <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+                  Quote
+                </p>
+                <button
+                  onClick={() => setDraft((r) => [...r, emptyRow()])}
+                  disabled={draft.length >= 50}
+                  className="flex items-center gap-1 text-xs font-semibold text-info"
+                >
+                  <Plus className="h-3.5 w-3.5" />
+                  Add item
+                </button>
+              </div>
+              <div className="mt-2 space-y-2">
+                {draft.map((row, i) => (
+                  <div key={i} className="grid grid-cols-12 gap-1.5">
+                    <input
+                      placeholder="Item"
+                      value={row.name}
+                      onChange={(e) => setRow(i, { name: e.target.value })}
+                      className={cn(inputCls, "col-span-4")}
+                    />
+                    <input
+                      placeholder="Qty"
+                      inputMode="numeric"
+                      value={row.qty}
+                      onChange={(e) => setRow(i, { qty: e.target.value })}
+                      className={cn(inputCls, "col-span-1")}
+                    />
+                    <input
+                      placeholder="MRP"
+                      inputMode="decimal"
+                      value={row.mrp}
+                      onChange={(e) => setRow(i, { mrp: e.target.value })}
+                      className={cn(inputCls, "col-span-2")}
+                    />
+                    <input
+                      placeholder="Price"
+                      inputMode="decimal"
+                      value={row.price}
+                      onChange={(e) => setRow(i, { price: e.target.value })}
+                      className={cn(inputCls, "col-span-2")}
+                    />
+                    <input
+                      placeholder="Disc ₹"
+                      inputMode="decimal"
+                      value={row.discount}
+                      onChange={(e) => setRow(i, { discount: e.target.value })}
+                      className={cn(inputCls, "col-span-2")}
+                    />
+                    <button
+                      aria-label="Remove item"
+                      onClick={() =>
+                        setDraft((r) => (r.length > 1 ? r.filter((_, j) => j !== i) : [emptyRow()]))
+                      }
+                      className="col-span-1 flex items-center justify-center rounded-lg text-brand"
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </button>
+                  </div>
+                ))}
+              </div>
+              <div className="mt-3 flex items-center justify-between border-t border-border pt-3 text-sm">
+                <span className="text-muted-foreground">Quote total</span>
+                <b>{formatINR(draftTotalPaisa)}</b>
+              </div>
+              <div className="mt-3 flex gap-2">
+                <button
+                  onClick={saveQuote}
+                  className="flex-1 rounded-xl border border-border bg-card px-4 py-3 text-sm font-semibold"
+                >
+                  Save quote
+                </button>
+                <button
+                  onClick={markReady}
+                  disabled={draftTotalPaisa <= 0}
+                  className="flex-1 rounded-xl bg-foreground px-4 py-3 text-sm font-semibold text-background disabled:opacity-40"
+                >
+                  Mark READY
+                </button>
+              </div>
+            </div>
+
+            {revealed && (
+              <div className="rounded-xl border border-warning/40 bg-warning/10 p-3">
+                <p className="flex items-center gap-1.5 text-xs font-semibold text-warning">
+                  <ShieldAlert className="h-4 w-4" /> PII revealed (audited)
+                </p>
+                <p className="mt-1 text-sm">
+                  {selected.customerPhone || "Phone unavailable"} ·{" "}
+                  {selected.customerAddress || "Address unavailable"}
+                </p>
+                {selected.revealedAt && (
+                  <p className="mt-1 text-[10px] text-muted-foreground">
+                    Revealed {formatDateTime(selected.revealedAt)}
+                  </p>
+                )}
+              </div>
+            )}
+
+            <div className="flex gap-2 border-t border-border pt-3">
+              <button
+                disabled={selected.status !== "RECEIVED" && selected.status !== "QUOTED"}
+                onClick={() => advance(selected.prescriptionId, "PROCESSING")}
+                className="flex-1 rounded-xl border border-border bg-card px-4 py-3 text-sm font-semibold disabled:opacity-40"
+              >
+                Process
+              </button>
+              <button
+                disabled={selected.status !== "READY"}
+                onClick={() => advance(selected.prescriptionId, "FULFILLED")}
+                className="flex-1 rounded-xl bg-foreground px-4 py-3 text-sm font-semibold text-background disabled:opacity-40"
+              >
+                Fulfil
+              </button>
+              <button
+                disabled={selected.status === "FULFILLED" || selected.status === "CANCELLED"}
+                onClick={() => advance(selected.prescriptionId, "CANCELLED")}
+                className="flex-1 rounded-xl border border-border bg-card px-4 py-3 text-sm font-semibold text-brand disabled:opacity-40"
+              >
+                Cancel
+              </button>
+            </div>
+
+            {selected.history && selected.history.length > 0 && (
+              <div>
+                <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+                  Audit trail
+                </p>
+                <ul className="mt-1 space-y-1 text-[11px] text-muted-foreground">
+                  {selected.history.map((h, i) => (
+                    <li key={i} className="flex justify-between gap-2">
+                      <span>
+                        {h.fromStatus ? `${h.fromStatus} → ` : ""}
+                        {h.toStatus}
+                      </span>
+                      <span>
+                        {h.actorRole} · {formatDateTime(h.createdAt)}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+          </div>
+        ) : null}
       </Sheet>
-    </div>
+    </>
   );
 }
 

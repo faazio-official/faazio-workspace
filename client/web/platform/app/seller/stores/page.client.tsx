@@ -1,17 +1,11 @@
 "use client";
 import { useEffect, useState } from "react";
+import { Store } from "lucide-react";
 import { toast } from "sonner";
-import { PageHeader } from "@/components/patterns/PageHeader";
-import { SectionCard } from "@/components/patterns/SectionCard";
-import { DataShell, EmptyState } from "@/components/patterns/DataState";
-import { SectorPill } from "@/components/patterns/Pills";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Switch } from "@/components/ui/switch";
+import { PageHeader, Card, TextField, Toggle, EmptyState } from "@/components/sellers/kit";
 import { updateSellerStore } from "@/lib/api";
 import { useSellerStores } from "@/lib/api/hooks";
-import { ComponentHelp } from "@/components/patterns/ComponentHelp";
+import { cn } from "@/lib/utils";
 
 function SellerStores() {
   const { stores, loading, reload } = useSellerStores();
@@ -38,89 +32,87 @@ function SellerStores() {
   };
 
   return (
-    <div className="space-y-4 px-4 pt-4">
-      <PageHeader
-        title="Vendors"
-        description="Each vendor is one shop in one app (Mart, Food or Pharma). Switch the active vendor in the top bar."
-      />
-
-      <DataShell
-        loading={loading}
-        isEmpty={stores.length === 0}
-        empty={
+    <>
+      <PageHeader title="Stores" sub="Account" />
+      <div className="space-y-3 px-4 pt-3 pb-8">
+        {loading && stores.length === 0 ? (
+          <div className="space-y-3">
+            {[0, 1].map((i) => (
+              <div key={i} className="h-32 animate-pulse rounded-2xl bg-muted" />
+            ))}
+          </div>
+        ) : stores.length === 0 ? (
           <EmptyState
-            title="No vendor yet"
-            description="Finish onboarding to create your first vendor."
+            icon={<Store className="h-12 w-12" strokeWidth={1.2} />}
+            text="No vendor yet — finish onboarding to create your first vendor"
           />
-        }
-      >
-        <div className="grid gap-4 lg:grid-cols-2">
-          {stores.map((store) => {
+        ) : (
+          stores.map((store) => {
             const draft = drafts[store.storeId] ?? { hours: store.hours ?? "" };
             return (
-              <SectionCard
-                key={store.storeId}
-                title={store.name}
-                description={`${store.address || "Address not set"} · ${store.platformFeePct}% platform fee`}
-                actions={<SectorPill sector={store.sector} />}
-              >
-                <div className="grid gap-4 md:grid-cols-2">
-                  <div className="space-y-1.5">
-                    <div className="flex items-center gap-1.5">
-                      <Label htmlFor={`hours-${store.storeId}`}>Opening hours</Label>
-                      <ComponentHelp id="hours-input" />
-                    </div>
-                    <Input
-                      id={`hours-${store.storeId}`}
+              <Card key={store.storeId}>
+                <div className="flex items-start justify-between gap-2">
+                  <div className="min-w-0">
+                    <p className="truncate text-sm font-bold">{store.name}</p>
+                    <p className="truncate text-[11px] text-muted-foreground">
+                      {store.address || "Address not set"} · {store.platformFeePct}% platform fee
+                    </p>
+                  </div>
+                  <span
+                    className={cn(
+                      "shrink-0 rounded px-1.5 py-0.5 text-[9px] font-bold uppercase",
+                      store.sector === "FOOD"
+                        ? "bg-brand-soft text-brand"
+                        : store.sector === "PHARMA"
+                          ? "bg-info-soft text-info"
+                          : "bg-success-soft text-success",
+                    )}
+                  >
+                    {store.sector}
+                  </span>
+                </div>
+                <div className="mt-3 border-t border-border pt-3">
+                  <div className="flex items-center justify-between border-b border-border py-3">
+                    <span className="text-sm font-medium">Vendor live in the app</span>
+                    <Toggle
+                      label="Vendor live"
+                      checked={store.isLive}
+                      onChange={(v) => void save(store.storeId, { isLive: v })}
+                    />
+                  </div>
+                  <div className="flex items-center justify-between border-b border-border py-3">
+                    <span className="text-sm font-medium">Pure vegetarian</span>
+                    <Toggle
+                      label="Pure vegetarian"
+                      checked={store.isVeg}
+                      onChange={(v) => void save(store.storeId, { isVeg: v })}
+                    />
+                  </div>
+                  <div className="pt-2">
+                    <TextField
+                      label="Opening hours"
                       value={draft.hours}
-                      onChange={(e) =>
+                      onChange={(v) =>
                         setDrafts((d) => ({
                           ...d,
-                          [store.storeId]: { ...draft, hours: e.target.value },
+                          [store.storeId]: { hours: v },
                         }))
                       }
                     />
                   </div>
-                  <div className="flex items-center justify-between rounded-lg border border-border px-3 py-2">
-                    <div className="flex items-center gap-1.5">
-                      <Label htmlFor={`live-${store.storeId}`}>Vendor live in the app</Label>
-                      <ComponentHelp id="live-switch" />
-                    </div>
-                    <Switch
-                      id={`live-${store.storeId}`}
-                      checked={store.isLive}
-                      onCheckedChange={(checked) => void save(store.storeId, { isLive: checked })}
-                    />
-                  </div>
-                  <div className="flex items-center justify-between rounded-lg border border-border px-3 py-2">
-                    <div className="flex items-center gap-1.5">
-                      <Label htmlFor={`veg-${store.storeId}`}>Pure vegetarian</Label>
-                      <ComponentHelp id="veg-switch" />
-                    </div>
-                    <Switch
-                      id={`veg-${store.storeId}`}
-                      checked={store.isVeg}
-                      onCheckedChange={(checked) => void save(store.storeId, { isVeg: checked })}
-                    />
-                  </div>
+                  <button
+                    onClick={() => void save(store.storeId, { hours: draft.hours })}
+                    className="w-full rounded-xl bg-foreground px-4 py-3 text-sm font-semibold text-background"
+                  >
+                    Save profile
+                  </button>
                 </div>
-                <div className="mt-4 flex justify-end">
-                  <div className="flex items-center gap-1.5">
-                    <Button
-                      size="sm"
-                      onClick={() => void save(store.storeId, { hours: draft.hours })}
-                    >
-                      Save profile
-                    </Button>
-                    <ComponentHelp id="save-store-button" />
-                  </div>
-                </div>
-              </SectionCard>
+              </Card>
             );
-          })}
-        </div>
-      </DataShell>
-    </div>
+          })
+        )}
+      </div>
+    </>
   );
 }
 

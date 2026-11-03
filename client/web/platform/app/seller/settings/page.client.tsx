@@ -1,153 +1,153 @@
 "use client";
+import { useState } from "react";
 import { toast } from "sonner";
-import { PageHeader } from "@/components/patterns/PageHeader";
-import { SectionCard } from "@/components/patterns/SectionCard";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Switch } from "@/components/ui/switch";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { PageHeader, Card, TextField, Toggle, UnderlineTabs } from "@/components/sellers/kit";
 import { ThemeSegmentedControl } from "@/components/layout/ThemeToggle";
 import { getBankAccount } from "@/lib/api";
 import { useSeller, useSellerScope } from "@/lib/api/hooks";
-import { useSession } from "@/lib/hooks/useSession";
-import { ComponentHelp } from "@/components/patterns/ComponentHelp";
 
-function SellerSettings() {
-  const { sellerId, activeStore, stores } = useSellerScope();
-  const seller = useSeller(sellerId);
-  const bank = getBankAccount(sellerId);
+type Tab = "profile" | "bank" | "notifications" | "appearance" | "users";
 
+const NOTIFICATIONS = ["New order alerts", "Low stock alerts", "SLA breach warnings", "Festival campaign news"];
+
+const TABS: { key: Tab; label: string }[] = [
+  { key: "profile", label: "Profile" },
+  { key: "bank", label: "Bank" },
+  { key: "notifications", label: "Notifications" },
+  { key: "appearance", label: "Appearance" },
+  { key: "users", label: "Sub-users" },
+];
+
+function Row({ label, value }: { label: string; value: string }) {
   return (
-    <div className="space-y-4 px-4 pt-4">
-      <PageHeader
-        title="Settings"
-        description="Profile changes that affect KYC need admin re-verification."
-      />
-
-      <Tabs defaultValue="profile">
-        <div className="flex items-center gap-1.5">
-          <TabsList>
-            <TabsTrigger value="profile">Profile</TabsTrigger>
-            <TabsTrigger value="bank">Bank</TabsTrigger>
-            <TabsTrigger value="notifications">Notifications</TabsTrigger>
-            <TabsTrigger value="appearance">Appearance</TabsTrigger>
-            <TabsTrigger value="users">Sub-users</TabsTrigger>
-          </TabsList>
-          <ComponentHelp id="profile-tabs" />
-        </div>
-
-        <TabsContent value="profile" className="mt-4">
-          <SectionCard title="Business profile">
-            <div className="grid gap-4 md:grid-cols-2">
-              <Field label="Business name" value={seller?.businessName ?? ""} />
-              <Field label="Owner name" value={seller?.ownerName ?? ""} />
-              <Field label="GSTIN" value={seller?.gstin ?? ""} />
-              <Field label="PAN" value={seller?.pan ?? ""} />
-              <Field label="Contact phone" value={seller?.contactPhone ?? ""} />
-              <Field label="Registered address" value={seller?.businessAddress ?? ""} />
-            </div>
-            <div className="mt-4 flex justify-end">
-              <div className="flex items-center gap-1.5">
-                <Button
-                  size="sm"
-                  onClick={() => toast.success("Profile change sent for verification")}
-                >
-                  Request update
-                </Button>
-                <ComponentHelp id="request-update-button" />
-              </div>
-            </div>
-          </SectionCard>
-        </TabsContent>
-
-        <TabsContent value="bank" className="mt-4">
-          <SectionCard title="Settlement bank account" description="Payouts land in this account">
-            <div className="grid gap-4 md:grid-cols-2">
-              <Field label="Beneficiary" value={bank?.beneficiaryName ?? "Not added"} />
-              <Field label="Account number" value={bank?.accountNumberMasked ?? "Not added"} />
-              <Field label="IFSC" value={bank?.ifsc ?? "Not added"} />
-            </div>
-          </SectionCard>
-        </TabsContent>
-
-        <TabsContent value="notifications" className="mt-4">
-          <SectionCard title="Notifications" actions={<ComponentHelp id="notify-switches" />}>
-            <div className="space-y-2">
-              {[
-                "New order alerts",
-                "Low stock alerts",
-                "SLA breach warnings",
-                "Festival campaign news",
-              ].map((label) => (
-                <div
-                  key={label}
-                  className="flex items-center justify-between rounded-lg border border-border px-3 py-2"
-                >
-                  <Label htmlFor={label}>{label}</Label>
-                  <Switch id={label} defaultChecked />
-                </div>
-              ))}
-            </div>
-          </SectionCard>
-        </TabsContent>
-
-        <TabsContent value="appearance" className="mt-4">
-          <SectionCard
-            title="Appearance"
-            description="Applies to this browser, on every console you sign in to"
-          >
-            <div className="flex flex-wrap items-center justify-between gap-3">
-              <div className="min-w-0">
-                <Label>Theme</Label>
-                <p className="mt-0.5 text-[12px] text-muted-foreground">
-                  Auto follows your device&apos;s light or dark setting.
-                </p>
-              </div>
-              <ThemeSegmentedControl />
-            </div>
-          </SectionCard>
-        </TabsContent>
-
-        <TabsContent value="users" className="mt-4">
-          <SectionCard
-            title="Sub-users"
-            description="Give staff limited access to orders and inventory"
-          >
-            <div className="grid gap-4 md:grid-cols-3">
-              <div className="space-y-1.5">
-                <Label htmlFor="sub-name">Name</Label>
-                <Input id="sub-name" placeholder="Staff name" />
-              </div>
-              <div className="space-y-1.5">
-                <div className="flex items-center gap-1.5">
-                  <Label htmlFor="sub-email">Email</Label>
-                  <ComponentHelp id="sub-user-email-input" />
-                </div>
-                <Input id="sub-email" placeholder="staff@example.com" />
-              </div>
-              <div className="flex items-end">
-                <div className="flex items-center gap-1.5">
-                  <Button size="sm" onClick={() => toast.success("Invite queued")}>
-                    Invite
-                  </Button>
-                  <ComponentHelp id="invite-button" />
-                </div>
-              </div>
-            </div>
-          </SectionCard>
-        </TabsContent>
-      </Tabs>
+    <div className="flex items-center justify-between border-b border-border py-3 text-sm last:border-0">
+      <span className="text-muted-foreground">{label}</span>
+      <span className="font-medium">{value || "—"}</span>
     </div>
   );
 }
 
-function Field({ label, value }: { label: string; value: string }) {
+function SellerSettings() {
+  const { sellerId } = useSellerScope();
+  const seller = useSeller(sellerId);
+  const bank = getBankAccount(sellerId);
+  const [tab, setTab] = useState<Tab>("profile");
+  const [enabled, setEnabled] = useState<Record<string, boolean>>(
+    Object.fromEntries(NOTIFICATIONS.map((n) => [n, true])),
+  );
+  const [name, setName] = useState("");
+  const [email, setEmail] = useState("");
+
   return (
-    <div className="space-y-1.5">
-      <Label>{label}</Label>
-      <Input defaultValue={value} />
-    </div>
+    <>
+      <PageHeader title="Settings" sub="Account" />
+      <div className="px-4 pt-3">
+        <UnderlineTabs tabs={TABS} value={tab} onChange={setTab} />
+      </div>
+
+      <div className="space-y-3 px-4 pt-3 pb-8">
+        {tab === "profile" && (
+          <Card>
+            <p className="mb-2 text-sm font-bold">Business profile</p>
+            <p className="mb-2 text-[10px] text-muted-foreground">
+              Profile changes that affect KYC need admin re-verification.
+            </p>
+            <Row label="Business name" value={seller?.businessName ?? ""} />
+            <Row label="Owner name" value={seller?.ownerName ?? ""} />
+            <Row label="GSTIN" value={seller?.gstin ?? ""} />
+            <Row label="PAN" value={seller?.pan ?? ""} />
+            <Row label="Contact phone" value={seller?.contactPhone ?? ""} />
+            <Row label="Registered address" value={seller?.businessAddress ?? ""} />
+            <button
+              onClick={() => toast.success("Profile change sent for verification")}
+              className="mt-4 w-full rounded-xl bg-foreground px-4 py-3 text-sm font-semibold text-background"
+            >
+              Request update
+            </button>
+          </Card>
+        )}
+
+        {tab === "bank" && (
+          <Card>
+            <p className="mb-2 text-sm font-bold">Settlement bank account</p>
+            <p className="mb-2 text-[10px] text-muted-foreground">Payouts land in this account.</p>
+            <Row label="Beneficiary" value={bank?.beneficiaryName ?? "Not added"} />
+            <Row label="Account number" value={bank?.accountNumberMasked ?? "Not added"} />
+            <Row label="IFSC" value={bank?.ifsc ?? "Not added"} />
+          </Card>
+        )}
+
+        {tab === "notifications" && (
+          <Card>
+            <p className="mb-2 text-sm font-bold">Notifications</p>
+            {NOTIFICATIONS.map((label) => (
+              <div
+                key={label}
+                className="flex items-center justify-between border-b border-border py-3 last:border-0"
+              >
+                <span className="text-sm">{label}</span>
+                <Toggle
+                  label={label}
+                  checked={enabled[label] ?? true}
+                  onChange={(v) => setEnabled((e) => ({ ...e, [label]: v }))}
+                />
+              </div>
+            ))}
+          </Card>
+        )}
+
+        {tab === "appearance" && (
+          <Card>
+            <p className="text-sm font-bold">Appearance</p>
+            <p className="mb-3 text-[10px] text-muted-foreground">
+              Applies to this browser, on every console you sign in to.
+            </p>
+            <div className="flex items-center justify-between">
+              <span className="text-sm">
+                Theme
+                <br />
+                <span className="text-[10px] text-muted-foreground">
+                  Auto follows your device&apos;s light or dark setting.
+                </span>
+              </span>
+              <ThemeSegmentedControl />
+            </div>
+          </Card>
+        )}
+
+        {tab === "users" && (
+          <Card>
+            <p className="mb-2 text-sm font-bold">Sub-users</p>
+            <p className="mb-2 text-[10px] text-muted-foreground">
+              Give staff limited access to orders and inventory.
+            </p>
+            <TextField
+              label="Name"
+              value={name}
+              onChange={setName}
+              placeholder="Staff name"
+            />
+            <TextField
+              label="Email"
+              value={email}
+              onChange={setEmail}
+              placeholder="staff@example.com"
+            />
+            <button
+              disabled={!name.trim() || !email.trim()}
+              onClick={() => {
+                toast.success("Invite queued");
+                setName("");
+                setEmail("");
+              }}
+              className="w-full rounded-xl bg-foreground px-4 py-3 text-sm font-semibold text-background disabled:opacity-40"
+            >
+              Invite
+            </button>
+          </Card>
+        )}
+      </div>
+    </>
   );
 }
 

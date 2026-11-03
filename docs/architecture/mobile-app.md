@@ -270,7 +270,10 @@ too — one component).
 `seller-partner` is the **standalone Seller Partner app** (not a customer route). Sellers log in
 with the same email/password as the web portal (gateway HS256 portal JWT; roles SELLER /
 DISTRICT_ADMIN / SUPER_ADMIN), then accept incoming NEW orders (→ PACKED, auto-dispatch) or reject
-them (→ REJECTED, captured payment marked REFUNDED and the customer notified). The app is
+them (→ REJECTED, captured payment marked REFUNDED and the customer notified). Every seller surface is
+the **portal's seller console** rendered in the WebView: it lands `/seller` → `/seller/orders`
+(orders-first), names the hub **Business Hub** (`/seller/hub`), and mirrors the reference tab bars
+(Orders / Inventory / Menu / Feedback in orders mode; Hub / Growth / Menu / Finance in hub mode). The app is
 **seller-only**: an admin (district/super) credential is rejected at sign-in inside the WebView —
 signed straight back out with the generic "Invalid email or password." copy (no role disclosure),
 and any pre-existing admin cookie is cleared on load. Delivery riders keep their separate

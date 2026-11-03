@@ -3,24 +3,14 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { toast } from "sonner";
 import { Upload } from "lucide-react";
-import { PageHeader } from "@/components/patterns/PageHeader";
-import { SectionCard } from "@/components/patterns/SectionCard";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Switch } from "@/components/ui/switch";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+import { PageHeader, Card, TextField, Toggle, Sheet, RadioRow, EmptyState } from "@/components/sellers/kit";
 import { createSellerVendor } from "@/lib/api";
 import { useSellerScope, useStates } from "@/lib/api/hooks";
 import { uploadPrivateDocument } from "@/lib/media/kyc";
-import { ComponentHelp } from "@/components/patterns/ComponentHelp";
+import { cn } from "@/lib/utils";
 import type { Sector } from "@/data/types";
+
+const APPS: Sector[] = ["MART", "FOOD", "PHARMA"];
 
 function AddVendor() {
   const router = useRouter();
@@ -39,6 +29,7 @@ function AddVendor() {
     isLive: false,
   });
   const [busy, setBusy] = useState(false);
+  const [statePicker, setStatePicker] = useState(false);
 
   function field<K extends keyof typeof form>(key: K, value: (typeof form)[K]) {
     setForm((f) => ({ ...f, [key]: value }));
@@ -88,115 +79,117 @@ function AddVendor() {
     }
   }
 
+  const state = states.find((s) => s.stateCode === form.stateCode);
+
   return (
-    <div className="space-y-4 px-4 pt-4">
-      <PageHeader
-        title="Add a vendor"
-        description="A vendor is one shop in one app. Your account can own several vendors (Mart, Food, Pharma)."
-      />
+    <>
+      <PageHeader title="Add a vendor" sub="Onboarding" />
 
-      <SectionCard title="Vendor details" description="The brand, fee and compliance fields belong to this shop.">
-        <div className="grid gap-4 md:grid-cols-2">
-          <div className="space-y-1.5">
-            <div className="flex items-center gap-1.5">
-              <Label htmlFor="vendor-name">Vendor name</Label>
-              <ComponentHelp id="store-name-input" />
-            </div>
-            <Input id="vendor-name" value={form.name} onChange={(e) => field("name", e.target.value)} />
+      <div className="space-y-3 px-4 pt-3 pb-36">
+        <Card>
+          <p className="text-sm font-bold">Vendor details</p>
+          <p className="mb-1 text-[10px] text-muted-foreground">
+            A vendor is one shop in one app. Your account can own several vendors.
+          </p>
+          <TextField label="Vendor name" value={form.name} onChange={(v) => field("name", v)} />
+
+          <p className="mt-2 mb-1 text-xs font-medium text-muted-foreground">App</p>
+          <div className="no-scrollbar flex gap-2 overflow-x-auto pb-1">
+            {APPS.map((a) => (
+              <button
+                key={a}
+                onClick={() => field("app", a)}
+                className={cn(
+                  "shrink-0 rounded-full border px-3.5 py-1.5 text-xs font-semibold",
+                  form.app === a
+                    ? "border-foreground bg-foreground text-background"
+                    : "border-border bg-card",
+                )}
+              >
+                {a === "MART" ? "Mart" : a === "FOOD" ? "Food" : "Pharma"}
+              </button>
+            ))}
           </div>
-          <div className="space-y-1.5">
-            <Label>App</Label>
-            <Select value={form.app} onValueChange={(v) => field("app", v as Sector)}>
-              <SelectTrigger>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="MART">Mart</SelectItem>
-                <SelectItem value="FOOD">Food</SelectItem>
-                <SelectItem value="PHARMA">Pharma</SelectItem>
-              </SelectContent>
-            </Select>
+
+          <button
+            onClick={() => setStatePicker(true)}
+            className="mt-1 w-full rounded-xl border border-border bg-card px-3 py-3 text-left text-sm"
+          >
+            <span className="block text-[10px] font-medium text-muted-foreground">State</span>
+            <span className="font-semibold">
+              {form.stateCode}
+              {state ? ` · ${state.name}` : ""}
+            </span>
+          </button>
+
+          <TextField label="Address" value={form.address} onChange={(v) => field("address", v)} />
+          <TextField label="Phone" value={form.phone} onChange={(v) => field("phone", v)} />
+          <TextField label="Opening hours" value={form.hours} onChange={(v) => field("hours", v)} />
+
+          <div className="flex items-center justify-between border-t border-border py-3">
+            <span className="text-sm font-medium">Publish this vendor now</span>
+            <Toggle label="Publish now" checked={form.isLive} onChange={(v) => field("isLive", v)} />
           </div>
-          <div className="space-y-1.5">
-            <Label>State</Label>
-            <Select value={form.stateCode} onValueChange={(v) => field("stateCode", v)}>
-              <SelectTrigger>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {states.map((s) => (
-                  <SelectItem key={s.stateCode} value={s.stateCode}>
-                    {s.stateCode} · {s.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-          <div className="space-y-1.5">
-            <Label htmlFor="vendor-address">Address</Label>
-            <Input
-              id="vendor-address"
-              value={form.address}
-              onChange={(e) => field("address", e.target.value)}
+        </Card>
+
+        {form.app === "FOOD" && (
+          <Card>
+            <p className="text-sm font-bold">FSSAI compliance</p>
+            <TextField
+              label="FSSAI number"
+              value={form.fssaiNumber}
+              onChange={(v) => field("fssaiNumber", v.toUpperCase())}
             />
-          </div>
-          <div className="space-y-1.5">
-            <Label htmlFor="vendor-phone">Phone</Label>
-            <Input id="vendor-phone" value={form.phone} onChange={(e) => field("phone", e.target.value)} />
-          </div>
-          <div className="space-y-1.5">
-            <Label htmlFor="vendor-hours">Opening hours</Label>
-            <Input id="vendor-hours" value={form.hours} onChange={(e) => field("hours", e.target.value)} />
-          </div>
-          <div className="flex items-center justify-between rounded-lg border border-border px-3 py-2 md:col-span-2">
-            <div className="flex items-center gap-1.5">
-              <Label htmlFor="live">Publish this vendor now</Label>
-              <ComponentHelp id="live-switch" />
-            </div>
-            <Switch id="live" checked={form.isLive} onCheckedChange={(v) => field("isLive", v)} />
-          </div>
-        </div>
-
-        {form.app === "FOOD" ? (
-          <div className="mt-4 grid gap-4 border-t border-border pt-4 md:grid-cols-2">
-            <div className="space-y-1.5">
-              <Label htmlFor="fssai">FSSAI number</Label>
-              <Input
-                id="fssai"
-                value={form.fssaiNumber}
-                onChange={(e) => field("fssaiNumber", e.target.value.toUpperCase())}
+            <label className="block py-2">
+              <span className="mb-1 block text-xs font-medium text-muted-foreground">
+                FSSAI certificate
+              </span>
+              <span className="flex items-center justify-center gap-2 rounded-xl border border-dashed border-border bg-card px-3 py-4 text-xs font-semibold text-muted-foreground">
+                <Upload className="h-4 w-4" />
+                {form.fssaiFileKey ? "Certificate uploaded ✓" : "Tap to upload (JPG / PNG / WEBP)"}
+              </span>
+              <input
+                type="file"
+                accept="image/jpeg,image/png,image/webp"
+                className="hidden"
+                onChange={(e) => {
+                  const file = e.target.files?.[0];
+                  if (file) void attachCertificate(file);
+                }}
               />
-            </div>
-            <div className="space-y-1.5">
-              <Label>FSSAI certificate</Label>
-              <div className="flex items-center gap-2">
-                <Input
-                  type="file"
-                  accept="image/jpeg,image/png,image/webp"
-                  onChange={(e) => {
-                    const file = e.target.files?.[0];
-                    if (file) void attachCertificate(file);
-                  }}
-                />
-                <Upload className="size-4 text-muted-foreground" />
-              </div>
-              {form.fssaiFileKey ? (
-                <p className="num text-[11px] text-muted-foreground">{form.fssaiFileKey}</p>
-              ) : null}
-            </div>
-          </div>
-        ) : null}
+            </label>
+          </Card>
+        )}
+      </div>
 
-        <div className="mt-5 flex justify-end border-t border-border pt-4">
-          <div className="flex items-center gap-1.5">
-            <Button size="sm" disabled={!valid || busy} onClick={() => void submit()}>
-              Create vendor
-            </Button>
-            <ComponentHelp id="submit-button" />
-          </div>
-        </div>
-      </SectionCard>
-    </div>
+      <div className="fixed bottom-[76px] left-1/2 flex w-full max-w-[430px] -translate-x-1/2 gap-2 border-t border-border bg-card p-3 md:bottom-0 md:max-w-[1024px]">
+        <button
+          disabled={!valid || busy}
+          onClick={() => void submit()}
+          className="w-full rounded-xl bg-foreground px-4 py-3 text-sm font-semibold text-background disabled:opacity-40"
+        >
+          {busy ? "Creating..." : "Create vendor"}
+        </button>
+      </div>
+
+      <Sheet open={statePicker} onClose={() => setStatePicker(false)} title="Select state">
+        {states.length === 0 ? (
+          <EmptyState text="No states loaded" />
+        ) : (
+          states.map((s) => (
+            <RadioRow
+              key={s.stateCode}
+              label={`${s.stateCode} · ${s.name}`}
+              checked={form.stateCode === s.stateCode}
+              onClick={() => {
+                field("stateCode", s.stateCode);
+                setStatePicker(false);
+              }}
+            />
+          ))
+        )}
+      </Sheet>
+    </>
   );
 }
 

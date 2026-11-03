@@ -1,25 +1,36 @@
 "use client";
 import { useState } from "react";
-import { PageHeader } from "@/components/patterns/PageHeader";
-import { SectionCard } from "@/components/patterns/SectionCard";
-import { KpiStrip } from "@/components/patterns/KpiCard";
-import { CategoryBars, GmvTrend, OrdersTrend, StatusDonut } from "@/components/patterns/Charts";
-import { DataShell } from "@/components/patterns/DataState";
-import { FilterChip } from "@/components/patterns/FilterChip";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
+import { HubHeader } from "@/components/sellers/shells";
+import { Card, EmptyState } from "@/components/sellers/kit";
+import { LineSpark, Bars } from "@/components/sellers/charts";
 import { formatINR, formatNumber } from "@/lib/format";
 import { periodDelta, sumGmv, sumOrders } from "@/lib/analytics/derive";
 import { useAnalyticsRanks, useAnalyticsSeries, useMockLoading, useOrders, useProducts, useSellerScope } from "@/lib/api/hooks";
-import { ComponentHelp } from "@/components/patterns/ComponentHelp";
+import { cn } from "@/lib/utils";
 
-const PERIODS = [7, 30, 90];
+const PERIODS = [
+  { key: 7, label: "7d" },
+  { key: 30, label: "30d" },
+  { key: 90, label: "90d" },
+];
+const STATUS_LABEL: Record<string, string> = {
+  NEW: "Preparing",
+  PACKED: "Ready",
+  SHIPPED: "Out for delivery",
+  DELIVERED: "Completed",
+  CANCELLED: "Cancelled",
+  RETURNED: "Returned",
+};
+
+function Delta({ value }: { value: number }) {
+  if (value === 0) return <span className="text-[10px] text-muted-foreground">—</span>;
+  const up = value > 0;
+  return (
+    <span className={cn("text-[10px] font-semibold", up ? "text-success" : "text-brand")}>
+      {up ? "▲" : "▼"} {Math.abs(Math.round(value))}%
+    </span>
+  );
+}
 
 function SellerAnalytics() {
   const { sellerId, storeId } = useSellerScope();
@@ -32,14 +43,13 @@ function SellerAnalytics() {
   const orders = useOrders({ sellerId, storeId });
 
   const orderCount = sumOrders(series);
+  const gmvTotal = sumGmv(series);
+  const gmvSerie = series.map((p) => p.gmvPaisa);
+  const orderSerie = series.map((p) => p.orders);
 
   const perProduct = products.map((product) => {
     const rank = productTotal.get(product.productId);
-    return {
-      product,
-      gmv: rank?.gmvPaisa ?? 0,
-      orders: rank?.orders ?? 0,
-    };
+    return { product, gmv: rank?.gmvPaisa ?? 0, orders: rank?.orders ?? 0 };
   });
 
   const categoryMix = Object.entries(
@@ -47,116 +57,178 @@ function SellerAnalytics() {
       acc[row.product.category] = (acc[row.product.category] ?? 0) + row.gmv;
       return acc;
     }, {}),
-  ).map(([label, value]) => ({ label, value }));
+  )
+    .map(([label, value]) => ({ label, value }))
+    .sort((a, b) => b.value - a.value);
 
   const statusMix = Object.entries(
-    orders.reduce<Record<string, number>>((acc, order) => {
-      acc[order.status] = (acc[order.status] ?? 0) + 1;
-      return acc;
-    }, {}),
-  ).map(([label, value]) => ({ label, value }));
-
-  const cityMix = Object.entries(
-    orders.reduce<Record<string, number>>((acc, order) => {
-      acc[order.city] = (acc[order.city] ?? 0) + order.amountPaisa;
+    orders.reduce<Record<string, number>>((acc, o) => {
+      acc[o.status] = (acc[o.status] ?? 0) + 1;
       return acc;
     }, {}),
   )
     .map(([label, value]) => ({ label, value }))
     .sort((a, b) => b.value - a.value);
+  const maxStatus = Math.max(1, ...statusMix.map((s) => s.value));
+
+  const cityMix = Object.entries(
+    orders.reduce<Record<string, number>>((acc, o) => {
+      acc[o.city] = (acc[o.city] ?? 0) + o.amountPaisa;
+      return acc;
+    }, {}),
+  )
+    .map(([label, value]) => ({ label, value }))
+    .sort((a, b) => b.value - a.value);
+  const maxCity = Math.max(1, ...cityMix.map((c) => c.value));
+
+  const sortedProducts = [...perProduct].sort((a, b) => b.gmv - a.gmv).slice(0, 8);
 
   return (
-    <div className="space-y-4 px-4 pt-4">
-      <PageHeader
-        title="Shop analytics"
-        description="Sales, conversion and category mix for your shop."
+    <>
+      <HubHeader
         actions={
-          <div className="flex items-center gap-1.5">
+          <div className="flex items-center gap-1">
             {PERIODS.map((option) => (
-              <FilterChip
-                key={option}
-                label={`${option}d`}
-                active={days === option}
-                onClick={() => setDays(option)}
-              />
+              <button
+                key={option.key}
+                onClick={() => setDays(option.key)}
+                className={cn(
+                  "rounded-full border px-2.5 py-1 text-[11px] font-semibold",
+                  days === option.key ? "border-foreground bg-foreground text-background" : "border-border bg-card",
+                )}
+              >
+                {option.label}
+              </button>
             ))}
-            <ComponentHelp id="period-filter" />
           </div>
         }
       />
 
-      <DataShell loading={loading}>
-        <KpiStrip
-          items={[
-            {
-              label: `GMV (${days}d)`,
-              value: formatINR(sumGmv(series), { compact: true }),
-              deltaPercent: periodDelta(series, (p) => p.gmvPaisa),
-              compare: "vs previous period",
-            },
-            {
-              label: "Orders",
-              value: formatNumber(orderCount),
-              deltaPercent: periodDelta(series, (p) => p.orders),
-              compare: "vs previous period",
-            },
-          ]}
-        />
-      </DataShell>
+      <div className="space-y-3 px-4 pt-3 pb-8">
+        {loading && series.length === 0 ? (
+          <div className="space-y-3">
+            {[0, 1, 2].map((i) => (
+              <div key={i} className="h-24 animate-pulse rounded-2xl bg-muted" />
+            ))}
+          </div>
+        ) : (
+          <>
+            <div className="grid gap-3 lg:grid-cols-2">
+              <Card>
+                <p className="text-[10px] text-muted-foreground">GMV ({days}d)</p>
+                <p className="mt-1 text-xl font-bold">
+                  {formatINR(gmvTotal, { compact: true })}{" "}
+                  <Delta value={periodDelta(series, (p) => p.gmvPaisa)} />
+                </p>
+                <p className="mt-3 text-[10px] text-muted-foreground">vs previous period</p>
+                {gmvSerie.length > 1 ? <LineSpark data={gmvSerie} height={34} /> : null}
+              </Card>
+              <Card>
+                <p className="text-[10px] text-muted-foreground">Orders ({days}d)</p>
+                <p className="mt-1 text-xl font-bold">
+                  {formatNumber(orderCount)} <Delta value={periodDelta(series, (p) => p.orders)} />
+                </p>
+                <p className="mt-3 text-[10px] text-muted-foreground">vs previous period</p>
+                {orderSerie.length > 1 ? <LineSpark data={orderSerie} height={34} /> : null}
+              </Card>
+            </div>
 
-      <SectionCard title="Revenue trend" actions={<ComponentHelp id="revenue-trend" />}>
-        <DataShell loading={loading} skeletonRows={4}>
-          <GmvTrend data={series} />
-        </DataShell>
-      </SectionCard>
+            <Card>
+              <p className="text-sm font-bold">Revenue trend</p>
+              <p className="text-[10px] text-muted-foreground">Last {days} days, settled order value</p>
+              {gmvSerie.length > 1 ? (
+                <Bars data={gmvSerie} />
+              ) : (
+                <EmptyState text="Not enough data yet to plot revenue" />
+              )}
+            </Card>
 
-      <div className="grid gap-4 lg:grid-cols-2">
-        <SectionCard title="Orders per day">
-          <OrdersTrend data={series} />
-        </SectionCard>
-        <SectionCard title="Order status split">
-          <StatusDonut data={statusMix} />
-        </SectionCard>
+            <Card>
+              <p className="text-sm font-bold">Order status split</p>
+              {statusMix.length === 0 ? (
+                <EmptyState text="No orders in this period" />
+              ) : (
+                statusMix.map((s) => (
+                  <div key={s.label} className="mt-3">
+                    <div className="flex justify-between text-xs">
+                      <span>{STATUS_LABEL[s.label] ?? s.label}</span>
+                      <b>{formatNumber(s.value)}</b>
+                    </div>
+                    <div className="mt-1 h-2 rounded-full bg-muted">
+                      <div
+                        className="h-2 rounded-full bg-info"
+                        style={{ width: `${Math.max(4, (s.value / maxStatus) * 100)}%` }}
+                      />
+                    </div>
+                  </div>
+                ))
+              )}
+            </Card>
+
+            <div className="grid gap-3 lg:grid-cols-2">
+              <Card>
+                <p className="text-sm font-bold">Category mix</p>
+                <p className="text-[10px] text-muted-foreground">GMV share by category</p>
+                {categoryMix.length === 0 ? (
+                  <EmptyState text="No category data yet" />
+                ) : (
+                  categoryMix.map((c) => (
+                    <div key={c.label} className="mt-3 flex items-center justify-between text-xs">
+                      <span className="truncate">{c.label}</span>
+                      <span className="pl-3 font-semibold">{formatINR(c.value, { compact: true })}</span>
+                    </div>
+                  ))
+                )}
+              </Card>
+              <Card>
+                <p className="text-sm font-bold">Top cities</p>
+                <p className="text-[10px] text-muted-foreground">GMV by delivery city</p>
+                {cityMix.length === 0 ? (
+                  <EmptyState text="No city data yet" />
+                ) : (
+                  cityMix.slice(0, 6).map((c) => (
+                    <div key={c.label} className="mt-3">
+                      <div className="flex justify-between text-xs">
+                        <span>{c.label}</span>
+                        <b>{formatINR(c.value, { compact: true })}</b>
+                      </div>
+                      <div className="mt-1 h-1.5 rounded-full bg-muted">
+                        <div
+                          className="h-1.5 rounded-full bg-brand"
+                          style={{ width: `${Math.max(4, (c.value / maxCity) * 100)}%` }}
+                        />
+                      </div>
+                    </div>
+                  ))
+                )}
+              </Card>
+            </div>
+
+            <Card>
+              <p className="text-sm font-bold">Product performance</p>
+              <p className="text-[10px] text-muted-foreground">GMV and orders by product</p>
+              {sortedProducts.length === 0 ? (
+                <EmptyState text="No product sales in this period" />
+              ) : (
+                <ul className="mt-2 divide-y divide-border">
+                  {sortedProducts.map((row) => (
+                    <li key={row.product.productId} className="flex items-center justify-between gap-3 py-2.5 text-xs">
+                      <span className="min-w-0 truncate">{row.product.name}</span>
+                      <span className="shrink-0 text-muted-foreground">
+                        {formatNumber(row.orders)} orders
+                      </span>
+                      <span className="w-20 shrink-0 text-right font-semibold">
+                        {formatINR(row.gmv, { compact: true })}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </Card>
+          </>
+        )}
       </div>
-
-      <div className="grid gap-4 lg:grid-cols-2">
-        <SectionCard title="Category mix" description="GMV share by category">
-          <CategoryBars data={categoryMix} />
-        </SectionCard>
-        <SectionCard title="Top cities" description="GMV by delivery city">
-          <CategoryBars data={cityMix.slice(0, 6)} />
-        </SectionCard>
-      </div>
-
-      <SectionCard
-        title="Product performance"
-        bodyClassName="p-0"
-        actions={<ComponentHelp id="product-performance" />}
-      >
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>Product</TableHead>
-              <TableHead className="text-right">Orders</TableHead>
-              <TableHead className="text-right">GMV</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {perProduct
-              .sort((a, b) => b.gmv - a.gmv)
-              .map((row) => (
-                <TableRow key={row.product.productId} className="h-12">
-                  <TableCell className="text-[13px] font-medium">{row.product.name}</TableCell>
-                  <TableCell className="num text-right">{formatNumber(row.orders)}</TableCell>
-                  <TableCell className="num text-right font-medium">
-                    {formatINR(row.gmv)}
-                  </TableCell>
-                </TableRow>
-              ))}
-          </TableBody>
-        </Table>
-      </SectionCard>
-    </div>
+    </>
   );
 }
 

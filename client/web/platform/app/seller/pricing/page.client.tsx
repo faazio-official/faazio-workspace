@@ -1,27 +1,12 @@
 "use client";
 import { useMemo, useState } from "react";
 import { toast } from "sonner";
-import { PageHeader } from "@/components/patterns/PageHeader";
-import { SectionCard } from "@/components/patterns/SectionCard";
-import { DataShell, EmptyState } from "@/components/patterns/DataState";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
-import { formatINR, parseRupeesToPaisa } from "@/lib/format";
+import { PageHeader, Card, EmptyState } from "@/components/sellers/kit";
+import { formatINR, formatDateTime, parseRupeesToPaisa } from "@/lib/format";
 import { validatePrice } from "@/lib/pricing/rules";
 import { upsertPrice } from "@/lib/api";
 import { useAuditLogs, useMockLoading, useProducts, useSellerScope } from "@/lib/api/hooks";
-import { formatDateTime } from "@/lib/format";
 import { cn } from "@/lib/utils";
-import { ProductThumb } from "@/components/patterns/ProductThumb";
-import { ComponentHelp } from "@/components/patterns/ComponentHelp";
 
 function SellerPricing() {
   const { sellerId, storeId } = useSellerScope();
@@ -54,179 +39,157 @@ function SellerPricing() {
   }
 
   return (
-    <div className="space-y-4 px-4 pt-4">
+    <>
       <PageHeader
         title="Pricing"
-        description="Everyday pricing is yours. Festival discounts stay inside admin caps."
-        actions={
+        sub="Catalog"
+        right={
           <div className="flex items-center gap-2">
-            <div className="flex items-center gap-1.5">
-              <Input
-                className="h-9 w-40"
-                placeholder="Mass cut %"
-                value={massPercent}
-                onChange={(e) => setMassPercent(e.target.value)}
-                inputMode="numeric"
-              />
-              <ComponentHelp id="mass-cut-input" />
-            </div>
-            <div className="flex items-center gap-1.5">
-              <Button size="sm" variant="outline" onClick={applyMass} disabled={!massPercent}>
-                Apply to all
-              </Button>
-              <ComponentHelp id="apply-to-all-button" />
-            </div>
+            <input
+              value={massPercent}
+              inputMode="numeric"
+              placeholder="Mass cut %"
+              onChange={(e) => setMassPercent(e.target.value)}
+              className="w-20 rounded-xl border border-border bg-card px-3 py-2 text-sm outline-none focus:border-info"
+            />
+            <button
+              disabled={!massPercent}
+              onClick={applyMass}
+              className="rounded-xl border border-border bg-card px-3 py-2 text-xs font-semibold disabled:opacity-40"
+            >
+              Apply to all
+            </button>
           </div>
         }
       />
 
-      <SectionCard bodyClassName="p-0">
-        <DataShell
-          loading={loading}
-          isEmpty={products.length === 0}
-          empty={
-            <EmptyState
-              title="Nothing to price"
-              description="List a product first, then set its shelf price here."
-            />
-          }
-        >
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Product</TableHead>
-                <TableHead className="w-32 text-right">
-                  <span className="flex items-center justify-end gap-1">
-                    MRP (₹)
-                    <ComponentHelp id="mrp-input" />
-                  </span>
-                </TableHead>
-                <TableHead className="w-32 text-right">
-                  <span className="flex items-center justify-end gap-1">
-                    Price (₹)
-                    <ComponentHelp id="price-input" />
-                  </span>
-                </TableHead>
-                <TableHead className="text-right">Discount</TableHead>
-                <TableHead>vs category median</TableHead>
-                <TableHead className="text-right">
-                  <ComponentHelp id="save-price-button" label="About saving a price" />
-                </TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {products.map((product) => {
-                const draft = draftFor(product.productId, product.pricePaisa, product.mrpPaisa);
-                const mrpPaisa = parseRupeesToPaisa(draft.mrp);
-                const pricePaisa = parseRupeesToPaisa(draft.price);
-                const check = validatePrice(mrpPaisa, pricePaisa);
-                const ratio = median ? (pricePaisa / median) * 100 : 100;
-                return (
-                  <TableRow key={product.productId} className="h-12">
-                    <TableCell>
-                      <div className="flex items-center gap-2">
-                        <ProductThumb product={product} />
-                        <div>
-                          <p className="text-[13px] font-medium">{product.name}</p>
-                          <p className="num text-[11px] text-muted-foreground">
-                            {product.productId}
-                          </p>
-                        </div>
-                      </div>
-                    </TableCell>
-                    <TableCell className="text-right">
-                      <Input
-                        className="num h-8 text-right"
-                        value={draft.mrp}
-                        onChange={(e) =>
-                          setDrafts((d) => ({
-                            ...d,
-                            [product.productId]: { ...draft, mrp: e.target.value },
-                          }))
-                        }
-                      />
-                    </TableCell>
-                    <TableCell className="text-right">
-                      <Input
-                        className={cn("num h-8 text-right", !check.ok && "border-destructive")}
-                        value={draft.price}
-                        onChange={(e) =>
-                          setDrafts((d) => ({
-                            ...d,
-                            [product.productId]: { ...draft, price: e.target.value },
-                          }))
-                        }
-                      />
-                    </TableCell>
-                    <TableCell className="num text-right">{check.discountPercent}%</TableCell>
-                    <TableCell>
-                      <div className="flex items-center gap-2">
-                        <div className="h-1.5 w-24 rounded-full bg-secondary">
-                          <div
-                            className={cn(
-                              "h-1.5 rounded-full",
-                              ratio > 115 ? "bg-warning" : "bg-success",
-                            )}
-                            style={{ width: `${Math.min(100, ratio / 2)}%` }}
-                          />
-                        </div>
-                        <span className="num text-[12px] text-muted-foreground">
-                          {ratio.toFixed(0)}%
-                        </span>
-                      </div>
-                    </TableCell>
-                    <TableCell className="text-right">
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        disabled={!check.ok}
-                        onClick={() => {
-                          upsertPrice(product.productId, pricePaisa, mrpPaisa);
-                          toast.success(`${product.name} now ${formatINR(pricePaisa)}`);
-                        }}
-                      >
-                        Save
-                      </Button>
-                    </TableCell>
-                  </TableRow>
-                );
-              })}
-            </TableBody>
-          </Table>
-        </DataShell>
-      </SectionCard>
-
-      <SectionCard
-        title="Price change history"
-        description="Written to the audit log on every save"
-      >
-        <DataShell
-          loading={loading}
-          isEmpty={logs.length === 0}
-          empty={
-            <EmptyState
-              title="No price changes yet"
-              description="Saved edits appear here with before and after values."
-            />
-          }
-          skeletonRows={3}
-        >
-          <ol className="space-y-3">
-            {logs.slice(0, 8).map((log) => (
-              <li key={log.logId} className="flex gap-3 text-[13px]">
-                <span className="num w-32 shrink-0 text-muted-foreground">
-                  {formatDateTime(log.createdAt)}
-                </span>
-                <span className="num font-medium">{log.entityId}</span>
-                <span className="num text-muted-foreground">
-                  {log.before ?? "—"} → {log.after ?? "—"}
-                </span>
-              </li>
+      <div className="space-y-3 px-4 pt-3 pb-8">
+        {loading && products.length === 0 ? (
+          <div className="space-y-3">
+            {[0, 1].map((i) => (
+              <div key={i} className="h-32 animate-pulse rounded-2xl bg-muted" />
             ))}
-          </ol>
-        </DataShell>
-      </SectionCard>
-    </div>
+          </div>
+        ) : products.length === 0 ? (
+          <EmptyState text="List a product first, then set its shelf price here" />
+        ) : (
+          products.map((product) => {
+            const draft = draftFor(product.productId, product.pricePaisa, product.mrpPaisa);
+            const mrpPaisa = parseRupeesToPaisa(draft.mrp);
+            const pricePaisa = parseRupeesToPaisa(draft.price);
+            const check = validatePrice(mrpPaisa, pricePaisa);
+            const ratio = median ? (pricePaisa / median) * 100 : 100;
+            return (
+              <Card key={product.productId}>
+                <div className="flex items-center gap-3">
+                  <div className="flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-lg bg-muted text-lg">
+                    {product.imageUrl ? (
+                      <img
+                        src={product.imageUrl}
+                        alt={product.name}
+                        className="h-full w-full object-cover"
+                      />
+                    ) : (
+                      product.emoji
+                    )}
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-sm font-semibold">{product.name}</p>
+                    <p className="num text-[10px] text-muted-foreground">
+                      {product.productId} ·{" "}
+                      <span className={cn(!check.ok && "text-brand")}>{check.discountPercent}% off</span>
+                    </p>
+                  </div>
+                </div>
+                <div className="mt-3 grid grid-cols-2 gap-2">
+                  <label className="block">
+                    <span className="mb-1 block text-[10px] font-medium text-muted-foreground">
+                      MRP (₹)
+                    </span>
+                    <input
+                      value={draft.mrp}
+                      inputMode="decimal"
+                      onChange={(e) =>
+                        setDrafts((d) => ({
+                          ...d,
+                          [product.productId]: { ...draft, mrp: e.target.value },
+                        }))
+                      }
+                      className="w-full rounded-xl border border-border bg-card px-3 py-2 text-sm outline-none focus:border-info"
+                    />
+                  </label>
+                  <label className="block">
+                    <span className="mb-1 block text-[10px] font-medium text-muted-foreground">
+                      Price (₹)
+                    </span>
+                    <input
+                      value={draft.price}
+                      inputMode="decimal"
+                      onChange={(e) =>
+                        setDrafts((d) => ({
+                          ...d,
+                          [product.productId]: { ...draft, price: e.target.value },
+                        }))
+                      }
+                      className="w-full rounded-xl border border-border bg-card px-3 py-2 text-sm outline-none focus:border-info"
+                    />
+                  </label>
+                </div>
+                <div className="mt-3 flex items-center gap-3">
+                  <div className="h-1.5 w-full flex-1 rounded-full bg-muted">
+                    <div
+                      className={cn(
+                        "h-1.5 rounded-full",
+                        ratio > 115 ? "bg-warning" : "bg-success",
+                      )}
+                      style={{ width: `${Math.min(100, ratio / 2)}%` }}
+                    />
+                  </div>
+                  <span className="text-[10px] text-muted-foreground">
+                    vs median {ratio.toFixed(0)}%
+                  </span>
+                  <button
+                    disabled={!check.ok}
+                    onClick={() => {
+                      upsertPrice(product.productId, pricePaisa, mrpPaisa);
+                      toast.success(`${product.name} now ${formatINR(pricePaisa)}`);
+                    }}
+                    className="shrink-0 rounded-xl bg-foreground px-4 py-2 text-xs font-semibold text-background disabled:opacity-40"
+                  >
+                    Save
+                  </button>
+                </div>
+                {!check.ok && (
+                  <p className="mt-2 text-[11px] font-semibold text-brand">{check.message}</p>
+                )}
+              </Card>
+            );
+          })
+        )}
+
+        <div className="rounded-2xl border border-border bg-card p-4">
+          <p className="text-sm font-bold">Price change history</p>
+          <p className="mb-2 text-[10px] text-muted-foreground">Written to the audit log on every save.</p>
+          {logs.length === 0 ? (
+            <p className="py-4 text-center text-xs text-muted-foreground">
+              No price changes yet — saved edits appear here with before and after values.
+            </p>
+          ) : (
+            <ol className="divide-y divide-border">
+              {logs.slice(0, 8).map((log) => (
+                <li key={log.logId} className="py-2.5 text-xs">
+                  <span className="text-muted-foreground">{formatDateTime(log.createdAt)}</span>
+                  <span className="ml-2 font-semibold">{log.entityId}</span>
+                  <span className="block text-[10px] text-muted-foreground">
+                    {log.before ?? "—"} → {log.after ?? "—"}
+                  </span>
+                </li>
+              ))}
+            </ol>
+          )}
+        </div>
+      </div>
+    </>
   );
 }
 

@@ -1,182 +1,214 @@
 "use client";
 import Link from "next/link";
 import { useState } from "react";
-import { Search } from "lucide-react";
-import { PageHeader } from "@/components/patterns/PageHeader";
-import { SectionCard } from "@/components/patterns/SectionCard";
-import { DataShell, EmptyState } from "@/components/patterns/DataState";
-import { SectorPill, StatusPill } from "@/components/patterns/Pills";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
+import { ChevronRight, Package, Plus, Search, SlidersHorizontal, X } from "lucide-react";
+import { PageHeader, Card, EmptyState, Sheet } from "@/components/sellers/kit";
 import { formatINR } from "@/lib/format";
 import { discountPercent } from "@/lib/pricing/rules";
 import { useMockLoading, useProducts, useSellerScope } from "@/lib/api/hooks";
-import { useSession } from "@/lib/hooks/useSession";
-import { FilterChip } from "@/components/patterns/FilterChip";
-import { ProductThumb } from "@/components/patterns/ProductThumb";
-import { ComponentHelp } from "@/components/patterns/ComponentHelp";
-import type { ProductStatus, Sector } from "@/data/types";
+import { cn } from "@/lib/utils";
+import type { ProductRecord, ProductStatus, Sector } from "@/data/types";
 
 const SECTORS: (Sector | "ALL")[] = ["ALL", "MART", "FOOD", "PHARMA"];
 const STATUSES: (ProductStatus | "ALL")[] = ["ALL", "ACTIVE", "PENDING_REVIEW", "DELISTED"];
 
+const STATUS_PILL: Record<ProductStatus, string> = {
+  DRAFT: "bg-muted text-muted-foreground",
+  PENDING_REVIEW: "bg-warning-soft text-warning",
+  ACTIVE: "bg-success-soft text-success",
+  REJECTED: "bg-brand-soft text-brand",
+  DELISTED: "bg-muted text-muted-foreground",
+};
+
 function SellerProducts() {
-  const session = useSession();
   const { sellerId, storeId } = useSellerScope();
   const loading = useMockLoading();
   const [query, setQuery] = useState("");
   const [sector, setSector] = useState<Sector | "ALL">("ALL");
   const [status, setStatus] = useState<ProductStatus | "ALL">("ALL");
+  const [filtersOpen, setFiltersOpen] = useState(false);
   const [limit, setLimit] = useState(10);
 
   const products = useProducts({ sellerId, storeId, query, sector, status });
   const rows = products.slice(0, limit);
+  const filtersActive = sector !== "ALL" || status !== "ALL";
 
   return (
-    <div className="space-y-4 px-4 pt-4">
+    <>
       <PageHeader
         title="Products"
-        description="Everything a shopper can buy from you starts as a row here."
-        actions={
-          <>
-            <div className="flex items-center gap-1.5">
-              <Button asChild size="sm" variant="outline">
-                <Link href="/seller/products/new">Bulk CSV upload</Link>
-              </Button>
-              <ComponentHelp id="bulk-upload-button" />
-            </div>
-            <div className="flex items-center gap-1.5">
-              <Button asChild size="sm">
-                <Link href="/seller/products/new">Add product</Link>
-              </Button>
-              <ComponentHelp id="add-product-button" />
-            </div>
-          </>
+        sub="Catalog"
+        right={
+          <div className="flex items-center gap-2">
+            <Link
+              href="/seller/products/new"
+              className="rounded-xl border border-border bg-card px-3 py-2 text-xs font-semibold"
+            >
+              Bulk upload
+            </Link>
+            <Link
+              href="/seller/products/new"
+              className="flex items-center gap-1 rounded-xl bg-foreground px-3 py-2 text-xs font-semibold text-background"
+            >
+              <Plus className="h-3.5 w-3.5" />
+              Add
+            </Link>
+          </div>
         }
       />
 
-      <SectionCard bodyClassName="p-0">
-        <div className="flex flex-wrap items-center gap-2 border-b border-border p-3">
-          <div className="relative w-full max-w-xs">
-            <Search className="pointer-events-none absolute left-2.5 top-2.5 size-4 text-muted-foreground" />
-            <Input
-              className="h-9 pl-8"
-              placeholder="Search name or product id"
+      <div className="space-y-3 px-4 pt-3 pb-6">
+        <div className="flex items-center gap-2">
+          <div className="flex flex-1 items-center gap-2 rounded-xl border border-border bg-card px-3 py-2">
+            <Search className="h-4 w-4 text-muted-foreground" />
+            <input
               value={query}
               onChange={(e) => setQuery(e.target.value)}
+              placeholder="Search name or product id"
+              className="w-full bg-transparent text-sm outline-none"
             />
           </div>
-          <ComponentHelp id="search-input" />
-          <div className="flex flex-wrap items-center gap-1">
-            {SECTORS.map((option) => (
-              <FilterChip
-                key={option}
-                label={option}
-                active={sector === option}
-                onClick={() => setSector(option)}
-              />
-            ))}
-            <ComponentHelp id="sector-filter" />
-          </div>
-          <div className="flex flex-wrap items-center gap-1">
-            {STATUSES.map((option) => (
-              <FilterChip
-                key={option}
-                label={option.replace(/_/g, " ")}
-                active={status === option}
-                onClick={() => setStatus(option)}
-              />
-            ))}
-            <ComponentHelp id="status-filter" />
-          </div>
+          <button
+            aria-label="Filters"
+            onClick={() => setFiltersOpen(true)}
+            className={cn(
+              "relative rounded-xl border p-2",
+              filtersActive ? "border-foreground bg-foreground text-background" : "border-border bg-card",
+            )}
+          >
+            <SlidersHorizontal className="h-4 w-4" />
+            {filtersActive && (
+              <span className="absolute -right-1 -top-1 h-2 w-2 rounded-full bg-brand" />
+            )}
+          </button>
         </div>
 
-        <DataShell
-          loading={loading}
-          isEmpty={rows.length === 0}
-          empty={
-            <EmptyState
-              title="No products match"
-              description="Clear the filters, or list a new product to start selling."
-              action={
-                <Button asChild size="sm">
-                  <Link href="/seller/products/new">Add your first product</Link>
-                </Button>
-              }
+        <div className="no-scrollbar flex items-center gap-2 overflow-x-auto">
+          {SECTORS.map((option) => (
+            <button
+              key={option}
+              onClick={() => setSector(sector === option ? "ALL" : option)}
+              className={cn(
+                "flex shrink-0 items-center gap-1 rounded-full border px-3 py-1 text-xs font-medium",
+                sector === option ? "border-foreground bg-foreground text-background" : "border-border bg-card",
+              )}
+            >
+              {option}
+              {sector === option && option !== "ALL" && <X className="h-3 w-3" />}
+            </button>
+          ))}
+        </div>
+
+        {loading && rows.length === 0 ? (
+          <div className="space-y-3">
+            {[0, 1, 2].map((i) => (
+              <div key={i} className="h-24 animate-pulse rounded-2xl bg-muted" />
+            ))}
+          </div>
+        ) : rows.length === 0 ? (
+          <EmptyState
+            icon={<Package className="h-12 w-12" strokeWidth={1.2} />}
+            text="No products match — clear the filters or add a new product"
+          />
+        ) : (
+          <div className="grid gap-3">
+            {rows.map((product) => (
+              <ProductRow key={product.productId} product={product} />
+            ))}
+          </div>
+        )}
+
+        {products.length > rows.length && (
+          <button
+            onClick={() => setLimit((l) => l + 10)}
+            className="w-full rounded-xl border border-border bg-card py-3 text-sm font-semibold"
+          >
+            Load more ({products.length - rows.length} remaining)
+          </button>
+        )}
+
+        {products.length === 0 && !loading && (
+          <Link
+            href="/seller/products/new"
+            className="block rounded-xl bg-foreground py-3 text-center text-sm font-semibold text-background"
+          >
+            Add your first product
+          </Link>
+        )}
+      </div>
+
+      <Sheet open={filtersOpen} onClose={() => setFiltersOpen(false)} title="Filters">
+        <p className="pt-2 text-xs font-bold text-muted-foreground">Status</p>
+        {STATUSES.map((option) => (
+          <button
+            key={option}
+            onClick={() => setStatus(option === status ? "ALL" : option)}
+            className="flex w-full items-center justify-between border-b border-border py-3 text-left text-sm last:border-0"
+          >
+            {option.replace(/_/g, " ")}
+            <span
+              className={cn(
+                "h-3.5 w-3.5 rounded-full border-2",
+                status === option ? "border-foreground bg-foreground" : "border-border",
+              )}
             />
-          }
-        >
-          <Table>
-            <TableHeader className="sticky top-14 bg-card">
-              <TableRow>
-                <TableHead>Product</TableHead>
-                <TableHead>Sector</TableHead>
-                <TableHead>Category</TableHead>
-                <TableHead className="text-right">Price</TableHead>
-                <TableHead className="text-right">MRP</TableHead>
-                <TableHead className="text-right">Discount</TableHead>
-                 <TableHead>Status</TableHead>
-                 <TableHead className="text-right">
-                   <ComponentHelp id="row-actions" label="About listing actions" />
-                 </TableHead>
-               </TableRow>
-            </TableHeader>
-            <TableBody>
-              {rows.map((product) => (
-                <TableRow key={product.productId} className="h-12">
-                  <TableCell>
-                    <div className="flex items-center gap-2">
-                      <ProductThumb product={product} size="md" />
-                      <div>
-                        <p className="text-[13px] font-medium">{product.name}</p>
-                        <p className="num text-[11px] text-muted-foreground">{product.productId}</p>
-                      </div>
-                    </div>
-                  </TableCell>
-                  <TableCell>
-                    <SectorPill sector={product.sector} />
-                  </TableCell>
-                  <TableCell className="text-[12px] text-muted-foreground">
-                    {product.category}
-                  </TableCell>
-                  <TableCell className="num text-right">{formatINR(product.pricePaisa)}</TableCell>
-                  <TableCell className="num text-right text-muted-foreground">
-                    {formatINR(product.mrpPaisa)}
-                  </TableCell>
-                  <TableCell className="num text-right">
-                    {discountPercent(product.mrpPaisa, product.pricePaisa)}%
-                  </TableCell>
-                  <TableCell>
-                    <StatusPill status={product.status} />
-                  </TableCell>
-                  <TableCell className="text-right">
-                    <Button asChild size="sm" variant="ghost">
-                      <Link href={`/seller/products/${product.productId}/edit`}>Edit</Link>
-                    </Button>
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-          {products.length > rows.length ? (
-            <div className="border-t border-border p-3 text-center">
-              <Button size="sm" variant="outline" onClick={() => setLimit((l) => l + 10)}>
-                Load more
-              </Button>
-              <ComponentHelp id="load-more-button" />
-            </div>
-          ) : null}
-        </DataShell>
-      </SectionCard>
-    </div>
+          </button>
+        ))}
+        <div className="flex gap-2 pt-4">
+          <button
+            onClick={() => setFiltersOpen(false)}
+            className="flex-1 rounded-xl border border-border bg-card px-4 py-3 text-sm font-semibold"
+          >
+            Done
+          </button>
+        </div>
+      </Sheet>
+    </>
+  );
+}
+
+function ProductRow({ product }: { product: ProductRecord }) {
+  return (
+    <Link href={`/seller/products/${product.productId}/edit`} className="block">
+      <Card className="flex items-center gap-3 p-3">
+        <div className="flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-xl bg-muted text-2xl">
+          {product.imageUrl ? (
+            <img src={product.imageUrl} alt={product.name} className="h-full w-full object-cover" />
+          ) : (
+            product.emoji
+          )}
+        </div>
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center gap-1.5">
+            <p className="truncate text-sm font-semibold">{product.name}</p>
+            <span className="shrink-0 text-[8px] font-semibold uppercase tracking-wide text-muted-foreground">
+              {product.sector}
+            </span>
+          </div>
+          <p className="truncate text-[11px] text-muted-foreground">
+            {product.category} · {product.productId}
+          </p>
+          <div className="mt-1 flex items-center gap-2 text-xs">
+            <b>{formatINR(product.pricePaisa)}</b>
+            <span className="text-[10px] text-muted-foreground line-through">
+              {formatINR(product.mrpPaisa)}
+            </span>
+            <span className="text-[10px] font-semibold text-success">
+              {discountPercent(product.mrpPaisa, product.pricePaisa)}% off
+            </span>
+            <span
+              className={cn(
+                "ml-auto rounded px-1.5 py-0.5 text-[9px] font-bold uppercase",
+                STATUS_PILL[product.status],
+              )}
+            >
+              {product.status.replace(/_/g, " ")}
+            </span>
+          </div>
+        </div>
+        <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground" />
+      </Card>
+    </Link>
   );
 }
 

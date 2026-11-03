@@ -69,7 +69,7 @@ function OrderDetail() {
           </button>
         }
       />
-      <div className="space-y-3 p-4 pb-28">
+      <div className="space-y-3 p-4 pb-36">
         <Card>
           <p className="text-xs text-muted-foreground">
             ID: {order.orderId} • {formatDateTime(order.placedAt)}
@@ -134,7 +134,7 @@ function OrderDetail() {
       </div>
 
       {order.status === "NEW" || next ? (
-        <div className="fixed bottom-0 left-1/2 flex w-full max-w-[430px] -translate-x-1/2 gap-2 border-t border-border bg-card p-3 md:max-w-[1024px]">
+        <div className="fixed bottom-[76px] left-1/2 flex w-full max-w-[430px] -translate-x-1/2 gap-2 border-t border-border bg-card p-3 md:bottom-0 md:max-w-[1024px]">
           {order.status === "NEW" && (
             <button
               onClick={() => setRejecting(true)}
@@ -153,9 +153,7 @@ function OrderDetail() {
                 toast.success(`Moved to ${next}`);
               }
             }}
-            className={`flex-1 rounded-xl px-4 py-3 text-sm font-semibold ${
-              order.status === "NEW" ? "bg-foreground text-background" : "bg-foreground text-background"
-            }`}
+            className="flex-1 rounded-xl bg-foreground px-4 py-3 text-sm font-semibold text-background"
           >
             {order.status === "NEW" ? "Accept order" : NEXT_LABEL[order.status]}
           </button>

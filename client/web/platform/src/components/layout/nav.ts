@@ -65,7 +65,7 @@ export function activeNavHref(pathname: string, nav: NavItem[]) {
 }
 
 export const SELLER_NAV: NavItem[] = [
-  { label: "Dashboard", to: "/seller", icon: Gauge, group: "Overview", exact: true },
+  { label: "Business Hub", to: "/seller/hub", icon: LayoutGrid, group: "Overview", exact: true },
   { label: "Products", to: "/seller/products", icon: Package, group: "Catalog" },
   { label: "Pricing", to: "/seller/pricing", icon: Tags, group: "Catalog" },
   { label: "Inventory", to: "/seller/inventory", icon: Boxes, group: "Catalog" },

@@ -1,23 +1,21 @@
 "use client";
-import { PageHeader } from "@/components/patterns/PageHeader";
-import { SectionCard } from "@/components/patterns/SectionCard";
-import { KpiStrip } from "@/components/patterns/KpiCard";
-import { DataShell, EmptyState } from "@/components/patterns/DataState";
-import { StatusPill } from "@/components/patterns/Pills";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
+import { Megaphone } from "lucide-react";
+import { HubHeader } from "@/components/sellers/shells";
+import { Card, EmptyState } from "@/components/sellers/kit";
 import { formatNumber, formatPercent } from "@/lib/format";
 import { useAdSlots, useHeroCampaigns, useMockLoading, usePlacements, useSellerScope } from "@/lib/api/hooks";
 import { useSession } from "@/lib/hooks/useSession";
 import { placementLabel } from "@/lib/api/reference";
-import { ComponentHelp } from "@/components/patterns/ComponentHelp";
 import { CampaignWizard } from "./components/CampaignWizard";
+import { cn } from "@/lib/utils";
+import type { AdStatus } from "@/data/types";
+
+const AD_PILL: Record<AdStatus, string> = {
+  REQUESTED: "bg-info-soft text-info",
+  APPROVED: "bg-info-soft text-info",
+  REJECTED: "bg-brand-soft text-brand",
+  LIVE: "bg-success-soft text-success",
+};
 
 function SellerAds() {
   const session = useSession();
@@ -35,147 +33,134 @@ function SellerAds() {
     slots.reduce((t, s) => t + s.ordersAttributed, 0) +
     campaigns.reduce((t, c) => t + c.ordersAttributed, 0);
 
+  const kpis = [
+    { label: "Impressions", value: formatNumber(impressions) },
+    { label: "Clicks", value: formatNumber(clicks) },
+    { label: "CTR", value: impressions ? formatPercent((clicks / impressions) * 100, 2) : "0%" },
+    { label: "Orders attributed", value: formatNumber(attributed) },
+  ];
+
   return (
-    <div className="space-y-4 px-4 pt-4">
-      <PageHeader
-        title="Ads"
-        description="Ads go live instantly — machine-checked, not admin-approved. Abuse is removed only after a report."
-        actions={<ComponentHelp id="campaign-wizard" label="About creating a campaign" />}
-      />
+    <>
+      <HubHeader />
+      <div className="space-y-3 px-4 pt-3 pb-8">
+        <div className="grid grid-cols-2 gap-3">
+          {kpis.map((k) => (
+            <Card key={k.label}>
+              <p className="text-[10px] text-muted-foreground">{k.label}</p>
+              <p className="mt-1 text-lg font-bold">{k.value}</p>
+            </Card>
+          ))}
+        </div>
 
-      <DataShell loading={loading}>
-        <KpiStrip
-          items={[
-            { label: "Impressions", value: formatNumber(impressions) },
-            { label: "Clicks", value: formatNumber(clicks) },
-            {
-              label: "CTR",
-              value: impressions ? formatPercent((clicks / impressions) * 100, 2) : "0%",
-            },
-            { label: "Orders attributed", value: formatNumber(attributed) },
-          ]}
-        />
-      </DataShell>
+        <CampaignWizard sellerId={sellerId} stateCode={session?.stateCode} />
 
-      <CampaignWizard sellerId={sellerId} stateCode={session?.stateCode} />
-
-      <SectionCard
-        title="My campaigns"
-        bodyClassName="p-0"
-        actions={<ComponentHelp id="my-campaigns" />}
-      >
-        <DataShell
-          loading={loading}
-          isEmpty={campaigns.length === 0}
-          empty={
-            <EmptyState
-              title="No hero campaigns yet"
-              description="Publish a campaign above — it goes live immediately on the placements you pick."
-            />
-          }
-        >
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Placement</TableHead>
-                <TableHead>Creative</TableHead>
-                <TableHead>Target</TableHead>
-                <TableHead className="text-right">Impressions</TableHead>
-                <TableHead className="text-right">Clicks</TableHead>
-                <TableHead className="text-right">CTR</TableHead>
-                <TableHead className="text-right">Orders</TableHead>
-                <TableHead>Status</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {campaigns.map((c) => (
-                <TableRow key={c.placementId} className="h-14">
-                  <TableCell className="text-[13px] font-medium">
+        <p className="pt-2 text-sm font-bold">My campaigns</p>
+        {loading && campaigns.length === 0 ? (
+          <div className="space-y-3">
+            {[0, 1].map((i) => (
+              <div key={i} className="h-24 animate-pulse rounded-2xl bg-muted" />
+            ))}
+          </div>
+        ) : campaigns.length === 0 ? (
+          <EmptyState
+            icon={<Megaphone className="h-12 w-12" strokeWidth={1.2} />}
+            text="No hero campaigns yet — publish one above and it goes live instantly"
+          />
+        ) : (
+          campaigns.map((c) => (
+            <div key={c.placementId} className="rounded-2xl border border-border bg-card p-4 shadow-sm">
+              <div className="flex items-center gap-3">
+                <div className="flex h-16 w-24 shrink-0 items-center justify-center overflow-hidden rounded-lg bg-muted">
+                  {c.imageUrl ? (
+                    <img src={c.imageUrl} alt="" className="h-full w-full object-cover" />
+                  ) : (
+                    <Megaphone className="h-5 w-5 text-muted-foreground" />
+                  )}
+                </div>
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-sm font-semibold">
                     {placementLabel(placements, c.placement)}
-                  </TableCell>
-                  <TableCell>
-                    <div className="flex items-center gap-2">
-                      {c.imageUrl ? (
-                        <img src={c.imageUrl} alt="" className="h-8 w-14 rounded object-cover" />
-                      ) : (
-                        <span className="h-8 w-14 rounded bg-muted" />
-                      )}
-                      <span className="text-[12px] font-medium">{c.title}</span>
-                    </div>
-                  </TableCell>
-                  <TableCell className="num text-[12px] text-muted-foreground">
+                  </p>
+                  <p className="truncate text-xs">{c.title}</p>
+                  <p className="num text-[10px] text-muted-foreground">
                     {c.targetType} · {c.targetId}
-                  </TableCell>
-                  <TableCell className="num text-right">{formatNumber(c.impressions)}</TableCell>
-                  <TableCell className="num text-right">{formatNumber(c.clicks)}</TableCell>
-                  <TableCell className="num text-right">
-                    {c.impressions ? formatPercent((c.clicks / c.impressions) * 100, 2) : "—"}
-                  </TableCell>
-                  <TableCell className="num text-right">{c.ordersAttributed}</TableCell>
-                  <TableCell>
-                    <StatusPill status={c.status} />
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </DataShell>
-      </SectionCard>
+                  </p>
+                </div>
+                <span
+                  className={cn(
+                    "shrink-0 rounded px-1.5 py-0.5 text-[9px] font-bold uppercase",
+                    AD_PILL[c.status],
+                  )}
+                >
+                  {c.status}
+                </span>
+              </div>
+              <div className="mt-3 grid grid-cols-4 gap-2 border-t border-border pt-3 text-center text-[10px]">
+                <div>
+                  <p className="text-muted-foreground">Impressions</p>
+                  <b>{formatNumber(c.impressions)}</b>
+                </div>
+                <div>
+                  <p className="text-muted-foreground">Clicks</p>
+                  <b>{formatNumber(c.clicks)}</b>
+                </div>
+                <div>
+                  <p className="text-muted-foreground">CTR</p>
+                  <b>{c.impressions ? formatPercent((c.clicks / c.impressions) * 100, 2) : "—"}</b>
+                </div>
+                <div>
+                  <p className="text-muted-foreground">Orders</p>
+                  <b>{c.ordersAttributed}</b>
+                </div>
+              </div>
+            </div>
+          ))
+        )}
 
-      <SectionCard
-        title="Product rails"
-        bodyClassName="p-0"
-        actions={<ComponentHelp id="product-rails" />}
-      >
-        <DataShell
-          loading={loading}
-          isEmpty={slots.length === 0}
-          empty={
-            <EmptyState
-              title="No rail placements yet"
-              description="Rail placements are requested from the placement picker."
-            />
-          }
-        >
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Placement</TableHead>
-                <TableHead>Product</TableHead>
-                <TableHead className="text-right">Impressions</TableHead>
-                <TableHead className="text-right">Clicks</TableHead>
-                <TableHead className="text-right">CTR</TableHead>
-                <TableHead className="text-right">Orders</TableHead>
-                <TableHead>Status</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {slots.map((slot) => (
-                <TableRow key={slot.slotId} className="h-12">
-                  <TableCell className="text-[13px] font-medium">
-                    {slot.placement.replace(/_/g, " ")}
-                  </TableCell>
-                  <TableCell className="num text-[12px] text-muted-foreground">
-                    {slot.productId}
-                  </TableCell>
-                  <TableCell className="num text-right">{formatNumber(slot.impressions)}</TableCell>
-                  <TableCell className="num text-right">{formatNumber(slot.clicks)}</TableCell>
-                  <TableCell className="num text-right">
-                    {slot.impressions
-                      ? formatPercent((slot.clicks / slot.impressions) * 100, 2)
-                      : "—"}
-                  </TableCell>
-                  <TableCell className="num text-right">{slot.ordersAttributed}</TableCell>
-                  <TableCell>
-                    <StatusPill status={slot.status} />
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </DataShell>
-      </SectionCard>
-    </div>
+        <p className="pt-2 text-sm font-bold">Product rails</p>
+        {slots.length === 0 ? (
+          <EmptyState text="No rail placements yet — requested from the placement picker" />
+        ) : (
+          slots.map((slot) => (
+            <div key={slot.slotId} className="rounded-2xl border border-border bg-card p-4 shadow-sm">
+              <div className="flex items-center justify-between gap-2">
+                <div className="min-w-0">
+                  <p className="truncate text-sm font-semibold">{slot.placement.replace(/_/g, " ")}</p>
+                  <p className="num truncate text-[11px] text-muted-foreground">{slot.productId}</p>
+                </div>
+                <span
+                  className={cn(
+                    "shrink-0 rounded px-1.5 py-0.5 text-[9px] font-bold uppercase",
+                    AD_PILL[slot.status],
+                  )}
+                >
+                  {slot.status}
+                </span>
+              </div>
+              <div className="mt-3 grid grid-cols-4 gap-2 border-t border-border pt-3 text-center text-[10px]">
+                <div>
+                  <p className="text-muted-foreground">Impressions</p>
+                  <b>{formatNumber(slot.impressions)}</b>
+                </div>
+                <div>
+                  <p className="text-muted-foreground">Clicks</p>
+                  <b>{formatNumber(slot.clicks)}</b>
+                </div>
+                <div>
+                  <p className="text-muted-foreground">CTR</p>
+                  <b>{slot.impressions ? formatPercent((slot.clicks / slot.impressions) * 100, 2) : "—"}</b>
+                </div>
+                <div>
+                  <p className="text-muted-foreground">Orders</p>
+                  <b>{slot.ordersAttributed}</b>
+                </div>
+              </div>
+            </div>
+          ))
+        )}
+      </div>
+    </>
   );
 }
 

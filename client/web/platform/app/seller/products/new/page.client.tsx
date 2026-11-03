@@ -3,27 +3,12 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
-import { PageHeader } from "@/components/patterns/PageHeader";
-import { SectionCard } from "@/components/patterns/SectionCard";
-import { EmptyState } from "@/components/patterns/DataState";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
-import { Switch } from "@/components/ui/switch";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+import { PageHeader, Card, Sheet, RadioRow, TextField, Toggle, EmptyState } from "@/components/sellers/kit";
 import { formatINR, parseRupeesToPaisa } from "@/lib/format";
 import { createProduct, updateStock } from "@/lib/api";
 import { useSellerScope, useTaxCategories } from "@/lib/api/hooks";
 import { cn } from "@/lib/utils";
 import { ImageUploader } from "@/components/patterns/ImageUploader";
-import { ComponentHelp } from "@/components/patterns/ComponentHelp";
 
 const STEPS = ["Category", "Details", "Pricing", "Inventory", "Review"];
 
@@ -37,7 +22,6 @@ function NewProduct() {
   }, [storeId, activeStore]);
   const [step, setStep] = useState(0);
 
-  // The brand belongs to the vendor, not the account — a seller never switches it on a listing.
   const sector = activeStore?.sector ?? "MART";
   const categories = useTaxCategories(sector);
   const [category, setCategory] = useState("");
@@ -49,6 +33,9 @@ function NewProduct() {
   const [isPrescription, setIsPrescription] = useState(false);
   const [price, setPrice] = useState("");
   const [quantity, setQuantity] = useState("0");
+
+  const [storePicker, setStorePicker] = useState(false);
+  const [catPicker, setCatPicker] = useState(false);
 
   const pricePaisa = parseRupeesToPaisa(price);
   const selected = categories.find((c) => c.category === category);
@@ -80,13 +67,11 @@ function NewProduct() {
         galleryUrls: images.slice(1),
         unit,
         pricePaisa,
-        // MRP is no longer collected from sellers; the listing price is the single price.
         mrpPaisa: pricePaisa,
         isVeg,
         isPrescription,
         status: "PENDING_REVIEW",
       });
-      // Delivery ETA is platform-owned (not a seller promise); default 30 minutes.
       updateStock(created.productId, Number(quantity), 30);
       toast.success("Product submitted for review");
       router.push("/seller/products");
@@ -104,268 +89,230 @@ function NewProduct() {
 
   if (!loading && stores.length === 0) {
     return (
-      <div className="space-y-4 px-4 pt-4">
-        <PageHeader
-          title="List a new product"
-          description="Submitted listings go to your district admin's approval queue."
-        />
-        <SectionCard>
-          <EmptyState
-            title="No shop yet"
-            description="Listings belong to a shop. Create your first vendor first, then come back to list products."
-            action={
-              <Button asChild size="sm">
-                <Link href="/seller/onboarding">Create a shop</Link>
-              </Button>
-            }
-          />
-        </SectionCard>
-      </div>
+      <>
+        <PageHeader title="List a new product" sub="Catalog" />
+        <div className="px-4 pt-4">
+          <Card>
+            <EmptyState
+              icon={<span className="text-3xl">🏪</span>}
+              text="Listings belong to a shop. Create your first vendor first, then come back to list products."
+            />
+            <Link
+              href="/seller/onboarding"
+              className="block rounded-xl bg-foreground py-3 text-center text-sm font-semibold text-background"
+            >
+              Create a shop
+            </Link>
+          </Card>
+        </div>
+      </>
     );
   }
 
   return (
-    <div className="space-y-4 px-4 pt-4">
-      <PageHeader
-        title="List a new product"
-        description="Submitted listings go to your district admin's approval queue."
-      />
+    <>
+      <PageHeader title="List a new product" sub={`Step ${step + 1} of ${STEPS.length}`} />
 
-      <ol className="flex flex-wrap gap-2">
-        {STEPS.map((label, index) => (
-          <li
-            key={label}
-            className={cn(
-              "flex items-center gap-2 rounded-md border px-3 py-1.5 text-[12px] font-medium",
-              index === step
-                ? "border-primary bg-primary/10 text-primary"
-                : index < step
-                  ? "border-success/40 bg-success/10 text-success"
-                  : "border-border text-muted-foreground",
-            )}
-          >
-            <span className="num">{index + 1}</span> {label}
-          </li>
-        ))}
-      </ol>
-
-      <SectionCard
-        title={STEPS[step]}
-        description={`Step ${step + 1} of ${STEPS.length}`}
-        actions={<ComponentHelp id="step-rail" label="About the listing steps" />}
-      >
-        {step === 0 ? (
-          <div className="grid gap-4 md:grid-cols-2">
-            <div className="space-y-1.5">
-              <div className="flex items-center gap-1.5">
-                <Label>Sector</Label>
-                <ComponentHelp id="sector-field" label="About the sector field" />
-              </div>
-              <div className="rounded-md border border-border bg-muted/40 px-3 py-2 text-[13px] font-medium">
-                {sector}
-              </div>
-              <p className="text-[11px] text-muted-foreground">
-                Fixed by your registration. Contact an admin to change it.
-              </p>
-            </div>
-            <div className="space-y-1.5">
-              <div className="flex items-center gap-1.5">
-                <Label>Store</Label>
-                <ComponentHelp id="store-select" label="About the store field" />
-              </div>
-              <Select value={storeId} onValueChange={setStoreId}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Pick the store that stocks this listing" />
-                </SelectTrigger>
-                <SelectContent>
-                  {stores.map((s) => (
-                    <SelectItem key={s.storeId} value={s.storeId}>
-                      {s.name}
-                      {s.isLive ? "" : " · offline"}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              <p className="text-[11px] text-muted-foreground">
-                Only stores your seller account owns are accepted by the gateway.
-              </p>
-            </div>
-            <div className="space-y-1.5">
-              <div className="flex items-center gap-1.5">
-                <Label>Category</Label>
-                <ComponentHelp id="category-select" label="About the category field" />
-              </div>
-              <Select value={category} onValueChange={setCategory}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Pick an approved category" />
-                </SelectTrigger>
-                <SelectContent>
-                  {categories.map((c) => (
-                    <SelectItem key={c.taxRateId} value={c.category}>
-                      {c.category} · GST {c.gstRatePct}%
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              <p className="text-[11px] text-muted-foreground">
-                Categories and their GST rates are controlled by the platform.
-              </p>
-            </div>
-          </div>
-        ) : null}
-
-        {step === 1 ? (
-          <div className="grid gap-4 md:grid-cols-2">
-            <div className="space-y-1.5 md:col-span-2">
-              <div className="flex items-center gap-1.5">
-                <Label htmlFor="name">Product name</Label>
-                <ComponentHelp id="name-input" label="About the product name" />
-              </div>
-              <Input id="name" value={name} onChange={(e) => setName(e.target.value)} />
-            </div>
-            <div className="space-y-1.5 md:col-span-2">
-              <div className="flex items-center gap-1.5">
-                <Label htmlFor="desc">Description</Label>
-                <ComponentHelp id="description-input" label="About the description" />
-              </div>
-              <Textarea
-                id="desc"
-                rows={3}
-                value={description}
-                onChange={(e) => setDescription(e.target.value)}
+      <div className="px-4 pt-3">
+        <div className="flex items-center gap-1.5">
+          {STEPS.map((label, index) => (
+            <div key={label} className="flex-1">
+              <div
+                className={cn(
+                  "h-1.5 rounded-full",
+                  index <= step ? "bg-foreground" : "bg-muted",
+                )}
               />
+              <p
+                className={cn(
+                  "mt-1.5 hidden text-center text-[9px] font-semibold uppercase tracking-wide sm:block",
+                  index === step ? "text-foreground" : "text-muted-foreground",
+                )}
+              >
+                {label}
+              </p>
             </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="unit">Unit</Label>
-              <Input id="unit" value={unit} onChange={(e) => setUnit(e.target.value)} />
-            </div>
-            <div className="rounded-lg border border-border p-3 md:col-span-2">
+          ))}
+        </div>
+        <p className="px-1 pt-2 text-sm font-bold">{STEPS[step]}</p>
+      </div>
+
+      <div className="space-y-3 px-4 pt-3 pb-36">
+        {step === 0 && (
+          <>
+            <Card>
+              <p className="text-xs font-bold uppercase tracking-wide text-muted-foreground">Sector</p>
+              <p className="mt-1 text-sm">
+                {sector}
+                <span className="ml-2 text-[11px] text-muted-foreground">
+                  Fixed by your registration.
+                </span>
+              </p>
+            </Card>
+            <Card onClick={() => setStorePicker(true)} className="cursor-pointer">
+              <p className="text-xs font-medium text-muted-foreground">Store</p>
+              <p className="mt-1 text-sm font-semibold">
+                {stores.find((s) => s.storeId === storeId)?.name ?? "Pick the store that stocks this listing"}
+              </p>
+            </Card>
+            <Card onClick={() => setCatPicker(true)} className="cursor-pointer">
+              <p className="text-xs font-medium text-muted-foreground">Category</p>
+              <p className="mt-1 text-sm font-semibold">
+                {category ? `${category} · GST ${taxRatePct}%` : "Pick an approved category"}
+              </p>
+            </Card>
+          </>
+        )}
+
+        {step === 1 && (
+          <Card>
+            <TextField label="Product name" value={name} onChange={setName} />
+            <TextField label="Description" value={description} onChange={setDescription} />
+            <TextField label="Unit" value={unit} onChange={setUnit} />
+            <div className="rounded-xl border border-dashed border-border p-3">
               <ImageUploader images={images} onChange={setImages} />
-              {images.length === 0 ? (
-                <p className="mt-2 text-[12px] text-destructive">
+              {images.length === 0 && (
+                <p className="mt-2 text-[11px] text-brand">
                   At least one photo is required before this listing can go live.
                 </p>
-              ) : null}
+              )}
             </div>
-            <div className="flex items-center justify-between rounded-lg border border-border px-3 py-2">
-              <div className="flex items-center gap-1.5">
-                <Label htmlFor="veg">Vegetarian</Label>
-                <ComponentHelp id="veg-switch" label="About the vegetarian flag" />
-              </div>
-              <Switch id="veg" checked={isVeg} onCheckedChange={setIsVeg} />
+            <div className="flex items-center justify-between border-t border-border py-3">
+              <span className="text-sm font-medium">Vegetarian</span>
+              <Toggle label="Vegetarian" checked={isVeg} onChange={setIsVeg} />
             </div>
-            <div className="flex items-center justify-between rounded-lg border border-border px-3 py-2">
-              <div className="flex items-center gap-1.5">
-                <Label htmlFor="rx">Prescription required</Label>
-                <ComponentHelp id="rx-switch" label="About the prescription flag" />
-              </div>
-              <Switch id="rx" checked={isPrescription} onCheckedChange={setIsPrescription} />
+            <div className="flex items-center justify-between border-t border-border py-3 last:border-0">
+              <span className="text-sm font-medium">Prescription required</span>
+              <Toggle label="Prescription required" checked={isPrescription} onChange={setIsPrescription} />
             </div>
-          </div>
-        ) : null}
+          </Card>
+        )}
 
-        {step === 2 ? (
-          <div className="grid gap-4 md:grid-cols-2">
-            <div className="space-y-1.5">
-              <div className="flex items-center gap-1.5">
-                <Label htmlFor="price">Selling price (₹)</Label>
-                <ComponentHelp id="price-input" label="About the selling price" />
-              </div>
-              <Input
-                id="price"
-                value={price}
-                onChange={(e) => setPrice(e.target.value)}
-                inputMode="decimal"
-              />
-              <p className="text-[11px] text-muted-foreground">
-                Enter the final price shoppers pay. GST is included, not added on top.
+        {step === 2 && (
+          <Card>
+            <TextField
+              label="Selling price (₹, GST included)"
+              type="number"
+              value={price}
+              onChange={setPrice}
+            />
+            <p className="text-[11px] text-muted-foreground">
+              Shoppers pay this final price. GST is included, not added on top.
+            </p>
+            <div className="mt-3 rounded-xl border border-border bg-muted/40 px-3 py-3">
+              <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+                GST rate
               </p>
+              <p className="mt-1 text-sm font-bold">{taxRatePct}%</p>
             </div>
-            <div className="space-y-1.5">
-              <div className="flex items-center gap-1.5">
-                <Label>GST rate</Label>
-                <ComponentHelp id="gst-field" label="About the GST rate" />
-              </div>
-              <div className="num rounded-md border border-border px-3 py-2 text-[13px]">
-                {taxRatePct}%
-              </div>
+          </Card>
+        )}
+
+        {step === 3 && (
+          <Card>
+            <TextField
+              label="Stock quantity"
+              type="number"
+              value={quantity}
+              onChange={setQuantity}
+            />
+            <p className="text-[11px] text-muted-foreground">
+              Delivery ETA is platform-owned (30 minutes by default).
+            </p>
+          </Card>
+        )}
+
+        {step === 4 && (
+          <Card>
+            <div className="mb-3 flex gap-2">
+              {images.map((src, index) => (
+                <img
+                  key={index}
+                  src={src}
+                  alt={`${name || "Product"} photo ${index + 1}`}
+                  className="h-16 w-16 rounded-lg border border-border object-cover"
+                />
+              ))}
             </div>
-          </div>
-        ) : null}
+            <dl className="divide-y divide-border text-sm">
+              <Row label="Sector / category" value={`${sector} · ${category}`} />
+              <Row label="Name" value={name} />
+              <Row label="Unit" value={unit} />
+              <Row label="Price (GST incl.)" value={formatINR(pricePaisa)} />
+              <Row label="GST rate" value={`${taxRatePct}%`} />
+              <Row label="Stock" value={`${quantity} units`} />
+              <Row label="Prescription" value={isPrescription ? "Required" : "Not required"} />
+              <Row label="Status on submit" value="PENDING_REVIEW" />
+            </dl>
+          </Card>
+        )}
+      </div>
 
-        {step === 3 ? (
-          <div className="grid gap-4 md:grid-cols-2">
-            <div className="space-y-1.5">
-              <div className="flex items-center gap-1.5">
-                <Label htmlFor="qty">Stock quantity</Label>
-                <ComponentHelp id="stock-input" label="About stock quantity" />
-              </div>
-              <Input id="qty" value={quantity} onChange={(e) => setQuantity(e.target.value)} inputMode="numeric" />
-            </div>
-          </div>
-        ) : null}
-
-        {step === 4 ? (
-          <>
-          <div className="mb-3 flex flex-wrap gap-2">
-            {images.map((src, index) => (
-              <img
-                key={index}
-                src={src}
-                alt={`${name || "Product"} photo ${index + 1}`}
-                className="size-20 rounded-lg border border-border object-cover"
-              />
-            ))}
-          </div>
-          <dl className="grid gap-3 text-[13px] md:grid-cols-2">
-            <Row label="Sector / category" value={`${sector} · ${category}`} />
-            <Row label="Name" value={name} />
-            <Row label="Unit" value={unit} />
-            <Row label="Price (GST incl.)" value={formatINR(pricePaisa)} />
-            <Row label="GST rate" value={`${taxRatePct}%`} />
-            <Row label="Stock" value={`${quantity} units`} />
-            <Row label="Prescription" value={isPrescription ? "Required" : "Not required"} />
-            <Row label="Status on submit" value="PENDING_REVIEW" />
-          </dl>
-          </>
-        ) : null}
-
-        <div className="mt-5 flex items-center justify-between border-t border-border pt-4">
-          <Button
-            variant="outline"
-            size="sm"
-            disabled={step === 0}
-            onClick={() => setStep((s) => Math.max(0, s - 1))}
+      <div className="fixed bottom-[76px] left-1/2 flex w-full max-w-[430px] -translate-x-1/2 gap-2 border-t border-border bg-card p-3 md:bottom-0 md:max-w-[1024px]">
+        <button
+          disabled={step === 0}
+          onClick={() => setStep((s) => Math.max(0, s - 1))}
+          className="flex-1 rounded-xl border border-border bg-card px-4 py-3 text-sm font-semibold disabled:opacity-40"
+        >
+          Back
+        </button>
+        {step < STEPS.length - 1 ? (
+          <button
+            disabled={!stepValid[step]}
+            onClick={() => setStep((s) => s + 1)}
+            className="flex-[2] rounded-xl bg-foreground px-4 py-3 text-sm font-semibold text-background disabled:opacity-40"
           >
-            Back
-          </Button>
-          {step < STEPS.length - 1 ? (
-            <Button size="sm" disabled={!stepValid[step]} onClick={() => setStep((s) => s + 1)}>
-              Continue
-            </Button>
-          ) : (
-            <div className="flex items-center gap-1.5">
-              <Button
-                size="sm"
-                disabled={!stepValid[0] || pricePaisa <= 0 || submitting}
-                onClick={() => void submit()}
-              >
-                {submitting ? "Submitting..." : "Submit for review"}
-              </Button>
-              <ComponentHelp id="submit-button" label="About submitting for review" />
-            </div>
-          )}
-        </div>
-      </SectionCard>
-    </div>
+            Continue
+          </button>
+        ) : (
+          <button
+            disabled={!stepValid[0] || pricePaisa <= 0 || submitting}
+            onClick={() => void submit()}
+            className="flex-[2] rounded-xl bg-foreground px-4 py-3 text-sm font-semibold text-background disabled:opacity-40"
+          >
+            {submitting ? "Submitting..." : "Submit for review"}
+          </button>
+        )}
+      </div>
+
+      <Sheet open={storePicker} onClose={() => setStorePicker(false)} title="Store">
+        {stores.map((s) => (
+          <RadioRow
+            key={s.storeId}
+            label={s.name}
+            sub={s.isLive ? "Live" : "Offline"}
+            checked={storeId === s.storeId}
+            onClick={() => {
+              setStoreId(s.storeId);
+              setStorePicker(false);
+            }}
+          />
+        ))}
+      </Sheet>
+
+      <Sheet open={catPicker} onClose={() => setCatPicker(false)} title="Category">
+        {categories.map((c) => (
+          <RadioRow
+            key={c.taxRateId}
+            label={c.category}
+            sub={`GST ${c.gstRatePct}%`}
+            checked={category === c.category}
+            onClick={() => {
+              setCategory(c.category);
+              setCatPicker(false);
+            }}
+          />
+        ))}
+      </Sheet>
+    </>
   );
 }
 
 function Row({ label, value }: { label: string; value: string }) {
   return (
-    <div className="rounded-lg border border-border px-3 py-2">
-      <dt className="text-[11px] text-muted-foreground">{label}</dt>
-      <dd className="num mt-0.5 font-medium">{value || "—"}</dd>
+    <div className="flex justify-between gap-3 py-2.5">
+      <dt className="text-muted-foreground">{label}</dt>
+      <dd className="text-right font-medium">{value || "—"}</dd>
     </div>
   );
 }

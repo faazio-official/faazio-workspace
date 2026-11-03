@@ -304,12 +304,14 @@ export function TextField({
   onChange,
   placeholder,
   type = "text",
+  disabled,
 }: {
   label: string;
   value: string;
   onChange: (v: string) => void;
   placeholder?: string;
   type?: string;
+  disabled?: boolean;
 }) {
   return (
     <label className="block py-2">
@@ -318,8 +320,9 @@ export function TextField({
         type={type}
         value={value}
         placeholder={placeholder}
+        disabled={disabled}
         onChange={(e) => onChange(e.target.value)}
-        className="w-full rounded-xl border border-border bg-card px-3 py-2.5 text-sm outline-none focus:border-info"
+        className="w-full rounded-xl border border-border bg-card px-3 py-2.5 text-sm outline-none focus:border-info disabled:opacity-50"
       />
     </label>
   );

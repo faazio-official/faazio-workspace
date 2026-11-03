@@ -52,10 +52,11 @@ The campaign wizard's **what→where** placements map 1:1 to the paid mobile sur
 `PAGE_CATALOG.md` §2.5/§2.6: `MART_HERO`/`FOOD_HERO` (house hero carousels) and `STORE_TOP`
 (restaurant profile band), so a seller target resolves to the same slot the shopper sees.
 
-**Mobile shell.** Below `lg`, the seller and admin consoles (`SellerShell`, `AdminShell`) hide their
-desktop sidebar and show the shared `MobileNavDrawer` — a touch-friendly, grouped nav drawer with
-active-route tones that closes on navigation, backdrop tap, or `Esc`; `viewport-fit=cover` is set in
-the root layout. The React Native seller app is a WebView over the seller console
+**Mobile shell.** Below `lg`, the admin console (`AdminShell`) hides its desktop sidebar and shows the
+shared `MobileNavDrawer` — a touch-friendly, grouped nav drawer with active-route tones that closes on
+navigation, backdrop tap, or `Esc`; `viewport-fit=cover` is set in the root layout. The seller console is
+mobile-first instead (see `SellerAppShell` below). The React Native seller app is a WebView over the
+seller console
 (`client/mobile/src/features/seller-partner/SellerWebViewScreen.tsx`). It loads the portal's `/login`
 directly; `/login` skips the form when a live HttpOnly-cookie session already exists (straight to
 `homeFor(role)`). The native layer injects its
@@ -63,13 +64,13 @@ FCM token into `window.__faazioPushToken`; `SellerPushBridge`
 registers it through `/api/gateway/notifications/register` and removes it on sign-out. Portal
 sign-out is the only seller session authority (HttpOnly cookies).
 
-**Vendor switcher (0068–0073).** A seller ACCOUNT owns many VENDORS across apps (Mart / Food / Pharma),
-so the seller console header (`SellerShell`) renders `VendorSwitcher` next to the account menu. It reads
-`GET /seller/stores` (`fetchSellerStores` → `useSellerStores`) and selects the vendor every seller page is
-scoped to; the choice is persisted in the portal store as `activeStoreId` (localStorage). Hidden when the
-account owns one vendor; a "Add a vendor" CTA when it owns none. The native seller WebView may inject
-`window.__faazio.vendorId`, which restores the last active shop on load (the same console is used in a
-desktop browser, so the switcher is seller-console-wide, not WebView-only).
+**Active shop (0068–0073).** A seller ACCOUNT owns many VENDORS across apps (Mart / Food / Pharma), so
+every seller page resolves its shop through `useActiveStore` (`fetchSellerStores` → `GET /seller/stores`),
+persisted as `activeStoreId` (localStorage); the active shop is shown by the hub header (`OutletHeader`)
+and the `/seller/outlet-info` profile. The native seller WebView may inject `window.__faazio.vendorId`,
+which restores the last active shop on load (the same console is used in a desktop browser). The old
+desktop `VendorSwitcher` shipped inside the removed width-1440 `SellerShell`; shop switching now happens
+per-store from `/seller/stores`.
 
 **Seller console reference redesign (phased).** The seller console is being ported to the visual language
 of `client/web/seller app vite reference` (restaurant partner app) — Figtree, coral `--brand` accent,
@@ -81,19 +82,39 @@ The seller-only token/utility layer lives at the bottom of `src/styles.css` (`.f
 `src/components/sellers/` (`kit.tsx`, `charts.tsx`, `promo.tsx`, `shells.tsx`, `hamburger.tsx`,
 `desktop-shell.tsx`) and are never imported by admin routes.
 
-`app/seller/layout.tsx` now renders `SellerAppShell` (`src/components/sellers/shells.tsx`) instead of the
-old width-1440 `SellerShell`: on mobile a centered 430px frame with a floating dark pill tab bar
-(Orders / Inventory / Menu / Feedback) and a hamburger that opens `/seller/explore`; on ≥ 768px a
-persistent left sidebar (all `SELLER_NAV` groups) beside a wider `max-w-[1024px]` content column.
-Restaurant-status-ish UI state (online/rush/delivery) is not server data, so it lives in a small
-persisted Zustand slice `src/lib/sellerUi.ts`.
+`app/seller/layout.tsx` renders `SellerAppShell` (`src/components/sellers/shells.tsx`), and the old
+width-1440 `SellerShell` (plus its `VendorSwitcher`) is removed. On mobile: a centered 430px frame with a
+floating dark pill tab bar and an explore icon that opens `/seller/explore`; on ≥ 768px a persistent left
+sidebar (all `SELLER_NAV` groups — the first entry is now **Business Hub** → `/seller/hub`) beside a wider
+`max-w-[1024px]` content column. The pill nav is mode-aware like the reference app:
+**Orders mode** tabs (Orders / Inventory / Menu / Feedback) vs **Hub mode** tabs (Hub / Growth / Menu /
+Finance, mapped onto the platform's `hub`/`ads`/`menus`/`payments` routes), with an animated
+`SwitchingOverlay` on the round "To Hub" / "To Orders" button. `/seller` redirects to `/seller/orders`
+(orders stay the first page you land on); the old dashboard's KPIs / GMV trend / shop health / checklist /
+top products / alerts now live in the `/seller/hub` Business Hub page. Restaurant-status-ish UI state
+(online/rush/delivery) is not server data, so it lives in a small persisted Zustand slice `src/lib/sellerUi.ts`.
 
-Currently converted to the reference kit (phased roll-out — the rest of the seller pages still use the
-old patterns but render inside the new shell): `orders`, `orders/[id]`, `inventory`, plus new routes
-`order-history`, `restaurant-status`, `rush-hour`, `explore`. `/seller` still shows the legacy dashboard
-(redirect to orders is deferred until the hub page lands). Order rows resolve their store from the order's
-own `storeId`/`vendorStoreIds` and — when a seller owns one shop — that shop (`src/lib/api/sync.ts`), and
-the seller's directory stores are hydrated from `GET /seller/stores` so scoped lists resolve sector/city.
+**Hub-mode headers match the reference HubShell.** Hub surfaces (`hub`, `analytics`, `ads`, `payments`,
+`menus`, `reviews`) render the sticky `HubHeader` from `src/components/sellers/shells.tsx`: the
+`OutletHeader` (shop name + "Showing data for" eyebrow) plus the reference's bell →
+`/seller/notifications`, round shop-initials avatar → `/seller/outlet-info`, and the explore icon →
+`/seller/explore`; pages pass `actions` (analytics period pills, menus "Add dish", payments "Print
+statement") and an optional sticky tab row. Orders/operations surfaces keep `OrdersTopBar` +
+`OrdersHeaderIcons` (`orders`, `inventory`) and detail/edit screens keep `PageHeader`
+(`promotions`, `products`, `orders/[id]`, `explore`, `settings`, `stores`, `support`, …).
+`notifications` and `outlet-info` were added as lightweight pages (a mark-all-read notification list and
+a read-only shop profile) so the new header links never 404.
+
+All seller routes are converted to the reference kit (`src/components/sellers/`): `orders`,
+`orders/[id]`, `inventory`, `order-history`, `restaurant-status`, `rush-hour`, `explore`, `hub`,
+`products`, `products/new`, `products/[id]/edit`, `menus`, `reviews`, `payments`, `analytics`,
+`pricing`, `promotions`, `returns`, `prescriptions`, `settings`, `stores`, `support`, `onboarding`,
+`ads` (incl. `ads/components/CampaignWizard` chrome), `notifications`, `outlet-info`.
+None import `@/components/patterns/*` or recharts
+any more (patterns remain for admin consoles; seller pages that keep a pattern import use
+`ImageUploader` only). Order rows resolve their store from the order's own `storeId`/`vendorStoreIds`
+and — when a seller owns one shop — that shop (`src/lib/api/sync.ts`), and the seller's directory
+stores are hydrated from `GET /seller/stores` so scoped lists resolve sector/city.
 
 **Seller app is seller-only (defense in depth).** The native seller app never accepts an admin
 session. At sign-in, `/login` checks `isBlockedInNativeSellerApp(role)` (every role except `SELLER`)
@@ -147,7 +168,10 @@ A separate **connectivity** layer (`src/lib/connectivityStore.ts`, `navigator.on
 
 | Route | Page | Sector |
 | --- | --- | --- |
-| `seller` | dashboard | all |
+| `seller` | redirect → `seller/orders` (orders-first landing) | all |
+| `seller/hub` | Business Hub — feed / sales / funnel / service quality / kitchen tabs, "Today so far", shop health, promo banner, setup checklist | all |
+| `seller/notifications` | notification list with mark-all-read; rows deep-link to payments/reviews/ads | all |
+| `seller/outlet-info` | read-only shop profile from `GET /seller/stores` (address + map link, hours, delivery time, links to stores/reviews/settings) | all |
 | `seller/ads` | hero CampaignWizard (what→where→creative→when→review) + campaign list/KPIs — includes the `PHARMA_HERO` (Pharma home), `CATEGORY_TOP` (Pharma/mart category drill-in) and `STORE_TOP` (Pharma medical shop / mart vendor) placements | all |
 | `seller/products` | catalog list — seller products+stock hydrate from `GET /seller/pricing` + `GET /seller/inventory` | all |
 | `seller/products/new` | create listing — sector fixed from registration, store picked from the seller's own `GET /seller/stores`, category from the **approved GST category master**, no MRP/ETA inputs, live seller "What you keep" deduction preview (platform fee, platform GST, TCS, TDS); submit persists through `POST /seller/products` (seed mode keeps the local demo path) | all |

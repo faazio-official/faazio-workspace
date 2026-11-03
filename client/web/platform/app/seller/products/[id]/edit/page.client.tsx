@@ -3,32 +3,23 @@ import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { useState } from "react";
 import { toast } from "sonner";
-import { PageHeader } from "@/components/patterns/PageHeader";
-import { SectionCard } from "@/components/patterns/SectionCard";
-import { EmptyState } from "@/components/patterns/DataState";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
-import { Switch } from "@/components/ui/switch";
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-  AlertDialogTrigger,
-} from "@/components/ui/alert-dialog";
+import { Trash2 } from "lucide-react";
+import { PageHeader, Card, Sheet, TextField, Toggle, EmptyState } from "@/components/sellers/kit";
 import { formatINR, parseRupeesToPaisa } from "@/lib/format";
 import { deleteProduct, saveProductImage, updateProduct, upsertPrice } from "@/lib/api";
 import { useProduct } from "@/lib/api/hooks";
-import { StatusPill } from "@/components/patterns/Pills";
 import { ImageUploader } from "@/components/patterns/ImageUploader";
 import { productGallery } from "@/lib/media/productImages";
-import { ComponentHelp } from "@/components/patterns/ComponentHelp";
+import { cn } from "@/lib/utils";
+import type { ProductStatus } from "@/data/types";
+
+const STATUS_PILL: Record<ProductStatus, string> = {
+  DRAFT: "bg-muted text-muted-foreground",
+  PENDING_REVIEW: "bg-warning-soft text-warning",
+  ACTIVE: "bg-success-soft text-success",
+  REJECTED: "bg-brand-soft text-brand",
+  DELISTED: "bg-muted text-muted-foreground",
+};
 
 function EditProduct() {
   const { id } = useParams<{ id: string }>();
@@ -39,159 +30,155 @@ function EditProduct() {
   const [price, setPrice] = useState(product ? String(product.pricePaisa / 100) : "");
   const [isPrescription, setIsPrescription] = useState(product?.isPrescription ?? false);
   const [images, setImages] = useState<string[]>(product ? productGallery(product) : []);
+  const [confirmDelete, setConfirmDelete] = useState(false);
 
   if (!product) {
     return (
-      <SectionCard>
-        <EmptyState
-          title="Product not found"
-          description="This listing may have been deleted by an admin."
-          action={
-            <Button asChild size="sm">
-              <Link href="/seller/products">Back to products</Link>
-            </Button>
-          }
-        />
-      </SectionCard>
+      <div className="px-4 pt-4">
+        <PageHeader title="Product" />
+        <EmptyState text="This listing may have been deleted by an admin" />
+        <Link
+          href="/seller/products"
+          className="block text-center text-sm font-semibold text-info"
+        >
+          Back to products
+        </Link>
+      </div>
     );
   }
 
   const pricePaisa = parseRupeesToPaisa(price);
+  const saveable = pricePaisa > 0 && name.trim().length >= 3;
 
   return (
-    <div className="space-y-4 px-4 pt-4">
+    <>
       <PageHeader
-        title={product.name}
-        description={`${product.productId} · ${product.sector} · ${product.category}`}
-        actions={<StatusPill status={product.status} />}
+        title="Edit product"
+        sub={product.name}
+        right={
+          <span
+            className={cn(
+              "rounded px-1.5 py-0.5 text-[9px] font-bold uppercase",
+              STATUS_PILL[product.status],
+            )}
+          >
+            {product.status.replace(/_/g, " ")}
+          </span>
+        }
       />
 
-      <SectionCard
-        title="Photos"
-        description="Exactly what shoppers see on the product page, cards and search results."
-        actions={<ComponentHelp helpKey="pattern:image-uploader" label="About the listing photos" />}
-      >
-        <ImageUploader images={images} onChange={setImages} />
-        {images.length === 0 ? (
-          <p className="mt-2 text-[12px] text-destructive">
-            This listing has no photo; shoppers will skip it. Upload at least one.
+      <div className="space-y-3 px-4 pt-3 pb-36">
+        <Card>
+          <p className="mb-2 text-sm font-bold">Photos</p>
+          <p className="mb-3 text-[11px] text-muted-foreground">
+            Exactly what shoppers see on the product page, cards and search results.
           </p>
-        ) : null}
-      </SectionCard>
-
-      <SectionCard title="Listing details">
-        <div className="grid gap-4 md:grid-cols-2">
-          <div className="space-y-1.5 md:col-span-2">
-            <div className="flex items-center gap-1.5">
-              <Label htmlFor="name">Name</Label>
-              <ComponentHelp id="name-input" />
-            </div>
-            <Input id="name" value={name} onChange={(e) => setName(e.target.value)} />
-          </div>
-          <div className="space-y-1.5 md:col-span-2">
-            <div className="flex items-center gap-1.5">
-              <Label htmlFor="desc">Description</Label>
-              <ComponentHelp id="description-input" />
-            </div>
-            <Textarea
-              id="desc"
-              rows={3}
-              value={description}
-              onChange={(e) => setDescription(e.target.value)}
-            />
-          </div>
-          <div className="space-y-1.5">
-            <div className="flex items-center gap-1.5">
-              <Label htmlFor="price">Selling price (₹, GST included)</Label>
-              <ComponentHelp id="price-input" />
-            </div>
-            <Input
-              id="price"
-              value={price}
-              onChange={(e) => setPrice(e.target.value)}
-              inputMode="decimal"
-            />
-          </div>
-          <div className="space-y-1.5">
-            <Label>GST</Label>
-            <p className="rounded-md border border-border px-3 py-2 text-[13px] text-muted-foreground">
-              Rate is set by the platform category master.
+          <ImageUploader images={images} onChange={setImages} />
+          {images.length === 0 && (
+            <p className="mt-2 text-[11px] text-brand">
+              This listing has no photo; shoppers will skip it. Upload at least one.
             </p>
-          </div>
-          <div className="flex items-center justify-between rounded-lg border border-border px-3 py-2 md:col-span-2">
-            <div className="flex items-center gap-1.5">
-              <Label htmlFor="rx">Prescription required</Label>
-              <ComponentHelp id="rx-switch" />
-            </div>
-            <Switch id="rx" checked={isPrescription} onCheckedChange={setIsPrescription} />
-          </div>
-        </div>
+          )}
+        </Card>
 
-        <p className="num mt-3 text-[12px] text-muted-foreground">
-          New shelf price {formatINR(pricePaisa)} · GST included
-        </p>
-        {pricePaisa <= 0 ? (
-          <p className="mt-1 text-[12px] text-destructive">Enter a price greater than zero.</p>
-        ) : null}
-
-        <div className="mt-5 flex items-center justify-between border-t border-border pt-4">
-          <div className="flex items-center gap-1.5">
-            <AlertDialog>
-              <AlertDialogTrigger asChild>
-                <Button variant="outline" size="sm" className="text-destructive">
-                  Delete listing
-                </Button>
-              </AlertDialogTrigger>
-              <AlertDialogContent>
-                <AlertDialogHeader>
-                  <AlertDialogTitle>Delete {product.name}?</AlertDialogTitle>
-                  <AlertDialogDescription>
-                    Shoppers lose this listing immediately. The action is written to the audit log.
-                  </AlertDialogDescription>
-                </AlertDialogHeader>
-                <AlertDialogFooter>
-                  <AlertDialogCancel>Keep listing</AlertDialogCancel>
-                  <AlertDialogAction
-                    onClick={() => {
-                      deleteProduct(product.productId, "Seller removed listing");
-                      toast.success("Listing deleted");
-                      router.push("/seller/products");
-                    }}
-                  >
-                    Delete
-                  </AlertDialogAction>
-                </AlertDialogFooter>
-              </AlertDialogContent>
-            </AlertDialog>
-            <ComponentHelp id="delete-button" />
+        <Card>
+          <p className="mb-2 text-sm font-bold">Listing details</p>
+          <p className="text-[11px] text-muted-foreground">
+            {product.productId} · {product.sector} · {product.category}
+          </p>
+          <TextField label="Name" value={name} onChange={setName} />
+          <TextField label="Description" value={description} onChange={setDescription} />
+          <TextField
+            label="Selling price (₹, GST included)"
+            type="number"
+            value={price}
+            onChange={setPrice}
+          />
+          <div className="rounded-xl border border-border bg-muted/40 px-3 py-3">
+            <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+              GST
+            </p>
+            <p className="mt-1 text-xs">Rate is set by the platform category master.</p>
           </div>
+          <div className="flex items-center justify-between border-t border-border py-3">
+            <span className="text-sm font-medium">Prescription required</span>
+            <Toggle
+              label="Prescription required"
+              checked={isPrescription}
+              onChange={setIsPrescription}
+            />
+          </div>
+          <p className="border-t border-border pt-3 text-xs text-muted-foreground">
+            New shelf price{" "}
+            <b className="text-foreground">
+              {pricePaisa > 0 ? formatINR(pricePaisa) : "—"}
+            </b>{" "}
+            · GST included
+          </p>
+          {pricePaisa <= 0 && (
+            <p className="mt-1 text-[11px] text-brand">Enter a price greater than zero.</p>
+          )}
+        </Card>
+      </div>
 
-          <div className="flex items-center gap-1.5">
-            <Button
-              size="sm"
-              disabled={pricePaisa <= 0 || name.trim().length < 3}
-              onClick={() => {
-                updateProduct(product.productId, {
-                  name: name.trim(),
-                  description: description.trim(),
-                  isPrescription,
-                  imageUrl: images[0] ?? "",
-                  galleryUrls: images.slice(1),
-                });
-                // Money edits must reach the gateway (`PUT /seller/products/{id}`), which writes
-                // catalog.products + inventory.stock in lockstep. `updateProduct` above is local-only.
-                upsertPrice(product.productId, pricePaisa, pricePaisa);
-                saveProductImage(product.productId, images[0]);
-                toast.success("Listing updated");
-              }}
+      <div className="fixed bottom-[76px] left-1/2 flex w-full max-w-[430px] -translate-x-1/2 gap-2 border-t border-border bg-card p-3 md:bottom-0 md:max-w-[1024px]">
+        <button
+          onClick={() => setConfirmDelete(true)}
+          className="flex items-center justify-center gap-2 rounded-xl border border-border bg-card px-4 py-3 text-sm font-semibold text-brand"
+        >
+          <Trash2 className="h-4 w-4" />
+          Delete
+        </button>
+        <button
+          disabled={!saveable}
+          onClick={() => {
+            updateProduct(product.productId, {
+              name: name.trim(),
+              description: description.trim(),
+              isPrescription,
+              imageUrl: images[0] ?? "",
+              galleryUrls: images.slice(1),
+            });
+            upsertPrice(product.productId, pricePaisa, pricePaisa);
+            saveProductImage(product.productId, images[0]);
+            toast.success("Listing updated");
+          }}
+          className="flex-[2] rounded-xl bg-foreground px-4 py-3 text-sm font-semibold text-background disabled:opacity-40"
+        >
+          Save changes
+        </button>
+      </div>
+
+      <Sheet
+        open={confirmDelete}
+        onClose={() => setConfirmDelete(false)}
+        title={`Delete ${product.name}?`}
+        footer={
+          <div className="flex gap-2">
+            <button
+              onClick={() => setConfirmDelete(false)}
+              className="flex-1 rounded-xl border border-border bg-card px-4 py-3 text-sm font-semibold"
             >
-              Save changes
-            </Button>
-            <ComponentHelp id="save-button" />
+              Keep listing
+            </button>
+            <button
+              onClick={() => {
+                deleteProduct(product.productId, "Seller removed listing");
+                toast.success("Listing deleted");
+                router.push("/seller/products");
+              }}
+              className="flex-1 rounded-xl bg-brand px-4 py-3 text-sm font-semibold text-primary-foreground"
+            >
+              Delete
+            </button>
           </div>
-        </div>
-      </SectionCard>
-    </div>
+        }
+      >
+        <p className="pb-2 text-xs text-muted-foreground">
+          Shoppers lose this listing immediately. The action is written to the audit log.
+        </p>
+      </Sheet>
+    </>
   );
 }
 

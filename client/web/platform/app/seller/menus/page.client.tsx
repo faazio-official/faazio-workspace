@@ -1,43 +1,24 @@
 "use client";
 import { useState } from "react";
+import { Plus, Search, SlidersHorizontal, Trash2, X } from "lucide-react";
 import { toast } from "sonner";
-import { PageHeader } from "@/components/patterns/PageHeader";
-import { SectionCard } from "@/components/patterns/SectionCard";
-import { DataShell, EmptyState } from "@/components/patterns/DataState";
-import { FilterChip } from "@/components/patterns/FilterChip";
-import { StatusPill } from "@/components/patterns/Pills";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Switch } from "@/components/ui/switch";
-import {
-  Dialog,
-  DialogContent,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
+import { HubHeader } from "@/components/sellers/shells";
+import { Sheet, TextField, Toggle, VegMark, EmptyState } from "@/components/sellers/kit";
 import { formatINR, parseRupeesToPaisa } from "@/lib/format";
 import { deleteMenu, setMenuStatus, upsertMenu, type MenuDto } from "@/lib/api";
 import { useMenus, useMockLoading, useSellerScope } from "@/lib/api/hooks";
-import { ComponentHelp } from "@/components/patterns/ComponentHelp";
+import { cn } from "@/lib/utils";
 import type { MenuItemRecord, ProductStatus } from "@/data/types";
 
-const STATUSES: (ProductStatus | "ALL")[] = [
-  "ALL",
-  "DRAFT",
-  "PENDING_REVIEW",
-  "ACTIVE",
-  "DELISTED",
-];
+const STATUSES: (ProductStatus | "ALL")[] = ["ALL", "DRAFT", "PENDING_REVIEW", "ACTIVE", "DELISTED"];
+
+const STATUS_PILL: Record<ProductStatus, string> = {
+  DRAFT: "bg-muted text-muted-foreground",
+  PENDING_REVIEW: "bg-warning-soft text-warning",
+  ACTIVE: "bg-success-soft text-success",
+  REJECTED: "bg-brand-soft text-brand",
+  DELISTED: "bg-muted text-muted-foreground",
+};
 
 interface FormState {
   venueId: string;
@@ -81,6 +62,7 @@ function SellerMenus() {
   const loading = useMockLoading();
   const [status, setStatus] = useState<ProductStatus | "ALL">("ALL");
   const [query, setQuery] = useState("");
+  const [filtersOpen, setFiltersOpen] = useState(false);
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<MenuItemRecord | null>(null);
   const [form, setForm] = useState<FormState>(emptyForm());
@@ -109,7 +91,6 @@ function SellerMenus() {
       toast.error("Venue, dish id, name and a non-negative price are required");
       return;
     }
-    // MRP is optional; when set it is the list price (strike) and must be ≥ the selling price.
     const mrpRaw = form.mrp.trim();
     const mrpPaisa = mrpRaw === "" ? undefined : parseRupeesToPaisa(mrpRaw);
     if (mrpPaisa != null && mrpPaisa < pricePaisa) {
@@ -132,239 +113,204 @@ function SellerMenus() {
     setOpen(false);
   }
 
+  const applyStatus = (m: MenuItemRecord, to: ProductStatus, message: string) => {
+    setMenuStatus(m.venueId, m.dishId, to);
+    toast.success(message);
+  };
+
   return (
-    <div className="space-y-4 px-4 pt-4">
-      <PageHeader
-        title="Menu"
-        description="Dishes are per venue. Submit a dish for review, then district admins make it live."
+    <>
+      <HubHeader
         actions={
-          <div className="flex items-center gap-1.5">
-            <Button size="sm" onClick={openCreate}>
-              Add dish
-            </Button>
-            <ComponentHelp id="add-dish-button" />
-          </div>
+          <button
+            onClick={openCreate}
+            className="flex items-center gap-1 rounded-xl bg-foreground px-3 py-2 text-xs font-semibold text-background"
+          >
+            <Plus className="h-3.5 w-3.5" />
+            Add dish
+          </button>
         }
       />
 
-      <SectionCard bodyClassName="p-0">
-        <div className="flex flex-wrap items-center gap-2 border-b border-border p-3">
-          <div className="flex items-center gap-1.5">
-            <Input
+      <div className="space-y-3 px-4 pt-3 pb-6">
+        <div className="flex items-center gap-2">
+          <div className="flex flex-1 items-center gap-2 rounded-xl border border-border bg-card px-3 py-2">
+            <Search className="h-4 w-4 text-muted-foreground" />
+            <input
               value={query}
               onChange={(e) => setQuery(e.target.value)}
               placeholder="Search dish name or id"
-              className="max-w-xs"
+              className="w-full bg-transparent text-sm outline-none"
             />
-            <ComponentHelp id="search-input" />
           </div>
-          <div className="flex flex-wrap items-center gap-1">
-            {STATUSES.map((option) => (
-              <FilterChip
-                key={option}
-                label={option}
-                active={status === option}
-                onClick={() => setStatus(option)}
-              />
+          <button
+            aria-label="Filters"
+            onClick={() => setFiltersOpen(true)}
+            className={cn(
+              "rounded-xl border p-2",
+              status !== "ALL" ? "border-foreground bg-foreground text-background" : "border-border bg-card",
+            )}
+          >
+            <SlidersHorizontal className="h-4 w-4" />
+          </button>
+        </div>
+
+        {loading && menus.length === 0 ? (
+          <div className="space-y-3">
+            {[0, 1, 2].map((i) => (
+              <div key={i} className="h-20 animate-pulse rounded-2xl bg-muted" />
             ))}
-            <ComponentHelp id="status-filter" />
+          </div>
+        ) : menus.length === 0 ? (
+          <EmptyState text="No dishes yet — add a dish or change the status filter" />
+        ) : (
+          <div className="space-y-3">
+            {menus.map((m) => (
+              <div key={`${m.venueId}:${m.dishId}`} className="rounded-2xl border border-border bg-card p-4 shadow-sm">
+                <div className="flex items-start gap-3">
+                  <VegMark veg={m.isVeg !== false} />
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-sm font-semibold">{m.name}</p>
+                    <p className="truncate text-[11px] text-muted-foreground">
+                      {m.cuisine ?? "No cuisine"} · {m.dishId}
+                    </p>
+                    <div className="mt-1 flex items-center gap-2 text-xs">
+                      <b>{formatINR(m.pricePaisa)}</b>
+                      {m.mrpPaisa != null && m.mrpPaisa > m.pricePaisa && (
+                        <span className="text-[10px] text-muted-foreground line-through">
+                          {formatINR(m.mrpPaisa)}
+                        </span>
+                      )}
+                      <span
+                        className={cn(
+                          "ml-auto rounded px-1.5 py-0.5 text-[9px] font-bold uppercase",
+                          STATUS_PILL[m.status],
+                        )}
+                      >
+                        {m.status.replace(/_/g, " ")}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+                <div className="mt-3 flex items-center justify-between border-t border-border pt-2.5">
+                  <div className="flex gap-3 text-xs font-semibold">
+                    {m.status === "DRAFT" || m.status === "DELISTED" ? (
+                      <button
+                        className="text-info"
+                        onClick={() => applyStatus(m, "PENDING_REVIEW", `${m.name} submitted for review`)}
+                      >
+                        Submit
+                      </button>
+                    ) : null}
+                    {m.status === "ACTIVE" || m.status === "PENDING_REVIEW" ? (
+                      <button
+                        className="text-warning"
+                        onClick={() => applyStatus(m, "DELISTED", `${m.name} delisted`)}
+                      >
+                        Delist
+                      </button>
+                    ) : null}
+                  </div>
+                  <button onClick={() => openEdit(m)} className="text-xs font-semibold text-info">
+                    Edit
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      <Sheet
+        open={open}
+        onClose={() => setOpen(false)}
+        title={editing ? "Edit dish" : "Add dish"}
+        footer={
+          <div className="flex items-center gap-2">
+            {editing && (
+              <button
+                aria-label="Delete dish"
+                onClick={() => {
+                  deleteMenu(editing.venueId, editing.dishId);
+                  toast.success(`${editing.name} removed`);
+                  setOpen(false);
+                }}
+                className="rounded-xl border border-border bg-card p-3 text-brand"
+              >
+                <Trash2 className="h-4 w-4" />
+              </button>
+            )}
+            <button
+              onClick={() => setOpen(false)}
+              className="flex-1 rounded-xl border border-border bg-card px-4 py-3 text-sm font-semibold"
+            >
+              Cancel
+            </button>
+            <button
+              onClick={save}
+              className="flex-[2] rounded-xl bg-foreground px-4 py-3 text-sm font-semibold text-background"
+            >
+              {editing ? "Save changes" : "Create dish"}
+            </button>
+          </div>
+        }
+      >
+        <div className="pb-2">
+          <TextField
+            label="Venue id"
+            value={form.venueId}
+            disabled={editing !== null}
+            onChange={(v) => setForm({ ...form, venueId: v })}
+          />
+          <TextField
+            label="Dish id"
+            value={form.dishId}
+            disabled={editing !== null}
+            onChange={(v) => setForm({ ...form, dishId: v })}
+          />
+          <TextField label="Dish name" value={form.name} onChange={(v) => setForm({ ...form, name: v })} />
+          <TextField
+            label="Price (₹)"
+            type="number"
+            value={form.price}
+            onChange={(v) => setForm({ ...form, price: v })}
+          />
+          <TextField
+            label="MRP (₹, optional)"
+            type="number"
+            value={form.mrp}
+            placeholder="Leave blank for no offer"
+            onChange={(v) => setForm({ ...form, mrp: v })}
+          />
+          <TextField label="Cuisine" value={form.cuisine} onChange={(v) => setForm({ ...form, cuisine: v })} />
+          <TextField label="Image URL" value={form.image} onChange={(v) => setForm({ ...form, image: v })} />
+          <div className="flex items-center justify-between py-3">
+            <span className="text-sm font-medium">Vegetarian</span>
+            <Toggle
+              label="Vegetarian"
+              checked={form.isVeg}
+              onChange={(v) => setForm({ ...form, isVeg: v })}
+            />
           </div>
         </div>
-        <DataShell
-          loading={loading}
-          isEmpty={menus.length === 0}
-          empty={
-            <EmptyState
-              title="No dishes"
-              description="Add a dish or switch the status filter to see more."
-            />
-          }
-        >
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Dish</TableHead>
-                <TableHead>Venue</TableHead>
-                <TableHead>Cuisine</TableHead>
-                <TableHead className="text-right">Price</TableHead>
-                 <TableHead>Status</TableHead>
-                 <TableHead className="text-right">
-                   <ComponentHelp id="row-actions" label="About dish actions" />
-                 </TableHead>
-               </TableRow>
-            </TableHeader>
-            <TableBody>
-              {menus.map((m) => (
-                <TableRow key={`${m.venueId}:${m.dishId}`} className="h-12">
-                  <TableCell>
-                    <div className="flex items-center gap-2">
-                      <span
-                        aria-hidden
-                        className={`size-2 rounded-full ${m.isVeg ? "bg-success" : "bg-destructive"}`}
-                      />
-                      <span className="font-medium">{m.name}</span>
-                      <span className="num text-[11px] text-muted-foreground">{m.dishId}</span>
-                    </div>
-                  </TableCell>
-                  <TableCell className="num text-muted-foreground">{m.venueId}</TableCell>
-                  <TableCell className="text-muted-foreground">{m.cuisine ?? "—"}</TableCell>
-                  <TableCell className="num text-right">
-                    {m.mrpPaisa != null && m.mrpPaisa > m.pricePaisa ? (
-                      <span className="mr-1 text-muted-foreground line-through">
-                        {formatINR(m.mrpPaisa)}
-                      </span>
-                    ) : null}
-                    <span className="font-medium">{formatINR(m.pricePaisa)}</span>
-                  </TableCell>
-                  <TableCell>
-                    <StatusPill status={m.status} />
-                  </TableCell>
-                  <TableCell>
-                    <div className="flex justify-end gap-1">
-                      <Button size="sm" variant="outline" onClick={() => openEdit(m)}>
-                        Edit
-                      </Button>
-                      {m.status === "DRAFT" || m.status === "DELISTED" ? (
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          onClick={() => {
-                            setMenuStatus(m.venueId, m.dishId, "PENDING_REVIEW");
-                            toast.success(`${m.name} submitted for review`);
-                          }}
-                        >
-                          Submit
-                        </Button>
-                      ) : null}
-                      {m.status === "ACTIVE" || m.status === "PENDING_REVIEW" ? (
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          onClick={() => {
-                            setMenuStatus(m.venueId, m.dishId, "DELISTED");
-                            toast.success(`${m.name} delisted`);
-                          }}
-                        >
-                          Delist
-                        </Button>
-                      ) : null}
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        className="text-destructive"
-                        onClick={() => {
-                          deleteMenu(m.venueId, m.dishId);
-                          toast.success(`${m.name} removed`);
-                        }}
-                      >
-                        Remove
-                      </Button>
-                    </div>
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </DataShell>
-      </SectionCard>
+      </Sheet>
 
-      <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>{editing ? "Edit dish" : "Add dish"}</DialogTitle>
-          </DialogHeader>
-          <div className="grid gap-4 sm:grid-cols-2">
-            <div className="space-y-1.5">
-              <Label htmlFor="venueId">Venue id</Label>
-              <Input
-                id="venueId"
-                className="num"
-                value={form.venueId}
-                disabled={editing !== null}
-                onChange={(e) => setForm({ ...form, venueId: e.target.value })}
-              />
-            </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="dishId">Dish id</Label>
-              <Input
-                id="dishId"
-                className="num"
-                value={form.dishId}
-                disabled={editing !== null}
-                onChange={(e) => setForm({ ...form, dishId: e.target.value })}
-              />
-            </div>
-            <div className="space-y-1.5 sm:col-span-2">
-              <Label htmlFor="name">Dish name</Label>
-              <Input
-                id="name"
-                value={form.name}
-                onChange={(e) => setForm({ ...form, name: e.target.value })}
-              />
-            </div>
-            <div className="space-y-1.5">
-              <div className="flex items-center gap-1.5">
-                <Label htmlFor="price">Price (₹)</Label>
-                <ComponentHelp id="price-input" />
-              </div>
-              <Input
-                id="price"
-                className="num"
-                value={form.price}
-                onChange={(e) => setForm({ ...form, price: e.target.value })}
-              />
-            </div>
-            <div className="space-y-1.5">
-              <div className="flex items-center gap-1.5">
-                <Label htmlFor="mrp">MRP (₹, optional)</Label>
-                <ComponentHelp id="mrp-input" />
-              </div>
-              <Input
-                id="mrp"
-                className="num"
-                value={form.mrp}
-                placeholder="Leave blank for no offer"
-                onChange={(e) => setForm({ ...form, mrp: e.target.value })}
-              />
-            </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="cuisine">Cuisine</Label>
-              <Input
-                id="cuisine"
-                value={form.cuisine}
-                onChange={(e) => setForm({ ...form, cuisine: e.target.value })}
-              />
-            </div>
-            <div className="space-y-1.5 sm:col-span-2">
-              <Label htmlFor="image">Image URL</Label>
-              <Input
-                id="image"
-                value={form.image}
-                onChange={(e) => setForm({ ...form, image: e.target.value })}
-              />
-            </div>
-            <div className="flex items-center gap-2 sm:col-span-2">
-              <Switch
-                id="isVeg"
-                checked={form.isVeg}
-                onCheckedChange={(checked) => setForm({ ...form, isVeg: checked })}
-              />
-              <Label htmlFor="isVeg">Vegetarian</Label>
-              <ComponentHelp id="veg-switch" />
-            </div>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setOpen(false)}>
-              Cancel
-            </Button>
-            <div className="flex items-center gap-1.5">
-              <Button onClick={save}>{editing ? "Save changes" : "Create dish"}</Button>
-              <ComponentHelp id="save-dish-button" />
-            </div>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-    </div>
+      <Sheet open={filtersOpen} onClose={() => setFiltersOpen(false)} title="Status">
+        {STATUSES.map((option) => (
+          <button
+            key={option}
+            onClick={() => {
+              setStatus(option);
+              setFiltersOpen(false);
+            }}
+            className="flex w-full items-center justify-between border-b border-border py-3 text-left text-sm last:border-0"
+          >
+            {option.replace(/_/g, " ")}
+            {status === option && <X className="h-4 w-4" />}
+          </button>
+        ))}
+      </Sheet>
+    </>
   );
 }
 

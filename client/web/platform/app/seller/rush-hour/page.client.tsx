@@ -22,7 +22,7 @@ function RushHour() {
   return (
     <>
       <PageHeader title="Rush in kitchen" />
-      <div className="p-4 pb-28">
+      <div className="p-4 pb-36">
         <div className="flex gap-3 rounded-2xl bg-info-soft p-4">
           <Zap className="h-6 w-6 shrink-0 text-info" />
           <p className="text-sm font-semibold">
@@ -54,7 +54,7 @@ function RushHour() {
           </>
         )}
       </div>
-      <div className="fixed bottom-0 left-1/2 w-full max-w-[430px] -translate-x-1/2 border-t border-border bg-card p-3 md:max-w-[1024px]">
+      <div className="fixed bottom-[76px] left-1/2 w-full max-w-[430px] -translate-x-1/2 border-t border-border bg-card p-3 md:bottom-0 md:max-w-[1024px]">
         {rush.on ? (
           <button
             onClick={() => {

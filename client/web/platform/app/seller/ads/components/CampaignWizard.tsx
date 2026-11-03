@@ -5,12 +5,11 @@ import { Check, ImagePlus, Loader2, ShoppingBag, Store, UtensilsCrossed } from "
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { SectionCard } from "@/components/patterns/SectionCard";
-import { StatusPill } from "@/components/patterns/Pills";
 import { resolveImage, uploadProductImage } from "@/lib/media/productImages";
 import { requestHeroCampaign } from "@/lib/api";
 import { useCategories, useMenus, usePlacements, useProducts, useStores } from "@/lib/api/hooks";
 import { eligiblePlacementsFor, placementLabel, placementReach } from "@/lib/api/reference";
+import { cn } from "@/lib/utils";
 import type { AdTargetType, HeroPlacement, Sector } from "@/data/types";
 
 /** Target tabs the picker offers (each seller item maps to a `targetType`). */
@@ -181,22 +180,25 @@ export function CampaignWizard({ sellerId, stateCode }: { sellerId: string; stat
   const steps = ["What", "Where", "Creative", "When", "Review"];
 
   return (
-    <SectionCard
-      title="New hero campaign"
-      description="Promote one of your own items — goes live instantly, machine-checked (owner, placement fit, poster, length, caps)."
-    >
+    <div className="rounded-2xl border border-border bg-card p-4 shadow-sm">
+      <p className="text-sm font-bold">New hero campaign</p>
+      <p className="mb-4 text-[10px] text-muted-foreground">
+        Promote one of your own items — goes live instantly, machine-checked (owner, placement fit,
+        poster, length, caps).
+      </p>
       {/* Step rail */}
-      <ol className="mb-5 flex flex-wrap gap-2">
+      <ol className="no-scrollbar mb-5 flex gap-2 overflow-x-auto">
         {steps.map((label, i) => (
           <li
             key={label}
-            className={`flex items-center gap-1.5 rounded-md px-3 py-1 text-[12px] font-medium ring-1 ${
+            className={cn(
+              "flex shrink-0 items-center gap-1.5 rounded-full border px-3 py-1.5 text-[11px] font-semibold",
               i === step
-                ? "bg-primary/10 text-primary ring-primary/30"
+                ? "border-foreground bg-foreground text-background"
                 : i < step
-                  ? "bg-success/10 text-success ring-success/25"
-                  : "bg-secondary text-muted-foreground ring-border"
-            }`}
+                  ? "border-success bg-success-soft text-success"
+                  : "border-border bg-card text-muted-foreground",
+            )}
           >
             {i < step ? <Check className="size-3.5" /> : <span className="num">{i + 1}</span>}
             {label}
@@ -434,7 +436,7 @@ export function CampaignWizard({ sellerId, stateCode }: { sellerId: string; stat
           <span />
         )}
       </div>
-    </SectionCard>
+    </div>
   );
 }
 
@@ -442,7 +444,15 @@ function Row({ label, value, pill }: { label: string; value: string; pill?: stri
   return (
     <div className="flex items-center justify-between gap-3 border-b border-border/60 pb-1.5">
       <dt className="text-muted-foreground">{label}</dt>
-      <dd className="flex items-center gap-2 text-right font-medium">{pill ? <StatusPill status={pill} /> : value}</dd>
+      <dd className="flex items-center gap-2 text-right font-medium">
+        {pill ? (
+          <span className="rounded bg-success-soft px-1.5 py-0.5 text-[10px] font-bold uppercase text-success">
+            {pill}
+          </span>
+        ) : (
+          value
+        )}
+      </dd>
     </div>
   );
 }
