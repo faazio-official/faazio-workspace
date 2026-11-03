@@ -615,6 +615,11 @@ fallback behavior). Detection is dependency-free (`connectivityStore`: `GET /hea
 4. **Cold-start offline** — `App.tsx` renders `OfflinePage` (not the navigator) when `isOnline ===
    false && !hasConnected`, so an app opened offline shows the offline page instead of the splash.
 
+`OfflinePage` (the branded logo/`WifiOff`/"You're offline"/**Try again** screen) accepts an optional
+`onRetry` prop that replaces the default `checkConnectivity` probe; the seller WebView shell
+(`SellerWebViewScreen`) renders it this way so **Try again** reloads the portal instead of probing
+`GET /health` (the seller app never starts `connectivityStore`).
+
 Auth/entry routes (`Login`/`Onboarding`/`LanguageSelection`/`Location`) are never blocked, so an
 offline session drop still lands on Login. `GatewayClient.serverOnly` remains server-only — an
 offline read still throws `GatewayOfflineError` (the retired `_mock` lambdas/`withFallback`/
@@ -875,8 +880,9 @@ shell first injects `window.__faazio.vendorId = <storeId>` so the console can op
 right shop (0068–0074); the portal's `activeStoreId` restore also accepts that injected vendor. The
 native shell also refuses to load any `/admin/*` portal URL, rendering the branded "Not available in
 the Faazio Seller app" block with a **Back to sign in** action instead. No internet / an unreachable
-portal renders a branded Faazio state with **Try again** (native side) instead of a white WebView; a
-missing `WEB_PORTAL_URL` renders a distinct "Portal not configured" state.
+portal renders the shared `components/shared/OfflinePage` (the same branded page the customer app
+uses) with an injected retry handler that reloads the WebView, instead of a white WebView or a raw
+`net::ERR_*` detail; a missing `WEB_PORTAL_URL` renders a distinct "Portal not configured" state.
 
 **Session (Option A).** The portal's `/login` page authenticates against the gateway
 (`POST /auth/portal/login`) and keeps the access/refresh pair in HttpOnly cookies. Native stores no

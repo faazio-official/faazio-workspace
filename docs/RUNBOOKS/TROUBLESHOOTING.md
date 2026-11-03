@@ -149,10 +149,11 @@ rendered on the error card** (plus the first stack frame in a dev build) — tha
   A seller build now **fails `configure.js`** (dev and release) rather than shipping — set it in
   `client/mobile/.env.local` / the CI repo variable and rebuild (release requires https). If the
   release APK was built before this guard, rebuild.
-- **Branded "Unable to reach the seller portal" with Try again** → the portal origin was unreachable
-  (no internet, TLS, cold start). This is the intended native offline state — tap **Try again** once
-  connectivity returns. Not a white blank anymore; a blank WebView means the origin loads but the
-  page threw (check the portal logs).
+- **"You're offline" (branded Faazio offline page) inside the seller app** → the portal origin was
+  unreachable (no internet, TLS, cold start). This is the same branded `OfflinePage` the
+  customer/delivery apps use; tap **Try again** to reload the WebView once connectivity returns.
+  Not a white blank anymore and no raw `net::ERR_*` detail line; a blank WebView means the origin
+  loads but the page threw (check the portal logs).
 - **Blank white WebView (page loads, then blank)** → mixed content blocked or a portal JS error.
   Verify the URL opens in the phone browser, check the release network-security config contains the
   portal host, and remember the portal session is a cookie: clearing app data signs the seller out.

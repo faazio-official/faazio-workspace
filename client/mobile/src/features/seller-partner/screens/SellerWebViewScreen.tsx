@@ -15,6 +15,7 @@ import { WebView as NativeWebView } from 'react-native-webview';
 import type { WebViewNavigation, WebViewProps } from 'react-native-webview';
 import { WEB_PORTAL_URL } from '@/lib/config';
 import { FaazioLogo } from '@/components/FaazioLogo';
+import { OfflinePage } from '@/components/shared/OfflinePage';
 import { getSellerPushToken, startSellerPush } from '@/services/sellerPush';
 import { ms, vs } from '@/utils/responsive';
 import { parentRamp } from '@/theme/brandTokens';
@@ -299,16 +300,8 @@ export function SellerWebViewScreen() {
         </View>
       ) : null}
       {error && !blocked ? (
-        <View style={styles.state}>
-          <FaazioLogo size={30} />
-          <Text style={styles.title}>Unable to reach the seller portal</Text>
-          <Text style={styles.body}>
-            Check your internet connection and try again.
-          </Text>
-          <Text style={styles.detail}>{error}</Text>
-          <Pressable onPress={retry} style={styles.button} accessibilityRole="button">
-            <Text style={styles.buttonText}>Try again</Text>
-          </Pressable>
+        <View style={styles.offlineOverlay}>
+          <OfflinePage onRetry={retry} />
         </View>
       ) : null}
     </SafeAreaView>
@@ -337,9 +330,16 @@ const styles = StyleSheet.create({
     gap: vs(10),
     backgroundColor: '#f8fafc',
   },
+  offlineOverlay: {
+    position: 'absolute',
+    top: 0,
+    right: 0,
+    bottom: 0,
+    left: 0,
+    backgroundColor: '#ffffff',
+  },
   title: { fontSize: ms(18), fontWeight: '900', color: '#0f172a', textAlign: 'center' },
   body: { fontSize: ms(13), lineHeight: ms(19), color: '#64748b', textAlign: 'center' },
-  detail: { fontSize: ms(12), lineHeight: ms(17), color: '#94a3b8', textAlign: 'center' },
   button: {
     marginTop: vs(8),
     paddingHorizontal: ms(20),

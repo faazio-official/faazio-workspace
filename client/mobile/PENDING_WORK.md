@@ -157,8 +157,11 @@ taxonomy). `check:drillin` now validates against `server/supabase/seed/lib/taxon
   again"). `navigation/offlineNavigationGuard.ts` reverts a forward navigation attempted while
   offline (via `NavigationContainer.onStateChange`), stores it, and `App.tsx` replays it on reconnect
   so the destination refetches. Cold-start offline renders `OfflinePage` instead of the splash.
-  Auth routes are never blocked. `GatewayClient.serverOnly` is unchanged (still server-only — no
-  fixture fallback, so an offline read still throws `GatewayOfflineError`).
+Auth routes are never blocked. `GatewayClient.serverOnly` is unchanged (still server-only — no
+   fixture fallback, so an offline read still throws `GatewayOfflineError`). The seller WebView shell
+   (`features/seller-partner/screens/SellerWebViewScreen.tsx`) also renders the shared `OfflinePage`
+   (with an injected retry that reloads the portal) instead of its former hand-rolled error block —
+   `onRetry` on `OfflinePage` replaces the connectivity probe in that shell.
 - **Web (partner portal):** `lib/connectivityStore.ts` + `lib/hooks/useConnectivity.ts` (native
   `navigator.onLine` + `online`/`offline` events; sonner "You're offline" toast).
   `components/layout/OfflineGuard.tsx` (mounted in `app/providers.tsx`) covers cold-start offline,

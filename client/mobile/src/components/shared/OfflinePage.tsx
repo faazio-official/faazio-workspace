@@ -8,13 +8,22 @@ import { useConnectivityStore } from '@/state/connectivityStore';
 import { ms, vs } from '@/utils/responsive';
 import { parentRamp } from '@/theme/brandTokens';
 
+type OfflinePageProps = {
+  /**
+   * Optional retry handler. When provided it replaces the default connectivity probe — used by the
+   * seller WebView shell, whose retry reloads the portal instead (it never starts the
+   * connectivity store). Omit to keep the default "re-run the probe" behavior (customer app).
+   */
+  onRetry?: () => void | Promise<void>;
+};
+
 /**
  * Full-screen, non-scrollable offline page. Shown on a cold start while offline and in place of a
  * navigation the user attempted while offline. "Try again" re-runs the connectivity probe; when it
  * succeeds the guard's resume effect (App.tsx) either mounts the navigator or replays the pending
  * route, whose screens fire their normal HTTP reads on mount.
  */
-export function OfflinePage() {
+export function OfflinePage({ onRetry: retryHandler }: OfflinePageProps = {}) {
   const insets = useSafeAreaInsets();
   const isChecking = useConnectivityStore((s) => s.isChecking);
   const checkConnectivity = useConnectivityStore((s) => s.checkConnectivity);
@@ -23,11 +32,15 @@ export function OfflinePage() {
   const onRetry = useCallback(async () => {
     setRetrying(true);
     try {
-      await checkConnectivity();
+      if (retryHandler) {
+        await retryHandler();
+      } else {
+        await checkConnectivity();
+      }
     } finally {
       setRetrying(false);
     }
-  }, [checkConnectivity]);
+  }, [checkConnectivity, retryHandler]);
 
   const busy = retrying || isChecking;
 
