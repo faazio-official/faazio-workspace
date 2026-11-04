@@ -584,7 +584,7 @@ function DistrictAdminAccounts() {
                           Edit
                         </Button>
                         {!hasLogin ? (
-                          <Link href={`/admin/super/credentials?email=${encodeURIComponent(admin.email)}&role=DISTRICT_ADMIN`}>
+                          <Link href={`/admin/super/credentials?email=${encodeURIComponent(admin.email)}&role=DISTRICT_ADMIN&district=${TTC_CODE}`}>
                             <Button size="sm" variant="outline" className="gap-1.5">
                               <KeyRound className="size-3.5" /> Issue login
                             </Button>

@@ -91,7 +91,7 @@ function CredentialsPage() {
     name: "",
     role: "SELLER",
     sellerId: "",
-    districtCode: "TCH",
+    districtCode: "",
     password: "",
     forceChange: true,
   });
@@ -122,8 +122,15 @@ function CredentialsPage() {
     const params = new URLSearchParams(window.location.search);
     const email = params.get("email");
     const role = params.get("role");
+    const district = params.get("district");
     if (!email || role !== "DISTRICT_ADMIN") return;
-    setForm((f) => ({ ...f, email, role: "DISTRICT_ADMIN", districtCode: "TCH", password: generatePassword() }));
+    setForm((f) => ({
+      ...f,
+      email,
+      role: "DISTRICT_ADMIN",
+      districtCode: district ?? "",
+      password: generatePassword(),
+    }));
     setCreateOpen(true);
     const clean = window.location.pathname;
     window.history.replaceState(null, "", clean);
@@ -154,7 +161,7 @@ function CredentialsPage() {
         name: "",
         role: "SELLER",
         sellerId: "",
-        districtCode: "TCH",
+        districtCode: "",
         password: "",
         forceChange: true,
       });
@@ -359,7 +366,7 @@ function CredentialsPage() {
                     onValueChange={(value) => setForm({ ...form, districtCode: value })}
                   >
                     <SelectTrigger>
-                      <SelectValue />
+                      <SelectValue placeholder="Select a district" />
                     </SelectTrigger>
                     <SelectContent>
                       {districts.map((d) => (

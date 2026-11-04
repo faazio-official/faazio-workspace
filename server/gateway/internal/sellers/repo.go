@@ -198,9 +198,10 @@ func (r *Repo) List(ctx context.Context, f ListFilter) ([]Seller, error) {
 		select `+sellerColumns+`, coalesce(v.vendor_count, 0), coalesce(v.vendor_apps, '{}')
 		  from sellers.sellers s
 		  left join (
-		    select seller_id, count(*)::int as vendor_count, array_agg(distinct app::text) as vendor_apps
+		    select seller_id as vendor_seller_id, count(*)::int as vendor_count,
+		           array_agg(distinct app::text) as vendor_apps
 		      from directory.stores group by seller_id
-		  ) v on v.seller_id = s.seller_id
+		  ) v on v.vendor_seller_id = s.seller_id
 		 where ($1 = '' or s.state_code = $1)
 		   and ($2 = '' or s.status::text = $2)
 		   and ($3 = '' or s.seller_id = $3)
@@ -272,13 +273,14 @@ func (r *Repo) Vendors(ctx context.Context, sellerID string) ([]Vendor, error) {
 		return nil, fmt.Errorf("sellers: database not configured")
 	}
 	rows, err := r.pool.Query(ctx, `
-		select id, name, app::text, is_live, platform_fee_pct,
-		       coalesce(seller_category_id,''), coalesce(fssai_number,''),
-		       coalesce(fssai_cert_key,''), coalesce(fssai_cert_asset_id,''),
-		       coalesce(state_code,''), coalesce(district_code,'')
-		  from directory.stores
-		 where seller_id = $1
-		 order by name`, sellerID)
+		select st.id, st.name, st.app::text, st.is_live, st.platform_fee_pct,
+		       coalesce(st.seller_category_id,''), coalesce(st.fssai_number,''),
+		       coalesce(st.fssai_cert_key,''), coalesce(st.fssai_cert_asset_id,''),
+		       coalesce(st.state_code,''), coalesce(s.district_code,'')
+		  from directory.stores st
+		  join sellers.sellers s on s.seller_id = st.seller_id
+		 where st.seller_id = $1
+		 order by st.name`, sellerID)
 	if err != nil {
 		return nil, err
 	}
@@ -343,7 +345,7 @@ func (r *Repo) CreateExtended(ctx context.Context, s Seller, bank *BankAccount, 
 		values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15)
 		returning `+sellerColumns,
 		s.SellerID, s.BusinessName, s.OwnerName, s.GSTIN, s.PAN, s.BusinessAddress,
-		nullIfEmpty(s.ContactPhone), nullIfEmpty(s.ContactEmail), s.StateCode, nullIfEmpty(s.DistrictCode),
+		nullIfEmpty(s.ContactPhone), s.ContactEmail, s.StateCode, nullIfEmpty(s.DistrictCode),
 		nullIfEmpty(s.RazorpayLinkedAccountID), s.OTPVerified, otpAt,
 		s.Latitude, s.Longitude))
 	if err != nil {
@@ -532,7 +534,7 @@ func (r *Repo) EditRequest(ctx context.Context, id string, next Seller, bank *Ba
 		 where seller_id=$1
 		 returning `+sellerColumns,
 		id, next.BusinessName, next.OwnerName, next.GSTIN, next.PAN,
-		next.BusinessAddress, nullIfEmpty(next.ContactPhone), nullIfEmpty(next.ContactEmail), next.StateCode,
+		next.BusinessAddress, nullIfEmpty(next.ContactPhone), next.ContactEmail, next.StateCode,
 		nullIfEmpty(next.DistrictCode), next.Latitude, next.Longitude))
 	if err != nil {
 		return Seller{}, nil, err
