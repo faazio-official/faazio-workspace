@@ -79,12 +79,21 @@ func TestByStorePageActiveOnly(t *testing.T) {
 	ctx := context.Background()
 
 	storeID := "st-cat-" + manageID("")
+	sellerID := "sel-cat-" + manageID("")
 	if _, err := pool.Exec(ctx, `
-		insert into directory.stores (id, app, name, rating)
-		values ($1,'MART','Vendor List Test', 4.0)`, storeID); err != nil {
+		insert into sellers.sellers (seller_id, business_name, owner_name, state_code)
+		values ($1,'Catalog Test','O','KA')`, sellerID); err != nil {
+		t.Fatalf("seed seller: %v", err)
+	}
+	if _, err := pool.Exec(ctx, `
+		insert into directory.stores (id, app, name, rating, seller_id)
+		values ($1,'MART','Vendor List Test', 4.0, $2)`, storeID, sellerID); err != nil {
 		t.Fatalf("seed store: %v", err)
 	}
-	t.Cleanup(func() { _, _ = pool.Exec(ctx, `delete from directory.stores where id=$1`, storeID) })
+	t.Cleanup(func() {
+		_, _ = pool.Exec(ctx, `delete from directory.stores where id=$1`, storeID)
+		_, _ = pool.Exec(ctx, `delete from sellers.sellers where seller_id=$1`, sellerID)
+	})
 
 	// Two ACTIVE rows (ratings 4.5, 4.1) + one DRAFT row (rating 5.0) that must never surface.
 	active1, active2, draft := "prod-"+manageID(""), "prod-"+manageID(""), "prod-"+manageID("")

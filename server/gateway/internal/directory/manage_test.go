@@ -214,9 +214,12 @@ func TestMenuDiningVenueOwnership(t *testing.T) {
 		t.Fatalf("cross-district owner must be denied: ok=%v err=%v", ok, err)
 	}
 
-	// The seeded owner can edit the dining-venue dish; another seller cannot.
-	if m, ok, err := repo.UpsertMenu(ctx, SellerMenu{VenueID: venueID, DishID: dishID, Name: "Updated", Price: 120}, sellerID, false); err != nil || !ok || m.Price != 120 {
-		t.Fatalf("owner dining update: ok=%v err=%v m=%+v", ok, err, m)
+	// A dining venue has no owning store, so a seller cannot edit its dish; super admin can.
+	if _, ok, err := repo.UpsertMenu(ctx, SellerMenu{VenueID: venueID, DishID: dishID, Name: "Updated", Price: 120}, sellerID, false); err != nil || ok {
+		t.Fatalf("seller dining update must be denied: ok=%v err=%v", ok, err)
+	}
+	if m, ok, err := repo.UpsertMenu(ctx, SellerMenu{VenueID: venueID, DishID: dishID, Name: "Updated", Price: 120}, sellerID, true); err != nil || !ok || m.Price != 120 {
+		t.Fatalf("admin dining update: ok=%v err=%v m=%+v", ok, err, m)
 	}
 	if _, ok, err := repo.UpsertMenu(ctx, SellerMenu{VenueID: venueID, DishID: dishID, Name: "Hijack", Price: 1}, otherID, false); err != nil || ok {
 		t.Fatalf("cross-seller dining update must be denied: ok=%v err=%v", ok, err)

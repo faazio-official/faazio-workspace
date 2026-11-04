@@ -10,6 +10,7 @@ import (
 
 	"github.com/faazio/server/gateway/internal/contracts"
 	"github.com/faazio/server/gateway/internal/platform/auth"
+	"github.com/faazio/server/gateway/internal/platform/authtest"
 	"github.com/faazio/server/gateway/internal/platform/cache"
 	"github.com/faazio/server/gateway/internal/platform/testenv"
 	"github.com/go-chi/chi/v5"
@@ -24,11 +25,12 @@ func testRouter(t *testing.T, pool *pgxpool.Pool, authed bool) http.Handler {
 		t.Fatal(err)
 	}
 	cfg := auth.Config{JWTSecret: []byte("unused")} // no resolver => unauthenticated
-	if authed {
-		cfg = auth.Config{}
-	}
 	r := chi.NewRouter()
-	r.Use(auth.Middleware(cfg))
+	if authed {
+		r.Use(authtest.Middleware())
+	} else {
+		r.Use(auth.Middleware(cfg))
+	}
 	NewHandler(New(pool), c, nil, nil).Register(r)
 	return r
 }

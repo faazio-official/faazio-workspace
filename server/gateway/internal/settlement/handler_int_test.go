@@ -86,7 +86,7 @@ func seedSettlingSeller(t *testing.T, pool *pgxpool.Pool, sellerID, account stri
 	storeID := "store-" + sellerID
 	if _, err := pool.Exec(ctx, `
 		insert into directory.stores (id, app, name, seller_id, state_code, platform_fee_pct)
-		values ($1,'mart','Settle Shop',$2,'KA',10)
+		values ($1,'MART','Settle Shop',$2,'KA',10)
 		on conflict (id) do update set platform_fee_pct=excluded.platform_fee_pct`,
 		storeID, sellerID); err != nil {
 		t.Fatalf("seed store: %v", err)
@@ -129,8 +129,9 @@ func TestCreateHoldHandler(t *testing.T) {
 	if err := json.Unmarshal(created.Body.Bytes(), &resp); err != nil {
 		t.Fatal(err)
 	}
-	if resp.Gross != 1000 || resp.Commission != 100 || resp.Net != 900 {
-		t.Fatalf("split wrong: gross=%d commission=%d net=%d", resp.Gross, resp.Commission, resp.Net)
+	if resp.Gross != 1000 || resp.Commission != 0 || resp.TCS != 10 || resp.TDS != 1 || resp.Net != 989 {
+		t.Fatalf("split wrong: gross=%d commission=%d tcs=%d tds=%d net=%d",
+			resp.Gross, resp.Commission, resp.TCS, resp.TDS, resp.Net)
 	}
 	if resp.Payout.Status != "ON_HOLD" || resp.Payout.RazorpayTransferID == "" {
 		t.Fatalf("payout not held: %+v", resp.Payout)

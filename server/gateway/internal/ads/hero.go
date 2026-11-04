@@ -205,24 +205,29 @@ func (r *Repo) ResolveOwnedTarget(ctx context.Context, sellerID, targetType, tar
 	)
 	switch targetType {
 	case "PRODUCT":
+		// Ownership derives through the vendor store (0070 dropped catalog.products.seller_id).
 		row = r.pool.QueryRow(ctx, `
-			select coalesce(seller_id,''), app::text, coalesce(store_id,'')
-			  from catalog.products where id = $1`, targetID)
+			select coalesce(st.seller_id,''), p.app::text, coalesce(p.store_id,'')
+			  from catalog.products p
+			  left join directory.stores st on st.id = p.store_id
+			 where p.id = $1`, targetID)
 	case "DISH":
+		// Menu ownership derives through the vendor store (0070 dropped directory.menus.seller_id);
+		// a dining venue has no directory.stores row, so its dishes carry no owner.
 		row = r.pool.QueryRow(ctx, `
-			select coalesce(seller_id,''), 'FOOD', venue_id
-			  from directory.menus
-			 where dish_id = $1 and ($2 = '' or venue_id = $2)
-			 order by (coalesce(seller_id,'') = $3) desc, venue_id
+			select coalesce(st.seller_id,''), 'FOOD', m.venue_id
+			  from directory.menus m
+			  left join directory.stores st on st.id = m.venue_id
+			 where m.dish_id = $1 and ($2 = '' or m.venue_id = $2)
+			 order by (coalesce(st.seller_id,'') = $3) desc, m.venue_id
 			 limit 1`, targetID, storeID, sellerID)
 	case "STORE":
 		row = r.pool.QueryRow(ctx, `
 			select coalesce(seller_id,''), app::text, id
 			  from directory.stores where id = $1`, targetID)
 	case "VENUE":
-		row = r.pool.QueryRow(ctx, `
-			select coalesce(seller_id,''), 'FOOD', id
-			  from directory.dining_venues where id = $1`, targetID)
+		// directory.dining_venues is restaurant-only and not seller-bound, so it has no owner.
+		return ResolvedTarget{}, false, nil
 	default:
 		return ResolvedTarget{}, false, nil
 	}

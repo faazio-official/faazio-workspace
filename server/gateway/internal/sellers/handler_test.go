@@ -50,12 +50,14 @@ func TestSellerRoleGating(t *testing.T) {
 
 	// Onboarding (any authenticated caller) creates a PENDING_REVIEW seller.
 	create := do(t, h, http.MethodPost, "/sellers",
-		`{"businessName":"Gate Test","ownerName":"O","category":"FOOD","stateCode":"KA",`+
-			`"gstin":"29ABCDE1234F1Z5","pan":"ABCDE1234F","contactEmail":"o@example.com",`+
-			`"platformFeePct":10,"otpVerified":true,`+
+		`{"businessName":"Gate Test","ownerName":"O","stateCode":"KA",`+
+			`"gstin":"29ABCDE1234F1Z5","pan":"ABCDE1234F","contactPhone":"9876543210",`+
+			`"contactEmail":"o@example.com","otpVerified":true,`+
 			`"bankName":"HDFC Bank","bankAccountNumber":"123456789012","bankIfsc":"HDFC0001234",`+
 			`"bankBeneficiary":"Gate Test","passbookFileKey":"kyc/gate/passbook.jpg",`+
-			`"fssaiNumber":"12345678901234","fssaiFileKey":"kyc/gate/fssai.jpg"}`, nil)
+			`"vendors":[{"name":"Gate Store","app":"FOOD","platformFeePct":10,`+
+			`"fssaiNumber":"12345678901234","fssaiFileKey":"kyc/gate/fssai.jpg"}]}`,
+		map[string]string{"X-Dev-Phone": "9876543210"})
 	if create.Code != http.StatusCreated {
 		t.Fatalf("create status = %d body=%s", create.Code, create.Body.String())
 	}
@@ -64,6 +66,7 @@ func TestSellerRoleGating(t *testing.T) {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() {
+		_, _ = pool.Exec(context.Background(), `delete from directory.stores where seller_id=$1`, created.SellerID)
 		_, _ = pool.Exec(context.Background(), `delete from sellers.sellers where seller_id=$1`, created.SellerID)
 	})
 
@@ -103,12 +106,14 @@ func TestSellerRoleGating(t *testing.T) {
 func createTestSeller(t *testing.T, pool *pgxpool.Pool, h http.Handler, name string) Seller {
 	t.Helper()
 	create := do(t, h, http.MethodPost, "/sellers",
-		`{"businessName":"`+name+`","ownerName":"O","category":"FOOD","stateCode":"KA",`+
-			`"gstin":"29ABCDE1234F1Z5","pan":"ABCDE1234F","contactEmail":"o@example.com",`+
-			`"platformFeePct":10,"otpVerified":true,`+
+		`{"businessName":"`+name+`","ownerName":"O","stateCode":"KA",`+
+			`"gstin":"29ABCDE1234F1Z5","pan":"ABCDE1234F","contactPhone":"9876543210",`+
+			`"contactEmail":"o@example.com","otpVerified":true,`+
 			`"bankName":"HDFC Bank","bankAccountNumber":"123456789012","bankIfsc":"HDFC0001234",`+
 			`"bankBeneficiary":"`+name+`","passbookFileKey":"kyc/gate/passbook.jpg",`+
-			`"fssaiNumber":"12345678901234","fssaiFileKey":"kyc/gate/fssai.jpg"}`, nil)
+			`"vendors":[{"name":"`+name+` Store","app":"FOOD","platformFeePct":10,`+
+			`"fssaiNumber":"12345678901234","fssaiFileKey":"kyc/gate/fssai.jpg"}]}`,
+		map[string]string{"X-Dev-Phone": "9876543210"})
 	if create.Code != http.StatusCreated {
 		t.Fatalf("create for %s status = %d body=%s", name, create.Code, create.Body.String())
 	}
@@ -121,6 +126,7 @@ func createTestSeller(t *testing.T, pool *pgxpool.Pool, h http.Handler, name str
 		_, _ = pool.Exec(context.Background(), `delete from sellers.kyc_verification_log where seller_id=$1`, s.SellerID)
 		_, _ = pool.Exec(context.Background(), `delete from sellers.bank_accounts where seller_id=$1`, s.SellerID)
 		_, _ = pool.Exec(context.Background(), `delete from sellers.kyc_documents where seller_id=$1`, s.SellerID)
+		_, _ = pool.Exec(context.Background(), `delete from directory.stores where seller_id=$1`, s.SellerID)
 		_, _ = pool.Exec(context.Background(), `delete from sellers.sellers where seller_id=$1`, s.SellerID)
 	})
 	return s
@@ -169,9 +175,9 @@ func TestRejectResubmit(t *testing.T) {
 
 	// The seller (REJECTED only) resubmits with a corrected business name.
 	edit := do(t, h, http.MethodPost, "/sellers/"+s.SellerID+"/edit",
-		`{"businessName":"Reject Test (corrected)","ownerName":"O","category":"FOOD","stateCode":"KA",
+		`{"businessName":"Reject Test (corrected)","ownerName":"O","stateCode":"KA",
 		  "gstin":"29ABCDE1234F1Z5","pan":"ABCDE1234F","businessAddress":"","contactPhone":"",
-		  "contactEmail":"o@example.com","platformFeePct":10,"fssaiNumber":"12345678901234"}`,
+		  "contactEmail":"o@example.com"}`,
 		map[string]string{"X-Dev-Role": "SELLER", "X-Dev-Seller": s.SellerID})
 	if edit.Code != http.StatusOK {
 		t.Fatalf("edit status = %d body=%s", edit.Code, edit.Body.String())
@@ -194,9 +200,9 @@ func TestRejectResubmit(t *testing.T) {
 
 	// Editing again while PENDING_REVIEW is a 409.
 	again := do(t, h, http.MethodPost, "/sellers/"+s.SellerID+"/edit",
-		`{"businessName":"X","ownerName":"O","category":"FOOD","stateCode":"KA",
+		`{"businessName":"X","ownerName":"O","stateCode":"KA",
 		  "gstin":"29ABCDE1234F1Z5","pan":"ABCDE1234F","businessAddress":"","contactPhone":"",
-		  "contactEmail":"o@example.com","platformFeePct":10}`,
+		  "contactEmail":"o@example.com"}`,
 		map[string]string{"X-Dev-Role": "SELLER", "X-Dev-Seller": s.SellerID})
 	if again.Code != http.StatusConflict {
 		t.Fatalf("non-rejected edit status = %d, want 409", again.Code)

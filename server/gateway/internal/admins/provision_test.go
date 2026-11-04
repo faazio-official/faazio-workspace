@@ -129,8 +129,8 @@ func TestProvisionDuplicateEmailCaseVariant(t *testing.T) {
 	dup.Email = strings.ToUpper(dup.Email) // case variant must block
 	if _, err := p.Create(ctx, dup); err == nil {
 		t.Fatal("case-variant duplicate fell through")
-	} else if c := AsConflict(err); c == nil || c.Code != "email_has_state_roster" {
-		t.Fatalf("want email_has_state_roster conflict, got %v", err)
+	} else if c := AsConflict(err); c == nil || c.Code != "email_has_district_roster" {
+		t.Fatalf("want email_has_district_roster conflict, got %v", err)
 	}
 }
 
@@ -150,8 +150,8 @@ func TestProvisionDuplicateLoginEmailCaseVariant(t *testing.T) {
 	dup.Email = strings.ToUpper(dup.Email)
 	if _, err := p.Create(ctx, dup); err == nil {
 		t.Fatal("case-variant duplicate fell through")
-	} else if c := AsConflict(err); c == nil || c.Code != "email_has_state_login" {
-		t.Fatalf("want email_has_state_login conflict, got %v", err)
+	} else if c := AsConflict(err); c == nil || c.Code != "email_has_district_login" {
+		t.Fatalf("want email_has_district_login conflict, got %v", err)
 	}
 }
 

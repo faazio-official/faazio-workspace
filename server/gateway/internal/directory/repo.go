@@ -123,7 +123,7 @@ func (r *Repo) Nearby(ctx context.Context, app string, lat, lng, radiusKm float6
 		select id, app::text, name, categories, rating, reviews_count, delivery_time, distance,
 		       cover_image, cover_image_key, emoji, desc_text, offer_tag, is_veg,
 		       null::text as address, null::text as phone, hours,
-		       latitude, longitude,
+		       coalesce(state_code,''), latitude, longitude,
 		       (6371.0088 * acos(least(1, greatest(-1,
 		           sin(radians($1)) * sin(radians(latitude)) +
 		           cos(radians($1)) * cos(radians(latitude)) * cos(radians(longitude) - radians($2))

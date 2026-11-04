@@ -11,6 +11,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/faazio/server/gateway/internal/platform/authtest"
 	"github.com/faazio/server/gateway/internal/platform/cache"
 	"github.com/faazio/server/gateway/internal/platform/config"
 	"github.com/faazio/server/gateway/internal/platform/r2"
@@ -23,7 +24,8 @@ func newTestServer(t *testing.T) (http.Handler, *pgxpool.Pool, *cache.Cache) {
 	pool := testenv.Pool(t)
 	c := testenv.Cache(t)
 	cfg := config.Config{AllowedOrigins: []string{"http://localhost:3000"}}
-	return NewRouter(Deps{Config: cfg, Pool: pool, Cache: c}), pool, c
+	h := authtest.Middleware()(NewRouter(Deps{Config: cfg, Pool: pool, Cache: c}))
+	return h, pool, c
 }
 
 func do(t *testing.T, h http.Handler, method, path string, body any) *httptest.ResponseRecorder {
@@ -331,12 +333,21 @@ func TestStoreProductsEndpoint(t *testing.T) {
 	h, pool, _ := newTestServer(t)
 	ctx := context.Background()
 	storeID := fmt.Sprintf("st-e2e-%d", time.Now().UnixNano())
+	sellerID := fmt.Sprintf("sel-e2e-%d", time.Now().UnixNano())
 	if _, err := pool.Exec(ctx, `
-		insert into directory.stores (id, app, name, rating)
-		values ($1,'MART','Store Products E2E', 4.2)`, storeID); err != nil {
+		insert into sellers.sellers (seller_id, business_name, owner_name, state_code)
+		values ($1,'Store Products E2E','O','KA')`, sellerID); err != nil {
+		t.Fatalf("seed seller: %v", err)
+	}
+	if _, err := pool.Exec(ctx, `
+		insert into directory.stores (id, app, name, rating, seller_id)
+		values ($1,'MART','Store Products E2E', 4.2, $2)`, storeID, sellerID); err != nil {
 		t.Fatalf("seed store: %v", err)
 	}
-	t.Cleanup(func() { _, _ = pool.Exec(ctx, `delete from directory.stores where id=$1`, storeID) })
+	t.Cleanup(func() {
+		_, _ = pool.Exec(ctx, `delete from directory.stores where id=$1`, storeID)
+		_, _ = pool.Exec(ctx, `delete from sellers.sellers where seller_id=$1`, sellerID)
+	})
 
 	pid := fmt.Sprintf("prod-e2e-%d", time.Now().UnixNano())
 	if _, err := pool.Exec(ctx, `
