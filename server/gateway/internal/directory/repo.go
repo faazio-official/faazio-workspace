@@ -404,6 +404,11 @@ type SellerStore struct {
 	FSSAINumber      string `json:"fssaiNumber,omitempty"`
 	FSSAICertKey     string `json:"fssaiCertKey,omitempty"`
 	FSSAICertAssetID string `json:"fssaiCertAssetId,omitempty"`
+	// PHARMA drug-selling licence (0076): mirrors FSSAI — the licence belongs to the shop, not the
+	// account. Opt-in: a pharmacy may go live before the licence is attached.
+	DrugLicenseNumber      string `json:"drugLicenseNumber,omitempty"`
+	DrugLicenseCertKey     string `json:"drugLicenseCertKey,omitempty"`
+	DrugLicenseCertAssetID string `json:"drugLicenseCertAssetId,omitempty"`
 	// Public geo pin, returned by SetStoreLive so the handler can flush the store's geo:nearby
 	// tiles. Internal only (never serialized).
 	Latitude  float64 `json:"-"`
@@ -473,7 +478,8 @@ func (r *Repo) SellerStores(ctx context.Context, sellerID, district string) ([]S
 		)
 		if err := rows.Scan(&s.ID, &s.Name, &s.App, &s.SellerID, &s.StateCode, &s.Address, &s.Phone, &s.Hours, &s.DeliveryTime,
 			&s.IsVeg, &s.IsLive, &s.Rating, &updatedAt, &s.PlatformFeePct, &s.SellerCategoryID,
-			&s.FSSAINumber, &s.FSSAICertKey, &s.FSSAICertAssetID); err != nil {
+			&s.FSSAINumber, &s.FSSAICertKey, &s.FSSAICertAssetID,
+			&s.DrugLicenseNumber, &s.DrugLicenseCertKey, &s.DrugLicenseCertAssetID); err != nil {
 			return nil, err
 		}
 		s.Rating = math.Round(s.Rating*10) / 10
@@ -553,7 +559,8 @@ func (r *Repo) SetStoreCover(ctx context.Context, id, sellerID, district, key, a
 const sellerStoreColumns = `s.id, s.name, s.app::text, coalesce(s.seller_id,''), coalesce(s.state_code,''),
 	coalesce(s.address,''), coalesce(s.phone,''), coalesce(s.hours,''), coalesce(s.delivery_time,''),
 	coalesce(s.is_veg,false), s.is_live, s.rating, s.updated_at, s.platform_fee_pct, coalesce(s.seller_category_id,''),
-	coalesce(s.fssai_number,''), coalesce(s.fssai_cert_key,''), coalesce(s.fssai_cert_asset_id,'')`
+	coalesce(s.fssai_number,''), coalesce(s.fssai_cert_key,''), coalesce(s.fssai_cert_asset_id,''),
+	coalesce(s.drug_license_number,''), coalesce(s.drug_license_cert_key,''), coalesce(s.drug_license_cert_asset_id,'')`
 
 func scanSellerStore(row pgx.Row) (SellerStore, error) {
 	var (
@@ -562,7 +569,8 @@ func scanSellerStore(row pgx.Row) (SellerStore, error) {
 	)
 	if err := row.Scan(&s.ID, &s.Name, &s.App, &s.SellerID, &s.StateCode, &s.Address, &s.Phone, &s.Hours, &s.DeliveryTime,
 		&s.IsVeg, &s.IsLive, &s.Rating, &updatedAt, &s.PlatformFeePct, &s.SellerCategoryID,
-		&s.FSSAINumber, &s.FSSAICertKey, &s.FSSAICertAssetID); err != nil {
+		&s.FSSAINumber, &s.FSSAICertKey, &s.FSSAICertAssetID,
+		&s.DrugLicenseNumber, &s.DrugLicenseCertKey, &s.DrugLicenseCertAssetID); err != nil {
 		return SellerStore{}, err
 	}
 	s.Rating = math.Round(s.Rating*10) / 10
@@ -587,7 +595,12 @@ type VendorInput struct {
 	FSSAINumber      string
 	FSSAICertKey     string
 	FSSAICertAssetID string
-	IsLive           *bool
+	// Drug licence (0076): PHARMA shops carry their drug-selling licence like FOOD shops carry FSSAI.
+	// Optional — empty keeps the current value on update.
+	DrugLicenseNumber      string
+	DrugLicenseCertKey     string
+	DrugLicenseCertAssetID string
+	IsLive                 *bool
 }
 
 // CreateStore inserts a vendor owned by sellerID under the caller's scope. stateCode is the owning
@@ -607,13 +620,14 @@ func (r *Repo) CreateStore(ctx context.Context, sellerID, stateCode string, in V
 	return scanSellerStore(r.pool.QueryRow(ctx, `
 		insert into directory.stores
 		  (id, app, name, seller_id, state_code, address, phone, hours, latitude, longitude,
-		   platform_fee_pct, seller_category_id, fssai_number, fssai_cert_key, fssai_cert_asset_id, is_live)
+		   platform_fee_pct, seller_category_id, fssai_number, fssai_cert_key, fssai_cert_asset_id,
+		   drug_license_number, drug_license_cert_key, drug_license_cert_asset_id, is_live)
 		values ($1, $2::app_brand, $3, $4, nullif($5,''), nullif($6,''), nullif($7,''), nullif($8,''),
-		        $9, $10, $11, nullif($12,''), $13, $14, $15, $16)
+		        $9, $10, $11, nullif($12,''), $13, $14, $15, $16, $17, $18, $19)
 		returning `+sellerStoreColumns,
 		"store-"+storeID(), in.App, in.Name, sellerID, stateCode, in.Address, in.Phone, in.Hours,
 		in.Latitude, in.Longitude, fee, in.SellerCategoryID, in.FSSAINumber, in.FSSAICertKey,
-		in.FSSAICertAssetID, live))
+		in.FSSAICertAssetID, in.DrugLicenseNumber, in.DrugLicenseCertKey, in.DrugLicenseCertAssetID, live))
 }
 
 // UpdateStore edits a vendor, scoped to the caller's seller_id or district (strict) exactly like
@@ -636,18 +650,21 @@ func (r *Repo) UpdateStore(ctx context.Context, id, sellerID, district string, i
 		  fssai_number = coalesce(nullif($11,''), s.fssai_number),
 		  fssai_cert_key = coalesce(nullif($12,''), s.fssai_cert_key),
 		  fssai_cert_asset_id = coalesce(nullif($13,''), s.fssai_cert_asset_id),
-		  is_live = coalesce($14, s.is_live),
+		  drug_license_number = coalesce(nullif($14,''), s.drug_license_number),
+		  drug_license_cert_key = coalesce(nullif($15,''), s.drug_license_cert_key),
+		  drug_license_cert_asset_id = coalesce(nullif($16,''), s.drug_license_cert_asset_id),
+		  is_live = coalesce($17, s.is_live),
 		  updated_at = now()
 		 where s.id = $1 and (
 		       ($2 <> '' and s.seller_id = $2) or
-		       ($15 <> '' and exists (
+		       ($18 <> '' and exists (
 		          select 1 from sellers.sellers se
-		           where se.seller_id = s.seller_id and se.district_code = $15)) or
-		       ($2 = '' and $15 = ''))
+		           where se.seller_id = s.seller_id and se.district_code = $18)) or
+		       ($2 = '' and $18 = ''))
 		 returning `+sellerStoreColumns,
 		id, sellerID, in.Name, in.Address, in.Phone, in.Hours, in.Latitude, in.Longitude,
 		in.PlatformFeePct, in.SellerCategoryID, in.FSSAINumber, in.FSSAICertKey, in.FSSAICertAssetID,
-		in.IsLive, district))
+		in.DrugLicenseNumber, in.DrugLicenseCertKey, in.DrugLicenseCertAssetID, in.IsLive, district))
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return SellerStore{}, false, nil

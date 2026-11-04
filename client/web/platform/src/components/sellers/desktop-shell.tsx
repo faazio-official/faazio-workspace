@@ -78,8 +78,7 @@ export function SellerDesktopShell({ className }: { className?: string }) {
       <div className="border-t border-border p-2">
         <button
           onClick={() => {
-            void signOut();
-            router.push("/login");
+            void signOut().finally(() => router.push("/login"));
           }}
           className="flex w-full items-center gap-2 rounded-md px-2 py-2 text-left text-[13px] text-muted-foreground transition-colors hover:bg-muted/60 hover:text-foreground"
         >

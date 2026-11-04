@@ -540,19 +540,22 @@ CREATE INDEX stores_geo_idx ON directory.stores (latitude, longitude)
   WHERE latitude IS NOT NULL AND longitude IS NOT NULL;
 ```
 
-**Vendor ownership (0068–0074):** `directory.stores` is the VENDOR (the real shop). It now also carries
+**Vendor ownership (0068–0076):** `directory.stores` is the VENDOR (the real shop). It now also carries
  `seller_id` (TEXT NOT NULL, FK `stores_seller_fk` → `sellers.sellers(id)` ON DELETE RESTRICT — 0069/0071),
  `state_code`, `is_live`, and the per-shop commercial fields `platform_fee_pct SMALLINT NOT NULL DEFAULT 10
  CHECK (1..100)`, `seller_category_id TEXT REFERENCES taxonomy.categories(id)`, and
- `fssai_number`/`fssai_cert_key`/`fssai_cert_asset_id` (0069). One seller ACCOUNT owns many vendors across
+ `fssai_number`/`fssai_cert_key`/`fssai_cert_asset_id` (0069). PHARMA shops additionally carry their
+ drug-selling licence `drug_license_number`/`drug_license_cert_key`/`drug_license_cert_asset_id` (0076,
+ opt-in: a pharmacy may go live before the licence is attached). One seller ACCOUNT owns many vendors across
  apps. `catalog.products.seller_id` and `directory.menus.seller_id` were **dropped** (0070); product
  ownership derives via `store_id`, menu ownership via `venue_id` → the owning store (dining-venue menus
  have no owner). The account is explicitly brand-agnostic: `sellers.sellers.category`,
 `platform_fee_pct`, `seller_category_id` and the `fssai_*` columns were **dropped** (0074) — every
-  commercial/food-licence field now lives on the shop. `sellers.contact_email` is a unique identity key
-  (partial, `lower(contact_email)` where non-empty, 0068). The seed (`generate.mjs`) binds every store's
-  `seller_id`, `platform_fee_pct`, `seller_category_id` (a best-fit top-level `taxonomy.categories` id derived
-  from the store fixture's category labels; vendors with no clear home stay NULL) and FOOD-only FSSAI.
+ commercial licence field (FSSAI for FOOD, drug licence for PHARMA) now lives on the shop. `sellers.contact_email` is a unique identity key
+ (partial, `lower(contact_email)` where non-empty, 0068). The seed (`generate.mjs`) binds every store's
+ `seller_id`, `platform_fee_pct`, `seller_category_id` (a best-fit top-level `taxonomy.categories` id derived
+ from the store fixture's category labels; vendors with no clear home stay NULL) and FOOD-only FSSAI —
+ seeded PHARMA stores carry no licence (0076).
 
 **Sample rows** (`data/mart/stores.ts:8,18`):
 

@@ -90,13 +90,16 @@ landed.
   private `serverOnly` helper (never invoked with a fixture). Failure surfaces now offer
   **"Report issue"** (`ReportIssueButton` → `POST /errors` → `ops.error_events`), wired into search
   and the category drill-in; the primitive is ready for any other screen.
+- **PHARMA drug licence (0076):** the licence gap is closed — `directory.stores` now persists
+  `drug_license_number`/`drug_license_cert_key`/`drug_license_cert_asset_id` (0076); the gateway
+  `POST /seller/stores` + `PUT /seller/stores/{id}` accept and persist the trio (number+document
+  required together, opt-in for PHARMA); the web onboarding submits it and the Stores console lets
+  the seller edit it after creation. Mobile onboarding stays FOOD-FSSAI-only by decision — the seller
+  app is a WebView over the portal, which captures the licence.
 - **Remaining:** (1) keep adding the `ReportIssueButton` to the remaining feed/empty surfaces as they
   are touched; (2) if store names matter in search/order history, project them from the gateway
   (currently `<shop>`/`Order` when absent); (3) the authored editorial rails (Mart/Food/Pharma deal +
-  specials copy) stay as SDUI content, not server-failure fallbacks; (4) PHARMA vendor onboarding
-  captures a drug licence (number + document upload into the seller's private Storage) but
-  `directory.stores` has no drug-license columns yet — persist it via a gateway + DB migration
-  (`drug_license_number` / cert key columns) when the licence flow is added.
+  specials copy) stay as SDUI content, not server-failure fallbacks.
 - **Verify:** `server/gateway` `go build ./... && go test ./...` green; portal `tsc --noEmit` +
   `eslint` green; mobile `ts:check` + `check:boundaries` green.
 

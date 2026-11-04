@@ -811,6 +811,13 @@ export interface SellerStoreSummary {
   /** Per-vendor platform fee (0069) — the fee is a property of the shop, not the account. */
   platformFeePct: number;
   sellerCategoryId?: string;
+  /** Per-shop licences: FOOD FSSAI (0069) and PHARMA drug licence (0076). */
+  fssaiNumber?: string;
+  fssaiCertKey?: string;
+  fssaiCertAssetId?: string;
+  drugLicenseNumber?: string;
+  drugLicenseCertKey?: string;
+  drugLicenseCertAssetId?: string;
 }
 
 /**
@@ -833,6 +840,12 @@ export async function fetchSellerStores(): Promise<SellerStoreSummary[]> {
       isLive?: boolean;
       platformFeePct?: number;
       sellerCategoryId?: string;
+      fssaiNumber?: string;
+      fssaiCertKey?: string;
+      fssaiCertAssetId?: string;
+      drugLicenseNumber?: string;
+      drugLicenseCertKey?: string;
+      drugLicenseCertAssetId?: string;
     }[]
   >("/seller/stores");
   return rows.map((row) => ({
@@ -847,6 +860,12 @@ export async function fetchSellerStores(): Promise<SellerStoreSummary[]> {
     isLive: row.isLive === true,
     platformFeePct: row.platformFeePct ?? 0,
     ...(row.sellerCategoryId ? { sellerCategoryId: row.sellerCategoryId } : {}),
+    ...(row.fssaiNumber ? { fssaiNumber: row.fssaiNumber } : {}),
+    ...(row.fssaiCertKey ? { fssaiCertKey: row.fssaiCertKey } : {}),
+    ...(row.fssaiCertAssetId ? { fssaiCertAssetId: row.fssaiCertAssetId } : {}),
+    ...(row.drugLicenseNumber ? { drugLicenseNumber: row.drugLicenseNumber } : {}),
+    ...(row.drugLicenseCertKey ? { drugLicenseCertKey: row.drugLicenseCertKey } : {}),
+    ...(row.drugLicenseCertAssetId ? { drugLicenseCertAssetId: row.drugLicenseCertAssetId } : {}),
   }));
 }
 
@@ -860,6 +879,9 @@ export interface CreateVendorInput {
   fssaiNumber?: string;
   fssaiFileKey?: string;
   fssaiAssetId?: string;
+  drugLicenseNumber?: string;
+  drugLicenseFileKey?: string;
+  drugLicenseAssetId?: string;
 }
 
 /** Create a vendor for the signed-in seller account. Commercial fields stay server-validated. */
@@ -875,6 +897,13 @@ export async function createSellerVendor(input: CreateVendorInput): Promise<Sell
     isVeg?: boolean;
     isLive?: boolean;
     platformFeePct?: number;
+    sellerCategoryId?: string;
+    fssaiNumber?: string;
+    fssaiCertKey?: string;
+    fssaiCertAssetId?: string;
+    drugLicenseNumber?: string;
+    drugLicenseCertKey?: string;
+    drugLicenseCertAssetId?: string;
   }>("/seller/stores", {
     name: input.name,
     app: input.app,
@@ -885,6 +914,9 @@ export async function createSellerVendor(input: CreateVendorInput): Promise<Sell
     ...(input.fssaiNumber ? { fssaiNumber: input.fssaiNumber } : {}),
     ...(input.fssaiFileKey ? { fssaiFileKey: input.fssaiFileKey } : {}),
     ...(input.fssaiAssetId ? { fssaiAssetId: input.fssaiAssetId } : {}),
+    ...(input.drugLicenseNumber ? { drugLicenseNumber: input.drugLicenseNumber } : {}),
+    ...(input.drugLicenseFileKey ? { drugLicenseFileKey: input.drugLicenseFileKey } : {}),
+    ...(input.drugLicenseAssetId ? { drugLicenseAssetId: input.drugLicenseAssetId } : {}),
   });
   return {
     storeId: row.id,
@@ -896,13 +928,33 @@ export async function createSellerVendor(input: CreateVendorInput): Promise<Sell
     isVeg: row.isVeg === true,
     isLive: row.isLive === true,
     platformFeePct: row.platformFeePct ?? 0,
+    ...(row.sellerCategoryId ? { sellerCategoryId: row.sellerCategoryId } : {}),
+    ...(row.fssaiNumber ? { fssaiNumber: row.fssaiNumber } : {}),
+    ...(row.fssaiCertKey ? { fssaiCertKey: row.fssaiCertKey } : {}),
+    ...(row.fssaiCertAssetId ? { fssaiCertAssetId: row.fssaiCertAssetId } : {}),
+    ...(row.drugLicenseNumber ? { drugLicenseNumber: row.drugLicenseNumber } : {}),
+    ...(row.drugLicenseCertKey ? { drugLicenseCertKey: row.drugLicenseCertKey } : {}),
+    ...(row.drugLicenseCertAssetId ? { drugLicenseCertAssetId: row.drugLicenseCertAssetId } : {}),
   };
 }
 
-/** Save a vendor profile (name/address/phone/hours/live/veg). Sellers cannot set the fee here. */
+/** Save a vendor profile (name/address/phone/hours/live/veg + licences). Sellers cannot set the fee here. */
 export async function updateSellerStore(
   storeId: string,
-  patch: { hours?: string; isLive?: boolean; isVeg?: boolean },
+  patch: {
+    name?: string;
+    address?: string;
+    phone?: string;
+    hours?: string;
+    isLive?: boolean;
+    isVeg?: boolean;
+    fssaiNumber?: string;
+    fssaiFileKey?: string;
+    fssaiAssetId?: string;
+    drugLicenseNumber?: string;
+    drugLicenseFileKey?: string;
+    drugLicenseAssetId?: string;
+  },
 ): Promise<void> {
   if (!remoteConfigured()) throw new ApiError(0, "unconfigured", "Gateway is not configured");
   await remote.put(`/seller/stores/${encodeURIComponent(storeId)}`, patch);

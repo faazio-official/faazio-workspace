@@ -311,21 +311,24 @@ func (h *Handler) sellerStores(w http.ResponseWriter, r *http.Request) {
 }
 
 type vendorRequest struct {
-	Name             string   `json:"name"`
-	App              string   `json:"app"`
-	StateCode        string   `json:"stateCode"`
-	SellerID         string   `json:"sellerId"`
-	Address          string   `json:"address"`
-	Phone            string   `json:"phone"`
-	Hours            string   `json:"hours"`
-	Latitude         *float64 `json:"latitude"`
-	Longitude        *float64 `json:"longitude"`
-	PlatformFeePct   int      `json:"platformFeePct"`
-	SellerCategoryID string   `json:"sellerCategoryId"`
-	FSSAINumber      string   `json:"fssaiNumber"`
-	FSSAIFileKey     string   `json:"fssaiFileKey"`
-	FSSAIAssetID     string   `json:"fssaiAssetId"`
-	IsLive           *bool    `json:"isLive"`
+	Name               string   `json:"name"`
+	App                string   `json:"app"`
+	StateCode          string   `json:"stateCode"`
+	SellerID           string   `json:"sellerId"`
+	Address            string   `json:"address"`
+	Phone              string   `json:"phone"`
+	Hours              string   `json:"hours"`
+	Latitude           *float64 `json:"latitude"`
+	Longitude          *float64 `json:"longitude"`
+	PlatformFeePct     int      `json:"platformFeePct"`
+	SellerCategoryID   string   `json:"sellerCategoryId"`
+	FSSAINumber        string   `json:"fssaiNumber"`
+	FSSAIFileKey       string   `json:"fssaiFileKey"`
+	FSSAIAssetID       string   `json:"fssaiAssetId"`
+	DrugLicenseNumber  string   `json:"drugLicenseNumber"`
+	DrugLicenseFileKey string   `json:"drugLicenseFileKey"`
+	DrugLicenseAssetID string   `json:"drugLicenseAssetId"`
+	IsLive             *bool    `json:"isLive"`
 }
 
 // createStore creates a vendor owned by the calling seller (or a super admin naming sellerId). The
@@ -339,6 +342,7 @@ func (h *Handler) createStore(w http.ResponseWriter, r *http.Request) {
 	req.App = strings.ToUpper(strings.TrimSpace(req.App))
 	req.StateCode = strings.ToUpper(strings.TrimSpace(req.StateCode))
 	req.FSSAINumber = strings.TrimSpace(req.FSSAINumber)
+	req.DrugLicenseNumber = strings.TrimSpace(req.DrugLicenseNumber)
 	if strings.TrimSpace(req.Name) == "" || !validVendorApp(req.App) {
 		httpx.Fail(w, http.StatusBadRequest, "bad_request", "name and app are required")
 		return
@@ -364,6 +368,12 @@ func (h *Handler) createStore(w http.ResponseWriter, r *http.Request) {
 	if req.App == "FOOD" && !isStorageKey(req.FSSAIFileKey) {
 		httpx.Fail(w, http.StatusBadRequest, "bad_request", "fssai certificate is required for food vendors")
 		return
+	}
+	if req.DrugLicenseNumber != "" || req.DrugLicenseFileKey != "" || req.DrugLicenseAssetID != "" {
+		if req.DrugLicenseNumber == "" || !isStorageKey(req.DrugLicenseFileKey) {
+			httpx.Fail(w, http.StatusBadRequest, "bad_request", "drug licence number and document key are required together")
+			return
+		}
 	}
 	req.SellerCategoryID = strings.TrimSpace(req.SellerCategoryID)
 	if req.SellerCategoryID != "" {
@@ -397,7 +407,9 @@ func (h *Handler) createStore(w http.ResponseWriter, r *http.Request) {
 		Latitude: req.Latitude, Longitude: req.Longitude, PlatformFeePct: req.PlatformFeePct,
 		SellerCategoryID: strings.TrimSpace(req.SellerCategoryID), FSSAINumber: req.FSSAINumber,
 		FSSAICertKey: strings.TrimSpace(req.FSSAIFileKey), FSSAICertAssetID: strings.TrimSpace(req.FSSAIAssetID),
-		IsLive: req.IsLive,
+		DrugLicenseNumber: req.DrugLicenseNumber, DrugLicenseCertKey: strings.TrimSpace(req.DrugLicenseFileKey),
+		DrugLicenseCertAssetID: strings.TrimSpace(req.DrugLicenseAssetID),
+		IsLive:                 req.IsLive,
 	})
 	if err != nil {
 		httpx.Fail(w, http.StatusInternalServerError, "vendor_create_failed", "could not create vendor")
@@ -434,6 +446,7 @@ func (h *Handler) updateStore(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	req.SellerCategoryID = strings.TrimSpace(req.SellerCategoryID)
+	req.DrugLicenseNumber = strings.TrimSpace(req.DrugLicenseNumber)
 	if req.SellerCategoryID != "" {
 		ok, err := h.repo.ValidVendorCategory(r.Context(), app, req.SellerCategoryID)
 		if err != nil {
@@ -448,6 +461,12 @@ func (h *Handler) updateStore(w http.ResponseWriter, r *http.Request) {
 	if req.FSSAINumber != "" || req.FSSAIFileKey != "" || req.FSSAIAssetID != "" {
 		if req.FSSAINumber == "" || !isStorageKey(req.FSSAIFileKey) {
 			httpx.Fail(w, http.StatusBadRequest, "bad_request", "fssai number and certificate key are required together")
+			return
+		}
+	}
+	if req.DrugLicenseNumber != "" || req.DrugLicenseFileKey != "" || req.DrugLicenseAssetID != "" {
+		if req.DrugLicenseNumber == "" || !isStorageKey(req.DrugLicenseFileKey) {
+			httpx.Fail(w, http.StatusBadRequest, "bad_request", "drug licence number and document key are required together")
 			return
 		}
 	}
@@ -470,7 +489,9 @@ func (h *Handler) updateStore(w http.ResponseWriter, r *http.Request) {
 		Latitude: req.Latitude, Longitude: req.Longitude, PlatformFeePct: req.PlatformFeePct,
 		SellerCategoryID: strings.TrimSpace(req.SellerCategoryID), FSSAINumber: strings.TrimSpace(req.FSSAINumber),
 		FSSAICertKey: strings.TrimSpace(req.FSSAIFileKey), FSSAICertAssetID: strings.TrimSpace(req.FSSAIAssetID),
-		IsLive: req.IsLive,
+		DrugLicenseNumber: req.DrugLicenseNumber, DrugLicenseCertKey: strings.TrimSpace(req.DrugLicenseFileKey),
+		DrugLicenseCertAssetID: strings.TrimSpace(req.DrugLicenseAssetID),
+		IsLive:                 req.IsLive,
 	})
 	if err != nil {
 		httpx.Fail(w, http.StatusInternalServerError, "vendor_update_failed", "could not update vendor")

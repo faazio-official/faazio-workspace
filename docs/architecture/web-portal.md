@@ -62,7 +62,12 @@ directly; `/login` skips the form when a live HttpOnly-cookie session already ex
 `homeFor(role)`). The native layer injects its
 FCM token into `window.__faazioPushToken`; `SellerPushBridge`
 registers it through `/api/gateway/notifications/register` and removes it on sign-out. Portal
-sign-out is the only seller session authority (HttpOnly cookies).
+sign-out is the only seller session authority (HttpOnly cookies). The sign-out control renders on
+every viewport: the desktop sidebar (`SellerDesktopShell`) on ≥ `md` and a **Sign out** row at the
+bottom of the mobile Explore hub (`app/seller/explore`) — so the native WebView app can log out at
+mobile widths. `signOut()` unregisters the device push token, clears the HttpOnly cookies and nulls
+the portal session; the WebView's `clearCache` on the `/login` transition only wipes the HTTP cache —
+the session teardown itself is server-side.
 
 **Active shop + shop switcher (0068–0073).** A seller ACCOUNT owns many VENDORS across apps
 (Mart / Food / Pharma), so every seller page resolves its shop through `useActiveStore`
@@ -75,6 +80,13 @@ choice. The `/seller/outlet-info` profile stays reachable via the shop-initials 
 seller WebView may inject `window.__faazio.vendorId`, which restores the last active shop on load (the
 same console is used in a desktop browser). The old desktop `VendorSwitcher` shipped inside the
 removed width-1440 `SellerShell`.
+
+**PHARMA drug licence (0076).** `directory.stores` persists the pharmacy's drug-selling licence
+(`drug_license_number`/`drug_license_cert_key`/`drug_license_cert_asset_id`, mirroring FSSAI). The
+onboarding form captures it (optional; the document uploads to the seller's private Storage) and
+`POST /seller/stores` persists the trio; `PUT /seller/stores/{id}` and the Stores console let the
+seller edit it after creation. Mobile seller onboarding intentionally stays FOOD-FSSAI-only — the
+seller app is a WebView over this same console, which captures the licence.
 
 **Sector-aware console chrome.** The seller UI is sector-aware rather than Zomato-flavoured. A shared
 vocabulary (`src/lib/sector.ts` — `sectorLabel` / `sectorIcon` / `sectorChip` / `orderStatusLabel`) plus

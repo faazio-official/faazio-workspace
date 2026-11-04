@@ -1,5 +1,6 @@
 "use client";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useState } from "react";
 import {
   BadgePercent,
@@ -12,6 +13,7 @@ import {
   Hourglass,
   LayoutGrid,
   LifeBuoy,
+  LogOut,
   Megaphone,
   Package,
   Receipt,
@@ -25,6 +27,7 @@ import {
   X,
 } from "lucide-react";
 import { PageHeader } from "@/components/sellers/kit";
+import { signOut } from "@/lib/api";
 import { useSellerUi } from "@/lib/sellerUi";
 import { useSession } from "@/lib/hooks/useSession";
 import { useSellerScope } from "@/lib/api/hooks";
@@ -80,6 +83,7 @@ const SECTIONS: { title: string; tiles: Tile[] }[] = [
 
 function Explore() {
   const session = useSession();
+  const router = useRouter();
   const rush = useSellerUi((s) => s.rush);
   const { activeStore } = useSellerScope();
   const sector = activeStore?.sector;
@@ -155,6 +159,17 @@ function Explore() {
             </div>
           </section>
         ))}
+        <button
+          onClick={() => {
+            void signOut().finally(() => router.push("/login"));
+          }}
+          className="mt-4 flex w-full items-center gap-3 rounded-2xl border border-border bg-card px-3 py-3 text-left shadow-sm"
+        >
+          <span className="flex h-12 w-12 items-center justify-center rounded-2xl border border-border bg-card">
+            <LogOut className="h-5 w-5" strokeWidth={1.6} />
+          </span>
+          <span className="text-xs font-medium text-muted-foreground">Sign out</span>
+        </button>
       </div>
     </>
   );

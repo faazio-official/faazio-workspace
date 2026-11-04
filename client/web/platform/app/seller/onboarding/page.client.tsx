@@ -28,6 +28,7 @@ function AddVendor() {
     fssaiAssetId: "",
     drugLicenseNumber: "",
     drugLicenseFileKey: "",
+    drugLicenseAssetId: "",
     isLive: false,
   });
   const [busy, setBusy] = useState(false);
@@ -50,7 +51,11 @@ function AddVendor() {
   async function attachDrugLicense(file: File) {
     try {
       const uploaded = await uploadPrivateDocument(file);
-      setForm((f) => ({ ...f, drugLicenseFileKey: uploaded.key }));
+      setForm((f) => ({
+        ...f,
+        drugLicenseFileKey: uploaded.key,
+        drugLicenseAssetId: uploaded.assetId,
+      }));
       toast.success("Drug licence document uploaded");
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Could not upload the document");
@@ -78,6 +83,15 @@ function AddVendor() {
               fssaiNumber: form.fssaiNumber.trim(),
               fssaiFileKey: form.fssaiFileKey,
               fssaiAssetId: form.fssaiAssetId,
+            }
+          : {}),
+        ...(form.app === "PHARMA" &&
+        form.drugLicenseNumber.trim() !== "" &&
+        form.drugLicenseFileKey !== ""
+          ? {
+              drugLicenseNumber: form.drugLicenseNumber.trim(),
+              drugLicenseFileKey: form.drugLicenseFileKey,
+              drugLicenseAssetId: form.drugLicenseAssetId,
             }
           : {}),
       });
@@ -173,9 +187,9 @@ function AddVendor() {
           </Card>
         )}
 
-        {/* PHARMA compliance is captured here so onboarding feels complete; persisting the licence to
-            directory.stores needs a gateway/db migration (drug_license_number + cert key columns) —
-            tracked in PENDING_WORK. The uploaded file is still written to the seller's private Storage. */}
+        {/* PHARMA licences persist to directory.stores (0076). Optional at creation — the uploaded
+            file goes to the seller's private Storage and the shop can attach/change the licence later
+            from Stores. An empty licence never sends the trio (the gateway keeps them paired). */}
         {form.app === "PHARMA" && (
           <Card>
             <p className="text-sm font-bold">Drug licence</p>
