@@ -655,6 +655,38 @@ export function getSeller(sellerId: string) {
   return state().sellers.find((s) => s.sellerId === sellerId);
 }
 
+/** Live seller roster from `GET /sellers` — the DB is the authority, the store is a cache.
+ *  Same shape mapping as hydrateFromGateway; the caller keeps the hydrated/seed slice on error. */
+export async function fetchSellers(): Promise<SellerRecord[]> {
+  if (!remoteConfigured()) return [];
+  const rows = await remote.get<
+    {
+      sellerId: string;
+      businessName: string;
+      ownerName: string;
+      gstin: string;
+      pan: string;
+      businessAddress: string;
+      contactPhone?: string;
+      stateCode: string;
+      districtCode?: string;
+      status: string;
+      rating: number;
+      createdAt: string;
+      contactEmail?: string;
+      razorpayLinkedAccountId?: string;
+      otpVerified?: boolean;
+      otpVerifiedAt?: string;
+      rejectionReason?: string;
+    }[]
+  >("/sellers");
+  return rows.map((s) => ({
+    ...s,
+    status: s.status as SellerStatus,
+    contactPhone: s.contactPhone ?? "",
+  }));
+}
+
 export function listKyc(sellerId: string) {
   return state().kyc.filter((k) => k.sellerId === sellerId);
 }

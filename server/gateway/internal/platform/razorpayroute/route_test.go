@@ -5,6 +5,7 @@ import (
 	"crypto/hmac"
 	"crypto/sha256"
 	"encoding/hex"
+	"errors"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -12,35 +13,41 @@ import (
 	"testing"
 )
 
-func TestNewWithoutCredentialsIsAConfigError(t *testing.T) {
+func TestNewWithoutCredentialsIsDisabled(t *testing.T) {
 	for _, tc := range []struct{ id, secret string }{
 		{"", ""}, {"", "secret"}, {"key", ""}, {"  ", "secret"},
 	} {
-		g, err := New(tc.id, tc.secret, "")
-		if err == nil {
-			t.Fatalf("New(%q,%q) = %v, want configuration error", tc.id, tc.secret, g)
+		g := New(tc.id, tc.secret, "")
+		if g.Enabled() {
+			t.Fatalf("New(%q,%q) enabled with a missing key", tc.id, tc.secret)
 		}
-		if g != nil {
-			t.Fatalf("New(%q,%q) returned a gateway with a missing key", tc.id, tc.secret)
+		if _, err := g.CreateLinkedAccount(context.Background(), LinkedAccountInput{}); !errors.Is(err, ErrUnavailable) {
+			t.Fatalf("New(%q,%q) CreateLinkedAccount err = %v, want ErrUnavailable", tc.id, tc.secret, err)
+		}
+		if _, err := g.CreateTransfer(context.Background(), TransferInput{PaymentID: "pay_1", AccountID: "acc_1", AmountPaisa: 100}); !errors.Is(err, ErrUnavailable) {
+			t.Fatalf("New(%q,%q) CreateTransfer err = %v, want ErrUnavailable", tc.id, tc.secret, err)
+		}
+		if err := g.ReleaseTransfer(context.Background(), "trl_1"); !errors.Is(err, ErrUnavailable) {
+			t.Fatalf("New(%q,%q) ReleaseTransfer err = %v, want ErrUnavailable", tc.id, tc.secret, err)
+		}
+		if err := g.ReverseTransfer(context.Background(), "trl_1"); !errors.Is(err, ErrUnavailable) {
+			t.Fatalf("New(%q,%q) ReverseTransfer err = %v, want ErrUnavailable", tc.id, tc.secret, err)
+		}
+		if g.VerifyWebhook([]byte(`{}`), "sig") {
+			t.Fatalf("New(%q,%q) accepted a webhook signature while disabled", tc.id, tc.secret)
 		}
 	}
 }
 
 func TestNewWithCredentials(t *testing.T) {
-	g, err := New("key", "secret", "whsec")
-	if err != nil {
-		t.Fatalf("New() error = %v", err)
-	}
+	g := New("key", "secret", "whsec")
 	if !g.Enabled() {
 		t.Fatal("configured gateway must be enabled")
 	}
 }
 
 func TestVerifyWebhook(t *testing.T) {
-	g, err := New("key", "secret", "whsec")
-	if err != nil {
-		t.Fatalf("New() error = %v", err)
-	}
+	g := New("key", "secret", "whsec")
 	body := []byte(`{"event":"transfer.released"}`)
 	mac := hmac.New(sha256.New, []byte("whsec"))
 	mac.Write(body)

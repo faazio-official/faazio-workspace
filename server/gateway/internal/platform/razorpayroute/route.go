@@ -2,9 +2,10 @@
 // transfers). It is domain-free: sellers provisions a linked account and settlement holds/releases
 // transfers, but neither context owns an HTTP client.
 //
-// Secrets are loaded from env and never logged. The key pair is required at construction time:
-// New returns an error when either key is missing, so the gateway can never silently fabricate a
-// synthetic account or transfer id.
+// Secrets are loaded from env and never logged. There is no mock/synthetic mode: when the key
+// pair is unset the client is disabled (Enabled() reports false), every action returns
+// ErrUnavailable, and no account or transfer id is ever fabricated locally. The gateway boots with
+// settlement splits offline (502/503) rather than crashing because an optional rail lacks keys.
 package razorpayroute
 
 import (
@@ -66,21 +67,17 @@ type Gateway interface {
 	VerifyWebhook(body []byte, signature string) bool
 }
 
-// New builds a Route gateway. Credentials are required: a missing key pair is a configuration
-// error, never a half-configured client and never a silent mock that fabricates ids.
-func New(keyID, keySecret, webhookSecret string) (Gateway, error) {
-	keyID = strings.TrimSpace(keyID)
-	keySecret = strings.TrimSpace(keySecret)
-	if keyID == "" || keySecret == "" {
-		return nil, fmt.Errorf("razorpayroute: RAZORPAY_ROUTE_KEY_ID and RAZORPAY_ROUTE_KEY_SECRET are required")
-	}
+// New builds a Route gateway from the configured key pair. Empty credentials yield a disabled
+// client (`Enabled()` false) — it never errors at boot (settlement splits report 502/503 until real
+// keys are set) and never mocks a synthetic account or transfer id.
+func New(keyID, keySecret, webhookSecret string) Gateway {
 	return &Client{
-		keyID:         keyID,
-		keySecret:     keySecret,
+		keyID:         strings.TrimSpace(keyID),
+		keySecret:     strings.TrimSpace(keySecret),
 		webhookSecret: strings.TrimSpace(webhookSecret),
 		baseURL:       "https://api.razorpay.com/v1",
 		http:          &http.Client{Timeout: 12 * time.Second},
-	}, nil
+	}
 }
 
 // Client is the real Razorpay Route HTTP client.

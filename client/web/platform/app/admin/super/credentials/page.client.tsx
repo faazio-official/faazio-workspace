@@ -49,6 +49,7 @@ import { ApiError } from "@/lib/api/http";
 import { useSellers } from "@/lib/api/hooks";
 import {
   createPortalCredential,
+  fetchSellers,
   listPortalCredentials,
   resetPortalCredentialPassword,
   setPortalCredentialActive,
@@ -57,6 +58,8 @@ import {
 } from "@/lib/api";
 import { useDistricts } from "@/lib/api/hooks";
 import type { PortalCredential, Role } from "@/data/types";
+import { remoteConfigured } from "@/lib/config";
+import { usePortalStore } from "@/lib/api/store";
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const MIN_PASSWORD = 12;
@@ -115,6 +118,25 @@ function CredentialsPage() {
   useEffect(() => {
     void load();
   }, [load]);
+
+  // Seller roster: the store is hydrated once at login (hydrateFromGateway); the DB is the
+  // authority, so re-fetch live on mount so the seller <Select> reflects the DB. Best-effort —
+  // keep the hydrated/seed roster when the gateway is absent or the call fails.
+  useEffect(() => {
+    if (!remoteConfigured()) return;
+    let active = true;
+    void fetchSellers()
+      .then((rows) => {
+        if (!active) return;
+        usePortalStore.getState().set(() => ({ sellers: rows }));
+      })
+      .catch(() => {
+        /* keep the hydrated/seed roster */
+      });
+    return () => {
+      active = false;
+    };
+  }, []);
 
   // Deep link from the district-admins "Issue login" action: prefill the create sheet for that email.
   useEffect(() => {

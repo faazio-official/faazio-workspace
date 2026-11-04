@@ -114,14 +114,11 @@ func NewRouter(d Deps) http.Handler {
 	notificationsRepo := notifications.New(d.Pool, d.Cache)
 	bloodRepo := blood.New(d.Pool)
 	// Razorpay Route (seller split payments): linked accounts + held transfers. Shared by sellers
-	// (provision account on KYC) and settlement (hold/release the seller share).
-	routeGateway, routeErr := razorpayroute.New(d.Config.RazorpayRouteKeyID, d.Config.RazorpayRouteKeySecret, d.Config.RazorpayRouteWebhookSecret)
-	if routeErr != nil {
-		// Tests and tooling construct a router without secrets. Production validates this in main
-		// and refuses to boot, so a nil gateway here can only mean "not configured".
-		slog.Warn("razorpay route disabled", "error", routeErr)
-		routeGateway = nil
-	}
+	// (provision account on KYC) and settlement (hold/release the seller share). Missing Route
+	// credentials yield a disabled client (Enabled() == false → 502/503), never a nil gateway: a
+	// nil interface would panic in settlement.release/reverse/webhook, so the constructor always
+	// returns a method-safe client.
+	routeGateway := razorpayroute.New(d.Config.RazorpayRouteKeyID, d.Config.RazorpayRouteKeySecret, d.Config.RazorpayRouteWebhookSecret)
 	// Customer Razorpay rail (UPI order creation + webhook). Disabled (503) when keys are unset —
 	// there is no mock/synthetic paid order.
 	razorpayPay := razorpaypay.New(d.Config.RazorpayKeyID, d.Config.RazorpayKeySecret, d.Config.RazorpayWebhookSecret)

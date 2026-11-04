@@ -655,6 +655,20 @@ build on the Linux host.
 
 ## Seller onboarding / Razorpay Route
 
+- **Deploy crash-loops with `razorpay route: RAZORPAY_ROUTE_KEY_ID and RAZORPAY_ROUTE_KEY_SECRET
+  are required` then `Exited with status 1`** — a pre-fix gateway called `log.Fatalf` when the Route
+  key pair was unset, so one optional integration (seller settlement splits) took the process down.
+  The gateway no longer does this: `razorpayroute.New` returns a **disabled** client when keys are
+  missing and `main` logs `razorpay_route=disabled reason=keys_unset` at boot (never fatals). If you
+  still see this log line, confirm you are running a build after the fix. To actually enable
+  settlement splits, set `RAZORPAY_ROUTE_KEY_ID` / `RAZORPAY_ROUTE_KEY_SECRET` in the Render
+  dashboard (they fall back to the main `RAZORPAY_KEY_ID` / `RAZORPAY_KEY_SECRET` when unset).
+- **Seller <Select> on `/admin/super/credentials` is empty** — the portal store hydrates once at
+  login (`hydrateFromGateway`); the page now re-fetches `GET /sellers` on mount as a best-effort
+  refresh and keeps the hydrated/seed roster when the gateway is absent or the call fails. If it is
+  still empty: check the gateway is up (`GET /health` → `"db":true`), then confirm migrations
+  `0068`–`0074` (especially `0071` which backfills the four sellers + store ownership) were applied
+  to Supabase — Render never runs migrations (see `DATABASE_MIGRATIONS.md`).
 - **`POST /sellers` returns `otp_required`** — the client did not complete the OTP digital signature.
   Re-send the OTP; the mobile flow uses a disposable secondary Firebase app, so the shopper session
   should stay signed in. If `sendOtp` fails, confirm `FIREBASE_AUTH_ENABLED` and the native
