@@ -23,7 +23,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useSellerUi } from "@/lib/sellerUi";
-import { useActiveStore } from "@/lib/api/hooks";
+import { useActiveStore, useStoreSwitching } from "@/lib/api/hooks";
 import { useSession } from "@/lib/hooks/useSession";
 import { RoleGate } from "@/components/layout/RoleGate";
 import { SellerPushBridge } from "@/components/layout/SellerPushBridge";
@@ -313,6 +313,7 @@ export function SellerAppShell({ children }: { children: ReactNode }) {
   const router = useRouter();
   const pathname = usePathname();
   const [switching, setSwitching] = useState<null | "hub" | "orders">(null);
+  const scopeSwitching = useStoreSwitching();
 
   useEffect(() => {
     if (session?.mustChange && session.role !== "SUPER_ADMIN" && pathname !== "/security") {
@@ -337,6 +338,9 @@ export function SellerAppShell({ children }: { children: ReactNode }) {
         <SellerDesktopShell />
         <div className="flex min-w-0 flex-1 flex-col">
           <main className="relative mx-auto w-full max-w-[430px] flex-1 pb-28 md:max-w-[1024px] md:pb-10">
+            {scopeSwitching ? (
+              <div className="pointer-events-none absolute inset-x-0 top-0 z-40 h-0.5 animate-fade bg-info/70" />
+            ) : null}
             {children}
           </main>
           <SellerBottomNav

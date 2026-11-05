@@ -35,6 +35,26 @@ export interface FaazioPermissionResult {
 
 const PERMISSION_EVENT = "faazio-permission-result";
 
+/** Posted to the native seller shell when the console's active shop is switched. The shell
+ *  persists the vendor id so a cold start reopens the portal on the same shop
+ *  (see `SellerWebViewScreen` handling of `faazio:vendor-change`). */
+export const VENDOR_CHANGE_EVENT = "faazio:vendor-change";
+
+/**
+ * Announce an active-shop change inside the portal: keep the injected WebView context
+ * (`window.__faazio.vendorId`) in sync for the rest of this session, notify in-page listeners with
+ * a `faazio:vendor-change` CustomEvent, and tell the native shell via the postMessage bridge. No-op
+ * in a plain browser and for a null/empty id.
+ */
+export function notifyVendorChange(storeId: string | null | undefined): void {
+  if (typeof window === "undefined" || !storeId) return;
+  window.__faazio = Object.assign({}, window.__faazio, { vendorId: storeId });
+  window.dispatchEvent(new CustomEvent(VENDOR_CHANGE_EVENT, { detail: { vendorId: storeId } }));
+  if (window.ReactNativeWebView) {
+    window.ReactNativeWebView.postMessage(JSON.stringify({ type: VENDOR_CHANGE_EVENT, storeId }));
+  }
+}
+
 declare global {
   interface Window {
     /** Injected by the native WebView shell before the portal hydrates. */

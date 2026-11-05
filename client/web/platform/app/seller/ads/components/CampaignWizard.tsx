@@ -1,5 +1,5 @@
 "use client";
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import { Check, ImagePlus, Loader2, ShoppingBag, Store, UtensilsCrossed } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -45,7 +45,7 @@ function isoDaysFromNow(days: number): string {
  * optimistic LIVE row rolls back if the gateway rejects the write.
  */
 export function CampaignWizard({ sellerId, stateCode }: { sellerId: string; stateCode?: string | undefined }) {
-  const { activeStore } = useSellerScope();
+  const { activeStore, storeId } = useSellerScope();
   const initialTab: TargetTabKey = activeStore?.sector === "FOOD" ? "DISH" : "PRODUCT";
   const [step, setStep] = useState(0);
   const [tab, setTab] = useState<TargetTabKey>(initialTab);
@@ -54,6 +54,15 @@ export function CampaignWizard({ sellerId, stateCode }: { sellerId: string; stat
 
   const [placements, setPlacements] = useState<HeroPlacement[]>([]);
   const [category, setCategory] = useState("");
+
+  // A shop switch re-scopes the item picker to the new store: follow the active store's sector and
+  // drop a selection that no longer belongs to it, so the wizard never promotes old-shop items.
+  useEffect(() => {
+    setTab(initialTab);
+    setTarget(null);
+    setPlacements([]);
+    setCategory("");
+  }, [storeId, initialTab]);
 
   const [title, setTitle] = useState("");
   const [subtitle, setSubtitle] = useState("");
@@ -66,8 +75,8 @@ export function CampaignWizard({ sellerId, stateCode }: { sellerId: string; stat
   const [endsAt, setEndsAt] = useState(isoDaysFromNow(30));
   const [submitting, setSubmitting] = useState(false);
 
-  const products = useProducts({ sellerId, status: "ACTIVE" });
-  const dishes = useMenus({ sellerId });
+  const products = useProducts({ sellerId, storeId: storeId || undefined, status: "ACTIVE" });
+  const dishes = useMenus({ sellerId, venueId: storeId || undefined });
   const stores = useStores({ sellerId });
   const placementMeta = usePlacements();
   const categoryOptions = useCategories(target?.app ?? "MART");

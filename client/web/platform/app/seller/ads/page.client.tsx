@@ -19,11 +19,11 @@ const AD_PILL: Record<AdStatus, string> = {
 
 function SellerAds() {
   const session = useSession();
-  const { sellerId } = useSellerScope();
+  const { sellerId, storeId } = useSellerScope();
   const loading = useMockLoading();
   const placements = usePlacements();
-  const slots = useAdSlots({ sellerId });
-  const campaigns = useHeroCampaigns({ sellerId });
+  const slots = useAdSlots({ sellerId, storeId: storeId || undefined });
+  const campaigns = useHeroCampaigns({ sellerId, storeId: storeId || undefined });
 
   const impressions =
     slots.reduce((t, s) => t + s.impressions, 0) + campaigns.reduce((t, c) => t + c.impressions, 0);

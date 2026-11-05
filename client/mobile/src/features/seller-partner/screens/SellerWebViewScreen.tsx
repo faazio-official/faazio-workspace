@@ -107,6 +107,10 @@ async function requestNativePermission(
 // scoped to the same shop via window.__faazio.vendorId before the console hydrates.
 const LAST_VENDOR_KEY = 'faazio.seller.lastVendorId';
 
+// Portal → native announcement when the seller switches the active shop inside the console. We
+// mirror it into LAST_VENDOR_KEY so a cold start re-opens the portal on the newly chosen shop.
+const VENDOR_CHANGE_EVENT = 'faazio:vendor-change';
+
 function portalOrigin(): { protocol: string; host: string } | null {
   if (!portalBase) return null;
   try {
@@ -210,8 +214,11 @@ export function SellerWebViewScreen() {
     [inject],
   );
 
-  // Permission bridge: the portal posts `{type:'faazio:permission', requestId, kind}` and receives
-  // `faazio-permission-result` on `window`. Native asks the OS; the portal never sees a fake grant.
+  // Bridge: the portal posts `{type, ...}` messages and native answers with CustomEvents on window.
+  //  - `faazio:permission` → asks the OS for camera/location/notifications/storage; the portal never
+  //    sees a fake grant.
+  //  - `faazio:vendor-change` → the seller switched the active shop in the console; persist the new
+  //    vendor natively so a cold start reopens on it.
   const onMessage = useCallback(
     (event: { nativeEvent: { data: string } }) => {
       let payload: unknown;
@@ -222,6 +229,14 @@ export function SellerWebViewScreen() {
       }
       if (!payload || typeof payload !== 'object') return;
       const message = payload as Record<string, unknown>;
+      if (message['type'] === VENDOR_CHANGE_EVENT) {
+        const storeId = typeof message['storeId'] === 'string' ? message['storeId'] : '';
+        if (storeId) {
+          setVendorId(storeId);
+          AsyncStorage.setItem(LAST_VENDOR_KEY, storeId).catch(() => undefined);
+        }
+        return;
+      }
       if (message['type'] !== 'faazio:permission') return;
       const requestId = typeof message['requestId'] === 'string' ? message['requestId'] : '';
       const kind = message['kind'];

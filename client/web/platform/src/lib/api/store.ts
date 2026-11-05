@@ -4,6 +4,7 @@
 import { create } from "zustand";
 import { persist, createJSONStorage } from "zustand/middleware";
 import { config } from "@/lib/config";
+import { notifyVendorChange } from "@/lib/appContext";
 import type {
   AdSlot,
   AuditLog,
@@ -43,6 +44,9 @@ export interface PortalState {
   /** The vendor (directory.stores id) the seller console is currently scoped to. Persisted so a
    *  reload keeps the seller on the same shop; null means "not chosen yet" (fall back to the first). */
   activeStoreId: string | null;
+  /** Bumped every time `activeStoreId` actually changes so store-scoped data hooks and shells can
+   *  react to a shop switch even when their filter value stays empty (e.g. restore, first load). */
+  storeScopeVersion: number;
   sellers: SellerRecord[];
   kyc: KycDocument[];
   bankAccounts: BankAccount[];
@@ -77,6 +81,7 @@ const emptySeed = {
   session: null as AuthUser | null,
   sessionStatus: "unknown" as SessionStatus,
   activeStoreId: null as string | null,
+  storeScopeVersion: 0,
   sellers: [] as SellerRecord[],
   kyc: [] as KycDocument[],
   bankAccounts: [] as BankAccount[],
@@ -116,7 +121,14 @@ export const usePortalStore = create<PortalState>()(
     (setState) => ({
       ...emptySeed,
       set: (updater) => setState((state) => updater(state)),
-      setActiveStoreId: (id) => setState({ activeStoreId: id }),
+      setActiveStoreId: (id) =>
+        setState((state) => {
+          if (state.activeStoreId === id) return state;
+          // Re-scope announcement: bump the version for store-scoped hooks/shells and tell the
+          // native seller shell, so a cold start reopens the portal on the newly chosen shop.
+          notifyVendorChange(id);
+          return { activeStoreId: id, storeScopeVersion: state.storeScopeVersion + 1 };
+        }),
     }),
     {
       name: config.storageKey,

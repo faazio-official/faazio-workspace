@@ -75,11 +75,31 @@ the session teardown itself is server-side.
 `StoreSwitcher` (`src/components/sellers/StoreSwitcher.tsx`) is the single switcher UI: clicking the
 active shop name in the hub header, the orders header or the desktop sidebar opens a list of the
 seller's shops (name + sector badge + live dot); picking one calls `setActiveStoreId`, which
-re-scopes every data hook (orders/products/menus/etc.) to that shop without a reload and persists the
-choice. The `/seller/outlet-info` profile stays reachable via the shop-initials avatar. The native
-seller WebView may inject `window.__faazio.vendorId`, which restores the last active shop on load (the
-same console is used in a desktop browser). The old desktop `VendorSwitcher` shipped inside the
-removed width-1440 `SellerShell`.
+re-scopes every data hook (orders/products/menus/ads/etc.) to that shop optimistically (checkmark
+moves immediately) and persists the choice. `setActiveStoreId` is the single funnel for a shop
+switch: it bumps a `storeScopeVersion` counter in the store (so store-scoped hooks and shells react
+even when a filter stays empty — e.g. the first-load restore) and calls `notifyVendorChange`
+(`src/lib/appContext.ts`) —
+it keeps `window.__faazio.vendorId` in sync, fires a `faazio:vendor-change` CustomEvent for in-page
+observers, and posts `{type:'faazio:vendor-change'}` to the native seller shell so a cold start
+reopens the portal on the chosen shop. The `/seller/outlet-info` profile stays reachable via the
+shop-initials avatar. The native seller WebView may inject `window.__faazio.vendorId`, which restores
+the last active shop on load (the same console is used in a desktop browser). The old desktop
+`VendorSwitcher` shipped inside the removed width-1440 `SellerShell`.
+
+**Store scoping is client-side, not a per-shop refetch.** `hydrateFromGateway` (`src/lib/api/sync.ts`)
+fetches the seller's list slices **unfiltered** (`GET /seller/orders`, `/seller/pricing`,
+`/seller/inventory`, `/seller/menus`) — the gateway list endpoints carry no `storeId` query and return
+every shop — so a shop switch never asks the gateway for new rows. The data hooks are memos keyed on
+`JSON.stringify(filter)`; pages pass `storeId`/`venueId` from `useSellerScope()`, and the filter key
+change recomputes the slice client-side. All seller pages already scoped by shop now stay scoped on
+switch; this change also closed the gaps that shipped unscoped: hero campaigns + product rails
+(`listHeroCampaigns`/`listAdSlots` resolve a row's store via its target product/dishes/store),
+the CampaignWizard target picker (`useProducts`/`useMenus`), and the inventory Menu tab
+(`useMenus`). The Reviews page is **not** store-scoped: `ReviewRecord` carries no `storeId` and there
+is no seller-scoped reviews hydration/endpoint, so it stays seller-wide (inert in production until a
+reviews slice is added). The subtle 2px bar under the seller shell header after a switch ("Showing
+data for" re-scope cue) comes from `useStoreSwitching`.
 
 **Licences (0069, 0076).** `directory.stores` persists the FOOD FSSAI (`fssai_number`/`fssai_cert_key`/
 `fssai_cert_asset_id`) and the PHARMA drug-selling licence

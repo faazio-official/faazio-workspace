@@ -882,10 +882,13 @@ last vendor the seller was on is persisted natively (`@react-native-async-storag
 `faazio.seller.lastVendorId`) and injected as `vendorId` on every (re)load so a cold start re-opens
 the console scoped to the same shop. When a push/notification carries the order's `storeId`, the
 shell first injects `window.__faazio.vendorId = <storeId>` so the console can open scoped to the
-right shop (0068–0074); the portal's `activeStoreId` restore also accepts that injected vendor. Shop
-switching in-console (the portal `StoreSwitcher` on the hub/orders headers and the desktop sidebar)
-writes the same persisted `activeStoreId` the WebView restore reads, so a seller who switches shops
-inside the portal stays on that shop across WebView reloads and push deep links. The native shell also
+right shop (0068–0074); the portal's `activeStoreId` restore also accepts that injected vendor.
+Shop switching in-console (the portal `StoreSwitcher` on the hub/orders headers and the desktop
+sidebar) now reaches native the other way: the portal's `setActiveStoreId` posts a
+`{type:'faazio:vendor-change', storeId}` message over the WebView bridge, the shell's `onMessage`
+handler persists it to `faazio.seller.lastVendorId` (and local `vendorId` state), so a seller who
+switches shops inside the portal stays on that shop across WebView reloads and push deep links — no
+polling, the same bridge as the permission requests. The native shell also
 refuses to load any `/admin/*` portal URL, rendering the branded "Not available in
 the Faazio Seller app" block with a **Back to sign in** action instead. No internet / an unreachable
 portal renders the shared `components/shared/OfflinePage` (the same branded page the customer app

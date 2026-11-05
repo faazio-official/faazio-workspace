@@ -281,10 +281,12 @@ export function useActiveStore(): {
   stores: api.SellerStoreSummary[];
   loading: boolean;
   activeStore: api.SellerStoreSummary | null;
+  storeScopeVersion: number;
   setActiveStoreId: (id: string | null) => void;
 } {
   const { stores, loading } = useSellerStores();
   const activeStoreId = usePortalStore((s) => s.activeStoreId);
+  const storeScopeVersion = usePortalStore((s) => s.storeScopeVersion);
   const setActiveStoreId = usePortalStore((s) => s.setActiveStoreId);
   // Restore the vendor the native seller shell had active (window.__faazio.vendorId) on first load.
   useEffect(() => {
@@ -294,7 +296,7 @@ export function useActiveStore(): {
   }, [activeStoreId, stores, setActiveStoreId]);
   const activeStore =
     stores.find((s) => s.storeId === activeStoreId) ?? (stores.length > 0 ? stores[0]! : null);
-  return { stores, loading, activeStore, setActiveStoreId };
+  return { stores, loading, activeStore, storeScopeVersion, setActiveStoreId };
 }
 
 /** Seller console scope: the signed-in account plus its active vendor. */
@@ -303,12 +305,34 @@ export function useSellerScope(): {
   stores: api.SellerStoreSummary[];
   activeStore: api.SellerStoreSummary | null;
   storeId: string;
+  storeScopeVersion: number;
   loading: boolean;
   setActiveStoreId: (id: string | null) => void;
 } {
   const sellerId = usePortalStore((s) => s.session?.sellerId ?? "");
-  const { stores, activeStore, loading, setActiveStoreId } = useActiveStore();
-  return { sellerId, stores, activeStore, storeId: activeStore?.storeId ?? "", loading, setActiveStoreId };
+  const { stores, activeStore, loading, storeScopeVersion, setActiveStoreId } = useActiveStore();
+  return {
+    sellerId,
+    stores,
+    activeStore,
+    storeId: activeStore?.storeId ?? "",
+    storeScopeVersion,
+    loading,
+    setActiveStoreId,
+  };
+}
+
+/** True briefly after the active store changes, so a shell can show a subtle scope-changed cue. */
+export function useStoreSwitching(ms = 400): boolean {
+  const storeScopeVersion = usePortalStore((s) => s.storeScopeVersion);
+  const [switching, setSwitching] = useState(false);
+  useEffect(() => {
+    if (storeScopeVersion === 0) return;
+    setSwitching(true);
+    const timer = window.setTimeout(() => setSwitching(false), ms);
+    return () => window.clearTimeout(timer);
+  }, [storeScopeVersion, ms]);
+  return switching;
 }
 
 export function useCampaigns(filter: { stateCode?: string | undefined } = {}) {
@@ -403,14 +427,16 @@ export function useCoupons(filter: { stateCode?: string | undefined; scope?: "GL
   return useMemo(() => api.listCoupons(filter), [coupons, key]);
 }
 
-export function useAdSlots(filter: { sellerId?: string | undefined; stateCode?: string | undefined } = {}) {
+export function useAdSlots(
+  filter: { sellerId?: string | undefined; stateCode?: string | undefined; storeId?: string | undefined } = {},
+) {
   const adSlots = usePortalStore((s) => s.adSlots);
   const key = JSON.stringify(filter);
   return useMemo(() => api.listAdSlots(filter), [adSlots, key]);
 }
 
 export function useHeroCampaigns(
-  filter: { sellerId?: string | undefined; stateCode?: string | undefined } = {},
+  filter: { sellerId?: string | undefined; stateCode?: string | undefined; storeId?: string | undefined } = {},
 ) {
   const heroCampaigns = usePortalStore((s) => s.heroCampaigns);
   const key = JSON.stringify(filter);

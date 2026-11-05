@@ -109,7 +109,7 @@ function SellerInventory() {
   const { sellerId, storeId, activeStore } = useSellerScope();
   const isFood = activeStore?.sector === "FOOD";
   const rows = useStock(sellerId, storeId);
-  const menus = useMenus({ sellerId });
+  const menus = useMenus({ sellerId, venueId: storeId || undefined });
   const [tab, setTab] = useState<"items" | "addons">("items");
   const [q, setQ] = useState("");
   const [onlyOut, setOnlyOut] = useState(false);

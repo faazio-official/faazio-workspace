@@ -1386,10 +1386,20 @@ export function toggleCoupon(couponId: string): void {
 
 /* ----------------------------------- ads --------------------------------- */
 
-export function listAdSlots(filter: { sellerId?: string | undefined; stateCode?: string | undefined } = {}) {
-  return state().adSlots.filter((a) => {
+export function listAdSlots(
+  filter: {
+    sellerId?: string | undefined;
+    stateCode?: string | undefined;
+    storeId?: string | undefined;
+  } = {},
+) {
+  const s = state();
+  // A rail slot belongs to the store that owns its product, so a store switch re-scopes the rails.
+  const storeByProduct = new Map(s.products.map((p) => [p.productId, p.storeId]));
+  return s.adSlots.filter((a) => {
     if (filter.sellerId && a.sellerId !== filter.sellerId) return false;
     if (filter.stateCode && a.stateCode !== filter.stateCode) return false;
+    if (filter.storeId && storeByProduct.get(a.productId) !== filter.storeId) return false;
     return true;
   });
 }
@@ -1470,13 +1480,27 @@ export async function getHeroAds(
   }
 }
 
+/** The store a hero campaign actually runs for: its explicit storeId when set (STORE_TOP), else the
+ *  store that owns its target (PRODUCT → product.storeId, DISH/VENUE → dish.venueId, STORE → id). */
+function campaignStoreId(c: HeroCampaign): string {
+  if (c.storeId) return c.storeId;
+  const s = state();
+  if (c.targetType === "PRODUCT") return s.products.find((p) => p.productId === c.targetId)?.storeId ?? "";
+  if (c.targetType === "DISH" || c.targetType === "VENUE") {
+    return s.menus.find((m) => m.dishId === c.targetId)?.venueId ?? "";
+  }
+  if (c.targetType === "STORE") return c.targetId;
+  return "";
+}
+
 /** Seller/admin-safe campaign rows from the local store (hydrated from `GET /ads/campaigns`). */
 export function listHeroCampaigns(
-  filter: { sellerId?: string | undefined; stateCode?: string | undefined } = {},
+  filter: { sellerId?: string | undefined; stateCode?: string | undefined; storeId?: string | undefined } = {},
 ): HeroCampaign[] {
   return state().heroCampaigns.filter((c) => {
     if (filter.sellerId && c.sellerId !== filter.sellerId) return false;
     if (filter.stateCode && c.stateCode !== filter.stateCode) return false;
+    if (filter.storeId && campaignStoreId(c) !== filter.storeId) return false;
     return true;
   });
 }
