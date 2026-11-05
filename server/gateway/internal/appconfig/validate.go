@@ -15,7 +15,7 @@ const MaxDescriptionLen = 300
 // categories is the allowlist served to the portal (admins.app_config.category).
 var categories = map[string]bool{
 	"brand": true, "maps": true, "region": true,
-	"feature": true, "maintenance": true, "limits": true,
+	"feature": true, "maintenance": true, "limits": true, "payments": true,
 }
 
 // variants is the allowlist for the app a value applies to (admins.app_config.app_variant).

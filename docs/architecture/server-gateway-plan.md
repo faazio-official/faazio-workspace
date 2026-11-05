@@ -95,23 +95,26 @@ caller) and are event-purged on store live toggle and product edit/status change
   client-built (`upi://pay?...` rewritten per app on iOS); the Razorpay order id is the intent `tr`,
   and the intent's `url=faazio://payment/callback` deep-links back into the app's `PaymentCallback`
   screen (which re-verifies via `GET /orders/{orderId}/payment-status`).
-- **Seller onboarding + split payments (`internal/sellers` + `internal/settlement` + `internal/platform/razorpayroute`):**
-  `POST /sellers` now carries the platform fee, payout bank details (full account number is forwarded
-  to Razorpay and never stored), private R2 passbook/FSSAI keys and `otpVerified`. The OTP is the
+- **Seller onboarding + manual payouts (`internal/sellers` + `internal/payouts`, `0077`):**
+  `POST /sellers` now carries the platform fee, payout bank details (masked tail stored; the full
+  account number is never persisted), private R2 passbook/FSSAI keys and `otpVerified`. The OTP is the
   digital signature: the handler rejects `otpVerified` unless the bearer Firebase ID token's
   `phone_number` claim matches `contactPhone` (`auth.OTPSigned`, `401 otp_unverified`; dev-mode
   `X-Dev-*` identities are the only exception). Admin review:
   `PATCH /sellers/:id/platform-fee`, `POST /sellers/:id/verify-doc/:docType`,
-  `POST /sellers/:id/verify-kyc` (creates the Route linked account + activates),
+  `POST /sellers/:id/verify-kyc` (verifies KYC + activates — **no Razorpay Route linked account**),
   `POST /sellers/:id/reject`, and seller `POST /sellers/:id/edit` (rejected rows only; field history).
   `GET /sellers/:id` returns the seller + masked bank account + KYC docs + verification log; admin KYC
   images render via the existing `GET /media/private/{id}` presigned-GET (creator or admin only).
-  Settlement adds SUPER_ADMIN `POST /payouts/holds` (Route transfer with `on_hold` for the 7-day
-  window + ledger row), `POST /payouts/:id/release` and `POST /payouts/:id/reverse` (refund/return
-  clawback); a gateway worker releases due holds every 15 minutes when Route credentials are
-  configured. The public `POST /webhooks/razorpay/route` reconciles `transfer.released` /
-  `transfer.failed` / `transfer.reversed` by HMAC. `RAZORPAY_ROUTE_KEY_ID`/`_SECRET`/`_WEBHOOK_SECRET`
-  fall back to the main Razorpay pair.
+  **Razorpay Route is removed (`0077`)** — `internal/platform/razorpayroute` + `internal/settlement`
+  are deleted, so there are no linked accounts, no `on_hold` transfers, no `POST /payouts/holds` /
+  `{id}/release` / `{id}/reverse`, no `POST /webhooks/razorpay/route` and no hold releaser.
+  Payouts are manual ledgers in `internal/payouts`: seller console `GET /seller/payments` +
+  `GET /seller/payments/{cycleId}`, admin `GET /admin/seller/payouts` (super/state — owed = gross −
+  commission − TCS − TDS per seller per cycle from delivered `checkout.orders` +
+  `directory.stores.platform_fee_pct`, merged with paid amounts, status PENDING/PARTIAL/PAID) and
+  `POST /admin/seller/payouts/{sellerId}/mark-paid` (super admin, `{cycle, amountPaisa}`, balance
+  carries forward). The customer UPI/COD rail (`internal/platform/razorpaypay`, `0066`) is unchanged.
 - **Portal identity writes (`internal/admins` + `internal/portal`):** `POST /district-admins` is the
   unified district-admin creator — a district is **mandatory** (`0065`; state-only scope is retired and
   `state_code` is derived from the district), and `issueLogin` optionally mints the `DISTRICT_ADMIN` portal
@@ -219,7 +222,12 @@ job with a fresh 45 s window. Before payment, `PUT …/payout-mode` can switch m
 `GET /admin/delivery/payouts` is the settlement board (completed jobs with no payout row projected
 as PENDING). `POST /delivery/payouts/{orderId}/settle` marks PAID for the caller's district or, for
 super admins, anywhere; MANUAL orders return `409 manual_fare_required` until the fare is recorded.
-This is a recorded settlement only — no Razorpay transfer.
+Since `0077` the mark is **amount-based**: admin `POST /admin/delivery/payouts/{orderId}/mark-paid`
+(`{amountPaisa}`) accumulates `paid_amount_paisa` (status `PARTIAL` until fully paid, balance carries
+forward), `settle` accepts an optional amount, and the server method is `MarkDeliveryPayoutPaid`.
+This is a recorded settlement only — no Razorpay transfer. COD drops gate `DELIVERED` behind a
+rider-confirmed `POST /delivery/{orderId}/stop/{stopId}/payment-received` (`409 payment_not_received`);
+the rider shows the delivery UPI QR fetched from the public `GET /app-config/delivery-upi-qr`.
 
 `POST /dispatch/assign` is mounted under the admin roles for manual/operator dispatch, but checkout
 also invokes the same dispatch path in-process through `contracts.DeliveryDispatcher` on `PACKED`.
@@ -295,7 +303,7 @@ The HTTP route is not used service-to-service — the dual mount is intentional.
   **capture** is now server-authoritative (`internal/platform/razorpaypay` + the
   `/webhooks/razorpay/payments` HMAC webhook; W75) — the client only transitions UI from the polled
   status. **No merchant VPA is used:** reconciliation matches on `razorpay_order_id`
-  (`SetPaymentStatusByRazorpayOrder`), and settlement, refunds, COD and Route payouts never read a VPA.
+  (`SetPaymentStatusByRazorpayOrder`), and settlement, refunds, COD and manual payouts never read a VPA.
   A raw UPI intent to a static VPA cannot be reconciled — Razorpay's own UPI flow pays a
   Razorpay-managed dynamic VPA — so the server-side VPA surface (`RAZORPAY_UPI_VPA`) was removed; the
   intent `pa` is the client-side default.

@@ -204,14 +204,19 @@ export interface LedgerEntry {
   netPayoutPaisa: number;
 }
 
-/** payments.payouts */
+/** payments.payouts (manual payouts, migration 0077) */
 export interface PayoutRecord {
   payoutId: string;
   sellerId: string;
   cycle: string;
   amountPaisa: number;
-  status: "SCHEDULED" | "PAID" | "ON_HOLD";
+  status: "SCHEDULED" | "PARTIAL" | "PAID" | "ON_HOLD" | string;
   scheduledFor: string;
+  /** Accumulated manual "Mark as Paid" entries; the difference from amountPaisa carries forward. */
+  paidAmountPaisa?: number;
+  balancePaisa?: number;
+  paidAt?: string;
+  paidBy?: string;
 }
 
 /** promo.festival_sector_caps */

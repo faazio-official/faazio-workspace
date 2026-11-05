@@ -408,20 +408,15 @@ least one superadmin provisioned. Full provisioning/rotation/rollback steps:
 fails the build when `NEXT_PUBLIC_GATEWAY_URL` is missing, so a deployment can never ship with every
 portal auth route returning `503 not_configured`.
 
-### Razorpay Route (seller splits)
+### Razorpay Route removed — manual payouts (`0077`)
 
-Migrations `0039` (seller onboarding + Route columns) and `0040` (webhook/reversal payout states)
-must be applied before deploying this gateway. `RAZORPAY_ROUTE_KEY_ID` / `RAZORPAY_ROUTE_KEY_SECRET` /
-`RAZORPAY_ROUTE_WEBHOOK_SECRET` are optional: they fall back to the existing `RAZORPAY_KEY_ID` /
-`RAZORPAY_KEY_SECRET` / `RAZORPAY_WEBHOOK_SECRET`. With no keys the Route client is **disabled**:
-`Enabled()==false`, linked-account/transfer/settlement calls return `razorpay_unavailable` (502),
-the hold releaser worker never starts, and the route webhook rejects every signature — nothing is
-ever synthetic and no payout is marked PAID without a real transfer. A missing key pair is **not**
-fatal at boot: the gateway logs `razorpay_route=disabled reason=keys_unset` and keeps serving, so a
-deploy without Route keys is safe but non-functional for settlement splits. Register the Route
-webhook in the Razorpay dashboard at `https://<gateway>/webhooks/razorpay/route` for
-`transfer.released`, `transfer.failed` and `transfer.reversed`. The private KYC bucket is
-`R2_PRIVATE_BUCKET`; KYC images are never public.
+Razorpay Route (seller splits) is **removed**: `internal/platform/razorpayroute` + `internal/settlement`
+are gone, and **`RAZORPAY_ROUTE_KEY_ID` / `RAZORPAY_ROUTE_KEY_SECRET` / `RAZORPAY_ROUTE_WEBHOOK_SECRET`
+are no longer required or read** — do not set them. There are no linked accounts, no held transfers,
+no Route webhook (`/webhooks/razorpay/route` is gone) and no hold releaser. Migration `0077` (manual
+payouts + delivery COD payment gate) must be applied. Seller and rider payouts are manual ledgers
+(mark-paid, no Razorpay transfer); the private KYC bucket is still `R2_PRIVATE_BUCKET`; KYC images
+are never public.
 
 ### Razorpay customer payments (UPI + COD)
 
@@ -485,7 +480,7 @@ Run **each pending** migration (numeric order) → then roll the Render deploy. 
 - [ ] **Server/Render:** all `server/supabase/migrations/` files up to the latest are applied from a dev terminal (`DATABASE_MIGRATIONS.md` — Render never auto-applies); then the gateway deploy rolled.
 - [ ] SDUI drift (optional but recommended): `node server/supabase/diagnostics/generate-sdui-references.mjs` regenerates `verify-sdui-references.sql`; run it in the Supabase SQL Editor — expect **no rows** (a referenced `storeId`/`productId` with no `directory.vendors`/`catalog.products` row renders its SDUI section empty).
 - [ ] Push delivery: `FCM_PROJECT_ID` + `FCM_SERVICE_ACCOUNT_JSON` (server-side Firebase service-account key — a Render secret env var) set for the gateway's embedded FCM sender. See `FIREBASE_AUTH.md`.
-- [ ] Seller splits: `0039` + `0040` applied; Route keys + webhook endpoint/secret set (or the `RAZORPAY_*` fallback used); `R2_PRIVATE_BUCKET` set.
+- [ ] Manual payouts: `0077` applied; no Razorpay Route keys/webhook required (Route + `internal/settlement` removed — seller/rider payouts are manual mark-paid ledgers); `R2_PRIVATE_BUCKET` set.
 - [ ] Customer payments: `0066` applied; Razorpay **customer** webhook `/webhooks/razorpay/payments` registered (`payment.captured/authorized/failed`).
 - [ ] Release signed and smoke-tested on a device (R8 gate: Home → Cart → Checkout → Pharma).
 - [ ] Store metadata / data-safety updated (see Google Play §4 answer sheet; delete-account URL + in-app flow verified).

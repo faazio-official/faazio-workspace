@@ -22,10 +22,8 @@ import (
 	"github.com/faazio/server/gateway/internal/platform/db"
 	"github.com/faazio/server/gateway/internal/platform/mongo"
 	"github.com/faazio/server/gateway/internal/platform/r2"
-	"github.com/faazio/server/gateway/internal/platform/razorpayroute"
 	"github.com/faazio/server/gateway/internal/portal"
 	"github.com/faazio/server/gateway/internal/server"
-	"github.com/faazio/server/gateway/internal/settlement"
 )
 
 func main() {
@@ -127,15 +125,6 @@ func main() {
 		go auditPurger.Run(workerCtx)
 	}
 
-	// Razorpay Route hold releaser: once the 7-day buyer-protection window elapses, release the
-	// seller slice and mark the payout PAID. Disabled unless real Route credentials are configured.
-	routeGateway := razorpayroute.New(cfg.RazorpayRouteKeyID, cfg.RazorpayRouteKeySecret, cfg.RazorpayRouteWebhookSecret)
-	logRouteStartup(cfg)
-	holdReleaser := settlement.NewReleaser(settlement.New(pool), routeGateway, nil)
-	if pool != nil && holdReleaser.Enabled() {
-		go holdReleaser.Run(workerCtx)
-	}
-
 	handler := server.NewRouter(server.Deps{
 		Config:  cfg,
 		Pool:    pool,
@@ -187,17 +176,6 @@ func logPaymentStartup(cfg config.Config) {
 		return
 	}
 	log.Print("razorpay_customer=enabled")
-}
-
-// logRouteStartup reports whether the Razorpay Route rail (seller settlement splits) is configured.
-// Missing keys yield a disabled client (settlement returns 502/503) and the hold-releaser worker
-// does not start — a deploy without Route keys must still boot. Never logs a key or secret.
-func logRouteStartup(cfg config.Config) {
-	if cfg.RazorpayRouteKeyID == "" || cfg.RazorpayRouteKeySecret == "" {
-		log.Print("razorpay_route=disabled reason=keys_unset hint=set RAZORPAY_ROUTE_KEY_ID + RAZORPAY_ROUTE_KEY_SECRET (falls back to RAZORPAY_KEY_ID + RAZORPAY_KEY_SECRET) before accepting seller settlement splits")
-		return
-	}
-	log.Print("razorpay_route=enabled")
 }
 
 // logPortalStartup emits the two facts that explain a portal 503 in the Render logs: whether the

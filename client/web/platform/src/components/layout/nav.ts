@@ -2,6 +2,7 @@ import type { LucideIcon } from "lucide-react";
 import {
   Activity,
   BadgePercent,
+  Banknote,
   BarChart3,
   BookOpen,
   Boxes,
@@ -125,6 +126,7 @@ export const SUPER_ADMIN_NAV: NavItem[] = [
   { label: "App content (SDUI)", to: "/admin/super/sdui", icon: LayoutTemplate, group: "Growth" },
   { label: "Analytics", to: "/admin/super/analytics", icon: BarChart3, group: "Operations" },
   { label: "Manual allocation", to: "/admin/super/delivery/manual-allocation", icon: Truck, group: "Operations" },
+  { label: "Manual payouts", to: "/admin/super/payouts", icon: Banknote, group: "Operations" },
   { label: "Delivery payouts", to: "/admin/super/delivery/payouts", icon: Receipt, group: "Operations" },
   { label: "Audit log", to: "/admin/super/audit", icon: ShieldCheck, group: "Operations" },
   { label: "Coverage", to: "/admin/super/coverage", icon: LayoutGrid, group: "Operations" },

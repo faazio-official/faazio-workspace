@@ -152,6 +152,16 @@ export function AcceptRejectScreen({ navigation, route }: Props) {
                 <AppText style={styles.payout}>{rupees(order.payoutAmountPaisa)}</AppText>
               </View>
               <View style={styles.row}>
+                <AppText style={styles.meta}>Payment</AppText>
+                <AppText style={styles.value}>
+                  {order.paymentRequired
+                    ? order.paymentReceived
+                      ? 'Payment received'
+                      : 'COD · collect cash or QR at the door'
+                    : `${order.paymentMethod || 'Prepaid'} · prepaid`}
+                </AppText>
+              </View>
+              <View style={styles.row}>
                 <AppText style={styles.meta}>Route</AppText>
                 <AppText style={styles.value}>
                   {Math.round(order.totalDistanceMeters / 1000)} km ·{' '}

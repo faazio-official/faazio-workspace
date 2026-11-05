@@ -14,7 +14,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/faazio/server/gateway/internal/contracts"
 	"github.com/faazio/server/gateway/internal/platform/db"
 	"github.com/jackc/pgx/v5"
 )
@@ -40,10 +39,9 @@ type Seller struct {
 	Status          string  `json:"status"`
 	Rating          float64 `json:"rating"`
 	// Shop pin captured during onboarding (public business location, not customer PII).
-	Latitude                *float64        `json:"latitude,omitempty"`
-	Longitude               *float64        `json:"longitude,omitempty"`
-	RazorpayLinkedAccountID string          `json:"razorpayLinkedAccountId,omitempty"`
-	OTPVerified             bool            `json:"otpVerified"`
+	Latitude  *float64        `json:"latitude,omitempty"`
+	Longitude *float64        `json:"longitude,omitempty"`
+	OTPVerified bool          `json:"otpVerified"`
 	OTPVerifiedAt           string          `json:"otpVerifiedAt,omitempty"`
 	RejectionReason         string          `json:"rejectionReason,omitempty"`
 	RejectionHistory        json.RawMessage `json:"rejectionHistory,omitempty"`
@@ -181,7 +179,6 @@ func (r *Repo) ValidCategoryID(ctx context.Context, app, id string) (bool, error
 
 const sellerColumns = `seller_id, business_name, owner_name, gstin, pan, address,
 	coalesce(phone,''), coalesce(contact_email,''), state_code, coalesce(district_code,''), status::text, rating,
-	coalesce(razorpay_linked_account_id,''),
 	otp_verified, otp_verified_at, coalesce(rejection_reason,''), rejection_history, created_at,
 	latitude, longitude`
 
@@ -298,19 +295,6 @@ func (r *Repo) Vendors(ctx context.Context, sellerID string) ([]Vendor, error) {
 	return out, rows.Err()
 }
 
-// SettlementProfile is the read seam used by settlement when splitting a payment.
-func (r *Repo) SettlementProfile(ctx context.Context, sellerID string) (contracts.SellerSettlementProfile, error) {
-	if r.pool == nil {
-		return contracts.SellerSettlementProfile{}, fmt.Errorf("sellers: database not configured")
-	}
-	var p contracts.SellerSettlementProfile
-	err := r.pool.QueryRow(ctx, `
-		select coalesce(razorpay_linked_account_id,'')
-		  from sellers.sellers where seller_id=$1`, sellerID).
-		Scan(&p.LinkedAccountID)
-	return p, err
-}
-
 // Create inserts an onboarding seller (status PENDING_REVIEW) and returns the new row.
 func (r *Repo) Create(ctx context.Context, s Seller) (Seller, error) {
 	return r.CreateExtended(ctx, s, nil, nil, nil)
@@ -340,14 +324,13 @@ func (r *Repo) CreateExtended(ctx context.Context, s Seller, bank *BankAccount, 
 	created, err := scanSeller(tx.QueryRow(ctx, `
 		insert into sellers.sellers
 		  (seller_id, business_name, owner_name, gstin, pan, address, phone, contact_email,
-		   state_code, district_code, razorpay_linked_account_id,
+		   state_code, district_code,
 		   otp_verified, otp_verified_at, latitude, longitude)
-		values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15)
+		values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)
 		returning `+sellerColumns,
 		s.SellerID, s.BusinessName, s.OwnerName, s.GSTIN, s.PAN, s.BusinessAddress,
 		nullIfEmpty(s.ContactPhone), s.ContactEmail, s.StateCode, nullIfEmpty(s.DistrictCode),
-		nullIfEmpty(s.RazorpayLinkedAccountID), s.OTPVerified, otpAt,
-		s.Latitude, s.Longitude))
+		s.OTPVerified, otpAt, s.Latitude, s.Longitude))
 	if err != nil {
 		return Seller{}, err
 	}
@@ -432,24 +415,6 @@ func (r *Repo) UpdateStorePlatformFee(ctx context.Context, sellerID, storeID str
 		return false, err
 	}
 	return tag.RowsAffected() > 0, nil
-}
-
-// SetLinkedAccount stores the Razorpay Route linked-account id.
-func (r *Repo) SetLinkedAccount(ctx context.Context, id, accountID string) (Seller, bool, error) {
-	if r.pool == nil {
-		return Seller{}, false, fmt.Errorf("sellers: database not configured")
-	}
-	s, err := scanSeller(r.pool.QueryRow(ctx, `
-		update sellers.sellers set razorpay_linked_account_id = $2
-		 where seller_id = $1
-		 returning `+sellerColumns, id, accountID))
-	if err != nil {
-		if errors.Is(err, pgx.ErrNoRows) {
-			return Seller{}, false, nil
-		}
-		return Seller{}, false, err
-	}
-	return s, true, nil
 }
 
 // VerifyDoc marks one KYC document verified and appends an immutable verification log row.
@@ -760,7 +725,7 @@ func scanSeller(row rowScanner) (Seller, error) {
 	)
 	if err := row.Scan(&s.SellerID, &s.BusinessName, &s.OwnerName, &s.GSTIN, &s.PAN,
 		&s.BusinessAddress, &s.ContactPhone, &s.ContactEmail, &s.StateCode, &s.DistrictCode, &s.Status, &s.Rating,
-		&s.RazorpayLinkedAccountID, &s.OTPVerified, &otpAt, &s.RejectionReason, &history, &createdAt,
+		&s.OTPVerified, &otpAt, &s.RejectionReason, &history, &createdAt,
 		&lat, &lng); err != nil {
 		return Seller{}, err
 	}
@@ -790,7 +755,7 @@ func scanSellerList(row rowScanner) (Seller, error) {
 	)
 	if err := row.Scan(&s.SellerID, &s.BusinessName, &s.OwnerName, &s.GSTIN, &s.PAN,
 		&s.BusinessAddress, &s.ContactPhone, &s.ContactEmail, &s.StateCode, &s.DistrictCode, &s.Status, &s.Rating,
-		&s.RazorpayLinkedAccountID, &s.OTPVerified, &otpAt, &s.RejectionReason, &history, &createdAt,
+		&s.OTPVerified, &otpAt, &s.RejectionReason, &history, &createdAt,
 		&lat, &lng, &s.VendorCount, &apps); err != nil {
 		return Seller{}, err
 	}

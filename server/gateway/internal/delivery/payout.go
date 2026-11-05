@@ -41,6 +41,11 @@ type RiderPayout struct {
 	FareOverrideReason  string   `json:"fareOverrideReason,omitempty"`
 	Status              string   `json:"status"`
 	PaidAt              string   `json:"paidAt,omitempty"`
+	// PaidAmountPaisa accumulates manual "Mark as Paid" entries so the unpaid balance
+	// (TotalPaisa-PaidAmountPaisa) carries forward (migration 0077). PaidBy is the actor id.
+	PaidAmountPaisa int64  `json:"paidAmountPaisa,omitempty"`
+	PaidBy          string `json:"paidBy,omitempty"`
+	BalancePaisa    int64  `json:"balancePaisa,omitempty"`
 }
 
 // SurgeInput selects the optional, server-verified surge reasons.

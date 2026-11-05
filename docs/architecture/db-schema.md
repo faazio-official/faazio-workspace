@@ -925,7 +925,10 @@ them), a unique partial index on `razorpay_order_id` (one checkout order → at 
 order, so a retry cannot orphan the webhook) and `payments_order_created_idx` for the status poll.
 `POST /razorpay/customer/orders` writes a `PENDING` row (idempotently reusing it), the public
 `POST /webhooks/razorpay/payments` flips it to `PAID`/`FAILED`, and `GET /orders/{id}/payment-status`
-reads the latest row. COD / coins rows leave both columns null.
+reads the latest row. COD / coins rows leave both columns null. `0077` adds an **informational**
+order-level snapshot: `checkout.orders.payment_status` (`PENDING_PAYMENT`/`PAID`/`FAILED`, default
+`PAID`) — UPI orders are `PENDING_PAYMENT` at placement until the webhook flips them; COD/coins orders
+default `PAID`. The `checkout.payments` ledger stays authoritative.
 
 ### 12.3 `rewards.balances` + `rewards.ledger` — source `data/rewards/rewards.ts` (migration `0008`)
 
@@ -1750,11 +1753,14 @@ pass deletes it all (batched). Check before deploying:
 `SELECT count(*) FROM admins.audit_logs WHERE created_at < now() - interval '7 days';`
 Purged rows are unrecoverable — there is **no archive** (superadmin decision, 2026-10).
 
-### 12.21 Seller onboarding + Razorpay Route split (migration `0039`)
+### 12.21 Seller onboarding + Razorpay Route split (migration `0039`) — **Route split REMOVED in `0077`**
 
-**Authority:** `monolith-breakdown.md` §1 (`sellers` + `settlement` rows), `mobile-app.md`
-("Sell with us"), `server-gateway-plan.md`, `web-portal.md` (seller review), `RUNBOOKS/RELEASE.md`
-(Route env), `RUNBOOKS/TROUBLESHOOTING.md`.
+**Authority:** `monolith-breakdown.md` §1 (`sellers` + `payouts` rows), `mobile-app.md`
+("Sell with us"), `server-gateway-plan.md`, `web-portal.md` (seller review), `RUNBOOKS/RELEASE.md`,
+`RUNBOOKS/TROUBLESHOOTING.md`. **`0077` REMOVED the Razorpay Route split** — no
+`razorpay_linked_account_id`, no held `razorpay_transfer_id` transfers, no Route webhook or 15-min
+`Releaser` worker; seller payouts are now the manual ledger in `internal/payouts` (see `12.31`), while
+the seller-onboarding fields below remain.
 
 `0039` is additive. Existing sellers keep working: `platform_fee_pct` defaults to `10` and
 `otp_verified` defaults to `false` (legacy rows predate the OTP gate).
@@ -1793,10 +1799,11 @@ ALTER TABLE sellers.sellers ADD COLUMN latitude FLOAT8, ADD COLUMN longitude FLO
 
 **Rules**
 - `platform_fee_pct` is server-validated (1–100; FOOD ≥ 5) on create, admin edit and resubmission.
-  Settlement reads it server-side; the client never supplies the fee at payment time.
-- **No full bank account number is stored.** The gateway forwards it to Razorpay Route in memory at
-  onboarding (and retries may create the account without bank details); Postgres keeps only
-  `account_number_masked` (last four) + IFSC + beneficiary + bank name.
+  The platform fee is read from `directory.stores.platform_fee_pct` at payout time; the client never
+  supplies it at payment time.
+- `razorpay_linked_account_id` and the Route transfer columns (`razorpay_transfer_id`, `release_after`,
+  `released_at`) added by `0039` were **dropped in `0077`** — no linked account is created at KYC, and
+  `payments.payouts` records manual mark-paid amounts only.
 - KYC bytes live in the private R2 bucket; `kyc_documents` stores the object key + `asset_id`, never a
   URL/bytes. `/media/private/{id}` mints a 300 s GET for the creator or an admin.
 - `otp_verified` is the digital-signature gate (set only after a client OTP round-trip); submission is
@@ -1808,16 +1815,20 @@ ALTER TABLE sellers.sellers ADD COLUMN latitude FLOAT8, ADD COLUMN longitude FLO
 - RLS: seller reads their own rows; district admin their district (legacy rows without a district
   and legacy state-scoped admins fall back to the parent state); super admin all. Writes stay
   `service_role` only (the gateway).
-- Route transfers are stored with `on_hold` + `release_after = now() + 7 days`; the settlement
-  worker releases due holds every 15 minutes when `RAZORPAY_ROUTE_*` (or the fallback
-  `RAZORPAY_*`) credentials are configured, and marks the payout `PAID`.
+- No full bank account number is stored — Postgres keeps only `account_number_masked` (last four) +
+  IFSC + beneficiary + bank name.
 
-### 12.22 Razorpay Route reconciliation + reversal (migration `0040`)
+### 12.22 Razorpay Route reconciliation + reversal (migration `0040`) — **REMOVED in `0077`**
 
-**Authority:** `server-gateway-plan.md`, `monolith-breakdown.md` §1 (settlement row),
+**Authority:** `server-gateway-plan.md`, `monolith-breakdown.md` §1 (payouts row),
 `RUNBOOKS/RELEASE.md`, `RUNBOOKS/TROUBLESHOOTING.md`.
 
-`0040` is additive and introduces only new terminal payout states.
+`0040` is additive and introduced only new terminal payout states; **`0077` REMOVED the Route
+reconciliation**: the `POST /webhooks/razorpay/route` endpoint, `POST /payouts/holds` /
+`/release` / `/reverse`, the `Releaser` worker, `RAZORPAY_ROUTE_*` env vars, and the Route transfer
+columns all shipped out (the customer `POST /webhooks/razorpay/payments` rail, `0066`, is
+**unchanged**). Payouts are manual-ledger mark-paid rows in `internal/payouts` (see `12.31`). The DDL
+below is retained for history.
 
 ```sql
 ALTER TYPE payout_status ADD VALUE IF NOT EXISTS 'FAILED';
@@ -2051,7 +2062,12 @@ CREATE TABLE delivery.delivery_payouts (
   mirrored onto `delivery.delivery_orders.payout_basis` (audit JSONB) alongside the display
   `payout_amount_paisa`; `POST /delivery/payouts/{orderId}/settle` is district-scoped for district
   admins and global for super admins (recorded Mark Paid; no Razorpay transfer). `0055` adds the
-  manual allocation + dual payout columns described in `12.27`.
+  manual allocation + dual payout columns described in `12.27`; **`0077`** makes the mark amount-based:
+  `POST /admin/delivery/payouts/{orderId}/mark-paid` (`{amountPaisa}`) accumulates
+  `delivery.delivery_payouts.paid_amount_paisa` (status `PARTIAL` until fully paid, balance carries
+  forward), `settle` now accepts an optional amount, and the server method is renamed
+  `SettleOrderPayout` → `MarkDeliveryPayoutPaid`. `0077` also adds the COD payment gate on
+  `delivery.delivery_orders` (see `12.31`).
 - RLS/grants follow the existing guarded Supabase pattern; all writes go through the gateway
   (`tax.delivery_fee_settings` is service_role-only — no client grants).
 
@@ -2167,8 +2183,10 @@ CREATE INDEX delivery_payouts_mode_status_idx
   rate-card preview for audit even when the manual fare overrides it.
 - The mode and manual fare may change while the payout is `PENDING`; once `PAID` both the payout row
   and the order fields are immutable.
-- `Mark Paid` writes `status='PAID'`, `paid_at`, `paid_by` and an audit row. It is a recorded
-  settlement only — no Razorpay transfer or platform/seller split is created.
+- `Mark Paid` writes `paid_at`, `paid_by` and an audit row; since `0077` it is **amount-based**
+  (`POST /admin/delivery/payouts/{orderId}/mark-paid`, `{amountPaisa}`) and accumulates
+  `paid_amount_paisa`, so the status is `PARTIAL` until fully paid and the balance carries forward.
+  It is a recorded settlement only — no Razorpay transfer or platform/seller split is created.
 - `district_code` is derived server-side from the store's seller; clients never supply it for scope.
 
 ### 12.28 Seller order decisions + rejection refund (migration `0056`)
@@ -2265,3 +2283,36 @@ CREATE TABLE taxonomy.categories (
 - **`sellers.sellers.seller_category_id`** (nullable FK) records the seller's chosen taxonomy
   category within its app brand (a Food restaurant's type). Onboarding / `edit` validate it against
   the active app-scoped tree; legacy sellers keep only their `category` app_brand.
+
+### 12.31 Manual payouts + delivery COD payment gate (migration `0077`)
+
+**Authority:** `monolith-breakdown.md` §1 (`payouts` + `delivery` rows), `server-gateway-plan.md`,
+`web-portal.md` (Manual payouts + app-config QR). Razorpay Route is **removed**: `internal/platform/razorpayroute`
+and `internal/settlement` are deleted; `GET /settlements`, `GET /payouts`, `GET /seller/payments` and
+`GET /seller/payments/{cycleId}` now live in the new **`internal/payouts`** package. The customer
+Razorpay UPI rail (`0066`) is unchanged. Additions:
+
+1. `checkout.orders.payment_status` (`PENDING_PAYMENT`/`PAID`/`FAILED`, default `PAID`) — UPI orders
+   are `PENDING_PAYMENT` at placement until the Razorpay webhook flips them; COD/coins orders are
+   `PAID`. Informational — the `checkout.payments` ledger is authoritative.
+2. `delivery.delivery_orders.payment_method` / `payment_status` / `payment_required` /
+   `payment_received` / `payment_received_at` — a mirror of the checkout payment method at creation;
+   `payment_required` is true for COD orders (cash or delivery-QR UPI). Rider endpoint
+   `POST /delivery/{orderId}/stop/{stopId}/payment-received` confirms "Payment received"; the DROP
+   stop may **not** transition to `DELIVERED` (`409 payment_not_received`) until `payment_received`
+   is set. `delivery_payout_status` gains `PARTIAL`.
+3. `delivery.delivery_payouts.paid_amount_paisa` + `paid_by`/`paid_at` — superadmin/state-admin
+   "Mark as Paid" (`POST /admin/delivery/payouts/{orderId}/mark-paid`, body `{amountPaisa}`)
+   accumulates `paid_amount_paisa`; status is `PARTIAL` until fully paid and the balance carries
+   forward. `POST /delivery/payouts/{orderId}/settle` still works and now accepts an optional amount.
+   Server repo method renamed `SettleOrderPayout` → `MarkDeliveryPayoutPaid`.
+4. `payments.payouts.paid_amount_paisa` / `paid_by` / `paid_at` + unique index
+   `payouts_seller_cycle_idx (seller_id, cycle)` — `internal/payouts` serves `GET
+   /admin/seller/payouts` (super/state: owed = gross − commission − TCS − TDS per seller per cycle
+   from delivered `checkout.orders` + `directory.stores.platform_fee_pct`, merged with paid amounts,
+   status PENDING/PARTIAL/PAID) and `POST /admin/seller/payouts/{sellerId}/mark-paid` (super admin,
+   body `{cycle, amountPaisa}`, balance carries forward).
+5. `media.assets.owner_type` CHECK now allows `QR`; the single delivery UPI QR image is managed via
+   public `GET /app-config/delivery-upi-qr` + super-admin `PUT /app-config/delivery-upi-qr`
+   (`delivery_upi_qr_url`/`delivery_upi_qr_asset_id`, category `payments`, variant `delivery`). Riders
+   fetch it and show it at COD DROP stops.

@@ -452,18 +452,6 @@ type HomeSection struct {
 	Stores []Store `json:"stores,omitempty"`
 }
 
-// SellerSettlementProfile is the server-owned Route account for one seller. The platform fee is a
-// property of the vendor (directory.stores) and is resolved separately per store.
-type SellerSettlementProfile struct {
-	LinkedAccountID string
-}
-
-// SellerProfileReader resolves a seller's Route account (implemented by sellers.Repo).
-// The settlement context resolves the fee per vendor; the client never supplies it.
-type SellerProfileReader interface {
-	SettlementProfile(ctx context.Context, sellerID string) (SellerSettlementProfile, error)
-}
-
 // OrderOwnership reports whether a checkout order belongs to a user (implemented by checkout.Repo).
 // The delivery context uses it to refuse cross-user delivery ratings.
 type OrderOwnership interface {

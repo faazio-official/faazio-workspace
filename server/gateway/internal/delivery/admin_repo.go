@@ -384,12 +384,16 @@ func (r *Repo) AdminPayouts(ctx context.Context, district, state, mode, status, 
 	return out, rows.Err()
 }
 
-// SettleOrderPayout settles one completed order. AUTOMATED rows use the calculated breakdown
-// (created by the handler before this call); MANUAL rows require the admin-recorded fare. The row
-// becomes immutable once PAID.
-func (r *Repo) SettleOrderPayout(ctx context.Context, orderID, actorID string) (RiderPayout, bool, error) {
+// MarkDeliveryPayoutPaid records a manual "Mark as Paid" for one completed delivery. The admin may
+// type an amount smaller than the calculated payout — the balance carries forward on the same row
+// (paid_amount_paisa accumulates, status PARTIAL until fully settled). AUTOMATED rows use the
+// calculated breakdown; MANUAL rows require the admin-recorded fare.
+func (r *Repo) MarkDeliveryPayoutPaid(ctx context.Context, orderID string, amountPaisa int64, actorID string) (RiderPayout, bool, error) {
 	if err := r.ready(); err != nil {
 		return RiderPayout{}, false, err
+	}
+	if amountPaisa <= 0 {
+		return RiderPayout{}, false, errors.New("payout amount must be positive")
 	}
 	tx, err := r.pool.Begin(ctx)
 	if err != nil {
@@ -422,22 +426,23 @@ func (r *Repo) SettleOrderPayout(ctx context.Context, orderID, actorID string) (
 		return RiderPayout{}, false, fmt.Errorf("%w: only a completed delivery can be paid", ErrConflict)
 	}
 	var (
-		existingStatus   string
-		existingTotal    int64
-		existingDistance float64
+		existingStatus     string
+		existingTotal      int64
+		existingDistance   float64
+		existingPaidAmount int64
 	)
-	err = tx.QueryRow(ctx, `select status::text, total_paisa, distance_km::float8
+	err = tx.QueryRow(ctx, `select status::text, total_paisa, distance_km::float8, coalesce(paid_amount_paisa,0)
 	                          from delivery.delivery_payouts where order_id=$1 for update`, orderID).
-		Scan(&existingStatus, &existingTotal, &existingDistance)
+		Scan(&existingStatus, &existingTotal, &existingDistance, &existingPaidAmount)
 	if err != nil && !errors.Is(err, pgx.ErrNoRows) {
 		return RiderPayout{}, false, err
 	}
-	if existingStatus == "PAID" {
+	if existingStatus == "PAID" && existingPaidAmount > 0 && existingPaidAmount >= existingTotal && existingTotal > 0 {
 		return RiderPayout{}, false, nil
 	}
 
 	distanceKm := float64(distanceMeters) / 1000
-	if existingStatus == "PENDING" {
+	if existingStatus != "" {
 		distanceKm = existingDistance
 	}
 	total := existingTotal
@@ -451,6 +456,11 @@ func (r *Repo) SettleOrderPayout(ctx context.Context, orderID, actorID string) (
 		distanceKm = *manualKm
 		total = *manualFare
 	}
+	paid := existingPaidAmount + amountPaisa
+	status := "PARTIAL"
+	if paid >= total {
+		status = "PAID"
+	}
 	var out RiderPayout
 	var paidAt *time.Time
 	err = tx.QueryRow(ctx, `
@@ -458,28 +468,31 @@ func (r *Repo) SettleOrderPayout(ctx context.Context, orderID, actorID string) (
 		  (payout_id, rider_id, order_id, distance_km, base_rate_paisa, extra_km_charge_paisa,
 		   surge_paisa, surge_reason, total_paisa, status, paid_at, paid_by,
 		   payout_mode, manual_distance_km, manual_fare_paisa, calculated_fare_paisa,
-		   fare_override_reason)
-		values ($1,$2,$3,$4,0,0,0,'',$5,'PAID',now(),$6,$7::delivery_payout_mode,
-		        $8,$9,$10,nullif($11,''))
+		   fare_override_reason, paid_amount_paisa)
+		values ($1,$2,$3,$4,0,0,0,'',$5,$6::delivery_payout_status,now(),$7,$8::delivery_payout_mode,
+		        $9,$10,$11,nullif($12,''),$13)
 		on conflict (order_id) do update
-		  set rider_id=excluded.rider_id, total_paisa=excluded.total_paisa, status='PAID',
+		  set rider_id=excluded.rider_id, total_paisa=excluded.total_paisa, status=excluded.status,
 		      paid_at=now(), paid_by=excluded.paid_by, payout_mode=excluded.payout_mode,
 		      manual_distance_km=excluded.manual_distance_km,
 		      manual_fare_paisa=excluded.manual_fare_paisa,
 		      calculated_fare_paisa=excluded.calculated_fare_paisa,
 		      fare_override_reason=excluded.fare_override_reason,
-		      distance_km=excluded.distance_km, updated_at=now()
-		  where delivery_payouts.status='PENDING'
+		      distance_km=excluded.distance_km,
+		      paid_amount_paisa=delivery.delivery_payouts.paid_amount_paisa + excluded.paid_amount_paisa,
+		      updated_at=now()
+		  where delivery.delivery_payouts.status in ('PENDING','PARTIAL')
 		returning payout_id, order_id, rider_id, distance_km::float8, base_rate_paisa,
 		          extra_km_charge_paisa, surge_paisa, surge_reason, total_paisa, status::text,
 		          paid_at, payout_mode::text, manual_distance_km::float8, manual_fare_paisa,
-		          calculated_fare_paisa, coalesce(fare_override_reason,'')`,
-		"dp-"+payoutID(), riderID, orderID, distanceKm, total, actorID,
-		payoutModeOrDefault(mode), manualKm, manualFare, calculated, reason).
+		          calculated_fare_paisa, coalesce(fare_override_reason,''),
+		          coalesce(paid_amount_paisa,0), coalesce(paid_by,'')`,
+		"dp-"+payoutID(), riderID, orderID, distanceKm, total, status, actorID,
+		payoutModeOrDefault(mode), manualKm, manualFare, calculated, reason, amountPaisa).
 		Scan(&out.PayoutID, &out.OrderID, &out.RiderID, &out.DistanceKm, &out.BaseRatePaisa,
 			&out.ExtraKmChargePaisa, &out.SurgePaisa, &out.SurgeReason, &out.TotalPaisa,
 			&out.Status, &paidAt, &out.PayoutMode, &out.ManualDistanceKm, &out.ManualFarePaisa,
-			&out.CalculatedFarePaisa, &out.FareOverrideReason)
+			&out.CalculatedFarePaisa, &out.FareOverrideReason, &out.PaidAmountPaisa, &out.PaidBy)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return RiderPayout{}, false, nil
 	}
@@ -487,6 +500,10 @@ func (r *Repo) SettleOrderPayout(ctx context.Context, orderID, actorID string) (
 		return RiderPayout{}, false, err
 	}
 	out.PaidAt = isoTime(paidAt)
+	out.BalancePaisa = out.TotalPaisa - out.PaidAmountPaisa
+	if out.BalancePaisa < 0 {
+		out.BalancePaisa = 0
+	}
 	if err := tx.Commit(ctx); err != nil {
 		return RiderPayout{}, false, err
 	}

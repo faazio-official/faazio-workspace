@@ -220,13 +220,13 @@ A separate **connectivity** layer (`src/lib/connectivityStore.ts`, `navigator.on
 | --- | --- |
 | `admin/district` | dashboard |
 | `admin/district/products` · `admin/district/products/queue` | catalog + review queue |
-| `admin/district/sellers` · `admin/district/sellers/[id]` | seller directory + KYC review: full registration, masked payout account, private-bucket passbook/FSSAI links, platform-fee editor, per-document verify (PAN/GSTIN/FSSAI/passbook), reject with reason, **Verify KYC** (Razorpay Route linked account → ACTIVE). SUPER_ADMIN reaches the same detail page from `admin/super/sellers`; a role-gated **Return to super admin** link in the `AdminShell` header and `MobileNavDrawer` (shown only when `scope === "DISTRICT"` and `session.role === "SUPER_ADMIN"`) takes them back to `/admin/super`. |
+| `admin/district/sellers` · `admin/district/sellers/[id]` | seller directory + KYC review: full registration, masked payout account, private-bucket passbook/FSSAI links, platform-fee editor, per-document verify (PAN/GSTIN/FSSAI/passbook), reject with reason, **Verify KYC → ACTIVE** (no Razorpay Route account since `0077`; `internal/payouts` records manual mark-paid amounts instead). SUPER_ADMIN reaches the same detail page from `admin/super/sellers`; a role-gated **Return to super admin** link in the `AdminShell` header and `MobileNavDrawer` (shown only when `scope === "DISTRICT"` and `session.role === "SUPER_ADMIN"`) takes them back to `/admin/super`. |
 | `admin/district/orders` | order oversight |
 | `admin/district/blood` | blood requests board (PHARMA) — server `blood.requests` with `contact`/`address`/`created_by` redacted for anon; moderation (`DELETE /blood-requests/{id}`) |
 | `admin/district/customers` | customer list + activity trail |
 | `admin/district/delivery-boys` | delivery-partner control plane (state-scoped): pending KYC queue, per-document verify and admin-side replacement upload (private R2 → `PUT /delivery/register/{id}/documents/{docType}/reupload`; the rider app has no re-upload screen), profile approve → super-admin activation, active-rider list (load/capacity) with on-demand Valkey location, suspend |
 | `admin/district/delivery/manual-allocation` | district allocation board: PACKED orders with no job + unaccepted/rejected offers, rider picker sorted by road distance from the store, mandatory `AUTOMATED`/`MANUAL` payout mode (`GET /admin/delivery/orders`, `POST …/allocate`) |
-| `admin/district/delivery/payouts` | district payout board: completed jobs (PENDING projected), mode/manual distance/fare editing before payment, `Mark Paid` (`GET /admin/delivery/payouts`, `PUT …/payout-mode`, `POST …/manual-fare`, `POST /delivery/payouts/{orderId}/settle`) |
+| `admin/district/delivery/payouts` | district payout board: completed jobs (PENDING projected), mode/manual distance/fare editing before payment, `Mark Paid` (`GET /admin/delivery/payouts`, `PUT …/payout-mode`, `POST …/manual-fare`, `POST /admin/delivery/payouts/{orderId}/mark-paid` — amount-based `{amountPaisa}` since `0077`, `PARTIAL` until fully paid; legacy `POST /delivery/payouts/{orderId}/settle` still works) |
 | `admin/district/coupons` · `admin/district/festival` | promo |
 | `admin/district/pricing-audit` | price integrity |
 | `admin/district/analytics` · `admin/district/content` · `admin/district/support` · `admin/district/audit` | console |
@@ -245,11 +245,12 @@ A separate **connectivity** layer (`src/lib/connectivityStore.ts`, `navigator.on
 | `admin/{district,super}/fee-change-requests` | seller-initiated platform-fee change review — district admins see their district, super admins every district; approve applies the fee, reject requires a reason (server-enforced one pending request per seller) |
 | `admin/super/district-admins` | district-admin directory — **locked to Tiruchirappalli (TTC)**; coverage summary (1 / 1) + progress bar + uncovered chip; roster read from `GET /district-admins?district=TTC` (store also hydrated at login). **Unified creation:** one form (district fixed to TTC) creates the roster + (optionally, `issueLogin` default ON) the portal login + temporary password atomically; duplicate email blocked on/off-server, duplicate phone soft-warned. No state picker or state fallback |
 | `admin/super/credentials` | issue/disable seller and district-admin portal logins (role + seller/district scope) |
-| `admin/super/app-config` | central remote config — the SUPER_ADMIN-edited app settings every Faazio app reads on boot (`admins.app_config`, `0059`), `GET/PUT/DELETE /admin/app-config(/{key})`. PRIVATE/SECRET rows are masked, writes are audit-logged, and a change is picked up on the next app boot (`getAppConfig` on mobile) with no app-store release |
+| `admin/super/app-config` | central remote config — the SUPER_ADMIN-edited app settings every Faazio app reads on boot (`admins.app_config`, `0059`), `GET/PUT/DELETE /admin/app-config(/{key})`. PRIVATE/SECRET rows are masked, writes are audit-logged, and a change is picked up on the next app boot (`getAppConfig` on mobile) with no app-store release. Since `0077` it carries the **Delivery UPI QR upload** section (`GET/PUT /app-config/delivery-upi-qr`, super admin — riders show the QR at COD DROP stops) |
 | `admin/super/security` | superadmin password rotation (same component as `/security`) |
 | `admin/super/delivery-boys` | all-India delivery-partner console — same review board, super-only activation and suspend/blacklist |
 | `admin/super/delivery/manual-allocation` | all-district allocation board — filter by district, rider picker by road distance, mandatory payout mode |
-| `admin/super/delivery/payouts` | all-district payout board — settle automated/manual payouts, `Mark Paid` records the payment only (no Razorpay transfer) |
+| `admin/super/delivery/payouts` | all-district payout board — settle automated/manual payouts, `Mark Paid` records the payment only (no Razorpay transfer). Since `0077` the mark is amount-based (`POST /admin/delivery/payouts/{orderId}/mark-paid`, `{amountPaisa}`) and `PARTIAL` until fully paid, with the balance carrying forward |
+| `admin/super/payouts` | **Manual payouts page** (sellers + riders): seller records via `GET /admin/seller/payouts` (owed = gross − commission − TCS − TDS per seller per cycle, status PENDING/PARTIAL/PAID) + `POST /admin/seller/payouts/{sellerId}/mark-paid` (`{cycle, amountPaisa}`, super admin, balance carries forward); no Razorpay Route |
 | `admin/super/analytics` · `admin/super/audit` · `admin/super/settings` | console |
 
 > **Audit log retention (`0037`):** both audit pages (`admin/district/audit`, `admin/super/audit`) stay
@@ -537,7 +538,7 @@ env-gated and degrade to local seed mode when unset:
 - **Gateway reads** — `src/lib/api/http.ts` is the single fetch seam (bearer auth,
   query builder, error envelope, defensive snake→camel). `src/lib/api/sync.ts`
   implements `hydrateFromGateway()`: it best-effort fetches the gateway-owned
-  slices (sellers, promo, ads, settlement, admins, prescriptions, blood,
+  slices (sellers, promo, ads, payouts, admins, prescriptions, blood,
   SDUI, reviews, seller orders, and — partner completion — customers, menus, support tickets,
   rewards rates/ledger) and writes them into the store. Prescription rows carry
 the quote lines, `quotedTotal`, reveal fields and status history; the seller

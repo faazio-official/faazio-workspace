@@ -28,12 +28,89 @@ func NewHandler(repo *Repo, audit contracts.AuditWriter) *Handler {
 // Register mounts the appconfig routes.
 func (h *Handler) Register(r chi.Router) {
 	r.Get("/app-config", h.publicList)
+	r.Get("/app-config/delivery-upi-qr", h.publicDeliveryQr)
 	r.Group(func(g chi.Router) {
 		g.Use(auth.RequireRole(auth.RoleSuperAdmin))
 		g.Get("/admin/app-config", h.adminList)
 		g.Put("/admin/app-config/{key}", h.upsert)
 		g.Delete("/admin/app-config/{key}", h.delete)
+		g.Put("/app-config/delivery-upi-qr", h.updateDeliveryQr)
 	})
+}
+
+// delivery Qr config keys live in admins.app_config (category "payments", variant "delivery").
+const (
+	deliveryUpipQrURLKey   = "delivery_upi_qr_url"
+	deliveryUpipQrAssetKey = "delivery_upi_qr_asset_id"
+)
+
+// publicDeliveryQr serves the one delivery UPI QR image URL to the delivery app (rider shows it at
+// the DROP stop so a COD customer can pay by scanning). No auth — the QR is a public payment QR,
+// intentionally not gated. Returns an empty qrUrl when the superadmin has not uploaded one yet.
+func (h *Handler) publicDeliveryQr(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Cache-Control", "no-store")
+	row, _, err := h.repo.Get(r.Context(), deliveryUpipQrURLKey)
+	if err != nil {
+		httpx.Fail(w, http.StatusInternalServerError, "config_unavailable", "app config unavailable")
+		return
+	}
+	out := map[string]any{"qrUrl": "", "assetId": ""}
+	if len(row.Value) > 0 && string(row.Value) != "null" {
+		out["qrUrl"] = strings.Trim(strings.TrimSpace(string(row.Value)), `"`)
+	}
+	if asset, ok, _ := h.repo.Get(r.Context(), deliveryUpipQrAssetKey); ok && len(asset.Value) > 0 && string(asset.Value) != "null" {
+		out["assetId"] = strings.Trim(strings.TrimSpace(string(asset.Value)), `"`)
+	}
+	httpx.JSON(w, http.StatusOK, out)
+}
+
+type deliveryQrRequest struct {
+	QrURL   string `json:"qrUrl"`
+	AssetID string `json:"assetId,omitempty"`
+}
+
+// updateDeliveryQr lets a super admin set/clear the single delivery UPI QR (R2 asset or direct URL).
+func (h *Handler) updateDeliveryQr(w http.ResponseWriter, r *http.Request) {
+	var req deliveryQrRequest
+	if err := httpx.Decode(r, &req); err != nil {
+		httpx.Fail(w, http.StatusBadRequest, "bad_request", "invalid request body")
+		return
+	}
+	req.QrURL = strings.TrimSpace(req.QrURL)
+	req.AssetID = strings.TrimSpace(req.AssetID)
+	if len(req.QrURL) > 2000 {
+		httpx.Fail(w, http.StatusBadRequest, "bad_request", "qrUrl is too long")
+		return
+	}
+	actor := auth.UserID(r.Context())
+	writer := func(key, value, description string, isPublic bool) error {
+		var v json.RawMessage
+		if value != "" {
+			b, err := json.Marshal(value)
+			if err != nil {
+				return err
+			}
+			v = b
+		} else {
+			v = json.RawMessage("null")
+		}
+		_, err := h.repo.Upsert(r.Context(), Row{
+			Key: key, Category: "payments", Value: v, IsPublic: isPublic,
+			AppVariant: "delivery", ValueSecret: false, Description: description,
+		}, actor)
+		return err
+	}
+	if err := writer(deliveryUpipQrURLKey, req.QrURL, "Delivery UPI QR image URL shown to riders", true); err != nil {
+		httpx.Fail(w, http.StatusInternalServerError, "config_write_failed", "could not save the QR config")
+		return
+	}
+	if err := writer(deliveryUpipQrAssetKey, req.AssetID, "R2 media asset id of the delivery UPI QR", false); err != nil {
+		httpx.Fail(w, http.StatusInternalServerError, "config_write_failed", "could not save the QR config")
+		return
+	}
+	h.auditEvent(r.Context(), "DELIVERY_UPI_QR_UPDATE", deliveryUpipQrURLKey,
+		json.RawMessage("null"), json.RawMessage(`{"qrUrlUpdated":true}`))
+	httpx.JSON(w, http.StatusOK, map[string]any{"qrUrl": req.QrURL, "assetId": req.AssetID})
 }
 
 // publicList serves the public rows for one app variant (?variant=customer|delivery|seller). Only

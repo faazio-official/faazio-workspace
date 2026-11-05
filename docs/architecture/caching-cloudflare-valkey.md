@@ -143,7 +143,7 @@ Examples: `faazio:v1:stock:fm-f1`, `faazio:v1:search:q:hoodie`, `faazio:v1:sdui:
 | Ad impression de-dupe lock (`faazio:v1:ads:seen:{userId}:{slotId}`, `POST /ads/events`) | 300 s (`NX EX`) | **never** | auto-expire (one impression per user per slot) |
 | Ad abuse-report de-dupe lock (`faazio:v1:ads:report:{userId}:{placementId}`, `POST /ads/campaigns/{id}/report`) | 86400 s (`NX EX`) | **never** | auto-expire (one report per user per placement) |
 | Self-serve publish rate counter (`faazio:v1:ads:publish:{sellerId}:{yyyymmdd}`, `POST /ads/campaigns`) | 86400 s (`INCR`+`EXPIRE`) | **never** | auto-expire (≤10 publishes/seller/UTC day; fail-open when Valkey is off) |
-| Settlement cycles (per seller) | 600 s | **never** | settlement/payout write |
+| Manual payout cycles (per seller, `faazio:v1:settlement:{sellerId}:{cycle}`) — `internal/payouts` ledger reads via `cache.Settlement` | 600 s | **never** | payout write (mark-paid) |
 | Idempotency locks (checkout) | 300 s | — | auto-expire |
 | Auth subject → app user_id | 3600 s (1 h) | — | delete on profile merge (mapping is otherwise immutable) |
 | Portal login counter per IP (`faazio:v1:auth:login:ip:{sha8}`, `POST /auth/portal/login`) | 60 s (`INCR`+`EXPIRE`) | **never** | auto-expire (10/min; shared across Render instances; fail-open when Valkey is off) |

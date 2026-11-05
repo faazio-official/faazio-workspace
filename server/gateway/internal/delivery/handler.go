@@ -64,6 +64,7 @@ func (h *Handler) Register(r chi.Router) {
 		g.Post("/delivery/{orderId}/accept", h.acceptOrder)
 		g.Post("/delivery/{orderId}/reject", h.rejectOrder)
 		g.Put("/delivery/stop/{stopId}/status", h.updateStop)
+		g.Post("/delivery/{orderId}/stop/{stopId}/payment-received", h.markPaymentReceived)
 		g.Get("/delivery/route/{deliveryId}", h.getRoute)
 		g.Post("/delivery/otp/verify", h.verifyOTP)
 		g.Get("/delivery/payouts", h.riderPayouts)
@@ -101,6 +102,8 @@ func (h *Handler) Register(r chi.Router) {
 	// anywhere. This is a recorded "Mark Paid" action, never an automatic Razorpay transfer.
 	r.With(auth.RequireRole(auth.RoleStateAdmin, auth.RoleSuperAdmin)).
 		Post("/delivery/payouts/{orderId}/settle", h.settlePayout)
+	r.With(auth.RequireRole(auth.RoleStateAdmin, auth.RoleSuperAdmin)).
+		Post("/admin/delivery/payouts/{orderId}/mark-paid", h.markDeliveryPayoutPaid)
 	r.With(auth.RequireRole(auth.RoleSuperAdmin)).
 		Put("/delivery/payout-settings", h.updatePayoutSettings)
 	// Super-admin-only transitions.
@@ -1227,6 +1230,26 @@ func (h *Handler) updateStop(w http.ResponseWriter, r *http.Request) {
 	httpx.JSON(w, http.StatusOK, order)
 }
 
+// markPaymentReceived is the rider's "Payment received" confirmation for a COD DROP stop (cash or
+// the delivery UPI QR). Once set, the DROP may be marked DELIVERED (UpdateStop gate, 0077).
+func (h *Handler) markPaymentReceived(w http.ResponseWriter, r *http.Request) {
+	rider, err := h.currentRider(r.Context())
+	if err != nil {
+		h.writeErr(w, err)
+		return
+	}
+	order, err := h.repo.MarkPaymentReceived(r.Context(), rider.RiderID,
+		chi.URLParam(r, "stopId"), chi.URLParam(r, "orderId"))
+	if err != nil {
+		h.writeErr(w, err)
+		return
+	}
+	h.auditEvent(r.Context(), "DELIVERY_BOY_PAYMENT_RECEIVED", order.OrderID, nil, map[string]any{
+		"stopId": chi.URLParam(r, "stopId"), "riderId": rider.RiderID,
+	})
+	httpx.JSON(w, http.StatusOK, order)
+}
+
 func (h *Handler) getRoute(w http.ResponseWriter, r *http.Request) {
 	rider, err := h.currentRider(r.Context())
 	if err != nil {
@@ -1405,6 +1428,9 @@ func (h *Handler) writeErr(w http.ResponseWriter, err error) {
 		httpx.Fail(w, http.StatusNotFound, "not_found", "not found")
 	case errors.Is(err, ErrConflict):
 		httpx.Fail(w, http.StatusConflict, "conflict", err.Error())
+	case errors.Is(err, ErrPaymentRequired):
+		httpx.Fail(w, http.StatusConflict, "payment_not_received",
+			"confirm 'Payment received' before marking this order delivered")
 	default:
 		httpx.Fail(w, http.StatusInternalServerError, "delivery_unavailable", "delivery service unavailable")
 	}

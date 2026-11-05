@@ -36,8 +36,8 @@ import (
 	"github.com/faazio/server/gateway/internal/platform/httpx"
 	"github.com/faazio/server/gateway/internal/platform/r2"
 	"github.com/faazio/server/gateway/internal/platform/razorpaypay"
-	"github.com/faazio/server/gateway/internal/platform/razorpayroute"
 	"github.com/faazio/server/gateway/internal/portal"
+	"github.com/faazio/server/gateway/internal/payouts"
 	"github.com/faazio/server/gateway/internal/promo"
 	"github.com/faazio/server/gateway/internal/reco"
 	"github.com/faazio/server/gateway/internal/reference"
@@ -46,7 +46,6 @@ import (
 	"github.com/faazio/server/gateway/internal/sdui"
 	"github.com/faazio/server/gateway/internal/search"
 	"github.com/faazio/server/gateway/internal/sellers"
-	"github.com/faazio/server/gateway/internal/settlement"
 	"github.com/faazio/server/gateway/internal/support"
 	"github.com/faazio/server/gateway/internal/tax"
 	"github.com/faazio/server/gateway/internal/weather"
@@ -113,14 +112,9 @@ func NewRouter(d Deps) http.Handler {
 	mediaRepo := media.New(d.Pool)
 	notificationsRepo := notifications.New(d.Pool, d.Cache)
 	bloodRepo := blood.New(d.Pool)
-	// Razorpay Route (seller split payments): linked accounts + held transfers. Shared by sellers
-	// (provision account on KYC) and settlement (hold/release the seller share). Missing Route
-	// credentials yield a disabled client (Enabled() == false → 502/503), never a nil gateway: a
-	// nil interface would panic in settlement.release/reverse/webhook, so the constructor always
-	// returns a method-safe client.
-	routeGateway := razorpayroute.New(d.Config.RazorpayRouteKeyID, d.Config.RazorpayRouteKeySecret, d.Config.RazorpayRouteWebhookSecret)
 	// Customer Razorpay rail (UPI order creation + webhook). Disabled (503) when keys are unset —
-	// there is no mock/synthetic paid order.
+	// there is no mock/synthetic paid order. Razorpay Route/settlement was removed (0077); payouts
+	// are a recorded manual "Mark as Paid" ledger.
 	razorpayPay := razorpaypay.New(d.Config.RazorpayKeyID, d.Config.RazorpayKeySecret, d.Config.RazorpayWebhookSecret)
 
 	// Partner control plane (0015). adminsRepo also implements contracts.AuditWriter so every
@@ -130,7 +124,7 @@ func NewRouter(d Deps) http.Handler {
 	appconfigRepo := appconfig.New(d.Pool)
 	promoRepo := promo.New(d.Pool)
 	adsRepo := ads.New(d.Pool)
-	settlementRepo := settlement.New(d.Pool)
+	payoutsRepo := payouts.New(d.Pool)
 	supportRepo := support.New(d.Pool)
 	// Gateway-native portal credentials (0032 + 0033) and credential management. Audited through the admins context.
 	portalRepo := portal.New(d.Pool)
@@ -197,10 +191,12 @@ func NewRouter(d Deps) http.Handler {
 	// Central remote config (0059): public GET /app-config for the mobile apps + SUPER_ADMIN control
 	// plane (GET/PUT/DELETE /admin/app-config). Audited through the admins context.
 	appconfig.NewHandler(appconfigRepo, adminsRepo).Register(r)
-	sellers.NewHandler(sellersRepo, d.Cache, adminsRepo, routeGateway).Register(r)
+	sellers.NewHandler(sellersRepo, d.Cache, adminsRepo).Register(r)
 	promo.NewHandler(promoRepo, d.Cache, adminsRepo).Register(r)
 	ads.NewHandler(adsRepo, d.Cache, adminsRepo, d.Signer.PublicOrigin()).Register(r)
-	settlement.NewHandler(settlementRepo, d.Cache, adminsRepo, routeGateway, sellersRepo).Register(r)
+	// Manual seller payouts: super/state board + seller-read ledger. Razorpay Route/settlement was
+	// removed; a payout is a recorded "Mark as Paid" entry with balance carry-forward (0077).
+	payouts.NewHandler(payoutsRepo, d.Cache, adminsRepo).Register(r)
 	tax.NewHandler(tax.NewRepo(d.Pool)).Register(r)
 	// Central superadmin category taxonomy (0067): read tree/rail for every app + CRUD for the portal.
 	categories.NewHandler(categories.NewRepo(d.Pool)).Register(r)

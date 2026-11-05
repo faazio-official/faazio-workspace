@@ -247,6 +247,60 @@ export async function deleteAppConfig(key: string): Promise<void> {
   await remote.delete(`/admin/app-config/${encodeURIComponent(key)}`);
 }
 
+/** The single delivery UPI QR (public — shown to riders so a COD customer can pay). */
+export async function getDeliveryUpipQr(): Promise<{ qrUrl: string; assetId?: string }> {
+  return remote.get<{ qrUrl: string; assetId?: string }>("/app-config/delivery-upi-qr");
+}
+
+/** Superadmin-only: set/clear the single delivery UPI QR (R2 asset or direct URL). */
+export async function updateDeliveryUpipQr(input: {
+  qrUrl: string;
+  assetId?: string;
+}): Promise<{ qrUrl: string; assetId?: string }> {
+  return remote.put<{ qrUrl: string; assetId?: string }>("/app-config/delivery-upi-qr", input);
+}
+
+/** One owed/paid summary per seller + cycle on the manual payout board (0077). */
+export interface SellerPayoutSummary {
+  sellerId: string;
+  businessName: string;
+  stateCode?: string;
+  districtCode?: string;
+  cycle: string;
+  orderCount: number;
+  grossPaisa: number;
+  commissionPaisa: number;
+  tcsPaisa: number;
+  tdsPaisa: number;
+  netPaisa: number;
+  paidPaisa: number;
+  balancePaisa: number;
+  status: "PENDING" | "PARTIAL" | "PAID";
+}
+
+/** Super/state admin: seller payout board (owed + paid + balance per seller per cycle). */
+export async function listSellerPayouts(
+  filter: { state?: string; district?: string } = {},
+): Promise<SellerPayoutSummary[]> {
+  const q = new URLSearchParams();
+  if (filter.state) q.set("state", filter.state.toUpperCase());
+  if (filter.district) q.set("district", filter.district.toUpperCase());
+  const qs = q.toString();
+  return remote.get<SellerPayoutSummary[]>(`/admin/seller/payouts${qs ? `?${qs}` : ""}`);
+}
+
+/** Superadmin-only: record a manual seller payout. The typed amount may be less than owed — the
+ * balance carries forward to the same cycle (paid_amount_paisa accumulates). */
+export async function markSellerPayoutPaid(
+  sellerId: string,
+  input: { cycle: string; amountPaisa: number },
+): Promise<unknown> {
+  return remote.post(
+    `/admin/seller/payouts/${encodeURIComponent(sellerId)}/mark-paid`,
+    input,
+  );
+}
+
 /* ---------------------------- category taxonomy --------------------------- */
 
 /** One `taxonomy.categories` row (superadmin-owned parent/child tree shared by every sub-app). */

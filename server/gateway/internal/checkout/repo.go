@@ -71,6 +71,10 @@ type Order struct {
 	RefundedPaisa int64 `json:"refundedPaisa,omitempty"`
 	// RejectionReason is the seller's NEW → REJECTED reason (bounded to 500 bytes server-side).
 	RejectionReason string `json:"rejectionReason,omitempty"`
+	// PaymentStatus is the order-level UPI gate (0077): UPI orders are PENDING_PAYMENT at placement
+	// until the Razorpay webhook flips them; COD/coins are PAID. Informational — the payment ledger
+	// (checkout.payments) remains authoritative for money state.
+	PaymentStatus string `json:"paymentStatus,omitempty"`
 }
 
 // SellerScope is the caller's order-visibility scope. A seller sees orders touching their own
@@ -335,7 +339,7 @@ select order_id, order_number, user_id, coalesce(address_id,''), placed_at, stat
        coalesce(tcs_paisa,0), coalesce(tds_paisa,0), coalesce(total_charged_paisa,0),
        coalesce(delivery_zone_id,''), coalesce(delivery_distance_km,0)::float8,
        coalesce(delivery_surge_paisa,0), coalesce(delivery_surge_reason,''), delivery_billing_basis,
-       coalesce(rejection_reason,'')
+       coalesce(payment_status,''), coalesce(rejection_reason,'')
   from checkout.orders`
 
 func scanOrderHeaders(rows pgx.Rows) ([]Order, error) {
@@ -354,7 +358,8 @@ func scanOrderHeaders(rows pgx.Rows) ([]Order, error) {
 			&o.InvoiceID, &o.TaxableValuePaisa, &o.ProductTaxPaisa, &o.PlatformFeePaisa,
 			&o.PlatformGSTPaisa, &o.DeliveryFeePaisa, &o.TCSPaisa, &o.TDSPaisa,
 			&o.TotalChargedPaisa, &o.DeliveryZoneID, &o.DeliveryDistanceKm,
-			&o.DeliverySurgePaisa, &o.DeliverySurgeReason, &basis, &o.RejectionReason); err != nil {
+			&o.DeliverySurgePaisa, &o.DeliverySurgeReason, &basis, &o.PaymentStatus,
+			&o.RejectionReason); err != nil {
 			return nil, err
 		}
 		o.Pickup = json.RawMessage(pickup)
@@ -599,14 +604,15 @@ func (r *Repo) OrderByID(ctx context.Context, orderID string) (Order, bool, erro
 		       coalesce(platform_fee_paisa,0), coalesce(platform_gst_paisa,0), coalesce(delivery_fee_paisa,0),
 		       coalesce(tcs_paisa,0), coalesce(tds_paisa,0), coalesce(total_charged_paisa,0),
 		       coalesce(delivery_zone_id,''), coalesce(delivery_distance_km,0)::float8,
-		       coalesce(delivery_surge_paisa,0), coalesce(delivery_surge_reason,''), delivery_billing_basis
+		       coalesce(delivery_surge_paisa,0), coalesce(delivery_surge_reason,''), delivery_billing_basis,
+		       coalesce(payment_status,'')
 		  from checkout.orders where order_id = $1`, orderID).
 		Scan(&o.ID, &o.OrderNumber, &o.UserID, &o.AddressID, &placedAt, &o.Status,
 			&statusDate, &o.Fulfillment, &o.VendorStoreIDs, &pickup, &pickups,
 			&o.InvoiceID, &o.TaxableValuePaisa, &o.ProductTaxPaisa, &o.PlatformFeePaisa,
 			&o.PlatformGSTPaisa, &o.DeliveryFeePaisa, &o.TCSPaisa, &o.TDSPaisa,
 			&o.TotalChargedPaisa, &o.DeliveryZoneID, &o.DeliveryDistanceKm,
-			&o.DeliverySurgePaisa, &o.DeliverySurgeReason, &basis)
+			&o.DeliverySurgePaisa, &o.DeliverySurgeReason, &basis, &o.PaymentStatus)
 	if err != nil {
 		if err == pgx.ErrNoRows {
 			return Order{}, false, nil
@@ -975,16 +981,17 @@ func (r *Repo) InsertOrderTx(ctx context.Context, tx pgx.Tx, o Order, lines []Or
 		  (order_id, order_number, user_id, address_id, placed_at, status, fulfillment, total_paisa, vendor_store_ids, pickup, pickups,
 		   delivery_latitude, delivery_longitude, invoice_id, taxable_value_paisa, product_tax_paisa,
 		   platform_fee_paisa, platform_gst_paisa, delivery_fee_paisa, tcs_paisa, tds_paisa, total_charged_paisa,
-		   delivery_zone_id, delivery_distance_km, delivery_surge_paisa, delivery_surge_reason, delivery_billing_basis)
+		   delivery_zone_id, delivery_distance_km, delivery_surge_paisa, delivery_surge_reason, delivery_billing_basis,
+		   payment_status)
 		values ($1,$2,$3,$4, now(), $5::order_status, $6::fulfillment_mode, $7, $8, $9::jsonb, $10::jsonb, $11, $12,
 		        nullif($13,''), $14, $15, $16, $17, $18, $19, $20, $21,
-		        nullif($22,''), $23, $24, $25, $26::jsonb)`,
+		        nullif($22,''), $23, $24, $25, $26::jsonb, coalesce(nullif($27,''),'PAID'))`,
 		o.ID, o.OrderNumber, o.UserID, nullIfEmpty(o.AddressID), o.Status, fulfillment, totalPaisa(lines), o.VendorStoreIDs,
 		nullIfEmptyJSON(o.Pickup), nullIfEmptyJSON(o.Pickups), o.DeliveryLatitude, o.DeliveryLongitude,
 		o.InvoiceID, o.TaxableValuePaisa, o.ProductTaxPaisa, o.PlatformFeePaisa, o.PlatformGSTPaisa,
 		o.DeliveryFeePaisa, o.TCSPaisa, o.TDSPaisa, o.TotalChargedPaisa,
 		o.DeliveryZoneID, o.DeliveryDistanceKm, o.DeliverySurgePaisa, o.DeliverySurgeReason,
-		nullIfEmptyJSON(o.DeliveryBillingBasis)); err != nil {
+		nullIfEmptyJSON(o.DeliveryBillingBasis), o.PaymentStatus); err != nil {
 		return err
 	}
 	for _, li := range lines {
@@ -1161,12 +1168,24 @@ func (r *Repo) AttachRazorpayOrder(ctx context.Context, orderID, userID, method 
 		return err
 	}
 	if tag.RowsAffected() > 0 {
+		_ = r.SetOrderPaymentStatus(ctx, orderID, "PENDING_PAYMENT")
 		return nil
 	}
 	_, err = r.pool.Exec(ctx, `
 		insert into checkout.payments (id, order_id, user_id, method, amount_paisa, coins_redeemed, status, razorpay_order_id)
 		values ($1, $2, $3, $4, $5, $6, 'PENDING', $7)`,
 		newPaymentID(), orderID, userID, method, amountPaisa, coins, rzpOrderID)
+	return err
+}
+
+// SetOrderPaymentStatus writes the order-level payment gate (0077). Best-effort and idempotent;
+// the payment ledger (checkout.payments) remains authoritative for money state.
+func (r *Repo) SetOrderPaymentStatus(ctx context.Context, orderID, status string) error {
+	if r.pool == nil {
+		return fmt.Errorf("checkout: database not configured")
+	}
+	_, err := r.pool.Exec(ctx, `
+		update checkout.orders set payment_status = $2 where order_id = $1`, orderID, status)
 	return err
 }
 
@@ -1192,13 +1211,19 @@ func (r *Repo) PaymentStatusForOrder(ctx context.Context, orderID, userID string
 	return s, true, nil
 }
 
-// SetPaymentStatusByRazorpayOrder flips the ledger row matched by razorpay order id (webhook) and
-// returns the owning user id so the caller can purge the orders cache. Idempotent.
+// SetPaymentStatusByRazorpayOrder flips the ledger row matched by razorpay order id (webhook),
+// keeps the order-level payment gate (0077) in sync, and returns the owning user id so the caller
+// can purge the orders cache. Idempotent.
 func (r *Repo) SetPaymentStatusByRazorpayOrder(ctx context.Context, rzpOrderID, status, rzpPaymentID string) (userID string, ok bool, err error) {
 	if r.pool == nil {
 		return "", false, fmt.Errorf("checkout: database not configured")
 	}
-	err = r.pool.QueryRow(ctx, `
+	tx, err := r.pool.Begin(ctx)
+	if err != nil {
+		return "", false, err
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+	err = tx.QueryRow(ctx, `
 		update checkout.payments
 		   set status = $2,
 		       razorpay_payment_id = coalesce(nullif($3, ''), razorpay_payment_id)
@@ -1208,6 +1233,22 @@ func (r *Repo) SetPaymentStatusByRazorpayOrder(ctx context.Context, rzpOrderID, 
 		if err == pgx.ErrNoRows {
 			return "", false, nil
 		}
+		return "", false, err
+	}
+	// Map the ledger status onto the order gate: PENDING_PAYMENT → PAID on capture, FAILED on a
+	// failed/expired payment. The default (coalesce) leaves legacy rows untouched.
+	if _, err := tx.Exec(ctx, `
+		update checkout.orders o
+		   set payment_status = case when $1 = 'PAID' then 'PAID'
+		                             when $1 = 'FAILED' then 'FAILED'
+		                             else o.payment_status end
+		  where o.order_id = (select p.order_id from checkout.payments p
+		                       where p.razorpay_order_id = $2
+		                       order by p.created_at desc limit 1)
+		    and o.payment_status = 'PENDING_PAYMENT'`, status, rzpOrderID); err != nil {
+		return "", false, err
+	}
+	if err := tx.Commit(ctx); err != nil {
 		return "", false, err
 	}
 	return userID, true, nil

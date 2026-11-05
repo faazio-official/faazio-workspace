@@ -484,6 +484,10 @@ export interface RiderPayout {
   totalPaisa: number;
   status: string;
   paidAt?: string;
+  /** Manual payout progress (0077): paidAmountPaisa accumulates partial "Mark as Paid" entries. */
+  paidAmountPaisa?: number;
+  paidBy?: string;
+  balancePaisa?: number;
 }
 
 /** One notifications.outbox row (user-facing copy only). */
@@ -2222,6 +2226,21 @@ export class GatewayClient {
     });
   }
 
+  /** The single delivery UPI QR (superadmin-configured): shown to riders so a COD customer can pay. */
+  async getDeliveryUpipQr(): Promise<{ qrUrl: string; assetId?: string }> {
+    if (!REMOTE_ENABLED) throw new GatewayOfflineError();
+    return this.http<{ qrUrl: string; assetId?: string }>('/app-config/delivery-upi-qr');
+  }
+
+  /** Rider confirms "Payment received" for a COD-UPI/cash DROP before marking it delivered. */
+  async markDeliveryPaymentReceived(orderId: string, stopId: string): Promise<DeliveryOrder> {
+    if (!REMOTE_ENABLED) throw new GatewayOfflineError();
+    return this.http<DeliveryOrder>(
+      `/delivery/${encodeURIComponent(orderId)}/stop/${encodeURIComponent(stopId)}/payment-received`,
+      { method: 'POST' },
+    );
+  }
+
   // Admin review (portal role + district scoped server-side).
 
   async listDeliveryApplications(
@@ -2428,6 +2447,12 @@ export interface DeliveryOrder {
   expiresAt?: string;
   completedAt?: string;
   createdAt: string;
+  /** Payment collection (0077): mirrors the checkout method; COD orders gate DELIVERED on paymentReceived. */
+  paymentMethod?: string;
+  paymentStatus?: string;
+  paymentRequired?: boolean;
+  paymentReceived?: boolean;
+  paymentReceivedAt?: string;
   stops: DeliveryStop[];
   /** Google-encoded line through the ordered stops (route endpoint only). */
   polyline?: string;

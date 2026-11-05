@@ -448,6 +448,14 @@ func (s *Service) CreateOrder(ctx context.Context, userID string, req PlaceOrder
 			CoinsRedeemed: coins,
 			Status:        "PAID",
 		})
+		// Order-level UPI gate (0077): a UPI order is PENDING_PAYMENT until the Razorpay webhook
+		// captures; COD/coins are PAID at placement. The column is informational (the ledger owns
+		// money state); it is flipped by SetPaymentStatusByRazorpayOrder on the webhook.
+		if strings.EqualFold(method, "UPI") {
+			order.PaymentStatus = "PENDING_PAYMENT"
+		} else {
+			order.PaymentStatus = "PAID"
+		}
 	}
 
 	// Reserve inventory and persist the order, lines, invoice, payment and idempotency key in ONE

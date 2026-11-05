@@ -94,24 +94,15 @@ services:
       # with the Vercel deployment origin.
       - key: ALLOWED_ORIGINS
         value: https://app.faazio.com
-      # Razorpay Route (seller settlement splits): linked accounts + held transfers + webhook HMAC.
-      # Optional — the gateway falls back to the main RAZORPAY_KEY_ID/RAZORPAY_KEY_SECRET and
-      # RAZORPAY_WEBHOOK_SECRET when these are unset (see internal/platform/config). With no Route
-      # keys the client stays in mock mode and no payout is ever marked PAID without a real transfer,
-      # so a deploy without them is safe but non-functional for settlement. Set the Route webhook to
-      # https://<gateway>/webhooks/razorpay/route with the secret in the Razorpay dashboard.
-      - key: RAZORPAY_ROUTE_KEY_ID
-        sync: false
-      - key: RAZORPAY_ROUTE_KEY_SECRET
-        sync: false
-      - key: RAZORPAY_ROUTE_WEBHOOK_SECRET
-        sync: false
       # Razorpay customer payments (UPI): RAZORPAY_KEY_ID + RAZORPAY_KEY_SECRET create the UPI order
       # and RAZORPAY_WEBHOOK_SECRET verifies POST /webhooks/razorpay/payments
       # (payment.captured/authorized/failed). Required for live payments — with either key unset the
       # customer rail is disabled and checkout returns 503 payments_disabled (there is no mock /
       # synthetic paid order). Set the customer webhook to
       # https://api.faazio.com/webhooks/razorpay/payments in the Razorpay dashboard.
+      # Razorpay Route/settlement was removed (0066 kept): seller + rider payouts are a recorded
+      # manual "Mark as Paid" ledger — no RAZORPAY_ROUTE_* variables. Test mode is automatic: set
+      # these four to the Razorpay TEST keys in pre-prod and the same code drives test orders.
       # No merchant VPA env is used: reconciliation is by razorpay_order_id, and the raw UPI
       # intent `pa` is the client-side default (see UpiIntent.ts / paymentData.ts).
       - key: RAZORPAY_KEY_ID

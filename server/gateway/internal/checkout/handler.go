@@ -581,6 +581,9 @@ func (h *Handler) payOrder(w http.ResponseWriter, r *http.Request) {
 		httpx.Fail(w, http.StatusInternalServerError, "payment_failed", "could not record payment")
 		return
 	}
+	// A recorded payment (e.g. switch-to-COD) confirms the order: clear the UPI gate.
+	_ = h.repo.SetOrderPaymentStatus(r.Context(), orderID, "PAID")
+	h.cache.Del(r.Context(), cache.Orders(userID))
 	httpx.JSON(w, http.StatusCreated, payment)
 }
 

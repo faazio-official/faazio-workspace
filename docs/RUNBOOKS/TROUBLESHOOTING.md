@@ -653,40 +653,36 @@ build on the Linux host.
   `GOOGLE_SERVICE_INFO_DELIVERY_PLIST` (or `_SELLER_`) secret is not set; the build phase copies it
   over the bundled customer plist.
 
-## Seller onboarding / Razorpay Route
+## Seller onboarding / payouts (manual)
 
-- **Deploy crash-loops with `razorpay route: RAZORPAY_ROUTE_KEY_ID and RAZORPAY_ROUTE_KEY_SECRET
-  are required` then `Exited with status 1`** — a pre-fix gateway called `log.Fatalf` when the Route
-  key pair was unset, so one optional integration (seller settlement splits) took the process down.
-  The gateway no longer does this: `razorpayroute.New` returns a **disabled** client when keys are
-  missing and `main` logs `razorpay_route=disabled reason=keys_unset` at boot (never fatals). If you
-  still see this log line, confirm you are running a build after the fix. To actually enable
-  settlement splits, set `RAZORPAY_ROUTE_KEY_ID` / `RAZORPAY_ROUTE_KEY_SECRET` in the Render
-  dashboard (they fall back to the main `RAZORPAY_KEY_ID` / `RAZORPAY_KEY_SECRET` when unset).
+- **Razorpay Route (seller splits) is gone (`0077`)** — `internal/platform/razorpayroute` +
+  `internal/settlement` were removed. There are **no** `RAZORPAY_ROUTE_*` env vars, no linked
+  accounts, no held transfers, no hold releaser worker and no `/webhooks/razorpay/route` endpoint;
+  do not set Route keys and do not apply `0039`/`0040` as a Route enablement step (the customer rail
+  `0066` is separate and unchanged). Seller and rider payouts are manual mark-paid ledgers
+  (`internal/payouts`, `internal/delivery`).
+- **`POST /delivery/payouts/{orderId}/settle` returns `409 manual_fare_required`** — for a MANUAL
+  payout, record the admin distance/fare via `POST …/manual-fare` before marking paid. Since `0077`,
+  the mark is amount-based (`POST /admin/delivery/payouts/{orderId}/mark-paid`, `{amountPaisa}`) and
+  stays `PARTIAL` until `paid_amount_paisa` reaches the total; the balance carries forward.
+- **A COD DROP will not advance to DELIVERED (`409 payment_not_received`)** — the rider must confirm
+  "Payment received" via `POST /delivery/{orderId}/stop/{stopId}/payment-received` first. The delivery
+  UPI QR shown at COD stops is fetched from `GET /app-config/delivery-upi-qr`; if it 404s, upload one
+  via the super-admin `PUT /app-config/delivery-upi-qr` (app-config page).
+- **Customer UPI/COD rail returns `503 payments_disabled`** — the base `RAZORPAY_KEY_ID` /
+  `RAZORPAY_KEY_SECRET` pair (and `RAZORPAY_WEBHOOK_SECRET` for the customer webhook) is unset in
+  Render. The customer rail never fabricates a synthetic paid order; set the keys before accepting
+  live payments and register `/webhooks/razorpay/payments`.
+- **`POST /sellers` returns `otp_required`** — the client did not complete the OTP digital signature.
+  Re-send the OTP; the mobile flow uses a disposable secondary Firebase app, so the shopper session
+  should stay signed in. If `sendOtp` fails, confirm `FIREBASE_AUTH_ENABLED` and the native
+  `google-services.json` / `GoogleService-Info.plist`.
 - **Seller <Select> on `/admin/super/credentials` is empty** — the portal store hydrates once at
   login (`hydrateFromGateway`); the page now re-fetches `GET /sellers` on mount as a best-effort
   refresh and keeps the hydrated/seed roster when the gateway is absent or the call fails. If it is
   still empty: check the gateway is up (`GET /health` → `"db":true`), then confirm migrations
   `0068`–`0074` (especially `0071` which backfills the four sellers + store ownership) were applied
   to Supabase — Render never runs migrations (see `DATABASE_MIGRATIONS.md`).
-- **`POST /sellers` returns `otp_required`** — the client did not complete the OTP digital signature.
-  Re-send the OTP; the mobile flow uses a disposable secondary Firebase app, so the shopper session
-  should stay signed in. If `sendOtp` fails, confirm `FIREBASE_AUTH_ENABLED` and the native
-  `google-services.json` / `GoogleService-Info.plist`.
-- **`POST /sellers/:id/verify-kyc` returns `razorpay_unavailable` (502)** — Razorpay rejected the
-  linked-account call (or keys are unset in a non-mock deploy). Check `RAZORPAY_ROUTE_KEY_ID`/
-  `_SECRET` (or the `RAZORPAY_*` fallback). The gateway never logs the upstream body (it may contain
-  PCI data); check the Razorpay dashboard by account id / timestamp.
-- **Payout stays `ON_HOLD` past 7 days** — the releaser only runs when real Route credentials are
-  configured. Check the gateway logs for `settlement hold releaser`, then release manually as
-  SUPER_ADMIN: `POST /payouts/{id}/release` (the payout id is on the portal settlement page).
-- **`POST /webhooks/razorpay/route` returns `invalid_signature`** — the HMAC must use
-  `RAZORPAY_ROUTE_WEBHOOK_SECRET` (or the `RAZORPAY_WEBHOOK_SECRET` fallback) and the **raw** body.
-  A proxy that re-serializes JSON breaks the signature. In mock mode every signature is rejected by
-  design; configure the Route keys to reconcile live transfers.
-- **`POST /payouts/{id}/reverse` returns `razorpay_unavailable` (502)** — Razorpay refused the
-  reversal (already released/reversed, or the transfer was never created). The local payout is left
-  unchanged; reconcile from the Route dashboard, then retry or adjust manually.
 - **KYC image upload rejected (`unsupported image type` / `image too large`)** — the allowlist is
   JPEG/PNG/WebP/AVIF up to 8 MiB. Re-capture at lower resolution; do not convert to PDF. Confirm
   `R2_PRIVATE_BUCKET` is set or `/media/upload-url` returns 503.

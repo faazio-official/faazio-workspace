@@ -784,10 +784,15 @@ DeliveryPartnerNavigator (native stack, no customer screens)
 ├── AcceptReject — deep-link/push offer: store/customer, payout, route context, 45 s countdown,
 │                  Accept / Reject (expiry = implicit reject) → Route
 ├── Route        — one merged route across all ACCEPTED jobs: stops sorted by the server's global
-│                  sequence, one polyline, Arrived/Picked Up/Delivered transitions, customer-OTP
+│                  sequence, one polyline, Arrived/Picked Up/Delivered transitions. **COD payment
+│                  gate (`0077`):** DROP stops show the delivery UPI QR (fetched from the public
+│                  `GET /app-config/delivery-upi-qr`) with a "Payment received" confirm
+│                  (`POST /delivery/{orderId}/stop/{stopId}/payment-received`) before the stop may
+│                  reach DELIVERED — otherwise `409 payment_not_received`. Customer-OTP
 │                  handover (document re-upload is admin-side; the app has no re-upload screen)
 └── Payouts      — earnings history from GET /delivery/payouts: pending/paid totals and each job's
-                   distance, base/extra-km, surge reason and settlement status
+                   distance, base/extra-km, surge reason and settlement status (manual mark-paid
+                   amounts + PARTIAL since `0077`; no Razorpay Route)
 ```
 
 **Push offer deep link.** `src/services/deliveryPush.ts` registers the FCM token, routes a foreground
@@ -1036,8 +1041,8 @@ SUPER_ADMIN reaches every district) and the mobile app:
 - `SellerRequestDetailScreen` (route `SellerRequestDetail`, `{ sellerId }`) — full registration +
   masked payout account, a **vendors** list (name · app · FSSAI) with a **per-vendor platform-fee
   editor** (each shop's `platformFeePct`, FOOD floor 5%), per-document verify actions (PASSBOOK /
-  FSSAI / PAN / GSTIN), **Verify KYC** (attaches the Razorpay Route linked account and activates the
-  seller) and reject-with-reason. KYC images are rendered live through `GatewayClient.getPrivateMediaUrl`
+  FSSAI / PAN / GSTIN), **Verify KYC** (activates the seller — no Razorpay Route linked account since
+  `0077`) and reject-with-reason. KYC images are rendered live through `GatewayClient.getPrivateMediaUrl`
   (`GET /media/private/{assetId}` — a short-lived presigned GET that only the creator or an admin
   may mint). Rejected sellers may edit and resubmit; changed fields are recorded until approval
   clears the trail.

@@ -1,5 +1,5 @@
 import React, { useCallback, useMemo, useState } from 'react';
-import { Alert, ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
+import { Alert, Image, ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
 import MapView, { Marker, Polyline } from 'react-native-maps';
 import { useFocusEffect } from '@react-navigation/native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
@@ -59,12 +59,15 @@ export function RouteScreen({ navigation }: Props) {
   const [otpByStop, setOtpByStop] = useState<Record<string, string>>({});
   const [failureFor, setFailureFor] = useState<DeliveryStop | null>(null);
   const [failureReason, setFailureReason] = useState('');
+  const [qrUrl, setQrUrl] = useState('');
 
   const load = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
       setOrders(acceptedOnly(await gateway.getActiveDeliveryOrders()));
+      const qr = await gateway.getDeliveryUpipQr();
+      setQrUrl(qr.qrUrl ?? '');
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Could not load the route.');
     } finally {
@@ -79,6 +82,13 @@ export function RouteScreen({ navigation }: Props) {
   );
 
   const stops = useMemo(() => mergeRoute(orders), [orders]);
+  const orderByStopId = useMemo(() => {
+    const map = new Map<string, DeliveryOrder>();
+    for (const order of acceptedOnly(orders)) {
+      for (const stop of order.stops) map.set(stop.stopId, order);
+    }
+    return map;
+  }, [orders]);
   const pickedUpOrders = useMemo(() => {
     const done = new Set<string>();
     for (const stop of stops) {
@@ -162,11 +172,36 @@ export function RouteScreen({ navigation }: Props) {
     setFailureFor(stop);
   }, []);
 
+  /** Rider confirms "Payment received" for a COD DROP (cash or delivery QR scan). */
+  const confirmPayment = useCallback(
+    async (stop: DeliveryStop) => {
+      const order = orderByStopId.get(stop.stopId);
+      if (!order) return;
+      setBusy(true);
+      setError(null);
+      try {
+        await gateway.markDeliveryPaymentReceived(order.orderId, stop.stopId);
+        await refresh();
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Could not confirm the payment.');
+      } finally {
+        setBusy(false);
+      }
+    },
+    [orderByStopId, refresh],
+  );
+
   const deliverWithOtp = useCallback(
     async (stop: DeliveryStop) => {
       const code = otpByStop[stop.stopId] ?? '';
       if (code.replace(/\D/g, '').length !== 4) {
         setError('Enter the 4-digit OTP given by the customer.');
+        return;
+      }
+      // COD gate (0077): an OTP verification completes the drop, so a COD order must be paid first.
+      const order = orderByStopId.get(stop.stopId);
+      if (order?.paymentRequired && !order.paymentReceived) {
+        setError('Confirm "Payment received" (cash or QR) before delivering.');
         return;
       }
       setBusy(true);
@@ -185,7 +220,7 @@ export function RouteScreen({ navigation }: Props) {
         setBusy(false);
       }
     },
-    [finishIfEmpty, otpByStop, refresh],
+    [finishIfEmpty, orderByStopId, otpByStop, refresh],
   );
 
   return (
@@ -302,11 +337,49 @@ export function RouteScreen({ navigation }: Props) {
                   loading={busy}
                 />
               ) : stop.stopType === 'DROP' && stop.status === 'AT_CUSTOMER' ? (
-                <PrimaryButton
-                  label="Mark delivered"
-                  onPress={() => void advance(stop, 'DELIVERED')}
-                  loading={busy}
-                />
+                (() => {
+                  const order = orderByStopId.get(stop.stopId);
+                  const paymentRequired = !!order?.paymentRequired;
+                  const paymentReceived = !!order?.paymentReceived;
+                  if (!paymentRequired) {
+                    return (
+                      <PrimaryButton
+                        label="Mark delivered"
+                        onPress={() => void advance(stop, 'DELIVERED')}
+                        loading={busy}
+                      />
+                    );
+                  }
+                  return (
+                    <>
+                      {qrUrl ? (
+                        <Image
+                          source={{ uri: qrUrl }}
+                          style={styles.qr}
+                          resizeMode="contain"
+                        />
+                      ) : null}
+                      <AppText style={[styles.payHint, paymentReceived && styles.payHintOk]}>
+                        {paymentReceived
+                          ? 'Payment received'
+                          : 'COD · collect cash or ask the customer to scan the QR, then confirm.'}
+                      </AppText>
+                      {!paymentReceived ? (
+                        <PrimaryButton
+                          label="Payment received"
+                          onPress={() => void confirmPayment(stop)}
+                          loading={busy}
+                        />
+                      ) : null}
+                      <PrimaryButton
+                        label="Mark delivered"
+                        onPress={() => void advance(stop, 'DELIVERED')}
+                        loading={busy}
+                        disabled={!paymentReceived}
+                      />
+                    </>
+                  );
+                })()
               ) : null}
 
               {failureFor?.stopId === stop.stopId ? (
@@ -372,6 +445,12 @@ const styles = StyleSheet.create({
   stopLabel: { fontSize: ms(15), fontWeight: '900', color: DP.ink, marginTop: vs(2) },
   stopAddress: { fontSize: ms(12), lineHeight: ms(17), color: DP.muted, marginTop: vs(2) },
   failText: { fontSize: ms(12), color: DP.danger, marginTop: vs(4) },
+  qr: {
+    width: '62%', aspectRatio: 1, alignSelf: 'center', marginTop: vs(10),
+    borderRadius: ms(12), backgroundColor: '#ffffff', borderWidth: 1, borderColor: DP.line,
+  },
+  payHint: { fontSize: ms(12), color: DP.muted, marginTop: vs(8), marginBottom: vs(8), textAlign: 'center' },
+  payHintOk: { color: DP.success, fontWeight: '800' },
   failButton: { alignItems: 'center', marginTop: vs(10) },
   failButtonText: { fontSize: ms(11), fontWeight: '800', color: DP.danger },
   failureBox: { marginTop: vs(12), paddingTop: vs(10), borderTopWidth: 1, borderTopColor: DP.line },

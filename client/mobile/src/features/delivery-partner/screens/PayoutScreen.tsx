@@ -37,8 +37,9 @@ export function PayoutScreen({ navigation }: Props) {
     let pendingTotal = 0;
     let paidTotal = 0;
     for (const p of payouts) {
-      if (p.status === 'PAID') paidTotal += p.totalPaisa;
-      else pendingTotal += p.totalPaisa;
+      const paidNow = p.paidAmountPaisa ?? (p.status === 'PAID' ? p.totalPaisa : 0);
+      paidTotal += paidNow;
+      pendingTotal += Math.max(0, p.totalPaisa - paidNow);
     }
     return { pending: pendingTotal, paid: paidTotal };
   }, [payouts]);
@@ -102,11 +103,17 @@ export function PayoutScreen({ navigation }: Props) {
               {p.surgeReason ? <AppText style={styles.rowMeta}>Surge: {p.surgeReason}</AppText> : null}
               <View style={styles.rowBetween}>
                 <AppText style={styles.rowTotal}>{rupees(p.totalPaisa)}</AppText>
-                {p.paidAt ? (
-                  <AppText style={styles.rowMeta}>
-                    Paid {new Date(p.paidAt).toLocaleDateString('en-IN')}
-                  </AppText>
-                ) : null}
+                {(() => {
+                  const paidNow = p.paidAmountPaisa ?? (p.status === 'PAID' ? p.totalPaisa : 0);
+                  const balance = Math.max(0, p.totalPaisa - paidNow);
+                  return (
+                    <AppText style={styles.rowMeta}>
+                      {paidNow > 0 ? `Paid ${rupees(paidNow)}` : ''}
+                      {balance > 0 ? ` · Balance ${rupees(balance)}` : ''}
+                      {p.paidAt ? ` · ${new Date(p.paidAt).toLocaleDateString('en-IN')}` : ''}
+                    </AppText>
+                  );
+                })()}
               </View>
             </Card>
           ))

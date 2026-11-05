@@ -1,7 +1,6 @@
 package sellers
 
 import (
-	"context"
 	"encoding/json"
 	"errors"
 	"net/http"
@@ -12,7 +11,6 @@ import (
 	"github.com/faazio/server/gateway/internal/platform/cache"
 	"github.com/faazio/server/gateway/internal/platform/geo"
 	"github.com/faazio/server/gateway/internal/platform/httpx"
-	"github.com/faazio/server/gateway/internal/platform/razorpayroute"
 	"github.com/go-chi/chi/v5"
 )
 
@@ -23,13 +21,11 @@ type Handler struct {
 	repo  *Repo
 	cache *cache.Cache
 	audit contracts.AuditWriter
-	route razorpayroute.Gateway
 }
 
-// NewHandler builds the sellers handler. A nil Route gateway is allowed only when the caller has
-// no Route credentials; provisioning then returns ErrUnavailable instead of fabricating an account.
-func NewHandler(repo *Repo, c *cache.Cache, audit contracts.AuditWriter, route razorpayroute.Gateway) *Handler {
-	return &Handler{repo: repo, cache: c, audit: audit, route: route}
+// NewHandler builds the sellers handler.
+func NewHandler(repo *Repo, c *cache.Cache, audit contracts.AuditWriter) *Handler {
+	return &Handler{repo: repo, cache: c, audit: audit}
 }
 
 // Register mounts the sellers routes.
@@ -161,26 +157,6 @@ type createSellerRequest struct {
 	OTPVerified bool `json:"otpVerified"`
 }
 
-// linkedAccountCategory maps a vendor app brand onto Razorpay's business category. Route requires a
-// real category; there is no hardcoded "ecommerce" default.
-func linkedAccountCategory(app string) string {
-	switch strings.ToUpper(strings.TrimSpace(app)) {
-	case "FOOD":
-		return "food"
-	case "PHARMA":
-		return "healthcare"
-	default:
-		return "ecommerce"
-	}
-}
-
-func (r createSellerRequest) firstVendorApp() string {
-	if len(r.Vendors) == 0 {
-		return ""
-	}
-	return r.Vendors[0].App
-}
-
 func (h *Handler) create(w http.ResponseWriter, r *http.Request) {
 	var req createSellerRequest
 	if err := httpx.Decode(r, &req); err != nil {
@@ -308,15 +284,6 @@ func (h *Handler) create(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Provision the Route linked account at onboarding: the full account number is only available
-	// here, so it is forwarded to Razorpay and never stored. Failure is non-fatal; an admin can
-	// retry from the review page (the account can be created without bank details).
-	if accountID, rerr := h.ensureLinkedAccount(r.Context(), s, bank, req.BankAccountNumber, linkedAccountCategory(req.firstVendorApp())); rerr == nil && accountID != "" {
-		if updated, ok, uerr := h.repo.SetLinkedAccount(r.Context(), s.SellerID, accountID); uerr == nil && ok {
-			s = updated
-		}
-	}
-
 	h.log(r, "SELLER_CREATE", s.SellerID, nil, s)
 	httpx.JSON(w, http.StatusCreated, s)
 }
@@ -420,24 +387,6 @@ func (h *Handler) verifyKYC(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	if s.RazorpayLinkedAccountID == "" {
-		app, err := h.repo.FirstStoreApp(r.Context(), s.SellerID)
-		if err != nil {
-			httpx.Fail(w, http.StatusConflict, "vendor_required", "create a vendor before provisioning payouts")
-			return
-		}
-		accountID, err := h.ensureLinkedAccount(r.Context(), s, nil, "", linkedAccountCategory(app))
-		if err != nil {
-			httpx.Fail(w, http.StatusBadGateway, "razorpay_unavailable", "could not create the Razorpay linked account")
-			return
-		}
-		updated, ok, err := h.repo.SetLinkedAccount(r.Context(), s.SellerID, accountID)
-		if err != nil || !ok {
-			httpx.Fail(w, http.StatusInternalServerError, "seller_update_failed", "could not save the linked account")
-			return
-		}
-		s = updated
-	}
 	after, ok, err := h.repo.SetStatus(r.Context(), s.SellerID, "ACTIVE")
 	if err != nil {
 		httpx.Fail(w, http.StatusInternalServerError, "seller_update_failed", "could not activate seller")
@@ -448,8 +397,8 @@ func (h *Handler) verifyKYC(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	h.log(r, "SELLER_VERIFY_KYC", s.SellerID,
-		map[string]string{"status": s.Status, "linkedAccountId": s.RazorpayLinkedAccountID},
-		map[string]string{"status": after.Status, "linkedAccountId": after.RazorpayLinkedAccountID})
+		map[string]string{"status": s.Status},
+		map[string]string{"status": after.Status})
 	detail, _, _ := h.repo.DetailByID(r.Context(), after.SellerID)
 	httpx.JSON(w, http.StatusOK, detail)
 }
@@ -818,34 +767,6 @@ func (h *Handler) adminSeller(w http.ResponseWriter, r *http.Request) (Seller, b
 		return Seller{}, false
 	}
 	return s, true
-}
-
-// ensureLinkedAccount creates a Route linked account and returns its id. The full account number is
-// used transiently only; passing an empty number omits the bank object (the seller can complete it
-// later from the Route dashboard).
-func (h *Handler) ensureLinkedAccount(ctx context.Context, s Seller, bank *BankAccount, accountNumber, category string) (string, error) {
-	if s.RazorpayLinkedAccountID != "" {
-		return s.RazorpayLinkedAccountID, nil
-	}
-	if h.route == nil {
-		return "", razorpayroute.ErrUnavailable
-	}
-	in := razorpayroute.LinkedAccountInput{
-		Email: s.ContactEmail, Phone: digitsOnly(s.ContactPhone),
-		LegalBusinessName: s.BusinessName, ContactName: s.OwnerName,
-		Category: category, AddressLine: s.BusinessAddress, StateCode: s.StateCode,
-	}
-	if bank != nil {
-		in.BankName = bank.BankName
-		in.AccountNumber = digitsOnly(accountNumber)
-		in.IFSC = bank.IFSC
-		in.BeneficiaryName = bank.BeneficiaryName
-	} else if b, ok, err := h.repo.BankAccount(ctx, s.SellerID); err == nil && ok {
-		in.BankName = b.BankName
-		in.IFSC = b.IFSC
-		in.BeneficiaryName = b.BeneficiaryName
-	}
-	return h.route.CreateLinkedAccount(ctx, in)
 }
 
 func (h *Handler) listKYC(w http.ResponseWriter, r *http.Request) {

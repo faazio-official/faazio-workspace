@@ -51,8 +51,8 @@ landed.
   `sellers.seller_fee_change_requests.store_id` added; `sellers.sellers` account-level commercial
   fields dropped (`0074`); analytics range indexes added (`0075`). Applied to live Supabase.
 - **Gateway:** `POST /seller/stores`, `PUT /seller/stores/{id}`, `PUT /seller/stores/{id}/fee`;
-  `GET /geo/states`, `GET /geo/apps`, `GET /ads/placements`; checkout + settlement resolve the fee per
-  vendor; `razorpayroute` mock removed (missing keys = config error); no `AUTH_DISABLED`/`X-Dev-*`
+  `GET /geo/states`, `GET /geo/apps`, `GET /ads/placements`; checkout + payouts resolve the fee per
+  vendor; `razorpayroute` package removed (`0077`, manual mark-paid payouts); no `AUTH_DISABLED`/`X-Dev-*`
   in production auth. **Weather + Routes:** weather is fail-closed only for hard errors (disabled
   provider / budget); a transient provider outage DEGRADES the quote (`degraded:true`, weather surge
   waived) so the order proceeds, and Google
@@ -222,10 +222,14 @@ Auth routes are never blocked. `GatewayClient.serverOnly` is unchanged (still se
 `RAZORPAY_WEBHOOK_SECRET` in Render (declared in `render.yaml`); register the Razorpay **customer**
 webhook `https://api.faazio.com/webhooks/razorpay/payments` for `payment.captured` /
 `payment.authorized` / `payment.failed`; confirm the merchant VPA `faazio@razorpay` belongs to the
-Faazio account. No Razorpay credential is baked into the app: the raw UPI intent `pa` is the
+Faazio account. `0077` adds an order-level `checkout.orders.payment_status` snapshot (UPI orders are
+`PENDING_PAYMENT` at placement until the webhook flips them) — no Razorpay Route involvement. No
+Razorpay credential is baked into the app: the raw UPI intent `pa` is the
 client-side default (`UPI_MERCHANT_VPA`) and the public `keyId` comes from the server response.
-**Phase 3 (not started):** seller/delivery linked-account + payout UIs (the Route linked-account/payout
-endpoints already exist server-side).
+**Phase 3 (not started):** seller/delivery payout UIs — the manual mark-paid endpoints exist
+server-side (`internal/payouts`: `POST /admin/seller/payouts/{sellerId}/mark-paid`,
+`POST /admin/delivery/payouts/{orderId}/mark-paid`); the Route linked-account/payout endpoints were
+**removed in `0077`**.
 
 **Date:** 2026-10-31
 
@@ -450,7 +454,11 @@ default it to `https://app.faazio.com`.
   travelled distance + fare). The mode can change until the payout is paid.
 - **Settlement:** `Mark Paid` records `paid_at`/`paid_by` in `delivery.delivery_payouts` and audits
   the action; MANUAL orders return `409 manual_fare_required` until the fare is recorded. No
-  Razorpay transfer is initiated.
+  Razorpay transfer is initiated. Since `0077` the mark is amount-based
+  (`POST /admin/delivery/payouts/{orderId}/mark-paid`, `{amountPaisa}`) and accumulates
+  `paid_amount_paisa`, so the status is `PARTIAL` until fully paid and the balance carries forward;
+  `POST /delivery/payouts/{orderId}/settle` still works (optional amount, method
+  `MarkDeliveryPayoutPaid`).
 - **Routes:** `/admin/{district,super}/delivery/manual-allocation` and
   `/admin/{district,super}/delivery/payouts`.
 - Docs: `db-schema.md` §12.27, `monolith-breakdown.md` §1, `server-gateway-plan.md`,
@@ -687,9 +695,9 @@ end to end; the mobile app no longer talks to Supabase Auth.
 
 **Date:** 2026-10-20
 
-## W61 — Seller onboarding + Razorpay Route split (P0)
+## W61 — Seller onboarding (Razorpay Route split removed in `0077`)
 
-**Status:** 🟢 Shipped (mobile + gateway + portal review).
+**Status:** 🟢 Shipped (mobile + gateway + portal review). Route split superseded by manual payouts (`0077`).
 
 - Mobile `features/seller-onboarding/SellerRegistrationScreen` replaces the old onboarding form:
   location-derived state, platform fee, payout account, private-bucket passbook (+ FSSAI for food)
@@ -702,20 +710,20 @@ end to end; the mobile app no longer talks to Supabase Auth.
   (`src/features/seller-onboarding/`), role-gated by the decoded `app_role` claim on `authStore.user`
   (`src/lib/tokenClaims.ts`). Entry is the Account "Seller applications" card. KYC images render via
   `GatewayClient.getPrivateMediaUrl` (`GET /media/private/{assetId}` — creator/admin presigned GET).
-- Gateway `0039` + `internal/sellers` extended create/review endpoints and
-  `internal/platform/razorpayroute` (linked accounts, held transfers, release/reverse, webhook HMAC).
+- Gateway `0039` + `internal/sellers` extended create/review endpoints (the `0039` onboarding/KYC
+  schema remains; the Razorpay Route split — `internal/platform/razorpayroute` linked accounts, held
+  transfers, release/reverse, webhook HMAC — was **removed in `0077`**, no Route columns remain).
 - Portal state/super seller detail: full registration, fee editor, per-document verification,
-  reject with history, Verify KYC → Route linked account + ACTIVE.
-- Settlement `POST /payouts/holds` holds the seller share for 7 days; the gateway releaser releases
-  due holds every 15 minutes (Route credentials required). `POST /payouts/{id}/reverse` claws a
-  refund/return back, and `POST /webhooks/razorpay/route` reconciles `transfer.released/failed/reversed`
-  (`0040`).
+  reject with history, Verify KYC → ACTIVE (no Razorpay Route account). Seller payouts are manual:
+  `internal/payouts` (`GET /admin/seller/payouts`, `POST /admin/seller/payouts/{sellerId}/mark-paid`,
+  status PENDING/PARTIAL/PAID, balance carries forward); rider payouts use
+  `POST /admin/delivery/payouts/{orderId}/mark-paid`. `POST /payouts/holds` / `/release` / `/reverse`
+  and `/webhooks/razorpay/route` are removed.
 
-**Remaining (ops):** configure `RAZORPAY_ROUTE_*` in Render, apply `0039` + `0040`, and set the Route
-webhook endpoint (`/webhooks/razorpay/route`) + secret in the Razorpay dashboard. Customer capture is
-now wired by **W75** (UPI Razorpay order + `POST /webhooks/razorpay/payments`), so the seller-share
-hold can be created from a captured customer payment; the automatic post-capture split trigger is
-still created via the super-admin endpoint. **AVIF is deliberately deferred:** KYC
+**Remaining (ops):** apply `0077` (manual payouts + delivery COD payment gate); configure the delivery
+UPI QR via super-admin app-config. **No `RAZORPAY_ROUTE_*` keys and no Route webhook** (Route is
+removed). Customer capture is wired by **W75** (UPI Razorpay order + `POST /webhooks/razorpay/payments`).
+**AVIF is deliberately deferred:** KYC
 captures upload as JPEG (`uploadSellerDocument` default) — the media allowlist accepts `image/avif`
 but no lightweight RN encoder exists without a native/CGO dependency, so it stays allowlisted for
 future use.

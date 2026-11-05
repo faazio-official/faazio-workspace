@@ -33,7 +33,7 @@ import { useSession } from "@/lib/hooks/useSession";
 import {
   listAdminDeliveryPayouts,
   recordDeliveryManualFare,
-  settleDeliveryPayout,
+  markDeliveryPayoutPaid,
   updateDeliveryPayoutMode,
   type AdminDeliveryPayout,
   type DeliveryPayoutMode,
@@ -61,6 +61,7 @@ export function DeliveryPayoutBoard({ scope }: { scope: Scope }) {
   const [distanceKm, setDistanceKm] = useState("");
   const [fareRupees, setFareRupees] = useState("");
   const [reason, setReason] = useState("");
+  const [paidRupees, setPaidRupees] = useState("");
   const [busy, setBusy] = useState(false);
 
   const load = useCallback(async () => {
@@ -106,6 +107,8 @@ export function DeliveryPayoutBoard({ scope }: { scope: Scope }) {
       payout.manualFarePaisa != null ? String(payout.manualFarePaisa / 100) : "",
     );
     setReason(payout.fareOverrideReason ?? "");
+    const balance = payout.balancePaisa ?? payout.totalPaisa - (payout.paidAmountPaisa ?? 0);
+    setPaidRupees(balance > 0 ? String((balance / 100).toFixed(0)) : "");
   }, []);
 
   const submit = useCallback(
@@ -129,7 +132,17 @@ export function DeliveryPayoutBoard({ scope }: { scope: Scope }) {
           });
         }
         if (markPaid) {
-          await settleDeliveryPayout(selected.orderId);
+          const balance = selected.balancePaisa ?? selected.totalPaisa - (selected.paidAmountPaisa ?? 0);
+          const paisa = paidRupees.trim() ? parseRupeesToPaisa(paidRupees) : balance;
+          if (!Number.isFinite(paisa) || paisa <= 0) {
+            toast.error("Enter a positive amount to mark paid");
+            return;
+          }
+          if (paisa > balance) {
+            toast.error("Amount cannot exceed the balance owed");
+            return;
+          }
+          await markDeliveryPayoutPaid(selected.orderId, { amountPaisa: paisa });
           toast.success("Payout marked paid");
         } else {
           toast.success("Payout details saved");
@@ -144,17 +157,18 @@ export function DeliveryPayoutBoard({ scope }: { scope: Scope }) {
         setBusy(false);
       }
     },
-    [distanceKm, fareRupees, load, nextMode, reason, selected],
+    [distanceKm, fareRupees, load, nextMode, paidRupees, reason, selected],
   );
 
   const totals = useMemo(() => {
-    let pending = 0;
+    let owed = 0;
     let paid = 0;
     for (const p of payouts) {
-      if (p.status === "PAID") paid += p.totalPaisa;
-      else pending += p.totalPaisa;
+      const paidNow = p.paidAmountPaisa ?? (p.status === "PAID" ? p.totalPaisa : 0);
+      paid += paidNow;
+      owed += Math.max(0, p.totalPaisa - paidNow);
     }
-    return { pending, paid };
+    return { owed, paid };
   }, [payouts]);
 
   return (
@@ -212,6 +226,7 @@ export function DeliveryPayoutBoard({ scope }: { scope: Scope }) {
           >
             <option value="ALL">All</option>
             <option value="PENDING">Pending</option>
+            <option value="PARTIAL">Partial</option>
             <option value="PAID">Paid</option>
           </select>
         </div>
@@ -255,7 +270,7 @@ export function DeliveryPayoutBoard({ scope }: { scope: Scope }) {
           Refresh
         </Button>
         <span className="num ml-auto text-[12px] text-muted-foreground">
-          Pending {formatINR(totals.pending)} · Paid {formatINR(totals.paid)}
+          Balance owed {formatINR(totals.owed)} · Paid {formatINR(totals.paid)}
         </span>
       </div>
 
@@ -281,6 +296,7 @@ export function DeliveryPayoutBoard({ scope }: { scope: Scope }) {
                 <TableHead>Mode</TableHead>
                 <TableHead className="text-right">Calculated</TableHead>
                 <TableHead className="text-right">Actual</TableHead>
+                <TableHead className="text-right">Paid</TableHead>
                 <TableHead>Status</TableHead>
                 <TableHead>Paid at</TableHead>
                 <TableHead className="text-right">Action</TableHead>
@@ -318,6 +334,9 @@ export function DeliveryPayoutBoard({ scope }: { scope: Scope }) {
                   <TableCell className="num text-right text-[12px] font-semibold">
                     {formatINR(payout.totalPaisa)}
                   </TableCell>
+                  <TableCell className="num text-right text-[12px]">
+                    {payout.paidAmountPaisa ? formatINR(payout.paidAmountPaisa) : "—"}
+                  </TableCell>
                   <TableCell>
                     <StatusPill status={payout.status} />
                   </TableCell>
@@ -325,7 +344,7 @@ export function DeliveryPayoutBoard({ scope }: { scope: Scope }) {
                     {payout.paidAt ? formatDateTime(payout.paidAt) : "—"}
                   </TableCell>
                   <TableCell className="text-right">
-                    {payout.status === "PENDING" ? (
+                    {payout.status === "PENDING" || payout.status === "PARTIAL" ? (
                       <Button size="sm" variant="outline" onClick={() => open(payout)}>
                         Manage
                       </Button>
@@ -414,13 +433,48 @@ export function DeliveryPayoutBoard({ scope }: { scope: Scope }) {
                     <span className="font-semibold text-foreground">
                       {formatINR(selected.calculatedFarePaisa)}
                     </span>
-                    . Marking paid records this amount in the payout ledger.
+                    .
                   </p>
                 )}
 
-                {selected.status === "PENDING" ? (
+                {(() => {
+                  const paidNow = selected.paidAmountPaisa ?? (selected.status === "PAID" ? selected.totalPaisa : 0);
+                  const balance = selected.balancePaisa ?? Math.max(0, selected.totalPaisa - paidNow);
+                  return (
+                    <div className="space-y-2 rounded-lg border border-border p-3 text-[12px]">
+                      <div className="flex justify-between">
+                        <span className="text-muted-foreground">Owed this job</span>
+                        <span className="num font-semibold">{formatINR(selected.totalPaisa)}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-muted-foreground">Already paid</span>
+                        <span className="num">{formatINR(paidNow)}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-muted-foreground">Balance to pay</span>
+                        <span className="num font-semibold">{formatINR(balance)}</span>
+                      </div>
+                    </div>
+                  );
+                })()}
+
+                <div className="space-y-1.5">
+                  <Label htmlFor="settle-paid">Amount paid (₹)</Label>
+                  <Input
+                    id="settle-paid"
+                    type="number"
+                    min="0"
+                    step="1"
+                    value={paidRupees}
+                    onChange={(e) => setPaidRupees(e.target.value)}
+                    disabled={busy}
+                  />
+                </div>
+
+                {selected.status === "PENDING" || selected.status === "PARTIAL" ? (
                   <p className="text-[11px] text-muted-foreground">
-                    Mark Paid settles the rider in person. No Razorpay transfer is created.
+                    Mark Paid records the typed amount in the payout ledger. Paying less than the
+                    balance leaves the remainder owed — no Razorpay transfer is created.
                   </p>
                 ) : null}
               </div>

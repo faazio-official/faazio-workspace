@@ -120,6 +120,10 @@ var ErrNotFound = errors.New("delivery: not found")
 // ErrConflict is returned when a mutation is invalid for the current state.
 var ErrConflict = errors.New("delivery: state conflict")
 
+// ErrPaymentRequired is returned when a COD drop is marked DELIVERED before the rider confirmed
+// "Payment received" (migration 0077).
+var ErrPaymentRequired = errors.New("delivery: payment not received")
+
 // Rider is one delivery.delivery_boys row. Phone is PII and only projected to auth-scoped callers.
 type Rider struct {
 	RiderID string `json:"riderId"`
@@ -224,7 +228,15 @@ type Order struct {
 	ExpiresAt             string          `json:"expiresAt,omitempty"`
 	CompletedAt           string          `json:"completedAt,omitempty"`
 	CreatedAt             string          `json:"createdAt"`
-	Stops                 []Stop          `json:"stops"`
+	// Payment method + collection state (migration 0077). Mirrors the checkout payment at creation;
+	// PaymentRequired is true for COD orders (cash or QR-UPI at the door). The DROP stop may not be
+	// marked DELIVERED until PaymentReceived is set.
+	PaymentMethod     string `json:"paymentMethod,omitempty"`
+	PaymentStatus     string `json:"paymentStatus,omitempty"`
+	PaymentRequired   bool   `json:"paymentRequired"`
+	PaymentReceived   bool   `json:"paymentReceived"`
+	PaymentReceivedAt string `json:"paymentReceivedAt,omitempty"`
+	Stops             []Stop `json:"stops"`
 	// Polyline is the Google-encoded line through the ordered stop coordinates. The rider route
 	// endpoint computes it on read; it is not persisted.
 	Polyline string `json:"polyline,omitempty"`

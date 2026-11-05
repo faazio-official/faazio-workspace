@@ -15,6 +15,7 @@ const PAYOUT_PILL: Record<PayoutRecord["status"], string> = {
   SCHEDULED: "bg-info-soft text-info",
   PAID: "bg-success-soft text-success",
   ON_HOLD: "bg-warning-soft text-warning",
+  PARTIAL: "bg-warning-soft text-warning",
 };
 
 function SellerPayments() {
@@ -157,24 +158,33 @@ function SellerPayments() {
                 {payouts.length > 0 && (
                   <>
                     <p className="pt-1 text-sm font-bold">Payout schedule</p>
-                    {payouts.map((p) => (
-                      <div key={p.payoutId} className="rounded-2xl border border-border bg-card p-4">
-                        <div className="flex items-center justify-between">
-                          <p className="text-sm font-bold">{formatINR(p.amountPaisa)}</p>
-                          <span
-                            className={cn(
-                              "rounded px-1.5 py-0.5 text-[9px] font-bold uppercase",
-                              PAYOUT_PILL[p.status],
-                            )}
-                          >
-                            {p.status.replace(/_/g, " ")}
-                          </span>
+                    {payouts.map((p) => {
+                      const paidNow = p.paidAmountPaisa ?? (p.status === "PAID" ? p.amountPaisa : 0);
+                      const balance = p.balancePaisa ?? Math.max(0, p.amountPaisa - paidNow);
+                      return (
+                        <div key={p.payoutId} className="rounded-2xl border border-border bg-card p-4">
+                          <div className="flex items-center justify-between">
+                            <p className="text-sm font-bold">{formatINR(p.amountPaisa)}</p>
+                            <span
+                              className={cn(
+                                "rounded px-1.5 py-0.5 text-[9px] font-bold uppercase",
+                                PAYOUT_PILL[p.status],
+                              )}
+                            >
+                              {p.status.replace(/_/g, " ")}
+                            </span>
+                          </div>
+                          <p className="mt-2 text-[12px] text-muted-foreground">
+                            Paid {formatINR(paidNow)}
+                            {balance > 0 ? ` · Balance ${formatINR(balance)}` : ""}
+                          </p>
+                          <p className="mt-1 text-[11px] text-muted-foreground">
+                            {p.payoutId} · cycle {p.cycle} · {formatDate(p.scheduledFor)}
+                            {p.paidAt ? ` · paid ${formatDate(p.paidAt)}` : ""}
+                          </p>
                         </div>
-                        <p className="mt-1 text-[11px] text-muted-foreground">
-                          {p.payoutId} · cycle {p.cycle} · {formatDate(p.scheduledFor)}
-                        </p>
-                      </div>
-                    ))}
+                      );
+                    })}
                   </>
                 )}
               </>

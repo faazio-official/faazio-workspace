@@ -6,6 +6,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"math"
 	"time"
 
@@ -155,12 +156,13 @@ func (r *Repo) PayoutByOrder(ctx context.Context, orderID string) (RiderPayout, 
 		select payout_id, order_id, rider_id, distance_km::float8, base_rate_paisa,
 		       extra_km_charge_paisa, surge_paisa, surge_reason, total_paisa, status::text, paid_at,
 		       payout_mode::text, manual_distance_km::float8, manual_fare_paisa,
-		       calculated_fare_paisa, coalesce(fare_override_reason,'')
+		       calculated_fare_paisa, coalesce(fare_override_reason,''),
+		       coalesce(paid_amount_paisa,0), coalesce(paid_by,'')
 		  from delivery.delivery_payouts where order_id=$1`, orderID).
 		Scan(&p.PayoutID, &p.OrderID, &p.RiderID, &p.DistanceKm, &p.BaseRatePaisa,
 			&p.ExtraKmChargePaisa, &p.SurgePaisa, &p.SurgeReason, &p.TotalPaisa, &p.Status, &paidAt,
 			&p.PayoutMode, &p.ManualDistanceKm, &p.ManualFarePaisa, &p.CalculatedFarePaisa,
-			&p.FareOverrideReason)
+			&p.FareOverrideReason, &p.PaidAmountPaisa, &p.PaidBy)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return RiderPayout{}, false, nil
 	}
@@ -183,7 +185,8 @@ func (r *Repo) PayoutsByRider(ctx context.Context, riderID string, limit int) ([
 		select payout_id, order_id, rider_id, distance_km::float8, base_rate_paisa,
 		       extra_km_charge_paisa, surge_paisa, surge_reason, total_paisa, status::text, paid_at,
 		       payout_mode::text, manual_distance_km::float8, manual_fare_paisa,
-		       calculated_fare_paisa, coalesce(fare_override_reason,'')
+		       calculated_fare_paisa, coalesce(fare_override_reason,''),
+		       coalesce(paid_amount_paisa,0), coalesce(paid_by,'')
 		  from delivery.delivery_payouts where rider_id=$1
 		 order by created_at desc limit $2`, riderID, limit)
 	if err != nil {
@@ -199,7 +202,7 @@ func (r *Repo) PayoutsByRider(ctx context.Context, riderID string, limit int) ([
 		if err := rows.Scan(&p.PayoutID, &p.OrderID, &p.RiderID, &p.DistanceKm, &p.BaseRatePaisa,
 			&p.ExtraKmChargePaisa, &p.SurgePaisa, &p.SurgeReason, &p.TotalPaisa, &p.Status, &paidAt,
 			&p.PayoutMode, &p.ManualDistanceKm, &p.ManualFarePaisa, &p.CalculatedFarePaisa,
-			&p.FareOverrideReason); err != nil {
+			&p.FareOverrideReason, &p.PaidAmountPaisa, &p.PaidBy); err != nil {
 			return nil, err
 		}
 		p.PaidAt = isoTime(paidAt)
@@ -243,4 +246,77 @@ func isoTime(t *time.Time) string {
 		return ""
 	}
 	return t.UTC().Format(time.RFC3339)
+}
+
+// CheckoutPaymentMethod returns the latest non-COINS checkout payment method + status for a
+// customer order (cross-context read by order id, never a sibling repo import). Empty when the
+// order has no payment row. COD orders drive the delivery payment gate (0077).
+func (r *Repo) CheckoutPaymentMethod(ctx context.Context, customerOrderID string) (method, status string, err error) {
+	if err := r.ready(); err != nil {
+		return "", "", err
+	}
+	if customerOrderID == "" {
+		return "", "", nil
+	}
+	err = r.pool.QueryRow(ctx, `
+		select coalesce((select p.method from checkout.payments p
+		                  where p.order_id=$1 and p.method <> 'COINS'
+		                  order by p.created_at desc limit 1), ''),
+		       coalesce((select p.status from checkout.payments p
+		                  where p.order_id=$1 and p.method <> 'COINS'
+		                  order by p.created_at desc limit 1), '')`,
+		customerOrderID).Scan(&method, &status)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return "", "", nil
+	}
+	return method, status, err
+}
+
+// MarkPaymentReceived records the rider's "Payment received" for a COD DROP stop (cash or the
+// delivery UPI QR). Only the accepted rider may mark it; repeating it is idempotent. Once set, the
+// DROP stop may transition to DELIVERED (enforced in UpdateStop).
+func (r *Repo) MarkPaymentReceived(ctx context.Context, riderID, stopID, orderID string) (Order, error) {
+	if err := r.ready(); err != nil {
+		return Order{}, err
+	}
+	tx, err := r.pool.Begin(ctx)
+	if err != nil {
+		return Order{}, err
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+	var (
+		rowOrderID string
+		isDrop     bool
+	)
+	err = tx.QueryRow(ctx, `
+		select s.delivery_order_id, s.stop_type = 'DROP'
+		  from delivery.delivery_stops s
+		  join delivery.delivery_orders o on o.order_id = s.delivery_order_id
+		 where s.stop_id=$1 and o.rider_id=$2 and o.status='ACCEPTED'
+		   and ($3 = '' or s.delivery_order_id=$3)`, stopID, riderID, orderID).
+		Scan(&rowOrderID, &isDrop)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return Order{}, ErrNotFound
+	}
+	if err != nil {
+		return Order{}, err
+	}
+	if !isDrop {
+		return Order{}, fmt.Errorf("%w: payment is collected at the DROP stop", ErrConflict)
+	}
+	tag, err := tx.Exec(ctx, `
+		update delivery.delivery_orders
+		   set payment_received=true, payment_received_at=coalesce(payment_received_at, now()),
+		       updated_at=now()
+		 where order_id=$1`, rowOrderID)
+	if err != nil {
+		return Order{}, err
+	}
+	if tag.RowsAffected() == 0 {
+		return Order{}, ErrNotFound
+	}
+	if err := tx.Commit(ctx); err != nil {
+		return Order{}, err
+	}
+	return r.orderByID(ctx, riderID, rowOrderID)
 }

@@ -51,8 +51,14 @@ func (h *Handler) riderPayouts(w http.ResponseWriter, r *http.Request) {
 }
 
 // settlePayout records a manual "Mark Paid" for one completed delivery. District admins may only
-// settle orders in their own district; the rider never settles their own money.
+// settle orders in their own district; the rider never settles their own money. An optional
+// amountPaisa may be typed by the admin — a smaller amount leaves a balance that carries forward.
 func (h *Handler) settlePayout(w http.ResponseWriter, r *http.Request) {
+	var req payoutSettleRequest
+	if err := httpx.Decode(r, &req); err != nil {
+		httpx.Fail(w, http.StatusBadRequest, "bad_request", "invalid request body")
+		return
+	}
 	orderID := chi.URLParam(r, "orderId")
 	order, err := h.authorizedOrder(r, orderID)
 	if err != nil {
@@ -65,11 +71,16 @@ func (h *Handler) settlePayout(w http.ResponseWriter, r *http.Request) {
 			"only a completed delivery can be paid")
 		return
 	}
-	if _, err := h.calculatePayout(r, orderID); err != nil {
+	calculated, err := h.calculatePayout(r, orderID)
+	if err != nil {
 		h.writeErr(w, err)
 		return
 	}
-	p, ok, err := h.repo.SettleOrderPayout(r.Context(), orderID, auth.UserID(r.Context()))
+	amount := req.AmountPaisa
+	if amount <= 0 {
+		amount = calculated.TotalPaisa
+	}
+	p, ok, err := h.repo.MarkDeliveryPayoutPaid(r.Context(), orderID, amount, auth.UserID(r.Context()))
 	if errors.Is(err, ErrManualFareRequired) {
 		httpx.Fail(w, http.StatusConflict, "manual_fare_required",
 			"record the travelled distance and fare before marking this manual payout paid")
@@ -80,7 +91,7 @@ func (h *Handler) settlePayout(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if !ok {
-		httpx.Fail(w, http.StatusConflict, "not_pending", "payout is not pending")
+		httpx.Fail(w, http.StatusConflict, "already_paid", "payout is already fully paid")
 		return
 	}
 	action := "DELIVERY_PAYOUT_SETTLE"
@@ -89,6 +100,53 @@ func (h *Handler) settlePayout(w http.ResponseWriter, r *http.Request) {
 	}
 	h.auditOrderEvent(r.Context(), action, orderID, nil, p)
 	httpx.JSON(w, http.StatusOK, p)
+}
+
+// markDeliveryPayoutPaid is the canonical manual payout route ("Mark as Paid" with a typed amount).
+func (h *Handler) markDeliveryPayoutPaid(w http.ResponseWriter, r *http.Request) {
+	var req payoutSettleRequest
+	if err := httpx.Decode(r, &req); err != nil {
+		httpx.Fail(w, http.StatusBadRequest, "bad_request", "invalid request body")
+		return
+	}
+	if req.AmountPaisa <= 0 {
+		httpx.Fail(w, http.StatusBadRequest, "bad_request", "amountPaisa is required")
+		return
+	}
+	orderID := chi.URLParam(r, "orderId")
+	order, err := h.authorizedOrder(r, orderID)
+	if err != nil {
+		h.writeErr(w, err)
+		return
+	}
+	if order.Status != OrderRouteComplete {
+		httpx.Fail(w, http.StatusConflict, "not_completed", "only a completed delivery can be paid")
+		return
+	}
+	if _, err := h.calculatePayout(r, orderID); err != nil {
+		h.writeErr(w, err)
+		return
+	}
+	p, ok, err := h.repo.MarkDeliveryPayoutPaid(r.Context(), orderID, req.AmountPaisa, auth.UserID(r.Context()))
+	if errors.Is(err, ErrManualFareRequired) {
+		httpx.Fail(w, http.StatusConflict, "manual_fare_required",
+			"record the travelled distance and fare before marking this manual payout paid")
+		return
+	}
+	if err != nil {
+		h.writeErr(w, err)
+		return
+	}
+	if !ok {
+		httpx.Fail(w, http.StatusConflict, "already_paid", "payout is already fully paid")
+		return
+	}
+	h.auditOrderEvent(r.Context(), "DELIVERY_MANUAL_PAYOUT_PAID", orderID, nil, p)
+	httpx.JSON(w, http.StatusOK, p)
+}
+
+type payoutSettleRequest struct {
+	AmountPaisa int64 `json:"amountPaisa"`
 }
 
 // payoutSettings reads the rider rate card (state/super admin).

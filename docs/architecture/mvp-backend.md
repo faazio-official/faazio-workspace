@@ -135,6 +135,8 @@ All read-through: Valkey → Supabase/Mongo → populate. Cloudflare caches publ
 | `GET /seller/orders`, `GET /seller/orders/{orderID}`, `PUT /seller/orders/{orderID}/accept`, `PUT /seller/orders/{orderID}/reject` | checkout | seller app/web order board scoped to the caller's stores. Accept is NEW→PACKED (and queues auto-dispatch); reject is NEW→REJECTED, marks captured `checkout.payments` rows `REFUNDED`, returns `refundedPaisa`, and notifies the customer (`ORDER_REJECTED`). `0056` adds the `REJECTED` status + `rejection_reason`. A non-NEW order returns 409 `order_not_pending` |
 | `POST /checkout/validate-coupon` | checkout | authenticated coupon preview (`{code, app, state, subtotal}` → `{valid, reason, discount, …}`); delegates to `contracts.CouponValidator` (pure `DecideCoupon`), same rules as settlement |
 | `POST /ads/events` | ads | authenticated impression/click (`RecordEvent`); impressions de-duped per user via `faazio:v1:ads:seen:{userId}:{slotId}` 300 s; `orders_attributed` bumped server-side at checkout (one round-trip covers the rail slot or the hero campaign row) |
+| `POST /delivery/{orderId}/stop/{stopId}/payment-received`; `POST /admin/delivery/payouts/{orderId}/mark-paid` | delivery | COD gate + manual rider payout (`0077`): the rider confirms "Payment received" at a COD DROP (`payment_received` on `delivery.delivery_orders`) before the drop can reach `DELIVERED` — `409 payment_not_received` otherwise; superadmin/state-admin mark-paid (`{amountPaisa}`) accumulates `paid_amount_paisa`, status `PARTIAL` until fully paid, balance carries forward. `POST /delivery/payouts/{orderId}/settle` still works (optional amount). No Razorpay transfer |
+| `GET /admin/seller/payouts`, `POST /admin/seller/payouts/{sellerId}/mark-paid` | payouts (`internal/payouts`) | manual seller payout ledger (`0077`): owed = gross − commission − TCS − TDS per seller per cycle from delivered `checkout.orders` + `directory.stores.platform_fee_pct`, merged with `paid_amount_paisa`; status PENDING/PARTIAL/PAID; mark-paid (super admin, `{cycle, amountPaisa}`) carries the balance forward. No Razorpay Route |
 | `GET /ads/hero` | ads | public anon LIVE hero projection for a `placement`/`app`/`category`/`storeId` context (cached 300 s, purged by prefix on publish/takedown); empty context dims = any, newest-first, ≤8 |
 | `POST /ads/campaigns` | ads | seller/state/super: **self-serve publish** a hero campaign. Machine-checks the admin used to do — ownership resolved against `catalog.products`/`directory.menus`/`directory.stores`/`directory.dining_venues`, placement↔sub-app fit, R2-CDN-only poster, title/subtitle/CTA bounds, ≤90-day window, ≤3 LIVE rows per (seller, placement) and ≤10 publishes/seller/day — then inserts one `LIVE` row per placement sharing a `campaign_id`. A failed check returns 400/403/429 and writes nothing. Purges the hero cache namespace |
 | `GET /ads/campaigns` | ads | seller/state/super: campaign rows scoped by `sellerId`/`state` (seller/admin consoles) |
@@ -306,19 +308,20 @@ contract stable so the swap is invisible to the app):
     `SELECT count(*) WHERE created_at < now() - interval '7 days'` before deploy).
     Owner: `db-schema.md` §12.9/§12.20, `web-portal.md` (copy), `caching-cloudflare-valkey.md` §8.
 
-21. ✅ **Seller onboarding + Razorpay Route split (`0039`):** `sellers.sellers` gains
-    `platform_fee_pct` (admin-editable, FOOD floor 5%), `razorpay_linked_account_id`,
-    `contact_email`, FSSAI fields, OTP-signature fields and rejection reason/history;
-    `bank_accounts.bank_name`, `kyc_documents.asset_id`, and new append-only
-    `sellers.kyc_verification_log` + `sellers.seller_request_history`. `payments.payouts` gains
-    `razorpay_transfer_id`/`release_after`/`released_at`. Mobile replaces the old `SellWithUsScreen`
-    with `SellerRegistrationScreen` (location state, private-bucket passbook/FSSAI, OTP signature);
-    the portal state/super seller detail performs fee edits, per-document verification, rejection and
-    **Verify KYC** (Route linked account + activation). `internal/platform/razorpayroute` is the
-    domain-free Route client (accounts, held transfers, release/reverse, webhook HMAC); a settlement
-    worker releases due holds after the 7-day window. Full account numbers are forwarded to Razorpay
-    in memory and never stored. Owner: `db-schema.md` §12.21, `mobile-app.md`, `web-portal.md`,
-    `server-gateway-plan.md`, `monolith-breakdown.md` §1.
+21. ✅ **Razorpay Route removed — manual payouts (`0077`).** The customer Razorpay UPI rail (`0066`)
+    is **unchanged and kept**, but the seller split via Razorpay Route was **removed**: no linked
+    accounts, no held transfers, no Route webhook or `Releaser` worker — `internal/platform/razorpayroute`
+    and `internal/settlement` are deleted. Seller and rider payouts are manual ledgers:
+    `internal/payouts` serves `GET /settlements`, `GET /payouts`, `GET /seller/payments` +
+    `GET /seller/payments/{cycleId}` (seller console), `GET /admin/seller/payouts` (super/state;
+    owed = gross − commission − TCS − TDS per seller per cycle, merged with paid amounts, status
+    PENDING/PARTIAL/PAID) and `POST /admin/seller/payouts/{sellerId}/mark-paid` (super admin,
+    `{cycle, amountPaisa}`, balance carries forward). Delivery mark-paid is
+    `POST /admin/delivery/payouts/{orderId}/mark-paid` (`{amountPaisa}`, PARTIAL until fully paid),
+    and a rider-confirmed `POST /delivery/{orderId}/stop/{stopId}/payment-received` gates COD DROPs
+    before DELIVERED (see `db-schema.md` §12.31). Seller onboarding KYC/review fields from `0039`
+    remain. Owner: `db-schema.md` §12.31, `mobile-app.md`, `web-portal.md`, `server-gateway-plan.md`,
+    `monolith-breakdown.md` §1.
 
 ---
 

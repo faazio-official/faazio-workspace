@@ -86,6 +86,10 @@ interface RawPayout {
   amount: number;
   status: string;
   scheduledFor: string;
+  paidAmount?: number;
+  balance?: number;
+  paidAt?: string;
+  paidBy?: string;
 }
 
 interface RawCoupon extends Omit<CouponRecord, "maxDiscountPaisa"> {
@@ -368,6 +372,10 @@ export async function hydrateFromGateway(): Promise<boolean> {
         amountPaisa: toPaisa(p.amount),
         status: p.status as PayoutRecord["status"],
         scheduledFor: p.scheduledFor,
+        ...(p.paidAmount != null ? { paidAmountPaisa: toPaisa(p.paidAmount) } : {}),
+        ...(p.balance != null ? { balancePaisa: toPaisa(p.balance) } : {}),
+        ...(p.paidAt ? { paidAt: p.paidAt } : {}),
+        ...(p.paidBy ? { paidBy: p.paidBy } : {}),
       }),
     );
     touched = true;

@@ -36,7 +36,7 @@ var allowedMimes = map[string]string{
 // allowedOwnerTypes mirrors the DB check constraint.
 var allowedOwnerTypes = map[string]bool{
 	"": true, "PRODUCT": true, "STORE": true, "MENU": true, "BRAND": true,
-	"BANNER": true, "AVATAR": true, "PRESCRIPTION": true, "KYC": true,
+	"BANNER": true, "AVATAR": true, "PRESCRIPTION": true, "KYC": true, "QR": true,
 }
 
 // Handler serves the media registry endpoints. The gateway is the only minter/signer; clients never

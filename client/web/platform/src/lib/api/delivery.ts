@@ -247,12 +247,14 @@ export interface AdminDeliveryPayout {
   payoutMode: DeliveryPayoutMode;
   calculatedFarePaisa: number;
   totalPaisa: number;
-  status: "PENDING" | "PAID" | string;
+  status: "PENDING" | "PARTIAL" | "PAID" | string;
   manualDistanceKm?: number;
   manualFarePaisa?: number;
   fareOverrideReason?: string;
   paidAt?: string;
   paidBy?: string;
+  paidAmountPaisa?: number;
+  balancePaisa?: number;
   completedAt?: string;
   createdAt?: string;
 }
@@ -321,4 +323,12 @@ export function listAdminDeliveryPayouts(
 /** Mark Paid. No Razorpay transfer is initiated; the admin settles the rider in person. */
 export function settleDeliveryPayout(orderId: string) {
   return remote.post(`/delivery/payouts/${encodeURIComponent(orderId)}/settle`);
+}
+
+/** Manual "Mark as Paid" with a typed amount. A smaller amount leaves a balance that carries forward. */
+export function markDeliveryPayoutPaid(
+  orderId: string,
+  input: { amountPaisa: number },
+) {
+  return remote.post(`/admin/delivery/payouts/${encodeURIComponent(orderId)}/mark-paid`, input);
 }

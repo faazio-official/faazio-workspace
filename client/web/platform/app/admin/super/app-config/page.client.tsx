@@ -48,9 +48,12 @@ import {
 import { formatDateTime } from "@/lib/format";
 import {
   deleteAppConfig,
+  getDeliveryUpipQr,
   listAppConfig,
   updateAppConfig,
+  updateDeliveryUpipQr,
 } from "@/lib/api";
+import { uploadDeliveryQr } from "@/lib/media/deliveryQr";
 import type {
   AppConfigCategory,
   AppConfigRow,
@@ -131,6 +134,24 @@ function AppConfigPage() {
   const [formAppVariant, setFormAppVariant] = useState<AppConfigVariant>("all");
   const [formSecret, setFormSecret] = useState(false);
   const [formDescription, setFormDescription] = useState("");
+
+  // Delivery UPI QR (migration 0077): one public QR shown to delivery riders so a COD customer can
+  // pay by scanning. Uploaded to R2 by the super admin.
+  const [qrUrl, setQrUrl] = useState("");
+  const [qrAssetId, setQrAssetId] = useState("");
+  const [qrBusy, setQrBusy] = useState(false);
+
+  useEffect(() => {
+    void (async () => {
+      try {
+        const qr = await getDeliveryUpipQr();
+        setQrUrl(qr.qrUrl ?? "");
+        setQrAssetId(qr.assetId ?? "");
+      } catch {
+        // non-fatal: QR stays unset (gateway unconfigured)
+      }
+    })();
+  }, []);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -237,6 +258,39 @@ function AppConfigPage() {
     }
   }
 
+  async function handleQrPick(file: File | undefined) {
+    if (!file) return;
+    setQrBusy(true);
+    try {
+      const uploaded = await uploadDeliveryQr(file);
+      setQrUrl(uploaded.qrUrl);
+      setQrAssetId(uploaded.assetId ?? "");
+    } catch (err) {
+      toast.error("Could not upload the QR image", {
+        description: err instanceof Error ? err.message : undefined,
+      });
+    } finally {
+      setQrBusy(false);
+    }
+  }
+
+  async function saveQr() {
+    setQrBusy(true);
+    try {
+      const assetId = qrAssetId.trim();
+      await updateDeliveryUpipQr(assetId ? { qrUrl: qrUrl.trim(), assetId } : { qrUrl: qrUrl.trim() });
+      toast.success(qrUrl.trim() ? "Delivery UPI QR updated" : "Delivery UPI QR cleared", {
+        description: "Riders see this QR at the DROP stop for COD orders.",
+      });
+    } catch (err) {
+      toast.error("Could not save the delivery UPI QR", {
+        description: err instanceof Error ? err.message : undefined,
+      });
+    } finally {
+      setQrBusy(false);
+    }
+  }
+
   const sheetOpen = creating || Boolean(editing);
 
   return (
@@ -253,6 +307,65 @@ function AppConfigPage() {
           </div>
         }
       />
+
+      <SectionCard
+        title="Delivery UPI QR"
+        description="One QR shown to every delivery rider at the DROP stop, so a COD customer can pay by scanning. Rider confirms 'Payment received' before marking the order delivered."
+        actions={
+          <ComponentHelp id="delivery-upi-qr" label="About the delivery UPI QR" />
+        }
+      >
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-start">
+          <div className="flex h-40 w-40 shrink-0 items-center justify-center overflow-hidden rounded-xl border border-border bg-muted">
+            {qrUrl ? (
+              <img src={qrUrl} alt="Delivery UPI QR" className="h-full w-full object-contain" />
+            ) : (
+              <span className="px-3 text-center text-[11px] text-muted-foreground">
+                No QR set
+              </span>
+            )}
+          </div>
+          <div className="min-w-0 space-y-2.5 sm:flex-1">
+            <div className="space-y-1.5">
+              <Label htmlFor="qr-file">Upload QR image (R2)</Label>
+              <Input
+                id="qr-file"
+                type="file"
+                accept="image/png,image/jpeg,image/webp"
+                className="h-9 w-full cursor-pointer"
+                disabled={qrBusy}
+                onChange={(e) => void handleQrPick(e.target.files?.[0])}
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="qr-url">…or paste the image URL</Label>
+              <Input
+                id="qr-url"
+                placeholder="https://… / r2:…"
+                value={qrUrl}
+                onChange={(e) => setQrUrl(e.target.value)}
+                disabled={qrBusy}
+              />
+            </div>
+            <div className="flex gap-2">
+              <Button size="sm" onClick={() => void saveQr()} disabled={qrBusy}>
+                {qrBusy ? "Saving…" : "Save QR"}
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                disabled={qrBusy || !qrUrl}
+                onClick={() => {
+                  setQrUrl("");
+                  setQrAssetId("");
+                }}
+              >
+                Clear
+              </Button>
+            </div>
+          </div>
+        </div>
+      </SectionCard>
 
       <SectionCard
         title="Remote-managed settings"

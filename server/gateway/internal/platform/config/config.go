@@ -57,16 +57,13 @@ type Config struct {
 	CFZoneID   string
 	CFAPIToken string
 	// Razorpay: secrets are env-only and never committed. Customer payments (UPI order creation +
-	// webhook reconciliation). Empty keys mean the customer payment rail is unavailable (checkout
-	// returns 503); the gateway never fabricates a paid order.
+	// webhook reconciliation) only — Razorpay Route/settlement was removed (manual payouts).
+	// Empty keys mean the customer payment rail is unavailable (checkout returns 503); the gateway
+	// never fabricates a paid order. Test mode is automatic: set these to the Razorpay TEST keys in
+	// pre-prod and the same code drives test-mode orders/webhooks.
 	RazorpayKeyID         string
 	RazorpayKeySecret     string
 	RazorpayWebhookSecret string
-	// Razorpay Route (seller split payments). Falls back to the main Razorpay key pair when the
-	// dedicated Route envs are unset, so one merchant account works out of the box.
-	RazorpayRouteKeyID         string
-	RazorpayRouteKeySecret     string
-	RazorpayRouteWebhookSecret string
 	// FCMProjectID + FCMServiceAccount enable the gateway's embedded FCM HTTP v1 sender (Android
 	// push). FCMServiceAccount is the raw JSON of the Firebase service account private key — a
 	// secret, never committed. When unset, push delivery stays disabled (in-app inbox only).
@@ -104,13 +101,9 @@ func Load() Config {
 		PublicBaseURL:               envFirst("PUBLIC_BASE_URL", "RENDER_EXTERNAL_URL"),
 		CFZoneID:                    env("CF_ZONE_ID", ""),
 		CFAPIToken:                  env("CF_API_TOKEN", ""),
-		RazorpayKeyID:               env("RAZORPAY_KEY_ID", ""),
-		RazorpayKeySecret:           env("RAZORPAY_KEY_SECRET", ""),
-		RazorpayWebhookSecret:       env("RAZORPAY_WEBHOOK_SECRET", ""),
-		// Route defaults to the main key pair; a separate Route webhook secret is optional.
-		RazorpayRouteKeyID:         envFirst("RAZORPAY_ROUTE_KEY_ID", "RAZORPAY_KEY_ID"),
-		RazorpayRouteKeySecret:     envFirst("RAZORPAY_ROUTE_KEY_SECRET", "RAZORPAY_KEY_SECRET"),
-		RazorpayRouteWebhookSecret: envFirst("RAZORPAY_ROUTE_WEBHOOK_SECRET", "RAZORPAY_WEBHOOK_SECRET"),
+RazorpayKeyID:         env("RAZORPAY_KEY_ID", ""),
+		RazorpayKeySecret:     env("RAZORPAY_KEY_SECRET", ""),
+		RazorpayWebhookSecret: env("RAZORPAY_WEBHOOK_SECRET", ""),
 		FCMProjectID:               env("FCM_PROJECT_ID", ""),
 		FCMServiceAccount:          env("FCM_SERVICE_ACCOUNT_JSON", ""),
 		AllowedOrigins:             splitCSV(env("ALLOWED_ORIGINS", "")),

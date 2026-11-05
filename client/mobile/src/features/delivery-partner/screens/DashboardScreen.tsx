@@ -38,6 +38,15 @@ const HEARTBEAT_MS = 120_000;
 
 const rupees = (paisa: number) => `₹${(paisa / 100).toFixed(0)}`;
 
+/** Payment tag for an offer/active order: prepaid (UPI) vs collect-at-door (COD) state. */
+const paymentLabel = (order: DeliveryOrder): string => {
+  if (!order.paymentMethod) return '';
+  if (order.paymentRequired) {
+    return order.paymentReceived ? 'Payment received' : 'COD · collect at door';
+  }
+  return `${order.paymentMethod} · prepaid`;
+};
+
 export function DashboardScreen({ navigation }: Props) {
   const rider = useDeliveryPartnerStore((s) => s.rider);
   const setRider = useDeliveryPartnerStore((s) => s.setRider);
@@ -354,6 +363,9 @@ export function DashboardScreen({ navigation }: Props) {
                     {order.stops.length} stops · {Math.round(order.totalDistanceMeters / 1000)} km ·{' '}
                     {Math.round(order.estimatedDurationSeconds / 60)} min · {rupees(order.payoutAmountPaisa)}
                   </AppText>
+                  {paymentLabel(order) ? (
+                    <AppText style={styles.paymentTag}>{paymentLabel(order)}</AppText>
+                  ) : null}
                   <View style={styles.actions}>
                     <View style={styles.flex}>
                       <PrimaryButton
@@ -399,6 +411,9 @@ export function DashboardScreen({ navigation }: Props) {
                   <AppText style={styles.orderMeta}>
                     {order.stops.map((s) => s.label || s.stopType.toLowerCase()).join(' → ')}
                   </AppText>
+                  {paymentLabel(order) ? (
+                    <AppText style={styles.paymentTag}>{paymentLabel(order)}</AppText>
+                  ) : null}
                   <AppText style={styles.open}>Open route →</AppText>
                 </Card>
               </TouchableOpacity>
@@ -450,6 +465,7 @@ const styles = StyleSheet.create({
   empty: { fontSize: ms(13), color: DP.muted, lineHeight: ms(19) },
   badge: { fontSize: ms(11), fontWeight: '900', color: DP.brand },
   open: { fontSize: ms(12), fontWeight: '900', color: DP.brand, marginTop: vs(8) },
+  paymentTag: { fontSize: ms(11), fontWeight: '800', color: DP.warning, marginTop: vs(4) },
   linkWrap: { alignItems: 'center', marginTop: vs(18) },
   link: { fontSize: ms(12), fontWeight: '800', color: DP.muted },
 });

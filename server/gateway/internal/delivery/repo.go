@@ -511,6 +511,16 @@ func (r *Repo) CreateOrder(ctx context.Context, o Order, stops []Stop, otpHash s
 	if err := r.ready(); err != nil {
 		return Order{}, err
 	}
+	// Payment collection model (0077): mirror the checkout payment method so the rider knows whether
+	// the customer pays on delivery. COD orders require the rider's "Payment received" before the
+	// DROP is DELIVERED.
+	method, payStatus, err := r.CheckoutPaymentMethod(ctx, o.CustomerOrderID)
+	if err != nil {
+		return Order{}, err
+	}
+	o.PaymentMethod = method
+	o.PaymentStatus = payStatus
+	o.PaymentRequired = strings.EqualFold(method, "COD")
 	tx, err := r.pool.Begin(ctx)
 	if err != nil {
 		return Order{}, err
@@ -521,13 +531,15 @@ func (r *Repo) CreateOrder(ctx context.Context, o Order, stops []Stop, otpHash s
 		  (order_id, customer_order_id, store_id, rider_id, status, route_sequence,
 		   total_distance_meters, estimated_duration_seconds, payout_amount_paisa, require_otp,
 		   district_code, payout_mode, calculated_fare_paisa, manual_distance_km, manual_fare_paisa,
-		   fare_override_reason, assigned_at, expires_at)
+		   fare_override_reason, assigned_at, expires_at,
+		   payment_method, payment_required)
 		values ($1,$2,$3,$4,'ASSIGNED',$5,$6,$7,$8,$9,nullif($10,''),$11::delivery_payout_mode,
-		        $12,$13,$14,nullif($15,''),now(),$16)`,
+		        $12,$13,$14,nullif($15,''),now(),$16,nullif($17,''),$18)`,
 		o.OrderID, o.CustomerOrderID, o.StoreID, o.RiderID, o.RouteSequence,
 		o.TotalDistanceMeters, o.EstimatedDurationSecs, o.PayoutAmountPaisa, o.RequireOTP,
 		o.DistrictCode, payoutModeOrDefault(o.PayoutMode), o.CalculatedFarePaisa,
-		o.ManualDistanceKm, o.ManualFarePaisa, o.FareOverrideReason, assignExpires)
+		o.ManualDistanceKm, o.ManualFarePaisa, o.FareOverrideReason, assignExpires,
+		o.PaymentMethod, o.PaymentRequired)
 	if err != nil {
 		return Order{}, err
 	}
@@ -687,6 +699,19 @@ func (r *Repo) UpdateStop(ctx context.Context, riderID, stopID, status, failureR
 		if pickup != StopPickedUp {
 			return Order{}, fmt.Errorf("%w: pick the order up before updating a drop", ErrConflict)
 		}
+		// COD gate (0077): a DROP may not be DELIVERED before the rider confirms "Payment received"
+		// against the delivery QR / cash. Online-paid (UPI) orders skip the gate.
+		if status == StopDelivered {
+			var paymentRequired, paymentReceived bool
+			if err := tx.QueryRow(ctx, `
+				select payment_required, payment_received from delivery.delivery_orders
+				 where order_id=$1`, orderID).Scan(&paymentRequired, &paymentReceived); err != nil {
+				return Order{}, err
+			}
+			if paymentRequired && !paymentReceived {
+				return Order{}, ErrPaymentRequired
+			}
+		}
 	}
 	var arrived, completed any
 	if status == StopAtPickup || status == StopAtCustomer {
@@ -836,7 +861,7 @@ func (r *Repo) orderByID(ctx context.Context, riderID, orderID string) (Order, e
 		return Order{}, err
 	}
 	var o Order
-	var accepted, expires, completed *time.Time
+	var accepted, expires, completed, payReceived *time.Time
 	var assigned, created time.Time
 	var excluded []byte
 	err := r.pool.QueryRow(ctx, `
@@ -845,7 +870,9 @@ func (r *Repo) orderByID(ctx context.Context, riderID, orderID string) (Order, e
 		       coalesce(district_code,''), payout_mode::text, manual_distance_km::float8,
 		       manual_fare_paisa, calculated_fare_paisa, coalesce(fare_override_reason,''),
 		       assigned_at, accepted_at, expires_at, completed_at, created_at,
-		       dispatch_attempts, excluded_rider_ids
+		       dispatch_attempts, excluded_rider_ids,
+		       coalesce(payment_method,''), coalesce(payment_status,''), payment_required,
+		       payment_received, payment_received_at
 		  from delivery.delivery_orders
 		 where order_id=$1 and ($2 = '' or rider_id=$2)`, orderID, riderID).
 		Scan(&o.OrderID, &o.CustomerOrderID, &o.StoreID, &o.RiderID, &o.Status, &o.RouteSequence,
@@ -853,7 +880,8 @@ func (r *Repo) orderByID(ctx context.Context, riderID, orderID string) (Order, e
 			&o.DistrictCode, &o.PayoutMode, &o.ManualDistanceKm, &o.ManualFarePaisa,
 			&o.CalculatedFarePaisa, &o.FareOverrideReason,
 			&assigned, &accepted, &expires, &completed, &created,
-			&o.DispatchAttempts, &excluded)
+			&o.DispatchAttempts, &excluded,
+			&o.PaymentMethod, &o.PaymentStatus, &o.PaymentRequired, &o.PaymentReceived, &payReceived)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return Order{}, ErrNotFound
 	}
@@ -868,6 +896,7 @@ func (r *Repo) orderByID(ctx context.Context, riderID, orderID string) (Order, e
 	o.ExpiresAt = iso(expires)
 	o.CompletedAt = iso(completed)
 	o.CreatedAt = created.UTC().Format(time.RFC3339)
+	o.PaymentReceivedAt = iso(payReceived)
 	rows, err := r.pool.Query(ctx, `
 		select stop_id, delivery_order_id, sequence, stop_type::text, status::text, label, address,
 		       latitude, longitude, customer_name, customer_phone,
