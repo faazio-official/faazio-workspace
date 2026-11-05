@@ -420,13 +420,17 @@ are never public.
 
 ### Razorpay customer payments (UPI + COD)
 
-Migration `0066` (customer Razorpay link columns) must be applied. The customer rail reuses the base
-`RAZORPAY_KEY_ID` / `RAZORPAY_KEY_SECRET` / `RAZORPAY_WEBHOOK_SECRET` (the ones already set in Render).
+**Status: not yet configured — rail disabled (`503 payments_disabled`).** The Razorpay merchant
+registration/key setup is **pending** (near-term task). Until the keys are set, the gateway deploys
+and runs with the customer rail off: `POST /razorpay/customer/orders` and
+`POST /webhooks/razorpay/payments` return `503 payments_disabled`, and no synthetic paid order is ever
+fabricated. UPI checkout fails at the order step while disabled; COD and manual payouts are unaffected.
+
+Migration `0066` (customer Razorpay link columns) must be applied. When enabling, set the base
+`RAZORPAY_KEY_ID` / `RAZORPAY_KEY_SECRET` / `RAZORPAY_WEBHOOK_SECRET` in Render and roll the gateway.
 No merchant VPA env is used — reconciliation is by `razorpay_order_id` and the raw UPI intent `pa` is the
-client-side default. With either key unset the customer rail is **disabled**: `POST /razorpay/customer/orders`
-and `POST /webhooks/razorpay/payments` return `503 payments_disabled`, and the gateway never fabricates a
-synthetic paid order. Set the keys before accepting live payments. Register the customer webhook in the
-Razorpay dashboard at `https://api.faazio.com/webhooks/razorpay/payments` for `payment.captured`,
+client-side default. Register the customer webhook in the Razorpay dashboard at
+`https://api.faazio.com/webhooks/razorpay/payments` for `payment.captured`,
 `payment.authorized` and `payment.failed`; routing back into the app also relies on the
 `faazio://payment/callback` URL scheme (registered on Android + iOS).
 
@@ -481,7 +485,7 @@ Run **each pending** migration (numeric order) → then roll the Render deploy. 
 - [ ] SDUI drift (optional but recommended): `node server/supabase/diagnostics/generate-sdui-references.mjs` regenerates `verify-sdui-references.sql`; run it in the Supabase SQL Editor — expect **no rows** (a referenced `storeId`/`productId` with no `directory.vendors`/`catalog.products` row renders its SDUI section empty).
 - [ ] Push delivery: `FCM_PROJECT_ID` + `FCM_SERVICE_ACCOUNT_JSON` (server-side Firebase service-account key — a Render secret env var) set for the gateway's embedded FCM sender. See `FIREBASE_AUTH.md`.
 - [ ] Manual payouts: `0077` applied; no Razorpay Route keys/webhook required (Route + `internal/settlement` removed — seller/rider payouts are manual mark-paid ledgers); `R2_PRIVATE_BUCKET` set.
-- [ ] Customer payments: `0066` applied; Razorpay **customer** webhook `/webhooks/razorpay/payments` registered (`payment.captured/authorized/failed`).
+- [ ] Customer payments: `0066` applied. **Pending today** (Razorpay merchant keys not set): the rail stays `503 payments_disabled`, which is the intended state for now — when the keys are ready, set `RAZORPAY_KEY_ID`/`RAZORPAY_KEY_SECRET`/`RAZORPAY_WEBHOOK_SECRET`, register `/webhooks/razorpay/payments` (`payment.captured/authorized/failed`) and roll the gateway.
 - [ ] Release signed and smoke-tested on a device (R8 gate: Home → Cart → Checkout → Pharma).
 - [ ] Store metadata / data-safety updated (see Google Play §4 answer sheet; delete-account URL + in-app flow verified).
 
