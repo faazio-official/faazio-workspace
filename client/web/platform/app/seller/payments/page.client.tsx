@@ -51,6 +51,7 @@ function SellerPayments() {
   const [pick, setPick] = useState(false);
 
   const gross = ledger.reduce((t, l) => t + l.orderValuePaisa, 0);
+  const commission = ledger.reduce((t, l) => t + l.commissionPaisa, 0);
   const tcs = ledger.reduce((t, l) => t + l.tcsPaisa, 0);
   const tds = ledger.reduce((t, l) => t + l.tdsPaisa, 0);
   const productTax = ledger.reduce((t, l) => t + l.productTaxPaisa, 0);
@@ -90,11 +91,15 @@ function SellerPayments() {
             <Card>
               <p className="text-[11px] text-muted-foreground">All-time settlement · {cycles.length} cycles</p>
               <p className="mt-1 text-2xl font-bold">{formatINR(net)}</p>
-              <p className="text-[11px] text-muted-foreground">Net payout after taxes</p>
+              <p className="text-[11px] text-muted-foreground">Net payout after commission & taxes</p>
               <div className="mt-3 grid grid-cols-2 gap-2 border-t border-border pt-3 text-xs">
                 <div>
                   <p className="text-muted-foreground">Gross order value</p>
                   <b>{formatINR(gross)}</b>
+                </div>
+                <div>
+                  <p className="text-muted-foreground">Platform commission</p>
+                  <b className="text-brand">−{formatINR(commission)}</b>
                 </div>
                 <div>
                   <p className="text-muted-foreground">Product GST</p>
@@ -225,7 +230,7 @@ function SellerPayments() {
             <Card>
               <p className="text-sm font-bold">Download invoices</p>
               <p className="text-[10px] text-muted-foreground">
-                Tax invoices per settlement cycle · no platform commission
+                Settlement invoices per cycle · platform fee, TCS and TDS itemised
               </p>
               <div className="mt-2 divide-y divide-border">
                 {cycles.length === 0 ? (
@@ -281,6 +286,11 @@ function SellerPayments() {
           <div className="pb-4">
             {[
               { label: "Order value", value: formatINR(detail.orderValuePaisa) },
+              {
+                label: "Platform commission",
+                value: `−${formatINR(detail.commissionPaisa)}`,
+                negative: true,
+              },
               { label: "TCS", value: `−${formatINR(detail.tcsPaisa)}`, negative: true },
               { label: "TDS", value: `−${formatINR(detail.tdsPaisa)}`, negative: true },
               { label: "Product GST", value: formatINR(detail.productTaxPaisa) },

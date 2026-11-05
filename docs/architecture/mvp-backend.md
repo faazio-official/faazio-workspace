@@ -84,7 +84,7 @@ set. See `db-schema.md` §12.16.
 | **anon read** | public catalog / stores / public reviews | `catalog.products`, `directory.stores`, `reviews.vendor_reviews` (public columns only) |
 | **auth-scoped** | own rows only (`auth.uid()`) | `checkout.orders`, `inventory.carts`, own `reviews.vendor_ratings` |
 | **partner/role-scoped** (`0015`) | custom JWT claims `app_role`/`seller_id`/`district_code`/`state_code` | `sellers.*`, `promo.*`, `ads.*`, `payments.*`, `admins.*`, `support.tickets`, `checkout.returns` |
-| **service-role only** | writes / stock mutations / admin | `inventory.stock` decrements, `checkout` writes, moderation, `payments.settlement_ledger`/`payouts` |
+| **service-role only** | writes / stock mutations / admin | `inventory.stock` decrements, `checkout` writes, moderation, `payments.payouts`/`payout_invoices` (`settlement_ledger` is a legacy read view — no writer) |
 
 - PII columns (`phone`/`email`/address/`user_id` linkage) are never exposed by anon/auth read policies.
 - **Mobile auth is Firebase**, so `auth.uid()` policies apply to the legacy portal/Supabase path. The

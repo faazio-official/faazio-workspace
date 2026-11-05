@@ -526,14 +526,15 @@ default it to `https://app.faazio.com`.
   `degraded:true` and is labelled in `BreakdownCard`. Multi-store carts quote every store and keep
   the furthest, matching settlement.
 - **Server:** `CreateOrder` charges PICKUP → 0 / DELIVERY → furthest pinned store ×
-  `tax.delivery_fee_settings` (`0053`); `taxmath.Compute` zeroes platform commission/GST — sellers
-  keep full gross, only statutory TCS/TDS are withheld (`SellerNet = Gross − TCS − TDS`).
-  `GET /checkout/delivery-fee?storeId=&lat=&lng=` is auth-scoped.
-- **Web portal:** the seller product page dropped the commission/TCS/TDS/delivery DeductionsCard and
-  the "Platform-managed" line; the pricing floor is commission-free (25% of MRP). The Payments page
-  no longer shows a Commission KPI/column, Returns refund the full order value (no 8% dock), the
-  super-admin settings page dropped the Commission field, and the ledger fixture keeps commission/GST
-  at zero — mirroring the server `settlement` (commission = 0).
+  `tax.delivery_fee_settings` (`0053`); `taxmath.Compute` charges each line's per-store
+  `directory.stores.platform_fee_pct` (platform GST recorded as the platform's liability, not
+  withheld), so `SellerNet = Gross − commission − TCS − TDS` and the per-order invoice equals the
+  payouts ledger and the portal preview to the paisa. `GET /checkout/delivery-fee?storeId=&lat=&lng=`
+  is auth-scoped.
+- **Web portal:** the seller product page shows a live "What you keep" DeductionsCard on Pricing and
+  Review (platform fee, platform GST as platform liability, TCS, TDS, net payout) using the picked
+  shop's `platformFeePct`; the Payments page shows the settlement ledger with commission, TCS, TDS
+  and product/platform GST; the ledger fixture mirrors the server settlement.
 - **Follow-up fixes (W65):** `CreateOrder` now falls back to the base card fee (`tax.delivery_fee_settings`)
   instead of the legacy flat ₹50 when there is no live fix or pinned store, so the amount charged
   always matches the client's displayed default and the `GET /checkout/delivery-fee` quote.

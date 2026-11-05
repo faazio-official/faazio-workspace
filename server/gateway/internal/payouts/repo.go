@@ -1,8 +1,10 @@
-// Package payouts owns the manual seller payout ledger (payments.settlement_ledger +
-// payments.payouts, migrations 0015/0051 + 0077). Razorpay Route is removed: a payout is a
-// recorded "Mark as Paid" entry with balance carry-forward, never a transfer. Money is
-// server-derived (paisa on the wire); the client never writes a ledger row. Writes are
-// service_role; the seller-facing reads are scoped to the token.
+// Package payouts owns the manual seller payout ledger (payments.payouts + payout_invoices,
+// migrations 0015/0051 + 0077/0078). Razorpay Route is removed: a payout is a recorded "Mark as
+// Paid" entry with balance carry-forward, never a transfer. The seller-facing ledger rows and the
+// admin board are both computed live from delivered `checkout.orders` (per-store commission via
+// `directory.stores.platform_fee_pct`, TCS/TDS split by gross share) — `payments.settlement_ledger`
+// is the legacy read view and has no writer. Money is server-derived (paisa on the wire); the
+// client never writes a ledger row.
 package payouts
 
 import (
@@ -17,7 +19,8 @@ import (
 	"github.com/faazio/server/gateway/internal/platform/db"
 )
 
-// LedgerEntry is one payments.settlement_ledger row (amounts in whole rupees on the wire).
+// LedgerEntry is one per-(seller, order) settlement row derived live from delivered orders (amounts
+// in whole rupees on the wire).
 type LedgerEntry struct {
 	EntryID     string `json:"entryId"`
 	SellerID    string `json:"sellerId"`
@@ -93,8 +96,11 @@ var ErrAboveBalance = errors.New("payouts: amount exceeds outstanding balance")
 
 // sellerEarningsCTE aggregates delivered order earnings to the store level. Each plotted line is
 // attributed to its own vendor store's platform_fee_pct (0078 store_id), so multi-store orders are
-// charged the correct per-store fee instead of guessing from vendor_store_ids[1]. Order-level TCS
-// and TDS are allocated to each seller proportionally to their gross share of the order.
+// charged the correct per-store fee instead of guessing from vendor_store_ids[1]. Commission is
+// rounded per order line (sum of per-line percentOf, mirroring taxmath.Compute) so the payout equals
+// the order invoice to the paisa. Order-level TCS and TDS are allocated to each seller
+// proportionally to their gross share of the order (both remain statutory on gross, also matching
+// taxmath).
 const sellerEarningsCTE = `
 with seller_lines as (
   select st.seller_id,
@@ -104,7 +110,7 @@ with seller_lines as (
          to_char(o.placed_at, 'YYYY-MM') as cycle,
          o.order_id,
          sum(oi.unit_price_paisa * oi.qty)::bigint as gross_paisa,
-         round(sum(oi.unit_price_paisa * oi.qty) * coalesce(st.platform_fee_pct, 0) / 100.0)::bigint as commission_paisa
+         sum(round(oi.unit_price_paisa * oi.qty * coalesce(st.platform_fee_pct, 0) / 100.0))::bigint as commission_paisa
     from checkout.order_items oi
     join checkout.orders o on o.order_id = oi.order_id
     join directory.stores st on st.id = oi.store_id
@@ -114,6 +120,38 @@ with seller_lines as (
      and st.seller_id is not null and st.seller_id <> ''
    group by st.id, st.platform_fee_pct, st.seller_id, sl.business_name, sl.state_code,
             sl.district_code, to_char(o.placed_at, 'YYYY-MM'), o.order_id
+),
+order_gross as (
+  select o.order_id,
+         sum(oi.unit_price_paisa * oi.qty)::bigint as gross_paisa
+    from checkout.order_items oi
+    join checkout.orders o on o.order_id = oi.order_id
+    join directory.stores st on st.id = oi.store_id
+   where o.status = 'Delivered' and o.total_charged_paisa > 0
+     and oi.store_id is not null
+   group by o.order_id
+)
+`
+
+// settlementLedgerCTE derives the seller-facing ledger rows live from delivered orders — the legacy
+// payments.settlement_ledger table has no writer since the manual-payout switch (0077), so the read
+// must compute instead of reading. One row per (seller, order): per-store commission rounding
+// (matching taxmath.Compute) and the order-level TCS/TDS/product-GST/platform-GST allocated to each
+// seller by their gross share of the order — the same basis as the admin board, so the seller
+// console ledger == payout invoice == per-order tax invoice to the paisa.
+const settlementLedgerCTE = `
+with seller_lines as (
+  select st.seller_id,
+         o.order_id,
+         to_char(o.placed_at, 'YYYY-MM') as cycle,
+         sum(oi.unit_price_paisa * oi.qty)::bigint as gross_paisa,
+         sum(round(oi.unit_price_paisa * oi.qty * coalesce(st.platform_fee_pct, 0) / 100.0))::bigint as commission_paisa
+    from checkout.order_items oi
+    join checkout.orders o on o.order_id = oi.order_id
+    join directory.stores st on st.id = oi.store_id
+   where o.status = 'Delivered' and o.total_charged_paisa > 0
+     and oi.store_id is not null and st.seller_id is not null and st.seller_id <> ''
+   group by st.id, st.seller_id, o.order_id, to_char(o.placed_at, 'YYYY-MM')
 ),
 order_gross as (
   select o.order_id,
@@ -142,17 +180,29 @@ func (r *Repo) ready() error {
 	return nil
 }
 
-// Ledger returns settlement entries for a seller (optionally one cycle).
+// Ledger returns settlement entries for a seller (optionally one cycle). Rows are computed live
+// from delivered orders (settlementLedgerCTE) — one per (seller, order) — because the legacy
+// payments.settlement_ledger table has no writer. Entry amounts are exposed in whole rupees.
 func (r *Repo) Ledger(ctx context.Context, sellerID, cycle string) ([]LedgerEntry, error) {
 	if err := r.ready(); err != nil {
 		return nil, err
 	}
-	rows, err := r.pool.Query(ctx, `
-		select entry_id, seller_id, cycle, order_value_paisa, commission_paisa, tcs_paisa,
-		       tds_paisa, product_tax_paisa, platform_gst_paisa, net_paisa
-		  from payments.settlement_ledger
-		 where ($1 = '' or seller_id = $1) and ($2 = '' or cycle = $2)
-		 order by cycle desc, created_at desc`, sellerID, cycle)
+	rows, err := r.pool.Query(ctx, settlementLedgerCTE+`
+		select 'led-' || s.order_id || '-' || s.seller_id as entry_id,
+		       s.seller_id, s.cycle,
+		       s.gross_paisa, s.commission_paisa,
+		       round(o.tcs_paisa * s.gross_paisa::numeric / nullif(og.gross_paisa, 0))::bigint,
+		       round(o.tds_paisa * s.gross_paisa::numeric / nullif(og.gross_paisa, 0))::bigint,
+		       round(o.product_tax_paisa * s.gross_paisa::numeric / nullif(og.gross_paisa, 0))::bigint,
+		       round(o.platform_gst_paisa * s.gross_paisa::numeric / nullif(og.gross_paisa, 0))::bigint,
+		       s.gross_paisa - s.commission_paisa
+		         - round(o.tcs_paisa * s.gross_paisa::numeric / nullif(og.gross_paisa, 0))
+		         - round(o.tds_paisa * s.gross_paisa::numeric / nullif(og.gross_paisa, 0))::bigint
+		  from seller_lines s
+		  join checkout.orders o on o.order_id = s.order_id
+		  join order_gross og on og.order_id = s.order_id
+		 where ($1 = '' or s.seller_id = $1) and ($2 = '' or s.cycle = $2)
+		 order by o.placed_at desc, s.order_id`, sellerID, cycle)
 	if err != nil {
 		return nil, err
 	}

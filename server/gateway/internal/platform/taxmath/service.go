@@ -3,10 +3,13 @@
 //
 // Model (single source of truth):
 //   - Catalog prices are GST-inclusive. For a line at rate r, taxable = gross * 100 / (100+r).
-//   - Platform commission is removed: sellers keep their full GST-inclusive gross. Only the
-//     statutory TCS (1%) and TDS (0.1%) are withheld from the seller. GST on the (now zero)
-//     commission is therefore zero too — there is no platform cut in any settlement.
-//   - TCS (1%) and TDS (0.1%) are withheld from the seller's gross, never charged to the customer.
+//   - Platform commission is charged per line at the seller-set rate (each store's
+//     directory.stores.platform_fee_pct), so multi-store orders settle each store's own fee. GST on
+//     the commission is the platform's liability: it is recorded (PlatformGSTPaisa) but never
+//     withheld from the seller — mirroring the payouts ledger and the portal "What you keep" preview.
+//   - TCS (1%) and TDS (0.1%) are withheld from the seller's gross, never charged to the customer,
+//     and stay statutory on the gross (not gross − commission).
+//   - Seller net = gross − platform commission − TCS − TDS, matching the payout settlement exactly.
 //   - The customer pays product gross + the delivery fee, less platform-funded discounts. Product
 //     GST is already inside the gross (pass-through), and the delivery fee is dynamic per order
 //     (tax.delivery_fee_settings; PICKUP waives it).
@@ -50,9 +53,9 @@ func DefaultRates() Rates {
 type Line struct {
 	GrossPaisa int64
 	GSTRatePct int
-	// PlatformFeePct is retained for structural compatibility (callers still pass it) but is
-	// deliberately IGNORED by Compute: platform commission is removed, so a fee here never changes
-	// the breakdown or the seller's payout.
+	// PlatformFeePct is each line's seller-set commission, charged on the GST-inclusive gross
+	// (the store's directory.stores.platform_fee_pct). 0 means a commission-free seller: the fee
+	// and its GST are both zero and the seller keeps the full gross minus statutory TCS/TDS.
 	PlatformFeePct int
 }
 
@@ -71,8 +74,10 @@ type Breakdown struct {
 	EffectiveGSTRate  int   `json:"taxRatePct"`
 }
 
-// Compute splits the order's GST-inclusive gross into taxable value, product GST, statutory TCS/TDS
-// and the customer/seller totals. Platform commission/GST are always zero — sellers keep the gross.
+// Compute splits the order's GST-inclusive gross into taxable value, product GST, per-store platform
+// commission, statutory TCS/TDS and the customer/seller totals. Commission is charged per line's
+// PlatformFeePct (summed across stores), its GST is the platform's liability (recorded, not
+// withheld), and SellerNet = gross − commission − TCS − TDS (clamped at 0).
 func Compute(lines []Line, rates Rates) Breakdown {
 	if rates.PlatformGSTPct < 0 {
 		rates.PlatformGSTPct = 0
@@ -101,15 +106,18 @@ func Compute(lines []Line, rates Rates) Breakdown {
 		b.GrossProductPaisa += gross
 		b.TaxableValuePaisa += taxable
 		b.ProductTaxPaisa += gross - taxable
+		// Platform commission: charged per line at the seller-set rate so multi-store orders settle
+		// each vendor's own fee. percentOf returns 0 for a commission-free line (PlatformFeePct 0).
+		b.PlatformFeePaisa += percentOf(gross, float64(l.PlatformFeePct))
 	}
-	// Platform commission removed (seller keeps full gross): both the fee and its GST are zero.
-	b.PlatformFeePaisa = 0
-	b.PlatformGSTPaisa = 0
+	// GST on the commission is the platform's own liability — recorded on the invoice for the
+	// platform to remit, never withheld from the seller. TCS/TDS stay statutory on the gross.
+	b.PlatformGSTPaisa = percentOf(b.PlatformFeePaisa, rates.PlatformGSTPct)
 	b.DeliveryFeePaisa = rates.DeliveryFeePaisa
 	b.TCSPaisa = percentOf(b.GrossProductPaisa, rates.TCSPct)
 	b.TDSPaisa = percentOf(b.GrossProductPaisa, rates.TDSPct)
 	b.TotalChargedPaisa = b.GrossProductPaisa + b.DeliveryFeePaisa
-	b.SellerNetPaisa = b.GrossProductPaisa - b.TCSPaisa - b.TDSPaisa
+	b.SellerNetPaisa = b.GrossProductPaisa - b.PlatformFeePaisa - b.TCSPaisa - b.TDSPaisa
 	if b.SellerNetPaisa < 0 {
 		b.SellerNetPaisa = 0
 	}

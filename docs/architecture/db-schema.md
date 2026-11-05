@@ -1186,6 +1186,8 @@ CREATE TABLE ads.sponsored_slots (slot_id PK, seller_id FK, product_id, placemen
 
 CREATE TABLE payments.settlement_ledger (entry_id PK, seller_id FK, cycle TEXT /* YYYY-MM */,
   order_value_paisa INT8, commission_paisa INT8, tcs_paisa INT8, net_paisa INT8);  -- service_role only
+-- legacy read view: has no writer since the manual-payout switch (0077) — `payouts.Ledger` and the
+-- admin board compute rows live from delivered `checkout.orders` (per-store fee + gross-share TCS/TDS).
 CREATE TABLE payments.payouts (payout_id PK, seller_id FK, cycle, amount_paisa INT8,
   status payout_status, scheduled_for TIMESTAMPTZ);
 
@@ -2042,9 +2044,11 @@ CREATE TABLE delivery.delivery_payouts (
 - Catalog prices are **GST-inclusive**. `taxable = gross*100/(100+rate)`, product GST =
   `gross − taxable`. The customer pays product gross + delivery fee − platform-funded coupon;
   coins are a payment tender, not a discount.
-- **Platform commission is removed.** `taxmath.Compute` yields
-  `platform_fee_paisa = 0` and `platform_gst_paisa = 0` regardless of `sellers.platform_fee_pct`;
-  sellers keep their full GST-inclusive gross. `seller_net_paisa = gross − TCS − TDS`.
+- **Platform commission is charged** per line at each store's `directory.stores.platform_fee_pct`
+  (`taxmath.Compute` sums per-line `percentOf(gross, fee)`); its GST (`platform_gst_paisa`, 18%) is the
+  platform's own liability — recorded on the invoice but never withheld from the seller. TCS/TDS stay
+  statutory on gross, so `seller_net_paisa = gross − commission − TCS − TDS` (clamped at 0).
+  Commission-free sellers (`platform_fee_pct = 0`) keep `seller_net_paisa = gross − TCS − TDS`.
 - TCS (1%) and TDS (0.1%) are withheld from seller gross and recorded on the invoice and the
   settlement ledger. The previous hardcoded `TCS: 0` in `settlement` is gone.
 - **Customer delivery fee is dynamic** (replaces the flat ₹50/`delivery_fee_paisa` for new orders):

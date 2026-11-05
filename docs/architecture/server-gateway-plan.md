@@ -153,8 +153,10 @@ caller) and are event-purged on store live toggle and product edit/status change
   `sellers.sellers.platform_fee_pct`; one `PENDING` row per seller (`0049`).
 - **Tax + invoicing (`internal/tax` + `internal/platform/taxmath`, `0051` + `0053`):** every order is priced server-side from
   `tax.tax_rates` + `tax.platform_settings` (GST-inclusive split, TCS 1% / TDS 0.1% withheld).
-  **Platform commission is removed** — sellers keep their full GST-inclusive gross (product GST is a
-  pass-through; platform fee/GST are zero in `taxmath.Compute`). The **delivery fee is dynamic**:
+  **Platform commission is charged** per line at each store's `directory.stores.platform_fee_pct`
+  (`taxmath.Compute` sums per-line `percentOf(gross, fee)`; GST on the commission is recorded as the
+  platform's liability, not withheld from the seller), so `SellerNet = gross − commission − TCS − TDS`
+  — the same arithmetic as the payouts ledger and the portal "What you keep" preview. The **delivery fee is dynamic**:
   PICKUP waives it; DELIVERY distances `directory.stores` pins to the customer's live drop fix
   (Haversine, fractional km rounded to paisa) and applies the `tax.delivery_fee_settings` rate card
   (default 3 km / ₹35 / ₹7 per extra km) plus night/rain/festival surge (`internal/weather` +
@@ -165,7 +167,7 @@ caller) and are event-purged on store live toggle and product edit/status change
   `GET /orders/{orderId}/invoice` (owner-scoped; presigned R2 URL only when a PDF exists). Portal:
   `GET /tax/categories`, `GET|PUT /admin/tax/categories`, `DELETE /admin/tax/categories/{id}`,
   `GET|PUT /admin/tax/settings` (SUPER_ADMIN writes). Settlement ledger carries the same
-  TDS/product-GST/platform-GST figures (commission now zero).
+  TDS/product-GST/platform-GST figures plus the per-store commission.
 - **Central remote config (`internal/appconfig`, `0059`):** public `GET /app-config?variant=customer|delivery|seller`
   serves the `admins.app_config` **public** rows (no auth — the app fetches it on cold boot, before
   login) so a SUPER_ADMIN portal edit reaches every app on the next boot with no app-store release.
