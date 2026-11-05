@@ -8,13 +8,9 @@ import {
   CheckCircle2,
   ChevronRight,
   Circle,
-  Info,
-  Lock,
   MoreVertical,
   TriangleAlert,
-  Upload,
 } from "lucide-react";
-import { toast } from "sonner";
 import { HubHeader } from "@/components/sellers/shells";
 import { Card, EmptyState, PillTabs, Sheet } from "@/components/sellers/kit";
 import { LineSpark, Bars } from "@/components/sellers/charts";
@@ -64,7 +60,6 @@ function Hub() {
   const series = useAnalyticsSeries("seller", sellerId, 30);
   const rush = useSellerUi((s) => s.rush);
   const [tab, setTab] = useState<Tab>("feed");
-  const [uploaded, setUploaded] = useState(false);
   const [dateOpen, setDateOpen] = useState(false);
 
   // The kitchen tab is food vocabulary; non-food shops see "Operations".
@@ -113,39 +108,6 @@ function Hub() {
       <div className="space-y-3 px-4 pt-3">
         {tab === "feed" && (
           <>
-            <Card>
-              <div className="flex items-start justify-between">
-                <div>
-                  <p className="flex items-center gap-1 text-sm font-bold">
-                    Onboarding benefits <Info className="h-3 w-3" />
-                  </p>
-                  <p className="text-[10px] font-semibold text-brand">
-                    {uploaded ? "UNLOCKED" : "LOCKED"}
-                  </p>
-                </div>
-                <Lock className="h-5 w-5" />
-              </div>
-              <p className="mt-3 flex items-center gap-2 text-sm">₹1,500 worth of ads</p>
-              <p className="mt-2 rounded-lg bg-muted p-2 text-[11px]">
-                ☐ Upload product images to unlock benefits {uploaded && "✓"}
-              </p>
-              <label className="mt-3 flex w-full cursor-pointer items-center justify-center gap-2 rounded-xl bg-foreground py-3 text-sm font-semibold text-background">
-                <Upload className="h-4 w-4" />
-                Upload image
-                <input
-                  type="file"
-                  accept="image/*"
-                  multiple
-                  className="hidden"
-                  onChange={(e) => {
-                    if (e.target.files?.length) {
-                      setUploaded(true);
-                      toast.success(`${e.target.files.length} image(s) uploaded for review`);
-                    }
-                  }}
-                />
-              </label>
-            </Card>
             <Card>
               <p className="text-sm font-bold">Today so far</p>
               <div className="mt-3 grid grid-cols-2 gap-3 text-xs">
