@@ -173,8 +173,9 @@ pre-existing admin cookie, so an admin can never loop into a blocked route; the 
 also signs out any admin session it encounters. The web portal is unchanged: a plain browser has no
 `window.__faazio`, so admins sign in normally.
 
-**Sign-in copy + legal links.** The `/login` eyebrow reads `Sign in` (not role-specific), and beneath
-the button a muted acceptance row reads `By continuing, you agree to our Terms & Conditions and
+**Sign-in copy + legal links.** The `/login` card keeps the `FaazioWordmark` and leads with a
+`Welcome back` heading plus the muted subtitle `Sign in to continue to Faazio` (not role-specific),
+and beneath the button a muted acceptance row reads `By continuing, you agree to our Terms & Conditions and
 Privacy Policy`. Both are links driven by `src/lib/config.ts` and always resolve: `termsUrl`
 (`NEXT_PUBLIC_TERMS_URL`, defaulting to the landing page `/terms`) and `privacyUrl`
 (`NEXT_PUBLIC_PRIVACY_URL`, defaulting to the landing page `/privacy`). In a plain

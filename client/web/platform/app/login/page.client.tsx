@@ -1,6 +1,7 @@
 "use client";
 import { useRouter } from "next/navigation";
 import { Suspense, useCallback, useEffect, useRef, useState } from "react";
+import { ArrowRight, Eye, EyeOff, Lock, Mail, ShieldCheck } from "lucide-react";
 import { toast } from "sonner";
 import { signIn, signOut } from "@/lib/api";
 import { hydrateFromGateway } from "@/lib/api/sync";
@@ -71,6 +72,7 @@ function LoginPage() {
   const session = useSession();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [passwordVisible, setPasswordVisible] = useState(false);
   const [remember, setRemember] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -163,43 +165,69 @@ function LoginPage() {
   }
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-background px-4 py-10">
-      <div className="w-full max-w-md">
-        <div className="mb-5 flex items-center gap-2.5">
-          <div className="min-w-0">
-            <FaazioWordmark className="h-[22px] w-auto text-primary" />
-            <p className="mt-0.5 text-[12px] text-muted-foreground">Sign in</p>
-          </div>
-        </div>
+    <div className="relative flex min-h-screen items-center justify-center overflow-hidden bg-background px-4 py-10">
+      <div
+        aria-hidden="true"
+        className="pointer-events-none absolute -right-32 -top-40 size-[420px] rounded-full border-[36px] border-primary/[0.06] sm:-right-24 sm:-top-32"
+      />
+      <div
+        aria-hidden="true"
+        className="pointer-events-none absolute -bottom-48 -left-40 size-[480px] rounded-full border-[48px] border-primary/[0.05] sm:-bottom-40 sm:-left-32"
+      />
 
+      <div className="relative w-full max-w-[420px]">
         <form
-          className="surface space-y-4 p-5"
+          className="space-y-4 rounded-[28px] border border-border/60 bg-card p-6 shadow-lift sm:p-7"
           onSubmit={(event) => {
             event.preventDefault();
             void submit(email, password);
           }}
         >
+          <div>
+            <FaazioWordmark className="h-[22px] w-auto text-primary" />
+            <h1 className="mt-4 text-[26px] font-semibold leading-tight tracking-tight text-foreground">
+              Welcome back
+            </h1>
+            <p className="mt-1 text-[14px] text-muted-foreground">Sign in to continue to Faazio</p>
+          </div>
+
           <div className="space-y-1.5">
             <Label htmlFor="email">Work email</Label>
-            <Input
-              id="email"
-              type="email"
-              autoComplete="username"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              placeholder="you@faazio.com"
-            />
+            <div className="relative">
+              <Mail className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+              <Input
+                id="email"
+                type="email"
+                autoComplete="username"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                placeholder="you@faazio.com"
+                className="h-10 border-input/60 bg-background pl-9"
+              />
+            </div>
           </div>
           <div className="space-y-1.5">
             <Label htmlFor="password">Password</Label>
-            <Input
-              id="password"
-              type="password"
-              autoComplete="current-password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              placeholder="Your password"
-            />
+            <div className="relative">
+              <Lock className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+              <Input
+                id="password"
+                type={passwordVisible ? "text" : "password"}
+                autoComplete="current-password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                placeholder="Your password"
+                className="h-10 border-input/60 bg-background pl-9 pr-10"
+              />
+              <button
+                type="button"
+                onClick={() => setPasswordVisible((value) => !value)}
+                aria-label={passwordVisible ? "Hide password" : "Show password"}
+                className="absolute right-2 top-1/2 grid size-7 -translate-y-1/2 place-items-center rounded-md text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+              >
+                {passwordVisible ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
+              </button>
+            </div>
           </div>
           <div className="flex items-center gap-2.5">
             <Checkbox
@@ -219,6 +247,7 @@ function LoginPage() {
           {error ? <p className="text-[12px] text-destructive">{error}</p> : null}
           <Button type="submit" className="w-full" disabled={busy}>
             {busy ? "Signing in..." : "Sign in"}
+            {busy ? null : <ArrowRight className="size-4" />}
           </Button>
           <p className="text-center text-[12px] leading-relaxed text-muted-foreground">
             By continuing, you agree to our{" "}
@@ -242,9 +271,12 @@ function LoginPage() {
           </p>
         </form>
 
-        <p className="mt-4 text-[12px] text-muted-foreground">
-          Access is issued by a Faazio superadmin. Ask them to reset your password if you are
-          locked out.
+        <p className="mt-6 flex items-start justify-center gap-2 px-2 text-left text-[12px] leading-relaxed text-muted-foreground">
+          <ShieldCheck className="mt-0.5 size-4 shrink-0" />
+          <span>
+            Access is issued by a Faazio superadmin. Ask them to reset your password if you are
+            locked out.
+          </span>
         </p>
       </div>
     </div>
